@@ -308,6 +308,13 @@ test_that("los vinculos y fechas nuevas se validan", {
   )
   expect_error(
     especializar(
+      oportunidad, fecha_solicitud = as.Date("2026-01-02"),
+      fecha_fin_utilidad = as.Date("2026-01-01")
+    ),
+    "invertido"
+  )
+  expect_error(
+    especializar(
       oportunidad, fecha_solicitud = "2026-01-01",
       fecha_fin_utilidad = as.Date("2026-01-02")
     ),

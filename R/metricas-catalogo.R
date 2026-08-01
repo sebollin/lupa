@@ -227,11 +227,19 @@
   n <- max(length(inicio), length(fin))
   diferencia <- rep(.fecha_numerica(fin), length.out = n) -
     rep(.fecha_numerica(inicio), length.out = n)
-  if (any(!is.finite(diferencia)) || any(diferencia <= 0)) {
+  if (any(!is.finite(diferencia))) {
+    stop("El intervalo contiene una duraci\u00f3n no finita.", call. = FALSE)
+  }
+  if (any(diferencia == 0)) {
+    stop(
+      "El intervalo tiene duraci\u00f3n cero y no define oportunidad.",
+      call. = FALSE
+    )
+  }
+  if (any(diferencia < 0)) {
     stop(
       "`", nombre_fin, "` debe ser posterior a `", nombre_inicio,
-      "`; un intervalo de duraci\u00f3n cero no define oportunidad.",
-      call. = FALSE
+      "`; el intervalo est\u00e1 invertido.", call. = FALSE
     )
   }
   invisible(TRUE)

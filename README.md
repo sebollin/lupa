@@ -10,7 +10,9 @@ calidad permite declarar, especializar, instanciar, medir y evaluar métricas co
 granularidad explícita. El núcleo incluye catorce métricas automatizables y
 `catalogo_agesic()` documenta, fila por fila, el estado de las 49 entradas del
 marco. La capa de remediación propone un plan editable y nunca modifica datos
-como efecto del diagnóstico.
+como efecto del diagnóstico. El histórico versionado acumula evaluaciones como
+una tabla plana y permite detectar deriva tanto del modelo de calidad como del
+perfil estructural entre entregas.
 
 ```r
 library(lupa)
@@ -22,6 +24,10 @@ p$hallazgos
 
 catalogo <- catalogo_agesic()
 subset(catalogo, estado == "via_agregacion")
+
+# Dos entregas se comparan sin exigir que tengan exactamente las mismas columnas.
+deriva <- comparar_perfiles(perfil_enero, perfil_febrero)
+subset(deriva, severidad != "ok")
 
 plan <- planificar_limpieza(p)
 plan[, c("grupo", "columna", "estrategia", "recomendada", "aplicar")]

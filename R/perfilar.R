@@ -24,6 +24,8 @@
 #'
 #' @param datos Objeto que hereda de `data.frame`.
 #' @param nombre Nombre descriptivo del objeto.
+#' @param fecha Fecha y hora de la corrida. Se puede fijar para construir series
+#'   reproducibles; se normaliza a UTC.
 #' @param muestra Máximo de filas usadas para patrones e inferencia de tipos.
 #'   Use `Inf` para analizar todas las filas.
 #' @param max_patrones Máximo de patrones mostrados por columna.
@@ -48,6 +50,7 @@
 #' summary(perfil)
 perfilar <- function(datos,
                      nombre = deparse(substitute(datos)),
+                     fecha = Sys.time(),
                      muestra = 1e5,
                      max_patrones = 20,
                      distinguir_mayusculas = TRUE,
@@ -62,6 +65,11 @@ perfilar <- function(datos,
                      sentinelas_numericos = numeric()) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
+  }
+  fecha_hora <- tryCatch(.fecha_utc(fecha), error = function(e) NA)
+  if (length(fecha_hora) != 1L || is.na(fecha_hora) ||
+      !is.finite(as.numeric(fecha_hora))) {
+    stop("`fecha` debe contener una fecha y hora v\u00e1lida.", call. = FALSE)
   }
   umbrales <- c(
     umbral_alta_cardinalidad, umbral_faltantes_sospechoso,
@@ -146,11 +154,16 @@ perfilar <- function(datos,
   )
   meta <- list(
     nombre = nombre,
-    fecha_hora = Sys.time(),
+    fecha_hora = fecha_hora,
     version = .version_paquete(),
     filas_totales = nrow(datos),
     filas_analizadas = min(nrow(datos), floor(muestra)),
     muestreo = nrow(datos) > muestra,
+    muestra = muestra,
+    max_patrones = max_patrones,
+    distinguir_mayusculas = distinguir_mayusculas,
+    expandir = expandir,
+    umbral_patron_raro = umbral_patron_raro,
     sentinelas_numericos = .numeros_na(sentinelas_numericos)
   )
   estructura <- list(

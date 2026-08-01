@@ -6,6 +6,7 @@
 perfilar(
   datos,
   nombre = deparse(substitute(datos)),
+  fecha = Sys.time(),
   muestra = 1e+05,
   max_patrones = 20,
   distinguir_mayusculas = TRUE,
@@ -24,6 +25,9 @@ perfilar(
 \item{datos}{Objeto que hereda de \code{data.frame}.}
 
 \item{nombre}{Nombre descriptivo del objeto.}
+
+\item{fecha}{Fecha y hora de la corrida. Se puede fijar para construir series
+reproducibles; se normaliza a UTC.}
 
 \item{muestra}{Máximo de filas usadas para patrones e inferencia de tipos.
 Use \code{Inf} para analizar todas las filas.}

@@ -7,7 +7,8 @@ Description: Profiles administrative data, discovers structural patterns in
     character columns, infers implicit types, identifies mixed date formats,
     and returns reusable findings about potential data issues. Defines reusable
     quality metrics with explicit granularity, typed aggregation, evaluation
-    profiles, and a traceable mapping to the framework metric catalogue.
+    profiles, a versioned history of evaluations, structural drift detection,
+    and a traceable mapping to the framework metric catalogue.
     Produces editable cleaning plans and applies only explicitly
     selected actions while retaining an audit log. The conceptual basis is the
     Data Quality Management Framework for
