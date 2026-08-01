@@ -58,6 +58,19 @@ test_that("las cadenas de ausencia están congeladas dentro del paquete", {
   expect_false("valor corriente" %in% cadenas)
 })
 
+test_that("los marcadores con escape de regex se comparan como literales", {
+  resultado <- perfilar(data.frame(x = c("?", "*", "dato")))
+
+  expect_equal(resultado$columnas$n_faltantes_disfrazados, 2L)
+  expect_match(
+    resultado$hallazgos$evidencia[
+      resultado$hallazgos$tipo_hallazgo == "faltantes_disfrazados"
+    ],
+    "?",
+    fixed = TRUE
+  )
+})
+
 test_that("un posible identificador exige forma y alta unicidad", {
   datos <- data.frame(
     edad = c(21, 22, 25, 31, 40, 45, 52, 63, 70, 81),

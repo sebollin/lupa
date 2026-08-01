@@ -1,0 +1,51 @@
+% Please edit documentation in R/agregacion.R
+\name{agregar}
+\alias{agregar}
+\title{Agregar medidas entre granularidades}
+\usage{
+agregar(
+  medidas,
+  destino,
+  funcion = c("ratio", "ratio_umbral", "promedio", "promedio_ponderado"),
+  umbral = NULL,
+  pesos = NULL
+)
+}
+\arguments{
+\item{medidas}{Data frame producido por \code{medir()} o una agregación anterior.
+Debe contener una sola métrica específica, una corrida y una granularidad.}
+
+\item{destino}{Granularidad de destino.}
+
+\item{funcion}{Una de \code{"ratio"}, \code{"ratio_umbral"}, \code{"promedio"} o
+\code{"promedio_ponderado"}.}
+
+\item{umbral}{Umbral en \verb{[0, 1]} requerido por \code{ratio_umbral}.}
+
+\item{pesos}{Vector numérico requerido por \code{promedio_ponderado}, con una
+entrada por fila de \code{medidas}.}
+}
+\value{
+Objeto \code{medicion} agregado, con una fila por objeto de destino.
+}
+\description{
+Aplica exactamente una de las cuatro agregaciones del marco: \code{ratio},
+\code{ratio_umbral}, \code{promedio} o \code{promedio_ponderado}. La transición se valida
+contra el grafo de \code{transiciones_granularidad()}.
+}
+\details{
+\code{ratio} sólo acepta medidas booleanas. \code{ratio_umbral} sólo acepta medidas
+reales. Los promedios aceptan ambos tipos y siempre producen resultado real
+en \verb{[0, 1]}. Para el promedio ponderado, los pesos deben estar en \verb{[0, 1]} y
+sumar uno dentro de cada objeto de destino.
+
+No existe una transición hacia factor, dimensión o modelo: esos campos son
+taxonómicos y esta función no calcula un índice global.
+}
+\examples{
+nucleo <- metricas_nucleo()
+especifica <- especializar(nucleo$NoNulo)
+instancia <- instanciar(especifica, "personas", "edad")
+medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
+agregar(medidas, "atributo", "ratio")
+}

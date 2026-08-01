@@ -1,0 +1,29 @@
+% Please edit documentation in R/evaluacion.R
+\name{evaluar}
+\alias{evaluar}
+\title{Evaluar medidas, reglas y perfiles}
+\usage{
+evaluar(medicion, perfil)
+}
+\arguments{
+\item{medicion}{Data frame producido por \code{medir()}. Puede reunir varias
+corridas si conserva sus \code{id_medicion}.}
+
+\item{perfil}{Objeto creado por \code{perfil_evaluacion()}.}
+}
+\value{
+Objeto \code{evaluacion_calidad} con tres data frames filtrables:
+\code{medidas}, \code{reglas} y \code{perfiles}.
+}
+\description{
+Ejecuta la cadena formal: condición por medida, proporción de medidas que
+cumplen cada regla y media aritmética simple de las reglas del perfil.
+}
+\examples{
+nucleo <- metricas_nucleo()
+especifica <- especializar(nucleo$NoNulo)
+instancia <- instanciar(especifica, "personas", "edad")
+medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
+regla <- regla_evaluacion("Al menos 90\%", function(x) x > 0.9)
+evaluar(medidas, perfil_evaluacion("Avanzado", regla))
+}

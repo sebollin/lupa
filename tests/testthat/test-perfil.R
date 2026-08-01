@@ -48,6 +48,10 @@ test_that("el muestreo no limita las métricas calculadas sobre todas las filas"
   expect_true(resultado$meta$muestreo)
   expect_equal(resultado$columnas$n_espacios_borde, 50L)
   expect_equal(resultado$columnas$n, 200L)
+
+  completo <- perfilar(datos, muestra = Inf)
+  expect_equal(completo$meta$filas_analizadas, 200)
+  expect_false(completo$meta$muestreo)
 })
 
 test_that("se detectan faltantes disfrazados y blancos", {

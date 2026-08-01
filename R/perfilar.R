@@ -7,7 +7,10 @@
 #' Los umbrales de faltantes se aplican a la suma de ausentes reales y
 #' faltantes disfrazados. La lista de cadenas está congelada con referencia a
 #' `naniar::common_na_strings` 1.1.0 y suma extensiones habituales en datos
-#' administrativos uruguayos. No depende de la versión de naniar instalada.
+#' administrativos uruguayos. Las entradas que naniar expresa como patrones
+#' escapados se adaptan a los signos literales de interrogación, asterisco y
+#' punto porque aquí se comparan por igualdad. La lista no depende de la
+#' versión instalada.
 #' Los sentinelas numéricos predeterminados son `-9`, `-99`, `-999`, `-9999` y
 #' `999`. La lista es deliberadamente más corta que
 #' `naniar::common_na_numbers` 1.1.0: `66`, `77`, `88` y `9999` también pueden
@@ -22,6 +25,7 @@
 #' @param datos Objeto que hereda de `data.frame`.
 #' @param nombre Nombre descriptivo del objeto.
 #' @param muestra Máximo de filas usadas para patrones e inferencia de tipos.
+#'   Use `Inf` para analizar todas las filas.
 #' @param max_patrones Máximo de patrones mostrados por columna.
 #' @param distinguir_mayusculas Si se distinguen mayúsculas y minúsculas.
 #' @param expandir Si se emite un token por carácter en los patrones.

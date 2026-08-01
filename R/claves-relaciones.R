@@ -156,7 +156,7 @@ detectar_claves <- function(datos, max_combinacion = 3) {
 #' @param tabla1,tabla2 Objetos que heredan de `data.frame`.
 #' @param muestra Máximo de filas del lado verificado que se usan para estimar
 #'   cada cobertura. El muestreo es sistemático y reproducible; el lado de
-#'   referencia no se muestrea.
+#'   referencia no se muestrea. Use `Inf` para calcular todo sin muestreo.
 #'
 #' @return Data frame con columnas comparadas, cardinalidad, coincidencias y
 #'   coberturas de integridad referencial en ambas direcciones. Los atributos

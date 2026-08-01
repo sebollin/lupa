@@ -1,0 +1,32 @@
+% Please edit documentation in R/modelo-calidad.R
+\name{medir}
+\alias{medir}
+\title{Medir un modelo de calidad}
+\usage{
+medir(modelo, datos, id_medicion = NULL, fecha = Sys.time())
+}
+\arguments{
+\item{modelo}{Objeto creado por \code{modelo()}.}
+
+\item{datos}{Data frame para una sola entidad o lista con nombre de data
+frames para varias entidades.}
+
+\item{id_medicion}{Identificador de corrida. Si se omite, se genera uno.}
+
+\item{fecha}{Fecha y hora de la corrida.}
+}
+\value{
+Data frame S3 de clase \code{medicion}, con una fila por objeto medido.
+Los booleanos se almacenan como \code{0} y \code{1} en la columna común \code{resultado},
+y su semántica permanece declarada en \code{tipo_resultado}.
+}
+\description{
+Ejecuta todas las métricas instanciadas de un \code{modelo_calidad}. Cada fila es
+una medida reutilizable y conserva el identificador y la fecha de la corrida.
+}
+\examples{
+nucleo <- metricas_nucleo()
+especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
+instancia <- instanciar(especifica, "personas", "edad")
+medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
+}

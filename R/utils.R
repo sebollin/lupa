@@ -1,6 +1,6 @@
 .validar_muestra <- function(muestra) {
   if (!is.numeric(muestra) || length(muestra) != 1L || is.na(muestra) ||
-      !is.finite(muestra) || muestra < 1) {
+      muestra < 1) {
     stop("`muestra` debe ser un n\u00famero positivo.", call. = FALSE)
   }
   floor(muestra)

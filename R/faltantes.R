@@ -1,9 +1,11 @@
 .cadenas_na_naniar_1_1_0 <- c(
   "missing", "NA", "N A", "N/A", "#N/A", "NA ", " NA", "N /A",
   "N / A", " N / A", "N / A ", "na", "n a", "n/a", "na ", " na",
-  "n /a", "n / a", " a / a", "n / a ", "NULL", "null", "", "\\?",
-  "\\*", "\\."
+  "n /a", "n / a", " a / a", "n / a ", "NULL", "null", "", "?",
+  "*", "."
 )
+# naniar publica los tres últimos valores escapados para expresiones regulares.
+# Aquí se adaptan a literales porque la detección usa igualdad con %in%.
 
 .cadenas_na_locales <- c(
   "n.a", "n.a.", "nan", "none", "nil", "not available", "s/d", "sd",

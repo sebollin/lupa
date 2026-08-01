@@ -10,7 +10,7 @@ detectar_relaciones(tabla1, tabla2, muestra = 1e+05)
 
 \item{muestra}{Máximo de filas del lado verificado que se usan para estimar
 cada cobertura. El muestreo es sistemático y reproducible; el lado de
-referencia no se muestrea.}
+referencia no se muestrea. Use \code{Inf} para calcular todo sin muestreo.}
 }
 \value{
 Data frame con columnas comparadas, cardinalidad, coincidencias y
