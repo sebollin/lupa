@@ -7,7 +7,7 @@
 \usage{
 planificar_limpieza(perfil)
 
-aplicar(plan, datos)
+aplicar(plan, datos, permitir_eliminacion = FALSE, conservar_eliminados = TRUE)
 }
 \arguments{
 \item{perfil}{Objeto de clase \code{perfil} creado por \code{\link[=perfilar]{perfilar()}}.}
@@ -17,45 +17,64 @@ contrato. Puede filtrarse y editarse antes de aplicarlo.}
 
 \item{datos}{\code{data.frame}, \code{tibble} o \code{data.table} sobre el que se ejecuta el
 plan. El objeto recibido no se modifica.}
+
+\item{permitir_eliminacion}{Segundo consentimiento obligatorio para ejecutar
+acciones que eliminan filas o columnas.}
+
+\item{conservar_eliminados}{Si se conservan en el resultado las filas y
+columnas retiradas. Es \code{TRUE} de forma predeterminada.}
 }
 \value{
 \code{planificar_limpieza()} devuelve un data frame de clase
 \code{plan_limpieza}. \code{aplicar()} devuelve una lista de clase
-\code{resultado_limpieza} con \code{datos}, \code{registro} y \code{plan_aplicado}.
+\code{resultado_limpieza} con \code{datos}, \code{registro}, \code{plan_aplicado}, el \code{plan}
+sincronizado y \code{eliminados}.
 }
 \description{
 \code{planificar_limpieza()} transforma los hallazgos de un objeto \code{perfil} en un
-objeto
-de datos editable, sin modificar los datos examinados. Cada fila representa
-una acción propuesta. Sólo se marcan como recomendadas y se activan de forma
-predeterminada las transformaciones que no requieren conocimiento del
-dominio. Las decisiones contextuales quedan desactivadas y los formatos de
-fecha ambiguos quedan bloqueados.
+objeto de datos editable, sin modificar los datos examinados. Cada fila
+representa una acción propuesta. Sólo se marcan como recomendadas las
+estrategias correctas con independencia del dominio; algunas, como marcar
+valores extremos, permanecen inactivas hasta que se decida actuar. Las
+decisiones contextuales quedan desactivadas y los formatos de fecha ambiguos
+quedan bloqueados.
 }
 \details{
 \code{aplicar()} ejecuta exclusivamente las filas con \code{aplicar == TRUE}, sobre una
 copia de \code{datos}. Verifica que cada columna siga siendo identificable y que
 las conversiones sean completas antes de sustituirla. Devuelve los datos
-nuevos junto con un registro de las acciones y sus parámetros; el mismo
+nuevos junto con un registro de las acciones y sus parámetros. El mismo
 registro queda en el atributo \code{registro_limpieza} de los datos resultantes.
 
-El plan añade \code{id_accion}, \code{estado} y \code{orden} al contrato mínimo. \code{estado}
-distingue acciones \code{lista}, \code{bloqueada} e \code{informativa}; así \code{aplicar = FALSE}
-no confunde una decisión pendiente con una operación imposible. \code{orden} hace
-explícita la secuencia reproducible. \code{n_afectadas} es la estimación obtenida
-del perfil, mientras que el registro de aplicación informa \code{n_cambiadas}
-calculado sobre los datos recibidos.
+Las alternativas para un mismo hallazgo comparten \code{grupo}; las acciones
+independientes usan \code{NA}. Como máximo una alternativa de cada grupo puede
+tener \code{aplicar == TRUE}, invariante que \code{aplicar()} vuelve a validar. No se
+agrega una fila ficticia para "no hacer nada": \code{decision_grupo} distingue
+\code{pendiente}, \code{recomendada}, \code{desactivada}, \code{elegida} y \code{omitida}, mientras
+\code{recomendacion_grupo = "no_hacer_nada"} representa una recomendación
+explícita de conservar los datos. Esto permite separar un grupo aún no
+revisado de una omisión deliberada.
 
-La columna \code{reversible} indica si el resultado puede deshacerse sólo con los
-datos transformados. Agregar una marca es reversible; recortar texto,
-convertir tipos, normalizar ausencias o cambiar nombres no lo es, aunque el
-registro conserve sus parámetros.
+\code{estado} distingue acciones \code{lista}, \code{bloqueada} e \code{informativa}; \code{orden}
+fija la secuencia reproducible. \code{n_afectadas} es la estimación del perfil y
+el registro informa \code{n_cambiadas} sobre los datos recibidos. \code{reversible}
+indica si el resultado puede deshacerse sólo con los datos transformados.
+Las acciones con \code{destructiva == TRUE} eliminan filas o columnas, nunca son
+recomendadas, declaran \code{reversible == FALSE} y requieren además
+\code{permitir_eliminacion = TRUE}. Por defecto, el resultado conserva lo retirado
+en \code{eliminados}; use \code{conservar_eliminados = FALSE} para evitar ese costo de
+memoria.
+
+\code{marcar_filas_duplicadas} añade dos columnas. \code{.fila_duplicada} reproduce la
+semántica de \code{\link[=duplicated]{duplicated()}} y marca sólo las apariciones posteriores;
+\code{.grupo_duplicado} identifica a \strong{todas} las filas que participan en cada
+grupo de contenido idéntico.
 }
 \examples{
 datos <- data.frame(categoria = c(" A", "S/D", "B"))
 perfil <- perfilar(datos)
 plan <- planificar_limpieza(perfil)
-plan[, c("estrategia", "recomendada", "aplicar")]
+plan[, c("grupo", "estrategia", "recomendada", "aplicar")]
 resultado <- aplicar(plan, datos)
 resultado$datos
 }

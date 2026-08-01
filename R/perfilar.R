@@ -110,6 +110,10 @@ perfilar <- function(datos,
     sum(duplicated(datos)),
     error = function(e) NA_integer_
   )
+  n_filas_en_grupos_duplicados <- tryCatch(
+    sum(duplicated(datos) | duplicated(datos, fromLast = TRUE)),
+    error = function(e) NA_integer_
+  )
   filas_completas <- tryCatch(
     sum(stats::complete.cases(datos)),
     error = function(e) NA_integer_
@@ -128,6 +132,7 @@ perfilar <- function(datos,
     memoria_bytes = as.numeric(utils::object.size(datos)),
     filas_completas = filas_completas,
     filas_duplicadas = n_filas_duplicadas,
+    filas_en_grupos_duplicados = n_filas_en_grupos_duplicados,
     tipos_columnas = tipos_columnas,
     columnas_duplicadas = duplicadas
   )

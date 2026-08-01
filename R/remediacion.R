@@ -1,9 +1,13 @@
 .plan_vacio <- function() {
   estructura <- data.frame(
     id_accion = character(), columna = character(), hallazgo = character(),
+    grupo = character(), decision_grupo = character(),
+    recomendacion_grupo = character(),
     estrategia = character(), recomendada = logical(),
+    severidad_origen = character(), evidencia = character(),
     justificacion = character(), n_afectadas = numeric(),
-    reversible = logical(), estado = character(), aplicar = logical(),
+    reversible = logical(), destructiva = logical(),
+    estado = character(), aplicar = logical(),
     orden = integer(), stringsAsFactors = FALSE
   )
   estructura$parametros <- I(list())
@@ -13,17 +17,57 @@
 .nueva_accion <- function(columna, hallazgo, estrategia, recomendada,
                           justificacion, n_afectadas, reversible,
                           estado = "lista", aplicar = recomendada,
-                          parametros = list(), orden = 500L) {
+                          parametros = list(), orden = 500L,
+                          grupo = NA_character_,
+                          decision_grupo = NA_character_,
+                          recomendacion_grupo = NA_character_,
+                          destructiva = FALSE) {
   estructura <- data.frame(
     id_accion = "", columna = columna, hallazgo = hallazgo,
+    grupo = grupo, decision_grupo = decision_grupo,
+    recomendacion_grupo = recomendacion_grupo,
     estrategia = estrategia, recomendada = recomendada,
+    severidad_origen = NA_character_, evidencia = "",
     justificacion = justificacion,
     n_afectadas = as.numeric(n_afectadas), reversible = reversible,
+    destructiva = destructiva,
     estado = estado, aplicar = aplicar, orden = as.integer(orden),
     stringsAsFactors = FALSE
   )
   estructura$parametros <- I(list(parametros))
   estructura
+}
+
+.id_grupo <- function(indice) sprintf("grupo-%04d", indice)
+
+.nombres_snake <- function(nombres) {
+  originales <- as.character(nombres)
+  originales[is.na(originales)] <- ""
+  transliterados <- iconv(originales, from = "UTF-8", to = "ASCII//TRANSLIT")
+  transliterados[is.na(transliterados)] <- originales[is.na(transliterados)]
+  salida <- tolower(trimws(transliterados))
+  salida <- gsub("[^[:alnum:]]+", "_", salida, perl = TRUE)
+  salida <- gsub("^_+|_+$", "", salida, perl = TRUE)
+  salida[!nzchar(salida)] <- "x"
+  salida[grepl("^[0-9]", salida)] <- paste0(
+    "x_", salida[grepl("^[0-9]", salida)]
+  )
+  make.unique(salida, sep = "_")
+}
+
+.par_columnas_duplicadas <- function(perfil, hallazgo) {
+  pares <- perfil$general$columnas_duplicadas
+  if (is.null(pares) || !nrow(pares)) return(NULL)
+  evidencias <- paste(pares$columna_1, "=", pares$columna_2)
+  indices <- which(
+    pares$columna_1 == hallazgo$columna[[1L]] &
+      evidencias == hallazgo$evidencia[[1L]]
+  )
+  if (!length(indices)) {
+    indices <- which(pares$columna_1 == hallazgo$columna[[1L]])
+  }
+  if (!length(indices)) return(NULL)
+  unname(unlist(pares[indices[[1L]], c("columna_1", "columna_2")]))
 }
 
 .fila_perfil <- function(perfil, columna) {
@@ -38,16 +82,6 @@
 
 .accion_columna_ambigua <- function(perfil, columna) {
   sum(perfil$columnas$columna == columna) != 1L
-}
-
-.justificar_columna_ambigua <- function(texto, perfil, columna) {
-  if (!.accion_columna_ambigua(perfil, columna)) {
-    return(texto)
-  }
-  paste0(
-    texto, " La acci\u00f3n queda bloqueada porque el nombre '", columna,
-    "' no identifica una \u00fanica columna."
-  )
 }
 
 .estado_columna <- function(perfil, columna, estado = "lista") {
@@ -78,30 +112,42 @@
 #' Construir y aplicar un plan de limpieza auditable
 #'
 #' `planificar_limpieza()` transforma los hallazgos de un objeto `perfil` en un
-#' objeto
-#' de datos editable, sin modificar los datos examinados. Cada fila representa
-#' una acción propuesta. Sólo se marcan como recomendadas y se activan de forma
-#' predeterminada las transformaciones que no requieren conocimiento del
-#' dominio. Las decisiones contextuales quedan desactivadas y los formatos de
-#' fecha ambiguos quedan bloqueados.
+#' objeto de datos editable, sin modificar los datos examinados. Cada fila
+#' representa una acción propuesta. Sólo se marcan como recomendadas las
+#' estrategias correctas con independencia del dominio; algunas, como marcar
+#' valores extremos, permanecen inactivas hasta que se decida actuar. Las
+#' decisiones contextuales quedan desactivadas y los formatos de fecha ambiguos
+#' quedan bloqueados.
 #'
 #' `aplicar()` ejecuta exclusivamente las filas con `aplicar == TRUE`, sobre una
 #' copia de `datos`. Verifica que cada columna siga siendo identificable y que
 #' las conversiones sean completas antes de sustituirla. Devuelve los datos
-#' nuevos junto con un registro de las acciones y sus parámetros; el mismo
+#' nuevos junto con un registro de las acciones y sus parámetros. El mismo
 #' registro queda en el atributo `registro_limpieza` de los datos resultantes.
 #'
-#' El plan añade `id_accion`, `estado` y `orden` al contrato mínimo. `estado`
-#' distingue acciones `lista`, `bloqueada` e `informativa`; así `aplicar = FALSE`
-#' no confunde una decisión pendiente con una operación imposible. `orden` hace
-#' explícita la secuencia reproducible. `n_afectadas` es la estimación obtenida
-#' del perfil, mientras que el registro de aplicación informa `n_cambiadas`
-#' calculado sobre los datos recibidos.
+#' Las alternativas para un mismo hallazgo comparten `grupo`; las acciones
+#' independientes usan `NA`. Como máximo una alternativa de cada grupo puede
+#' tener `aplicar == TRUE`, invariante que `aplicar()` vuelve a validar. No se
+#' agrega una fila ficticia para "no hacer nada": `decision_grupo` distingue
+#' `pendiente`, `recomendada`, `desactivada`, `elegida` y `omitida`, mientras
+#' `recomendacion_grupo = "no_hacer_nada"` representa una recomendación
+#' explícita de conservar los datos. Esto permite separar un grupo aún no
+#' revisado de una omisión deliberada.
 #'
-#' La columna `reversible` indica si el resultado puede deshacerse sólo con los
-#' datos transformados. Agregar una marca es reversible; recortar texto,
-#' convertir tipos, normalizar ausencias o cambiar nombres no lo es, aunque el
-#' registro conserve sus parámetros.
+#' `estado` distingue acciones `lista`, `bloqueada` e `informativa`; `orden`
+#' fija la secuencia reproducible. `n_afectadas` es la estimación del perfil y
+#' el registro informa `n_cambiadas` sobre los datos recibidos. `reversible`
+#' indica si el resultado puede deshacerse sólo con los datos transformados.
+#' Las acciones con `destructiva == TRUE` eliminan filas o columnas, nunca son
+#' recomendadas, declaran `reversible == FALSE` y requieren además
+#' `permitir_eliminacion = TRUE`. Por defecto, el resultado conserva lo retirado
+#' en `eliminados`; use `conservar_eliminados = FALSE` para evitar ese costo de
+#' memoria.
+#'
+#' `marcar_filas_duplicadas` añade dos columnas. `.fila_duplicada` reproduce la
+#' semántica de [duplicated()] y marca sólo las apariciones posteriores;
+#' `.grupo_duplicado` identifica a **todas** las filas que participan en cada
+#' grupo de contenido idéntico.
 #'
 #' @param perfil Objeto de clase `perfil` creado por [perfilar()].
 #' @param plan Objeto de clase `plan_limpieza` o data frame con el mismo
@@ -111,14 +157,15 @@
 #'
 #' @return `planificar_limpieza()` devuelve un data frame de clase
 #'   `plan_limpieza`. `aplicar()` devuelve una lista de clase
-#'   `resultado_limpieza` con `datos`, `registro` y `plan_aplicado`.
+#'   `resultado_limpieza` con `datos`, `registro`, `plan_aplicado`, el `plan`
+#'   sincronizado y `eliminados`.
 #' @export
 #'
 #' @examples
 #' datos <- data.frame(categoria = c(" A", "S/D", "B"))
 #' perfil <- perfilar(datos)
 #' plan <- planificar_limpieza(perfil)
-#' plan[, c("estrategia", "recomendada", "aplicar")]
+#' plan[, c("grupo", "estrategia", "recomendada", "aplicar")]
 #' resultado <- aplicar(plan, datos)
 #' resultado$datos
 planificar_limpieza <- function(perfil) {
@@ -132,6 +179,7 @@ planificar_limpieza <- function(perfil) {
     hallazgo <- hallazgos[i, , drop = FALSE]
     tipo <- hallazgo$tipo_hallazgo[[1L]]
     columna <- hallazgo$columna[[1L]]
+    grupo_hallazgo <- .id_grupo(i)
     fila <- if (!is.na(columna)) .fila_perfil(perfil, columna) else NULL
     estado_columna <- if (!is.na(columna)) {
       .estado_columna(perfil, columna)
@@ -139,15 +187,38 @@ planificar_limpieza <- function(perfil) {
       "lista"
     }
 
-    if (identical(tipo, "faltantes_disfrazados") && !is.null(fila)) {
+    if (identical(tipo, "faltantes") && !is.null(fila) &&
+        fila$n_faltantes[[1L]] > 0L) {
+      nombre_marca <- paste0(".ausente_", make.names(columna))
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        columna, tipo, "marcar_filas_ausentes", TRUE,
+        paste0(
+          "La marca conserva los registros y permite revisar los ausentes ",
+          "antes de decidir si corresponde excluirlos."
+        ), fila$n_faltantes[[1L]], TRUE, estado = estado_columna,
+        aplicar = FALSE,
+        parametros = list(columna_marca = nombre_marca), orden = 40L,
+        grupo = grupo_hallazgo, decision_grupo = "pendiente",
+        recomendacion_grupo = "marcar_filas_ausentes"
+      ))
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        columna, tipo, "eliminar_filas_ausentes", FALSE,
+        paste0(
+          "Eliminar registros puede excluir personas o hechos del an\u00e1lisis; ",
+          "s\u00f3lo corresponde cuando el dominio confirma que el ausente invalida la fila."
+        ), fila$n_faltantes[[1L]], FALSE, estado = estado_columna,
+        aplicar = FALSE, orden = 45L, grupo = grupo_hallazgo,
+        decision_grupo = "pendiente",
+        recomendacion_grupo = "marcar_filas_ausentes",
+        destructiva = TRUE
+      ))
+    } else if (identical(tipo, "faltantes_disfrazados") && !is.null(fila)) {
       n_textuales <- fila$n_faltantes_disfrazados_textuales[[1L]]
       n_numericos <- fila$n_faltantes_disfrazados_numericos[[1L]]
       if (n_textuales > 0L) {
-        justificacion <- .justificar_columna_ambigua(
-          paste0(
-            "Las representaciones textuales del cat\u00e1logo son marcadores ",
-            "expl\u00edcitos de ausencia y pueden normalizarse sin inferir el dominio."
-          ), perfil, columna
+        justificacion <- paste0(
+          "Las representaciones textuales del cat\u00e1logo son marcadores ",
+          "expl\u00edcitos de ausencia y pueden normalizarse sin inferir el dominio."
         )
         acciones <- .agregar_accion(acciones, .nueva_accion(
           columna, tipo, "convertir_ausencias_textuales", TRUE,
@@ -160,25 +231,22 @@ planificar_limpieza <- function(perfil) {
       if (n_numericos > 0L) {
         sentinelas <- perfil$meta$sentinelas_numericos
         if (is.null(sentinelas)) sentinelas <- .numeros_na()
-        justificacion <- .justificar_columna_ambigua(
-          paste0(
-            "Un sentinela num\u00e9rico tambi\u00e9n puede ser un valor leg\u00edtimo; ",
-            "requiere confirmar el diccionario del campo."
-          ), perfil, columna
+        justificacion <- paste0(
+          "Un sentinela num\u00e9rico tambi\u00e9n puede ser un valor leg\u00edtimo; ",
+          "requiere confirmar el diccionario del campo."
         )
         acciones <- .agregar_accion(acciones, .nueva_accion(
           columna, tipo, "convertir_sentinelas_numericos", FALSE,
           justificacion, n_numericos, FALSE,
           estado = estado_columna, aplicar = FALSE,
-          parametros = list(valores = sentinelas), orden = 110L
+          parametros = list(valores = sentinelas), orden = 110L,
+          grupo = grupo_hallazgo, decision_grupo = "pendiente"
         ))
       }
     } else if (identical(tipo, "espacios_sobrantes") && !is.null(fila)) {
-      justificacion <- .justificar_columna_ambigua(
-        paste0(
-          "Los espacios al borde no aportan contenido y separan categor\u00edas ",
-          "que visualmente son iguales."
-        ), perfil, columna
+      justificacion <- paste0(
+        "Los espacios al borde no aportan contenido y separan categor\u00edas ",
+        "que visualmente son iguales."
       )
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "recortar_espacios", TRUE, justificacion,
@@ -241,7 +309,11 @@ planificar_limpieza <- function(perfil) {
         (length(confirmados) > 0L && !any(formatos$estado != "confirmado"))
       recomendar <- soportado && compatible && fecha_segura &&
         !.accion_columna_ambigua(perfil, columna)
-      estado <- if (soportado && fecha_segura) estado_columna else "informativa"
+      estado <- if (soportado && fecha_segura && compatible) {
+        estado_columna
+      } else {
+        "bloqueada"
+      }
       justificacion <- if (recomendar) {
         paste0(
           "Todos los valores presentes son compatibles con el tipo inferido; ",
@@ -257,21 +329,56 @@ planificar_limpieza <- function(perfil) {
         columna, tipo, "convertir_tipo", recomendar, justificacion,
         fila$n[[1L]] - fila$n_faltantes[[1L]], FALSE,
         estado = estado, aplicar = recomendar,
-        parametros = list(tipo = destino, formatos = confirmados), orden = 310L
+        parametros = list(tipo = destino, formatos = confirmados), orden = 310L,
+        grupo = grupo_hallazgo,
+        decision_grupo = if (recomendar) "recomendada" else "pendiente",
+        recomendacion_grupo = if (recomendar) "convertir_tipo" else NA_character_
       ))
     } else if (identical(tipo, "filas_duplicadas")) {
+      n_participantes <- perfil$general$filas_en_grupos_duplicados
+      if (is.null(n_participantes)) {
+        n_participantes <- perfil$general$filas_duplicadas
+      }
       acciones <- .agregar_accion(acciones, .nueva_accion(
         NA_character_, tipo, "marcar_filas_duplicadas", TRUE,
         paste0(
-          "Marcar conserva todas las filas y hace visible cada repetici\u00f3n; ",
-          "eliminarla exigir\u00eda una decisi\u00f3n sobre personas o registros."
-        ), perfil$general$filas_duplicadas, TRUE, estado = "lista",
-        aplicar = TRUE, parametros = list(columna_marca = ".fila_duplicada"),
-        orden = 50L
+          "Marcar conserva todas las filas, identifica las repeticiones y ",
+          "asigna un grupo a todos los registros que participan."
+        ), n_participantes, TRUE, estado = "lista", aplicar = TRUE,
+        parametros = list(
+          columna_marca = ".fila_duplicada",
+          columna_grupo = ".grupo_duplicado"
+        ), orden = 30L, grupo = grupo_hallazgo,
+        decision_grupo = "recomendada",
+        recomendacion_grupo = "marcar_filas_duplicadas"
+      ))
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        NA_character_, tipo, "conservar_primera_duplicada", FALSE,
+        paste0(
+          "Conserva la primera aparici\u00f3n exacta y elimina las siguientes; ",
+          "el orden de entrada pasa a determinar qu\u00e9 registro sobrevive."
+        ), perfil$general$filas_duplicadas, FALSE, estado = "lista",
+        aplicar = FALSE, orden = 35L, grupo = grupo_hallazgo,
+        decision_grupo = "recomendada",
+        recomendacion_grupo = "marcar_filas_duplicadas",
+        destructiva = TRUE
+      ))
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        NA_character_, tipo, "conservar_mas_completa", FALSE,
+        paste0(
+          "Requiere configurar una clave: entre duplicados exactos todas las ",
+          "filas tienen la misma completitud y esta opci\u00f3n ser\u00eda equivalente a la primera."
+        ), perfil$general$filas_duplicadas, FALSE, estado = "bloqueada",
+        aplicar = FALSE, parametros = list(clave = character()), orden = 36L,
+        grupo = grupo_hallazgo, decision_grupo = "recomendada",
+        recomendacion_grupo = "marcar_filas_duplicadas",
+        destructiva = TRUE
       ))
     } else if (identical(tipo, "outliers") && !is.null(fila)) {
+      winsor_disponible <- fila$tipo_inferido[[1L]] %in% c("entero", "doble") &&
+        isTRUE(fila$proporcion_tipo_inferido[[1L]] == 1)
       acciones <- .agregar_accion(acciones, .nueva_accion(
-        columna, tipo, "marcar_outliers", FALSE,
+        columna, tipo, "marcar_outliers", TRUE,
         paste0(
           "Un valor extremo puede ser correcto; la marca conserva el dato ",
           "para que el dominio decida c\u00f3mo tratarlo."
@@ -280,7 +387,21 @@ planificar_limpieza <- function(perfil) {
         parametros = list(
           columna_marca = paste0(".outlier_", make.names(columna)),
           regla = "Tukey 1,5 x IQR"
-        ), orden = 510L
+        ), orden = 510L, grupo = grupo_hallazgo,
+        decision_grupo = "pendiente",
+        recomendacion_grupo = "marcar_outliers"
+      ))
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        columna, tipo, "winsorizar_outliers", FALSE,
+        paste0(
+          "Sustituye los extremos por los l\u00edmites de Tukey y altera valores ",
+          "observados; s\u00f3lo debe elegirse con justificaci\u00f3n anal\u00edtica."
+        ), fila$n_outliers[[1L]], FALSE,
+        estado = if (winsor_disponible) estado_columna else "bloqueada",
+        aplicar = FALSE,
+        parametros = list(regla = "Tukey 1,5 x IQR"), orden = 520L,
+        grupo = grupo_hallazgo, decision_grupo = "pendiente",
+        recomendacion_grupo = "marcar_outliers"
       ))
     } else if (identical(tipo, "nombres_columnas_problematicos")) {
       nombres <- perfil$columnas$columna
@@ -294,17 +415,110 @@ planificar_limpieza <- function(perfil) {
         parametros = list(
           nombres_esperados = nombres,
           nombres_propuestos = make.names(nombres, unique = TRUE)
-        ), orden = 900L
+        ), orden = 900L, grupo = grupo_hallazgo,
+        decision_grupo = "recomendada",
+        recomendacion_grupo = "normalizar_nombres"
+      ))
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        NA_character_, tipo, "normalizar_nombres_snake_case", FALSE,
+        paste0(
+          "snake_case es legible y estable, pero cambia may\u00fasculas y signos; ",
+          "se ofrece como alternativa expl\u00edcita a make.names()."
+        ), nrow(problema), FALSE, estado = "lista", aplicar = FALSE,
+        parametros = list(
+          nombres_esperados = nombres,
+          nombres_propuestos = .nombres_snake(nombres)
+        ), orden = 900L, grupo = grupo_hallazgo,
+        decision_grupo = "recomendada",
+        recomendacion_grupo = "normalizar_nombres"
+      ))
+    } else if (identical(tipo, "mayusculas_inconsistentes") && !is.null(fila)) {
+      opciones <- list(
+        list(
+          estrategia = "convertir_minusculas",
+          justificacion = "Unifica la columna en min\u00fasculas; puede alterar nombres propios."
+        ),
+        list(
+          estrategia = "convertir_titulo",
+          justificacion = paste0(
+            "Capitaliza cada palabra; no conoce excepciones ling\u00fc\u00edsticas ni ",
+            "convenciones de nombres propios."
+          )
+        ),
+        list(
+          estrategia = "convertir_mayusculas",
+          justificacion = "Unifica la columna en may\u00fasculas; puede perder matices del texto."
+        ),
+        list(
+          estrategia = "convertir_segun_diccionario",
+          justificacion = paste0(
+            "Aplica un vector con nombres donde cada nombre es el valor original ",
+            "y su contenido es el valor normalizado."
+          ),
+          parametros = list(diccionario = NULL)
+        )
+      )
+      for (opcion in opciones) {
+        requiere_diccionario <- identical(
+          opcion$estrategia, "convertir_segun_diccionario"
+        )
+        acciones <- .agregar_accion(acciones, .nueva_accion(
+          columna, tipo, opcion$estrategia, FALSE, opcion$justificacion,
+          fila$n_variantes_mayusculas[[1L]], FALSE,
+          estado = if (requiere_diccionario) "bloqueada" else estado_columna,
+          parametros = if (is.null(opcion$parametros)) list() else opcion$parametros,
+          orden = 600L, grupo = grupo_hallazgo,
+          decision_grupo = "pendiente"
+        ))
+      }
+    } else if (identical(tipo, "constante") && !is.null(fila)) {
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        columna, tipo, "eliminar_columna_constante", FALSE,
+        paste0(
+          "Eliminarla pierde contexto potencial; dejarla es la recomendaci\u00f3n ",
+          "hasta confirmar que no aporta significado administrativo."
+        ), 1, FALSE, estado = estado_columna, aplicar = FALSE,
+        orden = 710L, grupo = grupo_hallazgo,
+        decision_grupo = "recomendada",
+        recomendacion_grupo = "no_hacer_nada", destructiva = TRUE
+      ))
+    } else if (identical(tipo, "columnas_duplicadas")) {
+      par <- .par_columnas_duplicadas(perfil, hallazgo)
+      estado_par <- if (
+        is.null(par) || any(vapply(par, function(nombre) {
+          sum(perfil$columnas$columna == nombre) != 1L
+        }, logical(1L)))
+      ) "bloqueada" else "lista"
+      parametros_par <- if (is.null(par)) list() else list(
+        columna_1 = par[[1L]], columna_2 = par[[2L]],
+        eliminar = par[[2L]]
+      )
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        columna, tipo, "marcar_columnas_duplicadas", TRUE,
+        paste0(
+          "La anotaci\u00f3n conserva ambas columnas y registra expl\u00edcitamente la redundancia."
+        ), 1, TRUE, estado = estado_par,
+        aplicar = identical(estado_par, "lista"),
+        parametros = parametros_par, orden = 700L,
+        grupo = grupo_hallazgo, decision_grupo = "recomendada",
+        recomendacion_grupo = "marcar_columnas_duplicadas"
+      ))
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        columna, tipo, "eliminar_columna_duplicada", FALSE,
+        paste0(
+          "Eliminar una columna puede romper consumidores que dependan de su ",
+          "nombre aunque el contenido sea redundante."
+        ), 1, FALSE, estado = estado_par, aplicar = FALSE,
+        parametros = parametros_par, orden = 705L,
+        grupo = grupo_hallazgo, decision_grupo = "recomendada",
+        recomendacion_grupo = "marcar_columnas_duplicadas",
+        destructiva = TRUE
       ))
     } else if (tipo %in% c(
-      "mayusculas_inconsistentes", "alta_cardinalidad", "constante",
-      "columnas_duplicadas", "ceros_no_permitidos", "negativos_no_permitidos"
+      "alta_cardinalidad", "ceros_no_permitidos", "negativos_no_permitidos"
     )) {
       estrategias <- c(
-        mayusculas_inconsistentes = "definir_capitalizacion",
         alta_cardinalidad = "revisar_cardinalidad",
-        constante = "revisar_columna_constante",
-        columnas_duplicadas = "revisar_columnas_duplicadas",
         ceros_no_permitidos = "revisar_ceros",
         negativos_no_permitidos = "revisar_negativos"
       )
@@ -325,10 +539,34 @@ planificar_limpieza <- function(perfil) {
     resultado <- do.call(rbind, acciones)
     rownames(resultado) <- NULL
     resultado$id_accion <- sprintf("accion-%04d", seq_len(nrow(resultado)))
+    for (j in seq_len(nrow(resultado))) {
+      indice_hallazgo <- if (!is.na(resultado$grupo[[j]])) {
+        suppressWarnings(as.integer(sub("^grupo-", "", resultado$grupo[[j]])))
+      } else {
+        candidatos <- which(
+          hallazgos$tipo_hallazgo == resultado$hallazgo[[j]] &
+            ((is.na(hallazgos$columna) & is.na(resultado$columna[[j]])) |
+               hallazgos$columna == resultado$columna[[j]])
+        )
+        if (length(candidatos)) candidatos[[1L]] else NA_integer_
+      }
+      if (!is.na(indice_hallazgo) && indice_hallazgo <= nrow(hallazgos)) {
+        resultado$evidencia[[j]] <- hallazgos$evidencia[[indice_hallazgo]]
+        resultado$severidad_origen[[j]] <- as.character(
+          hallazgos$severidad[[indice_hallazgo]]
+        )
+      }
+    }
   }
   resultado$estado <- factor(
     resultado$estado,
     levels = c("lista", "bloqueada", "informativa")
+  )
+  resultado$decision_grupo <- factor(
+    resultado$decision_grupo,
+    levels = c(
+      "pendiente", "recomendada", "desactivada", "elegida", "omitida"
+    )
   )
   class(resultado) <- c("plan_limpieza", "data.frame")
   resultado
@@ -336,9 +574,10 @@ planificar_limpieza <- function(perfil) {
 
 .columnas_plan <- function() {
   c(
-    "id_accion", "columna", "hallazgo", "estrategia", "recomendada",
-    "justificacion", "n_afectadas", "reversible", "estado", "aplicar",
-    "orden", "parametros"
+    "id_accion", "columna", "hallazgo", "grupo", "decision_grupo",
+    "recomendacion_grupo", "estrategia", "recomendada",
+    "severidad_origen", "evidencia", "justificacion", "n_afectadas",
+    "reversible", "destructiva", "estado", "aplicar", "orden", "parametros"
   )
 }
 
@@ -356,11 +595,75 @@ planificar_limpieza <- function(perfil) {
   if (!is.list(plan$parametros)) {
     stop("`plan$parametros` debe ser una columna de listas.", call. = FALSE)
   }
+  if (!is.logical(plan$recomendada) || anyNA(plan$recomendada) ||
+      !is.logical(plan$reversible)) {
+    stop(
+      "`recomendada` debe ser l\u00f3gica sin NA y `reversible` debe ser l\u00f3gica.",
+      call. = FALSE
+    )
+  }
+  if (!is.character(plan$grupo) || !is.logical(plan$destructiva) ||
+      anyNA(plan$destructiva)) {
+    stop("`grupo` debe ser texto y `destructiva` un l\u00f3gico sin NA.", call. = FALSE)
+  }
+  if (any(plan$destructiva & plan$recomendada, na.rm = TRUE)) {
+    stop("Una acci\u00f3n destructiva nunca puede ser recomendada.", call. = FALSE)
+  }
+  if (any(plan$destructiva & (is.na(plan$reversible) | plan$reversible))) {
+    stop("Toda acci\u00f3n destructiva debe declarar `reversible = FALSE`.", call. = FALSE)
+  }
   estados <- as.character(plan$estado)
+  if (anyNA(estados) || any(!estados %in% c("lista", "bloqueada", "informativa"))) {
+    stop("`estado` contiene un valor no reconocido.", call. = FALSE)
+  }
   if (any(plan$aplicar & estados != "lista")) {
     stop("S\u00f3lo se pueden aplicar acciones con estado 'lista'.", call. = FALSE)
   }
+  grupos <- unique(plan$grupo[!is.na(plan$grupo)])
+  for (grupo in grupos) {
+    indices <- which(plan$grupo == grupo)
+    activas <- indices[plan$aplicar[indices]]
+    if (length(activas) > 1L) {
+      stop(
+        "El grupo '", grupo, "' tiene acciones incompatibles activas: ",
+        paste(plan$estrategia[activas], collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+    if (anyDuplicated(plan$estrategia[indices])) {
+      stop("El grupo '", grupo, "' repite una estrategia.", call. = FALSE)
+    }
+    decisiones <- unique(as.character(plan$decision_grupo[indices]))
+    if (length(decisiones) != 1L || is.na(decisiones)) {
+      stop("El grupo '", grupo, "' debe compartir una sola decisi\u00f3n.", call. = FALSE)
+    }
+    recomendaciones <- unique(plan$recomendacion_grupo[indices])
+    recomendaciones <- recomendaciones[!is.na(recomendaciones)]
+    if (length(recomendaciones) > 1L) {
+      stop("El grupo '", grupo, "' declara recomendaciones incompatibles.", call. = FALSE)
+    }
+  }
   invisible(plan)
+}
+
+.sincronizar_decisiones <- function(plan) {
+  grupos <- unique(plan$grupo[!is.na(plan$grupo)])
+  for (grupo in grupos) {
+    indices <- which(plan$grupo == grupo)
+    activas <- indices[plan$aplicar[indices]]
+    recomendacion <- unique(plan$recomendacion_grupo[indices])
+    recomendacion <- recomendacion[!is.na(recomendacion)]
+    if (length(activas) == 1L &&
+        (!length(recomendacion) ||
+         plan$estrategia[[activas]] != recomendacion[[1L]])) {
+      plan$decision_grupo[indices] <- "elegida"
+    } else if (!length(activas) && length(recomendacion) &&
+               recomendacion[[1L]] != "no_hacer_nada" &&
+               as.character(plan$decision_grupo[[indices[[1L]]]]) == "recomendada") {
+      plan$decision_grupo[indices] <- "desactivada"
+    }
+  }
+  plan
 }
 
 #' @export
@@ -428,6 +731,45 @@ planificar_limpieza <- function(perfil) {
     nuevo <- factor(nuevo, levels = niveles, ordered = is.ordered(x))
   }
   list(valor = nuevo, n = sum(mascara))
+}
+
+.restaurar_factor <- function(original, nuevo) {
+  if (!is.factor(original)) return(nuevo)
+  factor(
+    nuevo, levels = unique(nuevo[!is.na(nuevo)]),
+    ordered = is.ordered(original)
+  )
+}
+
+.transformar_capitalizacion <- function(x, estrategia, parametros) {
+  if (!is.character(x) && !is.factor(x)) {
+    stop("La capitalizaci\u00f3n requiere una columna de texto.", call. = FALSE)
+  }
+  anterior <- as.character(x)
+  if (identical(estrategia, "convertir_minusculas")) {
+    nuevo <- tolower(anterior)
+  } else if (identical(estrategia, "convertir_mayusculas")) {
+    nuevo <- toupper(anterior)
+  } else if (identical(estrategia, "convertir_titulo")) {
+    nuevo <- gsub(
+      "\\b([[:alpha:]])", "\\U\\1", tolower(anterior), perl = TRUE
+    )
+  } else {
+    diccionario <- parametros$diccionario
+    if (is.null(diccionario) || !is.atomic(diccionario) ||
+        is.null(names(diccionario)) || any(!nzchar(names(diccionario)))) {
+      stop(
+        "La capitalizaci\u00f3n por diccionario requiere un vector at\u00f3mico con nombres.",
+        call. = FALSE
+      )
+    }
+    nuevo <- anterior
+    indices <- match(anterior, names(diccionario))
+    reemplazar <- !is.na(indices) & !is.na(anterior)
+    nuevo[reemplazar] <- as.character(diccionario[indices[reemplazar]])
+  }
+  mascara <- !is.na(anterior) & anterior != nuevo
+  list(valor = .restaurar_factor(x, nuevo), n = sum(mascara))
 }
 
 .convertir_logico <- function(x) {
@@ -507,7 +849,7 @@ planificar_limpieza <- function(perfil) {
   stop("No hay una conversi\u00f3n definida para el tipo '", tipo, "'.", call. = FALSE)
 }
 
-.marca_outliers <- function(x) {
+.limites_outliers <- function(x) {
   if (inherits(x, c("Date", "POSIXt")) || is.numeric(x)) {
     valores <- as.numeric(x)
   } else {
@@ -516,15 +858,122 @@ planificar_limpieza <- function(perfil) {
     ))
   }
   validos <- is.finite(valores)
-  mascara <- rep(FALSE, length(x))
-  if (!any(validos)) return(mascara)
+  if (!any(validos)) {
+    return(list(valores = valores, validos = validos, inferior = NA_real_,
+                superior = NA_real_))
+  }
   iqr <- stats::IQR(valores[validos], type = 7)
   cuartiles <- stats::quantile(
     valores[validos], c(0.25, 0.75), names = FALSE, type = 7
   )
-  mascara[validos] <- valores[validos] < cuartiles[[1L]] - 1.5 * iqr |
-    valores[validos] > cuartiles[[2L]] + 1.5 * iqr
+  list(
+    valores = valores, validos = validos,
+    inferior = cuartiles[[1L]] - 1.5 * iqr,
+    superior = cuartiles[[2L]] + 1.5 * iqr
+  )
+}
+
+.marca_outliers <- function(x) {
+  limites <- .limites_outliers(x)
+  mascara <- rep(FALSE, length(x))
+  if (!any(limites$validos)) return(mascara)
+  mascara[limites$validos] <-
+    limites$valores[limites$validos] < limites$inferior |
+    limites$valores[limites$validos] > limites$superior
   mascara
+}
+
+.winsorizar_outliers <- function(x) {
+  limites <- .limites_outliers(x)
+  mascara <- .marca_outliers(x)
+  salida <- limites$valores
+  salida[limites$validos] <- pmin(
+    pmax(salida[limites$validos], limites$inferior), limites$superior
+  )
+  salida[!limites$validos] <- NA_real_
+  list(valor = salida, n = sum(mascara))
+}
+
+.grupos_filas_duplicadas <- function(datos) {
+  if (!ncol(datos)) {
+    repetidas <- seq_len(nrow(datos)) > 1L
+    grupos <- if (nrow(datos) > 1L) {
+      rep.int(1L, nrow(datos))
+    } else {
+      rep.int(NA_integer_, nrow(datos))
+    }
+    return(list(repetidas = repetidas, grupos = grupos))
+  }
+  repetidas <- duplicated(datos)
+  participantes <- repetidas | duplicated(datos, fromLast = TRUE)
+  grupos <- rep(NA_integer_, nrow(datos))
+  if (!any(participantes)) {
+    return(list(repetidas = repetidas, grupos = grupos))
+  }
+  if (any(vapply(datos, is.list, logical(1L)))) {
+    stop("No se pueden agrupar duplicados con columnas de lista.", call. = FALSE)
+  }
+  factores <- lapply(datos, function(x) factor(x, exclude = NULL))
+  codigos <- as.integer(do.call(
+    interaction, c(factores, list(drop = TRUE, lex.order = TRUE))
+  ))
+  grupos[participantes] <- match(
+    codigos[participantes], unique(codigos[participantes])
+  )
+  list(repetidas = repetidas, grupos = grupos)
+}
+
+.filtrar_filas <- function(datos, conservar) {
+  if (inherits(datos, "data.table")) {
+    datos[which(conservar), ]
+  } else {
+    datos[conservar, , drop = FALSE]
+  }
+}
+
+.conservar_mas_completa <- function(datos, clave) {
+  if (!length(clave) || any(!clave %in% names(datos))) {
+    stop(
+      "`conservar_mas_completa` requiere configurar nombres de clave existentes.",
+      call. = FALSE
+    )
+  }
+  claves <- datos[clave]
+  if (any(vapply(claves, is.list, logical(1L)))) {
+    stop("La clave no puede contener columnas de lista.", call. = FALSE)
+  }
+  factores <- lapply(claves, function(x) factor(x, exclude = NULL))
+  codigos <- as.integer(do.call(
+    interaction, c(factores, list(drop = TRUE, lex.order = TRUE))
+  ))
+  grupos <- split(seq_len(nrow(datos)), codigos)
+  completitud <- rowSums(!is.na(datos))
+  conservar <- rep(TRUE, nrow(datos))
+  for (indices in grupos) {
+    if (length(indices) > 1L) {
+      elegido <- indices[[which.max(completitud[indices])]]
+      conservar[setdiff(indices, elegido)] <- FALSE
+    }
+  }
+  conservar
+}
+
+.contenido_igual <- function(x, y) {
+  if (length(x) != length(y) || !identical(is.na(x), is.na(y))) return(FALSE)
+  identical(as.character(x[!is.na(x)]), as.character(y[!is.na(y)]))
+}
+
+.validar_nombres_iniciales <- function(plan, datos) {
+  indices <- which(
+    plan$aplicar & plan$estrategia %in%
+      c("normalizar_nombres", "normalizar_nombres_snake_case")
+  )
+  if (!length(indices)) return(invisible(TRUE))
+  esperados <- plan$parametros[[indices[[1L]]]]$nombres_esperados
+  if (!identical(names(datos), esperados)) {
+    stop("Los nombres de los datos no coinciden con los usados por el perfil.", call. = FALSE)
+  }
+  invisible(TRUE)
 }
 
 .agregar_marca <- function(datos, nombre, valor) {
@@ -540,20 +989,85 @@ planificar_limpieza <- function(perfil) {
   parametros <- accion$parametros[[1L]]
   columna <- accion$columna[[1L]]
 
-  if (identical(estrategia, "normalizar_nombres")) {
-    esperados <- parametros$nombres_esperados
-    if (length(names(datos)) < length(esperados) ||
-        !identical(names(datos)[seq_along(esperados)], esperados)) {
-      stop("Los nombres de los datos no coinciden con los usados por el perfil.", call. = FALSE)
-    }
+  if (estrategia %in% c(
+    "normalizar_nombres", "normalizar_nombres_snake_case"
+  )) {
     anteriores <- names(datos)
-    names(datos) <- make.names(anteriores, unique = TRUE)
+    names(datos) <- if (identical(estrategia, "normalizar_nombres")) {
+      make.names(anteriores, unique = TRUE)
+    } else {
+      .nombres_snake(anteriores)
+    }
     return(list(datos = datos, n = sum(anteriores != names(datos))))
   }
   if (identical(estrategia, "marcar_filas_duplicadas")) {
-    marca <- duplicated(datos)
-    datos <- .agregar_marca(datos, parametros$columna_marca, marca)
-    return(list(datos = datos, n = sum(marca)))
+    marcas <- .grupos_filas_duplicadas(datos)
+    datos <- .agregar_marca(datos, parametros$columna_marca, marcas$repetidas)
+    datos <- .agregar_marca(datos, parametros$columna_grupo, marcas$grupos)
+    return(list(datos = datos, n = sum(!is.na(marcas$grupos))))
+  }
+  if (identical(estrategia, "conservar_primera_duplicada")) {
+    eliminar <- duplicated(datos)
+    retiradas <- .filtrar_filas(datos, eliminar)
+    datos <- .filtrar_filas(datos, !eliminar)
+    return(list(
+      datos = datos, n = sum(eliminar), filas_eliminadas = retiradas,
+      n_filas_eliminadas = sum(eliminar), n_columnas_eliminadas = 0
+    ))
+  }
+  if (identical(estrategia, "conservar_mas_completa")) {
+    conservar <- .conservar_mas_completa(datos, parametros$clave)
+    retiradas <- .filtrar_filas(datos, !conservar)
+    datos <- .filtrar_filas(datos, conservar)
+    return(list(
+      datos = datos, n = sum(!conservar), filas_eliminadas = retiradas,
+      n_filas_eliminadas = sum(!conservar), n_columnas_eliminadas = 0
+    ))
+  }
+  if (estrategia %in% c(
+    "marcar_columnas_duplicadas", "eliminar_columna_duplicada"
+  )) {
+    indice_1 <- .indice_columna(datos, parametros$columna_1)
+    indice_2 <- .indice_columna(datos, parametros$columna_2)
+    if (!.contenido_igual(datos[[indice_1]], datos[[indice_2]])) {
+      stop("Las columnas dejaron de tener contenido duplicado.", call. = FALSE)
+    }
+    if (identical(estrategia, "marcar_columnas_duplicadas")) {
+      marcas <- attr(datos, "columnas_duplicadas_marcadas", exact = TRUE)
+      nueva <- data.frame(
+        columna_1 = parametros$columna_1,
+        columna_2 = parametros$columna_2,
+        stringsAsFactors = FALSE
+      )
+      attr(datos, "columnas_duplicadas_marcadas") <- if (is.null(marcas)) {
+        nueva
+      } else {
+        unique(rbind(marcas, nueva))
+      }
+      return(list(datos = datos, n = 1))
+    }
+    indice <- .indice_columna(datos, parametros$eliminar)
+    retirada <- list(
+      nombre = names(datos)[[indice]], posicion = indice, valores = datos[[indice]]
+    )
+    datos[[indice]] <- NULL
+    return(list(
+      datos = datos, n = 1, columna_eliminada = retirada,
+      n_filas_eliminadas = 0, n_columnas_eliminadas = 1
+    ))
+  }
+  if (identical(estrategia, "eliminar_columna_constante")) {
+    indice <- .indice_columna(datos, columna)
+    x <- datos[[indice]]
+    if (length(unique(x[!is.na(x)])) > 1L) {
+      stop("La columna dej\u00f3 de ser constante.", call. = FALSE)
+    }
+    retirada <- list(nombre = columna, posicion = indice, valores = x)
+    datos[[indice]] <- NULL
+    return(list(
+      datos = datos, n = 1, columna_eliminada = retirada,
+      n_filas_eliminadas = 0, n_columnas_eliminadas = 1
+    ))
   }
 
   indice <- .indice_columna(datos, columna)
@@ -573,6 +1087,20 @@ planificar_limpieza <- function(perfil) {
     datos[[indice]] <- cambio$valor
     return(list(datos = datos, n = cambio$n))
   }
+  if (identical(estrategia, "marcar_filas_ausentes")) {
+    marca <- is.na(x)
+    datos <- .agregar_marca(datos, parametros$columna_marca, marca)
+    return(list(datos = datos, n = sum(marca)))
+  }
+  if (identical(estrategia, "eliminar_filas_ausentes")) {
+    eliminar <- is.na(x)
+    retiradas <- .filtrar_filas(datos, eliminar)
+    datos <- .filtrar_filas(datos, !eliminar)
+    return(list(
+      datos = datos, n = sum(eliminar), filas_eliminadas = retiradas,
+      n_filas_eliminadas = sum(eliminar), n_columnas_eliminadas = 0
+    ))
+  }
   if (identical(estrategia, "convertir_fecha_confirmada")) {
     datos[[indice]] <- .convertir_fecha(x, parametros)
     return(list(datos = datos, n = sum(!is.na(x))))
@@ -586,13 +1114,28 @@ planificar_limpieza <- function(perfil) {
     datos <- .agregar_marca(datos, parametros$columna_marca, marca)
     return(list(datos = datos, n = sum(marca)))
   }
+  if (identical(estrategia, "winsorizar_outliers")) {
+    cambio <- .winsorizar_outliers(x)
+    datos[[indice]] <- cambio$valor
+    return(list(datos = datos, n = cambio$n))
+  }
+  if (estrategia %in% c(
+    "convertir_minusculas", "convertir_titulo", "convertir_mayusculas",
+    "convertir_segun_diccionario"
+  )) {
+    cambio <- .transformar_capitalizacion(x, estrategia, parametros)
+    datos[[indice]] <- cambio$valor
+    return(list(datos = datos, n = cambio$n))
+  }
   stop("Estrategia de limpieza no implementada: ", estrategia, ".", call. = FALSE)
 }
 
 .registro_vacio <- function() {
   estructura <- data.frame(
     id_accion = character(), columna = character(), hallazgo = character(),
-    estrategia = character(), n_cambiadas = numeric(),
+    grupo = character(), decision_grupo = character(), estrategia = character(),
+    destructiva = logical(), n_cambiadas = numeric(),
+    n_filas_eliminadas = numeric(), n_columnas_eliminadas = numeric(),
     fecha_hora = as.POSIXct(character(), tz = "UTC"),
     stringsAsFactors = FALSE
   )
@@ -601,18 +1144,43 @@ planificar_limpieza <- function(perfil) {
 }
 
 #' @rdname planificar_limpieza
+#' @param permitir_eliminacion Segundo consentimiento obligatorio para ejecutar
+#'   acciones que eliminan filas o columnas.
+#' @param conservar_eliminados Si se conservan en el resultado las filas y
+#'   columnas retiradas. Es `TRUE` de forma predeterminada.
 #' @export
-aplicar <- function(plan, datos) {
+aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
+                    conservar_eliminados = TRUE) {
   .validar_plan_limpieza(plan)
+  plan <- .sincronizar_decisiones(plan)
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
+  }
+  if (!is.logical(permitir_eliminacion) || length(permitir_eliminacion) != 1L ||
+      is.na(permitir_eliminacion) || !is.logical(conservar_eliminados) ||
+      length(conservar_eliminados) != 1L || is.na(conservar_eliminados)) {
+    stop(
+      "Los permisos de eliminaci\u00f3n deben ser l\u00f3gicos escalares sin NA.",
+      call. = FALSE
+    )
   }
   seleccion <- which(plan$aplicar)
   if (length(seleccion)) {
     seleccion <- seleccion[order(plan$orden[seleccion], seleccion)]
   }
+  destructivas <- seleccion[plan$destructiva[seleccion]]
+  if (length(destructivas) && !permitir_eliminacion) {
+    stop(
+      "El plan contiene acciones destructivas y requiere ",
+      "`permitir_eliminacion = TRUE`: ",
+      paste(plan$estrategia[destructivas], collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+  .validar_nombres_iniciales(plan, datos)
   salida <- .copiar_datos(datos)
   registros <- vector("list", length(seleccion))
+  eliminados <- list(filas = list(), columnas = list())
   for (j in seq_along(seleccion)) {
     accion <- plan[seleccion[[j]], , drop = FALSE]
     ejecutada <- .ejecutar_accion(salida, accion)
@@ -621,13 +1189,28 @@ aplicar <- function(plan, datos) {
       id_accion = accion$id_accion[[1L]],
       columna = accion$columna[[1L]],
       hallazgo = accion$hallazgo[[1L]],
+      grupo = accion$grupo[[1L]],
+      decision_grupo = as.character(accion$decision_grupo[[1L]]),
       estrategia = accion$estrategia[[1L]],
+      destructiva = accion$destructiva[[1L]],
       n_cambiadas = as.numeric(ejecutada$n),
+      n_filas_eliminadas = as.numeric(
+        if (is.null(ejecutada$n_filas_eliminadas)) 0 else ejecutada$n_filas_eliminadas
+      ),
+      n_columnas_eliminadas = as.numeric(
+        if (is.null(ejecutada$n_columnas_eliminadas)) 0 else ejecutada$n_columnas_eliminadas
+      ),
       fecha_hora = as.POSIXct(Sys.time(), tz = "UTC"),
       stringsAsFactors = FALSE
     )
     registro$parametros <- I(list(accion$parametros[[1L]]))
     registros[[j]] <- registro
+    if (conservar_eliminados && !is.null(ejecutada$filas_eliminadas)) {
+      eliminados$filas[[accion$id_accion[[1L]]]] <- ejecutada$filas_eliminadas
+    }
+    if (conservar_eliminados && !is.null(ejecutada$columna_eliminada)) {
+      eliminados$columnas[[accion$id_accion[[1L]]]] <- ejecutada$columna_eliminada
+    }
   }
   registro <- if (length(registros)) do.call(rbind, registros) else .registro_vacio()
   rownames(registro) <- NULL
@@ -635,10 +1218,244 @@ aplicar <- function(plan, datos) {
   estructura <- list(
     datos = salida,
     registro = registro,
-    plan_aplicado = plan[seleccion, , drop = FALSE]
+    plan_aplicado = plan[seleccion, , drop = FALSE],
+    plan = plan,
+    eliminados = eliminados
   )
   class(estructura) <- "resultado_limpieza"
   estructura
+}
+
+.texto_ejemplo <- function(x) {
+  if (length(x) == 0L || is.na(x)) return("<NA>")
+  encodeString(as.character(x), quote = '"')
+}
+
+.ejemplos_grupo <- function(acciones, datos, max_ejemplos = 5L) {
+  tipo <- acciones$hallazgo[[1L]]
+  columna <- acciones$columna[[1L]]
+  parametros <- acciones$parametros[[1L]]
+  valores <- NULL
+
+  if (identical(tipo, "filas_duplicadas")) {
+    grupos <- .grupos_filas_duplicadas(datos)$grupos
+    indices <- utils::head(which(!is.na(grupos)), max_ejemplos)
+    return(vapply(indices, function(i) {
+      contenido <- vapply(datos, function(x) .texto_ejemplo(x[[i]]), character(1L))
+      paste0("fila ", i, " [grupo ", grupos[[i]], "]: ",
+             paste(names(datos), contenido, sep = "=", collapse = ", "))
+    }, character(1L)))
+  }
+  if (identical(tipo, "columnas_duplicadas")) {
+    columna <- parametros$columna_1
+  }
+  if (identical(tipo, "nombres_columnas_problematicos")) {
+    problema <- .nombres_columnas_problematicos(names(datos))
+    originales <- vapply(problema$original, .texto_ejemplo, character(1L))
+    propuestos <- vapply(problema$propuesto, .texto_ejemplo, character(1L))
+    return(utils::head(paste(originales, "->", propuestos), max_ejemplos))
+  }
+  if (is.na(columna)) {
+    evidencia <- unique(acciones$evidencia[nzchar(acciones$evidencia)])
+    return(utils::head(evidencia, max_ejemplos))
+  }
+  indice <- .indice_columna(datos, columna)
+  x <- datos[[indice]]
+  if (identical(tipo, "mayusculas_inconsistentes")) {
+    unicos <- unique(as.character(x[!is.na(x)]))
+    base <- tolower(unicos)
+    colision <- duplicated(base) | duplicated(base, fromLast = TRUE)
+    valores <- unicos[colision]
+  } else if (identical(tipo, "faltantes_disfrazados")) {
+    numericos <- suppressWarnings(as.numeric(trimws(as.character(x))))
+    valores <- x[!is.na(numericos) & numericos %in% parametros$valores]
+  } else if (identical(tipo, "outliers")) {
+    valores <- x[.marca_outliers(x)]
+  } else if (identical(tipo, "faltantes")) {
+    valores <- paste0("<NA> en fila ", which(is.na(x)))
+  } else if (identical(tipo, "constante")) {
+    valores <- unique(x[!is.na(x)])
+  } else {
+    valores <- x[!is.na(x)]
+  }
+  utils::head(unique(vapply(valores, .texto_ejemplo, character(1L))), max_ejemplos)
+}
+
+.grupos_para_guiar <- function(plan) {
+  grupos <- unique(plan$grupo[!is.na(plan$grupo)])
+  grupos[vapply(grupos, function(grupo) {
+    indices <- which(plan$grupo == grupo)
+    any(as.character(plan$decision_grupo[indices]) == "pendiente") ||
+      any(plan$destructiva[indices])
+  }, logical(1L))]
+}
+
+.resolver_seleccion_guiada <- function(respuesta, acciones, elegibles) {
+  if (!length(respuesta) || is.na(respuesta[[1L]]) ||
+      identical(respuesta[[1L]], "no_hacer_nada") ||
+      identical(respuesta[[1L]], 0L) || identical(respuesta[[1L]], 0)) {
+    return(NA_integer_)
+  }
+  if (is.numeric(respuesta) && length(respuesta) == 1L &&
+      respuesta == length(elegibles) + 1L) {
+    return(NA_integer_)
+  }
+  if (is.numeric(respuesta) && length(respuesta) == 1L &&
+      respuesta >= 1L && respuesta <= length(elegibles)) {
+    return(elegibles[[as.integer(respuesta)]])
+  }
+  respuesta <- as.character(respuesta[[1L]])
+  candidatos <- which(
+    acciones$id_accion == respuesta | acciones$estrategia == respuesta
+  )
+  candidatos <- intersect(candidatos, elegibles)
+  if (length(candidatos) != 1L) {
+    stop("La selecci\u00f3n guiada no identifica una opci\u00f3n disponible.", call. = FALSE)
+  }
+  candidatos[[1L]]
+}
+
+#' Revisar decisiones de limpieza paso a paso
+#'
+#' Recorre los grupos pendientes y aquellos que contienen alternativas
+#' destructivas. Muestra evidencia calculada sobre `datos`, las estrategias y
+#' sus justificaciones, y devuelve el plan editado sin aplicarlo. En una sesión
+#' no interactiva retorna inmediatamente el plan sin cambios, salvo que se
+#' proporcione un `selector` explícito.
+#'
+#' No se representa "no hacer nada" como una acción ficticia. Elegirlo cambia
+#' `decision_grupo` a `"omitida"`; por contraste, un grupo aún no revisado
+#' conserva `"pendiente"`. Cuando conservar los datos es la recomendación, esa
+#' opción también se muestra con la marca "(Recomendado)" y su justificación.
+#' Los diccionarios de capitalización se suministran como una lista con nombre
+#' de vectores con nombre.
+#'
+#' @param plan Objeto `plan_limpieza`.
+#' @param datos Datos correspondientes al perfil que originó el plan.
+#' @param selector Función opcional que recibe una lista con `grupo`,
+#'   `acciones`, `elegibles`, `ejemplos` y `opciones`. Debe devolver la posición,
+#'   el identificador o el nombre de una estrategia, o `0` para no hacer nada.
+#' @param diccionarios Lista opcional con nombre de diccionarios por columna.
+#' @param max_ejemplos Máximo de ejemplos reales mostrados por grupo.
+#'
+#' @return El plan editado, sin ejecutar acciones.
+#' @export
+#'
+#' @examples
+#' datos <- data.frame(zona = c("Norte", "NORTE", "sur"))
+#' plan <- planificar_limpieza(perfilar(datos))
+#' guiado <- guiar_limpieza(plan, datos)
+#' identical(plan, guiado) # TRUE en una sesión no interactiva
+guiar_limpieza <- function(plan, datos, selector = NULL,
+                           diccionarios = list(), max_ejemplos = 5L) {
+  .validar_plan_limpieza(plan)
+  plan <- .sincronizar_decisiones(plan)
+  if (is.null(selector) && !interactive()) return(plan)
+  if (!is.null(selector) && !is.function(selector)) {
+    stop("`selector` debe ser una funci\u00f3n.", call. = FALSE)
+  }
+  if (!inherits(datos, "data.frame")) {
+    stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
+  }
+  if (!is.list(diccionarios) ||
+      (length(diccionarios) &&
+       (is.null(names(diccionarios)) || any(!nzchar(names(diccionarios)))))) {
+    stop("`diccionarios` debe ser una lista con nombres de columna.", call. = FALSE)
+  }
+  if (!is.numeric(max_ejemplos) || length(max_ejemplos) != 1L ||
+      is.na(max_ejemplos) || max_ejemplos < 1) {
+    stop("`max_ejemplos` debe ser un n\u00famero positivo.", call. = FALSE)
+  }
+  max_ejemplos <- floor(max_ejemplos)
+
+  grupos <- .grupos_para_guiar(plan)
+  for (grupo in grupos) {
+    indices <- which(plan$grupo == grupo)
+    acciones <- plan[indices, , drop = FALSE]
+    nombre_columna <- acciones$columna[[1L]]
+    diccionario <- if (!is.na(nombre_columna)) {
+      diccionarios[[nombre_columna]]
+    } else {
+      NULL
+    }
+    indice_diccionario <- which(
+      acciones$estrategia == "convertir_segun_diccionario"
+    )
+    if (length(indice_diccionario) && !is.null(diccionario)) {
+      plan$parametros[[indices[indice_diccionario]]] <- list(
+        diccionario = diccionario
+      )
+      plan$estado[indices[indice_diccionario]] <- "lista"
+      acciones <- plan[indices, , drop = FALSE]
+    }
+    elegibles <- which(as.character(acciones$estado) == "lista")
+    ejemplos <- .ejemplos_grupo(acciones, datos, max_ejemplos)
+    etiquetas <- paste0(
+      acciones$estrategia[elegibles],
+      ifelse(acciones$recomendada[elegibles], " (Recomendado)", "")
+    )
+    no_hacer_recomendado <- any(
+      acciones$recomendacion_grupo == "no_hacer_nada", na.rm = TRUE
+    )
+    etiqueta_no_hacer <- paste0(
+      "No hacer nada",
+      if (no_hacer_recomendado) " (Recomendado)" else ""
+    )
+
+    cli::cli_h2(paste("Decisi\u00f3n", grupo))
+    cli::cli_text(paste("Hallazgo:", acciones$hallazgo[[1L]]))
+    cli::cli_text(paste("Objeto afectado:",
+                        if (is.na(acciones$columna[[1L]])) "tabla" else acciones$columna[[1L]]))
+    cantidades <- acciones$n_afectadas[is.finite(acciones$n_afectadas)]
+    cantidad <- if (length(cantidades)) max(cantidades) else NA_real_
+    cli::cli_text(paste("Cantidad estimada:", cantidad))
+    if (length(ejemplos)) {
+      cli::cli_text(paste("Ejemplos reales:", paste(ejemplos, collapse = "; ")))
+    }
+    for (k in elegibles) {
+      marca <- if (acciones$recomendada[[k]]) " (Recomendado)" else ""
+      cli::cli_text(paste0(
+        k, ". ", acciones$estrategia[[k]], marca, " -- ",
+        acciones$justificacion[[k]]
+      ))
+    }
+    bloqueadas <- which(as.character(acciones$estado) == "bloqueada")
+    for (k in bloqueadas) {
+      cli::cli_text(paste0(
+        "[bloqueada] ", acciones$estrategia[[k]], " -- ",
+        acciones$justificacion[[k]]
+      ))
+    }
+    explicacion_no_hacer <- if (no_hacer_recomendado) {
+      paste0(
+        "No hacer nada conserva los datos y es lo recomendado porque el ",
+        "hallazgo no justifica por s\u00ed solo una eliminaci\u00f3n."
+      )
+    } else {
+      "No hacer nada conserva los datos y registra la omisi\u00f3n."
+    }
+    cli::cli_text(paste0(etiqueta_no_hacer, " -- ", explicacion_no_hacer))
+
+    decision <- list(
+      grupo = grupo, acciones = acciones, elegibles = elegibles,
+      ejemplos = ejemplos,
+      opciones = c(etiquetas, etiqueta_no_hacer)
+    )
+    respuesta <- if (is.null(selector)) {
+      utils::menu(decision$opciones, title = paste("Seleccione para", grupo))
+    } else {
+      selector(decision)
+    }
+    elegida_local <- .resolver_seleccion_guiada(respuesta, acciones, elegibles)
+    plan$aplicar[indices] <- FALSE
+    if (is.na(elegida_local)) {
+      plan$decision_grupo[indices] <- "omitida"
+    } else {
+      plan$aplicar[indices[[elegida_local]]] <- TRUE
+      plan$decision_grupo[indices] <- "elegida"
+    }
+  }
+  plan
 }
 
 #' @export
@@ -646,8 +1463,16 @@ print.plan_limpieza <- function(x, ...) {
   cli::cli_h1("Plan de limpieza")
   cli::cli_alert_success(paste(sum(x$aplicar), "acciones activadas"))
   cli::cli_alert_info(paste(sum(!x$aplicar), "acciones desactivadas"))
+  n_destructivas <- sum(x$aplicar & x$destructiva)
+  if (n_destructivas) {
+    cli::cli_alert_danger(paste(
+      n_destructivas,
+      "acciones destructivas activas; requieren un segundo consentimiento"
+    ))
+  }
   vista <- x[c(
-    "id_accion", "columna", "estrategia", "estado", "recomendada", "aplicar"
+    "id_accion", "grupo", "columna", "estrategia", "decision_grupo",
+    "estado", "recomendada", "destructiva", "aplicar"
   )]
   print.data.frame(vista, row.names = FALSE)
   invisible(x)
@@ -658,5 +1483,12 @@ print.resultado_limpieza <- function(x, ...) {
   cli::cli_h1("Resultado de limpieza")
   cli::cli_alert_success(paste(nrow(x$registro), "acciones ejecutadas"))
   cli::cli_text(paste(sum(x$registro$n_cambiadas), "celdas o marcas afectadas"))
+  n_filas <- sum(x$registro$n_filas_eliminadas)
+  n_columnas <- sum(x$registro$n_columnas_eliminadas)
+  if (n_filas || n_columnas) {
+    cli::cli_alert_warning(paste(
+      n_filas, "filas y", n_columnas, "columnas eliminadas"
+    ))
+  }
   invisible(x)
 }

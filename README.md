@@ -19,7 +19,10 @@ summary(p)
 p$hallazgos
 
 plan <- planificar_limpieza(p)
-plan[, c("columna", "estrategia", "recomendada", "aplicar")]
+plan[, c("grupo", "columna", "estrategia", "recomendada", "aplicar")]
+
+# En una sesión interactiva, revisa sólo las decisiones pendientes o riesgosas.
+plan <- guiar_limpieza(plan, datos_administrativos)
 
 resultado <- aplicar(plan, datos_administrativos)
 resultado$registro
@@ -37,6 +40,12 @@ resultado$registro
   mide por separado con `NoNulo`.
 - Sólo se activan de forma predeterminada acciones de limpieza que no requieren
   conocimiento del dominio. Las demás quedan desactivadas o bloqueadas.
+- Las estrategias alternativas comparten un grupo y como máximo una puede
+  quedar activa. No hacer nada queda registrado como una decisión, no como una
+  transformación ficticia.
+- Eliminar filas o columnas nunca se recomienda y exige el consentimiento
+  adicional `permitir_eliminacion = TRUE`. Lo retirado se conserva en el
+  resultado salvo que se solicite expresamente lo contrario.
 
 El modelo conserva la jerarquía de dimensiones, factores y métricas como una
 taxonomía. No calcula un índice global de calidad. Las agregaciones disponibles

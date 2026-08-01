@@ -16,7 +16,8 @@ test_that("el plan es un objeto de datos con políticas explícitas", {
   expect_true(all(c(
     "id_accion", "columna", "hallazgo", "estrategia", "recomendada",
     "justificacion", "n_afectadas", "reversible", "estado", "aplicar",
-    "parametros", "orden"
+    "parametros", "orden", "grupo", "decision_grupo",
+    "recomendacion_grupo", "destructiva", "evidencia", "severidad_origen"
   ) %in% names(plan)))
   expect_equal(anyDuplicated(plan$id_accion), 0L)
   expect_true(is.list(plan$parametros))
@@ -29,7 +30,7 @@ test_that("el plan es un objeto de datos con políticas explícitas", {
     "marcar_filas_duplicadas", "normalizar_nombres"
   ) %in% activas))
   expect_true(all(!plan$aplicar[plan$estrategia == "marcar_outliers"]))
-  expect_true(all(!plan$recomendada[plan$estrategia == "marcar_outliers"]))
+  expect_true(all(plan$recomendada[plan$estrategia == "marcar_outliers"]))
   expect_true(any(as.character(plan$estado) == "informativa"))
   expect_true(all(!plan$aplicar[as.character(plan$estado) == "informativa"]))
   expect_s3_class(plan[1, , drop = FALSE], "plan_limpieza")
@@ -51,6 +52,7 @@ test_that("aplicar trabaja sobre una copia y deja una bitácora verificable", {
   expect_equal(resultado$datos$categoria, c("A", NA, "A", "A"))
   expect_type(resultado$datos$numero, "integer")
   expect_equal(resultado$datos$.fila_duplicada, c(FALSE, FALSE, FALSE, TRUE))
+  expect_equal(resultado$datos$.grupo_duplicado, c(1L, NA, NA, 1L))
   expect_equal(nrow(resultado$registro), sum(plan$aplicar))
   expect_identical(
     attr(resultado$datos, "registro_limpieza"), resultado$registro
@@ -215,7 +217,7 @@ test_that("formatos candidatos e inferencias parciales no se convierten", {
   parcial <- data.frame(x = c("1", "2", "3", "4", "x"))
   plan_parcial <- planificar_limpieza(perfilar(parcial))
   conversion <- plan_parcial[plan_parcial$estrategia == "convertir_tipo", ]
-  expect_equal(as.character(conversion$estado), "lista")
+  expect_equal(as.character(conversion$estado), "bloqueada")
   expect_false(conversion$recomendada)
   expect_false(conversion$aplicar)
 })
