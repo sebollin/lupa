@@ -1,11 +1,14 @@
 # lupa
 
-`lupa` es un paquete de R para examinar la estructura de datos administrativos
-antes de definir reglas o métricas de calidad.
+`lupa` es un paquete de R para examinar, medir y mejorar la calidad de datos
+administrativos con resultados auditables.
 
-El MVP descubre patrones de formato, infiere tipos implícitos, detecta formatos
-de fecha mezclados y faltantes disfrazados, resume cada columna y devuelve
-hallazgos accionables como un objeto de datos.
+El motor de profiling descubre patrones de formato, infiere tipos implícitos,
+detecta formatos de fecha mezclados y faltantes disfrazados, resume cada
+columna y devuelve hallazgos accionables como un objeto de datos. La capa de
+calidad permite declarar, especializar, instanciar, medir y evaluar métricas con
+granularidad explícita. La capa de remediación propone un plan editable y nunca
+modifica datos como efecto del diagnóstico.
 
 ```r
 library(lupa)
@@ -14,6 +17,12 @@ p <- perfilar(datos_administrativos)
 p
 summary(p)
 p$hallazgos
+
+plan <- planificar_limpieza(p)
+plan[, c("columna", "estrategia", "recomendada", "aplicar")]
+
+resultado <- aplicar(plan, datos_administrativos)
+resultado$registro
 ```
 
 ## Convenciones
@@ -24,9 +33,14 @@ p$hallazgos
   como `9+`. Con `expandir = TRUE`, se conserva un token por carácter.
 - Todas las proporciones están en la escala `[0, 1]`.
 - Las severidades son el factor ordenado `ok < sospechoso < error`.
+- Los valores `NA` no generan medidas de formato o dominio: la completitud se
+  mide por separado con `NoNulo`.
+- Sólo se activan de forma predeterminada acciones de limpieza que no requieren
+  conocimiento del dominio. Las demás quedan desactivadas o bloqueadas.
 
-El paquete implementa exclusivamente la etapa de examen o *data profiling*.
-No calcula métricas, agregaciones ni evaluaciones de calidad.
+El modelo conserva la jerarquía de dimensiones, factores y métricas como una
+taxonomía. No calcula un índice global de calidad. Las agregaciones disponibles
+son las cuatro definidas por el marco y validan el tipo de resultado declarado.
 
 ## Referencia conceptual
 

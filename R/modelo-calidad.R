@@ -139,6 +139,10 @@
 #' `Formato` acepta exactamente una de las propiedades `expresion_regular`,
 #' `diccionario` o `validador`. Esta última permite conectar validadores
 #' externos sin incorporarlos como dependencias.
+#' Tanto `Formato` como `ValoresPosiblesPorExtension` omiten los valores `NA`:
+#' un ausente no genera una medida en esas métricas y, por lo tanto, tampoco
+#' integra el denominador de sus agregaciones. La completitud se mide por
+#' separado con `NoNulo`; así un mismo ausente no se penaliza en dos factores.
 #'
 #' `tipo_resultado` es el contrato canónico que consultan las agregaciones. Las
 #' unidades no forman parte de este núcleo porque el marco presenta ambas
@@ -401,12 +405,16 @@ modelo <- function(...) {
 }
 
 .salida_metodo <- function(resultado, entidad, atributo, fila, objeto) {
+  n <- length(resultado)
+  reciclar <- function(x) {
+    if (length(x) == 1L) rep(x, n) else x
+  }
   data.frame(
     resultado = resultado,
-    entidad = entidad,
-    atributo = atributo,
-    fila = fila,
-    objeto = objeto,
+    entidad = reciclar(entidad),
+    atributo = reciclar(atributo),
+    fila = reciclar(fila),
+    objeto = reciclar(objeto),
     stringsAsFactors = FALSE
   )
 }
@@ -441,19 +449,20 @@ modelo <- function(...) {
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
+  filas <- which(!is.na(x))
+  valores <- x[filas]
   config <- instancia$configuracion
   if (!is.null(config$expresion_regular)) {
-    resultado <- !is.na(x) & grepl(
-      config$expresion_regular, as.character(x), perl = TRUE
+    resultado <- grepl(
+      config$expresion_regular, as.character(valores), perl = TRUE
     )
   } else if (!is.null(config$diccionario)) {
-    resultado <- !is.na(x) & x %in% config$diccionario
+    resultado <- valores %in% config$diccionario
   } else {
     resultado <- .resultado_validador(
-      config$validador(x), length(x), "Formato"
+      config$validador(valores), length(valores), "Formato"
     )
   }
-  filas <- seq_along(x)
   .salida_metodo(
     resultado, entidad, atributo, filas,
     paste0(entidad, "$", atributo, "[", filas, "]")
@@ -466,9 +475,9 @@ modelo <- function(...) {
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
-  filas <- seq_along(x)
+  filas <- which(!is.na(x))
   .salida_metodo(
-    !is.na(x) & x %in% instancia$configuracion$valores,
+    x[filas] %in% instancia$configuracion$valores,
     entidad, atributo, filas,
     paste0(entidad, "$", atributo, "[", filas, "]")
   )
@@ -714,9 +723,11 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time()) {
   })
   resultado <- do.call(rbind, partes)
   rownames(resultado) <- NULL
-  resultado$id_medida <- paste0(
-    id_medicion, "-", sprintf("%06d", seq_len(nrow(resultado)))
-  )
+  resultado$id_medida <- if (nrow(resultado)) {
+    paste0(id_medicion, "-", sprintf("%06d", seq_len(nrow(resultado))))
+  } else {
+    character()
+  }
   resultado <- resultado[c(
     "id_medida", "id_medicion", "fecha", "metrica", "metrica_especifica",
     "metrica_instanciada", "dimension", "factor", "granularidad",

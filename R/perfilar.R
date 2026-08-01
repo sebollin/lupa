@@ -145,7 +145,8 @@ perfilar <- function(datos,
     version = .version_paquete(),
     filas_totales = nrow(datos),
     filas_analizadas = min(nrow(datos), floor(muestra)),
-    muestreo = nrow(datos) > muestra
+    muestreo = nrow(datos) > muestra,
+    sentinelas_numericos = .numeros_na(sentinelas_numericos)
   )
   estructura <- list(
     general = general,

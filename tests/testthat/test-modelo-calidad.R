@@ -147,7 +147,7 @@ test_that("el núcleo declara y ejecuta sus seis métricas", {
   expect_s3_class(medicion, "medicion")
   expect_equal(
     medicion$resultado[medicion$metrica_especifica == "FormatoCodigo"],
-    c(1, 0, 1, 0)
+    c(1, 0, 1)
   )
   expect_equal(
     medicion$resultado[medicion$metrica_especifica == "DominioTipo"],
@@ -209,13 +209,59 @@ test_that("Formato admite un validador arbitrario y una específica se reutiliza
   por_diccionario <- medir(
     modelo(diccionario), data.frame(categoria = c("A", "X", NA))
   )
-  expect_equal(por_diccionario$resultado, c(1, 0, 0))
+  expect_equal(por_diccionario$resultado, c(1, 0))
   expect_error(
     especializar(
       nucleo$Formato, expresion_regular = "x", diccionario = "x"
     ),
     "exactamente una"
   )
+})
+
+test_that("Formato y dominio no miden los valores ausentes", {
+  nucleo <- metricas_nucleo()
+  no_nulo <- instanciar(
+    especializar(nucleo$NoNulo, nombre_especifico = "NoNuloCodigo"),
+    "personas", "codigo"
+  )
+  formato <- instanciar(
+    especializar(
+      nucleo$Formato, nombre_especifico = "FormatoCodigo",
+      expresion_regular = "^[A-Z]$"
+    ),
+    "personas", "codigo"
+  )
+  dominio <- instanciar(
+    especializar(
+      nucleo$ValoresPosiblesPorExtension,
+      nombre_especifico = "DominioCodigo", valores = "A"
+    ),
+    "personas", "codigo"
+  )
+  medicion <- medir(
+    modelo(no_nulo, formato, dominio),
+    data.frame(codigo = c(NA_character_, "A"))
+  )
+
+  medidas_formato <- medicion[
+    medicion$metrica_especifica == "FormatoCodigo", , drop = FALSE
+  ]
+  medidas_dominio <- medicion[
+    medicion$metrica_especifica == "DominioCodigo", , drop = FALSE
+  ]
+  medidas_no_nulo <- medicion[
+    medicion$metrica_especifica == "NoNuloCodigo", , drop = FALSE
+  ]
+  expect_equal(medidas_formato$fila, 2L)
+  expect_equal(medidas_dominio$fila, 2L)
+  expect_equal(agregar(medidas_formato, "atributo", "ratio")$resultado, 1)
+  expect_equal(agregar(medidas_dominio, "atributo", "ratio")$resultado, 1)
+  expect_equal(agregar(medidas_no_nulo, "atributo", "ratio")$resultado, 0.5)
+
+  solo_ausentes <- medir(
+    modelo(formato), data.frame(codigo = c(NA_character_, NA_character_))
+  )
+  expect_equal(nrow(solo_ausentes), 0L)
 })
 
 test_that("las celdas se agregan por atributo o por instancia de entidad", {

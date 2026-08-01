@@ -203,6 +203,8 @@
     n_faltantes = n_faltantes,
     prop_faltantes = if (n) n_faltantes / n else NA_real_,
     n_faltantes_disfrazados = faltantes_disfrazados$n,
+    n_faltantes_disfrazados_textuales = faltantes_disfrazados$n_textuales,
+    n_faltantes_disfrazados_numericos = faltantes_disfrazados$n_numericos,
     prop_faltantes_disfrazados = if (n) faltantes_disfrazados$n / n else NA_real_,
     n_faltantes_totales = n_faltantes + faltantes_disfrazados$n,
     prop_faltantes_totales = if (n) {

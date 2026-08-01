@@ -108,6 +108,11 @@ observado, acotado a \verb{[0, 1]}; exige al menos dos valores numéricos válid
 \code{diccionario} o \code{validador}. Esta última permite conectar validadores
 externos sin incorporarlos como dependencias.
 
+Tanto \code{Formato} como \code{ValoresPosiblesPorExtension} omiten los valores \code{NA}:
+un ausente no genera una medida en esas métricas y, por lo tanto, tampoco
+integra el denominador de sus agregaciones. La completitud se mide por
+separado con \code{NoNulo}; así un mismo ausente no se penaliza en dos factores.
+
 \code{tipo_resultado} es el contrato canónico que consultan las agregaciones. Las
 unidades no forman parte de este núcleo porque el marco presenta ambas
 nociones de forma inconsistente y sólo el tipo permite validar las fórmulas.
