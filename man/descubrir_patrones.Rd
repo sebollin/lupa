@@ -34,7 +34,9 @@ Un data frame de clase \code{patrones} con patrón, frecuencia, proporción
 y ejemplos. Los atributos \code{total}, \code{analizados} y \code{muestreado} describen
 el posible muestreo. \code{resumen_patrones} conserva sólo el patrón dominante
 y hasta seis patrones raros; nunca guarda la distribución completa. Las
-proporciones siempre están en \verb{[0, 1]}.
+proporciones siempre están en \verb{[0, 1]}. \code{n_patrones_distintos}
+registra el total antes de truncar la tabla para informar omisiones sin
+retenerla.
 }
 \description{
 Generaliza un vector de texto mediante la convención del \emph{Pattern Finder}

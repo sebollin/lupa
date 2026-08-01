@@ -21,7 +21,8 @@
 #'   y ejemplos. Los atributos `total`, `analizados` y `muestreado` describen
 #'   el posible muestreo. `resumen_patrones` conserva sólo el patrón dominante
 #'   y hasta seis patrones raros; nunca guarda la distribución completa. Las
-#'   proporciones siempre están en `[0, 1]`.
+#'   proporciones siempre están en `[0, 1]`. `n_patrones_distintos` registra el
+#'   total antes de truncar la tabla para informar omisiones sin retenerla.
 #' @export
 #'
 #' @examples
@@ -136,6 +137,7 @@ descubrir_patrones <- function(x,
   attr(resultado, "total") <- muestra_x$total
   attr(resultado, "analizados") <- muestra_x$analizados
   attr(resultado, "muestreado") <- muestra_x$muestreado
+  attr(resultado, "n_patrones_distintos") <- length(frecuencias)
   attr(resultado, "resumen_patrones") <- resumen
   resultado
 }

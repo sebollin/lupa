@@ -134,8 +134,10 @@ test_that("los métodos de presentación devuelven el resumen", {
   expect_equal(as.data.frame(resultado), resultado$columnas)
   salida <- suppressMessages(capture.output(print(resultado)))
   expect_match(paste(salida, collapse = "\n"), "columna")
-  expect_warning(reportar(resultado), "próxima versión")
-  expect_error(reportar(datos_sucios), "clase perfil")
+  archivo <- reportar(resultado)
+  expect_true(file.exists(archivo))
+  unlink(archivo)
+  expect_error(reportar(datos_sucios), "Cada objeto")
 })
 
 test_that("la conversión opcional a tibble conserva una fila por columna", {

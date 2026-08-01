@@ -13,6 +13,8 @@ marco. La capa de remediación propone un plan editable y nunca modifica datos
 como efecto del diagnóstico. El histórico versionado acumula evaluaciones como
 una tabla plana y permite detectar deriva tanto del modelo de calidad como del
 perfil estructural entre entregas.
+`reportar()` reúne cualquiera de esos objetos en un único archivo HTML
+autocontenido, sin archivos auxiliares ni programas de renderizado externos.
 
 ```r
 library(lupa)
@@ -37,6 +39,9 @@ plan <- guiar_limpieza(plan, datos_administrativos)
 
 resultado <- aplicar(plan, datos_administrativos)
 resultado$registro
+
+# El archivo se puede abrir sin conexión y combina las secciones disponibles.
+archivo <- reportar(p, deriva, plan, archivo = tempfile(fileext = ".html"))
 ```
 
 ## Convenciones

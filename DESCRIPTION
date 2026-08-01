@@ -8,7 +8,8 @@ Description: Profiles administrative data, discovers structural patterns in
     and returns reusable findings about potential data issues. Defines reusable
     quality metrics with explicit granularity, typed aggregation, evaluation
     profiles, a versioned history of evaluations, structural drift detection,
-    and a traceable mapping to the framework metric catalogue.
+    a traceable mapping to the framework metric catalogue, and self-contained
+    HyperText Markup Language reports without external rendering software.
     Produces editable cleaning plans and applies only explicitly
     selected actions while retaining an audit log. The conceptual basis is the
     Data Quality Management Framework for
