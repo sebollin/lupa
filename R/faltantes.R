@@ -1,6 +1,13 @@
+.cadenas_na_naniar_1_1_0 <- c(
+  "missing", "NA", "N A", "N/A", "#N/A", "NA ", " NA", "N /A",
+  "N / A", " N / A", "N / A ", "na", "n a", "n/a", "na ", " na",
+  "n /a", "n / a", " a / a", "n / a ", "NULL", "null", "", "\\?",
+  "\\*", "\\."
+)
+
 .cadenas_na_locales <- c(
-  "", "na", "n/a", "#n/a", "n.a", "n.a.", "nan", "null", "none", "nil",
-  "missing", "not available", "s/d", "sd", "s.i", "s.i.", "s/i",
+  "n.a", "n.a.", "nan", "none", "nil", "not available", "s/d", "sd",
+  "s.i", "s.i.", "s/i",
   "sin dato", "sin datos", "sin informaci\u00f3n", "sin informacion",
   "no corresponde", "n/c", "nc", "-", ".", "..", "...", "[]"
 )
@@ -13,21 +20,17 @@
 #' por `naniar`. Incluye `66`, `77`, `88` y `9999`, que pueden ser edades,
 #' códigos o años legítimos y por eso no se aplican de forma predeterminada.
 #' Se usa como `perfilar(datos, sentinelas_numericos = sentinelas_naniar)`.
+#' Tanto este vector como las cadenas de ausencia incorporadas en el paquete
+#' están congelados con referencia a naniar 1.1.0; no cambian según la versión
+#' de naniar instalada.
 #'
 #' @format Vector numérico de ocho elementos.
-#' @source `naniar::common_na_numbers`.
+#' @source `naniar::common_na_numbers`, versión 1.1.0.
 #' @export
 sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 
 .cadenas_na <- function() {
-  valores <- .cadenas_na_locales
-  if (requireNamespace("naniar", quietly = TRUE)) {
-    externos <- tryCatch(
-      getExportedValue("naniar", "common_na_strings"),
-      error = function(e) character()
-    )
-    valores <- c(valores, externos)
-  }
+  valores <- c(.cadenas_na_naniar_1_1_0, .cadenas_na_locales)
   unique(tolower(trimws(as.character(valores))))
 }
 

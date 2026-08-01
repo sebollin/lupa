@@ -40,6 +40,16 @@ test_that("las proporciones están en la escala unitaria", {
   expect_true(all(valores >= 0 & valores <= 1))
 })
 
+test_that("el muestreo no limita las métricas calculadas sobre todas las filas", {
+  datos <- data.frame(x = c(rep("dato", 150), rep(" dato", 50)))
+  resultado <- perfilar(datos, muestra = 20)
+
+  expect_equal(resultado$meta$filas_analizadas, 20)
+  expect_true(resultado$meta$muestreo)
+  expect_equal(resultado$columnas$n_espacios_borde, 50L)
+  expect_equal(resultado$columnas$n, 200L)
+})
+
 test_that("se detectan faltantes disfrazados y blancos", {
   resultado <- perfilar(datos_sucios)
   categoria <- resultado$columnas[resultado$columnas$columna == "categoria", ]

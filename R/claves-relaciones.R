@@ -129,17 +129,34 @@ detectar_claves <- function(datos, max_combinacion = 3) {
   as.character(x)
 }
 
+.resumir_columna_relacion <- function(x, muestra) {
+  valores <- .valores_relacion(x)
+  valores_muestra <- .muestrear_vector(valores, muestra)$valores
+  valores_completos <- valores[!is.na(valores)]
+  list(
+    muestra = valores_muestra[!is.na(valores_muestra)],
+    unicos = unique(valores_completos),
+    unico = anyDuplicated(valores_completos) == 0L
+  )
+}
+
 #' Detectar relaciones entre dos tablas
 #'
 #' Examina todos los pares de columnas y describe su cardinalidad a partir de
-#' la unicidad de cada lado. La cobertura `tabla1_en_tabla2` es la proporción de
-#' valores no ausentes de la primera columna que existe en la segunda; la
-#' cobertura inversa se informa de forma simétrica. Así se puede escoger la
-#' dirección PK/FK sin imponerla de antemano.
+#' la unicidad completa de cada lado. La cobertura `tabla1_en_tabla2` es la
+#' proporción de valores no ausentes de la primera columna que existe en la
+#' segunda; la cobertura inversa se informa de forma simétrica. Así se puede
+#' escoger la dirección PK/FK sin imponerla de antemano.
+#'
+#' Cuando una tabla supera `muestra`, la función estima cada cobertura con una
+#' muestra sistemática del lado que se verifica y conserva completo el conjunto
+#' de referencia. La cardinalidad y la cantidad de valores comunes siempre se
+#' calculan con ambas columnas completas.
 #'
 #' @param tabla1,tabla2 Objetos que heredan de `data.frame`.
-#' @param muestra Máximo de filas que se analizan en cada tabla. El muestreo es
-#'   sistemático y reproducible.
+#' @param muestra Máximo de filas del lado verificado que se usan para estimar
+#'   cada cobertura. El muestreo es sistemático y reproducible; el lado de
+#'   referencia no se muestrea.
 #'
 #' @return Data frame con columnas comparadas, cardinalidad, coincidencias y
 #'   coberturas de integridad referencial en ambas direcciones. Los atributos
@@ -154,30 +171,26 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5) {
   if (!inherits(tabla1, "data.frame") || !inherits(tabla2, "data.frame")) {
     stop("`tabla1` y `tabla2` deben heredar de data.frame.", call. = FALSE)
   }
-  .muestrear_vector(integer(), muestra)
+  limite_muestra <- .validar_muestra(muestra)
   nombres_1 <- make.unique(names(tabla1))
   nombres_2 <- make.unique(names(tabla2))
   columnas_1 <- lapply(seq_len(ncol(tabla1)), function(i) {
-    .valores_relacion(.muestrear_vector(tabla1[[i]], muestra)$valores)
+    .resumir_columna_relacion(tabla1[[i]], limite_muestra)
   })
   columnas_2 <- lapply(seq_len(ncol(tabla2)), function(i) {
-    .valores_relacion(.muestrear_vector(tabla2[[i]], muestra)$valores)
+    .resumir_columna_relacion(tabla2[[i]], limite_muestra)
   })
   filas <- vector("list", ncol(tabla1) * ncol(tabla2))
   k <- 0L
 
   for (i in seq_len(ncol(tabla1))) {
     x <- columnas_1[[i]]
-    x <- x[!is.na(x)]
     for (j in seq_len(ncol(tabla2))) {
       y <- columnas_2[[j]]
-      y <- y[!is.na(y)]
       k <- k + 1L
-      unicos_x <- unique(x)
-      unicos_y <- unique(y)
-      n_valores_comunes <- length(intersect(unicos_x, unicos_y))
-      unico_x <- anyDuplicated(x) == 0L
-      unico_y <- anyDuplicated(y) == 0L
+      n_valores_comunes <- length(intersect(x$unicos, y$unicos))
+      unico_x <- x$unico
+      unico_y <- y$unico
       cardinalidad <- if (!n_valores_comunes) {
         "sin_coincidencias"
       } else if (unico_x && unico_y) {
@@ -194,8 +207,16 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5) {
         columna_tabla2 = nombres_2[[j]],
         cardinalidad = cardinalidad,
         n_valores_comunes = n_valores_comunes,
-        cobertura_tabla1_en_tabla2 = if (length(x)) mean(x %in% unicos_y) else NA_real_,
-        cobertura_tabla2_en_tabla1 = if (length(y)) mean(y %in% unicos_x) else NA_real_,
+        cobertura_tabla1_en_tabla2 = if (length(x$muestra)) {
+          mean(x$muestra %in% y$unicos)
+        } else {
+          NA_real_
+        },
+        cobertura_tabla2_en_tabla1 = if (length(y$muestra)) {
+          mean(y$muestra %in% x$unicos)
+        } else {
+          NA_real_
+        },
         stringsAsFactors = FALSE
       )
     }
@@ -217,12 +238,12 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5) {
     tabla1 = nrow(tabla1), tabla2 = nrow(tabla2)
   )
   attr(resultado, "filas_analizadas") <- c(
-    tabla1 = min(nrow(tabla1), floor(muestra)),
-    tabla2 = min(nrow(tabla2), floor(muestra))
+    tabla1 = min(nrow(tabla1), limite_muestra),
+    tabla2 = min(nrow(tabla2), limite_muestra)
   )
   attr(resultado, "muestreado") <- c(
-    tabla1 = nrow(tabla1) > muestra,
-    tabla2 = nrow(tabla2) > muestra
+    tabla1 = nrow(tabla1) > limite_muestra,
+    tabla2 = nrow(tabla2) > limite_muestra
   )
   resultado
 }

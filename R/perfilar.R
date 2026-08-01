@@ -5,13 +5,19 @@
 #' accionables. Todas las proporciones se expresan en `[0, 1]`.
 #'
 #' Los umbrales de faltantes se aplican a la suma de ausentes reales y
-#' faltantes disfrazados. La lista de cadenas se basa en
-#' `naniar::common_na_strings`, con extensiones habituales en datos
-#' administrativos uruguayos. Los sentinelas numéricos predeterminados son
-#' `-9`, `-99`, `-999`, `-9999` y `999`. La lista es deliberadamente más corta
-#' que `naniar::common_na_numbers`: `66`, `77`, `88` y `9999` también pueden ser
-#' edades, códigos o años legítimos. Para solicitar explícitamente la lista
-#' completa de naniar, use `sentinelas_numericos = sentinelas_naniar`.
+#' faltantes disfrazados. La lista de cadenas está congelada con referencia a
+#' `naniar::common_na_strings` 1.1.0 y suma extensiones habituales en datos
+#' administrativos uruguayos. No depende de la versión de naniar instalada.
+#' Los sentinelas numéricos predeterminados son `-9`, `-99`, `-999`, `-9999` y
+#' `999`. La lista es deliberadamente más corta que
+#' `naniar::common_na_numbers` 1.1.0: `66`, `77`, `88` y `9999` también pueden
+#' ser edades, códigos o años legítimos. Para solicitar explícitamente esa
+#' lista completa, use `sentinelas_numericos = sentinelas_naniar`.
+#'
+#' `muestra` limita sólo el descubrimiento de patrones, la inferencia de tipos y
+#' la detección de formatos de fecha. Las demás métricas y hallazgos se calculan
+#' sobre todas las filas. Por eso `meta$filas_analizadas` describe el máximo
+#' usado por los análisis muestreados, no el alcance del perfil completo.
 #'
 #' @param datos Objeto que hereda de `data.frame`.
 #' @param nombre Nombre descriptivo del objeto.

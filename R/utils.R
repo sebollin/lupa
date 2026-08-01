@@ -1,10 +1,16 @@
-.muestrear_vector <- function(x, muestra) {
-  if (length(muestra) != 1L || is.na(muestra) || muestra < 1) {
+.validar_muestra <- function(muestra) {
+  if (!is.numeric(muestra) || length(muestra) != 1L || is.na(muestra) ||
+      !is.finite(muestra) || muestra < 1) {
     stop("`muestra` debe ser un n\u00famero positivo.", call. = FALSE)
   }
+  floor(muestra)
+}
+
+.muestrear_vector <- function(x, muestra) {
+  limite_solicitado <- .validar_muestra(muestra)
 
   total <- length(x)
-  limite <- min(total, floor(muestra))
+  limite <- min(total, limite_solicitado)
   if (total <= limite) {
     return(list(
       valores = x,

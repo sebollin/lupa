@@ -51,6 +51,13 @@ test_that("los faltantes textuales inequívocos conservan severidad error", {
   )
 })
 
+test_that("las cadenas de ausencia están congeladas dentro del paquete", {
+  cadenas <- lupa:::.cadenas_na()
+
+  expect_true(all(c("n / a", "s/d", "sin dato") %in% cadenas))
+  expect_false("valor corriente" %in% cadenas)
+})
+
 test_that("un posible identificador exige forma y alta unicidad", {
   datos <- data.frame(
     edad = c(21, 22, 25, 31, 40, 45, 52, 63, 70, 81),

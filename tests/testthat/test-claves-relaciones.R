@@ -81,4 +81,23 @@ test_that("las relaciones documentan y respetan el muestreo", {
   expect_equal(attr(resultado, "filas_analizadas"), c(tabla1 = 100, tabla2 = 100))
   expect_true(all(attr(resultado, "muestreado")))
   expect_error(detectar_relaciones(tabla1, tabla2, muestra = 0), "positivo")
+  expect_error(detectar_relaciones(tabla1, tabla2, muestra = "100"), "positivo")
+})
+
+test_that("el muestreo conserva cobertura y cardinalidad con tamaños distintos", {
+  tabla1 <- data.frame(id = seq_len(2000L))
+  tabla2 <- data.frame(fk = rep(seq_len(2000L), length.out = 3500L))
+  relacion <- detectar_relaciones(tabla1, tabla2, muestra = 100)
+
+  expect_equal(relacion$cobertura_tabla1_en_tabla2, 1)
+  expect_equal(relacion$cobertura_tabla2_en_tabla1, 1)
+  expect_equal(relacion$cardinalidad, "1:m")
+  expect_equal(relacion$n_valores_comunes, 2000L)
+
+  ids <- seq_len(2000L)
+  ids[4L] <- 5L
+  duplicado_no_muestreado <- detectar_relaciones(
+    data.frame(id = ids), data.frame(fk = seq_len(2000L)), muestra = 100
+  )
+  expect_equal(duplicado_no_muestreado$cardinalidad, "m:1")
 })

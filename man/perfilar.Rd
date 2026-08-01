@@ -60,13 +60,19 @@ accionables. Todas las proporciones se expresan en \verb{[0, 1]}.
 }
 \details{
 Los umbrales de faltantes se aplican a la suma de ausentes reales y
-faltantes disfrazados. La lista de cadenas se basa en
-\code{naniar::common_na_strings}, con extensiones habituales en datos
-administrativos uruguayos. Los sentinelas numéricos predeterminados son
-\code{-9}, \code{-99}, \code{-999}, \code{-9999} y \code{999}. La lista es deliberadamente más corta
-que \code{naniar::common_na_numbers}: \code{66}, \code{77}, \code{88} y \code{9999} también pueden ser
-edades, códigos o años legítimos. Para solicitar explícitamente la lista
-completa de naniar, use \code{sentinelas_numericos = sentinelas_naniar}.
+faltantes disfrazados. La lista de cadenas está congelada con referencia a
+\code{naniar::common_na_strings} 1.1.0 y suma extensiones habituales en datos
+administrativos uruguayos. No depende de la versión de naniar instalada.
+Los sentinelas numéricos predeterminados son \code{-9}, \code{-99}, \code{-999}, \code{-9999} y
+\code{999}. La lista es deliberadamente más corta que
+\code{naniar::common_na_numbers} 1.1.0: \code{66}, \code{77}, \code{88} y \code{9999} también pueden
+ser edades, códigos o años legítimos. Para solicitar explícitamente esa
+lista completa, use \code{sentinelas_numericos = sentinelas_naniar}.
+
+\code{muestra} limita sólo el descubrimiento de patrones, la inferencia de tipos y
+la detección de formatos de fecha. Las demás métricas y hallazgos se calculan
+sobre todas las filas. Por eso \code{meta$filas_analizadas} describe el máximo
+usado por los análisis muestreados, no el alcance del perfil completo.
 }
 \examples{
 perfil <- perfilar(datos_administrativos)
