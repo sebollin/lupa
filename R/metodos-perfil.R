@@ -27,7 +27,7 @@ print.perfil <- function(x, ...) {
 
   cli::cli_h2("Resumen por columna")
   vista <- x$columnas[c(
-    "columna", "tipo_declarado", "tipo_inferido", "pct_faltantes_totales",
+    "columna", "tipo_declarado", "tipo_inferido", "prop_faltantes_totales",
     "n_distintos", "n_outliers"
   )]
   print(vista, row.names = FALSE)
@@ -53,7 +53,8 @@ as.data.frame.perfil <- function(x, row.names = NULL, optional = FALSE, ...) {
 #' @param ... Argumentos enviados a [tibble::as_tibble()].
 #'
 #' @return Un `tibble` con una fila por columna.
-#' @export
+#' @keywords internal
+#' @exportS3Method tibble::as_tibble
 as_tibble.perfil <- function(x, ...) {
   if (!requireNamespace("tibble", quietly = TRUE)) {
     stop("Para esta conversi\u00f3n se necesita instalar el paquete 'tibble'.", call. = FALSE)

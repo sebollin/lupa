@@ -138,29 +138,39 @@ detectar_claves <- function(datos, max_combinacion = 3) {
 #' dirección PK/FK sin imponerla de antemano.
 #'
 #' @param tabla1,tabla2 Objetos que heredan de `data.frame`.
+#' @param muestra Máximo de filas que se analizan en cada tabla. El muestreo es
+#'   sistemático y reproducible.
 #'
 #' @return Data frame con columnas comparadas, cardinalidad, coincidencias y
-#'   coberturas de integridad referencial en ambas direcciones.
+#'   coberturas de integridad referencial en ambas direcciones. Los atributos
+#'   `filas_totales`, `filas_analizadas` y `muestreado` documentan el muestreo.
 #' @export
 #'
 #' @examples
 #' personas <- data.frame(id = 1:3)
 #' tramites <- data.frame(persona_id = c(1, 1, 3, 4))
 #' detectar_relaciones(personas, tramites)
-detectar_relaciones <- function(tabla1, tabla2) {
+detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5) {
   if (!inherits(tabla1, "data.frame") || !inherits(tabla2, "data.frame")) {
     stop("`tabla1` y `tabla2` deben heredar de data.frame.", call. = FALSE)
   }
+  .muestrear_vector(integer(), muestra)
   nombres_1 <- make.unique(names(tabla1))
   nombres_2 <- make.unique(names(tabla2))
+  columnas_1 <- lapply(seq_len(ncol(tabla1)), function(i) {
+    .valores_relacion(.muestrear_vector(tabla1[[i]], muestra)$valores)
+  })
+  columnas_2 <- lapply(seq_len(ncol(tabla2)), function(i) {
+    .valores_relacion(.muestrear_vector(tabla2[[i]], muestra)$valores)
+  })
   filas <- vector("list", ncol(tabla1) * ncol(tabla2))
   k <- 0L
 
   for (i in seq_len(ncol(tabla1))) {
-    x <- .valores_relacion(tabla1[[i]])
+    x <- columnas_1[[i]]
     x <- x[!is.na(x)]
     for (j in seq_len(ncol(tabla2))) {
-      y <- .valores_relacion(tabla2[[j]])
+      y <- columnas_2[[j]]
       y <- y[!is.na(y)]
       k <- k + 1L
       unicos_x <- unique(x)
@@ -203,5 +213,16 @@ detectar_relaciones <- function(tabla1, tabla2) {
     )
   }
   class(resultado) <- c("relaciones_detectadas", "data.frame")
+  attr(resultado, "filas_totales") <- c(
+    tabla1 = nrow(tabla1), tabla2 = nrow(tabla2)
+  )
+  attr(resultado, "filas_analizadas") <- c(
+    tabla1 = min(nrow(tabla1), floor(muestra)),
+    tabla2 = min(nrow(tabla2), floor(muestra))
+  )
+  attr(resultado, "muestreado") <- c(
+    tabla1 = nrow(tabla1) > muestra,
+    tabla2 = nrow(tabla2) > muestra
+  )
   resultado
 }

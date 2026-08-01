@@ -20,6 +20,9 @@ candidatos evaluados y, cuando corresponde, formatos de fecha.
 Para columnas de texto distingue valores lógicos, enteros, dobles, fechas,
 fechas-hora, horas, identificadores y texto. Además de la etiqueta devuelve
 la proporción de valores compatibles, siempre en la escala \verb{[0, 1]}.
+Los textos compuestos únicamente por \code{0} y \code{1} se consideran enteros; para
+inferir un lógico debe aparecer al menos un literal alfabético como \code{sí},
+\code{no}, \code{true} o \code{false}.
 }
 \examples{
 inferir_tipo(c("1", "2", "3"))

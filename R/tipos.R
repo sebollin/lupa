@@ -18,6 +18,9 @@
 #' Para columnas de texto distingue valores lógicos, enteros, dobles, fechas,
 #' fechas-hora, horas, identificadores y texto. Además de la etiqueta devuelve
 #' la proporción de valores compatibles, siempre en la escala `[0, 1]`.
+#' Los textos compuestos únicamente por `0` y `1` se consideran enteros; para
+#' inferir un lógico debe aparecer al menos un literal alfabético como `sí`,
+#' `no`, `true` o `false`.
 #'
 #' @param x Vector que se desea examinar.
 #' @param umbral Proporción mínima para asignar un tipo implícito.
@@ -57,9 +60,17 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
     return(.inferencia("desconocido", 0L, 0L, muestreo, candidatos))
   }
 
-  logicos <- tolower(valores) %in% c(
+  logicos_base <- tolower(valores) %in% c(
     "true", "false", "t", "f", "si", "s\u00ed", "s", "no", "n", "0", "1"
   )
+  contiene_logico_alfabetico <- any(
+    logicos_base & grepl("[[:alpha:]]", valores, perl = TRUE)
+  )
+  logicos <- if (contiene_logico_alfabetico) {
+    logicos_base
+  } else {
+    rep(FALSE, length(valores))
+  }
   enteros <- grepl("^[+-]?[0-9]+$", valores, perl = TRUE)
   dobles <- grepl(
     "^[+-]?(?:[0-9]+(?:[.,][0-9]+)?|[.,][0-9]+)(?:[eE][+-]?[0-9]+)?$",

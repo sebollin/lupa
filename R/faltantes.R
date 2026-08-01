@@ -5,7 +5,19 @@
   "no corresponde", "n/c", "nc", "-", ".", "..", "...", "[]"
 )
 
-.numeros_na_locales <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
+.numeros_na_locales <- c(-9, -99, -999, -9999, 999)
+
+#' Sentinelas numéricos publicados por naniar
+#'
+#' Vector para solicitar explícitamente la lista numérica completa publicada
+#' por `naniar`. Incluye `66`, `77`, `88` y `9999`, que pueden ser edades,
+#' códigos o años legítimos y por eso no se aplican de forma predeterminada.
+#' Se usa como `perfilar(datos, sentinelas_numericos = sentinelas_naniar)`.
+#'
+#' @format Vector numérico de ocho elementos.
+#' @source `naniar::common_na_numbers`.
+#' @export
+sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 
 .cadenas_na <- function() {
   valores <- .cadenas_na_locales
@@ -19,35 +31,35 @@
   unique(tolower(trimws(as.character(valores))))
 }
 
-.numeros_na <- function() {
-  valores <- .numeros_na_locales
-  if (requireNamespace("naniar", quietly = TRUE)) {
-    externos <- tryCatch(
-      getExportedValue("naniar", "common_na_numbers"),
-      error = function(e) numeric()
-    )
-    valores <- c(valores, externos)
-  }
-  unique(as.numeric(valores))
+.numeros_na <- function(adicionales = numeric()) {
+  unique(c(.numeros_na_locales, as.numeric(adicionales)))
 }
 
-.detectar_faltantes_disfrazados <- function(x) {
+.detectar_faltantes_disfrazados <- function(x, sentinelas_numericos = numeric()) {
   n <- length(x)
   if (!n) {
-    return(list(n = 0L, proporcion = 0, mascara = logical(), evidencia = ""))
+    return(list(
+      n = 0L, proporcion = 0, mascara = logical(), evidencia = "",
+      n_textuales = 0L, n_numericos = 0L
+    ))
   }
 
   mascara <- rep(FALSE, n)
+  mascara_textual <- rep(FALSE, n)
+  mascara_numerica <- rep(FALSE, n)
+  numeros_na <- .numeros_na(sentinelas_numericos)
   if (is.character(x) || is.factor(x)) {
     normalizados <- tolower(trimws(as.character(x)))
-    mascara <- !is.na(normalizados) & normalizados %in% .cadenas_na()
+    mascara_textual <- !is.na(normalizados) & normalizados %in% .cadenas_na()
     numericos <- suppressWarnings(as.numeric(normalizados))
-    mascara <- mascara |
-      (!is.na(normalizados) & !is.na(numericos) & numericos %in% .numeros_na())
+    mascara_numerica <- !is.na(normalizados) & !is.na(numericos) &
+      numericos %in% numeros_na
+    mascara <- mascara_textual | mascara_numerica
     etiquetas <- as.character(x[mascara])
     etiquetas[trimws(etiquetas) == ""] <- "<blanco>"
   } else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt"))) {
-    mascara <- !is.na(x) & x %in% .numeros_na()
+    mascara_numerica <- !is.na(x) & x %in% numeros_na
+    mascara <- mascara_numerica
     etiquetas <- as.character(x[mascara])
   } else {
     etiquetas <- character()
@@ -65,6 +77,8 @@
     n = cantidad,
     proporcion = cantidad / n,
     mascara = mascara,
-    evidencia = evidencia
+    evidencia = evidencia,
+    n_textuales = sum(mascara_textual),
+    n_numericos = sum(mascara_numerica & !mascara_textual)
   )
 }

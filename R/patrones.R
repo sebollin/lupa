@@ -14,10 +14,14 @@
 #' @param max_patrones Número máximo de patrones que se muestran.
 #' @param na.rm Si es `TRUE`, excluye los valores ausentes.
 #' @param muestra Máximo de valores que se analizan.
+#' @param umbral_raro Umbral usado para conservar un resumen acotado de
+#'   patrones raros para los hallazgos.
 #'
 #' @return Un data frame de clase `patrones` con patrón, frecuencia, proporción
 #'   y ejemplos. Los atributos `total`, `analizados` y `muestreado` describen
-#'   el posible muestreo. Las proporciones siempre están en `[0, 1]`.
+#'   el posible muestreo. `resumen_patrones` conserva sólo el patrón dominante
+#'   y hasta seis patrones raros; nunca guarda la distribución completa. Las
+#'   proporciones siempre están en `[0, 1]`.
 #' @export
 #'
 #' @examples
@@ -30,12 +34,17 @@ descubrir_patrones <- function(x,
                                expandir = FALSE,
                                max_patrones = 20,
                                na.rm = TRUE,
-                               muestra = 1e5) {
+                               muestra = 1e5,
+                               umbral_raro = 0.05) {
   if (length(max_patrones) != 1L || is.na(max_patrones) || max_patrones < 1) {
     stop("`max_patrones` debe ser un entero positivo.", call. = FALSE)
   }
   if (!is.atomic(x) && !is.factor(x)) {
     stop("`x` debe ser un vector at\u00f3mico.", call. = FALSE)
+  }
+  if (length(umbral_raro) != 1L || is.na(umbral_raro) ||
+      umbral_raro < 0 || umbral_raro > 1) {
+    stop("`umbral_raro` debe estar entre 0 y 1.", call. = FALSE)
   }
 
   muestra_x <- .muestrear_vector(x, muestra)
@@ -72,34 +81,61 @@ descubrir_patrones <- function(x,
   para_tabla[is.na(para_tabla)] <- marcador_na
   frecuencias <- sort(table(para_tabla, useNA = "no"), decreasing = TRUE)
   denominador <- length(para_tabla)
-
-  completo <- data.frame(
-    patron = names(frecuencias),
-    n = as.integer(frecuencias),
-    proporcion = if (denominador) as.numeric(frecuencias) / denominador else numeric(),
-    ejemplos = character(length(frecuencias)),
-    stringsAsFactors = FALSE
+  proporciones <- if (denominador) {
+    as.numeric(frecuencias) / denominador
+  } else {
+    numeric()
+  }
+  limite <- min(length(frecuencias), floor(max_patrones))
+  indices_salida <- seq_len(limite)
+  indices_raros <- which(
+    seq_along(frecuencias) > 1L & proporciones < umbral_raro
   )
+  indices_raros <- utils::head(indices_raros, 6L)
+  indices_resumen <- unique(c(
+    if (length(frecuencias)) 1L else integer(),
+    indices_raros
+  ))
+  indices_objetivo <- sort(unique(c(indices_salida, indices_resumen)))
+  nombres_objetivo <- names(frecuencias)[indices_objetivo]
+  ejemplos_objetivo <- rep("", length(indices_objetivo))
 
-  if (nrow(completo)) {
-    completo$patron[completo$patron == marcador_na] <- NA_character_
-    for (i in seq_len(nrow(completo))) {
-      patron_i <- completo$patron[[i]]
-      coincide <- if (is.na(patron_i)) is.na(patrones) else patrones == patron_i
-      ejemplos <- unique(textos[which(coincide)])
-      ejemplos <- ejemplos[!is.na(ejemplos)]
-      ejemplos <- utils::head(ejemplos, 3L)
-      completo$ejemplos[[i]] <- paste(ejemplos, collapse = " | ")
+  if (length(indices_objetivo)) {
+    grupos <- match(para_tabla, nombres_objetivo, nomatch = 0L)
+    posiciones <- which(grupos > 0L & !is.na(textos))
+    if (length(posiciones)) {
+      textos_por_patron <- split(textos[posiciones], grupos[posiciones])
+      indices_grupo <- as.integer(names(textos_por_patron))
+      ejemplos_objetivo[indices_grupo] <- vapply(
+        textos_por_patron,
+        function(valores_grupo) {
+          paste(utils::head(unique(valores_grupo), 3L), collapse = " | ")
+        },
+        character(1L)
+      )
     }
   }
 
-  limite <- min(nrow(completo), floor(max_patrones))
-  resultado <- completo[seq_len(limite), , drop = FALSE]
+  crear_tabla <- function(indices) {
+    nombres <- names(frecuencias)[indices]
+    nombres[nombres == marcador_na] <- NA_character_
+    data.frame(
+      patron = nombres,
+      n = as.integer(frecuencias[indices]),
+      proporcion = proporciones[indices],
+      ejemplos = ejemplos_objetivo[match(indices, indices_objetivo)],
+      stringsAsFactors = FALSE
+    )
+  }
+
+  resultado <- crear_tabla(indices_salida)
+  resumen <- crear_tabla(indices_resumen)
   rownames(resultado) <- NULL
+  rownames(resumen) <- NULL
   class(resultado) <- c("patrones", "data.frame")
   attr(resultado, "total") <- muestra_x$total
   attr(resultado, "analizados") <- muestra_x$analizados
   attr(resultado, "muestreado") <- muestra_x$muestreado
-  attr(resultado, "patrones_completos") <- completo
+  attr(resultado, "resumen_patrones") <- resumen
   resultado
 }

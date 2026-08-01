@@ -49,11 +49,15 @@
       ))
     }
 
-    if (n_validos > 1L && isTRUE(all.equal(fila$tasa_distintos, 1))) {
+    if (n_validos > 1L && fila$tipo_inferido == "identificador" &&
+        is.finite(fila$tasa_distintos) && fila$tasa_distintos >= 0.9) {
       agregar(.nuevo_hallazgo(
         nombre, "posible_identificador", "ok",
-        "Todos los valores no ausentes son distintos; puede ser un identificador.",
-        paste0(fila$n_distintos, " valores distintos de ", n_validos),
+        "La forma y la alta unicidad son compatibles con un identificador.",
+        paste0(
+          fila$n_distintos, " valores distintos de ", n_validos,
+          " (", sprintf("%.3f", fila$tasa_distintos), ")"
+        ),
         "Validar con el diccionario de datos si corresponde declarar una clave."
       ))
     } else if (
@@ -70,12 +74,16 @@
       ))
     }
 
-    if (is.finite(fila$pct_faltantes_totales) &&
-        fila$pct_faltantes_totales >= umbral_faltantes_sospechoso) {
-      severidad <- if (fila$pct_faltantes_totales >= umbral_faltantes_error) {
+    if (is.finite(fila$prop_faltantes_totales) &&
+        fila$prop_faltantes_totales >= umbral_faltantes_sospechoso) {
+      severidad <- if (fila$prop_faltantes_totales >= umbral_faltantes_error) {
         "error"
       } else {
         "sospechoso"
+      }
+      if (severidad == "error" && fila$n_faltantes == 0L &&
+          resultado$faltantes_disfrazados$n_textuales == 0L) {
+        severidad <- "sospechoso"
       }
       agregar(.nuevo_hallazgo(
         nombre, "faltantes", severidad,
@@ -83,18 +91,40 @@
         sprintf(
           "%d ausentes reales y %d disfrazados (%.3f del total)",
           fila$n_faltantes, fila$n_faltantes_disfrazados,
-          fila$pct_faltantes_totales
+          fila$prop_faltantes_totales
         ),
         "Revisar la obligatoriedad del campo y el proceso que origina los faltantes."
       ))
     }
 
     if (fila$n_faltantes_disfrazados > 0L) {
+      solo_numericos <- resultado$faltantes_disfrazados$n_textuales == 0L
       agregar(.nuevo_hallazgo(
-        nombre, "faltantes_disfrazados", "error",
+        nombre, "faltantes_disfrazados",
+        if (solo_numericos) "sospechoso" else "error",
         "Hay valores que representan ausencia sin estar codificados como NA.",
         resultado$faltantes_disfrazados$evidencia,
-        "Normalizar estas representaciones a NA conservando su significado si fuera necesario."
+        if (solo_numericos) {
+          "Confirmar que los sentinelas num\u00e9ricos representan ausencia antes de normalizarlos."
+        } else {
+          "Normalizar estas representaciones a NA conservando su significado si fuera necesario."
+        }
+      ))
+    }
+
+    candidatos_fecha <- resultado$formatos[
+      resultado$formatos$estado == "candidato", , drop = FALSE
+    ]
+    if (nrow(candidatos_fecha) &&
+        fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
+      agregar(.nuevo_hallazgo(
+        nombre, "formato_fecha_ambiguo", "sospechoso",
+        paste0(
+          "La columna es compatible con fecha, pero no permite distinguir ",
+          "d\u00eda/mes de mes/d\u00eda; el rango temporal no se calcula."
+        ),
+        paste(candidatos_fecha$formato, collapse = " o "),
+        "Desambiguar el formato con el origen de los datos antes de convertir la columna."
       ))
     }
 
@@ -125,7 +155,7 @@
       ))
     }
 
-    patrones <- attr(resultado$patrones, "patrones_completos")
+    patrones <- attr(resultado$patrones, "resumen_patrones")
     if (!is.null(patrones) && nrow(patrones) > 1L &&
         patrones$proporcion[[1L]] >= umbral_patron_dominante) {
       raros <- patrones[-1L, , drop = FALSE]
@@ -146,6 +176,26 @@
           "Revisar los valores concretos y validar el formato esperado."
         ))
       }
+    }
+
+    if (fila$n_espacios_borde > 0L) {
+      agregar(.nuevo_hallazgo(
+        nombre, "espacios_sobrantes", "sospechoso",
+        "Hay texto con espacios sobrantes al inicio o al final.",
+        paste0(
+          fila$n_espacios_borde, " valores; ejemplos: ",
+          resultado$diagnostico_texto$evidencia_espacios
+        ),
+        "Aplicar trimws() despu\u00e9s de confirmar que los espacios no son significativos."
+      ))
+    }
+    if (fila$n_variantes_mayusculas > 0L) {
+      agregar(.nuevo_hallazgo(
+        nombre, "mayusculas_inconsistentes", "sospechoso",
+        "Conviven valores que s\u00f3lo se diferencian por may\u00fasculas y min\u00fasculas.",
+        resultado$diagnostico_texto$evidencia_mayusculas,
+        "Definir y aplicar una convenci\u00f3n de capitalizaci\u00f3n para la columna."
+      ))
     }
 
     if (nombre %in% columnas_sin_ceros && fila$n_ceros > 0L) {
@@ -174,6 +224,24 @@
     }
   }
   hallazgos
+}
+
+.nombres_columnas_problematicos <- function(nombres) {
+  if (!length(nombres)) {
+    return(data.frame(
+      original = character(), propuesto = character(), stringsAsFactors = FALSE
+    ))
+  }
+  originales <- as.character(nombres)
+  originales[is.na(originales)] <- ""
+  propuestos <- make.names(originales, unique = TRUE)
+  problema <- originales != propuestos | originales != trimws(originales) |
+    duplicated(originales) | duplicated(originales, fromLast = TRUE)
+  data.frame(
+    original = originales[problema],
+    propuesto = propuestos[problema],
+    stringsAsFactors = FALSE
+  )
 }
 
 .columnas_duplicadas <- function(datos, nombres) {
@@ -241,6 +309,21 @@
         "Confirmar si ambas columnas son necesarias o si existe redundancia."
       )
     }
+  }
+  nombres_problematicos <- .nombres_columnas_problematicos(columnas)
+  if (nrow(nombres_problematicos)) {
+    evidencia <- paste0(
+      encodeString(nombres_problematicos$original, quote = '"'),
+      " -> ",
+      encodeString(nombres_problematicos$propuesto, quote = '"'),
+      collapse = "; "
+    )
+    hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
+      NA_character_, "nombres_columnas_problematicos", "sospechoso",
+      "La tabla contiene nombres de columna no sint\u00e1cticos o duplicados.",
+      evidencia,
+      "Renombrar las columnas con nombres sint\u00e1cticos, \u00fanicos y sin espacios al borde."
+    )
   }
 
   if (length(hallazgos)) {

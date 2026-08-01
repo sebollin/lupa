@@ -71,3 +71,14 @@ test_that("se distinguen las cuatro cardinalidades y la falta de coincidencias",
   expect_equal(ninguna$cardinalidad, "sin_coincidencias")
   expect_error(detectar_relaciones(1:3, data.frame(x = 1:3)), "data.frame")
 })
+
+test_that("las relaciones documentan y respetan el muestreo", {
+  tabla1 <- data.frame(id = seq_len(1000))
+  tabla2 <- data.frame(id = seq_len(1000))
+  resultado <- detectar_relaciones(tabla1, tabla2, muestra = 100)
+
+  expect_equal(attr(resultado, "filas_totales"), c(tabla1 = 1000, tabla2 = 1000))
+  expect_equal(attr(resultado, "filas_analizadas"), c(tabla1 = 100, tabla2 = 100))
+  expect_true(all(attr(resultado, "muestreado")))
+  expect_error(detectar_relaciones(tabla1, tabla2, muestra = 0), "positivo")
+})

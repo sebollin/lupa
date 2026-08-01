@@ -9,7 +9,8 @@ descubrir_patrones(
   expandir = FALSE,
   max_patrones = 20,
   na.rm = TRUE,
-  muestra = 1e+05
+  muestra = 1e+05,
+  umbral_raro = 0.05
 )
 }
 \arguments{
@@ -24,11 +25,16 @@ descubrir_patrones(
 \item{na.rm}{Si es \code{TRUE}, excluye los valores ausentes.}
 
 \item{muestra}{Máximo de valores que se analizan.}
+
+\item{umbral_raro}{Umbral usado para conservar un resumen acotado de
+patrones raros para los hallazgos.}
 }
 \value{
 Un data frame de clase \code{patrones} con patrón, frecuencia, proporción
 y ejemplos. Los atributos \code{total}, \code{analizados} y \code{muestreado} describen
-el posible muestreo. Las proporciones siempre están en \verb{[0, 1]}.
+el posible muestreo. \code{resumen_patrones} conserva sólo el patrón dominante
+y hasta seis patrones raros; nunca guarda la distribución completa. Las
+proporciones siempre están en \verb{[0, 1]}.
 }
 \description{
 Generaliza un vector de texto mediante la convención del \emph{Pattern Finder}

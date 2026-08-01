@@ -16,7 +16,8 @@ perfilar(
   umbral_patron_raro = 0.05,
   umbral_patron_dominante = 0.5,
   columnas_sin_ceros = character(),
-  columnas_no_negativas = character()
+  columnas_no_negativas = character(),
+  sentinelas_numericos = numeric()
 )
 }
 \arguments{
@@ -45,6 +46,9 @@ perfilar(
 \item{columnas_sin_ceros}{Nombres de columnas donde cero no es admisible.}
 
 \item{columnas_no_negativas}{Nombres de columnas que deben ser no negativas.}
+
+\item{sentinelas_numericos}{Vector de sentinelas numéricos adicionales que
+representan ausencia. Se combina con la lista predeterminada.}
 }
 \value{
 Objeto S3 de clase \code{perfil}.
@@ -56,11 +60,13 @@ accionables. Todas las proporciones se expresan en \verb{[0, 1]}.
 }
 \details{
 Los umbrales de faltantes se aplican a la suma de ausentes reales y
-faltantes disfrazados. Estos últimos se informan además como error propio.
-La lista de representaciones se basa en \code{naniar::common_na_strings} y
-\code{naniar::common_na_numbers}, con extensiones habituales en datos
-administrativos uruguayos. \code{naniar} es opcional y se consulta solamente si
-está instalado.
+faltantes disfrazados. La lista de cadenas se basa en
+\code{naniar::common_na_strings}, con extensiones habituales en datos
+administrativos uruguayos. Los sentinelas numéricos predeterminados son
+\code{-9}, \code{-99}, \code{-999}, \code{-9999} y \code{999}. La lista es deliberadamente más corta
+que \code{naniar::common_na_numbers}: \code{66}, \code{77}, \code{88} y \code{9999} también pueden ser
+edades, códigos o años legítimos. Para solicitar explícitamente la lista
+completa de naniar, use \code{sentinelas_numericos = sentinelas_naniar}.
 }
 \examples{
 perfil <- perfilar(datos_administrativos)

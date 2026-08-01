@@ -22,6 +22,7 @@ test_that("perfilar crea la estructura S3 completa", {
   expect_equal(resultado$general$filas, 4L)
   expect_equal(resultado$general$columnas, 6L)
   expect_equal(resultado$general$celdas, 24L)
+  expect_type(resultado$general$celdas, "double")
   expect_equal(resultado$general$filas_duplicadas, 1L)
   expect_equal(nrow(resultado$columnas), 6L)
   expect_equal(names(resultado$patrones), names(datos_sucios))
@@ -31,7 +32,7 @@ test_that("perfilar crea la estructura S3 completa", {
 test_that("las proporciones están en la escala unitaria", {
   resultado <- perfilar(datos_sucios)
   proporciones <- resultado$columnas[c(
-    "pct_faltantes", "pct_faltantes_disfrazados", "pct_faltantes_totales",
+    "prop_faltantes", "prop_faltantes_disfrazados", "prop_faltantes_totales",
     "tasa_distintos", "proporcion_tipo_inferido"
   )]
   valores <- unlist(proporciones, use.names = FALSE)
@@ -45,7 +46,7 @@ test_that("se detectan faltantes disfrazados y blancos", {
 
   expect_equal(categoria$n_faltantes, 0L)
   expect_equal(categoria$n_faltantes_disfrazados, 2L)
-  expect_equal(categoria$pct_faltantes_totales, 0.5)
+  expect_equal(categoria$prop_faltantes_totales, 0.5)
   expect_equal(categoria$n_blancos, 1L)
   expect_true(any(
     resultado$hallazgos$columna == "categoria" &
@@ -117,7 +118,8 @@ test_that("los métodos de presentación devuelven el resumen", {
   resultado <- perfilar(datos_sucios)
   expect_equal(summary(resultado), resultado$columnas)
   expect_equal(as.data.frame(resultado), resultado$columnas)
-  expect_output(print(resultado), "columna")
+  salida <- suppressMessages(capture.output(print(resultado)))
+  expect_match(paste(salida, collapse = "\n"), "columna")
   expect_warning(reportar(resultado), "próxima versión")
   expect_error(reportar(datos_sucios), "clase perfil")
 })
@@ -128,6 +130,10 @@ test_that("la conversión opcional a tibble conserva una fila por columna", {
   convertido <- tibble::as_tibble(resultado)
   expect_s3_class(convertido, "tbl_df")
   expect_equal(nrow(convertido), ncol(datos_sucios))
+  expect_false("as_tibble.perfil" %in% getNamespaceExports("lupa"))
+  expect_true(is.function(getS3method(
+    "as_tibble", "perfil", envir = asNamespace("tibble")
+  )))
 })
 
 test_that("se aceptan tibble y data.table sin cambiar su contenido", {
@@ -158,7 +164,8 @@ test_that("un data frame sin columnas conserva una salida manipulable", {
   resultado <- perfilar(data.frame())
   expect_s3_class(resultado, "perfil")
   expect_equal(nrow(summary(resultado)), 0L)
-  expect_true(all(c("pct_faltantes_totales", "n_outliers") %in%
+  expect_true(all(c("prop_faltantes_totales", "n_outliers") %in%
     names(summary(resultado))))
-  expect_output(print(resultado), "columna")
+  salida <- suppressMessages(capture.output(print(resultado)))
+  expect_match(paste(salida, collapse = "\n"), "columna")
 })

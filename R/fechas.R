@@ -3,7 +3,12 @@
   valido <- rep(FALSE, length(x))
   if (any(coincide)) {
     convertido <- strptime(x[coincide], format = formato, tz = "UTC")
-    valido[coincide] <- !is.na(convertido)
+    valido_convertido <- !is.na(convertido)
+    if (startsWith(formato, "%Y%m%d")) {
+      anios <- suppressWarnings(as.integer(substr(x[coincide], 1L, 4L)))
+      valido_convertido <- valido_convertido & anios >= 1800L & anios <= 2100L
+    }
+    valido[coincide] <- valido_convertido
   }
   valido
 }
@@ -73,6 +78,8 @@
 #' día/mes y mes/día. Cuando todos los valores con barras son ambiguos, devuelve
 #' ambos formatos con estado `"candidato"`. El atributo `formatos_mixtos`
 #' indica si hay evidencia de dos o más representaciones en la columna.
+#' El formato compacto `%Y%m%d` exige un año entre 1800 y 2100 para evitar que
+#' identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
 #'
 #' @param x Vector de texto, fechas o fechas-hora.
 #' @param muestra Máximo de valores que se analizan.

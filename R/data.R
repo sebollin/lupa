@@ -6,7 +6,7 @@
 #' el mismo identificador pero contenidos distintos. No representa personas ni
 #' registros de ningún organismo.
 #'
-#' @format Un data frame con 13 filas y 9 variables:
+#' @format Un data frame con 13 filas y 10 variables:
 #' \describe{
 #'   \item{id_persona}{Identificador interno, con una repetición contradictoria.}
 #'   \item{cedula}{Documento sintético con formatos correctos e incorrectos.}
@@ -17,6 +17,7 @@
 #'   \item{pais}{Columna constante.}
 #'   \item{correo}{Direcciones sintéticas y un patrón anómalo.}
 #'   \item{id_copia}{Copia redundante del identificador interno.}
+#'   \item{id_tramite}{Identificador sintético de alta unicidad.}
 #' }
 #' @source Generación sintética incluida con el paquete.
 "datos_administrativos"

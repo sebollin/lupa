@@ -20,6 +20,8 @@ Reconoce formatos de fecha y fecha-hora sin escoger arbitrariamente entre
 día/mes y mes/día. Cuando todos los valores con barras son ambiguos, devuelve
 ambos formatos con estado \code{"candidato"}. El atributo \code{formatos_mixtos}
 indica si hay evidencia de dos o más representaciones en la columna.
+El formato compacto \verb{\%Y\%m\%d} exige un año entre 1800 y 2100 para evitar que
+identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
 }
 \examples{
 detectar_formatos_fecha(c("2020-01-31", "31/01/2020"))

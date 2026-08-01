@@ -9,7 +9,7 @@ Description: Profiles administrative data, discovers structural patterns in
     basis is the Data Quality Management Framework for Digital Government,
     version 1.6, published by AGESIC (2020)
     <https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/>.
-License: MIT + file LICENSE
+License: GPL-2 | GPL-3
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)

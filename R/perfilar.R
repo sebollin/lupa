@@ -5,11 +5,13 @@
 #' accionables. Todas las proporciones se expresan en `[0, 1]`.
 #'
 #' Los umbrales de faltantes se aplican a la suma de ausentes reales y
-#' faltantes disfrazados. Estos últimos se informan además como error propio.
-#' La lista de representaciones se basa en `naniar::common_na_strings` y
-#' `naniar::common_na_numbers`, con extensiones habituales en datos
-#' administrativos uruguayos. `naniar` es opcional y se consulta solamente si
-#' está instalado.
+#' faltantes disfrazados. La lista de cadenas se basa en
+#' `naniar::common_na_strings`, con extensiones habituales en datos
+#' administrativos uruguayos. Los sentinelas numéricos predeterminados son
+#' `-9`, `-99`, `-999`, `-9999` y `999`. La lista es deliberadamente más corta
+#' que `naniar::common_na_numbers`: `66`, `77`, `88` y `9999` también pueden ser
+#' edades, códigos o años legítimos. Para solicitar explícitamente la lista
+#' completa de naniar, use `sentinelas_numericos = sentinelas_naniar`.
 #'
 #' @param datos Objeto que hereda de `data.frame`.
 #' @param nombre Nombre descriptivo del objeto.
@@ -24,6 +26,8 @@
 #' @param umbral_patron_dominante Frecuencia mínima del patrón dominante.
 #' @param columnas_sin_ceros Nombres de columnas donde cero no es admisible.
 #' @param columnas_no_negativas Nombres de columnas que deben ser no negativas.
+#' @param sentinelas_numericos Vector de sentinelas numéricos adicionales que
+#'   representan ausencia. Se combina con la lista predeterminada.
 #'
 #' @return Objeto S3 de clase `perfil`.
 #' @export
@@ -44,7 +48,8 @@ perfilar <- function(datos,
                      umbral_patron_raro = 0.05,
                      umbral_patron_dominante = 0.5,
                      columnas_sin_ceros = character(),
-                     columnas_no_negativas = character()) {
+                     columnas_no_negativas = character(),
+                     sentinelas_numericos = numeric()) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
@@ -58,6 +63,10 @@ perfilar <- function(datos,
   if (umbral_faltantes_error < umbral_faltantes_sospechoso) {
     stop("El umbral de error no puede ser menor que el sospechoso.", call. = FALSE)
   }
+  if (!is.numeric(sentinelas_numericos) || anyNA(sentinelas_numericos) ||
+      any(!is.finite(sentinelas_numericos))) {
+    stop("`sentinelas_numericos` debe ser un vector num\u00e9rico finito.", call. = FALSE)
+  }
 
   nombres <- names(datos)
   if (is.null(nombres)) {
@@ -67,7 +76,8 @@ perfilar <- function(datos,
   resultados <- lapply(seq_len(ncol(datos)), function(i) {
     .perfilar_columna(
       datos[[i]], nombres[[i]], muestra, max_patrones,
-      distinguir_mayusculas, expandir
+      distinguir_mayusculas, expandir, umbral_patron_raro,
+      sentinelas_numericos
     )
   })
 
@@ -76,7 +86,8 @@ perfilar <- function(datos,
   } else {
     .perfilar_columna(
       character(), "", muestra, max_patrones,
-      distinguir_mayusculas, expandir
+      distinguir_mayusculas, expandir, umbral_patron_raro,
+      sentinelas_numericos
     )$fila[0, , drop = FALSE]
   }
   rownames(columnas) <- NULL
@@ -103,7 +114,7 @@ perfilar <- function(datos,
   general <- list(
     filas = nrow(datos),
     columnas = ncol(datos),
-    celdas = nrow(datos) * ncol(datos),
+    celdas = as.numeric(nrow(datos)) * as.numeric(ncol(datos)),
     memoria_bytes = as.numeric(utils::object.size(datos)),
     filas_completas = filas_completas,
     filas_duplicadas = n_filas_duplicadas,

@@ -44,4 +44,18 @@ test_that("se validan los argumentos de patrones", {
   expect_error(descubrir_patrones(list(1, 2)), "vector atómico")
   expect_error(descubrir_patrones("a", max_patrones = 0), "positivo")
   expect_error(descubrir_patrones("a", muestra = 0), "positivo")
+  expect_error(descubrir_patrones("a", umbral_raro = 2), "entre 0 y 1")
+})
+
+test_that("el resumen interno de patrones está acotado", {
+  valores <- paste0(
+    rep(c("A", "b", "-", "."), 100),
+    rep(seq_len(100), each = 4L)
+  )
+  resultado <- descubrir_patrones(valores, expandir = TRUE, max_patrones = 5)
+  resumen <- attr(resultado, "resumen_patrones")
+
+  expect_lte(nrow(resultado), 5L)
+  expect_lte(nrow(resumen), 7L)
+  expect_null(attr(resultado, "patrones_completos"))
 })

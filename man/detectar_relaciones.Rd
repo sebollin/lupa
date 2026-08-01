@@ -3,14 +3,18 @@
 \alias{detectar_relaciones}
 \title{Detectar relaciones entre dos tablas}
 \usage{
-detectar_relaciones(tabla1, tabla2)
+detectar_relaciones(tabla1, tabla2, muestra = 1e+05)
 }
 \arguments{
 \item{tabla1, tabla2}{Objetos que heredan de \code{data.frame}.}
+
+\item{muestra}{Máximo de filas que se analizan en cada tabla. El muestreo es
+sistemático y reproducible.}
 }
 \value{
 Data frame con columnas comparadas, cardinalidad, coincidencias y
-coberturas de integridad referencial en ambas direcciones.
+coberturas de integridad referencial en ambas direcciones. Los atributos
+\code{filas_totales}, \code{filas_analizadas} y \code{muestreado} documentan el muestreo.
 }
 \description{
 Examina todos los pares de columnas y describe su cardinalidad a partir de

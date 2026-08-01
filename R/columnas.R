@@ -116,8 +116,45 @@
   )
 }
 
+.diagnosticar_texto <- function(x) {
+  vacio <- list(
+    n_espacios_borde = 0L,
+    evidencia_espacios = "",
+    n_variantes_mayusculas = 0L,
+    evidencia_mayusculas = ""
+  )
+  if (!is.character(x) && !is.factor(x)) {
+    return(vacio)
+  }
+  textos <- as.character(x)
+  validos <- !is.na(textos)
+  if (!any(validos)) {
+    return(vacio)
+  }
+
+  espacios <- validos & textos != trimws(textos)
+  ejemplos_espacios <- utils::head(unique(textos[espacios]), 6L)
+  unicos <- unique(textos[validos])
+  minusculas <- tolower(unicos)
+  colision <- duplicated(minusculas) | duplicated(minusculas, fromLast = TRUE)
+  variantes <- unicos[colision]
+
+  list(
+    n_espacios_borde = sum(espacios),
+    evidencia_espacios = paste(
+      encodeString(ejemplos_espacios, quote = '"'), collapse = "; "
+    ),
+    n_variantes_mayusculas = length(variantes),
+    evidencia_mayusculas = paste(
+      encodeString(utils::head(variantes, 6L), quote = '"'), collapse = "; "
+    )
+  )
+}
+
 .perfilar_columna <- function(x, nombre, muestra, max_patrones,
-                              distinguir_mayusculas, expandir) {
+                              distinguir_mayusculas, expandir,
+                              umbral_patron_raro,
+                              sentinelas_numericos) {
   inferencia <- inferir_tipo(x, muestra = muestra)
   formatos <- inferencia$formatos_fecha
   if (is.null(formatos)) {
@@ -129,7 +166,8 @@
       distinguir_mayusculas = distinguir_mayusculas,
       expandir = expandir,
       max_patrones = max_patrones,
-      muestra = muestra
+      muestra = muestra,
+      umbral_raro = umbral_patron_raro
     )
   } else {
     estructura <- data.frame(
@@ -139,7 +177,9 @@
     class(estructura) <- c("patrones", "data.frame")
     estructura
   }
-  faltantes_disfrazados <- .detectar_faltantes_disfrazados(x)
+  faltantes_disfrazados <- .detectar_faltantes_disfrazados(
+    x, sentinelas_numericos = sentinelas_numericos
+  )
   n <- length(x)
   n_faltantes <- sum(is.na(x))
   n_validos <- n - n_faltantes
@@ -147,6 +187,7 @@
   moda <- .moda_columna(x)
   longitudes <- .resumen_longitud(x)
   cuantitativo <- .resumen_cuantitativo(x, inferencia, formatos)
+  diagnostico_texto <- .diagnosticar_texto(x)
   n_blancos <- if (is.character(x) || is.factor(x)) {
     sum(!is.na(x) & !nzchar(trimws(as.character(x))))
   } else {
@@ -160,11 +201,15 @@
     proporcion_tipo_inferido = inferencia$proporcion,
     n = n,
     n_faltantes = n_faltantes,
-    pct_faltantes = if (n) n_faltantes / n else NA_real_,
+    prop_faltantes = if (n) n_faltantes / n else NA_real_,
     n_faltantes_disfrazados = faltantes_disfrazados$n,
-    pct_faltantes_disfrazados = if (n) faltantes_disfrazados$n / n else NA_real_,
+    prop_faltantes_disfrazados = if (n) faltantes_disfrazados$n / n else NA_real_,
     n_faltantes_totales = n_faltantes + faltantes_disfrazados$n,
-    pct_faltantes_totales = if (n) (n_faltantes + faltantes_disfrazados$n) / n else NA_real_,
+    prop_faltantes_totales = if (n) {
+      (n_faltantes + faltantes_disfrazados$n) / n
+    } else {
+      NA_real_
+    },
     n_distintos = n_distintos,
     tasa_distintos = if (n_validos) n_distintos / n_validos else NA_real_,
     moda = moda$valor,
@@ -185,6 +230,8 @@
     n_negativos = cuantitativo$n_negativos,
     n_outliers = cuantitativo$n_outliers,
     n_blancos = n_blancos,
+    n_espacios_borde = diagnostico_texto$n_espacios_borde,
+    n_variantes_mayusculas = diagnostico_texto$n_variantes_mayusculas,
     stringsAsFactors = FALSE
   )
 
@@ -193,6 +240,7 @@
     inferencia = inferencia,
     formatos = formatos,
     patrones = patrones,
-    faltantes_disfrazados = faltantes_disfrazados
+    faltantes_disfrazados = faltantes_disfrazados,
+    diagnostico_texto = diagnostico_texto
   )
 }

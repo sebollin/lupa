@@ -3,7 +3,7 @@
 \alias{as_tibble.perfil}
 \title{Convertir un perfil a tibble}
 \usage{
-as_tibble.perfil(x, ...)
+\method{as_tibble}{perfil}(x, ...)
 }
 \arguments{
 \item{x}{Objeto de clase \code{perfil}.}
@@ -17,3 +17,4 @@ Un \code{tibble} con una fila por columna.
 Método opcional para \code{\link[tibble:as_tibble]{tibble::as_tibble()}}. Requiere que \code{tibble} esté
 instalado.
 }
+\keyword{internal}

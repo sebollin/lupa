@@ -31,6 +31,9 @@ datos_administrativos <- data.frame(
     "persona10b@example.invalid", "persona01@example.invalid", "correo-mal"
   ),
   id_copia = c(1:10, 10, 1, 11),
+  id_tramite = c(
+    sprintf("TR%03d", 1:10), "TR012", "TR001", "TR011"
+  ),
   stringsAsFactors = FALSE
 )
 
