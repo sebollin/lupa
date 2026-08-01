@@ -1,0 +1,19 @@
+% Please edit documentation in R/metodos-perfil.R
+\name{as_tibble.perfil}
+\alias{as_tibble.perfil}
+\title{Convertir un perfil a tibble}
+\usage{
+as_tibble.perfil(x, ...)
+}
+\arguments{
+\item{x}{Objeto de clase \code{perfil}.}
+
+\item{...}{Argumentos enviados a \code{\link[tibble:as_tibble]{tibble::as_tibble()}}.}
+}
+\value{
+Un \code{tibble} con una fila por columna.
+}
+\description{
+Método opcional para \code{\link[tibble:as_tibble]{tibble::as_tibble()}}. Requiere que \code{tibble} esté
+instalado.
+}

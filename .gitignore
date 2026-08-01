@@ -1,0 +1,7 @@
+.Rhistory
+.RData
+.Ruserdata
+*.Rcheck/
+lupa.Rcheck/
+coverage/
+revdep/
