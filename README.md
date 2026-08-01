@@ -7,8 +7,10 @@ El motor de profiling descubre patrones de formato, infiere tipos implícitos,
 detecta formatos de fecha mezclados y faltantes disfrazados, resume cada
 columna y devuelve hallazgos accionables como un objeto de datos. La capa de
 calidad permite declarar, especializar, instanciar, medir y evaluar métricas con
-granularidad explícita. La capa de remediación propone un plan editable y nunca
-modifica datos como efecto del diagnóstico.
+granularidad explícita. El núcleo incluye catorce métricas automatizables y
+`catalogo_agesic()` documenta, fila por fila, el estado de las 49 entradas del
+marco. La capa de remediación propone un plan editable y nunca modifica datos
+como efecto del diagnóstico.
 
 ```r
 library(lupa)
@@ -17,6 +19,9 @@ p <- perfilar(datos_administrativos)
 p
 summary(p)
 p$hallazgos
+
+catalogo <- catalogo_agesic()
+subset(catalogo, estado == "via_agregacion")
 
 plan <- planificar_limpieza(p)
 plan[, c("grupo", "columna", "estrategia", "recomendada", "aplicar")]

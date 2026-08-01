@@ -96,9 +96,10 @@
 #' `instanciar()` liga la métrica a objetos concretos y materializa el método de
 #' medición. `modelo()` reúne métricas instanciadas sin calcular un índice global.
 #'
-#' `metricas_nucleo()` devuelve las seis métricas iniciales: `NoNulo`, `Formato`,
-#' `ValoresPosiblesPorExtension`, `ReglaIntegridadIntraEntidad`,
-#' `ReglaIntegridadInterEntidad` y `ErrorEstandar`.
+#' `metricas_nucleo()` devuelve las catorce métricas automatizables incluidas
+#' en esta versión. Además de las seis iniciales, incorpora métricas de dominio
+#' por comprensión, duplicación, actualidad por formato, oportunidad y densidad
+#' ponderada. Consulte [catalogo_agesic()] para la correspondencia completa.
 #'
 #' @param nombre Nombre estable y legible.
 #' @param semantica Descripción de lo que mide la métrica.
@@ -143,6 +144,30 @@
 #' un ausente no genera una medida en esas métricas y, por lo tanto, tampoco
 #' integra el denominador de sus agregaciones. La completitud se mide por
 #' separado con `NoNulo`; así un mismo ausente no se penaliza en dos factores.
+#' `ValoresPosiblesPorComprension` sigue la misma convención y acepta un
+#' `predicado` o un rango definido por `minimo`, `maximo` e `inclusivo`.
+#'
+#' Las métricas de duplicación marcan **todas** las apariciones que participan
+#' en un grupo repetido, no sólo la segunda y siguientes. `AtributoDuplicado`
+#' omite ausentes. `ConjuntoAtributosDuplicado` compara las columnas ligadas y
+#' `EntidadDuplicada` compara la fila completa; en estos dos casos los `NA`
+#' forman parte de la combinación comparada.
+#'
+#' `DesactualizacionPorFormato` devuelve `TRUE` cuando el valor **no** cumple el
+#' formato vigente. `OportunidadAtributoPorFecha` y
+#' `OportunidadAtributoPorIntervalo` devuelven
+#' `max(0, min(1, 1 - (t1 - t2) / (t3 - t2)))`. Exigen que `t3` sea posterior
+#' a `t2`; un intervalo de duración cero se rechaza porque no define el
+#' cociente. Se adopta un resultado real continuo para conservar cuánto margen
+#' de utilidad queda, aunque las tablas 16.29 y 16.30 del marco lo declaran
+#' booleano. Estas tres métricas omiten los valores `NA`: su ausencia corresponde
+#' a completitud y no genera una segunda medida de incumplimiento.
+#'
+#' **Desviación documentada del marco:** en `DensidadPonderada`, un atributo
+#' más crítico recibe un coeficiente mayor y, si falta, produce una penalización
+#' mayor. El texto del marco indica acercar a cero el coeficiente de mayor
+#' gravedad, lo que penalizaría menos el ausente crítico y contradice el sentido
+#' de la ponderación. Los coeficientes deben estar en `[0, 1]` y sumar 1.
 #'
 #' `tipo_resultado` es el contrato canónico que consultan las agregaciones. Las
 #' unidades no forman parte de este núcleo porque el marco presenta ambas
@@ -163,6 +188,20 @@
 #' instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 #' modelo_calidad <- modelo(instancia)
 #' medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
+#'
+#' # Especialización oficial de teléfono fijo según el formato vigente del PNN.
+#' telefono_pnn <- especializar(
+#'   nucleo$DesactualizacionPorFormato,
+#'   nombre_especifico = "TelefonoFijoPNN",
+#'   expresion_regular = "^[0-9]{8}$"
+#' )
+#'
+#' # Formato(NumeroDocumento, DNIC) se obtiene conectando un validador externo:
+#' # validar_ci <- uyutils::validar_ci
+#' # cedula_dnic <- especializar(
+#' #   nucleo$Formato, nombre_especifico = "NumeroDocumentoDNIC",
+#' #   validador = validar_ci
+#' # )
 #'
 #' @name modelo_calidad
 NULL
@@ -560,7 +599,7 @@ modelo <- function(...) {
 #' @rdname modelo_calidad
 #' @export
 metricas_nucleo <- function() {
-  list(
+  c(list(
     NoNulo = metrica(
       "NoNulo", "Indica si una instancia de atributo no es nula.",
       "instanciaAtributo", "booleano", dimension = "Completitud",
@@ -604,7 +643,7 @@ metricas_nucleo <- function() {
       "atributo", "real", dimension = "Exactitud", factor = "Precisi\u00f3n",
       metodo = .metodo_error_estandar
     )
-  )
+  ), .metricas_adicionales())
 }
 
 .normalizar_tablas_modelo <- function(datos, modelo) {

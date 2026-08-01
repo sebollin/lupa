@@ -6,8 +6,9 @@ Authors@R:
 Description: Profiles administrative data, discovers structural patterns in
     character columns, infers implicit types, identifies mixed date formats,
     and returns reusable findings about potential data issues. Defines reusable
-    quality metrics with explicit granularity, typed aggregation, and evaluation
-    profiles. Produces editable cleaning plans and applies only explicitly
+    quality metrics with explicit granularity, typed aggregation, evaluation
+    profiles, and a traceable mapping to the framework metric catalogue.
+    Produces editable cleaning plans and applies only explicitly
     selected actions while retaining an audit log. The conceptual basis is the
     Data Quality Management Framework for
     Digital Government, version 1.6, published by AGESIC (2020)
