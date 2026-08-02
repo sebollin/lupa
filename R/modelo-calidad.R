@@ -7,11 +7,31 @@
 }
 
 .validar_tipo_resultado <- function(tipo_resultado) {
-  opciones <- c("booleano", "real")
+  opciones <- c("booleano", "real", "numero_real", "entero", "duracion")
   if (!.es_texto_escalar(tipo_resultado) || !tipo_resultado %in% opciones) {
-    stop("`tipo_resultado` debe ser 'booleano' o 'real'.", call. = FALSE)
+    stop(
+      "`tipo_resultado` debe ser 'booleano', 'real', 'numero_real', ",
+      "'entero' o 'duracion'.", call. = FALSE
+    )
   }
   tipo_resultado
+}
+
+.resultados_validos_tipo <- function(resultado, tipo) {
+  if (!is.numeric(resultado) || length(resultado) != length(tipo) ||
+      anyNA(resultado) || any(!is.finite(resultado))) return(FALSE)
+  acotados <- tipo %in% c("booleano", "real")
+  if (any(acotados & (resultado < 0 | resultado > 1))) return(FALSE)
+  booleanos <- tipo == "booleano"
+  if (any(booleanos & !resultado %in% c(0, 1))) return(FALSE)
+  enteros <- tipo == "entero"
+  if (any(enteros & (resultado < 0 | resultado != floor(resultado)))) {
+    return(FALSE)
+  }
+  duraciones <- tipo == "duracion"
+  if (any(duraciones & resultado < 0)) return(FALSE)
+  tipos_validos <- c("booleano", "real", "numero_real", "entero", "duracion")
+  all(tipo %in% tipos_validos)
 }
 
 .validar_propiedades_base <- function(configuracion, propiedades) {
@@ -96,16 +116,19 @@
 #' `instanciar()` liga la métrica a objetos concretos y materializa el método de
 #' medición. `modelo()` reúne métricas instanciadas sin calcular un índice global.
 #'
-#' `metricas_nucleo()` devuelve las catorce métricas automatizables sin insumos
-#' externos. [metricas_referencial()] aporta por separado las tres métricas que
-#' consumen un padrón tabular. Consulte [catalogo_agesic()] para la
-#' correspondencia completa.
+#' `metricas_nucleo()` devuelve diecinueve métricas automatizables una vez
+#' declaradas sus propiedades; [escala()] y [vigencia()] hacen explícitos los
+#' insumos expertos que algunas necesitan. [metricas_referencial()] aporta por
+#' separado las tres métricas que consumen un padrón tabular. Consulte
+#' [catalogo_agesic()] para la correspondencia completa.
 #'
 #' @param nombre Nombre estable y legible.
 #' @param semantica Descripción de lo que mide la métrica.
 #' @param granularidad Uno de los niveles devueltos por `granularidades()`.
-#' @param tipo_resultado `"booleano"` o `"real"`. Los reales deben estar en
-#'   `[0, 1]`.
+#' @param tipo_resultado `"booleano"`, `"real"` en `[0, 1]`, `"numero_real"`,
+#'   `"entero"` no negativo o `"duracion"` no negativa. Los tres últimos
+#'   conservan resultados no acotados del catálogo y no admiten las cuatro
+#'   agregaciones normalizadas.
 #' @param propiedades Nombres de las propiedades que fija `especializar()`.
 #' @param dimension,factor Metadatos taxonómicos; no se usan para calcular
 #'   puntuaciones.
@@ -134,8 +157,10 @@
 #'
 #' En `ReglaIntegridadInterEntidad`, `entidad` y `atributos` se ligan como
 #' `c(referencia, dependiente)` y `c(clave_primaria, clave_foranea)`.
-#' `ErrorEstandar` informa el error estándar de la media dividido por el rango
-#' observado, acotado a `[0, 1]`; exige al menos dos valores numéricos válidos.
+#' Pese a su nombre, `ErrorEstandar` sigue literalmente la semántica de la
+#' tabla 16.5 del marco y devuelve la desviación estándar muestral sin
+#' normalizar; exige al menos dos valores numéricos válidos. Por eso declara
+#' `tipo_resultado = "numero_real"` y no admite [agregar()].
 #'
 #' `Formato` acepta exactamente una de las propiedades `expresion_regular`,
 #' `diccionario` o `validador`. Esta última permite conectar validadores
@@ -610,10 +635,7 @@ modelo <- function(...) {
     stop("ErrorEstandar requiere al menos dos valores num\u00e9ricos v\u00e1lidos.",
          call. = FALSE)
   }
-  rango <- diff(range(valores))
-  resultado <- if (rango == 0) 0 else {
-    min(1, stats::sd(valores) / sqrt(length(valores)) / rango)
-  }
+  resultado <- stats::sd(valores)
   .salida_metodo(
     resultado, entidad, atributo, NA_integer_,
     paste0(entidad, "$", atributo)
@@ -664,8 +686,8 @@ metricas_nucleo <- function() {
     ),
     ErrorEstandar = metrica(
       "ErrorEstandar",
-      "Mide el error est\u00e1ndar relativo al rango observado.",
-      "atributo", "real", dimension = "Exactitud", factor = "Precisi\u00f3n",
+      "Mide la desviaci\u00f3n est\u00e1ndar muestral del atributo.",
+      "atributo", "numero_real", dimension = "Exactitud", factor = "Precisi\u00f3n",
       metodo = .metodo_error_estandar
     )
   ), .metricas_adicionales())
@@ -714,6 +736,25 @@ metricas_nucleo <- function() {
       (!is.numeric(resultado) || anyNA(resultado) ||
        any(!is.finite(resultado)) || any(resultado < 0 | resultado > 1))) {
     stop("Una m\u00e9trica real debe devolver valores finitos en [0, 1].",
+         call. = FALSE)
+  }
+  if (tipo == "numero_real" &&
+      (!is.numeric(resultado) || anyNA(resultado) ||
+       any(!is.finite(resultado)))) {
+    stop("Una m\u00e9trica numero_real debe devolver n\u00fameros finitos.",
+         call. = FALSE)
+  }
+  if (tipo == "entero" &&
+      (!is.numeric(resultado) || anyNA(resultado) ||
+       any(!is.finite(resultado)) || any(resultado < 0) ||
+       any(resultado != floor(resultado)))) {
+    stop("Una m\u00e9trica entera debe devolver enteros no negativos.",
+         call. = FALSE)
+  }
+  if (tipo == "duracion" &&
+      (!is.numeric(resultado) || anyNA(resultado) ||
+       any(!is.finite(resultado)) || any(resultado < 0))) {
+    stop("Una m\u00e9trica de duraci\u00f3n debe devolver valores finitos no negativos.",
          call. = FALSE)
   }
   salida[, requeridas, drop = FALSE]

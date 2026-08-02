@@ -81,7 +81,9 @@ Las cuatro agregaciones del marco son:
 - `promedio_ponderado`, con pesos en `[0, 1]` que suman uno por destino.
 
 La función valida el tipo de resultado y la transición. No agrega hacia factor,
-dimensión o modelo.
+dimensión o modelo. Los resultados no acotados que el marco usa para
+`ErrorEstandar` y actualidad conservan su unidad y no entran en estas cuatro
+agregaciones.
 
 ## Evaluar no es volver a medir
 
@@ -128,3 +130,17 @@ padron
 
 La tabla del catálogo es la respuesta verificable a “qué implementa el
 paquete”; las entradas fuera de alcance no se presentan como resueltas.
+
+## Lo que no se midió también es un resultado
+
+Un perfil sin hallazgos no demuestra que todos los factores hayan sido
+evaluados. `cobertura_analisis()` separa lo medido de lo no declarado, lo que no
+aplica a los tipos presentes y lo que permanece fuera de alcance.
+
+```{r}
+perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
+cobertura_analisis(perfil)
+```
+
+Los contratos temporales y de precisión se declaran con `vigencia()` y
+`escala()`: el paquete no intenta aprenderlos de una sola entrega.

@@ -9,7 +9,7 @@ test_that("se validan las declaraciones y especializaciones", {
     metrica("M", "semántica", "desconocida", "real"), "Granularidad"
   )
   expect_error(
-    metrica("M", "semántica", "atributo", "entero"), "tipo_resultado"
+    metrica("M", "semántica", "atributo", "desconocido"), "tipo_resultado"
   )
   expect_error(
     metrica(

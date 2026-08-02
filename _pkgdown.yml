@@ -34,6 +34,7 @@ reference:
   - detectar_claves
   - detectar_dependencias
   - detectar_relaciones
+  - cobertura_analisis
   - as_tibble.perfil
   - datos_administrativos
 
@@ -52,6 +53,9 @@ reference:
   - modelo
   - metricas_nucleo
   - referencial
+  - contratos_medicion
+  - vigencia
+  - escala
   - metricas_referencial
   - catalogo_agesic
   - granularidades

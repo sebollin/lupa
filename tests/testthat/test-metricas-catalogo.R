@@ -203,7 +203,7 @@ test_that("el catalogo de AGESIC contiene y clasifica 49 entradas", {
     "estado", "metrica_lupa", "implementacion", "observacion"
   ))
   expect_equal(
-    as.integer(table(catalogo$estado)), c(23L, 8L, 6L, 12L)
+    as.integer(table(catalogo$estado)), c(28L, 8L, 1L, 12L)
   )
   expect_equal(
     levels(catalogo$estado),

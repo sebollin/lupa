@@ -173,9 +173,25 @@
       (anyNA(x$id_registro) || any(!nzchar(x$id_registro)) ||
        anyNA(x$id_medicion) || any(!nzchar(x$id_medicion)) ||
        anyNA(x$fecha) || anyNA(x$resultado) ||
-       any(!is.finite(x$resultado)) || any(x$resultado < 0 | x$resultado > 1))) {
+       any(!is.finite(x$resultado)))) {
     stop("El hist\u00f3rico contiene identificadores, fechas o resultados inv\u00e1lidos.",
          call. = FALSE)
+  }
+  if (nrow(x)) {
+    medidas <- x$nivel == "medida"
+    if (any(medidas) && !.resultados_validos_tipo(
+      x$resultado[medidas], x$tipo_resultado[medidas]
+    )) {
+      stop("Los resultados de las medidas hist\u00f3ricas no respetan su tipo.",
+           call. = FALSE)
+    }
+    evaluaciones <- !medidas
+    if (any(evaluaciones) && any(
+      x$resultado[evaluaciones] < 0 | x$resultado[evaluaciones] > 1
+    )) {
+      stop("Los resultados de evaluaciones hist\u00f3ricas deben estar en [0, 1].",
+           call. = FALSE)
+    }
   }
   niveles <- c(
     "medida", "evaluacion_medida", "evaluacion_regla", "evaluacion_perfil"

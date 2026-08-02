@@ -12,7 +12,8 @@ reportar(
   titulo = "Reporte de calidad de datos",
   fecha = Sys.time(),
   max_filas = 100L,
-  max_patrones = 20L
+  max_patrones = 20L,
+  proteger_datos_personales = TRUE
 )
 }
 \arguments{
@@ -37,6 +38,11 @@ patrones se detallan. Las omisiones se informan dentro del reporte.}
 
 \item{max_patrones}{Máximo de patrones mostrados por columna. Las omisiones
 se informan dentro del reporte.}
+
+\item{proteger_datos_personales}{Si se enmascaran modas, ejemplos y evidencia
+de columnas clasificadas como posibles datos personales. Es \code{TRUE} por
+defecto. Para ver valores concretos deben haberse conservado también con
+\code{perfilar(..., proteger_datos_personales = FALSE)}.}
 }
 \value{
 La ruta normalizada del archivo, de forma invisible.

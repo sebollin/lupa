@@ -40,7 +40,7 @@
     nombre <- columnas[[i]]
     n_validos <- fila$n - fila$n_faltantes
 
-    if (fila$n_distintos == 1L && n_validos > 1L) {
+    if (!is.na(fila$n_distintos) && fila$n_distintos == 1L && n_validos > 1L) {
       agregar(.nuevo_hallazgo(
         nombre, "constante", "sospechoso",
         "La columna contiene un \u00fanico valor no ausente.",
@@ -216,6 +216,20 @@
         "Definir y aplicar una convenci\u00f3n de capitalizaci\u00f3n para la columna."
       ))
     }
+    if (!is.na(fila$n_variantes_unicode) && fila$n_variantes_unicode > 0L) {
+      agregar(.nuevo_hallazgo(
+        nombre, "normalizacion_unicode", "sospechoso",
+        paste0(
+          "Conviven textos visualmente equivalentes con representaciones ",
+          "Unicode NFC y NFD distintas."
+        ),
+        resultado$diagnostico_texto$evidencia_unicode,
+        paste0(
+          "Confirmar el dominio y normalizar a NFC sin alterar el contenido ",
+          "visible del texto."
+        )
+      ))
+    }
     if (fila$n_codificacion_rota > 0L) {
       agregar(.nuevo_hallazgo(
         nombre, "codificacion_rota", "error",
@@ -253,7 +267,46 @@
       ))
     }
 
-    if (nombre %in% columnas_sin_ceros && fila$n_ceros > 0L) {
+    if (identical(fila$estado_estadisticos, "omitidos_precision")) {
+      agregar(.nuevo_hallazgo(
+        nombre, "integer64_fuera_precision_double", "sospechoso",
+        paste0(
+          "La columna integer64 excede el rango de enteros exactamente ",
+          "representables por double; se omiten estad\u00edsticos aproximados."
+        ),
+        paste0(
+          "M\u00ednimo exacto: ", fila$minimo_exacto,
+          "; m\u00e1ximo exacto: ", fila$maximo_exacto
+        ),
+        "Conservar la clase integer64 y usar los extremos exactos informados."
+      ))
+    } else if (identical(fila$estado_estadisticos, "requiere_bit64")) {
+      agregar(.nuevo_hallazgo(
+        nombre, "integer64_sin_soporte", "sospechoso",
+        "La clase integer64 no se resumi\u00f3 porque falta su soporte opcional.",
+        "Los estad\u00edsticos cuantitativos se dejaron en NA.",
+        "Instalar el paquete 'bit64' para calcular extremos exactos."
+      ))
+    }
+
+    n_inf <- fila$n_infinito_positivo + fila$n_infinito_negativo
+    if (n_inf > 0L || fila$n_nan > 0L) {
+      agregar(.nuevo_hallazgo(
+        nombre, "valores_no_finitos", "error",
+        paste0(
+          "La columna contiene NaN o infinitos; los estad\u00edsticos de rango ",
+          "describen s\u00f3lo los valores finitos."
+        ),
+        paste0(
+          "NaN: ", fila$n_nan, "; +Inf: ", fila$n_infinito_positivo,
+          "; -Inf: ", fila$n_infinito_negativo
+        ),
+        "Revisar operaciones indefinidas o divisiones por cero en el origen."
+      ))
+    }
+
+    if (nombre %in% columnas_sin_ceros &&
+        !is.na(fila$n_ceros) && fila$n_ceros > 0L) {
       agregar(.nuevo_hallazgo(
         nombre, "ceros_no_permitidos", "sospechoso",
         "La columna contiene ceros aunque se configur\u00f3 como no admisible.",
@@ -261,7 +314,8 @@
         "Verificar si los ceros son v\u00e1lidos o representan otro estado."
       ))
     }
-    if (nombre %in% columnas_no_negativas && fila$n_negativos > 0L) {
+    if (nombre %in% columnas_no_negativas &&
+        !is.na(fila$n_negativos) && fila$n_negativos > 0L) {
       agregar(.nuevo_hallazgo(
         nombre, "negativos_no_permitidos", "sospechoso",
         "La columna contiene valores negativos aunque se configur\u00f3 como no negativa.",
@@ -269,7 +323,7 @@
         "Corregir los valores o ajustar la restricci\u00f3n del dominio."
       ))
     }
-    if (fila$n_outliers > 0L) {
+    if (!is.na(fila$n_outliers) && fila$n_outliers > 0L) {
       agregar(.nuevo_hallazgo(
         nombre, "outliers", "sospechoso",
         "Se detectaron valores fuera de los l\u00edmites de Tukey (1,5 x IQR).",

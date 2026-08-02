@@ -111,17 +111,19 @@ perfiles_madurez <- function(metricas = NULL) {
 
 .validar_medicion_evaluacion <- function(medicion) {
   requeridas <- c(
-    "id_medida", "id_medicion", "fecha", "metrica_instanciada", "resultado"
+    "id_medida", "id_medicion", "fecha", "metrica_instanciada",
+    "tipo_resultado", "resultado"
   )
   if (!inherits(medicion, "data.frame") || !nrow(medicion) ||
       !all(requeridas %in% names(medicion))) {
     stop("`medicion` debe ser un data frame no vac\u00edo producido por medir().",
          call. = FALSE)
   }
-  if (!is.numeric(medicion$resultado) || anyNA(medicion$resultado) ||
-      any(!is.finite(medicion$resultado)) ||
-      any(medicion$resultado < 0 | medicion$resultado > 1)) {
-    stop("Los resultados de la medici\u00f3n deben estar en [0, 1].", call. = FALSE)
+  if (!.resultados_validos_tipo(
+    medicion$resultado, medicion$tipo_resultado
+  )) {
+    stop("Los resultados de la medici\u00f3n no respetan su tipo declarado.",
+         call. = FALSE)
   }
   medicion
 }

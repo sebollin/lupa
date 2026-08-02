@@ -140,7 +140,9 @@
   )
 }
 
-.seccion_perfil <- function(x, max_filas, max_patrones) {
+.seccion_perfil <- function(x, max_filas, max_patrones,
+                            proteger_datos_personales = TRUE) {
+  if (proteger_datos_personales) x <- .proteger_perfil(x)
   general <- data.frame(
     indicador = c(
       "Filas", "Columnas", "Celdas", "Filas completas",
@@ -231,10 +233,23 @@
     "<section><h2>Perfil de datos: ", .html_texto(x$meta$nombre), "</h2>",
     "<p class=\"meta\">Corrida: ",
     .html_texto(.resumir_valor_reporte(x$meta$fecha_hora)), "</p>",
+    if (proteger_datos_personales && nrow(x$datos_personales)) {
+      paste0(
+        "<p class=\"nota\">Se protegieron modas, ejemplos y evidencia de ",
+        .html_texto(nrow(x$datos_personales)),
+        " columna(s) clasificadas como posibles datos personales.</p>"
+      )
+    } else "",
     .resumen_severidades(severidades),
     "<h3>Resumen general</h3>", .html_tabla(general, Inf),
     "<h3>Hallazgos por severidad</h3>", .html_tabla(hallazgos, max_filas),
     "<h3>Resumen por columna</h3>", .html_tabla(x$columnas, max_filas),
+    "<h3>Clasificaci\u00f3n de posibles datos personales</h3>",
+    "<p class=\"nota\">La clasificaci\u00f3n informa y protege; no juzga si esos datos deben existir en la entrega.</p>",
+    .html_tabla(x$datos_personales, max_filas),
+    "<h3>Cobertura del an\u00e1lisis</h3>",
+    "<p class=\"nota\">La ausencia de hallazgos no implica que todos los factores se hayan evaluado.</p>",
+    .html_tabla(cobertura_analisis(x), Inf),
     "<h3>Patrones de formato</h3>",
     if (length(bloques_patrones)) paste0(bloques_patrones, collapse = "") else {
       "<p class=\"sin-registros\">No hay patrones para mostrar.</p>"
@@ -356,10 +371,13 @@
   salida
 }
 
-.renderizar_objeto_reporte <- function(x, max_filas, max_patrones) {
+.renderizar_objeto_reporte <- function(x, max_filas, max_patrones,
+                                       proteger_datos_personales = TRUE) {
   switch(
     .clase_objeto_reporte(x),
-    perfil = .seccion_perfil(x, max_filas, max_patrones),
+    perfil = .seccion_perfil(
+      x, max_filas, max_patrones, proteger_datos_personales
+    ),
     medicion = .seccion_medicion(x, max_filas),
     evaluacion_calidad = .seccion_evaluacion(x, max_filas),
     historico_calidad = .seccion_historico(x, max_filas),
@@ -458,6 +476,10 @@
 #'   patrones se detallan. Las omisiones se informan dentro del reporte.
 #' @param max_patrones Máximo de patrones mostrados por columna. Las omisiones
 #'   se informan dentro del reporte.
+#' @param proteger_datos_personales Si se enmascaran modas, ejemplos y evidencia
+#'   de columnas clasificadas como posibles datos personales. Es `TRUE` por
+#'   defecto. Para ver valores concretos deben haberse conservado también con
+#'   `perfilar(..., proteger_datos_personales = FALSE)`.
 #'
 #' @return La ruta normalizada del archivo, de forma invisible.
 #' @export
@@ -473,19 +495,26 @@ reportar <- function(x, ...,
                      sobrescribir = FALSE,
                      titulo = "Reporte de calidad de datos",
                      fecha = Sys.time(), max_filas = 100L,
-                     max_patrones = 20L) {
+                     max_patrones = 20L,
+                     proteger_datos_personales = TRUE) {
   objetos <- .aplanar_objetos_reporte(c(list(x), list(...)))
   if (!.es_texto_escalar(titulo)) {
     stop("`titulo` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   max_filas <- .validar_limite_reporte(max_filas, "max_filas")
   max_patrones <- .validar_limite_reporte(max_patrones, "max_patrones")
+  if (!is.logical(proteger_datos_personales) ||
+      length(proteger_datos_personales) != 1L ||
+      is.na(proteger_datos_personales)) {
+    stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
+  }
   fecha <- tryCatch(.fecha_utc(fecha), error = function(e) NA)
   if (length(fecha) != 1L || is.na(fecha) || !is.finite(as.numeric(fecha))) {
     stop("`fecha` debe contener una fecha y hora v\u00e1lida.", call. = FALSE)
   }
   secciones <- vapply(objetos, .renderizar_objeto_reporte, character(1L),
-                      max_filas = max_filas, max_patrones = max_patrones)
+                      max_filas = max_filas, max_patrones = max_patrones,
+                      proteger_datos_personales = proteger_datos_personales)
   documento <- paste0(
     "<!doctype html><html lang=\"es\"><head><meta charset=\"UTF-8\">",
     "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">",

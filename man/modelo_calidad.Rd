@@ -43,8 +43,10 @@ metricas_nucleo()
 
 \item{granularidad}{Uno de los niveles devueltos por \code{granularidades()}.}
 
-\item{tipo_resultado}{\code{"booleano"} o \code{"real"}. Los reales deben estar en
-\verb{[0, 1]}.}
+\item{tipo_resultado}{\code{"booleano"}, \code{"real"} en \verb{[0, 1]}, \code{"numero_real"},
+\code{"entero"} no negativo o \code{"duracion"} no negativa. Los tres últimos
+conservan resultados no acotados del catálogo y no admiten las cuatro
+agregaciones normalizadas.}
 
 \item{propiedades}{Nombres de las propiedades que fija \code{especializar()}.}
 
@@ -92,10 +94,11 @@ resultante puede instanciarse sobre distintas columnas o tablas.
 medición. \code{modelo()} reúne métricas instanciadas sin calcular un índice global.
 }
 \details{
-\code{metricas_nucleo()} devuelve las catorce métricas automatizables sin insumos
-externos. \code{\link[=metricas_referencial]{metricas_referencial()}} aporta por separado las tres métricas que
-consumen un padrón tabular. Consulte \code{\link[=catalogo_agesic]{catalogo_agesic()}} para la
-correspondencia completa.
+\code{metricas_nucleo()} devuelve diecinueve métricas automatizables una vez
+declaradas sus propiedades; \code{\link[=escala]{escala()}} y \code{\link[=vigencia]{vigencia()}} hacen explícitos los
+insumos expertos que algunas necesitan. \code{\link[=metricas_referencial]{metricas_referencial()}} aporta por
+separado las tres métricas que consumen un padrón tabular. Consulte
+\code{\link[=catalogo_agesic]{catalogo_agesic()}} para la correspondencia completa.
 
 El método de medición devuelve un data frame con \code{resultado}, \code{entidad},
 \code{atributo}, \code{fila} y \code{objeto}. Una métrica booleana produce valores lógicos;
@@ -103,8 +106,10 @@ una real produce números finitos en \verb{[0, 1]}.
 
 En \code{ReglaIntegridadInterEntidad}, \code{entidad} y \code{atributos} se ligan como
 \code{c(referencia, dependiente)} y \code{c(clave_primaria, clave_foranea)}.
-\code{ErrorEstandar} informa el error estándar de la media dividido por el rango
-observado, acotado a \verb{[0, 1]}; exige al menos dos valores numéricos válidos.
+Pese a su nombre, \code{ErrorEstandar} sigue literalmente la semántica de la
+tabla 16.5 del marco y devuelve la desviación estándar muestral sin
+normalizar; exige al menos dos valores numéricos válidos. Por eso declara
+\code{tipo_resultado = "numero_real"} y no admite \code{\link[=agregar]{agregar()}}.
 
 \code{Formato} acepta exactamente una de las propiedades \code{expresion_regular},
 \code{diccionario} o \code{validador}. Esta última permite conectar validadores

@@ -30,6 +30,12 @@
 }
 
 .tipo_declarado <- function(x) {
+  if (inherits(x, "sfc")) {
+    return(class(x)[[1L]])
+  }
+  if (inherits(x, "integer64")) {
+    return("integer64")
+  }
   if (inherits(x, "POSIXt")) {
     return("fecha-hora")
   }

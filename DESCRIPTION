@@ -25,10 +25,13 @@ Depends:
 Imports:
     cli
 Suggests:
+    bit64,
     covr,
     data.table,
     knitr,
     rmarkdown,
+    sf,
+    stringi,
     testthat (>= 3.0.0),
     tibble
 VignetteBuilder: knitr

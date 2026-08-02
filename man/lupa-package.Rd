@@ -15,6 +15,7 @@ diagnóstico: cada etapa devuelve objetos de datos inspeccionables.
 El punto de entrada es \code{\link[=perfilar]{perfilar()}}. Desde allí se puede:
 \enumerate{
 \item examinar estructura, tipos, patrones, ausencias y dependencias;
+\code{\link[=cobertura_analisis]{cobertura_analisis()}} explicita qué factores no fueron evaluados;
 \item convertir el diagnóstico en una propuesta editable con
 \code{\link[=proponer_modelo]{proponer_modelo()}};
 \item declarar y ejecutar métricas mediante \code{\link[=modelo]{modelo()}} y \code{\link[=medir]{medir()}};
@@ -26,7 +27,8 @@ El punto de entrada es \code{\link[=perfilar]{perfilar()}}. Desde allí se puede
 \item producir un archivo HTML autocontenido con \code{\link[=reportar]{reportar()}}.
 }
 
-Los padrones externos se declaran con \code{\link[=referencial]{referencial()}}. La correspondencia
+Los padrones externos se declaran con \code{\link[=referencial]{referencial()}}, y los contratos que
+no se pueden inferir se expresan con \code{\link[=vigencia]{vigencia()}} y \code{\link[=escala]{escala()}}. La correspondencia
 exacta con las 49 entradas del marco se consulta en \code{\link[=catalogo_agesic]{catalogo_agesic()}}. No
 se calcula un índice global: la jerarquía dimensión–factor–métrica es
 taxonómica y el marco no define esa agregación.

@@ -23,7 +23,9 @@ perfilar(
   analizar_dependencias = TRUE,
   umbral_dependencia = 0.995,
   umbral_casi_clave_dependencia = 0.8,
-  max_columnas_dependencias = 100L
+  max_columnas_dependencias = 100L,
+  datos_personales_permitidos = TRUE,
+  proteger_datos_personales = TRUE
 )
 }
 \arguments{
@@ -72,6 +74,16 @@ la cual un determinante se descarta como casi-clave antes de agrupar.}
 
 \item{max_columnas_dependencias}{Máximo de columnas que intervienen en la
 búsqueda, cuyo costo crece cuadráticamente.}
+
+\item{datos_personales_permitidos}{Si la entrega admite datos personales.
+El valor predeterminado no juzga su presencia: la clasificación se informa
+con severidad \code{"ok"}. Use \code{FALSE} sólo cuando el contrato de la entrega
+declare que no deben existir.}
+
+\item{proteger_datos_personales}{Si se reemplazan modas, ejemplos y evidencia
+concreta de columnas clasificadas como posibles datos personales. Para
+conservarlos en el objeto debe desactivarse explícitamente; \code{\link[=reportar]{reportar()}}
+aplica además su propia protección predeterminada.}
 }
 \value{
 Objeto S3 de clase \code{perfil}.
@@ -107,6 +119,19 @@ Una columna cuyo año se expresa con dos dígitos se informa con su
 \code{23} puede ser 1923 o 2023, y elegir el siglo para calcular un rango sería
 inventarlo. El hallazgo \code{anio_de_dos_digitos} señala esas columnas, y el
 rango aparece una vez que el usuario resuelve la ambigüedad.
+
+Para números ordinarios, los estadísticos cuantitativos se calculan sólo con
+valores finitos; \code{n_nan}, \code{n_infinito_positivo} y \code{n_infinito_negativo}
+declaran lo excluido. En columnas \code{integer64} que exceden el entero máximo
+representable exactamente por \code{double}, \code{minimo} y \code{maximo} quedan en \code{NA} y
+los extremos exactos se conservan en \code{minimo_exacto} y \code{maximo_exacto}.
+Una columna de listas intenta contar sus valores distintos; si la clase no
+admite comparación, informa \code{NA} en lugar de afirmar cero.
+
+La normalización Unicode se compara sin modificar el texto y requiere el
+paquete opcional \code{stringi} sólo cuando existen caracteres no ASCII. La
+clasificación de posibles datos personales es informativa: por defecto no
+juzga su presencia y protege los valores concretos que el perfil publicaría.
 }
 \examples{
 perfil <- perfilar(datos_administrativos)

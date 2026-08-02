@@ -30,6 +30,19 @@
 #' inventarlo. El hallazgo `anio_de_dos_digitos` señala esas columnas, y el
 #' rango aparece una vez que el usuario resuelve la ambigüedad.
 #'
+#' Para números ordinarios, los estadísticos cuantitativos se calculan sólo con
+#' valores finitos; `n_nan`, `n_infinito_positivo` y `n_infinito_negativo`
+#' declaran lo excluido. En columnas `integer64` que exceden el entero máximo
+#' representable exactamente por `double`, `minimo` y `maximo` quedan en `NA` y
+#' los extremos exactos se conservan en `minimo_exacto` y `maximo_exacto`.
+#' Una columna de listas intenta contar sus valores distintos; si la clase no
+#' admite comparación, informa `NA` en lugar de afirmar cero.
+#'
+#' La normalización Unicode se compara sin modificar el texto y requiere el
+#' paquete opcional `stringi` sólo cuando existen caracteres no ASCII. La
+#' clasificación de posibles datos personales es informativa: por defecto no
+#' juzga su presencia y protege los valores concretos que el perfil publicaría.
+#'
 #' @param datos Objeto que hereda de `data.frame`.
 #' @param nombre Nombre descriptivo del objeto.
 #' @param fecha Fecha y hora de la corrida. Se puede fijar para construir series
@@ -57,6 +70,14 @@
 #'   la cual un determinante se descarta como casi-clave antes de agrupar.
 #' @param max_columnas_dependencias Máximo de columnas que intervienen en la
 #'   búsqueda, cuyo costo crece cuadráticamente.
+#' @param datos_personales_permitidos Si la entrega admite datos personales.
+#'   El valor predeterminado no juzga su presencia: la clasificación se informa
+#'   con severidad `"ok"`. Use `FALSE` sólo cuando el contrato de la entrega
+#'   declare que no deben existir.
+#' @param proteger_datos_personales Si se reemplazan modas, ejemplos y evidencia
+#'   concreta de columnas clasificadas como posibles datos personales. Para
+#'   conservarlos en el objeto debe desactivarse explícitamente; [reportar()]
+#'   aplica además su propia protección predeterminada.
 #'
 #' @return Objeto S3 de clase `perfil`.
 #' @export
@@ -85,7 +106,9 @@ perfilar <- function(datos,
                      analizar_dependencias = TRUE,
                      umbral_dependencia = 0.995,
                      umbral_casi_clave_dependencia = 0.8,
-                     max_columnas_dependencias = 100L) {
+                     max_columnas_dependencias = 100L,
+                     datos_personales_permitidos = TRUE,
+                     proteger_datos_personales = TRUE) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
@@ -112,6 +135,12 @@ perfilar <- function(datos,
       is.na(analizar_dependencias)) {
     stop("`analizar_dependencias` debe ser un l\u00f3gico escalar sin NA.",
          call. = FALSE)
+  }
+  for (argumento in c("datos_personales_permitidos", "proteger_datos_personales")) {
+    valor <- get(argumento)
+    if (!is.logical(valor) || length(valor) != 1L || is.na(valor)) {
+      stop("`", argumento, "` debe ser TRUE o FALSE.", call. = FALSE)
+    }
   }
 
   nombres <- names(datos)
@@ -193,6 +222,23 @@ perfilar <- function(datos,
     columnas_no_negativas,
     if (is.na(n_filas_duplicadas)) 0L else n_filas_duplicadas
   )
+  datos_personales <- .detectar_datos_personales(datos, nombres, resultados)
+  indice_personal <- match(columnas$columna, datos_personales$columna)
+  columnas$dato_personal_posible <- !is.na(indice_personal)
+  columnas$tipo_dato_personal <- datos_personales$tipo[indice_personal]
+  columnas$proporcion_dato_personal <-
+    datos_personales$proporcion_compatible[indice_personal]
+  hallazgos_personales <- .hallazgos_datos_personales(
+    datos_personales, datos_personales_permitidos
+  )
+  if (length(hallazgos_personales)) {
+    hallazgos <- do.call(rbind, c(list(hallazgos), hallazgos_personales))
+    hallazgos$severidad <- factor(
+      as.character(hallazgos$severidad),
+      levels = c("ok", "sospechoso", "error"), ordered = TRUE
+    )
+    rownames(hallazgos) <- NULL
+  }
   meta <- list(
     nombre = nombre,
     fecha_hora = fecha_hora,
@@ -209,7 +255,9 @@ perfilar <- function(datos,
     umbral_dependencia = umbral_dependencia,
     umbral_casi_clave_dependencia = umbral_casi_clave_dependencia,
     max_columnas_dependencias = max_columnas_dependencias,
-    sentinelas_numericos = .numeros_na(sentinelas_numericos)
+    sentinelas_numericos = .numeros_na(sentinelas_numericos),
+    datos_personales_permitidos = datos_personales_permitidos,
+    proteger_datos_personales = proteger_datos_personales
   )
   estructura <- list(
     general = general,
@@ -218,8 +266,10 @@ perfilar <- function(datos,
     formatos_fecha = formatos_fecha,
     dependencias = dependencias,
     hallazgos = hallazgos,
+    datos_personales = datos_personales,
     meta = meta
   )
   class(estructura) <- "perfil"
+  if (proteger_datos_personales) estructura <- .proteger_perfil(estructura)
   estructura
 }

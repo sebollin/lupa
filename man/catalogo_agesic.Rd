@@ -23,6 +23,12 @@ estado \code{"via_agregacion"} y con la llamada que los materializa.
 dependen de un diccionario o una regla de dominio deben ser configuradas por
 quien mide. \code{requiere_referencial} identifica entradas cuyo contrato exige
 datos externos que esta versión no obtiene ni interpreta.
+\code{Escala} se clasifica como implementada con configuración experta mediante
+\code{\link[=escala]{escala()}}, no como referencial. \code{DesactualizacionPorFecha},
+\code{DesactualizacionPorCambios} y las oportunidades de entidad requieren un
+contrato \code{\link[=vigencia]{vigencia()}}. \code{ErrorEstandar} sigue la semántica literal de la tabla
+16.5 y devuelve desviación estándar, aunque su nombre pueda sugerir el error
+estándar de la media.
 
 La tabla deja visibles dos decisiones de arquitectura. El resultado real de
 \verb{OportunidadAtributo*} sigue la fórmula continua del proceso de evaluación,

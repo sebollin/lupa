@@ -37,6 +37,9 @@
   if (inherits(x, "Date")) {
     return(list(valores = as.numeric(x) * 86400, clase = "fecha"))
   }
+  if (inherits(x, "integer64")) {
+    return(list(valores = x, clase = "integer64"))
+  }
   if (is.numeric(x)) {
     return(list(valores = as.numeric(x), clase = "numero"))
   }
@@ -51,6 +54,50 @@
     }
   }
   list(valores = numeric(), clase = "ninguna")
+}
+
+.resumen_vacio_cuantitativo <- function(estado = "no_aplica") {
+  list(
+    minimo = NA_real_, maximo = NA_real_, media = NA_real_,
+    mediana = NA_real_, desvio = NA_real_, minimo_exacto = NA_character_,
+    maximo_exacto = NA_character_, minimo_fecha = NA_character_,
+    maximo_fecha = NA_character_, media_fecha = NA_character_,
+    mediana_fecha = NA_character_, n_ceros = NA_integer_,
+    n_negativos = NA_integer_, n_outliers = NA_integer_, n_nan = 0L,
+    n_infinito_positivo = 0L, n_infinito_negativo = 0L,
+    estado_estadisticos = estado
+  )
+}
+
+.resumen_integer64 <- function(x) {
+  vacio <- .resumen_vacio_cuantitativo("sin_valores")
+  validos <- !is.na(x)
+  if (!any(validos)) return(vacio)
+  if (!requireNamespace("bit64", quietly = TRUE)) {
+    vacio$estado_estadisticos <- "requiere_bit64"
+    return(vacio)
+  }
+  valores <- x[validos]
+  minimo_exacto <- as.character(min(valores))
+  maximo_exacto <- as.character(max(valores))
+  limite <- bit64::as.integer64("9007199254740991")
+  seguros <- valores >= -limite & valores <= limite
+  if (!all(seguros)) {
+    vacio$minimo_exacto <- minimo_exacto
+    vacio$maximo_exacto <- maximo_exacto
+    vacio$n_ceros <- as.integer(sum(valores == bit64::as.integer64(0)))
+    vacio$n_negativos <- as.integer(sum(valores < bit64::as.integer64(0)))
+    vacio$estado_estadisticos <- "omitidos_precision"
+    return(vacio)
+  }
+  resultado <- .resumen_cuantitativo(
+    as.numeric(valores),
+    list(tipo = "doble"),
+    data.frame(stringsAsFactors = FALSE)
+  )
+  resultado$minimo_exacto <- minimo_exacto
+  resultado$maximo_exacto <- maximo_exacto
+  resultado
 }
 
 .fecha_resumida <- function(valor, clase) {
@@ -71,15 +118,24 @@
 
 .resumen_cuantitativo <- function(x, inferencia, formatos) {
   cuantitativos <- .valores_cuantitativos(x, inferencia, formatos)
+  if (identical(cuantitativos$clase, "integer64")) {
+    return(.resumen_integer64(cuantitativos$valores))
+  }
   valores <- cuantitativos$valores
+  n_nan <- if (is.numeric(valores)) sum(is.nan(valores)) else 0L
+  n_infinito_positivo <- if (is.numeric(valores)) {
+    sum(is.infinite(valores) & valores > 0, na.rm = TRUE)
+  } else 0L
+  n_infinito_negativo <- if (is.numeric(valores)) {
+    sum(is.infinite(valores) & valores < 0, na.rm = TRUE)
+  } else 0L
   valores <- valores[is.finite(valores)]
-  vacio <- list(
-    minimo = NA_real_, maximo = NA_real_, media = NA_real_,
-    mediana = NA_real_, desvio = NA_real_, minimo_fecha = NA_character_,
-    maximo_fecha = NA_character_, media_fecha = NA_character_,
-    mediana_fecha = NA_character_, n_ceros = 0L, n_negativos = 0L,
-    n_outliers = 0L
+  vacio <- .resumen_vacio_cuantitativo(if (
+    identical(cuantitativos$clase, "ninguna")) "no_aplica" else "sin_valores"
   )
+  vacio$n_nan <- as.integer(n_nan)
+  vacio$n_infinito_positivo <- as.integer(n_infinito_positivo)
+  vacio$n_infinito_negativo <- as.integer(n_infinito_negativo)
   if (!length(valores)) {
     return(vacio)
   }
@@ -101,21 +157,29 @@
   if (identical(cuantitativos$clase, "numero")) {
     return(list(
       minimo = minimo, maximo = maximo, media = media, mediana = mediana,
-      desvio = desvio, minimo_fecha = NA_character_, maximo_fecha = NA_character_,
+      desvio = desvio, minimo_exacto = NA_character_, maximo_exacto = NA_character_,
+      minimo_fecha = NA_character_, maximo_fecha = NA_character_,
       media_fecha = NA_character_, mediana_fecha = NA_character_,
       n_ceros = sum(valores == 0), n_negativos = sum(valores < 0),
-      n_outliers = n_outliers
+      n_outliers = n_outliers, n_nan = as.integer(n_nan),
+      n_infinito_positivo = as.integer(n_infinito_positivo),
+      n_infinito_negativo = as.integer(n_infinito_negativo),
+      estado_estadisticos = "calculados"
     ))
   }
 
   list(
     minimo = NA_real_, maximo = NA_real_, media = NA_real_, mediana = NA_real_,
-    desvio = desvio,
+    desvio = desvio, minimo_exacto = NA_character_, maximo_exacto = NA_character_,
     minimo_fecha = .fecha_resumida(minimo, cuantitativos$clase),
     maximo_fecha = .fecha_resumida(maximo, cuantitativos$clase),
     media_fecha = .fecha_resumida(media, cuantitativos$clase),
     mediana_fecha = .fecha_resumida(mediana, cuantitativos$clase),
-    n_ceros = 0L, n_negativos = 0L, n_outliers = n_outliers
+    n_ceros = 0L, n_negativos = 0L, n_outliers = n_outliers,
+    n_nan = as.integer(n_nan),
+    n_infinito_positivo = as.integer(n_infinito_positivo),
+    n_infinito_negativo = as.integer(n_infinito_negativo),
+    estado_estadisticos = "calculados"
   )
 }
 
@@ -245,6 +309,9 @@
     evidencia_espacios = "",
     n_variantes_mayusculas = 0L,
     evidencia_mayusculas = "",
+    n_variantes_unicode = NA_integer_,
+    evidencia_unicode = "",
+    unicode_evaluado = FALSE,
     n_codificacion_rota = 0L,
     n_codificacion_reparable = 0L,
     n_codificacion_irreparable = 0L,
@@ -265,6 +332,27 @@
   minusculas <- tolower(unicos)
   colision <- duplicated(minusculas) | duplicated(minusculas, fromLast = TRUE)
   variantes <- unicos[colision]
+  solo_ascii <- !any(grepl("[^\\x01-\\x7F]", unicos, perl = TRUE))
+  if (solo_ascii) {
+    evidencia_unicode <- ""
+    n_variantes_unicode <- 0L
+    unicode_evaluado <- TRUE
+  } else if (requireNamespace("stringi", quietly = TRUE)) {
+    normalizados_unicode <- stringi::stri_trans_nfc(unicos)
+    colision_unicode <- duplicated(normalizados_unicode) |
+      duplicated(normalizados_unicode, fromLast = TRUE)
+    variantes_unicode <- unicos[colision_unicode]
+    evidencia_unicode <- paste(
+      stringi::stri_escape_unicode(utils::head(variantes_unicode, 6L)),
+      collapse = "; "
+    )
+    n_variantes_unicode <- length(variantes_unicode)
+    unicode_evaluado <- TRUE
+  } else {
+    evidencia_unicode <- "Se necesita el paquete opcional 'stringi'."
+    n_variantes_unicode <- NA_integer_
+    unicode_evaluado <- FALSE
+  }
   codificacion <- .analizar_codificacion(textos)
 
   list(
@@ -276,10 +364,23 @@
     evidencia_mayusculas = paste(
       encodeString(utils::head(variantes, 6L), quote = '"'), collapse = "; "
     ),
+    n_variantes_unicode = n_variantes_unicode,
+    evidencia_unicode = evidencia_unicode,
+    unicode_evaluado = unicode_evaluado,
     n_codificacion_rota = codificacion$n,
     n_codificacion_reparable = codificacion$n_reparables,
     n_codificacion_irreparable = codificacion$n_irreparables,
     evidencia_codificacion = codificacion$evidencia
+  )
+}
+
+.n_distintos_columna <- function(x) {
+  validos <- tryCatch(!is.na(x), error = function(e) NULL)
+  if (is.null(validos) || length(validos) != length(x)) return(NA_integer_)
+  if (!any(validos)) return(0L)
+  tryCatch(
+    as.integer(length(unique(x[validos]))),
+    error = function(e) NA_integer_
   )
 }
 
@@ -315,7 +416,7 @@
   n <- length(x)
   n_faltantes <- sum(is.na(x))
   n_validos <- n - n_faltantes
-  n_distintos <- if (n_validos && !is.list(x)) length(unique(x[!is.na(x)])) else 0L
+  n_distintos <- .n_distintos_columna(x)
   moda <- .moda_columna(x)
   longitudes <- .resumen_longitud(x)
   cuantitativo <- .resumen_cuantitativo(x, inferencia, formatos)
@@ -346,7 +447,9 @@
       NA_real_
     },
     n_distintos = n_distintos,
-    tasa_distintos = if (n_validos) n_distintos / n_validos else NA_real_,
+    tasa_distintos = if (n_validos && !is.na(n_distintos)) {
+      n_distintos / n_validos
+    } else NA_real_,
     moda = moda$valor,
     frecuencia_moda = moda$frecuencia,
     longitud_minima = unname(longitudes[["minimo"]]),
@@ -357,6 +460,8 @@
     media = cuantitativo$media,
     mediana = cuantitativo$mediana,
     desvio = cuantitativo$desvio,
+    minimo_exacto = cuantitativo$minimo_exacto,
+    maximo_exacto = cuantitativo$maximo_exacto,
     minimo_fecha = cuantitativo$minimo_fecha,
     maximo_fecha = cuantitativo$maximo_fecha,
     media_fecha = cuantitativo$media_fecha,
@@ -364,9 +469,14 @@
     n_ceros = cuantitativo$n_ceros,
     n_negativos = cuantitativo$n_negativos,
     n_outliers = cuantitativo$n_outliers,
+    n_nan = cuantitativo$n_nan,
+    n_infinito_positivo = cuantitativo$n_infinito_positivo,
+    n_infinito_negativo = cuantitativo$n_infinito_negativo,
+    estado_estadisticos = cuantitativo$estado_estadisticos,
     n_blancos = n_blancos,
     n_espacios_borde = diagnostico_texto$n_espacios_borde,
     n_variantes_mayusculas = diagnostico_texto$n_variantes_mayusculas,
+    n_variantes_unicode = diagnostico_texto$n_variantes_unicode,
     n_codificacion_rota = diagnostico_texto$n_codificacion_rota,
     n_codificacion_reparable = diagnostico_texto$n_codificacion_reparable,
     n_codificacion_irreparable = diagnostico_texto$n_codificacion_irreparable,

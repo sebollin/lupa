@@ -1,8 +1,15 @@
+.preparar_fecha_parseo <- function(x, formato) {
+  if (!grepl("%z", formato, fixed = TRUE)) return(x)
+  x <- sub("Z$", "+0000", x, perl = TRUE)
+  sub("([+-][0-9]{2}):([0-9]{2})$", "\\1\\2", x, perl = TRUE)
+}
+
 .es_fecha_valida <- function(x, formato, expresion) {
   coincide <- grepl(expresion, x, perl = TRUE)
   valido <- rep(FALSE, length(x))
   if (any(coincide)) {
-    convertido <- strptime(x[coincide], format = formato, tz = "UTC")
+    preparados <- .preparar_fecha_parseo(x[coincide], formato)
+    convertido <- strptime(preparados, format = formato, tz = "UTC")
     valido_convertido <- !is.na(convertido)
     if (startsWith(formato, "%Y%m%d")) {
       anios <- suppressWarnings(as.integer(substr(x[coincide], 1L, 4L)))
@@ -17,31 +24,49 @@
   bases <- data.frame(
     formato = c(
       "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y",
-      "%Y/%m/%d", "%d.%m.%Y", "%Y%m%d",
-      "%d/%m/%y", "%m/%d/%y", "%y-%m-%d"
+      "%m-%d-%Y", "%Y/%m/%d", "%d.%m.%Y", "%m.%d.%Y",
+      "%Y%m%d", "%d/%m/%y", "%m/%d/%y", "%d-%m-%y",
+      "%m-%d-%y", "%d.%m.%y", "%m.%d.%y", "%y-%m-%d"
     ),
     expresion = c(
       "[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}",
       "[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}",
       "[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}",
       "[0-9]{1,2}-[0-9]{1,2}-[0-9]{4}",
+      "[0-9]{1,2}-[0-9]{1,2}-[0-9]{4}",
       "[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}",
+      "[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{4}",
       "[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{4}",
       "[0-9]{8}",
       "[0-9]{1,2}/[0-9]{1,2}/[0-9]{2}",
       "[0-9]{1,2}/[0-9]{1,2}/[0-9]{2}",
+      "[0-9]{1,2}-[0-9]{1,2}-[0-9]{2}",
+      "[0-9]{1,2}-[0-9]{1,2}-[0-9]{2}",
+      "[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{2}",
+      "[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{2}",
       "[0-9]{2}-[0-9]{1,2}-[0-9]{1,2}"
     ),
-    ambiguo = c(FALSE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE,
-                TRUE, TRUE, FALSE),
-    anio_dos_digitos = c(rep(FALSE, 7L), rep(TRUE, 3L)),
+    grupo_base = c(
+      "", "barra4", "barra4", "guion4", "guion4", "", "punto4",
+      "punto4", "", "barra2", "barra2", "guion2", "guion2",
+      "punto2", "punto2", ""
+    ),
+    anio_dos_digitos = c(rep(FALSE, 9L), rep(TRUE, 7L)),
     stringsAsFactors = FALSE
   )
   sufijos <- data.frame(
-    formato = c("", " %H:%M", " %H:%M:%S", "T%H:%M", "T%H:%M:%S"),
+    formato = c(
+      "", " %H:%M", " %H:%M:%S", " %H:%M:%OS",
+      "T%H:%M", "T%H:%M:%S", "T%H:%M:%OS",
+      "T%H:%M:%S%z", "T%H:%M:%OS%z"
+    ),
     expresion = c(
       "", " [0-9]{2}:[0-9]{2}", " [0-9]{2}:[0-9]{2}:[0-9]{2}",
-      "T[0-9]{2}:[0-9]{2}", "T[0-9]{2}:[0-9]{2}:[0-9]{2}"
+      " [0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]+",
+      "T[0-9]{2}:[0-9]{2}", "T[0-9]{2}:[0-9]{2}:[0-9]{2}",
+      "T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]+",
+      "T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:Z|[+-][0-9]{2}:[0-9]{2})",
+      "T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]+(?:Z|[+-][0-9]{2}:[0-9]{2})"
     ),
     stringsAsFactors = FALSE
   )
@@ -54,10 +79,10 @@
       resultado[[k]] <- data.frame(
         formato = paste0(bases$formato[[i]], sufijos$formato[[j]]),
         expresion = paste0("^", bases$expresion[[i]], sufijos$expresion[[j]], "$"),
-        ambiguo = bases$ambiguo[[i]],
+        ambiguo = nzchar(bases$grupo_base[[i]]),
         anio_dos_digitos = bases$anio_dos_digitos[[i]],
-        grupo_ambiguo = if (bases$ambiguo[[i]]) {
-          paste0("barra", if (bases$anio_dos_digitos[[i]]) "2" else "4", "-", j)
+        grupo_ambiguo = if (nzchar(bases$grupo_base[[i]])) {
+          paste0(bases$grupo_base[[i]], "-", j)
         } else {
           ""
         },
@@ -87,8 +112,9 @@
 #' Detectar formatos de fecha
 #'
 #' Reconoce formatos de fecha y fecha-hora sin escoger arbitrariamente entre
-#' día/mes y mes/día. Cuando todos los valores con barras son ambiguos, devuelve
-#' ambos formatos con estado `"candidato"`. El atributo `formatos_mixtos`
+#' día/mes y mes/día. Cuando todos los valores con barra, guion o punto son
+#' ambiguos, devuelve ambos formatos con estado `"candidato"`. El atributo
+#' `formatos_mixtos`
 #' indica si hay evidencia de dos o más representaciones en la columna.
 #' Se aceptan días y meses con uno o dos dígitos. Los años de dos dígitos se
 #' detectan, pero siempre quedan como candidatos y se señalan en la columna
@@ -144,13 +170,13 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   valores <- valores[!is.na(valores) & nzchar(valores)]
   total <- length(valores)
   base_fecha <- paste0(
-    "(?:[0-9]{4}[-/][0-9]{1,2}[-/][0-9]{1,2}|",
+    "(?:[0-9]{4}[-/.][0-9]{1,2}[-/.][0-9]{1,2}|",
     "[0-9]{1,2}[-/.][0-9]{1,2}[-/.][0-9]{4}|",
-    "[0-9]{1,2}/[0-9]{1,2}/[0-9]{2}|",
+    "[0-9]{1,2}[-/.][0-9]{1,2}[-/.][0-9]{2}|",
     "[0-9]{2}-[0-9]{1,2}-[0-9]{1,2}|[0-9]{8})"
   )
   sufijo_hora <- paste0(
-    "(?:[ T][0-9]{2}:[0-9]{2}(?::[0-9]{2})?",
+    "(?:[ T][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\\.[0-9]+)?)?",
     "(?:Z|[+-][0-9]{2}:[0-9]{2})?)?"
   )
   candidatos_fecha <- grepl(
@@ -191,8 +217,8 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   grupos <- unique(especificaciones$grupo_ambiguo[especificaciones$ambiguo])
   for (grupo in grupos) {
     indices <- which(especificaciones$grupo_ambiguo == grupo)
-    indice_dmy <- indices[grepl("^%d/", especificaciones$formato[indices])]
-    indice_mdy <- indices[grepl("^%m/", especificaciones$formato[indices])]
+    indice_dmy <- indices[grepl("^%d[-/.]", especificaciones$formato[indices])]
+    indice_mdy <- indices[grepl("^%m[-/.]", especificaciones$formato[indices])]
     mascara_dmy <- mascaras[[indice_dmy]]
     mascara_mdy <- mascaras[[indice_mdy]]
     solo_dmy <- mascara_dmy & !mascara_mdy
@@ -309,7 +335,8 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     if (!any(pendientes)) {
       next
     }
-    convertido <- strptime(valores[pendientes], format = formato, tz = "UTC")
+    preparados <- .preparar_fecha_parseo(valores[pendientes], formato)
+    convertido <- strptime(preparados, format = formato, tz = "UTC")
     valido <- !is.na(convertido)
     indices <- which(pendientes)[valido]
     salida[indices] <- as.POSIXct(convertido[valido], tz = "UTC")

@@ -18,8 +18,9 @@ cantidad de valores compatibles y la presencia de formatos mixtos.
 }
 \description{
 Reconoce formatos de fecha y fecha-hora sin escoger arbitrariamente entre
-día/mes y mes/día. Cuando todos los valores con barras son ambiguos, devuelve
-ambos formatos con estado \code{"candidato"}. El atributo \code{formatos_mixtos}
+día/mes y mes/día. Cuando todos los valores con barra, guion o punto son
+ambiguos, devuelve ambos formatos con estado \code{"candidato"}. El atributo
+\code{formatos_mixtos}
 indica si hay evidencia de dos o más representaciones en la columna.
 Se aceptan días y meses con uno o dos dígitos. Los años de dos dígitos se
 detectan, pero siempre quedan como candidatos y se señalan en la columna

@@ -386,6 +386,13 @@
 
 .metricas_adicionales <- function() {
   list(
+    Escala = metrica(
+      "Escala",
+      "Estima la precisi\u00f3n de un valor con el error experto de su escala.",
+      "instanciaAtributo", "real", propiedades = "escala",
+      dimension = "Exactitud", factor = "Precisi\u00f3n",
+      metodo = .metodo_escala, validar_propiedades = .validar_config_escala
+    ),
     ValoresPosiblesPorComprension = metrica(
       "ValoresPosiblesPorComprension",
       "Indica si un valor satisface un predicado o pertenece a un rango.",
@@ -428,6 +435,22 @@
       metodo = .metodo_desactualizacion_formato,
       validar_propiedades = .validar_config_desactualizacion
     ),
+    DesactualizacionPorFecha = metrica(
+      "DesactualizacionPorFecha",
+      "Mide en d\u00edas el atraso respecto del \u00faltimo cambio o frecuencia esperada.",
+      "instanciaAtributo", "duracion", propiedades = "vigencia",
+      dimension = "Frescura", factor = "Actualidad",
+      metodo = .metodo_desactualizacion_fecha,
+      validar_propiedades = .validar_config_vigencia
+    ),
+    DesactualizacionPorCambios = metrica(
+      "DesactualizacionPorCambios",
+      "Estima cambios esperados desde la \u00faltima actualizaci\u00f3n.",
+      "instanciaAtributo", "entero", propiedades = "vigencia",
+      dimension = "Frescura", factor = "Actualidad",
+      metodo = .metodo_desactualizacion_cambios,
+      validar_propiedades = .validar_config_vigencia
+    ),
     OportunidadAtributoPorFecha = metrica(
       "OportunidadAtributoPorFecha",
       "Mide la oportunidad entre solicitud, entrega y fin de utilidad.",
@@ -445,6 +468,22 @@
       dimension = "Frescura", factor = "Oportunidad",
       metodo = .metodo_oportunidad_intervalo,
       validar_propiedades = .validar_config_oportunidad_intervalo
+    ),
+    OportunidadEntPorFecha = metrica(
+      "OportunidadEntPorFecha",
+      "Indica si una entidad fue actualizada antes de su fecha l\u00edmite.",
+      "instanciaEntidad", "booleano", propiedades = "vigencia",
+      dimension = "Frescura", factor = "Oportunidad",
+      metodo = .metodo_oportunidad_entidad_fecha,
+      validar_propiedades = .validar_config_vigencia
+    ),
+    OportunidadEntPorIntervalo = metrica(
+      "OportunidadEntPorIntervalo",
+      "Indica si una entidad fue actualizada dentro de su intervalo vigente.",
+      "instanciaEntidad", "booleano", propiedades = "vigencia",
+      dimension = "Frescura", factor = "Oportunidad",
+      metodo = .metodo_oportunidad_entidad_intervalo,
+      validar_propiedades = .validar_config_vigencia
     ),
     DensidadPonderada = metrica(
       "DensidadPonderada",
@@ -474,6 +513,12 @@
 #' dependen de un diccionario o una regla de dominio deben ser configuradas por
 #' quien mide. `requiere_referencial` identifica entradas cuyo contrato exige
 #' datos externos que esta versión no obtiene ni interpreta.
+#' `Escala` se clasifica como implementada con configuración experta mediante
+#' [escala()], no como referencial. `DesactualizacionPorFecha`,
+#' `DesactualizacionPorCambios` y las oportunidades de entidad requieren un
+#' contrato [vigencia()]. `ErrorEstandar` sigue la semántica literal de la tabla
+#' 16.5 y devuelve desviación estándar, aunque su nombre pueda sugerir el error
+#' estándar de la media.
 #'
 #' La tabla deja visibles dos decisiones de arquitectura. El resultado real de
 #' `OportunidadAtributo*` sigue la fórmula continua del proceso de evaluación,
@@ -565,10 +610,10 @@ catalogo_agesic <- function() {
   clase[c(3:4, 21L, 30:31, 37:39, 41L)] <- "agregada"
 
   implementadas <- c(
-    1:2, 5:8, 10L, 17L, 20L, 22:25, 27:29, 34:36, 44:47
+    1:2, 5:10, 17L, 20L, 22:25, 27:29, 34:36, 42:49
   )
   agregadas <- c(3:4, 21L, 30:31, 37:39)
-  referencial <- c(9L, 19L, 42:43, 48:49)
+  referencial <- 19L
   fuera <- setdiff(seq_len(49L), c(implementadas, agregadas, referencial))
   estado <- rep(NA_character_, 49L)
   estado[implementadas] <- "implementada"
@@ -580,6 +625,7 @@ catalogo_agesic <- function() {
   metrica_lupa[1L] <- "CorrectitudSemDebil"
   metrica_lupa[2L] <- "CorrectitudSemFuerte"
   metrica_lupa[c(5:8)] <- "Formato"
+  metrica_lupa[9L] <- "Escala"
   metrica_lupa[10L] <- "ErrorEstandar"
   metrica_lupa[17L] <- "ReglaIntegridadInterEntidad"
   metrica_lupa[c(20L, 22L)] <- "ReglaIntegridadIntraEntidad"
@@ -591,9 +637,13 @@ catalogo_agesic <- function() {
   metrica_lupa[34L] <- "AtributoDuplicado"
   metrica_lupa[35L] <- "ConjuntoAtributosDuplicado"
   metrica_lupa[36L] <- "EntidadDuplicada"
+  metrica_lupa[42L] <- "DesactualizacionPorFecha"
+  metrica_lupa[43L] <- "DesactualizacionPorCambios"
   metrica_lupa[c(44L, 45L)] <- "DesactualizacionPorFormato"
   metrica_lupa[46L] <- "OportunidadAtributoPorFecha"
   metrica_lupa[47L] <- "OportunidadAtributoPorIntervalo"
+  metrica_lupa[48L] <- "OportunidadEntPorFecha"
+  metrica_lupa[49L] <- "OportunidadEntPorIntervalo"
   metrica_lupa[agregadas] <- c(
     "CorrectitudSemFuerte", "CorrectitudSemDebil",
     "ReglaIntegridadIntraEntidad", "NoNulo", "DensidadPonderada",
@@ -630,6 +680,12 @@ catalogo_agesic <- function() {
   observacion[8L] <- paste0(
     "Se conecta un validador externo, por ejemplo uyutils::validar_ci()."
   )
+  observacion[9L] <- paste0(
+    "Requiere configuraci\u00f3n experta mediante escala(); no usa referencial."
+  )
+  observacion[10L] <- paste0(
+    "Sigue la tabla 16.5: devuelve desviaci\u00f3n est\u00e1ndar, no error de la media."
+  )
   observacion[17L] <- paste0(
     "Implementa cobertura de integridad referencial entre PK y FK."
   )
@@ -654,8 +710,17 @@ catalogo_agesic <- function() {
   observacion[45L] <- paste0(
     "Especializaci\u00f3n configurable con el formato vigente de ocho d\u00edgitos."
   )
+  observacion[42L] <- paste0(
+    "Requiere vigencia(); devuelve atraso en d\u00edas como duraci\u00f3n no negativa."
+  )
+  observacion[43L] <- paste0(
+    "Requiere vigencia(); estima cambios con la frecuencia declarada."
+  )
   observacion[46:47] <- paste0(
     "Resultado real continuo; el cat\u00e1logo lo declara booleano."
+  )
+  observacion[48:49] <- paste0(
+    "Resultado booleano por fila; exige fechas o intervalos en vigencia()."
   )
   observacion[19L] <- paste0(
     "Requiere una regla sem\u00e1ntica entre entidades no reducible a PK/FK."

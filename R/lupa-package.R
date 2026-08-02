@@ -8,6 +8,7 @@
 #' El punto de entrada es [perfilar()]. Desde allí se puede:
 #'
 #' 1. examinar estructura, tipos, patrones, ausencias y dependencias;
+#'    [cobertura_analisis()] explicita qué factores no fueron evaluados;
 #' 2. convertir el diagnóstico en una propuesta editable con
 #'    [proponer_modelo()];
 #' 3. declarar y ejecutar métricas mediante [modelo()] y [medir()];
@@ -18,7 +19,8 @@
 #'    [detectar_deriva_calidad()] y [comparar_perfiles()];
 #' 7. producir un archivo HTML autocontenido con [reportar()].
 #'
-#' Los padrones externos se declaran con [referencial()]. La correspondencia
+#' Los padrones externos se declaran con [referencial()], y los contratos que
+#' no se pueden inferir se expresan con [vigencia()] y [escala()]. La correspondencia
 #' exacta con las 49 entradas del marco se consulta en [catalogo_agesic()]. No
 #' se calcula un índice global: la jerarquía dimensión–factor–métrica es
 #' taxonómica y el marco no define esa agregación.

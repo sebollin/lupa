@@ -36,6 +36,7 @@ data(datos_administrativos)
 perfil <- perfilar(datos_administrativos)
 perfil
 subset(perfil$hallazgos, severidad != "ok")
+cobertura_analisis(perfil)
 
 # 2. Proponer qué medir. La propuesta se revisa antes de materializarla.
 propuesta <- proponer_modelo(perfil, datos_administrativos)
@@ -100,7 +101,8 @@ vignette("historico-y-deriva", package = "lupa")
 - cuatro agregaciones tipadas y perfiles de evaluación sin índice global;
 - propuesta editable del modelo y plan de limpieza auditable;
 - histórico plano, deriva del modelo y comparación estructural de perfiles;
-- reporte HTML autocontenido y seguro ante valores provenientes de los datos.
+- reporte HTML autocontenido, con cobertura conceptual y protección
+  predeterminada de valores personales concretos.
 
 `catalogo_agesic()` expone como tabla el estado de las 49 entradas del catálogo,
 incluidas las métricas obtenibles por agregación, las que requieren insumos

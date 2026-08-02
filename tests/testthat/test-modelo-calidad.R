@@ -71,15 +71,17 @@ test_that("las métricas recorren los tres niveles mediante closures", {
   expect_error(modelo(instancia, instancia), "deben ser únicos")
 })
 
-test_that("el núcleo declara sus catorce métricas", {
+test_that("el núcleo declara sus diecinueve métricas", {
   nucleo <- metricas_nucleo()
   expect_named(nucleo, c(
     "NoNulo", "Formato", "ValoresPosiblesPorExtension",
     "ReglaIntegridadIntraEntidad", "ReglaIntegridadInterEntidad",
-    "ErrorEstandar", "ValoresPosiblesPorComprension", "AtributoDuplicado",
+    "ErrorEstandar", "Escala", "ValoresPosiblesPorComprension", "AtributoDuplicado",
     "ConjuntoAtributosDuplicado", "EntidadDuplicada",
-    "DesactualizacionPorFormato", "OportunidadAtributoPorFecha",
-    "OportunidadAtributoPorIntervalo", "DensidadPonderada"
+    "DesactualizacionPorFormato", "DesactualizacionPorFecha",
+    "DesactualizacionPorCambios", "OportunidadAtributoPorFecha",
+    "OportunidadAtributoPorIntervalo", "OportunidadEntPorFecha",
+    "OportunidadEntPorIntervalo", "DensidadPonderada"
   ))
   declaraciones <- lapply(nucleo, lupa:::.declaracion_metrica)
   expect_true(all(
@@ -91,16 +93,18 @@ test_that("el núcleo declara sus catorce métricas", {
     c(
       "instanciaAtributo", "instanciaAtributo", "instanciaAtributo",
       "instanciaEntidad", "entidad", "atributo", "instanciaAtributo",
-      "instanciaAtributo", "instanciaEntidad", "instanciaEntidad",
+      "instanciaAtributo", "instanciaAtributo", "instanciaEntidad",
+      "instanciaEntidad", "instanciaAtributo", "instanciaAtributo",
       "instanciaAtributo", "instanciaAtributo", "instanciaAtributo",
-      "instanciaEntidad"
+      "instanciaEntidad", "instanciaEntidad", "instanciaEntidad"
     )
   )
   expect_equal(
     unname(vapply(declaraciones, `[[`, character(1L), "tipo_resultado")),
     c(
-      rep("booleano", 4L), "real", "real", rep("booleano", 5L),
-      "real", "real", "real"
+      rep("booleano", 4L), "real", "numero_real", "real",
+      rep("booleano", 5L), "duracion", "entero", "real", "real",
+      "booleano", "booleano", "real"
     )
   )
 
@@ -173,20 +177,18 @@ test_that("el núcleo declara sus catorce métricas", {
   error_medido <- medicion$resultado[
     medicion$metrica_especifica == "ErrorMonto"
   ]
-  expect_true(all(error_medido >= 0 & error_medido <= 1))
+  expect_equal(
+    error_medido,
+    c(stats::sd(personas$monto), stats::sd(personas$monto_2))
+  )
   expect_equal(length(error_medido), 2L)
 
   errores <- medicion[
     medicion$metrica_especifica == "ErrorMonto", , drop = FALSE
   ]
-  expect_equal(
-    agregar(errores, "entidad", "ratio_umbral", umbral = 0)$resultado,
-    1
-  )
-  expect_equal(
-    agregar(errores, "entidad", "promedio")$resultado,
-    mean(error_medido)
-  )
+  expect_error(agregar(errores, "entidad", "ratio_umbral", umbral = 0),
+               "\u005b0, 1\u005d")
+  expect_error(agregar(errores, "entidad", "promedio"), "\u005b0, 1\u005d")
 
   medidas_intra <- medicion[
     medicion$metrica_especifica == "EdadAdulta", , drop = FALSE
