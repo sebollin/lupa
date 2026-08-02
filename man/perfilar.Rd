@@ -22,6 +22,7 @@ perfilar(
   sentinelas_numericos = numeric(),
   analizar_dependencias = TRUE,
   umbral_dependencia = 0.995,
+  umbral_casi_clave_dependencia = 0.8,
   max_columnas_dependencias = 100L
 )
 }
@@ -66,6 +67,9 @@ pares de columnas. Se aplica una sola muestra común a toda la tabla.}
 
 \item{umbral_dependencia}{Cumplimiento mínimo para informar una dependencia.}
 
+\item{umbral_casi_clave_dependencia}{Tasa de valores distintos a partir de
+la cual un determinante se descarta como casi-clave antes de agrupar.}
+
 \item{max_columnas_dependencias}{Máximo de columnas que intervienen en la
 búsqueda, cuyo costo crece cuadráticamente.}
 }
@@ -79,8 +83,8 @@ accionables. Todas las proporciones se expresan en \verb{[0, 1]}.
 }
 \details{
 Los umbrales de faltantes se aplican a la suma de ausentes reales y
-faltantes disfrazados y son inclusivos: un valor igual al umbral ya genera
-el hallazgo correspondiente. La lista de cadenas está congelada con referencia a
+faltantes disfrazados y son estrictos: la proporción debe superar el umbral
+para generar el nivel correspondiente. La lista de cadenas está congelada con referencia a
 \code{naniar::common_na_strings} 1.1.0 y suma extensiones habituales en datos
 administrativos uruguayos. Las entradas que naniar expresa como patrones
 escapados se adaptan a los signos literales de interrogación, asterisco y

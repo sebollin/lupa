@@ -18,4 +18,10 @@ Un \code{tibble} con una fila por columna.
 Método opcional para \code{\link[tibble:as_tibble]{tibble::as_tibble()}}. Requiere que \code{tibble} esté
 instalado.
 }
+\examples{
+perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
+if (requireNamespace("tibble", quietly = TRUE)) {
+  tibble::as_tibble(perfil)
+}
+}
 \keyword{internal}

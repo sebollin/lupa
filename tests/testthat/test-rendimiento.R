@@ -28,6 +28,9 @@ test_that("texto libre de cardinalidad alta no degrada el perfil", {
 
   expect_lt(unname(tiempo), 5)
   expect_lt(as.numeric(object.size(resultado)), 5 * 1024^2)
+  expect_true(all(
+    attr(resultado$dependencias, "columnas_descartadas")$motivo == "casi_clave"
+  ))
   expect_true(all(vapply(
     resultado$patrones,
     function(x) nrow(attr(x, "resumen_patrones")) <= 7L,

@@ -57,6 +57,10 @@
 #' valor predeterminado de `umbral = 0.995` exige que como máximo 5 de cada
 #' 1.000 filas contradigan la relación. Los ausentes de cualquiera de las dos
 #' columnas no integran el cálculo.
+#' El descarte ocurre antes de construir agrupaciones. El valor predeterminado
+#' `umbral_casi_clave = 0.8` excluye determinantes con menos de 1,25 filas por
+#' valor distinto en promedio: aun si cumplen, suelen describir una casi-clave
+#' y no una regla reutilizable.
 #'
 #' El costo crece con el cuadrado de las columnas. `max_columnas` conserva las
 #' primeras columnas analizables y `muestra` aplica una única muestra
@@ -80,8 +84,9 @@
 #'
 #' @return Data frame de clase `dependencias_funcionales`, ordenado por
 #'   cumplimiento y soporte. Los atributos `muestreado`, `filas_analizadas`,
-#'   `columnas_analizadas`, `columnas_omitidas` y `truncado` documentan el
-#'   alcance efectivo.
+#'   `columnas_analizadas`, `columnas_omitidas`, `columnas_descartadas` y
+#'   `truncado` documentan el alcance efectivo. `columnas_descartadas` es un
+#'   data frame que explica por qué una columna no se usó como determinante.
 #' @export
 #'
 #' @seealso [detectar_claves()], [proponer_modelo()], [perfilar()]
@@ -96,7 +101,7 @@
 detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
                                   max_columnas = 100L,
                                   umbral_casi_constante = 0.95,
-                                  umbral_casi_clave = 0.9,
+                                  umbral_casi_clave = 0.8,
                                   incluir_claves = FALSE,
                                   min_observaciones = 10L,
                                   max_ejemplos = 5L) {
@@ -124,25 +129,47 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   nombres <- make.unique(names(datos))
   muestreo <- .muestrear_vector(seq_len(nrow(datos)), limite)
   muestra_datos <- datos[muestreo$valores, seleccion, drop = FALSE]
+  normalizados <- lapply(muestra_datos, .valores_relacion)
+  estadisticas <- lapply(normalizados, function(x) {
+    presentes <- x[!is.na(x)]
+    n <- length(presentes)
+    if (!n) {
+      return(list(
+        n = 0L, proporcion_moda = NA_real_, tasa_distintos = NA_real_,
+        es_clave = FALSE, n_distintos = 0L
+      ))
+    }
+    unicos <- unique(presentes)
+    frecuencias <- tabulate(match(presentes, unicos), nbins = length(unicos))
+    list(
+      n = n,
+      proporcion_moda = max(frecuencias) / n,
+      tasa_distintos = length(unicos) / n,
+      es_clave = length(unicos) == n,
+      n_distintos = length(unicos)
+    )
+  })
+  motivos <- vapply(estadisticas, function(x) {
+    if (x$n < min_observaciones) return("soporte_insuficiente")
+    if (x$proporcion_moda >= umbral_casi_constante) return("casi_constante")
+    if (!incluir_claves &&
+        (x$es_clave || x$tasa_distintos >= umbral_casi_clave)) {
+      return("casi_clave")
+    }
+    ""
+  }, character(1L))
+  determinantes <- which(!nzchar(motivos))
+  dependientes_variables <- vapply(
+    estadisticas, function(x) x$n_distintos > 1L, logical(1L)
+  )
   filas <- list()
   k <- 0L
 
-  if (length(seleccion) >= 2L) {
-    for (i in seq_along(seleccion)) {
+  if (length(seleccion) >= 2L && length(determinantes)) {
+    for (i in determinantes) {
       x <- muestra_datos[[i]]
-      presentes_x <- x[!is.na(x)]
-      if (length(presentes_x) < min_observaciones) next
-      frecuencias <- tabulate(match(.valores_relacion(presentes_x),
-                                    unique(.valores_relacion(presentes_x))))
-      if (max(frecuencias) / length(presentes_x) >= umbral_casi_constante) next
-      es_clave <- anyDuplicated(.valores_relacion(presentes_x)) == 0L
-      tasa_distintos <- length(unique(.valores_relacion(presentes_x))) /
-        length(presentes_x)
-      if (!incluir_claves && (es_clave || tasa_distintos >= umbral_casi_clave)) next
       for (j in seq_along(seleccion)) {
-        if (i == j) next
-        y_presente <- muestra_datos[[j]][!is.na(muestra_datos[[j]])]
-        if (length(unique(.valores_relacion(y_presente))) <= 1L) next
+        if (i == j || !dependientes_variables[[j]]) next
         resumen <- .resumen_dependencia(x, muestra_datos[[j]])
         if (resumen$n < min_observaciones ||
             !is.finite(resumen$cumplimiento) ||
@@ -185,6 +212,11 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   attr(resultado, "muestreado") <- muestreo$muestreado
   attr(resultado, "columnas_analizadas") <- nombres[seleccion]
   attr(resultado, "columnas_omitidas") <- nombres[setdiff(seq_along(datos), seleccion)]
+  attr(resultado, "columnas_descartadas") <- data.frame(
+    columna = nombres[seleccion[nzchar(motivos)]],
+    motivo = unname(motivos[nzchar(motivos)]),
+    stringsAsFactors = FALSE
+  )
   attr(resultado, "truncado") <- length(seleccion) < length(analizables)
   attr(resultado, "umbral") <- umbral
   resultado

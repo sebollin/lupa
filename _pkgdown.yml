@@ -1,0 +1,92 @@
+url: https://CRAN.R-project.org/package=lupa
+
+template:
+  bootstrap: 5
+
+home:
+  title: "lupa — calidad de datos administrativos"
+  description: >
+    Examinar, medir, evaluar, remediar y monitorear calidad de datos con
+    resultados auditables.
+
+navbar:
+  structure:
+    left: [intro, reference, articles, news]
+    right: []
+
+articles:
+- title: Recorrido
+  navbar: ~
+  contents:
+  - empezar-con-lupa
+  - el-marco-agesic
+  - limpiar-con-un-plan
+  - historico-y-deriva
+
+reference:
+- title: Examinar
+  desc: Perfilar datos y descubrir su estructura.
+  contents:
+  - perfilar
+  - descubrir_patrones
+  - inferir_tipo
+  - detectar_formatos_fecha
+  - detectar_claves
+  - detectar_dependencias
+  - detectar_relaciones
+  - as_tibble.perfil
+  - datos_administrativos
+
+- title: Proponer
+  desc: Convertir diagnósticos en una propuesta editable de medición.
+  contents:
+  - proponer_modelo
+  - modelo_desde_propuesta
+
+- title: Medir
+  desc: Declarar métricas, referenciales, granularidad y agregaciones.
+  contents:
+  - metrica
+  - especializar
+  - instanciar
+  - modelo
+  - metricas_nucleo
+  - referencial
+  - metricas_referencial
+  - catalogo_agesic
+  - granularidades
+  - transiciones_granularidad
+  - medir
+  - agregar
+
+- title: Evaluar
+  desc: Aplicar reglas y perfiles de madurez a las medidas.
+  contents:
+  - regla_evaluacion
+  - perfil_evaluacion
+  - perfiles_madurez
+  - evaluar
+  - comparar_evaluaciones
+
+- title: Remediar
+  desc: Revisar y aplicar planes trazables sin mutación implícita.
+  contents:
+  - planificar_limpieza
+  - guiar_limpieza
+  - aplicar
+  - sentinelas_naniar
+
+- title: Monitorear
+  desc: Acumular corridas y detectar cambios entre entregas.
+  contents:
+  - historico_calidad
+  - acumular_historico
+  - guardar_historico
+  - leer_historico
+  - detectar_deriva_calidad
+  - comparar_perfiles
+
+- title: Informar
+  desc: Crear un reporte HTML autocontenido.
+  contents:
+  - reportar

@@ -68,6 +68,13 @@ recomendadas, declaran \code{reversible == FALSE} y requieren además
 en \code{eliminados}; use \code{conservar_eliminados = FALSE} para evitar ese costo de
 memoria.
 
+Las imputaciones por dependencia funcional se ofrecen desactivadas. Aunque
+una dependencia exacta permite deducir un valor sin usar media, moda o un
+modelo externo, sigue siendo una regularidad aprendida de una sola entrega y
+puede reflejar un error sistemático en vez de una regla de negocio. El plan
+conserva el mapa y su soporte para que el usuario la confirme; sólo entonces
+se aplica y se vuelve a validar contra los datos recibidos.
+
 \code{marcar_filas_duplicadas} añade dos columnas. \code{.fila_duplicada} reproduce la
 semántica de \code{\link[=duplicated]{duplicated()}} y marca sólo las apariciones posteriores;
 \code{.grupo_duplicado} identifica a \strong{todas} las filas que participan en cada

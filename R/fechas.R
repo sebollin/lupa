@@ -143,6 +143,20 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   valores <- trimws(as.character(valores_originales))
   valores <- valores[!is.na(valores) & nzchar(valores)]
   total <- length(valores)
+  base_fecha <- paste0(
+    "(?:[0-9]{4}[-/][0-9]{1,2}[-/][0-9]{1,2}|",
+    "[0-9]{1,2}[-/.][0-9]{1,2}[-/.][0-9]{4}|",
+    "[0-9]{1,2}/[0-9]{1,2}/[0-9]{2}|",
+    "[0-9]{2}-[0-9]{1,2}-[0-9]{1,2}|[0-9]{8})"
+  )
+  sufijo_hora <- paste0(
+    "(?:[ T][0-9]{2}:[0-9]{2}(?::[0-9]{2})?",
+    "(?:Z|[+-][0-9]{2}:[0-9]{2})?)?"
+  )
+  candidatos_fecha <- grepl(
+    paste0("^", base_fecha, sufijo_hora, "$"), valores, perl = TRUE
+  )
+  valores <- valores[candidatos_fecha]
   especificaciones <- .especificaciones_fecha()
   mascaras <- lapply(seq_len(nrow(especificaciones)), function(i) {
     .es_fecha_valida(
@@ -152,7 +166,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     )
   })
   names(mascaras) <- especificaciones$formato
-  cubiertos <- rep(FALSE, total)
+  cubiertos <- rep(FALSE, length(valores))
   filas <- list()
   k <- 0L
 
@@ -285,10 +299,15 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     return(salida)
   }
   confirmados <- formatos$formato[formatos$estado == "confirmado"]
+  especificaciones <- .especificaciones_fecha()
   for (formato in confirmados) {
-    pendientes <- is.na(salida) & !is.na(valores)
+    indice_especificacion <- match(formato, especificaciones$formato)
+    if (is.na(indice_especificacion)) next
+    patron <- especificaciones$expresion[[indice_especificacion]]
+    pendientes <- is.na(salida) & !is.na(valores) &
+      grepl(patron, valores, perl = TRUE)
     if (!any(pendientes)) {
-      break
+      next
     }
     convertido <- strptime(valores[pendientes], format = formato, tz = "UTC")
     valido <- !is.na(convertido)

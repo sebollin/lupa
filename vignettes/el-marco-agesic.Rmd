@@ -1,0 +1,130 @@
+---
+title: "El marco de calidad de AGESIC en lupa"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{El marco de calidad de AGESIC en lupa}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+options(width = 90)
+```
+
+`lupa` toma como base el *Marco de trabajo para la Gestión de la Calidad de
+Datos en Gobierno Digital v1.6* de AGESIC. Su arquitectura conserva tres ideas
+que suelen perderse al convertir calidad en un único número.
+
+```{r}
+library(lupa)
+```
+
+## Dimensión, factor y métrica son una taxonomía
+
+Una dimensión reúne factores y un factor reúne métricas. Esa jerarquía permite
+clasificar y navegar el modelo, pero el marco no define una fórmula que produzca
+un “puntaje de Exactitud” ni un índice global. Promediar factores sin un
+contrato adicional ocultaría prioridades y correlaciones entre ellos.
+
+Por eso `lupa` conserva `dimension` y `factor` en cada medida, pero `agregar()`
+sólo acepta las transiciones de granularidad declaradas.
+
+```{r}
+granularidades()
+transiciones_granularidad()
+```
+
+Una celda puede agregarse hacia su columna o hacia su fila. Esas direcciones
+son ortogonales, no peldaños de una escala lineal.
+
+## Tres niveles de métrica
+
+Una métrica genérica declara semántica, granularidad, tipo de resultado y
+propiedades. Especializar fija propiedades reutilizables; instanciar liga esa
+especialización a objetos concretos.
+
+```{r}
+nucleo <- metricas_nucleo()
+no_nulo <- nucleo$NoNulo
+no_nulo_personas <- especializar(
+  no_nulo, nombre_especifico = "NoNuloDocumento"
+)
+documento <- instanciar(no_nulo_personas, "personas", "documento")
+documento$declaracion[c("nombre", "granularidad", "tipo_resultado")]
+```
+
+La separación permite reutilizar la misma definición sobre entregas y columnas
+distintas.
+
+## Medir y agregar
+
+```{r}
+datos <- data.frame(documento = c("1", "2", NA, "4"))
+medidas <- medir(
+  modelo(documento), datos,
+  id_medicion = "enero",
+  fecha = as.POSIXct("2026-01-31", tz = "UTC")
+)
+medidas[, c("objeto_medible", "resultado", "granularidad")]
+
+agregar(medidas, "atributo", "ratio")[, c(
+  "objeto_medible", "resultado", "agregacion"
+)]
+```
+
+Las cuatro agregaciones del marco son:
+
+- `ratio`, para resultados booleanos;
+- `ratio_umbral`, para resultados reales;
+- `promedio`;
+- `promedio_ponderado`, con pesos en `[0, 1]` que suman uno por destino.
+
+La función valida el tipo de resultado y la transición. No agrega hacia factor,
+dimensión o modelo.
+
+## Evaluar no es volver a medir
+
+Una regla expresa una condición sobre resultados. La evaluación de una regla es
+la proporción que la cumple; la evaluación de un perfil es la media simple de
+sus reglas. Los perfiles de madurez usan condiciones estrictas `> 0.5`, `> 0.7`
+y `> 0.9` sobre las mismas métricas.
+
+```{r}
+medida_atributo <- agregar(medidas, "atributo", "ratio")
+madurez <- perfiles_madurez()
+evaluar(medida_atributo, madurez$Intermedio)$perfiles
+```
+
+El `id_medicion` y la fecha permanecen en las medidas para comparar corridas y
+monitorear deriva.
+
+## Qué parte del catálogo está disponible
+
+`catalogo_agesic()` devuelve las 49 entradas como una tabla, incluidas las que
+se obtienen por agregación o requieren insumos externos.
+
+```{r}
+catalogo <- catalogo_agesic()
+as.data.frame(table(catalogo$estado))
+catalogo[catalogo$estado == "via_agregacion", c(
+  "metrica_agesic", "metrica_lupa", "implementacion"
+)]
+```
+
+Un diccionario enumera valores sintácticamente válidos. Un referencial vincula
+claves y valores externos, y sólo permite medir cobertura cuando declara de qué
+universo es completo.
+
+```{r}
+padron <- referencial(
+  data.frame(codigo = c("01", "02"), nombre = c("Artigas", "Canelones")),
+  clave = "codigo", valor = "nombre", completo = TRUE,
+  alcance = "departamentos incluidos en el ejemplo"
+)
+names(metricas_referencial())
+padron
+```
+
+La tabla del catálogo es la respuesta verificable a “qué implementa el
+paquete”; las entradas fuera de alcance no se presentan como resueltas.

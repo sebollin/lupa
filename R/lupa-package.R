@@ -29,4 +29,8 @@
 #'
 #' @seealso [datos_administrativos]
 #' @keywords internal
+#'
+#' @examples
+#' perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
+#' subset(perfil$hallazgos, severidad != "ok")
 "_PACKAGE"

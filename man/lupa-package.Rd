@@ -31,6 +31,10 @@ exacta con las 49 entradas del marco se consulta en \code{\link[=catalogo_agesic
 se calcula un índice global: la jerarquía dimensión–factor–métrica es
 taxonómica y el marco no define esa agregación.
 }
+\examples{
+perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
+subset(perfil$hallazgos, severidad != "ok")
+}
 \references{
 AGESIC (2020). \emph{Marco de trabajo para la Gestión de la Calidad
 de Datos en Gobierno Digital}, versión 1.6, Presidencia de la República,

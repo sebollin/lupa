@@ -10,7 +10,7 @@ detectar_dependencias(
   muestra = 1e+05,
   max_columnas = 100L,
   umbral_casi_constante = 0.95,
-  umbral_casi_clave = 0.9,
+  umbral_casi_clave = 0.8,
   incluir_claves = FALSE,
   min_observaciones = 10L,
   max_ejemplos = 5L
@@ -43,8 +43,9 @@ dependencia.}
 \value{
 Data frame de clase \code{dependencias_funcionales}, ordenado por
 cumplimiento y soporte. Los atributos \code{muestreado}, \code{filas_analizadas},
-\code{columnas_analizadas}, \code{columnas_omitidas} y \code{truncado} documentan el
-alcance efectivo.
+\code{columnas_analizadas}, \code{columnas_omitidas}, \code{columnas_descartadas} y
+\code{truncado} documentan el alcance efectivo. \code{columnas_descartadas} es un
+data frame que explica por qué una columna no se usó como determinante.
 }
 \description{
 Busca pares ordenados \code{determinante -> dependiente}. El cumplimiento es la
@@ -60,6 +61,10 @@ Para evitar resultados vacíos o triviales, se omiten por defecto las claves
 valor predeterminado de \code{umbral = 0.995} exige que como máximo 5 de cada
 1.000 filas contradigan la relación. Los ausentes de cualquiera de las dos
 columnas no integran el cálculo.
+El descarte ocurre antes de construir agrupaciones. El valor predeterminado
+\code{umbral_casi_clave = 0.8} excluye determinantes con menos de 1,25 filas por
+valor distinto en promedio: aun si cumplen, suelen describir una casi-clave
+y no una regla reutilizable.
 
 El costo crece con el cuadrado de las columnas. \code{max_columnas} conserva las
 primeras columnas analizables y \code{muestra} aplica una única muestra

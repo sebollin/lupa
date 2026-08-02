@@ -21,4 +21,9 @@
 #' }
 #' @source Generación sintética incluida con el paquete.
 #' @seealso [perfilar()], [planificar_limpieza()]
+#'
+#' @examples
+#' data(datos_administrativos)
+#' perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
+#' perfil$columnas[, c("columna", "tipo_inferido", "prop_faltantes_totales")]
 "datos_administrativos"

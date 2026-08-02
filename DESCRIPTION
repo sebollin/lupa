@@ -16,6 +16,7 @@ Description: Profiles administrative data, discovers structural patterns in
     Digital Government, version 1.6, published by AGESIC (2020)
     <https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/>.
 License: GPL-2 | GPL-3
+URL: https://CRAN.R-project.org/package=lupa
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
@@ -26,7 +27,10 @@ Imports:
 Suggests:
     covr,
     data.table,
+    knitr,
+    rmarkdown,
     testthat (>= 3.0.0),
     tibble
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.0.0

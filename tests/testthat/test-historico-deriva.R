@@ -300,6 +300,21 @@ test_that("los cambios pequeños permanecen como observaciones ok", {
   expect_equal(nrow(sin_cambios), 0L)
 })
 
+test_that("la deriva tolera rangos de fecha no parseables", {
+  perfil <- perfilar(
+    datos_administrativos,
+    fecha = as.POSIXct("2026-01-01", tz = "UTC"),
+    analizar_dependencias = FALSE
+  )
+  expect_equal(nrow(comparar_perfiles(perfil, perfil)), 0L)
+
+  corrupto <- perfil
+  indice <- which(!is.na(corrupto$columnas$minimo_fecha))[[1L]]
+  corrupto$columnas$minimo_fecha[[indice]] <- "4620236-06-30"
+  corrupto$columnas$maximo_fecha[[indice]] <- "4660214-04-27"
+  expect_no_error(comparar_perfiles(corrupto, corrupto))
+})
+
 test_that("las entradas de deriva se validan", {
   perfil <- perfilar(
     data.frame(x = 1:3), fecha = as.POSIXct("2026-01-01", tz = "UTC")

@@ -32,6 +32,11 @@ una columna constante, valores extremos, una fila duplicada y registros con
 el mismo identificador pero contenidos distintos. No representa personas ni
 registros de ningún organismo.
 }
+\examples{
+data(datos_administrativos)
+perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
+perfil$columnas[, c("columna", "tipo_inferido", "prop_faltantes_totales")]
+}
 \seealso{
 \code{\link[=perfilar]{perfilar()}}, \code{\link[=planificar_limpieza]{planificar_limpieza()}}
 }

@@ -35,7 +35,7 @@
     return(list(valores = as.numeric(x), clase = "fecha-hora"))
   }
   if (inherits(x, "Date")) {
-    return(list(valores = as.numeric(x), clase = "fecha"))
+    return(list(valores = as.numeric(x) * 86400, clase = "fecha"))
   }
   if (is.numeric(x)) {
     return(list(valores = as.numeric(x), clase = "numero"))
@@ -58,7 +58,10 @@
     return(NA_character_)
   }
   if (identical(clase, "fecha")) {
-    return(format(as.Date(valor, origin = "1970-01-01"), "%Y-%m-%d"))
+    return(format(
+      as.POSIXct(valor, origin = "1970-01-01", tz = "UTC"),
+      "%Y-%m-%d", tz = "UTC"
+    ))
   }
   format(
     as.POSIXct(valor, origin = "1970-01-01", tz = "UTC"),
@@ -192,18 +195,27 @@
   )
 }
 
-.analizar_numeros_texto <- function(x) {
+.analizar_numeros_texto <- function(x, umbral_compatibilidad = 0.8) {
   vacio <- list(
     n = 0L, proporcion = NA_real_, ambiguo = FALSE, seguro = FALSE,
     evidencia = "", unidad = "", n_presentes = 0L
   )
   if (!is.character(x) && !is.factor(x)) return(vacio)
-  partes <- .componentes_numero_texto(x)
-  presentes <- !is.na(partes$texto) & nzchar(partes$texto)
+  textos <- as.character(x)
+  presentes <- !is.na(textos) & nzchar(textos)
   n_presentes <- sum(presentes)
+  vacio$n_presentes <- n_presentes
+  if (!n_presentes || !any(grepl("[0-9]", textos[presentes], perl = TRUE))) {
+    return(vacio)
+  }
+  inicio_numerico <- grepl(
+    "^[[:space:]]*(?:[$]|UYU)?[[:space:]]*[+-]?[0-9]",
+    textos[presentes], perl = TRUE
+  )
+  if (mean(inicio_numerico) < umbral_compatibilidad) return(vacio)
+  partes <- .componentes_numero_texto(textos)
   especiales <- presentes & partes$compatible & partes$especial
   if (!any(especiales)) {
-    vacio$n_presentes <- n_presentes
     return(vacio)
   }
   hay_coma <- any(partes$tiene_coma[presentes & partes$compatible])

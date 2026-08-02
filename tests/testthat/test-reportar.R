@@ -90,6 +90,19 @@ test_that("reportar crea un HTML autocontenido y seguro desde un perfil", {
   expect_false(grepl("https?://|src\\s*=|@import", html, ignore.case = TRUE))
 })
 
+test_that("reportar conserva rangos plausibles para fechas importadas como texto", {
+  perfil <- perfilar(
+    data.frame(f = c("2023-11-30", "2023-12-01", "2023-06-15")),
+    analizar_dependencias = FALSE
+  )
+  archivo <- tempfile(fileext = ".html")
+  reportar(perfil, archivo = archivo)
+  html <- .leer_html_prueba(archivo)
+
+  expect_match(html, "2023-06-15", fixed = TRUE)
+  expect_false(grepl("4620236", html, fixed = TRUE))
+})
+
 test_that("reportar combina todas las secciones soportadas", {
   objetos <- .objetos_reporte_prueba()
   archivo <- tempfile(fileext = ".html")

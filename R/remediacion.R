@@ -144,6 +144,13 @@
 #' en `eliminados`; use `conservar_eliminados = FALSE` para evitar ese costo de
 #' memoria.
 #'
+#' Las imputaciones por dependencia funcional se ofrecen desactivadas. Aunque
+#' una dependencia exacta permite deducir un valor sin usar media, moda o un
+#' modelo externo, sigue siendo una regularidad aprendida de una sola entrega y
+#' puede reflejar un error sistemático en vez de una regla de negocio. El plan
+#' conserva el mapa y su soporte para que el usuario la confirme; sólo entonces
+#' se aplica y se vuelve a validar contra los datos recibidos.
+#'
 #' `marcar_filas_duplicadas` añade dos columnas. `.fila_duplicada` reproduce la
 #' semántica de [duplicated()] y marca sólo las apariciones posteriores;
 #' `.grupo_duplicado` identifica a **todas** las filas que participan en cada
@@ -651,24 +658,22 @@ planificar_limpieza <- function(perfil, datos = NULL,
       for (indices in por_dependiente) {
         numero_grupo <- numero_grupo + 1L
         grupo <- .id_grupo(numero_grupo)
-        soportes <- vapply(candidatas[indices], `[[`, numeric(1L), "soporte")
-        mejor <- indices[[which.max(soportes)]]
         for (indice in indices) {
           candidata <- candidatas[[indice]]
-          recomendada <- indice == mejor
           estrategia_imputacion <- paste0(
             "imputar_dependencia_funcional__", make.names(candidata$determinante)
           )
           acciones <- .agregar_accion(acciones, .nueva_accion(
             candidata$dependiente, "faltantes",
-            estrategia_imputacion, recomendada,
+            estrategia_imputacion, FALSE,
             paste0(
               "La relaci\u00f3n ", candidata$determinante, " -> ",
               candidata$dependiente, " es exacta en ", candidata$soporte,
               " filas presentes y cada valor usado tiene al menos ",
-              soporte_minimo_dependencia, " observaciones de soporte."
+              soporte_minimo_dependencia, " observaciones de soporte. ",
+              "Debe confirmarse como regla antes de imputar."
             ),
-            candidata$n, FALSE, estado = "lista", aplicar = recomendada,
+            candidata$n, FALSE, estado = "lista", aplicar = FALSE,
             parametros = list(
               determinante = candidata$determinante,
               dependiente = candidata$dependiente,
@@ -677,8 +682,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
               cumplimiento = 1
             ),
             orden = 150L, grupo = grupo,
-            decision_grupo = "recomendada",
-            recomendacion_grupo = estrategia_imputacion
+            decision_grupo = "pendiente",
+            recomendacion_grupo = NA_character_
           ))
         }
       }

@@ -21,6 +21,15 @@ Tanto este vector como las cadenas de ausencia incorporadas en el paquete
 están congelados con referencia a naniar 1.1.0; no cambian según la versión
 de naniar instalada.
 }
+\examples{
+sentinelas_naniar
+datos <- data.frame(codigo = c(1, 66, 9999))
+perfil <- perfilar(
+  datos, sentinelas_numericos = sentinelas_naniar,
+  analizar_dependencias = FALSE
+)
+perfil$columnas[, c("columna", "n_faltantes_disfrazados")]
+}
 \seealso{
 \code{\link[=perfilar]{perfilar()}}, \code{\link[=planificar_limpieza]{planificar_limpieza()}}
 }

@@ -1,0 +1,39 @@
+citHeader("Para citar lupa en publicaciones use:")
+
+bibentry(
+  bibtype = "Manual",
+  title = "lupa: Data Profiling and Quality Measurement",
+  author = person("Sebastián", "Lucas"),
+  year = "2026",
+  note = "R package version 0.1.0",
+  textVersion = paste(
+    "Lucas S (2026). lupa: Data Profiling and Quality Measurement.",
+    "R package version 0.1.0."
+  )
+)
+
+citHeader("El marco conceptual implementado se cita como:")
+
+bibentry(
+  bibtype = "TechReport",
+  title = paste(
+    "Marco de trabajo para la Gestión de la Calidad de Datos en",
+    "Gobierno Digital, versión 1.6"
+  ),
+  author = person("AGESIC"),
+  institution = paste(
+    "Presidencia de la República y Facultad de Ingeniería,",
+    "Universidad de la República"
+  ),
+  year = "2020",
+  address = "Montevideo, Uruguay",
+  url = paste0(
+    "https://www.gub.uy/agencia-gobierno-electronico-",
+    "sociedad-informacion-conocimiento/"
+  ),
+  textVersion = paste(
+    "AGESIC (2020). Marco de trabajo para la Gestión de la Calidad de Datos",
+    "en Gobierno Digital, versión 1.6. Presidencia de la República y",
+    "Facultad de Ingeniería, Universidad de la República, Uruguay."
+  )
+)

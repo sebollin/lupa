@@ -30,6 +30,15 @@
 #' @source `naniar::common_na_numbers`, versión 1.1.0.
 #' @export
 #' @seealso [perfilar()], [planificar_limpieza()]
+#'
+#' @examples
+#' sentinelas_naniar
+#' datos <- data.frame(codigo = c(1, 66, 9999))
+#' perfil <- perfilar(
+#'   datos, sentinelas_numericos = sentinelas_naniar,
+#'   analizar_dependencias = FALSE
+#' )
+#' perfil$columnas[, c("columna", "n_faltantes_disfrazados")]
 sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 
 .cadenas_na <- function() {

@@ -1,0 +1,135 @@
+---
+title: "Empezar con lupa"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Empezar con lupa}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+options(width = 90)
+```
+
+`lupa` acompaña un recorrido: examinar una entrega, decidir qué medir, medir,
+evaluar, proponer mejoras y dejar evidencia. Ninguna etapa modifica los datos
+por el solo hecho de diagnosticarlos.
+
+## Una entrega administrativa
+
+El conjunto incluido es pequeño y completamente sintético. Tiene fechas
+mezcladas, sentinelas, duplicados y formatos discordantes.
+
+```{r}
+library(lupa)
+data(datos_administrativos)
+dim(datos_administrativos)
+
+perfil <- perfilar(datos_administrativos, nombre = "entrega de ejemplo")
+perfil
+```
+
+Los hallazgos son datos. Se pueden filtrar, ordenar o exportar sin extraer texto
+de un reporte.
+
+```{r}
+perfil$hallazgos[, c(
+  "columna", "tipo_hallazgo", "severidad", "evidencia"
+)]
+```
+
+La tabla por columna mantiene todas las proporciones en `[0, 1]`.
+
+```{r}
+perfil$columnas[, c(
+  "columna", "tipo_declarado", "tipo_inferido",
+  "prop_faltantes_totales", "n_distintos"
+)]
+```
+
+## Del diagnóstico al modelo
+
+`proponer_modelo()` no ejecuta nada. Devuelve una propuesta editable que
+explica de dónde salió cada métrica. Los dominios y patrones aprendidos de una
+sola entrega quedan inactivos hasta que alguien confirme que son requisitos.
+
+```{r}
+propuesta <- proponer_modelo(perfil, datos_administrativos)
+propuesta[, c(
+  "metrica", "atributos", "origen", "prioridad", "incluir", "estado"
+)]
+```
+
+Las filas activas se convierten en un modelo y se miden. En este ejemplo la
+métrica estructural activa detecta las filas que participan en duplicados.
+
+```{r}
+modelo_calidad <- modelo_desde_propuesta(propuesta)
+medidas <- medir(
+  modelo_calidad, datos_administrativos,
+  id_medicion = "ejemplo-001",
+  fecha = as.POSIXct("2026-01-15", tz = "UTC")
+)
+head(medidas[, c("metrica", "fila", "resultado")])
+```
+
+La medida booleana por fila puede agregarse a la entidad mediante `ratio`.
+Después se evalúa una regla explícita; no aparece un puntaje global inventado.
+
+```{r}
+medida_entidad <- agregar(medidas, "entidad", "ratio")
+regla <- regla_evaluacion(
+  "Duplicación menor al 20 %",
+  function(x) x < 0.2
+)
+evaluacion <- evaluar(
+  medida_entidad,
+  perfil_evaluacion("Control operativo", regla)
+)
+evaluacion$perfiles[, c("perfil", "resultado")]
+```
+
+## Mejorar sin perder trazabilidad
+
+El plan propone acciones y sólo activa las que no dependen del dominio. Puede
+editarse como cualquier otro `data.frame`.
+
+```{r}
+plan <- planificar_limpieza(perfil, datos_administrativos)
+plan[, c(
+  "grupo", "columna", "estrategia", "recomendada", "aplicar", "estado"
+)]
+
+resultado <- aplicar(plan, datos_administrativos)
+resultado$registro[, c("estrategia", "n_cambiadas")]
+```
+
+El original permanece intacto. Para verificar el efecto se vuelve a perfilar el
+resultado.
+
+```{r}
+perfil_despues <- perfilar(resultado$datos, nombre = "entrega normalizada")
+c(
+  antes = nrow(perfil$hallazgos),
+  despues = nrow(perfil_despues$hallazgos)
+)
+```
+
+## Un archivo para compartir
+
+`reportar()` combina los objetos disponibles en un HTML autocontenido. Este
+ejemplo crea el archivo en el directorio temporal y luego lo retira.
+
+```{r}
+archivo <- reportar(
+  perfil, medidas, evaluacion, plan,
+  archivo = tempfile(fileext = ".html"),
+  titulo = "Calidad de la entrega de ejemplo"
+)
+basename(archivo)
+unlink(archivo)
+```
+
+Para profundizar en la arquitectura consulte `vignette("el-marco-agesic")`; para
+revisar decisiones de remediación, `vignette("limpiar-con-un-plan")`.

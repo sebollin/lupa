@@ -67,8 +67,15 @@
     ))
   }
   if (!is.na(fila$minimo_fecha) && !is.na(fila$maximo_fecha)) {
-    a <- as.numeric(as.POSIXct(fila$minimo_fecha, tz = "UTC"))
-    b <- as.numeric(as.POSIXct(fila$maximo_fecha, tz = "UTC"))
+    limites <- tryCatch(
+      suppressWarnings(as.POSIXct(
+        c(fila$minimo_fecha, fila$maximo_fecha), tz = "UTC"
+      )),
+      error = function(e) as.POSIXct(c(NA, NA), tz = "UTC")
+    )
+    if (length(limites) != 2L || anyNA(limites)) return(NULL)
+    a <- as.numeric(limites[[1L]])
+    b <- as.numeric(limites[[2L]])
     return(list(
       tipo = "fecha", minimo = a, maximo = b,
       texto = paste0("[", fila$minimo_fecha, ", ", fila$maximo_fecha, "]")

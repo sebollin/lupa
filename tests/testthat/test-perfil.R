@@ -129,6 +129,27 @@ test_that("las métricas numéricas, textuales y de fecha están disponibles", {
   expect_equal(fecha$maximo_fecha, "2020-01-03")
 })
 
+test_that("las fechas de texto y Date comparten unidades temporales", {
+  texto <- perfilar(
+    data.frame(f = c("2023-11-30", "2023-12-01", "2023-06-15")),
+    analizar_dependencias = FALSE
+  )$columnas
+  fecha <- perfilar(
+    data.frame(f = as.Date(c("2023-11-30", "2023-12-01", "2023-06-15"))),
+    analizar_dependencias = FALSE
+  )$columnas
+
+  expect_equal(texto$minimo_fecha, "2023-06-15")
+  expect_equal(texto$maximo_fecha, "2023-12-01")
+  expect_equal(texto[c("minimo_fecha", "maximo_fecha", "media_fecha")],
+               fecha[c("minimo_fecha", "maximo_fecha", "media_fecha")])
+  anios <- as.integer(substr(
+    perfilar(datos_administrativos, analizar_dependencias = FALSE)$columnas$minimo_fecha,
+    1L, 4L
+  ))
+  expect_true(all(anios[!is.na(anios)] >= 1900L & anios[!is.na(anios)] <= 2100L))
+})
+
 test_that("los métodos de presentación devuelven el resumen", {
   resultado <- perfilar(datos_sucios)
   expect_equal(summary(resultado), resultado$columnas)
@@ -167,6 +188,9 @@ test_that("se aceptan tibble y data.table sin cambiar su contenido", {
 test_that("se validan datos y umbrales", {
   expect_error(perfilar(1:3), "data.frame")
   expect_error(perfilar(datos_sucios, umbral_alta_cardinalidad = 2), "entre 0 y 1")
+  expect_error(
+    perfilar(datos_sucios, umbral_casi_clave_dependencia = 2), "umbrales"
+  )
   expect_error(
     perfilar(
       datos_sucios,

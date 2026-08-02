@@ -55,6 +55,12 @@ as.data.frame.perfil <- function(x, row.names = NULL, optional = FALSE, ...) {
 #' @return Un `tibble` con una fila por columna.
 #' @keywords internal
 #' @exportS3Method tibble::as_tibble
+#'
+#' @examples
+#' perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
+#' if (requireNamespace("tibble", quietly = TRUE)) {
+#'   tibble::as_tibble(perfil)
+#' }
 as_tibble.perfil <- function(x, ...) {
   if (!requireNamespace("tibble", quietly = TRUE)) {
     stop("Para esta conversi\u00f3n se necesita instalar el paquete 'tibble'.", call. = FALSE)

@@ -41,6 +41,13 @@ un índice global de calidad.
 con condiciones estrictas \verb{> 0.5}, \verb{> 0.7} y \verb{> 0.9} sobre las mismas
 métricas instanciadas.
 }
+\examples{
+regla <- regla_evaluacion("Completitud suficiente", function(x) x > 0.9)
+perfil <- perfil_evaluacion("Operativo", regla)
+madurez <- perfiles_madurez("NoNulo")
+names(madurez)
+perfil$nombre
+}
 \seealso{
 \code{\link[=medir]{medir()}}, \code{\link[=evaluar]{evaluar()}}, \code{\link[=perfiles_madurez]{perfiles_madurez()}}
 

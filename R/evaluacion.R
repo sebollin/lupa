@@ -21,6 +21,13 @@
 #'   `perfil_evaluacion()` devuelve un `perfil_evaluacion`; y
 #'   `perfiles_madurez()` devuelve una lista de tres perfiles.
 #' @name reglas_evaluacion
+#'
+#' @examples
+#' regla <- regla_evaluacion("Completitud suficiente", function(x) x > 0.9)
+#' perfil <- perfil_evaluacion("Operativo", regla)
+#' madurez <- perfiles_madurez("NoNulo")
+#' names(madurez)
+#' perfil$nombre
 NULL
 
 #' @rdname reglas_evaluacion

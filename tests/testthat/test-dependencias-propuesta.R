@@ -43,6 +43,17 @@ test_that("el recorte de dependencias queda declarado", {
   expect_equal(nrow(lupa:::.mapa_dependencia(
     data.frame(a = c(1, 1), b = c("x", "y")), "a", "b"
   )), 0L)
+
+  casi_claves <- data.frame(
+    a = sprintf("a%03d", c(seq_len(86), rep(1:14, each = 1))),
+    b = sprintf("b%03d", c(seq_len(86), rep(1:14, each = 1)))
+  )
+  descartadas <- detectar_dependencias(casi_claves)
+  expect_equal(nrow(descartadas), 0L)
+  expect_equal(
+    attr(descartadas, "columnas_descartadas")$motivo,
+    c("casi_clave", "casi_clave")
+  )
 })
 
 test_that("perfilar conserva dependencias y la propuesta explica su origen", {
@@ -70,6 +81,25 @@ test_that("perfilar conserva dependencias y la propuesta explica su origen", {
   expect_equal(nrow(recortada), 1L)
   expect_s3_class(recortada[, , drop = FALSE], "propuesta_modelo")
   expect_false(inherits(recortada[, "metrica", drop = FALSE], "propuesta_modelo"))
+})
+
+test_that("NoNulo se propone inactiva ante ausentes disfrazados", {
+  disfrazados <- data.frame(a = c(rep("S/D", 8), "x", "y"))
+  propuesta <- proponer_modelo(
+    perfilar(disfrazados, analizar_dependencias = FALSE), disfrazados
+  )
+  no_nulo <- propuesta[propuesta$metrica == "NoNulo", , drop = FALSE]
+
+  expect_equal(nrow(no_nulo), 1L)
+  expect_false(no_nulo$incluir)
+  expect_equal(no_nulo$origen, "hallazgo:faltantes")
+  expect_match(no_nulo$justificacion, "normalizarlos")
+
+  reales <- data.frame(a = c(rep(NA, 8), "x", "y"))
+  propuesta_reales <- proponer_modelo(
+    perfilar(reales, analizar_dependencias = FALSE), reales
+  )
+  expect_true(propuesta_reales$incluir[propuesta_reales$metrica == "NoNulo"])
 })
 
 test_that("las relaciones pueden originar una sugerencia inter-entidad", {
@@ -127,7 +157,11 @@ test_that("la imputación por dependencia es deducible y auditada", {
   indice <- grep("^imputar_dependencia_funcional__codigo$", plan$estrategia)
 
   expect_length(indice, 1L)
-  expect_true(plan$recomendada[[indice]])
+  expect_false(plan$recomendada[[indice]])
+  expect_false(plan$aplicar[[indice]])
+  expect_equal(as.character(plan$decision_grupo[[indice]]), "pendiente")
+  plan$aplicar[[indice]] <- TRUE
+  plan$decision_grupo[[indice]] <- "elegida"
   resultado <- aplicar(plan, datos)
   expect_equal(resultado$datos$descripcion, rep(c("A", "B", "C"), each = 5))
   expect_equal(resultado$registro$n_cambiadas[

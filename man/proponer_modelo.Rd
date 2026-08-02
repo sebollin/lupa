@@ -46,6 +46,9 @@ patrones dominantes— se proponen inactivas. Los controles estructurales
 directos, como \code{NoNulo}, duplicación exacta y dependencias funcionales
 exactas, se activan. \code{max_sugerencias} recorta después de ordenar por
 prioridad y el objeto declara el total en sus atributos.
+Si una columna contiene faltantes disfrazados, \code{NoNulo} se propone pero queda
+inactiva hasta normalizarlos o configurar la métrica para reconocerlos. De
+otro modo mediría sólo los \code{NA} reales y sobrestimaría la completitud.
 }
 \examples{
 datos <- data.frame(

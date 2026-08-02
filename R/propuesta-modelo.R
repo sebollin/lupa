@@ -85,6 +85,9 @@
 #' directos, como `NoNulo`, duplicación exacta y dependencias funcionales
 #' exactas, se activan. `max_sugerencias` recorta después de ordenar por
 #' prioridad y el objeto declara el total en sus atributos.
+#' Si una columna contiene faltantes disfrazados, `NoNulo` se propone pero queda
+#' inactiva hasta normalizarlos o configurar la métrica para reconocerlos. De
+#' otro modo mediría sólo los `NA` reales y sobrestimaría la completitud.
 #'
 #' @param perfil Objeto creado por [perfilar()].
 #' @param datos Datos originales opcionales. Son necesarios para proponer
@@ -140,16 +143,40 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
   for (i in seq_len(nrow(perfil$columnas))) {
     fila <- perfil$columnas[i, , drop = FALSE]
     columna <- fila$columna[[1L]]
-    if (fila$n_faltantes[[1L]] > 0L) {
+    if (fila$n_faltantes_totales[[1L]] > 0L) {
       hallazgo <- perfil$hallazgos[
         perfil$hallazgos$columna == columna &
-          perfil$hallazgos$tipo_hallazgo == "faltantes", , drop = FALSE
+          perfil$hallazgos$tipo_hallazgo %in%
+            c("faltantes", "faltantes_disfrazados"), , drop = FALSE
       ]
-      origen <- if (nrow(hallazgo)) "hallazgo:faltantes" else "perfil:n_faltantes"
+      tipo_origen <- if (any(hallazgo$tipo_hallazgo == "faltantes")) {
+        "faltantes"
+      } else if (nrow(hallazgo)) {
+        "faltantes_disfrazados"
+      } else {
+        ""
+      }
+      origen <- if (nzchar(tipo_origen)) {
+        paste0("hallazgo:", tipo_origen)
+      } else {
+        "perfil:n_faltantes_totales"
+      }
+      n_disfrazados <- fila$n_faltantes_disfrazados[[1L]]
       agregar_sugerencia(.nueva_sugerencia(
-        "alta", TRUE, "NoNulo", entidad, columna, origen,
-        paste0("La columna contiene ", fila$n_faltantes[[1L]],
-               " valores ausentes; la completitud debe medirse por separado.")
+        "alta", n_disfrazados == 0L, "NoNulo", entidad, columna, origen,
+        if (n_disfrazados > 0L) {
+          paste0(
+            "La columna contiene ", fila$n_faltantes_totales[[1L]],
+            " ausentes totales, incluidos ", n_disfrazados,
+            " disfrazados. La sugerencia queda inactiva hasta normalizarlos ",
+            "o declararlos en `valores_nulos`."
+          )
+        } else {
+          paste0(
+            "La columna contiene ", fila$n_faltantes[[1L]],
+            " valores ausentes; la completitud debe medirse por separado."
+          )
+        }
       ))
     }
     patrones <- perfil$patrones[[i]]
