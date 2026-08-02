@@ -1,4 +1,7 @@
-citHeader("Para citar lupa en publicaciones use:")
+citHeader(paste(
+  "Para citar lupa en publicaciones use la primera entrada.",
+  "La segunda es el marco conceptual que el paquete implementa:"
+))
 
 bibentry(
   bibtype = "Manual",
@@ -11,8 +14,6 @@ bibentry(
     "R package version 0.1.0."
   )
 )
-
-citHeader("El marco conceptual implementado se cita como:")
 
 bibentry(
   bibtype = "TechReport",

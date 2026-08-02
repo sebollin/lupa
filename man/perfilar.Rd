@@ -100,6 +100,13 @@ lista completa, use \code{sentinelas_numericos = sentinelas_naniar}.
 la detección de formatos de fecha. Las demás métricas y hallazgos se calculan
 sobre todas las filas. Por eso \code{meta$filas_analizadas} describe el máximo
 usado por los análisis muestreados, no el alcance del perfil completo.
+
+Una columna cuyo año se expresa con dos dígitos se informa con su
+\code{tipo_inferido} —\code{"fecha"} o \code{"fecha-hora"}— pero deja \code{minimo_fecha},
+\code{maximo_fecha}, \code{media_fecha} y \code{mediana_fecha} en \code{NA}. No es una omisión:
+\code{23} puede ser 1923 o 2023, y elegir el siglo para calcular un rango sería
+inventarlo. El hallazgo \code{anio_de_dos_digitos} señala esas columnas, y el
+rango aparece una vez que el usuario resuelve la ambigüedad.
 }
 \examples{
 perfil <- perfilar(datos_administrativos)

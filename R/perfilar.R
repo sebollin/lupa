@@ -23,6 +23,13 @@
 #' sobre todas las filas. Por eso `meta$filas_analizadas` describe el máximo
 #' usado por los análisis muestreados, no el alcance del perfil completo.
 #'
+#' Una columna cuyo año se expresa con dos dígitos se informa con su
+#' `tipo_inferido` —`"fecha"` o `"fecha-hora"`— pero deja `minimo_fecha`,
+#' `maximo_fecha`, `media_fecha` y `mediana_fecha` en `NA`. No es una omisión:
+#' `23` puede ser 1923 o 2023, y elegir el siglo para calcular un rango sería
+#' inventarlo. El hallazgo `anio_de_dos_digitos` señala esas columnas, y el
+#' rango aparece una vez que el usuario resuelve la ambigüedad.
+#'
 #' @param datos Objeto que hereda de `data.frame`.
 #' @param nombre Nombre descriptivo del objeto.
 #' @param fecha Fecha y hora de la corrida. Se puede fijar para construir series
