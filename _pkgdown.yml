@@ -27,7 +27,12 @@ reference:
 - title: Examinar
   desc: Perfilar datos y descubrir su estructura.
   contents:
+  - analizar
   - perfilar
+  - distribucion_valores
+  - detectar_asociaciones
+  - analizar_tiempo
+  - clasificar_variables
   - descubrir_patrones
   - inferir_tipo
   - detectar_formatos_fecha
@@ -91,6 +96,7 @@ reference:
   - comparar_perfiles
 
 - title: Informar
-  desc: Crear un reporte HTML autocontenido.
+  desc: Persistir un análisis y crear un reporte HTML autocontenido.
   contents:
+  - persistir_analisis
   - reportar

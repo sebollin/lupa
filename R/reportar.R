@@ -141,7 +141,8 @@
 }
 
 .seccion_perfil <- function(x, max_filas, max_patrones,
-                            proteger_datos_personales = TRUE) {
+                            proteger_datos_personales = TRUE,
+                            cobertura = NULL) {
   if (proteger_datos_personales) x <- .proteger_perfil(x)
   general <- data.frame(
     indicador = c(
@@ -249,7 +250,7 @@
     .html_tabla(x$datos_personales, max_filas),
     "<h3>Cobertura del an\u00e1lisis</h3>",
     "<p class=\"nota\">La ausencia de hallazgos no implica que todos los factores se hayan evaluado.</p>",
-    .html_tabla(cobertura_analisis(x), Inf),
+    .html_tabla(if (is.null(cobertura)) cobertura_analisis(x) else cobertura, Inf),
     "<h3>Patrones de formato</h3>",
     if (length(bloques_patrones)) paste0(bloques_patrones, collapse = "") else {
       "<p class=\"sin-registros\">No hay patrones para mostrar.</p>"
@@ -341,9 +342,98 @@
   )
 }
 
+.seccion_analisis <- function(x, max_filas, max_patrones,
+                              proteger_datos_personales) {
+  if (proteger_datos_personales) x <- .proteger_analisis(x)
+  alcance_asociaciones <- data.frame(
+    indicador = c(
+      "Filas analizadas", "Muestreado", "Columnas analizadas",
+      "Columnas no analizables", "Columnas omitidas por limite",
+      "Pares examinables", "Pares omitidos por dependencia",
+      "Asociaciones antes del recorte", "Salida truncada", "Umbral"
+    ),
+    valor = c(
+      attr(x$asociaciones, "filas_analizadas", exact = TRUE),
+      attr(x$asociaciones, "muestreado", exact = TRUE),
+      length(attr(x$asociaciones, "columnas_analizadas", exact = TRUE)),
+      length(attr(x$asociaciones, "columnas_no_analizables", exact = TRUE)),
+      length(attr(x$asociaciones, "columnas_omitidas_limite", exact = TRUE)),
+      attr(x$asociaciones, "pares_posibles", exact = TRUE),
+      attr(x$asociaciones, "pares_omitidos_dependencia", exact = TRUE),
+      attr(x$asociaciones, "total_informadas", exact = TRUE),
+      attr(x$asociaciones, "truncado", exact = TRUE),
+      attr(x$asociaciones, "umbral", exact = TRUE)
+    ), stringsAsFactors = FALSE
+  )
+  alcance_temporal <- data.frame(
+    indicador = c("Columnas analizadas", "Columnas omitidas", "Salida truncada"),
+    valor = c(
+      length(attr(x$temporal, "columnas_analizadas", exact = TRUE)),
+      length(attr(x$temporal, "columnas_omitidas", exact = TRUE)),
+      attr(x$temporal, "truncado", exact = TRUE)
+    ), stringsAsFactors = FALSE
+  )
+  distribuciones <- paste0(
+    "<section><h2>Distribuciones y cuantiles</h2>",
+    "<h3>Alcance por columna</h3>",
+    .html_tabla(x$distribuciones$alcance, max_filas),
+    "<h3>Frecuencias principales</h3>",
+    .html_tabla(x$distribuciones$frecuencias, max_filas),
+    "<h3>Cuantiles</h3>", .html_tabla(x$distribuciones$cuantiles, max_filas),
+    "</section>"
+  )
+  asociaciones <- paste0(
+    "<section><h2>Asociaciones entre columnas</h2>",
+    "<p class=\"nota\">Metodo y soporte se declaran por par; el resultado no implica causalidad.</p>",
+    "<h3>Alcance y recortes</h3>", .html_tabla(alcance_asociaciones, Inf),
+    "<h3>Asociaciones informadas</h3>",
+    .html_tabla(x$asociaciones, max_filas), "</section>"
+  )
+  temporal <- paste0(
+    "<section><h2>Analisis temporal</h2>",
+    "<p class=\"nota\">Las frecuencias inferidas son propuestas no confirmadas.</p>",
+    "<h3>Alcance y recortes</h3>", .html_tabla(alcance_temporal, Inf),
+    "<h3>Resumen</h3>", .html_tabla(x$temporal$resumen, max_filas),
+    "<h3>Propuestas de frecuencia</h3>",
+    .html_tabla(x$temporal$propuestas, max_filas),
+    "<h3>Distribucion por dia de semana</h3>",
+    .html_tabla(x$temporal$dias_semana, max_filas),
+    "<h3>Huecos</h3>", .html_tabla(x$temporal$huecos, max_filas),
+    "</section>"
+  )
+  variables <- paste0(
+    "<section><h2>Escalas y roles propuestos</h2>",
+    "<p class=\"nota\">Una escala basada solo en valores requiere confirmacion.</p>",
+    .html_tabla(x$variables, max_filas), "</section>"
+  )
+  propuesta <- paste0(
+    "<section><h2>Propuesta de modelo</h2>",
+    "<p class=\"nota\">Esta propuesta no se mide automaticamente.</p>",
+    .html_tabla(x$propuesta_modelo, max_filas), "</section>"
+  )
+  advertencias <- paste0(
+    "<section><h2>Advertencias de alcance</h2>",
+    .resumen_severidades(x$advertencias$severidad),
+    .html_tabla(x$advertencias, max_filas), "</section>"
+  )
+  paste0(
+    "<section><h2>Analisis integral</h2><p class=\"meta\">Esquema ",
+    .html_texto(x$meta$version_esquema), "; datos conservados: ",
+    .html_texto(x$meta$datos_conservados), ".</p></section>",
+    advertencias,
+    .seccion_perfil(
+      x$perfil, max_filas, max_patrones, FALSE, cobertura = x$cobertura
+    ),
+    distribuciones, asociaciones, temporal, variables, propuesta,
+    if (!is.null(x$medicion)) .seccion_medicion(x$medicion, max_filas) else "",
+    if (!is.null(x$evaluacion)) .seccion_evaluacion(x$evaluacion, max_filas) else "",
+    .seccion_plan(x$plan_limpieza, max_filas)
+  )
+}
+
 .clase_objeto_reporte <- function(x) {
   clases <- c(
-    "perfil", "medicion", "evaluacion_calidad", "historico_calidad",
+    "analisis", "perfil", "medicion", "evaluacion_calidad", "historico_calidad",
     "deriva_perfil", "deriva_calidad", "plan_limpieza"
   )
   coincidencias <- clases[vapply(clases, inherits, logical(1L), x = x)]
@@ -360,7 +450,7 @@
       for (elemento in x) recorrer(elemento)
     } else {
       stop(
-        "Cada objeto debe ser un perfil, medicion, evaluacion_calidad, ",
+        "Cada objeto debe ser un analisis, perfil, medicion, evaluacion_calidad, ",
         "historico_calidad, deriva_perfil, deriva_calidad o plan_limpieza.",
         call. = FALSE
       )
@@ -375,6 +465,9 @@
                                        proteger_datos_personales = TRUE) {
   switch(
     .clase_objeto_reporte(x),
+    analisis = .seccion_analisis(
+      x, max_filas, max_patrones, proteger_datos_personales
+    ),
     perfil = .seccion_perfil(
       x, max_filas, max_patrones, proteger_datos_personales
     ),
@@ -463,7 +556,7 @@
 #' planes.
 #'
 #' @param x Un objeto compatible o una lista de objetos compatibles.
-#' @param ... Objetos adicionales de clase `perfil`, `medicion`,
+#' @param ... Objetos adicionales de clase `analisis`, `perfil`, `medicion`,
 #'   `evaluacion_calidad`, `historico_calidad`, `deriva_perfil`,
 #'   `deriva_calidad` o `plan_limpieza`.
 #' @param archivo Ruta de salida. De forma predeterminada crea un archivo en

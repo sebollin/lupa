@@ -19,15 +19,22 @@ por el solo hecho de diagnosticarlos.
 ## Una entrega administrativa
 
 El conjunto incluido es pequeño y completamente sintético. Tiene fechas
-mezcladas, sentinelas, duplicados y formatos discordantes.
+mezcladas, sentinelas, duplicados y formatos discordantes. `analizar()` es la
+puerta de entrada: reúne todo el diagnóstico descriptivo, pero no convierte lo
+observado en un requisito ni mide la propuesta automáticamente.
 
 ```{r}
 library(lupa)
 data(datos_administrativos)
 dim(datos_administrativos)
 
-perfil <- perfilar(datos_administrativos, nombre = "entrega de ejemplo")
-perfil
+analisis <- analizar(
+  datos_administrativos,
+  nombre = "entrega de ejemplo",
+  fecha = as.POSIXct("2026-01-15", tz = "UTC")
+)
+analisis
+perfil <- analisis$perfil
 ```
 
 Los hallazgos son datos. Se pueden filtrar, ordenar o exportar sin extraer texto
@@ -48,6 +55,22 @@ perfil$columnas[, c(
 )]
 ```
 
+El mismo objeto incluye técnicas complementarias con sus límites declarados:
+frecuencias acotadas, cuantiles, asociaciones, calendario observado y una
+clasificación confirmable de escalas. La cobertura evita confundir ausencia de
+hallazgos con calidad demostrada.
+
+```{r}
+analisis$distribuciones$cuantiles
+analisis$asociaciones
+analisis$temporal$resumen
+analisis$variables[, c(
+  "columna", "tipo_almacenamiento", "tipo_implicito", "escala_propuesta",
+  "confianza", "confirmada", "n_niveles_ausentes"
+)]
+analisis$cobertura[, c("dimension", "factor", "estado")]
+```
+
 ## Del diagnóstico al modelo
 
 `proponer_modelo()` no ejecuta nada. Devuelve una propuesta editable que
@@ -55,7 +78,7 @@ explica de dónde salió cada métrica. Los dominios y patrones aprendidos de un
 sola entrega quedan inactivos hasta que alguien confirme que son requisitos.
 
 ```{r}
-propuesta <- proponer_modelo(perfil, datos_administrativos)
+propuesta <- analisis$propuesta_modelo
 propuesta[, c(
   "metrica", "atributos", "origen", "prioridad", "incluir", "estado"
 )]
@@ -96,7 +119,7 @@ El plan propone acciones y sólo activa las que no dependen del dominio. Puede
 editarse como cualquier otro `data.frame`.
 
 ```{r}
-plan <- planificar_limpieza(perfil, datos_administrativos)
+plan <- analisis$plan_limpieza
 plan[, c(
   "grupo", "columna", "estrategia", "recomendada", "aplicar", "estado"
 )]
@@ -118,17 +141,25 @@ c(
 
 ## Un archivo para compartir
 
-`reportar()` combina los objetos disponibles en un HTML autocontenido. Este
-ejemplo crea el archivo en el directorio temporal y luego lo retira.
+`guardar_analisis()` conserva el recorrido entre sesiones. Por omisión excluye
+la tabla de entrada y sustituye las reglas funcionales por declaraciones
+pequeñas, evitando serializar sus entornos. `reportar()` acepta el objeto entero
+y produce un HTML autocontenido. Este ejemplo crea ambos archivos en el
+directorio temporal y luego los retira.
 
 ```{r}
+archivo_rds <- tempfile(fileext = ".rds")
+guardar_analisis(analisis, archivo_rds)
+analisis_recuperado <- leer_analisis(archivo_rds)
+is.null(analisis_recuperado$datos)
+
 archivo <- reportar(
-  perfil, medidas, evaluacion, plan,
+  analisis, medidas, evaluacion, plan,
   archivo = tempfile(fileext = ".html"),
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-unlink(archivo)
+unlink(c(archivo, archivo_rds))
 ```
 
 Para profundizar en la arquitectura consulte `vignette("el-marco-agesic")`; para

@@ -32,14 +32,19 @@ install.packages("ruta/al/archivo/lupa_0.1.0.tar.gz", repos = NULL)
 library(lupa)
 data(datos_administrativos)
 
-# 1. Examinar. El resultado y sus hallazgos son objetos de datos.
-perfil <- perfilar(datos_administrativos)
-perfil
-subset(perfil$hallazgos, severidad != "ok")
-cobertura_analisis(perfil)
+# 1. Analizar. Una llamada reúne el recorrido descriptivo y su alcance.
+analisis <- analizar(datos_administrativos)
+analisis
+subset(analisis$perfil$hallazgos, severidad != "ok")
+analisis$cobertura
+
+# Las distribuciones, asociaciones y propuestas siguen siendo objetos de datos.
+analisis$distribuciones$cuantiles
+analisis$asociaciones
+analisis$variables
 
 # 2. Proponer qué medir. La propuesta se revisa antes de materializarla.
-propuesta <- proponer_modelo(perfil, datos_administrativos)
+propuesta <- analisis$propuesta_modelo
 propuesta[, c("metrica", "origen", "justificacion", "incluir")]
 modelo_calidad <- modelo_desde_propuesta(propuesta)
 
@@ -56,13 +61,13 @@ evaluacion <- evaluar(
 )
 
 # 4. Revisar y aplicar un plan sobre una copia de los datos.
-plan <- planificar_limpieza(perfil, datos_administrativos)
+plan <- analisis$plan_limpieza
 plan[, c("grupo", "estrategia", "recomendada", "aplicar")]
 resultado <- aplicar(plan, datos_administrativos)
 resultado$registro
 
 # 5. Compartir un único archivo sin recursos externos.
-archivo <- reportar(perfil, medidas, evaluacion, plan)
+archivo <- reportar(analisis, medidas, evaluacion, plan)
 ```
 
 Las proporciones siempre usan la escala `[0, 1]`. Las severidades forman el
@@ -95,6 +100,10 @@ vignette("historico-y-deriva", package = "lupa")
 
 - patrones de formato vectorizados, tipos implícitos, fechas mixtas y ausentes
   disfrazados;
+- puerta de entrada integral, frecuencias acotadas, cuantiles, asociaciones y
+  diagnóstico de regularidad temporal;
+- escalas de medición y roles como propuestas confirmables, preservando niveles
+  declarados ausentes;
 - hallazgos accionables, claves, relaciones y dependencias funcionales;
 - métricas genéricas, específicas e instanciadas con granularidad explícita;
 - referenciales tabulares para correctitud semántica y cobertura;
@@ -103,6 +112,10 @@ vignette("historico-y-deriva", package = "lupa")
 - histórico plano, deriva del modelo y comparación estructural de perfiles;
 - reporte HTML autocontenido, con cobertura conceptual y protección
   predeterminada de valores personales concretos.
+
+Un análisis completo se conserva entre sesiones con `guardar_analisis()` y
+`leer_analisis()`. Por omisión no guarda la tabla de entrada y sustituye reglas
+funcionales por declaraciones pequeñas para no serializar sus entornos.
 
 `catalogo_agesic()` expone como tabla el estado de las 49 entradas del catálogo,
 incluidas las métricas obtenibles por agregación, las que requieren insumos

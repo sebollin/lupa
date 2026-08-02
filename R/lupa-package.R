@@ -5,10 +5,13 @@
 #' Digital de AGESIC. El paquete nunca modifica datos como efecto del
 #' diagnóstico: cada etapa devuelve objetos de datos inspeccionables.
 #'
-#' El punto de entrada es [perfilar()]. Desde allí se puede:
+#' El punto de entrada es [analizar()]. En una llamada reúne el diagnóstico
+#' descriptivo y su cobertura, sin medir requisitos observados automáticamente.
+#' Sus componentes también se pueden construir por separado. El recorrido es:
 #'
-#' 1. examinar estructura, tipos, patrones, ausencias y dependencias;
-#'    [cobertura_analisis()] explicita qué factores no fueron evaluados;
+#' 1. examinar estructura, tipos, patrones, ausencias, distribuciones,
+#'    asociaciones y comportamiento temporal; [cobertura_analisis()] explicita
+#'    qué factores no fueron evaluados;
 #' 2. convertir el diagnóstico en una propuesta editable con
 #'    [proponer_modelo()];
 #' 3. declarar y ejecutar métricas mediante [modelo()] y [medir()];
@@ -17,7 +20,8 @@
 #'    [planificar_limpieza()] y [aplicar()];
 #' 6. acumular corridas y detectar deriva con [historico_calidad()],
 #'    [detectar_deriva_calidad()] y [comparar_perfiles()];
-#' 7. producir un archivo HTML autocontenido con [reportar()].
+#' 7. persistir el recorrido con [guardar_analisis()] y producir un archivo HTML
+#'    autocontenido con [reportar()].
 #'
 #' Los padrones externos se declaran con [referencial()], y los contratos que
 #' no se pueden inferir se expresan con [vigencia()] y [escala()]. La correspondencia
@@ -33,6 +37,6 @@
 #' @keywords internal
 #'
 #' @examples
-#' perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
-#' subset(perfil$hallazgos, severidad != "ok")
+#' resultado <- analizar(datos_administrativos, analizar_dependencias = FALSE)
+#' subset(resultado$perfil$hallazgos, severidad != "ok")
 "_PACKAGE"

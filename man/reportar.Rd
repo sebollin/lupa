@@ -19,7 +19,7 @@ reportar(
 \arguments{
 \item{x}{Un objeto compatible o una lista de objetos compatibles.}
 
-\item{...}{Objetos adicionales de clase \code{perfil}, \code{medicion},
+\item{...}{Objetos adicionales de clase \code{analisis}, \code{perfil}, \code{medicion},
 \code{evaluacion_calidad}, \code{historico_calidad}, \code{deriva_perfil},
 \code{deriva_calidad} o \code{plan_limpieza}.}
 

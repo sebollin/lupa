@@ -5,3 +5,5 @@
 lupa.Rcheck/
 coverage/
 revdep/
+/doc/
+/Meta/

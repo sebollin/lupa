@@ -10,8 +10,11 @@ Description: Profiles administrative data, discovers structural patterns in
     profiles, a versioned history of evaluations, structural drift detection,
     a traceable mapping to the framework metric catalogue, and self-contained
     HyperText Markup Language reports without external rendering software.
-    Produces editable cleaning plans and applies only explicitly
-    selected actions while retaining an audit log. The conceptual basis is the
+    Produces editable cleaning plans and applies only explicitly selected
+    actions while retaining an audit log. Includes bounded value distributions,
+    quantiles, mixed-type associations,
+    temporal regularity checks, and confirmable measurement-scale proposals.
+    The conceptual basis is the
     Data Quality Management Framework for
     Digital Government, version 1.6, published by AGESIC (2020)
     <https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/>.

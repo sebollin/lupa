@@ -12,10 +12,13 @@ Digital de AGESIC. El paquete nunca modifica datos como efecto del
 diagnóstico: cada etapa devuelve objetos de datos inspeccionables.
 }
 \details{
-El punto de entrada es \code{\link[=perfilar]{perfilar()}}. Desde allí se puede:
+El punto de entrada es \code{\link[=analizar]{analizar()}}. En una llamada reúne el diagnóstico
+descriptivo y su cobertura, sin medir requisitos observados automáticamente.
+Sus componentes también se pueden construir por separado. El recorrido es:
 \enumerate{
-\item examinar estructura, tipos, patrones, ausencias y dependencias;
-\code{\link[=cobertura_analisis]{cobertura_analisis()}} explicita qué factores no fueron evaluados;
+\item examinar estructura, tipos, patrones, ausencias, distribuciones,
+asociaciones y comportamiento temporal; \code{\link[=cobertura_analisis]{cobertura_analisis()}} explicita
+qué factores no fueron evaluados;
 \item convertir el diagnóstico en una propuesta editable con
 \code{\link[=proponer_modelo]{proponer_modelo()}};
 \item declarar y ejecutar métricas mediante \code{\link[=modelo]{modelo()}} y \code{\link[=medir]{medir()}};
@@ -24,7 +27,8 @@ El punto de entrada es \code{\link[=perfilar]{perfilar()}}. Desde allí se puede
 \code{\link[=planificar_limpieza]{planificar_limpieza()}} y \code{\link[=aplicar]{aplicar()}};
 \item acumular corridas y detectar deriva con \code{\link[=historico_calidad]{historico_calidad()}},
 \code{\link[=detectar_deriva_calidad]{detectar_deriva_calidad()}} y \code{\link[=comparar_perfiles]{comparar_perfiles()}};
-\item producir un archivo HTML autocontenido con \code{\link[=reportar]{reportar()}}.
+\item persistir el recorrido con \code{\link[=guardar_analisis]{guardar_analisis()}} y producir un archivo HTML
+autocontenido con \code{\link[=reportar]{reportar()}}.
 }
 
 Los padrones externos se declaran con \code{\link[=referencial]{referencial()}}, y los contratos que
@@ -34,8 +38,8 @@ se calcula un índice global: la jerarquía dimensión–factor–métrica es
 taxonómica y el marco no define esa agregación.
 }
 \examples{
-perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
-subset(perfil$hallazgos, severidad != "ok")
+resultado <- analizar(datos_administrativos, analizar_dependencias = FALSE)
+subset(resultado$perfil$hallazgos, severidad != "ok")
 }
 \references{
 AGESIC (2020). \emph{Marco de trabajo para la Gestión de la Calidad

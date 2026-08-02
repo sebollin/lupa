@@ -2,6 +2,13 @@
 
 ## Examinar datos
 
+- Añade `analizar()` como puerta de entrada al recorrido descriptivo, con
+  cobertura conceptual y advertencias de alcance en el propio objeto.
+- Incorpora distribuciones de valores acotadas, cuantiles, asociaciones de
+  Pearson, V de Cramér y eta cuadrado, además de regularidad, duplicación,
+  monotonicidad, cobertura, días de semana y huecos temporales.
+- Propone escalas de medición y roles sin confirmar lo que sólo se infiere de
+  los valores; conserva niveles declarados, observados y ausentes.
 - Perfila tablas administrativas con métricas generales y por columna,
   proporciones en `[0, 1]` y hallazgos filtrables.
 - Descubre patrones de formato, tipos implícitos, formatos de fecha mixtos y
@@ -42,6 +49,8 @@
 
 ## Informar
 
+- Guarda y recupera análisis versionados sin datos de entrada por omisión y sin
+  serializar entornos completos de reglas funcionales.
 - Genera un único HTML autocontenido, en español, sin navegador, LaTeX ni
   recursos externos; los valores se escapan y la evidencia personal se
   enmascara por defecto.
