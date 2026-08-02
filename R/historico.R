@@ -270,6 +270,7 @@
 #'   República, Uruguay.
 #'
 #' @export
+#' @seealso [medir()], [evaluar()], [detectar_deriva_calidad()], [reportar()]
 #'
 #' @examples
 #' nucleo <- metricas_nucleo()
@@ -303,6 +304,7 @@ historico_calidad <- function(..., detalle = c("resumen", "completo")) {
 
 #' @rdname historico_calidad
 #' @export
+#' @seealso [historico_calidad()], [leer_historico()]
 acumular_historico <- function(historico, ...,
                                detalle = c("resumen", "completo")) {
   detalle <- match.arg(detalle)
@@ -334,6 +336,7 @@ acumular_historico <- function(historico, ...,
 #' @return `guardar_historico()` devuelve invisiblemente la ruta normalizada;
 #'   `leer_historico()` devuelve un `historico_calidad` validado.
 #' @export
+#' @seealso [guardar_historico()], [detectar_deriva_calidad()]
 #'
 #' @examples
 #' archivo <- tempfile(fileext = ".rds")
@@ -367,6 +370,7 @@ guardar_historico <- function(historico, archivo, sobrescribir = FALSE) {
 
 #' @rdname guardar_historico
 #' @export
+#' @seealso [historico_calidad()], [comparar_evaluaciones()]
 leer_historico <- function(archivo) {
   if (!.es_texto_escalar(archivo) || !file.exists(archivo)) {
     stop("`archivo` debe identificar un RDS existente.", call. = FALSE)

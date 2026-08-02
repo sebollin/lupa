@@ -194,6 +194,20 @@ test_that("el núcleo declara sus catorce métricas", {
   expect_equal(agregar(medidas_intra, "entidad", "ratio")$resultado, 0.75)
 })
 
+test_that("NoNulo admite un diccionario explícito de ausencias", {
+  no_nulo <- especializar(
+    metricas_nucleo()$NoNulo, valores_nulos = c("S/D", "-")
+  )
+  instancia <- instanciar(no_nulo, "personas", "dato")
+  resultado <- medir(
+    modelo(instancia), data.frame(dato = c("A", "S/D", "-", NA))
+  )
+
+  expect_equal(resultado$resultado, c(1, 0, 0, 0))
+  expect_error(especializar(metricas_nucleo()$NoNulo, otra = 1),
+               "sólo acepta")
+})
+
 test_that("Formato admite un validador arbitrario y una específica se reutiliza", {
   nucleo <- metricas_nucleo()
   ocho_digitos <- especializar(

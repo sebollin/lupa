@@ -29,6 +29,7 @@
 #' @format Vector numérico de ocho elementos.
 #' @source `naniar::common_na_numbers`, versión 1.1.0.
 #' @export
+#' @seealso [perfilar()], [planificar_limpieza()]
 sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 
 .cadenas_na <- function() {

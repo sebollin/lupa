@@ -214,6 +214,19 @@
   tabla_formatos <- if (length(formatos)) do.call(rbind, formatos) else {
     data.frame(stringsAsFactors = FALSE)
   }
+  dependencias <- x$dependencias
+  if (is.null(dependencias)) dependencias <- data.frame(stringsAsFactors = FALSE)
+  nota_dependencias <- if (isTRUE(attr(dependencias, "truncado", exact = TRUE))) {
+    paste0(
+      "<p class=\"nota\">La b\u00fasqueda de dependencias se limit\u00f3 a ",
+      .html_texto(length(attr(dependencias, "columnas_analizadas", exact = TRUE))),
+      " columnas; quedaron fuera ",
+      .html_texto(length(attr(dependencias, "columnas_omitidas", exact = TRUE))),
+      ".</p>"
+    )
+  } else {
+    ""
+  }
   paste0(
     "<section><h2>Perfil de datos: ", .html_texto(x$meta$nombre), "</h2>",
     "<p class=\"meta\">Corrida: ",
@@ -228,6 +241,8 @@
     },
     nota_columnas_patron,
     "<h3>Formatos de fecha</h3>", .html_tabla(tabla_formatos, max_filas),
+    "<h3>Dependencias funcionales</h3>",
+    .html_tabla(dependencias, max_filas), nota_dependencias,
     "</section>"
   )
 }
@@ -446,6 +461,8 @@
 #'
 #' @return La ruta normalizada del archivo, de forma invisible.
 #' @export
+#' @seealso [perfilar()], [medir()], [evaluar()], [historico_calidad()],
+#'   [comparar_perfiles()], [planificar_limpieza()]
 #'
 #' @examples
 #' perfil <- perfilar(datos_administrativos)

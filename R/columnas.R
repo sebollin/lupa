@@ -116,12 +116,127 @@
   )
 }
 
+.reparar_mojibake_uno <- function(x, max_iteraciones = 4L) {
+  if (is.na(x) || !nzchar(x)) return(NA_character_)
+  actual <- enc2utf8(as.character(x))
+  cambio <- FALSE
+  for (i in seq_len(max_iteraciones)) {
+    crudo <- tryCatch(
+      iconv(actual, from = "UTF-8", to = "latin1", toRaw = TRUE)[[1L]],
+      error = function(e) NULL
+    )
+    if (is.null(crudo)) break
+    candidato <- rawToChar(crudo)
+    Encoding(candidato) <- "UTF-8"
+    if (!validUTF8(candidato) || identical(candidato, actual)) break
+    actual <- candidato
+    cambio <- TRUE
+  }
+  if (cambio) actual else NA_character_
+}
+
+.analizar_codificacion <- function(textos) {
+  reparados <- rep(NA_character_, length(textos))
+  candidatos <- !is.na(textos) &
+    grepl("[\u00c3\u00c2\u00e2\u00f0\ufffd]", textos, perl = TRUE)
+  if (any(candidatos)) {
+    reparados[candidatos] <- vapply(
+      textos[candidatos], .reparar_mojibake_uno, character(1L)
+    )
+  }
+  reparables <- !is.na(reparados) & !is.na(textos) & reparados != textos
+  irreparables <- !is.na(textos) & grepl("\ufffd", textos, fixed = TRUE)
+  ejemplos <- utils::head(which(reparables | irreparables), 5L)
+  evidencia <- paste(vapply(ejemplos, function(i) {
+    origen <- encodeString(textos[[i]], quote = '"')
+    if (reparables[[i]]) {
+      paste0(origen, " -> ", encodeString(reparados[[i]], quote = '"'))
+    } else {
+      paste0(origen, " (contiene un car\u00e1cter de reemplazo irrecuperable)")
+    }
+  }, character(1L)), collapse = "; ")
+  list(
+    n = sum(reparables | irreparables),
+    n_reparables = sum(reparables),
+    n_irreparables = sum(irreparables),
+    evidencia = evidencia,
+    reparados = reparados
+  )
+}
+
+.componentes_numero_texto <- function(x) {
+  texto <- trimws(as.character(x))
+  patron <- paste0(
+    "^(?:[$]|UYU)?[[:space:]]*[+-]?",
+    "(?:[0-9]{1,3}(?:\\.[0-9]{3})+|[0-9]+)",
+    "(?:,[0-9]+)?[[:space:]]*(?:%|[[:alpha:]]+)?$"
+  )
+  compatible <- !is.na(texto) & grepl(patron, texto, perl = TRUE)
+  cuerpo <- texto
+  cuerpo <- sub("^(?:[$]|UYU)?[[:space:]]*", "", cuerpo, perl = TRUE)
+  tiene_unidad <- grepl("(?:%|[[:alpha:]]+)$", cuerpo, perl = TRUE)
+  unidad <- ifelse(
+    compatible & tiene_unidad,
+    sub("^.*?[[:space:]]*(%|[[:alpha:]]+)$", "\\1", cuerpo, perl = TRUE),
+    ""
+  )
+  sin_unidad <- sub("[[:space:]]*(?:%|[[:alpha:]]+)$", "", cuerpo, perl = TRUE)
+  tiene_coma <- grepl(",", sin_unidad, fixed = TRUE)
+  punto_tres <- grepl("\\.[0-9]{3}(?:$|\\.)", sin_unidad, perl = TRUE)
+  especial <- tiene_coma | punto_tres |
+    grepl("^(?:[$]|UYU)", texto, perl = TRUE) | nzchar(unidad)
+  list(
+    texto = texto, compatible = compatible, especial = especial,
+    cuerpo = sin_unidad, unidad = unidad, tiene_coma = tiene_coma,
+    punto_tres = punto_tres
+  )
+}
+
+.analizar_numeros_texto <- function(x) {
+  vacio <- list(
+    n = 0L, proporcion = NA_real_, ambiguo = FALSE, seguro = FALSE,
+    evidencia = "", unidad = "", n_presentes = 0L
+  )
+  if (!is.character(x) && !is.factor(x)) return(vacio)
+  partes <- .componentes_numero_texto(x)
+  presentes <- !is.na(partes$texto) & nzchar(partes$texto)
+  n_presentes <- sum(presentes)
+  especiales <- presentes & partes$compatible & partes$especial
+  if (!any(especiales)) {
+    vacio$n_presentes <- n_presentes
+    return(vacio)
+  }
+  hay_coma <- any(partes$tiene_coma[presentes & partes$compatible])
+  ambiguos <- especiales & partes$punto_tres & !hay_coma
+  unidades <- unique(partes$unidad[presentes & partes$compatible])
+  unidades_no_vacias <- unidades[nzchar(unidades)]
+  unidad_consistente <- length(unidades_no_vacias) <= 1L &&
+    !(length(unidades_no_vacias) && any(!nzchar(unidades)))
+  compatibles <- sum(presentes & partes$compatible)
+  list(
+    n = sum(especiales),
+    proporcion = if (n_presentes) compatibles / n_presentes else NA_real_,
+    ambiguo = any(ambiguos),
+    seguro = compatibles == n_presentes && !any(ambiguos) && unidad_consistente,
+    evidencia = paste(
+      encodeString(utils::head(unique(partes$texto[especiales]), 6L), quote = '"'),
+      collapse = "; "
+    ),
+    unidad = if (length(unidades_no_vacias) == 1L) unidades_no_vacias else "",
+    n_presentes = n_presentes
+  )
+}
+
 .diagnosticar_texto <- function(x) {
   vacio <- list(
     n_espacios_borde = 0L,
     evidencia_espacios = "",
     n_variantes_mayusculas = 0L,
-    evidencia_mayusculas = ""
+    evidencia_mayusculas = "",
+    n_codificacion_rota = 0L,
+    n_codificacion_reparable = 0L,
+    n_codificacion_irreparable = 0L,
+    evidencia_codificacion = ""
   )
   if (!is.character(x) && !is.factor(x)) {
     return(vacio)
@@ -138,6 +253,7 @@
   minusculas <- tolower(unicos)
   colision <- duplicated(minusculas) | duplicated(minusculas, fromLast = TRUE)
   variantes <- unicos[colision]
+  codificacion <- .analizar_codificacion(textos)
 
   list(
     n_espacios_borde = sum(espacios),
@@ -147,7 +263,11 @@
     n_variantes_mayusculas = length(variantes),
     evidencia_mayusculas = paste(
       encodeString(utils::head(variantes, 6L), quote = '"'), collapse = "; "
-    )
+    ),
+    n_codificacion_rota = codificacion$n,
+    n_codificacion_reparable = codificacion$n_reparables,
+    n_codificacion_irreparable = codificacion$n_irreparables,
+    evidencia_codificacion = codificacion$evidencia
   )
 }
 
@@ -188,6 +308,7 @@
   longitudes <- .resumen_longitud(x)
   cuantitativo <- .resumen_cuantitativo(x, inferencia, formatos)
   diagnostico_texto <- .diagnosticar_texto(x)
+  numeros_texto <- .analizar_numeros_texto(x)
   n_blancos <- if (is.character(x) || is.factor(x)) {
     sum(!is.na(x) & !nzchar(trimws(as.character(x))))
   } else {
@@ -234,6 +355,14 @@
     n_blancos = n_blancos,
     n_espacios_borde = diagnostico_texto$n_espacios_borde,
     n_variantes_mayusculas = diagnostico_texto$n_variantes_mayusculas,
+    n_codificacion_rota = diagnostico_texto$n_codificacion_rota,
+    n_codificacion_reparable = diagnostico_texto$n_codificacion_reparable,
+    n_codificacion_irreparable = diagnostico_texto$n_codificacion_irreparable,
+    n_numeros_texto = numeros_texto$n,
+    proporcion_numeros_texto = numeros_texto$proporcion,
+    numero_texto_ambiguo = numeros_texto$ambiguo,
+    numero_texto_seguro = numeros_texto$seguro,
+    numero_texto_unidad = numeros_texto$unidad,
     stringsAsFactors = FALSE
   )
 
@@ -243,6 +372,7 @@
     formatos = formatos,
     patrones = patrones,
     faltantes_disfrazados = faltantes_disfrazados,
-    diagnostico_texto = diagnostico_texto
+    diagnostico_texto = diagnostico_texto,
+    numeros_texto = numeros_texto
   )
 }

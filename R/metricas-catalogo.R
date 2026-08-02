@@ -144,17 +144,38 @@
 }
 
 .metodo_entidad_duplicada <- function(tablas, instancia) {
-  if (length(instancia$entidad) != 1L || length(instancia$atributos)) {
-    stop(
-      "EntidadDuplicada requiere una entidad y ning\u00fan atributo ligado.",
-      call. = FALSE
-    )
+  if (length(instancia$entidad) != 1L) {
+    stop("EntidadDuplicada requiere una entidad.", call. = FALSE)
   }
   entidad <- instancia$entidad[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   filas <- seq_len(nrow(tabla))
+  if (!length(instancia$atributos)) {
+    resultado <- .duplicados_completos(tabla)
+  } else {
+    .validar_atributos_tabla(tabla, instancia, minimo = 1L)
+    grupos <- split(filas, .codigos_filas(tabla[instancia$atributos]))
+    resultado <- rep(FALSE, nrow(tabla))
+    otros <- setdiff(names(tabla), instancia$atributos)
+    compatibles <- function(b, a) {
+      if (!length(otros)) return(TRUE)
+      all(vapply(otros, function(nombre) {
+        x <- tabla[[nombre]][[a]]
+        y <- tabla[[nombre]][[b]]
+        is.na(x) || is.na(y) || identical(as.character(x), as.character(y))
+      }, logical(1L)))
+    }
+    for (indices in grupos[lengths(grupos) > 1L]) {
+      for (i in seq_along(indices)) {
+        restantes <- indices[-i]
+        resultado[indices[[i]]] <- any(vapply(
+          restantes, compatibles, logical(1L), a = indices[[i]]
+        ))
+      }
+    }
+  }
   .salida_metodo(
-    .duplicados_completos(tabla), entidad, NA_character_, filas,
+    resultado, entidad, NA_character_, filas,
     paste0(entidad, "[", filas, ",]")
   )
 }
@@ -390,7 +411,10 @@
     ),
     EntidadDuplicada = metrica(
       "EntidadDuplicada",
-      "Indica si una fila completa se repite en la entidad.",
+      paste0(
+        "Indica si otra fila con la misma clave representa la misma entidad, ",
+        "con los dem\u00e1s datos iguales o ausentes."
+      ),
       "instanciaEntidad", "booleano",
       dimension = "Unicidad", factor = "No-duplicaci\u00f3n",
       metodo = .metodo_entidad_duplicada
@@ -462,6 +486,7 @@
 #'   República, Uruguay.
 #'
 #' @export
+#' @seealso [metricas_nucleo()], [metricas_referencial()], [agregar()]
 #'
 #' @examples
 #' catalogo <- catalogo_agesic()
@@ -540,10 +565,10 @@ catalogo_agesic <- function() {
   clase[c(3:4, 21L, 30:31, 37:39, 41L)] <- "agregada"
 
   implementadas <- c(
-    5:8, 10L, 17L, 20L, 22:25, 28:29, 34:36, 44:47
+    1:2, 5:8, 10L, 17L, 20L, 22:25, 27:29, 34:36, 44:47
   )
-  agregadas <- c(21L, 30:31, 37:39)
-  referencial <- c(1:4, 9L, 19L, 27L, 32:33, 42:43, 48:49)
+  agregadas <- c(3:4, 21L, 30:31, 37:39)
+  referencial <- c(9L, 19L, 42:43, 48:49)
   fuera <- setdiff(seq_len(49L), c(implementadas, agregadas, referencial))
   estado <- rep(NA_character_, 49L)
   estado[implementadas] <- "implementada"
@@ -552,12 +577,15 @@ catalogo_agesic <- function() {
   estado[fuera] <- "fuera_de_alcance"
 
   metrica_lupa <- rep(NA_character_, 49L)
+  metrica_lupa[1L] <- "CorrectitudSemDebil"
+  metrica_lupa[2L] <- "CorrectitudSemFuerte"
   metrica_lupa[c(5:8)] <- "Formato"
   metrica_lupa[10L] <- "ErrorEstandar"
   metrica_lupa[17L] <- "ReglaIntegridadInterEntidad"
   metrica_lupa[c(20L, 22L)] <- "ReglaIntegridadIntraEntidad"
   metrica_lupa[c(23L, 25L)] <- "ValoresPosiblesPorExtension"
   metrica_lupa[24L] <- "ValoresPosiblesPorComprension"
+  metrica_lupa[27L] <- "RatioCobertura"
   metrica_lupa[28L] <- "NoNulo"
   metrica_lupa[29L] <- "DensidadPonderada"
   metrica_lupa[34L] <- "AtributoDuplicado"
@@ -567,6 +595,7 @@ catalogo_agesic <- function() {
   metrica_lupa[46L] <- "OportunidadAtributoPorFecha"
   metrica_lupa[47L] <- "OportunidadAtributoPorIntervalo"
   metrica_lupa[agregadas] <- c(
+    "CorrectitudSemFuerte", "CorrectitudSemDebil",
     "ReglaIntegridadIntraEntidad", "NoNulo", "DensidadPonderada",
     "AtributoDuplicado", "ConjuntoAtributosDuplicado", "EntidadDuplicada"
   )
@@ -575,6 +604,11 @@ catalogo_agesic <- function() {
   implementacion[implementadas] <- paste0(
     "metricas_nucleo()$", metrica_lupa[implementadas]
   )
+  implementacion[1:2] <- paste0(
+    "metricas_referencial()$", metrica_lupa[1:2]
+  )
+  implementacion[27L] <- "metricas_referencial()$RatioCobertura"
+  implementacion[3:4] <- "agregar(m, \"atributo\", \"ratio\")"
   implementacion[21L] <- "agregar(m, \"entidad\", \"ratio\")"
   implementacion[30L] <- "agregar(m, \"atributo\", \"ratio\")"
   implementacion[31L] <- paste0(
@@ -584,6 +618,12 @@ catalogo_agesic <- function() {
   implementacion[38:39] <- "agregar(m, \"entidad\", \"ratio\")"
 
   observacion <- rep(NA_character_, 49L)
+  observacion[1L] <- paste0(
+    "Contrasta el par identificaci\u00f3n-valor; omite ausentes."
+  )
+  observacion[2L] <- paste0(
+    "Verifica que la identificaci\u00f3n exista; omite ausentes."
+  )
   observacion[6:8] <- paste0(
     "Especializaci\u00f3n configurable de Formato; el referencial no se incluye."
   )
@@ -599,8 +639,17 @@ catalogo_agesic <- function() {
   observacion[31L] <- paste0(
     "Se usa RatioUmbral porque la medida base es real, no booleana."
   )
+  observacion[27L] <- paste0(
+    "Exige referencial() con completo = TRUE y alcance expl\u00edcito."
+  )
+  observacion[32:33] <- paste0(
+    "El factor Comisi\u00f3n est\u00e1 restringido a datos geogr\u00e1ficos en el marco."
+  )
   observacion[36L] <- paste0(
-    "Esta versi\u00f3n detecta filas completas exactamente iguales."
+    paste0(
+      "Sin clave ligada compara filas completas; con clave admite iguales ",
+      "o nulos en los dem\u00e1s campos."
+    )
   )
   observacion[45L] <- paste0(
     "Especializaci\u00f3n configurable con el formato vigente de ocho d\u00edgitos."

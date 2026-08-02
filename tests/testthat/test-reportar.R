@@ -76,6 +76,7 @@ test_that("reportar crea un HTML autocontenido y seguro desde un perfil", {
   expect_match(html, "</body>", fixed = TRUE)
   expect_match(html, "</html>", fixed = TRUE)
   expect_match(html, "<meta charset=\"UTF-8\">", fixed = TRUE)
+  expect_match(html, "Dependencias funcionales", fixed = TRUE)
   expect_match(html, "<style>", fixed = TRUE)
   expect_match(html, "@media print", fixed = TRUE)
   expect_match(html, "overflow-x:auto", fixed = TRUE)

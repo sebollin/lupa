@@ -29,6 +29,7 @@
 #' @return Lista de clase `inferencia_tipo` con `tipo`, `proporcion`, conteos,
 #'   candidatos evaluados y, cuando corresponde, formatos de fecha.
 #' @export
+#' @seealso [detectar_formatos_fecha()], [descubrir_patrones()], [perfilar()]
 #'
 #' @examples
 #' inferir_tipo(c("1", "2", "3"))
@@ -76,6 +77,10 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
     "^[+-]?(?:[0-9]+(?:[.,][0-9]+)?|[.,][0-9]+)(?:[eE][+-]?[0-9]+)?$",
     valores, perl = TRUE
   )
+  punto_ambiguo <- grepl("^[+-]?[0-9]+\\.[0-9]{3}$", valores, perl = TRUE)
+  if (!any(grepl(",", valores, fixed = TRUE))) {
+    dobles[punto_ambiguo] <- FALSE
+  }
   horas <- grepl(
     "^(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?$",
     valores, perl = TRUE

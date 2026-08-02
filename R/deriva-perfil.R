@@ -159,6 +159,7 @@
 #' hallazgo de una columna retirada no se presenta como resuelto.
 #'
 #' @export
+#' @seealso [perfilar()], [detectar_deriva_calidad()], [reportar()]
 #'
 #' @examples
 #' anterior <- perfilar(data.frame(codigo = c("AA1", "AA2")),

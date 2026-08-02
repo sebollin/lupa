@@ -5,18 +5,21 @@
 \alias{aplicar}
 \title{Construir y aplicar un plan de limpieza auditable}
 \usage{
-planificar_limpieza(perfil)
+planificar_limpieza(perfil, datos = NULL, soporte_minimo_dependencia = 2L)
 
 aplicar(plan, datos, permitir_eliminacion = FALSE, conservar_eliminados = TRUE)
 }
 \arguments{
 \item{perfil}{Objeto de clase \code{perfil} creado por \code{\link[=perfilar]{perfilar()}}.}
 
-\item{plan}{Objeto de clase \code{plan_limpieza} o data frame con el mismo
-contrato. Puede filtrarse y editarse antes de aplicarlo.}
-
 \item{datos}{\code{data.frame}, \code{tibble} o \code{data.table} sobre el que se ejecuta el
 plan. El objeto recibido no se modifica.}
+
+\item{soporte_minimo_dependencia}{Cantidad mínima de observaciones
+concordantes por valor determinante para proponer una imputación.}
+
+\item{plan}{Objeto de clase \code{plan_limpieza} o data frame con el mismo
+contrato. Puede filtrarse y editarse antes de aplicarlo.}
 
 \item{permitir_eliminacion}{Segundo consentimiento obligatorio para ejecutar
 acciones que eliminan filas o columnas.}
@@ -69,6 +72,14 @@ memoria.
 semántica de \code{\link[=duplicated]{duplicated()}} y marca sólo las apariciones posteriores;
 \code{.grupo_duplicado} identifica a \strong{todas} las filas que participan en cada
 grupo de contenido idéntico.
+
+El orden operativo se aparta deliberadamente de la secuencia dimensional
+frescura–completitud–exactitud–consistencia–unicidad sugerida por el marco.
+Primero marca duplicados sin borrar, luego normaliza ausencias y texto, y
+deja los cambios de esquema para el final. Esto evita perder la evidencia
+original, permite imputar antes de convertir tipos y mantiene identificables
+las columnas durante todo el plan. Las eliminaciones nunca se activan por
+defecto, por lo que deduplicar temprano no puede hacer desaparecer registros.
 }
 \examples{
 datos <- data.frame(categoria = c(" A", "S/D", "B"))
@@ -77,4 +88,7 @@ plan <- planificar_limpieza(perfil)
 plan[, c("grupo", "estrategia", "recomendada", "aplicar")]
 resultado <- aplicar(plan, datos)
 resultado$datos
+}
+\seealso{
+\code{\link[=perfilar]{perfilar()}}, \code{\link[=guiar_limpieza]{guiar_limpieza()}}, \code{\link[=detectar_dependencias]{detectar_dependencias()}}
 }

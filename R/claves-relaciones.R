@@ -54,6 +54,7 @@
 #' @return Data frame de claves candidatas con las columnas combinadas,
 #'   cantidad de columnas y marcas de redundancia.
 #' @export
+#' @seealso [detectar_dependencias()], [detectar_relaciones()]
 #'
 #' @examples
 #' detectar_claves(data.frame(id = 1:4, grupo = c("a", "a", "b", "b")))
@@ -162,6 +163,7 @@ detectar_claves <- function(datos, max_combinacion = 3) {
 #'   coberturas de integridad referencial en ambas direcciones. Los atributos
 #'   `filas_totales`, `filas_analizadas` y `muestreado` documentan el muestreo.
 #' @export
+#' @seealso [detectar_claves()], [referencial()], [proponer_modelo()]
 #'
 #' @examples
 #' personas <- data.frame(id = 1:3)

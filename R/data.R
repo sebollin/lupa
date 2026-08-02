@@ -20,4 +20,5 @@
 #'   \item{id_tramite}{Identificador sintético de alta unicidad.}
 #' }
 #' @source Generación sintética incluida con el paquete.
+#' @seealso [perfilar()], [planificar_limpieza()]
 "datos_administrativos"

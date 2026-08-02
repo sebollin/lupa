@@ -1,0 +1,111 @@
+test_that("las fechas admiten campos sin relleno y señalan años cortos", {
+  sin_relleno <- detectar_formatos_fecha(c("3/1/2023", "30/11/2023"))
+  corto <- detectar_formatos_fecha(c("30/11/23 08:28", "31/12/24 09:00"))
+
+  expect_equal(sin_relleno$formato, "%d/%m/%Y")
+  expect_true(all(corto$anio_dos_digitos))
+  expect_true(all(corto$estado == "candidato"))
+  perfil <- perfilar(
+    data.frame(fecha = c("30/11/23", "31/12/24")),
+    analizar_dependencias = FALSE
+  )
+  expect_true("anio_de_dos_digitos" %in% perfil$hallazgos$tipo_hallazgo)
+  expect_true(is.na(perfil$columnas$minimo_fecha))
+  expect_error(detectar_formatos_fecha(data.frame(x = "2020-01-01")),
+               "vector")
+  expect_equal(detectar_formatos_fecha(as.Date(c("2020-01-01", NA)))$n, 1L)
+  expect_equal(
+    detectar_formatos_fecha(as.POSIXct("2020-01-01 10:00:00", tz = "UTC"))$formato,
+    "%Y-%m-%d %H:%M:%S"
+  )
+  expect_equal(nrow(detectar_formatos_fecha(c("texto", "otro"))), 0L)
+  expect_equal(detectar_formatos_fecha(c("12/31/2020", "11/30/2020"))$formato,
+               "%m/%d/%Y")
+})
+
+test_that("coincidencias aisladas no convierten códigos en fechas mixtas", {
+  datos <- data.frame(
+    lote = c(rep("ABC-123", 20), "30/03/25", "2024-01-01"),
+    stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+
+  expect_equal(perfil$columnas$tipo_inferido, "texto")
+  expect_false(any(perfil$hallazgos$tipo_hallazgo == "anio_de_dos_digitos"))
+  expect_false(any(perfil$hallazgos$tipo_hallazgo == "formatos_fecha_mixtos"))
+})
+
+test_that("se detectan fechas repartidas entre tres columnas", {
+  datos <- data.frame(
+    fecha_anio = c(2020, 2021, 2022),
+    fecha_mes = c(1, 2, 3), fecha_dia = c(3, 28, 15)
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "fecha_partida_columnas", ]
+
+  expect_equal(nrow(hallazgo), 1L)
+  expect_match(hallazgo$evidencia, "fecha_dia.*fecha_mes.*fecha_anio")
+})
+
+test_that("los números regionales seguros se convierten y los ambiguos no", {
+  seguro <- data.frame(
+    importe = c("1.234,56", "2.000,00"),
+    porcentaje = c("45%", "20%"),
+    peso = c("5 kg", "10 kg"), stringsAsFactors = FALSE
+  )
+  plan <- planificar_limpieza(perfilar(seguro, analizar_dependencias = FALSE))
+  acciones <- plan[plan$estrategia == "convertir_numero_regional", ]
+  expect_true(all(acciones$recomendada & acciones$aplicar))
+  limpio <- aplicar(plan, seguro)$datos
+  expect_equal(limpio$importe, c(1234.56, 2000))
+  expect_equal(limpio$porcentaje, c(0.45, 0.2))
+  expect_equal(limpio$peso, c(5, 10))
+
+  ambiguo <- data.frame(valor = c("1.234", "2.345"))
+  perfil <- perfilar(ambiguo, analizar_dependencias = FALSE)
+  expect_equal(perfil$columnas$tipo_inferido, "texto")
+  plan_ambiguo <- planificar_limpieza(perfil)
+  accion <- plan_ambiguo[plan_ambiguo$estrategia == "convertir_numero_regional", ]
+  expect_false(accion$recomendada)
+  expect_false(accion$aplicar)
+  accion$aplicar <- TRUE
+  expect_error(aplicar(accion, ambiguo), "punto_sin_coma")
+  accion$parametros[[1L]]$punto_sin_coma <- "miles"
+  expect_equal(aplicar(accion, ambiguo)$datos$valor, c(1234, 2345))
+  accion$parametros[[1L]]$punto_sin_coma <- "decimal"
+  expect_equal(aplicar(accion, ambiguo)$datos$valor, c(1.234, 2.345))
+  expect_error(
+    lupa:::.convertir_numero_regional(1:2, list(punto_sin_coma = "miles")),
+    "columna de texto"
+  )
+  expect_error(
+    lupa:::.convertir_numero_regional(c("1,2", "mal"),
+                                      list(punto_sin_coma = "miles")),
+    "no responden"
+  )
+})
+
+test_that("el mojibake reparable cambia y el texto sano permanece intacto", {
+  datos <- data.frame(
+    lugar = c("PaysandÃº", "GONZÃLEZ", "Paysandú", "Ñandú"),
+    stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  expect_true("codificacion_rota" %in% perfil$hallazgos$tipo_hallazgo)
+  plan <- planificar_limpieza(perfil)
+  accion <- plan[plan$estrategia == "reparar_codificacion_latin1", ]
+  expect_true(accion$recomendada && accion$aplicar)
+  limpio <- aplicar(plan, datos)$datos$lugar
+  expect_equal(limpio, c("Paysandú", "GONZÁLEZ", "Paysandú", "Ñandú"))
+
+  perdido <- perfilar(data.frame(x = "texto �"), analizar_dependencias = FALSE)
+  plan_perdido <- planificar_limpieza(perdido)
+  expect_true(any(as.character(plan_perdido$estado) == "informativa"))
+  expect_false(any(plan_perdido$aplicar))
+  expect_error(lupa:::.reparar_codificacion(1:2, list()), "columna de texto")
+  factor_roto <- factor(c("PaysandÃº", "Paysandú"))
+  reparado <- lupa:::.reparar_codificacion(factor_roto, list())
+  expect_s3_class(reparado$valor, "factor")
+  expect_equal(as.character(reparado$valor), c("Paysandú", "Paysandú"))
+})

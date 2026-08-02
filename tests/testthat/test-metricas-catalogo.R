@@ -203,7 +203,7 @@ test_that("el catalogo de AGESIC contiene y clasifica 49 entradas", {
     "estado", "metrica_lupa", "implementacion", "observacion"
   ))
   expect_equal(
-    as.integer(table(catalogo$estado)), c(20L, 6L, 13L, 10L)
+    as.integer(table(catalogo$estado)), c(23L, 8L, 6L, 12L)
   )
   expect_equal(
     levels(catalogo$estado),
@@ -294,8 +294,8 @@ test_that("los vinculos y fechas nuevas se validan", {
     medir(modelo(faltante), data.frame(a = 1)), "No se encontraron"
   )
   entidad_con_atributo <- instancia_nueva(nucleo$EntidadDuplicada, "a")
-  expect_error(
-    medir(modelo(entidad_con_atributo), data.frame(a = 1)), "EntidadDuplicada"
+  expect_equal(
+    medir(modelo(entidad_con_atributo), data.frame(a = 1))$resultado, 0
   )
 
   oportunidad <- nucleo$OportunidadAtributoPorFecha

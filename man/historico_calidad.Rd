@@ -57,3 +57,8 @@ AGESIC (2020). \emph{Marco de trabajo para la Gestión de la Calidad
 de Datos en Gobierno Digital}, versión 1.6, sección 9.5, Presidencia de la
 República, Uruguay.
 }
+\seealso{
+\code{\link[=medir]{medir()}}, \code{\link[=evaluar]{evaluar()}}, \code{\link[=detectar_deriva_calidad]{detectar_deriva_calidad()}}, \code{\link[=reportar]{reportar()}}
+
+\code{\link[=historico_calidad]{historico_calidad()}}, \code{\link[=leer_historico]{leer_historico()}}
+}

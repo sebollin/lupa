@@ -17,18 +17,24 @@
   bases <- data.frame(
     formato = c(
       "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y",
-      "%Y/%m/%d", "%d.%m.%Y", "%Y%m%d"
+      "%Y/%m/%d", "%d.%m.%Y", "%Y%m%d",
+      "%d/%m/%y", "%m/%d/%y", "%y-%m-%d"
     ),
     expresion = c(
-      "[0-9]{4}-[0-9]{2}-[0-9]{2}",
-      "[0-9]{2}/[0-9]{2}/[0-9]{4}",
-      "[0-9]{2}/[0-9]{2}/[0-9]{4}",
-      "[0-9]{2}-[0-9]{2}-[0-9]{4}",
-      "[0-9]{4}/[0-9]{2}/[0-9]{2}",
-      "[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}",
-      "[0-9]{8}"
+      "[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}",
+      "[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}",
+      "[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}",
+      "[0-9]{1,2}-[0-9]{1,2}-[0-9]{4}",
+      "[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}",
+      "[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{4}",
+      "[0-9]{8}",
+      "[0-9]{1,2}/[0-9]{1,2}/[0-9]{2}",
+      "[0-9]{1,2}/[0-9]{1,2}/[0-9]{2}",
+      "[0-9]{2}-[0-9]{1,2}-[0-9]{1,2}"
     ),
-    ambiguo = c(FALSE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE),
+    ambiguo = c(FALSE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE,
+                TRUE, TRUE, FALSE),
+    anio_dos_digitos = c(rep(FALSE, 7L), rep(TRUE, 3L)),
     stringsAsFactors = FALSE
   )
   sufijos <- data.frame(
@@ -49,7 +55,12 @@
         formato = paste0(bases$formato[[i]], sufijos$formato[[j]]),
         expresion = paste0("^", bases$expresion[[i]], sufijos$expresion[[j]], "$"),
         ambiguo = bases$ambiguo[[i]],
-        grupo_ambiguo = if (bases$ambiguo[[i]]) paste0("barra", j) else "",
+        anio_dos_digitos = bases$anio_dos_digitos[[i]],
+        grupo_ambiguo = if (bases$ambiguo[[i]]) {
+          paste0("barra", if (bases$anio_dos_digitos[[i]]) "2" else "4", "-", j)
+        } else {
+          ""
+        },
         stringsAsFactors = FALSE
       )
     }
@@ -59,7 +70,7 @@
 
 .fila_formato <- function(formato, n, total, estado = "confirmado",
                           n_inequivocos = n, n_ambiguos = 0L,
-                          grupo_ambiguo = "") {
+                          grupo_ambiguo = "", anio_dos_digitos = FALSE) {
   data.frame(
     formato = formato,
     n = as.integer(n),
@@ -68,6 +79,7 @@
     n_inequivocos = as.integer(n_inequivocos),
     n_ambiguos = as.integer(n_ambiguos),
     grupo_ambiguo = grupo_ambiguo,
+    anio_dos_digitos = anio_dos_digitos,
     stringsAsFactors = FALSE
   )
 }
@@ -78,6 +90,9 @@
 #' día/mes y mes/día. Cuando todos los valores con barras son ambiguos, devuelve
 #' ambos formatos con estado `"candidato"`. El atributo `formatos_mixtos`
 #' indica si hay evidencia de dos o más representaciones en la columna.
+#' Se aceptan días y meses con uno o dos dígitos. Los años de dos dígitos se
+#' detectan, pero siempre quedan como candidatos y se señalan en la columna
+#' `anio_dos_digitos`: el siglo no se interpreta en silencio.
 #' El formato compacto `%Y%m%d` exige un año entre 1800 y 2100 para evitar que
 #' identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
 #'
@@ -88,11 +103,15 @@
 #'   casos inequívocos y ambiguos. Los atributos informan el muestreo, la
 #'   cantidad de valores compatibles y la presencia de formatos mixtos.
 #' @export
+#' @seealso [inferir_tipo()], [perfilar()]
 #'
 #' @examples
 #' detectar_formatos_fecha(c("2020-01-31", "31/01/2020"))
 #' detectar_formatos_fecha(c("01/02/2020", "02/03/2020"))
 detectar_formatos_fecha <- function(x, muestra = 1e5) {
+  if (inherits(x, "data.frame")) {
+    stop("`x` debe ser un vector, no un data.frame.", call. = FALSE)
+  }
   muestra_x <- .muestrear_vector(x, muestra)
   valores_originales <- muestra_x$valores
 
@@ -143,7 +162,13 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     if (any(mascara)) {
       k <- k + 1L
       filas[[k]] <- .fila_formato(
-        especificaciones$formato[[i]], sum(mascara), total
+        especificaciones$formato[[i]], sum(mascara), total,
+        estado = if (especificaciones$anio_dos_digitos[[i]]) {
+          "candidato"
+        } else {
+          "confirmado"
+        },
+        anio_dos_digitos = especificaciones$anio_dos_digitos[[i]]
       )
       cubiertos <- cubiertos | mascara
     }
@@ -159,6 +184,8 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     solo_dmy <- mascara_dmy & !mascara_mdy
     solo_mdy <- mascara_mdy & !mascara_dmy
     ambiguos <- mascara_dmy & mascara_mdy
+    anio_dos <- especificaciones$anio_dos_digitos[[indice_dmy]]
+    estado_resuelto <- if (anio_dos) "candidato" else "confirmado"
 
     if (!any(mascara_dmy | mascara_mdy)) {
       next
@@ -170,36 +197,48 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
       filas[[k]] <- .fila_formato(
         especificaciones$formato[[indice_dmy]], sum(ambiguos), total,
         estado = "candidato", n_inequivocos = 0L,
-        n_ambiguos = sum(ambiguos), grupo_ambiguo = grupo
+        n_ambiguos = sum(ambiguos), grupo_ambiguo = grupo,
+        anio_dos_digitos = anio_dos
       )
       k <- k + 1L
       filas[[k]] <- .fila_formato(
         especificaciones$formato[[indice_mdy]], sum(ambiguos), total,
         estado = "candidato", n_inequivocos = 0L,
-        n_ambiguos = sum(ambiguos), grupo_ambiguo = grupo
+        n_ambiguos = sum(ambiguos), grupo_ambiguo = grupo,
+        anio_dos_digitos = anio_dos
       )
     } else if (any(solo_dmy) && !any(solo_mdy)) {
       k <- k + 1L
       filas[[k]] <- .fila_formato(
         especificaciones$formato[[indice_dmy]], sum(mascara_dmy), total,
-        n_inequivocos = sum(solo_dmy), n_ambiguos = sum(ambiguos)
+        estado = estado_resuelto,
+        n_inequivocos = sum(solo_dmy), n_ambiguos = sum(ambiguos),
+        grupo_ambiguo = if (anio_dos) grupo else "",
+        anio_dos_digitos = anio_dos
       )
     } else if (!any(solo_dmy) && any(solo_mdy)) {
       k <- k + 1L
       filas[[k]] <- .fila_formato(
         especificaciones$formato[[indice_mdy]], sum(mascara_mdy), total,
-        n_inequivocos = sum(solo_mdy), n_ambiguos = sum(ambiguos)
+        estado = estado_resuelto,
+        n_inequivocos = sum(solo_mdy), n_ambiguos = sum(ambiguos),
+        grupo_ambiguo = if (anio_dos) grupo else "",
+        anio_dos_digitos = anio_dos
       )
     } else {
       k <- k + 1L
       filas[[k]] <- .fila_formato(
         especificaciones$formato[[indice_dmy]], sum(solo_dmy), total,
-        n_inequivocos = sum(solo_dmy), n_ambiguos = sum(ambiguos)
+        estado = estado_resuelto,
+        n_inequivocos = sum(solo_dmy), n_ambiguos = sum(ambiguos),
+        grupo_ambiguo = grupo, anio_dos_digitos = anio_dos
       )
       k <- k + 1L
       filas[[k]] <- .fila_formato(
         especificaciones$formato[[indice_mdy]], sum(solo_mdy), total,
-        n_inequivocos = sum(solo_mdy), n_ambiguos = sum(ambiguos)
+        estado = estado_resuelto,
+        n_inequivocos = sum(solo_mdy), n_ambiguos = sum(ambiguos),
+        grupo_ambiguo = grupo, anio_dos_digitos = anio_dos
       )
     }
   }
@@ -212,7 +251,8 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     resultado <- data.frame(
       formato = character(), n = integer(), proporcion = numeric(),
       estado = character(), n_inequivocos = integer(), n_ambiguos = integer(),
-      grupo_ambiguo = character(), stringsAsFactors = FALSE
+      grupo_ambiguo = character(), anio_dos_digitos = logical(),
+      stringsAsFactors = FALSE
     )
   }
 
@@ -220,8 +260,12 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   if (nrow(resultado)) {
     confirmados <- resultado$estado == "confirmado"
     unidades <- c(unidades, resultado$formato[confirmados])
-    candidatos <- resultado$grupo_ambiguo[resultado$estado == "candidato"]
-    unidades <- c(unidades, unique(candidatos[nzchar(candidatos)]))
+    candidatos <- resultado[resultado$estado == "candidato", , drop = FALSE]
+    unidades_candidatas <- ifelse(
+      nzchar(candidatos$grupo_ambiguo), candidatos$grupo_ambiguo,
+      candidatos$formato
+    )
+    unidades <- c(unidades, unique(unidades_candidatas))
   }
   mixtos <- length(unique(unidades)) >= 2L
   resultado$grupo_ambiguo <- NULL

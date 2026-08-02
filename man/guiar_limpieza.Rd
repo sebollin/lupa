@@ -49,3 +49,6 @@ plan <- planificar_limpieza(perfilar(datos))
 guiado <- guiar_limpieza(plan, datos)
 identical(plan, guiado) # TRUE en una sesión no interactiva
 }
+\seealso{
+\code{\link[=planificar_limpieza]{planificar_limpieza()}}, \code{\link[=aplicar]{aplicar()}}
+}

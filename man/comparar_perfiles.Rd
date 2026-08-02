@@ -43,3 +43,6 @@ actual <- perfilar(data.frame(codigo = c("AA1", "B-2"), nueva = 1:2),
                    fecha = as.POSIXct("2026-02-01", tz = "UTC"))
 comparar_perfiles(anterior, actual)
 }
+\seealso{
+\code{\link[=perfilar]{perfilar()}}, \code{\link[=detectar_deriva_calidad]{detectar_deriva_calidad()}}, \code{\link[=reportar]{reportar()}}
+}

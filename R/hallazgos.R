@@ -75,8 +75,8 @@
     }
 
     if (is.finite(fila$prop_faltantes_totales) &&
-        fila$prop_faltantes_totales >= umbral_faltantes_sospechoso) {
-      severidad <- if (fila$prop_faltantes_totales >= umbral_faltantes_error) {
+        fila$prop_faltantes_totales > umbral_faltantes_sospechoso) {
+      severidad <- if (fila$prop_faltantes_totales > umbral_faltantes_error) {
         "error"
       } else {
         "sospechoso"
@@ -113,7 +113,9 @@
     }
 
     candidatos_fecha <- resultado$formatos[
-      resultado$formatos$estado == "candidato", , drop = FALSE
+      resultado$formatos$estado == "candidato" &
+        (!resultado$formatos$anio_dos_digitos |
+           resultado$formatos$n_inequivocos == 0L), , drop = FALSE
     ]
     if (nrow(candidatos_fecha) &&
         fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
@@ -128,7 +130,24 @@
       ))
     }
 
-    if (isTRUE(attr(resultado$formatos, "formatos_mixtos"))) {
+    formatos_anio_corto <- resultado$formatos[
+      resultado$formatos$anio_dos_digitos, , drop = FALSE
+    ]
+    if (nrow(formatos_anio_corto) &&
+        fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
+      agregar(.nuevo_hallazgo(
+        nombre, "anio_de_dos_digitos", "sospechoso",
+        paste0(
+          "La fecha expresa el a\u00f1o con dos d\u00edgitos y no permite decidir ",
+          "el siglo sin conocimiento del dominio; el rango temporal no se calcula."
+        ),
+        paste(unique(formatos_anio_corto$formato), collapse = " o "),
+        "Confirmar el siglo con el origen antes de convertir a una fecha completa."
+      ))
+    }
+
+    if (isTRUE(attr(resultado$formatos, "formatos_mixtos")) &&
+        fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
       evidencia <- paste0(
         resultado$formatos$formato, " (", resultado$formatos$n, ")",
         collapse = "; "
@@ -197,6 +216,42 @@
         "Definir y aplicar una convenci\u00f3n de capitalizaci\u00f3n para la columna."
       ))
     }
+    if (fila$n_codificacion_rota > 0L) {
+      agregar(.nuevo_hallazgo(
+        nombre, "codificacion_rota", "error",
+        "Hay texto con se\u00f1ales de una conversi\u00f3n de codificaci\u00f3n incorrecta.",
+        resultado$diagnostico_texto$evidencia_codificacion,
+        if (fila$n_codificacion_reparable > 0L) {
+          paste0(
+            "Reparar s\u00f3lo los valores cuyo viaje UTF-8 a latin1 cierra en ",
+            "texto UTF-8 v\u00e1lido; revisar manualmente los caracteres perdidos."
+          )
+        } else {
+          "Recuperar el dato desde la fuente: el car\u00e1cter original ya no est\u00e1 disponible."
+        }
+      ))
+    }
+    if (fila$n_numeros_texto > 0L &&
+        is.finite(fila$proporcion_numeros_texto) &&
+        fila$proporcion_numeros_texto >= 0.8) {
+      agregar(.nuevo_hallazgo(
+        nombre, "numero_como_texto", "sospechoso",
+        if (isTRUE(fila$numero_texto_ambiguo)) {
+          paste0(
+            "La columna parece num\u00e9rica, pero el punto puede representar ",
+            "decimales o miles porque no hay una coma que desambig\u00fce."
+          )
+        } else {
+          "La columna contiene n\u00fameros escritos con formato regional, unidad o s\u00edmbolo."
+        },
+        resultado$numeros_texto$evidencia,
+        if (isTRUE(fila$numero_texto_seguro)) {
+          "Convertir de forma expl\u00edcita conservando en la bit\u00e1cora la convenci\u00f3n y la unidad."
+        } else {
+          "Confirmar la convenci\u00f3n decimal y la unidad antes de convertir."
+        }
+      ))
+    }
 
     if (nombre %in% columnas_sin_ceros && fila$n_ceros > 0L) {
       agregar(.nuevo_hallazgo(
@@ -242,6 +297,54 @@
     propuesto = propuestos[problema],
     stringsAsFactors = FALSE
   )
+}
+
+.normalizar_nombre_fecha <- function(x) {
+  y <- iconv(x, from = "UTF-8", to = "ASCII//TRANSLIT")
+  y[is.na(y)] <- x[is.na(y)]
+  tolower(gsub("[^[:alnum:]]+", "_", y, perl = TRUE))
+}
+
+.detectar_fecha_partida <- function(datos, nombres) {
+  if (ncol(datos) < 3L || !nrow(datos)) return(character())
+  normalizados <- .normalizar_nombre_fecha(nombres)
+  roles <- list(
+    anio = "(?:anio|ano|year)", mes = "(?:mes|month)", dia = "(?:dia|day)"
+  )
+  indices <- lapply(roles, function(patron) {
+    which(grepl(paste0("(^|_)", patron, "($|_)"), normalizados, perl = TRUE))
+  })
+  if (any(lengths(indices) == 0L)) return(character())
+  candidatos <- expand.grid(indices, KEEP.OUT.ATTRS = FALSE,
+                            stringsAsFactors = FALSE)
+  names(candidatos) <- names(roles)
+  candidatos <- candidatos[
+    apply(candidatos, 1L, function(x) length(unique(x)) == 3L), , drop = FALSE
+  ]
+  hallados <- character()
+  for (i in seq_len(nrow(candidatos))) {
+    posicion <- unlist(candidatos[i, ], use.names = FALSE)
+    valores <- lapply(posicion, function(j) {
+      suppressWarnings(as.integer(trimws(as.character(datos[[j]]))))
+    })
+    names(valores) <- c("anio", "mes", "dia")
+    presentes <- Reduce(`&`, lapply(valores, Negate(is.na)))
+    if (sum(presentes) < 3L) next
+    en_rango <- valores$anio >= 1800L & valores$anio <= 2100L &
+      valores$mes >= 1L & valores$mes <= 12L &
+      valores$dia >= 1L & valores$dia <= 31L
+    fechas <- suppressWarnings(as.Date(sprintf(
+      "%04d-%02d-%02d", valores$anio, valores$mes, valores$dia
+    )))
+    proporcion <- mean(en_rango[presentes] & !is.na(fechas[presentes]))
+    if (is.finite(proporcion) && proporcion >= 0.8) {
+      hallados <- c(hallados, paste0(
+        nombres[[posicion[[3L]]]], " + ", nombres[[posicion[[2L]]]], " + ",
+        nombres[[posicion[[1L]]]], " (", sprintf("%.3f", proporcion), " v\u00e1lidas)"
+      ))
+    }
+  }
+  unique(hallados)
 }
 
 .columnas_duplicadas <- function(datos, nombres) {
@@ -323,6 +426,15 @@
       "La tabla contiene nombres de columna no sint\u00e1cticos o duplicados.",
       evidencia,
       "Renombrar las columnas con nombres sint\u00e1cticos, \u00fanicos y sin espacios al borde."
+    )
+  }
+  fechas_partidas <- .detectar_fecha_partida(datos, columnas)
+  if (length(fechas_partidas)) {
+    hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
+      NA_character_, "fecha_partida_columnas", "sospechoso",
+      "La tabla parece representar una fecha mediante columnas separadas de a\u00f1o, mes y d\u00eda.",
+      paste(fechas_partidas, collapse = "; "),
+      "Confirmar la sem\u00e1ntica y construir una fecha expl\u00edcita sin descartar las columnas de origen."
     )
   }
 

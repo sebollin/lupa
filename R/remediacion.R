@@ -149,7 +149,19 @@
 #' `.grupo_duplicado` identifica a **todas** las filas que participan en cada
 #' grupo de contenido idéntico.
 #'
+#' El orden operativo se aparta deliberadamente de la secuencia dimensional
+#' frescura–completitud–exactitud–consistencia–unicidad sugerida por el marco.
+#' Primero marca duplicados sin borrar, luego normaliza ausencias y texto, y
+#' deja los cambios de esquema para el final. Esto evita perder la evidencia
+#' original, permite imputar antes de convertir tipos y mantiene identificables
+#' las columnas durante todo el plan. Las eliminaciones nunca se activan por
+#' defecto, por lo que deduplicar temprano no puede hacer desaparecer registros.
+#'
 #' @param perfil Objeto de clase `perfil` creado por [perfilar()].
+#' @param datos Datos opcionales que originaron el perfil. Son necesarios para
+#'   proponer imputaciones deducidas de dependencias funcionales.
+#' @param soporte_minimo_dependencia Cantidad mínima de observaciones
+#'   concordantes por valor determinante para proponer una imputación.
 #' @param plan Objeto de clase `plan_limpieza` o data frame con el mismo
 #'   contrato. Puede filtrarse y editarse antes de aplicarlo.
 #' @param datos `data.frame`, `tibble` o `data.table` sobre el que se ejecuta el
@@ -160,6 +172,7 @@
 #'   `resultado_limpieza` con `datos`, `registro`, `plan_aplicado`, el `plan`
 #'   sincronizado y `eliminados`.
 #' @export
+#' @seealso [perfilar()], [guiar_limpieza()], [detectar_dependencias()]
 #'
 #' @examples
 #' datos <- data.frame(categoria = c(" A", "S/D", "B"))
@@ -168,9 +181,21 @@
 #' plan[, c("grupo", "estrategia", "recomendada", "aplicar")]
 #' resultado <- aplicar(plan, datos)
 #' resultado$datos
-planificar_limpieza <- function(perfil) {
+planificar_limpieza <- function(perfil, datos = NULL,
+                                soporte_minimo_dependencia = 2L) {
   if (!inherits(perfil, "perfil")) {
     stop("`perfil` debe ser un objeto de clase perfil.", call. = FALSE)
+  }
+  if (!is.null(datos) && !inherits(datos, "data.frame")) {
+    stop("`datos` debe ser NULL o heredar de data.frame.", call. = FALSE)
+  }
+  if (length(soporte_minimo_dependencia) != 1L ||
+      is.na(soporte_minimo_dependencia) ||
+      !is.finite(soporte_minimo_dependencia) ||
+      soporte_minimo_dependencia < 1L ||
+      soporte_minimo_dependencia != floor(soporte_minimo_dependencia)) {
+    stop("`soporte_minimo_dependencia` debe ser un entero positivo.",
+         call. = FALSE)
   }
   acciones <- list()
   hallazgos <- perfil$hallazgos
@@ -253,6 +278,56 @@ planificar_limpieza <- function(perfil) {
         fila$n_espacios_borde[[1L]], FALSE, estado = estado_columna,
         aplicar = identical(estado_columna, "lista"), orden = 200L
       ))
+    } else if (identical(tipo, "codificacion_rota") && !is.null(fila)) {
+      reparable <- fila$n_codificacion_reparable[[1L]] > 0L
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        columna, tipo, if (reparable) {
+          "reparar_codificacion_latin1"
+        } else {
+          "recuperar_codificacion_en_origen"
+        }, reparable,
+        if (reparable) {
+          paste0(
+            "S\u00f3lo cambia una cadena cuando reinterpretar sus bytes latin1 ",
+            "produce UTF-8 v\u00e1lido; el proceso se detiene al dejar de cerrar."
+          )
+        } else {
+          paste0(
+            "El car\u00e1cter de reemplazo indica que se perdieron bytes; ninguna ",
+            "transformaci\u00f3n local puede recuperar el contenido original."
+          )
+        },
+        if (reparable) fila$n_codificacion_reparable[[1L]] else {
+          fila$n_codificacion_irreparable[[1L]]
+        }, FALSE,
+        estado = if (reparable) estado_columna else "informativa",
+        aplicar = reparable && identical(estado_columna, "lista"),
+        parametros = list(codificacion_intermedia = "latin1", max_iteraciones = 4L),
+        orden = 180L
+      ))
+    } else if (identical(tipo, "numero_como_texto") && !is.null(fila)) {
+      seguro <- isTRUE(fila$numero_texto_seguro[[1L]])
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        columna, tipo, "convertir_numero_regional", seguro,
+        if (seguro) {
+          paste0(
+            "La columna usa una convenci\u00f3n coherente; la coma fija los decimales ",
+            "y permite interpretar el punto como separador de miles."
+          )
+        } else {
+          paste0(
+            "Sin una coma decimal, un punto seguido por tres d\u00edgitos es ambiguo; ",
+            "se requiere fijar `punto_sin_coma` antes de convertir."
+          )
+        },
+        fila$n_numeros_texto[[1L]], FALSE, estado = estado_columna,
+        aplicar = seguro && identical(estado_columna, "lista"),
+        parametros = list(
+          convencion = "es-UY", unidad = fila$numero_texto_unidad[[1L]],
+          punto_sin_coma = if (seguro) "miles" else NA_character_
+        ),
+        orden = 320L
+      ))
     } else if (identical(tipo, "formato_fecha_ambiguo")) {
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "desambiguar_fecha_en_origen", FALSE,
@@ -297,7 +372,12 @@ planificar_limpieza <- function(perfil) {
       ))
     } else if (identical(tipo, "tipo_declarado_distinto") && !is.null(fila) &&
                !.es_fecha_ambigua(perfil, columna) &&
-               !.es_fecha_mixta(perfil, columna)) {
+               !.es_fecha_mixta(perfil, columna) &&
+               !any(
+                 perfil$hallazgos$columna == columna &
+                   perfil$hallazgos$tipo_hallazgo == "numero_como_texto",
+                 na.rm = TRUE
+               )) {
       destino <- fila$tipo_inferido[[1L]]
       soportado <- destino %in% c("entero", "doble", "logico", "fecha", "fecha-hora")
       compatible <- isTRUE(fila$proporcion_tipo_inferido[[1L]] == 1)
@@ -533,6 +613,78 @@ planificar_limpieza <- function(perfil) {
     }
   }
 
+  dependencias <- perfil$dependencias
+  if (!is.null(datos) && inherits(dependencias, "data.frame") &&
+      nrow(dependencias)) {
+    if (!identical(names(datos), perfil$columnas$columna)) {
+      stop("Los nombres de `datos` no coinciden con los usados por el perfil.",
+           call. = FALSE)
+    }
+    exactas <- dependencias[dependencias$exacta, , drop = FALSE]
+    candidatas <- list()
+    for (i in seq_len(nrow(exactas))) {
+      determinante <- exactas$determinante[[i]]
+      dependiente <- exactas$dependiente[[i]]
+      if (!all(c(determinante, dependiente) %in% names(datos))) next
+      mapa <- .mapa_dependencia(
+        datos, determinante, dependiente,
+        soporte_minimo = soporte_minimo_dependencia
+      )
+      if (!nrow(mapa)) next
+      indices <- match(
+        .valores_relacion(datos[[determinante]]),
+        .valores_relacion(mapa$determinante)
+      )
+      imputables <- is.na(datos[[dependiente]]) & !is.na(indices)
+      if (!any(imputables)) next
+      candidatas[[length(candidatas) + 1L]] <- list(
+        determinante = determinante, dependiente = dependiente,
+        mapa = mapa, n = sum(imputables), soporte = exactas$n_evaluados[[i]]
+      )
+    }
+    if (length(candidatas)) {
+      por_dependiente <- split(
+        seq_along(candidatas),
+        vapply(candidatas, `[[`, character(1L), "dependiente")
+      )
+      numero_grupo <- nrow(hallazgos)
+      for (indices in por_dependiente) {
+        numero_grupo <- numero_grupo + 1L
+        grupo <- .id_grupo(numero_grupo)
+        soportes <- vapply(candidatas[indices], `[[`, numeric(1L), "soporte")
+        mejor <- indices[[which.max(soportes)]]
+        for (indice in indices) {
+          candidata <- candidatas[[indice]]
+          recomendada <- indice == mejor
+          estrategia_imputacion <- paste0(
+            "imputar_dependencia_funcional__", make.names(candidata$determinante)
+          )
+          acciones <- .agregar_accion(acciones, .nueva_accion(
+            candidata$dependiente, "faltantes",
+            estrategia_imputacion, recomendada,
+            paste0(
+              "La relaci\u00f3n ", candidata$determinante, " -> ",
+              candidata$dependiente, " es exacta en ", candidata$soporte,
+              " filas presentes y cada valor usado tiene al menos ",
+              soporte_minimo_dependencia, " observaciones de soporte."
+            ),
+            candidata$n, FALSE, estado = "lista", aplicar = recomendada,
+            parametros = list(
+              determinante = candidata$determinante,
+              dependiente = candidata$dependiente,
+              mapa = candidata$mapa,
+              soporte_minimo = soporte_minimo_dependencia,
+              cumplimiento = 1
+            ),
+            orden = 150L, grupo = grupo,
+            decision_grupo = "recomendada",
+            recomendacion_grupo = estrategia_imputacion
+          ))
+        }
+      }
+    }
+  }
+
   if (!length(acciones)) {
     resultado <- .plan_vacio()
   } else {
@@ -719,6 +871,40 @@ planificar_limpieza <- function(perfil) {
   list(valor = x, n = sum(mascara))
 }
 
+.imputar_dependencia <- function(datos, parametros) {
+  determinante <- parametros$determinante
+  dependiente <- parametros$dependiente
+  mapa <- parametros$mapa
+  if (!all(c(determinante, dependiente) %in% names(datos)) ||
+      !inherits(mapa, "data.frame") ||
+      !all(c("determinante", "dependiente") %in% names(mapa))) {
+    stop("La imputaci\u00f3n no conserva un contrato de dependencia v\u00e1lido.",
+         call. = FALSE)
+  }
+  indices <- match(
+    .valores_relacion(datos[[determinante]]),
+    .valores_relacion(mapa$determinante)
+  )
+  conocidos <- !is.na(datos[[dependiente]]) & !is.na(indices)
+  esperado <- mapa$dependiente[indices[conocidos]]
+  if (any(.valores_relacion(datos[[dependiente]][conocidos]) !=
+          .valores_relacion(esperado))) {
+    stop("Los datos actuales contradicen la dependencia funcional del plan.",
+         call. = FALSE)
+  }
+  imputar <- is.na(datos[[dependiente]]) & !is.na(indices)
+  salida <- datos[[dependiente]]
+  if (is.factor(salida)) {
+    texto <- as.character(salida)
+    texto[imputar] <- as.character(mapa$dependiente[indices[imputar]])
+    salida <- .restaurar_factor(salida, texto)
+  } else {
+    salida[imputar] <- mapa$dependiente[indices[imputar]]
+  }
+  datos[[dependiente]] <- salida
+  list(datos = datos, n = sum(imputar))
+}
+
 .recortar_texto <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
     stop("El recorte de espacios requiere una columna de texto.", call. = FALSE)
@@ -731,6 +917,61 @@ planificar_limpieza <- function(perfil) {
     nuevo <- factor(nuevo, levels = niveles, ordered = is.ordered(x))
   }
   list(valor = nuevo, n = sum(mascara))
+}
+
+.reparar_codificacion <- function(x, parametros) {
+  if (!is.character(x) && !is.factor(x)) {
+    stop("La reparaci\u00f3n de codificaci\u00f3n requiere una columna de texto.",
+         call. = FALSE)
+  }
+  iteraciones <- parametros$max_iteraciones
+  if (is.null(iteraciones)) iteraciones <- 4L
+  anterior <- as.character(x)
+  candidatos <- vapply(
+    anterior, .reparar_mojibake_uno, character(1L),
+    max_iteraciones = iteraciones
+  )
+  mascara <- !is.na(candidatos) & !is.na(anterior) & candidatos != anterior
+  nuevo <- anterior
+  nuevo[mascara] <- candidatos[mascara]
+  list(valor = .restaurar_factor(x, nuevo), n = sum(mascara))
+}
+
+.convertir_numero_regional <- function(x, parametros) {
+  if (!is.character(x) && !is.factor(x)) {
+    stop("La conversi\u00f3n regional requiere una columna de texto.", call. = FALSE)
+  }
+  partes <- .componentes_numero_texto(x)
+  presentes <- !is.na(x) & nzchar(trimws(as.character(x)))
+  if (any(presentes & !partes$compatible)) {
+    stop("Hay valores presentes que no responden al formato num\u00e9rico regional.",
+         call. = FALSE)
+  }
+  interpretacion <- parametros$punto_sin_coma
+  ambiguos <- presentes & partes$punto_tres &
+    !any(partes$tiene_coma[presentes])
+  if (any(ambiguos) &&
+      (length(interpretacion) != 1L || is.na(interpretacion) ||
+       !interpretacion %in% c("miles", "decimal"))) {
+    stop(
+      "La columna es ambigua; configure `punto_sin_coma` como 'miles' o 'decimal'.",
+      call. = FALSE
+    )
+  }
+  texto <- partes$cuerpo
+  con_coma <- partes$tiene_coma
+  texto[con_coma] <- gsub(".", "", texto[con_coma], fixed = TRUE)
+  texto[con_coma] <- sub(",", ".", texto[con_coma], fixed = TRUE)
+  if (any(ambiguos) && identical(interpretacion, "miles")) {
+    texto[ambiguos] <- gsub(".", "", texto[ambiguos], fixed = TRUE)
+  }
+  numero <- suppressWarnings(as.numeric(texto))
+  if (any(presentes & (!is.finite(numero) | is.na(numero)))) {
+    stop("No fue posible convertir todos los valores regionales.", call. = FALSE)
+  }
+  porcentajes <- presentes & partes$unidad == "%"
+  numero[porcentajes] <- numero[porcentajes] / 100
+  list(valor = numero, n = sum(presentes))
 }
 
 .restaurar_factor <- function(original, nuevo) {
@@ -1082,8 +1323,21 @@ planificar_limpieza <- function(perfil) {
     datos[[indice]] <- cambio$valor
     return(list(datos = datos, n = cambio$n))
   }
+  if (startsWith(estrategia, "imputar_dependencia_funcional__")) {
+    return(.imputar_dependencia(datos, parametros))
+  }
   if (identical(estrategia, "recortar_espacios")) {
     cambio <- .recortar_texto(x)
+    datos[[indice]] <- cambio$valor
+    return(list(datos = datos, n = cambio$n))
+  }
+  if (identical(estrategia, "reparar_codificacion_latin1")) {
+    cambio <- .reparar_codificacion(x, parametros)
+    datos[[indice]] <- cambio$valor
+    return(list(datos = datos, n = cambio$n))
+  }
+  if (identical(estrategia, "convertir_numero_regional")) {
+    cambio <- .convertir_numero_regional(x, parametros)
     datos[[indice]] <- cambio$valor
     return(list(datos = datos, n = cambio$n))
   }
@@ -1340,6 +1594,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
 #'
 #' @return El plan editado, sin ejecutar acciones.
 #' @export
+#' @seealso [planificar_limpieza()], [aplicar()]
 #'
 #' @examples
 #' datos <- data.frame(zona = c("Norte", "NORTE", "sur"))

@@ -40,3 +40,6 @@ AGESIC (2020). \emph{Marco de trabajo para la Gestión de la Calidad
 de Datos en Gobierno Digital}, versión 1.6, capítulo 16, Presidencia de la
 República, Uruguay.
 }
+\seealso{
+\code{\link[=metricas_nucleo]{metricas_nucleo()}}, \code{\link[=metricas_referencial]{metricas_referencial()}}, \code{\link[=agregar]{agregar()}}
+}

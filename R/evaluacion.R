@@ -25,6 +25,7 @@ NULL
 
 #' @rdname reglas_evaluacion
 #' @export
+#' @seealso [medir()], [evaluar()], [perfiles_madurez()]
 regla_evaluacion <- function(nombre, condicion, metricas = NULL) {
   if (!.es_texto_escalar(nombre)) {
     stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
@@ -48,6 +49,8 @@ regla_evaluacion <- function(nombre, condicion, metricas = NULL) {
 
 #' @rdname reglas_evaluacion
 #' @export
+#' @seealso [regla_evaluacion()], [comparar_evaluaciones()],
+#'   [historico_calidad()]
 perfil_evaluacion <- function(nombre, ...) {
   if (!.es_texto_escalar(nombre)) {
     stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
@@ -82,6 +85,7 @@ perfil_evaluacion <- function(nombre, ...) {
 
 #' @rdname reglas_evaluacion
 #' @export
+#' @seealso [evaluar()], [detectar_deriva_calidad()]
 perfiles_madurez <- function(metricas = NULL) {
   especificaciones <- list(
     Basico = c(nombre = "B\u00e1sico", umbral = 0.5),

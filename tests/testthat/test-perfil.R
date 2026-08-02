@@ -17,7 +17,8 @@ test_that("perfilar crea la estructura S3 completa", {
 
   expect_s3_class(resultado, "perfil")
   expect_named(resultado, c(
-    "general", "columnas", "patrones", "formatos_fecha", "hallazgos", "meta"
+    "general", "columnas", "patrones", "formatos_fecha", "dependencias",
+    "hallazgos", "meta"
   ))
   expect_equal(resultado$general$filas, 4L)
   expect_equal(resultado$general$columnas, 6L)
@@ -174,6 +175,18 @@ test_that("se validan datos y umbrales", {
     ),
     "no puede ser menor"
   )
+})
+
+test_that("los umbrales de faltantes se comparan en sentido estricto", {
+  exacto <- perfilar(
+    data.frame(x = c(NA, 1:9)), analizar_dependencias = FALSE
+  )
+  expect_false("faltantes" %in% exacto$hallazgos$tipo_hallazgo)
+
+  superior <- perfilar(
+    data.frame(x = c(NA, NA, 1:8)), analizar_dependencias = FALSE
+  )
+  expect_true("faltantes" %in% superior$hallazgos$tipo_hallazgo)
 })
 
 test_that("un data frame sin columnas conserva una salida manipulable", {

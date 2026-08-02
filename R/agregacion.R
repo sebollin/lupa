@@ -59,6 +59,7 @@
 #'
 #' @return Data frames con niveles o aristas del grafo de granularidad.
 #' @export
+#' @seealso [modelo()], [medir()], [evaluar()]
 #'
 #' @examples
 #' granularidades()

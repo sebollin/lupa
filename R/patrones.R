@@ -24,6 +24,7 @@
 #'   proporciones siempre están en `[0, 1]`. `n_patrones_distintos` registra el
 #'   total antes de truncar la tabla para informar omisiones sin retenerla.
 #' @export
+#' @seealso [perfilar()], [inferir_tipo()], [detectar_formatos_fecha()]
 #'
 #' @examples
 #' descubrir_patrones(

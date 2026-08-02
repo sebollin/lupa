@@ -96,10 +96,10 @@
 #' `instanciar()` liga la métrica a objetos concretos y materializa el método de
 #' medición. `modelo()` reúne métricas instanciadas sin calcular un índice global.
 #'
-#' `metricas_nucleo()` devuelve las catorce métricas automatizables incluidas
-#' en esta versión. Además de las seis iniciales, incorpora métricas de dominio
-#' por comprensión, duplicación, actualidad por formato, oportunidad y densidad
-#' ponderada. Consulte [catalogo_agesic()] para la correspondencia completa.
+#' `metricas_nucleo()` devuelve las catorce métricas automatizables sin insumos
+#' externos. [metricas_referencial()] aporta por separado las tres métricas que
+#' consumen un padrón tabular. Consulte [catalogo_agesic()] para la
+#' correspondencia completa.
 #'
 #' @param nombre Nombre estable y legible.
 #' @param semantica Descripción de lo que mide la métrica.
@@ -119,8 +119,8 @@
 #' @param entidad Nombres de las tablas ligadas, en el orden que espera el
 #'   método.
 #' @param atributos Nombres de las columnas ligadas, en el mismo orden.
-#' @param referencial Objeto de referencia opcional, conservado como argumento
-#'   de primera clase en la instancia.
+#' @param referencial Objeto opcional creado por [referencial()]. Las métricas
+#'   que lo consumen validan su contrato al medir.
 #'
 #' @return `metrica()` y `especializar()` devuelven closures S3;
 #'   `instanciar()` devuelve una `metrica_instanciada`; `modelo()` devuelve un
@@ -144,14 +144,20 @@
 #' un ausente no genera una medida en esas métricas y, por lo tanto, tampoco
 #' integra el denominador de sus agregaciones. La completitud se mide por
 #' separado con `NoNulo`; así un mismo ausente no se penaliza en dos factores.
+#' `NoNulo` acepta el vector opcional `valores_nulos` para aplicar de forma
+#' deliberada el diccionario de nulos que contempla el marco; sin configurarlo,
+#' sólo considera los `NA` reales.
 #' `ValoresPosiblesPorComprension` sigue la misma convención y acepta un
 #' `predicado` o un rango definido por `minimo`, `maximo` e `inclusivo`.
 #'
 #' Las métricas de duplicación marcan **todas** las apariciones que participan
 #' en un grupo repetido, no sólo la segunda y siguientes. `AtributoDuplicado`
 #' omite ausentes. `ConjuntoAtributosDuplicado` compara las columnas ligadas y
-#' `EntidadDuplicada` compara la fila completa; en estos dos casos los `NA`
-#' forman parte de la combinación comparada.
+#' `EntidadDuplicada` compara la fila completa cuando se instancia sin
+#' atributos. Si se ligan atributos de clave, sigue la semántica del marco:
+#' marca filas con la misma clave cuyos demás valores son iguales o ausentes en
+#' alguna de las dos. En las comparaciones exactas, los `NA` forman parte de la
+#' combinación comparada.
 #'
 #' `DesactualizacionPorFormato` devuelve `TRUE` cuando el valor **no** cumple el
 #' formato vigente. `OportunidadAtributoPorFecha` y
@@ -173,8 +179,8 @@
 #' unidades no forman parte de este núcleo porque el marco presenta ambas
 #' nociones de forma inconsistente y sólo el tipo permite validar las fórmulas.
 #' El argumento referencial se conserva sin transformación dentro de la
-#' instancia; cada métrica que lo use debe declarar y validar allí su contrato
-#' específico.
+#' instancia; [metricas_referencial()] declara y valida el contrato específico
+#' de correctitud semántica y cobertura.
 #'
 #' @references AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad
 #'   de Datos en Gobierno Digital*, versión 1.6, Presidencia de la República,
@@ -204,6 +210,7 @@
 #' # )
 #'
 #' @name modelo_calidad
+#' @seealso [referencial()], [agregar()], [medir()], [proponer_modelo()]
 NULL
 
 #' @rdname modelo_calidad
@@ -387,6 +394,18 @@ modelo <- function(...) {
   configuracion
 }
 
+.validar_config_no_nulo <- function(configuracion) {
+  desconocidas <- setdiff(names(configuracion), "valores_nulos")
+  if (length(desconocidas)) {
+    stop("NoNulo s\u00f3lo acepta `valores_nulos`.", call. = FALSE)
+  }
+  if (is.null(configuracion$valores_nulos)) return(list(valores_nulos = NULL))
+  if (!is.atomic(configuracion$valores_nulos)) {
+    stop("`valores_nulos` debe ser un vector at\u00f3mico.", call. = FALSE)
+  }
+  configuracion
+}
+
 .validar_config_valores <- function(configuracion) {
   configuracion <- .validar_propiedades_base(configuracion, "valores")
   if (!is.atomic(configuracion$valores)) {
@@ -465,8 +484,13 @@ modelo <- function(...) {
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
   filas <- seq_along(x)
+  ausente <- is.na(x)
+  valores_nulos <- instancia$configuracion$valores_nulos
+  if (length(valores_nulos)) {
+    ausente <- ausente | (!is.na(x) & x %in% valores_nulos)
+  }
   .salida_metodo(
-    !is.na(x), entidad, atributo, filas,
+    !ausente, entidad, atributo, filas,
     paste0(entidad, "$", atributo, "[", filas, "]")
   )
 }
@@ -602,8 +626,9 @@ metricas_nucleo <- function() {
   c(list(
     NoNulo = metrica(
       "NoNulo", "Indica si una instancia de atributo no es nula.",
-      "instanciaAtributo", "booleano", dimension = "Completitud",
-      factor = "Densidad", metodo = .metodo_no_nulo
+      "instanciaAtributo", "booleano", propiedades = "valores_nulos",
+      dimension = "Completitud", factor = "Densidad", metodo = .metodo_no_nulo,
+      validar_propiedades = .validar_config_no_nulo
     ),
     Formato = metrica(
       "Formato", "Indica si un valor cumple un formato o diccionario.",
