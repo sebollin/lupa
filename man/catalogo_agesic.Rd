@@ -9,9 +9,8 @@ catalogo_agesic()
 \value{
 Data frame con una fila por entrada y las columnas \code{numero},
 \code{dimension}, \code{factor}, \code{metrica_agesic}, \code{clase_catalogo}, \code{estado},
-\code{metrica_lupa}, \code{implementacion} y \code{observacion}. \code{estado} es un factor con
-los niveles \code{"implementada"}, \code{"via_agregacion"},
-\code{"requiere_referencial"} y \code{"fuera_de_alcance"}.
+\code{motivo}, \code{metrica_lupa}, \code{implementacion} y \code{observacion}. \code{estado} y
+\code{motivo} son factores.
 }
 \description{
 Devuelve las 49 entradas del catálogo del marco y explicita qué parte está
@@ -19,10 +18,22 @@ disponible en \code{lupa}. Los ratios no se duplican como métricas: aparecen co
 estado \code{"via_agregacion"} y con la llamada que los materializa.
 }
 \details{
-\code{implementada} significa que el motor existe; las especializaciones que
-dependen de un diccionario o una regla de dominio deben ser configuradas por
-quien mide. \code{requiere_referencial} identifica entradas cuyo contrato exige
-datos externos que esta versión no obtiene ni interpreta.
+\code{estado} responde qué disponibilidad tiene cada entrada:
+\itemize{
+\item \code{implementada}: existe un motor ejecutable, completo o parcial;
+\item \code{via_agregacion}: se obtiene agregando una métrica base;
+\item \code{pendiente}: es automatizable, pero el motor necesario aún no existe;
+\item \code{fuera_de_alcance}: se decidió no implementarla en el alcance tabular de
+esta versión, por ejemplo métricas geográficas o de imágenes.
+}
+
+\code{motivo} separa la causa o el matiz: \code{semantica_completa},
+\code{semantica_parcial}, \code{agregacion}, \code{requiere_referencial},
+\code{requiere_configuracion}, \code{motor_pendiente} o \code{decision_alcance}. Así una
+métrica ejecutable que necesita un padrón externo no se confunde con una
+métrica cuyo motor falta. \code{observacion} explica la situación concreta de
+cada una de las 49 entradas y nunca queda vacía.
+
 \code{Escala} se clasifica como implementada con configuración experta mediante
 \code{\link[=escala]{escala()}}, no como referencial. \code{DesactualizacionPorFecha},
 \code{DesactualizacionPorCambios} y las oportunidades de entidad requieren un
@@ -30,16 +41,19 @@ contrato \code{\link[=vigencia]{vigencia()}}. \code{ErrorEstandar} sigue la sem�
 16.5 y devuelve desviación estándar, aunque su nombre pueda sugerir el error
 estándar de la media.
 
-La tabla deja visibles dos decisiones de arquitectura. El resultado real de
-\verb{OportunidadAtributo*} sigue la fórmula continua del proceso de evaluación,
-aunque las tablas 16.29 y 16.30 lo declaran booleano. Además,
-\code{RatioDensidadPonderada} usa \code{ratio_umbral}, porque \code{DensidadPonderada} es
-real y \code{ratio} sólo es válido para medidas booleanas.
+La implementación de \code{ReglaIntegridadInterEntidad} se declara parcial:
+calcula cobertura PK/FK, pero todavía no materializa la regla booleana de
+inclusión o expresión condicional con granularidad \code{conjuntoEntidades} que
+define el marco. \verb{OportunidadAtributo*}, en cambio, sigue las tablas 16.29 y
+16.30 con resultado booleano. Las variantes continuas del curso CPAP se
+conservan como \verb{GradoOportunidadAtributo*} y no figuran como entradas del
+catálogo. \code{RatioDensidadPonderada} usa \code{ratio_umbral}, porque su medida base
+es real y \code{ratio} sólo es válido para medidas booleanas.
 }
 \examples{
 catalogo <- catalogo_agesic()
 subset(catalogo, estado == "via_agregacion")
-table(catalogo$estado)
+table(catalogo$estado, catalogo$motivo)
 }
 \references{
 AGESIC (2020). \emph{Marco de trabajo para la Gestión de la Calidad

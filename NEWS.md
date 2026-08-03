@@ -26,9 +26,13 @@
 
 - Declara métricas genéricas, específicas e instanciadas con tipo de resultado
   y granularidad explícitos.
-- Incluye diecinueve métricas automatizables, tres métricas tabulares basadas en
+- Incluye veintiuna métricas automatizables, tres métricas tabulares basadas en
   referenciales y una correspondencia verificable con las 49 entradas del
   catálogo de AGESIC.
+- Separa en el catálogo la disponibilidad de cada métrica de la causa o el
+  matiz de esa disponibilidad, y documenta las 49 correspondencias sin vacíos.
+- Ajusta las métricas oficiales de oportunidad al resultado booleano del marco
+  y conserva la fórmula continua del curso CPAP bajo nombres `GradoOportunidad*`.
 - Incorpora contratos explícitos `vigencia()` y `escala()`, y una tabla de
   cobertura que distingue lo medido, no declarado, no aplicable y fuera de
   alcance.

@@ -119,7 +119,9 @@ funcionales por declaraciones pequeñas para no serializar sus entornos.
 
 `catalogo_agesic()` expone como tabla el estado de las 49 entradas del catálogo,
 incluidas las métricas obtenibles por agregación, las que requieren insumos
-externos y las que permanecen fuera de alcance.
+externos y las que permanecen fuera de alcance. La columna `motivo` distingue
+una semántica parcial, un insumo que debe aportar el usuario, un motor pendiente
+y una decisión explícita de alcance.
 
 ## Referencia conceptual
 

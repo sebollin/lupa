@@ -116,7 +116,7 @@
 #' `instanciar()` liga la métrica a objetos concretos y materializa el método de
 #' medición. `modelo()` reúne métricas instanciadas sin calcular un índice global.
 #'
-#' `metricas_nucleo()` devuelve diecinueve métricas automatizables una vez
+#' `metricas_nucleo()` devuelve veintiuna métricas automatizables una vez
 #' declaradas sus propiedades; [escala()] y [vigencia()] hacen explícitos los
 #' insumos expertos que algunas necesitan. [metricas_referencial()] aporta por
 #' separado las tres métricas que consumen un padrón tabular. Consulte
@@ -157,6 +157,10 @@
 #'
 #' En `ReglaIntegridadInterEntidad`, `entidad` y `atributos` se ligan como
 #' `c(referencia, dependiente)` y `c(clave_primaria, clave_foranea)`.
+#' Esta implementación calcula cobertura PK/FK como resultado real y sólo cubre
+#' una parte de la genérica del marco, que declara granularidad
+#' `conjuntoEntidades`, resultado booleano y admite además una expresión
+#' condicional. [catalogo_agesic()] deja visible esa cobertura parcial.
 #' Pese a su nombre, `ErrorEstandar` sigue literalmente la semántica de la
 #' tabla 16.5 del marco y devuelve la desviación estándar muestral sin
 #' normalizar; exige al menos dos valores numéricos válidos. Por eso declara
@@ -185,14 +189,19 @@
 #' combinación comparada.
 #'
 #' `DesactualizacionPorFormato` devuelve `TRUE` cuando el valor **no** cumple el
-#' formato vigente. `OportunidadAtributoPorFecha` y
-#' `OportunidadAtributoPorIntervalo` devuelven
-#' `max(0, min(1, 1 - (t1 - t2) / (t3 - t2)))`. Exigen que `t3` sea posterior
-#' a `t2`; un intervalo de duración cero se rechaza porque no define el
-#' cociente. Se adopta un resultado real continuo para conservar cuánto margen
-#' de utilidad queda, aunque las tablas 16.29 y 16.30 del marco lo declaran
-#' booleano. Estas tres métricas omiten los valores `NA`: su ausencia corresponde
-#' a completitud y no genera una segunda medida de incumplimiento.
+#' formato vigente. Conforme a las tablas 16.29 y 16.30 del marco,
+#' `OportunidadAtributoPorFecha` indica si la fecha es anterior o igual a
+#' `fecha_limite`, y `OportunidadAtributoPorIntervalo` si pertenece al intervalo
+#' cerrado `[inicio_vigencia, fin_vigencia]`; ambas son booleanas.
+#'
+#' `GradoOportunidadAtributoPorFecha` y
+#' `GradoOportunidadAtributoPorIntervalo` son extensiones propias basadas en el
+#' curso CPAP, no entradas adicionales del catálogo AGESIC. Conservan la fórmula
+#' continua `max(0, min(1, 1 - (t1 - t2) / (t3 - t2)))` para expresar cuánto
+#' margen de utilidad queda. Exigen que `t3` sea posterior a `t2`; un intervalo
+#' de duración cero se rechaza porque no define el cociente. Todas estas
+#' métricas omiten los valores `NA`: su ausencia corresponde a completitud y no
+#' genera una segunda medida de incumplimiento.
 #'
 #' **Desviación documentada del marco:** en `DensidadPonderada`, un atributo
 #' más crítico recibe un coeficiente mayor y, si falta, produce una penalización
@@ -211,6 +220,9 @@
 #'   de Datos en Gobierno Digital*, versión 1.6, Presidencia de la República,
 #'   Uruguay.
 #'
+#'   Curso CPAP, material *Evaluación de Calidad*: fórmula continua de
+#'   oportunidad implementada bajo los nombres `GradoOportunidadAtributo*`.
+#'
 #' @examples
 #' nucleo <- metricas_nucleo()
 #' no_nulo <- especializar(
@@ -225,6 +237,24 @@
 #'   nucleo$DesactualizacionPorFormato,
 #'   nombre_especifico = "TelefonoFijoPNN",
 #'   expresion_regular = "^[0-9]{8}$"
+#' )
+#'
+#' # La métrica oficial es booleana y recibe la fecha límite Tf.
+#' a_tiempo <- especializar(
+#'   nucleo$OportunidadAtributoPorFecha,
+#'   nombre_especifico = "EntregaATiempo",
+#'   fecha_limite = as.Date("2026-06-30")
+#' )
+#' medir(
+#'   modelo(instanciar(a_tiempo, "entregas", "fecha")),
+#'   data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
+#' )
+#'
+#' # La extensión continua conserva cuánto margen de utilidad queda.
+#' grado <- especializar(
+#'   nucleo$GradoOportunidadAtributoPorFecha,
+#'   fecha_solicitud = as.Date("2026-06-01"),
+#'   fecha_fin_utilidad = as.Date("2026-07-01")
 #' )
 #'
 #' # Formato(NumeroDocumento, DNIC) se obtiene conectando un validador externo:

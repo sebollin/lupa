@@ -267,6 +267,48 @@
 }
 
 .validar_config_oportunidad_fecha <- function(configuracion) {
+  configuracion <- .validar_propiedades_base(configuracion, "fecha_limite")
+  limite <- configuracion$fecha_limite
+  if (!.es_fecha_modelo(limite) || !length(limite) || anyNA(limite)) {
+    stop("`fecha_limite` debe contener fechas no ausentes.", call. = FALSE)
+  }
+  configuracion
+}
+
+.validar_config_oportunidad_intervalo <- function(configuracion) {
+  configuracion <- .validar_propiedades_base(
+    configuracion, c("inicio_vigencia", "fin_vigencia")
+  )
+  inicio <- configuracion$inicio_vigencia
+  fin <- configuracion$fin_vigencia
+  if (!.es_fecha_modelo(inicio) || !.es_fecha_modelo(fin) ||
+      !length(inicio) || !length(fin) || anyNA(inicio) || anyNA(fin)) {
+    stop(
+      "`inicio_vigencia` y `fin_vigencia` deben contener fechas no ausentes.",
+      call. = FALSE
+    )
+  }
+  if (length(inicio) != 1L && length(fin) != 1L &&
+      length(inicio) != length(fin)) {
+    stop("Los extremos del intervalo deben tener longitudes compatibles.",
+         call. = FALSE)
+  }
+  n <- max(length(inicio), length(fin))
+  diferencia <- rep(.fecha_numerica(fin), length.out = n) -
+    rep(.fecha_numerica(inicio), length.out = n)
+  if (any(!is.finite(diferencia))) {
+    stop("El intervalo contiene una duraci\u00f3n no finita.", call. = FALSE)
+  }
+  if (any(diferencia < 0)) {
+    stop(
+      "`fin_vigencia` no puede ser anterior a `inicio_vigencia`; ",
+      "el intervalo est\u00e1 invertido.", call. = FALSE
+    )
+  }
+  configuracion
+}
+
+.validar_config_grado_oportunidad_fecha <- function(configuracion) {
   configuracion <- .validar_propiedades_base(
     configuracion, c("fecha_solicitud", "fecha_fin_utilidad")
   )
@@ -277,7 +319,7 @@
   configuracion
 }
 
-.validar_config_oportunidad_intervalo <- function(configuracion) {
+.validar_config_grado_oportunidad_intervalo <- function(configuracion) {
   configuracion <- .validar_propiedades_base(
     configuracion, c("inicio_vigencia", "fin_vigencia")
   )
@@ -299,7 +341,7 @@
   .fecha_numerica(x[filas])
 }
 
-.metodo_oportunidad <- function(tablas, instancia, inicio_nombre, fin_nombre) {
+.datos_oportunidad <- function(tablas, instancia) {
   .validar_vinculo(instancia, 1L, 1L)
   entidad <- instancia$entidad[[1L]]
   atributo <- instancia$atributos[[1L]]
@@ -309,31 +351,75 @@
     stop("La oportunidad requiere un atributo Date o POSIXt.", call. = FALSE)
   }
   filas <- which(!is.na(x))
+  list(
+    entidad = entidad,
+    atributo = atributo,
+    x = x,
+    filas = filas,
+    entrega = .fecha_numerica(x[filas])
+  )
+}
+
+.salida_oportunidad <- function(resultado, datos) {
+  .salida_metodo(
+    resultado, datos$entidad, datos$atributo, datos$filas,
+    paste0(datos$entidad, "$", datos$atributo, "[", datos$filas, "]")
+  )
+}
+
+.metodo_oportunidad_fecha <- function(tablas, instancia) {
+  datos <- .datos_oportunidad(tablas, instancia)
+  limite <- .fecha_para_filas(
+    instancia$configuracion$fecha_limite, datos$filas, length(datos$x),
+    "fecha_limite"
+  )
+  .salida_oportunidad(datos$entrega <= limite, datos)
+}
+
+.metodo_oportunidad_intervalo <- function(tablas, instancia) {
+  datos <- .datos_oportunidad(tablas, instancia)
   config <- instancia$configuracion
-  entrega <- .fecha_numerica(x[filas])
-  inicio <- .fecha_para_filas(config[[inicio_nombre]], filas, length(x),
-                             inicio_nombre)
-  fin <- .fecha_para_filas(config[[fin_nombre]], filas, length(x), fin_nombre)
+  inicio <- .fecha_para_filas(
+    config$inicio_vigencia, datos$filas, length(datos$x), "inicio_vigencia"
+  )
+  fin <- .fecha_para_filas(
+    config$fin_vigencia, datos$filas, length(datos$x), "fin_vigencia"
+  )
+  .salida_oportunidad(
+    datos$entrega >= inicio & datos$entrega <= fin,
+    datos
+  )
+}
+
+.metodo_grado_oportunidad <- function(tablas, instancia,
+                                      inicio_nombre, fin_nombre) {
+  datos <- .datos_oportunidad(tablas, instancia)
+  config <- instancia$configuracion
+  inicio <- .fecha_para_filas(
+    config[[inicio_nombre]], datos$filas, length(datos$x), inicio_nombre
+  )
+  fin <- .fecha_para_filas(
+    config[[fin_nombre]], datos$filas, length(datos$x), fin_nombre
+  )
   duracion <- fin - inicio
   if (any(duracion <= 0)) {
     stop("El intervalo de oportunidad debe tener duraci\u00f3n positiva.",
          call. = FALSE)
   }
-  resultado <- pmin(1, pmax(0, 1 - (entrega - inicio) / duracion))
-  .salida_metodo(
-    resultado, entidad, atributo, filas,
-    paste0(entidad, "$", atributo, "[", filas, "]")
-  )
+  resultado <- pmin(1, pmax(0, 1 - (datos$entrega - inicio) / duracion))
+  .salida_oportunidad(resultado, datos)
 }
 
-.metodo_oportunidad_fecha <- function(tablas, instancia) {
-  .metodo_oportunidad(
+.metodo_grado_oportunidad_fecha <- function(tablas, instancia) {
+  .metodo_grado_oportunidad(
     tablas, instancia, "fecha_solicitud", "fecha_fin_utilidad"
   )
 }
 
-.metodo_oportunidad_intervalo <- function(tablas, instancia) {
-  .metodo_oportunidad(tablas, instancia, "inicio_vigencia", "fin_vigencia")
+.metodo_grado_oportunidad_intervalo <- function(tablas, instancia) {
+  .metodo_grado_oportunidad(
+    tablas, instancia, "inicio_vigencia", "fin_vigencia"
+  )
 }
 
 .validar_config_densidad <- function(configuracion) {
@@ -453,21 +539,45 @@
     ),
     OportunidadAtributoPorFecha = metrica(
       "OportunidadAtributoPorFecha",
-      "Mide la oportunidad entre solicitud, entrega y fin de utilidad.",
-      "instanciaAtributo", "real",
-      propiedades = c("fecha_solicitud", "fecha_fin_utilidad"),
+      "Indica si el valor estuvo disponible hasta la fecha l\u00edmite inclusive.",
+      "instanciaAtributo", "booleano",
+      propiedades = "fecha_limite",
       dimension = "Frescura", factor = "Oportunidad",
       metodo = .metodo_oportunidad_fecha,
       validar_propiedades = .validar_config_oportunidad_fecha
     ),
     OportunidadAtributoPorIntervalo = metrica(
       "OportunidadAtributoPorIntervalo",
-      "Mide la oportunidad dentro de un intervalo de vigencia.",
-      "instanciaAtributo", "real",
+      "Indica si el valor estuvo disponible dentro del intervalo vigente.",
+      "instanciaAtributo", "booleano",
       propiedades = c("inicio_vigencia", "fin_vigencia"),
       dimension = "Frescura", factor = "Oportunidad",
       metodo = .metodo_oportunidad_intervalo,
       validar_propiedades = .validar_config_oportunidad_intervalo
+    ),
+    GradoOportunidadAtributoPorFecha = metrica(
+      "GradoOportunidadAtributoPorFecha",
+      paste0(
+        "Cuantifica el margen de utilidad entre solicitud, entrega y fin ",
+        "de utilidad; extensi\u00f3n propia basada en el curso CPAP."
+      ),
+      "instanciaAtributo", "real",
+      propiedades = c("fecha_solicitud", "fecha_fin_utilidad"),
+      dimension = "Frescura", factor = "Oportunidad",
+      metodo = .metodo_grado_oportunidad_fecha,
+      validar_propiedades = .validar_config_grado_oportunidad_fecha
+    ),
+    GradoOportunidadAtributoPorIntervalo = metrica(
+      "GradoOportunidadAtributoPorIntervalo",
+      paste0(
+        "Cuantifica el margen de utilidad dentro de un intervalo; ",
+        "extensi\u00f3n propia basada en el curso CPAP."
+      ),
+      "instanciaAtributo", "real",
+      propiedades = c("inicio_vigencia", "fin_vigencia"),
+      dimension = "Frescura", factor = "Oportunidad",
+      metodo = .metodo_grado_oportunidad_intervalo,
+      validar_propiedades = .validar_config_grado_oportunidad_intervalo
     ),
     OportunidadEntPorFecha = metrica(
       "OportunidadEntPorFecha",
@@ -504,15 +614,25 @@
 #'
 #' @return Data frame con una fila por entrada y las columnas `numero`,
 #'   `dimension`, `factor`, `metrica_agesic`, `clase_catalogo`, `estado`,
-#'   `metrica_lupa`, `implementacion` y `observacion`. `estado` es un factor con
-#'   los niveles `"implementada"`, `"via_agregacion"`,
-#'   `"requiere_referencial"` y `"fuera_de_alcance"`.
+#'   `motivo`, `metrica_lupa`, `implementacion` y `observacion`. `estado` y
+#'   `motivo` son factores.
 #'
 #' @details
-#' `implementada` significa que el motor existe; las especializaciones que
-#' dependen de un diccionario o una regla de dominio deben ser configuradas por
-#' quien mide. `requiere_referencial` identifica entradas cuyo contrato exige
-#' datos externos que esta versión no obtiene ni interpreta.
+#' `estado` responde qué disponibilidad tiene cada entrada:
+#'
+#' - `implementada`: existe un motor ejecutable, completo o parcial;
+#' - `via_agregacion`: se obtiene agregando una métrica base;
+#' - `pendiente`: es automatizable, pero el motor necesario aún no existe;
+#' - `fuera_de_alcance`: se decidió no implementarla en el alcance tabular de
+#'   esta versión, por ejemplo métricas geográficas o de imágenes.
+#'
+#' `motivo` separa la causa o el matiz: `semantica_completa`,
+#' `semantica_parcial`, `agregacion`, `requiere_referencial`,
+#' `requiere_configuracion`, `motor_pendiente` o `decision_alcance`. Así una
+#' métrica ejecutable que necesita un padrón externo no se confunde con una
+#' métrica cuyo motor falta. `observacion` explica la situación concreta de
+#' cada una de las 49 entradas y nunca queda vacía.
+#'
 #' `Escala` se clasifica como implementada con configuración experta mediante
 #' [escala()], no como referencial. `DesactualizacionPorFecha`,
 #' `DesactualizacionPorCambios` y las oportunidades de entidad requieren un
@@ -520,11 +640,14 @@
 #' 16.5 y devuelve desviación estándar, aunque su nombre pueda sugerir el error
 #' estándar de la media.
 #'
-#' La tabla deja visibles dos decisiones de arquitectura. El resultado real de
-#' `OportunidadAtributo*` sigue la fórmula continua del proceso de evaluación,
-#' aunque las tablas 16.29 y 16.30 lo declaran booleano. Además,
-#' `RatioDensidadPonderada` usa `ratio_umbral`, porque `DensidadPonderada` es
-#' real y `ratio` sólo es válido para medidas booleanas.
+#' La implementación de `ReglaIntegridadInterEntidad` se declara parcial:
+#' calcula cobertura PK/FK, pero todavía no materializa la regla booleana de
+#' inclusión o expresión condicional con granularidad `conjuntoEntidades` que
+#' define el marco. `OportunidadAtributo*`, en cambio, sigue las tablas 16.29 y
+#' 16.30 con resultado booleano. Las variantes continuas del curso CPAP se
+#' conservan como `GradoOportunidadAtributo*` y no figuran como entradas del
+#' catálogo. `RatioDensidadPonderada` usa `ratio_umbral`, porque su medida base
+#' es real y `ratio` sólo es válido para medidas booleanas.
 #'
 #' @references AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad
 #'   de Datos en Gobierno Digital*, versión 1.6, capítulo 16, Presidencia de la
@@ -536,7 +659,7 @@
 #' @examples
 #' catalogo <- catalogo_agesic()
 #' subset(catalogo, estado == "via_agregacion")
-#' table(catalogo$estado)
+#' table(catalogo$estado, catalogo$motivo)
 catalogo_agesic <- function() {
   metricas <- c(
     "CorrectitudSemDebil",
@@ -613,13 +736,22 @@ catalogo_agesic <- function() {
     1:2, 5:10, 17L, 20L, 22:25, 27:29, 34:36, 42:49
   )
   agregadas <- c(3:4, 21L, 30:31, 37:39)
-  referencial <- 19L
-  fuera <- setdiff(seq_len(49L), c(implementadas, agregadas, referencial))
+  pendientes <- c(19L, 40:41)
+  fuera <- setdiff(seq_len(49L), c(implementadas, agregadas, pendientes))
   estado <- rep(NA_character_, 49L)
   estado[implementadas] <- "implementada"
   estado[agregadas] <- "via_agregacion"
-  estado[referencial] <- "requiere_referencial"
+  estado[pendientes] <- "pendiente"
   estado[fuera] <- "fuera_de_alcance"
+
+  motivo <- rep(NA_character_, 49L)
+  motivo[c(5L, 10L, 28L, 34:36)] <- "semantica_completa"
+  motivo[17L] <- "semantica_parcial"
+  motivo[agregadas] <- "agregacion"
+  motivo[c(1:2, 27L)] <- "requiere_referencial"
+  motivo[c(6:9, 20L, 22:25, 29L, 42:49)] <- "requiere_configuracion"
+  motivo[pendientes] <- "motor_pendiente"
+  motivo[fuera] <- "decision_alcance"
 
   metrica_lupa <- rep(NA_character_, 49L)
   metrica_lupa[1L] <- "CorrectitudSemDebil"
@@ -667,63 +799,66 @@ catalogo_agesic <- function() {
   implementacion[37L] <- "agregar(m, \"atributo\", \"ratio\")"
   implementacion[38:39] <- "agregar(m, \"entidad\", \"ratio\")"
 
-  observacion <- rep(NA_character_, 49L)
-  observacion[1L] <- paste0(
-    "Contrasta el par identificaci\u00f3n-valor; omite ausentes."
-  )
-  observacion[2L] <- paste0(
-    "Verifica que la identificaci\u00f3n exista; omite ausentes."
-  )
-  observacion[6:8] <- paste0(
-    "Especializaci\u00f3n configurable de Formato; el referencial no se incluye."
-  )
-  observacion[8L] <- paste0(
-    "Se conecta un validador externo, por ejemplo uyutils::validar_ci()."
-  )
-  observacion[9L] <- paste0(
-    "Requiere configuraci\u00f3n experta mediante escala(); no usa referencial."
-  )
-  observacion[10L] <- paste0(
-    "Sigue la tabla 16.5: devuelve desviaci\u00f3n est\u00e1ndar, no error de la media."
-  )
-  observacion[17L] <- paste0(
-    "Implementa cobertura de integridad referencial entre PK y FK."
-  )
-  observacion[c(22L, 25L)] <- paste0(
-    "La regla o el diccionario de dominio debe ser provisto al especializar."
-  )
-  observacion[31L] <- paste0(
-    "Se usa RatioUmbral porque la medida base es real, no booleana."
-  )
-  observacion[27L] <- paste0(
-    "Exige referencial() con completo = TRUE y alcance expl\u00edcito."
-  )
-  observacion[32:33] <- paste0(
-    "El factor Comisi\u00f3n est\u00e1 restringido a datos geogr\u00e1ficos en el marco."
-  )
-  observacion[36L] <- paste0(
+  observacion <- c(
+    "Compara cada par clave-valor con referencial(); omite ausentes.",
+    "Verifica que cada clave exista en referencial(); omite ausentes.",
+    "Se obtiene con Ratio sobre CorrectitudSemFuerte.",
+    "Se obtiene con Ratio sobre CorrectitudSemDebil.",
+    "Admite expresi\u00f3n regular, diccionario o funci\u00f3n validadora.",
+    "Especializa Formato con el diccionario ISO Alpha-3 provisto al medir.",
+    "Especializa Formato con el diccionario CIE-10 provisto al medir.",
+    "Especializa Formato con un validador externo, por ejemplo uyutils::validar_ci().",
+    "Requiere configuraci\u00f3n experta mediante escala(); no usa referencial.",
+    "Sigue la tabla 16.5: devuelve desviaci\u00f3n est\u00e1ndar muestral.",
+    "M\u00e9trica posicional geogr\u00e1fica; no se implementa en el n\u00facleo tabular.",
+    "M\u00e9trica posicional geogr\u00e1fica; no se implementa en el n\u00facleo tabular.",
+    "M\u00e9trica posicional geogr\u00e1fica; no se implementa en el n\u00facleo tabular.",
+    "M\u00e9trica [TD:\u00abImg\u00bb]; exige comparar im\u00e1genes contra una referencia.",
+    "M\u00e9trica [TD:\u00abImg\u00bb]; exige evaluar fidelidad de imagen sin referencia.",
+    "M\u00e9trica [TD:\u00abImg\u00bb]; exige una referencia reducida de imagen.",
     paste0(
-      "Sin clave ligada compara filas completas; con clave admite iguales ",
-      "o nulos en los dem\u00e1s campos."
-    )
-  )
-  observacion[45L] <- paste0(
-    "Especializaci\u00f3n configurable con el formato vigente de ocho d\u00edgitos."
-  )
-  observacion[42L] <- paste0(
-    "Requiere vigencia(); devuelve atraso en d\u00edas como duraci\u00f3n no negativa."
-  )
-  observacion[43L] <- paste0(
-    "Requiere vigencia(); estima cambios con la frecuencia declarada."
-  )
-  observacion[46:47] <- paste0(
-    "Resultado real continuo; el cat\u00e1logo lo declara booleano."
-  )
-  observacion[48:49] <- paste0(
-    "Resultado booleano por fila; exige fechas o intervalos en vigencia()."
-  )
-  observacion[19L] <- paste0(
-    "Requiere una regla sem\u00e1ntica entre entidades no reducible a PK/FK."
+      "Implementaci\u00f3n parcial: calcula cobertura PK/FK como real sobre dos ",
+      "entidades; falta la regla booleana de inclusi\u00f3n o expresi\u00f3n ",
+      "condicional con granularidad conjuntoEntidades."
+    ),
+    "M\u00e9trica [TD:\u00abGeo\u00bb]; requiere un motor de reglas espaciales.",
+    paste0(
+      "El marco pide una expresi\u00f3n condicional Sexo-Enfermedad, no un ",
+      "referencial; el motor inter-entidad todav\u00eda no admite esa regla."
+    ),
+    "Ejecuta una regla booleana provista por el usuario sobre cada fila.",
+    "Se obtiene con Ratio sobre ReglaIntegridadIntraEntidad.",
+    "Especializa la regla intra-entidad con una condici\u00f3n Sexo-Enfermedad provista.",
+    "Requiere enumerar el diccionario de valores admitidos.",
+    "Requiere un predicado o un rango que defina el dominio.",
+    "Especializa ValoresPosiblesPorExtension con el dominio de sexo provisto.",
+    "M\u00e9trica de consistencia topol\u00f3gica; queda fuera del n\u00facleo tabular.",
+    "Exige referencial() con completo = TRUE y alcance expl\u00edcito.",
+    "Indica presencia de valores y admite declarar sentinelas como nulos.",
+    "Requiere coeficientes por atributo que sumen uno.",
+    "Se obtiene con Ratio sobre NoNulo.",
+    "Usa RatioUmbral porque DensidadPonderada es real, no booleana.",
+    "El factor Comisi\u00f3n est\u00e1 marcado [TD:\u00abGeo\u00bb] en el marco.",
+    "El ratio de Comisi\u00f3n depende de la m\u00e9trica geogr\u00e1fica \u00cdtemExcedente.",
+    "Marca todas las apariciones que participan en un grupo repetido.",
+    "Marca cada fila cuya combinaci\u00f3n de atributos se repite.",
+    "Compara la fila completa o una clave ligada con la sem\u00e1ntica del marco.",
+    "Se obtiene con Ratio sobre AtributoDuplicado.",
+    "Se obtiene con Ratio sobre ConjuntoAtributosDuplicado.",
+    "Se obtiene con Ratio sobre EntidadDuplicada.",
+    paste0(
+      "No lleva marca [TD] en el marco; falta un motor configurable de ",
+      "similitud y contradicci\u00f3n entre entidades."
+    ),
+    "Depende de EntidadContradictoria; se implementar\u00e1 junto con su motor de similitud.",
+    "Requiere vigencia(); devuelve atraso no negativo desde la referencia temporal.",
+    "Requiere vigencia(); estima cambios esperados con la frecuencia declarada.",
+    "Requiere declarar el formato vigente o una funci\u00f3n validadora.",
+    "Especializa DesactualizacionPorFormato con el formato PNN1 de ocho d\u00edgitos.",
+    "Resultado booleano de la tabla 16.29: entrega hasta Tf, inclusive.",
+    "Resultado booleano de la tabla 16.30: entrega dentro de [Ti, Tf].",
+    "Resultado booleano por fila; exige fecha l\u00edmite en vigencia().",
+    "Resultado booleano por fila; exige intervalo en vigencia()."
   )
 
   data.frame(
@@ -736,9 +871,14 @@ catalogo_agesic <- function() {
     ),
     estado = base::factor(
       estado,
+      levels = c("implementada", "via_agregacion", "pendiente", "fuera_de_alcance")
+    ),
+    motivo = base::factor(
+      motivo,
       levels = c(
-        "implementada", "via_agregacion", "requiere_referencial",
-        "fuera_de_alcance"
+        "semantica_completa", "semantica_parcial", "agregacion",
+        "requiere_referencial", "requiere_configuracion",
+        "motor_pendiente", "decision_alcance"
       )
     ),
     metrica_lupa = metrica_lupa,

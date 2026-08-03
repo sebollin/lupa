@@ -94,7 +94,7 @@ resultante puede instanciarse sobre distintas columnas o tablas.
 medición. \code{modelo()} reúne métricas instanciadas sin calcular un índice global.
 }
 \details{
-\code{metricas_nucleo()} devuelve diecinueve métricas automatizables una vez
+\code{metricas_nucleo()} devuelve veintiuna métricas automatizables una vez
 declaradas sus propiedades; \code{\link[=escala]{escala()}} y \code{\link[=vigencia]{vigencia()}} hacen explícitos los
 insumos expertos que algunas necesitan. \code{\link[=metricas_referencial]{metricas_referencial()}} aporta por
 separado las tres métricas que consumen un padrón tabular. Consulte
@@ -106,6 +106,10 @@ una real produce números finitos en \verb{[0, 1]}.
 
 En \code{ReglaIntegridadInterEntidad}, \code{entidad} y \code{atributos} se ligan como
 \code{c(referencia, dependiente)} y \code{c(clave_primaria, clave_foranea)}.
+Esta implementación calcula cobertura PK/FK como resultado real y sólo cubre
+una parte de la genérica del marco, que declara granularidad
+\code{conjuntoEntidades}, resultado booleano y admite además una expresión
+condicional. \code{\link[=catalogo_agesic]{catalogo_agesic()}} deja visible esa cobertura parcial.
 Pese a su nombre, \code{ErrorEstandar} sigue literalmente la semántica de la
 tabla 16.5 del marco y devuelve la desviación estándar muestral sin
 normalizar; exige al menos dos valores numéricos válidos. Por eso declara
@@ -134,14 +138,19 @@ alguna de las dos. En las comparaciones exactas, los \code{NA} forman parte de l
 combinación comparada.
 
 \code{DesactualizacionPorFormato} devuelve \code{TRUE} cuando el valor \strong{no} cumple el
-formato vigente. \code{OportunidadAtributoPorFecha} y
-\code{OportunidadAtributoPorIntervalo} devuelven
-\code{max(0, min(1, 1 - (t1 - t2) / (t3 - t2)))}. Exigen que \code{t3} sea posterior
-a \code{t2}; un intervalo de duración cero se rechaza porque no define el
-cociente. Se adopta un resultado real continuo para conservar cuánto margen
-de utilidad queda, aunque las tablas 16.29 y 16.30 del marco lo declaran
-booleano. Estas tres métricas omiten los valores \code{NA}: su ausencia corresponde
-a completitud y no genera una segunda medida de incumplimiento.
+formato vigente. Conforme a las tablas 16.29 y 16.30 del marco,
+\code{OportunidadAtributoPorFecha} indica si la fecha es anterior o igual a
+\code{fecha_limite}, y \code{OportunidadAtributoPorIntervalo} si pertenece al intervalo
+cerrado \verb{[inicio_vigencia, fin_vigencia]}; ambas son booleanas.
+
+\code{GradoOportunidadAtributoPorFecha} y
+\code{GradoOportunidadAtributoPorIntervalo} son extensiones propias basadas en el
+curso CPAP, no entradas adicionales del catálogo AGESIC. Conservan la fórmula
+continua \code{max(0, min(1, 1 - (t1 - t2) / (t3 - t2)))} para expresar cuánto
+margen de utilidad queda. Exigen que \code{t3} sea posterior a \code{t2}; un intervalo
+de duración cero se rechaza porque no define el cociente. Todas estas
+métricas omiten los valores \code{NA}: su ausencia corresponde a completitud y no
+genera una segunda medida de incumplimiento.
 
 \strong{Desviación documentada del marco:} en \code{DensidadPonderada}, un atributo
 más crítico recibe un coeficiente mayor y, si falta, produce una penalización
@@ -172,6 +181,24 @@ telefono_pnn <- especializar(
   expresion_regular = "^[0-9]{8}$"
 )
 
+# La métrica oficial es booleana y recibe la fecha límite Tf.
+a_tiempo <- especializar(
+  nucleo$OportunidadAtributoPorFecha,
+  nombre_especifico = "EntregaATiempo",
+  fecha_limite = as.Date("2026-06-30")
+)
+medir(
+  modelo(instanciar(a_tiempo, "entregas", "fecha")),
+  data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
+)
+
+# La extensión continua conserva cuánto margen de utilidad queda.
+grado <- especializar(
+  nucleo$GradoOportunidadAtributoPorFecha,
+  fecha_solicitud = as.Date("2026-06-01"),
+  fecha_fin_utilidad = as.Date("2026-07-01")
+)
+
 # Formato(NumeroDocumento, DNIC) se obtiene conectando un validador externo:
 # validar_ci <- uyutils::validar_ci
 # cedula_dnic <- especializar(
@@ -184,6 +211,9 @@ telefono_pnn <- especializar(
 AGESIC (2020). \emph{Marco de trabajo para la Gestión de la Calidad
 de Datos en Gobierno Digital}, versión 1.6, Presidencia de la República,
 Uruguay.
+
+Curso CPAP, material \emph{Evaluación de Calidad}: fórmula continua de
+oportunidad implementada bajo los nombres \verb{GradoOportunidadAtributo*}.
 }
 \seealso{
 \code{\link[=referencial]{referencial()}}, \code{\link[=agregar]{agregar()}}, \code{\link[=medir]{medir()}}, \code{\link[=proponer_modelo]{proponer_modelo()}}

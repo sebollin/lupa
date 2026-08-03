@@ -71,7 +71,7 @@ test_that("las métricas recorren los tres niveles mediante closures", {
   expect_error(modelo(instancia, instancia), "deben ser únicos")
 })
 
-test_that("el núcleo declara sus diecinueve métricas", {
+test_that("el núcleo declara sus veintiuna métricas", {
   nucleo <- metricas_nucleo()
   expect_named(nucleo, c(
     "NoNulo", "Formato", "ValoresPosiblesPorExtension",
@@ -80,7 +80,8 @@ test_that("el núcleo declara sus diecinueve métricas", {
     "ConjuntoAtributosDuplicado", "EntidadDuplicada",
     "DesactualizacionPorFormato", "DesactualizacionPorFecha",
     "DesactualizacionPorCambios", "OportunidadAtributoPorFecha",
-    "OportunidadAtributoPorIntervalo", "OportunidadEntPorFecha",
+    "OportunidadAtributoPorIntervalo", "GradoOportunidadAtributoPorFecha",
+    "GradoOportunidadAtributoPorIntervalo", "OportunidadEntPorFecha",
     "OportunidadEntPorIntervalo", "DensidadPonderada"
   ))
   declaraciones <- lapply(nucleo, lupa:::.declaracion_metrica)
@@ -96,15 +97,16 @@ test_that("el núcleo declara sus diecinueve métricas", {
       "instanciaAtributo", "instanciaAtributo", "instanciaEntidad",
       "instanciaEntidad", "instanciaAtributo", "instanciaAtributo",
       "instanciaAtributo", "instanciaAtributo", "instanciaAtributo",
-      "instanciaEntidad", "instanciaEntidad", "instanciaEntidad"
+      "instanciaAtributo", "instanciaAtributo", "instanciaEntidad",
+      "instanciaEntidad", "instanciaEntidad"
     )
   )
   expect_equal(
     unname(vapply(declaraciones, `[[`, character(1L), "tipo_resultado")),
     c(
       rep("booleano", 4L), "real", "numero_real", "real",
-      rep("booleano", 5L), "duracion", "entero", "real", "real",
-      "booleano", "booleano", "real"
+      rep("booleano", 5L), "duracion", "entero", "booleano", "booleano",
+      "real", "real", "booleano", "booleano", "real"
     )
   )
 

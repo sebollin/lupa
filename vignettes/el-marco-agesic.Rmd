@@ -108,11 +108,17 @@ se obtienen por agregación o requieren insumos externos.
 
 ```{r}
 catalogo <- catalogo_agesic()
-as.data.frame(table(catalogo$estado))
+as.data.frame(table(catalogo$estado, catalogo$motivo))
 catalogo[catalogo$estado == "via_agregacion", c(
   "metrica_agesic", "metrica_lupa", "implementacion"
 )]
 ```
+
+`estado` dice si la entrada está implementada, se obtiene por agregación, está
+pendiente o queda fuera del alcance tabular. `motivo` explica la causa: por
+ejemplo, distingue un motor pendiente de una implementación disponible que
+necesita un referencial o una configuración experta. La observación de cada fila
+explicita el contrato concreto y las implementaciones parciales.
 
 Un diccionario enumera valores sintácticamente válidos. Un referencial vincula
 claves y valores externos, y sólo permite medir cobertura cuando declara de qué

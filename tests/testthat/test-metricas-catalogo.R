@@ -103,15 +103,62 @@ test_that("DesactualizacionPorFormato identifica formatos obsoletos", {
   )
 })
 
-test_that("Oportunidad aplica la formula continua y acota el resultado", {
+test_that("Oportunidad del marco devuelve resultados booleanos", {
   nucleo <- metricas_nucleo()
   por_fecha <- instancia_nueva(
     nucleo$OportunidadAtributoPorFecha, "entrega",
+    fecha_limite = as.Date("2026-01-11")
+  )
+  por_intervalo <- instancia_nueva(
+    nucleo$OportunidadAtributoPorIntervalo, "entrega_2",
+    inicio_vigencia = as.POSIXct("2026-01-01", tz = "UTC"),
+    fin_vigencia = as.POSIXct("2026-01-11", tz = "UTC")
+  )
+  datos <- data.frame(
+    entrega = as.Date(c(
+      "2025-12-31", "2026-01-01", "2026-01-06", "2026-01-11",
+      "2026-01-20", NA
+    )),
+    entrega_2 = as.POSIXct(c(
+      "2025-12-31", "2026-01-01", "2026-01-06", "2026-01-11",
+      "2026-01-20", NA
+    ), tz = "UTC")
+  )
+  medicion <- medir(modelo(por_fecha, por_intervalo), datos)
+  expect_equal(
+    medicion$resultado[medicion$atributo == "entrega"], c(1, 1, 1, 1, 0)
+  )
+  expect_equal(
+    medicion$resultado[medicion$atributo == "entrega_2"], c(0, 1, 1, 1, 0)
+  )
+
+  medidas <- medicion[medicion$atributo == "entrega", , drop = FALSE]
+  expect_equal(agregar(medidas, "atributo", "ratio")$resultado, 4 / 5)
+})
+
+test_that("Oportunidad admite referencias por fila", {
+  nucleo <- metricas_nucleo()
+  especifica <- especializar(
+    nucleo$OportunidadAtributoPorFecha,
+    fecha_limite = as.Date(c("2026-01-06", "2026-02-21", "2026-03-15"))
+  )
+  instancia <- instanciar(especifica, "tabla", "entrega")
+  medicion <- medir(
+    modelo(instancia),
+    data.frame(entrega = as.Date(c("2026-01-06", NA, "2026-03-16")))
+  )
+  expect_equal(medicion$resultado, c(1, 0))
+})
+
+test_that("GradoOportunidad conserva la extension continua del curso CPAP", {
+  nucleo <- metricas_nucleo()
+  por_fecha <- instancia_nueva(
+    nucleo$GradoOportunidadAtributoPorFecha, "entrega",
     fecha_solicitud = as.Date("2026-01-01"),
     fecha_fin_utilidad = as.Date("2026-01-11")
   )
   por_intervalo <- instancia_nueva(
-    nucleo$OportunidadAtributoPorIntervalo, "entrega_2",
+    nucleo$GradoOportunidadAtributoPorIntervalo, "entrega_2",
     inicio_vigencia = as.POSIXct("2026-01-01", tz = "UTC"),
     fin_vigencia = as.POSIXct("2026-01-11", tz = "UTC")
   )
@@ -133,28 +180,12 @@ test_that("Oportunidad aplica la formula continua y acota el resultado", {
   expect_equal(
     medicion$resultado[medicion$atributo == "entrega_2"], esperado
   )
-
   medidas <- medicion[medicion$atributo == "entrega", , drop = FALSE]
   expect_equal(agregar(medidas, "atributo", "promedio")$resultado, 0.5)
   expect_equal(
     agregar(medidas, "atributo", "ratio_umbral", umbral = 0.5)$resultado,
     3 / 5
   )
-})
-
-test_that("Oportunidad admite referencias por fila", {
-  nucleo <- metricas_nucleo()
-  especifica <- especializar(
-    nucleo$OportunidadAtributoPorFecha,
-    fecha_solicitud = as.Date(c("2026-01-01", "2026-02-01", "2026-03-01")),
-    fecha_fin_utilidad = as.Date(c("2026-01-11", "2026-02-21", "2026-03-31"))
-  )
-  instancia <- instanciar(especifica, "tabla", "entrega")
-  medicion <- medir(
-    modelo(instancia),
-    data.frame(entrega = as.Date(c("2026-01-06", NA, "2026-03-16")))
-  )
-  expect_equal(medicion$resultado, c(0.5, 0.5))
 })
 
 test_that("DensidadPonderada penaliza mas el ausente critico", {
@@ -200,16 +231,21 @@ test_that("el catalogo de AGESIC contiene y clasifica 49 entradas", {
   expect_equal(nrow(catalogo), 49L)
   expect_named(catalogo, c(
     "numero", "dimension", "factor", "metrica_agesic", "clase_catalogo",
-    "estado", "metrica_lupa", "implementacion", "observacion"
+    "estado", "motivo", "metrica_lupa", "implementacion", "observacion"
   ))
   expect_equal(
-    as.integer(table(catalogo$estado)), c(28L, 8L, 1L, 12L)
+    as.integer(table(catalogo$estado)), c(28L, 8L, 3L, 10L)
   )
   expect_equal(
     levels(catalogo$estado),
+    c("implementada", "via_agregacion", "pendiente", "fuera_de_alcance")
+  )
+  expect_equal(
+    levels(catalogo$motivo),
     c(
-      "implementada", "via_agregacion", "requiere_referencial",
-      "fuera_de_alcance"
+      "semantica_completa", "semantica_parcial", "agregacion",
+      "requiere_referencial", "requiere_configuracion",
+      "motor_pendiente", "decision_alcance"
     )
   )
   ratio <- catalogo[catalogo$metrica_agesic == "RatioAtributoDuplicado", ]
@@ -221,8 +257,27 @@ test_that("el catalogo de AGESIC contiene y clasifica 49 entradas", {
   expect_match(ratio_densidad$implementacion, "ratio_umbral", fixed = TRUE)
   oportunidad <- catalogo[grepl("^OportunidadAtributo", catalogo$metrica_agesic), ]
   expect_true(all(as.character(oportunidad$estado) == "implementada"))
-  expect_true(all(grepl("real continuo", oportunidad$observacion)))
+  expect_true(all(grepl("Resultado booleano", oportunidad$observacion)))
+  expect_true(all(nzchar(catalogo$observacion)))
+  expect_false(anyNA(catalogo$observacion))
+  expect_false(anyNA(catalogo$motivo))
   expect_equal(length(unique(catalogo$numero)), 49L)
+})
+
+test_that("el catalogo distingue implementaciones parciales y motores pendientes", {
+  catalogo <- catalogo_agesic()
+  inter <- catalogo[catalogo$metrica_agesic == "ReglaIntegridadInterEntidad", ]
+  sexo <- catalogo[grepl("^ReglaIntegridadInterEntidad\\(Sexo", catalogo$metrica_agesic), ]
+  contradiccion <- catalogo[catalogo$metrica_agesic == "EntidadContradictoria", ]
+
+  expect_equal(as.character(inter$estado), "implementada")
+  expect_equal(as.character(inter$motivo), "semantica_parcial")
+  expect_match(inter$observacion, "cobertura PK/FK", fixed = TRUE)
+  expect_equal(as.character(sexo$estado), "pendiente")
+  expect_equal(as.character(sexo$motivo), "motor_pendiente")
+  expect_match(sexo$observacion, "no un referencial", fixed = TRUE)
+  expect_equal(as.character(contradiccion$estado), "pendiente")
+  expect_match(contradiccion$observacion, "No lleva marca [TD]", fixed = TRUE)
 })
 
 test_that("las configuraciones nuevas rechazan contratos invalidos", {
@@ -298,7 +353,7 @@ test_that("los vinculos y fechas nuevas se validan", {
     medir(modelo(entidad_con_atributo), data.frame(a = 1))$resultado, 0
   )
 
-  oportunidad <- nucleo$OportunidadAtributoPorFecha
+  oportunidad <- nucleo$GradoOportunidadAtributoPorFecha
   expect_error(
     especializar(
       oportunidad, fecha_solicitud = as.Date("2026-01-01"),
@@ -349,6 +404,60 @@ test_that("los vinculos y fechas nuevas se validan", {
       data.frame(entrega = as.Date(rep("2026-01-02", 3L)))
     ),
     "longitud 1"
+  )
+
+  oportunidad_marco <- nucleo$OportunidadAtributoPorFecha
+  expect_error(
+    especializar(oportunidad_marco, fecha_limite = "2026-01-01"),
+    "fechas"
+  )
+  expect_error(
+    especializar(oportunidad_marco, fecha_limite = as.Date(NA)),
+    "no ausentes"
+  )
+  limite_corto <- instancia_nueva(
+    oportunidad_marco, "entrega",
+    fecha_limite = as.Date(c("2026-01-01", "2026-01-02"))
+  )
+  expect_error(
+    medir(
+      modelo(limite_corto),
+      data.frame(entrega = as.Date(rep("2026-01-01", 3L)))
+    ),
+    "longitud 1"
+  )
+  intervalo_marco <- nucleo$OportunidadAtributoPorIntervalo
+  expect_error(
+    especializar(
+      intervalo_marco,
+      inicio_vigencia = "2026-01-01",
+      fin_vigencia = as.Date("2026-01-02")
+    ),
+    "fechas no ausentes"
+  )
+  expect_error(
+    especializar(
+      intervalo_marco,
+      inicio_vigencia = as.Date(c("2026-01-01", "2026-01-02")),
+      fin_vigencia = as.Date(c("2026-01-03", "2026-01-04", "2026-01-05"))
+    ),
+    "longitudes compatibles"
+  )
+  expect_error(
+    especializar(
+      intervalo_marco,
+      inicio_vigencia = as.Date("2026-01-02"),
+      fin_vigencia = as.Date("2026-01-01")
+    ),
+    "invertido"
+  )
+  expect_s3_class(
+    especializar(
+      intervalo_marco,
+      inicio_vigencia = as.Date("2026-01-01"),
+      fin_vigencia = as.Date("2026-01-01")
+    ),
+    "metrica_especifica"
   )
 })
 
