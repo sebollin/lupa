@@ -33,6 +33,9 @@
   if (inherits(x, "sfc")) {
     return(class(x)[[1L]])
   }
+  if (is.matrix(x)) {
+    return("matriz")
+  }
   if (inherits(x, "integer64")) {
     return("integer64")
   }
@@ -71,12 +74,31 @@
     return(NA_character_)
   }
   if (inherits(x, "POSIXt")) {
-    return(format(x[[1L]], "%Y-%m-%d %H:%M:%S", tz = "UTC"))
+    return(format(x[[1L]], "%Y-%m-%d %H:%M:%S UTC", tz = "UTC"))
   }
   if (inherits(x, "Date")) {
     return(format(x[[1L]], "%Y-%m-%d"))
   }
   as.character(x[[1L]])
+}
+
+.texto_analizable <- function(x) {
+  if (!is.character(x) && !is.factor(x)) {
+    return(list(
+      valores = x, invalidos = rep(FALSE, length(x)), posiciones = integer()
+    ))
+  }
+  valores <- as.character(x)
+  invalidos <- !is.na(valores) & !validUTF8(valores)
+  posiciones <- which(invalidos)
+  if (length(posiciones)) valores[posiciones] <- NA_character_
+  list(valores = valores, invalidos = invalidos, posiciones = posiciones)
+}
+
+.columnas_identicas <- function(x, y) {
+  identical(class(x), class(y)) &&
+    identical(is.na(x), is.na(y)) &&
+    identical(x, y)
 }
 
 .nombre_paquete <- function() {

@@ -143,7 +143,7 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
   for (i in seq_len(nrow(perfil$columnas))) {
     fila <- perfil$columnas[i, , drop = FALSE]
     columna <- fila$columna[[1L]]
-    if (fila$n_faltantes_totales[[1L]] > 0L) {
+    if (isTRUE(fila$n_faltantes_totales[[1L]] > 0L)) {
       hallazgo <- perfil$hallazgos[
         perfil$hallazgos$columna == columna &
           perfil$hallazgos$tipo_hallazgo %in%
@@ -200,7 +200,8 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
         fila$n_distintos[[1L]] >= 2L &&
         fila$n_distintos[[1L]] <= max_valores_dominio &&
         is.finite(fila$tasa_distintos[[1L]]) && fila$tasa_distintos[[1L]] <= 0.5) {
-      valores <- unique(datos[[columna]][!is.na(datos[[columna]])])
+      valores_dominio <- .texto_analizable(datos[[columna]])$valores
+      valores <- unique(valores_dominio[!is.na(valores_dominio)])
       agregar_sugerencia(.nueva_sugerencia(
         "baja", FALSE, "ValoresPosiblesPorExtension", entidad, columna,
         "perfil:dominio_observado",

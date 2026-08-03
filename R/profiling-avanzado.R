@@ -16,7 +16,7 @@
 }
 
 .frecuencias_columna <- function(x, max_valores, muestra, protegida) {
-  if (is.list(x) && !is.factor(x)) {
+  if (is.matrix(x) || (is.list(x) && !is.factor(x))) {
     return(list(tabla = NULL, meta = c(
       analizados = 0, distintos = NA, mostrados = 0, truncado = FALSE,
       muestreado = FALSE, estado = "tipo_no_comparable"
@@ -34,6 +34,16 @@
     )))
   }
   textos <- .valores_relacion(valores)
+  textos <- textos[!is.na(textos)]
+  if (!length(textos)) {
+    return(list(tabla = data.frame(
+      valor = character(), frecuencia = integer(), proporcion = numeric(),
+      stringsAsFactors = FALSE
+    ), meta = c(
+      analizados = 0, distintos = 0, mostrados = 0, truncado = FALSE,
+      muestreado = muestreo$muestreado, estado = "sin_valores_analizables"
+    )))
+  }
   unicos <- unique(textos)
   conteos <- tabulate(match(textos, unicos), nbins = length(unicos))
   orden <- order(-conteos, seq_along(conteos))
@@ -130,7 +140,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
     }
     meta <- resumen$meta
     alcance[[i]] <- data.frame(
-      columna = nombre, n_total = length(datos[[i]]),
+      columna = nombre, n_total = NROW(datos[[i]]),
       n_analizados = as.numeric(meta[["analizados"]]),
       n_distintos_muestra = as.numeric(meta[["distintos"]]),
       n_mostrados = as.numeric(meta[["mostrados"]]),
@@ -140,7 +150,8 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
       estado = as.character(meta[["estado"]]), stringsAsFactors = FALSE
     )
     x <- datos[[i]]
-    if (is.numeric(x) && !inherits(x, c("Date", "POSIXt", "integer64"))) {
+    if (is.numeric(x) && !is.matrix(x) &&
+        !inherits(x, c("Date", "POSIXt", "integer64"))) {
       muestra_x <- .muestrear_vector(x, limite)
       finitos <- muestra_x$valores[is.finite(muestra_x$valores)]
       if (length(finitos)) {
@@ -182,7 +193,9 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 }
 
 .tipo_asociacion <- function(x, max_niveles) {
-  if (inherits(x, c("Date", "POSIXt", "integer64")) || is.list(x)) return(NA_character_)
+  if (inherits(x, c("Date", "POSIXt", "integer64")) || is.list(x) ||
+      is.matrix(x)) return(NA_character_)
+  if (is.character(x) || is.factor(x)) x <- .texto_analizable(x)$valores
   presentes <- x[!is.na(x)]
   distintos <- length(unique(presentes))
   if (length(presentes) < 2L || distintos < 2L) return(NA_character_)
@@ -289,6 +302,8 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
       }
       x <- muestra_datos[[i]]
       y <- muestra_datos[[j]]
+      if (is.character(x) || is.factor(x)) x <- .texto_analizable(x)$valores
+      if (is.character(y) || is.factor(y)) y <- .texto_analizable(y)$valores
       completos <- !is.na(x) & !is.na(y)
       if (sum(completos) < 3L) next
       x <- x[completos]
@@ -379,9 +394,12 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
 
 #' Examinar regularidad y cobertura temporal
 #'
-#' Para cada columna temporal propone una frecuencia en días, con una confianza
-#' basada en la proporción de intervalos observados que coincide con la moda.
-#' La propuesta nunca queda confirmada automáticamente. `calendario` usa días
+#' Para cada columna temporal propone una frecuencia en días. La confianza es
+#' el mínimo entre la contigüidad de las fechas sobre la grilla propuesta y la
+#' cobertura del período: una coincidencia breve dentro de una serie muy
+#' dispersa no puede producir confianza alta. Ambas componentes se devuelven
+#' para que la propuesta sea auditable. La propuesta nunca queda confirmada
+#' automáticamente. `calendario` usa días
 #' ISO: 1 es lunes y 7 domingo; así una oficina puede declarar `1:5` sin que la
 #' ausencia de fines de semana se interprete como hueco. Las fechas-hora se
 #' llevan a fecha civil en UTC para que el resultado no dependa de la zona del
@@ -471,11 +489,14 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
     faltantes <- setdiff(esperadas, unicas)
     fuera_calendario <- unicas[!.dia_semana_iso(unicas) %in% calendario]
     indices_observados <- match(unicas[unicas %in% esperadas], esperadas)
-    confianza <- if (length(indices_observados) > 1L) {
+    contiguidad <- if (length(indices_observados) > 1L) {
       mean(diff(indices_observados) == 1L)
     } else NA_real_
     cobertura <- if (length(esperadas)) {
       sum(esperadas %in% unicas) / length(esperadas)
+    } else NA_real_
+    confianza <- if (is.finite(contiguidad) && is.finite(cobertura)) {
+      min(contiguidad, cobertura)
     } else NA_real_
     truncado <- FALSE
     grupos <- list()
@@ -516,6 +537,7 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
     )
     propuestas[[i]] <- data.frame(
       columna = nombre, frecuencia_dias = frecuencia, confianza = confianza,
+      contiguidad = contiguidad, cobertura_periodo = cobertura,
       calendario = paste(calendario, collapse = ","), confirmada = FALSE,
       evidencia = if (is.finite(frecuencia)) paste0(
         "Moda de intervalos: ", frecuencia, " dias; ", length(positivas),
@@ -545,6 +567,7 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
   )
   vacio_prop <- data.frame(
     columna = character(), frecuencia_dias = numeric(), confianza = numeric(),
+    contiguidad = numeric(), cobertura_periodo = numeric(),
     calendario = character(), confirmada = logical(), evidencia = character(),
     stringsAsFactors = FALSE
   )

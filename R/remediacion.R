@@ -1205,8 +1205,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
 }
 
 .contenido_igual <- function(x, y) {
-  if (length(x) != length(y) || !identical(is.na(x), is.na(y))) return(FALSE)
-  identical(as.character(x[!is.na(x)]), as.character(y[!is.na(y)]))
+  .columnas_identicas(x, y)
 }
 
 .validar_nombres_iniciales <- function(plan, datos) {

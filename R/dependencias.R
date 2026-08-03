@@ -124,7 +124,9 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
       is.na(incluir_claves)) {
     stop("`incluir_claves` debe ser un l\u00f3gico escalar sin NA.", call. = FALSE)
   }
-  analizables <- which(!vapply(datos, is.list, logical(1L)))
+  analizables <- which(!vapply(datos, function(x) {
+    is.list(x) || is.matrix(x)
+  }, logical(1L)))
   seleccion <- utils::head(analizables, as.integer(max_columnas))
   nombres <- make.unique(names(datos))
   muestreo <- .muestrear_vector(seq_len(nrow(datos)), limite)

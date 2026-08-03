@@ -36,6 +36,14 @@
 }
 
 .propuesta_escala <- function(x, tipo_implicito) {
+  if (is.matrix(x)) return(list(
+    escala = "desconocida", rol = "desconocido", confianza = NA_real_,
+    confirmada = FALSE,
+    evidencia = paste0(
+      "La columna es matricial; sus componentes deben separarse antes de ",
+      "declarar una escala de medici\u00f3n."
+    )
+  ))
   medida <- attr(x, "measure", exact = TRUE)
   if (is.character(medida) && length(medida) == 1L &&
       medida %in% c("nominal", "ordinal", "scale")) {
@@ -235,7 +243,8 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
     } else if (is.factor(x)) levels(x) else character()
     guardar_niveles <- propuesta$escala %in% c("nominal", "ordinal", "binaria")
     muestreo <- .muestrear_vector(x, limite)
-    muestra_texto <- as.character(muestreo$valores[!is.na(muestreo$valores)])
+    muestra_segura <- .texto_analizable(muestreo$valores)$valores
+    muestra_texto <- as.character(muestra_segura[!is.na(muestra_segura)])
     observados <- if (!guardar_niveles) {
       character()
     } else if (is.factor(x)) {
@@ -245,7 +254,8 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
       unique(muestra_texto)
     }
     presentes_declarados <- if (length(declarados)) {
-      declarados %in% as.character(x[!is.na(x)])
+      valores_seguros <- .texto_analizable(x)$valores
+      declarados %in% as.character(valores_seguros[!is.na(valores_seguros)])
     } else logical()
     ausentes <- declarados[!presentes_declarados]
     observados <- unique(c(declarados[presentes_declarados], observados))

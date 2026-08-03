@@ -21,8 +21,7 @@
   iguales <- apply(pares, 2L, function(indice) {
     x <- datos[[indice[[1L]]]]
     y <- datos[[indice[[2L]]]]
-    identical(is.na(x), is.na(y)) &&
-      identical(as.character(x), as.character(y))
+    .columnas_identicas(x, y)
   })
   pares <- pares[, iguales, drop = FALSE]
   if (!ncol(pares)) {
@@ -45,8 +44,10 @@
 #' pequeña. Una clave exige ausencia de `NA` y unicidad en todas las filas.
 #'
 #' Dos claves simples se marcan como redundantes cuando sus contenidos son
-#' idénticos, aunque tengan nombres distintos. Los pares también quedan en el
-#' atributo `claves_redundantes`.
+#' idénticos —incluidas clase, atributos, ausencias y representación exacta—,
+#' aunque tengan nombres distintos. Las columnas matriciales o de lista no se
+#' interpretan como claves. Los pares también quedan en el atributo
+#' `claves_redundantes`.
 #'
 #' @param datos Objeto que hereda de `data.frame`.
 #' @param max_combinacion Máximo de columnas por combinación, entre 1 y 3.
@@ -69,11 +70,14 @@ detectar_claves <- function(datos, max_combinacion = 3) {
   nombres <- make.unique(names(datos))
   encontradas <- list()
   k <- 0L
-  limite <- min(floor(max_combinacion), ncol(datos))
+  analizables <- which(!vapply(datos, function(x) {
+    is.list(x) || is.matrix(x)
+  }, logical(1L)))
+  limite <- min(floor(max_combinacion), length(analizables))
 
   if (nrow(datos) > 0L && limite > 0L) {
     for (tamano in seq_len(limite)) {
-      combinaciones <- utils::combn(seq_len(ncol(datos)), tamano, simplify = FALSE)
+      combinaciones <- utils::combn(analizables, tamano, simplify = FALSE)
       for (combinacion in combinaciones) {
         contiene_clave <- any(vapply(encontradas, function(clave) {
           all(clave %in% combinacion)
@@ -127,7 +131,7 @@ detectar_claves <- function(datos, max_combinacion = 3) {
   if (inherits(x, "Date")) {
     return(format(x, "%Y-%m-%d"))
   }
-  as.character(x)
+  .texto_analizable(x)$valores
 }
 
 .resumir_columna_relacion <- function(x, muestra) {

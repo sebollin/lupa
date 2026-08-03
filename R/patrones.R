@@ -50,7 +50,7 @@ descubrir_patrones <- function(x,
   }
 
   muestra_x <- .muestrear_vector(x, muestra)
-  valores <- muestra_x$valores
+  valores <- .texto_analizable(muestra_x$valores)$valores
   es_na <- is.na(valores)
   if (na.rm) {
     valores <- valores[!es_na]

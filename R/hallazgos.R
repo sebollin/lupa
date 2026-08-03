@@ -38,9 +38,32 @@
     resultado <- resultados[[i]]
     fila <- resultado$fila
     nombre <- columnas[[i]]
-    n_validos <- fila$n - fila$n_faltantes
+    n_invalidos <- if ("n_codificacion_invalida" %in% names(fila) &&
+        is.finite(fila$n_codificacion_invalida)) {
+      fila$n_codificacion_invalida
+    } else {
+      0L
+    }
+    n_validos <- fila$n - fila$n_faltantes - n_invalidos
 
-    if (!is.na(fila$n_distintos) && fila$n_distintos == 1L && n_validos > 1L) {
+    if (identical(fila$estado_estadisticos, "tipo_compuesto_no_analizado")) {
+      estructura <- resultado$estructura_no_analizada
+      agregar(.nuevo_hallazgo(
+        nombre, "tipo_compuesto_no_analizado", "sospechoso",
+        paste0(
+          "La columna contiene una matriz por fila; no se aplan\u00f3 porque mezclar ",
+          "sus componentes inventar\u00eda una sem\u00e1ntica de celda."
+        ),
+        paste0(
+          estructura$filas, " filas y ", estructura$componentes,
+          " componentes por fila; m\u00e9tricas por valor en NA."
+        ),
+        "Separar los componentes en columnas con significado expl\u00edcito antes de perfilarlos."
+      ))
+    }
+
+    if (!is.na(fila$n_distintos) && fila$n_distintos == 1L &&
+        isTRUE(n_validos > 1L)) {
       agregar(.nuevo_hallazgo(
         nombre, "constante", "sospechoso",
         "La columna contiene un \u00fanico valor no ausente.",
@@ -49,7 +72,7 @@
       ))
     }
 
-    if (n_validos > 1L && fila$tipo_inferido == "identificador" &&
+    if (isTRUE(n_validos > 1L) && fila$tipo_inferido == "identificador" &&
         is.finite(fila$tasa_distintos) && fila$tasa_distintos >= 0.9) {
       agregar(.nuevo_hallazgo(
         nombre, "posible_identificador", "ok",
@@ -97,7 +120,7 @@
       ))
     }
 
-    if (fila$n_faltantes_disfrazados > 0L) {
+    if (isTRUE(fila$n_faltantes_disfrazados > 0L)) {
       solo_numericos <- resultado$faltantes_disfrazados$n_textuales == 0L
       agregar(.nuevo_hallazgo(
         nombre, "faltantes_disfrazados",
@@ -197,7 +220,7 @@
       }
     }
 
-    if (fila$n_espacios_borde > 0L) {
+    if (isTRUE(fila$n_espacios_borde > 0L)) {
       agregar(.nuevo_hallazgo(
         nombre, "espacios_sobrantes", "sospechoso",
         "Hay texto con espacios sobrantes al inicio o al final.",
@@ -208,7 +231,7 @@
         "Aplicar trimws() despu\u00e9s de confirmar que los espacios no son significativos."
       ))
     }
-    if (fila$n_variantes_mayusculas > 0L) {
+    if (isTRUE(fila$n_variantes_mayusculas > 0L)) {
       agregar(.nuevo_hallazgo(
         nombre, "mayusculas_inconsistentes", "sospechoso",
         "Conviven valores que s\u00f3lo se diferencian por may\u00fasculas y min\u00fasculas.",
@@ -230,12 +253,26 @@
         )
       ))
     }
-    if (fila$n_codificacion_rota > 0L) {
+    if (isTRUE(fila$n_codificacion_invalida > 0L)) {
+      agregar(.nuevo_hallazgo(
+        nombre, "codificacion_invalida", "error",
+        paste0(
+          "Hay texto con secuencias de bytes que no forman UTF-8 v\u00e1lido; ",
+          "esos valores se excluyeron de los an\u00e1lisis textuales."
+        ),
+        resultado$diagnostico_texto$evidencia_codificacion_invalida,
+        paste0(
+          "Volver a leer la fuente declarando su codificaci\u00f3n original; no ",
+          "reinterpretar ni reemplazar los bytes sin ese dato."
+        )
+      ))
+    }
+    if (isTRUE(fila$n_codificacion_rota > 0L)) {
       agregar(.nuevo_hallazgo(
         nombre, "codificacion_rota", "error",
         "Hay texto con se\u00f1ales de una conversi\u00f3n de codificaci\u00f3n incorrecta.",
         resultado$diagnostico_texto$evidencia_codificacion,
-        if (fila$n_codificacion_reparable > 0L) {
+        if (isTRUE(fila$n_codificacion_reparable > 0L)) {
           paste0(
             "Reparar s\u00f3lo los valores cuyo viaje UTF-8 a latin1 cierra en ",
             "texto UTF-8 v\u00e1lido; revisar manualmente los caracteres perdidos."
@@ -245,7 +282,7 @@
         }
       ))
     }
-    if (fila$n_numeros_texto > 0L &&
+    if (isTRUE(fila$n_numeros_texto > 0L) &&
         is.finite(fila$proporcion_numeros_texto) &&
         fila$proporcion_numeros_texto >= 0.8) {
       agregar(.nuevo_hallazgo(
@@ -290,7 +327,7 @@
     }
 
     n_inf <- fila$n_infinito_positivo + fila$n_infinito_negativo
-    if (n_inf > 0L || fila$n_nan > 0L) {
+    if (isTRUE(n_inf > 0L) || isTRUE(fila$n_nan > 0L)) {
       agregar(.nuevo_hallazgo(
         nombre, "valores_no_finitos", "error",
         paste0(
@@ -411,15 +448,7 @@
   iguales <- apply(pares, 2L, function(indice) {
     x <- datos[[indice[[1L]]]]
     y <- datos[[indice[[2L]]]]
-    if (length(x) != length(y)) {
-      return(FALSE)
-    }
-    na_x <- is.na(x)
-    na_y <- is.na(y)
-    if (!identical(na_x, na_y)) {
-      return(FALSE)
-    }
-    identical(as.character(x[!na_x]), as.character(y[!na_y]))
+    .columnas_identicas(x, y)
   })
   pares <- pares[, iguales, drop = FALSE]
   if (!ncol(pares)) {

@@ -36,9 +36,12 @@ Objeto \code{analisis_temporal} con \code{resumen}, \code{dias_semana}, \code{hu
 atributos del objeto.
 }
 \description{
-Para cada columna temporal propone una frecuencia en días, con una confianza
-basada en la proporción de intervalos observados que coincide con la moda.
-La propuesta nunca queda confirmada automáticamente. \code{calendario} usa días
+Para cada columna temporal propone una frecuencia en días. La confianza es
+el mínimo entre la contigüidad de las fechas sobre la grilla propuesta y la
+cobertura del período: una coincidencia breve dentro de una serie muy
+dispersa no puede producir confianza alta. Ambas componentes se devuelven
+para que la propuesta sea auditable. La propuesta nunca queda confirmada
+automáticamente. \code{calendario} usa días
 ISO: 1 es lunes y 7 domingo; así una oficina puede declarar \code{1:5} sin que la
 ausencia de fines de semana se interprete como hueco. Las fechas-hora se
 llevan a fecha civil en UTC para que el resultado no dependa de la zona del

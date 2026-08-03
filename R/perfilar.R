@@ -37,6 +37,16 @@
 #' los extremos exactos se conservan en `minimo_exacto` y `maximo_exacto`.
 #' Una columna de listas intenta contar sus valores distintos; si la clase no
 #' admite comparación, informa `NA` en lugar de afirmar cero.
+#' Las columnas matriciales se conservan como una unidad por fila: `n` informa
+#' las filas de la tabla, pero los estadísticos por valor quedan en `NA` y un
+#' hallazgo explica que deben separarse en columnas con semántica explícita.
+#' Los valores de texto que no forman UTF-8 válido tampoco se convierten: se
+#' cuentan, se excluyen de los análisis textuales y generan un hallazgo con sus
+#' posiciones.
+#'
+#' Los resúmenes de fecha-hora se expresan siempre en UTC y llevan el sufijo
+#' `UTC` en el texto para hacer visible la zona aplicada. El instante se
+#' conserva aunque la columna de entrada use otra zona horaria.
 #'
 #' La normalización Unicode se compara sin modificar el texto y requiere el
 #' paquete opcional `stringi` sólo cuando existen caracteres no ASCII. La

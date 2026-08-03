@@ -170,6 +170,26 @@ test_that("el calendario laboral no inventa huecos de fin de semana", {
   expect_equal(con_domingo$resumen$n_fechas_fuera_calendario, 1L)
 })
 
+test_that("la confianza temporal no excede la cobertura observada", {
+  fechas <- as.Date("2024-01-01") + c(0, 3, 17, 40, 95, 200)
+  resultado <- analizar_tiempo(data.frame(fecha = fechas))
+
+  expect_equal(resultado$propuestas$contiguidad, 1)
+  expect_equal(
+    resultado$propuestas$cobertura_periodo,
+    resultado$resumen$cobertura_periodo
+  )
+  expect_equal(
+    resultado$propuestas$confianza,
+    min(
+      resultado$propuestas$contiguidad,
+      resultado$propuestas$cobertura_periodo
+    )
+  )
+  expect_lt(resultado$propuestas$confianza, 0.04)
+  expect_false(resultado$propuestas$confirmada)
+})
+
 test_that("el analisis temporal maneja texto, ambiguedad y recortes", {
   datos <- data.frame(
     iso = c("2026-01-01", "2026-01-03"),

@@ -64,13 +64,14 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   mascara_numerica <- rep(FALSE, n)
   numeros_na <- .numeros_na(sentinelas_numericos)
   if (is.character(x) || is.factor(x)) {
-    normalizados <- tolower(trimws(as.character(x)))
+    textos <- .texto_analizable(x)$valores
+    normalizados <- tolower(trimws(textos))
     mascara_textual <- !is.na(normalizados) & normalizados %in% .cadenas_na()
     numericos <- suppressWarnings(as.numeric(normalizados))
     mascara_numerica <- !is.na(normalizados) & !is.na(numericos) &
       numericos %in% numeros_na
     mascara <- mascara_textual | mascara_numerica
-    etiquetas <- as.character(x[mascara])
+    etiquetas <- textos[mascara]
     etiquetas[trimws(etiquetas) == ""] <- "<blanco>"
   } else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt"))) {
     mascara_numerica <- !is.na(x) & x %in% numeros_na

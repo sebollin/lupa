@@ -22,8 +22,10 @@ pequeña. Una clave exige ausencia de \code{NA} y unicidad en todas las filas.
 }
 \details{
 Dos claves simples se marcan como redundantes cuando sus contenidos son
-idénticos, aunque tengan nombres distintos. Los pares también quedan en el
-atributo \code{claves_redundantes}.
+idénticos —incluidas clase, atributos, ausencias y representación exacta—,
+aunque tengan nombres distintos. Las columnas matriciales o de lista no se
+interpretan como claves. Los pares también quedan en el atributo
+\code{claves_redundantes}.
 }
 \examples{
 detectar_claves(data.frame(id = 1:4, grupo = c("a", "a", "b", "b")))

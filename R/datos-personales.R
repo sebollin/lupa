@@ -1,11 +1,14 @@
 .proporcion_compatible <- function(x, patron) {
-  valores <- trimws(as.character(x))
+  valores <- trimws(.texto_analizable(x)$valores)
   presentes <- !is.na(valores) & nzchar(valores)
   if (!any(presentes)) return(NA_real_)
   mean(grepl(patron, valores[presentes], perl = TRUE))
 }
 
 .clasificar_dato_personal <- function(x, nombre, inferencia) {
+  if (is.matrix(x)) {
+    return(list(tipo = NA_character_, proporcion = NA_real_, fundamento = ""))
+  }
   normalizado <- .normalizar_nombre_fecha(nombre)
   reglas_nombre <- c(
     cedula = "(^|_)(cedula|ci|documento_identidad|numero_documento|nro_documento)($|_)",
@@ -18,7 +21,7 @@
   por_nombre <- names(reglas_nombre)[vapply(
     reglas_nombre, grepl, logical(1L), x = normalizado, perl = TRUE
   )]
-  textos <- trimws(as.character(x))
+  textos <- trimws(.texto_analizable(x)$valores)
   presentes <- !is.na(textos) & nzchar(textos)
   proporcion_correo <- if ("correo" %in% por_nombre ||
     any(grepl("@", textos[presentes], fixed = TRUE))) {

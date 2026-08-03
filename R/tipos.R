@@ -50,7 +50,8 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
     return(.inferencia(declarada, n, n, muestreo, candidatos))
   }
 
-  valores <- trimws(as.character(muestreo$valores))
+  valores <- .texto_analizable(muestreo$valores)$valores
+  valores <- trimws(valores)
   valores <- valores[!is.na(valores) & nzchar(valores)]
   n <- length(valores)
   if (!n) {

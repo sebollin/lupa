@@ -112,7 +112,7 @@
   }
   format(
     as.POSIXct(valor, origin = "1970-01-01", tz = "UTC"),
-    "%Y-%m-%d %H:%M:%S", tz = "UTC"
+    "%Y-%m-%d %H:%M:%S UTC", tz = "UTC"
   )
 }
 
@@ -315,12 +315,24 @@
     n_codificacion_rota = 0L,
     n_codificacion_reparable = 0L,
     n_codificacion_irreparable = 0L,
-    evidencia_codificacion = ""
+    evidencia_codificacion = "",
+    n_codificacion_invalida = 0L,
+    evidencia_codificacion_invalida = ""
   )
   if (!is.character(x) && !is.factor(x)) {
     return(vacio)
   }
-  textos <- as.character(x)
+  preparacion <- .texto_analizable(x)
+  textos <- preparacion$valores
+  vacio$n_codificacion_invalida <- length(preparacion$posiciones)
+  if (length(preparacion$posiciones)) {
+    mostradas <- utils::head(preparacion$posiciones, 8L)
+    vacio$evidencia_codificacion_invalida <- paste0(
+      length(preparacion$posiciones), " valores; filas: ",
+      paste(mostradas, collapse = ", "),
+      if (length(preparacion$posiciones) > length(mostradas)) ", ..." else ""
+    )
+  }
   validos <- !is.na(textos)
   if (!any(validos)) {
     return(vacio)
@@ -370,7 +382,9 @@
     n_codificacion_rota = codificacion$n,
     n_codificacion_reparable = codificacion$n_reparables,
     n_codificacion_irreparable = codificacion$n_irreparables,
-    evidencia_codificacion = codificacion$evidencia
+    evidencia_codificacion = codificacion$evidencia,
+    n_codificacion_invalida = length(preparacion$posiciones),
+    evidencia_codificacion_invalida = vacio$evidencia_codificacion_invalida
   )
 }
 
@@ -388,14 +402,22 @@
                               distinguir_mayusculas, expandir,
                               umbral_patron_raro,
                               sentinelas_numericos) {
-  inferencia <- inferir_tipo(x, muestra = muestra)
+  if (is.matrix(x)) {
+    return(.perfilar_columna_matriz(
+      x, nombre, muestra, max_patrones, distinguir_mayusculas, expandir,
+      umbral_patron_raro, sentinelas_numericos
+    ))
+  }
+  preparacion_texto <- .texto_analizable(x)
+  x_analisis <- preparacion_texto$valores
+  inferencia <- inferir_tipo(x_analisis, muestra = muestra)
   formatos <- inferencia$formatos_fecha
   if (is.null(formatos)) {
-    formatos <- detectar_formatos_fecha(x, muestra = muestra)
+    formatos <- detectar_formatos_fecha(x_analisis, muestra = muestra)
   }
-  patrones <- if (is.character(x) || is.factor(x)) {
+  patrones <- if (is.character(x_analisis) || is.factor(x_analisis)) {
     descubrir_patrones(
-      x,
+      x_analisis,
       distinguir_mayusculas = distinguir_mayusculas,
       expandir = expandir,
       max_patrones = max_patrones,
@@ -411,19 +433,20 @@
     estructura
   }
   faltantes_disfrazados <- .detectar_faltantes_disfrazados(
-    x, sentinelas_numericos = sentinelas_numericos
+    x_analisis, sentinelas_numericos = sentinelas_numericos
   )
   n <- length(x)
   n_faltantes <- sum(is.na(x))
-  n_validos <- n - n_faltantes
-  n_distintos <- .n_distintos_columna(x)
-  moda <- .moda_columna(x)
-  longitudes <- .resumen_longitud(x)
-  cuantitativo <- .resumen_cuantitativo(x, inferencia, formatos)
+  n_codificacion_invalida <- length(preparacion_texto$posiciones)
+  n_validos <- n - n_faltantes - n_codificacion_invalida
+  n_distintos <- .n_distintos_columna(x_analisis)
+  moda <- .moda_columna(x_analisis)
+  longitudes <- .resumen_longitud(x_analisis)
+  cuantitativo <- .resumen_cuantitativo(x_analisis, inferencia, formatos)
   diagnostico_texto <- .diagnosticar_texto(x)
-  numeros_texto <- .analizar_numeros_texto(x)
-  n_blancos <- if (is.character(x) || is.factor(x)) {
-    sum(!is.na(x) & !nzchar(trimws(as.character(x))))
+  numeros_texto <- .analizar_numeros_texto(x_analisis)
+  n_blancos <- if (is.character(x_analisis) || is.factor(x_analisis)) {
+    sum(!is.na(x_analisis) & !nzchar(trimws(as.character(x_analisis))))
   } else {
     0L
   }
@@ -480,6 +503,7 @@
     n_codificacion_rota = diagnostico_texto$n_codificacion_rota,
     n_codificacion_reparable = diagnostico_texto$n_codificacion_reparable,
     n_codificacion_irreparable = diagnostico_texto$n_codificacion_irreparable,
+    n_codificacion_invalida = diagnostico_texto$n_codificacion_invalida,
     n_numeros_texto = numeros_texto$n,
     proporcion_numeros_texto = numeros_texto$proporcion,
     numero_texto_ambiguo = numeros_texto$ambiguo,
@@ -497,4 +521,60 @@
     diagnostico_texto = diagnostico_texto,
     numeros_texto = numeros_texto
   )
+}
+
+.perfilar_columna_matriz <- function(x, nombre, muestra, max_patrones,
+                                     distinguir_mayusculas, expandir,
+                                     umbral_patron_raro,
+                                     sentinelas_numericos) {
+  resultado <- .perfilar_columna(
+    rep(NA_character_, NROW(x)), nombre, muestra, max_patrones,
+    distinguir_mayusculas, expandir, umbral_patron_raro,
+    sentinelas_numericos
+  )
+  fila <- resultado$fila
+  fila$tipo_declarado <- "matriz"
+  fila$tipo_inferido <- "desconocido"
+  fila$proporcion_tipo_inferido <- NA_real_
+  fila$n <- NROW(x)
+  enteros_na <- c(
+    "n_faltantes", "n_faltantes_disfrazados",
+    "n_faltantes_disfrazados_textuales",
+    "n_faltantes_disfrazados_numericos", "n_faltantes_totales",
+    "n_distintos", "frecuencia_moda", "n_ceros", "n_negativos",
+    "n_outliers", "n_nan", "n_infinito_positivo", "n_infinito_negativo",
+    "n_blancos", "n_espacios_borde", "n_variantes_mayusculas",
+    "n_variantes_unicode", "n_codificacion_rota",
+    "n_codificacion_reparable", "n_codificacion_irreparable",
+    "n_codificacion_invalida", "n_numeros_texto"
+  )
+  fila[enteros_na] <- NA_integer_
+  reales_na <- c(
+    "prop_faltantes", "prop_faltantes_disfrazados",
+    "prop_faltantes_totales", "tasa_distintos", "longitud_minima",
+    "longitud_maxima", "longitud_media", "minimo", "maximo", "media",
+    "mediana", "desvio", "proporcion_numeros_texto"
+  )
+  fila[reales_na] <- NA_real_
+  fila$moda <- NA_character_
+  fila$minimo_exacto <- NA_character_
+  fila$maximo_exacto <- NA_character_
+  fila$minimo_fecha <- NA_character_
+  fila$maximo_fecha <- NA_character_
+  fila$media_fecha <- NA_character_
+  fila$mediana_fecha <- NA_character_
+  fila$estado_estadisticos <- "tipo_compuesto_no_analizado"
+  fila$numero_texto_ambiguo <- FALSE
+  fila$numero_texto_seguro <- FALSE
+  fila$numero_texto_unidad <- ""
+  resultado$fila <- fila
+  resultado$inferencia$tipo <- "desconocido"
+  resultado$inferencia$proporcion <- NA_real_
+  resultado$inferencia$compatibles <- 0L
+  resultado$inferencia$n_analizados <- 0L
+  resultado$estructura_no_analizada <- list(
+    tipo = "matriz", filas = NROW(x), componentes = NCOL(x),
+    dimensiones = dim(x)
+  )
+  resultado
 }

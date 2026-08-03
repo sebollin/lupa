@@ -32,8 +32,8 @@ test_that("microsegundos y offsets ISO 8601 se reconocen sin perder UTC", {
   perfil <- perfilar(
     data.frame(f = valores[2:3]), analizar_dependencias = FALSE
   )
-  expect_equal(perfil$columnas$minimo_fecha, "2023-11-30 08:30:00")
-  expect_equal(perfil$columnas$maximo_fecha, "2023-11-30 11:30:00")
+  expect_equal(perfil$columnas$minimo_fecha, "2023-11-30 08:30:00 UTC")
+  expect_equal(perfil$columnas$maximo_fecha, "2023-11-30 11:30:00 UTC")
 })
 
 test_that("integer64 fuera de double se resume sin inventar extremos", {
@@ -314,6 +314,93 @@ test_that("POSIXct conserva tipo y rango plausibles", {
     analizar_dependencias = FALSE
   )
   expect_equal(ordenado$columnas$tipo_declarado, "factor-ordenado")
+})
+
+test_that("las columnas duplicadas son idénticas en valores y atributos", {
+  x <- c(1 + 2^-52, 2 + 2^-52, 3 + 2^-52)
+  y <- c(1 + 2 * 2^-52, 2 + 2 * 2^-52, 3 + 2 * 2^-52)
+  datos <- data.frame(x = x, y = y, copia = x)
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  pares <- perfil$general$columnas_duplicadas
+
+  expect_false(any(
+    (pares$columna_1 == "x" & pares$columna_2 == "y") |
+      (pares$columna_1 == "y" & pares$columna_2 == "x")
+  ))
+  expect_true(nrow(pares) > 0L)
+  for (i in seq_len(nrow(pares))) {
+    expect_identical(
+      datos[[pares$columna_1[[i]]]],
+      datos[[pares$columna_2[[i]]]],
+      info = paste(pares$columna_1[[i]], pares$columna_2[[i]])
+    )
+  }
+
+  claves <- detectar_claves(data.frame(x = x, y = y))
+  expect_false(any(claves$redundante))
+  expect_false(lupa:::.contenido_igual(x, y))
+})
+
+test_that("UTF-8 inválido se aísla y se declara sin reinterpretarlo", {
+  mala <- rawToChar(as.raw(c(0x61, 0xff, 0x62)))
+  valores <- c(mala, "sano", mala)
+  datos <- data.frame(x = valores)
+  perfil <- expect_no_error(perfilar(datos))
+  fila <- perfil$columnas
+
+  expect_identical(datos$x, valores)
+  expect_equal(fila$n, 3L)
+  expect_equal(fila$n_codificacion_invalida, 2L)
+  expect_equal(fila$n_distintos, 1L)
+  expect_equal(fila$moda, "sano")
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "codificacion_invalida", , drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  expect_equal(as.character(hallazgo$severidad), "error")
+  expect_match(hallazgo$evidencia, "filas: 1, 3", fixed = TRUE)
+  expect_false("constante" %in% perfil$hallazgos$tipo_hallazgo)
+  inferencia <- expect_no_error(inferir_tipo(valores))
+  formatos <- expect_no_error(detectar_formatos_fecha(valores))
+  patrones <- expect_no_error(descubrir_patrones(valores))
+  expect_equal(inferencia$n_analizados, 1L)
+  expect_equal(nrow(formatos), 0L)
+  expect_equal(sum(patrones$n), 1L)
+})
+
+test_that("una columna matricial conserva filas y omite estadísticas ambiguas", {
+  datos <- data.frame(a = 1:3)
+  datos$m <- matrix(c(10, 20, 30, 40, 50, 60), ncol = 2)
+  perfil <- perfilar(datos)
+  fila <- perfil$columnas[perfil$columnas$columna == "m", ]
+
+  expect_equal(fila$tipo_declarado, "matriz")
+  expect_equal(fila$tipo_inferido, "desconocido")
+  expect_equal(fila$n, nrow(datos))
+  expect_true(is.na(fila$n_distintos))
+  expect_true(is.na(fila$minimo) && is.na(fila$maximo))
+  expect_equal(fila$estado_estadisticos, "tipo_compuesto_no_analizado")
+  expect_true(
+    "tipo_compuesto_no_analizado" %in% perfil$hallazgos$tipo_hallazgo
+  )
+  expect_false("m" %in% detectar_claves(datos)$columnas)
+
+  integral <- expect_no_error(analizar(datos))
+  alcance <- integral$distribuciones$alcance[
+    integral$distribuciones$alcance$columna == "m", , drop = FALSE
+  ]
+  expect_equal(alcance$n_total, nrow(datos))
+  expect_equal(alcance$estado, "tipo_no_comparable")
+  clasificacion <- integral$variables[integral$variables$columna == "m", ]
+  expect_equal(clasificacion$escala_propuesta, "desconocida")
+  expect_true(is.na(clasificacion$confianza))
+})
+
+test_that("los resúmenes POSIXct hacen visible su normalización a UTC", {
+  valor <- as.POSIXct("2023-06-01 00:30", tz = "America/Montevideo")
+  perfil <- perfilar(data.frame(t = valor), analizar_dependencias = FALSE)
+  expect_equal(perfil$columnas$minimo_fecha, "2023-06-01 03:30:00 UTC")
+  expect_match(perfil$columnas$minimo_fecha, "UTC$", perl = TRUE)
 })
 
 test_that("los resúmenes se abstienen cuando el tipo no admite una afirmación", {

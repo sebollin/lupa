@@ -166,7 +166,8 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     return(resultado)
   }
 
-  valores <- trimws(as.character(valores_originales))
+  valores <- .texto_analizable(valores_originales)$valores
+  valores <- trimws(valores)
   valores <- valores[!is.na(valores) & nzchar(valores)]
   total <- length(valores)
   base_fecha <- paste0(
@@ -319,7 +320,8 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
 }
 
 .parsear_fechas <- function(x, formatos = detectar_formatos_fecha(x)) {
-  valores <- trimws(as.character(x))
+  valores <- .texto_analizable(x)$valores
+  valores <- trimws(valores)
   salida <- rep(as.POSIXct(NA, tz = "UTC"), length(valores))
   if (!nrow(formatos)) {
     return(salida)
