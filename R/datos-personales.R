@@ -79,25 +79,36 @@
     any(grepl("@", textos[presentes], fixed = TRUE))) {
     if (any(presentes)) mean(validar_correo(textos[presentes])) else NA_real_
   } else NA_real_
-  longitudes <- nchar(gsub("[^0-9]", "", textos[presentes], perl = TRUE),
-                      type = "chars")
+  textos_presentes <- textos[presentes]
+  longitudes_crudas <- nchar(textos_presentes, type = "chars")
+  cerca_de_forma_documento <- length(longitudes_crudas) &&
+    mean(longitudes_crudas >= 7L & longitudes_crudas <= 20L) >= 0.8
+  longitudes <- if (cerca_de_forma_documento) {
+    nchar(gsub("[^0-9]", "", textos_presentes, perl = TRUE), type = "chars")
+  } else integer()
+  parece_fecha <- inferencia$tipo %in% c("fecha", "fecha-hora")
   forma_documento_posible <- length(longitudes) &&
-    mean(longitudes >= 7L & longitudes <= 12L) >= 0.8
+    mean(longitudes >= 7L & longitudes <= 12L) >= 0.8 &&
+    (!parece_fecha || "documento_identidad" %in% por_nombre)
   proporcion_documento <- if (
       "documento_identidad" %in% por_nombre || forma_documento_posible) {
     .proporcion_compatible(
       x,
-      "^(?:[0-9]{1,2}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9Kk]|[0-9][0-9 .-]{5,18}[0-9Kk]?)$"
+      paste0(
+        "^(?:[0-9]{7,12}|",
+        "[0-9]{1,2}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9Kk]|",
+        "[0-9]{2}(?:[ .][0-9]{3}){2}[ .][0-9]{4})$"
+      )
     )
   } else NA_real_
-  documentos_distintos <- length(unique(gsub(
-    "[^0-9]", "", textos[presentes], perl = TRUE
-  )))
+  documentos_distintos <- if (is.finite(proporcion_documento)) {
+    length(unique(gsub("[^0-9]", "", textos_presentes, perl = TRUE)))
+  } else 0L
   proporciones_validadores <- if (is.finite(proporcion_documento) &&
       documentos_distintos >= 3L &&
       (!length(por_nombre) || "documento_identidad" %in% por_nombre)) {
     .proporcion_validadores(
-      textos[presentes], validadores, umbral_verificado,
+      textos_presentes, validadores, umbral_verificado,
       muestra = muestra_validadores
     )
   } else numeric()

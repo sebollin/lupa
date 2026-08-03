@@ -72,9 +72,13 @@
 #'   columna real en una salida pública; el umbral es configurable.
 #'
 #' La forma genérica de siete a doce dígitos tiene poder discriminante débil:
-#' también describe importes, teléfonos, facturas e identificadores. Un
-#' validador de dígito que supera el umbral aporta evidencia verificable y eleva
-#' la clasificación; una forma sola nunca se trata como prueba de identidad.
+#' también describe importes, teléfonos, facturas e identificadores. Las formas
+#' con separadores sólo se aceptan cuando tienen una estructura de documento
+#' reconocible (por ejemplo, una cédula con grupos y guion o un RUT con grupos
+#' de tres y cuatro dígitos); una fecha ISO, una fecha con puntos o guiones y
+#' separadores arbitrarios no se consideran documentos. Un validador de dígito
+#' que supera el umbral aporta evidencia verificable y eleva la clasificación;
+#' una forma sola nunca se trata como prueba de identidad.
 #'
 #' Este criterio mide capacidad de discriminación, no juzga si la presencia del
 #' dato es correcta. La protección sustituye modas, ejemplos, evidencia y
