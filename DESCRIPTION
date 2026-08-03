@@ -3,19 +3,20 @@ Title: Data Profiling and Quality Measurement
 Version: 0.1.0
 Authors@R:
     person("Sebastián", "Lucas", , "sebalucas@gmail.com", role = c("aut", "cre"))
-Description: Profiles administrative data, discovers structural patterns in
-    character columns, infers implicit types, identifies mixed date formats,
-    and returns reusable findings about potential data issues. Defines reusable
-    quality metrics with explicit granularity, typed aggregation, evaluation
-    profiles, a versioned history of evaluations, structural drift detection,
-    a traceable mapping to the framework metric catalogue, and self-contained
-    HyperText Markup Language reports without external rendering software.
+Description: Provides general-purpose data profiling and quality analysis for
+    tabular data. Discovers structural patterns, implicit types, mixed date
+    formats and reusable findings about potential data issues. Defines quality
+    frameworks with user-declared dimensions and factors, reusable metrics with
+    explicit granularity, typed aggregation, evaluation profiles, versioned
+    histories, structural drift detection, and self-contained HyperText Markup
+    Language reports without external rendering software.
     Produces editable cleaning plans and applies only explicitly selected
     actions while retaining an audit log. Includes bounded value distributions,
     quantiles, mixed-type associations,
     temporal regularity checks, and confirmable measurement-scale proposals.
-    The conceptual basis is the
-    Data Quality Management Framework for
+    The general model follows the data-quality lineage described by Batini and
+    Scannapieco (2016) <doi:10.1007/978-3-319-24106-7>. The package ships a
+    traceable implementation of the Data Quality Management Framework for
     Digital Government, version 1.6, published by AGESIC (2020)
     <https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/>.
 License: GPL-2 | GPL-3

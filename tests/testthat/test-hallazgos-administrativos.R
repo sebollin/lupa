@@ -36,6 +36,22 @@ test_that("el sentinela 999 es predeterminado y los contextuales son opt-in", {
   expect_true(all(numerico$severidad == "sospechoso"))
 })
 
+test_that("los sentinelas numéricos se pueden desactivar por completo", {
+  codigos <- data.frame(codigo = c(101, 205, 310, 999, 415, 999, 520))
+  predeterminado <- perfilar(codigos, analizar_dependencias = FALSE)
+  desactivado <- perfilar(
+    codigos, sentinelas_numericos = numeric(),
+    analizar_dependencias = FALSE
+  )
+
+  expect_equal(predeterminado$columnas$n_faltantes_disfrazados, 2L)
+  expect_equal(desactivado$columnas$n_faltantes_disfrazados, 0L)
+  expect_length(desactivado$meta$sentinelas_numericos, 0L)
+  expect_false(any(
+    desactivado$hallazgos$tipo_hallazgo == "faltantes_disfrazados"
+  ))
+})
+
 test_that("los faltantes textuales inequívocos conservan severidad error", {
   resultado <- perfilar(data.frame(x = c("S/D", "dato", "otro")))
   hallazgo <- resultado$hallazgos[

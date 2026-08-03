@@ -4,12 +4,15 @@
 \alias{cobertura_analisis}
 \title{Informar la cobertura conceptual de un análisis}
 \usage{
-cobertura_analisis(perfil, medicion = NULL)
+cobertura_analisis(perfil, medicion = NULL, modelo = marco_agesic())
 }
 \arguments{
 \item{perfil}{Objeto creado por \code{\link[=perfilar]{perfilar()}}.}
 
 \item{medicion}{Objeto opcional creado por \code{\link[=medir]{medir()}}.}
+
+\item{modelo}{Objeto creado por \code{\link[=marco_calidad]{marco_calidad()}}. El nombre enfatiza que es
+el modelo conceptual de referencia, no el objeto operativo de \code{\link[=modelo]{modelo()}}.}
 }
 \value{
 Data frame con \code{dimension}, \code{factor}, \code{estado}, \code{motivo} y
@@ -17,21 +20,25 @@ Data frame con \code{dimension}, \code{factor}, \code{estado}, \code{motivo} y
 \code{"no_declarada"}, \code{"no_aplica"} y \code{"fuera_de_alcance"}.
 }
 \description{
-Devuelve una fila por dimensión y factor del catálogo de AGESIC. Distingue
+Devuelve una fila por dimensión y factor del \code{\link[=marco_calidad]{marco_calidad()}} elegido.
+Usa \code{\link[=marco_agesic]{marco_agesic()}} por omisión, pero acepta cualquier taxonomía declarada.
+Distingue
 lo efectivamente medido de lo que no fue declarado, lo que no aplica a los
 tipos presentes y lo que queda fuera del alcance actual. La tabla evita que
 la ausencia de un hallazgo se interprete como evidencia de calidad.
 }
 \details{
-El profiling automático mide densidad y no duplicación. Los demás factores
-sólo pasan a \code{"medida"} cuando \code{medicion} contiene una métrica de ese factor;
-descubrir un patrón o una dependencia no los convierte por sí solo en un
-requisito confirmado.
+En el marco incluido, el profiling automático mide densidad y no
+duplicación. Un marco propio puede marcar otros factores mediante la columna
+\code{perfil_mide}. Los demás sólo pasan a \code{"medida"} cuando \code{medicion} contiene
+una métrica del factor; descubrir un patrón o una dependencia no los
+convierte por sí solo en un requisito confirmado.
 }
 \examples{
 perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
 cobertura_analisis(perfil)
 }
 \seealso{
-\code{\link[=perfilar]{perfilar()}}, \code{\link[=medir]{medir()}}, \code{\link[=vigencia]{vigencia()}}, \code{\link[=escala]{escala()}}, \code{\link[=reportar]{reportar()}}
+\code{\link[=marco_calidad]{marco_calidad()}}, \code{\link[=perfilar]{perfilar()}}, \code{\link[=medir]{medir()}}, \code{\link[=vigencia]{vigencia()}}, \code{\link[=escala]{escala()}},
+\code{\link[=reportar]{reportar()}}
 }

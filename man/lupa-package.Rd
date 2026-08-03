@@ -6,10 +6,12 @@
 \alias{lupa-package}
 \title{lupa: examinar, medir y mejorar la calidad de datos}
 \description{
-\code{lupa} implementa un recorrido auditable para datos administrativos, basado
-en el Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno
-Digital de AGESIC. El paquete nunca modifica datos como efecto del
-diagnóstico: cada etapa devuelve objetos de datos inspeccionables.
+\code{lupa} implementa un modelo de calidad de datos de uso general: dimensiones
+y factores declarables, métricas con granularidad explícita, agregación
+tipada y una cadena de evaluación auditable. El paquete nunca modifica datos
+como efecto del diagnóstico: cada etapa devuelve objetos inspeccionables.
+\code{\link[=marco_agesic]{marco_agesic()}} y \code{\link[=catalogo_agesic]{catalogo_agesic()}} aportan de fábrica la implementación
+trazable del marco uruguayo, sin restringir las taxonomías del usuario.
 }
 \details{
 El punto de entrada es \code{\link[=analizar]{analizar()}}. En una llamada reúne el diagnóstico
@@ -31,17 +33,21 @@ qué factores no fueron evaluados;
 autocontenido con \code{\link[=reportar]{reportar()}}.
 }
 
-Los padrones externos se declaran con \code{\link[=referencial]{referencial()}}, y los contratos que
+Las taxonomías se declaran con \code{\link[=marco_calidad]{marco_calidad()}}. Los padrones externos se
+declaran con \code{\link[=referencial]{referencial()}}, y los contratos que
 no se pueden inferir se expresan con \code{\link[=vigencia]{vigencia()}} y \code{\link[=escala]{escala()}}. La correspondencia
-exacta con las 49 entradas del marco se consulta en \code{\link[=catalogo_agesic]{catalogo_agesic()}}. No
+exacta con las 49 entradas de AGESIC se consulta en \code{\link[=catalogo_agesic]{catalogo_agesic()}}. No
 se calcula un índice global: la jerarquía dimensión–factor–métrica es
-taxonómica y el marco no define esa agregación.
+taxonómica y requiere un contrato adicional para producirlo.
 }
 \examples{
 resultado <- analizar(datos_administrativos, analizar_dependencias = FALSE)
 subset(resultado$perfil$hallazgos, severidad != "ok")
 }
 \references{
+Batini C, Scannapieco M (2016). \emph{Data and Information Quality:
+Dimensions, Principles and Techniques}. Springer.
+
 AGESIC (2020). \emph{Marco de trabajo para la Gestión de la Calidad
 de Datos en Gobierno Digital}, versión 1.6, Presidencia de la República,
 Uruguay.

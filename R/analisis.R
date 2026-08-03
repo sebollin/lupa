@@ -83,6 +83,9 @@
 #' @param metadatos_variables Declaraciones para [clasificar_variables()].
 #' @param modelo_confirmado Modelo creado por [modelo()] o `NULL`.
 #' @param propuesta_confirmada Propuesta editada por el usuario o `NULL`.
+#' @param marco Taxonomía opcional creada por [marco_calidad()]. Si se omite,
+#'   usa la asociada a `modelo_confirmado` y, en último término,
+#'   [marco_agesic()].
 #' @param perfil_evaluacion Perfil explícito para [evaluar()] o `NULL`.
 #' @param id_medicion Identificador opcional enviado a [medir()].
 #' @param muestra Límite de filas para perfil, distribuciones y enumeración de
@@ -118,6 +121,7 @@
 analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.time(),
                      argumentos_perfil = list(), metadatos_variables = NULL,
                      modelo_confirmado = NULL, propuesta_confirmada = NULL,
+                     marco = NULL,
                      perfil_evaluacion = NULL, id_medicion = NULL,
                      muestra = 1e5, muestra_asociacion = 1e4,
                      max_valores = 20L,
@@ -171,6 +175,9 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
     stop("`propuesta_confirmada` debe provenir de proponer_modelo().",
          call. = FALSE)
   }
+  if (!is.null(marco) && !inherits(marco, "marco_calidad")) {
+    stop("`marco` debe provenir de marco_calidad().", call. = FALSE)
+  }
   argumentos <- c(list(
     datos = datos, nombre = nombre, fecha = fecha, muestra = muestra,
     proteger_datos_personales = proteger_datos_personales
@@ -198,6 +205,17 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
   modelo_elegido <- if (!is.null(propuesta_confirmada)) {
     modelo_desde_propuesta(propuesta_confirmada)
   } else modelo_confirmado
+  marco_elegido <- if (!is.null(marco)) {
+    marco
+  } else if (!is.null(modelo_elegido) &&
+             inherits(modelo_elegido$marco, "marco_calidad")) {
+    modelo_elegido$marco
+  } else {
+    marco_agesic()
+  }
+  if (!is.null(modelo_elegido) && !is.null(marco)) {
+    modelo_elegido <- modelo(modelo_elegido$metricas, marco = marco)
+  }
   medicion <- if (!is.null(modelo_elegido)) {
     medir(modelo_elegido, datos, id_medicion = id_medicion, fecha = fecha)
   } else NULL
@@ -208,7 +226,7 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
   evaluacion <- if (!is.null(perfil_evaluacion)) {
     evaluar(medicion, perfil_evaluacion)
   } else NULL
-  cobertura <- cobertura_analisis(perfil, medicion)
+  cobertura <- cobertura_analisis(perfil, medicion, modelo = marco_elegido)
   advertencias <- .advertencias_analisis(
     distribuciones, asociaciones, temporal, variables, propuesta
   )
@@ -223,7 +241,8 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
       nombre = nombre, fecha = fecha_utc,
       version_esquema = .version_esquema_analisis,
       version_paquete = .version_paquete(), datos_conservados = conservar_datos,
-      modelo_medido = !is.null(medicion), evaluado = !is.null(evaluacion)
+      modelo_medido = !is.null(medicion), evaluado = !is.null(evaluacion),
+      marco_calidad = marco_elegido$nombre
     )
   )
   class(estructura) <- "analisis"

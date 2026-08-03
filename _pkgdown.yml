@@ -4,7 +4,7 @@ template:
   bootstrap: 5
 
 home:
-  title: "lupa — calidad de datos administrativos"
+  title: "lupa — profiling y calidad de datos"
   description: >
     Examinar, medir, evaluar, remediar y monitorear calidad de datos con
     resultados auditables.
@@ -19,7 +19,7 @@ articles:
   navbar: ~
   contents:
   - empezar-con-lupa
-  - el-marco-agesic
+  - el-modelo-de-calidad
   - limpiar-con-un-plan
   - historico-y-deriva
 
@@ -52,6 +52,8 @@ reference:
 - title: Medir
   desc: Declarar métricas, referenciales, granularidad y agregaciones.
   contents:
+  - marco_calidad
+  - marco_agesic
   - metrica
   - especializar
   - instanciar

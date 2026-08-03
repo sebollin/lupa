@@ -39,77 +39,72 @@
 
 #' Informar la cobertura conceptual de un análisis
 #'
-#' Devuelve una fila por dimensión y factor del catálogo de AGESIC. Distingue
+#' Devuelve una fila por dimensión y factor del [marco_calidad()] elegido.
+#' Usa [marco_agesic()] por omisión, pero acepta cualquier taxonomía declarada.
+#' Distingue
 #' lo efectivamente medido de lo que no fue declarado, lo que no aplica a los
 #' tipos presentes y lo que queda fuera del alcance actual. La tabla evita que
 #' la ausencia de un hallazgo se interprete como evidencia de calidad.
 #'
-#' El profiling automático mide densidad y no duplicación. Los demás factores
-#' sólo pasan a `"medida"` cuando `medicion` contiene una métrica de ese factor;
-#' descubrir un patrón o una dependencia no los convierte por sí solo en un
-#' requisito confirmado.
+#' En el marco incluido, el profiling automático mide densidad y no
+#' duplicación. Un marco propio puede marcar otros factores mediante la columna
+#' `perfil_mide`. Los demás sólo pasan a `"medida"` cuando `medicion` contiene
+#' una métrica del factor; descubrir un patrón o una dependencia no los
+#' convierte por sí solo en un requisito confirmado.
 #'
 #' @param perfil Objeto creado por [perfilar()].
 #' @param medicion Objeto opcional creado por [medir()].
+#' @param modelo Objeto creado por [marco_calidad()]. El nombre enfatiza que es
+#'   el modelo conceptual de referencia, no el objeto operativo de [modelo()].
 #'
 #' @return Data frame con `dimension`, `factor`, `estado`, `motivo` y
 #'   `como_resolverlo`. `estado` es un factor con niveles `"medida"`,
 #'   `"no_declarada"`, `"no_aplica"` y `"fuera_de_alcance"`.
 #' @export
-#' @seealso [perfilar()], [medir()], [vigencia()], [escala()], [reportar()]
+#' @seealso [marco_calidad()], [perfilar()], [medir()], [vigencia()], [escala()],
+#'   [reportar()]
 #'
 #' @examples
 #' perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
 #' cobertura_analisis(perfil)
-cobertura_analisis <- function(perfil, medicion = NULL) {
+cobertura_analisis <- function(perfil, medicion = NULL,
+                               modelo = marco_agesic()) {
   if (!inherits(perfil, "perfil")) {
     stop("`perfil` debe ser un objeto creado por perfilar().", call. = FALSE)
   }
   if (!is.null(medicion) && !inherits(medicion, "medicion")) {
     stop("`medicion` debe ser NULL o un objeto creado por medir().", call. = FALSE)
   }
-  catalogo <- catalogo_agesic()
-  factores <- unique(catalogo[c("dimension", "factor")])
+  if (!inherits(modelo, "marco_calidad")) {
+    stop("`modelo` debe provenir de marco_calidad().", call. = FALSE)
+  }
+  factores <- modelo$factores
   factores$estado <- "no_declarada"
   factores$motivo <- "El perfil describe evidencia, pero no recibi\u00f3 un requisito para este factor."
-  factores$como_resolverlo <- mapply(
-    .resolver_factor, factores$dimension, factores$factor,
-    USE.NAMES = FALSE
-  )
 
   claves <- paste(factores$dimension, factores$factor, sep = "|")
-  estados_catalogo <- split(as.character(catalogo$estado),
-                             paste(catalogo$dimension, catalogo$factor, sep = "|"))
-  solo_fuera <- vapply(claves, function(clave) {
-    estados <- unique(estados_catalogo[[clave]])
-    length(estados) && all(estados == "fuera_de_alcance")
-  }, logical(1L))
+  solo_fuera <- factores$disponibilidad == "fuera_de_alcance"
   factores$estado[solo_fuera] <- "fuera_de_alcance"
   factores$motivo[solo_fuera] <-
     "Las m\u00e9tricas del factor requieren capacidades no implementadas en esta versi\u00f3n."
 
-  medidas_perfil <- claves %in% c(
-    "Completitud|Densidad", "Unicidad|No-duplicaci\u00f3n"
-  )
+  medidas_perfil <- factores$perfil_mide
   factores$estado[medidas_perfil] <- "medida"
+  factores$motivo[medidas_perfil] <-
+    "El profiling autom\u00e1tico examina evidencia de este factor."
   factores$motivo[claves == "Completitud|Densidad"] <-
     "El perfil cont\u00f3 ausentes reales y disfrazados en todas las columnas."
   factores$motivo[claves == "Unicidad|No-duplicaci\u00f3n"] <-
     "El perfil examin\u00f3 duplicaci\u00f3n de valores, columnas y filas exactas."
 
-  sin_tiempo <- !.perfil_tiene_tiempo(perfil)
-  if (sin_tiempo) {
-    indices <- factores$dimension == "Frescura"
+  if (!.perfil_tiene_tiempo(perfil)) {
+    indices <- factores$aplicabilidad == "temporal"
     factores$estado[indices] <- "no_aplica"
     factores$motivo[indices] <-
       "No hay columnas declaradas o inferidas como fecha o fecha-hora."
   }
-  sin_geometria <- !.perfil_tiene_geometria(perfil)
-  if (sin_geometria) {
-    indices <- factores$factor %in% c(
-      "Exactitud posicional absoluta", "Exactitud posicional relativa",
-      "Consistencia topol\u00f3gica", "Comisi\u00f3n"
-    )
+  if (!.perfil_tiene_geometria(perfil)) {
+    indices <- factores$aplicabilidad == "geometria"
     factores$estado[indices] <- "no_aplica"
     factores$motivo[indices] <- "No se identificaron columnas de geometr\u00eda."
   }
@@ -125,6 +120,9 @@ cobertura_analisis <- function(perfil, medicion = NULL) {
     factores$estado,
     levels = c("medida", "no_declarada", "no_aplica", "fuera_de_alcance")
   )
+  factores <- factores[c(
+    "dimension", "factor", "estado", "motivo", "como_resolverlo"
+  )]
   rownames(factores) <- NULL
   factores
 }

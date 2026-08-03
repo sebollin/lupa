@@ -1,14 +1,17 @@
 # lupa
 
-`lupa` examina, mide y ayuda a mejorar la calidad de datos administrativos sin
-ocultar decisiones dentro de un reporte. Descubre patrones y problemas
-estructurales, propone métricas y planes editables, conserva la trazabilidad de
-las acciones y compara entregas a lo largo del tiempo.
+`lupa` implementa un modelo de calidad de datos de uso general: dimensiones y
+factores declarables, métricas con granularidad explícita, agregación tipada y
+una cadena de evaluación auditable. Además examina datos tabulares, propone
+métricas y planes editables, conserva la trazabilidad de las acciones y compara
+entregas a lo largo del tiempo.
 
-El paquete sigue el *Marco de trabajo para la Gestión de la Calidad de Datos en
-Gobierno Digital v1.6* de AGESIC. Sólo `cli` es una dependencia obligatoria; el
-reporte HTML autocontenido se genera con R base y no requiere navegador, LaTeX
-ni servicios externos.
+El usuario puede declarar su propia taxonomía con `marco_calidad()`. De fábrica,
+el paquete trae los 17 factores y la correspondencia con las 49 métricas del
+*Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital
+v1.6* de AGESIC. Sólo `cli` es una dependencia obligatoria; el reporte HTML
+autocontenido se genera con R base y no requiere navegador, LaTeX ni servicios
+externos.
 
 ## Instalación
 
@@ -79,9 +82,8 @@ adicional.
 
 - [Empezar con lupa](vignettes/empezar-con-lupa.Rmd): recorrido completo sobre
   los datos sintéticos incluidos.
-- [El marco de AGESIC](vignettes/el-marco-agesic.Rmd): métricas, granularidad,
-  agregaciones y evaluación, incluido el motivo por el que no hay un índice
-  global.
+- [El modelo de calidad](vignettes/el-modelo-de-calidad.Rmd): marcos propios,
+  métricas, granularidad, agregaciones y el catálogo incluido de AGESIC.
 - [Limpiar con un plan](vignettes/limpiar-con-un-plan.Rmd): decisiones,
   alternativas excluyentes, salvaguardas y trazabilidad.
 - [Histórico y deriva](vignettes/historico-y-deriva.Rmd): acumular evaluaciones
@@ -91,7 +93,7 @@ Después de instalar el paquete, las mismas guías se abren con:
 
 ```r
 vignette("empezar-con-lupa", package = "lupa")
-vignette("el-marco-agesic", package = "lupa")
+vignette("el-modelo-de-calidad", package = "lupa")
 vignette("limpiar-con-un-plan", package = "lupa")
 vignette("historico-y-deriva", package = "lupa")
 ```
@@ -106,6 +108,7 @@ vignette("historico-y-deriva", package = "lupa")
   declarados ausentes;
 - hallazgos accionables, claves, relaciones y dependencias funcionales;
 - métricas genéricas, específicas e instanciadas con granularidad explícita;
+- taxonomías dimensión-factor declarables y cobertura contra el marco elegido;
 - referenciales tabulares para correctitud semántica y cobertura;
 - cuatro agregaciones tipadas y perfiles de evaluación sin índice global;
 - propuesta editable del modelo y plan de limpieza auditable;
@@ -123,7 +126,15 @@ externos y las que permanecen fuera de alcance. La columna `motivo` distingue
 una semántica parcial, un insumo que debe aportar el usuario, un motor pendiente
 y una decisión explícita de alcance.
 
+El núcleo no presupone país ni organismo. Para datos uruguayos, el catálogo de
+AGESIC, sus especializaciones documentadas y los puntos de extensión para
+validadores y referenciales nacionales quedan disponibles como una instancia de
+referencia, no como una restricción para otros usuarios.
+
 ## Referencia conceptual
+
+Batini C, Scannapieco M (2016). *Data and Information Quality: Dimensions,
+Principles and Techniques*. Springer.
 
 AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad de Datos en
 Gobierno Digital*, versión 1.6. Presidencia de la República, Uruguay, con la

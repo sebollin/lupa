@@ -5,28 +5,35 @@
 #' simple de las evaluaciones de esas reglas; no es un índice de dimensión ni
 #' un índice global de calidad.
 #'
-#' `perfiles_madurez()` crea los perfiles `Básico`, `Intermedio` y `Avanzado`
-#' con condiciones estrictas `> 0.5`, `> 0.7` y `> 0.9` sobre las mismas
-#' métricas instanciadas.
+#' `perfiles_madurez()` crea por omisión los perfiles `Básico`, `Intermedio` y
+#' `Avanzado` de AGESIC, con condiciones estrictas `> 0.5`, `> 0.7` y `> 0.9`.
+#' El argumento `umbrales` permite construir otra familia con nombres y cortes
+#' crecientes propios sobre las mismas métricas instanciadas.
 #'
 #' @param nombre Nombre de la regla o del perfil.
 #' @param condicion Función que recibe resultados en `[0, 1]` y devuelve un
 #'   vector lógico sin ausentes de la misma longitud.
 #' @param metricas Nombres de métricas instanciadas a las que se aplica la
 #'   regla. `NULL` aplica la condición a todas.
+#' @param umbrales Vector numérico con nombres, estrictamente creciente y en
+#'   `[0, 1]`. `NULL` conserva los tres perfiles incluidos de fábrica.
 #' @param ... Reglas creadas por `regla_evaluacion()` o una única lista que las
 #'   contenga.
 #'
 #' @return `regla_evaluacion()` devuelve una `regla_evaluacion`;
 #'   `perfil_evaluacion()` devuelve un `perfil_evaluacion`; y
-#'   `perfiles_madurez()` devuelve una lista de tres perfiles.
+#'   `perfiles_madurez()` devuelve una lista de perfiles.
 #' @name reglas_evaluacion
 #'
 #' @examples
 #' regla <- regla_evaluacion("Completitud suficiente", function(x) x > 0.9)
 #' perfil <- perfil_evaluacion("Operativo", regla)
 #' madurez <- perfiles_madurez("NoNulo")
+#' propios <- perfiles_madurez(
+#'   "NoNulo", c(Exploratorio = 0.3, Operativo = 0.65, Consolidado = 0.85)
+#' )
 #' names(madurez)
+#' names(propios)
 #' perfil$nombre
 NULL
 
@@ -93,20 +100,40 @@ perfil_evaluacion <- function(nombre, ...) {
 #' @rdname reglas_evaluacion
 #' @export
 #' @seealso [evaluar()], [detectar_deriva_calidad()]
-perfiles_madurez <- function(metricas = NULL) {
-  especificaciones <- list(
-    Basico = c(nombre = "B\u00e1sico", umbral = 0.5),
-    Intermedio = c(nombre = "Intermedio", umbral = 0.7),
-    Avanzado = c(nombre = "Avanzado", umbral = 0.9)
-  )
-  lapply(especificaciones, function(x) {
-    nombre <- unname(x[["nombre"]])
-    umbral <- as.numeric(x[["umbral"]])
+perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
+  fabrica <- is.null(umbrales)
+  if (fabrica) {
+    umbrales <- c(Basico = 0.5, Intermedio = 0.7, Avanzado = 0.9)
+  }
+  if (!is.numeric(umbrales) || !length(umbrales) || anyNA(umbrales) ||
+      any(!is.finite(umbrales)) || any(umbrales < 0 | umbrales > 1) ||
+      is.null(names(umbrales)) || anyNA(names(umbrales)) ||
+      any(!nzchar(names(umbrales))) || anyDuplicated(names(umbrales))) {
+    stop(
+      "`umbrales` debe ser un vector num\u00e9rico con nombres \u00fanicos en [0, 1].",
+      call. = FALSE
+    )
+  }
+  if (length(umbrales) > 1L && any(diff(umbrales) <= 0)) {
+    stop("Los umbrales de madurez deben ser estrictamente crecientes.",
+         call. = FALSE)
+  }
+  nombres <- names(umbrales)
+  nombres_perfil <- if (fabrica) {
+    c(Basico = "B\u00e1sico", Intermedio = "Intermedio", Avanzado = "Avanzado")
+  } else {
+    nombres
+  }
+  perfiles <- lapply(seq_along(umbrales), function(i) {
+    nombre <- unname(nombres_perfil[[i]])
+    umbral <- unname(umbrales[[i]])
     perfil_evaluacion(
       nombre,
       .regla_umbral(paste0("Resultado > ", umbral), umbral, metricas)
     )
   })
+  names(perfiles) <- nombres
+  perfiles
 }
 
 .validar_medicion_evaluacion <- function(medicion) {

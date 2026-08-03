@@ -289,11 +289,14 @@
         nombre, "numero_como_texto", "sospechoso",
         if (isTRUE(fila$numero_texto_ambiguo)) {
           paste0(
-            "La columna parece num\u00e9rica, pero el punto puede representar ",
-            "decimales o miles porque no hay una coma que desambig\u00fce."
+            "La columna parece num\u00e9rica, pero un separador seguido por tres ",
+            "d\u00edgitos puede representar decimales o miles sin evidencia adicional."
           )
         } else {
-          "La columna contiene n\u00fameros escritos con formato regional, unidad o s\u00edmbolo."
+          paste0(
+            "La columna contiene n\u00fameros escritos con una convenci\u00f3n decimal, ",
+            "unidad o moneda identificable."
+          )
         },
         resultado$numeros_texto$evidencia,
         if (isTRUE(fila$numero_texto_seguro)) {

@@ -19,7 +19,7 @@ perfilar(
   umbral_patron_dominante = 0.5,
   columnas_sin_ceros = character(),
   columnas_no_negativas = character(),
-  sentinelas_numericos = numeric(),
+  sentinelas_numericos = c(-9, -99, -999, -9999, 999),
   analizar_dependencias = TRUE,
   umbral_dependencia = 0.995,
   umbral_casi_clave_dependencia = 0.8,
@@ -61,8 +61,9 @@ un error; la igualdad conserva la severidad sospechosa.}
 
 \item{columnas_no_negativas}{Nombres de columnas que deben ser no negativas.}
 
-\item{sentinelas_numericos}{Vector de sentinelas numéricos adicionales que
-representan ausencia. Se combina con la lista predeterminada.}
+\item{sentinelas_numericos}{Vector completo de valores numéricos que se
+interpretan como ausencia. \code{numeric()} los desactiva; las cadenas de
+ausencia se siguen evaluando por separado.}
 
 \item{analizar_dependencias}{Si se buscan dependencias funcionales entre
 pares de columnas. Se aplica una sola muestra común a toda la tabla.}
@@ -105,8 +106,10 @@ versión instalada.
 Los sentinelas numéricos predeterminados son \code{-9}, \code{-99}, \code{-999}, \code{-9999} y
 \code{999}. La lista es deliberadamente más corta que
 \code{naniar::common_na_numbers} 1.1.0: \code{66}, \code{77}, \code{88} y \code{9999} también pueden
-ser edades, códigos o años legítimos. Para solicitar explícitamente esa
-lista completa, use \code{sentinelas_numericos = sentinelas_naniar}.
+ser edades, códigos o años legítimos. \code{sentinelas_numericos} representa la
+política completa, no una lista que se agrega silenciosamente: use
+\code{numeric()} para desactivar todos los sentinelas numéricos, o
+\code{sentinelas_naniar} para solicitar explícitamente la lista de naniar.
 
 \code{muestra} limita sólo el descubrimiento de patrones, la inferencia de tipos y
 la detección de formatos de fecha. Las demás métricas y hallazgos se calculan
@@ -142,6 +145,11 @@ La normalización Unicode se compara sin modificar el texto y requiere el
 paquete opcional \code{stringi} sólo cuando existen caracteres no ASCII. La
 clasificación de posibles datos personales es informativa: por defecto no
 juzga su presencia y protege los valores concretos que el perfil publicaría.
+Los números escritos como texto reconocen tanto coma como punto decimal y
+sus separadores de miles simétricos. Los prefijos de tres letras separados
+del número, con forma de código ISO 4217, y los símbolos monetarios se
+conservan como evidencia; una columna sin datos suficientes para desambiguar
+un separador de tres dígitos no se convierte automáticamente.
 }
 \examples{
 perfil <- perfilar(datos_administrativos)

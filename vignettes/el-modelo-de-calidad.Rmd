@@ -1,8 +1,8 @@
 ---
-title: "El marco de calidad de AGESIC en lupa"
+title: "Un modelo de calidad declarable"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{El marco de calidad de AGESIC en lupa}
+  %\VignetteIndexEntry{Un modelo de calidad declarable}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -12,12 +12,29 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 options(width = 90)
 ```
 
-`lupa` toma como base el *Marco de trabajo para la Gestión de la Calidad de
-Datos en Gobierno Digital v1.6* de AGESIC. Su arquitectura conserva tres ideas
-que suelen perderse al convertir calidad en un único número.
+`lupa` implementa un modelo de calidad de uso general. La arquitectura sigue el
+linaje de dimensiones, factores y métricas descrito por Batini y Scannapieco
+(2016), y permite que cada usuario declare la taxonomía pertinente para su
+dominio. El marco de AGESIC viene incluido como una instancia verificable, no
+como una restricción del núcleo.
 
 ```{r}
 library(lupa)
+```
+
+## Declarar dimensiones y factores
+
+`marco_calidad()` recibe una tabla o una lista con nombres. El resultado es
+consultable y puede validar que las métricas de un `modelo()` pertenezcan a los
+factores declarados.
+
+```{r}
+marco_propio <- marco_calidad("Marco de procedencia", list(
+  Trazabilidad = c("Origen documentado", "Linaje reproducible"),
+  Pertinencia = "Adecuación al uso"
+))
+marco_propio
+as.data.frame(marco_propio)[, c("dimension", "factor")]
 ```
 
 ## Dimensión, factor y métrica son una taxonomía
@@ -73,7 +90,7 @@ agregar(medidas, "atributo", "ratio")[, c(
 )]
 ```
 
-Las cuatro agregaciones del marco son:
+Las cuatro agregaciones implementadas son:
 
 - `ratio`, para resultados booleanos;
 - `ratio_umbral`, para resultados reales;
@@ -89,25 +106,28 @@ agregaciones.
 
 Una regla expresa una condición sobre resultados. La evaluación de una regla es
 la proporción que la cumple; la evaluación de un perfil es la media simple de
-sus reglas. Los perfiles de madurez usan condiciones estrictas `> 0.5`, `> 0.7`
-y `> 0.9` sobre las mismas métricas.
+sus reglas. Los perfiles incluidos de AGESIC usan condiciones estrictas `> 0.5`,
+`> 0.7` y `> 0.9`; otra familia se construye con umbrales con nombres.
 
 ```{r}
 medida_atributo <- agregar(medidas, "atributo", "ratio")
 madurez <- perfiles_madurez()
 evaluar(medida_atributo, madurez$Intermedio)$perfiles
+names(perfiles_madurez(umbrales = c(Inicial = 0.4, Consolidado = 0.85)))
 ```
 
 El `id_medicion` y la fecha permanecen en las medidas para comparar corridas y
 monitorear deriva.
 
-## Qué parte del catálogo está disponible
+## El marco y el catálogo incluidos de AGESIC
 
-`catalogo_agesic()` devuelve las 49 entradas como una tabla, incluidas las que
-se obtienen por agregación o requieren insumos externos.
+`marco_agesic()` devuelve los 17 factores usados por omisión en la cobertura.
+`catalogo_agesic()` mantiene por separado las 49 entradas, incluidas las que se
+obtienen por agregación o requieren insumos externos.
 
 ```{r}
 catalogo <- catalogo_agesic()
+marco_agesic()
 as.data.frame(table(catalogo$estado, catalogo$motivo))
 catalogo[catalogo$estado == "via_agregacion", c(
   "metrica_agesic", "metrica_lupa", "implementacion"
@@ -150,3 +170,18 @@ cobertura_analisis(perfil)
 
 Los contratos temporales y de precisión se declaran con `vigencia()` y
 `escala()`: el paquete no intenta aprenderlos de una sola entrega.
+
+Para otro marco, la misma función informa exclusivamente sus dimensiones y
+factores:
+
+```{r}
+cobertura_analisis(perfil, modelo = marco_propio)
+```
+
+## Referencias
+
+Batini C, Scannapieco M (2016). *Data and Information Quality: Dimensions,
+Principles and Techniques*. Springer.
+
+AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad de Datos en
+Gobierno Digital*, versión 1.6. Presidencia de la República, Uruguay.

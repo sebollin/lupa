@@ -318,20 +318,23 @@ planificar_limpieza <- function(perfil, datos = NULL,
         columna, tipo, "convertir_numero_regional", seguro,
         if (seguro) {
           paste0(
-            "La columna usa una convenci\u00f3n coherente; la coma fija los decimales ",
-            "y permite interpretar el punto como separador de miles."
+            "La columna usa una convenci\u00f3n decimal coherente (",
+            fila$numero_texto_convencion[[1L]],
+            ") y puede convertirse sin elegir entre interpretaciones."
           )
         } else {
           paste0(
-            "Sin una coma decimal, un punto seguido por tres d\u00edgitos es ambiguo; ",
-            "se requiere fijar `punto_sin_coma` antes de convertir."
+            "La columna no aporta evidencia suficiente para distinguir el ",
+            "separador decimal del separador de miles."
           )
         },
         fila$n_numeros_texto[[1L]], FALSE, estado = estado_columna,
         aplicar = seguro && identical(estado_columna, "lista"),
         parametros = list(
-          convencion = "es-UY", unidad = fila$numero_texto_unidad[[1L]],
-          punto_sin_coma = if (seguro) "miles" else NA_character_
+          convencion = fila$numero_texto_convencion[[1L]],
+          moneda = fila$numero_texto_moneda[[1L]],
+          unidad = fila$numero_texto_unidad[[1L]],
+          punto_sin_coma = NA_character_, coma_sin_punto = NA_character_
         ),
         orden = 320L
       ))
@@ -952,23 +955,48 @@ planificar_limpieza <- function(perfil, datos = NULL,
     stop("Hay valores presentes que no responden al formato num\u00e9rico regional.",
          call. = FALSE)
   }
-  interpretacion <- parametros$punto_sin_coma
-  ambiguos <- presentes & partes$punto_tres &
-    !any(partes$tiene_coma[presentes])
-  if (any(ambiguos) &&
-      (length(interpretacion) != 1L || is.na(interpretacion) ||
-       !interpretacion %in% c("miles", "decimal"))) {
-    stop(
-      "La columna es ambigua; configure `punto_sin_coma` como 'miles' o 'decimal'.",
-      call. = FALSE
-    )
-  }
+  convencion <- parametros$convencion
+  if (is.null(convencion) || !length(convencion)) convencion <- "ambigua"
+  if (identical(convencion, "es-UY")) convencion <- "decimal_coma"
   texto <- partes$cuerpo
-  con_coma <- partes$tiene_coma
-  texto[con_coma] <- gsub(".", "", texto[con_coma], fixed = TRUE)
-  texto[con_coma] <- sub(",", ".", texto[con_coma], fixed = TRUE)
-  if (any(ambiguos) && identical(interpretacion, "miles")) {
-    texto[ambiguos] <- gsub(".", "", texto[ambiguos], fixed = TRUE)
+  if (identical(convencion, "decimal_coma")) {
+    texto <- gsub(".", "", texto, fixed = TRUE)
+    texto <- sub(",", ".", texto, fixed = TRUE)
+  } else if (identical(convencion, "decimal_punto")) {
+    texto <- gsub(",", "", texto, fixed = TRUE)
+  } else if (identical(convencion, "ambigua")) {
+    ambiguos_punto <- presentes & partes$punto_tres
+    ambiguos_coma <- presentes & partes$coma_tres
+    interpretacion_punto <- parametros$punto_sin_coma
+    interpretacion_coma <- parametros$coma_sin_punto
+    if (any(ambiguos_punto) &&
+        (length(interpretacion_punto) != 1L || is.na(interpretacion_punto) ||
+         !interpretacion_punto %in% c("miles", "decimal"))) {
+      stop(
+        "La columna es ambigua; configure `punto_sin_coma` como 'miles' o 'decimal'.",
+        call. = FALSE
+      )
+    }
+    if (any(ambiguos_coma) &&
+        (length(interpretacion_coma) != 1L || is.na(interpretacion_coma) ||
+         !interpretacion_coma %in% c("miles", "decimal"))) {
+      stop(
+        "La columna es ambigua; configure `coma_sin_punto` como 'miles' o 'decimal'.",
+        call. = FALSE
+      )
+    }
+    if (any(ambiguos_punto) && identical(interpretacion_punto, "miles")) {
+      texto[ambiguos_punto] <- gsub(".", "", texto[ambiguos_punto], fixed = TRUE)
+    }
+    if (any(ambiguos_coma)) {
+      if (identical(interpretacion_coma, "miles")) {
+        texto[ambiguos_coma] <- gsub(",", "", texto[ambiguos_coma], fixed = TRUE)
+      } else {
+        texto[ambiguos_coma] <- sub(",", ".", texto[ambiguos_coma], fixed = TRUE)
+      }
+    }
+  } else if (!identical(convencion, "sin_separadores")) {
+    stop("La convenci\u00f3n num\u00e9rica no est\u00e1 confirmada.", call. = FALSE)
   }
   numero <- suppressWarnings(as.numeric(texto))
   if (any(presentes & (!is.finite(numero) | is.na(numero)))) {

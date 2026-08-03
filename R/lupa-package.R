@@ -1,9 +1,11 @@
 #' lupa: examinar, medir y mejorar la calidad de datos
 #'
-#' `lupa` implementa un recorrido auditable para datos administrativos, basado
-#' en el Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno
-#' Digital de AGESIC. El paquete nunca modifica datos como efecto del
-#' diagnóstico: cada etapa devuelve objetos de datos inspeccionables.
+#' `lupa` implementa un modelo de calidad de datos de uso general: dimensiones
+#' y factores declarables, métricas con granularidad explícita, agregación
+#' tipada y una cadena de evaluación auditable. El paquete nunca modifica datos
+#' como efecto del diagnóstico: cada etapa devuelve objetos inspeccionables.
+#' [marco_agesic()] y [catalogo_agesic()] aportan de fábrica la implementación
+#' trazable del marco uruguayo, sin restringir las taxonomías del usuario.
 #'
 #' El punto de entrada es [analizar()]. En una llamada reúne el diagnóstico
 #' descriptivo y su cobertura, sin medir requisitos observados automáticamente.
@@ -23,13 +25,17 @@
 #' 7. persistir el recorrido con [guardar_analisis()] y producir un archivo HTML
 #'    autocontenido con [reportar()].
 #'
-#' Los padrones externos se declaran con [referencial()], y los contratos que
+#' Las taxonomías se declaran con [marco_calidad()]. Los padrones externos se
+#' declaran con [referencial()], y los contratos que
 #' no se pueden inferir se expresan con [vigencia()] y [escala()]. La correspondencia
-#' exacta con las 49 entradas del marco se consulta en [catalogo_agesic()]. No
+#' exacta con las 49 entradas de AGESIC se consulta en [catalogo_agesic()]. No
 #' se calcula un índice global: la jerarquía dimensión–factor–métrica es
-#' taxonómica y el marco no define esa agregación.
+#' taxonómica y requiere un contrato adicional para producirlo.
 #'
-#' @references AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad
+#' @references Batini C, Scannapieco M (2016). *Data and Information Quality:
+#'   Dimensions, Principles and Techniques*. Springer.
+#'
+#'   AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad
 #'   de Datos en Gobierno Digital*, versión 1.6, Presidencia de la República,
 #'   Uruguay.
 #'

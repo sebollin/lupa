@@ -11,7 +11,7 @@ regla_evaluacion(nombre, condicion, metricas = NULL)
 
 perfil_evaluacion(nombre, ...)
 
-perfiles_madurez(metricas = NULL)
+perfiles_madurez(metricas = NULL, umbrales = NULL)
 }
 \arguments{
 \item{nombre}{Nombre de la regla o del perfil.}
@@ -24,11 +24,14 @@ regla. \code{NULL} aplica la condición a todas.}
 
 \item{...}{Reglas creadas por \code{regla_evaluacion()} o una única lista que las
 contenga.}
+
+\item{umbrales}{Vector numérico con nombres, estrictamente creciente y en
+\verb{[0, 1]}. \code{NULL} conserva los tres perfiles incluidos de fábrica.}
 }
 \value{
 \code{regla_evaluacion()} devuelve una \code{regla_evaluacion};
 \code{perfil_evaluacion()} devuelve un \code{perfil_evaluacion}; y
-\code{perfiles_madurez()} devuelve una lista de tres perfiles.
+\code{perfiles_madurez()} devuelve una lista de perfiles.
 }
 \description{
 Una regla aplica una condición a los resultados de una o más métricas
@@ -37,15 +40,20 @@ simple de las evaluaciones de esas reglas; no es un índice de dimensión ni
 un índice global de calidad.
 }
 \details{
-\code{perfiles_madurez()} crea los perfiles \code{Básico}, \code{Intermedio} y \code{Avanzado}
-con condiciones estrictas \verb{> 0.5}, \verb{> 0.7} y \verb{> 0.9} sobre las mismas
-métricas instanciadas.
+\code{perfiles_madurez()} crea por omisión los perfiles \code{Básico}, \code{Intermedio} y
+\code{Avanzado} de AGESIC, con condiciones estrictas \verb{> 0.5}, \verb{> 0.7} y \verb{> 0.9}.
+El argumento \code{umbrales} permite construir otra familia con nombres y cortes
+crecientes propios sobre las mismas métricas instanciadas.
 }
 \examples{
 regla <- regla_evaluacion("Completitud suficiente", function(x) x > 0.9)
 perfil <- perfil_evaluacion("Operativo", regla)
 madurez <- perfiles_madurez("NoNulo")
+propios <- perfiles_madurez(
+  "NoNulo", c(Exploratorio = 0.3, Operativo = 0.65, Consolidado = 0.85)
+)
 names(madurez)
+names(propios)
 perfil$nombre
 }
 \seealso{

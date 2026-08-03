@@ -32,7 +32,7 @@ instanciar(
   referencial = NULL
 )
 
-modelo(...)
+modelo(..., marco = NULL)
 
 metricas_nucleo()
 }
@@ -79,6 +79,10 @@ especialización y los objetos ligados.}
 
 \item{referencial}{Objeto opcional creado por \code{\link[=referencial]{referencial()}}. Las métricas
 que lo consumen validan su contrato al medir.}
+
+\item{marco}{Objeto opcional creado por \code{\link[=marco_calidad]{marco_calidad()}}. Cuando se provee,
+todas las métricas instanciadas deben pertenecer a uno de sus pares
+dimensión-factor.}
 }
 \value{
 \code{metrica()} y \code{especializar()} devuelven closures S3;
@@ -173,6 +177,11 @@ no_nulo <- especializar(
 instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 modelo_calidad <- modelo(instancia)
 medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
+
+# Las fábricas también se pueden encadenar: genérica() -> específica().
+instancia_directa <- nucleo$NoNulo()(
+  entidad = "personas", atributos = "edad"
+)
 
 # Especialización oficial de teléfono fijo según el formato vigente del PNN.
 telefono_pnn <- especializar(

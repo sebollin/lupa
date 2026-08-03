@@ -15,8 +15,10 @@
 #' Los sentinelas numéricos predeterminados son `-9`, `-99`, `-999`, `-9999` y
 #' `999`. La lista es deliberadamente más corta que
 #' `naniar::common_na_numbers` 1.1.0: `66`, `77`, `88` y `9999` también pueden
-#' ser edades, códigos o años legítimos. Para solicitar explícitamente esa
-#' lista completa, use `sentinelas_numericos = sentinelas_naniar`.
+#' ser edades, códigos o años legítimos. `sentinelas_numericos` representa la
+#' política completa, no una lista que se agrega silenciosamente: use
+#' `numeric()` para desactivar todos los sentinelas numéricos, o
+#' `sentinelas_naniar` para solicitar explícitamente la lista de naniar.
 #'
 #' `muestra` limita sólo el descubrimiento de patrones, la inferencia de tipos y
 #' la detección de formatos de fecha. Las demás métricas y hallazgos se calculan
@@ -52,6 +54,11 @@
 #' paquete opcional `stringi` sólo cuando existen caracteres no ASCII. La
 #' clasificación de posibles datos personales es informativa: por defecto no
 #' juzga su presencia y protege los valores concretos que el perfil publicaría.
+#' Los números escritos como texto reconocen tanto coma como punto decimal y
+#' sus separadores de miles simétricos. Los prefijos de tres letras separados
+#' del número, con forma de código ISO 4217, y los símbolos monetarios se
+#' conservan como evidencia; una columna sin datos suficientes para desambiguar
+#' un separador de tres dígitos no se convierte automáticamente.
 #'
 #' @param datos Objeto que hereda de `data.frame`.
 #' @param nombre Nombre descriptivo del objeto.
@@ -71,8 +78,9 @@
 #' @param umbral_patron_dominante Frecuencia mínima del patrón dominante.
 #' @param columnas_sin_ceros Nombres de columnas donde cero no es admisible.
 #' @param columnas_no_negativas Nombres de columnas que deben ser no negativas.
-#' @param sentinelas_numericos Vector de sentinelas numéricos adicionales que
-#'   representan ausencia. Se combina con la lista predeterminada.
+#' @param sentinelas_numericos Vector completo de valores numéricos que se
+#'   interpretan como ausencia. `numeric()` los desactiva; las cadenas de
+#'   ausencia se siguen evaluando por separado.
 #' @param analizar_dependencias Si se buscan dependencias funcionales entre
 #'   pares de columnas. Se aplica una sola muestra común a toda la tabla.
 #' @param umbral_dependencia Cumplimiento mínimo para informar una dependencia.
@@ -112,7 +120,7 @@ perfilar <- function(datos,
                      umbral_patron_dominante = 0.5,
                      columnas_sin_ceros = character(),
                      columnas_no_negativas = character(),
-                     sentinelas_numericos = numeric(),
+                     sentinelas_numericos = c(-9, -99, -999, -9999, 999),
                      analizar_dependencias = TRUE,
                      umbral_dependencia = 0.995,
                      umbral_casi_clave_dependencia = 0.8,

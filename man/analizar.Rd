@@ -12,6 +12,7 @@ analizar(
   metadatos_variables = NULL,
   modelo_confirmado = NULL,
   propuesta_confirmada = NULL,
+  marco = NULL,
   perfil_evaluacion = NULL,
   id_medicion = NULL,
   muestra = 1e+05,
@@ -45,6 +46,10 @@ analizar(
 \item{modelo_confirmado}{Modelo creado por \code{\link[=modelo]{modelo()}} o \code{NULL}.}
 
 \item{propuesta_confirmada}{Propuesta editada por el usuario o \code{NULL}.}
+
+\item{marco}{Taxonomía opcional creada por \code{\link[=marco_calidad]{marco_calidad()}}. Si se omite,
+usa la asociada a \code{modelo_confirmado} y, en último término,
+\code{\link[=marco_agesic]{marco_agesic()}}.}
 
 \item{perfil_evaluacion}{Perfil explícito para \code{\link[=evaluar]{evaluar()}} o \code{NULL}.}
 

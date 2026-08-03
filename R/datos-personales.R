@@ -11,7 +11,11 @@
   }
   normalizado <- .normalizar_nombre_fecha(nombre)
   reglas_nombre <- c(
-    cedula = "(^|_)(cedula|ci|documento_identidad|numero_documento|nro_documento)($|_)",
+    documento_identidad = paste0(
+      "(^|_)(cedula|ci|dni|rut|curp|documento|documento_identidad|",
+      "numero_documento|nro_documento|identificacion|id_nacional|",
+      "pasaporte|passport)($|_)"
+    ),
     correo = "(^|_)(correo|email|mail)($|_)",
     telefono = "(^|_)(telefono|celular|movil)($|_)",
     fecha_nacimiento = "(^|_)(fecha_nacimiento|f_nacimiento|nacimiento)($|_)",
@@ -32,9 +36,11 @@
   longitudes <- nchar(textos[presentes], type = "chars")
   forma_documento_posible <- length(longitudes) &&
     mean(longitudes >= 7L & longitudes <= 12L) >= 0.8
-  proporcion_cedula <- if ("cedula" %in% por_nombre || forma_documento_posible) {
+  proporcion_documento <- if (
+      "documento_identidad" %in% por_nombre || forma_documento_posible) {
     .proporcion_compatible(
-      x, "^(?:[0-9]{1,2}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9]|[0-9]{7,8})$"
+      x,
+      "^(?:[0-9]{1,2}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9Kk]|[0-9]{7,9})$"
     )
   } else NA_real_
 
@@ -49,11 +55,12 @@
     tipo <- "correo"
     proporcion <- proporcion_correo
     fundamento <- "nombre de columna"
-  } else if ("cedula" %in% por_nombre ||
-             (is.finite(proporcion_cedula) && proporcion_cedula >= 0.8)) {
-    tipo <- "cedula"
-    proporcion <- proporcion_cedula
-    fundamento <- if ("cedula" %in% por_nombre) {
+  } else if ("documento_identidad" %in% por_nombre ||
+             (is.finite(proporcion_documento) &&
+              proporcion_documento >= 0.8)) {
+    tipo <- "documento_identidad"
+    proporcion <- proporcion_documento
+    fundamento <- if ("documento_identidad" %in% por_nombre) {
       "nombre de columna y forma compatible"
     } else {
       "forma de documento dominante"

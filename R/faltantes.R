@@ -46,11 +46,12 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   unique(tolower(trimws(as.character(valores))))
 }
 
-.numeros_na <- function(adicionales = numeric()) {
-  unique(c(.numeros_na_locales, as.numeric(adicionales)))
+.numeros_na <- function(valores = .numeros_na_locales) {
+  unique(as.numeric(valores))
 }
 
-.detectar_faltantes_disfrazados <- function(x, sentinelas_numericos = numeric()) {
+.detectar_faltantes_disfrazados <- function(
+    x, sentinelas_numericos = .numeros_na_locales) {
   n <- length(x)
   if (!n) {
     return(list(

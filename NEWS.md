@@ -1,5 +1,19 @@
 # lupa 0.1.0
 
+## Marcos declarables y alcance internacional
+
+- Permite declarar taxonomías dimensión-factor con `marco_calidad()`, validar
+  modelos contra ellas y calcular cobertura con AGESIC sólo como valor de
+  fábrica mediante `marco_agesic()`.
+- Permite construir familias de madurez con nombres y umbrales propios sin
+  cambiar los tres perfiles incluidos.
+- Hace que el vector de sentinelas numéricos sea una política completa:
+  `numeric()` los desactiva explícitamente.
+- Reconoce coma y punto decimal, separadores de miles simétricos, símbolos
+  monetarios y prefijos con forma de código ISO 4217.
+- Clasifica RUT, DNI y otros documentos con la etiqueta neutral
+  `documento_identidad`.
+
 ## Examinar datos
 
 - Añade `analizar()` como puerta de entrada al recorrido descriptivo, con

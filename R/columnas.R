@@ -233,14 +233,30 @@
 
 .componentes_numero_texto <- function(x) {
   texto <- trimws(as.character(x))
-  patron <- paste0(
-    "^(?:[$]|UYU)?[[:space:]]*[+-]?",
-    "(?:[0-9]{1,3}(?:\\.[0-9]{3})+|[0-9]+)",
-    "(?:,[0-9]+)?[[:space:]]*(?:%|[[:alpha:]]+)?$"
+  prefijo <- "(?:[[:upper:]]{3}[[:space:]]+|\\p{Sc}[[:space:]]*)?"
+  sufijo <- "[[:space:]]*(?:%|[[:alpha:]]+)?$"
+  numero_coma <- paste0(
+    "(?:[0-9]{1,3}(?:\\.[0-9]{3})+|[0-9]+)(?:,[0-9]+)?"
   )
-  compatible <- !is.na(texto) & grepl(patron, texto, perl = TRUE)
+  numero_punto <- paste0(
+    "(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\\.[0-9]+)?"
+  )
+  patron_coma <- paste0("^", prefijo, "[+-]?", numero_coma, sufijo)
+  patron_punto <- paste0("^", prefijo, "[+-]?", numero_punto, sufijo)
+  compatible_coma <- !is.na(texto) & grepl(patron_coma, texto, perl = TRUE)
+  compatible_punto <- !is.na(texto) & grepl(patron_punto, texto, perl = TRUE)
+  compatible <- compatible_coma | compatible_punto
+  patron_prefijo <- paste0(
+    "^[[:space:]]*(?:([[:upper:]]{3})[[:space:]]+|(\\p{Sc})[[:space:]]*)"
+  )
+  tiene_moneda <- compatible & grepl(patron_prefijo, texto, perl = TRUE)
+  moneda <- ifelse(
+    tiene_moneda,
+    sub(paste0(patron_prefijo, ".*$"), "\\1\\2", texto, perl = TRUE),
+    ""
+  )
   cuerpo <- texto
-  cuerpo <- sub("^(?:[$]|UYU)?[[:space:]]*", "", cuerpo, perl = TRUE)
+  cuerpo <- sub(patron_prefijo, "", cuerpo, perl = TRUE)
   tiene_unidad <- grepl("(?:%|[[:alpha:]]+)$", cuerpo, perl = TRUE)
   unidad <- ifelse(
     compatible & tiene_unidad,
@@ -249,20 +265,39 @@
   )
   sin_unidad <- sub("[[:space:]]*(?:%|[[:alpha:]]+)$", "", cuerpo, perl = TRUE)
   tiene_coma <- grepl(",", sin_unidad, fixed = TRUE)
-  punto_tres <- grepl("\\.[0-9]{3}(?:$|\\.)", sin_unidad, perl = TRUE)
-  especial <- tiene_coma | punto_tres |
-    grepl("^(?:[$]|UYU)", texto, perl = TRUE) | nzchar(unidad)
+  tiene_punto <- grepl(".", sin_unidad, fixed = TRUE)
+  punto_tres <- grepl(
+    "^[+-]?[0-9]{1,3}(?:\\.[0-9]{3})+$", sin_unidad, perl = TRUE
+  )
+  coma_tres <- grepl(
+    "^[+-]?[0-9]{1,3}(?:,[0-9]{3})+$", sin_unidad, perl = TRUE
+  )
+  evidencia_coma <- compatible_coma & (
+    grepl("\\.[0-9]{3}(?:\\.[0-9]{3})*,[0-9]+$", sin_unidad, perl = TRUE) |
+      grepl(",[0-9]{1,2}$|,[0-9]{4,}$", sin_unidad, perl = TRUE) |
+      grepl("^[+-]?[0-9]{4,},[0-9]{3}$", sin_unidad, perl = TRUE)
+  )
+  evidencia_punto <- compatible_punto & (
+    grepl(",[0-9]{3}(?:,[0-9]{3})*\\.[0-9]+$", sin_unidad, perl = TRUE) |
+      grepl("\\.[0-9]{1,2}$|\\.[0-9]{4,}$", sin_unidad, perl = TRUE) |
+      grepl("^[+-]?[0-9]{4,}\\.[0-9]{3}$", sin_unidad, perl = TRUE)
+  )
+  especial <- tiene_coma | tiene_punto | tiene_moneda | nzchar(unidad)
   list(
     texto = texto, compatible = compatible, especial = especial,
     cuerpo = sin_unidad, unidad = unidad, tiene_coma = tiene_coma,
-    punto_tres = punto_tres
+    tiene_punto = tiene_punto, punto_tres = punto_tres, coma_tres = coma_tres,
+    compatible_coma = compatible_coma, compatible_punto = compatible_punto,
+    evidencia_coma = evidencia_coma, evidencia_punto = evidencia_punto,
+    moneda = moneda
   )
 }
 
 .analizar_numeros_texto <- function(x, umbral_compatibilidad = 0.8) {
   vacio <- list(
     n = 0L, proporcion = NA_real_, ambiguo = FALSE, seguro = FALSE,
-    evidencia = "", unidad = "", n_presentes = 0L
+    evidencia = "", unidad = "", moneda = "", convencion = "",
+    n_presentes = 0L
   )
   if (!is.character(x) && !is.factor(x)) return(vacio)
   textos <- as.character(x)
@@ -273,7 +308,10 @@
     return(vacio)
   }
   inicio_numerico <- grepl(
-    "^[[:space:]]*(?:[$]|UYU)?[[:space:]]*[+-]?[0-9]",
+    paste0(
+      "^[[:space:]]*(?:[[:upper:]]{3}[[:space:]]+|",
+      "\\p{Sc}[[:space:]]*)?[+-]?[0-9]"
+    ),
     textos[presentes], perl = TRUE
   )
   if (mean(inicio_numerico) < umbral_compatibilidad) return(vacio)
@@ -282,23 +320,50 @@
   if (!any(especiales)) {
     return(vacio)
   }
-  hay_coma <- any(partes$tiene_coma[presentes & partes$compatible])
-  ambiguos <- especiales & partes$punto_tres & !hay_coma
+  hay_evidencia_coma <- any(partes$evidencia_coma[presentes])
+  hay_evidencia_punto <- any(partes$evidencia_punto[presentes])
+  convencion <- if (hay_evidencia_coma && hay_evidencia_punto) {
+    "mixta"
+  } else if (hay_evidencia_coma) {
+    "decimal_coma"
+  } else if (hay_evidencia_punto) {
+    "decimal_punto"
+  } else if (any((partes$punto_tres | partes$coma_tres) & especiales)) {
+    "ambigua"
+  } else {
+    "sin_separadores"
+  }
+  compatibles_convencion <- switch(
+    convencion,
+    decimal_coma = partes$compatible_coma,
+    decimal_punto = partes$compatible_punto,
+    sin_separadores = partes$compatible,
+    partes$compatible
+  )
+  ambiguos <- convencion %in% c("ambigua", "mixta") |
+    any(presentes & !compatibles_convencion)
   unidades <- unique(partes$unidad[presentes & partes$compatible])
   unidades_no_vacias <- unidades[nzchar(unidades)]
   unidad_consistente <- length(unidades_no_vacias) <= 1L &&
     !(length(unidades_no_vacias) && any(!nzchar(unidades)))
+  monedas <- unique(partes$moneda[presentes & partes$compatible])
+  monedas_no_vacias <- monedas[nzchar(monedas)]
+  moneda_consistente <- length(monedas_no_vacias) <= 1L &&
+    !(length(monedas_no_vacias) && any(!nzchar(monedas)))
   compatibles <- sum(presentes & partes$compatible)
   list(
     n = sum(especiales),
     proporcion = if (n_presentes) compatibles / n_presentes else NA_real_,
-    ambiguo = any(ambiguos),
-    seguro = compatibles == n_presentes && !any(ambiguos) && unidad_consistente,
+    ambiguo = isTRUE(ambiguos),
+    seguro = compatibles == n_presentes && !isTRUE(ambiguos) &&
+      unidad_consistente && moneda_consistente,
     evidencia = paste(
       encodeString(utils::head(unique(partes$texto[especiales]), 6L), quote = '"'),
       collapse = "; "
     ),
     unidad = if (length(unidades_no_vacias) == 1L) unidades_no_vacias else "",
+    moneda = if (length(monedas_no_vacias) == 1L) monedas_no_vacias else "",
+    convencion = convencion,
     n_presentes = n_presentes
   )
 }
@@ -509,6 +574,8 @@
     numero_texto_ambiguo = numeros_texto$ambiguo,
     numero_texto_seguro = numeros_texto$seguro,
     numero_texto_unidad = numeros_texto$unidad,
+    numero_texto_moneda = numeros_texto$moneda,
+    numero_texto_convencion = numeros_texto$convencion,
     stringsAsFactors = FALSE
   )
 
@@ -567,6 +634,8 @@
   fila$numero_texto_ambiguo <- FALSE
   fila$numero_texto_seguro <- FALSE
   fila$numero_texto_unidad <- ""
+  fila$numero_texto_moneda <- ""
+  fila$numero_texto_convencion <- ""
   resultado$fila <- fila
   resultado$inferencia$tipo <- "desconocido"
   resultado$inferencia$proporcion <- NA_real_

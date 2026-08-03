@@ -63,6 +63,20 @@
   argumentos_lista <- stats::setNames(lapply(propiedades, as.name), propiedades)
   llamada_lista <- as.call(c(list(as.name("list")), argumentos_lista))
   cuerpo <- substitute({
+    extras <- list(...)
+    if (length(extras)) {
+      nombres_extras <- names(extras)
+      if (!is.null(nombres_extras) && any(nombres_extras %in% c(
+        "entidad", "atributos", "nombre_instancia", "referencial"
+      ))) {
+        stop(
+          "La f\u00e1brica gen\u00e9rica debe especializarse primero; use ",
+          "metrica()(entidad = ..., atributos = ...).", call. = FALSE
+        )
+      }
+      stop("La m\u00e9trica recibi\u00f3 argumentos de configuraci\u00f3n no declarados.",
+           call. = FALSE)
+    }
     configuracion <- LLAMADA_LISTA
     configuracion <- configuracion[
       !vapply(configuracion, is.null, logical(1L))
@@ -77,7 +91,8 @@
   }, list(LLAMADA_LISTA = llamada_lista))
   formales <- c(
     list(nombre_especifico = NULL),
-    stats::setNames(rep(list(NULL), length(propiedades)), propiedades)
+    stats::setNames(rep(list(NULL), length(propiedades)), propiedades),
+    alist(... = )
   )
   cierre <- eval(call("function", as.pairlist(formales), cuerpo), environment())
   attr(cierre, "declaracion") <- declaracion
@@ -144,6 +159,9 @@
 #' @param atributos Nombres de las columnas ligadas, en el mismo orden.
 #' @param referencial Objeto opcional creado por [referencial()]. Las métricas
 #'   que lo consumen validan su contrato al medir.
+#' @param marco Objeto opcional creado por [marco_calidad()]. Cuando se provee,
+#'   todas las métricas instanciadas deben pertenecer a uno de sus pares
+#'   dimensión-factor.
 #'
 #' @return `metrica()` y `especializar()` devuelven closures S3;
 #'   `instanciar()` devuelve una `metrica_instanciada`; `modelo()` devuelve un
@@ -231,6 +249,11 @@
 #' instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 #' modelo_calidad <- modelo(instancia)
 #' medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
+#'
+#' # Las fábricas también se pueden encadenar: genérica() -> específica().
+#' instancia_directa <- nucleo$NoNulo()(
+#'   entidad = "personas", atributos = "edad"
+#' )
 #'
 #' # Especialización oficial de teléfono fijo según el formato vigente del PNN.
 #' telefono_pnn <- especializar(
@@ -405,7 +428,7 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
 
 #' @rdname modelo_calidad
 #' @export
-modelo <- function(...) {
+modelo <- function(..., marco = NULL) {
   metricas <- list(...)
   if (length(metricas) == 1L && is.list(metricas[[1L]]) &&
       !inherits(metricas[[1L]], "metrica_instanciada")) {
@@ -419,8 +442,26 @@ modelo <- function(...) {
   if (anyDuplicated(nombres)) {
     stop("Los nombres de las m\u00e9tricas instanciadas deben ser \u00fanicos.", call. = FALSE)
   }
+  if (!is.null(marco)) {
+    if (!inherits(marco, "marco_calidad")) {
+      stop("`marco` debe provenir de marco_calidad().", call. = FALSE)
+    }
+    declaradas <- paste(
+      marco$factores$dimension, marco$factores$factor, sep = "|"
+    )
+    claves <- vapply(metricas, function(x) {
+      paste(x$declaracion$dimension, x$declaracion$factor, sep = "|")
+    }, character(1L))
+    fuera <- !claves %in% declaradas
+    if (any(fuera)) {
+      stop(
+        "El marco no declara estos pares dimensi\u00f3n-factor: ",
+        paste(unique(claves[fuera]), collapse = ", "), ".", call. = FALSE
+      )
+    }
+  }
   names(metricas) <- nombres
-  estructura <- list(metricas = metricas)
+  estructura <- list(metricas = metricas, marco = marco)
   class(estructura) <- "modelo_calidad"
   estructura
 }

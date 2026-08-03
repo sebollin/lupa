@@ -162,5 +162,5 @@ basename(archivo)
 unlink(c(archivo, archivo_rds))
 ```
 
-Para profundizar en la arquitectura consulte `vignette("el-marco-agesic")`; para
+Para profundizar en la arquitectura consulte `vignette("el-modelo-de-calidad")`; para
 revisar decisiones de remediación, `vignette("limpiar-con-un-plan")`.

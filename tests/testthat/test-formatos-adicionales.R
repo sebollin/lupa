@@ -86,6 +86,92 @@ test_that("los números regionales seguros se convierten y los ambiguos no", {
   )
 })
 
+test_that("los números reconocen convención decimal y moneda de otros países", {
+  datos <- data.frame(
+    usd = c("USD 1,234.56", "USD 2,000.00"),
+    clp = c("CLP 150.000", "CLP 250.000"),
+    eur = c("EUR 1.234,56", "EUR 2.000,00"),
+    stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  filas <- perfil$columnas
+
+  expect_equal(filas$n_numeros_texto, c(2L, 2L, 2L))
+  expect_equal(
+    filas$numero_texto_convencion,
+    c("decimal_punto", "ambigua", "decimal_coma")
+  )
+  expect_equal(filas$numero_texto_moneda, c("USD", "CLP", "EUR"))
+  expect_true(filas$numero_texto_seguro[filas$columna == "usd"])
+  plan <- planificar_limpieza(perfil)
+  usd <- plan[
+    plan$columna == "usd" & plan$estrategia == "convertir_numero_regional", ]
+  eur <- plan[
+    plan$columna == "eur" & plan$estrategia == "convertir_numero_regional", ]
+  limpio <- aplicar(rbind(usd, eur), datos)$datos
+  expect_equal(limpio$usd, c(1234.56, 2000))
+  expect_equal(limpio$eur, c(1234.56, 2000))
+
+  tres_decimales <- perfilar(
+    data.frame(coma = c("1234,567", "2345,678"),
+               punto = c("1234.567", "2345.678")),
+    analizar_dependencias = FALSE
+  )
+  expect_equal(
+    tres_decimales$columnas$numero_texto_convencion,
+    c("decimal_coma", "decimal_punto")
+  )
+  identificador <- perfilar(
+    data.frame(codigo = c("ABC1234", "ABC5678")),
+    analizar_dependencias = FALSE
+  )
+  expect_equal(identificador$columnas$n_numeros_texto, 0L)
+  expect_false(any(identificador$hallazgos$tipo_hallazgo == "numero_como_texto"))
+
+  mixtos <- perfilar(
+    data.frame(x = c("1.234,56", "1,234.56")),
+    analizar_dependencias = FALSE
+  )
+  expect_equal(mixtos$columnas$numero_texto_convencion, "mixta")
+  expect_false(mixtos$columnas$numero_texto_seguro)
+})
+
+test_that("la conversión regional exige resolver también la coma ambigua", {
+  ambiguo <- data.frame(valor = c("1,234", "2,345"))
+  plan <- planificar_limpieza(perfilar(ambiguo, analizar_dependencias = FALSE))
+  accion <- plan[plan$estrategia == "convertir_numero_regional", ]
+  accion$aplicar <- TRUE
+
+  expect_error(aplicar(accion, ambiguo), "coma_sin_punto")
+  accion$parametros[[1L]]$coma_sin_punto <- "miles"
+  expect_equal(aplicar(accion, ambiguo)$datos$valor, c(1234, 2345))
+  accion$parametros[[1L]]$coma_sin_punto <- "decimal"
+  expect_equal(aplicar(accion, ambiguo)$datos$valor, c(1.234, 2.345))
+
+  expect_equal(
+    lupa:::.convertir_numero_regional(
+      "1.234", list(punto_sin_coma = "miles")
+    )$valor,
+    1234
+  )
+  expect_equal(
+    lupa:::.convertir_numero_regional(
+      "1.234,56", list(convencion = "es-UY")
+    )$valor,
+    1234.56
+  )
+  expect_error(
+    lupa:::.convertir_numero_regional("1", list(convencion = "mixta")),
+    "no está confirmada"
+  )
+  expect_error(
+    lupa:::.convertir_numero_regional(
+      "1,2", list(convencion = "sin_separadores")
+    ),
+    "No fue posible"
+  )
+})
+
 test_that("el mojibake reparable cambia y el texto sano permanece intacto", {
   datos <- data.frame(
     lugar = c("PaysandÃº", "GONZÃLEZ", "Paysandú", "Ñandú"),

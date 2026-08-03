@@ -456,7 +456,10 @@ test_that("los valores personales se clasifican sin juicio y se protegen", {
     correo = c("maria@example.uy", "juan@example.uy")
   )
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
-  expect_setequal(perfil$datos_personales$tipo, c("cedula", "nombre", "correo"))
+  expect_setequal(
+    perfil$datos_personales$tipo,
+    c("documento_identidad", "nombre", "correo")
+  )
   personales <- perfil$hallazgos$tipo_hallazgo == "dato_personal_posible"
   expect_true(all(perfil$hallazgos$severidad[personales] == "ok"))
   expect_true(all(perfil$columnas$moda == "[valor protegido]"))
@@ -507,7 +510,7 @@ test_that("la clasificación personal explicita evidencia débil y protege depen
     data.frame(codigo = c("12345672", "45678901")),
     analizar_dependencias = FALSE
   )
-  expect_equal(por_forma$datos_personales$tipo, "cedula")
+  expect_equal(por_forma$datos_personales$tipo, "documento_identidad")
   expect_equal(por_forma$datos_personales$fundamento,
                "forma de documento dominante")
 
@@ -523,6 +526,26 @@ test_that("la clasificación personal explicita evidencia débil y protege depen
   expect_true(any(
     con_dependencia$dependencias$evidencia[sensibles] == "[evidencia protegida]"
   ))
+})
+
+test_that("los documentos extranjeros reciben una etiqueta neutral", {
+  datos <- data.frame(
+    rut = c("12.345.678-5", "9.876.543-K"),
+    dni = c("12345678", "87654321"),
+    stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+
+  expect_equal(
+    perfil$datos_personales$tipo,
+    c("documento_identidad", "documento_identidad")
+  )
+  evidencia <- perfil$hallazgos$evidencia[
+    perfil$hallazgos$tipo_hallazgo == "dato_personal_posible"
+  ]
+  expect_true(all(grepl("Tipo posible: documento_identidad", evidencia,
+                        fixed = TRUE)))
+  expect_false(any(grepl("Tipo posible: cedula", evidencia, fixed = TRUE)))
 })
 
 test_that("el reporte incluye siempre la cobertura del perfil", {
