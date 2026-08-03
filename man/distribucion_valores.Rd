@@ -41,7 +41,10 @@ Los cuantiles se calculan sólo para números ordinarios finitos.
 }
 \details{
 Cuando una columna parece contener datos personales, sus frecuencias y
-niveles se conservan pero el valor concreto se reemplaza. Esta protección es
+niveles se conservan pero el valor concreto se reemplaza. Los cuantiles
+mantienen sus filas y probabilidades, pero \code{valor} queda en \code{NA} y \code{estado}
+informa \code{"valor_protegido"}: un cuantil, especialmente en tablas pequeñas,
+puede coincidir exactamente con una observación. Esta protección es
 independiente de la usada al construir el perfil.
 }
 \examples{

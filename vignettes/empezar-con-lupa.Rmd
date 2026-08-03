@@ -82,6 +82,11 @@ frecuencias acotadas, cuantiles, asociaciones, calendario observado y una
 clasificación confirmable de escalas. La cobertura evita confundir ausencia de
 hallazgos con calidad demostrada.
 
+Si una columna se clasifica como posible dato personal, los estadísticos de
+orden y cuantiles que podrían ser valores de una persona se suprimen y la tabla
+lo marca. Las medias y los desvíos se mantienen como síntesis no ligadas a una
+fila.
+
 ```{r}
 analisis$distribuciones$cuantiles
 analisis$asociaciones

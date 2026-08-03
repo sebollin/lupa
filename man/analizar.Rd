@@ -81,10 +81,13 @@ niveles observados.}
 \item{max_columnas_temporales}{Máximo de columnas temporales analizadas.}
 
 \item{conservar_datos}{Si el objeto retiene una copia de la entrada. Es
-\code{FALSE} por omisión para limitar tamaño y exposición.}
+\code{FALSE} por omisión para limitar tamaño y exposición. Con protección activa,
+las columnas personales de esa copia también se enmascaran; para conservar
+sus valores debe usarse \code{proteger_datos_personales = FALSE}.}
 
 \item{proteger_datos_personales}{Si perfiles y resúmenes ocultan valores de
-columnas clasificadas como posibles datos personales.}
+columnas clasificadas como posibles datos personales, incluidos
+estadísticos de orden, cuantiles y rangos temporales.}
 
 \item{...}{Argumentos con nombre enviados a \code{\link[=perfilar]{perfilar()}}. Es una alternativa
 concisa a \code{argumentos_perfil}.}

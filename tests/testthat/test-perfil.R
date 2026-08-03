@@ -144,7 +144,10 @@ test_that("las fechas de texto y Date comparten unidades temporales", {
   expect_equal(texto[c("minimo_fecha", "maximo_fecha", "media_fecha")],
                fecha[c("minimo_fecha", "maximo_fecha", "media_fecha")])
   anios <- as.integer(substr(
-    perfilar(datos_administrativos, analizar_dependencias = FALSE)$columnas$minimo_fecha,
+    perfilar(
+      datos_administrativos, analizar_dependencias = FALSE,
+      proteger_datos_personales = FALSE
+    )$columnas$minimo_fecha,
     1L, 4L
   ))
   expect_true(all(anios[!is.na(anios)] >= 1900L & anios[!is.na(anios)] <= 2100L))

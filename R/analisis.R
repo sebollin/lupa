@@ -102,9 +102,12 @@
 #' @param max_huecos Máximo de grupos de huecos por columna.
 #' @param max_columnas_temporales Máximo de columnas temporales analizadas.
 #' @param conservar_datos Si el objeto retiene una copia de la entrada. Es
-#'   `FALSE` por omisión para limitar tamaño y exposición.
+#'   `FALSE` por omisión para limitar tamaño y exposición. Con protección activa,
+#'   las columnas personales de esa copia también se enmascaran; para conservar
+#'   sus valores debe usarse `proteger_datos_personales = FALSE`.
 #' @param proteger_datos_personales Si perfiles y resúmenes ocultan valores de
-#'   columnas clasificadas como posibles datos personales.
+#'   columnas clasificadas como posibles datos personales, incluidos
+#'   estadísticos de orden, cuantiles y rangos temporales.
 #' @param ... Argumentos con nombre enviados a [perfilar()]. Es una alternativa
 #'   concisa a `argumentos_perfil`.
 #'
@@ -371,12 +374,37 @@ print.analisis <- function(x, ...) {
   propuesta
 }
 
+.proteger_datos_conservados <- function(datos, sensibles) {
+  if (!inherits(datos, "data.frame") || !length(sensibles)) return(datos)
+  reemplazo <- "[valor protegido]"
+  for (nombre in intersect(names(datos), sensibles)) {
+    x <- datos[[nombre]]
+    if (is.character(x) || is.factor(x)) {
+      datos[[nombre]] <- rep(reemplazo, NROW(x))
+    } else if (is.atomic(x)) {
+      x[] <- NA
+      datos[[nombre]] <- x
+    } else {
+      datos[[nombre]] <- rep(list(NULL), NROW(x))
+    }
+  }
+  datos
+}
+
 .proteger_analisis <- function(x) {
   sensibles <- unique(x$perfil$datos_personales$columna)
   x$perfil <- .proteger_perfil(x$perfil)
   if (length(sensibles)) {
     indices <- x$distribuciones$frecuencias$columna %in% sensibles
     x$distribuciones$frecuencias$valor[indices] <- "[valor protegido]"
+    if (!"estado" %in% names(x$distribuciones$cuantiles)) {
+      x$distribuciones$cuantiles$estado <- rep(
+        "calculado", nrow(x$distribuciones$cuantiles)
+      )
+    }
+    indices_cuantiles <- x$distribuciones$cuantiles$columna %in% sensibles
+    x$distribuciones$cuantiles$valor[indices_cuantiles] <- NA_real_
+    x$distribuciones$cuantiles$estado[indices_cuantiles] <- "valor_protegido"
     indices_variables <- x$variables$columna %in% sensibles
     for (campo in c("niveles_declarados", "niveles_observados", "niveles_ausentes")) {
       x$variables[[campo]][indices_variables] <- lapply(
@@ -387,6 +415,13 @@ print.analisis <- function(x, ...) {
     indices_tiempo <- x$temporal$resumen$columna %in% sensibles
     x$temporal$resumen$fecha_minima[indices_tiempo] <- as.Date(NA)
     x$temporal$resumen$fecha_maxima[indices_tiempo] <- as.Date(NA)
+    if (!"proteccion_temporal" %in% names(x$temporal$resumen)) {
+      x$temporal$resumen$proteccion_temporal <- rep(
+        NA_character_, nrow(x$temporal$resumen)
+      )
+    }
+    x$temporal$resumen$proteccion_temporal[indices_tiempo] <-
+      "[rangos y huecos protegidos]"
     x$temporal$huecos <- x$temporal$huecos[
       !x$temporal$huecos$columna %in% sensibles, , drop = FALSE
     ]
@@ -398,6 +433,11 @@ print.analisis <- function(x, ...) {
     }
     x$propuesta_modelo <- .proteger_propuesta_analisis(
       x$propuesta_modelo, sensibles
+    )
+    x$datos <- .proteger_datos_conservados(x$datos, sensibles)
+    x$meta$columnas_datos_protegidas <- intersect(
+      sensibles,
+      if (inherits(x$datos, "data.frame")) names(x$datos) else character()
     )
   }
   x

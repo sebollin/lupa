@@ -22,6 +22,9 @@
 
 ## Examinar datos
 
+- Protege los estadísticos de orden y cuantiles de columnas personales, marca
+  cada supresión en el objeto y conserva alertas de plausibilidad para fechas de
+  nacimiento sin publicar sus extremos.
 - Añade `datos_operativos`, un segundo conjunto sintético y neutral, reproducible
   desde `data-raw/`, con problemas de calidad sembrados.
 - Añade `analizar()` como puerta de entrada al recorrido descriptivo, con

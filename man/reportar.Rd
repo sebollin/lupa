@@ -39,9 +39,10 @@ patrones se detallan. Las omisiones se informan dentro del reporte.}
 \item{max_patrones}{Máximo de patrones mostrados por columna. Las omisiones
 se informan dentro del reporte.}
 
-\item{proteger_datos_personales}{Si se enmascaran modas, ejemplos y evidencia
-de columnas clasificadas como posibles datos personales. Es \code{TRUE} por
-defecto. Para ver valores concretos deben haberse conservado también con
+\item{proteger_datos_personales}{Si se enmascaran modas, ejemplos, evidencia,
+estadísticos de orden, cuantiles y rangos temporales de columnas
+clasificadas como posibles datos personales. Es \code{TRUE} por defecto. Para
+ver valores concretos deben haberse conservado también con
 \code{perfilar(..., proteger_datos_personales = FALSE)}.}
 }
 \value{

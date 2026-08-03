@@ -101,7 +101,10 @@
 #' sistema, y características dependientes del sistema. Este agrupamiento es
 #' una representación operativa para `lupa`, no afirma que la norma defina una
 #' jerarquía dimensión-factor. Los nombres de las quince características y su
-#' clasificación siguen la norma; las descripciones son redacción propia.
+#' clasificación siguen la norma; las descripciones son redacción propia. Las
+#' quince filas declaran `perfil_mide = FALSE`: a diferencia de la política
+#' incluida para dos factores de AGESIC, el profiling genérico no demuestra por
+#' sí solo que una característica ISO satisfaga el uso declarado.
 #'
 #' @param nombre Nombre del marco.
 #' @param factores Data frame con `dimension` y `factor`, o lista con nombres.

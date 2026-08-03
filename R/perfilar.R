@@ -54,6 +54,12 @@
 #' paquete opcional `stringi` sólo cuando existen caracteres no ASCII. La
 #' clasificación de posibles datos personales es informativa: por defecto no
 #' juzga su presencia y protege los valores concretos que el perfil publicaría.
+#' La protección sustituye modas, ejemplos, evidencia y extremos o medianas que
+#' corresponden a observaciones reales. Las medias y desvíos se conservan como
+#' síntesis no ligadas a una fila; `proteccion_estadisticos` hace visible la
+#' supresión. En fechas de nacimiento, un hallazgo separado conserva el
+#' diagnóstico de valores anteriores a 1900 o posteriores a la corrida sin
+#' publicar las fechas concretas.
 #' Los números escritos como texto reconocen tanto coma como punto decimal y
 #' sus separadores de miles simétricos. Los prefijos de tres letras separados
 #' del número, con forma de código ISO 4217, y los símbolos monetarios se
@@ -92,10 +98,11 @@
 #'   El valor predeterminado no juzga su presencia: la clasificación se informa
 #'   con severidad `"ok"`. Use `FALSE` sólo cuando el contrato de la entrega
 #'   declare que no deben existir.
-#' @param proteger_datos_personales Si se reemplazan modas, ejemplos y evidencia
-#'   concreta de columnas clasificadas como posibles datos personales. Para
-#'   conservarlos en el objeto debe desactivarse explícitamente; [reportar()]
-#'   aplica además su propia protección predeterminada.
+#' @param proteger_datos_personales Si se reemplazan modas, ejemplos, evidencia
+#'   y estadísticos de orden concretos de columnas clasificadas como posibles
+#'   datos personales. Para conservarlos en el objeto debe desactivarse
+#'   explícitamente; [reportar()] aplica además su propia protección
+#'   predeterminada.
 #'
 #' @return Objeto S3 de clase `perfil`.
 #' @export
@@ -248,6 +255,10 @@ perfilar <- function(datos,
     datos_personales$proporcion_compatible[indice_personal]
   hallazgos_personales <- .hallazgos_datos_personales(
     datos_personales, datos_personales_permitidos
+  )
+  hallazgos_personales <- c(
+    hallazgos_personales,
+    .hallazgos_rango_nacimiento(columnas, datos_personales, fecha_hora)
   )
   if (length(hallazgos_personales)) {
     hallazgos <- do.call(rbind, c(list(hallazgos), hallazgos_personales))

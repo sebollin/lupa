@@ -236,7 +236,8 @@
     .html_texto(.resumir_valor_reporte(x$meta$fecha_hora)), "</p>",
     if (proteger_datos_personales && nrow(x$datos_personales)) {
       paste0(
-        "<p class=\"nota\">Se protegieron modas, ejemplos y evidencia de ",
+        "<p class=\"nota\">Se protegieron modas, ejemplos, evidencia y ",
+        "estadisticos de orden de ",
         .html_texto(nrow(x$datos_personales)),
         " columna(s) clasificadas como posibles datos personales.</p>"
       )
@@ -375,6 +376,13 @@
   )
   distribuciones <- paste0(
     "<section><h2>Distribuciones y cuantiles</h2>",
+    if (proteger_datos_personales) {
+      paste0(
+        "<p class=\"nota\">Los cuantiles personales conservan su ",
+        "probabilidad, pero muestran valor ausente y estado ",
+        "valor_protegido.</p>"
+      )
+    } else "",
     "<h3>Alcance por columna</h3>",
     .html_tabla(x$distribuciones$alcance, max_filas),
     "<h3>Frecuencias principales</h3>",
@@ -391,7 +399,11 @@
   )
   temporal <- paste0(
     "<section><h2>Analisis temporal</h2>",
-    "<p class=\"nota\">Las frecuencias inferidas son propuestas no confirmadas.</p>",
+    paste0(
+      "<p class=\"nota\">Las frecuencias inferidas son propuestas no ",
+      "confirmadas; los rangos y huecos personales se marcan como ",
+      "protegidos.</p>"
+    ),
     "<h3>Alcance y recortes</h3>", .html_tabla(alcance_temporal, Inf),
     "<h3>Resumen</h3>", .html_tabla(x$temporal$resumen, max_filas),
     "<h3>Propuestas de frecuencia</h3>",
@@ -569,9 +581,10 @@
 #'   patrones se detallan. Las omisiones se informan dentro del reporte.
 #' @param max_patrones Máximo de patrones mostrados por columna. Las omisiones
 #'   se informan dentro del reporte.
-#' @param proteger_datos_personales Si se enmascaran modas, ejemplos y evidencia
-#'   de columnas clasificadas como posibles datos personales. Es `TRUE` por
-#'   defecto. Para ver valores concretos deben haberse conservado también con
+#' @param proteger_datos_personales Si se enmascaran modas, ejemplos, evidencia,
+#'   estadísticos de orden, cuantiles y rangos temporales de columnas
+#'   clasificadas como posibles datos personales. Es `TRUE` por defecto. Para
+#'   ver valores concretos deben haberse conservado también con
 #'   `perfilar(..., proteger_datos_personales = FALSE)`.
 #'
 #' @return La ruta normalizada del archivo, de forma invisible.

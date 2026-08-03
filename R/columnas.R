@@ -561,6 +561,7 @@
     n_infinito_positivo = cuantitativo$n_infinito_positivo,
     n_infinito_negativo = cuantitativo$n_infinito_negativo,
     estado_estadisticos = cuantitativo$estado_estadisticos,
+    proteccion_estadisticos = NA_character_,
     n_blancos = n_blancos,
     n_espacios_borde = diagnostico_texto$n_espacios_borde,
     n_variantes_mayusculas = diagnostico_texto$n_variantes_mayusculas,

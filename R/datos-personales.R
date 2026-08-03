@@ -126,12 +126,62 @@
         } else ""
       ),
       if (permitidos) {
-        "Mantener protegidos la moda, los ejemplos y la evidencia al compartir salidas."
+        paste0(
+          "Mantener protegidos la moda, los ejemplos, la evidencia y los ",
+          "estadisticos de orden al compartir salidas."
+        )
       } else {
         "Confirmar el contrato de la entrega antes de retirar o transformar datos."
       }
     )
   })
+}
+
+.fecha_resumida_personal <- function(x) {
+  if (length(x) != 1L || is.na(x) || !nzchar(x)) return(as.Date(NA))
+  tryCatch(
+    suppressWarnings(as.Date(substr(as.character(x), 1L, 10L))),
+    error = function(e) as.Date(NA)
+  )
+}
+
+.hallazgos_rango_nacimiento <- function(columnas, clasificacion,
+                                        fecha_referencia) {
+  nacimientos <- clasificacion[
+    clasificacion$tipo == "fecha_nacimiento", , drop = FALSE
+  ]
+  if (!nrow(nacimientos)) return(list())
+  limite_inferior <- as.Date("1900-01-01")
+  limite_superior <- as.Date(fecha_referencia, tz = "UTC")
+  hallazgos <- list()
+  for (i in seq_len(nrow(nacimientos))) {
+    nombre <- nacimientos$columna[[i]]
+    indice <- match(nombre, columnas$columna)
+    if (is.na(indice)) next
+    minimo <- .fecha_resumida_personal(columnas$minimo_fecha[[indice]])
+    maximo <- .fecha_resumida_personal(columnas$maximo_fecha[[indice]])
+    anterior <- !is.na(minimo) && minimo < limite_inferior
+    futura <- !is.na(maximo) && maximo > limite_superior
+    if (!anterior && !futura) next
+    situaciones <- c(
+      if (anterior) "al menos una fecha anterior a 1900",
+      if (futura) "al menos una fecha posterior a la fecha del perfil"
+    )
+    hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
+      nombre, "fecha_nacimiento_fuera_rango",
+      if (futura) "error" else "sospechoso",
+      paste0(
+        "La columna clasificada como fecha de nacimiento contiene ",
+        paste(situaciones, collapse = " y "), "."
+      ),
+      paste0(
+        "Se aplicaron limites de plausibilidad sin publicar las fechas ",
+        "observadas."
+      ),
+      "Revisar los registros se\u00f1alados contra la fuente antes de corregirlos."
+    )
+  }
+  hallazgos
 }
 
 .proteger_componentes_perfil <- function(columnas, patrones, dependencias,
@@ -146,6 +196,33 @@
   reemplazo <- "[valor protegido]"
   indices_columnas <- columnas$columna %in% sensibles
   columnas$moda[indices_columnas & !is.na(columnas$moda)] <- reemplazo
+  campos_numericos <- intersect(
+    c("minimo", "maximo", "mediana"), names(columnas)
+  )
+  campos_texto <- intersect(
+    c(
+      "minimo_exacto", "maximo_exacto", "minimo_fecha", "maximo_fecha",
+      "mediana_fecha"
+    ),
+    names(columnas)
+  )
+  tenia_orden <- rep(FALSE, nrow(columnas))
+  for (campo in campos_numericos) {
+    ocultar <- indices_columnas & !is.na(columnas[[campo]])
+    tenia_orden <- tenia_orden | ocultar
+    columnas[[campo]][ocultar] <- NA_real_
+  }
+  for (campo in campos_texto) {
+    ocultar <- indices_columnas & !is.na(columnas[[campo]]) &
+      nzchar(columnas[[campo]])
+    tenia_orden <- tenia_orden | ocultar
+    columnas[[campo]][ocultar] <- reemplazo
+  }
+  if (!"proteccion_estadisticos" %in% names(columnas)) {
+    columnas$proteccion_estadisticos <- NA_character_
+  }
+  columnas$proteccion_estadisticos[tenia_orden] <-
+    "[estadisticos de orden protegidos]"
   for (i in seq_along(patrones)) {
     if (names(patrones)[[i]] %in% sensibles && "ejemplos" %in% names(patrones[[i]])) {
       patrones[[i]]$ejemplos[nzchar(patrones[[i]]$ejemplos)] <- reemplazo

@@ -71,7 +71,10 @@
 #' Los cuantiles se calculan sólo para números ordinarios finitos.
 #'
 #' Cuando una columna parece contener datos personales, sus frecuencias y
-#' niveles se conservan pero el valor concreto se reemplaza. Esta protección es
+#' niveles se conservan pero el valor concreto se reemplaza. Los cuantiles
+#' mantienen sus filas y probabilidades, pero `valor` queda en `NA` y `estado`
+#' informa `"valor_protegido"`: un cuantil, especialmente en tablas pequeñas,
+#' puede coincidir exactamente con una observación. Esta protección es
 #' independiente de la usada al construir el perfil.
 #'
 #' @param datos Tabla que se desea examinar.
@@ -158,11 +161,16 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
         valores_q <- stats::quantile(
           finitos, probs = probabilidades, names = FALSE, type = 7
         )
+        protegida <- nombre %in% personales
         q <- q + 1L
         cuantiles[[q]] <- data.frame(
           columna = nombre, probabilidad = probabilidades,
-          valor = as.numeric(valores_q), n_analizados = length(finitos),
-          muestreado = muestra_x$muestreado, stringsAsFactors = FALSE
+          valor = if (protegida) {
+            rep(NA_real_, length(valores_q))
+          } else as.numeric(valores_q),
+          n_analizados = length(finitos), muestreado = muestra_x$muestreado,
+          estado = if (protegida) "valor_protegido" else "calculado",
+          stringsAsFactors = FALSE
         )
       }
     }
@@ -173,7 +181,8 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   )
   vacia_q <- data.frame(
     columna = character(), probabilidad = numeric(), valor = numeric(),
-    n_analizados = integer(), muestreado = logical(), stringsAsFactors = FALSE
+    n_analizados = integer(), muestreado = logical(), estado = character(),
+    stringsAsFactors = FALSE
   )
   vacia_a <- data.frame(
     columna = character(), n_total = numeric(), n_analizados = numeric(),

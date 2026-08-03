@@ -87,6 +87,12 @@ factor ordenado `ok < sospechoso < error`. El diagnóstico nunca modifica los
 datos y ninguna eliminación se recomienda o ejecuta sin consentimiento
 adicional.
 
+La protección predeterminada de posibles datos personales alcanza modas,
+ejemplos, evidencia, extremos, medianas, cuantiles y rangos temporales. Las
+supresiones quedan marcadas en las tablas; las medias y los desvíos permanecen
+como síntesis no ligadas a una fila. Puede desactivarse explícitamente cuando el
+destinatario está autorizado a ver los valores.
+
 ## Guías
 
 - [Empezar con lupa](vignettes/empezar-con-lupa.Rmd): recorrido completo sobre
