@@ -361,12 +361,11 @@
 #'   fecha_fin_utilidad = as.Date("2026-07-01")
 #' )
 #'
-#' # Formato(NumeroDocumento, DNIC) se obtiene conectando un validador externo:
-#' # validar_ci <- uyutils::validar_ci
-#' # cedula_dnic <- especializar(
-#' #   nucleo$Formato, nombre_especifico = "NumeroDocumentoDNIC",
-#' #   validador = validar_ci
-#' # )
+#' # Formato(NumeroDocumento, DNIC) se obtiene conectando el validador incluido:
+#' cedula_dnic <- especializar(
+#'   nucleo$Formato, nombre_especifico = "NumeroDocumentoDNIC",
+#'   validador = validar_ci_uy
+#' )
 #'
 #' @name modelo_calidad
 #' @seealso [referencial()], [agregar()], [medir()], [proponer_modelo()]

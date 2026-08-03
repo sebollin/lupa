@@ -47,7 +47,7 @@ test_that("integer64 fuera de double se resume sin inventar extremos", {
   expect_true(is.na(fila$minimo) && is.na(fila$maximo))
   expect_true(fila$minimo_exacto %in% originales)
   expect_true(fila$maximo_exacto %in% originales)
-  expect_equal(fila$estado_estadisticos, "omitidos_precision")
+  expect_equal(fila$estado_resumen_cuantitativo, "omitidos_precision")
   expect_true(
     "integer64_fuera_precision_double" %in% perfil$hallazgos$tipo_hallazgo
   )
@@ -61,7 +61,7 @@ test_that("integer64 seguro conserva estadísticas ordinarias y extremos exactos
   expect_equal(c(fila$minimo, fila$maximo), c(-2, 5))
   expect_equal(c(fila$minimo_exacto, fila$maximo_exacto), c("-2", "5"))
   expect_equal(c(fila$n_ceros, fila$n_negativos), c(1L, 1L))
-  expect_equal(fila$estado_estadisticos, "calculados")
+  expect_equal(fila$estado_resumen_cuantitativo, "calculados")
 })
 
 test_that("NaN e infinitos quedan distinguidos y visibles", {
@@ -379,7 +379,7 @@ test_that("una columna matricial conserva filas y omite estadísticas ambiguas",
   expect_equal(fila$n, nrow(datos))
   expect_true(is.na(fila$n_distintos))
   expect_true(is.na(fila$minimo) && is.na(fila$maximo))
-  expect_equal(fila$estado_estadisticos, "tipo_compuesto_no_analizado")
+  expect_equal(fila$estado_resumen_cuantitativo, "tipo_compuesto_no_analizado")
   expect_true(
     "tipo_compuesto_no_analizado" %in% perfil$hallazgos$tipo_hallazgo
   )

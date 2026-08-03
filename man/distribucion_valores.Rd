@@ -25,8 +25,8 @@ clasificación de posibles datos personales.}
 
 \item{muestra}{Máximo de filas por columna; \code{Inf} desactiva el muestreo.}
 
-\item{proteger_datos_personales}{Si se ocultan valores de columnas
-clasificadas como posibles datos personales.}
+\item{proteger_datos_personales}{Si se ocultan valores de columnas cuya
+clasificación activa protección automática. Véase \code{\link[=perfilar]{perfilar()}}.}
 }
 \value{
 Objeto \code{distribuciones_perfil}, una lista con data frames
@@ -40,8 +40,9 @@ analizaron, cuántos distintos se observaron y si hubo muestreo o truncamiento.
 Los cuantiles se calculan sólo para números ordinarios finitos.
 }
 \details{
-Cuando una columna parece contener datos personales, sus frecuencias y
-niveles se conservan pero el valor concreto se reemplaza. Los cuantiles
+Cuando una columna tiene evidencia suficiente para activar la protección de
+datos personales, sus frecuencias y niveles se conservan pero el valor
+concreto se reemplaza. Los cuantiles
 mantienen sus filas y probabilidades, pero \code{valor} queda en \code{NA} y \code{estado}
 informa \code{"valor_protegido"}: un cuantil, especialmente en tablas pequeñas,
 puede coincidir exactamente con una observación. Esta protección es

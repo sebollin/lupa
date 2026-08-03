@@ -62,6 +62,9 @@ reference:
   - instanciar
   - modelo
   - metricas_nucleo
+  - validadores_formato
+  - validadores_uy
+  - pack_validadores
   - referencial
   - contratos_medicion
   - vigencia

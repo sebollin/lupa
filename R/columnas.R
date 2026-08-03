@@ -65,7 +65,7 @@
     mediana_fecha = NA_character_, n_ceros = NA_integer_,
     n_negativos = NA_integer_, n_outliers = NA_integer_, n_nan = 0L,
     n_infinito_positivo = 0L, n_infinito_negativo = 0L,
-    estado_estadisticos = estado
+    estado_resumen_cuantitativo = estado
   )
 }
 
@@ -74,7 +74,7 @@
   validos <- !is.na(x)
   if (!any(validos)) return(vacio)
   if (!requireNamespace("bit64", quietly = TRUE)) {
-    vacio$estado_estadisticos <- "requiere_bit64"
+    vacio$estado_resumen_cuantitativo <- "requiere_bit64"
     return(vacio)
   }
   valores <- x[validos]
@@ -87,7 +87,7 @@
     vacio$maximo_exacto <- maximo_exacto
     vacio$n_ceros <- as.integer(sum(valores == bit64::as.integer64(0)))
     vacio$n_negativos <- as.integer(sum(valores < bit64::as.integer64(0)))
-    vacio$estado_estadisticos <- "omitidos_precision"
+    vacio$estado_resumen_cuantitativo <- "omitidos_precision"
     return(vacio)
   }
   resultado <- .resumen_cuantitativo(
@@ -164,7 +164,7 @@
       n_outliers = n_outliers, n_nan = as.integer(n_nan),
       n_infinito_positivo = as.integer(n_infinito_positivo),
       n_infinito_negativo = as.integer(n_infinito_negativo),
-      estado_estadisticos = "calculados"
+      estado_resumen_cuantitativo = "calculados"
     ))
   }
 
@@ -179,7 +179,7 @@
     n_nan = as.integer(n_nan),
     n_infinito_positivo = as.integer(n_infinito_positivo),
     n_infinito_negativo = as.integer(n_infinito_negativo),
-    estado_estadisticos = "calculados"
+    estado_resumen_cuantitativo = "calculados"
   )
 }
 
@@ -560,8 +560,8 @@
     n_nan = cuantitativo$n_nan,
     n_infinito_positivo = cuantitativo$n_infinito_positivo,
     n_infinito_negativo = cuantitativo$n_infinito_negativo,
-    estado_estadisticos = cuantitativo$estado_estadisticos,
-    proteccion_estadisticos = NA_character_,
+    estado_resumen_cuantitativo = cuantitativo$estado_resumen_cuantitativo,
+    detalle_proteccion_personal = NA_character_,
     n_blancos = n_blancos,
     n_espacios_borde = diagnostico_texto$n_espacios_borde,
     n_variantes_mayusculas = diagnostico_texto$n_variantes_mayusculas,
@@ -631,7 +631,7 @@
   fila$maximo_fecha <- NA_character_
   fila$media_fecha <- NA_character_
   fila$mediana_fecha <- NA_character_
-  fila$estado_estadisticos <- "tipo_compuesto_no_analizado"
+  fila$estado_resumen_cuantitativo <- "tipo_compuesto_no_analizado"
   fila$numero_texto_ambiguo <- FALSE
   fila$numero_texto_seguro <- FALSE
   fila$numero_texto_unidad <- ""

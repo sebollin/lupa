@@ -32,6 +32,9 @@
 #' exacta con las 49 entradas de AGESIC se consulta en [catalogo_agesic()]. No
 #' se calcula un índice global: la jerarquía dimensión–factor–métrica es
 #' taxonómica y requiere un contrato adicional para producirlo.
+#' Los formatos se pueden verificar con funciones propias o con los packs de
+#' [validadores_internacionales()] y [validadores_uruguay()];
+#' [pack_validadores()] permite añadir otro país sin registrar estado global.
 #'
 #' @references Batini C, Scannapieco M (2016). *Data and Information Quality:
 #'   Dimensions, Principles and Techniques*. Springer.

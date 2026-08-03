@@ -153,8 +153,8 @@
 #' son nominal, ordinal, discreta, continua, binaria, temporal y desconocida.
 #'
 #' Los niveles declarados y observados se conservan como columnas de lista. Los
-#' niveles ausentes son una observación, no prueba de error. Si una columna se
-#' clasifica como posible dato personal, los niveles concretos se protegen.
+#' niveles ausentes son una observación, no prueba de error. Si la evidencia de
+#' dato personal activa la protección, los niveles concretos se protegen.
 #'
 #' @param datos Tabla que se desea clasificar.
 #' @param perfil Perfil opcional de los mismos datos.
@@ -164,7 +164,7 @@
 #'   los niveles ausentes de factores y metadatos se verifican sobre toda la
 #'   columna.
 #' @param proteger_datos_personales Si se ocultan niveles concretos de columnas
-#'   clasificadas como posibles datos personales.
+#'   cuya clasificación activa protección automática. Véase [perfilar()].
 #'
 #' @return Data frame S3 `clasificacion_variables`, editable y filtrable.
 #' @export

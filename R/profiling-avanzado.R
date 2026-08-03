@@ -7,12 +7,12 @@
 }
 
 .columnas_personales_rapidas <- function(datos, perfil = NULL) {
-  if (!is.null(perfil)) return(unique(perfil$datos_personales$columna))
+  if (!is.null(perfil)) return(.columnas_personales_protegidas(perfil))
   resultados <- lapply(seq_along(datos), function(i) {
     inferencia <- list(tipo = .tipo_declarado(datos[[i]]))
     .clasificar_dato_personal(datos[[i]], names(datos)[[i]], inferencia)
   })
-  names(datos)[!vapply(resultados, function(x) is.na(x$tipo), logical(1L))]
+  names(datos)[vapply(resultados, function(x) isTRUE(x$proteger), logical(1L))]
 }
 
 .frecuencias_columna <- function(x, max_valores, muestra, protegida) {
@@ -70,8 +70,9 @@
 #' analizaron, cuántos distintos se observaron y si hubo muestreo o truncamiento.
 #' Los cuantiles se calculan sólo para números ordinarios finitos.
 #'
-#' Cuando una columna parece contener datos personales, sus frecuencias y
-#' niveles se conservan pero el valor concreto se reemplaza. Los cuantiles
+#' Cuando una columna tiene evidencia suficiente para activar la protección de
+#' datos personales, sus frecuencias y niveles se conservan pero el valor
+#' concreto se reemplaza. Los cuantiles
 #' mantienen sus filas y probabilidades, pero `valor` queda en `NA` y `estado`
 #' informa `"valor_protegido"`: un cuantil, especialmente en tablas pequeñas,
 #' puede coincidir exactamente con una observación. Esta protección es
@@ -83,8 +84,8 @@
 #' @param max_valores Máximo de valores mostrados por columna.
 #' @param probabilidades Probabilidades de los cuantiles, en `[0, 1]`.
 #' @param muestra Máximo de filas por columna; `Inf` desactiva el muestreo.
-#' @param proteger_datos_personales Si se ocultan valores de columnas
-#'   clasificadas como posibles datos personales.
+#' @param proteger_datos_personales Si se ocultan valores de columnas cuya
+#'   clasificación activa protección automática. Véase [perfilar()].
 #'
 #' @return Objeto `distribuciones_perfil`, una lista con data frames
 #'   `frecuencias`, `cuantiles` y `alcance`. Todas las proporciones están en

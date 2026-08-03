@@ -106,7 +106,7 @@
 #'   las columnas personales de esa copia también se enmascaran; para conservar
 #'   sus valores debe usarse `proteger_datos_personales = FALSE`.
 #' @param proteger_datos_personales Si perfiles y resúmenes ocultan valores de
-#'   columnas clasificadas como posibles datos personales, incluidos
+#'   columnas cuya clasificación activa protección automática, incluidos
 #'   estadísticos de orden, cuantiles y rangos temporales.
 #' @param ... Argumentos con nombre enviados a [perfilar()]. Es una alternativa
 #'   concisa a `argumentos_perfil`.
@@ -392,7 +392,7 @@ print.analisis <- function(x, ...) {
 }
 
 .proteger_analisis <- function(x) {
-  sensibles <- unique(x$perfil$datos_personales$columna)
+  sensibles <- .columnas_personales_protegidas(x$perfil)
   x$perfil <- .proteger_perfil(x$perfil)
   if (length(sensibles)) {
     indices <- x$distribuciones$frecuencias$columna %in% sensibles
@@ -451,9 +451,10 @@ print.analisis <- function(x, ...) {
 #' sólo si los datos fueron incluidos; una función arbitraria queda desactivada.
 #' Así el archivo no serializa entornos de ejecución completos.
 #'
-#' La protección de posibles datos personales se vuelve a aplicar antes de
-#' escribir. Incluir datos que contienen columnas clasificadas como personales
-#' exige desactivar expresamente esa protección.
+#' La protección de datos personales con evidencia suficiente se vuelve a
+#' aplicar antes de escribir. Incluir datos que contienen columnas protegidas
+#' exige desactivar expresamente esa protección; una clasificación débil se
+#' conserva como información pero no activa esa restricción.
 #'
 #' @param x Objeto creado por [analizar()].
 #' @param archivo Ruta del archivo RDS.
@@ -512,7 +513,7 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
     stop("El analisis no conservo datos; use `conservar_datos = TRUE`.",
          call. = FALSE)
   }
-  sensibles <- unique(x$perfil$datos_personales$columna)
+  sensibles <- .columnas_personales_protegidas(x$perfil)
   if (incluir_datos && proteger_datos_personales && length(sensibles)) {
     stop(
       "Incluir datos personales exige `proteger_datos_personales = FALSE` de forma explicita.",

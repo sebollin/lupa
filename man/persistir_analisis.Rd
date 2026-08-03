@@ -44,9 +44,10 @@ sólo si los datos fueron incluidos; una función arbitraria queda desactivada.
 Así el archivo no serializa entornos de ejecución completos.
 }
 \details{
-La protección de posibles datos personales se vuelve a aplicar antes de
-escribir. Incluir datos que contienen columnas clasificadas como personales
-exige desactivar expresamente esa protección.
+La protección de datos personales con evidencia suficiente se vuelve a
+aplicar antes de escribir. Incluir datos que contienen columnas protegidas
+exige desactivar expresamente esa protección; una clasificación débil se
+conserva como información pero no activa esa restricción.
 }
 \examples{
 a <- analizar(datos_administrativos, argumentos_perfil = list(

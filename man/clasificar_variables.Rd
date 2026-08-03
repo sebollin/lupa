@@ -27,7 +27,7 @@ los niveles ausentes de factores y metadatos se verifican sobre toda la
 columna.}
 
 \item{proteger_datos_personales}{Si se ocultan niveles concretos de columnas
-clasificadas como posibles datos personales.}
+cuya clasificación activa protección automática. Véase \code{\link[=perfilar]{perfilar()}}.}
 }
 \value{
 Data frame S3 \code{clasificacion_variables}, editable y filtrable.
@@ -45,8 +45,8 @@ Debe contener \code{columna} y puede incluir \code{escala}, \code{rol}, \code{co
 son nominal, ordinal, discreta, continua, binaria, temporal y desconocida.
 
 Los niveles declarados y observados se conservan como columnas de lista. Los
-niveles ausentes son una observación, no prueba de error. Si una columna se
-clasifica como posible dato personal, los niveles concretos se protegen.
+niveles ausentes son una observación, no prueba de error. Si la evidencia de
+dato personal activa la protección, los niveles concretos se protegen.
 }
 \examples{
 d <- data.frame(

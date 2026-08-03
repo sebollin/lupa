@@ -40,6 +40,9 @@ no se pueden inferir se expresan con \code{\link[=vigencia]{vigencia()}} y \code
 exacta con las 49 entradas de AGESIC se consulta en \code{\link[=catalogo_agesic]{catalogo_agesic()}}. No
 se calcula un índice global: la jerarquía dimensión–factor–métrica es
 taxonómica y requiere un contrato adicional para producirlo.
+Los formatos se pueden verificar con funciones propias o con los packs de
+\code{\link[=validadores_internacionales]{validadores_internacionales()}} y \code{\link[=validadores_uruguay]{validadores_uruguay()}};
+\code{\link[=pack_validadores]{pack_validadores()}} permite añadir otro país sin registrar estado global.
 }
 \examples{
 resultado <- analizar(datos_operativos, analizar_dependencias = FALSE)

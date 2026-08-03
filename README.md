@@ -87,11 +87,12 @@ factor ordenado `ok < sospechoso < error`. El diagnóstico nunca modifica los
 datos y ninguna eliminación se recomienda o ejecuta sin consentimiento
 adicional.
 
-La protección predeterminada de posibles datos personales alcanza modas,
-ejemplos, evidencia, extremos, medianas, cuantiles y rangos temporales. Las
-supresiones quedan marcadas en las tablas; las medias y los desvíos permanecen
-como síntesis no ligadas a una fila. Puede desactivarse explícitamente cuando el
-destinatario está autorizado a ver los valores.
+La clasificación informa incluso coincidencias débiles, pero sólo la evidencia
+discriminante activa la protección predeterminada. Ésta alcanza modas, ejemplos,
+evidencia, extremos, medianas, cuantiles y rangos temporales. Las supresiones
+quedan marcadas en las tablas; las medias y los desvíos permanecen como síntesis
+no ligadas a una fila. Puede desactivarse explícitamente cuando el destinatario
+está autorizado a ver los valores.
 
 ## Guías
 
@@ -148,9 +149,11 @@ como dimensiones y las características como factores; esa forma sirve a la API
 de `lupa` y no pretende convertir la norma en una jerarquía que no declara.
 
 El núcleo no presupone país ni organismo. Para datos uruguayos, el catálogo de
-AGESIC, sus especializaciones documentadas y los puntos de extensión para
-validadores y referenciales nacionales quedan disponibles como una instancia de
-referencia, no como una restricción para otros usuarios.
+AGESIC, `validadores_uruguay()` y los puntos de extensión para referenciales
+nacionales quedan disponibles como una instancia de referencia, no como una
+restricción para otros usuarios. `validadores_internacionales()` cubre códigos
+ISO, correo y dígitos de control generales; `pack_validadores()` permite sumar
+otro país o dominio sin modificar el núcleo.
 
 ## Referencia conceptual
 

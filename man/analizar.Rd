@@ -86,7 +86,7 @@ las columnas personales de esa copia también se enmascaran; para conservar
 sus valores debe usarse \code{proteger_datos_personales = FALSE}.}
 
 \item{proteger_datos_personales}{Si perfiles y resúmenes ocultan valores de
-columnas clasificadas como posibles datos personales, incluidos
+columnas cuya clasificación activa protección automática, incluidos
 estadísticos de orden, cuantiles y rangos temporales.}
 
 \item{...}{Argumentos con nombre enviados a \code{\link[=perfilar]{perfilar()}}. Es una alternativa

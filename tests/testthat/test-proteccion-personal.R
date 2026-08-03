@@ -62,7 +62,7 @@ test_that("analizar protege valores crudos de los cuatro tipos personales", {
   expect_true(all(is.na(columnas$maximo[documentos])))
   expect_true(all(is.na(columnas$mediana[documentos])))
   expect_true(all(
-    columnas$proteccion_estadisticos[documentos] ==
+    columnas$detalle_proteccion_personal[documentos] ==
       "[estadisticos de orden protegidos]"
   ))
   expect_true(all(
@@ -191,7 +191,7 @@ test_that("extremos exactos integer64 personales tambien se protegen", {
   expect_equal(perfil$columnas$minimo_exacto, "[valor protegido]")
   expect_equal(perfil$columnas$maximo_exacto, "[valor protegido]")
   expect_equal(
-    perfil$columnas$proteccion_estadisticos,
+    perfil$columnas$detalle_proteccion_personal,
     "[estadisticos de orden protegidos]"
   )
 })
@@ -246,7 +246,7 @@ test_that("la proteccion admite objetos creados con esquemas anteriores", {
     proteger_datos_personales = FALSE
   )
   analisis$distribuciones$cuantiles$estado <- NULL
-  analisis$perfil$columnas$proteccion_estadisticos <- NULL
+  analisis$perfil$columnas$detalle_proteccion_personal <- NULL
 
   protegido <- lupa:::.proteger_analisis(analisis)
 
@@ -254,7 +254,7 @@ test_that("la proteccion admite objetos creados con esquemas anteriores", {
   expect_true(all(
     protegido$distribuciones$cuantiles$estado == "valor_protegido"
   ))
-  expect_true("proteccion_estadisticos" %in% names(protegido$perfil$columnas))
+  expect_true("detalle_proteccion_personal" %in% names(protegido$perfil$columnas))
   expect_true(is.na(lupa:::.fecha_resumida_personal("")))
 
   clasificacion <- protegido$perfil$datos_personales[1L, , drop = FALSE]

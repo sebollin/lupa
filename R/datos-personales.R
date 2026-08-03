@@ -7,7 +7,10 @@
 
 .clasificar_dato_personal <- function(x, nombre, inferencia) {
   if (is.matrix(x)) {
-    return(list(tipo = NA_character_, proporcion = NA_real_, fundamento = ""))
+    return(list(
+      tipo = NA_character_, proporcion = NA_real_, fundamento = "",
+      poder_discriminante = NA_character_, proteger = FALSE
+    ))
   }
   normalizado <- .normalizar_nombre_fecha(nombre)
   reglas_nombre <- c(
@@ -29,9 +32,7 @@
   presentes <- !is.na(textos) & nzchar(textos)
   proporcion_correo <- if ("correo" %in% por_nombre ||
     any(grepl("@", textos[presentes], fixed = TRUE))) {
-    .proporcion_compatible(
-      x, "^[^[:space:]@]+@[^[:space:]@]+\\.[^[:space:]@]+$"
-    )
+    if (any(presentes)) mean(validar_correo(textos[presentes])) else NA_real_
   } else NA_real_
   longitudes <- nchar(textos[presentes], type = "chars")
   forma_documento_posible <- length(longitudes) &&
@@ -43,35 +44,63 @@
       "^(?:[0-9]{1,2}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9Kk]|[0-9]{7,9})$"
     )
   } else NA_real_
+  proporcion_ci_uy <- if (is.finite(proporcion_documento)) {
+    validos_ci <- validar_ci_uy(textos[presentes])
+    mean(validos_ci, na.rm = TRUE)
+  } else NA_real_
+  documentos_distintos <- length(unique(gsub(
+    "[^0-9]", "", textos[presentes], perl = TRUE
+  )))
+  documento_verificado <- documentos_distintos >= 3L &&
+    isTRUE(proporcion_ci_uy == 1)
 
   tipo <- NA_character_
   proporcion <- NA_real_
   fundamento <- ""
+  poder <- NA_character_
+  proteger <- FALSE
   if (is.finite(proporcion_correo) && proporcion_correo >= 0.8) {
     tipo <- "correo"
     proporcion <- proporcion_correo
     fundamento <- "forma de correo dominante"
+    poder <- "alto"
+    proteger <- TRUE
   } else if ("correo" %in% por_nombre) {
     tipo <- "correo"
     proporcion <- proporcion_correo
     fundamento <- "nombre de columna"
+    poder <- "medio"
+    proteger <- TRUE
   } else if ("documento_identidad" %in% por_nombre ||
              (is.finite(proporcion_documento) &&
               proporcion_documento >= 0.8)) {
     tipo <- "documento_identidad"
     proporcion <- proporcion_documento
-    fundamento <- if ("documento_identidad" %in% por_nombre) {
-      "nombre de columna y forma compatible"
+    if (documento_verificado) {
+      fundamento <- "forma verificada por digito de control"
+      poder <- "verificado"
+      proteger <- TRUE
+    } else if ("documento_identidad" %in% por_nombre) {
+      fundamento <- "nombre de columna y forma compatible"
+      poder <- "alto"
+      proteger <- TRUE
     } else {
-      "forma de documento dominante"
+      fundamento <- "forma de documento dominante"
+      poder <- "debil"
+      proteger <- FALSE
     }
   } else if (length(por_nombre)) {
     tipo <- por_nombre[[1L]]
     proporcion <- if (tipo == "fecha_nacimiento" &&
       inferencia$tipo %in% c("fecha", "fecha-hora")) 1 else NA_real_
     fundamento <- "nombre de columna"
+    poder <- "medio"
+    proteger <- TRUE
   }
-  list(tipo = tipo, proporcion = proporcion, fundamento = fundamento)
+  list(
+    tipo = tipo, proporcion = proporcion, fundamento = fundamento,
+    poder_discriminante = poder, proteger = proteger
+  )
 }
 
 .detectar_datos_personales <- function(datos, nombres, resultados) {
@@ -85,6 +114,8 @@
       tipo = clasificacion$tipo,
       proporcion_compatible = clasificacion$proporcion,
       fundamento = clasificacion$fundamento,
+      poder_discriminante = clasificacion$poder_discriminante,
+      proteger = clasificacion$proteger,
       stringsAsFactors = FALSE
     )
   })
@@ -92,6 +123,7 @@
   resultado <- if (length(filas)) do.call(rbind, filas) else data.frame(
     columna = character(), tipo = character(),
     proporcion_compatible = numeric(), fundamento = character(),
+    poder_discriminante = character(), proteger = logical(),
     stringsAsFactors = FALSE
   )
   rownames(resultado) <- NULL
@@ -120,21 +152,44 @@
       paste0(
         "Tipo posible: ", fila$tipo[[1L]], "; fundamento: ",
         fila$fundamento[[1L]],
+        "; poder discriminante: ", fila$poder_discriminante[[1L]],
+        "; proteccion automatica: ", if (fila$proteger[[1L]]) "si" else "no",
         if (is.finite(fila$proporcion_compatible[[1L]])) {
           paste0("; proporci\u00f3n compatible: ",
                  sprintf("%.3f", fila$proporcion_compatible[[1L]]))
         } else ""
       ),
       if (permitidos) {
-        paste0(
-          "Mantener protegidos la moda, los ejemplos, la evidencia y los ",
-          "estadisticos de orden al compartir salidas."
-        )
+        if (fila$proteger[[1L]]) {
+          paste0(
+            "Mantener protegidos la moda, los ejemplos, la evidencia y los ",
+            "estadisticos de orden al compartir salidas."
+          )
+        } else {
+          paste0(
+            "Confirmar la semantica de la columna si se necesita decidir si ",
+            "sus valores deben protegerse."
+          )
+        }
       } else {
         "Confirmar el contrato de la entrega antes de retirar o transformar datos."
       }
     )
   })
+}
+
+.columnas_personales_protegidas <- function(clasificacion) {
+  if (inherits(clasificacion, "perfil")) {
+    clasificacion <- clasificacion$datos_personales
+  }
+  if (!inherits(clasificacion, "data.frame") || !nrow(clasificacion)) {
+    return(character())
+  }
+  if (!"proteger" %in% names(clasificacion)) {
+    return(unique(clasificacion$columna))
+  }
+  unique(clasificacion$columna[!is.na(clasificacion$proteger) &
+    clasificacion$proteger])
 }
 
 .fecha_resumida_personal <- function(x) {
@@ -186,7 +241,7 @@
 
 .proteger_componentes_perfil <- function(columnas, patrones, dependencias,
                                           hallazgos, clasificacion) {
-  sensibles <- unique(clasificacion$columna)
+  sensibles <- .columnas_personales_protegidas(clasificacion)
   if (!length(sensibles)) {
     return(list(
       columnas = columnas, patrones = patrones, dependencias = dependencias,
@@ -218,10 +273,10 @@
     tenia_orden <- tenia_orden | ocultar
     columnas[[campo]][ocultar] <- reemplazo
   }
-  if (!"proteccion_estadisticos" %in% names(columnas)) {
-    columnas$proteccion_estadisticos <- NA_character_
+  if (!"detalle_proteccion_personal" %in% names(columnas)) {
+    columnas$detalle_proteccion_personal <- NA_character_
   }
-  columnas$proteccion_estadisticos[tenia_orden] <-
+  columnas$detalle_proteccion_personal[tenia_orden] <-
     "[estadisticos de orden protegidos]"
   for (i in seq_along(patrones)) {
     if (names(patrones)[[i]] %in% sensibles && "ejemplos" %in% names(patrones[[i]])) {

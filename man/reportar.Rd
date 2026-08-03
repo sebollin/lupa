@@ -41,8 +41,9 @@ se informan dentro del reporte.}
 
 \item{proteger_datos_personales}{Si se enmascaran modas, ejemplos, evidencia,
 estadísticos de orden, cuantiles y rangos temporales de columnas
-clasificadas como posibles datos personales. Es \code{TRUE} por defecto. Para
-ver valores concretos deben haberse conservado también con
+cuya clasificación activa protección automática. Es \code{TRUE} por defecto.
+Las coincidencias débiles se informan sin suprimir. Para ver valores
+concretos deben haberse conservado también con
 \code{perfilar(..., proteger_datos_personales = FALSE)}.}
 }
 \value{

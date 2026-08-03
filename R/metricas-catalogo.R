@@ -807,7 +807,7 @@ catalogo_agesic <- function() {
     "Admite expresi\u00f3n regular, diccionario o funci\u00f3n validadora.",
     "Especializa Formato con el diccionario ISO Alpha-3 provisto al medir.",
     "Especializa Formato con el diccionario CIE-10 provisto al medir.",
-    "Especializa Formato con un validador externo, por ejemplo uyutils::validar_ci().",
+    "Especializa Formato con validar_ci_uy(); comprueba estructura y digito de control, no existencia registral.",
     "Requiere configuraci\u00f3n experta mediante escala(); no usa referencial.",
     "Sigue la tabla 16.5: devuelve desviaci\u00f3n est\u00e1ndar muestral.",
     "M\u00e9trica posicional geogr\u00e1fica; no se implementa en el n\u00facleo tabular.",

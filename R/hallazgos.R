@@ -46,7 +46,7 @@
     }
     n_validos <- fila$n - fila$n_faltantes - n_invalidos
 
-    if (identical(fila$estado_estadisticos, "tipo_compuesto_no_analizado")) {
+    if (identical(fila$estado_resumen_cuantitativo, "tipo_compuesto_no_analizado")) {
       estructura <- resultado$estructura_no_analizada
       agregar(.nuevo_hallazgo(
         nombre, "tipo_compuesto_no_analizado", "sospechoso",
@@ -307,7 +307,7 @@
       ))
     }
 
-    if (identical(fila$estado_estadisticos, "omitidos_precision")) {
+    if (identical(fila$estado_resumen_cuantitativo, "omitidos_precision")) {
       agregar(.nuevo_hallazgo(
         nombre, "integer64_fuera_precision_double", "sospechoso",
         paste0(
@@ -320,7 +320,7 @@
         ),
         "Conservar la clase integer64 y usar los extremos exactos informados."
       ))
-    } else if (identical(fila$estado_estadisticos, "requiere_bit64")) {
+    } else if (identical(fila$estado_resumen_cuantitativo, "requiere_bit64")) {
       agregar(.nuevo_hallazgo(
         nombre, "integer64_sin_soporte", "sospechoso",
         "La clase integer64 no se resumi\u00f3 porque falta su soporte opcional.",

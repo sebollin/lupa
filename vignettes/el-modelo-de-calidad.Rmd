@@ -116,6 +116,33 @@ consultarlas antes de llamar a `especializar()`.
 propiedades_metrica(nucleo$Formato)
 ```
 
+### Validadores y packs territoriales
+
+`Formato` acepta cualquier función vectorizada que devuelva un lógico por
+valor. El núcleo incluye validadores internacionales de códigos ISO, correo,
+Luhn y módulo 97. Uruguay es un pack territorial de referencia, no una rama
+especial del motor.
+
+```{r}
+internacionales <- validadores_internacionales()
+uruguay <- validadores_uruguay()
+internacionales$iso4217(c("UYU", "CLP", "ZZZ"))
+uruguay$cedula(c("1.234.567-2", "1.234.567-3"))
+
+cedula_valida <- especializar(
+  nucleo$Formato, "CedulaValida", validador = uruguay$cedula
+)
+medir(
+  modelo(cedula_valida("personas", "documento")),
+  data.frame(documento = c("1.234.567-2", "1.234.567-3"))
+)[, c("objeto_medible", "resultado")]
+```
+
+Un proyecto de otro país construye un pack con `pack_validadores()` y mantiene
+su función en su propio paquete o script. No necesita registrar nombres ni
+modificar `lupa`; la ayuda de `pack_validadores()` incluye un ejemplo completo
+con un RUT chileno.
+
 ## Medir y agregar
 
 ```{r}

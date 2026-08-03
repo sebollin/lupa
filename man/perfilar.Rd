@@ -82,8 +82,9 @@ con severidad \code{"ok"}. Use \code{FALSE} sólo cuando el contrato de la entre
 declare que no deben existir.}
 
 \item{proteger_datos_personales}{Si se reemplazan modas, ejemplos, evidencia
-y estadísticos de orden concretos de columnas clasificadas como posibles
-datos personales. Para conservarlos en el objeto debe desactivarse
+y estadísticos de orden concretos cuando \code{poder_discriminante} es medio,
+alto o verificado. Las clasificaciones débiles se conservan como aviso pero
+no suprimen estadísticos. Para conservar todo en el objeto debe desactivarse
 explícitamente; \code{\link[=reportar]{reportar()}} aplica además su propia protección
 predeterminada.}
 }
@@ -143,15 +144,28 @@ Los resúmenes de fecha-hora se expresan siempre en UTC y llevan el sufijo
 conserva aunque la columna de entrada use otra zona horaria.
 
 La normalización Unicode se compara sin modificar el texto y requiere el
-paquete opcional \code{stringi} sólo cuando existen caracteres no ASCII. La
-clasificación de posibles datos personales es informativa: por defecto no
-juzga su presencia y protege los valores concretos que el perfil publicaría.
-La protección sustituye modas, ejemplos, evidencia y extremos o medianas que
-corresponden a observaciones reales. Las medias y desvíos se conservan como
-síntesis no ligadas a una fila; \code{proteccion_estadisticos} hace visible la
-supresión. En fechas de nacimiento, un hallazgo separado conserva el
-diagnóstico de valores anteriores a 1900 o posteriores a la corrida sin
-publicar las fechas concretas.
+paquete opcional \code{stringi} sólo cuando existen caracteres no ASCII.
+
+La clasificación de posibles datos personales es más amplia que la
+protección. Cada clasificación declara \code{poder_discriminante} y \code{proteger}:
+\itemize{
+\item \code{debil}: una forma genérica, como siete a doce dígitos, coincide también
+con importes, facturas y códigos; se informa pero no se ocultan valores;
+\item \code{medio}: el nombre de la columna expresa una categoría personal; se
+protege aunque sus valores no se puedan validar;
+\item \code{alto}: una forma muy específica, como un correo, o nombre y forma se
+apoyan mutuamente; se protege;
+\item \code{verificado}: al menos tres valores distintos y todos cumplen el dígito de
+control de cédula uruguaya; se protege incluso sin un nombre orientador.
+}
+
+Este criterio mide capacidad de discriminación, no juzga si la presencia del
+dato es correcta. La protección sustituye modas, ejemplos, evidencia y
+extremos o medianas que corresponden a observaciones reales. Las medias y
+desvíos se conservan como síntesis no ligadas a una fila;
+\code{detalle_proteccion_personal} hace visible la supresión. En fechas de
+nacimiento, un hallazgo separado conserva el diagnóstico de valores
+anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 Los números escritos como texto reconocen tanto coma como punto decimal y
 sus separadores de miles simétricos. Los prefijos de tres letras separados
 del número, con forma de código ISO 4217, y los símbolos monetarios se

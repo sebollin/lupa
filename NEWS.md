@@ -2,6 +2,12 @@
 
 ## Marcos declarables y alcance internacional
 
+- Incorpora validadores vectorizados de ISO 3166, ISO 4217, correo, Luhn y
+  módulo 97, junto con un pack uruguayo de cédula y RUT. Los packs territoriales
+  se pueden extender sin registrar estado global ni modificar el núcleo.
+- Separa clasificar de proteger datos personales: las formas numéricas poco
+  discriminantes se informan sin suprimir estadísticos, mientras nombres
+  semánticos, correos y documentos verificados conservan la protección.
 - Documenta los contratos de todos los puntos de extensión y añade
   `propiedades_metrica()` para consultar la configuración admitida sin
   inspeccionar closures.
@@ -44,8 +50,8 @@
   de segundo y offsets ISO 8601.
 - Distingue NaN e infinitos, evita aproximar `integer64` fuera del rango exacto
   de `double` y cuenta valores distintos en columnas de listas y geometrías.
-- Clasifica posibles datos personales sin juzgar su presencia y protege sus
-  valores concretos en perfiles e informes por defecto.
+- Clasifica posibles datos personales sin juzgar su presencia y protege por
+  defecto los valores concretos cuando la evidencia es discriminante.
 
 ## Medir y evaluar calidad
 

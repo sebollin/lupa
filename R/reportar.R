@@ -144,6 +144,7 @@
                             proteger_datos_personales = TRUE,
                             cobertura = NULL) {
   if (proteger_datos_personales) x <- .proteger_perfil(x)
+  n_protegidas <- length(.columnas_personales_protegidas(x))
   general <- data.frame(
     indicador = c(
       "Filas", "Columnas", "Celdas", "Filas completas",
@@ -234,12 +235,12 @@
     "<section><h2>Perfil de datos: ", .html_texto(x$meta$nombre), "</h2>",
     "<p class=\"meta\">Corrida: ",
     .html_texto(.resumir_valor_reporte(x$meta$fecha_hora)), "</p>",
-    if (proteger_datos_personales && nrow(x$datos_personales)) {
+    if (proteger_datos_personales && n_protegidas) {
       paste0(
         "<p class=\"nota\">Se protegieron modas, ejemplos, evidencia y ",
         "estadisticos de orden de ",
-        .html_texto(nrow(x$datos_personales)),
-        " columna(s) clasificadas como posibles datos personales.</p>"
+        .html_texto(n_protegidas),
+        " columna(s) con evidencia suficiente de datos personales.</p>"
       )
     } else "",
     .resumen_severidades(severidades),
@@ -247,7 +248,7 @@
     "<h3>Hallazgos por severidad</h3>", .html_tabla(hallazgos, max_filas),
     "<h3>Resumen por columna</h3>", .html_tabla(x$columnas, max_filas),
     "<h3>Clasificaci\u00f3n de posibles datos personales</h3>",
-    "<p class=\"nota\">La clasificaci\u00f3n informa y protege; no juzga si esos datos deben existir en la entrega.</p>",
+    "<p class=\"nota\">La clasificaci\u00f3n informa todos los casos posibles; s\u00f3lo la evidencia discriminante activa la protecci\u00f3n y no se juzga si esos datos deben existir en la entrega.</p>",
     .html_tabla(x$datos_personales, max_filas),
     "<h3>Cobertura del an\u00e1lisis</h3>",
     "<p class=\"nota\">La ausencia de hallazgos no implica que todos los factores se hayan evaluado.</p>",
@@ -583,8 +584,9 @@
 #'   se informan dentro del reporte.
 #' @param proteger_datos_personales Si se enmascaran modas, ejemplos, evidencia,
 #'   estadísticos de orden, cuantiles y rangos temporales de columnas
-#'   clasificadas como posibles datos personales. Es `TRUE` por defecto. Para
-#'   ver valores concretos deben haberse conservado también con
+#'   cuya clasificación activa protección automática. Es `TRUE` por defecto.
+#'   Las coincidencias débiles se informan sin suprimir. Para ver valores
+#'   concretos deben haberse conservado también con
 #'   `perfilar(..., proteger_datos_personales = FALSE)`.
 #'
 #' @return La ruta normalizada del archivo, de forma invisible.
