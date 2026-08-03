@@ -8,9 +8,13 @@
 
 .columnas_personales_rapidas <- function(datos, perfil = NULL) {
   if (!is.null(perfil)) return(.columnas_personales_protegidas(perfil))
+  validadores <- .normalizar_validadores_personales(NULL)
   resultados <- lapply(seq_along(datos), function(i) {
     inferencia <- list(tipo = .tipo_declarado(datos[[i]]))
-    .clasificar_dato_personal(datos[[i]], names(datos)[[i]], inferencia)
+    .clasificar_dato_personal(
+      datos[[i]], names(datos)[[i]], inferencia,
+      validadores = validadores
+    )
   })
   names(datos)[vapply(resultados, function(x) isTRUE(x$proteger), logical(1L))]
 }

@@ -170,6 +170,35 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   valores <- trimws(valores)
   valores <- valores[!is.na(valores) & nzchar(valores)]
   total <- length(valores)
+  # Los identificadores numéricos de ocho dígitos son frecuentes y no deben
+  # atravesar las decenas de formatos de fecha si ni siquiera contienen un
+  # año plausible. La guarda conserva la misma semántica del formato compacto
+  # (%Y%m%d), pero evita trabajo costoso antes de llamar a `strptime()`.
+  if (total && all(grepl("^[0-9]{8}$", valores, perl = TRUE))) {
+    anios <- suppressWarnings(as.integer(substr(valores, 1L, 4L)))
+    plausibles <- anios >= 1800L & anios <= 2100L
+    convertido <- rep(as.POSIXct(NA, tz = "UTC"), total)
+    if (any(plausibles)) {
+      convertido[plausibles] <- strptime(
+        valores[plausibles], format = "%Y%m%d", tz = "UTC"
+      )
+    }
+    valido <- !is.na(convertido)
+    resultado <- if (any(valido)) {
+      .fila_formato("%Y%m%d", sum(valido), total)
+    } else {
+      .fila_formato("%Y%m%d", 0L, total)
+    }
+    if (!any(valido)) resultado <- resultado[0, , drop = FALSE]
+    resultado$grupo_ambiguo <- NULL
+    class(resultado) <- c("formatos_fecha", "data.frame")
+    attr(resultado, "total") <- muestra_x$total
+    attr(resultado, "analizados") <- muestra_x$analizados
+    attr(resultado, "muestreado") <- muestra_x$muestreado
+    attr(resultado, "compatibles") <- sum(valido)
+    attr(resultado, "formatos_mixtos") <- FALSE
+    return(resultado)
+  }
   base_fecha <- paste0(
     "(?:[0-9]{4}[-/.][0-9]{1,2}[-/.][0-9]{1,2}|",
     "[0-9]{1,2}[-/.][0-9]{1,2}[-/.][0-9]{4}|",

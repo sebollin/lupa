@@ -58,12 +58,23 @@
 #'
 #' - `debil`: una forma genérica, como siete a doce dígitos, coincide también
 #'   con importes, facturas y códigos; se informa pero no se ocultan valores;
-#' - `medio`: el nombre de la columna expresa una categoría personal; se
-#'   protege aunque sus valores no se puedan validar;
+#' - `medio`: el nombre de la columna expresa una categoría personal (por
+#'   ejemplo `telefono` o `fecha_nacimiento`); se protege aunque sus valores no
+#'   se puedan validar. El nombre tiene prioridad sobre una forma numérica
+#'   genérica y también determina la etiqueta de tipo;
 #' - `alto`: una forma muy específica, como un correo, o nombre y forma se
 #'   apoyan mutuamente; se protege;
-#' - `verificado`: al menos tres valores distintos y todos cumplen el dígito de
-#'   control de cédula uruguaya; se protege incluso sin un nombre orientador.
+#' - `verificado`: al menos tres valores distintos y al menos el 90% cumple uno
+#'   de los validadores personales configurados; se protege incluso sin un
+#'   nombre orientador. El pack uruguayo es el predeterminado, pero puede
+#'   reemplazarse por un `pack_validadores()` de otro país o desactivarse con
+#'   `FALSE`. La tolerancia del 10% permite tipeos aislados sin convertir una
+#'   columna real en una salida pública; el umbral es configurable.
+#'
+#' La forma genérica de siete a doce dígitos tiene poder discriminante débil:
+#' también describe importes, teléfonos, facturas e identificadores. Un
+#' validador de dígito que supera el umbral aporta evidencia verificable y eleva
+#' la clasificación; una forma sola nunca se trata como prueba de identidad.
 #'
 #' Este criterio mide capacidad de discriminación, no juzga si la presencia del
 #' dato es correcta. La protección sustituye modas, ejemplos, evidencia y
@@ -116,6 +127,17 @@
 #'   no suprimen estadísticos. Para conservar todo en el objeto debe desactivarse
 #'   explícitamente; [reportar()] aplica además su propia protección
 #'   predeterminada.
+#' @param validadores_personales Pack o lista nombrada de funciones que reciben
+#'   un vector de texto y devuelven un lógico de igual longitud. `NULL` usa
+#'   `validadores_uruguay()` por compatibilidad; `FALSE` o `numeric()` desactiva
+#'   la verificación de documentos. El nombre del mejor validador queda en el
+#'   fundamento de la clasificación.
+#' @param umbral_documento_verificado Proporción mínima de valores que debe
+#'   aceptar un validador para clasificar una forma de documento como
+#'   `verificado`. Por defecto es `0.9`.
+#' @param muestra_validadores Máximo de valores usados en el filtro preliminar
+#'   de cada validador. Si la proporción preliminar ya queda bajo el umbral no
+#'   se valida la columna completa; use `Inf` para revisar todos desde el inicio.
 #'
 #' @return Objeto S3 de clase `perfil`.
 #' @export
@@ -146,7 +168,10 @@ perfilar <- function(datos,
                      umbral_casi_clave_dependencia = 0.8,
                      max_columnas_dependencias = 100L,
                      datos_personales_permitidos = TRUE,
-                     proteger_datos_personales = TRUE) {
+                     proteger_datos_personales = TRUE,
+                     validadores_personales = NULL,
+                     umbral_documento_verificado = 0.9,
+                     muestra_validadores = 1000L) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
@@ -180,6 +205,24 @@ perfilar <- function(datos,
       stop("`", argumento, "` debe ser TRUE o FALSE.", call. = FALSE)
     }
   }
+  if (!is.numeric(umbral_documento_verificado) ||
+      length(umbral_documento_verificado) != 1L ||
+      is.na(umbral_documento_verificado) ||
+      umbral_documento_verificado < 0 || umbral_documento_verificado > 1) {
+    stop("`umbral_documento_verificado` debe estar entre 0 y 1.", call. = FALSE)
+  }
+  if (!is.numeric(muestra_validadores) || length(muestra_validadores) != 1L ||
+      is.na(muestra_validadores) || muestra_validadores < 1 ||
+      (!is.infinite(muestra_validadores) &&
+       muestra_validadores != floor(muestra_validadores))) {
+    stop("`muestra_validadores` debe ser un entero positivo o Inf.", call. = FALSE)
+  }
+  muestra_validadores <- if (is.infinite(muestra_validadores)) Inf else {
+    as.integer(muestra_validadores)
+  }
+  validadores_personales <- .normalizar_validadores_personales(
+    validadores_personales
+  )
 
   nombres <- names(datos)
   if (is.null(nombres)) {
@@ -260,7 +303,12 @@ perfilar <- function(datos,
     columnas_no_negativas,
     if (is.na(n_filas_duplicadas)) 0L else n_filas_duplicadas
   )
-  datos_personales <- .detectar_datos_personales(datos, nombres, resultados)
+  datos_personales <- .detectar_datos_personales(
+    datos, nombres, resultados,
+    validadores = validadores_personales,
+    umbral_verificado = umbral_documento_verificado,
+    muestra_validadores = muestra_validadores
+  )
   indice_personal <- match(columnas$columna, datos_personales$columna)
   columnas$dato_personal_posible <- !is.na(indice_personal)
   columnas$tipo_dato_personal <- datos_personales$tipo[indice_personal]
@@ -304,7 +352,10 @@ perfilar <- function(datos,
     max_columnas_dependencias = max_columnas_dependencias,
     sentinelas_numericos = .numeros_na(sentinelas_numericos),
     datos_personales_permitidos = datos_personales_permitidos,
-    proteger_datos_personales = proteger_datos_personales
+    proteger_datos_personales = proteger_datos_personales,
+    validadores_personales = names(validadores_personales),
+    umbral_documento_verificado = umbral_documento_verificado,
+    muestra_validadores = muestra_validadores
   )
   estructura <- list(
     general = general,

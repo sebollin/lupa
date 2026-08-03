@@ -189,22 +189,32 @@ validar_correo <- function(x) {
   })
 }
 
-.luhn_uno <- function(valor) {
-  if (!grepl("^[0-9]+$", valor, perl = TRUE)) return(FALSE)
-  digitos <- utf8ToInt(valor) - utf8ToInt("0")
-  posiciones <- rev(seq_along(digitos))
-  duplicar <- posiciones %% 2L == 0L
-  digitos[duplicar] <- digitos[duplicar] * 2L
-  digitos[digitos > 9L] <- digitos[digitos > 9L] - 9L
-  sum(digitos) %% 10L == 0L
+.luhn_vector <- function(valor) {
+  resultado <- rep(FALSE, length(valor))
+  validos <- grepl("^[0-9]+$", valor, perl = TRUE)
+  if (!any(validos)) return(resultado)
+  indices <- which(validos)
+  longitudes <- nchar(valor[indices], type = "chars")
+  for (longitud in unique(longitudes)) {
+    posiciones <- indices[longitudes == longitud]
+    texto <- valor[posiciones]
+    digitos <- do.call(cbind, lapply(seq_len(longitud), function(j) {
+      as.integer(substr(texto, j, j))
+    }))
+    # La duplicación se cuenta desde la derecha y no incluye el dígito de
+    # control (la última posición).
+    duplicar <- (longitud - seq_len(longitud)) %% 2L == 1L
+    digitos[, duplicar] <- digitos[, duplicar, drop = FALSE] * 2L
+    digitos[digitos > 9L] <- digitos[digitos > 9L] - 9L
+    resultado[posiciones] <- rowSums(digitos) %% 10L == 0L
+  }
+  resultado
 }
 
 #' @rdname validadores_formato
 #' @export
 validar_luhn <- function(x) {
-  .resultado_validador_vector(
-    x, function(valor) vapply(valor, .luhn_uno, logical(1L))
-  )
+  .resultado_validador_vector(x, .luhn_vector)
 }
 
 .resto_mod97 <- function(valor) {
@@ -267,21 +277,28 @@ NULL
 
 .solo_digitos <- function(valor) gsub("[.[:space:]-]", "", valor, perl = TRUE)
 
-.ci_uy_uno <- function(valor) {
+.ci_uy_vector <- function(valor) {
+  resultado <- rep(FALSE, length(valor))
   digitos <- .solo_digitos(valor)
-  if (!grepl("^[0-9]{7,8}$", digitos, perl = TRUE)) return(FALSE)
-  digitos <- paste0(strrep("0", 8L - nchar(digitos)), digitos)
-  numeros <- utf8ToInt(digitos) - utf8ToInt("0")
-  verificador <- (10L - sum(numeros[1:7] * c(2L, 9L, 8L, 7L, 6L, 3L, 4L)) %% 10L) %% 10L
-  numeros[[8L]] == verificador
+  validos <- grepl("^[0-9]{7,8}$", digitos, perl = TRUE)
+  if (!any(validos)) return(resultado)
+  indices <- which(validos)
+  texto <- digitos[indices]
+  texto[nchar(texto) == 7L] <- paste0("0", texto[nchar(texto) == 7L])
+  numeros <- do.call(cbind, lapply(seq_len(8L), function(j) {
+    as.integer(substr(texto, j, j))
+  }))
+  sumas <- as.vector(numeros[, seq_len(7L), drop = FALSE] %*%
+    c(2L, 9L, 8L, 7L, 6L, 3L, 4L))
+  esperado <- (10L - sumas %% 10L) %% 10L
+  resultado[indices] <- numeros[, 8L] == esperado
+  resultado
 }
 
 #' @rdname validadores_uy
 #' @export
 validar_ci_uy <- function(x) {
-  .resultado_validador_vector(
-    x, function(valor) vapply(valor, .ci_uy_uno, logical(1L))
-  )
+  .resultado_validador_vector(x, .ci_uy_vector)
 }
 
 .rut_uy_uno <- function(valor) {
@@ -309,8 +326,10 @@ validar_rut_uy <- function(x) {
 #'
 #' Un pack es una lista con nombres de funciones vectorizadas. No se registra
 #' en estado global: puede definirse en otro paquete o en un script y conectarse
-#' directamente con la propiedad `validador` de `Formato`. Esta forma permite
-#' agregar países o dominios sin modificar el núcleo de `lupa`.
+#' directamente con la propiedad `validador` de `Formato` o con
+#' `validadores_personales` en [perfilar()]. Esta forma permite agregar países o
+#' dominios sin modificar el núcleo de `lupa`; el pack uruguayo predeterminado
+#' de `perfilar()` usa exactamente esta misma puerta.
 #'
 #' @param nombre Nombre del pack.
 #' @param validadores Lista con nombres de funciones que aceptan un vector y

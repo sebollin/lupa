@@ -25,7 +25,10 @@ perfilar(
   umbral_casi_clave_dependencia = 0.8,
   max_columnas_dependencias = 100L,
   datos_personales_permitidos = TRUE,
-  proteger_datos_personales = TRUE
+  proteger_datos_personales = TRUE,
+  validadores_personales = NULL,
+  umbral_documento_verificado = 0.9,
+  muestra_validadores = 1000L
 )
 }
 \arguments{
@@ -87,6 +90,20 @@ alto o verificado. Las clasificaciones débiles se conservan como aviso pero
 no suprimen estadísticos. Para conservar todo en el objeto debe desactivarse
 explícitamente; \code{\link[=reportar]{reportar()}} aplica además su propia protección
 predeterminada.}
+
+\item{validadores_personales}{Pack o lista nombrada de funciones que reciben
+un vector de texto y devuelven un lógico de igual longitud. \code{NULL} usa
+\code{validadores_uruguay()} por compatibilidad; \code{FALSE} o \code{numeric()} desactiva
+la verificación de documentos. El nombre del mejor validador queda en el
+fundamento de la clasificación.}
+
+\item{umbral_documento_verificado}{Proporción mínima de valores que debe
+aceptar un validador para clasificar una forma de documento como
+\code{verificado}. Por defecto es \code{0.9}.}
+
+\item{muestra_validadores}{Máximo de valores usados en el filtro preliminar
+de cada validador. Si la proporción preliminar ya queda bajo el umbral no
+se valida la columna completa; use \code{Inf} para revisar todos desde el inicio.}
 }
 \value{
 Objeto S3 de clase \code{perfil}.
@@ -151,13 +168,24 @@ protección. Cada clasificación declara \code{poder_discriminante} y \code{prot
 \itemize{
 \item \code{debil}: una forma genérica, como siete a doce dígitos, coincide también
 con importes, facturas y códigos; se informa pero no se ocultan valores;
-\item \code{medio}: el nombre de la columna expresa una categoría personal; se
-protege aunque sus valores no se puedan validar;
+\item \code{medio}: el nombre de la columna expresa una categoría personal (por
+ejemplo \code{telefono} o \code{fecha_nacimiento}); se protege aunque sus valores no
+se puedan validar. El nombre tiene prioridad sobre una forma numérica
+genérica y también determina la etiqueta de tipo;
 \item \code{alto}: una forma muy específica, como un correo, o nombre y forma se
 apoyan mutuamente; se protege;
-\item \code{verificado}: al menos tres valores distintos y todos cumplen el dígito de
-control de cédula uruguaya; se protege incluso sin un nombre orientador.
+\item \code{verificado}: al menos tres valores distintos y al menos el 90\% cumple uno
+de los validadores personales configurados; se protege incluso sin un
+nombre orientador. El pack uruguayo es el predeterminado, pero puede
+reemplazarse por un \code{pack_validadores()} de otro país o desactivarse con
+\code{FALSE}. La tolerancia del 10\% permite tipeos aislados sin convertir una
+columna real en una salida pública; el umbral es configurable.
 }
+
+La forma genérica de siete a doce dígitos tiene poder discriminante débil:
+también describe importes, teléfonos, facturas e identificadores. Un
+validador de dígito que supera el umbral aporta evidencia verificable y eleva
+la clasificación; una forma sola nunca se trata como prueba de identidad.
 
 Este criterio mide capacidad de discriminación, no juzga si la presencia del
 dato es correcta. La protección sustituye modas, ejemplos, evidencia y

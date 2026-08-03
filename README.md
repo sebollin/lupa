@@ -153,7 +153,11 @@ AGESIC, `validadores_uruguay()` y los puntos de extensión para referenciales
 nacionales quedan disponibles como una instancia de referencia, no como una
 restricción para otros usuarios. `validadores_internacionales()` cubre códigos
 ISO, correo y dígitos de control generales; `pack_validadores()` permite sumar
-otro país o dominio sin modificar el núcleo.
+otro país o dominio sin modificar el núcleo. El mismo pack se conecta al
+clasificador de posibles datos personales mediante
+`perfilar(validadores_personales = ...)`; `NULL` conserva el pack uruguayo de
+fábrica, `FALSE` desactiva la verificación y una lista nombrada permite aportar
+validadores territoriales propios.
 
 ## Referencia conceptual
 

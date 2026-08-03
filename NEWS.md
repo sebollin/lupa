@@ -25,6 +25,10 @@
   monetarios y prefijos con forma de código ISO 4217.
 - Clasifica RUT, DNI y otros documentos con la etiqueta neutral
   `documento_identidad`.
+- Permite conectar packs personales territoriales al mismo clasificador de
+  `perfilar()`, con tolerancia explícita de errores de digitación; los nombres
+  semánticos (`telefono`, `fecha_nacimiento`, entre otros) conservan prioridad
+  sobre formas numéricas genéricas.
 
 ## Examinar datos
 

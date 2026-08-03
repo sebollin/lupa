@@ -31,8 +31,10 @@ preparados para usar.
 \description{
 Un pack es una lista con nombres de funciones vectorizadas. No se registra
 en estado global: puede definirse en otro paquete o en un script y conectarse
-directamente con la propiedad \code{validador} de \code{Formato}. Esta forma permite
-agregar países o dominios sin modificar el núcleo de \code{lupa}.
+directamente con la propiedad \code{validador} de \code{Formato} o con
+\code{validadores_personales} en \code{\link[=perfilar]{perfilar()}}. Esta forma permite agregar países o
+dominios sin modificar el núcleo de \code{lupa}; el pack uruguayo predeterminado
+de \code{perfilar()} usa exactamente esta misma puerta.
 }
 \examples{
 internacionales <- validadores_internacionales()

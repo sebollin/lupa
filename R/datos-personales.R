@@ -5,7 +5,52 @@
   mean(grepl(patron, valores[presentes], perl = TRUE))
 }
 
-.clasificar_dato_personal <- function(x, nombre, inferencia) {
+.normalizar_validadores_personales <- function(validadores = NULL) {
+  if (is.null(validadores)) validadores <- validadores_uruguay()
+  if (identical(validadores, FALSE) ||
+      (is.numeric(validadores) && !length(validadores))) {
+    return(list())
+  }
+  if (!is.list(validadores) || is.null(names(validadores)) ||
+      !length(validadores) || anyNA(names(validadores)) ||
+      any(!nzchar(names(validadores))) || anyDuplicated(names(validadores)) ||
+      !all(vapply(validadores, is.function, logical(1L)))) {
+    stop("`validadores_personales` debe ser un pack o una lista con nombres de funciones.",
+         call. = FALSE)
+  }
+  validadores
+}
+
+.proporcion_validadores <- function(textos, validadores, umbral,
+                                    muestra = 1000L) {
+  if (!length(validadores) || !length(textos)) return(numeric())
+  indices <- if (length(textos) <= muestra) seq_along(textos) else {
+    unique(round(seq(1, length(textos), length.out = muestra)))
+  }
+  proporciones <- vapply(validadores, function(validador) {
+    parcial <- validador(textos[indices])
+    if (!is.logical(parcial) || length(parcial) != length(indices)) {
+      stop("Cada validador personal debe devolver un vector l\u00f3gico de igual longitud.",
+           call. = FALSE)
+    }
+    parcial <- mean(parcial %in% TRUE)
+    if (!is.finite(parcial) || parcial < umbral || length(indices) == length(textos)) {
+      return(parcial)
+    }
+    completo <- validador(textos)
+    if (!is.logical(completo) || length(completo) != length(textos)) {
+      stop("Cada validador personal debe devolver un vector l\u00f3gico de igual longitud.",
+           call. = FALSE)
+    }
+    mean(completo %in% TRUE)
+  }, numeric(1L))
+  proporciones
+}
+
+.clasificar_dato_personal <- function(x, nombre, inferencia,
+                                      validadores = list(),
+                                      umbral_verificado = 0.9,
+                                      muestra_validadores = 1000L) {
   if (is.matrix(x)) {
     return(list(
       tipo = NA_character_, proporcion = NA_real_, fundamento = "",
@@ -34,25 +79,37 @@
     any(grepl("@", textos[presentes], fixed = TRUE))) {
     if (any(presentes)) mean(validar_correo(textos[presentes])) else NA_real_
   } else NA_real_
-  longitudes <- nchar(textos[presentes], type = "chars")
+  longitudes <- nchar(gsub("[^0-9]", "", textos[presentes], perl = TRUE),
+                      type = "chars")
   forma_documento_posible <- length(longitudes) &&
     mean(longitudes >= 7L & longitudes <= 12L) >= 0.8
   proporcion_documento <- if (
       "documento_identidad" %in% por_nombre || forma_documento_posible) {
     .proporcion_compatible(
       x,
-      "^(?:[0-9]{1,2}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9Kk]|[0-9]{7,9})$"
+      "^(?:[0-9]{1,2}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9Kk]|[0-9][0-9 .-]{5,18}[0-9Kk]?)$"
     )
-  } else NA_real_
-  proporcion_ci_uy <- if (is.finite(proporcion_documento)) {
-    validos_ci <- validar_ci_uy(textos[presentes])
-    mean(validos_ci, na.rm = TRUE)
   } else NA_real_
   documentos_distintos <- length(unique(gsub(
     "[^0-9]", "", textos[presentes], perl = TRUE
   )))
+  proporciones_validadores <- if (is.finite(proporcion_documento) &&
+      documentos_distintos >= 3L &&
+      (!length(por_nombre) || "documento_identidad" %in% por_nombre)) {
+    .proporcion_validadores(
+      textos[presentes], validadores, umbral_verificado,
+      muestra = muestra_validadores
+    )
+  } else numeric()
+  indice_validador <- if (length(proporciones_validadores)) {
+    which.max(proporciones_validadores)
+  } else integer()
+  proporcion_verificada <- if (length(indice_validador)) {
+    proporciones_validadores[[indice_validador]]
+  } else NA_real_
   documento_verificado <- documentos_distintos >= 3L &&
-    isTRUE(proporcion_ci_uy == 1)
+    is.finite(proporcion_verificada) &&
+    proporcion_verificada >= umbral_verificado
 
   tipo <- NA_character_
   proporcion <- NA_real_
@@ -71,31 +128,42 @@
     fundamento <- "nombre de columna"
     poder <- "medio"
     proteger <- TRUE
-  } else if ("documento_identidad" %in% por_nombre ||
-             (is.finite(proporcion_documento) &&
-              proporcion_documento >= 0.8)) {
+  } else if (length(por_nombre)) {
+    tipo <- por_nombre[[1L]]
+    proporcion <- switch(
+      tipo,
+      documento_identidad = proporcion_documento,
+      fecha_nacimiento = if (inferencia$tipo %in% c("fecha", "fecha-hora")) 1 else NA_real_,
+      NA_real_
+    )
+    fundamento <- if (tipo == "documento_identidad" &&
+                      is.finite(proporcion_documento)) {
+      "nombre de columna y forma compatible"
+    } else "nombre de columna"
+    poder <- if (tipo == "documento_identidad") "alto" else "medio"
+    proteger <- TRUE
+    if (tipo == "documento_identidad" && documento_verificado) {
+      fundamento <- paste0(
+        "nombre de columna y forma verificada por ",
+        names(proporciones_validadores)[[indice_validador]]
+      )
+      poder <- "verificado"
+    }
+  } else if (is.finite(proporcion_documento) &&
+             proporcion_documento >= 0.8) {
     tipo <- "documento_identidad"
     proporcion <- proporcion_documento
     if (documento_verificado) {
-      fundamento <- "forma verificada por digito de control"
+      fundamento <- paste0(
+        "forma verificada por ", names(proporciones_validadores)[[indice_validador]]
+      )
       poder <- "verificado"
-      proteger <- TRUE
-    } else if ("documento_identidad" %in% por_nombre) {
-      fundamento <- "nombre de columna y forma compatible"
-      poder <- "alto"
       proteger <- TRUE
     } else {
       fundamento <- "forma de documento dominante"
       poder <- "debil"
       proteger <- FALSE
     }
-  } else if (length(por_nombre)) {
-    tipo <- por_nombre[[1L]]
-    proporcion <- if (tipo == "fecha_nacimiento" &&
-      inferencia$tipo %in% c("fecha", "fecha-hora")) 1 else NA_real_
-    fundamento <- "nombre de columna"
-    poder <- "medio"
-    proteger <- TRUE
   }
   list(
     tipo = tipo, proporcion = proporcion, fundamento = fundamento,
@@ -103,10 +171,15 @@
   )
 }
 
-.detectar_datos_personales <- function(datos, nombres, resultados) {
+.detectar_datos_personales <- function(datos, nombres, resultados,
+                                       validadores = list(),
+                                       umbral_verificado = 0.9,
+                                       muestra_validadores = 1000L) {
   filas <- lapply(seq_along(datos), function(i) {
     clasificacion <- .clasificar_dato_personal(
-      datos[[i]], nombres[[i]], resultados[[i]]$inferencia
+      datos[[i]], nombres[[i]], resultados[[i]]$inferencia,
+      validadores = validadores, umbral_verificado = umbral_verificado,
+      muestra_validadores = muestra_validadores
     )
     if (is.na(clasificacion$tipo)) return(NULL)
     data.frame(
