@@ -3,22 +3,41 @@
 \name{marco_calidad}
 \alias{marco_calidad}
 \alias{marco_agesic}
+\alias{marco_iso25012}
 \title{Declarar una taxonomía de calidad de datos}
 \usage{
 marco_calidad(nombre, factores)
 
 marco_agesic()
+
+marco_iso25012()
 }
 \arguments{
 \item{nombre}{Nombre del marco.}
 
 \item{factores}{Data frame con \code{dimension} y \code{factor}, o lista con nombres.
-El data frame puede añadir \code{como_resolverlo}, \code{perfil_mide},
-\code{aplicabilidad} (\code{"siempre"}, \code{"temporal"} o \code{"geometria"}) y
-\code{disponibilidad} (\code{"disponible"} o \code{"fuera_de_alcance"}).}
+El data frame puede añadir estos campos de contrato:
+\itemize{
+\item \code{como_resolverlo}: instrucción que muestra \code{\link[=cobertura_analisis]{cobertura_analisis()}} cuando
+el factor todavía no fue medido;
+\item \code{perfil_mide}: lógico que declara si el profiling por sí solo aporta una
+medición suficiente del factor. No ejecuta métricas ni se infiere del
+nombre; su valor predeterminado es \code{FALSE};
+\item \code{aplicabilidad}: \code{"siempre"}, \code{"temporal"} o \code{"geometria"}. Las dos
+últimas permiten informar \code{"no_aplica"} cuando el perfil no contiene
+columnas temporales o geometrías, respectivamente;
+\item \code{disponibilidad}: \code{"disponible"} o \code{"fuera_de_alcance"}. Esta última
+declara una limitación del motor y no puede combinarse con
+\code{perfil_mide = TRUE}.
+}
+
+Las columnas adicionales se conservan como metadatos y no cambian por sí
+solas la cobertura. Si se usa una lista, \code{como_resolverlo} recibe una
+instrucción genérica, \code{perfil_mide = FALSE}, \code{aplicabilidad = "siempre"} y
+\code{disponibilidad = "disponible"} para todas las filas.}
 }
 \value{
-\code{marco_calidad()} y \code{marco_agesic()} devuelven un objeto S3
+\code{marco_calidad()}, \code{marco_agesic()} y \code{marco_iso25012()} devuelven un objeto S3
 \code{marco_calidad}. \code{as.data.frame()} devuelve su tabla de factores.
 }
 \description{
@@ -30,7 +49,17 @@ métricas; \code{\link[=catalogo_agesic]{catalogo_agesic()}} conserva esa corres
 \details{
 \code{marco_agesic()} devuelve la taxonomía incluida de fábrica. Un marco propio
 puede construirse con un data frame o con una lista cuyos nombres son
-dimensiones y cuyos valores son factores.
+dimensiones y cuyos valores son factores. La forma lista aplica a todas las
+filas los valores predeterminados descritos abajo; en particular,
+\code{perfil_mide = FALSE}.
+
+\code{marco_iso25012()} adapta las dos perspectivas de ISO/IEC 25012:2008 a la
+estructura dimensión-factor. Usa tres grupos disjuntos como dimensiones:
+características inherentes, características inherentes y dependientes del
+sistema, y características dependientes del sistema. Este agrupamiento es
+una representación operativa para \code{lupa}, no afirma que la norma defina una
+jerarquía dimensión-factor. Los nombres de las quince características y su
+clasificación siguen la norma; las descripciones son redacción propia.
 }
 \examples{
 propio <- marco_calidad("Marco operativo", list(
@@ -40,6 +69,13 @@ propio <- marco_calidad("Marco operativo", list(
 propio
 as.data.frame(propio)
 marco_agesic()
+iso <- marco_iso25012()
+table(as.data.frame(iso)$dimension)
+}
+\references{
+ISO/IEC (2008). \emph{ISO/IEC 25012:2008 Software engineering —
+Software product Quality Requirements and Evaluation (SQuaRE) — Data
+quality model}. \url{https://www.iso.org/standard/35736.html}.
 }
 \seealso{
 \code{\link[=catalogo_agesic]{catalogo_agesic()}}, \code{\link[=modelo]{modelo()}}, \code{\link[=cobertura_analisis]{cobertura_analisis()}}

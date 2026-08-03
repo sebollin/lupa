@@ -91,18 +91,45 @@
 #'
 #' `marco_agesic()` devuelve la taxonomía incluida de fábrica. Un marco propio
 #' puede construirse con un data frame o con una lista cuyos nombres son
-#' dimensiones y cuyos valores son factores.
+#' dimensiones y cuyos valores son factores. La forma lista aplica a todas las
+#' filas los valores predeterminados descritos abajo; en particular,
+#' `perfil_mide = FALSE`.
+#'
+#' `marco_iso25012()` adapta las dos perspectivas de ISO/IEC 25012:2008 a la
+#' estructura dimensión-factor. Usa tres grupos disjuntos como dimensiones:
+#' características inherentes, características inherentes y dependientes del
+#' sistema, y características dependientes del sistema. Este agrupamiento es
+#' una representación operativa para `lupa`, no afirma que la norma defina una
+#' jerarquía dimensión-factor. Los nombres de las quince características y su
+#' clasificación siguen la norma; las descripciones son redacción propia.
 #'
 #' @param nombre Nombre del marco.
 #' @param factores Data frame con `dimension` y `factor`, o lista con nombres.
-#'   El data frame puede añadir `como_resolverlo`, `perfil_mide`,
-#'   `aplicabilidad` (`"siempre"`, `"temporal"` o `"geometria"`) y
-#'   `disponibilidad` (`"disponible"` o `"fuera_de_alcance"`).
+#'   El data frame puede añadir estos campos de contrato:
+#'   * `como_resolverlo`: instrucción que muestra [cobertura_analisis()] cuando
+#'     el factor todavía no fue medido;
+#'   * `perfil_mide`: lógico que declara si el profiling por sí solo aporta una
+#'     medición suficiente del factor. No ejecuta métricas ni se infiere del
+#'     nombre; su valor predeterminado es `FALSE`;
+#'   * `aplicabilidad`: `"siempre"`, `"temporal"` o `"geometria"`. Las dos
+#'     últimas permiten informar `"no_aplica"` cuando el perfil no contiene
+#'     columnas temporales o geometrías, respectivamente;
+#'   * `disponibilidad`: `"disponible"` o `"fuera_de_alcance"`. Esta última
+#'     declara una limitación del motor y no puede combinarse con
+#'     `perfil_mide = TRUE`.
 #'
-#' @return `marco_calidad()` y `marco_agesic()` devuelven un objeto S3
+#'   Las columnas adicionales se conservan como metadatos y no cambian por sí
+#'   solas la cobertura. Si se usa una lista, `como_resolverlo` recibe una
+#'   instrucción genérica, `perfil_mide = FALSE`, `aplicabilidad = "siempre"` y
+#'   `disponibilidad = "disponible"` para todas las filas.
+#'
+#' @return `marco_calidad()`, `marco_agesic()` y `marco_iso25012()` devuelven un objeto S3
 #'   `marco_calidad`. `as.data.frame()` devuelve su tabla de factores.
 #' @export
 #' @seealso [catalogo_agesic()], [modelo()], [cobertura_analisis()]
+#' @references ISO/IEC (2008). *ISO/IEC 25012:2008 Software engineering —
+#'   Software product Quality Requirements and Evaluation (SQuaRE) — Data
+#'   quality model*. <https://www.iso.org/standard/35736.html>.
 #'
 #' @examples
 #' propio <- marco_calidad("Marco operativo", list(
@@ -112,6 +139,8 @@
 #' propio
 #' as.data.frame(propio)
 #' marco_agesic()
+#' iso <- marco_iso25012()
+#' table(as.data.frame(iso)$dimension)
 marco_calidad <- function(nombre, factores) {
   if (!.es_texto_escalar(nombre)) {
     stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
@@ -160,6 +189,54 @@ marco_agesic <- function() {
     "Marco de calidad de datos de AGESIC", factores
   )
   estructura$origen <- "AGESIC 2020, versi\u00f3n 1.6"
+  estructura
+}
+
+#' @rdname marco_calidad
+#' @export
+marco_iso25012 <- function() {
+  dimension <- c(
+    rep("Inherente", 5L),
+    rep("Inherente y dependiente del sistema", 7L),
+    rep("Dependiente del sistema", 3L)
+  )
+  factor <- c(
+    "Exactitud", "Completitud", "Consistencia", "Credibilidad", "Actualidad",
+    "Accesibilidad", "Conformidad", "Confidencialidad", "Eficiencia",
+    "Precisi\u00f3n", "Trazabilidad", "Comprensibilidad",
+    "Disponibilidad", "Portabilidad", "Recuperabilidad"
+  )
+  descripcion <- c(
+    "Considera si los datos representan correctamente los hechos o valores que pretenden describir.",
+    "Considera si est\u00e1n presentes los valores y registros necesarios para el uso declarado.",
+    "Revisa que los datos no se contradigan entre s\u00ed ni con reglas acordadas.",
+    "Expresa la confianza respaldada por el origen y las evidencias disponibles.",
+    "Considera si los datos conservan vigencia para el momento y uso declarados.",
+    "Considera si las personas o procesos autorizados pueden obtener y usar los datos.",
+    "Revisa la adhesi\u00f3n a normas, contratos o convenciones aplicables.",
+    "Considera si el acceso y la divulgaci\u00f3n respetan las autorizaciones definidas.",
+    "Considera los recursos y tiempos necesarios para procesar los datos en el contexto previsto.",
+    "Considera si el detalle y la resoluci\u00f3n de los valores bastan para el uso previsto.",
+    "Considera si puede reconstruirse el origen, los cambios y el recorrido de los datos.",
+    "Considera si el significado, la estructura y la representaci\u00f3n pueden interpretarse correctamente.",
+    "Considera si los datos pueden recuperarse cuando los necesitan usuarios o procesos autorizados.",
+    "Considera si los datos pueden trasladarse entre entornos conservando su utilidad y calidad.",
+    "Considera si los datos y su calidad pueden restaurarse despu\u00e9s de fallas o p\u00e9rdidas."
+  )
+  factores <- data.frame(
+    dimension = dimension,
+    factor = factor,
+    descripcion = descripcion,
+    como_resolverlo = paste0(
+      "Declarar requisitos y m\u00e9tricas para la caracter\u00edstica ", factor, "."
+    ),
+    perfil_mide = FALSE,
+    aplicabilidad = "siempre",
+    disponibilidad = "disponible",
+    stringsAsFactors = FALSE
+  )
+  estructura <- marco_calidad("Marco ISO/IEC 25012:2008", factores)
+  estructura$origen <- "ISO/IEC 25012:2008"
   estructura
 }
 

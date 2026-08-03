@@ -16,11 +16,13 @@ perfiles_madurez(metricas = NULL, umbrales = NULL)
 \arguments{
 \item{nombre}{Nombre de la regla o del perfil.}
 
-\item{condicion}{Función que recibe resultados en \verb{[0, 1]} y devuelve un
-vector lógico sin ausentes de la misma longitud.}
+\item{condicion}{Función de un argumento que recibe el vector \code{resultado} de
+las medidas seleccionadas, en el orden de la tabla, y debe devolver un
+vector lógico sin ausentes de la misma longitud. No modifica las medidas.}
 
 \item{metricas}{Nombres de métricas instanciadas a las que se aplica la
-regla. \code{NULL} aplica la condición a todas.}
+regla, es decir, valores de la columna \code{metrica_instanciada}. \code{NULL}, el
+valor predeterminado, aplica la condición a todas.}
 
 \item{...}{Reglas creadas por \code{regla_evaluacion()} o una única lista que las
 contenga.}
@@ -44,6 +46,12 @@ un índice global de calidad.
 \code{Avanzado} de AGESIC, con condiciones estrictas \verb{> 0.5}, \verb{> 0.7} y \verb{> 0.9}.
 El argumento \code{umbrales} permite construir otra familia con nombres y cortes
 crecientes propios sobre las mismas métricas instanciadas.
+
+\code{regla_evaluacion()} almacena la función sin ejecutarla. \code{\link[=evaluar]{evaluar()}}
+selecciona las medidas mediante \code{metricas}, llama una vez a \code{condicion} y
+rechaza resultados que no sean lógicos, que tengan otra longitud o que
+contengan \code{NA}. La función expresa un criterio de evaluación; no es un
+método de medición ni recibe el data frame original.
 }
 \examples{
 regla <- regla_evaluacion("Completitud suficiente", function(x) x > 0.9)

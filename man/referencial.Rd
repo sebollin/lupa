@@ -21,7 +21,7 @@ referencial(
 \item{valor}{Columnas cuyos valores se contrastan junto con la clave.}
 
 \item{completo}{Si el referencial declara contener todo el universo del
-alcance indicado.}
+alcance indicado. Es \code{FALSE} por omisión.}
 
 \item{alcance}{Descripción explícita de aquello de lo que el referencial se
 declara completo. Es obligatoria cuando \code{completo = TRUE}.}
@@ -45,6 +45,14 @@ La declaración de completitud es explícita. \code{RatioCobertura} sólo tiene
 sentido bajo una asunción de mundo cerrado y exige \code{completo = TRUE}; una
 lista parcial puede usarse para correctitud, pero no como denominador de
 cobertura.
+
+\code{clave} no admite ausentes y debe identificar cada fila de \code{datos} de forma
+única; puede contener varias columnas. \code{valor} es opcional, no puede repetir
+columnas de \code{clave} y representa los atributos asociados que se contrastan
+en correctitud semántica fuerte. \code{completo = FALSE} es el valor
+predeterminado y permite omitir \code{alcance}. Al declarar \code{completo = TRUE},
+\code{alcance} pasa a ser obligatorio y debe nombrar el universo que la tabla dice
+cubrir. El constructor copia la tabla y no consulta fuentes externas.
 }
 \examples{
 padron <- referencial(

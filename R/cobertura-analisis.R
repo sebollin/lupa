@@ -57,8 +57,9 @@
 #' @param modelo Objeto creado por [marco_calidad()]. El nombre enfatiza que es
 #'   el modelo conceptual de referencia, no el objeto operativo de [modelo()].
 #'
-#' @return Data frame con `dimension`, `factor`, `estado`, `motivo` y
-#'   `como_resolverlo`. `estado` es un factor con niveles `"medida"`,
+#' @return Data frame con `marco`, `dimension`, `factor`, `estado`, `motivo` y
+#'   `como_resolverlo`. `marco` identifica explícitamente la taxonomía contra la
+#'   que se calculó la tabla. `estado` es un factor con niveles `"medida"`,
 #'   `"no_declarada"`, `"no_aplica"` y `"fuera_de_alcance"`.
 #' @export
 #' @seealso [marco_calidad()], [perfilar()], [medir()], [vigencia()], [escala()],
@@ -120,8 +121,9 @@ cobertura_analisis <- function(perfil, medicion = NULL,
     factores$estado,
     levels = c("medida", "no_declarada", "no_aplica", "fuera_de_alcance")
   )
+  factores$marco <- modelo$nombre
   factores <- factores[c(
-    "dimension", "factor", "estado", "motivo", "como_resolverlo"
+    "marco", "dimension", "factor", "estado", "motivo", "como_resolverlo"
   )]
   rownames(factores) <- NULL
   factores

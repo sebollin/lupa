@@ -11,10 +11,12 @@
 #' crecientes propios sobre las mismas métricas instanciadas.
 #'
 #' @param nombre Nombre de la regla o del perfil.
-#' @param condicion Función que recibe resultados en `[0, 1]` y devuelve un
-#'   vector lógico sin ausentes de la misma longitud.
+#' @param condicion Función de un argumento que recibe el vector `resultado` de
+#'   las medidas seleccionadas, en el orden de la tabla, y debe devolver un
+#'   vector lógico sin ausentes de la misma longitud. No modifica las medidas.
 #' @param metricas Nombres de métricas instanciadas a las que se aplica la
-#'   regla. `NULL` aplica la condición a todas.
+#'   regla, es decir, valores de la columna `metrica_instanciada`. `NULL`, el
+#'   valor predeterminado, aplica la condición a todas.
 #' @param umbrales Vector numérico con nombres, estrictamente creciente y en
 #'   `[0, 1]`. `NULL` conserva los tres perfiles incluidos de fábrica.
 #' @param ... Reglas creadas por `regla_evaluacion()` o una única lista que las
@@ -24,6 +26,12 @@
 #'   `perfil_evaluacion()` devuelve un `perfil_evaluacion`; y
 #'   `perfiles_madurez()` devuelve una lista de perfiles.
 #' @name reglas_evaluacion
+#'
+#' @details `regla_evaluacion()` almacena la función sin ejecutarla. [evaluar()]
+#'   selecciona las medidas mediante `metricas`, llama una vez a `condicion` y
+#'   rechaza resultados que no sean lógicos, que tengan otra longitud o que
+#'   contengan `NA`. La función expresa un criterio de evaluación; no es un
+#'   método de medición ni recibe el data frame original.
 #'
 #' @examples
 #' regla <- regla_evaluacion("Completitud suficiente", function(x) x > 0.9)

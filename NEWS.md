@@ -2,6 +2,12 @@
 
 ## Marcos declarables y alcance internacional
 
+- Documenta los contratos de todos los puntos de extensión y añade
+  `propiedades_metrica()` para consultar la configuración admitida sin
+  inspeccionar closures.
+- Incorpora `marco_iso25012()` como adaptación opcional y explícita de las
+  quince características de ISO/IEC 25012:2008.
+- Identifica el marco activo en cada fila de `cobertura_analisis()`.
 - Permite declarar taxonomías dimensión-factor con `marco_calidad()`, validar
   modelos contra ellas y calcular cobertura con AGESIC sólo como valor de
   fábrica mediante `marco_agesic()`.
@@ -16,6 +22,8 @@
 
 ## Examinar datos
 
+- Añade `datos_operativos`, un segundo conjunto sintético y neutral, reproducible
+  desde `data-raw/`, con problemas de calidad sembrados.
 - Añade `analizar()` como puerta de entrada al recorrido descriptivo, con
   cobertura conceptual y advertencias de alcance en el propio objeto.
 - Incorpora distribuciones de valores acotadas, cuantiles, asociaciones de

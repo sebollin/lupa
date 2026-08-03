@@ -5,7 +5,8 @@
 #' tipada y una cadena de evaluación auditable. El paquete nunca modifica datos
 #' como efecto del diagnóstico: cada etapa devuelve objetos inspeccionables.
 #' [marco_agesic()] y [catalogo_agesic()] aportan de fábrica la implementación
-#' trazable del marco uruguayo, sin restringir las taxonomías del usuario.
+#' trazable del marco uruguayo, y [marco_iso25012()] ofrece una segunda
+#' taxonomía opcional. Ninguna restringe las declaraciones del usuario.
 #'
 #' El punto de entrada es [analizar()]. En una llamada reúne el diagnóstico
 #' descriptivo y su cobertura, sin medir requisitos observados automáticamente.
@@ -39,10 +40,13 @@
 #'   de Datos en Gobierno Digital*, versión 1.6, Presidencia de la República,
 #'   Uruguay.
 #'
-#' @seealso [datos_administrativos]
+#'   ISO/IEC (2008). *ISO/IEC 25012:2008 Software engineering — Software product
+#'   Quality Requirements and Evaluation (SQuaRE) — Data quality model*.
+#'
+#' @seealso [datos_operativos], [datos_administrativos]
 #' @keywords internal
 #'
 #' @examples
-#' resultado <- analizar(datos_administrativos, analizar_dependencias = FALSE)
+#' resultado <- analizar(datos_operativos, analizar_dependencias = FALSE)
 #' subset(resultado$perfil$hallazgos, severidad != "ok")
 "_PACKAGE"

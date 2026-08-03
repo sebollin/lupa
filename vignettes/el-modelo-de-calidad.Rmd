@@ -74,6 +74,48 @@ documento$declaracion[c("nombre", "granularidad", "tipo_resultado")]
 La separación permite reutilizar la misma definición sobre entregas y columnas
 distintas.
 
+### Una métrica propia de punta a punta
+
+El gancho `metodo` recibe una lista con nombre de tablas y la instancia que se
+está midiendo. Devuelve una fila por objeto medido con las columnas
+`resultado`, `entidad`, `atributo`, `fila` y `objeto`. Este ejemplo declara una
+métrica ajena a los catálogos incluidos y muestra las dos llamadas de la
+fábrica: la primera especializa y la segunda instancia.
+
+```{r}
+metodo_origen <- function(tablas, instancia) {
+  x <- tablas[[instancia$entidad]][[instancia$atributos]]
+  data.frame(
+    resultado = !is.na(x) & nzchar(x),
+    entidad = instancia$entidad,
+    atributo = instancia$atributos,
+    fila = seq_along(x),
+    objeto = paste0(instancia$entidad, "$", instancia$atributos,
+                    "[", seq_along(x), "]")
+  )
+}
+
+OrigenDeclarado <- metrica(
+  nombre = "OrigenDeclarado",
+  semantica = "Indica si cada registro declara su sistema de origen.",
+  granularidad = "instanciaAtributo",
+  tipo_resultado = "booleano",
+  dimension = "Trazabilidad",
+  factor = "Origen documentado",
+  metodo = metodo_origen
+)
+origen <- OrigenDeclarado()(entidad = "entrega", atributos = "origen")
+datos_origen <- data.frame(origen = c("sistema_a", "", "sistema_b"))
+medir(modelo(origen), datos_origen)[, c("objeto_medible", "resultado")]
+```
+
+Cuando una métrica declara propiedades, `propiedades_metrica()` permite
+consultarlas antes de llamar a `especializar()`.
+
+```{r}
+propiedades_metrica(nucleo$Formato)
+```
+
 ## Medir y agregar
 
 ```{r}
@@ -119,7 +161,23 @@ names(perfiles_madurez(umbrales = c(Inicial = 0.4, Consolidado = 0.85)))
 El `id_medicion` y la fecha permanecen en las medidas para comparar corridas y
 monitorear deriva.
 
-## El marco y el catálogo incluidos de AGESIC
+## Marcos incluidos
+
+`marco_iso25012()` ofrece las quince características de ISO/IEC 25012:2008 como
+otra taxonomía disponible. La norma distingue características inherentes,
+dependientes del sistema y aplicables desde ambas perspectivas. `lupa` usa esos
+tres grupos como dimensiones operativas y las características como factores;
+es una adaptación para la interfaz dimensión–factor, no la afirmación de que la
+norma defina esa jerarquía. Sus descripciones están redactadas para el paquete
+y no reproducen el texto normativo.
+
+```{r}
+iso <- marco_iso25012()
+table(as.data.frame(iso)$dimension)
+head(as.data.frame(iso)[, c("dimension", "factor", "descripcion")])
+```
+
+### El marco y el catálogo de AGESIC
 
 `marco_agesic()` devuelve los 17 factores usados por omisión en la cobertura.
 `catalogo_agesic()` mantiene por separado las 49 entradas, incluidas las que se
@@ -178,6 +236,9 @@ factores:
 cobertura_analisis(perfil, modelo = marco_propio)
 ```
 
+La primera columna de cada salida identifica el marco activo, por lo que una
+tabla exportada conserva el contexto de la evaluación.
+
 ## Referencias
 
 Batini C, Scannapieco M (2016). *Data and Information Quality: Dimensions,
@@ -185,3 +246,6 @@ Principles and Techniques*. Springer.
 
 AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad de Datos en
 Gobierno Digital*, versión 1.6. Presidencia de la República, Uruguay.
+
+ISO/IEC (2008). *ISO/IEC 25012:2008 Software engineering — Software product
+Quality Requirements and Evaluation (SQuaRE) — Data quality model*.

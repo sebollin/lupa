@@ -15,8 +15,9 @@ cobertura_analisis(perfil, medicion = NULL, modelo = marco_agesic())
 el modelo conceptual de referencia, no el objeto operativo de \code{\link[=modelo]{modelo()}}.}
 }
 \value{
-Data frame con \code{dimension}, \code{factor}, \code{estado}, \code{motivo} y
-\code{como_resolverlo}. \code{estado} es un factor con niveles \code{"medida"},
+Data frame con \code{marco}, \code{dimension}, \code{factor}, \code{estado}, \code{motivo} y
+\code{como_resolverlo}. \code{marco} identifica explícitamente la taxonomía contra la
+que se calculó la tabla. \code{estado} es un factor con niveles \code{"medida"},
 \code{"no_declarada"}, \code{"no_aplica"} y \code{"fuera_de_alcance"}.
 }
 \description{

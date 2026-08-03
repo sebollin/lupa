@@ -18,7 +18,9 @@ Description: Provides general-purpose data profiling and quality analysis for
     Scannapieco (2016) <doi:10.1007/978-3-319-24106-7>. The package ships a
     traceable implementation of the Data Quality Management Framework for
     Digital Government, version 1.6, published by AGESIC (2020)
-    <https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/>.
+    <https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/>,
+    and an optional taxonomy of the fifteen characteristics in ISO/IEC
+    25012:2008 <https://www.iso.org/standard/35736.html>.
 License: GPL-2 | GPL-3
 URL: https://CRAN.R-project.org/package=lupa
 Encoding: UTF-8

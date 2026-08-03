@@ -11,7 +11,8 @@ y factores declarables, métricas con granularidad explícita, agregación
 tipada y una cadena de evaluación auditable. El paquete nunca modifica datos
 como efecto del diagnóstico: cada etapa devuelve objetos inspeccionables.
 \code{\link[=marco_agesic]{marco_agesic()}} y \code{\link[=catalogo_agesic]{catalogo_agesic()}} aportan de fábrica la implementación
-trazable del marco uruguayo, sin restringir las taxonomías del usuario.
+trazable del marco uruguayo, y \code{\link[=marco_iso25012]{marco_iso25012()}} ofrece una segunda
+taxonomía opcional. Ninguna restringe las declaraciones del usuario.
 }
 \details{
 El punto de entrada es \code{\link[=analizar]{analizar()}}. En una llamada reúne el diagnóstico
@@ -41,7 +42,7 @@ se calcula un índice global: la jerarquía dimensión–factor–métrica es
 taxonómica y requiere un contrato adicional para producirlo.
 }
 \examples{
-resultado <- analizar(datos_administrativos, analizar_dependencias = FALSE)
+resultado <- analizar(datos_operativos, analizar_dependencias = FALSE)
 subset(resultado$perfil$hallazgos, severidad != "ok")
 }
 \references{
@@ -51,9 +52,12 @@ Dimensions, Principles and Techniques}. Springer.
 AGESIC (2020). \emph{Marco de trabajo para la Gestión de la Calidad
 de Datos en Gobierno Digital}, versión 1.6, Presidencia de la República,
 Uruguay.
+
+ISO/IEC (2008). \emph{ISO/IEC 25012:2008 Software engineering — Software product
+Quality Requirements and Evaluation (SQuaRE) — Data quality model}.
 }
 \seealso{
-\link{datos_administrativos}
+\link{datos_operativos}, \link{datos_administrativos}
 }
 \author{
 \strong{Maintainer}: Sebastián Lucas \email{sebalucas@gmail.com}

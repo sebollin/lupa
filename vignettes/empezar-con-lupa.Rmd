@@ -16,7 +16,7 @@ options(width = 90)
 evaluar, proponer mejoras y dejar evidencia. Ninguna etapa modifica los datos
 por el solo hecho de diagnosticarlos.
 
-## Una entrega administrativa
+## Una entrega tabular
 
 El conjunto incluido es pequeño y completamente sintético. Tiene fechas
 mezcladas, sentinelas, duplicados y formatos discordantes. `analizar()` es la
@@ -25,13 +25,35 @@ observado en un requisito ni mide la propuesta automáticamente.
 
 ```{r}
 library(lupa)
-data(datos_administrativos)
-dim(datos_administrativos)
+data(datos_operativos)
+dim(datos_operativos)
+```
+
+El marco contra el que se informa la cobertura también es declarable. En un
+data frame, `perfil_mide` señala los factores para los que el profiling aporta
+evidencia suficiente por sí solo. La forma abreviada con una lista deja ese
+campo en `FALSE`: nunca presume que examinar equivale a medir.
+
+```{r}
+factores <- data.frame(
+  dimension = c("Estructura", "Estructura", "Trazabilidad"),
+  factor = c(
+    "Ausencias observadas", "Duplicación exacta", "Origen documentado"
+  ),
+  perfil_mide = c(TRUE, TRUE, FALSE),
+  como_resolverlo = c(
+    "Revisar ausencias detectadas por el perfil.",
+    "Revisar duplicados exactos detectados por el perfil.",
+    "Declarar una métrica sobre el sistema de origen."
+  )
+)
+marco_operativo <- marco_calidad("Marco operativo del ejemplo", factores)
 
 analisis <- analizar(
-  datos_administrativos,
+  datos_operativos,
   nombre = "entrega de ejemplo",
-  fecha = as.POSIXct("2026-01-15", tz = "UTC")
+  fecha = as.POSIXct("2026-01-15", tz = "UTC"),
+  marco = marco_operativo
 )
 analisis
 perfil <- analisis$perfil
@@ -68,7 +90,7 @@ analisis$variables[, c(
   "columna", "tipo_almacenamiento", "tipo_implicito", "escala_propuesta",
   "confianza", "confirmada", "n_niveles_ausentes"
 )]
-analisis$cobertura[, c("dimension", "factor", "estado")]
+analisis$cobertura[, c("marco", "dimension", "factor", "estado")]
 ```
 
 ## Del diagnóstico al modelo
@@ -90,7 +112,7 @@ métrica estructural activa detecta las filas que participan en duplicados.
 ```{r}
 modelo_calidad <- modelo_desde_propuesta(propuesta)
 medidas <- medir(
-  modelo_calidad, datos_administrativos,
+  modelo_calidad, datos_operativos,
   id_medicion = "ejemplo-001",
   fecha = as.POSIXct("2026-01-15", tz = "UTC")
 )
@@ -124,7 +146,7 @@ plan[, c(
   "grupo", "columna", "estrategia", "recomendada", "aplicar", "estado"
 )]
 
-resultado <- aplicar(plan, datos_administrativos)
+resultado <- aplicar(plan, datos_operativos)
 resultado$registro[, c("estrategia", "n_cambiadas")]
 ```
 

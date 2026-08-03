@@ -64,11 +64,19 @@
 #' lista parcial puede usarse para correctitud, pero no como denominador de
 #' cobertura.
 #'
+#' `clave` no admite ausentes y debe identificar cada fila de `datos` de forma
+#' única; puede contener varias columnas. `valor` es opcional, no puede repetir
+#' columnas de `clave` y representa los atributos asociados que se contrastan
+#' en correctitud semántica fuerte. `completo = FALSE` es el valor
+#' predeterminado y permite omitir `alcance`. Al declarar `completo = TRUE`,
+#' `alcance` pasa a ser obligatorio y debe nombrar el universo que la tabla dice
+#' cubrir. El constructor copia la tabla y no consulta fuentes externas.
+#'
 #' @param datos Tabla de referencia. Se conserva una copia ordinaria de R.
 #' @param clave Columnas que identifican unívocamente cada fila.
 #' @param valor Columnas cuyos valores se contrastan junto con la clave.
 #' @param completo Si el referencial declara contener todo el universo del
-#'   alcance indicado.
+#'   alcance indicado. Es `FALSE` por omisión.
 #' @param alcance Descripción explícita de aquello de lo que el referencial se
 #'   declara completo. Es obligatoria cuando `completo = TRUE`.
 #' @param nombre Nombre legible del referencial. Si se omite, usa el nombre del

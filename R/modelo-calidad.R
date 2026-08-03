@@ -57,6 +57,25 @@
   configuracion
 }
 
+.validar_propiedades_devueltas <- function(configuracion, propiedades) {
+  if (length(configuracion) &&
+      (is.null(names(configuracion)) || anyNA(names(configuracion)) ||
+       any(!nzchar(names(configuracion))) || anyDuplicated(names(configuracion)))) {
+    stop(
+      "El validador de propiedades debe devolver una lista con nombres \u00fanicos.",
+      call. = FALSE
+    )
+  }
+  desconocidas <- setdiff(names(configuracion), propiedades)
+  if (length(desconocidas)) {
+    stop(
+      "El validador devolvi\u00f3 propiedades no declaradas: ",
+      paste(desconocidas, collapse = ", "), ".", call. = FALSE
+    )
+  }
+  configuracion
+}
+
 .crear_fabrica_especializacion <- function(declaracion, metodo, validador) {
   fabrica <- NULL
   propiedades <- declaracion$propiedades
@@ -148,17 +167,23 @@
 #' @param dimension,factor Metadatos taxonómicos; no se usan para calcular
 #'   puntuaciones.
 #' @param metodo Método predeterminado opcional. Es una función de `tablas` e
-#'   `instancia` que cumple el contrato descrito en Detalles.
-#' @param validar_propiedades Función opcional que valida y devuelve la lista de
-#'   configuración.
+#'   `instancia` que cumple el contrato descrito en **Contrato de `metodo`**.
+#' @param validar_propiedades Función opcional que recibe la lista con nombre
+#'   enviada a [especializar()] y debe devolver otra lista con nombre formada
+#'   sólo por propiedades declaradas. Puede validar alternativas, completar
+#'   valores predeterminados y normalizar la configuración. Si es `NULL`, todas
+#'   las propiedades declaradas son obligatorias y no se admiten otras.
 #' @param metrica Objeto de clase `metrica_generica`.
-#' @param ... En `especializar()`, propiedades con nombre. En `modelo()`,
-#'   métricas instanciadas o una única lista que las contenga.
+#' @param ... En `especializar()`, propiedades con nombre de las declaradas en
+#'   `metrica(propiedades = )`; consúltelas con [propiedades_metrica()]. En
+#'   `modelo()`, métricas instanciadas o una única lista que las contenga.
 #' @param entidad Nombres de las tablas ligadas, en el orden que espera el
 #'   método.
 #' @param atributos Nombres de las columnas ligadas, en el mismo orden.
-#' @param referencial Objeto opcional creado por [referencial()]. Las métricas
-#'   que lo consumen validan su contrato al medir.
+#' @param referencial Objeto opcional creado por [referencial()]. Se conserva en
+#'   la instancia sin modificarlo: `instanciar()` no supone que toda métrica lo
+#'   use. El `metodo` debe leerlo y validar el contrato que necesite; las
+#'   métricas de [metricas_referencial()] hacen esa validación al medir.
 #' @param marco Objeto opcional creado por [marco_calidad()]. Cuando se provee,
 #'   todas las métricas instanciadas deben pertenecer a uno de sus pares
 #'   dimensión-factor.
@@ -166,12 +191,40 @@
 #' @return `metrica()` y `especializar()` devuelven closures S3;
 #'   `instanciar()` devuelve una `metrica_instanciada`; `modelo()` devuelve un
 #'   `modelo_calidad`; `metricas_nucleo()` devuelve una lista de métricas
-#'   genéricas.
+#'   genéricas. `propiedades_metrica()` devuelve un data frame con las
+#'   propiedades declaradas y si ya fueron configuradas.
+#'
+#' @section Contrato de `metodo`:
+#' El método tiene la firma `function(tablas, instancia)`. `tablas` es una lista
+#' con nombre de data frames, incluso cuando [medir()] recibió una sola tabla.
+#' `instancia` expone `entidad`, `atributos`, `configuracion`, `referencial` y
+#' `declaracion`; el método decide cómo interpretar esos vínculos.
+#'
+#' Debe devolver un data frame con exactamente una observación por objeto
+#' medido y, como mínimo, estas columnas:
+#'
+#' * `resultado`: valor medido. Debe respetar `tipo_resultado`: lógicos sin `NA`
+#'   para `"booleano"`; números finitos en `[0, 1]` para `"real"`; números
+#'   finitos para `"numero_real"`; enteros o duraciones no negativos para los
+#'   tipos homónimos;
+#' * `entidad`: nombre de la tabla a la que corresponde la medida;
+#' * `atributo`: nombre de la columna o `NA_character_` cuando no corresponde;
+#' * `fila`: posición de la fila o `NA_integer_` para resultados agregados;
+#' * `objeto`: etiqueta legible y estable del objeto medido.
+#'
+#' Las columnas adicionales se descartan. Un `metodo` pasado a [instanciar()]
+#' reemplaza el predeterminado sólo para esa instancia. El ejemplo ejecutable
+#' muestra la cadena genérica → específica → instanciada completa.
+#'
+#' @section Contrato de propiedades:
+#' `propiedades` declara los nombres que puede recibir [especializar()]. Sin
+#' `validar_propiedades`, todas son obligatorias. Con un validador propio, éste
+#' recibe la lista `configuracion`, debe rechazar combinaciones inválidas y puede
+#' devolver sólo el subconjunto activo o añadir valores predeterminados, pero no
+#' propiedades ajenas a la declaración. [propiedades_metrica()] permite consultar
+#' los nombres aceptados sin inspeccionar atributos internos de las closures.
 #'
 #' @details
-#' El método de medición devuelve un data frame con `resultado`, `entidad`,
-#' `atributo`, `fila` y `objeto`. Una métrica booleana produce valores lógicos;
-#' una real produce números finitos en `[0, 1]`.
 #'
 #' En `ReglaIntegridadInterEntidad`, `entidad` y `atributos` se ligan como
 #' `c(referencia, dependiente)` y `c(clave_primaria, clave_foranea)`.
@@ -253,6 +306,34 @@
 #' # Las fábricas también se pueden encadenar: genérica() -> específica().
 #' instancia_directa <- nucleo$NoNulo()(
 #'   entidad = "personas", atributos = "edad"
+#' )
+#' propiedades_metrica(nucleo$Formato)
+#'
+#' # Métrica propia: las dos llamadas encadenadas son especializar e instanciar.
+#' metodo_origen <- function(tablas, instancia) {
+#'   x <- tablas[[instancia$entidad]][[instancia$atributos]]
+#'   filas <- seq_along(x)
+#'   data.frame(
+#'     resultado = !is.na(x) & nzchar(x),
+#'     entidad = instancia$entidad,
+#'     atributo = instancia$atributos,
+#'     fila = filas,
+#'     objeto = paste0(instancia$entidad, "$", instancia$atributos,
+#'                     "[", filas, "]")
+#'   )
+#' }
+#' OrigenDeclarado <- metrica(
+#'   "OrigenDeclarado", "Indica si se declaró el origen del registro.",
+#'   "instanciaAtributo", "booleano",
+#'   dimension = "Trazabilidad", factor = "Origen documentado",
+#'   metodo = metodo_origen
+#' )
+#' origen <- OrigenDeclarado()(
+#'   entidad = "entrega", atributos = "origen"
+#' )
+#' medir(
+#'   modelo(origen),
+#'   data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 #' )
 #'
 #' # Especialización oficial de teléfono fijo según el formato vigente del PNN.
@@ -360,6 +441,9 @@ especializar <- function(metrica, nombre_especifico = NULL, ...) {
     if (!is.list(configuracion)) {
       stop("El validador de propiedades debe devolver una lista.", call. = FALSE)
     }
+    configuracion <- .validar_propiedades_devueltas(
+      configuracion, declaracion$propiedades
+    )
   }
   .crear_fabrica_instancia(
     declaracion = declaracion,
@@ -424,6 +508,36 @@ instanciar <- function(metrica_especifica, entidad, atributos = character(),
   )
   class(estructura) <- "metrica_instanciada"
   estructura
+}
+
+#' @rdname modelo_calidad
+#' @param x Métrica genérica, específica o instanciada.
+#' @export
+propiedades_metrica <- function(x) {
+  clases <- c("metrica_generica", "metrica_especifica", "metrica_instanciada")
+  if (!any(vapply(clases, function(clase) inherits(x, clase), logical(1L)))) {
+    stop(
+      "`x` debe ser una m\u00e9trica gen\u00e9rica, espec\u00edfica o instanciada.",
+      call. = FALSE
+    )
+  }
+  declaracion <- if (inherits(x, "metrica_instanciada")) {
+    x$declaracion
+  } else {
+    .declaracion_metrica(x)
+  }
+  configuracion <- if (inherits(x, "metrica_instanciada")) {
+    x$configuracion
+  } else if (inherits(x, "metrica_especifica")) {
+    attr(x, "configuracion", exact = TRUE)
+  } else {
+    list()
+  }
+  data.frame(
+    propiedad = declaracion$propiedades,
+    configurada = declaracion$propiedades %in% names(configuracion),
+    stringsAsFactors = FALSE
+  )
 }
 
 #' @rdname modelo_calidad

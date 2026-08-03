@@ -9,9 +9,10 @@ entregas a lo largo del tiempo.
 El usuario puede declarar su propia taxonomía con `marco_calidad()`. De fábrica,
 el paquete trae los 17 factores y la correspondencia con las 49 métricas del
 *Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital
-v1.6* de AGESIC. Sólo `cli` es una dependencia obligatoria; el reporte HTML
-autocontenido se genera con R base y no requiere navegador, LaTeX ni servicios
-externos.
+v1.6* de AGESIC. También ofrece las quince características de ISO/IEC 25012:2008
+como una taxonomía opcional; ninguno de los dos marcos limita el núcleo. Sólo
+`cli` es una dependencia obligatoria; el reporte HTML autocontenido se genera
+con R base y no requiere navegador, LaTeX ni servicios externos.
 
 ## Instalación
 
@@ -33,10 +34,18 @@ install.packages("ruta/al/archivo/lupa_0.1.0.tar.gz", repos = NULL)
 
 ```r
 library(lupa)
-data(datos_administrativos)
+data(datos_operativos)
+
+factores <- data.frame(
+  dimension = "Estructura",
+  factor = c("Ausencias observadas", "Duplicación exacta"),
+  perfil_mide = TRUE,
+  como_resolverlo = c("Revisar ausencias.", "Revisar duplicados.")
+)
+marco_operativo <- marco_calidad("Marco operativo", factores)
 
 # 1. Analizar. Una llamada reúne el recorrido descriptivo y su alcance.
-analisis <- analizar(datos_administrativos)
+analisis <- analizar(datos_operativos, marco = marco_operativo)
 analisis
 subset(analisis$perfil$hallazgos, severidad != "ok")
 analisis$cobertura
@@ -52,7 +61,7 @@ propuesta[, c("metrica", "origen", "justificacion", "incluir")]
 modelo_calidad <- modelo_desde_propuesta(propuesta)
 
 # 3. Medir y evaluar con una regla explícita.
-medidas <- medir(modelo_calidad, datos_administrativos)
+medidas <- medir(modelo_calidad, datos_operativos)
 medida_entidad <- agregar(medidas, "entidad", "ratio")
 regla <- regla_evaluacion(
   "Duplicación menor al 20 %",
@@ -66,7 +75,7 @@ evaluacion <- evaluar(
 # 4. Revisar y aplicar un plan sobre una copia de los datos.
 plan <- analisis$plan_limpieza
 plan[, c("grupo", "estrategia", "recomendada", "aplicar")]
-resultado <- aplicar(plan, datos_administrativos)
+resultado <- aplicar(plan, datos_operativos)
 resultado$registro
 
 # 5. Compartir un único archivo sin recursos externos.
@@ -109,6 +118,7 @@ vignette("historico-y-deriva", package = "lupa")
 - hallazgos accionables, claves, relaciones y dependencias funcionales;
 - métricas genéricas, específicas e instanciadas con granularidad explícita;
 - taxonomías dimensión-factor declarables y cobertura contra el marco elegido;
+- marcos incluidos de AGESIC e ISO/IEC 25012 como opciones consultables;
 - referenciales tabulares para correctitud semántica y cobertura;
 - cuatro agregaciones tipadas y perfiles de evaluación sin índice global;
 - propuesta editable del modelo y plan de limpieza auditable;
@@ -126,6 +136,11 @@ externos y las que permanecen fuera de alcance. La columna `motivo` distingue
 una semántica parcial, un insumo que debe aportar el usuario, un motor pendiente
 y una decisión explícita de alcance.
 
+`marco_iso25012()` devuelve una adaptación operativa de las quince
+características de ISO/IEC 25012:2008. Sus tres perspectivas se representan
+como dimensiones y las características como factores; esa forma sirve a la API
+de `lupa` y no pretende convertir la norma en una jerarquía que no declara.
+
 El núcleo no presupone país ni organismo. Para datos uruguayos, el catálogo de
 AGESIC, sus especializaciones documentadas y los puntos de extensión para
 validadores y referenciales nacionales quedan disponibles como una instancia de
@@ -139,3 +154,6 @@ Principles and Techniques*. Springer.
 AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad de Datos en
 Gobierno Digital*, versión 1.6. Presidencia de la República, Uruguay, con la
 Facultad de Ingeniería de la Universidad de la República.
+
+ISO/IEC (2008). *ISO/IEC 25012:2008 Software engineering — Software product
+Quality Requirements and Evaluation (SQuaRE) — Data quality model*.

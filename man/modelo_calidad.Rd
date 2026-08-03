@@ -5,6 +5,7 @@
 \alias{metrica}
 \alias{especializar}
 \alias{instanciar}
+\alias{propiedades_metrica}
 \alias{modelo}
 \alias{metricas_nucleo}
 \title{Construir métricas y modelos de calidad}
@@ -32,6 +33,8 @@ instanciar(
   referencial = NULL
 )
 
+propiedades_metrica(x)
+
 modelo(..., marco = NULL)
 
 metricas_nucleo()
@@ -54,18 +57,22 @@ agregaciones normalizadas.}
 puntuaciones.}
 
 \item{metodo}{Método predeterminado opcional. Es una función de \code{tablas} e
-\code{instancia} que cumple el contrato descrito en Detalles.}
+\code{instancia} que cumple el contrato descrito en \strong{Contrato de \code{metodo}}.}
 
-\item{validar_propiedades}{Función opcional que valida y devuelve la lista de
-configuración.}
+\item{validar_propiedades}{Función opcional que recibe la lista con nombre
+enviada a \code{\link[=especializar]{especializar()}} y debe devolver otra lista con nombre formada
+sólo por propiedades declaradas. Puede validar alternativas, completar
+valores predeterminados y normalizar la configuración. Si es \code{NULL}, todas
+las propiedades declaradas son obligatorias y no se admiten otras.}
 
 \item{metrica}{Objeto de clase \code{metrica_generica}.}
 
 \item{nombre_especifico}{Nombre de la especialización. Si se omite, conserva
 el nombre genérico.}
 
-\item{...}{En \code{especializar()}, propiedades con nombre. En \code{modelo()},
-métricas instanciadas o una única lista que las contenga.}
+\item{...}{En \code{especializar()}, propiedades con nombre de las declaradas en
+\code{metrica(propiedades = )}; consúltelas con \code{\link[=propiedades_metrica]{propiedades_metrica()}}. En
+\code{modelo()}, métricas instanciadas o una única lista que las contenga.}
 
 \item{metrica_especifica}{Objeto de clase \code{metrica_especifica}.}
 
@@ -77,8 +84,12 @@ método.}
 \item{nombre_instancia}{Nombre de la instancia. Si se omite, se deriva de la
 especialización y los objetos ligados.}
 
-\item{referencial}{Objeto opcional creado por \code{\link[=referencial]{referencial()}}. Las métricas
-que lo consumen validan su contrato al medir.}
+\item{referencial}{Objeto opcional creado por \code{\link[=referencial]{referencial()}}. Se conserva en
+la instancia sin modificarlo: \code{instanciar()} no supone que toda métrica lo
+use. El \code{metodo} debe leerlo y validar el contrato que necesite; las
+métricas de \code{\link[=metricas_referencial]{metricas_referencial()}} hacen esa validación al medir.}
+
+\item{x}{Métrica genérica, específica o instanciada.}
 
 \item{marco}{Objeto opcional creado por \code{\link[=marco_calidad]{marco_calidad()}}. Cuando se provee,
 todas las métricas instanciadas deben pertenecer a uno de sus pares
@@ -88,7 +99,8 @@ dimensión-factor.}
 \code{metrica()} y \code{especializar()} devuelven closures S3;
 \code{instanciar()} devuelve una \code{metrica_instanciada}; \code{modelo()} devuelve un
 \code{modelo_calidad}; \code{metricas_nucleo()} devuelve una lista de métricas
-genéricas.
+genéricas. \code{propiedades_metrica()} devuelve un data frame con las
+propiedades declaradas y si ya fueron configuradas.
 }
 \description{
 \code{metrica()} declara una métrica genérica y devuelve una fábrica de closures.
@@ -103,10 +115,6 @@ declaradas sus propiedades; \code{\link[=escala]{escala()}} y \code{\link[=vigen
 insumos expertos que algunas necesitan. \code{\link[=metricas_referencial]{metricas_referencial()}} aporta por
 separado las tres métricas que consumen un padrón tabular. Consulte
 \code{\link[=catalogo_agesic]{catalogo_agesic()}} para la correspondencia completa.
-
-El método de medición devuelve un data frame con \code{resultado}, \code{entidad},
-\code{atributo}, \code{fila} y \code{objeto}. Una métrica booleana produce valores lógicos;
-una real produce números finitos en \verb{[0, 1]}.
 
 En \code{ReglaIntegridadInterEntidad}, \code{entidad} y \code{atributos} se ligan como
 \code{c(referencia, dependiente)} y \code{c(clave_primaria, clave_foranea)}.
@@ -169,6 +177,41 @@ El argumento referencial se conserva sin transformación dentro de la
 instancia; \code{\link[=metricas_referencial]{metricas_referencial()}} declara y valida el contrato específico
 de correctitud semántica y cobertura.
 }
+\section{Contrato de \code{metodo}}{
+
+El método tiene la firma \verb{function(tablas, instancia)}. \code{tablas} es una lista
+con nombre de data frames, incluso cuando \code{\link[=medir]{medir()}} recibió una sola tabla.
+\code{instancia} expone \code{entidad}, \code{atributos}, \code{configuracion}, \code{referencial} y
+\code{declaracion}; el método decide cómo interpretar esos vínculos.
+
+Debe devolver un data frame con exactamente una observación por objeto
+medido y, como mínimo, estas columnas:
+\itemize{
+\item \code{resultado}: valor medido. Debe respetar \code{tipo_resultado}: lógicos sin \code{NA}
+para \code{"booleano"}; números finitos en \verb{[0, 1]} para \code{"real"}; números
+finitos para \code{"numero_real"}; enteros o duraciones no negativos para los
+tipos homónimos;
+\item \code{entidad}: nombre de la tabla a la que corresponde la medida;
+\item \code{atributo}: nombre de la columna o \code{NA_character_} cuando no corresponde;
+\item \code{fila}: posición de la fila o \code{NA_integer_} para resultados agregados;
+\item \code{objeto}: etiqueta legible y estable del objeto medido.
+}
+
+Las columnas adicionales se descartan. Un \code{metodo} pasado a \code{\link[=instanciar]{instanciar()}}
+reemplaza el predeterminado sólo para esa instancia. El ejemplo ejecutable
+muestra la cadena genérica → específica → instanciada completa.
+}
+
+\section{Contrato de propiedades}{
+
+\code{propiedades} declara los nombres que puede recibir \code{\link[=especializar]{especializar()}}. Sin
+\code{validar_propiedades}, todas son obligatorias. Con un validador propio, éste
+recibe la lista \code{configuracion}, debe rechazar combinaciones inválidas y puede
+devolver sólo el subconjunto activo o añadir valores predeterminados, pero no
+propiedades ajenas a la declaración. \code{\link[=propiedades_metrica]{propiedades_metrica()}} permite consultar
+los nombres aceptados sin inspeccionar atributos internos de las closures.
+}
+
 \examples{
 nucleo <- metricas_nucleo()
 no_nulo <- especializar(
@@ -181,6 +224,34 @@ medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
 # Las fábricas también se pueden encadenar: genérica() -> específica().
 instancia_directa <- nucleo$NoNulo()(
   entidad = "personas", atributos = "edad"
+)
+propiedades_metrica(nucleo$Formato)
+
+# Métrica propia: las dos llamadas encadenadas son especializar e instanciar.
+metodo_origen <- function(tablas, instancia) {
+  x <- tablas[[instancia$entidad]][[instancia$atributos]]
+  filas <- seq_along(x)
+  data.frame(
+    resultado = !is.na(x) & nzchar(x),
+    entidad = instancia$entidad,
+    atributo = instancia$atributos,
+    fila = filas,
+    objeto = paste0(instancia$entidad, "$", instancia$atributos,
+                    "[", filas, "]")
+  )
+}
+OrigenDeclarado <- metrica(
+  "OrigenDeclarado", "Indica si se declaró el origen del registro.",
+  "instanciaAtributo", "booleano",
+  dimension = "Trazabilidad", factor = "Origen documentado",
+  metodo = metodo_origen
+)
+origen <- OrigenDeclarado()(
+  entidad = "entrega", atributos = "origen"
+)
+medir(
+  modelo(origen),
+  data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 )
 
 # Especialización oficial de teléfono fijo según el formato vigente del PNN.
