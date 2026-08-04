@@ -161,6 +161,33 @@ test_that("el recorrido por bloques conserva exactitud y acota su tesela", {
   expect_true(any(resultado$pares$tipo_par == "exacto"))
 })
 
+test_that("el acumulador procesa lotes y conserva sólo el límite", {
+  acumulador <- lupa:::.nuevo_acumulador_duplicados(2L)
+  expect_identical(
+    lupa:::.acumular_pares_duplicados(acumulador, integer(), integer(), numeric()),
+    acumulador
+  )
+  expect_identical(
+    lupa:::.acumular_pares_duplicados(acumulador, 1L, 2L, Inf), acumulador
+  )
+  for (inicio in seq(1, 1000, by = 10)) {
+    indices <- inicio:(inicio + 9)
+    acumulador <- lupa:::.acumular_pares_duplicados(
+      acumulador, indices, indices + 1L,
+      rep(c(0.08, 0.01, 0.05, 0.03, 0.02), length.out = 10L)
+    )
+  }
+  expect_equal(nrow(acumulador$pares), 2L)
+  expect_equal(acumulador$n_hallados, 1000L)
+  expect_equal(acumulador$n_exactos, 0L)
+  expect_equal(acumulador$n_aproximados, 1000L)
+  expect_equal(acumulador$pares$distancia, c(0.01, 0.01))
+  expect_error(
+    lupa:::.acumular_pares_duplicados(acumulador, 1L, c(2L, 3L), 0.1),
+    "igual longitud"
+  )
+})
+
 test_that("el tope predeterminado alcanza diez mil filas", {
   skip_on_cran()
   skip_if_not_installed("stringdist")

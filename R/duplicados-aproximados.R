@@ -71,6 +71,59 @@
   as.integer(x)
 }
 
+.nuevo_acumulador_duplicados <- function(max_resultados) {
+  list(
+    pares = data.frame(
+      fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
+      stringsAsFactors = FALSE
+    ),
+    n_hallados = 0, n_exactos = 0, n_aproximados = 0,
+    max_resultados = max_resultados
+  )
+}
+
+#' Acumula un lote de pares candidatos ya filtrados
+#'
+#' El contrato del generador es entregar cada par una sola vez. El acumulador
+#' no guarda un índice de todos los pares vistos: conserva sólo los mejores
+#' `max_resultados` y sus contadores. Esto permite alimentar la función con
+#' lotes provenientes de teselas o de un generador futuro sin que el estado
+#' persistente crezca con el número de candidatos.
+#' @noRd
+.acumular_pares_duplicados <- function(
+    acumulador, fila_1, fila_2, distancia) {
+  if (!length(fila_1)) return(acumulador)
+  if (length(fila_1) != length(fila_2) ||
+      length(fila_1) != length(distancia)) {
+    stop("El lote de pares debe tener filas y distancias de igual longitud.",
+         call. = FALSE)
+  }
+  validos <- is.finite(distancia)
+  if (!any(validos)) return(acumulador)
+  lote <- data.frame(
+    fila_1 = as.integer(fila_1[validos]),
+    fila_2 = as.integer(fila_2[validos]),
+    distancia = as.numeric(distancia[validos]),
+    stringsAsFactors = FALSE
+  )
+  acumulador$n_hallados <- acumulador$n_hallados + nrow(lote)
+  acumulador$n_exactos <- acumulador$n_exactos + sum(lote$distancia == 0)
+  acumulador$n_aproximados <- acumulador$n_aproximados +
+    sum(lote$distancia > 0)
+  acumulador$pares <- rbind(acumulador$pares, lote)
+  acumulador$pares <- acumulador$pares[
+    order(acumulador$pares$distancia,
+          acumulador$pares$fila_1, acumulador$pares$fila_2),
+    , drop = FALSE
+  ]
+  limite <- acumulador$max_resultados
+  if (!is.infinite(limite) && nrow(acumulador$pares) > limite) {
+    acumulador$pares <- acumulador$pares[seq_len(limite), , drop = FALSE]
+  }
+  rownames(acumulador$pares) <- NULL
+  acumulador
+}
+
 #' Compara por teselas y conserva sólo los mejores resultados
 #'
 #' La matriz de distancias de cada tesela se descarta antes de pasar a la
@@ -89,23 +142,8 @@
     ))
   }
   inicios <- seq.int(1L, n, by = bloque)
-  mejores <- data.frame(
-    fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
-    stringsAsFactors = FALSE
-  )
-  n_hallados <- 0
-  n_exactos <- 0
-  n_aproximados <- 0
+  acumulador <- .nuevo_acumulador_duplicados(max_resultados)
   n_bloques <- 0L
-  ordenar_mejores <- function(x) {
-    if (!nrow(x)) return(x)
-    x <- x[order(x$distancia, x$fila_1, x$fila_2), , drop = FALSE]
-    if (!is.infinite(max_resultados) && nrow(x) > max_resultados) {
-      x <- x[seq_len(max_resultados), , drop = FALSE]
-    }
-    rownames(x) <- NULL
-    x
-  }
   for (i in seq_along(inicios)) {
     fin_i <- min(n, inicios[[i]] + bloque - 1L)
     filas_i <- inicios[[i]]:fin_i
@@ -126,19 +164,15 @@
       distancias <- as.numeric(matriz[candidatas])
       f1 <- filas[filas_i[candidatas[, 1L]]]
       f2 <- filas[filas_j[candidatas[, 2L]]]
-      candidatos <- data.frame(
-        fila_1 = f1, fila_2 = f2, distancia = distancias,
-        stringsAsFactors = FALSE
+      acumulador <- .acumular_pares_duplicados(
+        acumulador, f1, f2, distancias
       )
-      n_hallados <- n_hallados + nrow(candidatos)
-      n_exactos <- n_exactos + sum(distancias == 0)
-      n_aproximados <- n_aproximados + sum(distancias > 0)
-      mejores <- ordenar_mejores(rbind(mejores, candidatos))
     }
   }
   list(
-    pares = mejores, n_hallados = n_hallados, n_exactos = n_exactos,
-    n_aproximados = n_aproximados, n_bloques = n_bloques
+    pares = acumulador$pares, n_hallados = acumulador$n_hallados,
+    n_exactos = acumulador$n_exactos,
+    n_aproximados = acumulador$n_aproximados, n_bloques = n_bloques
   )
 }
 
@@ -147,7 +181,6 @@
   if (is.infinite(limite) || n <= limite) return(seq_len(n))
   limite <- as.integer(limite)
   if (limite <= 3L) return(seq_len(limite))
-  if (n < 4L) return(seq_len(min(n, limite)))
   # Mantener ambos extremos evita que una tabla ordenada pierda un par
   # duplicado que aparezca al principio o al final; el resto queda distribuido.
   interiores <- limite - 4L
