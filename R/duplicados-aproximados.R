@@ -71,6 +71,15 @@
   as.integer(x)
 }
 
+.validar_parametro_lsh <- function(x, nombre, minimo = 1L) {
+  if (!is.numeric(x) || length(x) != 1L || is.na(x) ||
+      !is.finite(x) || x < minimo || x != floor(x)) {
+    stop("`", nombre, "` debe ser un entero finito de al menos ", minimo,
+         ".", call. = FALSE)
+  }
+  as.integer(x)
+}
+
 .nuevo_acumulador_duplicados <- function(max_resultados) {
   list(
     pares = data.frame(
@@ -176,6 +185,241 @@
   )
 }
 
+.qgramas_lsh <- function(x, q) {
+  lapply(seq_along(x), function(i) {
+    texto <- x[[i]]
+    if (!nzchar(texto)) return(character())
+    largo <- nchar(texto, type = "chars")
+    if (largo < q) return(texto)
+    unique(substring(texto, seq_len(largo - q + 1L),
+                     seq_len(largo - q + 1L) + q - 1L))
+  })
+}
+
+.matriz_ids_qgramas <- function(gramas, vocabulario) {
+  n <- length(gramas)
+  largos <- lengths(gramas)
+  maximo <- if (n) max(1L, largos) else 1L
+  ids <- matrix(0L, nrow = n, ncol = maximo)
+  if (n && sum(largos)) {
+    filas <- rep(seq_len(n), largos)
+    columnas <- sequence(largos)
+    ids[cbind(filas, columnas)] <- match(unlist(gramas, use.names = FALSE),
+                                         vocabulario)
+  }
+  ids
+}
+
+.ids_qgramas_por_bloques <- function(valores, q, bloque = 10000L) {
+  n <- length(valores)
+  largos_maximos <- pmax(nchar(valores, type = "chars") - q + 1L, 1L)
+  maximo <- if (n) max(largos_maximos) else 1L
+  ids <- matrix(0L, nrow = n, ncol = maximo)
+  vocabulario <- character()
+  if (!n) return(list(ids = ids, vocabulario = vocabulario))
+  inicios <- seq.int(1L, n, by = bloque)
+  for (inicio in inicios) {
+    fin <- min(n, inicio + bloque - 1L)
+    gramas <- .qgramas_lsh(valores[inicio:fin], q)
+    nuevos <- unique(unlist(gramas, use.names = FALSE))
+    if (length(nuevos)) {
+      nuevos <- nuevos[!nuevos %in% vocabulario]
+      if (length(nuevos)) vocabulario <- c(vocabulario, nuevos)
+    }
+    bloque_ids <- .matriz_ids_qgramas(gramas, vocabulario)
+    ids[inicio:fin, seq_len(ncol(bloque_ids))] <- bloque_ids
+  }
+  list(ids = ids, vocabulario = vocabulario)
+}
+
+.firmas_minhash_lsh <- function(ids, n_hashes) {
+  n <- nrow(ids)
+  vocabulario <- max(ids, na.rm = TRUE)
+  if (!is.finite(vocabulario) || vocabulario < 1L) vocabulario <- 1L
+  # Multiplicadores acotados para que el producto permanezca exacto en double.
+  primo <- 1000000007
+  semillas <- seq_len(n_hashes)
+  # Los multiplicadores cubren el cuerpo modular; una secuencia pequeña y
+  # siempre creciente produciría un orden casi monotónico y no un MinHash.
+  a <- (semillas * 1103515245 + 12345) %% (primo - 1) + 1
+  b <- (semillas * 214013 + 2531011) %% primo
+  firmas <- matrix(0L, nrow = n, ncol = n_hashes)
+  for (h in seq_len(n_hashes)) {
+    hash <- c(primo, as.integer((a[[h]] * seq_len(vocabulario) + b[[h]]) %% primo))
+    ids_col <- ids[, 1L]
+    minimo <- hash[pmax(ids_col, 1L)]
+    minimo[ids_col == 0L] <- Inf
+    if (ncol(ids) > 1L) {
+      for (j in 2L:ncol(ids)) {
+        ids_col <- ids[, j]
+        valores <- hash[pmax(ids_col, 1L)]
+        valores[ids_col == 0L] <- Inf
+        minimo <- pmin(minimo, valores)
+      }
+    }
+    firmas[, h] <- minimo
+  }
+  firmas
+}
+
+.jaccard_qgramas <- function(a, b) {
+  if (!length(a) && !length(b)) return(1)
+  union <- union(a, b)
+  length(intersect(a, b)) / length(union)
+}
+
+#' Genera candidatos con MinHash y bandas LSH
+#'
+#' Cada candidato se emite en la primera banda donde colisiona. El generador
+#' entrega pares únicos al acumulador; así no se guarda un registro de todos
+#' los pares ya vistos. La garantía calculada es la de candidatos con Jaccard
+#' de q-gramas, no una garantía de la medida final.
+#' @noRd
+.comparar_lsh_duplicados <- function(
+    valores, filas, metodo, umbral, bandas, filas_banda, q,
+    max_cubeta, max_resultados) {
+  n <- length(valores)
+  n_hashes <- bandas * filas_banda
+  indice <- .ids_qgramas_por_bloques(valores, q)
+  ids <- indice$ids
+  vocabulario <- indice$vocabulario
+  firmas <- .firmas_minhash_lsh(ids, n_hashes)
+  # Las listas de q-gramas y la matriz de ids sólo son necesarias para
+  # construir la firma. Liberarlas antes del recorrido evita que la memoria
+  # del índice se sume a la de las cubetas; el Jaccard de los pocos pares que
+  # pasan el umbral se recalcula bajo demanda.
+  ids <- NULL
+  vocabulario <- NULL
+  acumulador <- .nuevo_acumulador_duplicados(max_resultados)
+  candidatos_generados <- 0
+  candidatos_unicos <- 0
+  candidatos_descartados_bandas <- 0
+  pares_comparados <- 0
+  cubetas_grandes <- 0L
+  pares_descartados_cubetas <- 0
+  jaccard <- numeric()
+  n_jaccard <- 0
+  n_jaccard_bajo <- 0
+  muestra_jaccard <- 10000L
+  for (banda in seq_len(bandas)) {
+    columnas <- ((banda - 1L) * filas_banda + 1L):(banda * filas_banda)
+    claves <- do.call(paste, c(
+      lapply(columnas, function(j) firmas[, j]), sep = ":"
+    ))
+    orden <- order(claves)
+    corridas <- rle(claves[orden])
+    finales <- cumsum(corridas$lengths)
+    inicios <- c(1L, utils::head(finales, -1L) + 1L)
+    for (grupo in seq_along(corridas$lengths)) {
+      indices <- orden[inicios[[grupo]]:finales[[grupo]]]
+      tamano <- length(indices)
+      if (tamano < 2L) next
+      posibles_grupo <- as.numeric(tamano) * (tamano - 1) / 2
+      if (tamano > max_cubeta) {
+        cubetas_grandes <- cubetas_grandes + 1L
+        pares_descartados_cubetas <- pares_descartados_cubetas + posibles_grupo
+        next
+      }
+      # Procesar una cubeta por lotes de filas evita materializar su `combn`
+      # completo. El tamaño temporal queda acotado aun cuando la cubeta esté
+      # cerca de `max_cubeta` y el acumulador siga limitado.
+      for (inicio_izquierda in seq.int(1L, tamano - 1L, by = 100L)) {
+        izquierda <- inicio_izquierda:min(inicio_izquierda + 99L, tamano - 1L)
+        derechas <- lapply(izquierda, function(i) (i + 1L):tamano)
+        p1 <- rep(indices[izquierda], times = lengths(derechas))
+        p2 <- unlist(lapply(derechas, function(i) indices[i]), use.names = FALSE)
+        candidatos_generados <- candidatos_generados + length(p1)
+        ya <- rep(FALSE, length(p1))
+        if (banda > 1L) {
+          for (previa in seq_len(banda - 1L)) {
+            cols_previas <- ((previa - 1L) * filas_banda + 1L):
+              (previa * filas_banda)
+            iguales <- rowSums(
+              firmas[p1, cols_previas, drop = FALSE] ==
+                firmas[p2, cols_previas, drop = FALSE]
+            ) == filas_banda
+            ya <- ya | iguales
+          }
+        }
+        keep <- !ya
+        candidatos_unicos <- candidatos_unicos + sum(keep)
+        candidatos_descartados_bandas <- candidatos_descartados_bandas +
+          sum(ya)
+        if (!any(keep)) next
+        p1 <- p1[keep]
+        p2 <- p2[keep]
+        distancias <- stringdist::stringdist(
+          valores[p1], valores[p2], method = metodo
+        )
+        pares_comparados <- pares_comparados + length(p1)
+        pasan <- is.finite(distancias) & distancias <= umbral
+        if (any(pasan)) {
+          indices_pasan <- which(pasan)
+          for (indice in indices_pasan) {
+            gramas_par <- .qgramas_lsh(valores[c(p1[[indice]], p2[[indice]])], q)
+            valor_j <- .jaccard_qgramas(gramas_par[[1L]], gramas_par[[2L]])
+            n_jaccard <- n_jaccard + 1L
+            n_jaccard_bajo <- n_jaccard_bajo + (valor_j < 0.7)
+            if (length(jaccard) < muestra_jaccard) {
+              jaccard <- c(jaccard, valor_j)
+            }
+          }
+          filas_a <- filas[p1[indices_pasan]]
+          filas_b <- filas[p2[indices_pasan]]
+          intercambiar <- filas_a > filas_b
+          if (any(intercambiar)) {
+            temporal <- filas_a[intercambiar]
+            filas_a[intercambiar] <- filas_b[intercambiar]
+            filas_b[intercambiar] <- temporal
+          }
+          acumulador <- .acumular_pares_duplicados(
+            acumulador, filas_a, filas_b, distancias[indices_pasan]
+          )
+        }
+      }
+    }
+  }
+  garantia <- function(s) 1 - (1 - s^filas_banda)^bandas
+  garantia_07 <- garantia(0.7)
+  resumen_jaccard <- if (length(jaccard)) {
+    quant <- stats::quantile(jaccard, probs = c(0, .25, .5, .75, 1),
+                             names = FALSE, na.rm = TRUE)
+    quant
+  } else rep(NA_real_, 5L)
+  list(
+    pares = acumulador$pares,
+    n_hallados = acumulador$n_hallados,
+    n_exactos = acumulador$n_exactos,
+    n_aproximados = acumulador$n_aproximados,
+    n_bloques = 0L,
+    alcance = data.frame(
+      lsh_bandas = bandas, lsh_filas = filas_banda,
+      lsh_tamano_firma = n_hashes, lsh_q = q,
+      lsh_max_cubeta = max_cubeta,
+      lsh_garantia_jaccard_09 = garantia(0.9),
+      lsh_garantia_jaccard_08 = garantia(0.8),
+      lsh_garantia_jaccard_07 = garantia_07,
+      lsh_garantia_aplica_a = "Jaccard de q-gramas; no garantiza la medida final",
+      lsh_cubetas_grandes = cubetas_grandes,
+      lsh_pares_descartados_cubetas = pares_descartados_cubetas,
+      lsh_candidatos_generados = candidatos_generados,
+      lsh_candidatos_unicos = candidatos_unicos,
+      lsh_candidatos_descartados_bandas = candidatos_descartados_bandas,
+      lsh_pares_comparados = pares_comparados,
+      lsh_jaccard_evaluados = n_jaccard,
+      lsh_jaccard_bajo_07 = n_jaccard_bajo,
+      lsh_prop_jaccard_bajo_07 = if (n_jaccard) n_jaccard_bajo / n_jaccard else NA_real_,
+      lsh_jaccard_minimo = resumen_jaccard[[1L]],
+      lsh_jaccard_q1 = resumen_jaccard[[2L]],
+      lsh_jaccard_mediana = resumen_jaccard[[3L]],
+      lsh_jaccard_q3 = resumen_jaccard[[4L]],
+      lsh_jaccard_maximo = resumen_jaccard[[5L]],
+      lsh_jaccard_muestra = length(jaccard),
+      stringsAsFactors = FALSE
+    )
+  )
+}
+
 .indices_duplicados_aproximados <- function(n, limite) {
   if (!n) return(integer())
   if (is.infinite(limite) || n <= limite) return(seq_len(n))
@@ -263,7 +507,9 @@
     datos, columnas = NULL, metodo = "jw", umbral = 0.12,
     muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
     normalizar = TRUE, clasificacion = NULL,
-    proteger_datos_personales = TRUE, bloque = 1000L) {
+    proteger_datos_personales = TRUE, bloque = 1000L,
+    estrategia = "auto", lsh_bandas = 12L, lsh_filas = 3L, lsh_q = 3L,
+    lsh_max_cubeta = 1000L) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
@@ -272,6 +518,13 @@
   max_pares <- .validar_limite_duplicados(max_pares, "max_pares")
   max_resultados <- .validar_limite_duplicados(max_resultados, "max_resultados")
   bloque <- .validar_bloque_duplicados(bloque)
+  estrategia <- match.arg(estrategia, c("auto", "teselas", "muestra", "lsh"))
+  lsh_bandas <- .validar_parametro_lsh(lsh_bandas, "lsh_bandas")
+  lsh_filas <- .validar_parametro_lsh(lsh_filas, "lsh_filas")
+  lsh_q <- .validar_parametro_lsh(lsh_q, "lsh_q")
+  lsh_max_cubeta <- .validar_parametro_lsh(
+    lsh_max_cubeta, "lsh_max_cubeta", minimo = 2L
+  )
   if (!is.character(metodo) || length(metodo) != 1L || is.na(metodo) ||
       !nzchar(metodo) || !metodo %in% c(
         "osa", "lv", "dl", "hamming", "lcs", "qgram", "cosine",
@@ -323,27 +576,43 @@
     .columnas_personales_protegidas(clasificacion)
   } else character()
   textos <- .texto_fila_aproximada(datos, columnas, normalizar)
-  max_filas_por_pares <- if (is.infinite(max_pares)) Inf else {
-    floor((1 + sqrt(1 + 8 * max_pares)) / 2)
-  }
-  limite_filas <- min(muestra, max_filas_por_pares)
-  indices <- .indices_duplicados_aproximados(nrow(datos), limite_filas)
-  seleccion <- if (limite_filas <= 3L) "primeras_n_filas" else {
-    "muestra_sistematica"
-  }
-  estrategia <- if (length(indices) >= nrow(datos)) {
-    "todas_las_filas_en_bloques"
-  } else if (nrow(datos) > muestra &&
-             !is.infinite(max_filas_por_pares) &&
-             max_filas_por_pares < muestra) {
-    paste0(seleccion, "_por_muestra_y_limite_de_pares")
-  } else if (nrow(datos) > muestra) {
-    paste0(seleccion, "_por_muestra")
+  # Sobre el tope exhaustivo, `auto` reemplaza el muestreo de filas por LSH.
+  # `max_pares` sigue gobernando el camino exacto; en LSH el alcance se expresa
+  # mediante candidatos, cubetas y garantía de colisión.
+  usar_lsh <- estrategia == "lsh" || (
+    estrategia == "auto" && nrow(datos) > 10000L &&
+      is.infinite(muestra) &&
+      (is.infinite(max_pares) || max_pares >= 50000000L)
+  )
+  if (usar_lsh) {
+    limite_filas <- if (is.infinite(muestra)) nrow(datos) else {
+      min(as.numeric(muestra), nrow(datos))
+    }
+    indices <- .indices_duplicados_aproximados(nrow(datos), limite_filas)
+    estrategia_salida <- "lsh_min_hash"
   } else {
-    paste0(seleccion, "_por_limite_de_pares")
+    max_filas_por_pares <- if (is.infinite(max_pares)) Inf else {
+      floor((1 + sqrt(1 + 8 * max_pares)) / 2)
+    }
+    limite_filas <- min(muestra, max_filas_por_pares)
+    indices <- .indices_duplicados_aproximados(nrow(datos), limite_filas)
+    seleccion <- if (limite_filas <= 3L) "primeras_n_filas" else {
+      "muestra_sistematica"
+    }
+    estrategia_salida <- if (length(indices) >= nrow(datos)) {
+      "todas_las_filas_en_bloques"
+    } else if (nrow(datos) > muestra &&
+               !is.infinite(max_filas_por_pares) &&
+               max_filas_por_pares < muestra) {
+      paste0(seleccion, "_por_muestra_y_limite_de_pares")
+    } else if (nrow(datos) > muestra) {
+      paste0(seleccion, "_por_muestra")
+    } else {
+      paste0(seleccion, "_por_limite_de_pares")
+    }
   }
   validos <- indices[textos$presentes[indices]]
-  n_pares_comparados <- as.numeric(length(validos)) *
+  n_pares_comparados <- if (usar_lsh) 0 else as.numeric(length(validos)) *
     (as.numeric(length(validos)) - 1) / 2
   posibles <- as.numeric(nrow(datos)) * (as.numeric(nrow(datos)) - 1) / 2
   if (length(validos) < 2L) {
@@ -357,15 +626,26 @@
     resultado$alcance$n_pares_comparados <- n_pares_comparados
     resultado$alcance$n_pares_sin_comparar <- posibles
     resultado$alcance$muestreado <- length(indices) < nrow(datos)
-    resultado$alcance$estrategia <- estrategia
+    resultado$alcance$estrategia <- estrategia_salida
     resultado$alcance$muestra_efectiva <- length(indices)
     resultado$alcance$modo_comparacion <- "sin_pares_comparables"
     resultado$alcance$tamano_bloque <- bloque
     return(resultado)
   }
-  bloques <- .comparar_bloques_duplicados(
-    textos$valores[validos], validos, metodo, umbral, bloque, max_resultados
-  )
+  lsh_alcance <- NULL
+  if (usar_lsh) {
+    lsh <- .comparar_lsh_duplicados(
+      textos$valores[validos], validos, metodo, umbral, lsh_bandas,
+      lsh_filas, lsh_q, lsh_max_cubeta, max_resultados
+    )
+    bloques <- lsh
+    lsh_alcance <- lsh$alcance
+    n_pares_comparados <- lsh$alcance$lsh_pares_comparados[[1L]]
+  } else {
+    bloques <- .comparar_bloques_duplicados(
+      textos$valores[validos], validos, metodo, umbral, bloque, max_resultados
+    )
+  }
   n_hallados <- bloques$n_hallados
   n_exactos <- bloques$n_exactos
   n_aproximados <- bloques$n_aproximados
@@ -443,16 +723,17 @@
     limite_pares = max_pares, limite_resultados = max_resultados,
     muestra = muestra,
     muestra_efectiva = length(indices),
-    estrategia = estrategia,
-    modo_comparacion = if (length(indices) >= nrow(datos)) {
+    estrategia = estrategia_salida,
+    modo_comparacion = if (usar_lsh) "lsh_minhash" else if (length(indices) >= nrow(datos)) {
       "exhaustiva_por_bloques"
     } else "muestreada_por_bloques",
-    tamano_bloque = bloque,
+    tamano_bloque = if (usar_lsh) NA_integer_ else bloque,
     n_bloques = bloques$n_bloques,
-    comparacion_exhaustiva = length(indices) >= nrow(datos),
+    comparacion_exhaustiva = !usar_lsh && length(indices) >= nrow(datos),
     muestreado = length(indices) < nrow(datos), truncado = mostrados < n_hallados,
     disponible = TRUE, razon = "", stringsAsFactors = FALSE
   )
+  if (usar_lsh) alcance <- cbind(alcance, lsh_alcance)
   estructura <- list(
     pares = pares, hallazgos = hallazgos, alcance = alcance,
     columnas = columnas, metodo = metodo, umbral = umbral,
@@ -483,9 +764,10 @@
 #' La comparacion usa teselas de `bloque` filas: cada matriz temporal se
 #' descarta antes de continuar, por lo que la memoria no crece con el tamaño
 #' de la tabla. El recorrido es exacto para las filas seleccionadas. `muestra`
-#' y `max_pares` sólo recortan tablas que superarían el tope temporal medido;
-#' el objeto informa cuantos pares eran posibles, cuantos se compararon, el
-#' modo, el tamaño de las teselas y los que quedaron fuera. Solo se muestran
+#' y `max_pares` recortan el camino exacto; en el camino LSH, `muestra = Inf`
+#' conserva todas las filas y `max_pares` no se traduce a un número de filas.
+#' El objeto informa cuantos pares eran posibles, cuantos se compararon, el
+#' modo, el tamaño de las teselas o los parámetros LSH y los que quedaron fuera. Solo se muestran
 #' `max_resultados` coincidencias; el truncamiento tambien queda declarado.
 #'
 #' `stringdist` es una dependencia opcional. Si no esta instalado, la funcion
@@ -493,17 +775,27 @@
 #' explicito; no falla ni presenta silencio como si se hubieran comparado todos
 #' los pares.
 #'
+#' Para tablas que superan el tope exhaustivo, `estrategia = "auto"` usa
+#' MinHash con bandas LSH sobre todas las filas cuando `muestra = Inf`. La
+#' salida declara las bandas, las filas por banda, las cubetas descartadas y la
+#' probabilidad teorica de colision. Esa probabilidad se refiere al Jaccard de
+#' los q-gramas, no a la medida final (`metodo`). `estrategia = "lsh"` fuerza
+#' este camino; `"teselas"` y `"muestra"` conservan el camino exacto o
+#' muestreado de las versiones anteriores.
+#'
 #' @param datos Tabla con una fila por entidad observada.
 #' @param columnas Columnas atomicas a combinar. `NULL` aplica la seleccion
 #'   automatica descrita arriba; no se incluyen matrices ni listas.
 #' @param metodo Medida admitida por `stringdist::stringdistmatrix()`. Por
 #'   defecto, `"jw"`.
 #' @param umbral Distancia maxima para informar un par. Por defecto `0.12`.
-#' @param muestra Maximo de filas candidatas; `Inf` usa todas, sujeto a
-#'   `max_pares`.
-#' @param max_pares Maximo de pares comparados. Por defecto `50000000`, que
-#'   permite recorrer exhaustivamente hasta 10.000 filas con el método y el
-#'   bloque predeterminados; se puede reducir para limitar el tiempo.
+#' @param muestra Máximo de filas candidatas. En el camino exacto queda sujeto
+#'   a `max_pares`; con LSH, `Inf` usa todas las filas.
+#' @param max_pares Máximo de pares comparados en el camino exacto. Por defecto
+#'   `50000000`, que permite recorrer exhaustivamente hasta 10.000 filas con el
+#'   método y el bloque predeterminados; se puede reducir para limitar el tiempo.
+#'   En LSH el alcance se expresa con candidatos y cubetas, por lo que este
+#'   límite no se usa para recortar filas.
 #' @param max_resultados Maximo de pares devueltos. Por defecto `100`.
 #' @param bloque Cantidad de filas por tesela de comparación. Por defecto
 #'   `1000`; controla la memoria temporal, no el número de pares comparados.
@@ -513,11 +805,25 @@
 #'   datos personales y no volver a inferirla.
 #' @param proteger_datos_personales Si la evidencia de columnas protegidas se
 #'   reemplaza por `[valor protegido]`. La supresion queda indicada en cada par.
+#' @param estrategia Estrategia de comparación: `"auto"` (por omisión),
+#'   `"teselas"`, `"muestra"` o `"lsh"`. MinHash/LSH sólo se activa
+#'   automáticamente por encima del tope exhaustivo; se puede forzar con
+#'   `"lsh"`.
+#' @param lsh_bandas Número de bandas del esquema LSH. Por defecto, 12.
+#' @param lsh_filas Número de filas de firma por banda. Por defecto, 3.
+#' @param lsh_q Longitud de los q-gramas usados para MinHash. Por defecto, 3.
+#' @param lsh_max_cubeta Tamaño máximo de una cubeta de una banda. Las cubetas
+#'   mayores se descartan y el alcance informa cuántos pares quedaron fuera.
+#'   Por defecto, 1000.
 #'
 #' @return Lista de clase `duplicados_aproximados` con `pares`, `hallazgos`,
 #'   `alcance`, `columnas`, `metodo`, `umbral`, `disponible` y `razon`.
 #' @export
 #' @seealso [perfilar()], [reportar()], [planificar_limpieza()]
+#' @references Broder, A. Z. (1997). On the resemblance and containment of
+#'   documents. En *Compression and Complexity of Sequences*, 21--29.
+#'   Leskovec, J., Rajaraman, A. y Ullman, J. D. (2020). *Mining of Massive
+#'   Datasets* (3.ª ed.), capítulo 3.
 #'
 #' @examples
 #' datos <- data.frame(
@@ -530,7 +836,8 @@ detectar_duplicados_aproximados <- function(
     datos, columnas = NULL, metodo = "jw", umbral = 0.12,
     muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
     normalizar = TRUE, perfil = NULL, proteger_datos_personales = TRUE,
-    bloque = 1000L) {
+    bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
+    lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L) {
   if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
       !identical(names(datos), perfil$columnas$columna))) {
     stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
@@ -539,12 +846,15 @@ detectar_duplicados_aproximados <- function(
     return(.detectar_duplicados_aproximados(
       datos, columnas, metodo, umbral, muestra, max_pares, max_resultados,
       normalizar, clasificacion = perfil$datos_personales,
-      proteger_datos_personales = proteger_datos_personales, bloque = bloque
+      proteger_datos_personales = proteger_datos_personales, bloque = bloque,
+      estrategia = estrategia, lsh_bandas = lsh_bandas, lsh_filas = lsh_filas,
+      lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta
     ))
   }
   .detectar_duplicados_aproximados(
     datos, columnas, metodo, umbral, muestra, max_pares, max_resultados,
     normalizar, proteger_datos_personales = proteger_datos_personales,
-    bloque = bloque
+    bloque = bloque, estrategia = estrategia, lsh_bandas = lsh_bandas,
+    lsh_filas = lsh_filas, lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta
   )
 }

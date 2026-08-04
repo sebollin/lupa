@@ -67,6 +67,83 @@ test_that("los pares aproximados declaran distancia y no identidad", {
   expect_match(html, "n_pares_comparados", fixed = TRUE)
 })
 
+test_that("MinHash y LSH generan pares unicos y declaran su garantia", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = c("Juan Perez", "Juan Peres", "Ana Silva", "Luis Diaz"),
+    domicilio = c("Calle 1", "Calle 1", "Rambla 1", "Camino")
+  )
+  resultado <- detectar_duplicados_aproximados(
+    datos, columnas = c("nombre", "domicilio"), estrategia = "lsh",
+    lsh_bandas = 3L, lsh_filas = 2L, lsh_q = 2L, lsh_max_cubeta = 100L,
+    max_resultados = Inf
+  )
+  expect_equal(resultado$alcance$modo_comparacion, "lsh_minhash")
+  expect_equal(resultado$alcance$lsh_tamano_firma, 6L)
+  expect_gte(resultado$alcance$lsh_candidatos_generados,
+             resultado$alcance$lsh_candidatos_unicos)
+  expect_equal(
+    resultado$alcance$lsh_garantia_jaccard_07,
+    1 - (1 - 0.7^2)^3,
+    tolerance = 1e-12
+  )
+  expect_equal(nrow(resultado$pares), 1L)
+  expect_equal(anyDuplicated(
+    paste(resultado$pares$fila_1, resultado$pares$fila_2, sep = ":")
+  ), 0L)
+  parcial <- detectar_duplicados_aproximados(
+    datos, columnas = c("nombre", "domicilio"), estrategia = "lsh",
+    muestra = 2L, lsh_bandas = 2L, lsh_filas = 2L, lsh_q = 2L
+  )
+  expect_equal(parcial$alcance$n_filas_muestra, 2L)
+})
+
+test_that("las cubetas LSH demasiado grandes se declaran y descartan", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(nombre = rep("mismo valor", 30L))
+  resultado <- detectar_duplicados_aproximados(
+    datos, estrategia = "lsh", lsh_max_cubeta = 2L,
+    lsh_bandas = 2L, lsh_filas = 2L, max_resultados = 5L
+  )
+  expect_gt(resultado$alcance$lsh_cubetas_grandes, 0)
+  expect_gt(resultado$alcance$lsh_pares_descartados_cubetas, 0)
+  expect_false(resultado$alcance$comparacion_exhaustiva)
+})
+
+test_that("las primitivas LSH cubren casos vacios, cortos y con padding", {
+  expect_equal(lupa:::.validar_parametro_lsh(3, "b"), 3L)
+  expect_error(lupa:::.validar_parametro_lsh(1.5, "b"), "entero")
+  expect_equal(lupa:::.qgramas_lsh(c("", "ab", "abcd"), 3L),
+               list(character(), "ab", c("abc", "bcd")))
+  vacios <- lupa:::.ids_qgramas_por_bloques(character(), 3L)
+  expect_equal(dim(vacios$ids), c(0L, 1L))
+  firmas <- lupa:::.firmas_minhash_lsh(
+    matrix(c(1L, 0L, 1L, 2L), nrow = 2L, byrow = TRUE), 2L
+  )
+  expect_equal(dim(firmas), c(2L, 2L))
+  expect_equal(lupa:::.jaccard_qgramas(character(), character()), 1)
+  expect_equal(lupa:::.jaccard_qgramas(c("ab"), c("bc")), 0)
+})
+
+test_that("auto usa LSH por encima del tope sin recortar filas", {
+  skip_on_cran()
+  skip_if_not_installed("stringdist")
+  n <- 10001L
+  datos <- data.frame(
+    nombre = paste0("persona", seq_len(n)),
+    domicilio = paste0("calle", seq_len(n))
+  )
+  datos$nombre[5000:5001] <- c("Juan Perez", "Juan Peres")
+  datos$domicilio[5000:5001] <- "Calle Centro"
+  resultado <- detectar_duplicados_aproximados(datos, max_resultados = 1L)
+  expect_equal(resultado$alcance$estrategia, "lsh_min_hash")
+  expect_equal(resultado$alcance$n_filas_muestra, n)
+  expect_true(any(resultado$pares$fila_1 == 5000L &
+                 resultado$pares$fila_2 == 5001L))
+  expect_true(all(c("lsh_bandas", "lsh_filas", "lsh_garantia_jaccard_07") %in%
+                  names(resultado$alcance)))
+})
+
 test_that("el perfil integra pares aproximados sin proponer eliminacion", {
   skip_if_not_installed("stringdist")
   datos <- datos_pares_aproximados()

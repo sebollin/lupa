@@ -15,7 +15,12 @@ detectar_duplicados_aproximados(
   normalizar = TRUE,
   perfil = NULL,
   proteger_datos_personales = TRUE,
-  bloque = 1000L
+  bloque = 1000L,
+  estrategia = "auto",
+  lsh_bandas = 12L,
+  lsh_filas = 3L,
+  lsh_q = 3L,
+  lsh_max_cubeta = 1000L
 )
 }
 \arguments{
@@ -29,12 +34,14 @@ defecto, \code{"jw"}.}
 
 \item{umbral}{Distancia maxima para informar un par. Por defecto \code{0.12}.}
 
-\item{muestra}{Maximo de filas candidatas; \code{Inf} usa todas, sujeto a
-\code{max_pares}.}
+\item{muestra}{Máximo de filas candidatas. En el camino exacto queda sujeto
+a \code{max_pares}; con LSH, \code{Inf} usa todas las filas.}
 
-\item{max_pares}{Maximo de pares comparados. Por defecto \code{50000000}, que
-permite recorrer exhaustivamente hasta 10.000 filas con el método y el
-bloque predeterminados; se puede reducir para limitar el tiempo.}
+\item{max_pares}{Máximo de pares comparados en el camino exacto. Por defecto
+\code{50000000}, que permite recorrer exhaustivamente hasta 10.000 filas con el
+método y el bloque predeterminados; se puede reducir para limitar el tiempo.
+En LSH el alcance se expresa con candidatos y cubetas, por lo que este
+límite no se usa para recortar filas.}
 
 \item{max_resultados}{Maximo de pares devueltos. Por defecto \code{100}.}
 
@@ -49,6 +56,21 @@ reemplaza por \verb{[valor protegido]}. La supresion queda indicada en cada par.
 
 \item{bloque}{Cantidad de filas por tesela de comparación. Por defecto
 \code{1000}; controla la memoria temporal, no el número de pares comparados.}
+
+\item{estrategia}{Estrategia de comparación: \code{"auto"} (por omisión),
+\code{"teselas"}, \code{"muestra"} o \code{"lsh"}. MinHash/LSH sólo se activa
+automáticamente por encima del tope exhaustivo; se puede forzar con
+\code{"lsh"}.}
+
+\item{lsh_bandas}{Número de bandas del esquema LSH. Por defecto, 12.}
+
+\item{lsh_filas}{Número de filas de firma por banda. Por defecto, 3.}
+
+\item{lsh_q}{Longitud de los q-gramas usados para MinHash. Por defecto, 3.}
+
+\item{lsh_max_cubeta}{Tamaño máximo de una cubeta de una banda. Las cubetas
+mayores se descartan y el alcance informa cuántos pares quedaron fuera.
+Por defecto, 1000.}
 }
 \value{
 Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
@@ -74,15 +96,24 @@ restantes son \code{"aproximado"}. Ninguno demuestra identidad.
 La comparacion usa teselas de \code{bloque} filas: cada matriz temporal se
 descarta antes de continuar, por lo que la memoria no crece con el tamaño
 de la tabla. El recorrido es exacto para las filas seleccionadas. \code{muestra}
-y \code{max_pares} sólo recortan tablas que superarían el tope temporal medido;
-el objeto informa cuantos pares eran posibles, cuantos se compararon, el
-modo, el tamaño de las teselas y los que quedaron fuera. Solo se muestran
+y \code{max_pares} recortan el camino exacto; en el camino LSH, \code{muestra = Inf}
+conserva todas las filas y \code{max_pares} no se traduce a un número de filas.
+El objeto informa cuantos pares eran posibles, cuantos se compararon, el
+modo, el tamaño de las teselas o los parámetros LSH y los que quedaron fuera. Solo se muestran
 \code{max_resultados} coincidencias; el truncamiento tambien queda declarado.
 
 \code{stringdist} es una dependencia opcional. Si no esta instalado, la funcion
 devuelve un objeto con \code{disponible = FALSE}, una tabla vacia y el motivo
 explicito; no falla ni presenta silencio como si se hubieran comparado todos
 los pares.
+
+Para tablas que superan el tope exhaustivo, \code{estrategia = "auto"} usa
+MinHash con bandas LSH sobre todas las filas cuando \code{muestra = Inf}. La
+salida declara las bandas, las filas por banda, las cubetas descartadas y la
+probabilidad teorica de colision. Esa probabilidad se refiere al Jaccard de
+los q-gramas, no a la medida final (\code{metodo}). \code{estrategia = "lsh"} fuerza
+este camino; \code{"teselas"} y \code{"muestra"} conservan el camino exacto o
+muestreado de las versiones anteriores.
 }
 \examples{
 datos <- data.frame(
@@ -91,6 +122,12 @@ datos <- data.frame(
 )
 pares <- detectar_duplicados_aproximados(datos)
 if (!pares$disponible) pares$razon
+}
+\references{
+Broder, A. Z. (1997). On the resemblance and containment of
+documents. En \emph{Compression and Complexity of Sequences}, 21--29.
+Leskovec, J., Rajaraman, A. y Ullman, J. D. (2020). \emph{Mining of Massive
+Datasets} (3.ª ed.), capítulo 3.
 }
 \seealso{
 \code{\link[=perfilar]{perfilar()}}, \code{\link[=reportar]{reportar()}}, \code{\link[=planificar_limpieza]{planificar_limpieza()}}
