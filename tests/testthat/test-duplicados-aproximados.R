@@ -96,9 +96,85 @@ test_that("el alcance declara el recorte de pares", {
                "muestra_sistematica", fixed = TRUE)
 })
 
+test_that("el recorte sistematico conserva los extremos de la tabla", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = paste0("persona", seq_len(1000L)),
+    domicilio = paste0("calle", seq_len(1000L))
+  )
+  datos$nombre[999:1000] <- c("Juan Perez", "Juan Peres")
+  datos$domicilio[999:1000] <- "Calle Centro"
+  resultado <- detectar_duplicados_aproximados(
+    datos, muestra = 1000L, max_pares = 10000L, max_resultados = Inf
+  )
+  expect_equal(resultado$alcance$n_filas_muestra, 141)
+  expect_match(resultado$alcance$estrategia, "limite_de_pares", fixed = TRUE)
+  expect_true(any(
+    resultado$pares$fila_1 == 999L & resultado$pares$fila_2 == 1000L
+  ))
+  solo_muestra <- detectar_duplicados_aproximados(
+    datos, muestra = 100L, max_pares = Inf, max_resultados = 1L
+  )
+  expect_equal(solo_muestra$alcance$estrategia,
+               "muestra_sistematica_por_muestra")
+  ambos_limites <- detectar_duplicados_aproximados(
+    datos, muestra = 500L, max_pares = 100L, max_resultados = 1L
+  )
+  expect_equal(ambos_limites$alcance$estrategia,
+               "muestra_sistematica_por_muestra_y_limite_de_pares")
+  primeras <- detectar_duplicados_aproximados(
+    datos, muestra = Inf, max_pares = 1L, max_resultados = 1L
+  )
+  expect_match(primeras$alcance$estrategia, "primeras_n_filas", fixed = TRUE)
+})
+
+test_that("el truncamiento conserva los pares de menor distancia", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(nombre = paste0("Ana Perez ", seq_len(30L)))
+  resultado <- detectar_duplicados_aproximados(
+    datos, muestra = Inf, max_pares = Inf, max_resultados = 10L,
+    umbral = 0.2
+  )
+  expect_true(resultado$alcance$truncado)
+  expect_equal(nrow(resultado$pares), 10L)
+  expect_true(all(diff(resultado$pares$distancia) >= 0))
+})
+
+test_that("los pares exactos en las columnas elegidas quedan visibles", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    id = c("a", "b"), nombre = c("Ana", "Ana"),
+    domicilio = c("Calle 1", "Calle 1")
+  )
+  resultado <- detectar_duplicados_aproximados(
+    datos, muestra = Inf, max_pares = Inf
+  )
+  expect_equal(resultado$columnas, c("nombre", "domicilio"))
+  expect_equal(resultado$pares$tipo_par, "exacto")
+  expect_equal(resultado$alcance$n_pares_exactos, 1)
+  expect_equal(resultado$alcance$n_pares_aproximados, 0)
+  expect_equal(resultado$hallazgos$tipo_hallazgo, "duplicados_exactos_columnas")
+  expect_equal(sum(duplicated(datos)), 0L)
+})
+
+test_that("la seleccion automatica evita mezclar demasiadas columnas", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(a = "x", b = "y", c = "z")
+  resultado <- detectar_duplicados_aproximados(datos)
+  expect_length(resultado$columnas, 0L)
+  expect_match(resultado$razon, "indique `columnas`", fixed = TRUE)
+})
+
 test_that("valida entradas y tipos no comparables", {
   expect_length(lupa:::.indices_duplicados_aproximados(0, 10L), 0L)
   expect_length(lupa:::.indices_duplicados_aproximados(10, 3L), 3L)
+  expect_equal(lupa:::.indices_duplicados_aproximados(3, 2L), 1:2)
+  vacio <- lupa:::.vacio_duplicados_aproximados(
+    2L, character(), "jw", 0.12, 2L, 1L, 1L
+  )
+  expect_identical(
+    lupa:::.proteger_duplicados_aproximados(vacio, character()), vacio
+  )
   expect_equal(
     lupa:::.evidencia_fila_aproximada(
       data.frame(a = NA_character_), "a", 1L, character()

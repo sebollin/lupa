@@ -8,7 +8,7 @@ detectar_duplicados_aproximados(
   datos,
   columnas = NULL,
   metodo = "jw",
-  umbral = 0.15,
+  umbral = 0.12,
   muestra = 1000L,
   max_pares = 10000L,
   max_resultados = 100L,
@@ -20,13 +20,13 @@ detectar_duplicados_aproximados(
 \arguments{
 \item{datos}{Tabla con una fila por entidad observada.}
 
-\item{columnas}{Columnas atomicas a combinar. \code{NULL} selecciona las columnas
-de texto; no se incluyen matrices ni listas.}
+\item{columnas}{Columnas atomicas a combinar. \code{NULL} aplica la seleccion
+automatica descrita arriba; no se incluyen matrices ni listas.}
 
 \item{metodo}{Medida admitida por \code{stringdist::stringdistmatrix()}. Por
 defecto, \code{"jw"}.}
 
-\item{umbral}{Distancia maxima para informar un par. Por defecto \code{0.15}.}
+\item{umbral}{Distancia maxima para informar un par. Por defecto \code{0.12}.}
 
 \item{muestra}{Maximo de filas candidatas; \code{Inf} usa todas, sujeto a
 \code{max_pares}.}
@@ -52,13 +52,19 @@ Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
 Compara una muestra acotada de filas con \code{stringdist} y devuelve pares cuya
 distancia esta bajo el umbral. El resultado describe similitud, distancia,
 medida y alcance; nunca afirma que dos filas representen la misma entidad.
-Por omision se comparan todas las columnas de texto y se combinan por fila.
-Para nombres y domicilios suele ser preferible elegir explicitamente esas
-columnas. La medida predeterminada es Jaro--Winkler (\code{"jw"}), adecuada para
-transposiciones y pequenas erratas; el umbral \code{0.15} esta expresado en sus
-unidades de distancia y ambos argumentos se pueden cambiar.
+Por omision se combinan como maximo dos columnas de texto o factores, despues
+de excluir nombres que parecen identificadores (\code{id}, \code{codigo}, \code{uuid}, entre
+otros). Si quedan mas de dos columnas, la funcion pide indicar \code{columnas}
+explicitamente en vez de mezclar campos que pueden diluir la similitud. La
+medida predeterminada es Jaro--Winkler (\code{"jw"}), adecuada para transposiciones
+y pequenas erratas; el umbral predeterminado \code{0.12} es deliberadamente mas
+conservador que \code{0.15}, que sobre cadenas cortas y estructuradas produce
+demasiados pares. Ambos argumentos se pueden cambiar.
 }
 \details{
+Los pares con distancia cero se incluyen como \code{tipo_par = "exacto"}; los
+restantes son \code{"aproximado"}. Ninguno demuestra identidad.
+
 La comparacion es deliberadamente limitada: \code{muestra} selecciona filas de
 forma sistematica y \code{max_pares} limita los pares evaluados. El objeto informa
 cuantos pares eran posibles, cuantos se compararon, la estrategia y los que
