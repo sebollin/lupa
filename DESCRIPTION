@@ -37,6 +37,7 @@ Suggests:
     knitr,
     rmarkdown,
     sf,
+    stringdist,
     stringi,
     testthat (>= 3.0.0),
     tibble

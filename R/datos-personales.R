@@ -81,8 +81,12 @@
   } else NA_real_
   textos_presentes <- textos[presentes]
   longitudes_crudas <- nchar(textos_presentes, type = "chars")
+  composicion_documental <- if (length(textos_presentes)) {
+    mean(grepl("^[0-9 .-]+$", textos_presentes, perl = TRUE)) >= 0.8
+  } else FALSE
   cerca_de_forma_documento <- length(longitudes_crudas) &&
-    mean(longitudes_crudas >= 7L & longitudes_crudas <= 20L) >= 0.8
+    mean(longitudes_crudas >= 7L & longitudes_crudas <= 20L) >= 0.8 &&
+    composicion_documental
   longitudes <- if (cerca_de_forma_documento) {
     nchar(gsub("[^0-9]", "", textos_presentes, perl = TRUE), type = "chars")
   } else integer()
@@ -375,6 +379,11 @@
   indices_hallazgos <- !is.na(hallazgos$columna) &
     hallazgos$columna %in% sensibles &
     hallazgos$tipo_hallazgo != "dato_personal_posible"
+  indices_aproximados <- hallazgos$tipo_hallazgo == "duplicados_aproximados" &
+    vapply(strsplit(as.character(hallazgos$columna), ",", fixed = TRUE),
+           function(columnas) any(trimws(columnas) %in% sensibles),
+           logical(1L))
+  indices_hallazgos <- indices_hallazgos | indices_aproximados
   hallazgos$evidencia[indices_hallazgos] <- "[evidencia protegida]"
   if (nrow(dependencias)) {
     indices_dependencias <- dependencias$determinante %in% sensibles |
@@ -398,4 +407,16 @@
   perfil$dependencias <- protegidos$dependencias
   perfil$hallazgos <- protegidos$hallazgos
   perfil
+}
+
+.proteger_duplicados_aproximados <- function(resultado, sensibles) {
+  if (!inherits(resultado, "duplicados_aproximados") || !length(sensibles) ||
+      !inherits(resultado$pares, "data.frame") || !nrow(resultado$pares)) {
+    return(resultado)
+  }
+  resultado$pares$evidencia_1 <- "[valor protegido]"
+  resultado$pares$evidencia_2 <- "[valor protegido]"
+  resultado$pares$proteccion_evidencia <- "[valores personales protegidos]"
+  resultado$proteccion_aplicada <- TRUE
+  resultado
 }

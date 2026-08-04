@@ -5,7 +5,7 @@
   x <- gsub(">", "&gt;", x, fixed = TRUE)
   x <- gsub("\"", "&quot;", x, fixed = TRUE)
   x <- gsub("'", "&#39;", x, fixed = TRUE)
-  # También se neutralizan secuencias que podrían parecer atributos o recursos.
+  # Tambien se neutralizan secuencias que podrian parecer atributos o recursos.
   x <- gsub("=", "&#61;", x, fixed = TRUE)
   x <- gsub("@", "&#64;", x, fixed = TRUE)
   gsub(":", "&#58;", x, fixed = TRUE)
@@ -261,6 +261,11 @@
     "<h3>Formatos de fecha</h3>", .html_tabla(tabla_formatos, max_filas),
     "<h3>Dependencias funcionales</h3>",
     .html_tabla(dependencias, max_filas), nota_dependencias,
+    if (!is.null(x$duplicados_aproximados)) {
+      .seccion_duplicados_aproximados(
+        x$duplicados_aproximados, max_filas, proteger_datos_personales
+      )
+    } else "",
     "</section>"
   )
 }
@@ -271,6 +276,39 @@
     "<p class=\"meta\">", .html_texto(nrow(x)), " medidas en ",
     .html_texto(length(unique(x$id_medicion))), " corrida(s).</p>",
     .html_tabla(x, max_filas), "</section>"
+  )
+}
+
+.seccion_duplicados_aproximados <- function(
+    x, max_filas, proteger_datos_personales = TRUE) {
+  alcance <- x$alcance
+  pares <- x$pares
+  if (proteger_datos_personales &&
+      isFALSE(x$proteccion_aplicada) && nrow(pares)) {
+    pares$evidencia_1 <- "[valor protegido]"
+    pares$evidencia_2 <- "[valor protegido]"
+    pares$proteccion_evidencia <- "[valores personales protegidos]"
+  }
+  nota <- if (!isTRUE(x$disponible)) {
+    paste0(
+      "<p class=\"nota\">No se ejecut\u00f3 la comparaci\u00f3n aproximada: ",
+      .html_texto(x$razon), "</p>"
+    )
+  } else {
+    paste0(
+      "<p class=\"nota\">La similitud no demuestra identidad. Se us\u00f3 ",
+      .html_texto(x$metodo), " con umbral ", .html_texto(x$umbral),
+      "; el alcance y los pares omitidos se muestran abajo.</p>"
+    )
+  }
+  paste0(
+    "<section><h2>Duplicados aproximados</h2>", nota,
+    "<h3>Alcance de la comparaci\u00f3n</h3>", .html_tabla(alcance, Inf),
+    "<h3>Pares parecidos</h3>", .html_tabla(pares, max_filas),
+    if (isTRUE(x$alcance$truncado[[1L]])) {
+      "<p class=\"nota\">La tabla de pares mostrados est\u00e1 truncada; el total hallado permanece en el alcance.</p>"
+    } else "",
+    "</section>"
   )
 }
 
@@ -435,7 +473,8 @@
     .html_texto(x$meta$datos_conservados), ".</p></section>",
     advertencias,
     .seccion_perfil(
-      x$perfil, max_filas, max_patrones, FALSE, cobertura = x$cobertura
+      x$perfil, max_filas, max_patrones, proteger_datos_personales,
+      cobertura = x$cobertura
     ),
     distribuciones, asociaciones, temporal, variables, propuesta,
     if (!is.null(x$medicion)) .seccion_medicion(x$medicion, max_filas) else "",
@@ -447,7 +486,8 @@
 .clase_objeto_reporte <- function(x) {
   clases <- c(
     "analisis", "perfil", "medicion", "evaluacion_calidad", "historico_calidad",
-    "deriva_perfil", "deriva_calidad", "plan_limpieza"
+    "deriva_perfil", "deriva_calidad", "plan_limpieza",
+    "duplicados_aproximados"
   )
   coincidencias <- clases[vapply(clases, inherits, logical(1L), x = x)]
   if (length(coincidencias)) coincidencias[[1L]] else NA_character_
@@ -464,7 +504,8 @@
     } else {
       stop(
         "Cada objeto debe ser un analisis, perfil, medicion, evaluacion_calidad, ",
-        "historico_calidad, deriva_perfil, deriva_calidad o plan_limpieza.",
+        "historico_calidad, deriva_perfil, deriva_calidad, plan_limpieza o ",
+        "duplicados_aproximados.",
         call. = FALSE
       )
     }
@@ -489,7 +530,10 @@
     historico_calidad = .seccion_historico(x, max_filas),
     deriva_perfil = .seccion_deriva(x, max_filas, "Deriva del perfil de datos"),
     deriva_calidad = .seccion_deriva(x, max_filas, "Deriva del modelo de calidad"),
-    plan_limpieza = .seccion_plan(x, max_filas)
+    plan_limpieza = .seccion_plan(x, max_filas),
+    duplicados_aproximados = .seccion_duplicados_aproximados(
+      x, max_filas, proteger_datos_personales
+    )
   )
 }
 
@@ -558,35 +602,35 @@
 
 #' Crear un reporte HTML autocontenido
 #'
-#' Genera un único archivo HTML en español usando sólo funciones de R base. El
+#' Genera un unico archivo HTML en espanol usando solo funciones de R base. El
 #' estilo se incluye dentro del documento: no requiere red, navegador especial,
-#' conversor externo ni archivos auxiliares. Cada valor dinámico se escapa antes
+#' conversor externo ni archivos auxiliares. Cada valor dinamico se escapa antes
 #' de incorporarlo al documento.
 #'
-#' Se pueden combinar objetos producidos por el profiling, la medición, la
-#' evaluación, el histórico, las comparaciones de deriva y la planificación de
-#' limpieza. Cada tipo añade su sección; el reporte no modifica datos ni aplica
+#' Se pueden combinar objetos producidos por el profiling, la medicion, la
+#' evaluacion, el historico, las comparaciones de deriva y la planificacion de
+#' limpieza. Cada tipo anade su seccion; el reporte no modifica datos ni aplica
 #' planes.
 #'
 #' @param x Un objeto compatible o una lista de objetos compatibles.
 #' @param ... Objetos adicionales de clase `analisis`, `perfil`, `medicion`,
 #'   `evaluacion_calidad`, `historico_calidad`, `deriva_perfil`,
-#'   `deriva_calidad` o `plan_limpieza`.
+#'   `deriva_calidad`, `plan_limpieza` o `duplicados_aproximados`.
 #' @param archivo Ruta de salida. De forma predeterminada crea un archivo en
 #'   `tempdir()`.
 #' @param sobrescribir Si se permite reemplazar un archivo existente.
-#' @param titulo Título visible del reporte.
-#' @param fecha Fecha y hora de generación, inyectable para obtener resultados
+#' @param titulo Titulo visible del reporte.
+#' @param fecha Fecha y hora de generacion, inyectable para obtener resultados
 #'   reproducibles. Se normaliza a UTC.
-#' @param max_filas Máximo de filas por tabla y de columnas del perfil cuyos
+#' @param max_filas Maximo de filas por tabla y de columnas del perfil cuyos
 #'   patrones se detallan. Las omisiones se informan dentro del reporte.
-#' @param max_patrones Máximo de patrones mostrados por columna. Las omisiones
+#' @param max_patrones Maximo de patrones mostrados por columna. Las omisiones
 #'   se informan dentro del reporte.
 #' @param proteger_datos_personales Si se enmascaran modas, ejemplos, evidencia,
-#'   estadísticos de orden, cuantiles y rangos temporales de columnas
-#'   cuya clasificación activa protección automática. Es `TRUE` por defecto.
-#'   Las coincidencias débiles se informan sin suprimir. Para ver valores
-#'   concretos deben haberse conservado también con
+#'   estadisticos de orden, cuantiles y rangos temporales de columnas
+#'   cuya clasificacion activa proteccion automatica. Es `TRUE` por defecto.
+#'   Las coincidencias debiles se informan sin suprimir. Para ver valores
+#'   concretos deben haberse conservado tambien con
 #'   `perfilar(..., proteger_datos_personales = FALSE)`.
 #'
 #' @return La ruta normalizada del archivo, de forma invisible.

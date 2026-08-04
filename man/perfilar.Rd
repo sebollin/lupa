@@ -28,7 +28,8 @@ perfilar(
   proteger_datos_personales = TRUE,
   validadores_personales = NULL,
   umbral_documento_verificado = 0.9,
-  muestra_validadores = 1000L
+  muestra_validadores = 1000L,
+  duplicados_aproximados = FALSE
 )
 }
 \arguments{
@@ -104,6 +105,11 @@ aceptar un validador para clasificar una forma de documento como
 \item{muestra_validadores}{Máximo de valores usados en el filtro preliminar
 de cada validador. Si la proporción preliminar ya queda bajo el umbral no
 se valida la columna completa; use \code{Inf} para revisar todos desde el inicio.}
+
+\item{duplicados_aproximados}{\code{FALSE} por omisión. Use \code{TRUE} o una lista de
+argumentos para ejecutar \code{\link[=detectar_duplicados_aproximados]{detectar_duplicados_aproximados()}} y añadir sus
+pares y hallazgos al perfil. Es un análisis acotado y opcional porque no
+afirma identidad ni debe encarecer todas las corridas.}
 }
 \value{
 Objeto S3 de clase \code{perfil}.

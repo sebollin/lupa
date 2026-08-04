@@ -21,44 +21,44 @@ reportar(
 
 \item{...}{Objetos adicionales de clase \code{analisis}, \code{perfil}, \code{medicion},
 \code{evaluacion_calidad}, \code{historico_calidad}, \code{deriva_perfil},
-\code{deriva_calidad} o \code{plan_limpieza}.}
+\code{deriva_calidad}, \code{plan_limpieza} o \code{duplicados_aproximados}.}
 
 \item{archivo}{Ruta de salida. De forma predeterminada crea un archivo en
 \code{tempdir()}.}
 
 \item{sobrescribir}{Si se permite reemplazar un archivo existente.}
 
-\item{titulo}{Título visible del reporte.}
+\item{titulo}{Titulo visible del reporte.}
 
-\item{fecha}{Fecha y hora de generación, inyectable para obtener resultados
+\item{fecha}{Fecha y hora de generacion, inyectable para obtener resultados
 reproducibles. Se normaliza a UTC.}
 
-\item{max_filas}{Máximo de filas por tabla y de columnas del perfil cuyos
+\item{max_filas}{Maximo de filas por tabla y de columnas del perfil cuyos
 patrones se detallan. Las omisiones se informan dentro del reporte.}
 
-\item{max_patrones}{Máximo de patrones mostrados por columna. Las omisiones
+\item{max_patrones}{Maximo de patrones mostrados por columna. Las omisiones
 se informan dentro del reporte.}
 
 \item{proteger_datos_personales}{Si se enmascaran modas, ejemplos, evidencia,
-estadísticos de orden, cuantiles y rangos temporales de columnas
-cuya clasificación activa protección automática. Es \code{TRUE} por defecto.
-Las coincidencias débiles se informan sin suprimir. Para ver valores
-concretos deben haberse conservado también con
+estadisticos de orden, cuantiles y rangos temporales de columnas
+cuya clasificacion activa proteccion automatica. Es \code{TRUE} por defecto.
+Las coincidencias debiles se informan sin suprimir. Para ver valores
+concretos deben haberse conservado tambien con
 \code{perfilar(..., proteger_datos_personales = FALSE)}.}
 }
 \value{
 La ruta normalizada del archivo, de forma invisible.
 }
 \description{
-Genera un único archivo HTML en español usando sólo funciones de R base. El
+Genera un unico archivo HTML en espanol usando solo funciones de R base. El
 estilo se incluye dentro del documento: no requiere red, navegador especial,
-conversor externo ni archivos auxiliares. Cada valor dinámico se escapa antes
+conversor externo ni archivos auxiliares. Cada valor dinamico se escapa antes
 de incorporarlo al documento.
 }
 \details{
-Se pueden combinar objetos producidos por el profiling, la medición, la
-evaluación, el histórico, las comparaciones de deriva y la planificación de
-limpieza. Cada tipo añade su sección; el reporte no modifica datos ni aplica
+Se pueden combinar objetos producidos por el profiling, la medicion, la
+evaluacion, el historico, las comparaciones de deriva y la planificacion de
+limpieza. Cada tipo anade su seccion; el reporte no modifica datos ni aplica
 planes.
 }
 \examples{

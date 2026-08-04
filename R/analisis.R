@@ -394,6 +394,12 @@ print.analisis <- function(x, ...) {
 .proteger_analisis <- function(x) {
   sensibles <- .columnas_personales_protegidas(x$perfil)
   x$perfil <- .proteger_perfil(x$perfil)
+  if (inherits(x$perfil, "perfil") &&
+      !is.null(x$perfil$duplicados_aproximados)) {
+    x$perfil$duplicados_aproximados <- .proteger_duplicados_aproximados(
+      x$perfil$duplicados_aproximados, sensibles
+    )
+  }
   if (length(sensibles)) {
     indices <- x$distribuciones$frecuencias$columna %in% sensibles
     x$distribuciones$frecuencias$valor[indices] <- "[valor protegido]"

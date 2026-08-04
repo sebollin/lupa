@@ -142,6 +142,10 @@
 #' @param muestra_validadores Máximo de valores usados en el filtro preliminar
 #'   de cada validador. Si la proporción preliminar ya queda bajo el umbral no
 #'   se valida la columna completa; use `Inf` para revisar todos desde el inicio.
+#' @param duplicados_aproximados `FALSE` por omisión. Use `TRUE` o una lista de
+#'   argumentos para ejecutar [detectar_duplicados_aproximados()] y añadir sus
+#'   pares y hallazgos al perfil. Es un análisis acotado y opcional porque no
+#'   afirma identidad ni debe encarecer todas las corridas.
 #'
 #' @return Objeto S3 de clase `perfil`.
 #' @export
@@ -175,7 +179,8 @@ perfilar <- function(datos,
                      proteger_datos_personales = TRUE,
                      validadores_personales = NULL,
                      umbral_documento_verificado = 0.9,
-                     muestra_validadores = 1000L) {
+                     muestra_validadores = 1000L,
+                     duplicados_aproximados = FALSE) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
@@ -223,6 +228,23 @@ perfilar <- function(datos,
   }
   muestra_validadores <- if (is.infinite(muestra_validadores)) Inf else {
     as.integer(muestra_validadores)
+  }
+  if (!is.logical(duplicados_aproximados) &&
+      !is.list(duplicados_aproximados)) {
+    stop("`duplicados_aproximados` debe ser FALSE, TRUE o una lista de argumentos.",
+         call. = FALSE)
+  }
+  if (is.logical(duplicados_aproximados) &&
+      (length(duplicados_aproximados) != 1L ||
+       is.na(duplicados_aproximados))) {
+    stop("`duplicados_aproximados` debe ser FALSE o TRUE.", call. = FALSE)
+  }
+  if (is.list(duplicados_aproximados) &&
+      any(names(duplicados_aproximados) %in% c(
+        "datos", "clasificacion", "perfil", "proteger_datos_personales"
+      ))) {
+    stop("`duplicados_aproximados` no puede reemplazar argumentos coordinados por perfilar().",
+         call. = FALSE)
   }
   validadores_personales <- .normalizar_validadores_personales(
     validadores_personales
@@ -338,6 +360,28 @@ perfilar <- function(datos,
     )
     rownames(hallazgos) <- NULL
   }
+  aproximados <- if (is.logical(duplicados_aproximados) &&
+      !duplicados_aproximados) {
+    NULL
+  } else {
+    configuracion <- if (isTRUE(duplicados_aproximados)) {
+      list()
+    } else duplicados_aproximados
+    do.call(
+      .detectar_duplicados_aproximados,
+      c(
+        list(
+          datos = datos, clasificacion = datos_personales,
+          proteger_datos_personales = proteger_datos_personales
+        ),
+        configuracion
+      )
+    )
+  }
+  if (!is.null(aproximados) && nrow(aproximados$hallazgos)) {
+    hallazgos <- rbind(hallazgos, aproximados$hallazgos)
+    rownames(hallazgos) <- NULL
+  }
   meta <- list(
     nombre = nombre,
     fecha_hora = fecha_hora,
@@ -371,6 +415,13 @@ perfilar <- function(datos,
     datos_personales = datos_personales,
     meta = meta
   )
+  if (!is.null(aproximados)) {
+    estructura$duplicados_aproximados <- aproximados
+    estructura <- estructura[c(
+      "general", "columnas", "patrones", "formatos_fecha", "dependencias",
+      "duplicados_aproximados", "hallazgos", "datos_personales", "meta"
+    )]
+  }
   class(estructura) <- "perfil"
   if (proteger_datos_personales) estructura <- .proteger_perfil(estructura)
   estructura
