@@ -98,7 +98,7 @@ test_that("MinHash y LSH generan pares unicos y declaran su garantia", {
   expect_equal(parcial$alcance$n_filas_muestra, 2L)
 })
 
-test_that("las cubetas LSH demasiado grandes se declaran y descartan", {
+test_that("las cubetas LSH grandes se declaran y procesan por troceo", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(nombre = rep("mismo valor", 30L))
   resultado <- detectar_duplicados_aproximados(
@@ -106,8 +106,67 @@ test_that("las cubetas LSH demasiado grandes se declaran y descartan", {
     lsh_bandas = 2L, lsh_filas = 2L, max_resultados = 5L
   )
   expect_gt(resultado$alcance$lsh_cubetas_grandes, 0)
-  expect_gt(resultado$alcance$lsh_pares_descartados_cubetas, 0)
+  expect_equal(resultado$alcance$lsh_pares_descartados_cubetas, 0)
+  expect_gt(resultado$alcance$lsh_pares_cubetas_troceadas, 0)
+  expect_gt(resultado$alcance$lsh_bloques_cubetas_troceadas, 0)
+  expect_equal(
+    resultado$alcance$lsh_candidatos_generados,
+    resultado$alcance$lsh_candidatos_unicos +
+      resultado$alcance$lsh_candidatos_descartados_bandas
+  )
+  expect_equal(
+    resultado$alcance$lsh_garantia_estado,
+    "valida_generacion_lsh_sin_cubetas_descartadas"
+  )
+  expect_false(anyNA(resultado$alcance$lsh_garantia_jaccard_07))
   expect_false(resultado$alcance$comparacion_exhaustiva)
+})
+
+test_that("las colisiones de bandas posteriores se deduplican sin recorte", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(nombre = rep("mismo valor", 30L))
+  resultado <- detectar_duplicados_aproximados(
+    datos, estrategia = "lsh", lsh_max_cubeta = 100L,
+    lsh_bandas = 2L, lsh_filas = 2L, max_resultados = 10L
+  )
+  expect_equal(resultado$alcance$lsh_candidatos_generados,
+               resultado$alcance$lsh_candidatos_unicos +
+                 resultado$alcance$lsh_candidatos_descartados_bandas)
+  expect_equal(anyDuplicated(
+    paste(resultado$pares$fila_1, resultado$pares$fila_2, sep = ":")
+  ), 0L)
+  directo <- lupa:::.comparar_lsh_duplicados(
+    rep("mismo valor", 6L), 6:1, "jw", 0.12, 2L, 2L, 3L, 100L, 10L
+  )
+  expect_true(nrow(directo$pares) > 0L)
+  expect_true(all(directo$pares$fila_1 < directo$pares$fila_2))
+})
+
+test_that("una garantia LSH se invalida si se descarta una cubeta", {
+  expect_true(is.na(lupa:::.garantia_lsh(0.8, 12L, 3L, 1)))
+  expect_equal(lupa:::.garantia_lsh(0.8, 12L, 3L, 0),
+               1 - (1 - 0.8^3)^12, tolerance = 1e-12)
+  expect_equal(lupa:::.estado_garantia_lsh(1),
+               "no_valida_hay_cubetas_descartadas")
+  expect_equal(lupa:::.estado_garantia_lsh(0),
+               "valida_generacion_lsh_sin_cubetas_descartadas")
+})
+
+test_that("una cubeta posterior puede trocearse sin perder su alcance", {
+  skip_if_not_installed("stringdist")
+  firmas <- matrix(c(1L, 5L, 2L, 5L, 3L, 5L, 4L, 5L),
+                   nrow = 4L, byrow = TRUE)
+  local_mocked_bindings(
+    .firmas_minhash_lsh = function(ids, n_hashes) firmas,
+    .package = "lupa"
+  )
+  resultado <- detectar_duplicados_aproximados(
+    data.frame(v = c("Ana", "Anb", "Anc", "And")), columnas = "v",
+    estrategia = "lsh", lsh_bandas = 2L, lsh_filas = 1L,
+    lsh_q = 1L, lsh_max_cubeta = 2L, max_resultados = 10L
+  )
+  expect_gt(resultado$alcance$lsh_pares_cubetas_troceadas, 0)
+  expect_gt(resultado$alcance$lsh_bloques_cubetas_troceadas, 0)
 })
 
 test_that("las primitivas LSH cubren casos vacios, cortos y con padding", {
@@ -121,6 +180,11 @@ test_that("las primitivas LSH cubren casos vacios, cortos y con padding", {
     matrix(c(1L, 0L, 1L, 2L), nrow = 2L, byrow = TRUE), 2L
   )
   expect_equal(dim(firmas), c(2L, 2L))
+  expect_equal(dim(lupa:::.firmas_minhash_lsh(matrix(0L, 2L, 2L), 2L)),
+               c(2L, 2L))
+  expect_equal(lupa:::.pares_acumulador_duplicados(
+    lupa:::.nuevo_acumulador_duplicados(Inf)
+  ), data.frame(fila_1 = integer(), fila_2 = integer(), distancia = numeric()))
   expect_equal(lupa:::.jaccard_qgramas(character(), character()), 1)
   expect_equal(lupa:::.jaccard_qgramas(c("ab"), c("bc")), 0)
 })

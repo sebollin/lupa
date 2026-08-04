@@ -68,9 +68,10 @@ automáticamente por encima del tope exhaustivo; se puede forzar con
 
 \item{lsh_q}{Longitud de los q-gramas usados para MinHash. Por defecto, 3.}
 
-\item{lsh_max_cubeta}{Tamaño máximo de una cubeta de una banda. Las cubetas
-mayores se descartan y el alcance informa cuántos pares quedaron fuera.
-Por defecto, 1000.}
+\item{lsh_max_cubeta}{Umbral a partir del cual una cubeta se considera
+grande y se procesa por el mismo troceo acotado del camino exhaustivo.
+No se descartan pares por este umbral; el alcance informa cuántas cubetas
+y cuántos pares se procesaron de esta forma. Por defecto, 1000.}
 }
 \value{
 Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
@@ -113,7 +114,11 @@ salida declara las bandas, las filas por banda, las cubetas descartadas y la
 probabilidad teorica de colision. Esa probabilidad se refiere al Jaccard de
 los q-gramas, no a la medida final (\code{metodo}). \code{estrategia = "lsh"} fuerza
 este camino; \code{"teselas"} y \code{"muestra"} conservan el camino exacto o
-muestreado de las versiones anteriores.
+muestreado de las versiones anteriores. Las cubetas que superan
+\code{lsh_max_cubeta} se procesan igualmente por lotes; el parámetro identifica
+cubetas potencialmente costosas, pero no descarta sus pares. Si alguna
+implementación futura descarta una cubeta, la garantía se devuelve como
+\code{NA} y \code{lsh_garantia_estado} lo deja explícito.
 }
 \examples{
 datos <- data.frame(

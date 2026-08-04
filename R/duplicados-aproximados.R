@@ -87,7 +87,24 @@
       stringsAsFactors = FALSE
     ),
     n_hallados = 0, n_exactos = 0, n_aproximados = 0,
-    max_resultados = max_resultados
+    max_resultados = max_resultados, lotes = list()
+  )
+}
+
+.pares_acumulador_duplicados <- function(acumulador) {
+  if (!is.infinite(acumulador$max_resultados) ||
+      !length(acumulador$lotes)) return(acumulador$pares)
+  lotes <- c(list(acumulador$pares), acumulador$lotes)
+  lotes <- lotes[vapply(lotes, nrow, integer(1L)) > 0L]
+  if (!length(lotes)) return(acumulador$pares)
+  data.frame(
+    fila_1 = as.integer(unlist(lapply(lotes, `[[`, "fila_1"),
+                         use.names = FALSE)),
+    fila_2 = as.integer(unlist(lapply(lotes, `[[`, "fila_2"),
+                         use.names = FALSE)),
+    distancia = as.numeric(unlist(lapply(lotes, `[[`, "distancia"),
+                              use.names = FALSE)),
+    stringsAsFactors = FALSE
   )
 }
 
@@ -119,6 +136,13 @@
   acumulador$n_exactos <- acumulador$n_exactos + sum(lote$distancia == 0)
   acumulador$n_aproximados <- acumulador$n_aproximados +
     sum(lote$distancia > 0)
+  # Con `Inf` se conserva todo y ordenar cada lote vuelve cuadratica la
+  # acumulacion. El orden canonico se establece una sola vez al cerrar el
+  # generador; con un limite finito se mantiene el recorte incremental.
+  if (is.infinite(acumulador$max_resultados)) {
+    acumulador$lotes[[length(acumulador$lotes) + 1L]] <- lote
+    return(acumulador)
+  }
   acumulador$pares <- rbind(acumulador$pares, lote)
   acumulador$pares <- acumulador$pares[
     order(acumulador$pares$distancia,
@@ -140,18 +164,24 @@
 #' total de filas, sin cambiar qué pares se comparan.
 #' @noRd
 .comparar_bloques_duplicados <- function(
-    valores, filas, metodo, umbral, bloque, max_resultados) {
+    valores, filas, metodo, umbral, bloque, max_resultados,
+    acumulador = NULL) {
   n <- length(valores)
+  acumular_en_externo <- !is.null(acumulador)
+  if (is.null(acumulador)) {
+    acumulador <- .nuevo_acumulador_duplicados(max_resultados)
+  }
   if (n < 2L) {
     return(list(
-      pares = data.frame(fila_1 = integer(), fila_2 = integer(),
-                         distancia = numeric(), stringsAsFactors = FALSE),
-      n_hallados = 0, n_exactos = 0, n_aproximados = 0,
-      n_bloques = 0L
+      pares = if (acumular_en_externo) acumulador$pares else
+        .pares_acumulador_duplicados(acumulador),
+      n_hallados = acumulador$n_hallados,
+      n_exactos = acumulador$n_exactos,
+      n_aproximados = acumulador$n_aproximados,
+      n_bloques = 0L, acumulador = acumulador
     ))
   }
   inicios <- seq.int(1L, n, by = bloque)
-  acumulador <- .nuevo_acumulador_duplicados(max_resultados)
   n_bloques <- 0L
   for (i in seq_along(inicios)) {
     fin_i <- min(n, inicios[[i]] + bloque - 1L)
@@ -178,10 +208,19 @@
       )
     }
   }
+  pares_acumulados <- if (acumular_en_externo) acumulador$pares else
+    .pares_acumulador_duplicados(acumulador)
+  pares_acumulados <- pares_acumulados[
+    order(pares_acumulados$distancia,
+          pares_acumulados$fila_1, pares_acumulados$fila_2),
+    , drop = FALSE
+  ]
   list(
-    pares = acumulador$pares, n_hallados = acumulador$n_hallados,
+    pares = pares_acumulados,
+    n_hallados = acumulador$n_hallados,
     n_exactos = acumulador$n_exactos,
-    n_aproximados = acumulador$n_aproximados, n_bloques = n_bloques
+    n_aproximados = acumulador$n_aproximados, n_bloques = n_bloques,
+    acumulador = acumulador
   )
 }
 
@@ -268,6 +307,19 @@
   length(intersect(a, b)) / length(union)
 }
 
+.garantia_lsh <- function(s, bandas, filas_banda, pares_descartados = 0) {
+  if (isTRUE(pares_descartados > 0)) return(NA_real_)
+  1 - (1 - s^filas_banda)^bandas
+}
+
+.estado_garantia_lsh <- function(pares_descartados) {
+  if (isTRUE(pares_descartados > 0)) {
+    "no_valida_hay_cubetas_descartadas"
+  } else {
+    "valida_generacion_lsh_sin_cubetas_descartadas"
+  }
+}
+
 #' Genera candidatos con MinHash y bandas LSH
 #'
 #' Cada candidato se emite en la primera banda donde colisiona. El generador
@@ -297,10 +349,13 @@
   pares_comparados <- 0
   cubetas_grandes <- 0L
   pares_descartados_cubetas <- 0
+  pares_cubetas_troceadas <- 0
+  bloques_cubetas_troceadas <- 0L
   jaccard <- numeric()
   n_jaccard <- 0
   n_jaccard_bajo <- 0
   muestra_jaccard <- 10000L
+  claves_previas <- list()
   for (banda in seq_len(bandas)) {
     columnas <- ((banda - 1L) * filas_banda + 1L):(banda * filas_banda)
     claves <- do.call(paste, c(
@@ -317,12 +372,48 @@
       posibles_grupo <- as.numeric(tamano) * (tamano - 1) / 2
       if (tamano > max_cubeta) {
         cubetas_grandes <- cubetas_grandes + 1L
-        pares_descartados_cubetas <- pares_descartados_cubetas + posibles_grupo
+      }
+      # En la primera banda no hay pares previos que deduplicar. Para una
+      # cubeta grande usamos el comparador por teselas del camino exhaustivo:
+      # compara todos sus pares, pero descarta cada matriz antes de continuar.
+      if (tamano > max_cubeta && banda == 1L) {
+        pares_cubetas_troceadas <- pares_cubetas_troceadas + posibles_grupo
+        por_teselas <- .comparar_bloques_duplicados(
+          valores[indices], filas[indices], metodo, umbral,
+          bloque = min(2000L, tamano), max_resultados = max_resultados,
+          acumulador = acumulador
+        )
+        acumulador <- por_teselas$acumulador
+        bloques_cubetas_troceadas <- bloques_cubetas_troceadas +
+          por_teselas$n_bloques
+        candidatos_generados <- candidatos_generados + posibles_grupo
+        candidatos_unicos <- candidatos_unicos + posibles_grupo
+        pares_comparados <- pares_comparados + posibles_grupo
         next
       }
-      # Procesar una cubeta por lotes de filas evita materializar su `combn`
-      # completo. El tamaño temporal queda acotado aun cuando la cubeta esté
-      # cerca de `max_cubeta` y el acumulador siga limitado.
+      # Si toda la cubeta tambien colisiono dentro de una banda anterior,
+      # cada par ya fue considerado y se puede omitir el bloque completo sin
+      # construir sus combinaciones. La comprobacion es exacta: solo se omite
+      # cuando una clave previa es constante para todas sus filas.
+      if (banda > 1L && any(vapply(
+        claves_previas[seq_len(banda - 1L)],
+        function(clave) length(unique(clave[indices])) == 1L,
+        logical(1L)
+      ))) {
+        candidatos_generados <- candidatos_generados + posibles_grupo
+        candidatos_descartados_bandas <- candidatos_descartados_bandas +
+          posibles_grupo
+        next
+      }
+      if (tamano > max_cubeta) {
+        pares_cubetas_troceadas <- pares_cubetas_troceadas + posibles_grupo
+        bloques_cubetas_troceadas <- bloques_cubetas_troceadas +
+          ceiling((tamano - 1) / 100)
+      }
+      # Las cubetas grandes no se descartan: se procesan con el mismo recorrido
+      # por lotes de filas que una cubeta normal. Es equivalente a las teselas
+      # del camino exhaustivo, conserva la deduplicacion por primera banda y
+      # mantiene acotada la memoria temporal.
       for (inicio_izquierda in seq.int(1L, tamano - 1L, by = 100L)) {
         izquierda <- inicio_izquierda:min(inicio_izquierda + 99L, tamano - 1L)
         derechas <- lapply(izquierda, function(i) (i + 1L):tamano)
@@ -332,12 +423,8 @@
         ya <- rep(FALSE, length(p1))
         if (banda > 1L) {
           for (previa in seq_len(banda - 1L)) {
-            cols_previas <- ((previa - 1L) * filas_banda + 1L):
-              (previa * filas_banda)
-            iguales <- rowSums(
-              firmas[p1, cols_previas, drop = FALSE] ==
-                firmas[p2, cols_previas, drop = FALSE]
-            ) == filas_banda
+            iguales <- claves_previas[[previa]][p1] ==
+              claves_previas[[previa]][p2]
             ya <- ya | iguales
           }
         }
@@ -378,14 +465,24 @@
         }
       }
     }
+    claves_previas[[banda]] <- claves
   }
-  garantia <- function(s) 1 - (1 - s^filas_banda)^bandas
-  garantia_07 <- garantia(0.7)
+  garantia_07 <- .garantia_lsh(
+    0.7, bandas, filas_banda, pares_descartados_cubetas
+  )
   resumen_jaccard <- if (length(jaccard)) {
     quant <- stats::quantile(jaccard, probs = c(0, .25, .5, .75, 1),
                              names = FALSE, na.rm = TRUE)
     quant
   } else rep(NA_real_, 5L)
+  acumulador$pares <- .pares_acumulador_duplicados(acumulador)
+  acumulador$pares <- acumulador$pares[
+    order(acumulador$pares$distancia,
+          acumulador$pares$fila_1, acumulador$pares$fila_2),
+    , drop = FALSE
+  ]
+  acumulador$lotes <- list()
+  rownames(acumulador$pares) <- NULL
   list(
     pares = acumulador$pares,
     n_hallados = acumulador$n_hallados,
@@ -396,12 +493,19 @@
       lsh_bandas = bandas, lsh_filas = filas_banda,
       lsh_tamano_firma = n_hashes, lsh_q = q,
       lsh_max_cubeta = max_cubeta,
-      lsh_garantia_jaccard_09 = garantia(0.9),
-      lsh_garantia_jaccard_08 = garantia(0.8),
+      lsh_garantia_jaccard_09 = .garantia_lsh(
+        0.9, bandas, filas_banda, pares_descartados_cubetas
+      ),
+      lsh_garantia_jaccard_08 = .garantia_lsh(
+        0.8, bandas, filas_banda, pares_descartados_cubetas
+      ),
       lsh_garantia_jaccard_07 = garantia_07,
       lsh_garantia_aplica_a = "Jaccard de q-gramas; no garantiza la medida final",
+      lsh_garantia_estado = .estado_garantia_lsh(pares_descartados_cubetas),
       lsh_cubetas_grandes = cubetas_grandes,
       lsh_pares_descartados_cubetas = pares_descartados_cubetas,
+      lsh_pares_cubetas_troceadas = pares_cubetas_troceadas,
+      lsh_bloques_cubetas_troceadas = bloques_cubetas_troceadas,
       lsh_candidatos_generados = candidatos_generados,
       lsh_candidatos_unicos = candidatos_unicos,
       lsh_candidatos_descartados_bandas = candidatos_descartados_bandas,
@@ -781,7 +885,11 @@
 #' probabilidad teorica de colision. Esa probabilidad se refiere al Jaccard de
 #' los q-gramas, no a la medida final (`metodo`). `estrategia = "lsh"` fuerza
 #' este camino; `"teselas"` y `"muestra"` conservan el camino exacto o
-#' muestreado de las versiones anteriores.
+#' muestreado de las versiones anteriores. Las cubetas que superan
+#' `lsh_max_cubeta` se procesan igualmente por lotes; el parámetro identifica
+#' cubetas potencialmente costosas, pero no descarta sus pares. Si alguna
+#' implementación futura descarta una cubeta, la garantía se devuelve como
+#' `NA` y `lsh_garantia_estado` lo deja explícito.
 #'
 #' @param datos Tabla con una fila por entidad observada.
 #' @param columnas Columnas atomicas a combinar. `NULL` aplica la seleccion
@@ -812,9 +920,10 @@
 #' @param lsh_bandas Número de bandas del esquema LSH. Por defecto, 12.
 #' @param lsh_filas Número de filas de firma por banda. Por defecto, 3.
 #' @param lsh_q Longitud de los q-gramas usados para MinHash. Por defecto, 3.
-#' @param lsh_max_cubeta Tamaño máximo de una cubeta de una banda. Las cubetas
-#'   mayores se descartan y el alcance informa cuántos pares quedaron fuera.
-#'   Por defecto, 1000.
+#' @param lsh_max_cubeta Umbral a partir del cual una cubeta se considera
+#'   grande y se procesa por el mismo troceo acotado del camino exhaustivo.
+#'   No se descartan pares por este umbral; el alcance informa cuántas cubetas
+#'   y cuántos pares se procesaron de esta forma. Por defecto, 1000.
 #'
 #' @return Lista de clase `duplicados_aproximados` con `pares`, `hallazgos`,
 #'   `alcance`, `columnas`, `metodo`, `umbral`, `disponible` y `razon`.
