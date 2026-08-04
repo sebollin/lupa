@@ -304,7 +304,9 @@
   paste0(
     "<section><h2>Duplicados aproximados</h2>", nota,
     "<p class=\"nota\">`muestra` es el limite solicitado; `muestra_efectiva` y ",
-    "`n_filas_muestra` indican cuantas filas entraron realmente en la comparacion.</p>",
+    "`n_filas_muestra` indican cuantas filas entraron realmente en la comparacion. ",
+    "La comparacion por bloques es exhaustiva para esas filas; el tamano del bloque ",
+    "y los pares que quedaron fuera se declaran en el alcance.</p>",
     "<h3>Alcance de la comparaci\u00f3n</h3>", .html_tabla(alcance, Inf),
     "<h3>Pares detectados</h3>", .html_tabla(pares, max_filas),
     if (isTRUE(x$alcance$truncado[[1L]])) {

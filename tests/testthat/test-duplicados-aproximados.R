@@ -128,6 +128,57 @@ test_that("el recorte sistematico conserva los extremos de la tabla", {
   expect_match(primeras$alcance$estrategia, "primeras_n_filas", fixed = TRUE)
 })
 
+test_that("el valor predeterminado recorre la tabla completa por bloques", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = paste0("persona", seq_len(1000L)),
+    domicilio = paste0("calle", seq_len(1000L))
+  )
+  datos$nombre[500:501] <- c("Juan Perez", "Juan Peres")
+  datos$domicilio[500:501] <- "Calle Centro"
+  resultado <- detectar_duplicados_aproximados(datos)
+  expect_true(resultado$alcance$comparacion_exhaustiva)
+  expect_equal(resultado$alcance$n_filas_muestra, 1000)
+  expect_equal(resultado$alcance$n_pares_comparados, 499500)
+  expect_equal(resultado$alcance$tamano_bloque, 1000)
+  expect_equal(resultado$alcance$modo_comparacion, "exhaustiva_por_bloques")
+  expect_true(any(resultado$pares$fila_1 == 500L & resultado$pares$fila_2 == 501L))
+})
+
+test_that("el recorrido por bloques conserva exactitud y acota su tesela", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = c("Ana Perez", "Ana Perez", "Luis Diaz", "Marta Silva"),
+    domicilio = c("Calle 1", "Calle 1", "Calle 2", "Calle 3")
+  )
+  resultado <- detectar_duplicados_aproximados(
+    datos, muestra = Inf, max_pares = Inf, max_resultados = Inf, bloque = 2L
+  )
+  expect_equal(resultado$alcance$n_pares_comparados, 6)
+  expect_equal(resultado$alcance$n_pares_exactos, 1)
+  expect_equal(resultado$alcance$n_bloques, 3)
+  expect_equal(resultado$alcance$tamano_bloque, 2)
+  expect_true(any(resultado$pares$tipo_par == "exacto"))
+})
+
+test_that("el tope predeterminado alcanza diez mil filas", {
+  skip_on_cran()
+  skip_if_not_installed("stringdist")
+  n <- 10000L
+  datos <- data.frame(
+    nombre = paste0("persona", seq_len(n)),
+    domicilio = paste0("calle", seq_len(n))
+  )
+  datos$nombre[5000:5001] <- c("Juan Perez", "Juan Peres")
+  datos$domicilio[5000:5001] <- "Calle Centro"
+  resultado <- detectar_duplicados_aproximados(datos)
+  expect_true(resultado$alcance$comparacion_exhaustiva)
+  expect_equal(resultado$alcance$n_filas_muestra, n)
+  expect_equal(resultado$alcance$n_pares_comparados, 49995000)
+  expect_true(any(resultado$pares$fila_1 == 5000L &
+                 resultado$pares$fila_2 == 5001L))
+})
+
 test_that("el truncamiento conserva los pares de menor distancia", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(nombre = paste0("Ana Perez ", seq_len(30L)))
@@ -195,6 +246,13 @@ test_that("valida entradas y tipos no comparables", {
   expect_error(detectar_duplicados_aproximados(datos, umbral = -1), "finito")
   expect_error(detectar_duplicados_aproximados(datos, muestra = 1.5), "muestra")
   expect_error(detectar_duplicados_aproximados(datos, normalizar = NA), "lógicos")
+  expect_error(detectar_duplicados_aproximados(datos, bloque = Inf), "bloque")
+  expect_error(detectar_duplicados_aproximados(datos, bloque = 1.5), "bloque")
+  tesela_vacia <- lupa:::.comparar_bloques_duplicados(
+    "solo", 1L, "jw", 0.12, 1000L, 1L
+  )
+  expect_equal(tesela_vacia$n_bloques, 0L)
+  expect_length(lupa:::.indices_duplicados_aproximados(3, 10L), 3L)
   expect_error(
     detectar_duplicados_aproximados(
       datos, perfil = perfilar(data.frame(z = 1:2), analizar_dependencias = FALSE)

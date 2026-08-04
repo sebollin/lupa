@@ -12,7 +12,8 @@
 
 .vacio_duplicados_aproximados <- function(
     n_filas, columnas, metodo, umbral, muestra, max_pares, max_resultados,
-    disponible = TRUE, razon = "") {
+    disponible = TRUE, razon = "", bloque = 1000L, n_bloques = 0L,
+    modo_comparacion = "sin_comparacion") {
   pares <- data.frame(
     fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
     tipo_par = character(), metodo = character(), umbral = numeric(),
@@ -37,6 +38,10 @@
     muestra = muestra,
     muestra_efectiva = 0,
     estrategia = if (disponible) "sin_pares_comparables" else "no_disponible",
+    modo_comparacion = modo_comparacion,
+    tamano_bloque = bloque,
+    n_bloques = n_bloques,
+    comparacion_exhaustiva = FALSE,
     muestreado = FALSE,
     truncado = FALSE,
     disponible = disponible,
@@ -56,6 +61,85 @@
   )
   class(estructura) <- c("duplicados_aproximados", "list")
   estructura
+}
+
+.validar_bloque_duplicados <- function(x) {
+  if (!is.numeric(x) || length(x) != 1L || is.na(x) ||
+      !is.finite(x) || x < 1 || x != floor(x)) {
+    stop("`bloque` debe ser un entero positivo y finito.", call. = FALSE)
+  }
+  as.integer(x)
+}
+
+#' Compara por teselas y conserva sólo los mejores resultados
+#'
+#' La matriz de distancias de cada tesela se descarta antes de pasar a la
+#' siguiente. Así la memoria temporal depende de `bloque`, no de la cantidad
+#' total de filas, sin cambiar qué pares se comparan.
+#' @noRd
+.comparar_bloques_duplicados <- function(
+    valores, filas, metodo, umbral, bloque, max_resultados) {
+  n <- length(valores)
+  if (n < 2L) {
+    return(list(
+      pares = data.frame(fila_1 = integer(), fila_2 = integer(),
+                         distancia = numeric(), stringsAsFactors = FALSE),
+      n_hallados = 0, n_exactos = 0, n_aproximados = 0,
+      n_bloques = 0L
+    ))
+  }
+  inicios <- seq.int(1L, n, by = bloque)
+  mejores <- data.frame(
+    fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
+    stringsAsFactors = FALSE
+  )
+  n_hallados <- 0
+  n_exactos <- 0
+  n_aproximados <- 0
+  n_bloques <- 0L
+  ordenar_mejores <- function(x) {
+    if (!nrow(x)) return(x)
+    x <- x[order(x$distancia, x$fila_1, x$fila_2), , drop = FALSE]
+    if (!is.infinite(max_resultados) && nrow(x) > max_resultados) {
+      x <- x[seq_len(max_resultados), , drop = FALSE]
+    }
+    rownames(x) <- NULL
+    x
+  }
+  for (i in seq_along(inicios)) {
+    fin_i <- min(n, inicios[[i]] + bloque - 1L)
+    filas_i <- inicios[[i]]:fin_i
+    for (j in i:length(inicios)) {
+      fin_j <- min(n, inicios[[j]] + bloque - 1L)
+      filas_j <- inicios[[j]]:fin_j
+      matriz <- as.matrix(stringdist::stringdistmatrix(
+        valores[filas_i], valores[filas_j], method = metodo
+      ))
+      n_bloques <- n_bloques + 1L
+      candidatas <- if (i == j) {
+        which(upper.tri(matriz) & matriz >= 0 & matriz <= umbral,
+              arr.ind = TRUE)
+      } else {
+        which(matriz >= 0 & matriz <= umbral, arr.ind = TRUE)
+      }
+      if (!nrow(candidatas)) next
+      distancias <- as.numeric(matriz[candidatas])
+      f1 <- filas[filas_i[candidatas[, 1L]]]
+      f2 <- filas[filas_j[candidatas[, 2L]]]
+      candidatos <- data.frame(
+        fila_1 = f1, fila_2 = f2, distancia = distancias,
+        stringsAsFactors = FALSE
+      )
+      n_hallados <- n_hallados + nrow(candidatos)
+      n_exactos <- n_exactos + sum(distancias == 0)
+      n_aproximados <- n_aproximados + sum(distancias > 0)
+      mejores <- ordenar_mejores(rbind(mejores, candidatos))
+    }
+  }
+  list(
+    pares = mejores, n_hallados = n_hallados, n_exactos = n_exactos,
+    n_aproximados = n_aproximados, n_bloques = n_bloques
+  )
 }
 
 .indices_duplicados_aproximados <- function(n, limite) {
@@ -144,9 +228,9 @@
 
 .detectar_duplicados_aproximados <- function(
     datos, columnas = NULL, metodo = "jw", umbral = 0.12,
-    muestra = 1000L, max_pares = 10000L, max_resultados = 100L,
+    muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
     normalizar = TRUE, clasificacion = NULL,
-    proteger_datos_personales = TRUE) {
+    proteger_datos_personales = TRUE, bloque = 1000L) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
@@ -154,6 +238,7 @@
   muestra <- .validar_limite_duplicados(muestra, "muestra")
   max_pares <- .validar_limite_duplicados(max_pares, "max_pares")
   max_resultados <- .validar_limite_duplicados(max_resultados, "max_resultados")
+  bloque <- .validar_bloque_duplicados(bloque)
   if (!is.character(metodo) || length(metodo) != 1L || is.na(metodo) ||
       !nzchar(metodo) || !metodo %in% c(
         "osa", "lv", "dl", "hamming", "lcs", "qgram", "cosine",
@@ -178,7 +263,7 @@
   if (!.stringdist_disponible()) {
     return(.vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
-      max_resultados, disponible = FALSE,
+      max_resultados, disponible = FALSE, bloque = bloque,
       razon = "No esta instalado el paquete opcional 'stringdist'."
     ))
   }
@@ -189,7 +274,7 @@
     }
     return(.vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
-      max_resultados, disponible = TRUE,
+      max_resultados, disponible = TRUE, bloque = bloque,
       razon = motivo
     ))
   }
@@ -214,7 +299,7 @@
     "muestra_sistematica"
   }
   estrategia <- if (length(indices) >= nrow(datos)) {
-    "todas_las_filas"
+    "todas_las_filas_en_bloques"
   } else if (nrow(datos) > muestra &&
              !is.infinite(max_filas_por_pares) &&
              max_filas_por_pares < muestra) {
@@ -231,7 +316,7 @@
   if (length(validos) < 2L) {
     resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
-      max_resultados, disponible = TRUE,
+      max_resultados, disponible = TRUE, bloque = bloque,
       razon = "No hay dos filas con valores comparables."
     )
     resultado$alcance$n_filas_muestra <- length(indices)
@@ -241,46 +326,33 @@
     resultado$alcance$muestreado <- length(indices) < nrow(datos)
     resultado$alcance$estrategia <- estrategia
     resultado$alcance$muestra_efectiva <- length(indices)
+    resultado$alcance$modo_comparacion <- "sin_pares_comparables"
+    resultado$alcance$tamano_bloque <- bloque
     return(resultado)
   }
-  matriz <- as.matrix(stringdist::stringdistmatrix(
-    textos$valores[validos], method = metodo
-  ))
-  indices_pares <- which(upper.tri(matriz) & matriz >= 0 & matriz <= umbral,
-                         arr.ind = TRUE)
-  distancias <- as.numeric(matriz[indices_pares])
-  if (nrow(indices_pares)) {
-    orden <- order(distancias, validos[indices_pares[, 1L]],
-                   validos[indices_pares[, 2L]])
-    indices_pares <- indices_pares[orden, , drop = FALSE]
-    distancias <- distancias[orden]
-  }
-  n_hallados <- nrow(indices_pares)
-  tipos_todos <- ifelse(distancias == 0, "exacto", "aproximado")
-  n_exactos <- sum(tipos_todos == "exacto")
-  n_aproximados <- sum(tipos_todos == "aproximado")
-  mostrados <- if (is.infinite(max_resultados)) n_hallados else {
-    min(n_hallados, max_resultados)
-  }
-  indices_pares <- if (mostrados) indices_pares[seq_len(mostrados), , drop = FALSE] else {
-    matrix(integer(), ncol = 2L)
-  }
+  bloques <- .comparar_bloques_duplicados(
+    textos$valores[validos], validos, metodo, umbral, bloque, max_resultados
+  )
+  n_hallados <- bloques$n_hallados
+  n_exactos <- bloques$n_exactos
+  n_aproximados <- bloques$n_aproximados
+  mostrados <- nrow(bloques$pares)
   pares <- if (mostrados) {
+    distancias <- bloques$pares$distancia
     data.frame(
-      fila_1 = validos[indices_pares[, 1L]],
-      fila_2 = validos[indices_pares[, 2L]],
-      distancia = distancias[seq_len(mostrados)],
-      tipo_par = ifelse(distancias[seq_len(mostrados)] == 0,
-                        "exacto", "aproximado"),
+      fila_1 = bloques$pares$fila_1,
+      fila_2 = bloques$pares$fila_2,
+      distancia = distancias,
+      tipo_par = ifelse(distancias == 0, "exacto", "aproximado"),
       metodo = metodo, umbral = umbral,
       evidencia_1 = vapply(
-        validos[indices_pares[, 1L]],
+        bloques$pares$fila_1,
         function(fila) .evidencia_fila_aproximada(
           datos, columnas, fila, protegidas
         ), character(1L)
       ),
       evidencia_2 = vapply(
-        validos[indices_pares[, 2L]],
+        bloques$pares$fila_2,
         function(fila) .evidencia_fila_aproximada(
           datos, columnas, fila, protegidas
         ), character(1L)
@@ -293,7 +365,7 @@
   } else {
     .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
-      max_resultados, disponible = TRUE
+      max_resultados, disponible = TRUE, bloque = bloque
     )$pares
   }
   hallazgos <- if (nrow(pares)) {
@@ -339,6 +411,12 @@
     muestra = muestra,
     muestra_efectiva = length(indices),
     estrategia = estrategia,
+    modo_comparacion = if (length(indices) >= nrow(datos)) {
+      "exhaustiva_por_bloques"
+    } else "muestreada_por_bloques",
+    tamano_bloque = bloque,
+    n_bloques = bloques$n_bloques,
+    comparacion_exhaustiva = length(indices) >= nrow(datos),
     muestreado = length(indices) < nrow(datos), truncado = mostrados < n_hallados,
     disponible = TRUE, razon = "", stringsAsFactors = FALSE
   )
@@ -354,7 +432,7 @@
 
 #' Detectar pares de filas con similitud aproximada
 #'
-#' Compara una muestra acotada de filas con `stringdist` y devuelve pares cuya
+#' Compara filas seleccionadas de una tabla con `stringdist` y devuelve pares cuya
 #' distancia esta bajo el umbral. El resultado describe similitud, distancia,
 #' medida y alcance; nunca afirma que dos filas representen la misma entidad.
 #' Por omision se combinan como maximo dos columnas de texto o factores, despues
@@ -369,11 +447,13 @@
 #' Los pares con distancia cero se incluyen como `tipo_par = "exacto"`; los
 #' restantes son `"aproximado"`. Ninguno demuestra identidad.
 #'
-#' La comparacion es deliberadamente limitada: `muestra` selecciona filas de
-#' forma sistematica y `max_pares` limita los pares evaluados. El objeto informa
-#' cuantos pares eran posibles, cuantos se compararon, la estrategia y los que
-#' quedaron fuera. Solo se muestran `max_resultados` coincidencias; el
-#' truncamiento tambien queda declarado.
+#' La comparacion usa teselas de `bloque` filas: cada matriz temporal se
+#' descarta antes de continuar, por lo que la memoria no crece con el tamaño
+#' de la tabla. El recorrido es exacto para las filas seleccionadas. `muestra`
+#' y `max_pares` sólo recortan tablas que superarían el tope temporal medido;
+#' el objeto informa cuantos pares eran posibles, cuantos se compararon, el
+#' modo, el tamaño de las teselas y los que quedaron fuera. Solo se muestran
+#' `max_resultados` coincidencias; el truncamiento tambien queda declarado.
 #'
 #' `stringdist` es una dependencia opcional. Si no esta instalado, la funcion
 #' devuelve un objeto con `disponible = FALSE`, una tabla vacia y el motivo
@@ -388,8 +468,12 @@
 #' @param umbral Distancia maxima para informar un par. Por defecto `0.12`.
 #' @param muestra Maximo de filas candidatas; `Inf` usa todas, sujeto a
 #'   `max_pares`.
-#' @param max_pares Maximo de pares comparados. Por defecto `10000`.
+#' @param max_pares Maximo de pares comparados. Por defecto `50000000`, que
+#'   permite recorrer exhaustivamente hasta 10.000 filas con el método y el
+#'   bloque predeterminados; se puede reducir para limitar el tiempo.
 #' @param max_resultados Maximo de pares devueltos. Por defecto `100`.
+#' @param bloque Cantidad de filas por tesela de comparación. Por defecto
+#'   `1000`; controla la memoria temporal, no el número de pares comparados.
 #' @param normalizar Si se recortan espacios, se pasa a minusculas y se
 #'   colapsan espacios antes de calcular la distancia.
 #' @param perfil Perfil de los mismos datos para reutilizar su clasificacion de
@@ -411,8 +495,9 @@
 #' if (!pares$disponible) pares$razon
 detectar_duplicados_aproximados <- function(
     datos, columnas = NULL, metodo = "jw", umbral = 0.12,
-    muestra = 1000L, max_pares = 10000L, max_resultados = 100L,
-    normalizar = TRUE, perfil = NULL, proteger_datos_personales = TRUE) {
+    muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
+    normalizar = TRUE, perfil = NULL, proteger_datos_personales = TRUE,
+    bloque = 1000L) {
   if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
       !identical(names(datos), perfil$columnas$columna))) {
     stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
@@ -421,11 +506,12 @@ detectar_duplicados_aproximados <- function(
     return(.detectar_duplicados_aproximados(
       datos, columnas, metodo, umbral, muestra, max_pares, max_resultados,
       normalizar, clasificacion = perfil$datos_personales,
-      proteger_datos_personales = proteger_datos_personales
+      proteger_datos_personales = proteger_datos_personales, bloque = bloque
     ))
   }
   .detectar_duplicados_aproximados(
     datos, columnas, metodo, umbral, muestra, max_pares, max_resultados,
-    normalizar, proteger_datos_personales = proteger_datos_personales
+    normalizar, proteger_datos_personales = proteger_datos_personales,
+    bloque = bloque
   )
 }

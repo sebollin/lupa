@@ -9,12 +9,13 @@ detectar_duplicados_aproximados(
   columnas = NULL,
   metodo = "jw",
   umbral = 0.12,
-  muestra = 1000L,
-  max_pares = 10000L,
+  muestra = Inf,
+  max_pares = 50000000L,
   max_resultados = 100L,
   normalizar = TRUE,
   perfil = NULL,
-  proteger_datos_personales = TRUE
+  proteger_datos_personales = TRUE,
+  bloque = 1000L
 )
 }
 \arguments{
@@ -31,7 +32,9 @@ defecto, \code{"jw"}.}
 \item{muestra}{Maximo de filas candidatas; \code{Inf} usa todas, sujeto a
 \code{max_pares}.}
 
-\item{max_pares}{Maximo de pares comparados. Por defecto \code{10000}.}
+\item{max_pares}{Maximo de pares comparados. Por defecto \code{50000000}, que
+permite recorrer exhaustivamente hasta 10.000 filas con el método y el
+bloque predeterminados; se puede reducir para limitar el tiempo.}
 
 \item{max_resultados}{Maximo de pares devueltos. Por defecto \code{100}.}
 
@@ -43,13 +46,16 @@ datos personales y no volver a inferirla.}
 
 \item{proteger_datos_personales}{Si la evidencia de columnas protegidas se
 reemplaza por \verb{[valor protegido]}. La supresion queda indicada en cada par.}
+
+\item{bloque}{Cantidad de filas por tesela de comparación. Por defecto
+\code{1000}; controla la memoria temporal, no el número de pares comparados.}
 }
 \value{
 Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
 \code{alcance}, \code{columnas}, \code{metodo}, \code{umbral}, \code{disponible} y \code{razon}.
 }
 \description{
-Compara una muestra acotada de filas con \code{stringdist} y devuelve pares cuya
+Compara filas seleccionadas de una tabla con \code{stringdist} y devuelve pares cuya
 distancia esta bajo el umbral. El resultado describe similitud, distancia,
 medida y alcance; nunca afirma que dos filas representen la misma entidad.
 Por omision se combinan como maximo dos columnas de texto o factores, despues
@@ -65,11 +71,13 @@ demasiados pares. Ambos argumentos se pueden cambiar.
 Los pares con distancia cero se incluyen como \code{tipo_par = "exacto"}; los
 restantes son \code{"aproximado"}. Ninguno demuestra identidad.
 
-La comparacion es deliberadamente limitada: \code{muestra} selecciona filas de
-forma sistematica y \code{max_pares} limita los pares evaluados. El objeto informa
-cuantos pares eran posibles, cuantos se compararon, la estrategia y los que
-quedaron fuera. Solo se muestran \code{max_resultados} coincidencias; el
-truncamiento tambien queda declarado.
+La comparacion usa teselas de \code{bloque} filas: cada matriz temporal se
+descarta antes de continuar, por lo que la memoria no crece con el tamaño
+de la tabla. El recorrido es exacto para las filas seleccionadas. \code{muestra}
+y \code{max_pares} sólo recortan tablas que superarían el tope temporal medido;
+el objeto informa cuantos pares eran posibles, cuantos se compararon, el
+modo, el tamaño de las teselas y los que quedaron fuera. Solo se muestran
+\code{max_resultados} coincidencias; el truncamiento tambien queda declarado.
 
 \code{stringdist} es una dependencia opcional. Si no esta instalado, la funcion
 devuelve un objeto con \code{disponible = FALSE}, una tabla vacia y el motivo
