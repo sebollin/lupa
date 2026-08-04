@@ -208,6 +208,43 @@ test_that("los pares exactos en las columnas elegidas quedan visibles", {
   expect_equal(sum(duplicated(datos)), 0L)
 })
 
+test_that("el reenmascarado protege hallazgos compuestos nuevos y exactos", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = c("Ana Perez", "Ana Perez", "Luis Diaz"),
+    domicilio = c("Calle Uruguay 123", "Calle Uruguay 123", "Av Italia 900"),
+    stringsAsFactors = FALSE
+  )
+  analisis <- analizar(
+    datos, proteger_datos_personales = FALSE,
+    argumentos_perfil = list(
+      duplicados_aproximados = list(columnas = c("nombre", "domicilio"))
+    )
+  )
+  archivo <- tempfile(fileext = ".html")
+  on.exit(unlink(archivo), add = TRUE)
+  invisible(reportar(analisis, archivo = archivo))
+  html <- paste(readLines(archivo, encoding = "UTF-8"), collapse = "\n")
+  expect_false(grepl("Ana Perez|Calle Uruguay 123", html, perl = TRUE))
+  expect_match(html, "evidencia protegida", fixed = TRUE)
+
+  compuesto <- data.frame(
+    columna = "nombre, domicilio", tipo_hallazgo = "hallazgo_compuesto_nuevo",
+    evidencia = "Ana Perez / Calle Uruguay 123", stringsAsFactors = FALSE
+  )
+  compuesto$severidad <- factor("sospechoso",
+    levels = c("ok", "sospechoso", "error"), ordered = TRUE
+  )
+  compuesto$descripcion <- "prueba"
+  compuesto$sugerencia <- "revisar"
+  base <- perfilar(datos, analizar_dependencias = FALSE)
+  protegido <- lupa:::.proteger_componentes_perfil(
+    base$columnas, base$patrones, base$dependencias, compuesto,
+    base$datos_personales
+  )
+  expect_equal(protegido$hallazgos$evidencia, "[evidencia protegida]")
+})
+
 test_that("la seleccion automatica evita mezclar demasiadas columnas", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(a = "x", b = "y", c = "z")

@@ -376,14 +376,15 @@
       }
     }
   }
+  # `columna` puede ser una columna simple o una lista de columnas
+  # separadas por comas. La decisión se toma por el contenido, no por el tipo
+  # de hallazgo, para que los nuevos hallazgos compuestos queden protegidos
+  # automáticamente.
   indices_hallazgos <- !is.na(hallazgos$columna) &
-    hallazgos$columna %in% sensibles &
-    hallazgos$tipo_hallazgo != "dato_personal_posible"
-  indices_aproximados <- hallazgos$tipo_hallazgo == "duplicados_aproximados" &
+    hallazgos$tipo_hallazgo != "dato_personal_posible" &
     vapply(strsplit(as.character(hallazgos$columna), ",", fixed = TRUE),
            function(columnas) any(trimws(columnas) %in% sensibles),
            logical(1L))
-  indices_hallazgos <- indices_hallazgos | indices_aproximados
   hallazgos$evidencia[indices_hallazgos] <- "[evidencia protegida]"
   if (nrow(dependencias)) {
     indices_dependencias <- dependencias$determinante %in% sensibles |
