@@ -264,3 +264,21 @@ test_that("la proteccion admite objetos creados con esquemas anteriores", {
     as.POSIXct("2026-01-01", tz = "UTC")
   ), 0L)
 })
+
+test_that("la proteccion conserva el nombre completo de una columna con coma", {
+  valores <- c("  Wilson Cabrera Techera ", "ESTELA NUNEZ BERRUTTI",
+               "heber pintos olivera", "Rosalia  Fagundez")
+  datos <- data.frame(x = rep(valores, 4L), stringsAsFactors = FALSE)
+  names(datos) <- "nombre, apellido"
+  analisis <- analizar(datos, proteger_datos_personales = TRUE)
+  archivo <- tempfile(fileext = ".html")
+  on.exit(unlink(archivo), add = TRUE)
+  invisible(reportar(analisis, archivo = archivo))
+  html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
+                collapse = "\n")
+  expect_false(any(vapply(
+    trimws(valores), function(valor) grepl(valor, html, fixed = TRUE),
+    logical(1L)
+  )))
+  expect_match(html, "evidencia protegida", fixed = TRUE)
+})
