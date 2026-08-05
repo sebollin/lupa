@@ -41,7 +41,7 @@ a \code{max_pares}; con LSH, \code{Inf} usa todas las filas.}
 \code{50000000}, que permite recorrer exhaustivamente hasta 10.000 filas con el
 método y el bloque predeterminados; se puede reducir para limitar el tiempo.
 En LSH el alcance se expresa con candidatos y cubetas, por lo que este
-límite no se usa para recortar filas.}
+límite no se usa para recortar filas; el resultado lo marca explícitamente.}
 
 \item{max_resultados}{Maximo de pares devueltos. Por defecto \code{100}.}
 
@@ -98,7 +98,10 @@ La comparacion usa teselas de \code{bloque} filas: cada matriz temporal se
 descarta antes de continuar, por lo que la memoria no crece con el tamaño
 de la tabla. El recorrido es exacto para las filas seleccionadas. \code{muestra}
 y \code{max_pares} recortan el camino exacto; en el camino LSH, \code{muestra = Inf}
-conserva todas las filas y \code{max_pares} no se traduce a un número de filas.
+conserva todas las filas y \code{max_pares} no se aplica a las comparaciones.
+En ese camino \code{alcance$limite_pares} es \code{NA}, mientras
+\code{limite_pares_configurado} conserva el valor pedido como referencia y
+\code{limite_pares_aplica} permite distinguir ambos casos sin inferirlo.
 El objeto informa cuantos pares eran posibles, cuantos se compararon, el
 modo, el tamaño de las teselas o los parámetros LSH y los que quedaron fuera. Solo se muestran
 \code{max_resultados} coincidencias; el truncamiento tambien queda declarado.
@@ -116,9 +119,14 @@ los q-gramas, no a la medida final (\code{metodo}). \code{estrategia = "lsh"} fu
 este camino; \code{"teselas"} y \code{"muestra"} conservan el camino exacto o
 muestreado de las versiones anteriores. Las cubetas que superan
 \code{lsh_max_cubeta} se procesan igualmente por lotes; el parámetro identifica
-cubetas potencialmente costosas, pero no descarta sus pares. Si alguna
-implementación futura descarta una cubeta, la garantía se devuelve como
-\code{NA} y \code{lsh_garantia_estado} lo deja explícito.
+cubetas potencialmente costosas, pero no descarta sus pares. El alcance
+separa \code{lsh_teselas_cubetas_grandes} (matrices del primer tramo) de
+\code{lsh_lotes_cubetas_grandes} (lotes de filas de las bandas posteriores), pues
+no son la misma unidad. Los pares aceptados por ambos recorridos entran al
+resumen de Jaccard. Si alguna implementación futura descarta una cubeta,
+la garantía se devuelve como \code{NA} y \code{lsh_garantia_estado} lo deja explícito.
+La familia MinHash usa una semilla interna fija y restaura el estado global
+del generador de R; por eso es determinista sin depender de \code{set.seed()}.
 }
 \examples{
 datos <- data.frame(

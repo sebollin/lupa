@@ -80,6 +80,9 @@ test_that("MinHash y LSH generan pares unicos y declaran su garantia", {
   )
   expect_equal(resultado$alcance$modo_comparacion, "lsh_minhash")
   expect_equal(resultado$alcance$lsh_tamano_firma, 6L)
+  expect_equal(resultado$alcance$lsh_semilla_hash, 1L)
+  expect_equal(resultado$alcance$lsh_hash_familia,
+               "coeficientes_deterministas_no_afines")
   expect_gte(resultado$alcance$lsh_candidatos_generados,
              resultado$alcance$lsh_candidatos_unicos)
   expect_equal(
@@ -108,7 +111,8 @@ test_that("las cubetas LSH grandes se declaran y procesan por troceo", {
   expect_gt(resultado$alcance$lsh_cubetas_grandes, 0)
   expect_equal(resultado$alcance$lsh_pares_descartados_cubetas, 0)
   expect_gt(resultado$alcance$lsh_pares_cubetas_troceadas, 0)
-  expect_gt(resultado$alcance$lsh_bloques_cubetas_troceadas, 0)
+  expect_gt(resultado$alcance$lsh_teselas_cubetas_grandes, 0)
+  expect_equal(resultado$alcance$lsh_lotes_cubetas_grandes, 0)
   expect_equal(
     resultado$alcance$lsh_candidatos_generados,
     resultado$alcance$lsh_candidatos_unicos +
@@ -166,7 +170,46 @@ test_that("una cubeta posterior puede trocearse sin perder su alcance", {
     lsh_q = 1L, lsh_max_cubeta = 2L, max_resultados = 10L
   )
   expect_gt(resultado$alcance$lsh_pares_cubetas_troceadas, 0)
-  expect_gt(resultado$alcance$lsh_bloques_cubetas_troceadas, 0)
+  expect_gt(resultado$alcance$lsh_lotes_cubetas_grandes, 0)
+  expect_equal(resultado$alcance$lsh_teselas_cubetas_grandes, 0)
+})
+
+test_that("las cubetas troceadas tambien entran al diagnostico de Jaccard", {
+  skip_if_not_installed("stringdist")
+  resultado <- detectar_duplicados_aproximados(
+    data.frame(nombre = rep("mismo valor", 30L)), estrategia = "lsh",
+    lsh_max_cubeta = 2L, lsh_bandas = 2L, lsh_filas = 2L,
+    max_resultados = 5L
+  )
+  expect_gt(resultado$alcance$lsh_teselas_cubetas_grandes, 0)
+  expect_gt(resultado$alcance$lsh_jaccard_evaluados, 0)
+  expect_equal(resultado$alcance$lsh_jaccard_bajo_07, 0)
+  expect_equal(resultado$alcance$lsh_jaccard_minimo, 1)
+  masivo <- detectar_duplicados_aproximados(
+    data.frame(nombre = rep("mismo valor", 150L)), estrategia = "lsh",
+    lsh_max_cubeta = 2L, lsh_bandas = 2L, lsh_filas = 2L,
+    max_resultados = 5L
+  )
+  expect_gt(masivo$alcance$lsh_jaccard_pares_elegibles,
+            masivo$alcance$lsh_jaccard_evaluados)
+  expect_match(masivo$alcance$lsh_jaccard_alcance,
+               "muestra_determinista", fixed = TRUE)
+})
+
+test_that("el limite de pares declara si aplica al camino usado", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(nombre = c("Ana", "Ana", "Luis"))
+  lsh <- detectar_duplicados_aproximados(
+    datos, estrategia = "lsh", max_pares = 2L, max_resultados = Inf
+  )
+  expect_true(is.na(lsh$alcance$limite_pares))
+  expect_equal(lsh$alcance$limite_pares_configurado, 2L)
+  expect_false(lsh$alcance$limite_pares_aplica)
+  exacto <- detectar_duplicados_aproximados(
+    datos, estrategia = "teselas", max_pares = 2L
+  )
+  expect_equal(exacto$alcance$limite_pares, 2L)
+  expect_true(exacto$alcance$limite_pares_aplica)
 })
 
 test_that("las primitivas LSH cubren casos vacios, cortos y con padding", {
@@ -180,6 +223,13 @@ test_that("las primitivas LSH cubren casos vacios, cortos y con padding", {
     matrix(c(1L, 0L, 1L, 2L), nrow = 2L, byrow = TRUE), 2L
   )
   expect_equal(dim(firmas), c(2L, 2L))
+  set.seed(42)
+  estado <- .Random.seed
+  expect_identical(
+    lupa:::.firmas_minhash_lsh(matrix(c(1L, 2L, 3L, 2L), 2L, 2L), 4L),
+    lupa:::.firmas_minhash_lsh(matrix(c(1L, 2L, 3L, 2L), 2L, 2L), 4L)
+  )
+  expect_identical(.Random.seed, estado)
   expect_equal(dim(lupa:::.firmas_minhash_lsh(matrix(0L, 2L, 2L), 2L)),
                c(2L, 2L))
   expect_equal(lupa:::.pares_acumulador_duplicados(

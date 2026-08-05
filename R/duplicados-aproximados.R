@@ -34,6 +34,8 @@
     n_pares_aproximados = 0,
     n_pares_mostrados = 0,
     limite_pares = max_pares,
+    limite_pares_configurado = max_pares,
+    limite_pares_aplica = FALSE,
     limite_resultados = max_resultados,
     muestra = muestra,
     muestra_efectiva = 0,
@@ -165,7 +167,7 @@
 #' @noRd
 .comparar_bloques_duplicados <- function(
     valores, filas, metodo, umbral, bloque, max_resultados,
-    acumulador = NULL) {
+    acumulador = NULL, on_pairs = NULL) {
   n <- length(valores)
   acumular_en_externo <- !is.null(acumulador)
   if (is.null(acumulador)) {
@@ -203,6 +205,7 @@
       distancias <- as.numeric(matriz[candidatas])
       f1 <- filas[filas_i[candidatas[, 1L]]]
       f2 <- filas[filas_j[candidatas[, 2L]]]
+      if (!is.null(on_pairs)) on_pairs(f1, f2, distancias)
       acumulador <- .acumular_pares_duplicados(
         acumulador, f1, f2, distancias
       )
@@ -275,26 +278,40 @@
   n <- nrow(ids)
   vocabulario <- max(ids, na.rm = TRUE)
   if (!is.finite(vocabulario) || vocabulario < 1L) vocabulario <- 1L
-  # Multiplicadores acotados para que el producto permanezca exacto en double.
+  # Los coeficientes no se generan como una sucesion afin del indice del hash:
+  # las bandas necesitan una familia suficientemente desacoplada para que la
+  # probabilidad teorica 1 - (1 - s^r)^b sea una aproximacion alcanzable.
+  # `semilla` es interna y fija; se restaura el estado de RNG del llamador para
+  # que el resultado no dependa de `set.seed()` ni lo modifique.
   primo <- 1000000007
-  semillas <- seq_len(n_hashes)
-  # Los multiplicadores cubren el cuerpo modular; una secuencia pequeña y
-  # siempre creciente produciría un orden casi monotónico y no un MinHash.
-  a <- (semillas * 1103515245 + 12345) %% (primo - 1) + 1
-  b <- (semillas * 214013 + 2531011) %% primo
-  firmas <- matrix(0L, nrow = n, ncol = n_hashes)
+  semilla <- 1L
+  habia_semilla <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  if (habia_semilla) semilla_anterior <- get(".Random.seed", .GlobalEnv)
+  set.seed(semilla)
+  on.exit({
+    if (habia_semilla) {
+      assign(".Random.seed", semilla_anterior, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+  # `a` queda acotado para que `a * id` sea exacto en double incluso con
+  # vocabularios grandes; `b` recorre el primo completo. El muestreo interno
+  # produce coeficientes no afines entre hashes y es reproducible.
+  a <- as.numeric(sample.int(1000003L, n_hashes))
+  b <- as.numeric(sample.int(primo, n_hashes)) - 1
+  firmas <- matrix(Inf, nrow = n, ncol = n_hashes)
   for (h in seq_len(n_hashes)) {
-    hash <- c(primo, as.integer((a[[h]] * seq_len(vocabulario) + b[[h]]) %% primo))
-    ids_col <- ids[, 1L]
-    minimo <- hash[pmax(ids_col, 1L)]
-    minimo[ids_col == 0L] <- Inf
-    if (ncol(ids) > 1L) {
-      for (j in 2L:ncol(ids)) {
+    # El indice 0 es padding y el id k usa exactamente la permutacion k.
+    # Antes un centinela antepuesto desplazaba todos los ids una posicion.
+    hash <- c(NA_real_,
+              (a[[h]] * as.numeric(seq_len(vocabulario)) + b[[h]]) %% primo)
+    minimo <- rep(Inf, n)
+    for (j in seq_len(ncol(ids))) {
         ids_col <- ids[, j]
-        valores <- hash[pmax(ids_col, 1L)]
+        valores <- hash[ids_col + 1L]
         valores[ids_col == 0L] <- Inf
         minimo <- pmin(minimo, valores)
-      }
     }
     firmas[, h] <- minimo
   }
@@ -350,12 +367,56 @@
   cubetas_grandes <- 0L
   pares_descartados_cubetas <- 0
   pares_cubetas_troceadas <- 0
-  bloques_cubetas_troceadas <- 0L
+  teselas_cubetas_grandes <- 0L
+  lotes_cubetas_grandes <- 0L
   jaccard <- numeric()
   n_jaccard <- 0
+  n_jaccard_pares <- 0
   n_jaccard_bajo <- 0
   muestra_jaccard <- 10000L
   claves_previas <- list()
+  posiciones <- integer(max(filas))
+  posiciones[filas] <- seq_along(filas)
+  cache_gramas <- new.env(hash = TRUE, parent = emptyenv())
+  obtener_gramas <- function(indice) {
+    texto <- valores[[indice]]
+    clave <- paste0("v:", texto)
+    if (exists(clave, envir = cache_gramas, inherits = FALSE)) {
+      return(get(clave, envir = cache_gramas, inherits = FALSE))
+    }
+    gramas <- .qgramas_lsh(texto, q)[[1L]]
+    # Las cubetas densas suelen repetir exactamente el mismo valor. Cachear
+    # hasta diez mil valores evita recalcular sus q-gramas sin retener toda la
+    # columna en memoria en un padrón de alta cardinalidad.
+    if (length(cache_gramas) < 10000L) {
+      assign(clave, gramas, envir = cache_gramas)
+    }
+    gramas
+  }
+  registrar_jaccard <- function(indices_1, indices_2) {
+    if (!length(indices_1)) return(invisible(NULL))
+    n_jaccard_pares <<- n_jaccard_pares + length(indices_1)
+    disponibles <- muestra_jaccard - n_jaccard
+    if (disponibles <= 0) return(invisible(NULL))
+    indices <- seq_len(min(length(indices_1), disponibles))
+    for (indice in indices) {
+      valor_j <- .jaccard_qgramas(
+        obtener_gramas(indices_1[[indice]]),
+        obtener_gramas(indices_2[[indice]])
+      )
+      n_jaccard <<- n_jaccard + 1L
+      n_jaccard_bajo <<- n_jaccard_bajo + (valor_j < 0.7)
+      if (length(jaccard) < muestra_jaccard) {
+        jaccard <<- c(jaccard, valor_j)
+      }
+    }
+    invisible(NULL)
+  }
+  registrar_jaccard_filas <- function(filas_1, filas_2, distancias) {
+    # El comparador por teselas entrega indices de fila originales; la tabla
+    # inversa evita un `match()` por par en una cubeta densa.
+    registrar_jaccard(posiciones[filas_1], posiciones[filas_2])
+  }
   for (banda in seq_len(bandas)) {
     columnas <- ((banda - 1L) * filas_banda + 1L):(banda * filas_banda)
     claves <- do.call(paste, c(
@@ -381,10 +442,10 @@
         por_teselas <- .comparar_bloques_duplicados(
           valores[indices], filas[indices], metodo, umbral,
           bloque = min(2000L, tamano), max_resultados = max_resultados,
-          acumulador = acumulador
+          acumulador = acumulador, on_pairs = registrar_jaccard_filas
         )
         acumulador <- por_teselas$acumulador
-        bloques_cubetas_troceadas <- bloques_cubetas_troceadas +
+        teselas_cubetas_grandes <- teselas_cubetas_grandes +
           por_teselas$n_bloques
         candidatos_generados <- candidatos_generados + posibles_grupo
         candidatos_unicos <- candidatos_unicos + posibles_grupo
@@ -407,7 +468,7 @@
       }
       if (tamano > max_cubeta) {
         pares_cubetas_troceadas <- pares_cubetas_troceadas + posibles_grupo
-        bloques_cubetas_troceadas <- bloques_cubetas_troceadas +
+        lotes_cubetas_grandes <- lotes_cubetas_grandes +
           ceiling((tamano - 1) / 100)
       }
       # Las cubetas grandes no se descartan: se procesan con el mismo recorrido
@@ -442,15 +503,7 @@
         pasan <- is.finite(distancias) & distancias <= umbral
         if (any(pasan)) {
           indices_pasan <- which(pasan)
-          for (indice in indices_pasan) {
-            gramas_par <- .qgramas_lsh(valores[c(p1[[indice]], p2[[indice]])], q)
-            valor_j <- .jaccard_qgramas(gramas_par[[1L]], gramas_par[[2L]])
-            n_jaccard <- n_jaccard + 1L
-            n_jaccard_bajo <- n_jaccard_bajo + (valor_j < 0.7)
-            if (length(jaccard) < muestra_jaccard) {
-              jaccard <- c(jaccard, valor_j)
-            }
-          }
+          registrar_jaccard(p1[indices_pasan], p2[indices_pasan])
           filas_a <- filas[p1[indices_pasan]]
           filas_b <- filas[p2[indices_pasan]]
           intercambiar <- filas_a > filas_b
@@ -492,6 +545,8 @@
     alcance = data.frame(
       lsh_bandas = bandas, lsh_filas = filas_banda,
       lsh_tamano_firma = n_hashes, lsh_q = q,
+      lsh_semilla_hash = 1L,
+      lsh_hash_familia = "coeficientes_deterministas_no_afines",
       lsh_max_cubeta = max_cubeta,
       lsh_garantia_jaccard_09 = .garantia_lsh(
         0.9, bandas, filas_banda, pares_descartados_cubetas
@@ -505,12 +560,19 @@
       lsh_cubetas_grandes = cubetas_grandes,
       lsh_pares_descartados_cubetas = pares_descartados_cubetas,
       lsh_pares_cubetas_troceadas = pares_cubetas_troceadas,
-      lsh_bloques_cubetas_troceadas = bloques_cubetas_troceadas,
+      lsh_teselas_cubetas_grandes = teselas_cubetas_grandes,
+      lsh_lotes_cubetas_grandes = lotes_cubetas_grandes,
       lsh_candidatos_generados = candidatos_generados,
       lsh_candidatos_unicos = candidatos_unicos,
       lsh_candidatos_descartados_bandas = candidatos_descartados_bandas,
       lsh_pares_comparados = pares_comparados,
       lsh_jaccard_evaluados = n_jaccard,
+      lsh_jaccard_pares_elegibles = n_jaccard_pares,
+      lsh_jaccard_alcance = if (n_jaccard_pares > n_jaccard) {
+        paste0("muestra_determinista_de_", n_jaccard,
+               "_pares_de_", n_jaccard_pares,
+               "; incluye_teselas_y_lotes")
+      } else "todos_los_pares_que_pasaron_el_umbral",
       lsh_jaccard_bajo_07 = n_jaccard_bajo,
       lsh_prop_jaccard_bajo_07 = if (n_jaccard) n_jaccard_bajo / n_jaccard else NA_real_,
       lsh_jaccard_minimo = resumen_jaccard[[1L]],
@@ -824,7 +886,10 @@
     n_pares_hallados = n_hallados, n_pares_mostrados = mostrados,
     n_pares_exactos = n_exactos,
     n_pares_aproximados = n_aproximados,
-    limite_pares = max_pares, limite_resultados = max_resultados,
+    limite_pares = if (usar_lsh) NA_real_ else max_pares,
+    limite_pares_configurado = max_pares,
+    limite_pares_aplica = !usar_lsh,
+    limite_resultados = max_resultados,
     muestra = muestra,
     muestra_efectiva = length(indices),
     estrategia = estrategia_salida,
@@ -869,7 +934,10 @@
 #' descarta antes de continuar, por lo que la memoria no crece con el tamaño
 #' de la tabla. El recorrido es exacto para las filas seleccionadas. `muestra`
 #' y `max_pares` recortan el camino exacto; en el camino LSH, `muestra = Inf`
-#' conserva todas las filas y `max_pares` no se traduce a un número de filas.
+#' conserva todas las filas y `max_pares` no se aplica a las comparaciones.
+#' En ese camino `alcance$limite_pares` es `NA`, mientras
+#' `limite_pares_configurado` conserva el valor pedido como referencia y
+#' `limite_pares_aplica` permite distinguir ambos casos sin inferirlo.
 #' El objeto informa cuantos pares eran posibles, cuantos se compararon, el
 #' modo, el tamaño de las teselas o los parámetros LSH y los que quedaron fuera. Solo se muestran
 #' `max_resultados` coincidencias; el truncamiento tambien queda declarado.
@@ -887,9 +955,14 @@
 #' este camino; `"teselas"` y `"muestra"` conservan el camino exacto o
 #' muestreado de las versiones anteriores. Las cubetas que superan
 #' `lsh_max_cubeta` se procesan igualmente por lotes; el parámetro identifica
-#' cubetas potencialmente costosas, pero no descarta sus pares. Si alguna
-#' implementación futura descarta una cubeta, la garantía se devuelve como
-#' `NA` y `lsh_garantia_estado` lo deja explícito.
+#' cubetas potencialmente costosas, pero no descarta sus pares. El alcance
+#' separa `lsh_teselas_cubetas_grandes` (matrices del primer tramo) de
+#' `lsh_lotes_cubetas_grandes` (lotes de filas de las bandas posteriores), pues
+#' no son la misma unidad. Los pares aceptados por ambos recorridos entran al
+#' resumen de Jaccard. Si alguna implementación futura descarta una cubeta,
+#' la garantía se devuelve como `NA` y `lsh_garantia_estado` lo deja explícito.
+#' La familia MinHash usa una semilla interna fija y restaura el estado global
+#' del generador de R; por eso es determinista sin depender de `set.seed()`.
 #'
 #' @param datos Tabla con una fila por entidad observada.
 #' @param columnas Columnas atomicas a combinar. `NULL` aplica la seleccion
@@ -903,7 +976,7 @@
 #'   `50000000`, que permite recorrer exhaustivamente hasta 10.000 filas con el
 #'   método y el bloque predeterminados; se puede reducir para limitar el tiempo.
 #'   En LSH el alcance se expresa con candidatos y cubetas, por lo que este
-#'   límite no se usa para recortar filas.
+#'   límite no se usa para recortar filas; el resultado lo marca explícitamente.
 #' @param max_resultados Maximo de pares devueltos. Por defecto `100`.
 #' @param bloque Cantidad de filas por tesela de comparación. Por defecto
 #'   `1000`; controla la memoria temporal, no el número de pares comparados.
