@@ -82,7 +82,7 @@ test_that("MinHash y LSH generan pares unicos y declaran su garantia", {
   expect_equal(resultado$alcance$lsh_tamano_firma, 6L)
   expect_equal(resultado$alcance$lsh_semilla_hash, 1L)
   expect_equal(resultado$alcance$lsh_hash_familia,
-               "coeficientes_deterministas_no_afines")
+               "familia_afin_determinista_inyectiva")
   expect_gte(resultado$alcance$lsh_candidatos_generados,
              resultado$alcance$lsh_candidatos_unicos)
   expect_equal(
@@ -193,7 +193,7 @@ test_that("las cubetas troceadas tambien entran al diagnostico de Jaccard", {
   expect_gt(masivo$alcance$lsh_jaccard_pares_elegibles,
             masivo$alcance$lsh_jaccard_evaluados)
   expect_match(masivo$alcance$lsh_jaccard_alcance,
-               "muestra_determinista", fixed = TRUE)
+               "primeros_del_recorrido", fixed = TRUE)
 })
 
 test_that("el limite de pares declara si aplica al camino usado", {
@@ -236,6 +236,8 @@ test_that("las primitivas LSH cubren casos vacios, cortos y con padding", {
   expect_identical(.Random.seed, estado)
   expect_equal(dim(lupa:::.firmas_minhash_lsh(matrix(0L, 2L, 2L), 2L)),
                c(2L, 2L))
+  expect_equal(dim(lupa:::.firmas_minhash_lsh(matrix(0L, 2L, 2L), 0L)),
+               c(2L, 0L))
   expect_equal(lupa:::.pares_acumulador_duplicados(
     lupa:::.nuevo_acumulador_duplicados(Inf)
   ), data.frame(fila_1 = integer(), fila_2 = integer(), distancia = numeric()))

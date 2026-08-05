@@ -276,11 +276,15 @@
 
 .firmas_minhash_lsh <- function(ids, n_hashes) {
   n <- nrow(ids)
-  # Los coeficientes no se generan como una sucesion afin del indice del hash:
-  # las bandas necesitan una familia suficientemente desacoplada para que la
-  # probabilidad teorica 1 - (1 - s^r)^b sea una aproximacion alcanzable.
-  # `semilla` es interna y fija; se restaura el estado de RNG del llamador para
-  # que el resultado no dependa de `set.seed()` ni lo modifique.
+  if (!n_hashes) return(matrix(numeric(), nrow = n, ncol = 0L))
+  # La semilla es interna y fija; se restaura el estado del llamador para que
+  # el resultado no dependa de `set.seed()` ni lo modifique.
+  # Cada hash es una permutacion afin h(x) = a*x + b (mod p), con p primo y
+  # 1 <= a < p. Por eso es inyectivo sobre el vocabulario y conserva la
+  # propiedad MinHash. Los coeficientes se sortean sobre todo el cuerpo, no
+  # como una sucesion del indice del hash: asi las bandas no comparten la
+  # dependencia que hacia inalcanzable la garantia teorica.
+  # `semilla` es interna y fija; dos corridas iguales son identicas.
   semilla <- 1L
   habia_semilla <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
   if (habia_semilla) semilla_anterior <- get(".Random.seed", .GlobalEnv)
@@ -292,26 +296,29 @@
       rm(".Random.seed", envir = .GlobalEnv)
     }
   }, add = TRUE)
-  # Los tres saltos por hash forman una mezcla no lineal del id del q-grama;
-  # todos los productos quedan por debajo de 2^53. El modulo grande evita que
-  # un vocabulario de q-gramas real colisione sólo por su id; los multiplicadores
-  # internos se mantienen pequeños para que R no haga overflow entero.
   primo <- 1000000007
-  modulo_salto <- 1000003
-  sal_1 <- as.numeric(sample.int(modulo_salto, n_hashes))
-  sal_2 <- as.numeric(sample.int(modulo_salto, n_hashes))
-  sal_3 <- as.numeric(sample.int(modulo_salto, n_hashes))
+  vocabulario <- if (length(ids)) suppressWarnings(max(ids, na.rm = TRUE)) else 0
+  if (!is.finite(vocabulario) || vocabulario < 1) vocabulario <- 0
+  vocabulario <- as.integer(vocabulario)
+  coef_a <- as.numeric(sample.int(primo - 1L, n_hashes))
+  coef_b <- as.numeric(sample.int(primo, n_hashes)) - 1
   firmas <- matrix(Inf, nrow = n, ncol = n_hashes)
+  # La tabla de consulta evita repetir la aritmetica modular para cada celda.
+  # En double, a*vocabulario es exacto para los vocabularios de q-gramas
+  # plausibles (hasta aproximadamente nueve millones).
+  ids_consulta <- if (vocabulario) seq_len(vocabulario) else integer()
   for (h in seq_len(n_hashes)) {
+    consulta <- if (vocabulario) {
+      c(NA_real_, (coef_a[[h]] * as.numeric(ids_consulta) + coef_b[[h]]) %% primo)
+    } else {
+      NA_real_
+    }
     minimo <- rep(Inf, n)
     for (j in seq_len(ncol(ids))) {
-      ids_col <- as.numeric(ids[, j])
-      valores <- (ids_col + sal_1[[h]]) %% primo
-      factor <- (valores %% modulo_salto) + sal_2[[h]]
-      valores <- (valores * factor + sal_3[[h]]) %% primo
-      factor <- (valores %% modulo_salto) + sal_1[[h]]
-      valores <- (valores * factor + sal_2[[h]]) %% primo
-      valores[ids_col == 0] <- Inf
+      ids_col <- as.integer(ids[, j])
+      valores <- rep(Inf, n)
+      validos <- ids_col > 0L & ids_col <= vocabulario
+      if (any(validos)) valores[validos] <- consulta[ids_col[validos] + 1L]
       minimo <- pmin(minimo, valores)
     }
     firmas[, h] <- minimo
@@ -547,7 +554,7 @@
       lsh_bandas = bandas, lsh_filas = filas_banda,
       lsh_tamano_firma = n_hashes, lsh_q = q,
       lsh_semilla_hash = 1L,
-      lsh_hash_familia = "coeficientes_deterministas_no_afines",
+      lsh_hash_familia = "familia_afin_determinista_inyectiva",
       lsh_max_cubeta = max_cubeta,
       lsh_garantia_jaccard_09 = .garantia_lsh(
         0.9, bandas, filas_banda, pares_descartados_cubetas
@@ -570,7 +577,7 @@
       lsh_jaccard_evaluados = n_jaccard,
       lsh_jaccard_pares_elegibles = n_jaccard_pares,
       lsh_jaccard_alcance = if (n_jaccard_pares > n_jaccard) {
-        paste0("muestra_determinista_de_", n_jaccard,
+        paste0("primeros_del_recorrido_de_", n_jaccard,
                "_pares_de_", n_jaccard_pares,
                "; incluye_teselas_y_lotes")
       } else "todos_los_pares_que_pasaron_el_umbral",
@@ -962,8 +969,13 @@
 #' no son la misma unidad. Los pares aceptados por ambos recorridos entran al
 #' resumen de Jaccard. Si alguna implementación futura descarta una cubeta,
 #' la garantía se devuelve como `NA` y `lsh_garantia_estado` lo deja explícito.
-#' La familia MinHash usa una semilla interna fija y restaura el estado global
-#' del generador de R; por eso es determinista sin depender de `set.seed()`.
+#' La familia MinHash usa hashes afines inyectivos sobre un primo, con una
+#' semilla interna fija, y restaura el estado global del generador de R; por eso
+#' es determinista sin depender de `set.seed()`. La tabla de consulta de cada
+#' hash evita repetir la aritmetica modular para cada celda de la matriz de
+#' q-gramas. El diagnóstico de Jaccard puede quedar limitado a los primeros
+#' pares del recorrido determinista; `lsh_jaccard_alcance` lo dice literalmente
+#' y no presenta ese prefijo como una muestra representativa.
 #'
 #' @param datos Tabla con una fila por entidad observada.
 #' @param columnas Columnas atomicas a combinar. `NULL` aplica la seleccion
