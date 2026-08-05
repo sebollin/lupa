@@ -223,6 +223,10 @@ test_that("las primitivas LSH cubren casos vacios, cortos y con padding", {
     matrix(c(1L, 0L, 1L, 2L), nrow = 2L, byrow = TRUE), 2L
   )
   expect_equal(dim(firmas), c(2L, 2L))
+  solo_primer_id <- lupa:::.firmas_minhash_lsh(
+    matrix(c(1L, 0L, 2L, 0L), nrow = 2L, byrow = TRUE), 2L
+  )
+  expect_true(all(is.finite(solo_primer_id)))
   set.seed(42)
   estado <- .Random.seed
   expect_identical(
