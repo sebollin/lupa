@@ -276,14 +276,11 @@
 
 .firmas_minhash_lsh <- function(ids, n_hashes) {
   n <- nrow(ids)
-  vocabulario <- max(ids, na.rm = TRUE)
-  if (!is.finite(vocabulario) || vocabulario < 1L) vocabulario <- 1L
   # Los coeficientes no se generan como una sucesion afin del indice del hash:
   # las bandas necesitan una familia suficientemente desacoplada para que la
   # probabilidad teorica 1 - (1 - s^r)^b sea una aproximacion alcanzable.
   # `semilla` es interna y fija; se restaura el estado de RNG del llamador para
   # que el resultado no dependa de `set.seed()` ni lo modifique.
-  primo <- 1000000007
   semilla <- 1L
   habia_semilla <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
   if (habia_semilla) semilla_anterior <- get(".Random.seed", .GlobalEnv)
@@ -295,23 +292,27 @@
       rm(".Random.seed", envir = .GlobalEnv)
     }
   }, add = TRUE)
-  # `a` queda acotado para que `a * id` sea exacto en double incluso con
-  # vocabularios grandes; `b` recorre el primo completo. El muestreo interno
-  # produce coeficientes no afines entre hashes y es reproducible.
-  a <- as.numeric(sample.int(1000003L, n_hashes))
-  b <- as.numeric(sample.int(primo, n_hashes)) - 1
+  # Los tres saltos por hash forman una mezcla no lineal del id del q-grama;
+  # todos los productos quedan por debajo de 2^53. El modulo grande evita que
+  # un vocabulario de q-gramas real colisione sólo por su id; los multiplicadores
+  # internos se mantienen pequeños para que R no haga overflow entero.
+  primo <- 1000000007
+  modulo_salto <- 1000003
+  sal_1 <- as.numeric(sample.int(modulo_salto, n_hashes))
+  sal_2 <- as.numeric(sample.int(modulo_salto, n_hashes))
+  sal_3 <- as.numeric(sample.int(modulo_salto, n_hashes))
   firmas <- matrix(Inf, nrow = n, ncol = n_hashes)
   for (h in seq_len(n_hashes)) {
-    # El indice 0 es padding y el id k usa exactamente la permutacion k.
-    # Antes un centinela antepuesto desplazaba todos los ids una posicion.
-    hash <- c(NA_real_,
-              (a[[h]] * as.numeric(seq_len(vocabulario)) + b[[h]]) %% primo)
     minimo <- rep(Inf, n)
     for (j in seq_len(ncol(ids))) {
-        ids_col <- ids[, j]
-        valores <- hash[ids_col + 1L]
-        valores[ids_col == 0L] <- Inf
-        minimo <- pmin(minimo, valores)
+      ids_col <- as.numeric(ids[, j])
+      valores <- (ids_col + sal_1[[h]]) %% primo
+      factor <- (valores %% modulo_salto) + sal_2[[h]]
+      valores <- (valores * factor + sal_3[[h]]) %% primo
+      factor <- (valores %% modulo_salto) + sal_1[[h]]
+      valores <- (valores * factor + sal_2[[h]]) %% primo
+      valores[ids_col == 0] <- Inf
+      minimo <- pmin(minimo, valores)
     }
     firmas[, h] <- minimo
   }
