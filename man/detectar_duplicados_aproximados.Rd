@@ -125,11 +125,12 @@ separa \code{lsh_teselas_cubetas_grandes} (matrices del primer tramo) de
 no son la misma unidad. Los pares aceptados por ambos recorridos entran al
 resumen de Jaccard. Si alguna implementación futura descarta una cubeta,
 la garantía se devuelve como \code{NA} y \code{lsh_garantia_estado} lo deja explícito.
-La familia MinHash usa hashes afines inyectivos sobre un primo, con una
-semilla interna fija, y restaura el estado global del generador de R; por eso
-es determinista sin depender de \code{set.seed()}. La tabla de consulta de cada
-hash evita repetir la aritmetica modular para cada celda de la matriz de
-q-gramas. El diagnóstico de Jaccard puede quedar limitado a los primeros
+La familia MinHash usa una permutación aleatoria inyectiva del vocabulario,
+con una semilla interna fija, y restaura el estado global del generador de R;
+por eso es determinista sin depender de \code{set.seed()}. La tabla de consulta de
+cada hash evita repetir trabajo para cada celda de la matriz de q-gramas y
+hace que el resultado no dependa de cómo se numeraron esos q-gramas. El
+diagnóstico de Jaccard puede quedar limitado a los primeros
 pares del recorrido determinista; \code{lsh_jaccard_alcance} lo dice literalmente
 y no presenta ese prefijo como una muestra representativa.
 }

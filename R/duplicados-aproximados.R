@@ -279,11 +279,11 @@
   if (!n_hashes) return(matrix(numeric(), nrow = n, ncol = 0L))
   # La semilla es interna y fija; se restaura el estado del llamador para que
   # el resultado no dependa de `set.seed()` ni lo modifique.
-  # Cada hash es una permutacion afin h(x) = a*x + b (mod p), con p primo y
-  # 1 <= a < p. Por eso es inyectivo sobre el vocabulario y conserva la
-  # propiedad MinHash. Los coeficientes se sortean sobre todo el cuerpo, no
-  # como una sucesion del indice del hash: asi las bandas no comparten la
-  # dependencia que hacia inalcanzable la garantia teorica.
+  # Cada hash es una permutacion aleatoria explicita del vocabulario. Por eso
+  # es inyectivo para cualquier tamano de vocabulario y conserva la propiedad
+  # MinHash sin depender de los nombres o del orden de los q-gramas. La
+  # permutacion completa evita que una numeracion consecutiva de q-gramas
+  # produzca progresiones aritmeticas con minimos artificialmente coincidentes.
   # `semilla` es interna y fija; dos corridas iguales son identicas.
   semilla <- 1L
   habia_semilla <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
@@ -296,20 +296,13 @@
       rm(".Random.seed", envir = .GlobalEnv)
     }
   }, add = TRUE)
-  primo <- 1000000007
   vocabulario <- if (length(ids)) suppressWarnings(max(ids, na.rm = TRUE)) else 0
   if (!is.finite(vocabulario) || vocabulario < 1) vocabulario <- 0
   vocabulario <- as.integer(vocabulario)
-  coef_a <- as.numeric(sample.int(primo - 1L, n_hashes))
-  coef_b <- as.numeric(sample.int(primo, n_hashes)) - 1
   firmas <- matrix(Inf, nrow = n, ncol = n_hashes)
-  # La tabla de consulta evita repetir la aritmetica modular para cada celda.
-  # En double, a*vocabulario es exacto para los vocabularios de q-gramas
-  # plausibles (hasta aproximadamente nueve millones).
-  ids_consulta <- if (vocabulario) seq_len(vocabulario) else integer()
   for (h in seq_len(n_hashes)) {
     consulta <- if (vocabulario) {
-      c(NA_real_, (coef_a[[h]] * as.numeric(ids_consulta) + coef_b[[h]]) %% primo)
+      c(NA_real_, as.numeric(sample.int(vocabulario)))
     } else {
       NA_real_
     }
@@ -554,7 +547,7 @@
       lsh_bandas = bandas, lsh_filas = filas_banda,
       lsh_tamano_firma = n_hashes, lsh_q = q,
       lsh_semilla_hash = 1L,
-      lsh_hash_familia = "familia_afin_determinista_inyectiva",
+      lsh_hash_familia = "permutacion_aleatoria_determinista_inyectiva",
       lsh_max_cubeta = max_cubeta,
       lsh_garantia_jaccard_09 = .garantia_lsh(
         0.9, bandas, filas_banda, pares_descartados_cubetas
@@ -969,11 +962,12 @@
 #' no son la misma unidad. Los pares aceptados por ambos recorridos entran al
 #' resumen de Jaccard. Si alguna implementación futura descarta una cubeta,
 #' la garantía se devuelve como `NA` y `lsh_garantia_estado` lo deja explícito.
-#' La familia MinHash usa hashes afines inyectivos sobre un primo, con una
-#' semilla interna fija, y restaura el estado global del generador de R; por eso
-#' es determinista sin depender de `set.seed()`. La tabla de consulta de cada
-#' hash evita repetir la aritmetica modular para cada celda de la matriz de
-#' q-gramas. El diagnóstico de Jaccard puede quedar limitado a los primeros
+#' La familia MinHash usa una permutación aleatoria inyectiva del vocabulario,
+#' con una semilla interna fija, y restaura el estado global del generador de R;
+#' por eso es determinista sin depender de `set.seed()`. La tabla de consulta de
+#' cada hash evita repetir trabajo para cada celda de la matriz de q-gramas y
+#' hace que el resultado no dependa de cómo se numeraron esos q-gramas. El
+#' diagnóstico de Jaccard puede quedar limitado a los primeros
 #' pares del recorrido determinista; `lsh_jaccard_alcance` lo dice literalmente
 #' y no presenta ese prefijo como una muestra representativa.
 #'

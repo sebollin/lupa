@@ -82,7 +82,7 @@ test_that("MinHash y LSH generan pares unicos y declaran su garantia", {
   expect_equal(resultado$alcance$lsh_tamano_firma, 6L)
   expect_equal(resultado$alcance$lsh_semilla_hash, 1L)
   expect_equal(resultado$alcance$lsh_hash_familia,
-               "familia_afin_determinista_inyectiva")
+               "permutacion_aleatoria_determinista_inyectiva")
   expect_gte(resultado$alcance$lsh_candidatos_generados,
              resultado$alcance$lsh_candidatos_unicos)
   expect_equal(
