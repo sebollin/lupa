@@ -115,7 +115,10 @@ test_that("LSH publica la estimacion previa y el vocabulario", {
   expect_gte(alcance$lsh_candidatos_previstos, 0)
   expect_gte(alcance$lsh_candidatos_unicos, 0)
   expect_equal(alcance$lsh_presupuesto_pares, Inf)
-  expect_true(is.finite(alcance$lsh_tiempo_estimado_segundos))
+  expect_false(any(c(
+    "lsh_pares_benchmark", "lsh_velocidad_comparacion",
+    "lsh_tiempo_estimado_segundos"
+  ) %in% names(alcance)))
 })
 
 test_that("el presupuesto LSH corta antes del recorrido", {

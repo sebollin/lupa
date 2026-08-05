@@ -143,9 +143,12 @@ por eso es determinista sin depender de \code{set.seed()} ni de \code{RNGkind()}
 tabla de consulta de cada hash evita repetir trabajo para cada celda de la
 matriz de q-gramas y hace que el resultado no dependa de cómo se numeraron
 esos q-gramas. Antes de recorrer las bandas se toma una muestra interna y se
-publica una estimación de candidatos, velocidad y tiempo; esa estimación no
-es una cuenta exacta. \code{presupuesto_pares} permite rechazar el recorrido antes
-de iniciarlo; sólo se pregunta en una sesión interactiva. El diagnóstico de
+publica una estimación reproducible de candidatos. El cronómetro de la medida
+se ejecuta durante al menos 50 ms y sólo se emite como mensaje informativo:
+no forma parte del objeto, porque depende de la máquina y del momento. Es un
+piso de la medida aislada y no estima la firma, las cubetas ni el troceo.
+\code{presupuesto_pares} permite rechazar el recorrido antes de iniciarlo; sólo se
+pregunta en una sesión interactiva. El diagnóstico de
 Jaccard puede quedar limitado a los primeros
 pares del recorrido determinista; \code{lsh_jaccard_alcance} lo dice literalmente
 y no presenta ese prefijo como una muestra representativa.

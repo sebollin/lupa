@@ -350,19 +350,31 @@
   invisible(stringdist::stringdist(
     valores[pares$fila_1[[1L]]], valores[pares$fila_2[[1L]]], method = metodo
   ))
+  indices_benchmark <- seq_len(n_benchmark)
   inicio <- proc.time()[["elapsed"]]
-  invisible(stringdist::stringdist(
-    valores[pares$fila_1[seq_len(n_benchmark)]],
-    valores[pares$fila_2[seq_len(n_benchmark)]], method = metodo
-  ))
-  transcurrido <- proc.time()[["elapsed"]] - inicio
+  transcurrido <- 0
+  repeticiones <- 0L
+  pares_cronometrados <- 0L
+  # Un solo llamado puede durar menos que la resolucion del reloj. Repetir el
+  # mismo lote hasta 50 ms evita velocidades cuantizadas en 5000/k; el numero
+  # total de pares cronometrados queda declarado en el mensaje informativo.
+  while (transcurrido < 0.05 && repeticiones < 10000L) {
+    invisible(stringdist::stringdist(
+      valores[pares$fila_1[indices_benchmark]],
+      valores[pares$fila_2[indices_benchmark]], method = metodo
+    ))
+    repeticiones <- repeticiones + 1L
+    pares_cronometrados <- pares_cronometrados + n_benchmark
+    transcurrido <- proc.time()[["elapsed"]] - inicio
+  }
   velocidad <- if (is.finite(transcurrido) && transcurrido > 0) {
-    n_benchmark / transcurrido
+    pares_cronometrados / transcurrido
   } else NA_real_
   list(
     candidatos_previstos = candidatos_previstos,
     probabilidad = probabilidad, muestra_usada = nrow(pares),
-    pares_benchmark = n_benchmark, velocidad = velocidad,
+    pares_benchmark = pares_cronometrados, tiempo_benchmark = transcurrido,
+    velocidad = velocidad,
     tiempo = if (is.finite(velocidad)) candidatos_previstos / velocidad else NA_real_
   )
 }
@@ -449,6 +461,32 @@
   estimacion <- .estimar_lsh(
     firmas, valores, metodo, bandas, filas_banda, muestra_estimacion
   )
+  mensaje_tiempo <- if (is.finite(estimacion$tiempo)) {
+    paste0(
+      "LSH: ", format(estimacion$candidatos_previstos,
+        big.mark = ".", decimal.mark = ",", scientific = FALSE),
+      " candidatos previstos; referencia de ",
+      format(round(estimacion$tiempo, 3), nsmall = 3,
+        decimal.mark = ","),
+      " s (piso, no incluye firma ni cubetas), medida con ",
+      estimacion$pares_benchmark, " pares en ",
+      format(round(estimacion$tiempo_benchmark, 3), nsmall = 3,
+        decimal.mark = ","), " s."
+    )
+  # nocov start: reloj sin duración resoluble y salida interactiva dependen
+  # del entorno de ejecución; el camino medible se prueba en la suite.
+  } else {
+    paste0(
+      "LSH: no se pudo medir una velocidad con ",
+      estimacion$pares_benchmark, " pares; el tiempo queda sin estimar."
+    )
+  }
+  if (isTRUE(interactive())) {
+    cli::cli_alert_info(mensaje_tiempo)
+  } else {
+    message(mensaje_tiempo)
+  }
+  # nocov end
   if (is.finite(presupuesto_pares) &&
       estimacion$candidatos_previstos > presupuesto_pares) {
     continuar <- FALSE
@@ -458,7 +496,7 @@
         "La estimaci\u00f3n LSH es de ", format(estimacion$candidatos_previstos,
           big.mark = ".", decimal.mark = ",", scientific = FALSE),
         " pares (muestra de ",
-        estimacion$muestra_usada, ". Continuar? [s/N] "
+        estimacion$muestra_usada, " pares). \u00bfContinuar? [s/N] "
       ))
       continuar <- tolower(trimws(respuesta)) %in% c("s", "si", "\u00ed", "y", "yes")
     }
@@ -471,7 +509,8 @@
         estimacion$muestra_usada, " pares) supera `presupuesto_pares` (",
         format(presupuesto_pares, big.mark = ".", decimal.mark = ",",
           scientific = FALSE),
-        "). No se inici\u00f3 la comparaci\u00f3n; aumente el presupuesto o reduzca la muestra.",
+        "). No se inici\u00f3 la comparaci\u00f3n; aumente el presupuesto, reduzca los datos, ",
+        "suba el umbral o divida el conjunto por una clave.",
         call. = FALSE
       )
     }
@@ -701,9 +740,6 @@
       lsh_probabilidad_candidato_estimada = estimacion$probabilidad,
       lsh_muestra_estimacion = estimacion$muestra_usada,
       lsh_muestra_estimacion_configurada = muestra_estimacion,
-      lsh_pares_benchmark = estimacion$pares_benchmark,
-      lsh_velocidad_comparacion = estimacion$velocidad,
-      lsh_tiempo_estimado_segundos = estimacion$tiempo,
       lsh_presupuesto_pares = presupuesto_pares,
       lsh_candidatos_descartados_bandas = candidatos_descartados_bandas,
       lsh_pares_comparados = pares_comparados,
@@ -1118,9 +1154,12 @@
 #' tabla de consulta de cada hash evita repetir trabajo para cada celda de la
 #' matriz de q-gramas y hace que el resultado no dependa de cómo se numeraron
 #' esos q-gramas. Antes de recorrer las bandas se toma una muestra interna y se
-#' publica una estimación de candidatos, velocidad y tiempo; esa estimación no
-#' es una cuenta exacta. `presupuesto_pares` permite rechazar el recorrido antes
-#' de iniciarlo; sólo se pregunta en una sesión interactiva. El diagnóstico de
+#' publica una estimación reproducible de candidatos. El cronómetro de la medida
+#' se ejecuta durante al menos 50 ms y sólo se emite como mensaje informativo:
+#' no forma parte del objeto, porque depende de la máquina y del momento. Es un
+#' piso de la medida aislada y no estima la firma, las cubetas ni el troceo.
+#' `presupuesto_pares` permite rechazar el recorrido antes de iniciarlo; sólo se
+#' pregunta en una sesión interactiva. El diagnóstico de
 #' Jaccard puede quedar limitado a los primeros
 #' pares del recorrido determinista; `lsh_jaccard_alcance` lo dice literalmente
 #' y no presenta ese prefijo como una muestra representativa.
