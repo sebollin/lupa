@@ -87,7 +87,11 @@ continúa. No limita el camino exacto.}
 }
 \value{
 Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
-\code{alcance}, \code{columnas}, \code{metodo}, \code{umbral}, \code{disponible} y \code{razon}.
+\code{alcance}, \code{columnas}, \code{metodo}, \code{umbral}, \code{disponible}, \code{razon} y
+\code{estimacion}. \code{alcance} es reproducible; en el camino LSH,
+\code{estimacion$tiempo_determinista} es \code{FALSE} y reúne la velocidad, duración
+y tiempo de referencia medidos en esa corrida. En el camino exacto o cuando
+no se puede comparar, \code{estimacion} es \code{NULL}.
 }
 \description{
 Compara filas seleccionadas de una tabla con \code{stringdist} y devuelve pares cuya
@@ -144,9 +148,10 @@ tabla de consulta de cada hash evita repetir trabajo para cada celda de la
 matriz de q-gramas y hace que el resultado no dependa de cómo se numeraron
 esos q-gramas. Antes de recorrer las bandas se toma una muestra interna y se
 publica una estimación reproducible de candidatos. El cronómetro de la medida
-se ejecuta durante al menos 50 ms y sólo se emite como mensaje informativo:
-no forma parte del objeto, porque depende de la máquina y del momento. Es un
-piso de la medida aislada y no estima la firma, las cubetas ni el troceo.
+se ejecuta durante al menos 50 ms y queda en \code{resultado$estimacion}, separado
+de \code{alcance} y marcado como no determinista. Es un piso de la medida aislada
+y no estima la firma, las cubetas ni el troceo; sólo se muestra como aviso en
+una sesión interactiva.
 \code{presupuesto_pares} permite rechazar el recorrido antes de iniciarlo; sólo se
 pregunta en una sesión interactiva. El diagnóstico de
 Jaccard puede quedar limitado a los primeros

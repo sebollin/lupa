@@ -283,6 +283,24 @@
     x, max_filas, proteger_datos_personales = TRUE) {
   alcance <- x$alcance
   pares <- x$pares
+  estimacion <- if (is.list(x$estimacion) && length(x$estimacion)) {
+    data.frame(
+      indicador = names(x$estimacion),
+      valor = vapply(seq_along(x$estimacion), function(i) {
+        valor <- x$estimacion[[i]]
+        if (length(valor) != 1L || is.na(valor)) return("NA")
+        if (names(x$estimacion)[[i]] %in% c(
+          "candidatos_previstos", "muestra_estimacion", "pares_benchmark",
+          "vocabulario"
+        )) {
+          return(format(round(as.numeric(valor)), big.mark = ".",
+                         decimal.mark = ",", scientific = FALSE, trim = TRUE))
+        }
+        as.character(valor)
+      }, character(1L)),
+      stringsAsFactors = FALSE
+    )
+  } else NULL
   if (proteger_datos_personales &&
       isFALSE(x$proteccion_aplicada) && nrow(pares)) {
     pares$evidencia_1 <- "[valor protegido]"
@@ -308,6 +326,12 @@
     "La comparacion por bloques es exhaustiva para esas filas; el tamano del bloque ",
     "y los pares que quedaron fuera se declaran en el alcance.</p>",
     "<h3>Alcance de la comparaci\u00f3n</h3>", .html_tabla(alcance, Inf),
+    if (!is.null(estimacion)) paste0(
+      "<h3>Referencia temporal</h3><p class=\"nota\">",
+      "La referencia se midio en esta corrida, no es determinista y solo ",
+      "estima la medida aislada; no incluye firmas, cubetas ni troceo.</p>",
+      .html_tabla(estimacion, Inf)
+    ) else "",
     "<h3>Pares detectados</h3>", .html_tabla(pares, max_filas),
     if (isTRUE(x$alcance$truncado[[1L]])) {
       "<p class=\"nota\">La tabla de pares mostrados est\u00e1 truncada; el total hallado permanece en el alcance.</p>"

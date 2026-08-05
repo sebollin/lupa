@@ -104,10 +104,14 @@ test_that("MinHash y LSH generan pares unicos y declaran su garantia", {
 test_that("LSH publica la estimacion previa y el vocabulario", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(v = rep(c("Ana Perez", "Ana Peres", "Luis Diaz"), 20L))
-  resultado <- detectar_duplicados_aproximados(
-    datos, columnas = "v", estrategia = "lsh", max_resultados = Inf,
-    lsh_muestra_estimacion = 100L
+  mensajes <- utils::capture.output(
+    resultado <- detectar_duplicados_aproximados(
+      datos, columnas = "v", estrategia = "lsh", max_resultados = Inf,
+      lsh_muestra_estimacion = 100L
+    ),
+    type = "message"
   )
+  expect_length(mensajes, 0L)
   alcance <- resultado$alcance
   expect_gt(alcance$lsh_vocabulario, 0)
   expect_true(isTRUE(alcance$lsh_candidatos_previstos_es_estimacion))
@@ -115,22 +119,66 @@ test_that("LSH publica la estimacion previa y el vocabulario", {
   expect_gte(alcance$lsh_candidatos_previstos, 0)
   expect_gte(alcance$lsh_candidatos_unicos, 0)
   expect_equal(alcance$lsh_presupuesto_pares, Inf)
+  expect_true(is.list(resultado$estimacion))
+  expect_false(isTRUE(resultado$estimacion$tiempo_determinista))
+  expect_gt(resultado$estimacion$pares_benchmark, 0)
   expect_false(any(c(
     "lsh_pares_benchmark", "lsh_velocidad_comparacion",
     "lsh_tiempo_estimado_segundos"
   ) %in% names(alcance)))
+  archivo <- tempfile(fileext = ".html")
+  on.exit(unlink(archivo), add = TRUE)
+  reportar(resultado, archivo = archivo)
+  html <- paste(readLines(archivo, encoding = "UTF-8"), collapse = "\n")
+  expect_match(html, "Referencia temporal", fixed = TRUE)
+  expect_match(html, "tiempo_determinista", fixed = TRUE)
 })
 
 test_that("el presupuesto LSH corta antes del recorrido", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(v = rep(c("Ana Perez", "Ana Peres", "Luis Diaz"), 20L))
-  expect_error(
+  error <- tryCatch(
     detectar_duplicados_aproximados(
       datos, columnas = "v", estrategia = "lsh", max_resultados = Inf,
       lsh_muestra_estimacion = 100L, presupuesto_pares = 1L
     ),
-    "presupuesto_pares.*No se inició"
+    error = identity
   )
+  expect_s3_class(error, "error")
+  expect_match(conditionMessage(error), "presupuesto_pares.*No se inició")
+  expect_match(conditionMessage(error), "reduzca los datos")
+  expect_match(conditionMessage(error), "suba el umbral")
+  expect_match(conditionMessage(error), "divida el conjunto")
+})
+
+test_that("los textos de estimacion declaran pares y cantidades enteras", {
+  fijo <- list(
+    candidatos_previstos = 491344.2, pares_benchmark = 382654L,
+    tiempo = 4.4, tiempo_benchmark = 0.051
+  )
+  texto <- lupa:::.texto_tiempo_lsh(fijo)
+  expect_match(texto, "491[.]344 candidatos")
+  expect_match(texto, "382[.]654 pares")
+  expect_match(texto, "piso")
+  sin_reloj <- fijo
+  sin_reloj$tiempo <- NA_real_
+  expect_match(lupa:::.texto_tiempo_lsh(sin_reloj), "no se pudo medir")
+})
+
+test_that("el aviso de tiempo no escribe fuera de una sesion interactiva", {
+  recibido <- character()
+  withCallingHandlers(
+    lupa:::.emitir_tiempo_lsh("LSH: 491.344 candidatos previstos"),
+    message = function(condicion) {
+      recibido <<- c(recibido, conditionMessage(condicion))
+      invokeRestart("muffleMessage")
+    }
+  )
+  expect_identical(recibido, "LSH: 491.344 candidatos previstos")
+  expect_length(capture.output(
+    lupa:::.emitir_tiempo_lsh("LSH: 491.344 candidatos previstos"),
+    type = "message"
+  ), 0L)
 })
 
 test_that("la familia MinHash conserva RNGkind y .Random.seed", {

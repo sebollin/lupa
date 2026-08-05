@@ -59,7 +59,7 @@
     pares = pares, hallazgos = hallazgos,
     alcance = alcance, columnas = columnas, metodo = metodo,
     umbral = umbral, disponible = disponible, razon = razon,
-    proteccion_aplicada = FALSE
+    proteccion_aplicada = FALSE, estimacion = NULL
   )
   class(estructura) <- c("duplicados_aproximados", "list")
   estructura
@@ -331,7 +331,7 @@
     return(list(
       candidatos_previstos = 0, probabilidad = NA_real_,
       muestra_usada = 0L, pares_benchmark = 0L,
-      velocidad = NA_real_, tiempo = NA_real_
+      tiempo_benchmark = NA_real_, velocidad = NA_real_, tiempo = NA_real_
     ))
   }
   iguales <- firmas[pares$fila_1, , drop = FALSE] ==
@@ -377,6 +377,46 @@
     velocidad = velocidad,
     tiempo = if (is.finite(velocidad)) candidatos_previstos / velocidad else NA_real_
   )
+}
+
+.formato_pares_lsh <- function(x) {
+  if (!length(x) || is.na(x)) return("NA")
+  if (is.infinite(x)) return("Inf")
+  format(round(x), big.mark = ".", decimal.mark = ",",
+         scientific = FALSE, trim = TRUE)
+}
+
+.texto_tiempo_lsh <- function(estimacion) {
+  if (is.finite(estimacion$tiempo)) {
+    paste0(
+      "LSH: ", .formato_pares_lsh(estimacion$candidatos_previstos),
+      " candidatos previstos; referencia de ",
+      format(round(estimacion$tiempo, 3), nsmall = 3,
+        decimal.mark = ","),
+      " s (piso, no incluye firma ni cubetas), medida con ",
+      .formato_pares_lsh(estimacion$pares_benchmark), " pares en ",
+      format(round(estimacion$tiempo_benchmark, 3), nsmall = 3,
+        decimal.mark = ","), " s."
+    )
+  } else {
+    paste0(
+      "LSH: no se pudo medir una velocidad con ",
+      .formato_pares_lsh(estimacion$pares_benchmark),
+      " pares; el tiempo queda sin estimar."
+    )
+  }
+}
+
+.emitir_tiempo_lsh <- function(texto) {
+  condicion <- structure(
+    list(message = texto, call = NULL),
+    class = c("lupa_tiempo_lsh", "message", "condition")
+  )
+  withRestarts(
+    signalCondition(condicion),
+    muffleMessage = function() NULL
+  )
+  invisible(NULL)
 }
 
 .firmas_minhash_lsh <- function(ids, n_hashes) {
@@ -461,54 +501,37 @@
   estimacion <- .estimar_lsh(
     firmas, valores, metodo, bandas, filas_banda, muestra_estimacion
   )
-  mensaje_tiempo <- if (is.finite(estimacion$tiempo)) {
-    paste0(
-      "LSH: ", format(estimacion$candidatos_previstos,
-        big.mark = ".", decimal.mark = ",", scientific = FALSE),
-      " candidatos previstos; referencia de ",
-      format(round(estimacion$tiempo, 3), nsmall = 3,
-        decimal.mark = ","),
-      " s (piso, no incluye firma ni cubetas), medida con ",
-      estimacion$pares_benchmark, " pares en ",
-      format(round(estimacion$tiempo_benchmark, 3), nsmall = 3,
-        decimal.mark = ","), " s."
-    )
-  # nocov start: reloj sin duración resoluble y salida interactiva dependen
-  # del entorno de ejecución; el camino medible se prueba en la suite.
-  } else {
-    paste0(
-      "LSH: no se pudo medir una velocidad con ",
-      estimacion$pares_benchmark, " pares; el tiempo queda sin estimar."
-    )
-  }
+  mensaje_tiempo <- .texto_tiempo_lsh(estimacion)
   if (isTRUE(interactive())) {
+    # nocov start: la salida visual sólo existe en una sesión interactiva.
     cli::cli_alert_info(mensaje_tiempo)
+    # nocov end
   } else {
-    message(mensaje_tiempo)
+    .emitir_tiempo_lsh(mensaje_tiempo)
   }
-  # nocov end
   if (is.finite(presupuesto_pares) &&
       estimacion$candidatos_previstos > presupuesto_pares) {
     continuar <- FALSE
     # nocov start: la confirmación sólo existe en una sesión interactiva.
     if (isTRUE(interactive())) {
       respuesta <- readline(paste0(
-        "La estimaci\u00f3n LSH es de ", format(estimacion$candidatos_previstos,
-          big.mark = ".", decimal.mark = ",", scientific = FALSE),
+        "La estimaci\u00f3n LSH es de ",
+        .formato_pares_lsh(estimacion$candidatos_previstos),
         " pares (muestra de ",
-        estimacion$muestra_usada, " pares). \u00bfContinuar? [s/N] "
+        .formato_pares_lsh(estimacion$muestra_usada),
+        " pares). \u00bfContinuar? [s/N] "
       ))
       continuar <- tolower(trimws(respuesta)) %in% c("s", "si", "\u00ed", "y", "yes")
     }
     # nocov end
     if (!continuar) {
       stop(
-        "La estimaci\u00f3n LSH (", format(estimacion$candidatos_previstos,
-          big.mark = ".", decimal.mark = ",", scientific = FALSE),
+        "La estimaci\u00f3n LSH (", .formato_pares_lsh(
+          estimacion$candidatos_previstos),
         " pares, basada en ",
-        estimacion$muestra_usada, " pares) supera `presupuesto_pares` (",
-        format(presupuesto_pares, big.mark = ".", decimal.mark = ",",
-          scientific = FALSE),
+        .formato_pares_lsh(estimacion$muestra_usada),
+        " pares) supera `presupuesto_pares` (",
+        .formato_pares_lsh(presupuesto_pares),
         "). No se inici\u00f3 la comparaci\u00f3n; aumente el presupuesto, reduzca los datos, ",
         "suba el umbral o divida el conjunto por una clave.",
         call. = FALSE
@@ -712,6 +735,18 @@
     n_exactos = acumulador$n_exactos,
     n_aproximados = acumulador$n_aproximados,
     n_bloques = 0L,
+    estimacion = list(
+      candidatos_previstos = estimacion$candidatos_previstos,
+      probabilidad_candidato_estimada = estimacion$probabilidad,
+      muestra_estimacion = estimacion$muestra_usada,
+      vocabulario = vocabulario_n,
+      pares_benchmark = estimacion$pares_benchmark,
+      tiempo_benchmark = estimacion$tiempo_benchmark,
+      velocidad_comparacion = estimacion$velocidad,
+      tiempo_estimado_segundos = estimacion$tiempo,
+      tiempo_estimado_es_piso = TRUE,
+      tiempo_determinista = FALSE
+    ),
     alcance = data.frame(
       lsh_bandas = bandas, lsh_filas = filas_banda,
       lsh_tamano_firma = n_hashes, lsh_q = q,
@@ -991,11 +1026,13 @@
     )
     bloques <- lsh
     lsh_alcance <- lsh$alcance
+    estimacion_resultado <- lsh$estimacion
     n_pares_comparados <- lsh$alcance$lsh_pares_comparados[[1L]]
   } else {
     bloques <- .comparar_bloques_duplicados(
       textos$valores[validos], validos, metodo, umbral, bloque, max_resultados
     )
+    estimacion_resultado <- NULL
   }
   n_hallados <- bloques$n_hallados
   n_exactos <- bloques$n_exactos
@@ -1094,7 +1131,8 @@
     pares = pares, hallazgos = hallazgos, alcance = alcance,
     columnas = columnas, metodo = metodo, umbral = umbral,
     disponible = TRUE, razon = "",
-    proteccion_aplicada = proteger_datos_personales
+    proteccion_aplicada = proteger_datos_personales,
+    estimacion = estimacion_resultado
   )
   class(estructura) <- c("duplicados_aproximados", "list")
   estructura
@@ -1155,9 +1193,10 @@
 #' matriz de q-gramas y hace que el resultado no dependa de cómo se numeraron
 #' esos q-gramas. Antes de recorrer las bandas se toma una muestra interna y se
 #' publica una estimación reproducible de candidatos. El cronómetro de la medida
-#' se ejecuta durante al menos 50 ms y sólo se emite como mensaje informativo:
-#' no forma parte del objeto, porque depende de la máquina y del momento. Es un
-#' piso de la medida aislada y no estima la firma, las cubetas ni el troceo.
+#' se ejecuta durante al menos 50 ms y queda en `resultado$estimacion`, separado
+#' de `alcance` y marcado como no determinista. Es un piso de la medida aislada
+#' y no estima la firma, las cubetas ni el troceo; sólo se muestra como aviso en
+#' una sesión interactiva.
 #' `presupuesto_pares` permite rechazar el recorrido antes de iniciarlo; sólo se
 #' pregunta en una sesión interactiva. El diagnóstico de
 #' Jaccard puede quedar limitado a los primeros
@@ -1207,7 +1246,11 @@
 #'   continúa. No limita el camino exacto.
 #'
 #' @return Lista de clase `duplicados_aproximados` con `pares`, `hallazgos`,
-#'   `alcance`, `columnas`, `metodo`, `umbral`, `disponible` y `razon`.
+#'   `alcance`, `columnas`, `metodo`, `umbral`, `disponible`, `razon` y
+#'   `estimacion`. `alcance` es reproducible; en el camino LSH,
+#'   `estimacion$tiempo_determinista` es `FALSE` y reúne la velocidad, duración
+#'   y tiempo de referencia medidos en esa corrida. En el camino exacto o cuando
+#'   no se puede comparar, `estimacion` es `NULL`.
 #' @export
 #' @seealso [perfilar()], [reportar()], [planificar_limpieza()]
 #' @references Broder, A. Z. (1997). On the resemblance and containment of
