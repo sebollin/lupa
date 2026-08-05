@@ -101,6 +101,69 @@ test_that("MinHash y LSH generan pares unicos y declaran su garantia", {
   expect_equal(parcial$alcance$n_filas_muestra, 2L)
 })
 
+test_that("LSH publica la estimacion previa y el vocabulario", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(v = rep(c("Ana Perez", "Ana Peres", "Luis Diaz"), 20L))
+  resultado <- detectar_duplicados_aproximados(
+    datos, columnas = "v", estrategia = "lsh", max_resultados = Inf,
+    lsh_muestra_estimacion = 100L
+  )
+  alcance <- resultado$alcance
+  expect_gt(alcance$lsh_vocabulario, 0)
+  expect_true(isTRUE(alcance$lsh_candidatos_previstos_es_estimacion))
+  expect_gt(alcance$lsh_muestra_estimacion, 0)
+  expect_gte(alcance$lsh_candidatos_previstos, 0)
+  expect_gte(alcance$lsh_candidatos_unicos, 0)
+  expect_equal(alcance$lsh_presupuesto_pares, Inf)
+  expect_true(is.finite(alcance$lsh_tiempo_estimado_segundos))
+})
+
+test_that("el presupuesto LSH corta antes del recorrido", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(v = rep(c("Ana Perez", "Ana Peres", "Luis Diaz"), 20L))
+  expect_error(
+    detectar_duplicados_aproximados(
+      datos, columnas = "v", estrategia = "lsh", max_resultados = Inf,
+      lsh_muestra_estimacion = 100L, presupuesto_pares = 1L
+    ),
+    "presupuesto_pares.*No se inició"
+  )
+})
+
+test_that("la familia MinHash conserva RNGkind y .Random.seed", {
+  original <- RNGkind()
+  had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  if (had_seed) seed_original <- get(".Random.seed", .GlobalEnv)
+  on.exit({
+    suppressWarnings(do.call(RNGkind, as.list(original)))
+    if (had_seed) {
+      assign(".Random.seed", seed_original, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+  suppressWarnings(RNGkind(kind = "Wichmann-Hill", sample.kind = "Rounding"))
+  set.seed(123)
+  kind_antes <- RNGkind()
+  seed_antes <- get(".Random.seed", .GlobalEnv)
+  ids <- matrix(c(1L, 2L, 0L, 2L, 3L, 0L), nrow = 2L, byrow = TRUE)
+  firma_1 <- lupa:::.firmas_minhash_lsh(ids, 6L)
+  firma_2 <- lupa:::.firmas_minhash_lsh(ids, 6L)
+  expect_identical(firma_1, firma_2)
+  expect_identical(kind_antes, RNGkind())
+  expect_identical(seed_antes, get(".Random.seed", .GlobalEnv))
+})
+
+test_that("la estimacion vacia y la muestra de una fila son explicitas", {
+  expect_equal(nrow(lupa:::.muestra_pares_lsh(1L, 10L)), 0L)
+  estimacion <- lupa:::.estimar_lsh(
+    matrix(numeric(), nrow = 0L, ncol = 6L), character(), "jw", 2L, 3L, 10L
+  )
+  expect_equal(estimacion$candidatos_previstos, 0)
+  expect_equal(estimacion$muestra_usada, 0L)
+  expect_true(is.na(estimacion$tiempo))
+})
+
 test_that("las cubetas LSH grandes se declaran y procesan por troceo", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(nombre = rep("mismo valor", 30L))

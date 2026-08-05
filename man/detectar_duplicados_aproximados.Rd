@@ -20,7 +20,9 @@ detectar_duplicados_aproximados(
   lsh_bandas = 12L,
   lsh_filas = 3L,
   lsh_q = 3L,
-  lsh_max_cubeta = 1000L
+  lsh_max_cubeta = 1000L,
+  lsh_muestra_estimacion = 400000L,
+  presupuesto_pares = Inf
 )
 }
 \arguments{
@@ -72,6 +74,16 @@ automáticamente por encima del tope exhaustivo; se puede forzar con
 grande y se procesa por el mismo troceo acotado del camino exhaustivo.
 No se descartan pares por este umbral; el alcance informa cuántas cubetas
 y cuántos pares se procesaron de esta forma. Por defecto, 1000.}
+
+\item{lsh_muestra_estimacion}{Cantidad máxima de pares de filas usados para
+estimar la proporción de candidatos y el tiempo del camino LSH. La muestra
+es interna, reproducible y su tamaño efectivo queda en \code{alcance}. Por
+defecto se intentan 400.000 pares.}
+
+\item{presupuesto_pares}{Presupuesto de pares candidatos para LSH. Por
+defecto es \code{Inf}; si la estimación previa lo supera, una sesión no
+interactiva aborta antes del recorrido y una interactiva pregunta si se
+continúa. No limita el camino exacto.}
 }
 \value{
 Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
@@ -127,10 +139,14 @@ resumen de Jaccard. Si alguna implementación futura descarta una cubeta,
 la garantía se devuelve como \code{NA} y \code{lsh_garantia_estado} lo deja explícito.
 La familia MinHash usa una permutación aleatoria inyectiva del vocabulario,
 con una semilla interna fija, y restaura el estado global del generador de R;
-por eso es determinista sin depender de \code{set.seed()}. La tabla de consulta de
-cada hash evita repetir trabajo para cada celda de la matriz de q-gramas y
-hace que el resultado no dependa de cómo se numeraron esos q-gramas. El
-diagnóstico de Jaccard puede quedar limitado a los primeros
+por eso es determinista sin depender de \code{set.seed()} ni de \code{RNGkind()}. La
+tabla de consulta de cada hash evita repetir trabajo para cada celda de la
+matriz de q-gramas y hace que el resultado no dependa de cómo se numeraron
+esos q-gramas. Antes de recorrer las bandas se toma una muestra interna y se
+publica una estimación de candidatos, velocidad y tiempo; esa estimación no
+es una cuenta exacta. \code{presupuesto_pares} permite rechazar el recorrido antes
+de iniciarlo; sólo se pregunta en una sesión interactiva. El diagnóstico de
+Jaccard puede quedar limitado a los primeros
 pares del recorrido determinista; \code{lsh_jaccard_alcance} lo dice literalmente
 y no presenta ese prefijo como una muestra representativa.
 }

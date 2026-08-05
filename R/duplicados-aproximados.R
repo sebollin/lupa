@@ -274,6 +274,99 @@
   list(ids = ids, vocabulario = vocabulario)
 }
 
+.con_rng_interno_lsh <- function(semilla, funcion) {
+  rng_anterior <- RNGkind()
+  habia_semilla <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  if (habia_semilla) semilla_anterior <- get(".Random.seed", .GlobalEnv)
+  # El esquema de hashes no debe depender del RNGkind del llamador. Se usa una
+  # combinación estable y se restaura primero la clase de RNG (que puede crear
+  # un nuevo `.Random.seed`) y después el estado exacto del llamador.
+  suppressWarnings(RNGkind(
+    kind = "Mersenne-Twister", normal.kind = "Inversion",
+    sample.kind = "Rejection"
+  ))
+  set.seed(semilla)
+  on.exit({
+    suppressWarnings(do.call(RNGkind, list(
+      kind = rng_anterior[[1L]], normal.kind = rng_anterior[[2L]],
+      sample.kind = rng_anterior[[3L]]
+    )))
+    if (habia_semilla) {
+      assign(".Random.seed", semilla_anterior, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+  funcion()
+}
+
+.muestra_pares_lsh <- function(n, tamano) {
+  total <- as.numeric(n) * (as.numeric(n) - 1) / 2
+  if (n < 2L || tamano < 1 || total < 1) {
+    return(data.frame(fila_1 = integer(), fila_2 = integer()))
+  }
+  cantidad <- min(as.numeric(tamano), total, .Machine$integer.max)
+  pares <- .con_rng_interno_lsh(173L, function() {
+    # Se sortea el rango triangular de pares, no dos filas independientes:
+    # así la muestra no repite pares y mantiene una cobertura uniforme incluso
+    # cuando las filas contienen muchos valores repetidos.
+    rangos <- floor(stats::runif(as.integer(cantidad)) * total)
+    comienzos <- c(0, cumsum(as.numeric(seq.int(n - 1L, 1L, by = -1L))))
+    comienzos <- comienzos[seq_len(n - 1L)]
+    fila_1 <- findInterval(rangos, c(-1, comienzos)) - 1L
+    fila_2 <- fila_1 + 1L + as.integer(rangos - comienzos[fila_1])
+    data.frame(
+      fila_1 = pmin(fila_1, fila_2), fila_2 = pmax(fila_1, fila_2)
+    )
+  })
+  unique(pares)
+}
+
+.estimar_lsh <- function(
+    firmas, valores, metodo, bandas, filas_banda, tamano_muestra) {
+  n <- nrow(firmas)
+  pares <- .muestra_pares_lsh(n, tamano_muestra)
+  total <- as.numeric(n) * (as.numeric(n) - 1) / 2
+  if (!nrow(pares)) {
+    return(list(
+      candidatos_previstos = 0, probabilidad = NA_real_,
+      muestra_usada = 0L, pares_benchmark = 0L,
+      velocidad = NA_real_, tiempo = NA_real_
+    ))
+  }
+  iguales <- firmas[pares$fila_1, , drop = FALSE] ==
+    firmas[pares$fila_2, , drop = FALSE]
+  colisiones <- do.call(cbind, lapply(seq_len(bandas), function(banda) {
+    columnas <- ((banda - 1L) * filas_banda + 1L):(banda * filas_banda)
+    rowSums(iguales[, columnas, drop = FALSE]) == filas_banda
+  }))
+  candidatos <- rowSums(colisiones) > 0L
+  probabilidad <- mean(candidatos)
+  candidatos_previstos <- probabilidad * total
+  n_benchmark <- min(5000L, nrow(pares))
+  # Calentar la resolución de la medida antes de cronometrar; de lo contrario
+  # el primer llamado puede incluir la carga perezosa de `stringdist` y
+  # describir la infraestructura en lugar de los pares por segundo.
+  invisible(stringdist::stringdist(
+    valores[pares$fila_1[[1L]]], valores[pares$fila_2[[1L]]], method = metodo
+  ))
+  inicio <- proc.time()[["elapsed"]]
+  invisible(stringdist::stringdist(
+    valores[pares$fila_1[seq_len(n_benchmark)]],
+    valores[pares$fila_2[seq_len(n_benchmark)]], method = metodo
+  ))
+  transcurrido <- proc.time()[["elapsed"]] - inicio
+  velocidad <- if (is.finite(transcurrido) && transcurrido > 0) {
+    n_benchmark / transcurrido
+  } else NA_real_
+  list(
+    candidatos_previstos = candidatos_previstos,
+    probabilidad = probabilidad, muestra_usada = nrow(pares),
+    pares_benchmark = n_benchmark, velocidad = velocidad,
+    tiempo = if (is.finite(velocidad)) candidatos_previstos / velocidad else NA_real_
+  )
+}
+
 .firmas_minhash_lsh <- function(ids, n_hashes) {
   n <- nrow(ids)
   if (!n_hashes) return(matrix(numeric(), nrow = n, ncol = 0L))
@@ -285,38 +378,29 @@
   # permutacion completa evita que una numeracion consecutiva de q-gramas
   # produzca progresiones aritmeticas con minimos artificialmente coincidentes.
   # `semilla` es interna y fija; dos corridas iguales son identicas.
-  semilla <- 1L
-  habia_semilla <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
-  if (habia_semilla) semilla_anterior <- get(".Random.seed", .GlobalEnv)
-  set.seed(semilla)
-  on.exit({
-    if (habia_semilla) {
-      assign(".Random.seed", semilla_anterior, envir = .GlobalEnv)
-    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
-      rm(".Random.seed", envir = .GlobalEnv)
+  .con_rng_interno_lsh(1L, function() {
+    vocabulario <- if (length(ids)) suppressWarnings(max(ids, na.rm = TRUE)) else 0
+    if (!is.finite(vocabulario) || vocabulario < 1) vocabulario <- 0
+    vocabulario <- as.integer(vocabulario)
+    firmas <- matrix(Inf, nrow = n, ncol = n_hashes)
+    for (h in seq_len(n_hashes)) {
+      consulta <- if (vocabulario) {
+        c(NA_real_, as.numeric(sample.int(vocabulario)))
+      } else {
+        NA_real_
+      }
+      minimo <- rep(Inf, n)
+      for (j in seq_len(ncol(ids))) {
+        ids_col <- as.integer(ids[, j])
+        valores <- rep(Inf, n)
+        validos <- ids_col > 0L & ids_col <= vocabulario
+        if (any(validos)) valores[validos] <- consulta[ids_col[validos] + 1L]
+        minimo <- pmin(minimo, valores)
+      }
+      firmas[, h] <- minimo
     }
-  }, add = TRUE)
-  vocabulario <- if (length(ids)) suppressWarnings(max(ids, na.rm = TRUE)) else 0
-  if (!is.finite(vocabulario) || vocabulario < 1) vocabulario <- 0
-  vocabulario <- as.integer(vocabulario)
-  firmas <- matrix(Inf, nrow = n, ncol = n_hashes)
-  for (h in seq_len(n_hashes)) {
-    consulta <- if (vocabulario) {
-      c(NA_real_, as.numeric(sample.int(vocabulario)))
-    } else {
-      NA_real_
-    }
-    minimo <- rep(Inf, n)
-    for (j in seq_len(ncol(ids))) {
-      ids_col <- as.integer(ids[, j])
-      valores <- rep(Inf, n)
-      validos <- ids_col > 0L & ids_col <= vocabulario
-      if (any(validos)) valores[validos] <- consulta[ids_col[validos] + 1L]
-      minimo <- pmin(minimo, valores)
-    }
-    firmas[, h] <- minimo
-  }
-  firmas
+    firmas
+  })
 }
 
 .jaccard_qgramas <- function(a, b) {
@@ -347,19 +431,55 @@
 #' @noRd
 .comparar_lsh_duplicados <- function(
     valores, filas, metodo, umbral, bandas, filas_banda, q,
-    max_cubeta, max_resultados) {
+    max_cubeta, max_resultados, muestra_estimacion = 400000L,
+    presupuesto_pares = Inf) {
   n <- length(valores)
   n_hashes <- bandas * filas_banda
   indice <- .ids_qgramas_por_bloques(valores, q)
   ids <- indice$ids
   vocabulario <- indice$vocabulario
+  vocabulario_n <- length(vocabulario)
   firmas <- .firmas_minhash_lsh(ids, n_hashes)
+  # El índice de q-gramas ya no participa en la estimación: liberarlo antes
+  # del benchmark evita que una recolección de basura se contabilice como
+  # velocidad de la medida final.
+  ids <- NULL
+  vocabulario <- NULL
+  indice <- NULL
+  estimacion <- .estimar_lsh(
+    firmas, valores, metodo, bandas, filas_banda, muestra_estimacion
+  )
+  if (is.finite(presupuesto_pares) &&
+      estimacion$candidatos_previstos > presupuesto_pares) {
+    continuar <- FALSE
+    # nocov start: la confirmación sólo existe en una sesión interactiva.
+    if (isTRUE(interactive())) {
+      respuesta <- readline(paste0(
+        "La estimaci\u00f3n LSH es de ", format(estimacion$candidatos_previstos,
+          big.mark = ".", decimal.mark = ",", scientific = FALSE),
+        " pares (muestra de ",
+        estimacion$muestra_usada, ". Continuar? [s/N] "
+      ))
+      continuar <- tolower(trimws(respuesta)) %in% c("s", "si", "\u00ed", "y", "yes")
+    }
+    # nocov end
+    if (!continuar) {
+      stop(
+        "La estimaci\u00f3n LSH (", format(estimacion$candidatos_previstos,
+          big.mark = ".", decimal.mark = ",", scientific = FALSE),
+        " pares, basada en ",
+        estimacion$muestra_usada, " pares) supera `presupuesto_pares` (",
+        format(presupuesto_pares, big.mark = ".", decimal.mark = ",",
+          scientific = FALSE),
+        "). No se inici\u00f3 la comparaci\u00f3n; aumente el presupuesto o reduzca la muestra.",
+        call. = FALSE
+      )
+    }
+  }
   # Las listas de q-gramas y la matriz de ids sólo son necesarias para
   # construir la firma. Liberarlas antes del recorrido evita que la memoria
   # del índice se sume a la de las cubetas; el Jaccard de los pocos pares que
   # pasan el umbral se recalcula bajo demanda.
-  ids <- NULL
-  vocabulario <- NULL
   acumulador <- .nuevo_acumulador_duplicados(max_resultados)
   candidatos_generados <- 0
   candidatos_unicos <- 0
@@ -379,6 +499,13 @@
   posiciones <- integer(max(filas))
   posiciones[filas] <- seq_along(filas)
   cache_gramas <- new.env(hash = TRUE, parent = emptyenv())
+  progreso <- isTRUE(interactive())
+  # nocov start: la barra sólo se dibuja en una sesión interactiva.
+  if (progreso) {
+    cli::cli_progress_bar("Generando candidatos LSH", total = bandas)
+    on.exit(cli::cli_progress_done(), add = TRUE)
+  }
+  # nocov end
   obtener_gramas <- function(indice) {
     texto <- valores[[indice]]
     clave <- paste0("v:", texto)
@@ -520,6 +647,9 @@
       }
     }
     claves_previas[[banda]] <- claves
+    # nocov start
+    if (progreso) cli::cli_progress_update()
+    # nocov end
   }
   garantia_07 <- .garantia_lsh(
     0.7, bandas, filas_banda, pares_descartados_cubetas
@@ -546,6 +676,7 @@
     alcance = data.frame(
       lsh_bandas = bandas, lsh_filas = filas_banda,
       lsh_tamano_firma = n_hashes, lsh_q = q,
+      lsh_vocabulario = vocabulario_n,
       lsh_semilla_hash = 1L,
       lsh_hash_familia = "permutacion_aleatoria_determinista_inyectiva",
       lsh_max_cubeta = max_cubeta,
@@ -565,6 +696,15 @@
       lsh_lotes_cubetas_grandes = lotes_cubetas_grandes,
       lsh_candidatos_generados = candidatos_generados,
       lsh_candidatos_unicos = candidatos_unicos,
+      lsh_candidatos_previstos = estimacion$candidatos_previstos,
+      lsh_candidatos_previstos_es_estimacion = TRUE,
+      lsh_probabilidad_candidato_estimada = estimacion$probabilidad,
+      lsh_muestra_estimacion = estimacion$muestra_usada,
+      lsh_muestra_estimacion_configurada = muestra_estimacion,
+      lsh_pares_benchmark = estimacion$pares_benchmark,
+      lsh_velocidad_comparacion = estimacion$velocidad,
+      lsh_tiempo_estimado_segundos = estimacion$tiempo,
+      lsh_presupuesto_pares = presupuesto_pares,
       lsh_candidatos_descartados_bandas = candidatos_descartados_bandas,
       lsh_pares_comparados = pares_comparados,
       lsh_jaccard_evaluados = n_jaccard,
@@ -676,7 +816,8 @@
     normalizar = TRUE, clasificacion = NULL,
     proteger_datos_personales = TRUE, bloque = 1000L,
     estrategia = "auto", lsh_bandas = 12L, lsh_filas = 3L, lsh_q = 3L,
-    lsh_max_cubeta = 1000L) {
+    lsh_max_cubeta = 1000L, lsh_muestra_estimacion = 400000L,
+    presupuesto_pares = Inf) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
@@ -691,6 +832,12 @@
   lsh_q <- .validar_parametro_lsh(lsh_q, "lsh_q")
   lsh_max_cubeta <- .validar_parametro_lsh(
     lsh_max_cubeta, "lsh_max_cubeta", minimo = 2L
+  )
+  lsh_muestra_estimacion <- .validar_parametro_lsh(
+    lsh_muestra_estimacion, "lsh_muestra_estimacion"
+  )
+  presupuesto_pares <- .validar_limite_duplicados(
+    presupuesto_pares, "presupuesto_pares"
   )
   if (!is.character(metodo) || length(metodo) != 1L || is.na(metodo) ||
       !nzchar(metodo) || !metodo %in% c(
@@ -803,7 +950,8 @@
   if (usar_lsh) {
     lsh <- .comparar_lsh_duplicados(
       textos$valores[validos], validos, metodo, umbral, lsh_bandas,
-      lsh_filas, lsh_q, lsh_max_cubeta, max_resultados
+      lsh_filas, lsh_q, lsh_max_cubeta, max_resultados,
+      lsh_muestra_estimacion, presupuesto_pares
     )
     bloques <- lsh
     lsh_alcance <- lsh$alcance
@@ -898,6 +1046,8 @@
       "exhaustiva_por_bloques"
     } else "muestreada_por_bloques",
     tamano_bloque = if (usar_lsh) NA_integer_ else bloque,
+    presupuesto_pares = presupuesto_pares,
+    presupuesto_pares_aplica = usar_lsh,
     n_bloques = bloques$n_bloques,
     comparacion_exhaustiva = !usar_lsh && length(indices) >= nrow(datos),
     muestreado = length(indices) < nrow(datos), truncado = mostrados < n_hallados,
@@ -964,10 +1114,14 @@
 #' la garantía se devuelve como `NA` y `lsh_garantia_estado` lo deja explícito.
 #' La familia MinHash usa una permutación aleatoria inyectiva del vocabulario,
 #' con una semilla interna fija, y restaura el estado global del generador de R;
-#' por eso es determinista sin depender de `set.seed()`. La tabla de consulta de
-#' cada hash evita repetir trabajo para cada celda de la matriz de q-gramas y
-#' hace que el resultado no dependa de cómo se numeraron esos q-gramas. El
-#' diagnóstico de Jaccard puede quedar limitado a los primeros
+#' por eso es determinista sin depender de `set.seed()` ni de `RNGkind()`. La
+#' tabla de consulta de cada hash evita repetir trabajo para cada celda de la
+#' matriz de q-gramas y hace que el resultado no dependa de cómo se numeraron
+#' esos q-gramas. Antes de recorrer las bandas se toma una muestra interna y se
+#' publica una estimación de candidatos, velocidad y tiempo; esa estimación no
+#' es una cuenta exacta. `presupuesto_pares` permite rechazar el recorrido antes
+#' de iniciarlo; sólo se pregunta en una sesión interactiva. El diagnóstico de
+#' Jaccard puede quedar limitado a los primeros
 #' pares del recorrido determinista; `lsh_jaccard_alcance` lo dice literalmente
 #' y no presenta ese prefijo como una muestra representativa.
 #'
@@ -1004,6 +1158,14 @@
 #'   grande y se procesa por el mismo troceo acotado del camino exhaustivo.
 #'   No se descartan pares por este umbral; el alcance informa cuántas cubetas
 #'   y cuántos pares se procesaron de esta forma. Por defecto, 1000.
+#' @param lsh_muestra_estimacion Cantidad máxima de pares de filas usados para
+#'   estimar la proporción de candidatos y el tiempo del camino LSH. La muestra
+#'   es interna, reproducible y su tamaño efectivo queda en `alcance`. Por
+#'   defecto se intentan 400.000 pares.
+#' @param presupuesto_pares Presupuesto de pares candidatos para LSH. Por
+#'   defecto es `Inf`; si la estimación previa lo supera, una sesión no
+#'   interactiva aborta antes del recorrido y una interactiva pregunta si se
+#'   continúa. No limita el camino exacto.
 #'
 #' @return Lista de clase `duplicados_aproximados` con `pares`, `hallazgos`,
 #'   `alcance`, `columnas`, `metodo`, `umbral`, `disponible` y `razon`.
@@ -1026,7 +1188,8 @@ detectar_duplicados_aproximados <- function(
     muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
     normalizar = TRUE, perfil = NULL, proteger_datos_personales = TRUE,
     bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
-    lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L) {
+    lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
+    lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf) {
   if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
       !identical(names(datos), perfil$columnas$columna))) {
     stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
@@ -1037,13 +1200,17 @@ detectar_duplicados_aproximados <- function(
       normalizar, clasificacion = perfil$datos_personales,
       proteger_datos_personales = proteger_datos_personales, bloque = bloque,
       estrategia = estrategia, lsh_bandas = lsh_bandas, lsh_filas = lsh_filas,
-      lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta
+      lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta,
+      lsh_muestra_estimacion = lsh_muestra_estimacion,
+      presupuesto_pares = presupuesto_pares
     ))
   }
   .detectar_duplicados_aproximados(
     datos, columnas, metodo, umbral, muestra, max_pares, max_resultados,
     normalizar, proteger_datos_personales = proteger_datos_personales,
     bloque = bloque, estrategia = estrategia, lsh_bandas = lsh_bandas,
-    lsh_filas = lsh_filas, lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta
+    lsh_filas = lsh_filas, lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta,
+    lsh_muestra_estimacion = lsh_muestra_estimacion,
+    presupuesto_pares = presupuesto_pares
   )
 }
