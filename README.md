@@ -148,11 +148,14 @@ vigentes son:
 
 | filas | candidatos LSH | tiempo medido | recall del techo |
 | ---: | ---: | ---: | ---: |
-| 20.000 | 6.201.626 | 7,5 s | 1,0000 |
-| 100.000 | 140.097.499 | 59,5 s | 1,0000 |
+| 20.000 | 6.201.626 | 7,4 s | 1,0000 |
+| 100.000 | 140.097.499 | 61,0 s | 1,0000 |
+| 200.000 | 582.388.482 | 202,5 s | 1,0000 |
 
-La estimación previa de candidatos queda dentro del 1,5 % en los tres tamaños
-publicados en `notas-desarrollo/BENCHMARKS.md`. La riqueza del
+Los tiempos son la mediana de tres corridas de `benchmarks.R`; los conteos y el
+recall se calculan una vez porque son deterministas. La estimación previa de
+candidatos queda dentro del 1,5 % en los tres tamaños publicados en
+`notas-desarrollo/BENCHMARKS.md`. La riqueza del
 vocabulario cambia la constante: a igual tamaño de tabla, una configuración de
 valores repetidos produjo 122 veces más candidatos que una de vocabulario
 amplio. `estimar_costo()` permite decidir antes de empezar;
