@@ -73,6 +73,57 @@
   as.integer(x)
 }
 
+.validar_bloquear_por <- function(datos, x) {
+  if (is.null(x)) return(NULL)
+  if (!is.character(x) || length(x) != 1L || is.na(x) || !nzchar(x) ||
+      !x %in% names(datos)) {
+    stop("`bloquear_por` debe nombrar una columna existente.", call. = FALSE)
+  }
+  if (is.matrix(datos[[x]]) || is.list(datos[[x]])) {
+    stop("`bloquear_por` debe nombrar una columna atomica.", call. = FALSE)
+  }
+  x
+}
+
+.resumir_bloqueo <- function(datos, columna) {
+  if (is.null(columna)) return(NULL)
+  clave <- datos[[columna]]
+  textos <- suppressWarnings(as.character(clave))
+  ausentes <- is.na(textos)
+  # Los ausentes forman un bloque propio: no desaparecen del alcance, pero
+  # tampoco se mezclan con valores observados.
+  textos[ausentes] <- "<NA bloque propio>"
+  ids <- match(textos, unique(textos))
+  tamanos <- tabulate(ids, nbins = if (length(ids)) max(ids) else 0L)
+  posibles <- as.numeric(nrow(datos)) * (as.numeric(nrow(datos)) - 1) / 2
+  alcanzables <- sum(tamanos * pmax(tamanos - 1, 0) / 2)
+  cuantiles <- if (length(tamanos)) {
+    stats::quantile(
+      tamanos, probs = c(0, 0.25, 0.5, 0.75, 1), names = FALSE
+    )
+  } else rep(0, 5L)
+  list(
+    ids = ids,
+    alcance = data.frame(
+      bloqueo_por = columna,
+      bloqueo_tratamiento_na = "bloque_propio",
+      bloqueo_n_bloques = length(tamanos),
+      bloqueo_n_filas_na = sum(ausentes),
+      bloqueo_tamano_minimo = cuantiles[[1L]],
+      bloqueo_tamano_q1 = cuantiles[[2L]],
+      bloqueo_tamano_mediana = cuantiles[[3L]],
+      bloqueo_tamano_q3 = cuantiles[[4L]],
+      bloqueo_tamano_maximo = cuantiles[[5L]],
+      bloqueo_pares_alcanzables = alcanzables,
+      bloqueo_pares_fuera_alcance = max(0, posibles - alcanzables),
+      bloqueo_prop_pares_alcanzables = if (posibles) alcanzables / posibles else NA_real_,
+      bloqueo_perdida = alcanzables < posibles,
+      bloqueo_severidad = if (alcanzables < posibles) "sospechoso" else "ok",
+      stringsAsFactors = FALSE
+    )
+  )
+}
+
 .validar_parametro_lsh <- function(x, nombre, minimo = 1L) {
   if (!is.numeric(x) || length(x) != 1L || is.na(x) ||
       !is.finite(x) || x < minimo || x != floor(x)) {
@@ -167,7 +218,7 @@
 #' @noRd
 .comparar_bloques_duplicados <- function(
     valores, filas, metodo, umbral, bloque, max_resultados,
-    acumulador = NULL, on_pairs = NULL) {
+    acumulador = NULL, on_pairs = NULL, bloqueos = NULL) {
   n <- length(valores)
   acumular_en_externo <- !is.null(acumulador)
   if (is.null(acumulador)) {
@@ -205,6 +256,14 @@
       distancias <- as.numeric(matriz[candidatas])
       f1 <- filas[filas_i[candidatas[, 1L]]]
       f2 <- filas[filas_j[candidatas[, 2L]]]
+      if (!is.null(bloqueos)) {
+        dentro <- bloqueos[filas_i[candidatas[, 1L]]] ==
+          bloqueos[filas_j[candidatas[, 2L]]]
+        f1 <- f1[dentro]
+        f2 <- f2[dentro]
+        distancias <- distancias[dentro]
+      }
+      if (!length(f1)) next
       if (!is.null(on_pairs)) on_pairs(f1, f2, distancias)
       acumulador <- .acumular_pares_duplicados(
         acumulador, f1, f2, distancias
@@ -323,7 +382,8 @@
 }
 
 .estimar_lsh <- function(
-    firmas, valores, metodo, bandas, filas_banda, tamano_muestra) {
+    firmas, valores, metodo, bandas, filas_banda, tamano_muestra,
+    bloqueos = NULL) {
   n <- nrow(firmas)
   pares <- .muestra_pares_lsh(n, tamano_muestra)
   total <- as.numeric(n) * (as.numeric(n) - 1) / 2
@@ -341,14 +401,31 @@
     rowSums(iguales[, columnas, drop = FALSE]) == filas_banda
   }))
   candidatos <- rowSums(colisiones) > 0L
+  if (!is.null(bloqueos)) {
+    candidatos <- candidatos & bloqueos[pares$fila_1] == bloqueos[pares$fila_2]
+  }
   probabilidad <- mean(candidatos)
   candidatos_previstos <- probabilidad * total
-  n_benchmark <- min(5000L, nrow(pares))
+  pares_benchmark <- if (is.null(bloqueos)) {
+    pares
+  } else {
+    pares[bloqueos[pares$fila_1] == bloqueos[pares$fila_2], , drop = FALSE]
+  }
+  n_benchmark <- min(5000L, nrow(pares_benchmark))
+  if (!n_benchmark) {
+    return(list(
+      candidatos_previstos = candidatos_previstos,
+      probabilidad = probabilidad, muestra_usada = nrow(pares),
+      pares_benchmark = 0L, tiempo_benchmark = NA_real_,
+      velocidad = NA_real_, tiempo = NA_real_
+    ))
+  }
   # Calentar la resolución de la medida antes de cronometrar; de lo contrario
   # el primer llamado puede incluir la carga perezosa de `stringdist` y
   # describir la infraestructura en lugar de los pares por segundo.
   invisible(stringdist::stringdist(
-    valores[pares$fila_1[[1L]]], valores[pares$fila_2[[1L]]], method = metodo
+    valores[pares_benchmark$fila_1[[1L]]],
+    valores[pares_benchmark$fila_2[[1L]]], method = metodo
   ))
   indices_benchmark <- seq_len(n_benchmark)
   inicio <- proc.time()[["elapsed"]]
@@ -360,8 +437,8 @@
   # total de pares cronometrados queda declarado en el mensaje informativo.
   while (transcurrido < 0.05 && repeticiones < 10000L) {
     invisible(stringdist::stringdist(
-      valores[pares$fila_1[indices_benchmark]],
-      valores[pares$fila_2[indices_benchmark]], method = metodo
+      valores[pares_benchmark$fila_1[indices_benchmark]],
+      valores[pares_benchmark$fila_2[indices_benchmark]], method = metodo
     ))
     repeticiones <- repeticiones + 1L
     pares_cronometrados <- pares_cronometrados + n_benchmark
@@ -484,7 +561,7 @@
 .comparar_lsh_duplicados <- function(
     valores, filas, metodo, umbral, bandas, filas_banda, q,
     max_cubeta, max_resultados, muestra_estimacion = 400000L,
-    presupuesto_pares = Inf) {
+    presupuesto_pares = Inf, bloqueos = NULL, solo_estimacion = FALSE) {
   n <- length(valores)
   n_hashes <- bandas * filas_banda
   indice <- .ids_qgramas_por_bloques(valores, q)
@@ -499,7 +576,8 @@
   vocabulario <- NULL
   indice <- NULL
   estimacion <- .estimar_lsh(
-    firmas, valores, metodo, bandas, filas_banda, muestra_estimacion
+    firmas, valores, metodo, bandas, filas_banda, muestra_estimacion,
+    bloqueos = bloqueos
   )
   mensaje_tiempo <- .texto_tiempo_lsh(estimacion)
   if (isTRUE(interactive())) {
@@ -538,6 +616,30 @@
       )
     }
   }
+  if (isTRUE(solo_estimacion)) {
+    return(list(
+      estimacion = list(
+        candidatos_previstos = estimacion$candidatos_previstos,
+        probabilidad_candidato_estimada = estimacion$probabilidad,
+        muestra_estimacion = estimacion$muestra_usada,
+        vocabulario = vocabulario_n,
+        pares_benchmark = estimacion$pares_benchmark,
+        tiempo_benchmark = estimacion$tiempo_benchmark,
+        velocidad_comparacion = estimacion$velocidad,
+        tiempo_estimado_segundos = estimacion$tiempo,
+        tiempo_estimado_es_piso = TRUE,
+        tiempo_determinista = FALSE
+      ),
+      alcance = data.frame(
+        lsh_vocabulario = vocabulario_n,
+        lsh_candidatos_previstos = estimacion$candidatos_previstos,
+        lsh_candidatos_previstos_es_estimacion = TRUE,
+        lsh_probabilidad_candidato_estimada = estimacion$probabilidad,
+        lsh_muestra_estimacion = estimacion$muestra_usada,
+        stringsAsFactors = FALSE
+      )
+    ))
+  }
   # Las listas de q-gramas y la matriz de ids sólo son necesarias para
   # construir la firma. Liberarlas antes del recorrido evita que la memoria
   # del índice se sume a la de las cubetas; el Jaccard de los pocos pares que
@@ -546,6 +648,7 @@
   candidatos_generados <- 0
   candidatos_unicos <- 0
   candidatos_descartados_bandas <- 0
+  candidatos_descartados_bloque <- 0
   pares_comparados <- 0
   cubetas_grandes <- 0L
   pares_descartados_cubetas <- 0
@@ -628,18 +731,27 @@
       # cubeta grande usamos el comparador por teselas del camino exhaustivo:
       # compara todos sus pares, pero descarta cada matriz antes de continuar.
       if (tamano > max_cubeta && banda == 1L) {
-        pares_cubetas_troceadas <- pares_cubetas_troceadas + posibles_grupo
+        posibles_bloque <- if (is.null(bloqueos)) {
+          posibles_grupo
+        } else {
+          sum(table(bloqueos[indices]) *
+                pmax(table(bloqueos[indices]) - 1, 0) / 2)
+        }
+        pares_cubetas_troceadas <- pares_cubetas_troceadas + posibles_bloque
         por_teselas <- .comparar_bloques_duplicados(
           valores[indices], filas[indices], metodo, umbral,
           bloque = min(2000L, tamano), max_resultados = max_resultados,
-          acumulador = acumulador, on_pairs = registrar_jaccard_filas
+          acumulador = acumulador, on_pairs = registrar_jaccard_filas,
+          bloqueos = if (is.null(bloqueos)) NULL else bloqueos[indices]
         )
         acumulador <- por_teselas$acumulador
         teselas_cubetas_grandes <- teselas_cubetas_grandes +
           por_teselas$n_bloques
         candidatos_generados <- candidatos_generados + posibles_grupo
-        candidatos_unicos <- candidatos_unicos + posibles_grupo
-        pares_comparados <- pares_comparados + posibles_grupo
+        candidatos_unicos <- candidatos_unicos + posibles_bloque
+        pares_comparados <- pares_comparados + posibles_bloque
+        candidatos_descartados_bloque <- candidatos_descartados_bloque +
+          posibles_grupo - posibles_bloque
         next
       }
       # Si toda la cubeta tambien colisiono dentro de una banda anterior,
@@ -671,6 +783,14 @@
         p1 <- rep(indices[izquierda], times = lengths(derechas))
         p2 <- unlist(lapply(derechas, function(i) indices[i]), use.names = FALSE)
         candidatos_generados <- candidatos_generados + length(p1)
+        if (!is.null(bloqueos)) {
+          dentro <- bloqueos[p1] == bloqueos[p2]
+          candidatos_descartados_bloque <- candidatos_descartados_bloque +
+            sum(!dentro)
+          p1 <- p1[dentro]
+          p2 <- p2[dentro]
+        }
+        if (!length(p1)) next
         ya <- rep(FALSE, length(p1))
         if (banda > 1L) {
           for (previa in seq_len(banda - 1L)) {
@@ -770,6 +890,7 @@
       lsh_lotes_cubetas_grandes = lotes_cubetas_grandes,
       lsh_candidatos_generados = candidatos_generados,
       lsh_candidatos_unicos = candidatos_unicos,
+      lsh_candidatos_descartados_bloque = candidatos_descartados_bloque,
       lsh_candidatos_previstos = estimacion$candidatos_previstos,
       lsh_candidatos_previstos_es_estimacion = TRUE,
       lsh_probabilidad_candidato_estimada = estimacion$probabilidad,
@@ -888,7 +1009,7 @@
     proteger_datos_personales = TRUE, bloque = 1000L,
     estrategia = "auto", lsh_bandas = 12L, lsh_filas = 3L, lsh_q = 3L,
     lsh_max_cubeta = 1000L, lsh_muestra_estimacion = 400000L,
-    presupuesto_pares = Inf) {
+    presupuesto_pares = Inf, bloquear_por = NULL, solo_estimacion = FALSE) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
@@ -897,6 +1018,8 @@
   max_pares <- .validar_limite_duplicados(max_pares, "max_pares")
   max_resultados <- .validar_limite_duplicados(max_resultados, "max_resultados")
   bloque <- .validar_bloque_duplicados(bloque)
+  bloquear_por <- .validar_bloquear_por(datos, bloquear_por)
+  resumen_bloqueo <- .resumir_bloqueo(datos, bloquear_por)
   estrategia <- match.arg(estrategia, c("auto", "teselas", "muestra", "lsh"))
   lsh_bandas <- .validar_parametro_lsh(lsh_bandas, "lsh_bandas")
   lsh_filas <- .validar_parametro_lsh(lsh_filas, "lsh_filas")
@@ -932,22 +1055,30 @@
          call. = FALSE)
   }
   if (!.stringdist_disponible()) {
-    return(.vacio_duplicados_aproximados(
+    resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
       max_resultados, disponible = FALSE, bloque = bloque,
       razon = "No esta instalado el paquete opcional 'stringdist'."
-    ))
+    )
+    if (!is.null(resumen_bloqueo)) {
+      resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
+    }
+    return(resultado)
   }
   if (!length(columnas)) {
     motivo <- attr(columnas, "motivo_sin_columnas", exact = TRUE)
     if (is.null(motivo)) {
       motivo <- "No hay columnas de texto comparables; indique `columnas` explicitamente."
     }
-    return(.vacio_duplicados_aproximados(
+    resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
       max_resultados, disponible = TRUE, bloque = bloque,
       razon = motivo
-    ))
+    )
+    if (!is.null(resumen_bloqueo)) {
+      resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
+    }
+    return(resultado)
   }
   if (is.null(clasificacion)) {
     perfil <- perfilar(
@@ -999,6 +1130,11 @@
   validos <- indices[textos$presentes[indices]]
   n_pares_comparados <- if (usar_lsh) 0 else as.numeric(length(validos)) *
     (as.numeric(length(validos)) - 1) / 2
+  if (!usar_lsh && !is.null(resumen_bloqueo)) {
+    tamanos_validos <- table(resumen_bloqueo$ids[validos])
+    n_pares_comparados <- sum(tamanos_validos *
+      pmax(tamanos_validos - 1, 0) / 2)
+  }
   posibles <- as.numeric(nrow(datos)) * (as.numeric(nrow(datos)) - 1) / 2
   if (length(validos) < 2L) {
     resultado <- .vacio_duplicados_aproximados(
@@ -1015,23 +1151,96 @@
     resultado$alcance$muestra_efectiva <- length(indices)
     resultado$alcance$modo_comparacion <- "sin_pares_comparables"
     resultado$alcance$tamano_bloque <- bloque
+    if (!is.null(resumen_bloqueo)) {
+      resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
+    }
     return(resultado)
+  }
+  if (isTRUE(solo_estimacion) && !(
+      estrategia == "lsh" ||
+      (estrategia == "auto" && nrow(datos) > 10000L &&
+       is.infinite(muestra) &&
+       (is.infinite(max_pares) || max_pares >= 50000000L)))) {
+    dentro <- if (is.null(resumen_bloqueo)) {
+      length(validos)
+    } else {
+      sum(table(resumen_bloqueo$ids[validos]) *
+            pmax(table(resumen_bloqueo$ids[validos]) - 1, 0) / 2)
+    }
+    alcance <- data.frame(
+      modo_comparacion = "exhaustiva_por_bloques",
+      candidatos_previstos = dentro,
+      pares_alcanzables = dentro,
+      stringsAsFactors = FALSE
+    )
+    if (!is.null(resumen_bloqueo)) {
+      alcance <- cbind(alcance, resumen_bloqueo$alcance)
+    }
+    return(list(
+      estimacion = list(
+        candidatos_previstos = dentro,
+        probabilidad_candidato_estimada = NA_real_,
+        muestra_estimacion = dentro,
+        vocabulario = NA_integer_,
+        pares_benchmark = NA_integer_,
+        tiempo_benchmark = NA_real_,
+        velocidad_comparacion = NA_real_,
+        tiempo_estimado_segundos = NA_real_,
+        tiempo_estimado_es_piso = FALSE,
+        tiempo_determinista = TRUE
+      ), alcance = alcance, disponible = TRUE, razon = ""
+    ))
   }
   lsh_alcance <- NULL
   if (usar_lsh) {
     lsh <- .comparar_lsh_duplicados(
       textos$valores[validos], validos, metodo, umbral, lsh_bandas,
       lsh_filas, lsh_q, lsh_max_cubeta, max_resultados,
-      lsh_muestra_estimacion, presupuesto_pares
+      lsh_muestra_estimacion, presupuesto_pares,
+      bloqueos = if (is.null(resumen_bloqueo)) NULL else {
+        resumen_bloqueo$ids[validos]
+      }, solo_estimacion = solo_estimacion
     )
+    if (isTRUE(solo_estimacion)) {
+      alcance <- lsh$alcance
+      if (!is.null(resumen_bloqueo)) {
+        alcance <- cbind(alcance, resumen_bloqueo$alcance)
+      }
+      return(list(
+        estimacion = lsh$estimacion, alcance = alcance,
+        disponible = TRUE, razon = ""
+      ))
+    }
     bloques <- lsh
     lsh_alcance <- lsh$alcance
     estimacion_resultado <- lsh$estimacion
     n_pares_comparados <- lsh$alcance$lsh_pares_comparados[[1L]]
   } else {
-    bloques <- .comparar_bloques_duplicados(
-      textos$valores[validos], validos, metodo, umbral, bloque, max_resultados
-    )
+    if (is.null(resumen_bloqueo)) {
+      bloques <- .comparar_bloques_duplicados(
+        textos$valores[validos], validos, metodo, umbral, bloque, max_resultados
+      )
+    } else {
+      grupos <- split(seq_along(validos), resumen_bloqueo$ids[validos])
+      acumulador <- .nuevo_acumulador_duplicados(max_resultados)
+      n_bloques <- 0L
+      for (grupo in grupos) {
+        parcial <- .comparar_bloques_duplicados(
+          textos$valores[validos[grupo]], validos[grupo], metodo, umbral,
+          bloque, max_resultados, acumulador = acumulador
+        )
+        acumulador <- parcial$acumulador
+        n_bloques <- n_bloques + parcial$n_bloques
+      }
+      pares_bloqueados <- .pares_acumulador_duplicados(acumulador)
+      bloques <- list(
+        pares = pares_bloqueados,
+        n_hallados = acumulador$n_hallados,
+        n_exactos = acumulador$n_exactos,
+        n_aproximados = acumulador$n_aproximados,
+        n_bloques = n_bloques
+      )
+    }
     estimacion_resultado <- NULL
   }
   n_hallados <- bloques$n_hallados
@@ -1097,6 +1306,20 @@
       stringsAsFactors = FALSE
     )
   }
+  if (!is.null(resumen_bloqueo) &&
+      resumen_bloqueo$alcance$bloqueo_pares_fuera_alcance[[1L]] > 0) {
+    hallazgo_bloqueo <- .nuevo_hallazgo(
+      bloquear_por, "bloqueo_por_con_perdida", "sospechoso",
+      "El bloqueo excluye pares cuya clave no coincide; no se evaluaron.",
+      paste0(
+        resumen_bloqueo$alcance$bloqueo_pares_fuera_alcance[[1L]],
+        " pares quedaron fuera del alcance de `bloquear_por`.",
+        " Las filas con NA forman un bloque propio."
+      ),
+      "Revisar la clave y no interpretar la ausencia de un par como evidencia de que no existe."
+    )
+    hallazgos <- rbind(hallazgos, hallazgo_bloqueo)
+  }
   hallazgos$severidad <- factor(
     hallazgos$severidad, levels = c("ok", "sospechoso", "error"), ordered = TRUE
   )
@@ -1127,6 +1350,9 @@
     disponible = TRUE, razon = "", stringsAsFactors = FALSE
   )
   if (usar_lsh) alcance <- cbind(alcance, lsh_alcance)
+  if (!is.null(resumen_bloqueo)) {
+    alcance <- cbind(alcance, resumen_bloqueo$alcance)
+  }
   estructura <- list(
     pares = pares, hallazgos = hallazgos, alcance = alcance,
     columnas = columnas, metodo = metodo, umbral = umbral,
@@ -1197,6 +1423,14 @@
 #' de `alcance` y marcado como no determinista. Es un piso de la medida aislada
 #' y no estima la firma, las cubetas ni el troceo; sólo se muestra como aviso en
 #' una sesión interactiva.
+#' Fuera de una sesión interactiva se señala una condición silenciosa de clase
+#' `lupa_tiempo_lsh`, sólo en el camino LSH: no se imprime en `stdout` ni
+#' `stderr`. Se puede capturar con
+#' `withCallingHandlers(resultado <- detectar_duplicados_aproximados(...),
+#' lupa_tiempo_lsh = function(c) { ... })`. Como hereda de `message`, un
+#' `tryCatch(..., message = ...)` puede interrumpir la corrida y devolver el
+#' valor del manejador; para observar sin interrumpir use `withCallingHandlers`
+#' y, si corresponde, `invokeRestart("muffleMessage")`.
 #' `presupuesto_pares` permite rechazar el recorrido antes de iniciarlo; sólo se
 #' pregunta en una sesión interactiva. El diagnóstico de
 #' Jaccard puede quedar limitado a los primeros
@@ -1244,6 +1478,10 @@
 #'   defecto es `Inf`; si la estimación previa lo supera, una sesión no
 #'   interactiva aborta antes del recorrido y una interactiva pregunta si se
 #'   continúa. No limita el camino exacto.
+#' @param bloquear_por Nombre de una columna declarada por el usuario para
+#'   restringir la comparación a filas con la misma clave. La clave no tiene
+#'   significado incorporado en `lupa`; sus tamaños, ausentes y pares que
+#'   quedan fuera se registran en `alcance`. Los `NA` forman un bloque propio.
 #'
 #' @return Lista de clase `duplicados_aproximados` con `pares`, `hallazgos`,
 #'   `alcance`, `columnas`, `metodo`, `umbral`, `disponible`, `razon` y
@@ -1271,7 +1509,8 @@ detectar_duplicados_aproximados <- function(
     normalizar = TRUE, perfil = NULL, proteger_datos_personales = TRUE,
     bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
     lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
-    lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf) {
+    lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
+    bloquear_por = NULL) {
   if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
       !identical(names(datos), perfil$columnas$columna))) {
     stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
@@ -1284,7 +1523,7 @@ detectar_duplicados_aproximados <- function(
       estrategia = estrategia, lsh_bandas = lsh_bandas, lsh_filas = lsh_filas,
       lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta,
       lsh_muestra_estimacion = lsh_muestra_estimacion,
-      presupuesto_pares = presupuesto_pares
+      presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por
     ))
   }
   .detectar_duplicados_aproximados(
@@ -1293,6 +1532,81 @@ detectar_duplicados_aproximados <- function(
     bloque = bloque, estrategia = estrategia, lsh_bandas = lsh_bandas,
     lsh_filas = lsh_filas, lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta,
     lsh_muestra_estimacion = lsh_muestra_estimacion,
-    presupuesto_pares = presupuesto_pares
+    presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por
   )
+}
+
+#' Estimar el costo de una comparación de duplicados
+#'
+#' Construye las firmas y calcula el pronóstico de candidatos sin recorrer las
+#' cubetas ni comparar los pares. Es una operación deliberada: la medición del
+#' reloj queda en el resultado de esta función y no es necesaria para obtener
+#' `alcance` reproducible en `detectar_duplicados_aproximados()`.
+#'
+#' En el camino LSH, `candidatos_previstos` es una estimación reproducible a
+#' partir de una muestra de firmas. `tiempo_estimado_segundos` es un piso de la
+#' medida aislada y no incluye firmas, cubetas ni troceo; sus campos de reloj
+#' tienen `tiempo_determinista = FALSE`. Con `bloquear_por`, los pares entre
+#' bloques no entran en el pronóstico y la pérdida queda en `alcance`.
+#'
+#' La función no escribe archivos ni modifica el estado del generador de R.
+#'
+#' @inheritParams detectar_duplicados_aproximados
+#' @return Lista de clase `estimacion_costo_lupa` con los campos de la
+#'   estimación, `alcance`, `disponible` y `razon`.
+#' @export
+#' @seealso [detectar_duplicados_aproximados()]
+#'
+#' @examples
+#' datos <- data.frame(
+#'   nombre = c("Ana Perez", "Ana Peres", "Luis Diaz"),
+#'   grupo = c("A", "A", "B")
+#' )
+#' if (requireNamespace("stringdist", quietly = TRUE)) {
+#'   costo <- estimar_costo(datos, columnas = "nombre", estrategia = "lsh")
+#'   costo$candidatos_previstos
+#' }
+estimar_costo <- function(
+    datos, columnas = NULL, metodo = "jw", umbral = 0.12,
+    muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
+    normalizar = TRUE, perfil = NULL, proteger_datos_personales = TRUE,
+    bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
+    lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
+    lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
+    bloquear_por = NULL) {
+  if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
+      !identical(names(datos), perfil$columnas$columna))) {
+    stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
+  }
+  clasificacion <- if (is.null(perfil)) NULL else perfil$datos_personales
+  interno <- suppressMessages(.detectar_duplicados_aproximados(
+    datos, columnas, metodo, umbral, muestra, max_pares, max_resultados,
+    normalizar, clasificacion = clasificacion,
+    proteger_datos_personales = proteger_datos_personales, bloque = bloque,
+    estrategia = estrategia, lsh_bandas = lsh_bandas, lsh_filas = lsh_filas,
+    lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta,
+    lsh_muestra_estimacion = lsh_muestra_estimacion,
+    presupuesto_pares = Inf, bloquear_por = bloquear_por,
+    solo_estimacion = TRUE
+  ))
+  if (inherits(interno, "duplicados_aproximados")) {
+    salida <- list(
+      candidatos_previstos = NA_real_,
+      probabilidad_candidato_estimada = NA_real_,
+      muestra_estimacion = 0L, vocabulario = NA_integer_,
+      pares_benchmark = NA_integer_, tiempo_benchmark = NA_real_,
+      velocidad_comparacion = NA_real_, tiempo_estimado_segundos = NA_real_,
+      tiempo_estimado_es_piso = FALSE, tiempo_determinista = TRUE,
+      alcance = interno$alcance, disponible = interno$disponible,
+      razon = interno$razon
+    )
+  } else {
+    salida <- c(
+      interno$estimacion,
+      list(alcance = interno$alcance, disponible = interno$disponible,
+           razon = interno$razon)
+    )
+  }
+  class(salida) <- c("estimacion_costo_lupa", "list")
+  salida
 }

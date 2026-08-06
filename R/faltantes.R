@@ -28,6 +28,7 @@
 #'
 #' @format Vector numérico de ocho elementos.
 #' @source `naniar::common_na_numbers`, versión 1.1.0.
+#' @docType data
 #' @export
 #' @seealso [perfilar()], [planificar_limpieza()]
 #'

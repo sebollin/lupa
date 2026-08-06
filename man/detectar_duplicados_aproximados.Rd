@@ -22,7 +22,8 @@ detectar_duplicados_aproximados(
   lsh_q = 3L,
   lsh_max_cubeta = 1000L,
   lsh_muestra_estimacion = 400000L,
-  presupuesto_pares = Inf
+  presupuesto_pares = Inf,
+  bloquear_por = NULL
 )
 }
 \arguments{
@@ -84,6 +85,11 @@ defecto se intentan 400.000 pares.}
 defecto es \code{Inf}; si la estimación previa lo supera, una sesión no
 interactiva aborta antes del recorrido y una interactiva pregunta si se
 continúa. No limita el camino exacto.}
+
+\item{bloquear_por}{Nombre de una columna declarada por el usuario para
+restringir la comparación a filas con la misma clave. La clave no tiene
+significado incorporado en \code{lupa}; sus tamaños, ausentes y pares que
+quedan fuera se registran en \code{alcance}. Los \code{NA} forman un bloque propio.}
 }
 \value{
 Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
@@ -152,6 +158,13 @@ se ejecuta durante al menos 50 ms y queda en \code{resultado$estimacion}, separa
 de \code{alcance} y marcado como no determinista. Es un piso de la medida aislada
 y no estima la firma, las cubetas ni el troceo; sólo se muestra como aviso en
 una sesión interactiva.
+Fuera de una sesión interactiva se señala una condición silenciosa de clase
+\code{lupa_tiempo_lsh}, sólo en el camino LSH: no se imprime en \code{stdout} ni
+\code{stderr}. Se puede capturar con
+\code{withCallingHandlers(resultado <- detectar_duplicados_aproximados(...), lupa_tiempo_lsh = function(c) { ... })}. Como hereda de \code{message}, un
+\code{tryCatch(..., message = ...)} puede interrumpir la corrida y devolver el
+valor del manejador; para observar sin interrumpir use \code{withCallingHandlers}
+y, si corresponde, \code{invokeRestart("muffleMessage")}.
 \code{presupuesto_pares} permite rechazar el recorrido antes de iniciarlo; sólo se
 pregunta en una sesión interactiva. El diagnóstico de
 Jaccard puede quedar limitado a los primeros

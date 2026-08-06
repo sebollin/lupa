@@ -24,10 +24,11 @@ Description: Provides general-purpose data profiling and quality analysis for
 License: GPL-2 | GPL-3
 URL: https://CRAN.R-project.org/package=lupa
 Encoding: UTF-8
+Language: es
 LazyData: true
 Roxygen: list(markdown = TRUE)
 Depends:
-    R (>= 4.1.0)
+    R (>= 3.6.0)
 Imports:
     cli
 Suggests:

@@ -163,6 +163,155 @@ test_that("los textos de estimacion declaran pares y cantidades enteras", {
   sin_reloj <- fijo
   sin_reloj$tiempo <- NA_real_
   expect_match(lupa:::.texto_tiempo_lsh(sin_reloj), "no se pudo medir")
+  expect_identical(lupa:::.formato_pares_lsh(NA_real_), "NA")
+  expect_identical(lupa:::.formato_pares_lsh(Inf), "Inf")
+})
+
+test_that("estimar_costo separa el pronostico del recorrido", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = rep(c("Ana Perez", "Ana Peres", "Luis Diaz"), 8L),
+    grupo = rep(c("A", "A", "B", NA), length.out = 24L),
+    stringsAsFactors = FALSE
+  )
+  costo <- estimar_costo(
+    datos, columnas = "nombre", estrategia = "lsh",
+    lsh_muestra_estimacion = 100L, bloquear_por = "grupo"
+  )
+  expect_s3_class(costo, "estimacion_costo_lupa")
+  expect_true(is.finite(costo$candidatos_previstos))
+  expect_false(isTRUE(costo$tiempo_determinista))
+  expect_true(all(c("bloqueo_pares_alcanzables",
+                    "bloqueo_pares_fuera_alcance") %in%
+                  names(costo$alcance)))
+  costo_2 <- suppressMessages(estimar_costo(
+    datos, columnas = "nombre", estrategia = "lsh",
+    lsh_muestra_estimacion = 100L, bloquear_por = "grupo"
+  ))
+  expect_identical(costo$alcance, costo_2$alcance)
+})
+
+test_that("bloquear_por es explicito y declara pares fuera de alcance", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = c("Ana Perez", "Ana Peres", "Ana Perez", "Luis Diaz"),
+    grupo = c("A", "B", "A", NA_character_),
+    stringsAsFactors = FALSE
+  )
+  resultado <- detectar_duplicados_aproximados(
+    datos, columnas = "nombre", estrategia = "teselas", muestra = Inf,
+    max_pares = Inf, proteger_datos_personales = FALSE, bloquear_por = "grupo"
+  )
+  expect_true(any(resultado$pares$fila_1 == 1L & resultado$pares$fila_2 == 3L))
+  expect_false(any(resultado$pares$fila_1 == 1L & resultado$pares$fila_2 == 2L))
+  expect_equal(resultado$alcance$n_pares_comparados, 1)
+  expect_equal(resultado$alcance$bloqueo_pares_alcanzables, 1)
+  expect_equal(resultado$alcance$bloqueo_pares_fuera_alcance, 5)
+  expect_equal(resultado$alcance$bloqueo_tratamiento_na, "bloque_propio")
+  expect_true(any(resultado$hallazgos$tipo_hallazgo ==
+                  "bloqueo_por_con_perdida"))
+  expect_equal(resultado$hallazgos$severidad[
+    resultado$hallazgos$tipo_hallazgo == "bloqueo_por_con_perdida"
+  ], factor("sospechoso", levels = c("ok", "sospechoso", "error"),
+            ordered = TRUE))
+})
+
+test_that("bloquear_por valida columnas atomicas y filtra candidatos", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(nombre = c("Ana", "Ana"), grupo = c("A", "B"))
+  expect_error(
+    detectar_duplicados_aproximados(datos, columnas = "nombre",
+                                     bloquear_por = "inexistente"),
+    "columna existente"
+  )
+  datos$matriz <- matrix(1:4, nrow = 2L)
+  expect_error(
+    detectar_duplicados_aproximados(datos, columnas = "nombre",
+                                     bloquear_por = "matriz"),
+    "columna atomica"
+  )
+  comparado <- lupa:::.comparar_bloques_duplicados(
+    c("Ana", "Ana"), 1:2, "jw", 0.2, 10L, Inf,
+    bloqueos = c(1L, 2L)
+  )
+  expect_equal(nrow(comparado$pares), 0L)
+  vacio <- lupa:::.nuevo_acumulador_duplicados(Inf)
+  vacio$lotes <- list(vacio$pares)
+  expect_equal(lupa:::.pares_acumulador_duplicados(vacio), vacio$pares)
+})
+
+test_that("LSH mide y compara bloques declarados", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = rep("Ana Perez Calle 1", 6L),
+    grupo = c("A", "A", "A", "B", "B", "B")
+  )
+  resultado <- suppressMessages(detectar_duplicados_aproximados(
+    datos, columnas = "nombre", estrategia = "lsh", max_resultados = Inf,
+    lsh_max_cubeta = 2L, lsh_muestra_estimacion = 100L,
+    proteger_datos_personales = FALSE, bloquear_por = "grupo"
+  ))
+  expect_true(resultado$alcance$lsh_cubetas_grandes[[1L]] > 0L)
+  expect_gt(resultado$alcance$lsh_pares_comparados[[1L]], 0)
+  expect_true(resultado$alcance$bloqueo_pares_fuera_alcance[[1L]] > 0)
+  costo <- estimar_costo(
+    datos, columnas = "nombre", estrategia = "teselas",
+    max_pares = Inf, bloquear_por = "grupo"
+  )
+  expect_true(costo$tiempo_determinista)
+  expect_equal(costo$alcance$pares_alcanzables, 6)
+})
+
+test_that("las ramas de estimación y alcance sin comparables quedan declaradas", {
+  skip_if_not_installed("stringdist")
+  firmas <- matrix(seq_len(12L), nrow = 4L, ncol = 3L)
+  sin_pares_benchmark <- lupa:::.estimar_lsh(
+    firmas, letters[1:4], "jw", bandas = 1L, filas_banda = 3L,
+    tamano_muestra = 20L, bloqueos = seq_len(4L)
+  )
+  expect_true(is.na(sin_pares_benchmark$tiempo))
+  datos <- data.frame(nombre = c("", ""), grupo = c("A", NA_character_))
+  resultado <- detectar_duplicados_aproximados(
+    datos, columnas = "nombre", estrategia = "teselas", muestra = Inf,
+    max_pares = Inf, bloquear_por = "grupo"
+  )
+  expect_equal(resultado$alcance$n_filas_validas, 0L)
+  simple <- data.frame(nombre = c("Ana", "Ana"))
+  costo <- estimar_costo(
+    simple, columnas = "nombre", estrategia = "teselas", max_pares = Inf
+  )
+  expect_true(costo$tiempo_determinista)
+})
+
+test_that("las salidas tempranas conservan el resumen de bloqueo", {
+  local_mocked_bindings(
+    .stringdist_disponible = function() FALSE,
+    .package = "lupa"
+  )
+  datos <- data.frame(nombre = c("Ana", "Ana"), grupo = c("A", "B"))
+  no_disponible <- detectar_duplicados_aproximados(
+    datos, bloquear_por = "grupo"
+  )
+  expect_equal(no_disponible$alcance$bloqueo_por, "grupo")
+  solo_numericas <- data.frame(valor = 1:2, grupo = c("A", "B"))
+  sin_columnas <- detectar_duplicados_aproximados(
+    solo_numericas, bloquear_por = "grupo"
+  )
+  expect_equal(sin_columnas$alcance$bloqueo_por, "grupo")
+  costo <- estimar_costo(datos, bloquear_por = "grupo")
+  expect_true(costo$tiempo_determinista)
+})
+
+test_that("el resumen de Jaccard se recorta con alcance declarado", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(nombre = rep("Ana Perez Calle 1", 250L))
+  resultado <- suppressMessages(detectar_duplicados_aproximados(
+    datos, columnas = "nombre", estrategia = "lsh", max_resultados = 1L,
+    lsh_max_cubeta = 1000L, proteger_datos_personales = FALSE
+  ))
+  expect_true(resultado$alcance$lsh_jaccard_evaluados[[1L]] <= 10000L)
+  expect_match(resultado$alcance$lsh_jaccard_alcance[[1L]],
+               "primeros_del_recorrido", fixed = TRUE)
 })
 
 test_that("el aviso de tiempo no escribe fuera de una sesion interactiva", {

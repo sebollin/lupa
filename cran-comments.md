@@ -12,6 +12,16 @@
 
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS.
 
+## Implementation notes
+
+The internal `.con_rng_interno_lsh()` uses a fixed seed so that MinHash and LSH
+remain reproducible without depending on the caller's RNG configuration. It
+captures `RNGkind()` and `.Random.seed`, restores both with `on.exit()`, and
+leaves the caller's state unchanged; the package regression checks exercise
+both properties. The `<<-` assignments in the LSH and profiling closures update
+only their enclosing function environments, never `.GlobalEnv`, and are used to
+accumulate local state across callbacks.
+
 ## Reverse dependencies
 
 This is the first release, so there are no reverse dependencies.
