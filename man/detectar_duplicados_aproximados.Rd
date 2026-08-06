@@ -26,7 +26,8 @@ detectar_duplicados_aproximados(
   bloquear_por = NULL,
   lotes = FALSE,
   tamano_lote = 1000L,
-  directorio_lotes = NULL
+  directorio_lotes = NULL,
+  nucleos = getOption("lupa.nucleos", 2L)
 )
 }
 \arguments{
@@ -109,13 +110,21 @@ nunca se escribe en el directorio de trabajo por omisión. Los parciales no
 son reanudables y se conservan al terminar para auditoría; si el directorio
 base fue elegido por el usuario, éste debe eliminarlos cuando ya no los
 necesite. Su ruta, cantidad y tamaño quedan en \code{resultado$lotes}.}
+
+\item{nucleos}{Cantidad máxima de hilos que \code{stringdist} puede usar. Por
+defecto es \code{getOption("lupa.nucleos", 2L)}; \code{NULL} usa esa misma opción y
+un valor mayor que los núcleos disponibles se limita de forma segura. El
+resultado no depende de esta cantidad, pero el tiempo sí. El valor efectivo
+queda declarado en \code{alcance$nucleos_usados}.}
 }
 \value{
 Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
 \code{alcance}, \code{columnas}, \code{metodo}, \code{umbral}, \code{disponible}, \code{razon} y
 \code{estimacion}. \code{alcance} es reproducible; en el camino LSH,
 \code{estimacion$tiempo_determinista} es \code{FALSE} y reúne la velocidad, duración
-y tiempo de referencia medidos en esa corrida. En el camino exacto o cuando
+y tiempo de referencia medidos en esa corrida. El campo
+\code{estimacion$tiempo_estimado_etapa} indica que ese piso cubre sólo la
+comparación \code{stringdist}, no la firma, las cubetas ni el troceo. En el camino exacto o cuando
 no se puede comparar, \code{estimacion} es \code{NULL}. Si \code{lotes = TRUE}, se agrega
 \code{lotes} con el directorio, los archivos RDS, sus tamaños, el estado de
 completitud y \code{reanudable = FALSE}. El loteo cruza todos los grupos, por lo
@@ -157,6 +166,12 @@ modo, el tamaño de las teselas o los parámetros LSH y los que quedaron fuera. 
 devuelve un objeto con \code{disponible = FALSE}, una tabla vacia y el motivo
 explicito; no falla ni presenta silencio como si se hubieran comparado todos
 los pares.
+
+Las comparaciones que delegan en \code{stringdist} usan \code{nucleos} hilos como
+máximo. El valor por omisión es \code{getOption("lupa.nucleos", 2L)}, se limita a
+los núcleos disponibles y se publica como \code{alcance$nucleos_usados}. Cambiar
+la cantidad de hilos no cambia los pares ni los hallazgos, aunque sí puede
+cambiar el tiempo de ejecución.
 
 Para tablas que superan el tope exhaustivo, \code{estrategia = "auto"} usa
 MinHash con bandas LSH sobre todas las filas cuando \code{muestra = Inf}. La

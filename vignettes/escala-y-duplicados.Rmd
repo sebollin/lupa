@@ -17,6 +17,13 @@ ocultar el costo ni la pérdida de alcance. La comparación aproximada está
 apagada en `perfilar()`; se solicita de forma explícita y siempre informa qué
 pares se miraron.
 
+Las llamadas a `stringdist` usan por omisión `nucleos =
+getOption("lupa.nucleos", 2L)`. El valor efectivo queda en
+`alcance$nucleos_usados`; se puede cambiar por llamada o mediante la opción,
+pero la cantidad de hilos no cambia los pares ni los hallazgos, sólo el tiempo.
+Las mediciones de escala fijan dos hilos para que los tiempos sean comparables
+entre corridas y máquinas.
+
 ## Un conjunto pequeño
 
 ```{r datos}
@@ -52,6 +59,10 @@ estimacion[c(
   "muestra_estimacion", "vocabulario"
 )]
 ```
+
+El pronóstico de tiempo, cuando aparece, es un piso de la etapa de comparación
+`stringdist`: no incluye la firma MinHash, el bandeo, las cubetas ni el troceo.
+Su campo `estimacion$tiempo_estimado_etapa` lo deja explícito.
 
 Si el pronóstico supera el límite elegido, `presupuesto_pares` corta antes de
 comparar. En una sesión interactiva se puede decidir explícitamente continuar;

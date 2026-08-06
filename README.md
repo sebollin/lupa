@@ -146,16 +146,18 @@ familia MinHash/LSH genera candidatos sin materializar todos los pares. En el
 padrón sintético difícil incluido en las mediciones reproducibles, los números
 vigentes son:
 
-| filas | candidatos LSH | tiempo medido | recall del techo |
+| filas | candidatos LSH | recall del techo | hilos `stringdist` |
 | ---: | ---: | ---: | ---: |
-| 20.000 | 6.201.626 | 7,4 s | 1,0000 |
-| 100.000 | 140.097.499 | 61,0 s | 1,0000 |
-| 200.000 | 582.388.482 | 202,5 s | 1,0000 |
+| 20.000 | 6.201.626 | 1,0000 | 2 |
+| 100.000 | 140.097.499 | 1,0000 | 2 |
+| 200.000 | 582.388.482 | 1,0000 | 2 |
 
-Los tiempos son la mediana de tres corridas de `benchmarks.R`; los conteos y el
-recall se calculan una vez porque son deterministas. La estimación previa de
-candidatos queda dentro del 1,5 % en los tres tamaños publicados en
-`notas-desarrollo/BENCHMARKS.md`. La riqueza del
+Los conteos y el recall se calculan una vez porque son deterministas; el script
+de desarrollo del repositorio permite repetir la medición de tiempo con tres
+corridas y una cantidad fija de hilos. `detectar_duplicados_aproximados()` usa
+por omisión `nucleos = getOption("lupa.nucleos", 2L)`; cambiarlo no cambia los
+pares, aunque sí el tiempo. La estimación previa de candidatos queda dentro del
+1,5 % en los tres tamaños. La riqueza del
 vocabulario cambia la constante: a igual tamaño de tabla, una configuración de
 valores repetidos produjo 122 veces más candidatos que una de vocabulario
 amplio. `estimar_costo()` permite decidir antes de empezar;
@@ -163,9 +165,10 @@ amplio. `estimar_costo()` permite decidir antes de empezar;
 `bloquear_por` y `lotes = TRUE` declaran respectivamente la pérdida de comparar
 fuera de los bloques y los parciales escritos.
 
-La cifra de tiempo depende de la máquina y del contenido de las cubetas. Los
-conteos, la estimación y el recall son reproducibles; la viñeta de escala
-describe las unidades y los límites de cada alcance.
+La cifra de tiempo depende de la máquina, de los hilos disponibles y del
+contenido de las cubetas, por eso no se publica en esta tabla. Los conteos, la
+estimación y el recall son reproducibles; la viñeta de escala describe las
+unidades y los límites de cada alcance.
 
 ## Capacidades principales
 

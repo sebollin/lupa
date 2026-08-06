@@ -10,10 +10,28 @@
   requireNamespace("stringdist", quietly = TRUE)
 }
 
+.nucleos_disponibles_lupa <- function() {
+  disponibles <- tryCatch(
+    parallel::detectCores(logical = TRUE),
+    error = function(e) NA_integer_
+  )
+  if (!length(disponibles) || is.na(disponibles) || !is.finite(disponibles) ||
+      disponibles < 1) 1L else as.integer(disponibles)
+}
+
+.resolver_nucleos_lupa <- function(x = getOption("lupa.nucleos", 2L)) {
+  if (is.null(x)) x <- getOption("lupa.nucleos", 2L)
+  if (!is.numeric(x) || length(x) != 1L || is.na(x) || !is.finite(x) ||
+      x < 1 || x != floor(x)) {
+    stop("`nucleos` debe ser un entero positivo o NULL.", call. = FALSE)
+  }
+  min(as.integer(x), .nucleos_disponibles_lupa())
+}
+
 .vacio_duplicados_aproximados <- function(
     n_filas, columnas, metodo, umbral, muestra, max_pares, max_resultados,
     disponible = TRUE, razon = "", bloque = 1000L, n_bloques = 0L,
-    modo_comparacion = "sin_comparacion") {
+    modo_comparacion = "sin_comparacion", nucleos_usados = NA_integer_) {
   pares <- data.frame(
     fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
     tipo_par = character(), metodo = character(), umbral = numeric(),
@@ -47,6 +65,7 @@
     muestreado = FALSE,
     truncado = FALSE,
     disponible = disponible,
+    nucleos_usados = nucleos_usados,
     razon = razon,
     stringsAsFactors = FALSE
   )
@@ -174,7 +193,7 @@
 }
 
 .estimar_perdida_bloqueo <- function(
-    valores, bloqueos, metodo, umbral, tamano_muestra) {
+    valores, bloqueos, metodo, umbral, tamano_muestra, nucleos = 2L) {
   if (length(valores) < 2L || is.null(bloqueos)) {
     return(data.frame(
       bloqueo_muestra_pares = 0L,
@@ -201,7 +220,8 @@
     ))
   }
   distancias <- stringdist::stringdist(
-    valores[pares$fila_1], valores[pares$fila_2], method = metodo
+    valores[pares$fila_1], valores[pares$fila_2], method = metodo,
+    nthread = nucleos
   )
   candidatos <- is.finite(distancias) & distancias <= umbral
   fuera <- bloqueos[pares$fila_1] != bloqueos[pares$fila_2]
@@ -323,7 +343,7 @@
 #' @noRd
 .comparar_bloques_duplicados <- function(
     valores, filas, metodo, umbral, bloque, max_resultados,
-    acumulador = NULL, on_pairs = NULL, bloqueos = NULL) {
+    acumulador = NULL, on_pairs = NULL, bloqueos = NULL, nucleos = 2L) {
   n <- length(valores)
   acumular_en_externo <- !is.null(acumulador)
   if (is.null(acumulador)) {
@@ -348,7 +368,8 @@
       fin_j <- min(n, inicios[[j]] + bloque - 1L)
       filas_j <- inicios[[j]]:fin_j
       matriz <- as.matrix(stringdist::stringdistmatrix(
-        valores[filas_i], valores[filas_j], method = metodo
+        valores[filas_i], valores[filas_j], method = metodo,
+        nthread = nucleos
       ))
       n_bloques <- n_bloques + 1L
       candidatas <- if (i == j) {
@@ -402,7 +423,7 @@
 
 .comparar_por_lotes_duplicados <- function(
     valores, filas, metodo, umbral, bloque, tamano_lote, max_resultados,
-    bloqueos = NULL, directorio_lotes) {
+    bloqueos = NULL, directorio_lotes, nucleos = 2L) {
   n <- length(valores)
   grupos <- split(seq_len(n), ceiling(seq_len(n) / tamano_lote))
   acumulador <- .nuevo_acumulador_duplicados(max_resultados)
@@ -423,7 +444,7 @@
         valores[indices], filas[indices], metodo, umbral, bloque, Inf,
         bloqueos = if (is.null(bloqueos)) NULL else {
           bloqueos[indices]
-        }
+        }, nucleos = nucleos
       )
       # El comparador anterior compara también el rectángulo cruzado dentro
       # de la concatenación. Para i != j eso incluiría pares internos de cada
@@ -610,7 +631,7 @@
 
 .estimar_lsh <- function(
     firmas, valores, metodo, bandas, filas_banda, tamano_muestra,
-    bloqueos = NULL) {
+    bloqueos = NULL, nucleos = 2L) {
   n <- nrow(firmas)
   pares <- .muestra_pares_lsh(n, tamano_muestra)
   total <- as.numeric(n) * (as.numeric(n) - 1) / 2
@@ -652,7 +673,8 @@
   # describir la infraestructura en lugar de los pares por segundo.
   invisible(stringdist::stringdist(
     valores[pares_benchmark$fila_1[[1L]]],
-    valores[pares_benchmark$fila_2[[1L]]], method = metodo
+    valores[pares_benchmark$fila_2[[1L]]], method = metodo,
+    nthread = nucleos
   ))
   indices_benchmark <- seq_len(n_benchmark)
   inicio <- proc.time()[["elapsed"]]
@@ -665,7 +687,8 @@
   while (transcurrido < 0.05 && repeticiones < 10000L) {
     invisible(stringdist::stringdist(
       valores[pares_benchmark$fila_1[indices_benchmark]],
-      valores[pares_benchmark$fila_2[indices_benchmark]], method = metodo
+      valores[pares_benchmark$fila_2[indices_benchmark]], method = metodo,
+      nthread = nucleos
     ))
     repeticiones <- repeticiones + 1L
     pares_cronometrados <- pares_cronometrados + n_benchmark
@@ -788,7 +811,8 @@
 .comparar_lsh_duplicados <- function(
     valores, filas, metodo, umbral, bandas, filas_banda, q,
     max_cubeta, max_resultados, muestra_estimacion = 400000L,
-    presupuesto_pares = Inf, bloqueos = NULL, solo_estimacion = FALSE) {
+    presupuesto_pares = Inf, bloqueos = NULL, solo_estimacion = FALSE,
+    nucleos = 2L) {
   n <- length(valores)
   n_hashes <- bandas * filas_banda
   indice <- .ids_qgramas_por_bloques(valores, q)
@@ -804,7 +828,7 @@
   indice <- NULL
   estimacion <- .estimar_lsh(
     firmas, valores, metodo, bandas, filas_banda, muestra_estimacion,
-    bloqueos = bloqueos
+    bloqueos = bloqueos, nucleos = nucleos
   )
   mensaje_tiempo <- .texto_tiempo_lsh(estimacion)
   if (isTRUE(interactive())) {
@@ -828,6 +852,7 @@
         tiempo_benchmark = estimacion$tiempo_benchmark,
         velocidad_comparacion = estimacion$velocidad,
         tiempo_estimado_segundos = estimacion$tiempo,
+        tiempo_estimado_etapa = "comparacion_stringdist",
         tiempo_estimado_es_piso = TRUE,
         tiempo_determinista = FALSE
       ),
@@ -837,6 +862,7 @@
         lsh_candidatos_previstos_es_estimacion = TRUE,
         lsh_probabilidad_candidato_estimada = estimacion$probabilidad,
         lsh_muestra_estimacion = estimacion$muestra_usada,
+        nucleos_usados = nucleos,
         stringsAsFactors = FALSE
       )
     ))
@@ -943,7 +969,8 @@
           valores[indices], filas[indices], metodo, umbral,
           bloque = min(2000L, tamano), max_resultados = max_resultados,
           acumulador = acumulador, on_pairs = registrar_jaccard_filas,
-          bloqueos = if (is.null(bloqueos)) NULL else bloqueos[indices]
+          bloqueos = if (is.null(bloqueos)) NULL else bloqueos[indices],
+          nucleos = nucleos
         )
         acumulador <- por_teselas$acumulador
         teselas_cubetas_grandes <- teselas_cubetas_grandes +
@@ -1008,7 +1035,7 @@
         p1 <- p1[keep]
         p2 <- p2[keep]
         distancias <- stringdist::stringdist(
-          valores[p1], valores[p2], method = metodo
+          valores[p1], valores[p2], method = metodo, nthread = nucleos
         )
         pares_comparados <- pares_comparados + length(p1)
         pasan <- is.finite(distancias) & distancias <= umbral
@@ -1065,6 +1092,7 @@
       tiempo_benchmark = estimacion$tiempo_benchmark,
       velocidad_comparacion = estimacion$velocidad,
       tiempo_estimado_segundos = estimacion$tiempo,
+      tiempo_estimado_etapa = "comparacion_stringdist",
       tiempo_estimado_es_piso = TRUE,
       tiempo_determinista = FALSE
     ),
@@ -1097,6 +1125,7 @@
       lsh_probabilidad_candidato_estimada = estimacion$probabilidad,
       lsh_muestra_estimacion = estimacion$muestra_usada,
       lsh_muestra_estimacion_configurada = muestra_estimacion,
+      nucleos_usados = nucleos,
       lsh_presupuesto_pares = presupuesto_pares,
       lsh_candidatos_descartados_bandas = candidatos_descartados_bandas,
       lsh_pares_comparados = pares_comparados,
@@ -1231,7 +1260,8 @@
     estrategia = "auto", lsh_bandas = 12L, lsh_filas = 3L, lsh_q = 3L,
     lsh_max_cubeta = 1000L, lsh_muestra_estimacion = 400000L,
     presupuesto_pares = Inf, bloquear_por = NULL, solo_estimacion = FALSE,
-    lotes = FALSE, tamano_lote = 1000L, directorio_lotes = NULL) {
+    lotes = FALSE, tamano_lote = 1000L, directorio_lotes = NULL,
+    nucleos = getOption("lupa.nucleos", 2L)) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
@@ -1239,6 +1269,7 @@
   muestra <- .validar_limite_duplicados(muestra, "muestra")
   max_pares <- .validar_limite_duplicados(max_pares, "max_pares")
   max_resultados <- .validar_limite_duplicados(max_resultados, "max_resultados")
+  nucleos <- .resolver_nucleos_lupa(nucleos)
   bloque <- .validar_bloque_duplicados(bloque)
   bloquear_por <- .validar_bloquear_por(datos, bloquear_por)
   lotes <- .validar_lotes(lotes)
@@ -1287,7 +1318,8 @@
     resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
       max_resultados, disponible = FALSE, bloque = bloque,
-      razon = "No esta instalado el paquete opcional 'stringdist'."
+      razon = "No esta instalado el paquete opcional 'stringdist'.",
+      nucleos_usados = nucleos
     )
     if (!is.null(resumen_bloqueo)) {
       resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
@@ -1302,7 +1334,7 @@
     resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
       max_resultados, disponible = TRUE, bloque = bloque,
-      razon = motivo
+      razon = motivo, nucleos_usados = nucleos
     )
     if (!is.null(resumen_bloqueo)) {
       resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
@@ -1362,7 +1394,7 @@
     perdida_bloqueo <- .estimar_perdida_bloqueo(
       textos$valores[validos_bloqueo],
       resumen_bloqueo$ids[validos_bloqueo], metodo, umbral,
-      lsh_muestra_estimacion
+      lsh_muestra_estimacion, nucleos = nucleos
     )
     resumen_bloqueo$alcance <- cbind(
       resumen_bloqueo$alcance, perdida_bloqueo
@@ -1380,7 +1412,8 @@
     resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
       max_resultados, disponible = TRUE, bloque = bloque,
-      razon = "No hay dos filas con valores comparables."
+      razon = "No hay dos filas con valores comparables.",
+      nucleos_usados = nucleos
     )
     resultado$alcance$n_filas_muestra <- length(indices)
     resultado$alcance$n_filas_validas <- length(validos)
@@ -1416,6 +1449,7 @@
       modo_comparacion = "exhaustiva_por_bloques",
       candidatos_previstos = dentro,
       pares_alcanzables = dentro,
+      nucleos_usados = nucleos,
       stringsAsFactors = FALSE
     )
     if (!is.null(resumen_bloqueo)) {
@@ -1431,6 +1465,7 @@
         tiempo_benchmark = NA_real_,
         velocidad_comparacion = NA_real_,
         tiempo_estimado_segundos = NA_real_,
+        tiempo_estimado_etapa = NA_character_,
         tiempo_estimado_es_piso = FALSE,
         tiempo_determinista = TRUE
       ), alcance = alcance, disponible = TRUE, razon = ""
@@ -1445,7 +1480,7 @@
       lsh_muestra_estimacion, presupuesto_pares,
       bloqueos = if (is.null(resumen_bloqueo)) NULL else {
         resumen_bloqueo$ids[validos]
-      }, solo_estimacion = solo_estimacion
+      }, solo_estimacion = solo_estimacion, nucleos = nucleos
     )
     if (isTRUE(solo_estimacion)) {
       alcance <- lsh$alcance
@@ -1469,12 +1504,13 @@
         tamano_lote, max_resultados,
         bloqueos = if (is.null(resumen_bloqueo)) NULL else {
           resumen_bloqueo$ids[validos]
-        }, directorio_lotes = directorio_parciales
+        }, directorio_lotes = directorio_parciales, nucleos = nucleos
       )
       lotes_metadata <- bloques$metadata
     } else if (is.null(resumen_bloqueo)) {
       bloques <- .comparar_bloques_duplicados(
-        textos$valores[validos], validos, metodo, umbral, bloque, max_resultados
+        textos$valores[validos], validos, metodo, umbral, bloque, max_resultados,
+        nucleos = nucleos
       )
     } else {
       grupos <- split(seq_along(validos), resumen_bloqueo$ids[validos])
@@ -1483,7 +1519,8 @@
       for (grupo in grupos) {
         parcial <- .comparar_bloques_duplicados(
           textos$valores[validos[grupo]], validos[grupo], metodo, umbral,
-          bloque, max_resultados, acumulador = acumulador
+          bloque, max_resultados, acumulador = acumulador,
+          nucleos = nucleos
         )
         acumulador <- parcial$acumulador
         n_bloques <- n_bloques + parcial$n_bloques
@@ -1525,7 +1562,8 @@
   } else {
     .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
-      max_resultados, disponible = TRUE, bloque = bloque
+      max_resultados, disponible = TRUE, bloque = bloque,
+      nucleos_usados = nucleos
     )$pares
   }
   hallazgos <- if (nrow(pares)) {
@@ -1610,11 +1648,16 @@
     presupuesto_pares = presupuesto_pares,
     presupuesto_pares_aplica = usar_lsh || is.finite(presupuesto_pares),
     n_bloques = bloques$n_bloques,
+    nucleos_usados = nucleos,
     comparacion_exhaustiva = !usar_lsh && length(indices) >= nrow(datos),
     muestreado = length(indices) < nrow(datos), truncado = mostrados < n_hallados,
     disponible = TRUE, razon = "", stringsAsFactors = FALSE
   )
-  if (usar_lsh) alcance <- cbind(alcance, lsh_alcance)
+  if (usar_lsh) {
+    lsh_alcance_final <- lsh_alcance
+    lsh_alcance_final$nucleos_usados <- NULL
+    alcance <- cbind(alcance, lsh_alcance_final)
+  }
   if (!is.null(resumen_bloqueo)) {
     alcance <- cbind(alcance, resumen_bloqueo$alcance)
   }
@@ -1663,6 +1706,12 @@
 #' devuelve un objeto con `disponible = FALSE`, una tabla vacia y el motivo
 #' explicito; no falla ni presenta silencio como si se hubieran comparado todos
 #' los pares.
+#'
+#' Las comparaciones que delegan en `stringdist` usan `nucleos` hilos como
+#' máximo. El valor por omisión es `getOption("lupa.nucleos", 2L)`, se limita a
+#' los núcleos disponibles y se publica como `alcance$nucleos_usados`. Cambiar
+#' la cantidad de hilos no cambia los pares ni los hallazgos, aunque sí puede
+#' cambiar el tiempo de ejecución.
 #'
 #' Para tablas que superan el tope exhaustivo, `estrategia = "auto"` usa
 #' MinHash con bandas LSH sobre todas las filas cuando `muestra = Inf`. La
@@ -1723,6 +1772,11 @@
 #' @param max_resultados Maximo de pares devueltos. Por defecto `100`.
 #' @param bloque Cantidad de filas por tesela de comparación. Por defecto
 #'   `1000`; controla la memoria temporal, no el número de pares comparados.
+#' @param nucleos Cantidad máxima de hilos que `stringdist` puede usar. Por
+#'   defecto es `getOption("lupa.nucleos", 2L)`; `NULL` usa esa misma opción y
+#'   un valor mayor que los núcleos disponibles se limita de forma segura. El
+#'   resultado no depende de esta cantidad, pero el tiempo sí. El valor efectivo
+#'   queda declarado en `alcance$nucleos_usados`.
 #' @param normalizar Si se recortan espacios, se pasa a minusculas y se
 #'   colapsan espacios antes de calcular la distancia.
 #' @param perfil Perfil de los mismos datos para reutilizar su clasificacion de
@@ -1770,7 +1824,9 @@
 #'   `alcance`, `columnas`, `metodo`, `umbral`, `disponible`, `razon` y
 #'   `estimacion`. `alcance` es reproducible; en el camino LSH,
 #'   `estimacion$tiempo_determinista` es `FALSE` y reúne la velocidad, duración
-#'   y tiempo de referencia medidos en esa corrida. En el camino exacto o cuando
+#'   y tiempo de referencia medidos en esa corrida. El campo
+#'   `estimacion$tiempo_estimado_etapa` indica que ese piso cubre sólo la
+#'   comparación `stringdist`, no la firma, las cubetas ni el troceo. En el camino exacto o cuando
 #'   no se puede comparar, `estimacion` es `NULL`. Si `lotes = TRUE`, se agrega
 #'   `lotes` con el directorio, los archivos RDS, sus tamaños, el estado de
 #'   completitud y `reanudable = FALSE`. El loteo cruza todos los grupos, por lo
@@ -1800,7 +1856,7 @@ detectar_duplicados_aproximados <- function(
     lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
     lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
     bloquear_por = NULL, lotes = FALSE, tamano_lote = 1000L,
-    directorio_lotes = NULL) {
+    directorio_lotes = NULL, nucleos = getOption("lupa.nucleos", 2L)) {
   if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
       !identical(names(datos), perfil$columnas$columna))) {
     stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
@@ -1815,7 +1871,7 @@ detectar_duplicados_aproximados <- function(
       lsh_muestra_estimacion = lsh_muestra_estimacion,
       presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por,
       lotes = lotes, tamano_lote = tamano_lote,
-      directorio_lotes = directorio_lotes
+      directorio_lotes = directorio_lotes, nucleos = nucleos
     ))
   }
   .detectar_duplicados_aproximados(
@@ -1826,7 +1882,7 @@ detectar_duplicados_aproximados <- function(
     lsh_muestra_estimacion = lsh_muestra_estimacion,
     presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por,
     lotes = lotes, tamano_lote = tamano_lote,
-    directorio_lotes = directorio_lotes
+    directorio_lotes = directorio_lotes, nucleos = nucleos
   )
 }
 
@@ -1875,7 +1931,7 @@ estimar_costo <- function(
     lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
     lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
     bloquear_por = NULL, lotes = FALSE, tamano_lote = 1000L,
-    directorio_lotes = NULL) {
+    directorio_lotes = NULL, nucleos = getOption("lupa.nucleos", 2L)) {
   if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
       !identical(names(datos), perfil$columnas$columna))) {
     stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
@@ -1890,7 +1946,7 @@ estimar_costo <- function(
     lsh_muestra_estimacion = lsh_muestra_estimacion,
     presupuesto_pares = Inf, bloquear_por = bloquear_por,
     solo_estimacion = TRUE, lotes = FALSE, tamano_lote = tamano_lote,
-    directorio_lotes = NULL
+    directorio_lotes = NULL, nucleos = nucleos
   ))
   if (inherits(interno, "duplicados_aproximados")) {
     candidatos <- if (nrow(interno$alcance)) {
@@ -1902,6 +1958,7 @@ estimar_costo <- function(
       muestra_estimacion = 0L, vocabulario = NA_integer_,
       pares_benchmark = NA_integer_, tiempo_benchmark = NA_real_,
       velocidad_comparacion = NA_real_, tiempo_estimado_segundos = NA_real_,
+      tiempo_estimado_etapa = NA_character_,
       tiempo_estimado_es_piso = FALSE, tiempo_determinista = TRUE,
       alcance = interno$alcance, disponible = interno$disponible,
       razon = interno$razon

@@ -26,7 +26,8 @@ estimar_costo(
   bloquear_por = NULL,
   lotes = FALSE,
   tamano_lote = 1000L,
-  directorio_lotes = NULL
+  directorio_lotes = NULL,
+  nucleos = getOption("lupa.nucleos", 2L)
 )
 }
 \arguments{
@@ -103,6 +104,12 @@ escribe parciales ni modifica el directorio indicado.}
 
 \item{directorio_lotes}{Se acepta por simetría y no se crea ni se usa al
 estimar.}
+
+\item{nucleos}{Cantidad máxima de hilos que \code{stringdist} puede usar. Por
+defecto es \code{getOption("lupa.nucleos", 2L)}; \code{NULL} usa esa misma opción y
+un valor mayor que los núcleos disponibles se limita de forma segura. El
+resultado no depende de esta cantidad, pero el tiempo sí. El valor efectivo
+queda declarado en \code{alcance$nucleos_usados}.}
 }
 \value{
 Lista de clase \code{estimacion_costo_lupa} con los campos de la

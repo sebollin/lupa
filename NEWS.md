@@ -1,5 +1,15 @@
 # lupa 0.1.0
 
+## Recursos de comparación
+
+- Fija por omisión en dos los hilos que `stringdist` puede usar en las
+  comparaciones aproximadas y declara el valor efectivo en `alcance`.
+- Documenta que el piso de tiempo de LSH cubre sólo la comparación de cadenas,
+  no la firma, las cubetas ni el troceo; los resultados no dependen de la
+  cantidad de hilos.
+- Actualiza las mediciones de escala para anotar la configuración de hilos y
+  evita presentar tiempos dependientes de la máquina como cifras exactas.
+
 ## Marcos declarables y alcance internacional
 
 - Incorpora validadores vectorizados de ISO 3166, ISO 4217, correo, Luhn y

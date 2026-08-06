@@ -67,6 +67,27 @@ test_that("los pares aproximados declaran distancia y no identidad", {
   expect_match(html, "n_pares_comparados", fixed = TRUE)
 })
 
+test_that("la cantidad de hilos se declara y no cambia la salida", {
+  skip_if_not_installed("stringdist")
+  datos <- datos_pares_aproximados()
+  uno <- detectar_duplicados_aproximados(
+    datos, columnas = c("nombre", "domicilio"), nucleos = 1L,
+    max_resultados = Inf
+  )
+  dos <- detectar_duplicados_aproximados(
+    datos, columnas = c("nombre", "domicilio"), nucleos = 2L,
+    max_resultados = Inf
+  )
+  expect_identical(uno$pares, dos$pares)
+  expect_identical(uno$hallazgos, dos$hallazgos)
+  expect_equal(uno$alcance$nucleos_usados, 1L)
+  expect_equal(dos$alcance$nucleos_usados, 2L)
+  expect_error(
+    detectar_duplicados_aproximados(datos, nucleos = 0L),
+    "nucleos"
+  )
+})
+
 test_that("MinHash y LSH generan pares unicos y declaran su garantia", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(
