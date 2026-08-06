@@ -1,3 +1,32 @@
+.trazabilidad_vacia <- function(estado = "no_disponible",
+                                indices = integer(), total = NA_real_,
+                                alcance = "no_evaluado", limite = 1000L) {
+  indices <- as.integer(indices[!is.na(indices)])
+  total <- if (length(total) && is.finite(total)) as.numeric(total) else NA_real_
+  truncado <- estado %in% c("disponible", "truncada") &&
+    is.finite(total) && length(indices) < total
+  if (truncado) estado <- "truncada"
+  list(
+    estado = estado,
+    indices_fila = indices,
+    total = total,
+    mostrados = length(indices),
+    truncado = truncado,
+    limite = if (is.infinite(limite)) Inf else as.integer(limite),
+    alcance = alcance
+  )
+}
+
+.trazabilidad_indices <- function(indices, alcance, limite = 1000L) {
+  indices <- as.integer(indices[!is.na(indices)])
+  total <- length(indices)
+  .trazabilidad_vacia(
+    estado = if (total) "disponible" else "disponible",
+    indices = utils::head(indices, limite),
+    total = total, alcance = alcance, limite = limite
+  )
+}
+
 .nuevo_hallazgo <- function(columna, tipo, severidad, descripcion,
                             evidencia, sugerencia, n_evaluados = NA_real_,
                             n_afectados = NA_real_, unidad_conteo = NA_character_) {
@@ -11,6 +40,7 @@
     n_evaluados = as.numeric(n_evaluados),
     n_afectados = as.numeric(n_afectados),
     unidad_conteo = as.character(unidad_conteo),
+    trazabilidad = I(list(.trazabilidad_vacia())),
     stringsAsFactors = FALSE
   )
 }
@@ -39,11 +69,29 @@
     negativos_no_permitidos = as.numeric(fila$n_negativos),
     outliers = as.numeric(fila$n_outliers),
     numero_como_texto = as.numeric(fila$n_numeros_texto),
+    patron_raro = {
+      resumen <- attr(resultado$patrones, "resumen_patrones")
+      distintos <- attr(resultado$patrones, "n_patrones_distintos")
+      completo <- !is.null(resumen) && (
+        is.null(distintos) || !is.finite(distintos) ||
+          distintos <= nrow(resumen)
+      )
+      if (completo && !is.null(resumen) && nrow(resumen) > 1L) {
+        sum(resumen$n[-1L], na.rm = TRUE)
+      } else NA_real_
+    },
     NA_real_
   )
   unidad <- if (tipo %in% c(
     "formato_fecha_ambiguo", "anio_de_dos_digitos", "formatos_fecha_mixtos"
-  )) "formato" else "fila"
+  )) {
+    "formato"
+  } else if (tipo %in% c(
+    "posible_identificador", "alta_cardinalidad", "tipo_declarado_distinto",
+    "integer64_fuera_precision_double", "integer64_sin_soporte"
+  )) {
+    "columna"
+  } else "fila"
   if (unidad == "formato") {
     n <- if (!is.null(resultado$formatos)) nrow(resultado$formatos) else NA_real_
     afectados <- if (tipo == "formato_fecha_ambiguo") {
@@ -53,8 +101,214 @@
     } else {
       nrow(resultado$formatos)
     }
+  } else if (unidad == "columna") {
+    n <- 1
+    afectados <- 1
+  } else if (tipo == "patron_raro") {
+    analizados <- attr(resultado$patrones, "analizados", exact = TRUE)
+    if (!is.null(analizados) && is.finite(analizados)) {
+      n <- as.numeric(analizados)
+    }
   }
   list(n_evaluados = n, n_afectados = afectados, unidad_conteo = unidad)
+}
+
+.indices_patron_raro <- function(x, resultado, expandir = FALSE,
+                                 distinguir_mayusculas = TRUE) {
+  resumen <- attr(resultado$patrones, "resumen_patrones")
+  if (is.null(resumen) || nrow(resumen) < 2L) return(NULL)
+  distintos <- attr(resultado$patrones, "n_patrones_distintos")
+  if (!is.null(distintos) && is.finite(distintos) &&
+      distintos > nrow(resumen)) return(NULL)
+  total <- length(x)
+  analizados <- attr(resultado$patrones, "analizados")
+  muestreado <- isTRUE(attr(resultado$patrones, "muestreado"))
+  base <- if (muestreado && is.finite(analizados)) {
+    unique(as.integer(round(seq.int(1, total, length.out = analizados))))
+  } else {
+    seq_len(total)
+  }
+  valores <- tryCatch(.texto_analizable(x[base])$valores,
+                      error = function(e) NULL)
+  if (is.null(valores)) return(NULL)
+  patrones <- as.character(valores)
+  validos <- !is.na(patrones)
+  patrones[validos] <- gsub("[[:digit:]]", "9", patrones[validos], perl = TRUE)
+  if (isTRUE(distinguir_mayusculas)) {
+    patrones[validos] <- gsub("[[:lower:]]", "a", patrones[validos], perl = TRUE)
+    patrones[validos] <- gsub("[[:upper:]]", "A", patrones[validos], perl = TRUE)
+  } else {
+    patrones[validos] <- gsub("[[:alpha:]]", "a", patrones[validos], perl = TRUE)
+  }
+  if (!isTRUE(expandir)) {
+    patrones[validos] <- gsub("9{2,}", "9+", patrones[validos], perl = TRUE)
+    patrones[validos] <- gsub("a{2,}", "a+", patrones[validos], perl = TRUE)
+    patrones[validos] <- gsub("A{2,}", "A+", patrones[validos], perl = TRUE)
+  }
+  raros <- unique(as.character(resumen$patron[-1L]))
+  base[which(!is.na(patrones) & patrones %in% raros)]
+}
+
+.indices_hallazgo_columna <- function(tipo, x, fila, resultado,
+                                      expandir = FALSE,
+                                      distinguir_mayusculas = TRUE) {
+  if (is.matrix(x) || is.list(x)) return(NULL)
+  n <- length(x)
+  if (!n) return(integer())
+  texto <- tryCatch(.texto_analizable(x)$valores, error = function(e) NULL)
+  idx <- switch(
+    tipo,
+    tipo_compuesto_no_analizado = seq_len(n),
+    constante = tryCatch(
+      which(!is.na(x) & as.character(x) == as.character(fila$moda[[1L]])),
+      error = function(e) NULL
+    ),
+    faltantes = {
+      mascara <- tryCatch(resultado$faltantes_disfrazados$mascara,
+                          error = function(e) NULL)
+      if (is.null(mascara) || length(mascara) != n) NULL else
+        which(is.na(x) | mascara)
+    },
+    faltantes_disfrazados = {
+      mascara <- tryCatch(resultado$faltantes_disfrazados$mascara,
+                          error = function(e) NULL)
+      if (is.null(mascara) || length(mascara) != n) NULL else which(mascara)
+    },
+    espacios_sobrantes = if (is.null(texto)) NULL else
+      which(!is.na(texto) & texto != trimws(texto)),
+    mayusculas_inconsistentes = if (is.null(texto)) NULL else {
+      presentes <- !is.na(texto)
+      canon <- tolower(texto)
+      grupos <- split(seq_len(n)[presentes], canon[presentes])
+      unlist(lapply(grupos, function(g) {
+        if (length(unique(texto[g])) > 1L) g else integer()
+      }), use.names = FALSE)
+    },
+    normalizacion_unicode = if (is.null(texto) ||
+      !requireNamespace("stringi", quietly = TRUE)) NULL else {
+        presentes <- !is.na(texto)
+        normal <- stringi::stri_trans_nfc(texto[presentes])
+        grupos <- split(which(presentes), normal)
+        unlist(lapply(grupos, function(g) {
+          if (length(unique(texto[g])) > 1L) g else integer()
+        }), use.names = FALSE)
+      },
+    codificacion_invalida = tryCatch(
+      .texto_analizable(x)$posiciones, error = function(e) NULL
+    ),
+    codificacion_rota = if (is.null(texto)) NULL else {
+      cod <- tryCatch(.analizar_codificacion(texto), error = function(e) NULL)
+      if (is.null(cod)) NULL else {
+        candidatos <- grepl("[\u00c3\u00c2\u00e2\u00f0\ufffd]", texto,
+                             perl = TRUE)
+        which(candidatos & (!is.na(cod$reparados) |
+          grepl("\ufffd", texto, fixed = TRUE)))
+      }
+    },
+    numero_como_texto = if (is.null(texto)) NULL else {
+      partes <- tryCatch(.componentes_numero_texto(texto),
+                         error = function(e) NULL)
+      if (is.null(partes)) NULL else which(
+        !is.na(texto) & nzchar(texto) & partes$compatible & partes$especial
+      )
+    },
+    valores_no_finitos = if (is.numeric(x)) which(is.nan(x) | !is.finite(x)) else NULL,
+    ceros_no_permitidos = if (is.numeric(x)) which(!is.na(x) & x == 0) else NULL,
+    negativos_no_permitidos = if (is.numeric(x)) which(!is.na(x) & x < 0) else NULL,
+    outliers = if (is.numeric(x)) tryCatch({
+      valores <- x[is.finite(x)]
+      if (length(valores) < 4L) integer() else {
+        q <- stats::quantile(valores, c(0.25, 0.75), names = FALSE)
+        iqr <- q[[2L]] - q[[1L]]
+        which(x < q[[1L]] - 1.5 * iqr | x > q[[2L]] + 1.5 * iqr)
+      }
+    }, error = function(e) NULL) else NULL,
+    patron_raro = .indices_patron_raro(
+      x, resultado, expandir, distinguir_mayusculas
+    ),
+    NULL
+  )
+  if (is.null(idx)) return(NULL)
+  as.integer(idx)
+}
+
+.trazabilidad_hallazgo <- function(tipo, hallazgo, datos, nombres,
+                                   resultados, expandir, aproximados,
+                                   indice_hallazgo, tipos_hallazgos, limite,
+                                   distinguir_mayusculas = TRUE) {
+  unidad <- as.character(hallazgo$unidad_conteo[[1L]])
+  if (unidad %in% c("columna", "formato")) {
+    return(.trazabilidad_vacia("no_aplica", alcance = "no_aplica", limite = limite))
+  }
+  if (tipo %in% c("duplicados_aproximados", "duplicados_exactos_columnas")) {
+    if (is.null(aproximados) || !nrow(aproximados$pares)) {
+      return(.trazabilidad_vacia(limite = limite))
+    }
+    anteriores <- seq_len(indice_hallazgo - 1L)
+    ocurrencia <- 1L + sum(
+      tipos_hallazgos[anteriores] == tipo
+    )
+    tipo_par <- if (tipo == "duplicados_exactos_columnas") "exacto" else "aproximado"
+    indices_pares <- which(aproximados$pares$tipo_par == tipo_par)
+    if (ocurrencia > length(indices_pares)) {
+      return(.trazabilidad_vacia(limite = limite))
+    }
+    pares <- aproximados$pares[indices_pares[[ocurrencia]], , drop = FALSE]
+    parcial <- aproximados$alcance$n_pares_comparados[[1L]] <
+      aproximados$alcance$n_pares_posibles[[1L]]
+    return(.trazabilidad_indices(
+      c(pares$fila_1[[1L]], pares$fila_2[[1L]]),
+      if (parcial) "comparacion_parcial" else "comparacion_completa", limite
+    ))
+  }
+  if (tipo == "filas_duplicadas") {
+    indices <- which(duplicated(datos) | duplicated(datos, fromLast = TRUE))
+    return(.trazabilidad_indices(indices, "completo", limite))
+  }
+  if (tipo == "bloqueo_por_con_perdida") {
+    return(.trazabilidad_vacia(
+      estado = "no_disponible",
+      total = hallazgo$n_afectados[[1L]],
+      alcance = "bloqueo_fuera_de_alcance", limite = limite
+    ))
+  }
+  nombre <- as.character(hallazgo$columna[[1L]])
+  indice <- match(nombre, nombres)
+  if (is.na(indice)) return(.trazabilidad_vacia(limite = limite))
+  indices <- .indices_hallazgo_columna(
+    tipo, datos[[indice]], resultados[[indice]]$fila,
+    resultados[[indice]], expandir, distinguir_mayusculas
+  )
+  if (is.null(indices)) {
+    return(.trazabilidad_vacia(limite = limite))
+  }
+  alcance <- if (tipo == "patron_raro" &&
+                 isTRUE(attr(resultados[[indice]]$patrones,
+                             "muestreado", exact = TRUE))) {
+    "muestra_patrones"
+  } else {
+    "completo"
+  }
+  .trazabilidad_indices(indices, alcance, limite)
+}
+
+.agregar_trazabilidad_hallazgos <- function(
+    hallazgos, datos, nombres, resultados, expandir = FALSE,
+    aproximados = NULL, limite = 1000L, distinguir_mayusculas = TRUE) {
+  if (!nrow(hallazgos)) {
+    hallazgos$trazabilidad <- I(list())
+    return(hallazgos)
+  }
+  tipos_hallazgos <- as.character(hallazgos$tipo_hallazgo)
+  trazabilidad <- lapply(seq_len(nrow(hallazgos)), function(i) {
+    .trazabilidad_hallazgo(
+      as.character(hallazgos$tipo_hallazgo[[i]]), hallazgos[i, , drop = FALSE],
+      datos, nombres, resultados, expandir, aproximados, i,
+      tipos_hallazgos, limite, distinguir_mayusculas
+    )
+  })
+  hallazgos$trazabilidad <- I(trazabilidad)
+  hallazgos
 }
 
 .tipos_equivalentes <- function(declarado, inferido) {
@@ -571,12 +825,15 @@
   }
   fechas_partidas <- .detectar_fecha_partida(datos, columnas)
   if (length(fechas_partidas)) {
+    columnas_partidas <- unique(trimws(unlist(strsplit(
+      sub("\\s*\\(.*$", "", fechas_partidas), "\\+"
+    ))))
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
       NA_character_, "fecha_partida_columnas", "sospechoso",
       "La tabla parece representar una fecha mediante columnas separadas de a\u00f1o, mes y d\u00eda.",
       paste(fechas_partidas, collapse = "; "),
       "Confirmar la sem\u00e1ntica y construir una fecha expl\u00edcita sin descartar las columnas de origen.",
-      ncol(datos), NA_real_, "columna"
+      ncol(datos), length(columnas_partidas), "columna"
     )
   }
 
@@ -589,6 +846,7 @@
       evidencia = character(), sugerencia = character(),
       n_evaluados = numeric(), n_afectados = numeric(),
       unidad_conteo = character(),
+      trazabilidad = I(list()),
       stringsAsFactors = FALSE
     )
   }

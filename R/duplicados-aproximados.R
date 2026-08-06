@@ -55,6 +55,7 @@
     descripcion = character(), evidencia = character(), sugerencia = character(),
     n_evaluados = numeric(), n_afectados = numeric(),
     unidad_conteo = character(),
+    trazabilidad = I(list()),
     stringsAsFactors = FALSE
   )
   estructura <- list(
@@ -1541,6 +1542,7 @@
       descripcion = character(), evidencia = character(), sugerencia = character(),
       n_evaluados = numeric(), n_afectados = numeric(),
       unidad_conteo = character(),
+      trazabilidad = I(list()),
       stringsAsFactors = FALSE
     )
   }

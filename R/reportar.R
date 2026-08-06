@@ -22,6 +22,16 @@
   if (inherits(x, "data.frame")) {
     return(paste0("<tabla: ", nrow(x), " filas \u00d7 ", ncol(x), " columnas>"))
   }
+  if (is.list(x) && !is.null(x$estado) &&
+      "indices_fila" %in% names(x) && "mostrados" %in% names(x)) {
+    total <- if (length(x$total) && is.na(x$total)) "NA" else as.character(x$total)
+    return(paste0(
+      "estado=", x$estado,
+      "; filas mostradas=", x$mostrados,
+      " de ", total,
+      "; alcance=", x$alcance
+    ))
+  }
   if (inherits(x, "POSIXt")) {
     texto <- format(x, "%Y-%m-%d %H:%M:%S UTC", tz = "UTC")
   } else if (inherits(x, "Date")) {

@@ -146,13 +146,22 @@
 #'   argumentos para ejecutar [detectar_duplicados_aproximados()] y añadir sus
 #'   pares y hallazgos al perfil. Es un análisis acotado y opcional porque no
 #'   afirma identidad ni debe encarecer todas las corridas.
+#' @param max_filas_hallazgo Tope de índices de fila que conserva cada
+#'   trazabilidad disponible. Por defecto es `1000`; cuando se supera, el
+#'   estado queda como `truncada` y el total se conserva. Use `Inf` sólo si
+#'   necesita desactivar explícitamente el tope.
 #'
 #' @return Objeto S3 de clase `perfil`. Cada fila de hallazgos incluye
 #'   n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
 #'   declaradas (por ejemplo fila, columna, formato o par). Cuando el camino
-#'   no puede conocer un conteo, informa NA, nunca cero. En esta version los
-#'   hallazgos no llevan indices de fila; la evidencia textual y el alcance
-#'   indican que se pudo revisar.
+#'   no puede conocer un conteo, informa NA, nunca cero. La columna de lista
+#'   `trazabilidad` distingue `disponible`, `truncada`, `no_aplica` y
+#'   `no_disponible`; cuando corresponde conserva índices de fila acotados por
+#'   `max_filas_hallazgo`, el total conocido y el alcance (completo o parcial).
+#'   Los índices no contienen valores. Usarlos para extraer filas de los datos
+#'   originales puede volver a exponer datos personales; el paquete no realiza
+#'   esa extracción y la protección de salidas no sustituye el control de acceso
+#'   a los datos de entrada.
 #' @export
 #' @seealso [descubrir_patrones()], [detectar_dependencias()],
 #'   [proponer_modelo()], [planificar_limpieza()]
@@ -185,7 +194,8 @@ perfilar <- function(datos,
                      validadores_personales = NULL,
                      umbral_documento_verificado = 0.9,
                      muestra_validadores = 1000L,
-                     duplicados_aproximados = FALSE) {
+                     duplicados_aproximados = FALSE,
+                     max_filas_hallazgo = 1000L) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
@@ -234,6 +244,15 @@ perfilar <- function(datos,
   muestra_validadores <- if (is.infinite(muestra_validadores)) Inf else {
     as.integer(muestra_validadores)
   }
+  if (!is.numeric(max_filas_hallazgo) || length(max_filas_hallazgo) != 1L ||
+      is.na(max_filas_hallazgo) || max_filas_hallazgo < 1 ||
+      (!is.infinite(max_filas_hallazgo) &&
+       max_filas_hallazgo != floor(max_filas_hallazgo))) {
+    stop("`max_filas_hallazgo` debe ser un entero positivo o Inf.", call. = FALSE)
+  }
+  max_filas_hallazgo <- if (is.infinite(max_filas_hallazgo)) {
+    Inf
+  } else as.integer(max_filas_hallazgo)
   if (!is.logical(duplicados_aproximados) &&
       !is.list(duplicados_aproximados)) {
     stop("`duplicados_aproximados` debe ser FALSE, TRUE o una lista de argumentos.",
@@ -387,6 +406,11 @@ perfilar <- function(datos,
     hallazgos <- rbind(hallazgos, aproximados$hallazgos)
     rownames(hallazgos) <- NULL
   }
+  hallazgos <- .agregar_trazabilidad_hallazgos(
+    hallazgos, datos, nombres, resultados, expandir = expandir,
+    aproximados = aproximados, limite = max_filas_hallazgo,
+    distinguir_mayusculas = distinguir_mayusculas
+  )
   meta <- list(
     nombre = nombre,
     fecha_hora = fecha_hora,
@@ -408,7 +432,8 @@ perfilar <- function(datos,
     proteger_datos_personales = proteger_datos_personales,
     validadores_personales = names(validadores_personales),
     umbral_documento_verificado = umbral_documento_verificado,
-    muestra_validadores = muestra_validadores
+    muestra_validadores = muestra_validadores,
+    max_filas_hallazgo = max_filas_hallazgo
   )
   estructura <- list(
     general = general,

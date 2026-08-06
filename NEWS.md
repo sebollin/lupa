@@ -58,6 +58,9 @@
   defecto los valores concretos cuando la evidencia es discriminante.
 - Añade conteos explícitos de evaluados y afectados, con la unidad de conteo,
   a cada hallazgo; conserva NA cuando el alcance no permite conocerlos.
+- Añade trazabilidad acotada por hallazgo mediante índices de fila, con estados
+  explícitos para lo disponible, truncado, no aplicable y no disponible; el
+  reporte resume el estado sin imprimir los índices.
 
 ## Medir y evaluar calidad
 

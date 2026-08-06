@@ -29,7 +29,8 @@ perfilar(
   validadores_personales = NULL,
   umbral_documento_verificado = 0.9,
   muestra_validadores = 1000L,
-  duplicados_aproximados = FALSE
+  duplicados_aproximados = FALSE,
+  max_filas_hallazgo = 1000L
 )
 }
 \arguments{
@@ -110,14 +111,24 @@ se valida la columna completa; use \code{Inf} para revisar todos desde el inicio
 argumentos para ejecutar \code{\link[=detectar_duplicados_aproximados]{detectar_duplicados_aproximados()}} y añadir sus
 pares y hallazgos al perfil. Es un análisis acotado y opcional porque no
 afirma identidad ni debe encarecer todas las corridas.}
+
+\item{max_filas_hallazgo}{Tope de índices de fila que conserva cada
+trazabilidad disponible. Por defecto es \code{1000}; cuando se supera, el
+estado queda como \code{truncada} y el total se conserva. Use \code{Inf} sólo si
+necesita desactivar explícitamente el tope.}
 }
 \value{
 Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye
 n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
 declaradas (por ejemplo fila, columna, formato o par). Cuando el camino
-no puede conocer un conteo, informa NA, nunca cero. En esta version los
-hallazgos no llevan indices de fila; la evidencia textual y el alcance
-indican que se pudo revisar.
+no puede conocer un conteo, informa NA, nunca cero. La columna de lista
+\code{trazabilidad} distingue \code{disponible}, \code{truncada}, \code{no_aplica} y
+\code{no_disponible}; cuando corresponde conserva índices de fila acotados por
+\code{max_filas_hallazgo}, el total conocido y el alcance (completo o parcial).
+Los índices no contienen valores. Usarlos para extraer filas de los datos
+originales puede volver a exponer datos personales; el paquete no realiza
+esa extracción y la protección de salidas no sustituye el control de acceso
+a los datos de entrada.
 }
 \description{
 Examina un \code{data.frame}, \code{tibble} o \code{data.table} y devuelve estadísticas
