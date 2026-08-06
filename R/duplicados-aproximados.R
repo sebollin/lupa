@@ -1203,6 +1203,26 @@
   paste0(columnas, "=", valores, collapse = "; ")
 }
 
+.evidencia_filas_aproximada <- function(datos, columnas, filas, protegidas) {
+  n <- length(filas)
+  if (!n) return(character())
+  partes <- lapply(columnas, function(columna) {
+    valores <- if (columna %in% protegidas) {
+      rep("[valor protegido]", n)
+    } else {
+      valores <- suppressWarnings(as.character(datos[[columna]][filas]))
+      valores[is.na(valores) | !length(valores)] <- "[ausente]"
+      valores
+    }
+    paste0(columna, "=", valores)
+  })
+  salida <- partes[[1L]]
+  if (length(partes) > 1L) {
+    for (i in 2:length(partes)) salida <- paste0(salida, "; ", partes[[i]])
+  }
+  salida
+}
+
 .detectar_duplicados_aproximados <- function(
     datos, columnas = NULL, metodo = "jw", umbral = 0.12,
     muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
@@ -1491,17 +1511,11 @@
       distancia = distancias,
       tipo_par = ifelse(distancias == 0, "exacto", "aproximado"),
       metodo = metodo, umbral = umbral,
-      evidencia_1 = vapply(
-        bloques$pares$fila_1,
-        function(fila) .evidencia_fila_aproximada(
-          datos, columnas, fila, protegidas
-        ), character(1L)
+      evidencia_1 = .evidencia_filas_aproximada(
+        datos, columnas, bloques$pares$fila_1, protegidas
       ),
-      evidencia_2 = vapply(
-        bloques$pares$fila_2,
-        function(fila) .evidencia_fila_aproximada(
-          datos, columnas, fila, protegidas
-        ), character(1L)
+      evidencia_2 = .evidencia_filas_aproximada(
+        datos, columnas, bloques$pares$fila_2, protegidas
       ),
       proteccion_evidencia = if (length(protegidas)) {
         rep("[valores personales protegidos]", mostrados)
@@ -1515,27 +1529,35 @@
     )$pares
   }
   hallazgos <- if (nrow(pares)) {
-    do.call(rbind, lapply(seq_len(nrow(pares)), function(i) {
-      exacto <- identical(pares$tipo_par[[i]], "exacto")
-      .nuevo_hallazgo(
-        paste(columnas, collapse = ", "),
-        if (exacto) "duplicados_exactos_columnas" else "duplicados_aproximados",
-        "sospechoso",
-        if (exacto) {
-          "Dos filas tienen los mismos valores en las columnas comparadas; esto no demuestra identidad."
-        } else {
-          "Dos filas presentan similitud; esto no demuestra identidad."
-        },
-        paste0(
-          "Filas ", pares$fila_1[[i]], " y ", pares$fila_2[[i]],
-          "; distancia ", format(pares$distancia[[i]], digits = 6),
-          " con ", pares$metodo[[i]], " (umbral ", pares$umbral[[i]], "). ",
-          pares$evidencia_1[[i]], " / ", pares$evidencia_2[[i]]
-        ),
-        "Revisar manualmente; no eliminar ni fusionar filas por esta senal.",
-        n_pares_comparados, 1, "par"
-      )
-    }))
+    n <- nrow(pares)
+    exactos <- pares$tipo_par == "exacto"
+    data.frame(
+      columna = rep(paste(columnas, collapse = ", "), n),
+      tipo_hallazgo = ifelse(
+        exactos, "duplicados_exactos_columnas", "duplicados_aproximados"
+      ),
+      severidad = rep("sospechoso", n),
+      descripcion = ifelse(
+        exactos,
+        "Dos filas tienen los mismos valores en las columnas comparadas; esto no demuestra identidad.",
+        "Dos filas presentan similitud; esto no demuestra identidad."
+      ),
+      evidencia = paste0(
+        "Filas ", pares$fila_1, " y ", pares$fila_2,
+        "; distancia ",
+        vapply(pares$distancia, format, character(1L), digits = 6L),
+        " con ", pares$metodo, " (umbral ", pares$umbral, "). ",
+        pares$evidencia_1, " / ", pares$evidencia_2
+      ),
+      sugerencia = rep(
+        "Revisar manualmente; no eliminar ni fusionar filas por esta senal.", n
+      ),
+      n_evaluados = rep(n_pares_comparados, n),
+      n_afectados = rep(1, n),
+      unidad_conteo = rep("par", n),
+      trazabilidad = I(rep(list(.trazabilidad_vacia()), n)),
+      stringsAsFactors = FALSE
+    )
   } else {
     data.frame(
       columna = character(), tipo_hallazgo = character(), severidad = character(),
