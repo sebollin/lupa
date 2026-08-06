@@ -85,6 +85,52 @@
   x
 }
 
+.validar_lotes <- function(x) {
+  if (!is.logical(x) || length(x) != 1L || is.na(x)) {
+    stop("`lotes` debe ser TRUE o FALSE.", call. = FALSE)
+  }
+  isTRUE(x)
+}
+
+.validar_directorio_lotes <- function(x, crear = TRUE) {
+  if (is.null(x)) return(NULL)
+  if (!is.character(x) || length(x) != 1L || is.na(x) || !nzchar(x)) {
+    stop("`directorio_lotes` debe ser una ruta de texto o NULL.", call. = FALSE)
+  }
+  if (isTRUE(crear) && !dir.exists(x) &&
+      !dir.create(x, recursive = TRUE, showWarnings = FALSE)) {
+    stop("No se pudo crear `directorio_lotes`.", call. = FALSE)
+  }
+  x
+}
+
+.controlar_presupuesto_pares <- function(estimados, presupuesto) {
+  if (!is.finite(presupuesto) || !is.finite(estimados) ||
+      estimados <= presupuesto) return(invisible(TRUE))
+  continuar <- FALSE
+  if (isTRUE(interactive())) {
+    respuesta <- readline(paste0(
+      "La estimaci\u00f3n exacta es de ", .formato_pares_lsh(estimados),
+      " pares (presupuesto ", .formato_pares_lsh(presupuesto),
+      "). \u00bfContinuar? [s/N] "
+    ))
+    continuar <- tolower(trimws(respuesta)) %in% c(
+      "s", "si", "s\u00ed", "y", "yes"
+    )
+  }
+  if (!continuar) {
+    stop(
+      "La estimaci\u00f3n exacta (", .formato_pares_lsh(estimados),
+      " pares) supera `presupuesto_pares` (",
+      .formato_pares_lsh(presupuesto),
+      "). No se inici\u00f3 la comparaci\u00f3n; aumente el presupuesto, reduzca los datos, ",
+      "suba el umbral o divida el conjunto por una clave.",
+      call. = FALSE
+    )
+  }
+  invisible(TRUE)
+}
+
 .resumir_bloqueo <- function(datos, columna) {
   if (is.null(columna)) return(NULL)
   clave <- datos[[columna]]
@@ -121,6 +167,62 @@
       bloqueo_severidad = if (alcanzables < posibles) "sospechoso" else "ok",
       stringsAsFactors = FALSE
     )
+  )
+}
+
+.estimar_perdida_bloqueo <- function(
+    valores, bloqueos, metodo, umbral, tamano_muestra) {
+  if (length(valores) < 2L || is.null(bloqueos)) {
+    return(data.frame(
+      bloqueo_muestra_pares = 0L,
+      bloqueo_muestra_candidatos = 0L,
+      bloqueo_muestra_candidatos_fuera_alcance = 0L,
+      bloqueo_prop_candidatos_fuera_alcance = NA_real_,
+      bloqueo_candidatos_sin_bloqueo_estimados = NA_real_,
+      bloqueo_candidatos_perdidos_estimados = NA_real_,
+      bloqueo_perdida_estimacion_estado = "sin_muestra",
+      stringsAsFactors = FALSE
+    ))
+  }
+  pares <- .muestra_pares_lsh(length(valores), tamano_muestra)
+  if (!nrow(pares)) {
+    return(data.frame(
+      bloqueo_muestra_pares = 0L,
+      bloqueo_muestra_candidatos = 0L,
+      bloqueo_muestra_candidatos_fuera_alcance = 0L,
+      bloqueo_prop_candidatos_fuera_alcance = NA_real_,
+      bloqueo_candidatos_sin_bloqueo_estimados = NA_real_,
+      bloqueo_candidatos_perdidos_estimados = NA_real_,
+      bloqueo_perdida_estimacion_estado = "sin_muestra",
+      stringsAsFactors = FALSE
+    ))
+  }
+  distancias <- stringdist::stringdist(
+    valores[pares$fila_1], valores[pares$fila_2], method = metodo
+  )
+  candidatos <- is.finite(distancias) & distancias <= umbral
+  fuera <- bloqueos[pares$fila_1] != bloqueos[pares$fila_2]
+  n_candidatos <- sum(candidatos)
+  n_fuera <- sum(candidatos & fuera)
+  total <- as.numeric(length(valores)) * (as.numeric(length(valores)) - 1) / 2
+  estimados_sin_bloqueo <- if (total && nrow(pares)) {
+    n_candidatos / nrow(pares) * total
+  } else NA_real_
+  proporcion <- if (n_candidatos) n_fuera / n_candidatos else NA_real_
+  perdidos <- if (is.finite(estimados_sin_bloqueo) && is.finite(proporcion)) {
+    estimados_sin_bloqueo * proporcion
+  } else NA_real_
+  data.frame(
+    bloqueo_muestra_pares = nrow(pares),
+    bloqueo_muestra_candidatos = n_candidatos,
+    bloqueo_muestra_candidatos_fuera_alcance = n_fuera,
+    bloqueo_prop_candidatos_fuera_alcance = proporcion,
+    bloqueo_candidatos_sin_bloqueo_estimados = estimados_sin_bloqueo,
+    bloqueo_candidatos_perdidos_estimados = perdidos,
+    bloqueo_perdida_estimacion_estado = if (n_candidatos) {
+      "estimada_por_muestra"
+    } else "sin_candidatos_en_muestra",
+    stringsAsFactors = FALSE
   )
 }
 
@@ -286,6 +388,113 @@
   )
 }
 
+.preparar_directorio_lotes <- function(directorio_lotes) {
+  base <- if (is.null(directorio_lotes)) tempdir() else directorio_lotes
+  directorio <- tempfile("lupa-lotes-", tmpdir = base)
+  if (!dir.create(directorio, recursive = TRUE, showWarnings = FALSE)) {
+    stop("No se pudo crear el directorio de parciales.", call. = FALSE)
+  }
+  directorio
+}
+
+.comparar_por_lotes_duplicados <- function(
+    valores, filas, metodo, umbral, bloque, tamano_lote, max_resultados,
+    bloqueos = NULL, directorio_lotes) {
+  n <- length(valores)
+  grupos <- split(seq_len(n), ceiling(seq_len(n) / tamano_lote))
+  acumulador <- .nuevo_acumulador_duplicados(max_resultados)
+  n_hallados <- 0
+  n_exactos <- 0
+  n_aproximados <- 0
+  n_bloques_archivo <- 0L
+  archivos <- character()
+  bytes <- numeric()
+  parcial_id <- 0L
+  for (i in seq_along(grupos)) {
+    for (j in i:length(grupos)) {
+      parcial_id <- parcial_id + 1L
+      indices_i <- grupos[[i]]
+      indices_j <- grupos[[j]]
+      indices <- if (i == j) indices_i else c(indices_i, indices_j)
+      parcial <- .comparar_bloques_duplicados(
+        valores[indices], filas[indices], metodo, umbral, bloque, Inf,
+        bloqueos = if (is.null(bloqueos)) NULL else {
+          bloqueos[indices]
+        }
+      )
+      # El comparador anterior compara también el rectángulo cruzado dentro
+      # de la concatenación. Para i != j eso incluiría pares internos de cada
+      # grupo; conservar sólo el rectángulo pedido evita duplicarlos.
+      if (i != j && nrow(parcial$pares)) {
+        en_i <- parcial$pares$fila_1 %in% filas[indices_i]
+        en_j <- parcial$pares$fila_2 %in% filas[indices_j]
+        al_reves <- parcial$pares$fila_1 %in% filas[indices_j] &
+          parcial$pares$fila_2 %in% filas[indices_i]
+        parcial$pares <- parcial$pares[
+          (en_i & en_j) | al_reves, , drop = FALSE
+        ]
+      }
+      parcial$n_hallados <- nrow(parcial$pares)
+      parcial$n_exactos <- sum(parcial$pares$distancia == 0)
+      parcial$n_aproximados <- sum(parcial$pares$distancia > 0)
+      ruta <- file.path(
+        directorio_lotes, sprintf("parcial-%06d.rds", parcial_id)
+      )
+      guardado <- list(
+        version_esquema = 1L, parcial = parcial_id,
+        grupo_1 = i, grupo_2 = j, pares = parcial$pares,
+        n_hallados = parcial$n_hallados,
+        n_exactos = parcial$n_exactos,
+        n_aproximados = parcial$n_aproximados,
+        n_bloques = parcial$n_bloques
+      )
+      saveRDS(guardado, ruta, version = 3L)
+      parcial_disco <- readRDS(ruta)
+      archivos <- c(archivos, ruta)
+      bytes <- c(bytes, as.numeric(file.info(ruta)$size))
+      n_hallados <- n_hallados + parcial$n_hallados
+      n_exactos <- n_exactos + parcial$n_exactos
+      n_aproximados <- n_aproximados + parcial$n_aproximados
+      n_bloques_archivo <- n_bloques_archivo + parcial$n_bloques
+      if (nrow(parcial_disco$pares)) {
+        acumulador <- .acumular_pares_duplicados(
+          acumulador, parcial_disco$pares$fila_1,
+          parcial_disco$pares$fila_2, parcial_disco$pares$distancia
+        )
+      }
+    }
+  }
+  # La cantidad publicada es la que habría producido el recorrido completo
+  # con la tesela configurada, no una cuenta dependiente de los cortes en disco.
+  # Con bloqueo, el recorrido entero reinicia las teselas dentro de cada clave;
+  # reproducimos esa misma cuenta para que `alcance` sea indistinguible.
+  tamanos_bloque <- if (is.null(bloqueos)) {
+    n
+  } else {
+    as.numeric(table(bloqueos))
+  }
+  n_bloques <- sum(vapply(tamanos_bloque, function(tamano) {
+    if (tamano < 2) return(0)
+    n_teselas <- ceiling(tamano / bloque)
+    n_teselas * (n_teselas + 1L) / 2L
+  }, numeric(1L)))
+  n_bloques <- as.integer(n_bloques)
+  list(
+    pares = .pares_acumulador_duplicados(acumulador),
+    n_hallados = n_hallados, n_exactos = n_exactos,
+    n_aproximados = n_aproximados, n_bloques = n_bloques,
+    metadata = list(
+      activo = TRUE, directorio = directorio_lotes,
+      n_parciales = length(archivos), archivos = archivos,
+      tamanos_bytes = bytes, bytes_totales = sum(bytes),
+      tamano_lote = tamano_lote, reanudable = FALSE, completo = TRUE,
+      perdida = FALSE, pares_fuera_alcance = 0,
+      n_bloques_parciales = n_bloques_archivo,
+      estrategia = "exacta_cruzada_sin_perdida"
+    )
+  )
+}
+
 .qgramas_lsh <- function(x, q) {
   lapply(seq_along(x), function(i) {
     texto <- x[[i]]
@@ -365,6 +574,12 @@
     return(data.frame(fila_1 = integer(), fila_2 = integer()))
   }
   cantidad <- min(as.numeric(tamano), total, .Machine$integer.max)
+  if (cantidad >= total) {
+    fila_1 <- rep(seq_len(n - 1L), times = rev(seq_len(n - 1L)))
+    fila_2 <- unlist(lapply(seq_len(n - 1L), function(i) (i + 1L):n),
+                     use.names = FALSE)
+    return(data.frame(fila_1 = fila_1, fila_2 = fila_2))
+  }
   pares <- .con_rng_interno_lsh(173L, function() {
     # Se sortea el rango triangular de pares, no dos filas independientes:
     # así la muestra no repite pares y mantiene una cobertura uniforme incluso
@@ -587,35 +802,9 @@
   } else {
     .emitir_tiempo_lsh(mensaje_tiempo)
   }
-  if (is.finite(presupuesto_pares) &&
-      estimacion$candidatos_previstos > presupuesto_pares) {
-    continuar <- FALSE
-    # nocov start: la confirmación sólo existe en una sesión interactiva.
-    if (isTRUE(interactive())) {
-      respuesta <- readline(paste0(
-        "La estimaci\u00f3n LSH es de ",
-        .formato_pares_lsh(estimacion$candidatos_previstos),
-        " pares (muestra de ",
-        .formato_pares_lsh(estimacion$muestra_usada),
-        " pares). \u00bfContinuar? [s/N] "
-      ))
-      continuar <- tolower(trimws(respuesta)) %in% c("s", "si", "\u00ed", "y", "yes")
-    }
-    # nocov end
-    if (!continuar) {
-      stop(
-        "La estimaci\u00f3n LSH (", .formato_pares_lsh(
-          estimacion$candidatos_previstos),
-        " pares, basada en ",
-        .formato_pares_lsh(estimacion$muestra_usada),
-        " pares) supera `presupuesto_pares` (",
-        .formato_pares_lsh(presupuesto_pares),
-        "). No se inici\u00f3 la comparaci\u00f3n; aumente el presupuesto, reduzca los datos, ",
-        "suba el umbral o divida el conjunto por una clave.",
-        call. = FALSE
-      )
-    }
-  }
+  .controlar_presupuesto_pares(
+    estimacion$candidatos_previstos, presupuesto_pares
+  )
   if (isTRUE(solo_estimacion)) {
     return(list(
       estimacion = list(
@@ -1009,7 +1198,8 @@
     proteger_datos_personales = TRUE, bloque = 1000L,
     estrategia = "auto", lsh_bandas = 12L, lsh_filas = 3L, lsh_q = 3L,
     lsh_max_cubeta = 1000L, lsh_muestra_estimacion = 400000L,
-    presupuesto_pares = Inf, bloquear_por = NULL, solo_estimacion = FALSE) {
+    presupuesto_pares = Inf, bloquear_por = NULL, solo_estimacion = FALSE,
+    lotes = FALSE, tamano_lote = 1000L, directorio_lotes = NULL) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
@@ -1019,6 +1209,13 @@
   max_resultados <- .validar_limite_duplicados(max_resultados, "max_resultados")
   bloque <- .validar_bloque_duplicados(bloque)
   bloquear_por <- .validar_bloquear_por(datos, bloquear_por)
+  lotes <- .validar_lotes(lotes)
+  tamano_lote <- .validar_bloque_duplicados(tamano_lote)
+  directorio_lotes <- if (lotes) {
+    .validar_directorio_lotes(directorio_lotes)
+  } else {
+    .validar_directorio_lotes(directorio_lotes, crear = FALSE)
+  }
   resumen_bloqueo <- .resumir_bloqueo(datos, bloquear_por)
   estrategia <- match.arg(estrategia, c("auto", "teselas", "muestra", "lsh"))
   lsh_bandas <- .validar_parametro_lsh(lsh_bandas, "lsh_bandas")
@@ -1128,6 +1325,17 @@
     }
   }
   validos <- indices[textos$presentes[indices]]
+  if (!is.null(resumen_bloqueo)) {
+    validos_bloqueo <- which(textos$presentes)
+    perdida_bloqueo <- .estimar_perdida_bloqueo(
+      textos$valores[validos_bloqueo],
+      resumen_bloqueo$ids[validos_bloqueo], metodo, umbral,
+      lsh_muestra_estimacion
+    )
+    resumen_bloqueo$alcance <- cbind(
+      resumen_bloqueo$alcance, perdida_bloqueo
+    )
+  }
   n_pares_comparados <- if (usar_lsh) 0 else as.numeric(length(validos)) *
     (as.numeric(length(validos)) - 1) / 2
   if (!usar_lsh && !is.null(resumen_bloqueo)) {
@@ -1156,17 +1364,22 @@
     }
     return(resultado)
   }
+  if (lotes && usar_lsh) {
+    stop(
+      "`lotes = TRUE` s\u00f3lo est\u00e1 disponible para la comparaci\u00f3n exacta; ",
+      "el camino LSH ya procesa sus cubetas por bloques en memoria.",
+      call. = FALSE
+    )
+  }
+  if (!isTRUE(solo_estimacion) && !usar_lsh) {
+    .controlar_presupuesto_pares(n_pares_comparados, presupuesto_pares)
+  }
   if (isTRUE(solo_estimacion) && !(
       estrategia == "lsh" ||
       (estrategia == "auto" && nrow(datos) > 10000L &&
        is.infinite(muestra) &&
        (is.infinite(max_pares) || max_pares >= 50000000L)))) {
-    dentro <- if (is.null(resumen_bloqueo)) {
-      length(validos)
-    } else {
-      sum(table(resumen_bloqueo$ids[validos]) *
-            pmax(table(resumen_bloqueo$ids[validos]) - 1, 0) / 2)
-    }
+    dentro <- n_pares_comparados
     alcance <- data.frame(
       modo_comparacion = "exhaustiva_por_bloques",
       candidatos_previstos = dentro,
@@ -1192,6 +1405,7 @@
     ))
   }
   lsh_alcance <- NULL
+  lotes_metadata <- NULL
   if (usar_lsh) {
     lsh <- .comparar_lsh_duplicados(
       textos$valores[validos], validos, metodo, umbral, lsh_bandas,
@@ -1216,7 +1430,17 @@
     estimacion_resultado <- lsh$estimacion
     n_pares_comparados <- lsh$alcance$lsh_pares_comparados[[1L]]
   } else {
-    if (is.null(resumen_bloqueo)) {
+    if (lotes) {
+      directorio_parciales <- .preparar_directorio_lotes(directorio_lotes)
+      bloques <- .comparar_por_lotes_duplicados(
+        textos$valores[validos], validos, metodo, umbral, bloque,
+        tamano_lote, max_resultados,
+        bloqueos = if (is.null(resumen_bloqueo)) NULL else {
+          resumen_bloqueo$ids[validos]
+        }, directorio_lotes = directorio_parciales
+      )
+      lotes_metadata <- bloques$metadata
+    } else if (is.null(resumen_bloqueo)) {
       bloques <- .comparar_bloques_duplicados(
         textos$valores[validos], validos, metodo, umbral, bloque, max_resultados
       )
@@ -1343,7 +1567,7 @@
     } else "muestreada_por_bloques",
     tamano_bloque = if (usar_lsh) NA_integer_ else bloque,
     presupuesto_pares = presupuesto_pares,
-    presupuesto_pares_aplica = usar_lsh,
+    presupuesto_pares_aplica = usar_lsh || is.finite(presupuesto_pares),
     n_bloques = bloques$n_bloques,
     comparacion_exhaustiva = !usar_lsh && length(indices) >= nrow(datos),
     muestreado = length(indices) < nrow(datos), truncado = mostrados < n_hallados,
@@ -1360,6 +1584,7 @@
     proteccion_aplicada = proteger_datos_personales,
     estimacion = estimacion_resultado
   )
+  if (!is.null(lotes_metadata)) estructura$lotes <- lotes_metadata
   class(estructura) <- c("duplicados_aproximados", "list")
   estructura
 }
@@ -1436,6 +1661,10 @@
 #' Jaccard puede quedar limitado a los primeros
 #' pares del recorrido determinista; `lsh_jaccard_alcance` lo dice literalmente
 #' y no presenta ese prefijo como una muestra representativa.
+#' Con `bloquear_por`, `alcance` separa los pares estructuralmente fuera del
+#' bloqueo de una estimación de los candidatos que se habrían informado y que
+#' quedaron fuera según una muestra determinista. La segunda cantidad es una
+#' estimación, no una cuenta exacta.
 #'
 #' @param datos Tabla con una fila por entidad observada.
 #' @param columnas Columnas atomicas a combinar. `NULL` aplica la seleccion
@@ -1471,24 +1700,39 @@
 #'   No se descartan pares por este umbral; el alcance informa cuántas cubetas
 #'   y cuántos pares se procesaron de esta forma. Por defecto, 1000.
 #' @param lsh_muestra_estimacion Cantidad máxima de pares de filas usados para
-#'   estimar la proporción de candidatos y el tiempo del camino LSH. La muestra
-#'   es interna, reproducible y su tamaño efectivo queda en `alcance`. Por
-#'   defecto se intentan 400.000 pares.
-#' @param presupuesto_pares Presupuesto de pares candidatos para LSH. Por
+#'   estimar la proporción de candidatos, el tiempo del camino LSH y, si hay
+#'   `bloquear_por`, la pérdida de candidatos del bloqueo. La muestra es
+#'   interna, reproducible y su tamaño efectivo queda en `alcance`. Por defecto
+#'   se intentan 400.000 pares.
+#' @param presupuesto_pares Presupuesto de pares candidatos. Por
 #'   defecto es `Inf`; si la estimación previa lo supera, una sesión no
 #'   interactiva aborta antes del recorrido y una interactiva pregunta si se
-#'   continúa. No limita el camino exacto.
+#'   continúa. También limita la comparación exacta: allí el número de pares
+#'   se conoce antes de empezar.
 #' @param bloquear_por Nombre de una columna declarada por el usuario para
 #'   restringir la comparación a filas con la misma clave. La clave no tiene
 #'   significado incorporado en `lupa`; sus tamaños, ausentes y pares que
 #'   quedan fuera se registran en `alcance`. Los `NA` forman un bloque propio.
+#' @param lotes Si es `TRUE`, procesa la comparación exacta por pares de grupos
+#'   de filas y guarda cada resultado parcial en RDS. Por omisión es `FALSE`;
+#'   el camino LSH ya administra sus cubetas en memoria y no admite este modo.
+#' @param tamano_lote Cantidad de filas por grupo de trabajo cuando `lotes` es
+#'   `TRUE`. Por defecto, `1000`.
+#' @param directorio_lotes Directorio base elegido por el usuario para los
+#'   parciales. Si es `NULL`, se crea un subdirectorio dentro de `tempdir()`;
+#'   nunca se escribe en el directorio de trabajo por omisión. Los parciales no
+#'   son reanudables, pero su ruta, cantidad y tamaño quedan en `resultado$lotes`.
 #'
 #' @return Lista de clase `duplicados_aproximados` con `pares`, `hallazgos`,
 #'   `alcance`, `columnas`, `metodo`, `umbral`, `disponible`, `razon` y
 #'   `estimacion`. `alcance` es reproducible; en el camino LSH,
 #'   `estimacion$tiempo_determinista` es `FALSE` y reúne la velocidad, duración
 #'   y tiempo de referencia medidos en esa corrida. En el camino exacto o cuando
-#'   no se puede comparar, `estimacion` es `NULL`.
+#'   no se puede comparar, `estimacion` es `NULL`. Si `lotes = TRUE`, se agrega
+#'   `lotes` con el directorio, los archivos RDS, sus tamaños, el estado de
+#'   completitud y `reanudable = FALSE`. El loteo cruza todos los grupos, por lo
+#'   que no pierde pares; su resultado de `pares`, `hallazgos` y `alcance` es el
+#'   mismo que el recorrido exacto sin lotes.
 #' @export
 #' @seealso [perfilar()], [reportar()], [planificar_limpieza()]
 #' @references Broder, A. Z. (1997). On the resemblance and containment of
@@ -1510,7 +1754,8 @@ detectar_duplicados_aproximados <- function(
     bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
     lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
     lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
-    bloquear_por = NULL) {
+    bloquear_por = NULL, lotes = FALSE, tamano_lote = 1000L,
+    directorio_lotes = NULL) {
   if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
       !identical(names(datos), perfil$columnas$columna))) {
     stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
@@ -1523,7 +1768,9 @@ detectar_duplicados_aproximados <- function(
       estrategia = estrategia, lsh_bandas = lsh_bandas, lsh_filas = lsh_filas,
       lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta,
       lsh_muestra_estimacion = lsh_muestra_estimacion,
-      presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por
+      presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por,
+      lotes = lotes, tamano_lote = tamano_lote,
+      directorio_lotes = directorio_lotes
     ))
   }
   .detectar_duplicados_aproximados(
@@ -1532,7 +1779,9 @@ detectar_duplicados_aproximados <- function(
     bloque = bloque, estrategia = estrategia, lsh_bandas = lsh_bandas,
     lsh_filas = lsh_filas, lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta,
     lsh_muestra_estimacion = lsh_muestra_estimacion,
-    presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por
+    presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por,
+    lotes = lotes, tamano_lote = tamano_lote,
+    directorio_lotes = directorio_lotes
   )
 }
 
@@ -1547,11 +1796,18 @@ detectar_duplicados_aproximados <- function(
 #' partir de una muestra de firmas. `tiempo_estimado_segundos` es un piso de la
 #' medida aislada y no incluye firmas, cubetas ni troceo; sus campos de reloj
 #' tienen `tiempo_determinista = FALSE`. Con `bloquear_por`, los pares entre
-#' bloques no entran en el pronóstico y la pérdida queda en `alcance`.
+#' bloques no entran en el pronóstico y la pérdida estructural y estimada queda
+#' en `alcance`. En el camino exacto, `candidatos_previstos` es la cantidad de
+#' pares que se compararán, sujeta a `muestra`, `max_pares` y `bloquear_por`.
 #'
 #' La función no escribe archivos ni modifica el estado del generador de R.
 #'
 #' @inheritParams detectar_duplicados_aproximados
+#' @param lotes Se acepta por simetría de la firma, pero la estimación no
+#'   escribe parciales ni modifica el directorio indicado.
+#' @param tamano_lote Se acepta por simetría; no cambia el pronóstico.
+#' @param directorio_lotes Se acepta por simetría y no se crea ni se usa al
+#'   estimar.
 #' @return Lista de clase `estimacion_costo_lupa` con los campos de la
 #'   estimación, `alcance`, `disponible` y `razon`.
 #' @export
@@ -1573,7 +1829,8 @@ estimar_costo <- function(
     bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
     lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
     lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
-    bloquear_por = NULL) {
+    bloquear_por = NULL, lotes = FALSE, tamano_lote = 1000L,
+    directorio_lotes = NULL) {
   if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
       !identical(names(datos), perfil$columnas$columna))) {
     stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
@@ -1587,11 +1844,15 @@ estimar_costo <- function(
     lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta,
     lsh_muestra_estimacion = lsh_muestra_estimacion,
     presupuesto_pares = Inf, bloquear_por = bloquear_por,
-    solo_estimacion = TRUE
+    solo_estimacion = TRUE, lotes = FALSE, tamano_lote = tamano_lote,
+    directorio_lotes = NULL
   ))
   if (inherits(interno, "duplicados_aproximados")) {
+    candidatos <- if (nrow(interno$alcance)) {
+      interno$alcance$n_pares_comparados[[1L]]
+    } else NA_real_
     salida <- list(
-      candidatos_previstos = NA_real_,
+      candidatos_previstos = candidatos,
       probabilidad_candidato_estimada = NA_real_,
       muestra_estimacion = 0L, vocabulario = NA_integer_,
       pares_benchmark = NA_integer_, tiempo_benchmark = NA_real_,

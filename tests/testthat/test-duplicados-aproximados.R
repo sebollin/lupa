@@ -208,6 +208,13 @@ test_that("bloquear_por es explicito y declara pares fuera de alcance", {
   expect_equal(resultado$alcance$bloqueo_pares_alcanzables, 1)
   expect_equal(resultado$alcance$bloqueo_pares_fuera_alcance, 5)
   expect_equal(resultado$alcance$bloqueo_tratamiento_na, "bloque_propio")
+  expect_gt(resultado$alcance$bloqueo_muestra_pares, 0)
+  expect_true("bloqueo_candidatos_perdidos_estimados" %in%
+                names(resultado$alcance))
+  expect_equal(
+    resultado$alcance$bloqueo_perdida_estimacion_estado,
+    "estimada_por_muestra"
+  )
   expect_true(any(resultado$hallazgos$tipo_hallazgo ==
                   "bloqueo_por_con_perdida"))
   expect_equal(resultado$hallazgos$severidad[
@@ -283,6 +290,71 @@ test_that("las ramas de estimación y alcance sin comparables quedan declaradas"
   expect_true(costo$tiempo_determinista)
 })
 
+test_that("la estimación exacta usa pares y el presupuesto corta antes", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(nombre = paste0("Ana ", seq_len(10L)))
+  costo <- estimar_costo(
+    datos, columnas = "nombre", estrategia = "teselas", max_pares = Inf
+  )
+  expect_equal(costo$candidatos_previstos, 45)
+  error <- tryCatch(
+    detectar_duplicados_aproximados(
+      datos, columnas = "nombre", estrategia = "teselas", max_pares = Inf,
+      presupuesto_pares = 10L
+    ), error = identity
+  )
+  expect_s3_class(error, "error")
+  expect_match(conditionMessage(error), "estimación exacta.*45 pares")
+  expect_match(conditionMessage(error), "No se inició")
+})
+
+test_that("los lotes exactos dejan parciales auditables sin perder pares", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = c("Ana Perez", "Ana Peres", "Luis Diaz", "Ana Perez"),
+    stringsAsFactors = FALSE
+  )
+  entero <- detectar_duplicados_aproximados(
+    datos, columnas = "nombre", estrategia = "teselas", muestra = Inf,
+    max_pares = Inf, proteger_datos_personales = FALSE
+  )
+  lotes <- detectar_duplicados_aproximados(
+    datos, columnas = "nombre", estrategia = "teselas", muestra = Inf,
+    max_pares = Inf, proteger_datos_personales = FALSE, lotes = TRUE,
+    tamano_lote = 2L
+  )
+  expect_identical(lotes$pares, entero$pares)
+  expect_identical(lotes$hallazgos, entero$hallazgos)
+  expect_identical(lotes$alcance, entero$alcance)
+  expect_true(startsWith(lotes$lotes$directorio, tempdir()))
+  expect_equal(lotes$lotes$n_parciales, 3L)
+  expect_true(all(file.exists(lotes$lotes$archivos)))
+  expect_true(all(lotes$lotes$tamanos_bytes > 0))
+  expect_false(lotes$lotes$reanudable)
+  expect_false(lotes$lotes$perdida)
+  unlink(lotes$lotes$directorio, recursive = TRUE)
+
+  con_clave <- detectar_duplicados_aproximados(
+    transform(datos, grupo = c("A", "A", "B", "A")),
+    columnas = "nombre", estrategia = "teselas", muestra = Inf,
+    max_pares = Inf, proteger_datos_personales = FALSE, bloquear_por = "grupo",
+    lotes = TRUE, tamano_lote = 2L
+  )
+  entero_clave <- detectar_duplicados_aproximados(
+    transform(datos, grupo = c("A", "A", "B", "A")),
+    columnas = "nombre", estrategia = "teselas", muestra = Inf,
+    max_pares = Inf, proteger_datos_personales = FALSE, bloquear_por = "grupo"
+  )
+  expect_identical(con_clave$pares, entero_clave$pares)
+  expect_identical(con_clave$hallazgos, entero_clave$hallazgos)
+  expect_identical(con_clave$alcance, entero_clave$alcance)
+  expect_identical(
+    con_clave$alcance$bloqueo_pares_alcanzables,
+    con_clave$alcance$n_pares_comparados
+  )
+  unlink(con_clave$lotes$directorio, recursive = TRUE)
+})
+
 test_that("las salidas tempranas conservan el resumen de bloqueo", {
   local_mocked_bindings(
     .stringdist_disponible = function() FALSE,
@@ -300,6 +372,64 @@ test_that("las salidas tempranas conservan el resumen de bloqueo", {
   expect_equal(sin_columnas$alcance$bloqueo_por, "grupo")
   costo <- estimar_costo(datos, bloquear_por = "grupo")
   expect_true(costo$tiempo_determinista)
+})
+
+test_that("lotes y directorios validan contratos explícitos", {
+  expect_error(
+    detectar_duplicados_aproximados(data.frame(x = "a"), lotes = NA),
+    "lotes"
+  )
+  expect_error(
+    detectar_duplicados_aproximados(data.frame(x = "a"),
+                                     directorio_lotes = 1),
+    "ruta de texto"
+  )
+  if (requireNamespace("stringdist", quietly = TRUE)) {
+    base <- file.path(tempdir(), paste0("lupa-base-", as.integer(Sys.time())))
+    datos <- data.frame(x = c("Ana", "Ana"))
+    resultado <- detectar_duplicados_aproximados(
+      datos, columnas = "x", estrategia = "teselas", max_pares = Inf,
+      lotes = TRUE, tamano_lote = 2L, directorio_lotes = base
+    )
+    expect_true(dir.exists(base))
+    unlink(resultado$lotes$directorio, recursive = TRUE)
+    unlink(base, recursive = TRUE)
+  }
+})
+
+test_that("la estimación de pérdida puede declarar falta de muestra", {
+  skip_if_not_installed("stringdist")
+  estimacion <- lupa:::.estimar_perdida_bloqueo(
+    c("a", "b"), c(1L, 2L), "jw", 0.12, 0L
+  )
+  expect_equal(estimacion$bloqueo_perdida_estimacion_estado,
+               "sin_muestra")
+})
+
+test_that("los caminos incompatibles o inválidos tienen mensajes claros", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(x = rep("Ana", 10001L))
+  expect_error(
+    detectar_duplicados_aproximados(
+      datos, columnas = "x", estrategia = "lsh", lotes = TRUE,
+      lsh_muestra_estimacion = 10L
+    ),
+    "sólo está disponible"
+  )
+  expect_error(
+    estimar_costo(data.frame(x = "a"), perfil = perfilar(data.frame(y = "a"))),
+    "corresponder"
+  )
+  numeric_only <- detectar_duplicados_aproximados(
+    data.frame(x = 1:2, grupo = c("A", "B")), bloquear_por = "grupo"
+  )
+  expect_equal(nrow(numeric_only$pares), 0L)
+  expect_equal(numeric_only$alcance$bloqueo_por, "grupo")
+  numeric_key <- detectar_duplicados_aproximados(
+    data.frame(x = 1:2, grupo = 1:2), bloquear_por = "grupo"
+  )
+  expect_match(numeric_key$razon, "No hay columnas de texto", fixed = TRUE)
+  expect_equal(numeric_key$alcance$bloqueo_por, "grupo")
 })
 
 test_that("el resumen de Jaccard se recorta con alcance declarado", {
@@ -387,6 +517,23 @@ test_that("las cubetas LSH grandes se declaran y procesan por troceo", {
   )
   expect_false(anyNA(resultado$alcance$lsh_garantia_jaccard_07))
   expect_false(resultado$alcance$comparacion_exhaustiva)
+})
+
+test_that("el troceo LSH respeta la clave de bloqueo", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = rep("mismo valor", 30L),
+    grupo = rep(c("A", "B"), 15L),
+    stringsAsFactors = FALSE
+  )
+  resultado <- detectar_duplicados_aproximados(
+    datos, columnas = "nombre", bloquear_por = "grupo",
+    estrategia = "lsh", lsh_max_cubeta = 2L, lsh_bandas = 2L,
+    lsh_filas = 2L, max_resultados = 5L, proteger_datos_personales = FALSE
+  )
+  expect_gt(resultado$alcance$lsh_pares_cubetas_troceadas, 0)
+  expect_gt(resultado$alcance$lsh_candidatos_descartados_bloque, 0)
+  expect_true(all(resultado$pares$fila_1 %% 2 == resultado$pares$fila_2 %% 2))
 })
 
 test_that("las colisiones de bandas posteriores se deduplican sin recorte", {

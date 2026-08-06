@@ -23,7 +23,10 @@ estimar_costo(
   lsh_max_cubeta = 1000L,
   lsh_muestra_estimacion = 400000L,
   presupuesto_pares = Inf,
-  bloquear_por = NULL
+  bloquear_por = NULL,
+  lotes = FALSE,
+  tamano_lote = 1000L,
+  directorio_lotes = NULL
 )
 }
 \arguments{
@@ -77,19 +80,29 @@ No se descartan pares por este umbral; el alcance informa cuántas cubetas
 y cuántos pares se procesaron de esta forma. Por defecto, 1000.}
 
 \item{lsh_muestra_estimacion}{Cantidad máxima de pares de filas usados para
-estimar la proporción de candidatos y el tiempo del camino LSH. La muestra
-es interna, reproducible y su tamaño efectivo queda en \code{alcance}. Por
-defecto se intentan 400.000 pares.}
+estimar la proporción de candidatos, el tiempo del camino LSH y, si hay
+\code{bloquear_por}, la pérdida de candidatos del bloqueo. La muestra es
+interna, reproducible y su tamaño efectivo queda en \code{alcance}. Por defecto
+se intentan 400.000 pares.}
 
-\item{presupuesto_pares}{Presupuesto de pares candidatos para LSH. Por
+\item{presupuesto_pares}{Presupuesto de pares candidatos. Por
 defecto es \code{Inf}; si la estimación previa lo supera, una sesión no
 interactiva aborta antes del recorrido y una interactiva pregunta si se
-continúa. No limita el camino exacto.}
+continúa. También limita la comparación exacta: allí el número de pares
+se conoce antes de empezar.}
 
 \item{bloquear_por}{Nombre de una columna declarada por el usuario para
 restringir la comparación a filas con la misma clave. La clave no tiene
 significado incorporado en \code{lupa}; sus tamaños, ausentes y pares que
 quedan fuera se registran en \code{alcance}. Los \code{NA} forman un bloque propio.}
+
+\item{lotes}{Se acepta por simetría de la firma, pero la estimación no
+escribe parciales ni modifica el directorio indicado.}
+
+\item{tamano_lote}{Se acepta por simetría; no cambia el pronóstico.}
+
+\item{directorio_lotes}{Se acepta por simetría y no se crea ni se usa al
+estimar.}
 }
 \value{
 Lista de clase \code{estimacion_costo_lupa} con los campos de la
@@ -106,7 +119,9 @@ En el camino LSH, \code{candidatos_previstos} es una estimación reproducible a
 partir de una muestra de firmas. \code{tiempo_estimado_segundos} es un piso de la
 medida aislada y no incluye firmas, cubetas ni troceo; sus campos de reloj
 tienen \code{tiempo_determinista = FALSE}. Con \code{bloquear_por}, los pares entre
-bloques no entran en el pronóstico y la pérdida queda en \code{alcance}.
+bloques no entran en el pronóstico y la pérdida estructural y estimada queda
+en \code{alcance}. En el camino exacto, \code{candidatos_previstos} es la cantidad de
+pares que se compararán, sujeta a \code{muestra}, \code{max_pares} y \code{bloquear_por}.
 
 La función no escribe archivos ni modifica el estado del generador de R.
 }

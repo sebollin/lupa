@@ -23,7 +23,10 @@ detectar_duplicados_aproximados(
   lsh_max_cubeta = 1000L,
   lsh_muestra_estimacion = 400000L,
   presupuesto_pares = Inf,
-  bloquear_por = NULL
+  bloquear_por = NULL,
+  lotes = FALSE,
+  tamano_lote = 1000L,
+  directorio_lotes = NULL
 )
 }
 \arguments{
@@ -77,19 +80,33 @@ No se descartan pares por este umbral; el alcance informa cuántas cubetas
 y cuántos pares se procesaron de esta forma. Por defecto, 1000.}
 
 \item{lsh_muestra_estimacion}{Cantidad máxima de pares de filas usados para
-estimar la proporción de candidatos y el tiempo del camino LSH. La muestra
-es interna, reproducible y su tamaño efectivo queda en \code{alcance}. Por
-defecto se intentan 400.000 pares.}
+estimar la proporción de candidatos, el tiempo del camino LSH y, si hay
+\code{bloquear_por}, la pérdida de candidatos del bloqueo. La muestra es
+interna, reproducible y su tamaño efectivo queda en \code{alcance}. Por defecto
+se intentan 400.000 pares.}
 
-\item{presupuesto_pares}{Presupuesto de pares candidatos para LSH. Por
+\item{presupuesto_pares}{Presupuesto de pares candidatos. Por
 defecto es \code{Inf}; si la estimación previa lo supera, una sesión no
 interactiva aborta antes del recorrido y una interactiva pregunta si se
-continúa. No limita el camino exacto.}
+continúa. También limita la comparación exacta: allí el número de pares
+se conoce antes de empezar.}
 
 \item{bloquear_por}{Nombre de una columna declarada por el usuario para
 restringir la comparación a filas con la misma clave. La clave no tiene
 significado incorporado en \code{lupa}; sus tamaños, ausentes y pares que
 quedan fuera se registran en \code{alcance}. Los \code{NA} forman un bloque propio.}
+
+\item{lotes}{Si es \code{TRUE}, procesa la comparación exacta por pares de grupos
+de filas y guarda cada resultado parcial en RDS. Por omisión es \code{FALSE};
+el camino LSH ya administra sus cubetas en memoria y no admite este modo.}
+
+\item{tamano_lote}{Cantidad de filas por grupo de trabajo cuando \code{lotes} es
+\code{TRUE}. Por defecto, \code{1000}.}
+
+\item{directorio_lotes}{Directorio base elegido por el usuario para los
+parciales. Si es \code{NULL}, se crea un subdirectorio dentro de \code{tempdir()};
+nunca se escribe en el directorio de trabajo por omisión. Los parciales no
+son reanudables, pero su ruta, cantidad y tamaño quedan en \code{resultado$lotes}.}
 }
 \value{
 Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
@@ -97,7 +114,11 @@ Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
 \code{estimacion}. \code{alcance} es reproducible; en el camino LSH,
 \code{estimacion$tiempo_determinista} es \code{FALSE} y reúne la velocidad, duración
 y tiempo de referencia medidos en esa corrida. En el camino exacto o cuando
-no se puede comparar, \code{estimacion} es \code{NULL}.
+no se puede comparar, \code{estimacion} es \code{NULL}. Si \code{lotes = TRUE}, se agrega
+\code{lotes} con el directorio, los archivos RDS, sus tamaños, el estado de
+completitud y \code{reanudable = FALSE}. El loteo cruza todos los grupos, por lo
+que no pierde pares; su resultado de \code{pares}, \code{hallazgos} y \code{alcance} es el
+mismo que el recorrido exacto sin lotes.
 }
 \description{
 Compara filas seleccionadas de una tabla con \code{stringdist} y devuelve pares cuya
@@ -170,6 +191,10 @@ pregunta en una sesión interactiva. El diagnóstico de
 Jaccard puede quedar limitado a los primeros
 pares del recorrido determinista; \code{lsh_jaccard_alcance} lo dice literalmente
 y no presenta ese prefijo como una muestra representativa.
+Con \code{bloquear_por}, \code{alcance} separa los pares estructuralmente fuera del
+bloqueo de una estimación de los candidatos que se habrían informado y que
+quedaron fuera según una muestra determinista. La segunda cantidad es una
+estimación, no una cuenta exacta.
 }
 \examples{
 datos <- data.frame(

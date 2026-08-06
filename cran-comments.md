@@ -22,6 +22,12 @@ both properties. The `<<-` assignments in the LSH and profiling closures update
 only their enclosing function environments, never `.GlobalEnv`, and are used to
 accumulate local state across callbacks.
 
+The declared minimum R version is 3.6.0. This minimum is currently supported by
+static review of the package code and by a compatibility exercise that emulates
+R 3.6's `data.frame()` defaults; a native R 3.6 run has not yet been possible in
+this environment and will be performed before submission when that runtime is
+available.
+
 ## Reverse dependencies
 
 This is the first release, so there are no reverse dependencies.
