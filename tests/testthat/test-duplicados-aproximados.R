@@ -964,6 +964,26 @@ test_that("los bytes UTF-8 inválidos se excluyen sin abortar", {
   expect_equal(nrow(resultado$pares), 0L)
 })
 
+test_that("la evidencia vectorizada conserva la salida escalar", {
+  datos <- data.frame(
+    nombre = c("Ana", NA_character_, "Luis"),
+    domicilio = c("Calle 1", "Calle 2", NA_character_),
+    stringsAsFactors = FALSE
+  )
+  filas <- c(1L, 2L, 3L)
+  escalar <- vapply(
+    filas,
+    function(i) lupa:::.evidencia_fila_aproximada(
+      datos, names(datos), i, character()
+    ),
+    character(1L)
+  )
+  expect_identical(
+    escalar,
+    lupa:::.evidencia_filas_aproximada(datos, names(datos), filas, character())
+  )
+})
+
 test_that("limita resultados, protege o expone evidencia según la opción", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(nombre = paste0("Ana Perez ", seq_len(6L)))

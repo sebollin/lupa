@@ -23,6 +23,11 @@ articles:
   - limpiar-con-un-plan
   - historico-y-deriva
 
+- title: Escala
+  desc: Estimar, comparar, bloquear y lotear búsquedas de duplicados.
+  contents:
+  - escala-y-duplicados
+
 reference:
 - title: Examinar
   desc: Perfilar datos y descubrir su estructura.
@@ -39,6 +44,8 @@ reference:
   - detectar_claves
   - detectar_dependencias
   - detectar_relaciones
+  - detectar_duplicados_aproximados
+  - estimar_costo
   - cobertura_analisis
   - as_tibble.perfil
   - datos_administrativos
@@ -62,9 +69,6 @@ reference:
   - instanciar
   - modelo
   - metricas_nucleo
-  - validadores_formato
-  - validadores_uy
-  - pack_validadores
   - referencial
   - contratos_medicion
   - vigencia
@@ -75,6 +79,22 @@ reference:
   - transiciones_granularidad
   - medir
   - agregar
+
+- title: Validar
+  desc: Validadores internacionales y packs territoriales extensibles.
+  contents:
+  - validadores_formato
+  - validadores_uy
+  - validadores_internacionales
+  - validadores_uruguay
+  - validar_iso3166
+  - validar_iso4217
+  - validar_correo
+  - validar_luhn
+  - validar_mod97
+  - validar_ci_uy
+  - validar_rut_uy
+  - pack_validadores
 
 - title: Evaluar
   desc: Aplicar reglas y perfiles de madurez a las medidas.
@@ -107,4 +127,6 @@ reference:
   desc: Persistir un análisis y crear un reporte HTML autocontenido.
   contents:
   - persistir_analisis
+  - guardar_analisis
+  - leer_analisis
   - reportar

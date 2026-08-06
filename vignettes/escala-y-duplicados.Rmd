@@ -1,0 +1,128 @@
+---
+title: "Escala y duplicados"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Escala y duplicados}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+options(width = 90)
+```
+
+Esta guía muestra cómo elegir una estrategia para comparar registros sin
+ocultar el costo ni la pérdida de alcance. La comparación aproximada está
+apagada en `perfilar()`; se solicita de forma explícita y siempre informa qué
+pares se miraron.
+
+## Un conjunto pequeño
+
+```{r datos}
+library(lupa)
+datos <- data.frame(
+  id = 1:8,
+  nombre = c(
+    "Ana Perez", "Ana Peres", "Luis Silva", "Luis Silva",
+    "Marta Gómez", "Marta Gomez", "Rosa Díaz", "Rosa Diaz"
+  ),
+  domicilio = c(
+    "Calle 1 123", "Calle 1 123", "Ruta 5 40", "Ruta 5 40",
+    "Plaza 2 8", "Plaza 2 8", "Calle 9 20", "Calle 9 20"
+  ),
+  anio = c(2022, 2022, 2021, 2021, 2020, 2020, NA, NA),
+  stringsAsFactors = FALSE
+)
+```
+
+## Estimar antes de comparar
+
+`estimar_costo()` es un acto deliberado: devuelve la cantidad prevista de
+candidatos, la muestra usada y, cuando corresponde, un pronóstico de tiempo
+marcado como no determinista. En el camino exacto la cuenta de pares es exacta.
+
+```{r estimar}
+estimacion <- estimar_costo(
+  datos, columnas = c("nombre", "domicilio"), estrategia = "lsh",
+  lsh_muestra_estimacion = 100
+)
+estimacion[c(
+  "candidatos_previstos", "probabilidad_candidato_estimada",
+  "muestra_estimacion", "vocabulario"
+)]
+```
+
+Si el pronóstico supera el límite elegido, `presupuesto_pares` corta antes de
+comparar. En una sesión interactiva se puede decidir explícitamente continuar;
+en un script no se solicita entrada.
+
+## Comparación exacta y LSH
+
+Hasta el tope de pares, la estrategia por teselas es exhaustiva y conserva la
+misma respuesta que una corrida sin lotes. Para tablas grandes, LSH genera
+candidatos mediante MinHash y declara en `alcance` su muestra, sus bandas y la
+garantía de colisión.
+
+```{r comparar, eval= requireNamespace("stringdist", quietly = TRUE)}
+exacto <- detectar_duplicados_aproximados(
+  datos, columnas = c("nombre", "domicilio"), estrategia = "teselas",
+  max_resultados = 100
+)
+lsh <- detectar_duplicados_aproximados(
+  datos, columnas = c("nombre", "domicilio"), estrategia = "lsh",
+  max_resultados = 100
+)
+exacto$pares[, c("fila_1", "fila_2", "distancia", "tipo_par")]
+lsh$alcance[, c("modo_comparacion", "n_pares_comparados", "n_pares_hallados")]
+```
+
+Un par parecido nunca se presenta como identidad y no se propone eliminar ni
+fusionar registros. Si `stringdist` no está disponible, el resultado declara
+que la comparación no se ejecutó en vez de fallar con un error críptico.
+
+## Bloquear declarando la pérdida
+
+Una clave indicada por el usuario puede bajar la constante del trabajo, pero es
+con pérdida: dos filas cuya clave difiere no se comparan. Las filas con `NA`
+forman un bloque propio y también quedan contabilizadas. `alcance` informa los
+pares fuera del alcance y su estimación sobre la muestra.
+
+```{r bloqueo, eval= requireNamespace("stringdist", quietly = TRUE)}
+bloqueado <- detectar_duplicados_aproximados(
+  datos, columnas = c("nombre", "domicilio"), estrategia = "teselas",
+  bloquear_por = "anio", max_resultados = 100
+)
+bloqueado$alcance[, c(
+  "bloqueo_por", "bloqueo_pares_fuera_alcance",
+  "bloqueo_perdida", "bloqueo_severidad"
+)]
+```
+
+El paquete no adivina una clave por su nombre ni por una jerarquía territorial:
+la columna la elige quien conoce el dato.
+
+## Lotes sin pérdida
+
+`lotes = TRUE` escribe parciales en un directorio elegido por el usuario (por
+omisión se usa uno temporal), cruza los grupos y une la misma respuesta exacta.
+El objeto declara los archivos, bytes, directorio y que los parciales no son
+reanudables. La comparación sigue siendo exacta; sólo cambia cuánta memoria se
+usa a la vez.
+
+```{r lotes, eval= requireNamespace("stringdist", quietly = TRUE)}
+dir <- tempfile("lupa-lotes-")
+por_lotes <- detectar_duplicados_aproximados(
+  datos, columnas = c("nombre", "domicilio"), estrategia = "teselas",
+  lotes = TRUE, tamano_lote = 3, directorio_lotes = dir,
+  max_resultados = 100
+)
+por_lotes$lotes[c(
+  "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
+)]
+unlink(dir, recursive = TRUE)
+```
+
+Para decidir si la operación cabe, se recomienda llamar primero a
+`estimar_costo()` y establecer `presupuesto_pares` en la detección. Así la
+decisión queda separada del recorrido y el alcance permanece auditable.
