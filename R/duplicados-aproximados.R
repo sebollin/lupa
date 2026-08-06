@@ -53,6 +53,8 @@
   hallazgos <- data.frame(
     columna = character(), tipo_hallazgo = character(), severidad = character(),
     descripcion = character(), evidencia = character(), sugerencia = character(),
+    n_evaluados = numeric(), n_afectados = numeric(),
+    unidad_conteo = character(),
     stringsAsFactors = FALSE
   )
   estructura <- list(
@@ -479,8 +481,17 @@
     n_teselas * (n_teselas + 1L) / 2L
   }, numeric(1L)))
   n_bloques <- as.integer(n_bloques)
+  pares_finales <- .pares_acumulador_duplicados(acumulador)
+  if (nrow(pares_finales)) {
+    pares_finales <- pares_finales[
+      order(pares_finales$distancia,
+            pares_finales$fila_1,
+            pares_finales$fila_2), , drop = FALSE
+    ]
+    rownames(pares_finales) <- NULL
+  }
   list(
-    pares = .pares_acumulador_duplicados(acumulador),
+    pares = pares_finales,
     n_hallados = n_hallados, n_exactos = n_exactos,
     n_aproximados = n_aproximados, n_bloques = n_bloques,
     metadata = list(
@@ -1520,13 +1531,16 @@
           " con ", pares$metodo[[i]], " (umbral ", pares$umbral[[i]], "). ",
           pares$evidencia_1[[i]], " / ", pares$evidencia_2[[i]]
         ),
-        "Revisar manualmente; no eliminar ni fusionar filas por esta senal."
+        "Revisar manualmente; no eliminar ni fusionar filas por esta senal.",
+        n_pares_comparados, 1, "par"
       )
     }))
   } else {
     data.frame(
       columna = character(), tipo_hallazgo = character(), severidad = character(),
       descripcion = character(), evidencia = character(), sugerencia = character(),
+      n_evaluados = numeric(), n_afectados = numeric(),
+      unidad_conteo = character(),
       stringsAsFactors = FALSE
     )
   }
@@ -1540,7 +1554,10 @@
         " pares quedaron fuera del alcance de `bloquear_por`.",
         " Las filas con NA forman un bloque propio."
       ),
-      "Revisar la clave y no interpretar la ausencia de un par como evidencia de que no existe."
+      "Revisar la clave y no interpretar la ausencia de un par como evidencia de que no existe.",
+      resumen_bloqueo$alcance$bloqueo_pares_alcanzables[[1L]] +
+        resumen_bloqueo$alcance$bloqueo_pares_fuera_alcance[[1L]],
+      resumen_bloqueo$alcance$bloqueo_pares_fuera_alcance[[1L]], "par"
     )
     hallazgos <- rbind(hallazgos, hallazgo_bloqueo)
   }
@@ -1721,7 +1738,9 @@
 #' @param directorio_lotes Directorio base elegido por el usuario para los
 #'   parciales. Si es `NULL`, se crea un subdirectorio dentro de `tempdir()`;
 #'   nunca se escribe en el directorio de trabajo por omisión. Los parciales no
-#'   son reanudables, pero su ruta, cantidad y tamaño quedan en `resultado$lotes`.
+#'   son reanudables y se conservan al terminar para auditoría; si el directorio
+#'   base fue elegido por el usuario, éste debe eliminarlos cuando ya no los
+#'   necesite. Su ruta, cantidad y tamaño quedan en `resultado$lotes`.
 #'
 #' @return Lista de clase `duplicados_aproximados` con `pares`, `hallazgos`,
 #'   `alcance`, `columnas`, `metodo`, `umbral`, `disponible`, `razon` y
@@ -1732,7 +1751,9 @@
 #'   `lotes` con el directorio, los archivos RDS, sus tamaños, el estado de
 #'   completitud y `reanudable = FALSE`. El loteo cruza todos los grupos, por lo
 #'   que no pierde pares; su resultado de `pares`, `hallazgos` y `alcance` es el
-#'   mismo que el recorrido exacto sin lotes.
+#'   mismo que el recorrido exacto sin lotes. Cada fila de `hallazgos` declara
+#'   `n_evaluados`, `n_afectados` y `unidad_conteo`; los conteos desconocidos
+#'   son `NA`, nunca cero.
 #' @export
 #' @seealso [perfilar()], [reportar()], [planificar_limpieza()]
 #' @references Broder, A. Z. (1997). On the resemblance and containment of

@@ -106,7 +106,9 @@ el camino LSH ya administra sus cubetas en memoria y no admite este modo.}
 \item{directorio_lotes}{Directorio base elegido por el usuario para los
 parciales. Si es \code{NULL}, se crea un subdirectorio dentro de \code{tempdir()};
 nunca se escribe en el directorio de trabajo por omisión. Los parciales no
-son reanudables, pero su ruta, cantidad y tamaño quedan en \code{resultado$lotes}.}
+son reanudables y se conservan al terminar para auditoría; si el directorio
+base fue elegido por el usuario, éste debe eliminarlos cuando ya no los
+necesite. Su ruta, cantidad y tamaño quedan en \code{resultado$lotes}.}
 }
 \value{
 Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},
@@ -118,7 +120,9 @@ no se puede comparar, \code{estimacion} es \code{NULL}. Si \code{lotes = TRUE}, 
 \code{lotes} con el directorio, los archivos RDS, sus tamaños, el estado de
 completitud y \code{reanudable = FALSE}. El loteo cruza todos los grupos, por lo
 que no pierde pares; su resultado de \code{pares}, \code{hallazgos} y \code{alcance} es el
-mismo que el recorrido exacto sin lotes.
+mismo que el recorrido exacto sin lotes. Cada fila de \code{hallazgos} declara
+\code{n_evaluados}, \code{n_afectados} y \code{unidad_conteo}; los conteos desconocidos
+son \code{NA}, nunca cero.
 }
 \description{
 Compara filas seleccionadas de una tabla con \code{stringdist} y devuelve pares cuya

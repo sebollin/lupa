@@ -255,13 +255,14 @@
           )
         } else {
           paste0(
-            "Confirmar la semantica de la columna si se necesita decidir si ",
+        "Confirmar la semantica de la columna si se necesita decidir si ",
             "sus valores deben protegerse."
           )
         }
       } else {
         "Confirmar el contrato de la entrega antes de retirar o transformar datos."
-      }
+      },
+      1, 1, "columna"
     )
   })
 }
@@ -321,7 +322,8 @@
         "Se aplicaron limites de plausibilidad sin publicar las fechas ",
         "observadas."
       ),
-      "Revisar los registros se\u00f1alados contra la fuente antes de corregirlos."
+      "Revisar los registros se\u00f1alados contra la fuente antes de corregirlos.",
+      columnas$n[[indice]], NA_real_, "fila"
     )
   }
   hallazgos

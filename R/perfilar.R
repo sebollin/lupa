@@ -147,7 +147,12 @@
 #'   pares y hallazgos al perfil. Es un análisis acotado y opcional porque no
 #'   afirma identidad ni debe encarecer todas las corridas.
 #'
-#' @return Objeto S3 de clase `perfil`.
+#' @return Objeto S3 de clase `perfil`. Cada fila de hallazgos incluye
+#'   n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
+#'   declaradas (por ejemplo fila, columna, formato o par). Cuando el camino
+#'   no puede conocer un conteo, informa NA, nunca cero. En esta version los
+#'   hallazgos no llevan indices de fila; la evidencia textual y el alcance
+#'   indican que se pudo revisar.
 #' @export
 #' @seealso [descubrir_patrones()], [detectar_dependencias()],
 #'   [proponer_modelo()], [planificar_limpieza()]

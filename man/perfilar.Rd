@@ -112,7 +112,12 @@ pares y hallazgos al perfil. Es un análisis acotado y opcional porque no
 afirma identidad ni debe encarecer todas las corridas.}
 }
 \value{
-Objeto S3 de clase \code{perfil}.
+Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye
+n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
+declaradas (por ejemplo fila, columna, formato o par). Cuando el camino
+no puede conocer un conteo, informa NA, nunca cero. En esta version los
+hallazgos no llevan indices de fila; la evidencia textual y el alcance
+indican que se pudo revisar.
 }
 \description{
 Examina un \code{data.frame}, \code{tibble} o \code{data.table} y devuelve estadísticas

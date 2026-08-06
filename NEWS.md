@@ -56,6 +56,8 @@
   de `double` y cuenta valores distintos en columnas de listas y geometrías.
 - Clasifica posibles datos personales sin juzgar su presencia y protege por
   defecto los valores concretos cuando la evidencia es discriminante.
+- Añade conteos explícitos de evaluados y afectados, con la unidad de conteo,
+  a cada hallazgo; conserva NA cuando el alcance no permite conocerlos.
 
 ## Medir y evaluar calidad
 
@@ -75,6 +77,12 @@
   medidas, reglas y perfiles de madurez. No calcula un índice global.
 - Propone modelos editables a partir del perfil sin convertir observaciones de
   una sola entrega en requisitos silenciosos.
+- Estima el costo antes de comparar, aplica un presupuesto de pares en los
+  caminos exhaustivo y LSH, y publica el alcance de la estimación.
+- Incorpora MinHash y LSH deterministas para generar candidatos a escala,
+  con deduplicación por banda, garantía declarada y degradación explícita.
+- Permite bloquear por una columna elegida por el usuario y estima los pares
+  que el bloqueo puede dejar fuera, incluidos los ausentes como bloque propio.
 
 ## Mejorar y monitorear
 
@@ -85,6 +93,9 @@
   imputaciones confirmadas mediante dependencias funcionales exactas.
 - Acumula evaluaciones en un histórico plano y versionado; detecta deriva del
   modelo y cambios estructurales entre perfiles.
+- Procesa comparaciones exhaustivas por lotes con parciales en un directorio
+  declarado, cruza los lotes sin pérdida de pares y deja constancia de que no
+  son reanudables.
 
 ## Informar
 

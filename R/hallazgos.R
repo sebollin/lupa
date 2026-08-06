@@ -1,5 +1,6 @@
 .nuevo_hallazgo <- function(columna, tipo, severidad, descripcion,
-                            evidencia, sugerencia) {
+                            evidencia, sugerencia, n_evaluados = NA_real_,
+                            n_afectados = NA_real_, unidad_conteo = NA_character_) {
   data.frame(
     columna = columna,
     tipo_hallazgo = tipo,
@@ -7,8 +8,53 @@
     descripcion = descripcion,
     evidencia = evidencia,
     sugerencia = sugerencia,
+    n_evaluados = as.numeric(n_evaluados),
+    n_afectados = as.numeric(n_afectados),
+    unidad_conteo = as.character(unidad_conteo),
     stringsAsFactors = FALSE
   )
+}
+
+.conteo_hallazgo_columna <- function(tipo, fila, resultado, n_validos) {
+  n <- if (length(fila$n) && is.finite(fila$n[[1L]])) {
+    as.numeric(fila$n[[1L]])
+  } else NA_real_
+  afectados <- switch(
+    tipo,
+    tipo_compuesto_no_analizado = if (!is.null(resultado$estructura_no_analizada)) {
+      as.numeric(resultado$estructura_no_analizada$filas)
+    } else NA_real_,
+    constante = as.numeric(fila$frecuencia_moda),
+    faltantes = as.numeric(fila$n_faltantes + fila$n_faltantes_disfrazados),
+    faltantes_disfrazados = as.numeric(fila$n_faltantes_disfrazados),
+    espacios_sobrantes = as.numeric(fila$n_espacios_borde),
+    mayusculas_inconsistentes = as.numeric(fila$n_variantes_mayusculas),
+    normalizacion_unicode = as.numeric(fila$n_variantes_unicode),
+    codificacion_invalida = as.numeric(fila$n_codificacion_invalida),
+    codificacion_rota = as.numeric(fila$n_codificacion_rota),
+    valores_no_finitos = as.numeric(
+      fila$n_nan + fila$n_infinito_positivo + fila$n_infinito_negativo
+    ),
+    ceros_no_permitidos = as.numeric(fila$n_ceros),
+    negativos_no_permitidos = as.numeric(fila$n_negativos),
+    outliers = as.numeric(fila$n_outliers),
+    numero_como_texto = as.numeric(fila$n_numeros_texto),
+    NA_real_
+  )
+  unidad <- if (tipo %in% c(
+    "formato_fecha_ambiguo", "anio_de_dos_digitos", "formatos_fecha_mixtos"
+  )) "formato" else "fila"
+  if (unidad == "formato") {
+    n <- if (!is.null(resultado$formatos)) nrow(resultado$formatos) else NA_real_
+    afectados <- if (tipo == "formato_fecha_ambiguo") {
+      sum(resultado$formatos$estado == "candidato")
+    } else if (tipo == "anio_de_dos_digitos") {
+      sum(resultado$formatos$anio_dos_digitos)
+    } else {
+      nrow(resultado$formatos)
+    }
+  }
+  list(n_evaluados = n, n_afectados = afectados, unidad_conteo = unidad)
 }
 
 .tipos_equivalentes <- function(declarado, inferido) {
@@ -30,6 +76,12 @@
   hallazgos <- list()
   k <- 0L
   agregar <- function(x) {
+    conteo <- .conteo_hallazgo_columna(
+      as.character(x$tipo_hallazgo[[1L]]), fila, resultado, n_validos
+    )
+    x$n_evaluados <- conteo$n_evaluados
+    x$n_afectados <- conteo$n_afectados
+    x$unidad_conteo <- conteo$unidad_conteo
     k <<- k + 1L
     hallazgos[[k]] <<- x
   }
@@ -486,7 +538,8 @@
       NA_character_, "filas_duplicadas", "error",
       "La tabla contiene filas duplicadas exactas.",
       paste(n_filas_duplicadas, "filas duplicadas"),
-      "Definir una clave y revisar la causa antes de eliminar duplicados."
+      "Definir una clave y revisar la causa antes de eliminar duplicados.",
+      nrow(datos), n_filas_duplicadas, "fila"
     )
   }
   if (nrow(duplicadas)) {
@@ -495,7 +548,8 @@
         duplicadas$columna_1[[i]], "columnas_duplicadas", "sospechoso",
         "Dos columnas tienen el mismo contenido.",
         paste(duplicadas$columna_1[[i]], "=", duplicadas$columna_2[[i]]),
-        "Confirmar si ambas columnas son necesarias o si existe redundancia."
+        "Confirmar si ambas columnas son necesarias o si existe redundancia.",
+        ncol(datos), 2, "columna"
       )
     }
   }
@@ -511,7 +565,8 @@
       NA_character_, "nombres_columnas_problematicos", "sospechoso",
       "La tabla contiene nombres de columna no sint\u00e1cticos o duplicados.",
       evidencia,
-      "Renombrar las columnas con nombres sint\u00e1cticos, \u00fanicos y sin espacios al borde."
+      "Renombrar las columnas con nombres sint\u00e1cticos, \u00fanicos y sin espacios al borde.",
+      ncol(datos), nrow(nombres_problematicos), "columna"
     )
   }
   fechas_partidas <- .detectar_fecha_partida(datos, columnas)
@@ -520,7 +575,8 @@
       NA_character_, "fecha_partida_columnas", "sospechoso",
       "La tabla parece representar una fecha mediante columnas separadas de a\u00f1o, mes y d\u00eda.",
       paste(fechas_partidas, collapse = "; "),
-      "Confirmar la sem\u00e1ntica y construir una fecha expl\u00edcita sin descartar las columnas de origen."
+      "Confirmar la sem\u00e1ntica y construir una fecha expl\u00edcita sin descartar las columnas de origen.",
+      ncol(datos), NA_real_, "columna"
     )
   }
 
@@ -531,6 +587,8 @@
       columna = character(), tipo_hallazgo = character(),
       severidad = character(), descripcion = character(),
       evidencia = character(), sugerencia = character(),
+      n_evaluados = numeric(), n_afectados = numeric(),
+      unidad_conteo = character(),
       stringsAsFactors = FALSE
     )
   }
