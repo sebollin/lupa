@@ -1,0 +1,1072 @@
+[
+ {
+  "original": "Paysandú",
+  "cadena": "1 capa utf8->latin1",
+  "roto": "PaysandÃº",
+  "ftfy_fix_encoding": "Paysandú",
+  "ftfy_fix_text": "Paysandú",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Paysandú",
+  "cadena": "1 capa utf8->cp1252",
+  "roto": "PaysandÃº",
+  "ftfy_fix_encoding": "Paysandú",
+  "ftfy_fix_text": "Paysandú",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Paysandú",
+  "cadena": "2 capas utf8->latin1 x2",
+  "roto": "PaysandÃÂº",
+  "ftfy_fix_encoding": "Paysandú",
+  "ftfy_fix_text": "Paysandú",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Paysandú",
+  "cadena": "2 capas utf8->cp1252 x2",
+  "roto": "PaysandÃƒÂº",
+  "ftfy_fix_encoding": "Paysandú",
+  "ftfy_fix_text": "Paysandú",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Paysandú",
+  "cadena": "3 capas utf8->cp1252 x3",
+  "roto": "PaysandÃƒÆ’Ã‚Âº",
+  "ftfy_fix_encoding": "Paysandú",
+  "ftfy_fix_text": "Paysandú",
+  "ftfy_ok": true,
+  "pasos": 6,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Paysandú",
+  "cadena": "mixta cp1252 luego latin1",
+  "roto": "PaysandÃÂº",
+  "ftfy_fix_encoding": "Paysandú",
+  "ftfy_fix_text": "Paysandú",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Tacuarembó",
+  "cadena": "1 capa utf8->latin1",
+  "roto": "TacuarembÃ³",
+  "ftfy_fix_encoding": "Tacuarembó",
+  "ftfy_fix_text": "Tacuarembó",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Tacuarembó",
+  "cadena": "1 capa utf8->cp1252",
+  "roto": "TacuarembÃ³",
+  "ftfy_fix_encoding": "Tacuarembó",
+  "ftfy_fix_text": "Tacuarembó",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Tacuarembó",
+  "cadena": "2 capas utf8->latin1 x2",
+  "roto": "TacuarembÃÂ³",
+  "ftfy_fix_encoding": "Tacuarembó",
+  "ftfy_fix_text": "Tacuarembó",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Tacuarembó",
+  "cadena": "2 capas utf8->cp1252 x2",
+  "roto": "TacuarembÃƒÂ³",
+  "ftfy_fix_encoding": "Tacuarembó",
+  "ftfy_fix_text": "Tacuarembó",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Tacuarembó",
+  "cadena": "3 capas utf8->cp1252 x3",
+  "roto": "TacuarembÃƒÆ’Ã‚Â³",
+  "ftfy_fix_encoding": "Tacuarembó",
+  "ftfy_fix_text": "Tacuarembó",
+  "ftfy_ok": true,
+  "pasos": 6,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Tacuarembó",
+  "cadena": "mixta cp1252 luego latin1",
+  "roto": "TacuarembÃÂ³",
+  "ftfy_fix_encoding": "Tacuarembó",
+  "ftfy_fix_text": "Tacuarembó",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Peñarol",
+  "cadena": "1 capa utf8->latin1",
+  "roto": "PeÃ±arol",
+  "ftfy_fix_encoding": "Peñarol",
+  "ftfy_fix_text": "Peñarol",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Peñarol",
+  "cadena": "1 capa utf8->cp1252",
+  "roto": "PeÃ±arol",
+  "ftfy_fix_encoding": "Peñarol",
+  "ftfy_fix_text": "Peñarol",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Peñarol",
+  "cadena": "2 capas utf8->latin1 x2",
+  "roto": "PeÃÂ±arol",
+  "ftfy_fix_encoding": "Peñarol",
+  "ftfy_fix_text": "Peñarol",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Peñarol",
+  "cadena": "2 capas utf8->cp1252 x2",
+  "roto": "PeÃƒÂ±arol",
+  "ftfy_fix_encoding": "Peñarol",
+  "ftfy_fix_text": "Peñarol",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Peñarol",
+  "cadena": "3 capas utf8->cp1252 x3",
+  "roto": "PeÃƒÆ’Ã‚Â±arol",
+  "ftfy_fix_encoding": "Peñarol",
+  "ftfy_fix_text": "Peñarol",
+  "ftfy_ok": true,
+  "pasos": 6,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Peñarol",
+  "cadena": "mixta cp1252 luego latin1",
+  "roto": "PeÃÂ±arol",
+  "ftfy_fix_encoding": "Peñarol",
+  "ftfy_fix_text": "Peñarol",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "José Ignacio",
+  "cadena": "1 capa utf8->latin1",
+  "roto": "JosÃ© Ignacio",
+  "ftfy_fix_encoding": "José Ignacio",
+  "ftfy_fix_text": "José Ignacio",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "José Ignacio",
+  "cadena": "1 capa utf8->cp1252",
+  "roto": "JosÃ© Ignacio",
+  "ftfy_fix_encoding": "José Ignacio",
+  "ftfy_fix_text": "José Ignacio",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "José Ignacio",
+  "cadena": "2 capas utf8->latin1 x2",
+  "roto": "JosÃÂ© Ignacio",
+  "ftfy_fix_encoding": "José Ignacio",
+  "ftfy_fix_text": "José Ignacio",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "José Ignacio",
+  "cadena": "2 capas utf8->cp1252 x2",
+  "roto": "JosÃƒÂ© Ignacio",
+  "ftfy_fix_encoding": "José Ignacio",
+  "ftfy_fix_text": "José Ignacio",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "José Ignacio",
+  "cadena": "3 capas utf8->cp1252 x3",
+  "roto": "JosÃƒÆ’Ã‚Â© Ignacio",
+  "ftfy_fix_encoding": "José Ignacio",
+  "ftfy_fix_text": "José Ignacio",
+  "ftfy_ok": true,
+  "pasos": 6,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "José Ignacio",
+  "cadena": "mixta cp1252 luego latin1",
+  "roto": "JosÃÂ© Ignacio",
+  "ftfy_fix_encoding": "José Ignacio",
+  "ftfy_fix_text": "José Ignacio",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Río Negro",
+  "cadena": "1 capa utf8->latin1",
+  "roto": "RÃ­o Negro",
+  "ftfy_fix_encoding": "Río Negro",
+  "ftfy_fix_text": "Río Negro",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Río Negro",
+  "cadena": "1 capa utf8->cp1252",
+  "roto": "RÃ­o Negro",
+  "ftfy_fix_encoding": "Río Negro",
+  "ftfy_fix_text": "Río Negro",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Río Negro",
+  "cadena": "2 capas utf8->latin1 x2",
+  "roto": "RÃÂ­o Negro",
+  "ftfy_fix_encoding": "Río Negro",
+  "ftfy_fix_text": "Río Negro",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Río Negro",
+  "cadena": "2 capas utf8->cp1252 x2",
+  "roto": "RÃƒÂ­o Negro",
+  "ftfy_fix_encoding": "Río Negro",
+  "ftfy_fix_text": "Río Negro",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Río Negro",
+  "cadena": "3 capas utf8->cp1252 x3",
+  "roto": "RÃƒÆ’Ã‚Â­o Negro",
+  "ftfy_fix_encoding": "Río Negro",
+  "ftfy_fix_text": "Río Negro",
+  "ftfy_ok": true,
+  "pasos": 6,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Río Negro",
+  "cadena": "mixta cp1252 luego latin1",
+  "roto": "RÃÂ­o Negro",
+  "ftfy_fix_encoding": "Río Negro",
+  "ftfy_fix_text": "Río Negro",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Añasco",
+  "cadena": "1 capa utf8->latin1",
+  "roto": "AÃ±asco",
+  "ftfy_fix_encoding": "Añasco",
+  "ftfy_fix_text": "Añasco",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Añasco",
+  "cadena": "1 capa utf8->cp1252",
+  "roto": "AÃ±asco",
+  "ftfy_fix_encoding": "Añasco",
+  "ftfy_fix_text": "Añasco",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Añasco",
+  "cadena": "2 capas utf8->latin1 x2",
+  "roto": "AÃÂ±asco",
+  "ftfy_fix_encoding": "Añasco",
+  "ftfy_fix_text": "Añasco",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Añasco",
+  "cadena": "2 capas utf8->cp1252 x2",
+  "roto": "AÃƒÂ±asco",
+  "ftfy_fix_encoding": "Añasco",
+  "ftfy_fix_text": "Añasco",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Añasco",
+  "cadena": "3 capas utf8->cp1252 x3",
+  "roto": "AÃƒÆ’Ã‚Â±asco",
+  "ftfy_fix_encoding": "Añasco",
+  "ftfy_fix_text": "Añasco",
+  "ftfy_ok": true,
+  "pasos": 6,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Añasco",
+  "cadena": "mixta cp1252 luego latin1",
+  "roto": "AÃÂ±asco",
+  "ftfy_fix_encoding": "Añasco",
+  "ftfy_fix_text": "Añasco",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "MONTEVIDEO – Uruguay",
+  "cadena": "1 capa utf8->latin1",
+  "roto": "MONTEVIDEO â Uruguay",
+  "ftfy_fix_encoding": "MONTEVIDEO – Uruguay",
+  "ftfy_fix_text": "MONTEVIDEO – Uruguay",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "MONTEVIDEO – Uruguay",
+  "cadena": "1 capa utf8->cp1252",
+  "roto": "MONTEVIDEO â€“ Uruguay",
+  "ftfy_fix_encoding": "MONTEVIDEO – Uruguay",
+  "ftfy_fix_text": "MONTEVIDEO – Uruguay",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "MONTEVIDEO – Uruguay",
+  "cadena": "2 capas utf8->latin1 x2",
+  "roto": "MONTEVIDEO Ã¢ÂÂ Uruguay",
+  "ftfy_fix_encoding": "MONTEVIDEO – Uruguay",
+  "ftfy_fix_text": "MONTEVIDEO – Uruguay",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "MONTEVIDEO – Uruguay",
+  "cadena": "2 capas utf8->cp1252 x2",
+  "roto": "MONTEVIDEO Ã¢â‚¬â€œ Uruguay",
+  "ftfy_fix_encoding": "MONTEVIDEO – Uruguay",
+  "ftfy_fix_text": "MONTEVIDEO – Uruguay",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "MONTEVIDEO – Uruguay",
+  "cadena": "3 capas utf8->cp1252 x3",
+  "roto": "MONTEVIDEO ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ Uruguay",
+  "ftfy_fix_encoding": "MONTEVIDEO – Uruguay",
+  "ftfy_fix_text": "MONTEVIDEO – Uruguay",
+  "ftfy_ok": true,
+  "pasos": 6,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "MONTEVIDEO – Uruguay",
+  "cadena": "mixta cp1252 luego latin1",
+  "roto": "MONTEVIDEO Ã¢â¬â Uruguay",
+  "ftfy_fix_encoding": "MONTEVIDEO – Uruguay",
+  "ftfy_fix_text": "MONTEVIDEO – Uruguay",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Dirección “General”",
+  "cadena": "1 capa utf8->latin1",
+  "roto": "DirecciÃ³n âGeneralâ",
+  "ftfy_fix_encoding": "Dirección “General”",
+  "ftfy_fix_text": "Dirección \"General\"",
+  "ftfy_ok": true,
+  "pasos": 3,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "apply:uncurl_quotes"
+  ]
+ },
+ {
+  "original": "Dirección “General”",
+  "cadena": "1 capa utf8->cp1252",
+  "roto": "DirecciÃ³n â€œGeneralâ€�",
+  "ftfy_fix_encoding": "Dirección “General�",
+  "ftfy_fix_text": "Dirección \"General�",
+  "ftfy_ok": false,
+  "pasos": 4,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "transcode:replace_lossy_sequences",
+   "decode:utf-8",
+   "apply:uncurl_quotes"
+  ]
+ },
+ {
+  "original": "Dirección “General”",
+  "cadena": "2 capas utf8->latin1 x2",
+  "roto": "DirecciÃÂ³n Ã¢ÂÂGeneralÃ¢ÂÂ",
+  "ftfy_fix_encoding": "Dirección “General”",
+  "ftfy_fix_text": "Dirección \"General\"",
+  "ftfy_ok": true,
+  "pasos": 5,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8",
+   "apply:uncurl_quotes"
+  ]
+ },
+ {
+  "original": "Dirección “General”",
+  "cadena": "2 capas utf8->cp1252 x2",
+  "roto": "DirecciÃƒÂ³n Ã¢â‚¬Å“GeneralÃ¢â‚¬ï¿½",
+  "ftfy_fix_encoding": "Dirección “General�",
+  "ftfy_fix_text": "Dirección \"General�",
+  "ftfy_ok": false,
+  "pasos": 6,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "transcode:replace_lossy_sequences",
+   "decode:utf-8",
+   "apply:uncurl_quotes"
+  ]
+ },
+ {
+  "original": "Dirección “General”",
+  "cadena": "3 capas utf8->cp1252 x3",
+  "roto": "DirecciÃƒÆ’Ã‚Â³n ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œGeneralÃƒÂ¢Ã¢â€šÂ¬Ã¯Â¿Â½",
+  "ftfy_fix_encoding": "Dirección “General�",
+  "ftfy_fix_text": "Dirección \"General�",
+  "ftfy_ok": false,
+  "pasos": 8,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "transcode:replace_lossy_sequences",
+   "decode:utf-8",
+   "apply:uncurl_quotes"
+  ]
+ },
+ {
+  "original": "Dirección “General”",
+  "cadena": "mixta cp1252 luego latin1",
+  "roto": "DirecciÃÂ³n Ã¢â¬ÅGeneralÃ¢â¬ï¿½",
+  "ftfy_fix_encoding": "Dirección “General�",
+  "ftfy_fix_text": "Dirección \"General�",
+  "ftfy_ok": false,
+  "pasos": 6,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "transcode:replace_lossy_sequences",
+   "decode:utf-8",
+   "apply:uncurl_quotes"
+  ]
+ },
+ {
+  "original": "Salto — Artigas",
+  "cadena": "1 capa utf8->latin1",
+  "roto": "Salto â Artigas",
+  "ftfy_fix_encoding": "Salto — Artigas",
+  "ftfy_fix_text": "Salto — Artigas",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Salto — Artigas",
+  "cadena": "1 capa utf8->cp1252",
+  "roto": "Salto â€” Artigas",
+  "ftfy_fix_encoding": "Salto — Artigas",
+  "ftfy_fix_text": "Salto — Artigas",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Salto — Artigas",
+  "cadena": "2 capas utf8->latin1 x2",
+  "roto": "Salto Ã¢ÂÂ Artigas",
+  "ftfy_fix_encoding": "Salto — Artigas",
+  "ftfy_fix_text": "Salto — Artigas",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Salto — Artigas",
+  "cadena": "2 capas utf8->cp1252 x2",
+  "roto": "Salto Ã¢â‚¬â€� Artigas",
+  "ftfy_fix_encoding": "Salto � Artigas",
+  "ftfy_fix_text": "Salto � Artigas",
+  "ftfy_ok": false,
+  "pasos": 6,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "transcode:replace_lossy_sequences",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "transcode:replace_lossy_sequences",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Salto — Artigas",
+  "cadena": "3 capas utf8->cp1252 x3",
+  "roto": "Salto ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ï¿½ Artigas",
+  "ftfy_fix_encoding": "Salto � Artigas",
+  "ftfy_fix_text": "Salto � Artigas",
+  "ftfy_ok": false,
+  "pasos": 8,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "transcode:replace_lossy_sequences",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "transcode:replace_lossy_sequences",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Salto — Artigas",
+  "cadena": "mixta cp1252 luego latin1",
+  "roto": "Salto Ã¢â¬â Artigas",
+  "ftfy_fix_encoding": "Salto — Artigas",
+  "ftfy_fix_text": "Salto — Artigas",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Costo: 1.500 €",
+  "cadena": "1 capa utf8->latin1",
+  "roto": "Costo: 1.500 â¬",
+  "ftfy_fix_encoding": "Costo: 1.500 €",
+  "ftfy_fix_text": "Costo: 1.500 €",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Costo: 1.500 €",
+  "cadena": "1 capa utf8->cp1252",
+  "roto": "Costo: 1.500 â‚¬",
+  "ftfy_fix_encoding": "Costo: 1.500 €",
+  "ftfy_fix_text": "Costo: 1.500 €",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Costo: 1.500 €",
+  "cadena": "2 capas utf8->latin1 x2",
+  "roto": "Costo: 1.500 Ã¢ÂÂ¬",
+  "ftfy_fix_encoding": "Costo: 1.500 €",
+  "ftfy_fix_text": "Costo: 1.500 €",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Costo: 1.500 €",
+  "cadena": "2 capas utf8->cp1252 x2",
+  "roto": "Costo: 1.500 Ã¢â€šÂ¬",
+  "ftfy_fix_encoding": "Costo: 1.500 €",
+  "ftfy_fix_text": "Costo: 1.500 €",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Costo: 1.500 €",
+  "cadena": "3 capas utf8->cp1252 x3",
+  "roto": "Costo: 1.500 ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬",
+  "ftfy_fix_encoding": "Costo: 1.500 €",
+  "ftfy_fix_text": "Costo: 1.500 €",
+  "ftfy_ok": true,
+  "pasos": 6,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Costo: 1.500 €",
+  "cadena": "mixta cp1252 luego latin1",
+  "roto": "Costo: 1.500 Ã¢âÂ¬",
+  "ftfy_fix_encoding": "Costo: 1.500 €",
+  "ftfy_fix_text": "Costo: 1.500 €",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Niño… y familia",
+  "cadena": "1 capa utf8->latin1",
+  "roto": "NiÃ±oâ¦ y familia",
+  "ftfy_fix_encoding": "Niño… y familia",
+  "ftfy_fix_text": "Niño… y familia",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Niño… y familia",
+  "cadena": "1 capa utf8->cp1252",
+  "roto": "NiÃ±oâ€¦ y familia",
+  "ftfy_fix_encoding": "Niño… y familia",
+  "ftfy_fix_text": "Niño… y familia",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Niño… y familia",
+  "cadena": "2 capas utf8->latin1 x2",
+  "roto": "NiÃÂ±oÃ¢ÂÂ¦ y familia",
+  "ftfy_fix_encoding": "Niño… y familia",
+  "ftfy_fix_text": "Niño… y familia",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Niño… y familia",
+  "cadena": "2 capas utf8->cp1252 x2",
+  "roto": "NiÃƒÂ±oÃ¢â‚¬Â¦ y familia",
+  "ftfy_fix_encoding": "Niño… y familia",
+  "ftfy_fix_text": "Niño… y familia",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Niño… y familia",
+  "cadena": "3 capas utf8->cp1252 x3",
+  "roto": "NiÃƒÆ’Ã‚Â±oÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ y familia",
+  "ftfy_fix_encoding": "Niño… y familia",
+  "ftfy_fix_text": "Niño… y familia",
+  "ftfy_ok": true,
+  "pasos": 6,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "Niño… y familia",
+  "cadena": "mixta cp1252 luego latin1",
+  "roto": "NiÃÂ±oÃ¢â¬Â¦ y familia",
+  "ftfy_fix_encoding": "Niño… y familia",
+  "ftfy_fix_text": "Niño… y familia",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "l'État français",
+  "cadena": "1 capa utf8->latin1",
+  "roto": "l'Ãtat franÃ§ais",
+  "ftfy_fix_encoding": "l'État français",
+  "ftfy_fix_text": "l'État français",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "l'État français",
+  "cadena": "1 capa utf8->cp1252",
+  "roto": "l'Ã‰tat franÃ§ais",
+  "ftfy_fix_encoding": "l'État français",
+  "ftfy_fix_text": "l'État français",
+  "ftfy_ok": true,
+  "pasos": 2,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "l'État français",
+  "cadena": "2 capas utf8->latin1 x2",
+  "roto": "l'ÃÂtat franÃÂ§ais",
+  "ftfy_fix_encoding": "l'État français",
+  "ftfy_fix_text": "l'État français",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:latin-1",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "l'État français",
+  "cadena": "2 capas utf8->cp1252 x2",
+  "roto": "l'Ãƒâ€°tat franÃƒÂ§ais",
+  "ftfy_fix_encoding": "l'État français",
+  "ftfy_fix_text": "l'État français",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "l'État français",
+  "cadena": "3 capas utf8->cp1252 x3",
+  "roto": "l'ÃƒÆ’Ã¢â‚¬Â°tat franÃƒÆ’Ã‚Â§ais",
+  "ftfy_fix_encoding": "l'État français",
+  "ftfy_fix_text": "l'État français",
+  "ftfy_ok": true,
+  "pasos": 6,
+  "plan": [
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ },
+ {
+  "original": "l'État français",
+  "cadena": "mixta cp1252 luego latin1",
+  "roto": "l'Ãâ°tat franÃÂ§ais",
+  "ftfy_fix_encoding": "l'État français",
+  "ftfy_fix_text": "l'État français",
+  "ftfy_ok": true,
+  "pasos": 4,
+  "plan": [
+   "encode:latin-1",
+   "decode:utf-8",
+   "encode:sloppy-windows-1252",
+   "decode:utf-8"
+  ]
+ }
+]

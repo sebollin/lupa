@@ -70,5 +70,10 @@ Authors:
   \item Sebastián Lucas \email{sebalucas@gmail.com}
 }
 
+Other contributors:
+\itemize{
+  \item Robyn Speer [copyright holder]
+}
+
 }
 \keyword{internal}

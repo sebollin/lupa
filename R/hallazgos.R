@@ -29,7 +29,8 @@
 
 .nuevo_hallazgo <- function(columna, tipo, severidad, descripcion,
                             evidencia, sugerencia, n_evaluados = NA_real_,
-                            n_afectados = NA_real_, unidad_conteo = NA_character_) {
+                            n_afectados = NA_real_, unidad_conteo = NA_character_,
+                            estado_reparacion = NA_character_) {
   data.frame(
     columna = columna,
     tipo_hallazgo = tipo,
@@ -40,6 +41,7 @@
     n_evaluados = as.numeric(n_evaluados),
     n_afectados = as.numeric(n_afectados),
     unidad_conteo = as.character(unidad_conteo),
+    estado_reparacion = as.character(estado_reparacion),
     trazabilidad = I(list(.trazabilidad_vacia())),
     stringsAsFactors = FALSE
   )
@@ -574,18 +576,23 @@
       ))
     }
     if (isTRUE(fila$n_codificacion_rota > 0L)) {
+      reparables_total <- fila$n_codificacion_reparable[[1L]] +
+        if ("n_codificacion_reparable_parcialmente" %in% names(fila)) {
+          fila$n_codificacion_reparable_parcialmente[[1L]]
+        } else 0
       agregar(.nuevo_hallazgo(
         nombre, "codificacion_rota", "error",
         "Hay texto con se\u00f1ales de una conversi\u00f3n de codificaci\u00f3n incorrecta.",
         resultado$diagnostico_texto$evidencia_codificacion,
-        if (isTRUE(fila$n_codificacion_reparable > 0L)) {
+        if (isTRUE(reparables_total > 0L)) {
           paste0(
-            "Reparar s\u00f3lo los valores cuyo viaje UTF-8 a latin1 cierra en ",
-            "texto UTF-8 v\u00e1lido; revisar manualmente los caracteres perdidos."
+            "Reparar los valores cuyo viaje por las codificaciones conocidas ",
+            "cierra en texto UTF-8; revisar manualmente los caracteres perdidos."
           )
         } else {
           "Recuperar el dato desde la fuente: el car\u00e1cter original ya no est\u00e1 disponible."
-        }
+        },
+        estado_reparacion = fila$estado_codificacion_reparacion[[1L]]
       ))
     }
     if (isTRUE(fila$n_numeros_texto > 0L) &&
@@ -846,6 +853,7 @@
       evidencia = character(), sugerencia = character(),
       n_evaluados = numeric(), n_afectados = numeric(),
       unidad_conteo = character(),
+      estado_reparacion = character(),
       trazabilidad = I(list()),
       stringsAsFactors = FALSE
     )

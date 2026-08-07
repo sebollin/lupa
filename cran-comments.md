@@ -22,6 +22,11 @@
 
 ## Implementation notes
 
+This release adds a pure-R encoding-repair engine inspired by ftfy 6.3.1 by
+Robyn Speer.  Its frozen character tables and badness rules are documented in
+`LICENSE.note`; the package is now GPL-3-only, with the ftfy-derived design
+identified under Apache-2.0.  The upstream ftfy release has no NOTICE file.
+
 The internal `.con_rng_interno_lsh()` uses a fixed seed so that MinHash and LSH
 remain reproducible without depending on the caller's RNG configuration. It
 captures `RNGkind()` and `.Random.seed`, restores both with `on.exit()`, and

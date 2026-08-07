@@ -7,7 +7,7 @@
     severidad_origen = character(), evidencia = character(),
     justificacion = character(), n_afectadas = numeric(),
     reversible = logical(), destructiva = logical(),
-    estado = character(), aplicar = logical(),
+    estado = character(), estado_reparacion = character(), aplicar = logical(),
     orden = integer(), stringsAsFactors = FALSE
   )
   estructura$parametros <- I(list())
@@ -21,7 +21,8 @@
                           grupo = NA_character_,
                           decision_grupo = NA_character_,
                           recomendacion_grupo = NA_character_,
-                          destructiva = FALSE) {
+                          destructiva = FALSE,
+                          estado_reparacion = NA_character_) {
   estructura <- data.frame(
     id_accion = "", columna = columna, hallazgo = hallazgo,
     grupo = grupo, decision_grupo = decision_grupo,
@@ -31,7 +32,8 @@
     justificacion = justificacion,
     n_afectadas = as.numeric(n_afectadas), reversible = reversible,
     destructiva = destructiva,
-    estado = estado, aplicar = aplicar, orden = as.integer(orden),
+    estado = estado, estado_reparacion = estado_reparacion,
+    aplicar = aplicar, orden = as.integer(orden),
     stringsAsFactors = FALSE
   )
   estructura$parametros <- I(list(parametros))
@@ -138,6 +140,12 @@
 #' fija la secuencia reproducible. `n_afectadas` es la estimación del perfil y
 #' el registro informa `n_cambiadas` sobre los datos recibidos. `reversible`
 #' indica si el resultado puede deshacerse sólo con los datos transformados.
+#' La acción de codificación prueba las tablas congeladas de varias
+#' codificaciones y deja en `estado_reparacion` uno de `reparado`,
+#' `reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se activa
+#' automáticamente: debe revisarse y seleccionarse de forma explícita. El
+#' nombre histórico `reparar_codificacion_latin1` se conserva como alias para
+#' planes guardados, aunque ya no limita el motor a latin-1.
 #' Las acciones con `destructiva == TRUE` eliminan filas o columnas, nunca son
 #' recomendadas, declaran `reversible == FALSE` y requieren además
 #' `permitir_eliminacion = TRUE`. Por defecto, el resultado conserva lo retirado
@@ -290,6 +298,14 @@ planificar_limpieza <- function(perfil, datos = NULL,
       ))
     } else if (identical(tipo, "codificacion_rota") && !is.null(fila)) {
       reparable <- fila$n_codificacion_reparable[[1L]] > 0L
+      parcial <- isTRUE(fila$estado_codificacion_reparacion[[1L]] ==
+        "reparado_parcialmente") ||
+        ("n_codificacion_reparable_parcialmente" %in% names(fila) &&
+          fila$n_codificacion_reparable_parcialmente[[1L]] > 0L)
+      estado_reparacion <- if ("estado_codificacion_reparacion" %in% names(fila)) {
+        as.character(fila$estado_codificacion_reparacion[[1L]])
+      } else if (reparable) "reparado" else "no_se_pudo"
+      puede_aplicar <- reparable && !parcial && identical(estado_columna, "lista")
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, if (reparable) {
           "reparar_codificacion_latin1"
@@ -298,8 +314,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
         }, reparable,
         if (reparable) {
           paste0(
-            "S\u00f3lo cambia una cadena cuando reinterpretar sus bytes latin1 ",
-            "produce UTF-8 v\u00e1lido; el proceso se detiene al dejar de cerrar."
+            "Prueba las codificaciones conocidas y se detiene cuando el texto ",
+            "deja de parecer mojibake. Los estados parciales no se aplican solos."
           )
         } else {
           paste0(
@@ -310,10 +326,12 @@ planificar_limpieza <- function(perfil, datos = NULL,
         if (reparable) fila$n_codificacion_reparable[[1L]] else {
           fila$n_codificacion_irreparable[[1L]]
         }, FALSE,
-        estado = if (reparable) estado_columna else "informativa",
-        aplicar = reparable && identical(estado_columna, "lista"),
-        parametros = list(codificacion_intermedia = "latin1", max_iteraciones = 4L),
-        orden = 180L
+        estado = if (puede_aplicar) estado_columna else "informativa",
+        aplicar = puede_aplicar,
+        parametros = list(codificacion_intermedia = "ftfy",
+                          codificaciones = names(.ftfy_tablas_bytes),
+                          max_iteraciones = 20L),
+        orden = 180L, estado_reparacion = estado_reparacion
       ))
     } else if (identical(tipo, "numero_como_texto") && !is.null(fila)) {
       seguro <- isTRUE(fila$numero_texto_seguro[[1L]])
@@ -934,16 +952,29 @@ planificar_limpieza <- function(perfil, datos = NULL,
          call. = FALSE)
   }
   iteraciones <- parametros$max_iteraciones
-  if (is.null(iteraciones)) iteraciones <- 4L
+  if (is.null(iteraciones)) iteraciones <- 20L
   anterior <- as.character(x)
-  candidatos <- vapply(
-    anterior, .reparar_mojibake_uno, character(1L),
-    max_iteraciones = iteraciones
-  )
-  mascara <- !is.na(candidatos) & !is.na(anterior) & candidatos != anterior
+  unicos <- unique(anterior[!is.na(anterior)])
+  resultados <- lapply(unicos, .ftfy_reparar_uno, max_iteraciones = iteraciones)
+  indice <- match(anterior, unicos)
+  candidatos <- rep(NA_character_, length(anterior))
+  estados <- rep(NA_character_, length(anterior))
+  if (length(unicos)) {
+    candidatos[!is.na(indice)] <- vapply(resultados[indice[!is.na(indice)]],
+      function(z) z$texto, character(1L))
+    estados[!is.na(indice)] <- vapply(resultados[indice[!is.na(indice)]],
+      function(z) z$estado, character(1L))
+  }
+  mascara <- !is.na(candidatos) & !is.na(anterior) & candidatos != anterior &
+    estados == "reparado"
   nuevo <- anterior
   nuevo[mascara] <- candidatos[mascara]
-  list(valor = .resultado_texto(x, nuevo), n = sum(mascara))
+  parciales <- !is.na(candidatos) & !is.na(anterior) & candidatos != anterior &
+    estados == "reparado_parcialmente"
+  estado <- .ftfy_estado_agregado(estados)
+  list(valor = .resultado_texto(x, nuevo), n = sum(mascara),
+       n_parciales = sum(parciales), estado_reparacion = estado,
+       estados = estados)
 }
 
 .convertir_numero_regional <- function(x, parametros) {
@@ -1363,10 +1394,12 @@ planificar_limpieza <- function(perfil, datos = NULL,
     datos[[indice]] <- cambio$valor
     return(list(datos = datos, n = cambio$n))
   }
-  if (identical(estrategia, "reparar_codificacion_latin1")) {
+  if (estrategia %in% c("reparar_codificacion_latin1", "reparar_codificacion")) {
     cambio <- .reparar_codificacion(x, parametros)
     datos[[indice]] <- cambio$valor
-    return(list(datos = datos, n = cambio$n))
+    return(list(datos = datos, n = cambio$n,
+                estado_reparacion = cambio$estado_reparacion,
+                n_parciales = cambio$n_parciales))
   }
   if (identical(estrategia, "convertir_numero_regional")) {
     cambio <- .convertir_numero_regional(x, parametros)
@@ -1421,6 +1454,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     id_accion = character(), columna = character(), hallazgo = character(),
     grupo = character(), decision_grupo = character(), estrategia = character(),
     destructiva = logical(), n_cambiadas = numeric(),
+    estado_reparacion = character(),
     n_filas_eliminadas = numeric(), n_columnas_eliminadas = numeric(),
     fecha_hora = as.POSIXct(character(), tz = "UTC"),
     stringsAsFactors = FALSE
@@ -1480,6 +1514,11 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
       estrategia = accion$estrategia[[1L]],
       destructiva = accion$destructiva[[1L]],
       n_cambiadas = as.numeric(ejecutada$n),
+      estado_reparacion = if (is.null(ejecutada$estado_reparacion)) {
+        if ("estado_reparacion" %in% names(accion)) {
+          as.character(accion$estado_reparacion[[1L]])
+        } else NA_character_
+      } else as.character(ejecutada$estado_reparacion),
       n_filas_eliminadas = as.numeric(
         if (is.null(ejecutada$n_filas_eliminadas)) 0 else ejecutada$n_filas_eliminadas
       ),

@@ -74,6 +74,7 @@
     descripcion = character(), evidencia = character(), sugerencia = character(),
     n_evaluados = numeric(), n_afectados = numeric(),
     unidad_conteo = character(),
+    estado_reparacion = character(),
     trazabilidad = I(list()),
     stringsAsFactors = FALSE
   )
@@ -1604,6 +1605,7 @@
       n_evaluados = rep(n_pares_comparados, n),
       n_afectados = rep(1, n),
       unidad_conteo = rep("par", n),
+      estado_reparacion = rep(NA_character_, n),
       trazabilidad = I(rep(list(.trazabilidad_vacia()), n)),
       stringsAsFactors = FALSE
     )
@@ -1613,6 +1615,7 @@
       descripcion = character(), evidencia = character(), sugerencia = character(),
       n_evaluados = numeric(), n_afectados = numeric(),
       unidad_conteo = character(),
+      estado_reparacion = character(),
       trazabilidad = I(list()),
       stringsAsFactors = FALSE
     )

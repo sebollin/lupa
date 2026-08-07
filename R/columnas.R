@@ -379,7 +379,10 @@
     unicode_evaluado = FALSE,
     n_codificacion_rota = 0L,
     n_codificacion_reparable = 0L,
+    n_codificacion_reparable_parcialmente = 0L,
     n_codificacion_irreparable = 0L,
+    n_codificacion_no_se_pudo = 0L,
+    estado_codificacion_reparacion = "no_parece_roto",
     evidencia_codificacion = "",
     n_codificacion_invalida = 0L,
     evidencia_codificacion_invalida = ""
@@ -446,7 +449,10 @@
     unicode_evaluado = unicode_evaluado,
     n_codificacion_rota = codificacion$n,
     n_codificacion_reparable = codificacion$n_reparables,
+    n_codificacion_reparable_parcialmente = codificacion$n_reparables_parcialmente,
     n_codificacion_irreparable = codificacion$n_irreparables,
+    n_codificacion_no_se_pudo = codificacion$n_no_se_pudo,
+    estado_codificacion_reparacion = codificacion$estado,
     evidencia_codificacion = codificacion$evidencia,
     n_codificacion_invalida = length(preparacion$posiciones),
     evidencia_codificacion_invalida = vacio$evidencia_codificacion_invalida
@@ -568,7 +574,10 @@
     n_variantes_unicode = diagnostico_texto$n_variantes_unicode,
     n_codificacion_rota = diagnostico_texto$n_codificacion_rota,
     n_codificacion_reparable = diagnostico_texto$n_codificacion_reparable,
+    n_codificacion_reparable_parcialmente = diagnostico_texto$n_codificacion_reparable_parcialmente,
     n_codificacion_irreparable = diagnostico_texto$n_codificacion_irreparable,
+    n_codificacion_no_se_pudo = diagnostico_texto$n_codificacion_no_se_pudo,
+    estado_codificacion_reparacion = diagnostico_texto$estado_codificacion_reparacion,
     n_codificacion_invalida = diagnostico_texto$n_codificacion_invalida,
     n_numeros_texto = numeros_texto$n,
     proporcion_numeros_texto = numeros_texto$proporcion,
@@ -613,7 +622,8 @@
     "n_outliers", "n_nan", "n_infinito_positivo", "n_infinito_negativo",
     "n_blancos", "n_espacios_borde", "n_variantes_mayusculas",
     "n_variantes_unicode", "n_codificacion_rota",
-    "n_codificacion_reparable", "n_codificacion_irreparable",
+    "n_codificacion_reparable", "n_codificacion_reparable_parcialmente",
+    "n_codificacion_irreparable", "n_codificacion_no_se_pudo",
     "n_codificacion_invalida", "n_numeros_texto"
   )
   fila[enteros_na] <- NA_integer_

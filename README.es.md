@@ -2,7 +2,7 @@
 
 <img src="man/figures/lupa.png" align="right" width="240" alt="logo de lupa" />
 
-[![Licencia: GPL (>= 2)](https://img.shields.io/badge/license-GPL--2%20%7C%20GPL--3-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
+[![Licencia: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Ciclo de vida: madurando](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://lifecycle.r-lib.org/articles/stages.html#maturing)
 [![README in English](https://img.shields.io/badge/README-English-1565c0.svg)](https://github.com/sebollin/lupa/blob/main/README.md)
 

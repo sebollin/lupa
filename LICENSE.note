@@ -1,0 +1,10 @@
+This package includes a pure-R implementation of the encoding-repair design and
+character tables derived from ftfy 6.3.1 by Robyn Speer.  The relevant parts
+follow the Apache License, Version 2.0, available at:
+
+https://www.apache.org/licenses/LICENSE-2.0
+
+The surrounding lupa package is distributed under GPL-3.  ftfy 6.3.1 does not
+include a NOTICE file; consequently there is no additional NOTICE attribution
+to reproduce here.  No ftfy source code is bundled: the implementation in lupa
+was written independently from the published design and frozen tables.

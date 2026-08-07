@@ -65,6 +65,12 @@ revisado de una omisión deliberada.
 fija la secuencia reproducible. \code{n_afectadas} es la estimación del perfil y
 el registro informa \code{n_cambiadas} sobre los datos recibidos. \code{reversible}
 indica si el resultado puede deshacerse sólo con los datos transformados.
+La acción de codificación prueba las tablas congeladas de varias
+codificaciones y deja en \code{estado_reparacion} uno de \code{reparado},
+\code{reparado_parcialmente} o \code{no_se_pudo}. Una reparación parcial no se activa
+automáticamente: debe revisarse y seleccionarse de forma explícita. El
+nombre histórico \code{reparar_codificacion_latin1} se conserva como alias para
+planes guardados, aunque ya no limita el motor a latin-1.
 Las acciones con \code{destructiva == TRUE} eliminan filas o columnas, nunca son
 recomendadas, declaran \code{reversible == FALSE} y requieren además
 \code{permitir_eliminacion = TRUE}. Por defecto, el resultado conserva lo retirado

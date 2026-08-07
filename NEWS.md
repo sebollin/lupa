@@ -1,5 +1,14 @@
 # lupa 0.1.0
 
+## Reparación de texto y licencia
+
+- Incorpora un motor R puro para detectar y reparar mojibake en varias
+  codificaciones, inspirado en el diseño y las tablas de ftfy 6.3.1 de Robyn
+  Speer. Los resultados distinguen reparaciones completas, parciales y casos
+  irrecuperables; los estados llegan al hallazgo, al plan y al registro.
+- La licencia del paquete pasa de `GPL-2 | GPL-3` a `GPL-3`; las partes
+  derivadas del diseño de ftfy se atribuyen en `LICENSE.note` bajo Apache-2.0.
+
 ## Recursos de comparación
 
 - Fija por omisión en dos los hilos que `stringdist` puede usar en las
