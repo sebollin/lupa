@@ -2,6 +2,7 @@
 .RData
 .Ruserdata
 *.Rcheck/
+*.tar.gz
 lupa.Rcheck/
 coverage/
 revdep/

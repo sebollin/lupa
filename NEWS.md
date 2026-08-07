@@ -3,15 +3,19 @@
 ## Reparación de texto y licencia
 
 - Incorpora un motor R puro para detectar y reparar mojibake en varias
-  codificaciones, inspirado en el diseño y las tablas de ftfy 6.3.1 de Robyn
-  Speer. Los resultados distinguen reparaciones completas, parciales y casos
+  codificaciones, inspirado en el diseño y las tablas de [ftfy
+  6.3.1](https://github.com/rspeer/python-ftfy) de [Robyn
+  Speer](https://github.com/rspeer). Los resultados distinguen reparaciones completas, parciales y casos
   irrecuperables; los estados llegan al hallazgo, al plan y al registro.
 - La licencia del paquete pasa de `GPL-2 | GPL-3` a `GPL-3`; las partes
-  derivadas del diseño de ftfy se atribuyen en `LICENSE.note` bajo Apache-2.0.
+  derivadas del diseño de [ftfy](https://github.com/rspeer/python-ftfy) se
+  atribuyen en `LICENSE.note` bajo Apache-2.0.
+- La estrategia nueva se registra como `reparar_codificacion`; se conserva
+  `reparar_codificacion_latin1` únicamente como alias para planes guardados.
 
 ## Recursos de comparación
 
-- Fija por omisión en dos los hilos que `stringdist` puede usar en las
+- Fija por omisión en dos los hilos que [`stringdist`](https://cran.r-project.org/package=stringdist) puede usar en las
   comparaciones aproximadas y declara el valor efectivo en `alcance`.
 - El aviso interactivo del camino LSH identifica `nucleos` como la perilla que
   puede acortar la etapa de comparación, sin prometer una ganancia fija.

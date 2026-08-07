@@ -287,7 +287,8 @@
 #' instancia; [metricas_referencial()] declara y valida el contrato específico
 #' de correctitud semántica y cobertura.
 #'
-#' @references AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad
+#' @references [AGESIC (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/).
+#'   *Marco de trabajo para la Gestión de la Calidad
 #'   de Datos en Gobierno Digital*, versión 1.6, Presidencia de la República,
 #'   Uruguay.
 #'

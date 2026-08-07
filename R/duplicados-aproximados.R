@@ -1852,10 +1852,11 @@
 #'   son `NA`, nunca cero.
 #' @export
 #' @seealso [perfilar()], [reportar()], [planificar_limpieza()]
-#' @references Broder, A. Z. (1997). On the resemblance and containment of
-#'   documents. En *Compression and Complexity of Sequences*, 21--29.
-#'   Leskovec, J., Rajaraman, A. y Ullman, J. D. (2020). *Mining of Massive
-#'   Datasets* (3.ª ed.), capítulo 3.
+#' @references Broder, A. Z. (1997) \doi{10.1109/SEQUEN.1997.666900}.
+#'   On the resemblance and containment of documents. En *Compression and
+#'   Complexity of Sequences*, 21--29.
+#'   [Leskovec, J., Rajaraman, A. y Ullman, J. D. (2020)](http://www.mmds.org).
+#'   *Mining of Massive Datasets* (3.ª ed.), capítulo 3.
 #'
 #' @examples
 #' datos <- data.frame(

@@ -651,7 +651,8 @@
 #' catálogo. `RatioDensidadPonderada` usa `ratio_umbral`, porque su medida base
 #' es real y `ratio` sólo es válido para medidas booleanas.
 #'
-#' @references AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad
+#' @references [AGESIC (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/).
+#'   *Marco de trabajo para la Gestión de la Calidad
 #'   de Datos en Gobierno Digital*, versión 1.6, capítulo 16, Presidencia de la
 #'   República, Uruguay.
 #'

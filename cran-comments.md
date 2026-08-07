@@ -22,10 +22,13 @@
 
 ## Implementation notes
 
-This release adds a pure-R encoding-repair engine inspired by ftfy 6.3.1 by
-Robyn Speer.  Its frozen character tables and badness rules are documented in
+This release adds a pure-R encoding-repair engine inspired by [ftfy 6.3.1](https://github.com/rspeer/python-ftfy) by
+[Robyn Speer](https://github.com/rspeer).  Its frozen character tables and badness rules are documented in
 `LICENSE.note`; the package is now GPL-3-only, with the ftfy-derived design
 identified under Apache-2.0.  The upstream ftfy release has no NOTICE file.
+The package also redistributes a small frozen sentinel vector from [naniar
+1.1.0](https://github.com/njtierney/naniar); its MIT copyright and license
+notice are recorded in `LICENSE.note`.
 
 The internal `.con_rng_interno_lsh()` uses a fixed seed so that MinHash and LSH
 remain reproducible without depending on the caller's RNG configuration. It

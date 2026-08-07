@@ -12,38 +12,6 @@ una copia de los datos sin ocultar los cambios. También busca duplicados
 aproximados a escala, estima el trabajo antes de empezar y declara los límites
 de lo que comparó.
 
-## Inicio rápido
-
-~~~r
-library(lupa)
-data(datos_operativos)
-
-analisis <- analizar(datos_operativos)
-analisis$perfil$hallazgos
-
-archivo <- reportar(analisis, archivo = tempfile(fileext = ".html"))
-unlink(archivo)
-~~~
-
-La API, las ayudas y las viñetas están en español. La [versión en inglés](https://github.com/sebollin/lupa/blob/main/README.md)
-explica el mismo código. Esta tabla permite orientarse a quien lea ambos idiomas:
-
-| API | Significado |
-| --- | --- |
-| <code>perfilar()</code> | perfilar |
-| <code>analizar()</code> | analizar |
-| <code>marco_calidad()</code> | marco de calidad |
-| <code>planificar_limpieza()</code> | planificar una limpieza |
-| <code>guiar_limpieza()</code> | guiar una limpieza |
-| <code>aplicar()</code> | aplicar |
-| <code>medir()</code> | medir |
-| <code>evaluar()</code> | evaluar |
-| <code>detectar_duplicados_aproximados()</code> | buscar duplicados aproximados |
-| <code>reportar()</code> | crear un reporte |
-
-<code>analizar()</code> es de sólo lectura: no convierte una observación en
-requisito y nunca modifica la tabla.
-
 ## Instalar localmente
 
 Hasta la primera publicación, construya e instale el paquete fuente local:
@@ -59,6 +27,41 @@ También puede instalar un tarball local desde R:
 install.packages("lupa_0.1.0.tar.gz", repos = NULL)
 ~~~
 
+## Idioma de la API
+
+La API pública, las ayudas y las viñetas están en español. La [versión en
+inglés](https://github.com/sebollin/lupa/blob/main/README.md) explica el mismo
+código; esta tabla permite orientarse a quien lea ambos idiomas:
+
+| API | Significado |
+| --- | --- |
+| <code>perfilar()</code> | perfilar |
+| <code>analizar()</code> | analizar |
+| <code>marco_calidad()</code> | marco de calidad |
+| <code>planificar_limpieza()</code> | planificar una limpieza |
+| <code>guiar_limpieza()</code> | guiar una limpieza |
+| <code>aplicar()</code> | aplicar |
+| <code>medir()</code> | medir |
+| <code>evaluar()</code> | evaluar |
+| <code>detectar_duplicados_aproximados()</code> | buscar duplicados aproximados |
+| <code>reportar()</code> | crear un reporte |
+
+## Inicio rápido
+
+~~~r
+library(lupa)
+data(datos_operativos)
+
+analisis <- analizar(datos_operativos)
+analisis$perfil$hallazgos
+
+archivo <- reportar(analisis, archivo = tempfile(fileext = ".html"))
+unlink(archivo)
+~~~
+
+<code>analizar()</code> es de sólo lectura: no convierte una observación en
+requisito y nunca modifica la tabla.
+
 ## Qué puede hacer con lupa
 
 ### Mirar una entrega por primera vez
@@ -69,7 +72,8 @@ cobertura. También están <code>distribucion_valores()</code>,
 <code>detectar_asociaciones()</code>, <code>analizar_tiempo()</code>,
 <code>clasificar_variables()</code>, <code>inferir_tipo()</code>,
 <code>descubrir_patrones()</code>, <code>detectar_formatos_fecha()</code> y
-<code>sentinelas_naniar</code>.
+<code>sentinelas_naniar</code>, congelado desde
+[naniar](https://github.com/njtierney/naniar).
 
 ~~~r
 data(datos_operativos)
@@ -123,6 +127,7 @@ modelo o quedar como hallazgos.
 <code>catalogo_agesic()</code> son instancias consultables. Las métricas se
 construyen con <code>metrica()</code>, <code>especializar()</code>,
 <code>instanciar()</code> y <code>modelo()</code>; las fábricas
+<code>propiedades_metrica()</code>,
 <code>metricas_nucleo()</code> y <code>metricas_referencial()</code> se pueden
 reutilizar. <code>proponer_modelo()</code>,
 <code>modelo_desde_propuesta()</code>, <code>perfiles_madurez()</code> y
@@ -210,7 +215,7 @@ Hay teselas exactas y MinHash/LSH determinista. <code>estimar_costo()</code>
 pronostica antes de empezar; <code>bloquear_por</code> declara la pérdida
 estructural y <code>lotes = TRUE</code> conserva parciales sin pérdida cuando
 cruza grupos. <code>nucleos</code> usa dos hilos de <code>stringdist</code> por
-omisión: cambiarlo mueve el reloj, no la respuesta. Sin <code>stringdist</code>
+omisión: cambiarlo mueve el reloj, no la respuesta. Sin <a href="https://cran.r-project.org/package=stringdist"><code>stringdist</code></a>
 la degradación es explícita.
 
 ~~~r
@@ -260,23 +265,43 @@ las medianas de tres procesos aislados para 100.000 filas fueron:
 
 | hilos | mediana (s) | relativo a 2 |
 | ---: | ---: | ---: |
-| 2 | 133.28 | 1.00x |
-| 4 | 97.44 | 0.73x |
-| 8 | 76.19 | 0.57x |
-| 16 | 70.31 | 0.53x |
-| 31 | 71.69 | 0.54x |
+| 2 | 133,28 | 1,00x |
+| 4 | 97,44 | 0,73x |
+| 8 | 76,19 | 0,57x |
+| 16 | 70,31 | 0,53x |
+| 31 | 71,69 | 0,54x |
 
 Después de 16 hilos no hubo ganancia medida. Dos es el valor prudente para una
 máquina compartida, y se puede subir. Los hilos no cambian el resultado.
 
 | filas | candidatos LSH | recall del techo | hilos |
 | ---: | ---: | ---: | ---: |
-| 20.000 | 6.201.626 | 1.0000 | 2 |
-| 100.000 | 140.097.499 | 1.0000 | 2 |
-| 200.000 | 582.388.482 | 1.0000 | 2 |
+| 20.000 | 6.201.626 | 1,0000 | 2 |
+| 100.000 | 140.097.499 | 1,0000 | 2 |
+| 200.000 | 582.388.482 | 1,0000 | 2 |
 
 Son referencias medidas, no promesas portables de tiempo: candidatos, estimación
 y recall son deterministas; el reloj depende del procesador y de las cubetas.
+
+### Reparar mojibake sin Python
+
+<code>planificar_limpieza()</code> puede detectar texto dañado y proponer la
+acción <code>reparar_codificacion</code>. El motor en R puro sigue el diseño y
+las tablas congeladas de [ftfy 6.3.1](https://github.com/rspeer/python-ftfy),
+de [Robyn Speer](https://github.com/rspeer), y prueba varias codificaciones
+hasta que el texto deja de parecer mojibake. El resultado queda marcado como
+<code>reparado</code>, <code>reparado_parcialmente</code> o
+<code>no_se_pudo</code>; las reparaciones parciales nunca se aplican en silencio.
+El nombre histórico <code>reparar_codificacion_latin1</code> sigue aceptándose
+para planes guardados.
+
+~~~r
+datos <- data.frame(nombre = c("PaysandÃº", "texto \ufffd"),
+                    stringsAsFactors = FALSE)
+perfil <- perfilar(datos, analizar_dependencias = FALSE)
+plan <- planificar_limpieza(perfil, datos)
+plan[, c("columna", "estrategia", "estado_reparacion", "aplicar")]
+~~~
 
 ### Seguir la calidad en el tiempo
 
@@ -371,7 +396,7 @@ conectar a <code>perfilar(validadores_personales = ...)</code> o a la métrica
   acepta una taxonomía propia; AGESIC v1.6 e ISO/IEC 25012 son instancias
   consultables; <code>pack_validadores()</code> suma otro país sin cambiar el
   núcleo.
-* **Una dependencia obligatoria.** <code>cli</code> es la única dependencia en
+* **Una dependencia obligatoria.** <a href="https://cran.r-project.org/package=cli"><code>cli</code></a> es la única dependencia en
   <code>Imports</code>; <code>stringdist</code> es opcional en
   <code>Suggests</code>.
 * **No se afirma más de lo que se sabe.** Alcances parciales, pérdidas,
@@ -389,13 +414,18 @@ vignette("escala-y-duplicados", package = "lupa")
 citation("lupa")
 ~~~
 
-El paquete se ubica junto a otras herramientas: <code>skimr</code> y
-<code>DataExplorer</code> resumen y exploran; <code>pointblank</code>,
-<code>validate</code> y <code>dataquieR</code> expresan o evalúan reglas;
-<code>zoomerjoin</code>, <code>textreuse</code> y <code>reclin2</code> cubren
+El paquete se ubica junto a otras herramientas: [<code>skimr</code>](https://cran.r-project.org/package=skimr) y
+[<code>DataExplorer</code>](https://cran.r-project.org/package=DataExplorer) resumen y exploran;
+[<code>pointblank</code>](https://cran.r-project.org/package=pointblank),
+[<code>validate</code>](https://cran.r-project.org/package=validate) y
+[<code>dataquieR</code>](https://cran.r-project.org/package=dataquieR) expresan o evalúan reglas;
+[<code>zoomerjoin</code>](https://cran.r-project.org/package=zoomerjoin),
+[<code>textreuse</code>](https://cran.r-project.org/package=textreuse) y
+[<code>reclin2</code>](https://cran.r-project.org/package=reclin2) cubren
 comparación textual o record linkage.
-<code>calidad</code>, de INE Chile y mantenido por Klaus Lehmann y Ricardo
-Pizarro, es un eje contiguo valioso: aplica criterios de CEPAL a la calidad de
+[<code>calidad</code>](https://github.com/inesscc/calidad), de INE Chile y mantenido por
+[Klaus Lehmann](https://github.com/inesscc/calidad) y [Ricardo
+Pizarro](https://github.com/inesscc/calidad), es un eje contiguo valioso: aplica criterios de CEPAL a la calidad de
 estimaciones de encuestas (Estudios Estadísticos 101), mientras <code>lupa</code>
 evalúa el dato tabular que produce una estimación.
 

@@ -268,11 +268,14 @@ tabla exportada conserva el contexto de la evaluación.
 
 ## Referencias
 
-Batini C, Scannapieco M (2016). *Data and Information Quality: Dimensions,
-Principles and Techniques*. Springer.
+[Batini C, Scannapieco M (2016)](https://doi.org/10.1007/978-3-319-24106-7).
+*Data and Information Quality: Dimensions, Principles and Techniques*.
+Springer.
 
-AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad de Datos en
-Gobierno Digital*, versión 1.6. Presidencia de la República, Uruguay.
+[AGESIC (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/).
+*Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital*,
+versión 1.6. Presidencia de la República, Uruguay.
 
-ISO/IEC (2008). *ISO/IEC 25012:2008 Software engineering — Software product
-Quality Requirements and Evaluation (SQuaRE) — Data quality model*.
+[ISO/IEC (2008)](https://www.iso.org/standard/35736.html).
+*ISO/IEC 25012:2008 Software engineering — Software product Quality
+Requirements and Evaluation (SQuaRE) — Data quality model*.

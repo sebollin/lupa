@@ -7,14 +7,15 @@
 #' Los umbrales de faltantes se aplican a la suma de ausentes reales y
 #' faltantes disfrazados y son estrictos: la proporción debe superar el umbral
 #' para generar el nivel correspondiente. La lista de cadenas está congelada con referencia a
-#' `naniar::common_na_strings` 1.1.0 y suma extensiones habituales en datos
-#' administrativos uruguayos. Las entradas que naniar expresa como patrones
+#' [naniar](https://github.com/njtierney/naniar)::common_na_strings 1.1.0 y suma extensiones habituales en datos
+#' administrativos uruguayos. Las entradas que [naniar](https://github.com/njtierney/naniar) expresa como patrones
 #' escapados se adaptan a los signos literales de interrogación, asterisco y
 #' punto porque aquí se comparan por igualdad. La lista no depende de la
 #' versión instalada.
 #' Los sentinelas numéricos predeterminados son `-9`, `-99`, `-999`, `-9999` y
 #' `999`. La lista es deliberadamente más corta que
-#' `naniar::common_na_numbers` 1.1.0: `66`, `77`, `88` y `9999` también pueden
+#' [naniar](https://github.com/njtierney/naniar)::common_na_numbers 1.1.0:
+#' `66`, `77`, `88` y `9999` también pueden
 #' ser edades, códigos o años legítimos. `sentinelas_numericos` representa la
 #' política completa, no una lista que se agrega silenciosamente: use
 #' `numeric()` para desactivar todos los sentinelas numéricos, o

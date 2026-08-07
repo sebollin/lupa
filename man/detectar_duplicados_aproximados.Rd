@@ -226,10 +226,11 @@ pares <- detectar_duplicados_aproximados(datos)
 if (!pares$disponible) pares$razon
 }
 \references{
-Broder, A. Z. (1997). On the resemblance and containment of
-documents. En \emph{Compression and Complexity of Sequences}, 21--29.
-Leskovec, J., Rajaraman, A. y Ullman, J. D. (2020). \emph{Mining of Massive
-Datasets} (3.ª ed.), capítulo 3.
+Broder, A. Z. (1997) \doi{10.1109/SEQUEN.1997.666900}.
+On the resemblance and containment of documents. En \emph{Compression and
+Complexity of Sequences}, 21--29.
+\href{http://www.mmds.org}{Leskovec, J., Rajaraman, A. y Ullman, J. D. (2020)}.
+\emph{Mining of Massive Datasets} (3.ª ed.), capítulo 3.
 }
 \seealso{
 \code{\link[=perfilar]{perfilar()}}, \code{\link[=reportar]{reportar()}}, \code{\link[=planificar_limpieza]{planificar_limpieza()}}

@@ -133,7 +133,8 @@
 #'   `marco_calidad`. `as.data.frame()` devuelve su tabla de factores.
 #' @export
 #' @seealso [catalogo_agesic()], [modelo()], [cobertura_analisis()]
-#' @references ISO/IEC (2008). *ISO/IEC 25012:2008 Software engineering —
+#' @references [ISO/IEC (2008)](https://www.iso.org/standard/35736.html).
+#'   *ISO/IEC 25012:2008 Software engineering —
 #'   Software product Quality Requirements and Evaluation (SQuaRE) — Data
 #'   quality model*. <https://www.iso.org/standard/35736.html>.
 #'

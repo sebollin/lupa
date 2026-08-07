@@ -76,7 +76,8 @@ iso <- marco_iso25012()
 table(as.data.frame(iso)$dimension)
 }
 \references{
-ISO/IEC (2008). \emph{ISO/IEC 25012:2008 Software engineering —
+\href{https://www.iso.org/standard/35736.html}{ISO/IEC (2008)}.
+\emph{ISO/IEC 25012:2008 Software engineering —
 Software product Quality Requirements and Evaluation (SQuaRE) — Data
 quality model}. \url{https://www.iso.org/standard/35736.html}.
 }

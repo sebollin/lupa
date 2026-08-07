@@ -56,7 +56,8 @@ subset(catalogo, estado == "via_agregacion")
 table(catalogo$estado, catalogo$motivo)
 }
 \references{
-AGESIC (2020). \emph{Marco de trabajo para la Gestión de la Calidad
+\href{https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/}{AGESIC (2020)}.
+\emph{Marco de trabajo para la Gestión de la Calidad
 de Datos en Gobierno Digital}, versión 1.6, capítulo 16, Presidencia de la
 República, Uruguay.
 }

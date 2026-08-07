@@ -36,14 +36,17 @@
 #' [validadores_internacionales()] y [validadores_uruguay()];
 #' [pack_validadores()] permite añadir otro país sin registrar estado global.
 #'
-#' @references Batini C, Scannapieco M (2016). *Data and Information Quality:
-#'   Dimensions, Principles and Techniques*. Springer.
+#' @references Batini C, Scannapieco M (2016) \doi{10.1007/978-3-319-24106-7}.
+#'   *Data and Information Quality: Dimensions, Principles and Techniques*.
+#'   Springer.
 #'
-#'   AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad
+#'   [AGESIC (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/).
+#'   *Marco de trabajo para la Gestión de la Calidad
 #'   de Datos en Gobierno Digital*, versión 1.6, Presidencia de la República,
 #'   Uruguay.
 #'
-#'   ISO/IEC (2008). *ISO/IEC 25012:2008 Software engineering — Software product
+#'   [ISO/IEC (2008)](https://www.iso.org/standard/35736.html).
+#'   *ISO/IEC 25012:2008 Software engineering — Software product
 #'   Quality Requirements and Evaluation (SQuaRE) — Data quality model*.
 #'
 #' @seealso [datos_operativos], [datos_administrativos]

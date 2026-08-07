@@ -180,7 +180,7 @@ test_that("el mojibake reparable cambia y el texto sano permanece intacto", {
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
   expect_true("codificacion_rota" %in% perfil$hallazgos$tipo_hallazgo)
   plan <- planificar_limpieza(perfil)
-  accion <- plan[plan$estrategia == "reparar_codificacion_latin1", ]
+  accion <- plan[plan$estrategia == "reparar_codificacion", ]
   expect_true(accion$recomendada && accion$aplicar)
   limpio <- aplicar(plan, datos)$datos$lugar
   expect_equal(limpio, c("Paysandú", "GONZÁLEZ", "Paysandú", "Ñandú"))

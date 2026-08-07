@@ -139,14 +139,15 @@ accionables. Todas las proporciones se expresan en \verb{[0, 1]}.
 Los umbrales de faltantes se aplican a la suma de ausentes reales y
 faltantes disfrazados y son estrictos: la proporción debe superar el umbral
 para generar el nivel correspondiente. La lista de cadenas está congelada con referencia a
-\code{naniar::common_na_strings} 1.1.0 y suma extensiones habituales en datos
-administrativos uruguayos. Las entradas que naniar expresa como patrones
+\href{https://github.com/njtierney/naniar}{naniar}::common_na_strings 1.1.0 y suma extensiones habituales en datos
+administrativos uruguayos. Las entradas que \href{https://github.com/njtierney/naniar}{naniar} expresa como patrones
 escapados se adaptan a los signos literales de interrogación, asterisco y
 punto porque aquí se comparan por igualdad. La lista no depende de la
 versión instalada.
 Los sentinelas numéricos predeterminados son \code{-9}, \code{-99}, \code{-999}, \code{-9999} y
 \code{999}. La lista es deliberadamente más corta que
-\code{naniar::common_na_numbers} 1.1.0: \code{66}, \code{77}, \code{88} y \code{9999} también pueden
+\href{https://github.com/njtierney/naniar}{naniar}::common_na_numbers 1.1.0:
+\code{66}, \code{77}, \code{88} y \code{9999} también pueden
 ser edades, códigos o años legítimos. \code{sentinelas_numericos} representa la
 política completa, no una lista que se agrega silenciosamente: use
 \code{numeric()} para desactivar todos los sentinelas numéricos, o

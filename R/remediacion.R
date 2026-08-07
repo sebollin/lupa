@@ -144,8 +144,13 @@
 #' codificaciones y deja en `estado_reparacion` uno de `reparado`,
 #' `reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se activa
 #' automáticamente: debe revisarse y seleccionarse de forma explícita. El
-#' nombre histórico `reparar_codificacion_latin1` se conserva como alias para
-#' planes guardados, aunque ya no limita el motor a latin-1.
+#' La estrategia nueva se llama `reparar_codificacion`. El nombre histórico
+#' `reparar_codificacion_latin1` se acepta como alias para planes guardados,
+#' aunque ya no limita el motor a latin-1.
+#' Si se marca una acción que no está `lista`, `aplicar()` aborta antes de
+#' modificar la copia y enumera las filas problemáticas; así no deja un conjunto
+#' parcialmente transformado cuando el plan editable contiene una selección
+#' inválida.
 #' Las acciones con `destructiva == TRUE` eliminan filas o columnas, nunca son
 #' recomendadas, declaran `reversible == FALSE` y requieren además
 #' `permitir_eliminacion = TRUE`. Por defecto, el resultado conserva lo retirado
@@ -308,7 +313,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
       puede_aplicar <- reparable && !parcial && identical(estado_columna, "lista")
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, if (reparable) {
-          "reparar_codificacion_latin1"
+          "reparar_codificacion"
         } else {
           "recuperar_codificacion_en_origen"
         }, reparable,
@@ -798,7 +803,17 @@ planificar_limpieza <- function(perfil, datos = NULL,
     stop("`estado` contiene un valor no reconocido.", call. = FALSE)
   }
   if (any(plan$aplicar & estados != "lista")) {
-    stop("S\u00f3lo se pueden aplicar acciones con estado 'lista'.", call. = FALSE)
+    invalidas <- which(plan$aplicar & estados != "lista")
+    detalle <- paste(vapply(invalidas, function(i) {
+      paste0("fila ", i, " (columna '", as.character(plan$columna[[i]]),
+             "', estrategia '", as.character(plan$estrategia[[i]]),
+             "', estado '", estados[[i]], "')")
+    }, character(1L)), collapse = "; ")
+    stop(
+      "S\u00f3lo se pueden aplicar acciones con estado 'lista'. ",
+      "Acciones no listas: ", detalle, ".",
+      call. = FALSE
+    )
   }
   grupos <- unique(plan$grupo[!is.na(plan$grupo)])
   for (grupo in grupos) {

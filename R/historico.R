@@ -295,7 +295,8 @@
 #' El esquema largo mapea las cuatro tablas de la sección 9.5 del marco mediante
 #' `nivel`. Las columnas que no corresponden a un nivel quedan como `NA`.
 #'
-#' @references AGESIC (2020). *Marco de trabajo para la Gestión de la Calidad
+#' @references [AGESIC (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/).
+#'   *Marco de trabajo para la Gestión de la Calidad
 #'   de Datos en Gobierno Digital*, versión 1.6, sección 9.5, Presidencia de la
 #'   República, Uruguay.
 #'

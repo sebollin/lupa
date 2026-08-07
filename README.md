@@ -78,7 +78,8 @@ coverage. Supporting functions include <code>distribucion_valores()</code>,
 <code>detectar_asociaciones()</code>, <code>analizar_tiempo()</code>,
 <code>clasificar_variables()</code>, <code>inferir_tipo()</code>,
 <code>descubrir_patrones()</code>, <code>detectar_formatos_fecha()</code>, and
-the <code>sentinelas_naniar</code> catalogue.
+the <code>sentinelas_naniar</code> catalogue, frozen from
+[naniar](https://github.com/njtierney/naniar).
 
 ~~~r
 data(datos_operativos)
@@ -141,7 +142,8 @@ regularity can be confirmed later in a quality model or left as a finding.
 alternatives; <code>catalogo_agesic()</code> exposes the 49 catalogue entries
 and their implementation status. The model vocabulary is built with
 <code>metrica()</code>, <code>especializar()</code>, <code>instanciar()</code>,
-and <code>modelo()</code>. <code>metricas_nucleo()</code> and
+and <code>modelo()</code>; <code>propiedades_metrica()</code> exposes the
+accepted metric properties. <code>metricas_nucleo()</code> and
 <code>metricas_referencial()</code> provide reusable definitions, while
 <code>proponer_modelo()</code> and <code>modelo_desde_propuesta()</code> keep a
 proposal editable. <code>perfiles_madurez()</code> and
@@ -249,7 +251,7 @@ The comparison can be blocked with the user-supplied <code>bloquear_por</code>
 key, or split into disk-backed lots with <code>lotes = TRUE</code>; both
 choices declare their retained or lost scope. <code>estimar_costo()</code> is
 the deliberate pre-flight check. <code>nucleos</code> controls the number of
-<code>stringdist</code> threads (two by default); changing it changes time,
+<a href="https://cran.r-project.org/package=stringdist"><code>stringdist</code></a> threads (two by default); changing it changes time,
 never pairs or findings. <code>stringdist</code> is optional: if it is not
 installed, the result explains that no comparison was made.
 
@@ -325,6 +327,25 @@ The deterministic scale controls are:
 These are reference measurements, not portable timing promises. Candidate
 counts, estimates, and recall are deterministic; machine time depends on the
 processor, effective threads, and bucket shape.
+
+### Repair mojibake without Python
+
+<code>planificar_limpieza()</code> can identify damaged text and propose the
+<code>reparar_codificacion</code> action. The R-only engine follows the design
+and frozen tables of [ftfy 6.3.1](https://github.com/rspeer/python-ftfy) by
+[Robyn Speer](https://github.com/rspeer), and tries several encodings until the
+text stops looking like mojibake. A result is marked <code>reparado</code>,
+<code>reparado_parcialmente</code>, or <code>no_se_pudo</code>; partial repairs
+are never applied silently. The historical
+<code>reparar_codificacion_latin1</code> name remains accepted for saved plans.
+
+~~~r
+datos <- data.frame(nombre = c("PaysandÃº", "texto \ufffd"),
+                    stringsAsFactors = FALSE)
+perfil <- perfilar(datos, analizar_dependencias = FALSE)
+plan <- planificar_limpieza(perfil, datos)
+plan[, c("columna", "estrategia", "estado_reparacion", "aplicar")]
+~~~
 
 ### Follow quality through time
 
@@ -430,7 +451,7 @@ country lock.
   <code>marco_calidad()</code>. AGESIC v1.6 and ISO/IEC 25012 are inspectable
   instances; <code>pack_validadores()</code> adds another country or domain
   without changing the engine.
-* **One required dependency.** <code>cli</code> is the only package in
+* **One required dependency.** <a href="https://cran.r-project.org/package=cli"><code>cli</code></a> is the only package in
   <code>Imports</code>; <code>stringdist</code> is optional in
   <code>Suggests</code> for approximate duplicates.
 * **No knowledge is overstated.** Partial samples, structural losses,
@@ -451,12 +472,17 @@ vignette("escala-y-duplicados", package = "lupa")
 ~~~
 
 The package is intentionally positioned alongside, rather than against, other
-tools: <code>skimr</code> and <code>DataExplorer</code> summarize and explore;
-<code>pointblank</code>, <code>validate</code>, and <code>dataquieR</code>
-express or evaluate rules; <code>zoomerjoin</code>, <code>textreuse</code>, and
-<code>reclin2</code> cover text comparison or record linkage.
-[<code>calidad</code>](https://github.com/inesscc/calidad), maintained by Klaus
-Lehmann and Ricardo Pizarro, is a valuable adjacent axis: it implements CEPAL
+tools: [<code>skimr</code>](https://cran.r-project.org/package=skimr) and
+[<code>DataExplorer</code>](https://cran.r-project.org/package=DataExplorer) summarize and explore;
+[<code>pointblank</code>](https://cran.r-project.org/package=pointblank),
+[<code>validate</code>](https://cran.r-project.org/package=validate), and
+[<code>dataquieR</code>](https://cran.r-project.org/package=dataquieR)
+express or evaluate rules; [<code>zoomerjoin</code>](https://cran.r-project.org/package=zoomerjoin),
+[<code>textreuse</code>](https://cran.r-project.org/package=textreuse), and
+[<code>reclin2</code>](https://cran.r-project.org/package=reclin2) cover text comparison or record linkage.
+[<code>calidad</code>](https://github.com/inesscc/calidad), maintained by
+[Klaus Lehmann](https://github.com/inesscc/calidad) and
+[Ricardo Pizarro](https://github.com/inesscc/calidad), is a valuable adjacent axis: it implements CEPAL
 criteria for the quality of **survey estimates** (Estudios Estadísticos 101),
 while <code>lupa</code> evaluates the tabular data that produces an estimate.
 
@@ -466,8 +492,8 @@ To cite the package and its AGESIC reference, use:
 citation("lupa")
 ~~~
 
-Conceptual references include Batini and Scannapieco (2016), AGESIC's *Marco
-de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital* v1.6,
-and ISO/IEC 25012:2008. The repository's issue tracker is the place for bugs
+Conceptual references include [Batini and Scannapieco (2016)](https://doi.org/10.1007/978-3-319-24106-7),
+[AGESIC's *Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital* v1.6](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/),
+and [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html). The repository's issue tracker is the place for bugs
 and proposals; the release is not yet on CRAN, so this README intentionally
 does not display CRAN or R-CMD-check badges.

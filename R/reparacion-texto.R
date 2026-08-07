@@ -1,6 +1,7 @@
 # Motor de reparacion de texto en R puro.
-# Las categorias y el orden de las tablas siguen ftfy 6.3.1 (Robyn Speer).
-# Derivado del diseno de ftfy, bajo Apache-2.0:
+# Las categorias y el orden de las tablas siguen [ftfy 6.3.1]
+# (https://github.com/rspeer/python-ftfy), de [Robyn Speer]
+# (https://github.com/rspeer). Derivado del diseno de ftfy, bajo Apache-2.0:
 # https://github.com/rspeer/python-ftfy (badness.py, chardata.py, fixes.py).
 # Las tablas son literales congelados; no dependen de iconv en tiempo de carga.
 
@@ -13,7 +14,7 @@
   sloppy.windows.1254 = c(c(8364, 129, 8218, 402, 8222, 8230, 8224, 8225, 710, 8240, 352, 8249, 338, 141, 142, 143, 144, 8216, 8217, 8220, 8221, 8226, 8211, 8212, 732, 8482, 353, 8250, 339, 157, 158, 376, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 286, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 304, 350, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 287, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 305, 351, 255)),
   sloppy.windows.1257 = c(c(8364, 129, 8218, 131, 8222, 8230, 8224, 8225, 136, 8240, 138, 8249, 140, 168, 711, 184, 144, 8216, 8217, 8220, 8221, 8226, 8211, 8212, 152, 8482, 154, 8250, 156, 175, 731, 159, 160, 161, 162, 163, 164, 165, 166, 167, 216, 169, 342, 171, 172, 173, 174, 198, 176, 177, 178, 179, 180, 181, 182, 183, 248, 185, 343, 187, 188, 189, 190, 230, 260, 302, 256, 262, 196, 197, 280, 274, 268, 201, 377, 278, 290, 310, 298, 315, 352, 323, 325, 211, 332, 213, 214, 215, 370, 321, 346, 362, 220, 379, 381, 223, 261, 303, 257, 263, 228, 229, 281, 275, 269, 233, 378, 279, 291, 311, 299, 316, 353, 324, 326, 243, 333, 245, 246, 247, 371, 322, 347, 363, 252, 380, 382, 729)),
   iso.8859.2 = c(c(128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 260, 728, 321, 164, 317, 346, 167, 168, 352, 350, 356, 377, 173, 381, 379, 176, 261, 731, 322, 180, 318, 347, 711, 184, 353, 351, 357, 378, 733, 382, 380, 340, 193, 194, 258, 196, 313, 262, 199, 268, 201, 280, 203, 282, 205, 206, 270, 272, 323, 327, 211, 212, 336, 214, 215, 344, 366, 218, 368, 220, 221, 354, 223, 341, 225, 226, 259, 228, 314, 263, 231, 269, 233, 281, 235, 283, 237, 238, 271, 273, 324, 328, 243, 244, 337, 246, 247, 345, 367, 250, 369, 252, 253, 355, 729)),
-  macroman = c(c(196, 197, 199, 201, 209, 214, 220, 225, 224, 226, 228, 227, 229, 231, 233, 232, 234, 235, 237, 236, 238, 239, 241, 243, 242, 244, 246, 245, 250, 249, 251, 252, 8224, 176, 162, 163, 167, 8226, 182, 223, 174, 169, 8482, 180, 168, 8800, 198, 216, 8734, 177, 8804, 8805, 165, 181, 8706, 8721, 8719, 960, 8747, 170, 186, 937, 230, 248, 191, 161, 172, 8730, 402, 8776, 916, 171, 187, 8230, 160, 192, 195, 213, 338, 339, 8211, 8212, 8220, 8221, 8216, 8217, 247, 9674, 255, 376, 8260, 8364, 8249, 8250, 64257, 64258, 8225, 183, 8218, 8222, 8240, 194, 202, 193, 203, 200, 205, 206, 207, 204, 211, 212, 57374, 210, 218, 219, 217, 305, 710, 732, 175, 728, 729, 730, 184, 733, 731, 711)),
+  macroman = c(c(196, 197, 199, 201, 209, 214, 220, 225, 224, 226, 228, 227, 229, 231, 233, 232, 234, 235, 237, 236, 238, 239, 241, 243, 242, 244, 246, 245, 250, 249, 251, 252, 8224, 176, 162, 163, 167, 8226, 182, 223, 174, 169, 8482, 180, 168, 8800, 198, 216, 8734, 177, 8804, 8805, 165, 181, 8706, 8721, 8719, 960, 8747, 170, 186, 937, 230, 248, 191, 161, 172, 8730, 402, 8776, 8710, 171, 187, 8230, 160, 192, 195, 213, 338, 339, 8211, 8212, 8220, 8221, 8216, 8217, 247, 9674, 255, 376, 8260, 8364, 8249, 8250, 64257, 64258, 8225, 183, 8218, 8222, 8240, 194, 202, 193, 203, 200, 205, 206, 207, 204, 211, 212, 63743, 210, 218, 219, 217, 305, 710, 732, 175, 728, 729, 730, 184, 733, 731, 711)),
   cp437 = c(c(199, 252, 233, 226, 228, 224, 229, 231, 234, 235, 232, 239, 238, 236, 196, 197, 201, 230, 198, 244, 246, 242, 251, 249, 255, 214, 220, 162, 163, 165, 8359, 402, 225, 237, 243, 250, 241, 209, 170, 186, 191, 8976, 172, 189, 188, 161, 171, 187, 9617, 9618, 9619, 9474, 9508, 9569, 9570, 9558, 9557, 9571, 9553, 9559, 9565, 9564, 9563, 9488, 9492, 9524, 9516, 9500, 9472, 9532, 9566, 9567, 9562, 9556, 9577, 9574, 9568, 9552, 9580, 9575, 9576, 9572, 9573, 9561, 9560, 9554, 9555, 9579, 9578, 9496, 9484, 9608, 9604, 9612, 9616, 9600, 945, 223, 915, 960, 931, 963, 181, 964, 934, 920, 937, 948, 8734, 966, 949, 8745, 8801, 177, 8805, 8804, 8992, 8993, 247, 8776, 176, 8729, 183, 8730, 8319, 178, 9632, 160))
 )
 .ftfy_tablas_bytes <- lapply(.ftfy_tablas_bytes, as.integer)
@@ -32,12 +33,12 @@ names(.ftfy_tablas_bytes) <- c(
   start_punctuation = "\u00a1\u00ab\u00bf\u00a9\u0384\u0385\u2018\u201a\u201c\u201e\u2022\u2039\uf8ff",
   end_punctuation = "\u00ae\u00bb\u02dd\u201d\u203a\u2122",
   numeric = "\u00b2\u00b3\u00b9\u00b1\u00bc\u00bd\u00be\u00d7\u00b5\u00f7\u2044\u2202\u2206\u220f\u2211\u221a\u221e\u2229\u222b\u2248\u2260\u2261\u2264\u2265\u2116",
-  kaomoji = "\u00d2-\u00d6\u00d9-\u00dc\u00f2-\u00f6\u00f8-\u00fc\u0150\u00b0",
-  upper_accented = "\u00c0-\u00d1\u00d8\u00dc\u00dd\u0102\u0104\u0106\u010c\u010e\u0110\u0118\u011a\u011e\u0130\u0139\u013d\u0141\u0143\u0147\u0152\u0158\u015a\u015e\u0160\u0162\u0164\u016e\u0170\u0178\u0179\u017b\u017d\u0403",
-  lower_accented = "\u00df\u00e0-\u00f1\u0103\u0105\u0107\u010d\u010f\u0111\u0119\u011b\u011f\u013a\u013e\u0142\u0144\u0148\u0153\u0155\u015b\u015f\u0161\u0163\u0165\u016f\u0171\u017a\u017c\u017e\u0453\ufb01\ufb02",
+  kaomoji = "\u00d2-\u00d6\u00d9-\u00dc\u00f2-\u00f6\u00f8-\u00fc\u0150\u014c\u016a\u0172\u00b0",
+  upper_accented = "\u00c0-\u00d1\u00d8\u00dc\u00dd\u0102\u0100\u0104\u0106\u010c\u010e\u0110\u0118\u011a\u0112\u0116\u011e\u0122\u0130\u012a\u0136\u0139\u013d\u0141\u013b\u0143\u0147\u0145\u0152\u0158\u015a\u015e\u0160\u0162\u0164\u016e\u0170\u0178\u0179\u017b\u017d\u0490",
+  lower_accented = "\u00df\u00e0-\u00f1\u0103\u0105\u0101\u0107\u010d\u010f\u0111\u0119\u011b\u0113\u0117\u011f\u0123\u012f\u012b\u0137\u013a\u013e\u0142\u013c\u0153\u0155\u015b\u015f\u0161\u0165\u00fc\u017a\u017c\u017e\u0491\ufb01\ufb02",
   upper_common = "\u00de\u0391-\u03a9\u0386\u0388\u0389\u038a\u038c\u038e\u038f\u03aa\u03ab\u0401-\u042f",
-  lower_common = "\u03b1-\u03c9\u03ac\u03ad\u03ae\u03af\u03cc\u03cd\u03ce\u0390\u03b0\u0430-\u044f",
-  box = "\u2502\u250c\u2510\u2518\u251c\u2524\u252c\u253c\u2580\u2584\u2588\u258c\u2590\u2591\u2592\u2593\u2554\u2557\u255a\u255d\u2560\u2563\u2566\u2569\u256c"
+  lower_common = "\u03b1-\u03c9\u03ac\u03ad\u03ae\u03af\u03b0\u0430-\u045f",
+  box = "\u2502\u250c\u2510\u2518\u251c\u2524\u252c\u253c\u2550-\u256c\u2580\u2584\u2588\u258c\u2590\u2591\u2592\u2593"
 )
 .ftfy_re_cat <- function(...) {
   claves <- list(...)
@@ -96,18 +97,28 @@ names(.ftfy_tablas_bytes) <- c(
 )
 .ftfy_es_mojibake <- function(x) {
   if (!length(x) || is.na(x) || !nzchar(x)) return(FALSE)
+  # Todas las categorías de badness de ftfy contienen al menos un carácter
+  # no ASCII. Evitar la expresión completa en texto ASCII mantiene barato el
+  # perfilado de columnas grandes sin cambiar el predicado.
+  if (!grepl("[^\\x00-\\x7f]", x, perl = TRUE)) return(FALSE)
   grepl(.ftfy_badness_re, x, perl = TRUE)
 }
-.ftfy_codificar <- function(texto, tabla) {
+.ftfy_codificar <- function(texto, tabla, permitir_perdida = FALSE) {
   cps <- utf8ToInt(texto)
   if (anyNA(cps)) return(NULL)
   bytes <- integer(length(cps))
   ascii <- cps < 128L
   bytes[ascii] <- cps[ascii]
   if (any(!ascii)) {
-    idx <- match(cps[!ascii], tabla)
+    cp_no_ascii <- cps[!ascii]
+    perdidos <- cp_no_ascii == 0xfffdL
+    idx <- match(cp_no_ascii[!perdidos], tabla)
     if (anyNA(idx)) return(NULL)
-    bytes[!ascii] <- 127L + idx
+    valores <- integer(length(cp_no_ascii))
+    valores[perdidos] <- 0x1aL
+    valores[!perdidos] <- 127L + idx
+    if (!permitir_perdida && any(perdidos)) return(NULL)
+    bytes[!ascii] <- valores
   }
   as.raw(bytes)
 }
@@ -161,17 +172,86 @@ names(.ftfy_tablas_bytes) <- c(
 .ftfy_decode_inconsistent_utf8 <- function(texto) {
   # La misma transcodificacion por bytes funciona cuando solo un segmento del
   # valor fue degradado; los segmentos ASCII se conservan byte a byte.
-  .ftfy_un_paso(texto)
+  coincidencias <- gregexpr("[^\\x00-\\x7f]+", texto, perl = TRUE)[[1L]]
+  if (identical(coincidencias, -1L)) return(texto)
+  longitudes <- attr(coincidencias, "match.length")
+  salida <- texto
+  for (i in rev(seq_along(coincidencias))) {
+    desde <- coincidencias[[i]]
+    hasta <- desde + longitudes[[i]] - 1L
+    segmento <- substring(texto, desde, hasta)
+    reparado <- .ftfy_un_paso(segmento)
+    if (!is.null(reparado) && !identical(reparado$texto, segmento)) {
+      salida <- paste0(substr(salida, 1L, desde - 1L), reparado$texto,
+                       substr(salida, hasta + 1L, nchar(salida)))
+    }
+  }
+  salida
 }
-.ftfy_replace_lossy_sequences <- function(texto) {
-  # U+FFFD ya declara perdida de informacion: no se reemplaza ni se adivina.
-  list(texto = texto, estado = if (grepl("\uFFFD", texto, fixed = TRUE)) {
-    "no_se_pudo"
-  } else "sin_perdida")
+.ftfy_replace_lossy_sequences <- function(bytes) {
+  # Es la transliteracion en enteros de LOSSY_UTF8_RE de ftfy. El byte 0x1A
+  # representa un U+FFFD que un codec estricto ya habia producido.
+  valores <- as.integer(bytes)
+  n <- length(valores)
+  salida <- integer()
+  reemplazo <- c(0xefL, 0xbfL, 0xbdL)
+  es_continuacion <- function(x) x >= 0x80L && x <= 0xbfL
+  es_marca <- function(x) x == 0x1aL || x == 0x3fL
+  i <- 1L
+  while (i <= n) {
+    inicio <- i
+    largo <- 0L
+    if (valores[[i]] == 0x1aL) {
+      largo <- 1L
+    } else if (i < n && valores[[i]] %in% 0xc2:0xdf &&
+               es_marca(valores[[i + 1L]])) {
+      largo <- 2L
+    } else if (i < n && valores[[i]] %in% 0xc2:0xc3 &&
+               valores[[i + 1L]] == 0x3fL) {
+      largo <- 2L
+    } else if (i + 5L <= n && valores[[i]] == 0xedL &&
+               valores[[i + 1L]] %in% 0xa0:0xaf &&
+               es_marca(valores[[i + 2L]]) && valores[[i + 3L]] == 0xedL &&
+               valores[[i + 4L]] %in% 0xb0:0xbf &&
+               (es_marca(valores[[i + 5L]]) || es_continuacion(valores[[i + 5L]]))) {
+      largo <- 6L
+    } else if (i + 2L <= n && valores[[i]] %in% 0xe0:0xef &&
+               es_marca(valores[[i + 1L]]) &&
+               (es_marca(valores[[i + 2L]]) || es_continuacion(valores[[i + 2L]]))) {
+      largo <- 3L
+    } else if (i + 2L <= n && valores[[i]] %in% 0xe0:0xef &&
+               (es_marca(valores[[i + 1L]]) || es_continuacion(valores[[i + 1L]])) &&
+               es_marca(valores[[i + 2L]])) {
+      largo <- 3L
+    } else if (i + 3L <= n && valores[[i]] %in% 0xf0:0xf4 &&
+               es_marca(valores[[i + 1L]]) && es_continuacion(valores[[i + 2L]]) &&
+               es_continuacion(valores[[i + 3L]])) {
+      largo <- 4L
+    } else if (i + 3L <= n && valores[[i]] %in% 0xf0:0xf4 &&
+               es_continuacion(valores[[i + 1L]]) && es_marca(valores[[i + 2L]]) &&
+               es_continuacion(valores[[i + 3L]])) {
+      largo <- 4L
+    } else if (i + 3L <= n && valores[[i]] %in% 0xf0:0xf4 &&
+               es_continuacion(valores[[i + 1L]]) &&
+               es_continuacion(valores[[i + 2L]]) && es_marca(valores[[i + 3L]])) {
+      largo <- 4L
+    }
+    if (largo) {
+      salida <- c(salida, reemplazo)
+      i <- inicio + largo
+    } else {
+      salida <- c(salida, valores[[i]])
+      i <- i + 1L
+    }
+  }
+  as.raw(salida)
 }
 .ftfy_un_paso <- function(texto) {
   for (nombre in names(.ftfy_tablas_bytes)) {
-    bytes <- .ftfy_codificar(texto, .ftfy_tablas_bytes[[nombre]])
+    es_sloppy <- startsWith(nombre, "sloppy-")
+    bytes <- .ftfy_codificar(
+      texto, .ftfy_tablas_bytes[[nombre]], permitir_perdida = es_sloppy
+    )
     if (is.null(bytes)) next
     salida <- .ftfy_desde_utf8(bytes)
     if (!is.null(salida)) {
@@ -185,6 +265,16 @@ names(.ftfy_tablas_bytes) <- c(
         salida <- .ftfy_normalizar_nbsp(salida)
         salida <- .ftfy_ajustar_espacio_a0(texto, salida)
         return(list(texto = salida, paso = paste0("encode:", nombre, ";restore_byte_a0;decode:utf-8")))
+      }
+    }
+    if (es_sloppy) {
+      reemplazados <- .ftfy_replace_lossy_sequences(bytes)
+      salida <- .ftfy_desde_utf8(reemplazados)
+      if (!is.null(salida) && !identical(salida, texto)) {
+        salida <- .ftfy_normalizar_nbsp(salida)
+        return(list(texto = salida,
+                    paso = paste0("encode:", nombre,
+                                  ";replace_lossy_sequences;decode:utf-8")))
       }
     }
   }
@@ -208,12 +298,30 @@ names(.ftfy_tablas_bytes) <- c(
   tope <- max(1L, as.integer(max_iteraciones[[1L]]))
   for (i in seq_len(min(tope, 20L))) {
     paso <- .ftfy_un_paso(actual)
-    if (is.null(paso) || identical(paso$texto, actual)) break
+    if (is.null(paso)) {
+      inconsistente <- .ftfy_decode_inconsistent_utf8(actual)
+      if (!identical(inconsistente, actual)) {
+        actual <- inconsistente
+        pasos <- c(pasos, "decode_inconsistent_utf8")
+        if (!.ftfy_es_mojibake(actual)) break
+        next
+      }
+      break
+    }
+    if (identical(paso$texto, actual)) break
     actual <- paso$texto
     pasos <- c(pasos, paso$paso)
     if (!.ftfy_es_mojibake(actual)) break
   }
-  estado <- if (!length(pasos)) "no_se_pudo" else if (.ftfy_es_mojibake(actual)) "reparado_parcialmente" else "reparado"
+  estado <- if (!length(pasos)) {
+    "no_se_pudo"
+  } else if (.ftfy_es_mojibake(actual) || grepl("\uFFFD", actual, fixed = TRUE)) {
+    # El marcador de reemplazo conserva la pérdida de información aunque la
+    # medida ya no clasifique el resto del texto como mojibake.
+    "reparado_parcialmente"
+  } else {
+    "reparado"
+  }
   list(texto = actual, pasos = pasos, estado = estado)
 }
 # Compatibilidad con planes antiguos: el nombre historico sigue aceptado.

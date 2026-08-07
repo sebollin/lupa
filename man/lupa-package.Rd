@@ -49,14 +49,17 @@ resultado <- analizar(datos_operativos, analizar_dependencias = FALSE)
 subset(resultado$perfil$hallazgos, severidad != "ok")
 }
 \references{
-Batini C, Scannapieco M (2016). \emph{Data and Information Quality:
-Dimensions, Principles and Techniques}. Springer.
+Batini C, Scannapieco M (2016) \doi{10.1007/978-3-319-24106-7}.
+\emph{Data and Information Quality: Dimensions, Principles and Techniques}.
+Springer.
 
-AGESIC (2020). \emph{Marco de trabajo para la Gestión de la Calidad
+\href{https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/}{AGESIC (2020)}.
+\emph{Marco de trabajo para la Gestión de la Calidad
 de Datos en Gobierno Digital}, versión 1.6, Presidencia de la República,
 Uruguay.
 
-ISO/IEC (2008). \emph{ISO/IEC 25012:2008 Software engineering — Software product
+\href{https://www.iso.org/standard/35736.html}{ISO/IEC (2008)}.
+\emph{ISO/IEC 25012:2008 Software engineering — Software product
 Quality Requirements and Evaluation (SQuaRE) — Data quality model}.
 }
 \seealso{
