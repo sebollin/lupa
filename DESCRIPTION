@@ -22,7 +22,8 @@ Description: Provides general-purpose data profiling and quality analysis for
     and an optional taxonomy of the fifteen characteristics in ISO/IEC
     25012:2008 <https://www.iso.org/standard/35736.html>.
 License: GPL-2 | GPL-3
-URL: https://CRAN.R-project.org/package=lupa
+URL: https://github.com/sebollin/lupa, https://sebollin.github.io/lupa/
+BugReports: https://github.com/sebollin/lupa/issues
 Encoding: UTF-8
 Language: es
 LazyData: true
@@ -40,7 +41,7 @@ Suggests:
     sf,
     stringdist,
     stringi,
-    testthat (>= 3.0.0),
+    testthat (>= 3.1.7),
     tibble
 VignetteBuilder: knitr
 Config/testthat/edition: 3

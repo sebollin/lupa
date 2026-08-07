@@ -15,6 +15,17 @@
   list(medidas = medidas, evaluacion = evaluar(medidas, perfil))
 }
 
+test_that("las claves historicas codifican cada elemento del vector", {
+  entradas <- c("Basico", "Presente", "otro", NA_character_)
+  claves <- lupa:::.escapar_clave(entradas)
+  expect_length(claves, length(entradas))
+  expect_equal(length(unique(claves[seq_len(3L)])), 3L)
+  expect_equal(claves[[4L]], "~")
+  ids <- lupa:::.clave_historico(entradas, entradas)
+  expect_length(ids, length(entradas))
+  expect_equal(length(unique(ids[seq_len(3L)])), 3L)
+})
+
 test_that("el historico es una tabla plana y versionada", {
   enero <- .crear_corrida_historica(
     "enero", "2026-01-31 23:30:00", c(1, NA)

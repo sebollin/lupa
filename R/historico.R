@@ -74,7 +74,13 @@
 }
 
 .escapar_clave <- function(x) {
-  ifelse(is.na(x), "~", paste0("=", utils::URLencode(as.character(x), TRUE)))
+  x <- as.character(x)
+  cod <- vapply(
+    x,
+    function(z) if (is.na(z)) NA_character_ else utils::URLencode(z, TRUE),
+    character(1L), USE.NAMES = FALSE
+  )
+  ifelse(is.na(x), "~", paste0("=", cod))
 }
 
 .clave_historico <- function(nivel, id_medicion, perfil = NA_character_,
