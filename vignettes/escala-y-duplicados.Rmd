@@ -22,7 +22,11 @@ getOption("lupa.nucleos", 2L)`. El valor efectivo queda en
 `alcance$nucleos_usados`; se puede cambiar por llamada o mediante la opción,
 pero la cantidad de hilos no cambia los pares ni los hallazgos, sólo el tiempo.
 Las mediciones de escala fijan dos hilos para que los tiempos sean comparables
-entre corridas y máquinas.
+entre corridas.
+
+Los tiempos de la tabla siguiente se midieron en un Intel Core i9-14900HX de
+32 núcleos, Pop!_OS 22.04 LTS (Linux) y R 4.6.1. Son una referencia de escala,
+no una predicción para otra máquina.
 
 En un control de 100.000 filas del padrón difícil, con 140.097.499 candidatos
 y 29.844 pares informados, la cantidad de hilos produjo estas medianas (tres
