@@ -24,6 +24,9 @@
     )
   }
   factores <- as.data.frame(factores, stringsAsFactors = FALSE)
+  factores[] <- lapply(factores, function(x) {
+    if (is.factor(x)) as.character(x) else x
+  })
   factores$dimension <- as.character(factores$dimension)
   factores$factor <- as.character(factores$factor)
   if (anyNA(factores$dimension) || anyNA(factores$factor) ||

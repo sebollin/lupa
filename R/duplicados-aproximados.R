@@ -156,7 +156,7 @@
 .resumir_bloqueo <- function(datos, columna) {
   if (is.null(columna)) return(NULL)
   clave <- datos[[columna]]
-  textos <- suppressWarnings(as.character(clave))
+  textos <- suppressWarnings(.texto_analizable(clave)$valores)
   ausentes <- is.na(textos)
   # Los ausentes forman un bloque propio: no desaparecen del alcance, pero
   # tampoco se mezclan con valores observados.
@@ -604,14 +604,18 @@
 .muestra_pares_lsh <- function(n, tamano) {
   total <- as.numeric(n) * (as.numeric(n) - 1) / 2
   if (n < 2L || tamano < 1 || total < 1) {
-    return(data.frame(fila_1 = integer(), fila_2 = integer()))
+    return(data.frame(
+      fila_1 = integer(), fila_2 = integer(), stringsAsFactors = FALSE
+    ))
   }
   cantidad <- min(as.numeric(tamano), total, .Machine$integer.max)
   if (cantidad >= total) {
     fila_1 <- rep(seq_len(n - 1L), times = rev(seq_len(n - 1L)))
     fila_2 <- unlist(lapply(seq_len(n - 1L), function(i) (i + 1L):n),
                      use.names = FALSE)
-    return(data.frame(fila_1 = fila_1, fila_2 = fila_2))
+    return(data.frame(
+      fila_1 = fila_1, fila_2 = fila_2, stringsAsFactors = FALSE
+    ))
   }
   pares <- .con_rng_interno_lsh(173L, function() {
     # Se sortea el rango triangular de pares, no dos filas independientes:
@@ -623,7 +627,8 @@
     fila_1 <- findInterval(rangos, c(-1, comienzos)) - 1L
     fila_2 <- fila_1 + 1L + as.integer(rangos - comienzos[fila_1])
     data.frame(
-      fila_1 = pmin(fila_1, fila_2), fila_2 = pmax(fila_1, fila_2)
+      fila_1 = pmin(fila_1, fila_2), fila_2 = pmax(fila_1, fila_2),
+      stringsAsFactors = FALSE
     )
   })
   unique(pares)
@@ -1228,7 +1233,9 @@
 .evidencia_fila_aproximada <- function(datos, columnas, fila, protegidas) {
   valores <- vapply(columnas, function(columna) {
     if (columna %in% protegidas) return("[valor protegido]")
-    valor <- suppressWarnings(as.character(datos[[columna]][[fila]]))
+    valor <- suppressWarnings(
+      .texto_analizable(datos[[columna]][[fila]])$valores
+    )
     if (!length(valor) || is.na(valor)) "[ausente]" else valor
   }, character(1L))
   paste0(columnas, "=", valores, collapse = "; ")
@@ -1241,7 +1248,9 @@
     valores <- if (columna %in% protegidas) {
       rep("[valor protegido]", n)
     } else {
-      valores <- suppressWarnings(as.character(datos[[columna]][filas]))
+      valores <- suppressWarnings(
+        .texto_analizable(datos[[columna]][filas])$valores
+      )
       valores[is.na(valores) | !length(valores)] <- "[ausente]"
       valores
     }

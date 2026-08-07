@@ -888,7 +888,9 @@ metricas_nucleo <- function() {
         call. = FALSE
       )
     }
-    return(stats::setNames(list(datos), entidades))
+    return(stats::setNames(
+      list(.normalizar_columnas_texto(datos)), entidades
+    ))
   }
   if (!is.list(datos) || is.null(names(datos)) || any(!nzchar(names(datos))) ||
       anyDuplicated(names(datos)) ||
@@ -898,7 +900,7 @@ metricas_nucleo <- function() {
       call. = FALSE
     )
   }
-  datos
+  lapply(datos, .normalizar_columnas_texto)
 }
 
 .validar_salida_medicion <- function(salida, instancia) {

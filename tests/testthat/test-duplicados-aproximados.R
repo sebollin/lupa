@@ -728,7 +728,7 @@ test_that("el recorte sistematico conserva los extremos de la tabla", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(
     nombre = paste0("persona", seq_len(1000L)),
-    domicilio = paste0("calle", seq_len(1000L))
+    domicilio = paste0("calle", seq_len(1000L)), stringsAsFactors = FALSE
   )
   datos$nombre[999:1000] <- c("Juan Perez", "Juan Peres")
   datos$domicilio[999:1000] <- "Calle Centro"
@@ -760,7 +760,7 @@ test_that("el valor predeterminado recorre la tabla completa por bloques", {
   skip_if_not_installed("stringdist")
   datos <- data.frame(
     nombre = paste0("persona", seq_len(1000L)),
-    domicilio = paste0("calle", seq_len(1000L))
+    domicilio = paste0("calle", seq_len(1000L)), stringsAsFactors = FALSE
   )
   datos$nombre[500:501] <- c("Juan Perez", "Juan Peres")
   datos$domicilio[500:501] <- "Calle Centro"

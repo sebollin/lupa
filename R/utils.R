@@ -95,6 +95,21 @@
   list(valores = valores, invalidos = invalidos, posiciones = posiciones)
 }
 
+# Copia operativa de una tabla: los factores se interpretan como texto para
+# que los métodos no dependan de la versión de R ni de stringsAsFactors.
+# El perfil conserva la columna original; esta función sólo se usa al ejecutar
+# contratos que leen valores.
+.normalizar_columnas_texto <- function(tabla) {
+  if (!inherits(tabla, "data.frame")) return(tabla)
+  factores <- vapply(tabla, is.factor, logical(1L))
+  if (!any(factores)) return(tabla)
+  salida <- tabla
+  for (nombre in names(salida)[factores]) {
+    salida[[nombre]] <- .texto_analizable(salida[[nombre]])$valores
+  }
+  salida
+}
+
 .columnas_identicas <- function(x, y) {
   identical(class(x), class(y)) &&
     identical(is.na(x), is.na(y)) &&

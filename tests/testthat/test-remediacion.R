@@ -129,13 +129,13 @@ test_that("las conversiones exactas cubren dobles, lógicos y fechas", {
   expect_s3_class(resultado$fecha, "Date")
 })
 
-test_that("recortar espacios conserva una columna factor", {
+test_that("recortar espacios devuelve texto para una columna factor", {
   datos <- data.frame(x = factor(c(" A", "B ", " A")))
   plan <- planificar_limpieza(perfilar(datos))
   resultado <- aplicar(plan, datos)$datos
 
-  expect_s3_class(resultado$x, "factor")
-  expect_equal(as.character(resultado$x), c("A", "B", "A"))
+  expect_type(resultado$x, "character")
+  expect_identical(resultado$x, c("A", "B", "A"))
 })
 
 test_that("la aplicación rechaza deriva de esquema y planes inválidos", {

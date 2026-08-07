@@ -28,10 +28,14 @@
 
 .fecha_utc <- function(x) {
   if (inherits(x, "Date")) {
-    return(as.POSIXct(x, tz = "UTC"))
+    resultado <- as.POSIXct(x, tz = "UTC")
+    attr(resultado, "tzone") <- "UTC"
+    return(resultado)
   }
   x <- as.POSIXct(x)
-  as.POSIXct(as.numeric(x), origin = "1970-01-01", tz = "UTC")
+  resultado <- as.POSIXct(as.numeric(x), origin = "1970-01-01", tz = "UTC")
+  attr(resultado, "tzone") <- "UTC"
+  resultado
 }
 
 .valor_columna <- function(x, nombre, tipo = c("texto", "entero")) {
@@ -41,7 +45,11 @@
       rep(NA_character_, nrow(x))
     })
   }
-  if (tipo == "entero") as.integer(x[[nombre]]) else as.character(x[[nombre]])
+  if (tipo == "entero") {
+    as.integer(x[[nombre]])
+  } else {
+    .texto_analizable(x[[nombre]])$valores
+  }
 }
 
 .parte_historico <- function(x, nivel, id_registro, perfil = NA_character_,

@@ -32,6 +32,9 @@ columnas retiradas. Es \code{TRUE} de forma predeterminada.}
 \code{plan_limpieza}. \code{aplicar()} devuelve una lista de clase
 \code{resultado_limpieza} con \code{datos}, \code{registro}, \code{plan_aplicado}, el \code{plan}
 sincronizado y \code{eliminados}.
+Si una columna de entrada es un factor, las acciones que transforman su
+texto devuelven una columna \code{character}: no se reconstruyen los niveles
+originales, porque una limpieza puede introducir valores nuevos.
 }
 \description{
 \code{planificar_limpieza()} transforma los hallazgos de un objeto \code{perfil} en un

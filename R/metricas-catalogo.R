@@ -57,6 +57,7 @@
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
+  x <- .texto_analizable(x)$valores
   filas <- which(!is.na(x))
   valores <- x[filas]
   config <- instancia$configuracion
@@ -98,6 +99,7 @@
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
+  x <- .texto_analizable(x)$valores
   filas <- which(!is.na(x))
   .salida_metodo(
     .duplicados_completos(x[filas]), entidad, atributo, filas,

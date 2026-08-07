@@ -192,6 +192,6 @@ test_that("el mojibake reparable cambia y el texto sano permanece intacto", {
   expect_error(lupa:::.reparar_codificacion(1:2, list()), "columna de texto")
   factor_roto <- factor(c("PaysandÃº", "Paysandú"))
   reparado <- lupa:::.reparar_codificacion(factor_roto, list())
-  expect_s3_class(reparado$valor, "factor")
-  expect_equal(as.character(reparado$valor), c("Paysandú", "Paysandú"))
+  expect_type(reparado$valor, "character")
+  expect_identical(reparado$valor, c("Paysandú", "Paysandú"))
 })

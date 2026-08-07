@@ -344,7 +344,7 @@ test_that("las columnas duplicadas son idénticas en valores y atributos", {
 test_that("UTF-8 inválido se aísla y se declara sin reinterpretarlo", {
   mala <- rawToChar(as.raw(c(0x61, 0xff, 0x62)))
   valores <- c(mala, "sano", mala)
-  datos <- data.frame(x = valores)
+  datos <- data.frame(x = valores, stringsAsFactors = FALSE)
   perfil <- expect_no_error(perfilar(datos))
   fila <- perfil$columnas
 

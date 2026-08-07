@@ -13,13 +13,12 @@
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS. This environment has
   no `tidy` executable, which accounts for the second NOTE in its local check;
   the submission environment should report its own HTML-validation status.
-* Container (diagnostic run before raising the testthat minimum): R 3.6.3
-  (rocker/r-ver:3.6.3), with cli 3.0.1, testthat 3.0.4,
-  knitr 1.33, rmarkdown 2.9, stringdist 0.9.7, tibble 3.1.3, bit64 4.0.5 and
-  data.table 1.14.0. The check was run with `--no-build-vignettes` because
-  this container does not include pandoc; vignettes are built under R 4.6.1.
-  The package now requires `testthat (>= 3.1.7)`, the first version that
-  provides the mocking helper used by the test suite.
+* Container: R 3.6.3 (`rocker/r-ver:3.6.3`), with cli 3.6.1,
+  testthat 3.1.7, knitr 1.42, rmarkdown 2.21, stringdist 0.9.10,
+  tibble 3.2.1, bit64 4.0.5 and data.table 1.14.8. The compatibility run
+  uses `--no-build-vignettes` because this container does not include pandoc;
+  vignettes are built under R 4.6.1. The run is a local Docker check, not a
+  remote service.
 
 ## Implementation notes
 
@@ -31,11 +30,15 @@ both properties. The `<<-` assignments in the LSH and profiling closures update
 only their enclosing function environments, never `.GlobalEnv`, and are used to
 accumulate local state across callbacks.
 
-The declared minimum R version is 3.6.0. The native R 3.6.3 run found that
-`utils::URLencode()` is scalar in that release; `.escapar_clave()` now applies
-it element by element, preserving the R 4.6.1 keys while fixing the historical
-path on R 3.6.3. The compatibility run also exercised R 3.6's
-`data.frame()` defaults. Vignettes were intentionally excluded from that
+The declared minimum R version is 3.6.0. The first R 3.6.3 run found two
+compatibility defects: `utils::URLencode()` is scalar in that release, and
+factor columns reached text-oriented methods. `.escapar_clave()` now applies
+`URLencode()` element by element, and all operational metric inputs pass
+through a factor-to-character boundary while profiling retains the declared
+factor type. The Date-to-POSIXct historical conversion also sets `tzone` to
+`UTC` explicitly. The corrected compatibility run exercises R 3.6's
+`data.frame()` defaults with explicit factor inputs; the result is compatible,
+so the minimum remains 3.6.0. Vignettes were intentionally excluded from that
 container check because pandoc is unavailable, as stated above.
 
 ## Reverse dependencies

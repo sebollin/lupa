@@ -70,7 +70,8 @@ test_that("las propiedades se consultan y el validador respeta la declaracion", 
   expect_equal(
     propiedades_metrica(generica),
     data.frame(
-      propiedad = c("umbral", "inclusivo"), configurada = c(FALSE, FALSE)
+      propiedad = c("umbral", "inclusivo"), configurada = c(FALSE, FALSE),
+      stringsAsFactors = FALSE
     )
   )
   expect_true(all(propiedades_metrica(especifica)$configurada))

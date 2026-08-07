@@ -70,6 +70,10 @@
   de `double` y cuenta valores distintos en columnas de listas y geometrías.
 - Clasifica posibles datos personales sin juzgar su presencia y protege por
   defecto los valores concretos cuando la evidencia es discriminante.
+- Normaliza factores a texto sólo en la operación, conserva `factor` en el
+  perfil y devuelve texto al transformar columnas factor con `aplicar()`.
+- Mantiene claves históricas estables en R 3.6 y fija explícitamente en UTC las
+  fechas convertidas desde `Date`.
 - Añade conteos explícitos de evaluados y afectados, con la unidad de conteo,
   a cada hallazgo; conserva NA cuando el alcance no permite conocerlos.
 - Añade trazabilidad acotada por hallazgo mediante índices de fila, con estados

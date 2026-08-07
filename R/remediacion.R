@@ -178,6 +178,9 @@
 #'   `plan_limpieza`. `aplicar()` devuelve una lista de clase
 #'   `resultado_limpieza` con `datos`, `registro`, `plan_aplicado`, el `plan`
 #'   sincronizado y `eliminados`.
+#'   Si una columna de entrada es un factor, las acciones que transforman su
+#'   texto devuelven una columna `character`: no se reconstruyen los niveles
+#'   originales, porque una limpieza puede introducir valores nuevos.
 #' @export
 #' @seealso [perfilar()], [guiar_limpieza()], [detectar_dependencias()]
 #'
@@ -862,6 +865,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   }
   normalizados <- tolower(trimws(as.character(x)))
   mascara <- !is.na(x) & normalizados %in% parametros$valores
+  if (is.factor(x)) x <- as.character(x)
   x[mascara] <- NA
   list(valor = x, n = sum(mascara))
 }
@@ -875,6 +879,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     stop("Los sentinelas num\u00e9ricos requieren texto o n\u00fameros.", call. = FALSE)
   }
   mascara <- !is.na(x) & !is.na(numeros) & numeros %in% parametros$valores
+  if (is.factor(x)) x <- as.character(x)
   x[mascara] <- NA
   list(valor = x, n = sum(mascara))
 }
@@ -905,7 +910,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (is.factor(salida)) {
     texto <- as.character(salida)
     texto[imputar] <- as.character(mapa$dependiente[indices[imputar]])
-    salida <- .restaurar_factor(salida, texto)
+    salida <- texto
   } else {
     salida[imputar] <- mapa$dependiente[indices[imputar]]
   }
@@ -920,10 +925,6 @@ planificar_limpieza <- function(perfil, datos = NULL,
   anterior <- as.character(x)
   nuevo <- trimws(anterior)
   mascara <- !is.na(anterior) & anterior != nuevo
-  if (is.factor(x)) {
-    niveles <- unique(trimws(levels(x)))
-    nuevo <- factor(nuevo, levels = niveles, ordered = is.ordered(x))
-  }
   list(valor = nuevo, n = sum(mascara))
 }
 
@@ -1009,10 +1010,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
 
 .restaurar_factor <- function(original, nuevo) {
   if (!is.factor(original)) return(nuevo)
-  factor(
-    nuevo, levels = unique(nuevo[!is.na(nuevo)]),
-    ordered = is.ordered(original)
-  )
+  # Las acciones pueden introducir valores fuera de los niveles originales;
+  # el contrato devuelve texto y no un factor incompleto.
+  as.character(nuevo)
 }
 
 .transformar_capitalizacion <- function(x, estrategia, parametros) {

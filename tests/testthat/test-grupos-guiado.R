@@ -434,7 +434,8 @@ test_that("las columnas duplicadas se anotan y detectan deriva", {
 })
 
 test_that("la eliminación comprueba que una columna siga siendo constante", {
-  original <- data.frame(x = rep("UY", 3), id = 1:3)
+  original <- data.frame(x = rep("UY", 3), id = 1:3,
+                         stringsAsFactors = FALSE)
   plan <- activar_estrategia(
     planificar_limpieza(perfilar(original)), "eliminar_columna_constante"
   )
@@ -446,14 +447,14 @@ test_that("la eliminación comprueba que una columna siga siendo constante", {
   )
 })
 
-test_that("las transformaciones de capitalización conservan factores y validan", {
+test_that("las transformaciones de capitalización devuelven texto y validan", {
   datos <- data.frame(zona = factor(c("Norte", "NORTE", "sur", "SUR")))
   plan <- activar_estrategia(
     planificar_limpieza(perfilar(datos)), "convertir_minusculas"
   )
   resultado <- aplicar(plan, datos)$datos
-  expect_s3_class(resultado$zona, "factor")
-  expect_equal(as.character(resultado$zona), c("norte", "norte", "sur", "sur"))
+  expect_type(resultado$zona, "character")
+  expect_identical(resultado$zona, c("norte", "norte", "sur", "sur"))
 
   expect_error(
     lupa:::.transformar_capitalizacion(1:2, "convertir_minusculas", list()),
