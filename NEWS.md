@@ -74,6 +74,9 @@
   perfil y devuelve texto al transformar columnas factor con `aplicar()`.
 - Mantiene claves históricas estables en R 3.6 y fija explícitamente en UTC las
   fechas convertidas desde `Date`.
+- Las claves históricas tratan el texto ilegible (UTF-8 inválido) como ausente:
+  comparte con `NA` la marca `~`, en vez de intentar codificarlo como texto
+  literal.
 - Añade conteos explícitos de evaluados y afectados, con la unidad de conteo,
   a cada hallazgo; conserva NA cuando el alcance no permite conocerlos.
 - Añade trazabilidad acotada por hallazgo mediante índices de fila, con estados

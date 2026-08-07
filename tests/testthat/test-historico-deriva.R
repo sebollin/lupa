@@ -26,6 +26,13 @@ test_that("las claves historicas codifican cada elemento del vector", {
   expect_equal(length(unique(ids[seq_len(3L)])), 3L)
 })
 
+test_that("el texto UTF-8 ilegible queda marcado como ausente en la clave", {
+  invalido <- rawToChar(as.raw(c(0x61, 0xff, 0x62)))
+  valores <- lupa:::.texto_analizable(invalido)$valores
+  expect_true(is.na(valores))
+  expect_identical(lupa:::.escapar_clave(valores), "~")
+})
+
 test_that("el historico es una tabla plana y versionada", {
   enero <- .crear_corrida_historica(
     "enero", "2026-01-31 23:30:00", c(1, NA)

@@ -943,7 +943,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   mascara <- !is.na(candidatos) & !is.na(anterior) & candidatos != anterior
   nuevo <- anterior
   nuevo[mascara] <- candidatos[mascara]
-  list(valor = .restaurar_factor(x, nuevo), n = sum(mascara))
+  list(valor = .resultado_texto(x, nuevo), n = sum(mascara))
 }
 
 .convertir_numero_regional <- function(x, parametros) {
@@ -1008,7 +1008,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   list(valor = numero, n = sum(presentes))
 }
 
-.restaurar_factor <- function(original, nuevo) {
+.resultado_texto <- function(original, nuevo) {
   if (!is.factor(original)) return(nuevo)
   # Las acciones pueden introducir valores fuera de los niveles originales;
   # el contrato devuelve texto y no un factor incompleto.
@@ -1043,7 +1043,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     nuevo[reemplazar] <- as.character(diccionario[indices[reemplazar]])
   }
   mascara <- !is.na(anterior) & anterior != nuevo
-  list(valor = .restaurar_factor(x, nuevo), n = sum(mascara))
+  list(valor = .resultado_texto(x, nuevo), n = sum(mascara))
 }
 
 .convertir_logico <- function(x) {

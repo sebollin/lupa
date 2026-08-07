@@ -48,7 +48,7 @@
   if (tipo == "entero") {
     as.integer(x[[nombre]])
   } else {
-    .texto_analizable(x[[nombre]])$valores
+    as.character(.texto_analizable(x[[nombre]])$valores)
   }
 }
 

@@ -156,7 +156,7 @@
 .resumir_bloqueo <- function(datos, columna) {
   if (is.null(columna)) return(NULL)
   clave <- datos[[columna]]
-  textos <- suppressWarnings(.texto_analizable(clave)$valores)
+  textos <- suppressWarnings(as.character(.texto_analizable(clave)$valores))
   ausentes <- is.na(textos)
   # Los ausentes forman un bloque propio: no desaparecen del alcance, pero
   # tampoco se mezclan con valores observados.
@@ -1234,7 +1234,7 @@
   valores <- vapply(columnas, function(columna) {
     if (columna %in% protegidas) return("[valor protegido]")
     valor <- suppressWarnings(
-      .texto_analizable(datos[[columna]][[fila]])$valores
+      as.character(.texto_analizable(datos[[columna]][[fila]])$valores)
     )
     if (!length(valor) || is.na(valor)) "[ausente]" else valor
   }, character(1L))
@@ -1249,7 +1249,7 @@
       rep("[valor protegido]", n)
     } else {
       valores <- suppressWarnings(
-        .texto_analizable(datos[[columna]][filas])$valores
+        as.character(.texto_analizable(datos[[columna]][filas])$valores)
       )
       valores[is.na(valores) | !length(valores)] <- "[ausente]"
       valores
