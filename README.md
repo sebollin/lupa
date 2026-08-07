@@ -152,9 +152,10 @@ vigentes son:
 | 100.000 | 140.097.499 | 1,0000 | 2 |
 | 200.000 | 582.388.482 | 1,0000 | 2 |
 
-Los conteos y el recall se calculan una vez porque son deterministas; el script
-de desarrollo del repositorio permite repetir la medición de tiempo con tres
-corridas y una cantidad fija de hilos. `detectar_duplicados_aproximados()` usa
+Los conteos y el recall se calculan una vez porque son deterministas; un script
+de desarrollo no distribuido con el paquete permite repetir la medición de
+tiempo con tres corridas y una cantidad fija de hilos.
+`detectar_duplicados_aproximados()` usa
 por omisión `nucleos = getOption("lupa.nucleos", 2L)`; cambiarlo no cambia los
 pares, aunque sí el tiempo. La estimación previa de candidatos queda dentro del
 1,5 % en los tres tamaños. La riqueza del

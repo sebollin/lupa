@@ -713,14 +713,15 @@
          scientific = FALSE, trim = TRUE)
 }
 
-.texto_tiempo_lsh <- function(estimacion) {
+.texto_tiempo_lsh <- function(estimacion, nucleos = 2L) {
   if (is.finite(estimacion$tiempo)) {
     paste0(
       "LSH: ", .formato_pares_lsh(estimacion$candidatos_previstos),
       " candidatos previstos; referencia de ",
       format(round(estimacion$tiempo, 3), nsmall = 3,
         decimal.mark = ","),
-      " s (piso, no incluye firma ni cubetas), medida con ",
+      " s (piso, no incluye firma ni cubetas; subir nucleos puede acortar ",
+      "esta etapa; hoy usa ", nucleos, " hilos), medida con ",
       .formato_pares_lsh(estimacion$pares_benchmark), " pares en ",
       format(round(estimacion$tiempo_benchmark, 3), nsmall = 3,
         decimal.mark = ","), " s."
@@ -729,7 +730,8 @@
     paste0(
       "LSH: no se pudo medir una velocidad con ",
       .formato_pares_lsh(estimacion$pares_benchmark),
-      " pares; el tiempo queda sin estimar."
+      " pares; el tiempo queda sin estimar (subir nucleos puede acortar ",
+      "esta etapa; hoy usa ", nucleos, " hilos)."
     )
   }
 }
@@ -830,7 +832,7 @@
     firmas, valores, metodo, bandas, filas_banda, muestra_estimacion,
     bloqueos = bloqueos, nucleos = nucleos
   )
-  mensaje_tiempo <- .texto_tiempo_lsh(estimacion)
+  mensaje_tiempo <- .texto_tiempo_lsh(estimacion, nucleos)
   if (isTRUE(interactive())) {
     # nocov start: la salida visual sólo existe en una sesión interactiva.
     cli::cli_alert_info(mensaje_tiempo)
@@ -1712,6 +1714,8 @@
 #' los núcleos disponibles y se publica como `alcance$nucleos_usados`. Cambiar
 #' la cantidad de hilos no cambia los pares ni los hallazgos, aunque sí puede
 #' cambiar el tiempo de ejecución.
+#' El aviso interactivo señala esta perilla: subir `nucleos` puede acortar la
+#' etapa de comparación, pero la ganancia depende de la máquina y de los datos.
 #'
 #' Para tablas que superan el tope exhaustivo, `estrategia = "auto"` usa
 #' MinHash con bandas LSH sobre todas las filas cuando `muestra = Inf`. La

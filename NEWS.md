@@ -4,6 +4,10 @@
 
 - Fija por omisión en dos los hilos que `stringdist` puede usar en las
   comparaciones aproximadas y declara el valor efectivo en `alcance`.
+- El aviso interactivo del camino LSH identifica `nucleos` como la perilla que
+  puede acortar la etapa de comparación, sin prometer una ganancia fija.
+- La viñeta de escala documenta el rendimiento observado entre dos y treinta y
+  un hilos y deja explícito que después de dieciséis no hubo una mejora medida.
 - Documenta que el piso de tiempo de LSH cubre sólo la comparación de cadenas,
   no la firma, las cubetas ni el troceo; los resultados no dependen de la
   cantidad de hilos.

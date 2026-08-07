@@ -24,6 +24,24 @@ pero la cantidad de hilos no cambia los pares ni los hallazgos, sólo el tiempo.
 Las mediciones de escala fijan dos hilos para que los tiempos sean comparables
 entre corridas y máquinas.
 
+En un control de 100.000 filas del padrón difícil, con 140.097.499 candidatos
+y 29.844 pares informados, la cantidad de hilos produjo estas medianas (tres
+procesos separados por configuración):
+
+| hilos | mediana (s) | relativo a 2 |
+| ---: | ---: | ---: |
+| 2 | 133,28 | 1,00x |
+| 4 | 97,44 | 0,73x |
+| 8 | 76,19 | 0,57x |
+| 16 | 70,31 | 0,53x |
+| 31 | 71,69 | 0,54x |
+
+Pasados dieciséis hilos no hubo una ganancia medible: el valor predeterminado
+de `stringdist` (todos los núcleos menos uno) no es el mejor. El resultado fue
+el mismo en las cinco configuraciones; sólo cambió el reloj. El valor por
+omisión de dos hilos es deliberadamente conservador y se puede subir cuando la
+máquina y la carga lo justifican.
+
 ## Un conjunto pequeño
 
 ```{r datos}
@@ -63,6 +81,11 @@ estimacion[c(
 El pronóstico de tiempo, cuando aparece, es un piso de la etapa de comparación
 `stringdist`: no incluye la firma MinHash, el bandeo, las cubetas ni el troceo.
 Su campo `estimacion$tiempo_estimado_etapa` lo deja explícito.
+
+Con dos hilos, ese piso cubrió aproximadamente el 80 % del tiempo total en el
+control de 100.000 filas (106,18 s estimados frente a 133,28 s medidos). Sigue
+siendo un piso de la comparación `stringdist`, no una promesa de duración de la
+corrida completa.
 
 Si el pronóstico supera el límite elegido, `presupuesto_pares` corta antes de
 comparar. En una sesión interactiva se puede decidir explícitamente continuar;

@@ -172,6 +172,8 @@ máximo. El valor por omisión es \code{getOption("lupa.nucleos", 2L)}, se limit
 los núcleos disponibles y se publica como \code{alcance$nucleos_usados}. Cambiar
 la cantidad de hilos no cambia los pares ni los hallazgos, aunque sí puede
 cambiar el tiempo de ejecución.
+El aviso interactivo señala esta perilla: subir \code{nucleos} puede acortar la
+etapa de comparación, pero la ganancia depende de la máquina y de los datos.
 
 Para tablas que superan el tope exhaustivo, \code{estrategia = "auto"} usa
 MinHash con bandas LSH sobre todas las filas cuando \code{muestra = Inf}. La
