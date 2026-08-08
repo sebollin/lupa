@@ -292,6 +292,9 @@ de [Robyn Speer](https://github.com/rspeer), y prueba varias codificaciones
 hasta que el texto deja de parecer mojibake. El resultado queda marcado como
 <code>reparado</code>, <code>reparado_parcialmente</code> o
 <code>no_se_pudo</code>; las reparaciones parciales nunca se aplican en silencio.
+Las reglas completas de detección y los transcodificadores a nivel de bytes
+están congelados desde ftfy 6.3.1; los bytes realmente perdidos quedan visibles
+como U+FFFD, nunca como un carácter de control invisible.
 El nombre histórico <code>reparar_codificacion_latin1</code> sigue aceptándose
 para planes guardados.
 
@@ -424,8 +427,8 @@ El paquete se ubica junto a otras herramientas: [<code>skimr</code>](https://cra
 [<code>reclin2</code>](https://cran.r-project.org/package=reclin2) cubren
 comparación textual o record linkage.
 [<code>calidad</code>](https://github.com/inesscc/calidad), de INE Chile y mantenido por
-[Klaus Lehmann](https://github.com/inesscc/calidad) y [Ricardo
-Pizarro](https://github.com/inesscc/calidad), es un eje contiguo valioso: aplica criterios de CEPAL a la calidad de
+[Klaus Lehmann](https://github.com/Klauslehmann) y [Ricardo
+Pizarro](https://github.com/ricardoflopiza), es un eje contiguo valioso: aplica criterios de CEPAL a la calidad de
 estimaciones de encuestas (Estudios Estadísticos 101), mientras <code>lupa</code>
 evalúa el dato tabular que produce una estimación.
 

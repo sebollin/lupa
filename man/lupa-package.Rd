@@ -76,6 +76,10 @@ Authors:
 Other contributors:
 \itemize{
   \item Robyn Speer [copyright holder]
+  \item Nicholas Tierney [copyright holder]
+  \item Di Cook [copyright holder]
+  \item Miles McBain [copyright holder]
+  \item Colin Fay [copyright holder]
 }
 
 }

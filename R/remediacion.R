@@ -143,8 +143,8 @@
 #' La acción de codificación prueba las tablas congeladas de varias
 #' codificaciones y deja en `estado_reparacion` uno de `reparado`,
 #' `reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se activa
-#' automáticamente: debe revisarse y seleccionarse de forma explícita. El
-#' La estrategia nueva se llama `reparar_codificacion`. El nombre histórico
+#' automáticamente: debe revisarse y seleccionarse de forma explícita. La
+#' estrategia nueva se llama `reparar_codificacion`. El nombre histórico
 #' `reparar_codificacion_latin1` se acepta como alias para planes guardados,
 #' aunque ya no limita el motor a latin-1.
 #' Si se marca una acción que no está `lista`, `aplicar()` aborta antes de

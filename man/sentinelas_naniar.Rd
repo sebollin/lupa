@@ -17,7 +17,9 @@ sentinelas_naniar
 \description{
 Vector para solicitar explícitamente la lista numérica completa publicada
 por \href{https://github.com/njtierney/naniar}{naniar}. Sus autores incluyen a
-Nicholas Tierney, Di Cook, Miles McBain y Colin Fay. Incluye \code{66}, \code{77},
+\href{https://github.com/njtierney}{Nicholas Tierney}, \href{https://github.com/dicook}{Di Cook},
+\href{https://github.com/milesmcbain}{Miles McBain} y \href{https://github.com/ColinFay}{Colin Fay}.
+Incluye \code{66}, \code{77},
 \code{88} y \code{9999}, que pueden ser edades,
 códigos o años legítimos y por eso no se aplican de forma predeterminada.
 Se usa como \code{perfilar(datos, sentinelas_numericos = sentinelas_naniar)}.

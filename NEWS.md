@@ -7,6 +7,10 @@
   6.3.1](https://github.com/rspeer/python-ftfy) de [Robyn
   Speer](https://github.com/rspeer). Los resultados distinguen reparaciones completas, parciales y casos
   irrecuperables; los estados llegan al hallazgo, al plan y al registro.
+- Completa el port de las reglas de detección y de los transcodificadores de
+  [ftfy](https://github.com/rspeer/python-ftfy): las transformaciones de bytes
+  se encadenan antes de decodificar, las pérdidas quedan como U+FFFD y estado
+  `reparado_parcialmente`, y nunca se introduce un control invisible nuevo.
 - La licencia del paquete pasa de `GPL-2 | GPL-3` a `GPL-3`; las partes
   derivadas del diseño de [ftfy](https://github.com/rspeer/python-ftfy) se
   atribuyen en `LICENSE.note` bajo Apache-2.0.

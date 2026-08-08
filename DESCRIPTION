@@ -4,7 +4,11 @@ Version: 0.1.0
 Authors@R:
     c(
       person("Sebastián", "Lucas", , "sebalucas@gmail.com", role = c("aut", "cre")),
-      person("Robyn", "Speer", role = "cph")
+      person("Robyn", "Speer", role = "cph"),
+      person("Nicholas", "Tierney", role = "cph"),
+      person("Di", "Cook", role = "cph"),
+      person("Miles", "McBain", role = "cph"),
+      person("Colin", "Fay", role = "cph")
     )
 Description: Provides general-purpose data profiling and quality analysis for
     tabular data. Discovers structural patterns, implicit types, mixed date

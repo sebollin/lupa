@@ -44,61 +44,85 @@ names(.ftfy_tablas_bytes) <- c(
   claves <- list(...)
   paste0("[", paste0(unlist(.ftfy_categorias[unlist(claves)]), collapse = ""), "]")
 }
-.ftfy_badness_re <- paste(
+.ftfy_badness_alternatives <- c(
   .ftfy_re_cat("c1"),
-  paste0(.ftfy_re_cat("bad", "lower_accented", "upper_accented",
+  paste0(.ftfy_re_cat("bad", "lower_accented", "upper_accented", "box",
                        "start_punctuation", "end_punctuation", "currency",
                        "numeric", "law"), .ftfy_re_cat("bad")),
-  paste0(.ftfy_re_cat("bad"), .ftfy_re_cat("lower_accented", "upper_accented",
-                                              "start_punctuation", "end_punctuation",
-                                              "currency", "numeric", "law")),
-  paste0(.ftfy_re_cat("lower_accented", "end_punctuation", "currency", "numeric"),
-         .ftfy_re_cat("upper_accented")),
-  paste0(.ftfy_re_cat("end_punctuation", "currency", "numeric"),
-         .ftfy_re_cat("lower_accented")),
-  paste0(.ftfy_re_cat("lower_accented", "end_punctuation"),
-         .ftfy_re_cat("currency")),
-  paste0(.ftfy_re_cat("upper_accented"), .ftfy_re_cat("numeric", "law")),
-  paste0(.ftfy_re_cat("currency", "numeric"), .ftfy_re_cat("start_punctuation")),
-  paste0("[a-z]", .ftfy_re_cat("upper_accented"),
-         .ftfy_re_cat("start_punctuation", "currency")),
-  paste0(.ftfy_re_cat("lower_accented", "upper_accented"),
-         .ftfy_re_cat("start_punctuation", "end_punctuation"), "\\w"),
-  paste0(.ftfy_re_cat("lower_accented", "upper_accented", "currency", "numeric", "law"),
-         .ftfy_re_cat("end_punctuation"), .ftfy_re_cat("start_punctuation")),
-  "[\u00c2\u00c3\u00ce\u00d0][\u20ac\u0153\u0160\u0161\u00a2\u00a3\u0178\u017e\u00a0\u00ad\u00ae\u00a9\u00b0\u00b7\u00bb\u2013\u2014\u00b4\u00a1\u00ab\u00bf\u2018\u201a\u201c\u201e\u2022\u2039\u203a\u2122\u201d]",
-  paste0("[a-z]\\s?[\u00c3\u00c2][ ]"),
-  paste0("^[\u00c3\u00c2][ ]"),
-  paste0(.ftfy_re_cat("upper_accented"), "\u00b0"),
-  sep = "|"
-)
-.MOJIBAKE_CATEGORIES <- .ftfy_categorias
-.BADNESS_RE <- .ftfy_badness_re
-.ftfy_badness_re <- paste(
-  .ftfy_badness_re,
   paste0("[a-zA-Z]", .ftfy_re_cat("lower_common", "upper_common"),
          .ftfy_re_cat("bad")),
   paste0(.ftfy_re_cat("bad"), .ftfy_re_cat("lower_accented", "upper_accented",
-                                             "box", "start_punctuation", "end_punctuation",
-                                             "currency", "numeric")),
+                                                   "box", "start_punctuation",
+                                                   "end_punctuation", "currency",
+                                                   "numeric", "law")),
+  paste0(.ftfy_re_cat("lower_accented", "lower_common", "box", "end_punctuation",
+                      "currency", "numeric"), .ftfy_re_cat("upper_accented")),
+  paste0(.ftfy_re_cat("box", "end_punctuation", "currency", "numeric"),
+         .ftfy_re_cat("lower_accented")),
+  paste0(.ftfy_re_cat("lower_accented", "box", "end_punctuation"),
+         .ftfy_re_cat("currency")),
+  paste0("\\s", .ftfy_re_cat("upper_accented"), .ftfy_re_cat("currency")),
+  paste0(.ftfy_re_cat("upper_accented", "box"), .ftfy_re_cat("numeric", "law")),
+  paste0(.ftfy_re_cat("lower_accented", "upper_accented", "box", "currency",
+                      "end_punctuation"), .ftfy_re_cat("start_punctuation"),
+         .ftfy_re_cat("numeric")),
+  paste0(.ftfy_re_cat("lower_accented", "upper_accented", "currency", "numeric",
+                      "box", "law"), .ftfy_re_cat("end_punctuation"),
+         .ftfy_re_cat("start_punctuation")),
+  paste0(.ftfy_re_cat("currency", "numeric", "box"), .ftfy_re_cat("start_punctuation")),
+  paste0("[a-z]", .ftfy_re_cat("upper_accented"),
+         .ftfy_re_cat("start_punctuation", "currency")),
   paste0(.ftfy_re_cat("box"), .ftfy_re_cat("kaomoji")),
   paste0(.ftfy_re_cat("lower_accented", "upper_accented", "currency", "numeric",
-                      "start_punctuation", "end_punctuation"), .ftfy_re_cat("box")),
+                      "start_punctuation", "end_punctuation", "law"),
+         .ftfy_re_cat("box")),
   paste0(.ftfy_re_cat("box"), .ftfy_re_cat("end_punctuation")),
+  paste0(.ftfy_re_cat("lower_accented", "upper_accented"),
+         .ftfy_re_cat("start_punctuation", "end_punctuation"), "\\w"),
   "[\u0152\u0153][^A-Za-z]",
-  "\u00d7[\u00b2\u00b3]",
-  "[\u00d8\u00d9][\u00a0\u00ad\u00b7\u00b4\u2013\u2014\u2015\u2026\u2019\u00a2\u00a3\u00a5\u20a7\u20ac\u00a6\u00a4\u00a8\u00ac\u00af\u00b8\u0192\u02c6\u02c7\u02d8\u02db\u02dc\u2020\u2021\u2030\u2310\u25ca\ufffd\u00aa\u00ba\u00b2\u00b3\u00b9\u00b1\u00bc\u00bd\u00be\u00a1\u00ab\u00bf\u00a9\u0384\u0385\u2018\u201a\u201c\u201e\u2022\u2039\u0178\u0160\u00ae\u00b0\u00b5\u00bb]",
-  "\u00e0[\u00b2\u00b5\u00b9\u00bc\u00bd\u00be]",
-  "\u221a[\u00b1\u2202\u2020\u2260\u00ae\u2122\u00b4\u2264\u2265\u00a5\u00b5\u00f8]|\u2248[\u00b0\u00a2]|\u201a\u00c4[\u00ec\u00ee\u00ef\u00f2\u00f4\u00fa\u00f9\u00fb\u2020\u00b0\u00a2\u03c0]|\u201a[\u00e2\u00f3][\u00e0\u00e4\u00b0\u00ea]",
-  "\u0432\u0402|[\u0412\u0413\u0420\u0421][\u0080-\u009f\u00a6\u00a4\u00a8\u00ac\u00af\u00b8\u0192\u02c6\u02c7\u02d8\u02db\u02dc\u2020\u2021\u2030\u2310\u25ca\ufffd\u00aa\u00ba\u00a1\u00ab\u00bf\u00a9\u0384\u0385\u2018\u201a\u201c\u201e\u2022\u2039\u00ae\u00bb\u02dd\u201d\u203a\u2122\u00a2\u00a3\u00a5\u20a7\u20ac\u00b0\u00b5][\u0412\u0413\u0420\u0421]",
-  "\u0413\u045e\u0412\u0402\u0412.[A-Za-z ]|\u00c3[\u00a0\u00a1]|[a-z.,?!\u00ae\u00bb\u02dd\u201d\u203a\u2122] \u00c2 [ \u00a1\u00ab\u00bf\u00a9\u0384\u0385\u2018\u201a\u201c\u201e\u2022\u2039\u00ae\u00bb\u02dd\u201d\u203a\u2122]",
-  "\u03b2\u20ac[\u2122\u00a0\u0386\u00ad\u00ae\u00b0]|[\u0392\u0393\u039e\u039f][\u0080-\u009f\u00a6\u00a4\u00a8\u00ac\u00af\u00b8\u0192\u02c6\u02c7\u02d8\u02db\u02dc\u2020\u2021\u2030\u2310\u25ca\ufffd\u00aa\u00ba\u00a1\u00ab\u00bf\u00a9\u0384\u0385\u2018\u201a\u201c\u201e\u2022\u2039\u00ae\u00bb\u02dd\u201d\u203a\u2122\u00a2\u00a3\u00a5\u20a7\u20ac\u00b0][\u0392\u0393\u039e\u039f]",
-  sep = "|"
+  paste0(.ftfy_re_cat("upper_accented"), "\u00b0"),
+  paste0("[\u00c2\u00c3\u00ce\u00d0][\u20ac\u0153\u0160\u0161\u00a2\u00a3\u0178\u017e\\xa0\\xad\u00ae\u00a9\u00b0\u00b7\u00bb",
+         .ftfy_categorias$start_punctuation, .ftfy_categorias$end_punctuation,
+         "\u2013\u2014\u00b4]"),
+  "\u00d7[\u00b2\u00b3]"
 )
+.ftfy_badness_alternatives <- c(
+  .ftfy_badness_alternatives,
+  paste0("[\u00d8\u00d9][", .ftfy_categorias$common, .ftfy_categorias$currency,
+         .ftfy_categorias$bad, .ftfy_categorias$numeric,
+         .ftfy_categorias$start_punctuation, "\u0178\u0160\u00ae\u00b0\u00b5\u00bb][\u00d8\u00d9][",
+         .ftfy_categorias$common, .ftfy_categorias$currency,
+         .ftfy_categorias$bad, .ftfy_categorias$numeric,
+         .ftfy_categorias$start_punctuation, "\u0178\u0160\u00ae\u00b0\u00b5\u00bb]"),
+  "\u00e0[\u00b2\u00b5\u00b9\u00bc\u00bd\u00be]",
+  "\u221a[\u00b1\u2202\u2020\u2260\u00ae\u2122\u00b4\u2264\u2265\u00a5\u00b5\u00f8]",
+  "\u2248[\u00b0\u00a2]",
+  "\u201a\u00c4[\u00ec\u00ee\u00ef\u00f2\u00f4\u00fa\u00f9\u00fb\u2020\u00b0\u00a2\u03c0]",
+  "\u201a[\u00e2\u00f3][\u00e0\u00e4\u00b0\u00ea]",
+  "\u0432\u0402",
+  paste0("[\u0412\u0413\u0420\u0421][", .ftfy_categorias$c1, .ftfy_categorias$bad,
+         .ftfy_categorias$start_punctuation, .ftfy_categorias$end_punctuation,
+         .ftfy_categorias$currency, "\u00b0\u00b5][\u0412\u0413\u0420\u0421]"),
+  "\u0413\u045e\u0412\u0402\u0412.[A-Za-z ]",
+  "\u00c3[\\xa0\u00a1]",
+  "[a-z]\\s?[\u00c3\u00c2][ ]",
+  "^[\u00c3\u00c2][ ]",
+  paste0("[a-z.,?!", .ftfy_categorias$end_punctuation, "]\u00c2[",
+         " ", .ftfy_categorias$start_punctuation, .ftfy_categorias$end_punctuation, "]"),
+  "\u03b2\u20ac[\u2122\\xa0\u0386\\xad\u00ae\u00b0]",
+  paste0("[\u0392\u0393\u039e\u039f][", .ftfy_categorias$c1, .ftfy_categorias$bad,
+         .ftfy_categorias$start_punctuation, .ftfy_categorias$end_punctuation,
+         .ftfy_categorias$currency, "\u00b0][\u0392\u0393\u039e\u039f]"),
+  "\u0101\u20ac"
+)
+.ftfy_badness_re <- paste0("(*UTF)(*UCP)",
+                           paste(.ftfy_badness_alternatives, collapse = "|"))
+.MOJIBAKE_CATEGORIES <- .ftfy_categorias
+.BADNESS_RE <- .ftfy_badness_re
 .ftfy_es_mojibake <- function(x) {
   if (!length(x) || is.na(x) || !nzchar(x)) return(FALSE)
-  # Todas las categorías de badness de ftfy contienen al menos un carácter
-  # no ASCII. Evitar la expresión completa en texto ASCII mantiene barato el
+  # Todas las categor\u00edas de badness de ftfy contienen al menos un car\u00e1cter
+  # no ASCII. Evitar la expresi\u00f3n completa en texto ASCII mantiene barato el
   # perfilado de columnas grandes sin cambiar el predicado.
   if (!grepl("[^\\x00-\\x7f]", x, perl = TRUE)) return(FALSE)
   grepl(.ftfy_badness_re, x, perl = TRUE)
@@ -197,6 +221,7 @@ names(.ftfy_tablas_bytes) <- c(
   reemplazo <- c(0xefL, 0xbfL, 0xbdL)
   es_continuacion <- function(x) x >= 0x80L && x <= 0xbfL
   es_marca <- function(x) x == 0x1aL || x == 0x3fL
+  es_continuacion_o_sustituto <- function(x) x == 0x1aL || es_continuacion(x)
   i <- 1L
   while (i <= n) {
     inicio <- i
@@ -204,7 +229,7 @@ names(.ftfy_tablas_bytes) <- c(
     if (valores[[i]] == 0x1aL) {
       largo <- 1L
     } else if (i < n && valores[[i]] %in% 0xc2:0xdf &&
-               es_marca(valores[[i + 1L]])) {
+               valores[[i + 1L]] == 0x1aL) {
       largo <- 2L
     } else if (i < n && valores[[i]] %in% 0xc2:0xc3 &&
                valores[[i + 1L]] == 0x3fL) {
@@ -213,27 +238,37 @@ names(.ftfy_tablas_bytes) <- c(
                valores[[i + 1L]] %in% 0xa0:0xaf &&
                es_marca(valores[[i + 2L]]) && valores[[i + 3L]] == 0xedL &&
                valores[[i + 4L]] %in% 0xb0:0xbf &&
-               (es_marca(valores[[i + 5L]]) || es_continuacion(valores[[i + 5L]]))) {
+               es_continuacion_o_sustituto(valores[[i + 5L]])) {
+      largo <- 6L
+    } else if (i + 5L <= n && valores[[i]] == 0xedL &&
+               valores[[i + 1L]] %in% 0xa0:0xaf &&
+               es_continuacion_o_sustituto(valores[[i + 2L]]) &&
+               valores[[i + 3L]] == 0xedL &&
+               valores[[i + 4L]] %in% 0xb0:0xbf &&
+               es_marca(valores[[i + 5L]])) {
       largo <- 6L
     } else if (i + 2L <= n && valores[[i]] %in% 0xe0:0xef &&
                es_marca(valores[[i + 1L]]) &&
-               (es_marca(valores[[i + 2L]]) || es_continuacion(valores[[i + 2L]]))) {
+               es_continuacion_o_sustituto(valores[[i + 2L]])) {
       largo <- 3L
     } else if (i + 2L <= n && valores[[i]] %in% 0xe0:0xef &&
-               (es_marca(valores[[i + 1L]]) || es_continuacion(valores[[i + 1L]])) &&
+               es_continuacion_o_sustituto(valores[[i + 1L]]) &&
                es_marca(valores[[i + 2L]])) {
       largo <- 3L
     } else if (i + 3L <= n && valores[[i]] %in% 0xf0:0xf4 &&
-               es_marca(valores[[i + 1L]]) && es_continuacion(valores[[i + 2L]]) &&
-               es_continuacion(valores[[i + 3L]])) {
+               es_marca(valores[[i + 1L]]) &&
+               es_continuacion_o_sustituto(valores[[i + 2L]]) &&
+               es_continuacion_o_sustituto(valores[[i + 3L]])) {
       largo <- 4L
     } else if (i + 3L <= n && valores[[i]] %in% 0xf0:0xf4 &&
-               es_continuacion(valores[[i + 1L]]) && es_marca(valores[[i + 2L]]) &&
-               es_continuacion(valores[[i + 3L]])) {
+               es_continuacion_o_sustituto(valores[[i + 1L]]) &&
+               es_marca(valores[[i + 2L]]) &&
+               es_continuacion_o_sustituto(valores[[i + 3L]])) {
       largo <- 4L
     } else if (i + 3L <= n && valores[[i]] %in% 0xf0:0xf4 &&
-               es_continuacion(valores[[i + 1L]]) &&
-               es_continuacion(valores[[i + 2L]]) && es_marca(valores[[i + 3L]])) {
+               es_continuacion_o_sustituto(valores[[i + 1L]]) &&
+               es_continuacion_o_sustituto(valores[[i + 2L]]) &&
+               es_marca(valores[[i + 3L]])) {
       largo <- 4L
     }
     if (largo) {
@@ -253,32 +288,45 @@ names(.ftfy_tablas_bytes) <- c(
       texto, .ftfy_tablas_bytes[[nombre]], permitir_perdida = es_sloppy
     )
     if (is.null(bytes)) next
-    salida <- .ftfy_desde_utf8(bytes)
-    if (!is.null(salida)) {
-      if (nombre != "macroman") salida <- .ftfy_normalizar_nbsp(salida)
-      return(list(texto = salida, paso = paste0("encode:", nombre, ";decode:utf-8")))
-    }
+    pasos_transcodificacion <- character()
     if (nombre != "macroman") {
       reparados <- .ftfy_restaurar_a0(bytes)
-      salida <- .ftfy_desde_utf8(reparados)
-      if (!is.null(salida)) {
-        salida <- .ftfy_normalizar_nbsp(salida)
-        salida <- .ftfy_ajustar_espacio_a0(texto, salida)
-        return(list(texto = salida, paso = paste0("encode:", nombre, ";restore_byte_a0;decode:utf-8")))
+      if (!is.null(reparados)) {
+        bytes <- reparados
+        pasos_transcodificacion <- c(pasos_transcodificacion, "restore_byte_a0")
       }
     }
     if (es_sloppy) {
       reemplazados <- .ftfy_replace_lossy_sequences(bytes)
-      salida <- .ftfy_desde_utf8(reemplazados)
-      if (!is.null(salida) && !identical(salida, texto)) {
-        salida <- .ftfy_normalizar_nbsp(salida)
-        return(list(texto = salida,
-                    paso = paste0("encode:", nombre,
-                                  ";replace_lossy_sequences;decode:utf-8")))
+      if (!identical(reemplazados, bytes)) {
+        bytes <- reemplazados
+        pasos_transcodificacion <- c(pasos_transcodificacion,
+                                     "replace_lossy_sequences")
+      }
+    }
+    salida <- .ftfy_desde_utf8(bytes)
+    if (!is.null(salida)) {
+      if (nombre != "macroman") salida <- .ftfy_normalizar_nbsp(salida)
+      if ("restore_byte_a0" %in% pasos_transcodificacion) {
+        salida <- .ftfy_ajustar_espacio_a0(texto, salida)
+      }
+      if (!identical(salida, texto)) {
+        sufijo <- paste(c(paste0("encode:", nombre), pasos_transcodificacion,
+                          "decode:utf-8"), collapse = ";")
+        return(list(texto = salida, paso = sufijo))
       }
     }
   }
   NULL
+}
+.ftfy_fallback_latin1_windows1252 <- function(texto) {
+  cps <- utf8ToInt(texto)
+  if (!length(cps) || !any(cps >= 128L & cps <= 159L)) return(NULL)
+  tabla <- .ftfy_tablas_bytes[["sloppy-windows-1252"]]
+  indices <- cps >= 128L & cps <= 159L
+  cps[indices] <- tabla[cps[indices] - 127L]
+  salida <- intToUtf8(cps)
+  if (identical(salida, texto)) NULL else salida
 }
 .ftfy_reparar_uno <- function(x, max_iteraciones = 20L) {
   if (length(x) != 1L) {
@@ -289,9 +337,7 @@ names(.ftfy_tablas_bytes) <- c(
     return(list(texto = valor, pasos = character(), estado = "sin_texto"))
   }
   actual <- enc2utf8(valor)
-  antes_c1 <- actual
-  actual <- .ftfy_fix_c1_controls(actual)
-  pasos <- if (!identical(actual, antes_c1)) "fix_c1_controls" else character()
+  pasos <- character()
   if (!.ftfy_es_mojibake(actual)) {
     return(list(texto = actual, pasos = pasos, estado = if (length(pasos)) "reparado" else "no_parece_roto"))
   }
@@ -306,6 +352,13 @@ names(.ftfy_tablas_bytes) <- c(
         if (!.ftfy_es_mojibake(actual)) break
         next
       }
+      fallback <- .ftfy_fallback_latin1_windows1252(actual)
+      if (!is.null(fallback)) {
+        actual <- fallback
+        pasos <- c(pasos, "encode:latin-1;decode:windows-1252")
+        if (!.ftfy_es_mojibake(actual)) break
+        next
+      }
       break
     }
     if (identical(paso$texto, actual)) break
@@ -313,10 +366,17 @@ names(.ftfy_tablas_bytes) <- c(
     pasos <- c(pasos, paso$paso)
     if (!.ftfy_es_mojibake(actual)) break
   }
+  # Como en ftfy, la conversi\u00f3n de controles C1 es el \u00faltimo recurso: no debe
+  # borrar la se\u00f1al que permite detectar y reparar una codificaci\u00f3n anterior.
+  con_c1 <- .ftfy_fix_c1_controls(actual)
+  if (!identical(con_c1, actual)) {
+    actual <- con_c1
+    pasos <- c(pasos, "fix_c1_controls")
+  }
   estado <- if (!length(pasos)) {
     "no_se_pudo"
   } else if (.ftfy_es_mojibake(actual) || grepl("\uFFFD", actual, fixed = TRUE)) {
-    # El marcador de reemplazo conserva la pérdida de información aunque la
+    # El marcador de reemplazo conserva la p\u00e9rdida de informaci\u00f3n aunque la
     # medida ya no clasifique el resto del texto como mojibake.
     "reparado_parcialmente"
   } else {

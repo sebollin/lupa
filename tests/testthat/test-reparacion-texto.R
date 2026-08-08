@@ -64,6 +64,68 @@ test_that("las categorias de badness son las de ftfy 6.3.1", {
   expect_identical(.ftfy_categorias, esperadas)
 })
 
+test_that("la expresion completa de badness es la de ftfy 6.3.1", {
+  skip_if_not_installed("jsonlite")
+  esperado <- jsonlite::fromJSON(
+    testthat::test_path("fixtures", "ftfy-badness-6.3.1.json")
+  )
+  prefijo <- "(*UTF)(*UCP)"
+  expect_identical(
+    substring(.ftfy_badness_re, nchar(prefijo) + 1L),
+    esperado$canonical_pattern
+  )
+  # Las alternativas que se pierden con reglas incompletas son un caso real:
+  # el mojibake de cp437 contiene caracteres de caja.
+  expect_true(.ftfy_es_mojibake(
+    "Instituto Nacional de Estad├¡stica ΓÇö Montevideo, Uruguay"
+  ))
+  expect_false(.ftfy_es_mojibake("São Paulo"))
+})
+
+test_that("replace_lossy_sequences coincide con el fixture de ftfy", {
+  skip_if_not_installed("jsonlite")
+  fixture <- jsonlite::fromJSON(
+    testthat::test_path("fixtures", "ftfy-lossy-6.3.1.json"),
+    simplifyVector = FALSE
+  )
+  for (caso in fixture$cases) {
+    salida <- .ftfy_replace_lossy_sequences(as.raw(as.integer(caso$bytes)))
+    expect_identical(as.integer(salida), as.integer(caso$expected))
+  }
+})
+
+test_that("la reparación no introduce controles invisibles", {
+  skip_if_not_installed("jsonlite")
+  mojibake <- jsonlite::fromJSON(
+    testthat::test_path("fixtures", "casos-mojibake.json"),
+    simplifyVector = FALSE
+  )
+  legitimos <- jsonlite::fromJSON(
+    testthat::test_path("fixtures", "casos-legitimos.json"),
+    simplifyVector = FALSE
+  )
+  entradas <- c(
+    vapply(mojibake, `[[`, character(1L), "roto"),
+    vapply(legitimos, `[[`, character(1L), "texto"),
+    "DirecciÃ³n\ufffd"
+  )
+  salidas <- vapply(entradas, function(x) .ftfy_reparar_uno(x)$texto,
+                    character(1L))
+  control <- function(x) {
+    cp <- utf8ToInt(x)
+    cp[cp <= 8L | cp %in% c(11L, 12L) | (cp >= 14L & cp <= 31L)]
+  }
+  expect_true(all(vapply(seq_along(entradas), function(i) {
+    antes <- control(entradas[[i]])
+    despues <- control(salidas[[i]])
+    if (!length(despues)) return(TRUE)
+    all(tabulate(despues, nbins = 31L) <= tabulate(antes, nbins = 31L))
+  }, logical(1L))))
+  reparado <- .ftfy_reparar_uno("DirecciÃ³n\ufffd")
+  expect_identical(reparado$texto, "Dirección\ufffd")
+  expect_identical(reparado$estado, "reparado_parcialmente")
+})
+
 test_that("la reparación deduplica valores y conserva estados explícitos", {
   textos <- c("PaysandÃº", "PaysandÃº", "texto normal", "\ufffd")
   resultado <- .analizar_codificacion(textos)

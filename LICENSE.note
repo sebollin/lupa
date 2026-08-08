@@ -8,11 +8,16 @@ https://www.apache.org/licenses/LICENSE-2.0
 The surrounding lupa package is distributed under GPL-3.  ftfy 6.3.1 does not
 include a NOTICE file; consequently there is no additional NOTICE attribution
 to reproduce here.  No ftfy source code is bundled: the implementation in lupa
-was written independently from the published design and frozen tables.
+was written independently from the published design. The package does
+redistribute literal data dumps of ftfy's character tables, badness categories
+and regular expressions as fixtures; these are data, not source code, and are
+distributed under the same Apache-2.0 terms.
 
 The package also redistributes the frozen sentinel values from [naniar
 1.1.0](https://github.com/njtierney/naniar), an MIT-licensed package by
-Nicholas Tierney, Di Cook, Miles McBain, Colin Fay and contributors. Copyright
-(c) Nicholas Tierney, Di Cook, Miles McBain, Colin Fay and contributors. The
+[Nicholas Tierney](https://github.com/njtierney), [Di Cook](https://github.com/dicook),
+[Miles McBain](https://github.com/milesmcbain), [Colin Fay](https://github.com/ColinFay)
+and contributors. Copyright (c) Nicholas Tierney, Di Cook, Miles McBain, Colin
+Fay and contributors. The
 copyright and license notice for that package is available in its
 [LICENSE](https://github.com/njtierney/naniar/blob/main/LICENSE).

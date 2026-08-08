@@ -336,7 +336,9 @@ and frozen tables of [ftfy 6.3.1](https://github.com/rspeer/python-ftfy) by
 [Robyn Speer](https://github.com/rspeer), and tries several encodings until the
 text stops looking like mojibake. A result is marked <code>reparado</code>,
 <code>reparado_parcialmente</code>, or <code>no_se_pudo</code>; partial repairs
-are never applied silently. The historical
+are never applied silently. The complete badness rules and byte-level
+transcoders are frozen from ftfy 6.3.1; genuinely lost bytes remain visible as
+U+FFFD, never as an invisible control character. The historical
 <code>reparar_codificacion_latin1</code> name remains accepted for saved plans.
 
 ~~~r
@@ -481,8 +483,8 @@ express or evaluate rules; [<code>zoomerjoin</code>](https://cran.r-project.org/
 [<code>textreuse</code>](https://cran.r-project.org/package=textreuse), and
 [<code>reclin2</code>](https://cran.r-project.org/package=reclin2) cover text comparison or record linkage.
 [<code>calidad</code>](https://github.com/inesscc/calidad), maintained by
-[Klaus Lehmann](https://github.com/inesscc/calidad) and
-[Ricardo Pizarro](https://github.com/inesscc/calidad), is a valuable adjacent axis: it implements CEPAL
+[Klaus Lehmann](https://github.com/Klauslehmann) and
+[Ricardo Pizarro](https://github.com/ricardoflopiza), is a valuable adjacent axis: it implements CEPAL
 criteria for the quality of **survey estimates** (Estudios Estadísticos 101),
 while <code>lupa</code> evaluates the tabular data that produces an estimate.
 

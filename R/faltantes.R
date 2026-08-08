@@ -21,7 +21,9 @@
 #'
 #' Vector para solicitar explícitamente la lista numérica completa publicada
 #' por [naniar](https://github.com/njtierney/naniar). Sus autores incluyen a
-#' Nicholas Tierney, Di Cook, Miles McBain y Colin Fay. Incluye `66`, `77`,
+#' [Nicholas Tierney](https://github.com/njtierney), [Di Cook](https://github.com/dicook),
+#' [Miles McBain](https://github.com/milesmcbain) y [Colin Fay](https://github.com/ColinFay).
+#' Incluye `66`, `77`,
 #' `88` y `9999`, que pueden ser edades,
 #' códigos o años legítimos y por eso no se aplican de forma predeterminada.
 #' Se usa como `perfilar(datos, sentinelas_numericos = sentinelas_naniar)`.
