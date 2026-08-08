@@ -140,7 +140,7 @@ test_that("el corpus de ftfy conserva positivos y negativos", {
     c(70L, 31L, 30L, 20L, 10L)
   )
   estados <- vapply(casos, `[[`, character(1L), "status")
-  expect_equal(sum(estados == "xfail"), 13L)
+  expect_equal(sum(estados == "xfail"), 7L)
   expect_true(all(vapply(casos[estados == "xfail"], function(x) {
     is.character(x$reason) && length(x$reason) == 1L && nzchar(x$reason)
   }, logical(1L))))
@@ -148,7 +148,22 @@ test_that("el corpus de ftfy conserva positivos y negativos", {
     identical(.ftfy_reparar_uno(caso$original)$texto, caso$expected)
   }, logical(1L))
   expect_true(all(aciertos[estados == "pass"]))
-  expect_gte(sum(aciertos), 148L)
+  expect_equal(sum(aciertos), 154L)
+})
+
+test_that("restore_byte_a0 coincide con las dos expresiones de ftfy", {
+  skip_if_not_installed("jsonlite")
+  fixture <- jsonlite::fromJSON(
+    testthat::test_path("fixtures", "ftfy-a0-6.3.1.json"),
+    simplifyVector = FALSE
+  )
+  expect_identical(.ftfy_altered_utf8_pattern, fixture$altered_utf8_pattern)
+  expect_identical(.ftfy_a_grave_word_pattern, fixture$a_grave_word_pattern)
+  for (caso in fixture$cases) {
+    salida <- .ftfy_restaurar_a0(as.raw(as.integer(caso$bytes)))
+    expect_identical(as.integer(if (is.null(salida)) caso$bytes else salida),
+                     as.integer(caso$expected))
+  }
 })
 
 test_that("decode_inconsistent_utf8 usa el detector de ftfy por subcadena", {

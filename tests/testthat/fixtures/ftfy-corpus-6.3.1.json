@@ -394,8 +394,7 @@
     "label": "'à' remains its own word, even if spaces after it get coalesced into one",
     "original": "Ã perturber la rÃ©flexion des thÃ©ologiens jusqu'Ã nos jours",
     "expected": "à perturber la réflexion des théologiens jusqu'à nos jours",
-    "status": "xfail",
-    "reason": "Familia de à: restauración y separación de espacios no alineada con ftfy."
+    "status": "pass"
   },
   {
     "suite": "in-the-wild",
@@ -403,8 +402,7 @@
     "label": "Fix 'à' in inconsistent mojibake",
     "original": "Le barÃ¨me forfaitaire permet l’Ã©valuation des frais de dÃ©placement relatifs Ã l’utilisation",
     "expected": "Le barème forfaitaire permet l’évaluation des frais de déplacement relatifs à l’utilisation",
-    "status": "xfail",
-    "reason": "Familia de à: restauración y separación de espacios no alineada con ftfy."
+    "status": "pass"
   },
   {
     "suite": "in-the-wild",
@@ -412,8 +410,7 @@
     "label": "The Portuguese word 'às' does not become 'à s' due to the French fix",
     "original": "com especial atenÃ§Ã£o Ã s crianÃ§as",
     "expected": "com especial atenção às crianças",
-    "status": "xfail",
-    "reason": "Familia de à: restauración y separación de espacios no alineada con ftfy."
+    "status": "pass"
   },
   {
     "suite": "in-the-wild",
@@ -429,8 +426,7 @@
     "label": "We can fix 'à' in windows-1251 sometimes as well",
     "original": "La rГ©gion de Dnepropetrovsk se trouve Г lвЂ™ouest de lвЂ™Ukraine",
     "expected": "La région de Dnepropetrovsk se trouve à l’ouest de l’Ukraine",
-    "status": "xfail",
-    "reason": "Familia de à: restauración y separación de espacios no alineada con ftfy."
+    "status": "pass"
   },
   {
     "suite": "in-the-wild",
@@ -438,8 +434,7 @@
     "label": "'Ã quele' is the Portuguese word 'àquele', not 'à quele'",
     "original": "eliminado o antÃ­geno e mantidos os nÃ­veis de anticorpos, surgem as condiÃ§Ãµes necessÃ¡rias ao estabelecimento do granuloma, semelhante Ã quele observado nas lesÃµes por imunocomplexo em excesso de anticorpos",
     "expected": "eliminado o antígeno e mantidos os níveis de anticorpos, surgem as condições necessárias ao estabelecimento do granuloma, semelhante àquele observado nas lesões por imunocomplexo em excesso de anticorpos",
-    "status": "xfail",
-    "reason": "Familia de à: restauración y separación de espacios no alineada con ftfy."
+    "status": "pass"
   },
   {
     "suite": "in-the-wild",
@@ -447,8 +442,7 @@
     "label": "A complex, lossy pile-up of mojibake in Portuguese",
     "original": "â € ðŸ“�Â Regulamento: â € âš ï¸� As pessoas que marcarem nos comentÃ¡rios perfis empresariais e/ou de marcas, personalidades ou fake serÃ£o desclassificadas. âš ï¸� Podem participar pessoas residentes em Petrolina/PE ou Juazeiro/BA, desde que se comprometam a retirar o prÃªmio em nosso endereÃ§o. FuncionÃ¡rios estÃ£o vetados. âš ï¸� SerÃ£o vÃ¡lidos os comentÃ¡rios postados atÃ© 16h, do dia 31/03/2018. E o resultado serÃ¡ divulgado atÃ© Ã s 19h do mesmo dia em uma nova publicaÃ§Ã£o em nosso instagram. â € Boa sorte!!!Â ðŸ˜€ðŸ�°",
     "expected": "⠀ � Regulamento: ⠀ ⚠� As pessoas que marcarem nos comentários perfis empresariais e/ou de marcas, personalidades ou fake serão desclassificadas. ⚠� Podem participar pessoas residentes em Petrolina/PE ou Juazeiro/BA, desde que se comprometam a retirar o prêmio em nosso endereço. Funcionários estão vetados. ⚠� Serão válidos os comentários postados até 16h, do dia 31/03/2018. E o resultado será divulgado até às 19h do mesmo dia em uma nova publicação em nosso instagram. ⠀ Boa sorte!!! 😀�",
-    "status": "xfail",
-    "reason": "Familia de à: restauración y separación de espacios no alineada con ftfy."
+    "status": "pass"
   },
   {
     "suite": "in-the-wild",

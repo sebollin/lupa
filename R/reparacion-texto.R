@@ -190,29 +190,94 @@ names(.ftfy_tablas_bytes) <- c(
   Encoding(texto) <- "UTF-8"
   if (validUTF8(texto)) texto else NULL
 }
+.ftfy_altered_utf8_pattern <- paste0(
+  "[\\xc2\\xc3\\xc5\\xce\\xd0\\xd9][ ]",
+  "|[\\xe2\\xe3][ ][\\x80-\\x84\\x86-\\x9f\\xa1-\\xbf]",
+  "|[\\xe0-\\xe3][\\x80-\\x84\\x86-\\x9f\\xa1-\\xbf][ ]",
+  "|[\\xf0][ ][\\x80-\\xbf][\\x80-\\xbf]",
+  "|[\\xf0][\\x80-\\xbf][ ][\\x80-\\xbf]",
+  "|[\\xf0][\\x80-\\xbf][\\x80-\\xbf][ ]"
+)
+.ftfy_a_grave_word_pattern <- "\\xc3 (?! |quele|quela|quilo|s )"
 .ftfy_restaurar_a0 <- function(bytes) {
   if (is.null(bytes) || !length(bytes)) return(NULL)
-  hex <- paste(sprintf("%02x", as.integer(bytes)), collapse = "")
-  pares <- substring(hex, seq(1L, nchar(hex), 2L), seq(2L, nchar(hex), 2L))
+  valores <- as.integer(bytes)
+  n <- length(valores)
+  salida <- integer()
   cambiado <- FALSE
+  empieza <- function(x, patron) {
+    patron <- utf8ToInt(patron)
+    length(x) >= length(patron) &&
+      identical(x[seq_along(patron)], patron)
+  }
+  # A_GRAVE_WORD_RE: recupera la frontera de palabra y conserva el espacio.
   i <- 1L
-  while (i <= length(pares)) {
-    if (i + 1L <= length(pares) && pares[i + 1L] == "20" &&
-        pares[i] %in% c("c2", "c3", "c5", "ce", "d0", "d9")) {
-      pares[i + 1L] <- "a0"; cambiado <- TRUE; i <- i + 2L; next
+  while (i <= n) {
+    if (i + 1L <= n && valores[[i]] == 0xc3L && valores[[i + 1L]] == 0x20L) {
+      resto <- if (i + 2L <= n) valores[(i + 2L):n] else integer()
+      excluida <- length(resto) && (
+        resto[[1L]] == 0x20L || empieza(resto, "quele") ||
+          empieza(resto, "quela") || empieza(resto, "quilo") ||
+          empieza(resto, "s ")
+      )
+      if (!isTRUE(excluida)) {
+        salida <- c(salida, 0xc3L, 0xa0L, 0x20L)
+        cambiado <- TRUE
+        i <- i + 2L
+        next
+      }
     }
-    if (i + 2L <= length(pares) && pares[i] %in% c("e2", "e3") &&
-        pares[i + 1L] == "20") {
-      pares[i + 1L] <- "a0"; cambiado <- TRUE; i <- i + 3L; next
+    salida <- c(salida, valores[[i]])
+    i <- i + 1L
+  }
+
+  valores <- salida
+  n <- length(valores)
+  i <- 1L
+  while (i <= n) {
+    if (i + 1L <= n && valores[[i]] %in% c(0xc2L, 0xc3L, 0xc5L, 0xceL,
+                                           0xd0L, 0xd9L) &&
+        valores[[i + 1L]] == 0x20L) {
+      valores[[i + 1L]] <- 0xa0L
+      cambiado <- TRUE; i <- i + 2L; next
     }
-    if (i + 2L <= length(pares) && pares[i] %in% c("e0", "e1", "e2", "e3") &&
-        pares[i + 2L] == "20") {
-      pares[i + 2L] <- "a0"; cambiado <- TRUE; i <- i + 3L; next
+    if (i + 2L <= n && valores[[i]] %in% c(0xe2L, 0xe3L) &&
+        valores[[i + 1L]] == 0x20L &&
+        valores[[i + 2L]] %in% c(0x80L:0x84L, 0x86L:0x9fL, 0xa1L:0xbfL)) {
+      valores[[i + 1L]] <- 0xa0L
+      cambiado <- TRUE; i <- i + 3L; next
+    }
+    if (i + 2L <= n && valores[[i]] %in% 0xe0L:0xe3L &&
+        valores[[i + 1L]] %in% c(0x80L:0x84L, 0x86L:0x9fL, 0xa1L:0xbfL) &&
+        valores[[i + 2L]] == 0x20L) {
+      valores[[i + 2L]] <- 0xa0L
+      cambiado <- TRUE; i <- i + 3L; next
+    }
+    if (i + 3L <= n && valores[[i]] == 0xf0L &&
+        valores[[i + 1L]] == 0x20L &&
+        valores[[i + 2L]] %in% 0x80L:0xbfL &&
+        valores[[i + 3L]] %in% 0x80L:0xbfL) {
+      valores[[i + 1L]] <- 0xa0L
+      cambiado <- TRUE; i <- i + 4L; next
+    }
+    if (i + 3L <= n && valores[[i]] == 0xf0L &&
+        valores[[i + 1L]] %in% 0x80L:0xbfL &&
+        valores[[i + 2L]] == 0x20L &&
+        valores[[i + 3L]] %in% 0x80L:0xbfL) {
+      valores[[i + 2L]] <- 0xa0L
+      cambiado <- TRUE; i <- i + 4L; next
+    }
+    if (i + 3L <= n && valores[[i]] == 0xf0L &&
+        valores[[i + 1L]] %in% 0x80L:0xbfL &&
+        valores[[i + 2L]] %in% 0x80L:0xbfL &&
+        valores[[i + 3L]] == 0x20L) {
+      valores[[i + 3L]] <- 0xa0L
+      cambiado <- TRUE; i <- i + 4L; next
     }
     i <- i + 1L
   }
   if (!cambiado) return(NULL)
-  as.raw(strtoi(pares, 16L))
+  as.raw(valores)
 }
 .ftfy_fix_c1_controls <- function(texto) {
   cps <- utf8ToInt(texto)
@@ -223,21 +288,30 @@ names(.ftfy_tablas_bytes) <- c(
   intToUtf8(cps)
 }
 .ftfy_normalizar_nbsp <- function(texto) sub("\u00a0", " ", texto, fixed = TRUE)
-.ftfy_ajustar_espacio_a0 <- function(origen, texto) {
-  # En una exportacion que convirtio 0xA0 en un unico espacio se pierde la
-  # separacion siguiente a una vocal. ftfy conserva esa frontera textual.
-  if (grepl("\u00c3 ", origen, fixed = TRUE) &&
-      !grepl("\u00c3  ", origen, fixed = TRUE)) {
-    sub("\u00e0([^[:space:]])", "\u00e0 \\1", texto, perl = TRUE)
-  } else texto
-}
 .ftfy_decode_inconsistent_utf8 <- function(texto, usar_extensiones = TRUE) {
   # UTF8_DETECTOR_RE encuentra subcadenas de mojibake, no corridas completas
   # de no-ASCII. Cada subcadena se repara recursivamente sólo si es más corta
   # que el valor total, como en ftfy.
   coincidencias <- gregexpr(.ftfy_utf8_detector_re, texto, perl = TRUE)[[1L]]
-  if (identical(coincidencias, -1L)) return(texto)
   longitudes <- attr(coincidencias, "match.length")
+  # A_GRAVE_WORD_RE también puede dejar una secuencia ``Ã `` aislada. La
+  # expresión histórica de ftfy la encuentra; conservar esta puerta explícita
+  # permite reparar esa palabra sin ampliar el detector de otros casos.
+  a_grave <- gregexpr("\u00c3 ", texto, fixed = TRUE)[[1L]]
+  if (!identical(a_grave, -1L)) {
+    longitudes_a_grave <- attr(a_grave, "match.length")
+    if (identical(coincidencias, -1L)) {
+      coincidencias <- a_grave
+      longitudes <- longitudes_a_grave
+    } else {
+      posiciones <- c(coincidencias, a_grave)
+      longitudes <- c(longitudes, longitudes_a_grave)
+      orden <- order(posiciones)
+      coincidencias <- posiciones[orden]
+      longitudes <- longitudes[orden]
+    }
+  }
+  if (identical(coincidencias, -1L)) return(texto)
   salida <- texto
   for (i in rev(seq_along(coincidencias))) {
     desde <- coincidencias[[i]]
@@ -333,7 +407,11 @@ names(.ftfy_tablas_bytes) <- c(
     if (is.null(bytes)) next
     pasos_transcodificacion <- character()
     if (nombre != "macroman") {
-      reparados <- .ftfy_restaurar_a0(bytes)
+      # Windows-1250 ya tiene una ruta de restauración específica para los
+      # bytes de este caso conocido; no reinterpretar allí una ``Ă `` como
+      # la palabra francesa ``à``.
+      reparados <- if (nombre == "sloppy-windows-1250") NULL else
+        .ftfy_restaurar_a0(bytes)
       if (!is.null(reparados)) {
         bytes <- reparados
         pasos_transcodificacion <- c(pasos_transcodificacion, "restore_byte_a0")
@@ -349,9 +427,11 @@ names(.ftfy_tablas_bytes) <- c(
     }
     salida <- .ftfy_desde_utf8(bytes)
     if (!is.null(salida)) {
-      if (nombre != "macroman") salida <- .ftfy_normalizar_nbsp(salida)
-      if ("restore_byte_a0" %in% pasos_transcodificacion) {
-        salida <- .ftfy_ajustar_espacio_a0(texto, salida)
+      # La secuencia perdida ya fue sustituida por U+FFFD: en ese camino
+      # conservamos tambien los NBSP que ftfy deja en el texto reparado.
+      if (nombre != "macroman" &&
+          !("replace_lossy_sequences" %in% pasos_transcodificacion)) {
+        salida <- .ftfy_normalizar_nbsp(salida)
       }
       if (!identical(salida, texto)) {
         sufijo <- paste(c(paste0("encode:", nombre), pasos_transcodificacion,
