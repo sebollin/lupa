@@ -96,12 +96,14 @@ test_that("las extensiones deliberadas de badness cubren los cuatro arreglos", {
                    "Charlotte Brontë…\u201d")
 })
 
-test_that("la extension cp437 exige contexto latino y no toca cajas", {
+test_that("la extension de KOI8-R no adivina sobre dibujos de caja", {
   expect_identical(.ftfy_reparar_uno("c├│digo postal")$texto,
-                   "código postal")
+                   "c├│digo postal")
   expect_identical(.ftfy_reparar_uno("├¡ndice")$texto, "índice")
   expect_identical(.ftfy_reparar_uno("┬┐que diferencia hay?")$texto,
-                   "¿que diferencia hay?")
+                   "┬┐que diferencia hay?")
+  expect_identical(.ftfy_reparar_uno("├┤a┼┐a┼┐a┼┐a┼┐a")$texto,
+                   "├┤a┼┐a┼┐a┼┐a┼┐a")
   for (texto in c(
     "Total ═╗ 100", "Depto ═╣ Poblacion", "Subtotal ═╝",
     "╔══════════════╗"
@@ -119,6 +121,34 @@ test_that("la extension cp437 exige contexto latino y no toca cajas", {
                     character(1L), USE.NAMES = FALSE)
   expect_length(pares, 2025L)
   expect_identical(salidas, pares)
+})
+
+test_that("el corpus de ftfy conserva positivos y negativos", {
+  skip_if_not_installed("jsonlite")
+  casos <- jsonlite::fromJSON(
+    testthat::test_path("fixtures", "ftfy-corpus-6.3.1.json"),
+    simplifyVector = FALSE
+  )
+  expect_length(casos, 161L)
+  suites <- vapply(casos, `[[`, character(1L), "suite")
+  expect_identical(
+    as.integer(table(factor(
+      suites,
+      levels = c("in-the-wild", "negative", "synthetic",
+                  "language-names", "known-failures")
+    ))),
+    c(70L, 31L, 30L, 20L, 10L)
+  )
+  estados <- vapply(casos, `[[`, character(1L), "status")
+  expect_equal(sum(estados == "xfail"), 13L)
+  expect_true(all(vapply(casos[estados == "xfail"], function(x) {
+    is.character(x$reason) && length(x$reason) == 1L && nzchar(x$reason)
+  }, logical(1L))))
+  aciertos <- vapply(casos, function(caso) {
+    identical(.ftfy_reparar_uno(caso$original)$texto, caso$expected)
+  }, logical(1L))
+  expect_true(all(aciertos[estados == "pass"]))
+  expect_gte(sum(aciertos), 148L)
 })
 
 test_that("decode_inconsistent_utf8 usa el detector de ftfy por subcadena", {

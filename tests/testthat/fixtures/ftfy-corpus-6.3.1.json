@@ -1,0 +1,1303 @@
+[
+  {
+    "suite": "in-the-wild",
+    "index": 0,
+    "label": "Low-codepoint emoji",
+    "original": "He's Justinâ¤",
+    "expected": "He's Justin❤",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 1,
+    "label": "UTF-8 / MacRoman mix-up about smurfs",
+    "original": "Le Schtroumpf Docteur conseille g√¢teaux et baies schtroumpfantes pour un r√©gime √©quilibr√©.",
+    "expected": "Le Schtroumpf Docteur conseille gâteaux et baies schtroumpfantes pour un régime équilibré.",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 2,
+    "label": "Checkmark that almost looks okay as mojibake",
+    "original": "âœ” No problems",
+    "expected": "✔ No problems",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 3,
+    "label": "UTF-8 / Windows-1251 Russian mixup about futbol",
+    "original": "РґРѕСЂРѕРіРµ РР·-РїРѕРґ #С„СѓС‚Р±РѕР»",
+    "expected": "дороге Из-под #футбол",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 4,
+    "label": "Latin-1 / Windows-1252 mixup in German",
+    "original": "Handwerk bringt dich überall hin: Von der YOU bis nach Monaco",
+    "expected": "„Handwerk bringt dich überall hin“: Von der YOU bis nach Monaco",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 5,
+    "label": "Latin-1 / Windows-1252 mixup of the replacement character",
+    "original": "Some comments may be republished on the website or in the newspaper ï¿½ email addresses will not be published.",
+    "expected": "Some comments may be republished on the website or in the newspaper � email addresses will not be published.",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 6,
+    "label": "CESU-8 / Windows-1252 emoji",
+    "original": "Hi guys í ½í¸",
+    "expected": "Hi guys 😍",
+    "status": "xfail",
+    "reason": "CESU-8 y emoji: el motor estricto no decodifica pares sustitutos."
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 7,
+    "label": "CESU-8 / Latin-1 emoji",
+    "original": "hihi RT username: âºí ½í¸",
+    "expected": "hihi RT username: ☺😘",
+    "status": "xfail",
+    "reason": "CESU-8 y emoji: el motor estricto no decodifica pares sustitutos."
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 8,
+    "label": "Latin-1 / Windows-1252 mixup in Turkish",
+    "original": "Beta Haber: HÄ±rsÄ±zÄ± BÃ¼yÃ¼ Korkuttu",
+    "expected": "Beta Haber: Hırsızı Büyü Korkuttu",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 9,
+    "label": "Latin-1 / Windows-1252 mixup in İstanbul (issue #192)",
+    "original": "Ä°stanbul",
+    "expected": "İstanbul",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 10,
+    "label": "Latin-1 / Windows-1252 mixup in German (issue #188)",
+    "original": "RUF MICH ZURÃœCK",
+    "expected": "RUF MICH ZURÜCK",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 11,
+    "label": "Latin-1 / Windows-1252 mixup in Rīga (issue #192)",
+    "original": "RÄ«ga",
+    "expected": "Rīga",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 12,
+    "label": "UTF-8 / Windows-1251 mixed up twice in Russian",
+    "original": "Р С—РЎР‚Р С‘РЎРЏРЎвЂљР Р…Р С•РЎРѓРЎвЂљР С‘. РІСњВ¤",
+    "expected": "приятности. ❤",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 13,
+    "label": "UTF-8 / Windows-1252 mixed up twice in Malay",
+    "original": "Kayanya laptopku error deh, soalnya tiap mau ngetik deket-deket kamu font yg keluar selalu Times New Ã¢â‚¬Å“ RomanceÃ¢â‚¬Â.",
+    "expected": "Kayanya laptopku error deh, soalnya tiap mau ngetik deket-deket kamu font yg keluar selalu Times New “ Romance”.",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 14,
+    "label": "UTF-8 / Windows-1252 mixed up twice in naming Iggy Pop",
+    "original": "Iggy Pop (nÃƒÂ© Jim Osterberg)",
+    "expected": "Iggy Pop (né Jim Osterberg)",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 15,
+    "label": "Left quote is UTF-8, right quote is Latin-1, both encoded in Windows-1252",
+    "original": "Direzione Pd, ok âsenza modifiche all'Italicum.",
+    "expected": "Direzione Pd, ok “senza modifiche” all'Italicum.",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 16,
+    "label": "UTF-8 / sloppy Windows-1252 mixed up twice in a triumphant emoticon",
+    "original": "selamat berpuasa sob (Ã Â¸â€¡'ÃŒâ‚¬Ã¢Å’Â£'ÃŒÂ)Ã Â¸â€¡",
+    "expected": "selamat berpuasa sob (ง'̀⌣'́)ง",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 17,
+    "label": "UTF-8 / Windows-1252 mixed up three times",
+    "original": "The Mona Lisa doesnÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢t have eyebrows.",
+    "expected": "The Mona Lisa doesn’t have eyebrows.",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 18,
+    "label": "UTF-8 / Codepage 437 mixup in Russian",
+    "original": "#╨┐╤Ç╨░╨▓╨╕╨╗╤î╨╜╨╛╨╡╨┐╨╕╤é╨░╨╜╨╕╨╡",
+    "expected": "#правильноепитание",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 19,
+    "label": "UTF-8 / Windows-1252 mixup in French",
+    "original": "HÃ´tel de Police",
+    "expected": "Hôtel de Police",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 20,
+    "label": "UTF-8 / Windows-1250 mixup in French",
+    "original": "LiĂ¨ge Avenue de l'HĂ´pital",
+    "expected": "Liège Avenue de l'Hôpital",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 21,
+    "label": "UTF-8 / Windows-1252 mixup in Vietnamese",
+    "original": "Táº¡i sao giÃ¡ háº¡t sáº§u riÃªng láº¡i lÃªn giÃ¡?",
+    "expected": "Tại sao giá hạt sầu riêng lại lên giá?",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 22,
+    "label": "Science! Mid-word Greek letter gets fixed correctly",
+    "original": "Humanized HLA-DR4.RagKO.IL2RÎ³cKO.NOD (DRAG) mice sustain the complex vertebrate life cycle of Plasmodium falciparum malaria.",
+    "expected": "Humanized HLA-DR4.RagKO.IL2RγcKO.NOD (DRAG) mice sustain the complex vertebrate life cycle of Plasmodium falciparum malaria.",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 23,
+    "label": "For goodness' sake. We can come close to fixing this, but fail in the last step",
+    "original": "ItÃ?Â¢â?¬â?¢s classic. ItÃ?Â¢â?¬â?¢s epic. ItÃ?Â¢â?¬â?¢s ELIZABETH BENNET for goodnessÃ?Â¢â?¬â?¢ sake!",
+    "expected": "It�¢��s classic. It�¢��s epic. It�¢��s ELIZABETH BENNET for goodness�¢�� sake!",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 24,
+    "label": "lossy UTF-8 / Windows-1250 mixup in Spanish",
+    "original": "Europa, Asia, Ă�frica, Norte, AmĂ©rica Central y del Sur, Australia y OceanĂ­a",
+    "expected": "Europa, Asia, �frica, Norte, América Central y del Sur, Australia y Oceanía",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 25,
+    "label": "UTF-8 / sloppy Windows-1250 mixup in English",
+    "original": "It was namedÂ â€žscarsÂ´ stonesâ€ś after the rock-climbers who got hurt while climbing on it.",
+    "expected": "It was named „scars´ stones“ after the rock-climbers who got hurt while climbing on it.",
+    "status": "xfail",
+    "reason": "Mezcla de codificaciones de un byte (Windows-1250); pendiente del issue #18 de ftfy."
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 26,
+    "label": "The same text as above, but as a UTF-8 / ISO-8859-2 mixup",
+    "original": "It was namedÂ âscarsÂ´ stonesâ after the rock-climbers who got hurt while climbing on it.",
+    "expected": "It was named „scars´ stones“ after the rock-climbers who got hurt while climbing on it.",
+    "status": "xfail",
+    "reason": "Mezcla de codificaciones de un byte (ISO-8859-2); pendiente del issue #18 de ftfy."
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 27,
+    "label": "UTF-8 / ISO-8859-2 mixup in Czech",
+    "original": "MĂĄm dost tĹetĂ­ho tisĂ­ciletĂ­",
+    "expected": "Mám dost třetího tisíciletí",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 28,
+    "label": "UTF-8 / Windows-1252 mixup in mixed French and Arabic",
+    "original": "Ã€ tous mes frÃ¨res et soeurs dans la syriennetÃ© comme dans l’humanitÃ©, sans discrimination aucune, je vous souhaite bonne fÃªte Ø¹ÙŠØ¯ Ø³Ø¹ÙŠØ¯.Que la paix, la libertÃ©, l’Ã©galitÃ©, la fraternitÃ© et la dignitÃ© soient avec vous.Pardonnez ce ton un peu ecclÃ©siastique.",
+    "expected": "À tous mes frères et soeurs dans la syrienneté comme dans l’humanité, sans discrimination aucune, je vous souhaite bonne fête عيد سعيد.Que la paix, la liberté, l’égalité, la fraternité et la dignité soient avec vous.Pardonnez ce ton un peu ecclésiastique.",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 29,
+    "label": "UTF-8 / sloppy Windows-1250 mixup in Romanian",
+    "original": "vedere Ă®nceĹŁoĹźatÄ",
+    "expected": "vedere înceţoşată",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 30,
+    "label": "UTF-8 / Windows-1250 mixup in Slovak",
+    "original": "NapĂ­Ĺˇte nĂˇm !",
+    "expected": "Napíšte nám !",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 31,
+    "label": "UTF-8 / Windows-1252 mixup in Spanish",
+    "original": "DOS AÃ‘OS",
+    "expected": "DOS AÑOS",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 32,
+    "label": "UTF-8 / Windows-1252 followed by UTF-8 / Windows-1251",
+    "original": "a bigger-than-expected Г‚ВЈ5.8bn rights issue to satisfy the new banking regulator",
+    "expected": "a bigger-than-expected £5.8bn rights issue to satisfy the new banking regulator",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 33,
+    "label": "fancy Unicode crossing-out, but mojibaked",
+    "original": "hotel $49 $Ì¶6Ì¶3Ì¶ updated 2018",
+    "expected": "hotel $49 $̶6̶3̶ updated 2018",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 34,
+    "label": "A face with UTF-8 / sloppy Windows-1252 mixed up twice",
+    "original": "Ã¢â€â€™(Ã¢Å’Â£Ã‹â€ºÃ¢Å’Â£)Ã¢â€Å½",
+    "expected": "┒(⌣˛⌣)┎",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 35,
+    "label": "We can mostly decode the face above when we lose the character U+009D",
+    "original": "Ã¢â€�â€™(Ã¢Å’Â£Ã‹â€ºÃ¢Å’Â£)Ã¢â€�Å½",
+    "expected": "�(⌣˛⌣)�",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 36,
+    "label": "Lossy decoding can have plain ASCII question marks, as well",
+    "original": "The ICR has been upgraded to â€œbb+â€? from â€œbbâ€?",
+    "expected": "The ICR has been upgraded to “bb+� from “bb�",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 37,
+    "label": "CESU-8 / Latin-1 mixup over several emoji",
+    "original": "I just figured out how to tweet emojis! â½í ½í¸í ½í¸í ½í¸í ½í¸í ½í¸í ½í¸í ½í¸í ½í¸",
+    "expected": "I just figured out how to tweet emojis! ⚽😀😁😂😆😎😎😎😎",
+    "status": "xfail",
+    "reason": "CESU-8 y emoji: el motor estricto no decodifica pares sustitutos."
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 38,
+    "label": "An absolutely hopeless garble",
+    "original": "ã†â€™ãƒâ€ ã¢â‚¬â„¢ãƒæ’ã‚â¢ãƒâ¢ã¢â‚¬å¡ã‚â¬ãƒâ€šã‚â",
+    "expected": "ã†â€™ãƒâ€ ã¢â‚¬â„¢ãƒæ’ã‚â¢ãƒâ¢ã¢â‚¬å¡ã‚â¬ãƒâ€šã‚â",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 39,
+    "label": "Inconsistent UTF-8 / Latin-1 mojibake",
+    "original": "Ecuadorâs âpurely political decision on Assangeâ is likely result of âUS pressureâ",
+    "expected": "Ecuador’s ‘purely political decision on Assange’ is likely result of ‘US pressure’…",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 40,
+    "label": "Inconsistent UTF-8 / Latin-1 mojibake with an ellipsis from the Windows-1252 character set",
+    "original": "Ecuadorâs âpurely political decision on Assangeâ is likely result of âUS pressureâ…",
+    "expected": "Ecuador’s ‘purely political decision on Assange’ is likely result of ‘US pressure’…",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 41,
+    "label": "Inconsistent mojibake in Portuguese",
+    "original": "Campeonatos > III DivisÃ£o - SÃ©rie F > Jornadas Classificação",
+    "expected": "Campeonatos > III Divisão - Série F > Jornadas Classificação",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 42,
+    "label": "Handle Afrikaans 'n character",
+    "original": "ŉ Chloroplas is ŉ organel wat in fotosinterende plante voorkom.",
+    "expected": "ŉ Chloroplas is ŉ organel wat in fotosinterende plante voorkom.",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 43,
+    "label": "Handle Croatian single-codepoint digraphs",
+    "original": "izum „bootstrap load“ koji je korišteǌem polisilicijskog sloja proizveo dovoǉno dobre kondenzatore na čipu",
+    "expected": "izum „bootstrap load“ koji je korišteǌem polisilicijskog sloja proizveo dovoǉno dobre kondenzatore na čipu",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 44,
+    "label": "A with an acute accent, in isolation",
+    "original": "NicolÃ¡s",
+    "expected": "Nicolás",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 45,
+    "label": "sharp S, in isolation, via MacRoman encoding",
+    "original": "wei√ü",
+    "expected": "weiß",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 46,
+    "label": "French example containing non-breaking spaces",
+    "original": "ART TRIP Ã  l'office de tourisme",
+    "expected": "ART TRIP à l'office de tourisme",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 47,
+    "label": "English example in UTF-8 / Windows-1251 with a ligature",
+    "original": "This is signiп¬Ѓcantly lower than the respective share",
+    "expected": "This is signiﬁcantly lower than the respective share",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 48,
+    "label": "'à' remains its own word, even if spaces after it get coalesced into one",
+    "original": "Ã perturber la rÃ©flexion des thÃ©ologiens jusqu'Ã nos jours",
+    "expected": "à perturber la réflexion des théologiens jusqu'à nos jours",
+    "status": "xfail",
+    "reason": "Familia de à: restauración y separación de espacios no alineada con ftfy."
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 49,
+    "label": "Fix 'à' in inconsistent mojibake",
+    "original": "Le barÃ¨me forfaitaire permet l’Ã©valuation des frais de dÃ©placement relatifs Ã l’utilisation",
+    "expected": "Le barème forfaitaire permet l’évaluation des frais de déplacement relatifs à l’utilisation",
+    "status": "xfail",
+    "reason": "Familia de à: restauración y separación de espacios no alineada con ftfy."
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 50,
+    "label": "The Portuguese word 'às' does not become 'à s' due to the French fix",
+    "original": "com especial atenÃ§Ã£o Ã s crianÃ§as",
+    "expected": "com especial atenção às crianças",
+    "status": "xfail",
+    "reason": "Familia de à: restauración y separación de espacios no alineada con ftfy."
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 51,
+    "label": "This is why we require a space after the 's' in 'às'",
+    "original": "TroisiÃ¨me Ã©dition pour ce festival qui persiste et signe Ã s'Ã©loigner des grands axes pour prendre les contre-allÃ©es en 16 concerts dans 7 villes de 2 pays voisins.",
+    "expected": "Troisième édition pour ce festival qui persiste et signe à s'éloigner des grands axes pour prendre les contre-allées en 16 concerts dans 7 villes de 2 pays voisins.",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 52,
+    "label": "We can fix 'à' in windows-1251 sometimes as well",
+    "original": "La rГ©gion de Dnepropetrovsk se trouve Г lвЂ™ouest de lвЂ™Ukraine",
+    "expected": "La région de Dnepropetrovsk se trouve à l’ouest de l’Ukraine",
+    "status": "xfail",
+    "reason": "Familia de à: restauración y separación de espacios no alineada con ftfy."
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 53,
+    "label": "'Ã quele' is the Portuguese word 'àquele', not 'à quele'",
+    "original": "eliminado o antÃ­geno e mantidos os nÃ­veis de anticorpos, surgem as condiÃ§Ãµes necessÃ¡rias ao estabelecimento do granuloma, semelhante Ã quele observado nas lesÃµes por imunocomplexo em excesso de anticorpos",
+    "expected": "eliminado o antígeno e mantidos os níveis de anticorpos, surgem as condições necessárias ao estabelecimento do granuloma, semelhante àquele observado nas lesões por imunocomplexo em excesso de anticorpos",
+    "status": "xfail",
+    "reason": "Familia de à: restauración y separación de espacios no alineada con ftfy."
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 54,
+    "label": "A complex, lossy pile-up of mojibake in Portuguese",
+    "original": "â € ðŸ“�Â Regulamento: â € âš ï¸� As pessoas que marcarem nos comentÃ¡rios perfis empresariais e/ou de marcas, personalidades ou fake serÃ£o desclassificadas. âš ï¸� Podem participar pessoas residentes em Petrolina/PE ou Juazeiro/BA, desde que se comprometam a retirar o prÃªmio em nosso endereÃ§o. FuncionÃ¡rios estÃ£o vetados. âš ï¸� SerÃ£o vÃ¡lidos os comentÃ¡rios postados atÃ© 16h, do dia 31/03/2018. E o resultado serÃ¡ divulgado atÃ© Ã s 19h do mesmo dia em uma nova publicaÃ§Ã£o em nosso instagram. â € Boa sorte!!!Â ðŸ˜€ðŸ�°",
+    "expected": "⠀ � Regulamento: ⠀ ⚠� As pessoas que marcarem nos comentários perfis empresariais e/ou de marcas, personalidades ou fake serão desclassificadas. ⚠� Podem participar pessoas residentes em Petrolina/PE ou Juazeiro/BA, desde que se comprometam a retirar o prêmio em nosso endereço. Funcionários estão vetados. ⚠� Serão válidos os comentários postados até 16h, do dia 31/03/2018. E o resultado será divulgado até às 19h do mesmo dia em uma nova publicação em nosso instagram. ⠀ Boa sorte!!! 😀�",
+    "status": "xfail",
+    "reason": "Familia de à: restauración y separación de espacios no alineada con ftfy."
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 55,
+    "label": "UTF-8 / Windows-1252 mixup in Gaelic involving non-breaking spaces",
+    "original": "CÃ nan nan GÃ idheal",
+    "expected": "Cànan nan Gàidheal",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 56,
+    "label": "UTF-8 / Windows-1251 mixup in tweet spam",
+    "original": "Blog Traffic Tip 2 вЂ“ Broadcast Email Your Blog",
+    "expected": "Blog Traffic Tip 2 – Broadcast Email Your Blog",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 57,
+    "label": "UTF-8 / Windows-1251 mixup",
+    "original": "S&P Confirms UkrsotsbankвЂ™s вЂњB-вЂњ Rating",
+    "expected": "S&P Confirms Ukrsotsbank’s “B-“ Rating",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 58,
+    "label": "Dutch example with ë",
+    "original": "ongeÃ«venaard",
+    "expected": "ongeëvenaard",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 59,
+    "label": "HTML entity on top of UTF-8 / Latin-1",
+    "original": "10Î&frac14;s",
+    "expected": "10Î&frac14;s",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 60,
+    "label": "Three layers of UTF-8 / MacRoman mixup in French",
+    "original": "Merci de t‚Äö√†√∂¬¨¬©l‚Äö√†√∂¬¨¬©charger le plug-in Flash Player 8",
+    "expected": "Merci de télécharger le plug-in Flash Player 8",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 61,
+    "label": "UTF-8 / MacRoman mixup in French",
+    "original": "Merci de bien vouloir activiter le Javascript dans votre navigateur web afin d'en profiter‚Ä¶",
+    "expected": "Merci de bien vouloir activiter le Javascript dans votre navigateur web afin d'en profiter…",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 62,
+    "label": "Italian UTF-8 / MacRoman example with ò",
+    "original": "Le Vigne di Zam√≤",
+    "expected": "Le Vigne di Zamò",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 63,
+    "label": "Punctuation pile-up should actually be musical notes",
+    "original": "Engkau masih yg terindah, indah di dalam hatikuâ™«~",
+    "expected": "Engkau masih yg terindah, indah di dalam hatiku♫~",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 64,
+    "label": "Latvian UTF-8 / Windows-1257 mojibake",
+    "original": "Å veices baÅ†Ä·ieri gaida konkrÄ“tus investÄ«ciju projektus",
+    "expected": "Šveices baņķieri gaida konkrētus investīciju projektus",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 65,
+    "label": "Latvian UTF-8 / MacRoman mojibake",
+    "original": "SaeimƒÅ ievƒìlƒìtƒÅs partijas \"Progresƒ´vie\" lƒ´dzvadƒ´tƒÅja Anto≈Üina ≈Öena≈°eva atbild uz ≈æurnƒÅlistu jautƒÅjumiem pƒìc partijas tik≈°anƒÅs ar Valsts prezidentu Rƒ´gas pilƒ´,",
+    "expected": "Saeimā ievēlētās partijas \"Progresīvie\" līdzvadītāja Antoņina Ņenaševa atbild uz žurnālistu jautājumiem pēc partijas tikšanās ar Valsts prezidentu Rīgas pilī,",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 66,
+    "label": "Lithuanian UTF-8 / Windows-1257 mojibake",
+    "original": "Å iaip ÄÆdomu, kaip ÄÆsivaizduoji. VisÅ³ pirma tam reikia laiko.",
+    "expected": "Šiaip įdomu, kaip įsivaizduoji. Visų pirma tam reikia laiko.",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 67,
+    "label": "Lithuanian UTF-8 / Windows-1250 mojibake",
+    "original": "Lietuva pagrÄŻstai gali paklausti: Ĺ˝inoma, kad ne.",
+    "expected": "Lietuva pagrįstai gali paklausti: Žinoma, kad ne.",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 68,
+    "label": "Hebrew UTF-8 / Windows-1252 mojibake",
+    "original": "×‘×”×•×“×¢×”",
+    "expected": "בהודעה",
+    "status": "pass"
+  },
+  {
+    "suite": "in-the-wild",
+    "index": 69,
+    "label": "Wide comma in UTF-8 / Windows-1252",
+    "original": "Ningboï¼ŒChina",
+    "expected": "Ningbo，China",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 0,
+    "label": "Negative: Using diaereses as quotation marks in Greek",
+    "original": "Η ¨ανατροφή¨ δυστυχώς από τους προπονητές",
+    "expected": "Η ¨ανατροφή¨ δυστυχώς από τους προπονητές",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 1,
+    "label": "Negative: Don't fix a multiplication symbol in quotes",
+    "original": "higher values (“+” and “×” curves) in the superficial region",
+    "expected": "higher values (“+” and “×” curves) in the superficial region",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 2,
+    "label": "Sort of negative: this inconsistent mojibake could be Latin-1 or MacRoman, and it was meant to be Latin-1, but it's safest to not decode it as either",
+    "original": "Bremer/Mccoy – DrÃ¥ber",
+    "expected": "Bremer/Mccoy – DrÃ¥ber",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 3,
+    "label": "Negative: 'è' preceded by a non-breaking space is not a small capital Y",
+    "original": "Con il corpo e lo spirito ammaccato, è come se nel cuore avessi un vetro conficcato.",
+    "expected": "Con il corpo e lo spirito ammaccato, è come se nel cuore avessi un vetro conficcato.",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 4,
+    "label": "Negative: multiplication sign and ellipsis",
+    "original": "4288×…",
+    "expected": "4288×…",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 5,
+    "label": "Negative: accents are sometimes used as quotes",
+    "original": "``toda produzida pronta pra assa aí´´",
+    "expected": "``toda produzida pronta pra assa aí´´",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 6,
+    "label": "Negative: 'Õ' followed by an ellipsis",
+    "original": "HUHLL Õ…",
+    "expected": "HUHLL Õ…",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 7,
+    "label": "Negative: 'Ê' followed by an ellipsis",
+    "original": "RETWEET SE VOCÊ…",
+    "expected": "RETWEET SE VOCÊ…",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 8,
+    "label": "Negative: 'É' followed by an ellipsis",
+    "original": "PARCE QUE SUR LEURS PLAQUES IL Y MARQUÉ…",
+    "expected": "PARCE QUE SUR LEURS PLAQUES IL Y MARQUÉ…",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 9,
+    "label": "Negative: 'Ó' followed by an ellipsis",
+    "original": "TEM QUE SEGUIR, SDV SÓ…",
+    "expected": "TEM QUE SEGUIR, SDV SÓ…",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 10,
+    "label": "Negative: 'É' followed by a curly apostrophe",
+    "original": "Join ZZAJÉ’s Official Fan List and receive news, events, and more!",
+    "expected": "Join ZZAJÉ’s Official Fan List and receive news, events, and more!",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 11,
+    "label": "Negative: 'é' preceded by curly apostrophe",
+    "original": "L’épisode 8 est trop fou ouahh",
+    "expected": "L’épisode 8 est trop fou ouahh",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 12,
+    "label": "Negative: three raised eyebrows or something?",
+    "original": "Ôôô VIDA MINHA",
+    "expected": "Ôôô VIDA MINHA",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 13,
+    "label": "Negative: copyright sign preceded by non-breaking space",
+    "original": "[x] ©",
+    "expected": "[x] ©",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 14,
+    "label": "Negative: en dash and infinity sign",
+    "original": "2012—∞",
+    "expected": "2012—∞",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 15,
+    "label": "Negative: This Е is a Ukrainian letter, but nothing else is wrong",
+    "original": "SENSЕ - Oleg Tsedryk",
+    "expected": "SENSЕ - Oleg Tsedryk",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 16,
+    "label": "Negative: angry face",
+    "original": "OK??:(   `¬´    ):",
+    "expected": "OK??:(   `¬´    ):",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 17,
+    "label": "Negative, synthetic: face with glasses and a raised eyebrow",
+    "original": "( o¬ô )",
+    "expected": "( o¬ô )",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 18,
+    "label": "Negative: triangle and degree sign",
+    "original": "∆°",
+    "expected": "∆°",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 19,
+    "label": "Negative: Portuguese with inverted question mark",
+    "original": "ESSE CARA AI QUEM É¿",
+    "expected": "ESSE CARA AI QUEM É¿",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 20,
+    "label": "Negative: Portuguese with acute accents as quotation marks",
+    "original": "``hogwarts nao existe, voce nao vai pegar o trem pra lá´´",
+    "expected": "``hogwarts nao existe, voce nao vai pegar o trem pra lá´´",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 21,
+    "label": "Negative: Finnish Ä followed by a non-breaking space",
+    "original": "SELKÄ EDELLÄ MAAHAN via @YouTube",
+    "expected": "SELKÄ EDELLÄ MAAHAN via @YouTube",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 22,
+    "label": "Negative: multiplying by currency",
+    "original": "Offering 5×£35 pin ups",
+    "expected": "Offering 5×£35 pin ups",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 23,
+    "label": "Negative: registered chocolate brand name",
+    "original": "NESTLÉ® requiere contratar personal para diferentes areas a nivel nacional e internacional",
+    "expected": "NESTLÉ® requiere contratar personal para diferentes areas a nivel nacional e internacional",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 24,
+    "label": "Negative: it looks like Windows-1257 mojibake but someone writes their name this way",
+    "original": "Connect with Āø on Facebook",
+    "expected": "Connect with Āø on Facebook",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 25,
+    "label": "Mostly negative: we only need to fix C1 control characters",
+    "original": "C'est vrai que nous n'en avons pas encore beaucoup parlé Tu sais, ça fait de nombreuses années",
+    "expected": "C'est vrai que nous n'en avons pas encore beaucoup parlé… Tu sais, ça fait de nombreuses années",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 26,
+    "label": "Negative: We don't fix Ã in all contexts",
+    "original": "C O N C L U S Ã O",
+    "expected": "C O N C L U S Ã O",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 27,
+    "label": "Negative: Two concatenated strings",
+    "original": "Oborzos, per. Vahbarz, frataraká§ 141",
+    "expected": "Oborzos, per. Vahbarz, frataraká§ 141",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 28,
+    "label": "Negative: Indonesian leetspeak",
+    "original": "MÄ£ÄM ÌÑÌ Q £ÄGÌ GÄLÄW ÑÍCH SÖÄ£ ÑÝÄ $ÚÄMÌ Q £ÄGÌ GÄK ÉÑÄK BÄDÄÑ....?????????,                     ......JÄDÍ...",
+    "expected": "MÄ£ÄM ÌÑÌ Q £ÄGÌ GÄLÄW ÑÍCH SÖÄ£ ÑÝÄ $ÚÄMÌ Q £ÄGÌ GÄK ÉÑÄK BÄDÄÑ....?????????,                     ......JÄDÍ...",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 29,
+    "label": "Negative: math in Unicode",
+    "original": "(-1/2)! = √π",
+    "expected": "(-1/2)! = √π",
+    "status": "pass"
+  },
+  {
+    "suite": "negative",
+    "index": 30,
+    "label": "Negative: Leet line-art",
+    "original": "├┤a┼┐a┼┐a┼┐a┼┐a",
+    "expected": "├┤a┼┐a┼┐a┼┐a┼┐a",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 0,
+    "label": "Synthetic: we can recognize Ã in some cases when it's the only mojibake",
+    "original": "voilÃ  le travail",
+    "expected": "voilà le travail",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 1,
+    "label": "Synthetic: we can recognize Ã at the end of a word when it absorbs a following space",
+    "original": "voilÃ le travail",
+    "expected": "voilà le travail",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 2,
+    "label": "Synthetic: Hebrew UTF-8 / Windows-1250 mojibake",
+    "original": "×‘×”×•×“×˘×”",
+    "expected": "בהודעה",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 3,
+    "label": "Synthetic: Hebrew UTF-8 / MacRoman mojibake",
+    "original": "◊ë◊î◊ï◊ì◊¢◊î",
+    "expected": "בהודעה",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 4,
+    "label": "Synthetic: Hebrew UTF-8 / Latin-1 mojibake",
+    "original": "××××",
+    "expected": "אבבא",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 5,
+    "label": "Synthetic: Arabic UTF-8 / Windows-1252 mojibake",
+    "original": "Ø±Ø³Ø§Ù„Ø©",
+    "expected": "رسالة",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 6,
+    "label": "Synthetic: Arabic UTF-8 / Windows-1250 mojibake",
+    "original": "Ř±ŘłŘ§Ů„Ř©",
+    "expected": "رسالة",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 7,
+    "label": "Synthetic: Arabic UTF-8 / MacRoman mojibake",
+    "original": "ÿ±ÿ≥ÿßŸÑÿ©",
+    "expected": "رسالة",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 8,
+    "label": "Synthetic, negative: Brontë's name does not end with a Korean syllable",
+    "original": "I'm not such a fan of Charlotte Brontë…”",
+    "expected": "I'm not such a fan of Charlotte Brontë…”",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 9,
+    "label": "Synthetic, negative: hypothetical Swedish product name",
+    "original": "AHÅ™, the new sofa from IKEA",
+    "expected": "AHÅ™, the new sofa from IKEA",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 10,
+    "label": "Synthetic, negative: Ukrainian capital letters",
+    "original": "ВІКІ is Ukrainian for WIKI",
+    "expected": "ВІКІ is Ukrainian for WIKI",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 11,
+    "label": "Synthetic, negative: don't leak our internal use of byte 0x1A",
+    "original": "These control characters \u001a are apparently intentional ",
+    "expected": "These control characters \u001a are apparently intentional ",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 12,
+    "label": "Synthetic, negative: U+1A on its own",
+    "original": "Here's a control character: \u001a",
+    "expected": "Here's a control character: \u001a",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 13,
+    "label": "Synthetic, negative: A-with-circle as an Angstrom sign",
+    "original": "a radius of 10 Å—",
+    "expected": "a radius of 10 Å—",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 14,
+    "label": "Synthetic, negative: Spanish with exclamation points on the wrong sides",
+    "original": "!YO SÉ¡",
+    "expected": "!YO SÉ¡",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 15,
+    "label": "Synthetic: fix text with backslashes in it",
+    "original": "<40\\% vs â¥40\\%",
+    "expected": "<40\\% vs ≥40\\%",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 16,
+    "label": "Synthetic: curly quotes with mismatched encoding glitches in Latin-1",
+    "original": "âmismatched quotes",
+    "expected": "“mismatched quotes…”",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 17,
+    "label": "Synthetic: curly quotes with mismatched encoding glitches in Windows-1252",
+    "original": "â€œmismatched quotesâ€¦”",
+    "expected": "“mismatched quotes…”",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 18,
+    "label": "Synthetic: lossy decoding in sloppy-windows-1252",
+    "original": "â€œlossy decodingâ€�",
+    "expected": "“lossy decoding�",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 19,
+    "label": "Synthetic: French word for August in windows-1252",
+    "original": "aoÃ»t",
+    "expected": "août",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 20,
+    "label": "Synthetic: French word for hotel in all-caps windows-1252",
+    "original": "HÃ”TEL",
+    "expected": "HÔTEL",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 21,
+    "label": "Synthetic: Scottish Gaelic word for 'subject' in all-caps windows-1252",
+    "original": "CÃ™IS",
+    "expected": "CÙIS",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 22,
+    "label": "Synthetic, negative: Romanian word before a non-breaking space",
+    "original": "NICIODATĂ ",
+    "expected": "NICIODATĂ ",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 23,
+    "label": "Synthetic, negative: Be careful around curly apostrophes",
+    "original": "There are a lot of Ã’s in mojibake text",
+    "expected": "There are a lot of Ã’s in mojibake text",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 24,
+    "label": "Synthetic, negative: Romanian word before a trademark sign",
+    "original": "NICIODATĂ™",
+    "expected": "NICIODATĂ™",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 25,
+    "label": "Synthetic, negative: Lithuanian word before a trademark sign",
+    "original": "TRANSFORMATORIŲ™",
+    "expected": "TRANSFORMATORIŲ™",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 26,
+    "label": "Synthetic, negative: Norwegian capitalized nonsense",
+    "original": "HÅØYA ER BLÅØYD",
+    "expected": "HÅØYA ER BLÅØYD",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 27,
+    "label": "Synthetic, negative: raised eyebrow kaomoji",
+    "original": "Ō¬o",
+    "expected": "Ō¬o",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 28,
+    "label": "Synthetic, negative: Camel-cased Serbian that looks like a UTF-8 / Windows-1251 mixup",
+    "original": "ПоздравЂаво",
+    "expected": "ПоздравЂаво",
+    "status": "pass"
+  },
+  {
+    "suite": "synthetic",
+    "index": 29,
+    "label": "Synthetic: mojibake with trademark sign at the end of a word",
+    "original": "OÃ™ ET QUAND?",
+    "expected": "OÙ ET QUAND?",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 0,
+    "label": "Messy language names: Czech",
+    "original": "ÄŒeÅ¡tina",
+    "expected": "Čeština",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 1,
+    "label": "Messy language names: Gaelic",
+    "original": "GÃ idhlig",
+    "expected": "Gàidhlig",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 2,
+    "label": "Messy language names: Lithuanian",
+    "original": "LietuviÅ³",
+    "expected": "Lietuvių",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 3,
+    "label": "Messy language names: Slovak",
+    "original": "SlovenÄ�ina",
+    "expected": "Sloven�ina",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 4,
+    "label": "Messy language names: Vietnamese",
+    "original": "Tiáº¿ng Viá»‡t",
+    "expected": "Tiếng Việt",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 5,
+    "label": "Messy language names: Greek",
+    "original": "Î•Î»Î»Î·Î½Î¹ÎºÎ¬",
+    "expected": "Ελληνικά",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 6,
+    "label": "Messy language names: Bulgarian",
+    "original": "Ð±ÑŠÐ»Ð³Ð°Ñ€Ñ�ÐºÐ¸ ÐµÐ·Ð¸Ðº",
+    "expected": "българ�ки език",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 7,
+    "label": "Messy language names: Russian",
+    "original": "Ð ÑƒÑ�Ñ�ÐºÐ¸Ð¹",
+    "expected": "Ру��кий",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 8,
+    "label": "Messy language names: Serbian [Cyrillic]",
+    "original": "CÑ€Ð¿Ñ�ÐºÐ¸ [Ñ›Ð¸Ñ€Ð¸Ð»Ð¸Ñ†Ð¾Ð¼]",
+    "expected": "Cрп�ки [ћирилицом]",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 9,
+    "label": "Messy language names: Hebrew",
+    "original": "×¢×‘×¨×™×ª",
+    "expected": "עברית",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 10,
+    "label": "Messy language names: Russian",
+    "original": "Ð ÑƒÑ�Ñ�ÐºÐ¸Ð¹",
+    "expected": "Ру��кий",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 11,
+    "label": "Messy language names: Hindi",
+    "original": "à¤¹à¤¿à¤¨à¥�à¤¦à¥€",
+    "expected": "हिन�दी",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 12,
+    "label": "Messy language names: Tamil",
+    "original": "à®¤à®®à®¿à®´à¯�",
+    "expected": "தமிழ�",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 13,
+    "label": "Messy language names: Thai",
+    "original": "à¸ à¸²à¸©à¸²à¹„à¸—à¸¢",
+    "expected": "ภาษาไทย",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 14,
+    "label": "Messy language names: Simplified Chinese",
+    "original": "ç®€ä½“ä¸­æ–‡",
+    "expected": "简体中文",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 15,
+    "label": "Messy language names: Traditional Chinese",
+    "original": "æ­£é«”ä¸­æ–‡",
+    "expected": "正體中文",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 16,
+    "label": "Messy language names: Japanese",
+    "original": "æ—¥æœ¬èªž",
+    "expected": "日本語",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 17,
+    "label": "Messy language names: Korean",
+    "original": "í•œêµ­ì–´",
+    "expected": "한국어",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 18,
+    "label": "Messy language name in cp437: Czech",
+    "original": "─îe┼ítina",
+    "expected": "Čeština",
+    "status": "pass"
+  },
+  {
+    "suite": "language-names",
+    "index": 19,
+    "label": "Messy language name in cp437: Vietnamese",
+    "original": "Tiß║┐ng Viß╗çt",
+    "expected": "Tiếng Việt",
+    "status": "pass"
+  },
+  {
+    "suite": "known-failures",
+    "index": 0,
+    "label": "Misleading mix-up in Spanish",
+    "original": "tiene demora y está próximo a resolverse",
+    "expected": "tiene demora y está “próximo a resolverse”",
+    "status": "pass"
+  },
+  {
+    "suite": "known-failures",
+    "index": 1,
+    "label": "Two levels of inconsistent mojibake",
+    "original": "Arsenal v Wolfsburg: pre-season friendly ââ live!",
+    "expected": "Arsenal v Wolfsburg: pre-season friendly â€â€œ live!",
+    "status": "pass"
+  },
+  {
+    "suite": "known-failures",
+    "index": 2,
+    "label": "A-with-grave in Vietnamese",
+    "original": "Xem clip hĂ i, phim hĂ i má»›i hay nháşĄt",
+    "expected": "Xem clip hà i, phim hà i mới hay nhất",
+    "status": "xfail",
+    "reason": "Falla conocida de heurística en texto vietnamita."
+  },
+  {
+    "suite": "known-failures",
+    "index": 3,
+    "label": "Latin-1 / MacRoman mixup in Spanish",
+    "original": "Deja dos heridos hundimiento de barco turstico en Acapulco.",
+    "expected": "Deja dos heridos hundimiento de barco tur’stico en Acapulco.",
+    "status": "pass"
+  },
+  {
+    "suite": "known-failures",
+    "index": 4,
+    "label": "subtle UTF-8 / codepage 437 mixup in Spanish",
+    "original": "┬┐que diferencia hay?",
+    "expected": "┬┐que diferencia hay?",
+    "status": "pass"
+  },
+  {
+    "suite": "known-failures",
+    "index": 5,
+    "label": "Latin-1 / MacRoman mixup in Spanish, 2 characters",
+    "original": "Habitantes de Coatln confan en proyecto de edil electo independiente",
+    "expected": "Habitantes de Coatl‡n conf’an en proyecto de edil electo independiente",
+    "status": "pass"
+  },
+  {
+    "suite": "known-failures",
+    "index": 6,
+    "label": "An example with 'à' in windows-1251 where we need our heuristic to be bolder",
+    "original": "faites attention Г bien vous renseigner avant sur le mГ©dicament",
+    "expected": "faites attention Г bien vous renseigner avant sur le mГ©dicament",
+    "status": "pass"
+  },
+  {
+    "suite": "known-failures",
+    "index": 7,
+    "label": "Italian UTF-8 / MacRoman mojibake that looks like math",
+    "original": "Sarai ricontattato dal nostro Esperto al pi√π presto.",
+    "expected": "Sarai ricontattato dal nostro Esperto al pi√π presto.",
+    "status": "pass"
+  },
+  {
+    "suite": "known-failures",
+    "index": 8,
+    "label": "Synthetic: Incomplete UTF-8 / Windows-1252 mixup in Arabic",
+    "original": "أكثر Ù…Ù† Ù Ù Ù¡ Ø¨Ù„Ø¯",
+    "expected": "أكثر من Ù Ù Ù¡ بلد",
+    "status": "pass"
+  },
+  {
+    "suite": "known-failures",
+    "index": 9,
+    "label": "Synthetic, false positive: the title of a manga, in weird capitalized romaji, with a non-breaking space",
+    "original": "MISUTÂ AJIKKO",
+    "expected": "MISUT AJIKKO",
+    "status": "xfail",
+    "reason": "Falla conocida: conserva de forma distinta el espacio no separable."
+  }
+]

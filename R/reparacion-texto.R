@@ -135,22 +135,13 @@ names(.ftfy_tablas_bytes) <- c(
 )
 # Correcciones deliberadas sobre ftfy 6.3.1: la regla de inicio funciona
 # tambien al principio de la cadena, la regla de caja reconoce cirilico comun
-# para KOI8-R, la secuencia especifica de a-circunflejo evita una regla amplia,
-# y los pares de caja de cp437 solo se reparan junto a letras latinas. Esta
-# ultima guarda conserva el mojibake pegado a palabras sin reescribir dibujos de
-# tablas legitimos.
+# para KOI8-R y la secuencia especifica de a-circunflejo evita una regla amplia.
 .ftfy_badness_extensiones <- c(
   paste0("(?:^|\\s)", .ftfy_re_cat("upper_accented"),
          .ftfy_re_cat("currency"), "\\w"),
-  paste0(
-    "(?:",
-    .ftfy_re_cat("lower_common", "upper_common", "lower_accented",
-                 "upper_accented", "currency", "numeric"),
-    .ftfy_re_cat("box"),
-    "|[A-Za-z]", .ftfy_re_cat("box"), .ftfy_re_cat("box"),
-    "|", .ftfy_re_cat("box"), .ftfy_re_cat("box"), "[A-Za-z]",
-    ")"
-  ),
+  paste0(.ftfy_re_cat("lower_common", "upper_common", "lower_accented",
+                      "upper_accented", "currency", "numeric"),
+         .ftfy_re_cat("box")),
   paste0("\u00e2", .ftfy_re_cat("common"),
          .ftfy_re_cat("start_punctuation", "end_punctuation", "currency",
                       "numeric", "common"))
