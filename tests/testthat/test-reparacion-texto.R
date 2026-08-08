@@ -81,7 +81,7 @@ test_that("la expresion completa de badness es la de ftfy 6.3.1", {
   expect_false(.ftfy_es_mojibake("São Paulo"))
 })
 
-test_that("las extensiones deliberadas de badness cubren los tres arreglos", {
+test_that("las extensiones deliberadas de badness cubren los cuatro arreglos", {
   expect_true(.ftfy_es_mojibake("Ã¥klagarmyndighets"))
   expect_true(.ftfy_es_mojibake("п∙я│п╩п╦ п▓я▀ п╫п╣"))
   expect_true(.ftfy_es_mojibake("â…“"))
@@ -94,6 +94,31 @@ test_that("las extensiones deliberadas de badness cubren los tres arreglos", {
   expect_identical(.ftfy_reparar_uno("â…›")$texto, "⅛")
   expect_identical(.ftfy_reparar_uno("Charlotte Brontë…\u201d")$texto,
                    "Charlotte Brontë…\u201d")
+})
+
+test_that("la extension cp437 exige contexto latino y no toca cajas", {
+  expect_identical(.ftfy_reparar_uno("c├│digo postal")$texto,
+                   "código postal")
+  expect_identical(.ftfy_reparar_uno("├¡ndice")$texto, "índice")
+  expect_identical(.ftfy_reparar_uno("┬┐que diferencia hay?")$texto,
+                   "¿que diferencia hay?")
+  for (texto in c(
+    "Total ═╗ 100", "Depto ═╣ Poblacion", "Subtotal ═╝",
+    "╔══════════════╗"
+  )) {
+    expect_identical(.ftfy_reparar_uno(texto)$texto, texto)
+  }
+
+  cajas <- unique(c(
+    strsplit(.ftfy_categorias$box, "", fixed = TRUE)[[1L]],
+    intToUtf8(utf8ToInt("═"):utf8ToInt("╬"), multiple = TRUE)
+  ))
+  cajas <- setdiff(cajas, "-")
+  pares <- unname(as.vector(outer(cajas, cajas, paste0)))
+  salidas <- vapply(pares, function(x) .ftfy_reparar_uno(x)$texto,
+                    character(1L), USE.NAMES = FALSE)
+  expect_length(pares, 2025L)
+  expect_identical(salidas, pares)
 })
 
 test_that("decode_inconsistent_utf8 usa el detector de ftfy por subcadena", {
