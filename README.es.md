@@ -1,494 +1,180 @@
-# lupa
+# lupa <a href="https://sebollin.github.io/lupa/"><img src="man/figures/lupa.png" align="right" height="139" alt="sitio de lupa" /></a>
 
-<img src="man/figures/lupa.png" align="right" width="240" alt="logo de lupa" />
+<!-- badges: start -->
+[![Licencia: GPL-3](https://img.shields.io/badge/licencia-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![R-CMD-check](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml)
+[![Estado del repositorio: activo](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+[![README in English](https://img.shields.io/badge/README-English-1f6feb.svg)](README.md)
+<!-- badges: end -->
 
-[![Licencia: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
-[![Ciclo de vida: madurando](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://lifecycle.r-lib.org/articles/stages.html#maturing)
-[![README in English](https://img.shields.io/badge/README-English-1565c0.svg)](https://github.com/sebollin/lupa/blob/main/README.md)
+`lupa` es un conjunto de herramientas auditables para perfilar datos tabulares,
+definir qué significa calidad para un uso concreto, medirla, limpiar una copia
+sin cambiar la entrada en silencio y encontrar duplicados aproximados a escala.
+Cada resultado declara su alcance, evidencia e incertidumbre.
 
-<code>lupa</code> es un conjunto auditable de herramientas de R para perfilar
-tablas, definir qué significa calidad para un uso concreto, medirla y mejorar
-una copia de los datos sin ocultar los cambios. También busca duplicados
-aproximados a escala, estima el trabajo antes de empezar y declara los límites
-de lo que comparó.
+La API pública, la ayuda y las viñetas están en español. Los nombres son
+estables y se pueden copiar de esta guía; el [README en
+inglés](README.md) cuenta lo mismo para lectores que prefieren ese idioma.
 
-## Instalar localmente
+## 🌎 Idioma de la API
 
-Hasta la primera publicación, construya e instale el paquete fuente local:
+Los nombres públicos son españoles tanto en los ejemplos como en la ayuda:
+
+| API en español | Significado en inglés |
+| --- | --- |
+| `perfilar()` | profile |
+| `analizar()` | analyse |
+| `marco_calidad()` | quality framework |
+| `planificar_limpieza()` | plan a cleanup |
+| `guiar_limpieza()` | guide a cleanup |
+| `aplicar()` | apply a selected cleanup |
+| `medir()` / `evaluar()` | measure / evaluate |
+| `detectar_duplicados_aproximados()` | find approximate duplicates |
+| `reportar()` | create a report |
+
+## ✨ Qué hace lupa
+
+- Perfila una entrega y muestra faltantes, tipos, patrones, fechas y evidencia
+  de datos personales.
+- Encuentra claves, relaciones, dependencias y granularidades de medición que
+  nunca fueron declaradas.
+- Permite que cada proyecto defina su marco de calidad, sin imponer un puntaje
+  global.
+- Mide y evalúa métricas, escalas, reglas de validez y dominios referenciales
+  explícitos.
+- Produce planes de limpieza editables, aplica sólo acciones elegidas sobre una
+  copia y conserva un registro de auditoría.
+- Encuentra duplicados aproximados con teselas exactas, MinHash/LSH determinista,
+  bloqueo, estimación previa del costo y lotes en disco.
+- Repara codificación dañada en R, incluido mojibake repetido y CESU-8, y
+  rechaza conversiones con pérdida inseguras.
+- Sigue la calidad en el tiempo y crea informes HTML autocontenidos.
+
+## 📦 Instalación
+
+Hasta la primera publicación en CRAN, construí e instalá el paquete desde un
+clon:
 
 ~~~sh
-R CMD build lupa
+R CMD build .
 R CMD INSTALL lupa_0.1.0.tar.gz
 ~~~
 
-También puede instalar un tarball local desde R:
+También se puede instalar un tarball local desde R:
 
 ~~~r
 install.packages("lupa_0.1.0.tar.gz", repos = NULL)
 ~~~
 
-## Idioma de la API
-
-La API pública, las ayudas y las viñetas están en español. La [versión en
-inglés](https://github.com/sebollin/lupa/blob/main/README.md) explica el mismo
-código; esta tabla permite orientarse a quien lea ambos idiomas:
-
-| API | Significado |
-| --- | --- |
-| <code>perfilar()</code> | perfilar |
-| <code>analizar()</code> | analizar |
-| <code>marco_calidad()</code> | marco de calidad |
-| <code>planificar_limpieza()</code> | planificar una limpieza |
-| <code>guiar_limpieza()</code> | guiar una limpieza |
-| <code>aplicar()</code> | aplicar |
-| <code>medir()</code> | medir |
-| <code>evaluar()</code> | evaluar |
-| <code>detectar_duplicados_aproximados()</code> | buscar duplicados aproximados |
-| <code>reportar()</code> | crear un reporte |
-
-## Inicio rápido
+## ⚡ Inicio en cinco minutos
 
 ~~~r
 library(lupa)
 data(datos_operativos)
 
-analisis <- analizar(datos_operativos)
-analisis$perfil$hallazgos
+perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
+perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")]
 
-archivo <- reportar(analisis, archivo = tempfile(fileext = ".html"))
+analisis <- analizar(datos_operativos)
+archivo <- tempfile(fileext = ".html")
+reportar(analisis, archivo = archivo)
+stopifnot(file.exists(archivo))
 unlink(archivo)
 ~~~
 
-<code>analizar()</code> es de sólo lectura: no convierte una observación en
-requisito y nunca modifica la tabla.
+El perfilado es de sólo lectura: nunca cambia la tabla de entrada. Los
+hallazgos son data frames inspeccionables y la evidencia de datos personales se
+enmascara cuando la clasificación lo justifica. Abajo se ve una salida real de
+consola.
 
-## Qué puede hacer con lupa
+![Salida capturada de `perfilar()`](man/figures/perfil-console.png)
 
-### Mirar una entrega por primera vez
+## 🧭 Qué se puede hacer con lupa
 
-<code>perfilar()</code> es la entrada pequeña y <code>analizar()</code> suma
-distribuciones, asociaciones, diagnósticos temporales, escalas propuestas y
-cobertura. También están <code>distribucion_valores()</code>,
-<code>detectar_asociaciones()</code>, <code>analizar_tiempo()</code>,
-<code>clasificar_variables()</code>, <code>inferir_tipo()</code>,
-<code>descubrir_patrones()</code>, <code>detectar_formatos_fecha()</code> y
-<code>sentinelas_naniar</code>, congelado desde
-[naniar](https://github.com/njtierney/naniar).
+La [referencia de pkgdown](https://sebollin.github.io/lupa/reference/) y las
+viñetas enlazadas son el manual detallado. Esta tabla es el mapa breve:
 
-~~~r
-data(datos_operativos)
-perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
-analisis <- analizar(datos_operativos)
-
-list(
-  valores = distribucion_valores(datos_operativos),
-  asociaciones = detectar_asociaciones(datos_operativos, umbral = 0.3,
-                                       max_pares = 10),
-  tiempo = analizar_tiempo(datos_operativos),
-  variables = clasificar_variables(datos_operativos),
-  tipo = inferir_tipo(datos_operativos$cedula),
-  patrones = descubrir_patrones(datos_operativos$contacto),
-  fechas = detectar_formatos_fecha(datos_operativos$fecha_evento),
-  sentinelas = perfilar(
-    datos_operativos,
-    sentinelas_numericos = sentinelas_naniar,
-    analizar_dependencias = FALSE
-  )$columnas
-)
-~~~
-
-Todas las proporciones están en [0, 1]. La evidencia de datos personales se
-protege por omisión, queda marcada en la salida y nunca se suprime en silencio.
-
-### Encontrar la estructura que nadie declaró
-
-<code>detectar_claves()</code>, <code>detectar_relaciones()</code> y
-<code>detectar_dependencias()</code> encuentran estructura observada.
-<code>granularidades()</code> y <code>transiciones_granularidad()</code> declaran
-los niveles y transiciones de medición.
+| Tarea | Funciones principales | Para leer más |
+| --- | --- | --- |
+| Mirar los datos por primera vez | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
+| Encontrar estructura no declarada | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
+| Definir la calidad | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
+| Medir y evaluar | `medir()`, `agregar()`, `evaluar()`, `regla_evaluacion()`, `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
+| Limpiar sin romper nada | `planificar_limpieza()`, `guiar_limpieza()`, `aplicar()` | [Plan de limpieza](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
+| Encontrar duplicados aproximados | `detectar_duplicados_aproximados()`, `estimar_costo()` | [Escala y duplicados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
+| Reparar codificación dañada | `reparar_codificacion` mediante `planificar_limpieza()` y `aplicar()` | [Referencia de limpieza](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
+| Seguir la calidad en el tiempo | `historico_calidad()`, `acumular_historico()`, `guardar_historico()`, `leer_historico()`, `detectar_deriva_calidad()`, `comparar_perfiles()`, `comparar_evaluaciones()` | [Histórico y deriva](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
+| Compartir resultados | `reportar()`, `guardar_analisis()`, `leer_analisis()` | [Referencia de informes](https://sebollin.github.io/lupa/reference/reportar.html) |
+| Validar y extender | `validadores_internacionales()`, `validadores_uruguay()`, `pack_validadores()`, `validar_ci_uy()`, `validar_rut_uy()`, `validar_luhn()`, `validar_mod97()`, `validar_iso3166()`, `validar_iso4217()`, `validar_correo()` | [Referencia](https://sebollin.github.io/lupa/reference/) |
 
 ~~~r
+library(lupa)
 data(datos_operativos)
-claves <- detectar_claves(datos_operativos)
-relaciones <- detectar_relaciones(datos_operativos, datos_operativos, muestra = 1000)
-dependencias <- detectar_dependencias(datos_operativos, min_observaciones = 10)
-
-list(claves = claves, relaciones = relaciones, dependencias = dependencias,
-     niveles = granularidades(), transiciones = transiciones_granularidad())
-~~~
-
-Son observaciones, no prueba de una regla de negocio: pueden confirmarse en el
-modelo o quedar como hallazgos.
-
-### Definir qué es calidad
-
-<code>marco_calidad()</code> recibe una taxonomía de dimensiones y factores.
-<code>marco_agesic()</code>, <code>marco_iso25012()</code> y
-<code>catalogo_agesic()</code> son instancias consultables. Las métricas se
-construyen con <code>metrica()</code>, <code>especializar()</code>,
-<code>instanciar()</code> y <code>modelo()</code>; las fábricas
-<code>propiedades_metrica()</code>,
-<code>metricas_nucleo()</code> y <code>metricas_referencial()</code> se pueden
-reutilizar. <code>proponer_modelo()</code>,
-<code>modelo_desde_propuesta()</code>, <code>perfiles_madurez()</code> y
-<code>cobertura_analisis()</code> mantienen la propuesta y su alcance visibles.
-
-~~~r
-data(datos_operativos)
-marco_propio <- marco_calidad(
+marco <- marco_calidad(
   "Marco operativo",
-  list(Estructura = c("Ausencias observadas", "Duplicación exacta"))
+  list(Estructura = c("Ausencias observadas", "Duplicacion exacta"))
 )
-marco_agesic()
-marco_iso25012()
-catalogo_agesic()
-
-nucleo <- metricas_nucleo()
-instancia <- instanciar(
-  especializar(nucleo$NoNulo, nombre_especifico = "NoNuloDato"),
-  "entrega", "dato"
-)
-modelo_calidad <- modelo(instancia)
-perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
-propuesta <- proponer_modelo(perfil)
-modelo_confirmado <- modelo_desde_propuesta(propuesta)
-cobertura_analisis(perfil, modelo = marco_propio)
+propuesta <- proponer_modelo(perfilar(datos_operativos,
+                                      analizar_dependencias = FALSE))
+list(marco = marco, propuesta = propuesta)
 ~~~
 
-No hay puntaje global: promediar dimensiones escondería prioridades, unidades e
-incertidumbre que el usuario no declaró.
+La API tiene algunos límites importantes. No hay un puntaje global: las
+dimensiones, unidades y reglas permanecen visibles. El núcleo es universal y
+los catálogos son enchufables; [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
+v1.6 es una implementación de referencia, no un límite nacional. El paquete
+tiene un solo import obligatorio, [`cli`](https://cran.r-project.org/package=cli);
+[`stringdist`](https://cran.r-project.org/package=stringdist) es opcional.
 
-### Medir y evaluar
+## 🔍 Dónde se ubica
 
-<code>medir()</code> ejecuta un modelo; <code>agregar()</code> respeta las
-transiciones declaradas; <code>regla_evaluacion()</code>,
-<code>perfil_evaluacion()</code> y <code>evaluar()</code> expresan y aplican
-condiciones. <code>escala()</code>, <code>referencial()</code> y
-<code>vigencia()</code> declaran contratos adicionales.
+[`skimr`](https://cran.r-project.org/package=skimr) y
+[`DataExplorer`](https://cran.r-project.org/package=DataExplorer) exploran;
+[`pointblank`](https://cran.r-project.org/package=pointblank),
+[`validate`](https://cran.r-project.org/package=validate) y
+[`dataquieR`](https://cran.r-project.org/package=dataquieR) expresan o evalúan
+reglas; [`zoomerjoin`](https://cran.r-project.org/package=zoomerjoin),
+[`textreuse`](https://cran.r-project.org/package=textreuse) y
+[`reclin2`](https://cran.r-project.org/package=reclin2) se enfocan en comparar
+texto o enlazar registros. [`calidad`](https://github.com/inesscc/calidad),
+mantenido por [Klaus Lehmann](https://github.com/Klauslehmann) y
+[Ricardo Pizarro](https://github.com/ricardoflopiza), es un eje complementario:
+evalúa la calidad de **estimaciones de encuestas**, mientras `lupa` evalúa los
+datos tabulares que producen una estimación.
 
-~~~r
-nucleo <- metricas_nucleo()
-instancia <- instanciar(
-  especializar(nucleo$NoNulo, nombre_especifico = "NoNuloDato"),
-  "entrega", "dato"
-)
-medidas <- medir(
-  modelo(instancia), data.frame(dato = c("A", NA, "C")),
-  id_medicion = "entrega-001",
-  fecha = as.POSIXct("2026-01-15", tz = "UTC")
-)
-medida_entidad <- agregar(medidas, "atributo", "ratio")
-regla <- regla_evaluacion("Completitud mayor al 60 %", function(x) x > 0.6)
-evaluacion <- evaluar(medida_entidad, perfil_evaluacion("Operativo", regla))
-list(evaluacion = evaluacion, escala = escala(error = 0.1),
-     vigencia = vigencia("fecha_actualizacion"))
-~~~
+La reparación de codificación sigue en R el enfoque y los datos congelados de
+[`ftfy`](https://github.com/rspeer/python-ftfy) 6.3.1, de
+[Robyn Speer](https://github.com/rspeer). Incluye once tablas de bytes, CESU-8,
+el caso Java `C0 80` y cinco extensiones deliberadas documentadas en
+[NEWS](NEWS.md). Reproduce 159 de los 161 casos del corpus distribuido y deja
+intactos los 31 casos negativos. Deliberadamente no ofrece los pasos de estilo
+de `fix_text` de [`ftfy`](https://github.com/rspeer/python-ftfy), como deshacer
+HTML, curvar comillas, normalizar ancho o normalizar Unicode: cambiar datos
+legítimos en silencio no es reparar.
 
-### Limpiar sin romper nada
-
-El plan de <code>planificar_limpieza()</code> es editable.
-<code>guiar_limpieza()</code> acompaña decisiones en consola y
-<code>aplicar()</code> ejecuta sólo lo elegido, sobre una copia, dejando un
-registro. Las eliminaciones requieren permiso adicional.
-
-~~~r
-data(datos_administrativos)
-perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
-plan <- planificar_limpieza(perfil, datos_administrativos)
-plan$aplicar[] <- FALSE
-seleccion <- which(plan$recomendada)[1]
-if (length(seleccion) == 1L && !is.na(seleccion)) {
-  plan$aplicar[seleccion] <- TRUE
-  plan$decision_grupo[seleccion] <- "elegida"
-}
-copia <- datos_administrativos
-resultado <- aplicar(plan, datos_administrativos)
-stopifnot(identical(datos_administrativos, copia))
-resultado$registro[, c("estrategia", "n_cambiadas")]
-~~~
-
-La entrada no cambia y el resultado conserva la evidencia de cada acción.
-
-### Buscar duplicados aproximados a escala
-
-Hay teselas exactas y MinHash/LSH determinista. <code>estimar_costo()</code>
-pronostica antes de empezar; <code>bloquear_por</code> declara la pérdida
-estructural y <code>lotes = TRUE</code> conserva parciales sin pérdida cuando
-cruza grupos. <code>nucleos</code> usa dos hilos de <code>stringdist</code> por
-omisión: cambiarlo mueve el reloj, no la respuesta. Sin <a href="https://cran.r-project.org/package=stringdist"><code>stringdist</code></a>
-la degradación es explícita.
-
-~~~r
-if (requireNamespace("stringdist", quietly = TRUE)) {
-  datos <- data.frame(
-    nombre = c("Ana Perez", "Ana Peres", "Luis Silva", "Luis Silva"),
-    domicilio = c("Calle 1", "Calle 1", "Ruta 5", "Ruta 5"),
-    anio = c(2022, 2022, 2021, 2021), stringsAsFactors = FALSE
-  )
-  estimacion <- estimar_costo(
-    datos, columnas = c("nombre", "domicilio"), estrategia = "lsh",
-    lsh_muestra_estimacion = 10, nucleos = 2
-  )
-  exacto <- detectar_duplicados_aproximados(
-    datos, columnas = c("nombre", "domicilio"), estrategia = "teselas",
-    max_resultados = 10, nucleos = 2
-  )
-  lsh <- detectar_duplicados_aproximados(
-    datos, columnas = c("nombre", "domicilio"), estrategia = "lsh",
-    max_resultados = 10, nucleos = 2
-  )
-  bloqueado <- detectar_duplicados_aproximados(
-    datos, columnas = c("nombre", "domicilio"), estrategia = "teselas",
-    bloquear_por = "anio", max_resultados = 10, nucleos = 2
-  )
-  directorio <- tempfile("lupa-lotes-")
-  por_lotes <- detectar_duplicados_aproximados(
-    datos, columnas = c("nombre", "domicilio"), estrategia = "teselas",
-    lotes = TRUE, tamano_lote = 2, directorio_lotes = directorio,
-    max_resultados = 10, nucleos = 2
-  )
-  unlink(directorio, recursive = TRUE)
-  list(estimacion = estimacion, exacto = exacto$pares,
-       lsh = lsh$pares, bloqueo = bloqueado$alcance,
-       lotes = por_lotes$lotes)
-}
-~~~
-
-Un par aproximado no afirma identidad ni sugiere eliminar o fusionar. El piso
-de tiempo cubre sólo la comparación <code>stringdist</code>, no la corrida
-completa; <code>lupa_tiempo_lsh</code> es una condición silenciosa fuera de una
-sesión interactiva y <code>resultado$estimacion</code> contiene la medición no
-determinista.
-
-En un Intel Core i9-14900HX, 32 núcleos, Pop!_OS 22.04 LTS (Linux), R 4.6.1,
-las medianas de tres procesos aislados para 100.000 filas fueron:
-
-| hilos | mediana (s) | relativo a 2 |
-| ---: | ---: | ---: |
-| 2 | 133,28 | 1,00x |
-| 4 | 97,44 | 0,73x |
-| 8 | 76,19 | 0,57x |
-| 16 | 70,31 | 0,53x |
-| 31 | 71,69 | 0,54x |
-
-Después de 16 hilos no hubo ganancia medida. Dos es el valor prudente para una
-máquina compartida, y se puede subir. Los hilos no cambian el resultado.
-
-| filas | candidatos LSH | recall del techo | hilos |
-| ---: | ---: | ---: | ---: |
-| 20.000 | 6.201.626 | 1,0000 | 2 |
-| 100.000 | 140.097.499 | 1,0000 | 2 |
-| 200.000 | 582.388.482 | 1,0000 | 2 |
-
-Son referencias medidas, no promesas portables de tiempo: candidatos, estimación
-y recall son deterministas; el reloj depende del procesador y de las cubetas.
-
-### Reparar mojibake sin Python
-
-<code>planificar_limpieza()</code> puede detectar texto dañado y proponer la
-acción <code>reparar_codificacion</code>. El motor en R puro sigue el diseño y
-las tablas congeladas de [ftfy 6.3.1](https://github.com/rspeer/python-ftfy),
-de [Robyn Speer](https://github.com/rspeer), y prueba varias codificaciones
-hasta que el texto deja de parecer mojibake. El resultado queda marcado como
-<code>reparado</code>, <code>reparado_parcialmente</code> o
-<code>no_se_pudo</code>; las reparaciones parciales nunca se aplican en silencio.
-Las reglas completas de detección y los transcodificadores a nivel de bytes
-están congelados desde [ftfy](https://github.com/rspeer/python-ftfy) 6.3.1; los
-bytes realmente perdidos quedan visibles como U+FFFD, nunca como un carácter de
-control invisible.
-El nombre histórico <code>reparar_codificacion_latin1</code> sigue aceptándose
-para planes guardados.
-
-El motor congela once tablas de bytes: las diez usadas por [ftfy
-6.3.1](https://github.com/rspeer/python-ftfy) más KOI8-R, incorporada a partir
-del [issue #231](https://github.com/rspeer/python-ftfy/issues/231). Su
-decodificador de variantes UTF-8 en R puro maneja CESU-8 y el <code>C0
-80</code> de Java, lo que permite reparar mojibake de emoji; cuando esa
-secuencia produciría U+0000, que R no puede representar de forma segura en una
-cadena, la reparación se rechaza en vez de perder un carácter en silencio.
-Contra el [corpus distribuido de ftfy](https://github.com/rspeer/python-ftfy) de
-161 casos, reproduce 159 y deja intactos los 31 casos negativos; los dos
-restantes son la mezcla de Windows-1250 del [issue
-#18](https://github.com/rspeer/python-ftfy/issues/18) y una falla que el propio
-[ftfy](https://github.com/rspeer/python-ftfy) reconoce.
-
-Hay cinco extensiones deliberadas y documentadas: la regla de moneda del
-[issue #222](https://github.com/rspeer/python-ftfy/issues/222), también tratada
-en el [PR #232](https://github.com/rspeer/python-ftfy/pull/232); la regla de
-caja que detecta mojibake de KOI8-R del [issue
-#231](https://github.com/rspeer/python-ftfy/issues/231); y los símbolos de bloque
-U+2000 del [issue #233](https://github.com/rspeer/python-ftfy/issues/233). La
-tabla adicional de bytes KOI8-R (propuesta en el [PR
-#234](https://github.com/rspeer/python-ftfy/pull/234)) es la cuarta; una puerta
-literal <code>Ã </code> para formas portuguesas y francesas, respaldada por el
-caso <code>in-the-wild#49</code> del corpus, es la quinta.
-
-El port cubre deliberadamente sólo <code>fix_encoding</code> y sus
-transcodificadores de bytes —<code>restore_byte_a0</code>,
-<code>replace_lossy_sequences</code>, <code>decode_inconsistent_utf8</code> y
-<code>fix_c1_controls</code>—. No ejecuta los otros nueve pasos de
-<code>fix_text</code>: <code>unescape_html</code>,
-<code>remove_terminal_escapes</code>, <code>fix_latin_ligatures</code>,
-<code>fix_character_width</code>, <code>uncurl_quotes</code>,
-<code>fix_line_breaks</code>, <code>fix_surrogates</code>,
-<code>remove_control_chars</code> ni <code>normalization</code>. Esas operaciones
-quedan fuera del alcance de este motor; son decisiones de estilo, y cambiar
-datos legítimos en silencio no es reparar.
-
-El port también volvió al proyecto original por [Sebastián
-Lucas](https://github.com/sebollin): el [PR
-#234](https://github.com/rspeer/python-ftfy/pull/234), para KOI8-R, y el [PR
-#235](https://github.com/rspeer/python-ftfy/pull/235), para símbolos de bloque de
-Windows-1252, están abiertos y no fusionados. También comentó en el [issue
-#231](https://github.com/rspeer/python-ftfy/issues/231) y en el [PR
-#232](https://github.com/rspeer/python-ftfy/pull/232).
-
-~~~r
-datos <- data.frame(nombre = c("PaysandÃº", "texto \ufffd"),
-                    stringsAsFactors = FALSE)
-perfil <- perfilar(datos, analizar_dependencias = FALSE)
-plan <- planificar_limpieza(perfil, datos)
-plan[, c("columna", "estrategia", "estado_reparacion", "aplicar")]
-~~~
-
-### Seguir la calidad en el tiempo
-
-<code>historico_calidad()</code>, <code>acumular_historico()</code>,
-<code>guardar_historico()</code> y <code>leer_historico()</code> mantienen una
-serie versionada. <code>detectar_deriva_calidad()</code>,
-<code>comparar_perfiles()</code> y <code>comparar_evaluaciones()</code> separan
-cambios de estructura y de evaluación.
-
-~~~r
-nucleo <- metricas_nucleo()
-instancia <- instanciar(
-  especializar(nucleo$NoNulo, nombre_especifico = "NoNuloDato"),
-  "entrega", "dato"
-)
-modelo_calidad <- modelo(instancia)
-enero <- agregar(
-  medir(modelo_calidad, data.frame(dato = c("A", NA, "C", NA)),
-        id_medicion = "enero", fecha = as.POSIXct("2026-01-31", tz = "UTC")),
-  "atributo", "ratio"
-)
-febrero <- agregar(
-  medir(modelo_calidad, data.frame(dato = c("A", "B", "C", NA)),
-        id_medicion = "febrero", fecha = as.POSIXct("2026-02-28", tz = "UTC")),
-  "atributo", "ratio"
-)
-regla <- regla_evaluacion("Completitud mayor al 60 %", function(x) x > 0.6)
-perfil_e <- perfil_evaluacion("Operativo", regla)
-enero_eval <- evaluar(enero, perfil_e)
-febrero_eval <- evaluar(febrero, perfil_e)
-historico <- historico_calidad(enero_eval, febrero_eval)
-detectar_deriva_calidad(historico)
-archivo <- tempfile(fileext = ".rds")
-guardar_historico(historico, archivo)
-recuperado <- leer_historico(archivo)
-stopifnot(identical(historico, recuperado))
-unlink(archivo)
-~~~
-
-### Compartir el resultado
-
-<code>reportar()</code> crea un HTML autocontenido, escapado y sin red.
-<code>guardar_analisis()</code> y <code>leer_analisis()</code> permiten retomar
-el análisis; por omisión no guardan la tabla de entrada.
-
-~~~r
-data(datos_operativos)
-analisis <- analizar(datos_operativos)
-archivo_rds <- tempfile(fileext = ".rds")
-guardar_analisis(analisis, archivo_rds)
-analisis_recuperado <- leer_analisis(archivo_rds)
-archivo_html <- reportar(
-  analisis, archivo = tempfile(fileext = ".html"),
-  titulo = "Calidad de datos operativos"
-)
-stopifnot(file.exists(archivo_html), file.exists(archivo_rds))
-unlink(c(archivo_html, archivo_rds))
-~~~
-
-### Validadores y packs de extensión
-
-<code>validadores_internacionales()</code> ofrece ISO 3166, ISO 4217, correo,
-Luhn y módulo 97; <code>validadores_uruguay()</code> agrega identidad y RUT.
-También están <code>validar_ci_uy()</code>, <code>validar_rut_uy()</code>,
-<code>validar_luhn()</code>, <code>validar_mod97()</code>,
-<code>validar_iso3166()</code>, <code>validar_iso4217()</code> y
-<code>validar_correo()</code>.
-
-~~~r
-internacionales <- validadores_internacionales()
-uruguay <- validadores_uruguay()
-internacionales$iso4217(c("UYU", "CLP", "ZZZ"))
-uruguay$cedula(c("1.234.567-2", "1.234.567-3"))
-validar_iso3166(c("UY", "XX"))
-validar_correo(c("persona@example.org", "no-es-correo"))
-pack_ejemplo <- pack_validadores(
-  "Ejemplo", list(codigo = function(x) !is.na(x) & x == "OK"), pais = "CL",
-  descripcion = "Validador mantenido por el proyecto consumidor."
-)
-pack_ejemplo$codigo(c("OK", "otro"))
-~~~
-
-Un pack es una lista de funciones y no se registra globalmente. Se puede
-conectar a <code>perfilar(validadores_personales = ...)</code> o a la métrica
-<code>Formato</code>. AGESIC v1.6 es una referencia, no una restricción de país.
-
-## El diseño en cuatro compromisos
-
-* **No hay puntaje global.** Un número único escondería prioridades, unidades e
-  incertidumbre.
-* **Núcleo universal, catálogos enchufables.** <code>marco_calidad()</code>
-  acepta una taxonomía propia; AGESIC v1.6 e ISO/IEC 25012 son instancias
-  consultables; <code>pack_validadores()</code> suma otro país sin cambiar el
-  núcleo.
-* **Una dependencia obligatoria.** <a href="https://cran.r-project.org/package=cli"><code>cli</code></a> es la única dependencia en
-  <code>Imports</code>; <code>stringdist</code> es opcional en
-  <code>Suggests</code>.
-* **No se afirma más de lo que se sabe.** Alcances parciales, pérdidas,
-  <code>NA</code> cuando no se puede contar y pisos de tiempo quedan declarados;
-  la máquina y los hilos acompañan cada medición.
-
-## Guías, referencia y cita
-
-~~~r
-vignette("empezar-con-lupa", package = "lupa")
-vignette("el-modelo-de-calidad", package = "lupa")
-vignette("limpiar-con-un-plan", package = "lupa")
-vignette("historico-y-deriva", package = "lupa")
-vignette("escala-y-duplicados", package = "lupa")
-~~~
-
-El paquete se ubica junto a otras herramientas: [<code>skimr</code>](https://cran.r-project.org/package=skimr) y
-[<code>DataExplorer</code>](https://cran.r-project.org/package=DataExplorer) resumen y exploran;
-[<code>pointblank</code>](https://cran.r-project.org/package=pointblank),
-[<code>validate</code>](https://cran.r-project.org/package=validate) y
-[<code>dataquieR</code>](https://cran.r-project.org/package=dataquieR) expresan o evalúan reglas;
-[<code>zoomerjoin</code>](https://cran.r-project.org/package=zoomerjoin),
-[<code>textreuse</code>](https://cran.r-project.org/package=textreuse) y
-[<code>reclin2</code>](https://cran.r-project.org/package=reclin2) cubren
-comparación textual o record linkage.
-[<code>calidad</code>](https://github.com/inesscc/calidad), de INE Chile y mantenido por
-[Klaus Lehmann](https://github.com/Klauslehmann) y [Ricardo
-Pizarro](https://github.com/ricardoflopiza), es un eje contiguo valioso: aplica criterios de CEPAL a la calidad de
-estimaciones de encuestas (Estudios Estadísticos 101), mientras <code>lupa</code>
-evalúa el dato tabular que produce una estimación.
-
-Para citar el paquete y su referencia de AGESIC:
+## 📖 Cita y referencias
 
 ~~~r
 citation("lupa")
 ~~~
 
-Las referencias conceptuales incluyen a [Batini y Scannapieco
-(2016)](https://doi.org/10.1007/978-3-319-24106-7), el [*Marco de trabajo para
-la Gestión de la Calidad de Datos en Gobierno Digital* v1.6 de
-AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
-e [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html). El [issue
-tracker del repositorio](https://github.com/sebollin/lupa/issues) es el lugar
-para reportar errores y proponer mejoras.
+Las referencias conceptuales son [Batini y Scannapieco
+(2016)](https://doi.org/10.1007/978-3-319-24106-7), el [Marco de trabajo de
+AGESIC para la Gestión de la Calidad de Datos en Gobierno Digital
+v1.6](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
+y [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html).
 
-El paquete aún no está en CRAN; por eso no se muestran insignias de CRAN ni de
-R-CMD-check.
+## 🤝 Contribuir y reportar
+
+Usá el [issue tracker](https://github.com/sebollin/lupa/issues) para errores,
+propuestas y correcciones de documentación. Los contratos estables son las
+unidades declaradas, el alcance, la protección y el registro de auditoría; los
+detalles de implementación y los tiempos de benchmark pueden cambiar entre
+versiones mientras esos contratos sigan siendo ciertos.
+
+## 📄 Licencia
+
+`lupa` se distribuye bajo la [GPL-3](https://www.gnu.org/licenses/gpl-3.0.html).
+Consultá [`LICENSE.note`](LICENSE.note) por los datos Apache-2.0 derivados de
+[`ftfy`](https://github.com/rspeer/python-ftfy) y los datos MIT derivados de
+[`naniar`](https://github.com/njtierney/naniar).
