@@ -2,6 +2,12 @@
 
 ## Reparación de texto y licencia
 
+- Cierra el motor de reparación de texto: `decode_inconsistent_utf8` trabaja
+  por subcadenas con el detector de [ftfy 6.3.1](https://github.com/rspeer/python-ftfy),
+  conserva los estados parciales con U+FFFD y agrega tres extensiones
+  deliberadas sobre ftfy 6.3.1: la regla de inicio del issue [#222](https://github.com/rspeer/python-ftfy/issues/222),
+  la tabla KOI8-R del issue [#231](https://github.com/rspeer/python-ftfy/issues/231)
+  y la regla específica para `â` del issue [#233](https://github.com/rspeer/python-ftfy/issues/233).
 - Incorpora un motor R puro para detectar y reparar mojibake en varias
   codificaciones, inspirado en el diseño y las tablas de [ftfy
   6.3.1](https://github.com/rspeer/python-ftfy) de [Robyn

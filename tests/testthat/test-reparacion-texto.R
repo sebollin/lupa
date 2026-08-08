@@ -41,17 +41,17 @@ test_that("los transcodificadores de texto cubren casos parciales y C1", {
   )
 })
 
-test_that("las tablas congeladas tienen el contrato de ftfy", {
+test_that("las tablas congeladas incluyen ftfy y la extension koi8-r", {
   skip_if_not_installed("jsonlite")
   esperadas <- jsonlite::fromJSON(
-    testthat::test_path("fixtures", "ftfy-tablas-6.3.1.json"),
+    testthat::test_path("fixtures", "tablas-codificacion.json"),
     simplifyVector = FALSE
   )
   expect_identical(names(.ftfy_tablas_bytes), names(esperadas))
   for (nombre in names(esperadas)) {
     expect_identical(.ftfy_tablas_bytes[[nombre]], as.integer(esperadas[[nombre]]))
   }
-  expect_length(.ftfy_tablas_bytes, 10L)
+  expect_length(.ftfy_tablas_bytes, 11L)
   expect_true(all(vapply(.ftfy_tablas_bytes, length, integer(1L)) == 128L))
 })
 
@@ -69,17 +69,46 @@ test_that("la expresion completa de badness es la de ftfy 6.3.1", {
   esperado <- jsonlite::fromJSON(
     testthat::test_path("fixtures", "ftfy-badness-6.3.1.json")
   )
-  prefijo <- "(*UTF)(*UCP)"
-  expect_identical(
-    substring(.ftfy_badness_re, nchar(prefijo) + 1L),
-    esperado$canonical_pattern
-  )
+  normalizar <- function(p) gsub("\\s+|#[^\\n]*", "", p, perl = TRUE)
+  base <- substring(.ftfy_badness_re_ftfy, nchar("(*UTF)(*UCP)") + 1L)
+  expect_identical(normalizar(base),
+                   normalizar(esperado$ftfy_pattern))
   # Las alternativas que se pierden con reglas incompletas son un caso real:
   # el mojibake de cp437 contiene caracteres de caja.
   expect_true(.ftfy_es_mojibake(
     "Instituto Nacional de Estad├¡stica ΓÇö Montevideo, Uruguay"
   ))
   expect_false(.ftfy_es_mojibake("São Paulo"))
+})
+
+test_that("las extensiones deliberadas de badness cubren los tres arreglos", {
+  expect_true(.ftfy_es_mojibake("Ã¥klagarmyndighets"))
+  expect_true(.ftfy_es_mojibake("п∙я│п╩п╦ п▓я▀ п╫п╣"))
+  expect_true(.ftfy_es_mojibake("â…“"))
+  expect_false(.ftfy_es_mojibake("Charlotte Brontë…\u201d"))
+  expect_identical(.ftfy_reparar_uno("Ã¥klagarmyndighets")$texto,
+                   "åklagarmyndighets")
+  expect_identical(.ftfy_reparar_uno("п∙я│п╩п╦ п▓я▀ п╫п╣")$texto,
+                   "Если Вы не")
+  expect_identical(.ftfy_reparar_uno("â…“")$texto, "⅓")
+  expect_identical(.ftfy_reparar_uno("â…›")$texto, "⅛")
+  expect_identical(.ftfy_reparar_uno("Charlotte Brontë…\u201d")$texto,
+                   "Charlotte Brontë…\u201d")
+})
+
+test_that("decode_inconsistent_utf8 usa el detector de ftfy por subcadena", {
+  skip_if_not_installed("jsonlite")
+  fixture <- jsonlite::fromJSON(
+    testthat::test_path("fixtures", "ftfy-utf8-detector-6.3.1.json"),
+    simplifyVector = FALSE
+  )
+  normalizar <- function(x) gsub("\\s+|#[^\\n]*", "", x, perl = TRUE)
+  expect_identical(normalizar(.ftfy_utf8_detector_re),
+                   normalizar(fixture$ftfy_pattern))
+  casos <- fixture$cases
+  salidas <- vapply(casos, function(caso) .ftfy_reparar_uno(caso$input)$texto,
+                    character(1L))
+  expect_identical(salidas, vapply(casos, `[[`, character(1L), "expected"))
 })
 
 test_that("replace_lossy_sequences coincide con el fixture de ftfy", {
@@ -137,6 +166,22 @@ test_that("la reparación deduplica valores y conserva estados explícitos", {
   expect_equal(.ftfy_reparar_uno("")$estado, "sin_texto")
   expect_equal(.ftfy_reparar_uno(factor("PaysandÃº"))$estado, "reparado")
   expect_equal(.ftfy_reparar_uno(42)$estado, "no_parece_roto")
+})
+
+test_that("la pérdida previa conserva reparación parcial sin habilitar aplicación", {
+  datos <- data.frame(nombre = "DirecciÃ³n\ufffd",
+                      stringsAsFactors = FALSE)
+  perfil <- perfilar(datos)
+  indice <- which(perfil$hallazgos$tipo_hallazgo == "codificacion_rota")
+  expect_equal(as.character(perfil$hallazgos$estado_reparacion[[indice]]),
+               "reparado_parcialmente")
+  plan <- planificar_limpieza(perfil)
+  accion <- plan[plan$hallazgo == "codificacion_rota", , drop = FALSE]
+  expect_equal(as.character(accion$estado_reparacion[[1L]]),
+               "reparado_parcialmente")
+  expect_false(isTRUE(accion$aplicar[[1L]]))
+  salida <- aplicar(plan, datos)
+  expect_identical(salida$datos$nombre[[1L]], datos$nombre[[1L]])
 })
 
 test_that("el estado de reparación acompaña hallazgo, plan y registro", {

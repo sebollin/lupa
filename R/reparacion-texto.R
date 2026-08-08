@@ -1,5 +1,5 @@
 # Motor de reparacion de texto en R puro.
-# Las categorias y el orden de las tablas siguen [ftfy 6.3.1]
+# Las categorias y las primeras diez tablas siguen [ftfy 6.3.1]
 # (https://github.com/rspeer/python-ftfy), de [Robyn Speer]
 # (https://github.com/rspeer). Derivado del diseno de ftfy, bajo Apache-2.0:
 # https://github.com/rspeer/python-ftfy (badness.py, chardata.py, fixes.py).
@@ -18,10 +18,25 @@
   cp437 = c(c(199, 252, 233, 226, 228, 224, 229, 231, 234, 235, 232, 239, 238, 236, 196, 197, 201, 230, 198, 244, 246, 242, 251, 249, 255, 214, 220, 162, 163, 165, 8359, 402, 225, 237, 243, 250, 241, 209, 170, 186, 191, 8976, 172, 189, 188, 161, 171, 187, 9617, 9618, 9619, 9474, 9508, 9569, 9570, 9558, 9557, 9571, 9553, 9559, 9565, 9564, 9563, 9488, 9492, 9524, 9516, 9500, 9472, 9532, 9566, 9567, 9562, 9556, 9577, 9574, 9568, 9552, 9580, 9575, 9576, 9572, 9573, 9561, 9560, 9554, 9555, 9579, 9578, 9496, 9484, 9608, 9604, 9612, 9616, 9600, 945, 223, 915, 960, 931, 963, 181, 964, 934, 920, 937, 948, 8734, 966, 949, 8745, 8801, 177, 8805, 8804, 8992, 8993, 247, 8776, 176, 8729, 183, 8730, 8319, 178, 9632, 160))
 )
 .ftfy_tablas_bytes <- lapply(.ftfy_tablas_bytes, as.integer)
+# La tabla koi8-r es una extension de lupa para el issue #231 de ftfy.
+.ftfy_tablas_bytes$koi8.r <- as.integer(c(
+  9472, 9474, 9484, 9488, 9492, 9496, 9500, 9508, 9516, 9524, 9532,
+  9600, 9604, 9608, 9612, 9616, 9617, 9618, 9619, 8992, 9632, 8729,
+  8730, 8776, 8804, 8805, 160, 8993, 176, 178, 183, 247, 9552, 9553,
+  9554, 1105, 9555, 9556, 9557, 9558, 9559, 9560, 9561, 9562, 9563,
+  9564, 9565, 9566, 9567, 9568, 9569, 1025, 9570, 9571, 9572, 9573,
+  9574, 9575, 9576, 9577, 9578, 9579, 9580, 169, 1102, 1072, 1073,
+  1094, 1076, 1077, 1092, 1075, 1093, 1080, 1081, 1082, 1083, 1084,
+  1085, 1086, 1087, 1103, 1088, 1089, 1090, 1091, 1078, 1074, 1100,
+  1099, 1079, 1096, 1101, 1097, 1095, 1098, 1070, 1040, 1041, 1062,
+  1044, 1045, 1060, 1043, 1061, 1048, 1049, 1050, 1051, 1052, 1053,
+  1054, 1055, 1071, 1056, 1057, 1058, 1059, 1046, 1042, 1068, 1067,
+  1047, 1064, 1069, 1065, 1063, 1066
+))
 names(.ftfy_tablas_bytes) <- c(
   "latin-1", "sloppy-windows-1252", "sloppy-windows-1251",
   "sloppy-windows-1250", "sloppy-windows-1253", "sloppy-windows-1254",
-  "sloppy-windows-1257", "iso-8859-2", "macroman", "cp437"
+  "sloppy-windows-1257", "iso-8859-2", "macroman", "cp437", "koi8-r"
 )
 
 .ftfy_categorias <- list(
@@ -115,17 +130,40 @@ names(.ftfy_tablas_bytes) <- c(
          .ftfy_categorias$currency, "\u00b0][\u0392\u0393\u039e\u039f]"),
   "\u0101\u20ac"
 )
-.ftfy_badness_re <- paste0("(*UTF)(*UCP)",
-                           paste(.ftfy_badness_alternatives, collapse = "|"))
+.ftfy_badness_re_ftfy <- paste0(
+  "(*UTF)(*UCP)", paste(.ftfy_badness_alternatives, collapse = "|")
+)
+# Correcciones deliberadas sobre ftfy 6.3.1: la regla de inicio funciona
+# tambien al principio de la cadena, la regla de caja reconoce cirilico comun
+# para KOI8-R, y la secuencia especifica de a-circunflejo evita una regla amplia.
+.ftfy_badness_extensiones <- c(
+  paste0("(?:^|\\s)", .ftfy_re_cat("upper_accented"),
+         .ftfy_re_cat("currency"), "\\w"),
+  paste0(.ftfy_re_cat("lower_common", "upper_common", "lower_accented",
+                      "upper_accented", "currency", "numeric", "box"),
+         .ftfy_re_cat("box")),
+  paste0("\u00e2", .ftfy_re_cat("common"),
+         .ftfy_re_cat("start_punctuation", "end_punctuation", "currency",
+                      "numeric", "common"))
+)
+.ftfy_badness_re <- paste0(
+  "(*UTF)(*UCP)(?:", substring(
+    .ftfy_badness_re_ftfy, nchar("(*UTF)(*UCP)") + 1L
+  ), "|",
+  paste(.ftfy_badness_extensiones, collapse = "|"), ")"
+)
+.ftfy_utf8_detector_re <-
+  "(?<![\u0080-\u00bf\u0104\u00c6\u013d\u0141\u00d8\u0156\u015a\u0160\u015e\u0164\u0178\u0179\u017d\u017b\u0152\u0105\u00e6\u0192\u013e\u0142\u00f8\u0157\u015b\u0161\u015f\u0165\u017a\u017e\u017c\u0153\u02c6\u02c7\u02d8\u02db\u02dc\u02dd\u0384\u0385\u0386\u0388\u0389\u038a\u038c\u038e\u038f\u0401\u0402\u0403\u0404\u0405\u0406\u0407\u0408\u0409\u040a\u040b\u040c\u040e\u040f\u0451\u0452\u0453\u0454\u0455\u0456\u0457\u0458\u0459\u045a\u045b\u045c\u045e\u045f\u0490\u0491\u2020\u2021\u2030\u2039\u203a\u20ac\u2116\u2122])([\u0102\u00c2\u00c4\u0100\u00c5\u00c3\u00c6\u0106\u010c\u00c7\u010e\u0110\u00c9\u011a\u00ca\u00cb\u0116\u00c8\u0112\u0118\u00d0\u011e\u0122\u00cd\u00ce\u00cf\u0130\u00cc\u012a\u0136\u0139\u013b\u0141\u0143\u0147\u0145\u00d1\u00d3\u00d4\u00d6\u0150\u00d2\u014c\u00d8\u00d5\u0158\u015a\u0160\u015e\u0162\u00de\u00da\u00db\u00dc\u0170\u00d9\u016a\u0172\u016e\u00dd\u0179\u017d\u017b\u00df\u00d7\u0392\u0393\u0394\u0395\u0396\u0397\u0398\u0399\u039a\u039b\u039c\u039d\u039e\u039f\u03a0\u03a1\u03a3\u03a4\u03a5\u03a6\u03a7\u03a8\u03a9\u03aa\u03ab\u03ac\u03ad\u03ae\u03af\u0412\u0413\u0414\u0415\u0416\u0417\u0418\u0419\u041a\u041b\u041c\u041d\u041e\u041f\u0420\u0421\u0422\u0423\u0424\u0425\u0426\u0427\u0428\u0429\u042a\u042b\u042c\u042d\u042e\u042f][\u0080-\u00bf\u0104\u00c6\u013d\u0141\u00d8\u0156\u015a\u0160\u015e\u0164\u0178\u0179\u017d\u017b\u0152\u0105\u00e6\u0192\u013e\u0142\u00f8\u0157\u015b\u0161\u015f\u0165\u017a\u017e\u017c\u0153\u02c6\u02c7\u02d8\u02db\u02dc\u02dd\u0384\u0385\u0386\u0388\u0389\u038a\u038c\u038e\u038f\u0401\u0402\u0403\u0404\u0405\u0406\u0407\u0408\u0409\u040a\u040b\u040c\u040e\u040f\u0451\u0452\u0453\u0454\u0455\u0456\u0457\u0458\u0459\u045a\u045b\u045c\u045e\u045f\u0490\u0491\u2013\u2014\u2015\u2018\u2019\u201a\u201c\u201d\u201e\u2020\u2021\u2022\u2026\u2030\u2039\u203a\u20ac\u2116\u2122]|[\u00e1\u0103\u00e2\u00e4\u00e0\u0101\u0105\u00e5\u00e3\u00e6\u0107\u010d\u00e7\u010f\u00e9\u011b\u00ea\u00eb\u0117\u00e8\u0113\u0119\u0119\u0123\u00ed\u00ee\u00ef\u00ec\u012b\u012f\u0137\u013a\u013c\u0155\u017a\u03b0\u03b1\u03b2\u03b3\u03b4\u03b5\u03b6\u03b7\u03b8\u03b9\u03ba\u03bb\u03bc\u03bd\u03be\u03bf\u0430\u0431\u0432\u0433\u0434\u0435\u0436\u0437\u0438\u0439\u043a\u043b\u043c\u043d\u043e\u043f][\u0080-\u00bf\u0104\u00c6\u013d\u0141\u00d8\u0156\u015a\u0160\u015e\u0164\u0178\u0179\u017d\u017b\u0152\u0105\u00e6\u0192\u013e\u0142\u00f8\u0157\u015b\u0161\u015f\u0165\u017a\u017e\u017c\u0153\u02c6\u02c7\u02d8\u02db\u02dc\u02dd\u0384\u0385\u0386\u0388\u0389\u038a\u038c\u038e\u038f\u0401\u0402\u0403\u0404\u0405\u0406\u0407\u0408\u0409\u040a\u040b\u040c\u040e\u040f\u0451\u0452\u0453\u0454\u0455\u0456\u0457\u0458\u0459\u045a\u045b\u045c\u045e\u045f\u0490\u0491\u2013\u2014\u2015\u2018\u2019\u201a\u201c\u201d\u201e\u2020\u2021\u2022\u2026\u2030\u2039\u203a\u20ac\u2116\u2122]{2}|[\u0111\u00f0\u011f\u00f3\u0161\u03c0\u03c3\u0440\u0443][\u0080-\u00bf\u0104\u00c6\u013d\u0141\u00d8\u0156\u015a\u0160\u015e\u0164\u0178\u0179\u017d\u017b\u0152\u0105\u00e6\u0192\u013e\u0142\u00f8\u0157\u015b\u0161\u015f\u0165\u017a\u017e\u017c\u0153\u02c6\u02c7\u02d8\u02db\u02dc\u02dd\u0384\u0385\u0386\u0388\u0389\u038a\u038c\u038e\u038f\u0401\u0402\u0403\u0404\u0405\u0406\u0407\u0408\u0409\u040a\u040b\u040c\u040e\u040f\u0451\u0452\u0453\u0454\u0455\u0456\u0457\u0458\u0459\u045a\u045b\u045c\u045e\u045f\u0490\u0491\u2013\u2014\u2015\u2018\u2019\u201a\u201c\u201d\u201e\u2020\u2021\u2022\u2026\u2030\u2039\u203a\u20ac\u2116\u2122]{3})+"
 .MOJIBAKE_CATEGORIES <- .ftfy_categorias
 .BADNESS_RE <- .ftfy_badness_re
-.ftfy_es_mojibake <- function(x) {
+.ftfy_es_mojibake <- function(x, usar_extensiones = TRUE) {
   if (!length(x) || is.na(x) || !nzchar(x)) return(FALSE)
   # Todas las categor\u00edas de badness de ftfy contienen al menos un car\u00e1cter
   # no ASCII. Evitar la expresi\u00f3n completa en texto ASCII mantiene barato el
   # perfilado de columnas grandes sin cambiar el predicado.
   if (!grepl("[^\\x00-\\x7f]", x, perl = TRUE)) return(FALSE)
-  grepl(.ftfy_badness_re, x, perl = TRUE)
+  patron <- if (isTRUE(usar_extensiones)) .ftfy_badness_re else .ftfy_badness_re_ftfy
+  grepl(patron, x, perl = TRUE)
 }
 .ftfy_codificar <- function(texto, tabla, permitir_perdida = FALSE) {
   cps <- utf8ToInt(texto)
@@ -193,10 +231,11 @@ names(.ftfy_tablas_bytes) <- c(
     sub("\u00e0([^[:space:]])", "\u00e0 \\1", texto, perl = TRUE)
   } else texto
 }
-.ftfy_decode_inconsistent_utf8 <- function(texto) {
-  # La misma transcodificacion por bytes funciona cuando solo un segmento del
-  # valor fue degradado; los segmentos ASCII se conservan byte a byte.
-  coincidencias <- gregexpr("[^\\x00-\\x7f]+", texto, perl = TRUE)[[1L]]
+.ftfy_decode_inconsistent_utf8 <- function(texto, usar_extensiones = TRUE) {
+  # UTF8_DETECTOR_RE encuentra subcadenas de mojibake, no corridas completas
+  # de no-ASCII. Cada subcadena se repara recursivamente sólo si es más corta
+  # que el valor total, como en ftfy.
+  coincidencias <- gregexpr(.ftfy_utf8_detector_re, texto, perl = TRUE)[[1L]]
   if (identical(coincidencias, -1L)) return(texto)
   longitudes <- attr(coincidencias, "match.length")
   salida <- texto
@@ -204,10 +243,14 @@ names(.ftfy_tablas_bytes) <- c(
     desde <- coincidencias[[i]]
     hasta <- desde + longitudes[[i]] - 1L
     segmento <- substring(texto, desde, hasta)
-    reparado <- .ftfy_un_paso(segmento)
-    if (!is.null(reparado) && !identical(reparado$texto, segmento)) {
-      salida <- paste0(substr(salida, 1L, desde - 1L), reparado$texto,
+    if (nchar(segmento) < nchar(texto) && .ftfy_es_mojibake(segmento)) {
+      reparado <- .ftfy_reparar_uno(
+        segmento, usar_extensiones_inicial = usar_extensiones
+      )
+      if (!identical(reparado$texto, segmento)) {
+        salida <- paste0(substr(salida, 1L, desde - 1L), reparado$texto,
                        substr(salida, hasta + 1L, nchar(salida)))
+      }
     }
   }
   salida
@@ -321,14 +364,22 @@ names(.ftfy_tablas_bytes) <- c(
 }
 .ftfy_fallback_latin1_windows1252 <- function(texto) {
   cps <- utf8ToInt(texto)
-  if (!length(cps) || !any(cps >= 128L & cps <= 159L)) return(NULL)
+  # ftfy only uses this fallback when the complete value is representable in
+  # Latin-1 and is not also representable by its sloppy Windows-1252 map. A
+  # value containing, for example, U+20AC must not be rewritten merely because
+  # it also contains a C1 control.
+  if (!length(cps) || !all(cps <= 255L) ||
+      !any(cps >= 128L & cps <= 159L)) return(NULL)
   tabla <- .ftfy_tablas_bytes[["sloppy-windows-1252"]]
+  permitidos_windows <- c(0:127, tabla)
+  if (all(cps %in% permitidos_windows)) return(NULL)
   indices <- cps >= 128L & cps <= 159L
   cps[indices] <- tabla[cps[indices] - 127L]
   salida <- intToUtf8(cps)
   if (identical(salida, texto)) NULL else salida
 }
-.ftfy_reparar_uno <- function(x, max_iteraciones = 20L) {
+.ftfy_reparar_uno <- function(x, max_iteraciones = 20L,
+                              usar_extensiones_inicial = TRUE) {
   if (length(x) != 1L) {
     return(list(texto = NA_character_, pasos = character(), estado = "sin_texto"))
   }
@@ -338,25 +389,39 @@ names(.ftfy_tablas_bytes) <- c(
   }
   actual <- enc2utf8(valor)
   pasos <- character()
+  usar_extensiones <- isTRUE(usar_extensiones_inicial)
   if (!.ftfy_es_mojibake(actual)) {
     return(list(texto = actual, pasos = pasos, estado = if (length(pasos)) "reparado" else "no_parece_roto"))
   }
   tope <- max(1L, as.integer(max_iteraciones[[1L]]))
   for (i in seq_len(min(tope, 20L))) {
+    if (!.ftfy_es_mojibake(actual, usar_extensiones)) break
     paso <- .ftfy_un_paso(actual)
     if (is.null(paso)) {
-      inconsistente <- .ftfy_decode_inconsistent_utf8(actual)
+      inconsistente <- .ftfy_decode_inconsistent_utf8(actual, usar_extensiones)
       if (!identical(inconsistente, actual)) {
         actual <- inconsistente
         pasos <- c(pasos, "decode_inconsistent_utf8")
-        if (!.ftfy_es_mojibake(actual)) break
+        # Las extensiones de lupa son puertas de entrada. Una vez que se
+        # reparó una subcadena, las vueltas siguientes usan la regla base de
+        # ftfy y no reinterpretan el residuo producido por fix_c1_controls.
+        usar_extensiones <- FALSE
+        if (!.ftfy_es_mojibake(actual, usar_extensiones)) break
         next
       }
       fallback <- .ftfy_fallback_latin1_windows1252(actual)
       if (!is.null(fallback)) {
         actual <- fallback
         pasos <- c(pasos, "encode:latin-1;decode:windows-1252")
-        if (!.ftfy_es_mojibake(actual)) break
+        if (!.ftfy_es_mojibake(actual, usar_extensiones)) break
+        next
+      }
+      con_c1 <- .ftfy_fix_c1_controls(actual)
+      if (!identical(con_c1, actual)) {
+        actual <- con_c1
+        pasos <- c(pasos, "fix_c1_controls")
+        usar_extensiones <- FALSE
+        if (!.ftfy_es_mojibake(actual, usar_extensiones)) break
         next
       }
       break
@@ -364,18 +429,12 @@ names(.ftfy_tablas_bytes) <- c(
     if (identical(paso$texto, actual)) break
     actual <- paso$texto
     pasos <- c(pasos, paso$paso)
-    if (!.ftfy_es_mojibake(actual)) break
-  }
-  # Como en ftfy, la conversi\u00f3n de controles C1 es el \u00faltimo recurso: no debe
-  # borrar la se\u00f1al que permite detectar y reparar una codificaci\u00f3n anterior.
-  con_c1 <- .ftfy_fix_c1_controls(actual)
-  if (!identical(con_c1, actual)) {
-    actual <- con_c1
-    pasos <- c(pasos, "fix_c1_controls")
+    if (!.ftfy_es_mojibake(actual, usar_extensiones)) break
   }
   estado <- if (!length(pasos)) {
     "no_se_pudo"
-  } else if (.ftfy_es_mojibake(actual) || grepl("\uFFFD", actual, fixed = TRUE)) {
+  } else if (.ftfy_es_mojibake(actual, usar_extensiones) ||
+             grepl("\uFFFD", actual, fixed = TRUE)) {
     # El marcador de reemplazo conserva la p\u00e9rdida de informaci\u00f3n aunque la
     # medida ya no clasifique el resto del texto como mojibake.
     "reparado_parcialmente"
@@ -409,10 +468,14 @@ names(.ftfy_tablas_bytes) <- c(
   if (length(candidatos)) {
     unicos <- unique(valores[candidatos])
     resultados <- lapply(unicos, .ftfy_reparar_uno)
-    reemplazo <- grepl("\uFFFD", unicos, fixed = TRUE)
-    if (any(reemplazo)) {
-      resultados[reemplazo] <- lapply(resultados[reemplazo], function(z) {
-        z$estado <- "no_se_pudo"
+    con_perdida <- grepl("\uFFFD", unicos, fixed = TRUE)
+    if (any(con_perdida)) {
+      resultados[con_perdida] <- lapply(which(con_perdida), function(i) {
+        z <- resultados[[i]]
+        if (identical(z$estado, "no_parece_roto") &&
+            identical(z$texto, unicos[[i]])) {
+          z$estado <- "no_se_pudo"
+        }
         z
       })
     }
