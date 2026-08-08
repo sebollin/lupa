@@ -313,14 +313,15 @@ restantes son la mezcla de Windows-1250 del [issue
 [ftfy](https://github.com/rspeer/python-ftfy) reconoce.
 
 Hay cinco extensiones deliberadas y documentadas: la regla de moneda del
-[issue #222](https://github.com/rspeer/python-ftfy/issues/222), la detección de
-KOI8-R del [issue #231](https://github.com/rspeer/python-ftfy/issues/231), los
-símbolos de bloque U+2000 del [issue
-#233](https://github.com/rspeer/python-ftfy/issues/233), la tabla adicional de
-KOI8-R (también propuesta en el [PR
-#234](https://github.com/rspeer/python-ftfy/pull/234)) y una puerta literal
-<code>Ã </code> para formas portuguesas y francesas (tratada en el [PR
-#232](https://github.com/rspeer/python-ftfy/pull/232)).
+[issue #222](https://github.com/rspeer/python-ftfy/issues/222), también tratada
+en el [PR #232](https://github.com/rspeer/python-ftfy/pull/232); la regla de
+caja que detecta mojibake de KOI8-R del [issue
+#231](https://github.com/rspeer/python-ftfy/issues/231); y los símbolos de bloque
+U+2000 del [issue #233](https://github.com/rspeer/python-ftfy/issues/233). La
+tabla adicional de bytes KOI8-R (propuesta en el [PR
+#234](https://github.com/rspeer/python-ftfy/pull/234)) es la cuarta; una puerta
+literal <code>Ã </code> para formas portuguesas y francesas, respaldada por el
+caso <code>in-the-wild#49</code> del corpus, es la quinta.
 
 El port cubre deliberadamente sólo <code>fix_encoding</code> y sus
 transcodificadores de bytes —<code>restore_byte_a0</code>,
@@ -330,9 +331,9 @@ transcodificadores de bytes —<code>restore_byte_a0</code>,
 <code>remove_terminal_escapes</code>, <code>fix_latin_ligatures</code>,
 <code>fix_character_width</code>, <code>uncurl_quotes</code>,
 <code>fix_line_breaks</code>, <code>fix_surrogates</code>,
-<code>remove_control_chars</code> ni <code>normalization</code>. Son decisiones
-de estilo que deben pedirse explícitamente: cambiar datos legítimos en silencio
-no es reparar.
+<code>remove_control_chars</code> ni <code>normalization</code>. Esas operaciones
+quedan fuera del alcance de este motor; son decisiones de estilo, y cambiar
+datos legítimos en silencio no es reparar.
 
 El port también volvió al proyecto original por [Sebastián
 Lucas](https://github.com/sebollin): el [PR
@@ -458,7 +459,6 @@ vignette("el-modelo-de-calidad", package = "lupa")
 vignette("limpiar-con-un-plan", package = "lupa")
 vignette("historico-y-deriva", package = "lupa")
 vignette("escala-y-duplicados", package = "lupa")
-citation("lupa")
 ~~~
 
 El paquete se ubica junto a otras herramientas: [<code>skimr</code>](https://cran.r-project.org/package=skimr) y
@@ -475,6 +475,20 @@ comparación textual o record linkage.
 Pizarro](https://github.com/ricardoflopiza), es un eje contiguo valioso: aplica criterios de CEPAL a la calidad de
 estimaciones de encuestas (Estudios Estadísticos 101), mientras <code>lupa</code>
 evalúa el dato tabular que produce una estimación.
+
+Para citar el paquete y su referencia de AGESIC:
+
+~~~r
+citation("lupa")
+~~~
+
+Las referencias conceptuales incluyen a [Batini y Scannapieco
+(2016)](https://doi.org/10.1007/978-3-319-24106-7), el [*Marco de trabajo para
+la Gestión de la Calidad de Datos en Gobierno Digital* v1.6 de
+AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
+e [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html). El [issue
+tracker del repositorio](https://github.com/sebollin/lupa/issues) es el lugar
+para reportar errores y proponer mejoras.
 
 El paquete aún no está en CRAN; por eso no se muestran insignias de CRAN ni de
 R-CMD-check.

@@ -4,7 +4,7 @@
 
 [![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Lifecycle: maturing](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://lifecycle.r-lib.org/articles/stages.html#maturing)
-[![README en español](https://img.shields.io/badge/README-español-2e7d32.svg)](https://github.com/sebollin/lupa/blob/main/README.es.md)
+[![README en español](https://img.shields.io/badge/README-espa%C3%B1ol-2e7d32.svg)](https://github.com/sebollin/lupa/blob/main/README.es.md)
 
 <code>lupa</code> is an auditable R toolkit for profiling tabular data, defining
 what quality means for a particular use, measuring it, and improving a copy of
@@ -355,12 +355,14 @@ the two remaining cases are the Windows-1250 mixture from [issue
 [ftfy](https://github.com/rspeer/python-ftfy) itself.
 
 Five deliberate extensions are documented: the currency rule from [issue
-#222](https://github.com/rspeer/python-ftfy/issues/222), KOI8-R detection from
-[issue #231](https://github.com/rspeer/python-ftfy/issues/231), the U+2000 block
-symbols from [issue #233](https://github.com/rspeer/python-ftfy/issues/233), the
-additional KOI8-R table (also proposed in [PR #234](https://github.com/rspeer/python-ftfy/pull/234)),
-and a literal <code>Ã </code> gate for Portuguese and French forms (discussed
-in [PR #232](https://github.com/rspeer/python-ftfy/pull/232)).
+#222](https://github.com/rspeer/python-ftfy/issues/222), also discussed in [PR
+#232](https://github.com/rspeer/python-ftfy/pull/232); the box rule that detects
+KOI8-R mojibake from [issue #231](https://github.com/rspeer/python-ftfy/issues/231);
+and the U+2000 block symbols from [issue
+#233](https://github.com/rspeer/python-ftfy/issues/233). The additional KOI8-R
+byte table (proposed in [PR #234](https://github.com/rspeer/python-ftfy/pull/234))
+is the fourth; a literal <code>Ã </code> gate for Portuguese and French forms,
+supported by the <code>in-the-wild#49</code> corpus case, is the fifth.
 
 The port deliberately covers <code>fix_encoding</code> and its byte
 transcoders—<code>restore_byte_a0</code>, <code>replace_lossy_sequences</code>,
@@ -370,8 +372,8 @@ does not run the other nine <code>fix_text</code> steps:
 <code>fix_latin_ligatures</code>, <code>fix_character_width</code>,
 <code>uncurl_quotes</code>, <code>fix_line_breaks</code>,
 <code>fix_surrogates</code>, <code>remove_control_chars</code>, or
-<code>normalization</code>. Those are style choices that must be requested
-explicitly, because changing legitimate data silently is not repair.
+<code>normalization</code>. Those operations are outside this engine's scope;
+they are style choices, and changing legitimate data silently is not repair.
 
 The port has also been returned upstream by [Sebastián
 Lucas](https://github.com/sebollin): [PR #234](https://github.com/rspeer/python-ftfy/pull/234)
@@ -535,6 +537,7 @@ citation("lupa")
 
 Conceptual references include [Batini and Scannapieco (2016)](https://doi.org/10.1007/978-3-319-24106-7),
 [AGESIC's *Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital* v1.6](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/),
-and [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html). The repository's issue tracker is the place for bugs
+and [ISO/IEC 25012:2008](https://www.iso.org/standard/35736.html). The
+[repository issue tracker](https://github.com/sebollin/lupa/issues) is the place for bugs
 and proposals; the release is not yet on CRAN, so this README intentionally
 does not display CRAN or R-CMD-check badges.

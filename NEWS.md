@@ -5,9 +5,14 @@
 - Cierra el motor de reparación de texto: `decode_inconsistent_utf8` trabaja
   por subcadenas con el detector de [ftfy 6.3.1](https://github.com/rspeer/python-ftfy),
   conserva los estados parciales con U+FFFD y agrega tres extensiones
-  deliberadas sobre ftfy 6.3.1: la regla de inicio del issue [#222](https://github.com/rspeer/python-ftfy/issues/222),
-  la tabla KOI8-R del issue [#231](https://github.com/rspeer/python-ftfy/issues/231)
-  y la regla específica para `â` del issue [#233](https://github.com/rspeer/python-ftfy/issues/233).
+  deliberadas de badness sobre ftfy 6.3.1: la regla de inicio del issue
+  [#222](https://github.com/rspeer/python-ftfy/issues/222), también discutida en
+  el [PR #232](https://github.com/rspeer/python-ftfy/pull/232); la regla de caja
+  que detecta mojibake de KOI8-R del issue
+  [#231](https://github.com/rspeer/python-ftfy/issues/231); y la regla específica
+  para `â` del issue [#233](https://github.com/rspeer/python-ftfy/issues/233).
+  La tabla de bytes KOI8-R es la cuarta extensión y la puerta literal `Ã ` para
+  formas portuguesas y francesas es la quinta.
 - Incorpora un motor R puro para detectar y reparar mojibake en varias
   codificaciones, inspirado en el diseño y las tablas de [ftfy
   6.3.1](https://github.com/rspeer/python-ftfy) de [Robyn
@@ -22,7 +27,8 @@
   y cubre las seis formas de bytes alterados, sin partir ni pegar palabras.
 - Conserva los espacios no separables y agrega el decodificador R puro de
   variantes UTF-8 de [ftfy](https://github.com/rspeer/python-ftfy): combina
-  pares CESU-8 y reconoce `C0 80`, con los estados y pérdidas ya declarados.
+  pares CESU-8 y reconoce `C0 80`, e incorpora la tabla de bytes KOI8-R
+  adicional, con los estados y pérdidas ya declarados.
 - Declara como quinta extensión deliberada la puerta adicional para la secuencia
   literal `Ã `, que conserva las formas portuguesas y francesas observadas en
   padrones; el decodificador de variantes rechaza secuencias que producirían un
