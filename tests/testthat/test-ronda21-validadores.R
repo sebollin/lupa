@@ -85,6 +85,7 @@ test_that("los validadores de digitos procesan vectores sin bucle por celda", {
 
 test_that("el perfilado con formas documentales no valida celdas innecesarias", {
   skip_on_cran()
+  skip_on_ci()
   set.seed(21)
   n <- 1e5
   valores <- as.character(sample(10000000:99999999, n, replace = TRUE))

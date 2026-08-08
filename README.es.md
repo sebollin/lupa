@@ -52,8 +52,15 @@ Los nombres públicos son españoles tanto en los ejemplos como en la ayuda:
 
 ## 📦 Instalación
 
-Hasta la primera publicación en CRAN, construí e instalá el paquete desde un
-clon:
+Hasta la primera publicación en CRAN, instalá la versión de desarrollo
+directamente desde GitHub:
+
+~~~r
+# install.packages("pak")
+pak::pak("sebollin/lupa")
+~~~
+
+Para un clon local o un tarball de la versión publicada, usá:
 
 ~~~sh
 R CMD build .
@@ -73,7 +80,7 @@ library(lupa)
 data(datos_operativos)
 
 perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
-perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")]
+head(perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")], 5)
 
 analisis <- analizar(datos_operativos)
 archivo <- tempfile(fileext = ".html")

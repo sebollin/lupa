@@ -52,7 +52,15 @@ The public names are Spanish in both examples and help pages:
 
 ## 📦 Installation
 
-Until the first CRAN release, build and install the package from a clone:
+Until the first CRAN release, install the development version directly from
+GitHub:
+
+~~~r
+# install.packages("pak")
+pak::pak("sebollin/lupa")
+~~~
+
+For a local clone or release tarball, use:
 
 ~~~sh
 R CMD build .
@@ -72,7 +80,7 @@ library(lupa)
 data(datos_operativos)
 
 perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
-perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")]
+head(perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")], 5)
 
 analisis <- analizar(datos_operativos)
 archivo <- tempfile(fileext = ".html")
