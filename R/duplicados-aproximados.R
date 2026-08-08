@@ -10,6 +10,14 @@
   requireNamespace("stringdist", quietly = TRUE)
 }
 
+.distancias_pares_duplicados <- function(a, b, metodo, nucleos) {
+  stringdist::stringdist(a, b, method = metodo, nthread = nucleos)
+}
+
+.matriz_distancias_duplicados <- function(a, b, metodo, nucleos) {
+  stringdist::stringdistmatrix(a, b, method = metodo, nthread = nucleos)
+}
+
 .nucleos_disponibles_lupa <- function() {
   disponibles <- tryCatch(
     parallel::detectCores(logical = TRUE),
@@ -266,17 +274,39 @@
       stringsAsFactors = FALSE
     ),
     n_hallados = 0, n_exactos = 0, n_aproximados = 0,
-    max_resultados = max_resultados, lotes = list()
+    max_resultados = max_resultados, lotes = list(),
+    iguales = logical(), lotes_iguales = list()
   )
 }
 
-.pares_acumulador_duplicados <- function(acumulador) {
+.pares_acumulador_con_igualdad <- function(acumulador) {
   if (!is.infinite(acumulador$max_resultados) ||
-      !length(acumulador$lotes)) return(acumulador$pares)
-  lotes <- c(list(acumulador$pares), acumulador$lotes)
-  lotes <- lotes[vapply(lotes, nrow, integer(1L)) > 0L]
-  if (!length(lotes)) return(acumulador$pares)
-  data.frame(
+      !length(acumulador$lotes)) {
+    return(list(
+      pares = acumulador$pares,
+      iguales = as.logical(acumulador$iguales)
+    ))
+  }
+  lotes_todos <- c(list(acumulador$pares), acumulador$lotes)
+  indices_lotes <- which(vapply(lotes_todos, nrow, integer(1L)) > 0L)
+  lotes <- lotes_todos[indices_lotes]
+  if (!length(lotes)) return(list(
+    pares = acumulador$pares, iguales = logical()
+  ))
+  iguales_lotes <- lapply(indices_lotes, function(indice) {
+    iguales <- if (indice == 1L) acumulador$iguales else {
+      lote <- indice - 1L
+      if (length(acumulador$lotes_iguales) >= lote) {
+        acumulador$lotes_iguales[[lote]]
+      } else logical()
+    }
+    if (length(iguales) != nrow(lotes_todos[[indice]])) {
+      stop("El acumulador no contiene la igualdad de los textos para cada par.",
+           call. = FALSE)
+    }
+    as.logical(iguales)
+  })
+  pares <- data.frame(
     fila_1 = as.integer(unlist(lapply(lotes, `[[`, "fila_1"),
                          use.names = FALSE)),
     fila_2 = as.integer(unlist(lapply(lotes, `[[`, "fila_2"),
@@ -285,6 +315,13 @@
                               use.names = FALSE)),
     stringsAsFactors = FALSE
   )
+  iguales <- unlist(iguales_lotes, use.names = FALSE)
+  orden <- order(pares$distancia, pares$fila_1, pares$fila_2)
+  list(pares = pares[orden, , drop = FALSE], iguales = iguales[orden])
+}
+
+.pares_acumulador_duplicados <- function(acumulador) {
+  .pares_acumulador_con_igualdad(acumulador)$pares
 }
 
 #' Acumula un lote de pares candidatos ya filtrados
@@ -296,10 +333,15 @@
 #' persistente crezca con el número de candidatos.
 #' @noRd
 .acumular_pares_duplicados <- function(
-    acumulador, fila_1, fila_2, distancia) {
+    acumulador, fila_1, fila_2, distancia, iguales = NULL) {
   if (!length(fila_1)) return(acumulador)
+  if (is.null(iguales)) {
+    stop("El lote debe entregar la igualdad de los textos para cada par.",
+         call. = FALSE)
+  }
   if (length(fila_1) != length(fila_2) ||
-      length(fila_1) != length(distancia)) {
+      length(fila_1) != length(distancia) ||
+      length(fila_1) != length(iguales)) {
     stop("El lote de pares debe tener filas y distancias de igual longitud.",
          call. = FALSE)
   }
@@ -311,26 +353,30 @@
     distancia = as.numeric(distancia[validos]),
     stringsAsFactors = FALSE
   )
+  iguales <- as.logical(iguales[validos])
+  iguales[is.na(iguales)] <- FALSE
   acumulador$n_hallados <- acumulador$n_hallados + nrow(lote)
-  acumulador$n_exactos <- acumulador$n_exactos + sum(lote$distancia == 0)
+  acumulador$n_exactos <- acumulador$n_exactos + sum(iguales)
   acumulador$n_aproximados <- acumulador$n_aproximados +
-    sum(lote$distancia > 0)
+    sum(!iguales)
   # Con `Inf` se conserva todo y ordenar cada lote vuelve cuadratica la
   # acumulacion. El orden canonico se establece una sola vez al cerrar el
   # generador; con un limite finito se mantiene el recorte incremental.
   if (is.infinite(acumulador$max_resultados)) {
     acumulador$lotes[[length(acumulador$lotes) + 1L]] <- lote
+    acumulador$lotes_iguales[[length(acumulador$lotes_iguales) + 1L]] <- iguales
     return(acumulador)
   }
   acumulador$pares <- rbind(acumulador$pares, lote)
-  acumulador$pares <- acumulador$pares[
-    order(acumulador$pares$distancia,
-          acumulador$pares$fila_1, acumulador$pares$fila_2),
-    , drop = FALSE
-  ]
+  acumulador$iguales <- c(acumulador$iguales, iguales)
+  orden <- order(acumulador$pares$distancia,
+                 acumulador$pares$fila_1, acumulador$pares$fila_2)
+  acumulador$pares <- acumulador$pares[orden, , drop = FALSE]
+  acumulador$iguales <- acumulador$iguales[orden]
   limite <- acumulador$max_resultados
   if (!is.infinite(limite) && nrow(acumulador$pares) > limite) {
     acumulador$pares <- acumulador$pares[seq_len(limite), , drop = FALSE]
+    acumulador$iguales <- acumulador$iguales[seq_len(limite)]
   }
   rownames(acumulador$pares) <- NULL
   acumulador
@@ -351,9 +397,13 @@
     acumulador <- .nuevo_acumulador_duplicados(max_resultados)
   }
   if (n < 2L) {
+    salida <- if (acumular_en_externo) {
+      list(pares = acumulador$pares, iguales = acumulador$iguales)
+    } else {
+      .pares_acumulador_con_igualdad(acumulador)
+    }
     return(list(
-      pares = if (acumular_en_externo) acumulador$pares else
-        .pares_acumulador_duplicados(acumulador),
+      pares = salida$pares, iguales = salida$iguales,
       n_hallados = acumulador$n_hallados,
       n_exactos = acumulador$n_exactos,
       n_aproximados = acumulador$n_aproximados,
@@ -368,9 +418,8 @@
     for (j in i:length(inicios)) {
       fin_j <- min(n, inicios[[j]] + bloque - 1L)
       filas_j <- inicios[[j]]:fin_j
-      matriz <- as.matrix(stringdist::stringdistmatrix(
-        valores[filas_i], valores[filas_j], method = metodo,
-        nthread = nucleos
+      matriz <- as.matrix(.matriz_distancias_duplicados(
+        valores[filas_i], valores[filas_j], metodo, nucleos
       ))
       n_bloques <- n_bloques + 1L
       candidatas <- if (i == j) {
@@ -381,31 +430,40 @@
       }
       if (!nrow(candidatas)) next
       distancias <- as.numeric(matriz[candidatas])
-      f1 <- filas[filas_i[candidatas[, 1L]]]
-      f2 <- filas[filas_j[candidatas[, 2L]]]
+      posiciones_1 <- filas_i[candidatas[, 1L]]
+      posiciones_2 <- filas_j[candidatas[, 2L]]
+      f1 <- filas[posiciones_1]
+      f2 <- filas[posiciones_2]
+      iguales <- valores[posiciones_1] == valores[posiciones_2]
       if (!is.null(bloqueos)) {
-        dentro <- bloqueos[filas_i[candidatas[, 1L]]] ==
-          bloqueos[filas_j[candidatas[, 2L]]]
+        dentro <- bloqueos[posiciones_1] == bloqueos[posiciones_2]
         f1 <- f1[dentro]
         f2 <- f2[dentro]
         distancias <- distancias[dentro]
+        iguales <- iguales[dentro]
       }
       if (!length(f1)) next
       if (!is.null(on_pairs)) on_pairs(f1, f2, distancias)
       acumulador <- .acumular_pares_duplicados(
-        acumulador, f1, f2, distancias
+        acumulador, f1, f2, distancias, iguales
       )
     }
   }
-  pares_acumulados <- if (acumular_en_externo) acumulador$pares else
-    .pares_acumulador_duplicados(acumulador)
+  acumulados <- if (acumular_en_externo) {
+    list(pares = acumulador$pares, iguales = acumulador$iguales)
+  } else {
+    .pares_acumulador_con_igualdad(acumulador)
+  }
+  pares_acumulados <- acumulados$pares
+  iguales_acumulados <- acumulados$iguales
+  orden <- order(pares_acumulados$distancia,
+                 pares_acumulados$fila_1, pares_acumulados$fila_2)
   pares_acumulados <- pares_acumulados[
-    order(pares_acumulados$distancia,
-          pares_acumulados$fila_1, pares_acumulados$fila_2),
+    orden,
     , drop = FALSE
   ]
   list(
-    pares = pares_acumulados,
+    pares = pares_acumulados, iguales = iguales_acumulados[orden],
     n_hallados = acumulador$n_hallados,
     n_exactos = acumulador$n_exactos,
     n_aproximados = acumulador$n_aproximados, n_bloques = n_bloques,
@@ -455,19 +513,20 @@
         en_j <- parcial$pares$fila_2 %in% filas[indices_j]
         al_reves <- parcial$pares$fila_1 %in% filas[indices_j] &
           parcial$pares$fila_2 %in% filas[indices_i]
-        parcial$pares <- parcial$pares[
-          (en_i & en_j) | al_reves, , drop = FALSE
-        ]
+        dentro <- (en_i & en_j) | al_reves
+        parcial$pares <- parcial$pares[dentro, , drop = FALSE]
+        parcial$iguales <- parcial$iguales[dentro]
       }
       parcial$n_hallados <- nrow(parcial$pares)
-      parcial$n_exactos <- sum(parcial$pares$distancia == 0)
-      parcial$n_aproximados <- sum(parcial$pares$distancia > 0)
+      parcial$n_exactos <- sum(parcial$iguales)
+      parcial$n_aproximados <- sum(!parcial$iguales)
       ruta <- file.path(
         directorio_lotes, sprintf("parcial-%06d.rds", parcial_id)
       )
       guardado <- list(
         version_esquema = 1L, parcial = parcial_id,
         grupo_1 = i, grupo_2 = j, pares = parcial$pares,
+        iguales = parcial$iguales,
         n_hallados = parcial$n_hallados,
         n_exactos = parcial$n_exactos,
         n_aproximados = parcial$n_aproximados,
@@ -484,7 +543,8 @@
       if (nrow(parcial_disco$pares)) {
         acumulador <- .acumular_pares_duplicados(
           acumulador, parcial_disco$pares$fila_1,
-          parcial_disco$pares$fila_2, parcial_disco$pares$distancia
+          parcial_disco$pares$fila_2, parcial_disco$pares$distancia,
+          parcial_disco$iguales
         )
       }
     }
@@ -504,7 +564,8 @@
     n_teselas * (n_teselas + 1L) / 2L
   }, numeric(1L)))
   n_bloques <- as.integer(n_bloques)
-  pares_finales <- .pares_acumulador_duplicados(acumulador)
+  acumulados <- .pares_acumulador_con_igualdad(acumulador)
+  pares_finales <- acumulados$pares
   if (nrow(pares_finales)) {
     pares_finales <- pares_finales[
       order(pares_finales$distancia,
@@ -514,7 +575,7 @@
     rownames(pares_finales) <- NULL
   }
   list(
-    pares = pares_finales,
+    pares = pares_finales, iguales = acumulados$iguales,
     n_hallados = n_hallados, n_exactos = n_exactos,
     n_aproximados = n_aproximados, n_bloques = n_bloques,
     metadata = list(
@@ -1042,8 +1103,8 @@
         if (!any(keep)) next
         p1 <- p1[keep]
         p2 <- p2[keep]
-        distancias <- stringdist::stringdist(
-          valores[p1], valores[p2], method = metodo, nthread = nucleos
+        distancias <- .distancias_pares_duplicados(
+          valores[p1], valores[p2], metodo, nucleos
         )
         pares_comparados <- pares_comparados + length(p1)
         pasan <- is.finite(distancias) & distancias <= umbral
@@ -1052,6 +1113,7 @@
           registrar_jaccard(p1[indices_pasan], p2[indices_pasan])
           filas_a <- filas[p1[indices_pasan]]
           filas_b <- filas[p2[indices_pasan]]
+          iguales <- valores[p1[indices_pasan]] == valores[p2[indices_pasan]]
           intercambiar <- filas_a > filas_b
           if (any(intercambiar)) {
             temporal <- filas_a[intercambiar]
@@ -1059,7 +1121,7 @@
             filas_b[intercambiar] <- temporal
           }
           acumulador <- .acumular_pares_duplicados(
-            acumulador, filas_a, filas_b, distancias[indices_pasan]
+            acumulador, filas_a, filas_b, distancias[indices_pasan], iguales
           )
         }
       }
@@ -1077,7 +1139,8 @@
                              names = FALSE, na.rm = TRUE)
     quant
   } else rep(NA_real_, 5L)
-  acumulador$pares <- .pares_acumulador_duplicados(acumulador)
+  acumulados <- .pares_acumulador_con_igualdad(acumulador)
+  acumulador$pares <- acumulados$pares
   acumulador$pares <- acumulador$pares[
     order(acumulador$pares$distancia,
           acumulador$pares$fila_1, acumulador$pares$fila_2),
@@ -1087,6 +1150,7 @@
   rownames(acumulador$pares) <- NULL
   list(
     pares = acumulador$pares,
+    iguales = acumulados$iguales,
     n_hallados = acumulador$n_hallados,
     n_exactos = acumulador$n_exactos,
     n_aproximados = acumulador$n_aproximados,
@@ -1538,8 +1602,10 @@
         n_bloques <- n_bloques + parcial$n_bloques
       }
       pares_bloqueados <- .pares_acumulador_duplicados(acumulador)
+      iguales_bloqueados <- .pares_acumulador_con_igualdad(acumulador)$iguales
       bloques <- list(
         pares = pares_bloqueados,
+        iguales = iguales_bloqueados,
         n_hallados = acumulador$n_hallados,
         n_exactos = acumulador$n_exactos,
         n_aproximados = acumulador$n_aproximados,
@@ -1554,11 +1620,12 @@
   mostrados <- nrow(bloques$pares)
   pares <- if (mostrados) {
     distancias <- bloques$pares$distancia
+    iguales <- as.logical(bloques$iguales)
     data.frame(
       fila_1 = bloques$pares$fila_1,
       fila_2 = bloques$pares$fila_2,
       distancia = distancias,
-      tipo_par = ifelse(distancias == 0, "exacto", "aproximado"),
+      tipo_par = ifelse(iguales, "exacto", "aproximado"),
       metodo = metodo, umbral = umbral,
       evidencia_1 = .evidencia_filas_aproximada(
         datos, columnas, bloques$pares$fila_1, protegidas
@@ -1701,8 +1768,11 @@
 #' conservador que `0.15`, que sobre cadenas cortas y estructuradas produce
 #' demasiados pares. Ambos argumentos se pueden cambiar.
 #'
-#' Los pares con distancia cero se incluyen como `tipo_par = "exacto"`; los
-#' restantes son `"aproximado"`. Ninguno demuestra identidad.
+#' Los pares cuyos textos comparados son iguales despues de la normalizacion se
+#' incluyen como `tipo_par = "exacto"`; los restantes son `"aproximado"`.
+#' La clasificacion no depende de que una medida de distancia devuelva cero:
+#' por ejemplo, `soundex` puede dar distancia cero para textos distintos.
+#' Ningun par demuestra identidad.
 #'
 #' La comparacion usa teselas de `bloque` filas: cada matriz temporal se
 #' descarta antes de continuar, por lo que la memoria no crece con el tamaño

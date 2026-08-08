@@ -2,6 +2,12 @@
 
 ## Reparación de texto y licencia
 
+- Clasifica los duplicados exactos comparando los textos que realmente entran a
+  la medida, después de normalizarlos, y no mediante igualdad exacta de un
+  flotante. Esto hace el resultado independiente de la arquitectura y mantiene
+  como `aproximado` un par de textos distintos aunque `soundex` devuelva
+  distancia cero.
+
 - Cierra el motor de reparación de texto: `decode_inconsistent_utf8` trabaja
   por subcadenas con el detector de [ftfy 6.3.1](https://github.com/rspeer/python-ftfy),
   conserva los estados parciales con U+FFFD y agrega tres extensiones

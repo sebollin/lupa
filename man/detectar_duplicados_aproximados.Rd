@@ -147,8 +147,11 @@ conservador que \code{0.15}, que sobre cadenas cortas y estructuradas produce
 demasiados pares. Ambos argumentos se pueden cambiar.
 }
 \details{
-Los pares con distancia cero se incluyen como \code{tipo_par = "exacto"}; los
-restantes son \code{"aproximado"}. Ninguno demuestra identidad.
+Los pares cuyos textos comparados son iguales despues de la normalizacion se
+incluyen como \code{tipo_par = "exacto"}; los restantes son \code{"aproximado"}.
+La clasificacion no depende de que una medida de distancia devuelva cero:
+por ejemplo, \code{soundex} puede dar distancia cero para textos distintos.
+Ningun par demuestra identidad.
 
 La comparacion usa teselas de \code{bloque} filas: cada matriz temporal se
 descarta antes de continuar, por lo que la memoria no crece con el tamaño
