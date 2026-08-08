@@ -293,10 +293,54 @@ hasta que el texto deja de parecer mojibake. El resultado queda marcado como
 <code>reparado</code>, <code>reparado_parcialmente</code> o
 <code>no_se_pudo</code>; las reparaciones parciales nunca se aplican en silencio.
 Las reglas completas de detección y los transcodificadores a nivel de bytes
-están congelados desde ftfy 6.3.1; los bytes realmente perdidos quedan visibles
-como U+FFFD, nunca como un carácter de control invisible.
+están congelados desde [ftfy](https://github.com/rspeer/python-ftfy) 6.3.1; los
+bytes realmente perdidos quedan visibles como U+FFFD, nunca como un carácter de
+control invisible.
 El nombre histórico <code>reparar_codificacion_latin1</code> sigue aceptándose
 para planes guardados.
+
+El motor congela once tablas de bytes: las diez usadas por [ftfy
+6.3.1](https://github.com/rspeer/python-ftfy) más KOI8-R, incorporada a partir
+del [issue #231](https://github.com/rspeer/python-ftfy/issues/231). Su
+decodificador de variantes UTF-8 en R puro maneja CESU-8 y el <code>C0
+80</code> de Java, lo que permite reparar mojibake de emoji; cuando esa
+secuencia produciría U+0000, que R no puede representar de forma segura en una
+cadena, la reparación se rechaza en vez de perder un carácter en silencio.
+Contra el [corpus distribuido de ftfy](https://github.com/rspeer/python-ftfy) de
+161 casos, reproduce 159 y deja intactos los 31 casos negativos; los dos
+restantes son la mezcla de Windows-1250 del [issue
+#18](https://github.com/rspeer/python-ftfy/issues/18) y una falla que el propio
+[ftfy](https://github.com/rspeer/python-ftfy) reconoce.
+
+Hay cinco extensiones deliberadas y documentadas: la regla de moneda del
+[issue #222](https://github.com/rspeer/python-ftfy/issues/222), la detección de
+KOI8-R del [issue #231](https://github.com/rspeer/python-ftfy/issues/231), los
+símbolos de bloque U+2000 del [issue
+#233](https://github.com/rspeer/python-ftfy/issues/233), la tabla adicional de
+KOI8-R (también propuesta en el [PR
+#234](https://github.com/rspeer/python-ftfy/pull/234)) y una puerta literal
+<code>Ã </code> para formas portuguesas y francesas (tratada en el [PR
+#232](https://github.com/rspeer/python-ftfy/pull/232)).
+
+El port cubre deliberadamente sólo <code>fix_encoding</code> y sus
+transcodificadores de bytes —<code>restore_byte_a0</code>,
+<code>replace_lossy_sequences</code>, <code>decode_inconsistent_utf8</code> y
+<code>fix_c1_controls</code>—. No ejecuta los otros nueve pasos de
+<code>fix_text</code>: <code>unescape_html</code>,
+<code>remove_terminal_escapes</code>, <code>fix_latin_ligatures</code>,
+<code>fix_character_width</code>, <code>uncurl_quotes</code>,
+<code>fix_line_breaks</code>, <code>fix_surrogates</code>,
+<code>remove_control_chars</code> ni <code>normalization</code>. Son decisiones
+de estilo que deben pedirse explícitamente: cambiar datos legítimos en silencio
+no es reparar.
+
+El port también volvió al proyecto original por [Sebastián
+Lucas](https://github.com/sebollin): el [PR
+#234](https://github.com/rspeer/python-ftfy/pull/234), para KOI8-R, y el [PR
+#235](https://github.com/rspeer/python-ftfy/pull/235), para símbolos de bloque de
+Windows-1252, están abiertos y no fusionados. También comentó en el [issue
+#231](https://github.com/rspeer/python-ftfy/issues/231) y en el [PR
+#232](https://github.com/rspeer/python-ftfy/pull/232).
 
 ~~~r
 datos <- data.frame(nombre = c("PaysandÃº", "texto \ufffd"),
