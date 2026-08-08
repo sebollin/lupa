@@ -30,7 +30,8 @@ test_that("el motor reproduce la batería de ftfy y conserva texto legítimo", {
 
 test_that("los transcodificadores de texto cubren casos parciales y C1", {
   expect_equal(.ftfy_reparar_uno("voilÃ le travail")$texto, "voilà le travail")
-  expect_equal(.ftfy_reparar_uno("MontevideoÂ 11000")$texto, "Montevideo 11000")
+  expect_equal(.ftfy_reparar_uno("MontevideoÂ 11000")$texto,
+               "Montevideo\u00a011000")
   expect_equal(.ftfy_reparar_uno("El barrio de Ã‘uÃ±oa")$texto,
                "El barrio de Ñuñoa")
   expect_equal(.ftfy_reparar_uno("Costo\u009339.000")$texto,
@@ -140,7 +141,7 @@ test_that("el corpus de ftfy conserva positivos y negativos", {
     c(70L, 31L, 30L, 20L, 10L)
   )
   estados <- vapply(casos, `[[`, character(1L), "status")
-  expect_equal(sum(estados == "xfail"), 7L)
+  expect_equal(sum(estados == "xfail"), 2L)
   expect_true(all(vapply(casos[estados == "xfail"], function(x) {
     is.character(x$reason) && length(x$reason) == 1L && nzchar(x$reason)
   }, logical(1L))))
@@ -148,7 +149,24 @@ test_that("el corpus de ftfy conserva positivos y negativos", {
     identical(.ftfy_reparar_uno(caso$original)$texto, caso$expected)
   }, logical(1L))
   expect_true(all(aciertos[estados == "pass"]))
-  expect_equal(sum(aciertos), 154L)
+  expect_equal(sum(aciertos), 159L)
+})
+
+test_that("utf8-variants decodifica CESU-8 y C0 80", {
+  skip_if_not_installed("jsonlite")
+  fixture <- jsonlite::fromJSON(
+    testthat::test_path("fixtures", "ftfy-cesu8-6.3.1.json"),
+    simplifyVector = FALSE
+  )
+  for (caso in fixture$cases) {
+    bytes <- as.raw(as.integer(caso$bytes))
+    esperado <- as.integer(unlist(caso$expected, use.names = FALSE))
+    puntos <- .ftfy_desde_utf8_variantes(bytes)
+    expect_identical(as.integer(puntos), esperado)
+    if (!any(esperado == 0L)) {
+      expect_identical(utf8ToInt(.ftfy_desde_utf8(bytes)), esperado)
+    }
+  }
 })
 
 test_that("restore_byte_a0 coincide con las dos expresiones de ftfy", {

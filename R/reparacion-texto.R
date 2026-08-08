@@ -185,10 +185,117 @@ names(.ftfy_tablas_bytes) <- c(
   as.raw(bytes)
 }
 .ftfy_desde_utf8 <- function(bytes) {
-  if (is.null(bytes) || any(bytes == as.raw(0L))) return(NULL)
+  if (is.null(bytes) || !length(bytes)) return(NULL)
+  valores <- as.integer(bytes)
+  if (any(valores %in% c(0xedL, 0xc0L))) {
+    puntos <- .ftfy_desde_utf8_variantes(bytes)
+    if (!is.null(puntos)) {
+      # R no puede almacenar un NUL embebido en un CHARSXP. El decodificador
+      # conserva el punto U+0000 en `puntos` para que la transformación sea
+      # comprobable; al materializar el texto, intToUtf8 omite ese único NUL.
+      return(intToUtf8(puntos))
+    }
+  }
+  if (any(bytes == as.raw(0L))) return(NULL)
   texto <- rawToChar(bytes)
   Encoding(texto) <- "UTF-8"
   if (validUTF8(texto)) texto else NULL
+}
+.ftfy_desde_utf8_variantes <- function(bytes) {
+  valores <- as.integer(bytes)
+  n <- length(valores)
+  if (!n) return(integer())
+  continuacion <- function(x) x >= 0x80L && x <= 0xbfL
+  puntos <- integer()
+  i <- 1L
+  while (i <= n) {
+    b <- valores[[i]]
+    if (b == 0xc0L && i < n && valores[[i + 1L]] == 0x80L) {
+      puntos <- c(puntos, 0L)
+      i <- i + 2L
+      next
+    }
+    if (b == 0xedL && i + 5L <= n &&
+        valores[[i + 1L]] %in% 0xa0L:0xafL &&
+        continuacion(valores[[i + 2L]]) &&
+        valores[[i + 3L]] == 0xedL &&
+        valores[[i + 4L]] %in% 0xb0L:0xbfL &&
+        continuacion(valores[[i + 5L]])) {
+      alto <- 0xd800L + (valores[[i + 1L]] - 0xa0L) * 0x40L +
+        (valores[[i + 2L]] - 0x80L)
+      bajo <- 0xdc00L + (valores[[i + 4L]] - 0xb0L) * 0x40L +
+        (valores[[i + 5L]] - 0x80L)
+      puntos <- c(puntos, 0x10000L + (alto - 0xd800L) * 0x400L +
+                    (bajo - 0xdc00L))
+      i <- i + 6L
+      next
+    }
+    if (b <= 0x7fL) {
+      puntos <- c(puntos, b)
+      i <- i + 1L
+      next
+    }
+    if (b %in% 0xc2L:0xdfL && i < n && continuacion(valores[[i + 1L]])) {
+      puntos <- c(puntos, (b - 0xc0L) * 0x40L +
+                    valores[[i + 1L]] - 0x80L)
+      i <- i + 2L
+      next
+    }
+    if (b == 0xe0L && i + 2L <= n && valores[[i + 1L]] %in% 0xa0L:0xbfL &&
+        continuacion(valores[[i + 2L]])) {
+      puntos <- c(puntos, (b - 0xe0L) * 0x1000L +
+                    (valores[[i + 1L]] - 0x80L) * 0x40L +
+                    valores[[i + 2L]] - 0x80L)
+      i <- i + 3L
+      next
+    }
+    if (b %in% c(0xe1L:0xecL, 0xeeL:0xefL) && i + 2L <= n &&
+        continuacion(valores[[i + 1L]]) && continuacion(valores[[i + 2L]])) {
+      puntos <- c(puntos, (b - 0xe0L) * 0x1000L +
+                    (valores[[i + 1L]] - 0x80L) * 0x40L +
+                    valores[[i + 2L]] - 0x80L)
+      i <- i + 3L
+      next
+    }
+    if (b == 0xedL && i + 2L <= n && valores[[i + 1L]] %in% 0x80L:0x9fL &&
+        continuacion(valores[[i + 2L]])) {
+      puntos <- c(puntos, (b - 0xe0L) * 0x1000L +
+                    (valores[[i + 1L]] - 0x80L) * 0x40L +
+                    valores[[i + 2L]] - 0x80L)
+      i <- i + 3L
+      next
+    }
+    if (b == 0xf0L && i + 3L <= n && valores[[i + 1L]] %in% 0x90L:0xbfL &&
+        continuacion(valores[[i + 2L]]) && continuacion(valores[[i + 3L]])) {
+      puntos <- c(puntos, (b - 0xf0L) * 0x40000L +
+                    (valores[[i + 1L]] - 0x80L) * 0x1000L +
+                    (valores[[i + 2L]] - 0x80L) * 0x40L +
+                    valores[[i + 3L]] - 0x80L)
+      i <- i + 4L
+      next
+    }
+    if (b %in% 0xf1L:0xf3L && i + 3L <= n &&
+        continuacion(valores[[i + 1L]]) && continuacion(valores[[i + 2L]]) &&
+        continuacion(valores[[i + 3L]])) {
+      puntos <- c(puntos, (b - 0xf0L) * 0x40000L +
+                    (valores[[i + 1L]] - 0x80L) * 0x1000L +
+                    (valores[[i + 2L]] - 0x80L) * 0x40L +
+                    valores[[i + 3L]] - 0x80L)
+      i <- i + 4L
+      next
+    }
+    if (b == 0xf4L && i + 3L <= n && valores[[i + 1L]] %in% 0x80L:0x8fL &&
+        continuacion(valores[[i + 2L]]) && continuacion(valores[[i + 3L]])) {
+      puntos <- c(puntos, (b - 0xf0L) * 0x40000L +
+                    (valores[[i + 1L]] - 0x80L) * 0x1000L +
+                    (valores[[i + 2L]] - 0x80L) * 0x40L +
+                    valores[[i + 3L]] - 0x80L)
+      i <- i + 4L
+      next
+    }
+    return(NULL)
+  }
+  puntos
 }
 .ftfy_altered_utf8_pattern <- paste0(
   "[\\xc2\\xc3\\xc5\\xce\\xd0\\xd9][ ]",
@@ -287,7 +394,6 @@ names(.ftfy_tablas_bytes) <- c(
   cps[indices] <- tabla[cps[indices] - 127L]
   intToUtf8(cps)
 }
-.ftfy_normalizar_nbsp <- function(texto) sub("\u00a0", " ", texto, fixed = TRUE)
 .ftfy_decode_inconsistent_utf8 <- function(texto, usar_extensiones = TRUE) {
   # UTF8_DETECTOR_RE encuentra subcadenas de mojibake, no corridas completas
   # de no-ASCII. Cada subcadena se repara recursivamente sólo si es más corta
@@ -427,12 +533,6 @@ names(.ftfy_tablas_bytes) <- c(
     }
     salida <- .ftfy_desde_utf8(bytes)
     if (!is.null(salida)) {
-      # La secuencia perdida ya fue sustituida por U+FFFD: en ese camino
-      # conservamos tambien los NBSP que ftfy deja en el texto reparado.
-      if (nombre != "macroman" &&
-          !("replace_lossy_sequences" %in% pasos_transcodificacion)) {
-        salida <- .ftfy_normalizar_nbsp(salida)
-      }
       if (!identical(salida, texto)) {
         sufijo <- paste(c(paste0("encode:", nombre), pasos_transcodificacion,
                           "decode:utf-8"), collapse = ";")

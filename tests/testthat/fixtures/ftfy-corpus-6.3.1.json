@@ -53,8 +53,7 @@
     "label": "CESU-8 / Windows-1252 emoji",
     "original": "Hi guys í ½í¸",
     "expected": "Hi guys 😍",
-    "status": "xfail",
-    "reason": "CESU-8 y emoji: el motor estricto no decodifica pares sustitutos."
+    "status": "pass"
   },
   {
     "suite": "in-the-wild",
@@ -62,8 +61,7 @@
     "label": "CESU-8 / Latin-1 emoji",
     "original": "hihi RT username: âºí ½í¸",
     "expected": "hihi RT username: ☺😘",
-    "status": "xfail",
-    "reason": "CESU-8 y emoji: el motor estricto no decodifica pares sustitutos."
+    "status": "pass"
   },
   {
     "suite": "in-the-wild",
@@ -216,8 +214,7 @@
     "label": "The same text as above, but as a UTF-8 / ISO-8859-2 mixup",
     "original": "It was namedÂ âscarsÂ´ stonesâ after the rock-climbers who got hurt while climbing on it.",
     "expected": "It was named „scars´ stones“ after the rock-climbers who got hurt while climbing on it.",
-    "status": "xfail",
-    "reason": "Mezcla de codificaciones de un byte (ISO-8859-2); pendiente del issue #18 de ftfy."
+    "status": "pass"
   },
   {
     "suite": "in-the-wild",
@@ -305,8 +302,7 @@
     "label": "CESU-8 / Latin-1 mixup over several emoji",
     "original": "I just figured out how to tweet emojis! â½í ½í¸í ½í¸í ½í¸í ½í¸í ½í¸í ½í¸í ½í¸í ½í¸",
     "expected": "I just figured out how to tweet emojis! ⚽😀😁😂😆😎😎😎😎",
-    "status": "xfail",
-    "reason": "CESU-8 y emoji: el motor estricto no decodifica pares sustitutos."
+    "status": "pass"
   },
   {
     "suite": "in-the-wild",
@@ -1291,7 +1287,6 @@
     "label": "Synthetic, false positive: the title of a manga, in weird capitalized romaji, with a non-breaking space",
     "original": "MISUTÂ AJIKKO",
     "expected": "MISUT AJIKKO",
-    "status": "xfail",
-    "reason": "Falla conocida: conserva de forma distinta el espacio no separable."
+    "status": "pass"
   }
 ]
