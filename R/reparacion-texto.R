@@ -189,10 +189,10 @@ names(.ftfy_tablas_bytes) <- c(
   valores <- as.integer(bytes)
   if (any(valores %in% c(0xedL, 0xc0L))) {
     puntos <- .ftfy_desde_utf8_variantes(bytes)
-    if (!is.null(puntos)) {
-      # R no puede almacenar un NUL embebido en un CHARSXP. El decodificador
-      # conserva el punto U+0000 en `puntos` para que la transformación sea
-      # comprobable; al materializar el texto, intToUtf8 omite ese único NUL.
+    # R no puede materializar U+0000 dentro de una cadena.  No aceptar una
+    # decodificación que lo contenga: intToUtf8() lo omitiría y la reparación
+    # perdería un carácter del dato de entrada.
+    if (!is.null(puntos) && !any(puntos == 0L)) {
       return(intToUtf8(puntos))
     }
   }
@@ -534,8 +534,13 @@ names(.ftfy_tablas_bytes) <- c(
     salida <- .ftfy_desde_utf8(bytes)
     if (!is.null(salida)) {
       if (!identical(salida, texto)) {
+        decodificador <- if (any(as.integer(bytes) %in% c(0xedL, 0xc0L))) {
+          "decode:utf-8-variants"
+        } else {
+          "decode:utf-8"
+        }
         sufijo <- paste(c(paste0("encode:", nombre), pasos_transcodificacion,
-                          "decode:utf-8"), collapse = ";")
+                          decodificador), collapse = ";")
         return(list(texto = salida, paso = sufijo))
       }
     }

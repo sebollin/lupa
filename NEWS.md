@@ -23,6 +23,10 @@
 - Conserva los espacios no separables y agrega el decodificador R puro de
   variantes UTF-8 de [ftfy](https://github.com/rspeer/python-ftfy): combina
   pares CESU-8 y reconoce `C0 80`, con los estados y pérdidas ya declarados.
+- Declara como quinta extensión deliberada la puerta adicional para la secuencia
+  literal `Ã `, que conserva las formas portuguesas y francesas observadas en
+  padrones; el decodificador de variantes rechaza secuencias que producirían un
+  NUL, en vez de omitir un carácter al materializar el texto.
 - La licencia del paquete pasa de `GPL-2 | GPL-3` a `GPL-3`; las partes
   derivadas del diseño de [ftfy](https://github.com/rspeer/python-ftfy) se
   atribuyen en `LICENSE.note` bajo Apache-2.0.

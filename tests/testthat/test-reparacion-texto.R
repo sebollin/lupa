@@ -159,6 +159,7 @@ test_that("utf8-variants decodifica CESU-8 y C0 80", {
     simplifyVector = FALSE
   )
   for (caso in fixture$cases) {
+    if (!identical(caso$estado, "acepta")) next
     bytes <- as.raw(as.integer(caso$bytes))
     esperado <- as.integer(unlist(caso$expected, use.names = FALSE))
     puntos <- .ftfy_desde_utf8_variantes(bytes)
@@ -167,6 +168,70 @@ test_that("utf8-variants decodifica CESU-8 y C0 80", {
       expect_identical(utf8ToInt(.ftfy_desde_utf8(bytes)), esperado)
     }
   }
+  expect_null(.ftfy_desde_utf8(as.raw(c(0xc0L, 0x80L))))
+})
+
+test_that("utf8-variants rechaza secuencias que no puede decodificar", {
+  skip_if_not_installed("jsonlite")
+  fixture <- jsonlite::fromJSON(
+    testthat::test_path("fixtures", "ftfy-cesu8-6.3.1.json"),
+    simplifyVector = FALSE
+  )
+  for (caso in fixture$cases) {
+    bytes <- as.raw(as.integer(caso$bytes))
+    puntos <- .ftfy_desde_utf8_variantes(bytes)
+    if (identical(caso$estado, "rechaza")) {
+      expect_null(puntos, info = caso$label)
+    } else if (identical(caso$estado, "divergencia_deliberada")) {
+      expect_null(puntos, info = caso$label)
+      expect_true(nzchar(caso$motivo))
+      expect_true(length(caso$ftfy_expected) > 0L)
+    }
+  }
+})
+
+test_that("una tabla con C0 80 no borra caracteres por la API pública", {
+  datos <- data.frame(nombre = "Nombre: JosÃ© À€",
+                      stringsAsFactors = FALSE)
+  perfil <- perfilar(datos)
+  plan <- planificar_limpieza(perfil)
+  accion <- plan[plan$hallazgo == "codificacion_rota", , drop = FALSE]
+  expect_equal(as.character(accion$estado_reparacion[[1L]]),
+               "reparado_parcialmente")
+  expect_false(isTRUE(accion$aplicar[[1L]]))
+  salida <- aplicar(plan, datos)$datos
+  expect_identical(salida$nombre[[1L]], datos$nombre[[1L]])
+  expect_false(any(grepl("reparado$", as.character(accion$estado_reparacion))))
+})
+
+test_that("los pasos declaran el decodificador de variantes UTF-8", {
+  caso <- .ftfy_reparar_uno("Hi guys í\u00a0½í\u00b8\u008d")
+  expect_identical(caso$texto, "Hi guys 😍")
+  expect_identical(caso$pasos,
+                   "encode:latin-1;decode:utf-8-variants")
+})
+
+test_that("la puerta literal de Ã declara sus formas de padrón", {
+  casos <- c(
+    "Ã quele" = "àquele",
+    "Ã quela" = "àquela",
+    "Ã quilo" = "àquilo",
+    "Ã s crianÃ§as" = "às crianças",
+    "fÃ cil" = "fà cil",
+    "jusqu'Ã nos jours" = "jusqu'Ã nos jours",
+    "jusqu'Ã  nos jours" = "jusqu'Ã  nos jours",
+    "com especial atenÃ§Ã£o Ã s crianÃ§as" =
+      "com especial atenção às crianças",
+    "Ã quele observado" = "àquele observado",
+    "Ã quela pessoa" = "àquela pessoa",
+    "Ã quilo custa" = "àquilo custa",
+    "Ã l’utilisation" = "à l’utilisation",
+    "Ã s'Ã©loigner" = "à s'éloigner",
+    "C O N C L U S Ã O" = "C O N C L U S Ã O"
+  )
+  salidas <- vapply(names(casos), function(x) .ftfy_reparar_uno(x)$texto,
+                    character(1L), USE.NAMES = FALSE)
+  expect_identical(unname(salidas), unname(casos))
 })
 
 test_that("restore_byte_a0 coincide con las dos expresiones de ftfy", {
