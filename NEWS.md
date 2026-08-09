@@ -2,6 +2,10 @@
 
 ## Reparación de texto y licencia
 
+- Declara `cli (>= 3.0.0)`. El motor usa la interfaz de barras de progreso
+  (`cli_progress_bar()` y sus compañeras), que existe recién desde esa
+  versión; antes el requisito estaba supuesto y no escrito.
+
 - Clasifica los duplicados exactos comparando los textos que realmente entran a
   la medida, después de normalizarlos, y no mediante igualdad exacta de un
   flotante. Esto hace el resultado independiente de la arquitectura y mantiene

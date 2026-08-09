@@ -38,7 +38,7 @@ Roxygen: list(markdown = TRUE)
 Depends:
     R (>= 3.6.0)
 Imports:
-    cli
+    cli (>= 3.0.0)
 Suggests:
     bit64,
     covr,
