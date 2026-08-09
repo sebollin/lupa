@@ -58,8 +58,7 @@ test_that("los números regionales seguros se convierten y los ambiguos no", {
     perfilar(seguro, analizar_dependencias = FALSE), seguro
   )
   acciones <- plan[plan$estrategia == "convertir_numero_regional", ]
-  expect_false(any(acciones$recomendada | acciones$aplicar))
-  plan$aplicar[plan$estrategia == "convertir_numero_regional"] <- TRUE
+  expect_true(all(acciones$recomendada & acciones$aplicar))
   limpio <- aplicar(plan, seguro)$datos
   expect_equal(limpio$importe, c(1234.56, 2000))
   expect_equal(limpio$porcentaje, c(0.45, 0.2))
@@ -112,10 +111,8 @@ test_that("los números reconocen convención decimal y moneda de otros países"
     plan$columna == "usd" & plan$estrategia == "convertir_numero_regional", ]
   eur <- plan[
     plan$columna == "eur" & plan$estrategia == "convertir_numero_regional", ]
-  expect_false(usd$recomendada[[1L]])
-  expect_false(eur$recomendada[[1L]])
-  usd$aplicar <- TRUE
-  eur$aplicar <- TRUE
+  expect_true(usd$recomendada[[1L]])
+  expect_true(eur$recomendada[[1L]])
   limpio <- aplicar(rbind(usd, eur), datos)$datos
   expect_equal(limpio$usd, c(1234.56, 2000))
   expect_equal(limpio$eur, c(1234.56, 2000))

@@ -45,7 +45,7 @@ de vectores con nombre.
 }
 \examples{
 datos <- data.frame(zona = c("Norte", "NORTE", "sur"))
-plan <- planificar_limpieza(perfilar(datos))
+plan <- planificar_limpieza(perfilar(datos), datos)
 guiado <- guiar_limpieza(plan, datos)
 identical(plan, guiado) # TRUE en una sesión no interactiva
 }

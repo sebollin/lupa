@@ -154,21 +154,70 @@
       ), error = conditionMessage(convertido)
     ))
   }
-  comparacion <- .comparar_representacion_conversion(x, convertido)
-  justificacion <- if (comparacion$reversible) {
-    "La conversi\u00f3n y su representaci\u00f3n inversa reproducen todos los valores."
+  evaluacion <- .evaluar_conversion(x, convertido, estrategia, parametros)
+  riesgos <- character()
+  if (evaluacion$n_ceros_iniciales) {
+    riesgos <- c(
+      riesgos,
+      paste0(evaluacion$n_ceros_iniciales,
+             " valores tienen cero inicial y se conserva su identidad textual")
+    )
+  }
+  if (!evaluacion$inyectiva) {
+    riesgos <- c(
+      riesgos,
+      paste0(evaluacion$n_colisionados,
+             " valores participan en una conversi\u00f3n no inyectiva")
+    )
+  }
+  justificacion <- if (evaluacion$reversible) {
+    "La conversi\u00f3n es ejecutable e inyectiva sobre todos los valores presentes."
   } else {
     paste0(
-      "La conversi\u00f3n cambia la representaci\u00f3n textual de ",
-      comparacion$n_no_reversibles,
-      " valores; se declara destructiva y no se recomienda autom\u00e1ticamente."
+      paste(riesgos, collapse = "; "),
+      ". Se declara destructiva y no se recomienda autom\u00e1ticamente."
     )
   }
   list(
     verificable = TRUE, ejecutable = TRUE,
-    reversible = comparacion$reversible,
-    n_no_reversibles = comparacion$n_no_reversibles,
+    reversible = evaluacion$reversible,
+    n_no_reversibles = evaluacion$n_no_reversibles,
     justificacion = justificacion, error = NULL
+  )
+}
+
+.evaluar_conversion <- function(original, convertido, estrategia, parametros) {
+  antes <- .texto_representacion_conversion(original)
+  despues <- .texto_representacion_conversion(convertido)
+  presentes <- !is.na(antes) & nzchar(trimws(antes)) & !is.na(despues)
+  colisionados <- rep(FALSE, length(antes))
+  if (any(presentes)) {
+    pares <- unique(data.frame(
+      original = antes[presentes], convertido = despues[presentes],
+      stringsAsFactors = FALSE
+    ))
+    por_valor <- split(pares$original, pares$convertido)
+    repetidos <- unique(unlist(por_valor[lengths(por_valor) > 1L],
+                               use.names = FALSE))
+    colisionados <- presentes & antes %in% repetidos
+  }
+  destino <- if (identical(estrategia, "convertir_numero_regional")) {
+    "numerico"
+  } else {
+    parametros$tipo
+  }
+  numerico <- destino %in% c("numerico", "entero", "doble")
+  ceros <- rep(FALSE, length(antes))
+  if (numerico) {
+    ceros <- !is.na(antes) & grepl("^0[0-9]", trimws(antes), perl = TRUE)
+  }
+  riesgos <- colisionados | ceros
+  list(
+    inyectiva = !any(colisionados),
+    reversible = !any(riesgos),
+    n_no_reversibles = as.integer(sum(riesgos)),
+    n_ceros_iniciales = as.integer(sum(ceros)),
+    n_colisionados = as.integer(sum(colisionados))
   )
 }
 
@@ -200,13 +249,15 @@
 #' `estado` distingue acciones `lista`, `bloqueada` e `informativa`; `orden`
 #' fija la secuencia reproducible. `n_afectadas` es la estimación del perfil y
 #' el registro informa `n_cambiadas` sobre los datos recibidos. `reversible`
-#' indica si el resultado puede deshacerse sólo con los datos transformados.
-#' Las conversiones de tipo, número regional y fecha sólo se recomiendan cuando
-#' se comprueban sobre todos los valores de `datos` y la representación textual
-#' vuelve a ser idéntica valor por valor. Sin `datos` no se puede hacer esa
-#' comprobación y la acción queda bloqueada. Cuando no es reversible se marca
-#' `destructiva`, no se activa por defecto y el registro conserva
-#' `n_no_reversibles` y la justificación de la decisión.
+#' indica si la conversión conserva la identidad de cada valor. Las
+#' conversiones se comprueban sobre todos los valores de `datos`: las numéricas
+#' bloquean ceros iniciales y colisiones no inyectivas, mientras que fechas,
+#' fechas-hora y lógicos sólo bloquean conversiones no ejecutables o no
+#' inyectivas. Las fechas pueden cambiar a la representación canónica del tipo
+#' sin que eso sea una pérdida. Sin `datos` no se puede hacer la comprobación y
+#' la acción queda bloqueada. Cuando no es reversible se marca `destructiva`, no
+#' se activa por defecto y el registro conserva `n_no_reversibles` y la
+#' justificación de la decisión.
 #' La acción de codificación prueba las tablas congeladas de varias
 #' codificaciones y deja en `estado_reparacion` uno de `reparado`,
 #' `reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se activa
@@ -275,7 +326,7 @@
 #' @examples
 #' datos <- data.frame(categoria = c(" A", "S/D", "B"))
 #' perfil <- perfilar(datos)
-#' plan <- planificar_limpieza(perfil)
+#' plan <- planificar_limpieza(perfil, datos)
 #' plan[, c("grupo", "estrategia", "recomendada", "aplicar")]
 #' resultado <- aplicar(plan, datos)
 #' resultado$datos
@@ -504,9 +555,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
           comprobacion_fecha$justificacion
         }, fila$n[[1L]] - fila$n_faltantes[[1L]],
         comprobacion_fecha$reversible,
-        estado = if (seguro && comprobacion_fecha$verificable) estado else {
-          if (seguro) "bloqueada" else estado
-        },
+        estado = if (conversion_fecha_segura) estado else "bloqueada",
         aplicar = conversion_fecha_segura && identical(estado, "lista"),
         parametros = c(parametros_fecha, list(
           reversibilidad_comprobada = comprobacion_fecha$verificable,
@@ -541,17 +590,11 @@ planificar_limpieza <- function(perfil, datos = NULL,
         !.accion_columna_ambigua(perfil, columna)
       recomendar <- base_tipo_seguro &&
         isTRUE(comprobacion_tipo$reversible)
-      estado <- if (base_tipo_seguro && comprobacion_tipo$verificable) {
-        estado_columna
-      } else if (base_tipo_seguro) {
-        "bloqueada"
-      } else {
-        "bloqueada"
-      }
+      estado <- if (recomendar) estado_columna else "bloqueada"
       justificacion <- if (recomendar) {
         paste0(
           "Todos los valores presentes son compatibles con el tipo inferido y ",
-          "la conversi\u00f3n conserva su representaci\u00f3n textual."
+          "la conversi\u00f3n es ejecutable e inyectiva."
         )
       } else if (base_tipo_seguro) {
         comprobacion_tipo$justificacion
@@ -1544,9 +1587,11 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (identical(estrategia, "convertir_numero_regional")) {
     cambio <- .convertir_numero_regional(x, parametros)
     datos[[indice]] <- cambio$valor
-    comparacion <- .comparar_representacion_conversion(x, cambio$valor)
+    evaluacion <- .evaluar_conversion(
+      x, cambio$valor, estrategia, parametros
+    )
     return(list(datos = datos, n = cambio$n,
-                n_no_reversibles = comparacion$n_no_reversibles))
+                n_no_reversibles = evaluacion$n_no_reversibles))
   }
   if (identical(estrategia, "marcar_filas_ausentes")) {
     marca <- is.na(x)
@@ -1565,16 +1610,20 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (identical(estrategia, "convertir_fecha_confirmada")) {
     convertido <- .convertir_fecha(x, parametros)
     datos[[indice]] <- convertido
-    comparacion <- .comparar_representacion_conversion(x, convertido)
+    evaluacion <- .evaluar_conversion(
+      x, convertido, estrategia, parametros
+    )
     return(list(datos = datos, n = sum(!is.na(x)),
-                n_no_reversibles = comparacion$n_no_reversibles))
+                n_no_reversibles = evaluacion$n_no_reversibles))
   }
   if (identical(estrategia, "convertir_tipo")) {
     convertido <- .convertir_tipo(x, parametros)
     datos[[indice]] <- convertido
-    comparacion <- .comparar_representacion_conversion(x, convertido)
+    evaluacion <- .evaluar_conversion(
+      x, convertido, estrategia, parametros
+    )
     return(list(datos = datos, n = sum(!is.na(x)),
-                n_no_reversibles = comparacion$n_no_reversibles))
+                n_no_reversibles = evaluacion$n_no_reversibles))
   }
   if (identical(estrategia, "marcar_outliers")) {
     marca <- .marca_outliers(x)
@@ -1844,7 +1893,7 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
 #'
 #' @examples
 #' datos <- data.frame(zona = c("Norte", "NORTE", "sur"))
-#' plan <- planificar_limpieza(perfilar(datos))
+#' plan <- planificar_limpieza(perfilar(datos), datos)
 #' guiado <- guiar_limpieza(plan, datos)
 #' identical(plan, guiado) # TRUE en una sesión no interactiva
 guiar_limpieza <- function(plan, datos, selector = NULL,

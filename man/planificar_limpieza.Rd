@@ -66,13 +66,15 @@ revisado de una omisión deliberada.
 \code{estado} distingue acciones \code{lista}, \code{bloqueada} e \code{informativa}; \code{orden}
 fija la secuencia reproducible. \code{n_afectadas} es la estimación del perfil y
 el registro informa \code{n_cambiadas} sobre los datos recibidos. \code{reversible}
-indica si el resultado puede deshacerse sólo con los datos transformados.
-Las conversiones de tipo, número regional y fecha sólo se recomiendan cuando
-se comprueban sobre todos los valores de \code{datos} y la representación textual
-vuelve a ser idéntica valor por valor. Sin \code{datos} no se puede hacer esa
-comprobación y la acción queda bloqueada. Cuando no es reversible se marca
-\code{destructiva}, no se activa por defecto y el registro conserva
-\code{n_no_reversibles} y la justificación de la decisión.
+indica si la conversión conserva la identidad de cada valor. Las
+conversiones se comprueban sobre todos los valores de \code{datos}: las numéricas
+bloquean ceros iniciales y colisiones no inyectivas, mientras que fechas,
+fechas-hora y lógicos sólo bloquean conversiones no ejecutables o no
+inyectivas. Las fechas pueden cambiar a la representación canónica del tipo
+sin que eso sea una pérdida. Sin \code{datos} no se puede hacer la comprobación y
+la acción queda bloqueada. Cuando no es reversible se marca \code{destructiva}, no
+se activa por defecto y el registro conserva \code{n_no_reversibles} y la
+justificación de la decisión.
 La acción de codificación prueba las tablas congeladas de varias
 codificaciones y deja en \code{estado_reparacion} uno de \code{reparado},
 \code{reparado_parcialmente} o \code{no_se_pudo}. Una reparación parcial no se activa
@@ -118,7 +120,7 @@ y deja su pérdida cuantificada en el registro.
 \examples{
 datos <- data.frame(categoria = c(" A", "S/D", "B"))
 perfil <- perfilar(datos)
-plan <- planificar_limpieza(perfil)
+plan <- planificar_limpieza(perfil, datos)
 plan[, c("grupo", "estrategia", "recomendada", "aplicar")]
 resultado <- aplicar(plan, datos)
 resultado$datos

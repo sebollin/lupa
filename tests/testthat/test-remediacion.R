@@ -135,6 +135,51 @@ test_that("las conversiones exactas cubren dobles, lógicos y fechas", {
   expect_s3_class(resultado$fecha, "Date")
 })
 
+test_that("la regla de conversión separa formato de identidad", {
+  casos <- list(
+    entero_limpio = list(valor = "12345", recomendar = TRUE),
+    decimal_limpio = list(valor = "123.45", recomendar = TRUE),
+    decimal_con_ceros_de_cola = list(valor = "6.50", recomendar = TRUE),
+    negativos = list(valor = "-4711", recomendar = TRUE),
+    fecha_iso = list(valor = "2020-03-15", recomendar = TRUE),
+    fecha_dia_mes = list(valor = "15/03/2020", recomendar = TRUE),
+    logico = list(valor = "TRUE", recomendar = TRUE),
+    documento_con_ceros = list(
+      valor = c(sprintf("%08d", 10000001:10000089),
+                sprintf("0%07d", 1:11)), recomendar = FALSE
+    ),
+    colision_numerica = list(valor = c("0123", "123"), recomendar = FALSE),
+    telefono_fuera_de_rango = list(valor = "+593993765352", recomendar = FALSE),
+    miles = list(valor = "1,234,567", recomendar = FALSE),
+    codigo_alfanumerico = list(valor = "AB000123", recomendar = FALSE)
+  )
+  for (nombre in names(casos)) {
+    datos <- data.frame(x = casos[[nombre]]$valor, stringsAsFactors = FALSE)
+    perfil <- perfilar(datos, analizar_dependencias = FALSE)
+    plan <- planificar_limpieza(perfil, datos)
+    acciones <- plan[
+      plan$estrategia %in% c("convertir_tipo", "convertir_numero_regional"),
+      , drop = FALSE
+    ]
+    recomendar <- nrow(acciones) > 0L && any(acciones$recomendada)
+    expect_identical(recomendar, casos[[nombre]]$recomendar, info = nombre)
+    if (!casos[[nombre]]$recomendar && nrow(acciones)) {
+      expect_false(any(acciones$aplicar), info = nombre)
+    }
+  }
+  fecha <- data.frame(x = "15/03/2020", stringsAsFactors = FALSE)
+  plan_fecha <- planificar_limpieza(
+    perfilar(fecha, analizar_dependencias = FALSE), fecha
+  )
+  expect_true(plan_fecha$recomendada[
+    plan_fecha$estrategia == "convertir_tipo"
+  ])
+  resultado_fecha <- aplicar(plan_fecha, fecha)
+  expect_s3_class(resultado_fecha$datos$x, "Date")
+  expect_equal(as.character(resultado_fecha$datos$x), "2020-03-15")
+  expect_equal(resultado_fecha$registro$n_no_reversibles, 0)
+})
+
 test_that("convertir_tipo sólo se recomienda si conserva la representación", {
   documentos <- data.frame(
     documento = c(
@@ -158,6 +203,7 @@ test_that("convertir_tipo sólo se recomienda si conserva la representación", {
 
   accion_activa <- which(plan$estrategia == "convertir_tipo")
   plan$aplicar[accion_activa] <- TRUE
+  plan$estado[accion_activa] <- "lista"
   resultado <- aplicar(plan, documentos)
   registro <- resultado$registro[
     resultado$registro$estrategia == "convertir_tipo", , drop = FALSE
@@ -195,6 +241,7 @@ test_that("una conversión imposible se registra sin abortar el plan", {
   expect_true(plan$destructiva[[indice]])
 
   plan$aplicar[indice] <- TRUE
+  plan$estado[indice] <- "lista"
   resultado <- aplicar(plan, datos)
   fallo <- resultado$registro[
     resultado$registro$estrategia == "convertir_tipo", , drop = FALSE
@@ -206,7 +253,7 @@ test_that("una conversión imposible se registra sin abortar el plan", {
   expect_true(any(resultado$registro$estrategia == "recortar_espacios"))
 })
 
-test_that("las conversiones recomendadas no cambian representaciones textuales", {
+test_that("las conversiones recomendadas no pierden identidad", {
   datos <- data.frame(
     entero = c("1", "2", "3"),
     doble = c("1.5", "2", "3.25"),
