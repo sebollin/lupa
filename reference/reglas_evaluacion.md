@@ -1,0 +1,90 @@
+# Reglas y perfiles de evaluación
+
+Una regla aplica una condición a los resultados de una o más métricas
+instanciadas. Un perfil reúne reglas y su evaluación es la media
+aritmética simple de las evaluaciones de esas reglas; no es un índice
+de dimensión ni un índice global de calidad.
+
+## Uso
+
+``` r
+regla_evaluacion(nombre, condicion, metricas = NULL)
+
+perfil_evaluacion(nombre, ...)
+
+perfiles_madurez(metricas = NULL, umbrales = NULL)
+```
+
+## Argumentos
+
+  - nombre:
+    
+    Nombre de la regla o del perfil.
+
+  - condicion:
+    
+    Función de un argumento que recibe el vector `resultado` de las
+    medidas seleccionadas, en el orden de la tabla, y debe devolver un
+    vector lógico sin ausentes de la misma longitud. No modifica las
+    medidas.
+
+  - metricas:
+    
+    Nombres de métricas instanciadas a las que se aplica la regla, es
+    decir, valores de la columna `metrica_instanciada`. `NULL`, el valor
+    predeterminado, aplica la condición a todas.
+
+  - ...:
+    
+    Reglas creadas por `regla_evaluacion()` o una única lista que las
+    contenga.
+
+  - umbrales:
+    
+    Vector numérico con nombres, estrictamente creciente y en `[0, 1]`.
+    `NULL` conserva los tres perfiles incluidos de fábrica.
+
+## Valor
+
+`regla_evaluacion()` devuelve una `regla_evaluacion`;
+`perfil_evaluacion()` devuelve un `perfil_evaluacion`; y
+`perfiles_madurez()` devuelve una lista de perfiles.
+
+## Detalles
+
+`perfiles_madurez()` crea por omisión los perfiles `Básico`,
+`Intermedio` y `Avanzado` de AGESIC, con condiciones estrictas `> 0.5`,
+`> 0.7` y `> 0.9`. El argumento `umbrales` permite construir otra
+familia con nombres y cortes crecientes propios sobre las mismas
+métricas instanciadas.
+
+`regla_evaluacion()` almacena la función sin ejecutarla. `evaluar()`
+selecciona las medidas mediante `metricas`, llama una vez a `condicion`
+y rechaza resultados que no sean lógicos, que tengan otra longitud o que
+contengan `NA`. La función expresa un criterio de evaluación; no es un
+método de medición ni recibe el data frame original.
+
+## Ver también
+
+`medir()`, `evaluar()`, `perfiles_madurez()`
+
+`regla_evaluacion()`, `comparar_evaluaciones()`, `historico_calidad()`
+
+`evaluar()`, `detectar_deriva_calidad()`
+
+## Ejemplos
+
+``` r
+regla <- regla_evaluacion("Completitud suficiente", function(x) x > 0.9)
+perfil <- perfil_evaluacion("Operativo", regla)
+madurez <- perfiles_madurez("NoNulo")
+propios <- perfiles_madurez(
+  "NoNulo", c(Exploratorio = 0.3, Operativo = 0.65, Consolidado = 0.85)
+)
+names(madurez)
+#> [1] "Basico"     "Intermedio" "Avanzado"  
+names(propios)
+#> [1] "Exploratorio" "Operativo"    "Consolidado" 
+perfil$nombre
+#> [1] "Operativo"
+```

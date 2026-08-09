@@ -1,0 +1,54 @@
+# Guardar y recuperar un histórico de calidad
+
+Persiste el data frame versionado mediante RDS de base R. La escritura
+no reemplaza un archivo existente salvo consentimiento explícito.
+
+## Uso
+
+``` r
+guardar_historico(historico, archivo, sobrescribir = FALSE)
+
+leer_historico(archivo)
+```
+
+## Argumentos
+
+  - historico:
+    
+    Objeto creado por `historico_calidad()`.
+
+  - archivo:
+    
+    Ruta del archivo RDS.
+
+  - sobrescribir:
+    
+    Si se permite reemplazar un archivo existente.
+
+## Valor
+
+`guardar_historico()` devuelve invisiblemente la ruta normalizada;
+`leer_historico()` devuelve un `historico_calidad` validado.
+
+## Ver también
+
+`guardar_historico()`, `detectar_deriva_calidad()`
+
+`historico_calidad()`, `comparar_evaluaciones()`
+
+## Ejemplos
+
+``` r
+archivo <- tempfile(fileext = ".rds")
+guardar_historico(historico_calidad(), archivo)
+leer_historico(archivo)
+#>  [1] version_esquema     nivel               id_registro        
+#>  [4] id_medida           id_medicion         fecha              
+#>  [7] perfil              regla               metrica            
+#> [10] metrica_especifica  metrica_instanciada dimension          
+#> [13] factor              granularidad        tipo_resultado     
+#> [16] entidad             atributo            fila               
+#> [19] objeto_medible      n_elementos         resultado          
+#> [22] agregacion         
+#> <0 rows> (o 0- extensión row.names)
+```
