@@ -132,6 +132,11 @@ v1.6 is a reference implementation, not a country lock. The package has one
 required import, [`cli`](https://cran.r-project.org/package=cli);
 [`stringdist`](https://cran.r-project.org/package=stringdist) is optional.
 
+Work that can be parallelised uses **two threads by default**, the ceiling CRAN
+asks packages to respect. On your own machine you can raise it, per call with
+`nucleos = 8` or for the whole session with `options(lupa.nucleos = 8)`; the
+result does not change, only how long it takes.
+
 ## 🔍 Where it fits
 
 [`skimr`](https://cran.r-project.org/package=skimr) and

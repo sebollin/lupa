@@ -133,6 +133,11 @@ v1.6 es una implementación de referencia, no un límite nacional. El paquete
 tiene un solo import obligatorio, [`cli`](https://cran.r-project.org/package=cli);
 [`stringdist`](https://cran.r-project.org/package=stringdist) es opcional.
 
+El trabajo que se puede paralelizar usa **dos hilos por defecto**, que es el tope
+que CRAN pide respetar. En su propia máquina puede subirlo, por llamada con
+`nucleos = 8` o para toda la sesión con `options(lupa.nucleos = 8)`; el resultado
+no cambia, sólo cuánto tarda.
+
 ## 🔍 Dónde se ubica
 
 [`skimr`](https://cran.r-project.org/package=skimr) y
