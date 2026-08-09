@@ -373,6 +373,7 @@ acumular_historico <- function(historico, ...,
 #' archivo <- tempfile(fileext = ".rds")
 #' guardar_historico(historico_calidad(), archivo)
 #' leer_historico(archivo)
+#' unlink(archivo)
 guardar_historico <- function(historico, archivo, sobrescribir = FALSE) {
   historico <- .validar_historico(historico)
   if (!.es_texto_escalar(archivo)) {

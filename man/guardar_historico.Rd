@@ -28,6 +28,7 @@ reemplaza un archivo existente salvo consentimiento explícito.
 archivo <- tempfile(fileext = ".rds")
 guardar_historico(historico_calidad(), archivo)
 leer_historico(archivo)
+unlink(archivo)
 }
 \seealso{
 \code{\link[=guardar_historico]{guardar_historico()}}, \code{\link[=detectar_deriva_calidad]{detectar_deriva_calidad()}}
