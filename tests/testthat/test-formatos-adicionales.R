@@ -54,9 +54,12 @@ test_that("los números regionales seguros se convierten y los ambiguos no", {
     porcentaje = c("45%", "20%"),
     peso = c("5 kg", "10 kg"), stringsAsFactors = FALSE
   )
-  plan <- planificar_limpieza(perfilar(seguro, analizar_dependencias = FALSE))
+  plan <- planificar_limpieza(
+    perfilar(seguro, analizar_dependencias = FALSE), seguro
+  )
   acciones <- plan[plan$estrategia == "convertir_numero_regional", ]
-  expect_true(all(acciones$recomendada & acciones$aplicar))
+  expect_false(any(acciones$recomendada | acciones$aplicar))
+  plan$aplicar[plan$estrategia == "convertir_numero_regional"] <- TRUE
   limpio <- aplicar(plan, seguro)$datos
   expect_equal(limpio$importe, c(1234.56, 2000))
   expect_equal(limpio$porcentaje, c(0.45, 0.2))
@@ -65,12 +68,13 @@ test_that("los números regionales seguros se convierten y los ambiguos no", {
   ambiguo <- data.frame(valor = c("1.234", "2.345"))
   perfil <- perfilar(ambiguo, analizar_dependencias = FALSE)
   expect_equal(perfil$columnas$tipo_inferido, "texto")
-  plan_ambiguo <- planificar_limpieza(perfil)
+  plan_ambiguo <- planificar_limpieza(perfil, ambiguo)
   accion <- plan_ambiguo[plan_ambiguo$estrategia == "convertir_numero_regional", ]
   expect_false(accion$recomendada)
   expect_false(accion$aplicar)
   accion$aplicar <- TRUE
-  expect_error(aplicar(accion, ambiguo), "punto_sin_coma")
+  fallo <- aplicar(accion, ambiguo)
+  expect_match(fallo$registro$error[[1L]], "punto_sin_coma")
   accion$parametros[[1L]]$punto_sin_coma <- "miles"
   expect_equal(aplicar(accion, ambiguo)$datos$valor, c(1234, 2345))
   accion$parametros[[1L]]$punto_sin_coma <- "decimal"
@@ -103,11 +107,15 @@ test_that("los números reconocen convención decimal y moneda de otros países"
   )
   expect_equal(filas$numero_texto_moneda, c("USD", "CLP", "EUR"))
   expect_true(filas$numero_texto_seguro[filas$columna == "usd"])
-  plan <- planificar_limpieza(perfil)
+  plan <- planificar_limpieza(perfil, datos)
   usd <- plan[
     plan$columna == "usd" & plan$estrategia == "convertir_numero_regional", ]
   eur <- plan[
     plan$columna == "eur" & plan$estrategia == "convertir_numero_regional", ]
+  expect_false(usd$recomendada[[1L]])
+  expect_false(eur$recomendada[[1L]])
+  usd$aplicar <- TRUE
+  eur$aplicar <- TRUE
   limpio <- aplicar(rbind(usd, eur), datos)$datos
   expect_equal(limpio$usd, c(1234.56, 2000))
   expect_equal(limpio$eur, c(1234.56, 2000))
@@ -138,11 +146,14 @@ test_that("los números reconocen convención decimal y moneda de otros países"
 
 test_that("la conversión regional exige resolver también la coma ambigua", {
   ambiguo <- data.frame(valor = c("1,234", "2,345"))
-  plan <- planificar_limpieza(perfilar(ambiguo, analizar_dependencias = FALSE))
+  plan <- planificar_limpieza(
+    perfilar(ambiguo, analizar_dependencias = FALSE), ambiguo
+  )
   accion <- plan[plan$estrategia == "convertir_numero_regional", ]
   accion$aplicar <- TRUE
 
-  expect_error(aplicar(accion, ambiguo), "coma_sin_punto")
+  fallo <- aplicar(accion, ambiguo)
+  expect_match(fallo$registro$error[[1L]], "coma_sin_punto")
   accion$parametros[[1L]]$coma_sin_punto <- "miles"
   expect_equal(aplicar(accion, ambiguo)$datos$valor, c(1234, 2345))
   accion$parametros[[1L]]$coma_sin_punto <- "decimal"

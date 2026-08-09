@@ -151,3 +151,33 @@ print.inferencia_tipo <- function(x, ...) {
   ))
   invisible(x)
 }
+
+# La reversibilidad de una conversión se evalúa sobre la representación que
+# recibe el usuario, no sobre una igualdad numérica. Así se conservan ceros
+# iniciales, separadores y formatos de fecha cuando una acción se ofrece como
+# no destructiva.
+.texto_representacion_conversion <- function(x) {
+  if (inherits(x, "POSIXt")) {
+    return(format(x, tz = "UTC", usetz = TRUE))
+  }
+  as.character(x)
+}
+
+.comparar_representacion_conversion <- function(original, convertido) {
+  antes <- .texto_representacion_conversion(original)
+  despues <- .texto_representacion_conversion(convertido)
+  if (length(antes) != length(despues)) {
+    return(list(
+      iguales = rep(FALSE, max(length(antes), length(despues))),
+      reversible = FALSE,
+      n_no_reversibles = as.integer(max(length(antes), length(despues)))
+    ))
+  }
+  iguales <- (is.na(antes) & is.na(despues)) |
+    (!is.na(antes) & !is.na(despues) & antes == despues)
+  list(
+    iguales = iguales,
+    reversible = all(iguales),
+    n_no_reversibles = as.integer(sum(!iguales))
+  )
+}

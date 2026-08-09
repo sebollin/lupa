@@ -1,6 +1,6 @@
 datos_plan <- function() {
   datos <- data.frame(
-    " fecha mala " = c("2020-01-31", "31/12/2020", "2020-01-31"),
+    " fecha mala " = c("2020-01-31", "2020-12-31", "2020-01-31"),
     categoria = c(" A", "S/D", " A"),
     numero = c("1", "2", "3"),
     extremo = c(1, 100, 1),
@@ -10,7 +10,8 @@ datos_plan <- function() {
 }
 
 test_that("el plan es un objeto de datos con políticas explícitas", {
-  plan <- planificar_limpieza(perfilar(datos_plan()))
+  datos <- datos_plan()
+  plan <- planificar_limpieza(perfilar(datos), datos)
 
   expect_s3_class(plan, "plan_limpieza")
   expect_true(all(c(
@@ -26,7 +27,7 @@ test_that("el plan es un objeto de datos con políticas explícitas", {
   activas <- plan$estrategia[plan$aplicar]
   expect_true(all(c(
     "convertir_ausencias_textuales", "recortar_espacios",
-    "convertir_fecha_confirmada", "convertir_tipo",
+    "convertir_tipo",
     "marcar_filas_duplicadas", "normalizar_nombres"
   ) %in% activas))
   expect_true(all(!plan$aplicar[plan$estrategia == "marcar_outliers"]))
@@ -43,7 +44,7 @@ test_that("el plan es un objeto de datos con políticas explícitas", {
 test_that("aplicar trabaja sobre una copia y deja una bitácora verificable", {
   datos <- datos_plan()
   original <- datos
-  plan <- planificar_limpieza(perfilar(datos))
+  plan <- planificar_limpieza(perfilar(datos), datos)
   resultado <- aplicar(plan, datos)
 
   expect_s3_class(resultado, "resultado_limpieza")
@@ -60,6 +61,11 @@ test_that("aplicar trabaja sobre una copia y deja una bitácora verificable", {
   expect_true(all(resultado$registro$n_cambiadas >= 0))
   expect_true(inherits(resultado$registro$fecha_hora, "POSIXct"))
   expect_true(is.list(resultado$registro$parametros))
+  expect_true(all(c(
+    "n_no_reversibles", "justificacion", "estado", "error"
+  ) %in% names(resultado$registro)))
+  expect_true(all(resultado$registro$estado == "ejecutada"))
+  expect_true(all(is.na(resultado$registro$error)))
 
   salida <- suppressMessages(capture.output(print(resultado)))
   expect_length(salida, 0L)
@@ -67,7 +73,7 @@ test_that("aplicar trabaja sobre una copia y deja una bitácora verificable", {
 
 test_that("los sentinelas numéricos requieren una decisión del usuario", {
   datos <- data.frame(codigo = c(999, 66, 77, 88, 12, 34))
-  plan <- planificar_limpieza(perfilar(datos))
+  plan <- planificar_limpieza(perfilar(datos), datos)
   indice <- which(plan$estrategia == "convertir_sentinelas_numericos")
 
   expect_length(indice, 1L)
@@ -87,7 +93,7 @@ test_that("una fecha ambigua queda bloqueada y no ofrece interpretación", {
     fecha = c("01/02/2020", "03/04/2020", "05/06/2020"),
     stringsAsFactors = FALSE
   )
-  plan <- planificar_limpieza(perfilar(datos))
+  plan <- planificar_limpieza(perfilar(datos), datos)
   accion <- plan[plan$estrategia == "desambiguar_fecha_en_origen", ]
 
   expect_equal(as.character(accion$estado), "bloqueada")
@@ -114,12 +120,12 @@ test_that("los extremos sólo se marcan cuando se activa la propuesta", {
 
 test_that("las conversiones exactas cubren dobles, lógicos y fechas", {
   datos <- data.frame(
-    doble = c("1,5", "2,0", "3,25"),
-    logico = c("sí", "no", "1"),
+    doble = c("1.5", "2", "3.25"),
+    logico = c("TRUE", "FALSE", "TRUE"),
     fecha = c("2020-01-31", "2020-02-29", "2021-01-01"),
     stringsAsFactors = FALSE
   )
-  plan <- planificar_limpieza(perfilar(datos))
+  plan <- planificar_limpieza(perfilar(datos), datos)
   resultado <- aplicar(plan, datos)$datos
 
   expect_type(resultado$doble, "double")
@@ -127,6 +133,98 @@ test_that("las conversiones exactas cubren dobles, lógicos y fechas", {
   expect_type(resultado$logico, "logical")
   expect_equal(resultado$logico, c(TRUE, FALSE, TRUE))
   expect_s3_class(resultado$fecha, "Date")
+})
+
+test_that("convertir_tipo sólo se recomienda si conserva la representación", {
+  documentos <- data.frame(
+    documento = c(
+      sprintf("%08d", 10000001:10000089),
+      sprintf("0%07d", 1:11)
+    ),
+    stringsAsFactors = FALSE
+  )
+  plan <- planificar_limpieza(
+    perfilar(documentos, analizar_dependencias = FALSE), documentos
+  )
+  accion <- plan[plan$estrategia == "convertir_tipo", , drop = FALSE]
+
+  expect_equal(nrow(accion), 1L)
+  expect_false(accion$recomendada[[1L]])
+  expect_false(accion$aplicar[[1L]])
+  expect_false(accion$reversible[[1L]])
+  expect_true(accion$destructiva[[1L]])
+  expect_equal(accion$parametros[[1L]]$n_no_reversibles, 11L)
+  expect_match(accion$justificacion[[1L]], "11 valores")
+
+  accion_activa <- which(plan$estrategia == "convertir_tipo")
+  plan$aplicar[accion_activa] <- TRUE
+  resultado <- aplicar(plan, documentos)
+  registro <- resultado$registro[
+    resultado$registro$estrategia == "convertir_tipo", , drop = FALSE
+  ]
+  expect_equal(registro$n_no_reversibles, 11)
+  expect_true(registro$destructiva)
+  expect_equal(as.character(resultado$datos$documento[[90L]]), "1")
+})
+
+test_that("sin datos completos la reversibilidad queda bloqueada", {
+  datos <- data.frame(codigo = c("1", "2", "3"), stringsAsFactors = FALSE)
+  plan <- planificar_limpieza(
+    perfilar(datos, analizar_dependencias = FALSE)
+  )
+  accion <- plan[plan$estrategia == "convertir_tipo", , drop = FALSE]
+  expect_equal(nrow(accion), 1L)
+  expect_false(accion$recomendada[[1L]])
+  expect_false(accion$aplicar[[1L]])
+  expect_equal(as.character(accion$estado[[1L]]), "bloqueada")
+  expect_match(accion$justificacion[[1L]], "pase `datos`")
+})
+
+test_that("una conversión imposible se registra sin abortar el plan", {
+  datos <- data.frame(
+    telefono = c("+593993700001", "+593993700002"),
+    zona = c(" A", "B"), stringsAsFactors = FALSE
+  )
+  plan <- planificar_limpieza(
+    perfilar(datos, analizar_dependencias = FALSE), datos
+  )
+  indice <- which(plan$estrategia == "convertir_tipo")
+  expect_equal(length(indice), 1L)
+  expect_false(plan$recomendada[[indice]])
+  expect_false(plan$aplicar[[indice]])
+  expect_true(plan$destructiva[[indice]])
+
+  plan$aplicar[indice] <- TRUE
+  resultado <- aplicar(plan, datos)
+  fallo <- resultado$registro[
+    resultado$registro$estrategia == "convertir_tipo", , drop = FALSE
+  ]
+  expect_equal(fallo$estado[[1L]], "fallida")
+  expect_match(fallo$error[[1L]], "representarse como enteros")
+  expect_identical(resultado$datos$telefono, datos$telefono)
+  expect_identical(resultado$datos$zona, c("A", "B"))
+  expect_true(any(resultado$registro$estrategia == "recortar_espacios"))
+})
+
+test_that("las conversiones recomendadas no cambian representaciones textuales", {
+  datos <- data.frame(
+    entero = c("1", "2", "3"),
+    doble = c("1.5", "2", "3.25"),
+    fecha = c("2020-01-01", "2020-02-02", "2020-03-03"),
+    stringsAsFactors = FALSE
+  )
+  plan <- planificar_limpieza(
+    perfilar(datos, analizar_dependencias = FALSE), datos
+  )
+  conversiones <- plan[grepl("^convertir_", plan$estrategia), , drop = FALSE]
+  expect_true(all(!conversiones$recomendada | conversiones$reversible))
+  resultado <- aplicar(plan, datos)
+  activas <- resultado$registro$estrategia[
+    resultado$registro$estado == "ejecutada" &
+      resultado$registro$estrategia %in% conversiones$estrategia
+  ]
+  expect_true(length(activas) > 0L)
+  expect_equal(sum(resultado$registro$n_no_reversibles), 0)
 })
 
 test_that("recortar espacios devuelve texto para una columna factor", {
@@ -139,8 +237,8 @@ test_that("recortar espacios devuelve texto para una columna factor", {
 })
 
 test_that("la aplicación rechaza deriva de esquema y planes inválidos", {
-  datos <- data.frame(x = c(" 1", "2"), stringsAsFactors = FALSE)
-  plan <- planificar_limpieza(perfilar(datos))
+  datos <- data.frame(" x" = c(" 1", "2"), check.names = FALSE)
+  plan <- planificar_limpieza(perfilar(datos), datos)
 
   expect_error(aplicar(plan[, -1L], datos), "contrato")
   expect_error(aplicar(plan, 1:2), "data.frame")
@@ -164,19 +262,27 @@ test_that("la aplicación rechaza deriva de esquema y planes inválidos", {
 
 test_that("las precondiciones impiden conversiones parciales y marcas pisadas", {
   datos <- data.frame(x = c("1", "2"), stringsAsFactors = FALSE)
-  plan <- planificar_limpieza(perfilar(datos))
+  plan <- planificar_limpieza(perfilar(datos), datos)
   datos$x[[2L]] <- "no convertible"
-  expect_error(aplicar(plan, datos), "no pueden convertirse")
+  fallo_conversion <- aplicar(plan, datos)
+  expect_equal(fallo_conversion$registro$estado[
+    fallo_conversion$registro$estrategia == "convertir_tipo"
+  ], "fallida")
+  expect_match(fallo_conversion$registro$error[
+    fallo_conversion$registro$estrategia == "convertir_tipo"
+  ], "no pueden convertirse")
 
   extremos <- data.frame(valor = c(rep(1, 20), 100))
   plan_extremos <- planificar_limpieza(perfilar(extremos))
   plan_extremos$aplicar[plan_extremos$estrategia == "marcar_outliers"] <- TRUE
   extremos$.outlier_valor <- FALSE
-  expect_error(aplicar(plan_extremos, extremos), "marca ya existe")
+  fallo_marca <- aplicar(plan_extremos, extremos)
+  expect_true(any(grepl("marca ya existe", fallo_marca$registro$error)))
 
   duplicados <- data.frame(x = c(1, 1), .fila_duplicada = FALSE)
   plan_duplicados <- planificar_limpieza(perfilar(duplicados))
-  expect_error(aplicar(plan_duplicados, duplicados), "marca ya existe")
+  fallo_duplicados <- aplicar(plan_duplicados, duplicados)
+  expect_true(any(grepl("marca ya existe", fallo_duplicados$registro$error)))
 })
 
 test_that("un plan vacío devuelve una copia y un registro vacío", {
@@ -293,7 +399,8 @@ test_that("se rechazan una estrategia desconocida y la deriva de nombres", {
 
   desconocido <- plan[plan$estrategia == "recortar_espacios", , drop = FALSE]
   desconocido$estrategia <- "sin_implementacion"
-  expect_error(aplicar(desconocido, datos), "no implementada")
+  fallo_desconocido <- aplicar(desconocido, datos)
+  expect_match(fallo_desconocido$registro$error, "no implementada")
 
   nombres <- plan[plan$estrategia == "normalizar_nombres", , drop = FALSE]
   datos_renombrados <- datos

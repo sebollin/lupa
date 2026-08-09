@@ -111,6 +111,67 @@
   acciones
 }
 
+.comprobar_reversibilidad_accion <- function(datos, columna, estrategia,
+                                             parametros) {
+  sin_datos <- list(
+    verificable = FALSE, ejecutable = FALSE, reversible = FALSE,
+    n_no_reversibles = 0L,
+    justificacion = paste0(
+      "La reversibilidad no se puede comprobar sin los datos completos de `",
+      columna, "`; pase `datos` a `planificar_limpieza()` para habilitar esta acci\u00f3n."
+    ), error = NULL
+  )
+  if (is.null(datos)) return(sin_datos)
+  if (!is.data.frame(datos) || !columna %in% names(datos)) {
+    return(list(
+      verificable = FALSE, ejecutable = FALSE, reversible = FALSE,
+      n_no_reversibles = 0L,
+      justificacion = paste0(
+        "La columna `", columna,
+        "` no est\u00e1 disponible para comprobar la reversibilidad."
+      ), error = NULL
+    ))
+  }
+  x <- datos[[columna]]
+  convertido <- tryCatch({
+    valor <- switch(
+      estrategia,
+      convertir_tipo = .convertir_tipo(x, parametros),
+      convertir_numero_regional = .convertir_numero_regional(x, parametros),
+      convertir_fecha_confirmada = .convertir_fecha(x, parametros),
+      stop("Estrategia de conversi\u00f3n no reconocida.", call. = FALSE)
+    )
+    if (is.list(valor) && !is.null(valor$valor)) valor$valor else valor
+  }, error = function(e) e)
+  if (inherits(convertido, "error")) {
+    return(list(
+      verificable = TRUE, ejecutable = FALSE, reversible = FALSE,
+      n_no_reversibles = 0L,
+      justificacion = paste0(
+        "La conversi\u00f3n no es ejecutable sobre los datos completos: ",
+        conditionMessage(convertido),
+        " Se conserva como acci\u00f3n destructiva no recomendada."
+      ), error = conditionMessage(convertido)
+    ))
+  }
+  comparacion <- .comparar_representacion_conversion(x, convertido)
+  justificacion <- if (comparacion$reversible) {
+    "La conversi\u00f3n y su representaci\u00f3n inversa reproducen todos los valores."
+  } else {
+    paste0(
+      "La conversi\u00f3n cambia la representaci\u00f3n textual de ",
+      comparacion$n_no_reversibles,
+      " valores; se declara destructiva y no se recomienda autom\u00e1ticamente."
+    )
+  }
+  list(
+    verificable = TRUE, ejecutable = TRUE,
+    reversible = comparacion$reversible,
+    n_no_reversibles = comparacion$n_no_reversibles,
+    justificacion = justificacion, error = NULL
+  )
+}
+
 #' Construir y aplicar un plan de limpieza auditable
 #'
 #' `planificar_limpieza()` transforma los hallazgos de un objeto `perfil` en un
@@ -140,6 +201,12 @@
 #' fija la secuencia reproducible. `n_afectadas` es la estimación del perfil y
 #' el registro informa `n_cambiadas` sobre los datos recibidos. `reversible`
 #' indica si el resultado puede deshacerse sólo con los datos transformados.
+#' Las conversiones de tipo, número regional y fecha sólo se recomiendan cuando
+#' se comprueban sobre todos los valores de `datos` y la representación textual
+#' vuelve a ser idéntica valor por valor. Sin `datos` no se puede hacer esa
+#' comprobación y la acción queda bloqueada. Cuando no es reversible se marca
+#' `destructiva`, no se activa por defecto y el registro conserva
+#' `n_no_reversibles` y la justificación de la decisión.
 #' La acción de codificación prueba las tablas congeladas de varias
 #' codificaciones y deja en `estado_reparacion` uno de `reparado`,
 #' `reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se activa
@@ -148,14 +215,14 @@
 #' `reparar_codificacion_latin1` se acepta como alias para planes guardados,
 #' aunque ya no limita el motor a latin-1.
 #' Si se marca una acción que no está `lista`, `aplicar()` aborta antes de
-#' modificar la copia y enumera las filas problemáticas; así no deja un conjunto
-#' parcialmente transformado cuando el plan editable contiene una selección
-#' inválida.
-#' Las acciones con `destructiva == TRUE` eliminan filas o columnas, nunca son
-#' recomendadas, declaran `reversible == FALSE` y requieren además
-#' `permitir_eliminacion = TRUE`. Por defecto, el resultado conserva lo retirado
-#' en `eliminados`; use `conservar_eliminados = FALSE` para evitar ese costo de
-#' memoria.
+#' modificar la copia y enumera las filas problemáticas. Una acción que sí está
+#' lista pero falla se registra con su error y no impide aplicar las siguientes:
+#' cada una conserva atomicidad sobre su propia columna o tabla. Las acciones
+#' que efectivamente eliminan filas o columnas requieren además
+#' `permitir_eliminacion = TRUE`; una conversión `destructiva` requiere selección
+#' explícita y deja la pérdida cuantificada. Por defecto, el resultado conserva
+#' lo retirado en `eliminados`; use `conservar_eliminados = FALSE` para evitar
+#' ese costo de memoria.
 #'
 #' Las imputaciones por dependencia funcional se ofrecen desactivadas. Aunque
 #' una dependencia exacta permite deducir un valor sin usar media, moda o un
@@ -176,9 +243,15 @@
 #' original, permite imputar antes de convertir tipos y mantiene identificables
 #' las columnas durante todo el plan. Las eliminaciones nunca se activan por
 #' defecto, por lo que deduplicar temprano no puede hacer desaparecer registros.
+#' `destructiva` también marca una conversión que pierde representación, aunque
+#' no elimine filas o columnas. El consentimiento `permitir_eliminacion` sólo
+#' se exige para las estrategias que efectivamente retiran filas o columnas;
+#' una conversión destructiva requiere que el usuario la active explícitamente
+#' y deja su pérdida cuantificada en el registro.
 #'
 #' @param perfil Objeto de clase `perfil` creado por [perfilar()].
 #' @param datos Datos opcionales que originaron el perfil. Son necesarios para
+#'   comprobar la reversibilidad de conversiones sobre todos los valores y para
 #'   proponer imputaciones deducidas de dependencias funcionales.
 #' @param soporte_minimo_dependencia Cantidad mínima de observaciones
 #'   concordantes por valor determinante para proponer una imputación.
@@ -190,7 +263,9 @@
 #' @return `planificar_limpieza()` devuelve un data frame de clase
 #'   `plan_limpieza`. `aplicar()` devuelve una lista de clase
 #'   `resultado_limpieza` con `datos`, `registro`, `plan_aplicado`, el `plan`
-#'   sincronizado y `eliminados`.
+#'   sincronizado y `eliminados`. El `registro` conserva `estado` (`ejecutada`
+#'   o `fallida`), `error`, `n_no_reversibles` y la `justificacion` de cada
+#'   acción seleccionada, incluso cuando una falla y las siguientes continúan.
 #'   Si una columna de entrada es un factor, las acciones que transforman su
 #'   texto devuelven una columna `character`: no se reconstruyen los niveles
 #'   originales, porque una limpieza puede introducir valores nuevos.
@@ -340,28 +415,45 @@ planificar_limpieza <- function(perfil, datos = NULL,
       ))
     } else if (identical(tipo, "numero_como_texto") && !is.null(fila)) {
       seguro <- isTRUE(fila$numero_texto_seguro[[1L]])
+      parametros_numero <- list(
+        convencion = fila$numero_texto_convencion[[1L]],
+        moneda = fila$numero_texto_moneda[[1L]],
+        unidad = fila$numero_texto_unidad[[1L]],
+        punto_sin_coma = NA_character_, coma_sin_punto = NA_character_
+      )
+      comprobacion_numero <- .comprobar_reversibilidad_accion(
+        datos, columna, "convertir_numero_regional", parametros_numero
+      )
+      conversion_numero_segura <- seguro &&
+        isTRUE(comprobacion_numero$reversible)
       acciones <- .agregar_accion(acciones, .nueva_accion(
-        columna, tipo, "convertir_numero_regional", seguro,
-        if (seguro) {
+        columna, tipo, "convertir_numero_regional", conversion_numero_segura,
+        if (conversion_numero_segura) {
           paste0(
             "La columna usa una convenci\u00f3n decimal coherente (",
             fila$numero_texto_convencion[[1L]],
             ") y puede convertirse sin elegir entre interpretaciones."
           )
+        } else if (seguro) {
+          comprobacion_numero$justificacion
         } else {
           paste0(
             "La columna no aporta evidencia suficiente para distinguir el ",
             "separador decimal del separador de miles."
           )
         },
-        fila$n_numeros_texto[[1L]], FALSE, estado = estado_columna,
-        aplicar = seguro && identical(estado_columna, "lista"),
-        parametros = list(
-          convencion = fila$numero_texto_convencion[[1L]],
-          moneda = fila$numero_texto_moneda[[1L]],
-          unidad = fila$numero_texto_unidad[[1L]],
-          punto_sin_coma = NA_character_, coma_sin_punto = NA_character_
-        ),
+        fila$n_numeros_texto[[1L]], comprobacion_numero$reversible,
+        estado = if (seguro && comprobacion_numero$verificable) {
+          estado_columna
+        } else if (seguro) "bloqueada" else estado_columna,
+        aplicar = conversion_numero_segura &&
+          identical(estado_columna, "lista"),
+        parametros = c(parametros_numero, list(
+          reversibilidad_comprobada = comprobacion_numero$verificable,
+          n_no_reversibles = comprobacion_numero$n_no_reversibles,
+          motivo_no_reversible = comprobacion_numero$justificacion
+        )),
+        destructiva = seguro && !conversion_numero_segura,
         orden = 320L
       ))
     } else if (identical(tipo, "formato_fecha_ambiguo")) {
@@ -400,11 +492,29 @@ planificar_limpieza <- function(perfil, datos = NULL,
       } else {
         "fecha"
       }
+      parametros_fecha <- list(formatos = confirmados, tipo = destino)
+      comprobacion_fecha <- .comprobar_reversibilidad_accion(
+        datos, columna, "convertir_fecha_confirmada", parametros_fecha
+      )
+      conversion_fecha_segura <- seguro &&
+        isTRUE(comprobacion_fecha$reversible)
       acciones <- .agregar_accion(acciones, .nueva_accion(
-        columna, tipo, "convertir_fecha_confirmada", seguro,
-        justificacion, fila$n[[1L]] - fila$n_faltantes[[1L]], FALSE,
-        estado = estado, aplicar = seguro,
-        parametros = list(formatos = confirmados, tipo = destino), orden = 300L
+        columna, tipo, "convertir_fecha_confirmada", conversion_fecha_segura,
+        if (conversion_fecha_segura) justificacion else {
+          comprobacion_fecha$justificacion
+        }, fila$n[[1L]] - fila$n_faltantes[[1L]],
+        comprobacion_fecha$reversible,
+        estado = if (seguro && comprobacion_fecha$verificable) estado else {
+          if (seguro) "bloqueada" else estado
+        },
+        aplicar = conversion_fecha_segura && identical(estado, "lista"),
+        parametros = c(parametros_fecha, list(
+          reversibilidad_comprobada = comprobacion_fecha$verificable,
+          n_no_reversibles = comprobacion_fecha$n_no_reversibles,
+          motivo_no_reversible = comprobacion_fecha$justificacion
+        )),
+        destructiva = seguro && !conversion_fecha_segura,
+        orden = 300L
       ))
     } else if (identical(tipo, "tipo_declarado_distinto") && !is.null(fila) &&
                !.es_fecha_ambigua(perfil, columna) &&
@@ -423,18 +533,28 @@ planificar_limpieza <- function(perfil, datos = NULL,
       }
       fecha_segura <- !destino %in% c("fecha", "fecha-hora") ||
         (length(confirmados) > 0L && !any(formatos$estado != "confirmado"))
-      recomendar <- soportado && compatible && fecha_segura &&
+      parametros_tipo <- list(tipo = destino, formatos = confirmados)
+      comprobacion_tipo <- .comprobar_reversibilidad_accion(
+        datos, columna, "convertir_tipo", parametros_tipo
+      )
+      base_tipo_seguro <- soportado && compatible && fecha_segura &&
         !.accion_columna_ambigua(perfil, columna)
-      estado <- if (soportado && fecha_segura && compatible) {
+      recomendar <- base_tipo_seguro &&
+        isTRUE(comprobacion_tipo$reversible)
+      estado <- if (base_tipo_seguro && comprobacion_tipo$verificable) {
         estado_columna
+      } else if (base_tipo_seguro) {
+        "bloqueada"
       } else {
         "bloqueada"
       }
       justificacion <- if (recomendar) {
         paste0(
-          "Todos los valores presentes son compatibles con el tipo inferido; ",
-          "la conversi\u00f3n no necesita decidir casos dudosos."
+          "Todos los valores presentes son compatibles con el tipo inferido y ",
+          "la conversi\u00f3n conserva su representaci\u00f3n textual."
         )
+      } else if (base_tipo_seguro) {
+        comprobacion_tipo$justificacion
       } else {
         paste0(
           "La conversi\u00f3n requiere compatibilidad total, un tipo con conversi\u00f3n ",
@@ -443,12 +563,17 @@ planificar_limpieza <- function(perfil, datos = NULL,
       }
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "convertir_tipo", recomendar, justificacion,
-        fila$n[[1L]] - fila$n_faltantes[[1L]], FALSE,
+        fila$n[[1L]] - fila$n_faltantes[[1L]], comprobacion_tipo$reversible,
         estado = estado, aplicar = recomendar,
-        parametros = list(tipo = destino, formatos = confirmados), orden = 310L,
+        parametros = c(parametros_tipo, list(
+          reversibilidad_comprobada = comprobacion_tipo$verificable,
+          n_no_reversibles = comprobacion_tipo$n_no_reversibles,
+          motivo_no_reversible = comprobacion_tipo$justificacion
+        )), orden = 310L,
         grupo = grupo_hallazgo,
         decision_grupo = if (recomendar) "recomendada" else "pendiente",
-        recomendacion_grupo = if (recomendar) "convertir_tipo" else NA_character_
+        recomendacion_grupo = if (recomendar) "convertir_tipo" else NA_character_,
+        destructiva = base_tipo_seguro && !recomendar
       ))
     } else if (identical(tipo, "filas_duplicadas")) {
       n_participantes <- perfil$general$filas_en_grupos_duplicados
@@ -1419,7 +1544,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (identical(estrategia, "convertir_numero_regional")) {
     cambio <- .convertir_numero_regional(x, parametros)
     datos[[indice]] <- cambio$valor
-    return(list(datos = datos, n = cambio$n))
+    comparacion <- .comparar_representacion_conversion(x, cambio$valor)
+    return(list(datos = datos, n = cambio$n,
+                n_no_reversibles = comparacion$n_no_reversibles))
   }
   if (identical(estrategia, "marcar_filas_ausentes")) {
     marca <- is.na(x)
@@ -1436,12 +1563,18 @@ planificar_limpieza <- function(perfil, datos = NULL,
     ))
   }
   if (identical(estrategia, "convertir_fecha_confirmada")) {
-    datos[[indice]] <- .convertir_fecha(x, parametros)
-    return(list(datos = datos, n = sum(!is.na(x))))
+    convertido <- .convertir_fecha(x, parametros)
+    datos[[indice]] <- convertido
+    comparacion <- .comparar_representacion_conversion(x, convertido)
+    return(list(datos = datos, n = sum(!is.na(x)),
+                n_no_reversibles = comparacion$n_no_reversibles))
   }
   if (identical(estrategia, "convertir_tipo")) {
-    datos[[indice]] <- .convertir_tipo(x, parametros)
-    return(list(datos = datos, n = sum(!is.na(x))))
+    convertido <- .convertir_tipo(x, parametros)
+    datos[[indice]] <- convertido
+    comparacion <- .comparar_representacion_conversion(x, convertido)
+    return(list(datos = datos, n = sum(!is.na(x)),
+                n_no_reversibles = comparacion$n_no_reversibles))
   }
   if (identical(estrategia, "marcar_outliers")) {
     marca <- .marca_outliers(x)
@@ -1469,6 +1602,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
     id_accion = character(), columna = character(), hallazgo = character(),
     grupo = character(), decision_grupo = character(), estrategia = character(),
     destructiva = logical(), n_cambiadas = numeric(),
+    n_no_reversibles = numeric(), justificacion = character(),
+    estado = character(), error = character(),
     estado_reparacion = character(),
     n_filas_eliminadas = numeric(), n_columnas_eliminadas = numeric(),
     fecha_hora = as.POSIXct(character(), tz = "UTC"),
@@ -1476,6 +1611,14 @@ planificar_limpieza <- function(perfil, datos = NULL,
   )
   estructura$parametros <- I(list())
   estructura
+}
+
+.estrategias_eliminatorias <- function() {
+  c(
+    "conservar_primera_duplicada", "conservar_mas_completa",
+    "eliminar_filas_ausentes", "eliminar_columna_duplicada",
+    "eliminar_columna_constante"
+  )
 }
 
 #' @rdname planificar_limpieza
@@ -1503,7 +1646,10 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   if (length(seleccion)) {
     seleccion <- seleccion[order(plan$orden[seleccion], seleccion)]
   }
-  destructivas <- seleccion[plan$destructiva[seleccion]]
+  destructivas <- seleccion[
+    plan$destructiva[seleccion] &
+      plan$estrategia[seleccion] %in% .estrategias_eliminatorias()
+  ]
   if (length(destructivas) && !permitir_eliminacion) {
     stop(
       "El plan contiene acciones destructivas y requiere ",
@@ -1518,8 +1664,16 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   eliminados <- list(filas = list(), columnas = list())
   for (j in seq_along(seleccion)) {
     accion <- plan[seleccion[[j]], , drop = FALSE]
-    ejecutada <- .ejecutar_accion(salida, accion)
-    salida <- ejecutada$datos
+    # Cada acción trabaja sobre una copia del estado anterior. Si falla, la
+    # columna (o tabla) queda intacta y el resto del plan puede continuar.
+    ejecutada <- tryCatch(
+      .ejecutar_accion(.copiar_datos(salida), accion),
+      error = function(e) list(
+        error = conditionMessage(e), n = 0, n_no_reversibles = 0
+      )
+    )
+    fallo <- !is.null(ejecutada$error)
+    if (!fallo) salida <- ejecutada$datos
     registro <- data.frame(
       id_accion = accion$id_accion[[1L]],
       columna = accion$columna[[1L]],
@@ -1528,7 +1682,13 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
       decision_grupo = as.character(accion$decision_grupo[[1L]]),
       estrategia = accion$estrategia[[1L]],
       destructiva = accion$destructiva[[1L]],
-      n_cambiadas = as.numeric(ejecutada$n),
+      n_cambiadas = as.numeric(if (fallo) 0 else ejecutada$n),
+      n_no_reversibles = as.numeric(if (fallo) 0 else {
+        if (is.null(ejecutada$n_no_reversibles)) 0 else ejecutada$n_no_reversibles
+      }),
+      justificacion = as.character(accion$justificacion[[1L]]),
+      estado = if (fallo) "fallida" else "ejecutada",
+      error = if (fallo) as.character(ejecutada$error) else NA_character_,
       estado_reparacion = if (is.null(ejecutada$estado_reparacion)) {
         if ("estado_reparacion" %in% names(accion)) {
           as.character(accion$estado_reparacion[[1L]])
@@ -1805,10 +1965,20 @@ print.plan_limpieza <- function(x, ...) {
   cli::cli_alert_success(paste(sum(x$aplicar), "acciones activadas"))
   cli::cli_alert_info(paste(sum(!x$aplicar), "acciones desactivadas"))
   n_destructivas <- sum(x$aplicar & x$destructiva)
+  n_eliminatorias <- sum(
+    x$aplicar & x$destructiva &
+      x$estrategia %in% .estrategias_eliminatorias()
+  )
   if (n_destructivas) {
     cli::cli_alert_danger(paste(
       n_destructivas,
-      "acciones destructivas activas; requieren un segundo consentimiento"
+      "acciones destructivas activas; revise la p\\u00e9rdida declarada"
+    ))
+  }
+  if (n_eliminatorias) {
+    cli::cli_alert_danger(paste(
+      n_eliminatorias,
+      "acciones eliminatorias activas; requieren un segundo consentimiento"
     ))
   }
   vista <- x[c(
@@ -1822,7 +1992,20 @@ print.plan_limpieza <- function(x, ...) {
 #' @export
 print.resultado_limpieza <- function(x, ...) {
   cli::cli_h1("Resultado de limpieza")
-  cli::cli_alert_success(paste(nrow(x$registro), "acciones ejecutadas"))
+  ejecutadas <- if ("estado" %in% names(x$registro)) {
+    sum(x$registro$estado == "ejecutada")
+  } else {
+    nrow(x$registro)
+  }
+  fallidas <- if ("estado" %in% names(x$registro)) {
+    sum(x$registro$estado == "fallida")
+  } else {
+    0L
+  }
+  cli::cli_alert_success(paste(ejecutadas, "acciones ejecutadas"))
+  if (fallidas) {
+    cli::cli_alert_danger(paste(fallidas, "acciones fallidas; revise `registro$error`"))
+  }
   cli::cli_text(paste(sum(x$registro$n_cambiadas), "celdas o marcas afectadas"))
   n_filas <- sum(x$registro$n_filas_eliminadas)
   n_columnas <- sum(x$registro$n_columnas_eliminadas)

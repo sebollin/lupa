@@ -94,7 +94,8 @@ test_that("el catálogo crea alternativas excluyentes y decisiones explícitas",
   expect_false(accion_constante$aplicar)
   expect_true(accion_constante$destructiva)
 
-  tipo <- planificar_limpieza(perfilar(data.frame(x = c("1", "2", "3"))))
+  datos_tipo <- data.frame(x = c("1", "2", "3"))
+  tipo <- planificar_limpieza(perfilar(datos_tipo), datos_tipo)
   accion_tipo <- tipo[tipo$estrategia == "convertir_tipo", , drop = FALSE]
   expect_true(accion_tipo$recomendada)
   expect_true(accion_tipo$aplicar)
@@ -208,10 +209,8 @@ test_that("conservar la más completa exige y respeta una clave", {
   plan$aplicar[[indice]] <- TRUE
   plan$estado[[indice]] <- "lista"
 
-  expect_error(
-    aplicar(plan, datos, permitir_eliminacion = TRUE),
-    "requiere configurar"
-  )
+  fallo <- aplicar(plan, datos, permitir_eliminacion = TRUE)
+  expect_match(fallo$registro$error, "requiere configurar")
   plan$parametros[[indice]] <- list(clave = "id")
   resultado <- aplicar(plan, datos, permitir_eliminacion = TRUE)
   expect_equal(resultado$datos$id, 1:3)
@@ -309,7 +308,8 @@ test_that("las estrategias no destructivas alternativas se ejecutan", {
 })
 
 test_that("se distingue una recomendación desactivada de una decisión pendiente", {
-  tipo <- planificar_limpieza(perfilar(data.frame(x = c("1", "2", "3"))))
+  datos_tipo <- data.frame(x = c("1", "2", "3"))
+  tipo <- planificar_limpieza(perfilar(datos_tipo), datos_tipo)
   tipo$aplicar[tipo$estrategia == "convertir_tipo"] <- FALSE
   resultado <- aplicar(tipo, data.frame(x = c("1", "2", "3")))
   expect_equal(
@@ -422,7 +422,8 @@ test_that("las columnas duplicadas se anotan y detectan deriva", {
 
   datos_derivados <- datos
   datos_derivados$b[[1L]] <- 99
-  expect_error(aplicar(plan, datos_derivados), "dejaron de tener contenido")
+  fallo <- aplicar(plan, datos_derivados)
+  expect_true(any(grepl("dejaron de tener contenido", fallo$registro$error)))
 
   perfil_incompleto <- perfilar(datos)
   perfil_incompleto$general$columnas_duplicadas <- NULL
@@ -441,10 +442,8 @@ test_that("la eliminación comprueba que una columna siga siendo constante", {
   )
   derivados <- original
   derivados$x[[3L]] <- "AR"
-  expect_error(
-    aplicar(plan, derivados, permitir_eliminacion = TRUE),
-    "dejó de ser constante"
-  )
+  fallo <- aplicar(plan, derivados, permitir_eliminacion = TRUE)
+  expect_match(fallo$registro$error, "dejó de ser constante")
 })
 
 test_that("las transformaciones de capitalización devuelven texto y validan", {

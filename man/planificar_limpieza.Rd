@@ -31,7 +31,9 @@ columnas retiradas. Es \code{TRUE} de forma predeterminada.}
 \code{planificar_limpieza()} devuelve un data frame de clase
 \code{plan_limpieza}. \code{aplicar()} devuelve una lista de clase
 \code{resultado_limpieza} con \code{datos}, \code{registro}, \code{plan_aplicado}, el \code{plan}
-sincronizado y \code{eliminados}.
+sincronizado y \code{eliminados}. El \code{registro} conserva \code{estado} (\code{ejecutada}
+o \code{fallida}), \code{error}, \code{n_no_reversibles} y la \code{justificacion} de cada
+acción seleccionada, incluso cuando una falla y las siguientes continúan.
 Si una columna de entrada es un factor, las acciones que transforman su
 texto devuelven una columna \code{character}: no se reconstruyen los niveles
 originales, porque una limpieza puede introducir valores nuevos.
@@ -65,6 +67,12 @@ revisado de una omisión deliberada.
 fija la secuencia reproducible. \code{n_afectadas} es la estimación del perfil y
 el registro informa \code{n_cambiadas} sobre los datos recibidos. \code{reversible}
 indica si el resultado puede deshacerse sólo con los datos transformados.
+Las conversiones de tipo, número regional y fecha sólo se recomiendan cuando
+se comprueban sobre todos los valores de \code{datos} y la representación textual
+vuelve a ser idéntica valor por valor. Sin \code{datos} no se puede hacer esa
+comprobación y la acción queda bloqueada. Cuando no es reversible se marca
+\code{destructiva}, no se activa por defecto y el registro conserva
+\code{n_no_reversibles} y la justificación de la decisión.
 La acción de codificación prueba las tablas congeladas de varias
 codificaciones y deja en \code{estado_reparacion} uno de \code{reparado},
 \code{reparado_parcialmente} o \code{no_se_pudo}. Una reparación parcial no se activa
@@ -73,14 +81,14 @@ estrategia nueva se llama \code{reparar_codificacion}. El nombre histórico
 \code{reparar_codificacion_latin1} se acepta como alias para planes guardados,
 aunque ya no limita el motor a latin-1.
 Si se marca una acción que no está \code{lista}, \code{aplicar()} aborta antes de
-modificar la copia y enumera las filas problemáticas; así no deja un conjunto
-parcialmente transformado cuando el plan editable contiene una selección
-inválida.
-Las acciones con \code{destructiva == TRUE} eliminan filas o columnas, nunca son
-recomendadas, declaran \code{reversible == FALSE} y requieren además
-\code{permitir_eliminacion = TRUE}. Por defecto, el resultado conserva lo retirado
-en \code{eliminados}; use \code{conservar_eliminados = FALSE} para evitar ese costo de
-memoria.
+modificar la copia y enumera las filas problemáticas. Una acción que sí está
+lista pero falla se registra con su error y no impide aplicar las siguientes:
+cada una conserva atomicidad sobre su propia columna o tabla. Las acciones
+que efectivamente eliminan filas o columnas requieren además
+\code{permitir_eliminacion = TRUE}; una conversión \code{destructiva} requiere selección
+explícita y deja la pérdida cuantificada. Por defecto, el resultado conserva
+lo retirado en \code{eliminados}; use \code{conservar_eliminados = FALSE} para evitar
+ese costo de memoria.
 
 Las imputaciones por dependencia funcional se ofrecen desactivadas. Aunque
 una dependencia exacta permite deducir un valor sin usar media, moda o un
@@ -101,6 +109,11 @@ deja los cambios de esquema para el final. Esto evita perder la evidencia
 original, permite imputar antes de convertir tipos y mantiene identificables
 las columnas durante todo el plan. Las eliminaciones nunca se activan por
 defecto, por lo que deduplicar temprano no puede hacer desaparecer registros.
+\code{destructiva} también marca una conversión que pierde representación, aunque
+no elimine filas o columnas. El consentimiento \code{permitir_eliminacion} sólo
+se exige para las estrategias que efectivamente retiran filas o columnas;
+una conversión destructiva requiere que el usuario la active explícitamente
+y deja su pérdida cuantificada en el registro.
 }
 \examples{
 datos <- data.frame(categoria = c(" A", "S/D", "B"))

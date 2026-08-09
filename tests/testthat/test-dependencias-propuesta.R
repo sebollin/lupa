@@ -170,5 +170,6 @@ test_that("la imputación por dependencia es deducible y auditada", {
 
   alterados <- datos
   alterados$descripcion[[1L]] <- "contradicción"
-  expect_error(aplicar(plan, alterados), "contradicen")
+  fallo <- aplicar(plan, alterados)
+  expect_true(any(grepl("contradicen", fallo$registro$error)))
 })
