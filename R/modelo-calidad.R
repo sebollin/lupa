@@ -150,7 +150,7 @@
 #' `instanciar()` liga la métrica a objetos concretos y materializa el método de
 #' medición. `modelo()` reúne métricas instanciadas sin calcular un índice global.
 #'
-#' `metricas_nucleo()` devuelve veintiuna métricas automatizables una vez
+#' `metricas_nucleo()` devuelve veintidós métricas automatizables una vez
 #' declaradas sus propiedades; [escala()] y [vigencia()] hacen explícitos los
 #' insumos expertos que algunas necesitan. [metricas_referencial()] aporta por
 #' separado las tres métricas que consumen un padrón tabular. Consulte
@@ -258,6 +258,16 @@
 #' marca filas con la misma clave cuyos demás valores son iguales o ausentes en
 #' alguna de las dos. En las comparaciones exactas, los `NA` forman parte de la
 #' combinación comparada.
+#'
+#' `EntidadContradictoria` compara los valores distintos de un atributo con la
+#' misma normalización y medida de similitud que
+#' [detectar_duplicados_aproximados()]. Marca las filas cuyo valor tiene un
+#' vecino por debajo de `umbral`, pero no modifica datos ni propone una limpieza.
+#' Su alcance se conserva en el atributo `alcance_metricas` del resultado de
+#' [medir()]: informa los valores distintos comparados, los pares evaluados y
+#' los que quedaron bajo el umbral. `max_valores` permite acotar el vocabulario;
+#' cuando se alcanza, el alcance declara el prefijo evaluado y los valores que
+#' quedaron fuera.
 #'
 #' `DesactualizacionPorFormato` devuelve `TRUE` cuando el valor **no** cumple el
 #' formato vigente. Conforme a las tablas 16.29 y 16.30 del marco,
@@ -944,7 +954,9 @@ metricas_nucleo <- function() {
     stop("Una m\u00e9trica de duraci\u00f3n debe devolver valores finitos no negativos.",
          call. = FALSE)
   }
-  salida[, requeridas, drop = FALSE]
+  salida_validada <- salida[, requeridas, drop = FALSE]
+  attr(salida_validada, "alcance") <- attr(salida, "alcance", exact = TRUE)
+  salida_validada
 }
 
 .nuevo_id_medicion <- function(fecha) {
@@ -966,7 +978,9 @@ metricas_nucleo <- function() {
 #'
 #' @return Data frame S3 de clase `medicion`, con una fila por objeto medido.
 #'   Los booleanos se almacenan como `0` y `1` en la columna común `resultado`,
-#'   y su semántica permanece declarada en `tipo_resultado`.
+#'   y su semántica permanece declarada en `tipo_resultado`. Algunas métricas
+#'   que trabajan con un vocabulario o un alcance parcial agregan un atributo
+#'   `alcance_metricas` con sus conteos y límites.
 #' @export
 #'
 #' @examples
@@ -994,7 +1008,8 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time()) {
       instancia$metodo(tablas, instancia), instancia
     )
     n <- nrow(salida)
-    data.frame(
+    list(
+      salida = data.frame(
       id_medicion = rep(id_medicion, n),
       fecha = rep(fecha, n),
       metrica = rep(instancia$declaracion$nombre, n),
@@ -1011,8 +1026,12 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time()) {
       resultado = as.numeric(salida$resultado),
       agregacion = rep(NA_character_, n),
       stringsAsFactors = FALSE
+      ),
+      alcance = attr(salida, "alcance", exact = TRUE)
     )
   })
+  alcances <- lapply(partes, `[[`, "alcance")
+  partes <- lapply(partes, `[[`, "salida")
   resultado <- do.call(rbind, partes)
   rownames(resultado) <- NULL
   resultado$id_medida <- if (nrow(resultado)) {
@@ -1026,6 +1045,14 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time()) {
     "tipo_resultado", "entidad", "atributo", "fila", "objeto_medible",
     "resultado", "agregacion"
   )]
+  if (any(vapply(alcances, Negate(is.null), logical(1L)))) {
+    names(alcances) <- vapply(
+      modelo$metricas, `[[`, character(1L), "nombre"
+    )
+    attr(resultado, "alcance_metricas") <- alcances[
+      vapply(alcances, Negate(is.null), logical(1L))
+    ]
+  }
   class(resultado) <- c("medicion", "data.frame")
   resultado
 }

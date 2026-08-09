@@ -22,6 +22,44 @@ test_that("la granularidad es un grafo y declara los diez niveles", {
   ))
 })
 
+test_that("EntidadContradictoria compara el vocabulario y declara su alcance", {
+  skip_if_not_installed("stringdist")
+  metrica <- especializar(metricas_nucleo()$EntidadContradictoria)
+  instancia <- instanciar(metrica, "personas", "nombre")
+  datos <- data.frame(
+    nombre = c(
+      "Ministerio de Desarrollo Social",
+      "Ministerio de Desarrolo Social",
+      "MONTEVIDEO", "Montevideo ", "Otra entidad", NA_character_
+    ),
+    stringsAsFactors = FALSE
+  )
+  medicion <- medir(modelo(instancia), datos)
+  expect_equal(medicion$resultado, c(1, 1, 0, 0, 0))
+  alcance <- attr(medicion, "alcance_metricas")[[1L]]
+  expect_equal(alcance$unidad_conteo, "valor_distinto")
+  expect_equal(alcance$n_valores_distintos_total, 4L)
+  expect_equal(alcance$n_valores_distintos_comparados, 4L)
+  expect_equal(alcance$n_pares_comparados, 6)
+  expect_equal(alcance$n_pares_bajo_umbral, 1L)
+  expect_equal(alcance$n_afectados, 2L)
+  expect_false(alcance$truncado)
+  expect_equal(agregar(medicion, "atributo", "ratio")$resultado, 2 / 5)
+
+  recortada <- especializar(
+    metricas_nucleo()$EntidadContradictoria, max_valores = 2L
+  )
+  medicion_recortada <- medir(
+    modelo(instanciar(recortada, "personas", "nombre")), datos
+  )
+  alcance_recortado <- attr(medicion_recortada, "alcance_metricas")[[1L]]
+  expect_true(alcance_recortado$truncado)
+  expect_equal(alcance_recortado$n_valores_distintos_total, 4L)
+  expect_equal(alcance_recortado$n_valores_distintos_comparados, 2L)
+  expect_equal(alcance_recortado$alcance, "prefijo_vocabulario")
+  expect_equal(nrow(medicion_recortada), 2L)
+})
+
 test_that("las métricas recorren los tres niveles mediante closures", {
   generica <- metrica(
     "MayorQue", "Indica si un valor supera el umbral.",
@@ -71,13 +109,13 @@ test_that("las métricas recorren los tres niveles mediante closures", {
   expect_error(modelo(instancia, instancia), "deben ser únicos")
 })
 
-test_that("el núcleo declara sus veintiuna métricas", {
+test_that("el núcleo declara sus veintidós métricas", {
   nucleo <- metricas_nucleo()
   expect_named(nucleo, c(
     "NoNulo", "Formato", "ValoresPosiblesPorExtension",
     "ReglaIntegridadIntraEntidad", "ReglaIntegridadInterEntidad",
     "ErrorEstandar", "Escala", "ValoresPosiblesPorComprension", "AtributoDuplicado",
-    "ConjuntoAtributosDuplicado", "EntidadDuplicada",
+    "ConjuntoAtributosDuplicado", "EntidadDuplicada", "EntidadContradictoria",
     "DesactualizacionPorFormato", "DesactualizacionPorFecha",
     "DesactualizacionPorCambios", "OportunidadAtributoPorFecha",
     "OportunidadAtributoPorIntervalo", "GradoOportunidadAtributoPorFecha",
@@ -97,15 +135,15 @@ test_that("el núcleo declara sus veintiuna métricas", {
       "instanciaAtributo", "instanciaAtributo", "instanciaEntidad",
       "instanciaEntidad", "instanciaAtributo", "instanciaAtributo",
       "instanciaAtributo", "instanciaAtributo", "instanciaAtributo",
-      "instanciaAtributo", "instanciaAtributo", "instanciaEntidad",
-      "instanciaEntidad", "instanciaEntidad"
+      "instanciaAtributo", "instanciaAtributo", "instanciaAtributo",
+      "instanciaEntidad", "instanciaEntidad", "instanciaEntidad"
     )
   )
   expect_equal(
     unname(vapply(declaraciones, `[[`, character(1L), "tipo_resultado")),
     c(
       rep("booleano", 4L), "real", "numero_real", "real",
-      rep("booleano", 5L), "duracion", "entero", "booleano", "booleano",
+      rep("booleano", 6L), "duracion", "entero", "booleano", "booleano",
       "real", "real", "booleano", "booleano", "real"
     )
   )

@@ -182,6 +182,128 @@
   )
 }
 
+.validar_config_entidad_contradictoria <- function(configuracion) {
+  permitidas <- c("metodo", "umbral", "normalizar", "max_valores", "nucleos")
+  desconocidas <- setdiff(names(configuracion), permitidas)
+  if (length(desconocidas)) {
+    stop(
+      "EntidadContradictoria no acepta: ",
+      paste(desconocidas, collapse = ", "), ".", call. = FALSE
+    )
+  }
+  metodo <- configuracion$metodo
+  if (is.null(metodo)) metodo <- "jw"
+  if (!is.character(metodo) || length(metodo) != 1L || is.na(metodo) ||
+      !metodo %in% c(
+        "osa", "lv", "dl", "hamming", "lcs", "qgram", "cosine",
+        "jaccard", "jw", "soundex"
+      )) {
+    stop(
+      "`metodo` debe ser una medida admitida: osa, lv, dl, hamming, lcs, ",
+      "qgram, cosine, jaccard, jw o soundex.", call. = FALSE
+    )
+  }
+  umbral <- configuracion$umbral
+  if (is.null(umbral)) umbral <- 0.12
+  if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
+      !is.finite(umbral) || umbral < 0) {
+    stop("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
+  }
+  normalizar <- configuracion$normalizar
+  if (is.null(normalizar)) normalizar <- TRUE
+  if (!is.logical(normalizar) || length(normalizar) != 1L ||
+      is.na(normalizar)) {
+    stop("`normalizar` debe ser un l\u00f3gico escalar.", call. = FALSE)
+  }
+  max_valores <- configuracion$max_valores
+  if (is.null(max_valores)) max_valores <- 10000L
+  if (!is.numeric(max_valores) || length(max_valores) != 1L ||
+      is.na(max_valores) || max_valores < 1 ||
+      (!is.infinite(max_valores) && max_valores != floor(max_valores))) {
+    stop("`max_valores` debe ser un entero positivo o Inf.", call. = FALSE)
+  }
+  nucleos <- .resolver_nucleos_lupa(configuracion$nucleos)
+  list(
+    metodo = metodo, umbral = umbral, normalizar = normalizar,
+    max_valores = if (is.infinite(max_valores)) Inf else as.integer(max_valores),
+    nucleos = nucleos
+  )
+}
+
+.metodo_entidad_contradictoria <- function(tablas, instancia) {
+  .validar_vinculo(instancia, 1L, 1L)
+  entidad <- instancia$entidad[[1L]]
+  atributo <- instancia$atributos[[1L]]
+  tabla <- .obtener_tabla_modelo(tablas, entidad)
+  x <- .obtener_columna_modelo(tabla, atributo, entidad)
+  config <- instancia$configuracion
+  textos <- .texto_fila_aproximada(
+    tabla[atributo], atributo, config$normalizar
+  )
+  valores <- textos$valores
+  presentes <- textos$presentes
+  vocabulario <- unique(valores[presentes])
+  total_valores <- length(vocabulario)
+  vocabulario_evaluado <- if (is.infinite(config$max_valores)) {
+    vocabulario
+  } else {
+    utils::head(vocabulario, config$max_valores)
+  }
+  if (length(vocabulario_evaluado) > 1L && !.stringdist_disponible()) {
+    stop(
+      "EntidadContradictoria requiere el paquete opcional 'stringdist'.",
+      call. = FALSE
+    )
+  }
+  truncado <- length(vocabulario_evaluado) < total_valores
+  n_posibles <- as.numeric(total_valores) * (total_valores - 1) / 2
+  n_comparados <- as.numeric(length(vocabulario_evaluado)) *
+    (length(vocabulario_evaluado) - 1) / 2
+  pares <- if (length(vocabulario_evaluado) > 1L) {
+    .comparar_bloques_duplicados(
+      vocabulario_evaluado, seq_along(vocabulario_evaluado),
+      config$metodo, config$umbral,
+      bloque = min(1000L, length(vocabulario_evaluado)),
+      max_resultados = Inf, nucleos = config$nucleos
+    )
+  } else {
+    list(pares = data.frame(
+      fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
+      stringsAsFactors = FALSE
+    ), n_hallados = 0L)
+  }
+  indices_contradictorios <- if (nrow(pares$pares)) {
+    unique(c(pares$pares$fila_1, pares$pares$fila_2))
+  } else integer()
+  valores_contradictorios <- vocabulario_evaluado[indices_contradictorios]
+  filas <- which(presentes & valores %in% vocabulario_evaluado)
+  resultado <- valores[filas] %in% valores_contradictorios
+  salida <- .salida_metodo(
+    resultado, entidad, atributo, filas,
+    paste0(entidad, "$", atributo, "[", filas, "]")
+  )
+  attr(salida, "alcance") <- list(
+    unidad_conteo = "valor_distinto",
+    n_evaluados = length(vocabulario_evaluado),
+    n_afectados = length(valores_contradictorios),
+    n_valores_distintos_total = total_valores,
+    n_valores_distintos_comparados = length(vocabulario_evaluado),
+    n_filas_evaluadas = length(filas),
+    n_pares_posibles = n_posibles,
+    n_pares_comparados = n_comparados,
+    n_pares_bajo_umbral = nrow(pares$pares),
+    umbral = config$umbral,
+    metodo = config$metodo,
+    normalizar = config$normalizar,
+    max_valores = config$max_valores,
+    truncado = truncado,
+    pares_sin_comparar = n_posibles - n_comparados,
+    alcance = if (truncado) "prefijo_vocabulario" else "universo_completo",
+    disponible = TRUE
+  )
+  salida
+}
+
 .validar_config_desactualizacion <- function(configuracion) {
   permitidas <- c("expresion_regular", "validador")
   desconocidas <- setdiff(names(configuracion), permitidas)
@@ -514,6 +636,18 @@
       dimension = "Unicidad", factor = "No-duplicaci\u00f3n",
       metodo = .metodo_entidad_duplicada
     ),
+    EntidadContradictoria = metrica(
+      "EntidadContradictoria",
+      paste0(
+        "Indica si un valor del vocabulario tiene otro casi igual dentro del ",
+        "mismo atributo; no modifica los datos."
+      ),
+      "instanciaAtributo", "booleano",
+      propiedades = c("metodo", "umbral", "normalizar", "max_valores", "nucleos"),
+      dimension = "Unicidad", factor = "No-contradicci\u00f3n",
+      metodo = .metodo_entidad_contradictoria,
+      validar_propiedades = .validar_config_entidad_contradictoria
+    ),
     DesactualizacionPorFormato = metrica(
       "DesactualizacionPorFormato",
       "Indica si el formato de un valor delata que est\u00e1 desactualizado.",
@@ -736,10 +870,10 @@ catalogo_agesic <- function() {
   clase[c(3:4, 21L, 30:31, 37:39, 41L)] <- "agregada"
 
   implementadas <- c(
-    1:2, 5:10, 17L, 20L, 22:25, 27:29, 34:36, 42:49
+    1:2, 5:10, 17L, 20L, 22:25, 27:29, 34:36, 40L, 42:49
   )
-  agregadas <- c(3:4, 21L, 30:31, 37:39)
-  pendientes <- c(19L, 40:41)
+  agregadas <- c(3:4, 21L, 30:31, 37:39, 41L)
+  pendientes <- 19L
   fuera <- setdiff(seq_len(49L), c(implementadas, agregadas, pendientes))
   estado <- rep(NA_character_, 49L)
   estado[implementadas] <- "implementada"
@@ -752,7 +886,7 @@ catalogo_agesic <- function() {
   motivo[17L] <- "semantica_parcial"
   motivo[agregadas] <- "agregacion"
   motivo[c(1:2, 27L)] <- "requiere_referencial"
-  motivo[c(6:9, 20L, 22:25, 29L, 42:49)] <- "requiere_configuracion"
+  motivo[c(6:9, 20L, 22:25, 29L, 40L, 42:49)] <- "requiere_configuracion"
   motivo[pendientes] <- "motor_pendiente"
   motivo[fuera] <- "decision_alcance"
 
@@ -772,6 +906,7 @@ catalogo_agesic <- function() {
   metrica_lupa[34L] <- "AtributoDuplicado"
   metrica_lupa[35L] <- "ConjuntoAtributosDuplicado"
   metrica_lupa[36L] <- "EntidadDuplicada"
+  metrica_lupa[40L] <- "EntidadContradictoria"
   metrica_lupa[42L] <- "DesactualizacionPorFecha"
   metrica_lupa[43L] <- "DesactualizacionPorCambios"
   metrica_lupa[c(44L, 45L)] <- "DesactualizacionPorFormato"
@@ -782,7 +917,8 @@ catalogo_agesic <- function() {
   metrica_lupa[agregadas] <- c(
     "CorrectitudSemFuerte", "CorrectitudSemDebil",
     "ReglaIntegridadIntraEntidad", "NoNulo", "DensidadPonderada",
-    "AtributoDuplicado", "ConjuntoAtributosDuplicado", "EntidadDuplicada"
+    "AtributoDuplicado", "ConjuntoAtributosDuplicado", "EntidadDuplicada",
+    "EntidadContradictoria"
   )
 
   implementacion <- rep(NA_character_, 49L)
@@ -801,6 +937,7 @@ catalogo_agesic <- function() {
   )
   implementacion[37L] <- "agregar(m, \"atributo\", \"ratio\")"
   implementacion[38:39] <- "agregar(m, \"entidad\", \"ratio\")"
+  implementacion[41L] <- "agregar(m, \"atributo\", \"ratio\")"
 
   observacion <- c(
     "Compara cada par clave-valor con referencial(); omite ausentes.",
@@ -850,10 +987,10 @@ catalogo_agesic <- function() {
     "Se obtiene con Ratio sobre ConjuntoAtributosDuplicado.",
     "Se obtiene con Ratio sobre EntidadDuplicada.",
     paste0(
-      "No lleva marca [TD] en el marco; falta un motor configurable de ",
-      "similitud y contradicci\u00f3n entre entidades."
+      "Compara el vocabulario distinto de un atributo con la misma medida y ",
+      "normalizaci\u00f3n que duplicados; declara valores, pares y umbral."
     ),
-    "Depende de EntidadContradictoria; se implementar\u00e1 junto con su motor de similitud.",
+    "Se obtiene con Ratio sobre EntidadContradictoria.",
     "Requiere vigencia(); devuelve atraso no negativo desde la referencia temporal.",
     "Requiere vigencia(); estima cambios esperados con la frecuencia declarada.",
     "Requiere declarar el formato vigente o una funci\u00f3n validadora.",

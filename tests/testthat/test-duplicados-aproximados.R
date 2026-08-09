@@ -820,6 +820,69 @@ test_that("soundex no confunde distancia cero con igualdad", {
   expect_equal(sonido$alcance$n_pares_aproximados, 1)
 })
 
+test_that("exacto es equivalente a igualdad del texto normalizado en cada camino", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = c(
+      "Ana Perez", "ana   perez", "Ana Perez", "Luis Diaz", "Luis Días",
+      "Marta Silva", "marta silva", "Caro", "Caro", "Otro", "OTRO", NA
+    ),
+    bloque = c("a", "a", "b", "a", "a", "b", "b", "a", "a", "b", "b", NA),
+    stringsAsFactors = FALSE
+  )
+  configuraciones <- list(
+    list(estrategia = "teselas", muestra = Inf, lotes = FALSE,
+         bloquear_por = NULL, max_resultados = Inf),
+    list(estrategia = "teselas", muestra = Inf, lotes = FALSE,
+         bloquear_por = "bloque", max_resultados = Inf),
+    list(estrategia = "muestra", muestra = 8L, lotes = FALSE,
+         bloquear_por = NULL, max_resultados = 5L),
+    list(estrategia = "lsh", muestra = Inf, lotes = FALSE,
+         bloquear_por = NULL, max_resultados = Inf),
+    list(estrategia = "teselas", muestra = Inf, lotes = TRUE,
+         bloquear_por = NULL, max_resultados = Inf)
+  )
+  for (normalizar in c(TRUE, FALSE)) {
+    textos <- as.character(datos$nombre)
+    textos[is.na(textos)] <- ""
+    if (normalizar) {
+      textos <- trimws(tolower(textos))
+      textos <- gsub("[[:space:]]+", " ", textos, perl = TRUE)
+    }
+    for (config in configuraciones) {
+      resultado <- do.call(
+        detectar_duplicados_aproximados,
+        c(
+          list(
+            datos = datos, columnas = "nombre", normalizar = normalizar,
+            metodo = "jw", umbral = 0.2, bloque = 4L,
+            max_pares = Inf, proteger_datos_personales = FALSE,
+            nucleos = 1L
+          ), config
+        )
+      )
+      pares <- resultado$pares
+      if (nrow(pares)) {
+        esperados <- textos[pares$fila_1] == textos[pares$fila_2]
+        expect_identical(pares$tipo_par, ifelse(esperados, "exacto", "aproximado"))
+        expect_true(all(pares$fila_1 < pares$fila_2))
+      }
+      if (is.infinite(config$max_resultados)) {
+        expect_equal(
+          resultado$alcance$n_pares_exactos,
+          sum(textos[pares$fila_1] == textos[pares$fila_2])
+        )
+        expect_equal(
+          resultado$alcance$n_pares_aproximados,
+          sum(textos[pares$fila_1] != textos[pares$fila_2])
+        )
+      } else {
+        expect_lte(nrow(pares), config$max_resultados)
+      }
+    }
+  }
+})
+
 test_that("el acumulador procesa lotes y conserva sólo el límite", {
   acumulador <- lupa:::.nuevo_acumulador_duplicados(2L)
   expect_identical(

@@ -234,7 +234,7 @@ test_that("el catalogo de AGESIC contiene y clasifica 49 entradas", {
     "estado", "motivo", "metrica_lupa", "implementacion", "observacion"
   ))
   expect_equal(
-    as.integer(table(catalogo$estado)), c(28L, 8L, 3L, 10L)
+    as.integer(table(catalogo$estado)), c(29L, 9L, 1L, 10L)
   )
   expect_equal(
     levels(catalogo$estado),
@@ -276,8 +276,8 @@ test_that("el catalogo distingue implementaciones parciales y motores pendientes
   expect_equal(as.character(sexo$estado), "pendiente")
   expect_equal(as.character(sexo$motivo), "motor_pendiente")
   expect_match(sexo$observacion, "no un referencial", fixed = TRUE)
-  expect_equal(as.character(contradiccion$estado), "pendiente")
-  expect_match(contradiccion$observacion, "No lleva marca [TD]", fixed = TRUE)
+  expect_equal(as.character(contradiccion$estado), "implementada")
+  expect_match(contradiccion$observacion, "vocabulario distinto", fixed = TRUE)
 })
 
 test_that("las configuraciones nuevas rechazan contratos invalidos", {

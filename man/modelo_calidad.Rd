@@ -110,7 +110,7 @@ resultante puede instanciarse sobre distintas columnas o tablas.
 medición. \code{modelo()} reúne métricas instanciadas sin calcular un índice global.
 }
 \details{
-\code{metricas_nucleo()} devuelve veintiuna métricas automatizables una vez
+\code{metricas_nucleo()} devuelve veintidós métricas automatizables una vez
 declaradas sus propiedades; \code{\link[=escala]{escala()}} y \code{\link[=vigencia]{vigencia()}} hacen explícitos los
 insumos expertos que algunas necesitan. \code{\link[=metricas_referencial]{metricas_referencial()}} aporta por
 separado las tres métricas que consumen un padrón tabular. Consulte
@@ -148,6 +148,16 @@ atributos. Si se ligan atributos de clave, sigue la semántica del marco:
 marca filas con la misma clave cuyos demás valores son iguales o ausentes en
 alguna de las dos. En las comparaciones exactas, los \code{NA} forman parte de la
 combinación comparada.
+
+\code{EntidadContradictoria} compara los valores distintos de un atributo con la
+misma normalización y medida de similitud que
+\code{\link[=detectar_duplicados_aproximados]{detectar_duplicados_aproximados()}}. Marca las filas cuyo valor tiene un
+vecino por debajo de \code{umbral}, pero no modifica datos ni propone una limpieza.
+Su alcance se conserva en el atributo \code{alcance_metricas} del resultado de
+\code{\link[=medir]{medir()}}: informa los valores distintos comparados, los pares evaluados y
+los que quedaron bajo el umbral. \code{max_valores} permite acotar el vocabulario;
+cuando se alcanza, el alcance declara el prefijo evaluado y los valores que
+quedaron fuera.
 
 \code{DesactualizacionPorFormato} devuelve \code{TRUE} cuando el valor \strong{no} cumple el
 formato vigente. Conforme a las tablas 16.29 y 16.30 del marco,
