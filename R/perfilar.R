@@ -151,6 +151,13 @@
 #'   trazabilidad disponible. Por defecto es `1000`; cuando se supera, el
 #'   estado queda como `truncada` y el total se conserva. Use `Inf` sólo si
 #'   necesita desactivar explícitamente el tope.
+#' @param umbral_orden_columnas Cumplimiento mínimo de una relación de orden
+#'   entre columnas comparables. Se usa `0.95` por omisión; con menos de 20
+#'   filas comparables se permite una sola inversión para no descartar tablas
+#'   pequeñas. El alcance efectivo queda en `meta$orden_columnas`.
+#' @param max_columnas_orden Máximo de columnas numéricas o temporales que se
+#'   comparan entre sí para detectar relaciones de orden. Las columnas que
+#'   exceden el límite se conservan en `meta$orden_columnas$columnas_omitidas`.
 #'
 #' @return Objeto S3 de clase `perfil`. Cada fila de hallazgos incluye
 #'   n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
@@ -196,7 +203,9 @@ perfilar <- function(datos,
                      umbral_documento_verificado = 0.9,
                      muestra_validadores = 1000L,
                      duplicados_aproximados = FALSE,
-                     max_filas_hallazgo = 1000L) {
+                     max_filas_hallazgo = 1000L,
+                     umbral_orden_columnas = 0.95,
+                     max_columnas_orden = 20L) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
@@ -254,6 +263,18 @@ perfilar <- function(datos,
   max_filas_hallazgo <- if (is.infinite(max_filas_hallazgo)) {
     Inf
   } else as.integer(max_filas_hallazgo)
+  if (!is.numeric(umbral_orden_columnas) ||
+      length(umbral_orden_columnas) != 1L ||
+      is.na(umbral_orden_columnas) || umbral_orden_columnas <= 0 ||
+      umbral_orden_columnas > 1) {
+    stop("`umbral_orden_columnas` debe estar entre 0 y 1.", call. = FALSE)
+  }
+  if (!is.numeric(max_columnas_orden) || length(max_columnas_orden) != 1L ||
+      is.na(max_columnas_orden) || max_columnas_orden < 2 ||
+      max_columnas_orden != floor(max_columnas_orden)) {
+    stop("`max_columnas_orden` debe ser un entero de al menos 2.", call. = FALSE)
+  }
+  max_columnas_orden <- as.integer(max_columnas_orden)
   if (!is.logical(duplicados_aproximados) &&
       !is.list(duplicados_aproximados)) {
     stop("`duplicados_aproximados` debe ser FALSE, TRUE o una lista de argumentos.",
@@ -329,6 +350,10 @@ perfilar <- function(datos,
     error = function(e) NA_integer_
   )
   duplicadas <- .columnas_duplicadas(datos, nombres)
+  relaciones_orden <- .detectar_orden_columnas(
+    datos, columnas, resultados, formatos_fecha,
+    umbral = umbral_orden_columnas, max_columnas = max_columnas_orden
+  )
   tipos <- table(vapply(seq_along(datos), function(i) {
     .tipo_declarado(datos[[i]])
   }, character(1L)))
@@ -352,7 +377,8 @@ perfilar <- function(datos,
     umbral_faltantes_error, umbral_patron_raro,
     umbral_patron_dominante, columnas_sin_ceros,
     columnas_no_negativas,
-    if (is.na(n_filas_duplicadas)) 0L else n_filas_duplicadas
+    if (is.na(n_filas_duplicadas)) 0L else n_filas_duplicadas,
+    relaciones_orden = relaciones_orden$hallazgos
   )
   datos_personales <- .detectar_datos_personales(
     datos, nombres, resultados,
@@ -434,7 +460,10 @@ perfilar <- function(datos,
     validadores_personales = names(validadores_personales),
     umbral_documento_verificado = umbral_documento_verificado,
     muestra_validadores = muestra_validadores,
-    max_filas_hallazgo = max_filas_hallazgo
+    max_filas_hallazgo = max_filas_hallazgo,
+    umbral_orden_columnas = umbral_orden_columnas,
+    max_columnas_orden = max_columnas_orden,
+    orden_columnas = relaciones_orden$alcance
   )
   estructura <- list(
     general = general,

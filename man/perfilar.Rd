@@ -30,7 +30,9 @@ perfilar(
   umbral_documento_verificado = 0.9,
   muestra_validadores = 1000L,
   duplicados_aproximados = FALSE,
-  max_filas_hallazgo = 1000L
+  max_filas_hallazgo = 1000L,
+  umbral_orden_columnas = 0.95,
+  max_columnas_orden = 20L
 )
 }
 \arguments{
@@ -116,6 +118,15 @@ afirma identidad ni debe encarecer todas las corridas.}
 trazabilidad disponible. Por defecto es \code{1000}; cuando se supera, el
 estado queda como \code{truncada} y el total se conserva. Use \code{Inf} sólo si
 necesita desactivar explícitamente el tope.}
+
+\item{umbral_orden_columnas}{Cumplimiento mínimo de una relación de orden
+entre columnas comparables. Se usa \code{0.95} por omisión; con menos de 20
+filas comparables se permite una sola inversión para no descartar tablas
+pequeñas. El alcance efectivo queda en \code{meta$orden_columnas}.}
+
+\item{max_columnas_orden}{Máximo de columnas numéricas o temporales que se
+comparan entre sí para detectar relaciones de orden. Las columnas que
+exceden el límite se conservan en \code{meta$orden_columnas$columnas_omitidas}.}
 }
 \value{
 Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye

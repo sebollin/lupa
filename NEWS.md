@@ -95,6 +95,12 @@
 
 ## Examinar datos
 
+- Detecta relaciones de orden sospechosas entre columnas numéricas o temporales
+  comparables (por ejemplo, `inicio <= fin` y `monto_bruto <= monto_neto`).
+  El hallazgo conserva los conteos y las filas fuera de orden, sugiere
+  formalizar la regla con `ReglaIntegridadIntraEntidad` y declara en
+  `meta$orden_columnas` las columnas y pares efectivamente comparados.
+
 - Protege los estadísticos de orden y cuantiles de columnas personales, marca
   cada supresión en el objeto y conserva alertas de plausibilidad para fechas de
   nacimiento sin publicar sus extremos.

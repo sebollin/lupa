@@ -47,6 +47,169 @@
   )
 }
 
+# Las relaciones de orden son una extension del diagnostico, no una metrica:
+# encuentran pares de columnas que parecen compartir una relacion aritmetica
+# estable para que el usuario pueda declararla despues en el marco de calidad.
+.tipo_orden_columna <- function(x, fila) {
+  if (inherits(x, "Date")) return("fecha")
+  if (inherits(x, "POSIXt")) return("fecha-hora")
+  if (inherits(x, "integer64")) return(NA_character_)
+  if (is.numeric(x)) return("numero")
+  tipo <- as.character(fila$tipo_inferido[[1L]])
+  if (tipo %in% c("fecha", "fecha-hora", "entero", "doble")) {
+    if (tipo %in% c("entero", "doble")) "numero" else tipo
+  } else NA_character_
+}
+
+.valores_orden_columna <- function(x, fila, formatos) {
+  cuantitativos <- tryCatch(
+    .valores_cuantitativos(
+      x, list(tipo = as.character(fila$tipo_inferido[[1L]])), formatos
+    ),
+    error = function(e) NULL
+  )
+  if (is.null(cuantitativos) ||
+      !cuantitativos$clase %in% c("numero", "fecha", "fecha-hora")) {
+    return(NULL)
+  }
+  suppressWarnings(as.numeric(cuantitativos$valores))
+}
+
+.alcance_orden_columnas <- function(nombres, seleccion, max_columnas,
+                                    tipos, n_filas, umbral) {
+  grupos <- split(seleccion, tipos[seleccion])
+  pares <- if (length(grupos)) {
+    sum(vapply(grupos, function(x) choose(length(x), 2L), numeric(1L)))
+  } else 0
+  grupos_analizados <- split(nombres[seleccion], tipos[seleccion])
+  pares_analizados <- if (length(grupos_analizados)) {
+    sum(vapply(grupos_analizados, function(x) choose(length(x), 2L), numeric(1L)))
+  } else 0
+  list(
+    filas_evaluadas = as.numeric(n_filas),
+    columnas_comparables = nombres[which(!is.na(tipos))],
+    columnas_analizadas = nombres[seleccion],
+    columnas_omitidas = nombres[setdiff(which(!is.na(tipos)), seleccion)],
+    pares_comparables = as.numeric(pares),
+    pares_analizados = as.numeric(pares_analizados),
+    truncado = length(which(!is.na(tipos))) > max_columnas,
+    max_columnas = as.integer(max_columnas),
+    umbral_cumplimiento = as.numeric(umbral),
+    minimo_filas = 3L
+  )
+}
+
+.detectar_orden_columnas <- function(datos, columnas, resultados,
+                                     formatos_fecha, umbral = 0.95,
+                                     max_columnas = 20L) {
+  n_columnas <- ncol(datos)
+  if (!n_columnas || !nrow(datos)) {
+    return(list(
+      hallazgos = list(),
+      alcance = .alcance_orden_columnas(
+        character(), integer(), max_columnas, character(), nrow(datos), umbral
+      )
+    ))
+  }
+  tipos <- vapply(seq_len(n_columnas), function(i) {
+    .tipo_orden_columna(datos[[i]], columnas[i, , drop = FALSE])
+  }, character(1L))
+  comparables <- which(!is.na(tipos))
+  seleccion <- utils::head(comparables, max_columnas)
+  alcance <- .alcance_orden_columnas(
+    names(datos), seleccion, max_columnas, tipos, nrow(datos), umbral
+  )
+  if (length(seleccion) < 2L) return(list(hallazgos = list(), alcance = alcance))
+
+  grupos <- split(seleccion, tipos[seleccion])
+  pares <- lapply(grupos, function(indices) {
+    if (length(indices) < 2L) return(NULL)
+    utils::combn(indices, 2L, simplify = FALSE)
+  })
+  pares <- unlist(pares, recursive = FALSE)
+  if (!length(pares)) return(list(hallazgos = list(), alcance = alcance))
+
+  # La conversion semantica de una columna se hace una sola vez. Sin esta
+  # cache, una tabla ancha volveria a parsear cada columna por cada par.
+  valores <- lapply(seleccion, function(indice) {
+    .valores_orden_columna(
+      datos[[indice]], columnas[indice, , drop = FALSE],
+      formatos_fecha[[indice]]
+    )
+  })
+  names(valores) <- as.character(seleccion)
+
+  hallazgos <- list()
+  for (par in pares) {
+    izquierda <- valores[[as.character(par[[1L]])]]
+    derecha <- valores[[as.character(par[[2L]])]]
+    if (is.null(izquierda) || is.null(derecha) ||
+        length(izquierda) != length(derecha)) next
+    comparables_fila <- is.finite(izquierda) & is.finite(derecha)
+    n_evaluados <- sum(comparables_fila)
+    if (n_evaluados < 3L) next
+    izquierda <- izquierda[comparables_fila]
+    derecha <- derecha[comparables_fila]
+    filas <- which(comparables_fila)
+    cumple_izquierda <- izquierda <= derecha
+    cumple_derecha <- derecha <= izquierda
+    proporcion_izquierda <- mean(cumple_izquierda)
+    proporcion_derecha <- mean(cumple_derecha)
+    if (proporcion_izquierda == proporcion_derecha) next
+    direccion_izquierda <- proporcion_izquierda > proporcion_derecha
+    proporcion <- if (direccion_izquierda) {
+      proporcion_izquierda
+    } else proporcion_derecha
+    # Con pocas filas se permite una sola inversion para no perder el caso
+    # minimo (2 de 3); desde 20 comparables se exige el umbral medido de 95 %.
+    umbral_efectivo <- if (n_evaluados < 20L) {
+      (n_evaluados - 1) / n_evaluados
+    } else umbral
+    if (proporcion < umbral_efectivo || proporcion >= 1) next
+    if (direccion_izquierda) {
+      primero <- par[[1L]]
+      segundo <- par[[2L]]
+      incumple <- !cumple_izquierda
+    } else {
+      primero <- par[[2L]]
+      segundo <- par[[1L]]
+      incumple <- !cumple_derecha
+    }
+    indices_incumplen <- filas[incumple]
+    ejemplos <- utils::head(indices_incumplen, 5L)
+    evidencia_ejemplos <- if (length(ejemplos)) paste(vapply(
+      ejemplos,
+      function(fila) paste0(
+        "fila ", fila, ": ", names(datos)[[primero]], "=",
+        .texto_valor(datos[[primero]][fila]), "; ", names(datos)[[segundo]],
+        "=", .texto_valor(datos[[segundo]][fila])
+      ), character(1L)
+    ), collapse = " | ") else "sin ejemplos"
+    nombre_primero <- names(datos)[[primero]]
+    nombre_segundo <- names(datos)[[segundo]]
+    hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
+      paste(nombre_primero, nombre_segundo, sep = ","),
+      "relacion_orden_columnas", "sospechoso",
+      paste0(
+        "La relaci\u00f3n ", nombre_primero, " <= ", nombre_segundo,
+        " se rompe en una minor\u00eda de las filas comparables."
+      ),
+      paste0(
+        sprintf("%.3f de cumplimiento; %d de %d filas fuera de orden. ",
+                proporcion, length(indices_incumplen), n_evaluados),
+        evidencia_ejemplos
+      ),
+      paste0(
+        "Formalizar la relaci\u00f3n con ReglaIntegridadIntraEntidad(",
+        nombre_primero, ",", nombre_segundo,
+        ") y revisar las filas se\u00f1aladas antes de corregirlas."
+      ),
+      n_evaluados, length(indices_incumplen), "fila"
+    )
+  }
+  list(hallazgos = hallazgos, alcance = alcance)
+}
+
 .conteo_hallazgo_columna <- function(tipo, fila, resultado, n_validos) {
   n <- if (length(fila$n) && is.finite(fila$n[[1L]])) {
     as.numeric(fila$n[[1L]])
@@ -265,6 +428,41 @@
   }
   if (tipo == "filas_duplicadas") {
     indices <- which(duplicated(datos) | duplicated(datos, fromLast = TRUE))
+    return(.trazabilidad_indices(indices, "completo", limite))
+  }
+  if (tipo == "relacion_orden_columnas") {
+    nombres_par <- strsplit(
+      as.character(hallazgo$columna[[1L]]), ",", fixed = TRUE
+    )[[1L]]
+    if (length(nombres_par) != 2L) {
+      return(.trazabilidad_vacia(limite = limite))
+    }
+    indices_columnas <- match(trimws(nombres_par), nombres)
+    if (anyNA(indices_columnas)) {
+      return(.trazabilidad_vacia(limite = limite))
+    }
+    izquierda <- tryCatch(
+      .valores_orden_columna(
+        datos[[indices_columnas[[1L]]]],
+        resultados[[indices_columnas[[1L]]]]$fila,
+        resultados[[indices_columnas[[1L]]]]$formatos
+      ),
+      error = function(e) NULL
+    )
+    derecha <- tryCatch(
+      .valores_orden_columna(
+        datos[[indices_columnas[[2L]]]],
+        resultados[[indices_columnas[[2L]]]]$fila,
+        resultados[[indices_columnas[[2L]]]]$formatos
+      ),
+      error = function(e) NULL
+    )
+    if (is.null(izquierda) || is.null(derecha) ||
+        length(izquierda) != length(derecha)) {
+      return(.trazabilidad_vacia(limite = limite))
+    }
+    comparables <- is.finite(izquierda) & is.finite(derecha)
+    indices <- which(comparables & izquierda > derecha)
     return(.trazabilidad_indices(indices, "completo", limite))
   }
   if (tipo == "bloqueo_por_con_perdida") {
@@ -787,7 +985,8 @@
                                  umbral_patron_dominante,
                                  columnas_sin_ceros,
                                  columnas_no_negativas,
-                                 n_filas_duplicadas) {
+                                 n_filas_duplicadas,
+                                 relaciones_orden = list()) {
   hallazgos <- .hallazgos_columnas(
     resultados, columnas, umbral_alta_cardinalidad,
     umbral_faltantes_sospechoso, umbral_faltantes_error,
@@ -842,6 +1041,9 @@
       "Confirmar la sem\u00e1ntica y construir una fecha expl\u00edcita sin descartar las columnas de origen.",
       ncol(datos), length(columnas_partidas), "columna"
     )
+  }
+  if (length(relaciones_orden)) {
+    hallazgos <- c(hallazgos, relaciones_orden)
   }
 
   if (length(hallazgos)) {
