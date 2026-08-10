@@ -202,32 +202,97 @@
   if (cambio) actual else NA_character_
 }
 
-.analizar_codificacion <- function(textos) {
-  reparados <- rep(NA_character_, length(textos))
-  candidatos <- !is.na(textos) &
-    grepl("[\u00c3\u00c2\u00e2\u00f0\ufffd]", textos, perl = TRUE)
-  if (any(candidatos)) {
-    reparados[candidatos] <- vapply(
-      textos[candidatos], .reparar_mojibake_uno, character(1L)
-    )
+.umbral_vocabulario_barato <- 0.5
+.umbral_vocabulario_codificacion <- 0.8
+
+# La deduplicacion se activa segun la cardinalidad. En 240.000 filas, cuatro
+# valores fueron claramente favorables y 132.610 valores ya hicieron mas caro
+# el recorrido para predicados baratos; la reparacion de codificacion siguio
+# siendo favorable hasta una relacion de 0,8.
+.vocabulario_texto <- function(textos, umbral, valores = NULL) {
+  n <- length(textos)
+  presentes <- !is.na(textos)
+  if (is.null(valores)) valores <- unique(textos[presentes])
+  distintos <- length(valores)
+  usar <- n > 1L && distintos > 0L && distintos / n <= umbral
+  if (usar) {
+    indices <- match(textos, valores)
+  } else {
+    valores <- textos
+    indices <- seq_len(n)
   }
-  reparables <- !is.na(reparados) & !is.na(textos) & reparados != textos
-  irreparables <- !is.na(textos) & grepl("\ufffd", textos, fixed = TRUE)
-  ejemplos <- utils::head(which(reparables | irreparables), 5L)
-  evidencia <- paste(vapply(ejemplos, function(i) {
+  list(
+    valores = valores,
+    indices = indices,
+    usar = usar,
+    n_distintos = distintos
+  )
+}
+
+.mapear_vocabulario <- function(textos, fn, umbral = .umbral_vocabulario_barato,
+                               valores = NULL) {
+  vocabulario <- .vocabulario_texto(textos, umbral, valores = valores)
+  evaluados <- fn(vocabulario$valores)
+  if (isTRUE(vocabulario$usar)) {
+    evaluados[vocabulario$indices]
+  } else {
+    evaluados
+  }
+}
+
+.componentes_numero_texto_optimizado <- function(textos, valores = NULL) {
+  vocabulario <- .vocabulario_texto(
+    textos, .umbral_vocabulario_barato, valores = valores
+  )
+  partes <- .componentes_numero_texto(vocabulario$valores)
+  if (isTRUE(vocabulario$usar)) {
+    partes <- lapply(partes, function(valores) valores[vocabulario$indices])
+  }
+  partes
+}
+
+.analizar_codificacion_vocabulario <- function(textos, valores = NULL) {
+  if (!is.null(valores) && length(textos) > 1L &&
+      length(valores) / length(textos) > .umbral_vocabulario_codificacion) {
+    return(.analizar_codificacion(textos))
+  }
+  vocabulario <- .vocabulario_texto(
+    textos, .umbral_vocabulario_codificacion, valores = valores
+  )
+  if (!isTRUE(vocabulario$usar)) {
+    return(.analizar_codificacion(textos))
+  }
+  unico <- .analizar_codificacion(vocabulario$valores)
+  reparados <- rep(NA_character_, length(textos))
+  estados <- rep(NA_character_, length(textos))
+  pasos <- vector("list", length(textos))
+  presentes <- !is.na(vocabulario$indices)
+  reparados[presentes] <- unico$reparados[vocabulario$indices[presentes]]
+  estados[presentes] <- unico$estados[vocabulario$indices[presentes]]
+  pasos[presentes] <- unico$pasos[vocabulario$indices[presentes]]
+  reparables <- !is.na(reparados) & !is.na(textos) &
+    reparados != textos & estados == "reparado"
+  parciales <- !is.na(reparados) & !is.na(textos) &
+    reparados != textos & estados == "reparado_parcialmente"
+  irreparables <- !is.na(textos) & grepl("\uFFFD", textos, fixed = TRUE)
+  afectados <- reparables | parciales | irreparables
+  ejemplos <- utils::head(which(afectados), 5L)
+  evidencia <- if (!length(ejemplos)) "" else paste(vapply(ejemplos, function(i) {
     origen <- encodeString(textos[[i]], quote = '"')
-    if (reparables[[i]]) {
-      paste0(origen, " -> ", encodeString(reparados[[i]], quote = '"'))
+    if (reparables[[i]] || parciales[[i]]) {
+      paste0(origen, " -> ", encodeString(reparados[[i]], quote = '"'),
+             " [", estados[[i]], "]")
     } else {
-      paste0(origen, " (contiene un car\u00e1cter de reemplazo irrecuperable)")
+      paste0(origen, " (contiene un caracter de reemplazo irrecuperable)")
     }
   }, character(1L)), collapse = "; ")
   list(
-    n = sum(reparables | irreparables),
-    n_reparables = sum(reparables),
+    n = sum(afectados), n_reparables = sum(reparables),
+    n_reparables_parcialmente = sum(parciales),
     n_irreparables = sum(irreparables),
-    evidencia = evidencia,
-    reparados = reparados
+    n_no_se_pudo = sum(estados == "no_se_pudo", na.rm = TRUE),
+    evidencia = evidencia, reparados = reparados, estados = estados,
+    pasos = pasos, estado = .ftfy_estado_agregado(estados)
   )
 }
 
@@ -293,7 +358,7 @@
   )
 }
 
-.analizar_numeros_texto <- function(x, umbral_compatibilidad = 0.8) {
+.analizar_numeros_texto_directo <- function(x, umbral_compatibilidad = 0.8) {
   vacio <- list(
     n = 0L, proporcion = NA_real_, ambiguo = FALSE, seguro = FALSE,
     evidencia = "", unidad = "", moneda = "", convencion = "",
@@ -311,11 +376,125 @@
     paste0(
       "^[[:space:]]*(?:[[:upper:]]{3}[[:space:]]+|",
       "\\p{Sc}[[:space:]]*)?[+-]?[0-9]"
-    ),
-    textos[presentes], perl = TRUE
+    ), textos[presentes], perl = TRUE
   )
   if (mean(inicio_numerico) < umbral_compatibilidad) return(vacio)
   partes <- .componentes_numero_texto(textos)
+  especiales <- presentes & partes$compatible & partes$especial
+  if (!any(especiales)) return(vacio)
+  hay_evidencia_coma <- any(partes$evidencia_coma[presentes])
+  hay_evidencia_punto <- any(partes$evidencia_punto[presentes])
+  convencion <- if (hay_evidencia_coma && hay_evidencia_punto) {
+    "mixta"
+  } else if (hay_evidencia_coma) {
+    "decimal_coma"
+  } else if (hay_evidencia_punto) {
+    "decimal_punto"
+  } else if (any((partes$punto_tres | partes$coma_tres) & especiales)) {
+    "ambigua"
+  } else {
+    "sin_separadores"
+  }
+  compatibles_convencion <- switch(
+    convencion,
+    decimal_coma = partes$compatible_coma,
+    decimal_punto = partes$compatible_punto,
+    sin_separadores = partes$compatible,
+    partes$compatible
+  )
+  ambiguos <- convencion %in% c("ambigua", "mixta") |
+    any(presentes & !compatibles_convencion)
+  unidades <- unique(partes$unidad[presentes & partes$compatible])
+  unidades_no_vacias <- unidades[nzchar(unidades)]
+  unidad_consistente <- length(unidades_no_vacias) <= 1L &&
+    !(length(unidades_no_vacias) && any(!nzchar(unidades)))
+  monedas <- unique(partes$moneda[presentes & partes$compatible])
+  monedas_no_vacias <- monedas[nzchar(monedas)]
+  moneda_consistente <- length(monedas_no_vacias) <= 1L &&
+    !(length(monedas_no_vacias) && any(!nzchar(monedas)))
+  compatibles <- sum(presentes & partes$compatible)
+  list(
+    n = sum(especiales),
+    proporcion = if (n_presentes) compatibles / n_presentes else NA_real_,
+    ambiguo = isTRUE(ambiguos),
+    seguro = compatibles == n_presentes && !isTRUE(ambiguos) &&
+      unidad_consistente && moneda_consistente,
+    evidencia = paste(
+      encodeString(utils::head(unique(partes$texto[especiales]), 6L), quote = '"'),
+      collapse = "; "
+    ),
+    unidad = if (length(unidades_no_vacias) == 1L) unidades_no_vacias else "",
+    moneda = if (length(monedas_no_vacias) == 1L) monedas_no_vacias else "",
+    convencion = convencion,
+    n_presentes = n_presentes
+  )
+}
+
+.analizar_numeros_texto <- function(x, umbral_compatibilidad = 0.8,
+                                    vocabulario = NULL, n_distintos = NULL,
+                                    directo = FALSE) {
+  if (isTRUE(directo)) {
+    return(.analizar_numeros_texto_directo(x, umbral_compatibilidad))
+  }
+  vacio <- list(
+    n = 0L, proporcion = NA_real_, ambiguo = FALSE, seguro = FALSE,
+    evidencia = "", unidad = "", moneda = "", convencion = "",
+    n_presentes = 0L
+  )
+  if (!is.character(x) && !is.factor(x)) return(vacio)
+  textos <- as.character(x)
+  presentes <- !is.na(textos) & nzchar(textos)
+  n_presentes <- sum(presentes)
+  vacio$n_presentes <- n_presentes
+  if (is.null(vocabulario) && !is.null(n_distintos) &&
+      length(textos) > 1L && is.finite(n_distintos) &&
+      n_distintos / length(textos) > .umbral_vocabulario_barato) {
+    vocabulario_numeros <- list(
+      valores = textos, indices = seq_len(length(textos)), usar = FALSE
+    )
+  } else {
+    vocabulario_numeros <- .vocabulario_texto(
+      textos, .umbral_vocabulario_barato, valores = vocabulario
+    )
+  }
+  if (isTRUE(vocabulario_numeros$usar)) {
+    valores_vocabulario <- vocabulario_numeros$valores
+    indices_vocabulario <- vocabulario_numeros$indices
+    tiene_digitos_vocabulario <- !is.na(valores_vocabulario) &
+      grepl("[0-9]", valores_vocabulario, perl = TRUE)
+    tiene_digitos <- tiene_digitos_vocabulario[indices_vocabulario]
+  } else {
+    valores_vocabulario <- textos
+    indices_vocabulario <- seq_len(length(textos))
+    tiene_digitos <- !is.na(textos) &
+      grepl("[0-9]", textos, perl = TRUE)
+  }
+  if (!n_presentes || !any(tiene_digitos[presentes])) {
+    return(vacio)
+  }
+  patron_inicio <- paste0(
+    "^[[:space:]]*(?:[[:upper:]]{3}[[:space:]]+|",
+    "\\p{Sc}[[:space:]]*)?[+-]?[0-9]"
+  )
+  if (isTRUE(vocabulario_numeros$usar)) {
+    inicio_vocabulario <- grepl(
+      patron_inicio, valores_vocabulario, perl = TRUE
+    )
+    inicio_numerico <- inicio_vocabulario[indices_vocabulario]
+    partes <- .componentes_numero_texto_optimizado(
+      textos, valores = valores_vocabulario
+    )
+  } else {
+    inicio_numerico <- rep(FALSE, length(textos))
+    inicio_numerico[presentes] <- grepl(
+      patron_inicio,
+      textos[presentes], perl = TRUE
+    )
+    partes <- .componentes_numero_texto(textos)
+  }
+  if (mean(inicio_numerico[presentes]) < umbral_compatibilidad) {
+    return(vacio)
+  }
   especiales <- presentes & partes$compatible & partes$especial
   if (!any(especiales)) {
     return(vacio)
@@ -368,7 +547,7 @@
   )
 }
 
-.diagnosticar_texto <- function(x) {
+.diagnosticar_texto <- function(x, vocabulario = NULL) {
   vacio <- list(
     n_espacios_borde = 0L,
     evidencia_espacios = "",
@@ -406,9 +585,24 @@
     return(vacio)
   }
 
-  espacios <- validos & textos != trimws(textos)
+  unicos <- if (is.null(vocabulario)) {
+    unique(textos[validos])
+  } else {
+    vocabulario
+  }
+  if (length(textos) > 1L &&
+      length(unicos) / length(textos) <= .umbral_vocabulario_barato) {
+    vocabulario_barato <- .vocabulario_texto(
+      textos, .umbral_vocabulario_barato, valores = unicos
+    )
+    espacios_unicos <- vocabulario_barato$valores !=
+      trimws(vocabulario_barato$valores)
+    espacios <- validos &
+      espacios_unicos[vocabulario_barato$indices]
+  } else {
+    espacios <- validos & textos != trimws(textos)
+  }
   ejemplos_espacios <- utils::head(unique(textos[espacios]), 6L)
-  unicos <- unique(textos[validos])
   minusculas <- tolower(unicos)
   colision <- duplicated(minusculas) | duplicated(minusculas, fromLast = TRUE)
   variantes <- unicos[colision]
@@ -433,7 +627,7 @@
     n_variantes_unicode <- NA_integer_
     unicode_evaluado <- FALSE
   }
-  codificacion <- .analizar_codificacion(textos)
+  codificacion <- .analizar_codificacion_vocabulario(textos, valores = unicos)
 
   list(
     n_espacios_borde = sum(espacios),
@@ -511,11 +705,28 @@
   n_codificacion_invalida <- length(preparacion_texto$posiciones)
   n_validos <- n - n_faltantes - n_codificacion_invalida
   n_distintos <- .n_distintos_columna(x_analisis)
+  vocabulario_texto <- if (
+    (is.character(x_analisis) || is.factor(x_analisis)) &&
+      n > 1L && is.finite(n_distintos) &&
+      n_distintos / n <= .umbral_vocabulario_codificacion
+  ) {
+    unique(x_analisis[!is.na(x_analisis)])
+  } else {
+    NULL
+  }
   moda <- .moda_columna(x_analisis)
   longitudes <- .resumen_longitud(x_analisis)
   cuantitativo <- .resumen_cuantitativo(x_analisis, inferencia, formatos)
-  diagnostico_texto <- .diagnosticar_texto(x)
-  numeros_texto <- .analizar_numeros_texto(x_analisis)
+  diagnostico_texto <- .diagnosticar_texto(x, vocabulario = vocabulario_texto)
+  vocabulario_numeros <- if (
+    is.null(vocabulario_texto) &&
+      (is.character(x_analisis) || is.factor(x_analisis))
+  ) x_analisis else vocabulario_texto
+  numeros_texto <- .analizar_numeros_texto(
+    x_analisis, vocabulario = vocabulario_numeros, n_distintos = n_distintos,
+    directo = is.null(vocabulario_texto) &&
+      (is.character(x_analisis) || is.factor(x_analisis))
+  )
   n_blancos <- if (is.character(x_analisis) || is.factor(x_analisis)) {
     sum(!is.na(x_analisis) & !nzchar(trimws(as.character(x_analisis))))
   } else {

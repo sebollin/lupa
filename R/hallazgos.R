@@ -199,7 +199,7 @@
       .texto_analizable(x)$posiciones, error = function(e) NULL
     ),
     codificacion_rota = if (is.null(texto)) NULL else {
-      cod <- tryCatch(.analizar_codificacion(texto), error = function(e) NULL)
+      cod <- tryCatch(.analizar_codificacion_vocabulario(texto), error = function(e) NULL)
       if (is.null(cod)) NULL else {
         candidatos <- grepl("[\u00c3\u00c2\u00e2\u00f0\ufffd]", texto,
                              perl = TRUE)
@@ -208,7 +208,7 @@
       }
     },
     numero_como_texto = if (is.null(texto)) NULL else {
-      partes <- tryCatch(.componentes_numero_texto(texto),
+      partes <- tryCatch(.componentes_numero_texto_optimizado(texto),
                          error = function(e) NULL)
       if (is.null(partes)) NULL else which(
         !is.na(texto) & nzchar(texto) & partes$compatible & partes$especial
