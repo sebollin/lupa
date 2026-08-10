@@ -107,7 +107,7 @@
 
 .alcance_orden_columnas <- function(nombres, seleccion, max_columnas,
                                     tipos, n_filas, umbral,
-                                    umbral_solapamiento = 0.4) {
+                                    umbral_solapamiento = 0) {
   grupos <- split(seleccion, tipos[seleccion])
   pares <- if (length(grupos)) {
     sum(vapply(grupos, function(x) choose(length(x), 2L), numeric(1L)))
@@ -136,7 +136,7 @@
 .detectar_orden_columnas <- function(datos, columnas, resultados,
                                      formatos_fecha, umbral = 0.95,
                                      max_columnas = 20L,
-                                     umbral_solapamiento = 0.4) {
+                                     umbral_solapamiento = 0) {
   n_columnas <- ncol(datos)
   if (!n_columnas || !nrow(datos)) {
     return(list(

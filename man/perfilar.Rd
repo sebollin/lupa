@@ -33,7 +33,7 @@ perfilar(
   max_filas_hallazgo = 1000L,
   umbral_orden_columnas = 0.95,
   max_columnas_orden = 20L,
-  umbral_solapamiento_orden = 0.4
+  umbral_solapamiento_orden = 0
 )
 }
 \arguments{
@@ -131,8 +131,12 @@ exceden el límite se conservan en \code{meta$orden_columnas$columnas_omitidas}.
 
 \item{umbral_solapamiento_orden}{Solapamiento mínimo de los rangos
 intercuartiles para considerar que dos columnas representan magnitudes
-comparables. Por defecto es \code{0.4}; los pares que no lo alcanzan se
-descartan y se cuentan en \code{meta$orden_columnas$pares_descartados_magnitud}.}
+comparables. Por defecto es \code{0}, por lo que el filtro está apagado y no se
+descartan pares. Un valor mayor resulta útil en tablas anchas con columnas
+de escalas muy distintas, donde el detector puede avisar de más, pero
+también puede ocultar relaciones reales entre magnitudes de rangos
+distintos (por ejemplo, nacimiento y solicitud). Los pares descartados se
+cuentan en \code{meta$orden_columnas$pares_descartados_magnitud}.}
 }
 \value{
 Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye

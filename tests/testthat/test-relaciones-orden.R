@@ -128,14 +128,71 @@ test_that("descarta relaciones entre magnitudes sin solapamiento", {
     anio = sample(2000:2025, 3000L, replace = TRUE),
     cantidad = sample(1:10, 3000L, replace = TRUE)
   )
-  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  perfil_predeterminado <- perfilar(datos, analizar_dependencias = FALSE)
+  relaciones <- perfil_predeterminado$hallazgos[
+    perfil_predeterminado$hallazgos$tipo_hallazgo ==
+      "relacion_orden_columnas", , drop = FALSE
+  ]
+  expect_equal(relaciones$columna, "anio,monto")
+  expect_equal(perfil_predeterminado$meta$orden_columnas$pares_descartados_magnitud, 0)
+  expect_equal(perfil_predeterminado$meta$orden_columnas$umbral_solapamiento_iqr, 0)
+
+  perfil_filtrado <- perfilar(
+    datos, analizar_dependencias = FALSE, umbral_solapamiento_orden = 0.4
+  )
   expect_false(any(
-    perfil$hallazgos$tipo_hallazgo == "relacion_orden_columnas"
+    perfil_filtrado$hallazgos$tipo_hallazgo == "relacion_orden_columnas"
   ))
-  alcance <- perfil$meta$orden_columnas
+  alcance <- perfil_filtrado$meta$orden_columnas
   expect_equal(alcance$pares_descartados_magnitud, 6)
   expect_equal(alcance$pares_evaluados_orden, 0)
   expect_equal(alcance$umbral_solapamiento_iqr, 0.4)
+})
+
+test_that("el valor por omisión conserva relaciones reales de rango distinto", {
+  n <- 100L
+
+  nacimiento <- as.Date("1990-01-01") + seq_len(n)
+  solicitud <- as.Date("2020-01-01") + seq_len(n)
+  solicitud[[1L]] <- as.Date("1980-01-01")
+  perfil_fechas <- perfilar(
+    data.frame(nacimiento = nacimiento, solicitud = solicitud),
+    analizar_dependencias = FALSE
+  )
+  hallazgo_fechas <- perfil_fechas$hallazgos[
+    perfil_fechas$hallazgos$tipo_hallazgo == "relacion_orden_columnas", ,
+    drop = FALSE
+  ]
+  expect_equal(hallazgo_fechas$columna, "nacimiento,solicitud")
+  expect_equal(hallazgo_fechas$n_afectados, 1)
+
+  descuento <- rep(100, n)
+  bruto <- rep(10000, n)
+  descuento[[1L]] <- 20000
+  perfil_montos <- perfilar(
+    data.frame(descuento = descuento, bruto = bruto),
+    analizar_dependencias = FALSE
+  )
+  hallazgo_montos <- perfil_montos$hallazgos[
+    perfil_montos$hallazgos$tipo_hallazgo == "relacion_orden_columnas", ,
+    drop = FALSE
+  ]
+  expect_equal(hallazgo_montos$columna, "descuento,bruto")
+  expect_equal(hallazgo_montos$n_afectados, 1)
+
+  menor <- rep(10, n)
+  titular <- rep(100, n)
+  menor[[1L]] <- 200
+  perfil_personas <- perfilar(
+    data.frame(menor = menor, titular = titular),
+    analizar_dependencias = FALSE
+  )
+  hallazgo_personas <- perfil_personas$hallazgos[
+    perfil_personas$hallazgos$tipo_hallazgo == "relacion_orden_columnas", ,
+    drop = FALSE
+  ]
+  expect_equal(hallazgo_personas$columna, "menor,titular")
+  expect_equal(hallazgo_personas$n_afectados, 1)
 })
 
 test_that("el solapamiento funciona con fechas y POSIXct", {
@@ -156,10 +213,18 @@ test_that("los rangos intercuartiles de anchura cero no dividen por cero", {
   distintos <- data.frame(a = rep(5, 30L), b = rep(9, 30L))
   perfil_iguales <- perfilar(iguales, analizar_dependencias = FALSE)
   perfil_distintos <- perfilar(distintos, analizar_dependencias = FALSE)
+  perfil_distintos_filtrado <- perfilar(
+    distintos, analizar_dependencias = FALSE,
+    umbral_solapamiento_orden = 0.4
+  )
   expect_false(any(perfil_iguales$hallazgos$tipo_hallazgo ==
                    "relacion_orden_columnas"))
   expect_false(any(perfil_distintos$hallazgos$tipo_hallazgo ==
                    "relacion_orden_columnas"))
   expect_equal(perfil_iguales$meta$orden_columnas$pares_descartados_magnitud, 0)
-  expect_equal(perfil_distintos$meta$orden_columnas$pares_descartados_magnitud, 1)
+  expect_equal(perfil_distintos$meta$orden_columnas$pares_descartados_magnitud, 0)
+  expect_equal(
+    perfil_distintos_filtrado$meta$orden_columnas$pares_descartados_magnitud,
+    1
+  )
 })
