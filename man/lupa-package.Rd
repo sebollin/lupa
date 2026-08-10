@@ -66,11 +66,11 @@ Quality Requirements and Evaluation (SQuaRE) — Data quality model}.
 \link{datos_operativos}, \link{datos_administrativos}
 }
 \author{
-\strong{Maintainer}: Sebastián Lucas \email{sebalucas@gmail.com}
+\strong{Maintainer}: Sebastián Lucas \email{sebalucas@gmail.com} (\href{https://orcid.org/0009-0009-9068-0276}{ORCID})
 
 Authors:
 \itemize{
-  \item Sebastián Lucas \email{sebalucas@gmail.com}
+  \item Sebastián Lucas \email{sebalucas@gmail.com} (\href{https://orcid.org/0009-0009-9068-0276}{ORCID})
 }
 
 Other contributors:

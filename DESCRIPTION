@@ -3,7 +3,8 @@ Title: Data Profiling and Quality Measurement
 Version: 0.1.0
 Authors@R:
     c(
-      person("Sebastián", "Lucas", , "sebalucas@gmail.com", role = c("aut", "cre")),
+      person("Sebastián", "Lucas", , "sebalucas@gmail.com", role = c("aut", "cre"),
+             comment = c(ORCID = "0009-0009-9068-0276")),
       person("Robyn", "Speer", role = "cph"),
       person("Nicholas", "Tierney", role = "cph"),
       person("Di", "Cook", role = "cph"),
