@@ -548,24 +548,34 @@
 }
 
 .codigos_control_invisible <- function(codigos) {
-  # Los saltos de linea tienen un diagnostico y una estrategia propios. El
-  # resto de C0/C1 y los invisibles Unicode se consideran basura de transporte.
+  # Los separadores de linea (tabulacion, LF, VT, FF y CR) tienen un
+  # diagnostico y una estrategia propios. El resto de C0/C1 y los invisibles
+  # Unicode se consideran basura de transporte.
   codigos %in% c(
-    0:8, 9L, 11L:12L, 14L:31L, 127L:159L,
+    0:8, 14L:31L, 127L:159L,
     0xFEFF, 0x200B, 0x200E, 0x200F
   )
+}
+
+.codigos_salto_linea <- function(codigos) {
+  # Los cinco separadores C0 pueden delimitar campos o lineas.
+  codigos %in% 9L:13L
 }
 
 .tiene_control_invisible <- function(textos) {
   vapply(textos, function(texto) {
     if (is.na(texto)) return(FALSE)
     codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
-    any(.codigos_control_invisible(codigos) & !codigos %in% c(10L, 13L))
+    any(.codigos_control_invisible(codigos))
   }, logical(1L), USE.NAMES = FALSE)
 }
 
 .tiene_salto_linea <- function(textos) {
-  !is.na(textos) & grepl("[\\r\\n]", textos, perl = TRUE)
+  vapply(textos, function(texto) {
+    if (is.na(texto)) return(FALSE)
+    codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
+    any(.codigos_salto_linea(codigos))
+  }, logical(1L), USE.NAMES = FALSE)
 }
 
 # El paquete cubre las entidades HTML habituales en datos en espanol y todas
@@ -626,6 +636,8 @@
   partes <- vapply(codigos, function(codigo) {
     if (codigo == 9L) return("\\t")
     if (codigo == 10L) return("\\n")
+    if (codigo == 11L) return("\\v")
+    if (codigo == 12L) return("\\f")
     if (codigo == 13L) return("\\r")
     if (.codigos_control_invisible(codigo)) {
       return(sprintf("<U+%04X>", codigo))

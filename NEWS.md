@@ -3,12 +3,13 @@
 ## Diagnósticos de texto invisible
 
 - `perfilar()` identifica controles C0/C1 e invisibles Unicode, entidades HTML
-  reconocibles y saltos de línea dentro de campos. La evidencia escapa esos
-  caracteres (`<U+200B>`, `\\n`, `\\r`) y conserva los conteos por fila.
-- Los controles invisibles se pueden eliminar y se recomiendan por defecto;
-  decodificar entidades HTML y reemplazar saltos de línea quedan como acciones
-  explícitas porque pueden cambiar contenido legítimo. Las tres dejan el
-  número de valores cambiados en el registro.
+  reconocibles y separadores dentro de campos. La evidencia escapa esos
+  caracteres (`<U+200B>`, `\\t`, `\\n`, `\\r`, `\\f`, `\\v`) y conserva los
+  conteos por fila.
+- Los controles invisibles que no son separadores se pueden eliminar y se
+  recomiendan por defecto; decodificar entidades HTML y reemplazar separadores
+  de línea quedan como acciones explícitas porque pueden cambiar contenido
+  legítimo. Las tres dejan el número de valores cambiados en el registro.
 
 ## Reparación de texto y licencia
 

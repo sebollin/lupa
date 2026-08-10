@@ -1,6 +1,8 @@
 test_that("los controles invisibles se cuentan y se muestran de forma visible", {
   datos <- data.frame(
-    control = c("A\u200bB", paste0("x", intToUtf8(1L), "y"), "limpio", NA),
+    control = c(
+      "A\u200bB", paste0("x", intToUtf8(1L), "y"), "C\ufeffD", "limpio", NA
+    ),
     stringsAsFactors = FALSE
   )
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
@@ -9,12 +11,13 @@ test_that("los controles invisibles se cuentan y se muestran de forma visible", 
     perfil$hallazgos$tipo_hallazgo == "controles_invisibles", , drop = FALSE
   ]
 
-  expect_equal(columna$n_controles_invisibles, 2L)
-  expect_equal(hallazgo$n_evaluados, 4)
-  expect_equal(hallazgo$n_afectados, 2)
+  expect_equal(columna$n_controles_invisibles, 3L)
+  expect_equal(hallazgo$n_evaluados, 5)
+  expect_equal(hallazgo$n_afectados, 3)
   expect_equal(hallazgo$unidad_conteo, "fila")
   expect_match(hallazgo$evidencia, "<U\\+200B>", fixed = FALSE)
   expect_match(hallazgo$evidencia, "<U\\+0001>", fixed = FALSE)
+  expect_match(hallazgo$evidencia, "<U\\+FEFF>", fixed = FALSE)
 })
 
 test_that("las entidades HTML válidas se distinguen de ampersands legítimos", {
@@ -48,7 +51,10 @@ test_that("las entidades HTML válidas se distinguen de ampersands legítimos", 
 
 test_that("los saltos de línea se cuentan y se escapan en la evidencia", {
   datos <- data.frame(
-    observacion = c("una\nlinea", "dos\rlineas", "tres\r\nlineas", "limpia"),
+    observacion = c(
+      "una\nlinea", "dos\rlineas", "tres\r\nlineas", "cuatro\tcolumnas",
+      "cinco\fformfeed", "seis\vvertical", "limpia"
+    ),
     stringsAsFactors = FALSE
   )
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
@@ -57,10 +63,53 @@ test_that("los saltos de línea se cuentan y se escapan en la evidencia", {
     perfil$hallazgos$tipo_hallazgo == "saltos_linea", , drop = FALSE
   ]
 
-  expect_equal(columna$n_saltos_linea, 3L)
-  expect_equal(hallazgo$n_afectados, 3)
+  expect_equal(columna$n_saltos_linea, 6L)
+  expect_equal(hallazgo$n_afectados, 6)
   expect_match(hallazgo$evidencia, "\\\\n", fixed = FALSE)
   expect_match(hallazgo$evidencia, "\\\\r", fixed = FALSE)
+  expect_match(hallazgo$evidencia, "\\\\t", fixed = FALSE)
+  expect_match(hallazgo$evidencia, "\\\\f", fixed = FALSE)
+  expect_match(hallazgo$evidencia, "\\\\v", fixed = FALSE)
+})
+
+test_that("los separadores no se confunden con controles invisibles", {
+  datos <- data.frame(
+    texto = c("Juan\tRodríguez", "a\fb", "c\vd", "x\001y", "limpio"),
+    stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  columna <- perfil$columnas[perfil$columnas$columna == "texto", , drop = FALSE]
+  expect_equal(columna$n_controles_invisibles, 1L)
+  expect_equal(columna$n_saltos_linea, 3L)
+  expect_equal(
+    sum(perfil$hallazgos$tipo_hallazgo == "controles_invisibles"), 1L
+  )
+  expect_equal(
+    sum(perfil$hallazgos$tipo_hallazgo == "saltos_linea"), 1L
+  )
+})
+
+test_that("el tabulador conserva el dato por omisión y se reemplaza explícitamente", {
+  datos <- data.frame(
+    nombre = "Juan\tRodríguez",
+    stringsAsFactors = FALSE
+  )
+  plan <- planificar_limpieza(
+    perfilar(datos, analizar_dependencias = FALSE), datos
+  )
+  expect_false(any(plan$estrategia == "eliminar_controles_invisibles"))
+  expect_true(any(plan$estrategia == "reemplazar_saltos_linea"))
+  expect_false(plan$aplicar[plan$estrategia == "reemplazar_saltos_linea"])
+
+  por_defecto <- aplicar(plan, datos)
+  expect_identical(por_defecto$datos$nombre, "Juan\tRodríguez")
+
+  plan$aplicar[plan$estrategia == "reemplazar_saltos_linea"] <- TRUE
+  explicito <- aplicar(plan, datos)
+  expect_identical(explicito$datos$nombre, "Juan Rodríguez")
+  expect_equal(explicito$registro$n_cambiadas[
+    explicito$registro$estrategia == "reemplazar_saltos_linea"
+  ], 1L)
 })
 
 test_that("sólo los controles se recomiendan y las acciones registran cambios", {

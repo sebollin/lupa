@@ -277,13 +277,14 @@
 #'
 #' Los hallazgos `controles_invisibles`, `entidades_html` y `saltos_linea`
 #' tienen acciones separadas. `eliminar_controles_invisibles` quita controles
-#' C0/C1 (los saltos de línea se diagnostican aparte) e invisibles Unicode y se
-#' recomienda por defecto. `decodificar_entidades_html` cubre las entidades
+#' C0/C1 que no son separadores de línea e invisibles Unicode y se recomienda
+#' por defecto. `decodificar_entidades_html` cubre las entidades
 #' con nombre comunes en español y referencias numéricas válidas, pero no se
 #' activa sola porque un ampersand puede ser contenido legítimo.
-#' `reemplazar_saltos_linea` convierte `\\n`, `\\r` y `\\r\\n` en un espacio y
-#' también requiere una decisión explícita. Las tres acciones registran el
-#' número de valores cambiados.
+#' `reemplazar_saltos_linea` convierte tabulaciones, saltos de línea, avances de
+#' página y tabulaciones verticales (`\\t`, `\\n`, `\\r`, `\\r\\n`, `\\f` y `\\v`)
+#' en un espacio y también requiere una decisión explícita. Las tres acciones
+#' registran el número de valores cambiados.
 #'
 #' Las imputaciones por dependencia funcional se ofrecen desactivadas. Aunque
 #' una dependencia exacta permite deducir un valor sin usar media, moda o un
@@ -1176,8 +1177,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   nuevo <- vapply(anterior, function(texto) {
     if (is.na(texto)) return(NA_character_)
     codigos <- utf8ToInt(texto)
-    conservar <- !.codigos_control_invisible(codigos) |
-      codigos %in% c(10L, 13L)
+    conservar <- !.codigos_control_invisible(codigos)
     paste0(intToUtf8(codigos[conservar], multiple = TRUE), collapse = "")
   }, character(1L), USE.NAMES = FALSE)
   list(valor = .resultado_texto(x, nuevo), n = sum(!is.na(anterior) & anterior != nuevo))
@@ -1221,7 +1221,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
          call. = FALSE)
   }
   anterior <- as.character(x)
-  nuevo <- gsub("\\r\\n|\\r|\\n", " ", anterior, perl = TRUE)
+  nuevo <- gsub("\\r\\n|[\\t\\n\\r\\f\\v]", " ", anterior, perl = TRUE)
   list(valor = .resultado_texto(x, nuevo), n = sum(!is.na(anterior) & anterior != nuevo))
 }
 

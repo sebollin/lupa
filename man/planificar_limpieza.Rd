@@ -94,13 +94,14 @@ ese costo de memoria.
 
 Los hallazgos \code{controles_invisibles}, \code{entidades_html} y \code{saltos_linea}
 tienen acciones separadas. \code{eliminar_controles_invisibles} quita controles
-C0/C1 (los saltos de línea se diagnostican aparte) e invisibles Unicode y se
-recomienda por defecto. \code{decodificar_entidades_html} cubre las entidades
+C0/C1 que no son separadores de línea e invisibles Unicode y se recomienda
+por defecto. \code{decodificar_entidades_html} cubre las entidades
 con nombre comunes en español y referencias numéricas válidas, pero no se
 activa sola porque un ampersand puede ser contenido legítimo.
-\code{reemplazar_saltos_linea} convierte \verb{\\\\n}, \verb{\\\\r} y \verb{\\\\r\\\\n} en un espacio y
-también requiere una decisión explícita. Las tres acciones registran el
-número de valores cambiados.
+\code{reemplazar_saltos_linea} convierte tabulaciones, saltos de línea, avances de
+página y tabulaciones verticales (\verb{\\\\t}, \verb{\\\\n}, \verb{\\\\r}, \verb{\\\\r\\\\n}, \verb{\\\\f} y \verb{\\\\v})
+en un espacio y también requiere una decisión explícita. Las tres acciones
+registran el número de valores cambiados.
 
 Las imputaciones por dependencia funcional se ofrecen desactivadas. Aunque
 una dependencia exacta permite deducir un valor sin usar media, moda o un
