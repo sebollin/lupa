@@ -32,7 +32,8 @@ perfilar(
   duplicados_aproximados = FALSE,
   max_filas_hallazgo = 1000L,
   umbral_orden_columnas = 0.95,
-  max_columnas_orden = 20L
+  max_columnas_orden = 20L,
+  umbral_solapamiento_orden = 0.4
 )
 }
 \arguments{
@@ -127,6 +128,11 @@ pequeñas. El alcance efectivo queda en \code{meta$orden_columnas}.}
 \item{max_columnas_orden}{Máximo de columnas numéricas o temporales que se
 comparan entre sí para detectar relaciones de orden. Las columnas que
 exceden el límite se conservan en \code{meta$orden_columnas$columnas_omitidas}.}
+
+\item{umbral_solapamiento_orden}{Solapamiento mínimo de los rangos
+intercuartiles para considerar que dos columnas representan magnitudes
+comparables. Por defecto es \code{0.4}; los pares que no lo alcanzan se
+descartan y se cuentan en \code{meta$orden_columnas$pares_descartados_magnitud}.}
 }
 \value{
 Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye

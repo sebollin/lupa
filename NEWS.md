@@ -99,7 +99,10 @@
   comparables (por ejemplo, `inicio <= fin` y `monto_bruto <= monto_neto`).
   El hallazgo conserva los conteos y las filas fuera de orden, sugiere
   formalizar la regla con `ReglaIntegridadIntraEntidad` y declara en
-  `meta$orden_columnas` las columnas y pares efectivamente comparados.
+  `meta$orden_columnas` las columnas y pares efectivamente comparados. Antes
+  de evaluar el orden exige un solapamiento intercuartil mínimo de 0.4 para
+  evitar relaciones espurias entre magnitudes de escalas separadas; los pares
+  descartados quedan contados en el alcance.
 
 - Protege los estadísticos de orden y cuantiles de columnas personales, marca
   cada supresión en el objeto y conserva alertas de plausibilidad para fechas de

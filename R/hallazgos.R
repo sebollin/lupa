@@ -75,8 +75,39 @@
   suppressWarnings(as.numeric(cuantitativos$valores))
 }
 
+# Solapamiento relativo de los rangos intercuartilicos. Las columnas ya llegan
+# convertidas a una escala numerica comun (incluidas Date y POSIXct). Un rango
+# de anchura cero se trata explicitamente: dos constantes solo son comparables
+# si tienen el mismo valor, y una constante se solapa si cae dentro del rango
+# intercuartil de la otra columna.
+.solapamiento_iqr_orden <- function(a, b) {
+  a <- a[is.finite(a)]
+  b <- b[is.finite(b)]
+  if (!length(a) || !length(b)) return(NA_real_)
+  qa <- stats::quantile(a, c(0.25, 0.75), na.rm = TRUE,
+                        names = FALSE, type = 7)
+  qb <- stats::quantile(b, c(0.25, 0.75), na.rm = TRUE,
+                        names = FALSE, type = 7)
+  if (any(!is.finite(c(qa, qb)))) return(NA_real_)
+  anchura_a <- qa[[2L]] - qa[[1L]]
+  anchura_b <- qb[[2L]] - qb[[1L]]
+  if (anchura_a == 0 && anchura_b == 0) {
+    return(as.numeric(qa[[1L]] == qb[[1L]]))
+  }
+  if (anchura_a == 0) {
+    return(as.numeric(qa[[1L]] >= qb[[1L]] && qa[[1L]] <= qb[[2L]]))
+  }
+  if (anchura_b == 0) {
+    return(as.numeric(qb[[1L]] >= qa[[1L]] && qb[[1L]] <= qa[[2L]]))
+  }
+  ancho_comun <- max(0, min(qa[[2L]], qb[[2L]]) -
+    max(qa[[1L]], qb[[1L]]))
+  as.numeric(ancho_comun / max(anchura_a, anchura_b))
+}
+
 .alcance_orden_columnas <- function(nombres, seleccion, max_columnas,
-                                    tipos, n_filas, umbral) {
+                                    tipos, n_filas, umbral,
+                                    umbral_solapamiento = 0.4) {
   grupos <- split(seleccion, tipos[seleccion])
   pares <- if (length(grupos)) {
     sum(vapply(grupos, function(x) choose(length(x), 2L), numeric(1L)))
@@ -95,19 +126,24 @@
     truncado = length(which(!is.na(tipos))) > max_columnas,
     max_columnas = as.integer(max_columnas),
     umbral_cumplimiento = as.numeric(umbral),
+    umbral_solapamiento_iqr = as.numeric(umbral_solapamiento),
+    pares_descartados_magnitud = 0,
+    pares_evaluados_orden = 0,
     minimo_filas = 3L
   )
 }
 
 .detectar_orden_columnas <- function(datos, columnas, resultados,
                                      formatos_fecha, umbral = 0.95,
-                                     max_columnas = 20L) {
+                                     max_columnas = 20L,
+                                     umbral_solapamiento = 0.4) {
   n_columnas <- ncol(datos)
   if (!n_columnas || !nrow(datos)) {
     return(list(
       hallazgos = list(),
       alcance = .alcance_orden_columnas(
-        character(), integer(), max_columnas, character(), nrow(datos), umbral
+        character(), integer(), max_columnas, character(), nrow(datos), umbral,
+        umbral_solapamiento
       )
     ))
   }
@@ -117,7 +153,8 @@
   comparables <- which(!is.na(tipos))
   seleccion <- utils::head(comparables, max_columnas)
   alcance <- .alcance_orden_columnas(
-    names(datos), seleccion, max_columnas, tipos, nrow(datos), umbral
+    names(datos), seleccion, max_columnas, tipos, nrow(datos), umbral,
+    umbral_solapamiento
   )
   if (length(seleccion) < 2L) return(list(hallazgos = list(), alcance = alcance))
 
@@ -151,6 +188,13 @@
     izquierda <- izquierda[comparables_fila]
     derecha <- derecha[comparables_fila]
     filas <- which(comparables_fila)
+    solapamiento <- .solapamiento_iqr_orden(izquierda, derecha)
+    if (!is.finite(solapamiento) || solapamiento < umbral_solapamiento) {
+      alcance$pares_descartados_magnitud <-
+        alcance$pares_descartados_magnitud + 1
+      next
+    }
+    alcance$pares_evaluados_orden <- alcance$pares_evaluados_orden + 1
     cumple_izquierda <- izquierda <= derecha
     cumple_derecha <- derecha <= izquierda
     proporcion_izquierda <- mean(cumple_izquierda)
@@ -197,6 +241,7 @@
       paste0(
         sprintf("%.3f de cumplimiento; %d de %d filas fuera de orden. ",
                 proporcion, length(indices_incumplen), n_evaluados),
+        sprintf("Solapamiento intercuartil: %.3f. ", solapamiento),
         evidencia_ejemplos
       ),
       paste0(

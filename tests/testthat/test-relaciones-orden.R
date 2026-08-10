@@ -36,6 +36,26 @@ test_that("el perfil detecta una relación numérica invertida", {
   expect_match(hallazgo$evidencia, "monto_neto=190", fixed = TRUE)
 })
 
+test_that("conserva los conteos de relaciones raras en padrones grandes", {
+  n <- 2000L
+  inicio <- as.Date("2024-01-01") + seq_len(n)
+  fin <- inicio + 30L
+  fin[seq_len(40L)] <- inicio[seq_len(40L)] - 1L
+  bruto <- seq(1000, length.out = n)
+  neto <- bruto + 100
+  neto[seq_len(25L)] <- bruto[seq_len(25L)] - 1
+  perfil <- perfilar(
+    data.frame(inicio = inicio, fin = fin, bruto = bruto, neto = neto),
+    analizar_dependencias = FALSE
+  )
+  relaciones <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "relacion_orden_columnas", , drop = FALSE
+  ]
+  expect_equal(relaciones$columna, c("inicio,fin", "bruto,neto"))
+  expect_equal(relaciones$n_evaluados, c(n, n))
+  expect_equal(relaciones$n_afectados, c(40, 25))
+})
+
 test_that("no se agregan relaciones a una tabla sin orden dominante", {
   set.seed(6701)
   datos <- as.data.frame(replicate(8L, rnorm(200L)))
@@ -98,4 +118,48 @@ test_that("el perfil sin relaciones conserva sus hallazgos previos", {
     perfil_optimizado$hallazgos,
     perfil_sin_detector$hallazgos
   )
+})
+
+test_that("descarta relaciones entre magnitudes sin solapamiento", {
+  set.seed(6801)
+  datos <- data.frame(
+    edad = sample(18:95, 3000L, replace = TRUE),
+    monto = runif(3000L, 100, 90000),
+    anio = sample(2000:2025, 3000L, replace = TRUE),
+    cantidad = sample(1:10, 3000L, replace = TRUE)
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  expect_false(any(
+    perfil$hallazgos$tipo_hallazgo == "relacion_orden_columnas"
+  ))
+  alcance <- perfil$meta$orden_columnas
+  expect_equal(alcance$pares_descartados_magnitud, 6)
+  expect_equal(alcance$pares_evaluados_orden, 0)
+  expect_equal(alcance$umbral_solapamiento_iqr, 0.4)
+})
+
+test_that("el solapamiento funciona con fechas y POSIXct", {
+  datos <- data.frame(
+    inicio = as.POSIXct(c("2024-01-10", "2024-05-01", "2024-03-01"),
+                        tz = "UTC"),
+    fin = as.POSIXct(c("2024-02-10", "2024-04-01", "2024-06-01"),
+                     tz = "UTC")
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  expect_equal(sum(perfil$hallazgos$tipo_hallazgo ==
+                   "relacion_orden_columnas"), 1L)
+  expect_equal(perfil$meta$orden_columnas$pares_evaluados_orden, 1)
+})
+
+test_that("los rangos intercuartiles de anchura cero no dividen por cero", {
+  iguales <- data.frame(a = rep(5, 30L), b = rep(5, 30L))
+  distintos <- data.frame(a = rep(5, 30L), b = rep(9, 30L))
+  perfil_iguales <- perfilar(iguales, analizar_dependencias = FALSE)
+  perfil_distintos <- perfilar(distintos, analizar_dependencias = FALSE)
+  expect_false(any(perfil_iguales$hallazgos$tipo_hallazgo ==
+                   "relacion_orden_columnas"))
+  expect_false(any(perfil_distintos$hallazgos$tipo_hallazgo ==
+                   "relacion_orden_columnas"))
+  expect_equal(perfil_iguales$meta$orden_columnas$pares_descartados_magnitud, 0)
+  expect_equal(perfil_distintos$meta$orden_columnas$pares_descartados_magnitud, 1)
 })

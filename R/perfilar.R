@@ -158,6 +158,10 @@
 #' @param max_columnas_orden Máximo de columnas numéricas o temporales que se
 #'   comparan entre sí para detectar relaciones de orden. Las columnas que
 #'   exceden el límite se conservan en `meta$orden_columnas$columnas_omitidas`.
+#' @param umbral_solapamiento_orden Solapamiento mínimo de los rangos
+#'   intercuartiles para considerar que dos columnas representan magnitudes
+#'   comparables. Por defecto es `0.4`; los pares que no lo alcanzan se
+#'   descartan y se cuentan en `meta$orden_columnas$pares_descartados_magnitud`.
 #'
 #' @return Objeto S3 de clase `perfil`. Cada fila de hallazgos incluye
 #'   n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
@@ -205,7 +209,8 @@ perfilar <- function(datos,
                      duplicados_aproximados = FALSE,
                      max_filas_hallazgo = 1000L,
                      umbral_orden_columnas = 0.95,
-                     max_columnas_orden = 20L) {
+                     max_columnas_orden = 20L,
+                     umbral_solapamiento_orden = 0.4) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
@@ -275,6 +280,12 @@ perfilar <- function(datos,
     stop("`max_columnas_orden` debe ser un entero de al menos 2.", call. = FALSE)
   }
   max_columnas_orden <- as.integer(max_columnas_orden)
+  if (!is.numeric(umbral_solapamiento_orden) ||
+      length(umbral_solapamiento_orden) != 1L ||
+      is.na(umbral_solapamiento_orden) ||
+      umbral_solapamiento_orden < 0 || umbral_solapamiento_orden > 1) {
+    stop("`umbral_solapamiento_orden` debe estar entre 0 y 1.", call. = FALSE)
+  }
   if (!is.logical(duplicados_aproximados) &&
       !is.list(duplicados_aproximados)) {
     stop("`duplicados_aproximados` debe ser FALSE, TRUE o una lista de argumentos.",
@@ -352,7 +363,8 @@ perfilar <- function(datos,
   duplicadas <- .columnas_duplicadas(datos, nombres)
   relaciones_orden <- .detectar_orden_columnas(
     datos, columnas, resultados, formatos_fecha,
-    umbral = umbral_orden_columnas, max_columnas = max_columnas_orden
+    umbral = umbral_orden_columnas, max_columnas = max_columnas_orden,
+    umbral_solapamiento = umbral_solapamiento_orden
   )
   tipos <- table(vapply(seq_along(datos), function(i) {
     .tipo_declarado(datos[[i]])
@@ -463,6 +475,7 @@ perfilar <- function(datos,
     max_filas_hallazgo = max_filas_hallazgo,
     umbral_orden_columnas = umbral_orden_columnas,
     max_columnas_orden = max_columnas_orden,
+    umbral_solapamiento_orden = umbral_solapamiento_orden,
     orden_columnas = relaciones_orden$alcance
   )
   estructura <- list(
