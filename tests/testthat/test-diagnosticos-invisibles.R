@@ -60,10 +60,10 @@ test_that("los saltos de línea se cuentan y se escapan en la evidencia", {
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
   columna <- perfil$columnas[perfil$columnas$columna == "observacion", , drop = FALSE]
   hallazgo <- perfil$hallazgos[
-    perfil$hallazgos$tipo_hallazgo == "saltos_linea", , drop = FALSE
+    perfil$hallazgos$tipo_hallazgo == "separadores_en_campo", , drop = FALSE
   ]
 
-  expect_equal(columna$n_saltos_linea, 6L)
+  expect_equal(columna$n_separadores_en_campo, 6L)
   expect_equal(hallazgo$n_afectados, 6)
   expect_match(hallazgo$evidencia, "\\\\n", fixed = FALSE)
   expect_match(hallazgo$evidencia, "\\\\r", fixed = FALSE)
@@ -80,12 +80,12 @@ test_that("los separadores no se confunden con controles invisibles", {
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
   columna <- perfil$columnas[perfil$columnas$columna == "texto", , drop = FALSE]
   expect_equal(columna$n_controles_invisibles, 1L)
-  expect_equal(columna$n_saltos_linea, 3L)
+  expect_equal(columna$n_separadores_en_campo, 3L)
   expect_equal(
     sum(perfil$hallazgos$tipo_hallazgo == "controles_invisibles"), 1L
   )
   expect_equal(
-    sum(perfil$hallazgos$tipo_hallazgo == "saltos_linea"), 1L
+    sum(perfil$hallazgos$tipo_hallazgo == "separadores_en_campo"), 1L
   )
 })
 
@@ -98,17 +98,17 @@ test_that("el tabulador conserva el dato por omisión y se reemplaza explícitam
     perfilar(datos, analizar_dependencias = FALSE), datos
   )
   expect_false(any(plan$estrategia == "eliminar_controles_invisibles"))
-  expect_true(any(plan$estrategia == "reemplazar_saltos_linea"))
-  expect_false(plan$aplicar[plan$estrategia == "reemplazar_saltos_linea"])
+  expect_true(any(plan$estrategia == "reemplazar_separadores"))
+  expect_false(plan$aplicar[plan$estrategia == "reemplazar_separadores"])
 
   por_defecto <- aplicar(plan, datos)
   expect_identical(por_defecto$datos$nombre, "Juan\tRodríguez")
 
-  plan$aplicar[plan$estrategia == "reemplazar_saltos_linea"] <- TRUE
+  plan$aplicar[plan$estrategia == "reemplazar_separadores"] <- TRUE
   explicito <- aplicar(plan, datos)
   expect_identical(explicito$datos$nombre, "Juan Rodríguez")
   expect_equal(explicito$registro$n_cambiadas[
-    explicito$registro$estrategia == "reemplazar_saltos_linea"
+    explicito$registro$estrategia == "reemplazar_separadores"
   ], 1L)
 })
 
@@ -124,7 +124,7 @@ test_that("sólo los controles se recomiendan y las acciones registran cambios",
   )
   control <- plan[plan$estrategia == "eliminar_controles_invisibles", , drop = FALSE]
   html <- plan[plan$estrategia == "decodificar_entidades_html", , drop = FALSE]
-  saltos <- plan[plan$estrategia == "reemplazar_saltos_linea", , drop = FALSE]
+  saltos <- plan[plan$estrategia == "reemplazar_separadores", , drop = FALSE]
   expect_true(control$recomendada)
   expect_true(control$aplicar)
   expect_false(html$recomendada)
@@ -133,7 +133,7 @@ test_that("sólo los controles se recomiendan y las acciones registran cambios",
   expect_false(saltos$aplicar)
 
   plan$aplicar[plan$estrategia %in% c(
-    "decodificar_entidades_html", "reemplazar_saltos_linea"
+    "decodificar_entidades_html", "reemplazar_separadores"
   )] <- TRUE
   resultado <- aplicar(plan, datos)
   expect_equal(resultado$datos$control, "AB")
@@ -142,7 +142,7 @@ test_that("sólo los controles se recomiendan y las acciones registran cambios",
   expect_equal(
     resultado$registro$n_cambiadas[
       match(c("eliminar_controles_invisibles", "decodificar_entidades_html",
-              "reemplazar_saltos_linea"), resultado$registro$estrategia)
+              "reemplazar_separadores"), resultado$registro$estrategia)
     ],
     c(1, 1, 1)
   )

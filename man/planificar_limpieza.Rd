@@ -92,13 +92,13 @@ explícita y deja la pérdida cuantificada. Por defecto, el resultado conserva
 lo retirado en \code{eliminados}; use \code{conservar_eliminados = FALSE} para evitar
 ese costo de memoria.
 
-Los hallazgos \code{controles_invisibles}, \code{entidades_html} y \code{saltos_linea}
+Los hallazgos \code{controles_invisibles}, \code{entidades_html} y \code{separadores_en_campo}
 tienen acciones separadas. \code{eliminar_controles_invisibles} quita controles
 C0/C1 que no son separadores de línea e invisibles Unicode y se recomienda
 por defecto. \code{decodificar_entidades_html} cubre las entidades
 con nombre comunes en español y referencias numéricas válidas, pero no se
 activa sola porque un ampersand puede ser contenido legítimo.
-\code{reemplazar_saltos_linea} convierte tabulaciones, saltos de línea, avances de
+\code{reemplazar_separadores} convierte tabulaciones, saltos de línea, avances de
 página y tabulaciones verticales (\verb{\\\\t}, \verb{\\\\n}, \verb{\\\\r}, \verb{\\\\r\\\\n}, \verb{\\\\f} y \verb{\\\\v})
 en un espacio y también requiere una decisión explícita. Las tres acciones
 registran el número de valores cambiados.

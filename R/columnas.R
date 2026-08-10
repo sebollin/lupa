@@ -675,8 +675,8 @@
     evidencia_controles_invisibles = "",
     n_entidades_html = 0L,
     evidencia_entidades_html = "",
-    n_saltos_linea = 0L,
-    evidencia_saltos_linea = ""
+    n_separadores_en_campo = 0L,
+    evidencia_separadores_en_campo = ""
   )
   if (!is.character(x) && !is.factor(x)) {
     return(vacio)
@@ -780,8 +780,8 @@
     evidencia_controles_invisibles = .evidencia_texto_visible(textos, controles),
     n_entidades_html = sum(entidades, na.rm = TRUE),
     evidencia_entidades_html = .evidencia_texto_visible(textos, entidades),
-    n_saltos_linea = sum(saltos, na.rm = TRUE),
-    evidencia_saltos_linea = .evidencia_texto_visible(textos, saltos)
+    n_separadores_en_campo = sum(saltos, na.rm = TRUE),
+    evidencia_separadores_en_campo = .evidencia_texto_visible(textos, saltos)
   )
 }
 
@@ -924,7 +924,7 @@
     n_codificacion_invalida = diagnostico_texto$n_codificacion_invalida,
     n_controles_invisibles = diagnostico_texto$n_controles_invisibles,
     n_entidades_html = diagnostico_texto$n_entidades_html,
-    n_saltos_linea = diagnostico_texto$n_saltos_linea,
+    n_separadores_en_campo = diagnostico_texto$n_separadores_en_campo,
     n_numeros_texto = numeros_texto$n,
     proporcion_numeros_texto = numeros_texto$proporcion,
     numero_texto_ambiguo = numeros_texto$ambiguo,
@@ -971,7 +971,7 @@
     "n_codificacion_reparable", "n_codificacion_reparable_parcialmente",
     "n_codificacion_irreparable", "n_codificacion_no_se_pudo",
     "n_codificacion_invalida", "n_controles_invisibles", "n_entidades_html",
-    "n_saltos_linea", "n_numeros_texto"
+    "n_separadores_en_campo", "n_numeros_texto"
   )
   fila[enteros_na] <- NA_integer_
   reales_na <- c(

@@ -275,13 +275,13 @@
 #' lo retirado en `eliminados`; use `conservar_eliminados = FALSE` para evitar
 #' ese costo de memoria.
 #'
-#' Los hallazgos `controles_invisibles`, `entidades_html` y `saltos_linea`
+#' Los hallazgos `controles_invisibles`, `entidades_html` y `separadores_en_campo`
 #' tienen acciones separadas. `eliminar_controles_invisibles` quita controles
 #' C0/C1 que no son separadores de línea e invisibles Unicode y se recomienda
 #' por defecto. `decodificar_entidades_html` cubre las entidades
 #' con nombre comunes en español y referencias numéricas válidas, pero no se
 #' activa sola porque un ampersand puede ser contenido legítimo.
-#' `reemplazar_saltos_linea` convierte tabulaciones, saltos de línea, avances de
+#' `reemplazar_separadores` convierte tabulaciones, saltos de línea, avances de
 #' página y tabulaciones verticales (`\\t`, `\\n`, `\\r`, `\\r\\n`, `\\f` y `\\v`)
 #' en un espacio y también requiere una decisión explícita. Las tres acciones
 #' registran el número de valores cambiados.
@@ -457,13 +457,13 @@ planificar_limpieza <- function(perfil, datos = NULL,
         ), fila$n_entidades_html[[1L]], FALSE,
         estado = estado_columna, aplicar = FALSE, orden = 207L
       ))
-    } else if (identical(tipo, "saltos_linea") && !is.null(fila)) {
+    } else if (identical(tipo, "separadores_en_campo") && !is.null(fila)) {
       acciones <- .agregar_accion(acciones, .nueva_accion(
-        columna, tipo, "reemplazar_saltos_linea", FALSE,
+        columna, tipo, "reemplazar_separadores", FALSE,
         paste0(
           "Un salto dentro de un campo puede romper un CSV, pero tambi\u00e9n ",
           "puede ser parte leg\u00edtima de una observaci\u00f3n."
-        ), fila$n_saltos_linea[[1L]], FALSE,
+        ), fila$n_separadores_en_campo[[1L]], FALSE,
         estado = estado_columna, aplicar = FALSE, orden = 209L
       ))
     } else if (identical(tipo, "codificacion_rota") && !is.null(fila)) {
@@ -1215,7 +1215,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   list(valor = .resultado_texto(x, nuevo), n = sum(!is.na(anterior) & anterior != nuevo))
 }
 
-.reemplazar_saltos_linea <- function(x) {
+.reemplazar_separadores <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
     stop("El reemplazo de saltos de l\u00ednea requiere una columna de texto.",
          call. = FALSE)
@@ -1683,8 +1683,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
     datos[[indice]] <- cambio$valor
     return(list(datos = datos, n = cambio$n))
   }
-  if (identical(estrategia, "reemplazar_saltos_linea")) {
-    cambio <- .reemplazar_saltos_linea(x)
+  if (identical(estrategia, "reemplazar_separadores")) {
+    cambio <- .reemplazar_separadores(x)
     datos[[indice]] <- cambio$valor
     return(list(datos = datos, n = cambio$n))
   }

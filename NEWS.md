@@ -2,6 +2,9 @@
 
 ## Diagnósticos de texto invisible
 
+- El hallazgo de separadores en campo, su acción y su conteo usan nombres
+  específicos para cubrir tabulaciones, saltos, avances de página y tabulaciones
+  verticales.
 - `perfilar()` identifica controles C0/C1 e invisibles Unicode, entidades HTML
   reconocibles y separadores dentro de campos. La evidencia escapa esos
   caracteres (`<U+200B>`, `\\t`, `\\n`, `\\r`, `\\f`, `\\v`) y conserva los
