@@ -262,9 +262,7 @@
 #' codificaciones y deja en `estado_reparacion` uno de `reparado`,
 #' `reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se activa
 #' automáticamente: debe revisarse y seleccionarse de forma explícita. La
-#' estrategia nueva se llama `reparar_codificacion`. El nombre histórico
-#' `reparar_codificacion_latin1` se acepta como alias para planes guardados,
-#' aunque ya no limita el motor a latin-1.
+#' estrategia se llama `reparar_codificacion` y no limita el motor a latin-1.
 #' Si se marca una acción que no está `lista`, `aplicar()` aborta antes de
 #' modificar la copia y enumera las filas problemáticas. Una acción que sí está
 #' lista pero falla se registra con su error y no impide aplicar las siguientes:
@@ -1688,7 +1686,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     datos[[indice]] <- cambio$valor
     return(list(datos = datos, n = cambio$n))
   }
-  if (estrategia %in% c("reparar_codificacion_latin1", "reparar_codificacion")) {
+  if (identical(estrategia, "reparar_codificacion")) {
     cambio <- .reparar_codificacion(x, parametros)
     datos[[indice]] <- cambio$valor
     return(list(datos = datos, n = cambio$n,

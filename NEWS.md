@@ -60,8 +60,7 @@
 - La licencia del paquete pasa de `GPL-2 | GPL-3` a `GPL-3`; las partes
   derivadas del diseño de [ftfy](https://github.com/rspeer/python-ftfy) se
   atribuyen en `LICENSE.note` bajo Apache-2.0.
-- La estrategia nueva se registra como `reparar_codificacion`; se conserva
-  `reparar_codificacion_latin1` únicamente como alias para planes guardados.
+- La estrategia de reparación de texto se registra como `reparar_codificacion`.
 
 ## Recursos de comparación
 
