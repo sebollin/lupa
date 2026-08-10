@@ -547,6 +547,100 @@
   )
 }
 
+.codigos_control_invisible <- function(codigos) {
+  # Los saltos de linea tienen un diagnostico y una estrategia propios. El
+  # resto de C0/C1 y los invisibles Unicode se consideran basura de transporte.
+  codigos %in% c(
+    0:8, 9L, 11L:12L, 14L:31L, 127L:159L,
+    0xFEFF, 0x200B, 0x200E, 0x200F
+  )
+}
+
+.tiene_control_invisible <- function(textos) {
+  vapply(textos, function(texto) {
+    if (is.na(texto)) return(FALSE)
+    codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
+    any(.codigos_control_invisible(codigos) & !codigos %in% c(10L, 13L))
+  }, logical(1L), USE.NAMES = FALSE)
+}
+
+.tiene_salto_linea <- function(textos) {
+  !is.na(textos) & grepl("[\\r\\n]", textos, perl = TRUE)
+}
+
+# El paquete cubre las entidades HTML habituales en datos en espanol y todas
+# las referencias numericas Unicode. No se interpreta cualquier texto entre
+# '&' y ';': el nombre debe pertenecer a este mapa.
+.entidades_html_comunes <- c(
+  quot = "\"", amp = "&", apos = "'", lt = "<", gt = ">", nbsp = "\u00a0",
+  iexcl = "\u00a1", cent = "\u00a2", pound = "\u00a3", curren = "\u00a4",
+  yen = "\u00a5", sect = "\u00a7", copy = "\u00a9", reg = "\u00ae",
+  deg = "\u00b0", plusmn = "\u00b1", para = "\u00b6", middot = "\u00b7",
+  laquo = "\u00ab", raquo = "\u00bb", iquest = "\u00bf", euro = "\u20ac",
+  Aacute = "\u00c1", Acirc = "\u00c2", Atilde = "\u00c3", Auml = "\u00c4",
+  Agrave = "\u00c0", Aring = "\u00c5", Ccedil = "\u00c7",
+  Eacute = "\u00c9", Ecirc = "\u00ca", Euml = "\u00cb", Egrave = "\u00c8",
+  Iacute = "\u00cd", Icirc = "\u00ce", Iuml = "\u00cf", Igrave = "\u00cc",
+  Ntilde = "\u00d1", Oacute = "\u00d3", Ocirc = "\u00d4", Otilde = "\u00d5",
+  Ouml = "\u00d6", Ograve = "\u00d2", Uacute = "\u00da", Ucirc = "\u00db",
+  Uuml = "\u00dc", Ugrave = "\u00d9", Yacute = "\u00dd",
+  aacute = "\u00e1", acirc = "\u00e2", atilde = "\u00e3", auml = "\u00e4",
+  agrave = "\u00e0", aring = "\u00e5", ccedil = "\u00e7",
+  eacute = "\u00e9", ecirc = "\u00ea", euml = "\u00eb", egrave = "\u00e8",
+  iacute = "\u00ed", icirc = "\u00ee", iuml = "\u00ef", igrave = "\u00ec",
+  ntilde = "\u00f1", oacute = "\u00f3", ocirc = "\u00f4", otilde = "\u00f5",
+  ouml = "\u00f6", ograve = "\u00f2", uacute = "\u00fa", ucirc = "\u00fb",
+  uuml = "\u00fc", ugrave = "\u00f9", yacute = "\u00fd", yuml = "\u00ff"
+)
+
+.entidades_html_en_texto <- function(textos) {
+  patron <- "&(?:#(?:[xX][0-9A-Fa-f]{1,6}|[0-9]{1,7})|[A-Za-z][A-Za-z0-9]+);"
+  vapply(textos, function(texto) {
+    if (is.na(texto)) return(FALSE)
+    posiciones <- gregexpr(patron, texto, perl = TRUE)[[1L]]
+    if (identical(posiciones[[1L]], -1L)) return(FALSE)
+    encontrados <- regmatches(texto, list(posiciones))[[1L]]
+    any(vapply(encontrados, .entidad_html_valida, logical(1L)))
+  }, logical(1L), USE.NAMES = FALSE)
+}
+
+.entidad_html_valida <- function(entidad) {
+  cuerpo <- substring(entidad, 2L, nchar(entidad) - 1L)
+  if (startsWith(cuerpo, "#x") || startsWith(cuerpo, "#X")) {
+    punto <- suppressWarnings(strtoi(substring(cuerpo, 3L), base = 16L))
+    return(is.finite(punto) && punto > 0L && punto <= 0x10FFFF &&
+      !(punto >= 0xD800 && punto <= 0xDFFF))
+  }
+  if (startsWith(cuerpo, "#")) {
+    punto <- suppressWarnings(as.numeric(substring(cuerpo, 2L)))
+    return(is.finite(punto) && punto > 0 && punto <= 0x10FFFF &&
+      !(punto >= 0xD800 && punto <= 0xDFFF))
+  }
+  cuerpo %in% names(.entidades_html_comunes)
+}
+
+.escapar_texto_visible <- function(texto) {
+  if (is.na(texto)) return(NA_character_)
+  codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
+  if (!length(codigos)) return("")
+  partes <- vapply(codigos, function(codigo) {
+    if (codigo == 9L) return("\\t")
+    if (codigo == 10L) return("\\n")
+    if (codigo == 13L) return("\\r")
+    if (.codigos_control_invisible(codigo)) {
+      return(sprintf("<U+%04X>", codigo))
+    }
+    intToUtf8(codigo)
+  }, character(1L), USE.NAMES = FALSE)
+  paste0(partes, collapse = "")
+}
+
+.evidencia_texto_visible <- function(textos, mascara) {
+  ejemplos <- utils::head(unique(textos[which(mascara)]), 6L)
+  if (!length(ejemplos)) return("")
+  paste(vapply(ejemplos, .escapar_texto_visible, character(1L)), collapse = "; ")
+}
+
 .diagnosticar_texto <- function(x, vocabulario = NULL) {
   vacio <- list(
     n_espacios_borde = 0L,
@@ -564,7 +658,13 @@
     estado_codificacion_reparacion = "no_parece_roto",
     evidencia_codificacion = "",
     n_codificacion_invalida = 0L,
-    evidencia_codificacion_invalida = ""
+    evidencia_codificacion_invalida = "",
+    n_controles_invisibles = 0L,
+    evidencia_controles_invisibles = "",
+    n_entidades_html = 0L,
+    evidencia_entidades_html = "",
+    n_saltos_linea = 0L,
+    evidencia_saltos_linea = ""
   )
   if (!is.character(x) && !is.factor(x)) {
     return(vacio)
@@ -627,6 +727,20 @@
     n_variantes_unicode <- NA_integer_
     unicode_evaluado <- FALSE
   }
+  vocabulario_predicados <- .vocabulario_texto(
+    textos, .umbral_vocabulario_barato, valores = unicos
+  )
+  mapear_predicado <- function(fn) {
+    evaluados <- fn(vocabulario_predicados$valores)
+    if (isTRUE(vocabulario_predicados$usar)) {
+      evaluados[vocabulario_predicados$indices]
+    } else {
+      evaluados
+    }
+  }
+  controles <- mapear_predicado(.tiene_control_invisible)
+  saltos <- mapear_predicado(.tiene_salto_linea)
+  entidades <- mapear_predicado(.entidades_html_en_texto)
   codificacion <- .analizar_codificacion_vocabulario(textos, valores = unicos)
 
   list(
@@ -649,7 +763,13 @@
     estado_codificacion_reparacion = codificacion$estado,
     evidencia_codificacion = codificacion$evidencia,
     n_codificacion_invalida = length(preparacion$posiciones),
-    evidencia_codificacion_invalida = vacio$evidencia_codificacion_invalida
+    evidencia_codificacion_invalida = vacio$evidencia_codificacion_invalida,
+    n_controles_invisibles = sum(controles, na.rm = TRUE),
+    evidencia_controles_invisibles = .evidencia_texto_visible(textos, controles),
+    n_entidades_html = sum(entidades, na.rm = TRUE),
+    evidencia_entidades_html = .evidencia_texto_visible(textos, entidades),
+    n_saltos_linea = sum(saltos, na.rm = TRUE),
+    evidencia_saltos_linea = .evidencia_texto_visible(textos, saltos)
   )
 }
 
@@ -790,6 +910,9 @@
     n_codificacion_no_se_pudo = diagnostico_texto$n_codificacion_no_se_pudo,
     estado_codificacion_reparacion = diagnostico_texto$estado_codificacion_reparacion,
     n_codificacion_invalida = diagnostico_texto$n_codificacion_invalida,
+    n_controles_invisibles = diagnostico_texto$n_controles_invisibles,
+    n_entidades_html = diagnostico_texto$n_entidades_html,
+    n_saltos_linea = diagnostico_texto$n_saltos_linea,
     n_numeros_texto = numeros_texto$n,
     proporcion_numeros_texto = numeros_texto$proporcion,
     numero_texto_ambiguo = numeros_texto$ambiguo,
@@ -835,7 +958,8 @@
     "n_variantes_unicode", "n_codificacion_rota",
     "n_codificacion_reparable", "n_codificacion_reparable_parcialmente",
     "n_codificacion_irreparable", "n_codificacion_no_se_pudo",
-    "n_codificacion_invalida", "n_numeros_texto"
+    "n_codificacion_invalida", "n_controles_invisibles", "n_entidades_html",
+    "n_saltos_linea", "n_numeros_texto"
   )
   fila[enteros_na] <- NA_integer_
   reales_na <- c(

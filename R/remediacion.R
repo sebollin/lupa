@@ -275,6 +275,16 @@
 #' lo retirado en `eliminados`; use `conservar_eliminados = FALSE` para evitar
 #' ese costo de memoria.
 #'
+#' Los hallazgos `controles_invisibles`, `entidades_html` y `saltos_linea`
+#' tienen acciones separadas. `eliminar_controles_invisibles` quita controles
+#' C0/C1 (los saltos de línea se diagnostican aparte) e invisibles Unicode y se
+#' recomienda por defecto. `decodificar_entidades_html` cubre las entidades
+#' con nombre comunes en español y referencias numéricas válidas, pero no se
+#' activa sola porque un ampersand puede ser contenido legítimo.
+#' `reemplazar_saltos_linea` convierte `\\n`, `\\r` y `\\r\\n` en un espacio y
+#' también requiere una decisión explícita. Las tres acciones registran el
+#' número de valores cambiados.
+#'
 #' Las imputaciones por dependencia funcional se ofrecen desactivadas. Aunque
 #' una dependencia exacta permite deducir un valor sin usar media, moda o un
 #' modelo externo, sigue siendo una regularidad aprendida de una sola entrega y
@@ -426,6 +436,34 @@ planificar_limpieza <- function(perfil, datos = NULL,
         columna, tipo, "recortar_espacios", TRUE, justificacion,
         fila$n_espacios_borde[[1L]], FALSE, estado = estado_columna,
         aplicar = identical(estado_columna, "lista"), orden = 200L
+      ))
+    } else if (identical(tipo, "controles_invisibles") && !is.null(fila)) {
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        columna, tipo, "eliminar_controles_invisibles", TRUE,
+        paste0(
+          "Los controles C0/C1 e invisibles Unicode no aportan contenido de ",
+          "negocio y pueden romper cruces, comparaciones y exportes."
+        ), fila$n_controles_invisibles[[1L]], FALSE,
+        estado = estado_columna,
+        aplicar = identical(estado_columna, "lista"), orden = 205L
+      ))
+    } else if (identical(tipo, "entidades_html") && !is.null(fila)) {
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        columna, tipo, "decodificar_entidades_html", FALSE,
+        paste0(
+          "Decodificar una entidad puede ser correcto para una fuente web, ",
+          "pero un ampersand tambi\u00e9n puede ser contenido leg\u00edtimo."
+        ), fila$n_entidades_html[[1L]], FALSE,
+        estado = estado_columna, aplicar = FALSE, orden = 207L
+      ))
+    } else if (identical(tipo, "saltos_linea") && !is.null(fila)) {
+      acciones <- .agregar_accion(acciones, .nueva_accion(
+        columna, tipo, "reemplazar_saltos_linea", FALSE,
+        paste0(
+          "Un salto dentro de un campo puede romper un CSV, pero tambi\u00e9n ",
+          "puede ser parte leg\u00edtima de una observaci\u00f3n."
+        ), fila$n_saltos_linea[[1L]], FALSE,
+        estado = estado_columna, aplicar = FALSE, orden = 209L
       ))
     } else if (identical(tipo, "codificacion_rota") && !is.null(fila)) {
       reparable <- fila$n_codificacion_reparable[[1L]] > 0L
@@ -1129,6 +1167,64 @@ planificar_limpieza <- function(perfil, datos = NULL,
   list(valor = nuevo, n = sum(mascara))
 }
 
+.quitar_controles_invisibles <- function(x) {
+  if (!is.character(x) && !is.factor(x)) {
+    stop("La eliminaci\u00f3n de controles invisibles requiere una columna de texto.",
+         call. = FALSE)
+  }
+  anterior <- as.character(x)
+  nuevo <- vapply(anterior, function(texto) {
+    if (is.na(texto)) return(NA_character_)
+    codigos <- utf8ToInt(texto)
+    conservar <- !.codigos_control_invisible(codigos) |
+      codigos %in% c(10L, 13L)
+    paste0(intToUtf8(codigos[conservar], multiple = TRUE), collapse = "")
+  }, character(1L), USE.NAMES = FALSE)
+  list(valor = .resultado_texto(x, nuevo), n = sum(!is.na(anterior) & anterior != nuevo))
+}
+
+.entidad_html_reemplazo <- function(entidad) {
+  if (!.entidad_html_valida(entidad)) return(entidad)
+  cuerpo <- substring(entidad, 2L, nchar(entidad) - 1L)
+  if (startsWith(cuerpo, "#x") || startsWith(cuerpo, "#X")) {
+    punto <- suppressWarnings(strtoi(substring(cuerpo, 3L), base = 16L))
+    return(intToUtf8(punto))
+  }
+  if (startsWith(cuerpo, "#")) {
+    punto <- suppressWarnings(as.integer(substring(cuerpo, 2L)))
+    return(intToUtf8(punto))
+  }
+  unname(.entidades_html_comunes[[cuerpo]])
+}
+
+.decodificar_entidades_html <- function(x) {
+  if (!is.character(x) && !is.factor(x)) {
+    stop("La decodificaci\u00f3n HTML requiere una columna de texto.", call. = FALSE)
+  }
+  anterior <- as.character(x)
+  patron <- "&(?:#(?:[xX][0-9A-Fa-f]{1,6}|[0-9]{1,7})|[A-Za-z][A-Za-z0-9]+);"
+  nuevo <- vapply(anterior, function(texto) {
+    if (is.na(texto)) return(NA_character_)
+    coincidencias <- gregexpr(patron, texto, perl = TRUE)[[1L]]
+    if (identical(coincidencias[[1L]], -1L)) return(texto)
+    encontrados <- regmatches(texto, list(coincidencias))[[1L]]
+    reemplazos <- vapply(encontrados, .entidad_html_reemplazo, character(1L))
+    regmatches(texto, list(coincidencias)) <- list(reemplazos)
+    texto
+  }, character(1L), USE.NAMES = FALSE)
+  list(valor = .resultado_texto(x, nuevo), n = sum(!is.na(anterior) & anterior != nuevo))
+}
+
+.reemplazar_saltos_linea <- function(x) {
+  if (!is.character(x) && !is.factor(x)) {
+    stop("El reemplazo de saltos de l\u00ednea requiere una columna de texto.",
+         call. = FALSE)
+  }
+  anterior <- as.character(x)
+  nuevo <- gsub("\\r\\n|\\r|\\n", " ", anterior, perl = TRUE)
+  list(valor = .resultado_texto(x, nuevo), n = sum(!is.na(anterior) & anterior != nuevo))
+}
+
 .reparar_codificacion <- function(x, parametros) {
   if (!is.character(x) && !is.factor(x)) {
     stop("La reparaci\u00f3n de codificaci\u00f3n requiere una columna de texto.",
@@ -1574,6 +1670,21 @@ planificar_limpieza <- function(perfil, datos = NULL,
   }
   if (identical(estrategia, "recortar_espacios")) {
     cambio <- .recortar_texto(x)
+    datos[[indice]] <- cambio$valor
+    return(list(datos = datos, n = cambio$n))
+  }
+  if (identical(estrategia, "eliminar_controles_invisibles")) {
+    cambio <- .quitar_controles_invisibles(x)
+    datos[[indice]] <- cambio$valor
+    return(list(datos = datos, n = cambio$n))
+  }
+  if (identical(estrategia, "decodificar_entidades_html")) {
+    cambio <- .decodificar_entidades_html(x)
+    datos[[indice]] <- cambio$valor
+    return(list(datos = datos, n = cambio$n))
+  }
+  if (identical(estrategia, "reemplazar_saltos_linea")) {
+    cambio <- .reemplazar_saltos_linea(x)
     datos[[indice]] <- cambio$valor
     return(list(datos = datos, n = cambio$n))
   }

@@ -268,6 +268,9 @@
     faltantes = as.numeric(fila$n_faltantes + fila$n_faltantes_disfrazados),
     faltantes_disfrazados = as.numeric(fila$n_faltantes_disfrazados),
     espacios_sobrantes = as.numeric(fila$n_espacios_borde),
+    controles_invisibles = as.numeric(fila$n_controles_invisibles),
+    entidades_html = as.numeric(fila$n_entidades_html),
+    saltos_linea = as.numeric(fila$n_saltos_linea),
     mayusculas_inconsistentes = as.numeric(fila$n_variantes_mayusculas),
     normalizacion_unicode = as.numeric(fila$n_variantes_unicode),
     codificacion_invalida = as.numeric(fila$n_codificacion_invalida),
@@ -386,6 +389,12 @@
     },
     espacios_sobrantes = if (is.null(texto)) NULL else
       which(!is.na(texto) & texto != trimws(texto)),
+    controles_invisibles = if (is.null(texto)) NULL else
+      which(.tiene_control_invisible(texto)),
+    entidades_html = if (is.null(texto)) NULL else
+      which(.entidades_html_en_texto(texto)),
+    saltos_linea = if (is.null(texto)) NULL else
+      which(.tiene_salto_linea(texto)),
     mayusculas_inconsistentes = if (is.null(texto)) NULL else {
       presentes <- !is.na(texto)
       canon <- tolower(texto)
@@ -780,6 +789,30 @@
           resultado$diagnostico_texto$evidencia_espacios
         ),
         "Aplicar trimws() despu\u00e9s de confirmar que los espacios no son significativos."
+      ))
+    }
+    if (isTRUE(fila$n_controles_invisibles > 0L)) {
+      agregar(.nuevo_hallazgo(
+        nombre, "controles_invisibles", "error",
+        "Hay caracteres de control o invisibles Unicode dentro de los valores.",
+        resultado$diagnostico_texto$evidencia_controles_invisibles,
+        "Eliminar los controles invisibles despu\u00e9s de confirmar que no forman parte de un protocolo de transporte."
+      ))
+    }
+    if (isTRUE(fila$n_entidades_html > 0L)) {
+      agregar(.nuevo_hallazgo(
+        nombre, "entidades_html", "sospechoso",
+        "Hay entidades HTML sin decodificar dentro de los valores.",
+        resultado$diagnostico_texto$evidencia_entidades_html,
+        "Decodificar las entidades HTML s\u00f3lo despu\u00e9s de confirmar que la columna proviene de una fuente escapada."
+      ))
+    }
+    if (isTRUE(fila$n_saltos_linea > 0L)) {
+      agregar(.nuevo_hallazgo(
+        nombre, "saltos_linea", "sospechoso",
+        "Hay saltos de l\u00ednea dentro de los valores de texto.",
+        resultado$diagnostico_texto$evidencia_saltos_linea,
+        "Reemplazar los saltos por espacios s\u00f3lo despu\u00e9s de confirmar que no son parte del contenido leg\u00edtimo."
       ))
     }
     if (isTRUE(fila$n_variantes_mayusculas > 0L)) {
