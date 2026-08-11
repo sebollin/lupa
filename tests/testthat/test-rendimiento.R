@@ -33,18 +33,48 @@ test_that("los predicados invisibles decodifican cada celda como maximo una vez"
     },
     .package = "lupa"
   )
-  n <- 2000L
+  n <- 20000L
+  valores <- as.character(seq.int(10000000L, length.out = n))
   datos <- data.frame(
-    a = rep(c("Ana", "Beto"), length.out = n),
-    b = rep(c("Ana", "Beto"), length.out = n),
-    c = rep(c("Ana", "Beto"), length.out = n),
-    d = rep(c("Ana", "Beto"), length.out = n),
-    e = rep(c("Ana", "Beto"), length.out = n),
+    a = valores,
+    b = rev(valores),
+    c = paste0("9", valores),
     stringsAsFactors = FALSE
   )
   perfilar(datos, analizar_dependencias = FALSE)
   expect_equal(llamadas, ncol(datos))
-  expect_lte(valores_decodificados, nrow(datos) * ncol(datos))
+  celdas <- nrow(datos) * ncol(datos)
+  expect_equal(valores_decodificados, celdas)
+  # Margen cero a propósito: cinco pasadas por valor (la regresión de la
+  # ronda 75) tiene que fallar este mismo guardián.
+  expect_failure(expect_lte(valores_decodificados * 5L, celdas))
+})
+
+test_that("la trazabilidad de otro hallazgo no calcula invisibles", {
+  x <- c(rep("AB123", 90L), sprintf("texto-%02d", seq_len(10L)))
+  resultado <- lupa:::.perfilar_columna(
+    x, "x", Inf, 20L, TRUE, FALSE, 0.05,
+    sentinelas_numericos = c(-9, -99, -999, -9999, 999)
+  )
+  patrones <- resultado$patrones
+  attr(patrones, "resumen_patrones") <- as.data.frame(patrones)
+  attr(patrones, "n_patrones_distintos") <- 2L
+  resultado$patrones <- patrones
+  llamadas <- 0L
+  original <- lupa:::.predicados_invisibles
+  local_mocked_bindings(
+    .predicados_invisibles = function(textos) {
+      llamadas <<- llamadas + 1L
+      original(textos)
+    },
+    .package = "lupa"
+  )
+  indices <- lupa:::.indices_hallazgo_columna(
+    "patron_raro", x, resultado$fila, resultado,
+    expandir = FALSE, distinguir_mayusculas = TRUE
+  )
+  expect_gt(length(indices), 0L)
+  expect_equal(llamadas, 0L)
 })
 
 test_that("texto libre de cardinalidad alta no degrada el perfil", {

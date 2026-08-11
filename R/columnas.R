@@ -619,39 +619,6 @@
   salida
 }
 
-.tiene_control_invisible <- function(textos) {
-  .predicados_invisibles(textos)$control
-}
-
-.tiene_invisible_eliminable <- function(textos) {
-  .predicados_invisibles(textos)$eliminable
-}
-
-.tiene_espacio_invisible <- function(textos) {
-  .predicados_invisibles(textos)$espacio
-}
-
-.tiene_invisible_significativo <- function(textos) {
-  .predicados_invisibles(textos)$significativo
-}
-
-.normalizar_invisibles_texto <- function(textos) {
-  vapply(as.character(textos), function(texto) {
-    if (is.na(texto)) return(NA_character_)
-    codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
-    if (!length(codigos)) return("")
-    codigos <- vapply(codigos, function(codigo) {
-      if (codigo %in% .codigos_espacios_invisibles) 32L else codigo
-    }, integer(1L))
-    codigos <- codigos[!.codigos_control_eliminable(codigos)]
-    paste0(intToUtf8(codigos, multiple = TRUE), collapse = "")
-  }, character(1L), USE.NAMES = FALSE)
-}
-
-.tiene_salto_linea <- function(textos) {
-  .predicados_invisibles(textos)$separador
-}
-
 # El paquete cubre las entidades HTML habituales en datos en espanol y todas
 # las referencias numericas Unicode. No se interpreta cualquier texto entre
 # '&' y ';': el nombre debe pertenecer a este mapa.

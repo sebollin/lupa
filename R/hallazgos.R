@@ -369,8 +369,21 @@
   n <- length(x)
   if (!n) return(integer())
   texto <- tryCatch(.texto_analizable(x)$valores, error = function(e) NULL)
-  invisibles <- if (is.null(texto) || !is.character(texto)) NULL else
-    .predicados_invisibles(texto)
+  invisibles <- NULL
+  obtener_invisibles <- function() {
+    if (is.null(invisibles) && !is.null(texto) && is.character(texto)) {
+      vocabulario <- .vocabulario_texto(texto, .umbral_vocabulario_barato)
+      invisibles <<- .predicados_invisibles(vocabulario$valores)
+      if (isTRUE(vocabulario$usar)) {
+        invisibles <<- lapply(invisibles, function(mascara) {
+          resultado <- mascara[vocabulario$indices]
+          resultado[is.na(resultado)] <- FALSE
+          resultado
+        })
+      }
+    }
+    invisibles
+  }
   idx <- switch(
     tipo,
     tipo_compuesto_no_analizado = seq_len(n),
@@ -391,12 +404,16 @@
     },
     espacios_sobrantes = if (is.null(texto)) NULL else
       which(!is.na(texto) & texto != trimws(texto)),
-    controles_invisibles = if (is.null(invisibles)) NULL else
-      which(invisibles$control),
+    controles_invisibles = {
+      invisibles <- obtener_invisibles()
+      if (is.null(invisibles)) NULL else which(invisibles$control)
+    },
     entidades_html = if (is.null(texto)) NULL else
       which(.entidades_html_en_texto(texto)),
-    separadores_en_campo = if (is.null(invisibles)) NULL else
-      which(invisibles$separador),
+    separadores_en_campo = {
+      invisibles <- obtener_invisibles()
+      if (is.null(invisibles)) NULL else which(invisibles$separador)
+    },
     mayusculas_inconsistentes = if (is.null(texto)) NULL else {
       presentes <- !is.na(texto)
       canon <- tolower(texto)
