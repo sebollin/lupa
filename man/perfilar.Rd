@@ -224,9 +224,12 @@ no el texto guardado. \code{TRUE} usa el perfil predeterminado, \code{FALSE} des
 sus pasos configurables, \code{"amplio"} activa los tres pliegues optativos y
 \code{\link[=normalizacion]{normalizacion()}} permite declararlos. También admite una lista nombrada por
 columna. \code{meta$normalizacion_fusiones} informa las colisiones por paso sobre
-el vocabulario de cada columna; para vocabularios de más de 5000 valores
-distintos deja el estado \code{omitido_por_cardinalidad} en vez de recorrerlos
-repetidamente.
+el vocabulario de cada columna. Cuando el vocabulario completo cabe en el
+límite se informa el estado \code{exacto}; en vocabularios mayores se toma una
+muestra determinista de hasta 500 valores y se informa
+\code{estimado_sobre_muestra}, junto con \code{n_distintos} y \code{n_usados}. Así el
+informe conserva una red de seguridad acotada también para columnas de alta
+cardinalidad, sin presentar una estimación como conteo exacto.
 
 La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara \code{poder_discriminante} y \code{proteger}:

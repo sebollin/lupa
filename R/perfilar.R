@@ -66,9 +66,12 @@
 #' sus pasos configurables, `"amplio"` activa los tres pliegues optativos y
 #' [normalizacion()] permite declararlos. También admite una lista nombrada por
 #' columna. `meta$normalizacion_fusiones` informa las colisiones por paso sobre
-#' el vocabulario de cada columna; para vocabularios de más de 5000 valores
-#' distintos deja el estado `omitido_por_cardinalidad` en vez de recorrerlos
-#' repetidamente.
+#' el vocabulario de cada columna. Cuando el vocabulario completo cabe en el
+#' límite se informa el estado `exacto`; en vocabularios mayores se toma una
+#' muestra determinista de hasta 500 valores y se informa
+#' `estimado_sobre_muestra`, junto con `n_distintos` y `n_usados`. Así el
+#' informe conserva una red de seguridad acotada también para columnas de alta
+#' cardinalidad, sin presentar una estimación como conteo exacto.
 #'
 #' La clasificación de posibles datos personales es más amplia que la
 #' protección. Cada clasificación declara `poder_discriminante` y `proteger`:

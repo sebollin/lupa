@@ -42,6 +42,21 @@ test_that("la descomposición canónica iguala NFC y NFD", {
   expect_identical(salida, stringi::stri_trans_nfd(c("José", nfd, "g̃")))
 })
 
+test_that("los grafemas guaranies se protegen al quitar acentos", {
+  guarani <- "mba'e g̃uahe"
+  expect_identical(
+    lupa:::.normalizacion_aplicar(guarani, normalizacion()),
+    guarani
+  )
+  expect_identical(
+    lupa:::.normalizacion_aplicar(
+      guarani, normalizacion(proteger = character())
+    ),
+    "mba'e guahe"
+  )
+  expect_s3_class(normalizacion(proteger = "g̃"), "normalizacion_lupa")
+})
+
 test_that("la tabla latina de descomposición coincide con stringi", {
   skip_if_not_installed("stringi")
   codigos <- c(0x00A0:0x024F, 0x1E00:0x1EFF)
@@ -86,6 +101,24 @@ test_that("la herencia pasa por el perfil y las fusiones quedan observables", {
   expect_true(is.list(perfil$meta$normalizacion_fusiones$nombre))
   claves <- detectar_claves(datos, normalizar = NULL, perfil = perfil)
   expect_true(all(c("unicidad_exacta", "unicidad_normalizada") %in% names(claves)))
+})
+
+test_that("las fusiones declaran exactitud o estimacion", {
+  perfil <- normalizacion()
+  exactas <- lupa:::.normalizacion_fusiones_vocabulario(
+    c("José", "jose", "Ana"), perfil
+  )
+  expect_identical(exactas$estado, "exacto")
+  expect_identical(exactas$n_distintos, 3L)
+  expect_identical(exactas$n_usados, 3L)
+  estimadas <- lupa:::.normalizacion_fusiones_vocabulario(
+    paste0("valor-", seq_len(700L)), perfil
+  )
+  expect_identical(estimadas$estado, "estimado_sobre_muestra")
+  expect_identical(estimadas$n_distintos, 700L)
+  expect_identical(estimadas$n_usados, 500L)
+  expect_true(is.list(estimadas$pasos))
+  expect_true(estimadas$estado %in% c("exacto", "estimado_sobre_muestra"))
 })
 
 test_that("los perfiles por columna se resuelven sin mezclar criterios", {

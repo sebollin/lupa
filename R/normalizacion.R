@@ -7,13 +7,16 @@
 #'
 #' @param minusculas,espacios,acentos,comillas,puntuacion,ligaduras,ancho
 #'   Activan el paso correspondiente.
-#' @param proteger Caracteres cuyas marcas deben conservarse al quitar acentos.
+#' @param proteger Grafemas cuyas marcas deben conservarse al quitar acentos.
+#'   Puede incluir una base seguida de una o más marcas combinantes, como
+#'   \code{"g\u0303"} para la letra guaraní.
 #' @return Un objeto de clase normalizacion_lupa.
 #' @export
 normalizacion <- function(minusculas = TRUE, espacios = TRUE, acentos = TRUE,
                           comillas = TRUE, puntuacion = FALSE,
                           ligaduras = FALSE, ancho = FALSE,
-                          proteger = c("\u00f1", "\u00fc")) {
+                          proteger = c("\u00f1", "\u00fc",
+                                       intToUtf8(c(103L, 771L)))) {
   valores <- list(
     minusculas = minusculas, espacios = espacios, acentos = acentos,
     comillas = comillas, puntuacion = puntuacion, ligaduras = ligaduras,
@@ -26,8 +29,15 @@ normalizacion <- function(minusculas = TRUE, espacios = TRUE, acentos = TRUE,
   if (!is.character(proteger) || anyNA(proteger) || any(!nzchar(proteger))) {
     stop("proteger debe ser un vector de caracteres no vacio ni NA.", call. = FALSE)
   }
-  if (any(vapply(proteger, function(x) length(utf8ToInt(x)) != 1L, logical(1L)))) {
-    stop("Cada elemento de proteger debe ser un caracter Unicode.", call. = FALSE)
+  if (any(vapply(proteger, function(x) {
+    codigos <- .normalizacion_ordenar(
+      .normalizacion_descomponer(utf8ToInt(x))
+    )
+    !length(codigos) || .normalizacion_clase(codigos[[1L]]) != 0L ||
+      any(vapply(codigos[-1L], .normalizacion_clase, integer(1L)) == 0L)
+  }, logical(1L)))) {
+    stop("Cada elemento de proteger debe ser un grafema Unicode valido.",
+         call. = FALSE)
   }
   structure(c(valores, list(proteger = unique(proteger))),
             class = c("normalizacion_lupa", "list"))
@@ -673,12 +683,14 @@ print.normalizacion_lupa <- function(x, ...) {
 }
 .normalizacion_protecciones <- function(perfil) {
   lapply(perfil$proteger, function(x) {
-    codigos <- .normalizacion_descomponer(utf8ToInt(x))
+    codigos <- .normalizacion_ordenar(
+      .normalizacion_descomponer(utf8ToInt(x))
+    )
     list(base = codigos[[1L]], marcas = codigos[-1L])
   })
 }
-.normalizacion_quitar_acentos <- function(codigos, perfil) {
-  protecciones <- .normalizacion_protecciones(perfil)
+.normalizacion_quitar_acentos <- function(codigos, perfil, protecciones = NULL) {
+  if (is.null(protecciones)) protecciones <- .normalizacion_protecciones(perfil)
   salida <- integer()
   i <- 1L
   while (i <= length(codigos)) {
@@ -755,85 +767,103 @@ print.normalizacion_lupa <- function(x, ...) {
   codigos[codigos %in% .codigos_espacios_invisibles] <- 32L
   codigos[!(codigos %in% .codigos_control_eliminable_set)]
 }
-.normalizacion_uno <- function(texto, perfil) {
-  if (is.na(texto)) return(NA_character_)
-  texto <- as.character(texto)
-  codigos <- utf8ToInt(texto)
-  if (isTRUE(perfil$espacios)) {
-    codigos <- .normalizacion_espacios_codigos(codigos)
+.normalizacion_a_texto <- function(codigos) {
+  paste0(intToUtf8(codigos, multiple = TRUE), collapse = "")
+}
+.normalizacion_etapas <- function(texto, perfil, protecciones = NULL) {
+  if (is.na(texto)) return(stats::setNames(NA_character_, "entrada"))
+  codigos <- utf8ToInt(as.character(texto))
+  etapas <- list(entrada = .normalizacion_a_texto(codigos))
+  agregar <- function(nombre, nuevos) {
+    etapas[[nombre]] <<- .normalizacion_a_texto(nuevos)
+    codigos <<- nuevos
   }
-  if (isTRUE(perfil$ancho)) codigos <- .normalizacion_ancho(codigos)
-  if (isTRUE(perfil$ligaduras)) codigos <- .normalizacion_ligaduras(codigos)
-  if (isTRUE(perfil$comillas)) codigos <- .normalizacion_comillas(codigos)
-  if (isTRUE(perfil$puntuacion)) codigos <- .normalizacion_puntuacion(codigos)
+  if (isTRUE(perfil$espacios)) {
+    agregar("espacios", .normalizacion_espacios_codigos(codigos))
+  }
+  if (isTRUE(perfil$ancho)) {
+    agregar("ancho", .normalizacion_ancho(codigos))
+  }
+  if (isTRUE(perfil$ligaduras)) {
+    agregar("ligaduras", .normalizacion_ligaduras(codigos))
+  }
+  if (isTRUE(perfil$comillas)) {
+    agregar("comillas", .normalizacion_comillas(codigos))
+  }
+  if (isTRUE(perfil$puntuacion)) {
+    agregar("puntuacion", .normalizacion_puntuacion(codigos))
+  }
   codigos <- .normalizacion_ordenar(.normalizacion_descomponer(codigos))
-  if (isTRUE(perfil$acentos)) codigos <- .normalizacion_quitar_acentos(codigos, perfil)
-  texto <- paste0(intToUtf8(codigos, multiple = TRUE), collapse = "")
-  if (isTRUE(perfil$minusculas)) texto <- .normalizacion_minusculas(texto)
-  if (isTRUE(perfil$espacios)) {
-    texto <- trimws(texto)
-    texto <- gsub("[[:space:]]+", " ", texto, perl = TRUE)
+  agregar("descomposicion_canonica", codigos)
+  if (isTRUE(perfil$acentos)) {
+    if (is.null(protecciones)) protecciones <- .normalizacion_protecciones(perfil)
+    agregar("acentos", .normalizacion_quitar_acentos(
+      codigos, perfil, protecciones))
   }
-  texto
+  if (isTRUE(perfil$minusculas)) {
+    texto_actual <- .normalizacion_minusculas(.normalizacion_a_texto(codigos))
+    codigos <- utf8ToInt(texto_actual)
+    etapas[["minusculas"]] <- texto_actual
+  }
+  if (isTRUE(perfil$espacios)) {
+    texto_actual <- trimws(gsub("[[:space:]]+", " ",
+      .normalizacion_a_texto(codigos), perl = TRUE))
+    etapas[["espacios_finales"]] <- texto_actual
+  }
+  etapas
+}
+.normalizacion_uno <- function(texto, perfil, protecciones = NULL) {
+  etapas <- .normalizacion_etapas(texto, perfil, protecciones)
+  unname(etapas[[length(etapas)]])
 }
 .normalizacion_aplicar <- function(textos, perfil) {
+  protecciones <- if (isTRUE(perfil$acentos)) {
+    .normalizacion_protecciones(perfil)
+  } else NULL
   vapply(as.character(textos), .normalizacion_uno, character(1L),
-         perfil = perfil, USE.NAMES = FALSE)
+         perfil = perfil, protecciones = protecciones, USE.NAMES = FALSE)
 }
 .normalizacion_fusiones <- function(textos, perfil) {
-  actuales <- as.character(textos)
+  if (!length(textos)) return(list())
+  protecciones <- if (isTRUE(perfil$acentos)) {
+    .normalizacion_protecciones(perfil)
+  } else NULL
+  etapas <- lapply(as.character(textos), .normalizacion_etapas,
+                   perfil = perfil, protecciones = protecciones)
+  nombres <- names(etapas[[1L]])
   pasos <- list()
-  aplicar <- function(nombre, fn, activo = TRUE) {
-    if (!isTRUE(activo)) return(invisible(NULL))
-    nuevos <- fn(actuales)
-    pasos[[nombre]] <<- max(0L, length(unique(actuales)) - length(unique(nuevos)))
-    actuales <<- nuevos
+  if (length(nombres) >= 2L) {
+    for (i in 2:length(nombres)) {
+      anteriores <- vapply(etapas, function(z, nombre) z[[nombre]],
+                           character(1L), nombre = nombres[[i - 1L]])
+      actuales <- vapply(etapas, function(z, nombre) z[[nombre]],
+                         character(1L), nombre = nombres[[i]])
+      pasos[[nombres[[i]]]] <- max(0L,
+        length(unique(anteriores)) - length(unique(actuales)))
+    }
   }
-  aplicar("espacios", function(x) .normalizacion_aplicar(x, normalizacion(
-    minusculas = FALSE, espacios = TRUE, acentos = FALSE, comillas = FALSE
-  )), perfil$espacios)
-  aplicar("ancho", function(x) .normalizacion_aplicar(x, normalizacion(
-    minusculas = FALSE, espacios = FALSE, acentos = FALSE, comillas = FALSE,
-    ancho = TRUE
-  )), perfil$ancho)
-  aplicar("ligaduras", function(x) .normalizacion_aplicar(x, normalizacion(
-    minusculas = FALSE, espacios = FALSE, acentos = FALSE, comillas = FALSE,
-    ligaduras = TRUE
-  )), perfil$ligaduras)
-  aplicar("comillas", function(x) .normalizacion_aplicar(x, normalizacion(
-    minusculas = FALSE, espacios = FALSE, acentos = FALSE, comillas = FALSE
-  )), perfil$comillas)
-  aplicar("puntuacion", function(x) .normalizacion_aplicar(x, normalizacion(
-    minusculas = FALSE, espacios = FALSE, acentos = FALSE, comillas = FALSE,
-    puntuacion = TRUE
-  )), perfil$puntuacion)
-  aplicar("descomposicion_canonica", function(x) .normalizacion_aplicar(x, normalizacion(
-    minusculas = FALSE, espacios = FALSE, acentos = FALSE, comillas = FALSE
-  )), TRUE)
-  aplicar("acentos", function(x) .normalizacion_aplicar(x, normalizacion(
-    minusculas = FALSE, espacios = FALSE, acentos = TRUE, comillas = FALSE,
-    proteger = perfil$proteger
-  )), perfil$acentos)
-  aplicar("minusculas", function(x) vapply(x, .normalizacion_minusculas,
-    character(1L), USE.NAMES = FALSE), perfil$minusculas)
-  aplicar("espacios_finales", function(x) trimws(gsub("[[:space:]]+",
-    " ", x, perl = TRUE)), perfil$espacios)
   pasos
 }
 .normalizacion_fusiones_vocabulario <- function(textos, perfil,
-                                                max_valores = 5000L) {
-  if (length(textos) > max_valores) {
+                                                max_valores = 500L) {
+  n_distintos <- length(textos)
+  if (n_distintos > max_valores) {
+    indices <- unique(round(seq.int(1L, n_distintos, length.out = max_valores)))
+    muestra <- textos[indices]
     return(list(
-      estado = "omitido_por_cardinalidad",
-      n_distintos = length(textos),
-      motivo = paste0("El vocabulario supera ", max_valores,
-                      " valores; no se recorrio repetidamente."),
-      pasos = list()
+      estado = "estimado_sobre_muestra",
+      n_distintos = n_distintos,
+      n_usados = length(muestra),
+      proporcion_muestra = length(muestra) / n_distintos,
+      motivo = paste0("Se estimaron las fusiones sobre ", length(muestra),
+                      " de ", n_distintos, " valores distintos."),
+      pasos = .normalizacion_fusiones(muestra, perfil)
     ))
   }
   list(
-    estado = "calculado",
-    n_distintos = length(textos),
+    estado = "exacto",
+    n_distintos = n_distintos,
+    n_usados = n_distintos,
     pasos = .normalizacion_fusiones(textos, perfil)
   )
 }
