@@ -231,12 +231,12 @@ porque dos pasos pueden fundir el mismo par. \code{n_distintos} y
 \code{n_distintos_normalizados} declaran el total antes y después del perfil
 completo. La descomposición canónica es siempre activa y forma parte de la
 línea base, no una fila configurable.
-Cuando el vocabulario completo cabe en el límite se informa el estado
-\code{exacto}; en vocabularios mayores se toma una muestra determinista de hasta
-150 valores y se informa \code{estimado_sobre_muestra}, junto con \code{n_distintos} y
-\code{n_usados}. Así el informe conserva una red de seguridad acotada también
-para columnas de alta cardinalidad, sin presentar una estimación como conteo
-exacto.
+El informe usa el vocabulario completo: \code{n_distintos} y \code{n_usados} son el
+número de valores distintos realmente comparados y el estado es \code{exacto}.
+Las fusiones son una propiedad de pares, por lo que muestrear valores
+aislados podría dejar fuera los dos miembros de cada par y convertir una
+fusión real en un cero falso. La normalización se vectoriza para que este
+alcance completo no dependa de la cardinalidad de la columna.
 
 La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara \code{poder_discriminante} y \code{proteger}:

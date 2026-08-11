@@ -770,6 +770,164 @@ print.normalizacion_lupa <- function(x, ...) {
 .normalizacion_a_texto <- function(codigos) {
   paste0(intToUtf8(codigos, multiple = TRUE), collapse = "")
 }
+.normalizacion_regex_codigos <- function(codigos) {
+  if (!length(codigos)) return("(?!)")
+  paste0("(*UTF)[",
+         paste0("\\x{", sprintf("%04X", as.integer(codigos)), "}",
+                collapse = ""), "]")
+}
+
+# La tabla es pequeña, pero construir la alternancia y sus reemplazos para
+# cada llamada era una parte apreciable del costo del perfil de fusiones. Se
+# guarda una sola vez y se aplica con gregexpr/regmatches sobre el vector
+# completo. Los reemplazos pueden tener distinta longitud (por ejemplo, una
+# letra vietnamita se descompone en tres puntos de código), por eso chartr no
+# alcanza para esta tabla.
+.normalizacion_tabla_vectorizada <- local({
+  cache <- NULL
+  function() {
+    if (is.null(cache)) {
+      codigos <- as.integer(names(.normalizacion_decomposiciones))
+      caracteres <- intToUtf8(codigos, multiple = TRUE)
+      reemplazos <- vapply(
+        codigos,
+        function(codigo) .normalizacion_a_texto(
+          .normalizacion_ordenar(.normalizacion_descomponer(codigo))
+        ),
+        character(1L)
+      )
+      cache <<- list(
+        patron = paste0("(*UTF)(?:", paste0(
+          "\\x{", sprintf("%04X", codigos), "}", collapse = "|"
+        ), ")"),
+        reemplazos = stats::setNames(reemplazos, caracteres)
+      )
+    }
+    cache
+  }
+})
+
+.normalizacion_reemplazar_tabla <- function(textos) {
+  tabla <- .normalizacion_tabla_vectorizada()
+  aciertos <- !is.na(textos) & grepl(tabla$patron, textos, perl = TRUE)
+  if (!any(aciertos)) return(textos)
+  seleccion <- which(aciertos)
+  afectados <- textos[seleccion]
+  coincidencias <- gregexpr(tabla$patron, afectados, perl = TRUE)
+  encontrados <- regmatches(afectados, coincidencias)
+  reemplazos <- lapply(encontrados, function(x) {
+    if (!length(x)) character() else unname(tabla$reemplazos[x])
+  })
+  regmatches(afectados, coincidencias) <- reemplazos
+  textos[seleccion] <- afectados
+  textos
+}
+
+.normalizacion_proteger_vector <- function(textos, perfil) {
+  if (!isTRUE(perfil$acentos) || !length(perfil$proteger)) {
+    return(list(textos = textos, marcadores = character(),
+                colision = rep(FALSE, length(textos))))
+  }
+  grafemas <- vapply(perfil$proteger, function(x) {
+    .normalizacion_a_texto(.normalizacion_ordenar(
+      .normalizacion_descomponer(utf8ToInt(x))
+    ))
+  }, character(1L))
+  orden <- order(nchar(grafemas, type = "chars"), decreasing = TRUE,
+                 method = "radix")
+  grafemas <- grafemas[orden]
+  marcadores <- intToUtf8(0xF0000L + seq_along(grafemas), multiple = TRUE)
+  colision <- rep(FALSE, length(textos))
+  for (marcador in marcadores) {
+    colision <- colision | (!is.na(textos) &
+      grepl(marcador, textos, fixed = TRUE, useBytes = FALSE))
+  }
+  for (i in seq_along(grafemas)) {
+    # No proteger un prefijo de un grafema con marcas adicionales: por
+    # ejemplo, `ü` no debe conservarse dentro de `ǘ` (u + diéresis + agudo),
+    # que el camino escalar considera un grafema distinto.
+    patron <- paste0(
+      "(*UTF)",
+      paste0("\\x{", sprintf("%04X", utf8ToInt(grafemas[[i]])), "}",
+             collapse = ""),
+      "(?![\\x{0300}-\\x{0332}])"
+    )
+    textos <- gsub(patron, marcadores[[i]], textos, perl = TRUE)
+  }
+  list(textos = textos, marcadores = stats::setNames(marcadores, grafemas),
+       colision = colision)
+}
+
+.normalizacion_vector_rapida <- function(textos, perfil) {
+  original <- as.character(textos)
+  nombres <- names(original)
+  salida <- original
+  names(salida) <- nombres
+  no_na <- !is.na(salida)
+  if (!any(no_na)) return(salida)
+
+  # Los pliegues optativos y las comillas dependen de contexto o de una tabla
+  # de longitud variable. Los valores que los necesitan se delegan abajo al
+  # recorrido escalar; el caso común (texto sin esas señales) permanece en C.
+  lento <- rep(FALSE, length(salida))
+  if (isTRUE(perfil$comillas)) {
+    lento <- lento | (!is.na(original) & grepl(
+      "(*UTF)[\\\"'\\x{00AB}\\x{00BB}\\x{2018}-\\x{201F}\\x{2039}-\\x{203A}]",
+      original, perl = TRUE
+    ))
+  }
+  if (isTRUE(perfil$puntuacion) || isTRUE(perfil$ligaduras) ||
+      isTRUE(perfil$ancho)) {
+    lento[no_na] <- TRUE
+  }
+
+  salida <- .normalizacion_reemplazar_tabla(salida)
+  if (isTRUE(perfil$acentos)) {
+    protegidos <- .normalizacion_proteger_vector(salida, perfil)
+    salida <- protegidos$textos
+    lento <- lento | protegidos$colision
+  } else {
+    protegidos <- list(marcadores = character())
+  }
+
+  if (isTRUE(perfil$acentos)) {
+    salida <- gsub("(*UTF)[\\x{0300}-\\x{0332}]", "", salida,
+                   perl = TRUE)
+  }
+  if (length(protegidos$marcadores)) {
+    for (grafema in names(protegidos$marcadores)) {
+      salida <- gsub(unname(protegidos$marcadores[[grafema]]), grafema,
+                     salida, fixed = TRUE, useBytes = FALSE)
+    }
+  }
+  if (isTRUE(perfil$minusculas)) {
+    salida <- tolower(chartr("I", "i", salida))
+  }
+  if (isTRUE(perfil$espacios)) {
+    salida <- gsub(.normalizacion_regex_codigos(.codigos_espacios_invisibles),
+                   " ", salida, perl = TRUE)
+    salida <- gsub(.normalizacion_regex_codigos(
+      .codigos_control_eliminable_set
+    ), "", salida, perl = TRUE)
+    salida <- trimws(gsub("[[:space:]]+", " ", salida, perl = TRUE))
+  }
+
+  # Dos o más marcas requieren el orden canónico estable; las comillas y los
+  # pliegues optativos requieren el contexto de la implementación escalar.
+  marcas <- "[\\x{0300}-\\x{0332}]"
+  complejas <- !is.na(salida) & grepl(
+    paste0("(*UTF)", marcas, ".*", marcas), salida, perl = TRUE
+  )
+  lento <- lento | complejas
+  if (any(lento & no_na)) {
+    indices <- which(lento & no_na)
+    salida[indices] <- vapply(
+      original[indices], .normalizacion_uno, character(1L),
+      perfil = perfil, protecciones = NULL, USE.NAMES = FALSE
+    )
+  }
+  salida
+}
 .normalizacion_etapas <- function(texto, perfil, protecciones = NULL) {
   if (is.na(texto)) return(stats::setNames(NA_character_, "entrada"))
   codigos <- utf8ToInt(as.character(texto))
@@ -817,11 +975,7 @@ print.normalizacion_lupa <- function(x, ...) {
   unname(etapas[[length(etapas)]])
 }
 .normalizacion_aplicar <- function(textos, perfil) {
-  protecciones <- if (isTRUE(perfil$acentos)) {
-    .normalizacion_protecciones(perfil)
-  } else NULL
-  vapply(as.character(textos), .normalizacion_uno, character(1L),
-         perfil = perfil, protecciones = protecciones, USE.NAMES = FALSE)
+  .normalizacion_vector_rapida(textos, perfil)
 }
 .normalizacion_fusiones <- function(textos, perfil) {
   if (!length(textos)) {
@@ -842,24 +996,8 @@ print.normalizacion_lupa <- function(x, ...) {
   }
   list(pasos = pasos, n_distintos_normalizados = n_completo)
 }
-.normalizacion_fusiones_vocabulario <- function(textos, perfil,
-                                                max_valores = 150L) {
+.normalizacion_fusiones_vocabulario <- function(textos, perfil) {
   n_distintos <- length(textos)
-  if (n_distintos > max_valores) {
-    indices <- unique(round(seq.int(1L, n_distintos, length.out = max_valores)))
-    muestra <- textos[indices]
-    fusiones <- .normalizacion_fusiones(muestra, perfil)
-    return(list(
-      estado = "estimado_sobre_muestra",
-      n_distintos = n_distintos,
-      n_usados = length(muestra),
-      proporcion_muestra = length(muestra) / n_distintos,
-      motivo = paste0("Se estimaron las fusiones sobre ", length(muestra),
-                      " de ", n_distintos, " valores distintos."),
-      n_distintos_normalizados = fusiones$n_distintos_normalizados,
-      pasos = fusiones$pasos
-    ))
-  }
   fusiones <- .normalizacion_fusiones(textos, perfil)
   list(
     estado = "exacto",

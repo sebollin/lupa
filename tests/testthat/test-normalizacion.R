@@ -103,7 +103,7 @@ test_that("la herencia pasa por el perfil y las fusiones quedan observables", {
   expect_true(all(c("unicidad_exacta", "unicidad_normalizada") %in% names(claves)))
 })
 
-test_that("las fusiones declaran exactitud o estimacion", {
+test_that("las fusiones declaran el vocabulario completo y sus contribuciones", {
   perfil <- normalizacion()
   exactas <- lupa:::.normalizacion_fusiones_vocabulario(
     c("José", "jose", "Ana"), perfil
@@ -120,15 +120,27 @@ test_that("las fusiones declaran exactitud o estimacion", {
   expect_gt(sum(unlist(contraste$pasos)),
             contraste$n_distintos - contraste$n_distintos_normalizados)
   expect_false("descomposicion_canonica" %in% names(contraste$pasos))
-  estimadas <- lupa:::.normalizacion_fusiones_vocabulario(
+  completas <- lupa:::.normalizacion_fusiones_vocabulario(
     paste0("valor-", seq_len(700L)), perfil
   )
-  expect_identical(estimadas$estado, "estimado_sobre_muestra")
-  expect_identical(estimadas$n_distintos, 700L)
-  expect_identical(estimadas$n_usados, 150L)
-  expect_identical(estimadas$n_distintos_normalizados, 150L)
-  expect_true(is.list(estimadas$pasos))
-  expect_true(estimadas$estado %in% c("exacto", "estimado_sobre_muestra"))
+  expect_identical(completas$estado, "exacto")
+  expect_identical(completas$n_distintos, 700L)
+  expect_identical(completas$n_usados, 700L)
+  expect_identical(completas$n_distintos_normalizados, 700L)
+  expect_true(is.list(completas$pasos))
+
+  # Las fusiones son una propiedad de pares: tomar una muestra de valores
+  # puede dejar fuera ambos miembros de todos los pares. El informe usa el
+  # vocabulario completo y no puede convertir una tasa conocida en cero.
+  gemelos <- c(
+    paste0("nómbre", seq_len(1000L)),
+    paste0("nombre", seq_len(1000L))
+  )
+  resultado <- lupa:::.normalizacion_fusiones_vocabulario(gemelos, perfil)
+  expect_identical(resultado$estado, "exacto")
+  expect_identical(resultado$n_usados, 2000L)
+  expect_identical(resultado$n_distintos_normalizados, 1000L)
+  expect_identical(resultado$pasos$acentos, 1000L)
 })
 
 test_that("los perfiles por columna se resuelven sin mezclar criterios", {

@@ -17,8 +17,10 @@
   unicidad normalizada como métrica informativa.
 - El informe de fusiones compara el perfil completo con una versión que apaga
   cada paso por separado: sus cifras no son aditivas y el total normalizado se
-  informa aparte. Para vocabularios mayores de 150 valores usa una muestra
-  determinista, con estado y tamaño declarados, en lugar de omitir el informe.
+  informa aparte. Ahora usa el vocabulario completo (las fusiones son una
+  propiedad de pares que una muestra de valores puede ocultar) y la
+  normalización se aplica de forma vectorizada; `n_usados` y el estado `exacto`
+  dejan explícito el alcance real.
 - `proteger` acepta grafemas compuestos y el valor predeterminado conserva
   `g̃` además de `ñ` y `ü`, para no borrar letras guaraníes al comparar.
 
