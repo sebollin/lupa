@@ -147,3 +147,104 @@ test_that("EntidadDuplicada admite clave con iguales o ausentes", {
                c(1, 1, 0, 0, 0))
   expect_true(all(medir(modelo(exacta), datos)$resultado == 0))
 })
+
+test_that("los referenciales heredan normalizacion y no inventan presencias", {
+  ref <- referencial(
+    data.frame(departamento = c("Montevideo", "Canelones", "Río Negro")),
+    "departamento"
+  )
+  metrica <- metricas_referencial()$CorrectitudSemFuerte
+  datos <- data.frame(departamento = c(
+    "MONTEVIDEO", "montevideo", "Canelones", "Rio Negro", "Montevido", "Rocha"
+  ))
+  heredada <- instanciar(especializar(metrica), "padron", "departamento",
+                         referencial = ref)
+  sin_normalizar <- instanciar(
+    especializar(metrica, normalizar = FALSE, proximidad = FALSE),
+    "padron", "departamento", referencial = ref
+  )
+  resultado <- medir(modelo(heredada), datos)
+  resultado_crudo <- medir(modelo(sin_normalizar), datos)
+  expect_equal(resultado$resultado, c(1, 1, 1, 1, 0, 0))
+  expect_equal(resultado_crudo$resultado, c(0, 0, 1, 0, 0, 0))
+  expect_false(any(resultado$resultado[5:6] == 1))
+  evidencia <- resultado$objeto_medible[5]
+  if (requireNamespace("stringdist", quietly = TRUE)) {
+    expect_match(evidencia, "Montevideo", fixed = TRUE)
+    expect_match(evidencia, "0.0200", fixed = TRUE)
+  }
+})
+
+test_that("la proximidad agrega evidencia pero no cambia el veredicto", {
+  skip_if_not_installed("stringdist")
+  ref <- referencial(
+    data.frame(departamento = c("Montevideo", "Canelones", "Río Negro")),
+    "departamento"
+  )
+  metrica <- metricas_referencial()$CorrectitudSemFuerte
+  datos <- data.frame(departamento = c("Montevido", "Rocha", "Montevideo"))
+  con <- instanciar(especializar(metrica, proximidad = TRUE), "x", "departamento",
+                    referencial = ref)
+  sin <- instanciar(especializar(metrica, proximidad = FALSE), "x", "departamento",
+                    referencial = ref)
+  medida_con <- medir(modelo(con), datos)
+  medida_sin <- medir(modelo(sin), datos)
+  expect_identical(medida_con$resultado, medida_sin$resultado)
+  expect_match(medida_con$objeto_medible[[1L]], "Montevideo", fixed = TRUE)
+  expect_match(medida_con$objeto_medible[[1L]], "distancia=0.0200", fixed = TRUE)
+  expect_false(grepl("candidato_referencial", medida_con$objeto_medible[[2L]],
+                     fixed = TRUE))
+})
+
+test_that("la cobertura hereda normalizacion pero excluye proximidad", {
+  ref <- referencial(
+    data.frame(departamento = c("Montevideo", "Canelones", "Río Negro")),
+    "departamento", completo = TRUE, alcance = "departamentos"
+  )
+  metrica <- metricas_referencial()$RatioCobertura
+  instancia <- instanciar(especializar(metrica), "x", "departamento",
+                          referencial = ref)
+  medida <- medir(modelo(instancia), data.frame(
+    departamento = c("MONTEVIDEO", "Rio Negro", "Rocha")
+  ))
+  expect_equal(medida$resultado, 2 / 3)
+  expect_false(medida$resultado > 2 / 3)
+  alcance <- attr(medida, "alcance_metricas")[[1L]]
+  expect_false(alcance$proximidad$solicitada)
+  expect_equal(alcance$n_referencial, 3)
+})
+
+test_that("sin stringdist el camino exacto referencial sigue funcionando", {
+  local_mocked_bindings(
+    .stringdist_disponible = function() FALSE,
+    .package = "lupa"
+  )
+  ref <- referencial(data.frame(departamento = "Montevideo"), "departamento")
+  metrica <- especializar(metricas_referencial()$CorrectitudSemFuerte)
+  medida <- medir(
+    modelo(instanciar(metrica, "x", "departamento", referencial = ref)),
+    data.frame(departamento = c("MONTEVIDEO", "Montevido"))
+  )
+  expect_equal(medida$resultado, c(1, 0))
+  alcance <- attr(medida, "alcance_metricas")[[1L]]$proximidad
+  expect_false(alcance$disponible)
+  expect_match(alcance$motivo, "stringdist", ignore.case = TRUE)
+})
+
+test_that("el limite de proximidad queda declarado cuando recorta", {
+  skip_if_not_installed("stringdist")
+  ref <- referencial(data.frame(valor = c("Montevideo", "Canelones", "Artigas")),
+                     "valor")
+  metrica <- especializar(
+    metricas_referencial()$CorrectitudSemFuerte,
+    max_pares = 3L
+  )
+  medida <- medir(
+    modelo(instanciar(metrica, "x", "valor", referencial = ref)),
+    data.frame(valor = c("Montevido", "Canelone", "Rocha"))
+  )
+  proximidad <- attr(medida, "alcance_metricas")[[1L]]$proximidad
+  expect_true(proximidad$truncado)
+  expect_equal(proximidad$n_fallos_comparados, 1L)
+  expect_equal(proximidad$n_pares_sin_comparar, 6)
+})

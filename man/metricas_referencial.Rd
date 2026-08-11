@@ -15,6 +15,13 @@ Devuelve las tres métricas base que pueden medirse con el contrato de
 \code{CorrectitudSemDebil} comprueba el par identificación–valor; \code{RatioCobertura}
 mide qué proporción del universo completo de claves aparece en la entidad.
 Los ratios de correctitud se obtienen mediante \code{\link[=agregar]{agregar()}} con \code{"ratio"}.
+Las tres métricas aceptan \code{normalizar}, \code{proximidad}, \code{metodo}, \code{p}, \code{umbral},
+\code{max_pares} y \code{nucleos}. \code{normalizar = NULL} hereda el perfil declarado por
+\code{\link[=referencial]{referencial()}}. La normalización sólo cambia la representación usada para
+emparejar: no modifica los datos. La proximidad es evidencia para los
+valores ausentes y nunca cambia su veredicto; si el paquete opcional
+\href{https://cran.r-project.org/package=stringdist}{stringdist} no está
+instalado, se declara que no se calculó.
 }
 \details{
 Los valores ausentes no generan medidas de correctitud: corresponden a la

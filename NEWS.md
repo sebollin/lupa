@@ -1,5 +1,18 @@
 # lupa 0.1.0
 
+## Referenciales
+
+- Las métricas de referenciales heredan el perfil de `normalizar` declarado en
+  `referencial()` (o aceptan uno explícito), por lo que variantes de caja,
+  acentos y espacios pueden pasar a reconocerse como presentes. Esto cambia
+  los resultados de correctitud y cobertura de forma deliberada; las claves
+  siguen evaluándose por identidad exacta.
+- `CorrectitudSemFuerte` y `CorrectitudSemDebil` pueden agregar, sin cambiar el
+  veredicto, el candidato más cercano y su distancia como evidencia. La
+  proximidad usa Jaro--Winkler por omisión (`p = 0.1`, umbral `0.10`), sólo se
+  calcula para fallos y declara sus límites o la ausencia de
+  [`stringdist`](https://cran.r-project.org/package=stringdist).
+
 ## Perfil de normalización para comparar
 
 - `normalizar` deja de ser sólo un interruptor lógico: `TRUE` conserva el caso

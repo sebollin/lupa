@@ -51,39 +51,195 @@
   codigos_objetivo %in% codigos[seq_len(n_ref)]
 }
 
+# Configuracion comun de las metricas referenciales. `normalizar = NULL` es
+# deliberado: permite heredar el perfil declarado por referencial().
+.validar_config_referencial <- function(configuracion) {
+  permitidas <- c("normalizar", "proximidad", "metodo", "p", "umbral",
+                  "max_pares", "nucleos")
+  desconocidas <- setdiff(names(configuracion), permitidas)
+  if (length(desconocidas)) {
+    stop("Las metricas referenciales no aceptan: ",
+         paste(desconocidas, collapse = ", "), ".", call. = FALSE)
+  }
+  normalizar <- configuracion[["normalizar"]]
+  if (!is.null(normalizar)) {
+    tryCatch(.resolver_normalizacion(normalizar), error = function(e) {
+      stop("`normalizar` no describe un perfil valido: ",
+           conditionMessage(e), call. = FALSE)
+    })
+  }
+  proximidad <- configuracion[["proximidad"]]
+  if (is.null(proximidad)) proximidad <- TRUE
+  if (!is.logical(proximidad) || length(proximidad) != 1L || is.na(proximidad)) {
+    stop("`proximidad` debe ser un logico escalar sin NA.", call. = FALSE)
+  }
+  metodo <- configuracion[["metodo"]]
+  if (is.null(metodo)) metodo <- "jw"
+  metodos <- c("osa", "lv", "dl", "hamming", "lcs", "qgram", "cosine",
+               "jaccard", "jw", "soundex")
+  if (!is.character(metodo) || length(metodo) != 1L || is.na(metodo) ||
+      !metodo %in% metodos) {
+    stop("`metodo` debe ser una medida admitida: ",
+         paste(metodos, collapse = ", "), ".", call. = FALSE)
+  }
+  p <- configuracion[["p"]]
+  if (is.null(p)) p <- 0.1
+  if (!is.numeric(p) || length(p) != 1L || is.na(p) || !is.finite(p) ||
+      p < 0 || p > 0.25) {
+    stop("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
+  }
+  umbral <- configuracion[["umbral"]]
+  if (is.null(umbral)) umbral <- 0.10
+  if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
+      !is.finite(umbral) || umbral < 0) {
+    stop("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
+  }
+  max_pares <- configuracion[["max_pares"]]
+  if (is.null(max_pares)) max_pares <- 500000L
+  if (!is.numeric(max_pares) || length(max_pares) != 1L || is.na(max_pares) ||
+      max_pares < 1 || (!is.infinite(max_pares) && max_pares != floor(max_pares))) {
+    stop("`max_pares` debe ser un entero positivo o Inf.", call. = FALSE)
+  }
+  list(
+    normalizar = normalizar, proximidad = proximidad, metodo = metodo, p = p,
+    umbral = umbral,
+    max_pares = if (is.infinite(max_pares)) Inf else as.integer(max_pares),
+    nucleos = .resolver_nucleos_lupa(configuracion[["nucleos"]])
+  )
+}
+
+.referencial_normalizacion <- function(instancia, referencia) {
+  normalizar <- instancia$configuracion$normalizar
+  if (is.null(normalizar)) normalizar <- referencia$normalizar
+  if (is.null(normalizar)) normalizar <- TRUE
+  .resolver_normalizacion(normalizar)
+}
+
+.referencial_tabla_normalizada <- function(tabla, columnas, perfil) {
+  salida <- lapply(columnas, function(columna) {
+    texto <- suppressWarnings(as.character(.valores_relacion(tabla[[columna]])))
+    .normalizacion_aplicar(
+      texto, .normalizacion_para_columna(perfil, columna)
+    )
+  })
+  names(salida) <- columnas
+  as.data.frame(salida, stringsAsFactors = FALSE)
+}
+
+.referencial_filas_texto <- function(tabla, columnas, perfil) {
+  normalizada <- .referencial_tabla_normalizada(tabla, columnas, perfil)
+  if (!nrow(normalizada)) return(character())
+  normalizada[] <- lapply(normalizada, function(x) {
+    x[is.na(x)] <- ""
+    x
+  })
+  do.call(paste, c(unname(normalizada), sep = " | "))
+}
+
+.referencial_filas_original_texto <- function(tabla, columnas) {
+  if (!nrow(tabla)) return(character())
+  valores <- lapply(columnas, function(columna) {
+    texto <- suppressWarnings(as.character(.valores_relacion(tabla[[columna]])))
+    texto[is.na(texto)] <- ""
+    texto
+  })
+  do.call(paste, c(valores, sep = " | "))
+}
+
+.referencial_proximidad <- function(filas_fallidas, texto_objetivo,
+                                    texto_referencia, referencia_original,
+                                    config) {
+  n <- length(texto_objetivo)
+  evidencia <- rep("", n)
+  base <- list(
+    solicitada = isTRUE(config$proximidad), disponible = FALSE,
+    motivo = "No se calculo la proximidad.", n_fallos = length(filas_fallidas),
+    n_fallos_comparados = 0L, n_referencial = length(texto_referencia),
+    n_pares_comparados = 0, n_pares_sin_comparar = 0,
+    umbral = config$umbral, metodo = config$metodo, p = config$p,
+    max_pares = config$max_pares, truncado = FALSE
+  )
+  if (!isTRUE(config$proximidad)) {
+    base$motivo <- "La proximidad fue desactivada por configuracion."
+    return(list(evidencia = evidencia, alcance = base))
+  }
+  if (!.stringdist_disponible()) {
+    base$motivo <- "No esta instalado el paquete opcional 'stringdist'."
+    base$n_pares_sin_comparar <- as.numeric(length(filas_fallidas)) *
+      length(texto_referencia)
+    return(list(evidencia = evidencia, alcance = base))
+  }
+  if (!length(filas_fallidas) || !length(texto_referencia)) {
+    base$disponible <- TRUE
+    base$motivo <- "No hubo fallos o el referencial esta vacio."
+    return(list(evidencia = evidencia, alcance = base))
+  }
+  nref <- length(texto_referencia)
+  ncomparar <- if (is.infinite(config$max_pares)) {
+    length(filas_fallidas)
+  } else min(length(filas_fallidas), floor(config$max_pares / nref))
+  if (ncomparar < 1L) {
+    base$motivo <- "El limite de pares no alcanza para comparar un fallo con el referencial."
+    base$n_pares_sin_comparar <- as.numeric(length(filas_fallidas)) * nref
+    base$truncado <- TRUE
+    return(list(evidencia = evidencia, alcance = base))
+  }
+  elegidas <- filas_fallidas[seq_len(ncomparar)]
+  distancias <- stringdist::stringdistmatrix(
+    texto_objetivo[elegidas], texto_referencia,
+    method = config$metodo, p = config$p, nthread = config$nucleos
+  )
+  if (is.null(dim(distancias))) distancias <- matrix(distancias, nrow = ncomparar)
+  etiquetas <- vapply(seq_len(nrow(referencia_original)), function(i) {
+    paste(as.character(referencia_original[i, , drop = TRUE]), collapse = " | ")
+  }, character(1L))
+  for (i in seq_len(ncomparar)) {
+    minimo <- min(distancias[i, ])
+    if (is.finite(minimo) && minimo <= config$umbral) {
+      cerca <- which(abs(distancias[i, ] - minimo) <= 1e-12)
+      evidencia[elegidas[[i]]] <- paste0(
+        "candidato_referencial=", paste(etiquetas[cerca], collapse = " / "),
+        "; distancia=", formatC(minimo, format = "f", digits = 4)
+      )
+    }
+  }
+  base$disponible <- TRUE
+  base$motivo <- ""
+  base$n_fallos_comparados <- ncomparar
+  base$n_pares_comparados <- as.numeric(ncomparar) * nref
+  base$n_pares_sin_comparar <- as.numeric(length(filas_fallidas) - ncomparar) * nref
+  base$truncado <- ncomparar < length(filas_fallidas)
+  list(evidencia = evidencia, alcance = base)
+}
+
 #' Declarar un conjunto de datos referencial
 #'
 #' Un referencial representa conocimiento externo mediante una clave y, de
-#' forma opcional, valores asociados a ella. Se diferencia de un diccionario:
-#' el diccionario sólo enumera valores sintácticamente válidos, mientras que
-#' el referencial permite comprobar que una entidad existe y que sus atributos
-#' están asociados a la clave correcta.
+#' forma opcional, valores asociados a ella. `normalizar` controla la
+#' representación usada para emparejar referenciales; no modifica los datos
+#' guardados. La declaración de completitud es explícita: `RatioCobertura`
+#' exige `completo = TRUE` y un `alcance` explícito; un referencial parcial sólo
+#' puede usarse para correctitud.
 #'
-#' La declaración de completitud es explícita. `RatioCobertura` sólo tiene
-#' sentido bajo una asunción de mundo cerrado y exige `completo = TRUE`; una
-#' lista parcial puede usarse para correctitud, pero no como denominador de
-#' cobertura.
-#'
-#' `clave` no admite ausentes y debe identificar cada fila de `datos` de forma
-#' única; puede contener varias columnas. `valor` es opcional, no puede repetir
-#' columnas de `clave` y representa los atributos asociados que se contrastan
-#' en correctitud semántica fuerte. `completo = FALSE` es el valor
-#' predeterminado y permite omitir `alcance`. Al declarar `completo = TRUE`,
-#' `alcance` pasa a ser obligatorio y debe nombrar el universo que la tabla dice
-#' cubrir. El constructor copia la tabla y no consulta fuentes externas.
+#' La clave no admite ausentes y debe identificar cada fila de forma única.
+#' `valor` no puede repetir columnas de `clave` y representa atributos que se
+#' contrastan en correctitud semántica débil. El constructor copia la tabla y
+#' no consulta fuentes externas.
 #'
 #' @param datos Tabla de referencia. Se conserva una copia ordinaria de R.
-#' @param clave Columnas que identifican unívocamente cada fila.
-#' @param valor Columnas cuyos valores se contrastan junto con la clave.
-#' @param completo Si el referencial declara contener todo el universo del
-#'   alcance indicado. Es `FALSE` por omisión.
-#' @param alcance Descripción explícita de aquello de lo que el referencial se
-#'   declara completo. Es obligatoria cuando `completo = TRUE`.
+#' @param clave Columnas que identifican unívocamente cada fila. Puede
+#'   contener varias columnas.
+#' @param valor Columnas asociadas que pueden contrastarse en correctitud débil.
+#'   Es opcional.
+#' @param completo Si la tabla cubre todo el universo declarado. Es `FALSE` por
+#'   omisión.
+#' @param alcance Descripción obligatoria cuando `completo = TRUE`.
 #' @param nombre Nombre legible del referencial. Si se omite, usa el nombre del
-#'   objeto de entrada o `"referencial"` cuando la tabla se construye en línea.
-#'
-#' @return Objeto de clase `referencial` con `datos`, `clave`, `valor`,
-#'   `completo`, `alcance` y `nombre`.
+#'   objeto de entrada o `"referencial"`.
+#' @param normalizar `TRUE`, `FALSE`, `"amplio"`, un perfil de
+#'   [normalizacion()] o una lista nombrada por columna. `TRUE` es el valor
+#'   predeterminado.
+#' @return Un objeto de clase `referencial`.
 #' @export
 #'
 #' @seealso [metricas_referencial()], [instanciar()], [detectar_relaciones()]
@@ -96,8 +252,7 @@
 #' )
 #' padron
 referencial <- function(datos, clave, valor = character(), completo = FALSE,
-                        alcance = NULL,
-                        nombre = NULL) {
+                        alcance = NULL, nombre = NULL, normalizar = TRUE) {
   expresion_datos <- substitute(datos)
   if (is.null(nombre)) {
     nombre <- if (is.symbol(expresion_datos)) {
@@ -146,10 +301,17 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
   if (!.es_texto_escalar(nombre)) {
     stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
+  normalizar <- tryCatch(
+    .resolver_normalizacion(normalizar),
+    error = function(e) {
+      stop("`normalizar` no describe un perfil valido: ",
+           conditionMessage(e), call. = FALSE)
+    }
+  )
   estructura <- list(
     datos = tabla, clave = clave, valor = valor, completo = completo,
     alcance = if (is.null(alcance)) NA_character_ else alcance,
-    nombre = nombre
+    nombre = nombre, normalizar = normalizar
   )
   class(estructura) <- "referencial"
   estructura
@@ -203,14 +365,59 @@ print.referencial <- function(x, ...) {
   objetivo <- tabla[instancia$atributos]
   presentes <- stats::complete.cases(objetivo)
   filas <- which(presentes)
-  resultado <- .filas_en_referencial(
-    objetivo[presentes, , drop = FALSE],
-    referencia$datos[referencia$clave]
+  perfil <- .referencial_normalizacion(instancia, referencia)
+  objetivo_presente <- objetivo[presentes, , drop = FALSE]
+  referencia_clave <- referencia$datos[referencia$clave]
+  usa_normalizacion <- !is.null(instancia$configuracion$normalizar) ||
+    !is.null(referencia$normalizar)
+  if (usa_normalizacion) {
+    objetivo_comparable <- .referencial_tabla_normalizada(
+      objetivo_presente, instancia$atributos, perfil
+    )
+    referencia_comparable <- .referencial_tabla_normalizada(
+      referencia_clave, referencia$clave, perfil
+    )
+    resultado <- .filas_en_referencial(objetivo_comparable, referencia_comparable)
+    texto_objetivo <- .referencial_filas_texto(
+      objetivo_presente, instancia$atributos, perfil
+    )
+    texto_referencia <- .referencial_filas_texto(
+      referencia_clave, referencia$clave, perfil
+    )
+  } else {
+    resultado <- .filas_en_referencial(objetivo_presente, referencia_clave)
+    texto_objetivo <- .referencial_filas_original_texto(
+      objetivo_presente, instancia$atributos
+    )
+    texto_referencia <- .referencial_filas_original_texto(
+      referencia_clave, referencia$clave
+    )
+  }
+  config <- instancia$configuracion
+  fallos <- which(!resultado)
+  proximidad <- .referencial_proximidad(
+    fallos, texto_objetivo, texto_referencia, referencia_clave, config
   )
-  .salida_metodo(
-    resultado, entidad, paste(instancia$atributos, collapse = "+"), filas,
-    paste0(entidad, "[", filas, ",", paste(instancia$atributos, collapse = "+"), "]")
+  objetos <- paste0(entidad, "[", filas, ",",
+                    paste(instancia$atributos, collapse = "+"), "]")
+  objetos[fallos] <- ifelse(
+    nzchar(proximidad$evidencia[fallos]),
+    paste0(objetos[fallos], " {", proximidad$evidencia[fallos], "}"),
+    objetos[fallos]
   )
+  salida <- .salida_metodo(
+    resultado, entidad, paste(instancia$atributos, collapse = "+"), filas, objetos
+  )
+  attr(salida, "alcance") <- list(
+    normalizar = if (is.null(instancia$configuracion$normalizar)) {
+      "heredado_del_referencial"
+    } else instancia$configuracion$normalizar,
+    normalizacion = .normalizacion_resumen(perfil),
+    n_evaluados = length(filas), n_presentes = length(filas),
+    n_afectados = sum(!resultado),
+    proximidad = proximidad$alcance
+  )
+  salida
 }
 
 .metodo_correctitud_debil <- function(tablas, instancia) {
@@ -227,13 +434,59 @@ print.referencial <- function(x, ...) {
   objetivo <- tabla[instancia$atributos]
   presentes <- stats::complete.cases(objetivo)
   filas <- which(presentes)
-  resultado <- .filas_en_referencial(
-    objetivo[presentes, , drop = FALSE], referencia$datos[columnas_ref]
+  perfil <- .referencial_normalizacion(instancia, referencia)
+  objetivo_presente <- objetivo[presentes, , drop = FALSE]
+  referencia_valores <- referencia$datos[columnas_ref]
+  usa_normalizacion <- !is.null(instancia$configuracion$normalizar) ||
+    !is.null(referencia$normalizar)
+  if (usa_normalizacion) {
+    objetivo_comparable <- .referencial_tabla_normalizada(
+      objetivo_presente, instancia$atributos, perfil
+    )
+    referencia_comparable <- .referencial_tabla_normalizada(
+      referencia_valores, columnas_ref, perfil
+    )
+    resultado <- .filas_en_referencial(objetivo_comparable, referencia_comparable)
+    texto_objetivo <- .referencial_filas_texto(
+      objetivo_presente, instancia$atributos, perfil
+    )
+    texto_referencia <- .referencial_filas_texto(
+      referencia_valores, columnas_ref, perfil
+    )
+  } else {
+    resultado <- .filas_en_referencial(objetivo_presente, referencia_valores)
+    texto_objetivo <- .referencial_filas_original_texto(
+      objetivo_presente, instancia$atributos
+    )
+    texto_referencia <- .referencial_filas_original_texto(
+      referencia_valores, columnas_ref
+    )
+  }
+  config <- instancia$configuracion
+  fallos <- which(!resultado)
+  proximidad <- .referencial_proximidad(
+    fallos, texto_objetivo, texto_referencia, referencia_valores, config
   )
-  .salida_metodo(
-    resultado, entidad, paste(instancia$atributos, collapse = "+"), filas,
-    paste0(entidad, "[", filas, ",", paste(instancia$atributos, collapse = "+"), "]")
+  objetos <- paste0(entidad, "[", filas, ",",
+                    paste(instancia$atributos, collapse = "+"), "]")
+  objetos[fallos] <- ifelse(
+    nzchar(proximidad$evidencia[fallos]),
+    paste0(objetos[fallos], " {", proximidad$evidencia[fallos], "}"),
+    objetos[fallos]
   )
+  salida <- .salida_metodo(
+    resultado, entidad, paste(instancia$atributos, collapse = "+"), filas, objetos
+  )
+  attr(salida, "alcance") <- list(
+    normalizar = if (is.null(instancia$configuracion$normalizar)) {
+      "heredado_del_referencial"
+    } else instancia$configuracion$normalizar,
+    normalizacion = .normalizacion_resumen(perfil),
+    n_evaluados = length(filas), n_presentes = length(filas),
+    n_afectados = sum(!resultado),
+    proximidad = proximidad$alcance
+  )
+  salida
 }
 
 .metodo_ratio_cobertura <- function(tablas, instancia) {
@@ -249,12 +502,30 @@ print.referencial <- function(x, ...) {
   objetivo <- unique(tabla[stats::complete.cases(tabla[instancia$atributos]),
                            instancia$atributos, drop = FALSE])
   referencia_clave <- referencia$datos[referencia$clave]
-  cubiertas <- .filas_en_referencial(referencia_clave, objetivo)
+  perfil <- .referencial_normalizacion(instancia, referencia)
+  usa_normalizacion <- !is.null(instancia$configuracion$normalizar) ||
+    !is.null(referencia$normalizar)
+  if (usa_normalizacion) {
+    cubiertas <- .filas_en_referencial(
+      .referencial_tabla_normalizada(referencia_clave, referencia$clave, perfil),
+      .referencial_tabla_normalizada(objetivo, instancia$atributos, perfil)
+    )
+  } else {
+    cubiertas <- .filas_en_referencial(referencia_clave, objetivo)
+  }
   resultado <- if (nrow(referencia_clave)) mean(cubiertas) else 1
-  .salida_metodo(
+  salida <- .salida_metodo(
     resultado, entidad, paste(instancia$atributos, collapse = "+"), NA_integer_,
     paste0(entidad, " respecto de ", referencia$nombre)
   )
+  attr(salida, "alcance") <- list(
+    normalizacion = .normalizacion_resumen(perfil),
+    n_referencial = nrow(referencia_clave),
+    n_valores_objetivo = nrow(objetivo),
+    proximidad = list(solicitada = FALSE, motivo =
+                        "La proximidad no participa en la cobertura.")
+  )
+  salida
 }
 
 #' Métricas que consumen un referencial tabular
@@ -264,6 +535,13 @@ print.referencial <- function(x, ...) {
 #' `CorrectitudSemDebil` comprueba el par identificación–valor; `RatioCobertura`
 #' mide qué proporción del universo completo de claves aparece en la entidad.
 #' Los ratios de correctitud se obtienen mediante [agregar()] con `"ratio"`.
+#' Las tres métricas aceptan `normalizar`, `proximidad`, `metodo`, `p`, `umbral`,
+#' `max_pares` y `nucleos`. `normalizar = NULL` hereda el perfil declarado por
+#' [referencial()]. La normalización sólo cambia la representación usada para
+#' emparejar: no modifica los datos. La proximidad es evidencia para los
+#' valores ausentes y nunca cambia su veredicto; si el paquete opcional
+#' [stringdist](https://cran.r-project.org/package=stringdist) no está
+#' instalado, se declara que no se calculó.
 #'
 #' Los valores ausentes no generan medidas de correctitud: corresponden a la
 #' dimensión Completitud. La cobertura ignora claves ausentes en el objetivo y
@@ -289,19 +567,28 @@ metricas_referencial <- function() {
       "CorrectitudSemFuerte",
       "Indica si la identificaci\u00f3n de una entidad existe en un referencial.",
       "instanciaAtributo", "booleano", dimension = "Exactitud",
-      factor = "Correctitud sem\u00e1ntica", metodo = .metodo_correctitud_fuerte
+      factor = "Correctitud sem\u00e1ntica", propiedades = c(
+        "normalizar", "proximidad", "metodo", "p", "umbral", "max_pares", "nucleos"
+      ), metodo = .metodo_correctitud_fuerte,
+      validar_propiedades = .validar_config_referencial
     ),
     CorrectitudSemDebil = metrica(
       "CorrectitudSemDebil",
       "Indica si un valor est\u00e1 asociado a la identificaci\u00f3n correcta en un referencial.",
       "instanciaAtributo", "booleano", dimension = "Exactitud",
-      factor = "Correctitud sem\u00e1ntica", metodo = .metodo_correctitud_debil
+      factor = "Correctitud sem\u00e1ntica", propiedades = c(
+        "normalizar", "proximidad", "metodo", "p", "umbral", "max_pares", "nucleos"
+      ), metodo = .metodo_correctitud_debil,
+      validar_propiedades = .validar_config_referencial
     ),
     RatioCobertura = metrica(
       "RatioCobertura",
       "Mide la cobertura de una entidad respecto de un referencial completo.",
       "entidad", "real", dimension = "Completitud", factor = "Cobertura",
-      metodo = .metodo_ratio_cobertura
+      propiedades = c(
+        "normalizar", "proximidad", "metodo", "p", "umbral", "max_pares", "nucleos"
+      ), metodo = .metodo_ratio_cobertura,
+      validar_propiedades = .validar_config_referencial
     )
   )
 }

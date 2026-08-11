@@ -10,49 +10,47 @@ referencial(
   valor = character(),
   completo = FALSE,
   alcance = NULL,
-  nombre = NULL
+  nombre = NULL,
+  normalizar = TRUE
 )
 }
 \arguments{
 \item{datos}{Tabla de referencia. Se conserva una copia ordinaria de R.}
 
-\item{clave}{Columnas que identifican unívocamente cada fila.}
+\item{clave}{Columnas que identifican unívocamente cada fila. Puede
+contener varias columnas.}
 
-\item{valor}{Columnas cuyos valores se contrastan junto con la clave.}
+\item{valor}{Columnas asociadas que pueden contrastarse en correctitud débil.
+Es opcional.}
 
-\item{completo}{Si el referencial declara contener todo el universo del
-alcance indicado. Es \code{FALSE} por omisión.}
+\item{completo}{Si la tabla cubre todo el universo declarado. Es \code{FALSE} por
+omisión.}
 
-\item{alcance}{Descripción explícita de aquello de lo que el referencial se
-declara completo. Es obligatoria cuando \code{completo = TRUE}.}
+\item{alcance}{Descripción obligatoria cuando \code{completo = TRUE}.}
 
 \item{nombre}{Nombre legible del referencial. Si se omite, usa el nombre del
-objeto de entrada o \code{"referencial"} cuando la tabla se construye en línea.}
+objeto de entrada o \code{"referencial"}.}
+
+\item{normalizar}{\code{TRUE}, \code{FALSE}, \code{"amplio"}, un perfil de
+\code{\link[=normalizacion]{normalizacion()}} o una lista nombrada por columna. \code{TRUE} es el valor
+predeterminado.}
 }
 \value{
-Objeto de clase \code{referencial} con \code{datos}, \code{clave}, \code{valor},
-\code{completo}, \code{alcance} y \code{nombre}.
+Un objeto de clase \code{referencial}.
 }
 \description{
 Un referencial representa conocimiento externo mediante una clave y, de
-forma opcional, valores asociados a ella. Se diferencia de un diccionario:
-el diccionario sólo enumera valores sintácticamente válidos, mientras que
-el referencial permite comprobar que una entidad existe y que sus atributos
-están asociados a la clave correcta.
+forma opcional, valores asociados a ella. \code{normalizar} controla la
+representación usada para emparejar referenciales; no modifica los datos
+guardados. La declaración de completitud es explícita: \code{RatioCobertura}
+exige \code{completo = TRUE} y un \code{alcance} explícito; un referencial parcial sólo
+puede usarse para correctitud.
 }
 \details{
-La declaración de completitud es explícita. \code{RatioCobertura} sólo tiene
-sentido bajo una asunción de mundo cerrado y exige \code{completo = TRUE}; una
-lista parcial puede usarse para correctitud, pero no como denominador de
-cobertura.
-
-\code{clave} no admite ausentes y debe identificar cada fila de \code{datos} de forma
-única; puede contener varias columnas. \code{valor} es opcional, no puede repetir
-columnas de \code{clave} y representa los atributos asociados que se contrastan
-en correctitud semántica fuerte. \code{completo = FALSE} es el valor
-predeterminado y permite omitir \code{alcance}. Al declarar \code{completo = TRUE},
-\code{alcance} pasa a ser obligatorio y debe nombrar el universo que la tabla dice
-cubrir. El constructor copia la tabla y no consulta fuentes externas.
+La clave no admite ausentes y debe identificar cada fila de forma única.
+\code{valor} no puede repetir columnas de \code{clave} y representa atributos que se
+contrastan en correctitud semántica débil. El constructor copia la tabla y
+no consulta fuentes externas.
 }
 \examples{
 padron <- referencial(
