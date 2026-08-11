@@ -274,15 +274,22 @@
 #' ese costo de memoria.
 #'
 #' Los hallazgos `controles_invisibles`, `entidades_html` y `separadores_en_campo`
-#' tienen acciones separadas. `eliminar_controles_invisibles` quita controles
-#' C0/C1 que no son separadores de línea e invisibles Unicode y se recomienda
-#' por defecto. `decodificar_entidades_html` cubre las entidades
+#' tienen acciones separadas. La detección de invisibles informa tanto los
+#' caracteres que se pueden normalizar como los ZWJ/ZWNJ significativos; la
+#' normalización actúa sobre un conjunto más pequeño que la detección. La acción
+#' `eliminar_controles_invisibles` quita controles C0/C1 que no son separadores
+#' y los invisibles Unicode de transporte, y se recomienda por defecto; conserva
+#' ZWJ/ZWNJ. `normalizar_espacios_invisibles` colapsa espacios Unicode (incluido
+#' NBSP) a un espacio ASCII, no se recomienda por defecto y registra la pérdida
+#' de reversibilidad. `decodificar_entidades_html` cubre las entidades
 #' con nombre comunes en español y referencias numéricas válidas, pero no se
 #' activa sola porque un ampersand puede ser contenido legítimo.
 #' `reemplazar_separadores` convierte tabulaciones, saltos de línea, avances de
 #' página y tabulaciones verticales (`\\t`, `\\n`, `\\r`, `\\r\\n`, `\\f` y `\\v`)
 #' en un espacio y también requiere una decisión explícita. Las tres acciones
-#' registran el número de valores cambiados.
+#' registran el número de valores cambiados. Una comparación aproximada con
+#' `normalizar = TRUE` usa estas mismas clases: colapsa espacios y omite basura
+#' de transporte, pero conserva ZWJ/ZWNJ.
 #'
 #' Las imputaciones por dependencia funcional se ofrecen desactivadas. Aunque
 #' una dependencia exacta permite deducir un valor sin usar media, moda o un
@@ -437,15 +444,36 @@ planificar_limpieza <- function(perfil, datos = NULL,
         aplicar = identical(estado_columna, "lista"), orden = 200L
       ))
     } else if (identical(tipo, "controles_invisibles") && !is.null(fila)) {
-      acciones <- .agregar_accion(acciones, .nueva_accion(
-        columna, tipo, "eliminar_controles_invisibles", TRUE,
-        paste0(
-          "Los controles C0/C1 e invisibles Unicode no aportan contenido de ",
-          "negocio y pueden romper cruces, comparaciones y exportes."
-        ), fila$n_controles_invisibles[[1L]], FALSE,
-        estado = estado_columna,
-        aplicar = identical(estado_columna, "lista"), orden = 205L
-      ))
+      n_eliminables <- if ("n_invisibles_eliminables" %in% names(fila)) {
+        fila$n_invisibles_eliminables[[1L]]
+      } else fila$n_controles_invisibles[[1L]]
+      n_espacios <- if ("n_espacios_invisibles" %in% names(fila)) {
+        fila$n_espacios_invisibles[[1L]]
+      } else 0L
+      if (isTRUE(n_eliminables > 0L)) {
+        acciones <- .agregar_accion(acciones, .nueva_accion(
+          columna, tipo, "eliminar_controles_invisibles", TRUE,
+          paste0(
+            "Los controles C0/C1 y los invisibles Unicode de transporte no ",
+            "aportan contenido de negocio y pueden romper cruces, ",
+            "comparaciones y exportes. Los ZWJ/ZWNJ se conservan."
+          ), n_eliminables, FALSE,
+          estado = estado_columna,
+          aplicar = identical(estado_columna, "lista"), orden = 205L
+        ))
+      }
+      if (isTRUE(n_espacios > 0L)) {
+        acciones <- .agregar_accion(acciones, .nueva_accion(
+          columna, tipo, "normalizar_espacios_invisibles", FALSE,
+          paste0(
+            "Los espacios Unicode se convierten a un espacio comun para ",
+            "comparar y exportar; se pierde la distincion del espacio original, ",
+            "por lo que la accion es destructiva y requiere confirmacion."
+          ), n_espacios, FALSE,
+          estado = estado_columna, aplicar = FALSE, orden = 206L,
+          destructiva = TRUE
+        ))
+      }
     } else if (identical(tipo, "entidades_html") && !is.null(fila)) {
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "decodificar_entidades_html", FALSE,
@@ -1175,10 +1203,29 @@ planificar_limpieza <- function(perfil, datos = NULL,
   nuevo <- vapply(anterior, function(texto) {
     if (is.na(texto)) return(NA_character_)
     codigos <- utf8ToInt(texto)
-    conservar <- !.codigos_control_invisible(codigos)
+    conservar <- !.codigos_control_eliminable(codigos)
     paste0(intToUtf8(codigos[conservar], multiple = TRUE), collapse = "")
   }, character(1L), USE.NAMES = FALSE)
-  list(valor = .resultado_texto(x, nuevo), n = sum(!is.na(anterior) & anterior != nuevo))
+  cambio <- !is.na(anterior) & anterior != nuevo
+  list(valor = .resultado_texto(x, nuevo), n = sum(cambio),
+       n_no_reversibles = sum(cambio))
+}
+
+.normalizar_espacios_invisibles <- function(x) {
+  if (!is.character(x) && !is.factor(x)) {
+    stop("La normalizacion de espacios Unicode requiere una columna de texto.",
+         call. = FALSE)
+  }
+  anterior <- as.character(x)
+  nuevo <- vapply(anterior, function(texto) {
+    if (is.na(texto)) return(NA_character_)
+    codigos <- utf8ToInt(texto)
+    codigos[codigos %in% .codigos_espacios_invisibles] <- 32L
+    paste0(intToUtf8(codigos, multiple = TRUE), collapse = "")
+  }, character(1L), USE.NAMES = FALSE)
+  cambio <- !is.na(anterior) & anterior != nuevo
+  list(valor = .resultado_texto(x, nuevo), n = sum(cambio),
+       n_no_reversibles = sum(cambio))
 }
 
 .entidad_html_reemplazo <- function(entidad) {
@@ -1674,7 +1721,14 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (identical(estrategia, "eliminar_controles_invisibles")) {
     cambio <- .quitar_controles_invisibles(x)
     datos[[indice]] <- cambio$valor
-    return(list(datos = datos, n = cambio$n))
+    return(list(datos = datos, n = cambio$n,
+                n_no_reversibles = cambio$n_no_reversibles))
+  }
+  if (identical(estrategia, "normalizar_espacios_invisibles")) {
+    cambio <- .normalizar_espacios_invisibles(x)
+    datos[[indice]] <- cambio$valor
+    return(list(datos = datos, n = cambio$n,
+                n_no_reversibles = cambio$n_no_reversibles))
   }
   if (identical(estrategia, "decodificar_entidades_html")) {
     cambio <- .decodificar_entidades_html(x)

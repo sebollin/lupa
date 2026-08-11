@@ -91,15 +91,22 @@ lo retirado en \code{eliminados}; use \code{conservar_eliminados = FALSE} para e
 ese costo de memoria.
 
 Los hallazgos \code{controles_invisibles}, \code{entidades_html} y \code{separadores_en_campo}
-tienen acciones separadas. \code{eliminar_controles_invisibles} quita controles
-C0/C1 que no son separadores de línea e invisibles Unicode y se recomienda
-por defecto. \code{decodificar_entidades_html} cubre las entidades
+tienen acciones separadas. La detección de invisibles informa tanto los
+caracteres que se pueden normalizar como los ZWJ/ZWNJ significativos; la
+normalización actúa sobre un conjunto más pequeño que la detección. La acción
+\code{eliminar_controles_invisibles} quita controles C0/C1 que no son separadores
+y los invisibles Unicode de transporte, y se recomienda por defecto; conserva
+ZWJ/ZWNJ. \code{normalizar_espacios_invisibles} colapsa espacios Unicode (incluido
+NBSP) a un espacio ASCII, no se recomienda por defecto y registra la pérdida
+de reversibilidad. \code{decodificar_entidades_html} cubre las entidades
 con nombre comunes en español y referencias numéricas válidas, pero no se
 activa sola porque un ampersand puede ser contenido legítimo.
 \code{reemplazar_separadores} convierte tabulaciones, saltos de línea, avances de
 página y tabulaciones verticales (\verb{\\\\t}, \verb{\\\\n}, \verb{\\\\r}, \verb{\\\\r\\\\n}, \verb{\\\\f} y \verb{\\\\v})
 en un espacio y también requiere una decisión explícita. Las tres acciones
-registran el número de valores cambiados.
+registran el número de valores cambiados. Una comparación aproximada con
+\code{normalizar = TRUE} usa estas mismas clases: colapsa espacios y omite basura
+de transporte, pero conserva ZWJ/ZWNJ.
 
 Las imputaciones por dependencia funcional se ofrecen desactivadas. Aunque
 una dependencia exacta permite deducir un valor sin usar media, moda o un

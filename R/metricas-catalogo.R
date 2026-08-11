@@ -183,7 +183,7 @@
 }
 
 .validar_config_entidad_contradictoria <- function(configuracion) {
-  permitidas <- c("metodo", "umbral", "normalizar", "max_valores", "nucleos")
+  permitidas <- c("metodo", "p", "umbral", "normalizar", "max_valores", "nucleos")
   desconocidas <- setdiff(names(configuracion), permitidas)
   if (length(desconocidas)) {
     stop(
@@ -203,8 +203,14 @@
       "qgram, cosine, jaccard, jw o soundex.", call. = FALSE
     )
   }
+  p <- configuracion$p
+  if (is.null(p)) p <- 0.1
+  if (!is.numeric(p) || length(p) != 1L || is.na(p) || !is.finite(p) ||
+      p < 0 || p > 0.25) {
+    stop("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
+  }
   umbral <- configuracion$umbral
-  if (is.null(umbral)) umbral <- 0.12
+  if (is.null(umbral)) umbral <- 0.10
   if (!is.numeric(umbral) || length(umbral) != 1L || is.na(umbral) ||
       !is.finite(umbral) || umbral < 0) {
     stop("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
@@ -224,7 +230,7 @@
   }
   nucleos <- .resolver_nucleos_lupa(configuracion$nucleos)
   list(
-    metodo = metodo, umbral = umbral, normalizar = normalizar,
+    metodo = metodo, p = p, umbral = umbral, normalizar = normalizar,
     max_valores = if (is.infinite(max_valores)) Inf else as.integer(max_valores),
     nucleos = nucleos
   )
@@ -264,7 +270,7 @@
       vocabulario_evaluado, seq_along(vocabulario_evaluado),
       config$metodo, config$umbral,
       bloque = min(1000L, length(vocabulario_evaluado)),
-      max_resultados = Inf, nucleos = config$nucleos
+      max_resultados = Inf, nucleos = config$nucleos, p = config$p
     )
   } else {
     list(pares = data.frame(
@@ -294,6 +300,7 @@
     n_pares_bajo_umbral = nrow(pares$pares),
     umbral = config$umbral,
     metodo = config$metodo,
+    p = config$p,
     normalizar = config$normalizar,
     max_valores = config$max_valores,
     truncado = truncado,
@@ -643,7 +650,7 @@
         "mismo atributo; no modifica los datos."
       ),
       "instanciaAtributo", "booleano",
-      propiedades = c("metodo", "umbral", "normalizar", "max_valores", "nucleos"),
+      propiedades = c("metodo", "p", "umbral", "normalizar", "max_valores", "nucleos"),
       dimension = "Unicidad", factor = "No-contradicci\u00f3n",
       metodo = .metodo_entidad_contradictoria,
       validar_propiedades = .validar_config_entidad_contradictoria

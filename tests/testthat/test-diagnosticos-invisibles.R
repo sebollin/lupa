@@ -146,4 +146,60 @@ test_that("sólo los controles se recomiendan y las acciones registran cambios",
     ],
     c(1, 1, 1)
   )
+  expect_equal(
+    resultado$registro$n_no_reversibles[
+      resultado$registro$estrategia == "eliminar_controles_invisibles"
+    ],
+    1
+  )
+})
+
+test_that("los invisibles Unicode se clasifican sin borrar ZWJ ni ZWNJ", {
+  datos <- data.frame(
+    texto = c(
+      paste0("A", intToUtf8(0x00A0), "B"),
+      paste0("C", intToUtf8(0x200B), "D"),
+      paste0("E", intToUtf8(0x200C), "F"),
+      paste0("G", intToUtf8(0x200D), "H"),
+      paste0("I", intToUtf8(0x2060), "J")
+    ), stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  columna <- perfil$columnas[perfil$columnas$columna == "texto", , drop = FALSE]
+  expect_equal(columna$n_controles_invisibles, 5L)
+  expect_equal(columna$n_espacios_invisibles, 1L)
+  expect_equal(columna$n_invisibles_eliminables, 2L)
+  expect_equal(columna$n_invisibles_significativos, 2L)
+  plan <- planificar_limpieza(perfil, datos)
+  expect_true(any(plan$estrategia == "eliminar_controles_invisibles"))
+  expect_true(any(plan$estrategia == "normalizar_espacios_invisibles"))
+  expect_false(plan$aplicar[plan$estrategia == "normalizar_espacios_invisibles"])
+  expect_true(plan$destructiva[plan$estrategia == "normalizar_espacios_invisibles"])
+  plan$aplicar[plan$estrategia == "normalizar_espacios_invisibles"] <- TRUE
+  resultado <- aplicar(plan, datos, permitir_eliminacion = TRUE)
+  expect_identical(resultado$datos$texto, c("A B", "CD", "E\u200cF", "G\u200dH", "IJ"))
+  registro_espacio <- resultado$registro[
+    resultado$registro$estrategia == "normalizar_espacios_invisibles", , drop = FALSE
+  ]
+  expect_equal(registro_espacio$n_no_reversibles, 1)
+  expect_true(registro_espacio$destructiva)
+})
+
+test_that("la comparación normalizada trata espacios y basura sin tocar ZWJ", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = c(
+      "Ana\u00a0Perez", "Ana Perez", "Familia\u200dUnida", "FamiliaUnida"
+    ), stringsAsFactors = FALSE
+  )
+  normalizado <- detectar_duplicados_aproximados(
+    datos, columnas = "nombre", estrategia = "teselas", umbral = 0,
+    max_resultados = Inf
+  )
+  expect_true(any(normalizado$pares$tipo_par == "exacto"))
+  sin_normalizar <- detectar_duplicados_aproximados(
+    datos, columnas = "nombre", estrategia = "teselas", umbral = 0,
+    max_resultados = Inf, normalizar = FALSE
+  )
+  expect_false(any(sin_normalizar$pares$tipo_par == "exacto"))
 })

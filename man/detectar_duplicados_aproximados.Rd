@@ -8,7 +8,8 @@ detectar_duplicados_aproximados(
   datos,
   columnas = NULL,
   metodo = "jw",
-  umbral = 0.12,
+  umbral = 0.1,
+  p = 0.1,
   muestra = Inf,
   max_pares = 50000000L,
   max_resultados = 100L,
@@ -39,7 +40,10 @@ automatica descrita arriba; no se incluyen matrices ni listas.}
 \item{metodo}{Medida admitida por \code{stringdist::stringdistmatrix()}. Por
 defecto, \code{"jw"}.}
 
-\item{umbral}{Distancia maxima para informar un par. Por defecto \code{0.12}.}
+\item{umbral}{Distancia maxima para informar un par. Por defecto \code{0.10}.}
+
+\item{p}{Factor de prefijo de Jaro--Winkler, entre 0 y 0.25. Por defecto
+\code{0.1}; sólo tiene efecto con \code{metodo = "jw"}.}
 
 \item{muestra}{Máximo de filas candidatas. En el camino exacto queda sujeto
 a \code{max_pares}; con LSH, \code{Inf} usa todas las filas.}
@@ -141,10 +145,12 @@ Por omision se combinan como maximo dos columnas de texto o factores, despues
 de excluir nombres que parecen identificadores (\code{id}, \code{codigo}, \code{uuid}, entre
 otros). Si quedan mas de dos columnas, la funcion pide indicar \code{columnas}
 explicitamente en vez de mezclar campos que pueden diluir la similitud. La
-medida predeterminada es Jaro--Winkler (\code{"jw"}), adecuada para transposiciones
-y pequenas erratas; el umbral predeterminado \code{0.12} es deliberadamente mas
-conservador que \code{0.15}, que sobre cadenas cortas y estructuradas produce
-demasiados pares. Ambos argumentos se pueden cambiar.
+medida predeterminada es Jaro--Winkler (\code{"jw"}), con \code{p = 0.1}: Winkler
+favorece coincidencias con el mismo prefijo y, por eso, premia una errata al
+final mas que una al comienzo. El umbral predeterminado es \code{0.10}. Estos dos
+valores cambian respecto de versiones anteriores y pueden cambiar los pares
+informados; el umbral se eligio como una precision prudente, no como una
+calibracion fina. Ambos argumentos se pueden cambiar.
 }
 \details{
 Los pares cuyos textos comparados son iguales despues de la normalizacion se
@@ -175,6 +181,9 @@ máximo. El valor por omisión es \code{getOption("lupa.nucleos", 2L)}, se limit
 los núcleos disponibles y se publica como \code{alcance$nucleos_usados}. Cambiar
 la cantidad de hilos no cambia los pares ni los hallazgos, aunque sí puede
 cambiar el tiempo de ejecución.
+\code{p} es el factor de prefijo de Jaro--Winkler y admite valores entre 0 y
+0.25; sólo tiene efecto cuando \code{metodo = "jw"}. Para los demás métodos se
+valida pero \code{stringdist} no lo utiliza.
 El aviso interactivo señala esta perilla: subir \code{nucleos} puede acortar la
 etapa de comparación, pero la ganancia depende de la máquina y de los datos.
 

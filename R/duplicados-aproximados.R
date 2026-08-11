@@ -10,12 +10,12 @@
   requireNamespace("stringdist", quietly = TRUE)
 }
 
-.distancias_pares_duplicados <- function(a, b, metodo, nucleos) {
-  stringdist::stringdist(a, b, method = metodo, nthread = nucleos)
+.distancias_pares_duplicados <- function(a, b, metodo, nucleos, p = 0.1) {
+  stringdist::stringdist(a, b, method = metodo, p = p, nthread = nucleos)
 }
 
-.matriz_distancias_duplicados <- function(a, b, metodo, nucleos) {
-  stringdist::stringdistmatrix(a, b, method = metodo, nthread = nucleos)
+.matriz_distancias_duplicados <- function(a, b, metodo, nucleos, p = 0.1) {
+  stringdist::stringdistmatrix(a, b, method = metodo, p = p, nthread = nucleos)
 }
 
 .nucleos_disponibles_lupa <- function() {
@@ -39,10 +39,11 @@
 .vacio_duplicados_aproximados <- function(
     n_filas, columnas, metodo, umbral, muestra, max_pares, max_resultados,
     disponible = TRUE, razon = "", bloque = 1000L, n_bloques = 0L,
-    modo_comparacion = "sin_comparacion", nucleos_usados = NA_integer_) {
+    modo_comparacion = "sin_comparacion", nucleos_usados = NA_integer_,
+    p = 0.1) {
   pares <- data.frame(
     fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
-    tipo_par = character(), metodo = character(), umbral = numeric(),
+    tipo_par = character(), metodo = character(), p = numeric(), umbral = numeric(),
     evidencia_1 = character(),
     evidencia_2 = character(), proteccion_evidencia = character(),
     stringsAsFactors = FALSE
@@ -74,6 +75,8 @@
     truncado = FALSE,
     disponible = disponible,
     nucleos_usados = nucleos_usados,
+    metodo = metodo,
+    p = p,
     razon = razon,
     stringsAsFactors = FALSE
   )
@@ -88,7 +91,7 @@
   )
   estructura <- list(
     pares = pares, hallazgos = hallazgos,
-    alcance = alcance, columnas = columnas, metodo = metodo,
+    alcance = alcance, columnas = columnas, metodo = metodo, p = p,
     umbral = umbral, disponible = disponible, razon = razon,
     proteccion_aplicada = FALSE, estimacion = NULL
   )
@@ -202,7 +205,8 @@
 }
 
 .estimar_perdida_bloqueo <- function(
-    valores, bloqueos, metodo, umbral, tamano_muestra, nucleos = 2L) {
+    valores, bloqueos, metodo, umbral, tamano_muestra, nucleos = 2L,
+    p = 0.1) {
   if (length(valores) < 2L || is.null(bloqueos)) {
     return(data.frame(
       bloqueo_muestra_pares = 0L,
@@ -230,7 +234,7 @@
   }
   distancias <- stringdist::stringdist(
     valores[pares$fila_1], valores[pares$fila_2], method = metodo,
-    nthread = nucleos
+    p = p, nthread = nucleos
   )
   candidatos <- is.finite(distancias) & distancias <= umbral
   fuera <- bloqueos[pares$fila_1] != bloqueos[pares$fila_2]
@@ -408,7 +412,8 @@
 #' @noRd
 .comparar_bloques_duplicados <- function(
     valores, filas, metodo, umbral, bloque, max_resultados,
-    acumulador = NULL, on_pairs = NULL, bloqueos = NULL, nucleos = 2L) {
+    acumulador = NULL, on_pairs = NULL, bloqueos = NULL, nucleos = 2L,
+    p = 0.1) {
   n <- length(valores)
   acumular_en_externo <- !is.null(acumulador)
   if (is.null(acumulador)) {
@@ -437,7 +442,7 @@
       fin_j <- min(n, inicios[[j]] + bloque - 1L)
       filas_j <- inicios[[j]]:fin_j
       matriz <- as.matrix(.matriz_distancias_duplicados(
-        valores[filas_i], valores[filas_j], metodo, nucleos
+        valores[filas_i], valores[filas_j], metodo, nucleos, p
       ))
       n_bloques <- n_bloques + 1L
       candidatas <- if (i == j) {
@@ -494,7 +499,7 @@
 
 .comparar_por_lotes_duplicados <- function(
     valores, filas, metodo, umbral, bloque, tamano_lote, max_resultados,
-    bloqueos = NULL, directorio_lotes, nucleos = 2L) {
+    bloqueos = NULL, directorio_lotes, nucleos = 2L, p = 0.1) {
   n <- length(valores)
   grupos <- split(seq_len(n), ceiling(seq_len(n) / tamano_lote))
   acumulador <- .nuevo_acumulador_duplicados(max_resultados)
@@ -515,7 +520,7 @@
         valores[indices], filas[indices], metodo, umbral, bloque, Inf,
         bloqueos = if (is.null(bloqueos)) NULL else {
           bloqueos[indices]
-        }, nucleos = nucleos
+        }, nucleos = nucleos, p = p
       )
       # El comparador anterior compara también el rectángulo cruzado dentro
       # de la concatenación. Para i != j eso incluiría pares internos de cada
@@ -705,7 +710,7 @@
 
 .estimar_lsh <- function(
     firmas, valores, metodo, bandas, filas_banda, tamano_muestra,
-    bloqueos = NULL, nucleos = 2L) {
+    bloqueos = NULL, nucleos = 2L, p = 0.1) {
   n <- nrow(firmas)
   pares <- .muestra_pares_lsh(n, tamano_muestra)
   total <- as.numeric(n) * (as.numeric(n) - 1) / 2
@@ -748,7 +753,7 @@
   invisible(stringdist::stringdist(
     valores[pares_benchmark$fila_1[[1L]]],
     valores[pares_benchmark$fila_2[[1L]]], method = metodo,
-    nthread = nucleos
+    p = p, nthread = nucleos
   ))
   indices_benchmark <- seq_len(n_benchmark)
   inicio <- proc.time()[["elapsed"]]
@@ -762,7 +767,7 @@
     invisible(stringdist::stringdist(
       valores[pares_benchmark$fila_1[indices_benchmark]],
       valores[pares_benchmark$fila_2[indices_benchmark]], method = metodo,
-      nthread = nucleos
+      p = p, nthread = nucleos
     ))
     repeticiones <- repeticiones + 1L
     pares_cronometrados <- pares_cronometrados + n_benchmark
@@ -888,7 +893,7 @@
     valores, filas, metodo, umbral, bandas, filas_banda, q,
     max_cubeta, max_resultados, muestra_estimacion = 400000L,
     presupuesto_pares = Inf, bloqueos = NULL, solo_estimacion = FALSE,
-    nucleos = 2L) {
+    nucleos = 2L, p = 0.1) {
   n <- length(valores)
   n_hashes <- bandas * filas_banda
   indice <- .ids_qgramas_por_bloques(valores, q)
@@ -904,7 +909,7 @@
   indice <- NULL
   estimacion <- .estimar_lsh(
     firmas, valores, metodo, bandas, filas_banda, muestra_estimacion,
-    bloqueos = bloqueos, nucleos = nucleos
+    bloqueos = bloqueos, nucleos = nucleos, p = p
   )
   mensaje_tiempo <- .texto_tiempo_lsh(estimacion, nucleos)
   if (isTRUE(interactive())) {
@@ -1046,7 +1051,7 @@
           bloque = min(2000L, tamano), max_resultados = max_resultados,
           acumulador = acumulador, on_pairs = registrar_jaccard_filas,
           bloqueos = if (is.null(bloqueos)) NULL else bloqueos[indices],
-          nucleos = nucleos
+          nucleos = nucleos, p = p
         )
         acumulador <- por_teselas$acumulador
         teselas_cubetas_grandes <- teselas_cubetas_grandes +
@@ -1111,7 +1116,7 @@
         p1 <- p1[keep]
         p2 <- p2[keep]
         distancias <- .distancias_pares_duplicados(
-          valores[p1], valores[p2], metodo, nucleos
+          valores[p1], valores[p2], metodo, nucleos, p
         )
         pares_comparados <- pares_comparados + length(p1)
         pasan <- is.finite(distancias) & distancias <= umbral
@@ -1286,6 +1291,7 @@
     salida <- suppressWarnings(as.character(.texto_analizable(x)$valores))
     salida[is.na(salida)] <- ""
     if (normalizar) {
+      salida <- .normalizar_invisibles_texto(salida)
       salida <- trimws(tolower(salida))
       salida <- gsub("[[:space:]]+", " ", salida, perl = TRUE)
     }
@@ -1332,7 +1338,7 @@
 }
 
 .detectar_duplicados_aproximados <- function(
-    datos, columnas = NULL, metodo = "jw", umbral = 0.12,
+    datos, columnas = NULL, metodo = "jw", umbral = 0.10, p = 0.1,
     muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
     normalizar = TRUE, clasificacion = NULL,
     proteger_datos_personales = TRUE, bloque = 1000L,
@@ -1386,6 +1392,10 @@
       !is.finite(umbral) || umbral < 0) {
     stop("`umbral` debe ser un numero finito no negativo.", call. = FALSE)
   }
+  if (!is.numeric(p) || length(p) != 1L || is.na(p) || !is.finite(p) ||
+      p < 0 || p > 0.25) {
+    stop("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
+  }
   if (!is.logical(normalizar) || length(normalizar) != 1L || is.na(normalizar) ||
       !is.logical(proteger_datos_personales) ||
       length(proteger_datos_personales) != 1L ||
@@ -1396,7 +1406,7 @@
   if (!.stringdist_disponible()) {
     resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
-      max_resultados, disponible = FALSE, bloque = bloque,
+      max_resultados, disponible = FALSE, bloque = bloque, p = p,
       razon = "No esta instalado el paquete opcional 'stringdist'.",
       nucleos_usados = nucleos
     )
@@ -1412,7 +1422,7 @@
     }
     resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
-      max_resultados, disponible = TRUE, bloque = bloque,
+      max_resultados, disponible = TRUE, bloque = bloque, p = p,
       razon = motivo, nucleos_usados = nucleos
     )
     if (!is.null(resumen_bloqueo)) {
@@ -1473,7 +1483,7 @@
     perdida_bloqueo <- .estimar_perdida_bloqueo(
       textos$valores[validos_bloqueo],
       resumen_bloqueo$ids[validos_bloqueo], metodo, umbral,
-      lsh_muestra_estimacion, nucleos = nucleos
+      lsh_muestra_estimacion, nucleos = nucleos, p = p
     )
     resumen_bloqueo$alcance <- cbind(
       resumen_bloqueo$alcance, perdida_bloqueo
@@ -1490,7 +1500,7 @@
   if (length(validos) < 2L) {
     resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
-      max_resultados, disponible = TRUE, bloque = bloque,
+      max_resultados, disponible = TRUE, bloque = bloque, p = p,
       razon = "No hay dos filas con valores comparables.",
       nucleos_usados = nucleos
     )
@@ -1559,7 +1569,7 @@
       lsh_muestra_estimacion, presupuesto_pares,
       bloqueos = if (is.null(resumen_bloqueo)) NULL else {
         resumen_bloqueo$ids[validos]
-      }, solo_estimacion = solo_estimacion, nucleos = nucleos
+      }, solo_estimacion = solo_estimacion, nucleos = nucleos, p = p
     )
     if (isTRUE(solo_estimacion)) {
       alcance <- lsh$alcance
@@ -1583,13 +1593,13 @@
         tamano_lote, max_resultados,
         bloqueos = if (is.null(resumen_bloqueo)) NULL else {
           resumen_bloqueo$ids[validos]
-        }, directorio_lotes = directorio_parciales, nucleos = nucleos
+        }, directorio_lotes = directorio_parciales, nucleos = nucleos, p = p
       )
       lotes_metadata <- bloques$metadata
     } else if (is.null(resumen_bloqueo)) {
       bloques <- .comparar_bloques_duplicados(
         textos$valores[validos], validos, metodo, umbral, bloque, max_resultados,
-        nucleos = nucleos
+        nucleos = nucleos, p = p
       )
     } else {
       grupos <- split(seq_along(validos), resumen_bloqueo$ids[validos])
@@ -1599,7 +1609,7 @@
         parcial <- .comparar_bloques_duplicados(
           textos$valores[validos[grupo]], validos[grupo], metodo, umbral,
           bloque, max_resultados, acumulador = acumulador,
-          nucleos = nucleos
+          nucleos = nucleos, p = p
         )
         acumulador <- parcial$acumulador
         n_bloques <- n_bloques + parcial$n_bloques
@@ -1628,7 +1638,7 @@
       fila_2 = bloques$pares$fila_2,
       distancia = distancias,
       tipo_par = ifelse(iguales, "exacto", "aproximado"),
-      metodo = metodo, umbral = umbral,
+      metodo = metodo, p = p, umbral = umbral,
       evidencia_1 = .evidencia_filas_aproximada(
         datos, columnas, bloques$pares$fila_1, protegidas
       ),
@@ -1643,7 +1653,7 @@
   } else {
     .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
-      max_resultados, disponible = TRUE, bloque = bloque,
+      max_resultados, disponible = TRUE, bloque = bloque, p = p,
       nucleos_usados = nucleos
     )$pares
   }
@@ -1732,6 +1742,8 @@
     presupuesto_pares_aplica = usar_lsh || is.finite(presupuesto_pares),
     n_bloques = bloques$n_bloques,
     nucleos_usados = nucleos,
+    metodo = metodo,
+    p = p,
     comparacion_exhaustiva = !usar_lsh && length(indices) >= nrow(datos),
     muestreado = length(indices) < nrow(datos), truncado = mostrados < n_hallados,
     disponible = TRUE, razon = "", stringsAsFactors = FALSE
@@ -1746,7 +1758,7 @@
   }
   estructura <- list(
     pares = pares, hallazgos = hallazgos, alcance = alcance,
-    columnas = columnas, metodo = metodo, umbral = umbral,
+    columnas = columnas, metodo = metodo, p = p, umbral = umbral,
     disponible = TRUE, razon = "",
     proteccion_aplicada = proteger_datos_personales,
     estimacion = estimacion_resultado
@@ -1765,10 +1777,12 @@
 #' de excluir nombres que parecen identificadores (`id`, `codigo`, `uuid`, entre
 #' otros). Si quedan mas de dos columnas, la funcion pide indicar `columnas`
 #' explicitamente en vez de mezclar campos que pueden diluir la similitud. La
-#' medida predeterminada es Jaro--Winkler (`"jw"`), adecuada para transposiciones
-#' y pequenas erratas; el umbral predeterminado `0.12` es deliberadamente mas
-#' conservador que `0.15`, que sobre cadenas cortas y estructuradas produce
-#' demasiados pares. Ambos argumentos se pueden cambiar.
+#' medida predeterminada es Jaro--Winkler (`"jw"`), con `p = 0.1`: Winkler
+#' favorece coincidencias con el mismo prefijo y, por eso, premia una errata al
+#' final mas que una al comienzo. El umbral predeterminado es `0.10`. Estos dos
+#' valores cambian respecto de versiones anteriores y pueden cambiar los pares
+#' informados; el umbral se eligio como una precision prudente, no como una
+#' calibracion fina. Ambos argumentos se pueden cambiar.
 #'
 #' Los pares cuyos textos comparados son iguales despues de la normalizacion se
 #' incluyen como `tipo_par = "exacto"`; los restantes son `"aproximado"`.
@@ -1798,6 +1812,9 @@
 #' los núcleos disponibles y se publica como `alcance$nucleos_usados`. Cambiar
 #' la cantidad de hilos no cambia los pares ni los hallazgos, aunque sí puede
 #' cambiar el tiempo de ejecución.
+#' `p` es el factor de prefijo de Jaro--Winkler y admite valores entre 0 y
+#' 0.25; sólo tiene efecto cuando `metodo = "jw"`. Para los demás métodos se
+#' valida pero `stringdist` no lo utiliza.
 #' El aviso interactivo señala esta perilla: subir `nucleos` puede acortar la
 #' etapa de comparación, pero la ganancia depende de la máquina y de los datos.
 #'
@@ -1849,7 +1866,9 @@
 #'   automatica descrita arriba; no se incluyen matrices ni listas.
 #' @param metodo Medida admitida por `stringdist::stringdistmatrix()`. Por
 #'   defecto, `"jw"`.
-#' @param umbral Distancia maxima para informar un par. Por defecto `0.12`.
+#' @param p Factor de prefijo de Jaro--Winkler, entre 0 y 0.25. Por defecto
+#'   `0.1`; sólo tiene efecto con `metodo = "jw"`.
+#' @param umbral Distancia maxima para informar un par. Por defecto `0.10`.
 #' @param muestra Máximo de filas candidatas. En el camino exacto queda sujeto
 #'   a `max_pares`; con LSH, `Inf` usa todas las filas.
 #' @param max_pares Máximo de pares comparados en el camino exacto. Por defecto
@@ -1938,7 +1957,7 @@
 #' pares <- detectar_duplicados_aproximados(datos)
 #' if (!pares$disponible) pares$razon
 detectar_duplicados_aproximados <- function(
-    datos, columnas = NULL, metodo = "jw", umbral = 0.12,
+    datos, columnas = NULL, metodo = "jw", umbral = 0.10, p = 0.1,
     muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
     normalizar = TRUE, perfil = NULL, proteger_datos_personales = TRUE,
     bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
@@ -1952,7 +1971,7 @@ detectar_duplicados_aproximados <- function(
   }
   if (!is.null(perfil)) {
     return(.detectar_duplicados_aproximados(
-      datos, columnas, metodo, umbral, muestra, max_pares, max_resultados,
+      datos, columnas, metodo, umbral, p, muestra, max_pares, max_resultados,
       normalizar, clasificacion = perfil$datos_personales,
       proteger_datos_personales = proteger_datos_personales, bloque = bloque,
       estrategia = estrategia, lsh_bandas = lsh_bandas, lsh_filas = lsh_filas,
@@ -1964,7 +1983,7 @@ detectar_duplicados_aproximados <- function(
     ))
   }
   .detectar_duplicados_aproximados(
-    datos, columnas, metodo, umbral, muestra, max_pares, max_resultados,
+    datos, columnas, metodo, umbral, p, muestra, max_pares, max_resultados,
     normalizar, proteger_datos_personales = proteger_datos_personales,
     bloque = bloque, estrategia = estrategia, lsh_bandas = lsh_bandas,
     lsh_filas = lsh_filas, lsh_q = lsh_q, lsh_max_cubeta = lsh_max_cubeta,
@@ -2013,7 +2032,7 @@ detectar_duplicados_aproximados <- function(
 #'   costo$candidatos_previstos
 #' }
 estimar_costo <- function(
-    datos, columnas = NULL, metodo = "jw", umbral = 0.12,
+    datos, columnas = NULL, metodo = "jw", umbral = 0.10, p = 0.1,
     muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
     normalizar = TRUE, perfil = NULL, proteger_datos_personales = TRUE,
     bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
@@ -2027,7 +2046,7 @@ estimar_costo <- function(
   }
   clasificacion <- if (is.null(perfil)) NULL else perfil$datos_personales
   interno <- suppressMessages(.detectar_duplicados_aproximados(
-    datos, columnas, metodo, umbral, muestra, max_pares, max_resultados,
+    datos, columnas, metodo, umbral, p, muestra, max_pares, max_resultados,
     normalizar, clasificacion = clasificacion,
     proteger_datos_personales = proteger_datos_personales, bloque = bloque,
     estrategia = estrategia, lsh_bandas = lsh_bandas, lsh_filas = lsh_filas,

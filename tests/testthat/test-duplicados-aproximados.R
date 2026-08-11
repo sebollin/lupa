@@ -792,7 +792,7 @@ test_that("el recorrido por bloques conserva exactitud y acota su tesela", {
 test_that("la exactitud usa igualdad de textos y no cero flotante", {
   skip_if_not_installed("stringdist")
   local_mocked_bindings(
-    .matriz_distancias_duplicados = function(a, b, metodo, nucleos) {
+    .matriz_distancias_duplicados = function(a, b, metodo, nucleos, p = 0.1) {
       matrix(1e-16, nrow = length(a), ncol = length(b))
     },
     .package = "lupa"

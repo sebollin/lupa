@@ -794,9 +794,12 @@
     if (isTRUE(fila$n_controles_invisibles > 0L)) {
       agregar(.nuevo_hallazgo(
         nombre, "controles_invisibles", "error",
-        "Hay caracteres de control o invisibles Unicode dentro de los valores.",
+        paste0(
+          "Hay controles, espacios Unicode o marcas invisibles dentro de los ",
+          "valores; los ZWJ/ZWNJ se informan porque pueden ser sem\u00e1nticos."
+        ),
         resultado$diagnostico_texto$evidencia_controles_invisibles,
-        "Eliminar los controles invisibles despu\u00e9s de confirmar que no forman parte de un protocolo de transporte."
+        "Eliminar s\u00f3lo los invisibles de transporte; revisar los espacios Unicode y conservar ZWJ/ZWNJ cuando tengan significado."
       ))
     }
     if (isTRUE(fila$n_entidades_html > 0L)) {

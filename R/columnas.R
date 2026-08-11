@@ -547,14 +547,42 @@
   )
 }
 
+.codigos_espacios_invisibles <- c(
+  0x00A0, 0x1680, 0x2000:0x200A, 0x2028, 0x2029, 0x202F,
+  0x205F, 0x3000
+)
+
+.codigos_invisibles_eliminables <- c(
+  0x00AD, 0x061C, 0x180E, 0x200B, 0x200E, 0x200F, 0x202A:0x202E,
+  0x2060, 0x2066:0x2069, 0xFEFF
+)
+
+.codigos_invisibles_significativos <- c(0x200C, 0x200D)
+
+.codigos_control_eliminable <- function(codigos) {
+  # Los separadores C0 (tabulacion, LF, VT, FF y CR) tienen un diagnostico y
+  # una estrategia propios. Los restantes C0/C1 son controles de transporte.
+  codigos %in% c(0:8, 14L:31L, 127L:159L,
+                 .codigos_invisibles_eliminables)
+}
+
 .codigos_control_invisible <- function(codigos) {
-  # Los separadores de linea (tabulacion, LF, VT, FF y CR) tienen un
-  # diagnostico y una estrategia propios. El resto de C0/C1 y los invisibles
-  # Unicode se consideran basura de transporte.
+  # La deteccion informa todos los invisibles, incluidos los espacios Unicode
+  # y ZWJ/ZWNJ; la remediacion separa los grupos por neutralidad semantica.
   codigos %in% c(
     0:8, 14L:31L, 127L:159L,
-    0xFEFF, 0x200B, 0x200E, 0x200F
+    .codigos_espacios_invisibles,
+    .codigos_invisibles_eliminables,
+    .codigos_invisibles_significativos
   )
+}
+
+.codigos_espacio_invisible <- function(codigos) {
+  codigos %in% .codigos_espacios_invisibles
+}
+
+.codigos_invisible_significativo <- function(codigos) {
+  codigos %in% .codigos_invisibles_significativos
 }
 
 .codigos_salto_linea <- function(codigos) {
@@ -568,6 +596,43 @@
     codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
     any(.codigos_control_invisible(codigos))
   }, logical(1L), USE.NAMES = FALSE)
+}
+
+.tiene_invisible_eliminable <- function(textos) {
+  vapply(textos, function(texto) {
+    if (is.na(texto)) return(FALSE)
+    codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
+    any(.codigos_control_eliminable(codigos))
+  }, logical(1L), USE.NAMES = FALSE)
+}
+
+.tiene_espacio_invisible <- function(textos) {
+  vapply(textos, function(texto) {
+    if (is.na(texto)) return(FALSE)
+    codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
+    any(.codigos_espacio_invisible(codigos))
+  }, logical(1L), USE.NAMES = FALSE)
+}
+
+.tiene_invisible_significativo <- function(textos) {
+  vapply(textos, function(texto) {
+    if (is.na(texto)) return(FALSE)
+    codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
+    any(.codigos_invisible_significativo(codigos))
+  }, logical(1L), USE.NAMES = FALSE)
+}
+
+.normalizar_invisibles_texto <- function(textos) {
+  vapply(as.character(textos), function(texto) {
+    if (is.na(texto)) return(NA_character_)
+    codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
+    if (!length(codigos)) return("")
+    codigos <- vapply(codigos, function(codigo) {
+      if (codigo %in% .codigos_espacios_invisibles) 32L else codigo
+    }, integer(1L))
+    codigos <- codigos[!.codigos_control_eliminable(codigos)]
+    paste0(intToUtf8(codigos, multiple = TRUE), collapse = "")
+  }, character(1L), USE.NAMES = FALSE)
 }
 
 .tiene_salto_linea <- function(textos) {
@@ -673,6 +738,12 @@
     evidencia_codificacion_invalida = "",
     n_controles_invisibles = 0L,
     evidencia_controles_invisibles = "",
+    n_invisibles_eliminables = 0L,
+    evidencia_invisibles_eliminables = "",
+    n_espacios_invisibles = 0L,
+    evidencia_espacios_invisibles = "",
+    n_invisibles_significativos = 0L,
+    evidencia_invisibles_significativos = "",
     n_entidades_html = 0L,
     evidencia_entidades_html = "",
     n_separadores_en_campo = 0L,
@@ -751,6 +822,9 @@
     }
   }
   controles <- mapear_predicado(.tiene_control_invisible)
+  eliminables <- mapear_predicado(.tiene_invisible_eliminable)
+  espacios_invisibles <- mapear_predicado(.tiene_espacio_invisible)
+  significativos <- mapear_predicado(.tiene_invisible_significativo)
   saltos <- mapear_predicado(.tiene_salto_linea)
   entidades <- mapear_predicado(.entidades_html_en_texto)
   codificacion <- .analizar_codificacion_vocabulario(textos, valores = unicos)
@@ -778,6 +852,12 @@
     evidencia_codificacion_invalida = vacio$evidencia_codificacion_invalida,
     n_controles_invisibles = sum(controles, na.rm = TRUE),
     evidencia_controles_invisibles = .evidencia_texto_visible(textos, controles),
+    n_invisibles_eliminables = sum(eliminables, na.rm = TRUE),
+    evidencia_invisibles_eliminables = .evidencia_texto_visible(textos, eliminables),
+    n_espacios_invisibles = sum(espacios_invisibles, na.rm = TRUE),
+    evidencia_espacios_invisibles = .evidencia_texto_visible(textos, espacios_invisibles),
+    n_invisibles_significativos = sum(significativos, na.rm = TRUE),
+    evidencia_invisibles_significativos = .evidencia_texto_visible(textos, significativos),
     n_entidades_html = sum(entidades, na.rm = TRUE),
     evidencia_entidades_html = .evidencia_texto_visible(textos, entidades),
     n_separadores_en_campo = sum(saltos, na.rm = TRUE),
@@ -923,6 +1003,9 @@
     estado_codificacion_reparacion = diagnostico_texto$estado_codificacion_reparacion,
     n_codificacion_invalida = diagnostico_texto$n_codificacion_invalida,
     n_controles_invisibles = diagnostico_texto$n_controles_invisibles,
+    n_invisibles_eliminables = diagnostico_texto$n_invisibles_eliminables,
+    n_espacios_invisibles = diagnostico_texto$n_espacios_invisibles,
+    n_invisibles_significativos = diagnostico_texto$n_invisibles_significativos,
     n_entidades_html = diagnostico_texto$n_entidades_html,
     n_separadores_en_campo = diagnostico_texto$n_separadores_en_campo,
     n_numeros_texto = numeros_texto$n,
@@ -970,7 +1053,9 @@
     "n_variantes_unicode", "n_codificacion_rota",
     "n_codificacion_reparable", "n_codificacion_reparable_parcialmente",
     "n_codificacion_irreparable", "n_codificacion_no_se_pudo",
-    "n_codificacion_invalida", "n_controles_invisibles", "n_entidades_html",
+    "n_codificacion_invalida", "n_controles_invisibles",
+    "n_invisibles_eliminables", "n_espacios_invisibles",
+    "n_invisibles_significativos", "n_entidades_html",
     "n_separadores_en_campo", "n_numeros_texto"
   )
   fila[enteros_na] <- NA_integer_

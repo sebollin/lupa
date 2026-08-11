@@ -2,6 +2,11 @@
 
 ## Diagnósticos de texto invisible
 
+- Amplía la detección a los espacios Unicode, marcas direccionales, BOM y
+  otros invisibles de transporte. Los espacios Unicode se pueden colapsar a
+  espacio ASCII sólo mediante una acción explícita y destructiva; ZWJ/ZWNJ se
+  informan pero se conservan. La comparación normalizada usa estas mismas
+  clases sin borrar caracteres semánticamente significativos.
 - El hallazgo de separadores en campo, su acción y su conteo usan nombres
   específicos para cubrir tabulaciones, saltos, avances de página y tabulaciones
   verticales.
@@ -15,6 +20,11 @@
   legítimo. Las tres dejan el número de valores cambiados en el registro.
 
 ## Reparación de texto y licencia
+
+- La medida predeterminada de duplicados ahora aplica Jaro--Winkler con
+  `p = 0.1` (el valor anterior era Jaro puro por `p = 0`) y el umbral pasa de
+  `0.12` a `0.10`. Las dos decisiones pueden cambiar los pares informados al
+  actualizar; el cambio es deliberado y queda declarado en la ayuda.
 
 - Declara `cli (>= 3.0.0)`. El motor usa la interfaz de barras de progreso
   (`cli_progress_bar()` y sus compañeras), que existe recién desde esa

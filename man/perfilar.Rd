@@ -198,7 +198,13 @@ las filas de la tabla, pero los estadísticos por valor quedan en \code{NA} y un
 hallazgo explica que deben separarse en columnas con semántica explícita.
 Los valores de texto que no forman UTF-8 válido tampoco se convierten: se
 cuentan, se excluyen de los análisis textuales y generan un hallazgo con sus
-posiciones.
+posiciones. Los diagnósticos de invisibles incluyen controles C0/C1,
+espacios Unicode, marcas direccionales, BOM y otros caracteres de transporte.
+La evidencia los muestra como puntos de código; los espacios Unicode se
+detectan aunque sólo se normalizan mediante una acción explícita, y ZWJ/ZWNJ
+se informan pero se conservan porque pueden ser semánticos. La comparación
+de duplicados con \code{normalizar = TRUE} aplica estas mismas clases sin borrar
+ZWJ/ZWNJ.
 
 Los resúmenes de fecha-hora se expresan siempre en UTC y llevan el sufijo
 \code{UTC} en el texto para hacer visible la zona aplicada. El instante se

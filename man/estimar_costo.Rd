@@ -8,7 +8,8 @@ estimar_costo(
   datos,
   columnas = NULL,
   metodo = "jw",
-  umbral = 0.12,
+  umbral = 0.1,
+  p = 0.1,
   muestra = Inf,
   max_pares = 50000000L,
   max_resultados = 100L,
@@ -39,7 +40,10 @@ automatica descrita arriba; no se incluyen matrices ni listas.}
 \item{metodo}{Medida admitida por \code{stringdist::stringdistmatrix()}. Por
 defecto, \code{"jw"}.}
 
-\item{umbral}{Distancia maxima para informar un par. Por defecto \code{0.12}.}
+\item{umbral}{Distancia maxima para informar un par. Por defecto \code{0.10}.}
+
+\item{p}{Factor de prefijo de Jaro--Winkler, entre 0 y 0.25. Por defecto
+\code{0.1}; sólo tiene efecto con \code{metodo = "jw"}.}
 
 \item{muestra}{Máximo de filas candidatas. En el camino exacto queda sujeto
 a \code{max_pares}; con LSH, \code{Inf} usa todas las filas.}
