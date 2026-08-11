@@ -20,6 +20,17 @@ test_that("los controles invisibles se cuentan y se muestran de forma visible", 
   expect_match(hallazgo$evidencia, "<U\\+FEFF>", fixed = FALSE)
 })
 
+test_that("los bytes UTF-8 inválidos se aíslan antes de la pasada invisible", {
+  invalido <- rawToChar(as.raw(c(0x41, 0xff, 0x42)))
+  perfil <- perfilar(
+    data.frame(texto = c(invalido, "limpio"), stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE
+  )
+  fila <- perfil$columnas[perfil$columnas$columna == "texto", , drop = FALSE]
+  expect_equal(fila$n_codificacion_invalida, 1L)
+  expect_equal(fila$n_controles_invisibles, 0L)
+})
+
 test_that("las entidades HTML válidas se distinguen de ampersands legítimos", {
   datos <- data.frame(
     texto = c(

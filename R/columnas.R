@@ -558,23 +558,29 @@
 )
 
 .codigos_invisibles_significativos <- c(0x200C, 0x200D)
+.codigos_c0_no_separadores <- c(0:8, 14L:31L)
+.codigos_c1 <- 127L:159L
+.codigos_salto_linea_set <- 9L:13L
+.codigos_control_eliminable_set <- c(
+  .codigos_c0_no_separadores, .codigos_c1,
+  .codigos_invisibles_eliminables
+)
+.codigos_control_invisible_set <- c(
+  .codigos_c0_no_separadores, .codigos_c1,
+  .codigos_espacios_invisibles, .codigos_invisibles_eliminables,
+  .codigos_invisibles_significativos
+)
 
 .codigos_control_eliminable <- function(codigos) {
   # Los separadores C0 (tabulacion, LF, VT, FF y CR) tienen un diagnostico y
   # una estrategia propios. Los restantes C0/C1 son controles de transporte.
-  codigos %in% c(0:8, 14L:31L, 127L:159L,
-                 .codigos_invisibles_eliminables)
+  codigos %in% .codigos_control_eliminable_set
 }
 
 .codigos_control_invisible <- function(codigos) {
   # La deteccion informa todos los invisibles, incluidos los espacios Unicode
   # y ZWJ/ZWNJ; la remediacion separa los grupos por neutralidad semantica.
-  codigos %in% c(
-    0:8, 14L:31L, 127L:159L,
-    .codigos_espacios_invisibles,
-    .codigos_invisibles_eliminables,
-    .codigos_invisibles_significativos
-  )
+  codigos %in% .codigos_control_invisible_set
 }
 
 .codigos_espacio_invisible <- function(codigos) {
@@ -587,39 +593,46 @@
 
 .codigos_salto_linea <- function(codigos) {
   # Los cinco separadores C0 pueden delimitar campos o lineas.
-  codigos %in% 9L:13L
+  codigos %in% .codigos_salto_linea_set
+}
+
+.predicados_invisibles <- function(textos) {
+  n <- length(textos)
+  salida <- list(
+    control = rep(FALSE, n), eliminable = rep(FALSE, n),
+    espacio = rep(FALSE, n), significativo = rep(FALSE, n),
+    separador = rep(FALSE, n)
+  )
+  if (!n) return(salida)
+  for (i in seq_len(n)) {
+    texto <- textos[[i]]
+    if (is.na(texto)) next
+    # .texto_analizable() sanea los bytes UTF-8 inválidos antes de llegar
+    # aquí; por eso esta única pasada no necesita un tryCatch por predicado.
+    codigos <- utf8ToInt(texto)
+    salida$control[[i]] <- any(codigos %in% .codigos_control_invisible_set)
+    salida$eliminable[[i]] <- any(codigos %in% .codigos_control_eliminable_set)
+    salida$espacio[[i]] <- any(codigos %in% .codigos_espacios_invisibles)
+    salida$significativo[[i]] <- any(codigos %in% .codigos_invisibles_significativos)
+    salida$separador[[i]] <- any(codigos %in% .codigos_salto_linea_set)
+  }
+  salida
 }
 
 .tiene_control_invisible <- function(textos) {
-  vapply(textos, function(texto) {
-    if (is.na(texto)) return(FALSE)
-    codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
-    any(.codigos_control_invisible(codigos))
-  }, logical(1L), USE.NAMES = FALSE)
+  .predicados_invisibles(textos)$control
 }
 
 .tiene_invisible_eliminable <- function(textos) {
-  vapply(textos, function(texto) {
-    if (is.na(texto)) return(FALSE)
-    codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
-    any(.codigos_control_eliminable(codigos))
-  }, logical(1L), USE.NAMES = FALSE)
+  .predicados_invisibles(textos)$eliminable
 }
 
 .tiene_espacio_invisible <- function(textos) {
-  vapply(textos, function(texto) {
-    if (is.na(texto)) return(FALSE)
-    codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
-    any(.codigos_espacio_invisible(codigos))
-  }, logical(1L), USE.NAMES = FALSE)
+  .predicados_invisibles(textos)$espacio
 }
 
 .tiene_invisible_significativo <- function(textos) {
-  vapply(textos, function(texto) {
-    if (is.na(texto)) return(FALSE)
-    codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
-    any(.codigos_invisible_significativo(codigos))
-  }, logical(1L), USE.NAMES = FALSE)
+  .predicados_invisibles(textos)$significativo
 }
 
 .normalizar_invisibles_texto <- function(textos) {
@@ -636,11 +649,7 @@
 }
 
 .tiene_salto_linea <- function(textos) {
-  vapply(textos, function(texto) {
-    if (is.na(texto)) return(FALSE)
-    codigos <- tryCatch(utf8ToInt(texto), error = function(e) integer())
-    any(.codigos_salto_linea(codigos))
-  }, logical(1L), USE.NAMES = FALSE)
+  .predicados_invisibles(textos)$separador
 }
 
 # El paquete cubre las entidades HTML habituales en datos en espanol y todas
@@ -821,11 +830,19 @@
       evaluados
     }
   }
-  controles <- mapear_predicado(.tiene_control_invisible)
-  eliminables <- mapear_predicado(.tiene_invisible_eliminable)
-  espacios_invisibles <- mapear_predicado(.tiene_espacio_invisible)
-  significativos <- mapear_predicado(.tiene_invisible_significativo)
-  saltos <- mapear_predicado(.tiene_salto_linea)
+  invisibles <- .predicados_invisibles(vocabulario_predicados$valores)
+  mapear_resultado <- function(evaluados) {
+    if (isTRUE(vocabulario_predicados$usar)) {
+      evaluados[vocabulario_predicados$indices]
+    } else {
+      evaluados
+    }
+  }
+  controles <- mapear_resultado(invisibles$control)
+  eliminables <- mapear_resultado(invisibles$eliminable)
+  espacios_invisibles <- mapear_resultado(invisibles$espacio)
+  significativos <- mapear_resultado(invisibles$significativo)
+  saltos <- mapear_resultado(invisibles$separador)
   entidades <- mapear_predicado(.entidades_html_en_texto)
   codificacion <- .analizar_codificacion_vocabulario(textos, valores = unicos)
 
