@@ -127,6 +127,35 @@ print.normalizacion_lupa <- function(x, ...) {
        por_columna = lapply(resuelta$por_columna, unclass))
 }
 
+.normalizacion_pasos_configurables <- c(
+  "espacios", "ancho", "ligaduras", "comillas", "puntuacion",
+  "acentos", "minusculas"
+)
+.normalizacion_tiene_pasos <- function(perfil) {
+  any(vapply(perfil[.normalizacion_pasos_configurables], isTRUE, logical(1L)))
+}
+.normalizacion_tiene_pasos_resuelta <- function(resuelta, columnas = NULL) {
+  if (!inherits(resuelta, "normalizacion_resuelta_lupa")) {
+    resuelta <- .resolver_normalizacion(resuelta)
+  }
+  perfiles <- list(resuelta$general)
+  if (length(resuelta$por_columna)) {
+    if (is.null(columnas)) {
+      perfiles <- c(perfiles, unname(resuelta$por_columna))
+    } else {
+      perfiles <- lapply(columnas, function(columna) {
+        .normalizacion_para_columna(resuelta, columna)
+      })
+    }
+  }
+  any(vapply(perfiles, .normalizacion_tiene_pasos, logical(1L)))
+}
+.normalizacion_salida <- function(resuelta, fusiones = NULL) {
+  salida <- .normalizacion_resumen(resuelta)
+  if (!is.null(fusiones)) salida$fusiones <- fusiones
+  salida
+}
+
 .normalizacion_decomposiciones <-
   list(
     "192" = c(65, 768),
@@ -858,6 +887,64 @@ print.normalizacion_lupa <- function(x, ...) {
        colision = colision)
 }
 
+.normalizacion_ancho_vector <- local({
+  origen <- paste0(intToUtf8(0xFF01:0xFF5E, multiple = TRUE),
+                   collapse = "")
+  destino <- paste0(intToUtf8(0x0021:0x007E, multiple = TRUE),
+                    collapse = "")
+  function(textos) {
+    chartr(origen, destino, gsub("\u3000", " ", textos, fixed = TRUE))
+  }
+})
+
+.normalizacion_ligaduras_vector <- function(textos) {
+  mapa <- c(
+    "\ufb00" = "ff", "\ufb01" = "fi", "\ufb02" = "fl",
+    "\ufb03" = "ffi", "\ufb04" = "ffl", "\ufb05" = "\u017F",
+    "\ufb06" = "st"
+  )
+  for (origen in names(mapa)) {
+    textos <- gsub(origen, unname(mapa[[origen]]), textos, fixed = TRUE)
+  }
+  textos
+}
+
+.normalizacion_puntuacion_vector <- function(textos) {
+  patron <- paste0(
+    "(*UTF)[",
+    "\\x{0021}-\\x{002F}",
+    "\\x{003A}-\\x{0040}",
+    "\\x{005B}-\\x{0060}",
+    "\\x{007B}-\\x{007E}",
+    "\\x{2000}-\\x{206F}",
+    "\\x{3001}-\\x{303F}]"
+  )
+  gsub(patron, "", textos, perl = TRUE)
+}
+
+.normalizacion_comillas_vector <- function(textos) {
+  letra <- "[A-Za-z\\x{0080}-\\x{10FFFF}]"
+  # Las comillas de apertura sólo se quitan cuando abren una palabra; las de
+  # cierre y los apóstrofos sólo cuando cierran una palabra. Esto conserva la
+  # misma regla contextual del recorrido escalar sin inspeccionar cada valor
+  # en R.
+  textos <- gsub(
+    paste0("(*UTF)(^| )([\"\\x{00AB}\\x{2018}\\x{201B}\\x{201C}",
+           "\\x{201E}\\x{2039}])(?=", letra, ")"),
+    "\\1", textos, perl = TRUE
+  )
+  textos <- gsub(
+    paste0("(*UTF)(?<=", letra, ")[\"\\x{00BB}\\x{2019}",
+           "\\x{201D}\\x{201F}\\x{203A}](?=$| )"),
+    "", textos, perl = TRUE
+  )
+  textos <- gsub(
+    paste0("(*UTF)(?<=", letra, ")[\\x{0027}\\x{2019}\\x{201A}](?=$| )"),
+    "", textos, perl = TRUE
+  )
+  gsub("[\u2019\u201A\u201B]", "'", textos, fixed = FALSE)
+}
+
 .normalizacion_vector_rapida <- function(textos, perfil) {
   original <- as.character(textos)
   nombres <- names(original)
@@ -866,19 +953,38 @@ print.normalizacion_lupa <- function(x, ...) {
   no_na <- !is.na(salida)
   if (!any(no_na)) return(salida)
 
-  # Los pliegues optativos y las comillas dependen de contexto o de una tabla
-  # de longitud variable. Los valores que los necesitan se delegan abajo al
-  # recorrido escalar; el caso común (texto sin esas señales) permanece en C.
+  # Las sustituciones de tablas, puntuación, ancho y comillas se aplican sobre
+  # el vector completo. Sólo las cadenas con marcas combinantes múltiples o
+  # colisiones de marcadores necesitan el ordenamiento escalar al final.
   lento <- rep(FALSE, length(salida))
-  if (isTRUE(perfil$comillas)) {
-    lento <- lento | (!is.na(original) & grepl(
-      "(*UTF)[\\\"'\\x{00AB}\\x{00BB}\\x{2018}-\\x{201F}\\x{2039}-\\x{203A}]",
-      original, perl = TRUE
-    ))
+  if (isTRUE(perfil$espacios)) {
+    # Este es el primer paso del contrato escalar: un espacio Unicode se
+    # vuelve espacio ASCII antes de que comillas y puntuación vean el texto.
+    salida <- gsub(.normalizacion_regex_codigos(.codigos_espacios_invisibles),
+                   " ", salida, perl = TRUE)
+    salida <- gsub(.normalizacion_regex_codigos(
+      .codigos_control_eliminable_set
+    ), "", salida, perl = TRUE)
   }
-  if (isTRUE(perfil$puntuacion) || isTRUE(perfil$ligaduras) ||
-      isTRUE(perfil$ancho)) {
-    lento[no_na] <- TRUE
+  if (isTRUE(perfil$ancho)) {
+    salida <- .normalizacion_ancho_vector(salida)
+  }
+  if (isTRUE(perfil$ligaduras)) {
+    salida <- .normalizacion_ligaduras_vector(salida)
+  }
+  if (isTRUE(perfil$comillas)) {
+    necesita_comillas <- !is.na(salida) & grepl(
+      "(*UTF)[\\\"'\\x{00AB}\\x{00BB}\\x{2018}-\\x{201F}\\x{2039}-\\x{203A}]",
+      salida, perl = TRUE
+    )
+    if (any(necesita_comillas)) {
+      salida[necesita_comillas] <- .normalizacion_comillas_vector(
+        salida[necesita_comillas]
+      )
+    }
+  }
+  if (isTRUE(perfil$puntuacion)) {
+    salida <- .normalizacion_puntuacion_vector(salida)
   }
 
   salida <- .normalizacion_reemplazar_tabla(salida)
@@ -904,11 +1010,6 @@ print.normalizacion_lupa <- function(x, ...) {
     salida <- tolower(chartr("I", "i", salida))
   }
   if (isTRUE(perfil$espacios)) {
-    salida <- gsub(.normalizacion_regex_codigos(.codigos_espacios_invisibles),
-                   " ", salida, perl = TRUE)
-    salida <- gsub(.normalizacion_regex_codigos(
-      .codigos_control_eliminable_set
-    ), "", salida, perl = TRUE)
     salida <- trimws(gsub("[[:space:]]+", " ", salida, perl = TRUE))
   }
 
@@ -1011,14 +1112,17 @@ print.normalizacion_lupa <- function(x, ...) {
   nombres <- names(datos)
   if (is.null(nombres)) nombres <- paste0("V", seq_along(datos))
   salida <- lapply(seq_along(datos), function(i) {
+    perfil <- .normalizacion_para_columna(resuelta, nombres[[i]])
+    if (!.normalizacion_tiene_pasos(perfil)) return(NULL)
     x <- datos[[i]]
-    if (is.list(x) || is.matrix(x)) return(list())
+    if (is.list(x) || is.matrix(x)) return(NULL)
     valores <- suppressWarnings(as.character(.texto_analizable(x)$valores))
     valores <- unique(valores[!is.na(valores)])
     .normalizacion_fusiones_vocabulario(
-      valores, .normalizacion_para_columna(resuelta, nombres[[i]])
+      valores, perfil
     )
   })
   names(salida) <- make.unique(nombres)
-  salida
+  salida <- salida[!vapply(salida, is.null, logical(1L))]
+  if (length(salida)) salida else NULL
 }

@@ -73,6 +73,10 @@
 #' `n_distintos_normalizados` declaran el total antes y después del perfil
 #' completo. La descomposición canónica es siempre activa y forma parte de la
 #' línea base, no una fila configurable.
+#' Con `normalizar = FALSE` no hay pasos configurables que medir y el informe
+#' de fusiones queda en `NULL`; en un perfil por columna sólo se incluyen las
+#' columnas con algún paso activo. Si `detectar_duplicados_aproximados()` recibe
+#' un perfil, puede reutilizar este informe ya calculado.
 #' El informe usa el vocabulario completo: `n_distintos` y `n_usados` son el
 #' número de valores distintos realmente comparados y el estado es `exacto`.
 #' Las fusiones son una propiedad de pares, por lo que muestrear valores
@@ -459,6 +463,9 @@ perfilar <- function(datos,
     )
     rownames(hallazgos) <- NULL
   }
+  normalizacion_fusiones <- .normalizacion_fusiones_tabla(
+    datos, normalizacion_resuelta
+  )
   aproximados <- if (is.logical(duplicados_aproximados) &&
       !duplicados_aproximados) {
     NULL
@@ -472,7 +479,8 @@ perfilar <- function(datos,
         list(
           datos = datos, clasificacion = datos_personales,
           normalizar = normalizacion_resuelta,
-          proteger_datos_personales = proteger_datos_personales
+          proteger_datos_personales = proteger_datos_personales,
+          fusiones_precomputadas = normalizacion_fusiones
         ),
         configuracion
       )
@@ -516,9 +524,7 @@ perfilar <- function(datos,
     orden_columnas = relaciones_orden$alcance,
     normalizacion = normalizacion_resuelta,
     normalizacion_resumen = .normalizacion_resumen(normalizacion_resuelta),
-    normalizacion_fusiones = .normalizacion_fusiones_tabla(
-      datos, normalizacion_resuelta
-    )
+    normalizacion_fusiones = normalizacion_fusiones
   )
   estructura <- list(
     general = general,

@@ -1284,7 +1284,8 @@
   columnas
 }
 
-.texto_fila_aproximada <- function(datos, columnas, normalizar = TRUE) {
+.texto_fila_aproximada <- function(
+    datos, columnas, normalizar = TRUE, fusiones_precomputadas = NULL) {
   normalizacion_resuelta <- .resolver_normalizacion(normalizar)
   valores <- Map(function(x, columna) {
     # Reutilizar el saneamiento del perfil: los bytes UTF-8 invalidos no
@@ -1302,15 +1303,27 @@
   filas <- do.call(paste, c(lapply(valores, `[[`, "valores"), sep = " | "))
   presentes <- Reduce(`|`, lapply(valores, `[[`, "presentes"),
                       init = rep(FALSE, nrow(datos)))
-  fusiones <- stats::setNames(lapply(seq_along(columnas), function(i) {
-    crudos <- suppressWarnings(as.character(.texto_analizable(
-      datos[[columnas[[i]]]]
-    )$valores))
-    crudos <- unique(crudos[!is.na(crudos)])
-    .normalizacion_fusiones_vocabulario(
-      crudos, .normalizacion_para_columna(normalizacion_resuelta, columnas[[i]])
-    )
-  }), columnas)
+  fusiones <- if (!is.null(fusiones_precomputadas)) {
+    fusiones_precomputadas[intersect(columnas, names(fusiones_precomputadas))]
+  } else if (.normalizacion_tiene_pasos_resuelta(
+    normalizacion_resuelta, columnas
+  )) {
+    stats::setNames(lapply(seq_along(columnas), function(i) {
+      perfil <- .normalizacion_para_columna(
+        normalizacion_resuelta, columnas[[i]]
+      )
+      if (!.normalizacion_tiene_pasos(perfil)) return(NULL)
+      crudos <- suppressWarnings(as.character(.texto_analizable(
+        datos[[columnas[[i]]]]
+      )$valores))
+      crudos <- unique(crudos[!is.na(crudos)])
+      .normalizacion_fusiones_vocabulario(crudos, perfil)
+    }), columnas)
+  } else NULL
+  if (is.list(fusiones)) {
+    fusiones <- fusiones[!vapply(fusiones, is.null, logical(1L))]
+    if (!length(fusiones)) fusiones <- NULL
+  }
   list(valores = filas, presentes = presentes,
        normalizacion = normalizacion_resuelta, fusiones = fusiones)
 }
@@ -1357,7 +1370,7 @@
     lsh_max_cubeta = 1000L, lsh_muestra_estimacion = 400000L,
     presupuesto_pares = Inf, bloquear_por = NULL, solo_estimacion = FALSE,
     lotes = FALSE, tamano_lote = 1000L, directorio_lotes = NULL,
-    nucleos = getOption("lupa.nucleos", 2L)) {
+    nucleos = getOption("lupa.nucleos", 2L), fusiones_precomputadas = NULL) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
@@ -1424,10 +1437,7 @@
     if (!is.null(resumen_bloqueo)) {
       resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
     }
-    resultado$normalizacion <- c(
-      .normalizacion_resumen(normalizacion_resuelta),
-      list(fusiones = NULL)
-    )
+    resultado$normalizacion <- .normalizacion_salida(normalizacion_resuelta)
     return(resultado)
   }
   if (!length(columnas)) {
@@ -1443,9 +1453,7 @@
     if (!is.null(resumen_bloqueo)) {
       resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
     }
-    resultado$normalizacion <- c(
-      .normalizacion_resumen(normalizacion_resuelta), list(fusiones = NULL)
-    )
+    resultado$normalizacion <- .normalizacion_salida(normalizacion_resuelta)
     return(resultado)
   }
   if (is.null(clasificacion)) {
@@ -1459,7 +1467,9 @@
   protegidas <- if (proteger_datos_personales) {
     .columnas_personales_protegidas(clasificacion)
   } else character()
-  textos <- .texto_fila_aproximada(datos, columnas, normalizacion_resuelta)
+  textos <- .texto_fila_aproximada(
+    datos, columnas, normalizacion_resuelta, fusiones_precomputadas
+  )
   # Sobre el tope exhaustivo, `auto` reemplaza el muestreo de filas por LSH.
   # `max_pares` sigue gobernando el camino exacto; en LSH el alcance se expresa
   # mediante candidatos, cubetas y garantía de colisión.
@@ -1534,9 +1544,7 @@
     if (!is.null(resumen_bloqueo)) {
       resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
     }
-    resultado$normalizacion <- c(
-      .normalizacion_resumen(normalizacion_resuelta), list(fusiones = NULL)
-    )
+    resultado$normalizacion <- .normalizacion_salida(normalizacion_resuelta)
     return(resultado)
   }
   if (lotes && usar_lsh) {
@@ -1782,9 +1790,8 @@
   estructura <- list(
     pares = pares, hallazgos = hallazgos, alcance = alcance,
     columnas = columnas, metodo = metodo, p = p, umbral = umbral,
-    normalizacion = c(
-      .normalizacion_resumen(normalizacion_resuelta),
-      list(fusiones = textos$fusiones)
+    normalizacion = .normalizacion_salida(
+      normalizacion_resuelta, textos$fusiones
     ),
     disponible = TRUE, razon = "",
     proteccion_aplicada = proteger_datos_personales,
@@ -1917,7 +1924,10 @@
 #'   cada paso. Una lista nombrada puede resolver perfiles por columna. `NULL`
 #'   hereda el perfil guardado en `perfil`; si no se recibe uno, usa `TRUE`.
 #'   La normalización cambia sólo la representación usada para comparar, no los
-#'   datos guardados. El umbral se aplica sobre esa cadena normalizada.
+#'   datos guardados. El umbral se aplica sobre esa cadena normalizada. El
+#'   informe de fusiones sólo se calcula cuando algún paso configurable está
+#'   activo; con `FALSE` se omite. Si se entrega `perfil`, se reutiliza su
+#'   informe ya calculado.
 #' @param perfil Perfil de los mismos datos para reutilizar su clasificacion de
 #'   datos personales y no volver a inferirla.
 #' @param proteger_datos_personales Si la evidencia de columnas protegidas se
@@ -2001,7 +2011,12 @@ detectar_duplicados_aproximados <- function(
       !identical(names(datos), perfil$columnas$columna))) {
     stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
   }
+  normalizar_original <- normalizar
   normalizar <- .resolver_normalizacion(normalizar, perfil)
+  fusiones_precomputadas <- if (!is.null(perfil) &&
+                                is.null(normalizar_original)) {
+    perfil$meta$normalizacion_fusiones
+  } else NULL
   if (!is.null(perfil)) {
     return(.detectar_duplicados_aproximados(
       datos, columnas, metodo, umbral, p, muestra, max_pares, max_resultados,
@@ -2012,7 +2027,8 @@ detectar_duplicados_aproximados <- function(
       lsh_muestra_estimacion = lsh_muestra_estimacion,
       presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por,
       lotes = lotes, tamano_lote = tamano_lote,
-      directorio_lotes = directorio_lotes, nucleos = nucleos
+      directorio_lotes = directorio_lotes, nucleos = nucleos,
+      fusiones_precomputadas = fusiones_precomputadas
     ))
   }
   .detectar_duplicados_aproximados(

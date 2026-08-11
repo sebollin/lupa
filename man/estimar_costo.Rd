@@ -62,7 +62,10 @@ activa puntuación, ligaduras y ancho, y \code{\link[=normalizacion]{normalizaci
 cada paso. Una lista nombrada puede resolver perfiles por columna. \code{NULL}
 hereda el perfil guardado en \code{perfil}; si no se recibe uno, usa \code{TRUE}.
 La normalización cambia sólo la representación usada para comparar, no los
-datos guardados. El umbral se aplica sobre esa cadena normalizada.}
+datos guardados. El umbral se aplica sobre esa cadena normalizada. El
+informe de fusiones sólo se calcula cuando algún paso configurable está
+activo; con \code{FALSE} se omite. Si se entrega \code{perfil}, se reutiliza su
+informe ya calculado.}
 
 \item{perfil}{Perfil de los mismos datos para reutilizar su clasificacion de
 datos personales y no volver a inferirla.}

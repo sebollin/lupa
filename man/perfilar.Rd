@@ -231,6 +231,10 @@ porque dos pasos pueden fundir el mismo par. \code{n_distintos} y
 \code{n_distintos_normalizados} declaran el total antes y después del perfil
 completo. La descomposición canónica es siempre activa y forma parte de la
 línea base, no una fila configurable.
+Con \code{normalizar = FALSE} no hay pasos configurables que medir y el informe
+de fusiones queda en \code{NULL}; en un perfil por columna sólo se incluyen las
+columnas con algún paso activo. Si \code{detectar_duplicados_aproximados()} recibe
+un perfil, puede reutilizar este informe ya calculado.
 El informe usa el vocabulario completo: \code{n_distintos} y \code{n_usados} son el
 número de valores distintos realmente comparados y el estado es \code{exacto}.
 Las fusiones son una propiedad de pares, por lo que muestrear valores

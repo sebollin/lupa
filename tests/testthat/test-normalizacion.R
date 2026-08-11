@@ -103,6 +103,68 @@ test_that("la herencia pasa por el perfil y las fusiones quedan observables", {
   expect_true(all(c("unicidad_exacta", "unicidad_normalizada") %in% names(claves)))
 })
 
+test_that("normalizar FALSE no calcula un informe de fusiones", {
+  datos <- data.frame(
+    nombre = c("JOSÉ", "jose", "Ana"),
+    stringsAsFactors = FALSE
+  )
+  salida <- detectar_duplicados_aproximados(
+    datos, columnas = "nombre", normalizar = FALSE, max_resultados = Inf
+  )
+  expect_false("fusiones" %in% names(salida$normalizacion))
+  perfil <- perfilar(
+    datos, normalizar = FALSE, duplicados_aproximados = FALSE,
+    analizar_dependencias = FALSE
+  )
+  expect_null(perfil$meta$normalizacion_fusiones)
+})
+
+test_that("perfilar reutiliza el informe al ejecutar duplicados", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = c("JOSÉ", "jose", "Ana"),
+    stringsAsFactors = FALSE
+  )
+  original <- lupa:::.normalizacion_fusiones_tabla
+  llamadas <- 0L
+  testthat::local_mocked_bindings(
+    .normalizacion_fusiones_tabla = function(...) {
+      llamadas <<- llamadas + 1L
+      original(...)
+    },
+    .package = "lupa"
+  )
+  perfil <- perfilar(
+    datos, duplicados_aproximados = TRUE, analizar_dependencias = FALSE
+  )
+  expect_equal(llamadas, 1L)
+  expect_identical(
+    perfil$duplicados_aproximados$normalizacion$fusiones,
+    perfil$meta$normalizacion_fusiones
+  )
+})
+
+test_that("los perfiles opcionales no delegan un vector innecesariamente", {
+  skip_on_cran()
+  valores <- paste0("nombre", seq_len(20000L))
+  perfiles <- list(
+    normalizacion(),
+    normalizacion(puntuacion = TRUE),
+    normalizacion(ligaduras = TRUE),
+    normalizacion(ancho = TRUE),
+    normalizacion(comillas = TRUE),
+    .resolver_normalizacion("amplio")$general
+  )
+  medir <- function(perfil) {
+    median(replicate(3L, system.time(
+      lupa:::.normalizacion_aplicar(valores, perfil)
+    )["elapsed"]))
+  }
+  tiempos <- vapply(perfiles, medir, numeric(1L))
+  base <- max(tiempos[[1L]], 0.01)
+  expect_lt(max(tiempos[-1L]), base * 8)
+})
+
 test_that("las fusiones declaran el vocabulario completo y sus contribuciones", {
   perfil <- normalizacion()
   exactas <- lupa:::.normalizacion_fusiones_vocabulario(

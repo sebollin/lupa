@@ -21,6 +21,10 @@
   propiedad de pares que una muestra de valores puede ocultar) y la
   normalización se aplica de forma vectorizada; `n_usados` y el estado `exacto`
   dejan explícito el alcance real.
+- El informe de fusiones no se calcula cuando `normalizar = FALSE`, porque no
+  hay pasos configurables que evaluar. Cuando `perfilar()` ya lo calculó,
+  `detectar_duplicados_aproximados(perfil = ...)` lo reutiliza en lugar de
+  recorrer de nuevo el vocabulario.
 - `proteger` acepta grafemas compuestos y el valor predeterminado conserva
   `g̃` además de `ñ` y `ü`, para no borrar letras guaraníes al comparar.
 
