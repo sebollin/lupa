@@ -91,3 +91,57 @@ test_that("el alcance declara un recorte del vocabulario o de sus pares", {
   expect_equal(resultado$alcance$n_valores_evaluados, 10L)
   expect_true(resultado$alcance$n_pares_sin_comparar > 0)
 })
+
+test_that("la distancia no encadena variantes en un solo grupo", {
+  datos <- c(
+    rep("Marano", 20), rep("Marabo", 5), rep("Marebo", 5),
+    rep("Marebe", 5), rep("Karebe", 5)
+  )
+  resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
+    datos, lupa:::.resolver_normalizacion(FALSE), "x"
+  )
+  grupos <- resultado$grupos
+  contiene <- vapply(grupos, function(grupo) {
+    all(c("Marano", "Marebo") %in% grupo$variantes)
+  }, logical(1L))
+  expect_false(any(contiene))
+  if (length(grupos)) {
+    expect_true(all(vapply(grupos, function(grupo) {
+      is.finite(grupo$distancia_minima) &&
+        is.finite(grupo$distancia_maxima)
+    }, logical(1L))))
+  }
+})
+
+test_that("un grupo que abarca casi todo el vocabulario no se entrega", {
+  valores <- paste0(strrep("x", 80), sprintf("%04d", seq_len(2000)))
+  datos <- c(rep(valores[[1L]], 10L), valores[-1L])
+  resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
+    datos, lupa:::.resolver_normalizacion(FALSE), "x"
+  )
+  expect_false(resultado$alcance$aplicable)
+  expect_gt(resultado$alcance$proporcion_grupo_maximo, 0.5)
+  expect_length(resultado$grupos, 0L)
+  perfil <- perfilar(
+    data.frame(escuela = datos), analizar_dependencias = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  expect_match(hallazgo$descripcion, "no aplica")
+  expect_match(hallazgo$evidencia, "grupo_maximo")
+})
+
+test_that("el detector de vocabulario se puede apagar", {
+  datos <- data.frame(x = c("San José", "San Jose", "aislado"))
+  perfil <- perfilar(
+    datos, analizar_dependencias = FALSE,
+    casi_duplicados_vocabulario = FALSE
+  )
+  expect_false(any(
+    perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario"
+  ))
+  expect_false(perfil$meta$casi_duplicados_vocabulario)
+})

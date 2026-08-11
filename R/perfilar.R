@@ -83,12 +83,17 @@
 #' aislados podría dejar fuera los dos miembros de cada par y convertir una
 #' fusión real en un cero falso. La normalización se vectoriza para que este
 #' alcance completo no dependa de la cardinalidad de la columna.
-#' Además, el perfil busca `casi_duplicados_vocabulario` en columnas de texto:
-#' agrupa variantes del vocabulario crudo que se funden con el perfil de
-#' normalización o quedan bajo el umbral de distancia. La unidad es el valor
-#' distinto, no la fila, y cada variante conserva su frecuencia. La salida no
-#' elige una forma canónica ni modifica datos; sólo ofrece evidencia para que
-#' el usuario decida una regla. El alcance declara los valores y pares
+#' Además, si `casi_duplicados_vocabulario = TRUE`, el perfil busca variantes
+#' casi duplicadas en columnas de texto. Agrupa el vocabulario crudo mediante
+#' fusiones exactas de la normalización y estrellas de distancia centradas en
+#' un valor de frecuencia estrictamente mayor y único; los empates no se fuerzan.
+#' No cierra cadenas transitivamente ni elige una forma canónica. La unidad es
+#' el valor distinto, no la fila, y cada variante
+#' conserva su frecuencia. Cada grupo declara sus distancias mínima y máxima.
+#' El límite `max_proporcion_grupo_vocabulario` evita presentar un grupo que
+#' abarque casi toda la columna como un diagnóstico útil: en ese caso el alcance
+#' dice que el diagnóstico no aplica. El argumento permite apagar el detector
+#' cuando no corresponde a la tabla. El alcance declara los valores y pares
 #' comparados, los recortes por cardinalidad y si `stringdist` no estuvo
 #' disponible. Para mantener acotado el perfil, por omisión se evalúan hasta
 #' 5.000 valores distintos y 2.000.000 de pares de unidades normalizadas; si
@@ -192,6 +197,13 @@
 #' @param normalizar Perfil de comparación que se conserva en `meta$normalizacion`
 #'   y que heredan los análisis de duplicados y claves cuando no reciben uno
 #'   explícito. Cambia sólo la representación usada para comparar.
+#' @param casi_duplicados_vocabulario Lógico que activa el diagnóstico de
+#'   variantes casi duplicadas dentro del vocabulario de cada columna de texto.
+#'   Por defecto es `TRUE`; `FALSE` lo omite sin afectar los demás hallazgos.
+#' @param max_proporcion_grupo_vocabulario Proporción máxima del vocabulario
+#'   que puede abarcar el grupo mayor para entregar grupos de variantes. Por
+#'   defecto es `0.5`; si se supera, el alcance declara que el diagnóstico no
+#'   aplica en vez de entregar un bloque que abarque casi toda la columna.
 #' @param max_filas_hallazgo Tope de índices de fila que conserva cada
 #'   trazabilidad disponible. Por defecto es `1000`; cuando se supera, el
 #'   estado queda como `truncada` y el total se conserva. Use `Inf` sólo si
@@ -260,7 +272,9 @@ perfilar <- function(datos,
                      max_filas_hallazgo = 1000L,
                      umbral_orden_columnas = 0.95,
                      max_columnas_orden = 20L,
-                     umbral_solapamiento_orden = 0) {
+                     umbral_solapamiento_orden = 0,
+                     casi_duplicados_vocabulario = TRUE,
+                     max_proporcion_grupo_vocabulario = 0.5) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
@@ -336,6 +350,19 @@ perfilar <- function(datos,
       is.na(umbral_solapamiento_orden) ||
       umbral_solapamiento_orden < 0 || umbral_solapamiento_orden > 1) {
     stop("`umbral_solapamiento_orden` debe estar entre 0 y 1.", call. = FALSE)
+  }
+  if (!is.logical(casi_duplicados_vocabulario) ||
+      length(casi_duplicados_vocabulario) != 1L ||
+      is.na(casi_duplicados_vocabulario)) {
+    stop("`casi_duplicados_vocabulario` debe ser TRUE o FALSE.", call. = FALSE)
+  }
+  if (!is.numeric(max_proporcion_grupo_vocabulario) ||
+      length(max_proporcion_grupo_vocabulario) != 1L ||
+      is.na(max_proporcion_grupo_vocabulario) ||
+      max_proporcion_grupo_vocabulario < 0 ||
+      max_proporcion_grupo_vocabulario > 1) {
+    stop("`max_proporcion_grupo_vocabulario` debe estar entre 0 y 1.",
+         call. = FALSE)
   }
   if (!is.logical(duplicados_aproximados) &&
       !is.list(duplicados_aproximados)) {
@@ -446,7 +473,9 @@ perfilar <- function(datos,
     columnas_no_negativas,
     if (is.na(n_filas_duplicadas)) 0L else n_filas_duplicadas,
     relaciones_orden = relaciones_orden$hallazgos,
-    normalizacion = normalizacion_resuelta
+    normalizacion = normalizacion_resuelta,
+    detectar_casi_duplicados = casi_duplicados_vocabulario,
+    max_proporcion_grupo = max_proporcion_grupo_vocabulario
   )
   datos_personales <- .detectar_datos_personales(
     datos, nombres, resultados,
@@ -534,6 +563,8 @@ perfilar <- function(datos,
     umbral_orden_columnas = umbral_orden_columnas,
     max_columnas_orden = max_columnas_orden,
     umbral_solapamiento_orden = umbral_solapamiento_orden,
+    casi_duplicados_vocabulario = casi_duplicados_vocabulario,
+    max_proporcion_grupo_vocabulario = max_proporcion_grupo_vocabulario,
     orden_columnas = relaciones_orden$alcance,
     normalizacion = normalizacion_resuelta,
     normalizacion_resumen = .normalizacion_resumen(normalizacion_resuelta),

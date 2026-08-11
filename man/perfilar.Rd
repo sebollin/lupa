@@ -34,7 +34,9 @@ perfilar(
   max_filas_hallazgo = 1000L,
   umbral_orden_columnas = 0.95,
   max_columnas_orden = 20L,
-  umbral_solapamiento_orden = 0
+  umbral_solapamiento_orden = 0,
+  casi_duplicados_vocabulario = TRUE,
+  max_proporcion_grupo_vocabulario = 0.5
 )
 }
 \arguments{
@@ -142,6 +144,15 @@ de escalas muy distintas, donde el detector puede avisar de más, pero
 también puede ocultar relaciones reales entre magnitudes de rangos
 distintos (por ejemplo, nacimiento y solicitud). Los pares descartados se
 cuentan en \code{meta$orden_columnas$pares_descartados_magnitud}.}
+
+\item{casi_duplicados_vocabulario}{Lógico que activa el diagnóstico de
+variantes casi duplicadas dentro del vocabulario de cada columna de texto.
+Por defecto es \code{TRUE}; \code{FALSE} lo omite sin afectar los demás hallazgos.}
+
+\item{max_proporcion_grupo_vocabulario}{Proporción máxima del vocabulario
+que puede abarcar el grupo mayor para entregar grupos de variantes. Por
+defecto es \code{0.5}; si se supera, el alcance declara que el diagnóstico no
+aplica en vez de entregar un bloque que abarque casi toda la columna.}
 }
 \value{
 Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye
@@ -241,12 +252,17 @@ Las fusiones son una propiedad de pares, por lo que muestrear valores
 aislados podría dejar fuera los dos miembros de cada par y convertir una
 fusión real en un cero falso. La normalización se vectoriza para que este
 alcance completo no dependa de la cardinalidad de la columna.
-Además, el perfil busca \code{casi_duplicados_vocabulario} en columnas de texto:
-agrupa variantes del vocabulario crudo que se funden con el perfil de
-normalización o quedan bajo el umbral de distancia. La unidad es el valor
-distinto, no la fila, y cada variante conserva su frecuencia. La salida no
-elige una forma canónica ni modifica datos; sólo ofrece evidencia para que
-el usuario decida una regla. El alcance declara los valores y pares
+Además, si \code{casi_duplicados_vocabulario = TRUE}, el perfil busca variantes
+casi duplicadas en columnas de texto. Agrupa el vocabulario crudo mediante
+fusiones exactas de la normalización y estrellas de distancia centradas en
+un valor de frecuencia estrictamente mayor y único; los empates no se fuerzan.
+No cierra cadenas transitivamente ni elige una forma canónica. La unidad es
+el valor distinto, no la fila, y cada variante
+conserva su frecuencia. Cada grupo declara sus distancias mínima y máxima.
+El límite \code{max_proporcion_grupo_vocabulario} evita presentar un grupo que
+abarque casi toda la columna como un diagnóstico útil: en ese caso el alcance
+dice que el diagnóstico no aplica. El argumento permite apagar el detector
+cuando no corresponde a la tabla. El alcance declara los valores y pares
 comparados, los recortes por cardinalidad y si \code{stringdist} no estuvo
 disponible. Para mantener acotado el perfil, por omisión se evalúan hasta
 5.000 valores distintos y 2.000.000 de pares de unidades normalizadas; si

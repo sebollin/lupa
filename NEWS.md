@@ -6,6 +6,12 @@
   columna, variantes que la normalización funde o que quedan bajo el umbral de
   Jaro--Winkler y conserva la frecuencia de cada forma. La unidad es el valor
   distinto, no la fila; no se elige una forma canónica ni se modifica el dato.
+  Las aristas de distancia forman estrellas alrededor de un valor de frecuencia
+  estrictamente mayor y único; los empates no se fuerzan y no se cierra
+  transitivamente una cadena de vecinos. Cada grupo declara su distancia mínima
+  y máxima, y `max_proporcion_grupo_vocabulario`
+  permite declarar que el diagnóstico no aplica cuando un componente abarca
+  demasiado vocabulario. `casi_duplicados_vocabulario = FALSE` lo desactiva.
   El alcance declara los valores y pares comparados, los recortes y la ausencia
   de [`stringdist`](https://cran.r-project.org/package=stringdist); las
   fusiones exactas se siguen informando sin ese paquete.
