@@ -1,5 +1,17 @@
 # lupa 0.1.0
 
+## Variantes del vocabulario
+
+- `perfilar()` agrega el hallazgo `casi_duplicados_vocabulario`: agrupa, por
+  columna, variantes que la normalización funde o que quedan bajo el umbral de
+  Jaro--Winkler y conserva la frecuencia de cada forma. La unidad es el valor
+  distinto, no la fila; no se elige una forma canónica ni se modifica el dato.
+  El alcance declara los valores y pares comparados, los recortes y la ausencia
+  de [`stringdist`](https://cran.r-project.org/package=stringdist); las
+  fusiones exactas se siguen informando sin ese paquete.
+  Los resultados del perfil pueden cambiar porque ahora se señalan estas
+  variantes como evidencia para una revisión de vocabulario.
+
 ## Referenciales
 
 - Las métricas de referenciales heredan el perfil de `normalizar` declarado en

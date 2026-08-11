@@ -241,6 +241,18 @@ Las fusiones son una propiedad de pares, por lo que muestrear valores
 aislados podría dejar fuera los dos miembros de cada par y convertir una
 fusión real en un cero falso. La normalización se vectoriza para que este
 alcance completo no dependa de la cardinalidad de la columna.
+Además, el perfil busca \code{casi_duplicados_vocabulario} en columnas de texto:
+agrupa variantes del vocabulario crudo que se funden con el perfil de
+normalización o quedan bajo el umbral de distancia. La unidad es el valor
+distinto, no la fila, y cada variante conserva su frecuencia. La salida no
+elige una forma canónica ni modifica datos; sólo ofrece evidencia para que
+el usuario decida una regla. El alcance declara los valores y pares
+comparados, los recortes por cardinalidad y si \code{stringdist} no estuvo
+disponible. Para mantener acotado el perfil, por omisión se evalúan hasta
+5.000 valores distintos y 2.000.000 de pares de unidades normalizadas; si
+se alcanza un límite, la evidencia lo declara y no presenta el resultado
+como universo completo. Las fusiones exactas se informan aun sin ese paquete
+opcional.
 
 La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara \code{poder_discriminante} y \code{proteger}:

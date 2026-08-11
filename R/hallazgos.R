@@ -255,6 +255,222 @@
   list(hallazgos = hallazgos, alcance = alcance)
 }
 
+.unir_componentes_vocabulario <- function(n, pares) {
+  if (n < 2L || !nrow(pares)) return(seq_len(n))
+  padre <- seq_len(n)
+  rango <- integer(n)
+  raiz <- function(x) {
+    while (padre[[x]] != x) {
+      padre[[x]] <<- padre[[padre[[x]]]]
+      x <- padre[[x]]
+    }
+    x
+  }
+  unir <- function(a, b) {
+    ra <- raiz(a)
+    rb <- raiz(b)
+    if (ra == rb) return(invisible(NULL))
+    if (rango[[ra]] < rango[[rb]]) {
+      padre[[ra]] <<- rb
+    } else if (rango[[ra]] > rango[[rb]]) {
+      padre[[rb]] <<- ra
+    } else {
+      padre[[rb]] <<- ra
+      rango[[ra]] <<- rango[[ra]] + 1L
+    }
+    invisible(NULL)
+  }
+  for (i in seq_len(nrow(pares))) unir(pares[i, 1L], pares[i, 2L])
+  vapply(seq_len(n), raiz, integer(1L))
+}
+
+.grupos_casi_duplicados_vocabulario <- function(x, perfil, columna,
+                                                max_valores = 5000L,
+                                                max_pares = 2000000L,
+                                                metodo = "jw", p = 0.1,
+                                                umbral = 0.10, nucleos = 2L) {
+  if (!(is.character(x) || is.factor(x)) || is.matrix(x) || is.list(x)) {
+    return(NULL)
+  }
+  textos <- suppressWarnings(as.character(.texto_analizable(x)$valores))
+  presentes <- !is.na(textos) & nzchar(textos)
+  if (!any(presentes)) return(NULL)
+  vocabulario <- unique(textos[presentes])
+  frecuencias <- tabulate(match(textos[presentes], vocabulario),
+                          nbins = length(vocabulario))
+  n_total <- length(vocabulario)
+  n_evaluados <- min(n_total, max_valores)
+  crudos <- vocabulario[seq_len(n_evaluados)]
+  frecuencias <- frecuencias[seq_len(n_evaluados)]
+  perfil_columna <- .normalizacion_para_columna(perfil, columna)
+  normalizados <- .normalizacion_aplicar(crudos, perfil_columna)
+  clases <- match(normalizados, unique(normalizados))
+  n_unidades <- max(clases, 0L)
+  pares <- matrix(integer(), ncol = 2L)
+  for (grupo in split(seq_along(clases), clases)) {
+    if (length(grupo) > 1L) {
+      # Para unir una clase exacta basta una estrella: no materializamos el
+      # cuadrado de pares que ya son iguales por normalizacion.
+      pares <- rbind(pares, cbind(grupo[[1L]], grupo[-1L]))
+    }
+  }
+  disponible <- .stringdist_disponible()
+  max_unidades <- if (is.infinite(max_pares)) n_unidades else {
+    floor((1 + sqrt(1 + 8 * max_pares)) / 2)
+  }
+  max_unidades <- min(n_unidades, max(1L, max_unidades))
+  distancia_pares <- data.frame(
+    fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
+    stringsAsFactors = FALSE
+  )
+  if (disponible && max_unidades > 1L) {
+    valores_norm <- unique(normalizados)
+    distancia_pares <- .comparar_bloques_duplicados(
+      valores_norm[seq_len(max_unidades)], seq_len(max_unidades), metodo,
+      umbral, bloque = min(1000L, max_unidades), max_resultados = Inf,
+      nucleos = nucleos, p = p
+    )$pares
+    if (!nrow(distancia_pares)) {
+      distancia_pares <- data.frame(
+        fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
+        stringsAsFactors = FALSE
+      )
+    }
+    if (nrow(distancia_pares)) {
+      # Una arista entre unidades normalizadas conecta sus clases completas;
+      # basta representarla con el primer valor crudo de cada clase.
+      representantes <- vapply(
+        split(seq_along(clases), clases), `[[`, integer(1L), 1L
+      )
+      distancia_pares$fila_1 <- representantes[distancia_pares$fila_1]
+      distancia_pares$fila_2 <- representantes[distancia_pares$fila_2]
+    }
+  }
+  todas_las_aristas <- rbind(
+    pares,
+    if (nrow(distancia_pares)) as.matrix(
+      distancia_pares[, c("fila_1", "fila_2"), drop = FALSE]
+    )
+    else matrix(integer(), ncol = 2L)
+  )
+  componentes <- .unir_componentes_vocabulario(n_evaluados, todas_las_aristas)
+  grupos <- split(seq_len(n_evaluados), componentes)
+  grupos <- grupos[lengths(grupos) > 1L]
+  if (!length(grupos)) {
+    grupos_salida <- list()
+  } else {
+    grupos_salida <- lapply(grupos, function(indices) {
+      frecuencias_grupo <- frecuencias[indices]
+      distancias_grupo <- distancia_pares[
+        distancia_pares$fila_1 %in% indices &
+          distancia_pares$fila_2 %in% indices, "distancia"
+      ]
+      exacta <- nrow(pares) > 0L && any(
+        pares[, 1L] %in% indices & pares[, 2L] %in% indices
+      )
+      por_distancia <- length(distancias_grupo) > 0L
+      list(
+        variantes = crudos[indices], frecuencias = frecuencias_grupo,
+        asimetria = max(frecuencias_grupo) / min(frecuencias_grupo),
+        distancia_minima = if (length(distancias_grupo)) min(distancias_grupo)
+          else NA_real_,
+        origen = paste(c("normalizacion", "distancia")[
+          c(exacta, por_distancia)
+        ], collapse = "+")
+      )
+    })
+    orden <- order(-vapply(grupos_salida, `[[`, numeric(1L), "asimetria"),
+                   seq_along(grupos_salida))
+    grupos_salida <- grupos_salida[orden]
+  }
+  list(
+    grupos = grupos_salida,
+    alcance = list(
+      n_valores_distintos = n_total,
+      n_valores_evaluados = n_evaluados,
+      n_unidades_normalizadas = n_unidades,
+      n_unidades_comparadas = if (disponible) max_unidades else 0L,
+      n_pares_posibles = if (n_unidades) choose(n_unidades, 2L) else 0,
+      n_pares_comparados = if (disponible && max_unidades > 1L) {
+        choose(max_unidades, 2L)
+      } else 0,
+      n_pares_sin_comparar = (if (n_unidades) choose(n_unidades, 2L) else 0) -
+        (if (disponible && max_unidades > 1L) choose(max_unidades, 2L) else 0),
+      truncado = n_evaluados < n_total || max_unidades < n_unidades,
+      distancia_disponible = disponible,
+      motivo_distancia = if (disponible) "" else
+        "No se calculo la distancia: falta el paquete opcional 'stringdist'.",
+      metodo = metodo, p = p, umbral = umbral,
+      max_valores = max_valores, max_pares = max_pares
+    )
+  )
+}
+
+.hallazgos_casi_duplicados_vocabulario <- function(datos, columnas, perfil) {
+  max_grupos_mostrados <- 20L
+  max_variantes_mostradas <- 20L
+  hallazgos <- list()
+  for (i in seq_along(datos)) {
+    grupos <- .grupos_casi_duplicados_vocabulario(datos[[i]], perfil, columnas[[i]])
+    if (is.null(grupos) ||
+        (!length(grupos$grupos) && !isTRUE(grupos$alcance$truncado))) next
+    alcance <- grupos$alcance
+    grupos_a_mostrar <- utils::head(grupos$grupos, max_grupos_mostrados)
+    evidencia_grupos <- vapply(grupos_a_mostrar, function(grupo) {
+      indices <- seq_len(min(length(grupo$variantes), max_variantes_mostradas))
+      variantes <- paste(vapply(indices, function(j) {
+        paste0(.escapar_texto_visible(grupo$variantes[[j]]), " (",
+               grupo$frecuencias[[j]], ")")
+      }, character(1L)), collapse = " / ")
+      if (length(grupo$variantes) > max_variantes_mostradas) {
+        variantes <- paste0(
+          variantes, " / ... ", length(grupo$variantes) -
+            max_variantes_mostradas, " variantes no mostradas"
+        )
+      }
+      distancia <- if (is.finite(grupo$distancia_minima)) {
+        paste0("; distancia_minima=", formatC(
+          grupo$distancia_minima, format = "f", digits = 4
+        ))
+      } else ""
+      paste0("[", variantes, "]; asimetria=",
+             formatC(grupo$asimetria, format = "f", digits = 1),
+             "; origen=", grupo$origen, distancia)
+    }, character(1L))
+    grupos_texto <- if (length(evidencia_grupos)) {
+      paste(evidencia_grupos, collapse = "; ")
+    } else {
+      "No se enumeraron grupos dentro del alcance comparado"
+    }
+    hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
+      columnas[[i]], "casi_duplicados_vocabulario", "sospechoso",
+      if (length(evidencia_grupos)) {
+        "Hay grupos de variantes dentro del vocabulario de la columna."
+      } else {
+        "El vocabulario excede el alcance de enumeracion de variantes."
+      },
+      paste0(
+        grupos_texto,
+        "; alcance: ", alcance$n_valores_evaluados, " de ",
+        alcance$n_valores_distintos, " valores; ",
+        alcance$n_pares_comparados, " pares comparados de ",
+        alcance$n_pares_posibles, "; truncado=", alcance$truncado,
+        "; unidades normalizadas: ", alcance$n_unidades_comparadas, " de ",
+        alcance$n_unidades_normalizadas, "; grupos: ", length(grupos$grupos),
+        ", mostrados: ", length(grupos_a_mostrar), ". ",
+        alcance$motivo_distancia
+      ),
+      "Revisar las variantes y declarar una normalizaci\u00f3n o regla de remediaci\u00f3n editable.",
+      alcance$n_valores_evaluados,
+      if (length(grupos$grupos)) {
+        sum(vapply(grupos$grupos, function(g) length(g$variantes), integer(1L)))
+      } else NA_real_,
+      "valor_distinto"
+    )
+  }
+  hallazgos
+}
+
 .conteo_hallazgo_columna <- function(tipo, fila, resultado, n_validos) {
   n <- if (length(fila$n) && is.finite(fila$n[[1L]])) {
     as.numeric(fila$n[[1L]])
@@ -1086,13 +1302,20 @@
                                  columnas_sin_ceros,
                                  columnas_no_negativas,
                                  n_filas_duplicadas,
-                                 relaciones_orden = list()) {
+                                 relaciones_orden = list(),
+                                 normalizacion = NULL) {
   hallazgos <- .hallazgos_columnas(
     resultados, columnas, umbral_alta_cardinalidad,
     umbral_faltantes_sospechoso, umbral_faltantes_error,
     umbral_patron_raro, umbral_patron_dominante,
     columnas_sin_ceros, columnas_no_negativas
   )
+  hallazgos_vocabulario <- .hallazgos_casi_duplicados_vocabulario(
+    datos, columnas, normalizacion
+  )
+  if (length(hallazgos_vocabulario)) {
+    hallazgos <- c(hallazgos, hallazgos_vocabulario)
+  }
   if (n_filas_duplicadas > 0L) {
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
       NA_character_, "filas_duplicadas", "error",

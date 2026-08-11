@@ -83,6 +83,18 @@
 #' aislados podría dejar fuera los dos miembros de cada par y convertir una
 #' fusión real en un cero falso. La normalización se vectoriza para que este
 #' alcance completo no dependa de la cardinalidad de la columna.
+#' Además, el perfil busca `casi_duplicados_vocabulario` en columnas de texto:
+#' agrupa variantes del vocabulario crudo que se funden con el perfil de
+#' normalización o quedan bajo el umbral de distancia. La unidad es el valor
+#' distinto, no la fila, y cada variante conserva su frecuencia. La salida no
+#' elige una forma canónica ni modifica datos; sólo ofrece evidencia para que
+#' el usuario decida una regla. El alcance declara los valores y pares
+#' comparados, los recortes por cardinalidad y si `stringdist` no estuvo
+#' disponible. Para mantener acotado el perfil, por omisión se evalúan hasta
+#' 5.000 valores distintos y 2.000.000 de pares de unidades normalizadas; si
+#' se alcanza un límite, la evidencia lo declara y no presenta el resultado
+#' como universo completo. Las fusiones exactas se informan aun sin ese paquete
+#' opcional.
 #'
 #' La clasificación de posibles datos personales es más amplia que la
 #' protección. Cada clasificación declara `poder_discriminante` y `proteger`:
@@ -406,6 +418,9 @@ perfilar <- function(datos,
     umbral = umbral_orden_columnas, max_columnas = max_columnas_orden,
     umbral_solapamiento = umbral_solapamiento_orden
   )
+  normalizacion_fusiones <- .normalizacion_fusiones_tabla(
+    datos, normalizacion_resuelta
+  )
   tipos <- table(vapply(seq_along(datos), function(i) {
     .tipo_declarado(datos[[i]])
   }, character(1L)))
@@ -430,7 +445,8 @@ perfilar <- function(datos,
     umbral_patron_dominante, columnas_sin_ceros,
     columnas_no_negativas,
     if (is.na(n_filas_duplicadas)) 0L else n_filas_duplicadas,
-    relaciones_orden = relaciones_orden$hallazgos
+    relaciones_orden = relaciones_orden$hallazgos,
+    normalizacion = normalizacion_resuelta
   )
   datos_personales <- .detectar_datos_personales(
     datos, nombres, resultados,
@@ -463,9 +479,6 @@ perfilar <- function(datos,
     )
     rownames(hallazgos) <- NULL
   }
-  normalizacion_fusiones <- .normalizacion_fusiones_tabla(
-    datos, normalizacion_resuelta
-  )
   aproximados <- if (is.logical(duplicados_aproximados) &&
       !duplicados_aproximados) {
     NULL
