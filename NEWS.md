@@ -15,10 +15,10 @@
   subconjunto latino cubierto; no reordena palabras ni aplica abreviaturas de
   vías. Las claves siguen descubriéndose por identidad exacta y agregan la
   unicidad normalizada como métrica informativa.
-- El informe de fusiones recorre el vocabulario completo cuando tiene hasta 500
-  valores distintos y, para vocabularios mayores, estima las fusiones sobre una
-  muestra determinista de hasta 500 valores. El estado y el tamaño de la muestra
-  quedan declarados en la salida; ya no se omite el informe por cardinalidad.
+- El informe de fusiones compara el perfil completo con una versión que apaga
+  cada paso por separado: sus cifras no son aditivas y el total normalizado se
+  informa aparte. Para vocabularios mayores de 150 valores usa una muestra
+  determinista, con estado y tamaño declarados, en lugar de omitir el informe.
 - `proteger` acepta grafemas compuestos y el valor predeterminado conserva
   `g̃` además de `ñ` y `ü`, para no borrar letras guaraníes al comparar.
 

@@ -65,13 +65,20 @@
 #' no el texto guardado. `TRUE` usa el perfil predeterminado, `FALSE` desactiva
 #' sus pasos configurables, `"amplio"` activa los tres pliegues optativos y
 #' [normalizacion()] permite declararlos. También admite una lista nombrada por
-#' columna. `meta$normalizacion_fusiones` informa las colisiones por paso sobre
-#' el vocabulario de cada columna. Cuando el vocabulario completo cabe en el
-#' límite se informa el estado `exacto`; en vocabularios mayores se toma una
-#' muestra determinista de hasta 500 valores y se informa
-#' `estimado_sobre_muestra`, junto con `n_distintos` y `n_usados`. Así el
-#' informe conserva una red de seguridad acotada también para columnas de alta
-#' cardinalidad, sin presentar una estimación como conteo exacto.
+#' columna. `meta$normalizacion_fusiones` informa, para cada paso activo, la
+#' diferencia entre los valores distintos con el perfil completo y los valores
+#' distintos con ese paso apagado y todo lo demás igual. Esa comparación
+#' responde cuánto aporta cada paso por separado; sus números no son aditivos
+#' porque dos pasos pueden fundir el mismo par. `n_distintos` y
+#' `n_distintos_normalizados` declaran el total antes y después del perfil
+#' completo. La descomposición canónica es siempre activa y forma parte de la
+#' línea base, no una fila configurable.
+#' Cuando el vocabulario completo cabe en el límite se informa el estado
+#' `exacto`; en vocabularios mayores se toma una muestra determinista de hasta
+#' 150 valores y se informa `estimado_sobre_muestra`, junto con `n_distintos` y
+#' `n_usados`. Así el informe conserva una red de seguridad acotada también
+#' para columnas de alta cardinalidad, sin presentar una estimación como conteo
+#' exacto.
 #'
 #' La clasificación de posibles datos personales es más amplia que la
 #' protección. Cada clasificación declara `poder_discriminante` y `proteger`:

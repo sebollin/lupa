@@ -824,32 +824,31 @@ print.normalizacion_lupa <- function(x, ...) {
          perfil = perfil, protecciones = protecciones, USE.NAMES = FALSE)
 }
 .normalizacion_fusiones <- function(textos, perfil) {
-  if (!length(textos)) return(list())
-  protecciones <- if (isTRUE(perfil$acentos)) {
-    .normalizacion_protecciones(perfil)
-  } else NULL
-  etapas <- lapply(as.character(textos), .normalizacion_etapas,
-                   perfil = perfil, protecciones = protecciones)
-  nombres <- names(etapas[[1L]])
-  pasos <- list()
-  if (length(nombres) >= 2L) {
-    for (i in 2:length(nombres)) {
-      anteriores <- vapply(etapas, function(z, nombre) z[[nombre]],
-                           character(1L), nombre = nombres[[i - 1L]])
-      actuales <- vapply(etapas, function(z, nombre) z[[nombre]],
-                         character(1L), nombre = nombres[[i]])
-      pasos[[nombres[[i]]]] <- max(0L,
-        length(unique(anteriores)) - length(unique(actuales)))
-    }
+  if (!length(textos)) {
+    return(list(pasos = list(), n_distintos_normalizados = 0L))
   }
-  pasos
+  completo <- .normalizacion_aplicar(textos, perfil)
+  n_completo <- length(unique(completo))
+  pasos <- list()
+  nombres <- c("espacios", "ancho", "ligaduras", "comillas",
+               "puntuacion", "acentos", "minusculas")
+  activos <- nombres[vapply(perfil[nombres], isTRUE, logical(1L))]
+  for (nombre in activos) {
+    sin_paso <- perfil
+    sin_paso[[nombre]] <- FALSE
+    sin_normalizar <- .normalizacion_aplicar(textos, sin_paso)
+    pasos[[nombre]] <- max(0L,
+      length(unique(sin_normalizar)) - n_completo)
+  }
+  list(pasos = pasos, n_distintos_normalizados = n_completo)
 }
 .normalizacion_fusiones_vocabulario <- function(textos, perfil,
-                                                max_valores = 500L) {
+                                                max_valores = 150L) {
   n_distintos <- length(textos)
   if (n_distintos > max_valores) {
     indices <- unique(round(seq.int(1L, n_distintos, length.out = max_valores)))
     muestra <- textos[indices]
+    fusiones <- .normalizacion_fusiones(muestra, perfil)
     return(list(
       estado = "estimado_sobre_muestra",
       n_distintos = n_distintos,
@@ -857,14 +856,17 @@ print.normalizacion_lupa <- function(x, ...) {
       proporcion_muestra = length(muestra) / n_distintos,
       motivo = paste0("Se estimaron las fusiones sobre ", length(muestra),
                       " de ", n_distintos, " valores distintos."),
-      pasos = .normalizacion_fusiones(muestra, perfil)
+      n_distintos_normalizados = fusiones$n_distintos_normalizados,
+      pasos = fusiones$pasos
     ))
   }
+  fusiones <- .normalizacion_fusiones(textos, perfil)
   list(
     estado = "exacto",
     n_distintos = n_distintos,
     n_usados = n_distintos,
-    pasos = .normalizacion_fusiones(textos, perfil)
+    n_distintos_normalizados = fusiones$n_distintos_normalizados,
+    pasos = fusiones$pasos
   )
 }
 .normalizacion_fusiones_tabla <- function(datos, resuelta) {

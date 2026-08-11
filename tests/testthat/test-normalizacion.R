@@ -111,12 +111,22 @@ test_that("las fusiones declaran exactitud o estimacion", {
   expect_identical(exactas$estado, "exacto")
   expect_identical(exactas$n_distintos, 3L)
   expect_identical(exactas$n_usados, 3L)
+  expect_identical(exactas$n_distintos_normalizados, 2L)
+  contraste <- lupa:::.normalizacion_fusiones_vocabulario(
+    c("JOSÉ", "jose", "José", "ANA", "ana", "ÁNA"), perfil
+  )
+  expect_identical(contraste$pasos$acentos, 2L)
+  expect_identical(contraste$pasos$minusculas, 3L)
+  expect_gt(sum(unlist(contraste$pasos)),
+            contraste$n_distintos - contraste$n_distintos_normalizados)
+  expect_false("descomposicion_canonica" %in% names(contraste$pasos))
   estimadas <- lupa:::.normalizacion_fusiones_vocabulario(
     paste0("valor-", seq_len(700L)), perfil
   )
   expect_identical(estimadas$estado, "estimado_sobre_muestra")
   expect_identical(estimadas$n_distintos, 700L)
-  expect_identical(estimadas$n_usados, 500L)
+  expect_identical(estimadas$n_usados, 150L)
+  expect_identical(estimadas$n_distintos_normalizados, 150L)
   expect_true(is.list(estimadas$pasos))
   expect_true(estimadas$estado %in% c("exacto", "estimado_sobre_muestra"))
 })
