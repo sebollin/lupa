@@ -246,5 +246,47 @@ test_that("el limite de proximidad queda declarado cuando recorta", {
   proximidad <- attr(medida, "alcance_metricas")[[1L]]$proximidad
   expect_true(proximidad$truncado)
   expect_equal(proximidad$n_fallos_comparados, 1L)
+  expect_equal(proximidad$n_valores_fallidos_distintos, 3L)
+  expect_equal(proximidad$n_valores_fallidos_comparados, 1L)
   expect_equal(proximidad$n_pares_sin_comparar, 6)
+})
+
+test_that("la proximidad compara valores fallidos distintos y reparte la evidencia", {
+  skip_if_not_installed("stringdist")
+  llamadas <- list()
+  original_matriz <- lupa:::.matriz_distancias_duplicados
+  local_mocked_bindings(
+    .matriz_distancias_duplicados = function(a, b, metodo, nucleos, p = 0.1) {
+      llamadas[[length(llamadas) + 1L]] <<- c(length(a), length(b))
+      original_matriz(a, b, metodo = metodo, nucleos = nucleos, p = p)
+    },
+    .package = "lupa"
+  )
+  ref <- referencial(
+    data.frame(valor = c("Montevideo", "Canelones", "Artigas")), "valor"
+  )
+  metrica <- especializar(metricas_referencial()$CorrectitudSemFuerte,
+                          max_pares = 6L)
+  datos <- data.frame(valor = c(rep("Montevido", 500L),
+                                rep("Canelone", 500L), "Rocha"))
+  medida <- medir(
+    modelo(instanciar(metrica, "x", "valor", referencial = ref)), datos
+  )
+  proximidad <- attr(medida, "alcance_metricas")[[1L]]$proximidad
+  expect_equal(proximidad$n_fallos, 1001L)
+  expect_equal(proximidad$n_valores_fallidos_distintos, 3L)
+  expect_equal(proximidad$n_valores_fallidos_comparados, 2L)
+  expect_equal(proximidad$n_fallos_comparados, 1000L)
+  expect_equal(proximidad$n_pares_comparados, 6)
+  expect_true(proximidad$truncado)
+  expect_equal(length(llamadas), 1L)
+  expect_lte(llamadas[[1L]][[1L]], proximidad$n_valores_fallidos_distintos)
+  expect_lte(
+    proximidad$n_pares_comparados,
+    proximidad$n_valores_fallidos_distintos * proximidad$n_referencial
+  )
+  expect_match(medida$objeto_medible[[1L]], "Montevideo", fixed = TRUE)
+  expect_match(medida$objeto_medible[[501L]], "Canelones", fixed = TRUE)
+  expect_false(grepl("candidato_referencial", medida$objeto_medible[[1001L]],
+                     fixed = TRUE))
 })

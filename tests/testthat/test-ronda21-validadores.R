@@ -96,7 +96,11 @@ test_that("el perfilado con formas documentales no valida celdas innecesarias", 
   tiempo <- system.time(
     perfilar(datos, analizar_dependencias = FALSE)
   )["elapsed"]
-  expect_lt(unname(tiempo), 15)
+  # En la ronda 75 este guardián encontró una regresión real de 16 a 26 s.
+  # El contador determinista protege ahora el trabajo por valor; este umbral
+  # queda como red de arrastre contra desastres algorítmicos y deja margen para
+  # la carga variable de la máquina.
+  expect_lt(unname(tiempo), 30)
 })
 
 test_that("la configuracion de validadores se puede apagar y valida su contrato", {

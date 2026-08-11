@@ -11,7 +11,9 @@
   veredicto, el candidato más cercano y su distancia como evidencia. La
   proximidad usa Jaro--Winkler por omisión (`p = 0.1`, umbral `0.10`), sólo se
   calcula para fallos y declara sus límites o la ausencia de
-  [`stringdist`](https://cran.r-project.org/package=stringdist).
+  [`stringdist`](https://cran.r-project.org/package=stringdist). Se calcula
+  sobre los valores fallidos distintos y se reparte a las filas repetidas; el
+  alcance distingue filas fallidas, valores distintos y valores comparados.
 
 ## Perfil de normalización para comparar
 

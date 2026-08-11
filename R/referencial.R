@@ -150,10 +150,14 @@
                                     texto_referencia, referencia_original,
                                     config) {
   n <- length(texto_objetivo)
+  valores_fallidos <- unique(texto_objetivo[filas_fallidas])
+  n_valores <- length(valores_fallidos)
   evidencia <- rep("", n)
   base <- list(
     solicitada = isTRUE(config$proximidad), disponible = FALSE,
     motivo = "No se calculo la proximidad.", n_fallos = length(filas_fallidas),
+    n_valores_fallidos_distintos = n_valores,
+    n_valores_fallidos_comparados = 0L,
     n_fallos_comparados = 0L, n_referencial = length(texto_referencia),
     n_pares_comparados = 0, n_pares_sin_comparar = 0,
     umbral = config$umbral, metodo = config$metodo, p = config$p,
@@ -165,7 +169,7 @@
   }
   if (!.stringdist_disponible()) {
     base$motivo <- "No esta instalado el paquete opcional 'stringdist'."
-    base$n_pares_sin_comparar <- as.numeric(length(filas_fallidas)) *
+    base$n_pares_sin_comparar <- as.numeric(n_valores) *
       length(texto_referencia)
     return(list(evidencia = evidencia, alcance = base))
   }
@@ -176,39 +180,43 @@
   }
   nref <- length(texto_referencia)
   ncomparar <- if (is.infinite(config$max_pares)) {
-    length(filas_fallidas)
-  } else min(length(filas_fallidas), floor(config$max_pares / nref))
+    n_valores
+  } else min(n_valores, floor(config$max_pares / nref))
   if (ncomparar < 1L) {
     base$motivo <- "El limite de pares no alcanza para comparar un fallo con el referencial."
-    base$n_pares_sin_comparar <- as.numeric(length(filas_fallidas)) * nref
+    base$n_pares_sin_comparar <- as.numeric(n_valores) * nref
     base$truncado <- TRUE
     return(list(evidencia = evidencia, alcance = base))
   }
-  elegidas <- filas_fallidas[seq_len(ncomparar)]
-  distancias <- stringdist::stringdistmatrix(
-    texto_objetivo[elegidas], texto_referencia,
-    method = config$metodo, p = config$p, nthread = config$nucleos
+  elegidas <- seq_len(ncomparar)
+  distancias <- .matriz_distancias_duplicados(
+    valores_fallidos[elegidas], texto_referencia,
+    metodo = config$metodo, p = config$p, nucleos = config$nucleos
   )
   if (is.null(dim(distancias))) distancias <- matrix(distancias, nrow = ncomparar)
   etiquetas <- vapply(seq_len(nrow(referencia_original)), function(i) {
     paste(as.character(referencia_original[i, , drop = TRUE]), collapse = " | ")
   }, character(1L))
+  evidencia_valores <- rep("", n_valores)
   for (i in seq_len(ncomparar)) {
     minimo <- min(distancias[i, ])
     if (is.finite(minimo) && minimo <= config$umbral) {
       cerca <- which(abs(distancias[i, ] - minimo) <= 1e-12)
-      evidencia[elegidas[[i]]] <- paste0(
+      evidencia_valores[elegidas[[i]]] <- paste0(
         "candidato_referencial=", paste(etiquetas[cerca], collapse = " / "),
         "; distancia=", formatC(minimo, format = "f", digits = 4)
       )
     }
   }
+  indices_fallidos <- match(texto_objetivo[filas_fallidas], valores_fallidos)
+  evidencia[filas_fallidas] <- evidencia_valores[indices_fallidos]
   base$disponible <- TRUE
   base$motivo <- ""
-  base$n_fallos_comparados <- ncomparar
+  base$n_valores_fallidos_comparados <- ncomparar
+  base$n_fallos_comparados <- sum(indices_fallidos <= ncomparar)
   base$n_pares_comparados <- as.numeric(ncomparar) * nref
-  base$n_pares_sin_comparar <- as.numeric(length(filas_fallidas) - ncomparar) * nref
-  base$truncado <- ncomparar < length(filas_fallidas)
+  base$n_pares_sin_comparar <- as.numeric(n_valores - ncomparar) * nref
+  base$truncado <- ncomparar < n_valores
   list(evidencia = evidencia, alcance = base)
 }
 
@@ -541,7 +549,12 @@ print.referencial <- function(x, ...) {
 #' emparejar: no modifica los datos. La proximidad es evidencia para los
 #' valores ausentes y nunca cambia su veredicto; si el paquete opcional
 #' [stringdist](https://cran.r-project.org/package=stringdist) no está
-#' instalado, se declara que no se calculó.
+#' instalado, se declara que no se calculó. Se calcula una sola vez por valor
+#' fallido distinto y la evidencia se reparte a las filas repetidas. El alcance
+#' conserva por separado `n_fallos` (filas),
+#' `n_valores_fallidos_distintos`, `n_valores_fallidos_comparados` y los pares
+#' comparados; así el límite no depende del orden ni de la frecuencia de las
+#' filas.
 #'
 #' Los valores ausentes no generan medidas de correctitud: corresponden a la
 #' dimensión Completitud. La cobertura ignora claves ausentes en el objetivo y

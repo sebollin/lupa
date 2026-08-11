@@ -21,6 +21,32 @@ test_that("un millón de valores activa el muestreo declarado", {
   expect_equal(resultado$meta$filas_analizadas, 1e5)
 })
 
+test_that("los predicados invisibles decodifican cada celda como maximo una vez", {
+  llamadas <- 0L
+  valores_decodificados <- 0L
+  original <- lupa:::.predicados_invisibles
+  local_mocked_bindings(
+    .predicados_invisibles = function(textos) {
+      llamadas <<- llamadas + 1L
+      valores_decodificados <<- valores_decodificados + length(textos)
+      original(textos)
+    },
+    .package = "lupa"
+  )
+  n <- 2000L
+  datos <- data.frame(
+    a = rep(c("Ana", "Beto"), length.out = n),
+    b = rep(c("Ana", "Beto"), length.out = n),
+    c = rep(c("Ana", "Beto"), length.out = n),
+    d = rep(c("Ana", "Beto"), length.out = n),
+    e = rep(c("Ana", "Beto"), length.out = n),
+    stringsAsFactors = FALSE
+  )
+  perfilar(datos, analizar_dependencias = FALSE)
+  expect_equal(llamadas, ncol(datos))
+  expect_lte(valores_decodificados, nrow(datos) * ncol(datos))
+})
+
 test_that("texto libre de cardinalidad alta no degrada el perfil", {
   skip_on_cran()
   skip_on_ci()

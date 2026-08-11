@@ -21,7 +21,12 @@ Las tres métricas aceptan \code{normalizar}, \code{proximidad}, \code{metodo}, 
 emparejar: no modifica los datos. La proximidad es evidencia para los
 valores ausentes y nunca cambia su veredicto; si el paquete opcional
 \href{https://cran.r-project.org/package=stringdist}{stringdist} no está
-instalado, se declara que no se calculó.
+instalado, se declara que no se calculó. Se calcula una sola vez por valor
+fallido distinto y la evidencia se reparte a las filas repetidas. El alcance
+conserva por separado \code{n_fallos} (filas),
+\code{n_valores_fallidos_distintos}, \code{n_valores_fallidos_comparados} y los pares
+comparados; así el límite no depende del orden ni de la frecuencia de las
+filas.
 }
 \details{
 Los valores ausentes no generan medidas de correctitud: corresponden a la
