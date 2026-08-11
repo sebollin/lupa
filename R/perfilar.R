@@ -57,8 +57,18 @@
 #' `UTC` en el texto para hacer visible la zona aplicada. El instante se
 #' conserva aunque la columna de entrada use otra zona horaria.
 #'
-#' La normalización Unicode se compara sin modificar el texto y requiere el
-#' paquete opcional `stringi` sólo cuando existen caracteres no ASCII.
+#' El diagnóstico de formas Unicode compara sin modificar el texto y puede usar
+#' el paquete opcional `stringi` para enriquecer la evidencia cuando existen
+#' caracteres no ASCII. El perfil de comparación es completamente R base.
+#' El argumento `normalizar` declara el perfil de comparación que se conserva
+#' en `meta$normalizacion`; cambia sólo la representación usada para comparar,
+#' no el texto guardado. `TRUE` usa el perfil predeterminado, `FALSE` desactiva
+#' sus pasos configurables, `"amplio"` activa los tres pliegues optativos y
+#' [normalizacion()] permite declararlos. También admite una lista nombrada por
+#' columna. `meta$normalizacion_fusiones` informa las colisiones por paso sobre
+#' el vocabulario de cada columna; para vocabularios de más de 5000 valores
+#' distintos deja el estado `omitido_por_cardinalidad` en vez de recorrerlos
+#' repetidamente.
 #'
 #' La clasificación de posibles datos personales es más amplia que la
 #' protección. Cada clasificación declara `poder_discriminante` y `proteger`:
@@ -153,6 +163,9 @@
 #'   argumentos para ejecutar [detectar_duplicados_aproximados()] y añadir sus
 #'   pares y hallazgos al perfil. Es un análisis acotado y opcional porque no
 #'   afirma identidad ni debe encarecer todas las corridas.
+#' @param normalizar Perfil de comparación que se conserva en `meta$normalizacion`
+#'   y que heredan los análisis de duplicados y claves cuando no reciben uno
+#'   explícito. Cambia sólo la representación usada para comparar.
 #' @param max_filas_hallazgo Tope de índices de fila que conserva cada
 #'   trazabilidad disponible. Por defecto es `1000`; cuando se supera, el
 #'   estado queda como `truncada` y el total se conserva. Use `Inf` sólo si
@@ -217,6 +230,7 @@ perfilar <- function(datos,
                      umbral_documento_verificado = 0.9,
                      muestra_validadores = 1000L,
                      duplicados_aproximados = FALSE,
+                     normalizar = TRUE,
                      max_filas_hallazgo = 1000L,
                      umbral_orden_columnas = 0.95,
                      max_columnas_orden = 20L,
@@ -224,6 +238,7 @@ perfilar <- function(datos,
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
+  normalizacion_resuelta <- .resolver_normalizacion(normalizar)
   fecha_hora <- tryCatch(.fecha_utc(fecha), error = function(e) NA)
   if (length(fecha_hora) != 1L || is.na(fecha_hora) ||
       !is.finite(as.numeric(fecha_hora))) {
@@ -308,7 +323,8 @@ perfilar <- function(datos,
   }
   if (is.list(duplicados_aproximados) &&
       any(names(duplicados_aproximados) %in% c(
-        "datos", "clasificacion", "perfil", "proteger_datos_personales"
+        "datos", "clasificacion", "perfil", "proteger_datos_personales",
+        "normalizar"
       ))) {
     stop("`duplicados_aproximados` no puede reemplazar argumentos coordinados por perfilar().",
          call. = FALSE)
@@ -445,6 +461,7 @@ perfilar <- function(datos,
       c(
         list(
           datos = datos, clasificacion = datos_personales,
+          normalizar = normalizacion_resuelta,
           proteger_datos_personales = proteger_datos_personales
         ),
         configuracion
@@ -486,7 +503,12 @@ perfilar <- function(datos,
     umbral_orden_columnas = umbral_orden_columnas,
     max_columnas_orden = max_columnas_orden,
     umbral_solapamiento_orden = umbral_solapamiento_orden,
-    orden_columnas = relaciones_orden$alcance
+    orden_columnas = relaciones_orden$alcance,
+    normalizacion = normalizacion_resuelta,
+    normalizacion_resumen = .normalizacion_resumen(normalizacion_resuelta),
+    normalizacion_fusiones = .normalizacion_fusiones_tabla(
+      datos, normalizacion_resuelta
+    )
   )
   estructura <- list(
     general = general,

@@ -369,6 +369,8 @@
   n <- length(x)
   if (!n) return(integer())
   texto <- tryCatch(.texto_analizable(x)$valores, error = function(e) NULL)
+  invisibles <- if (is.null(texto) || !is.character(texto)) NULL else
+    .predicados_invisibles(texto)
   idx <- switch(
     tipo,
     tipo_compuesto_no_analizado = seq_len(n),
@@ -389,12 +391,12 @@
     },
     espacios_sobrantes = if (is.null(texto)) NULL else
       which(!is.na(texto) & texto != trimws(texto)),
-    controles_invisibles = if (is.null(texto)) NULL else
-      which(.tiene_control_invisible(texto)),
+    controles_invisibles = if (is.null(invisibles)) NULL else
+      which(invisibles$control),
     entidades_html = if (is.null(texto)) NULL else
       which(.entidades_html_en_texto(texto)),
-    separadores_en_campo = if (is.null(texto)) NULL else
-      which(.tiene_salto_linea(texto)),
+    separadores_en_campo = if (is.null(invisibles)) NULL else
+      which(invisibles$separador),
     mayusculas_inconsistentes = if (is.null(texto)) NULL else {
       presentes <- !is.na(texto)
       canon <- tolower(texto)

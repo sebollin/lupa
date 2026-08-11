@@ -30,6 +30,7 @@ perfilar(
   umbral_documento_verificado = 0.9,
   muestra_validadores = 1000L,
   duplicados_aproximados = FALSE,
+  normalizar = TRUE,
   max_filas_hallazgo = 1000L,
   umbral_orden_columnas = 0.95,
   max_columnas_orden = 20L,
@@ -114,6 +115,10 @@ se valida la columna completa; use \code{Inf} para revisar todos desde el inicio
 argumentos para ejecutar \code{\link[=detectar_duplicados_aproximados]{detectar_duplicados_aproximados()}} y añadir sus
 pares y hallazgos al perfil. Es un análisis acotado y opcional porque no
 afirma identidad ni debe encarecer todas las corridas.}
+
+\item{normalizar}{Perfil de comparación que se conserva en \code{meta$normalizacion}
+y que heredan los análisis de duplicados y claves cuando no reciben uno
+explícito. Cambia sólo la representación usada para comparar.}
 
 \item{max_filas_hallazgo}{Tope de índices de fila que conserva cada
 trazabilidad disponible. Por defecto es \code{1000}; cuando se supera, el
@@ -210,8 +215,18 @@ Los resúmenes de fecha-hora se expresan siempre en UTC y llevan el sufijo
 \code{UTC} en el texto para hacer visible la zona aplicada. El instante se
 conserva aunque la columna de entrada use otra zona horaria.
 
-La normalización Unicode se compara sin modificar el texto y requiere el
-paquete opcional \code{stringi} sólo cuando existen caracteres no ASCII.
+El diagnóstico de formas Unicode compara sin modificar el texto y puede usar
+el paquete opcional \code{stringi} para enriquecer la evidencia cuando existen
+caracteres no ASCII. El perfil de comparación es completamente R base.
+El argumento \code{normalizar} declara el perfil de comparación que se conserva
+en \code{meta$normalizacion}; cambia sólo la representación usada para comparar,
+no el texto guardado. \code{TRUE} usa el perfil predeterminado, \code{FALSE} desactiva
+sus pasos configurables, \code{"amplio"} activa los tres pliegues optativos y
+\code{\link[=normalizacion]{normalizacion()}} permite declararlos. También admite una lista nombrada por
+columna. \code{meta$normalizacion_fusiones} informa las colisiones por paso sobre
+el vocabulario de cada columna; para vocabularios de más de 5000 valores
+distintos deja el estado \code{omitido_por_cardinalidad} en vez de recorrerlos
+repetidamente.
 
 La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara \code{poder_discriminante} y \code{proteger}:

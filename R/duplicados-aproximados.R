@@ -1284,24 +1284,35 @@
   columnas
 }
 
-.texto_fila_aproximada <- function(datos, columnas, normalizar) {
-  valores <- lapply(datos[columnas], function(x) {
+.texto_fila_aproximada <- function(datos, columnas, normalizar = TRUE) {
+  normalizacion_resuelta <- .resolver_normalizacion(normalizar)
+  valores <- Map(function(x, columna) {
     # Reutilizar el saneamiento del perfil: los bytes UTF-8 invalidos no
     # deben abortar una comparacion ni entrar como evidencia.
     salida <- suppressWarnings(as.character(.texto_analizable(x)$valores))
+    presentes <- !is.na(salida) & nzchar(salida)
     salida[is.na(salida)] <- ""
-    if (normalizar) {
-      salida <- .normalizar_invisibles_texto(salida)
-      salida <- trimws(tolower(salida))
-      salida <- gsub("[[:space:]]+", " ", salida, perl = TRUE)
-    }
-    salida
-  })
-  filas <- do.call(paste, c(valores, sep = " | "))
-  presentes <- vapply(seq_along(filas), function(i) {
-    any(vapply(valores, function(x) nzchar(x[[i]]), logical(1L)))
-  }, logical(1L))
-  list(valores = filas, presentes = presentes)
+    list(
+      valores = .normalizacion_aplicar(
+        salida, .normalizacion_para_columna(normalizacion_resuelta, columna)
+      ),
+      presentes = presentes
+    )
+  }, datos[columnas], columnas)
+  filas <- do.call(paste, c(lapply(valores, `[[`, "valores"), sep = " | "))
+  presentes <- Reduce(`|`, lapply(valores, `[[`, "presentes"),
+                      init = rep(FALSE, nrow(datos)))
+  fusiones <- stats::setNames(lapply(seq_along(columnas), function(i) {
+    crudos <- suppressWarnings(as.character(.texto_analizable(
+      datos[[columnas[[i]]]]
+    )$valores))
+    crudos <- unique(crudos[!is.na(crudos)])
+    .normalizacion_fusiones_vocabulario(
+      crudos, .normalizacion_para_columna(normalizacion_resuelta, columnas[[i]])
+    )
+  }), columnas)
+  list(valores = filas, presentes = presentes,
+       normalizacion = normalizacion_resuelta, fusiones = fusiones)
 }
 
 .evidencia_fila_aproximada <- function(datos, columnas, fila, protegidas) {
@@ -1351,6 +1362,7 @@
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
   columnas <- .columnas_duplicados_aproximados(datos, columnas)
+  normalizacion_resuelta <- .resolver_normalizacion(normalizar)
   muestra <- .validar_limite_duplicados(muestra, "muestra")
   max_pares <- .validar_limite_duplicados(max_pares, "max_pares")
   max_resultados <- .validar_limite_duplicados(max_resultados, "max_resultados")
@@ -1396,8 +1408,7 @@
       p < 0 || p > 0.25) {
     stop("`p` debe ser un numero finito entre 0 y 0.25.", call. = FALSE)
   }
-  if (!is.logical(normalizar) || length(normalizar) != 1L || is.na(normalizar) ||
-      !is.logical(proteger_datos_personales) ||
+  if (!is.logical(proteger_datos_personales) ||
       length(proteger_datos_personales) != 1L ||
       is.na(proteger_datos_personales)) {
     stop("`normalizar` y `proteger_datos_personales` deben ser l\u00f3gicos escalares.",
@@ -1413,6 +1424,10 @@
     if (!is.null(resumen_bloqueo)) {
       resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
     }
+    resultado$normalizacion <- c(
+      .normalizacion_resumen(normalizacion_resuelta),
+      list(fusiones = NULL)
+    )
     return(resultado)
   }
   if (!length(columnas)) {
@@ -1428,6 +1443,9 @@
     if (!is.null(resumen_bloqueo)) {
       resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
     }
+    resultado$normalizacion <- c(
+      .normalizacion_resumen(normalizacion_resuelta), list(fusiones = NULL)
+    )
     return(resultado)
   }
   if (is.null(clasificacion)) {
@@ -1441,7 +1459,7 @@
   protegidas <- if (proteger_datos_personales) {
     .columnas_personales_protegidas(clasificacion)
   } else character()
-  textos <- .texto_fila_aproximada(datos, columnas, normalizar)
+  textos <- .texto_fila_aproximada(datos, columnas, normalizacion_resuelta)
   # Sobre el tope exhaustivo, `auto` reemplaza el muestreo de filas por LSH.
   # `max_pares` sigue gobernando el camino exacto; en LSH el alcance se expresa
   # mediante candidatos, cubetas y garantía de colisión.
@@ -1516,6 +1534,9 @@
     if (!is.null(resumen_bloqueo)) {
       resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
     }
+    resultado$normalizacion <- c(
+      .normalizacion_resumen(normalizacion_resuelta), list(fusiones = NULL)
+    )
     return(resultado)
   }
   if (lotes && usar_lsh) {
@@ -1557,7 +1578,8 @@
         tiempo_estimado_etapa = NA_character_,
         tiempo_estimado_es_piso = FALSE,
         tiempo_determinista = TRUE
-      ), alcance = alcance, disponible = TRUE, razon = ""
+      ), alcance = alcance, disponible = TRUE, razon = "",
+      normalizacion = .normalizacion_resumen(normalizacion_resuelta)
     ))
   }
   lsh_alcance <- NULL
@@ -1578,7 +1600,8 @@
       }
       return(list(
         estimacion = lsh$estimacion, alcance = alcance,
-        disponible = TRUE, razon = ""
+        disponible = TRUE, razon = "",
+        normalizacion = .normalizacion_resumen(normalizacion_resuelta)
       ))
     }
     bloques <- lsh
@@ -1759,6 +1782,10 @@
   estructura <- list(
     pares = pares, hallazgos = hallazgos, alcance = alcance,
     columnas = columnas, metodo = metodo, p = p, umbral = umbral,
+    normalizacion = c(
+      .normalizacion_resumen(normalizacion_resuelta),
+      list(fusiones = textos$fusiones)
+    ),
     disponible = TRUE, razon = "",
     proteccion_aplicada = proteger_datos_personales,
     estimacion = estimacion_resultado
@@ -1884,8 +1911,13 @@
 #'   un valor mayor que los núcleos disponibles se limita de forma segura. El
 #'   resultado no depende de esta cantidad, pero el tiempo sí. El valor efectivo
 #'   queda declarado en `alcance$nucleos_usados`.
-#' @param normalizar Si se recortan espacios, se pasa a minusculas y se
-#'   colapsan espacios antes de calcular la distancia.
+#' @param normalizar Perfil de comparación. `TRUE` conserva el perfil
+#'   predeterminado, `FALSE` desactiva sus pasos configurables, `"amplio"`
+#'   activa puntuación, ligaduras y ancho, y [normalizacion()] permite declarar
+#'   cada paso. Una lista nombrada puede resolver perfiles por columna. `NULL`
+#'   hereda el perfil guardado en `perfil`; si no se recibe uno, usa `TRUE`.
+#'   La normalización cambia sólo la representación usada para comparar, no los
+#'   datos guardados. El umbral se aplica sobre esa cadena normalizada.
 #' @param perfil Perfil de los mismos datos para reutilizar su clasificacion de
 #'   datos personales y no volver a inferirla.
 #' @param proteger_datos_personales Si la evidencia de columnas protegidas se
@@ -1959,7 +1991,7 @@
 detectar_duplicados_aproximados <- function(
     datos, columnas = NULL, metodo = "jw", umbral = 0.10, p = 0.1,
     muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
-    normalizar = TRUE, perfil = NULL, proteger_datos_personales = TRUE,
+    normalizar = NULL, perfil = NULL, proteger_datos_personales = TRUE,
     bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
     lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
     lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
@@ -1969,6 +2001,7 @@ detectar_duplicados_aproximados <- function(
       !identical(names(datos), perfil$columnas$columna))) {
     stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
   }
+  normalizar <- .resolver_normalizacion(normalizar, perfil)
   if (!is.null(perfil)) {
     return(.detectar_duplicados_aproximados(
       datos, columnas, metodo, umbral, p, muestra, max_pares, max_resultados,
@@ -2034,7 +2067,7 @@ detectar_duplicados_aproximados <- function(
 estimar_costo <- function(
     datos, columnas = NULL, metodo = "jw", umbral = 0.10, p = 0.1,
     muestra = Inf, max_pares = 50000000L, max_resultados = 100L,
-    normalizar = TRUE, perfil = NULL, proteger_datos_personales = TRUE,
+    normalizar = NULL, perfil = NULL, proteger_datos_personales = TRUE,
     bloque = 1000L, estrategia = "auto", lsh_bandas = 12L,
     lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
     lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
@@ -2044,6 +2077,7 @@ estimar_costo <- function(
       !identical(names(datos), perfil$columnas$columna))) {
     stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
   }
+  normalizar <- .resolver_normalizacion(normalizar, perfil)
   clasificacion <- if (is.null(perfil)) NULL else perfil$datos_personales
   interno <- suppressMessages(.detectar_duplicados_aproximados(
     datos, columnas, metodo, umbral, p, muestra, max_pares, max_resultados,
@@ -2069,13 +2103,14 @@ estimar_costo <- function(
       tiempo_estimado_etapa = NA_character_,
       tiempo_estimado_es_piso = FALSE, tiempo_determinista = TRUE,
       alcance = interno$alcance, disponible = interno$disponible,
-      razon = interno$razon
+      razon = interno$razon,
+      normalizacion = interno$normalizacion
     )
   } else {
     salida <- c(
       interno$estimacion,
       list(alcance = interno$alcance, disponible = interno$disponible,
-           razon = interno$razon)
+           razon = interno$razon, normalizacion = interno$normalizacion)
     )
   }
   class(salida) <- c("estimacion_costo_lupa", "list")

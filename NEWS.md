@@ -1,5 +1,21 @@
 # lupa 0.1.0
 
+## Perfil de normalización para comparar
+
+- `normalizar` deja de ser sólo un interruptor lógico: `TRUE` conserva el caso
+  común con minúsculas, espacios, acentos protegidos y comillas; `FALSE`
+  desactiva esos pasos configurables; `"amplio"`, [normalizacion()] y una lista
+  nombrada permiten elegirlos por columna. La representación normalizada sólo
+  decide qué valores se comparan: nunca modifica los datos guardados.
+- `perfilar()` conserva el perfil resuelto y los análisis de duplicados y claves
+  lo heredan cuando reciben `normalizar = NULL`. Los resultados pueden cambiar
+  porque el umbral se aplica sobre la cadena normalizada; el perfil informa,
+  por vocabulario, cuántos valores fundió cada paso.
+- La comparación aplica siempre descomposición y orden canónicos en el
+  subconjunto latino cubierto; no reordena palabras ni aplica abreviaturas de
+  vías. Las claves siguen descubriéndose por identidad exacta y agregan la
+  unicidad normalizada como métrica informativa.
+
 ## Diagnósticos de texto invisible
 
 - Amplía la detección a los espacios Unicode, marcas direccionales, BOM y

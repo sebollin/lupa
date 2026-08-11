@@ -13,7 +13,7 @@ detectar_duplicados_aproximados(
   muestra = Inf,
   max_pares = 50000000L,
   max_resultados = 100L,
-  normalizar = TRUE,
+  normalizar = NULL,
   perfil = NULL,
   proteger_datos_personales = TRUE,
   bloque = 1000L,
@@ -56,8 +56,13 @@ límite no se usa para recortar filas; el resultado lo marca explícitamente.}
 
 \item{max_resultados}{Maximo de pares devueltos. Por defecto \code{100}.}
 
-\item{normalizar}{Si se recortan espacios, se pasa a minusculas y se
-colapsan espacios antes de calcular la distancia.}
+\item{normalizar}{Perfil de comparación. \code{TRUE} conserva el perfil
+predeterminado, \code{FALSE} desactiva sus pasos configurables, \code{"amplio"}
+activa puntuación, ligaduras y ancho, y \code{\link[=normalizacion]{normalizacion()}} permite declarar
+cada paso. Una lista nombrada puede resolver perfiles por columna. \code{NULL}
+hereda el perfil guardado en \code{perfil}; si no se recibe uno, usa \code{TRUE}.
+La normalización cambia sólo la representación usada para comparar, no los
+datos guardados. El umbral se aplica sobre esa cadena normalizada.}
 
 \item{perfil}{Perfil de los mismos datos para reutilizar su clasificacion de
 datos personales y no volver a inferirla.}

@@ -4,16 +4,24 @@
 \alias{detectar_claves}
 \title{Detectar claves candidatas}
 \usage{
-detectar_claves(datos, max_combinacion = 3)
+detectar_claves(datos, max_combinacion = 3, normalizar = NULL, perfil = NULL)
 }
 \arguments{
 \item{datos}{Objeto que hereda de \code{data.frame}.}
 
 \item{max_combinacion}{Máximo de columnas por combinación, entre 1 y 3.}
+
+\item{normalizar}{Perfil de comparación. \code{NULL} hereda el perfil de
+\code{perfil}, pero las claves se siguen descubriendo por identidad exacta.}
+
+\item{perfil}{Perfil producido por \code{\link[=perfilar]{perfilar()}} para heredar la comparación.}
 }
 \value{
 Data frame de claves candidatas con las columnas combinadas,
-cantidad de columnas y marcas de redundancia.
+cantidad de columnas, marcas de redundancia y las columnas
+\code{unicidad_exacta} y \code{unicidad_normalizada}. La búsqueda de candidatas usa
+identidad exacta; la segunda columna muestra cuántas candidatas también
+siguen siendo únicas bajo el perfil de comparación.
 }
 \description{
 Busca primero claves simples y luego combinaciones mínimas de dos o tres

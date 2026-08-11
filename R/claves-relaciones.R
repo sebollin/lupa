@@ -10,6 +10,25 @@
   anyDuplicated(combinado) == 0L
 }
 
+.resumen_clave_normalizada <- function(datos, indices, nombres, normalizacion) {
+  valores <- lapply(indices, function(i) {
+    x <- suppressWarnings(as.character(.texto_analizable(datos[[i]])$valores))
+    x[is.na(x)] <- ""
+    .normalizacion_aplicar(
+      x, .normalizacion_para_columna(normalizacion, nombres[[i]])
+    )
+  })
+  if (!length(valores)) return(list(unicidad = NA, distintos = NA_integer_))
+  completos <- Reduce(`&`, lapply(indices, function(i) !is.na(datos[[i]])),
+                      init = rep(TRUE, nrow(datos)))
+  if (!any(completos)) return(list(unicidad = FALSE, distintos = 0L))
+  combinado <- do.call(paste, c(lapply(valores, `[`, completos), sep = "\u001f"))
+  list(
+    unicidad = anyDuplicated(combinado) == 0L,
+    distintos = length(unique(combinado))
+  )
+}
+
 .pares_redundantes <- function(datos, indices_clave, nombres) {
   if (length(indices_clave) < 2L) {
     return(data.frame(
@@ -51,18 +70,30 @@
 #'
 #' @param datos Objeto que hereda de `data.frame`.
 #' @param max_combinacion Máximo de columnas por combinación, entre 1 y 3.
+#' @param normalizar Perfil de comparación. `NULL` hereda el perfil de
+#'   `perfil`, pero las claves se siguen descubriendo por identidad exacta.
+#' @param perfil Perfil producido por [perfilar()] para heredar la comparación.
 #'
 #' @return Data frame de claves candidatas con las columnas combinadas,
-#'   cantidad de columnas y marcas de redundancia.
+#'   cantidad de columnas, marcas de redundancia y las columnas
+#'   `unicidad_exacta` y `unicidad_normalizada`. La búsqueda de candidatas usa
+#'   identidad exacta; la segunda columna muestra cuántas candidatas también
+#'   siguen siendo únicas bajo el perfil de comparación.
 #' @export
 #' @seealso [detectar_dependencias()], [detectar_relaciones()]
 #'
 #' @examples
 #' detectar_claves(data.frame(id = 1:4, grupo = c("a", "a", "b", "b")))
-detectar_claves <- function(datos, max_combinacion = 3) {
+detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
+                            perfil = NULL) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
+  if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
+      !identical(names(datos), perfil$columnas$columna))) {
+    stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
+  }
+  normalizacion_resuelta <- .resolver_normalizacion(normalizar, perfil)
   if (length(max_combinacion) != 1L || is.na(max_combinacion) ||
       max_combinacion < 1L || max_combinacion > 3L) {
     stop("`max_combinacion` debe ser un entero entre 1 y 3.", call. = FALSE)
@@ -96,6 +127,8 @@ detectar_claves <- function(datos, max_combinacion = 3) {
     resultado <- data.frame(
       columnas = character(), n_columnas = integer(), n_filas = integer(),
       redundante = logical(), equivalente_a = character(),
+      unicidad_exacta = logical(), unicidad_normalizada = logical(),
+      n_distintos_exactos = integer(), n_distintos_normalizados = integer(),
       stringsAsFactors = FALSE
     )
   } else {
@@ -108,12 +141,29 @@ detectar_claves <- function(datos, max_combinacion = 3) {
           redundantes$columna_1[redundantes$columna_2 == nombres_clave]
         )
       }
+      normalizada <- .resumen_clave_normalizada(
+        datos, indices, nombres, normalizacion_resuelta
+      )
+      exactos <- if (nrow(datos)) {
+        completos <- !apply(is.na(as.data.frame(datos[indices])), 1L, any)
+        if (length(indices) == 1L) {
+          length(unique(datos[[indices[[1L]]]][completos]))
+        } else {
+          combinado <- do.call(paste, c(lapply(datos[indices], `[`, completos),
+                                         sep = "\u001f"))
+          length(unique(combinado))
+        }
+      } else 0L
       data.frame(
         columnas = .pegar_nombres(nombres_clave),
         n_columnas = length(indices),
         n_filas = nrow(datos),
         redundante = length(relacionadas) > 0L,
         equivalente_a = paste(relacionadas, collapse = ", "),
+        unicidad_exacta = TRUE,
+        unicidad_normalizada = normalizada$unicidad,
+        n_distintos_exactos = exactos,
+        n_distintos_normalizados = normalizada$distintos,
         stringsAsFactors = FALSE
       )
     }))
@@ -121,6 +171,7 @@ detectar_claves <- function(datos, max_combinacion = 3) {
   }
   class(resultado) <- c("claves_candidatas", "data.frame")
   attr(resultado, "claves_redundantes") <- redundantes
+  attr(resultado, "normalizacion") <- .normalizacion_resumen(normalizacion_resuelta)
   resultado
 }
 

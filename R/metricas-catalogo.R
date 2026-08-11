@@ -217,10 +217,13 @@
   }
   normalizar <- configuracion$normalizar
   if (is.null(normalizar)) normalizar <- TRUE
-  if (!is.logical(normalizar) || length(normalizar) != 1L ||
-      is.na(normalizar)) {
-    stop("`normalizar` debe ser un l\u00f3gico escalar.", call. = FALSE)
-  }
+  normalizacion_resuelta <- tryCatch(
+    .resolver_normalizacion(normalizar),
+    error = function(e) {
+      stop("normalizar no describe un perfil valido: ",
+           conditionMessage(e), call. = FALSE)
+    }
+  )
   max_valores <- configuracion$max_valores
   if (is.null(max_valores)) max_valores <- 10000L
   if (!is.numeric(max_valores) || length(max_valores) != 1L ||
@@ -302,6 +305,8 @@
     metodo = config$metodo,
     p = config$p,
     normalizar = config$normalizar,
+    normalizacion = .normalizacion_resumen(.resolver_normalizacion(
+      config$normalizar)),
     max_valores = config$max_valores,
     truncado = truncado,
     pares_sin_comparar = n_posibles - n_comparados,
