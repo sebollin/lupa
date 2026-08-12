@@ -932,7 +932,11 @@
   }
   preparacion_texto <- .texto_analizable(x)
   x_analisis <- preparacion_texto$valores
-  inferencia <- inferir_tipo(x_analisis, muestra = muestra)
+  # El perfilado conserva el resultado intermedio sólo durante esta llamada;
+  # la función exportada `inferir_tipo()` nunca devuelve ese caché.
+  inferencia <- .inferir_tipo_interno(
+    x_analisis, muestra = muestra, conservar_cache = TRUE
+  )
   formatos <- inferencia$formatos_fecha
   if (is.null(formatos)) {
     formatos <- detectar_formatos_fecha(x_analisis, muestra = muestra)

@@ -131,6 +131,9 @@ test_that("el perfil no conserva el caché del detector de meses", {
     c = rep("15 de marzo de 2024", 100000L)
   )
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  inferencia <- inferir_tipo(datos$a)
+  expect_false("meses_texto" %in% names(attributes(inferencia$formatos_fecha)))
+  expect_lt(as.numeric(object.size(inferencia)), 1 * 1024^2)
   expect_false(any(vapply(
     perfil$formatos_fecha,
     function(x) "meses_texto" %in% names(attributes(x)),

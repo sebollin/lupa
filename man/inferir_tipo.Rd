@@ -15,7 +15,8 @@ inferir_tipo(x, umbral = 0.8, muestra = 1e+05)
 }
 \value{
 Lista de clase \code{inferencia_tipo} con \code{tipo}, \code{proporcion}, conteos,
-candidatos evaluados y, cuando corresponde, formatos de fecha.
+candidatos evaluados y, cuando corresponde, formatos de fecha. El resultado
+público no conserva cachés internos del perfilado.
 }
 \description{
 Para columnas de texto distingue valores lógicos, enteros, dobles, fechas,

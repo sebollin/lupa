@@ -228,6 +228,10 @@
 #' @param casi_duplicados_vocabulario Lógico que activa el diagnóstico de
 #'   variantes casi duplicadas dentro del vocabulario de cada columna de texto.
 #'   Por defecto es `TRUE`; `FALSE` lo omite sin afectar los demás hallazgos.
+#'   La distancia es una señal heurística, no una prueba de identidad: Jaro--Winkler
+#'   puede agrupar nombres de calles o códigos que sólo comparten un prefijo o un
+#'   sufijo. En vocabularios heterogéneos revise la evidencia como sospechosa,
+#'   declare una regla de dominio o use `FALSE` para desactivar este diagnóstico.
 #' @param max_proporcion_grupo_vocabulario Proporción máxima del vocabulario
 #'   que puede abarcar el grupo mayor para entregar grupos de variantes. Por
 #'   defecto es `0.5`; si se supera, el alcance declara que el diagnóstico no

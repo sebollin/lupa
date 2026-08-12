@@ -23,6 +23,11 @@
   de fecha se calculan sobre las fechas completas y declaran cuántas fechas de
   mes-año quedaron fuera; una columna compuesta sólo por períodos conserva el
   estado `granularidad_incompleta`.
+- `inferir_tipo()` tampoco conserva el caché interno de detección de meses.
+  El diagnóstico de variantes del vocabulario sigue siendo una señal
+  heurística: Jaro--Winkler puede acercar nombres de calles o códigos con
+  prefijos compartidos y sus grupos deben revisarse como sospechosos, no como
+  identidades.
 - El hallazgo de variantes del vocabulario sólo atribuye el límite de proporción
   cuando existe un grupo compatible que retener; si todas las cercanías fueron
   descartadas por secuencias numéricas incompatibles, lo informa con ese

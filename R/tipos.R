@@ -27,7 +27,8 @@
 #' @param muestra Máximo de valores que se analizan.
 #'
 #' @return Lista de clase `inferencia_tipo` con `tipo`, `proporcion`, conteos,
-#'   candidatos evaluados y, cuando corresponde, formatos de fecha.
+#'   candidatos evaluados y, cuando corresponde, formatos de fecha. El resultado
+#'   público no conserva cachés internos del perfilado.
 #' @export
 #' @seealso [detectar_formatos_fecha()], [descubrir_patrones()], [perfilar()]
 #'
@@ -35,6 +36,11 @@
 #' inferir_tipo(c("1", "2", "3"))
 #' inferir_tipo(c("2020-01-01", "31/12/2020"))
 inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
+  .inferir_tipo_interno(x, umbral, muestra, conservar_cache = FALSE)
+}
+
+.inferir_tipo_interno <- function(x, umbral = 0.8, muestra = 1e5,
+                                  conservar_cache = TRUE) {
   if (length(umbral) != 1L || is.na(umbral) || umbral < 0 || umbral > 1) {
     stop("`umbral` debe estar entre 0 y 1.", call. = FALSE)
   }
@@ -140,6 +146,7 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
   } else {
     conteos[[tipo]]
   }
+  if (!conservar_cache) attr(formatos, "meses_texto") <- NULL
   .inferencia(tipo, compatibles, n, muestreo, candidatos, formatos)
 }
 

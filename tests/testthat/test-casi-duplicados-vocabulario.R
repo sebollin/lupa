@@ -326,3 +326,42 @@ test_that("la ceguera de la estrella no oculta fusiones exactas", {
   expect_match(hallazgo$evidencia, "San Jose")
   expect_match(hallazgo$evidencia, "motivo_grupos=sin_asimetria")
 })
+
+test_that("la distancia en nombres de vias queda declarada como sospecha", {
+  datos <- c(
+    rep("CAMINO CARRASCO", 30L), rep("CAMINO AGRARIOS", 2L),
+    rep("CALLE A", 20L), rep("CALLE B", 3L),
+    rep("UYCASJC_SN_030", 20L), rep("UYCAEPR_SN_030", 3L),
+    rep("UYCAANO_SN_030", 2L),
+    rep("Montevideo", 30L), rep("Montevido", 2L),
+    rep("San José", 20L), rep("San Jose", 5L)
+  )
+  resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
+    datos, lupa:::.resolver_normalizacion(TRUE), "nombre"
+  )
+  grupos <- resultado$grupos
+  expect_true(any(vapply(grupos, function(g) {
+    all(c("CAMINO CARRASCO", "CAMINO AGRARIOS") %in% g$variantes)
+  }, logical(1L))))
+  expect_true(any(vapply(grupos, function(g) {
+    all(c("Montevideo", "Montevido") %in% g$variantes)
+  }, logical(1L))))
+  expect_true(any(vapply(grupos, function(g) {
+    all(c("CALLE A", "CALLE B") %in% g$variantes)
+  }, logical(1L))))
+  expect_true(any(vapply(grupos, function(g) {
+    all(c("San José", "San Jose") %in% g$variantes) &&
+      grepl("normalizacion", g$origen, fixed = TRUE)
+  }, logical(1L))))
+  perfil <- perfilar(
+    data.frame(nombre = datos), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  expect_equal(as.character(hallazgo$severidad), "sospechoso")
+  expect_match(hallazgo$evidencia, "origen=distancia")
+})
