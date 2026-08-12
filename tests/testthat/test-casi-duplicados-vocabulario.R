@@ -131,7 +131,7 @@ test_that("el piso informa un grupo real en vocabularios pequenos", {
 })
 
 test_that("un componente grande no se presenta como toda una columna chica", {
-  datos <- rep(paste0("Zona ", sprintf("%02d", seq_len(15))),
+  datos <- rep(paste0("Zona ", LETTERS[seq_len(15)]),
                times = seq(100, 72, by = -2))
   resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
     datos, lupa:::.resolver_normalizacion(FALSE), "zona"
@@ -165,8 +165,102 @@ test_that("un componente grande no se presenta como toda una columna chica", {
   }, logical(1L))))
 })
 
+test_that("las secuencias numericas separan familias de entidades", {
+  zonas <- function(n) paste0("Zona ", sprintf("%02d", seq_len(n)))
+  for (n in c(9L, 15L)) {
+    resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
+      zonas(n), lupa:::.resolver_normalizacion(FALSE), "zona"
+    )
+    expect_length(resultado$grupos, 0L)
+  }
+  resultado_mixto <- lupa:::.grupos_casi_duplicados_vocabulario(
+    c(zonas(15L), paste0("Localidad ", sprintf("%02d", seq_len(25L)))),
+    lupa:::.resolver_normalizacion(FALSE), "ubicacion"
+  )
+  expect_length(resultado_mixto$grupos, 0L)
+  perfil_zonas <- perfilar(
+    data.frame(zona = rep(zonas(15L), times = seq(100, 72, by = -2)),
+               stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE, normalizar = FALSE
+  )
+  hallazgo_zonas <- perfil_zonas$hallazgos[
+    perfil_zonas$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo_zonas), 1L)
+  expect_match(hallazgo_zonas$evidencia,
+               "descartados por secuencia numerica")
+
+  ruta <- lupa:::.grupos_casi_duplicados_vocabulario(
+    c(rep("Ruta 5", 100), rep("Ruta 05", 10)),
+    lupa:::.resolver_normalizacion(FALSE), "ruta"
+  )
+  expect_true(any(vapply(ruta$grupos, function(grupo) {
+    all(c("Ruta 5", "Ruta 05") %in% grupo$variantes)
+  }, logical(1L))))
+
+  pares_permitidos <- list(
+    c("Calle 18 esquina 5", "Calle 18 esquina 05"),
+    c("1.000", "1000")
+  )
+  for (par in pares_permitidos) {
+    resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
+      c(rep(par[[1L]], 20), rep(par[[2L]], 5)),
+      lupa:::.resolver_normalizacion(FALSE), "x"
+    )
+    expect_gt(length(resultado$grupos), 0L)
+  }
+
+  pares_rechazados <- list(
+    c("Escuela N 0102", "Escuela N 0103"),
+    c("Ruta 5", "Ruta V")
+  )
+  for (par in pares_rechazados) {
+    resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
+      c(rep(par[[1L]], 20), rep(par[[2L]], 5)),
+      lupa:::.resolver_normalizacion(FALSE), "x"
+    )
+    expect_length(resultado$grupos, 0L)
+  }
+})
+
+test_that("la regla numerica distingue las diez parejas de referencia", {
+  parejas <- data.frame(
+    izquierda = c(
+      "Zona 01", "Escuela N 0001", "Calle 18", "Montevideo",
+      "Montevideo", "Canelones", "San José", "Maldonado",
+      "Ruta 5", "Piso 1"
+    ),
+    derecha = c(
+      "Zona 02", "Escuela N 0002", "Calle 8", "Montevideoz",
+      "Montevido", "Canelónes", "San Jose", "Maldonado.",
+      "Ruta 05", "Piso 01"
+    ),
+    esperado = c(FALSE, FALSE, FALSE, TRUE, TRUE, TRUE, TRUE, TRUE,
+                 TRUE, TRUE),
+    stringsAsFactors = FALSE
+  )
+  for (i in seq_len(nrow(parejas))) {
+    resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
+      c(rep(parejas$izquierda[[i]], 20L),
+        rep(parejas$derecha[[i]], 5L)),
+      lupa:::.resolver_normalizacion(FALSE), "x"
+    )
+    expect_equal(length(resultado$grupos) > 0L, parejas$esperado[[i]],
+                 info = paste(parejas$izquierda[[i]], "/",
+                              parejas$derecha[[i]]))
+  }
+})
+
 test_that("un grupo que abarca casi todo el vocabulario no se entrega", {
-  valores <- paste0(strrep("x", 80), sprintf("%04d", seq_len(2000)))
+  letras <- vapply(seq_len(2000), function(i) {
+    paste0(
+      letters[(i - 1L) %/% 676L + 1L],
+      letters[((i - 1L) %/% 26L) %% 26L + 1L],
+      letters[(i - 1L) %% 26L + 1L]
+    )
+  }, character(1L))
+  valores <- paste0(strrep("x", 80), letras)
   datos <- c(rep(valores[[1L]], 10L), valores[-1L])
   resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
     datos, lupa:::.resolver_normalizacion(FALSE), "x"

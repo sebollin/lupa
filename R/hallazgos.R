@@ -284,6 +284,28 @@
   vapply(seq_len(n), raiz, integer(1L))
 }
 
+.normalizar_token_numerico_vocabulario <- function(token) {
+  if (grepl("^[0-9]{1,3}(?:[.,][0-9]{3})+$", token, perl = TRUE)) {
+    token <- gsub("[.,]", "", token)
+  } else if (!grepl("^[0-9]+$", token, perl = TRUE)) {
+    return(token)
+  }
+  token <- sub("^0+", "", token)
+  if (!nzchar(token)) "0" else token
+}
+
+.firmas_numericas_vocabulario <- function(textos) {
+  vapply(textos, function(texto) {
+    if (is.na(texto) || !nzchar(texto)) return("")
+    posiciones <- gregexpr("[0-9]+(?:[.,][0-9]+)*", texto, perl = TRUE)[[1L]]
+    if (posiciones[[1L]] < 0L) return("")
+    tokens <- regmatches(texto, list(posiciones))[[1L]]
+    tokens <- vapply(tokens, .normalizar_token_numerico_vocabulario,
+                     character(1L))
+    paste(tokens, collapse = "\u001f")
+  }, character(1L), USE.NAMES = FALSE)
+}
+
 .grupos_casi_duplicados_vocabulario <- function(x, perfil, columna,
                                                 max_valores = 5000L,
                                                 max_pares = 2000000L,
@@ -311,6 +333,12 @@
   representantes <- vapply(
     split(seq_along(clases), clases), `[[`, integer(1L), 1L
   )
+  disponible <- .stringdist_disponible()
+  firmas_numericas <- if (disponible) {
+    .firmas_numericas_vocabulario(valores_norm)
+  } else {
+    rep("", length(valores_norm))
+  }
   pares <- matrix(integer(), ncol = 2L)
   for (grupo in split(seq_along(clases), clases)) {
     if (length(grupo) > 1L) {
@@ -319,7 +347,6 @@
       pares <- rbind(pares, cbind(grupo[[1L]], grupo[-1L]))
     }
   }
-  disponible <- .stringdist_disponible()
   max_unidades <- if (is.infinite(max_pares)) n_unidades else {
     floor((1 + sqrt(1 + 8 * max_pares)) / 2)
   }
@@ -328,15 +355,34 @@
     fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
     stringsAsFactors = FALSE
   )
+  distancia_pares_sin_filtro <- distancia_pares
   frecuencia_unidad <- as.numeric(tapply(frecuencias, clases, sum))
   n_candidatos_distancia <- 0L
+  n_pares_descartados_numeros <- 0L
+  hay_firmas_numericas_distintas <- length(unique(firmas_numericas)) > 1L
   if (disponible && max_unidades > 1L) {
+    if (hay_firmas_numericas_distintas) {
+      mejor_frecuencia_sin_filtro <- numeric(n_unidades)
+      mejor_hub_sin_filtro <- integer(n_unidades)
+      mejor_distancia_sin_filtro <- numeric(n_unidades)
+      empate_mejor_hub_sin_filtro <- logical(n_unidades)
+    }
     mejor_frecuencia <- numeric(n_unidades)
     mejor_hub <- integer(n_unidades)
     mejor_distancia <- numeric(n_unidades)
     empate_mejor_hub <- logical(n_unidades)
-    registrar_candidatos <- function(fila_1, fila_2, distancia) {
-      n_candidatos_distancia <<- n_candidatos_distancia + length(fila_1)
+    actualizar_estrellas <- function(fila_1, fila_2, distancia,
+                                     sin_filtro = FALSE) {
+      frecuencia <- if (sin_filtro) mejor_frecuencia_sin_filtro else {
+        mejor_frecuencia
+      }
+      hub <- if (sin_filtro) mejor_hub_sin_filtro else mejor_hub
+      distancias <- if (sin_filtro) mejor_distancia_sin_filtro else {
+        mejor_distancia
+      }
+      empates <- if (sin_filtro) empate_mejor_hub_sin_filtro else {
+        empate_mejor_hub
+      }
       for (i in seq_along(fila_1)) {
         primero <- as.integer(fila_1[[i]])
         segundo <- as.integer(fila_2[[i]])
@@ -351,15 +397,41 @@
           alto <- primero
         }
         frecuencia_alta <- frecuencia_unidad[[alto]]
-        if (frecuencia_alta > mejor_frecuencia[[bajo]]) {
-          mejor_frecuencia[[bajo]] <<- frecuencia_alta
-          mejor_hub[[bajo]] <<- alto
-          mejor_distancia[[bajo]] <<- distancia[[i]]
-          empate_mejor_hub[[bajo]] <<- FALSE
-        } else if (frecuencia_alta == mejor_frecuencia[[bajo]]) {
-          empate_mejor_hub[[bajo]] <<- TRUE
+        if (frecuencia_alta > frecuencia[[bajo]]) {
+          frecuencia[[bajo]] <- frecuencia_alta
+          hub[[bajo]] <- alto
+          distancias[[bajo]] <- distancia[[i]]
+          empates[[bajo]] <- FALSE
+        } else if (frecuencia_alta == frecuencia[[bajo]]) {
+          empates[[bajo]] <- TRUE
         }
       }
+      if (sin_filtro) {
+        mejor_frecuencia_sin_filtro <<- frecuencia
+        mejor_hub_sin_filtro <<- hub
+        mejor_distancia_sin_filtro <<- distancias
+        empate_mejor_hub_sin_filtro <<- empates
+      } else {
+        mejor_frecuencia <<- frecuencia
+        mejor_hub <<- hub
+        mejor_distancia <<- distancias
+        empate_mejor_hub <<- empates
+      }
+      invisible(NULL)
+    }
+    registrar_candidatos <- function(fila_1, fila_2, distancia) {
+      if (hay_firmas_numericas_distintas) {
+        actualizar_estrellas(fila_1, fila_2, distancia, sin_filtro = TRUE)
+      }
+      compatibles <- firmas_numericas[fila_1] == firmas_numericas[fila_2]
+      n_pares_descartados_numeros <<- n_pares_descartados_numeros +
+        sum(!compatibles)
+      if (!any(compatibles)) return(invisible(NULL))
+      fila_1 <- fila_1[compatibles]
+      fila_2 <- fila_2[compatibles]
+      distancia <- distancia[compatibles]
+      n_candidatos_distancia <<- n_candidatos_distancia + length(fila_1)
+      actualizar_estrellas(fila_1, fila_2, distancia)
       invisible(NULL)
     }
     .comparar_bloques_duplicados(
@@ -367,21 +439,37 @@
       metodo, umbral, bloque = min(1000L, max_unidades), max_resultados = 1L,
       on_pairs = registrar_candidatos, nucleos = nucleos, p = p
     )
-    # Sólo sobreviven estrellas centradas en un máximo local único. Una hoja
-    # nunca se conecta a otra hoja ni a un nodo que ya depende de un tercero:
-    # así se evita el cierre transitivo de cadenas.
-    hojas <- which(mejor_hub > 0L & !empate_mejor_hub)
-    aristas <- hojas[vapply(hojas, function(hoja) {
-      hub <- mejor_hub[[hoja]]
-      mejor_hub[[hub]] == 0L && !empate_mejor_hub[[hub]]
-    }, logical(1L))]
-    if (length(aristas)) {
-      distancia_pares <- data.frame(
+    aristas_estrellas <- function(mejor_hub, mejor_distancia,
+                                  empate_mejor_hub) {
+      # Sólo sobreviven estrellas centradas en un máximo local único. Una hoja
+      # nunca se conecta a otra hoja ni a un nodo que ya depende de un tercero:
+      # así se evita el cierre transitivo de cadenas.
+      hojas <- which(mejor_hub > 0L & !empate_mejor_hub)
+      aristas <- hojas[vapply(hojas, function(hoja) {
+        hub <- mejor_hub[[hoja]]
+        mejor_hub[[hub]] == 0L && !empate_mejor_hub[[hub]]
+      }, logical(1L))]
+      if (!length(aristas)) return(data.frame(
+        fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
+        stringsAsFactors = FALSE
+      ))
+      data.frame(
         fila_1 = representantes[mejor_hub[aristas]],
         fila_2 = representantes[aristas],
         distancia = mejor_distancia[aristas],
         stringsAsFactors = FALSE
       )
+    }
+    distancia_pares <- aristas_estrellas(
+      mejor_hub, mejor_distancia, empate_mejor_hub
+    )
+    if (hay_firmas_numericas_distintas) {
+      distancia_pares_sin_filtro <- aristas_estrellas(
+        mejor_hub_sin_filtro, mejor_distancia_sin_filtro,
+        empate_mejor_hub_sin_filtro
+      )
+    } else {
+      distancia_pares_sin_filtro <- distancia_pares
     }
   }
   todas_las_aristas <- rbind(
@@ -394,7 +482,26 @@
   componentes <- .unir_componentes_vocabulario(n_evaluados, todas_las_aristas)
   grupos <- split(seq_len(n_evaluados), componentes)
   grupos <- grupos[lengths(grupos) > 1L]
-  tamano_grupo_maximo <- if (length(grupos)) max(lengths(grupos)) else 0L
+  tamano_grupo_maximo_numerico <- if (length(grupos)) {
+    max(lengths(grupos))
+  } else 0L
+  proporcion_grupo_maximo_numerico <- if (n_evaluados) {
+    tamano_grupo_maximo_numerico / n_evaluados
+  } else 0
+  aristas_sin_filtro <- rbind(
+    pares,
+    if (nrow(distancia_pares_sin_filtro)) as.matrix(
+      distancia_pares_sin_filtro[, c("fila_1", "fila_2"), drop = FALSE]
+    ) else matrix(integer(), ncol = 2L)
+  )
+  componentes_sin_filtro <- .unir_componentes_vocabulario(
+    n_evaluados, aristas_sin_filtro
+  )
+  grupos_sin_filtro <- split(seq_len(n_evaluados), componentes_sin_filtro)
+  grupos_sin_filtro <- grupos_sin_filtro[lengths(grupos_sin_filtro) > 1L]
+  tamano_grupo_maximo <- if (length(grupos_sin_filtro)) {
+    max(lengths(grupos_sin_filtro))
+  } else tamano_grupo_maximo_numerico
   proporcion_grupo_maximo <- if (n_evaluados) {
     tamano_grupo_maximo / n_evaluados
   } else 0
@@ -478,7 +585,10 @@
       limite_aplicado = limite_aplicado,
       tamano_grupo_maximo = tamano_grupo_maximo,
       proporcion_grupo_maximo = proporcion_grupo_maximo,
+      tamano_grupo_maximo_numerico = tamano_grupo_maximo_numerico,
+      proporcion_grupo_maximo_numerico = proporcion_grupo_maximo_numerico,
       n_candidatos_distancia = n_candidatos_distancia,
+      n_pares_descartados_numeros = n_pares_descartados_numeros,
       motivo_grupos = if (disponible && n_candidatos_distancia > 0L &&
           !nrow(distancia_pares)) "sin_asimetria" else "",
       aplicable = aplicable
@@ -500,7 +610,8 @@
         (!length(grupos$grupos) &&
          !isTRUE(grupos$alcance$truncado) &&
          isTRUE(grupos$alcance$aplicable) &&
-         !identical(grupos$alcance$motivo_grupos, "sin_asimetria"))) next
+         !identical(grupos$alcance$motivo_grupos, "sin_asimetria") &&
+         !isTRUE(grupos$alcance$n_pares_descartados_numeros > 0L))) next
     alcance <- grupos$alcance
     grupos_a_mostrar <- utils::head(grupos$grupos, max_grupos_mostrados)
     evidencia_grupos <- vapply(grupos_a_mostrar, function(grupo) {
@@ -530,6 +641,12 @@
       paste(evidencia_grupos, collapse = "; ")
     } else if (!isTRUE(alcance$aplicable)) {
       "No se entrega el grupo mayor: excede el limite de proporcion"
+    } else if (isTRUE(alcance$n_pares_descartados_numeros > 0L)) {
+      paste0(
+        "No se formaron grupos por distancia: ",
+        alcance$n_pares_descartados_numeros,
+        " pares cercanos se descartaron por secuencias numericas incompatibles"
+      )
     } else if (identical(alcance$motivo_grupos, "sin_asimetria")) {
       paste0(
         "No se formaron grupos por distancia: ",
@@ -545,6 +662,8 @@
         "Hay grupos de variantes dentro del vocabulario de la columna."
       } else if (!isTRUE(alcance$aplicable)) {
         "El grupo de variantes excede el limite y el diagnostico no aplica."
+      } else if (isTRUE(alcance$n_pares_descartados_numeros > 0L)) {
+        "No se formaron grupos porque las diferencias numericas se consideran entidades distintas; revisar con una regla especifica si la columna usa otra codificacion."
       } else if (identical(alcance$motivo_grupos, "sin_asimetria")) {
         "No se formaron grupos por distancia porque no hubo asimetria de frecuencia; usar detectar_duplicados_aproximados() para comparar filas."
       } else {
@@ -563,6 +682,11 @@
         formatC(alcance$proporcion_grupo_maximo, format = "f", digits = 3),
         "); limite_aplicado=", alcance$limite_aplicado,
         "; motivo_grupos=", alcance$motivo_grupos, ". ",
+        "pares descartados por secuencia numerica=",
+        alcance$n_pares_descartados_numeros, "; grupo_maximo compatible=",
+        alcance$tamano_grupo_maximo_numerico, " (",
+        formatC(alcance$proporcion_grupo_maximo_numerico,
+                format = "f", digits = 3), "). ",
         alcance$motivo_distancia
       ),
       if (isTRUE(alcance$aplicable)) {

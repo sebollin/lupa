@@ -16,7 +16,12 @@
   proporción también supera el umbral. Así no oculta grupos pequeños, pero
   tampoco entrega una columna entera como una sola familia. Cuando hay pares
   cercanos pero no una frecuencia central única, el alcance declara la falta de
-  asimetría y apunta a `detectar_duplicados_aproximados()`.
+  asimetría y apunta a `detectar_duplicados_aproximados()`. Las aristas de
+  distancia con secuencias numéricas distintas se descartan; los ceros de
+  relleno y separadores de miles se consideran equivalentes, pero una errata
+  dentro de un número puede quedar sin agrupar deliberadamente. El alcance
+  informa los pares descartados por números y separa el tamaño potencial del
+  componente del tamaño que queda compatible con esa regla.
   `casi_duplicados_vocabulario = FALSE` lo desactiva.
   El alcance declara los valores y pares comparados, los recortes y la ausencia
   de [`stringdist`](https://cran.r-project.org/package=stringdist); las

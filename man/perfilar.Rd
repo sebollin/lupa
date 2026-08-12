@@ -271,9 +271,18 @@ alcance expone ambos cortes. El argumento permite apagar el detector cuando
 no corresponde a la tabla. Si hay pares cercanos pero todas las frecuencias
 empatan, el alcance declara que no hubo asimetría para formar una estrella y
 sugiere \code{\link[=detectar_duplicados_aproximados]{detectar_duplicados_aproximados()}} para comparar filas. El alcance
-declara los valores y pares
+también descarta aristas de distancia cuyos números no coinciden. Se comparan
+las secuencias numéricas, quitando ceros de relleno y separadores de miles;
+una diferencia numérica se trata como otra entidad. Esto puede dejar sin
+agrupar una errata dentro de un número, porque no hay evidencia para
+distinguirla de dos entidades reales. El alcance declara los valores y pares
 comparados, los recortes por cardinalidad y si \code{stringdist} no estuvo
-disponible. Para mantener acotado el perfil, por omisión se evalúan hasta
+disponible; también informa cuántas aristas se descartaron por esa regla y
+el tamaño compatible después del filtro. El tamaño máximo usado para el
+límite conserva el componente potencial antes del filtro numérico, para que
+una familia de entidades numeradas no vuelva a presentarse como una sola
+variante; el tamaño compatible se muestra aparte. Para mantener acotado el
+perfil, por omisión se evalúan hasta
 5.000 valores distintos y 2.000.000 de pares de unidades normalizadas; si
 se alcanza un límite, la evidencia lo declara y no presenta el resultado
 como universo completo. Las fusiones exactas se informan aun sin ese paquete
