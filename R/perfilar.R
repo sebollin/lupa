@@ -92,8 +92,14 @@
 #' conserva su frecuencia. Cada grupo declara sus distancias mínima y máxima.
 #' El límite `max_proporcion_grupo_vocabulario` evita presentar un grupo que
 #' abarque casi toda la columna como un diagnóstico útil: en ese caso el alcance
-#' dice que el diagnóstico no aplica. El argumento permite apagar el detector
-#' cuando no corresponde a la tabla. El alcance declara los valores y pares
+#' dice que el diagnóstico no aplica. Ese límite se activa desde 20 valores
+#' distintos; en vocabularios más pequeños se entrega la evidencia completa,
+#' porque el grupo se puede inspeccionar directamente y la proporción no debe
+#' ocultar el caso fácil. El argumento permite apagar el detector cuando no
+#' corresponde a la tabla. Si hay pares cercanos pero todas las frecuencias
+#' empatan, el alcance declara que no hubo asimetría para formar una estrella y
+#' sugiere [detectar_duplicados_aproximados()] para comparar filas. El alcance
+#' declara los valores y pares
 #' comparados, los recortes por cardinalidad y si `stringdist` no estuvo
 #' disponible. Para mantener acotado el perfil, por omisión se evalúan hasta
 #' 5.000 valores distintos y 2.000.000 de pares de unidades normalizadas; si

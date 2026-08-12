@@ -329,12 +329,14 @@
     stringsAsFactors = FALSE
   )
   frecuencia_unidad <- as.numeric(tapply(frecuencias, clases, sum))
+  n_candidatos_distancia <- 0L
   if (disponible && max_unidades > 1L) {
     mejor_frecuencia <- numeric(n_unidades)
     mejor_hub <- integer(n_unidades)
     mejor_distancia <- numeric(n_unidades)
     empate_mejor_hub <- logical(n_unidades)
     registrar_candidatos <- function(fila_1, fila_2, distancia) {
+      n_candidatos_distancia <<- n_candidatos_distancia + length(fila_1)
       for (i in seq_along(fila_1)) {
         primero <- as.integer(fila_1[[i]])
         segundo <- as.integer(fila_2[[i]])
@@ -396,10 +398,17 @@
   proporcion_grupo_maximo <- if (n_evaluados) {
     tamano_grupo_maximo / n_evaluados
   } else 0
+  # El piso deja que vocabularios pequenos entreguen el grupo completo: alli
+  # la proporcion no puede distinguir un componente grande de una evidencia
+  # facil de inspeccionar. Desde 20 valores el limite protege contra bloques
+  # que abarcan casi toda una columna.
+  min_valores_limite <- 20L
+  limite_aplicado <- n_evaluados >= min_valores_limite
   # Las fusiones exactas siguen siendo evidencia util aunque `stringdist` no
   # este instalado; el limite evita solamente entregar grupos enormes cuando
   # el diagnostico de distancia esta disponible y puede haber encadenamiento.
-  aplicable <- !disponible || proporcion_grupo_maximo <= max_proporcion_grupo
+  aplicable <- !limite_aplicado || !disponible ||
+    proporcion_grupo_maximo <= max_proporcion_grupo
   if (!aplicable) grupos <- list()
   if (!length(grupos)) {
     grupos_salida <- list()
@@ -462,8 +471,13 @@
       metodo = metodo, p = p, umbral = umbral,
       max_valores = max_valores, max_pares = max_pares,
       max_proporcion_grupo = max_proporcion_grupo,
+      min_valores_limite = min_valores_limite,
+      limite_aplicado = limite_aplicado,
       tamano_grupo_maximo = tamano_grupo_maximo,
       proporcion_grupo_maximo = proporcion_grupo_maximo,
+      n_candidatos_distancia = n_candidatos_distancia,
+      motivo_grupos = if (disponible && n_candidatos_distancia > 0L &&
+          !nrow(distancia_pares)) "sin_asimetria" else "",
       aplicable = aplicable
     )
   )
@@ -482,7 +496,8 @@
     if (is.null(grupos) ||
         (!length(grupos$grupos) &&
          !isTRUE(grupos$alcance$truncado) &&
-         isTRUE(grupos$alcance$aplicable))) next
+         isTRUE(grupos$alcance$aplicable) &&
+         !identical(grupos$alcance$motivo_grupos, "sin_asimetria"))) next
     alcance <- grupos$alcance
     grupos_a_mostrar <- utils::head(grupos$grupos, max_grupos_mostrados)
     evidencia_grupos <- vapply(grupos_a_mostrar, function(grupo) {
@@ -512,6 +527,12 @@
       paste(evidencia_grupos, collapse = "; ")
     } else if (!isTRUE(alcance$aplicable)) {
       "No se entrega el grupo mayor: excede el limite de proporcion"
+    } else if (identical(alcance$motivo_grupos, "sin_asimetria")) {
+      paste0(
+        "No se formaron grupos por distancia: ",
+        alcance$n_candidatos_distancia,
+        " pares cercanos no tuvieron un centro de frecuencia unico"
+      )
     } else {
       "No se enumeraron grupos dentro del alcance comparado"
     }
@@ -521,6 +542,8 @@
         "Hay grupos de variantes dentro del vocabulario de la columna."
       } else if (!isTRUE(alcance$aplicable)) {
         "El grupo de variantes excede el limite y el diagnostico no aplica."
+      } else if (identical(alcance$motivo_grupos, "sin_asimetria")) {
+        "No se formaron grupos por distancia porque no hubo asimetria de frecuencia; usar detectar_duplicados_aproximados() para comparar filas."
       } else {
         "El vocabulario excede el alcance de enumeracion de variantes."
       },
@@ -535,11 +558,16 @@
         ", mostrados: ", length(grupos_a_mostrar), "; grupo_maximo: ",
         alcance$tamano_grupo_maximo, " (",
         formatC(alcance$proporcion_grupo_maximo, format = "f", digits = 3),
-        "). ",
+        "); limite_aplicado=", alcance$limite_aplicado,
+        "; motivo_grupos=", alcance$motivo_grupos, ". ",
         alcance$motivo_distancia
       ),
       if (isTRUE(alcance$aplicable)) {
-        "Revisar las variantes y declarar una normalizaci\u00f3n o regla de remediaci\u00f3n editable."
+        if (identical(alcance$motivo_grupos, "sin_asimetria")) {
+          "Usar detectar_duplicados_aproximados() para comparar filas cuando no hay una frecuencia central."
+        } else {
+          "Revisar las variantes y declarar una normalizaci\u00f3n o regla de remediaci\u00f3n editable."
+        }
       } else {
         "Revisar la columna con un alcance o criterio de vocabulario m\u00e1s espec\u00edfico."
       },

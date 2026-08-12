@@ -113,6 +113,23 @@ test_that("la distancia no encadena variantes en un solo grupo", {
   }
 })
 
+test_that("el piso informa un grupo real en vocabularios pequenos", {
+  construir <- function(n) {
+    c("Montevideo", "MONTEVIDEO", "Montevideo ",
+      paste0("aislado", seq_len(n - 3L)))
+  }
+  for (n in 3:12) {
+    resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
+      construir(n), lupa:::.resolver_normalizacion(TRUE), "x"
+    )
+    expect_true(resultado$alcance$limite_aplicado == (n >= 20L))
+    expect_true(any(vapply(resultado$grupos, function(grupo) {
+      all(c("Montevideo", "MONTEVIDEO", "Montevideo ") %in%
+        grupo$variantes)
+    }, logical(1L))))
+  }
+})
+
 test_that("un grupo que abarca casi todo el vocabulario no se entrega", {
   valores <- paste0(strrep("x", 80), sprintf("%04d", seq_len(2000)))
   datos <- c(rep(valores[[1L]], 10L), valores[-1L])
@@ -144,4 +161,35 @@ test_that("el detector de vocabulario se puede apagar", {
     perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario"
   ))
   expect_false(perfil$meta$casi_duplicados_vocabulario)
+})
+
+test_that("declara cuando la estrella no tiene asimetria", {
+  datos <- data.frame(x = c("Marano", "Marabo", "Maravo"))
+  perfil <- perfilar(
+    datos, analizar_dependencias = FALSE, normalizar = TRUE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  expect_match(hallazgo$evidencia, "sin_asimetria")
+  expect_match(hallazgo$sugerencia, "detectar_duplicados_aproximados")
+  expect_match(hallazgo$evidencia, "pares cercanos")
+  expect_true(is.na(hallazgo$n_afectados))
+})
+
+test_that("la ceguera de la estrella no oculta fusiones exactas", {
+  datos <- data.frame(x = c("San José", "San Jose", "Marano", "Marabo"))
+  perfil <- perfilar(
+    datos, analizar_dependencias = FALSE, normalizar = TRUE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  expect_match(hallazgo$evidencia, "San José")
+  expect_match(hallazgo$evidencia, "San Jose")
+  expect_match(hallazgo$evidencia, "motivo_grupos=sin_asimetria")
 })

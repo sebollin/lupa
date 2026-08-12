@@ -11,7 +11,11 @@
   transitivamente una cadena de vecinos. Cada grupo declara su distancia mínima
   y máxima, y `max_proporcion_grupo_vocabulario`
   permite declarar que el diagnóstico no aplica cuando un componente abarca
-  demasiado vocabulario. `casi_duplicados_vocabulario = FALSE` lo desactiva.
+  demasiado vocabulario; el filtro se activa desde 20 valores distintos para
+  no ocultar grupos inspeccionables en vocabularios pequeños. Cuando hay pares
+  cercanos pero no una frecuencia central única, el alcance declara la falta de
+  asimetría y apunta a `detectar_duplicados_aproximados()`.
+  `casi_duplicados_vocabulario = FALSE` lo desactiva.
   El alcance declara los valores y pares comparados, los recortes y la ausencia
   de [`stringdist`](https://cran.r-project.org/package=stringdist); las
   fusiones exactas se siguen informando sin ese paquete.
