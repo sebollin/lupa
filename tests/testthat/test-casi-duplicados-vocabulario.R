@@ -104,6 +104,7 @@ test_that("la distancia no encadena variantes en un solo grupo", {
   contiene <- vapply(grupos, function(grupo) {
     all(c("Marano", "Marebo") %in% grupo$variantes)
   }, logical(1L))
+  expect_gt(length(grupos), 0L)
   expect_false(any(contiene))
   if (length(grupos)) {
     expect_true(all(vapply(grupos, function(grupo) {

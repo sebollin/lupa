@@ -255,6 +255,7 @@ test_that("el modo guiado registra no actuar y admite diccionarios", {
   ))
   grupo <- unique(omitido$grupo[omitido$hallazgo == "mayusculas_inconsistentes"])
   en_grupo <- !is.na(omitido$grupo) & omitido$grupo == grupo
+  expect_gt(sum(en_grupo), 0L)
   expect_true(all(as.character(omitido$decision_grupo[en_grupo]) ==
                     "omitida"))
   expect_false(any(omitido$aplicar[en_grupo]))
@@ -546,6 +547,7 @@ test_that("el selector acepta posiciones e identificadores", {
     plan, datos,
     selector = function(decision) length(decision$elegibles) + 1L
   ))
+  expect_gt(nrow(por_omision), 0L)
   expect_false(any(por_omision$aplicar))
 
   id <- plan$id_accion[plan$estrategia == "convertir_mayusculas"]
@@ -570,6 +572,7 @@ test_that("el modo guiado identifica la recomendación explícita de conservar",
   expect_match(tail(observado, 1L), "No hacer nada \\(Recomendado\\)")
   expect_true(all(as.character(guiado$decision_grupo[!is.na(guiado$grupo)]) ==
                     "omitida"))
+  expect_gt(nrow(guiado), 0L)
   expect_false(any(guiado$aplicar))
 })
 

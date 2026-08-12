@@ -11,7 +11,7 @@ test_that("las fechas y separadores arbitrarios no son formas de documento", {
     stringsAsFactors = FALSE
   )
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
-  expect_false(any(perfil$datos_personales$columna %in% names(datos)))
+  expect_length(perfil$datos_personales$columna, 0L)
 })
 
 test_that("las formas estructuradas de CI y RUT siguen reconocidas", {
