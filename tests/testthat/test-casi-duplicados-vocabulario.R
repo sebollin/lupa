@@ -364,4 +364,7 @@ test_that("la distancia en nombres de vias queda declarada como sospecha", {
   expect_equal(nrow(hallazgo), 1L)
   expect_equal(as.character(hallazgo$severidad), "sospechoso")
   expect_match(hallazgo$evidencia, "origen=distancia")
+  expect_match(hallazgo$descripcion, "distancia es heurística")
+  expect_match(hallazgo$descripcion, "no confirma identidad")
+  expect_match(hallazgo$sugerencia, "distancia no confirma identidad")
 })

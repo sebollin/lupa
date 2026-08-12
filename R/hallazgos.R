@@ -657,10 +657,20 @@
     } else {
       "No se enumeraron grupos dentro del alcance comparado"
     }
+    hay_distancia <- length(grupos$grupos) > 0L && any(vapply(
+      grupos$grupos,
+      function(grupo) grepl("distancia", grupo$origen, fixed = TRUE),
+      logical(1L)
+    ))
+    descripcion_grupos <- if (hay_distancia) {
+      "Se detectaron valores cercanos; la distancia es heur\u00edstica y no confirma identidad."
+    } else {
+      "Hay grupos de variantes producidos por normalizaci\u00f3n; revisar las formas resultantes."
+    }
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
       columnas[[i]], "casi_duplicados_vocabulario", "sospechoso",
       if (length(evidencia_grupos)) {
-        "Hay grupos de variantes dentro del vocabulario de la columna."
+        descripcion_grupos
       } else if (!isTRUE(alcance$aplicable) &&
                  isTRUE(alcance$tamano_grupo_maximo_numerico > 0L)) {
         "El grupo de variantes excede el limite y el diagnostico no aplica."
@@ -695,7 +705,10 @@
         if (identical(alcance$motivo_grupos, "sin_asimetria")) {
           "Usar detectar_duplicados_aproximados() para comparar filas cuando no hay una frecuencia central."
         } else {
-          "Revisar las variantes y declarar una normalizaci\u00f3n o regla de remediaci\u00f3n editable."
+          paste0(
+            "Revisar las variantes y declarar una normalizaci\u00f3n o regla de remediaci\u00f3n editable",
+            if (hay_distancia) "; la distancia no confirma identidad." else "."
+          )
         }
       } else {
         "Revisar la columna con un alcance o criterio de vocabulario m\u00e1s espec\u00edfico."
