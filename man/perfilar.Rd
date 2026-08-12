@@ -262,10 +262,13 @@ conserva su frecuencia. Cada grupo declara sus distancias mínima y máxima.
 El límite \code{max_proporcion_grupo_vocabulario} evita presentar un grupo que
 abarque casi toda la columna como un diagnóstico útil: en ese caso el alcance
 dice que el diagnóstico no aplica. Ese límite se activa desde 20 valores
-distintos; en vocabularios más pequeños se entrega la evidencia completa,
-porque el grupo se puede inspeccionar directamente y la proporción no debe
-ocultar el caso fácil. El argumento permite apagar el detector cuando no
-corresponde a la tabla. Si hay pares cercanos pero todas las frecuencias
+distintos o cuando el grupo mayor ya tiene 10 variantes; sólo suprime el
+grupo si además ocupa una fracción mayor que el umbral. Así un grupo de tres
+en cuatro valores se entrega, pero quince variantes que ocupan toda una
+columna no se presentan como una sola familia. Un grupo grande dentro de un
+vocabulario mucho mayor puede seguir pasando si su proporción es pequeña. El
+alcance expone ambos cortes. El argumento permite apagar el detector cuando
+no corresponde a la tabla. Si hay pares cercanos pero todas las frecuencias
 empatan, el alcance declara que no hubo asimetría para formar una estrella y
 sugiere \code{\link[=detectar_duplicados_aproximados]{detectar_duplicados_aproximados()}} para comparar filas. El alcance
 declara los valores y pares

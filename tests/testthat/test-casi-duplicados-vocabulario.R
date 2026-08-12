@@ -130,6 +130,41 @@ test_that("el piso informa un grupo real en vocabularios pequenos", {
   }
 })
 
+test_that("un componente grande no se presenta como toda una columna chica", {
+  datos <- rep(paste0("Zona ", sprintf("%02d", seq_len(15))),
+               times = seq(100, 72, by = -2))
+  resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
+    datos, lupa:::.resolver_normalizacion(FALSE), "zona"
+  )
+  expect_false(resultado$alcance$aplicable)
+  expect_true(resultado$alcance$limite_aplicado)
+  expect_equal(resultado$alcance$min_tamano_grupo_limite, 10L)
+  expect_equal(resultado$alcance$tamano_grupo_maximo, 15L)
+  expect_length(resultado$grupos, 0L)
+  perfil <- perfilar(
+    data.frame(zona = datos), analizar_dependencias = FALSE,
+    normalizar = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  expect_match(hallazgo$evidencia, "grupo_maximo: 15")
+  expect_match(hallazgo$descripcion, "no aplica")
+
+  # El mismo grupo grande no se bloquea por su tamano cuando comparte la
+  # columna con un vocabulario mucho mayor y su proporcion es pequena.
+  relleno <- paste0("aislado", seq_len(100))
+  resultado_amplio <- lupa:::.grupos_casi_duplicados_vocabulario(
+    c(datos, relleno), lupa:::.resolver_normalizacion(FALSE), "zona"
+  )
+  expect_true(resultado_amplio$alcance$aplicable)
+  expect_true(any(vapply(resultado_amplio$grupos, function(grupo) {
+    length(grupo$variantes) == 15L
+  }, logical(1L))))
+})
+
 test_that("un grupo que abarca casi todo el vocabulario no se entrega", {
   valores <- paste0(strrep("x", 80), sprintf("%04d", seq_len(2000)))
   datos <- c(rep(valores[[1L]], 10L), valores[-1L])

@@ -11,8 +11,10 @@
   transitivamente una cadena de vecinos. Cada grupo declara su distancia mínima
   y máxima, y `max_proporcion_grupo_vocabulario`
   permite declarar que el diagnóstico no aplica cuando un componente abarca
-  demasiado vocabulario; el filtro se activa desde 20 valores distintos para
-  no ocultar grupos inspeccionables en vocabularios pequeños. Cuando hay pares
+  demasiado vocabulario; el filtro se activa desde 20 valores distintos o
+  cuando el grupo mayor tiene al menos 10 variantes, y sólo suprime si la
+  proporción también supera el umbral. Así no oculta grupos pequeños, pero
+  tampoco entrega una columna entera como una sola familia. Cuando hay pares
   cercanos pero no una frecuencia central única, el alcance declara la falta de
   asimetría y apunta a `detectar_duplicados_aproximados()`.
   `casi_duplicados_vocabulario = FALSE` lo desactiva.

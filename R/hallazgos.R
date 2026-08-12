@@ -398,12 +398,14 @@
   proporcion_grupo_maximo <- if (n_evaluados) {
     tamano_grupo_maximo / n_evaluados
   } else 0
-  # El piso deja que vocabularios pequenos entreguen el grupo completo: alli
-  # la proporcion no puede distinguir un componente grande de una evidencia
-  # facil de inspeccionar. Desde 20 valores el limite protege contra bloques
-  # que abarcan casi toda una columna.
+  # Un vocabulario pequeno puede contener un grupo facil de inspeccionar, pero
+  # un componente que ya tiene muchas variantes es una senal de que se esta
+  # agrupando la columna entera. El limite se activa por cualquiera de esas dos
+  # senales y solo suprime si ademas la proporcion es grande.
   min_valores_limite <- 20L
-  limite_aplicado <- n_evaluados >= min_valores_limite
+  min_tamano_grupo_limite <- 10L
+  limite_aplicado <- n_evaluados >= min_valores_limite ||
+    tamano_grupo_maximo >= min_tamano_grupo_limite
   # Las fusiones exactas siguen siendo evidencia util aunque `stringdist` no
   # este instalado; el limite evita solamente entregar grupos enormes cuando
   # el diagnostico de distancia esta disponible y puede haber encadenamiento.
@@ -472,6 +474,7 @@
       max_valores = max_valores, max_pares = max_pares,
       max_proporcion_grupo = max_proporcion_grupo,
       min_valores_limite = min_valores_limite,
+      min_tamano_grupo_limite = min_tamano_grupo_limite,
       limite_aplicado = limite_aplicado,
       tamano_grupo_maximo = tamano_grupo_maximo,
       proporcion_grupo_maximo = proporcion_grupo_maximo,
