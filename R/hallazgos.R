@@ -639,7 +639,8 @@
     }, character(1L))
     grupos_texto <- if (length(evidencia_grupos)) {
       paste(evidencia_grupos, collapse = "; ")
-    } else if (!isTRUE(alcance$aplicable)) {
+    } else if (!isTRUE(alcance$aplicable) &&
+               isTRUE(alcance$tamano_grupo_maximo_numerico > 0L)) {
       "No se entrega el grupo mayor: excede el limite de proporcion"
     } else if (isTRUE(alcance$n_pares_descartados_numeros > 0L)) {
       paste0(
@@ -660,7 +661,8 @@
       columnas[[i]], "casi_duplicados_vocabulario", "sospechoso",
       if (length(evidencia_grupos)) {
         "Hay grupos de variantes dentro del vocabulario de la columna."
-      } else if (!isTRUE(alcance$aplicable)) {
+      } else if (!isTRUE(alcance$aplicable) &&
+                 isTRUE(alcance$tamano_grupo_maximo_numerico > 0L)) {
         "El grupo de variantes excede el limite y el diagnostico no aplica."
       } else if (isTRUE(alcance$n_pares_descartados_numeros > 0L)) {
         "No se formaron grupos porque las diferencias numericas se consideran entidades distintas; revisar con una regla especifica si la columna usa otra codificacion."

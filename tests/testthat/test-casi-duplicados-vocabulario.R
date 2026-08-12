@@ -190,6 +190,10 @@ test_that("las secuencias numericas separan familias de entidades", {
   expect_equal(nrow(hallazgo_zonas), 1L)
   expect_match(hallazgo_zonas$evidencia,
                "descartados por secuencia numerica")
+  expect_false(grepl("No se entrega el grupo mayor",
+                     hallazgo_zonas$evidencia, fixed = TRUE))
+  expect_match(hallazgo_zonas$descripcion,
+               "diferencias numericas se consideran entidades distintas")
 
   ruta <- lupa:::.grupos_casi_duplicados_vocabulario(
     c(rep("Ruta 5", 100), rep("Ruta 05", 10)),

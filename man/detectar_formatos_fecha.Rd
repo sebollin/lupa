@@ -25,6 +25,12 @@ indica si hay evidencia de dos o más representaciones en la columna.
 Se aceptan días y meses con uno o dos dígitos. Los años de dos dígitos se
 detectan, pero siempre quedan como candidatos y se señalan en la columna
 \code{anio_dos_digitos}: el siglo no se interpreta en silencio.
+También reconoce meses escritos en español rioplatense (\code{setiembre} y
+\code{set}) y en inglés, con la estructura completa de una fecha o como mes y
+año. La tabla interna de nombres no usa \code{LC_TIME}, por lo que el resultado
+es independiente del locale del proceso; los nombres de mes dentro de una
+oración no se reconocen. Un mes escrito desambigua día/mes, pero un año de
+dos dígitos sigue siendo candidato.
 El formato compacto \verb{\%Y\%m\%d} exige un año entre 1800 y 2100 para evitar que
 identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
 }

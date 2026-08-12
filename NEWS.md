@@ -1,5 +1,19 @@
 # lupa 0.1.0
 
+## Fechas con meses escritos
+
+- `detectar_formatos_fecha()` reconoce fechas con meses escritos en español
+  (incluye `setiembre` y `set`) y en inglés, además de los formatos numéricos
+  existentes. La tabla de nombres es propia y no depende de `LC_TIME`, y sólo
+  acepta la estructura completa de una fecha o de un mes con año: encontrar
+  `marzo` dentro de una oración no convierte el texto en fecha. Los meses
+  escritos desambiguan el día y el mes; los años de dos dígitos siguen siendo
+  candidatos y no se les asigna un siglo en silencio.
+- El hallazgo de variantes del vocabulario sólo atribuye el límite de proporción
+  cuando existe un grupo compatible que retener; si todas las cercanías fueron
+  descartadas por secuencias numéricas incompatibles, lo informa con ese
+  motivo.
+
 ## Variantes del vocabulario
 
 - `perfilar()` agrega el hallazgo `casi_duplicados_vocabulario`: agrupa, por

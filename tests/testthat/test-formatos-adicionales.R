@@ -35,6 +35,51 @@ test_that("coincidencias aisladas no convierten códigos en fechas mixtas", {
   expect_false(any(perfil$hallazgos$tipo_hallazgo == "formatos_fecha_mixtos"))
 })
 
+test_that("reconoce meses escritos en espanol e ingles sin locale", {
+  valores <- c(
+    "15 de marzo de 2024", "15-Mar-24", "15 mar 2024",
+    "1 de enero de 2020", "3-Ago-2023", "MARZO 2024", "Set 2024",
+    "15 de setiembre de 2024", "12 de Diciembre de 1999",
+    "31/01/2020", "2020-01-01"
+  )
+  resultado <- detectar_formatos_fecha(valores)
+  expect_equal(attr(resultado, "compatibles"), 11L)
+  expect_true(all(c(
+    "%d de %B de %Y", "%d-%b-%y", "%d %b %Y", "%d-%b-%Y",
+    "%B %Y", "%b %Y", "%d/%m/%Y", "%Y-%m-%d"
+  ) %in% resultado$formato))
+  expect_true(any(resultado$anio_dos_digitos & resultado$formato == "%d-%b-%y"))
+  expect_equal(inferir_tipo(valores)$tipo, "fecha")
+})
+
+test_that("los meses escritos no dependen de LC_TIME", {
+  valores <- c("15 de marzo de 2024", "3-Ago-2023", "15-Mar-24")
+  base <- detectar_formatos_fecha(valores)
+  locales <- c("C", "es_UY.UTF-8", "en_US.UTF-8")
+  resultados <- lapply(locales, function(locale) {
+    anterior <- Sys.getlocale("LC_TIME")
+    on.exit(Sys.setlocale("LC_TIME", anterior), add = TRUE)
+    try(Sys.setlocale("LC_TIME", locale), silent = TRUE)
+    detectar_formatos_fecha(valores)
+  })
+  for (resultado in resultados) {
+    expect_equal(resultado[, c("formato", "n", "estado", "anio_dos_digitos")],
+                 base[, c("formato", "n", "estado", "anio_dos_digitos")])
+    expect_equal(attr(resultado, "compatibles"), attr(base, "compatibles"))
+  }
+})
+
+test_that("nombres de mes dentro de texto libre no son fechas", {
+  valores <- c(
+    "La reunión será en marzo de 2024",
+    "Marzo es un mes del año",
+    "texto libre con agosto y diciembre"
+  )
+  resultado <- detectar_formatos_fecha(valores)
+  expect_equal(nrow(resultado), 0L)
+  expect_equal(attr(resultado, "compatibles"), 0L)
+})
+
 test_that("se detectan fechas repartidas entre tres columnas", {
   datos <- data.frame(
     fecha_anio = c(2020, 2021, 2022),
