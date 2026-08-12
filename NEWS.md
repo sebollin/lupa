@@ -9,6 +9,15 @@
   `marzo` dentro de una oración no convierte el texto en fecha. Los meses
   escritos desambiguan el día y el mes; los años de dos dígitos siguen siendo
   candidatos y no se les asigna un siglo en silencio.
+- Los períodos expresados sólo como mes y año declaran `granularidad = "mes"`
+  y no inventan el día 1 para calcular mínimos, medias o conversiones; esos
+  resúmenes quedan en `NA` con estado `granularidad_incompleta`. Los años
+  escritos en meses también se limitan al rango 1800--2100, como las fechas
+  compactas.
+- La detección de meses sólo ejecuta sus expresiones regulares sobre los
+  valores candidatos y reutiliza ese resultado al calcular el resumen de la
+  columna. Así el texto libre que menciona meses no paga el costo completo ni
+  se vuelve a analizar.
 - El hallazgo de variantes del vocabulario sólo atribuye el límite de proporción
   cuando existe un grupo compatible que retener; si todas las cercanías fueron
   descartadas por secuencias numéricas incompatibles, lo informa con ese

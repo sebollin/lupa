@@ -49,6 +49,15 @@
       return(list(valores = valores, clase = "numero"))
     }
     if (inferencia$tipo %in% c("fecha", "fecha-hora")) {
+      granularidades <- if (is.data.frame(formatos) &&
+          "granularidad" %in% names(formatos)) {
+        formatos$granularidad[formatos$estado == "confirmado"]
+      } else character()
+      if (any(granularidades == "mes")) {
+        return(list(
+          valores = numeric(), clase = "fecha_granularidad_incompleta"
+        ))
+      }
       fechas <- .parsear_fechas(x, formatos)
       return(list(valores = as.numeric(fechas), clase = inferencia$tipo))
     }
@@ -118,6 +127,9 @@
 
 .resumen_cuantitativo <- function(x, inferencia, formatos) {
   cuantitativos <- .valores_cuantitativos(x, inferencia, formatos)
+  if (identical(cuantitativos$clase, "fecha_granularidad_incompleta")) {
+    return(.resumen_vacio_cuantitativo("granularidad_incompleta"))
+  }
   if (identical(cuantitativos$clase, "integer64")) {
     return(.resumen_integer64(cuantitativos$valores))
   }

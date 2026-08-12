@@ -54,11 +54,12 @@ test_that("reconoce meses escritos en espanol e ingles sin locale", {
 
 test_that("los meses escritos no dependen de LC_TIME", {
   valores <- c("15 de marzo de 2024", "3-Ago-2023", "15-Mar-24")
+  anterior <- Sys.getlocale("LC_TIME")
+  on.exit(Sys.setlocale("LC_TIME", anterior), add = TRUE)
+  expect_equal(Sys.setlocale("LC_TIME", "C"), "C")
   base <- detectar_formatos_fecha(valores)
   locales <- c("C", "es_UY.UTF-8", "en_US.UTF-8")
   resultados <- lapply(locales, function(locale) {
-    anterior <- Sys.getlocale("LC_TIME")
-    on.exit(Sys.setlocale("LC_TIME", anterior), add = TRUE)
     try(Sys.setlocale("LC_TIME", locale), silent = TRUE)
     detectar_formatos_fecha(valores)
   })
@@ -67,6 +68,69 @@ test_that("los meses escritos no dependen de LC_TIME", {
                  base[, c("formato", "n", "estado", "anio_dos_digitos")])
     expect_equal(attr(resultado, "compatibles"), attr(base, "compatibles"))
   }
+})
+
+test_that("las expresiones de meses sólo recorren candidatos", {
+  longitudes <- integer()
+  original <- lupa:::.detectar_meses_regexec
+  local_mocked_bindings(
+    .detectar_meses_regexec = function(expresion, texto) {
+      longitudes <<- c(longitudes, length(texto))
+      original(expresion, texto)
+    },
+    .package = "lupa"
+  )
+  valores <- c(rep("texto libre con marzo adentro", 9999L),
+               "15 de marzo de 2024")
+  detectar_formatos_fecha(valores)
+  expect_gt(length(longitudes), 0L)
+  expect_true(all(longitudes == 1L))
+})
+
+test_that("el parseo de fechas reutiliza los meses ya detectados", {
+  llamadas <- 0L
+  original <- lupa:::.detectar_meses_texto
+  local_mocked_bindings(
+    .detectar_meses_texto = function(valores) {
+      llamadas <<- llamadas + 1L
+      original(valores)
+    },
+    .package = "lupa"
+  )
+  perfilar(
+    data.frame(fecha = c("15 de marzo de 2024", "16 de marzo de 2024")),
+    analizar_dependencias = FALSE
+  )
+  expect_equal(llamadas, 1L)
+})
+
+test_that("los períodos mensuales declaran su granularidad y no inventan días", {
+  valores <- c("enero 2023", "febrero 2023", "diciembre 2024")
+  formatos <- detectar_formatos_fecha(valores)
+  expect_equal(formatos$granularidad, "mes")
+  perfil <- perfilar(data.frame(periodo = valores), analizar_dependencias = FALSE)
+  fila <- perfil$columnas[perfil$columnas$columna == "periodo", , drop = FALSE]
+  expect_equal(fila$estado_resumen_cuantitativo, "granularidad_incompleta")
+  expect_true(is.na(fila$minimo_fecha) && is.na(fila$media_fecha))
+  expect_equal(perfil$formatos_fecha$periodo$granularidad, "mes")
+})
+
+test_that("los años de meses escritos quedan acotados al rango de fechas", {
+  expect_equal(attr(detectar_formatos_fecha(c("Set 1000", "Mar 1000")),
+                    "compatibles"), 0L)
+  expect_equal(attr(detectar_formatos_fecha(c("Set 1799", "Mar 2101")),
+                    "compatibles"), 0L)
+  expect_equal(attr(detectar_formatos_fecha(c("Set 1800", "Mar 2100")),
+                    "compatibles"), 2L)
+})
+
+test_that("separadores y comas reales forman formatos mixtos", {
+  ingles <- detectar_formatos_fecha(c("Mar 3, 2024", "Mar 4 2024"))
+  expect_true(attr(ingles, "formatos_mixtos"))
+  expect_setequal(ingles$formato, c("%b %d, %Y", "%b %d %Y"))
+  separados <- detectar_formatos_fecha(c("15-Mar-2024", "16 Mar 2024"))
+  expect_true(attr(separados, "formatos_mixtos"))
+  expect_setequal(separados$formato, c("%d-%b-%Y", "%d %b %Y"))
 })
 
 test_that("nombres de mes dentro de texto libre no son fechas", {

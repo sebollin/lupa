@@ -12,9 +12,10 @@ detectar_formatos_fecha(x, muestra = 1e+05)
 \item{muestra}{Máximo de valores que se analizan.}
 }
 \value{
-Data frame con formato, frecuencia, proporción, estado y conteos de
-casos inequívocos y ambiguos. Los atributos informan el muestreo, la
-cantidad de valores compatibles y la presencia de formatos mixtos.
+Data frame con formato, frecuencia, proporción, estado, granularidad
+(\code{"dia"} o \code{"mes"}) y conteos de casos inequívocos y ambiguos. Los
+atributos informan el muestreo, la cantidad de valores compatibles y la
+presencia de formatos mixtos.
 }
 \description{
 Reconoce formatos de fecha y fecha-hora sin escoger arbitrariamente entre
@@ -30,7 +31,8 @@ También reconoce meses escritos en español rioplatense (\code{setiembre} y
 año. La tabla interna de nombres no usa \code{LC_TIME}, por lo que el resultado
 es independiente del locale del proceso; los nombres de mes dentro de una
 oración no se reconocen. Un mes escrito desambigua día/mes, pero un año de
-dos dígitos sigue siendo candidato.
+dos dígitos sigue siendo candidato. Los formatos escritos de mes y año,
+igual que las fechas compactas, exigen un año entre 1800 y 2100.
 El formato compacto \verb{\%Y\%m\%d} exige un año entre 1800 y 2100 para evitar que
 identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
 }

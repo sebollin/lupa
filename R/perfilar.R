@@ -32,6 +32,10 @@
 #' `23` puede ser 1923 o 2023, y elegir el siglo para calcular un rango sería
 #' inventarlo. El hallazgo `anio_de_dos_digitos` señala esas columnas, y el
 #' rango aparece una vez que el usuario resuelve la ambigüedad.
+#' Una columna de períodos expresados sólo como mes y año informa la
+#' `granularidad` `"mes"` en `formatos_fecha` y deja los resúmenes de fecha en
+#' `NA` con `estado_resumen_cuantitativo = "granularidad_incompleta"`: asignar
+#' el día 1 para obtener un mínimo o una media también sería inventar un dato.
 #'
 #' Para números ordinarios, los estadísticos cuantitativos se calculan sólo con
 #' valores finitos; `n_nan`, `n_infinito_positivo` y `n_infinito_negativo`

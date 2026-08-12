@@ -115,7 +115,12 @@
   anio_comprobacion <- ifelse(dos_digitos, 2000L + anio, anio)
   texto <- sprintf("%04d-%02d-%02d", anio_comprobacion, mes, dia)
   convertido <- as.Date(texto, format = "%Y-%m-%d")
-  !is.na(convertido) & format(convertido, "%Y-%m-%d") == texto
+  en_rango <- anio_comprobacion >= 1800L & anio_comprobacion <= 2100L
+  !is.na(convertido) & en_rango & format(convertido, "%Y-%m-%d") == texto
+}
+
+.detectar_meses_regexec <- function(expresion, texto) {
+  regexec(expresion, texto, perl = TRUE)
 }
 
 .detectar_meses_texto <- function(valores) {
@@ -156,30 +161,36 @@
       formato = "mes_anio"
     )
   )
-  # Los nombres de mes de la tabla son ASCII. `chartr()` hace el plegado de
-  # caja sin consultar `LC_CTYPE`/`LC_TIME` (a diferencia de `tolower()`).
-  texto <- chartr(
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz",
-    trimws(as.character(valores))
-  )
+  texto_original <- trimws(as.character(valores))
   # La fecha debe empezar por un día o por el nombre del mes. Además de
   # expresar la estructura completa, esta guarda evita cuatro pasadas de
   # expresiones regulares sobre texto libre que sólo menciona un mes.
-  candidatos <- !is.na(texto) & grepl(
+  candidatos <- !is.na(texto_original) & grepl(
     paste0(
       "^(?:[0-9]{1,2}[[:space:]]+de[[:space:]]+|",
       "[0-9]{1,2}[-[:space:]]|(?:", .meses_fecha_regex,
       ")[[:space:]]+)"
-    ), texto, perl = TRUE
+    ), texto_original, perl = TRUE, ignore.case = TRUE
   )
   if (any(candidatos)) {
+    indices_candidatos <- which(candidatos)
+    # Los nombres de mes son ASCII; se pliega la caja sólo en los candidatos,
+    # sin consultar `LC_TIME` ni recorrer de nuevo el resto de la columna.
+    texto <- texto_original[indices_candidatos]
+    texto <- chartr(
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", texto
+    )
     for (patron in patrones) {
       coincidencias <- regmatches(
-        texto, regexec(patron$expresion, texto, perl = TRUE)
+        texto,
+        .detectar_meses_regexec(patron$expresion, texto)
       )
-      indices <- which(!validos & candidatos & lengths(coincidencias) > 1L)
-      if (!length(indices)) next
-      capturas <- coincidencias[indices]
+      indices_locales <- which(
+        !validos[indices_candidatos] & lengths(coincidencias) > 1L
+      )
+      if (!length(indices_locales)) next
+      indices <- indices_candidatos[indices_locales]
+      capturas <- coincidencias[indices_locales]
       if (identical(patron$formato, "de") ||
           identical(patron$formato, "separado")) {
         dias_candidatos <- as.integer(vapply(capturas, `[[`, character(1L), 2L))
@@ -208,14 +219,28 @@
         paste0("%d de %", ifelse(nchar(nombres_validos) > 3L, "B", "b"),
                " de %", ifelse(dos_validos, "y", "Y"))
       } else if (identical(patron$formato, "separado")) {
-        separadores <- ifelse(grepl("-", texto[indices_validos], fixed = TRUE),
-                              "-", " ")
-        paste0("%d", separadores, "%",
-               ifelse(nchar(nombres_validos) > 3L, "B", "b"), separadores,
-               "%", ifelse(dos_validos, "y", "Y"))
+        separadores <- lapply(
+          regmatches(
+            texto[match(indices_validos, indices_candidatos)],
+            regexec("^[0-9]{1,2}([-[:space:]])[^-[:space:]]+([-[:space:]])",
+                    texto[match(indices_validos, indices_candidatos)], perl = TRUE)
+          ),
+          function(partes) partes[-1L]
+        )
+        paste0(
+          "%d", vapply(separadores, `[[`, character(1L), 1L), "%",
+          ifelse(nchar(nombres_validos) > 3L, "B", "b"),
+          vapply(separadores, `[[`, character(1L), 2L), "%",
+          ifelse(dos_validos, "y", "Y")
+        )
       } else if (identical(patron$formato, "ingles")) {
-        paste0("%", ifelse(nchar(nombres_validos) > 3L, "B", "b"),
-               " %d, %", ifelse(dos_validos, "y", "Y"))
+        comas <- grepl(",", texto[match(indices_validos, indices_candidatos)],
+                       fixed = TRUE)
+        paste0(
+          "%", ifelse(nchar(nombres_validos) > 3L, "B", "b"),
+          " %d", ifelse(comas, ",", ""), " %",
+          ifelse(dos_validos, "y", "Y")
+        )
       } else {
         paste0("%", ifelse(nchar(nombres_validos) > 3L, "B", "b"), " %Y")
       }
@@ -235,7 +260,8 @@
     filas[[length(filas) + 1L]] <- .fila_formato(
       formato, length(indices), n,
       estado = if (dos) "candidato" else "confirmado",
-      anio_dos_digitos = dos
+      anio_dos_digitos = dos,
+      granularidad = if (grepl("^%[Bb] %Y$", formato)) "mes" else "dia"
     )
   }
   list(
@@ -247,7 +273,8 @@
 
 .fila_formato <- function(formato, n, total, estado = "confirmado",
                           n_inequivocos = n, n_ambiguos = 0L,
-                          grupo_ambiguo = "", anio_dos_digitos = FALSE) {
+                          grupo_ambiguo = "", anio_dos_digitos = FALSE,
+                          granularidad = "dia") {
   data.frame(
     formato = formato,
     n = as.integer(n),
@@ -257,6 +284,7 @@
     n_ambiguos = as.integer(n_ambiguos),
     grupo_ambiguo = grupo_ambiguo,
     anio_dos_digitos = anio_dos_digitos,
+    granularidad = granularidad,
     stringsAsFactors = FALSE
   )
 }
@@ -276,16 +304,18 @@
 #' año. La tabla interna de nombres no usa `LC_TIME`, por lo que el resultado
 #' es independiente del locale del proceso; los nombres de mes dentro de una
 #' oración no se reconocen. Un mes escrito desambigua día/mes, pero un año de
-#' dos dígitos sigue siendo candidato.
+#' dos dígitos sigue siendo candidato. Los formatos escritos de mes y año,
+#' igual que las fechas compactas, exigen un año entre 1800 y 2100.
 #' El formato compacto `%Y%m%d` exige un año entre 1800 y 2100 para evitar que
 #' identificadores de ocho dígitos se clasifiquen parcialmente como fechas.
 #'
 #' @param x Vector de texto, fechas o fechas-hora.
 #' @param muestra Máximo de valores que se analizan.
 #'
-#' @return Data frame con formato, frecuencia, proporción, estado y conteos de
-#'   casos inequívocos y ambiguos. Los atributos informan el muestreo, la
-#'   cantidad de valores compatibles y la presencia de formatos mixtos.
+#' @return Data frame con formato, frecuencia, proporción, estado, granularidad
+#'   (`"dia"` o `"mes"`) y conteos de casos inequívocos y ambiguos. Los
+#'   atributos informan el muestreo, la cantidad de valores compatibles y la
+#'   presencia de formatos mixtos.
 #' @export
 #' @seealso [inferir_tipo()], [perfilar()]
 #'
@@ -360,6 +390,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     attr(resultado, "muestreado") <- muestra_x$muestreado
     attr(resultado, "compatibles") <- sum(valido)
     attr(resultado, "formatos_mixtos") <- FALSE
+    attr(resultado, "meses_texto") <- meses_texto
     return(resultado)
   }
   indices_restantes <- which(!cubiertos)
@@ -487,6 +518,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
       formato = character(), n = integer(), proporcion = numeric(),
       estado = character(), n_inequivocos = integer(), n_ambiguos = integer(),
       grupo_ambiguo = character(), anio_dos_digitos = logical(),
+      granularidad = character(),
       stringsAsFactors = FALSE
     )
   }
@@ -510,6 +542,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   attr(resultado, "muestreado") <- muestra_x$muestreado
   attr(resultado, "compatibles") <- sum(cubiertos)
   attr(resultado, "formatos_mixtos") <- mixtos
+  attr(resultado, "meses_texto") <- meses_texto
   resultado
 }
 
@@ -520,10 +553,25 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   if (!nrow(formatos)) {
     return(salida)
   }
-  meses <- .detectar_meses_texto(valores)
+  granularidades <- if ("granularidad" %in% names(formatos)) {
+    formatos$granularidad
+  } else {
+    rep("dia", nrow(formatos))
+  }
+  mes_sin_dia <- grepl("^%[Bb] %Y$", formatos$formato)
   formatos_meses <- unique(formatos$formato[
-    grepl("%[Bb]", formatos$formato)
+    grepl("%[Bb]", formatos$formato) &
+      granularidades != "mes" & !mes_sin_dia
   ])
+  meses <- if (length(formatos_meses)) {
+    calculados <- attr(formatos, "meses_texto", exact = TRUE)
+    if (is.null(calculados) ||
+        length(calculados$validos) != length(valores)) {
+      .detectar_meses_texto(valores)
+    } else {
+      calculados
+    }
+  } else NULL
   for (formato in formatos_meses[formatos$estado[
       match(formatos_meses, formatos$formato)
     ] == "confirmado"]) {

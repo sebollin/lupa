@@ -201,6 +201,10 @@ Una columna cuyo año se expresa con dos dígitos se informa con su
 \code{23} puede ser 1923 o 2023, y elegir el siglo para calcular un rango sería
 inventarlo. El hallazgo \code{anio_de_dos_digitos} señala esas columnas, y el
 rango aparece una vez que el usuario resuelve la ambigüedad.
+Una columna de períodos expresados sólo como mes y año informa la
+\code{granularidad} \code{"mes"} en \code{formatos_fecha} y deja los resúmenes de fecha en
+\code{NA} con \code{estado_resumen_cuantitativo = "granularidad_incompleta"}: asignar
+el día 1 para obtener un mínimo o una media también sería inventar un dato.
 
 Para números ordinarios, los estadísticos cuantitativos se calculan sólo con
 valores finitos; \code{n_nan}, \code{n_infinito_positivo} y \code{n_infinito_negativo}

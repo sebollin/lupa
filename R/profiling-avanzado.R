@@ -395,6 +395,10 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   if (!is.character(x) && !is.factor(x)) return(NULL)
   if (is.null(formatos)) formatos <- detectar_formatos_fecha(x)
   if (!nrow(formatos) || !any(formatos$estado == "confirmado")) return(NULL)
+  if ("granularidad" %in% names(formatos) &&
+      any(formatos$granularidad[formatos$estado == "confirmado"] == "mes")) {
+    return(NULL)
+  }
   as.Date(.parsear_fechas(x, formatos), tz = "UTC")
 }
 
