@@ -18,6 +18,11 @@
   valores candidatos y reutiliza ese resultado al calcular el resumen de la
   columna. Así el texto libre que menciona meses no paga el costo completo ni
   se vuelve a analizar.
+- Ese resultado intermedio se mantiene sólo durante el perfilado y no queda
+  adjunto al objeto público `formatos_fecha`. En columnas mixtas, los resúmenes
+  de fecha se calculan sobre las fechas completas y declaran cuántas fechas de
+  mes-año quedaron fuera; una columna compuesta sólo por períodos conserva el
+  estado `granularidad_incompleta`.
 - El hallazgo de variantes del vocabulario sólo atribuye el límite de proporción
   cuando existe un grupo compatible que retener; si todas las cercanías fueron
   descartadas por secuencias numéricas incompatibles, lo informa con ese

@@ -36,6 +36,12 @@
 #' `granularidad` `"mes"` en `formatos_fecha` y deja los resúmenes de fecha en
 #' `NA` con `estado_resumen_cuantitativo = "granularidad_incompleta"`: asignar
 #' el día 1 para obtener un mínimo o una media también sería inventar un dato.
+#' Si esos períodos son minoritarios dentro de una columna que también contiene
+#' fechas con día, los resúmenes se calculan sólo sobre las fechas completas y
+#' declaran `estado_resumen_cuantitativo = "calculados_sobre_dias"`, junto con
+#' `n_fechas_resumidas` y `n_fechas_excluidas_granularidad`. El mínimo y el máximo
+#' son entonces condicionales al subconjunto con día; no representan un rango
+#' de toda la columna.
 #'
 #' Para números ordinarios, los estadísticos cuantitativos se calculan sólo con
 #' valores finitos; `n_nan`, `n_infinito_positivo` y `n_infinito_negativo`

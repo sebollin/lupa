@@ -112,7 +112,25 @@ test_that("los períodos mensuales declaran su granularidad y no inventan días"
   fila <- perfil$columnas[perfil$columnas$columna == "periodo", , drop = FALSE]
   expect_equal(fila$estado_resumen_cuantitativo, "granularidad_incompleta")
   expect_true(is.na(fila$minimo_fecha) && is.na(fila$media_fecha))
+  expect_equal(fila$n_fechas_resumidas, 0L)
+  expect_equal(fila$n_fechas_excluidas_granularidad, 3L)
   expect_equal(perfil$formatos_fecha$periodo$granularidad, "mes")
+})
+
+test_that("los períodos minoritarios quedan fuera con alcance explícito", {
+  valores <- c(sprintf("2023-01-%02d", seq_len(9L)), "enero 2022")
+  perfil <- perfilar(
+    data.frame(fecha = valores), analizar_dependencias = FALSE
+  )
+  fila <- perfil$columnas[perfil$columnas$columna == "fecha", , drop = FALSE]
+  expect_equal(fila$estado_resumen_cuantitativo, "calculados_sobre_dias")
+  expect_equal(fila$n_fechas_resumidas, 9L)
+  expect_equal(fila$n_fechas_excluidas_granularidad, 1L)
+  expect_equal(fila$minimo_fecha, "2023-01-01")
+  expect_equal(fila$maximo_fecha, "2023-01-09")
+  expect_match(
+    paste(names(fila), collapse = " "), "n_fechas_excluidas_granularidad"
+  )
 })
 
 test_that("los años de meses escritos quedan acotados al rango de fechas", {

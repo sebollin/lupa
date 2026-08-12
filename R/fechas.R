@@ -323,6 +323,14 @@
 #' detectar_formatos_fecha(c("2020-01-31", "31/01/2020"))
 #' detectar_formatos_fecha(c("01/02/2020", "02/03/2020"))
 detectar_formatos_fecha <- function(x, muestra = 1e5) {
+  resultado <- .detectar_formatos_fecha_interno(x, muestra)
+  attr(resultado, "meses_texto") <- NULL
+  resultado
+}
+
+# El resultado público no lleva el parser intermedio de meses. El recorrido
+# interno lo conserva sólo hasta pasarlo al resumen de la columna.
+.detectar_formatos_fecha_interno <- function(x, muestra = 1e5) {
   if (inherits(x, "data.frame")) {
     stop("`x` debe ser un vector, no un data.frame.", call. = FALSE)
   }
@@ -546,7 +554,8 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   resultado
 }
 
-.parsear_fechas <- function(x, formatos = detectar_formatos_fecha(x)) {
+.parsear_fechas <- function(x, formatos = detectar_formatos_fecha(x),
+                            meses_texto = NULL) {
   valores <- .texto_analizable(x)$valores
   valores <- trimws(valores)
   salida <- rep(as.POSIXct(NA, tz = "UTC"), length(valores))
@@ -564,10 +573,10 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
       granularidades != "mes" & !mes_sin_dia
   ])
   meses <- if (length(formatos_meses)) {
-    calculados <- attr(formatos, "meses_texto", exact = TRUE)
+    calculados <- meses_texto
     if (is.null(calculados) ||
         length(calculados$validos) != length(valores)) {
-      .detectar_meses_texto(valores)
+      calculados <- .detectar_meses_texto(valores)
     } else {
       calculados
     }

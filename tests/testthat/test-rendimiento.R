@@ -92,7 +92,51 @@ test_that("texto libre de cardinalidad alta no degrada el perfil", {
 
   tiempo <- system.time(resultado <- perfilar(datos))[["elapsed"]]
 
-  expect_lt(unname(tiempo), 5)
+  # La ronda 78 triplicó el costo del diagnóstico de vocabulario y lo llevó
+  # de 1,5 s a casi 5 s. El contador determinista del test siguiente vigila
+  # el trabajo fino; este reloj queda como red de arrastre con margen para el
+  # calentamiento de un proceso limpio, pero sigue detectando un desastre
+  # algorítmico.
+  expect_lt(unname(tiempo), 12)
+})
+
+test_that("el diagnóstico de vocabulario respeta su presupuesto de pares", {
+  pares_comparados <- 0
+  llamadas <- 0L
+  original <- lupa:::.comparar_bloques_duplicados
+  local_mocked_bindings(
+    .comparar_bloques_duplicados = function(
+        valores, filas, metodo, umbral, bloque, max_resultados, ...) {
+      llamadas <<- llamadas + 1L
+      pares_comparados <<- pares_comparados +
+        choose(length(valores), 2L)
+      original(valores, filas, metodo, umbral, bloque, max_resultados, ...)
+    },
+    .package = "lupa"
+  )
+  valores <- sprintf("valor-%08d", seq_len(10000L))
+  perfil <- perfilar(
+    data.frame(valor = valores), analizar_dependencias = FALSE
+  )
+  expect_equal(llamadas, 1L)
+  expect_equal(pares_comparados, choose(2000L, 2L))
+  expect_lte(pares_comparados, 2000000)
+  # Margen cero a propósito: una segunda pasada completa vuelve a fallar.
+  expect_failure(expect_lte(pares_comparados * 2L, 2000000))
+})
+
+test_that("el perfil no conserva el caché del detector de meses", {
+  datos <- data.frame(
+    a = rep("texto", 100000L), b = rep("otro", 100000L),
+    c = rep("15 de marzo de 2024", 100000L)
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  expect_false(any(vapply(
+    perfil$formatos_fecha,
+    function(x) "meses_texto" %in% names(attributes(x)),
+    logical(1L)
+  )))
+  expect_lt(as.numeric(object.size(perfil)), 2 * 1024^2)
 })
 
 test_that("texto libre conserva memoria y resumen de patrones", {

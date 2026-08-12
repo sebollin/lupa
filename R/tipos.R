@@ -87,7 +87,7 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
     valores, perl = TRUE
   )
 
-  formatos <- detectar_formatos_fecha(valores, muestra = muestra)
+  formatos <- .detectar_formatos_fecha_interno(valores, muestra = muestra)
   n_fechas <- attr(formatos, "compatibles")
   formatos_hora <- if (nrow(formatos)) grepl("%H", formatos$formato) else logical()
   tipo_fecha <- if (any(formatos_hora)) "fecha-hora" else "fecha"

@@ -30,39 +30,67 @@
   )
 }
 
-.valores_cuantitativos <- function(x, inferencia, formatos) {
+.valores_cuantitativos <- function(x, inferencia, formatos,
+                                   meses_texto = NULL) {
   if (inherits(x, "POSIXt")) {
-    return(list(valores = as.numeric(x), clase = "fecha-hora"))
+    return(list(valores = as.numeric(x), clase = "fecha-hora",
+                n_fechas_resumidas = sum(is.finite(x)),
+                n_fechas_excluidas_granularidad = 0L))
   }
   if (inherits(x, "Date")) {
-    return(list(valores = as.numeric(x) * 86400, clase = "fecha"))
+    return(list(valores = as.numeric(x) * 86400, clase = "fecha",
+                n_fechas_resumidas = sum(!is.na(x)),
+                n_fechas_excluidas_granularidad = 0L))
   }
   if (inherits(x, "integer64")) {
-    return(list(valores = x, clase = "integer64"))
+    return(list(valores = x, clase = "integer64",
+                n_fechas_resumidas = NA_integer_,
+                n_fechas_excluidas_granularidad = NA_integer_))
   }
   if (is.numeric(x)) {
-    return(list(valores = as.numeric(x), clase = "numero"))
+    return(list(valores = as.numeric(x), clase = "numero",
+                n_fechas_resumidas = NA_integer_,
+                n_fechas_excluidas_granularidad = NA_integer_))
   }
   if (is.character(x) || is.factor(x)) {
     if (inferencia$tipo %in% c("entero", "doble")) {
       valores <- suppressWarnings(as.numeric(sub(",", ".", as.character(x), fixed = TRUE)))
-      return(list(valores = valores, clase = "numero"))
+      return(list(valores = valores, clase = "numero",
+                  n_fechas_resumidas = NA_integer_,
+                  n_fechas_excluidas_granularidad = NA_integer_))
     }
     if (inferencia$tipo %in% c("fecha", "fecha-hora")) {
       granularidades <- if (is.data.frame(formatos) &&
           "granularidad" %in% names(formatos)) {
         formatos$granularidad[formatos$estado == "confirmado"]
       } else character()
-      if (any(granularidades == "mes")) {
+      tiene_mes <- any(granularidades == "mes")
+      tiene_dia <- any(granularidades == "dia")
+      if (tiene_mes && !tiene_dia) {
         return(list(
-          valores = numeric(), clase = "fecha_granularidad_incompleta"
+          valores = numeric(), clase = "fecha_granularidad_incompleta",
+          n_fechas_resumidas = 0L, n_fechas_excluidas_granularidad = sum(
+            formatos$n[formatos$estado == "confirmado" &
+              formatos$granularidad == "mes"], na.rm = TRUE
+          )
         ))
       }
-      fechas <- .parsear_fechas(x, formatos)
-      return(list(valores = as.numeric(fechas), clase = inferencia$tipo))
+      fechas <- .parsear_fechas(x, formatos, meses_texto = meses_texto)
+      excluidas <- if (tiene_mes) {
+        sum(formatos$n[formatos$estado == "confirmado" &
+          formatos$granularidad == "mes"], na.rm = TRUE)
+      } else 0L
+      return(list(
+        valores = as.numeric(fechas), clase = inferencia$tipo,
+        estado = if (tiene_mes) "calculados_sobre_dias" else "calculados",
+        n_fechas_resumidas = sum(is.finite(fechas)),
+        n_fechas_excluidas_granularidad = excluidas
+      ))
     }
   }
-  list(valores = numeric(), clase = "ninguna")
+  list(valores = numeric(), clase = "ninguna",
+       n_fechas_resumidas = NA_integer_,
+       n_fechas_excluidas_granularidad = NA_integer_)
 }
 
 .resumen_vacio_cuantitativo <- function(estado = "no_aplica") {
@@ -74,6 +102,8 @@
     mediana_fecha = NA_character_, n_ceros = NA_integer_,
     n_negativos = NA_integer_, n_outliers = NA_integer_, n_nan = 0L,
     n_infinito_positivo = 0L, n_infinito_negativo = 0L,
+    n_fechas_resumidas = NA_integer_,
+    n_fechas_excluidas_granularidad = NA_integer_,
     estado_resumen_cuantitativo = estado
   )
 }
@@ -125,10 +155,17 @@
   )
 }
 
-.resumen_cuantitativo <- function(x, inferencia, formatos) {
-  cuantitativos <- .valores_cuantitativos(x, inferencia, formatos)
+.resumen_cuantitativo <- function(x, inferencia, formatos,
+                                  meses_texto = NULL) {
+  cuantitativos <- .valores_cuantitativos(
+    x, inferencia, formatos, meses_texto = meses_texto
+  )
   if (identical(cuantitativos$clase, "fecha_granularidad_incompleta")) {
-    return(.resumen_vacio_cuantitativo("granularidad_incompleta"))
+    salida <- .resumen_vacio_cuantitativo("granularidad_incompleta")
+    salida$n_fechas_resumidas <- cuantitativos$n_fechas_resumidas
+    salida$n_fechas_excluidas_granularidad <-
+      cuantitativos$n_fechas_excluidas_granularidad
+    return(salida)
   }
   if (identical(cuantitativos$clase, "integer64")) {
     return(.resumen_integer64(cuantitativos$valores))
@@ -176,6 +213,8 @@
       n_outliers = n_outliers, n_nan = as.integer(n_nan),
       n_infinito_positivo = as.integer(n_infinito_positivo),
       n_infinito_negativo = as.integer(n_infinito_negativo),
+      n_fechas_resumidas = NA_integer_,
+      n_fechas_excluidas_granularidad = NA_integer_,
       estado_resumen_cuantitativo = "calculados"
     ))
   }
@@ -191,7 +230,17 @@
     n_nan = as.integer(n_nan),
     n_infinito_positivo = as.integer(n_infinito_positivo),
     n_infinito_negativo = as.integer(n_infinito_negativo),
-    estado_resumen_cuantitativo = "calculados"
+    n_fechas_resumidas = if (startsWith(cuantitativos$clase, "fecha") &&
+        !is.null(cuantitativos$n_fechas_resumidas)) {
+      cuantitativos$n_fechas_resumidas
+    } else NA_integer_,
+    n_fechas_excluidas_granularidad = if (
+      startsWith(cuantitativos$clase, "fecha") &&
+        !is.null(cuantitativos$n_fechas_excluidas_granularidad)
+    ) cuantitativos$n_fechas_excluidas_granularidad else NA_integer_,
+    estado_resumen_cuantitativo = if (!is.null(cuantitativos$estado)) {
+      cuantitativos$estado
+    } else "calculados"
   )
 }
 
@@ -888,6 +937,10 @@
   if (is.null(formatos)) {
     formatos <- detectar_formatos_fecha(x_analisis, muestra = muestra)
   }
+  meses_texto <- attr(formatos, "meses_texto", exact = TRUE)
+  # The month parser is an internal hand-off between type inference and the
+  # column summary. It must not remain attached to the public profile table.
+  attr(formatos, "meses_texto") <- NULL
   patrones <- if (is.character(x_analisis) || is.factor(x_analisis)) {
     descubrir_patrones(
       x_analisis,
@@ -924,7 +977,9 @@
   }
   moda <- .moda_columna(x_analisis)
   longitudes <- .resumen_longitud(x_analisis)
-  cuantitativo <- .resumen_cuantitativo(x_analisis, inferencia, formatos)
+  cuantitativo <- .resumen_cuantitativo(
+    x_analisis, inferencia, formatos, meses_texto = meses_texto
+  )
   diagnostico_texto <- .diagnosticar_texto(x, vocabulario = vocabulario_texto)
   vocabulario_numeros <- if (
     is.null(vocabulario_texto) &&
@@ -979,6 +1034,9 @@
     maximo_fecha = cuantitativo$maximo_fecha,
     media_fecha = cuantitativo$media_fecha,
     mediana_fecha = cuantitativo$mediana_fecha,
+    n_fechas_resumidas = cuantitativo$n_fechas_resumidas,
+    n_fechas_excluidas_granularidad =
+      cuantitativo$n_fechas_excluidas_granularidad,
     n_ceros = cuantitativo$n_ceros,
     n_negativos = cuantitativo$n_negativos,
     n_outliers = cuantitativo$n_outliers,
