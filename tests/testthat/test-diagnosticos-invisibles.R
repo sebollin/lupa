@@ -204,13 +204,14 @@ test_that("la comparación normalizada trata espacios y basura sin tocar ZWJ", {
     ), stringsAsFactors = FALSE
   )
   normalizado <- detectar_duplicados_aproximados(
-    datos, columnas = "nombre", estrategia = "teselas", umbral = 0,
+    datos, columnas = "nombre", estrategia = "teselas", umbral = 0.1,
     max_resultados = Inf
   )
   expect_true(any(normalizado$pares$tipo_par == "exacto"))
   sin_normalizar <- detectar_duplicados_aproximados(
-    datos, columnas = "nombre", estrategia = "teselas", umbral = 0,
+    datos, columnas = "nombre", estrategia = "teselas", umbral = 0.1,
     max_resultados = Inf, normalizar = FALSE
   )
+  expect_gt(nrow(sin_normalizar$pares), 0L)
   expect_false(any(sin_normalizar$pares$tipo_par == "exacto"))
 })

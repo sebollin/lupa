@@ -126,7 +126,8 @@ test_that("descarta relaciones entre magnitudes sin solapamiento", {
     edad = sample(18:95, 3000L, replace = TRUE),
     monto = runif(3000L, 100, 90000),
     anio = sample(2000:2025, 3000L, replace = TRUE),
-    cantidad = sample(1:10, 3000L, replace = TRUE)
+    cantidad = sample(1:10, 3000L, replace = TRUE),
+    texto = c(" borde", rep("ok", 2999L))
   )
   perfil_predeterminado <- perfilar(datos, analizar_dependencias = FALSE)
   relaciones <- perfil_predeterminado$hallazgos[
@@ -140,6 +141,7 @@ test_that("descarta relaciones entre magnitudes sin solapamiento", {
   perfil_filtrado <- perfilar(
     datos, analizar_dependencias = FALSE, umbral_solapamiento_orden = 0.4
   )
+  expect_gt(length(perfil_filtrado$hallazgos$tipo_hallazgo), 0L)
   expect_false(any(
     perfil_filtrado$hallazgos$tipo_hallazgo == "relacion_orden_columnas"
   ))
