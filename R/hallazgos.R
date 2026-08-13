@@ -306,6 +306,42 @@
   }, character(1L), USE.NAMES = FALSE)
 }
 
+# Clasifica la forma de la diferencia como evidencia, nunca como filtro. Se
+# aplica solo a las aristas que ya sobrevivieron al detector, no al cuadrado
+# completo del vocabulario.
+.clase_diferencia_vocabulario <- function(a, b) {
+  a <- trimws(as.character(a)); b <- trimws(as.character(b))
+  tokens_a <- strsplit(a, "[[:space:]]+", perl = TRUE)[[1L]]
+  tokens_b <- strsplit(b, "[[:space:]]+", perl = TRUE)[[1L]]
+  if (length(tokens_a) != length(tokens_b)) return("mixta")
+  distintos <- which(tokens_a != tokens_b)
+  if (!length(distintos)) return("sin_diferencia")
+  clases <- vapply(distintos, function(i) {
+    izquierda <- tokens_a[[i]]; derecha <- tokens_b[[i]]
+    izq <- strsplit(izquierda, "", fixed = TRUE)[[1L]]
+    der <- strsplit(derecha, "", fixed = TRUE)[[1L]]
+    limite <- min(length(izq), length(der))
+    prefijo <- 0L
+    while (prefijo < limite && identical(izq[[prefijo + 1L]], der[[prefijo + 1L]])) {
+      prefijo <- prefijo + 1L
+    }
+    sufijo <- 0L
+    while (sufijo < (limite - prefijo) &&
+           identical(izq[[length(izq) - sufijo]], der[[length(der) - sufijo]])) {
+      sufijo <- sufijo + 1L
+    }
+    if (prefijo >= 2L || sufijo >= 2L ||
+        grepl(izquierda, derecha, fixed = TRUE) ||
+        grepl(derecha, izquierda, fixed = TRUE)) {
+      "dentro_de_palabra"
+    } else {
+      "token_completo"
+    }
+  }, character(1L))
+  if (all(clases == "dentro_de_palabra")) "dentro_de_palabra" else
+    if (all(clases == "token_completo")) "token_completo" else "mixta"
+}
+
 .grupos_casi_duplicados_vocabulario <- function(x, perfil, columna,
                                                 max_valores = 5000L,
                                                 max_pares = 2000000L,
@@ -551,6 +587,26 @@
         distancia_maxima = if (length(distancia_total)) {
           max(distancia_total)
         } else NA_real_,
+        clase_diferencia = if (!por_distancia) {
+          "normalizacion_exacta"
+        } else {
+          aristas_grupo <- distancia_pares[
+            distancia_pares$fila_1 %in% indices &
+              distancia_pares$fila_2 %in% indices, , drop = FALSE
+          ]
+          clases_aristas <- vapply(seq_len(nrow(aristas_grupo)), function(j) {
+            .clase_diferencia_vocabulario(
+              crudos[[aristas_grupo$fila_1[[j]]]],
+              crudos[[aristas_grupo$fila_2[[j]]]]
+            )
+          }, character(1L))
+          if (!length(clases_aristas)) "indeterminada" else
+            if (all(clases_aristas == "dentro_de_palabra")) {
+              "dentro_de_palabra"
+            } else if (all(clases_aristas == "token_completo")) {
+              "token_completo"
+            } else "mixta"
+        },
         origen = paste(c("normalizacion", "distancia")[
           c(exacta, por_distancia)
         ], collapse = "+")
@@ -611,7 +667,9 @@
          !isTRUE(grupos$alcance$truncado) &&
          isTRUE(grupos$alcance$aplicable) &&
          !identical(grupos$alcance$motivo_grupos, "sin_asimetria") &&
-         !isTRUE(grupos$alcance$n_pares_descartados_numeros > 0L))) next
+         !isTRUE(grupos$alcance$n_pares_descartados_numeros > 0L) &&
+         (isTRUE(grupos$alcance$distancia_disponible) ||
+          isTRUE(grupos$alcance$n_unidades_normalizadas <= 1L)))) next
     alcance <- grupos$alcance
     grupos_a_mostrar <- utils::head(grupos$grupos, max_grupos_mostrados)
     evidencia_grupos <- vapply(grupos_a_mostrar, function(grupo) {
@@ -635,7 +693,8 @@
       } else ""
       paste0("[", variantes, "]; asimetria=",
              formatC(grupo$asimetria, format = "f", digits = 1),
-             "; origen=", grupo$origen, distancia)
+             "; origen=", grupo$origen,
+             "; clase_diferencia=", grupo$clase_diferencia, distancia)
     }, character(1L))
     grupos_texto <- if (length(evidencia_grupos)) {
       paste(evidencia_grupos, collapse = "; ")
@@ -654,6 +713,8 @@
         alcance$n_candidatos_distancia,
         " pares cercanos no tuvieron un centro de frecuencia unico"
       )
+    } else if (!isTRUE(alcance$distancia_disponible)) {
+      alcance$motivo_distancia
     } else {
       "No se enumeraron grupos dentro del alcance comparado"
     }
@@ -662,7 +723,9 @@
       function(grupo) grepl("distancia", grupo$origen, fixed = TRUE),
       logical(1L)
     ))
-    descripcion_grupos <- if (hay_distancia) {
+    descripcion_grupos <- if (!isTRUE(alcance$distancia_disponible)) {
+      "No se pudo evaluar la proximidad del vocabulario: falta el paquete opcional 'stringdist'; este resultado no declara que no haya variantes."
+    } else if (hay_distancia) {
       "Se detectaron valores cercanos; la distancia es heur\u00edstica y no confirma identidad."
     } else {
       "Hay grupos de variantes producidos por normalizaci\u00f3n; revisar las formas resultantes."
@@ -678,6 +741,8 @@
         "No se formaron grupos porque las diferencias numericas se consideran entidades distintas; revisar con una regla especifica si la columna usa otra codificacion."
       } else if (identical(alcance$motivo_grupos, "sin_asimetria")) {
         "No se formaron grupos por distancia porque no hubo asimetria de frecuencia; usar detectar_duplicados_aproximados() para comparar filas."
+      } else if (!isTRUE(alcance$distancia_disponible)) {
+        "No se pudo evaluar la proximidad del vocabulario: falta el paquete opcional 'stringdist'; este resultado no declara que no haya variantes."
       } else {
         "El vocabulario excede el alcance de enumeracion de variantes."
       },
@@ -750,6 +815,7 @@
     negativos_no_permitidos = as.numeric(fila$n_negativos),
     outliers = as.numeric(fila$n_outliers),
     numero_como_texto = as.numeric(fila$n_numeros_texto),
+    zona_horaria_fecha_hora = as.numeric(fila$n_fechas_civiles_distintas_utc),
     patron_raro = {
       resumen <- attr(resultado$patrones, "resumen_patrones")
       distintos <- attr(resultado$patrones, "n_patrones_distintos")
@@ -918,6 +984,13 @@
         !is.na(texto) & nzchar(texto) & partes$compatible & partes$especial
       )
     },
+    zona_horaria_fecha_hora = if (inherits(x, "POSIXt")) {
+      presentes <- !is.na(x)
+      zona <- .zona_horaria_origen(x)
+      origen <- format(x, "%Y-%m-%d", tz = if (zona == "local") "" else zona)
+      utc <- format(x, "%Y-%m-%d", tz = "UTC")
+      which(presentes & origen != utc)
+    } else NULL,
     valores_no_finitos = if (is.numeric(x)) which(is.nan(x) | !is.finite(x)) else NULL,
     ceros_no_permitidos = if (is.numeric(x)) which(!is.na(x) & x == 0) else NULL,
     negativos_no_permitidos = if (is.numeric(x)) which(!is.na(x) & x < 0) else NULL,
@@ -1227,6 +1300,19 @@
         "Conviven dos o m\u00e1s formatos de fecha o fecha-hora.",
         evidencia,
         "Estandarizar la columna a un \u00fanico formato antes de convertirla a fecha."
+      ))
+    }
+
+    if (isTRUE(fila$fecha_civil_distinta_utc)) {
+      agregar(.nuevo_hallazgo(
+        nombre, "zona_horaria_fecha_hora", "sospechoso",
+        "La conversi\u00f3n de fecha-hora a UTC cambia la fecha civil del dato.",
+        paste0(
+          "Zona de origen: ", fila$zona_horaria_origen,
+          "; ", fila$n_fechas_civiles_distintas_utc,
+          " valores cambian de fecha civil al expresarse en UTC."
+        ),
+        "Conservar la zona de origen al interpretar el calendario civil y revisar los valores se\u00f1alados."
       ))
     }
 

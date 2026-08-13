@@ -25,6 +25,10 @@
 #' la detección de formatos de fecha. Las demás métricas y hallazgos se calculan
 #' sobre todas las filas. Por eso `meta$filas_analizadas` describe el máximo
 #' usado por los análisis muestreados, no el alcance del perfil completo.
+#' En cada fila de `columnas`, `n_filas_analizadas_tipo` y
+#' `muestreado_tipo_inferido` declaran el alcance concreto de
+#' `proporcion_tipo_inferido`; no debe interpretarse esa proporción como si
+#' hubiera usado necesariamente toda la columna.
 #'
 #' Una columna cuyo año se expresa con dos dígitos se informa con su
 #' `tipo_inferido` —`"fecha"` o `"fecha-hora"`— pero deja `minimo_fecha`,
@@ -65,7 +69,10 @@
 #'
 #' Los resúmenes de fecha-hora se expresan siempre en UTC y llevan el sufijo
 #' `UTC` en el texto para hacer visible la zona aplicada. El instante se
-#' conserva aunque la columna de entrada use otra zona horaria.
+#' conserva aunque la columna de entrada use otra zona horaria. Las columnas
+#' `POSIXt` declaran `zona_horaria_origen` y
+#' `n_fechas_civiles_distintas_utc`; cuando la fecha civil cambia al mostrar el
+#' instante en UTC se emite un hallazgo `zona_horaria_fecha_hora`.
 #'
 #' El diagnóstico de formas Unicode compara sin modificar el texto y puede usar
 #' el paquete opcional `stringi` para enriquecer la evidencia cuando existen
@@ -112,6 +119,9 @@
 #' no corresponde a la tabla. Si hay pares cercanos pero todas las frecuencias
 #' empatan, el alcance declara que no hubo asimetría para formar una estrella y
 #' sugiere [detectar_duplicados_aproximados()] para comparar filas. El alcance
+#' clasifica cada grupo de distancia como `dentro_de_palabra`, `token_completo`
+#' o `mixta`; es evidencia descriptiva, no una decisión sobre identidad. El
+#' agrupamiento no cambia por esa etiqueta. El alcance
 #' también descarta aristas de distancia cuyos números no coinciden. Se comparan
 #' las secuencias numéricas, quitando ceros de relleno y separadores de miles;
 #' una diferencia numérica se trata como otra entidad. Esto puede dejar sin

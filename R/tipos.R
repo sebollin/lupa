@@ -27,7 +27,8 @@
 #' @param muestra Máximo de valores que se analizan.
 #'
 #' @return Lista de clase `inferencia_tipo` con `tipo`, `proporcion`, conteos,
-#'   candidatos evaluados y, cuando corresponde, formatos de fecha. El resultado
+#'   candidatos evaluados y, cuando corresponde, formatos de fecha. `n_analizados`
+#'   y `muestreado` declaran cuántos valores sostienen la proporción. El resultado
 #'   público no conserva cachés internos del perfilado.
 #' @export
 #' @seealso [detectar_formatos_fecha()], [descubrir_patrones()], [perfilar()]

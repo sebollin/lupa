@@ -15,6 +15,10 @@ scale. It reports the scope, evidence, and uncertainty of every result.
 The public API, help pages, and vignettes are in Spanish. The names are stable
 and can be copied from this English guide; the [Spanish
 README](README.es.md) tells the same story in Spanish.
+This is an internationalized core with a Spanish interface: translating the
+public names would break code, tests, and vignettes, so contributors should
+expect the contract itself to remain in Spanish while the surrounding guidance
+can be read in English.
 
 ## 🌎 API language
 
@@ -126,7 +130,9 @@ list(marco = marco, propuesta = propuesta)
 ~~~
 
 The API has a few boundaries worth knowing. There is no global quality score:
-dimensions, units, and rules stay visible. The core is universal and
+dimensions, units, and rules stay visible. A factory weighting would be a
+verdict about what matters, so `lupa` exposes the components and a recipe and
+leaves the weights to each project. The core is universal and
 catalogues are pluggable; [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
 v1.6 is a reference implementation, not a country lock. The package has one
 required import, [`cli`](https://cran.r-project.org/package=cli);

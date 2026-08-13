@@ -69,6 +69,26 @@
   class(x)[[1L]]
 }
 
+.zona_horaria_origen <- function(x) {
+  if (!inherits(x, "POSIXt")) return(NA_character_)
+  zona <- attr(x, "tzone", exact = TRUE)
+  if (length(zona) && !is.na(zona[[1L]]) && nzchar(zona[[1L]])) {
+    as.character(zona[[1L]])
+  } else {
+    "local"
+  }
+}
+
+.fechas_civiles_distintas_utc <- function(x) {
+  if (!inherits(x, "POSIXt")) return(NA_integer_)
+  presentes <- !is.na(x)
+  if (!any(presentes)) return(0L)
+  zona <- .zona_horaria_origen(x)
+  civil_origen <- format(x[presentes], "%Y-%m-%d", tz = if (zona == "local") "" else zona)
+  civil_utc <- format(x[presentes], "%Y-%m-%d", tz = "UTC")
+  as.integer(sum(civil_origen != civil_utc, na.rm = TRUE))
+}
+
 .texto_valor <- function(x) {
   if (length(x) == 0L || is.na(x[[1L]])) {
     return(NA_character_)

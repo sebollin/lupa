@@ -942,6 +942,11 @@
     formatos <- detectar_formatos_fecha(x_analisis, muestra = muestra)
   }
   meses_texto <- attr(formatos, "meses_texto", exact = TRUE)
+  zona_horaria_origen <- .zona_horaria_origen(x)
+  n_fechas_civiles_distintas_utc <- .fechas_civiles_distintas_utc(x)
+  attr(formatos, "zona_horaria_origen") <- zona_horaria_origen
+  attr(formatos, "n_fechas_civiles_distintas_utc") <-
+    n_fechas_civiles_distintas_utc
   # The month parser is an internal hand-off between type inference and the
   # column summary. It must not remain attached to the public profile table.
   attr(formatos, "meses_texto") <- NULL
@@ -1005,6 +1010,8 @@
     tipo_declarado = .tipo_declarado(x),
     tipo_inferido = inferencia$tipo,
     proporcion_tipo_inferido = inferencia$proporcion,
+    n_filas_analizadas_tipo = inferencia$n_analizados,
+    muestreado_tipo_inferido = inferencia$muestreado,
     n = n,
     n_faltantes = n_faltantes,
     prop_faltantes = if (n) n_faltantes / n else NA_real_,
@@ -1048,6 +1055,11 @@
     n_infinito_positivo = cuantitativo$n_infinito_positivo,
     n_infinito_negativo = cuantitativo$n_infinito_negativo,
     estado_resumen_cuantitativo = cuantitativo$estado_resumen_cuantitativo,
+    zona_horaria_origen = zona_horaria_origen,
+    n_fechas_civiles_distintas_utc = n_fechas_civiles_distintas_utc,
+    fecha_civil_distinta_utc = if (is.na(n_fechas_civiles_distintas_utc)) {
+      NA
+    } else n_fechas_civiles_distintas_utc > 0L,
     detalle_proteccion_personal = NA_character_,
     n_blancos = n_blancos,
     n_espacios_borde = diagnostico_texto$n_espacios_borde,
@@ -1100,6 +1112,8 @@
   fila$tipo_declarado <- "matriz"
   fila$tipo_inferido <- "desconocido"
   fila$proporcion_tipo_inferido <- NA_real_
+  fila$n_filas_analizadas_tipo <- NA_integer_
+  fila$muestreado_tipo_inferido <- NA
   fila$n <- NROW(x)
   enteros_na <- c(
     "n_faltantes", "n_faltantes_disfrazados",
@@ -1132,6 +1146,9 @@
   fila$media_fecha <- NA_character_
   fila$mediana_fecha <- NA_character_
   fila$estado_resumen_cuantitativo <- "tipo_compuesto_no_analizado"
+  fila$zona_horaria_origen <- NA_character_
+  fila$n_fechas_civiles_distintas_utc <- NA_integer_
+  fila$fecha_civil_distinta_utc <- NA
   fila$numero_texto_ambiguo <- FALSE
   fila$numero_texto_seguro <- FALSE
   fila$numero_texto_unidad <- ""

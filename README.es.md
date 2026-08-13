@@ -15,6 +15,10 @@ Cada resultado declara su alcance, evidencia e incertidumbre.
 La API pública, la ayuda y las viñetas están en español. Los nombres son
 estables y se pueden copiar de esta guía; el [README en
 inglés](README.md) cuenta lo mismo para lectores que prefieren ese idioma.
+La internacionalización está en el núcleo, no en la interfaz: traducir los
+nombres públicos rompería código, pruebas y viñetas. Por eso el contrato se
+mantiene en español, mientras la documentación que lo rodea puede leerse en
+inglés.
 
 ## 🌎 Idioma de la API
 
@@ -127,7 +131,9 @@ list(marco = marco, propuesta = propuesta)
 ~~~
 
 La API tiene algunos límites importantes. No hay un puntaje global: las
-dimensiones, unidades y reglas permanecen visibles. El núcleo es universal y
+dimensiones, unidades y reglas permanecen visibles. Una ponderación de fábrica
+sería decidir qué importa, así que `lupa` entrega los componentes y una receta,
+y deja los pesos a cada proyecto. El núcleo es universal y
 los catálogos son enchufables; [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
 v1.6 es una implementación de referencia, no un límite nacional. El paquete
 tiene un solo import obligatorio, [`cli`](https://cran.r-project.org/package=cli);

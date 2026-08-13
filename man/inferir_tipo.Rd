@@ -15,7 +15,8 @@ inferir_tipo(x, umbral = 0.8, muestra = 1e+05)
 }
 \value{
 Lista de clase \code{inferencia_tipo} con \code{tipo}, \code{proporcion}, conteos,
-candidatos evaluados y, cuando corresponde, formatos de fecha. El resultado
+candidatos evaluados y, cuando corresponde, formatos de fecha. \code{n_analizados}
+y \code{muestreado} declaran cuántos valores sostienen la proporción. El resultado
 público no conserva cachés internos del perfilado.
 }
 \description{
