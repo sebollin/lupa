@@ -136,8 +136,9 @@
   )
 }
 
-.resumen_severidades <- function(x) {
+.resumen_severidades <- function(x, no_evaluados = 0L) {
   severidades <- as.character(x)
+  diagnosticos <- if (length(no_evaluados)) no_evaluados[[1L]] else 0L
   paste0(
     "<div class=\"tarjetas\">",
     .tarjeta_reporte("Errores", sum(severidades == "error", na.rm = TRUE), "error"),
@@ -146,6 +147,9 @@
       "sospechoso"
     ),
     .tarjeta_reporte("Correctos", sum(severidades == "ok", na.rm = TRUE), "ok"),
+    if (isTRUE(diagnosticos > 0L)) {
+      .tarjeta_reporte("No evaluados", diagnosticos, "informativo")
+    } else "",
     "</div>"
   )
 }
@@ -173,6 +177,10 @@
   hallazgos <- x$hallazgos
   severidades <- if ("severidad" %in% names(hallazgos)) hallazgos$severidad else {
     character()
+  }
+  cobertura_diagnosticos <- x$cobertura_diagnosticos
+  if (!inherits(cobertura_diagnosticos, "data.frame")) {
+    cobertura_diagnosticos <- .cobertura_diagnosticos_vacia()
   }
   con_patrones <- which(vapply(
     x$patrones,
@@ -253,7 +261,7 @@
         " columna(s) con evidencia suficiente de datos personales.</p>"
       )
     } else "",
-    .resumen_severidades(severidades),
+    .resumen_severidades(severidades, nrow(cobertura_diagnosticos)),
     "<h3>Resumen general</h3>", .html_tabla(general, Inf),
     "<h3>Hallazgos por severidad</h3>", .html_tabla(hallazgos, max_filas),
     "<h3>Resumen por columna</h3>", .html_tabla(x$columnas, max_filas),
@@ -263,6 +271,9 @@
     "<h3>Cobertura del an\u00e1lisis</h3>",
     "<p class=\"nota\">La ausencia de hallazgos no implica que todos los factores se hayan evaluado.</p>",
     .html_tabla(if (is.null(cobertura)) cobertura_analisis(x) else cobertura, Inf),
+    "<h3>Cobertura de diagn\u00f3sticos</h3>",
+    "<p class=\"nota\">Estos diagn\u00f3sticos no se evaluaron; un perfil sin hallazgos no es un perfil limpio si esta tabla tiene filas.</p>",
+    .html_tabla(cobertura_diagnosticos, Inf),
     "<h3>Patrones de formato</h3>",
     if (length(bloques_patrones)) paste0(bloques_patrones, collapse = "") else {
       "<p class=\"sin-registros\">No hay patrones para mostrar.</p>"

@@ -177,6 +177,13 @@ ser \code{normalizacion_exacta} (la coincidencia aparece después de normalizar)
 son un solo token y esa distinción estructural no aplica), \code{mixta} (el grupo
 reúne aristas de más de una clase) o \code{indeterminada} (no hubo aristas
 clasificables). Son categorías de evidencia, no veredictos de identidad.
+\code{cobertura_diagnosticos} es una tabla hermana de \code{hallazgos}, con una fila
+por diagnóstico que no pudo evaluarse y las columnas \code{diagnostico},
+\code{columna}, \code{motivo}, \code{como_resolverlo} y \code{dependencia}. Incluye la falta de
+\code{stringdist}, \code{stringi} o \code{bit64}, y las zonas horarias POSIXt sin declarar.
+Quien decida automáticamente sobre un perfil debe revisar
+\code{nrow(perfil$cobertura_diagnosticos)} además de las severidades: un perfil
+sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.
 }
 \description{
 Examina un \code{data.frame}, \code{tibble} o \code{data.table} y devuelve estadísticas
@@ -254,15 +261,17 @@ conserva aunque la columna de entrada use otra zona horaria. Las columnas
 \code{n_filas_fecha_civil_distinta_utc}, que cuenta filas cuya fecha civil cambia
 al mostrar el instante en UTC. Cuando la fecha civil cambia se emite un
 hallazgo \code{zona_horaria_fecha_hora}; si la zona de origen no está declarada,
-el conteo queda en \code{NA} y el alcance lo declara.
+el conteo queda en \code{NA} y \code{cobertura_diagnosticos} declara que no se evaluó.
+La zona se declara en la columna original, por ejemplo:
+\code{attr(x, "tzone") <- "America/Montevideo"}.
 
 El diagnóstico de formas Unicode compara sin modificar el texto y puede usar
 el paquete opcional \code{stringi} para enriquecer la evidencia cuando existen
 caracteres no ASCII. \code{columnas$unicode_evaluado} declara si esa comprobación
 pudo ejecutarse; en texto no ASCII sin \code{stringi} queda \code{FALSE},
-\code{n_variantes_unicode} queda en \code{NA} y el hallazgo informa la dependencia
-ausente como información del entorno. Las columnas ASCII se evalúan siempre
-y conservan cero. El perfil de comparación es completamente R base.
+\code{n_variantes_unicode} queda en \code{NA} y \code{cobertura_diagnosticos} informa la
+dependencia ausente. Las columnas ASCII se evalúan siempre y conservan cero.
+El perfil de comparación es completamente R base.
 El argumento \code{normalizar} declara el perfil de comparación que se conserva
 en \code{meta$normalizacion}; cambia sólo la representación usada para comparar,
 no el texto guardado. \code{TRUE} usa el perfil predeterminado, \code{FALSE} desactiva

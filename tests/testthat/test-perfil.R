@@ -18,7 +18,7 @@ test_that("perfilar crea la estructura S3 completa", {
   expect_s3_class(resultado, "perfil")
   expect_named(resultado, c(
     "general", "columnas", "patrones", "formatos_fecha", "dependencias",
-    "hallazgos", "datos_personales", "meta"
+    "hallazgos", "cobertura_diagnosticos", "datos_personales", "meta"
   ))
   expect_equal(resultado$general$filas, 4L)
   expect_equal(resultado$general$columnas, 6L)

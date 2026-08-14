@@ -8,15 +8,16 @@ test_that("la falta de stringi se declara como informacion", {
     analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   )
   fila <- perfil$columnas[1L, , drop = FALSE]
-  hallazgo <- perfil$hallazgos[
-    perfil$hallazgos$tipo_hallazgo == "normalizacion_unicode", , drop = FALSE
+  cobertura <- perfil$cobertura_diagnosticos[
+    perfil$cobertura_diagnosticos$diagnostico == "normalizacion_unicode", ,
+    drop = FALSE
   ]
   expect_false(fila$unicode_evaluado)
   expect_true(is.na(fila$n_variantes_unicode))
-  expect_equal(nrow(hallazgo), 1L)
-  expect_equal(as.character(hallazgo$severidad), "ok")
-  expect_match(hallazgo$evidencia, "stringi")
-  expect_match(hallazgo$descripcion, "no se pudo evaluar", ignore.case = TRUE)
+  expect_equal(nrow(cobertura), 1L)
+  expect_equal(cobertura$dependencia, "stringi")
+  expect_match(cobertura$motivo, "no se pudo evaluar", ignore.case = TRUE)
+  expect_false("normalizacion_unicode" %in% perfil$hallazgos$tipo_hallazgo)
 
   ascii <- perfilar(
     data.frame(nombre = c("Jose", "Maria")),
@@ -43,13 +44,16 @@ test_that("las dependencias opcionales ausentes no inundan los sospechosos", {
   perfil <- perfilar(
     datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   )
-  opcionales <- perfil$hallazgos[
-    perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario", , drop = FALSE
+  opcionales <- perfil$cobertura_diagnosticos[
+    perfil$cobertura_diagnosticos$diagnostico == "casi_duplicados_vocabulario", ,
+    drop = FALSE
   ]
   expect_equal(nrow(opcionales), 40L)
-  expect_true(all(as.character(opcionales$severidad) == "ok"))
+  expect_true(all(opcionales$dependencia == "stringdist"))
+  expect_equal(nrow(perfil$hallazgos), 0L)
   salida <- capture.output(print(perfil), type = "message")
   expect_true(any(grepl("0 hallazgos sospechosos", salida, fixed = TRUE)))
+  expect_true(any(grepl("40 diagnosticos no evaluados", salida, fixed = TRUE)))
 })
 
 test_that("integer64 sin bit64 es una declaracion informativa", {
@@ -62,11 +66,13 @@ test_that("integer64 sin bit64 es una declaracion informativa", {
     data.frame(codigo = x), analizar_dependencias = FALSE,
     proteger_datos_personales = FALSE
   )
-  hallazgo <- perfil$hallazgos[
-    perfil$hallazgos$tipo_hallazgo == "integer64_sin_soporte", , drop = FALSE
+  cobertura <- perfil$cobertura_diagnosticos[
+    perfil$cobertura_diagnosticos$diagnostico == "integer64_sin_soporte", ,
+    drop = FALSE
   ]
-  expect_equal(nrow(hallazgo), 1L)
-  expect_equal(as.character(hallazgo$severidad), "ok")
+  expect_equal(nrow(cobertura), 1L)
+  expect_equal(cobertura$dependencia, "bit64")
+  expect_false("integer64_sin_soporte" %in% perfil$hallazgos$tipo_hallazgo)
 })
 
 test_that("una zona sin declarar no depende de la maquina", {
@@ -81,22 +87,26 @@ test_that("una zona sin declarar no depende de la maquina", {
       proteger_datos_personales = FALSE
     )
     fila <- perfil$columnas[1L, , drop = FALSE]
-    hallazgo <- perfil$hallazgos[
-      perfil$hallazgos$tipo_hallazgo == "zona_horaria_fecha_hora", , drop = FALSE
+    cobertura <- perfil$cobertura_diagnosticos[
+      perfil$cobertura_diagnosticos$diagnostico == "zona_horaria_fecha_hora", ,
+      drop = FALSE
     ]
     list(
       zona = fila$zona_horaria_origen,
       n = fila$n_filas_fecha_civil_distinta_utc,
-      descripcion = hallazgo$descripcion,
-      evidencia = hallazgo$evidencia
+      motivo = cobertura$motivo,
+      resolver = cobertura$como_resolverlo,
+      cobertura = cobertura
     )
   })
   expect_true(all(vapply(resultados, function(x) identical(x$zona, "sin_declarar"), logical(1L))))
   expect_true(all(vapply(resultados, function(x) is.na(x$n), logical(1L))))
-  expect_equal(vapply(resultados, `[[`, character(1L), "descripcion"),
-               rep(resultados[[1L]]$descripcion, 3L))
-  expect_equal(vapply(resultados, `[[`, character(1L), "evidencia"),
-               rep("Zona de origen: sin_declarar; conteo no evaluado.", 3L))
+  expect_equal(vapply(resultados, `[[`, character(1L), "motivo"),
+               rep(resultados[[1L]]$motivo, 3L))
+  expect_equal(vapply(resultados, `[[`, character(1L), "resolver"),
+               rep(resultados[[1L]]$resolver, 3L))
+  expect_true(all(vapply(resultados, function(x) nrow(x$cobertura) == 1L,
+                         logical(1L))))
 
   solo_na <- perfilar(
     data.frame(fecha = as.POSIXct(NA)), analizar_dependencias = FALSE,

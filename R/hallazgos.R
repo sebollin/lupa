@@ -47,6 +47,27 @@
   )
 }
 
+.cobertura_diagnosticos_vacia <- function() {
+  data.frame(
+    diagnostico = character(), columna = character(), motivo = character(),
+    como_resolverlo = character(), dependencia = character(),
+    stringsAsFactors = FALSE
+  )
+}
+
+.nuevo_diagnostico_no_evaluado <- function(diagnostico, columna, motivo,
+                                           como_resolverlo,
+                                           dependencia = NA_character_) {
+  data.frame(
+    diagnostico = as.character(diagnostico),
+    columna = as.character(columna),
+    motivo = as.character(motivo),
+    como_resolverlo = as.character(como_resolverlo),
+    dependencia = as.character(dependencia),
+    stringsAsFactors = FALSE
+  )
+}
+
 # Las relaciones de orden son una extension del diagnostico, no una metrica:
 # encuentran pares de columnas que parecen compartir una relacion aritmetica
 # estable para que el usuario pueda declararla despues en el marco de calidad.
@@ -660,19 +681,26 @@
   max_grupos_mostrados <- 20L
   max_variantes_mostradas <- 20L
   hallazgos <- list()
+  cobertura <- list()
   for (i in seq_along(datos)) {
     grupos <- .grupos_casi_duplicados_vocabulario(
       datos[[i]], perfil, columnas[[i]],
       max_proporcion_grupo = max_proporcion_grupo
     )
+    if (!is.null(grupos) && !isTRUE(grupos$alcance$distancia_disponible)) {
+      cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
+        "casi_duplicados_vocabulario", columnas[[i]],
+        "No se pudo evaluar la proximidad del vocabulario: falta el paquete opcional 'stringdist'.",
+        "Instalar el paquete 'stringdist' para comparar valores cercanos del vocabulario.",
+        "stringdist"
+      )
+    }
     if (is.null(grupos) ||
         (!length(grupos$grupos) &&
          !isTRUE(grupos$alcance$truncado) &&
          isTRUE(grupos$alcance$aplicable) &&
          !identical(grupos$alcance$motivo_grupos, "sin_asimetria") &&
-         !isTRUE(grupos$alcance$n_pares_descartados_numeros > 0L) &&
-         (isTRUE(grupos$alcance$distancia_disponible) ||
-          isTRUE(grupos$alcance$n_unidades_normalizadas <= 1L)))) next
+         !isTRUE(grupos$alcance$n_pares_descartados_numeros > 0L))) next
     alcance <- grupos$alcance
     grupos_a_mostrar <- utils::head(grupos$grupos, max_grupos_mostrados)
     evidencia_grupos <- vapply(grupos_a_mostrar, function(grupo) {
@@ -733,10 +761,8 @@
     } else {
       "Hay grupos cuya forma normalizada coincide; eso no confirma que sean la misma entidad."
     }
-    severidad_grupos <- if (!isTRUE(alcance$distancia_disponible) &&
-        !length(grupos$grupos)) "ok" else "sospechoso"
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
-      columnas[[i]], "casi_duplicados_vocabulario", severidad_grupos,
+      columnas[[i]], "casi_duplicados_vocabulario", "sospechoso",
       if (length(evidencia_grupos)) {
         descripcion_grupos
       } else if (!isTRUE(alcance$aplicable) &&
@@ -747,7 +773,7 @@
       } else if (identical(alcance$motivo_grupos, "sin_asimetria")) {
         "No se formaron grupos por distancia porque no hubo asimetria de frecuencia; usar detectar_duplicados_aproximados() para comparar filas."
       } else if (!isTRUE(alcance$distancia_disponible)) {
-        "No se pudo evaluar la proximidad del vocabulario: falta el paquete opcional 'stringdist'; este resultado no declara que no haya variantes."
+        "Hay grupos cuya forma normalizada coincide; la proximidad no se pudo evaluar porque falta el paquete opcional 'stringdist'."
       } else {
         "El vocabulario excede el alcance de enumeracion de variantes."
       },
@@ -790,7 +816,13 @@
       "valor_distinto"
     )
   }
-  hallazgos
+  salida <- hallazgos
+  attr(salida, "cobertura_diagnosticos") <- if (length(cobertura)) {
+    do.call(rbind, cobertura)
+  } else {
+    .cobertura_diagnosticos_vacia()
+  }
+  salida
 }
 
 .conteo_hallazgo_columna <- function(tipo, fila, resultado, n_validos) {
@@ -1148,6 +1180,7 @@
                                 columnas_sin_ceros,
                                 columnas_no_negativas) {
   hallazgos <- list()
+  cobertura <- list()
   k <- 0L
   agregar <- function(x) {
     conteo <- .conteo_hallazgo_columna(
@@ -1158,6 +1191,12 @@
     x$unidad_conteo <- conteo$unidad_conteo
     k <<- k + 1L
     hallazgos[[k]] <<- x
+  }
+  agregar_cobertura <- function(diagnostico, columna, motivo,
+                               como_resolverlo, dependencia = NA_character_) {
+    cobertura[[length(cobertura) + 1L]] <<- .nuevo_diagnostico_no_evaluado(
+      diagnostico, columna, motivo, como_resolverlo, dependencia
+    )
   }
 
   for (i in seq_along(resultados)) {
@@ -1310,12 +1349,11 @@
     }
 
     if (identical(fila$zona_horaria_origen[[1L]], "sin_declarar")) {
-      agregar(.nuevo_hallazgo(
-        nombre, "zona_horaria_fecha_hora", "ok",
+      agregar_cobertura(
+        "zona_horaria_fecha_hora", nombre,
         "No se evaluo el cambio de fecha civil a UTC porque la zona horaria de origen no esta declarada.",
-        "Zona de origen: sin_declarar; conteo no evaluado.",
-        "Declarar la zona horaria de origen antes de interpretar el calendario civil."
-      ))
+        "Declarar attr(x, 'tzone') con la zona horaria de origen antes de interpretar el calendario civil."
+      )
     } else if (isTRUE(fila$fecha_civil_distinta_utc)) {
       agregar(.nuevo_hallazgo(
         nombre, "zona_horaria_fecha_hora", "sospechoso",
@@ -1413,12 +1451,12 @@
       ))
     }
     if (isFALSE(fila$unicode_evaluado[[1L]])) {
-      agregar(.nuevo_hallazgo(
-        nombre, "normalizacion_unicode", "ok",
+      agregar_cobertura(
+        "normalizacion_unicode", nombre,
         "No se pudo evaluar la normalizacion Unicode: falta el paquete opcional 'stringi'.",
-        resultado$diagnostico_texto$evidencia_unicode,
-        "Instalar el paquete 'stringi' para evaluar equivalencias Unicode NFC/NFD."
-      ))
+        "Instalar el paquete 'stringi' para evaluar equivalencias Unicode NFC/NFD.",
+        "stringi"
+      )
     } else if (!is.na(fila$n_variantes_unicode) && fila$n_variantes_unicode > 0L) {
       agregar(.nuevo_hallazgo(
         nombre, "normalizacion_unicode", "sospechoso",
@@ -1506,12 +1544,12 @@
         "Conservar la clase integer64 y usar los extremos exactos informados."
       ))
     } else if (identical(fila$estado_resumen_cuantitativo, "requiere_bit64")) {
-      agregar(.nuevo_hallazgo(
-        nombre, "integer64_sin_soporte", "ok",
+      agregar_cobertura(
+        "integer64_sin_soporte", nombre,
         "La clase integer64 no se resumi\u00f3 porque falta su soporte opcional.",
-        "Los estad\u00edsticos cuantitativos se dejaron en NA.",
-        "Instalar el paquete 'bit64' para calcular extremos exactos."
-      ))
+        "Instalar el paquete 'bit64' para calcular extremos exactos.",
+        "bit64"
+      )
     }
 
     n_inf <- fila$n_infinito_positivo + fila$n_infinito_negativo
@@ -1557,7 +1595,13 @@
       ))
     }
   }
-  hallazgos
+  salida <- hallazgos
+  attr(salida, "cobertura_diagnosticos") <- if (length(cobertura)) {
+    do.call(rbind, cobertura)
+  } else {
+    .cobertura_diagnosticos_vacia()
+  }
+  salida
 }
 
 .nombres_columnas_problematicos <- function(nombres) {
@@ -1664,18 +1708,27 @@
                                  normalizacion = NULL,
                                  detectar_casi_duplicados = TRUE,
                                  max_proporcion_grupo = 0.5) {
-  hallazgos <- .hallazgos_columnas(
+  hallazgos_columnas <- .hallazgos_columnas(
     resultados, columnas, umbral_alta_cardinalidad,
     umbral_faltantes_sospechoso, umbral_faltantes_error,
     umbral_patron_raro, umbral_patron_dominante,
     columnas_sin_ceros, columnas_no_negativas
   )
+  cobertura <- attr(hallazgos_columnas, "cobertura_diagnosticos", exact = TRUE)
+  if (is.null(cobertura)) cobertura <- .cobertura_diagnosticos_vacia()
+  hallazgos <- hallazgos_columnas
   hallazgos_vocabulario <- if (isTRUE(detectar_casi_duplicados)) {
     .hallazgos_casi_duplicados_vocabulario(
       datos, columnas, normalizacion,
       max_proporcion_grupo = max_proporcion_grupo
     )
   } else list()
+  cobertura_vocabulario <- attr(
+    hallazgos_vocabulario, "cobertura_diagnosticos", exact = TRUE
+  )
+  if (!is.null(cobertura_vocabulario) && nrow(cobertura_vocabulario)) {
+    cobertura <- rbind(cobertura, cobertura_vocabulario)
+  }
   if (length(hallazgos_vocabulario)) {
     hallazgos <- c(hallazgos, hallazgos_vocabulario)
   }
@@ -1751,5 +1804,6 @@
     levels = c("ok", "sospechoso", "error"), ordered = TRUE
   )
   rownames(resultado) <- NULL
+  attr(resultado, "cobertura_diagnosticos") <- cobertura
   resultado
 }

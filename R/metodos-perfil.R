@@ -3,11 +3,15 @@ print.perfil <- function(x, ...) {
   errores <- sum(x$hallazgos$severidad == "error")
   sospechosos <- sum(x$hallazgos$severidad == "sospechoso")
   correctos <- sum(x$hallazgos$severidad == "ok")
+  no_evaluados <- if (inherits(x$cobertura_diagnosticos, "data.frame")) {
+    nrow(x$cobertura_diagnosticos)
+  } else 0L
 
   cli::cli_h1(paste("Perfil de datos:", x$meta$nombre))
   cli::cli_alert_danger(paste(errores, "hallazgos con severidad error"))
   cli::cli_alert_warning(paste(sospechosos, "hallazgos sospechosos"))
   cli::cli_alert_success(paste(correctos, "hallazgos informativos ok"))
+  cli::cli_alert_info(paste(no_evaluados, "diagnosticos no evaluados"))
 
   cli::cli_h2("Resumen general")
   cli::cli_dl(c(

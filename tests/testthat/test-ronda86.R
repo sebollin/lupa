@@ -8,13 +8,14 @@ test_that("la falta de stringdist se declara aunque no haya fusion exacta", {
     analizar_dependencias = FALSE, normalizar = FALSE,
     proteger_datos_personales = FALSE
   )
-  hallazgo_sin <- sin_fusion$hallazgos[
-    sin_fusion$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario", ,
+  cobertura_sin <- sin_fusion$cobertura_diagnosticos[
+    sin_fusion$cobertura_diagnosticos$diagnostico == "casi_duplicados_vocabulario", ,
     drop = FALSE
   ]
-  expect_equal(nrow(hallazgo_sin), 1L)
-  expect_match(hallazgo_sin$evidencia, "falta el paquete opcional 'stringdist'")
-  expect_match(hallazgo_sin$descripcion, "no declara que no haya variantes")
+  expect_equal(nrow(cobertura_sin), 1L)
+  expect_match(cobertura_sin$motivo, "falta el paquete opcional 'stringdist'")
+  expect_false("casi_duplicados_vocabulario" %in%
+                 sin_fusion$hallazgos$tipo_hallazgo)
 
   con_fusion <- perfilar(
     data.frame(nombre = c("Montevideo", "MONTEVIDEO", "Montevido")),
@@ -27,6 +28,7 @@ test_that("la falta de stringdist se declara aunque no haya fusion exacta", {
   expect_equal(nrow(hallazgo_con), 1L)
   expect_match(hallazgo_con$evidencia, "origen=normalizacion")
   expect_match(hallazgo_con$evidencia, "falta el paquete opcional 'stringdist'")
+  expect_equal(nrow(con_fusion$cobertura_diagnosticos), 1L)
 })
 
 test_that("la evidencia de variantes distingue token y edicion interna", {

@@ -74,15 +74,17 @@
 #' `n_filas_fecha_civil_distinta_utc`, que cuenta filas cuya fecha civil cambia
 #' al mostrar el instante en UTC. Cuando la fecha civil cambia se emite un
 #' hallazgo `zona_horaria_fecha_hora`; si la zona de origen no está declarada,
-#' el conteo queda en `NA` y el alcance lo declara.
+#' el conteo queda en `NA` y `cobertura_diagnosticos` declara que no se evaluó.
+#' La zona se declara en la columna original, por ejemplo:
+#' `attr(x, "tzone") <- "America/Montevideo"`.
 #'
 #' El diagnóstico de formas Unicode compara sin modificar el texto y puede usar
 #' el paquete opcional `stringi` para enriquecer la evidencia cuando existen
 #' caracteres no ASCII. `columnas$unicode_evaluado` declara si esa comprobación
 #' pudo ejecutarse; en texto no ASCII sin `stringi` queda `FALSE`,
-#' `n_variantes_unicode` queda en `NA` y el hallazgo informa la dependencia
-#' ausente como información del entorno. Las columnas ASCII se evalúan siempre
-#' y conservan cero. El perfil de comparación es completamente R base.
+#' `n_variantes_unicode` queda en `NA` y `cobertura_diagnosticos` informa la
+#' dependencia ausente. Las columnas ASCII se evalúan siempre y conservan cero.
+#' El perfil de comparación es completamente R base.
 #' El argumento `normalizar` declara el perfil de comparación que se conserva
 #' en `meta$normalizacion`; cambia sólo la representación usada para comparar,
 #' no el texto guardado. `TRUE` usa el perfil predeterminado, `FALSE` desactiva
@@ -295,6 +297,13 @@
 #'   son un solo token y esa distinción estructural no aplica), `mixta` (el grupo
 #'   reúne aristas de más de una clase) o `indeterminada` (no hubo aristas
 #'   clasificables). Son categorías de evidencia, no veredictos de identidad.
+#'   `cobertura_diagnosticos` es una tabla hermana de `hallazgos`, con una fila
+#'   por diagnóstico que no pudo evaluarse y las columnas `diagnostico`,
+#'   `columna`, `motivo`, `como_resolverlo` y `dependencia`. Incluye la falta de
+#'   `stringdist`, `stringi` o `bit64`, y las zonas horarias POSIXt sin declarar.
+#'   Quien decida automáticamente sobre un perfil debe revisar
+#'   `nrow(perfil$cobertura_diagnosticos)` además de las severidades: un perfil
+#'   sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.
 #' @export
 #' @seealso [descubrir_patrones()], [detectar_dependencias()],
 #'   [proponer_modelo()], [planificar_limpieza()]
@@ -537,6 +546,13 @@ perfilar <- function(datos,
     detectar_casi_duplicados = casi_duplicados_vocabulario,
     max_proporcion_grupo = max_proporcion_grupo_vocabulario
   )
+  cobertura_diagnosticos <- attr(
+    hallazgos, "cobertura_diagnosticos", exact = TRUE
+  )
+  if (is.null(cobertura_diagnosticos)) {
+    cobertura_diagnosticos <- .cobertura_diagnosticos_vacia()
+  }
+  attr(hallazgos, "cobertura_diagnosticos") <- NULL
   datos_personales <- .detectar_datos_personales(
     datos, nombres, resultados,
     validadores = validadores_personales,
@@ -637,6 +653,7 @@ perfilar <- function(datos,
     formatos_fecha = formatos_fecha,
     dependencias = dependencias,
     hallazgos = hallazgos,
+    cobertura_diagnosticos = cobertura_diagnosticos,
     datos_personales = datos_personales,
     meta = meta
   )
@@ -644,7 +661,8 @@ perfilar <- function(datos,
     estructura$duplicados_aproximados <- aproximados
     estructura <- estructura[c(
       "general", "columnas", "patrones", "formatos_fecha", "dependencias",
-      "duplicados_aproximados", "hallazgos", "datos_personales", "meta"
+      "duplicados_aproximados", "hallazgos", "cobertura_diagnosticos",
+      "datos_personales", "meta"
     )]
   }
   class(estructura) <- "perfil"
