@@ -268,7 +268,7 @@ validar_mod97 <- function(x) {
 #' <https://www.gub.uy/unidad-acceso-informacion-publica/institucional/normativa/resolucion-n-145024-sobre-reserva-informacion>
 #'
 #' de Jong A. *python-stdnum: Uruguay RUT*.
-#' <https://arthurdejong.org/python-stdnum/doc/2.2/stdnum.uy.rut>
+#' <https://github.com/arthurdejong/python-stdnum/blob/master/stdnum/uy/rut.py>
 #'
 #' @examples
 #' validar_ci_uy(c("1.234.567-2", "1.234.567-3"))

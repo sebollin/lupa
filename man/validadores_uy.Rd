@@ -40,7 +40,7 @@ Unidad de Acceso a la Información Pública (2024). Resolución 145/024.
 \url{https://www.gub.uy/unidad-acceso-informacion-publica/institucional/normativa/resolucion-n-145024-sobre-reserva-informacion}
 
 de Jong A. \emph{python-stdnum: Uruguay RUT}.
-\url{https://arthurdejong.org/python-stdnum/doc/2.2/stdnum.uy.rut}
+\url{https://github.com/arthurdejong/python-stdnum/blob/master/stdnum/uy/rut.py}
 }
 \seealso{
 \code{\link[=pack_validadores]{pack_validadores()}}, \code{\link[=validar_iso3166]{validar_iso3166()}}
