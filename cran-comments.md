@@ -10,7 +10,10 @@
 
 ## Test environments
 
-Every result below is from a run of this exact tarball.
+Every result below is from a run of one build of these exact sources, with no
+change to the package between them. `R CMD build` stamps `Packaged:` into
+`DESCRIPTION`, so two builds of identical sources are never byte-identical; the
+claim is about the sources, which is what can be checked.
 
 * win-builder, R 4.6.1 (2026-06-24 ucrt), x86_64-w64-mingw32 — 1 NOTE
   (new submission); examples and tests OK.
