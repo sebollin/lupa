@@ -47,7 +47,7 @@ test_that("la evidencia de variantes distingue token y edicion interna", {
   expect_true(any(montevideo))
   expect_equal(grupos[[which(camino)[[1L]]]]$clase_diferencia, "token_completo")
   expect_equal(grupos[[which(montevideo)[[1L]]]]$clase_diferencia,
-               "dentro_de_palabra")
+               "token_unico")
 })
 
 test_that("la zona de origen y el cambio de fecha civil quedan declarados", {
@@ -65,14 +65,14 @@ test_that("la zona de origen y el cambio de fecha civil quedan declarados", {
   )
   fila <- perfil$columnas[perfil$columnas$columna == "desplazada", , drop = FALSE]
   expect_equal(fila$zona_horaria_origen, "America/Montevideo")
-  expect_equal(fila$n_fechas_civiles_distintas_utc, 1L)
+  expect_equal(fila$n_filas_fecha_civil_distinta_utc, 1L)
   expect_true(fila$fecha_civil_distinta_utc)
   expect_true(any(
     perfil$hallazgos$columna == "desplazada" &
       perfil$hallazgos$tipo_hallazgo == "zona_horaria_fecha_hora"
   ))
   fila_estable <- perfil$columnas[perfil$columnas$columna == "estable", , drop = FALSE]
-  expect_equal(fila_estable$n_fechas_civiles_distintas_utc, 0L)
+  expect_equal(fila_estable$n_filas_fecha_civil_distinta_utc, 0L)
   expect_false(any(
     perfil$hallazgos$columna == "estable" &
       perfil$hallazgos$tipo_hallazgo == "zona_horaria_fecha_hora"

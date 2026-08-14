@@ -348,7 +348,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     attr(resultado, "compatibles") <- n
     attr(resultado, "formatos_mixtos") <- FALSE
     attr(resultado, "zona_horaria_origen") <- .zona_horaria_origen(valores_originales)
-    attr(resultado, "n_fechas_civiles_distintas_utc") <-
+    attr(resultado, "n_filas_fecha_civil_distinta_utc") <-
       .fechas_civiles_distintas_utc(valores_originales)
     return(resultado)
   }

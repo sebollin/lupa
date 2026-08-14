@@ -75,16 +75,17 @@
   if (length(zona) && !is.na(zona[[1L]]) && nzchar(zona[[1L]])) {
     as.character(zona[[1L]])
   } else {
-    "local"
+    "sin_declarar"
   }
 }
 
 .fechas_civiles_distintas_utc <- function(x) {
   if (!inherits(x, "POSIXt")) return(NA_integer_)
+  zona <- .zona_horaria_origen(x)
+  if (identical(zona, "sin_declarar")) return(NA_integer_)
   presentes <- !is.na(x)
   if (!any(presentes)) return(0L)
-  zona <- .zona_horaria_origen(x)
-  civil_origen <- format(x[presentes], "%Y-%m-%d", tz = if (zona == "local") "" else zona)
+  civil_origen <- format(x[presentes], "%Y-%m-%d", tz = zona)
   civil_utc <- format(x[presentes], "%Y-%m-%d", tz = "UTC")
   as.integer(sum(civil_origen != civil_utc, na.rm = TRUE))
 }

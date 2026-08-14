@@ -18,8 +18,10 @@
 #'   patrones raros para los hallazgos.
 #'
 #' @return Un data frame de clase `patrones` con patrón, frecuencia, proporción
-#'   y ejemplos. Los atributos `total`, `analizados` y `muestreado` describen
-#'   el posible muestreo. `resumen_patrones` conserva sólo el patrón dominante
+#'   y ejemplos. Los atributos `total`, `analizados`, `filas_analizadas` y
+#'   `muestreado` describen el posible muestreo; `filas_analizadas` es un alias
+#'   explícito de `analizados` para mantener el alcance visible junto a otros
+#'   diagnósticos. `resumen_patrones` conserva sólo el patrón dominante
 #'   y hasta seis patrones raros; nunca guarda la distribución completa. Las
 #'   proporciones siempre están en `[0, 1]`. `n_patrones_distintos` registra el
 #'   total antes de truncar la tabla para informar omisiones sin retenerla.
@@ -137,6 +139,7 @@ descubrir_patrones <- function(x,
   class(resultado) <- c("patrones", "data.frame")
   attr(resultado, "total") <- muestra_x$total
   attr(resultado, "analizados") <- muestra_x$analizados
+  attr(resultado, "filas_analizadas") <- muestra_x$analizados
   attr(resultado, "muestreado") <- muestra_x$muestreado
   attr(resultado, "n_patrones_distintos") <- length(frecuencias)
   attr(resultado, "resumen_patrones") <- resumen

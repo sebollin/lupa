@@ -314,6 +314,7 @@
   tokens_a <- strsplit(a, "[[:space:]]+", perl = TRUE)[[1L]]
   tokens_b <- strsplit(b, "[[:space:]]+", perl = TRUE)[[1L]]
   if (length(tokens_a) != length(tokens_b)) return("mixta")
+  if (length(tokens_a) == 1L) return("token_unico")
   distintos <- which(tokens_a != tokens_b)
   if (!length(distintos)) return("sin_diferencia")
   clases <- vapply(distintos, function(i) {
@@ -605,6 +606,8 @@
               "dentro_de_palabra"
             } else if (all(clases_aristas == "token_completo")) {
               "token_completo"
+            } else if (all(clases_aristas == "token_unico")) {
+              "token_unico"
             } else "mixta"
         },
         origen = paste(c("normalizacion", "distancia")[
@@ -728,10 +731,12 @@
     } else if (hay_distancia) {
       "Se detectaron valores cercanos; la distancia es heur\u00edstica y no confirma identidad."
     } else {
-      "Hay grupos de variantes producidos por normalizaci\u00f3n; revisar las formas resultantes."
+      "Hay grupos cuya forma normalizada coincide; eso no confirma que sean la misma entidad."
     }
+    severidad_grupos <- if (!isTRUE(alcance$distancia_disponible) &&
+        !length(grupos$grupos)) "ok" else "sospechoso"
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
-      columnas[[i]], "casi_duplicados_vocabulario", "sospechoso",
+      columnas[[i]], "casi_duplicados_vocabulario", severidad_grupos,
       if (length(evidencia_grupos)) {
         descripcion_grupos
       } else if (!isTRUE(alcance$aplicable) &&
@@ -815,7 +820,7 @@
     negativos_no_permitidos = as.numeric(fila$n_negativos),
     outliers = as.numeric(fila$n_outliers),
     numero_como_texto = as.numeric(fila$n_numeros_texto),
-    zona_horaria_fecha_hora = as.numeric(fila$n_fechas_civiles_distintas_utc),
+    zona_horaria_fecha_hora = as.numeric(fila$n_filas_fecha_civil_distinta_utc),
     patron_raro = {
       resumen <- attr(resultado$patrones, "resumen_patrones")
       distintos <- attr(resultado$patrones, "n_patrones_distintos")
@@ -987,7 +992,8 @@
     zona_horaria_fecha_hora = if (inherits(x, "POSIXt")) {
       presentes <- !is.na(x)
       zona <- .zona_horaria_origen(x)
-      origen <- format(x, "%Y-%m-%d", tz = if (zona == "local") "" else zona)
+      if (identical(zona, "sin_declarar")) return(NULL)
+      origen <- format(x, "%Y-%m-%d", tz = zona)
       utc <- format(x, "%Y-%m-%d", tz = "UTC")
       which(presentes & origen != utc)
     } else NULL,
@@ -1303,13 +1309,20 @@
       ))
     }
 
-    if (isTRUE(fila$fecha_civil_distinta_utc)) {
+    if (identical(fila$zona_horaria_origen[[1L]], "sin_declarar")) {
+      agregar(.nuevo_hallazgo(
+        nombre, "zona_horaria_fecha_hora", "ok",
+        "No se evaluo el cambio de fecha civil a UTC porque la zona horaria de origen no esta declarada.",
+        "Zona de origen: sin_declarar; conteo no evaluado.",
+        "Declarar la zona horaria de origen antes de interpretar el calendario civil."
+      ))
+    } else if (isTRUE(fila$fecha_civil_distinta_utc)) {
       agregar(.nuevo_hallazgo(
         nombre, "zona_horaria_fecha_hora", "sospechoso",
         "La conversi\u00f3n de fecha-hora a UTC cambia la fecha civil del dato.",
         paste0(
           "Zona de origen: ", fila$zona_horaria_origen,
-          "; ", fila$n_fechas_civiles_distintas_utc,
+          "; ", fila$n_filas_fecha_civil_distinta_utc,
           " valores cambian de fecha civil al expresarse en UTC."
         ),
         "Conservar la zona de origen al interpretar el calendario civil y revisar los valores se\u00f1alados."
@@ -1399,7 +1412,14 @@
         "Definir y aplicar una convenci\u00f3n de capitalizaci\u00f3n para la columna."
       ))
     }
-    if (!is.na(fila$n_variantes_unicode) && fila$n_variantes_unicode > 0L) {
+    if (isFALSE(fila$unicode_evaluado[[1L]])) {
+      agregar(.nuevo_hallazgo(
+        nombre, "normalizacion_unicode", "ok",
+        "No se pudo evaluar la normalizacion Unicode: falta el paquete opcional 'stringi'.",
+        resultado$diagnostico_texto$evidencia_unicode,
+        "Instalar el paquete 'stringi' para evaluar equivalencias Unicode NFC/NFD."
+      ))
+    } else if (!is.na(fila$n_variantes_unicode) && fila$n_variantes_unicode > 0L) {
       agregar(.nuevo_hallazgo(
         nombre, "normalizacion_unicode", "sospechoso",
         paste0(
@@ -1487,7 +1507,7 @@
       ))
     } else if (identical(fila$estado_resumen_cuantitativo, "requiere_bit64")) {
       agregar(.nuevo_hallazgo(
-        nombre, "integer64_sin_soporte", "sospechoso",
+        nombre, "integer64_sin_soporte", "ok",
         "La clase integer64 no se resumi\u00f3 porque falta su soporte opcional.",
         "Los estad\u00edsticos cuantitativos se dejaron en NA.",
         "Instalar el paquete 'bit64' para calcular extremos exactos."

@@ -71,12 +71,18 @@
 #' `UTC` en el texto para hacer visible la zona aplicada. El instante se
 #' conserva aunque la columna de entrada use otra zona horaria. Las columnas
 #' `POSIXt` declaran `zona_horaria_origen` y
-#' `n_fechas_civiles_distintas_utc`; cuando la fecha civil cambia al mostrar el
-#' instante en UTC se emite un hallazgo `zona_horaria_fecha_hora`.
+#' `n_filas_fecha_civil_distinta_utc`, que cuenta filas cuya fecha civil cambia
+#' al mostrar el instante en UTC. Cuando la fecha civil cambia se emite un
+#' hallazgo `zona_horaria_fecha_hora`; si la zona de origen no está declarada,
+#' el conteo queda en `NA` y el alcance lo declara.
 #'
 #' El diagnóstico de formas Unicode compara sin modificar el texto y puede usar
 #' el paquete opcional `stringi` para enriquecer la evidencia cuando existen
-#' caracteres no ASCII. El perfil de comparación es completamente R base.
+#' caracteres no ASCII. `columnas$unicode_evaluado` declara si esa comprobación
+#' pudo ejecutarse; en texto no ASCII sin `stringi` queda `FALSE`,
+#' `n_variantes_unicode` queda en `NA` y el hallazgo informa la dependencia
+#' ausente como información del entorno. Las columnas ASCII se evalúan siempre
+#' y conservan cero. El perfil de comparación es completamente R base.
 #' El argumento `normalizar` declara el perfil de comparación que se conserva
 #' en `meta$normalizacion`; cambia sólo la representación usada para comparar,
 #' no el texto guardado. `TRUE` usa el perfil predeterminado, `FALSE` desactiva
@@ -119,9 +125,14 @@
 #' no corresponde a la tabla. Si hay pares cercanos pero todas las frecuencias
 #' empatan, el alcance declara que no hubo asimetría para formar una estrella y
 #' sugiere [detectar_duplicados_aproximados()] para comparar filas. El alcance
-#' clasifica cada grupo de distancia como `dentro_de_palabra`, `token_completo`
-#' o `mixta`; es evidencia descriptiva, no una decisión sobre identidad. El
-#' agrupamiento no cambia por esa etiqueta. El alcance
+#' clasifica cada grupo como `normalizacion_exacta`, `dentro_de_palabra`,
+#' `token_completo`, `token_unico`, `mixta` o `indeterminada`. La primera indica
+#' una coincidencia tras normalizar; `dentro_de_palabra`, una diferencia dentro
+#' de un token; `token_completo`, diferencias en tokens completos;
+#' `token_unico`, que ambos valores son un único token y la clase estructural no
+#' aplica; `mixta`, aristas de más de una clase; e `indeterminada`, que no hubo
+#' aristas clasificables. Son evidencia descriptiva, no una decisión sobre
+#' identidad. El agrupamiento no cambia por esa etiqueta. El alcance
 #' también descarta aristas de distancia cuyos números no coinciden. Se comparan
 #' las secuencias numéricas, quitando ceros de relleno y separadores de miles;
 #' una diferencia numérica se trata como otra entidad. Esto puede dejar sin
@@ -277,6 +288,13 @@
 #'   originales puede volver a exponer datos personales; el paquete no realiza
 #'   esa extracción y la protección de salidas no sustituye el control de acceso
 #'   a los datos de entrada.
+#'   En la evidencia de `casi_duplicados_vocabulario`, `clase_diferencia` puede
+#'   ser `normalizacion_exacta` (la coincidencia aparece después de normalizar),
+#'   `dentro_de_palabra` (la diferencia está dentro de un token),
+#'   `token_completo` (cambian tokens completos), `token_unico` (ambos valores
+#'   son un solo token y esa distinción estructural no aplica), `mixta` (el grupo
+#'   reúne aristas de más de una clase) o `indeterminada` (no hubo aristas
+#'   clasificables). Son categorías de evidencia, no veredictos de identidad.
 #' @export
 #' @seealso [descubrir_patrones()], [detectar_dependencias()],
 #'   [proponer_modelo()], [planificar_limpieza()]

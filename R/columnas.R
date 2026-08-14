@@ -112,7 +112,7 @@
   vacio <- .resumen_vacio_cuantitativo("sin_valores")
   validos <- !is.na(x)
   if (!any(validos)) return(vacio)
-  if (!requireNamespace("bit64", quietly = TRUE)) {
+  if (!.bit64_disponible()) {
     vacio$estado_resumen_cuantitativo <- "requiere_bit64"
     return(vacio)
   }
@@ -755,6 +755,14 @@
   paste(vapply(ejemplos, .escapar_texto_visible, character(1L)), collapse = "; ")
 }
 
+.stringi_disponible <- function() {
+  requireNamespace("stringi", quietly = TRUE)
+}
+
+.bit64_disponible <- function() {
+  requireNamespace("bit64", quietly = TRUE)
+}
+
 .diagnosticar_texto <- function(x, vocabulario = NULL) {
   vacio <- list(
     n_espacios_borde = 0L,
@@ -763,7 +771,9 @@
     evidencia_mayusculas = "",
     n_variantes_unicode = NA_integer_,
     evidencia_unicode = "",
-    unicode_evaluado = FALSE,
+    # Una columna vacía o compuesta sólo por NA no contiene texto no ASCII que
+    # evaluar: la ausencia de `stringi` no limita ese caso.
+    unicode_evaluado = TRUE,
     n_codificacion_rota = 0L,
     n_codificacion_reparable = 0L,
     n_codificacion_reparable_parcialmente = 0L,
@@ -831,7 +841,7 @@
     evidencia_unicode <- ""
     n_variantes_unicode <- 0L
     unicode_evaluado <- TRUE
-  } else if (requireNamespace("stringi", quietly = TRUE)) {
+  } else if (.stringi_disponible()) {
     normalizados_unicode <- stringi::stri_trans_nfc(unicos)
     colision_unicode <- duplicated(normalizados_unicode) |
       duplicated(normalizados_unicode, fromLast = TRUE)
@@ -943,10 +953,10 @@
   }
   meses_texto <- attr(formatos, "meses_texto", exact = TRUE)
   zona_horaria_origen <- .zona_horaria_origen(x)
-  n_fechas_civiles_distintas_utc <- .fechas_civiles_distintas_utc(x)
+  n_filas_fecha_civil_distinta_utc <- .fechas_civiles_distintas_utc(x)
   attr(formatos, "zona_horaria_origen") <- zona_horaria_origen
-  attr(formatos, "n_fechas_civiles_distintas_utc") <-
-    n_fechas_civiles_distintas_utc
+  attr(formatos, "n_filas_fecha_civil_distinta_utc") <-
+    n_filas_fecha_civil_distinta_utc
   # The month parser is an internal hand-off between type inference and the
   # column summary. It must not remain attached to the public profile table.
   attr(formatos, "meses_texto") <- NULL
@@ -1056,15 +1066,20 @@
     n_infinito_negativo = cuantitativo$n_infinito_negativo,
     estado_resumen_cuantitativo = cuantitativo$estado_resumen_cuantitativo,
     zona_horaria_origen = zona_horaria_origen,
-    n_fechas_civiles_distintas_utc = n_fechas_civiles_distintas_utc,
-    fecha_civil_distinta_utc = if (is.na(n_fechas_civiles_distintas_utc)) {
+    n_filas_fecha_civil_distinta_utc = n_filas_fecha_civil_distinta_utc,
+    fecha_civil_distinta_utc = if (is.na(n_filas_fecha_civil_distinta_utc)) {
       NA
-    } else n_fechas_civiles_distintas_utc > 0L,
+    } else n_filas_fecha_civil_distinta_utc > 0L,
     detalle_proteccion_personal = NA_character_,
     n_blancos = n_blancos,
     n_espacios_borde = diagnostico_texto$n_espacios_borde,
     n_variantes_mayusculas = diagnostico_texto$n_variantes_mayusculas,
     n_variantes_unicode = diagnostico_texto$n_variantes_unicode,
+    unicode_evaluado = if (is.character(x_analisis) || is.factor(x_analisis)) {
+      diagnostico_texto$unicode_evaluado
+    } else {
+      NA
+    },
     n_codificacion_rota = diagnostico_texto$n_codificacion_rota,
     n_codificacion_reparable = diagnostico_texto$n_codificacion_reparable,
     n_codificacion_reparable_parcialmente = diagnostico_texto$n_codificacion_reparable_parcialmente,
@@ -1147,8 +1162,9 @@
   fila$mediana_fecha <- NA_character_
   fila$estado_resumen_cuantitativo <- "tipo_compuesto_no_analizado"
   fila$zona_horaria_origen <- NA_character_
-  fila$n_fechas_civiles_distintas_utc <- NA_integer_
+  fila$n_filas_fecha_civil_distinta_utc <- NA_integer_
   fila$fecha_civil_distinta_utc <- NA
+  fila$unicode_evaluado <- NA
   fila$numero_texto_ambiguo <- FALSE
   fila$numero_texto_seguro <- FALSE
   fila$numero_texto_unidad <- ""

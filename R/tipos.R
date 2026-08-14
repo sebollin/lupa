@@ -95,6 +95,12 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
   )
 
   formatos <- .detectar_formatos_fecha_interno(valores, muestra = muestra)
+  # `valores` ya es la muestra de la columna. Restituir el alcance exterior
+  # evita que el resultado del perfil declare como completo un vector
+  # intermedio que ya perdió las filas no muestreadas.
+  attr(formatos, "total") <- muestreo$total
+  attr(formatos, "analizados") <- muestreo$analizados
+  attr(formatos, "muestreado") <- muestreo$muestreado
   n_fechas <- attr(formatos, "compatibles")
   formatos_hora <- if (nrow(formatos)) grepl("%H", formatos$formato) else logical()
   tipo_fecha <- if (any(formatos_hora)) "fecha-hora" else "fecha"
