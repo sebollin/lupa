@@ -44,3 +44,5 @@ jobs:
           clean: false
           branch: gh-pages
           folder: docs
+          git-config-name: Sebastián Lucas
+          git-config-email: sebalucas@gmail.com
