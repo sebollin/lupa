@@ -5,7 +5,7 @@ El estilo se incluye dentro del documento: no requiere red, navegador
 especial, conversor externo ni archivos auxiliares. Cada valor dinamico
 se escapa antes de incorporarlo al documento.
 
-## Uso
+## Usage
 
 ``` r
 reportar(
@@ -21,72 +21,76 @@ reportar(
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - x:
-    
-    Un objeto compatible o una lista de objetos compatibles.
+- x:
 
-  - ...:
-    
-    Objetos adicionales de clase `analisis`, `perfil`, `medicion`,
-    `evaluacion_calidad`, `historico_calidad`, `deriva_perfil`,
-    `deriva_calidad`, `plan_limpieza` o `duplicados_aproximados`.
+  Un objeto compatible o una lista de objetos compatibles.
 
-  - archivo:
-    
-    Ruta de salida. De forma predeterminada crea un archivo en
-    `tempdir()`.
+- ...:
 
-  - sobrescribir:
-    
-    Si se permite reemplazar un archivo existente.
+  Objetos adicionales de clase `analisis`, `perfil`, `medicion`,
+  `evaluacion_calidad`, `historico_calidad`, `deriva_perfil`,
+  `deriva_calidad`, `plan_limpieza` o `duplicados_aproximados`.
 
-  - titulo:
-    
-    Titulo visible del reporte.
+- archivo:
 
-  - fecha:
-    
-    Fecha y hora de generacion, inyectable para obtener resultados
-    reproducibles. Se normaliza a UTC.
+  Ruta de salida. De forma predeterminada crea un archivo en
+  [`tempdir()`](https://rdrr.io/r/base/tempfile.html).
 
-  - max\_filas:
-    
-    Maximo de filas por tabla y de columnas del perfil cuyos patrones se
-    detallan. Las omisiones se informan dentro del reporte.
+- sobrescribir:
 
-  - max\_patrones:
-    
-    Maximo de patrones mostrados por columna. Las omisiones se informan
-    dentro del reporte.
+  Si se permite reemplazar un archivo existente.
 
-  - proteger\_datos\_personales:
-    
-    Si se enmascaran modas, ejemplos, evidencia, estadisticos de orden,
-    cuantiles y rangos temporales de columnas cuya clasificacion activa
-    proteccion automatica. Es `TRUE` por defecto. Las coincidencias
-    debiles se informan sin suprimir. Para ver valores concretos deben
-    haberse conservado tambien con `perfilar(...,
-    proteger_datos_personales = FALSE)`.
+- titulo:
 
-## Valor
+  Titulo visible del reporte.
+
+- fecha:
+
+  Fecha y hora de generacion, inyectable para obtener resultados
+  reproducibles. Se normaliza a UTC.
+
+- max_filas:
+
+  Maximo de filas por tabla y de columnas del perfil cuyos patrones se
+  detallan. Las omisiones se informan dentro del reporte.
+
+- max_patrones:
+
+  Maximo de patrones mostrados por columna. Las omisiones se informan
+  dentro del reporte.
+
+- proteger_datos_personales:
+
+  Si se enmascaran modas, ejemplos, evidencia, estadisticos de orden,
+  cuantiles y rangos temporales de columnas cuya clasificacion activa
+  proteccion automatica. Es `TRUE` por defecto. Las coincidencias
+  debiles se informan sin suprimir. Para ver valores concretos deben
+  haberse conservado tambien con
+  `perfilar(..., proteger_datos_personales = FALSE)`.
+
+## Value
 
 La ruta normalizada del archivo, de forma invisible.
 
-## Detalles
+## Details
 
 Se pueden combinar objetos producidos por el profiling, la medicion, la
 evaluacion, el historico, las comparaciones de deriva y la planificacion
 de limpieza. Cada tipo anade su seccion; el reporte no modifica datos ni
 aplica planes.
 
-## Ver también
+## See also
 
-`perfilar()`, `medir()`, `evaluar()`, `historico_calidad()`,
-`comparar_perfiles()`, `planificar_limpieza()`
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md),
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md),
+[`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md),
+[`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md),
+[`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 perfil <- perfilar(datos_administrativos)

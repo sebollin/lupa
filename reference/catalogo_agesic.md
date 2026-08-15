@@ -5,33 +5,31 @@ está disponible en `lupa`. Los ratios no se duplican como métricas:
 aparecen con estado `"via_agregacion"` y con la llamada que los
 materializa.
 
-## Uso
+## Usage
 
 ``` r
 catalogo_agesic()
 ```
 
-## Valor
+## Value
 
 Data frame con una fila por entrada y las columnas `numero`,
 `dimension`, `factor`, `metrica_agesic`, `clase_catalogo`, `estado`,
 `motivo`, `metrica_lupa`, `implementacion` y `observacion`. `estado` y
 `motivo` son factores.
 
-## Detalles
+## Details
 
 `estado` responde qué disponibilidad tiene cada entrada:
 
-  - `implementada`: existe un motor ejecutable, completo o parcial;
+- `implementada`: existe un motor ejecutable, completo o parcial;
 
-  - `via_agregacion`: se obtiene agregando una métrica base;
+- `via_agregacion`: se obtiene agregando una métrica base;
 
-  - `pendiente`: es automatizable, pero el motor necesario aún no
-    existe;
+- `pendiente`: es automatizable, pero el motor necesario aún no existe;
 
-  - `fuera_de_alcance`: se decidió no implementarla en el alcance
-    tabular de esta versión, por ejemplo métricas geográficas o de
-    imágenes.
+- `fuera_de_alcance`: se decidió no implementarla en el alcance tabular
+  de esta versión, por ejemplo métricas geográficas o de imágenes.
 
 `motivo` separa la causa o el matiz: `semantica_completa`,
 `semantica_parcial`, `agregacion`, `requiere_referencial`,
@@ -41,11 +39,15 @@ una métrica cuyo motor falta. `observacion` explica la situación
 concreta de cada una de las 49 entradas y nunca queda vacía.
 
 `Escala` se clasifica como implementada con configuración experta
-mediante `escala()`, no como referencial. `DesactualizacionPorFecha`,
+mediante
+[`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md),
+no como referencial. `DesactualizacionPorFecha`,
 `DesactualizacionPorCambios` y las oportunidades de entidad requieren un
-contrato `vigencia()`. `ErrorEstandar` sigue la semántica literal de la
-tabla 16.5 y devuelve desviación estándar, aunque su nombre pueda
-sugerir el error estándar de la media.
+contrato
+[`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md).
+`ErrorEstandar` sigue la semántica literal de la tabla 16.5 y devuelve
+desviación estándar, aunque su nombre pueda sugerir el error estándar de
+la media.
 
 La implementación de `ReglaIntegridadInterEntidad` se declara parcial:
 calcula cobertura PK/FK, pero todavía no materializa la regla booleana
@@ -57,7 +59,7 @@ variantes continuas del curso CPAP se conservan como
 `RatioDensidadPonderada` usa `ratio_umbral`, porque su medida base es
 real y `ratio` sólo es válido para medidas booleanas.
 
-## Referencias
+## References
 
 [AGESIC
 (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/).
@@ -65,11 +67,13 @@ real y `ratio` sólo es válido para medidas booleanas.
 Digital*, versión 1.6, capítulo 16, Presidencia de la República,
 Uruguay.
 
-## Ver también
+## See also
 
-`metricas_nucleo()`, `metricas_referencial()`, `agregar()`
+[`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md),
+[`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md),
+[`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 catalogo <- catalogo_agesic()
@@ -83,6 +87,7 @@ subset(catalogo, estado == "via_agregacion")
 #> 37     37     Unicidad           No-duplicación          RatioAtributoDuplicado
 #> 38     38     Unicidad           No-duplicación RatioConjuntoAtributosDuplicado
 #> 39     39     Unicidad           No-duplicación        RatioEntidadesDuplicadas
+#> 41     41     Unicidad         No-contradicción      RatioEntidadContradictoria
 #>    clase_catalogo         estado     motivo                metrica_lupa
 #> 3        agregada via_agregacion agregacion        CorrectitudSemFuerte
 #> 4        agregada via_agregacion agregacion         CorrectitudSemDebil
@@ -92,6 +97,7 @@ subset(catalogo, estado == "via_agregacion")
 #> 37       agregada via_agregacion agregacion           AtributoDuplicado
 #> 38       agregada via_agregacion agregacion  ConjuntoAtributosDuplicado
 #> 39       agregada via_agregacion agregacion            EntidadDuplicada
+#> 41       agregada via_agregacion agregacion       EntidadContradictoria
 #>                                       implementacion
 #> 3                    agregar(m, "atributo", "ratio")
 #> 4                    agregar(m, "atributo", "ratio")
@@ -101,6 +107,7 @@ subset(catalogo, estado == "via_agregacion")
 #> 37                   agregar(m, "atributo", "ratio")
 #> 38                    agregar(m, "entidad", "ratio")
 #> 39                    agregar(m, "entidad", "ratio")
+#> 41                   agregar(m, "atributo", "ratio")
 #>                                                       observacion
 #> 3                Se obtiene con Ratio sobre CorrectitudSemFuerte.
 #> 4                 Se obtiene con Ratio sobre CorrectitudSemDebil.
@@ -110,18 +117,19 @@ subset(catalogo, estado == "via_agregacion")
 #> 37                  Se obtiene con Ratio sobre AtributoDuplicado.
 #> 38         Se obtiene con Ratio sobre ConjuntoAtributosDuplicado.
 #> 39                   Se obtiene con Ratio sobre EntidadDuplicada.
+#> 41              Se obtiene con Ratio sobre EntidadContradictoria.
 table(catalogo$estado, catalogo$motivo)
 #>                   
 #>                    semantica_completa semantica_parcial agregacion
 #>   implementada                      6                 1          0
-#>   via_agregacion                    0                 0          8
+#>   via_agregacion                    0                 0          9
 #>   pendiente                         0                 0          0
 #>   fuera_de_alcance                  0                 0          0
 #>                   
 #>                    requiere_referencial requiere_configuracion motor_pendiente
-#>   implementada                        3                     18               0
+#>   implementada                        3                     19               0
 #>   via_agregacion                      0                      0               0
-#>   pendiente                           0                      0               3
+#>   pendiente                           0                      0               1
 #>   fuera_de_alcance                    0                      0               0
 #>                   
 #>                    decision_alcance

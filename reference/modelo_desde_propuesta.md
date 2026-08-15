@@ -1,44 +1,49 @@
 # Materializar una propuesta de modelo de calidad
 
 Convierte las filas con `incluir == TRUE` en métricas instanciadas y las
-reúne mediante `modelo()`. No vuelve a examinar los datos ni ejecuta una
-medición.
+reúne mediante
+[`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md).
+No vuelve a examinar los datos ni ejecuta una medición.
 
-## Uso
+## Usage
 
 ``` r
 modelo_desde_propuesta(propuesta)
 ```
 
-## Argumentos
+## Arguments
 
-  - propuesta:
-    
-    Objeto creado por `proponer_modelo()`.
+- propuesta:
 
-## Valor
+  Objeto creado por
+  [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md).
 
-Objeto `modelo_calidad` listo para `medir()`.
+## Value
 
-## Ver también
+Objeto `modelo_calidad` listo para
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md).
 
-`proponer_modelo()`, `modelo()`, `medir()`
+## See also
 
-## Ejemplos
+[`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md),
+[`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md),
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+
+## Examples
 
 ``` r
 datos <- data.frame(x = c(1, NA, 3))
 propuesta <- proponer_modelo(perfilar(datos), datos)
 modelo_propuesto <- modelo_desde_propuesta(propuesta)
 medir(modelo_propuesto, datos)
-#>                                       id_medida
-#> 1 medicion-20260808T211924.800452-303753-000001
-#> 2 medicion-20260808T211924.800452-303753-000002
-#> 3 medicion-20260808T211924.800452-303753-000003
-#>                              id_medicion               fecha metrica
-#> 1 medicion-20260808T211924.800452-303753 2026-08-08 21:19:24  NoNulo
-#> 2 medicion-20260808T211924.800452-303753 2026-08-08 21:19:24  NoNulo
-#> 3 medicion-20260808T211924.800452-303753 2026-08-08 21:19:24  NoNulo
+#>                                     id_medida
+#> 1 medicion-20260815T131953.116486-7466-000001
+#> 2 medicion-20260815T131953.116486-7466-000002
+#> 3 medicion-20260815T131953.116486-7466-000003
+#>                            id_medicion               fecha metrica
+#> 1 medicion-20260815T131953.116486-7466 2026-08-15 13:19:53  NoNulo
+#> 2 medicion-20260815T131953.116486-7466 2026-08-15 13:19:53  NoNulo
+#> 3 medicion-20260815T131953.116486-7466 2026-08-15 13:19:53  NoNulo
 #>   metrica_especifica metrica_instanciada   dimension   factor      granularidad
 #> 1    NoNuloPropuesto     sugerencia-0001 Completitud Densidad instanciaAtributo
 #> 2    NoNuloPropuesto     sugerencia-0001 Completitud Densidad instanciaAtributo

@@ -11,7 +11,7 @@ que la ausencia de fines de semana se interprete como hueco. Las
 fechas-hora se llevan a fecha civil en UTC para que el resultado no
 dependa de la zona del equipo que ejecuta el análisis.
 
-## Uso
+## Usage
 
 ``` r
 analizar_tiempo(
@@ -25,48 +25,49 @@ analizar_tiempo(
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - datos:
-    
-    Tabla que se desea examinar.
+- datos:
 
-  - perfil:
-    
-    Perfil opcional de los mismos datos.
+  Tabla que se desea examinar.
 
-  - columnas:
-    
-    Columnas temporales; `NULL` usa clases e inferencia.
+- perfil:
 
-  - calendario:
-    
-    Días de semana esperados, enteros entre 1 y 7.
+  Perfil opcional de los mismos datos.
 
-  - frecuencia\_dias:
-    
-    Frecuencia entera conocida en días. Si es `NULL`, se propone la moda
-    de los intervalos positivos.
+- columnas:
 
-  - max\_huecos:
-    
-    Máximo de grupos de huecos devueltos por columna.
+  Columnas temporales; `NULL` usa clases e inferencia.
 
-  - max\_columnas:
-    
-    Máximo de columnas temporales analizadas.
+- calendario:
 
-## Valor
+  Días de semana esperados, enteros entre 1 y 7.
+
+- frecuencia_dias:
+
+  Frecuencia entera conocida en días. Si es `NULL`, se propone la moda
+  de los intervalos positivos.
+
+- max_huecos:
+
+  Máximo de grupos de huecos devueltos por columna.
+
+- max_columnas:
+
+  Máximo de columnas temporales analizadas.
+
+## Value
 
 Objeto `analisis_temporal` con `resumen`, `dias_semana`, `huecos` y
 `propuestas`. El recorte de huecos queda en `resumen`; el de columnas,
 en atributos del objeto.
 
-## Ver también
+## See also
 
-`detectar_formatos_fecha()`, `analizar()`
+[`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md),
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 fechas <- as.Date("2026-01-01") + c(0:4, 20:24)

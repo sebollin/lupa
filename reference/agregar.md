@@ -2,9 +2,10 @@
 
 Aplica exactamente una de las cuatro agregaciones del marco: `ratio`,
 `ratio_umbral`, `promedio` o `promedio_ponderado`. La transición se
-valida contra el grafo de `transiciones_granularidad()`.
+valida contra el grafo de
+[`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md).
 
-## Uso
+## Usage
 
 ``` r
 agregar(
@@ -16,37 +17,38 @@ agregar(
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - medidas:
-    
-    Data frame producido por `medir()` o una agregación anterior. Debe
-    contener una sola métrica específica, una corrida y una
-    granularidad.
+- medidas:
 
-  - destino:
-    
-    Granularidad de destino.
+  Data frame producido por
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) o una
+  agregación anterior. Debe contener una sola métrica específica, una
+  corrida y una granularidad.
 
-  - funcion:
-    
-    Una de `"ratio"`, `"ratio_umbral"`, `"promedio"` o
-    `"promedio_ponderado"`.
+- destino:
 
-  - umbral:
-    
-    Umbral en `[0, 1]` requerido por `ratio_umbral`.
+  Granularidad de destino.
 
-  - pesos:
-    
-    Vector numérico requerido por `promedio_ponderado`, con una entrada
-    por fila de `medidas`.
+- funcion:
 
-## Valor
+  Una de `"ratio"`, `"ratio_umbral"`, `"promedio"` o
+  `"promedio_ponderado"`.
+
+- umbral:
+
+  Umbral en `[0, 1]` requerido por `ratio_umbral`.
+
+- pesos:
+
+  Vector numérico requerido por `promedio_ponderado`, con una entrada
+  por fila de `medidas`.
+
+## Value
 
 Objeto `medicion` agregado, con una fila por objeto de destino.
 
-## Detalles
+## Details
 
 `ratio` sólo acepta medidas booleanas. `ratio_umbral` sólo acepta
 medidas reales. Los promedios aceptan ambos tipos y siempre producen
@@ -56,7 +58,7 @@ estar en `[0, 1]` y sumar uno dentro de cada objeto de destino.
 No existe una transición hacia factor, dimensión o modelo: esos campos
 son taxonómicos y esta función no calcula un índice global.
 
-## Ejemplos
+## Examples
 
 ``` r
 nucleo <- metricas_nucleo()
@@ -64,10 +66,10 @@ especifica <- especializar(nucleo$NoNulo)
 instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
-#>                                                 id_medida
-#> 1 medicion-20260808T211916.722253-303753-agg-ratio-000001
-#>                              id_medicion               fecha metrica
-#> 1 medicion-20260808T211916.722253-303753 2026-08-08 21:19:16  NoNulo
+#>                                               id_medida
+#> 1 medicion-20260815T131941.559938-7466-agg-ratio-000001
+#>                            id_medicion               fecha metrica
+#> 1 medicion-20260815T131941.559938-7466 2026-08-15 13:19:41  NoNulo
 #>   metrica_especifica   metrica_instanciada   dimension   factor granularidad
 #> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad     atributo
 #>   tipo_resultado  entidad atributo fila objeto_medible resultado agregacion

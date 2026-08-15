@@ -1,23 +1,24 @@
-# Autores y Citas
+# Authors and Citation
 
-## Autores
+## Authors
 
-  - **Sebastián Lucas**. Autor-a, mantenedor-a.
+- **Sebastián Lucas**. Author, maintainer.
+  [](https://orcid.org/0009-0009-9068-0276)
 
-  - **Robyn Speer**. Titular de los derechos de autor.
+- **Robyn Speer**. Copyright holder.
 
-  - **Nicholas Tierney**. Titular de los derechos de autor.
+- **Nicholas Tierney**. Copyright holder.
 
-  - **Di Cook**. Titular de los derechos de autor.
+- **Di Cook**. Copyright holder.
 
-  - **Miles McBain**. Titular de los derechos de autor.
+- **Miles McBain**. Copyright holder.
 
-  - **Colin Fay**. Titular de los derechos de autor.
+- **Colin Fay**. Copyright holder.
 
-## Cita
+## Citation
 
-Código:
-[`inst/CITATION`](https://github.com/sebollin/lupa/blob/HEAD/inst/CITATION)
+Source:
+[`inst/CITATION`](https://github.com/sebollin/lupa/blob/main/inst/CITATION)
 
 Lucas S (2026). lupa: Data Profiling and Quality Measurement. R package
 version 0.1.0.

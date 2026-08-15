@@ -7,36 +7,41 @@ escala `[0, 1]`. Los textos compuestos únicamente por `0` y `1` se
 consideran enteros; para inferir un lógico debe aparecer al menos un
 literal alfabético como `sí`, `no`, `true` o `false`.
 
-## Uso
+## Usage
 
 ``` r
 inferir_tipo(x, umbral = 0.8, muestra = 1e+05)
 ```
 
-## Argumentos
+## Arguments
 
-  - x:
-    
-    Vector que se desea examinar.
+- x:
 
-  - umbral:
-    
-    Proporción mínima para asignar un tipo implícito.
+  Vector que se desea examinar.
 
-  - muestra:
-    
-    Máximo de valores que se analizan.
+- umbral:
 
-## Valor
+  Proporción mínima para asignar un tipo implícito.
+
+- muestra:
+
+  Máximo de valores que se analizan.
+
+## Value
 
 Lista de clase `inferencia_tipo` con `tipo`, `proporcion`, conteos,
 candidatos evaluados y, cuando corresponde, formatos de fecha.
+`n_analizados` y `muestreado` declaran cuántos valores sostienen la
+proporción. El resultado público no conserva cachés internos del
+perfilado.
 
-## Ver también
+## See also
 
-`detectar_formatos_fecha()`, `descubrir_patrones()`, `perfilar()`
+[`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md),
+[`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md),
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 inferir_tipo(c("1", "2", "3"))

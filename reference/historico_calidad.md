@@ -1,10 +1,12 @@
 # Construir y ampliar un histórico de calidad
 
 Crea un data frame plano y versionado con corridas producidas por
-`medir()` o `evaluar()`. `acumular_historico()` agrega objetos al mismo
-esquema y es idempotente cuando recibe otra vez registros idénticos.
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) o
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md).
+`acumular_historico()` agrega objetos al mismo esquema y es idempotente
+cuando recibe otra vez registros idénticos.
 
-## Uso
+## Usage
 
 ``` r
 historico_calidad(..., detalle = c("resumen", "completo"))
@@ -12,43 +14,44 @@ historico_calidad(..., detalle = c("resumen", "completo"))
 acumular_historico(historico, ..., detalle = c("resumen", "completo"))
 ```
 
-## Argumentos
+## Arguments
 
-  - ...:
-    
-    Objetos `medicion`, `evaluacion_calidad` o `historico_calidad`.
-    También puede darse una única lista que los contenga.
+- ...:
 
-  - detalle:
-    
-    Para evaluaciones, `"resumen"` conserva los niveles de regla y
-    perfil; `"completo"` conserva además cada evaluación de medida. Una
-    `medicion` pasada explícitamente siempre se conserva completa.
+  Objetos `medicion`, `evaluacion_calidad` o `historico_calidad`.
+  También puede darse una única lista que los contenga.
 
-  - historico:
-    
-    Objeto creado por `historico_calidad()`.
+- detalle:
 
-## Valor
+  Para evaluaciones, `"resumen"` conserva los niveles de regla y perfil;
+  `"completo"` conserva además cada evaluación de medida. Una `medicion`
+  pasada explícitamente siempre se conserva completa.
+
+- historico:
+
+  Objeto creado por `historico_calidad()`.
+
+## Value
 
 Data frame S3 `historico_calidad`. La columna `version_esquema` y el
 atributo del mismo nombre permiten migraciones futuras. `nivel`
 corresponde a `medida`, `evaluacion_medida`, `evaluacion_regla` o
 `evaluacion_perfil`.
 
-## Detalles
+## Details
 
 El detalle predeterminado evita repetir una fila por celda y regla
 cuando el objetivo es monitorear la serie de evaluaciones. El objeto no
 guarda modelos, closures, datos originales ni perfiles de profiling.
-Esto mantiene la tabla exportable directamente con `write.csv()` o una
+Esto mantiene la tabla exportable directamente con
+[`write.csv()`](https://rdrr.io/r/utils/write.table.html) o una
 herramienta de base de datos.
 
 El esquema largo mapea las cuatro tablas de la sección 9.5 del marco
 mediante `nivel`. Las columnas que no corresponden a un nivel quedan
 como `NA`.
 
-## Referencias
+## References
 
 [AGESIC
 (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/).
@@ -56,13 +59,17 @@ como `NA`.
 Digital*, versión 1.6, sección 9.5, Presidencia de la República,
 Uruguay.
 
-## Ver también
+## See also
 
-`medir()`, `evaluar()`, `detectar_deriva_calidad()`, `reportar()`
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md),
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md),
+[`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md),
+[`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
 
-`historico_calidad()`, `leer_historico()`
+`historico_calidad()`,
+[`leer_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 nucleo <- metricas_nucleo()

@@ -6,6 +6,11 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>lupa — profiling y calidad de datos • lupa</title>
+<!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
+<link rel="icon" type="”image/svg+xml”" href="favicon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" sizes="any" href="favicon.ico">
+<link rel="manifest" href="site.webmanifest">
 <script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
@@ -15,37 +20,39 @@
 ">
 <meta property="og:description" content="Examinar, medir, evaluar, remediar y monitorear calidad de datos con resultados auditables.
 ">
+<meta property="og:image" content="https://sebollin.github.io/lupa/logo.png">
 </head>
 <body>
-    <a href="#main" class="visually-hidden-focusable">Ir al contenido</a>
+    <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
-    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Navegación del sitio"><div class="container">
+    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
+    <a class="navbar-brand p-0 me-2" href="https://sebollin.github.io/lupa/"><img src="https://sebollin.github.io/lupa/logo.png" height="32" alt="lupa"></a>
 
     <a class="navbar-brand me-2" href="index.html">lupa</a>
 
     <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Cambiar la navegación">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="reference/index.html">Índice</a></li>
+<li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
-  <button class="nav-link dropdown-toggle" type="button" id="dropdown-art-culos" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Artículos</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-art-culos">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="articles/empezar-con-lupa.html">Empezar con lupa</a></li>
     <li><a class="dropdown-item" href="articles/el-modelo-de-calidad.html">Un modelo de calidad declarable</a></li>
     <li><a class="dropdown-item" href="articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
     <li><a class="dropdown-item" href="articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="articles/index.html">Más artículos...</a></li>
+    <li><a class="dropdown-item" href="articles/index.html">More articles...</a></li>
   </ul>
 </li>
-<li class="nav-item"><a class="nav-link" href="news/index.html">Registro de cambios</a></li>
+<li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav"></ul>
 </div>
@@ -55,57 +62,60 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
-<div class="page-header"><h1 id="lupa-">lupa <a href="https://sebollin.github.io/lupa/"><img src="reference/figures/lupa.png" align="right" height="139" alt="lupa website"></a>
+<div class="page-header">
+<img src="logo.png" class="logo" alt=""><h1 id="lupa-">lupa 
 <a class="anchor" aria-label="anchor" href="#lupa-"></a>
-</h1></div>
+</h1>
+</div>
 <!-- badges: start -->
+
 <p><code>lupa</code> is an auditable R toolkit for profiling tabular data, defining what quality means for a particular use, measuring it, cleaning a copy without silently changing the input, and finding approximate duplicate records at scale. It reports the scope, evidence, and uncertainty of every result.</p>
-<p>The public API, help pages, and vignettes are in Spanish. The names are stable and can be copied from this English guide; the <a href="README.es.html">Spanish README</a> tells the same story in Spanish.</p>
+<p>The public API, help pages, and vignettes are in Spanish. The names are stable and can be copied from this English guide; the <a href="https://github.com/sebollin/lupa/blob/main/README.es.md" class="external-link">Spanish README</a> tells the same story in Spanish. This is an internationalized core with a Spanish interface: translating the public names would break code, tests, and vignettes, so contributors should expect the contract itself to remain in Spanish while the surrounding guidance can be read in English.</p>
 <div class="section level2">
-<h2 id="-api-language">🌎 API language<a class="anchor" aria-label="anchor" href="#-api-language"></a>
+<h2 id="earth_americas-api-language">🌎 API language<a class="anchor" aria-label="anchor" href="#earth_americas-api-language"></a>
 </h2>
 <p>The public names are Spanish in both examples and help pages:</p>
 <table class="table">
-<thead><tr class="header">
+<thead><tr>
 <th>Spanish API</th>
 <th>English meaning</th>
 </tr></thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code><a href="reference/perfilar.html">perfilar()</a></code></td>
 <td>profile</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code><a href="reference/analizar.html">analizar()</a></code></td>
 <td>analyse</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code><a href="reference/marco_calidad.html">marco_calidad()</a></code></td>
 <td>quality framework</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code><a href="reference/planificar_limpieza.html">planificar_limpieza()</a></code></td>
 <td>plan a cleanup</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code><a href="reference/guiar_limpieza.html">guiar_limpieza()</a></code></td>
 <td>guide a cleanup</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code><a href="reference/planificar_limpieza.html">aplicar()</a></code></td>
 <td>apply a selected cleanup</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>
 <code><a href="reference/medir.html">medir()</a></code> / <code><a href="reference/evaluar.html">evaluar()</a></code>
 </td>
 <td>measure / evaluate</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code></td>
 <td>find approximate duplicates</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code><a href="reference/reportar.html">reportar()</a></code></td>
 <td>create a report</td>
 </tr>
@@ -113,7 +123,7 @@
 </table>
 </div>
 <div class="section level2">
-<h2 id="-what-lupa-does">✨ What lupa does<a class="anchor" aria-label="anchor" href="#-what-lupa-does"></a>
+<h2 id="sparkles-what-lupa-does">✨ What lupa does<a class="anchor" aria-label="anchor" href="#sparkles-what-lupa-does"></a>
 </h2>
 <ul>
 <li>Profiles a delivery and surfaces missingness, types, patterns, dates, and personal-data evidence.</li>
@@ -127,21 +137,21 @@
 </ul>
 </div>
 <div class="section level2">
-<h2 id="-installation">📦 Installation<a class="anchor" aria-label="anchor" href="#-installation"></a>
+<h2 id="package-installation">📦 Installation<a class="anchor" aria-label="anchor" href="#package-installation"></a>
 </h2>
 <p>Until the first CRAN release, install the development version directly from GitHub:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"sebollin/lupa"</span><span class="op">)</span></span></code></pre></div>
 <p>For a local clone or release tarball, use:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="ex">R</span> CMD build .</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="ex">R</span> CMD build .</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span></code></pre></div>
 <p>Or install a local source tarball from R:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"lupa_0.1.0.tar.gz"</span>, repos <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="-a-five-minute-start">⚡ A five-minute start<a class="anchor" aria-label="anchor" href="#-a-five-minute-start"></a>
+<h2 id="zap-a-five-minute-start">⚡ A five-minute start<a class="anchor" aria-label="anchor" href="#zap-a-five-minute-start"></a>
 </h2>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
@@ -156,12 +166,12 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/files.html" class="external-link">file.exists</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/unlink.html" class="external-link">unlink</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span></span></code></pre></div>
 <p>The profile is read-only: it never changes the input table. Findings are ordinary inspectable data frames, and personal-data evidence is masked when the classification warrants it. A real console preview is shown below.</p>
-<div class="figure">
-<img src="reference/figures/perfil-console.png" alt=""><p class="caption">A captured <code><a href="reference/perfilar.html">perfilar()</a></code> console result</p>
+<div class="float">
+<img src="reference/figures/perfil-console.png" alt="A captured perfilar() console result"><div class="figcaption">A captured <code><a href="reference/perfilar.html">perfilar()</a></code> console result</div>
 </div>
 </div>
 <div class="section level2">
-<h2 id="-what-can-i-do-with-lupa">🧭 What can I do with lupa?<a class="anchor" aria-label="anchor" href="#-what-can-i-do-with-lupa"></a>
+<h2 id="compass-what-can-i-do-with-lupa">🧭 What can I do with lupa?<a class="anchor" aria-label="anchor" href="#compass-what-can-i-do-with-lupa"></a>
 </h2>
 <p>The <a href="https://sebollin.github.io/lupa/reference/">pkgdown reference</a> and the linked vignettes are the detailed manual. This table is the short map:</p>
 <table class="table">
@@ -170,76 +180,76 @@
 <col width="33%">
 <col width="33%">
 </colgroup>
-<thead><tr class="header">
+<thead><tr>
 <th>Task</th>
 <th>Main functions</th>
 <th>Read more</th>
 </tr></thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Look at data for the first time</td>
 <td>
 <code><a href="reference/perfilar.html">perfilar()</a></code>, <code><a href="reference/analizar.html">analizar()</a></code>, <code><a href="reference/distribucion_valores.html">distribucion_valores()</a></code>, <code><a href="reference/detectar_asociaciones.html">detectar_asociaciones()</a></code>, <code><a href="reference/analizar_tiempo.html">analizar_tiempo()</a></code>, <code><a href="reference/clasificar_variables.html">clasificar_variables()</a></code>, <code><a href="reference/inferir_tipo.html">inferir_tipo()</a></code>, <code><a href="reference/descubrir_patrones.html">descubrir_patrones()</a></code>, <code><a href="reference/detectar_formatos_fecha.html">detectar_formatos_fecha()</a></code>, <code>sentinelas_naniar</code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/articles/empezar-con-lupa.html">Getting started</a></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Find undeclared structure</td>
 <td>
 <code><a href="reference/detectar_claves.html">detectar_claves()</a></code>, <code><a href="reference/detectar_relaciones.html">detectar_relaciones()</a></code>, <code><a href="reference/detectar_dependencias.html">detectar_dependencias()</a></code>, <code><a href="reference/granularidades.html">granularidades()</a></code>, <code><a href="reference/granularidades.html">transiciones_granularidad()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/articles/empezar-con-lupa.html">Getting started</a></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Define quality</td>
 <td>
 <code><a href="reference/marco_calidad.html">marco_calidad()</a></code>, <code><a href="reference/marco_calidad.html">marco_agesic()</a></code>, <code><a href="reference/marco_calidad.html">marco_iso25012()</a></code>, <code><a href="reference/catalogo_agesic.html">catalogo_agesic()</a></code>, <code><a href="reference/modelo_calidad.html">metrica()</a></code>, <code><a href="reference/modelo_calidad.html">especializar()</a></code>, <code><a href="reference/modelo_calidad.html">instanciar()</a></code>, <code><a href="reference/modelo_calidad.html">modelo()</a></code>, <code><a href="reference/modelo_calidad.html">metricas_nucleo()</a></code>, <code><a href="reference/metricas_referencial.html">metricas_referencial()</a></code>, <code><a href="reference/proponer_modelo.html">proponer_modelo()</a></code>, <code><a href="reference/modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code>, <code><a href="reference/reglas_evaluacion.html">perfiles_madurez()</a></code>, <code><a href="reference/cobertura_analisis.html">cobertura_analisis()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html">Quality model</a></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Measure and evaluate</td>
 <td>
 <code><a href="reference/medir.html">medir()</a></code>, <code><a href="reference/agregar.html">agregar()</a></code>, <code><a href="reference/evaluar.html">evaluar()</a></code>, <code><a href="reference/reglas_evaluacion.html">regla_evaluacion()</a></code>, <code><a href="reference/reglas_evaluacion.html">perfil_evaluacion()</a></code>, <code><a href="reference/contratos_medicion.html">escala()</a></code>, <code><a href="reference/referencial.html">referencial()</a></code>, <code><a href="reference/contratos_medicion.html">vigencia()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html">Quality model</a></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Clean safely</td>
 <td>
 <code><a href="reference/planificar_limpieza.html">planificar_limpieza()</a></code>, <code><a href="reference/guiar_limpieza.html">guiar_limpieza()</a></code>, <code><a href="reference/planificar_limpieza.html">aplicar()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html">Cleaning plan</a></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Find approximate duplicates</td>
 <td>
 <code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>, <code><a href="reference/estimar_costo.html">estimar_costo()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/articles/escala-y-duplicados.html">Scale and duplicates</a></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Repair encoding damage</td>
 <td>
 <code>reparar_codificacion</code> through <code><a href="reference/planificar_limpieza.html">planificar_limpieza()</a></code> and <code><a href="reference/planificar_limpieza.html">aplicar()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/reference/planificar_limpieza.html">Cleanup reference</a></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Follow quality over time</td>
 <td>
 <code><a href="reference/historico_calidad.html">historico_calidad()</a></code>, <code><a href="reference/historico_calidad.html">acumular_historico()</a></code>, <code><a href="reference/guardar_historico.html">guardar_historico()</a></code>, <code><a href="reference/guardar_historico.html">leer_historico()</a></code>, <code><a href="reference/detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code>, <code><a href="reference/comparar_perfiles.html">comparar_perfiles()</a></code>, <code><a href="reference/comparar_evaluaciones.html">comparar_evaluaciones()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/articles/historico-y-deriva.html">History and drift</a></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Share results</td>
 <td>
 <code><a href="reference/reportar.html">reportar()</a></code>, <code><a href="reference/persistir_analisis.html">guardar_analisis()</a></code>, <code><a href="reference/persistir_analisis.html">leer_analisis()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/reference/reportar.html">Reporting reference</a></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Validate and extend</td>
 <td>
 <code><a href="reference/pack_validadores.html">validadores_internacionales()</a></code>, <code><a href="reference/pack_validadores.html">validadores_uruguay()</a></code>, <code><a href="reference/pack_validadores.html">pack_validadores()</a></code>, <code><a href="reference/validadores_uy.html">validar_ci_uy()</a></code>, <code><a href="reference/validadores_uy.html">validar_rut_uy()</a></code>, <code><a href="reference/validadores_formato.html">validar_luhn()</a></code>, <code><a href="reference/validadores_formato.html">validar_mod97()</a></code>, <code><a href="reference/validadores_formato.html">validar_iso3166()</a></code>, <code><a href="reference/validadores_formato.html">validar_iso4217()</a></code>, <code><a href="reference/validadores_formato.html">validar_correo()</a></code>
@@ -258,65 +268,66 @@
 <span><span class="va">propuesta</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/proponer_modelo.html">proponer_modelo</a></span><span class="op">(</span><span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>,</span>
 <span>                                      analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>marco <span class="op">=</span> <span class="va">marco</span>, propuesta <span class="op">=</span> <span class="va">propuesta</span><span class="op">)</span></span></code></pre></div>
-<p>The API has a few boundaries worth knowing. There is no global quality score: dimensions, units, and rules stay visible. The core is universal and catalogues are pluggable; <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC</a> v1.6 is a reference implementation, not a country lock. The package has one required import, <a href="https://cran.r-project.org/package=cli" class="external-link"><code>cli</code></a>; <a href="https://cran.r-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> is optional.</p>
+<p>The API has a few boundaries worth knowing. There is no global quality score: dimensions, units, and rules stay visible. A factory weighting would be a verdict about what matters, so <code>lupa</code> exposes the components and a recipe and leaves the weights to each project. The core is universal and catalogues are pluggable; <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC</a> v1.6 is a reference implementation, not a country lock. The package has one required import, <a href="https://cran.r-project.org/package=cli" class="external-link"><code>cli</code></a>; <a href="https://cran.r-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> is optional.</p>
+<p>Work that can be parallelised uses <strong>two threads by default</strong>, the ceiling CRAN asks packages to respect. On your own machine you can raise it, per call with <code>nucleos = 8</code> or for the whole session with <code>options(lupa.nucleos = 8)</code>; the result does not change, only how long it takes.</p>
 </div>
 <div class="section level2">
-<h2 id="-where-it-fits">🔍 Where it fits<a class="anchor" aria-label="anchor" href="#-where-it-fits"></a>
+<h2 id="mag-where-it-fits">🔍 Where it fits<a class="anchor" aria-label="anchor" href="#mag-where-it-fits"></a>
 </h2>
 <p><a href="https://cran.r-project.org/package=skimr" class="external-link"><code>skimr</code></a> and <a href="https://cran.r-project.org/package=DataExplorer" class="external-link"><code>DataExplorer</code></a> explore; <a href="https://cran.r-project.org/package=pointblank" class="external-link"><code>pointblank</code></a>, <a href="https://cran.r-project.org/package=validate" class="external-link"><code>validate</code></a>, and <a href="https://cran.r-project.org/package=dataquieR" class="external-link"><code>dataquieR</code></a> express or evaluate rules; <a href="https://cran.r-project.org/package=zoomerjoin" class="external-link"><code>zoomerjoin</code></a>, <a href="https://cran.r-project.org/package=textreuse" class="external-link"><code>textreuse</code></a>, and <a href="https://cran.r-project.org/package=reclin2" class="external-link"><code>reclin2</code></a> focus on text comparison or record linkage. <a href="https://github.com/inesscc/calidad" class="external-link"><code>calidad</code></a>, maintained by <a href="https://github.com/Klauslehmann" class="external-link">Klaus Lehmann</a> and <a href="https://github.com/ricardoflopiza" class="external-link">Ricardo Pizarro</a>, is a complementary axis: it evaluates the quality of <strong>survey estimates</strong>, while <code>lupa</code> evaluates the tabular data that produces an estimate.</p>
 <p>Encoding repair follows the approach and frozen data of <a href="https://github.com/rspeer/python-ftfy" class="external-link"><code>ftfy</code></a> 6.3.1 by <a href="https://github.com/rspeer" class="external-link">Robyn Speer</a>, in R. It includes eleven byte tables, CESU-8 and Java <code>C0 80</code> handling, and five deliberate extensions documented in the <a href="NEWS.html">NEWS</a>. It reproduces 159 of the 161 distributed corpus cases and leaves all 31 negative cases untouched. It deliberately does not provide <a href="https://github.com/rspeer/python-ftfy" class="external-link"><code>ftfy</code></a>’s style-oriented <code>fix_text</code> steps such as HTML unescaping, quote curling, width normalization, or Unicode normalization: changing legitimate data silently is not repair.</p>
 </div>
 <div class="section level2">
-<h2 id="-citation-and-references">📖 Citation and references<a class="anchor" aria-label="anchor" href="#-citation-and-references"></a>
+<h2 id="open_book-citation-and-references">📖 Citation and references<a class="anchor" aria-label="anchor" href="#open_book-citation-and-references"></a>
 </h2>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"lupa"</span><span class="op">)</span></span></code></pre></div>
 <p>Conceptual references are <a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini and Scannapieco (2016)</a>, the <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC Digital Government Data Quality Framework v1.6</a>, and <a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC 25012:2008</a>.</p>
 </div>
 <div class="section level2">
-<h2 id="-contribute-and-report">🤝 Contribute and report<a class="anchor" aria-label="anchor" href="#-contribute-and-report"></a>
+<h2 id="handshake-contribute-and-report">🤝 Contribute and report<a class="anchor" aria-label="anchor" href="#handshake-contribute-and-report"></a>
 </h2>
 <p>Please use the <a href="https://github.com/sebollin/lupa/issues" class="external-link">issue tracker</a> for bugs, proposals, and documentation fixes. The stable contracts are the declared units, scope, protection, and audit trail; implementation details and benchmark times can change between releases when those contracts remain true.</p>
 </div>
 <div class="section level2">
-<h2 id="-license">📄 License<a class="anchor" aria-label="anchor" href="#-license"></a>
+<h2 id="page_facing_up-license">📄 License<a class="anchor" aria-label="anchor" href="#page_facing_up-license"></a>
 </h2>
 <p><code>lupa</code> is released under the <a href="https://www.gnu.org/licenses/gpl-3.0.html" class="external-link">GPL-3</a>. See <a href="LICENSE.note"><code>LICENSE.note</code></a> for the Apache-2.0 data derived from <a href="https://github.com/rspeer/python-ftfy" class="external-link"><code>ftfy</code></a> and the MIT data derived from <a href="https://github.com/njtierney/naniar" class="external-link"><code>naniar</code></a>.</p>
 </div>
 </div>
-  </main><aside class="col-md-3"><div class="enlaces">
-<h2 data-toc-skip>Enlaces</h2>
+  </main><aside class="col-md-3"><div class="links">
+<h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/sebollin/lupa/" class="external-link">Ir al código fuente</a></li>
-<li><a href="https://github.com/sebollin/lupa/issues" class="external-link">Informar de un problema</a></li>
+<li><a href="https://github.com/sebollin/lupa/" class="external-link">Browse source code</a></li>
+<li><a href="https://github.com/sebollin/lupa/issues" class="external-link">Report a bug</a></li>
 </ul>
 </div>
 
-<div class="licencia">
-<h2 data-toc-skip>Licencia</h2>
+<div class="license">
+<h2 data-toc-skip>License</h2>
 <ul class="list-unstyled">
 <li><a href="https://www.r-project.org/Licenses/GPL-3" class="external-link">GPL-3</a></li>
 </ul>
 </div>
 
 
-<div class="cita">
-<h2 data-toc-skip>Cita</h2>
+<div class="citation">
+<h2 data-toc-skip>Citation</h2>
 <ul class="list-unstyled">
-<li><a href="authors.html#citation">Cómo citar lupa</a></li>
+<li><a href="authors.html#citation">Citing lupa</a></li>
 </ul>
 </div>
 
-<div class="desarrolladores">
-<h2 data-toc-skip>Desarrolladores</h2>
+<div class="developers">
+<h2 data-toc-skip>Developers</h2>
 <ul class="list-unstyled">
-<li>Sebastián Lucas <br><small class="roles"> Autor-a, mantenedor-a </small>   </li>
-<li><a href="authors.html">Más sobre los autores...</a></li>
+<li>Sebastián Lucas <br><small class="roles"> Author, maintainer </small> <a href="https://orcid.org/0009-0009-9068-0276" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
+<li><a href="authors.html">More about authors...</a></li>
 </ul>
 </div>
 
-<div class="estado-de-desarrollo">
-<h2 data-toc-skip>Estado de desarrollo</h2>
+<div class="dev-status">
+<h2 data-toc-skip>Dev status</h2>
 <ul class="list-unstyled">
 <li><a href="https://www.gnu.org/licenses/gpl-3.0.html" class="external-link"><img src="https://img.shields.io/badge/license-GPL--3-blue.svg" alt="License: GPL-3"></a></li>
 <li><a href="https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
@@ -330,11 +341,11 @@
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Desarrollado por Sebastián Lucas.</p>
+  <p>Developed by Sebastián Lucas.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Sitio creado con <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

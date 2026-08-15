@@ -6,7 +6,7 @@ para cada valor del determinante; por eso una dependencia aproximada
 señala directamente las filas minoritarias que pueden ser errores de
 carga.
 
-## Uso
+## Usage
 
 ``` r
 detectar_dependencias(
@@ -22,48 +22,48 @@ detectar_dependencias(
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - datos:
-    
-    Tabla que se desea examinar.
+- datos:
 
-  - umbral:
-    
-    Cumplimiento mínimo en `[0, 1]`.
+  Tabla que se desea examinar.
 
-  - muestra:
-    
-    Máximo de filas; `Inf` desactiva el muestreo.
+- umbral:
 
-  - max\_columnas:
-    
-    Máximo de columnas analizadas.
+  Cumplimiento mínimo en `[0, 1]`.
 
-  - umbral\_casi\_constante:
-    
-    Proporción modal a partir de la cual un determinante se descarta por
-    casi constante.
+- muestra:
 
-  - umbral\_casi\_clave:
-    
-    Tasa de valores distintos a partir de la cual un determinante se
-    descarta por casi clave, salvo que `incluir_claves` sea verdadero.
+  Máximo de filas; `Inf` desactiva el muestreo.
 
-  - incluir\_claves:
-    
-    Si se incluyen determinantes únicos, que satisfacen dependencias de
-    forma trivial.
+- max_columnas:
 
-  - min\_observaciones:
-    
-    Mínimo de pares presentes para informar una dependencia.
+  Máximo de columnas analizadas.
 
-  - max\_ejemplos:
-    
-    Máximo de contradicciones concretas en `evidencia`.
+- umbral_casi_constante:
 
-## Valor
+  Proporción modal a partir de la cual un determinante se descarta por
+  casi constante.
+
+- umbral_casi_clave:
+
+  Tasa de valores distintos a partir de la cual un determinante se
+  descarta por casi clave, salvo que `incluir_claves` sea verdadero.
+
+- incluir_claves:
+
+  Si se incluyen determinantes únicos, que satisfacen dependencias de
+  forma trivial.
+
+- min_observaciones:
+
+  Mínimo de pares presentes para informar una dependencia.
+
+- max_ejemplos:
+
+  Máximo de contradicciones concretas en `evidencia`.
+
+## Value
 
 Data frame de clase `dependencias_funcionales`, ordenado por
 cumplimiento y soporte. Los atributos `muestreado`, `filas_analizadas`,
@@ -71,7 +71,7 @@ cumplimiento y soporte. Los atributos `muestreado`, `filas_analizadas`,
 `truncado` documentan el alcance efectivo. `columnas_descartadas` es un
 data frame que explica por qué una columna no se usó como determinante.
 
-## Detalles
+## Details
 
 Para evitar resultados vacíos o triviales, se omiten por defecto las
 claves únicas, los determinantes cuya tasa de valores distintos alcanza
@@ -90,11 +90,13 @@ las primeras columnas analizables y `muestra` aplica una única muestra
 sistemática a toda la tabla, de modo que las relaciones entre filas no
 se rompen. Los atributos del resultado declaran ambos recortes.
 
-## Ver también
+## See also
 
-`detectar_claves()`, `proponer_modelo()`, `perfilar()`
+[`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md),
+[`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md),
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 datos <- data.frame(

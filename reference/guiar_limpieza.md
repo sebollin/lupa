@@ -6,7 +6,7 @@ y sus justificaciones, y devuelve el plan editado sin aplicarlo. En una
 sesión no interactiva retorna inmediatamente el plan sin cambios, salvo
 que se proporcione un `selector` explícito.
 
-## Uso
+## Usage
 
 ``` r
 guiar_limpieza(
@@ -18,36 +18,35 @@ guiar_limpieza(
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - plan:
-    
-    Objeto `plan_limpieza`.
+- plan:
 
-  - datos:
-    
-    Datos correspondientes al perfil que originó el plan.
+  Objeto `plan_limpieza`.
 
-  - selector:
-    
-    Función opcional que recibe una lista con `grupo`, `acciones`,
-    `elegibles`, `ejemplos` y `opciones`. Debe devolver la posición, el
-    identificador o el nombre de una estrategia, o `0` para no hacer
-    nada.
+- datos:
 
-  - diccionarios:
-    
-    Lista opcional con nombre de diccionarios por columna.
+  Datos correspondientes al perfil que originó el plan.
 
-  - max\_ejemplos:
-    
-    Máximo de ejemplos reales mostrados por grupo.
+- selector:
 
-## Valor
+  Función opcional que recibe una lista con `grupo`, `acciones`,
+  `elegibles`, `ejemplos` y `opciones`. Debe devolver la posición, el
+  identificador o el nombre de una estrategia, o `0` para no hacer nada.
+
+- diccionarios:
+
+  Lista opcional con nombre de diccionarios por columna.
+
+- max_ejemplos:
+
+  Máximo de ejemplos reales mostrados por grupo.
+
+## Value
 
 El plan editado, sin ejecutar acciones.
 
-## Detalles
+## Details
 
 No se representa "no hacer nada" como una acción ficticia. Elegirlo
 cambia `decision_grupo` a `"omitida"`; por contraste, un grupo aún no
@@ -56,15 +55,16 @@ recomendación, esa opción también se muestra con la marca
 "(Recomendado)" y su justificación. Los diccionarios de capitalización
 se suministran como una lista con nombre de vectores con nombre.
 
-## Ver también
+## See also
 
-`planificar_limpieza()`, `aplicar()`
+[`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 datos <- data.frame(zona = c("Norte", "NORTE", "sur"))
-plan <- planificar_limpieza(perfilar(datos))
+plan <- planificar_limpieza(perfilar(datos), datos)
 guiado <- guiar_limpieza(plan, datos)
 identical(plan, guiado) # TRUE en una sesión no interactiva
 #> [1] TRUE

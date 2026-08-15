@@ -4,20 +4,21 @@ Construye las firmas y calcula el pronóstico de candidatos sin recorrer
 las cubetas ni comparar los pares. Es una operación deliberada: la
 medición del reloj queda en el resultado de esta función y no es
 necesaria para obtener `alcance` reproducible en
-`detectar_duplicados_aproximados()`.
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md).
 
-## Uso
+## Usage
 
 ``` r
 estimar_costo(
   datos,
   columnas = NULL,
   metodo = "jw",
-  umbral = 0.12,
+  umbral = 0.1,
+  p = 0.1,
   muestra = Inf,
   max_pares = 50000000L,
   max_resultados = 100L,
-  normalizar = TRUE,
+  normalizar = NULL,
   perfil = NULL,
   proteger_datos_personales = TRUE,
   bloque = 1000L,
@@ -36,140 +37,154 @@ estimar_costo(
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - datos:
-    
-    Tabla con una fila por entidad observada.
+- datos:
 
-  - columnas:
-    
-    Columnas atomicas a combinar. `NULL` aplica la seleccion automatica
-    descrita arriba; no se incluyen matrices ni listas.
+  Tabla con una fila por entidad observada.
 
-  - metodo:
-    
-    Medida admitida por `stringdist::stringdistmatrix()`. Por defecto,
-    `"jw"`.
+- columnas:
 
-  - umbral:
-    
-    Distancia maxima para informar un par. Por defecto `0.12`.
+  Columnas atomicas a combinar. `NULL` aplica la seleccion automatica
+  descrita arriba; no se incluyen matrices ni listas.
 
-  - muestra:
-    
-    Máximo de filas candidatas. En el camino exacto queda sujeto a
-    `max_pares`; con LSH, `Inf` usa todas las filas.
+- metodo:
 
-  - max\_pares:
-    
-    Máximo de pares comparados en el camino exacto. Por defecto
-    `50000000`, que permite recorrer exhaustivamente hasta 10.000 filas
-    con el método y el bloque predeterminados; se puede reducir para
-    limitar el tiempo. En LSH el alcance se expresa con candidatos y
-    cubetas, por lo que este límite no se usa para recortar filas; el
-    resultado lo marca explícitamente.
+  Medida admitida por
+  [`stringdist::stringdistmatrix()`](https://rdrr.io/pkg/stringdist/man/stringdist.html).
+  Por defecto, `"jw"`.
 
-  - max\_resultados:
-    
-    Maximo de pares devueltos. Por defecto `100`.
+- umbral:
 
-  - normalizar:
-    
-    Si se recortan espacios, se pasa a minusculas y se colapsan espacios
-    antes de calcular la distancia.
+  Distancia maxima para informar un par. Por defecto `0.10`.
 
-  - perfil:
-    
-    Perfil de los mismos datos para reutilizar su clasificacion de datos
-    personales y no volver a inferirla.
+- p:
 
-  - proteger\_datos\_personales:
-    
-    Si la evidencia de columnas protegidas se reemplaza por `[valor
-    protegido]`. La supresion queda indicada en cada par.
+  Factor de prefijo de Jaro–Winkler, entre 0 y 0.25. Por defecto `0.1`;
+  sólo tiene efecto con `metodo = "jw"`.
 
-  - bloque:
-    
-    Cantidad de filas por tesela de comparación. Por defecto `1000`;
-    controla la memoria temporal, no el número de pares comparados.
+- muestra:
 
-  - estrategia:
-    
-    Estrategia de comparación: `"auto"` (por omisión), `"teselas"`,
-    `"muestra"` o `"lsh"`. MinHash/LSH sólo se activa automáticamente
-    por encima del tope exhaustivo; se puede forzar con `"lsh"`.
+  Máximo de filas candidatas. En el camino exacto queda sujeto a
+  `max_pares`; con LSH, `Inf` usa todas las filas.
 
-  - lsh\_bandas:
-    
-    Número de bandas del esquema LSH. Por defecto, 12.
+- max_pares:
 
-  - lsh\_filas:
-    
-    Número de filas de firma por banda. Por defecto, 3.
+  Máximo de pares comparados en el camino exacto. Por defecto
+  `50000000`, que permite recorrer exhaustivamente hasta 10.000 filas
+  con el método y el bloque predeterminados; se puede reducir para
+  limitar el tiempo. En LSH el alcance se expresa con candidatos y
+  cubetas, por lo que este límite no se usa para recortar filas; el
+  resultado lo marca explícitamente.
 
-  - lsh\_q:
-    
-    Longitud de los q-gramas usados para MinHash. Por defecto, 3.
+- max_resultados:
 
-  - lsh\_max\_cubeta:
-    
-    Umbral a partir del cual una cubeta se considera grande y se procesa
-    por el mismo troceo acotado del camino exhaustivo. No se descartan
-    pares por este umbral; el alcance informa cuántas cubetas y cuántos
-    pares se procesaron de esta forma. Por defecto, 1000.
+  Maximo de pares devueltos. Por defecto `100`.
 
-  - lsh\_muestra\_estimacion:
-    
-    Cantidad máxima de pares de filas usados para estimar la proporción
-    de candidatos, el tiempo del camino LSH y, si hay `bloquear_por`, la
-    pérdida de candidatos del bloqueo. La muestra es interna,
-    reproducible y su tamaño efectivo queda en `alcance`. Por defecto se
-    intentan 400.000 pares.
+- normalizar:
 
-  - presupuesto\_pares:
-    
-    Presupuesto de pares candidatos. Por defecto es `Inf`; si la
-    estimación previa lo supera, una sesión no interactiva aborta antes
-    del recorrido y una interactiva pregunta si se continúa. También
-    limita la comparación exacta: allí el número de pares se conoce
-    antes de empezar.
+  Perfil de comparación. `TRUE` conserva el perfil predeterminado,
+  `FALSE` desactiva sus pasos configurables, `"amplio"` activa
+  puntuación, ligaduras y ancho, y
+  [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
+  permite declarar cada paso. Una lista nombrada puede resolver perfiles
+  por columna. `NULL` hereda el perfil guardado en `perfil`; si no se
+  recibe uno, usa `TRUE`. La normalización cambia sólo la representación
+  usada para comparar, no los datos guardados. El umbral se aplica sobre
+  esa cadena normalizada. El informe de fusiones sólo se calcula cuando
+  algún paso configurable está activo; con `FALSE` se omite. Si se
+  entrega `perfil`, se reutiliza su informe ya calculado.
 
-  - bloquear\_por:
-    
-    Nombre de una columna declarada por el usuario para restringir la
-    comparación a filas con la misma clave. La clave no tiene
-    significado incorporado en `lupa`; sus tamaños, ausentes y pares que
-    quedan fuera se registran en `alcance`. Los `NA` forman un bloque
-    propio.
+- perfil:
 
-  - lotes:
-    
-    Se acepta por simetría de la firma, pero la estimación no escribe
-    parciales ni modifica el directorio indicado.
+  Perfil de los mismos datos para reutilizar su clasificacion de datos
+  personales y no volver a inferirla.
 
-  - tamano\_lote:
-    
-    Se acepta por simetría; no cambia el pronóstico.
+- proteger_datos_personales:
 
-  - directorio\_lotes:
-    
-    Se acepta por simetría y no se crea ni se usa al estimar.
+  Si la evidencia de columnas protegidas se reemplaza por
+  `[valor protegido]`. La supresion queda indicada en cada par.
 
-  - nucleos:
-    
-    Cantidad máxima de hilos que `stringdist` puede usar. Por defecto es
-    `getOption("lupa.nucleos", 2L)`; `NULL` usa esa misma opción y un
-    valor mayor que los núcleos disponibles se limita de forma segura.
-    El resultado no depende de esta cantidad, pero el tiempo sí. El
-    valor efectivo queda declarado en `alcance$nucleos_usados`.
+- bloque:
 
-## Valor
+  Cantidad de filas por tesela de comparación. Por defecto `1000`;
+  controla la memoria temporal, no el número de pares comparados.
+
+- estrategia:
+
+  Estrategia de comparación: `"auto"` (por omisión), `"teselas"`,
+  `"muestra"` o `"lsh"`. MinHash/LSH sólo se activa automáticamente por
+  encima del tope exhaustivo; se puede forzar con `"lsh"`.
+
+- lsh_bandas:
+
+  Número de bandas del esquema LSH. Por defecto, 12.
+
+- lsh_filas:
+
+  Número de filas de firma por banda. Por defecto, 3.
+
+- lsh_q:
+
+  Longitud de los q-gramas usados para MinHash. Por defecto, 3.
+
+- lsh_max_cubeta:
+
+  Umbral a partir del cual una cubeta se considera grande y se procesa
+  por el mismo troceo acotado del camino exhaustivo. No se descartan
+  pares por este umbral; el alcance informa cuántas cubetas y cuántos
+  pares se procesaron de esta forma. Por defecto, 1000.
+
+- lsh_muestra_estimacion:
+
+  Cantidad máxima de pares de filas usados para estimar la proporción de
+  candidatos, el tiempo del camino LSH y, si hay `bloquear_por`, la
+  pérdida de candidatos del bloqueo. La muestra es interna, reproducible
+  y su tamaño efectivo queda en `alcance`. Por defecto se intentan
+  400.000 pares.
+
+- presupuesto_pares:
+
+  Presupuesto de pares candidatos. Por defecto es `Inf`; si la
+  estimación previa lo supera, una sesión no interactiva aborta antes
+  del recorrido y una interactiva pregunta si se continúa. También
+  limita la comparación exacta: allí el número de pares se conoce antes
+  de empezar.
+
+- bloquear_por:
+
+  Nombre de una columna declarada por el usuario para restringir la
+  comparación a filas con la misma clave. La clave no tiene significado
+  incorporado en `lupa`; sus tamaños, ausentes y pares que quedan fuera
+  se registran en `alcance`. Los `NA` forman un bloque propio.
+
+- lotes:
+
+  Se acepta por simetría de la firma, pero la estimación no escribe
+  parciales ni modifica el directorio indicado.
+
+- tamano_lote:
+
+  Se acepta por simetría; no cambia el pronóstico.
+
+- directorio_lotes:
+
+  Se acepta por simetría y no se crea ni se usa al estimar.
+
+- nucleos:
+
+  Cantidad máxima de hilos que `stringdist` puede usar. Por defecto es
+  `getOption("lupa.nucleos", 2L)`; `NULL` usa esa misma opción y un
+  valor mayor que los núcleos disponibles se limita de forma segura. El
+  resultado no depende de esta cantidad, pero el tiempo sí. El valor
+  efectivo queda declarado en `alcance$nucleos_usados`.
+
+## Value
 
 Lista de clase `estimacion_costo_lupa` con los campos de la estimación,
 `alcance`, `disponible` y `razon`.
 
-## Detalles
+## Details
 
 En el camino LSH, `candidatos_previstos` es una estimación reproducible
 a partir de una muestra de firmas. `tiempo_estimado_segundos` es un piso
@@ -182,11 +197,11 @@ a `muestra`, `max_pares` y `bloquear_por`.
 
 La función no escribe archivos ni modifica el estado del generador de R.
 
-## Ver también
+## See also
 
-`detectar_duplicados_aproximados()`
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 datos <- data.frame(

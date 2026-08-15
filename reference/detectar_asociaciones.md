@@ -6,7 +6,7 @@ informan en `[0, 1]`: Pearson usa su valor absoluto. La tabla declara el
 método, soporte y posible muestreo; no presenta significancia
 estadística.
 
-## Uso
+## Usage
 
 ``` r
 detectar_asociaciones(
@@ -20,53 +20,55 @@ detectar_asociaciones(
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - datos:
-    
-    Tabla que se desea examinar.
+- datos:
 
-  - dependencias:
-    
-    Resultado opcional de `detectar_dependencias()`.
+  Tabla que se desea examinar.
 
-  - umbral:
-    
-    Valor mínimo en `[0, 1]` que se informa.
+- dependencias:
 
-  - muestra:
-    
-    Máximo común de filas; `Inf` desactiva el muestreo.
+  Resultado opcional de
+  [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md).
 
-  - max\_columnas:
-    
-    Máximo de columnas analizables.
+- umbral:
 
-  - max\_niveles:
-    
-    Máximo de niveles para tratar una columna como categórica.
+  Valor mínimo en `[0, 1]` que se informa.
 
-  - max\_pares:
-    
-    Máximo de asociaciones devueltas después de ordenar.
+- muestra:
 
-## Valor
+  Máximo común de filas; `Inf` desactiva el muestreo.
+
+- max_columnas:
+
+  Máximo de columnas analizables.
+
+- max_niveles:
+
+  Máximo de niveles para tratar una columna como categórica.
+
+- max_pares:
+
+  Máximo de asociaciones devueltas después de ordenar.
+
+## Value
 
 Data frame S3 `asociaciones_columnas`. Sus atributos declaran filas,
 columnas y pares examinados, omisiones por dependencia y truncamiento.
 
-## Detalles
+## Details
 
 Se descartan constantes, fechas, listas, categóricas de cardinalidad
 alta y columnas posteriores a `max_columnas` antes de construir pares.
 Las dependencias funcionales exactas recibidas en `dependencias` no se
 repiten como asociaciones.
 
-## Ver también
+## See also
 
-`detectar_dependencias()`, `analizar()`
+[`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md),
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 d <- data.frame(x = 1:20, y = 2 * (1:20), grupo = rep(c("A", "B"), 10))

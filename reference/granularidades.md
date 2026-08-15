@@ -4,7 +4,7 @@
 están implementados; los restantes quedan registrados para extender el
 modelo sin convertir la granularidad en una escala lineal.
 
-## Uso
+## Usage
 
 ``` r
 granularidades()
@@ -12,22 +12,24 @@ granularidades()
 transiciones_granularidad()
 ```
 
-## Valor
+## Value
 
 Data frames con niveles o aristas del grafo de granularidad.
 
-## Detalles
+## Details
 
 `transiciones_granularidad()` devuelve el grafo dirigido de
 agregaciones. La transición `instanciaAtributo` a `instanciaEntidad` se
 incorpora porque el propio marco la usa aunque no aparezca en su tabla
 no exhaustiva.
 
-## Ver también
+## See also
 
-`modelo()`, `medir()`, `evaluar()`
+[`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md),
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md),
+[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 granularidades()

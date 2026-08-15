@@ -4,6 +4,7 @@ Diagnosticar no autoriza a modificar datos. En `lupa`, el producto de la
 etapa de mejora es primero un plan inspeccionable, filtrable y editable.
 
 ``` r
+
 library(lupa)
 data(datos_administrativos)
 
@@ -26,11 +27,11 @@ plan[, c(
 #> 10 accion-0010       <NA>     departamento           revisar_cardinalidad       FALSE
 #> 11 accion-0011 grupo-0012             pais     eliminar_columna_constante       FALSE
 #> 12 accion-0012       <NA>           correo           revisar_cardinalidad       FALSE
-#> 13 accion-0013 grupo-0015             <NA>        marcar_filas_duplicadas        TRUE
-#> 14 accion-0014 grupo-0015             <NA>    conservar_primera_duplicada       FALSE
-#> 15 accion-0015 grupo-0015             <NA>         conservar_mas_completa       FALSE
-#> 16 accion-0016 grupo-0016       id_persona     marcar_columnas_duplicadas        TRUE
-#> 17 accion-0017 grupo-0016       id_persona     eliminar_columna_duplicada       FALSE
+#> 13 accion-0013 grupo-0018             <NA>        marcar_filas_duplicadas        TRUE
+#> 14 accion-0014 grupo-0018             <NA>    conservar_primera_duplicada       FALSE
+#> 15 accion-0015 grupo-0018             <NA>         conservar_mas_completa       FALSE
+#> 16 accion-0016 grupo-0019       id_persona     marcar_columnas_duplicadas        TRUE
+#> 17 accion-0017 grupo-0019       id_persona     eliminar_columna_duplicada       FALSE
 #>    aplicar reversible      estado
 #> 1    FALSE         NA informativa
 #> 2     TRUE      FALSE       lista
@@ -62,6 +63,7 @@ desactivado.
 La justificación acompaña cada alternativa.
 
 ``` r
+
 plan[, c("estrategia", "justificacion")]
 #>                        estrategia
 #> 1            revisar_cardinalidad
@@ -81,24 +83,24 @@ plan[, c("estrategia", "justificacion")]
 #> 15         conservar_mas_completa
 #> 16     marcar_columnas_duplicadas
 #> 17     eliminar_columna_duplicada
-#>                                                                                                                                        justificacion
-#> 1                                 El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
-#> 2                    Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.
-#> 3                                 El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
-#> 4                    Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.
-#> 5          La conversión no es segura porque queda algún formato candidato, hay valores incompatibles o la columna no se identifica de manera única.
-#> 6                    Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.
-#> 7                                            Un sentinela numérico también puede ser un valor legítimo; requiere confirmar el diccionario del campo.
-#> 8                                           Un valor extremo puede ser correcto; la marca conserva el dato para que el dominio decida cómo tratarlo.
-#> 9                       Sustituye los extremos por los límites de Tukey y altera valores observados; sólo debe elegirse con justificación analítica.
-#> 10                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
-#> 11                       Eliminarla pierde contexto potencial; dejarla es la recomendación hasta confirmar que no aporta significado administrativo.
-#> 12                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
-#> 13                              Marcar conserva todas las filas, identifica las repeticiones y asigna un grupo a todos los registros que participan.
-#> 14                      Conserva la primera aparición exacta y elimina las siguientes; el orden de entrada pasa a determinar qué registro sobrevive.
-#> 15 Requiere configurar una clave: entre duplicados exactos todas las filas tienen la misma completitud y esta opción sería equivalente a la primera.
-#> 16                                                                    La anotación conserva ambas columnas y registra explícitamente la redundancia.
-#> 17                                      Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.
+#>                                                                                                                                                                       justificacion
+#> 1                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
+#> 2                                                   Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.
+#> 3                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
+#> 4                                                   Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.
+#> 5  La conversión no es ejecutable sobre los datos completos: Hay valores presentes que no responden a los formatos confirmados. Se conserva como acción destructiva no recomendada.
+#> 6                                                   Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.
+#> 7                                                                           Un sentinela numérico también puede ser un valor legítimo; requiere confirmar el diccionario del campo.
+#> 8                                                                          Un valor extremo puede ser correcto; la marca conserva el dato para que el dominio decida cómo tratarlo.
+#> 9                                                      Sustituye los extremos por los límites de Tukey y altera valores observados; sólo debe elegirse con justificación analítica.
+#> 10                                                               El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
+#> 11                                                      Eliminarla pierde contexto potencial; dejarla es la recomendación hasta confirmar que no aporta significado administrativo.
+#> 12                                                               El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.
+#> 13                                                             Marcar conserva todas las filas, identifica las repeticiones y asigna un grupo a todos los registros que participan.
+#> 14                                                     Conserva la primera aparición exacta y elimina las siguientes; el orden de entrada pasa a determinar qué registro sobrevive.
+#> 15                                Requiere configurar una clave: entre duplicados exactos todas las filas tienen la misma completitud y esta opción sería equivalente a la primera.
+#> 16                                                                                                   La anotación conserva ambas columnas y registra explícitamente la redundancia.
+#> 17                                                                     Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.
 ```
 
 ## Grupos mutuamente excluyentes
@@ -109,6 +111,7 @@ pendiente de una decisión explícita de no actuar; no se inventa una fila
 ficticia de “no hacer nada”.
 
 ``` r
+
 grupos <- plan[!is.na(plan$grupo), c(
   "grupo", "estrategia", "recomendada", "aplicar", "decision_grupo"
 )]
@@ -118,11 +121,11 @@ grupos
 #> 8  grupo-0010                marcar_outliers        TRUE   FALSE      pendiente
 #> 9  grupo-0010            winsorizar_outliers       FALSE   FALSE      pendiente
 #> 11 grupo-0012     eliminar_columna_constante       FALSE   FALSE    recomendada
-#> 13 grupo-0015        marcar_filas_duplicadas        TRUE    TRUE    recomendada
-#> 14 grupo-0015    conservar_primera_duplicada       FALSE   FALSE    recomendada
-#> 15 grupo-0015         conservar_mas_completa       FALSE   FALSE    recomendada
-#> 16 grupo-0016     marcar_columnas_duplicadas        TRUE    TRUE    recomendada
-#> 17 grupo-0016     eliminar_columna_duplicada       FALSE   FALSE    recomendada
+#> 13 grupo-0018        marcar_filas_duplicadas        TRUE    TRUE    recomendada
+#> 14 grupo-0018    conservar_primera_duplicada       FALSE   FALSE    recomendada
+#> 15 grupo-0018         conservar_mas_completa       FALSE   FALSE    recomendada
+#> 16 grupo-0019     marcar_columnas_duplicadas        TRUE    TRUE    recomendada
+#> 17 grupo-0019     eliminar_columna_duplicada       FALSE   FALSE    recomendada
 ```
 
 El modo guiado es una capa opcional. Fuera de una sesión interactiva
@@ -130,6 +133,7 @@ devuelve el plan sin bloquear; en una consola recorre sólo decisiones
 pendientes o riesgosas.
 
 ``` r
+
 identical(guiar_limpieza(plan, datos_administrativos), plan)
 #> [1] TRUE
 ```
@@ -137,6 +141,7 @@ identical(guiar_limpieza(plan, datos_administrativos), plan)
 ## Aplicar conserva evidencia
 
 ``` r
+
 copia <- datos_administrativos
 resultado <- aplicar(plan, datos_administrativos)
 identical(datos_administrativos, copia)
@@ -153,9 +158,10 @@ resultado$registro[, c(
 ```
 
 Las acciones destructivas nunca son recomendadas. Aunque el usuario las
-active en el plan, `aplicar()` exige además `permitir_eliminacion =
-TRUE`; lo retirado se conserva en `resultado$eliminados` salvo decisión
-contraria.
+active en el plan,
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+exige además `permitir_eliminacion = TRUE`; lo retirado se conserva en
+`resultado$eliminados` salvo decisión contraria.
 
 ## Imputar por una dependencia
 
@@ -166,6 +172,7 @@ eso la acción se ofrece con mapa y soporte, pero no queda recomendada ni
 activa.
 
 ``` r
+
 datos <- data.frame(
   codigo = rep(1:3, each = 4),
   descripcion = rep(c("A", "B", "C"), each = 4),
@@ -191,6 +198,7 @@ registra la decisión. La dependencia vuelve a validarse al aplicar el
 plan.
 
 ``` r
+
 plan_fd$aplicar[imputacion[1]] <- TRUE
 plan_fd$decision_grupo[imputacion[1]] <- "elegida"
 resultado_fd <- aplicar(plan_fd, datos)

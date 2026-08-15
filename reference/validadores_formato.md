@@ -6,7 +6,7 @@ se contrastan con copias locales de las listas vigentes al preparar esta
 versión del paquete. Los valores ausentes devuelven `NA`; todo valor
 presente que no cumple el contrato devuelve `FALSE`.
 
-## Uso
+## Usage
 
 ``` r
 validar_iso3166(x, tipo = c("alpha2", "alpha3", "numerico"))
@@ -20,23 +20,23 @@ validar_luhn(x)
 validar_mod97(x)
 ```
 
-## Argumentos
+## Arguments
 
-  - x:
-    
-    Vector que se desea validar.
+- x:
 
-  - tipo:
-    
-    Forma de código ISO 3166: dos letras (`"alpha2"`), tres (`"alpha3"`)
-    o tres dígitos (`"numerico"`). Los valores numéricos de uno o dos
-    dígitos se completan con ceros a la izquierda.
+  Vector que se desea validar.
 
-## Valor
+- tipo:
+
+  Forma de código ISO 3166: dos letras (`"alpha2"`), tres (`"alpha3"`) o
+  tres dígitos (`"numerico"`). Los valores numéricos de uno o dos
+  dígitos se completan con ceros a la izquierda.
+
+## Value
 
 Vector lógico de la misma longitud que `x`.
 
-## Detalles
+## Details
 
 `validar_correo()` comprueba un subconjunto práctico y deliberadamente
 conservador de la sintaxis `addr-spec`: parte local de puntos y
@@ -51,7 +51,7 @@ letras a `A = 10, ..., Z = 35` y exige resto 1 conforme a ISO 7064 MOD
 97-10. No reordena caracteres: protocolos como IBAN deben hacer antes su
 transformación propia.
 
-## Referencias
+## References
 
 International Organization for Standardization. *ISO 3166 Country
 Codes*. <https://www.iso.org/iso-3166-country-codes.html>
@@ -68,11 +68,13 @@ Luhn HP (1960). *Computer for Verifying Numbers*, US Patent 2,950,048.
 International Organization for Standardization. *ISO/IEC 7064:2003*.
 <https://www.iso.org/standard/31531.html>
 
-## Ver también
+## See also
 
-`pack_validadores()`, `validar_ci_uy()`, `especializar()`
+[`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md),
+[`validar_ci_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md),
+[`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 validar_iso3166(c("UY", "CL", "ZZ"))

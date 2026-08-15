@@ -3,12 +3,14 @@
 Un pack es una lista con nombres de funciones vectorizadas. No se
 registra en estado global: puede definirse en otro paquete o en un
 script y conectarse directamente con la propiedad `validador` de
-`Formato` o con `validadores_personales` en `perfilar()`. Esta forma
-permite agregar países o dominios sin modificar el núcleo de `lupa`; el
-pack uruguayo predeterminado de `perfilar()` usa exactamente esta misma
-puerta.
+`Formato` o con `validadores_personales` en
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+Esta forma permite agregar países o dominios sin modificar el núcleo de
+`lupa`; el pack uruguayo predeterminado de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+usa exactamente esta misma puerta.
 
-## Uso
+## Usage
 
 ``` r
 pack_validadores(nombre, validadores, pais = NULL, descripcion = NULL)
@@ -18,37 +20,39 @@ validadores_internacionales()
 validadores_uruguay()
 ```
 
-## Argumentos
+## Arguments
 
-  - nombre:
-    
-    Nombre del pack.
+- nombre:
 
-  - validadores:
-    
-    Lista con nombres de funciones que aceptan un vector y devuelven un
-    vector lógico de igual longitud.
+  Nombre del pack.
 
-  - pais:
-    
-    Código ISO 3166 alpha-2 opcional del país al que pertenece el pack.
-    `NULL` representa un pack internacional o no territorial.
+- validadores:
 
-  - descripcion:
-    
-    Descripción breve opcional.
+  Lista con nombres de funciones que aceptan un vector y devuelven un
+  vector lógico de igual longitud.
 
-## Valor
+- pais:
+
+  Código ISO 3166 alpha-2 opcional del país al que pertenece el pack.
+  `NULL` representa un pack internacional o no territorial.
+
+- descripcion:
+
+  Descripción breve opcional.
+
+## Value
 
 `pack_validadores()` devuelve un objeto S3 `pack_validadores`.
 `validadores_internacionales()` y `validadores_uruguay()` devuelven
 packs preparados para usar.
 
-## Ver también
+## See also
 
-`especializar()`, `validar_iso3166()`, `validar_ci_uy()`
+[`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md),
+[`validar_iso3166()`](https://sebollin.github.io/lupa/reference/validadores_formato.md),
+[`validar_ci_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 internacionales <- validadores_internacionales()

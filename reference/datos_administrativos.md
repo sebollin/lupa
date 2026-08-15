@@ -6,65 +6,66 @@ disfrazados, una columna constante, valores extremos, una fila duplicada
 y registros con el mismo identificador pero contenidos distintos. No
 representa personas ni registros de ningún organismo.
 
-## Uso
+## Usage
 
 ``` r
 datos_administrativos
 ```
 
-## Formato
+## Format
 
 Un data frame con 13 filas y 10 variables:
 
-  - id\_persona:
-    
-    Identificador interno, con una repetición contradictoria.
+- id_persona:
 
-  - cedula:
-    
-    Documento sintético con formatos correctos e incorrectos.
+  Identificador interno, con una repetición contradictoria.
 
-  - fecha\_nacimiento:
-    
-    Fechas en varios formatos y un faltante disfrazado.
+- cedula:
 
-  - sexo:
-    
-    Categoría sintética con un faltante disfrazado.
+  Documento sintético con formatos correctos e incorrectos.
 
-  - ingreso:
-    
-    Importes con sentinelas numéricos y un valor extremo.
+- fecha_nacimiento:
 
-  - departamento:
-    
-    Categoría administrativa.
+  Fechas en varios formatos y un faltante disfrazado.
 
-  - pais:
-    
-    Columna constante.
+- sexo:
 
-  - correo:
-    
-    Direcciones sintéticas y un patrón anómalo.
+  Categoría sintética con un faltante disfrazado.
 
-  - id\_copia:
-    
-    Copia redundante del identificador interno.
+- ingreso:
 
-  - id\_tramite:
-    
-    Identificador sintético de alta unicidad.
+  Importes con sentinelas numéricos y un valor extremo.
 
-## Fuente
+- departamento:
+
+  Categoría administrativa.
+
+- pais:
+
+  Columna constante.
+
+- correo:
+
+  Direcciones sintéticas y un patrón anómalo.
+
+- id_copia:
+
+  Copia redundante del identificador interno.
+
+- id_tramite:
+
+  Identificador sintético de alta unicidad.
+
+## Source
 
 Generación sintética incluida con el paquete.
 
-## Ver también
+## See also
 
-`perfilar()`, `planificar_limpieza()`
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 data(datos_administrativos)

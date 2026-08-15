@@ -6,6 +6,11 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Histórico y monitoreo de deriva • lupa</title>
+<!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
+<link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+<link rel="icon" sizes="any" href="../favicon.ico">
+<link rel="manifest" href="../site.webmanifest">
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
@@ -13,35 +18,36 @@
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Histórico y monitoreo de deriva">
 </head>
 <body>
-    <a href="#main" class="visually-hidden-focusable">Ir al contenido</a>
+    <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
-    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Navegación del sitio"><div class="container">
+    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
+    <a class="navbar-brand p-0 me-2" href="https://sebollin.github.io/lupa/"><img src="https://sebollin.github.io/lupa/logo.png" height="32" alt="lupa"></a>
 
     <a class="navbar-brand me-2" href="../index.html">lupa</a>
 
     <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Cambiar la navegación">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="../reference/index.html">Índice</a></li>
+<li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="active nav-item dropdown">
-  <button class="nav-link dropdown-toggle" type="button" id="dropdown-art-culos" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Artículos</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-art-culos">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
     <li><a class="dropdown-item" href="../articles/el-modelo-de-calidad.html">Un modelo de calidad declarable</a></li>
     <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
     <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">Más artículos...</a></li>
+    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul>
 </li>
-<li class="nav-item"><a class="nav-link" href="../news/index.html">Registro de cambios</a></li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav"></ul>
 </div>
@@ -52,25 +58,28 @@
 
 
 
-<script src="historico-y-deriva_files/accessible-code-block-0.0.1/empty-anchor.js"></script><div class="row">
-  <main id="main" class="col-md-9"><div class="page-header">
 
-      <h1>Histórico y monitoreo de deriva</h1>
+<div class="row">
+  <main id="main" class="col-md-9"><div class="page-header">
+      <img src="../logo.png" class="logo" alt=""><h1>Histórico y monitoreo de deriva</h1>
             
       
-      <small class="dont-index">Código: <a href="https://github.com/sebollin/lupa/blob/HEAD/vignettes/historico-y-deriva.Rmd" class="external-link"><code>vignettes/historico-y-deriva.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/sebollin/lupa/blob/main/vignettes/historico-y-deriva.Rmd" class="external-link"><code>vignettes/historico-y-deriva.Rmd</code></a></small>
       <div class="d-none name"><code>historico-y-deriva.Rmd</code></div>
     </div>
 
     
     
-<p>Una medición aislada describe una entrega. Varias corridas permiten saber si la calidad mejora y si cambió la estructura que el modelo esperaba.</p>
+<p>Una medición aislada describe una entrega. Varias corridas permiten
+saber si la calidad mejora y si cambió la estructura que el modelo
+esperaba.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span></code></pre></div>
 <div class="section level2">
 <h2 id="serie-de-evaluaciones">Serie de evaluaciones<a class="anchor" aria-label="anchor" href="#serie-de-evaluaciones"></a>
 </h2>
-<p>El identificador y la fecha se fijan al medir. Aquí se evalúa la completitud de la misma columna en dos meses.</p>
+<p>El identificador y la fecha se fijan al medir. Aquí se evalúa la
+completitud de la misma columna en dos meses.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">nucleo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/modelo_calidad.html">metricas_nucleo</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span></span>
@@ -101,7 +110,9 @@
 <span><span class="co">#&gt; 1 Operativo                enero     2026-01-31                  0            febrero</span></span>
 <span><span class="co">#&gt;   fecha_actual resultado_actual delta</span></span>
 <span><span class="co">#&gt; 1   2026-02-28                1     1</span></span></code></pre></div>
-<p><code><a href="../reference/historico_calidad.html">historico_calidad()</a></code> normaliza las corridas en un <code>data.frame</code> plano y versionado. Puede escribirse como CSV o llevarse a una tabla institucional sin desarmar listas anidadas.</p>
+<p><code><a href="../reference/historico_calidad.html">historico_calidad()</a></code> normaliza las corridas en un
+<code>data.frame</code> plano y versionado. Puede escribirse como CSV o
+llevarse a una tabla institucional sin desarmar listas anidadas.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">historico</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/historico_calidad.html">historico_calidad</a></span><span class="op">(</span><span class="va">evaluacion_enero</span>, <span class="va">evaluacion_febrero</span><span class="op">)</span></span>
 <span><span class="va">historico</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id_medicion"</span>, <span class="st">"fecha"</span>, <span class="st">"nivel"</span>, <span class="st">"resultado"</span><span class="op">)</span><span class="op">]</span></span>
@@ -117,7 +128,8 @@
 <span><span class="co">#&gt; 1            febrero   2026-02-28                1     1               1          TRUE</span></span>
 <span><span class="co">#&gt;   direccion severidad</span></span>
 <span><span class="co">#&gt; 1    mejora        ok</span></span></code></pre></div>
-<p>La persistencia usa RDS y no agrega dependencias. El archivo no se sobrescribe sin consentimiento.</p>
+<p>La persistencia usa RDS y no agrega dependencias. El archivo no se
+sobrescribe sin consentimiento.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">archivo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".rds"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/guardar_historico.html">guardar_historico</a></span><span class="op">(</span><span class="va">historico</span>, <span class="va">archivo</span><span class="op">)</span></span>
@@ -129,7 +141,9 @@
 <div class="section level2">
 <h2 id="deriva-estructural-entre-entregas">Deriva estructural entre entregas<a class="anchor" aria-label="anchor" href="#deriva-estructural-entre-entregas"></a>
 </h2>
-<p><code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code> distingue cambios de esquema y cambios sobre columnas comparables. Informa columnas nuevas o retiradas, tipos, ausencias, cardinalidad, rangos, patrones y hallazgos.</p>
+<p><code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code> distingue cambios de esquema y
+cambios sobre columnas comparables. Informa columnas nuevas o retiradas,
+tipos, ausencias, cardinalidad, rangos, patrones y hallazgos.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">datos_administrativos</span><span class="op">)</span></span>
 <span><span class="va">entrega_enero</span> <span class="op">&lt;-</span> <span class="va">datos_administrativos</span></span>
@@ -152,23 +166,25 @@
 <span><span class="co">#&gt; 2        cedula cardinalidad modificado sospechoso</span></span>
 <span><span class="co">#&gt; 3 nueva_columna     hallazgo  aparecido sospechoso</span></span>
 <span><span class="co">#&gt; 4          &lt;NA&gt;     hallazgo   resuelto         ok</span></span></code></pre></div>
-<p>Una comparación contra el mismo perfil produce cero cambios. Las columnas que sólo existen en un lado se informan como cambios estructurales; no hacen fallar la comparación de las demás.</p>
+<p>Una comparación contra el mismo perfil produce cero cambios. Las
+columnas que sólo existen en un lado se informan como cambios
+estructurales; no hacen fallar la comparación de las demás.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/comparar_perfiles.html">comparar_perfiles</a></span><span class="op">(</span><span class="va">perfil_enero</span>, <span class="va">perfil_enero</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0</span></span></code></pre></div>
 </div>
-  </main><aside class="col-md-3"><nav id="toc" aria-label="Índice de contenidos"><h2>En esta página</h2>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
 </div>
 
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Desarrollado por Sebastián Lucas.</p>
+  <p>Developed by Sebastián Lucas.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Sitio creado con <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

@@ -5,6 +5,7 @@ saber si la calidad mejora y si cambió la estructura que el modelo
 esperaba.
 
 ``` r
+
 library(lupa)
 ```
 
@@ -14,6 +15,7 @@ El identificador y la fecha se fijan al medir. Aquí se evalúa la
 completitud de la misma columna en dos meses.
 
 ``` r
+
 nucleo <- metricas_nucleo()
 instancia <- instanciar(
   especializar(nucleo$NoNulo, nombre_especifico = "NoNuloDato"),
@@ -45,11 +47,13 @@ comparar_evaluaciones(evaluacion_enero, evaluacion_febrero)
 #> 1   2026-02-28                1     1
 ```
 
-`historico_calidad()` normaliza las corridas en un `data.frame` plano y
-versionado. Puede escribirse como CSV o llevarse a una tabla
-institucional sin desarmar listas anidadas.
+[`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+normaliza las corridas en un `data.frame` plano y versionado. Puede
+escribirse como CSV o llevarse a una tabla institucional sin desarmar
+listas anidadas.
 
 ``` r
+
 historico <- historico_calidad(evaluacion_enero, evaluacion_febrero)
 historico[, c("id_medicion", "fecha", "nivel", "resultado")]
 #>   id_medicion      fecha             nivel resultado
@@ -70,6 +74,7 @@ La persistencia usa RDS y no agrega dependencias. El archivo no se
 sobrescribe sin consentimiento.
 
 ``` r
+
 archivo <- tempfile(fileext = ".rds")
 guardar_historico(historico, archivo)
 recuperado <- leer_historico(archivo)
@@ -80,11 +85,13 @@ unlink(archivo)
 
 ## Deriva estructural entre entregas
 
-`comparar_perfiles()` distingue cambios de esquema y cambios sobre
-columnas comparables. Informa columnas nuevas o retiradas, tipos,
-ausencias, cardinalidad, rangos, patrones y hallazgos.
+[`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+distingue cambios de esquema y cambios sobre columnas comparables.
+Informa columnas nuevas o retiradas, tipos, ausencias, cardinalidad,
+rangos, patrones y hallazgos.
 
 ``` r
+
 data(datos_administrativos)
 entrega_enero <- datos_administrativos
 entrega_febrero <- datos_administrativos
@@ -113,6 +120,7 @@ columnas que sólo existen en un lado se informan como cambios
 estructurales; no hacen fallar la comparación de las demás.
 
 ``` r
+
 nrow(comparar_perfiles(perfil_enero, perfil_enero))
 #> [1] 0
 ```

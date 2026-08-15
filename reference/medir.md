@@ -4,52 +4,55 @@ Ejecuta todas las métricas instanciadas de un `modelo_calidad`. Cada
 fila es una medida reutilizable y conserva el identificador y la fecha
 de la corrida.
 
-## Uso
+## Usage
 
 ``` r
 medir(modelo, datos, id_medicion = NULL, fecha = Sys.time())
 ```
 
-## Argumentos
+## Arguments
 
-  - modelo:
-    
-    Objeto creado por `modelo()`.
+- modelo:
 
-  - datos:
-    
-    Data frame para una sola entidad o lista con nombre de data frames
-    para varias entidades.
+  Objeto creado por
+  [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md).
 
-  - id\_medicion:
-    
-    Identificador de corrida. Si se omite, se genera uno.
+- datos:
 
-  - fecha:
-    
-    Fecha y hora de la corrida.
+  Data frame para una sola entidad o lista con nombre de data frames
+  para varias entidades.
 
-## Valor
+- id_medicion:
+
+  Identificador de corrida. Si se omite, se genera uno.
+
+- fecha:
+
+  Fecha y hora de la corrida.
+
+## Value
 
 Data frame S3 de clase `medicion`, con una fila por objeto medido. Los
 booleanos se almacenan como `0` y `1` en la columna común `resultado`, y
-su semántica permanece declarada en `tipo_resultado`.
+su semántica permanece declarada en `tipo_resultado`. Algunas métricas
+que trabajan con un vocabulario o un alcance parcial agregan un atributo
+`alcance_metricas` con sus conteos y límites.
 
-## Ejemplos
+## Examples
 
 ``` r
 nucleo <- metricas_nucleo()
 especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
-#>                                       id_medida
-#> 1 medicion-20260808T211924.350814-303753-000001
-#> 2 medicion-20260808T211924.350814-303753-000002
-#> 3 medicion-20260808T211924.350814-303753-000003
-#>                              id_medicion               fecha metrica
-#> 1 medicion-20260808T211924.350814-303753 2026-08-08 21:19:24  NoNulo
-#> 2 medicion-20260808T211924.350814-303753 2026-08-08 21:19:24  NoNulo
-#> 3 medicion-20260808T211924.350814-303753 2026-08-08 21:19:24  NoNulo
+#>                                     id_medida
+#> 1 medicion-20260815T131952.442048-7466-000001
+#> 2 medicion-20260815T131952.442048-7466-000002
+#> 3 medicion-20260815T131952.442048-7466-000003
+#>                            id_medicion               fecha metrica
+#> 1 medicion-20260815T131952.442048-7466 2026-08-15 13:19:52  NoNulo
+#> 2 medicion-20260815T131952.442048-7466 2026-08-15 13:19:52  NoNulo
+#> 3 medicion-20260815T131952.442048-7466 2026-08-15 13:19:52  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad

@@ -6,44 +6,45 @@ la proporción de valores no ausentes de la primera columna que existe en
 la segunda; la cobertura inversa se informa de forma simétrica. Así se
 puede escoger la dirección PK/FK sin imponerla de antemano.
 
-## Uso
+## Usage
 
 ``` r
 detectar_relaciones(tabla1, tabla2, muestra = 1e+05)
 ```
 
-## Argumentos
+## Arguments
 
-  - tabla1, tabla2:
-    
-    Objetos que heredan de `data.frame`.
+- tabla1, tabla2:
 
-  - muestra:
-    
-    Máximo de filas del lado verificado que se usan para estimar cada
-    cobertura. El muestreo es sistemático y reproducible; el lado de
-    referencia no se muestrea. Use `Inf` para calcular todo sin
-    muestreo.
+  Objetos que heredan de `data.frame`.
 
-## Valor
+- muestra:
+
+  Máximo de filas del lado verificado que se usan para estimar cada
+  cobertura. El muestreo es sistemático y reproducible; el lado de
+  referencia no se muestrea. Use `Inf` para calcular todo sin muestreo.
+
+## Value
 
 Data frame con columnas comparadas, cardinalidad, coincidencias y
 coberturas de integridad referencial en ambas direcciones. Los atributos
 `filas_totales`, `filas_analizadas` y `muestreado` documentan el
 muestreo.
 
-## Detalles
+## Details
 
 Cuando una tabla supera `muestra`, la función estima cada cobertura con
 una muestra sistemática del lado que se verifica y conserva completo el
 conjunto de referencia. La cardinalidad y la cantidad de valores comunes
 siempre se calculan con ambas columnas completas.
 
-## Ver también
+## See also
 
-`detectar_claves()`, `referencial()`, `proponer_modelo()`
+[`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md),
+[`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md),
+[`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 personas <- data.frame(id = 1:3)

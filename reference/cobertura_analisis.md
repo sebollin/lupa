@@ -1,42 +1,48 @@
 # Informar la cobertura conceptual de un análisis
 
-Devuelve una fila por dimensión y factor del `marco_calidad()` elegido.
-Usa `marco_agesic()` por omisión, pero acepta cualquier taxonomía
-declarada. Distingue lo efectivamente medido de lo que no fue declarado,
-lo que no aplica a los tipos presentes y lo que queda fuera del alcance
-actual. La tabla evita que la ausencia de un hallazgo se interprete como
-evidencia de calidad.
+Devuelve una fila por dimensión y factor del
+[`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+elegido. Usa
+[`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+por omisión, pero acepta cualquier taxonomía declarada. Distingue lo
+efectivamente medido de lo que no fue declarado, lo que no aplica a los
+tipos presentes y lo que queda fuera del alcance actual. La tabla evita
+que la ausencia de un hallazgo se interprete como evidencia de calidad.
 
-## Uso
+## Usage
 
 ``` r
 cobertura_analisis(perfil, medicion = NULL, modelo = marco_agesic())
 ```
 
-## Argumentos
+## Arguments
 
-  - perfil:
-    
-    Objeto creado por `perfilar()`.
+- perfil:
 
-  - medicion:
-    
-    Objeto opcional creado por `medir()`.
+  Objeto creado por
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 
-  - modelo:
-    
-    Objeto creado por `marco_calidad()`. El nombre enfatiza que es el
-    modelo conceptual de referencia, no el objeto operativo de
-    `modelo()`.
+- medicion:
 
-## Valor
+  Objeto opcional creado por
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md).
+
+- modelo:
+
+  Objeto creado por
+  [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md).
+  El nombre enfatiza que es el modelo conceptual de referencia, no el
+  objeto operativo de
+  [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md).
+
+## Value
 
 Data frame con `marco`, `dimension`, `factor`, `estado`, `motivo` y
 `como_resolverlo`. `marco` identifica explícitamente la taxonomía contra
 la que se calculó la tabla. `estado` es un factor con niveles
 `"medida"`, `"no_declarada"`, `"no_aplica"` y `"fuera_de_alcance"`.
 
-## Detalles
+## Details
 
 En el marco incluido, el profiling automático mide densidad y no
 duplicación. Un marco propio puede marcar otros factores mediante la
@@ -44,12 +50,16 @@ columna `perfil_mide`. Los demás sólo pasan a `"medida"` cuando
 `medicion` contiene una métrica del factor; descubrir un patrón o una
 dependencia no los convierte por sí solo en un requisito confirmado.
 
-## Ver también
+## See also
 
-`marco_calidad()`, `perfilar()`, `medir()`, `vigencia()`, `escala()`,
-`reportar()`
+[`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md),
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md),
+[`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md),
+[`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md),
+[`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)

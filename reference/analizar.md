@@ -6,7 +6,7 @@ confirmable de variables, propuesta de modelo, cobertura conceptual y
 plan de limpieza. No modifica datos ni mide la propuesta generada
 automáticamente.
 
-## Uso
+## Usage
 
 ``` r
 analizar(
@@ -38,134 +38,146 @@ analizar(
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - datos:
-    
-    Tabla que se desea analizar.
+- datos:
 
-  - nombre:
-    
-    Nombre de la entrega.
+  Tabla que se desea analizar.
 
-  - fecha:
-    
-    Fecha y hora reproducible de la corrida.
+- nombre:
 
-  - argumentos\_perfil:
-    
-    Lista de argumentos adicionales para `perfilar()`.
+  Nombre de la entrega.
 
-  - metadatos\_variables:
-    
-    Declaraciones para `clasificar_variables()`.
+- fecha:
 
-  - modelo\_confirmado:
-    
-    Modelo creado por `modelo()` o `NULL`.
+  Fecha y hora reproducible de la corrida.
 
-  - propuesta\_confirmada:
-    
-    Propuesta editada por el usuario o `NULL`.
+- argumentos_perfil:
 
-  - marco:
-    
-    Taxonomía opcional creada por `marco_calidad()`. Si se omite, usa la
-    asociada a `modelo_confirmado` y, en último término,
-    `marco_agesic()`.
+  Lista de argumentos adicionales para
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 
-  - perfil\_evaluacion:
-    
-    Perfil explícito para `evaluar()` o `NULL`.
+- metadatos_variables:
 
-  - id\_medicion:
-    
-    Identificador opcional enviado a `medir()`.
+  Declaraciones para
+  [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md).
 
-  - muestra:
-    
-    Límite de filas para perfil, distribuciones y enumeración de niveles
-    observados.
+- modelo_confirmado:
 
-  - muestra\_asociacion:
-    
-    Límite común de filas para asociaciones.
+  Modelo creado por
+  [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  o `NULL`.
 
-  - max\_valores:
-    
-    Máximo de valores por tabla de frecuencias.
+- propuesta_confirmada:
 
-  - probabilidades:
-    
-    Cuantiles solicitados.
+  Propuesta editada por el usuario o `NULL`.
 
-  - umbral\_asociacion:
-    
-    Asociación mínima informada.
+- marco:
 
-  - max\_columnas\_asociacion:
-    
-    Máximo de columnas para asociaciones.
+  Taxonomía opcional creada por
+  [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md).
+  Si se omite, usa la asociada a `modelo_confirmado` y, en último
+  término,
+  [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md).
 
-  - max\_niveles\_asociacion:
-    
-    Máximo de niveles categóricos.
+- perfil_evaluacion:
 
-  - max\_pares\_asociacion:
-    
-    Máximo de pares devueltos.
+  Perfil explícito para
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) o
+  `NULL`.
 
-  - calendario:
-    
-    Días ISO usados por el análisis temporal.
+- id_medicion:
 
-  - frecuencia\_dias:
-    
-    Frecuencia temporal conocida o `NULL` para proponerla.
+  Identificador opcional enviado a
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md).
 
-  - max\_huecos:
-    
-    Máximo de grupos de huecos por columna.
+- muestra:
 
-  - max\_columnas\_temporales:
-    
-    Máximo de columnas temporales analizadas.
+  Límite de filas para perfil, distribuciones y enumeración de niveles
+  observados.
 
-  - conservar\_datos:
-    
-    Si el objeto retiene una copia de la entrada. Es `FALSE` por omisión
-    para limitar tamaño y exposición. Con protección activa, las
-    columnas personales de esa copia también se enmascaran; para
-    conservar sus valores debe usarse `proteger_datos_personales =
-    FALSE`.
+- muestra_asociacion:
 
-  - proteger\_datos\_personales:
-    
-    Si perfiles y resúmenes ocultan valores de columnas cuya
-    clasificación activa protección automática, incluidos estadísticos
-    de orden, cuantiles y rangos temporales.
+  Límite común de filas para asociaciones.
 
-  - ...:
-    
-    Argumentos con nombre enviados a `perfilar()`. Es una alternativa
-    concisa a `argumentos_perfil`.
+- max_valores:
 
-## Valor
+  Máximo de valores por tabla de frecuencias.
+
+- probabilidades:
+
+  Cuantiles solicitados.
+
+- umbral_asociacion:
+
+  Asociación mínima informada.
+
+- max_columnas_asociacion:
+
+  Máximo de columnas para asociaciones.
+
+- max_niveles_asociacion:
+
+  Máximo de niveles categóricos.
+
+- max_pares_asociacion:
+
+  Máximo de pares devueltos.
+
+- calendario:
+
+  Días ISO usados por el análisis temporal.
+
+- frecuencia_dias:
+
+  Frecuencia temporal conocida o `NULL` para proponerla.
+
+- max_huecos:
+
+  Máximo de grupos de huecos por columna.
+
+- max_columnas_temporales:
+
+  Máximo de columnas temporales analizadas.
+
+- conservar_datos:
+
+  Si el objeto retiene una copia de la entrada. Es `FALSE` por omisión
+  para limitar tamaño y exposición. Con protección activa, las columnas
+  personales de esa copia también se enmascaran; para conservar sus
+  valores debe usarse `proteger_datos_personales = FALSE`.
+
+- proteger_datos_personales:
+
+  Si perfiles y resúmenes ocultan valores de columnas cuya clasificación
+  activa protección automática, incluidos estadísticos de orden,
+  cuantiles y rangos temporales.
+
+- ...:
+
+  Argumentos con nombre enviados a
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  Es una alternativa concisa a `argumentos_perfil`.
+
+## Value
 
 Objeto S3 `analisis` con todos los componentes y su cobertura.
 
-## Detalles
+## Details
 
 La cadena de medición sólo se completa si se recibe `modelo_confirmado`
 o `propuesta_confirmada`. En el segundo caso se materializan únicamente
-sus filas activas mediante `modelo_desde_propuesta()`. La evaluación
-requiere además un `perfil_evaluacion` explícito.
+sus filas activas mediante
+[`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md).
+La evaluación requiere además un `perfil_evaluacion` explícito.
 
-## Ver también
+## See also
 
-`guardar_analisis()`, `reportar()`, `cobertura_analisis()`
+[`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md),
+[`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md),
+[`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 resultado <- analizar(
@@ -177,7 +189,7 @@ resultado
 #> ── Analisis de datos: datos_administrativos ────────────────────────────────────
 #> Filas: 13
 #> Columnas: 10
-#> Hallazgos del perfil: 19
+#> Hallazgos del perfil: 22
 #> Advertencias de alcance: 2
 #> Asociaciones informadas: 4
 #> Series temporales: 1

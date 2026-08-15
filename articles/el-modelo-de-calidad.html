@@ -6,6 +6,11 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Un modelo de calidad declarable • lupa</title>
+<!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
+<link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+<link rel="icon" sizes="any" href="../favicon.ico">
+<link rel="manifest" href="../site.webmanifest">
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
@@ -13,35 +18,36 @@
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Un modelo de calidad declarable">
 </head>
 <body>
-    <a href="#main" class="visually-hidden-focusable">Ir al contenido</a>
+    <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
-    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Navegación del sitio"><div class="container">
+    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
+    <a class="navbar-brand p-0 me-2" href="https://sebollin.github.io/lupa/"><img src="https://sebollin.github.io/lupa/logo.png" height="32" alt="lupa"></a>
 
     <a class="navbar-brand me-2" href="../index.html">lupa</a>
 
     <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Cambiar la navegación">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="../reference/index.html">Índice</a></li>
+<li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="active nav-item dropdown">
-  <button class="nav-link dropdown-toggle" type="button" id="dropdown-art-culos" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Artículos</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-art-culos">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
     <li><a class="dropdown-item" href="../articles/el-modelo-de-calidad.html">Un modelo de calidad declarable</a></li>
     <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
     <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">Más artículos...</a></li>
+    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul>
 </li>
-<li class="nav-item"><a class="nav-link" href="../news/index.html">Registro de cambios</a></li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav"></ul>
 </div>
@@ -52,25 +58,32 @@
 
 
 
-<script src="el-modelo-de-calidad_files/accessible-code-block-0.0.1/empty-anchor.js"></script><div class="row">
-  <main id="main" class="col-md-9"><div class="page-header">
 
-      <h1>Un modelo de calidad declarable</h1>
+<div class="row">
+  <main id="main" class="col-md-9"><div class="page-header">
+      <img src="../logo.png" class="logo" alt=""><h1>Un modelo de calidad declarable</h1>
             
       
-      <small class="dont-index">Código: <a href="https://github.com/sebollin/lupa/blob/HEAD/vignettes/el-modelo-de-calidad.Rmd" class="external-link"><code>vignettes/el-modelo-de-calidad.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/sebollin/lupa/blob/main/vignettes/el-modelo-de-calidad.Rmd" class="external-link"><code>vignettes/el-modelo-de-calidad.Rmd</code></a></small>
       <div class="d-none name"><code>el-modelo-de-calidad.Rmd</code></div>
     </div>
 
     
     
-<p><code>lupa</code> implementa un modelo de calidad de uso general. La arquitectura sigue el linaje de dimensiones, factores y métricas descrito por Batini y Scannapieco (2016), y permite que cada usuario declare la taxonomía pertinente para su dominio. El marco de AGESIC viene incluido como una instancia verificable, no como una restricción del núcleo.</p>
+<p><code>lupa</code> implementa un modelo de calidad de uso general. La
+arquitectura sigue el linaje de dimensiones, factores y métricas
+descrito por Batini y Scannapieco (2016), y permite que cada usuario
+declare la taxonomía pertinente para su dominio. El marco de AGESIC
+viene incluido como una instancia verificable, no como una restricción
+del núcleo.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span></code></pre></div>
 <div class="section level2">
 <h2 id="declarar-dimensiones-y-factores">Declarar dimensiones y factores<a class="anchor" aria-label="anchor" href="#declarar-dimensiones-y-factores"></a>
 </h2>
-<p><code><a href="../reference/marco_calidad.html">marco_calidad()</a></code> recibe una tabla o una lista con nombres. El resultado es consultable y puede validar que las métricas de un <code><a href="../reference/modelo_calidad.html">modelo()</a></code> pertenezcan a los factores declarados.</p>
+<p><code><a href="../reference/marco_calidad.html">marco_calidad()</a></code> recibe una tabla o una lista con
+nombres. El resultado es consultable y puede validar que las métricas de
+un <code><a href="../reference/modelo_calidad.html">modelo()</a></code> pertenezcan a los factores declarados.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">marco_propio</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/marco_calidad.html">marco_calidad</a></span><span class="op">(</span><span class="st">"Marco de procedencia"</span>, <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  Trazabilidad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Origen documentado"</span>, <span class="st">"Linaje reproducible"</span><span class="op">)</span>,</span>
@@ -92,8 +105,14 @@
 <div class="section level2">
 <h2 id="dimensión-factor-y-métrica-son-una-taxonomía">Dimensión, factor y métrica son una taxonomía<a class="anchor" aria-label="anchor" href="#dimensi%C3%B3n-factor-y-m%C3%A9trica-son-una-taxonom%C3%ADa"></a>
 </h2>
-<p>Una dimensión reúne factores y un factor reúne métricas. Esa jerarquía permite clasificar y navegar el modelo, pero el marco no define una fórmula que produzca un “puntaje de Exactitud” ni un índice global. Promediar factores sin un contrato adicional ocultaría prioridades y correlaciones entre ellos.</p>
-<p>Por eso <code>lupa</code> conserva <code>dimension</code> y <code>factor</code> en cada medida, pero <code><a href="../reference/agregar.html">agregar()</a></code> sólo acepta las transiciones de granularidad declaradas.</p>
+<p>Una dimensión reúne factores y un factor reúne métricas. Esa
+jerarquía permite clasificar y navegar el modelo, pero el marco no
+define una fórmula que produzca un “puntaje de Exactitud” ni un índice
+global. Promediar factores sin un contrato adicional ocultaría
+prioridades y correlaciones entre ellos.</p>
+<p>Por eso <code>lupa</code> conserva <code>dimension</code> y
+<code>factor</code> en cada medida, pero <code><a href="../reference/agregar.html">agregar()</a></code> sólo
+acepta las transiciones de granularidad declaradas.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/granularidades.html">granularidades</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    nivel           granularidad           relacional implementada</span></span>
@@ -118,12 +137,15 @@
 <span><span class="co">#&gt; 7         coleccion    conjuntoColecciones                 marco</span></span>
 <span><span class="co">#&gt; 8         coleccion           organizacion                 marco</span></span>
 <span><span class="co">#&gt; 9      organizacion conjuntoOrganizaciones                 marco</span></span></code></pre></div>
-<p>Una celda puede agregarse hacia su columna o hacia su fila. Esas direcciones son ortogonales, no peldaños de una escala lineal.</p>
+<p>Una celda puede agregarse hacia su columna o hacia su fila. Esas
+direcciones son ortogonales, no peldaños de una escala lineal.</p>
 </div>
 <div class="section level2">
 <h2 id="tres-niveles-de-métrica">Tres niveles de métrica<a class="anchor" aria-label="anchor" href="#tres-niveles-de-m%C3%A9trica"></a>
 </h2>
-<p>Una métrica genérica declara semántica, granularidad, tipo de resultado y propiedades. Especializar fija propiedades reutilizables; instanciar liga esa especialización a objetos concretos.</p>
+<p>Una métrica genérica declara semántica, granularidad, tipo de
+resultado y propiedades. Especializar fija propiedades reutilizables;
+instanciar liga esa especialización a objetos concretos.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">nucleo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/modelo_calidad.html">metricas_nucleo</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">no_nulo</span> <span class="op">&lt;-</span> <span class="va">nucleo</span><span class="op">$</span><span class="va">NoNulo</span></span>
@@ -140,11 +162,18 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $tipo_resultado</span></span>
 <span><span class="co">#&gt; [1] "booleano"</span></span></code></pre></div>
-<p>La separación permite reutilizar la misma definición sobre entregas y columnas distintas.</p>
+<p>La separación permite reutilizar la misma definición sobre entregas y
+columnas distintas.</p>
 <div class="section level3">
 <h3 id="una-métrica-propia-de-punta-a-punta">Una métrica propia de punta a punta<a class="anchor" aria-label="anchor" href="#una-m%C3%A9trica-propia-de-punta-a-punta"></a>
 </h3>
-<p>El gancho <code>metodo</code> recibe una lista con nombre de tablas y la instancia que se está midiendo. Devuelve una fila por objeto medido con las columnas <code>resultado</code>, <code>entidad</code>, <code>atributo</code>, <code>fila</code> y <code>objeto</code>. Este ejemplo declara una métrica ajena a los catálogos incluidos y muestra las dos llamadas de la fábrica: la primera especializa y la segunda instancia.</p>
+<p>El gancho <code>metodo</code> recibe una lista con nombre de tablas y
+la instancia que se está midiendo. Devuelve una fila por objeto medido
+con las columnas <code>resultado</code>, <code>entidad</code>,
+<code>atributo</code>, <code>fila</code> y <code>objeto</code>. Este
+ejemplo declara una métrica ajena a los catálogos incluidos y muestra
+las dos llamadas de la fábrica: la primera especializa y la segunda
+instancia.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">metodo_origen</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">tablas</span>, <span class="va">instancia</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">x</span> <span class="op">&lt;-</span> <span class="va">tablas</span><span class="op">[[</span><span class="va">instancia</span><span class="op">$</span><span class="va">entidad</span><span class="op">]</span><span class="op">]</span><span class="op">[[</span><span class="va">instancia</span><span class="op">$</span><span class="va">atributos</span><span class="op">]</span><span class="op">]</span></span>
@@ -174,7 +203,9 @@
 <span><span class="co">#&gt; 1 entrega$origen[1]         1</span></span>
 <span><span class="co">#&gt; 2 entrega$origen[2]         0</span></span>
 <span><span class="co">#&gt; 3 entrega$origen[3]         1</span></span></code></pre></div>
-<p>Cuando una métrica declara propiedades, <code><a href="../reference/modelo_calidad.html">propiedades_metrica()</a></code> permite consultarlas antes de llamar a <code><a href="../reference/modelo_calidad.html">especializar()</a></code>.</p>
+<p>Cuando una métrica declara propiedades,
+<code><a href="../reference/modelo_calidad.html">propiedades_metrica()</a></code> permite consultarlas antes de llamar
+a <code><a href="../reference/modelo_calidad.html">especializar()</a></code>.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/modelo_calidad.html">propiedades_metrica</a></span><span class="op">(</span><span class="va">nucleo</span><span class="op">$</span><span class="va">Formato</span><span class="op">)</span></span>
 <span><span class="co">#&gt;           propiedad configurada</span></span>
@@ -185,7 +216,10 @@
 <div class="section level3">
 <h3 id="validadores-y-packs-territoriales">Validadores y packs territoriales<a class="anchor" aria-label="anchor" href="#validadores-y-packs-territoriales"></a>
 </h3>
-<p><code>Formato</code> acepta cualquier función vectorizada que devuelva un lógico por valor. El núcleo incluye validadores internacionales de códigos ISO, correo, Luhn y módulo 97. Uruguay es un pack territorial de referencia, no una rama especial del motor.</p>
+<p><code>Formato</code> acepta cualquier función vectorizada que
+devuelva un lógico por valor. El núcleo incluye validadores
+internacionales de códigos ISO, correo, Luhn y módulo 97. Uruguay es un
+pack territorial de referencia, no una rama especial del motor.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">internacionales</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/pack_validadores.html">validadores_internacionales</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">uruguay</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/pack_validadores.html">validadores_uruguay</a></span><span class="op">(</span><span class="op">)</span></span>
@@ -204,7 +238,11 @@
 <span><span class="co">#&gt;          objeto_medible resultado</span></span>
 <span><span class="co">#&gt; 1 personas$documento[1]         1</span></span>
 <span><span class="co">#&gt; 2 personas$documento[2]         0</span></span></code></pre></div>
-<p>Un proyecto de otro país construye un pack con <code><a href="../reference/pack_validadores.html">pack_validadores()</a></code> y mantiene su función en su propio paquete o script. No necesita registrar nombres ni modificar <code>lupa</code>; la ayuda de <code><a href="../reference/pack_validadores.html">pack_validadores()</a></code> incluye un ejemplo completo con un RUT chileno.</p>
+<p>Un proyecto de otro país construye un pack con
+<code><a href="../reference/pack_validadores.html">pack_validadores()</a></code> y mantiene su función en su propio
+paquete o script. No necesita registrar nombres ni modificar
+<code>lupa</code>; la ayuda de <code><a href="../reference/pack_validadores.html">pack_validadores()</a></code> incluye
+un ejemplo completo con un RUT chileno.</p>
 </div>
 </div>
 <div class="section level2">
@@ -238,14 +276,23 @@
 <li>
 <code>promedio</code>;</li>
 <li>
-<code>promedio_ponderado</code>, con pesos en <code>[0, 1]</code> que suman uno por destino.</li>
+<code>promedio_ponderado</code>, con pesos en <code>[0, 1]</code>
+que suman uno por destino.</li>
 </ul>
-<p>La función valida el tipo de resultado y la transición. No agrega hacia factor, dimensión o modelo. Los resultados no acotados que el marco usa para <code>ErrorEstandar</code> y actualidad conservan su unidad y no entran en estas cuatro agregaciones.</p>
+<p>La función valida el tipo de resultado y la transición. No agrega
+hacia factor, dimensión o modelo. Los resultados no acotados que el
+marco usa para <code>ErrorEstandar</code> y actualidad conservan su
+unidad y no entran en estas cuatro agregaciones.</p>
 </div>
 <div class="section level2">
 <h2 id="evaluar-no-es-volver-a-medir">Evaluar no es volver a medir<a class="anchor" aria-label="anchor" href="#evaluar-no-es-volver-a-medir"></a>
 </h2>
-<p>Una regla expresa una condición sobre resultados. La evaluación de una regla es la proporción que la cumple; la evaluación de un perfil es la media simple de sus reglas. Los perfiles incluidos de AGESIC usan condiciones estrictas <code>&gt; 0.5</code>, <code>&gt; 0.7</code> y <code>&gt; 0.9</code>; otra familia se construye con umbrales con nombres.</p>
+<p>Una regla expresa una condición sobre resultados. La evaluación de
+una regla es la proporción que la cumple; la evaluación de un perfil es
+la media simple de sus reglas. Los perfiles incluidos de AGESIC usan
+condiciones estrictas <code>&gt; 0.5</code>, <code>&gt; 0.7</code> y
+<code>&gt; 0.9</code>; otra familia se construye con umbrales con
+nombres.</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">medida_atributo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/agregar.html">agregar</a></span><span class="op">(</span><span class="va">medidas</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span></span>
 <span><span class="va">madurez</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/reglas_evaluacion.html">perfiles_madurez</a></span><span class="op">(</span><span class="op">)</span></span>
@@ -254,12 +301,20 @@
 <span><span class="co">#&gt; 1       enero 2026-01-31 Intermedio        1         1</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="fu"><a href="../reference/reglas_evaluacion.html">perfiles_madurez</a></span><span class="op">(</span>umbrales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>Inicial <span class="op">=</span> <span class="fl">0.4</span>, Consolidado <span class="op">=</span> <span class="fl">0.85</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "Inicial"     "Consolidado"</span></span></code></pre></div>
-<p>El <code>id_medicion</code> y la fecha permanecen en las medidas para comparar corridas y monitorear deriva.</p>
+<p>El <code>id_medicion</code> y la fecha permanecen en las medidas para
+comparar corridas y monitorear deriva.</p>
 </div>
 <div class="section level2">
 <h2 id="marcos-incluidos">Marcos incluidos<a class="anchor" aria-label="anchor" href="#marcos-incluidos"></a>
 </h2>
-<p><code><a href="../reference/marco_calidad.html">marco_iso25012()</a></code> ofrece las quince características de ISO/IEC 25012:2008 como otra taxonomía disponible. La norma distingue características inherentes, dependientes del sistema y aplicables desde ambas perspectivas. <code>lupa</code> usa esos tres grupos como dimensiones operativas y las características como factores; es una adaptación para la interfaz dimensión–factor, no la afirmación de que la norma defina esa jerarquía. Sus descripciones están redactadas para el paquete y no reproducen el texto normativo.</p>
+<p><code><a href="../reference/marco_calidad.html">marco_iso25012()</a></code> ofrece las quince características de
+ISO/IEC 25012:2008 como otra taxonomía disponible. La norma distingue
+características inherentes, dependientes del sistema y aplicables desde
+ambas perspectivas. <code>lupa</code> usa esos tres grupos como
+dimensiones operativas y las características como factores; es una
+adaptación para la interfaz dimensión–factor, no la afirmación de que la
+norma defina esa jerarquía. Sus descripciones están redactadas para el
+paquete y no reproducen el texto normativo.</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">iso</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/marco_calidad.html">marco_iso25012</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">iso</span><span class="op">)</span><span class="op">$</span><span class="va">dimension</span><span class="op">)</span></span>
@@ -286,7 +341,10 @@
 <div class="section level3">
 <h3 id="el-marco-y-el-catálogo-de-agesic">El marco y el catálogo de AGESIC<a class="anchor" aria-label="anchor" href="#el-marco-y-el-cat%C3%A1logo-de-agesic"></a>
 </h3>
-<p><code><a href="../reference/marco_calidad.html">marco_agesic()</a></code> devuelve los 17 factores usados por omisión en la cobertura. <code><a href="../reference/catalogo_agesic.html">catalogo_agesic()</a></code> mantiene por separado las 49 entradas, incluidas las que se obtienen por agregación o requieren insumos externos.</p>
+<p><code><a href="../reference/marco_calidad.html">marco_agesic()</a></code> devuelve los 17 factores usados por
+omisión en la cobertura. <code><a href="../reference/catalogo_agesic.html">catalogo_agesic()</a></code> mantiene por
+separado las 49 entradas, incluidas las que se obtienen por agregación o
+requieren insumos externos.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">catalogo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/catalogo_agesic.html">catalogo_agesic</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/marco_calidad.html">marco_agesic</a></span><span class="op">(</span><span class="op">)</span></span>
@@ -307,20 +365,20 @@
 <span><span class="co">#&gt; 7         pendiente      semantica_parcial    0</span></span>
 <span><span class="co">#&gt; 8  fuera_de_alcance      semantica_parcial    0</span></span>
 <span><span class="co">#&gt; 9      implementada             agregacion    0</span></span>
-<span><span class="co">#&gt; 10   via_agregacion             agregacion    8</span></span>
+<span><span class="co">#&gt; 10   via_agregacion             agregacion    9</span></span>
 <span><span class="co">#&gt; 11        pendiente             agregacion    0</span></span>
 <span><span class="co">#&gt; 12 fuera_de_alcance             agregacion    0</span></span>
 <span><span class="co">#&gt; 13     implementada   requiere_referencial    3</span></span>
 <span><span class="co">#&gt; 14   via_agregacion   requiere_referencial    0</span></span>
 <span><span class="co">#&gt; 15        pendiente   requiere_referencial    0</span></span>
 <span><span class="co">#&gt; 16 fuera_de_alcance   requiere_referencial    0</span></span>
-<span><span class="co">#&gt; 17     implementada requiere_configuracion   18</span></span>
+<span><span class="co">#&gt; 17     implementada requiere_configuracion   19</span></span>
 <span><span class="co">#&gt; 18   via_agregacion requiere_configuracion    0</span></span>
 <span><span class="co">#&gt; 19        pendiente requiere_configuracion    0</span></span>
 <span><span class="co">#&gt; 20 fuera_de_alcance requiere_configuracion    0</span></span>
 <span><span class="co">#&gt; 21     implementada        motor_pendiente    0</span></span>
 <span><span class="co">#&gt; 22   via_agregacion        motor_pendiente    0</span></span>
-<span><span class="co">#&gt; 23        pendiente        motor_pendiente    3</span></span>
+<span><span class="co">#&gt; 23        pendiente        motor_pendiente    1</span></span>
 <span><span class="co">#&gt; 24 fuera_de_alcance        motor_pendiente    0</span></span>
 <span><span class="co">#&gt; 25     implementada       decision_alcance    0</span></span>
 <span><span class="co">#&gt; 26   via_agregacion       decision_alcance    0</span></span>
@@ -338,6 +396,7 @@
 <span><span class="co">#&gt; 37          RatioAtributoDuplicado           AtributoDuplicado</span></span>
 <span><span class="co">#&gt; 38 RatioConjuntoAtributosDuplicado  ConjuntoAtributosDuplicado</span></span>
 <span><span class="co">#&gt; 39        RatioEntidadesDuplicadas            EntidadDuplicada</span></span>
+<span><span class="co">#&gt; 41      RatioEntidadContradictoria       EntidadContradictoria</span></span>
 <span><span class="co">#&gt;                                       implementacion</span></span>
 <span><span class="co">#&gt; 3                    agregar(m, "atributo", "ratio")</span></span>
 <span><span class="co">#&gt; 4                    agregar(m, "atributo", "ratio")</span></span>
@@ -346,9 +405,17 @@
 <span><span class="co">#&gt; 31 agregar(m, "entidad", "ratio_umbral", umbral = u)</span></span>
 <span><span class="co">#&gt; 37                   agregar(m, "atributo", "ratio")</span></span>
 <span><span class="co">#&gt; 38                    agregar(m, "entidad", "ratio")</span></span>
-<span><span class="co">#&gt; 39                    agregar(m, "entidad", "ratio")</span></span></code></pre></div>
-<p><code>estado</code> dice si la entrada está implementada, se obtiene por agregación, está pendiente o queda fuera del alcance tabular. <code>motivo</code> explica la causa: por ejemplo, distingue un motor pendiente de una implementación disponible que necesita un referencial o una configuración experta. La observación de cada fila explicita el contrato concreto y las implementaciones parciales.</p>
-<p>Un diccionario enumera valores sintácticamente válidos. Un referencial vincula claves y valores externos, y sólo permite medir cobertura cuando declara de qué universo es completo.</p>
+<span><span class="co">#&gt; 39                    agregar(m, "entidad", "ratio")</span></span>
+<span><span class="co">#&gt; 41                   agregar(m, "atributo", "ratio")</span></span></code></pre></div>
+<p><code>estado</code> dice si la entrada está implementada, se obtiene
+por agregación, está pendiente o queda fuera del alcance tabular.
+<code>motivo</code> explica la causa: por ejemplo, distingue un motor
+pendiente de una implementación disponible que necesita un referencial o
+una configuración experta. La observación de cada fila explicita el
+contrato concreto y las implementaciones parciales.</p>
+<p>Un diccionario enumera valores sintácticamente válidos. Un
+referencial vincula claves y valores externos, y sólo permite medir
+cobertura cuando declara de qué universo es completo.</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">padron</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/referencial.html">referencial</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>codigo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"01"</span>, <span class="st">"02"</span><span class="op">)</span>, nombre <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Artigas"</span>, <span class="st">"Canelones"</span><span class="op">)</span><span class="op">)</span>,</span>
@@ -364,13 +431,18 @@
 <span><span class="co">#&gt;   Valores: nombre </span></span>
 <span><span class="co">#&gt;   Completo: sí </span></span>
 <span><span class="co">#&gt;   Alcance: departamentos incluidos en el ejemplo</span></span></code></pre></div>
-<p>La tabla del catálogo es la respuesta verificable a “qué implementa el paquete”; las entradas fuera de alcance no se presentan como resueltas.</p>
+<p>La tabla del catálogo es la respuesta verificable a “qué implementa
+el paquete”; las entradas fuera de alcance no se presentan como
+resueltas.</p>
 </div>
 </div>
 <div class="section level2">
 <h2 id="lo-que-no-se-midió-también-es-un-resultado">Lo que no se midió también es un resultado<a class="anchor" aria-label="anchor" href="#lo-que-no-se-midi%C3%B3-tambi%C3%A9n-es-un-resultado"></a>
 </h2>
-<p>Un perfil sin hallazgos no demuestra que todos los factores hayan sido evaluados. <code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> separa lo medido de lo no declarado, lo que no aplica a los tipos presentes y lo que permanece fuera de alcance.</p>
+<p>Un perfil sin hallazgos no demuestra que todos los factores hayan
+sido evaluados. <code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> separa lo medido de lo
+no declarado, lo que no aplica a los tipos presentes y lo que permanece
+fuera de alcance.</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_administrativos</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/cobertura_analisis.html">cobertura_analisis</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span></span>
@@ -446,8 +518,11 @@
 <span><span class="co">#&gt; 15 Requiere un backend o referencial especializado que no integra esta versión.</span></span>
 <span><span class="co">#&gt; 16           Declarar vigencia() y medir DesactualizacionPorFecha o PorCambios.</span></span>
 <span><span class="co">#&gt; 17                        Declarar vigencia() y medir una métrica Oportunidad*.</span></span></code></pre></div>
-<p>Los contratos temporales y de precisión se declaran con <code><a href="../reference/contratos_medicion.html">vigencia()</a></code> y <code><a href="../reference/contratos_medicion.html">escala()</a></code>: el paquete no intenta aprenderlos de una sola entrega.</p>
-<p>Para otro marco, la misma función informa exclusivamente sus dimensiones y factores:</p>
+<p>Los contratos temporales y de precisión se declaran con
+<code><a href="../reference/contratos_medicion.html">vigencia()</a></code> y <code><a href="../reference/contratos_medicion.html">escala()</a></code>: el paquete no intenta
+aprenderlos de una sola entrega.</p>
+<p>Para otro marco, la misma función informa exclusivamente sus
+dimensiones y factores:</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/cobertura_analisis.html">cobertura_analisis</a></span><span class="op">(</span><span class="va">perfil</span>, modelo <span class="op">=</span> <span class="va">marco_propio</span><span class="op">)</span></span>
 <span><span class="co">#&gt;                  marco    dimension              factor       estado</span></span>
@@ -462,27 +537,35 @@
 <span><span class="co">#&gt; 1 Declarar e instanciar una métrica de este factor.</span></span>
 <span><span class="co">#&gt; 2 Declarar e instanciar una métrica de este factor.</span></span>
 <span><span class="co">#&gt; 3 Declarar e instanciar una métrica de este factor.</span></span></code></pre></div>
-<p>La primera columna de cada salida identifica el marco activo, por lo que una tabla exportada conserva el contexto de la evaluación.</p>
+<p>La primera columna de cada salida identifica el marco activo, por lo
+que una tabla exportada conserva el contexto de la evaluación.</p>
 </div>
 <div class="section level2">
 <h2 id="referencias">Referencias<a class="anchor" aria-label="anchor" href="#referencias"></a>
 </h2>
-<p><a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini C, Scannapieco M (2016)</a>. <em>Data and Information Quality: Dimensions, Principles and Techniques</em>. Springer.</p>
-<p><a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC (2020)</a>. <em>Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital</em>, versión 1.6. Presidencia de la República, Uruguay.</p>
-<p><a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC (2008)</a>. <em>ISO/IEC 25012:2008 Software engineering — Software product Quality Requirements and Evaluation (SQuaRE) — Data quality model</em>.</p>
+<p><a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini C,
+Scannapieco M (2016)</a>. <em>Data and Information Quality: Dimensions,
+Principles and Techniques</em>. Springer.</p>
+<p><a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC
+(2020)</a>. <em>Marco de trabajo para la Gestión de la Calidad de Datos
+en Gobierno Digital</em>, versión 1.6. Presidencia de la República,
+Uruguay.</p>
+<p><a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC (2008)</a>.
+<em>ISO/IEC 25012:2008 Software engineering — Software product Quality
+Requirements and Evaluation (SQuaRE) — Data quality model</em>.</p>
 </div>
-  </main><aside class="col-md-3"><nav id="toc" aria-label="Índice de contenidos"><h2>En esta página</h2>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
 </div>
 
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Desarrollado por Sebastián Lucas.</p>
+  <p>Developed by Sebastián Lucas.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Sitio creado con <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

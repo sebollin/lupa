@@ -6,7 +6,7 @@ cuántos valores se analizaron, cuántos distintos se observaron y si hubo
 muestreo o truncamiento. Los cuantiles se calculan sólo para números
 ordinarios finitos.
 
-## Uso
+## Usage
 
 ``` r
 distribucion_valores(
@@ -19,40 +19,41 @@ distribucion_valores(
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - datos:
-    
-    Tabla que se desea examinar.
+- datos:
 
-  - perfil:
-    
-    Perfil opcional de los mismos datos; evita repetir la clasificación
-    de posibles datos personales.
+  Tabla que se desea examinar.
 
-  - max\_valores:
-    
-    Máximo de valores mostrados por columna.
+- perfil:
 
-  - probabilidades:
-    
-    Probabilidades de los cuantiles, en `[0, 1]`.
+  Perfil opcional de los mismos datos; evita repetir la clasificación de
+  posibles datos personales.
 
-  - muestra:
-    
-    Máximo de filas por columna; `Inf` desactiva el muestreo.
+- max_valores:
 
-  - proteger\_datos\_personales:
-    
-    Si se ocultan valores de columnas cuya clasificación activa
-    protección automática. Véase `perfilar()`.
+  Máximo de valores mostrados por columna.
 
-## Valor
+- probabilidades:
+
+  Probabilidades de los cuantiles, en `[0, 1]`.
+
+- muestra:
+
+  Máximo de filas por columna; `Inf` desactiva el muestreo.
+
+- proteger_datos_personales:
+
+  Si se ocultan valores de columnas cuya clasificación activa protección
+  automática. Véase
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+
+## Value
 
 Objeto `distribuciones_perfil`, una lista con data frames `frecuencias`,
 `cuantiles` y `alcance`. Todas las proporciones están en `[0, 1]`.
 
-## Detalles
+## Details
 
 Cuando una columna tiene evidencia suficiente para activar la protección
 de datos personales, sus frecuencias y niveles se conservan pero el
@@ -62,11 +63,13 @@ probabilidades, pero `valor` queda en `NA` y `estado` informa
 coincidir exactamente con una observación. Esta protección es
 independiente de la usada al construir el perfil.
 
-## Ver también
+## See also
 
-`perfilar()`, `analizar()`, `clasificar_variables()`
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+[`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 d <- data.frame(grupo = c("A", "A", "B"), valor = c(1, 2, 10))

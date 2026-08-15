@@ -7,12 +7,14 @@ modifica los datos por el solo hecho de diagnosticarlos.
 ## Una entrega tabular
 
 El conjunto incluido es pequeño y completamente sintético. Tiene fechas
-mezcladas, sentinelas, duplicados y formatos discordantes. `analizar()`
-es la puerta de entrada: reúne todo el diagnóstico descriptivo, pero no
+mezcladas, sentinelas, duplicados y formatos discordantes.
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) es
+la puerta de entrada: reúne todo el diagnóstico descriptivo, pero no
 convierte lo observado en un requisito ni mide la propuesta
 automáticamente.
 
 ``` r
+
 library(lupa)
 data(datos_operativos)
 dim(datos_operativos)
@@ -26,6 +28,7 @@ con una lista deja ese campo en `FALSE`: nunca presume que examinar
 equivale a medir.
 
 ``` r
+
 factores <- data.frame(
   dimension = c("Estructura", "Estructura", "Trazabilidad"),
   factor = c(
@@ -51,7 +54,7 @@ analisis
 #> ── Analisis de datos: entrega de ejemplo ─────────────────────────────────────────────────
 #> Filas: 13
 #> Columnas: 10
-#> Hallazgos del perfil: 19
+#> Hallazgos del perfil: 25
 #> Advertencias de alcance: 2
 #> Asociaciones informadas: 9
 #> Series temporales: 1
@@ -78,54 +81,68 @@ Los hallazgos son datos. Se pueden filtrar, ordenar o exportar sin
 extraer texto de un reporte.
 
 ``` r
+
 perfil$hallazgos[, c(
   "columna", "tipo_hallazgo", "severidad", "evidencia"
 )]
-#>           columna             tipo_hallazgo  severidad
-#> 1  codigo_usuario         alta_cardinalidad sospechoso
-#> 2  codigo_usuario     faltantes_disfrazados      error
-#> 3    fecha_evento         alta_cardinalidad sospechoso
-#> 4    fecha_evento     faltantes_disfrazados      error
-#> 5    fecha_evento     formatos_fecha_mixtos      error
-#> 6    fecha_evento   tipo_declarado_distinto sospechoso
-#> 7           canal         alta_cardinalidad sospechoso
-#> 8           canal                 faltantes sospechoso
-#> 9           canal     faltantes_disfrazados      error
-#> 10          canal        espacios_sobrantes sospechoso
-#> 11          canal mayusculas_inconsistentes sospechoso
-#> 12          monto     faltantes_disfrazados sospechoso
-#> 13          monto                  outliers sospechoso
-#> 14        sistema                 constante sospechoso
-#> 15       contacto         alta_cardinalidad sospechoso
-#> 16      id_evento     posible_identificador         ok
-#> 17           <NA>          filas_duplicadas      error
-#> 18    id_registro       columnas_duplicadas sospechoso
-#> 19       contacto     dato_personal_posible         ok
-#>                                                                                                                                          evidencia
-#> 1                                                                                                                 Tasa de valores distintos: 0.846
-#> 2                                                                                                                                          S/D (1)
-#> 3                                                                                                                 Tasa de valores distintos: 0.923
-#> 4                                                                                                                                         NULL (1)
-#> 5                                                                               %d/%m/%Y (4); %Y-%m-%d (4); %d-%m-%Y (1); %Y/%m/%d (1); %Y%m%d (1)
-#> 6                                                                                             Declarado: texto; inferido: fecha (0.846 compatible)
-#> 7                                                                                                                 Tasa de valores distintos: 0.615
-#> 8                                                                                              0 ausentes reales y 2 disfrazados (0.154 del total)
-#> 9                                                                                                                            <blanco> (1); S/D (1)
-#> 10                                                                                                                     1 valores; ejemplos: "web "
-#> 11                                                                                                                                    "web"; "Web"
-#> 12                                                                                                                                         -99 (1)
-#> 13                                                                                                                                       4 valores
-#> 14                                                                                                                Valor: principal; frecuencia: 13
-#> 15                                                                                                                           [evidencia protegida]
-#> 16                                                                                                              12 valores distintos de 13 (0.923)
-#> 17                                                                                                                              1 filas duplicadas
-#> 18                                                                                                                          id_registro = id_copia
-#> 19 Tipo posible: correo; fundamento: forma de correo dominante; poder discriminante: alto; proteccion automatica: si; proporción compatible: 0.923
+#>           columna               tipo_hallazgo  severidad
+#> 1  codigo_usuario           alta_cardinalidad sospechoso
+#> 2  codigo_usuario       faltantes_disfrazados      error
+#> 3    fecha_evento           alta_cardinalidad sospechoso
+#> 4    fecha_evento       faltantes_disfrazados      error
+#> 5    fecha_evento       formatos_fecha_mixtos      error
+#> 6    fecha_evento     tipo_declarado_distinto sospechoso
+#> 7           canal           alta_cardinalidad sospechoso
+#> 8           canal                   faltantes sospechoso
+#> 9           canal       faltantes_disfrazados      error
+#> 10          canal          espacios_sobrantes sospechoso
+#> 11          canal   mayusculas_inconsistentes sospechoso
+#> 12          monto       faltantes_disfrazados sospechoso
+#> 13          monto                    outliers sospechoso
+#> 14        sistema                   constante sospechoso
+#> 15       contacto           alta_cardinalidad sospechoso
+#> 16      id_evento       posible_identificador         ok
+#> 17 codigo_usuario casi_duplicados_vocabulario sospechoso
+#> 18   fecha_evento casi_duplicados_vocabulario sospechoso
+#> 19          canal casi_duplicados_vocabulario sospechoso
+#> 20           zona casi_duplicados_vocabulario sospechoso
+#> 21       contacto casi_duplicados_vocabulario sospechoso
+#> 22      id_evento casi_duplicados_vocabulario sospechoso
+#> 23           <NA>            filas_duplicadas      error
+#> 24    id_registro         columnas_duplicadas sospechoso
+#> 25       contacto       dato_personal_posible         ok
+#>                                                                                                                                                                                                                                                                                                                                                                                                               evidencia
+#> 1                                                                                                                                                                                                                                                                                                                                                                                      Tasa de valores distintos: 0.846
+#> 2                                                                                                                                                                                                                                                                                                                                                                                                               S/D (1)
+#> 3                                                                                                                                                                                                                                                                                                                                                                                      Tasa de valores distintos: 0.923
+#> 4                                                                                                                                                                                                                                                                                                                                                                                                              NULL (1)
+#> 5                                                                                                                                                                                                                                                                                                                                                    %d/%m/%Y (4); %Y-%m-%d (4); %d-%m-%Y (1); %Y/%m/%d (1); %Y%m%d (1)
+#> 6                                                                                                                                                                                                                                                                                                                                                                  Declarado: texto; inferido: fecha (0.846 compatible)
+#> 7                                                                                                                                                                                                                                                                                                                                                                                      Tasa de valores distintos: 0.615
+#> 8                                                                                                                                                                                                                                                                                                                                                                   0 ausentes reales y 2 disfrazados (0.154 del total)
+#> 9                                                                                                                                                                                                                                                                                                                                                                                                 <blanco> (1); S/D (1)
+#> 10                                                                                                                                                                                                                                                                                                                                                                                          1 valores; ejemplos: "web "
+#> 11                                                                                                                                                                                                                                                                                                                                                                                                         "web"; "Web"
+#> 12                                                                                                                                                                                                                                                                                                                                                                                                              -99 (1)
+#> 13                                                                                                                                                                                                                                                                                                                                                                                                            4 valores
+#> 14                                                                                                                                                                                                                                                                                                                                                                                     Valor: principal; frecuencia: 13
+#> 15                                                                                                                                                                                                                                                                                                                                                                                                [evidencia protegida]
+#> 16                                                                                                                                                                                                                                                                                                                                                                                   12 valores distintos de 13 (0.923)
+#> 17                       No se formaron grupos por distancia: 28 pares cercanos se descartaron por secuencias numericas incompatibles; alcance: 11 de 11 valores; 55 pares comparados de 55; truncado=FALSE; unidades normalizadas: 11 de 11; grupos: 0, mostrados: 0; grupo_maximo: 0 (0.000); limite_aplicado=FALSE; motivo_grupos=. pares descartados por secuencia numerica=28; grupo_maximo compatible=0 (0.000). 
+#> 18                         No se formaron grupos por distancia: 2 pares cercanos se descartaron por secuencias numericas incompatibles; alcance: 12 de 12 valores; 66 pares comparados de 66; truncado=FALSE; unidades normalizadas: 12 de 12; grupos: 0, mostrados: 0; grupo_maximo: 0 (0.000); limite_aplicado=FALSE; motivo_grupos=. pares descartados por secuencia numerica=2; grupo_maximo compatible=0 (0.000). 
+#> 19                              [web (5) / Web (1) / web  (1)]; asimetria=5.0; origen=normalizacion; clase_diferencia=normalizacion_exacta; alcance: 7 de 7 valores; 10 pares comparados de 10; truncado=FALSE; unidades normalizadas: 5 de 5; grupos: 1, mostrados: 1; grupo_maximo: 3 (0.429); limite_aplicado=FALSE; motivo_grupos=. pares descartados por secuencia numerica=0; grupo_maximo compatible=3 (0.429). 
+#> 20 [Este (2) / Oeste (3)]; asimetria=1.5; origen=distancia; clase_diferencia=token_unico; distancia_minima=0.0667; distancia_maxima=0.0667; alcance: 5 de 5 valores; 10 pares comparados de 10; truncado=FALSE; unidades normalizadas: 5 de 5; grupos: 1, mostrados: 1; grupo_maximo: 2 (0.400); limite_aplicado=FALSE; motivo_grupos=. pares descartados por secuencia numerica=0; grupo_maximo compatible=2 (0.400). 
+#> 21                                                                                                                                                                                                                                                                                                                                                                                                [evidencia protegida]
+#> 22                       No se formaron grupos por distancia: 51 pares cercanos se descartaron por secuencias numericas incompatibles; alcance: 12 de 12 valores; 66 pares comparados de 66; truncado=FALSE; unidades normalizadas: 12 de 12; grupos: 0, mostrados: 0; grupo_maximo: 12 (1.000); limite_aplicado=TRUE; motivo_grupos=. pares descartados por secuencia numerica=51; grupo_maximo compatible=0 (0.000). 
+#> 23                                                                                                                                                                                                                                                                                                                                                                                                   1 filas duplicadas
+#> 24                                                                                                                                                                                                                                                                                                                                                                                               id_registro = id_copia
+#> 25                                                                                                                                                                                                                                                                      Tipo posible: correo; fundamento: forma de correo dominante; poder discriminante: alto; proteccion automatica: si; proporción compatible: 0.923
 ```
 
 La tabla por columna mantiene todas las proporciones en `[0, 1]`.
 
 ``` r
+
 perfil$columnas[, c(
   "columna", "tipo_declarado", "tipo_inferido",
   "prop_faltantes_totales", "n_distintos"
@@ -154,6 +171,7 @@ y la tabla lo marca. Las medias y los desvíos se mantienen como síntesis
 no ligadas a una fila.
 
 ``` r
+
 analisis$distribuciones$cuantiles
 #>        columna probabilidad  valor n_analizados muestreado    estado
 #> 1  id_registro         0.00      1           13      FALSE calculado
@@ -244,12 +262,13 @@ analisis$cobertura[, c("marco", "dimension", "factor", "estado")]
 
 ## Del diagnóstico al modelo
 
-`proponer_modelo()` no ejecuta nada. Devuelve una propuesta editable que
-explica de dónde salió cada métrica. Los dominios y patrones aprendidos
-de una sola entrega quedan inactivos hasta que alguien confirme que son
-requisitos.
+[`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
+no ejecuta nada. Devuelve una propuesta editable que explica de dónde
+salió cada métrica. Los dominios y patrones aprendidos de una sola
+entrega quedan inactivos hasta que alguien confirme que son requisitos.
 
 ``` r
+
 propuesta <- analisis$propuesta_modelo
 propuesta[, c(
   "metrica", "atributos", "origen", "prioridad", "incluir", "estado"
@@ -283,6 +302,7 @@ la métrica estructural activa detecta las filas que participan en
 duplicados.
 
 ``` r
+
 modelo_calidad <- modelo_desde_propuesta(propuesta)
 medidas <- medir(
   modelo_calidad, datos_operativos,
@@ -304,6 +324,7 @@ La medida booleana por fila puede agregarse a la entidad mediante
 global inventado.
 
 ``` r
+
 medida_entidad <- agregar(medidas, "entidad", "ratio")
 regla <- regla_evaluacion(
   "Duplicación menor al 20 %",
@@ -324,6 +345,7 @@ El plan propone acciones y sólo activa las que no dependen del dominio.
 Puede editarse como cualquier otro `data.frame`.
 
 ``` r
+
 plan <- analisis$plan_limpieza
 plan[, c(
   "grupo", "columna", "estrategia", "recomendada", "aplicar", "estado"
@@ -346,11 +368,11 @@ plan[, c(
 #> 15 grupo-0013          monto            winsorizar_outliers       FALSE   FALSE
 #> 16 grupo-0014        sistema     eliminar_columna_constante       FALSE   FALSE
 #> 17       <NA>       contacto           revisar_cardinalidad       FALSE   FALSE
-#> 18 grupo-0017           <NA>        marcar_filas_duplicadas        TRUE    TRUE
-#> 19 grupo-0017           <NA>    conservar_primera_duplicada       FALSE   FALSE
-#> 20 grupo-0017           <NA>         conservar_mas_completa       FALSE   FALSE
-#> 21 grupo-0018    id_registro     marcar_columnas_duplicadas        TRUE    TRUE
-#> 22 grupo-0018    id_registro     eliminar_columna_duplicada       FALSE   FALSE
+#> 18 grupo-0023           <NA>        marcar_filas_duplicadas        TRUE    TRUE
+#> 19 grupo-0023           <NA>    conservar_primera_duplicada       FALSE   FALSE
+#> 20 grupo-0023           <NA>         conservar_mas_completa       FALSE   FALSE
+#> 21 grupo-0024    id_registro     marcar_columnas_duplicadas        TRUE    TRUE
+#> 22 grupo-0024    id_registro     eliminar_columna_duplicada       FALSE   FALSE
 #>         estado
 #> 1  informativa
 #> 2        lista
@@ -390,24 +412,28 @@ El original permanece intacto. Para verificar el efecto se vuelve a
 perfilar el resultado.
 
 ``` r
+
 perfil_despues <- perfilar(resultado$datos, nombre = "entrega normalizada")
 c(
   antes = nrow(perfil$hallazgos),
   despues = nrow(perfil_despues$hallazgos)
 )
 #>   antes despues 
-#>      19      15
+#>      25      21
 ```
 
 ## Un archivo para compartir
 
-`guardar_analisis()` conserva el recorrido entre sesiones. Por omisión
-excluye la tabla de entrada y sustituye las reglas funcionales por
-declaraciones pequeñas, evitando serializar sus entornos. `reportar()`
+[`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md)
+conserva el recorrido entre sesiones. Por omisión excluye la tabla de
+entrada y sustituye las reglas funcionales por declaraciones pequeñas,
+evitando serializar sus entornos.
+[`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
 acepta el objeto entero y produce un HTML autocontenido. Este ejemplo
 crea ambos archivos en el directorio temporal y luego los retira.
 
 ``` r
+
 archivo_rds <- tempfile(fileext = ".rds")
 guardar_analisis(analisis, archivo_rds)
 analisis_recuperado <- leer_analisis(archivo_rds)
@@ -420,10 +446,11 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file4a8846a5ae13d.html"
+#> [1] "file210b156157bd.html"
 unlink(c(archivo, archivo_rds))
 ```
 
 Para profundizar en la arquitectura consulte
-`vignette("el-modelo-de-calidad")`; para revisar decisiones de
-remediación, `vignette("limpiar-con-un-plan")`.
+[`vignette("el-modelo-de-calidad")`](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.md);
+para revisar decisiones de remediación,
+[`vignette("limpiar-con-un-plan")`](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.md).

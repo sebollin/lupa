@@ -1,12 +1,13 @@
 # Declarar un conjunto de datos referencial
 
 Un referencial representa conocimiento externo mediante una clave y, de
-forma opcional, valores asociados a ella. Se diferencia de un
-diccionario: el diccionario sólo enumera valores sintácticamente
-válidos, mientras que el referencial permite comprobar que una entidad
-existe y que sus atributos están asociados a la clave correcta.
+forma opcional, valores asociados a ella. `normalizar` controla la
+representación usada para emparejar referenciales; no modifica los datos
+guardados. La declaración de completitud es explícita: `RatioCobertura`
+exige `completo = TRUE` y un `alcance` explícito; un referencial parcial
+sólo puede usarse para correctitud.
 
-## Uso
+## Usage
 
 ``` r
 referencial(
@@ -15,66 +16,64 @@ referencial(
   valor = character(),
   completo = FALSE,
   alcance = NULL,
-  nombre = NULL
+  nombre = NULL,
+  normalizar = TRUE
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - datos:
-    
-    Tabla de referencia. Se conserva una copia ordinaria de R.
+- datos:
 
-  - clave:
-    
-    Columnas que identifican unívocamente cada fila.
+  Tabla de referencia. Se conserva una copia ordinaria de R.
 
-  - valor:
-    
-    Columnas cuyos valores se contrastan junto con la clave.
+- clave:
 
-  - completo:
-    
-    Si el referencial declara contener todo el universo del alcance
-    indicado. Es `FALSE` por omisión.
+  Columnas que identifican unívocamente cada fila. Puede contener varias
+  columnas.
 
-  - alcance:
-    
-    Descripción explícita de aquello de lo que el referencial se declara
-    completo. Es obligatoria cuando `completo = TRUE`.
+- valor:
 
-  - nombre:
-    
-    Nombre legible del referencial. Si se omite, usa el nombre del
-    objeto de entrada o `"referencial"` cuando la tabla se construye en
-    línea.
+  Columnas asociadas que pueden contrastarse en correctitud débil. Es
+  opcional.
 
-## Valor
+- completo:
 
-Objeto de clase `referencial` con `datos`, `clave`, `valor`, `completo`,
-`alcance` y `nombre`.
+  Si la tabla cubre todo el universo declarado. Es `FALSE` por omisión.
 
-## Detalles
+- alcance:
 
-La declaración de completitud es explícita. `RatioCobertura` sólo tiene
-sentido bajo una asunción de mundo cerrado y exige `completo = TRUE`;
-una lista parcial puede usarse para correctitud, pero no como
-denominador de cobertura.
+  Descripción obligatoria cuando `completo = TRUE`.
 
-`clave` no admite ausentes y debe identificar cada fila de `datos` de
-forma única; puede contener varias columnas. `valor` es opcional, no
-puede repetir columnas de `clave` y representa los atributos asociados
-que se contrastan en correctitud semántica fuerte. `completo = FALSE` es
-el valor predeterminado y permite omitir `alcance`. Al declarar
-`completo = TRUE`, `alcance` pasa a ser obligatorio y debe nombrar el
-universo que la tabla dice cubrir. El constructor copia la tabla y no
-consulta fuentes externas.
+- nombre:
 
-## Ver también
+  Nombre legible del referencial. Si se omite, usa el nombre del objeto
+  de entrada o `"referencial"`.
 
-`metricas_referencial()`, `instanciar()`, `detectar_relaciones()`
+- normalizar:
 
-## Ejemplos
+  `TRUE`, `FALSE`, `"amplio"`, un perfil de
+  [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
+  o una lista nombrada por columna. `TRUE` es el valor predeterminado.
+
+## Value
+
+Un objeto de clase `referencial`.
+
+## Details
+
+La clave no admite ausentes y debe identificar cada fila de forma única.
+`valor` no puede repetir columnas de `clave` y representa atributos que
+se contrastan en correctitud semántica débil. El constructor copia la
+tabla y no consulta fuentes externas.
+
+## See also
+
+[`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md),
+[`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md),
+[`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+
+## Examples
 
 ``` r
 padron <- referencial(

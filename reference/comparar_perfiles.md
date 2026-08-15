@@ -4,36 +4,37 @@ Compara entregas sin exigir que tengan las mismas columnas. Devuelve
 cambios de esquema, tipos, faltantes, cardinalidad, rango, patrones y
 hallazgos como un objeto de datos filtrable.
 
-## Uso
+## Usage
 
 ``` r
 comparar_perfiles(anterior, actual, umbral_cambio = 0.05, umbral_error = 0.2)
 ```
 
-## Argumentos
+## Arguments
 
-  - anterior, actual:
-    
-    Objetos producidos por `perfilar()`.
+- anterior, actual:
 
-  - umbral\_cambio:
-    
-    Diferencia mínima para considerar significativo un cambio de
-    proporción, cardinalidad o rango relativo. Cinco puntos porcentuales
-    evita elevar variaciones pequeñas a hallazgo.
+  Objetos producidos por
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 
-  - umbral\_error:
-    
-    Diferencia a partir de la cual un aumento de faltantes o un patrón
-    nuevo se clasifica como `error`.
+- umbral_cambio:
 
-## Valor
+  Diferencia mínima para considerar significativo un cambio de
+  proporción, cardinalidad o rango relativo. Cinco puntos porcentuales
+  evita elevar variaciones pequeñas a hallazgo.
 
-Data frame `deriva_perfil`. `severidad` usa el factor ordenado `ok <
-sospechoso < error`; los cambios menores permanecen como filas `ok` para
-que la serie sea exportable sin ocultar diferencias.
+- umbral_error:
 
-## Detalles
+  Diferencia a partir de la cual un aumento de faltantes o un patrón
+  nuevo se clasifica como `error`.
+
+## Value
+
+Data frame `deriva_perfil`. `severidad` usa el factor ordenado
+`ok < sospechoso < error`; los cambios menores permanecen como filas
+`ok` para que la serie sea exportable sin ocultar diferencias.
+
+## Details
 
 Los patrones se comparan sobre el resumen acotado que conserva cada
 perfil, no sobre los valores originales ni una distribución completa. Si
@@ -45,11 +46,13 @@ Las columnas que aparecen o desaparecen generan cambios estructurales de
 severidad `error`, pero no impiden comparar las columnas compartidas. Un
 hallazgo de una columna retirada no se presenta como resuelto.
 
-## Ver también
+## See also
 
-`perfilar()`, `detectar_deriva_calidad()`, `reportar()`
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md),
+[`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 anterior <- perfilar(data.frame(codigo = c("AA1", "AA2")),

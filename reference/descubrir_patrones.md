@@ -5,7 +5,7 @@ Finder* de DataCleaner: `9` representa un dígito, `a` una letra
 minúscula y `A` una letra mayúscula. Los símbolos y espacios se
 conservan literalmente.
 
-## Uso
+## Usage
 
 ``` r
 descubrir_patrones(
@@ -19,58 +19,62 @@ descubrir_patrones(
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - x:
-    
-    Vector que se convertirá a texto.
+- x:
 
-  - distinguir\_mayusculas:
-    
-    Si es `TRUE`, distingue `a` de `A`.
+  Vector que se convertirá a texto.
 
-  - expandir:
-    
-    Si es `FALSE`, colapsa tokens repetidos (`9999` a `9+`).
+- distinguir_mayusculas:
 
-  - max\_patrones:
-    
-    Número máximo de patrones que se muestran.
+  Si es `TRUE`, distingue `a` de `A`.
 
-  - na.rm:
-    
-    Si es `TRUE`, excluye los valores ausentes.
+- expandir:
 
-  - muestra:
-    
-    Máximo de valores que se analizan.
+  Si es `FALSE`, colapsa tokens repetidos (`9999` a `9+`).
 
-  - umbral\_raro:
-    
-    Umbral usado para conservar un resumen acotado de patrones raros
-    para los hallazgos.
+- max_patrones:
 
-## Valor
+  Número máximo de patrones que se muestran.
+
+- na.rm:
+
+  Si es `TRUE`, excluye los valores ausentes.
+
+- muestra:
+
+  Máximo de valores que se analizan.
+
+- umbral_raro:
+
+  Umbral usado para conservar un resumen acotado de patrones raros para
+  los hallazgos.
+
+## Value
 
 Un data frame de clase `patrones` con patrón, frecuencia, proporción y
-ejemplos. Los atributos `total`, `analizados` y `muestreado` describen
-el posible muestreo. `resumen_patrones` conserva sólo el patrón
-dominante y hasta seis patrones raros; nunca guarda la distribución
-completa. Las proporciones siempre están en `[0, 1]`.
-`n_patrones_distintos` registra el total antes de truncar la tabla para
-informar omisiones sin retenerla.
+ejemplos. Los atributos `total`, `analizados`, `filas_analizadas` y
+`muestreado` describen el posible muestreo; `filas_analizadas` es un
+alias explícito de `analizados` para mantener el alcance visible junto a
+otros diagnósticos. `resumen_patrones` conserva sólo el patrón dominante
+y hasta seis patrones raros; nunca guarda la distribución completa. Las
+proporciones siempre están en `[0, 1]`. `n_patrones_distintos` registra
+el total antes de truncar la tabla para informar omisiones sin
+retenerla.
 
-## Detalles
+## Details
 
 El cálculo aplica reemplazos vectorizados sobre el vector completo. Si
 el vector supera `muestra`, usa una muestra sistemática reproducible y
 registra esa decisión en los atributos del resultado.
 
-## Ver también
+## See also
 
-`perfilar()`, `inferir_tipo()`, `detectar_formatos_fecha()`
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md),
+[`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 descubrir_patrones(

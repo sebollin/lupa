@@ -6,6 +6,11 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Limpiar con un plan auditable • lupa</title>
+<!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="../favicon-96x96.png">
+<link rel="icon" type="”image/svg+xml”" href="../favicon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+<link rel="icon" sizes="any" href="../favicon.ico">
+<link rel="manifest" href="../site.webmanifest">
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
@@ -13,35 +18,36 @@
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Limpiar con un plan auditable">
 </head>
 <body>
-    <a href="#main" class="visually-hidden-focusable">Ir al contenido</a>
+    <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
-    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Navegación del sitio"><div class="container">
+    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
+    <a class="navbar-brand p-0 me-2" href="https://sebollin.github.io/lupa/"><img src="https://sebollin.github.io/lupa/logo.png" height="32" alt="lupa"></a>
 
     <a class="navbar-brand me-2" href="../index.html">lupa</a>
 
     <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Cambiar la navegación">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="../reference/index.html">Índice</a></li>
+<li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="active nav-item dropdown">
-  <button class="nav-link dropdown-toggle" type="button" id="dropdown-art-culos" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Artículos</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-art-culos">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
     <li><a class="dropdown-item" href="../articles/el-modelo-de-calidad.html">Un modelo de calidad declarable</a></li>
     <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
     <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
     <li><hr class="dropdown-divider"></li>
-    <li><a class="dropdown-item" href="../articles/index.html">Más artículos...</a></li>
+    <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul>
 </li>
-<li class="nav-item"><a class="nav-link" href="../news/index.html">Registro de cambios</a></li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav"></ul>
 </div>
@@ -52,19 +58,21 @@
 
 
 
-<script src="limpiar-con-un-plan_files/accessible-code-block-0.0.1/empty-anchor.js"></script><div class="row">
-  <main id="main" class="col-md-9"><div class="page-header">
 
-      <h1>Limpiar con un plan auditable</h1>
+<div class="row">
+  <main id="main" class="col-md-9"><div class="page-header">
+      <img src="../logo.png" class="logo" alt=""><h1>Limpiar con un plan auditable</h1>
             
       
-      <small class="dont-index">Código: <a href="https://github.com/sebollin/lupa/blob/HEAD/vignettes/limpiar-con-un-plan.Rmd" class="external-link"><code>vignettes/limpiar-con-un-plan.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/sebollin/lupa/blob/main/vignettes/limpiar-con-un-plan.Rmd" class="external-link"><code>vignettes/limpiar-con-un-plan.Rmd</code></a></small>
       <div class="d-none name"><code>limpiar-con-un-plan.Rmd</code></div>
     </div>
 
     
     
-<p>Diagnosticar no autoriza a modificar datos. En <code>lupa</code>, el producto de la etapa de mejora es primero un plan inspeccionable, filtrable y editable.</p>
+<p>Diagnosticar no autoriza a modificar datos. En <code>lupa</code>, el
+producto de la etapa de mejora es primero un plan inspeccionable,
+filtrable y editable.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">datos_administrativos</span><span class="op">)</span></span>
@@ -88,11 +96,11 @@
 <span><span class="co">#&gt; 10 accion-0010       &lt;NA&gt;     departamento           revisar_cardinalidad       FALSE</span></span>
 <span><span class="co">#&gt; 11 accion-0011 grupo-0012             pais     eliminar_columna_constante       FALSE</span></span>
 <span><span class="co">#&gt; 12 accion-0012       &lt;NA&gt;           correo           revisar_cardinalidad       FALSE</span></span>
-<span><span class="co">#&gt; 13 accion-0013 grupo-0015             &lt;NA&gt;        marcar_filas_duplicadas        TRUE</span></span>
-<span><span class="co">#&gt; 14 accion-0014 grupo-0015             &lt;NA&gt;    conservar_primera_duplicada       FALSE</span></span>
-<span><span class="co">#&gt; 15 accion-0015 grupo-0015             &lt;NA&gt;         conservar_mas_completa       FALSE</span></span>
-<span><span class="co">#&gt; 16 accion-0016 grupo-0016       id_persona     marcar_columnas_duplicadas        TRUE</span></span>
-<span><span class="co">#&gt; 17 accion-0017 grupo-0016       id_persona     eliminar_columna_duplicada       FALSE</span></span>
+<span><span class="co">#&gt; 13 accion-0013 grupo-0018             &lt;NA&gt;        marcar_filas_duplicadas        TRUE</span></span>
+<span><span class="co">#&gt; 14 accion-0014 grupo-0018             &lt;NA&gt;    conservar_primera_duplicada       FALSE</span></span>
+<span><span class="co">#&gt; 15 accion-0015 grupo-0018             &lt;NA&gt;         conservar_mas_completa       FALSE</span></span>
+<span><span class="co">#&gt; 16 accion-0016 grupo-0019       id_persona     marcar_columnas_duplicadas        TRUE</span></span>
+<span><span class="co">#&gt; 17 accion-0017 grupo-0019       id_persona     eliminar_columna_duplicada       FALSE</span></span>
 <span><span class="co">#&gt;    aplicar reversible      estado</span></span>
 <span><span class="co">#&gt; 1    FALSE         NA informativa</span></span>
 <span><span class="co">#&gt; 2     TRUE      FALSE       lista</span></span>
@@ -114,7 +122,11 @@
 <div class="section level2">
 <h2 id="recomendaciones-y-decisiones-de-dominio">Recomendaciones y decisiones de dominio<a class="anchor" aria-label="anchor" href="#recomendaciones-y-decisiones-de-dominio"></a>
 </h2>
-<p>Una acción se recomienda sólo si es correcta con independencia del dominio: por ejemplo, convertir un sentinela textual inequívoco a <code>NA</code> o quitar espacios de borde. Normalizar mayúsculas, convertir un sentinela numérico o winsorizar un valor extremo exige contexto y queda desactivado.</p>
+<p>Una acción se recomienda sólo si es correcta con independencia del
+dominio: por ejemplo, convertir un sentinela textual inequívoco a
+<code>NA</code> o quitar espacios de borde. Normalizar mayúsculas,
+convertir un sentinela numérico o winsorizar un valor extremo exige
+contexto y queda desactivado.</p>
 <p>La justificación acompaña cada alternativa.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">plan</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"estrategia"</span>, <span class="st">"justificacion"</span><span class="op">)</span><span class="op">]</span></span>
@@ -136,29 +148,33 @@
 <span><span class="co">#&gt; 15         conservar_mas_completa</span></span>
 <span><span class="co">#&gt; 16     marcar_columnas_duplicadas</span></span>
 <span><span class="co">#&gt; 17     eliminar_columna_duplicada</span></span>
-<span><span class="co">#&gt;                                                                                                                                        justificacion</span></span>
-<span><span class="co">#&gt; 1                                 El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
-<span><span class="co">#&gt; 2                    Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.</span></span>
-<span><span class="co">#&gt; 3                                 El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
-<span><span class="co">#&gt; 4                    Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.</span></span>
-<span><span class="co">#&gt; 5          La conversión no es segura porque queda algún formato candidato, hay valores incompatibles o la columna no se identifica de manera única.</span></span>
-<span><span class="co">#&gt; 6                    Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.</span></span>
-<span><span class="co">#&gt; 7                                            Un sentinela numérico también puede ser un valor legítimo; requiere confirmar el diccionario del campo.</span></span>
-<span><span class="co">#&gt; 8                                           Un valor extremo puede ser correcto; la marca conserva el dato para que el dominio decida cómo tratarlo.</span></span>
-<span><span class="co">#&gt; 9                       Sustituye los extremos por los límites de Tukey y altera valores observados; sólo debe elegirse con justificación analítica.</span></span>
-<span><span class="co">#&gt; 10                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
-<span><span class="co">#&gt; 11                       Eliminarla pierde contexto potencial; dejarla es la recomendación hasta confirmar que no aporta significado administrativo.</span></span>
-<span><span class="co">#&gt; 12                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
-<span><span class="co">#&gt; 13                              Marcar conserva todas las filas, identifica las repeticiones y asigna un grupo a todos los registros que participan.</span></span>
-<span><span class="co">#&gt; 14                      Conserva la primera aparición exacta y elimina las siguientes; el orden de entrada pasa a determinar qué registro sobrevive.</span></span>
-<span><span class="co">#&gt; 15 Requiere configurar una clave: entre duplicados exactos todas las filas tienen la misma completitud y esta opción sería equivalente a la primera.</span></span>
-<span><span class="co">#&gt; 16                                                                    La anotación conserva ambas columnas y registra explícitamente la redundancia.</span></span>
-<span><span class="co">#&gt; 17                                      Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.</span></span></code></pre></div>
+<span><span class="co">#&gt;                                                                                                                                                                       justificacion</span></span>
+<span><span class="co">#&gt; 1                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
+<span><span class="co">#&gt; 2                                                   Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.</span></span>
+<span><span class="co">#&gt; 3                                                                El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
+<span><span class="co">#&gt; 4                                                   Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.</span></span>
+<span><span class="co">#&gt; 5  La conversión no es ejecutable sobre los datos completos: Hay valores presentes que no responden a los formatos confirmados. Se conserva como acción destructiva no recomendada.</span></span>
+<span><span class="co">#&gt; 6                                                   Las representaciones textuales del catálogo son marcadores explícitos de ausencia y pueden normalizarse sin inferir el dominio.</span></span>
+<span><span class="co">#&gt; 7                                                                           Un sentinela numérico también puede ser un valor legítimo; requiere confirmar el diccionario del campo.</span></span>
+<span><span class="co">#&gt; 8                                                                          Un valor extremo puede ser correcto; la marca conserva el dato para que el dominio decida cómo tratarlo.</span></span>
+<span><span class="co">#&gt; 9                                                      Sustituye los extremos por los límites de Tukey y altera valores observados; sólo debe elegirse con justificación analítica.</span></span>
+<span><span class="co">#&gt; 10                                                               El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
+<span><span class="co">#&gt; 11                                                      Eliminarla pierde contexto potencial; dejarla es la recomendación hasta confirmar que no aporta significado administrativo.</span></span>
+<span><span class="co">#&gt; 12                                                               El perfil señala el problema, pero no contiene conocimiento suficiente del dominio para elegir una transformación.</span></span>
+<span><span class="co">#&gt; 13                                                             Marcar conserva todas las filas, identifica las repeticiones y asigna un grupo a todos los registros que participan.</span></span>
+<span><span class="co">#&gt; 14                                                     Conserva la primera aparición exacta y elimina las siguientes; el orden de entrada pasa a determinar qué registro sobrevive.</span></span>
+<span><span class="co">#&gt; 15                                Requiere configurar una clave: entre duplicados exactos todas las filas tienen la misma completitud y esta opción sería equivalente a la primera.</span></span>
+<span><span class="co">#&gt; 16                                                                                                   La anotación conserva ambas columnas y registra explícitamente la redundancia.</span></span>
+<span><span class="co">#&gt; 17                                                                     Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="grupos-mutuamente-excluyentes">Grupos mutuamente excluyentes<a class="anchor" aria-label="anchor" href="#grupos-mutuamente-excluyentes"></a>
 </h2>
-<p>Las alternativas de un mismo hallazgo comparten <code>grupo</code>. Como máximo una puede tener <code>aplicar = TRUE</code>. <code>decision_grupo</code> distingue un grupo pendiente de una decisión explícita de no actuar; no se inventa una fila ficticia de “no hacer nada”.</p>
+<p>Las alternativas de un mismo hallazgo comparten <code>grupo</code>.
+Como máximo una puede tener <code>aplicar = TRUE</code>.
+<code>decision_grupo</code> distingue un grupo pendiente de una decisión
+explícita de no actuar; no se inventa una fila ficticia de “no hacer
+nada”.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">grupos</span> <span class="op">&lt;-</span> <span class="va">plan</span><span class="op">[</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">plan</span><span class="op">$</span><span class="va">grupo</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"grupo"</span>, <span class="st">"estrategia"</span>, <span class="st">"recomendada"</span>, <span class="st">"aplicar"</span>, <span class="st">"decision_grupo"</span></span>
@@ -169,12 +185,14 @@
 <span><span class="co">#&gt; 8  grupo-0010                marcar_outliers        TRUE   FALSE      pendiente</span></span>
 <span><span class="co">#&gt; 9  grupo-0010            winsorizar_outliers       FALSE   FALSE      pendiente</span></span>
 <span><span class="co">#&gt; 11 grupo-0012     eliminar_columna_constante       FALSE   FALSE    recomendada</span></span>
-<span><span class="co">#&gt; 13 grupo-0015        marcar_filas_duplicadas        TRUE    TRUE    recomendada</span></span>
-<span><span class="co">#&gt; 14 grupo-0015    conservar_primera_duplicada       FALSE   FALSE    recomendada</span></span>
-<span><span class="co">#&gt; 15 grupo-0015         conservar_mas_completa       FALSE   FALSE    recomendada</span></span>
-<span><span class="co">#&gt; 16 grupo-0016     marcar_columnas_duplicadas        TRUE    TRUE    recomendada</span></span>
-<span><span class="co">#&gt; 17 grupo-0016     eliminar_columna_duplicada       FALSE   FALSE    recomendada</span></span></code></pre></div>
-<p>El modo guiado es una capa opcional. Fuera de una sesión interactiva devuelve el plan sin bloquear; en una consola recorre sólo decisiones pendientes o riesgosas.</p>
+<span><span class="co">#&gt; 13 grupo-0018        marcar_filas_duplicadas        TRUE    TRUE    recomendada</span></span>
+<span><span class="co">#&gt; 14 grupo-0018    conservar_primera_duplicada       FALSE   FALSE    recomendada</span></span>
+<span><span class="co">#&gt; 15 grupo-0018         conservar_mas_completa       FALSE   FALSE    recomendada</span></span>
+<span><span class="co">#&gt; 16 grupo-0019     marcar_columnas_duplicadas        TRUE    TRUE    recomendada</span></span>
+<span><span class="co">#&gt; 17 grupo-0019     eliminar_columna_duplicada       FALSE   FALSE    recomendada</span></span></code></pre></div>
+<p>El modo guiado es una capa opcional. Fuera de una sesión interactiva
+devuelve el plan sin bloquear; en una consola recorre sólo decisiones
+pendientes o riesgosas.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="fu"><a href="../reference/guiar_limpieza.html">guiar_limpieza</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">datos_administrativos</span><span class="op">)</span>, <span class="va">plan</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
@@ -196,12 +214,19 @@
 <span><span class="co">#&gt; 3 convertir_ausencias_textuales           1                  0                     0</span></span>
 <span><span class="co">#&gt; 4 convertir_ausencias_textuales           2                  0                     0</span></span>
 <span><span class="co">#&gt; 5    marcar_columnas_duplicadas           1                  0                     0</span></span></code></pre></div>
-<p>Las acciones destructivas nunca son recomendadas. Aunque el usuario las active en el plan, <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> exige además <code>permitir_eliminacion = TRUE</code>; lo retirado se conserva en <code>resultado$eliminados</code> salvo decisión contraria.</p>
+<p>Las acciones destructivas nunca son recomendadas. Aunque el usuario
+las active en el plan, <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> exige además
+<code>permitir_eliminacion = TRUE</code>; lo retirado se conserva en
+<code>resultado$eliminados</code> salvo decisión contraria.</p>
 </div>
 <div class="section level2">
 <h2 id="imputar-por-una-dependencia">Imputar por una dependencia<a class="anchor" aria-label="anchor" href="#imputar-por-una-dependencia"></a>
 </h2>
-<p>Una dependencia funcional exacta permite deducir un valor desde los propios datos, pero sigue siendo una regularidad observada en una entrega. Puede representar una regla real o un error sistemático. Por eso la acción se ofrece con mapa y soporte, pero no queda recomendada ni activa.</p>
+<p>Una dependencia funcional exacta permite deducir un valor desde los
+propios datos, pero sigue siendo una regularidad observada en una
+entrega. Puede representar una regla real o un error sistemático. Por
+eso la acción se ofrece con mapa y soporte, pero no queda recomendada ni
+activa.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">datos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  codigo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, each <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>,</span>
@@ -221,7 +246,9 @@
 <span><span class="co">#&gt; 6 imputar_dependencia_funcional__codigo       FALSE   FALSE</span></span>
 <span><span class="co">#&gt;                                                                                                                                                                   justificacion</span></span>
 <span><span class="co">#&gt; 6 La relación codigo -&gt; descripcion es exacta en 10 filas presentes y cada valor usado tiene al menos 2 observaciones de soporte. Debe confirmarse como regla antes de imputar.</span></span></code></pre></div>
-<p>Después de confirmar la regla, el usuario activa una alternativa y registra la decisión. La dependencia vuelve a validarse al aplicar el plan.</p>
+<p>Después de confirmar la regla, el usuario activa una alternativa y
+registra la decisión. La dependencia vuelve a validarse al aplicar el
+plan.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">plan_fd</span><span class="op">$</span><span class="va">aplicar</span><span class="op">[</span><span class="va">imputacion</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
 <span><span class="va">plan_fd</span><span class="op">$</span><span class="va">decision_grupo</span><span class="op">[</span><span class="va">imputacion</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="st">"elegida"</span></span>
@@ -244,20 +271,21 @@
 <span><span class="co">#&gt;                              estrategia n_cambiadas</span></span>
 <span><span class="co">#&gt; 1               marcar_filas_duplicadas          10</span></span>
 <span><span class="co">#&gt; 2 imputar_dependencia_funcional__codigo           2</span></span></code></pre></div>
-<p>El ciclo termina volviendo a perfilar. Así la mejora queda vinculada a un plan y a un registro, no a una transformación invisible.</p>
+<p>El ciclo termina volviendo a perfilar. Así la mejora queda vinculada
+a un plan y a un registro, no a una transformación invisible.</p>
 </div>
-  </main><aside class="col-md-3"><nav id="toc" aria-label="Índice de contenidos"><h2>En esta página</h2>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
 </div>
 
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Desarrollado por Sebastián Lucas.</p>
+  <p>Developed by Sebastián Lucas.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Sitio creado con <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

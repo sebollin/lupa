@@ -9,90 +9,97 @@ duplicada, una fila duplicada y un identificador repetido con datos
 contradictorios. No representa personas, operaciones ni registros
 reales.
 
-## Uso
+## Usage
 
 ``` r
 datos_operativos
 ```
 
-## Formato
+## Format
 
 Un data frame con 13 filas y 10 variables:
 
-  - id\_registro:
-    
-    Identificador interno, con una repetición contradictoria.
+- id_registro:
 
-  - codigo\_usuario:
-    
-    Código sintético con formatos heterogéneos y un ausente disfrazado.
+  Identificador interno, con una repetición contradictoria.
 
-  - fecha\_evento:
-    
-    Fechas en varios formatos y un ausente disfrazado.
+- codigo_usuario:
 
-  - canal:
-    
-    Categoría con variantes de capitalización, espacios y ausentes
-    disfrazados.
+  Código sintético con formatos heterogéneos y un ausente disfrazado.
 
-  - monto:
-    
-    Importes con sentinelas, cero, un negativo y un valor extremo.
+- fecha_evento:
 
-  - zona:
-    
-    Categoría operativa ficticia.
+  Fechas en varios formatos y un ausente disfrazado.
 
-  - sistema:
-    
-    Columna constante.
+- canal:
 
-  - contacto:
-    
-    Direcciones sintéticas y un patrón anómalo.
+  Categoría con variantes de capitalización, espacios y ausentes
+  disfrazados.
 
-  - id\_copia:
-    
-    Copia redundante del identificador interno.
+- monto:
 
-  - id\_evento:
-    
-    Identificador sintético de alta unicidad.
+  Importes con sentinelas, cero, un negativo y un valor extremo.
 
-## Fuente
+- zona:
+
+  Categoría operativa ficticia.
+
+- sistema:
+
+  Columna constante.
+
+- contacto:
+
+  Direcciones sintéticas y un patrón anómalo.
+
+- id_copia:
+
+  Copia redundante del identificador interno.
+
+- id_evento:
+
+  Identificador sintético de alta unicidad.
+
+## Source
 
 Generación sintética incluida en `data-raw/datos_operativos.R`.
 
-## Ver también
+## See also
 
-[datos\_administrativos](https://sebollin.github.io/lupa/reference/datos_administrativos.md),
-`analizar()`, `perfilar()`
+[datos_administrativos](https://sebollin.github.io/lupa/reference/datos_administrativos.md),
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 data(datos_operativos)
 analisis <- analizar(datos_operativos, analizar_dependencias = FALSE)
 analisis$perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")]
-#>           columna             tipo_hallazgo  severidad
-#> 1  codigo_usuario         alta_cardinalidad sospechoso
-#> 2  codigo_usuario     faltantes_disfrazados      error
-#> 3    fecha_evento         alta_cardinalidad sospechoso
-#> 4    fecha_evento     faltantes_disfrazados      error
-#> 5    fecha_evento     formatos_fecha_mixtos      error
-#> 6    fecha_evento   tipo_declarado_distinto sospechoso
-#> 7           canal         alta_cardinalidad sospechoso
-#> 8           canal                 faltantes sospechoso
-#> 9           canal     faltantes_disfrazados      error
-#> 10          canal        espacios_sobrantes sospechoso
-#> 11          canal mayusculas_inconsistentes sospechoso
-#> 12          monto     faltantes_disfrazados sospechoso
-#> 13          monto                  outliers sospechoso
-#> 14        sistema                 constante sospechoso
-#> 15       contacto         alta_cardinalidad sospechoso
-#> 16      id_evento     posible_identificador         ok
-#> 17           <NA>          filas_duplicadas      error
-#> 18    id_registro       columnas_duplicadas sospechoso
-#> 19       contacto     dato_personal_posible         ok
+#>           columna               tipo_hallazgo  severidad
+#> 1  codigo_usuario           alta_cardinalidad sospechoso
+#> 2  codigo_usuario       faltantes_disfrazados      error
+#> 3    fecha_evento           alta_cardinalidad sospechoso
+#> 4    fecha_evento       faltantes_disfrazados      error
+#> 5    fecha_evento       formatos_fecha_mixtos      error
+#> 6    fecha_evento     tipo_declarado_distinto sospechoso
+#> 7           canal           alta_cardinalidad sospechoso
+#> 8           canal                   faltantes sospechoso
+#> 9           canal       faltantes_disfrazados      error
+#> 10          canal          espacios_sobrantes sospechoso
+#> 11          canal   mayusculas_inconsistentes sospechoso
+#> 12          monto       faltantes_disfrazados sospechoso
+#> 13          monto                    outliers sospechoso
+#> 14        sistema                   constante sospechoso
+#> 15       contacto           alta_cardinalidad sospechoso
+#> 16      id_evento       posible_identificador         ok
+#> 17 codigo_usuario casi_duplicados_vocabulario sospechoso
+#> 18   fecha_evento casi_duplicados_vocabulario sospechoso
+#> 19          canal casi_duplicados_vocabulario sospechoso
+#> 20           zona casi_duplicados_vocabulario sospechoso
+#> 21       contacto casi_duplicados_vocabulario sospechoso
+#> 22      id_evento casi_duplicados_vocabulario sospechoso
+#> 23           <NA>            filas_duplicadas      error
+#> 24    id_registro         columnas_duplicadas sospechoso
+#> 25       contacto       dato_personal_posible         ok
 ```

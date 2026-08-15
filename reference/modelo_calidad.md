@@ -7,7 +7,7 @@ columnas o tablas. `instanciar()` liga la métrica a objetos concretos y
 materializa el método de medición. `modelo()` reúne métricas
 instanciadas sin calcular un índice global.
 
-## Uso
+## Usage
 
 ``` r
 metrica(
@@ -40,102 +40,105 @@ modelo(..., marco = NULL)
 metricas_nucleo()
 ```
 
-## Argumentos
+## Arguments
 
-  - nombre:
-    
-    Nombre estable y legible.
+- nombre:
 
-  - semantica:
-    
-    Descripción de lo que mide la métrica.
+  Nombre estable y legible.
 
-  - granularidad:
-    
-    Uno de los niveles devueltos por `granularidades()`.
+- semantica:
 
-  - tipo\_resultado:
-    
-    `"booleano"`, `"real"` en `[0, 1]`, `"numero_real"`, `"entero"` no
-    negativo o `"duracion"` no negativa. Los tres últimos conservan
-    resultados no acotados del catálogo y no admiten las cuatro
-    agregaciones normalizadas.
+  Descripción de lo que mide la métrica.
 
-  - propiedades:
-    
-    Nombres de las propiedades que fija `especializar()`.
+- granularidad:
 
-  - dimension, factor:
-    
-    Metadatos taxonómicos; no se usan para calcular puntuaciones.
+  Uno de los niveles devueltos por
+  [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md).
 
-  - metodo:
-    
-    Método predeterminado opcional. Es una función de `tablas` e
-    `instancia` que cumple el contrato descrito en **Contrato de
-    `metodo`**.
+- tipo_resultado:
 
-  - validar\_propiedades:
-    
-    Función opcional que recibe la lista con nombre enviada a
-    `especializar()` y debe devolver otra lista con nombre formada sólo
-    por propiedades declaradas. Puede validar alternativas, completar
-    valores predeterminados y normalizar la configuración. Si es `NULL`,
-    todas las propiedades declaradas son obligatorias y no se admiten
-    otras.
+  `"booleano"`, `"real"` en `[0, 1]`, `"numero_real"`, `"entero"` no
+  negativo o `"duracion"` no negativa. Los tres últimos conservan
+  resultados no acotados del catálogo y no admiten las cuatro
+  agregaciones normalizadas.
 
-  - metrica:
-    
-    Objeto de clase `metrica_generica`.
+- propiedades:
 
-  - nombre\_especifico:
-    
-    Nombre de la especialización. Si se omite, conserva el nombre
-    genérico.
+  Nombres de las propiedades que fija `especializar()`.
 
-  - ...:
-    
-    En `especializar()`, propiedades con nombre de las declaradas en
-    `metrica(propiedades = )`; consúltelas con `propiedades_metrica()`.
-    En `modelo()`, métricas instanciadas o una única lista que las
-    contenga.
+- dimension, factor:
 
-  - metrica\_especifica:
-    
-    Objeto de clase `metrica_especifica`.
+  Metadatos taxonómicos; no se usan para calcular puntuaciones.
 
-  - entidad:
-    
-    Nombres de las tablas ligadas, en el orden que espera el método.
+- metodo:
 
-  - atributos:
-    
-    Nombres de las columnas ligadas, en el mismo orden.
+  Método predeterminado opcional. Es una función de `tablas` e
+  `instancia` que cumple el contrato descrito en **Contrato de
+  `metodo`**.
 
-  - nombre\_instancia:
-    
-    Nombre de la instancia. Si se omite, se deriva de la especialización
-    y los objetos ligados.
+- validar_propiedades:
 
-  - referencial:
-    
-    Objeto opcional creado por `referencial()`. Se conserva en la
-    instancia sin modificarlo: `instanciar()` no supone que toda métrica
-    lo use. El `metodo` debe leerlo y validar el contrato que necesite;
-    las métricas de `metricas_referencial()` hacen esa validación al
-    medir.
+  Función opcional que recibe la lista con nombre enviada a
+  `especializar()` y debe devolver otra lista con nombre formada sólo
+  por propiedades declaradas. Puede validar alternativas, completar
+  valores predeterminados y normalizar la configuración. Si es `NULL`,
+  todas las propiedades declaradas son obligatorias y no se admiten
+  otras.
 
-  - x:
-    
-    Métrica genérica, específica o instanciada.
+- metrica:
 
-  - marco:
-    
-    Objeto opcional creado por `marco_calidad()`. Cuando se provee,
-    todas las métricas instanciadas deben pertenecer a uno de sus pares
-    dimensión-factor.
+  Objeto de clase `metrica_generica`.
 
-## Valor
+- nombre_especifico:
+
+  Nombre de la especialización. Si se omite, conserva el nombre
+  genérico.
+
+- ...:
+
+  En `especializar()`, propiedades con nombre de las declaradas en
+  `metrica(propiedades = )`; consúltelas con `propiedades_metrica()`. En
+  `modelo()`, métricas instanciadas o una única lista que las contenga.
+
+- metrica_especifica:
+
+  Objeto de clase `metrica_especifica`.
+
+- entidad:
+
+  Nombres de las tablas ligadas, en el orden que espera el método.
+
+- atributos:
+
+  Nombres de las columnas ligadas, en el mismo orden.
+
+- nombre_instancia:
+
+  Nombre de la instancia. Si se omite, se deriva de la especialización y
+  los objetos ligados.
+
+- referencial:
+
+  Objeto opcional creado por
+  [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md).
+  Se conserva en la instancia sin modificarlo: `instanciar()` no supone
+  que toda métrica lo use. El `metodo` debe leerlo y validar el contrato
+  que necesite; las métricas de
+  [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md)
+  hacen esa validación al medir.
+
+- x:
+
+  Métrica genérica, específica o instanciada.
+
+- marco:
+
+  Objeto opcional creado por
+  [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md).
+  Cuando se provee, todas las métricas instanciadas deben pertenecer a
+  uno de sus pares dimensión-factor.
+
+## Value
 
 `metrica()` y `especializar()` devuelven closures S3; `instanciar()`
 devuelve una `metrica_instanciada`; `modelo()` devuelve un
@@ -143,24 +146,33 @@ devuelve una `metrica_instanciada`; `modelo()` devuelve un
 genéricas. `propiedades_metrica()` devuelve un data frame con las
 propiedades declaradas y si ya fueron configuradas.
 
-## Detalles
+## Details
 
-`metricas_nucleo()` devuelve veintiuna métricas automatizables una vez
-declaradas sus propiedades; `escala()` y `vigencia()` hacen explícitos
-los insumos expertos que algunas necesitan. `metricas_referencial()`
+`metricas_nucleo()` devuelve veintidós métricas automatizables una vez
+declaradas sus propiedades;
+[`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md)
+y
+[`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md)
+hacen explícitos los insumos expertos que algunas necesitan.
+[`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md)
 aporta por separado las tres métricas que consumen un padrón tabular.
-Consulte `catalogo_agesic()` para la correspondencia completa.
+Consulte
+[`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md)
+para la correspondencia completa.
 
 En `ReglaIntegridadInterEntidad`, `entidad` y `atributos` se ligan como
 `c(referencia, dependiente)` y `c(clave_primaria, clave_foranea)`. Esta
 implementación calcula cobertura PK/FK como resultado real y sólo cubre
 una parte de la genérica del marco, que declara granularidad
 `conjuntoEntidades`, resultado booleano y admite además una expresión
-condicional. `catalogo_agesic()` deja visible esa cobertura parcial.
-Pese a su nombre, `ErrorEstandar` sigue literalmente la semántica de la
-tabla 16.5 del marco y devuelve la desviación estándar muestral sin
-normalizar; exige al menos dos valores numéricos válidos. Por eso
-declara `tipo_resultado = "numero_real"` y no admite `agregar()`.
+condicional.
+[`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md)
+deja visible esa cobertura parcial. Pese a su nombre, `ErrorEstandar`
+sigue literalmente la semántica de la tabla 16.5 del marco y devuelve la
+desviación estándar muestral sin normalizar; exige al menos dos valores
+numéricos válidos. Por eso declara `tipo_resultado = "numero_real"` y no
+admite
+[`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md).
 
 `Formato` acepta exactamente una de las propiedades `expresion_regular`,
 `diccionario` o `validador`. Esta última permite conectar validadores
@@ -184,6 +196,18 @@ la semántica del marco: marca filas con la misma clave cuyos demás
 valores son iguales o ausentes en alguna de las dos. En las
 comparaciones exactas, los `NA` forman parte de la combinación
 comparada.
+
+`EntidadContradictoria` compara los valores distintos de un atributo con
+la misma normalización y medida de similitud que
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md).
+Marca las filas cuyo valor tiene un vecino por debajo de `umbral`, pero
+no modifica datos ni propone una limpieza. Su alcance se conserva en el
+atributo `alcance_metricas` del resultado de
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md): informa
+los valores distintos comparados, los pares evaluados y los que quedaron
+bajo el umbral. `max_valores` permite acotar el vocabulario; cuando se
+alcanza, el alcance declara el prefijo evaluado y los valores que
+quedaron fuera.
 
 `DesactualizacionPorFormato` devuelve `TRUE` cuando el valor **no**
 cumple el formato vigente. Conforme a las tablas 16.29 y 16.30 del
@@ -213,34 +237,36 @@ deben estar en `[0, 1]` y sumar 1.
 Las unidades no forman parte de este núcleo porque el marco presenta
 ambas nociones de forma inconsistente y sólo el tipo permite validar las
 fórmulas. El argumento referencial se conserva sin transformación dentro
-de la instancia; `metricas_referencial()` declara y valida el contrato
-específico de correctitud semántica y cobertura.
+de la instancia;
+[`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md)
+declara y valida el contrato específico de correctitud semántica y
+cobertura.
 
 ## Contrato de `metodo`
 
 El método tiene la firma `function(tablas, instancia)`. `tablas` es una
-lista con nombre de data frames, incluso cuando `medir()` recibió una
-sola tabla. `instancia` expone `entidad`, `atributos`, `configuracion`,
-`referencial` y `declaracion`; el método decide cómo interpretar esos
-vínculos.
+lista con nombre de data frames, incluso cuando
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) recibió
+una sola tabla. `instancia` expone `entidad`, `atributos`,
+`configuracion`, `referencial` y `declaracion`; el método decide cómo
+interpretar esos vínculos.
 
 Debe devolver un data frame con exactamente una observación por objeto
 medido y, como mínimo, estas columnas:
 
-  - `resultado`: valor medido. Debe respetar `tipo_resultado`: lógicos
-    sin `NA` para `"booleano"`; números finitos en `[0, 1]` para
-    `"real"`; números finitos para `"numero_real"`; enteros o duraciones
-    no negativos para los tipos homónimos;
+- `resultado`: valor medido. Debe respetar `tipo_resultado`: lógicos sin
+  `NA` para `"booleano"`; números finitos en `[0, 1]` para `"real"`;
+  números finitos para `"numero_real"`; enteros o duraciones no
+  negativos para los tipos homónimos;
 
-  - `entidad`: nombre de la tabla a la que corresponde la medida;
+- `entidad`: nombre de la tabla a la que corresponde la medida;
 
-  - `atributo`: nombre de la columna o `NA_character_` cuando no
-    corresponde;
+- `atributo`: nombre de la columna o `NA_character_` cuando no
+  corresponde;
 
-  - `fila`: posición de la fila o `NA_integer_` para resultados
-    agregados;
+- `fila`: posición de la fila o `NA_integer_` para resultados agregados;
 
-  - `objeto`: etiqueta legible y estable del objeto medido.
+- `objeto`: etiqueta legible y estable del objeto medido.
 
 Las columnas adicionales se descartan. Un `metodo` pasado a
 `instanciar()` reemplaza el predeterminado sólo para esa instancia. El
@@ -257,7 +283,7 @@ añadir valores predeterminados, pero no propiedades ajenas a la
 declaración. `propiedades_metrica()` permite consultar los nombres
 aceptados sin inspeccionar atributos internos de las closures.
 
-## Referencias
+## References
 
 [AGESIC
 (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/).
@@ -267,11 +293,14 @@ Digital*, versión 1.6, Presidencia de la República, Uruguay.
 Curso CPAP, material *Evaluación de Calidad*: fórmula continua de
 oportunidad implementada bajo los nombres `GradoOportunidadAtributo*`.
 
-## Ver también
+## See also
 
-`referencial()`, `agregar()`, `medir()`, `proponer_modelo()`
+[`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md),
+[`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md),
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md),
+[`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 nucleo <- metricas_nucleo()
@@ -281,14 +310,14 @@ no_nulo <- especializar(
 instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 modelo_calidad <- modelo(instancia)
 medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
-#>                                       id_medida
-#> 1 medicion-20260808T211924.570809-303753-000001
-#> 2 medicion-20260808T211924.570809-303753-000002
-#> 3 medicion-20260808T211924.570809-303753-000003
-#>                              id_medicion               fecha metrica
-#> 1 medicion-20260808T211924.570809-303753 2026-08-08 21:19:24  NoNulo
-#> 2 medicion-20260808T211924.570809-303753 2026-08-08 21:19:24  NoNulo
-#> 3 medicion-20260808T211924.570809-303753 2026-08-08 21:19:24  NoNulo
+#>                                     id_medida
+#> 1 medicion-20260815T131952.760176-7466-000001
+#> 2 medicion-20260815T131952.760176-7466-000002
+#> 3 medicion-20260815T131952.760176-7466-000003
+#>                            id_medicion               fecha metrica
+#> 1 medicion-20260815T131952.760176-7466 2026-08-15 13:19:52  NoNulo
+#> 2 medicion-20260815T131952.760176-7466 2026-08-15 13:19:52  NoNulo
+#> 3 medicion-20260815T131952.760176-7466 2026-08-15 13:19:52  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad
@@ -338,14 +367,14 @@ medir(
   modelo(origen),
   data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 )
-#>                                       id_medida
-#> 1 medicion-20260808T211924.574556-303753-000001
-#> 2 medicion-20260808T211924.574556-303753-000002
-#> 3 medicion-20260808T211924.574556-303753-000003
-#>                              id_medicion               fecha         metrica
-#> 1 medicion-20260808T211924.574556-303753 2026-08-08 21:19:24 OrigenDeclarado
-#> 2 medicion-20260808T211924.574556-303753 2026-08-08 21:19:24 OrigenDeclarado
-#> 3 medicion-20260808T211924.574556-303753 2026-08-08 21:19:24 OrigenDeclarado
+#>                                     id_medida
+#> 1 medicion-20260815T131952.766665-7466-000001
+#> 2 medicion-20260815T131952.766665-7466-000002
+#> 3 medicion-20260815T131952.766665-7466-000003
+#>                            id_medicion               fecha         metrica
+#> 1 medicion-20260815T131952.766665-7466 2026-08-15 13:19:52 OrigenDeclarado
+#> 2 medicion-20260815T131952.766665-7466 2026-08-15 13:19:52 OrigenDeclarado
+#> 3 medicion-20260815T131952.766665-7466 2026-08-15 13:19:52 OrigenDeclarado
 #>   metrica_especifica            metrica_instanciada    dimension
 #> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
 #> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
@@ -376,12 +405,12 @@ medir(
   modelo(instanciar(a_tiempo, "entregas", "fecha")),
   data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
 )
-#>                                       id_medida
-#> 1 medicion-20260808T211924.577380-303753-000001
-#> 2 medicion-20260808T211924.577380-303753-000002
-#>                              id_medicion               fecha
-#> 1 medicion-20260808T211924.577380-303753 2026-08-08 21:19:24
-#> 2 medicion-20260808T211924.577380-303753 2026-08-08 21:19:24
+#>                                     id_medida
+#> 1 medicion-20260815T131952.771151-7466-000001
+#> 2 medicion-20260815T131952.771151-7466-000002
+#>                            id_medicion               fecha
+#> 1 medicion-20260815T131952.771151-7466 2026-08-15 13:19:52
+#> 2 medicion-20260815T131952.771151-7466 2026-08-15 13:19:52
 #>                       metrica metrica_especifica           metrica_instanciada
 #> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
 #> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha

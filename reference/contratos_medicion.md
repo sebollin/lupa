@@ -6,7 +6,7 @@ fecha de acceso, último cambio conocido, fecha límite, intervalo y
 frecuencia esperada. Cada métrica valida los campos que necesita y se
 abstiene si faltan.
 
-## Uso
+## Usage
 
 ``` r
 vigencia(
@@ -22,60 +22,62 @@ vigencia(
 escala(error, tipo = c("absoluto", "relativo"))
 ```
 
-## Argumentos
+## Arguments
 
-  - columna\_actualizacion:
-    
-    Nombre de la columna Date o POSIXt que registra la última
-    actualización de cada fila.
+- columna_actualizacion:
 
-  - fecha\_acceso:
-    
-    Momento de acceso usado para estimar actualidad.
+  Nombre de la columna Date o POSIXt que registra la última
+  actualización de cada fila.
 
-  - fecha\_ultimo\_cambio:
-    
-    Fecha conocida del último cambio en el mundo real; puede ser escalar
-    o tener una entrada por fila.
+- fecha_acceso:
 
-  - fecha\_limite:
-    
-    Fecha límite escalar o por fila para oportunidad.
+  Momento de acceso usado para estimar actualidad.
 
-  - inicio\_intervalo, fin\_intervalo:
-    
-    Extremos del intervalo de vigencia.
+- fecha_ultimo_cambio:
 
-  - frecuencia\_cambio:
-    
-    Frecuencia esperada como `difftime` o número de días.
+  Fecha conocida del último cambio en el mundo real; puede ser escalar o
+  tener una entrada por fila.
 
-  - error:
-    
-    Error no negativo escalar, vectorial o función del valor.
+- fecha_limite:
 
-  - tipo:
-    
-    Interpretación `"absoluto"` o `"relativo"` del error.
+  Fecha límite escalar o por fila para oportunidad.
 
-## Valor
+- inicio_intervalo, fin_intervalo:
+
+  Extremos del intervalo de vigencia.
+
+- frecuencia_cambio:
+
+  Frecuencia esperada como `difftime` o número de días.
+
+- error:
+
+  Error no negativo escalar, vectorial o función del valor.
+
+- tipo:
+
+  Interpretación `"absoluto"` o `"relativo"` del error.
+
+## Value
 
 `vigencia()` devuelve un objeto `vigencia_datos`; `escala()` devuelve un
 objeto `escala_medicion`. Ambos son contratos de configuración y no
 examinan datos.
 
-## Detalles
+## Details
 
 `escala()` declara el error de un instrumento o de otra escala experta.
 Con error absoluto, `Escala` calcula `1 - error / abs(valor)` y acota el
 resultado a `[0, 1]`; con error relativo calcula `1 - error`. No se
 aprende el error de la distribución observada.
 
-## Ver también
+## See also
 
-`metricas_nucleo()`, `especializar()`, `cobertura_analisis()`
+[`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md),
+[`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md),
+[`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 contrato <- vigencia(

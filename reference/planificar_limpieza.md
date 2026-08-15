@@ -8,7 +8,7 @@ marcar valores extremos, permanecen inactivas hasta que se decida
 actuar. Las decisiones contextuales quedan desactivadas y los formatos
 de fecha ambiguos quedan bloqueados.
 
-## Uso
+## Usage
 
 ``` r
 planificar_limpieza(perfil, datos = NULL, soporte_minimo_dependencia = 2L)
@@ -16,48 +16,51 @@ planificar_limpieza(perfil, datos = NULL, soporte_minimo_dependencia = 2L)
 aplicar(plan, datos, permitir_eliminacion = FALSE, conservar_eliminados = TRUE)
 ```
 
-## Argumentos
+## Arguments
 
-  - perfil:
-    
-    Objeto de clase `perfil` creado por `perfilar()`.
+- perfil:
 
-  - datos:
-    
-    `data.frame`, `tibble` o `data.table` sobre el que se ejecuta el
-    plan. El objeto recibido no se modifica.
+  Objeto de clase `perfil` creado por
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 
-  - soporte\_minimo\_dependencia:
-    
-    Cantidad mínima de observaciones concordantes por valor determinante
-    para proponer una imputación.
+- datos:
 
-  - plan:
-    
-    Objeto de clase `plan_limpieza` o data frame con el mismo contrato.
-    Puede filtrarse y editarse antes de aplicarlo.
+  `data.frame`, `tibble` o `data.table` sobre el que se ejecuta el plan.
+  El objeto recibido no se modifica.
 
-  - permitir\_eliminacion:
-    
-    Segundo consentimiento obligatorio para ejecutar acciones que
-    eliminan filas o columnas.
+- soporte_minimo_dependencia:
 
-  - conservar\_eliminados:
-    
-    Si se conservan en el resultado las filas y columnas retiradas. Es
-    `TRUE` de forma predeterminada.
+  Cantidad mínima de observaciones concordantes por valor determinante
+  para proponer una imputación.
 
-## Valor
+- plan:
+
+  Objeto de clase `plan_limpieza` o data frame con el mismo contrato.
+  Puede filtrarse y editarse antes de aplicarlo.
+
+- permitir_eliminacion:
+
+  Segundo consentimiento obligatorio para ejecutar acciones que eliminan
+  filas o columnas.
+
+- conservar_eliminados:
+
+  Si se conservan en el resultado las filas y columnas retiradas. Es
+  `TRUE` de forma predeterminada.
+
+## Value
 
 `planificar_limpieza()` devuelve un data frame de clase `plan_limpieza`.
 `aplicar()` devuelve una lista de clase `resultado_limpieza` con
 `datos`, `registro`, `plan_aplicado`, el `plan` sincronizado y
-`eliminados`. Si una columna de entrada es un factor, las acciones que
-transforman su texto devuelven una columna `character`: no se
-reconstruyen los niveles originales, porque una limpieza puede
-introducir valores nuevos.
+`eliminados`. El `registro` conserva `estado` (`ejecutada` o `fallida`),
+`error`, `n_no_reversibles` y la `justificacion` de cada acción
+seleccionada, incluso cuando una falla y las siguientes continúan. Si
+una columna de entrada es un factor, las acciones que transforman su
+texto devuelven una columna `character`: no se reconstruyen los niveles
+originales, porque una limpieza puede introducir valores nuevos.
 
-## Detalles
+## Details
 
 `aplicar()` ejecuta exclusivamente las filas con `aplicar == TRUE`,
 sobre una copia de `datos`. Verifica que cada columna siga siendo
@@ -78,22 +81,50 @@ permite separar un grupo aún no revisado de una omisión deliberada.
 `estado` distingue acciones `lista`, `bloqueada` e `informativa`;
 `orden` fija la secuencia reproducible. `n_afectadas` es la estimación
 del perfil y el registro informa `n_cambiadas` sobre los datos
-recibidos. `reversible` indica si el resultado puede deshacerse sólo con
-los datos transformados. La acción de codificación prueba las tablas
-congeladas de varias codificaciones y deja en `estado_reparacion` uno de
-`reparado`, `reparado_parcialmente` o `no_se_pudo`. Una reparación
-parcial no se activa automáticamente: debe revisarse y seleccionarse de
-forma explícita. La estrategia nueva se llama `reparar_codificacion`. El
-nombre histórico `reparar_codificacion_latin1` se acepta como alias para
-planes guardados, aunque ya no limita el motor a latin-1. Si se marca
-una acción que no está `lista`, `aplicar()` aborta antes de modificar la
-copia y enumera las filas problemáticas; así no deja un conjunto
-parcialmente transformado cuando el plan editable contiene una selección
-inválida. Las acciones con `destructiva == TRUE` eliminan filas o
-columnas, nunca son recomendadas, declaran `reversible == FALSE` y
-requieren además `permitir_eliminacion = TRUE`. Por defecto, el
-resultado conserva lo retirado en `eliminados`; use
-`conservar_eliminados = FALSE` para evitar ese costo de memoria.
+recibidos. `reversible` indica si la conversión conserva la identidad de
+cada valor. Las conversiones se comprueban sobre todos los valores de
+`datos`: las numéricas bloquean ceros iniciales y colisiones no
+inyectivas, mientras que fechas, fechas-hora y lógicos sólo bloquean
+conversiones no ejecutables o no inyectivas. Las fechas pueden cambiar a
+la representación canónica del tipo sin que eso sea una pérdida. Sin
+`datos` no se puede hacer la comprobación y la acción queda bloqueada.
+Cuando no es reversible se marca `destructiva`, no se activa por defecto
+y el registro conserva `n_no_reversibles` y la justificación de la
+decisión. La acción de codificación prueba las tablas congeladas de
+varias codificaciones y deja en `estado_reparacion` uno de `reparado`,
+`reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se
+activa automáticamente: debe revisarse y seleccionarse de forma
+explícita. La estrategia se llama `reparar_codificacion` y no limita el
+motor a latin-1. Si se marca una acción que no está `lista`, `aplicar()`
+aborta antes de modificar la copia y enumera las filas problemáticas.
+Una acción que sí está lista pero falla se registra con su error y no
+impide aplicar las siguientes: cada una conserva atomicidad sobre su
+propia columna o tabla. Las acciones que efectivamente eliminan filas o
+columnas requieren además `permitir_eliminacion = TRUE`; una conversión
+`destructiva` requiere selección explícita y deja la pérdida
+cuantificada. Por defecto, el resultado conserva lo retirado en
+`eliminados`; use `conservar_eliminados = FALSE` para evitar ese costo
+de memoria.
+
+Los hallazgos `controles_invisibles`, `entidades_html` y
+`separadores_en_campo` tienen acciones separadas. La detección de
+invisibles informa tanto los caracteres que se pueden normalizar como
+los ZWJ/ZWNJ significativos; la normalización actúa sobre un conjunto
+más pequeño que la detección. La acción `eliminar_controles_invisibles`
+quita controles C0/C1 que no son separadores y los invisibles Unicode de
+transporte, y se recomienda por defecto; conserva ZWJ/ZWNJ.
+`normalizar_espacios_invisibles` colapsa espacios Unicode (incluido
+NBSP) a un espacio ASCII, no se recomienda por defecto y registra la
+pérdida de reversibilidad. `decodificar_entidades_html` cubre las
+entidades con nombre comunes en español y referencias numéricas válidas,
+pero no se activa sola porque un ampersand puede ser contenido legítimo.
+`reemplazar_separadores` convierte tabulaciones, saltos de línea,
+avances de página y tabulaciones verticales (`\\t`, `\\n`, `\\r`,
+`\\r\\n`, `\\f` y `\\v`) en un espacio y también requiere una decisión
+explícita. Las tres acciones registran el número de valores cambiados.
+Una comparación aproximada con `normalizar = TRUE` usa estas mismas
+clases: colapsa espacios y omite basura de transporte, pero conserva
+ZWJ/ZWNJ.
 
 Las imputaciones por dependencia funcional se ofrecen desactivadas.
 Aunque una dependencia exacta permite deducir un valor sin usar media,
@@ -104,9 +135,10 @@ confirme; sólo entonces se aplica y se vuelve a validar contra los datos
 recibidos.
 
 `marcar_filas_duplicadas` añade dos columnas. `.fila_duplicada`
-reproduce la semántica de `duplicated()` y marca sólo las apariciones
-posteriores; `.grupo_duplicado` identifica a **todas** las filas que
-participan en cada grupo de contenido idéntico.
+reproduce la semántica de
+[`duplicated()`](https://rdrr.io/r/base/duplicated.html) y marca sólo
+las apariciones posteriores; `.grupo_duplicado` identifica a **todas**
+las filas que participan en cada grupo de contenido idéntico.
 
 El orden operativo se aparta deliberadamente de la secuencia dimensional
 frescura–completitud–exactitud–consistencia–unicidad sugerida por el
@@ -115,18 +147,25 @@ texto, y deja los cambios de esquema para el final. Esto evita perder la
 evidencia original, permite imputar antes de convertir tipos y mantiene
 identificables las columnas durante todo el plan. Las eliminaciones
 nunca se activan por defecto, por lo que deduplicar temprano no puede
-hacer desaparecer registros.
+hacer desaparecer registros. `destructiva` también marca una conversión
+que pierde representación, aunque no elimine filas o columnas. El
+consentimiento `permitir_eliminacion` sólo se exige para las estrategias
+que efectivamente retiran filas o columnas; una conversión destructiva
+requiere que el usuario la active explícitamente y deja su pérdida
+cuantificada en el registro.
 
-## Ver también
+## See also
 
-`perfilar()`, `guiar_limpieza()`, `detectar_dependencias()`
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md),
+[`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 datos <- data.frame(categoria = c(" A", "S/D", "B"))
 perfil <- perfilar(datos)
-plan <- planificar_limpieza(perfil)
+plan <- planificar_limpieza(perfil, datos)
 plan[, c("grupo", "estrategia", "recomendada", "aplicar")]
 #>   grupo                    estrategia recomendada aplicar
 #> 1  <NA>          revisar_cardinalidad       FALSE   FALSE

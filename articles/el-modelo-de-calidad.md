@@ -7,16 +7,20 @@ pertinente para su dominio. El marco de AGESIC viene incluido como una
 instancia verificable, no como una restricción del núcleo.
 
 ``` r
+
 library(lupa)
 ```
 
 ## Declarar dimensiones y factores
 
-`marco_calidad()` recibe una tabla o una lista con nombres. El resultado
-es consultable y puede validar que las métricas de un `modelo()`
+[`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+recibe una tabla o una lista con nombres. El resultado es consultable y
+puede validar que las métricas de un
+[`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
 pertenezcan a los factores declarados.
 
 ``` r
+
 marco_propio <- marco_calidad("Marco de procedencia", list(
   Trazabilidad = c("Origen documentado", "Linaje reproducible"),
   Pertinencia = "Adecuación al uso"
@@ -44,9 +48,11 @@ Promediar factores sin un contrato adicional ocultaría prioridades y
 correlaciones entre ellos.
 
 Por eso `lupa` conserva `dimension` y `factor` en cada medida, pero
-`agregar()` sólo acepta las transiciones de granularidad declaradas.
+[`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) sólo
+acepta las transiciones de granularidad declaradas.
 
 ``` r
+
 granularidades()
 #>    nivel           granularidad           relacional implementada
 #> 1      1      instanciaAtributo                celda         TRUE
@@ -82,6 +88,7 @@ y propiedades. Especializar fija propiedades reutilizables; instanciar
 liga esa especialización a objetos concretos.
 
 ``` r
+
 nucleo <- metricas_nucleo()
 no_nulo <- nucleo$NoNulo
 no_nulo_personas <- especializar(
@@ -112,6 +119,7 @@ las dos llamadas de la fábrica: la primera especializa y la segunda
 instancia.
 
 ``` r
+
 metodo_origen <- function(tablas, instancia) {
   x <- tablas[[instancia$entidad]][[instancia$atributos]]
   data.frame(
@@ -142,10 +150,13 @@ medir(modelo(origen), datos_origen)[, c("objeto_medible", "resultado")]
 #> 3 entrega$origen[3]         1
 ```
 
-Cuando una métrica declara propiedades, `propiedades_metrica()` permite
-consultarlas antes de llamar a `especializar()`.
+Cuando una métrica declara propiedades,
+[`propiedades_metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+permite consultarlas antes de llamar a
+[`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md).
 
 ``` r
+
 propiedades_metrica(nucleo$Formato)
 #>           propiedad configurada
 #> 1 expresion_regular       FALSE
@@ -161,6 +172,7 @@ correo, Luhn y módulo 97. Uruguay es un pack territorial de referencia,
 no una rama especial del motor.
 
 ``` r
+
 internacionales <- validadores_internacionales()
 uruguay <- validadores_uruguay()
 internacionales$iso4217(c("UYU", "CLP", "ZZZ"))
@@ -180,14 +192,17 @@ medir(
 #> 2 personas$documento[2]         0
 ```
 
-Un proyecto de otro país construye un pack con `pack_validadores()` y
-mantiene su función en su propio paquete o script. No necesita registrar
-nombres ni modificar `lupa`; la ayuda de `pack_validadores()` incluye un
-ejemplo completo con un RUT chileno.
+Un proyecto de otro país construye un pack con
+[`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md)
+y mantiene su función en su propio paquete o script. No necesita
+registrar nombres ni modificar `lupa`; la ayuda de
+[`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md)
+incluye un ejemplo completo con un RUT chileno.
 
 ## Medir y agregar
 
 ``` r
+
 datos <- data.frame(documento = c("1", "2", NA, "4"))
 medidas <- medir(
   modelo(documento), datos,
@@ -210,11 +225,10 @@ agregar(medidas, "atributo", "ratio")[, c(
 
 Las cuatro agregaciones implementadas son:
 
-  - `ratio`, para resultados booleanos;
-  - `ratio_umbral`, para resultados reales;
-  - `promedio`;
-  - `promedio_ponderado`, con pesos en `[0, 1]` que suman uno por
-    destino.
+- `ratio`, para resultados booleanos;
+- `ratio_umbral`, para resultados reales;
+- `promedio`;
+- `promedio_ponderado`, con pesos en `[0, 1]` que suman uno por destino.
 
 La función valida el tipo de resultado y la transición. No agrega hacia
 factor, dimensión o modelo. Los resultados no acotados que el marco usa
@@ -230,6 +244,7 @@ condiciones estrictas `> 0.5`, `> 0.7` y `> 0.9`; otra familia se
 construye con umbrales con nombres.
 
 ``` r
+
 medida_atributo <- agregar(medidas, "atributo", "ratio")
 madurez <- perfiles_madurez()
 evaluar(medida_atributo, madurez$Intermedio)$perfiles
@@ -244,16 +259,17 @@ corridas y monitorear deriva.
 
 ## Marcos incluidos
 
-`marco_iso25012()` ofrece las quince características de ISO/IEC
-25012:2008 como otra taxonomía disponible. La norma distingue
-características inherentes, dependientes del sistema y aplicables desde
-ambas perspectivas. `lupa` usa esos tres grupos como dimensiones
-operativas y las características como factores; es una adaptación para
-la interfaz dimensión–factor, no la afirmación de que la norma defina
-esa jerarquía. Sus descripciones están redactadas para el paquete y no
-reproducen el texto normativo.
+[`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+ofrece las quince características de ISO/IEC 25012:2008 como otra
+taxonomía disponible. La norma distingue características inherentes,
+dependientes del sistema y aplicables desde ambas perspectivas. `lupa`
+usa esos tres grupos como dimensiones operativas y las características
+como factores; es una adaptación para la interfaz dimensión–factor, no
+la afirmación de que la norma defina esa jerarquía. Sus descripciones
+están redactadas para el paquete y no reproducen el texto normativo.
 
 ``` r
+
 iso <- marco_iso25012()
 table(as.data.frame(iso)$dimension)
 #> 
@@ -280,12 +296,14 @@ head(as.data.frame(iso)[, c("dimension", "factor", "descripcion")])
 
 ### El marco y el catálogo de AGESIC
 
-`marco_agesic()` devuelve los 17 factores usados por omisión en la
-cobertura. `catalogo_agesic()` mantiene por separado las 49 entradas,
-incluidas las que se obtienen por agregación o requieren insumos
-externos.
+[`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+devuelve los 17 factores usados por omisión en la cobertura.
+[`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md)
+mantiene por separado las 49 entradas, incluidas las que se obtienen por
+agregación o requieren insumos externos.
 
 ``` r
+
 catalogo <- catalogo_agesic()
 marco_agesic()
 #> 
@@ -305,20 +323,20 @@ as.data.frame(table(catalogo$estado, catalogo$motivo))
 #> 7         pendiente      semantica_parcial    0
 #> 8  fuera_de_alcance      semantica_parcial    0
 #> 9      implementada             agregacion    0
-#> 10   via_agregacion             agregacion    8
+#> 10   via_agregacion             agregacion    9
 #> 11        pendiente             agregacion    0
 #> 12 fuera_de_alcance             agregacion    0
 #> 13     implementada   requiere_referencial    3
 #> 14   via_agregacion   requiere_referencial    0
 #> 15        pendiente   requiere_referencial    0
 #> 16 fuera_de_alcance   requiere_referencial    0
-#> 17     implementada requiere_configuracion   18
+#> 17     implementada requiere_configuracion   19
 #> 18   via_agregacion requiere_configuracion    0
 #> 19        pendiente requiere_configuracion    0
 #> 20 fuera_de_alcance requiere_configuracion    0
 #> 21     implementada        motor_pendiente    0
 #> 22   via_agregacion        motor_pendiente    0
-#> 23        pendiente        motor_pendiente    3
+#> 23        pendiente        motor_pendiente    1
 #> 24 fuera_de_alcance        motor_pendiente    0
 #> 25     implementada       decision_alcance    0
 #> 26   via_agregacion       decision_alcance    0
@@ -336,6 +354,7 @@ catalogo[catalogo$estado == "via_agregacion", c(
 #> 37          RatioAtributoDuplicado           AtributoDuplicado
 #> 38 RatioConjuntoAtributosDuplicado  ConjuntoAtributosDuplicado
 #> 39        RatioEntidadesDuplicadas            EntidadDuplicada
+#> 41      RatioEntidadContradictoria       EntidadContradictoria
 #>                                       implementacion
 #> 3                    agregar(m, "atributo", "ratio")
 #> 4                    agregar(m, "atributo", "ratio")
@@ -345,20 +364,22 @@ catalogo[catalogo$estado == "via_agregacion", c(
 #> 37                   agregar(m, "atributo", "ratio")
 #> 38                    agregar(m, "entidad", "ratio")
 #> 39                    agregar(m, "entidad", "ratio")
+#> 41                   agregar(m, "atributo", "ratio")
 ```
 
 `estado` dice si la entrada está implementada, se obtiene por
 agregación, está pendiente o queda fuera del alcance tabular. `motivo`
 explica la causa: por ejemplo, distingue un motor pendiente de una
 implementación disponible que necesita un referencial o una
-configuración experta. La observación de cada fila explicita el
-contrato concreto y las implementaciones parciales.
+configuración experta. La observación de cada fila explicita el contrato
+concreto y las implementaciones parciales.
 
 Un diccionario enumera valores sintácticamente válidos. Un referencial
 vincula claves y valores externos, y sólo permite medir cobertura cuando
 declara de qué universo es completo.
 
 ``` r
+
 padron <- referencial(
   data.frame(codigo = c("01", "02"), nombre = c("Artigas", "Canelones")),
   clave = "codigo", valor = "nombre", completo = TRUE,
@@ -381,11 +402,13 @@ paquete”; las entradas fuera de alcance no se presentan como resueltas.
 ## Lo que no se midió también es un resultado
 
 Un perfil sin hallazgos no demuestra que todos los factores hayan sido
-evaluados. `cobertura_analisis()` separa lo medido de lo no declarado,
-lo que no aplica a los tipos presentes y lo que permanece fuera de
-alcance.
+evaluados.
+[`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
+separa lo medido de lo no declarado, lo que no aplica a los tipos
+presentes y lo que permanece fuera de alcance.
 
 ``` r
+
 perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
 cobertura_analisis(perfil)
 #>                                  marco    dimension                        factor
@@ -462,13 +485,17 @@ cobertura_analisis(perfil)
 #> 17                        Declarar vigencia() y medir una métrica Oportunidad*.
 ```
 
-Los contratos temporales y de precisión se declaran con `vigencia()` y
-`escala()`: el paquete no intenta aprenderlos de una sola entrega.
+Los contratos temporales y de precisión se declaran con
+[`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md)
+y
+[`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md):
+el paquete no intenta aprenderlos de una sola entrega.
 
 Para otro marco, la misma función informa exclusivamente sus dimensiones
 y factores:
 
 ``` r
+
 cobertura_analisis(perfil, modelo = marco_propio)
 #>                  marco    dimension              factor       estado
 #> 1 Marco de procedencia Trazabilidad  Origen documentado no_declarada

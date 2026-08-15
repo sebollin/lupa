@@ -3,10 +3,11 @@
 Construye el puente entre el examen de datos y la medición. El resultado
 no ejecuta métricas: es una tabla editable donde cada fila conserva el
 hallazgo o diagnóstico que la originó, la justificación, la
-configuración y una marca `incluir`. `modelo_desde_propuesta()`
+configuración y una marca `incluir`.
+[`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md)
 materializa únicamente las filas que el usuario deja activas.
 
-## Uso
+## Usage
 
 ``` r
 proponer_modelo(
@@ -19,40 +20,42 @@ proponer_modelo(
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - perfil:
-    
-    Objeto creado por `perfilar()`.
+- perfil:
 
-  - datos:
-    
-    Datos originales opcionales. Son necesarios para proponer dominios
-    observados y materializar reglas de dependencia funcional.
+  Objeto creado por
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 
-  - relaciones:
-    
-    Resultado opcional de `detectar_relaciones()`.
+- datos:
 
-  - entidades\_relacion:
-    
-    Dos nombres de entidad correspondientes a las tablas usadas en
-    `relaciones`.
+  Datos originales opcionales. Son necesarios para proponer dominios
+  observados y materializar reglas de dependencia funcional.
 
-  - max\_valores\_dominio:
-    
-    Máximo de valores para proponer un dominio por extensión.
+- relaciones:
 
-  - max\_sugerencias:
-    
-    Máximo de filas devueltas.
+  Resultado opcional de
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md).
 
-## Valor
+- entidades_relacion:
+
+  Dos nombres de entidad correspondientes a las tablas usadas en
+  `relaciones`.
+
+- max_valores_dominio:
+
+  Máximo de valores para proponer un dominio por extensión.
+
+- max_sugerencias:
+
+  Máximo de filas devueltas.
+
+## Value
 
 Data frame S3 de clase `propuesta_modelo`; las columnas de listas
 contienen la configuración y los vínculos sin convertirlos en texto.
 
-## Detalles
+## Details
 
 Las reglas observadas que pueden sobreajustarse a una entrega —dominios
 y patrones dominantes— se proponen inactivas. Los controles
@@ -64,12 +67,14 @@ queda inactiva hasta normalizarlos o configurar la métrica para
 reconocerlos. De otro modo mediría sólo los `NA` reales y sobrestimaría
 la completitud.
 
-## Ver también
+## See also
 
-`perfilar()`, `detectar_dependencias()`, `modelo_desde_propuesta()`,
-`modelo()`
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md),
+[`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md),
+[`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 datos <- data.frame(

@@ -17,42 +17,45 @@ evidencia e incertidumbre.
 La API pública, la ayuda y las viñetas están en español. Los nombres son
 estables y se pueden copiar de esta guía; el [README en
 inglés](https://sebollin.github.io/lupa/README.md) cuenta lo mismo para
-lectores que prefieren ese idioma.
+lectores que prefieren ese idioma. La internacionalización está en el
+núcleo, no en la interfaz: traducir los nombres públicos rompería
+código, pruebas y viñetas. Por eso el contrato se mantiene en español,
+mientras la documentación que lo rodea puede leerse en inglés.
 
 ## 🌎 Idioma de la API
 
 Los nombres públicos son españoles tanto en los ejemplos como en la
 ayuda:
 
-| API en español                      | Significado en inglés       |
-| ----------------------------------- | --------------------------- |
-| `perfilar()`                        | profile                     |
-| `analizar()`                        | analyse                     |
-| `marco_calidad()`                   | quality framework           |
-| `planificar_limpieza()`             | plan a cleanup              |
-| `guiar_limpieza()`                  | guide a cleanup             |
-| `aplicar()`                         | apply a selected cleanup    |
-| `medir()` / `evaluar()`             | measure / evaluate          |
-| `detectar_duplicados_aproximados()` | find approximate duplicates |
-| `reportar()`                        | create a report             |
+| API en español | Significado en inglés |
+|----|----|
+| [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) | profile |
+| [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) | analyse |
+| [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md) | quality framework |
+| [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) | plan a cleanup |
+| [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md) | guide a cleanup |
+| [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) | apply a selected cleanup |
+| [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) / [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) | measure / evaluate |
+| [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md) | find approximate duplicates |
+| [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md) | create a report |
 
 ## ✨ Qué hace lupa
 
-  - Perfila una entrega y muestra faltantes, tipos, patrones, fechas y
-    evidencia de datos personales.
-  - Encuentra claves, relaciones, dependencias y granularidades de
-    medición que nunca fueron declaradas.
-  - Permite que cada proyecto defina su marco de calidad, sin imponer un
-    puntaje global.
-  - Mide y evalúa métricas, escalas, reglas de validez y dominios
-    referenciales explícitos.
-  - Produce planes de limpieza editables, aplica sólo acciones elegidas
-    sobre una copia y conserva un registro de auditoría.
-  - Encuentra duplicados aproximados con teselas exactas, MinHash/LSH
-    determinista, bloqueo, estimación previa del costo y lotes en disco.
-  - Repara codificación dañada en R, incluido mojibake repetido y
-    CESU-8, y rechaza conversiones con pérdida inseguras.
-  - Sigue la calidad en el tiempo y crea informes HTML autocontenidos.
+- Perfila una entrega y muestra faltantes, tipos, patrones, fechas y
+  evidencia de datos personales.
+- Encuentra claves, relaciones, dependencias y granularidades de
+  medición que nunca fueron declaradas.
+- Permite que cada proyecto defina su marco de calidad, sin imponer un
+  puntaje global.
+- Mide y evalúa métricas, escalas, reglas de validez y dominios
+  referenciales explícitos.
+- Produce planes de limpieza editables, aplica sólo acciones elegidas
+  sobre una copia y conserva un registro de auditoría.
+- Encuentra duplicados aproximados con teselas exactas, MinHash/LSH
+  determinista, bloqueo, estimación previa del costo y lotes en disco.
+- Repara codificación dañada en R, incluido mojibake repetido y CESU-8,
+  y rechaza conversiones con pérdida inseguras.
+- Sigue la calidad en el tiempo y crea informes HTML autocontenidos.
 
 ## 📦 Instalación
 
@@ -60,6 +63,7 @@ Hasta la primera publicación en CRAN, instalá la versión de desarrollo
 directamente desde GitHub:
 
 ``` r
+
 # install.packages("pak")
 pak::pak("sebollin/lupa")
 ```
@@ -74,12 +78,14 @@ R CMD INSTALL lupa_0.1.0.tar.gz
 También se puede instalar un tarball local desde R:
 
 ``` r
+
 install.packages("lupa_0.1.0.tar.gz", repos = NULL)
 ```
 
 ## ⚡ Inicio en cinco minutos
 
 ``` r
+
 library(lupa)
 data(datos_operativos)
 
@@ -98,9 +104,10 @@ hallazgos son data frames inspeccionables y la evidencia de datos
 personales se enmascara cuando la clasificación lo justifica. Abajo se
 ve una salida real de consola.
 
-![](reference/figures/perfil-console.png)
+![Salida capturada de perfilar()](reference/figures/perfil-console.png)
 
-Salida capturada de `perfilar()`
+Salida capturada de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 
 ## 🧭 Qué se puede hacer con lupa
 
@@ -108,20 +115,21 @@ La [referencia de pkgdown](https://sebollin.github.io/lupa/reference/) y
 las viñetas enlazadas son el manual detallado. Esta tabla es el mapa
 breve:
 
-| Tarea                             | Funciones principales                                                                                                                                                                                                                                                                 | Para leer más                                                                                |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Mirar los datos por primera vez   | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar`                                                            | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html)           |
-| Encontrar estructura no declarada | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()`                                                                                                                                                            | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html)           |
-| Definir la calidad                | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html)      |
-| Medir y evaluar                   | `medir()`, `agregar()`, `evaluar()`, `regla_evaluacion()`, `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()`                                                                                                                                                           | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html)      |
-| Limpiar sin romper nada           | `planificar_limpieza()`, `guiar_limpieza()`, `aplicar()`                                                                                                                                                                                                                              | [Plan de limpieza](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html)        |
-| Encontrar duplicados aproximados  | `detectar_duplicados_aproximados()`, `estimar_costo()`                                                                                                                                                                                                                                | [Escala y duplicados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html)     |
-| Reparar codificación dañada       | `reparar_codificacion` mediante `planificar_limpieza()` y `aplicar()`                                                                                                                                                                                                                 | [Referencia de limpieza](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
-| Seguir la calidad en el tiempo    | `historico_calidad()`, `acumular_historico()`, `guardar_historico()`, `leer_historico()`, `detectar_deriva_calidad()`, `comparar_perfiles()`, `comparar_evaluaciones()`                                                                                                               | [Histórico y deriva](https://sebollin.github.io/lupa/articles/historico-y-deriva.html)       |
-| Compartir resultados              | `reportar()`, `guardar_analisis()`, `leer_analisis()`                                                                                                                                                                                                                                 | [Referencia de informes](https://sebollin.github.io/lupa/reference/reportar.html)            |
-| Validar y extender                | `validadores_internacionales()`, `validadores_uruguay()`, `pack_validadores()`, `validar_ci_uy()`, `validar_rut_uy()`, `validar_luhn()`, `validar_mod97()`, `validar_iso3166()`, `validar_iso4217()`, `validar_correo()`                                                              | [Referencia](https://sebollin.github.io/lupa/reference/)                                     |
+| Tarea | Funciones principales | Para leer más |
+|----|----|----|
+| Mirar los datos por primera vez | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md), [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md), [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md), [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md), `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
+| Encontrar estructura no declarada | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md), [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md) | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
+| Definir la calidad | [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md), [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md), [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md) | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
+| Medir y evaluar | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
+| Limpiar sin romper nada | [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md), [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md), [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) | [Plan de limpieza](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
+| Encontrar duplicados aproximados | [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md), [`estimar_costo()`](https://sebollin.github.io/lupa/reference/estimar_costo.md) | [Escala y duplicados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
+| Reparar codificación dañada | `reparar_codificacion` mediante [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) y [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) | [Referencia de limpieza](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
+| Seguir la calidad en el tiempo | [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md), [`acumular_historico()`](https://sebollin.github.io/lupa/reference/historico_calidad.md), [`guardar_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md), [`leer_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md), [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md), [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md), [`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md) | [Histórico y deriva](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
+| Compartir resultados | [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md), [`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md), [`leer_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md) | [Referencia de informes](https://sebollin.github.io/lupa/reference/reportar.html) |
+| Validar y extender | [`validadores_internacionales()`](https://sebollin.github.io/lupa/reference/pack_validadores.md), [`validadores_uruguay()`](https://sebollin.github.io/lupa/reference/pack_validadores.md), [`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md), [`validar_ci_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md), [`validar_rut_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md), [`validar_luhn()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_mod97()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_iso3166()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_iso4217()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_correo()`](https://sebollin.github.io/lupa/reference/validadores_formato.md) | [Referencia](https://sebollin.github.io/lupa/reference/) |
 
 ``` r
+
 library(lupa)
 data(datos_operativos)
 marco <- marco_calidad(
@@ -134,7 +142,9 @@ list(marco = marco, propuesta = propuesta)
 ```
 
 La API tiene algunos límites importantes. No hay un puntaje global: las
-dimensiones, unidades y reglas permanecen visibles. El núcleo es
+dimensiones, unidades y reglas permanecen visibles. Una ponderación de
+fábrica sería decidir qué importa, así que `lupa` entrega los
+componentes y una receta, y deja los pesos a cada proyecto. El núcleo es
 universal y los catálogos son enchufables;
 [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
 v1.6 es una implementación de referencia, no un límite nacional. El
@@ -142,6 +152,11 @@ paquete tiene un solo import obligatorio,
 [`cli`](https://cran.r-project.org/package=cli);
 [`stringdist`](https://cran.r-project.org/package=stringdist) es
 opcional.
+
+El trabajo que se puede paralelizar usa **dos hilos por defecto**, que
+es el tope que CRAN pide respetar. En su propia máquina puede subirlo,
+por llamada con `nucleos = 8` o para toda la sesión con
+`options(lupa.nucleos = 8)`; el resultado no cambia, sólo cuánto tarda.
 
 ## 🔍 Dónde se ubica
 
@@ -175,6 +190,7 @@ cambiar datos legítimos en silencio no es reparar.
 ## 📖 Cita y referencias
 
 ``` r
+
 citation("lupa")
 ```
 

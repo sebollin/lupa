@@ -1,131 +1,158 @@
-# Índice del paquete
+# Package index
 
 ## Examinar
 
 Perfilar datos y descubrir su estructura.
 
-<!-- end list -->
-
-  - `analizar()` : Ejecutar el análisis descriptivo completo
-  - `perfilar()` : Perfilar un conjunto de datos
-  - `distribucion_valores()` : Distribuciones de valores y cuantiles por
-    columna
-  - `detectar_asociaciones()` : Detectar asociaciones entre columnas
-  - `analizar_tiempo()` : Examinar regularidad y cobertura temporal
-  - `clasificar_variables()` : Proponer escalas y roles de las variables
-  - `descubrir_patrones()` : Descubrir patrones de formato
-  - `inferir_tipo()` : Inferir el tipo implícito de un vector
-  - `detectar_formatos_fecha()` : Detectar formatos de fecha
-  - `detectar_claves()` : Detectar claves candidatas
-  - `detectar_dependencias()` : Detectar dependencias funcionales entre
-    columnas
-  - `detectar_relaciones()` : Detectar relaciones entre dos tablas
-  - `detectar_duplicados_aproximados()` : Detectar pares de filas con
-    similitud aproximada
-  - `estimar_costo()` : Estimar el costo de una comparación de
-    duplicados
-  - `cobertura_analisis()` : Informar la cobertura conceptual de un
-    análisis
-  - `as_tibble(<perfil>)` : Convertir un perfil a tibble
-  - `datos_administrativos` : Datos administrativos sintéticos con
-    problemas sembrados
-  - `datos_operativos` : Datos operativos sintéticos y neutrales
+- [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  : Ejecutar el análisis descriptivo completo
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  : Perfilar un conjunto de datos
+- [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
+  : Distribuciones de valores y cuantiles por columna
+- [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md)
+  : Detectar asociaciones entre columnas
+- [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md)
+  : Examinar regularidad y cobertura temporal
+- [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md)
+  : Proponer escalas y roles de las variables
+- [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
+  : Descubrir patrones de formato
+- [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
+  : Perfiles de normalizacion para comparar valores
+- [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md)
+  : Inferir el tipo implícito de un vector
+- [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md)
+  : Detectar formatos de fecha
+- [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
+  : Detectar claves candidatas
+- [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
+  : Detectar dependencias funcionales entre columnas
+- [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+  : Detectar relaciones entre dos tablas
+- [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+  : Detectar pares de filas con similitud aproximada
+- [`estimar_costo()`](https://sebollin.github.io/lupa/reference/estimar_costo.md)
+  : Estimar el costo de una comparación de duplicados
+- [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
+  : Informar la cobertura conceptual de un análisis
+- [`as_tibble(`*`<perfil>`*`)`](https://sebollin.github.io/lupa/reference/as_tibble.perfil.md)
+  : Convertir un perfil a tibble
+- [`datos_administrativos`](https://sebollin.github.io/lupa/reference/datos_administrativos.md)
+  : Datos administrativos sintéticos con problemas sembrados
+- [`datos_operativos`](https://sebollin.github.io/lupa/reference/datos_operativos.md)
+  : Datos operativos sintéticos y neutrales
 
 ## Proponer
 
 Convertir diagnósticos en una propuesta editable de medición.
 
-<!-- end list -->
-
-  - `proponer_modelo()` : Proponer un modelo de calidad desde el
-    profiling
-  - `modelo_desde_propuesta()` : Materializar una propuesta de modelo de
-    calidad
+- [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
+  : Proponer un modelo de calidad desde el profiling
+- [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md)
+  : Materializar una propuesta de modelo de calidad
 
 ## Medir
 
 Declarar métricas, referenciales, granularidad y agregaciones.
 
-<!-- end list -->
-
-  - `marco_calidad()` `marco_agesic()` `marco_iso25012()` : Declarar una
-    taxonomía de calidad de datos
-  - `metrica()` `especializar()` `instanciar()` `propiedades_metrica()`
-    `modelo()` `metricas_nucleo()` : Construir métricas y modelos de
-    calidad
-  - `referencial()` : Declarar un conjunto de datos referencial
-  - `vigencia()` `escala()` : Declarar vigencia y escala de medición
-  - `metricas_referencial()` : Métricas que consumen un referencial
-    tabular
-  - `catalogo_agesic()` : Correspondencia con el catálogo de métricas de
-    AGESIC
-  - `granularidades()` `transiciones_granularidad()` : Granularidades y
-    transiciones de agregación
-  - `medir()` : Medir un modelo de calidad
-  - `agregar()` : Agregar medidas entre granularidades
+- [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+  [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+  [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+  : Declarar una taxonomía de calidad de datos
+- [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  [`propiedades_metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  : Construir métricas y modelos de calidad
+- [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md)
+  : Declarar un conjunto de datos referencial
+- [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md)
+  [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md)
+  : Declarar vigencia y escala de medición
+- [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md)
+  : Métricas que consumen un referencial tabular
+- [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md)
+  : Correspondencia con el catálogo de métricas de AGESIC
+- [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md)
+  [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md)
+  : Granularidades y transiciones de agregación
+- [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) :
+  Medir un modelo de calidad
+- [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) :
+  Agregar medidas entre granularidades
 
 ## Validar
 
 Validadores internacionales y packs territoriales extensibles.
 
-<!-- end list -->
-
-  - `validar_iso3166()` `validar_iso4217()` `validar_correo()`
-    `validar_luhn()` `validar_mod97()` : Validadores internacionales de
-    sintaxis y dígitos de control
-  - `validar_ci_uy()` `validar_rut_uy()` : Validadores estructurales de
-    Uruguay
-  - `pack_validadores()` `validadores_internacionales()`
-    `validadores_uruguay()` : Crear y consultar packs de validadores
+- [`validar_iso3166()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+  [`validar_iso4217()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+  [`validar_correo()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+  [`validar_luhn()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+  [`validar_mod97()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+  : Validadores internacionales de sintaxis y dígitos de control
+- [`validar_ci_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md)
+  [`validar_rut_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md)
+  : Validadores estructurales de Uruguay
+- [`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md)
+  [`validadores_internacionales()`](https://sebollin.github.io/lupa/reference/pack_validadores.md)
+  [`validadores_uruguay()`](https://sebollin.github.io/lupa/reference/pack_validadores.md)
+  : Crear y consultar packs de validadores
 
 ## Evaluar
 
 Aplicar reglas y perfiles de madurez a las medidas.
 
-<!-- end list -->
-
-  - `regla_evaluacion()` `perfil_evaluacion()` `perfiles_madurez()` :
-    Reglas y perfiles de evaluación
-  - `evaluar()` : Evaluar medidas, reglas y perfiles
-  - `comparar_evaluaciones()` : Comparar evaluaciones de perfil
+- [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
+  [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
+  [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
+  : Reglas y perfiles de evaluación
+- [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) :
+  Evaluar medidas, reglas y perfiles
+- [`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md)
+  : Comparar evaluaciones de perfil
 
 ## Remediar
 
 Revisar y aplicar planes trazables sin mutación implícita.
 
-<!-- end list -->
+- [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+  : Construir y aplicar un plan de limpieza auditable
 
-  - `planificar_limpieza()` `aplicar()` : Construir y aplicar un plan de
-    limpieza auditable
+- [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md)
+  : Revisar decisiones de limpieza paso a paso
 
-  - `guiar_limpieza()` : Revisar decisiones de limpieza paso a paso
+- [`sentinelas_naniar`](https://sebollin.github.io/lupa/reference/sentinelas_naniar.md)
+  :
 
-  - `sentinelas_naniar` :
-    
-    Sentinelas numéricos publicados por
-    [naniar](https://github.com/njtierney/naniar)
+  Sentinelas numéricos publicados por
+  [naniar](https://github.com/njtierney/naniar)
 
 ## Monitorear
 
 Acumular corridas y detectar cambios entre entregas.
 
-<!-- end list -->
-
-  - `historico_calidad()` `acumular_historico()` : Construir y ampliar
-    un histórico de calidad
-  - `guardar_historico()` `leer_historico()` : Guardar y recuperar un
-    histórico de calidad
-  - `detectar_deriva_calidad()` : Detectar deriva en una serie de
-    evaluaciones
-  - `comparar_perfiles()` : Comparar dos perfiles y detectar deriva
-    estructural
+- [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+  [`acumular_historico()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+  : Construir y ampliar un histórico de calidad
+- [`guardar_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md)
+  [`leer_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md)
+  : Guardar y recuperar un histórico de calidad
+- [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md)
+  : Detectar deriva en una serie de evaluaciones
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  : Comparar dos perfiles y detectar deriva estructural
 
 ## Informar
 
 Persistir un análisis y crear un reporte HTML autocontenido.
 
-<!-- end list -->
-
-  - `guardar_analisis()` `leer_analisis()` : Guardar y recuperar un
-    análisis
-  - `reportar()` : Crear un reporte HTML autocontenido
+- [`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md)
+  [`leer_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md)
+  : Guardar y recuperar un análisis
+- [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+  : Crear un reporte HTML autocontenido

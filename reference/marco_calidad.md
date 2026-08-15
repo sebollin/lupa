@@ -2,11 +2,13 @@
 
 Un `marco_calidad` enumera las dimensiones y factores contra los que se
 interpreta la cobertura de un análisis. No contiene métricas
-instanciadas: esa función sigue correspondiendo a `modelo()`. Tampoco es
-un catálogo de métricas; `catalogo_agesic()` conserva esa
-correspondencia específica.
+instanciadas: esa función sigue correspondiendo a
+[`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md).
+Tampoco es un catálogo de métricas;
+[`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md)
+conserva esa correspondencia específica.
 
-## Uso
+## Usage
 
 ``` r
 marco_calidad(nombre, factores)
@@ -16,45 +18,47 @@ marco_agesic()
 marco_iso25012()
 ```
 
-## Argumentos
+## Arguments
 
-  - nombre:
-    
-    Nombre del marco.
+- nombre:
 
-  - factores:
-    
-    Data frame con `dimension` y `factor`, o lista con nombres. El data
-    frame puede añadir estos campos de contrato:
-    
-      - `como_resolverlo`: instrucción que muestra
-        `cobertura_analisis()` cuando el factor todavía no fue medido;
-    
-      - `perfil_mide`: lógico que declara si el profiling por sí solo
-        aporta una medición suficiente del factor. No ejecuta métricas
-        ni se infiere del nombre; su valor predeterminado es `FALSE`;
-    
-      - `aplicabilidad`: `"siempre"`, `"temporal"` o `"geometria"`. Las
-        dos últimas permiten informar `"no_aplica"` cuando el perfil no
-        contiene columnas temporales o geometrías, respectivamente;
-    
-      - `disponibilidad`: `"disponible"` o `"fuera_de_alcance"`. Esta
-        última declara una limitación del motor y no puede combinarse
-        con `perfil_mide = TRUE`.
-    
-    Las columnas adicionales se conservan como metadatos y no cambian
-    por sí solas la cobertura. Si se usa una lista, `como_resolverlo`
-    recibe una instrucción genérica, `perfil_mide = FALSE`,
-    `aplicabilidad = "siempre"` y `disponibilidad = "disponible"` para
-    todas las filas.
+  Nombre del marco.
 
-## Valor
+- factores:
+
+  Data frame con `dimension` y `factor`, o lista con nombres. El data
+  frame puede añadir estos campos de contrato:
+
+  - `como_resolverlo`: instrucción que muestra
+    [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
+    cuando el factor todavía no fue medido;
+
+  - `perfil_mide`: lógico que declara si el profiling por sí solo aporta
+    una medición suficiente del factor. No ejecuta métricas ni se
+    infiere del nombre; su valor predeterminado es `FALSE`;
+
+  - `aplicabilidad`: `"siempre"`, `"temporal"` o `"geometria"`. Las dos
+    últimas permiten informar `"no_aplica"` cuando el perfil no contiene
+    columnas temporales o geometrías, respectivamente;
+
+  - `disponibilidad`: `"disponible"` o `"fuera_de_alcance"`. Esta última
+    declara una limitación del motor y no puede combinarse con
+    `perfil_mide = TRUE`.
+
+  Las columnas adicionales se conservan como metadatos y no cambian por
+  sí solas la cobertura. Si se usa una lista, `como_resolverlo` recibe
+  una instrucción genérica, `perfil_mide = FALSE`,
+  `aplicabilidad = "siempre"` y `disponibilidad = "disponible"` para
+  todas las filas.
+
+## Value
 
 `marco_calidad()`, `marco_agesic()` y `marco_iso25012()` devuelven un
-objeto S3 `marco_calidad`. `as.data.frame()` devuelve su tabla de
-factores.
+objeto S3 `marco_calidad`.
+[`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) devuelve
+su tabla de factores.
 
-## Detalles
+## Details
 
 `marco_agesic()` devuelve la taxonomía incluida de fábrica. Un marco
 propio puede construirse con un data frame o con una lista cuyos nombres
@@ -74,18 +78,20 @@ descripciones son redacción propia. Las quince filas declaran
 factores de AGESIC, el profiling genérico no demuestra por sí solo que
 una característica ISO satisfaga el uso declarado.
 
-## Referencias
+## References
 
 [ISO/IEC (2008)](https://www.iso.org/standard/35736.html). *ISO/IEC
 25012:2008 Software engineering — Software product Quality Requirements
 and Evaluation (SQuaRE) — Data quality model*.
 <https://www.iso.org/standard/35736.html>.
 
-## Ver también
+## See also
 
-`catalogo_agesic()`, `modelo()`, `cobertura_analisis()`
+[`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md),
+[`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md),
+[`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 propio <- marco_calidad("Marco operativo", list(

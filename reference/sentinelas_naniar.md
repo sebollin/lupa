@@ -7,32 +7,34 @@ Cook](https://github.com/dicook), [Miles
 McBain](https://github.com/milesmcbain) y [Colin
 Fay](https://github.com/ColinFay). Incluye `66`, `77`, `88` y `9999`,
 que pueden ser edades, códigos o años legítimos y por eso no se aplican
-de forma predeterminada. Se usa como `perfilar(datos,
-sentinelas_numericos = sentinelas_naniar)`. Tanto este vector como las
-cadenas de ausencia incorporadas en el paquete están congelados con
-referencia a [naniar](https://github.com/njtierney/naniar) 1.1.0; no
-cambian según la versión instalada.
+de forma predeterminada. Se usa como
+`perfilar(datos, sentinelas_numericos = sentinelas_naniar)`. Tanto este
+vector como las cadenas de ausencia incorporadas en el paquete están
+congelados con referencia a
+[naniar](https://github.com/njtierney/naniar) 1.1.0; no cambian según la
+versión instalada.
 
-## Uso
+## Usage
 
 ``` r
 sentinelas_naniar
 ```
 
-## Formato
+## Format
 
 Vector numérico de ocho elementos.
 
-## Fuente
+## Source
 
 `naniar::common_na_numbers`, versión 1.1.0. Véase el [repositorio de
 naniar](https://github.com/njtierney/naniar).
 
-## Ver también
+## See also
 
-`perfilar()`, `planificar_limpieza()`
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 sentinelas_naniar

@@ -1,13 +1,14 @@
 # Guardar y recuperar un análisis
 
-Persiste un objeto `analizar()` en RDS con número de esquema. Los datos
-de entrada no se guardan por omisión. Las funciones de reglas se
-sustituyen por declaraciones pequeñas: una dependencia funcional se
-reconstruye al leer sólo si los datos fueron incluidos; una función
-arbitraria queda desactivada. Así el archivo no serializa entornos de
-ejecución completos.
+Persiste un objeto
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) en
+RDS con número de esquema. Los datos de entrada no se guardan por
+omisión. Las funciones de reglas se sustituyen por declaraciones
+pequeñas: una dependencia funcional se reconstruye al leer sólo si los
+datos fueron incluidos; una función arbitraria queda desactivada. Así el
+archivo no serializa entornos de ejecución completos.
 
-## Uso
+## Usage
 
 ``` r
 guardar_analisis(
@@ -22,40 +23,42 @@ guardar_analisis(
 leer_analisis(archivo)
 ```
 
-## Argumentos
+## Arguments
 
-  - x:
-    
-    Objeto creado por `analizar()`.
+- x:
 
-  - archivo:
-    
-    Ruta del archivo RDS.
+  Objeto creado por
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md).
 
-  - incluir\_datos:
-    
-    Si se persiste la copia de los datos conservada por
-    `analizar(conservar_datos = TRUE)`.
+- archivo:
 
-  - proteger\_datos\_personales:
-    
-    Si se protege toda evidencia derivada.
+  Ruta del archivo RDS.
 
-  - sobrescribir:
-    
-    Si se permite reemplazar un archivo existente.
+- incluir_datos:
 
-  - comprimir:
-    
-    Compresión admitida por `saveRDS()`: un lógico, `"gzip"`, `"bzip2"`
-    o `"xz"`.
+  Si se persiste la copia de los datos conservada por
+  `analizar(conservar_datos = TRUE)`.
 
-## Valor
+- proteger_datos_personales:
+
+  Si se protege toda evidencia derivada.
+
+- sobrescribir:
+
+  Si se permite reemplazar un archivo existente.
+
+- comprimir:
+
+  Compresión admitida por
+  [`saveRDS()`](https://rdrr.io/r/base/readRDS.html): un lógico,
+  `"gzip"`, `"bzip2"` o `"xz"`.
+
+## Value
 
 `guardar_analisis()` devuelve la ruta de forma invisible;
 `leer_analisis()` devuelve un objeto `analisis`.
 
-## Detalles
+## Details
 
 La protección de datos personales con evidencia suficiente se vuelve a
 aplicar antes de escribir. Incluir datos que contienen columnas
@@ -63,11 +66,13 @@ protegidas exige desactivar expresamente esa protección; una
 clasificación débil se conserva como información pero no activa esa
 restricción.
 
-## Ver también
+## See also
 
-`analizar()`, `reportar()`, `guardar_historico()`
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+[`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md),
+[`guardar_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 a <- analizar(datos_administrativos, argumentos_perfil = list(

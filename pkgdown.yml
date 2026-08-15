@@ -1,4 +1,4 @@
-pandoc: 2.9.2.1
+pandoc: 3.8.3
 pkgdown: 2.2.1
 pkgdown_sha: ~
 articles:
@@ -7,7 +7,7 @@ articles:
   escala-y-duplicados: escala-y-duplicados.html
   historico-y-deriva: historico-y-deriva.html
   limpiar-con-un-plan: limpiar-con-un-plan.html
-last_built: 2026-08-09T00:19Z
+last_built: 2026-08-15T13:19Z
 urls:
   reference: https://sebollin.github.io/lupa/reference
   article: https://sebollin.github.io/lupa/articles

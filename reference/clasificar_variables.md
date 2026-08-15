@@ -6,7 +6,7 @@ medición. Una propuesta basada sólo en valores nunca queda confirmada:
 `factor`, `logical`, las clases temporales y el metadato `measure` sí
 constituyen declaraciones.
 
-## Uso
+## Usage
 
 ``` r
 clasificar_variables(
@@ -19,40 +19,41 @@ clasificar_variables(
 )
 ```
 
-## Argumentos
+## Arguments
 
-  - datos:
-    
-    Tabla que se desea clasificar.
+- datos:
 
-  - perfil:
-    
-    Perfil opcional de los mismos datos.
+  Tabla que se desea clasificar.
 
-  - metadatos:
-    
-    Declaraciones opcionales por columna.
+- perfil:
 
-  - max\_niveles:
-    
-    Máximo de niveles guardados en cada lista.
+  Perfil opcional de los mismos datos.
 
-  - muestra:
-    
-    Máximo de valores usados para enumerar niveles no declarados; los
-    niveles ausentes de factores y metadatos se verifican sobre toda la
-    columna.
+- metadatos:
 
-  - proteger\_datos\_personales:
-    
-    Si se ocultan niveles concretos de columnas cuya clasificación
-    activa protección automática. Véase `perfilar()`.
+  Declaraciones opcionales por columna.
 
-## Valor
+- max_niveles:
+
+  Máximo de niveles guardados en cada lista.
+
+- muestra:
+
+  Máximo de valores usados para enumerar niveles no declarados; los
+  niveles ausentes de factores y metadatos se verifican sobre toda la
+  columna.
+
+- proteger_datos_personales:
+
+  Si se ocultan niveles concretos de columnas cuya clasificación activa
+  protección automática. Véase
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+
+## Value
 
 Data frame S3 `clasificacion_variables`, editable y filtrable.
 
-## Detalles
+## Details
 
 `metadatos` permite confirmar o corregir la propuesta con una tabla
 editable. Debe contener `columna` y puede incluir `escala`, `rol`,
@@ -65,11 +66,13 @@ Los niveles ausentes son una observación, no prueba de error. Si la
 evidencia de dato personal activa la protección, los niveles concretos
 se protegen.
 
-## Ver también
+## See also
 
-`analizar()`, `distribucion_valores()`, `proponer_modelo()`
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+[`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
+[`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 d <- data.frame(

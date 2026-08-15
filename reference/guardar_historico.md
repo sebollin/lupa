@@ -3,7 +3,7 @@
 Persiste el data frame versionado mediante RDS de base R. La escritura
 no reemplaza un archivo existente salvo consentimiento explícito.
 
-## Uso
+## Usage
 
 ``` r
 guardar_historico(historico, archivo, sobrescribir = FALSE)
@@ -11,32 +11,35 @@ guardar_historico(historico, archivo, sobrescribir = FALSE)
 leer_historico(archivo)
 ```
 
-## Argumentos
+## Arguments
 
-  - historico:
-    
-    Objeto creado por `historico_calidad()`.
+- historico:
 
-  - archivo:
-    
-    Ruta del archivo RDS.
+  Objeto creado por
+  [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md).
 
-  - sobrescribir:
-    
-    Si se permite reemplazar un archivo existente.
+- archivo:
 
-## Valor
+  Ruta del archivo RDS.
+
+- sobrescribir:
+
+  Si se permite reemplazar un archivo existente.
+
+## Value
 
 `guardar_historico()` devuelve invisiblemente la ruta normalizada;
 `leer_historico()` devuelve un `historico_calidad` validado.
 
-## Ver también
+## See also
 
-`guardar_historico()`, `detectar_deriva_calidad()`
+`guardar_historico()`,
+[`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md)
 
-`historico_calidad()`, `comparar_evaluaciones()`
+[`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md),
+[`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md)
 
-## Ejemplos
+## Examples
 
 ``` r
 archivo <- tempfile(fileext = ".rds")
@@ -50,5 +53,6 @@ leer_historico(archivo)
 #> [16] entidad             atributo            fila               
 #> [19] objeto_medible      n_elementos         resultado          
 #> [22] agregacion         
-#> <0 rows> (o 0- extensión row.names)
+#> <0 rows> (or 0-length row.names)
+unlink(archivo)
 ```
