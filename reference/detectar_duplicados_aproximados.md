@@ -302,9 +302,10 @@ es una estimación, no una cuenta exacta.
 Broder, A. Z. (1997)
 [doi:10.1109/SEQUEN.1997.666900](https://doi.org/10.1109/SEQUEN.1997.666900)
 . On the resemblance and containment of documents. En *Compression and
-Complexity of Sequences*, 21–29. [Leskovec, J., Rajaraman, A. y Ullman,
-J. D. (2020)](http://www.mmds.org). *Mining of Massive Datasets* (3.ª
-ed.), capítulo 3.
+Complexity of Sequences*, 21–29. Leskovec, J., Rajaraman, A. y Ullman,
+J. D. (2020)
+[doi:10.1017/9781108684163](https://doi.org/10.1017/9781108684163) .
+*Mining of Massive Datasets* (3.ª ed.), capítulo 3.
 
 ## See also
 
