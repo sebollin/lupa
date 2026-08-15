@@ -249,7 +249,7 @@ if (!pares$disponible) pares$razon
 Broder, A. Z. (1997) \doi{10.1109/SEQUEN.1997.666900}.
 On the resemblance and containment of documents. En \emph{Compression and
 Complexity of Sequences}, 21--29.
-\href{http://www.mmds.org}{Leskovec, J., Rajaraman, A. y Ullman, J. D. (2020)}.
+Leskovec, J., Rajaraman, A. y Ullman, J. D. (2020) \doi{10.1017/9781108684163}.
 \emph{Mining of Massive Datasets} (3.ª ed.), capítulo 3.
 }
 \seealso{
