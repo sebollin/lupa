@@ -3,7 +3,10 @@ url: https://sebollin.github.io/lupa/
 template:
   bootstrap: 5
   includes:
-    before_navbar: |
+    # pkgdown no procesa plantillas dentro de este include. La URL absoluta
+    # permite que el logo funcione tanto en el sitio publicado como en una
+    # vista local file://.
+    before_title: |
       <a class="navbar-brand p-0 me-2" href="https://sebollin.github.io/lupa/"><img src="https://sebollin.github.io/lupa/logo.png" height="32" alt="lupa" /></a>
 
 home:
