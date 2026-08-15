@@ -1,5 +1,17 @@
 # lupa 0.1.0
 
+## Perfilado de geometrías
+
+- Las columnas `sfc` informan CRS, tipo de geometría, geometrías vacías e
+  inválidas, coordenadas fuera del dominio declarado y caja envolvente. Una
+  geometría sin CRS deja el conteo de dominio en `NA`: no se supone EPSG:4326.
+  Las geometrías vacías se cuentan aparte y no integran el universo del chequeo
+  de dominio.
+- Los nuevos hallazgos distinguen CRS ausente, geometrías inválidas o vacías,
+  coordenadas imposibles y tipos geométricos mixtos. Si falta el paquete
+  opcional `sf`, el perfil no inventa ceros ni hallazgos: registra una fila con
+  `dependencia = "sf"` en `cobertura_diagnosticos`.
+
 ## Fechas con meses escritos
 
 - `detectar_formatos_fecha()` reconoce fechas con meses escritos en español

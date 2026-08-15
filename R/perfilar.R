@@ -85,6 +85,17 @@
 #' `n_variantes_unicode` queda en `NA` y `cobertura_diagnosticos` informa la
 #' dependencia ausente. Las columnas ASCII se evalúan siempre y conservan cero.
 #' El perfil de comparación es completamente R base.
+#'
+#' Las columnas `sfc` declaran su CRS, tipo de geometría, cantidad de geometrías
+#' vacías e inválidas, dominio y caja envolvente. En un CRS geográfico el dominio
+#' exige longitudes en `[-180, 180]` y latitudes en `[-90, 90]`; otros CRS se
+#' evalúan mediante su transformación declarada. Las geometrías vacías se
+#' cuentan aparte y no integran el universo evaluado para el dominio; si todas
+#' son vacías, el conteo fuera de dominio es cero. Sin CRS,
+#' `n_fuera_de_dominio` queda en `NA` y se emite `crs_no_declarado`: nunca se
+#' supone EPSG:4326. Si falta el paquete opcional `sf`, todos esos campos quedan
+#' en `NA`, no se emite un hallazgo geométrico y `cobertura_diagnosticos`
+#' registra la dependencia ausente.
 #' El argumento `normalizar` declara el perfil de comparación que se conserva
 #' en `meta$normalizacion`; cambia sólo la representación usada para comparar,
 #' no el texto guardado. `TRUE` usa el perfil predeterminado, `FALSE` desactiva
@@ -300,7 +311,8 @@
 #'   `cobertura_diagnosticos` es una tabla hermana de `hallazgos`, con una fila
 #'   por diagnóstico que no pudo evaluarse y las columnas `diagnostico`,
 #'   `columna`, `motivo`, `como_resolverlo` y `dependencia`. Incluye la falta de
-#'   `stringdist`, `stringi` o `bit64`, y las zonas horarias POSIXt sin declarar.
+#'   `stringdist`, `stringi`, `bit64` o `sf`, y las zonas horarias POSIXt sin
+#'   declarar.
 #'   Quien decida automáticamente sobre un perfil debe revisar
 #'   `nrow(perfil$cobertura_diagnosticos)` además de las severidades: un perfil
 #'   sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.

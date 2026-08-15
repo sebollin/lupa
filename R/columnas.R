@@ -940,6 +940,7 @@
       umbral_patron_raro, sentinelas_numericos
     ))
   }
+  geometria <- .perfilar_geometria(x)
   preparacion_texto <- .texto_analizable(x)
   x_analisis <- preparacion_texto$valores
   # El perfilado conserva el resultado intermedio sólo durante esta llamada;
@@ -1070,6 +1071,15 @@
     fecha_civil_distinta_utc = if (is.na(n_filas_fecha_civil_distinta_utc)) {
       NA
     } else n_filas_fecha_civil_distinta_utc > 0L,
+    crs_declarado = geometria$crs_declarado,
+    tipo_geometria = geometria$tipo_geometria,
+    n_geometrias_vacias = geometria$n_geometrias_vacias,
+    n_geometrias_invalidas = geometria$n_geometrias_invalidas,
+    n_fuera_de_dominio = geometria$n_fuera_de_dominio,
+    bbox_xmin = geometria$bbox_xmin,
+    bbox_xmax = geometria$bbox_xmax,
+    bbox_ymin = geometria$bbox_ymin,
+    bbox_ymax = geometria$bbox_ymax,
     detalle_proteccion_personal = NA_character_,
     n_blancos = n_blancos,
     n_espacios_borde = diagnostico_texto$n_espacios_borde,
@@ -1110,7 +1120,8 @@
     patrones = patrones,
     faltantes_disfrazados = faltantes_disfrazados,
     diagnostico_texto = diagnostico_texto,
-    numeros_texto = numeros_texto
+    numeros_texto = numeros_texto,
+    geometria = geometria
   )
 }
 

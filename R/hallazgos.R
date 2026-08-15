@@ -853,6 +853,10 @@
     outliers = as.numeric(fila$n_outliers),
     numero_como_texto = as.numeric(fila$n_numeros_texto),
     zona_horaria_fecha_hora = as.numeric(fila$n_filas_fecha_civil_distinta_utc),
+    geometria_invalida = as.numeric(fila$n_geometrias_invalidas),
+    geometria_vacia = as.numeric(fila$n_geometrias_vacias),
+    coordenada_fuera_dominio = as.numeric(fila$n_fuera_de_dominio),
+    tipos_geometria_mixtos = n,
     patron_raro = {
       resumen <- attr(resultado$patrones, "resumen_patrones")
       distintos <- attr(resultado$patrones, "n_patrones_distintos")
@@ -872,9 +876,15 @@
     "formato"
   } else if (tipo %in% c(
     "posible_identificador", "alta_cardinalidad", "tipo_declarado_distinto",
-    "integer64_fuera_precision_double", "integer64_sin_soporte"
+    "integer64_fuera_precision_double", "integer64_sin_soporte",
+    "crs_no_declarado"
   )) {
     "columna"
+  } else if (tipo %in% c(
+    "geometria_invalida", "geometria_vacia", "coordenada_fuera_dominio",
+    "tipos_geometria_mixtos"
+  )) {
+    "geometria"
   } else "fila"
   if (unidad == "formato") {
     n <- if (!is.null(resultado$formatos)) nrow(resultado$formatos) else NA_real_
@@ -893,6 +903,8 @@
     if (!is.null(analizados) && is.finite(analizados)) {
       n <- as.numeric(analizados)
     }
+  } else if (tipo == "coordenada_fuera_dominio") {
+    n <- as.numeric(resultado$geometria$n_dominio_evaluados)
   }
   list(n_evaluados = n, n_afectados = afectados, unidad_conteo = unidad)
 }
@@ -936,6 +948,18 @@
 .indices_hallazgo_columna <- function(tipo, x, fila, resultado,
                                       expandir = FALSE,
                                       distinguir_mayusculas = TRUE) {
+  if (inherits(x, "sfc")) {
+    geometria <- resultado$geometria
+    idx <- switch(
+      tipo,
+      geometria_invalida = geometria$indices_invalidas,
+      geometria_vacia = geometria$indices_vacias,
+      coordenada_fuera_dominio = geometria$indices_fuera_de_dominio,
+      tipos_geometria_mixtos = seq_along(x),
+      NULL
+    )
+    if (!is.null(idx)) return(as.integer(idx))
+  }
   if (is.matrix(x) || is.list(x)) return(NULL)
   n <- length(x)
   if (!n) return(integer())
@@ -1210,6 +1234,78 @@
       0L
     }
     n_validos <- fila$n - fila$n_faltantes - n_invalidos
+
+    geometria <- resultado$geometria
+    if (isTRUE(geometria$aplica)) {
+      if (isFALSE(geometria$sf_evaluado)) {
+        agregar_cobertura(
+          "perfil_geometria", nombre,
+          "No se evaluo la geometria porque falta el paquete opcional 'sf'.",
+          "Instalar el paquete 'sf' para medir CRS, tipo, validez, vacios, dominio y bbox.",
+          "sf"
+        )
+      } else {
+        if (is.na(fila$crs_declarado[[1L]])) {
+          agregar(.nuevo_hallazgo(
+            nombre, "crs_no_declarado", "error",
+            "La columna geometrica no declara un CRS; sin el no se puede validar el dominio ni comparar posiciones.",
+            "CRS ausente; n_fuera_de_dominio queda en NA.",
+            "Declarar el CRS de origen sin transformar ni asumir EPSG:4326 por omision."
+          ))
+        }
+        if (isFALSE(geometria$validez_evaluada)) {
+          agregar_cobertura(
+            "validez_geometria", nombre,
+            paste0("No se pudo evaluar st_is_valid(): ", geometria$motivo_validez),
+            "Revisar que las geometrias tengan una representacion compatible con sf.",
+            "sf"
+          )
+        } else if (isTRUE(fila$n_geometrias_invalidas > 0L)) {
+          agregar(.nuevo_hallazgo(
+            nombre, "geometria_invalida", "error",
+            "La columna contiene geometrias topologicamente invalidas.",
+            paste(fila$n_geometrias_invalidas, "geometrias invalidas segun st_is_valid()."),
+            "Revisar la causa de invalidez antes de reparar o usar las geometrias."
+          ))
+        }
+        if (isTRUE(fila$n_geometrias_vacias > 0L)) {
+          agregar(.nuevo_hallazgo(
+            nombre, "geometria_vacia", "sospechoso",
+            "La columna contiene geometrias vacias.",
+            paste(fila$n_geometrias_vacias, "geometrias vacias segun st_is_empty()."),
+            "Confirmar si la ausencia de coordenadas es valida o debe representarse como NA."
+          ))
+        }
+        if (!is.na(fila$crs_declarado[[1L]]) &&
+            isFALSE(geometria$dominio_evaluado)) {
+          agregar_cobertura(
+            "dominio_geometria", nombre,
+            paste0("No se pudo evaluar el dominio del CRS declarado: ",
+                   geometria$motivo_dominio),
+            "Revisar que la definicion del CRS permita transformar y validar sus coordenadas.",
+            "sf"
+          )
+        } else if (isTRUE(fila$n_fuera_de_dominio > 0L)) {
+          agregar(.nuevo_hallazgo(
+            nombre, "coordenada_fuera_dominio", "error",
+            "La columna contiene geometrias con coordenadas imposibles para el CRS declarado.",
+            paste0(
+              fila$n_fuera_de_dominio, " geometrias fuera del dominio de ",
+              fila$crs_declarado, "."
+            ),
+            "Corregir el CRS declarado o las coordenadas desde la fuente; no reproyectar para ocultar el error."
+          ))
+        }
+        if (length(geometria$tipos_geometria) > 1L) {
+          agregar(.nuevo_hallazgo(
+            nombre, "tipos_geometria_mixtos", "sospechoso",
+            "La misma columna mezcla tipos de geometria.",
+            paste(geometria$tipos_geometria, collapse = " y "),
+            "Confirmar si la mezcla es parte del modelo o separar los tipos en columnas o capas explicitas."
+          ))
+        }
+      }
+    }
 
     if (identical(fila$estado_resumen_cuantitativo, "tipo_compuesto_no_analizado")) {
       estructura <- resultado$estructura_no_analizada
