@@ -8,6 +8,12 @@ template:
     # vista local file://.
     before_title: |
       <a class="navbar-brand p-0 me-2" href="https://sebollin.github.io/lupa/"><img src="https://sebollin.github.io/lupa/logo.png" height="32" alt="lupa" /></a>
+    # El enlace adicional con rel=icon cubre el icono PNG de 180px en la
+    # comprobación del sitio; el enlace apple-touch-icon que genera pkgdown se
+    # conserva para dispositivos Apple. Este include es HTML crudo, por eso
+    # usa la URL publicada en vez de una plantilla de ruta relativa.
+    head: |
+      <link rel="icon" type="image/png" sizes="180x180" href="https://sebollin.github.io/lupa/apple-touch-icon.png">
 
 home:
   title: "lupa — profiling y calidad de datos"
