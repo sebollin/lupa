@@ -1,4 +1,4 @@
-# lupa <a href="https://sebollin.github.io/lupa/"><img src="man/figures/lupa.png" align="right" height="139" alt="sitio de lupa" /></a>
+# lupa <a href="https://sebollin.github.io/lupa/"><img src="man/figures/logo.png" align="right" height="139" alt="sitio de lupa" /></a>
 
 <!-- badges: start -->
 [![Licencia: GPL-3](https://img.shields.io/badge/licencia-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)

@@ -2,6 +2,9 @@ url: https://sebollin.github.io/lupa/
 
 template:
   bootstrap: 5
+  includes:
+    before_navbar: |
+      <a class="navbar-brand p-0 me-2" href="https://sebollin.github.io/lupa/"><img src="https://sebollin.github.io/lupa/logo.png" height="32" alt="lupa" /></a>
 
 home:
   title: "lupa — profiling y calidad de datos"
@@ -39,6 +42,7 @@ reference:
   - analizar_tiempo
   - clasificar_variables
   - descubrir_patrones
+  - normalizacion
   - inferir_tipo
   - detectar_formatos_fecha
   - detectar_claves
