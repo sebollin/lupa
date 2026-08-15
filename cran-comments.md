@@ -17,7 +17,7 @@ claim is about the sources, which is what can be checked.
 
 * win-builder, R 4.6.1 (2026-06-24 ucrt), x86_64-w64-mingw32 — 1 NOTE
   (new submission); examples and tests OK.
-* win-builder, R-devel (2026-08-13 r90397 ucrt), x86_64-w64-mingw32 — 1 NOTE
+* win-builder, R-devel (2026-08-14 r90407 ucrt), x86_64-w64-mingw32 — 1 NOTE
   (new submission); examples and tests OK.
 * macOS builder, R 4.6.1, macOS 26.6, **arm64 (Apple M1)** — Status: OK, no
   errors, warnings or notes; examples and tests OK.
