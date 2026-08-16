@@ -93,15 +93,27 @@
 #' aparece sólo al combinar familias o ante `GEOMETRYCOLLECTION`.
 #' La validez se calcula siempre con GEOS en el plano, sin CRS, para que el
 #' resultado no dependa de que `s2` esté instalado; `validez_criterio` publica
-#' `"planar"`. Si el CRS es geográfico, un fallo es `sospechoso` y no un
-#' `error`, porque no afirma invalidez esférica. Las dimensiones Z y M no se
-#' evalúan: `dimensiones_no_evaluadas` las enumera y
-#' `cobertura_diagnosticos` deja constancia explícita.
+#' `"planar"` y `n_validez_evaluados` publica su universo, que incluye las
+#' geometrías vacías porque GEOS sí devuelve su validez. Si hay una dimensión
+#' M, se aplica `sf::st_zm()` y se valida la topología XY;
+#' `validez_preprocesamiento = "st_zm(x)"` declara esa transformación. Si el
+#' CRS es geográfico, un fallo es `sospechoso` y no un `error`, porque no afirma
+#' invalidez esférica. Las dimensiones Z y M no se evalúan como medidas:
+#' `dimensiones_no_evaluadas` las enumera y `cobertura_diagnosticos` deja
+#' constancia explícita incluso cuando la validez XY sí pudo calcularse.
 #' En un CRS geográfico el dominio exige longitudes en `[-180, 180]` y latitudes
-#' en `[-90, 90]`; otros CRS se evalúan mediante su transformación declarada.
+#' en `[-90, 90]`. Además, las coordenadas se comparan en longitud/latitud con
+#' la `BBOX` del área de uso incluida en el WKT del CRS. Este control puede
+#' detectar valores en unidades incompatibles —por ejemplo, grados declarados
+#' como metros—, pero no una zona UTM equivocada cuando esa interpretación cae
+#' dentro del área de la zona declarada. Una `BBOX` mundial es un no-op válido;
+#' si el WKT no permite extraer la caja, el dominio queda en `NA` y
+#' `cobertura_diagnosticos` lo declara en lugar de suponer el mundo entero.
 #' Las geometrías vacías se cuentan aparte y no integran el universo del dominio
 #' ni de la bbox. `n_dominio_evaluados` y `n_bbox_evaluados` publican ambos
-#' alcances; si todas son vacías, sus conteos evaluados y fuera de dominio son
+#' universos; la bbox se calcula sobre coordenadas crudas de geometrías no
+#' vacías, incluidas las que el dominio marque fuera, y `bbox_alcance` lo
+#' declara. Si todas son vacías, sus conteos evaluados y fuera de dominio son
 #' cero. Sin CRS,
 #' `n_fuera_de_dominio` queda en `NA` y se emite `crs_no_declarado`: nunca se
 #' supone EPSG:4326. Si falta el paquete opcional `sf`, todos esos campos quedan

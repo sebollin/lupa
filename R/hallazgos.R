@@ -903,6 +903,8 @@
     if (!is.null(analizados) && is.finite(analizados)) {
       n <- as.numeric(analizados)
     }
+  } else if (tipo == "geometria_invalida") {
+    n <- as.numeric(resultado$geometria$n_validez_evaluados)
   } else if (tipo == "coordenada_fuera_dominio") {
     n <- as.numeric(resultado$geometria$n_dominio_evaluados)
   }
@@ -1249,10 +1251,24 @@
           dimensiones <- paste(geometria$dimensiones_omitidas, collapse = " y ")
           agregar_cobertura(
             "dimensiones_geometria_no_evaluadas", nombre,
-            paste0(
-              "El perfil geometrico usa solamente X e Y; no evaluo la dimension ",
-              dimensiones, "."
-            ),
+            if ("M" %in% geometria$dimensiones_omitidas) {
+              retiradas <- if ("Z" %in% geometria$dimensiones_omitidas) {
+                "Z y M"
+              } else {
+                "M"
+              }
+              paste0(
+                "El perfil geometrico no evaluo ", dimensiones,
+                " como dimensiones de medida; para la validez topologica ",
+                "retiro ", retiradas,
+                " con st_zm() y evaluo la geometria XY."
+              )
+            } else {
+              paste0(
+                "El perfil geometrico usa solamente X e Y; no evaluo la dimension ",
+                dimensiones, "."
+              )
+            },
             paste0(
               "Evaluar ", dimensiones,
               " con reglas que declaren su unidad y dominio esperados."
@@ -1331,9 +1347,16 @@
         } else if (isTRUE(fila$n_fuera_de_dominio > 0L)) {
           agregar(.nuevo_hallazgo(
             nombre, "coordenada_fuera_dominio", "error",
-            "La columna contiene geometrias con coordenadas imposibles para el CRS declarado.",
             paste0(
-              fila$n_fuera_de_dominio, " geometrias fuera del dominio de ",
+              "La columna contiene geometrias cuyos valores, interpretados en ",
+              "las unidades del CRS declarado, quedan fuera de su area de uso. ",
+              "Este control detecta unidades incompatibles, como grados donde ",
+              "se esperan metros; no detecta una zona UTM equivocada cuando ",
+              "los valores caen dentro del area de esa zona."
+            ),
+            paste0(
+              fila$n_fuera_de_dominio,
+              " geometrias fuera del dominio global o del area de uso de ",
               fila$crs_declarado, "."
             ),
             "Corregir el CRS declarado o las coordenadas desde la fuente; no reproyectar para ocultar el error."

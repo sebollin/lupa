@@ -13,9 +13,19 @@
   `validez_criterio = "planar"`; sobre CRS geográficos un fallo planar es
   sospechoso y no afirma invalidez esférica.
 - `n_dominio_evaluados` y `n_bbox_evaluados` hacen públicos los universos no
-  vacíos de sus métricas. `dimension_geometria` declara `XY`, `XYZ`, `XYM` o
-  `XYZM`; Z y M quedan enumeradas en `dimensiones_no_evaluadas` y generan una
-  fila de cobertura porque en esta versión sólo se evalúan X e Y.
+  vacíos de sus métricas; `bbox_alcance` declara que la caja usa las coordenadas
+  crudas, incluidas las que estén fuera de dominio. `n_validez_evaluados`
+  publica por separado el universo de GEOS, incluidas las geometrías vacías.
+  `dimension_geometria` declara `XY`, `XYZ`, `XYM` o `XYZM`; Z y M quedan
+  enumeradas en `dimensiones_no_evaluadas` y generan una fila de cobertura.
+  Para `XYM` y `XYZM`, la validez topológica se calcula en XY después de
+  `st_zm()` y `validez_preprocesamiento` declara ese paso.
+- El control de dominio compara también las coordenadas transformadas con la
+  `BBOX` del área de uso del WKT. Detecta, entre otros casos, grados donde el
+  CRS espera metros; no detecta una zona UTM equivocada cuando las coordenadas
+  interpretadas caen dentro del área de esa zona. Una caja mundial es un no-op
+  evaluado y un WKT sin `BBOX` produce una fila de cobertura, sin asumir alcance
+  global.
 - Los nuevos hallazgos distinguen CRS ausente, geometrías inválidas o vacías,
   coordenadas imposibles y tipos geométricos mixtos. Si falta el paquete
   opcional `sf`, el perfil no inventa ceros ni hallazgos: registra una fila con

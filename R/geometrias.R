@@ -16,9 +16,12 @@
     dimensiones_omitidas = character(),
     n_geometrias_vacias = NA_integer_,
     n_geometrias_invalidas = NA_integer_,
+    n_validez_evaluados = NA_integer_,
     validez_criterio = NA_character_,
+    validez_preprocesamiento = NA_character_,
     n_fuera_de_dominio = NA_integer_,
     n_bbox_evaluados = NA_integer_,
+    bbox_alcance = NA_character_,
     bbox_xmin = NA_real_,
     bbox_xmax = NA_real_,
     bbox_ymin = NA_real_,
@@ -108,11 +111,129 @@
   )
 }
 
+.bbox_area_uso_crs <- function(crs) {
+  wkt <- tryCatch(as.character(crs$wkt[[1L]]), error = function(e) NA_character_)
+  if (length(wkt) != 1L || is.na(wkt) || !nzchar(wkt)) {
+    return(list(
+      evaluada = FALSE, bbox = numeric(), global = NA,
+      motivo = "El WKT del CRS no esta disponible para extraer su BBOX de uso."
+    ))
+  }
+
+  # Recorre la estructura delimitada del WKT en lugar de depender de su
+  # espaciado o de una expresion regular. Los textos entre comillas se ignoran.
+  caracteres <- strsplit(wkt, "", fixed = TRUE)[[1L]]
+  n <- length(caracteres)
+  i <- 1L
+  en_comillas <- FALSE
+  while (i <= n) {
+    if (caracteres[[i]] == "\"") {
+      if (en_comillas && i < n && caracteres[[i + 1L]] == "\"") {
+        i <- i + 2L
+        next
+      }
+      en_comillas <- !en_comillas
+      i <- i + 1L
+      next
+    }
+    es_bbox <- !en_comillas && i + 3L <= n &&
+      toupper(paste0(caracteres[i:(i + 3L)], collapse = "")) == "BBOX"
+    if (!es_bbox) {
+      i <- i + 1L
+      next
+    }
+    caracteres_identificador <- c(letters, LETTERS, as.character(0:9), "_")
+    anterior_valido <- i == 1L ||
+      !caracteres[[i - 1L]] %in% caracteres_identificador
+    j <- i + 4L
+    while (j <= n && caracteres[[j]] %in% c(" ", "\t", "\r", "\n", "\f")) {
+      j <- j + 1L
+    }
+    if (!anterior_valido || j > n || !caracteres[[j]] %in% c("[", "(")) {
+      i <- i + 1L
+      next
+    }
+
+    apertura <- caracteres[[j]]
+    cierre <- if (apertura == "[") "]" else ")"
+    profundidad <- 1L
+    k <- j + 1L
+    en_texto <- FALSE
+    while (k <= n && profundidad > 0L) {
+      actual <- caracteres[[k]]
+      if (actual == "\"") {
+        if (en_texto && k < n && caracteres[[k + 1L]] == "\"") {
+          k <- k + 2L
+          next
+        }
+        en_texto <- !en_texto
+      } else if (!en_texto && actual == apertura) {
+        profundidad <- profundidad + 1L
+      } else if (!en_texto && actual == cierre) {
+        profundidad <- profundidad - 1L
+      }
+      k <- k + 1L
+    }
+    if (profundidad != 0L) break
+
+    contenido <- paste0(caracteres[(j + 1L):(k - 2L)], collapse = "")
+    partes <- trimws(strsplit(contenido, ",", fixed = TRUE)[[1L]])
+    valores <- suppressWarnings(as.numeric(partes))
+    if (length(valores) == 4L && all(is.finite(valores)) &&
+        valores[[1L]] >= -90 && valores[[1L]] <= 90 &&
+        valores[[3L]] >= -90 && valores[[3L]] <= 90 &&
+        valores[[1L]] <= valores[[3L]] &&
+        valores[[2L]] >= -180 && valores[[2L]] <= 180 &&
+        valores[[4L]] >= -180 && valores[[4L]] <= 180) {
+      bbox <- c(
+        xmin = valores[[2L]], ymin = valores[[1L]],
+        xmax = valores[[4L]], ymax = valores[[3L]]
+      )
+      global <- bbox[["ymin"]] <= -90 && bbox[["ymax"]] >= 90 &&
+        bbox[["xmin"]] <= -180 && bbox[["xmax"]] >= 180
+      return(list(
+        evaluada = TRUE, bbox = bbox, global = global,
+        motivo = NA_character_
+      ))
+    }
+    break
+  }
+  list(
+    evaluada = FALSE, bbox = numeric(), global = NA,
+    motivo = paste0(
+      "El WKT del CRS no contiene una BBOX de area de uso extraible; ",
+      "no se supuso una cobertura mundial."
+    )
+  )
+}
+
+.coordenadas_fuera_bbox <- function(coordenadas, bbox) {
+  if (!nrow(coordenadas)) return(FALSE)
+  longitud <- coordenadas[, 1L]
+  latitud <- coordenadas[, 2L]
+  fuera_longitud <- if (bbox[["xmin"]] <= bbox[["xmax"]]) {
+    longitud < bbox[["xmin"]] | longitud > bbox[["xmax"]]
+  } else {
+    longitud > bbox[["xmax"]] & longitud < bbox[["xmin"]]
+  }
+  any(
+    !is.finite(longitud) | !is.finite(latitud) | fuera_longitud |
+      latitud < bbox[["ymin"]] | latitud > bbox[["ymax"]]
+  )
+}
+
 .evaluar_dominio_geometria <- function(x, crs, vacias) {
   if (length(vacias) != length(x) || anyNA(vacias)) {
     return(list(
       evaluado = FALSE, fuera = logical(), n_evaluados = NA_integer_,
       motivo = "No se pudo identificar el universo de geometrias no vacias."
+    ))
+  }
+  area_uso <- .bbox_area_uso_crs(crs)
+  if (!isTRUE(area_uso$evaluada)) {
+    return(list(
+      evaluado = FALSE, fuera = logical(), n_evaluados = NA_integer_,
+      motivo = area_uso$motivo
     ))
   }
   coordenadas <- lapply(unclass(x), .coordenadas_sfg)
@@ -123,9 +244,10 @@
     error = function(e) NA
   )
   if (isTRUE(es_longlat)) {
-    fuera[evaluables] <- vapply(
-      coordenadas[evaluables], .coordenadas_fuera_longlat, logical(1L)
-    )
+    fuera[evaluables] <- vapply(coordenadas[evaluables], function(y) {
+      .coordenadas_fuera_longlat(y) ||
+        (!isTRUE(area_uso$global) && .coordenadas_fuera_bbox(y, area_uso$bbox))
+    }, logical(1L))
     return(list(
       evaluado = TRUE, fuera = fuera,
       n_evaluados = as.integer(length(evaluables)), motivo = NA_character_
@@ -154,7 +276,9 @@
     }
     coordenadas_transformadas <- .coordenadas_sfg(transformada[[1L]])
     fuera[[i]] <- !nrow(coordenadas_transformadas) ||
-      .coordenadas_fuera_longlat(coordenadas_transformadas)
+      .coordenadas_fuera_longlat(coordenadas_transformadas) ||
+      (!isTRUE(area_uso$global) &&
+         .coordenadas_fuera_bbox(coordenadas_transformadas, area_uso$bbox))
   }
   list(
     evaluado = TRUE, fuera = fuera,
@@ -217,15 +341,29 @@
   # el resultado. El criterio aplicado se publica y los CRS geograficos se
   # interpretan de forma cauta al construir el hallazgo.
   salida$validez_criterio <- "planar"
-  validas <- tryCatch(
-    suppressWarnings(sf::st_is_valid(
-      suppressWarnings(sf::st_set_crs(x, NA)), NA_on_exception = TRUE
-    )),
-    error = function(e) e
-  )
+  salida$validez_preprocesamiento <- "ninguno"
+  x_validez <- x
+  if ("M" %in% salida$dimensiones_omitidas) {
+    salida$validez_preprocesamiento <- "st_zm(x)"
+    x_validez <- tryCatch(
+      suppressWarnings(sf::st_zm(x)), error = function(e) e
+    )
+  }
+  validas <- if (inherits(x_validez, "error")) {
+    x_validez
+  } else {
+    tryCatch(
+      suppressWarnings(sf::st_is_valid(
+        suppressWarnings(sf::st_set_crs(x_validez, NA)),
+        NA_on_exception = TRUE
+      )),
+      error = function(e) e
+    )
+  }
   salida$validez_evaluada <- !inherits(validas, "error") &&
     length(validas) == length(x) && !anyNA(validas)
   if (isTRUE(salida$validez_evaluada)) {
+    salida$n_validez_evaluados <- as.integer(length(validas))
     salida$n_geometrias_invalidas <- as.integer(sum(!validas))
     salida$indices_invalidas <- as.integer(which(!validas))
   } else {
@@ -236,6 +374,7 @@
     }
   }
 
+  salida$bbox_alcance <- "coordenadas_crudas_de_geometrias_no_vacias"
   bbox <- tryCatch(suppressWarnings(sf::st_bbox(x)), error = function(e) NULL)
   if (!is.null(bbox) && length(bbox) == 4L) {
     bbox <- as.numeric(bbox)
