@@ -9,9 +9,16 @@
     crs_declarado = NA_character_,
     tipo_geometria = NA_character_,
     tipos_geometria = character(),
+    familias_geometria = character(),
+    tipos_geometria_mixtos = NA,
+    dimension_geometria = NA_character_,
+    dimensiones_no_evaluadas = NA_character_,
+    dimensiones_omitidas = character(),
     n_geometrias_vacias = NA_integer_,
     n_geometrias_invalidas = NA_integer_,
+    validez_criterio = NA_character_,
     n_fuera_de_dominio = NA_integer_,
+    n_bbox_evaluados = NA_integer_,
     bbox_xmin = NA_real_,
     bbox_xmax = NA_real_,
     bbox_ymin = NA_real_,
@@ -20,11 +27,34 @@
     indices_invalidas = integer(),
     indices_fuera_de_dominio = integer(),
     validez_evaluada = NA,
+    crs_geografico = NA,
     dominio_evaluado = NA,
     n_dominio_evaluados = NA_integer_,
     motivo_validez = NA_character_,
     motivo_dominio = NA_character_
   )
+}
+
+.familia_geometria <- function(tipo) {
+  switch(
+    tipo,
+    MULTIPOINT = "POINT",
+    MULTILINESTRING = "LINESTRING",
+    MULTIPOLYGON = "POLYGON",
+    tipo
+  )
+}
+
+.dimension_sfg <- function(x) {
+  dimension <- intersect(c("XYZM", "XYZ", "XYM", "XY"), class(x))
+  if (length(dimension)) dimension[[1L]] else NA_character_
+}
+
+.dimensiones_omitidas <- function(dimensiones) {
+  omitidas <- character()
+  if (any(grepl("Z", dimensiones, fixed = TRUE))) omitidas <- c(omitidas, "Z")
+  if (any(grepl("M", dimensiones, fixed = TRUE))) omitidas <- c(omitidas, "M")
+  omitidas
 }
 
 .coordenadas_sfg <- function(x) {
@@ -141,7 +171,12 @@
 
   crs <- tryCatch(sf::st_crs(x), error = function(e) NA)
   tiene_crs <- !isTRUE(is.na(crs))
-  if (tiene_crs) salida$crs_declarado <- .etiqueta_crs(crs)
+  if (tiene_crs) {
+    salida$crs_declarado <- .etiqueta_crs(crs)
+    salida$crs_geografico <- tryCatch(
+      suppressWarnings(sf::st_is_longlat(crs)), error = function(e) NA
+    )
+  }
 
   tipos <- tryCatch(
     as.character(sf::st_geometry_type(x, by_geometry = TRUE)),
@@ -150,6 +185,24 @@
   salida$tipos_geometria <- unique(tipos[!is.na(tipos) & nzchar(tipos)])
   if (length(salida$tipos_geometria)) {
     salida$tipo_geometria <- paste(salida$tipos_geometria, collapse = ", ")
+    salida$familias_geometria <- unique(vapply(
+      salida$tipos_geometria, .familia_geometria, character(1L)
+    ))
+    salida$tipos_geometria_mixtos <-
+      length(salida$familias_geometria) > 1L ||
+      "GEOMETRYCOLLECTION" %in% salida$tipos_geometria
+  }
+
+  dimensiones <- unique(vapply(unclass(x), .dimension_sfg, character(1L)))
+  dimensiones <- dimensiones[!is.na(dimensiones) & nzchar(dimensiones)]
+  if (length(dimensiones)) {
+    salida$dimension_geometria <- paste(dimensiones, collapse = ", ")
+    salida$dimensiones_omitidas <- .dimensiones_omitidas(dimensiones)
+    if (length(salida$dimensiones_omitidas)) {
+      salida$dimensiones_no_evaluadas <- paste(
+        salida$dimensiones_omitidas, collapse = ", "
+      )
+    }
   }
 
   vacias <- tryCatch(sf::st_is_empty(x), error = function(e) NULL)
@@ -160,6 +213,10 @@
     vacias <- rep(NA, length(x))
   }
 
+  # GEOS recibe coordenadas sin CRS para que la disponibilidad de s2 no cambie
+  # el resultado. El criterio aplicado se publica y los CRS geograficos se
+  # interpretan de forma cauta al construir el hallazgo.
+  salida$validez_criterio <- "planar"
   validas <- tryCatch(
     suppressWarnings(sf::st_is_valid(
       suppressWarnings(sf::st_set_crs(x, NA)), NA_on_exception = TRUE
@@ -183,6 +240,9 @@
   if (!is.null(bbox) && length(bbox) == 4L) {
     bbox <- as.numeric(bbox)
     bbox[!is.finite(bbox)] <- NA_real_
+    if (!anyNA(vacias)) {
+      salida$n_bbox_evaluados <- as.integer(sum(!vacias))
+    }
     salida$bbox_xmin <- bbox[[1L]]
     salida$bbox_ymin <- bbox[[2L]]
     salida$bbox_xmax <- bbox[[3L]]

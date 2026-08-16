@@ -7,6 +7,15 @@
   geometría sin CRS deja el conteo de dominio en `NA`: no se supone EPSG:4326.
   Las geometrías vacías se cuentan aparte y no integran el universo del chequeo
   de dominio.
+- Los tipos mixtos se comparan por familia: las variantes simples y `MULTI`
+  compatibles conviven sin hallazgo, mientras que familias distintas y
+  `GEOMETRYCOLLECTION` se señalan. La validez declara
+  `validez_criterio = "planar"`; sobre CRS geográficos un fallo planar es
+  sospechoso y no afirma invalidez esférica.
+- `n_dominio_evaluados` y `n_bbox_evaluados` hacen públicos los universos no
+  vacíos de sus métricas. `dimension_geometria` declara `XY`, `XYZ`, `XYM` o
+  `XYZM`; Z y M quedan enumeradas en `dimensiones_no_evaluadas` y generan una
+  fila de cobertura porque en esta versión sólo se evalúan X e Y.
 - Los nuevos hallazgos distinguen CRS ausente, geometrías inválidas o vacías,
   coordenadas imposibles y tipos geométricos mixtos. Si falta el paquete
   opcional `sf`, el perfil no inventa ceros ni hallazgos: registra una fila con

@@ -1245,6 +1245,20 @@
           "sf"
         )
       } else {
+        if (length(geometria$dimensiones_omitidas)) {
+          dimensiones <- paste(geometria$dimensiones_omitidas, collapse = " y ")
+          agregar_cobertura(
+            "dimensiones_geometria_no_evaluadas", nombre,
+            paste0(
+              "El perfil geometrico usa solamente X e Y; no evaluo la dimension ",
+              dimensiones, "."
+            ),
+            paste0(
+              "Evaluar ", dimensiones,
+              " con reglas que declaren su unidad y dominio esperados."
+            )
+          )
+        }
         if (is.na(fila$crs_declarado[[1L]])) {
           agregar(.nuevo_hallazgo(
             nombre, "crs_no_declarado", "error",
@@ -1261,11 +1275,40 @@
             "sf"
           )
         } else if (isTRUE(fila$n_geometrias_invalidas > 0L)) {
+          validez_geografica_planar <- identical(
+            geometria$validez_criterio, "planar"
+          ) && isTRUE(geometria$crs_geografico)
           agregar(.nuevo_hallazgo(
-            nombre, "geometria_invalida", "error",
-            "La columna contiene geometrias topologicamente invalidas.",
-            paste(fila$n_geometrias_invalidas, "geometrias invalidas segun st_is_valid()."),
-            "Revisar la causa de invalidez antes de reparar o usar las geometrias."
+            nombre, "geometria_invalida",
+            if (validez_geografica_planar) "sospechoso" else "error",
+            if (validez_geografica_planar) {
+              paste0(
+                "La columna contiene geometrias no validas bajo el criterio ",
+                "planar aplicado; en un CRS geografico esto requiere revision."
+              )
+            } else {
+              "La columna contiene geometrias topologicamente invalidas bajo el criterio planar."
+            },
+            if (validez_geografica_planar) {
+              paste0(
+                fila$n_geometrias_invalidas,
+                " geometrias no validas en el plano; este resultado no afirma ",
+                "invalidez esferica."
+              )
+            } else {
+              paste(
+                fila$n_geometrias_invalidas,
+                "geometrias invalidas segun st_is_valid() con criterio planar."
+              )
+            },
+            if (validez_geografica_planar) {
+              paste0(
+                "Revisar la geometria con un criterio esferico adecuado antes ",
+                "de repararla."
+              )
+            } else {
+              "Revisar la causa de invalidez antes de reparar o usar las geometrias."
+            }
           ))
         }
         if (isTRUE(fila$n_geometrias_vacias > 0L)) {
@@ -1296,7 +1339,7 @@
             "Corregir el CRS declarado o las coordenadas desde la fuente; no reproyectar para ocultar el error."
           ))
         }
-        if (length(geometria$tipos_geometria) > 1L) {
+        if (isTRUE(geometria$tipos_geometria_mixtos)) {
           agregar(.nuevo_hallazgo(
             nombre, "tipos_geometria_mixtos", "sospechoso",
             "La misma columna mezcla tipos de geometria.",

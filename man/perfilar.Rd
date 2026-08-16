@@ -274,12 +274,23 @@ pudo ejecutarse; en texto no ASCII sin \code{stringi} queda \code{FALSE},
 dependencia ausente. Las columnas ASCII se evalúan siempre y conservan cero.
 El perfil de comparación es completamente R base.
 
-Las columnas \code{sfc} declaran su CRS, tipo de geometría, cantidad de geometrías
-vacías e inválidas, dominio y caja envolvente. En un CRS geográfico el dominio
-exige longitudes en \verb{[-180, 180]} y latitudes en \verb{[-90, 90]}; otros CRS se
-evalúan mediante su transformación declarada. Las geometrías vacías se
-cuentan aparte y no integran el universo evaluado para el dominio; si todas
-son vacías, el conteo fuera de dominio es cero. Sin CRS,
+Las columnas \code{sfc} declaran su CRS, los tipos concretos y la dimensión
+(\code{XY}, \code{XYZ}, \code{XYM} o \code{XYZM}), además de geometrías vacías, validez, dominio y
+caja envolvente. \code{POINT}/\code{MULTIPOINT}, \code{LINESTRING}/\code{MULTILINESTRING} y
+\code{POLYGON}/\code{MULTIPOLYGON} son una misma familia: el hallazgo de tipos mixtos
+aparece sólo al combinar familias o ante \code{GEOMETRYCOLLECTION}.
+La validez se calcula siempre con GEOS en el plano, sin CRS, para que el
+resultado no dependa de que \code{s2} esté instalado; \code{validez_criterio} publica
+\code{"planar"}. Si el CRS es geográfico, un fallo es \code{sospechoso} y no un
+\code{error}, porque no afirma invalidez esférica. Las dimensiones Z y M no se
+evalúan: \code{dimensiones_no_evaluadas} las enumera y
+\code{cobertura_diagnosticos} deja constancia explícita.
+En un CRS geográfico el dominio exige longitudes en \verb{[-180, 180]} y latitudes
+en \verb{[-90, 90]}; otros CRS se evalúan mediante su transformación declarada.
+Las geometrías vacías se cuentan aparte y no integran el universo del dominio
+ni de la bbox. \code{n_dominio_evaluados} y \code{n_bbox_evaluados} publican ambos
+alcances; si todas son vacías, sus conteos evaluados y fuera de dominio son
+cero. Sin CRS,
 \code{n_fuera_de_dominio} queda en \code{NA} y se emite \code{crs_no_declarado}: nunca se
 supone EPSG:4326. Si falta el paquete opcional \code{sf}, todos esos campos quedan
 en \code{NA}, no se emite un hallazgo geométrico y \code{cobertura_diagnosticos}

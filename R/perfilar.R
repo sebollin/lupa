@@ -86,12 +86,23 @@
 #' dependencia ausente. Las columnas ASCII se evalúan siempre y conservan cero.
 #' El perfil de comparación es completamente R base.
 #'
-#' Las columnas `sfc` declaran su CRS, tipo de geometría, cantidad de geometrías
-#' vacías e inválidas, dominio y caja envolvente. En un CRS geográfico el dominio
-#' exige longitudes en `[-180, 180]` y latitudes en `[-90, 90]`; otros CRS se
-#' evalúan mediante su transformación declarada. Las geometrías vacías se
-#' cuentan aparte y no integran el universo evaluado para el dominio; si todas
-#' son vacías, el conteo fuera de dominio es cero. Sin CRS,
+#' Las columnas `sfc` declaran su CRS, los tipos concretos y la dimensión
+#' (`XY`, `XYZ`, `XYM` o `XYZM`), además de geometrías vacías, validez, dominio y
+#' caja envolvente. `POINT`/`MULTIPOINT`, `LINESTRING`/`MULTILINESTRING` y
+#' `POLYGON`/`MULTIPOLYGON` son una misma familia: el hallazgo de tipos mixtos
+#' aparece sólo al combinar familias o ante `GEOMETRYCOLLECTION`.
+#' La validez se calcula siempre con GEOS en el plano, sin CRS, para que el
+#' resultado no dependa de que `s2` esté instalado; `validez_criterio` publica
+#' `"planar"`. Si el CRS es geográfico, un fallo es `sospechoso` y no un
+#' `error`, porque no afirma invalidez esférica. Las dimensiones Z y M no se
+#' evalúan: `dimensiones_no_evaluadas` las enumera y
+#' `cobertura_diagnosticos` deja constancia explícita.
+#' En un CRS geográfico el dominio exige longitudes en `[-180, 180]` y latitudes
+#' en `[-90, 90]`; otros CRS se evalúan mediante su transformación declarada.
+#' Las geometrías vacías se cuentan aparte y no integran el universo del dominio
+#' ni de la bbox. `n_dominio_evaluados` y `n_bbox_evaluados` publican ambos
+#' alcances; si todas son vacías, sus conteos evaluados y fuera de dominio son
+#' cero. Sin CRS,
 #' `n_fuera_de_dominio` queda en `NA` y se emite `crs_no_declarado`: nunca se
 #' supone EPSG:4326. Si falta el paquete opcional `sf`, todos esos campos quedan
 #' en `NA`, no se emite un hallazgo geométrico y `cobertura_diagnosticos`
