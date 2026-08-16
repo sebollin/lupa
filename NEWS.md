@@ -1,5 +1,12 @@
 # lupa 0.1.0
 
+## Perfil de una muestra DBI con universo explícito
+
+- Se agrega `perfilar_dbi()` para separar los agregados SQL exactos sobre una
+  tabla completa del perfil de 93 campos calculado sobre una muestra declarada.
+  La salida registra el motor informado por DBI, cada consulta, los agregados no
+  disponibles y la reproducibilidad efectiva del orden, sin escribir en la base.
+
 ## Desenlaces declarados por reglas
 
 - `regla_evaluacion()` acepta `desenlace = "suprimir"` para que una regla
