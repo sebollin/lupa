@@ -134,9 +134,10 @@ test_that("descarta relaciones entre magnitudes sin solapamiento", {
     perfil_predeterminado$hallazgos$tipo_hallazgo ==
       "relacion_orden_columnas", , drop = FALSE
   ]
-  expect_equal(relaciones$columna, "anio,monto")
-  expect_equal(perfil_predeterminado$meta$orden_columnas$pares_descartados_magnitud, 0)
-  expect_equal(perfil_predeterminado$meta$orden_columnas$umbral_solapamiento_iqr, 0)
+  expect_equal(nrow(relaciones), 0L)
+  expect_equal(perfil_predeterminado$meta$orden_columnas$pares_descartados_magnitud, 6)
+  expect_equal(perfil_predeterminado$meta$orden_columnas$pares_rescatados_brecha_estable, 0)
+  expect_equal(perfil_predeterminado$meta$orden_columnas$umbral_solapamiento_iqr, 0.1)
 
   perfil_filtrado <- perfilar(
     datos, analizar_dependencias = FALSE, umbral_solapamiento_orden = 0.4
@@ -151,7 +152,7 @@ test_that("descarta relaciones entre magnitudes sin solapamiento", {
   expect_equal(alcance$umbral_solapamiento_iqr, 0.4)
 })
 
-test_that("el valor por omisión conserva relaciones reales de rango distinto", {
+test_that("una brecha estable conserva relaciones reales de rango distinto", {
   n <- 100L
 
   nacimiento <- as.Date("1990-01-01") + seq_len(n)
@@ -195,6 +196,7 @@ test_that("el valor por omisión conserva relaciones reales de rango distinto", 
   ]
   expect_equal(hallazgo_personas$columna, "menor,titular")
   expect_equal(hallazgo_personas$n_afectados, 1)
+  expect_equal(perfil_personas$meta$orden_columnas$pares_rescatados_brecha_estable, 1)
 })
 
 test_that("el solapamiento funciona con fechas y POSIXct", {
@@ -225,8 +227,13 @@ test_that("los rangos intercuartiles de anchura cero no dividen por cero", {
                    "relacion_orden_columnas"))
   expect_equal(perfil_iguales$meta$orden_columnas$pares_descartados_magnitud, 0)
   expect_equal(perfil_distintos$meta$orden_columnas$pares_descartados_magnitud, 0)
+  expect_equal(perfil_distintos$meta$orden_columnas$pares_rescatados_brecha_estable, 1)
   expect_equal(
     perfil_distintos_filtrado$meta$orden_columnas$pares_descartados_magnitud,
+    0
+  )
+  expect_equal(
+    perfil_distintos_filtrado$meta$orden_columnas$pares_rescatados_brecha_estable,
     1
   )
 })

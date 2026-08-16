@@ -34,7 +34,7 @@ perfilar(
   max_filas_hallazgo = 1000L,
   umbral_orden_columnas = 0.95,
   max_columnas_orden = 20L,
-  umbral_solapamiento_orden = 0,
+  umbral_solapamiento_orden = 0.1,
   umbral_aritmetica = 0.9,
   min_filas_aritmetica = 3L,
   tolerancia_aritmetica = 1e-08,
@@ -142,12 +142,16 @@ exceden el límite se conservan en \code{meta$orden_columnas$columnas_omitidas}.
 
 \item{umbral_solapamiento_orden}{Solapamiento mínimo de los rangos
 intercuartiles para considerar que dos columnas representan magnitudes
-comparables. Por defecto es \code{0}, por lo que el filtro está apagado y no se
-descartan pares. Un valor mayor resulta útil en tablas anchas con columnas
-de escalas muy distintas, donde el detector puede avisar de más, pero
-también puede ocultar relaciones reales entre magnitudes de rangos
-distintos (por ejemplo, nacimiento y solicitud). Los pares descartados se
-cuentan en \code{meta$orden_columnas$pares_descartados_magnitud}.}
+comparables. Por defecto es \code{0.1}: al menos una décima parte del rango
+intercuartílico más ancho debe ser común a ambos. Esto evita interpretar
+como restricción fila a fila un orden explicado sólo por escalas
+separadas. Si no hay ese solapamiento, una brecha con IQR exactamente cero
+conserva el par porque la mitad central sostiene el mismo desplazamiento
+fila a fila. No se aplica una tolerancia oculta. Use \code{0} para desactivar el
+filtro de magnitud. Ambos criterios se publican en la evidencia. Los pares
+descartados se cuentan en
+\code{meta$orden_columnas$pares_descartados_magnitud} y los recuperados en
+\code{meta$orden_columnas$pares_rescatados_brecha_estable}.}
 
 \item{umbral_aritmetica}{Proporción mínima de filas comparables que deben
 satisfacer una identidad dentro de \code{tolerancia_aritmetica} para reconocer

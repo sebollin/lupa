@@ -35,11 +35,13 @@ test_that("con stringdist una columna limpia no registra no-medicion", {
     datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   )
   expect_equal(nrow(perfil$cobertura_diagnosticos), 0L)
-  expect_false(any(perfil$hallazgos$severidad == "ok" &
-                   perfil$hallazgos$tipo_hallazgo %in% c(
-                     "casi_duplicados_vocabulario", "normalizacion_unicode",
-                     "integer64_sin_soporte", "zona_horaria_fecha_hora"
-                   )))
+  negativos <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario", ,
+    drop = FALSE
+  ]
+  expect_equal(negativos$columna, c("a", "b"))
+  expect_true(all(as.character(negativos$severidad) == "ok"))
+  expect_true(all(negativos$n_afectados == 0))
 })
 
 test_that("una no-medicion no oculta un hallazgo real", {

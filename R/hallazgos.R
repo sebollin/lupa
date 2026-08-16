@@ -126,9 +126,23 @@
   as.numeric(ancho_comun / max(anchura_a, anchura_b))
 }
 
+# Una brecha con IQR cero aporta evidencia fila a fila aun cuando las bandas
+# centrales no se solapan: al menos la mitad central conserva exactamente el
+# mismo desplazamiento. Se usa como criterio estricto, sin tolerancia oculta.
+.iqr_brecha_orden <- function(a, b) {
+  brecha <- b - a
+  brecha <- brecha[is.finite(brecha)]
+  if (!length(brecha)) return(NA_real_)
+  cuartiles <- stats::quantile(
+    brecha, c(0.25, 0.75), na.rm = TRUE, names = FALSE, type = 7
+  )
+  if (any(!is.finite(cuartiles))) return(NA_real_)
+  as.numeric(cuartiles[[2L]] - cuartiles[[1L]])
+}
+
 .alcance_orden_columnas <- function(nombres, seleccion, max_columnas,
                                     tipos, n_filas, umbral,
-                                    umbral_solapamiento = 0) {
+                                    umbral_solapamiento = 0.1) {
   grupos <- split(seleccion, tipos[seleccion])
   pares <- if (length(grupos)) {
     sum(vapply(grupos, function(x) choose(length(x), 2L), numeric(1L)))
@@ -148,7 +162,9 @@
     max_columnas = as.integer(max_columnas),
     umbral_cumplimiento = as.numeric(umbral),
     umbral_solapamiento_iqr = as.numeric(umbral_solapamiento),
+    umbral_iqr_brecha = 0,
     pares_descartados_magnitud = 0,
+    pares_rescatados_brecha_estable = 0,
     pares_evaluados_orden = 0,
     minimo_filas = 3L
   )
@@ -157,7 +173,7 @@
 .detectar_orden_columnas <- function(datos, columnas, resultados,
                                      formatos_fecha, umbral = 0.95,
                                      max_columnas = 20L,
-                                     umbral_solapamiento = 0) {
+                                     umbral_solapamiento = 0.1) {
   n_columnas <- ncol(datos)
   if (!n_columnas || !nrow(datos)) {
     return(list(
@@ -210,10 +226,18 @@
     derecha <- derecha[comparables_fila]
     filas <- which(comparables_fila)
     solapamiento <- .solapamiento_iqr_orden(izquierda, derecha)
-    if (!is.finite(solapamiento) || solapamiento < umbral_solapamiento) {
+    iqr_brecha <- .iqr_brecha_orden(izquierda, derecha)
+    brecha_estable <- is.finite(iqr_brecha) && iqr_brecha == 0
+    magnitudes_separadas <- !is.finite(solapamiento) ||
+      solapamiento < umbral_solapamiento
+    if (magnitudes_separadas && !brecha_estable) {
       alcance$pares_descartados_magnitud <-
         alcance$pares_descartados_magnitud + 1
       next
+    }
+    if (magnitudes_separadas && brecha_estable) {
+      alcance$pares_rescatados_brecha_estable <-
+        alcance$pares_rescatados_brecha_estable + 1
     }
     alcance$pares_evaluados_orden <- alcance$pares_evaluados_orden + 1
     cumple_izquierda <- izquierda <= derecha
@@ -262,7 +286,14 @@
       paste0(
         sprintf("%.3f de cumplimiento; %d de %d filas fuera de orden. ",
                 proporcion, length(indices_incumplen), n_evaluados),
-        sprintf("Solapamiento intercuartil: %.3f. ", solapamiento),
+        sprintf(
+          "Solapamiento intercuartil: %.3f; umbral: %.3f. ",
+          solapamiento, umbral_solapamiento
+        ),
+        sprintf(
+          "IQR de la brecha: %.3f; criterio alternativo: 0.000. ",
+          iqr_brecha
+        ),
         evidencia_ejemplos
       ),
       paste0(
@@ -695,13 +726,45 @@
         "stringdist"
       )
     }
-    if (is.null(grupos) ||
-        (!length(grupos$grupos) &&
-         !isTRUE(grupos$alcance$truncado) &&
-         isTRUE(grupos$alcance$aplicable) &&
-         !identical(grupos$alcance$motivo_grupos, "sin_asimetria") &&
-         !isTRUE(grupos$alcance$n_pares_descartados_numeros > 0L))) next
+    if (is.null(grupos)) next
     alcance <- grupos$alcance
+    if (isTRUE(alcance$truncado)) {
+      cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
+        "casi_duplicados_vocabulario", columnas[[i]],
+        paste0(
+          "El vocabulario excede el alcance de comparacion: se evaluaron ",
+          alcance$n_valores_evaluados, " de ", alcance$n_valores_distintos,
+          " valores y ", alcance$n_pares_comparados, " de ",
+          alcance$n_pares_posibles, " pares posibles."
+        ),
+        paste0(
+          "Evaluar la columna con una regla de dominio especifica o dividir ",
+          "el vocabulario en subconjuntos con significado comun."
+        )
+      )
+    }
+    if (!isTRUE(alcance$aplicable)) {
+      cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
+        "casi_duplicados_vocabulario", columnas[[i]],
+        paste0(
+          "El grupo candidato mayor abarca ",
+          formatC(alcance$proporcion_grupo_maximo,
+                  format = "f", digits = 3),
+          " del vocabulario y el diagnostico no aplica."
+        ),
+        paste0(
+          "Usar una regla de dominio especifica para la columna o ajustar ",
+          "el criterio de agrupacion con conocimiento del vocabulario."
+        )
+      )
+    }
+    hay_grupos <- length(grupos$grupos) > 0L
+    resultado_negativo <- !hay_grupos &&
+      isTRUE(alcance$distancia_disponible) &&
+      !isTRUE(alcance$truncado) && isTRUE(alcance$aplicable) &&
+      (identical(alcance$motivo_grupos, "sin_asimetria") ||
+       isTRUE(alcance$n_pares_descartados_numeros > 0L))
+    if (!hay_grupos && !resultado_negativo) next
     grupos_a_mostrar <- utils::head(grupos$grupos, max_grupos_mostrados)
     evidencia_grupos <- vapply(grupos_a_mostrar, function(grupo) {
       indices <- seq_len(min(length(grupo$variantes), max_variantes_mostradas))
@@ -754,28 +817,22 @@
       function(grupo) grepl("distancia", grupo$origen, fixed = TRUE),
       logical(1L)
     ))
-    descripcion_grupos <- if (!isTRUE(alcance$distancia_disponible)) {
-      "No se pudo evaluar la proximidad del vocabulario: falta el paquete opcional 'stringdist'; este resultado no declara que no haya variantes."
-    } else if (hay_distancia) {
+    descripcion_grupos <- if (hay_distancia) {
       "Se detectaron valores cercanos; la distancia es heur\u00edstica y no confirma identidad."
     } else {
       "Hay grupos cuya forma normalizada coincide; eso no confirma que sean la misma entidad."
     }
+    severidad <- if (hay_grupos) "sospechoso" else "ok"
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
-      columnas[[i]], "casi_duplicados_vocabulario", "sospechoso",
+      columnas[[i]], "casi_duplicados_vocabulario", severidad,
       if (length(evidencia_grupos)) {
         descripcion_grupos
-      } else if (!isTRUE(alcance$aplicable) &&
-                 isTRUE(alcance$tamano_grupo_maximo_numerico > 0L)) {
-        "El grupo de variantes excede el limite y el diagnostico no aplica."
       } else if (isTRUE(alcance$n_pares_descartados_numeros > 0L)) {
         "No se formaron grupos porque las diferencias numericas se consideran entidades distintas; revisar con una regla especifica si la columna usa otra codificacion."
       } else if (identical(alcance$motivo_grupos, "sin_asimetria")) {
         "No se formaron grupos por distancia porque no hubo asimetria de frecuencia; usar detectar_duplicados_aproximados() para comparar filas."
-      } else if (!isTRUE(alcance$distancia_disponible)) {
-        "Hay grupos cuya forma normalizada coincide; la proximidad no se pudo evaluar porque falta el paquete opcional 'stringdist'."
       } else {
-        "El vocabulario excede el alcance de enumeracion de variantes."
+        descripcion_grupos
       },
       paste0(
         grupos_texto,
@@ -810,9 +867,9 @@
         "Revisar la columna con un alcance o criterio de vocabulario m\u00e1s espec\u00edfico."
       },
       alcance$n_valores_evaluados,
-      if (length(grupos$grupos)) {
+      if (hay_grupos) {
         sum(vapply(grupos$grupos, function(g) length(g$variantes), integer(1L)))
-      } else NA_real_,
+      } else 0,
       "valor_distinto"
     )
   }
@@ -1461,6 +1518,7 @@
       fila$tipo_declarado %in% c("texto", "factor", "factor-ordenado") &&
         is.finite(fila$tasa_distintos) &&
         fila$tasa_distintos > umbral_alta_cardinalidad &&
+        fila$tasa_distintos < 1 &&
         fila$n_distintos > 1L
     ) {
       agregar(.nuevo_hallazgo(

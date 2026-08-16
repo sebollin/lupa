@@ -150,9 +150,14 @@ test_that("un componente grande no se presenta como toda una columna chica", {
     perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario", ,
     drop = FALSE
   ]
-  expect_equal(nrow(hallazgo), 1L)
-  expect_match(hallazgo$evidencia, "grupo_maximo: 15")
-  expect_match(hallazgo$descripcion, "no aplica")
+  expect_equal(nrow(hallazgo), 0L)
+  cobertura <- perfil$cobertura_diagnosticos[
+    perfil$cobertura_diagnosticos$diagnostico ==
+      "casi_duplicados_vocabulario", , drop = FALSE
+  ]
+  expect_equal(nrow(cobertura), 1L)
+  expect_match(cobertura$motivo, "abarca 1.000")
+  expect_match(cobertura$motivo, "no aplica")
 
   # El mismo grupo grande no se bloquea por su tamano cuando comparte la
   # columna con un vocabulario mucho mayor y su proporcion es pequena.
@@ -188,13 +193,13 @@ test_that("las secuencias numericas separan familias de entidades", {
     perfil_zonas$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario", ,
     drop = FALSE
   ]
-  expect_equal(nrow(hallazgo_zonas), 1L)
-  expect_match(hallazgo_zonas$evidencia,
-               "descartados por secuencia numerica")
-  expect_false(grepl("No se entrega el grupo mayor",
-                     hallazgo_zonas$evidencia, fixed = TRUE))
-  expect_match(hallazgo_zonas$descripcion,
-               "diferencias numericas se consideran entidades distintas")
+  expect_equal(nrow(hallazgo_zonas), 0L)
+  cobertura_zonas <- perfil_zonas$cobertura_diagnosticos[
+    perfil_zonas$cobertura_diagnosticos$diagnostico ==
+      "casi_duplicados_vocabulario", , drop = FALSE
+  ]
+  expect_equal(nrow(cobertura_zonas), 1L)
+  expect_match(cobertura_zonas$motivo, "no aplica")
 
   ruta <- lupa:::.grupos_casi_duplicados_vocabulario(
     c(rep("Ruta 5", 100), rep("Ruta 05", 10)),
@@ -280,9 +285,13 @@ test_that("un grupo que abarca casi todo el vocabulario no se entrega", {
     perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario", ,
     drop = FALSE
   ]
-  expect_equal(nrow(hallazgo), 1L)
-  expect_match(hallazgo$descripcion, "no aplica")
-  expect_match(hallazgo$evidencia, "grupo_maximo")
+  expect_equal(nrow(hallazgo), 0L)
+  cobertura <- perfil$cobertura_diagnosticos[
+    perfil$cobertura_diagnosticos$diagnostico ==
+      "casi_duplicados_vocabulario", , drop = FALSE
+  ]
+  expect_equal(nrow(cobertura), 1L)
+  expect_match(cobertura$motivo, "no aplica")
 })
 
 test_that("el detector de vocabulario se puede apagar", {
@@ -310,7 +319,8 @@ test_that("declara cuando la estrella no tiene asimetria", {
   expect_match(hallazgo$evidencia, "sin_asimetria")
   expect_match(hallazgo$sugerencia, "detectar_duplicados_aproximados")
   expect_match(hallazgo$evidencia, "pares cercanos")
-  expect_true(is.na(hallazgo$n_afectados))
+  expect_equal(as.character(hallazgo$severidad), "ok")
+  expect_equal(hallazgo$n_afectados, 0)
 })
 
 test_that("la ceguera de la estrella no oculta fusiones exactas", {
