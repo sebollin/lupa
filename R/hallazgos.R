@@ -851,7 +851,13 @@
     ceros_no_permitidos = as.numeric(fila$n_ceros),
     negativos_no_permitidos = as.numeric(fila$n_negativos),
     outliers = as.numeric(fila$n_outliers),
+    celdas_multivaluadas = if (length(resultado$multivaluados)) {
+      sum(vapply(resultado$multivaluados, `[[`, numeric(1L), "n_celdas"))
+    } else 0,
     numero_como_texto = as.numeric(fila$n_numeros_texto),
+    unidades_mixtas = if (!is.null(resultado$numeros_texto$unidades)) {
+      sum(resultado$numeros_texto$unidades)
+    } else NA_real_,
     zona_horaria_fecha_hora = as.numeric(fila$n_filas_fecha_civil_distinta_utc),
     geometria_invalida = as.numeric(fila$n_geometrias_invalidas),
     geometria_vacia = as.numeric(fila$n_geometrias_vacias),
@@ -1046,6 +1052,18 @@
       if (is.null(partes)) NULL else which(
         !is.na(texto) & nzchar(texto) & partes$compatible & partes$especial
       )
+    },
+    unidades_mixtas = if (is.null(texto)) NULL else {
+      partes <- tryCatch(.componentes_numero_texto_optimizado(texto),
+                         error = function(e) NULL)
+      if (is.null(partes)) NULL else which(
+        !is.na(texto) & nzchar(texto) & partes$compatible &
+          nzchar(partes$unidad)
+      )
+    },
+    celdas_multivaluadas = if (is.null(resultado$multivaluados)) NULL else {
+      unlist(lapply(resultado$multivaluados, `[[`, "indices"),
+             use.names = FALSE)
     },
     zona_horaria_fecha_hora = if (inherits(x, "POSIXt")) {
       presentes <- !is.na(x)
@@ -1708,6 +1726,51 @@
           "Confirmar la convenci\u00f3n decimal y la unidad antes de convertir."
         }
       ))
+    }
+
+    unidades <- resultado$numeros_texto$unidades
+    if (length(unidades) > 1L) {
+      evidencia_unidades <- paste(
+        paste0(names(unidades), " (", as.integer(unidades), ")"),
+        collapse = "; "
+      )
+      agregar(.nuevo_hallazgo(
+        nombre, "unidades_mixtas", "sospechoso",
+        paste0(
+          "La columna numerica escrita como texto mezcla dos o mas sufijos ",
+          "de unidad; el perfil no los convierte ni supone equivalencias."
+        ),
+        paste0(
+          "Unidades observadas: ", evidencia_unidades,
+          "; celdas con unidad: ", sum(unidades)
+        ),
+        "Separar o normalizar las unidades segun una regla declarada antes de sumar o comparar los valores."
+      ))
+    }
+
+    if (length(resultado$multivaluados)) {
+      for (multivaluado in resultado$multivaluados) {
+        distribucion <- multivaluado$valores_por_celda
+        evidencia_celdas <- paste(
+          paste0(names(distribucion), " valores: ",
+                 as.integer(distribucion), " celdas"),
+          collapse = "; "
+        )
+        agregar(.nuevo_hallazgo(
+          nombre, "celdas_multivaluadas", "sospechoso",
+          paste0(
+            "Una minoria homogenea de celdas contiene varios valores; las ",
+            "partes comparten tipo y patron con el resto de la columna."
+          ),
+          paste0(
+            "Delimitador: ", multivaluado$delimitador,
+            "; celdas: ", multivaluado$n_celdas,
+            "; ", evidencia_celdas,
+            "; valores separados: ", multivaluado$n_valores
+          ),
+          "Separar los valores en filas o en una estructura relacionada antes de contar, unir o validar el dominio."
+        ))
+      }
     }
 
     if (identical(fila$estado_resumen_cuantitativo, "omitidos_precision")) {

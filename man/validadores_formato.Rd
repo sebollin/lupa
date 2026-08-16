@@ -2,6 +2,7 @@
 % Please edit documentation in R/validadores.R
 \name{validadores_formato}
 \alias{validadores_formato}
+\alias{validar_url}
 \alias{validar_iso3166}
 \alias{validar_iso4217}
 \alias{validar_correo}
@@ -9,6 +10,8 @@
 \alias{validar_mod97}
 \title{Validadores internacionales de sintaxis y dígitos de control}
 \usage{
+validar_url(x, esquema_obligatorio = TRUE)
+
 validar_iso3166(x, tipo = c("alpha2", "alpha3", "numerico"))
 
 validar_iso4217(x)
@@ -21,6 +24,10 @@ validar_mod97(x)
 }
 \arguments{
 \item{x}{Vector que se desea validar.}
+
+\item{esquema_obligatorio}{Si es \code{TRUE}, exige \verb{http://} o \verb{https://}.
+\code{TRUE} es el valor estricto por omisión; \code{FALSE} permite una URL con host
+sin esquema, como \code{ejemplo.uy}.}
 
 \item{tipo}{Forma de código ISO 3166: dos letras (\code{"alpha2"}), tres
 (\code{"alpha3"}) o tres dígitos (\code{"numerico"}). Los valores numéricos de uno o
@@ -43,6 +50,19 @@ ASCII habituales, seguida por un dominio DNS con al menos un punto. No
 admite comentarios, cadenas entre comillas ni literales de dominio válidos
 en la gramática completa de RFC 5322, y no prueba entrega ni existencia.
 
+\code{validar_url()} comprueba URLs jerárquicas con host y acepta sólo los
+esquemas \code{http} y \code{https}: son los esquemas de red que el paquete puede
+reconocer sin atribuir semántica a protocolos arbitrarios. \verb{javascript:} y
+\verb{data:} se rechazan deliberadamente, incluso si se parecen a una cadena con
+dos puntos. Por omisión el esquema es obligatorio; con
+\code{esquema_obligatorio = FALSE} también se acepta un host como \code{ejemplo.uy}.
+Se aceptan nombres de dominio Unicode (IDN) y nombres ASCII en punycode,
+puertos entre 1 y 65535, rutas, consultas y fragmentos con codificación
+porcentual válida. No se consultan DNS ni se afirma que el recurso exista.
+Los espacios, separadores Unicode y caracteres de control literales hacen
+que el valor sea inválido; un espacio porcentualmente codificado sigue la
+sintaxis de una URL y no es un espacio literal.
+
 \code{validar_luhn()} acepta únicamente dígitos y aplica el algoritmo de Luhn.
 \code{validar_mod97()} acepta letras ASCII y dígitos, transforma las letras a
 \verb{A = 10, ..., Z = 35} y exige resto 1 conforme a ISO 7064 MOD 97-10. No
@@ -53,6 +73,8 @@ propia.
 validar_iso3166(c("UY", "CL", "ZZ"))
 validar_iso4217(c("UYU", "CLP", "ZZZ"))
 validar_correo(c("persona@example.org", "sin-arroba"))
+validar_url(c("https://ejemplo.uy", "ejemplo.uy"))
+validar_url("ejemplo.uy", esquema_obligatorio = FALSE)
 validar_luhn(c("79927398713", "79927398714"))
 validar_mod97(c("9999123456789012141490", "9999123456789012141491"))
 }

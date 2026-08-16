@@ -69,18 +69,18 @@
   ), " ", fixed = TRUE
 )[[1L]]
 
-.texto_validador <- function(x) {
+.texto_validador <- function(x, recortar = TRUE) {
   if (!is.atomic(x) || is.list(x)) {
     stop("`x` debe ser un vector atomico.", call. = FALSE)
   }
   texto <- as.character(x)
   valido <- !is.na(texto) & validUTF8(texto)
-  texto[valido] <- trimws(texto[valido])
+  if (isTRUE(recortar)) texto[valido] <- trimws(texto[valido])
   list(texto = texto, valido = valido)
 }
 
-.resultado_validador_vector <- function(x, evaluar) {
-  preparado <- .texto_validador(x)
+.resultado_validador_vector <- function(x, evaluar, recortar = TRUE) {
+  preparado <- .texto_validador(x, recortar = recortar)
   resultado <- rep(FALSE, length(preparado$texto))
   resultado[is.na(preparado$texto)] <- NA
   indices <- which(preparado$valido)
@@ -104,6 +104,19 @@
 #' admite comentarios, cadenas entre comillas ni literales de dominio válidos
 #' en la gramática completa de RFC 5322, y no prueba entrega ni existencia.
 #'
+#' `validar_url()` comprueba URLs jerárquicas con host y acepta sólo los
+#' esquemas `http` y `https`: son los esquemas de red que el paquete puede
+#' reconocer sin atribuir semántica a protocolos arbitrarios. `javascript:` y
+#' `data:` se rechazan deliberadamente, incluso si se parecen a una cadena con
+#' dos puntos. Por omisión el esquema es obligatorio; con
+#' `esquema_obligatorio = FALSE` también se acepta un host como `ejemplo.uy`.
+#' Se aceptan nombres de dominio Unicode (IDN) y nombres ASCII en punycode,
+#' puertos entre 1 y 65535, rutas, consultas y fragmentos con codificación
+#' porcentual válida. No se consultan DNS ni se afirma que el recurso exista.
+#' Los espacios, separadores Unicode y caracteres de control literales hacen
+#' que el valor sea inválido; un espacio porcentualmente codificado sigue la
+#' sintaxis de una URL y no es un espacio literal.
+#'
 #' `validar_luhn()` acepta únicamente dígitos y aplica el algoritmo de Luhn.
 #' `validar_mod97()` acepta letras ASCII y dígitos, transforma las letras a
 #' `A = 10, ..., Z = 35` y exige resto 1 conforme a ISO 7064 MOD 97-10. No
@@ -114,6 +127,9 @@
 #' @param tipo Forma de código ISO 3166: dos letras (`"alpha2"`), tres
 #'   (`"alpha3"`) o tres dígitos (`"numerico"`). Los valores numéricos de uno o
 #'   dos dígitos se completan con ceros a la izquierda.
+#' @param esquema_obligatorio Si es `TRUE`, exige `http://` o `https://`.
+#'   `TRUE` es el valor estricto por omisión; `FALSE` permite una URL con host
+#'   sin esquema, como `ejemplo.uy`.
 #'
 #' @return Vector lógico de la misma longitud que `x`.
 #' @name validadores_formato
@@ -139,9 +155,155 @@
 #' validar_iso3166(c("UY", "CL", "ZZ"))
 #' validar_iso4217(c("UYU", "CLP", "ZZZ"))
 #' validar_correo(c("persona@example.org", "sin-arroba"))
+#' validar_url(c("https://ejemplo.uy", "ejemplo.uy"))
+#' validar_url("ejemplo.uy", esquema_obligatorio = FALSE)
 #' validar_luhn(c("79927398713", "79927398714"))
 #' validar_mod97(c("9999123456789012141490", "9999123456789012141491"))
 NULL
+
+.url_porcentaje_valido <- function(valor) {
+  grepl("^(?:[^%]|%[0-9A-Fa-f]{2})*$", valor, perl = TRUE)
+}
+
+.url_componentes_validos <- function(valor) {
+  .url_porcentaje_valido(valor) &&
+    !grepl("[<>\"{}|\\^`]", valor, perl = TRUE)
+}
+
+.url_ipv4_valido <- function(host) {
+  partes <- strsplit(host, ".", fixed = TRUE)[[1L]]
+  length(partes) == 4L && all(grepl("^[0-9]{1,3}$", partes, perl = TRUE)) &&
+    all(as.integer(partes) <= 255L)
+}
+
+.url_ipv6_valido <- function(host) {
+  if (!grepl("^[0-9A-Fa-f:.]+$", host, perl = TRUE) ||
+      !grepl(":", host, fixed = TRUE)) return(FALSE)
+  posiciones_compresion <- gregexpr("::", host, fixed = TRUE)[[1L]]
+  if (sum(posiciones_compresion > 0L) > 1L) return(FALSE)
+  comprimido <- grepl("::", host, fixed = TRUE)
+  grupos <- strsplit(host, ":", fixed = TRUE)[[1L]]
+  grupos <- grupos[nzchar(grupos)]
+  if (any(!grepl("^[0-9A-Fa-f]{1,4}$", grupos, perl = TRUE))) {
+    # La parte final puede ser una dirección IPv4 embebida.
+    ipv4 <- utils::tail(grupos, 1L)
+    if (!.url_ipv4_valido(ipv4)) return(FALSE)
+    grupos <- utils::head(grupos, -1L)
+    if (length(grupos) && any(!grepl("^[0-9A-Fa-f]{1,4}$", grupos,
+                                      perl = TRUE))) return(FALSE)
+    cantidad <- length(grupos) + 2L
+  } else {
+    cantidad <- length(grupos)
+  }
+  if (comprimido) cantidad < 8L else cantidad == 8L
+}
+
+.url_host_valido <- function(host) {
+  if (!nzchar(host)) return(FALSE)
+  if (startsWith(host, "[") || endsWith(host, "]")) {
+    return(startsWith(host, "[") && endsWith(host, "]") &&
+      .url_ipv6_valido(substr(host, 2L, nchar(host) - 1L)))
+  }
+  if (grepl("[\\[\\]:]", host, perl = TRUE)) return(FALSE)
+  if (grepl("^[0-9.]+$", host, perl = TRUE) && grepl("\\.", host, perl = TRUE)) {
+    return(.url_ipv4_valido(host))
+  }
+  host_sin_punto_final <- sub("\\.$", "", host)
+  if (!nzchar(host_sin_punto_final) || nchar(host, type = "bytes") > 253L) {
+    return(FALSE)
+  }
+  etiquetas <- strsplit(host_sin_punto_final, ".", fixed = TRUE)[[1L]]
+  all(nchar(etiquetas, type = "bytes") <= 63L) &&
+    all(grepl(
+      "^[\\p{L}\\p{N}](?:[\\p{L}\\p{N}\\p{M}-]*[\\p{L}\\p{N}\\p{M}])?$",
+      etiquetas, perl = TRUE
+    ))
+}
+
+.url_uno <- function(valor, esquema_obligatorio) {
+  if (!nzchar(valor) ||
+      grepl("[[:space:]]|\\p{Z}|\\p{Cc}", valor, perl = TRUE) ||
+      !.url_porcentaje_valido(valor)) return(FALSE)
+
+  tiene_esquema <- grepl("^[A-Za-z][A-Za-z0-9+.-]*:", valor, perl = TRUE)
+  if (tiene_esquema) {
+    esquema <- tolower(sub(":.*$", "", valor, perl = TRUE))
+    if (!esquema %in% c("http", "https")) return(FALSE)
+    if (!grepl("^[A-Za-z][A-Za-z0-9+.-]*://", valor, perl = TRUE)) {
+      return(FALSE)
+    }
+    cuerpo <- sub("^[A-Za-z][A-Za-z0-9+.-]*://", "", valor, perl = TRUE)
+  } else {
+    if (isTRUE(esquema_obligatorio) || grepl("^//", valor, perl = TRUE)) {
+      return(FALSE)
+    }
+    cuerpo <- valor
+  }
+  if (!nzchar(cuerpo) || grepl("^/", cuerpo, perl = TRUE)) return(FALSE)
+
+  posicion <- regexpr("[/?#]", cuerpo, perl = TRUE)[[1L]]
+  if (posicion < 0L) {
+    autoridad <- cuerpo
+    resto <- ""
+  } else {
+    autoridad <- substr(cuerpo, 1L, posicion - 1L)
+    resto <- substr(cuerpo, posicion, nchar(cuerpo))
+  }
+  if (!nzchar(autoridad) || !.url_componentes_validos(resto)) return(FALSE)
+
+  usuario <- sub("@[^@]*$", "", autoridad, perl = TRUE)
+  host_puerto <- if (grepl("@", autoridad, fixed = TRUE)) {
+    sub("^.*@", "", autoridad, perl = TRUE)
+  } else autoridad
+  if (grepl("@", host_puerto, fixed = TRUE)) return(FALSE)
+  if (nzchar(usuario) && !.url_componentes_validos(usuario)) return(FALSE)
+
+  puerto <- ""
+  puerto_declarado <- FALSE
+  if (startsWith(host_puerto, "[")) {
+    cierre <- regexpr("]", host_puerto, fixed = TRUE)[[1L]]
+    if (cierre < 0L) return(FALSE)
+    host <- substr(host_puerto, 1L, cierre)
+    sufijo <- substr(host_puerto, cierre + 1L, nchar(host_puerto))
+    if (nzchar(sufijo)) {
+      if (!startsWith(sufijo, ":")) return(FALSE)
+      puerto_declarado <- TRUE
+      puerto <- substr(sufijo, 2L, nchar(sufijo))
+    }
+  } else {
+    posiciones_colon <- gregexpr(":", host_puerto, fixed = TRUE)[[1L]]
+    cantidad_colon <- sum(posiciones_colon > 0L)
+    if (cantidad_colon == 1L) {
+      host <- sub(":.*$", "", host_puerto, perl = TRUE)
+      puerto_declarado <- TRUE
+      puerto <- sub("^.*:", "", host_puerto, perl = TRUE)
+    } else if (cantidad_colon > 1L) {
+      return(FALSE)
+    } else {
+      host <- host_puerto
+    }
+  }
+  if (puerto_declarado &&
+      (!grepl("^[0-9]{1,5}$", puerto, perl = TRUE) ||
+       as.numeric(puerto) < 1 || as.numeric(puerto) > 65535)) return(FALSE)
+  .url_host_valido(host)
+}
+
+#' @rdname validadores_formato
+#' @export
+validar_url <- function(x, esquema_obligatorio = TRUE) {
+  if (!is.logical(esquema_obligatorio) ||
+      length(esquema_obligatorio) != 1L || is.na(esquema_obligatorio)) {
+    stop("`esquema_obligatorio` debe ser TRUE o FALSE.", call. = FALSE)
+  }
+  .resultado_validador_vector(
+    x,
+    function(valor) vapply(
+      valor, .url_uno, logical(1L), esquema_obligatorio = esquema_obligatorio
+    ),
+    recortar = FALSE
+  )
+}
 
 #' @rdname validadores_formato
 #' @export

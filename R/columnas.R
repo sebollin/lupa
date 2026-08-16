@@ -383,7 +383,10 @@
   )
   cuerpo <- texto
   cuerpo <- sub(patron_prefijo, "", cuerpo, perl = TRUE)
-  tiene_unidad <- grepl("(?:%|[[:alpha:]]+)$", cuerpo, perl = TRUE)
+  # Un sufijo de unidad se reconoce de forma deliberadamente acotada: `%` o
+  # una abreviatura alfabetica en minusculas. Las letras mayusculas pegadas al
+  # numero (`12A`, `13B`) se reservan para codigos, no para inventar unidades.
+  tiene_unidad <- grepl("(?:%|[[:lower:]]{1,8})$", cuerpo, perl = TRUE)
   unidad <- ifelse(
     compatible & tiene_unidad,
     sub("^.*?[[:space:]]*(%|[[:alpha:]]+)$", "\\1", cuerpo, perl = TRUE),
@@ -419,11 +422,138 @@
   )
 }
 
+.frecuencias_unidades_numero <- function(partes, presentes) {
+  unidades <- partes$unidad[presentes & partes$compatible & nzchar(partes$unidad)]
+  if (!length(unidades)) return(stats::setNames(integer(), character()))
+  niveles <- unique(unidades)
+  salida <- tabulate(match(unidades, niveles), nbins = length(niveles))
+  stats::setNames(as.integer(salida), niveles)
+}
+
+.tipo_parte_multivaluada <- function(valor) {
+  if (grepl("^[+]?[0-9]+$", valor, perl = TRUE)) return("numerico")
+  if (grepl("^[[:alnum:]]+$", valor, perl = TRUE) &&
+      grepl("[[:alpha:]]", valor, perl = TRUE) &&
+      grepl("[0-9]", valor, perl = TRUE)) return("alfanumerico")
+  "texto"
+}
+
+.patron_partes_multivaluada <- function(valores, expandir = FALSE) {
+  # La tabla publica es la misma evidencia que usa el perfil; el vector por
+  # parte se conserva solo para comparar homogeneidad dentro de una celda.
+  descubrir_patrones(
+    valores, distinguir_mayusculas = TRUE, expandir = expandir,
+    max_patrones = 100L, muestra = Inf, umbral_raro = 0
+  )
+  patrones <- gsub("[[:digit:]]", "9", valores, perl = TRUE)
+  patrones <- gsub("[[:lower:]]", "a", patrones, perl = TRUE)
+  patrones <- gsub("[[:upper:]]", "A", patrones, perl = TRUE)
+  if (!isTRUE(expandir)) {
+    patrones <- gsub("9{2,}", "9+", patrones, perl = TRUE)
+    patrones <- gsub("a{2,}", "a+", patrones, perl = TRUE)
+    patrones <- gsub("A{2,}", "A+", patrones, perl = TRUE)
+  }
+  patrones
+}
+
+.detectar_multivaluados <- function(x) {
+  vacio <- list()
+  if (!is.character(x) && !is.factor(x)) return(vacio)
+  textos <- as.character(x)
+  presentes <- !is.na(textos) & nzchar(trimws(textos))
+  n_presentes <- sum(presentes)
+  if (n_presentes < 2L) return(vacio)
+
+  candidatos <- list()
+  for (delimitador in c(",", ";", "|")) {
+    indices <- which(presentes & grepl(delimitador, textos, fixed = TRUE))
+    if (!length(indices)) next
+    partes_por_celda <- lapply(indices, function(indice) {
+      partes <- trimws(strsplit(textos[[indice]], delimitador, fixed = TRUE)[[1L]])
+      if (length(partes) < 2L || any(!nzchar(partes))) character() else partes
+    })
+    validas <- lengths(partes_por_celda) >= 2L
+    if (!any(validas)) next
+    indices <- indices[validas]
+    partes_por_celda <- partes_por_celda[validas]
+    if (delimitador == ",") {
+      # No convertir un decimal o un separador de miles en una lista de
+      # valores: si la celda completa ya es un numero regional, se excluye.
+      numericas <- vapply(textos[indices], function(valor) {
+        .componentes_numero_texto(valor)$compatible
+      }, logical(1L))
+      indices <- indices[!numericas]
+      partes_por_celda <- partes_por_celda[!numericas]
+    }
+    if (!length(indices)) next
+    partes <- unlist(partes_por_celda, use.names = FALSE)
+    tipos <- vapply(partes, .tipo_parte_multivaluada, character(1L))
+    tipo_dominante <- unique(tipos)
+    if (length(tipo_dominante) != 1L ||
+        !tipo_dominante %in% c("numerico", "alfanumerico")) next
+    patron_expandido <- .patron_partes_multivaluada(partes, expandir = TRUE)
+    patron_comprimido <- .patron_partes_multivaluada(partes, expandir = FALSE)
+    homogeneas <- if (tipo_dominante == "numerico") {
+      length(unique(patron_comprimido)) == 1L &&
+        (max(nchar(partes)) - min(nchar(partes)) <= 2L)
+    } else {
+      length(unique(patron_expandido)) == 1L &&
+        length(unique(nchar(partes))) == 1L
+    }
+    if (!homogeneas) next
+
+    indices_resto <- which(presentes & !grepl(
+      "[,;|]", textos, perl = TRUE
+    ))
+    if (length(indices_resto)) {
+      resto <- trimws(textos[indices_resto])
+      tipos_resto <- vapply(resto, .tipo_parte_multivaluada, character(1L))
+      resto <- resto[tipos_resto == tipo_dominante]
+      if (!length(resto)) next
+      patrones_resto <- .patron_partes_multivaluada(
+        resto, expandir = tipo_dominante != "numerico"
+      )
+      patrones_referencia <- if (tipo_dominante == "numerico") {
+        unique(patron_comprimido)
+      } else unique(patron_expandido)
+      if (!all(patrones_resto %in% patrones_referencia)) next
+    }
+    if (length(indices) > max(1L, floor(n_presentes / 2L))) next
+    candidatos[[length(candidatos) + 1L]] <- list(
+      delimitador = delimitador,
+      indices = indices,
+      n_celdas = length(indices),
+      valores_por_celda = table(lengths(partes_por_celda)),
+      n_valores = length(partes)
+    )
+  }
+  if (!length(candidatos)) return(vacio)
+  indices <- sort(unique(unlist(lapply(candidatos, `[[`, "indices"))))
+  distribuciones <- lapply(candidatos, `[[`, "valores_por_celda")
+  niveles <- sort(unique(as.integer(unlist(lapply(
+    distribuciones, names
+  )))))
+  frecuencias_valores <- stats::setNames(vapply(niveles, function(n) {
+    sum(vapply(distribuciones, function(distribucion) {
+      valor <- distribucion[[as.character(n)]]
+      if (is.null(valor)) 0L else as.integer(valor)
+    }, integer(1L)))
+  }, integer(1L)), as.character(niveles))
+  list(list(
+    delimitador = paste(vapply(candidatos, `[[`, character(1L), "delimitador"),
+                        collapse = " / "),
+    indices = indices,
+    n_celdas = length(indices),
+    valores_por_celda = frecuencias_valores,
+    n_valores = sum(vapply(candidatos, `[[`, numeric(1L), "n_valores"))
+  ))
+}
+
 .analizar_numeros_texto_directo <- function(x, umbral_compatibilidad = 0.8) {
   vacio <- list(
     n = 0L, proporcion = NA_real_, ambiguo = FALSE, seguro = FALSE,
     evidencia = "", unidad = "", moneda = "", convencion = "",
-    n_presentes = 0L
+    unidades = stats::setNames(integer(), character()), n_presentes = 0L
   )
   if (!is.character(x) && !is.factor(x)) return(vacio)
   textos <- as.character(x)
@@ -487,6 +617,7 @@
     unidad = if (length(unidades_no_vacias) == 1L) unidades_no_vacias else "",
     moneda = if (length(monedas_no_vacias) == 1L) monedas_no_vacias else "",
     convencion = convencion,
+    unidades = .frecuencias_unidades_numero(partes, presentes),
     n_presentes = n_presentes
   )
 }
@@ -500,7 +631,7 @@
   vacio <- list(
     n = 0L, proporcion = NA_real_, ambiguo = FALSE, seguro = FALSE,
     evidencia = "", unidad = "", moneda = "", convencion = "",
-    n_presentes = 0L
+    unidades = stats::setNames(integer(), character()), n_presentes = 0L
   )
   if (!is.character(x) && !is.factor(x)) return(vacio)
   textos <- as.character(x)
@@ -604,6 +735,7 @@
     unidad = if (length(unidades_no_vacias) == 1L) unidades_no_vacias else "",
     moneda = if (length(monedas_no_vacias) == 1L) monedas_no_vacias else "",
     convencion = convencion,
+    unidades = .frecuencias_unidades_numero(partes, presentes),
     n_presentes = n_presentes
   )
 }
@@ -1010,6 +1142,9 @@
     directo = is.null(vocabulario_texto) &&
       (is.character(x_analisis) || is.factor(x_analisis))
   )
+  multivaluados <- if (is.character(x_analisis) || is.factor(x_analisis)) {
+    .detectar_multivaluados(x_analisis)
+  } else list()
   n_blancos <- if (is.character(x_analisis) || is.factor(x_analisis)) {
     sum(!is.na(x_analisis) & !nzchar(trimws(as.character(x_analisis))))
   } else {
@@ -1129,6 +1264,7 @@
     faltantes_disfrazados = faltantes_disfrazados,
     diagnostico_texto = diagnostico_texto,
     numeros_texto = numeros_texto,
+    multivaluados = multivaluados,
     geometria = geometria
   )
 }

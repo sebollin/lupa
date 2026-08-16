@@ -1,5 +1,16 @@
 # lupa 0.1.0
 
+## URLs, unidades y celdas multivaluadas
+
+- `validar_url()` valida de forma vectorizada URLs `http` y `https`, con
+  esquema obligatorio por omisión, soporte para IDN y puertos, y rechazo
+  deliberado de `javascript:`, `data:`, espacios y controles literales.
+- `perfilar()` informa `unidades_mixtas` cuando una columna numérica escrita
+  como texto combina sufijos de unidad, conservando sus frecuencias y sin
+  convertir datos. También informa `celdas_multivaluadas` sólo cuando las
+  partes homogéneas pasan el control de patrones y tipo; nombres y direcciones
+  con comas no se presentan como listas.
+
 ## Relaciones aritméticas entre columnas
 
 - Reconoce una regularidad mediante un único soporte declarado
