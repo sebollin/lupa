@@ -10,32 +10,30 @@
 
 ## Test environments
 
+> **Not ready for submission.** The sources changed after the last full round of
+> external checks. The local result below is from the current sources; the
+> Windows and macOS builder runs were resubmitted for these same sources and
+> their results must be recorded here before this package is uploaded.
+
 Every result below is from a run of one build of these exact sources, with no
 change to the package between them. `R CMD build` stamps `Packaged:` into
 `DESCRIPTION`, so two builds of identical sources are never byte-identical; the
 claim is about the sources, which is what can be checked.
 
-* win-builder, R 4.6.1 (2026-06-24 ucrt), x86_64-w64-mingw32 — 1 NOTE
-  (new submission); examples and tests OK.
-* win-builder, R-devel (2026-08-14 r90407 ucrt), x86_64-w64-mingw32 — 1 NOTE
-  (new submission); examples and tests OK.
-* macOS builder, R 4.6.1, macOS 26.6, **arm64 (Apple M1)** — Status: OK, no
-  errors, warnings or notes; examples and tests OK.
-* R-hub v2, R-devel: Ubuntu Linux x86_64, Windows x86_64 and macOS x86_64 —
-  Status: OK on all three, no errors, warnings or notes.
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — 0 errors, 0 warnings,
-  2 notes (new submission; no `tidy` executable in this environment).
+  2 notes (new submission; no `tidy` executable in this environment). Examples
+  OK; tests OK in 98s; vignettes rebuilt; PDF manual OK.
+* win-builder, R 4.6.1 and R-devel, x86_64-w64-mingw32 — resubmitted, result
+  pending.
+* macOS builder, R 4.6.1, macOS, arm64 (Apple M1) — resubmitted, result pending.
+* R-hub v2, R-devel: Ubuntu Linux x86_64, Windows x86_64 and macOS x86_64 —
+  pending.
 * Continuous integration (GitHub Actions, `R-CMD-check`): Ubuntu with R release,
-  R-devel and R oldrel-1, plus macOS and Windows with R release — 5 of 5 green.
+  R-devel and R oldrel-1, plus macOS and Windows with R release — pending.
 * Container: R 3.6.3 (`rocker/r-ver:3.6.3`) for the declared minimum, against a
   2023-04-15 CRAN snapshot with `cli` 3.6.1, run with
   `--ignore-vignettes --no-tests --no-manual` and `_R_CHECK_FORCE_SUGGESTS_=false`
-  — 0 errors, 0 warnings, 3 notes, and `checking examples` OK. The three notes
-  are properties of that environment, not of the package: eleven suggested
-  packages have no installable build for R 3.6 in that snapshot, one Rd
-  cross-reference to `tibble` therefore cannot be resolved, and the shipped data
-  contains one marked UTF-8 string. Vignettes, tests and the manual are checked
-  under R 4.6.1 and on the services above.
+  — pending.
 
 The snapshot date matters and is not arbitrary: `DESCRIPTION` declares
 `cli (>= 3.0.0)`, and `cli` 3.0.0 was published in 2021, so any earlier CRAN
@@ -61,13 +59,23 @@ its MIT copyright and license notice are recorded in `LICENSE.note`. Five
 deliberate departures from ftfy are declared in `NEWS.md`.
 
 A diagnostic that cannot run is never reported as a finding about the data. When
-an optional package is absent, or when a date-time column carries no declared
-time zone, the profile records the fact in `cobertura_diagnosticos` — a table
-separate from `hallazgos` and outside the ordered `ok < sospechoso < error`
-severity scale — and the per-column scope field is `NA` rather than zero. A
-profile with no findings and a non-empty `cobertura_diagnosticos` is therefore
-not a clean profile, and the documentation says so where an automated consumer
-will read it.
+an optional package is absent, when a date-time column carries no declared time
+zone, or when a vocabulary comparison is truncated or does not apply, the profile
+records the fact in `cobertura_diagnosticos` — a table separate from `hallazgos`
+and outside the ordered `ok < sospechoso < error` severity scale — and the
+per-column scope field is `NA` rather than zero. A diagnostic that did run and
+found nothing is reported at severity `ok` with zero affected units, never as a
+suspicion. A profile with no findings and a non-empty `cobertura_diagnosticos` is
+therefore not a clean profile, and the documentation says so where an automated
+consumer will read it.
+
+The package ships a battery of clean tables as a regression test: thirty-one
+tables of correct data covering the idioms a naive detector confuses — names with
+commas, addresses, decimal commas, dates stored as text, sequential identifiers,
+zero-padded codes, e-mail addresses, URLs, a single currency, a single unit and
+accented Spanish. The test asserts that no finding of severity `error` is raised
+on any of them and enumerates, one by one, the findings above `ok` whose claim is
+true of the data, so that a new false positive makes the suite fail.
 
 The internal `.con_rng_interno_lsh()` uses a fixed seed so that MinHash and LSH
 remain reproducible without depending on the caller's RNG configuration. It
@@ -94,6 +102,14 @@ An earlier R 3.6.3 run found two further compatibility defects, both fixed:
 text-oriented methods, so all operational metric inputs pass through a
 factor-to-character boundary while profiling retains the declared factor type.
 The Date-to-POSIXct historical conversion sets `tzone` to `UTC` explicitly.
+
+The quality frameworks shipped with the package are taxonomies, not measurements.
+`marco_cepal()` declares the four levels and nineteen principles of the United
+Nations National Quality Assurance Framework as adapted for Latin America and the
+Caribbean by the CEA/CEPAL; thirteen of the nineteen are declared out of scope
+for a table, because they concern the statistical system, the institution and the
+process rather than the data, and `cobertura_analisis()` reports them as such.
+None of the nineteen is reported as measured by profiling.
 
 Package documentation, help pages and vignettes are written in Spanish, as
 declared by `Language: es`. `DESCRIPTION`, `NEWS.md` and this file are in
