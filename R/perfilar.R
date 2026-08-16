@@ -58,6 +58,20 @@
 #' las filas de la tabla, pero los estadísticos por valor quedan en `NA` y un
 #' hallazgo explica que deben separarse en columnas con semántica explícita.
 #'
+#' La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
+#' valores finitos, para no agregar cobertura a columnas que ni siquiera son
+#' candidatas. Antes de comparar exige variación, que la columna no parezca un
+#' identificador ni una secuencia correlativa, al menos 100 observaciones
+#' positivas utilizables, una proporción de positivos igual a 1 y tres órdenes
+#' de magnitud según `log10(max/min)`. Si falla alguna precondición no emite un
+#' hallazgo: la enumera en `cobertura_diagnosticos`. Si aplica,
+#' `meta$benford$resultados` conserva la distribución observada y esperada por
+#' primer dígito, el chi-cuadrado de Pearson, ocho grados de libertad y el valor
+#' p; `meta$benford$umbrales` publica todos los cortes. Un valor p menor que
+#' `0.01` genera `desviacion_benford` como señal descriptiva para revisar, no
+#' como evidencia de fraude o manipulación. Topes administrativos, redondeos,
+#' precios psicológicos y subsidios de monto fijo son explicaciones posibles.
+#'
 #' Las relaciones aritméticas se buscan sólo entre columnas numéricas
 #' declaradas y con variación: `Date`, `POSIXt`, `difftime`, `integer64`, texto
 #' numérico y columnas constantes no participan. Cada relación requiere al
@@ -677,6 +691,20 @@ perfilar <- function(datos,
     )
   }
   attr(hallazgos, "cobertura_diagnosticos") <- NULL
+  benford <- .diagnosticar_benford(datos, columnas, hallazgos)
+  if (nrow(benford$cobertura)) {
+    cobertura_diagnosticos <- rbind(
+      cobertura_diagnosticos, benford$cobertura
+    )
+  }
+  if (length(benford$hallazgos)) {
+    hallazgos <- do.call(rbind, c(list(hallazgos), benford$hallazgos))
+    hallazgos$severidad <- factor(
+      as.character(hallazgos$severidad),
+      levels = c("ok", "sospechoso", "error"), ordered = TRUE
+    )
+    rownames(hallazgos) <- NULL
+  }
   datos_personales <- .detectar_datos_personales(
     datos, nombres, resultados,
     validadores = validadores_personales,
@@ -770,6 +798,9 @@ perfilar <- function(datos,
     normalizacion_resumen = .normalizacion_resumen(normalizacion_resuelta),
     normalizacion_fusiones = normalizacion_fusiones
   )
+  if (!is.null(benford$meta)) {
+    meta$benford <- benford$meta
+  }
   if (length(relaciones_aritmeticas$hallazgos) ||
       isTRUE(relaciones_aritmeticas$alcance$truncado)) {
     meta$aritmetica_columnas <- relaciones_aritmeticas$alcance

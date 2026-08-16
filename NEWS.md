@@ -1,5 +1,19 @@
 # lupa 0.1.0
 
+## Ley de Benford con aplicabilidad explícita
+
+- `perfilar()` evalúa la ley de Benford solamente en columnas numéricas con
+  suficiente evidencia inicial. Antes de comparar exige variación, ausencia de
+  apariencia de identificador (incluidas secuencias correlativas), al menos
+  100 valores positivos, todos los valores finitos positivos y tres órdenes de
+  magnitud. Las precondiciones y
+  sus umbrales quedan en `meta$benford`; las que fallan se declaran en
+  `cobertura_diagnosticos` y no producen hallazgos.
+- Cuando aplica, el perfil conserva la distribución observada y esperada por
+  primer dígito, el chi-cuadrado de Pearson y su valor p. Una desviación se
+  presenta como señal descriptiva para revisar, nunca como acusación de fraude
+  o manipulación.
+
 ## URLs, unidades y celdas multivaluadas
 
 - `validar_url()` valida de forma vectorizada URLs `http` y `https`, con

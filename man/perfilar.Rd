@@ -269,6 +269,20 @@ Las columnas matriciales se conservan como una unidad por fila: \code{n} informa
 las filas de la tabla, pero los estadísticos por valor quedan en \code{NA} y un
 hallazgo explica que deben separarse en columnas con semántica explícita.
 
+La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
+valores finitos, para no agregar cobertura a columnas que ni siquiera son
+candidatas. Antes de comparar exige variación, que la columna no parezca un
+identificador ni una secuencia correlativa, al menos 100 observaciones
+positivas utilizables, una proporción de positivos igual a 1 y tres órdenes
+de magnitud según \code{log10(max/min)}. Si falla alguna precondición no emite un
+hallazgo: la enumera en \code{cobertura_diagnosticos}. Si aplica,
+\code{meta$benford$resultados} conserva la distribución observada y esperada por
+primer dígito, el chi-cuadrado de Pearson, ocho grados de libertad y el valor
+p; \code{meta$benford$umbrales} publica todos los cortes. Un valor p menor que
+\code{0.01} genera \code{desviacion_benford} como señal descriptiva para revisar, no
+como evidencia de fraude o manipulación. Topes administrativos, redondeos,
+precios psicológicos y subsidios de monto fijo son explicaciones posibles.
+
 Las relaciones aritméticas se buscan sólo entre columnas numéricas
 declaradas y con variación: \code{Date}, \code{POSIXt}, \code{difftime}, \code{integer64}, texto
 numérico y columnas constantes no participan. Cada relación requiere al
