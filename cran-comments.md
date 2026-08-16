@@ -23,8 +23,10 @@ claim is about the sources, which is what can be checked.
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — 0 errors, 0 warnings,
   2 notes (new submission; no `tidy` executable in this environment). Examples
   OK; tests OK in 98s; vignettes rebuilt; PDF manual OK.
-* win-builder, R 4.6.1 and R-devel, x86_64-w64-mingw32 — resubmitted, result
-  pending.
+* win-builder, R-devel (2026-08-15 r90413 ucrt), x86_64-w64-mingw32 — 1 NOTE
+  (new submission), no URL notes; examples OK, tests OK in 367s, vignettes
+  rebuilt, HTML manual OK.
+* win-builder, R 4.6.1, x86_64-w64-mingw32 — resubmitted, result pending.
 * macOS builder, R 4.6.1, macOS, arm64 (Apple M1) — resubmitted, result pending.
 * R-hub v2, R-devel: Ubuntu Linux x86_64, Windows x86_64 and macOS x86_64 —
   pending.
