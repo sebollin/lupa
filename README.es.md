@@ -40,6 +40,19 @@ Los nombres públicos son españoles tanto en los ejemplos como en la ayuda:
 
 - Perfila una entrega y muestra faltantes, tipos, patrones, fechas y evidencia
   de datos personales.
+- Perfila geometrías `sf` y declara CRS, familias geométricas, vacíos, validez
+  planar, dominio de coordenadas y alcance de la caja envolvente; no hace
+  análisis espacial.
+- Evalúa la ley de Benford sólo cuando se cumplen sus precondiciones y registra
+  los casos no aplicables en `cobertura_diagnosticos`.
+- Informa `unidades_mixtas` y `monedas_mixtas` en una columna sin convertir
+  valores ni suponer tasas de cambio.
+- Informa `celdas_multivaluadas` sólo cuando las partes homogéneas coinciden
+  con los patrones de la columna.
+- Encuentra `relacion_aritmetica_columnas` como identidades o proporciones
+  observadas entre columnas numéricas, no como reglas del dominio.
+- Encuentra `relacion_orden_columnas` entre columnas comparables y declara el
+  alcance de la comparación.
 - Encuentra claves, relaciones, dependencias y granularidades de medición que
   nunca fueron declaradas.
 - Permite que cada proyecto defina su marco de calidad, sin imponer un puntaje
@@ -108,9 +121,10 @@ viñetas enlazadas son el manual detallado. Esta tabla es el mapa breve:
 | Tarea | Funciones principales | Para leer más |
 | --- | --- | --- |
 | Mirar los datos por primera vez | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
+| Perfilar contra una base | `perfilar_dbi()` — agregados SQL de toda la tabla y un perfil de 93 campos sobre una muestra declarada; los alcances quedan separados | [Referencia](https://sebollin.github.io/lupa/reference/) |
 | Encontrar estructura no declarada | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Definir la calidad | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
-| Medir y evaluar | `medir()`, `agregar()`, `evaluar()`, `regla_evaluacion()`, `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
+| Definir la calidad | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
+| Medir y evaluar | `medir()`, `agregar()`, `evaluar()`, `regla_evaluacion()` con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
 | Limpiar sin romper nada | `planificar_limpieza()`, `guiar_limpieza()`, `aplicar()` | [Plan de limpieza](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
 | Encontrar duplicados aproximados | `detectar_duplicados_aproximados()`, `estimar_costo()` | [Escala y duplicados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
 | Reparar codificación dañada | `reparar_codificacion` mediante `planificar_limpieza()` y `aplicar()` | [Referencia de limpieza](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
@@ -135,9 +149,13 @@ dimensiones, unidades y reglas permanecen visibles. Una ponderación de fábrica
 sería decidir qué importa, así que `lupa` entrega los componentes y una receta,
 y deja los pesos a cada proyecto. El núcleo es universal y
 los catálogos son enchufables; [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
-v1.6 es una implementación de referencia, no un límite nacional. El paquete
-tiene un solo import obligatorio, [`cli`](https://cran.r-project.org/package=cli);
-[`stringdist`](https://cran.r-project.org/package=stringdist) es opcional.
+v1.6 es una implementación de referencia, no un límite nacional. El único
+import obligatorio es [`cli`](https://cran.r-project.org/package=cli). Los
+paquetes sugeridos habilitan estas capacidades: [`sf`](https://cran.r-project.org/package=sf)
+habilita el perfilado de geometrías; [`DBI`](https://cran.r-project.org/package=DBI)
+aporta la interfaz de bases y [`RSQLite`](https://cran.r-project.org/package=RSQLite)
+un backend para `perfilar_dbi()`. [`stringdist`](https://cran.r-project.org/package=stringdist)
+es opcional para comparar texto por proximidad.
 
 El trabajo que se puede paralelizar usa **dos hilos por defecto**, que es el tope
 que CRAN pide respetar. En su propia máquina puede subirlo, por llamada con

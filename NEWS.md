@@ -1,5 +1,24 @@
 # lupa 0.1.0
 
+## Marco CEA/CEPAL de aseguramiento de la calidad
+
+- `marco_cepal()` incorpora los cuatro niveles y diecinueve principios del
+  marco nacional de aseguramiento de la calidad de las Naciones Unidas,
+  adoptado y adaptado para América Latina y el Caribe por la CEA/CEPAL. Los
+  principios 1 a 13 quedan declarados fuera del alcance de una tabla; los
+  principios 14 a 19 quedan disponibles para documentar productos estadísticos,
+  sin afirmar que el profiling genérico los mida.
+
+## Severidad del vocabulario y escala de las relaciones
+
+- `casi_duplicados_vocabulario` queda como señal `sospechoso` sólo cuando
+  encuentra grupos; un resultado negativo queda como `ok` con cero afectados,
+  y un diagnóstico que no aplica se registra en `cobertura_diagnosticos`.
+- `relacion_orden_columnas` separa la escala de la relación fila a fila con un
+  solapamiento intercuartil mínimo de `0.1`. Una brecha con IQR cero conserva
+  una relación estable aunque los rangos no se solapen; ambos criterios y los
+  pares descartados o recuperados quedan en el alcance.
+
 ## Perfil de una muestra DBI con universo explícito
 
 - Se agrega `perfilar_dbi()` para separar los agregados SQL exactos sobre una

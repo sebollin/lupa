@@ -41,6 +41,19 @@ The public names are Spanish in both examples and help pages:
 
 - Profiles a delivery and surfaces missingness, types, patterns, dates, and
   personal-data evidence.
+- Profiles `sf` geometries and declares CRS, geometry families, emptiness,
+  planar validity, coordinate domain, and bounding-box scope; it does not
+  perform spatial analysis.
+- Applies Benford's law only when its preconditions hold, and records
+  non-applicability in `cobertura_diagnosticos`.
+- Reports `unidades_mixtas` and `monedas_mixtas` in a column without converting
+  values or assuming exchange rates.
+- Reports `celdas_multivaluadas` only when homogeneous parts match the
+  column's patterns.
+- Finds `relacion_aritmetica_columnas` as observed identities or proportions
+  between numeric columns, not as domain rules.
+- Finds `relacion_orden_columnas` between comparable columns and declares the
+  comparison scope.
 - Finds keys, relationships, dependencies, and measurement granularities that
   were never declared.
 - Lets a project define its own quality framework instead of forcing a global
@@ -108,9 +121,10 @@ linked vignettes are the detailed manual. This table is the short map:
 | Task | Main functions | Read more |
 | --- | --- | --- |
 | Look at data for the first time | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
+| Profile against a database | `perfilar_dbi()` — full-table SQL aggregates plus a 93-field profile from a declared sample; the scopes stay separate | [Reference](https://sebollin.github.io/lupa/reference/) |
 | Find undeclared structure | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Define quality | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Quality model](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
-| Measure and evaluate | `medir()`, `agregar()`, `evaluar()`, `regla_evaluacion()`, `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Quality model](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
+| Define quality | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Quality model](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
+| Measure and evaluate | `medir()`, `agregar()`, `evaluar()`, `regla_evaluacion()` with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Quality model](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
 | Clean safely | `planificar_limpieza()`, `guiar_limpieza()`, `aplicar()` | [Cleaning plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
 | Find approximate duplicates | `detectar_duplicados_aproximados()`, `estimar_costo()` | [Scale and duplicates](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
 | Repair encoding damage | `reparar_codificacion` through `planificar_limpieza()` and `aplicar()` | [Cleanup reference](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
@@ -135,9 +149,14 @@ dimensions, units, and rules stay visible. A factory weighting would be a
 verdict about what matters, so `lupa` exposes the components and a recipe and
 leaves the weights to each project. The core is universal and
 catalogues are pluggable; [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
-v1.6 is a reference implementation, not a country lock. The package has one
-required import, [`cli`](https://cran.r-project.org/package=cli);
-[`stringdist`](https://cran.r-project.org/package=stringdist) is optional.
+v1.6 is a reference implementation, not a country lock. The only required
+import is [`cli`](https://cran.r-project.org/package=cli). Suggested packages
+enable these capabilities: [`sf`](https://cran.r-project.org/package=sf)
+enables geometry profiling; [`DBI`](https://cran.r-project.org/package=DBI)
+provides the database interface and
+[`RSQLite`](https://cran.r-project.org/package=RSQLite) a backend for
+`perfilar_dbi()`. [`stringdist`](https://cran.r-project.org/package=stringdist)
+is optional for approximate text comparison.
 
 Work that can be parallelised uses **two threads by default**, the ceiling CRAN
 asks packages to respect. On your own machine you can raise it, per call with
