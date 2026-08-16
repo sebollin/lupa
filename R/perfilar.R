@@ -329,15 +329,12 @@
 #'   también puede ocultar relaciones reales entre magnitudes de rangos
 #'   distintos (por ejemplo, nacimiento y solicitud). Los pares descartados se
 #'   cuentan en `meta$orden_columnas$pares_descartados_magnitud`.
-#' @param umbral_aritmetica Cumplimiento mínimo para informar una regularidad
-#'   aritmética entre columnas numéricas por el criterio proporcional. El valor
-#'   por omisión es `0.995` y la proporción observada se publica en cada
-#'   evidencia.
-#' @param max_violaciones_aritmetica Máximo absoluto de filas discrepantes que
-#'   permite informar una regularidad aunque no alcance `umbral_aritmetica`.
-#'   Por omisión es `1`, para hacer visible una anomalía aislada en tablas
-#'   chicas sin bajar el umbral proporcional. Una candidata se informa si
-#'   cumple al menos uno de los dos criterios.
+#' @param umbral_aritmetica Proporción mínima de filas comparables que deben
+#'   satisfacer una identidad dentro de `tolerancia_aritmetica` para reconocer
+#'   una regularidad aritmética entre columnas numéricas. El valor por omisión
+#'   es `0.9`. Una vez reconocida la relación se informan todas sus
+#'   discrepancias, sin un segundo filtro por su cantidad absoluta. La
+#'   proporción y el criterio efectivos se publican en cada evidencia.
 #' @param min_filas_aritmetica Mínimo de filas comparables necesario para
 #'   evaluar una candidata aritmética. Por omisión es `3`.
 #' @param tolerancia_aritmetica Tolerancia numérica relativa escalada usada al
@@ -412,8 +409,7 @@ perfilar <- function(datos,
                      umbral_orden_columnas = 0.95,
                      max_columnas_orden = 20L,
                      umbral_solapamiento_orden = 0,
-                     umbral_aritmetica = 0.995,
-                     max_violaciones_aritmetica = 1L,
+                     umbral_aritmetica = 0.9,
                      min_filas_aritmetica = 3L,
                      tolerancia_aritmetica = 1e-8,
                      max_columnas_aritmetica = 20L,
@@ -500,16 +496,6 @@ perfilar <- function(datos,
       umbral_aritmetica > 1) {
     stop("`umbral_aritmetica` debe estar entre 0 y 1.", call. = FALSE)
   }
-  if (!is.numeric(max_violaciones_aritmetica) ||
-      length(max_violaciones_aritmetica) != 1L ||
-      is.na(max_violaciones_aritmetica) ||
-      !is.finite(max_violaciones_aritmetica) ||
-      max_violaciones_aritmetica < 0 ||
-      max_violaciones_aritmetica != floor(max_violaciones_aritmetica)) {
-    stop("`max_violaciones_aritmetica` debe ser un entero no negativo.",
-         call. = FALSE)
-  }
-  max_violaciones_aritmetica <- as.integer(max_violaciones_aritmetica)
   if (!is.numeric(min_filas_aritmetica) ||
       length(min_filas_aritmetica) != 1L ||
       is.na(min_filas_aritmetica) || !is.finite(min_filas_aritmetica) ||
@@ -630,7 +616,6 @@ perfilar <- function(datos,
   )
   relaciones_aritmeticas <- .detectar_aritmetica_columnas(
     datos, umbral = umbral_aritmetica,
-    max_violaciones = max_violaciones_aritmetica,
     min_filas = min_filas_aritmetica,
     tolerancia = tolerancia_aritmetica,
     max_columnas = max_columnas_aritmetica

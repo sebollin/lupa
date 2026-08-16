@@ -2,26 +2,28 @@
 
 ## Relaciones aritméticas entre columnas
 
-- Separa el criterio proporcional del límite absoluto de anomalías:
-  `umbral_aritmetica = 0.995` sigue protegiendo contra coincidencias, mientras
-  `max_violaciones_aritmetica = 1` permite informar una identidad exacta salvo
-  una fila aunque la tabla sea chica. La disyunción evita bajar el umbral —lo
-  que aflojaría los controles negativos— y rechaza, por ejemplo, diez fallos
-  en cincuenta filas. `min_filas_aritmetica` hace explícito el universo
-  mínimo; los tres valores quedan en la evidencia y el alcance.
+- Reconoce una regularidad mediante un único soporte declarado
+  (`umbral_aritmetica = 0.9`) dentro de la tolerancia y, una vez reconocida,
+  informa todas sus discrepancias sin aplicar un segundo filtro por su cantidad
+  absoluta: `max_violaciones_aritmetica` se elimina. El soporte, el universo
+  mínimo y la tolerancia quedan en la evidencia y el alcance.
 - `perfilar()` descubre identidades aditivas y proporcionalidades estables
   entre columnas numéricas y las presenta como evidencia observada, no como
   reglas del dominio. Cada hallazgo declara proporción de cumplimiento,
   universo de filas finitas, tolerancia numérica, constante proporcional y
   filas discrepantes.
-- `umbral_aritmetica`, `max_violaciones_aritmetica`,
-  `min_filas_aritmetica`, `tolerancia_aritmetica` y
+- `umbral_aritmetica`, `min_filas_aritmetica`, `tolerancia_aritmetica` y
   `max_columnas_aritmetica` hacen visibles los supuestos y el costo del
   diagnóstico. Si el límite de columnas recorta combinaciones,
   `cobertura_diagnosticos` lo declara explícitamente.
 
 ## Capa de marcos
 
+- `regla_evaluacion()` acepta `proporcion_minima` para declarar un veredicto
+  sobre la proporción de medidas que cumple la condición. El objeto conserva el
+  umbral; la evaluación muestra proporción, veredicto, componentes y universo,
+  sin ponderar medidas ni crear un puntaje global. Las reglas por medida
+  conservan su contrato y su estructura de salida.
 - `metrica()` acepta las etiquetas relacionales de `granularidades()` —por
   ejemplo, `"columna"`— y guarda siempre su equivalente canónico de la
   ontología (`"atributo"`). Un valor inválido muestra ambos vocabularios.

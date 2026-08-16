@@ -14,30 +14,31 @@ tabla_suma_r99 <- function(n, rotas = 1L) {
   data.frame(x, y, z)
 }
 
-test_that("el limite absoluto rescata una sola violacion en tablas chicas", {
-  tamanos <- c(50L, 150L, 199L, 200L, 1000L)
-  medicion <- lapply(tamanos, function(n) {
-    relaciones <- relaciones_aritmeticas_r99(tabla_suma_r99(n))
-    suma <- relaciones[
-      lengths(strsplit(relaciones$columna, ",", fixed = TRUE)) == 3L, ,
-      drop = FALSE
-    ]
-    data.frame(
-      n = n,
-      cumplimiento = (n - 1) / n,
-      informa = nrow(suma) == 1L
+test_that("una relacion reconocida informa todas sus violaciones", {
+  casos <- rbind(
+    expand.grid(n = 200L, rotas = 1:5),
+    expand.grid(n = 50L, rotas = 1:3)
+  )
+  for (i in seq_len(nrow(casos))) {
+    n <- casos$n[[i]]
+    rotas <- casos$rotas[[i]]
+    relaciones <- relaciones_aritmeticas_r99(tabla_suma_r99(n, rotas))
+    expect_equal(nrow(relaciones), 1L, info = paste(n, rotas))
+    expect_equal(relaciones$n_afectados, rotas, info = paste(n, rotas))
+    expect_equal(
+      relaciones$trazabilidad[[1L]]$indices_fila, seq_len(rotas),
+      info = paste(n, rotas)
     )
-  })
-  medicion <- do.call(rbind, medicion)
+  }
 
-  expect_equal(medicion$n, tamanos)
-  expect_equal(medicion$cumplimiento, (tamanos - 1) / tamanos)
-  expect_true(all(medicion$informa))
-
-  evidencia_50 <- relaciones_aritmeticas_r99(tabla_suma_r99(50L))$evidencia
-  expect_match(evidencia_50, "0.980 de cumplimiento", fixed = TRUE)
-  expect_match(evidencia_50, "cumplimiento >= 0.995", fixed = TRUE)
-  expect_match(evidencia_50, "discrepancias <= 1", fixed = TRUE)
+  evidencia_50 <- relaciones_aritmeticas_r99(tabla_suma_r99(50L, 3L))$evidencia
+  expect_match(evidencia_50, "0.940 de cumplimiento", fixed = TRUE)
+  expect_match(evidencia_50, "cumplimiento >= 0.9", fixed = TRUE)
+  expect_match(
+    evidencia_50,
+    "Una vez reconocida la relación, se informan todas sus discrepancias",
+    fixed = TRUE
+  )
   expect_match(evidencia_50, "al menos 3 filas comparables", fixed = TRUE)
 })
 
@@ -46,7 +47,7 @@ test_that("diez violaciones de cincuenta no forman una relacion", {
   expect_equal(nrow(relaciones), 0L)
 })
 
-test_that("los dos controles negativos siguen en cero", {
+test_that("ruido y correlacion sin identidad no generan relaciones", {
   set.seed(9901)
   ruido <- as.data.frame(replicate(10L, rnorm(200L)))
   expect_equal(nrow(relaciones_aritmeticas_r99(ruido)), 0L)
@@ -59,25 +60,37 @@ test_that("los dos controles negativos siguen en cero", {
   correlaciones <- stats::cor(correlacionadas)
   expect_gt(min(correlaciones[upper.tri(correlaciones)]), 0.99)
   expect_equal(nrow(relaciones_aritmeticas_r99(correlacionadas)), 0L)
+
+  set.seed(9903)
+  base <- seq_len(200L)
+  casi_identicas <- as.data.frame(replicate(
+    10L, base + rnorm(200L, sd = 0.05)
+  ))
+  correlaciones_extremas <- stats::cor(casi_identicas)
+  expect_gt(
+    min(correlaciones_extremas[upper.tri(correlaciones_extremas)]),
+    0.99999
+  )
+  expect_equal(nrow(relaciones_aritmeticas_r99(casi_identicas)), 0L)
 })
 
 test_that("los criterios aritmeticos son configurables y visibles", {
-  datos <- tabla_suma_r99(50L)
-  sin_rescate <- relaciones_aritmeticas_r99(
-    datos, max_violaciones_aritmetica = 0L
+  datos <- tabla_suma_r99(50L, 3L)
+  estricto <- relaciones_aritmeticas_r99(
+    datos, umbral_aritmetica = 0.95
   )
-  expect_equal(nrow(sin_rescate), 0L)
+  expect_equal(nrow(estricto), 0L)
+  expect_equal(nrow(relaciones_aritmeticas_r99(datos)), 1L)
+  expect_equal(nrow(relaciones_aritmeticas_r99(tabla_suma_r99(50L, 5L))), 1L)
+  expect_equal(nrow(relaciones_aritmeticas_r99(tabla_suma_r99(50L, 6L))), 0L)
 
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
   alcance <- perfil$meta$aritmetica_columnas
-  expect_equal(alcance$umbral_cumplimiento, 0.995)
-  expect_equal(alcance$max_violaciones, 1L)
+  expect_equal(alcance$umbral_cumplimiento, 0.9)
+  expect_false("max_violaciones" %in% names(alcance))
   expect_equal(alcance$minimo_filas_comparables, 3L)
 
-  expect_error(
-    perfilar(datos, max_violaciones_aritmetica = -1),
-    "max_violaciones_aritmetica"
-  )
+  expect_error(perfilar(datos, umbral_aritmetica = 0), "umbral_aritmetica")
   expect_error(
     perfilar(datos, min_filas_aritmetica = 2), "min_filas_aritmetica"
   )

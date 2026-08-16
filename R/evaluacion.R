@@ -17,6 +17,11 @@
 #' @param metricas Nombres de métricas instanciadas a las que se aplica la
 #'   regla, es decir, valores de la columna `metrica_instanciada`. `NULL`, el
 #'   valor predeterminado, aplica la condición a todas.
+#' @param proporcion_minima `NULL`, para conservar una regla por medida, o un
+#'   número entre `0` y `1` que declara la proporción mínima de medidas que
+#'   deben cumplir `condicion`. En este segundo caso la regla es agregada: el
+#'   umbral queda guardado en el objeto y [evaluar()] publica la proporción, el
+#'   veredicto y el universo de medidas que la produjo.
 #' @param umbrales Vector numérico con nombres, estrictamente creciente y en
 #'   `[0, 1]`. `NULL` conserva los tres perfiles incluidos de fábrica.
 #' @param ... Reglas creadas por `regla_evaluacion()` o una única lista que las
@@ -30,14 +35,21 @@
 #' @details `regla_evaluacion()` almacena la función sin ejecutarla. [evaluar()]
 #'   selecciona las medidas mediante `metricas`, llama una vez a `condicion` y
 #'   rechaza resultados que no sean lógicos, que tengan otra longitud o que
-#'   contengan `NA`. La función expresa un criterio de evaluación; no es un
-#'   método de medición ni recibe el data frame original. Si ningún nombre de
+#'   contengan `NA`. Si `proporcion_minima` no es `NULL`, calcula sobre esos
+#'   mismos lógicos la proporción que cumple y la compara mediante `>=` con el
+#'   umbral declarado; no pondera medidas ni construye un puntaje global. Las
+#'   evaluaciones que sólo contienen reglas por medida conservan su estructura
+#'   anterior. La función expresa un criterio de evaluación; no es un método de
+#'   medición ni recibe el data frame original. Si ningún nombre de
 #'   `metricas` coincide, el error enumera tanto los nombres solicitados como
 #'   las métricas instanciadas disponibles, que normalmente tienen la forma
 #'   `MetricaEspecifica@entidad.atributo`.
 #'
 #' @examples
 #' regla <- regla_evaluacion("Completitud suficiente", function(x) x > 0.9)
+#' regla_70 <- regla_evaluacion(
+#'   "Al menos 70 %", function(x) x > 0.9, proporcion_minima = 0.7
+#' )
 #' perfil <- perfil_evaluacion("Operativo", regla)
 #' madurez <- perfiles_madurez("NoNulo")
 #' propios <- perfiles_madurez(
@@ -51,7 +63,8 @@ NULL
 #' @rdname reglas_evaluacion
 #' @export
 #' @seealso [medir()], [evaluar()], [perfiles_madurez()]
-regla_evaluacion <- function(nombre, condicion, metricas = NULL) {
+regla_evaluacion <- function(nombre, condicion, metricas = NULL,
+                             proporcion_minima = NULL) {
   if (!.es_texto_escalar(nombre)) {
     stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
@@ -63,11 +76,22 @@ regla_evaluacion <- function(nombre, condicion, metricas = NULL) {
        any(!nzchar(metricas)))) {
     stop("`metricas` debe ser NULL o nombres no vac\u00edos.", call. = FALSE)
   }
+  if (!is.null(proporcion_minima) &&
+      (!is.numeric(proporcion_minima) || length(proporcion_minima) != 1L ||
+       is.na(proporcion_minima) || !is.finite(proporcion_minima) ||
+       proporcion_minima < 0 || proporcion_minima > 1)) {
+    stop("`proporcion_minima` debe ser NULL o un n\u00famero entre 0 y 1.",
+         call. = FALSE)
+  }
   estructura <- list(
     nombre = nombre,
     condicion = condicion,
     metricas = unique(metricas)
   )
+  if (!is.null(proporcion_minima)) {
+    estructura$nivel <- "agregado"
+    estructura$proporcion_minima <- as.numeric(proporcion_minima)
+  }
   class(estructura) <- "regla_evaluacion"
   estructura
 }
@@ -227,6 +251,45 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   resultado
 }
 
+.declarar_reglas_agregadas <- function(resumen, evaluaciones, perfil) {
+  es_agregada <- vapply(
+    perfil$reglas, function(regla) !is.null(regla$proporcion_minima),
+    logical(1L)
+  )
+  if (!any(es_agregada)) return(resumen)
+
+  resumen$nivel <- ifelse(
+    resumen$regla %in% names(perfil$reglas)[es_agregada],
+    "agregado", "medida"
+  )
+  resumen$n_cumplen <- integer(nrow(resumen))
+  resumen$universo <- character(nrow(resumen))
+  resumen$proporcion_minima <- NA_real_
+  resumen$cumple <- NA
+  for (i in seq_len(nrow(resumen))) {
+    indices <- evaluaciones$id_medicion == resumen$id_medicion[[i]] &
+      evaluaciones$perfil == resumen$perfil[[i]] &
+      evaluaciones$regla == resumen$regla[[i]]
+    componentes <- evaluaciones[indices, , drop = FALSE]
+    resumen$n_cumplen[[i]] <- sum(componentes$resultado)
+    metricas <- unique(componentes$metrica_instanciada)
+    resumen$universo[[i]] <- paste0(
+      nrow(componentes), " medidas seleccionadas: ",
+      paste(metricas, collapse = ", ")
+    )
+    regla <- perfil$reglas[[resumen$regla[[i]]]]
+    if (!is.null(regla$proporcion_minima)) {
+      resumen$proporcion_minima[[i]] <- regla$proporcion_minima
+      resumen$cumple[[i]] <-
+        resumen$resultado[[i]] >= regla$proporcion_minima
+    }
+  }
+  resumen[c(
+    "id_medicion", "fecha", "perfil", "regla", "nivel", "n_medidas",
+    "n_cumplen", "universo", "resultado", "proporcion_minima", "cumple"
+  )]
+}
+
 .resumir_evaluaciones_perfil <- function(evaluaciones) {
   clave <- interaction(
     evaluaciones$id_medicion, evaluaciones$perfil,
@@ -279,6 +342,9 @@ evaluar <- function(medicion, perfil) {
   }))
   rownames(evaluaciones_medidas) <- NULL
   evaluaciones_reglas <- .resumir_evaluaciones_regla(evaluaciones_medidas)
+  evaluaciones_reglas <- .declarar_reglas_agregadas(
+    evaluaciones_reglas, evaluaciones_medidas, perfil
+  )
   evaluaciones_perfiles <- .resumir_evaluaciones_perfil(evaluaciones_reglas)
   class(evaluaciones_medidas) <- c("evaluacion_medidas", "data.frame")
   class(evaluaciones_reglas) <- c("evaluacion_reglas", "data.frame")

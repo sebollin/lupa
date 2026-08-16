@@ -34,7 +34,7 @@ test_that("detecta suma rota y proporcionalidad con constante descubierta", {
   expect_match(proporcion$descripcion, "iva ~= neto * 0.22", fixed = TRUE)
   expect_match(proporcion$evidencia, "Constante observada k=0.22", fixed = TRUE)
   expect_match(proporcion$evidencia, "neto ~= iva / 0.22", fixed = TRUE)
-  expect_equal(perfil$meta$aritmetica_columnas$umbral_cumplimiento, 0.995)
+  expect_equal(perfil$meta$aritmetica_columnas$umbral_cumplimiento, 0.9)
   expect_equal(perfil$meta$aritmetica_columnas$tolerancia, 1e-8)
 })
 
@@ -66,20 +66,21 @@ test_that("umbral y tolerancia aritmeticos cambian resultados visiblemente", {
   y <- runif(200L, 30, 40)
   z <- x + y
   z[1:2] <- z[1:2] + 5
+  estricto_umbral <- perfilar(
+    data.frame(x, y, z), analizar_dependencias = FALSE,
+    umbral_aritmetica = 0.995
+  )
   predeterminado <- perfilar(
     data.frame(x, y, z), analizar_dependencias = FALSE
   )
-  flexible <- perfilar(
-    data.frame(x, y, z), analizar_dependencias = FALSE,
-    umbral_aritmetica = 0.99
-  )
-  expect_false(any(predeterminado$hallazgos$tipo_hallazgo ==
+  expect_false(any(estricto_umbral$hallazgos$tipo_hallazgo ==
                    "relacion_aritmetica_columnas"))
-  expect_true(any(flexible$hallazgos$tipo_hallazgo ==
+  expect_true(any(predeterminado$hallazgos$tipo_hallazgo ==
                   "relacion_aritmetica_columnas"))
   expect_match(
-    flexible$hallazgos$evidencia[
-      flexible$hallazgos$tipo_hallazgo == "relacion_aritmetica_columnas"
+    predeterminado$hallazgos$evidencia[
+      predeterminado$hallazgos$tipo_hallazgo ==
+        "relacion_aritmetica_columnas"
     ],
     "0.990 de cumplimiento", fixed = TRUE
   )
@@ -181,14 +182,14 @@ test_that("un perfil sin relaciones es identico sin el detector", {
     datos, fecha = fecha, analizar_dependencias = FALSE
   )
   testthat::local_mocked_bindings(
-    .detectar_aritmetica_columnas = function(datos, umbral, max_violaciones,
-                                              min_filas, tolerancia,
+    .detectar_aritmetica_columnas = function(datos, umbral, min_filas,
+                                              tolerancia,
                                               max_columnas) {
       list(
         hallazgos = list(),
         alcance = lupa:::.alcance_aritmetica_columnas(
-          datos, seq_along(datos), seq_along(datos), umbral,
-          max_violaciones, min_filas, tolerancia, max_columnas
+          datos, seq_along(datos), seq_along(datos), umbral, min_filas,
+          tolerancia, max_columnas
         ),
         cobertura = lupa:::.cobertura_diagnosticos_vacia()
       )
