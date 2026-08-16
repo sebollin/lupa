@@ -359,7 +359,7 @@
 
 .componentes_numero_texto <- function(x) {
   texto <- trimws(as.character(x))
-  prefijo <- "(?:[[:upper:]]{3}[[:space:]]+|\\p{Sc}[[:space:]]*)?"
+  prefijo <- "(?:[[:upper:]]{3}[[:space:]]+|U\\$S[[:space:]]+|\\p{Sc}[[:space:]]*)?"
   sufijo <- "[[:space:]]*(?:%|[[:alpha:]]+)?$"
   numero_coma <- paste0(
     "(?:[0-9]{1,3}(?:\\.[0-9]{3})+|[0-9]+)(?:,[0-9]+)?"
@@ -373,14 +373,38 @@
   compatible_punto <- !is.na(texto) & grepl(patron_punto, texto, perl = TRUE)
   compatible <- compatible_coma | compatible_punto
   patron_prefijo <- paste0(
-    "^[[:space:]]*(?:([[:upper:]]{3})[[:space:]]+|(\\p{Sc})[[:space:]]*)"
+    "^[[:space:]]*(?:[[:upper:]]{3}[[:space:]]+|U\\$S[[:space:]]+|\\p{Sc}[[:space:]]*)"
   )
-  tiene_moneda <- compatible & grepl(patron_prefijo, texto, perl = TRUE)
-  moneda <- ifelse(
-    tiene_moneda,
-    sub(paste0(patron_prefijo, ".*$"), "\\1\\2", texto, perl = TRUE),
-    ""
+  moneda <- rep("", length(texto))
+  patron_codigo_prefijo <- "^[[:space:]]*([[:upper:]]{3})[[:space:]]+"
+  codigo_prefijo <- compatible & grepl(
+    patron_codigo_prefijo, texto, perl = TRUE
   )
+  moneda[codigo_prefijo] <- sub(
+    paste0(patron_codigo_prefijo, ".*$"), "\\1", texto[codigo_prefijo],
+    perl = TRUE
+  )
+  patron_dolar_us_prefijo <- "^[[:space:]]*(U\\$S)[[:space:]]+"
+  dolar_us_prefijo <- compatible & grepl(
+    patron_dolar_us_prefijo, texto, perl = TRUE
+  )
+  moneda[dolar_us_prefijo] <- "U$S"
+  patron_simbolo_prefijo <- "^[[:space:]]*(\\p{Sc})[[:space:]]*"
+  simbolo_prefijo <- compatible & grepl(
+    patron_simbolo_prefijo, texto, perl = TRUE
+  )
+  moneda[simbolo_prefijo] <- sub(
+    paste0(patron_simbolo_prefijo, ".*$"), "\\1",
+    texto[simbolo_prefijo], perl = TRUE
+  )
+  patron_codigo_sufijo <- "[[:space:]]+([[:upper:]]{3})$"
+  codigo_sufijo <- compatible & grepl(patron_codigo_sufijo, texto, perl = TRUE)
+  sin_prefijo <- codigo_sufijo & !nzchar(moneda)
+  moneda[sin_prefijo] <- sub(
+    paste0("^.*", patron_codigo_sufijo), "\\1", texto[sin_prefijo],
+    perl = TRUE
+  )
+  tiene_moneda <- nzchar(moneda)
   cuerpo <- texto
   cuerpo <- sub(patron_prefijo, "", cuerpo, perl = TRUE)
   # Un sufijo de unidad se reconoce de forma deliberadamente acotada: `%` o
@@ -430,11 +454,22 @@
   stats::setNames(as.integer(salida), niveles)
 }
 
+.frecuencias_monedas_numero <- function(partes, presentes) {
+  monedas <- partes$moneda[presentes & partes$compatible & nzchar(partes$moneda)]
+  if (!length(monedas)) return(stats::setNames(integer(), character()))
+  niveles <- unique(monedas)
+  salida <- tabulate(match(monedas, niveles), nbins = length(niveles))
+  stats::setNames(as.integer(salida), niveles)
+}
+
 .tipo_parte_multivaluada <- function(valor) {
   if (grepl("^[+]?[0-9]+$", valor, perl = TRUE)) return("numerico")
   if (grepl("^[[:alnum:]]+$", valor, perl = TRUE) &&
       grepl("[[:alpha:]]", valor, perl = TRUE) &&
       grepl("[0-9]", valor, perl = TRUE)) return("alfanumerico")
+  if (grepl("^[+]?[0-9]{4,8}[-./][0-9]+$", valor, perl = TRUE)) {
+    return("identificador")
+  }
   "texto"
 }
 
@@ -490,7 +525,9 @@
     tipos <- vapply(partes, .tipo_parte_multivaluada, character(1L))
     tipo_dominante <- unique(tipos)
     if (length(tipo_dominante) != 1L ||
-        !tipo_dominante %in% c("numerico", "alfanumerico")) next
+        !tipo_dominante %in% c("numerico", "alfanumerico", "identificador")) {
+      next
+    }
     patron_expandido <- .patron_partes_multivaluada(partes, expandir = TRUE)
     patron_comprimido <- .patron_partes_multivaluada(partes, expandir = FALSE)
     homogeneas <- if (tipo_dominante == "numerico") {
@@ -553,7 +590,8 @@
   vacio <- list(
     n = 0L, proporcion = NA_real_, ambiguo = FALSE, seguro = FALSE,
     evidencia = "", unidad = "", moneda = "", convencion = "",
-    unidades = stats::setNames(integer(), character()), n_presentes = 0L
+    unidades = stats::setNames(integer(), character()),
+    monedas = stats::setNames(integer(), character()), n_presentes = 0L
   )
   if (!is.character(x) && !is.factor(x)) return(vacio)
   textos <- as.character(x)
@@ -565,7 +603,7 @@
   }
   inicio_numerico <- grepl(
     paste0(
-      "^[[:space:]]*(?:[[:upper:]]{3}[[:space:]]+|",
+      "^[[:space:]]*(?:(?:[[:upper:]]{3}|U\\$S)[[:space:]]+|",
       "\\p{Sc}[[:space:]]*)?[+-]?[0-9]"
     ), textos[presentes], perl = TRUE
   )
@@ -618,6 +656,7 @@
     moneda = if (length(monedas_no_vacias) == 1L) monedas_no_vacias else "",
     convencion = convencion,
     unidades = .frecuencias_unidades_numero(partes, presentes),
+    monedas = .frecuencias_monedas_numero(partes, presentes),
     n_presentes = n_presentes
   )
 }
@@ -631,7 +670,8 @@
   vacio <- list(
     n = 0L, proporcion = NA_real_, ambiguo = FALSE, seguro = FALSE,
     evidencia = "", unidad = "", moneda = "", convencion = "",
-    unidades = stats::setNames(integer(), character()), n_presentes = 0L
+    unidades = stats::setNames(integer(), character()),
+    monedas = stats::setNames(integer(), character()), n_presentes = 0L
   )
   if (!is.character(x) && !is.factor(x)) return(vacio)
   textos <- as.character(x)
@@ -665,7 +705,7 @@
     return(vacio)
   }
   patron_inicio <- paste0(
-    "^[[:space:]]*(?:[[:upper:]]{3}[[:space:]]+|",
+    "^[[:space:]]*(?:(?:[[:upper:]]{3}|U\\$S)[[:space:]]+|",
     "\\p{Sc}[[:space:]]*)?[+-]?[0-9]"
   )
   if (isTRUE(vocabulario_numeros$usar)) {
@@ -736,6 +776,7 @@
     moneda = if (length(monedas_no_vacias) == 1L) monedas_no_vacias else "",
     convencion = convencion,
     unidades = .frecuencias_unidades_numero(partes, presentes),
+    monedas = .frecuencias_monedas_numero(partes, presentes),
     n_presentes = n_presentes
   )
 }

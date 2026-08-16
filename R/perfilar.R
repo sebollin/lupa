@@ -239,19 +239,21 @@
 #' anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 #' Los números escritos como texto reconocen tanto coma como punto decimal y
 #' sus separadores de miles simétricos. Los prefijos de tres letras separados
-#' del número, con forma de código ISO 4217, y los símbolos monetarios se
-#' conservan como evidencia; una columna sin datos suficientes para desambiguar
-#' un separador de tres dígitos no se convierte automáticamente.
+#' del número, incluso como sufijo, `U$S` y los símbolos monetarios se
+#' conservan como evidencia; `monedas_mixtas` informa sus frecuencias sin
+#' convertir ni suponer tasas de cambio. Una única moneda o un símbolo `$`
+#' aislado no produce ese hallazgo.
 #' Un sufijo de unidad se reconoce sólo si es `%` o una abreviatura alfabética
 #' en minúsculas; por eso `12 kg` y `13500 g` son unidades, mientras que
 #' `12A` y `13B` se tratan como códigos. Si hay más de una unidad observada,
 #' `unidades_mixtas` informa sus frecuencias y no convierte ni compara sus
 #' magnitudes. Una única unidad no genera ese hallazgo.
 #' `celdas_multivaluadas` es deliberadamente conservador: usa los patrones de
-#' [descubrir_patrones()] y exige partes numéricas o alfanuméricas homogéneas,
-#' compatibles con el patrón del resto de la columna. No interpreta comas en
-#' nombres o direcciones como listas; el delimitador, la cantidad de celdas y
-#' la distribución de valores por celda quedan en la evidencia del hallazgo.
+#' [descubrir_patrones()] y exige partes numéricas, alfanuméricas o
+#' identificadoras puntuadas homogéneas, compatibles con el patrón del resto de
+#' la columna. No interpreta comas en nombres o direcciones como listas; el
+#' delimitador, la cantidad de celdas y la distribución de valores por celda
+#' quedan en la evidencia del hallazgo.
 #'
 #' @param datos Objeto que hereda de `data.frame`.
 #' @param nombre Nombre descriptivo del objeto.

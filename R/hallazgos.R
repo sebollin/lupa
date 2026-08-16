@@ -858,6 +858,9 @@
     unidades_mixtas = if (!is.null(resultado$numeros_texto$unidades)) {
       sum(resultado$numeros_texto$unidades)
     } else NA_real_,
+    monedas_mixtas = if (!is.null(resultado$numeros_texto$monedas)) {
+      sum(resultado$numeros_texto$monedas)
+    } else NA_real_,
     zona_horaria_fecha_hora = as.numeric(fila$n_filas_fecha_civil_distinta_utc),
     geometria_invalida = as.numeric(fila$n_geometrias_invalidas),
     geometria_vacia = as.numeric(fila$n_geometrias_vacias),
@@ -1059,6 +1062,14 @@
       if (is.null(partes)) NULL else which(
         !is.na(texto) & nzchar(texto) & partes$compatible &
           nzchar(partes$unidad)
+      )
+    },
+    monedas_mixtas = if (is.null(texto)) NULL else {
+      partes <- tryCatch(.componentes_numero_texto_optimizado(texto),
+                         error = function(e) NULL)
+      if (is.null(partes)) NULL else which(
+        !is.na(texto) & nzchar(texto) & partes$compatible &
+          nzchar(partes$moneda)
       )
     },
     celdas_multivaluadas = if (is.null(resultado$multivaluados)) NULL else {
@@ -1745,6 +1756,26 @@
           "; celdas con unidad: ", sum(unidades)
         ),
         "Separar o normalizar las unidades segun una regla declarada antes de sumar o comparar los valores."
+      ))
+    }
+
+    monedas <- resultado$numeros_texto$monedas
+    if (length(monedas) > 1L) {
+      evidencia_monedas <- paste(
+        paste0(names(monedas), " (", as.integer(monedas), ")"),
+        collapse = "; "
+      )
+      agregar(.nuevo_hallazgo(
+        nombre, "monedas_mixtas", "sospechoso",
+        paste0(
+          "La columna numerica escrita como texto mezcla dos o mas monedas; ",
+          "el perfil no convierte ni supone tasas de cambio."
+        ),
+        paste0(
+          "Monedas observadas: ", evidencia_monedas,
+          "; celdas con moneda: ", sum(monedas)
+        ),
+        "Separar las monedas o declarar una regla de negocio antes de sumar o comparar los valores."
       ))
     }
 
