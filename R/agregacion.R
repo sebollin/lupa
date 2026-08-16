@@ -31,13 +31,29 @@
   stringsAsFactors = FALSE
 )
 
-.validar_granularidad <- function(x) {
-  if (!.es_texto_escalar(x) ||
-      !x %in% .catalogo_granularidades$granularidad) {
-    stop("Granularidad no reconocida: ", paste(x, collapse = ", "), ".",
-         call. = FALSE)
+.texto_vocabularios_granularidad <- function() {
+  ontologia <- .catalogo_granularidades$granularidad
+  relacional <- stats::na.omit(.catalogo_granularidades$relacional)
+  paste0(
+    " Ontolog\u00eda: ", paste(ontologia, collapse = ", "),
+    ". Relacional: ", paste(relacional, collapse = ", "), "."
+  )
+}
+
+.validar_granularidad <- function(x, aceptar_relacional = FALSE) {
+  if (.es_texto_escalar(x)) {
+    if (x %in% .catalogo_granularidades$granularidad) return(x)
+    if (aceptar_relacional &&
+        x %in% stats::na.omit(.catalogo_granularidades$relacional)) {
+      return(.catalogo_granularidades$granularidad[
+        match(x, .catalogo_granularidades$relacional)
+      ])
+    }
   }
-  x
+  stop(
+    "Granularidad no reconocida: ", paste(x, collapse = ", "), ".",
+    .texto_vocabularios_granularidad(), call. = FALSE
+  )
 }
 
 .granularidad_implementada <- function(x) {

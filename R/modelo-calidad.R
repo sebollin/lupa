@@ -158,7 +158,9 @@
 #'
 #' @param nombre Nombre estable y legible.
 #' @param semantica Descripción de lo que mide la métrica.
-#' @param granularidad Uno de los niveles devueltos por `granularidades()`.
+#' @param granularidad Uno de los niveles de ontología devueltos por
+#'   `granularidades()` o su alias en la columna `relacional`. Los aliases se
+#'   normalizan al nombre de ontología antes de guardarse en la métrica.
 #' @param tipo_resultado `"booleano"`, `"real"` en `[0, 1]`, `"numero_real"`,
 #'   `"entero"` no negativo o `"duracion"` no negativa. Los tres últimos
 #'   conservan resultados no acotados del catálogo y no admiten las cuatro
@@ -394,7 +396,9 @@ metrica <- function(nombre, semantica, granularidad, tipo_resultado,
   if (!.es_texto_escalar(semantica)) {
     stop("`semantica` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
-  .validar_granularidad(granularidad)
+  granularidad <- .validar_granularidad(
+    granularidad, aceptar_relacional = TRUE
+  )
   tipo_resultado <- .validar_tipo_resultado(tipo_resultado)
   if (!is.character(propiedades) || anyNA(propiedades) ||
       any(!nzchar(propiedades)) || anyDuplicated(propiedades)) {

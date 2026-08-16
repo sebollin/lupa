@@ -51,7 +51,10 @@ crecientes propios sobre las mismas métricas instanciadas.
 selecciona las medidas mediante \code{metricas}, llama una vez a \code{condicion} y
 rechaza resultados que no sean lógicos, que tengan otra longitud o que
 contengan \code{NA}. La función expresa un criterio de evaluación; no es un
-método de medición ni recibe el data frame original.
+método de medición ni recibe el data frame original. Si ningún nombre de
+\code{metricas} coincide, el error enumera tanto los nombres solicitados como
+las métricas instanciadas disponibles, que normalmente tienen la forma
+\code{MetricaEspecifica@entidad.atributo}.
 }
 \examples{
 regla <- regla_evaluacion("Completitud suficiente", function(x) x > 0.9)

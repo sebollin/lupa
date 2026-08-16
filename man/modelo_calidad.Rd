@@ -44,7 +44,9 @@ metricas_nucleo()
 
 \item{semantica}{Descripción de lo que mide la métrica.}
 
-\item{granularidad}{Uno de los niveles devueltos por \code{granularidades()}.}
+\item{granularidad}{Uno de los niveles de ontología devueltos por
+\code{granularidades()} o su alias en la columna \code{relacional}. Los aliases se
+normalizan al nombre de ontología antes de guardarse en la métrica.}
 
 \item{tipo_resultado}{\code{"booleano"}, \code{"real"} en \verb{[0, 1]}, \code{"numero_real"},
 \code{"entero"} no negativo o \code{"duracion"} no negativa. Los tres últimos

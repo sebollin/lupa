@@ -181,13 +181,14 @@ test_that("un perfil sin relaciones es identico sin el detector", {
     datos, fecha = fecha, analizar_dependencias = FALSE
   )
   testthat::local_mocked_bindings(
-    .detectar_aritmetica_columnas = function(datos, umbral, tolerancia,
+    .detectar_aritmetica_columnas = function(datos, umbral, max_violaciones,
+                                              min_filas, tolerancia,
                                               max_columnas) {
       list(
         hallazgos = list(),
         alcance = lupa:::.alcance_aritmetica_columnas(
-          datos, seq_along(datos), seq_along(datos), umbral, tolerancia,
-          max_columnas
+          datos, seq_along(datos), seq_along(datos), umbral,
+          max_violaciones, min_filas, tolerancia, max_columnas
         ),
         cobertura = lupa:::.cobertura_diagnosticos_vacia()
       )

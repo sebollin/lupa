@@ -36,6 +36,8 @@ perfilar(
   max_columnas_orden = 20L,
   umbral_solapamiento_orden = 0,
   umbral_aritmetica = 0.995,
+  max_violaciones_aritmetica = 1L,
+  min_filas_aritmetica = 3L,
   tolerancia_aritmetica = 1e-08,
   max_columnas_aritmetica = 20L,
   casi_duplicados_vocabulario = TRUE,
@@ -149,8 +151,18 @@ distintos (por ejemplo, nacimiento y solicitud). Los pares descartados se
 cuentan en \code{meta$orden_columnas$pares_descartados_magnitud}.}
 
 \item{umbral_aritmetica}{Cumplimiento mínimo para informar una regularidad
-aritmética entre columnas numéricas. El valor por omisión es \code{0.995} y la
-proporción observada se publica en cada evidencia.}
+aritmética entre columnas numéricas por el criterio proporcional. El valor
+por omisión es \code{0.995} y la proporción observada se publica en cada
+evidencia.}
+
+\item{max_violaciones_aritmetica}{Máximo absoluto de filas discrepantes que
+permite informar una regularidad aunque no alcance \code{umbral_aritmetica}.
+Por omisión es \code{1}, para hacer visible una anomalía aislada en tablas
+chicas sin bajar el umbral proporcional. Una candidata se informa si
+cumple al menos uno de los dos criterios.}
+
+\item{min_filas_aritmetica}{Mínimo de filas comparables necesario para
+evaluar una candidata aritmética. Por omisión es \code{3}.}
 
 \item{tolerancia_aritmetica}{Tolerancia numérica relativa escalada usada al
 comparar un valor observado y uno esperado. Por omisión es \code{1e-8}; el

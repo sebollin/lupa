@@ -31,7 +31,10 @@
 #'   selecciona las medidas mediante `metricas`, llama una vez a `condicion` y
 #'   rechaza resultados que no sean lógicos, que tengan otra longitud o que
 #'   contengan `NA`. La función expresa un criterio de evaluación; no es un
-#'   método de medición ni recibe el data frame original.
+#'   método de medición ni recibe el data frame original. Si ningún nombre de
+#'   `metricas` coincide, el error enumera tanto los nombres solicitados como
+#'   las métricas instanciadas disponibles, que normalmente tienen la forma
+#'   `MetricaEspecifica@entidad.atributo`.
 #'
 #' @examples
 #' regla <- regla_evaluacion("Completitud suficiente", function(x) x > 0.9)
@@ -171,8 +174,13 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   }
   medidas <- medicion[seleccion, , drop = FALSE]
   if (!nrow(medidas)) {
+    solicitadas <- setdiff(regla$metricas, medicion$metrica_instanciada)
+    disponibles <- unique(medicion$metrica_instanciada)
     stop(
-      "La regla '", regla$nombre, "' no coincide con ninguna m\u00e9trica instanciada.",
+      "La regla '", regla$nombre,
+      "' no coincide con ninguna m\u00e9trica instanciada. Solicitadas: ",
+      paste(solicitadas, collapse = ", "), ". Disponibles: ",
+      paste(disponibles, collapse = ", "), ".",
       call. = FALSE
     )
   }

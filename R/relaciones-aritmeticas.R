@@ -20,8 +20,24 @@
     tolerancia * max(1, abs(extremos))
 }
 
+.cumple_criterio_aritmetica <- function(proporcion, n_violaciones, umbral,
+                                         max_violaciones) {
+  is.finite(proporcion) &&
+    (proporcion >= umbral || n_violaciones <= max_violaciones)
+}
+
+.texto_criterio_aritmetica <- function(umbral, max_violaciones, min_filas) {
+  paste0(
+    "Criterio de informe declarado: cumplimiento >= ",
+    format(umbral, scientific = FALSE, trim = TRUE, digits = 15L),
+    " o discrepancias <= ", max_violaciones,
+    ", con al menos ", min_filas, " filas comparables. "
+  )
+}
+
 .alcance_aritmetica_columnas <- function(datos, numericas, seleccion,
-                                          umbral, tolerancia,
+                                          umbral, max_violaciones, min_filas,
+                                          tolerancia,
                                           max_columnas) {
   n_numericas <- length(numericas)
   n_analizadas <- length(seleccion)
@@ -39,12 +55,13 @@
     truncado = n_numericas > max_columnas,
     max_columnas = as.integer(max_columnas),
     umbral_cumplimiento = as.numeric(umbral),
+    max_violaciones = as.integer(max_violaciones),
     tolerancia = as.numeric(tolerancia),
     criterio_tolerancia = paste0(
       "|observado - esperado| <= tolerancia * ",
       "max(1, |observado|, |esperado|)"
     ),
-    minimo_filas_comparables = 3L,
+    minimo_filas_comparables = as.integer(min_filas),
     clases_excluidas = c("Date", "POSIXt", "difftime", "integer64")
   )
 }
@@ -87,13 +104,14 @@
 }
 
 .hallazgo_identidad_aditiva <- function(datos, sumandos, total, umbral,
+                                         max_violaciones, min_filas,
                                          tolerancia) {
   x <- datos[[sumandos[[1L]]]]
   y <- datos[[sumandos[[2L]]]]
   z <- datos[[total]]
   comparables <- is.finite(x) & is.finite(y) & is.finite(z)
   n_evaluados <- sum(comparables)
-  if (n_evaluados < 3L ||
+  if (n_evaluados < min_filas ||
       !all(vapply(list(x[comparables], y[comparables], z[comparables]),
                   .varia_columna_aritmetica, logical(1L),
                   tolerancia = tolerancia))) {
@@ -104,7 +122,10 @@
     z[comparables], esperado, tolerancia
   )
   proporcion <- mean(cumple)
-  if (!is.finite(proporcion) || proporcion < umbral) return(NULL)
+  n_violaciones <- sum(!cumple)
+  if (!.cumple_criterio_aritmetica(
+    proporcion, n_violaciones, umbral, max_violaciones
+  )) return(NULL)
   filas_comparables <- which(comparables)
   indices_incumplen <- filas_comparables[!cumple]
   esperados_incumplen <- esperado[!cumple]
@@ -136,6 +157,7 @@
       sprintf("%.3f de cumplimiento; %d de %d filas discrepantes (universo: %d de %d filas con valores finitos en las tres columnas). ",
               proporcion, length(indices_incumplen), n_evaluados,
               n_evaluados, nrow(datos)),
+      .texto_criterio_aritmetica(umbral, max_violaciones, min_filas),
       "Forma equivalente observada: ", alternativa, ". ",
       "Tolerancia declarada: ", tolerancia_texto,
       "; criterio |observado - esperado| <= ", tolerancia_texto,
@@ -160,7 +182,8 @@
   hallazgo
 }
 
-.hallazgo_proporcional <- function(datos, par, umbral, tolerancia) {
+.hallazgo_proporcional <- function(datos, par, umbral, max_violaciones,
+                                    min_filas, tolerancia) {
   primero <- datos[[par[[1L]]]]
   segundo <- datos[[par[[2L]]]]
   base <- primero
@@ -168,7 +191,7 @@
   indice_base <- par[[1L]]
   indice_respuesta <- par[[2L]]
   utilizables <- is.finite(base) & is.finite(respuesta) & base != 0
-  if (sum(utilizables) < 3L) return(NULL)
+  if (sum(utilizables) < min_filas) return(NULL)
   constante <- stats::median(respuesta[utilizables] / base[utilizables])
   if (!is.finite(constante) || constante == 0) return(NULL)
   if (abs(constante) > 1) {
@@ -177,7 +200,7 @@
     indice_base <- par[[2L]]
     indice_respuesta <- par[[1L]]
     utilizables <- is.finite(base) & is.finite(respuesta) & base != 0
-    if (sum(utilizables) < 3L) return(NULL)
+    if (sum(utilizables) < min_filas) return(NULL)
     constante <- stats::median(respuesta[utilizables] / base[utilizables])
   }
   if (!is.finite(constante) ||
@@ -188,13 +211,16 @@
   }
   comparables <- is.finite(base) & is.finite(respuesta)
   n_evaluados <- sum(comparables)
-  if (n_evaluados < 3L) return(NULL)
+  if (n_evaluados < min_filas) return(NULL)
   esperado <- base[comparables] * constante
   cumple <- .dentro_tolerancia_aritmetica(
     respuesta[comparables], esperado, tolerancia
   )
   proporcion <- mean(cumple)
-  if (!is.finite(proporcion) || proporcion < umbral) return(NULL)
+  n_violaciones <- sum(!cumple)
+  if (!.cumple_criterio_aritmetica(
+    proporcion, n_violaciones, umbral, max_violaciones
+  )) return(NULL)
   filas_comparables <- which(comparables)
   indices_incumplen <- filas_comparables[!cumple]
   esperados_incumplen <- esperado[!cumple]
@@ -229,6 +255,7 @@
       sprintf("%.3f de cumplimiento; %d de %d filas discrepantes (universo: %d de %d filas con valores finitos en ambas columnas). ",
               proporcion, length(indices_incumplen), n_evaluados,
               n_evaluados, nrow(datos)),
+      .texto_criterio_aritmetica(umbral, max_violaciones, min_filas),
       "Constante observada k=", constante_texto,
       " (mediana de respuesta/base en ", sum(utilizables),
       " filas finitas con base distinta de cero); forma equivalente: ",
@@ -253,12 +280,15 @@
 }
 
 .detectar_aritmetica_columnas <- function(datos, umbral = 0.995,
+                                           max_violaciones = 1L,
+                                           min_filas = 3L,
                                            tolerancia = 1e-8,
                                            max_columnas = 20L) {
   numericas <- which(vapply(datos, .es_columna_aritmetica, logical(1L)))
   seleccion <- utils::head(numericas, max_columnas)
   alcance <- .alcance_aritmetica_columnas(
-    datos, numericas, seleccion, umbral, tolerancia, max_columnas
+    datos, numericas, seleccion, umbral, max_violaciones, min_filas,
+    tolerancia, max_columnas
   )
   cobertura <- .cobertura_aritmetica_columnas(alcance)
   hallazgos_aditivos <- list()
@@ -268,7 +298,8 @@
     for (terna in ternas) {
       candidatos <- lapply(seq_len(3L), function(objetivo) {
         .hallazgo_identidad_aditiva(
-          datos, terna[-objetivo], terna[[objetivo]], umbral, tolerancia
+          datos, terna[-objetivo], terna[[objetivo]], umbral,
+          max_violaciones, min_filas, tolerancia
         )
       })
       candidatos <- Filter(Negate(is.null), candidatos)
@@ -293,7 +324,9 @@
         x$total %in% par && any(x$sumandos %in% par)
       }, logical(1L)))
       if (redundante) next
-      hallazgo <- .hallazgo_proporcional(datos, par, umbral, tolerancia)
+      hallazgo <- .hallazgo_proporcional(
+        datos, par, umbral, max_violaciones, min_filas, tolerancia
+      )
       if (!is.null(hallazgo)) {
         hallazgos_proporcionales[[length(hallazgos_proporcionales) + 1L]] <-
           hallazgo
