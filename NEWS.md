@@ -1,5 +1,17 @@
 # lupa 0.1.0
 
+## Relaciones aritméticas entre columnas
+
+- `perfilar()` descubre identidades aditivas y proporcionalidades estables
+  entre columnas numéricas y las presenta como evidencia observada, no como
+  reglas del dominio. Cada hallazgo declara proporción de cumplimiento,
+  universo de filas finitas, tolerancia numérica, constante proporcional y
+  filas discrepantes.
+- `umbral_aritmetica`, `tolerancia_aritmetica` y
+  `max_columnas_aritmetica` hacen visibles los supuestos y el costo del
+  diagnóstico. Si el límite de columnas recorta combinaciones,
+  `cobertura_diagnosticos` lo declara explícitamente.
+
 ## Perfilado de geometrías
 
 - Las columnas `sfc` informan CRS, tipo de geometría, geometrías vacías e

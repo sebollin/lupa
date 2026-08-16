@@ -35,6 +35,9 @@ perfilar(
   umbral_orden_columnas = 0.95,
   max_columnas_orden = 20L,
   umbral_solapamiento_orden = 0,
+  umbral_aritmetica = 0.995,
+  tolerancia_aritmetica = 1e-08,
+  max_columnas_aritmetica = 20L,
   casi_duplicados_vocabulario = TRUE,
   max_proporcion_grupo_vocabulario = 0.5
 )
@@ -145,6 +148,19 @@ también puede ocultar relaciones reales entre magnitudes de rangos
 distintos (por ejemplo, nacimiento y solicitud). Los pares descartados se
 cuentan en \code{meta$orden_columnas$pares_descartados_magnitud}.}
 
+\item{umbral_aritmetica}{Cumplimiento mínimo para informar una regularidad
+aritmética entre columnas numéricas. El valor por omisión es \code{0.995} y la
+proporción observada se publica en cada evidencia.}
+
+\item{tolerancia_aritmetica}{Tolerancia numérica relativa escalada usada al
+comparar un valor observado y uno esperado. Por omisión es \code{1e-8}; el
+criterio completo y el valor efectivo se declaran en cada evidencia.}
+
+\item{max_columnas_aritmetica}{Máximo de columnas numéricas que intervienen
+en la búsqueda aritmética, cuyo costo crece cúbicamente. Por omisión es
+\code{20}. Si se omiten columnas, \code{cobertura_diagnosticos} declara el recorte y
+\code{meta$aritmetica_columnas} conserva los conteos de combinaciones.}
+
 \item{casi_duplicados_vocabulario}{Lógico que activa el diagnóstico de
 variantes casi duplicadas dentro del vocabulario de cada columna de texto.
 Por defecto es \code{TRUE}; \code{FALSE} lo omite sin afectar los demás hallazgos.
@@ -245,6 +261,23 @@ admite comparación, informa \code{NA} en lugar de afirmar cero.
 Las columnas matriciales se conservan como una unidad por fila: \code{n} informa
 las filas de la tabla, pero los estadísticos por valor quedan en \code{NA} y un
 hallazgo explica que deben separarse en columnas con semántica explícita.
+
+Las relaciones aritméticas se buscan sólo entre columnas numéricas
+declaradas y con variación: \code{Date}, \code{POSIXt}, \code{difftime}, \code{integer64}, texto
+numérico y columnas constantes no participan. Cada relación requiere al
+menos tres filas con valores finitos en todas las columnas involucradas;
+los \code{NA}, \code{NaN} e infinitos quedan fuera del universo que publica la
+evidencia. Para cada terna se prueban las tres orientaciones de una identidad
+aditiva; esto cubre sumas y sus restas equivalentes sin informar tres veces
+la misma igualdad. En pares proporcionales, \code{k} es la mediana de los cocientes
+finitos cuya base no es cero, pero el cumplimiento se evalúa después también
+en las filas con base cero. Si una identidad aditiva ya relaciona una terna,
+se omiten las proporcionalidades redundantes entre su total y sus sumandos;
+se conserva la proporcionalidad entre los dos sumandos. Una regularidad
+completa se informa con severidad \code{"ok"}; si alcanza el umbral pero tiene
+discrepancias, sigue el criterio de las relaciones de orden y es
+\code{"sospechoso"}. Todo esto describe evidencia observada: no declara una regla
+del dominio ni autoriza una corrección.
 Los valores de texto que no forman UTF-8 válido tampoco se convierten: se
 cuentan, se excluyen de los análisis textuales y generan un hallazgo con sus
 posiciones. Los diagnósticos de invisibles incluyen controles C0/C1,

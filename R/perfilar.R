@@ -57,6 +57,23 @@
 #' Las columnas matriciales se conservan como una unidad por fila: `n` informa
 #' las filas de la tabla, pero los estadísticos por valor quedan en `NA` y un
 #' hallazgo explica que deben separarse en columnas con semántica explícita.
+#'
+#' Las relaciones aritméticas se buscan sólo entre columnas numéricas
+#' declaradas y con variación: `Date`, `POSIXt`, `difftime`, `integer64`, texto
+#' numérico y columnas constantes no participan. Cada relación requiere al
+#' menos tres filas con valores finitos en todas las columnas involucradas;
+#' los `NA`, `NaN` e infinitos quedan fuera del universo que publica la
+#' evidencia. Para cada terna se prueban las tres orientaciones de una identidad
+#' aditiva; esto cubre sumas y sus restas equivalentes sin informar tres veces
+#' la misma igualdad. En pares proporcionales, `k` es la mediana de los cocientes
+#' finitos cuya base no es cero, pero el cumplimiento se evalúa después también
+#' en las filas con base cero. Si una identidad aditiva ya relaciona una terna,
+#' se omiten las proporcionalidades redundantes entre su total y sus sumandos;
+#' se conserva la proporcionalidad entre los dos sumandos. Una regularidad
+#' completa se informa con severidad `"ok"`; si alcanza el umbral pero tiene
+#' discrepancias, sigue el criterio de las relaciones de orden y es
+#' `"sospechoso"`. Todo esto describe evidencia observada: no declara una regla
+#' del dominio ni autoriza una corrección.
 #' Los valores de texto que no forman UTF-8 válido tampoco se convierten: se
 #' cuentan, se excluyen de los análisis textuales y generan un hallazgo con sus
 #' posiciones. Los diagnósticos de invisibles incluyen controles C0/C1,
@@ -312,6 +329,16 @@
 #'   también puede ocultar relaciones reales entre magnitudes de rangos
 #'   distintos (por ejemplo, nacimiento y solicitud). Los pares descartados se
 #'   cuentan en `meta$orden_columnas$pares_descartados_magnitud`.
+#' @param umbral_aritmetica Cumplimiento mínimo para informar una regularidad
+#'   aritmética entre columnas numéricas. El valor por omisión es `0.995` y la
+#'   proporción observada se publica en cada evidencia.
+#' @param tolerancia_aritmetica Tolerancia numérica relativa escalada usada al
+#'   comparar un valor observado y uno esperado. Por omisión es `1e-8`; el
+#'   criterio completo y el valor efectivo se declaran en cada evidencia.
+#' @param max_columnas_aritmetica Máximo de columnas numéricas que intervienen
+#'   en la búsqueda aritmética, cuyo costo crece cúbicamente. Por omisión es
+#'   `20`. Si se omiten columnas, `cobertura_diagnosticos` declara el recorte y
+#'   `meta$aritmetica_columnas` conserva los conteos de combinaciones.
 #'
 #' @return Objeto S3 de clase `perfil`. Cada fila de hallazgos incluye
 #'   n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
@@ -377,6 +404,9 @@ perfilar <- function(datos,
                      umbral_orden_columnas = 0.95,
                      max_columnas_orden = 20L,
                      umbral_solapamiento_orden = 0,
+                     umbral_aritmetica = 0.995,
+                     tolerancia_aritmetica = 1e-8,
+                     max_columnas_aritmetica = 20L,
                      casi_duplicados_vocabulario = TRUE,
                      max_proporcion_grupo_vocabulario = 0.5) {
   if (!inherits(datos, "data.frame")) {
@@ -455,6 +485,26 @@ perfilar <- function(datos,
       umbral_solapamiento_orden < 0 || umbral_solapamiento_orden > 1) {
     stop("`umbral_solapamiento_orden` debe estar entre 0 y 1.", call. = FALSE)
   }
+  if (!is.numeric(umbral_aritmetica) || length(umbral_aritmetica) != 1L ||
+      is.na(umbral_aritmetica) || umbral_aritmetica <= 0 ||
+      umbral_aritmetica > 1) {
+    stop("`umbral_aritmetica` debe estar entre 0 y 1.", call. = FALSE)
+  }
+  if (!is.numeric(tolerancia_aritmetica) ||
+      length(tolerancia_aritmetica) != 1L ||
+      is.na(tolerancia_aritmetica) || !is.finite(tolerancia_aritmetica) ||
+      tolerancia_aritmetica < 0) {
+    stop("`tolerancia_aritmetica` debe ser un n\u00famero finito no negativo.",
+         call. = FALSE)
+  }
+  if (!is.numeric(max_columnas_aritmetica) ||
+      length(max_columnas_aritmetica) != 1L ||
+      is.na(max_columnas_aritmetica) || max_columnas_aritmetica < 2 ||
+      max_columnas_aritmetica != floor(max_columnas_aritmetica)) {
+    stop("`max_columnas_aritmetica` debe ser un entero de al menos 2.",
+         call. = FALSE)
+  }
+  max_columnas_aritmetica <- as.integer(max_columnas_aritmetica)
   if (!is.logical(casi_duplicados_vocabulario) ||
       length(casi_duplicados_vocabulario) != 1L ||
       is.na(casi_duplicados_vocabulario)) {
@@ -549,6 +599,11 @@ perfilar <- function(datos,
     umbral = umbral_orden_columnas, max_columnas = max_columnas_orden,
     umbral_solapamiento = umbral_solapamiento_orden
   )
+  relaciones_aritmeticas <- .detectar_aritmetica_columnas(
+    datos, umbral = umbral_aritmetica,
+    tolerancia = tolerancia_aritmetica,
+    max_columnas = max_columnas_aritmetica
+  )
   normalizacion_fusiones <- .normalizacion_fusiones_tabla(
     datos, normalizacion_resuelta
   )
@@ -577,6 +632,7 @@ perfilar <- function(datos,
     columnas_no_negativas,
     if (is.na(n_filas_duplicadas)) 0L else n_filas_duplicadas,
     relaciones_orden = relaciones_orden$hallazgos,
+    relaciones_aritmeticas = relaciones_aritmeticas$hallazgos,
     normalizacion = normalizacion_resuelta,
     detectar_casi_duplicados = casi_duplicados_vocabulario,
     max_proporcion_grupo = max_proporcion_grupo_vocabulario
@@ -586,6 +642,11 @@ perfilar <- function(datos,
   )
   if (is.null(cobertura_diagnosticos)) {
     cobertura_diagnosticos <- .cobertura_diagnosticos_vacia()
+  }
+  if (nrow(relaciones_aritmeticas$cobertura)) {
+    cobertura_diagnosticos <- rbind(
+      cobertura_diagnosticos, relaciones_aritmeticas$cobertura
+    )
   }
   attr(hallazgos, "cobertura_diagnosticos") <- NULL
   datos_personales <- .detectar_datos_personales(
@@ -681,6 +742,10 @@ perfilar <- function(datos,
     normalizacion_resumen = .normalizacion_resumen(normalizacion_resuelta),
     normalizacion_fusiones = normalizacion_fusiones
   )
+  if (length(relaciones_aritmeticas$hallazgos) ||
+      isTRUE(relaciones_aritmeticas$alcance$truncado)) {
+    meta$aritmetica_columnas <- relaciones_aritmeticas$alcance
+  }
   estructura <- list(
     general = general,
     columnas = columnas,

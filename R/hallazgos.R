@@ -1143,6 +1143,24 @@
     indices <- which(comparables & izquierda > derecha)
     return(.trazabilidad_indices(indices, "completo", limite))
   }
+  if (tipo == "relacion_aritmetica_columnas") {
+    trazabilidad <- hallazgo$trazabilidad[[1L]]
+    if (is.list(trazabilidad) &&
+        !identical(trazabilidad$estado, "no_disponible")) {
+      trazabilidad$limite <- if (is.infinite(limite)) Inf else as.integer(limite)
+      trazabilidad$indices_fila <- utils::head(
+        trazabilidad$indices_fila, limite
+      )
+      trazabilidad$mostrados <- length(trazabilidad$indices_fila)
+      trazabilidad$truncado <- is.finite(trazabilidad$total) &&
+        trazabilidad$mostrados < trazabilidad$total
+      trazabilidad$estado <- if (trazabilidad$truncado) {
+        "truncada"
+      } else "disponible"
+      return(trazabilidad)
+    }
+    return(.trazabilidad_vacia(limite = limite))
+  }
   if (tipo == "bloqueo_por_con_perdida") {
     return(.trazabilidad_vacia(
       estado = "no_disponible",
@@ -1867,6 +1885,7 @@
                                  columnas_no_negativas,
                                  n_filas_duplicadas,
                                  relaciones_orden = list(),
+                                 relaciones_aritmeticas = list(),
                                  normalizacion = NULL,
                                  detectar_casi_duplicados = TRUE,
                                  max_proporcion_grupo = 0.5) {
@@ -1945,6 +1964,9 @@
   }
   if (length(relaciones_orden)) {
     hallazgos <- c(hallazgos, relaciones_orden)
+  }
+  if (length(relaciones_aritmeticas)) {
+    hallazgos <- c(hallazgos, relaciones_aritmeticas)
   }
 
   if (length(hallazgos)) {
