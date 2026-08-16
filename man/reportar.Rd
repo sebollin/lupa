@@ -59,7 +59,10 @@ de incorporarlo al documento.
 Se pueden combinar objetos producidos por el profiling, la medicion, la
 evaluacion, el historico, las comparaciones de deriva y la planificacion de
 limpieza. Cada tipo anade su seccion; el reporte no modifica datos ni aplica
-planes.
+planes. Si una evaluacion contiene desenlaces de supresion declarados por
+reglas, el reporte enmascara su \code{valor_medido} y el \code{resultado} de las mismas
+medidas incluidas en el documento. El enmascarado se hace sobre copias y no
+modifica los objetos recibidos.
 }
 \examples{
 perfil <- perfilar(datos_administrativos)

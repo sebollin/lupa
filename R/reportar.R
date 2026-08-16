@@ -300,6 +300,92 @@
   )
 }
 
+.clave_medida_reporte <- function(id_medicion, id_medida,
+                                  metrica_instanciada) {
+  paste(id_medicion, id_medida, metrica_instanciada, sep = "\r")
+}
+
+.desenlaces_reporte <- function(objetos) {
+  partes <- lapply(objetos, function(x) {
+    evaluacion <- if (inherits(x, "evaluacion_calidad")) {
+      x
+    } else if (inherits(x, "analisis")) {
+      x$evaluacion
+    } else {
+      NULL
+    }
+    if (is.null(evaluacion) ||
+        !inherits(evaluacion$desenlaces, "data.frame") ||
+        !nrow(evaluacion$desenlaces)) {
+      return(NULL)
+    }
+    evaluacion$desenlaces[
+      evaluacion$desenlaces$desenlace == "suprimir", , drop = FALSE
+    ]
+  })
+  partes <- partes[!vapply(partes, is.null, logical(1L))]
+  if (!length(partes)) return(NULL)
+  resultado <- do.call(rbind, partes)
+  rownames(resultado) <- NULL
+  resultado[
+    !duplicated(resultado[c("id_medicion", "id_medida", "regla")]),
+    , drop = FALSE
+  ]
+}
+
+.proteger_medicion_desenlaces <- function(x, desenlaces) {
+  if (!inherits(x, "data.frame") || !nrow(x) || is.null(desenlaces) ||
+      !all(c(
+        "id_medida", "id_medicion", "metrica_instanciada", "resultado"
+      ) %in% names(x))) {
+    return(x)
+  }
+  claves <- .clave_medida_reporte(
+    x$id_medicion, x$id_medida, x$metrica_instanciada
+  )
+  claves_suprimidas <- .clave_medida_reporte(
+    desenlaces$id_medicion, desenlaces$id_medida,
+    desenlaces$metrica_instanciada
+  )
+  suprimidas <- claves %in% claves_suprimidas
+  if (any(suprimidas)) {
+    x$resultado <- as.character(x$resultado)
+    x$resultado[suprimidas] <- "[valor suprimido]"
+  }
+  x
+}
+
+.proteger_evaluacion_desenlaces <- function(x) {
+  if (!inherits(x$desenlaces, "data.frame") || !nrow(x$desenlaces) ||
+      !"valor_medido" %in% names(x$desenlaces)) {
+    return(x)
+  }
+  suprimidas <- x$desenlaces$desenlace == "suprimir"
+  if (any(suprimidas)) {
+    x$desenlaces$valor_medido <- as.character(x$desenlaces$valor_medido)
+    x$desenlaces$valor_medido[suprimidas] <- "[valor suprimido]"
+  }
+  x
+}
+
+.proteger_objeto_desenlaces <- function(x, desenlaces) {
+  if (inherits(x, "medicion")) {
+    return(.proteger_medicion_desenlaces(x, desenlaces))
+  }
+  if (inherits(x, "evaluacion_calidad")) {
+    return(.proteger_evaluacion_desenlaces(x))
+  }
+  if (inherits(x, "analisis")) {
+    if (!is.null(x$medicion)) {
+      x$medicion <- .proteger_medicion_desenlaces(x$medicion, desenlaces)
+    }
+    if (!is.null(x$evaluacion)) {
+      x$evaluacion <- .proteger_evaluacion_desenlaces(x$evaluacion)
+    }
+  }
+  x
+}
+
 .seccion_duplicados_aproximados <- function(
     x, max_filas, proteger_datos_personales = TRUE) {
   alcance <- x$alcance
@@ -364,6 +450,14 @@
 .seccion_evaluacion <- function(x, max_filas) {
   paste0(
     "<section><h2>Evaluaci\u00f3n de calidad</h2>",
+    if (!is.null(x$desenlaces)) {
+      paste0(
+        "<h3>Plan de desenlaces</h3>",
+        "<p class=\"nota\">Los desenlaces provienen exclusivamente de reglas ",
+        "declaradas; este reporte no modifica la medici\u00f3n ni los datos.</p>",
+        .html_tabla(x$desenlaces, max_filas)
+      )
+    } else "",
     "<h3>Evaluaciones de medidas</h3>", .html_tabla(x$medidas, max_filas),
     "<h3>Evaluaciones de reglas</h3>", .html_tabla(x$reglas, max_filas),
     "<h3>Perfiles de madurez</h3>", .html_tabla(x$perfiles, max_filas),
@@ -565,7 +659,9 @@
 }
 
 .renderizar_objeto_reporte <- function(x, max_filas, max_patrones,
-                                       proteger_datos_personales = TRUE) {
+                                       proteger_datos_personales = TRUE,
+                                       desenlaces = NULL) {
+  x <- .proteger_objeto_desenlaces(x, desenlaces)
   switch(
     .clase_objeto_reporte(x),
     analisis = .seccion_analisis(
@@ -659,7 +755,10 @@
 #' Se pueden combinar objetos producidos por el profiling, la medicion, la
 #' evaluacion, el historico, las comparaciones de deriva y la planificacion de
 #' limpieza. Cada tipo anade su seccion; el reporte no modifica datos ni aplica
-#' planes.
+#' planes. Si una evaluacion contiene desenlaces de supresion declarados por
+#' reglas, el reporte enmascara su `valor_medido` y el `resultado` de las mismas
+#' medidas incluidas en el documento. El enmascarado se hace sobre copias y no
+#' modifica los objetos recibidos.
 #'
 #' @param x Un objeto compatible o una lista de objetos compatibles.
 #' @param ... Objetos adicionales de clase `analisis`, `perfil`, `medicion`,
@@ -715,7 +814,8 @@ reportar <- function(x, ...,
   }
   secciones <- vapply(objetos, .renderizar_objeto_reporte, character(1L),
                       max_filas = max_filas, max_patrones = max_patrones,
-                      proteger_datos_personales = proteger_datos_personales)
+                      proteger_datos_personales = proteger_datos_personales,
+                      desenlaces = .desenlaces_reporte(objetos))
   documento <- paste0(
     "<!doctype html><html lang=\"es\"><head><meta charset=\"UTF-8\">",
     "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">",

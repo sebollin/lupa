@@ -1,5 +1,16 @@
 # lupa 0.1.0
 
+## Desenlaces declarados por reglas
+
+- `regla_evaluacion()` acepta `desenlace = "suprimir"` para que una regla
+  declarada por el usuario produzca un plan sobre las medidas que no cumplen su
+  condición. La evaluación conserva objeto, valor medido, motivo y regla sin
+  modificar la medición ni los datos de origen. Sin esa declaración no crea
+  desenlaces ni aplica umbrales de publicación.
+- `reportar()` enmascara los valores alcanzados por ese plan tanto en la
+  evaluación como en las mediciones incluidas en el mismo reporte. El
+  enmascarado se hace sobre copias usadas para renderizar.
+
 ## Ley de Benford con aplicabilidad explícita
 
 - `perfilar()` evalúa la ley de Benford solamente en columnas numéricas con

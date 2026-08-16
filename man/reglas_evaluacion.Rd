@@ -7,7 +7,13 @@
 \alias{perfiles_madurez}
 \title{Reglas y perfiles de evaluación}
 \usage{
-regla_evaluacion(nombre, condicion, metricas = NULL, proporcion_minima = NULL)
+regla_evaluacion(
+  nombre,
+  condicion,
+  metricas = NULL,
+  proporcion_minima = NULL,
+  desenlace = NULL
+)
 
 perfil_evaluacion(nombre, ...)
 
@@ -29,6 +35,10 @@ número entre \code{0} y \code{1} que declara la proporción mínima de medidas 
 deben cumplir \code{condicion}. En este segundo caso la regla es agregada: el
 umbral queda guardado en el objeto y \code{\link[=evaluar]{evaluar()}} publica la proporción, el
 veredicto y el universo de medidas que la produjo.}
+
+\item{desenlace}{\code{NULL}, para limitar la regla a evaluar, o \code{"suprimir"}
+para declarar que las medidas que no cumplen \code{condicion} no deben
+publicarse. No existe un desenlace predeterminado.}
 
 \item{...}{Reglas creadas por \code{regla_evaluacion()} o una única lista que las
 contenga.}
@@ -59,9 +69,12 @@ rechaza resultados que no sean lógicos, que tengan otra longitud o que
 contengan \code{NA}. Si \code{proporcion_minima} no es \code{NULL}, calcula sobre esos
 mismos lógicos la proporción que cumple y la compara mediante \code{>=} con el
 umbral declarado; no pondera medidas ni construye un puntaje global. Las
-evaluaciones que sólo contienen reglas por medida conservan su estructura
-anterior. La función expresa un criterio de evaluación; no es un método de
-medición ni recibe el data frame original. Si ningún nombre de
+evaluaciones cuyas reglas no declaran \code{desenlace} conservan su estructura
+anterior. Cuando una regla declara \code{desenlace = "suprimir"}, \code{\link[=evaluar]{evaluar()}}
+añade un plan trazable con una fila por medida incumplida y por regla; no
+modifica la medición ni los datos que la originaron. La función expresa un
+criterio de evaluación; no es un método de medición ni recibe el data frame
+original. Si ningún nombre de
 \code{metricas} coincide, el error enumera tanto los nombres solicitados como
 las métricas instanciadas disponibles, que normalmente tienen la forma
 \code{MetricaEspecifica@entidad.atributo}.
@@ -70,6 +83,9 @@ las métricas instanciadas disponibles, que normalmente tienen la forma
 regla <- regla_evaluacion("Completitud suficiente", function(x) x > 0.9)
 regla_70 <- regla_evaluacion(
   "Al menos 70 \%", function(x) x > 0.9, proporcion_minima = 0.7
+)
+regla_publicacion <- regla_evaluacion(
+  "Medida publicable", function(x) x > 0.9, desenlace = "suprimir"
 )
 perfil <- perfil_evaluacion("Operativo", regla)
 madurez <- perfiles_madurez("NoNulo")

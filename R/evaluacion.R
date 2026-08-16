@@ -22,6 +22,9 @@
 #'   deben cumplir `condicion`. En este segundo caso la regla es agregada: el
 #'   umbral queda guardado en el objeto y [evaluar()] publica la proporción, el
 #'   veredicto y el universo de medidas que la produjo.
+#' @param desenlace `NULL`, para limitar la regla a evaluar, o `"suprimir"`
+#'   para declarar que las medidas que no cumplen `condicion` no deben
+#'   publicarse. No existe un desenlace predeterminado.
 #' @param umbrales Vector numérico con nombres, estrictamente creciente y en
 #'   `[0, 1]`. `NULL` conserva los tres perfiles incluidos de fábrica.
 #' @param ... Reglas creadas por `regla_evaluacion()` o una única lista que las
@@ -38,9 +41,12 @@
 #'   contengan `NA`. Si `proporcion_minima` no es `NULL`, calcula sobre esos
 #'   mismos lógicos la proporción que cumple y la compara mediante `>=` con el
 #'   umbral declarado; no pondera medidas ni construye un puntaje global. Las
-#'   evaluaciones que sólo contienen reglas por medida conservan su estructura
-#'   anterior. La función expresa un criterio de evaluación; no es un método de
-#'   medición ni recibe el data frame original. Si ningún nombre de
+#'   evaluaciones cuyas reglas no declaran `desenlace` conservan su estructura
+#'   anterior. Cuando una regla declara `desenlace = "suprimir"`, [evaluar()]
+#'   añade un plan trazable con una fila por medida incumplida y por regla; no
+#'   modifica la medición ni los datos que la originaron. La función expresa un
+#'   criterio de evaluación; no es un método de medición ni recibe el data frame
+#'   original. Si ningún nombre de
 #'   `metricas` coincide, el error enumera tanto los nombres solicitados como
 #'   las métricas instanciadas disponibles, que normalmente tienen la forma
 #'   `MetricaEspecifica@entidad.atributo`.
@@ -49,6 +55,9 @@
 #' regla <- regla_evaluacion("Completitud suficiente", function(x) x > 0.9)
 #' regla_70 <- regla_evaluacion(
 #'   "Al menos 70 %", function(x) x > 0.9, proporcion_minima = 0.7
+#' )
+#' regla_publicacion <- regla_evaluacion(
+#'   "Medida publicable", function(x) x > 0.9, desenlace = "suprimir"
 #' )
 #' perfil <- perfil_evaluacion("Operativo", regla)
 #' madurez <- perfiles_madurez("NoNulo")
@@ -64,7 +73,7 @@ NULL
 #' @export
 #' @seealso [medir()], [evaluar()], [perfiles_madurez()]
 regla_evaluacion <- function(nombre, condicion, metricas = NULL,
-                             proporcion_minima = NULL) {
+                             proporcion_minima = NULL, desenlace = NULL) {
   if (!.es_texto_escalar(nombre)) {
     stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
@@ -83,6 +92,10 @@ regla_evaluacion <- function(nombre, condicion, metricas = NULL,
     stop("`proporcion_minima` debe ser NULL o un n\u00famero entre 0 y 1.",
          call. = FALSE)
   }
+  if (!is.null(desenlace) &&
+      (!.es_texto_escalar(desenlace) || desenlace != "suprimir")) {
+    stop("`desenlace` debe ser NULL o 'suprimir'.", call. = FALSE)
+  }
   estructura <- list(
     nombre = nombre,
     condicion = condicion,
@@ -92,6 +105,7 @@ regla_evaluacion <- function(nombre, condicion, metricas = NULL,
     estructura$nivel <- "agregado"
     estructura$proporcion_minima <- as.numeric(proporcion_minima)
   }
+  if (!is.null(desenlace)) estructura$desenlace <- desenlace
   class(estructura) <- "regla_evaluacion"
   estructura
 }
@@ -312,6 +326,71 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   resultado
 }
 
+.desenlaces_vacios <- function() {
+  resultado <- data.frame(
+    id_medida = character(),
+    id_medicion = character(),
+    fecha = as.POSIXct(character()),
+    perfil = character(),
+    regla = character(),
+    desenlace = character(),
+    motivo = character(),
+    metrica_instanciada = character(),
+    granularidad = character(),
+    entidad = character(),
+    atributo = character(),
+    fila = integer(),
+    objeto_medible = character(),
+    valor_medido = numeric(),
+    stringsAsFactors = FALSE
+  )
+  class(resultado) <- c("plan_desenlaces", "data.frame")
+  resultado
+}
+
+.planificar_desenlaces <- function(medicion, evaluaciones, perfil) {
+  con_desenlace <- vapply(
+    perfil$reglas, function(regla) !is.null(regla$desenlace), logical(1L)
+  )
+  if (!any(con_desenlace)) return(NULL)
+
+  partes <- lapply(perfil$reglas[con_desenlace], function(regla) {
+    incumplidas <- evaluaciones$regla == regla$nombre & !evaluaciones$resultado
+    if (!any(incumplidas)) return(NULL)
+    indices <- match(evaluaciones$id_medida[incumplidas], medicion$id_medida)
+    medidas <- medicion[indices, , drop = FALSE]
+    data.frame(
+      id_medida = medidas$id_medida,
+      id_medicion = medidas$id_medicion,
+      fecha = medidas$fecha,
+      perfil = rep(perfil$nombre, nrow(medidas)),
+      regla = rep(regla$nombre, nrow(medidas)),
+      desenlace = rep(regla$desenlace, nrow(medidas)),
+      motivo = rep(
+        paste0(
+          "La medida no cumple la condici\u00f3n declarada por la regla '",
+          regla$nombre, "'."
+        ),
+        nrow(medidas)
+      ),
+      metrica_instanciada = medidas$metrica_instanciada,
+      granularidad = medidas$granularidad,
+      entidad = medidas$entidad,
+      atributo = medidas$atributo,
+      fila = medidas$fila,
+      objeto_medible = medidas$objeto_medible,
+      valor_medido = medidas$resultado,
+      stringsAsFactors = FALSE
+    )
+  })
+  partes <- partes[!vapply(partes, is.null, logical(1L))]
+  if (!length(partes)) return(.desenlaces_vacios())
+  resultado <- do.call(rbind, partes)
+  rownames(resultado) <- NULL
+  class(resultado) <- c("plan_desenlaces", "data.frame")
+  resultado
+}
+
 #' Evaluar medidas, reglas y perfiles
 #'
 #' Ejecuta la cadena formal: condición por medida, proporción de medidas que
@@ -322,7 +401,9 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 #' @param perfil Objeto creado por `perfil_evaluacion()`.
 #'
 #' @return Objeto `evaluacion_calidad` con tres data frames filtrables:
-#'   `medidas`, `reglas` y `perfiles`.
+#'   `medidas`, `reglas` y `perfiles`. Si alguna regla declara un desenlace,
+#'   contiene además `desenlaces`, un plan que identifica las medidas
+#'   incumplidas, el valor medido, el motivo y la regla que lo produjo.
 #' @export
 #'
 #' @examples
@@ -354,6 +435,10 @@ evaluar <- function(medicion, perfil) {
     reglas = evaluaciones_reglas,
     perfiles = evaluaciones_perfiles
   )
+  desenlaces <- .planificar_desenlaces(
+    medicion, evaluaciones_medidas, perfil
+  )
+  if (!is.null(desenlaces)) estructura$desenlaces <- desenlaces
   class(estructura) <- "evaluacion_calidad"
   estructura
 }

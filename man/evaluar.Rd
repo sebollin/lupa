@@ -14,7 +14,9 @@ corridas si conserva sus \code{id_medicion}.}
 }
 \value{
 Objeto \code{evaluacion_calidad} con tres data frames filtrables:
-\code{medidas}, \code{reglas} y \code{perfiles}.
+\code{medidas}, \code{reglas} y \code{perfiles}. Si alguna regla declara un desenlace,
+contiene además \code{desenlaces}, un plan que identifica las medidas
+incumplidas, el valor medido, el motivo y la regla que lo produjo.
 }
 \description{
 Ejecuta la cadena formal: condición por medida, proporción de medidas que
