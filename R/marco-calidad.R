@@ -109,6 +109,17 @@
 #' incluida para dos factores de AGESIC, el profiling genérico no demuestra por
 #' sí solo que una característica ISO satisfaga el uso declarado.
 #'
+#' `marco_cepal()` representa los cuatro niveles y los diecinueve principios
+#' del marco nacional de aseguramiento de la calidad de las Naciones Unidas,
+#' adoptados y adaptados para América Latina y el Caribe por la CEA/CEPAL. La
+#' columna `principio` conserva la numeración de la fuente. Los nombres de los
+#' niveles y principios son textuales; las descripciones y las instrucciones
+#' `como_resolverlo` de este paquete son redacción propia. Los principios 1 a
+#' 13 quedan fuera del alcance de una tabla: se refieren al sistema, al entorno
+#' institucional o al proceso estadístico. Los principios 14 a 19 describen
+#' productos estadísticos y quedan disponibles, aunque ninguno se considera
+#' medido por el profiling genérico.
+#'
 #' @param nombre Nombre del marco.
 #' @param factores Data frame con `dimension` y `factor`, o lista con nombres.
 #'   El data frame puede añadir estos campos de contrato:
@@ -129,14 +140,27 @@
 #'   instrucción genérica, `perfil_mide = FALSE`, `aplicabilidad = "siempre"` y
 #'   `disponibilidad = "disponible"` para todas las filas.
 #'
-#' @return `marco_calidad()`, `marco_agesic()` y `marco_iso25012()` devuelven un objeto S3
-#'   `marco_calidad`. `as.data.frame()` devuelve su tabla de factores.
+#' @return `marco_calidad()`, `marco_agesic()`, `marco_iso25012()` y
+#'   `marco_cepal()` devuelven un objeto S3 `marco_calidad`.
+#'   `as.data.frame()` devuelve su tabla de factores.
 #' @export
 #' @seealso [catalogo_agesic()], [modelo()], [cobertura_analisis()]
 #' @references [ISO/IEC (2008)](https://www.iso.org/standard/35736.html).
 #'   *ISO/IEC 25012:2008 Software engineering —
 #'   Software product Quality Requirements and Evaluation (SQuaRE) — Data
 #'   quality model*. <https://www.iso.org/standard/35736.html>.
+#'
+#'   [Naciones Unidas (2019)](https://unstats.un.org/unsd/methodology/dataquality/).
+#'   *Manual del marco nacional de aseguramiento de calidad en las estadísticas
+#'   oficiales*. Estudios en Métodos, serie M, N° 100
+#'   (ST/ESA/STAT/SER.M/100), Nueva York.
+#'
+#'   [Grupo de Trabajo de la Conferencia Estadística de las Américas (CEA),
+#'   coordinado por Colombia (DANE) y México (INEGI), Secretaría Técnica:
+#'   División de Estadísticas de la CEPAL (2022)](https://repositorio.cepal.org/handle/11362/47464).
+#'   *Guía para la implementación del marco de aseguramiento de la calidad para
+#'   procesos y productos estadísticos*. LC/CEA.11/19. Comisión Económica para
+#'   América Latina y el Caribe (CEPAL), Naciones Unidas, Santiago.
 #'
 #' @examples
 #' propio <- marco_calidad("Marco operativo", list(
@@ -148,6 +172,7 @@
 #' marco_agesic()
 #' iso <- marco_iso25012()
 #' table(as.data.frame(iso)$dimension)
+#' marco_cepal()
 marco_calidad <- function(nombre, factores) {
   if (!.es_texto_escalar(nombre)) {
     stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
@@ -244,6 +269,97 @@ marco_iso25012 <- function() {
   )
   estructura <- marco_calidad("Marco ISO/IEC 25012:2008", factores)
   estructura$origen <- "ISO/IEC 25012:2008"
+  estructura
+}
+
+#' @rdname marco_calidad
+#' @export
+marco_cepal <- function() {
+  dimension <- c(
+    rep("Nivel A. Gesti\u00f3n del sistema estad\u00edstico", 3L),
+    rep("Nivel B. Gesti\u00f3n del entorno institucional", 6L),
+    rep("Nivel C. Gesti\u00f3n del proceso estad\u00edstico", 4L),
+    rep("Nivel D. Gesti\u00f3n de los productos estad\u00edsticos", 6L)
+  )
+  factor <- c(
+    "Coordinaci\u00f3n del sistema estad\u00edstico nacional",
+    "Gesti\u00f3n de las relaciones con los usuarios de datos, los proveedores de datos y otros grupos de inter\u00e9s",
+    "Gesti\u00f3n de normas y est\u00e1ndares estad\u00edsticos",
+    "Asegurar la independencia profesional",
+    "Asegurar la imparcialidad y la objetividad",
+    "Asegurar la transparencia",
+    "Asegurar la confidencialidad estad\u00edstica y la seguridad de los datos",
+    "Asegurar el compromiso con la calidad",
+    "Asegurar la suficiencia de los recursos",
+    "Asegurar la solidez metodol\u00f3gica",
+    "Asegurar una buena relaci\u00f3n costo-eficiencia",
+    "Asegurar procedimientos estad\u00edsticos apropiados",
+    "Manejo de la carga del encuestado",
+    "Asegurar la relevancia",
+    "Asegurar la precisi\u00f3n y la confiabilidad",
+    "Asegurar la oportunidad y la puntualidad",
+    "Asegurar la accesibilidad y la claridad",
+    "Asegurar la coherencia y la comparabilidad",
+    "Gesti\u00f3n de los metadatos"
+  )
+  descripcion <- c(
+    "Considera c\u00f3mo se articulan los organismos y las unidades del sistema estad\u00edstico nacional para sostener una producci\u00f3n estad\u00edstica coordinada.",
+    "Considera c\u00f3mo se gestionan las relaciones que permiten identificar necesidades, recibir datos y atender a otros grupos de inter\u00e9s.",
+    "Considera c\u00f3mo se adoptan, mantienen y utilizan normas y est\u00e1ndares estad\u00edsticos comunes.",
+    "Considera si las decisiones y m\u00e9todos estad\u00edsticos pueden desarrollarse con independencia profesional frente a interferencias indebidas.",
+    "Considera si las decisiones estad\u00edsticas se toman y comunican con imparcialidad y objetividad.",
+    "Considera si las decisiones, m\u00e9todos y resultados relevantes se exponen de forma transparente.",
+    "Considera si la confidencialidad estad\u00edstica y la seguridad de los datos se protegen durante su gesti\u00f3n y uso.",
+    "Considera si existe un compromiso institucional expl\u00edcito y sostenido con la calidad estad\u00edstica.",
+    "Considera si los recursos humanos, financieros, tecnol\u00f3gicos y organizacionales son suficientes para el trabajo estad\u00edstico.",
+    "Considera si el desarrollo estad\u00edstico se apoya en conocimientos, m\u00e9todos y est\u00e1ndares metodol\u00f3gicos s\u00f3lidos.",
+    "Considera si los recursos utilizados guardan una relaci\u00f3n razonable con los resultados y objetivos estad\u00edsticos.",
+    "Considera si las etapas y actividades del proceso estad\u00edstico se ejecutan mediante procedimientos apropiados.",
+    "Considera si la informaci\u00f3n solicitada y las formas de recolecci\u00f3n gestionan razonablemente la carga del encuestado.",
+    "Considera si el producto estad\u00edstico responde a las necesidades de informaci\u00f3n de sus usuarios.",
+    "Considera si el producto estad\u00edstico representa de manera fiable aquello que busca describir y medir.",
+    "Considera si el producto estad\u00edstico se publica cuando resulta \u00fatil y conforme al calendario comprometido.",
+    "Considera si el producto estad\u00edstico puede encontrarse, obtenerse e interpretarse con claridad.",
+    "Considera si los conceptos, m\u00e9todos y resultados del producto estad\u00edstico pueden relacionarse entre operaciones y momentos.",
+    "Considera si la documentaci\u00f3n que explica el producto estad\u00edstico se mantiene completa, accesible y utilizable."
+  )
+  como_resolverlo <- c(
+    rep(
+      "No es una limitaci\u00f3n transitoria del motor: se documenta en el marco institucional y no se establece sobre una tabla, porque el objeto del principio es el sistema estad\u00edstico, el entorno institucional o el proceso estad\u00edstico.",
+      13L
+    ),
+    "Declarar las necesidades del uso estad\u00edstico y la evidencia y m\u00e9tricas con las que se verificar\u00e1 la relevancia del producto.",
+    "Definir las fuentes, m\u00e9todos de validaci\u00f3n y m\u00e9tricas que respalden la precisi\u00f3n y la confiabilidad del producto.",
+    "Definir el momento de referencia, el calendario y las m\u00e9tricas que permitan verificar la oportunidad y la puntualidad.",
+    "Definir los canales, formatos, metadatos y m\u00e9tricas que permitan verificar la accesibilidad y la claridad.",
+    "Definir conceptos, m\u00e9todos, per\u00edodos y m\u00e9tricas que permitan verificar la coherencia y la comparabilidad.",
+    "Definir los metadatos necesarios para interpretar, reproducir y mantener el producto estad\u00edstico."
+  )
+  factores <- data.frame(
+    principio = seq_along(factor),
+    dimension = dimension,
+    factor = factor,
+    descripcion = descripcion,
+    como_resolverlo = como_resolverlo,
+    perfil_mide = FALSE,
+    aplicabilidad = "siempre",
+    disponibilidad = c(rep("fuera_de_alcance", 13L), rep("disponible", 6L)),
+    stringsAsFactors = FALSE
+  )
+  estructura <- marco_calidad(
+    "Marco de aseguramiento de la calidad estad\u00edstica de Naciones Unidas, adaptado por CEA/CEPAL",
+    factores
+  )
+  estructura$origen <- paste0(
+    "Marco de Naciones Unidas (2019): Manual del marco nacional de aseguramiento de calidad en las estad\u00edsticas oficiales, ",
+    "Estudios en M\u00e9todos, serie M, N\u00b0 100 (ST/ESA/STAT/SER.M/100), Nueva York. ",
+    "Adaptaci\u00f3n regional CEA/CEPAL: Grupo de Trabajo de la Conferencia Estad\u00edstica de las Am\u00e9ricas (CEA), ",
+    "coordinado por Colombia (DANE) y M\u00e9xico (INEGI), Secretar\u00eda T\u00e9cnica: Divisi\u00f3n de Estad\u00edsticas de la CEPAL (2022), ",
+    "Gu\u00eda para la implementaci\u00f3n del marco de aseguramiento de la calidad para procesos y productos estad\u00edsticos ",
+    "(LC/CEA.11/19), Comisi\u00f3n Econ\u00f3mica para Am\u00e9rica Latina y el Caribe (CEPAL), Naciones Unidas, Santiago. ",
+    "Fuentes: https://unstats.un.org/unsd/methodology/dataquality/; ",
+    "https://repositorio.cepal.org/handle/11362/47464"
+  )
   estructura
 }
 

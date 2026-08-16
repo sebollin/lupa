@@ -28,7 +28,12 @@ Description: Provides general-purpose data profiling and quality analysis for
     Digital Government, version 1.6, published by AGESIC (2020)
     <https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/>,
     and an optional taxonomy of the fifteen characteristics in ISO/IEC
-    25012:2008 <https://www.iso.org/standard/35736.html>.
+    25012:2008 <https://www.iso.org/standard/35736.html>. It also includes the
+    four levels and nineteen principles of the United Nations national quality
+    assurance framework, adapted for Latin America and the Caribbean by the
+    CEA/CEPAL, based on the United Nations manual (2019)
+    <https://unstats.un.org/unsd/methodology/dataquality/> and the regional
+    guide (2022) <https://repositorio.cepal.org/handle/11362/47464>.
 License: GPL-3
 URL: https://github.com/sebollin/lupa, https://sebollin.github.io/lupa/
 BugReports: https://github.com/sebollin/lupa/issues

@@ -4,6 +4,7 @@
 \alias{marco_calidad}
 \alias{marco_agesic}
 \alias{marco_iso25012}
+\alias{marco_cepal}
 \title{Declarar una taxonomía de calidad de datos}
 \usage{
 marco_calidad(nombre, factores)
@@ -11,6 +12,8 @@ marco_calidad(nombre, factores)
 marco_agesic()
 
 marco_iso25012()
+
+marco_cepal()
 }
 \arguments{
 \item{nombre}{Nombre del marco.}
@@ -37,8 +40,9 @@ instrucción genérica, \code{perfil_mide = FALSE}, \code{aplicabilidad = "siemp
 \code{disponibilidad = "disponible"} para todas las filas.}
 }
 \value{
-\code{marco_calidad()}, \code{marco_agesic()} y \code{marco_iso25012()} devuelven un objeto S3
-\code{marco_calidad}. \code{as.data.frame()} devuelve su tabla de factores.
+\code{marco_calidad()}, \code{marco_agesic()}, \code{marco_iso25012()} y
+\code{marco_cepal()} devuelven un objeto S3 \code{marco_calidad}.
+\code{as.data.frame()} devuelve su tabla de factores.
 }
 \description{
 Un \code{marco_calidad} enumera las dimensiones y factores contra los que se
@@ -63,6 +67,17 @@ clasificación siguen la norma; las descripciones son redacción propia. Las
 quince filas declaran \code{perfil_mide = FALSE}: a diferencia de la política
 incluida para dos factores de AGESIC, el profiling genérico no demuestra por
 sí solo que una característica ISO satisfaga el uso declarado.
+
+\code{marco_cepal()} representa los cuatro niveles y los diecinueve principios
+del marco nacional de aseguramiento de la calidad de las Naciones Unidas,
+adoptados y adaptados para América Latina y el Caribe por la CEA/CEPAL. La
+columna \code{principio} conserva la numeración de la fuente. Los nombres de los
+niveles y principios son textuales; las descripciones y las instrucciones
+\code{como_resolverlo} de este paquete son redacción propia. Los principios 1 a
+13 quedan fuera del alcance de una tabla: se refieren al sistema, al entorno
+institucional o al proceso estadístico. Los principios 14 a 19 describen
+productos estadísticos y quedan disponibles, aunque ninguno se considera
+medido por el profiling genérico.
 }
 \examples{
 propio <- marco_calidad("Marco operativo", list(
@@ -74,12 +89,23 @@ as.data.frame(propio)
 marco_agesic()
 iso <- marco_iso25012()
 table(as.data.frame(iso)$dimension)
+marco_cepal()
 }
 \references{
 \href{https://www.iso.org/standard/35736.html}{ISO/IEC (2008)}.
 \emph{ISO/IEC 25012:2008 Software engineering —
 Software product Quality Requirements and Evaluation (SQuaRE) — Data
 quality model}. \url{https://www.iso.org/standard/35736.html}.
+
+\href{https://unstats.un.org/unsd/methodology/dataquality/}{Naciones Unidas (2019)}.
+\emph{Manual del marco nacional de aseguramiento de calidad en las estadísticas
+oficiales}. Estudios en Métodos, serie M, N° 100
+(ST/ESA/STAT/SER.M/100), Nueva York.
+
+\href{https://repositorio.cepal.org/handle/11362/47464}{Grupo de Trabajo de la Conferencia Estadística de las Américas (CEA), coordinado por Colombia (DANE) y México (INEGI), Secretaría Técnica: División de Estadísticas de la CEPAL (2022)}.
+\emph{Guía para la implementación del marco de aseguramiento de la calidad para
+procesos y productos estadísticos}. LC/CEA.11/19. Comisión Económica para
+América Latina y el Caribe (CEPAL), Naciones Unidas, Santiago.
 }
 \seealso{
 \code{\link[=catalogo_agesic]{catalogo_agesic()}}, \code{\link[=modelo]{modelo()}}, \code{\link[=cobertura_analisis]{cobertura_analisis()}}
