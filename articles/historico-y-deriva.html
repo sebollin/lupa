@@ -41,7 +41,8 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/el-modelo-de-calidad.html">Un modelo de calidad declarable</a></li>
+    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
     <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
     <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -129,9 +130,17 @@ llevarse a una tabla institucional sin desarmar listas anidadas.</p>
 <span><span class="co">#&gt; 1            febrero   2026-02-28                1     1               1          TRUE</span></span>
 <span><span class="co">#&gt;   direccion severidad</span></span>
 <span><span class="co">#&gt; 1    mejora        ok</span></span></code></pre></div>
+<p><code><a href="../reference/historico_calidad.html">acumular_historico()</a></code> existe para el flujo incremental:
+amplía una serie ya guardada y no duplica una corrida idéntica.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">historico_incremental</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/historico_calidad.html">acumular_historico</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/historico_calidad.html">historico_calidad</a></span><span class="op">(</span><span class="va">evaluacion_enero</span><span class="op">)</span>, <span class="va">evaluacion_febrero</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">historico</span>, <span class="va">historico_incremental</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
 <p>La persistencia usa RDS y no agrega dependencias. El archivo no se
 sobrescribe sin consentimiento.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">archivo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".rds"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/guardar_historico.html">guardar_historico</a></span><span class="op">(</span><span class="va">historico</span>, <span class="va">archivo</span><span class="op">)</span></span>
 <span><span class="va">recuperado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/guardar_historico.html">leer_historico</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span></span>
@@ -145,7 +154,7 @@ sobrescribe sin consentimiento.</p>
 <p><code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code> distingue cambios de esquema y
 cambios sobre columnas comparables. Informa columnas nuevas o retiradas,
 tipos, ausencias, cardinalidad, rangos, patrones y hallazgos.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">datos_administrativos</span><span class="op">)</span></span>
 <span><span class="va">entrega_enero</span> <span class="op">&lt;-</span> <span class="va">datos_administrativos</span></span>
 <span><span class="va">entrega_febrero</span> <span class="op">&lt;-</span> <span class="va">datos_administrativos</span></span>
@@ -170,7 +179,7 @@ tipos, ausencias, cardinalidad, rangos, patrones y hallazgos.</p>
 <p>Una comparación contra el mismo perfil produce cero cambios. Las
 columnas que sólo existen en un lado se informan como cambios
 estructurales; no hacen fallar la comparación de las demás.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/comparar_perfiles.html">comparar_perfiles</a></span><span class="op">(</span><span class="va">perfil_enero</span>, <span class="va">perfil_enero</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0</span></span></code></pre></div>
 </div>

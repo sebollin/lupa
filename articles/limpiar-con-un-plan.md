@@ -103,6 +103,24 @@ plan[, c("estrategia", "justificacion")]
 #> 17                                                                     Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.
 ```
 
+[`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
+permite declarar qué diferencias se ignoran al comparar. El perfil
+cambia sólo la representación de comparación; nunca modifica los datos.
+
+``` r
+
+normalizacion(acentos = FALSE, puntuacion = TRUE)
+#> Perfil de normalizacion de lupa
+#>   minusculas = TRUE
+#>   espacios = TRUE
+#>   acentos = FALSE
+#>   comillas = TRUE
+#>   puntuacion = TRUE
+#>   ligaduras = FALSE
+#>   ancho = FALSE
+#>   proteger = ñ, ü, g̃
+```
+
 ## Grupos mutuamente excluyentes
 
 Las alternativas de un mismo hallazgo comparten `grupo`. Como máximo una

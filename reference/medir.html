@@ -22,7 +22,8 @@ una medida reutilizable y conserva el identificador y la fecha de la corrida."><
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/el-modelo-de-calidad.html">Un modelo de calidad declarable</a></li>
+    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
     <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
     <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -89,13 +90,13 @@ que trabajan con un vocabulario o un alcance parcial agregan un atributo
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">medir</span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T105035.161314-7386-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T105035.161314-7386-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T105035.161314-7386-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T144548.555214-7476-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T144548.555214-7476-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T144548.555214-7476-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T105035.161314-7386 2026-08-17 10:50:35  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T105035.161314-7386 2026-08-17 10:50:35  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T105035.161314-7386 2026-08-17 10:50:35  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T144548.555214-7476 2026-08-17 14:45:48  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T144548.555214-7476 2026-08-17 14:45:48  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T144548.555214-7476 2026-08-17 14:45:48  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>

@@ -70,6 +70,19 @@ detectar_deriva_calidad(historico, umbral = 0.05)
 #> 1    mejora        ok
 ```
 
+[`acumular_historico()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+existe para el flujo incremental: amplía una serie ya guardada y no
+duplica una corrida idéntica.
+
+``` r
+
+historico_incremental <- acumular_historico(
+  historico_calidad(evaluacion_enero), evaluacion_febrero
+)
+identical(historico, historico_incremental)
+#> [1] TRUE
+```
+
 La persistencia usa RDS y no agrega dependencias. El archivo no se
 sobrescribe sin consentimiento.
 

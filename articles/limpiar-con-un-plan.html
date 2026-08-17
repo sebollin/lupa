@@ -41,7 +41,8 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
-    <li><a class="dropdown-item" href="../articles/el-modelo-de-calidad.html">Un modelo de calidad declarable</a></li>
+    <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
+    <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
     <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
     <li><a class="dropdown-item" href="../articles/historico-y-deriva.html">Histórico y monitoreo de deriva</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -167,6 +168,20 @@ contexto y queda desactivado.</p>
 <span><span class="co">#&gt; 15                                Requiere configurar una clave: entre duplicados exactos todas las filas tienen la misma completitud y esta opción sería equivalente a la primera.</span></span>
 <span><span class="co">#&gt; 16                                                                                                   La anotación conserva ambas columnas y registra explícitamente la redundancia.</span></span>
 <span><span class="co">#&gt; 17                                                                     Eliminar una columna puede romper consumidores que dependan de su nombre aunque el contenido sea redundante.</span></span></code></pre></div>
+<p><code><a href="../reference/normalizacion.html">normalizacion()</a></code> permite declarar qué diferencias se
+ignoran al comparar. El perfil cambia sólo la representación de
+comparación; nunca modifica los datos.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/normalizacion.html">normalizacion</a></span><span class="op">(</span>acentos <span class="op">=</span> <span class="cn">FALSE</span>, puntuacion <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Perfil de normalizacion de lupa</span></span>
+<span><span class="co">#&gt;   minusculas = TRUE</span></span>
+<span><span class="co">#&gt;   espacios = TRUE</span></span>
+<span><span class="co">#&gt;   acentos = FALSE</span></span>
+<span><span class="co">#&gt;   comillas = TRUE</span></span>
+<span><span class="co">#&gt;   puntuacion = TRUE</span></span>
+<span><span class="co">#&gt;   ligaduras = FALSE</span></span>
+<span><span class="co">#&gt;   ancho = FALSE</span></span>
+<span><span class="co">#&gt;   proteger = ñ, ü, g̃</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="grupos-mutuamente-excluyentes">Grupos mutuamente excluyentes<a class="anchor" aria-label="anchor" href="#grupos-mutuamente-excluyentes"></a>
@@ -176,7 +191,7 @@ Como máximo una puede tener <code>aplicar = TRUE</code>.
 <code>decision_grupo</code> distingue un grupo pendiente de una decisión
 explícita de no actuar; no se inventa una fila ficticia de “no hacer
 nada”.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">grupos</span> <span class="op">&lt;-</span> <span class="va">plan</span><span class="op">[</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">plan</span><span class="op">$</span><span class="va">grupo</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"grupo"</span>, <span class="st">"estrategia"</span>, <span class="st">"recomendada"</span>, <span class="st">"aplicar"</span>, <span class="st">"decision_grupo"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
@@ -194,14 +209,14 @@ nada”.</p>
 <p>El modo guiado es una capa opcional. Fuera de una sesión interactiva
 devuelve el plan sin bloquear; en una consola recorre sólo decisiones
 pendientes o riesgosas.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="fu"><a href="../reference/guiar_limpieza.html">guiar_limpieza</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">datos_administrativos</span><span class="op">)</span>, <span class="va">plan</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="aplicar-conserva-evidencia">Aplicar conserva evidencia<a class="anchor" aria-label="anchor" href="#aplicar-conserva-evidencia"></a>
 </h2>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">copia</span> <span class="op">&lt;-</span> <span class="va">datos_administrativos</span></span>
 <span><span class="va">resultado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/planificar_limpieza.html">aplicar</a></span><span class="op">(</span><span class="va">plan</span>, <span class="va">datos_administrativos</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">datos_administrativos</span>, <span class="va">copia</span><span class="op">)</span></span>
@@ -228,7 +243,7 @@ propios datos, pero sigue siendo una regularidad observada en una
 entrega. Puede representar una regla real o un error sistemático. Por
 eso la acción se ofrece con mapa y soporte, pero no queda recomendada ni
 activa.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">datos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  codigo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, each <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>,</span>
 <span>  descripcion <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>,</span>
@@ -250,7 +265,7 @@ activa.</p>
 <p>Después de confirmar la regla, el usuario activa una alternativa y
 registra la decisión. La dependencia vuelve a validarse al aplicar el
 plan.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">plan_fd</span><span class="op">$</span><span class="va">aplicar</span><span class="op">[</span><span class="va">imputacion</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
 <span><span class="va">plan_fd</span><span class="op">$</span><span class="va">decision_grupo</span><span class="op">[</span><span class="va">imputacion</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="st">"elegida"</span></span>
 <span><span class="va">resultado_fd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/planificar_limpieza.html">aplicar</a></span><span class="op">(</span><span class="va">plan_fd</span>, <span class="va">datos</span><span class="op">)</span></span>

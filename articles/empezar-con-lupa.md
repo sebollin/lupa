@@ -22,6 +22,22 @@ dim(datos_operativos)
 #> [1] 13 10
 ```
 
+La lista amplia de sentinelas numéricos de `naniar` se solicita de
+manera explícita porque valores como `66`, `77` y `88` pueden ser datos
+legítimos.
+
+``` r
+
+perfil_sentinelas <- perfilar(
+  data.frame(codigo = c(1, 66, 9999)),
+  sentinelas_numericos = sentinelas_naniar,
+  analizar_dependencias = FALSE
+)
+perfil_sentinelas$columnas[, c("columna", "n_faltantes_disfrazados")]
+#>   columna n_faltantes_disfrazados
+#> 1  codigo                       2
+```
+
 El marco contra el que se informa la cobertura también es declarable. En
 un data frame, `perfil_mide` señala los factores para los que el
 profiling aporta evidencia suficiente por sí solo. La forma abreviada
@@ -469,11 +485,11 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file20e027fc97e0.html"
+#> [1] "file215173aa0544.html"
 unlink(c(archivo, archivo_rds))
 ```
 
 Para profundizar en la arquitectura consulte
-[`vignette("el-modelo-de-calidad")`](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.md);
+[`vignette("definir-la-calidad")`](https://sebollin.github.io/lupa/articles/definir-la-calidad.md);
 para revisar decisiones de remediación,
 [`vignette("limpiar-con-un-plan")`](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.md).

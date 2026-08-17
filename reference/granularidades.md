@@ -1,8 +1,10 @@
 # Granularidades y transiciones de agregación
 
 `granularidades()` declara los diez niveles del marco. Los primeros seis
-están implementados; los restantes quedan registrados para extender el
-modelo sin convertir la granularidad en una escala lineal.
+están implementados. Los cuatro restantes se registran, pero no se miden
+porque falta declarar la frontera del objeto: qué tablas componen una
+colección, qué bases componen un conjunto de colecciones, qué bases
+pertenecen a una organización y qué organizaciones se comparan.
 
 ## Usage
 

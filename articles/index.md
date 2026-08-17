@@ -1,11 +1,22 @@
 # Articles
 
+### Examinar
+
+Descubrir estructura y perfilar tablas remotas con alcance declarado.
+
+- [Estructura no
+  declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.md):
+- [Perfilar una
+  base](https://sebollin.github.io/lupa/articles/perfilar-una-base.md):
+
 ### Recorrido
 
 - [Empezar con
   lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.md):
-- [Un modelo de calidad
-  declarable](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.md):
+- [Definir la
+  calidad](https://sebollin.github.io/lupa/articles/definir-la-calidad.md):
+- [Medir y
+  evaluar](https://sebollin.github.io/lupa/articles/medir-y-evaluar.md):
 - [Limpiar con un plan
   auditable](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.md):
 - [Histórico y monitoreo de
