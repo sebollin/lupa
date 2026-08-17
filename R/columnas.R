@@ -1192,6 +1192,7 @@
     x_analisis, sentinelas_numericos = sentinelas_numericos,
     detectar_sentinelas_numericos = !isTRUE(secuencia_entera$densa)
   )
+  casi_clave <- .resumen_casi_clave(x_analisis)
   n <- length(x)
   n_faltantes <- sum(is.na(x))
   n_codificacion_invalida <- length(preparacion_texto$posiciones)
@@ -1347,6 +1348,7 @@
     formatos = formatos,
     patrones = patrones,
     secuencia_entera = secuencia_entera,
+    casi_clave = casi_clave,
     faltantes_disfrazados = faltantes_disfrazados,
     diagnostico_texto = diagnostico_texto,
     numeros_texto = numeros_texto,

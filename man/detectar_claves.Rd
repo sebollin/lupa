@@ -17,16 +17,25 @@ detectar_claves(datos, max_combinacion = 3, normalizar = NULL, perfil = NULL)
 \item{perfil}{Perfil producido por \code{\link[=perfilar]{perfilar()}} para heredar la comparación.}
 }
 \value{
-Data frame de claves candidatas con las columnas combinadas,
-cantidad de columnas, marcas de redundancia y las columnas
-\code{unicidad_exacta} y \code{unicidad_normalizada}. La búsqueda de candidatas usa
-identidad exacta; la segunda columna muestra cuántas candidatas también
-siguen siendo únicas bajo el perfil de comparación.
+Data frame de claves candidatas y casi-claves con las columnas
+combinadas, cantidad de columnas, marcas de redundancia, \code{casi_clave},
+\code{unicidad_exacta} y \code{unicidad_normalizada}. Las columnas de colisiones
+publican sus valores, frecuencias y la concentración observada. Las claves
+exactas conservan \code{casi_clave = FALSE}; una fila con \code{casi_clave = TRUE}
+es un diagnóstico que requiere corregir o confirmar, no una clave válida.
 }
 \description{
 Busca primero claves simples y luego combinaciones mínimas de dos o tres
 columnas. No prueba una combinación si ya contiene una clave candidata más
 pequeña. Una clave exige ausencia de \code{NA} y unicidad en todas las filas.
+Además informa columnas simples casi-clave cuando al menos el 90 \% de sus
+valores son distintos y un único valor concentra al menos la mitad de los
+duplicados excedentes. La concentración evita confundir texto libre de alta
+cardinalidad, con muchas colisiones dispersas, con una clave dañada.
+Los vectores \code{double} sólo son candidatos si ninguno de sus valores finitos
+tiene parte fraccionaria. Esto conserva identificadores enteros importados
+desde archivos de texto y excluye importes, coordenadas y otras medidas. Los
+vectores \code{integer64} se tratan como enteros semánticos.
 }
 \details{
 Dos claves simples se marcan como redundantes cuando sus contenidos son

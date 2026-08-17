@@ -117,6 +117,9 @@ realizada por \code{lupa} sin confirmación. Agrega inmediatamente el detalle y
 conserva \code{\link[=tablero_calidad]{tablero_calidad()}}; las medidas fila a fila sólo quedan en el
 resultado si \code{conservar_detalle_medicion = TRUE}. La evaluación, cuando se
 solicita, usa la medición agregada.
+Los hallazgos \code{casi_clave} del perfil se reiteran en \code{advertencias}, con su
+columna, valores en colisión, frecuencias y criterio observado, para que no
+queden ocultos dentro del recorrido integral.
 }
 \examples{
 resultado <- analizar(

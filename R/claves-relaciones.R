@@ -10,6 +10,108 @@
   anyDuplicated(combinado) == 0L
 }
 
+.umbral_unicidad_casi_clave <- 0.9
+.umbral_concentracion_casi_clave <- 0.5
+
+.resumen_tipo_candidato_clave <- function(x) {
+  es_doble_fraccionable <- is.double(x) && !inherits(x, "integer64")
+  n_fraccionarios_finitos <- if (es_doble_fraccionable) {
+    valores_dobles <- tryCatch(as.double(x), error = function(e) NULL)
+    if (is.null(valores_dobles)) NA_integer_ else {
+      as.integer(sum(
+        is.finite(valores_dobles) & valores_dobles != trunc(valores_dobles)
+      ))
+    }
+  } else 0L
+  list(
+    tipo_almacenamiento = typeof(x),
+    n_valores_fraccionarios_finitos = n_fraccionarios_finitos,
+    es_candidato = !is.na(n_fraccionarios_finitos) &&
+      n_fraccionarios_finitos == 0L
+  )
+}
+
+.resumen_casi_clave <- function(
+    x, umbral_unicidad = .umbral_unicidad_casi_clave,
+    umbral_concentracion = .umbral_concentracion_casi_clave) {
+  tipo_candidato <- .resumen_tipo_candidato_clave(x)
+  vacio <- list(
+    es_casi_clave = FALSE, n_filas = length(x), n_distintos = NA_integer_,
+    tasa_distintos = NA_real_, n_valores_colisionados = NA_integer_,
+    n_filas_en_colision = NA_integer_, n_duplicados_excedentes = NA_integer_,
+    concentracion_colisiones = NA_real_, valores = character(),
+    frecuencias = integer(), indices = integer(),
+    tipo_almacenamiento = tipo_candidato$tipo_almacenamiento,
+    n_valores_fraccionarios_finitos =
+      tipo_candidato$n_valores_fraccionarios_finitos,
+    umbral_unicidad = umbral_unicidad,
+    umbral_concentracion = umbral_concentracion
+  )
+  if (is.matrix(x) || is.list(x) || !length(x)) return(vacio)
+  if (!isTRUE(tipo_candidato$es_candidato)) return(vacio)
+  ausentes <- tryCatch(is.na(x), error = function(e) NULL)
+  if (is.null(ausentes) || length(ausentes) != length(x) || any(ausentes)) {
+    return(vacio)
+  }
+  indices_valor <- tryCatch(match(x, unique(x)), error = function(e) NULL)
+  if (is.null(indices_valor) || anyNA(indices_valor)) return(vacio)
+  frecuencias <- tabulate(indices_valor)
+  n_distintos <- length(frecuencias)
+  colisionados <- which(frecuencias > 1L)
+  n_excedentes <- sum(frecuencias[colisionados] - 1L)
+  concentracion <- if (n_excedentes > 0L) {
+    max(frecuencias[colisionados] - 1L) / n_excedentes
+  } else NA_real_
+  tasa <- n_distintos / length(x)
+  orden <- if (length(colisionados)) {
+    order(-frecuencias[colisionados], colisionados)
+  } else integer()
+  colisionados <- colisionados[orden]
+  valores_unicos <- unique(x)
+  valores <- tryCatch(
+    suppressWarnings(as.character(valores_unicos[colisionados])),
+    error = function(e) rep(NA_character_, length(colisionados))
+  )
+  indices <- if (length(colisionados)) {
+    which(indices_valor %in% colisionados)
+  } else integer()
+  list(
+    es_casi_clave = n_excedentes > 0L && tasa >= umbral_unicidad &&
+      concentracion >= umbral_concentracion,
+    n_filas = length(x), n_distintos = n_distintos,
+    tasa_distintos = tasa,
+    n_valores_colisionados = length(colisionados),
+    n_filas_en_colision = sum(frecuencias[colisionados]),
+    n_duplicados_excedentes = n_excedentes,
+    concentracion_colisiones = concentracion,
+    valores = valores,
+    frecuencias = as.integer(frecuencias[colisionados]),
+    indices = as.integer(indices),
+    tipo_almacenamiento = tipo_candidato$tipo_almacenamiento,
+    n_valores_fraccionarios_finitos =
+      tipo_candidato$n_valores_fraccionarios_finitos,
+    umbral_unicidad = umbral_unicidad,
+    umbral_concentracion = umbral_concentracion
+  )
+}
+
+.evidencia_colisiones_casi_clave <- function(resumen, max_valores = 20L) {
+  if (!length(resumen$valores)) return("")
+  indices <- seq_len(min(length(resumen$valores), max_valores))
+  evidencia <- paste(vapply(indices, function(i) {
+    valor <- resumen$valores[[i]]
+    if (is.na(valor)) valor <- "<no representable>"
+    paste0(.escapar_texto_visible(valor), " (", resumen$frecuencias[[i]], ")")
+  }, character(1L)), collapse = "; ")
+  if (length(resumen$valores) > max_valores) {
+    evidencia <- paste0(
+      evidencia, "; ... ", length(resumen$valores) - max_valores,
+      " valores no mostrados"
+    )
+  }
+  evidencia
+}
+
 .resumen_clave_normalizada <- function(datos, indices, nombres, normalizacion) {
   valores <- lapply(indices, function(i) {
     x <- suppressWarnings(as.character(.texto_analizable(datos[[i]])$valores))
@@ -61,6 +163,14 @@
 #' Busca primero claves simples y luego combinaciones mínimas de dos o tres
 #' columnas. No prueba una combinación si ya contiene una clave candidata más
 #' pequeña. Una clave exige ausencia de `NA` y unicidad en todas las filas.
+#' Además informa columnas simples casi-clave cuando al menos el 90 % de sus
+#' valores son distintos y un único valor concentra al menos la mitad de los
+#' duplicados excedentes. La concentración evita confundir texto libre de alta
+#' cardinalidad, con muchas colisiones dispersas, con una clave dañada.
+#' Los vectores `double` sólo son candidatos si ninguno de sus valores finitos
+#' tiene parte fraccionaria. Esto conserva identificadores enteros importados
+#' desde archivos de texto y excluye importes, coordenadas y otras medidas. Los
+#' vectores `integer64` se tratan como enteros semánticos.
 #'
 #' Dos claves simples se marcan como redundantes cuando sus contenidos son
 #' idénticos —incluidas clase, atributos, ausencias y representación exacta—,
@@ -74,11 +184,12 @@
 #'   `perfil`, pero las claves se siguen descubriendo por identidad exacta.
 #' @param perfil Perfil producido por [perfilar()] para heredar la comparación.
 #'
-#' @return Data frame de claves candidatas con las columnas combinadas,
-#'   cantidad de columnas, marcas de redundancia y las columnas
-#'   `unicidad_exacta` y `unicidad_normalizada`. La búsqueda de candidatas usa
-#'   identidad exacta; la segunda columna muestra cuántas candidatas también
-#'   siguen siendo únicas bajo el perfil de comparación.
+#' @return Data frame de claves candidatas y casi-claves con las columnas
+#'   combinadas, cantidad de columnas, marcas de redundancia, `casi_clave`,
+#'   `unicidad_exacta` y `unicidad_normalizada`. Las columnas de colisiones
+#'   publican sus valores, frecuencias y la concentración observada. Las claves
+#'   exactas conservan `casi_clave = FALSE`; una fila con `casi_clave = TRUE`
+#'   es un diagnóstico que requiere corregir o confirmar, no una clave válida.
 #' @export
 #' @seealso [detectar_dependencias()], [detectar_relaciones()]
 #'
@@ -100,9 +211,11 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   }
   nombres <- make.unique(names(datos))
   encontradas <- list()
+  casi_encontradas <- list()
   k <- 0L
   analizables <- which(!vapply(datos, function(x) {
-    is.list(x) || is.matrix(x)
+    is.list(x) || is.matrix(x) ||
+      !isTRUE(.resumen_tipo_candidato_clave(x)$es_candidato)
   }, logical(1L)))
   limite <- min(floor(max_combinacion), length(analizables))
 
@@ -119,23 +232,45 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
         }
       }
     }
+    casi_encontradas <- lapply(analizables, function(i) {
+      resumen <- .resumen_casi_clave(datos[[i]])
+      if (isTRUE(resumen$es_casi_clave)) {
+        list(indices = i, resumen = resumen)
+      } else NULL
+    })
+    casi_encontradas <- Filter(Negate(is.null), casi_encontradas)
   }
 
   indices_simples <- unlist(encontradas[lengths(encontradas) == 1L], use.names = FALSE)
   redundantes <- .pares_redundantes(datos, indices_simples, nombres)
-  if (!length(encontradas)) {
+  entradas <- c(
+    lapply(encontradas, function(indices) {
+      list(indices = indices, casi_clave = FALSE, resumen = NULL)
+    }),
+    lapply(casi_encontradas, function(x) {
+      list(indices = x$indices, casi_clave = TRUE, resumen = x$resumen)
+    })
+  )
+  if (!length(entradas)) {
     resultado <- data.frame(
       columnas = character(), n_columnas = integer(), n_filas = integer(),
       redundante = logical(), equivalente_a = character(),
+      casi_clave = logical(),
       unicidad_exacta = logical(), unicidad_normalizada = logical(),
       n_distintos_exactos = integer(), n_distintos_normalizados = integer(),
+      n_valores_colisionados = integer(), n_filas_en_colision = integer(),
+      n_duplicados_excedentes = integer(),
+      concentracion_colisiones = numeric(), colisiones = character(),
       stringsAsFactors = FALSE
     )
   } else {
-    resultado <- do.call(rbind, lapply(encontradas, function(indices) {
+    resultado <- do.call(rbind, lapply(entradas, function(entrada) {
+      indices <- entrada$indices
+      es_casi_clave <- entrada$casi_clave
+      resumen <- entrada$resumen
       nombres_clave <- nombres[indices]
       relacionadas <- character()
-      if (length(indices) == 1L && nrow(redundantes)) {
+      if (!es_casi_clave && length(indices) == 1L && nrow(redundantes)) {
         relacionadas <- c(
           redundantes$columna_2[redundantes$columna_1 == nombres_clave],
           redundantes$columna_1[redundantes$columna_2 == nombres_clave]
@@ -144,7 +279,9 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       normalizada <- .resumen_clave_normalizada(
         datos, indices, nombres, normalizacion_resuelta
       )
-      exactos <- if (nrow(datos)) {
+      exactos <- if (es_casi_clave) {
+        resumen$n_distintos
+      } else if (nrow(datos)) {
         completos <- !apply(is.na(as.data.frame(datos[indices])), 1L, any)
         if (length(indices) == 1L) {
           length(unique(datos[[indices[[1L]]]][completos]))
@@ -160,10 +297,26 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
         n_filas = nrow(datos),
         redundante = length(relacionadas) > 0L,
         equivalente_a = paste(relacionadas, collapse = ", "),
-        unicidad_exacta = TRUE,
+        casi_clave = es_casi_clave,
+        unicidad_exacta = !es_casi_clave,
         unicidad_normalizada = normalizada$unicidad,
         n_distintos_exactos = exactos,
         n_distintos_normalizados = normalizada$distintos,
+        n_valores_colisionados = if (es_casi_clave) {
+          resumen$n_valores_colisionados
+        } else 0L,
+        n_filas_en_colision = if (es_casi_clave) {
+          resumen$n_filas_en_colision
+        } else 0L,
+        n_duplicados_excedentes = if (es_casi_clave) {
+          resumen$n_duplicados_excedentes
+        } else 0L,
+        concentracion_colisiones = if (es_casi_clave) {
+          resumen$concentracion_colisiones
+        } else NA_real_,
+        colisiones = if (es_casi_clave) {
+          .evidencia_colisiones_casi_clave(resumen)
+        } else "",
         stringsAsFactors = FALSE
       )
     }))

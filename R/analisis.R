@@ -1,7 +1,7 @@
 .version_esquema_analisis <- 1L
 
 .advertencias_analisis <- function(distribuciones, asociaciones, temporal,
-                                   variables, propuesta) {
+                                   variables, propuesta, perfil = NULL) {
   filas <- list()
   agregar <- function(componente, tipo, descripcion, severidad = "sospechoso") {
     filas[[length(filas) + 1L]] <<- data.frame(
@@ -53,6 +53,22 @@
     "modelo", "propuesta_truncada",
     "La propuesta de modelo contiene menos filas que el total detectado."
   )
+  if (!is.null(perfil) && inherits(perfil, "perfil") &&
+      nrow(perfil$hallazgos)) {
+    casi_claves <- perfil$hallazgos[
+      perfil$hallazgos$tipo_hallazgo == "casi_clave", , drop = FALSE
+    ]
+    if (nrow(casi_claves)) {
+      for (i in seq_len(nrow(casi_claves))) agregar(
+        "perfil", "casi_clave",
+        paste0(
+          "La columna '", casi_claves$columna[[i]],
+          "' tiene colisiones concentradas y no es una clave valida. ",
+          casi_claves$evidencia[[i]]
+        )
+      )
+    }
+  }
   resultado <- if (length(filas)) do.call(rbind, filas) else data.frame(
     componente = character(), tipo = character(), severidad = character(),
     descripcion = character(), stringsAsFactors = FALSE
@@ -160,6 +176,9 @@
 #' conserva [tablero_calidad()]; las medidas fila a fila sólo quedan en el
 #' resultado si `conservar_detalle_medicion = TRUE`. La evaluación, cuando se
 #' solicita, usa la medición agregada.
+#' Los hallazgos `casi_clave` del perfil se reiteran en `advertencias`, con su
+#' columna, valores en colisión, frecuencias y criterio observado, para que no
+#' queden ocultos dentro del recorrido integral.
 #'
 #' @param datos Tabla que se desea analizar.
 #' @param nombre Nombre de la entrega.
@@ -389,7 +408,7 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
     )
   }
   advertencias <- .advertencias_analisis(
-    distribuciones, asociaciones, temporal, variables, propuesta
+    distribuciones, asociaciones, temporal, variables, propuesta, perfil
   )
   fecha_utc <- .fecha_utc(fecha)
   estructura <- list(

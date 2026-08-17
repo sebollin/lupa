@@ -1,5 +1,21 @@
 # lupa 0.1.0
 
+## Casi-claves y precedencia de ausencias
+
+- `perfilar()` informa una `casi_clave` cuando una columna supera 90 % de
+  valores distintos y al menos la mitad de sus duplicados excedentes se
+  concentra en un valor. La evidencia enumera las colisiones, sus frecuencias
+  y los criterios aplicados. Los vectores `double` con algún valor finito
+  fraccionario se excluyen, mientras que los formados por valores enteros se
+  conservan para admitir identificadores importados desde archivos de texto.
+  Los vectores `integer64` cuentan como enteros semánticos. `detectar_claves()`
+  las expone sin confundirlas con claves exactas, y `analizar()` las reitera en
+  sus advertencias.
+- `casi_duplicados_vocabulario` retira primero los valores ya detectados como
+  `faltantes_disfrazados`. Un centinela de ausencia deja de presentarse como
+  posible errata de otro valor; las variantes que no son centinelas conservan
+  el diagnóstico.
+
 ## Tablero, indice declarado y medicion agregada
 
 - `tablero_calidad()` resume una corrida por metrica y objeto, declara la

@@ -409,12 +409,20 @@
                                                 max_proporcion_grupo = 0.5,
                                                 umbral_variante_rara = 0.05,
                                                 min_asimetria_variante = 10,
-                                                min_participacion_dominante = 0.5) {
+                                                min_participacion_dominante = 0.5,
+                                                excluir = NULL) {
   if (!(is.character(x) || is.factor(x)) || is.matrix(x) || is.list(x)) {
     return(NULL)
   }
   textos <- suppressWarnings(as.character(.texto_analizable(x)$valores))
-  presentes <- !is.na(textos) & nzchar(textos)
+  if (is.null(excluir)) excluir <- rep(FALSE, length(textos))
+  if (!is.logical(excluir) || length(excluir) != length(textos)) {
+    stop("`excluir` debe ser una mascara logica del largo de `x`.", call. = FALSE)
+  }
+  excluir[is.na(excluir)] <- FALSE
+  presentes_originales <- !is.na(textos) & nzchar(textos)
+  n_excluidos_faltantes <- sum(presentes_originales & excluir)
+  presentes <- presentes_originales & !excluir
   if (!any(presentes)) return(NULL)
   vocabulario <- unique(textos[presentes])
   frecuencias <- tabulate(match(textos[presentes], vocabulario),
@@ -764,6 +772,7 @@
     grupos = grupos_salida,
     alcance = list(
       n_valores_distintos = n_total,
+      n_excluidos_faltantes_disfrazados = n_excluidos_faltantes,
       n_valores_evaluados = n_evaluados,
       n_unidades_normalizadas = n_unidades,
       n_unidades_comparadas = if (disponible) max_unidades else 0L,
@@ -805,7 +814,7 @@
 }
 
 .hallazgos_casi_duplicados_vocabulario <- function(
-    datos, columnas, perfil, max_proporcion_grupo = 0.5,
+    datos, columnas, perfil, resultados = NULL, max_proporcion_grupo = 0.5,
     umbral_variante_rara = 0.05, min_asimetria_variante = 10,
     min_participacion_dominante = 0.5) {
   max_grupos_mostrados <- 20L
@@ -813,12 +822,17 @@
   hallazgos <- list()
   cobertura <- list()
   for (i in seq_along(datos)) {
+    excluir <- if (!is.null(resultados) && length(resultados) >= i &&
+        !is.null(resultados[[i]]$faltantes_disfrazados$mascara)) {
+      resultados[[i]]$faltantes_disfrazados$mascara
+    } else NULL
     grupos <- .grupos_casi_duplicados_vocabulario(
       datos[[i]], perfil, columnas[[i]],
       max_proporcion_grupo = max_proporcion_grupo,
       umbral_variante_rara = umbral_variante_rara,
       min_asimetria_variante = min_asimetria_variante,
-      min_participacion_dominante = min_participacion_dominante
+      min_participacion_dominante = min_participacion_dominante,
+      excluir = excluir
     )
     if (!is.null(grupos) && !isTRUE(grupos$alcance$distancia_disponible)) {
       cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
@@ -960,6 +974,8 @@
         alcance$tamano_grupo_maximo, " (",
         formatC(alcance$proporcion_grupo_maximo, format = "f", digits = 3),
         "); limite_aplicado=", alcance$limite_aplicado,
+        "; valores_excluidos_faltantes_disfrazados=",
+        alcance$n_excluidos_faltantes_disfrazados,
         "; motivo_grupos=", alcance$motivo_grupos, ". ",
         "pares descartados por secuencia numerica=",
         alcance$n_pares_descartados_numeros, "; grupo_maximo compatible=",
@@ -1020,6 +1036,9 @@
       as.numeric(resultado$estructura_no_analizada$filas)
     } else NA_real_,
     constante = as.numeric(fila$frecuencia_moda),
+    casi_clave = if (!is.null(resultado$casi_clave)) {
+      as.numeric(resultado$casi_clave$n_filas_en_colision)
+    } else NA_real_,
     faltantes = as.numeric(fila$n_faltantes + fila$n_faltantes_disfrazados),
     faltantes_disfrazados = as.numeric(fila$n_faltantes_disfrazados),
     espacios_sobrantes = as.numeric(fila$n_espacios_borde),
@@ -1182,6 +1201,9 @@
       which(!is.na(x) & as.character(x) == as.character(fila$moda[[1L]])),
       error = function(e) NULL
     ),
+    casi_clave = if (!is.null(resultado$casi_clave)) {
+      resultado$casi_clave$indices
+    } else NULL,
     faltantes = {
       mascara <- tryCatch(resultado$faltantes_disfrazados$mascara,
                           error = function(e) NULL)
@@ -1628,6 +1650,40 @@
         "La columna contiene un \u00fanico valor no ausente.",
         paste0("Valor: ", fila$moda, "; frecuencia: ", fila$frecuencia_moda),
         "Confirmar si la columna aporta informaci\u00f3n o si corresponde retirarla."
+      ))
+    }
+
+    casi_clave <- resultado$casi_clave
+    if (!is.null(casi_clave) && isTRUE(casi_clave$es_casi_clave)) {
+      agregar(.nuevo_hallazgo(
+        nombre, "casi_clave", "sospechoso",
+        paste0(
+          "La columna es casi una clave, pero concentra sus colisiones en ",
+          "muy pocos valores."
+        ),
+        paste0(
+          casi_clave$n_distintos, " valores distintos de ", casi_clave$n_filas,
+          " (", sprintf("%.3f", casi_clave$tasa_distintos), "); ",
+          casi_clave$n_valores_colisionados, " valores colisionados; ",
+          casi_clave$n_filas_en_colision, " filas en colision; ",
+          casi_clave$n_duplicados_excedentes, " duplicados excedentes; ",
+          "concentracion_colisiones=",
+          sprintf("%.3f", casi_clave$concentracion_colisiones), ". ",
+          "Colisiones: ", .evidencia_colisiones_casi_clave(casi_clave), ". ",
+          "criterio_casi_clave: tasa_distintos>=",
+          sprintf("%.3f", casi_clave$umbral_unicidad),
+          " y concentracion_colisiones>=",
+          sprintf("%.3f", casi_clave$umbral_concentracion), ". ",
+          "criterio_tipo_casi_clave: tipo=",
+          casi_clave$tipo_almacenamiento,
+          "; valores_fraccionarios_finitos=",
+          casi_clave$n_valores_fraccionarios_finitos,
+          "; doble_admitido_solo_sin_fraccionarios_finitos=TRUE."
+        ),
+        paste0(
+          "Revisar los valores y filas en colision; corregirlos o confirmar ",
+          "que la columna no es una clave antes de usarla como identificador."
+        )
       ))
     }
 
@@ -2199,7 +2255,7 @@
   hallazgos <- hallazgos_columnas
   hallazgos_vocabulario <- if (isTRUE(detectar_casi_duplicados)) {
     .hallazgos_casi_duplicados_vocabulario(
-      datos, columnas, normalizacion,
+      datos, columnas, normalizacion, resultados = resultados,
       max_proporcion_grupo = max_proporcion_grupo,
       umbral_variante_rara = umbral_variante_rara,
       min_asimetria_variante = min_asimetria_variante,

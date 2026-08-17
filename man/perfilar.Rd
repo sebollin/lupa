@@ -402,6 +402,18 @@ Las fusiones son una propiedad de pares, por lo que muestrear valores
 aislados podría dejar fuera los dos miembros de cada par y convertir una
 fusión real en un cero falso. La normalización se vectoriza para que este
 alcance completo no dependa de la cardinalidad de la columna.
+Las columnas sin ausentes que tienen al menos 90 \% de valores distintos
+producen un hallazgo \code{casi_clave} cuando el valor dominante concentra al
+menos la mitad de los duplicados excedentes. La concentración se calcula
+sobre las repeticiones posteriores a la primera de cada valor, no sólo sobre
+la tasa de distintos. La evidencia declara ambos umbrales, los valores que
+colisionan y sus frecuencias. Así una colisión concentrada queda separada del
+texto libre de alta cardinalidad con repeticiones dispersas.
+Un vector \code{double} sólo participa si todos sus valores finitos son enteros;
+así se conservan identificadores importados con ese almacenamiento y se
+excluyen medidas con alguna parte fraccionaria, como importes o coordenadas.
+Los vectores \code{integer64} se tratan como enteros semánticos. La evidencia del
+hallazgo declara este criterio y el recuento observado.
 Además, si \code{casi_duplicados_vocabulario = TRUE}, el perfil busca variantes
 casi duplicadas en columnas de texto. Agrupa el vocabulario crudo mediante
 fusiones exactas de la normalización y estrellas de distancia centradas en
@@ -445,6 +457,10 @@ perfil, por omisión se evalúan hasta
 se alcanza un límite, la evidencia lo declara y no presenta el resultado
 como universo completo. Las fusiones exactas se informan aun sin ese paquete
 opcional.
+Antes de formar esos grupos se retiran los valores que el mismo perfil ya
+informó como \code{faltantes_disfrazados}. El diagnóstico fuerte de ausencia tiene
+precedencia: un centinela no se presenta también como posible variante de un
+valor válido. El alcance declara cuántas observaciones retiró este filtro.
 
 La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara \code{poder_discriminante} y \code{proteger}:
