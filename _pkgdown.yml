@@ -27,6 +27,12 @@ navbar:
     right: []
 
 articles:
+- title: Examinar
+  desc: Descubrir estructura y perfilar tablas remotas con alcance declarado.
+  contents:
+  - estructura-no-declarada
+  - perfilar-una-base
+
 - title: Recorrido
   navbar: ~
   contents:

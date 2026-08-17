@@ -1,0 +1,175 @@
+---
+title: "Perfilar una base"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Perfilar una base}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+options(width = 90)
+```
+
+`perfilar_dbi()` mantiene separados dos resultados porque provienen de
+universos distintos:
+
+- `resumen_tabla` calcula agregados SQL sobre la tabla completa;
+- `perfil_muestra` ejecuta `perfilar()` sobre las filas traídas a memoria.
+
+Mezclarlos en una fila, aun con un campo de alcance por resultado, permitiría
+comparar cantidades como si pertenecieran al mismo perfil. Los dos bloques
+impiden esa lectura.
+
+## Un ejemplo en memoria
+
+Para ejecutar el bloque se necesitan los paquetes opcionales `DBI` y
+`RSQLite`, ambos declarados en `Suggests`. Si falta cualquiera de ellos, knitr
+omite el bloque y la viñeta se construye sin error.
+
+La llamada a `DBI::dbWriteTable()` crea la base de demostración en memoria.
+Pertenece a la preparación del ejemplo; `perfilar_dbi()` no escribe en la base,
+no crea tablas temporales y sólo emite consultas de lectura.
+
+```{r base, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}
+library(lupa)
+
+datos_base <- data.frame(
+  id = 1:12,
+  grupo = rep(c("A", "B", "C"), each = 4),
+  valor = c(10, 12, NA, 14, 20, 22, 24, 26, 30, 32, 34, 36),
+  fecha = as.character(as.Date("2026-01-01") + 0:11),
+  stringsAsFactors = FALSE
+)
+datos_base
+
+conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+creada <- DBI::dbWriteTable(conexion, "entregas", datos_base)
+
+sin_orden <- perfilar_dbi(
+  conexion, "entregas", muestra = 5
+)
+perfil <- perfilar_dbi(
+  conexion, "entregas", muestra = 5, orden_muestra = "id"
+)
+```
+
+La conexión y los dos perfiles ya están preparados. Los bloques siguientes
+consultan ese mismo estado: partir la explicación no implica recrear la base ni
+volver a medirla.
+
+## Los dos bloques del resultado
+
+`names(perfil)` hace visible la separación que devuelve `perfilar_dbi()`. La
+tabla siguiente compara el alcance de cada bloque: las filas de origen y la
+cantidad de campos analíticos, sin presentarlos como un único perfil.
+
+```{r resultado, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}
+
+names(perfil)
+
+data.frame(
+  bloque = c("resumen_tabla", "perfil_muestra"),
+  filas_fuente = c(
+    perfil$resumen_tabla$meta$filas,
+    perfil$perfil_muestra$meta$filas_analizadas
+  ),
+  campos_analiticos = c(
+    ncol(perfil$resumen_tabla$columnas) - 1L,
+    ncol(perfil$perfil_muestra$columnas) - 1L
+  ),
+  columnas_del_resultado = c(
+    ncol(perfil$resumen_tabla$columnas),
+    ncol(perfil$perfil_muestra$columnas)
+  )
+)
+```
+
+## `resumen_tabla`: agregados sobre la tabla completa
+
+`resumen_tabla$columnas` contiene quince campos analíticos, además del nombre de
+la columna. Son los conteos y agregados que esta interfaz puede calcular en SQL
+sin traer la tabla: faltantes, distintos, moda y resúmenes cuantitativos, entre
+otros. La salida se calcula sobre las doce filas completas de `entregas`.
+
+```{r resumen, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}
+
+perfil$resumen_tabla$columnas[, c(
+  "columna", "n", "n_faltantes", "n_distintos", "minimo", "maximo", "media"
+)]
+```
+
+`perfil_muestra$columnas` contiene los 99 campos del perfil, pero su universo
+son cinco filas en este ejemplo. Llamar *perfil* al resumen SQL afirmaría una
+completitud que no tiene: el resumen cubre quince de esos aspectos sobre doce
+filas; el perfil cubre sus 99 campos sobre las cinco filas obtenidas. Las
+consultas, estados y motivos de los agregados SQL quedan en `resumen_tabla$sql`
+para que también se vea qué aceptó o rechazó el motor.
+
+## `perfil_muestra`: el perfil completo de la muestra
+
+El perfil completo se obtiene en memoria sobre las cinco filas seleccionadas.
+La salida muestra algunos de sus 99 campos para que se vean, junto con los
+conteos, los faltantes, los distintos y el tipo inferido.
+
+```{r muestra, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}
+
+perfil$perfil_muestra$columnas[, c(
+  "columna", "n", "n_faltantes", "n_distintos", "tipo_inferido"
+)]
+```
+
+## El muestreo declarado
+
+`muestra = 5` declara las filas pedidas. La metadata registra además las filas
+obtenidas, las doce filas totales, el método y el orden. Sin `orden_muestra`, un
+`LIMIT 5` no tiene orden garantizado y `reproducible` es `FALSE`.
+
+Con `orden_muestra = "id"`, `lupa` verifica en la tabla completa que el orden
+sea único. Sólo entonces informa `reproducible = TRUE`. Indicar una columna que
+se repite no alcanza: el orden puede quedar declarado y aun así no determinar
+qué filas ocupan el límite.
+
+```{r muestreo, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}
+resumir_muestreo <- function(x, caso) {
+  m <- x$perfil_muestra$meta$origen_dbi$muestreo
+  data.frame(
+    caso = caso,
+    filas_pedidas = m$filas_solicitadas,
+    filas_obtenidas = m$filas_obtenidas,
+    filas_totales = m$filas_totales_fuente,
+    metodo = m$metodo,
+    orden = if (length(m$orden_muestra)) {
+      paste(m$orden_muestra, collapse = ", ")
+    } else {
+      "no declarado"
+    },
+    orden_unico_verificado = m$orden_unico_verificado,
+    reproducible = m$reproducible,
+    stringsAsFactors = FALSE
+  )
+}
+
+rbind(
+  resumir_muestreo(sin_orden, "sin orden"),
+  resumir_muestreo(perfil, "orden por id")
+)
+
+data.frame(
+  bloque = c("resumen_tabla", "perfil_muestra"),
+  solo_lectura = c(
+    perfil$resumen_tabla$meta$solo_lectura,
+    perfil$perfil_muestra$meta$origen_dbi$solo_lectura
+  ),
+  objetos_temporales = c(
+    perfil$resumen_tabla$meta$objetos_temporales,
+    perfil$perfil_muestra$meta$origen_dbi$objetos_temporales
+  )
+)
+
+invisible(DBI::dbDisconnect(conexion))
+```
+
+La metadata no convierte una muestra en la tabla completa. Permite que quien
+consume el resultado compare cada bloque dentro de su propio alcance.

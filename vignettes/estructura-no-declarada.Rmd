@@ -1,0 +1,180 @@
+---
+title: "Estructura no declarada"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Estructura no declarada}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+options(width = 90)
+```
+
+Una entrega puede llegar sin diccionario, claves ni relaciones declaradas. Esta
+guía muestra cómo examinar la estructura que se cumple en los datos recibidos y
+qué parte de esa estructura todavía requiere confirmación.
+
+## Dos tablas que se pueden seguir fila por fila
+
+Los datos incluidos en `lupa` tienen trece filas cada uno. Sirven para examinar
+tipos, formatos, distribuciones, asociaciones y tiempo, pero no contienen una
+clave exacta: por ejemplo, `id_evento` tiene doce valores distintos en trece
+filas de `datos_operativos`. Por eso `detectar_claves()` y
+`detectar_dependencias()` no se muestran sobre esos conjuntos: devolverían
+tablas sin filas.
+
+Para ver una clave, una relación y una dependencia se construyen dos tablas
+chicas. Cada conclusión se puede contrastar con las filas impresas.
+
+```{r tablas-construidas}
+library(lupa)
+
+personas <- data.frame(
+  id_persona = 101:108,
+  nombre = rep(c("Ana", "Bruno", "Carla", "Diego"), each = 2),
+  ciudad = rep(c("Montevideo", "Salto", "Belén", "Melo"), each = 2),
+  departamento = rep(
+    c("Montevideo", "Salto", "Salto", "Cerro Largo"), each = 2
+  ),
+  stringsAsFactors = FALSE
+)
+
+tramites <- data.frame(
+  id_tramite = 1001:1010,
+  id_persona = c(101, 101, 102, 103, 104, 104, 105, 106, 107, 108),
+  tipo = rep(c("alta", "renovación"), 5),
+  stringsAsFactors = FALSE
+)
+
+personas
+tramites
+```
+
+`id_persona` no falta y no se repite en `personas`. Se limita la búsqueda a
+columnas simples para que la salida responda sólo esa pregunta.
+
+```{r claves}
+claves <- detectar_claves(personas, max_combinacion = 1)
+claves[, c(
+  "columnas", "n_columnas", "n_filas", "casi_clave", "unicidad_exacta"
+)]
+```
+
+La misma columna se repite en `tramites`: una persona puede tener más de un
+trámite. `detectar_relaciones()` necesita las dos tablas. Al comparar las dos
+columnas de identificación encuentra una cardinalidad 1:m; ambas coberturas son
+1 porque todos los identificadores aparecen en el otro lado.
+
+```{r relaciones}
+detectar_relaciones(
+  personas["id_persona"], tramites["id_persona"], muestra = Inf
+)
+```
+
+En `personas`, cada ciudad observada pertenece a un solo departamento. Salto y
+Belén muestran que la relación inversa no se cumple. El mínimo de observaciones
+se baja a cuatro porque la tabla construida tiene ocho filas; `muestra = Inf`
+deja explícito que se usan todas.
+
+```{r dependencias}
+dependencias <- detectar_dependencias(
+  personas[c("ciudad", "departamento")],
+  muestra = Inf,
+  min_observaciones = 4
+)
+dependencias
+```
+
+Nada de lo anterior modifica ni declara el modelo. La clave es *candidata*, la
+cardinalidad describe estas dos tablas y la dependencia se cumple en estas ocho
+filas. Una entrega futura puede contradecirlas; la documentación del sistema es
+la que puede confirmarlas como reglas.
+
+## Patrones, tipos y fechas en los datos incluidos
+
+Las funciones de columna reciben vectores. En particular,
+`descubrir_patrones()` no recibe un data frame. Sobre `codigo_usuario`, la
+salida cuenta las formas observadas y conserva ejemplos.
+
+```{r patrones}
+descubrir_patrones(datos_operativos$codigo_usuario)
+```
+
+El almacenamiento como texto no impide proponer un tipo implícito. La fecha se
+examina como vector y los formatos se cuentan por separado.
+
+```{r tipos-y-fechas}
+inferir_tipo(datos_operativos$fecha_evento)
+detectar_formatos_fecha(datos_operativos$fecha_evento)
+```
+
+Estas salidas describen compatibilidad y frecuencia. No convierten la columna
+ni afirman cuál formato debe aceptar el sistema.
+
+## Escalas, distribuciones y asociaciones
+
+`clasificar_variables()` propone una escala y un rol por columna. `confianza`
+expone la fuerza de la propuesta y `confirmada` distingue una declaración de
+una inferencia. Sin metadatos declarados, las propuestas siguientes quedan sin
+confirmar.
+
+```{r clasificacion}
+clasificacion <- clasificar_variables(datos_operativos)
+clasificacion[, c(
+  "columna", "tipo_almacenamiento", "tipo_implicito", "escala_propuesta",
+  "rol", "confianza", "confirmada"
+)]
+```
+
+Una distribución agrega evidencia sobre valores concretos y cuantiles. Aquí se
+muestran las frecuencias de `canal` y los cuantiles de `monto`; `alcance` del
+objeto conserva el total analizado, el muestreo y el truncamiento por columna.
+
+```{r distribuciones}
+distribuciones <- distribucion_valores(datos_operativos, max_valores = 5)
+distribuciones$frecuencias[
+  distribuciones$frecuencias$columna == "canal", , drop = FALSE
+]
+distribuciones$cuantiles[
+  distribuciones$cuantiles$columna == "monto", , drop = FALSE
+]
+```
+
+Las asociaciones son medidas entre pares, no dependencias ni instrucciones de
+modelado. La columna `supuesto` dice cómo se trataron las escalas para calcular
+cada medida.
+
+```{r asociaciones}
+asociaciones <- detectar_asociaciones(datos_operativos)
+utils::head(asociaciones, 5)
+```
+
+## Cobertura temporal
+
+`analizar_tiempo()` reconoce `fecha_evento` mediante su contenido. Resume el
+período observado y propone una frecuencia con `confirmada = FALSE`; la
+propuesta sigue siendo evidencia para revisar.
+
+```{r tiempo}
+tiempo <- analizar_tiempo(datos_operativos)
+tiempo$resumen
+tiempo$propuestas
+```
+
+## El vocabulario de granularidad
+
+`granularidades()` y `transiciones_granularidad()` no analizan las tablas.
+Devuelven el vocabulario de niveles en que se puede medir y el grafo de
+agregaciones admitidas.
+
+```{r granularidad}
+granularidades()
+transiciones_granularidad()
+```
+
+Ese vocabulario conecta el examen con el
+[modelo de calidad](el-modelo-de-calidad.html): una estructura observada puede
+orientar qué medir, pero la métrica, su granularidad y su interpretación se
+declaran en el modelo.
