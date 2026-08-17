@@ -613,7 +613,8 @@
       "Estima la precisi\u00f3n de un valor con el error experto de su escala.",
       "instanciaAtributo", "real", propiedades = "escala",
       dimension = "Exactitud", factor = "Precisi\u00f3n",
-      metodo = .metodo_escala, validar_propiedades = .validar_config_escala
+      metodo = .metodo_escala, validar_propiedades = .validar_config_escala,
+      orientacion = "no_aplica"
     ),
     ValoresPosiblesPorComprension = metrica(
       "ValoresPosiblesPorComprension",
@@ -622,21 +623,22 @@
       propiedades = c("predicado", "minimo", "maximo", "inclusivo"),
       dimension = "Consistencia", factor = "Integridad de dominio",
       metodo = .metodo_valores_comprension,
-      validar_propiedades = .validar_config_comprension
+      validar_propiedades = .validar_config_comprension,
+      orientacion = "conformidad"
     ),
     AtributoDuplicado = metrica(
       "AtributoDuplicado",
       "Indica si un valor participa en un grupo duplicado del atributo.",
       "instanciaAtributo", "booleano",
       dimension = "Unicidad", factor = "No-duplicaci\u00f3n",
-      metodo = .metodo_atributo_duplicado
+      metodo = .metodo_atributo_duplicado, orientacion = "defecto"
     ),
     ConjuntoAtributosDuplicado = metrica(
       "ConjuntoAtributosDuplicado",
       "Indica si una combinaci\u00f3n de atributos se repite en otra fila.",
       "instanciaEntidad", "booleano",
       dimension = "Unicidad", factor = "No-duplicaci\u00f3n",
-      metodo = .metodo_conjunto_duplicado
+      metodo = .metodo_conjunto_duplicado, orientacion = "defecto"
     ),
     EntidadDuplicada = metrica(
       "EntidadDuplicada",
@@ -646,7 +648,7 @@
       ),
       "instanciaEntidad", "booleano",
       dimension = "Unicidad", factor = "No-duplicaci\u00f3n",
-      metodo = .metodo_entidad_duplicada
+      metodo = .metodo_entidad_duplicada, orientacion = "defecto"
     ),
     EntidadContradictoria = metrica(
       "EntidadContradictoria",
@@ -658,7 +660,8 @@
       propiedades = c("metodo", "p", "umbral", "normalizar", "max_valores", "nucleos"),
       dimension = "Unicidad", factor = "No-contradicci\u00f3n",
       metodo = .metodo_entidad_contradictoria,
-      validar_propiedades = .validar_config_entidad_contradictoria
+      validar_propiedades = .validar_config_entidad_contradictoria,
+      orientacion = "defecto"
     ),
     DesactualizacionPorFormato = metrica(
       "DesactualizacionPorFormato",
@@ -667,7 +670,8 @@
       propiedades = c("expresion_regular", "validador"),
       dimension = "Frescura", factor = "Actualidad",
       metodo = .metodo_desactualizacion_formato,
-      validar_propiedades = .validar_config_desactualizacion
+      validar_propiedades = .validar_config_desactualizacion,
+      orientacion = "defecto"
     ),
     DesactualizacionPorFecha = metrica(
       "DesactualizacionPorFecha",
@@ -675,7 +679,8 @@
       "instanciaAtributo", "duracion", propiedades = "vigencia",
       dimension = "Frescura", factor = "Actualidad",
       metodo = .metodo_desactualizacion_fecha,
-      validar_propiedades = .validar_config_vigencia
+      validar_propiedades = .validar_config_vigencia,
+      orientacion = "no_aplica"
     ),
     DesactualizacionPorCambios = metrica(
       "DesactualizacionPorCambios",
@@ -683,7 +688,8 @@
       "instanciaAtributo", "entero", propiedades = "vigencia",
       dimension = "Frescura", factor = "Actualidad",
       metodo = .metodo_desactualizacion_cambios,
-      validar_propiedades = .validar_config_vigencia
+      validar_propiedades = .validar_config_vigencia,
+      orientacion = "no_aplica"
     ),
     OportunidadAtributoPorFecha = metrica(
       "OportunidadAtributoPorFecha",
@@ -692,7 +698,8 @@
       propiedades = "fecha_limite",
       dimension = "Frescura", factor = "Oportunidad",
       metodo = .metodo_oportunidad_fecha,
-      validar_propiedades = .validar_config_oportunidad_fecha
+      validar_propiedades = .validar_config_oportunidad_fecha,
+      orientacion = "conformidad"
     ),
     OportunidadAtributoPorIntervalo = metrica(
       "OportunidadAtributoPorIntervalo",
@@ -701,7 +708,8 @@
       propiedades = c("inicio_vigencia", "fin_vigencia"),
       dimension = "Frescura", factor = "Oportunidad",
       metodo = .metodo_oportunidad_intervalo,
-      validar_propiedades = .validar_config_oportunidad_intervalo
+      validar_propiedades = .validar_config_oportunidad_intervalo,
+      orientacion = "conformidad"
     ),
     GradoOportunidadAtributoPorFecha = metrica(
       "GradoOportunidadAtributoPorFecha",
@@ -713,7 +721,8 @@
       propiedades = c("fecha_solicitud", "fecha_fin_utilidad"),
       dimension = "Frescura", factor = "Oportunidad",
       metodo = .metodo_grado_oportunidad_fecha,
-      validar_propiedades = .validar_config_grado_oportunidad_fecha
+      validar_propiedades = .validar_config_grado_oportunidad_fecha,
+      orientacion = "conformidad"
     ),
     GradoOportunidadAtributoPorIntervalo = metrica(
       "GradoOportunidadAtributoPorIntervalo",
@@ -725,7 +734,8 @@
       propiedades = c("inicio_vigencia", "fin_vigencia"),
       dimension = "Frescura", factor = "Oportunidad",
       metodo = .metodo_grado_oportunidad_intervalo,
-      validar_propiedades = .validar_config_grado_oportunidad_intervalo
+      validar_propiedades = .validar_config_grado_oportunidad_intervalo,
+      orientacion = "conformidad"
     ),
     OportunidadEntPorFecha = metrica(
       "OportunidadEntPorFecha",
@@ -733,7 +743,8 @@
       "instanciaEntidad", "booleano", propiedades = "vigencia",
       dimension = "Frescura", factor = "Oportunidad",
       metodo = .metodo_oportunidad_entidad_fecha,
-      validar_propiedades = .validar_config_vigencia
+      validar_propiedades = .validar_config_vigencia,
+      orientacion = "conformidad"
     ),
     OportunidadEntPorIntervalo = metrica(
       "OportunidadEntPorIntervalo",
@@ -741,7 +752,8 @@
       "instanciaEntidad", "booleano", propiedades = "vigencia",
       dimension = "Frescura", factor = "Oportunidad",
       metodo = .metodo_oportunidad_entidad_intervalo,
-      validar_propiedades = .validar_config_vigencia
+      validar_propiedades = .validar_config_vigencia,
+      orientacion = "conformidad"
     ),
     DensidadPonderada = metrica(
       "DensidadPonderada",
@@ -749,7 +761,8 @@
       "instanciaEntidad", "real", propiedades = "coeficientes",
       dimension = "Completitud", factor = "Densidad",
       metodo = .metodo_densidad_ponderada,
-      validar_propiedades = .validar_config_densidad
+      validar_propiedades = .validar_config_densidad,
+      orientacion = "conformidad"
     )
   )
 }

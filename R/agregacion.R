@@ -106,9 +106,10 @@ transiciones_granularidad <- function() {
     stop("`medidas` debe ser un data frame no vac\u00edo producido por medir() o agregar().",
          call. = FALSE)
   }
+  medidas$orientacion <- .orientacion_medidas(medidas)
   campos_unicos <- c(
     "id_medicion", "metrica", "metrica_especifica", "granularidad",
-    "tipo_resultado"
+    "tipo_resultado", "orientacion"
   )
   no_unicos <- campos_unicos[vapply(
     medidas[campos_unicos], function(x) length(unique(x)) != 1L, logical(1L)
@@ -177,7 +178,9 @@ transiciones_granularidad <- function() {
 #' `ratio` sólo acepta medidas booleanas. `ratio_umbral` sólo acepta medidas
 #' reales. Los promedios aceptan ambos tipos y siempre producen resultado real
 #' en `[0, 1]`. Para el promedio ponderado, los pesos deben estar en `[0, 1]` y
-#' sumar uno dentro de cada objeto de destino.
+#' sumar uno dentro de cada objeto de destino. La columna `orientacion` se
+#' conserva sin invertir el resultado: un ratio de una métrica de defecto sigue
+#' siendo la proporción de defectos.
 #'
 #' No existe una transición hacia factor, dimensión o modelo: esos campos son
 #' taxonómicos y esta función no calcula un índice global.
@@ -283,6 +286,7 @@ agregar <- function(medidas, destino,
       ),
       dimension = medidas$dimension[[primera]],
       factor = medidas$factor[[primera]],
+      orientacion = medidas$orientacion[[primera]],
       granularidad = destino,
       tipo_resultado = "real",
       entidad = entidad,
@@ -302,7 +306,7 @@ agregar <- function(medidas, destino,
   )
   resultado <- resultado[c(
     "id_medida", "id_medicion", "fecha", "metrica", "metrica_especifica",
-    "metrica_instanciada", "dimension", "factor", "granularidad",
+    "metrica_instanciada", "dimension", "factor", "orientacion", "granularidad",
     "tipo_resultado", "entidad", "atributo", "fila", "objeto_medible",
     "resultado", "agregacion"
   )]

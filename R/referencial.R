@@ -583,7 +583,8 @@ metricas_referencial <- function() {
       factor = "Correctitud sem\u00e1ntica", propiedades = c(
         "normalizar", "proximidad", "metodo", "p", "umbral", "max_pares", "nucleos"
       ), metodo = .metodo_correctitud_fuerte,
-      validar_propiedades = .validar_config_referencial
+      validar_propiedades = .validar_config_referencial,
+      orientacion = "conformidad"
     ),
     CorrectitudSemDebil = metrica(
       "CorrectitudSemDebil",
@@ -592,7 +593,8 @@ metricas_referencial <- function() {
       factor = "Correctitud sem\u00e1ntica", propiedades = c(
         "normalizar", "proximidad", "metodo", "p", "umbral", "max_pares", "nucleos"
       ), metodo = .metodo_correctitud_debil,
-      validar_propiedades = .validar_config_referencial
+      validar_propiedades = .validar_config_referencial,
+      orientacion = "conformidad"
     ),
     RatioCobertura = metrica(
       "RatioCobertura",
@@ -601,7 +603,8 @@ metricas_referencial <- function() {
       propiedades = c(
         "normalizar", "proximidad", "metodo", "p", "umbral", "max_pares", "nucleos"
       ), metodo = .metodo_ratio_cobertura,
-      validar_propiedades = .validar_config_referencial
+      validar_propiedades = .validar_config_referencial,
+      orientacion = "conformidad"
     )
   )
 }

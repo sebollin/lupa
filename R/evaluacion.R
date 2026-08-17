@@ -11,9 +11,12 @@
 #' crecientes propios sobre las mismas métricas instanciadas.
 #'
 #' @param nombre Nombre de la regla o del perfil.
-#' @param condicion Función de un argumento que recibe el vector `resultado` de
-#'   las medidas seleccionadas, en el orden de la tabla, y debe devolver un
-#'   vector lógico sin ausentes de la misma longitud. No modifica las medidas.
+#' @param condicion Función que recibe el vector `resultado` de las medidas
+#'   seleccionadas, en el orden de la tabla, y debe devolver un vector lógico
+#'   sin ausentes de la misma longitud. Puede declarar un segundo argumento
+#'   `orientacion` para recibir el metadato homónimo de cada medida; las
+#'   funciones existentes de un argumento siguen siendo válidas. No modifica
+#'   las medidas.
 #' @param metricas Nombres de métricas instanciadas a las que se aplica la
 #'   regla, es decir, valores de la columna `metrica_instanciada`. `NULL`, el
 #'   valor predeterminado, aplica la condición a todas.
@@ -201,7 +204,17 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     stop("Los resultados de la medici\u00f3n no respetan su tipo declarado.",
          call. = FALSE)
   }
+  .orientacion_medidas(medicion)
   medicion
+}
+
+.aplicar_condicion_regla <- function(condicion, resultado, orientacion) {
+  argumentos <- names(formals(condicion))
+  if ("orientacion" %in% argumentos || "..." %in% argumentos) {
+    condicion(resultado, orientacion = orientacion)
+  } else {
+    condicion(resultado)
+  }
 }
 
 .evaluar_regla_medidas <- function(medicion, perfil, regla) {
@@ -222,7 +235,10 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
       call. = FALSE
     )
   }
-  resultado <- regla$condicion(medidas$resultado)
+  orientacion <- .orientacion_medidas(medidas)
+  resultado <- .aplicar_condicion_regla(
+    regla$condicion, medidas$resultado, orientacion
+  )
   if (!is.logical(resultado) || length(resultado) != nrow(medidas) ||
       anyNA(resultado)) {
     stop(
@@ -237,6 +253,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     perfil = perfil$nombre,
     regla = regla$nombre,
     metrica_instanciada = medidas$metrica_instanciada,
+    orientacion = orientacion,
     resultado = resultado,
     stringsAsFactors = FALSE
   )
@@ -336,6 +353,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     desenlace = character(),
     motivo = character(),
     metrica_instanciada = character(),
+    orientacion = character(),
     granularidad = character(),
     entidad = character(),
     atributo = character(),
@@ -374,6 +392,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
         nrow(medidas)
       ),
       metrica_instanciada = medidas$metrica_instanciada,
+      orientacion = .orientacion_medidas(medidas),
       granularidad = medidas$granularidad,
       entidad = medidas$entidad,
       atributo = medidas$atributo,

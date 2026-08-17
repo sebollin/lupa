@@ -19,7 +19,9 @@ metrica(
   dimension = NA_character_,
   factor = NA_character_,
   metodo = NULL,
-  validar_propiedades = NULL
+  validar_propiedades = NULL,
+  orientacion = if (tipo_resultado \%in\% c("booleano", "real")) "conformidad" else
+    "no_aplica"
 )
 
 especializar(metrica, nombre_especifico = NULL, ...)
@@ -66,6 +68,12 @@ enviada a \code{\link[=especializar]{especializar()}} y debe devolver otra lista
 sólo por propiedades declaradas. Puede validar alternativas, completar
 valores predeterminados y normalizar la configuración. Si es \code{NULL}, todas
 las propiedades declaradas son obligatorias y no se admiten otras.}
+
+\item{orientacion}{Sentido de lectura del resultado: \code{"conformidad"} indica
+que un valor mayor es mejor; \code{"defecto"}, que un valor menor es mejor; y
+\code{"no_aplica"}, que la métrica no es una proporción interpretable en esos
+términos. Es un vocabulario cerrado. Las métricas booleanas deben usar una
+de las dos primeras y los resultados no acotados deben usar la última.}
 
 \item{metrica}{Objeto de clase \code{metrica_generica}.}
 
@@ -254,7 +262,7 @@ metodo_origen <- function(tablas, instancia) {
 }
 OrigenDeclarado <- metrica(
   "OrigenDeclarado", "Indica si se declaró el origen del registro.",
-  "instanciaAtributo", "booleano",
+  "instanciaAtributo", "booleano", orientacion = "conformidad",
   dimension = "Trazabilidad", factor = "Origen documentado",
   metodo = metodo_origen
 )

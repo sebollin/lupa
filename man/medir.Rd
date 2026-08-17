@@ -18,8 +18,9 @@ frames para varias entidades.}
 }
 \value{
 Data frame S3 de clase \code{medicion}, con una fila por objeto medido.
-Los booleanos se almacenan como \code{0} y \code{1} en la columna común \code{resultado},
-y su semántica permanece declarada en \code{tipo_resultado}. Algunas métricas
+Los booleanos se almacenan como \code{0} y \code{1} en la columna común \code{resultado}.
+\code{orientacion} conserva si un valor alto expresa conformidad, si un valor
+alto expresa defecto o si esa lectura no aplica. Algunas métricas
 que trabajan con un vocabulario o un alcance parcial agregan un atributo
 \code{alcance_metricas} con sus conteos y límites.
 }

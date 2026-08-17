@@ -17,6 +17,43 @@
   tipo_resultado
 }
 
+.orientaciones_metricas <- c("conformidad", "defecto", "no_aplica")
+
+.validar_orientacion <- function(orientacion, tipo_resultado) {
+  if (!.es_texto_escalar(orientacion) ||
+      !orientacion %in% .orientaciones_metricas) {
+    stop(
+      "`orientacion` debe ser 'conformidad', 'defecto' o 'no_aplica'.",
+      call. = FALSE
+    )
+  }
+  if (tipo_resultado == "booleano" && orientacion == "no_aplica") {
+    stop(
+      "Una metrica booleana debe declarar orientacion 'conformidad' o 'defecto'.",
+      call. = FALSE
+    )
+  }
+  if (!tipo_resultado %in% c("booleano", "real") &&
+      orientacion != "no_aplica") {
+    stop(
+      "Una metrica no acotada debe declarar orientacion 'no_aplica'.",
+      call. = FALSE
+    )
+  }
+  orientacion
+}
+
+.orientacion_medidas <- function(x) {
+  if (!"orientacion" %in% names(x)) return(rep(NA_character_, nrow(x)))
+  orientacion <- as.character(x$orientacion)
+  invalidas <- !is.na(orientacion) &
+    !orientacion %in% .orientaciones_metricas
+  if (any(invalidas)) {
+    stop("La medicion contiene orientaciones no reconocidas.", call. = FALSE)
+  }
+  orientacion
+}
+
 .resultados_validos_tipo <- function(resultado, tipo) {
   if (!is.numeric(resultado) || length(resultado) != length(tipo) ||
       anyNA(resultado) || any(!is.finite(resultado))) return(FALSE)
@@ -168,6 +205,11 @@
 #' @param propiedades Nombres de las propiedades que fija `especializar()`.
 #' @param dimension,factor Metadatos taxonómicos; no se usan para calcular
 #'   puntuaciones.
+#' @param orientacion Sentido de lectura del resultado: `"conformidad"` indica
+#'   que un valor mayor es mejor; `"defecto"`, que un valor menor es mejor; y
+#'   `"no_aplica"`, que la métrica no es una proporción interpretable en esos
+#'   términos. Es un vocabulario cerrado. Las métricas booleanas deben usar una
+#'   de las dos primeras y los resultados no acotados deben usar la última.
 #' @param metodo Método predeterminado opcional. Es una función de `tablas` e
 #'   `instancia` que cumple el contrato descrito en **Contrato de `metodo`**.
 #' @param validar_propiedades Función opcional que recibe la lista con nombre
@@ -337,7 +379,7 @@
 #' }
 #' OrigenDeclarado <- metrica(
 #'   "OrigenDeclarado", "Indica si se declaró el origen del registro.",
-#'   "instanciaAtributo", "booleano",
+#'   "instanciaAtributo", "booleano", orientacion = "conformidad",
 #'   dimension = "Trazabilidad", factor = "Origen documentado",
 #'   metodo = metodo_origen
 #' )
@@ -389,7 +431,10 @@ NULL
 metrica <- function(nombre, semantica, granularidad, tipo_resultado,
                     propiedades = character(), dimension = NA_character_,
                     factor = NA_character_, metodo = NULL,
-                    validar_propiedades = NULL) {
+                    validar_propiedades = NULL,
+                    orientacion = if (tipo_resultado %in% c(
+                      "booleano", "real"
+                    )) "conformidad" else "no_aplica") {
   if (!.es_texto_escalar(nombre)) {
     stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
@@ -400,6 +445,7 @@ metrica <- function(nombre, semantica, granularidad, tipo_resultado,
     granularidad, aceptar_relacional = TRUE
   )
   tipo_resultado <- .validar_tipo_resultado(tipo_resultado)
+  orientacion <- .validar_orientacion(orientacion, tipo_resultado)
   if (!is.character(propiedades) || anyNA(propiedades) ||
       any(!nzchar(propiedades)) || anyDuplicated(propiedades)) {
     stop("`propiedades` debe contener nombres \u00fanicos no vac\u00edos.", call. = FALSE)
@@ -422,7 +468,8 @@ metrica <- function(nombre, semantica, granularidad, tipo_resultado,
     tipo_resultado = tipo_resultado,
     propiedades = propiedades,
     dimension = as.character(dimension)[[1L]],
-    factor = as.character(factor)[[1L]]
+    factor = as.character(factor)[[1L]],
+    orientacion = orientacion
   )
   .crear_fabrica_especializacion(
     declaracion, metodo = metodo, validador = validar_propiedades
@@ -849,15 +896,17 @@ metricas_nucleo <- function() {
       "NoNulo", "Indica si una instancia de atributo no es nula.",
       "instanciaAtributo", "booleano", propiedades = "valores_nulos",
       dimension = "Completitud", factor = "Densidad", metodo = .metodo_no_nulo,
-      validar_propiedades = .validar_config_no_nulo
+      validar_propiedades = .validar_config_no_nulo,
+      orientacion = "conformidad"
     ),
     Formato = metrica(
       "Formato", "Indica si un valor cumple un formato o diccionario.",
       "instanciaAtributo", "booleano",
       propiedades = c("expresion_regular", "diccionario", "validador"),
-      dimension = "Exactitud", factor = "Exactitud sint\u00e1ctica",
+      dimension = "Exactitud", factor = "Correctitud sint\u00e1ctica",
       metodo = .metodo_formato,
-      validar_propiedades = .validar_config_formato
+      validar_propiedades = .validar_config_formato,
+      orientacion = "conformidad"
     ),
     ValoresPosiblesPorExtension = metrica(
       "ValoresPosiblesPorExtension",
@@ -865,7 +914,8 @@ metricas_nucleo <- function() {
       "instanciaAtributo", "booleano", propiedades = "valores",
       dimension = "Consistencia", factor = "Integridad de dominio",
       metodo = .metodo_valores_posibles,
-      validar_propiedades = .validar_config_valores
+      validar_propiedades = .validar_config_valores,
+      orientacion = "conformidad"
     ),
     ReglaIntegridadIntraEntidad = metrica(
       "ReglaIntegridadIntraEntidad",
@@ -873,7 +923,8 @@ metricas_nucleo <- function() {
       "instanciaEntidad", "booleano", propiedades = "regla",
       dimension = "Consistencia", factor = "Integridad intra-entidad",
       metodo = .metodo_regla_intra,
-      validar_propiedades = .validar_config_regla
+      validar_propiedades = .validar_config_regla,
+      orientacion = "conformidad"
     ),
     ReglaIntegridadInterEntidad = metrica(
       "ReglaIntegridadInterEntidad",
@@ -881,13 +932,14 @@ metricas_nucleo <- function() {
       "entidad", "real", propiedades = "muestra",
       dimension = "Consistencia", factor = "Integridad inter-entidad",
       metodo = .metodo_regla_inter,
-      validar_propiedades = .validar_config_inter
+      validar_propiedades = .validar_config_inter,
+      orientacion = "conformidad"
     ),
     ErrorEstandar = metrica(
       "ErrorEstandar",
       "Mide la desviaci\u00f3n est\u00e1ndar muestral del atributo.",
       "atributo", "numero_real", dimension = "Exactitud", factor = "Precisi\u00f3n",
-      metodo = .metodo_error_estandar
+      metodo = .metodo_error_estandar, orientacion = "no_aplica"
     )
   ), .metricas_adicionales())
 }
@@ -981,8 +1033,9 @@ metricas_nucleo <- function() {
 #' @param fecha Fecha y hora de la corrida.
 #'
 #' @return Data frame S3 de clase `medicion`, con una fila por objeto medido.
-#'   Los booleanos se almacenan como `0` y `1` en la columna común `resultado`,
-#'   y su semántica permanece declarada en `tipo_resultado`. Algunas métricas
+#'   Los booleanos se almacenan como `0` y `1` en la columna común `resultado`.
+#'   `orientacion` conserva si un valor alto expresa conformidad, si un valor
+#'   alto expresa defecto o si esa lectura no aplica. Algunas métricas
 #'   que trabajan con un vocabulario o un alcance parcial agregan un atributo
 #'   `alcance_metricas` con sus conteos y límites.
 #' @export
@@ -1021,6 +1074,7 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time()) {
       metrica_instanciada = rep(instancia$nombre, n),
       dimension = rep(instancia$declaracion$dimension, n),
       factor = rep(instancia$declaracion$factor, n),
+      orientacion = rep(instancia$declaracion$orientacion, n),
       granularidad = rep(instancia$declaracion$granularidad, n),
       tipo_resultado = rep(instancia$declaracion$tipo_resultado, n),
       entidad = as.character(salida$entidad),
@@ -1045,7 +1099,7 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time()) {
   }
   resultado <- resultado[c(
     "id_medida", "id_medicion", "fecha", "metrica", "metrica_especifica",
-    "metrica_instanciada", "dimension", "factor", "granularidad",
+    "metrica_instanciada", "dimension", "factor", "orientacion", "granularidad",
     "tipo_resultado", "entidad", "atributo", "fila", "objeto_medible",
     "resultado", "agregacion"
   )]

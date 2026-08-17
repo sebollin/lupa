@@ -1,5 +1,16 @@
 # lupa 0.1.0
 
+## Orientacion explicita de las metricas
+
+- `metrica()` declara si un resultado expresa `"conformidad"`, `"defecto"` o
+  `"no_aplica"`. La orientacion viaja por `medir()`, `agregar()`, `reportar()` y
+  `evaluar()` sin invertir los valores; una regla puede recibirla como segundo
+  argumento. El historico conserva el esquema 1 y sigue leyendo archivos
+  anteriores.
+- `Formato` queda alineada con el factor `Correctitud sintactica` de
+  `marco_agesic()`, y una prueba contrasta todos los pares dimension-factor del
+  nucleo contra el marco.
+
 ## Marco CEA/CEPAL de aseguramiento de la calidad
 
 - `marco_cepal()` incorpora los cuatro niveles y diecinueve principios del

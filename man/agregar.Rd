@@ -38,7 +38,9 @@ contra el grafo de \code{transiciones_granularidad()}.
 \code{ratio} sólo acepta medidas booleanas. \code{ratio_umbral} sólo acepta medidas
 reales. Los promedios aceptan ambos tipos y siempre producen resultado real
 en \verb{[0, 1]}. Para el promedio ponderado, los pesos deben estar en \verb{[0, 1]} y
-sumar uno dentro de cada objeto de destino.
+sumar uno dentro de cada objeto de destino. La columna \code{orientacion} se
+conserva sin invertir el resultado: un ratio de una métrica de defecto sigue
+siendo la proporción de defectos.
 
 No existe una transición hacia factor, dimensión o modelo: esos campos son
 taxonómicos y esta función no calcula un índice global.

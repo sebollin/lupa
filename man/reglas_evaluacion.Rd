@@ -22,9 +22,12 @@ perfiles_madurez(metricas = NULL, umbrales = NULL)
 \arguments{
 \item{nombre}{Nombre de la regla o del perfil.}
 
-\item{condicion}{Función de un argumento que recibe el vector \code{resultado} de
-las medidas seleccionadas, en el orden de la tabla, y debe devolver un
-vector lógico sin ausentes de la misma longitud. No modifica las medidas.}
+\item{condicion}{Función que recibe el vector \code{resultado} de las medidas
+seleccionadas, en el orden de la tabla, y debe devolver un vector lógico
+sin ausentes de la misma longitud. Puede declarar un segundo argumento
+\code{orientacion} para recibir el metadato homónimo de cada medida; las
+funciones existentes de un argumento siguen siendo válidas. No modifica
+las medidas.}
 
 \item{metricas}{Nombres de métricas instanciadas a las que se aplica la
 regla, es decir, valores de la columna \code{metrica_instanciada}. \code{NULL}, el
