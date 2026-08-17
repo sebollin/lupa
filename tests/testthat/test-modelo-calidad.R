@@ -363,13 +363,29 @@ test_that("las celdas se agregan por atributo o por instancia de entidad", {
   expect_error(agregar(medidas, "atributo", "ratio_umbral", umbral = 0.5),
                "resultado real")
   expect_error(agregar(atributos, "instanciaEntidad", "promedio"),
-               "No existe una transición")
+               "No existe una transici\u00f3n")
   expect_error(
     agregar(atributos, "entidad", "promedio_ponderado", pesos = c(0.2, 0.2)),
     "sumar 1"
   )
-  expect_error(agregar(entidad_desde_atributos, "coleccion", "promedio"),
-               "todavía no está implementada")
+  expect_error(
+    agregar(entidad_desde_atributos, "coleccion", "promedio"),
+    "requiere una colecci\u00f3n declarada"
+  )
+  coleccion <- transform(entidad_desde_atributos, granularidad = "coleccion")
+  organizacion <- transform(coleccion, granularidad = "organizacion")
+  expect_error(
+    agregar(coleccion, "conjuntoColecciones", "promedio"),
+    "requiere un conjunto de colecciones declarado"
+  )
+  expect_error(
+    agregar(coleccion, "organizacion", "promedio"),
+    "requiere una organizaci\u00f3n declarada"
+  )
+  expect_error(
+    agregar(organizacion, "conjuntoOrganizaciones", "promedio"),
+    "requiere un conjunto de organizaciones declarado"
+  )
 })
 
 test_that("la evaluación recorre medidas, reglas y perfil", {

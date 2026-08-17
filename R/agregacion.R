@@ -63,11 +63,36 @@
   ]
 }
 
+.mensaje_granularidad_sin_frontera <- function(destino) {
+  detalle <- switch(
+    destino,
+    coleccion = paste0(
+      "una colecci\u00f3n declarada: qu\u00e9 tablas la componen"
+    ),
+    conjuntoColecciones = paste0(
+      "un conjunto de colecciones declarado: qu\u00e9 bases lo componen"
+    ),
+    organizacion = paste0(
+      "una organizaci\u00f3n declarada: qu\u00e9 bases le pertenecen"
+    ),
+    conjuntoOrganizaciones = paste0(
+      "un conjunto de organizaciones declarado: qu\u00e9 organizaciones se comparan"
+    ),
+    "el objeto declarado y su frontera"
+  )
+  paste0(
+    "La granularidad '", destino, "' requiere ", detalle,
+    "; `lupa` no recibe hoy esa frontera."
+  )
+}
+
 #' Granularidades y transiciones de agregación
 #'
 #' `granularidades()` declara los diez niveles del marco. Los primeros seis
-#' están implementados; los restantes quedan registrados para extender el
-#' modelo sin convertir la granularidad en una escala lineal.
+#' están implementados. Los cuatro restantes se registran, pero no se miden
+#' porque falta declarar la frontera del objeto: qué tablas componen una
+#' colección, qué bases componen un conjunto de colecciones, qué bases
+#' pertenecen a una organización y qué organizaciones se comparan.
 #'
 #' `transiciones_granularidad()` devuelve el grafo dirigido de agregaciones.
 #' La transición `instanciaAtributo` a `instanciaEntidad` se incorpora porque
@@ -211,13 +236,6 @@ agregar <- function(medidas, destino,
                     umbral = NULL, pesos = NULL) {
   medidas <- .validar_medidas_agregacion(medidas)
   destino <- .validar_granularidad(destino)
-  if (!.granularidad_implementada(destino)) {
-    stop(
-      "La granularidad '", destino,
-      "' est\u00e1 declarada pero todav\u00eda no est\u00e1 implementada.", call. = FALSE
-    )
-  }
-  funcion <- match.arg(funcion)
   origen <- unique(medidas$granularidad)
   transicion <- .transiciones_granularidad$origen == origen &
     .transiciones_granularidad$destino == destino
@@ -227,6 +245,10 @@ agregar <- function(medidas, destino,
       "' a '", destino, "'.", call. = FALSE
     )
   }
+  if (!.granularidad_implementada(destino)) {
+    stop(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
+  }
+  funcion <- match.arg(funcion)
   tipo <- unique(medidas$tipo_resultado)
   if (funcion == "ratio" && tipo != "booleano") {
     stop("`ratio` s\u00f3lo admite m\u00e9tricas de resultado booleano.", call. = FALSE)
