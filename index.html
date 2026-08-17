@@ -70,12 +70,15 @@
 </div>
 <!-- badges: start -->
 
-<p><code>lupa</code> is an auditable R toolkit for profiling tabular data, defining what quality means for a particular use, measuring it, cleaning a copy without silently changing the input, and finding approximate duplicate records at scale. It reports the scope, evidence, and uncertainty of every result.</p>
-<p>The public API, help pages, and vignettes are in Spanish. The names are stable and can be copied from this English guide; the <a href="https://github.com/sebollin/lupa/blob/main/README.es.md" class="external-link">Spanish README</a> tells the same story in Spanish. This is an internationalized core with a Spanish interface: translating the public names would break code, tests, and vignettes, so contributors should expect the contract itself to remain in Spanish while the surrounding guidance can be read in English.</p>
+<div class="section level2">
+<h2 id="mag_right-what-it-is-and-how-it-differs">🔎 What it is and how it differs<a class="anchor" aria-label="anchor" href="#mag_right-what-it-is-and-how-it-differs"></a>
+</h2>
+<p><code>lupa</code> is an auditable R toolkit that connects first-pass profiling with a quality model declared for a particular use, explicit measurement, controlled cleanup of a copy, and approximate duplicate detection at scale. Instead of a single opaque score, every result carries its scope, evidence, and uncertainty.</p>
+</div>
 <div class="section level2">
 <h2 id="earth_americas-api-language">🌎 API language<a class="anchor" aria-label="anchor" href="#earth_americas-api-language"></a>
 </h2>
-<p>The public names are Spanish in both examples and help pages:</p>
+<p>The public names are Spanish in examples, help pages, and vignettes:</p>
 <table class="table">
 <colgroup>
 <col width="50%">
@@ -126,46 +129,17 @@
 </tr>
 </tbody>
 </table>
-</div>
-<div class="section level2">
-<h2 id="sparkles-what-lupa-does">✨ What lupa does<a class="anchor" aria-label="anchor" href="#sparkles-what-lupa-does"></a>
-</h2>
-<ul>
-<li>Profiles a delivery and surfaces missingness, types, patterns, dates, and personal-data evidence.</li>
-<li>Profiles <code>sf</code> geometries and declares CRS, geometry families, emptiness, planar validity, coordinate domain, and bounding-box scope; it does not perform spatial analysis.</li>
-<li>Applies Benford’s law only when its preconditions hold, and records non-applicability in <code>cobertura_diagnosticos</code>.</li>
-<li>Reports <code>unidades_mixtas</code> and <code>monedas_mixtas</code> in a column without converting values or assuming exchange rates.</li>
-<li>Reports <code>celdas_multivaluadas</code> only when homogeneous parts match the column’s patterns.</li>
-<li>Finds <code>relacion_aritmetica_columnas</code> as observed identities or proportions between numeric columns, not as domain rules.</li>
-<li>Finds <code>relacion_orden_columnas</code> between comparable columns and declares the comparison scope.</li>
-<li>Finds keys, relationships, dependencies, and measurement granularities that were never declared.</li>
-<li>Reports <code>casi_clave</code> when a non-temporal column has at least 100 rows, is almost unique, and its collisions concentrate in a few values, which separates a key with duplicates from free text of high cardinality.</li>
-<li>Lets a project define its own quality framework instead of forcing a global score.</li>
-<li>Measures and evaluates explicit metrics, scales, validity rules, and referential domains.</li>
-<li>Produces editable cleanup plans, applies only selected actions to a copy, and keeps an audit log.</li>
-<li>Finds approximate duplicates with exact tiles, deterministic MinHash/LSH, blocking, cost estimates, and disk-backed lots.</li>
-<li>Repairs encoding damage in R, including repeated mojibake and CESU-8, while refusing unsafe lossy conversions.</li>
-<li>Follows quality through time and creates self-contained HTML reports.</li>
-</ul>
-</div>
-<div class="section level2">
-<h2 id="package-installation">📦 Installation<a class="anchor" aria-label="anchor" href="#package-installation"></a>
-</h2>
-<p>Until the first CRAN release, install the development version directly from GitHub:</p>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
-<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"sebollin/lupa"</span><span class="op">)</span></span></code></pre></div>
-<p>For a local clone or release tarball, use:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="ex">R</span> CMD build .</span>
-<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span></code></pre></div>
-<p>Or install a local source tarball from R:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"lupa_0.1.0.tar.gz"</span>, repos <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+<p>The <a href="https://github.com/sebollin/lupa/blob/main/README.es.md" class="external-link">Spanish README</a> tells the same story. Contributors should keep the public contract in Spanish; the surrounding guidance can be internationalised.</p>
 </div>
 <div class="section level2">
 <h2 id="zap-a-five-minute-start">⚡ A five-minute start<a class="anchor" aria-label="anchor" href="#zap-a-five-minute-start"></a>
 </h2>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<p>Until the first CRAN release, install the development version from GitHub:</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
+<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"sebollin/lupa"</span><span class="op">)</span></span></code></pre></div>
+<p>Then profile a table or run the complete analysis route:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
 <span></span>
@@ -178,8 +152,7 @@
 <span><span class="fu"><a href="reference/reportar.html">reportar</a></span><span class="op">(</span><span class="va">analisis</span>, archivo <span class="op">=</span> <span class="va">archivo</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/files.html" class="external-link">file.exists</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/unlink.html" class="external-link">unlink</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span></span></code></pre></div>
-<p><code><a href="reference/analizar.html">analizar()</a></code> measures every ready metric in its unconfirmed proposal by default, aggregates it immediately, and retains the small dashboard rather than row-level measurement detail. Use <code>medir_propuesta = FALSE</code> to disable that step or <code>conservar_detalle_medicion = TRUE</code> to retain the detail.</p>
-<p>The profile is read-only: it never changes the input table. Findings are ordinary inspectable data frames, and personal-data evidence is masked when the classification warrants it. A real console preview is shown below.</p>
+<p>Profiling is read-only: it never changes the input table. Findings are ordinary inspectable data frames, and personal-data evidence is masked when the classification warrants it. This is a real console preview:</p>
 <div class="float">
 <img src="reference/figures/perfil-console.png" alt="A captured perfilar() console result"><div class="figcaption">A captured <code><a href="reference/perfilar.html">perfilar()</a></code> console result</div>
 </div>
@@ -278,41 +251,124 @@
 </tr>
 </tbody>
 </table>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
-<span><span class="va">marco</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/marco_calidad.html">marco_calidad</a></span><span class="op">(</span></span>
-<span>  <span class="st">"Marco operativo"</span>,</span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>Estructura <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Ausencias observadas"</span>, <span class="st">"Duplicacion exacta"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">propuesta</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/proponer_modelo.html">proponer_modelo</a></span><span class="op">(</span><span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>,</span>
-<span>                                      analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>marco <span class="op">=</span> <span class="va">marco</span>, propuesta <span class="op">=</span> <span class="va">propuesta</span><span class="op">)</span></span></code></pre></div>
-<p>The API has a few boundaries worth knowing. There is no factory quality score: <code><a href="reference/indice_calidad.html">indice_calidad()</a></code> returns the dashboard unless a project supplies complete named weights, and a calculated index always travels with its coverage, weights, transformations, and heterogeneous universes. The core is universal and catalogues are pluggable; <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC</a> v1.6 is a reference implementation, not a country lock. The only required import is <a href="https://cran.r-project.org/package=cli" class="external-link"><code>cli</code></a>. Suggested packages enable these capabilities: <a href="https://cran.r-project.org/package=sf" class="external-link"><code>sf</code></a> enables geometry profiling; <a href="https://cran.r-project.org/package=DBI" class="external-link"><code>DBI</code></a> provides the database interface and <a href="https://cran.r-project.org/package=RSQLite" class="external-link"><code>RSQLite</code></a> a backend for <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>. <a href="https://cran.r-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> is optional for approximate text comparison.</p>
-<p>Work that can be parallelised uses <strong>two threads by default</strong>, the ceiling CRAN asks packages to respect. On your own machine you can raise it, per call with <code>nucleos = 8</code> or for the whole session with <code>options(lupa.nucleos = 8)</code>; the result does not change, only how long it takes.</p>
 </div>
 <div class="section level2">
-<h2 id="mag-where-it-fits">🔍 Where it fits<a class="anchor" aria-label="anchor" href="#mag-where-it-fits"></a>
+<h2 id="triangular_ruler-scope-what-uses-every-row-and-what-is-sampled">📐 Scope: what uses every row and what is sampled<a class="anchor" aria-label="anchor" href="#triangular_ruler-scope-what-uses-every-row-and-what-is-sampled"></a>
 </h2>
+<p><code><a href="reference/perfilar.html">perfilar()</a></code> uses every row for table and column counts, real and disguised missingness, distinct values, exact duplicates, quantitative summaries, and the findings derived from those quantities. By default, <code>muestra = 1e5</code> limits pattern discovery, type inference, date-format discovery, and the common sample used to search for functional dependencies. Set another limit or <code>Inf</code> to change or disable that sampling.</p>
+<p>Personal-document validators have a separate preliminary filter: <code>muestra_validadores = 1000</code> by default. A validator that passes that filter is then evaluated on the complete column; <code>Inf</code> makes even the preliminary pass complete. Approximate duplicates are off by default and have their own declared bounds when enabled.</p>
+<p>The result records the effective scope in <code>meta$muestra</code>, <code>meta$filas_analizadas</code>, and <code>meta$muestreo</code>; each column also records <code>n_filas_analizadas_tipo</code> and <code>muestreado_tipo_inferido</code>, while the dependency table carries its analysed-row and sampling attributes. <code><a href="reference/analizar.html">analizar()</a></code> reuses <code>muestra = 1e5</code> for its profile, distributions, and observed-level enumeration, and declares separate limits for associations and the other components.</p>
+</div>
+<div class="section level2">
+<h2 id="motorway-perfilar-or-analizar">🛣️ <code>perfilar()</code> or <code>analizar()</code>?<a class="anchor" aria-label="anchor" href="#motorway-perfilar-or-analizar"></a>
+</h2>
+<p>Use <code><a href="reference/perfilar.html">perfilar()</a></code> when you want the focused, inspectable profile: column summaries, patterns, inferred types, findings, diagnostic coverage, and undeclared structural relationships. Use <code><a href="reference/analizar.html">analizar()</a></code> when you want the full route around that profile: distributions, associations, temporal analysis, confirmable variable classification, a model proposal, a cleanup plan, conceptual coverage, and a dashboard.</p>
+<p>With no confirmed model or proposal, <code><a href="reference/analizar.html">analizar()</a></code> measures every proposal row whose state is <code>"lista"</code> by default. That proposal was inferred by <code>lupa</code>; nobody has confirmed it. Use <code>medir_propuesta = FALSE</code> to keep the route descriptive, or supply a confirmed proposal/model. The function aggregates immediately and keeps the small dashboard; <code>conservar_detalle_medicion = TRUE</code> retains the row-level measurement detail.</p>
+</div>
+<div class="section level2">
+<h2 id="vertical_traffic_light-severities-and-automation">🚦 Severities and automation<a class="anchor" aria-label="anchor" href="#vertical_traffic_light-severities-and-automation"></a>
+</h2>
+<p><code>severidad</code> is an <strong>ordered factor</strong>: <code>ok &lt; sospechoso &lt; error</code>.</p>
+<ul>
+<li>
+<code>ok</code> records an observed condition that is acceptable or informational; it is not an adverse decision.</li>
+<li>
+<code>sospechoso</code> is evidence worth reviewing. It is heuristic or needs domain context and must not by itself reject, repair, or suppress data automatically.</li>
+<li>
+<code>error</code> states that the applicable check crossed its declared criterion. Of these three levels, it is the only candidate for an adverse automated gate, and only after the project accepts that criterion and verifies the scope.</li>
+</ul>
+<p><code>cobertura_diagnosticos</code> is outside this scale. It lists checks that could not be evaluated and how to resolve them. Automation must inspect it as well as <code>error</code>: zero errors does not mean a clean profile when diagnostics were not run. Cleanup is always explicit—<code><a href="reference/planificar_limpieza.html">aplicar()</a></code> changes only actions selected from an editable plan.</p>
+</div>
+<div class="section level2">
+<h2 id="sparkles-what-lupa-does-in-detail">✨ What lupa does in detail<a class="anchor" aria-label="anchor" href="#sparkles-what-lupa-does-in-detail"></a>
+</h2>
+<ul>
+<li>Profiles a delivery and surfaces missingness, types, patterns, dates, and personal-data evidence.</li>
+<li>Profiles <code>sf</code> geometries and declares CRS, geometry families, emptiness, planar validity, coordinate domain, and bounding-box scope; it does not perform spatial analysis.</li>
+<li>Applies Benford’s law only when its preconditions hold, and records non-applicability in <code>cobertura_diagnosticos</code>.</li>
+<li>Reports <code>unidades_mixtas</code> and <code>monedas_mixtas</code> in a column without converting values or assuming exchange rates.</li>
+<li>Reports <code>celdas_multivaluadas</code> only when homogeneous parts match the column’s patterns.</li>
+<li>Finds <code>relacion_aritmetica_columnas</code> as observed identities or proportions between numeric columns, not as domain rules.</li>
+<li>Finds <code>relacion_orden_columnas</code> between comparable columns and declares the comparison scope.</li>
+<li>Finds keys, relationships, dependencies, and measurement granularities that were never declared.</li>
+<li>Reports <code>casi_clave</code> when a non-temporal column has at least 100 rows, is almost unique, and its collisions concentrate in a few values, which separates a key with duplicates from free text of high cardinality.</li>
+<li>Lets a project define its own quality framework instead of forcing a global score.</li>
+<li>Measures and evaluates explicit metrics, scales, validity rules, and referential domains.</li>
+<li>Produces editable cleanup plans, applies only selected actions to a copy, and keeps an audit log.</li>
+<li>Finds approximate duplicates with exact tiles, deterministic MinHash/LSH, blocking, cost estimates, and disk-backed lots.</li>
+<li>Repairs encoding damage in R, including repeated mojibake and CESU-8, while refusing unsafe lossy conversions.</li>
+<li>Follows quality through time and creates self-contained HTML reports.</li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="test_tube-evidence-with-its-declared-scope">🧪 Evidence, with its declared scope<a class="anchor" aria-label="anchor" href="#test_tube-evidence-with-its-declared-scope"></a>
+</h2>
+<p>Each check below uses a different declared unit and reference. None of them estimates a single package-wide accuracy.</p>
+<table class="table">
+<colgroup>
+<col width="30%">
+<col width="30%">
+<col width="40%">
+</colgroup>
+<thead><tr>
+<th>Check</th>
+<th>Declared unit</th>
+<th align="right">Result</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Raha dirty/clean pairs</td>
+<td>columns containing at least one changed cell</td>
+<td align="right">26/26 received at least one finding; 8 further columns were flagged</td>
+</tr>
+<tr>
+<td>Constructed clean controls</td>
+<td>43 tables</td>
+<td align="right">0 error-severity findings; 25 review signals</td>
+</tr>
+<tr>
+<td>Seeded defects</td>
+<td>9 planted defects</td>
+<td align="right">9/9 detected</td>
+</tr>
+<tr>
+<td>Real sanctions register</td>
+<td>error-severity findings over 2,556 rows</td>
+<td align="right">8/8 independently confirmed</td>
+</tr>
+</tbody>
+</table>
+<p>In the Raha pairs the dirty/clean comparison labels changed cells; it does not label every property observable in an unchanged column. Manual review found a supported observation in each of the eight further columns—constants, duplicated columns, inconsistent case, empty strings, and high-cardinality text. We therefore report neither precision nor diagnostic recall from Raha: 26/26 is column coverage, not evidence that every changed cell was identified. <a href="benchmark/"><code>benchmark/</code></a> reproduces the table from the published sources and records the exact file fingerprints used by the published run, but only when <code>lupa</code> is installed from a build of these same sources. From the repository root, reproduce that condition and run the scripts with:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/verdad_raha.R</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_lupa.R</span></code></pre></div>
+<p>The benchmark records the installed version and full <code>Built</code> stamp and stops when that installation lacks a capability required by the published table.</p>
+</div>
+<div class="section level2">
+<h2 id="mag-limits-fit-stability-and-references">🔍 Limits, fit, stability, and references<a class="anchor" aria-label="anchor" href="#mag-limits-fit-stability-and-references"></a>
+</h2>
+<p>There is no factory quality score: <code><a href="reference/indice_calidad.html">indice_calidad()</a></code> returns the dashboard unless a project supplies complete named weights, and a calculated index always travels with its coverage, weights, transformations, and heterogeneous universes. The core is universal and catalogues are pluggable; <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC</a> v1.6 is a reference implementation, not a country lock. The only required import is <a href="https://cran.r-project.org/package=cli" class="external-link"><code>cli</code></a>. Suggested packages enable bounded capabilities: <a href="https://cran.r-project.org/package=sf" class="external-link"><code>sf</code></a> enables geometry profiling; <a href="https://cran.r-project.org/package=DBI" class="external-link"><code>DBI</code></a> provides the database interface and <a href="https://cran.r-project.org/package=RSQLite" class="external-link"><code>RSQLite</code></a> a backend for <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>; <a href="https://cran.r-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> enables approximate text comparison.</p>
+<p>Work that can be parallelised uses <strong>two threads by default</strong>, the ceiling CRAN asks packages to respect. On your own machine you can raise it per call with <code>nucleos = 8</code> or for the whole session with <code>options(lupa.nucleos = 8)</code>; the result does not change, only how long it takes.</p>
+<div class="section level3">
+<h3 id="where-it-fits">Where it fits<a class="anchor" aria-label="anchor" href="#where-it-fits"></a>
+</h3>
 <p><a href="https://cran.r-project.org/package=skimr" class="external-link"><code>skimr</code></a> and <a href="https://cran.r-project.org/package=DataExplorer" class="external-link"><code>DataExplorer</code></a> explore; <a href="https://cran.r-project.org/package=pointblank" class="external-link"><code>pointblank</code></a>, <a href="https://cran.r-project.org/package=validate" class="external-link"><code>validate</code></a>, and <a href="https://cran.r-project.org/package=dataquieR" class="external-link"><code>dataquieR</code></a> express or evaluate rules; <a href="https://cran.r-project.org/package=zoomerjoin" class="external-link"><code>zoomerjoin</code></a>, <a href="https://cran.r-project.org/package=textreuse" class="external-link"><code>textreuse</code></a>, and <a href="https://cran.r-project.org/package=reclin2" class="external-link"><code>reclin2</code></a> focus on text comparison or record linkage. <a href="https://github.com/inesscc/calidad" class="external-link"><code>calidad</code></a>, maintained by <a href="https://github.com/Klauslehmann" class="external-link">Klaus Lehmann</a> and <a href="https://github.com/ricardoflopiza" class="external-link">Ricardo Pizarro</a>, is a complementary axis: it evaluates the quality of <strong>survey estimates</strong>, while <code>lupa</code> evaluates the tabular data that produces an estimate.</p>
-<p>Encoding repair follows the approach and frozen data of <a href="https://github.com/rspeer/python-ftfy" class="external-link"><code>ftfy</code></a> 6.3.1 by <a href="https://github.com/rspeer" class="external-link">Robyn Speer</a>, in R. It includes eleven byte tables, CESU-8 and Java <code>C0 80</code> handling, and five deliberate extensions documented in the <a href="NEWS.html">NEWS</a>. It reproduces 159 of the 161 distributed corpus cases and leaves all 31 negative cases untouched. It deliberately does not provide <a href="https://github.com/rspeer/python-ftfy" class="external-link"><code>ftfy</code></a>’s style-oriented <code>fix_text</code> steps such as HTML unescaping, quote curling, width normalization, or Unicode normalization: changing legitimate data silently is not repair.</p>
+<p>Encoding repair follows the approach and frozen data of <a href="https://github.com/rspeer/python-ftfy" class="external-link"><code>ftfy</code></a> 6.3.1 by <a href="https://github.com/rspeer" class="external-link">Robyn Speer</a>, in R. It includes eleven byte tables, CESU-8 and Java <code>C0 80</code> handling, and five deliberate extensions documented in the <a href="NEWS.html">NEWS</a>. It reproduces 159 of the 161 distributed corpus cases and leaves all 31 negative cases untouched. It deliberately does not provide <code>ftfy</code>’s style-oriented <code>fix_text</code> steps such as HTML unescaping, quote curling, width normalization, or Unicode normalization: changing legitimate data silently is not repair.</p>
 </div>
-<div class="section level2">
-<h2 id="open_book-citation-and-references">📖 Citation and references<a class="anchor" aria-label="anchor" href="#open_book-citation-and-references"></a>
-</h2>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="section level3">
+<h3 id="citation-and-references">Citation and references<a class="anchor" aria-label="anchor" href="#citation-and-references"></a>
+</h3>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"lupa"</span><span class="op">)</span></span></code></pre></div>
 <p>Conceptual references are <a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini and Scannapieco (2016)</a>, the <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC Digital Government Data Quality Framework v1.6</a>, and <a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC 25012:2008</a>.</p>
 </div>
-<div class="section level2">
-<h2 id="handshake-contribute-and-report">🤝 Contribute and report<a class="anchor" aria-label="anchor" href="#handshake-contribute-and-report"></a>
-</h2>
+<div class="section level3">
+<h3 id="stability-contribution-and-license">Stability, contribution, and license<a class="anchor" aria-label="anchor" href="#stability-contribution-and-license"></a>
+</h3>
+<p>Version 0.1.0 is pre-CRAN: the public API may change before 1.0; breaking changes will be announced in <code>NEWS.md</code> and release notes, with a deprecation warning first whenever practical.</p>
 <p>Please use the <a href="https://github.com/sebollin/lupa/issues" class="external-link">issue tracker</a> for bugs, proposals, and documentation fixes. The stable contracts are the declared units, scope, protection, and audit trail; implementation details and benchmark times can change between releases when those contracts remain true.</p>
-</div>
-<div class="section level2">
-<h2 id="page_facing_up-license">📄 License<a class="anchor" aria-label="anchor" href="#page_facing_up-license"></a>
-</h2>
 <p><code>lupa</code> is released under the <a href="https://www.gnu.org/licenses/gpl-3.0.html" class="external-link">GPL-3</a>. See <a href="LICENSE.note"><code>LICENSE.note</code></a> for the Apache-2.0 data derived from <a href="https://github.com/rspeer/python-ftfy" class="external-link"><code>ftfy</code></a> and the MIT data derived from <a href="https://github.com/njtierney/naniar" class="external-link"><code>naniar</code></a>.</p>
+</div>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">
