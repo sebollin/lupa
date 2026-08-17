@@ -55,6 +55,9 @@ Los nombres públicos son españoles tanto en los ejemplos como en la ayuda:
   alcance de la comparación.
 - Encuentra claves, relaciones, dependencias y granularidades de medición que
   nunca fueron declaradas.
+- Informa `casi_clave` cuando una columna es casi única y sus colisiones se
+  concentran en pocos valores, que es lo que separa una clave con duplicados de
+  un texto libre de alta cardinalidad.
 - Permite que cada proyecto defina su marco de calidad, sin imponer un puntaje
   global.
 - Mide y evalúa métricas, escalas, reglas de validez y dominios referenciales
