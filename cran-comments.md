@@ -14,15 +14,19 @@ Every result below is from a run of one build of these exact sources, with no
 change to the package between them. `R CMD build` stamps `Packaged:` into
 `DESCRIPTION`, so two builds of identical sources are never byte-identical; the
 claim is about the sources, which is what can be checked. The build used
-throughout carries `Packaged: 2026-08-17 04:19:25 UTC`.
+throughout carries `Packaged: 2026-08-17 14:37:38 UTC`.
 
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — 0 errors, 0 warnings,
   2 notes (new submission; no `tidy` executable in this environment). Examples
-  OK; tests OK in 113s; vignettes rebuilt; PDF and HTML manuals OK.
+  OK; tests OK in 143s; vignettes rebuilt; PDF and HTML manuals OK.
 * win-builder, R-devel (2026-08-15 r90413 ucrt), x86_64-w64-mingw32 — 1 NOTE
-  (new submission), no URL notes; examples OK, tests OK in 401s, vignettes
+  (new submission), no URL notes; examples OK, tests OK in 411s, vignettes
   rebuilt.
-* win-builder, R release, x86_64-w64-mingw32 — result pending.
+* win-builder, R release, x86_64-w64-mingw32 — the tarball was accepted twice
+  (FTP 226) and taken off the queue both times, but the service returned no
+  result on either attempt. Windows under R release is covered instead by the
+  `windows-latest (release)` job of the GitHub Actions run below, which is
+  green on these sources.
 * R-hub v2, R-devel: Ubuntu Linux x86_64, Windows x86_64 and macOS — all three
   OK.
 * Continuous integration (GitHub Actions, `R-CMD-check`): Ubuntu with R release,
