@@ -2,9 +2,8 @@
 
 Es la puerta de entrada al recorrido de `lupa`. Construye el perfil, las
 distribuciones, asociaciones, diagnóstico temporal, clasificación
-confirmable de variables, propuesta de modelo, cobertura conceptual y
-plan de limpieza. No modifica datos ni mide la propuesta generada
-automáticamente.
+confirmable de variables, propuesta de modelo, medición agregada,
+tablero, cobertura conceptual y plan de limpieza. No modifica los datos.
 
 ## Usage
 
@@ -20,6 +19,8 @@ analizar(
   marco = NULL,
   perfil_evaluacion = NULL,
   id_medicion = NULL,
+  medir_propuesta = TRUE,
+  conservar_detalle_medicion = FALSE,
   muestra = 1e+05,
   muestra_asociacion = 10000,
   max_valores = 20L,
@@ -90,6 +91,17 @@ analizar(
 
   Identificador opcional enviado a
   [`medir()`](https://sebollin.github.io/lupa/reference/medir.md).
+
+- medir_propuesta:
+
+  Si se mide automáticamente la propuesta en estado `"lista"` cuando no
+  se recibe un modelo o una propuesta confirmada. Use `FALSE` para
+  conservar el comportamiento descriptivo anterior.
+
+- conservar_detalle_medicion:
+
+  Si se retienen las medidas fila a fila. Es `FALSE` por omisión: el
+  tablero y la medición agregada permanecen.
 
 - muestra:
 
@@ -165,11 +177,17 @@ Objeto S3 `analisis` con todos los componentes y su cobertura.
 
 ## Details
 
-La cadena de medición sólo se completa si se recibe `modelo_confirmado`
-o `propuesta_confirmada`. En el segundo caso se materializan únicamente
-sus filas activas mediante
-[`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md).
-La evaluación requiere además un `perfil_evaluacion` explícito.
+Por omisión mide todas las sugerencias de la propuesta cuyo estado es
+`"lista"`, aunque no estuvieran activas, y declara que esa selección fue
+realizada por `lupa` sin confirmación. Agrega inmediatamente el detalle
+y conserva
+[`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md);
+las medidas fila a fila sólo quedan en el resultado si
+`conservar_detalle_medicion = TRUE`. La evaluación, cuando se solicita,
+usa la medición agregada. Los hallazgos `casi_clave` del perfil se
+reiteran en `advertencias`, con su columna, valores en colisión,
+frecuencias y criterio observado, para que no queden ocultos dentro del
+recorrido integral.
 
 ## See also
 
@@ -189,17 +207,64 @@ resultado
 #> ── Analisis de datos: datos_administrativos ────────────────────────────────────
 #> Filas: 13
 #> Columnas: 10
-#> Hallazgos del perfil: 20
-#> Advertencias de alcance: 2
+#> Hallazgos del perfil: 24
+#> Advertencias de alcance: 6
 #> Asociaciones informadas: 4
 #> Series temporales: 1
-#> Modelo medido: no
+#> Modelo medido: si
+#> Detalle fila a fila: no conservado
 #> 
+#> ── Tablero de calidad ──
+#> 
+#> ── Tablero de calidad ──────────────────────────────────────────────────────────
+#>       componente    dimension                 factor
+#>  componente-0001     Unicidad         No-duplicación
+#>  componente-0002  Completitud               Densidad
+#>  componente-0003  Completitud               Densidad
+#>  componente-0004  Completitud               Densidad
+#>  componente-0005  Completitud               Densidad
+#>  componente-0006    Exactitud Correctitud sintáctica
+#>  componente-0007    Exactitud Correctitud sintáctica
+#>  componente-0008    Exactitud Correctitud sintáctica
+#>  componente-0009    Exactitud Correctitud sintáctica
+#>  componente-0010    Exactitud Correctitud sintáctica
+#>  componente-0011 Consistencia  Integridad de dominio
+#>                      metrica           objeto     valor orientacion agregacion
+#>             EntidadDuplicada          (tabla) 0.1538462     defecto      ratio
+#>                       NoNulo           cedula 1.0000000 conformidad      ratio
+#>                       NoNulo fecha_nacimiento 1.0000000 conformidad      ratio
+#>                       NoNulo          ingreso 1.0000000 conformidad      ratio
+#>                       NoNulo             sexo 1.0000000 conformidad      ratio
+#>                      Formato           correo 0.8461538 conformidad      ratio
+#>                      Formato     departamento 0.9230769 conformidad      ratio
+#>                      Formato       id_tramite 1.0000000 conformidad      ratio
+#>                      Formato             pais 1.0000000 conformidad      ratio
+#>                      Formato             sexo 0.8461538 conformidad      ratio
+#>  ValoresPosiblesPorExtension             sexo 1.0000000 conformidad      ratio
+#>  umbral universo
+#>      NA    filas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#>      NA   celdas
+#> 
+#> ── Alcance del marco ──
+#> 
+#>  factores_marco factores_medidos sin_metrica_declarada no_aplican
+#>              17                4                     8          4
+#>  fuera_de_alcance
+#>                 1
 #> ── Cobertura conceptual ──
 #> 
 #>            estado factores
-#>            medida        2
-#>      no_declarada       10
+#>            medida        4
+#>      no_declarada        8
 #>         no_aplica        4
 #>  fuera_de_alcance        1
 #> ── Advertencias de alcance ──
@@ -207,7 +272,15 @@ resultado
 #>  componente                     tipo
 #>      tiempo frecuencia_no_confirmada
 #>   variables   escalas_no_confirmadas
-#>                                                                       descripcion
-#>  Las frecuencias temporales son propuestas observadas, no requisitos confirmados.
-#>        Algunas escalas se propusieron desde los valores y requieren confirmacion.
+#>      perfil               casi_clave
+#>      perfil               casi_clave
+#>      perfil               casi_clave
+#>      perfil               casi_clave
+#>                                                                                                                                                                                                                                                                                                                                                                                                                                                    descripcion
+#>                                                                                                                                                                                                                                                                                                                                                                               Las frecuencias temporales son propuestas observadas, no requisitos confirmados.
+#>                                                                                                                                                                                                                                                                                                                                                                                     Algunas escalas se propusieron desde los valores y requieren confirmacion.
+#>                                                                                                                                                                                                                                                                                                                                                    La columna 'fecha_nacimiento' tiene colisiones concentradas y no es una clave valida. [evidencia protegida]
+#>        La columna 'ingreso' tiene colisiones concentradas y no es una clave valida. 12 valores distintos de 13 (0.923); 1 valores colisionados; 2 filas en colision; 1 duplicados excedentes; concentracion_colisiones=1.000. Colisiones: 25000 (2). criterio_casi_clave: tasa_distintos>=0.900 y concentracion_colisiones>=0.500. criterio_tipo_casi_clave: tipo=double; valores_fraccionarios_finitos=0; doble_admitido_solo_sin_fraccionarios_finitos=TRUE.
+#>                                                                                                                                                                                                                                                                                                                                                              La columna 'correo' tiene colisiones concentradas y no es una clave valida. [evidencia protegida]
+#>  La columna 'id_tramite' tiene colisiones concentradas y no es una clave valida. 12 valores distintos de 13 (0.923); 1 valores colisionados; 2 filas en colision; 1 duplicados excedentes; concentracion_colisiones=1.000. Colisiones: TR001 (2). criterio_casi_clave: tasa_distintos>=0.900 y concentracion_colisiones>=0.500. criterio_tipo_casi_clave: tipo=character; valores_fraccionarios_finitos=0; doble_admitido_solo_sin_fraccionarios_finitos=TRUE.
 ```

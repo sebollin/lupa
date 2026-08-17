@@ -43,7 +43,10 @@ perfilar(
   tolerancia_aritmetica = 1e-08,
   max_columnas_aritmetica = 20L,
   casi_duplicados_vocabulario = TRUE,
-  max_proporcion_grupo_vocabulario = 0.5
+  max_proporcion_grupo_vocabulario = 0.5,
+  umbral_variante_rara_vocabulario = 0.05,
+  min_asimetria_vocabulario_corto = 10,
+  min_participacion_dominante_vocabulario_corto = 0.5
 )
 ```
 
@@ -268,6 +271,21 @@ perfilar(
   el alcance declara que el diagnóstico no aplica en vez de entregar un
   bloque que abarque casi toda la columna.
 
+- umbral_variante_rara_vocabulario:
+
+  Proporcion maxima de la columna que puede ocupar una variante breve
+  para abrir la comparacion por una edicion.
+
+- min_asimetria_vocabulario_corto:
+
+  Razon minima entre la frecuencia de una forma dominante y una variante
+  breve para abrir la comparacion por una edicion.
+
+- min_participacion_dominante_vocabulario_corto:
+
+  Proporcion minima de la columna que debe ocupar la forma dominante en
+  la comparacion por una edicion.
+
 ## Value
 
 Objeto S3 de clase `perfil`. Cada fila de hallazgos incluye n_evaluados,
@@ -482,27 +500,39 @@ valores distintos realmente comparados y el estado es `exacto`. Las
 fusiones son una propiedad de pares, por lo que muestrear valores
 aislados podría dejar fuera los dos miembros de cada par y convertir una
 fusión real en un cero falso. La normalización se vectoriza para que
-este alcance completo no dependa de la cardinalidad de la columna.
-Además, si `casi_duplicados_vocabulario = TRUE`, el perfil busca
-variantes casi duplicadas en columnas de texto. Agrupa el vocabulario
-crudo mediante fusiones exactas de la normalización y estrellas de
-distancia centradas en un valor de frecuencia estrictamente mayor y
-único; los empates no se fuerzan. No cierra cadenas transitivamente ni
-elige una forma canónica. La unidad es el valor distinto, no la fila, y
-cada variante conserva su frecuencia. Cada grupo declara sus distancias
-mínima y máxima. El límite `max_proporcion_grupo_vocabulario` evita
-presentar un grupo que abarque casi toda la columna como un diagnóstico
-útil: en ese caso el alcance dice que el diagnóstico no aplica. Ese
-límite se activa desde 20 valores distintos o cuando el grupo mayor ya
-tiene 10 variantes; sólo suprime el grupo si además ocupa una fracción
-mayor que el umbral. Así un grupo de tres en cuatro valores se entrega,
-pero quince variantes que ocupan toda una columna no se presentan como
-una sola familia. Un grupo grande dentro de un vocabulario mucho mayor
-puede seguir pasando si su proporción es pequeña. El alcance expone
-ambos cortes. El argumento permite apagar el detector cuando no
-corresponde a la tabla. Si hay pares cercanos pero todas las frecuencias
-empatan, el alcance declara que no hubo asimetría para formar una
-estrella y sugiere
+este alcance completo no dependa de la cardinalidad de la columna. Las
+columnas sin ausentes que tienen al menos 90 % de valores distintos
+producen un hallazgo `casi_clave` cuando el valor dominante concentra al
+menos la mitad de los duplicados excedentes. La concentración se calcula
+sobre las repeticiones posteriores a la primera de cada valor, no sólo
+sobre la tasa de distintos. La evidencia declara ambos umbrales, los
+valores que colisionan y sus frecuencias. Así una colisión concentrada
+queda separada del texto libre de alta cardinalidad con repeticiones
+dispersas. Un vector `double` sólo participa si todos sus valores
+finitos son enteros; así se conservan identificadores importados con ese
+almacenamiento y se excluyen medidas con alguna parte fraccionaria, como
+importes o coordenadas. Los vectores `integer64` se tratan como enteros
+semánticos. La evidencia del hallazgo declara este criterio y el
+recuento observado. Además, si `casi_duplicados_vocabulario = TRUE`, el
+perfil busca variantes casi duplicadas en columnas de texto. Agrupa el
+vocabulario crudo mediante fusiones exactas de la normalización y
+estrellas de distancia centradas en un valor de frecuencia estrictamente
+mayor y único; los empates no se fuerzan. No cierra cadenas
+transitivamente ni elige una forma canónica. La unidad es el valor
+distinto, no la fila, y cada variante conserva su frecuencia. Cada grupo
+declara sus distancias mínima y máxima. El límite
+`max_proporcion_grupo_vocabulario` evita presentar un grupo que abarque
+casi toda la columna como un diagnóstico útil: en ese caso el alcance
+dice que el diagnóstico no aplica. Ese límite se activa desde 20 valores
+distintos o cuando el grupo mayor ya tiene 10 variantes; sólo suprime el
+grupo si además ocupa una fracción mayor que el umbral. Así un grupo de
+tres en cuatro valores se entrega, pero quince variantes que ocupan toda
+una columna no se presentan como una sola familia. Un grupo grande
+dentro de un vocabulario mucho mayor puede seguir pasando si su
+proporción es pequeña. El alcance expone ambos cortes. El argumento
+permite apagar el detector cuando no corresponde a la tabla. Si hay
+pares cercanos pero todas las frecuencias empatan, el alcance declara
+que no hubo asimetría para formar una estrella y sugiere
 [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
 para comparar filas. El alcance clasifica cada grupo como
 `normalizacion_exacta`, `dentro_de_palabra`, `token_completo`,
@@ -528,7 +558,12 @@ tamaño compatible se muestra aparte. Para mantener acotado el perfil,
 por omisión se evalúan hasta 5.000 valores distintos y 2.000.000 de
 pares de unidades normalizadas; si se alcanza un límite, la evidencia lo
 declara y no presenta el resultado como universo completo. Las fusiones
-exactas se informan aun sin ese paquete opcional.
+exactas se informan aun sin ese paquete opcional. Antes de formar esos
+grupos se retiran los valores que el mismo perfil ya informó como
+`faltantes_disfrazados`. El diagnóstico fuerte de ausencia tiene
+precedencia: un centinela no se presenta también como posible variante
+de un valor válido. El alcance declara cuántas observaciones retiró este
+filtro.
 
 La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara `poder_discriminante` y
@@ -573,17 +608,18 @@ medias y desvíos se conservan como síntesis no ligadas a una fila;
 nacimiento, un hallazgo separado conserva el diagnóstico de valores
 anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 Los números escritos como texto reconocen tanto coma como punto decimal
-y sus separadores de miles simétricos. Los códigos monetarios de tres
-letras, incluso como sufijo, `U$S` y los símbolos monetarios se
-conservan como evidencia; `monedas_mixtas` informa sus frecuencias sin
-convertir ni suponer tasas de cambio. Una única moneda o un símbolo `$`
-aislado no produce ese hallazgo. Un sufijo de unidad se reconoce sólo si
-es `%` o una abreviatura alfabética en minúsculas; por eso `12 kg` y
-`13500 g` son unidades, mientras que `12A` y `13B` se tratan como
-códigos. Si hay más de una unidad observada, `unidades_mixtas` informa
-sus frecuencias y no convierte ni compara sus magnitudes. Una única
-unidad no genera ese hallazgo. `celdas_multivaluadas` es deliberadamente
-conservador: usa los patrones de
+y sus separadores de miles simétricos. Los prefijos de tres letras
+separados del número, incluso como sufijo, `U$S` y los símbolos
+monetarios se conservan como evidencia; `monedas_mixtas` informa sus
+frecuencias sin convertir ni suponer tasas de cambio. Una única moneda o
+un símbolo `$` aislado no produce ese hallazgo. Un sufijo de unidad se
+reconoce sólo si es `%` o una abreviatura alfabética en minúsculas; por
+eso `12 kg` y `13500 g` son unidades, mientras que `12A` y `13B` se
+tratan como códigos. Si hay más de una unidad observada,
+`unidades_mixtas` informa sus frecuencias y no convierte ni compara sus
+magnitudes. Una única unidad no genera ese hallazgo.
+`celdas_multivaluadas` es deliberadamente conservador: usa los patrones
+de
 [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
 y exige partes numéricas, alfanuméricas o identificadoras puntuadas
 homogéneas, compatibles con el patrón del resto de la columna. No
@@ -606,7 +642,7 @@ perfil
 #> 
 #> ── Perfil de datos: datos_administrativos ──────────────────────────────────────
 #> ✖ 5 hallazgos con severidad error
-#> ! 10 hallazgos sospechosos
+#> ! 14 hallazgos sospechosos
 #> ✔ 5 hallazgos informativos ok
 #> ℹ 2 diagnosticos no evaluados
 #> 
@@ -699,6 +735,39 @@ summary(perfil)
 #> 8                    0             0.00000000          12     0.92307692
 #> 9                    0             0.00000000          11     0.84615385
 #> 10                   0             0.00000000          12     0.92307692
+#>    secuencia_entera_densa densidad_secuencia_entera
+#> 1                   FALSE                        NA
+#> 2                   FALSE                        NA
+#> 3                   FALSE                        NA
+#> 4                   FALSE                        NA
+#> 5                   FALSE                        NA
+#> 6                   FALSE                        NA
+#> 7                   FALSE                        NA
+#> 8                   FALSE                        NA
+#> 9                   FALSE                        NA
+#> 10                  FALSE                        NA
+#>    n_posiciones_secuencia_entera n_huecos_secuencia_entera
+#> 1                             NA                        NA
+#> 2                             NA                        NA
+#> 3                             NA                        NA
+#> 4                             NA                        NA
+#> 5                             NA                        NA
+#> 6                             NA                        NA
+#> 7                             NA                        NA
+#> 8                             NA                        NA
+#> 9                             NA                        NA
+#> 10                            NA                        NA
+#>    umbral_densidad_secuencia_entera min_distintos_secuencia_entera
+#> 1                               0.8                             20
+#> 2                               0.8                             20
+#> 3                               0.8                             20
+#> 4                               0.8                             20
+#> 5                               0.8                             20
+#> 6                               0.8                             20
+#> 7                               0.8                             20
+#> 8                               0.8                             20
+#> 9                               0.8                             20
+#> 10                              0.8                             20
 #>                 moda frecuencia_moda longitud_minima longitud_maxima
 #> 1                  1               2              NA              NA
 #> 2  [valor protegido]               2               3              11

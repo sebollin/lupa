@@ -76,9 +76,12 @@ un índice global de calidad.</p>
 
 
 <dt id="arg-condicion">condicion<a class="anchor" aria-label="anchor" href="#arg-condicion"></a></dt>
-<dd><p>Función de un argumento que recibe el vector <code>resultado</code> de
-las medidas seleccionadas, en el orden de la tabla, y debe devolver un
-vector lógico sin ausentes de la misma longitud. No modifica las medidas.</p></dd>
+<dd><p>Función que recibe el vector <code>resultado</code> de las medidas
+seleccionadas, en el orden de la tabla, y debe devolver un vector lógico
+sin ausentes de la misma longitud. Puede declarar un segundo argumento
+<code>orientacion</code> para recibir el metadato homónimo de cada medida; las
+funciones existentes de un argumento siguen siendo válidas. No modifica
+las medidas.</p></dd>
 
 
 <dt id="arg-metricas">metricas<a class="anchor" aria-label="anchor" href="#arg-metricas"></a></dt>

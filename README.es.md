@@ -35,7 +35,7 @@ ayuda:
 | [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) | plan a cleanup |
 | [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md) | guide a cleanup |
 | [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) | apply a selected cleanup |
-| [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) / [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) | measure / evaluate |
+| [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) / [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md) / [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) | measure / dashboard / evaluate |
 | [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md) | find approximate duplicates |
 | [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md) | create a report |
 
@@ -107,11 +107,19 @@ perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
 head(perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")], 5)
 
 analisis <- analizar(datos_operativos)
+analisis$tablero
 archivo <- tempfile(fileext = ".html")
 reportar(analisis, archivo = archivo)
 stopifnot(file.exists(archivo))
 unlink(archivo)
 ```
+
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+mide por omisión todas las métricas listas de su propuesta no
+confirmada, las agrega enseguida y conserva el tablero pequeño en vez
+del detalle fila a fila. `medir_propuesta = FALSE` apaga ese paso y
+`conservar_detalle_medicion = TRUE` conserva el detalle cuando se
+necesita.
 
 El perfilado es de sólo lectura: nunca cambia la tabla de entrada. Los
 hallazgos son data frames inspeccionables y la evidencia de datos
@@ -132,10 +140,10 @@ breve:
 | Tarea | Funciones principales | Para leer más |
 |----|----|----|
 | Mirar los datos por primera vez | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md), [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md), [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md), [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md), `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Perfilar contra una base | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — agregados SQL de toda la tabla y un perfil de 93 campos sobre una muestra declarada; los alcances quedan separados | [Referencia](https://sebollin.github.io/lupa/reference/) |
+| Perfilar contra una base | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — agregados SQL de toda la tabla y un perfil de 99 campos sobre una muestra declarada; los alcances quedan separados | [Referencia](https://sebollin.github.io/lupa/reference/) |
 | Encontrar estructura no declarada | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md), [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md) | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
 | Definir la calidad | [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md), [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md), [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md) | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
-| Medir y evaluar | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md) con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
+| Medir y evaluar | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md), [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md) con pesos del proyecto, [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md) con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
 | Limpiar sin romper nada | [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md), [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md), [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) | [Plan de limpieza](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
 | Encontrar duplicados aproximados | [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md), [`estimar_costo()`](https://sebollin.github.io/lupa/reference/estimar_costo.md) | [Escala y duplicados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
 | Reparar codificación dañada | `reparar_codificacion` mediante [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) y [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) | [Referencia de limpieza](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
@@ -156,11 +164,12 @@ propuesta <- proponer_modelo(perfilar(datos_operativos,
 list(marco = marco, propuesta = propuesta)
 ```
 
-La API tiene algunos límites importantes. No hay un puntaje global: las
-dimensiones, unidades y reglas permanecen visibles. Una ponderación de
-fábrica sería decidir qué importa, así que `lupa` entrega los
-componentes y una receta, y deja los pesos a cada proyecto. El núcleo es
-universal y los catálogos son enchufables;
+La API tiene algunos límites importantes. No hay un puntaje de fábrica:
+[`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)
+devuelve el tablero mientras el proyecto no declare pesos nombrados
+completos, y todo índice calculado conserva cobertura, pesos,
+transformaciones y universos heterogéneos. El núcleo es universal y los
+catálogos son enchufables;
 [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
 v1.6 es una implementación de referencia, no un límite nacional. El
 único import obligatorio es

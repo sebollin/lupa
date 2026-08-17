@@ -75,8 +75,9 @@ frames para varias entidades.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Data frame S3 de clase <code>medicion</code>, con una fila por objeto medido.
-Los booleanos se almacenan como <code>0</code> y <code>1</code> en la columna común <code>resultado</code>,
-y su semántica permanece declarada en <code>tipo_resultado</code>. Algunas métricas
+Los booleanos se almacenan como <code>0</code> y <code>1</code> en la columna común <code>resultado</code>.
+<code>orientacion</code> conserva si un valor alto expresa conformidad, si un valor
+alto expresa defecto o si esa lectura no aplica. Algunas métricas
 que trabajan con un vocabulario o un alcance parcial agregan un atributo
 <code>alcance_metricas</code> con sus conteos y límites.</p>
     </div>
@@ -88,17 +89,17 @@ que trabajan con un vocabulario o un alcance parcial agregan un atributo
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">medir</span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T003636.651633-7423-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T003636.651633-7423-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T003636.651633-7423-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T033636.146583-7481-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T033636.146583-7481-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T033636.146583-7481-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T003636.651633-7423 2026-08-17 00:36:36  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T003636.651633-7423 2026-08-17 00:36:36  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T003636.651633-7423 2026-08-17 00:36:36  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T033636.146583-7481 2026-08-17 03:36:36  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T033636.146583-7481 2026-08-17 03:36:36  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T033636.146583-7481 2026-08-17 03:36:36  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        granularidad tipo_resultado  entidad atributo fila   objeto_medible</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1 instanciaAtributo       booleano personas     edad    1 personas$edad[1]</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 instanciaAtributo       booleano personas     edad    2 personas$edad[2]</span>

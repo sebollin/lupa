@@ -96,7 +96,9 @@ entrada por fila de <code>medidas</code>.</p></dd>
     <p><code>ratio</code> sólo acepta medidas booleanas. <code>ratio_umbral</code> sólo acepta medidas
 reales. Los promedios aceptan ambos tipos y siempre producen resultado real
 en <code>[0, 1]</code>. Para el promedio ponderado, los pesos deben estar en <code>[0, 1]</code> y
-sumar uno dentro de cada objeto de destino.</p>
+sumar uno dentro de cada objeto de destino. La columna <code>orientacion</code> se
+conserva sin invertir el resultado: un ratio de una métrica de defecto sigue
+siendo la proporción de defectos.</p>
 <p>No existe una transición hacia factor, dimensión o modelo: esos campos son
 taxonómicos y esta función no calcula un índice global.</p>
     </div>
@@ -109,13 +111,15 @@ taxonómicos y esta función no calcula un índice global.</p>
 <span class="r-in"><span><span class="va">medidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">agregar</span><span class="op">(</span><span class="va">medidas</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                               id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T003629.115153-7423-agg-ratio-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T033623.653175-7481-agg-ratio-000001</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T003629.115153-7423 2026-08-17 00:36:29  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica   metrica_instanciada   dimension   factor granularidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad     atributo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   tipo_resultado  entidad atributo fila objeto_medible resultado agregacion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1           real personas     edad   NA  personas$edad 0.6666667      ratio</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T033623.653175-7481 2026-08-17 03:36:23  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica   metrica_instanciada   dimension   factor orientacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1     atributo           real personas     edad   NA  personas$edad 0.6666667</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   agregacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1      ratio</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

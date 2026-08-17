@@ -21,17 +21,17 @@ plan[, c(
 #> 4  accion-0004       <NA> fecha_nacimiento  convertir_ausencias_textuales        TRUE
 #> 5  accion-0005       <NA> fecha_nacimiento     convertir_fecha_confirmada       FALSE
 #> 6  accion-0006       <NA>             sexo  convertir_ausencias_textuales        TRUE
-#> 7  accion-0007 grupo-0009          ingreso convertir_sentinelas_numericos       FALSE
-#> 8  accion-0008 grupo-0010          ingreso                marcar_outliers        TRUE
-#> 9  accion-0009 grupo-0010          ingreso            winsorizar_outliers       FALSE
+#> 7  accion-0007 grupo-0011          ingreso convertir_sentinelas_numericos       FALSE
+#> 8  accion-0008 grupo-0012          ingreso                marcar_outliers        TRUE
+#> 9  accion-0009 grupo-0012          ingreso            winsorizar_outliers       FALSE
 #> 10 accion-0010       <NA>     departamento           revisar_cardinalidad       FALSE
-#> 11 accion-0011 grupo-0012             pais     eliminar_columna_constante       FALSE
+#> 11 accion-0011 grupo-0014             pais     eliminar_columna_constante       FALSE
 #> 12 accion-0012       <NA>           correo           revisar_cardinalidad       FALSE
-#> 13 accion-0013 grupo-0016             <NA>        marcar_filas_duplicadas        TRUE
-#> 14 accion-0014 grupo-0016             <NA>    conservar_primera_duplicada       FALSE
-#> 15 accion-0015 grupo-0016             <NA>         conservar_mas_completa       FALSE
-#> 16 accion-0016 grupo-0017       id_persona     marcar_columnas_duplicadas        TRUE
-#> 17 accion-0017 grupo-0017       id_persona     eliminar_columna_duplicada       FALSE
+#> 13 accion-0013 grupo-0020             <NA>        marcar_filas_duplicadas        TRUE
+#> 14 accion-0014 grupo-0020             <NA>    conservar_primera_duplicada       FALSE
+#> 15 accion-0015 grupo-0020             <NA>         conservar_mas_completa       FALSE
+#> 16 accion-0016 grupo-0021       id_persona     marcar_columnas_duplicadas        TRUE
+#> 17 accion-0017 grupo-0021       id_persona     eliminar_columna_duplicada       FALSE
 #>    aplicar reversible      estado
 #> 1    FALSE         NA informativa
 #> 2     TRUE      FALSE       lista
@@ -117,15 +117,15 @@ grupos <- plan[!is.na(plan$grupo), c(
 )]
 grupos
 #>         grupo                     estrategia recomendada aplicar decision_grupo
-#> 7  grupo-0009 convertir_sentinelas_numericos       FALSE   FALSE      pendiente
-#> 8  grupo-0010                marcar_outliers        TRUE   FALSE      pendiente
-#> 9  grupo-0010            winsorizar_outliers       FALSE   FALSE      pendiente
-#> 11 grupo-0012     eliminar_columna_constante       FALSE   FALSE    recomendada
-#> 13 grupo-0016        marcar_filas_duplicadas        TRUE    TRUE    recomendada
-#> 14 grupo-0016    conservar_primera_duplicada       FALSE   FALSE    recomendada
-#> 15 grupo-0016         conservar_mas_completa       FALSE   FALSE    recomendada
-#> 16 grupo-0017     marcar_columnas_duplicadas        TRUE    TRUE    recomendada
-#> 17 grupo-0017     eliminar_columna_duplicada       FALSE   FALSE    recomendada
+#> 7  grupo-0011 convertir_sentinelas_numericos       FALSE   FALSE      pendiente
+#> 8  grupo-0012                marcar_outliers        TRUE   FALSE      pendiente
+#> 9  grupo-0012            winsorizar_outliers       FALSE   FALSE      pendiente
+#> 11 grupo-0014     eliminar_columna_constante       FALSE   FALSE    recomendada
+#> 13 grupo-0020        marcar_filas_duplicadas        TRUE    TRUE    recomendada
+#> 14 grupo-0020    conservar_primera_duplicada       FALSE   FALSE    recomendada
+#> 15 grupo-0020         conservar_mas_completa       FALSE   FALSE    recomendada
+#> 16 grupo-0021     marcar_columnas_duplicadas        TRUE    TRUE    recomendada
+#> 17 grupo-0021     eliminar_columna_duplicada       FALSE   FALSE    recomendada
 ```
 
 El modo guiado es una capa opcional. Fuera de una sesión interactiva

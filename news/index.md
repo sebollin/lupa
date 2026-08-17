@@ -2,6 +2,76 @@
 
 ## lupa 0.1.0
 
+### Casi-claves y precedencia de ausencias
+
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  informa una `casi_clave` cuando una columna supera 90 % de valores
+  distintos y al menos la mitad de sus duplicados excedentes se
+  concentra en un valor. La evidencia enumera las colisiones, sus
+  frecuencias y los criterios aplicados. Los vectores `double` con algún
+  valor finito fraccionario se excluyen, mientras que los formados por
+  valores enteros se conservan para admitir identificadores importados
+  desde archivos de texto. Los vectores `integer64` cuentan como enteros
+  semánticos.
+  [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
+  las expone sin confundirlas con claves exactas, y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  las reitera en sus advertencias.
+- `casi_duplicados_vocabulario` retira primero los valores ya detectados
+  como `faltantes_disfrazados`. Un centinela de ausencia deja de
+  presentarse como posible errata de otro valor; las variantes que no
+  son centinelas conservan el diagnóstico.
+
+### Tablero, indice declarado y medicion agregada
+
+- [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md)
+  resume una corrida por metrica y objeto, declara la agregacion
+  aplicada en cada fila y conserva el alcance completo del marco.
+- [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)
+  no calcula nada sin pesos del usuario. Con una declaracion completa
+  conserva cobertura, pesos por dimension, combinaciones internas,
+  inversiones de defectos, exclusiones `no_aplica` y la advertencia de
+  que los componentes provienen de universos distintos.
+- [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  mide por omision la propuesta en estado `lista`, declara que no fue
+  confirmada, agrega las medidas y conserva el tablero. El detalle fila
+  a fila solo se retiene con `conservar_detalle_medicion = TRUE`; la
+  medicion automatica se desactiva con `medir_propuesta = FALSE`.
+
+### Secuencias enteras densas y vocabularios breves
+
+- El perfil de columna publica si los enteros observados cubren
+  densamente su rango, junto con densidad, posiciones y huecos. En esa
+  condicion los centinelas numericos y los desvios que solo expresan el
+  largo de una corrida de digitos no interpretan el contenido del
+  identificador; los ausentes, duplicados y restantes diagnosticos
+  siguen activos. Una secuencia densa y unica se presenta como
+  `posible_identificador` y no recomienda convertir el texto numerico a
+  una medida cuantitativa.
+- `casi_duplicados_vocabulario` cubre una sustitucion en valores de
+  hasta seis caracteres cuando la variante ocupa como maximo `0.05` de
+  la columna y la forma dominante es al menos `10` veces mas frecuente y
+  ocupa al menos `0.5` de la columna. El limite y los tres umbrales
+  quedan en la evidencia y se pueden ajustar en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+
+### Orientacion explicita de las metricas
+
+- [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  declara si un resultado expresa `"conformidad"`, `"defecto"` o
+  `"no_aplica"`. La orientacion viaja por
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md),
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md),
+  [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+  y [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md)
+  sin invertir los valores; una regla puede recibirla como segundo
+  argumento. El historico conserva el esquema 1 y sigue leyendo archivos
+  anteriores.
+- `Formato` queda alineada con el factor `Correctitud sintactica` de
+  [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md),
+  y una prueba contrasta todos los pares dimension-factor del nucleo
+  contra el marco.
+
 ### Marco CEA/CEPAL de aseguramiento de la calidad
 
 - [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
@@ -30,7 +100,7 @@
 - Se agrega
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   para separar los agregados SQL exactos sobre una tabla completa del
-  perfil de 93 campos calculado sobre una muestra declarada. La salida
+  perfil de 99 campos calculado sobre una muestra declarada. La salida
   registra el motor informado por DBI, cada consulta, los agregados no
   disponibles y la reproducibilidad efectiva del orden, sin escribir en
   la base.

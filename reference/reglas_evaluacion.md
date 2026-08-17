@@ -29,10 +29,12 @@ perfiles_madurez(metricas = NULL, umbrales = NULL)
 
 - condicion:
 
-  Función de un argumento que recibe el vector `resultado` de las
-  medidas seleccionadas, en el orden de la tabla, y debe devolver un
-  vector lógico sin ausentes de la misma longitud. No modifica las
-  medidas.
+  Función que recibe el vector `resultado` de las medidas seleccionadas,
+  en el orden de la tabla, y debe devolver un vector lógico sin ausentes
+  de la misma longitud. Puede declarar un segundo argumento
+  `orientacion` para recibir el metadato homónimo de cada medida; las
+  funciones existentes de un argumento siguen siendo válidas. No
+  modifica las medidas.
 
 - metricas:
 

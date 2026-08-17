@@ -86,6 +86,10 @@ Declarar métricas, referenciales, granularidad y agregaciones.
   Medir un modelo de calidad
 - [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) :
   Agregar medidas entre granularidades
+- [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md)
+  : Construir un tablero de calidad
+- [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)
+  : Calcular un índice de calidad declarado por el usuario
 
 ## Validar
 

@@ -33,9 +33,10 @@ medir(modelo, datos, id_medicion = NULL, fecha = Sys.time())
 ## Value
 
 Data frame S3 de clase `medicion`, con una fila por objeto medido. Los
-booleanos se almacenan como `0` y `1` en la columna común `resultado`, y
-su semántica permanece declarada en `tipo_resultado`. Algunas métricas
-que trabajan con un vocabulario o un alcance parcial agregan un atributo
+booleanos se almacenan como `0` y `1` en la columna común `resultado`.
+`orientacion` conserva si un valor alto expresa conformidad, si un valor
+alto expresa defecto o si esa lectura no aplica. Algunas métricas que
+trabajan con un vocabulario o un alcance parcial agregan un atributo
 `alcance_metricas` con sus conteos y límites.
 
 ## Examples
@@ -46,17 +47,17 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260817T003636.651633-7423-000001
-#> 2 medicion-20260817T003636.651633-7423-000002
-#> 3 medicion-20260817T003636.651633-7423-000003
+#> 1 medicion-20260817T033636.146583-7481-000001
+#> 2 medicion-20260817T033636.146583-7481-000002
+#> 3 medicion-20260817T033636.146583-7481-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260817T003636.651633-7423 2026-08-17 00:36:36  NoNulo
-#> 2 medicion-20260817T003636.651633-7423 2026-08-17 00:36:36  NoNulo
-#> 3 medicion-20260817T003636.651633-7423 2026-08-17 00:36:36  NoNulo
-#>   metrica_especifica      metrica_instanciada   dimension   factor
-#> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad
-#> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad
-#> 3         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad
+#> 1 medicion-20260817T033636.146583-7481 2026-08-17 03:36:36  NoNulo
+#> 2 medicion-20260817T033636.146583-7481 2026-08-17 03:36:36  NoNulo
+#> 3 medicion-20260817T033636.146583-7481 2026-08-17 03:36:36  NoNulo
+#>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
+#> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
+#> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
+#> 3         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #>        granularidad tipo_resultado  entidad atributo fila   objeto_medible
 #> 1 instanciaAtributo       booleano personas     edad    1 personas$edad[1]
 #> 2 instanciaAtributo       booleano personas     edad    2 personas$edad[2]

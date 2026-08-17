@@ -47,7 +47,7 @@
 <div class="section level2">
 <h2 id="earth_americas-idioma-de-la-api">🌎 Idioma de la API<a class="anchor" aria-label="anchor" href="#earth_americas-idioma-de-la-api"></a></h2>
 <p>Los nombres públicos son españoles tanto en los ejemplos como en la ayuda:</p>
-<table class="table"><thead><tr><th>API en español</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>API en español</th>
 <th>Significado en inglés</th>
 </tr></thead><tbody><tr><td><code><a href="reference/perfilar.html">perfilar()</a></code></td>
 <td>profile</td>
@@ -62,9 +62,9 @@
 </tr><tr><td><code><a href="reference/planificar_limpieza.html">aplicar()</a></code></td>
 <td>apply a selected cleanup</td>
 </tr><tr><td>
-<code><a href="reference/medir.html">medir()</a></code> / <code><a href="reference/evaluar.html">evaluar()</a></code>
+<code><a href="reference/medir.html">medir()</a></code> / <code><a href="reference/tablero_calidad.html">tablero_calidad()</a></code> / <code><a href="reference/evaluar.html">evaluar()</a></code>
 </td>
-<td>measure / evaluate</td>
+<td>measure / dashboard / evaluate</td>
 </tr><tr><td><code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code></td>
 <td>find approximate duplicates</td>
 </tr><tr><td><code><a href="reference/reportar.html">reportar()</a></code></td>
@@ -110,10 +110,12 @@
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"tipo_hallazgo"</span>, <span class="st">"severidad"</span><span class="op">)</span><span class="op">]</span>, <span class="fl">5</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">analisis</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/analizar.html">analizar</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
+<span><span class="va">analisis</span><span class="op">$</span><span class="va">tablero</span></span>
 <span><span class="va">archivo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".html"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="reference/reportar.html">reportar</a></span><span class="op">(</span><span class="va">analisis</span>, archivo <span class="op">=</span> <span class="va">archivo</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/files.html" class="external-link">file.exists</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/unlink.html" class="external-link">unlink</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span></span></code></pre></div>
+<p><code><a href="reference/analizar.html">analizar()</a></code> mide por omisión todas las métricas listas de su propuesta no confirmada, las agrega enseguida y conserva el tablero pequeño en vez del detalle fila a fila. <code>medir_propuesta = FALSE</code> apaga ese paso y <code>conservar_detalle_medicion = TRUE</code> conserva el detalle cuando se necesita.</p>
 <p>El perfilado es de sólo lectura: nunca cambia la tabla de entrada. Los hallazgos son data frames inspeccionables y la evidencia de datos personales se enmascara cuando la clasificación lo justifica. Abajo se ve una salida real de consola.</p>
 <div class="float">
 <img src="reference/figures/perfil-console.png" alt="Salida capturada de perfilar()"><div class="figcaption">Salida capturada de <code><a href="reference/perfilar.html">perfilar()</a></code>
@@ -133,7 +135,7 @@
 <td><a href="https://sebollin.github.io/lupa/articles/empezar-con-lupa.html">Empezar con lupa</a></td>
 </tr><tr><td>Perfilar contra una base</td>
 <td>
-<code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> — agregados SQL de toda la tabla y un perfil de 93 campos sobre una muestra declarada; los alcances quedan separados</td>
+<code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> — agregados SQL de toda la tabla y un perfil de 99 campos sobre una muestra declarada; los alcances quedan separados</td>
 <td><a href="https://sebollin.github.io/lupa/reference/">Referencia</a></td>
 </tr><tr><td>Encontrar estructura no declarada</td>
 <td>
@@ -147,7 +149,7 @@
 <td><a href="https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html">Modelo de calidad</a></td>
 </tr><tr><td>Medir y evaluar</td>
 <td>
-<code><a href="reference/medir.html">medir()</a></code>, <code><a href="reference/agregar.html">agregar()</a></code>, <code><a href="reference/evaluar.html">evaluar()</a></code>, <code><a href="reference/reglas_evaluacion.html">regla_evaluacion()</a></code> con la instrucción <code>desenlace = "suprimir"</code> declarada por quien usa el paquete (no un umbral de fábrica), <code><a href="reference/reglas_evaluacion.html">perfil_evaluacion()</a></code>, <code><a href="reference/contratos_medicion.html">escala()</a></code>, <code><a href="reference/referencial.html">referencial()</a></code>, <code><a href="reference/contratos_medicion.html">vigencia()</a></code>
+<code><a href="reference/medir.html">medir()</a></code>, <code><a href="reference/agregar.html">agregar()</a></code>, <code><a href="reference/tablero_calidad.html">tablero_calidad()</a></code>, <code><a href="reference/indice_calidad.html">indice_calidad()</a></code> con pesos del proyecto, <code><a href="reference/evaluar.html">evaluar()</a></code>, <code><a href="reference/reglas_evaluacion.html">regla_evaluacion()</a></code> con la instrucción <code>desenlace = "suprimir"</code> declarada por quien usa el paquete (no un umbral de fábrica), <code><a href="reference/reglas_evaluacion.html">perfil_evaluacion()</a></code>, <code><a href="reference/contratos_medicion.html">escala()</a></code>, <code><a href="reference/referencial.html">referencial()</a></code>, <code><a href="reference/contratos_medicion.html">vigencia()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html">Modelo de calidad</a></td>
 </tr><tr><td>Limpiar sin romper nada</td>
@@ -190,7 +192,7 @@
 <span><span class="va">propuesta</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/proponer_modelo.html">proponer_modelo</a></span><span class="op">(</span><span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>,</span>
 <span>                                      analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>marco <span class="op">=</span> <span class="va">marco</span>, propuesta <span class="op">=</span> <span class="va">propuesta</span><span class="op">)</span></span></code></pre></div>
-<p>La API tiene algunos límites importantes. No hay un puntaje global: las dimensiones, unidades y reglas permanecen visibles. Una ponderación de fábrica sería decidir qué importa, así que <code>lupa</code> entrega los componentes y una receta, y deja los pesos a cada proyecto. El núcleo es universal y los catálogos son enchufables; <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC</a> v1.6 es una implementación de referencia, no un límite nacional. El único import obligatorio es <a href="https://cran.r-project.org/package=cli" class="external-link"><code>cli</code></a>. Los paquetes sugeridos habilitan estas capacidades: <a href="https://cran.r-project.org/package=sf" class="external-link"><code>sf</code></a> habilita el perfilado de geometrías; <a href="https://cran.r-project.org/package=DBI" class="external-link"><code>DBI</code></a> aporta la interfaz de bases y <a href="https://cran.r-project.org/package=RSQLite" class="external-link"><code>RSQLite</code></a> un backend para <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>. <a href="https://cran.r-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> es opcional para comparar texto por proximidad.</p>
+<p>La API tiene algunos límites importantes. No hay un puntaje de fábrica: <code><a href="reference/indice_calidad.html">indice_calidad()</a></code> devuelve el tablero mientras el proyecto no declare pesos nombrados completos, y todo índice calculado conserva cobertura, pesos, transformaciones y universos heterogéneos. El núcleo es universal y los catálogos son enchufables; <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC</a> v1.6 es una implementación de referencia, no un límite nacional. El único import obligatorio es <a href="https://cran.r-project.org/package=cli" class="external-link"><code>cli</code></a>. Los paquetes sugeridos habilitan estas capacidades: <a href="https://cran.r-project.org/package=sf" class="external-link"><code>sf</code></a> habilita el perfilado de geometrías; <a href="https://cran.r-project.org/package=DBI" class="external-link"><code>DBI</code></a> aporta la interfaz de bases y <a href="https://cran.r-project.org/package=RSQLite" class="external-link"><code>RSQLite</code></a> un backend para <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>. <a href="https://cran.r-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> es opcional para comparar texto por proximidad.</p>
 <p>El trabajo que se puede paralelizar usa <strong>dos hilos por defecto</strong>, que es el tope que CRAN pide respetar. En su propia máquina puede subirlo, por llamada con <code>nucleos = 8</code> o para toda la sesión con <code>options(lupa.nucleos = 8)</code>; el resultado no cambia, sólo cuánto tarda.</p>
 </div>
 <div class="section level2">

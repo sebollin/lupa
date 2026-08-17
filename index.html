@@ -77,6 +77,10 @@
 </h2>
 <p>The public names are Spanish in both examples and help pages:</p>
 <table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
 <thead><tr>
 <th>Spanish API</th>
 <th>English meaning</th>
@@ -108,9 +112,9 @@
 </tr>
 <tr>
 <td>
-<code><a href="reference/medir.html">medir()</a></code> / <code><a href="reference/evaluar.html">evaluar()</a></code>
+<code><a href="reference/medir.html">medir()</a></code> / <code><a href="reference/tablero_calidad.html">tablero_calidad()</a></code> / <code><a href="reference/evaluar.html">evaluar()</a></code>
 </td>
-<td>measure / evaluate</td>
+<td>measure / dashboard / evaluate</td>
 </tr>
 <tr>
 <td><code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code></td>
@@ -168,10 +172,12 @@
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">$</span><span class="va">hallazgos</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"columna"</span>, <span class="st">"tipo_hallazgo"</span>, <span class="st">"severidad"</span><span class="op">)</span><span class="op">]</span>, <span class="fl">5</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">analisis</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/analizar.html">analizar</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
+<span><span class="va">analisis</span><span class="op">$</span><span class="va">tablero</span></span>
 <span><span class="va">archivo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".html"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="reference/reportar.html">reportar</a></span><span class="op">(</span><span class="va">analisis</span>, archivo <span class="op">=</span> <span class="va">archivo</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/files.html" class="external-link">file.exists</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/unlink.html" class="external-link">unlink</a></span><span class="op">(</span><span class="va">archivo</span><span class="op">)</span></span></code></pre></div>
+<p><code><a href="reference/analizar.html">analizar()</a></code> measures every ready metric in its unconfirmed proposal by default, aggregates it immediately, and retains the small dashboard rather than row-level measurement detail. Use <code>medir_propuesta = FALSE</code> to disable that step or <code>conservar_detalle_medicion = TRUE</code> to retain the detail.</p>
 <p>The profile is read-only: it never changes the input table. Findings are ordinary inspectable data frames, and personal-data evidence is masked when the classification warrants it. A real console preview is shown below.</p>
 <div class="float">
 <img src="reference/figures/perfil-console.png" alt="A captured perfilar() console result"><div class="figcaption">A captured <code><a href="reference/perfilar.html">perfilar()</a></code> console result</div>
@@ -203,7 +209,7 @@
 <tr>
 <td>Profile against a database</td>
 <td>
-<code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> — full-table SQL aggregates plus a 93-field profile from a declared sample; the scopes stay separate</td>
+<code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> — full-table SQL aggregates plus a 99-field profile from a declared sample; the scopes stay separate</td>
 <td><a href="https://sebollin.github.io/lupa/reference/">Reference</a></td>
 </tr>
 <tr>
@@ -223,7 +229,7 @@
 <tr>
 <td>Measure and evaluate</td>
 <td>
-<code><a href="reference/medir.html">medir()</a></code>, <code><a href="reference/agregar.html">agregar()</a></code>, <code><a href="reference/evaluar.html">evaluar()</a></code>, <code><a href="reference/reglas_evaluacion.html">regla_evaluacion()</a></code> with the user-declared instruction <code>desenlace = "suprimir"</code> (not a factory threshold), <code><a href="reference/reglas_evaluacion.html">perfil_evaluacion()</a></code>, <code><a href="reference/contratos_medicion.html">escala()</a></code>, <code><a href="reference/referencial.html">referencial()</a></code>, <code><a href="reference/contratos_medicion.html">vigencia()</a></code>
+<code><a href="reference/medir.html">medir()</a></code>, <code><a href="reference/agregar.html">agregar()</a></code>, <code><a href="reference/tablero_calidad.html">tablero_calidad()</a></code>, <code><a href="reference/indice_calidad.html">indice_calidad()</a></code> with project weights, <code><a href="reference/evaluar.html">evaluar()</a></code>, <code><a href="reference/reglas_evaluacion.html">regla_evaluacion()</a></code> with the user-declared instruction <code>desenlace = "suprimir"</code> (not a factory threshold), <code><a href="reference/reglas_evaluacion.html">perfil_evaluacion()</a></code>, <code><a href="reference/contratos_medicion.html">escala()</a></code>, <code><a href="reference/referencial.html">referencial()</a></code>, <code><a href="reference/contratos_medicion.html">vigencia()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html">Quality model</a></td>
 </tr>
@@ -281,7 +287,7 @@
 <span><span class="va">propuesta</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/proponer_modelo.html">proponer_modelo</a></span><span class="op">(</span><span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>,</span>
 <span>                                      analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>marco <span class="op">=</span> <span class="va">marco</span>, propuesta <span class="op">=</span> <span class="va">propuesta</span><span class="op">)</span></span></code></pre></div>
-<p>The API has a few boundaries worth knowing. There is no global quality score: dimensions, units, and rules stay visible. A factory weighting would be a verdict about what matters, so <code>lupa</code> exposes the components and a recipe and leaves the weights to each project. The core is universal and catalogues are pluggable; <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC</a> v1.6 is a reference implementation, not a country lock. The only required import is <a href="https://cran.r-project.org/package=cli" class="external-link"><code>cli</code></a>. Suggested packages enable these capabilities: <a href="https://cran.r-project.org/package=sf" class="external-link"><code>sf</code></a> enables geometry profiling; <a href="https://cran.r-project.org/package=DBI" class="external-link"><code>DBI</code></a> provides the database interface and <a href="https://cran.r-project.org/package=RSQLite" class="external-link"><code>RSQLite</code></a> a backend for <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>. <a href="https://cran.r-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> is optional for approximate text comparison.</p>
+<p>The API has a few boundaries worth knowing. There is no factory quality score: <code><a href="reference/indice_calidad.html">indice_calidad()</a></code> returns the dashboard unless a project supplies complete named weights, and a calculated index always travels with its coverage, weights, transformations, and heterogeneous universes. The core is universal and catalogues are pluggable; <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC</a> v1.6 is a reference implementation, not a country lock. The only required import is <a href="https://cran.r-project.org/package=cli" class="external-link"><code>cli</code></a>. Suggested packages enable these capabilities: <a href="https://cran.r-project.org/package=sf" class="external-link"><code>sf</code></a> enables geometry profiling; <a href="https://cran.r-project.org/package=DBI" class="external-link"><code>DBI</code></a> provides the database interface and <a href="https://cran.r-project.org/package=RSQLite" class="external-link"><code>RSQLite</code></a> a backend for <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>. <a href="https://cran.r-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> is optional for approximate text comparison.</p>
 <p>Work that can be parallelised uses <strong>two threads by default</strong>, the ceiling CRAN asks packages to respect. On your own machine you can raise it, per call with <code>nucleos = 8</code> or for the whole session with <code>options(lupa.nucleos = 8)</code>; the result does not change, only how long it takes.</p>
 </div>
 <div class="section level2">

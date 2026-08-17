@@ -87,7 +87,10 @@ accionables. Todas las proporciones se expresan en <code>[0, 1]</code>.</p>
 <span>  tolerancia_aritmetica <span class="op">=</span> <span class="fl">1e-08</span>,</span>
 <span>  max_columnas_aritmetica <span class="op">=</span> <span class="fl">20L</span>,</span>
 <span>  casi_duplicados_vocabulario <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  max_proporcion_grupo_vocabulario <span class="op">=</span> <span class="fl">0.5</span></span>
+<span>  max_proporcion_grupo_vocabulario <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>  umbral_variante_rara_vocabulario <span class="op">=</span> <span class="fl">0.05</span>,</span>
+<span>  min_asimetria_vocabulario_corto <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>  min_participacion_dominante_vocabulario_corto <span class="op">=</span> <span class="fl">0.5</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -307,6 +310,23 @@ que puede abarcar el grupo mayor para entregar grupos de variantes. Por
 defecto es <code>0.5</code>; si se supera, el alcance declara que el diagnóstico no
 aplica en vez de entregar un bloque que abarque casi toda la columna.</p></dd>
 
+
+<dt id="arg-umbral-variante-rara-vocabulario">umbral_variante_rara_vocabulario<a class="anchor" aria-label="anchor" href="#arg-umbral-variante-rara-vocabulario"></a></dt>
+<dd><p>Proporcion maxima de la columna que
+puede ocupar una variante breve para abrir la comparacion por una edicion.</p></dd>
+
+
+<dt id="arg-min-asimetria-vocabulario-corto">min_asimetria_vocabulario_corto<a class="anchor" aria-label="anchor" href="#arg-min-asimetria-vocabulario-corto"></a></dt>
+<dd><p>Razon minima entre la frecuencia de
+una forma dominante y una variante breve para abrir la comparacion por una
+edicion.</p></dd>
+
+
+<dt id="arg-min-participacion-dominante-vocabulario-corto">min_participacion_dominante_vocabulario_corto<a class="anchor" aria-label="anchor" href="#arg-min-participacion-dominante-vocabulario-corto"></a></dt>
+<dd><p>Proporcion minima de la
+columna que debe ocupar la forma dominante en la comparacion por una
+edicion.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -500,6 +520,18 @@ Las fusiones son una propiedad de pares, por lo que muestrear valores
 aislados podría dejar fuera los dos miembros de cada par y convertir una
 fusión real en un cero falso. La normalización se vectoriza para que este
 alcance completo no dependa de la cardinalidad de la columna.
+Las columnas sin ausentes que tienen al menos 90 % de valores distintos
+producen un hallazgo <code>casi_clave</code> cuando el valor dominante concentra al
+menos la mitad de los duplicados excedentes. La concentración se calcula
+sobre las repeticiones posteriores a la primera de cada valor, no sólo sobre
+la tasa de distintos. La evidencia declara ambos umbrales, los valores que
+colisionan y sus frecuencias. Así una colisión concentrada queda separada del
+texto libre de alta cardinalidad con repeticiones dispersas.
+Un vector <code>double</code> sólo participa si todos sus valores finitos son enteros;
+así se conservan identificadores importados con ese almacenamiento y se
+excluyen medidas con alguna parte fraccionaria, como importes o coordenadas.
+Los vectores <code>integer64</code> se tratan como enteros semánticos. La evidencia del
+hallazgo declara este criterio y el recuento observado.
 Además, si <code>casi_duplicados_vocabulario = TRUE</code>, el perfil busca variantes
 casi duplicadas en columnas de texto. Agrupa el vocabulario crudo mediante
 fusiones exactas de la normalización y estrellas de distancia centradas en
@@ -542,7 +574,11 @@ perfil, por omisión se evalúan hasta
 5.000 valores distintos y 2.000.000 de pares de unidades normalizadas; si
 se alcanza un límite, la evidencia lo declara y no presenta el resultado
 como universo completo. Las fusiones exactas se informan aun sin ese paquete
-opcional.</p>
+opcional.
+Antes de formar esos grupos se retiran los valores que el mismo perfil ya
+informó como <code>faltantes_disfrazados</code>. El diagnóstico fuerte de ausencia tiene
+precedencia: un centinela no se presenta también como posible variante de un
+valor válido. El alcance declara cuántas observaciones retiró este filtro.</p>
 <p>La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara <code>poder_discriminante</code> y <code>proteger</code>:</p><ul><li><p><code>debil</code>: una forma genérica, como siete a doce dígitos, coincide también
 con importes, facturas y códigos; se informa pero no se ocultan valores;</p></li>
@@ -574,11 +610,11 @@ desvíos se conservan como síntesis no ligadas a una fila;
 nacimiento, un hallazgo separado conserva el diagnóstico de valores
 anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 Los números escritos como texto reconocen tanto coma como punto decimal y
-sus separadores de miles simétricos. Los códigos monetarios de tres letras,
-incluso como sufijo, <code>U$S</code> y los símbolos monetarios se conservan como
-evidencia; <code>monedas_mixtas</code> informa sus frecuencias sin convertir ni
-suponer tasas de cambio. Una única moneda o un símbolo <code>$</code> aislado no
-produce ese hallazgo.
+sus separadores de miles simétricos. Los prefijos de tres letras separados
+del número, incluso como sufijo, <code>U$S</code> y los símbolos monetarios se
+conservan como evidencia; <code>monedas_mixtas</code> informa sus frecuencias sin
+convertir ni suponer tasas de cambio. Una única moneda o un símbolo <code>$</code>
+aislado no produce ese hallazgo.
 Un sufijo de unidad se reconoce sólo si es <code>%</code> o una abreviatura alfabética
 en minúsculas; por eso <code>12 kg</code> y <code>13500 g</code> son unidades, mientras que
 <code>12A</code> y <code>13B</code> se tratan como códigos. Si hay más de una unidad observada,
@@ -604,7 +640,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Perfil de datos: datos_administrativos</span> <span style="color: #00BBBB;">──────────────────────────────────────</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BB0000;">✖</span> 5 hallazgos con severidad error</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">!</span> 10 hallazgos sospechosos</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">!</span> 14 hallazgos sospechosos</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> 5 hallazgos informativos ok</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> 2 diagnosticos no evaluados</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
@@ -697,6 +733,39 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 8                    0             0.00000000          12     0.92307692</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9                    0             0.00000000          11     0.84615385</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10                   0             0.00000000          12     0.92307692</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    secuencia_entera_densa densidad_secuencia_entera</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                   FALSE                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                   FALSE                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                   FALSE                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                   FALSE                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                   FALSE                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                   FALSE                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                   FALSE                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                   FALSE                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                   FALSE                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                  FALSE                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    n_posiciones_secuencia_entera n_huecos_secuencia_entera</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                             NA                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                             NA                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                             NA                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                             NA                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                             NA                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                             NA                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                             NA                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                             NA                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                             NA                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                            NA                        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    umbral_densidad_secuencia_entera min_distintos_secuencia_entera</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                               0.8                             20</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                               0.8                             20</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                               0.8                             20</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                               0.8                             20</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                               0.8                             20</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                               0.8                             20</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                               0.8                             20</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                               0.8                             20</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                               0.8                             20</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                              0.8                             20</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                 moda frecuencia_moda longitud_minima longitud_maxima</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1                  1               2              NA              NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2  [valor protegido]               2               3              11</span>

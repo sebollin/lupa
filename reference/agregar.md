@@ -53,7 +53,9 @@ Objeto `medicion` agregado, con una fila por objeto de destino.
 `ratio` sólo acepta medidas booleanas. `ratio_umbral` sólo acepta
 medidas reales. Los promedios aceptan ambos tipos y siempre producen
 resultado real en `[0, 1]`. Para el promedio ponderado, los pesos deben
-estar en `[0, 1]` y sumar uno dentro de cada objeto de destino.
+estar en `[0, 1]` y sumar uno dentro de cada objeto de destino. La
+columna `orientacion` se conserva sin invertir el resultado: un ratio de
+una métrica de defecto sigue siendo la proporción de defectos.
 
 No existe una transición hacia factor, dimensión o modelo: esos campos
 son taxonómicos y esta función no calcula un índice global.
@@ -67,11 +69,13 @@ instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
 #>                                               id_medida
-#> 1 medicion-20260817T003629.115153-7423-agg-ratio-000001
+#> 1 medicion-20260817T033623.653175-7481-agg-ratio-000001
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260817T003629.115153-7423 2026-08-17 00:36:29  NoNulo
-#>   metrica_especifica   metrica_instanciada   dimension   factor granularidad
-#> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad     atributo
-#>   tipo_resultado  entidad atributo fila objeto_medible resultado agregacion
-#> 1           real personas     edad   NA  personas$edad 0.6666667      ratio
+#> 1 medicion-20260817T033623.653175-7481 2026-08-17 03:36:23  NoNulo
+#>   metrica_especifica   metrica_instanciada   dimension   factor orientacion
+#> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad
+#>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado
+#> 1     atributo           real personas     edad   NA  personas$edad 0.6666667
+#>   agregacion
+#> 1      ratio
 ```

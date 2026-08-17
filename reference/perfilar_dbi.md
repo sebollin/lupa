@@ -3,7 +3,7 @@
 Calcula en SQL un resumen acotado sobre toda una tabla y, en un bloque
 separado, ejecuta
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-sobre una muestra traida a memoria. El resumen completo de 93 campos no
+sobre una muestra traida a memoria. El resumen completo de 99 campos no
 se presenta como calculado por la base: esos campos pertenecen
 exclusivamente a `perfil_muestra` y su universo es la muestra.
 

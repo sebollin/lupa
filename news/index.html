@@ -41,6 +41,35 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="casi-claves-y-precedencia-de-ausencias-0-1-0">Casi-claves y precedencia de ausencias<a class="anchor" aria-label="anchor" href="#casi-claves-y-precedencia-de-ausencias-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> informa una <code>casi_clave</code> cuando una columna supera 90 % de valores distintos y al menos la mitad de sus duplicados excedentes se concentra en un valor. La evidencia enumera las colisiones, sus frecuencias y los criterios aplicados. Los vectores <code>double</code> con algún valor finito fraccionario se excluyen, mientras que los formados por valores enteros se conservan para admitir identificadores importados desde archivos de texto. Los vectores <code>integer64</code> cuentan como enteros semánticos. <code><a href="../reference/detectar_claves.html">detectar_claves()</a></code> las expone sin confundirlas con claves exactas, y <code><a href="../reference/analizar.html">analizar()</a></code> las reitera en sus advertencias.</li>
+<li>
+<code>casi_duplicados_vocabulario</code> retira primero los valores ya detectados como <code>faltantes_disfrazados</code>. Un centinela de ausencia deja de presentarse como posible errata de otro valor; las variantes que no son centinelas conservan el diagnóstico.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="tablero-indice-declarado-y-medicion-agregada-0-1-0">Tablero, indice declarado y medicion agregada<a class="anchor" aria-label="anchor" href="#tablero-indice-declarado-y-medicion-agregada-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/tablero_calidad.html">tablero_calidad()</a></code> resume una corrida por metrica y objeto, declara la agregacion aplicada en cada fila y conserva el alcance completo del marco.</li>
+<li>
+<code><a href="../reference/indice_calidad.html">indice_calidad()</a></code> no calcula nada sin pesos del usuario. Con una declaracion completa conserva cobertura, pesos por dimension, combinaciones internas, inversiones de defectos, exclusiones <code>no_aplica</code> y la advertencia de que los componentes provienen de universos distintos.</li>
+<li>
+<code><a href="../reference/analizar.html">analizar()</a></code> mide por omision la propuesta en estado <code>lista</code>, declara que no fue confirmada, agrega las medidas y conserva el tablero. El detalle fila a fila solo se retiene con <code>conservar_detalle_medicion = TRUE</code>; la medicion automatica se desactiva con <code>medir_propuesta = FALSE</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="secuencias-enteras-densas-y-vocabularios-breves-0-1-0">Secuencias enteras densas y vocabularios breves<a class="anchor" aria-label="anchor" href="#secuencias-enteras-densas-y-vocabularios-breves-0-1-0"></a></h3>
+<ul><li>El perfil de columna publica si los enteros observados cubren densamente su rango, junto con densidad, posiciones y huecos. En esa condicion los centinelas numericos y los desvios que solo expresan el largo de una corrida de digitos no interpretan el contenido del identificador; los ausentes, duplicados y restantes diagnosticos siguen activos. Una secuencia densa y unica se presenta como <code>posible_identificador</code> y no recomienda convertir el texto numerico a una medida cuantitativa.</li>
+<li>
+<code>casi_duplicados_vocabulario</code> cubre una sustitucion en valores de hasta seis caracteres cuando la variante ocupa como maximo <code>0.05</code> de la columna y la forma dominante es al menos <code>10</code> veces mas frecuente y ocupa al menos <code>0.5</code> de la columna. El limite y los tres umbrales quedan en la evidencia y se pueden ajustar en <code><a href="../reference/perfilar.html">perfilar()</a></code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="orientacion-explicita-de-las-metricas-0-1-0">Orientacion explicita de las metricas<a class="anchor" aria-label="anchor" href="#orientacion-explicita-de-las-metricas-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/modelo_calidad.html">metrica()</a></code> declara si un resultado expresa <code>"conformidad"</code>, <code>"defecto"</code> o <code>"no_aplica"</code>. La orientacion viaja por <code><a href="../reference/medir.html">medir()</a></code>, <code><a href="../reference/agregar.html">agregar()</a></code>, <code><a href="../reference/reportar.html">reportar()</a></code> y <code><a href="../reference/evaluar.html">evaluar()</a></code> sin invertir los valores; una regla puede recibirla como segundo argumento. El historico conserva el esquema 1 y sigue leyendo archivos anteriores.</li>
+<li>
+<code>Formato</code> queda alineada con el factor <code>Correctitud sintactica</code> de <code><a href="../reference/marco_calidad.html">marco_agesic()</a></code>, y una prueba contrasta todos los pares dimension-factor del nucleo contra el marco.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="marco-ceacepal-de-aseguramiento-de-la-calidad-0-1-0">Marco CEA/CEPAL de aseguramiento de la calidad<a class="anchor" aria-label="anchor" href="#marco-ceacepal-de-aseguramiento-de-la-calidad-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/marco_calidad.html">marco_cepal()</a></code> incorpora los cuatro niveles y diecinueve principios del marco nacional de aseguramiento de la calidad de las Naciones Unidas, adoptado y adaptado para América Latina y el Caribe por la CEA/CEPAL. Los principios 1 a 13 quedan declarados fuera del alcance de una tabla; los principios 14 a 19 quedan disponibles para documentar productos estadísticos, sin afirmar que el profiling genérico los mida.</li>
@@ -54,7 +83,7 @@
 </ul></div>
 <div class="section level3">
 <h3 id="perfil-de-una-muestra-dbi-con-universo-explícito-0-1-0">Perfil de una muestra DBI con universo explícito<a class="anchor" aria-label="anchor" href="#perfil-de-una-muestra-dbi-con-universo-expl%C3%ADcito-0-1-0"></a></h3>
-<ul><li>Se agrega <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> para separar los agregados SQL exactos sobre una tabla completa del perfil de 93 campos calculado sobre una muestra declarada. La salida registra el motor informado por DBI, cada consulta, los agregados no disponibles y la reproducibilidad efectiva del orden, sin escribir en la base.</li>
+<ul><li>Se agrega <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> para separar los agregados SQL exactos sobre una tabla completa del perfil de 99 campos calculado sobre una muestra declarada. La salida registra el motor informado por DBI, cada consulta, los agregados no disponibles y la reproducibilidad efectiva del orden, sin escribir en la base.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="desenlaces-declarados-por-reglas-0-1-0">Desenlaces declarados por reglas<a class="anchor" aria-label="anchor" href="#desenlaces-declarados-por-reglas-0-1-0"></a></h3>

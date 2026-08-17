@@ -66,7 +66,9 @@ medición. <code>modelo()</code> reúne métricas instanciadas sin calcular un �
 <span>  dimension <span class="op">=</span> <span class="cn">NA_character_</span>,</span>
 <span>  factor <span class="op">=</span> <span class="cn">NA_character_</span>,</span>
 <span>  metodo <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  validar_propiedades <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  validar_propiedades <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  orientacion <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="va">tipo_resultado</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"booleano"</span>, <span class="st">"real"</span><span class="op">)</span><span class="op">)</span> <span class="st">"conformidad"</span> <span class="kw">else</span></span>
+<span>    <span class="st">"no_aplica"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">especializar</span><span class="op">(</span><span class="va">metrica</span>, nombre_especifico <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span>
@@ -132,6 +134,14 @@ enviada a <code>especializar()</code> y debe devolver otra lista con nombre form
 sólo por propiedades declaradas. Puede validar alternativas, completar
 valores predeterminados y normalizar la configuración. Si es <code>NULL</code>, todas
 las propiedades declaradas son obligatorias y no se admiten otras.</p></dd>
+
+
+<dt id="arg-orientacion">orientacion<a class="anchor" aria-label="anchor" href="#arg-orientacion"></a></dt>
+<dd><p>Sentido de lectura del resultado: <code>"conformidad"</code> indica
+que un valor mayor es mejor; <code>"defecto"</code>, que un valor menor es mejor; y
+<code>"no_aplica"</code>, que la métrica no es una proporción interpretable en esos
+términos. Es un vocabulario cerrado. Las métricas booleanas deben usar una
+de las dos primeras y los resultados no acotados deben usar la última.</p></dd>
 
 
 <dt id="arg-metrica">metrica<a class="anchor" aria-label="anchor" href="#arg-metrica"></a></dt>
@@ -319,17 +329,17 @@ oportunidad implementada bajo los nombres <code>GradoOportunidadAtributo*</code>
 <span class="r-in"><span><span class="va">modelo_calidad</span> <span class="op">&lt;-</span> <span class="fu">modelo</span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="va">modelo_calidad</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T003636.912615-7423-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T003636.912615-7423-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T003636.912615-7423-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T033636.485854-7481-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T033636.485854-7481-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T033636.485854-7481-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T003636.912615-7423 2026-08-17 00:36:36  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T003636.912615-7423 2026-08-17 00:36:36  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T003636.912615-7423 2026-08-17 00:36:36  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T033636.485854-7481 2026-08-17 03:36:36  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T033636.485854-7481 2026-08-17 03:36:36  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T033636.485854-7481 2026-08-17 03:36:36  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        granularidad tipo_resultado  entidad atributo fila   objeto_medible</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1 instanciaAtributo       booleano personas     edad    1 personas$edad[1]</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 instanciaAtributo       booleano personas     edad    2 personas$edad[2]</span>
@@ -364,7 +374,7 @@ oportunidad implementada bajo los nombres <code>GradoOportunidadAtributo*</code>
 <span class="r-in"><span><span class="op">}</span></span></span>
 <span class="r-in"><span><span class="va">OrigenDeclarado</span> <span class="op">&lt;-</span> <span class="fu">metrica</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="st">"OrigenDeclarado"</span>, <span class="st">"Indica si se declaró el origen del registro."</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"instanciaAtributo"</span>, <span class="st">"booleano"</span>,</span></span>
+<span class="r-in"><span>  <span class="st">"instanciaAtributo"</span>, <span class="st">"booleano"</span>, orientacion <span class="op">=</span> <span class="st">"conformidad"</span>,</span></span>
 <span class="r-in"><span>  dimension <span class="op">=</span> <span class="st">"Trazabilidad"</span>, factor <span class="op">=</span> <span class="st">"Origen documentado"</span>,</span></span>
 <span class="r-in"><span>  metodo <span class="op">=</span> <span class="va">metodo_origen</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
@@ -376,25 +386,25 @@ oportunidad implementada bajo los nombres <code>GradoOportunidadAtributo*</code>
 <span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>origen <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sistema_a"</span>, <span class="st">""</span>, <span class="cn">NA</span><span class="op">)</span>, stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T003636.917023-7423-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T003636.917023-7423-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T003636.917023-7423-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T033636.492743-7481-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T033636.492743-7481-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T033636.492743-7481-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha         metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T003636.917023-7423 2026-08-17 00:36:36 OrigenDeclarado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T003636.917023-7423 2026-08-17 00:36:36 OrigenDeclarado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T003636.917023-7423 2026-08-17 00:36:36 OrigenDeclarado</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T033636.492743-7481 2026-08-17 03:36:36 OrigenDeclarado</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T033636.492743-7481 2026-08-17 03:36:36 OrigenDeclarado</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260817T033636.492743-7481 2026-08-17 03:36:36 OrigenDeclarado</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica            metrica_instanciada    dimension</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 3    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>               factor      granularidad tipo_resultado entidad atributo fila</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 Origen documentado instanciaAtributo       booleano entrega   origen    1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 Origen documentado instanciaAtributo       booleano entrega   origen    2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 Origen documentado instanciaAtributo       booleano entrega   origen    3</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      objeto_medible resultado agregacion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 entrega$origen[1]         1       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 entrega$origen[2]         0       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 entrega$origen[3]         0       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>               factor orientacion      granularidad tipo_resultado entidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 Origen documentado conformidad instanciaAtributo       booleano entrega</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 Origen documentado conformidad instanciaAtributo       booleano entrega</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 Origen documentado conformidad instanciaAtributo       booleano entrega</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   atributo fila    objeto_medible resultado agregacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   origen    1 entrega$origen[1]         1       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2   origen    2 entrega$origen[2]         0       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3   origen    3 entrega$origen[3]         0       &lt;NA&gt;</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Especialización oficial de teléfono fijo según el formato vigente del PNN.</span></span></span>
 <span class="r-in"><span><span class="va">telefono_pnn</span> <span class="op">&lt;-</span> <span class="fu">especializar</span><span class="op">(</span></span></span>
@@ -414,20 +424,20 @@ oportunidad implementada bajo los nombres <code>GradoOportunidadAtributo*</code>
 <span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"2026-06-29"</span>, <span class="st">"2026-07-01"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T003636.920044-7423-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T003636.920044-7423-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T033636.497878-7481-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T033636.497878-7481-000002</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T003636.920044-7423 2026-08-17 00:36:36</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T003636.920044-7423 2026-08-17 00:36:36</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T033636.497878-7481 2026-08-17 03:36:36</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260817T033636.497878-7481 2026-08-17 03:36:36</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                       metrica metrica_especifica           metrica_instanciada</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   dimension      factor      granularidad tipo_resultado  entidad atributo fila</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1  Frescura Oportunidad instanciaAtributo       booleano entregas    fecha    1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2  Frescura Oportunidad instanciaAtributo       booleano entregas    fecha    2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      objeto_medible resultado agregacion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 entregas$fecha[1]         1       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 entregas$fecha[2]         0       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   dimension      factor orientacion      granularidad tipo_resultado  entidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1  Frescura Oportunidad conformidad instanciaAtributo       booleano entregas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2  Frescura Oportunidad conformidad instanciaAtributo       booleano entregas</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   atributo fila    objeto_medible resultado agregacion</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1    fecha    1 entregas$fecha[1]         1       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2    fecha    2 entregas$fecha[2]         0       &lt;NA&gt;</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># La extensión continua conserva cuánto margen de utilidad queda.</span></span></span>
 <span class="r-in"><span><span class="va">grado</span> <span class="op">&lt;-</span> <span class="fu">especializar</span><span class="op">(</span></span></span>

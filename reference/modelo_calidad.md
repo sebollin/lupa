@@ -19,7 +19,9 @@ metrica(
   dimension = NA_character_,
   factor = NA_character_,
   metodo = NULL,
-  validar_propiedades = NULL
+  validar_propiedades = NULL,
+  orientacion = if (tipo_resultado %in% c("booleano", "real")) "conformidad" else
+    "no_aplica"
 )
 
 especializar(metrica, nombre_especifico = NULL, ...)
@@ -86,6 +88,15 @@ metricas_nucleo()
   valores predeterminados y normalizar la configuración. Si es `NULL`,
   todas las propiedades declaradas son obligatorias y no se admiten
   otras.
+
+- orientacion:
+
+  Sentido de lectura del resultado: `"conformidad"` indica que un valor
+  mayor es mejor; `"defecto"`, que un valor menor es mejor; y
+  `"no_aplica"`, que la métrica no es una proporción interpretable en
+  esos términos. Es un vocabulario cerrado. Las métricas booleanas deben
+  usar una de las dos primeras y los resultados no acotados deben usar
+  la última.
 
 - metrica:
 
@@ -313,17 +324,17 @@ instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 modelo_calidad <- modelo(instancia)
 medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260817T003636.912615-7423-000001
-#> 2 medicion-20260817T003636.912615-7423-000002
-#> 3 medicion-20260817T003636.912615-7423-000003
+#> 1 medicion-20260817T033636.485854-7481-000001
+#> 2 medicion-20260817T033636.485854-7481-000002
+#> 3 medicion-20260817T033636.485854-7481-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260817T003636.912615-7423 2026-08-17 00:36:36  NoNulo
-#> 2 medicion-20260817T003636.912615-7423 2026-08-17 00:36:36  NoNulo
-#> 3 medicion-20260817T003636.912615-7423 2026-08-17 00:36:36  NoNulo
-#>   metrica_especifica      metrica_instanciada   dimension   factor
-#> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad
-#> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad
-#> 3         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad
+#> 1 medicion-20260817T033636.485854-7481 2026-08-17 03:36:36  NoNulo
+#> 2 medicion-20260817T033636.485854-7481 2026-08-17 03:36:36  NoNulo
+#> 3 medicion-20260817T033636.485854-7481 2026-08-17 03:36:36  NoNulo
+#>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
+#> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
+#> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
+#> 3         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #>        granularidad tipo_resultado  entidad atributo fila   objeto_medible
 #> 1 instanciaAtributo       booleano personas     edad    1 personas$edad[1]
 #> 2 instanciaAtributo       booleano personas     edad    2 personas$edad[2]
@@ -358,7 +369,7 @@ metodo_origen <- function(tablas, instancia) {
 }
 OrigenDeclarado <- metrica(
   "OrigenDeclarado", "Indica si se declaró el origen del registro.",
-  "instanciaAtributo", "booleano",
+  "instanciaAtributo", "booleano", orientacion = "conformidad",
   dimension = "Trazabilidad", factor = "Origen documentado",
   metodo = metodo_origen
 )
@@ -370,25 +381,25 @@ medir(
   data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 )
 #>                                     id_medida
-#> 1 medicion-20260817T003636.917023-7423-000001
-#> 2 medicion-20260817T003636.917023-7423-000002
-#> 3 medicion-20260817T003636.917023-7423-000003
+#> 1 medicion-20260817T033636.492743-7481-000001
+#> 2 medicion-20260817T033636.492743-7481-000002
+#> 3 medicion-20260817T033636.492743-7481-000003
 #>                            id_medicion               fecha         metrica
-#> 1 medicion-20260817T003636.917023-7423 2026-08-17 00:36:36 OrigenDeclarado
-#> 2 medicion-20260817T003636.917023-7423 2026-08-17 00:36:36 OrigenDeclarado
-#> 3 medicion-20260817T003636.917023-7423 2026-08-17 00:36:36 OrigenDeclarado
+#> 1 medicion-20260817T033636.492743-7481 2026-08-17 03:36:36 OrigenDeclarado
+#> 2 medicion-20260817T033636.492743-7481 2026-08-17 03:36:36 OrigenDeclarado
+#> 3 medicion-20260817T033636.492743-7481 2026-08-17 03:36:36 OrigenDeclarado
 #>   metrica_especifica            metrica_instanciada    dimension
 #> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
 #> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
 #> 3    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
-#>               factor      granularidad tipo_resultado entidad atributo fila
-#> 1 Origen documentado instanciaAtributo       booleano entrega   origen    1
-#> 2 Origen documentado instanciaAtributo       booleano entrega   origen    2
-#> 3 Origen documentado instanciaAtributo       booleano entrega   origen    3
-#>      objeto_medible resultado agregacion
-#> 1 entrega$origen[1]         1       <NA>
-#> 2 entrega$origen[2]         0       <NA>
-#> 3 entrega$origen[3]         0       <NA>
+#>               factor orientacion      granularidad tipo_resultado entidad
+#> 1 Origen documentado conformidad instanciaAtributo       booleano entrega
+#> 2 Origen documentado conformidad instanciaAtributo       booleano entrega
+#> 3 Origen documentado conformidad instanciaAtributo       booleano entrega
+#>   atributo fila    objeto_medible resultado agregacion
+#> 1   origen    1 entrega$origen[1]         1       <NA>
+#> 2   origen    2 entrega$origen[2]         0       <NA>
+#> 3   origen    3 entrega$origen[3]         0       <NA>
 
 # Especialización oficial de teléfono fijo según el formato vigente del PNN.
 telefono_pnn <- especializar(
@@ -408,20 +419,20 @@ medir(
   data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
 )
 #>                                     id_medida
-#> 1 medicion-20260817T003636.920044-7423-000001
-#> 2 medicion-20260817T003636.920044-7423-000002
+#> 1 medicion-20260817T033636.497878-7481-000001
+#> 2 medicion-20260817T033636.497878-7481-000002
 #>                            id_medicion               fecha
-#> 1 medicion-20260817T003636.920044-7423 2026-08-17 00:36:36
-#> 2 medicion-20260817T003636.920044-7423 2026-08-17 00:36:36
+#> 1 medicion-20260817T033636.497878-7481 2026-08-17 03:36:36
+#> 2 medicion-20260817T033636.497878-7481 2026-08-17 03:36:36
 #>                       metrica metrica_especifica           metrica_instanciada
 #> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
 #> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
-#>   dimension      factor      granularidad tipo_resultado  entidad atributo fila
-#> 1  Frescura Oportunidad instanciaAtributo       booleano entregas    fecha    1
-#> 2  Frescura Oportunidad instanciaAtributo       booleano entregas    fecha    2
-#>      objeto_medible resultado agregacion
-#> 1 entregas$fecha[1]         1       <NA>
-#> 2 entregas$fecha[2]         0       <NA>
+#>   dimension      factor orientacion      granularidad tipo_resultado  entidad
+#> 1  Frescura Oportunidad conformidad instanciaAtributo       booleano entregas
+#> 2  Frescura Oportunidad conformidad instanciaAtributo       booleano entregas
+#>   atributo fila    objeto_medible resultado agregacion
+#> 1    fecha    1 entregas$fecha[1]         1       <NA>
+#> 2    fecha    2 entregas$fecha[2]         0       <NA>
 
 # La extensión continua conserva cuánto margen de utilidad queda.
 grado <- especializar(
