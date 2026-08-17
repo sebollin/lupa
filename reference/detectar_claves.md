@@ -3,15 +3,17 @@
 Busca primero claves simples y luego combinaciones mínimas de dos o tres
 columnas. No prueba una combinación si ya contiene una clave candidata
 más pequeña. Una clave exige ausencia de `NA` y unicidad en todas las
-filas. Además informa columnas simples casi-clave cuando al menos el 90
-% de sus valores son distintos y un único valor concentra al menos la
-mitad de los duplicados excedentes. La concentración evita confundir
-texto libre de alta cardinalidad, con muchas colisiones dispersas, con
-una clave dañada. Los vectores `double` sólo son candidatos si ninguno
-de sus valores finitos tiene parte fraccionaria. Esto conserva
-identificadores enteros importados desde archivos de texto y excluye
-importes, coordenadas y otras medidas. Los vectores `integer64` se
-tratan como enteros semánticos.
+filas. Además informa columnas simples casi-clave cuando tienen al menos
+100 filas, al menos el 90 % de sus valores son distintos y un único
+valor concentra al menos la mitad de los duplicados excedentes. La
+concentración evita confundir texto libre de alta cardinalidad, con
+muchas colisiones dispersas, con una clave dañada. Las variables con rol
+propuesto `fecha`, incluidas fecha-hora, no se consideran casi-claves.
+Los vectores `double` sólo son candidatos si ninguno de sus valores
+finitos tiene parte fraccionaria. Esto conserva identificadores enteros
+importados desde archivos de texto y excluye importes, coordenadas y
+otras medidas. Los vectores `integer64` se tratan como enteros
+semánticos.
 
 ## Usage
 

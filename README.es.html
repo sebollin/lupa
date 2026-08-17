@@ -80,7 +80,7 @@
 <li>Encuentra <code>relacion_aritmetica_columnas</code> como identidades o proporciones observadas entre columnas numéricas, no como reglas del dominio.</li>
 <li>Encuentra <code>relacion_orden_columnas</code> entre columnas comparables y declara el alcance de la comparación.</li>
 <li>Encuentra claves, relaciones, dependencias y granularidades de medición que nunca fueron declaradas.</li>
-<li>Informa <code>casi_clave</code> cuando una columna es casi única y sus colisiones se concentran en pocos valores, que es lo que separa una clave con duplicados de un texto libre de alta cardinalidad.</li>
+<li>Informa <code>casi_clave</code> cuando una columna no temporal tiene al menos 100 filas, es casi única y sus colisiones se concentran en pocos valores, que es lo que separa una clave con duplicados de un texto libre de alta cardinalidad.</li>
 <li>Permite que cada proyecto defina su marco de calidad, sin imponer un puntaje global.</li>
 <li>Mide y evalúa métricas, escalas, reglas de validez y dominios referenciales explícitos.</li>
 <li>Produce planes de limpieza editables, aplica sólo acciones elegidas sobre una copia y conserva un registro de auditoría.</li>

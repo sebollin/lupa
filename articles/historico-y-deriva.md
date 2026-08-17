@@ -111,9 +111,8 @@ deriva[, c("columna", "aspecto", "cambio", "severidad")]
 #>         columna      aspecto     cambio  severidad
 #> 1 nueva_columna      columna  aparecida      error
 #> 2        cedula cardinalidad modificado sospechoso
-#> 3        cedula     hallazgo  aparecido sospechoso
-#> 4 nueva_columna     hallazgo  aparecido sospechoso
-#> 5          <NA>     hallazgo   resuelto         ok
+#> 3 nueva_columna     hallazgo  aparecido sospechoso
+#> 4          <NA>     hallazgo   resuelto         ok
 ```
 
 Una comparación contra el mismo perfil produce cero cambios. Las

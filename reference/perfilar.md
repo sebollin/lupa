@@ -501,38 +501,40 @@ fusiones son una propiedad de pares, por lo que muestrear valores
 aislados podría dejar fuera los dos miembros de cada par y convertir una
 fusión real en un cero falso. La normalización se vectoriza para que
 este alcance completo no dependa de la cardinalidad de la columna. Las
-columnas sin ausentes que tienen al menos 90 % de valores distintos
-producen un hallazgo `casi_clave` cuando el valor dominante concentra al
-menos la mitad de los duplicados excedentes. La concentración se calcula
-sobre las repeticiones posteriores a la primera de cada valor, no sólo
-sobre la tasa de distintos. La evidencia declara ambos umbrales, los
-valores que colisionan y sus frecuencias. Así una colisión concentrada
-queda separada del texto libre de alta cardinalidad con repeticiones
-dispersas. Un vector `double` sólo participa si todos sus valores
-finitos son enteros; así se conservan identificadores importados con ese
-almacenamiento y se excluyen medidas con alguna parte fraccionaria, como
-importes o coordenadas. Los vectores `integer64` se tratan como enteros
-semánticos. La evidencia del hallazgo declara este criterio y el
-recuento observado. Además, si `casi_duplicados_vocabulario = TRUE`, el
-perfil busca variantes casi duplicadas en columnas de texto. Agrupa el
-vocabulario crudo mediante fusiones exactas de la normalización y
-estrellas de distancia centradas en un valor de frecuencia estrictamente
-mayor y único; los empates no se fuerzan. No cierra cadenas
-transitivamente ni elige una forma canónica. La unidad es el valor
-distinto, no la fila, y cada variante conserva su frecuencia. Cada grupo
-declara sus distancias mínima y máxima. El límite
-`max_proporcion_grupo_vocabulario` evita presentar un grupo que abarque
-casi toda la columna como un diagnóstico útil: en ese caso el alcance
-dice que el diagnóstico no aplica. Ese límite se activa desde 20 valores
-distintos o cuando el grupo mayor ya tiene 10 variantes; sólo suprime el
-grupo si además ocupa una fracción mayor que el umbral. Así un grupo de
-tres en cuatro valores se entrega, pero quince variantes que ocupan toda
-una columna no se presentan como una sola familia. Un grupo grande
-dentro de un vocabulario mucho mayor puede seguir pasando si su
-proporción es pequeña. El alcance expone ambos cortes. El argumento
-permite apagar el detector cuando no corresponde a la tabla. Si hay
-pares cercanos pero todas las frecuencias empatan, el alcance declara
-que no hubo asimetría para formar una estrella y sugiere
+columnas sin ausentes que tienen al menos 100 filas y 90 % de valores
+distintos producen un hallazgo `casi_clave` cuando el valor dominante
+concentra al menos la mitad de los duplicados excedentes. La
+concentración se calcula sobre las repeticiones posteriores a la primera
+de cada valor, no sólo sobre la tasa de distintos. La evidencia declara
+el mínimo de filas, ambos umbrales, los valores que colisionan y sus
+frecuencias. Las variables con rol propuesto `fecha`, incluidas
+fecha-hora, se excluyen. Así una colisión concentrada queda separada del
+texto libre de alta cardinalidad con repeticiones dispersas. Un vector
+`double` sólo participa si todos sus valores finitos son enteros; así se
+conservan identificadores importados con ese almacenamiento y se
+excluyen medidas con alguna parte fraccionaria, como importes o
+coordenadas. Los vectores `integer64` se tratan como enteros semánticos.
+La evidencia del hallazgo declara este criterio y el recuento observado.
+Además, si `casi_duplicados_vocabulario = TRUE`, el perfil busca
+variantes casi duplicadas en columnas de texto. Agrupa el vocabulario
+crudo mediante fusiones exactas de la normalización y estrellas de
+distancia centradas en un valor de frecuencia estrictamente mayor y
+único; los empates no se fuerzan. No cierra cadenas transitivamente ni
+elige una forma canónica. La unidad es el valor distinto, no la fila, y
+cada variante conserva su frecuencia. Cada grupo declara sus distancias
+mínima y máxima. El límite `max_proporcion_grupo_vocabulario` evita
+presentar un grupo que abarque casi toda la columna como un diagnóstico
+útil: en ese caso el alcance dice que el diagnóstico no aplica. Ese
+límite se activa desde 20 valores distintos o cuando el grupo mayor ya
+tiene 10 variantes; sólo suprime el grupo si además ocupa una fracción
+mayor que el umbral. Así un grupo de tres en cuatro valores se entrega,
+pero quince variantes que ocupan toda una columna no se presentan como
+una sola familia. Un grupo grande dentro de un vocabulario mucho mayor
+puede seguir pasando si su proporción es pequeña. El alcance expone
+ambos cortes. El argumento permite apagar el detector cuando no
+corresponde a la tabla. Si hay pares cercanos pero todas las frecuencias
+empatan, el alcance declara que no hubo asimetría para formar una
+estrella y sugiere
 [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
 para comparar filas. El alcance clasifica cada grupo como
 `normalizacion_exacta`, `dentro_de_palabra`, `token_completo`,
@@ -642,7 +644,7 @@ perfil
 #> 
 #> ── Perfil de datos: datos_administrativos ──────────────────────────────────────
 #> ✖ 5 hallazgos con severidad error
-#> ! 14 hallazgos sospechosos
+#> ! 10 hallazgos sospechosos
 #> ✔ 5 hallazgos informativos ok
 #> ℹ 2 diagnosticos no evaluados
 #> 

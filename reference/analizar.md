@@ -207,8 +207,8 @@ resultado
 #> ── Analisis de datos: datos_administrativos ────────────────────────────────────
 #> Filas: 13
 #> Columnas: 10
-#> Hallazgos del perfil: 24
-#> Advertencias de alcance: 6
+#> Hallazgos del perfil: 20
+#> Advertencias de alcance: 2
 #> Asociaciones informadas: 4
 #> Series temporales: 1
 #> Modelo medido: si
@@ -272,15 +272,7 @@ resultado
 #>  componente                     tipo
 #>      tiempo frecuencia_no_confirmada
 #>   variables   escalas_no_confirmadas
-#>      perfil               casi_clave
-#>      perfil               casi_clave
-#>      perfil               casi_clave
-#>      perfil               casi_clave
-#>                                                                                                                                                                                                                                                                                                                                                                                                                                                    descripcion
-#>                                                                                                                                                                                                                                                                                                                                                                               Las frecuencias temporales son propuestas observadas, no requisitos confirmados.
-#>                                                                                                                                                                                                                                                                                                                                                                                     Algunas escalas se propusieron desde los valores y requieren confirmacion.
-#>                                                                                                                                                                                                                                                                                                                                                    La columna 'fecha_nacimiento' tiene colisiones concentradas y no es una clave valida. [evidencia protegida]
-#>        La columna 'ingreso' tiene colisiones concentradas y no es una clave valida. 12 valores distintos de 13 (0.923); 1 valores colisionados; 2 filas en colision; 1 duplicados excedentes; concentracion_colisiones=1.000. Colisiones: 25000 (2). criterio_casi_clave: tasa_distintos>=0.900 y concentracion_colisiones>=0.500. criterio_tipo_casi_clave: tipo=double; valores_fraccionarios_finitos=0; doble_admitido_solo_sin_fraccionarios_finitos=TRUE.
-#>                                                                                                                                                                                                                                                                                                                                                              La columna 'correo' tiene colisiones concentradas y no es una clave valida. [evidencia protegida]
-#>  La columna 'id_tramite' tiene colisiones concentradas y no es una clave valida. 12 valores distintos de 13 (0.923); 1 valores colisionados; 2 filas en colision; 1 duplicados excedentes; concentracion_colisiones=1.000. Colisiones: TR001 (2). criterio_casi_clave: tasa_distintos>=0.900 y concentracion_colisiones>=0.500. criterio_tipo_casi_clave: tipo=character; valores_fraccionarios_finitos=0; doble_admitido_solo_sin_fraccionarios_finitos=TRUE.
+#>                                                                       descripcion
+#>  Las frecuencias temporales son propuestas observadas, no requisitos confirmados.
+#>        Algunas escalas se propusieron desde los valores y requieren confirmacion.
 ```

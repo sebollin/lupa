@@ -520,13 +520,15 @@ Las fusiones son una propiedad de pares, por lo que muestrear valores
 aislados podría dejar fuera los dos miembros de cada par y convertir una
 fusión real en un cero falso. La normalización se vectoriza para que este
 alcance completo no dependa de la cardinalidad de la columna.
-Las columnas sin ausentes que tienen al menos 90 % de valores distintos
-producen un hallazgo <code>casi_clave</code> cuando el valor dominante concentra al
-menos la mitad de los duplicados excedentes. La concentración se calcula
-sobre las repeticiones posteriores a la primera de cada valor, no sólo sobre
-la tasa de distintos. La evidencia declara ambos umbrales, los valores que
-colisionan y sus frecuencias. Así una colisión concentrada queda separada del
-texto libre de alta cardinalidad con repeticiones dispersas.
+Las columnas sin ausentes que tienen al menos 100 filas y 90 % de valores
+distintos producen un hallazgo <code>casi_clave</code> cuando el valor dominante
+concentra al menos la mitad de los duplicados excedentes. La concentración
+se calcula sobre las repeticiones posteriores a la primera de cada valor, no
+sólo sobre la tasa de distintos. La evidencia declara el mínimo de filas,
+ambos umbrales, los valores que colisionan y sus frecuencias. Las variables
+con rol propuesto <code>fecha</code>, incluidas fecha-hora, se excluyen. Así una colisión
+concentrada queda separada del texto libre de alta cardinalidad con
+repeticiones dispersas.
 Un vector <code>double</code> sólo participa si todos sus valores finitos son enteros;
 así se conservan identificadores importados con ese almacenamiento y se
 excluyen medidas con alguna parte fraccionaria, como importes o coordenadas.
@@ -640,7 +642,7 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">──</span> <span style="font-weight: bold;">Perfil de datos: datos_administrativos</span> <span style="color: #00BBBB;">──────────────────────────────────────</span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BB0000;">✖</span> 5 hallazgos con severidad error</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">!</span> 14 hallazgos sospechosos</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #BBBB00;">!</span> 10 hallazgos sospechosos</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BB00;">✔</span> 5 hallazgos informativos ok</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> 2 diagnosticos no evaluados</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>

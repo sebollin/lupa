@@ -5,14 +5,15 @@
 ### Casi-claves y precedencia de ausencias
 
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-  informa una `casi_clave` cuando una columna supera 90 % de valores
-  distintos y al menos la mitad de sus duplicados excedentes se
-  concentra en un valor. La evidencia enumera las colisiones, sus
-  frecuencias y los criterios aplicados. Los vectores `double` con algún
-  valor finito fraccionario se excluyen, mientras que los formados por
-  valores enteros se conservan para admitir identificadores importados
-  desde archivos de texto. Los vectores `integer64` cuentan como enteros
-  semánticos.
+  informa una `casi_clave` cuando una columna tiene al menos 100 filas,
+  supera 90 % de valores distintos y al menos la mitad de sus duplicados
+  excedentes se concentra en un valor. Las fechas y fecha-hora se
+  excluyen por su rol propuesto. La evidencia enumera las colisiones,
+  sus frecuencias y los criterios aplicados. Los vectores `double` con
+  algún valor finito fraccionario se excluyen, mientras que los formados
+  por valores enteros se conservan para admitir identificadores
+  importados desde archivos de texto. Los vectores `integer64` cuentan
+  como enteros semánticos.
   [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
   las expone sin confundirlas con claves exactas, y
   [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)

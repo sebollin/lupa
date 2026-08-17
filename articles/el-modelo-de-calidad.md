@@ -223,6 +223,126 @@ agregar(medidas, "atributo", "ratio")[, c(
 #> 1 personas$documento      0.75      ratio
 ```
 
+## Tablero, orientación e índice
+
+[`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md)
+resume la medición y conserva su marco y su cobertura. La columna
+`orientacion` dice cómo leer cada proporción: `conformidad` significa
+que un valor mayor es mejor, `defecto` que un valor menor es mejor y
+`no_aplica` que la métrica no es una proporción combinable. Un `0.0063`
+de `EntidadDuplicada` expresa poco defecto; un `0.9992` de `NoNulo`
+expresa mucha conformidad. Los números no se leen igual aunque estén en
+la misma escala.
+
+``` r
+
+modelo_tablero <- modelo(list(
+  instanciar(especializar(nucleo$NoNulo), "padron", "codigo"),
+  instanciar(especializar(nucleo$EntidadDuplicada), "padron")
+))
+datos_tablero <- data.frame(codigo = c("A", "B", "B", NA))
+medidas_tablero <- medir(
+  modelo_tablero, datos_tablero, id_medicion = "tablero-ejemplo"
+)
+tablero <- tablero_calidad(medidas_tablero)
+tablero[, c(
+  "dimension", "factor", "metrica", "valor", "orientacion", "universo"
+)]
+#> 
+#> ── Tablero de calidad ────────────────────────────────────────────────────────────────────
+#>    dimension         factor          metrica valor orientacion universo
+#>  Completitud       Densidad           NoNulo  0.75 conformidad   celdas
+#>     Unicidad No-duplicación EntidadDuplicada  0.50     defecto    filas
+attr(tablero, "alcance")
+#>   factores_marco factores_medidos sin_metrica_declarada no_aplican fuera_de_alcance
+#> 1             17                2                    10          0                5
+```
+
+Sin `pesos`, no hay número: `indice_calidad(tablero)` devuelve el
+tablero. Los pesos no pertenecen a `lupa`; los declara el usuario según
+la decisión del proyecto. El índice conserva además la cobertura que
+acompaña al tablero.
+
+``` r
+
+indice_sin_pesos <- indice_calidad(tablero)
+indice_sin_pesos
+#> 
+#> ── Tablero de calidad ────────────────────────────────────────────────────────────────────
+#>       componente   dimension         factor          metrica  objeto valor orientacion
+#>  componente-0001 Completitud       Densidad           NoNulo  codigo  0.75 conformidad
+#>  componente-0002    Unicidad No-duplicación EntidadDuplicada (tabla)  0.50     defecto
+#>  agregacion umbral universo
+#>       ratio     NA   celdas
+#>       ratio     NA    filas
+#> 
+#> ── Alcance del marco ──
+#> 
+#>  factores_marco factores_medidos sin_metrica_declarada no_aplican fuera_de_alcance
+#>              17                2                    10          0                5
+
+# Pesos elegidos para este ejemplo; no son valores predeterminados de lupa.
+pesos_ejemplo <- c(Completitud = 0.6, Unicidad = 0.4)
+indice <- indice_calidad(tablero, pesos = pesos_ejemplo)
+indice
+#> ── Índice de calidad declarado ───────────────────────────────────────────────────────────
+#> Valor: 0.65
+#> 
+#> ── Cobertura del índice ──
+#> 
+#>  factores_marco factores_en_indice                                          factores
+#>              17                  2 Completitud / Densidad; Unicidad / No-duplicación
+#> ── Dimensiones, pesos y aportes ──
+#>    dimension valor peso aporte                combinacion_interna
+#>  Completitud  0.75  0.6   0.45 un componente; sin paso intermedio
+#>     Unicidad  0.50  0.4   0.20 un componente; sin paso intermedio
+#> ── Componentes de defecto invertidos ──
+#>       componente dimension         factor          metrica  objeto valor orientacion
+#>  componente-0002  Unicidad No-duplicación EntidadDuplicada (tabla)   0.5     defecto
+#>  agregacion umbral universo transformacion valor_indice peso_interno
+#>       ratio     NA    filas      1 - valor          0.5            1
+#> ℹ Dentro de cada dimensión se usa un solo componente o los pesos_internos declarados; entre dimensiones se usan `pesos`.
+#> ! Los componentes salen de universos distintos (por ejemplo, celdas, valores con formato reconocible y filas). El índice sólo los combina porque quien lo solicitó declaró los pesos.
+indice$cobertura
+#>   factores_marco factores_en_indice                                          factores
+#> 1             17                  2 Completitud / Densidad; Unicidad / No-duplicación
+```
+
+Para las métricas con orientación `defecto`, el índice usa `1 - valor`;
+las de `no_aplica` quedan fuera y se conservan como exclusiones. El
+índice no promedia por su cuenta dos componentes de una misma dimensión:
+exige que el usuario declare `pesos_internos` para esa combinación.
+
+``` r
+
+modelo_doble <- modelo(list(
+  instanciar(
+    especializar(nucleo$NoNulo), "padron", "codigo",
+    nombre_instancia = "no-nulo-codigo"
+  ),
+  instanciar(
+    especializar(nucleo$NoNulo), "padron", "nombre",
+    nombre_instancia = "no-nulo-nombre"
+  )
+))
+medidas_dobles <- medir(
+  modelo_doble,
+  data.frame(codigo = c("A", "B", NA), nombre = c("x", NA, "z")),
+  id_medicion = "interno-ejemplo"
+)
+tablero_doble <- tablero_calidad(medidas_dobles)
+tryCatch(
+  indice_calidad(tablero_doble, pesos = c(Completitud = 1)),
+  error = function(e) conditionMessage(e)
+)
+#> [1] "Las dimensiones con varios componentes requieren `pesos_internos`: Completitud."
+```
+
+Una advertencia acompaña al índice cuando sus componentes provienen de
+universos distintos, como celdas y filas. La cobertura y la advertencia
+no resuelven esa diferencia: el índice sólo los combina porque el
+usuario declaró los pesos.
+
 Las cuatro agregaciones implementadas son:
 
 - `ratio`, para resultados booleanos;
