@@ -139,6 +139,7 @@
 <li>Finds <code>relacion_aritmetica_columnas</code> as observed identities or proportions between numeric columns, not as domain rules.</li>
 <li>Finds <code>relacion_orden_columnas</code> between comparable columns and declares the comparison scope.</li>
 <li>Finds keys, relationships, dependencies, and measurement granularities that were never declared.</li>
+<li>Reports <code>casi_clave</code> when a column is almost unique and its collisions concentrate in a few values, which separates a key with duplicates from free text of high cardinality.</li>
 <li>Lets a project define its own quality framework instead of forcing a global score.</li>
 <li>Measures and evaluates explicit metrics, scales, validity rules, and referential domains.</li>
 <li>Produces editable cleanup plans, applies only selected actions to a copy, and keeps an audit log.</li>
