@@ -27,11 +27,11 @@ plan[, c(
 #> 10 accion-0010       <NA>     departamento           revisar_cardinalidad       FALSE
 #> 11 accion-0011 grupo-0012             pais     eliminar_columna_constante       FALSE
 #> 12 accion-0012       <NA>           correo           revisar_cardinalidad       FALSE
-#> 13 accion-0013 grupo-0018             <NA>        marcar_filas_duplicadas        TRUE
-#> 14 accion-0014 grupo-0018             <NA>    conservar_primera_duplicada       FALSE
-#> 15 accion-0015 grupo-0018             <NA>         conservar_mas_completa       FALSE
-#> 16 accion-0016 grupo-0019       id_persona     marcar_columnas_duplicadas        TRUE
-#> 17 accion-0017 grupo-0019       id_persona     eliminar_columna_duplicada       FALSE
+#> 13 accion-0013 grupo-0016             <NA>        marcar_filas_duplicadas        TRUE
+#> 14 accion-0014 grupo-0016             <NA>    conservar_primera_duplicada       FALSE
+#> 15 accion-0015 grupo-0016             <NA>         conservar_mas_completa       FALSE
+#> 16 accion-0016 grupo-0017       id_persona     marcar_columnas_duplicadas        TRUE
+#> 17 accion-0017 grupo-0017       id_persona     eliminar_columna_duplicada       FALSE
 #>    aplicar reversible      estado
 #> 1    FALSE         NA informativa
 #> 2     TRUE      FALSE       lista
@@ -121,11 +121,11 @@ grupos
 #> 8  grupo-0010                marcar_outliers        TRUE   FALSE      pendiente
 #> 9  grupo-0010            winsorizar_outliers       FALSE   FALSE      pendiente
 #> 11 grupo-0012     eliminar_columna_constante       FALSE   FALSE    recomendada
-#> 13 grupo-0018        marcar_filas_duplicadas        TRUE    TRUE    recomendada
-#> 14 grupo-0018    conservar_primera_duplicada       FALSE   FALSE    recomendada
-#> 15 grupo-0018         conservar_mas_completa       FALSE   FALSE    recomendada
-#> 16 grupo-0019     marcar_columnas_duplicadas        TRUE    TRUE    recomendada
-#> 17 grupo-0019     eliminar_columna_duplicada       FALSE   FALSE    recomendada
+#> 13 grupo-0016        marcar_filas_duplicadas        TRUE    TRUE    recomendada
+#> 14 grupo-0016    conservar_primera_duplicada       FALSE   FALSE    recomendada
+#> 15 grupo-0016         conservar_mas_completa       FALSE   FALSE    recomendada
+#> 16 grupo-0017     marcar_columnas_duplicadas        TRUE    TRUE    recomendada
+#> 17 grupo-0017     eliminar_columna_duplicada       FALSE   FALSE    recomendada
 ```
 
 El modo guiado es una capa opcional. Fuera de una sesión interactiva

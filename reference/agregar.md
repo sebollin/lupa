@@ -67,9 +67,9 @@ instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
 #>                                               id_medida
-#> 1 medicion-20260815T173751.677594-7585-agg-ratio-000001
+#> 1 medicion-20260817T003629.115153-7423-agg-ratio-000001
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260815T173751.677594-7585 2026-08-15 17:37:51  NoNulo
+#> 1 medicion-20260817T003629.115153-7423 2026-08-17 00:36:29  NoNulo
 #>   metrica_especifica   metrica_instanciada   dimension   factor granularidad
 #> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad     atributo
 #>   tipo_resultado  entidad atributo fila objeto_medible resultado agregacion

@@ -58,7 +58,9 @@ métricas; <code><a href="catalogo_agesic.html">catalogo_agesic()</a></code> con
 <span></span>
 <span><span class="fu">marco_agesic</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">marco_iso25012</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">marco_iso25012</span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">marco_cepal</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -90,8 +92,9 @@ instrucción genérica, <code>perfil_mide = FALSE</code>, <code>aplicabilidad = 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p><code>marco_calidad()</code>, <code>marco_agesic()</code> y <code>marco_iso25012()</code> devuelven un objeto S3
-<code>marco_calidad</code>. <code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code> devuelve su tabla de factores.</p>
+    <p><code>marco_calidad()</code>, <code>marco_agesic()</code>, <code>marco_iso25012()</code> y
+<code>marco_cepal()</code> devuelven un objeto S3 <code>marco_calidad</code>.
+<code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code> devuelve su tabla de factores.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -110,6 +113,16 @@ clasificación siguen la norma; las descripciones son redacción propia. Las
 quince filas declaran <code>perfil_mide = FALSE</code>: a diferencia de la política
 incluida para dos factores de AGESIC, el profiling genérico no demuestra por
 sí solo que una característica ISO satisfaga el uso declarado.</p>
+<p><code>marco_cepal()</code> representa los cuatro niveles y los diecinueve principios
+del marco nacional de aseguramiento de la calidad de las Naciones Unidas,
+adoptados y adaptados para América Latina y el Caribe por la CEA/CEPAL. La
+columna <code>principio</code> conserva la numeración de la fuente. Los nombres de los
+niveles y principios son textuales; las descripciones y las instrucciones
+<code>como_resolverlo</code> de este paquete son redacción propia. Los principios 1 a
+13 quedan fuera del alcance de una tabla: se refieren al sistema, al entorno
+institucional o al proceso estadístico. Los principios 14 a 19 describen
+productos estadísticos y quedan disponibles, aunque ninguno se considera
+medido por el profiling genérico.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -117,6 +130,14 @@ sí solo que una característica ISO satisfaga el uso declarado.</p>
 <em>ISO/IEC 25012:2008 Software engineering —
 Software product Quality Requirements and Evaluation (SQuaRE) — Data
 quality model</em>. <a href="https://www.iso.org/standard/35736.html" class="external-link">https://www.iso.org/standard/35736.html</a>.</p>
+<p><a href="https://unstats.un.org/unsd/methodology/dataquality/" class="external-link">Naciones Unidas (2019)</a>.
+<em>Manual del marco nacional de aseguramiento de calidad en las estadísticas
+oficiales</em>. Estudios en Métodos, serie M, N° 100
+(ST/ESA/STAT/SER.M/100), Nueva York.</p>
+<p><a href="https://repositorio.cepal.org/handle/11362/47464" class="external-link">Grupo de Trabajo de la Conferencia Estadística de las Américas (CEA), coordinado por Colombia (DANE) y México (INEGI), Secretaría Técnica: División de Estadísticas de la CEPAL (2022)</a>.
+<em>Guía para la implementación del marco de aseguramiento de la calidad para
+procesos y productos estadísticos</em>. LC/CEA.11/19. Comisión Económica para
+América Latina y el Caribe (CEPAL), Naciones Unidas, Santiago.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -163,6 +184,23 @@ quality model</em>. <a href="https://www.iso.org/standard/35736.html" class="ext
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                   3                                   5 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Inherente y dependiente del sistema </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                   7 </span>
+<span class="r-in"><span><span class="fu">marco_cepal</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> ── <span style="font-weight: bold;">Marco de aseguramiento de la calidad estadística de Naciones Unidas, adaptado por CEA/CEPAL</span> ──</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Dimensiones: 4</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Factores: 19</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Origen: Marco de Naciones Unidas (2019): Manual del marco nacional de</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> aseguramiento de calidad en las estadísticas oficiales, Estudios en Métodos,</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> serie M, N° 100 (ST/ESA/STAT/SER.M/100), Nueva York. Adaptación regional</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> CEA/CEPAL: Grupo de Trabajo de la Conferencia Estadística de las Américas</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> (CEA), coordinado por Colombia (DANE) y México (INEGI), Secretaría Técnica:</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> División de Estadísticas de la CEPAL (2022), Guía para la implementación del</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> marco de aseguramiento de la calidad para procesos y productos estadísticos</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> (LC/CEA.11/19), Comisión Económica para América Latina y el Caribe (CEPAL),</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Naciones Unidas, Santiago. Fuentes:</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> https://unstats.un.org/unsd/methodology/dataquality/;</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> https://repositorio.cepal.org/handle/11362/47464</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

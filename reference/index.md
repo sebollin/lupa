@@ -8,6 +8,8 @@ Perfilar datos y descubrir su estructura.
   : Ejecutar el análisis descriptivo completo
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   : Perfilar un conjunto de datos
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  : Perfilar una muestra leida mediante DBI
 - [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
   : Distribuciones de valores y cuantiles por columna
 - [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md)
@@ -59,6 +61,7 @@ Declarar métricas, referenciales, granularidad y agregaciones.
 - [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
   [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
   [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+  [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
   : Declarar una taxonomía de calidad de datos
 - [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
   [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
@@ -88,7 +91,8 @@ Declarar métricas, referenciales, granularidad y agregaciones.
 
 Validadores internacionales y packs territoriales extensibles.
 
-- [`validar_iso3166()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+- [`validar_url()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+  [`validar_iso3166()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
   [`validar_iso4217()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
   [`validar_correo()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
   [`validar_luhn()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)

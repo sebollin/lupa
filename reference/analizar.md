@@ -189,7 +189,7 @@ resultado
 #> ── Analisis de datos: datos_administrativos ────────────────────────────────────
 #> Filas: 13
 #> Columnas: 10
-#> Hallazgos del perfil: 22
+#> Hallazgos del perfil: 20
 #> Advertencias de alcance: 2
 #> Asociaciones informadas: 4
 #> Series temporales: 1

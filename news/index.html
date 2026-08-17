@@ -41,6 +41,67 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="marco-ceacepal-de-aseguramiento-de-la-calidad-0-1-0">Marco CEA/CEPAL de aseguramiento de la calidad<a class="anchor" aria-label="anchor" href="#marco-ceacepal-de-aseguramiento-de-la-calidad-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/marco_calidad.html">marco_cepal()</a></code> incorpora los cuatro niveles y diecinueve principios del marco nacional de aseguramiento de la calidad de las Naciones Unidas, adoptado y adaptado para América Latina y el Caribe por la CEA/CEPAL. Los principios 1 a 13 quedan declarados fuera del alcance de una tabla; los principios 14 a 19 quedan disponibles para documentar productos estadísticos, sin afirmar que el profiling genérico los mida.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="severidad-del-vocabulario-y-escala-de-las-relaciones-0-1-0">Severidad del vocabulario y escala de las relaciones<a class="anchor" aria-label="anchor" href="#severidad-del-vocabulario-y-escala-de-las-relaciones-0-1-0"></a></h3>
+<ul><li>
+<code>casi_duplicados_vocabulario</code> queda como señal <code>sospechoso</code> sólo cuando encuentra grupos; un resultado negativo queda como <code>ok</code> con cero afectados, y un diagnóstico que no aplica se registra en <code>cobertura_diagnosticos</code>.</li>
+<li>
+<code>relacion_orden_columnas</code> separa la escala de la relación fila a fila con un solapamiento intercuartil mínimo de <code>0.1</code>. Una brecha con IQR cero conserva una relación estable aunque los rangos no se solapen; ambos criterios y los pares descartados o recuperados quedan en el alcance.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="perfil-de-una-muestra-dbi-con-universo-explícito-0-1-0">Perfil de una muestra DBI con universo explícito<a class="anchor" aria-label="anchor" href="#perfil-de-una-muestra-dbi-con-universo-expl%C3%ADcito-0-1-0"></a></h3>
+<ul><li>Se agrega <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> para separar los agregados SQL exactos sobre una tabla completa del perfil de 93 campos calculado sobre una muestra declarada. La salida registra el motor informado por DBI, cada consulta, los agregados no disponibles y la reproducibilidad efectiva del orden, sin escribir en la base.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="desenlaces-declarados-por-reglas-0-1-0">Desenlaces declarados por reglas<a class="anchor" aria-label="anchor" href="#desenlaces-declarados-por-reglas-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/reglas_evaluacion.html">regla_evaluacion()</a></code> acepta <code>desenlace = "suprimir"</code> para que una regla declarada por el usuario produzca un plan sobre las medidas que no cumplen su condición. La evaluación conserva objeto, valor medido, motivo y regla sin modificar la medición ni los datos de origen. Sin esa declaración no crea desenlaces ni aplica umbrales de publicación.</li>
+<li>
+<code><a href="../reference/reportar.html">reportar()</a></code> enmascara los valores alcanzados por ese plan tanto en la evaluación como en las mediciones incluidas en el mismo reporte. El enmascarado se hace sobre copias usadas para renderizar.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="ley-de-benford-con-aplicabilidad-explícita-0-1-0">Ley de Benford con aplicabilidad explícita<a class="anchor" aria-label="anchor" href="#ley-de-benford-con-aplicabilidad-expl%C3%ADcita-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> evalúa la ley de Benford solamente en columnas numéricas con suficiente evidencia inicial. Antes de comparar exige variación, ausencia de apariencia de identificador (incluidas secuencias correlativas), al menos 100 valores positivos, todos los valores finitos positivos y tres órdenes de magnitud. Las precondiciones y sus umbrales quedan en <code>meta$benford</code>; las que fallan se declaran en <code>cobertura_diagnosticos</code> y no producen hallazgos.</li>
+<li>Cuando aplica, el perfil conserva la distribución observada y esperada por primer dígito, el chi-cuadrado de Pearson y su valor p. Una desviación se presenta como señal descriptiva para revisar, nunca como acusación de fraude o manipulación.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="urls-unidades-y-celdas-multivaluadas-0-1-0">URLs, unidades y celdas multivaluadas<a class="anchor" aria-label="anchor" href="#urls-unidades-y-celdas-multivaluadas-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/validadores_formato.html">validar_url()</a></code> valida de forma vectorizada URLs <code>http</code> y <code>https</code>, con esquema obligatorio por omisión, soporte para IDN y puertos, y rechazo deliberado de <code>javascript:</code>, <code>data:</code>, espacios y controles literales.</li>
+<li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> informa <code>unidades_mixtas</code> cuando una columna numérica escrita como texto combina sufijos de unidad, conservando sus frecuencias y sin convertir datos. Reconoce además monedas como prefijos o sufijos y emite <code>monedas_mixtas</code> con sus frecuencias, sin convertir ni suponer tasas de cambio. También informa <code>celdas_multivaluadas</code> sólo cuando las partes homogéneas pasan el control de patrones y tipo, incluidos identificadores numéricos con puntuación interna; nombres y direcciones con comas no se presentan como listas.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="relaciones-aritméticas-entre-columnas-0-1-0">Relaciones aritméticas entre columnas<a class="anchor" aria-label="anchor" href="#relaciones-aritm%C3%A9ticas-entre-columnas-0-1-0"></a></h3>
+<ul><li>Reconoce una regularidad mediante un único soporte declarado (<code>umbral_aritmetica = 0.9</code>) dentro de la tolerancia y, una vez reconocida, informa todas sus discrepancias sin aplicar un segundo filtro por su cantidad absoluta: <code>max_violaciones_aritmetica</code> se elimina. El soporte, el universo mínimo y la tolerancia quedan en la evidencia y el alcance.</li>
+<li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> descubre identidades aditivas y proporcionalidades estables entre columnas numéricas y las presenta como evidencia observada, no como reglas del dominio. Cada hallazgo declara proporción de cumplimiento, universo de filas finitas, tolerancia numérica, constante proporcional y filas discrepantes.</li>
+<li>
+<code>umbral_aritmetica</code>, <code>min_filas_aritmetica</code>, <code>tolerancia_aritmetica</code> y <code>max_columnas_aritmetica</code> hacen visibles los supuestos y el costo del diagnóstico. Si el límite de columnas recorta combinaciones, <code>cobertura_diagnosticos</code> lo declara explícitamente.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="capa-de-marcos-0-1-0">Capa de marcos<a class="anchor" aria-label="anchor" href="#capa-de-marcos-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/reglas_evaluacion.html">regla_evaluacion()</a></code> acepta <code>proporcion_minima</code> para declarar un veredicto sobre la proporción de medidas que cumple la condición. El objeto conserva el umbral; la evaluación muestra proporción, veredicto, componentes y universo, sin ponderar medidas ni crear un puntaje global. Las reglas por medida conservan su contrato y su estructura de salida.</li>
+<li>
+<code><a href="../reference/modelo_calidad.html">metrica()</a></code> acepta las etiquetas relacionales de <code><a href="../reference/granularidades.html">granularidades()</a></code> —por ejemplo, <code>"columna"</code>— y guarda siempre su equivalente canónico de la ontología (<code>"atributo"</code>). Un valor inválido muestra ambos vocabularios.</li>
+<li>El error de una regla que no engancha ninguna medida enumera lo solicitado y las métricas instanciadas disponibles, incluidos sus nombres calificados.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="perfilado-de-geometrías-0-1-0">Perfilado de geometrías<a class="anchor" aria-label="anchor" href="#perfilado-de-geometr%C3%ADas-0-1-0"></a></h3>
+<ul><li>Las columnas <code>sfc</code> informan CRS, tipo de geometría, geometrías vacías e inválidas, coordenadas fuera del dominio declarado y caja envolvente. Una geometría sin CRS deja el conteo de dominio en <code>NA</code>: no se supone EPSG:4326. Las geometrías vacías se cuentan aparte y no integran el universo del chequeo de dominio.</li>
+<li>Los tipos mixtos se comparan por familia: las variantes simples y <code>MULTI</code> compatibles conviven sin hallazgo, mientras que familias distintas y <code>GEOMETRYCOLLECTION</code> se señalan. La validez declara <code>validez_criterio = "planar"</code>; sobre CRS geográficos un fallo planar es sospechoso y no afirma invalidez esférica.</li>
+<li>
+<code>n_dominio_evaluados</code> y <code>n_bbox_evaluados</code> hacen públicos los universos no vacíos de sus métricas; <code>bbox_alcance</code> declara que la caja usa las coordenadas crudas, incluidas las que estén fuera de dominio. <code>n_validez_evaluados</code> publica por separado el universo de GEOS, incluidas las geometrías vacías. <code>dimension_geometria</code> declara <code>XY</code>, <code>XYZ</code>, <code>XYM</code> o <code>XYZM</code>; Z y M quedan enumeradas en <code>dimensiones_no_evaluadas</code> y generan una fila de cobertura. Para <code>XYM</code> y <code>XYZM</code>, la validez topológica se calcula en XY después de <code>st_zm()</code> y <code>validez_preprocesamiento</code> declara ese paso.</li>
+<li>El control de dominio compara también las coordenadas transformadas con la <code>BBOX</code> del área de uso del WKT. Detecta, entre otros casos, grados donde el CRS espera metros; no detecta una zona UTM equivocada cuando las coordenadas interpretadas caen dentro del área de esa zona. Una caja mundial es un no-op evaluado y un WKT sin <code>BBOX</code> produce una fila de cobertura, sin asumir alcance global.</li>
+<li>Los nuevos hallazgos distinguen CRS ausente, geometrías inválidas o vacías, coordenadas imposibles y tipos geométricos mixtos. Si falta el paquete opcional <code>sf</code>, el perfil no inventa ceros ni hallazgos: registra una fila con <code>dependencia = "sf"</code> en <code>cobertura_diagnosticos</code>.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="fechas-con-meses-escritos-0-1-0">Fechas con meses escritos<a class="anchor" aria-label="anchor" href="#fechas-con-meses-escritos-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/detectar_formatos_fecha.html">detectar_formatos_fecha()</a></code> reconoce fechas con meses escritos en español (incluye <code>setiembre</code> y <code>set</code>) y en inglés, además de los formatos numéricos existentes. La tabla de nombres es propia y no depende de <code>LC_TIME</code>, y sólo acepta la estructura completa de una fecha o de un mes con año: encontrar <code>marzo</code> dentro de una oración no convierte el texto en fecha. Los meses escritos desambiguan el día y el mes; los años de dos dígitos siguen siendo candidatos y no se les asigna un siglo en silencio.</li>

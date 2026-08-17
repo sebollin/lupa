@@ -168,9 +168,8 @@ perfil <- perfilar(datos)
 plan <- planificar_limpieza(perfil, datos)
 plan[, c("grupo", "estrategia", "recomendada", "aplicar")]
 #>   grupo                    estrategia recomendada aplicar
-#> 1  <NA>          revisar_cardinalidad       FALSE   FALSE
-#> 2  <NA> convertir_ausencias_textuales        TRUE    TRUE
-#> 3  <NA>             recortar_espacios        TRUE    TRUE
+#> 1  <NA> convertir_ausencias_textuales        TRUE    TRUE
+#> 2  <NA>             recortar_espacios        TRUE    TRUE
 resultado <- aplicar(plan, datos)
 resultado$datos
 #>   categoria

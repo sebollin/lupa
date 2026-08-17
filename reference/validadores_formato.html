@@ -57,7 +57,9 @@ que no cumple el contrato devuelve <code>FALSE</code>.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">validar_iso3166</span><span class="op">(</span><span class="va">x</span>, tipo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"alpha2"</span>, <span class="st">"alpha3"</span>, <span class="st">"numerico"</span><span class="op">)</span><span class="op">)</span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">validar_url</span><span class="op">(</span><span class="va">x</span>, esquema_obligatorio <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu">validar_iso3166</span><span class="op">(</span><span class="va">x</span>, tipo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"alpha2"</span>, <span class="st">"alpha3"</span>, <span class="st">"numerico"</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">validar_iso4217</span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span>
 <span></span>
@@ -74,6 +76,12 @@ que no cumple el contrato devuelve <code>FALSE</code>.</p>
 
 <dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
 <dd><p>Vector que se desea validar.</p></dd>
+
+
+<dt id="arg-esquema-obligatorio">esquema_obligatorio<a class="anchor" aria-label="anchor" href="#arg-esquema-obligatorio"></a></dt>
+<dd><p>Si es <code>TRUE</code>, exige <code>http://</code> o <code>https://</code>.
+<code>TRUE</code> es el valor estricto por omisión; <code>FALSE</code> permite una URL con host
+sin esquema, como <code>ejemplo.uy</code>.</p></dd>
 
 
 <dt id="arg-tipo">tipo<a class="anchor" aria-label="anchor" href="#arg-tipo"></a></dt>
@@ -93,6 +101,18 @@ conservador de la sintaxis <code>addr-spec</code>: parte local de puntos y carac
 ASCII habituales, seguida por un dominio DNS con al menos un punto. No
 admite comentarios, cadenas entre comillas ni literales de dominio válidos
 en la gramática completa de RFC 5322, y no prueba entrega ni existencia.</p>
+<p><code>validar_url()</code> comprueba URLs jerárquicas con host y acepta sólo los
+esquemas <code>http</code> y <code>https</code>: son los esquemas de red que el paquete puede
+reconocer sin atribuir semántica a protocolos arbitrarios. <code>javascript:</code> y
+<code>data:</code> se rechazan deliberadamente, incluso si se parecen a una cadena con
+dos puntos. Por omisión el esquema es obligatorio; con
+<code>esquema_obligatorio = FALSE</code> también se acepta un host como <code>ejemplo.uy</code>.
+Se aceptan nombres de dominio Unicode (IDN) y nombres ASCII en punycode,
+puertos entre 1 y 65535, rutas, consultas y fragmentos con codificación
+porcentual válida. No se consultan DNS ni se afirma que el recurso exista.
+Los espacios, separadores Unicode y caracteres de control literales hacen
+que el valor sea inválido; un espacio porcentualmente codificado sigue la
+sintaxis de una URL y no es un espacio literal.</p>
 <p><code>validar_luhn()</code> acepta únicamente dígitos y aplica el algoritmo de Luhn.
 <code>validar_mod97()</code> acepta letras ASCII y dígitos, transforma las letras a
 <code>A = 10, ..., Z = 35</code> y exige resto 1 conforme a ISO 7064 MOD 97-10. No
@@ -125,6 +145,10 @@ propia.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1]  TRUE  TRUE FALSE</span>
 <span class="r-in"><span><span class="fu">validar_correo</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"persona@example.org"</span>, <span class="st">"sin-arroba"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1]  TRUE FALSE</span>
+<span class="r-in"><span><span class="fu">validar_url</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"https://ejemplo.uy"</span>, <span class="st">"ejemplo.uy"</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1]  TRUE FALSE</span>
+<span class="r-in"><span><span class="fu">validar_url</span><span class="op">(</span><span class="st">"ejemplo.uy"</span>, esquema_obligatorio <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] TRUE</span>
 <span class="r-in"><span><span class="fu">validar_luhn</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"79927398713"</span>, <span class="st">"79927398714"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1]  TRUE FALSE</span>
 <span class="r-in"><span><span class="fu">validar_mod97</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"9999123456789012141490"</span>, <span class="st">"9999123456789012141491"</span><span class="op">)</span><span class="op">)</span></span></span>

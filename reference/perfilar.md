@@ -37,7 +37,11 @@ perfilar(
   max_filas_hallazgo = 1000L,
   umbral_orden_columnas = 0.95,
   max_columnas_orden = 20L,
-  umbral_solapamiento_orden = 0,
+  umbral_solapamiento_orden = 0.1,
+  umbral_aritmetica = 0.9,
+  min_filas_aritmetica = 3L,
+  tolerancia_aritmetica = 1e-08,
+  max_columnas_aritmetica = 20L,
   casi_duplicados_vocabulario = TRUE,
   max_proporcion_grupo_vocabulario = 0.5
 )
@@ -207,13 +211,44 @@ perfilar(
 - umbral_solapamiento_orden:
 
   Solapamiento mínimo de los rangos intercuartiles para considerar que
-  dos columnas representan magnitudes comparables. Por defecto es `0`,
-  por lo que el filtro está apagado y no se descartan pares. Un valor
-  mayor resulta útil en tablas anchas con columnas de escalas muy
-  distintas, donde el detector puede avisar de más, pero también puede
-  ocultar relaciones reales entre magnitudes de rangos distintos (por
-  ejemplo, nacimiento y solicitud). Los pares descartados se cuentan en
-  `meta$orden_columnas$pares_descartados_magnitud`.
+  dos columnas representan magnitudes comparables. Por defecto es `0.1`:
+  al menos una décima parte del rango intercuartílico más ancho debe ser
+  común a ambos. Esto evita interpretar como restricción fila a fila un
+  orden explicado sólo por escalas separadas. Si no hay ese
+  solapamiento, una brecha con IQR exactamente cero conserva el par
+  porque la mitad central sostiene el mismo desplazamiento fila a fila.
+  No se aplica una tolerancia oculta. Use `0` para desactivar el filtro
+  de magnitud. Ambos criterios se publican en la evidencia. Los pares
+  descartados se cuentan en
+  `meta$orden_columnas$pares_descartados_magnitud` y los recuperados en
+  `meta$orden_columnas$pares_rescatados_brecha_estable`.
+
+- umbral_aritmetica:
+
+  Proporción mínima de filas comparables que deben satisfacer una
+  identidad dentro de `tolerancia_aritmetica` para reconocer una
+  regularidad aritmética entre columnas numéricas. El valor por omisión
+  es `0.9`. Una vez reconocida la relación se informan todas sus
+  discrepancias, sin un segundo filtro por su cantidad absoluta. La
+  proporción y el criterio efectivos se publican en cada evidencia.
+
+- min_filas_aritmetica:
+
+  Mínimo de filas comparables necesario para evaluar una candidata
+  aritmética. Por omisión es `3`.
+
+- tolerancia_aritmetica:
+
+  Tolerancia numérica relativa escalada usada al comparar un valor
+  observado y uno esperado. Por omisión es `1e-8`; el criterio completo
+  y el valor efectivo se declaran en cada evidencia.
+
+- max_columnas_aritmetica:
+
+  Máximo de columnas numéricas que intervienen en la búsqueda
+  aritmética, cuyo costo crece cúbicamente. Por omisión es `20`. Si se
+  omiten columnas, `cobertura_diagnosticos` declara el recorte y
+  `meta$aritmetica_columnas` conserva los conteos de combinaciones.
 
 - casi_duplicados_vocabulario:
 
@@ -256,11 +291,12 @@ valores son un solo token y esa distinción estructural no aplica),
 veredictos de identidad. `cobertura_diagnosticos` es una tabla hermana
 de `hallazgos`, con una fila por diagnóstico que no pudo evaluarse y las
 columnas `diagnostico`, `columna`, `motivo`, `como_resolverlo` y
-`dependencia`. Incluye la falta de `stringdist`, `stringi` o `bit64`, y
-las zonas horarias POSIXt sin declarar. Quien decida automáticamente
-sobre un perfil debe revisar `nrow(perfil$cobertura_diagnosticos)`
-además de las severidades: un perfil sin hallazgos y con diagnósticos no
-evaluados no es un perfil limpio.
+`dependencia`. Incluye la falta de `stringdist`, `stringi`, `bit64` o
+`sf`, y las zonas horarias POSIXt sin declarar. Quien decida
+automáticamente sobre un perfil debe revisar
+`nrow(perfil$cobertura_diagnosticos)` además de las severidades: un
+perfil sin hallazgos y con diagnósticos no evaluados no es un perfil
+limpio.
 
 ## Details
 
@@ -323,7 +359,41 @@ contar sus valores distintos; si la clase no admite comparación, informa
 `NA` en lugar de afirmar cero. Las columnas matriciales se conservan
 como una unidad por fila: `n` informa las filas de la tabla, pero los
 estadísticos por valor quedan en `NA` y un hallazgo explica que deben
-separarse en columnas con semántica explícita. Los valores de texto que
+separarse en columnas con semántica explícita.
+
+La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
+valores finitos, para no agregar cobertura a columnas que ni siquiera
+son candidatas. Antes de comparar exige variación, que la columna no
+parezca un identificador ni una secuencia correlativa, al menos 100
+observaciones positivas utilizables, una proporción de positivos igual a
+1 y tres órdenes de magnitud según `log10(max/min)`. Si falla alguna
+precondición no emite un hallazgo: la enumera en
+`cobertura_diagnosticos`. Si aplica, `meta$benford$resultados` conserva
+la distribución observada y esperada por primer dígito, el chi-cuadrado
+de Pearson, ocho grados de libertad y el valor p;
+`meta$benford$umbrales` publica todos los cortes. Un valor p menor que
+`0.01` genera `desviacion_benford` como señal descriptiva para revisar,
+no como evidencia de fraude o manipulación. Topes administrativos,
+redondeos, precios psicológicos y subsidios de monto fijo son
+explicaciones posibles.
+
+Las relaciones aritméticas se buscan sólo entre columnas numéricas
+declaradas y con variación: `Date`, `POSIXt`, `difftime`, `integer64`,
+texto numérico y columnas constantes no participan. Cada relación
+requiere al menos tres filas con valores finitos en todas las columnas
+involucradas; los `NA`, `NaN` e infinitos quedan fuera del universo que
+publica la evidencia. Para cada terna se prueban las tres orientaciones
+de una identidad aditiva; esto cubre sumas y sus restas equivalentes sin
+informar tres veces la misma igualdad. En pares proporcionales, `k` es
+la mediana de los cocientes finitos cuya base no es cero, pero el
+cumplimiento se evalúa después también en las filas con base cero. Si
+una identidad aditiva ya relaciona una terna, se omiten las
+proporcionalidades redundantes entre su total y sus sumandos; se
+conserva la proporcionalidad entre los dos sumandos. Una regularidad
+completa se informa con severidad `"ok"`; si alcanza el umbral pero
+tiene discrepancias, sigue el criterio de las relaciones de orden y es
+`"sospechoso"`. Todo esto describe evidencia observada: no declara una
+regla del dominio ni autoriza una corrección. Los valores de texto que
 no forman UTF-8 válido tampoco se convierten: se cuentan, se excluyen de
 los análisis textuales y generan un hallazgo con sus posiciones. Los
 diagnósticos de invisibles incluyen controles C0/C1, espacios Unicode,
@@ -351,12 +421,47 @@ existen caracteres no ASCII. `columnas$unicode_evaluado` declara si esa
 comprobación pudo ejecutarse; en texto no ASCII sin `stringi` queda
 `FALSE`, `n_variantes_unicode` queda en `NA` y `cobertura_diagnosticos`
 informa la dependencia ausente. Las columnas ASCII se evalúan siempre y
-conservan cero. El perfil de comparación es completamente R base. El
-argumento `normalizar` declara el perfil de comparación que se conserva
-en `meta$normalizacion`; cambia sólo la representación usada para
-comparar, no el texto guardado. `TRUE` usa el perfil predeterminado,
-`FALSE` desactiva sus pasos configurables, `"amplio"` activa los tres
-pliegues optativos y
+conservan cero. El perfil de comparación es completamente R base.
+
+Las columnas `sfc` declaran su CRS, los tipos concretos y la dimensión
+(`XY`, `XYZ`, `XYM` o `XYZM`), además de geometrías vacías, validez,
+dominio y caja envolvente. `POINT`/`MULTIPOINT`,
+`LINESTRING`/`MULTILINESTRING` y `POLYGON`/`MULTIPOLYGON` son una misma
+familia: el hallazgo de tipos mixtos aparece sólo al combinar familias o
+ante `GEOMETRYCOLLECTION`. La validez se calcula siempre con GEOS en el
+plano, sin CRS, para que el resultado no dependa de que `s2` esté
+instalado; `validez_criterio` publica `"planar"` y `n_validez_evaluados`
+publica su universo, que incluye las geometrías vacías porque GEOS sí
+devuelve su validez. Si hay una dimensión M, se aplica
+[`sf::st_zm()`](https://r-spatial.github.io/sf/reference/st_zm.html) y
+se valida la topología XY; `validez_preprocesamiento = "st_zm(x)"`
+declara esa transformación. Si el CRS es geográfico, un fallo es
+`sospechoso` y no un `error`, porque no afirma invalidez esférica. Las
+dimensiones Z y M no se evalúan como medidas: `dimensiones_no_evaluadas`
+las enumera y `cobertura_diagnosticos` deja constancia explícita incluso
+cuando la validez XY sí pudo calcularse. En un CRS geográfico el dominio
+exige longitudes en `[-180, 180]` y latitudes en `[-90, 90]`. Además,
+las coordenadas se comparan en longitud/latitud con la `BBOX` del área
+de uso incluida en el WKT del CRS. Este control puede detectar valores
+en unidades incompatibles —por ejemplo, grados declarados como metros—,
+pero no una zona UTM equivocada cuando esa interpretación cae dentro del
+área de la zona declarada. Una `BBOX` mundial es un no-op válido; si el
+WKT no permite extraer la caja, el dominio queda en `NA` y
+`cobertura_diagnosticos` lo declara en lugar de suponer el mundo entero.
+Las geometrías vacías se cuentan aparte y no integran el universo del
+dominio ni de la bbox. `n_dominio_evaluados` y `n_bbox_evaluados`
+publican ambos universos; la bbox se calcula sobre coordenadas crudas de
+geometrías no vacías, incluidas las que el dominio marque fuera, y
+`bbox_alcance` lo declara. Si todas son vacías, sus conteos evaluados y
+fuera de dominio son cero. Sin CRS, `n_fuera_de_dominio` queda en `NA` y
+se emite `crs_no_declarado`: nunca se supone EPSG:4326. Si falta el
+paquete opcional `sf`, todos esos campos quedan en `NA`, no se emite un
+hallazgo geométrico y `cobertura_diagnosticos` registra la dependencia
+ausente. El argumento `normalizar` declara el perfil de comparación que
+se conserva en `meta$normalizacion`; cambia sólo la representación usada
+para comparar, no el texto guardado. `TRUE` usa el perfil
+predeterminado, `FALSE` desactiva sus pasos configurables, `"amplio"`
+activa los tres pliegues optativos y
 [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
 permite declararlos. También admite una lista nombrada por columna.
 `meta$normalizacion_fusiones` informa, para cada paso activo, la
@@ -468,11 +573,23 @@ medias y desvíos se conservan como síntesis no ligadas a una fila;
 nacimiento, un hallazgo separado conserva el diagnóstico de valores
 anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 Los números escritos como texto reconocen tanto coma como punto decimal
-y sus separadores de miles simétricos. Los prefijos de tres letras
-separados del número, con forma de código ISO 4217, y los símbolos
-monetarios se conservan como evidencia; una columna sin datos
-suficientes para desambiguar un separador de tres dígitos no se
-convierte automáticamente.
+y sus separadores de miles simétricos. Los códigos monetarios de tres
+letras, incluso como sufijo, `U$S` y los símbolos monetarios se
+conservan como evidencia; `monedas_mixtas` informa sus frecuencias sin
+convertir ni suponer tasas de cambio. Una única moneda o un símbolo `$`
+aislado no produce ese hallazgo. Un sufijo de unidad se reconoce sólo si
+es `%` o una abreviatura alfabética en minúsculas; por eso `12 kg` y
+`13500 g` son unidades, mientras que `12A` y `13B` se tratan como
+códigos. Si hay más de una unidad observada, `unidades_mixtas` informa
+sus frecuencias y no convierte ni compara sus magnitudes. Una única
+unidad no genera ese hallazgo. `celdas_multivaluadas` es deliberadamente
+conservador: usa los patrones de
+[`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
+y exige partes numéricas, alfanuméricas o identificadoras puntuadas
+homogéneas, compatibles con el patrón del resto de la columna. No
+interpreta comas en nombres o direcciones como listas; el delimitador,
+la cantidad de celdas y la distribución de valores por celda quedan en
+la evidencia del hallazgo.
 
 ## See also
 
@@ -489,9 +606,9 @@ perfil
 #> 
 #> ── Perfil de datos: datos_administrativos ──────────────────────────────────────
 #> ✖ 5 hallazgos con severidad error
-#> ! 13 hallazgos sospechosos
-#> ✔ 4 hallazgos informativos ok
-#> ℹ 0 diagnosticos no evaluados
+#> ! 10 hallazgos sospechosos
+#> ✔ 5 hallazgos informativos ok
+#> ℹ 2 diagnosticos no evaluados
 #> 
 #> ── Resumen general ──
 #> 
@@ -648,39 +765,83 @@ summary(perfil)
 #> 8                    no_aplica                <NA>
 #> 9                   calculados                <NA>
 #> 10                   no_aplica                <NA>
-#>    n_filas_fecha_civil_distinta_utc fecha_civil_distinta_utc
-#> 1                                NA                       NA
-#> 2                                NA                       NA
-#> 3                                NA                       NA
-#> 4                                NA                       NA
-#> 5                                NA                       NA
-#> 6                                NA                       NA
-#> 7                                NA                       NA
-#> 8                                NA                       NA
-#> 9                                NA                       NA
-#> 10                               NA                       NA
-#>           detalle_proteccion_personal n_blancos n_espacios_borde
-#> 1                                <NA>         0                0
-#> 2                                <NA>         0                0
-#> 3  [estadisticos de orden protegidos]         0                0
-#> 4                                <NA>         1                0
-#> 5                                <NA>         0                0
-#> 6                                <NA>         0                0
-#> 7                                <NA>         0                0
-#> 8                                <NA>         0                0
-#> 9                                <NA>         0                0
-#> 10                               <NA>         0                0
-#>    n_variantes_mayusculas n_variantes_unicode unicode_evaluado
-#> 1                       0                  NA               NA
-#> 2                       0                   0             TRUE
-#> 3                       0                   0             TRUE
-#> 4                       0                   0             TRUE
-#> 5                       0                  NA               NA
-#> 6                       0                   0             TRUE
-#> 7                       0                   0             TRUE
-#> 8                       0                   0             TRUE
-#> 9                       0                  NA               NA
-#> 10                      0                   0             TRUE
+#>    n_filas_fecha_civil_distinta_utc fecha_civil_distinta_utc crs_declarado
+#> 1                                NA                       NA          <NA>
+#> 2                                NA                       NA          <NA>
+#> 3                                NA                       NA          <NA>
+#> 4                                NA                       NA          <NA>
+#> 5                                NA                       NA          <NA>
+#> 6                                NA                       NA          <NA>
+#> 7                                NA                       NA          <NA>
+#> 8                                NA                       NA          <NA>
+#> 9                                NA                       NA          <NA>
+#> 10                               NA                       NA          <NA>
+#>    tipo_geometria dimension_geometria dimensiones_no_evaluadas
+#> 1            <NA>                <NA>                     <NA>
+#> 2            <NA>                <NA>                     <NA>
+#> 3            <NA>                <NA>                     <NA>
+#> 4            <NA>                <NA>                     <NA>
+#> 5            <NA>                <NA>                     <NA>
+#> 6            <NA>                <NA>                     <NA>
+#> 7            <NA>                <NA>                     <NA>
+#> 8            <NA>                <NA>                     <NA>
+#> 9            <NA>                <NA>                     <NA>
+#> 10           <NA>                <NA>                     <NA>
+#>    n_geometrias_vacias n_geometrias_invalidas n_validez_evaluados
+#> 1                   NA                     NA                  NA
+#> 2                   NA                     NA                  NA
+#> 3                   NA                     NA                  NA
+#> 4                   NA                     NA                  NA
+#> 5                   NA                     NA                  NA
+#> 6                   NA                     NA                  NA
+#> 7                   NA                     NA                  NA
+#> 8                   NA                     NA                  NA
+#> 9                   NA                     NA                  NA
+#> 10                  NA                     NA                  NA
+#>    validez_criterio validez_preprocesamiento n_fuera_de_dominio
+#> 1              <NA>                     <NA>                 NA
+#> 2              <NA>                     <NA>                 NA
+#> 3              <NA>                     <NA>                 NA
+#> 4              <NA>                     <NA>                 NA
+#> 5              <NA>                     <NA>                 NA
+#> 6              <NA>                     <NA>                 NA
+#> 7              <NA>                     <NA>                 NA
+#> 8              <NA>                     <NA>                 NA
+#> 9              <NA>                     <NA>                 NA
+#> 10             <NA>                     <NA>                 NA
+#>    n_dominio_evaluados n_bbox_evaluados bbox_alcance bbox_xmin bbox_xmax
+#> 1                   NA               NA         <NA>        NA        NA
+#> 2                   NA               NA         <NA>        NA        NA
+#> 3                   NA               NA         <NA>        NA        NA
+#> 4                   NA               NA         <NA>        NA        NA
+#> 5                   NA               NA         <NA>        NA        NA
+#> 6                   NA               NA         <NA>        NA        NA
+#> 7                   NA               NA         <NA>        NA        NA
+#> 8                   NA               NA         <NA>        NA        NA
+#> 9                   NA               NA         <NA>        NA        NA
+#> 10                  NA               NA         <NA>        NA        NA
+#>    bbox_ymin bbox_ymax        detalle_proteccion_personal n_blancos
+#> 1         NA        NA                               <NA>         0
+#> 2         NA        NA                               <NA>         0
+#> 3         NA        NA [estadisticos de orden protegidos]         0
+#> 4         NA        NA                               <NA>         1
+#> 5         NA        NA                               <NA>         0
+#> 6         NA        NA                               <NA>         0
+#> 7         NA        NA                               <NA>         0
+#> 8         NA        NA                               <NA>         0
+#> 9         NA        NA                               <NA>         0
+#> 10        NA        NA                               <NA>         0
+#>    n_espacios_borde n_variantes_mayusculas n_variantes_unicode unicode_evaluado
+#> 1                 0                      0                  NA               NA
+#> 2                 0                      0                   0             TRUE
+#> 3                 0                      0                   0             TRUE
+#> 4                 0                      0                   0             TRUE
+#> 5                 0                      0                  NA               NA
+#> 6                 0                      0                   0             TRUE
+#> 7                 0                      0                   0             TRUE
+#> 8                 0                      0                   0             TRUE
+#> 9                 0                      0                  NA               NA
+#> 10                0                      0                   0             TRUE
 #>    n_codificacion_rota n_codificacion_reparable
 #> 1                    0                        0
 #> 2                    0                        0

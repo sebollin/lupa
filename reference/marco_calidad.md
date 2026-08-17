@@ -16,6 +16,8 @@ marco_calidad(nombre, factores)
 marco_agesic()
 
 marco_iso25012()
+
+marco_cepal()
 ```
 
 ## Arguments
@@ -53,8 +55,8 @@ marco_iso25012()
 
 ## Value
 
-`marco_calidad()`, `marco_agesic()` y `marco_iso25012()` devuelven un
-objeto S3 `marco_calidad`.
+`marco_calidad()`, `marco_agesic()`, `marco_iso25012()` y
+`marco_cepal()` devuelven un objeto S3 `marco_calidad`.
 [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) devuelve
 su tabla de factores.
 
@@ -78,12 +80,38 @@ descripciones son redacción propia. Las quince filas declaran
 factores de AGESIC, el profiling genérico no demuestra por sí solo que
 una característica ISO satisfaga el uso declarado.
 
+`marco_cepal()` representa los cuatro niveles y los diecinueve
+principios del marco nacional de aseguramiento de la calidad de las
+Naciones Unidas, adoptados y adaptados para América Latina y el Caribe
+por la CEA/CEPAL. La columna `principio` conserva la numeración de la
+fuente. Los nombres de los niveles y principios son textuales; las
+descripciones y las instrucciones `como_resolverlo` de este paquete son
+redacción propia. Los principios 1 a 13 quedan fuera del alcance de una
+tabla: se refieren al sistema, al entorno institucional o al proceso
+estadístico. Los principios 14 a 19 describen productos estadísticos y
+quedan disponibles, aunque ninguno se considera medido por el profiling
+genérico.
+
 ## References
 
 [ISO/IEC (2008)](https://www.iso.org/standard/35736.html). *ISO/IEC
 25012:2008 Software engineering — Software product Quality Requirements
 and Evaluation (SQuaRE) — Data quality model*.
 <https://www.iso.org/standard/35736.html>.
+
+[Naciones Unidas
+(2019)](https://unstats.un.org/unsd/methodology/dataquality/). *Manual
+del marco nacional de aseguramiento de calidad en las estadísticas
+oficiales*. Estudios en Métodos, serie M, N° 100
+(ST/ESA/STAT/SER.M/100), Nueva York.
+
+[Grupo de Trabajo de la Conferencia Estadística de las Américas (CEA),
+coordinado por Colombia (DANE) y México (INEGI), Secretaría Técnica:
+División de Estadísticas de la CEPAL
+(2022)](https://repositorio.cepal.org/handle/11362/47464). *Guía para la
+implementación del marco de aseguramiento de la calidad para procesos y
+productos estadísticos*. LC/CEA.11/19. Comisión Económica para América
+Latina y el Caribe (CEPAL), Naciones Unidas, Santiago.
 
 ## See also
 
@@ -132,4 +160,21 @@ table(as.data.frame(iso)$dimension)
 #>                                   3                                   5 
 #> Inherente y dependiente del sistema 
 #>                                   7 
+marco_cepal()
+#> 
+#> ── Marco de aseguramiento de la calidad estadística de Naciones Unidas, adaptado por CEA/CEPAL ──
+#> 
+#> Dimensiones: 4
+#> Factores: 19
+#> Origen: Marco de Naciones Unidas (2019): Manual del marco nacional de
+#> aseguramiento de calidad en las estadísticas oficiales, Estudios en Métodos,
+#> serie M, N° 100 (ST/ESA/STAT/SER.M/100), Nueva York. Adaptación regional
+#> CEA/CEPAL: Grupo de Trabajo de la Conferencia Estadística de las Américas
+#> (CEA), coordinado por Colombia (DANE) y México (INEGI), Secretaría Técnica:
+#> División de Estadísticas de la CEPAL (2022), Guía para la implementación del
+#> marco de aseguramiento de la calidad para procesos y productos estadísticos
+#> (LC/CEA.11/19), Comisión Económica para América Latina y el Caribe (CEPAL),
+#> Naciones Unidas, Santiago. Fuentes:
+#> https://unstats.un.org/unsd/methodology/dataquality/;
+#> https://repositorio.cepal.org/handle/11362/47464
 ```

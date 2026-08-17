@@ -26,7 +26,9 @@ evaluar(medicion, perfil)
 ## Value
 
 Objeto `evaluacion_calidad` con tres data frames filtrables: `medidas`,
-`reglas` y `perfiles`.
+`reglas` y `perfiles`. Si alguna regla declara un desenlace, contiene
+además `desenlaces`, un plan que identifica las medidas incumplidas, el
+valor medido, el motivo y la regla que lo produjo.
 
 ## Examples
 
@@ -39,13 +41,13 @@ regla <- regla_evaluacion("Al menos 90%", function(x) x > 0.9)
 evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> $medidas
 #>                                     id_medida
-#> 1 medicion-20260815T173801.262563-7585-000001
-#> 2 medicion-20260815T173801.262563-7585-000002
-#> 3 medicion-20260815T173801.262563-7585-000003
+#> 1 medicion-20260817T003635.067230-7423-000001
+#> 2 medicion-20260817T003635.067230-7423-000002
+#> 3 medicion-20260817T003635.067230-7423-000003
 #>                            id_medicion               fecha   perfil
-#> 1 medicion-20260815T173801.262563-7585 2026-08-15 17:38:01 Avanzado
-#> 2 medicion-20260815T173801.262563-7585 2026-08-15 17:38:01 Avanzado
-#> 3 medicion-20260815T173801.262563-7585 2026-08-15 17:38:01 Avanzado
+#> 1 medicion-20260817T003635.067230-7423 2026-08-17 00:36:35 Avanzado
+#> 2 medicion-20260817T003635.067230-7423 2026-08-17 00:36:35 Avanzado
+#> 3 medicion-20260817T003635.067230-7423 2026-08-17 00:36:35 Avanzado
 #>          regla  metrica_instanciada resultado
 #> 1 Al menos 90% NoNulo@personas.edad      TRUE
 #> 2 Al menos 90% NoNulo@personas.edad     FALSE
@@ -53,13 +55,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> 
 #> $reglas
 #>                            id_medicion               fecha   perfil
-#> 1 medicion-20260815T173801.262563-7585 2026-08-15 17:38:01 Avanzado
+#> 1 medicion-20260817T003635.067230-7423 2026-08-17 00:36:35 Avanzado
 #>          regla n_medidas resultado
 #> 1 Al menos 90%         3 0.6666667
 #> 
 #> $perfiles
 #>                            id_medicion               fecha   perfil n_reglas
-#> 1 medicion-20260815T173801.262563-7585 2026-08-15 17:38:01 Avanzado        1
+#> 1 medicion-20260817T003635.067230-7423 2026-08-17 00:36:35 Avanzado        1
 #>   resultado
 #> 1 0.6666667
 #> 

@@ -135,38 +135,30 @@ subset(resultado$perfil$hallazgos, severidad != "ok")
 #> 13          monto                    outliers sospechoso
 #> 14        sistema                   constante sospechoso
 #> 15       contacto           alta_cardinalidad sospechoso
-#> 17 codigo_usuario casi_duplicados_vocabulario sospechoso
-#> 18   fecha_evento casi_duplicados_vocabulario sospechoso
 #> 19          canal casi_duplicados_vocabulario sospechoso
 #> 20           zona casi_duplicados_vocabulario sospechoso
-#> 21       contacto casi_duplicados_vocabulario sospechoso
-#> 22      id_evento casi_duplicados_vocabulario sospechoso
-#> 23           <NA>            filas_duplicadas      error
-#> 24    id_registro         columnas_duplicadas sospechoso
-#>                                                                                                                                                        descripcion
-#> 1                                                                                                                   La columna categórica tiene alta cardinalidad.
-#> 2                                                                                              Hay valores que representan ausencia sin estar codificados como NA.
-#> 3                                                                                                                   La columna categórica tiene alta cardinalidad.
-#> 4                                                                                              Hay valores que representan ausencia sin estar codificados como NA.
-#> 5                                                                                                               Conviven dos o más formatos de fecha o fecha-hora.
-#> 6                                                                                                   El tipo declarado no coincide con el tipo implícito dominante.
-#> 7                                                                                                                   La columna categórica tiene alta cardinalidad.
-#> 8                                                                                                   La proporción total de faltantes supera el umbral configurado.
-#> 9                                                                                              Hay valores que representan ausencia sin estar codificados como NA.
-#> 10                                                                                                          Hay texto con espacios sobrantes al inicio o al final.
-#> 11                                                                                           Conviven valores que sólo se diferencian por mayúsculas y minúsculas.
-#> 12                                                                                             Hay valores que representan ausencia sin estar codificados como NA.
-#> 13                                                                                                Se detectaron valores fuera de los límites de Tukey (1,5 x IQR).
-#> 14                                                                                                                  La columna contiene un único valor no ausente.
-#> 15                                                                                                                  La columna categórica tiene alta cardinalidad.
-#> 17 No se formaron grupos porque las diferencias numericas se consideran entidades distintas; revisar con una regla especifica si la columna usa otra codificacion.
-#> 18 No se formaron grupos porque las diferencias numericas se consideran entidades distintas; revisar con una regla especifica si la columna usa otra codificacion.
-#> 19                                                                          Hay grupos cuya forma normalizada coincide; eso no confirma que sean la misma entidad.
-#> 20                                                                             Se detectaron valores cercanos; la distancia es heurística y no confirma identidad.
-#> 21 No se formaron grupos porque las diferencias numericas se consideran entidades distintas; revisar con una regla especifica si la columna usa otra codificacion.
-#> 22 No se formaron grupos porque las diferencias numericas se consideran entidades distintas; revisar con una regla especifica si la columna usa otra codificacion.
-#> 23                                                                                                                     La tabla contiene filas duplicadas exactas.
-#> 24                                                                                                                         Dos columnas tienen el mismo contenido.
+#> 21           <NA>            filas_duplicadas      error
+#> 22    id_registro         columnas_duplicadas sospechoso
+#>                                                                               descripcion
+#> 1                                          La columna categórica tiene alta cardinalidad.
+#> 2                     Hay valores que representan ausencia sin estar codificados como NA.
+#> 3                                          La columna categórica tiene alta cardinalidad.
+#> 4                     Hay valores que representan ausencia sin estar codificados como NA.
+#> 5                                      Conviven dos o más formatos de fecha o fecha-hora.
+#> 6                          El tipo declarado no coincide con el tipo implícito dominante.
+#> 7                                          La columna categórica tiene alta cardinalidad.
+#> 8                          La proporción total de faltantes supera el umbral configurado.
+#> 9                     Hay valores que representan ausencia sin estar codificados como NA.
+#> 10                                 Hay texto con espacios sobrantes al inicio o al final.
+#> 11                  Conviven valores que sólo se diferencian por mayúsculas y minúsculas.
+#> 12                    Hay valores que representan ausencia sin estar codificados como NA.
+#> 13                       Se detectaron valores fuera de los límites de Tukey (1,5 x IQR).
+#> 14                                         La columna contiene un único valor no ausente.
+#> 15                                         La columna categórica tiene alta cardinalidad.
+#> 19 Hay grupos cuya forma normalizada coincide; eso no confirma que sean la misma entidad.
+#> 20    Se detectaron valores cercanos; la distancia es heurística y no confirma identidad.
+#> 21                                            La tabla contiene filas duplicadas exactas.
+#> 22                                                Dos columnas tienen el mismo contenido.
 #>                                                                                                                                                                                                                                                                                                                                                                                                               evidencia
 #> 1                                                                                                                                                                                                                                                                                                                                                                                      Tasa de valores distintos: 0.846
 #> 2                                                                                                                                                                                                                                                                                                                                                                                                               S/D (1)
@@ -183,14 +175,10 @@ subset(resultado$perfil$hallazgos, severidad != "ok")
 #> 13                                                                                                                                                                                                                                                                                                                                                                                                            4 valores
 #> 14                                                                                                                                                                                                                                                                                                                                                                                     Valor: principal; frecuencia: 13
 #> 15                                                                                                                                                                                                                                                                                                                                                                                                [evidencia protegida]
-#> 17                       No se formaron grupos por distancia: 28 pares cercanos se descartaron por secuencias numericas incompatibles; alcance: 11 de 11 valores; 55 pares comparados de 55; truncado=FALSE; unidades normalizadas: 11 de 11; grupos: 0, mostrados: 0; grupo_maximo: 0 (0.000); limite_aplicado=FALSE; motivo_grupos=. pares descartados por secuencia numerica=28; grupo_maximo compatible=0 (0.000). 
-#> 18                         No se formaron grupos por distancia: 2 pares cercanos se descartaron por secuencias numericas incompatibles; alcance: 12 de 12 valores; 66 pares comparados de 66; truncado=FALSE; unidades normalizadas: 12 de 12; grupos: 0, mostrados: 0; grupo_maximo: 0 (0.000); limite_aplicado=FALSE; motivo_grupos=. pares descartados por secuencia numerica=2; grupo_maximo compatible=0 (0.000). 
 #> 19                              [web (5) / Web (1) / web  (1)]; asimetria=5.0; origen=normalizacion; clase_diferencia=normalizacion_exacta; alcance: 7 de 7 valores; 10 pares comparados de 10; truncado=FALSE; unidades normalizadas: 5 de 5; grupos: 1, mostrados: 1; grupo_maximo: 3 (0.429); limite_aplicado=FALSE; motivo_grupos=. pares descartados por secuencia numerica=0; grupo_maximo compatible=3 (0.429). 
 #> 20 [Este (2) / Oeste (3)]; asimetria=1.5; origen=distancia; clase_diferencia=token_unico; distancia_minima=0.0667; distancia_maxima=0.0667; alcance: 5 de 5 valores; 10 pares comparados de 10; truncado=FALSE; unidades normalizadas: 5 de 5; grupos: 1, mostrados: 1; grupo_maximo: 2 (0.400); limite_aplicado=FALSE; motivo_grupos=. pares descartados por secuencia numerica=0; grupo_maximo compatible=2 (0.400). 
-#> 21                                                                                                                                                                                                                                                                                                                                                                                                [evidencia protegida]
-#> 22                       No se formaron grupos por distancia: 51 pares cercanos se descartaron por secuencias numericas incompatibles; alcance: 12 de 12 valores; 66 pares comparados de 66; truncado=FALSE; unidades normalizadas: 12 de 12; grupos: 0, mostrados: 0; grupo_maximo: 12 (1.000); limite_aplicado=TRUE; motivo_grupos=. pares descartados por secuencia numerica=51; grupo_maximo compatible=0 (0.000). 
-#> 23                                                                                                                                                                                                                                                                                                                                                                                                   1 filas duplicadas
-#> 24                                                                                                                                                                                                                                                                                                                                                                                               id_registro = id_copia
+#> 21                                                                                                                                                                                                                                                                                                                                                                                                   1 filas duplicadas
+#> 22                                                                                                                                                                                                                                                                                                                                                                                               id_registro = id_copia
 #>                                                                                                                 sugerencia
 #> 1                                             Revisar si es texto libre, un identificador o una categoría mal normalizada.
 #> 2                                    Normalizar estas representaciones a NA conservando su significado si fuera necesario.
@@ -207,14 +195,10 @@ subset(resultado$perfil$hallazgos, severidad != "ok")
 #> 13                                                          Examinar los valores extremos antes de decidir si son errores.
 #> 14                                                  Confirmar si la columna aporta información o si corresponde retirarla.
 #> 15                                            Revisar si es texto libre, un identificador o una categoría mal normalizada.
-#> 17                                     Revisar las variantes y declarar una normalización o regla de remediación editable.
-#> 18                                     Revisar las variantes y declarar una normalización o regla de remediación editable.
 #> 19                                     Revisar las variantes y declarar una normalización o regla de remediación editable.
 #> 20 Revisar las variantes y declarar una normalización o regla de remediación editable; la distancia no confirma identidad.
-#> 21                                             Revisar la columna con un alcance o criterio de vocabulario más específico.
-#> 22                                             Revisar la columna con un alcance o criterio de vocabulario más específico.
-#> 23                                                      Definir una clave y revisar la causa antes de eliminar duplicados.
-#> 24                                                     Confirmar si ambas columnas son necesarias o si existe redundancia.
+#> 21                                                      Definir una clave y revisar la causa antes de eliminar duplicados.
+#> 22                                                     Confirmar si ambas columnas son necesarias o si existe redundancia.
 #>    n_evaluados n_afectados  unidad_conteo estado_reparacion trazabilidad
 #> 1            1           1        columna              <NA> no_aplic....
 #> 2           13           1           fila              <NA> disponib....
@@ -231,12 +215,8 @@ subset(resultado$perfil$hallazgos, severidad != "ok")
 #> 13          13           4           fila              <NA> disponib....
 #> 14          13          13           fila              <NA> disponib....
 #> 15           1           1        columna              <NA> no_aplic....
-#> 17          11          NA valor_distinto              <NA> no_dispo....
-#> 18          12          NA valor_distinto              <NA> no_dispo....
 #> 19           7           3 valor_distinto              <NA> no_dispo....
 #> 20           5           2 valor_distinto              <NA> no_dispo....
-#> 21          12          NA valor_distinto              <NA> no_dispo....
-#> 22          12          NA valor_distinto              <NA> no_dispo....
-#> 23          13           1           fila              <NA> disponib....
-#> 24          10           2        columna              <NA> no_aplic....
+#> 21          13           1           fila              <NA> disponib....
+#> 22          10           2        columna              <NA> no_aplic....
 ```

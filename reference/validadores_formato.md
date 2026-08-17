@@ -9,6 +9,8 @@ presente que no cumple el contrato devuelve `FALSE`.
 ## Usage
 
 ``` r
+validar_url(x, esquema_obligatorio = TRUE)
+
 validar_iso3166(x, tipo = c("alpha2", "alpha3", "numerico"))
 
 validar_iso4217(x)
@@ -25,6 +27,12 @@ validar_mod97(x)
 - x:
 
   Vector que se desea validar.
+
+- esquema_obligatorio:
+
+  Si es `TRUE`, exige `http://` o `https://`. `TRUE` es el valor
+  estricto por omisión; `FALSE` permite una URL con host sin esquema,
+  como `ejemplo.uy`.
 
 - tipo:
 
@@ -44,6 +52,20 @@ caracteres ASCII habituales, seguida por un dominio DNS con al menos un
 punto. No admite comentarios, cadenas entre comillas ni literales de
 dominio válidos en la gramática completa de RFC 5322, y no prueba
 entrega ni existencia.
+
+`validar_url()` comprueba URLs jerárquicas con host y acepta sólo los
+esquemas `http` y `https`: son los esquemas de red que el paquete puede
+reconocer sin atribuir semántica a protocolos arbitrarios. `javascript:`
+y `data:` se rechazan deliberadamente, incluso si se parecen a una
+cadena con dos puntos. Por omisión el esquema es obligatorio; con
+`esquema_obligatorio = FALSE` también se acepta un host como
+`ejemplo.uy`. Se aceptan nombres de dominio Unicode (IDN) y nombres
+ASCII en punycode, puertos entre 1 y 65535, rutas, consultas y
+fragmentos con codificación porcentual válida. No se consultan DNS ni se
+afirma que el recurso exista. Los espacios, separadores Unicode y
+caracteres de control literales hacen que el valor sea inválido; un
+espacio porcentualmente codificado sigue la sintaxis de una URL y no es
+un espacio literal.
 
 `validar_luhn()` acepta únicamente dígitos y aplica el algoritmo de
 Luhn. `validar_mod97()` acepta letras ASCII y dígitos, transforma las
@@ -83,6 +105,10 @@ validar_iso4217(c("UYU", "CLP", "ZZZ"))
 #> [1]  TRUE  TRUE FALSE
 validar_correo(c("persona@example.org", "sin-arroba"))
 #> [1]  TRUE FALSE
+validar_url(c("https://ejemplo.uy", "ejemplo.uy"))
+#> [1]  TRUE FALSE
+validar_url("ejemplo.uy", esquema_obligatorio = FALSE)
+#> [1] TRUE
 validar_luhn(c("79927398713", "79927398714"))
 #> [1]  TRUE FALSE
 validar_mod97(c("9999123456789012141490", "9999123456789012141491"))

@@ -2,6 +2,153 @@
 
 ## lupa 0.1.0
 
+### Marco CEA/CEPAL de aseguramiento de la calidad
+
+- [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+  incorpora los cuatro niveles y diecinueve principios del marco
+  nacional de aseguramiento de la calidad de las Naciones Unidas,
+  adoptado y adaptado para América Latina y el Caribe por la CEA/CEPAL.
+  Los principios 1 a 13 quedan declarados fuera del alcance de una
+  tabla; los principios 14 a 19 quedan disponibles para documentar
+  productos estadísticos, sin afirmar que el profiling genérico los
+  mida.
+
+### Severidad del vocabulario y escala de las relaciones
+
+- `casi_duplicados_vocabulario` queda como señal `sospechoso` sólo
+  cuando encuentra grupos; un resultado negativo queda como `ok` con
+  cero afectados, y un diagnóstico que no aplica se registra en
+  `cobertura_diagnosticos`.
+- `relacion_orden_columnas` separa la escala de la relación fila a fila
+  con un solapamiento intercuartil mínimo de `0.1`. Una brecha con IQR
+  cero conserva una relación estable aunque los rangos no se solapen;
+  ambos criterios y los pares descartados o recuperados quedan en el
+  alcance.
+
+### Perfil de una muestra DBI con universo explícito
+
+- Se agrega
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  para separar los agregados SQL exactos sobre una tabla completa del
+  perfil de 93 campos calculado sobre una muestra declarada. La salida
+  registra el motor informado por DBI, cada consulta, los agregados no
+  disponibles y la reproducibilidad efectiva del orden, sin escribir en
+  la base.
+
+### Desenlaces declarados por reglas
+
+- [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
+  acepta `desenlace = "suprimir"` para que una regla declarada por el
+  usuario produzca un plan sobre las medidas que no cumplen su
+  condición. La evaluación conserva objeto, valor medido, motivo y regla
+  sin modificar la medición ni los datos de origen. Sin esa declaración
+  no crea desenlaces ni aplica umbrales de publicación.
+- [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+  enmascara los valores alcanzados por ese plan tanto en la evaluación
+  como en las mediciones incluidas en el mismo reporte. El enmascarado
+  se hace sobre copias usadas para renderizar.
+
+### Ley de Benford con aplicabilidad explícita
+
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  evalúa la ley de Benford solamente en columnas numéricas con
+  suficiente evidencia inicial. Antes de comparar exige variación,
+  ausencia de apariencia de identificador (incluidas secuencias
+  correlativas), al menos 100 valores positivos, todos los valores
+  finitos positivos y tres órdenes de magnitud. Las precondiciones y sus
+  umbrales quedan en `meta$benford`; las que fallan se declaran en
+  `cobertura_diagnosticos` y no producen hallazgos.
+- Cuando aplica, el perfil conserva la distribución observada y esperada
+  por primer dígito, el chi-cuadrado de Pearson y su valor p. Una
+  desviación se presenta como señal descriptiva para revisar, nunca como
+  acusación de fraude o manipulación.
+
+### URLs, unidades y celdas multivaluadas
+
+- [`validar_url()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+  valida de forma vectorizada URLs `http` y `https`, con esquema
+  obligatorio por omisión, soporte para IDN y puertos, y rechazo
+  deliberado de `javascript:`, `data:`, espacios y controles literales.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  informa `unidades_mixtas` cuando una columna numérica escrita como
+  texto combina sufijos de unidad, conservando sus frecuencias y sin
+  convertir datos. Reconoce además monedas como prefijos o sufijos y
+  emite `monedas_mixtas` con sus frecuencias, sin convertir ni suponer
+  tasas de cambio. También informa `celdas_multivaluadas` sólo cuando
+  las partes homogéneas pasan el control de patrones y tipo, incluidos
+  identificadores numéricos con puntuación interna; nombres y
+  direcciones con comas no se presentan como listas.
+
+### Relaciones aritméticas entre columnas
+
+- Reconoce una regularidad mediante un único soporte declarado
+  (`umbral_aritmetica = 0.9`) dentro de la tolerancia y, una vez
+  reconocida, informa todas sus discrepancias sin aplicar un segundo
+  filtro por su cantidad absoluta: `max_violaciones_aritmetica` se
+  elimina. El soporte, el universo mínimo y la tolerancia quedan en la
+  evidencia y el alcance.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  descubre identidades aditivas y proporcionalidades estables entre
+  columnas numéricas y las presenta como evidencia observada, no como
+  reglas del dominio. Cada hallazgo declara proporción de cumplimiento,
+  universo de filas finitas, tolerancia numérica, constante proporcional
+  y filas discrepantes.
+- `umbral_aritmetica`, `min_filas_aritmetica`, `tolerancia_aritmetica` y
+  `max_columnas_aritmetica` hacen visibles los supuestos y el costo del
+  diagnóstico. Si el límite de columnas recorta combinaciones,
+  `cobertura_diagnosticos` lo declara explícitamente.
+
+### Capa de marcos
+
+- [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
+  acepta `proporcion_minima` para declarar un veredicto sobre la
+  proporción de medidas que cumple la condición. El objeto conserva el
+  umbral; la evaluación muestra proporción, veredicto, componentes y
+  universo, sin ponderar medidas ni crear un puntaje global. Las reglas
+  por medida conservan su contrato y su estructura de salida.
+- [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  acepta las etiquetas relacionales de
+  [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md)
+  —por ejemplo, `"columna"`— y guarda siempre su equivalente canónico de
+  la ontología (`"atributo"`). Un valor inválido muestra ambos
+  vocabularios.
+- El error de una regla que no engancha ninguna medida enumera lo
+  solicitado y las métricas instanciadas disponibles, incluidos sus
+  nombres calificados.
+
+### Perfilado de geometrías
+
+- Las columnas `sfc` informan CRS, tipo de geometría, geometrías vacías
+  e inválidas, coordenadas fuera del dominio declarado y caja
+  envolvente. Una geometría sin CRS deja el conteo de dominio en `NA`:
+  no se supone EPSG:4326. Las geometrías vacías se cuentan aparte y no
+  integran el universo del chequeo de dominio.
+- Los tipos mixtos se comparan por familia: las variantes simples y
+  `MULTI` compatibles conviven sin hallazgo, mientras que familias
+  distintas y `GEOMETRYCOLLECTION` se señalan. La validez declara
+  `validez_criterio = "planar"`; sobre CRS geográficos un fallo planar
+  es sospechoso y no afirma invalidez esférica.
+- `n_dominio_evaluados` y `n_bbox_evaluados` hacen públicos los
+  universos no vacíos de sus métricas; `bbox_alcance` declara que la
+  caja usa las coordenadas crudas, incluidas las que estén fuera de
+  dominio. `n_validez_evaluados` publica por separado el universo de
+  GEOS, incluidas las geometrías vacías. `dimension_geometria` declara
+  `XY`, `XYZ`, `XYM` o `XYZM`; Z y M quedan enumeradas en
+  `dimensiones_no_evaluadas` y generan una fila de cobertura. Para `XYM`
+  y `XYZM`, la validez topológica se calcula en XY después de `st_zm()`
+  y `validez_preprocesamiento` declara ese paso.
+- El control de dominio compara también las coordenadas transformadas
+  con la `BBOX` del área de uso del WKT. Detecta, entre otros casos,
+  grados donde el CRS espera metros; no detecta una zona UTM equivocada
+  cuando las coordenadas interpretadas caen dentro del área de esa zona.
+  Una caja mundial es un no-op evaluado y un WKT sin `BBOX` produce una
+  fila de cobertura, sin asumir alcance global.
+- Los nuevos hallazgos distinguen CRS ausente, geometrías inválidas o
+  vacías, coordenadas imposibles y tipos geométricos mixtos. Si falta el
+  paquete opcional `sf`, el perfil no inventa ceros ni hallazgos:
+  registra una fila con `dependencia = "sf"` en
+  `cobertura_diagnosticos`.
+
 ### Fechas con meses escritos
 
 - [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md)

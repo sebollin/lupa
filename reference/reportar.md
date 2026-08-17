@@ -79,7 +79,10 @@ La ruta normalizada del archivo, de forma invisible.
 Se pueden combinar objetos producidos por el profiling, la medicion, la
 evaluacion, el historico, las comparaciones de deriva y la planificacion
 de limpieza. Cada tipo anade su seccion; el reporte no modifica datos ni
-aplica planes.
+aplica planes. Si una evaluacion contiene desenlaces de supresion
+declarados por reglas, el reporte enmascara su `valor_medido` y el
+`resultado` de las mismas medidas incluidas en el documento. El
+enmascarado se hace sobre copias y no modifica los objetos recibidos.
 
 ## See also
 

@@ -128,6 +128,12 @@
 </h2>
 <ul>
 <li>Profiles a delivery and surfaces missingness, types, patterns, dates, and personal-data evidence.</li>
+<li>Profiles <code>sf</code> geometries and declares CRS, geometry families, emptiness, planar validity, coordinate domain, and bounding-box scope; it does not perform spatial analysis.</li>
+<li>Applies Benford’s law only when its preconditions hold, and records non-applicability in <code>cobertura_diagnosticos</code>.</li>
+<li>Reports <code>unidades_mixtas</code> and <code>monedas_mixtas</code> in a column without converting values or assuming exchange rates.</li>
+<li>Reports <code>celdas_multivaluadas</code> only when homogeneous parts match the column’s patterns.</li>
+<li>Finds <code>relacion_aritmetica_columnas</code> as observed identities or proportions between numeric columns, not as domain rules.</li>
+<li>Finds <code>relacion_orden_columnas</code> between comparable columns and declares the comparison scope.</li>
 <li>Finds keys, relationships, dependencies, and measurement granularities that were never declared.</li>
 <li>Lets a project define its own quality framework instead of forcing a global score.</li>
 <li>Measures and evaluates explicit metrics, scales, validity rules, and referential domains.</li>
@@ -195,6 +201,12 @@
 <td><a href="https://sebollin.github.io/lupa/articles/empezar-con-lupa.html">Getting started</a></td>
 </tr>
 <tr>
+<td>Profile against a database</td>
+<td>
+<code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> — full-table SQL aggregates plus a 93-field profile from a declared sample; the scopes stay separate</td>
+<td><a href="https://sebollin.github.io/lupa/reference/">Reference</a></td>
+</tr>
+<tr>
 <td>Find undeclared structure</td>
 <td>
 <code><a href="reference/detectar_claves.html">detectar_claves()</a></code>, <code><a href="reference/detectar_relaciones.html">detectar_relaciones()</a></code>, <code><a href="reference/detectar_dependencias.html">detectar_dependencias()</a></code>, <code><a href="reference/granularidades.html">granularidades()</a></code>, <code><a href="reference/granularidades.html">transiciones_granularidad()</a></code>
@@ -204,14 +216,14 @@
 <tr>
 <td>Define quality</td>
 <td>
-<code><a href="reference/marco_calidad.html">marco_calidad()</a></code>, <code><a href="reference/marco_calidad.html">marco_agesic()</a></code>, <code><a href="reference/marco_calidad.html">marco_iso25012()</a></code>, <code><a href="reference/catalogo_agesic.html">catalogo_agesic()</a></code>, <code><a href="reference/modelo_calidad.html">metrica()</a></code>, <code><a href="reference/modelo_calidad.html">especializar()</a></code>, <code><a href="reference/modelo_calidad.html">instanciar()</a></code>, <code><a href="reference/modelo_calidad.html">modelo()</a></code>, <code><a href="reference/modelo_calidad.html">metricas_nucleo()</a></code>, <code><a href="reference/metricas_referencial.html">metricas_referencial()</a></code>, <code><a href="reference/proponer_modelo.html">proponer_modelo()</a></code>, <code><a href="reference/modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code>, <code><a href="reference/reglas_evaluacion.html">perfiles_madurez()</a></code>, <code><a href="reference/cobertura_analisis.html">cobertura_analisis()</a></code>
+<code><a href="reference/marco_calidad.html">marco_calidad()</a></code>, <code><a href="reference/marco_calidad.html">marco_agesic()</a></code>, <code><a href="reference/marco_calidad.html">marco_iso25012()</a></code>, <code><a href="reference/marco_calidad.html">marco_cepal()</a></code>, <code><a href="reference/catalogo_agesic.html">catalogo_agesic()</a></code>, <code><a href="reference/modelo_calidad.html">metrica()</a></code>, <code><a href="reference/modelo_calidad.html">especializar()</a></code>, <code><a href="reference/modelo_calidad.html">instanciar()</a></code>, <code><a href="reference/modelo_calidad.html">modelo()</a></code>, <code><a href="reference/modelo_calidad.html">metricas_nucleo()</a></code>, <code><a href="reference/metricas_referencial.html">metricas_referencial()</a></code>, <code><a href="reference/proponer_modelo.html">proponer_modelo()</a></code>, <code><a href="reference/modelo_desde_propuesta.html">modelo_desde_propuesta()</a></code>, <code><a href="reference/reglas_evaluacion.html">perfiles_madurez()</a></code>, <code><a href="reference/cobertura_analisis.html">cobertura_analisis()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html">Quality model</a></td>
 </tr>
 <tr>
 <td>Measure and evaluate</td>
 <td>
-<code><a href="reference/medir.html">medir()</a></code>, <code><a href="reference/agregar.html">agregar()</a></code>, <code><a href="reference/evaluar.html">evaluar()</a></code>, <code><a href="reference/reglas_evaluacion.html">regla_evaluacion()</a></code>, <code><a href="reference/reglas_evaluacion.html">perfil_evaluacion()</a></code>, <code><a href="reference/contratos_medicion.html">escala()</a></code>, <code><a href="reference/referencial.html">referencial()</a></code>, <code><a href="reference/contratos_medicion.html">vigencia()</a></code>
+<code><a href="reference/medir.html">medir()</a></code>, <code><a href="reference/agregar.html">agregar()</a></code>, <code><a href="reference/evaluar.html">evaluar()</a></code>, <code><a href="reference/reglas_evaluacion.html">regla_evaluacion()</a></code> with the user-declared instruction <code>desenlace = "suprimir"</code> (not a factory threshold), <code><a href="reference/reglas_evaluacion.html">perfil_evaluacion()</a></code>, <code><a href="reference/contratos_medicion.html">escala()</a></code>, <code><a href="reference/referencial.html">referencial()</a></code>, <code><a href="reference/contratos_medicion.html">vigencia()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html">Quality model</a></td>
 </tr>
@@ -253,7 +265,7 @@
 <tr>
 <td>Validate and extend</td>
 <td>
-<code><a href="reference/pack_validadores.html">validadores_internacionales()</a></code>, <code><a href="reference/pack_validadores.html">validadores_uruguay()</a></code>, <code><a href="reference/pack_validadores.html">pack_validadores()</a></code>, <code><a href="reference/validadores_uy.html">validar_ci_uy()</a></code>, <code><a href="reference/validadores_uy.html">validar_rut_uy()</a></code>, <code><a href="reference/validadores_formato.html">validar_luhn()</a></code>, <code><a href="reference/validadores_formato.html">validar_mod97()</a></code>, <code><a href="reference/validadores_formato.html">validar_iso3166()</a></code>, <code><a href="reference/validadores_formato.html">validar_iso4217()</a></code>, <code><a href="reference/validadores_formato.html">validar_correo()</a></code>
+<code><a href="reference/pack_validadores.html">validadores_internacionales()</a></code>, <code><a href="reference/pack_validadores.html">validadores_uruguay()</a></code>, <code><a href="reference/pack_validadores.html">pack_validadores()</a></code>, <code><a href="reference/validadores_uy.html">validar_ci_uy()</a></code>, <code><a href="reference/validadores_uy.html">validar_rut_uy()</a></code>, <code><a href="reference/validadores_formato.html">validar_luhn()</a></code>, <code><a href="reference/validadores_formato.html">validar_mod97()</a></code>, <code><a href="reference/validadores_formato.html">validar_iso3166()</a></code>, <code><a href="reference/validadores_formato.html">validar_iso4217()</a></code>, <code><a href="reference/validadores_formato.html">validar_correo()</a></code>, <code><a href="reference/validadores_formato.html">validar_url()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/reference/">Reference</a></td>
 </tr>
@@ -269,7 +281,7 @@
 <span><span class="va">propuesta</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/proponer_modelo.html">proponer_modelo</a></span><span class="op">(</span><span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_operativos</span>,</span>
 <span>                                      analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>marco <span class="op">=</span> <span class="va">marco</span>, propuesta <span class="op">=</span> <span class="va">propuesta</span><span class="op">)</span></span></code></pre></div>
-<p>The API has a few boundaries worth knowing. There is no global quality score: dimensions, units, and rules stay visible. A factory weighting would be a verdict about what matters, so <code>lupa</code> exposes the components and a recipe and leaves the weights to each project. The core is universal and catalogues are pluggable; <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC</a> v1.6 is a reference implementation, not a country lock. The package has one required import, <a href="https://cran.r-project.org/package=cli" class="external-link"><code>cli</code></a>; <a href="https://cran.r-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> is optional.</p>
+<p>The API has a few boundaries worth knowing. There is no global quality score: dimensions, units, and rules stay visible. A factory weighting would be a verdict about what matters, so <code>lupa</code> exposes the components and a recipe and leaves the weights to each project. The core is universal and catalogues are pluggable; <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC</a> v1.6 is a reference implementation, not a country lock. The only required import is <a href="https://cran.r-project.org/package=cli" class="external-link"><code>cli</code></a>. Suggested packages enable these capabilities: <a href="https://cran.r-project.org/package=sf" class="external-link"><code>sf</code></a> enables geometry profiling; <a href="https://cran.r-project.org/package=DBI" class="external-link"><code>DBI</code></a> provides the database interface and <a href="https://cran.r-project.org/package=RSQLite" class="external-link"><code>RSQLite</code></a> a backend for <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code>. <a href="https://cran.r-project.org/package=stringdist" class="external-link"><code>stringdist</code></a> is optional for approximate text comparison.</p>
 <p>Work that can be parallelised uses <strong>two threads by default</strong>, the ceiling CRAN asks packages to respect. On your own machine you can raise it, per call with <code>nucleos = 8</code> or for the whole session with <code>options(lupa.nucleos = 8)</code>; the result does not change, only how long it takes.</p>
 </div>
 <div class="section level2">

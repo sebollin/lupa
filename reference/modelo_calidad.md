@@ -52,8 +52,10 @@ metricas_nucleo()
 
 - granularidad:
 
-  Uno de los niveles devueltos por
-  [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md).
+  Uno de los niveles de ontología devueltos por
+  [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md)
+  o su alias en la columna `relacional`. Los aliases se normalizan al
+  nombre de ontología antes de guardarse en la métrica.
 
 - tipo_resultado:
 
@@ -311,13 +313,13 @@ instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 modelo_calidad <- modelo(instancia)
 medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260815T173804.241278-7585-000001
-#> 2 medicion-20260815T173804.241278-7585-000002
-#> 3 medicion-20260815T173804.241278-7585-000003
+#> 1 medicion-20260817T003636.912615-7423-000001
+#> 2 medicion-20260817T003636.912615-7423-000002
+#> 3 medicion-20260817T003636.912615-7423-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260815T173804.241278-7585 2026-08-15 17:38:04  NoNulo
-#> 2 medicion-20260815T173804.241278-7585 2026-08-15 17:38:04  NoNulo
-#> 3 medicion-20260815T173804.241278-7585 2026-08-15 17:38:04  NoNulo
+#> 1 medicion-20260817T003636.912615-7423 2026-08-17 00:36:36  NoNulo
+#> 2 medicion-20260817T003636.912615-7423 2026-08-17 00:36:36  NoNulo
+#> 3 medicion-20260817T003636.912615-7423 2026-08-17 00:36:36  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad
@@ -368,13 +370,13 @@ medir(
   data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 )
 #>                                     id_medida
-#> 1 medicion-20260815T173804.248642-7585-000001
-#> 2 medicion-20260815T173804.248642-7585-000002
-#> 3 medicion-20260815T173804.248642-7585-000003
+#> 1 medicion-20260817T003636.917023-7423-000001
+#> 2 medicion-20260817T003636.917023-7423-000002
+#> 3 medicion-20260817T003636.917023-7423-000003
 #>                            id_medicion               fecha         metrica
-#> 1 medicion-20260815T173804.248642-7585 2026-08-15 17:38:04 OrigenDeclarado
-#> 2 medicion-20260815T173804.248642-7585 2026-08-15 17:38:04 OrigenDeclarado
-#> 3 medicion-20260815T173804.248642-7585 2026-08-15 17:38:04 OrigenDeclarado
+#> 1 medicion-20260817T003636.917023-7423 2026-08-17 00:36:36 OrigenDeclarado
+#> 2 medicion-20260817T003636.917023-7423 2026-08-17 00:36:36 OrigenDeclarado
+#> 3 medicion-20260817T003636.917023-7423 2026-08-17 00:36:36 OrigenDeclarado
 #>   metrica_especifica            metrica_instanciada    dimension
 #> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
 #> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
@@ -406,11 +408,11 @@ medir(
   data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
 )
 #>                                     id_medida
-#> 1 medicion-20260815T173804.258023-7585-000001
-#> 2 medicion-20260815T173804.258023-7585-000002
+#> 1 medicion-20260817T003636.920044-7423-000001
+#> 2 medicion-20260817T003636.920044-7423-000002
 #>                            id_medicion               fecha
-#> 1 medicion-20260815T173804.258023-7585 2026-08-15 17:38:04
-#> 2 medicion-20260815T173804.258023-7585 2026-08-15 17:38:04
+#> 1 medicion-20260817T003636.920044-7423 2026-08-17 00:36:36
+#> 2 medicion-20260817T003636.920044-7423 2026-08-17 00:36:36
 #>                       metrica metrica_especifica           metrica_instanciada
 #> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
 #> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha

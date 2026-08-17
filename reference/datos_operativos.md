@@ -93,13 +93,11 @@ analisis$perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")]
 #> 14        sistema                   constante sospechoso
 #> 15       contacto           alta_cardinalidad sospechoso
 #> 16      id_evento       posible_identificador         ok
-#> 17 codigo_usuario casi_duplicados_vocabulario sospechoso
-#> 18   fecha_evento casi_duplicados_vocabulario sospechoso
+#> 17 codigo_usuario casi_duplicados_vocabulario         ok
+#> 18   fecha_evento casi_duplicados_vocabulario         ok
 #> 19          canal casi_duplicados_vocabulario sospechoso
 #> 20           zona casi_duplicados_vocabulario sospechoso
-#> 21       contacto casi_duplicados_vocabulario sospechoso
-#> 22      id_evento casi_duplicados_vocabulario sospechoso
-#> 23           <NA>            filas_duplicadas      error
-#> 24    id_registro         columnas_duplicadas sospechoso
-#> 25       contacto       dato_personal_posible         ok
+#> 21           <NA>            filas_duplicadas      error
+#> 22    id_registro         columnas_duplicadas sospechoso
+#> 23       contacto       dato_personal_posible         ok
 ```

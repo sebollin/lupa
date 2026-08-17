@@ -54,7 +54,7 @@ analisis
 #> ── Analisis de datos: entrega de ejemplo ─────────────────────────────────────────────────
 #> Filas: 13
 #> Columnas: 10
-#> Hallazgos del perfil: 25
+#> Hallazgos del perfil: 23
 #> Advertencias de alcance: 2
 #> Asociaciones informadas: 9
 #> Series temporales: 1
@@ -102,15 +102,13 @@ perfil$hallazgos[, c(
 #> 14        sistema                   constante sospechoso
 #> 15       contacto           alta_cardinalidad sospechoso
 #> 16      id_evento       posible_identificador         ok
-#> 17 codigo_usuario casi_duplicados_vocabulario sospechoso
-#> 18   fecha_evento casi_duplicados_vocabulario sospechoso
+#> 17 codigo_usuario casi_duplicados_vocabulario         ok
+#> 18   fecha_evento casi_duplicados_vocabulario         ok
 #> 19          canal casi_duplicados_vocabulario sospechoso
 #> 20           zona casi_duplicados_vocabulario sospechoso
-#> 21       contacto casi_duplicados_vocabulario sospechoso
-#> 22      id_evento casi_duplicados_vocabulario sospechoso
-#> 23           <NA>            filas_duplicadas      error
-#> 24    id_registro         columnas_duplicadas sospechoso
-#> 25       contacto       dato_personal_posible         ok
+#> 21           <NA>            filas_duplicadas      error
+#> 22    id_registro         columnas_duplicadas sospechoso
+#> 23       contacto       dato_personal_posible         ok
 #>                                                                                                                                                                                                                                                                                                                                                                                                               evidencia
 #> 1                                                                                                                                                                                                                                                                                                                                                                                      Tasa de valores distintos: 0.846
 #> 2                                                                                                                                                                                                                                                                                                                                                                                                               S/D (1)
@@ -132,11 +130,9 @@ perfil$hallazgos[, c(
 #> 18                         No se formaron grupos por distancia: 2 pares cercanos se descartaron por secuencias numericas incompatibles; alcance: 12 de 12 valores; 66 pares comparados de 66; truncado=FALSE; unidades normalizadas: 12 de 12; grupos: 0, mostrados: 0; grupo_maximo: 0 (0.000); limite_aplicado=FALSE; motivo_grupos=. pares descartados por secuencia numerica=2; grupo_maximo compatible=0 (0.000). 
 #> 19                              [web (5) / Web (1) / web  (1)]; asimetria=5.0; origen=normalizacion; clase_diferencia=normalizacion_exacta; alcance: 7 de 7 valores; 10 pares comparados de 10; truncado=FALSE; unidades normalizadas: 5 de 5; grupos: 1, mostrados: 1; grupo_maximo: 3 (0.429); limite_aplicado=FALSE; motivo_grupos=. pares descartados por secuencia numerica=0; grupo_maximo compatible=3 (0.429). 
 #> 20 [Este (2) / Oeste (3)]; asimetria=1.5; origen=distancia; clase_diferencia=token_unico; distancia_minima=0.0667; distancia_maxima=0.0667; alcance: 5 de 5 valores; 10 pares comparados de 10; truncado=FALSE; unidades normalizadas: 5 de 5; grupos: 1, mostrados: 1; grupo_maximo: 2 (0.400); limite_aplicado=FALSE; motivo_grupos=. pares descartados por secuencia numerica=0; grupo_maximo compatible=2 (0.400). 
-#> 21                                                                                                                                                                                                                                                                                                                                                                                                [evidencia protegida]
-#> 22                       No se formaron grupos por distancia: 51 pares cercanos se descartaron por secuencias numericas incompatibles; alcance: 12 de 12 valores; 66 pares comparados de 66; truncado=FALSE; unidades normalizadas: 12 de 12; grupos: 0, mostrados: 0; grupo_maximo: 12 (1.000); limite_aplicado=TRUE; motivo_grupos=. pares descartados por secuencia numerica=51; grupo_maximo compatible=0 (0.000). 
-#> 23                                                                                                                                                                                                                                                                                                                                                                                                   1 filas duplicadas
-#> 24                                                                                                                                                                                                                                                                                                                                                                                               id_registro = id_copia
-#> 25                                                                                                                                                                                                                                                                      Tipo posible: correo; fundamento: forma de correo dominante; poder discriminante: alto; proteccion automatica: si; proporción compatible: 0.923
+#> 21                                                                                                                                                                                                                                                                                                                                                                                                   1 filas duplicadas
+#> 22                                                                                                                                                                                                                                                                                                                                                                                               id_registro = id_copia
+#> 23                                                                                                                                                                                                                                                                      Tipo posible: correo; fundamento: forma de correo dominante; poder discriminante: alto; proteccion automatica: si; proporción compatible: 0.923
 ```
 
 La tabla por columna mantiene todas las proporciones en `[0, 1]`.
@@ -368,11 +364,11 @@ plan[, c(
 #> 15 grupo-0013          monto            winsorizar_outliers       FALSE   FALSE
 #> 16 grupo-0014        sistema     eliminar_columna_constante       FALSE   FALSE
 #> 17       <NA>       contacto           revisar_cardinalidad       FALSE   FALSE
-#> 18 grupo-0023           <NA>        marcar_filas_duplicadas        TRUE    TRUE
-#> 19 grupo-0023           <NA>    conservar_primera_duplicada       FALSE   FALSE
-#> 20 grupo-0023           <NA>         conservar_mas_completa       FALSE   FALSE
-#> 21 grupo-0024    id_registro     marcar_columnas_duplicadas        TRUE    TRUE
-#> 22 grupo-0024    id_registro     eliminar_columna_duplicada       FALSE   FALSE
+#> 18 grupo-0021           <NA>        marcar_filas_duplicadas        TRUE    TRUE
+#> 19 grupo-0021           <NA>    conservar_primera_duplicada       FALSE   FALSE
+#> 20 grupo-0021           <NA>         conservar_mas_completa       FALSE   FALSE
+#> 21 grupo-0022    id_registro     marcar_columnas_duplicadas        TRUE    TRUE
+#> 22 grupo-0022    id_registro     eliminar_columna_duplicada       FALSE   FALSE
 #>         estado
 #> 1  informativa
 #> 2        lista
@@ -419,7 +415,7 @@ c(
   despues = nrow(perfil_despues$hallazgos)
 )
 #>   antes despues 
-#>      25      21
+#>      23      19
 ```
 
 ## Un archivo para compartir
@@ -446,7 +442,7 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file21804f2383bf.html"
+#> [1] "file20eb6c183e32.html"
 unlink(c(archivo, archivo_rds))
 ```
 
