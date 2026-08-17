@@ -30,6 +30,18 @@ data(datos_operativos)
 dim(datos_operativos)
 ```
 
+La lista amplia de sentinelas numéricos de `naniar` se solicita de manera
+explícita porque valores como `66`, `77` y `88` pueden ser datos legítimos.
+
+```{r}
+perfil_sentinelas <- perfilar(
+  data.frame(codigo = c(1, 66, 9999)),
+  sentinelas_numericos = sentinelas_naniar,
+  analizar_dependencias = FALSE
+)
+perfil_sentinelas$columnas[, c("columna", "n_faltantes_disfrazados")]
+```
+
 El marco contra el que se informa la cobertura también es declarable. En un
 data frame, `perfil_mide` señala los factores para los que el profiling aporta
 evidencia suficiente por sí solo. La forma abreviada con una lista deja ese
@@ -198,5 +210,5 @@ basename(archivo)
 unlink(c(archivo, archivo_rds))
 ```
 
-Para profundizar en la arquitectura consulte `vignette("el-modelo-de-calidad")`; para
+Para profundizar en la arquitectura consulte `vignette("definir-la-calidad")`; para
 revisar decisiones de remediación, `vignette("limpiar-con-un-plan")`.

@@ -37,7 +37,8 @@ articles:
   navbar: ~
   contents:
   - empezar-con-lupa
-  - el-modelo-de-calidad
+  - definir-la-calidad
+  - medir-y-evaluar
   - limpiar-con-un-plan
   - historico-y-deriva
 

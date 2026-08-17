@@ -1,0 +1,223 @@
+---
+title: "Definir la calidad"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Definir la calidad}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+options(width = 90)
+```
+
+`lupa` implementa un modelo de calidad de uso general. La arquitectura sigue el
+linaje de dimensiones, factores y métricas descrito por Batini y Scannapieco
+(2016), y permite que cada usuario declare la taxonomía pertinente para su
+dominio. El marco de AGESIC viene incluido como una instancia verificable, no
+como una restricción del núcleo.
+
+La construcción y ejecución de las métricas se desarrolla en
+[Medir y evaluar](medir-y-evaluar.html); allí se usa un marco pequeño sin
+repetir la explicación de su taxonomía.
+
+```{r}
+library(lupa)
+```
+
+## Declarar dimensiones y factores
+
+`marco_calidad()` recibe una tabla o una lista con nombres. El resultado es
+consultable y puede validar que las métricas de un `modelo()` pertenezcan a los
+factores declarados.
+
+```{r}
+marco_propio <- marco_calidad("Marco de procedencia", list(
+  Trazabilidad = c("Origen documentado", "Linaje reproducible"),
+  Pertinencia = "Adecuación al uso"
+))
+marco_propio
+as.data.frame(marco_propio)[, c("dimension", "factor")]
+```
+
+## Dimensión, factor y métrica son una taxonomía
+
+Una dimensión reúne factores y un factor reúne métricas. Esa jerarquía permite
+clasificar y navegar el modelo, pero el marco no define una fórmula que produzca
+un “puntaje de Exactitud” ni un índice global. Promediar factores sin un
+contrato adicional ocultaría prioridades y correlaciones entre ellos.
+
+Por eso `lupa` conserva `dimension` y `factor` en cada medida, pero `agregar()`
+sólo acepta las transiciones de granularidad declaradas.
+
+```{r}
+granularidades()
+transiciones_granularidad()
+```
+
+Una celda puede agregarse hacia su columna o hacia su fila. Esas direcciones
+son ortogonales, no peldaños de una escala lineal.
+
+## Marcos incluidos
+
+`marco_iso25012()` ofrece las quince características de ISO/IEC 25012:2008 como
+otra taxonomía disponible. La norma distingue características inherentes,
+dependientes del sistema y aplicables desde ambas perspectivas. `lupa` usa esos
+tres grupos como dimensiones operativas y las características como factores;
+es una adaptación para la interfaz dimensión–factor, no la afirmación de que la
+norma defina esa jerarquía. Sus descripciones están redactadas para el paquete
+y no reproducen el texto normativo.
+
+```{r}
+iso <- marco_iso25012()
+table(as.data.frame(iso)$dimension)
+head(as.data.frame(iso)[, c("dimension", "factor", "descripcion")])
+```
+
+### El marco de aseguramiento de la calidad de CEA/CEPAL
+
+`marco_cepal()` representa los cuatro niveles y los diecinueve principios del
+marco nacional de aseguramiento de la calidad de Naciones Unidas, adoptado y
+adaptado para América Latina y el Caribe por la CEA/CEPAL.
+
+Trece de los diecinueve principios se declaran fuera de alcance. No es una
+limitación transitoria del motor: esos principios miden el sistema estadístico,
+el entorno institucional o el proceso, no el dato. Por ejemplo, “Asegurar la
+independencia profesional” no se establece mirando una tabla.
+
+```{r}
+cepal <- marco_cepal()
+tabla_cepal <- as.data.frame(cepal)
+c(
+  niveles = length(unique(tabla_cepal$dimension)),
+  principios = nrow(tabla_cepal),
+  fuera_de_alcance = sum(tabla_cepal$disponibilidad == "fuera_de_alcance")
+)
+```
+
+### El marco y el catálogo de AGESIC
+
+`marco_agesic()` devuelve los 17 factores usados por omisión en la cobertura.
+`catalogo_agesic()` mantiene por separado las 49 entradas, incluidas las que se
+obtienen por agregación o requieren insumos externos.
+
+```{r}
+catalogo <- catalogo_agesic()
+marco_agesic()
+as.data.frame(table(catalogo$estado, catalogo$motivo))
+catalogo[catalogo$estado == "via_agregacion", c(
+  "metrica_agesic", "metrica_lupa", "implementacion"
+)]
+```
+
+`estado` dice si la entrada está implementada, se obtiene por agregación, está
+pendiente o queda fuera del alcance tabular. `motivo` explica la causa: por
+ejemplo, distingue un motor pendiente de una implementación disponible que
+necesita un referencial o una configuración experta. La observación de cada fila
+explicita el contrato concreto y las implementaciones parciales.
+
+Un diccionario enumera valores sintácticamente válidos. Un referencial vincula
+claves y valores externos, y sólo permite medir cobertura cuando declara de qué
+universo es completo.
+
+```{r}
+padron <- referencial(
+  data.frame(codigo = c("01", "02"), nombre = c("Artigas", "Canelones")),
+  clave = "codigo", valor = "nombre", completo = TRUE,
+  alcance = "departamentos incluidos en el ejemplo"
+)
+names(metricas_referencial())
+padron
+```
+
+La tabla del catálogo es la respuesta verificable a “qué implementa el
+paquete”; las entradas fuera de alcance no se presentan como resueltas.
+
+## Validadores y packs territoriales
+
+`Formato` acepta cualquier función vectorizada que devuelva un lógico por
+valor. El núcleo incluye validadores internacionales de códigos ISO, correo,
+Luhn y módulo 97. Uruguay es un pack territorial de referencia, no una rama
+especial del motor.
+
+```{r}
+nucleo <- metricas_nucleo()
+internacionales <- validadores_internacionales()
+uruguay <- validadores_uruguay()
+internacionales$iso4217(c("UYU", "CLP", "ZZZ"))
+uruguay$cedula(c("1.234.567-2", "1.234.567-3"))
+
+cedula_valida <- especializar(
+  nucleo$Formato, "CedulaValida", validador = uruguay$cedula
+)
+medir(
+  modelo(cedula_valida("personas", "documento")),
+  data.frame(documento = c("1.234.567-2", "1.234.567-3"))
+)[, c("objeto_medible", "resultado")]
+```
+
+Un proyecto de otro país construye un pack con `pack_validadores()` y mantiene
+su función en su propio paquete o script. No necesita registrar nombres ni
+modificar `lupa`; la ayuda de `pack_validadores()` incluye un ejemplo completo
+con un RUT chileno.
+
+## Lo que no se midió también es un resultado
+
+Un perfil sin hallazgos no demuestra que todos los factores hayan sido
+evaluados. `cobertura_analisis()` separa lo medido de lo no declarado, lo que no
+aplica a los tipos presentes y lo que permanece fuera de alcance.
+
+```{r}
+perfil <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
+cobertura_analisis(perfil)
+```
+
+Los contratos temporales y de precisión se declaran con `vigencia()` y
+`escala()`: el paquete no intenta aprenderlos de una sola entrega.
+
+Para otro marco, la misma función informa exclusivamente sus dimensiones y
+factores:
+
+```{r}
+cobertura_analisis(perfil, modelo = marco_propio)
+```
+
+En el marco de CEA/CEPAL, el contraste deja a la vista los tres estados incluso
+cuando uno de ellos tiene frecuencia cero: 13 principios fuera de alcance, 6 no
+declarados y ninguno medido.
+
+```{r}
+cobertura_cepal <- cobertura_analisis(perfil, modelo = cepal)
+as.data.frame(table(
+  estado = factor(
+    cobertura_cepal$estado,
+    levels = c("fuera_de_alcance", "no_declarada", "medida")
+  )
+))
+```
+
+La primera columna de cada salida identifica el marco activo, por lo que una
+tabla exportada conserva el contexto de la evaluación.
+
+## Referencias
+
+[Batini C, Scannapieco M (2016)](https://doi.org/10.1007/978-3-319-24106-7).
+*Data and Information Quality: Dimensions, Principles and Techniques*.
+Springer.
+
+[AGESIC (2020)](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/).
+*Marco de trabajo para la Gestión de la Calidad de Datos en Gobierno Digital*,
+versión 1.6. Presidencia de la República, Uruguay.
+
+[ISO/IEC (2008)](https://www.iso.org/standard/35736.html).
+*ISO/IEC 25012:2008 Software engineering — Software product Quality
+Requirements and Evaluation (SQuaRE) — Data quality model*.
+
+[Naciones Unidas (2019)](https://unstats.un.org/unsd/methodology/dataquality/).
+*Manual del marco nacional de aseguramiento de calidad en las estadísticas
+oficiales*. Estudios en Métodos, serie M, N° 100, Nueva York.
+
+[CEA/CEPAL (2022)](https://repositorio.cepal.org/handle/11362/47464).
+*Guía para la implementación del marco de aseguramiento de la calidad para
+procesos y productos estadísticos*. LC/CEA.11/19, Naciones Unidas, Santiago.

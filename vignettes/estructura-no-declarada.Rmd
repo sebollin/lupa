@@ -175,6 +175,6 @@ transiciones_granularidad()
 ```
 
 Ese vocabulario conecta el examen con el
-[modelo de calidad](el-modelo-de-calidad.html): una estructura observada puede
+[definición de la calidad](definir-la-calidad.html): una estructura observada puede
 orientar qué medir, pero la métrica, su granularidad y su interpretación se
 declaran en el modelo.

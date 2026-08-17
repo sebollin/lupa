@@ -62,6 +62,16 @@ historico[, c("id_medicion", "fecha", "nivel", "resultado")]
 detectar_deriva_calidad(historico, umbral = 0.05)
 ```
 
+`acumular_historico()` existe para el flujo incremental: amplía una serie ya
+guardada y no duplica una corrida idéntica.
+
+```{r}
+historico_incremental <- acumular_historico(
+  historico_calidad(evaluacion_enero), evaluacion_febrero
+)
+identical(historico, historico_incremental)
+```
+
 La persistencia usa RDS y no agrega dependencias. El archivo no se sobrescribe
 sin consentimiento.
 

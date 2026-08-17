@@ -40,6 +40,13 @@ La justificación acompaña cada alternativa.
 plan[, c("estrategia", "justificacion")]
 ```
 
+`normalizacion()` permite declarar qué diferencias se ignoran al comparar. El
+perfil cambia sólo la representación de comparación; nunca modifica los datos.
+
+```{r}
+normalizacion(acentos = FALSE, puntuacion = TRUE)
+```
+
 ## Grupos mutuamente excluyentes
 
 Las alternativas de un mismo hallazgo comparten `grupo`. Como máximo una puede
