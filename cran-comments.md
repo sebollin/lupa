@@ -10,43 +10,50 @@
 
 ## Test environments
 
-> **Not ready for submission.** The sources changed after the last full round of
-> external checks. The local result below is from the current sources; the
-> Windows and macOS builder runs were resubmitted for these same sources and
-> their results must be recorded here before this package is uploaded.
-
 Every result below is from a run of one build of these exact sources, with no
 change to the package between them. `R CMD build` stamps `Packaged:` into
 `DESCRIPTION`, so two builds of identical sources are never byte-identical; the
-claim is about the sources, which is what can be checked.
+claim is about the sources, which is what can be checked. The build used
+throughout carries `Packaged: 2026-08-17 04:19:25 UTC`.
 
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — 0 errors, 0 warnings,
   2 notes (new submission; no `tidy` executable in this environment). Examples
-  OK; tests OK in 98s; vignettes rebuilt; PDF manual OK.
+  OK; tests OK in 113s; vignettes rebuilt; PDF and HTML manuals OK.
 * win-builder, R-devel (2026-08-15 r90413 ucrt), x86_64-w64-mingw32 — 1 NOTE
-  (new submission), no URL notes; examples OK, tests OK in 367s, vignettes
-  rebuilt, HTML manual OK.
-* win-builder, R 4.6.1, x86_64-w64-mingw32 — resubmitted, result pending.
-* macOS builder, R 4.6.1, macOS, arm64 (Apple M1) — resubmitted, result pending.
-* R-hub v2, R-devel: Ubuntu Linux x86_64, Windows x86_64 and macOS x86_64 —
-  pending.
+  (new submission), no URL notes; examples OK, tests OK in 401s, vignettes
+  rebuilt.
+* win-builder, R release, x86_64-w64-mingw32 — result pending.
+* R-hub v2, R-devel: Ubuntu Linux x86_64, Windows x86_64 and macOS — all three
+  OK.
 * Continuous integration (GitHub Actions, `R-CMD-check`): Ubuntu with R release,
-  R-devel and R oldrel-1, plus macOS and Windows with R release — pending.
+  R-devel and R oldrel-1; Windows with R release; and macOS with R release on
+  **`aarch64-apple-darwin23`** — 5 of 5 green.
 * Container: R 3.6.3 (`rocker/r-ver:3.6.3`) for the declared minimum, against a
-  2023-04-15 CRAN snapshot with `cli` 3.6.1, run with
+  2023-04-15 CRAN snapshot from Posit Package Manager, run with
   `--ignore-vignettes --no-tests --no-manual` and `_R_CHECK_FORCE_SUGGESTS_=false`
-  — pending.
+  — 0 errors, 0 warnings, 2 notes, and `checking examples` OK. Both notes are
+  properties of that environment, not of the package: five suggested packages
+  (`covr`, `knitr`, `rmarkdown`, `sf`, `stringi`) have no installable build for
+  R 3.6 in that snapshot, and the shipped data contains one marked UTF-8 string.
+  Vignettes, tests and the manual are checked under R 4.6.1 and on the services
+  above.
 
-The snapshot date matters and is not arbitrary: `DESCRIPTION` declares
-`cli (>= 3.0.0)`, and `cli` 3.0.0 was published in 2021, so any earlier CRAN
-snapshot fails with `Package required and available but unsuitable version` and
-cannot exercise the package at all.
+The macOS builder at <https://mac.r-project.org/macbuilder/> returned HTTP 502
+for every submission attempt over more than twelve hours while this release was
+being prepared, so it could not be used. Apple silicon is covered instead by the
+GitHub Actions `macos-latest` runner, which reports
+`using platform: aarch64-apple-darwin23`.
 
 The arm64 run matters for this package: an earlier revision classified duplicate
 pairs by testing a floating-point distance for equality, which held on x86_64 and
 failed on Apple silicon. The classification now compares the normalised strings
 directly, so the result no longer depends on the architecture, and a regression
 test forces a non-zero distance of 1e-16 to keep it that way.
+
+The snapshot date matters and is not arbitrary: `DESCRIPTION` declares
+`cli (>= 3.0.0)`, and `cli` 3.0.0 was published in 2021, so any earlier CRAN
+snapshot fails with `Package required and available but unsuitable version` and
+cannot exercise the package at all.
 
 ## Implementation notes
 
@@ -70,6 +77,16 @@ found nothing is reported at severity `ok` with zero affected units, never as a
 suspicion. A profile with no findings and a non-empty `cobertura_diagnosticos` is
 therefore not a clean profile, and the documentation says so where an automated
 consumer will read it.
+
+Aggregated measurements carry an explicit orientation — `conformidad`, `defecto`
+or `no_aplica` — because a `0.006` proportion of duplicated entities and a
+`0.999` proportion of non-null cells are both valid results that must not be read
+the same way. `indice_calidad()` returns a single number only when the caller
+declares the weights; without them it returns the dashboard. The index always
+travels with its coverage of the declared framework, records the weights used,
+states which components were inverted because their orientation is `defecto`, and
+warns that its components come from different universes. The package ships no
+default weights and computes no global score of its own.
 
 The package ships a battery of clean tables as a regression test: thirty-one
 tables of correct data covering the idioms a naive detector confuses — names with
