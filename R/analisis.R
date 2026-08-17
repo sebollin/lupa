@@ -64,17 +64,102 @@
   resultado
 }
 
+.decision_medicion_propuesta <- function(propuesta, seleccion, confirmada,
+                                         medicion_automatica) {
+  if (!nrow(propuesta)) {
+    return(data.frame(
+      metrica = character(), objeto = character(), estado = character(),
+      medida = logical(), motivo = character(), justificacion = character(),
+      confirmada = logical(), stringsAsFactors = FALSE
+    ))
+  }
+  medida <- seq_len(nrow(propuesta)) %in% seleccion
+  motivo <- ifelse(
+    medida,
+    if (medicion_automatica) {
+      "lupa la eligi\u00f3 porque la propuesta qued\u00f3 en estado 'lista'."
+    } else {
+      "La propuesta confirmada incluy\u00f3 esta m\u00e9trica."
+    },
+    if (!medicion_automatica && !confirmada) {
+      "La medici\u00f3n autom\u00e1tica fue desactivada."
+    } else ifelse(
+      propuesta$estado != "lista",
+      paste0("Qued\u00f3 afuera por su estado: ", propuesta$estado, "."),
+      "Qued\u00f3 afuera de la selecci\u00f3n confirmada."
+    )
+  )
+  data.frame(
+    metrica = propuesta$metrica,
+    objeto = ifelse(
+      nzchar(propuesta$atributos), propuesta$atributos, "(tabla)"
+    ),
+    estado = as.character(propuesta$estado),
+    medida = medida,
+    motivo = motivo,
+    justificacion = propuesta$justificacion,
+    confirmada = rep(confirmada, nrow(propuesta)),
+    stringsAsFactors = FALSE
+  )
+}
+
+.decision_medicion_modelo <- function(modelo_elegido) {
+  if (is.null(modelo_elegido)) return(NULL)
+  filas <- lapply(modelo_elegido$metricas, function(x) {
+    data.frame(
+      metrica = x$declaracion$nombre,
+      objeto = if (length(x$atributos)) {
+        paste(x$atributos, collapse = " + ")
+      } else {
+        "(tabla)"
+      },
+      estado = "confirmada", medida = TRUE,
+      motivo = "La m\u00e9trica pertenece al modelo confirmado.",
+      justificacion = "Modelo declarado por quien realiza el an\u00e1lisis.",
+      confirmada = TRUE, stringsAsFactors = FALSE
+    )
+  })
+  do.call(rbind, filas)
+}
+
+.marco_modelo_analisis <- function(modelo_elegido) {
+  if (is.null(modelo_elegido)) return(marco_agesic())
+  if (inherits(modelo_elegido$marco, "marco_calidad")) {
+    return(modelo_elegido$marco)
+  }
+  declaraciones <- lapply(modelo_elegido$metricas, `[[`, "declaracion")
+  factores <- unique(data.frame(
+    dimension = vapply(declaraciones, `[[`, character(1L), "dimension"),
+    factor = vapply(declaraciones, `[[`, character(1L), "factor"),
+    stringsAsFactors = FALSE
+  ))
+  if (anyNA(factores) || any(!nzchar(factores$dimension)) ||
+      any(!nzchar(factores$factor))) {
+    return(marco_agesic())
+  }
+  agesic <- marco_agesic()
+  claves <- paste(factores$dimension, factores$factor, sep = "\r")
+  claves_agesic <- paste(
+    agesic$factores$dimension, agesic$factores$factor, sep = "\r"
+  )
+  if (all(claves %in% claves_agesic)) agesic else {
+    marco_calidad("Marco del modelo confirmado", factores)
+  }
+}
+
 #' Ejecutar el análisis descriptivo completo
 #'
 #' Es la puerta de entrada al recorrido de `lupa`. Construye el perfil, las
 #' distribuciones, asociaciones, diagnóstico temporal, clasificación confirmable
-#' de variables, propuesta de modelo, cobertura conceptual y plan de limpieza.
-#' No modifica datos ni mide la propuesta generada automáticamente.
+#' de variables, propuesta de modelo, medición agregada, tablero, cobertura
+#' conceptual y plan de limpieza. No modifica los datos.
 #'
-#' La cadena de medición sólo se completa si se recibe `modelo_confirmado` o
-#' `propuesta_confirmada`. En el segundo caso se materializan únicamente sus
-#' filas activas mediante [modelo_desde_propuesta()]. La evaluación requiere
-#' además un `perfil_evaluacion` explícito.
+#' Por omisión mide todas las sugerencias de la propuesta cuyo estado es
+#' `"lista"`, aunque no estuvieran activas, y declara que esa selección fue
+#' realizada por `lupa` sin confirmación. Agrega inmediatamente el detalle y
+#' conserva [tablero_calidad()]; las medidas fila a fila sólo quedan en el
+#' resultado si `conservar_detalle_medicion = TRUE`. La evaluación, cuando se
+#' solicita, usa la medición agregada.
 #'
 #' @param datos Tabla que se desea analizar.
 #' @param nombre Nombre de la entrega.
@@ -88,6 +173,11 @@
 #'   [marco_agesic()].
 #' @param perfil_evaluacion Perfil explícito para [evaluar()] o `NULL`.
 #' @param id_medicion Identificador opcional enviado a [medir()].
+#' @param medir_propuesta Si se mide automáticamente la propuesta en estado
+#'   `"lista"` cuando no se recibe un modelo o una propuesta confirmada. Use
+#'   `FALSE` para conservar el comportamiento descriptivo anterior.
+#' @param conservar_detalle_medicion Si se retienen las medidas fila a fila.
+#'   Es `FALSE` por omisión: el tablero y la medición agregada permanecen.
 #' @param muestra Límite de filas para perfil, distribuciones y enumeración de
 #'   niveles observados.
 #' @param muestra_asociacion Límite común de filas para asociaciones.
@@ -126,6 +216,8 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
                      modelo_confirmado = NULL, propuesta_confirmada = NULL,
                      marco = NULL,
                      perfil_evaluacion = NULL, id_medicion = NULL,
+                     medir_propuesta = TRUE,
+                     conservar_detalle_medicion = FALSE,
                      muestra = 1e5, muestra_asociacion = 1e4,
                      max_valores = 20L,
                      probabilidades = c(0, 0.25, 0.5, 0.75, 1),
@@ -159,11 +251,17 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
     stop("`argumentos_perfil` no puede reemplazar argumentos coordinados por analizar().",
          call. = FALSE)
   }
-  logicos <- c(conservar_datos, proteger_datos_personales)
+  logicos <- c(
+    conservar_datos, proteger_datos_personales, medir_propuesta,
+    conservar_detalle_medicion
+  )
   if (!is.logical(conservar_datos) || length(conservar_datos) != 1L ||
       !is.logical(proteger_datos_personales) ||
-      length(proteger_datos_personales) != 1L || anyNA(logicos)) {
-    stop("Los controles de conservacion y proteccion deben ser logicos.",
+      length(proteger_datos_personales) != 1L ||
+      !is.logical(medir_propuesta) || length(medir_propuesta) != 1L ||
+      !is.logical(conservar_detalle_medicion) ||
+      length(conservar_detalle_medicion) != 1L || anyNA(logicos)) {
+    stop("Los controles de medicion, conservacion y proteccion deben ser logicos.",
          call. = FALSE)
   }
   if (!is.null(modelo_confirmado) && !is.null(propuesta_confirmada)) {
@@ -205,31 +303,91 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
   )
   propuesta <- proponer_modelo(perfil, datos)
   plan <- planificar_limpieza(perfil, datos)
+  seleccion_automatica <- if (is.null(modelo_confirmado) &&
+                              is.null(propuesta_confirmada) &&
+                              medir_propuesta) {
+    which(as.character(propuesta$estado) == "lista")
+  } else integer()
+  propuesta_medida <- if (length(seleccion_automatica)) {
+    propuesta_automatica <- propuesta
+    propuesta_automatica$incluir[] <- FALSE
+    propuesta_automatica$incluir[seleccion_automatica] <- TRUE
+    propuesta_automatica
+  } else NULL
   modelo_elegido <- if (!is.null(propuesta_confirmada)) {
     modelo_desde_propuesta(propuesta_confirmada)
-  } else modelo_confirmado
+  } else if (!is.null(modelo_confirmado)) {
+    modelo_confirmado
+  } else if (!is.null(propuesta_medida)) {
+    modelo_desde_propuesta(propuesta_medida)
+  } else NULL
   marco_elegido <- if (!is.null(marco)) {
     marco
-  } else if (!is.null(modelo_elegido) &&
-             inherits(modelo_elegido$marco, "marco_calidad")) {
-    modelo_elegido$marco
   } else {
-    marco_agesic()
+    .marco_modelo_analisis(modelo_elegido)
   }
-  if (!is.null(modelo_elegido) && !is.null(marco)) {
-    modelo_elegido <- modelo(modelo_elegido$metricas, marco = marco)
+  if (!is.null(modelo_elegido)) {
+    dimensiones_modelo <- vapply(modelo_elegido$metricas, function(x) {
+      x$declaracion$dimension
+    }, character(1L))
+    factores_modelo <- vapply(modelo_elegido$metricas, function(x) {
+      x$declaracion$factor
+    }, character(1L))
+    claves_modelo <- vapply(modelo_elegido$metricas, function(x) {
+      paste(x$declaracion$dimension, x$declaracion$factor, sep = "\r")
+    }, character(1L))
+    claves_marco <- paste(
+      marco_elegido$factores$dimension, marco_elegido$factores$factor,
+      sep = "\r"
+    )
+    if (!anyNA(dimensiones_modelo) && !anyNA(factores_modelo) &&
+        all(nzchar(dimensiones_modelo)) && all(nzchar(factores_modelo)) &&
+        all(claves_modelo %in% claves_marco)) {
+      modelo_elegido <- modelo(modelo_elegido$metricas, marco = marco_elegido)
+    }
   }
-  medicion <- if (!is.null(modelo_elegido)) {
+  detalle_medicion <- if (!is.null(modelo_elegido)) {
     medir(modelo_elegido, datos, id_medicion = id_medicion, fecha = fecha)
   } else NULL
-  if (!is.null(perfil_evaluacion) && is.null(medicion)) {
-    stop("`perfil_evaluacion` requiere un modelo o propuesta confirmada.",
+  if (!is.null(perfil_evaluacion) && is.null(detalle_medicion)) {
+    stop("`perfil_evaluacion` requiere una medici\u00f3n activa.",
          call. = FALSE)
   }
+  cobertura <- cobertura_analisis(
+    perfil, detalle_medicion, modelo = marco_elegido
+  )
+  preparado <- if (!is.null(detalle_medicion)) {
+    .preparar_tablero(
+      detalle_medicion, marco = marco_elegido, cobertura = cobertura
+    )
+  } else {
+    list(
+      tablero = .tablero_vacio(cobertura = cobertura, marco = marco_elegido),
+      medicion = NULL
+    )
+  }
+  medicion <- preparado$medicion
+  tablero <- preparado$tablero
   evaluacion <- if (!is.null(perfil_evaluacion)) {
     evaluar(medicion, perfil_evaluacion)
   } else NULL
-  cobertura <- cobertura_analisis(perfil, medicion, modelo = marco_elegido)
+  seleccion_confirmada <- if (!is.null(propuesta_confirmada)) {
+    which(propuesta_confirmada$incluir &
+            as.character(propuesta_confirmada$estado) == "lista")
+  } else integer()
+  decision_medicion <- if (!is.null(modelo_confirmado)) {
+    .decision_medicion_modelo(modelo_elegido)
+  } else if (!is.null(propuesta_confirmada)) {
+    .decision_medicion_propuesta(
+      propuesta_confirmada, seleccion_confirmada,
+      confirmada = TRUE, medicion_automatica = FALSE
+    )
+  } else {
+    .decision_medicion_propuesta(
+      propuesta, seleccion_automatica,
+      confirmada = FALSE, medicion_automatica = medir_propuesta
+    )
+  }
   advertencias <- .advertencias_analisis(
     distribuciones, asociaciones, temporal, variables, propuesta
   )
@@ -237,7 +395,10 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
   estructura <- list(
     perfil = perfil, distribuciones = distribuciones,
     asociaciones = asociaciones, temporal = temporal, variables = variables,
-    propuesta_modelo = propuesta, medicion = medicion, evaluacion = evaluacion,
+    propuesta_modelo = propuesta, decision_medicion = decision_medicion,
+    tablero = tablero, medicion = medicion,
+    detalle_medicion = if (conservar_detalle_medicion) detalle_medicion else NULL,
+    evaluacion = evaluacion,
     plan_limpieza = plan, cobertura = cobertura, advertencias = advertencias,
     datos = if (conservar_datos) as.data.frame(datos) else NULL,
     meta = list(
@@ -245,6 +406,11 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
       version_esquema = .version_esquema_analisis,
       version_paquete = .version_paquete(), datos_conservados = conservar_datos,
       modelo_medido = !is.null(medicion), evaluado = !is.null(evaluacion),
+      propuesta_medida_automaticamente = length(seleccion_automatica) > 0L,
+      propuesta_confirmada = !is.null(propuesta_confirmada) ||
+        !is.null(modelo_confirmado),
+      detalle_medicion_conservado = conservar_detalle_medicion &&
+        !is.null(detalle_medicion),
       marco_calidad = marco_elegido$nombre
     )
   )
@@ -262,8 +428,15 @@ print.analisis <- function(x, ...) {
     "Advertencias de alcance" = nrow(x$advertencias),
     "Asociaciones informadas" = nrow(x$asociaciones),
     "Series temporales" = nrow(x$temporal$resumen),
-    "Modelo medido" = if (isTRUE(x$meta$modelo_medido)) "si" else "no"
+    "Modelo medido" = if (isTRUE(x$meta$modelo_medido)) "si" else "no",
+    "Detalle fila a fila" = if (isTRUE(x$meta$detalle_medicion_conservado)) {
+      "conservado"
+    } else {
+      "no conservado"
+    }
   ))
+  cli::cli_h2("Tablero de calidad")
+  print(x$tablero)
   cli::cli_h2("Cobertura conceptual")
   conteos <- table(x$cobertura$estado)
   vista <- data.frame(

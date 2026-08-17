@@ -482,11 +482,11 @@ desvíos se conservan como síntesis no ligadas a una fila;
 nacimiento, un hallazgo separado conserva el diagnóstico de valores
 anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 Los números escritos como texto reconocen tanto coma como punto decimal y
-sus separadores de miles simétricos. Los códigos monetarios de tres letras,
-incluso como sufijo, \verb{U$S} y los símbolos monetarios se conservan como
-evidencia; \code{monedas_mixtas} informa sus frecuencias sin convertir ni
-suponer tasas de cambio. Una única moneda o un símbolo \verb{$} aislado no
-produce ese hallazgo.
+sus separadores de miles simétricos. Los prefijos de tres letras separados
+del número, incluso como sufijo, \code{U$S} y los símbolos monetarios se
+conservan como evidencia; \code{monedas_mixtas} informa sus frecuencias sin
+convertir ni suponer tasas de cambio. Una única moneda o un símbolo \code{$}
+aislado no produce ese hallazgo.
 Un sufijo de unidad se reconoce sólo si es \verb{\%} o una abreviatura alfabética
 en minúsculas; por eso \verb{12 kg} y \verb{13500 g} son unidades, mientras que
 \verb{12A} y \verb{13B} se tratan como códigos. Si hay más de una unidad observada,

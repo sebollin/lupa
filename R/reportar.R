@@ -300,6 +300,20 @@
   )
 }
 
+.seccion_tablero <- function(x, max_filas) {
+  alcance <- attr(x, "alcance", exact = TRUE)
+  cobertura <- attr(x, "cobertura", exact = TRUE)
+  paste0(
+    "<section><h2>Tablero de calidad</h2>",
+    "<p class=\"nota\">Cada fila declara la agregaci\u00f3n usada; el alcance ",
+    "impide leer estas medidas como si cubrieran todo el marco.</p>",
+    .html_tabla(x, max_filas),
+    "<h3>Alcance del marco</h3>", .html_tabla(alcance, Inf),
+    "<h3>Detalle de cobertura</h3>", .html_tabla(cobertura, Inf),
+    "</section>"
+  )
+}
+
 .clave_medida_reporte <- function(id_medicion, id_medida,
                                   metrica_instanciada) {
   paste(id_medicion, id_medida, metrica_instanciada, sep = "\r")
@@ -378,6 +392,11 @@
   if (inherits(x, "analisis")) {
     if (!is.null(x$medicion)) {
       x$medicion <- .proteger_medicion_desenlaces(x$medicion, desenlaces)
+    }
+    if (!is.null(x$detalle_medicion)) {
+      x$detalle_medicion <- .proteger_medicion_desenlaces(
+        x$detalle_medicion, desenlaces
+      )
     }
     if (!is.null(x$evaluacion)) {
       x$evaluacion <- .proteger_evaluacion_desenlaces(x$evaluacion)
@@ -602,7 +621,17 @@
   )
   propuesta <- paste0(
     "<section><h2>Propuesta de modelo</h2>",
-    "<p class=\"nota\">Esta propuesta no se mide automaticamente.</p>",
+    "<p class=\"nota\">",
+    if (isTRUE(x$meta$propuesta_confirmada)) {
+      "La selecci\u00f3n de medici\u00f3n fue confirmada por quien realiz\u00f3 el an\u00e1lisis. "
+    } else {
+      "La propuesta es de lupa y nadie la confirm\u00f3. "
+    },
+    "La tabla siguiente declara qu\u00e9 m\u00e9tricas se midieron, cu\u00e1les ",
+    "quedaron afuera y por qu\u00e9.</p>",
+    "<h3>Decisi\u00f3n de medici\u00f3n</h3>",
+    .html_tabla(x$decision_medicion, max_filas),
+    "<h3>Propuesta completa</h3>",
     .html_tabla(x$propuesta_modelo, max_filas), "</section>"
   )
   advertencias <- paste0(
@@ -620,7 +649,18 @@
       cobertura = x$cobertura
     ),
     distribuciones, asociaciones, temporal, variables, propuesta,
-    if (!is.null(x$medicion)) .seccion_medicion(x$medicion, max_filas) else "",
+    .seccion_tablero(x$tablero, max_filas),
+    if (!is.null(x$medicion)) {
+      .seccion_medicion(x$medicion, max_filas)
+    } else "",
+    if (!is.null(x$detalle_medicion)) {
+      paste0(
+        "<section><h2>Detalle de medici\u00f3n conservado</h2>",
+        "<p class=\"nota\">Este detalle fila a fila se conserv\u00f3 por pedido ",
+        "expl\u00edcito.</p>", .html_tabla(x$detalle_medicion, max_filas),
+        "</section>"
+      )
+    } else "",
     if (!is.null(x$evaluacion)) .seccion_evaluacion(x$evaluacion, max_filas) else "",
     .seccion_plan(x$plan_limpieza, max_filas)
   )

@@ -73,9 +73,12 @@ test_that("el flujo confirmado reconoce Correctitud sintactica como medida", {
   expect_true(all(
     analisis$medicion$factor == "Correctitud sint\u00e1ctica"
   ))
-  agregado <- agregar(analisis$medicion, "atributo", "ratio")
-  expect_identical(agregado$factor, "Correctitud sint\u00e1ctica")
-  expect_identical(agregado$orientacion, "conformidad")
+  # Ronda 111: analizar() ya conserva esta medicion en granularidad atributo;
+  # volver a agregar atributo -> atributo seria una transicion inexistente.
+  expect_identical(analisis$medicion$granularidad, "atributo")
+  expect_identical(analisis$medicion$agregacion, "ratio")
+  expect_identical(analisis$medicion$factor, "Correctitud sint\u00e1ctica")
+  expect_identical(analisis$medicion$orientacion, "conformidad")
 })
 
 test_that("la orientacion viaja de la declaracion a la agregacion", {

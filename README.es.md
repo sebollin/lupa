@@ -32,7 +32,7 @@ Los nombres públicos son españoles tanto en los ejemplos como en la ayuda:
 | `planificar_limpieza()` | plan a cleanup |
 | `guiar_limpieza()` | guide a cleanup |
 | `aplicar()` | apply a selected cleanup |
-| `medir()` / `evaluar()` | measure / evaluate |
+| `medir()` / `tablero_calidad()` / `evaluar()` | measure / dashboard / evaluate |
 | `detectar_duplicados_aproximados()` | find approximate duplicates |
 | `reportar()` | create a report |
 
@@ -100,11 +100,17 @@ perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
 head(perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")], 5)
 
 analisis <- analizar(datos_operativos)
+analisis$tablero
 archivo <- tempfile(fileext = ".html")
 reportar(analisis, archivo = archivo)
 stopifnot(file.exists(archivo))
 unlink(archivo)
 ~~~
+
+`analizar()` mide por omisión todas las métricas listas de su propuesta no
+confirmada, las agrega enseguida y conserva el tablero pequeño en vez del
+detalle fila a fila. `medir_propuesta = FALSE` apaga ese paso y
+`conservar_detalle_medicion = TRUE` conserva el detalle cuando se necesita.
 
 El perfilado es de sólo lectura: nunca cambia la tabla de entrada. Los
 hallazgos son data frames inspeccionables y la evidencia de datos personales se
@@ -124,7 +130,7 @@ viñetas enlazadas son el manual detallado. Esta tabla es el mapa breve:
 | Perfilar contra una base | `perfilar_dbi()` — agregados SQL de toda la tabla y un perfil de 99 campos sobre una muestra declarada; los alcances quedan separados | [Referencia](https://sebollin.github.io/lupa/reference/) |
 | Encontrar estructura no declarada | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
 | Definir la calidad | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
-| Medir y evaluar | `medir()`, `agregar()`, `evaluar()`, `regla_evaluacion()` con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
+| Medir y evaluar | `medir()`, `agregar()`, `tablero_calidad()`, `indice_calidad()` con pesos del proyecto, `evaluar()`, `regla_evaluacion()` con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Modelo de calidad](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
 | Limpiar sin romper nada | `planificar_limpieza()`, `guiar_limpieza()`, `aplicar()` | [Plan de limpieza](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
 | Encontrar duplicados aproximados | `detectar_duplicados_aproximados()`, `estimar_costo()` | [Escala y duplicados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
 | Reparar codificación dañada | `reparar_codificacion` mediante `planificar_limpieza()` y `aplicar()` | [Referencia de limpieza](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
@@ -144,10 +150,10 @@ propuesta <- proponer_modelo(perfilar(datos_operativos,
 list(marco = marco, propuesta = propuesta)
 ~~~
 
-La API tiene algunos límites importantes. No hay un puntaje global: las
-dimensiones, unidades y reglas permanecen visibles. Una ponderación de fábrica
-sería decidir qué importa, así que `lupa` entrega los componentes y una receta,
-y deja los pesos a cada proyecto. El núcleo es universal y
+La API tiene algunos límites importantes. No hay un puntaje de fábrica:
+`indice_calidad()` devuelve el tablero mientras el proyecto no declare pesos
+nombrados completos, y todo índice calculado conserva cobertura, pesos,
+transformaciones y universos heterogéneos. El núcleo es universal y
 los catálogos son enchufables; [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
 v1.6 es una implementación de referencia, no un límite nacional. El único
 import obligatorio es [`cli`](https://cran.r-project.org/package=cli). Los

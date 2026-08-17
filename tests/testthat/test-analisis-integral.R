@@ -368,7 +368,7 @@ test_that("las señales explícitas y los tipos restantes se distinguen", {
   expect_equal(confirmacion$confianza, 0.9)
 })
 
-test_that("analizar es descriptivo por omision e incluye cobertura", {
+test_that("analizar mide por omision sin conservar el detalle", {
   fecha <- as.POSIXct("2026-02-01", tz = "UTC")
   resultado <- analizar(
     datos_administrativos, fecha = fecha, analizar_dependencias = FALSE,
@@ -381,10 +381,16 @@ test_that("analizar es descriptivo por omision e incluye cobertura", {
   expect_s3_class(resultado$plan_limpieza, "plan_limpieza")
   expect_true(all(c("estado", "motivo", "como_resolverlo") %in%
                     names(resultado$cobertura)))
-  expect_null(resultado$medicion)
+  # Ronda 111: la propuesta lista se mide y queda agregada en vez de retener
+  # una fila por celda o fila de entrada.
+  expect_s3_class(resultado$medicion, "medicion")
+  expect_s3_class(resultado$tablero, "tablero_calidad")
+  expect_null(resultado$detalle_medicion)
   expect_null(resultado$evaluacion)
   expect_null(resultado$datos)
-  expect_false(resultado$meta$modelo_medido)
+  expect_true(resultado$meta$modelo_medido)
+  expect_true(resultado$meta$propuesta_medida_automaticamente)
+  expect_false(resultado$meta$propuesta_confirmada)
   expect_equal(resultado$meta$fecha, fecha)
   mensajes <- utils::capture.output(
     salida <- utils::capture.output(impreso <- print(resultado)),
@@ -393,6 +399,21 @@ test_that("analizar es descriptivo por omision e incluye cobertura", {
   expect_match(paste(mensajes, collapse = "\n"), "Analisis de datos")
   expect_identical(impreso, resultado)
   expect_true(length(salida) > 0L)
+})
+
+test_that("analizar puede desactivar solo la medicion automatica", {
+  # Ronda 111: este argumento conserva deliberadamente el contrato anterior
+  # para quienes necesitan un analisis puramente descriptivo.
+  resultado <- analizar(
+    datos_administrativos, medir_propuesta = FALSE,
+    analizar_dependencias = FALSE
+  )
+
+  expect_null(resultado$medicion)
+  expect_null(resultado$detalle_medicion)
+  expect_equal(nrow(resultado$tablero), 0L)
+  expect_false(resultado$meta$modelo_medido)
+  expect_false(resultado$meta$propuesta_medida_automaticamente)
 })
 
 test_that("analizar acepta tablas comunes sin mutarlas", {
@@ -456,7 +477,11 @@ test_that("analizar valida decisiones y argumentos coordinados", {
   expect_error(analizar(
     datos, modelo_confirmado = modelo_x, propuesta_confirmada = propuesta
   ), "no ambos")
-  expect_error(analizar(datos, perfil_evaluacion = list()), "requiere un modelo")
+  # Ronda 111: la evaluacion consume la medicion agregada; el diagnostico nombra
+  # ese requisito aunque la propuesta automatica no tenga filas medibles.
+  expect_error(
+    analizar(datos, perfil_evaluacion = list()), "requiere una medici"
+  )
   sin_proteccion <- analizar(
     datos, proteger_datos_personales = FALSE, analizar_dependencias = FALSE
   )

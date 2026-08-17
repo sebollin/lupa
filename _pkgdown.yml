@@ -93,6 +93,8 @@ reference:
   - transiciones_granularidad
   - medir
   - agregar
+  - tablero_calidad
+  - indice_calidad
 
 - title: Validar
   desc: Validadores internacionales y packs territoriales extensibles.

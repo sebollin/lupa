@@ -33,7 +33,7 @@ The public names are Spanish in both examples and help pages:
 | `planificar_limpieza()` | plan a cleanup |
 | `guiar_limpieza()` | guide a cleanup |
 | `aplicar()` | apply a selected cleanup |
-| `medir()` / `evaluar()` | measure / evaluate |
+| `medir()` / `tablero_calidad()` / `evaluar()` | measure / dashboard / evaluate |
 | `detectar_duplicados_aproximados()` | find approximate duplicates |
 | `reportar()` | create a report |
 
@@ -101,11 +101,17 @@ perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
 head(perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")], 5)
 
 analisis <- analizar(datos_operativos)
+analisis$tablero
 archivo <- tempfile(fileext = ".html")
 reportar(analisis, archivo = archivo)
 stopifnot(file.exists(archivo))
 unlink(archivo)
 ~~~
+
+`analizar()` measures every ready metric in its unconfirmed proposal by
+default, aggregates it immediately, and retains the small dashboard rather
+than row-level measurement detail. Use `medir_propuesta = FALSE` to disable
+that step or `conservar_detalle_medicion = TRUE` to retain the detail.
 
 The profile is read-only: it never changes the input table. Findings are
 ordinary inspectable data frames, and personal-data evidence is masked when
@@ -124,7 +130,7 @@ linked vignettes are the detailed manual. This table is the short map:
 | Profile against a database | `perfilar_dbi()` — full-table SQL aggregates plus a 99-field profile from a declared sample; the scopes stay separate | [Reference](https://sebollin.github.io/lupa/reference/) |
 | Find undeclared structure | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
 | Define quality | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Quality model](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
-| Measure and evaluate | `medir()`, `agregar()`, `evaluar()`, `regla_evaluacion()` with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Quality model](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
+| Measure and evaluate | `medir()`, `agregar()`, `tablero_calidad()`, `indice_calidad()` with project weights, `evaluar()`, `regla_evaluacion()` with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Quality model](https://sebollin.github.io/lupa/articles/el-modelo-de-calidad.html) |
 | Clean safely | `planificar_limpieza()`, `guiar_limpieza()`, `aplicar()` | [Cleaning plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
 | Find approximate duplicates | `detectar_duplicados_aproximados()`, `estimar_costo()` | [Scale and duplicates](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
 | Repair encoding damage | `reparar_codificacion` through `planificar_limpieza()` and `aplicar()` | [Cleanup reference](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
@@ -144,10 +150,10 @@ propuesta <- proponer_modelo(perfilar(datos_operativos,
 list(marco = marco, propuesta = propuesta)
 ~~~
 
-The API has a few boundaries worth knowing. There is no global quality score:
-dimensions, units, and rules stay visible. A factory weighting would be a
-verdict about what matters, so `lupa` exposes the components and a recipe and
-leaves the weights to each project. The core is universal and
+The API has a few boundaries worth knowing. There is no factory quality score:
+`indice_calidad()` returns the dashboard unless a project supplies complete
+named weights, and a calculated index always travels with its coverage,
+weights, transformations, and heterogeneous universes. The core is universal and
 catalogues are pluggable; [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
 v1.6 is a reference implementation, not a country lock. The only required
 import is [`cli`](https://cran.r-project.org/package=cli). Suggested packages

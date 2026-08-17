@@ -1,5 +1,18 @@
 # lupa 0.1.0
 
+## Tablero, indice declarado y medicion agregada
+
+- `tablero_calidad()` resume una corrida por metrica y objeto, declara la
+  agregacion aplicada en cada fila y conserva el alcance completo del marco.
+- `indice_calidad()` no calcula nada sin pesos del usuario. Con una declaracion
+  completa conserva cobertura, pesos por dimension, combinaciones internas,
+  inversiones de defectos, exclusiones `no_aplica` y la advertencia de que los
+  componentes provienen de universos distintos.
+- `analizar()` mide por omision la propuesta en estado `lista`, declara que no
+  fue confirmada, agrega las medidas y conserva el tablero. El detalle fila a
+  fila solo se retiene con `conservar_detalle_medicion = TRUE`; la medicion
+  automatica se desactiva con `medir_propuesta = FALSE`.
+
 ## Secuencias enteras densas y vocabularios breves
 
 - El perfil de columna publica si los enteros observados cubren densamente su

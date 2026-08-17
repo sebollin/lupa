@@ -15,6 +15,8 @@ analizar(
   marco = NULL,
   perfil_evaluacion = NULL,
   id_medicion = NULL,
+  medir_propuesta = TRUE,
+  conservar_detalle_medicion = FALSE,
   muestra = 1e+05,
   muestra_asociacion = 10000,
   max_valores = 20L,
@@ -54,6 +56,13 @@ usa la asociada a \code{modelo_confirmado} y, en último término,
 \item{perfil_evaluacion}{Perfil explícito para \code{\link[=evaluar]{evaluar()}} o \code{NULL}.}
 
 \item{id_medicion}{Identificador opcional enviado a \code{\link[=medir]{medir()}}.}
+
+\item{medir_propuesta}{Si se mide automáticamente la propuesta en estado
+\code{"lista"} cuando no se recibe un modelo o una propuesta confirmada. Use
+\code{FALSE} para conservar el comportamiento descriptivo anterior.}
+
+\item{conservar_detalle_medicion}{Si se retienen las medidas fila a fila.
+Es \code{FALSE} por omisión: el tablero y la medición agregada permanecen.}
 
 \item{muestra}{Límite de filas para perfil, distribuciones y enumeración de
 niveles observados.}
@@ -98,14 +107,16 @@ Objeto S3 \code{analisis} con todos los componentes y su cobertura.
 \description{
 Es la puerta de entrada al recorrido de \code{lupa}. Construye el perfil, las
 distribuciones, asociaciones, diagnóstico temporal, clasificación confirmable
-de variables, propuesta de modelo, cobertura conceptual y plan de limpieza.
-No modifica datos ni mide la propuesta generada automáticamente.
+de variables, propuesta de modelo, medición agregada, tablero, cobertura
+conceptual y plan de limpieza. No modifica los datos.
 }
 \details{
-La cadena de medición sólo se completa si se recibe \code{modelo_confirmado} o
-\code{propuesta_confirmada}. En el segundo caso se materializan únicamente sus
-filas activas mediante \code{\link[=modelo_desde_propuesta]{modelo_desde_propuesta()}}. La evaluación requiere
-además un \code{perfil_evaluacion} explícito.
+Por omisión mide todas las sugerencias de la propuesta cuyo estado es
+\code{"lista"}, aunque no estuvieran activas, y declara que esa selección fue
+realizada por \code{lupa} sin confirmación. Agrega inmediatamente el detalle y
+conserva \code{\link[=tablero_calidad]{tablero_calidad()}}; las medidas fila a fila sólo quedan en el
+resultado si \code{conservar_detalle_medicion = TRUE}. La evaluación, cuando se
+solicita, usa la medición agregada.
 }
 \examples{
 resultado <- analizar(
