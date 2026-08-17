@@ -40,7 +40,10 @@ perfilar(
   tolerancia_aritmetica = 1e-08,
   max_columnas_aritmetica = 20L,
   casi_duplicados_vocabulario = TRUE,
-  max_proporcion_grupo_vocabulario = 0.5
+  max_proporcion_grupo_vocabulario = 0.5,
+  umbral_variante_rara_vocabulario = 0.05,
+  min_asimetria_vocabulario_corto = 10,
+  min_participacion_dominante_vocabulario_corto = 0.5
 )
 }
 \arguments{
@@ -184,6 +187,17 @@ declare una regla de dominio o use \code{FALSE} para desactivar este diagnóstic
 que puede abarcar el grupo mayor para entregar grupos de variantes. Por
 defecto es \code{0.5}; si se supera, el alcance declara que el diagnóstico no
 aplica en vez de entregar un bloque que abarque casi toda la columna.}
+
+\item{umbral_variante_rara_vocabulario}{Proporcion maxima de la columna que
+puede ocupar una variante breve para abrir la comparacion por una edicion.}
+
+\item{min_asimetria_vocabulario_corto}{Razon minima entre la frecuencia de
+una forma dominante y una variante breve para abrir la comparacion por una
+edicion.}
+
+\item{min_participacion_dominante_vocabulario_corto}{Proporcion minima de la
+columna que debe ocupar la forma dominante en la comparacion por una
+edicion.}
 }
 \value{
 Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye

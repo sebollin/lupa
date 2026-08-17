@@ -1,5 +1,20 @@
 # lupa 0.1.0
 
+## Secuencias enteras densas y vocabularios breves
+
+- El perfil de columna publica si los enteros observados cubren densamente su
+  rango, junto con densidad, posiciones y huecos. En esa condicion los
+  centinelas numericos y los desvios que solo expresan el largo de una corrida
+  de digitos no interpretan el contenido del identificador; los ausentes,
+  duplicados y restantes diagnosticos siguen activos. Una secuencia densa y
+  unica se presenta como `posible_identificador` y no recomienda convertir el
+  texto numerico a una medida cuantitativa.
+- `casi_duplicados_vocabulario` cubre una sustitucion en valores de hasta seis
+  caracteres cuando la variante ocupa como maximo `0.05` de la columna y la
+  forma dominante es al menos `10` veces mas frecuente y ocupa al menos `0.5`
+  de la columna. El limite y los tres umbrales quedan en la evidencia y se
+  pueden ajustar en `perfilar()`.
+
 ## Orientacion explicita de las metricas
 
 - `metrica()` declara si un resultado expresa `"conformidad"`, `"defecto"` o
@@ -33,7 +48,7 @@
 ## Perfil de una muestra DBI con universo explícito
 
 - Se agrega `perfilar_dbi()` para separar los agregados SQL exactos sobre una
-  tabla completa del perfil de 93 campos calculado sobre una muestra declarada.
+  tabla completa del perfil de 99 campos calculado sobre una muestra declarada.
   La salida registra el motor informado por DBI, cada consulta, los agregados no
   disponibles y la reproducibilidad efectiva del orden, sin escribir en la base.
 

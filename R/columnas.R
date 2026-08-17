@@ -93,6 +93,40 @@
        n_fechas_excluidas_granularidad = NA_integer_)
 }
 
+.resumen_secuencia_entera <- function(x, inferencia, formatos,
+                                      umbral_densidad = 0.8,
+                                      min_distintos = 20L) {
+  vacio <- list(
+    densa = FALSE, densidad = NA_real_, n_posiciones = NA_real_,
+    n_huecos = NA_real_, umbral_densidad = umbral_densidad,
+    min_distintos = as.integer(min_distintos)
+  )
+  if (!identical(as.character(inferencia$tipo), "entero")) return(vacio)
+  cuantitativos <- .valores_cuantitativos(x, inferencia, formatos)
+  if (!identical(cuantitativos$clase, "numero")) return(vacio)
+  presentes <- !is.na(x)
+  valores <- cuantitativos$valores
+  if (!any(presentes) || length(valores) != length(x) ||
+      any(!is.finite(valores[presentes])) ||
+      any(valores[presentes] != floor(valores[presentes]))) {
+    return(vacio)
+  }
+  distintos <- sort(unique(valores[presentes]))
+  if (!length(distintos)) return(vacio)
+  n_posiciones <- max(distintos) - min(distintos) + 1
+  if (!is.finite(n_posiciones) || n_posiciones < 1) return(vacio)
+  densidad <- length(distintos) / n_posiciones
+  list(
+    densa = length(distintos) >= min_distintos &&
+      densidad >= umbral_densidad,
+    densidad = as.numeric(densidad),
+    n_posiciones = as.numeric(n_posiciones),
+    n_huecos = as.numeric(n_posiciones - length(distintos)),
+    umbral_densidad = umbral_densidad,
+    min_distintos = as.integer(min_distintos)
+  )
+}
+
 .resumen_vacio_cuantitativo <- function(estado = "no_aplica") {
   list(
     minimo = NA_real_, maximo = NA_real_, media = NA_real_,
@@ -1151,8 +1185,12 @@
     class(estructura) <- c("patrones", "data.frame")
     estructura
   }
+  secuencia_entera <- .resumen_secuencia_entera(
+    x_analisis, inferencia, formatos
+  )
   faltantes_disfrazados <- .detectar_faltantes_disfrazados(
-    x_analisis, sentinelas_numericos = sentinelas_numericos
+    x_analisis, sentinelas_numericos = sentinelas_numericos,
+    detectar_sentinelas_numericos = !isTRUE(secuencia_entera$densa)
   )
   n <- length(x)
   n_faltantes <- sum(is.na(x))
@@ -1216,6 +1254,12 @@
     tasa_distintos = if (n_validos && !is.na(n_distintos)) {
       n_distintos / n_validos
     } else NA_real_,
+    secuencia_entera_densa = secuencia_entera$densa,
+    densidad_secuencia_entera = secuencia_entera$densidad,
+    n_posiciones_secuencia_entera = secuencia_entera$n_posiciones,
+    n_huecos_secuencia_entera = secuencia_entera$n_huecos,
+    umbral_densidad_secuencia_entera = secuencia_entera$umbral_densidad,
+    min_distintos_secuencia_entera = secuencia_entera$min_distintos,
     moda = moda$valor,
     frecuencia_moda = moda$frecuencia,
     longitud_minima = unname(longitudes[["minimo"]]),
@@ -1302,6 +1346,7 @@
     inferencia = inferencia,
     formatos = formatos,
     patrones = patrones,
+    secuencia_entera = secuencia_entera,
     faltantes_disfrazados = faltantes_disfrazados,
     diagnostico_texto = diagnostico_texto,
     numeros_texto = numeros_texto,

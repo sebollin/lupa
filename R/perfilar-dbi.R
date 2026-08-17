@@ -335,7 +335,7 @@
 #'
 #' Calcula en SQL un resumen acotado sobre toda una tabla y, en un bloque
 #' separado, ejecuta [perfilar()] sobre una muestra traida a memoria. El resumen
-#' completo de 93 campos no se presenta como calculado por la base: esos campos
+#' completo de 99 campos no se presenta como calculado por la base: esos campos
 #' pertenecen exclusivamente a `perfil_muestra` y su universo es la muestra.
 #'
 #' Esta funcion no escribe en la conexion ni crea objetos temporales. `DBI` es

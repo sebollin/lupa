@@ -395,12 +395,21 @@
     if (all(clases == "token_completo")) "token_completo" else "mixta"
 }
 
+.patrones_solo_largo_corrida_numerica <- function(dominante, desvios) {
+  forma <- function(x) gsub("9\\+|9+", "<N>", as.character(x), perl = TRUE)
+  !is.na(desvios) & forma(desvios) == forma(dominante) &
+    as.character(desvios) != as.character(dominante)
+}
+
 .grupos_casi_duplicados_vocabulario <- function(x, perfil, columna,
                                                 max_valores = 5000L,
                                                 max_pares = 2000000L,
                                                 metodo = "jw", p = 0.1,
                                                 umbral = 0.10, nucleos = 2L,
-                                                max_proporcion_grupo = 0.5) {
+                                                max_proporcion_grupo = 0.5,
+                                                umbral_variante_rara = 0.05,
+                                                min_asimetria_variante = 10,
+                                                min_participacion_dominante = 0.5) {
   if (!(is.character(x) || is.factor(x)) || is.matrix(x) || is.list(x)) {
     return(NULL)
   }
@@ -442,11 +451,14 @@
   max_unidades <- min(n_unidades, max(1L, max_unidades))
   distancia_pares <- data.frame(
     fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
+    origen = character(),
     stringsAsFactors = FALSE
   )
   distancia_pares_sin_filtro <- distancia_pares
   frecuencia_unidad <- as.numeric(tapply(frecuencias, clases, sum))
   n_candidatos_distancia <- 0L
+  n_candidatos_edicion_corta <- 0L
+  n_descartados_frecuencia_edicion_corta <- 0L
   n_pares_descartados_numeros <- 0L
   hay_firmas_numericas_distintas <- length(unique(firmas_numericas)) > 1L
   if (disponible && max_unidades > 1L) {
@@ -455,13 +467,16 @@
       mejor_hub_sin_filtro <- integer(n_unidades)
       mejor_distancia_sin_filtro <- numeric(n_unidades)
       empate_mejor_hub_sin_filtro <- logical(n_unidades)
+      mejor_origen_sin_filtro <- rep("distancia", n_unidades)
     }
     mejor_frecuencia <- numeric(n_unidades)
     mejor_hub <- integer(n_unidades)
     mejor_distancia <- numeric(n_unidades)
     empate_mejor_hub <- logical(n_unidades)
+    mejor_origen <- rep("distancia", n_unidades)
     actualizar_estrellas <- function(fila_1, fila_2, distancia,
-                                     sin_filtro = FALSE) {
+                                     sin_filtro = FALSE,
+                                     origen = "distancia") {
       frecuencia <- if (sin_filtro) mejor_frecuencia_sin_filtro else {
         mejor_frecuencia
       }
@@ -472,6 +487,7 @@
       empates <- if (sin_filtro) empate_mejor_hub_sin_filtro else {
         empate_mejor_hub
       }
+      origenes <- if (sin_filtro) mejor_origen_sin_filtro else mejor_origen
       for (i in seq_along(fila_1)) {
         primero <- as.integer(fila_1[[i]])
         segundo <- as.integer(fila_2[[i]])
@@ -490,6 +506,7 @@
           frecuencia[[bajo]] <- frecuencia_alta
           hub[[bajo]] <- alto
           distancias[[bajo]] <- distancia[[i]]
+          origenes[[bajo]] <- origen
           empates[[bajo]] <- FALSE
         } else if (frecuencia_alta == frecuencia[[bajo]]) {
           empates[[bajo]] <- TRUE
@@ -500,17 +517,50 @@
         mejor_hub_sin_filtro <<- hub
         mejor_distancia_sin_filtro <<- distancias
         empate_mejor_hub_sin_filtro <<- empates
+        mejor_origen_sin_filtro <<- origenes
       } else {
         mejor_frecuencia <<- frecuencia
         mejor_hub <<- hub
         mejor_distancia <<- distancias
         empate_mejor_hub <<- empates
+        mejor_origen <<- origenes
       }
       invisible(NULL)
     }
-    registrar_candidatos <- function(fila_1, fila_2, distancia) {
+    registrar_candidatos <- function(fila_1, fila_2, distancia,
+                                     edicion_corta = FALSE) {
+      origen <- if (edicion_corta) {
+        "distancia_edicion_corta"
+      } else {
+        "distancia"
+      }
+      if (edicion_corta) {
+        distancias_jw <- .distancias_pares_duplicados(
+          valores_norm[fila_1], valores_norm[fila_2], metodo, nucleos, p
+        )
+        no_cubiertos <- is.finite(distancias_jw) & distancias_jw > umbral
+        frecuencia_1 <- frecuencia_unidad[fila_1]
+        frecuencia_2 <- frecuencia_unidad[fila_2]
+        menor <- pmin(frecuencia_1, frecuencia_2)
+        mayor <- pmax(frecuencia_1, frecuencia_2)
+        cumple_frecuencia <- menor / sum(presentes) <=
+          umbral_variante_rara & mayor / menor >= min_asimetria_variante &
+          mayor / sum(presentes) >= min_participacion_dominante
+        n_candidatos_edicion_corta <<- n_candidatos_edicion_corta +
+          sum(no_cubiertos)
+        n_descartados_frecuencia_edicion_corta <<-
+          n_descartados_frecuencia_edicion_corta +
+          sum(no_cubiertos & !cumple_frecuencia)
+        conservar <- no_cubiertos & cumple_frecuencia
+        if (!any(conservar)) return(invisible(NULL))
+        fila_1 <- fila_1[conservar]
+        fila_2 <- fila_2[conservar]
+        distancia <- distancia[conservar]
+      }
       if (hay_firmas_numericas_distintas) {
-        actualizar_estrellas(fila_1, fila_2, distancia, sin_filtro = TRUE)
+        actualizar_estrellas(
+          fila_1, fila_2, distancia, sin_filtro = TRUE, origen = origen
+        )
       }
       compatibles <- firmas_numericas[fila_1] == firmas_numericas[fila_2]
       n_pares_descartados_numeros <<- n_pares_descartados_numeros +
@@ -520,7 +570,7 @@
       fila_2 <- fila_2[compatibles]
       distancia <- distancia[compatibles]
       n_candidatos_distancia <<- n_candidatos_distancia + length(fila_1)
-      actualizar_estrellas(fila_1, fila_2, distancia)
+      actualizar_estrellas(fila_1, fila_2, distancia, origen = origen)
       invisible(NULL)
     }
     .comparar_bloques_duplicados(
@@ -528,8 +578,29 @@
       metodo, umbral, bloque = min(1000L, max_unidades), max_resultados = 1L,
       on_pairs = registrar_candidatos, nucleos = nucleos, p = p
     )
+    # Con el umbral Jaro--Winkler vigente, una sustitucion entra siempre desde
+    # siete caracteres. La ruta de edicion cubre la zona ciega hasta seis.
+    max_largo_edicion_corta <- 6L
+    indices_cortos <- which(
+      seq_len(n_unidades) <= max_unidades &
+        nchar(valores_norm, type = "chars", allowNA = TRUE) <=
+          max_largo_edicion_corta
+    )
+    if (length(indices_cortos) > 1L) {
+      .comparar_bloques_duplicados(
+        valores_norm[indices_cortos], indices_cortos,
+        "lv", 1, bloque = min(1000L, length(indices_cortos)),
+        max_resultados = 1L,
+        on_pairs = function(fila_1, fila_2, distancia) {
+          registrar_candidatos(
+            fila_1, fila_2, distancia, edicion_corta = TRUE
+          )
+        }, nucleos = nucleos, p = p
+      )
+    }
     aristas_estrellas <- function(mejor_hub, mejor_distancia,
-                                  empate_mejor_hub) {
+                                  empate_mejor_hub,
+                                  origen = rep("distancia", n_unidades)) {
       # Sólo sobreviven estrellas centradas en un máximo local único. Una hoja
       # nunca se conecta a otra hoja ni a un nodo que ya depende de un tercero:
       # así se evita el cierre transitivo de cadenas.
@@ -540,22 +611,24 @@
       }, logical(1L))]
       if (!length(aristas)) return(data.frame(
         fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
+        origen = character(),
         stringsAsFactors = FALSE
       ))
       data.frame(
         fila_1 = representantes[mejor_hub[aristas]],
         fila_2 = representantes[aristas],
         distancia = mejor_distancia[aristas],
+        origen = origen[aristas],
         stringsAsFactors = FALSE
       )
     }
     distancia_pares <- aristas_estrellas(
-      mejor_hub, mejor_distancia, empate_mejor_hub
+      mejor_hub, mejor_distancia, empate_mejor_hub, mejor_origen
     )
     if (hay_firmas_numericas_distintas) {
       distancia_pares_sin_filtro <- aristas_estrellas(
         mejor_hub_sin_filtro, mejor_distancia_sin_filtro,
-        empate_mejor_hub_sin_filtro
+        empate_mejor_hub_sin_filtro, mejor_origen_sin_filtro
       )
     } else {
       distancia_pares_sin_filtro <- distancia_pares
@@ -622,6 +695,15 @@
         pares[, 1L] %in% indices & pares[, 2L] %in% indices
       )
       por_distancia <- length(distancias_grupo) > 0L
+      aristas_grupo <- distancia_pares[
+        distancia_pares$fila_1 %in% indices &
+          distancia_pares$fila_2 %in% indices, , drop = FALSE
+      ]
+      usa_edicion_corta <- por_distancia &&
+        any(aristas_grupo$origen == "distancia_edicion_corta")
+      frecuencias_minoritarias <- frecuencias_grupo[
+        frecuencias_grupo < max(frecuencias_grupo)
+      ]
       distancia_total <- if (por_distancia &&
           length(indices_unidades) > 1L) {
         matriz <- as.matrix(.matriz_distancias_duplicados(
@@ -634,6 +716,15 @@
       list(
         variantes = crudos[indices], frecuencias = frecuencias_grupo,
         asimetria = max(frecuencias_grupo) / min(frecuencias_grupo),
+        asimetria_minima = if (length(frecuencias_minoritarias)) {
+          max(frecuencias_grupo) / max(frecuencias_minoritarias)
+        } else NA_real_,
+        participacion_variante_minoritaria_maxima = if (
+          length(frecuencias_minoritarias)
+        ) {
+          max(frecuencias_minoritarias) / sum(presentes)
+        } else NA_real_,
+        usa_edicion_corta = usa_edicion_corta,
         distancia_minima = if (length(distancia_total)) {
           min(distancia_total)
         } else NA_real_,
@@ -643,10 +734,6 @@
         clase_diferencia = if (!por_distancia) {
           "normalizacion_exacta"
         } else {
-          aristas_grupo <- distancia_pares[
-            distancia_pares$fila_1 %in% indices &
-              distancia_pares$fila_2 %in% indices, , drop = FALSE
-          ]
           clases_aristas <- vapply(seq_len(nrow(aristas_grupo)), function(j) {
             .clase_diferencia_vocabulario(
               crudos[[aristas_grupo$fila_1[[j]]]],
@@ -662,9 +749,11 @@
               "token_unico"
             } else "mixta"
         },
-        origen = paste(c("normalizacion", "distancia")[
-          c(exacta, por_distancia)
-        ], collapse = "+")
+        origen = paste(c(
+          if (exacta) "normalizacion" else character(),
+          if (por_distancia && !usa_edicion_corta) "distancia" else character(),
+          if (usa_edicion_corta) "distancia_edicion_corta" else character()
+        ), collapse = "+")
       )
     })
     orden <- order(-vapply(grupos_salida, `[[`, numeric(1L), "asimetria"),
@@ -699,6 +788,14 @@
       tamano_grupo_maximo_numerico = tamano_grupo_maximo_numerico,
       proporcion_grupo_maximo_numerico = proporcion_grupo_maximo_numerico,
       n_candidatos_distancia = n_candidatos_distancia,
+      n_candidatos_edicion_corta = n_candidatos_edicion_corta,
+      n_descartados_frecuencia_edicion_corta =
+        n_descartados_frecuencia_edicion_corta,
+      max_largo_edicion_corta = 6L,
+      max_distancia_edicion_corta = 1L,
+      umbral_variante_rara = umbral_variante_rara,
+      min_asimetria_variante = min_asimetria_variante,
+      min_participacion_dominante = min_participacion_dominante,
       n_pares_descartados_numeros = n_pares_descartados_numeros,
       motivo_grupos = if (disponible && n_candidatos_distancia > 0L &&
           !nrow(distancia_pares)) "sin_asimetria" else "",
@@ -708,7 +805,9 @@
 }
 
 .hallazgos_casi_duplicados_vocabulario <- function(
-    datos, columnas, perfil, max_proporcion_grupo = 0.5) {
+    datos, columnas, perfil, max_proporcion_grupo = 0.5,
+    umbral_variante_rara = 0.05, min_asimetria_variante = 10,
+    min_participacion_dominante = 0.5) {
   max_grupos_mostrados <- 20L
   max_variantes_mostradas <- 20L
   hallazgos <- list()
@@ -716,7 +815,10 @@
   for (i in seq_along(datos)) {
     grupos <- .grupos_casi_duplicados_vocabulario(
       datos[[i]], perfil, columnas[[i]],
-      max_proporcion_grupo = max_proporcion_grupo
+      max_proporcion_grupo = max_proporcion_grupo,
+      umbral_variante_rara = umbral_variante_rara,
+      min_asimetria_variante = min_asimetria_variante,
+      min_participacion_dominante = min_participacion_dominante
     )
     if (!is.null(grupos) && !isTRUE(grupos$alcance$distancia_disponible)) {
       cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
@@ -785,10 +887,22 @@
           grupo$distancia_maxima, format = "f", digits = 4
         ))
       } else ""
+      criterio_corto <- if (isTRUE(grupo$usa_edicion_corta)) {
+        paste0(
+          "; asimetria_minima=",
+          formatC(grupo$asimetria_minima, format = "f", digits = 1),
+          "; participacion_variante_minoritaria_maxima=",
+          formatC(
+            grupo$participacion_variante_minoritaria_maxima,
+            format = "f", digits = 3
+          )
+        )
+      } else ""
       paste0("[", variantes, "]; asimetria=",
              formatC(grupo$asimetria, format = "f", digits = 1),
              "; origen=", grupo$origen,
-             "; clase_diferencia=", grupo$clase_diferencia, distancia)
+             "; clase_diferencia=", grupo$clase_diferencia, distancia,
+             criterio_corto)
     }, character(1L))
     grupos_texto <- if (length(evidencia_grupos)) {
       paste(evidencia_grupos, collapse = "; ")
@@ -852,7 +966,21 @@
         alcance$tamano_grupo_maximo_numerico, " (",
         formatC(alcance$proporcion_grupo_maximo_numerico,
                 format = "f", digits = 3), "). ",
-        alcance$motivo_distancia
+        alcance$motivo_distancia,
+        " criterio_edicion_corta: distancia_edicion<=",
+        alcance$max_distancia_edicion_corta,
+        "; largo<=", alcance$max_largo_edicion_corta,
+        "; participacion_variante<=",
+        formatC(alcance$umbral_variante_rara, format = "f", digits = 3),
+        "; asimetria>=",
+        formatC(alcance$min_asimetria_variante, format = "f", digits = 1),
+        "; participacion_dominante>=",
+        formatC(
+          alcance$min_participacion_dominante, format = "f", digits = 3
+        ),
+        "; candidatos=", alcance$n_candidatos_edicion_corta,
+        "; descartados_por_frecuencia=",
+        alcance$n_descartados_frecuencia_edicion_corta, "."
       ),
       if (isTRUE(alcance$aplicable)) {
         if (identical(alcance$motivo_grupos, "sin_asimetria")) {
@@ -1503,14 +1631,22 @@
       ))
     }
 
-    if (isTRUE(n_validos > 1L) && fila$tipo_inferido == "identificador" &&
+    if (isTRUE(n_validos > 1L) &&
+        (fila$tipo_inferido == "identificador" ||
+         isTRUE(fila$secuencia_entera_densa)) &&
         is.finite(fila$tasa_distintos) && fila$tasa_distintos >= 0.9) {
       agregar(.nuevo_hallazgo(
         nombre, "posible_identificador", "ok",
         "La forma y la alta unicidad son compatibles con un identificador.",
         paste0(
           fila$n_distintos, " valores distintos de ", n_validos,
-          " (", sprintf("%.3f", fila$tasa_distintos), ")"
+          " (", sprintf("%.3f", fila$tasa_distintos), ")",
+          if (isTRUE(fila$secuencia_entera_densa)) paste0(
+            "; secuencia_entera_densa=TRUE; densidad=",
+            sprintf("%.3f", fila$densidad_secuencia_entera),
+            "; umbral=",
+            sprintf("%.3f", fila$umbral_densidad_secuencia_entera)
+          ) else ""
         ),
         "Validar con el diccionario de datos si corresponde declarar una clave."
       ))
@@ -1634,8 +1770,10 @@
       ))
     }
 
+    identificador_secuencial <- isTRUE(fila$secuencia_entera_densa) &&
+      is.finite(fila$tasa_distintos) && fila$tasa_distintos >= 0.9
     if (!.tipos_equivalentes(fila$tipo_declarado, fila$tipo_inferido) &&
-        fila$tipo_inferido != "desconocido") {
+        fila$tipo_inferido != "desconocido" && !identificador_secuencial) {
       agregar(.nuevo_hallazgo(
         nombre, "tipo_declarado_distinto", "sospechoso",
         "El tipo declarado no coincide con el tipo impl\u00edcito dominante.",
@@ -1653,6 +1791,12 @@
         patrones$proporcion[[1L]] >= umbral_patron_dominante) {
       raros <- patrones[-1L, , drop = FALSE]
       raros <- raros[raros$proporcion < umbral_patron_raro, , drop = FALSE]
+      if (isTRUE(fila$secuencia_entera_densa) && nrow(raros)) {
+        solo_largo <- .patrones_solo_largo_corrida_numerica(
+          patrones$patron[[1L]], raros$patron
+        )
+        raros <- raros[!solo_largo, , drop = FALSE]
+      }
       if (nrow(raros)) {
         evidencia <- paste0(
           raros$patron, " [", raros$ejemplos, "]",
@@ -2040,7 +2184,10 @@
                                  relaciones_aritmeticas = list(),
                                  normalizacion = NULL,
                                  detectar_casi_duplicados = TRUE,
-                                 max_proporcion_grupo = 0.5) {
+                                 max_proporcion_grupo = 0.5,
+                                 umbral_variante_rara = 0.05,
+                                 min_asimetria_variante = 10,
+                                 min_participacion_dominante = 0.5) {
   hallazgos_columnas <- .hallazgos_columnas(
     resultados, columnas, umbral_alta_cardinalidad,
     umbral_faltantes_sospechoso, umbral_faltantes_error,
@@ -2053,7 +2200,10 @@
   hallazgos_vocabulario <- if (isTRUE(detectar_casi_duplicados)) {
     .hallazgos_casi_duplicados_vocabulario(
       datos, columnas, normalizacion,
-      max_proporcion_grupo = max_proporcion_grupo
+      max_proporcion_grupo = max_proporcion_grupo,
+      umbral_variante_rara = umbral_variante_rara,
+      min_asimetria_variante = min_asimetria_variante,
+      min_participacion_dominante = min_participacion_dominante
     )
   } else list()
   cobertura_vocabulario <- attr(

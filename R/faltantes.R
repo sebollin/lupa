@@ -58,7 +58,8 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 }
 
 .detectar_faltantes_disfrazados <- function(
-    x, sentinelas_numericos = .numeros_na_locales) {
+    x, sentinelas_numericos = .numeros_na_locales,
+    detectar_sentinelas_numericos = TRUE) {
   n <- length(x)
   if (!n) {
     return(list(
@@ -76,13 +77,14 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     normalizados <- tolower(trimws(textos))
     mascara_textual <- !is.na(normalizados) & normalizados %in% .cadenas_na()
     numericos <- suppressWarnings(as.numeric(normalizados))
-    mascara_numerica <- !is.na(normalizados) & !is.na(numericos) &
-      numericos %in% numeros_na
+    mascara_numerica <- detectar_sentinelas_numericos &
+      !is.na(normalizados) & !is.na(numericos) & numericos %in% numeros_na
     mascara <- mascara_textual | mascara_numerica
     etiquetas <- textos[mascara]
     etiquetas[trimws(etiquetas) == ""] <- "<blanco>"
   } else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt"))) {
-    mascara_numerica <- !is.na(x) & x %in% numeros_na
+    mascara_numerica <- detectar_sentinelas_numericos &
+      !is.na(x) & x %in% numeros_na
     mascara <- mascara_numerica
     etiquetas <- as.character(x[mascara])
   } else {

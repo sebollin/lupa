@@ -336,6 +336,14 @@
 #'   que puede abarcar el grupo mayor para entregar grupos de variantes. Por
 #'   defecto es `0.5`; si se supera, el alcance declara que el diagnóstico no
 #'   aplica en vez de entregar un bloque que abarque casi toda la columna.
+#' @param umbral_variante_rara_vocabulario Proporcion maxima de la columna que
+#'   puede ocupar una variante breve para abrir la comparacion por una edicion.
+#' @param min_asimetria_vocabulario_corto Razon minima entre la frecuencia de
+#'   una forma dominante y una variante breve para abrir la comparacion por una
+#'   edicion.
+#' @param min_participacion_dominante_vocabulario_corto Proporcion minima de la
+#'   columna que debe ocupar la forma dominante en la comparacion por una
+#'   edicion.
 #' @param max_filas_hallazgo Tope de índices de fila que conserva cada
 #'   trazabilidad disponible. Por defecto es `1000`; cuando se supera, el
 #'   estado queda como `truncada` y el total se conserva. Use `Inf` sólo si
@@ -444,7 +452,10 @@ perfilar <- function(datos,
                      tolerancia_aritmetica = 1e-8,
                      max_columnas_aritmetica = 20L,
                      casi_duplicados_vocabulario = TRUE,
-                     max_proporcion_grupo_vocabulario = 0.5) {
+                     max_proporcion_grupo_vocabulario = 0.5,
+                     umbral_variante_rara_vocabulario = 0.05,
+                     min_asimetria_vocabulario_corto = 10,
+                     min_participacion_dominante_vocabulario_corto = 0.5) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
@@ -562,6 +573,31 @@ perfilar <- function(datos,
       max_proporcion_grupo_vocabulario > 1) {
     stop("`max_proporcion_grupo_vocabulario` debe estar entre 0 y 1.",
          call. = FALSE)
+  }
+  if (!is.numeric(umbral_variante_rara_vocabulario) ||
+      length(umbral_variante_rara_vocabulario) != 1L ||
+      is.na(umbral_variante_rara_vocabulario) ||
+      umbral_variante_rara_vocabulario < 0 ||
+      umbral_variante_rara_vocabulario > 1) {
+    stop("`umbral_variante_rara_vocabulario` debe estar entre 0 y 1.",
+         call. = FALSE)
+  }
+  if (!is.numeric(min_asimetria_vocabulario_corto) ||
+      length(min_asimetria_vocabulario_corto) != 1L ||
+      is.na(min_asimetria_vocabulario_corto) ||
+      !is.finite(min_asimetria_vocabulario_corto) ||
+      min_asimetria_vocabulario_corto < 1) {
+    stop("`min_asimetria_vocabulario_corto` debe ser al menos 1.",
+         call. = FALSE)
+  }
+  if (!is.numeric(min_participacion_dominante_vocabulario_corto) ||
+      length(min_participacion_dominante_vocabulario_corto) != 1L ||
+      is.na(min_participacion_dominante_vocabulario_corto) ||
+      min_participacion_dominante_vocabulario_corto < 0 ||
+      min_participacion_dominante_vocabulario_corto > 1) {
+    stop(paste0(
+      "`min_participacion_dominante_vocabulario_corto` debe estar entre 0 y 1."
+    ), call. = FALSE)
   }
   if (!is.logical(duplicados_aproximados) &&
       !is.list(duplicados_aproximados)) {
@@ -681,7 +717,11 @@ perfilar <- function(datos,
     relaciones_aritmeticas = relaciones_aritmeticas$hallazgos,
     normalizacion = normalizacion_resuelta,
     detectar_casi_duplicados = casi_duplicados_vocabulario,
-    max_proporcion_grupo = max_proporcion_grupo_vocabulario
+    max_proporcion_grupo = max_proporcion_grupo_vocabulario,
+    umbral_variante_rara = umbral_variante_rara_vocabulario,
+    min_asimetria_variante = min_asimetria_vocabulario_corto,
+    min_participacion_dominante =
+      min_participacion_dominante_vocabulario_corto
   )
   cobertura_diagnosticos <- attr(
     hallazgos, "cobertura_diagnosticos", exact = TRUE
@@ -797,6 +837,11 @@ perfilar <- function(datos,
     umbral_solapamiento_orden = umbral_solapamiento_orden,
     casi_duplicados_vocabulario = casi_duplicados_vocabulario,
     max_proporcion_grupo_vocabulario = max_proporcion_grupo_vocabulario,
+    umbral_variante_rara_vocabulario =
+      umbral_variante_rara_vocabulario,
+    min_asimetria_vocabulario_corto = min_asimetria_vocabulario_corto,
+    min_participacion_dominante_vocabulario_corto =
+      min_participacion_dominante_vocabulario_corto,
     orden_columnas = relaciones_orden$alcance,
     normalizacion = normalizacion_resuelta,
     normalizacion_resumen = .normalizacion_resumen(normalizacion_resuelta),
