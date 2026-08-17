@@ -6,5 +6,6 @@
 ^\.github$
 ^cran-comments\.md$
 ^README\.es\.md$
+^benchmark$
 ^doc$
 ^Meta$
