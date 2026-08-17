@@ -33,7 +33,7 @@ test_that("una casi-clave densa declara la colision y el criterio", {
   expect_match(
     hallazgo$evidencia,
     paste0(
-      "criterio_casi_clave: tasa_distintos>=0.900 y ",
+      "criterio_casi_clave: n_filas>=100, tasa_distintos>=0.900 y ",
       "concentracion_colisiones>=0.500"
     ),
     fixed = TRUE

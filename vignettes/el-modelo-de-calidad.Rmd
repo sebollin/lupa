@@ -159,6 +159,79 @@ agregar(medidas, "atributo", "ratio")[, c(
 )]
 ```
 
+## Tablero, orientación e índice
+
+`tablero_calidad()` resume la medición y conserva su marco y su cobertura. La
+columna `orientacion` dice cómo leer cada proporción: `conformidad` significa
+que un valor mayor es mejor, `defecto` que un valor menor es mejor y
+`no_aplica` que la métrica no es una proporción combinable. Un `0.0063` de
+`EntidadDuplicada` expresa poco defecto; un `0.9992` de `NoNulo` expresa mucha
+conformidad. Los números no se leen igual aunque estén en la misma escala.
+
+```{r}
+modelo_tablero <- modelo(list(
+  instanciar(especializar(nucleo$NoNulo), "padron", "codigo"),
+  instanciar(especializar(nucleo$EntidadDuplicada), "padron")
+))
+datos_tablero <- data.frame(codigo = c("A", "B", "B", NA))
+medidas_tablero <- medir(
+  modelo_tablero, datos_tablero, id_medicion = "tablero-ejemplo"
+)
+tablero <- tablero_calidad(medidas_tablero)
+tablero[, c(
+  "dimension", "factor", "metrica", "valor", "orientacion", "universo"
+)]
+attr(tablero, "alcance")
+```
+
+Sin `pesos`, no hay número: `indice_calidad(tablero)` devuelve el tablero.
+Los pesos no pertenecen a `lupa`; los declara el usuario según la decisión del
+proyecto. El índice conserva además la cobertura que acompaña al tablero.
+
+```{r}
+indice_sin_pesos <- indice_calidad(tablero)
+indice_sin_pesos
+
+# Pesos elegidos para este ejemplo; no son valores predeterminados de lupa.
+pesos_ejemplo <- c(Completitud = 0.6, Unicidad = 0.4)
+indice <- indice_calidad(tablero, pesos = pesos_ejemplo)
+indice
+indice$cobertura
+```
+
+Para las métricas con orientación `defecto`, el índice usa `1 - valor`; las de
+`no_aplica` quedan fuera y se conservan como exclusiones. El índice no promedia
+por su cuenta dos componentes de una misma dimensión: exige que el usuario
+declare `pesos_internos` para esa combinación.
+
+```{r}
+modelo_doble <- modelo(list(
+  instanciar(
+    especializar(nucleo$NoNulo), "padron", "codigo",
+    nombre_instancia = "no-nulo-codigo"
+  ),
+  instanciar(
+    especializar(nucleo$NoNulo), "padron", "nombre",
+    nombre_instancia = "no-nulo-nombre"
+  )
+))
+medidas_dobles <- medir(
+  modelo_doble,
+  data.frame(codigo = c("A", "B", NA), nombre = c("x", NA, "z")),
+  id_medicion = "interno-ejemplo"
+)
+tablero_doble <- tablero_calidad(medidas_dobles)
+tryCatch(
+  indice_calidad(tablero_doble, pesos = c(Completitud = 1)),
+  error = function(e) conditionMessage(e)
+)
+```
+
+Una advertencia acompaña al índice cuando sus componentes provienen de
+universos distintos, como celdas y filas. La cobertura y la advertencia no
+resuelven esa diferencia: el índice sólo los combina porque el usuario declaró
+los pesos.
+
 Las cuatro agregaciones implementadas son:
 
 - `ratio`, para resultados booleanos;

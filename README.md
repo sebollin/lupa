@@ -56,9 +56,9 @@ The public names are Spanish in both examples and help pages:
   comparison scope.
 - Finds keys, relationships, dependencies, and measurement granularities that
   were never declared.
-- Reports `casi_clave` when a column is almost unique and its collisions
-  concentrate in a few values, which separates a key with duplicates from free
-  text of high cardinality.
+- Reports `casi_clave` when a non-temporal column has at least 100 rows, is
+  almost unique, and its collisions concentrate in a few values, which
+  separates a key with duplicates from free text of high cardinality.
 - Lets a project define its own quality framework instead of forcing a global
   score.
 - Measures and evaluates explicit metrics, scales, validity rules, and

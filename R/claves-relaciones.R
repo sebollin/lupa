@@ -12,6 +12,7 @@
 
 .umbral_unicidad_casi_clave <- 0.9
 .umbral_concentracion_casi_clave <- 0.5
+.min_filas_casi_clave <- 100L
 
 .resumen_tipo_candidato_clave <- function(x) {
   es_doble_fraccionable <- is.double(x) && !inherits(x, "integer64")
@@ -33,8 +34,21 @@
 
 .resumen_casi_clave <- function(
     x, umbral_unicidad = .umbral_unicidad_casi_clave,
-    umbral_concentracion = .umbral_concentracion_casi_clave) {
+    umbral_concentracion = .umbral_concentracion_casi_clave,
+    min_filas = .min_filas_casi_clave, rol = NULL,
+    tipo_implicito = NULL) {
   tipo_candidato <- .resumen_tipo_candidato_clave(x)
+  if (is.null(tipo_implicito)) {
+    tipo_implicito <- if (is.character(x) || is.factor(x)) {
+      inferir_tipo(x)$tipo
+    } else {
+      .tipo_declarado(x)
+    }
+  }
+  if (is.null(rol)) {
+    rol <- .propuesta_escala(x, tipo_implicito)$rol
+  }
+  rol <- as.character(rol[[1L]])
   vacio <- list(
     es_casi_clave = FALSE, n_filas = length(x), n_distintos = NA_integer_,
     tasa_distintos = NA_real_, n_valores_colisionados = NA_integer_,
@@ -44,6 +58,8 @@
     tipo_almacenamiento = tipo_candidato$tipo_almacenamiento,
     n_valores_fraccionarios_finitos =
       tipo_candidato$n_valores_fraccionarios_finitos,
+    rol = rol, tipo_implicito = tipo_implicito,
+    min_filas = min_filas,
     umbral_unicidad = umbral_unicidad,
     umbral_concentracion = umbral_concentracion
   )
@@ -76,7 +92,9 @@
     which(indices_valor %in% colisionados)
   } else integer()
   list(
-    es_casi_clave = n_excedentes > 0L && tasa >= umbral_unicidad &&
+    es_casi_clave = length(x) >= min_filas &&
+      !rol %in% c("fecha", "fecha-hora") &&
+      n_excedentes > 0L && tasa >= umbral_unicidad &&
       concentracion >= umbral_concentracion,
     n_filas = length(x), n_distintos = n_distintos,
     tasa_distintos = tasa,
@@ -90,6 +108,8 @@
     tipo_almacenamiento = tipo_candidato$tipo_almacenamiento,
     n_valores_fraccionarios_finitos =
       tipo_candidato$n_valores_fraccionarios_finitos,
+    rol = rol, tipo_implicito = tipo_implicito,
+    min_filas = min_filas,
     umbral_unicidad = umbral_unicidad,
     umbral_concentracion = umbral_concentracion
   )
@@ -163,10 +183,12 @@
 #' Busca primero claves simples y luego combinaciones mínimas de dos o tres
 #' columnas. No prueba una combinación si ya contiene una clave candidata más
 #' pequeña. Una clave exige ausencia de `NA` y unicidad en todas las filas.
-#' Además informa columnas simples casi-clave cuando al menos el 90 % de sus
-#' valores son distintos y un único valor concentra al menos la mitad de los
-#' duplicados excedentes. La concentración evita confundir texto libre de alta
-#' cardinalidad, con muchas colisiones dispersas, con una clave dañada.
+#' Además informa columnas simples casi-clave cuando tienen al menos 100 filas,
+#' al menos el 90 % de sus valores son distintos y un único valor concentra al
+#' menos la mitad de los duplicados excedentes. La concentración evita confundir
+#' texto libre de alta cardinalidad, con muchas colisiones dispersas, con una
+#' clave dañada. Las variables con rol propuesto `fecha`, incluidas fecha-hora,
+#' no se consideran casi-claves.
 #' Los vectores `double` sólo son candidatos si ninguno de sus valores finitos
 #' tiene parte fraccionaria. Esto conserva identificadores enteros importados
 #' desde archivos de texto y excluye importes, coordenadas y otras medidas. Los

@@ -20,8 +20,9 @@ por el solo hecho de diagnosticarlos.
 
 El conjunto incluido es pequeño y completamente sintético. Tiene fechas
 mezcladas, sentinelas, duplicados y formatos discordantes. `analizar()` es la
-puerta de entrada: reúne todo el diagnóstico descriptivo, pero no convierte lo
-observado en un requisito ni mide la propuesta automáticamente.
+puerta de entrada: por omisión mide las propuestas en estado `lista`, las
+agrega y devuelve un tablero. Las métricas las propuso `lupa` y nadie las
+confirmó; se puede apagar la medición con `medir_propuesta = FALSE`.
 
 ```{r}
 library(lupa)
@@ -55,8 +56,11 @@ analisis <- analizar(
   fecha = as.POSIXct("2026-01-15", tz = "UTC"),
   marco = marco_operativo
 )
-analisis
 perfil <- analisis$perfil
+```
+
+```{r}
+analisis$tablero
 ```
 
 Los hallazgos son datos. Se pueden filtrar, ordenar o exportar sin extraer texto
@@ -96,7 +100,12 @@ analisis$variables[, c(
   "confianza", "confirmada", "n_niveles_ausentes"
 )]
 analisis$cobertura[, c("marco", "dimension", "factor", "estado")]
+perfil$cobertura_diagnosticos
 ```
+
+`cobertura_diagnosticos` es la tabla que sostiene la regla central de `lupa`:
+un diagnóstico que no pudo evaluarse queda identificado y no se confunde con
+la ausencia de hallazgos.
 
 ## Del diagnóstico al modelo
 

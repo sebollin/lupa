@@ -2,10 +2,11 @@
 
 ## Casi-claves y precedencia de ausencias
 
-- `perfilar()` informa una `casi_clave` cuando una columna supera 90 % de
-  valores distintos y al menos la mitad de sus duplicados excedentes se
-  concentra en un valor. La evidencia enumera las colisiones, sus frecuencias
-  y los criterios aplicados. Los vectores `double` con algún valor finito
+- `perfilar()` informa una `casi_clave` cuando una columna tiene al menos 100
+  filas, supera 90 % de valores distintos y al menos la mitad de sus duplicados
+  excedentes se concentra en un valor. Las fechas y fecha-hora se excluyen por
+  su rol propuesto. La evidencia enumera las colisiones, sus frecuencias y los
+  criterios aplicados. Los vectores `double` con algún valor finito
   fraccionario se excluyen, mientras que los formados por valores enteros se
   conservan para admitir identificadores importados desde archivos de texto.
   Los vectores `integer64` cuentan como enteros semánticos. `detectar_claves()`

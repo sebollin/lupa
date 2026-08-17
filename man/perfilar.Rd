@@ -402,13 +402,15 @@ Las fusiones son una propiedad de pares, por lo que muestrear valores
 aislados podría dejar fuera los dos miembros de cada par y convertir una
 fusión real en un cero falso. La normalización se vectoriza para que este
 alcance completo no dependa de la cardinalidad de la columna.
-Las columnas sin ausentes que tienen al menos 90 \% de valores distintos
-producen un hallazgo \code{casi_clave} cuando el valor dominante concentra al
-menos la mitad de los duplicados excedentes. La concentración se calcula
-sobre las repeticiones posteriores a la primera de cada valor, no sólo sobre
-la tasa de distintos. La evidencia declara ambos umbrales, los valores que
-colisionan y sus frecuencias. Así una colisión concentrada queda separada del
-texto libre de alta cardinalidad con repeticiones dispersas.
+Las columnas sin ausentes que tienen al menos 100 filas y 90 \% de valores
+distintos producen un hallazgo \code{casi_clave} cuando el valor dominante
+concentra al menos la mitad de los duplicados excedentes. La concentración
+se calcula sobre las repeticiones posteriores a la primera de cada valor, no
+sólo sobre la tasa de distintos. La evidencia declara el mínimo de filas,
+ambos umbrales, los valores que colisionan y sus frecuencias. Las variables
+con rol propuesto \code{fecha}, incluidas fecha-hora, se excluyen. Así una colisión
+concentrada queda separada del texto libre de alta cardinalidad con
+repeticiones dispersas.
 Un vector \code{double} sólo participa si todos sus valores finitos son enteros;
 así se conservan identificadores importados con ese almacenamiento y se
 excluyen medidas con alguna parte fraccionaria, como importes o coordenadas.

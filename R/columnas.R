@@ -1192,7 +1192,10 @@
     x_analisis, sentinelas_numericos = sentinelas_numericos,
     detectar_sentinelas_numericos = !isTRUE(secuencia_entera$densa)
   )
-  casi_clave <- .resumen_casi_clave(x_analisis)
+  rol_propuesto <- .propuesta_escala(x, inferencia$tipo)$rol
+  casi_clave <- .resumen_casi_clave(
+    x_analisis, rol = rol_propuesto, tipo_implicito = inferencia$tipo
+  )
   n <- length(x)
   n_faltantes <- sum(is.na(x))
   n_codificacion_invalida <- length(preparacion_texto$posiciones)
