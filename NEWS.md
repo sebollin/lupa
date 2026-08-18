@@ -1,5 +1,21 @@
 # lupa 0.1.0
 
+## La cobertura del vocabulario deja de contradecir al hallazgo
+
+- `casi_duplicados_vocabulario` nombraba dos diagnósticos distintos: agrupar
+  valores por su forma normalizada, que no depende de nada, y medir proximidad
+  por distancia de edición, que necesita `stringdist`. Sin ese paquete el
+  primero medía y el segundo se declaraba **bajo el mismo nombre y para la misma
+  columna**, así que cruzar `cobertura_diagnosticos` con `hallazgos` por
+  `(diagnostico, columna)` —el uso natural para un consumidor automático—
+  devolvía una contradicción: el mismo diagnóstico declarado como no evaluado y
+  reportado como medido.
+- La cobertura pasa a llamarse **`proximidad_vocabulario`** en las tres razones
+  que le corresponden: falta `stringdist`, el vocabulario excede el alcance de
+  comparación, y el grupo candidato mayor abarca tanto que el diagnóstico no
+  aplica. El hallazgo conserva su nombre. Quien filtre la cobertura por el
+  nombre viejo tiene que actualizar el filtro.
+
 ## Dos cosas más que el objeto ahora declara
 
 - `patron_raro` distingue en la evidencia las dos clases de desvío:

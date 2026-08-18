@@ -843,7 +843,7 @@
     )
     if (!is.null(grupos) && !isTRUE(grupos$alcance$distancia_disponible)) {
       cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
-        "casi_duplicados_vocabulario", columnas[[i]],
+        "proximidad_vocabulario", columnas[[i]],
         "No se pudo evaluar la proximidad del vocabulario: falta el paquete opcional 'stringdist'.",
         "Instalar el paquete 'stringdist' para comparar valores cercanos del vocabulario.",
         "stringdist"
@@ -853,7 +853,7 @@
     alcance <- grupos$alcance
     if (isTRUE(alcance$truncado)) {
       cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
-        "casi_duplicados_vocabulario", columnas[[i]],
+        "proximidad_vocabulario", columnas[[i]],
         paste0(
           "El vocabulario excede el alcance de comparacion: se evaluaron ",
           alcance$n_valores_evaluados, " de ", alcance$n_valores_distintos,
@@ -868,7 +868,7 @@
     }
     if (!isTRUE(alcance$aplicable)) {
       cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
-        "casi_duplicados_vocabulario", columnas[[i]],
+        "proximidad_vocabulario", columnas[[i]],
         paste0(
           "El grupo candidato mayor abarca ",
           formatC(alcance$proporcion_grupo_maximo,

@@ -16,9 +16,9 @@
 # Si aparece una nueva y no se agrega acá, la última prueba del archivo falla.
 .razones_de_cobertura <- c(
   "normalizacion_unicode__falta_stringi",
-  "casi_duplicados_vocabulario__falta_stringdist",
-  "casi_duplicados_vocabulario__vocabulario_truncado",
-  "casi_duplicados_vocabulario__grupo_candidato_grande",
+  "proximidad_vocabulario__falta_stringdist",
+  "proximidad_vocabulario__vocabulario_truncado",
+  "proximidad_vocabulario__grupo_candidato_grande",
   "integer64_sin_soporte__falta_bit64",
   "perfil_geometria__falta_sf",
   "dimensiones_geometria_no_evaluadas__z_o_m",
@@ -82,7 +82,7 @@ test_that("falta stringdist: la proximidad de vocabulario se declara", {
   )
   ausente <- perfilar(datos)
 
-  .espera_declarado(ausente, "casi_duplicados_vocabulario", "stringdist")
+  .espera_declarado(ausente, "proximidad_vocabulario", "stringdist")
 })
 
 test_that("falta bit64: integer64 se declara sin soporte", {
@@ -144,18 +144,15 @@ test_that("una fecha-hora sin zona declarada se declara, no se supone", {
   }
 })
 
-test_that("si un diagnóstico se declara y se mide a la vez, la evidencia lo dice", {
-  # El invariante querido es que lo declarado en cobertura no aparezca además
-  # como medido para la misma columna. Hoy hay una excepción conocida y
-  # registrada en `PENDIENTES.md` §2.20: `casi_duplicados_vocabulario` nombra
-  # dos subdiagnósticos, uno que agrupa por forma normalizada —sin dependencias—
-  # y otro que mide proximidad por distancia de edición, que necesita
-  # `stringdist`. Sin ese paquete el primero mide y el segundo se declara, los
-  # dos bajo el mismo nombre.
+test_that("lo declarado no aparece además como medido, para la misma columna", {
+  # El invariante transversal. Antes tenia una excepcion:
+  # `casi_duplicados_vocabulario` nombraba dos subdiagnosticos —agrupar por
+  # forma normalizada, que no depende de nada, y medir proximidad por distancia,
+  # que necesita `stringdist`—, asi que sin ese paquete el primero medía y el
+  # segundo se declaraba bajo el mismo nombre. Quien cruzara las dos tablas por
+  # `(diagnostico, columna)` obtenia una contradiccion.
   #
-  # Mientras eso no se separe, lo exigible es que el hallazgo declare su alcance
-  # parcial en la evidencia. Esta prueba lo verifica, y se endurece cuando 2.20
-  # se cierre.
+  # Los nombres estan separados: la cobertura declara `proximidad_vocabulario`.
   datos <- data.frame(
     depto = c(rep("Montevideo", 40L), rep("Montevido", 3L), rep("Canelones", 30L)),
     texto = rep(c("café", "cafe", "nino"), length.out = 73L),
@@ -171,6 +168,7 @@ test_that("si un diagnóstico se declara y se mide a la vez, la evidencia lo dic
   cobertura <- perfil$cobertura_diagnosticos
   expect_gt(nrow(cobertura), 0L)
   hallazgos <- perfil$hallazgos
+  expect_gt(nrow(hallazgos), 0L)
 
   solapados <- merge(
     data.frame(diagnostico = as.character(cobertura$diagnostico),
@@ -178,21 +176,16 @@ test_that("si un diagnóstico se declara y se mide a la vez, la evidencia lo dic
                stringsAsFactors = FALSE),
     data.frame(diagnostico = as.character(hallazgos$tipo_hallazgo),
                columna = as.character(hallazgos$columna),
-               evidencia = as.character(hallazgos$evidencia),
-               severidad = as.character(hallazgos$severidad),
                stringsAsFactors = FALSE),
     by = c("diagnostico", "columna")
   )
+  expect_equal(nrow(solapados), 0L)
 
-  # La única excepción admitida hoy, nombrada.
-  expect_true(all(solapados$diagnostico == "casi_duplicados_vocabulario"))
-  if (nrow(solapados)) {
-    # Nunca un `ok` falso: si se solapan, el hallazgo afirma algo positivo.
-    expect_false(any(solapados$severidad == "ok"))
-    # Y la evidencia declara cuántos pares llegaron a compararse.
-    expect_true(all(grepl("pares comparados", solapados$evidencia, fixed = TRUE)))
-    expect_true(all(grepl("0 pares comparados", solapados$evidencia, fixed = TRUE)))
-  }
+  # Y la mitad que no depende de nada sigue midiendo: agrupar por forma
+  # normalizada no necesita `stringdist`.
+  expect_true("casi_duplicados_vocabulario" %in%
+                as.character(hallazgos$tipo_hallazgo))
+  expect_true("proximidad_vocabulario" %in% as.character(cobertura$diagnostico))
 })
 
 test_that("el catálogo de razones conocidas está completo", {

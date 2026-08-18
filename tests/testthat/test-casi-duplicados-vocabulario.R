@@ -153,7 +153,7 @@ test_that("un componente grande no se presenta como toda una columna chica", {
   expect_equal(nrow(hallazgo), 0L)
   cobertura <- perfil$cobertura_diagnosticos[
     perfil$cobertura_diagnosticos$diagnostico ==
-      "casi_duplicados_vocabulario", , drop = FALSE
+      "proximidad_vocabulario", , drop = FALSE
   ]
   expect_equal(nrow(cobertura), 1L)
   expect_match(cobertura$motivo, "abarca 1.000")
@@ -196,7 +196,7 @@ test_that("las secuencias numericas separan familias de entidades", {
   expect_equal(nrow(hallazgo_zonas), 0L)
   cobertura_zonas <- perfil_zonas$cobertura_diagnosticos[
     perfil_zonas$cobertura_diagnosticos$diagnostico ==
-      "casi_duplicados_vocabulario", , drop = FALSE
+      "proximidad_vocabulario", , drop = FALSE
   ]
   expect_equal(nrow(cobertura_zonas), 1L)
   expect_match(cobertura_zonas$motivo, "no aplica")
@@ -288,7 +288,7 @@ test_that("un grupo que abarca casi todo el vocabulario no se entrega", {
   expect_equal(nrow(hallazgo), 0L)
   cobertura <- perfil$cobertura_diagnosticos[
     perfil$cobertura_diagnosticos$diagnostico ==
-      "casi_duplicados_vocabulario", , drop = FALSE
+      "proximidad_vocabulario", , drop = FALSE
   ]
   expect_equal(nrow(cobertura), 1L)
   expect_match(cobertura$motivo, "no aplica")

@@ -9,7 +9,7 @@ test_that("la falta de stringdist se declara aunque no haya fusion exacta", {
     proteger_datos_personales = FALSE
   )
   cobertura_sin <- sin_fusion$cobertura_diagnosticos[
-    sin_fusion$cobertura_diagnosticos$diagnostico == "casi_duplicados_vocabulario", ,
+    sin_fusion$cobertura_diagnosticos$diagnostico == "proximidad_vocabulario", ,
     drop = FALSE
   ]
   expect_equal(nrow(cobertura_sin), 1L)

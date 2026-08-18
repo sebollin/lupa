@@ -45,7 +45,7 @@ test_that("las dependencias opcionales ausentes no inundan los sospechosos", {
     datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   )
   opcionales <- perfil$cobertura_diagnosticos[
-    perfil$cobertura_diagnosticos$diagnostico == "casi_duplicados_vocabulario", ,
+    perfil$cobertura_diagnosticos$diagnostico == "proximidad_vocabulario", ,
     drop = FALSE
   ]
   expect_equal(nrow(opcionales), 40L)
