@@ -87,7 +87,19 @@ dir.create(.riolu_temp)
       "el archivo de ground truth no tiene dimensiones ni columnas reconocibles"
     ))
   }
-  referencia <- .aplicar_mascara_verdad(referencia, mascara, sucia)
+  ## `.aplicar_mascara_verdad()` devuelve NULL si las dimensiones no coinciden.
+  ## Sin esta comprobacion el `NULL` recibia el `$versiones` de la linea
+  ## siguiente, R construia una lista con ese unico campo, y el conjunto salia
+  ## publicado como "no medido: sin razon declarada".
+  con_mascara <- .aplicar_mascara_verdad(referencia, mascara, sucia)
+  if (is.null(con_mascara)) {
+    return(.no_disponible(
+      paste0("RIOLU/", dataset), .riolu_base,
+      paste0("la mascara de verdad no se pudo alinear con dirty.csv (",
+             nrow(sucia), " x ", ncol(sucia), ")")
+    ))
+  }
+  referencia <- con_mascara
   referencia$versiones <- rbind(referencia$versiones,
                                 .version_archivo(verdad))
   referencia

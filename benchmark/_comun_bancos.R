@@ -196,9 +196,12 @@
   }, logical(1L))
   x <- if (any(exacta)) lecturas[[which(exacta)[[1L]]]] else lecturas[[1L]]
   if (is.null(x)) return(NULL)
-  if (all(dim(x) == dimensiones)) {
+  atajo_dimensiones_exactas <- function() {
     valores <- tolower(trimws(as.character(as.matrix(x))))
-    return(valores %in% c("1", "true", "error", "anomalia", "anomaly"))
+    marcado <- valores %in% c("1", "true", "error", "anomalia", "anomaly")
+    ## Devolver el vector pelado dejaba la mascara sin `dim`, y quien la recibe
+    ## compara dimensiones: el conjunto se descartaba entero.
+    matrix(marcado, nrow = as.integer(nfilas), ncol = as.integer(ncolumnas))
   }
   nombres <- tolower(names(x))
   ## Formato ancho parcial: una fila por registro, una columna por atributo
@@ -206,7 +209,27 @@
   ## RIOLU: marca anomalias solo en los atributos que su metodo mira, y el
   ## resto de la tabla queda fuera de la verdad. Tratarlo como verdad completa
   ## contaria como acierto lo que nadie etiqueto.
-  columna_indice <- which(nombres %in% c("index", "indice", "id", "row_index"))
+  ## La columna de indice se elige por prioridad y se VALIDA. Confiar en el
+  ## nombre descarta conjuntos enteros: `gt_movies.csv` trae `Index` y tambien
+  ## un `id` que es una columna de datos con verdad propia, y exigir una unica
+  ## coincidencia hacia que la rama no se ejecutara y el conjunto se perdiera
+  ## sin declarar el motivo.
+  .indice_plausible <- function(valores, nfilas) {
+    enteros <- suppressWarnings(as.integer(trimws(as.character(valores))))
+    if (!length(enteros) || anyNA(enteros)) return(FALSE)
+    if (anyDuplicated(enteros)) return(FALSE)
+    corridos <- if (min(enteros) == 0L) enteros + 1L else enteros
+    all(corridos >= 1L) && all(corridos <= as.integer(nfilas))
+  }
+  candidatos <- c(which(nombres %in% c("index", "indice", "row_index")),
+                  which(nombres == "id"))
+  columna_indice <- integer()
+  for (candidato in candidatos) {
+    if (.indice_plausible(x[[candidato]], nfilas)) {
+      columna_indice <- candidato
+      break
+    }
+  }
   if (length(columna_indice) == 1L && length(nombres_columnas)) {
     atributos <- setdiff(names(x), names(x)[columna_indice])
     if (length(atributos) && all(atributos %in% nombres_columnas)) {
@@ -230,6 +253,11 @@
       return(mascara)
     }
   }
+  ## El atajo va DESPUES del formato ancho parcial. `gt_movies.csv` tiene tantas
+  ## columnas como la tabla -indice mas cuatro atributos contra cinco columnas de
+  ## datos-, y esa coincidencia hacia que se leyera como verdad completa,
+  ## tomando el indice por una columna de datos.
+  if (all(dim(x) == dimensiones)) return(atajo_dimensiones_exactas())
   columna_fila <- which(nombres %in% c("row", "fila", "row_id", "tuple_id"))
   columna_col <- which(nombres %in% c("column", "columna", "attribute"))
   columna_valor <- which(nombres %in% c("error", "label", "value", "is_error"))
