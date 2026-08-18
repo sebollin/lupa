@@ -76,7 +76,8 @@ NULL
 #' @export
 #' @seealso [medir()], [evaluar()], [perfiles_madurez()]
 regla_evaluacion <- function(nombre, condicion, metricas = NULL,
-                             proporcion_minima = NULL, desenlace = NULL) {
+                             proporcion_minima = NULL, desenlace = NULL,
+                             umbrales = list()) {
   if (!.es_texto_escalar(nombre)) {
     stop("`nombre` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
@@ -99,6 +100,33 @@ regla_evaluacion <- function(nombre, condicion, metricas = NULL,
       (!.es_texto_escalar(desenlace) || desenlace != "suprimir")) {
     stop("`desenlace` debe ser NULL o 'suprimir'.", call. = FALSE)
   }
+  # Los umbrales viajan aparte de la condicion para que se puedan cambiar sin
+  # reconstruir la regla y para que queden a la vista en `propiedades_regla()`.
+  # Encerrados en el closure quedaban invisibles y obligaban a escribir otra
+  # regla para mover un numero.
+  if (!is.list(umbrales)) {
+    stop("`umbrales` debe ser una lista con nombres.", call. = FALSE)
+  }
+  if (length(umbrales)) {
+    nombres_umbrales <- names(umbrales)
+    if (is.null(nombres_umbrales) || anyNA(nombres_umbrales) ||
+        !all(nzchar(nombres_umbrales)) || anyDuplicated(nombres_umbrales)) {
+      stop("`umbrales` debe tener nombres unicos y no vacios.", call. = FALSE)
+    }
+    argumentos_condicion <- names(formals(condicion))
+    if (!"..." %in% argumentos_condicion) {
+      sin_recibir <- setdiff(nombres_umbrales, argumentos_condicion)
+      if (length(sin_recibir)) {
+        stop(
+          "`condicion` no recibe estos umbrales: ",
+          paste(sin_recibir, collapse = ", "),
+          ". Sus argumentos son: ",
+          paste(argumentos_condicion, collapse = ", "), ".",
+          call. = FALSE
+        )
+      }
+    }
+  }
   estructura <- list(
     nombre = nombre,
     condicion = condicion,
@@ -109,8 +137,70 @@ regla_evaluacion <- function(nombre, condicion, metricas = NULL,
     estructura$proporcion_minima <- as.numeric(proporcion_minima)
   }
   if (!is.null(desenlace)) estructura$desenlace <- desenlace
+  if (length(umbrales)) estructura$umbrales <- umbrales
   class(estructura) <- "regla_evaluacion"
   estructura
+}
+
+#' Propiedades declaradas de una regla de evaluación
+#'
+#' Devuelve, en una tabla, lo que una regla declara: a qué métricas se engancha,
+#' en qué nivel evalúa, qué desenlace produce y **qué umbrales usa**. Los
+#' umbrales viajan aparte de la condición justamente para esto: encerrados en el
+#' *closure* quedaban invisibles y obligaban a escribir otra regla para mover un
+#' número.
+#'
+#' Es la contraparte de [propiedades_metrica()], que describe métricas. Un
+#' umbral pertenece a una regla, no a una métrica, así que no cabía allí.
+#'
+#' @param regla Objeto creado por [regla_evaluacion()].
+#'
+#' @return Data frame con una fila por propiedad: `propiedad`, `valor`.
+#' @export
+#' @seealso [regla_evaluacion()], [propiedades_metrica()], [evaluar()]
+#'
+#' @examples
+#' regla <- regla_evaluacion(
+#'   "cobertura minima",
+#'   function(x, minimo) x >= minimo,
+#'   umbrales = list(minimo = 0.9)
+#' )
+#' propiedades_regla(regla)
+propiedades_regla <- function(regla) {
+  if (!inherits(regla, "regla_evaluacion")) {
+    stop("`regla` debe ser una regla creada por regla_evaluacion().",
+         call. = FALSE)
+  }
+  texto <- function(x) {
+    if (is.null(x) || !length(x)) return(NA_character_)
+    paste(format(x, trim = TRUE), collapse = ", ")
+  }
+  filas <- list(
+    data.frame(propiedad = "nombre", valor = regla$nombre,
+               stringsAsFactors = FALSE),
+    data.frame(propiedad = "metricas", valor = texto(regla$metricas),
+               stringsAsFactors = FALSE),
+    data.frame(propiedad = "nivel",
+               valor = if (is.null(regla$nivel)) "medida" else regla$nivel,
+               stringsAsFactors = FALSE),
+    data.frame(propiedad = "proporcion_minima",
+               valor = texto(regla$proporcion_minima),
+               stringsAsFactors = FALSE),
+    data.frame(propiedad = "desenlace", valor = texto(regla$desenlace),
+               stringsAsFactors = FALSE)
+  )
+  if (length(regla$umbrales)) {
+    filas <- c(filas, lapply(names(regla$umbrales), function(nombre) {
+      data.frame(
+        propiedad = paste0("umbral:", nombre),
+        valor = texto(regla$umbrales[[nombre]]),
+        stringsAsFactors = FALSE
+      )
+    }))
+  }
+  salida <- do.call(rbind, filas)
+  rownames(salida) <- NULL
+  salida
 }
 
 #' @rdname reglas_evaluacion
@@ -208,13 +298,22 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   medicion
 }
 
-.aplicar_condicion_regla <- function(condicion, resultado, orientacion) {
+.aplicar_condicion_regla <- function(condicion, resultado, orientacion,
+                                     umbrales = NULL) {
   argumentos <- names(formals(condicion))
+  extra <- list()
   if ("orientacion" %in% argumentos || "..." %in% argumentos) {
-    condicion(resultado, orientacion = orientacion)
-  } else {
-    condicion(resultado)
+    extra$orientacion <- orientacion
   }
+  if (length(umbrales)) {
+    admitidos <- if ("..." %in% argumentos) {
+      names(umbrales)
+    } else {
+      intersect(names(umbrales), argumentos)
+    }
+    extra <- c(extra, umbrales[admitidos])
+  }
+  do.call(condicion, c(list(resultado), extra))
 }
 
 .evaluar_regla_medidas <- function(medicion, perfil, regla) {
@@ -237,7 +336,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   }
   orientacion <- .orientacion_medidas(medidas)
   resultado <- .aplicar_condicion_regla(
-    regla$condicion, medidas$resultado, orientacion
+    regla$condicion, medidas$resultado, orientacion, regla$umbrales
   )
   if (!is.logical(resultado) || length(resultado) != nrow(medidas) ||
       anyNA(resultado)) {

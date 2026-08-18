@@ -1,5 +1,20 @@
 # lupa 0.1.0
 
+## Los umbrales de una regla salen del closure y se pueden consultar
+
+- `regla_evaluacion()` acepta `umbrales`, una lista con nombres que se le pasan
+  a la condición al evaluarla. Antes el umbral quedaba encerrado en el
+  *closure*: para mover un número había que escribir otra regla, y nadie podía
+  consultar cuál era. Ahora la misma función evalúa distinto con dos umbrales
+  —0,67 y 0,33 sobre los mismos valores— sin reconstruir la lógica.
+- Una condición que no recibe un umbral declarado se rechaza enumerando los
+  argumentos que sí acepta, en vez de ignorarlo en silencio. Una condición con
+  `...` los recibe todos.
+- **`propiedades_regla()`** muestra lo que una regla declara: métricas, nivel,
+  proporción mínima, desenlace y umbrales. Es la contraparte de
+  `propiedades_metrica()`, que describe métricas: un umbral pertenece a una
+  regla y no cabía allí.
+
 ## Trazabilidad por clave declarada: del hallazgo que se lee al que se verifica
 
 - `perfilar()` acepta `clave` con las columnas que identifican una fila. La

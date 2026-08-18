@@ -12,7 +12,8 @@ regla_evaluacion(
   condicion,
   metricas = NULL,
   proporcion_minima = NULL,
-  desenlace = NULL
+  desenlace = NULL,
+  umbrales = list()
 )
 
 perfil_evaluacion(nombre, ...)
@@ -43,11 +44,11 @@ veredicto y el universo de medidas que la produjo.}
 para declarar que las medidas que no cumplen \code{condicion} no deben
 publicarse. No existe un desenlace predeterminado.}
 
-\item{...}{Reglas creadas por \code{regla_evaluacion()} o una única lista que las
-contenga.}
-
 \item{umbrales}{Vector numérico con nombres, estrictamente creciente y en
 \verb{[0, 1]}. \code{NULL} conserva los tres perfiles incluidos de fábrica.}
+
+\item{...}{Reglas creadas por \code{regla_evaluacion()} o una única lista que las
+contenga.}
 }
 \value{
 \code{regla_evaluacion()} devuelve una \code{regla_evaluacion};
