@@ -15,6 +15,13 @@ explícitas, limpieza controlada de una copia y duplicados aproximados a escala.
 En vez de un puntaje opaco, cada resultado conserva alcance, evidencia e
 incertidumbre.
 
+**El perfilado no toca los datos.** Ninguna función de análisis altera la tabla
+que recibe —ni sus valores, ni sus tipos, ni sus nombres, ni sus atributos—,
+incluidos los `data.table`, que R permite modificar por referencia. La única
+capa que produce datos distintos es la de remediación, y devuelve una copia: la
+tabla que pasaste sigue siendo la que tenés. Hay una prueba de regresión que lo
+verifica en cada punto de entrada.
+
 ## 🌎 Idioma de la API
 
 Los nombres públicos están en español en ejemplos, ayuda y viñetas:

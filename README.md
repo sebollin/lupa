@@ -14,6 +14,13 @@ quality model declared for a particular use, explicit measurement, controlled
 cleanup of a copy, and approximate duplicate detection at scale. Instead of a
 single opaque score, every result carries its scope, evidence, and uncertainty.
 
+**Profiling never touches your data.** No analysis function alters the table it
+receives — not its values, its types, its names, or its attributes — including
+`data.table` inputs, which R allows to be modified by reference. Only the
+remediation layer produces different data, and it returns a copy: the table you
+passed in is still the table you have. A regression test asserts this for every
+entry point.
+
 ## 🌎 API language
 
 The public names are Spanish in examples, help pages, and vignettes:

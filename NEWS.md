@@ -1,5 +1,16 @@
 # lupa 0.1.0
 
+## El perfilado no toca los datos, y ahora está probado
+
+- Ninguna función de análisis altera la tabla que recibe: ni sus valores, ni sus
+  tipos, ni sus nombres, ni sus atributos. Una prueba de regresión lo verifica en
+  `perfilar()`, `analizar()`, `detectar_claves()`, `detectar_dependencias()`,
+  `distribucion_valores()`, `detectar_asociaciones()`,
+  `detectar_duplicados_aproximados()`, `planificar_limpieza()` y
+  `guiar_limpieza()`. El caso que importa es `data.table`, que R permite
+  modificar por referencia: la prueba compara además la dirección de memoria del
+  objeto. `aplicar()` devuelve una copia y deja intacta la original.
+
 ## Duplicados: el hallazgo no afirma una igualdad que produjo la normalización
 
 - La normalización por omisión iguala mayúsculas, espacios, acentos y comillas,
