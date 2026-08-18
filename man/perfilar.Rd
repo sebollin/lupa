@@ -228,7 +228,9 @@ declaradas (por ejemplo fila, columna, formato o par). Cuando el camino
 no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 \code{trazabilidad} distingue \code{disponible}, \code{truncada}, \code{no_aplica} y
 \code{no_disponible}; cuando corresponde conserva índices de fila acotados por
-\code{max_filas_hallazgo}, el total conocido y el alcance (completo o parcial).
+\code{max_filas_hallazgo}, el total conocido y el alcance. Para \code{patron_raro},
+el alcance puede ser \code{completo}, \code{muestra_patrones},
+\code{patrones_parciales} o \code{muestra_patrones+patrones_parciales}.
 Los índices no contienen valores. Usarlos para extraer filas de los datos
 originales puede volver a exponer datos personales; el paquete no realiza
 esa extracción y la protección de salidas no sustituye el control de acceso
@@ -241,10 +243,13 @@ son un solo token y esa distinción estructural no aplica), \code{mixta} (el gru
 reúne aristas de más de una clase) o \code{indeterminada} (no hubo aristas
 clasificables). Son categorías de evidencia, no veredictos de identidad.
 \code{cobertura_diagnosticos} es una tabla hermana de \code{hallazgos}, con una fila
-por diagnóstico que no pudo evaluarse y las columnas \code{diagnostico},
+por diagn\u00f3stico que no pudo evaluarse o cuya enumeraci\u00f3n qued\u00f3 parcial y
+las columnas \code{diagnostico},
 \code{columna}, \code{motivo}, \code{como_resolverlo} y \code{dependencia}. Incluye la falta de
 \code{stringdist}, \code{stringi}, \code{bit64} o \code{sf}, y las zonas horarias POSIXt sin
-declarar.
+declarar. Los patrones de frecuencia intermedia no se consideran desvios
+del patron dominante: \code{patron_raro} es completo respecto de su criterio de
+rareza cuando no hay recorte de patrones.
 Quien decida automáticamente sobre un perfil debe revisar
 \code{nrow(perfil$cobertura_diagnosticos)} además de las severidades: un perfil
 sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.

@@ -25,6 +25,8 @@
 #'   y hasta seis patrones raros; nunca guarda la distribución completa. Las
 #'   proporciones siempre están en `[0, 1]`. `n_patrones_distintos` registra el
 #'   total antes de truncar la tabla para informar omisiones sin retenerla.
+#'   `n_patrones_raros` registra cu\u00e1ntos patrones raros hab\u00eda antes del tope de
+#'   seis que aplica `resumen_patrones`.
 #' @export
 #' @seealso [perfilar()], [inferir_tipo()], [detectar_formatos_fecha()]
 #'
@@ -95,6 +97,7 @@ descubrir_patrones <- function(x,
   indices_raros <- which(
     seq_along(frecuencias) > 1L & proporciones < umbral_raro
   )
+  n_patrones_raros <- length(indices_raros)
   indices_raros <- utils::head(indices_raros, 6L)
   indices_resumen <- unique(c(
     if (length(frecuencias)) 1L else integer(),
@@ -142,6 +145,7 @@ descubrir_patrones <- function(x,
   attr(resultado, "filas_analizadas") <- muestra_x$analizados
   attr(resultado, "muestreado") <- muestra_x$muestreado
   attr(resultado, "n_patrones_distintos") <- length(frecuencias)
+  attr(resultado, "n_patrones_raros") <- n_patrones_raros
   attr(resultado, "resumen_patrones") <- resumen
   resultado
 }

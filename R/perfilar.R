@@ -425,7 +425,9 @@
 #'   no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 #'   `trazabilidad` distingue `disponible`, `truncada`, `no_aplica` y
 #'   `no_disponible`; cuando corresponde conserva índices de fila acotados por
-#'   `max_filas_hallazgo`, el total conocido y el alcance (completo o parcial).
+#'   `max_filas_hallazgo`, el total conocido y el alcance. Para `patron_raro`,
+#'   el alcance puede ser `completo`, `muestra_patrones`,
+#'   `patrones_parciales` o `muestra_patrones+patrones_parciales`.
 #'   Los índices no contienen valores. Usarlos para extraer filas de los datos
 #'   originales puede volver a exponer datos personales; el paquete no realiza
 #'   esa extracción y la protección de salidas no sustituye el control de acceso
@@ -438,10 +440,13 @@
 #'   reúne aristas de más de una clase) o `indeterminada` (no hubo aristas
 #'   clasificables). Son categorías de evidencia, no veredictos de identidad.
 #'   `cobertura_diagnosticos` es una tabla hermana de `hallazgos`, con una fila
-#'   por diagnóstico que no pudo evaluarse y las columnas `diagnostico`,
+#'   por diagn\u00f3stico que no pudo evaluarse o cuya enumeraci\u00f3n qued\u00f3 parcial y
+#'   las columnas `diagnostico`,
 #'   `columna`, `motivo`, `como_resolverlo` y `dependencia`. Incluye la falta de
 #'   `stringdist`, `stringi`, `bit64` o `sf`, y las zonas horarias POSIXt sin
-#'   declarar.
+#'   declarar. Los patrones de frecuencia intermedia no se consideran desvios
+#'   del patron dominante: `patron_raro` es completo respecto de su criterio de
+#'   rareza cuando no hay recorte de patrones.
 #'   Quien decida automáticamente sobre un perfil debe revisar
 #'   `nrow(perfil$cobertura_diagnosticos)` además de las severidades: un perfil
 #'   sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.

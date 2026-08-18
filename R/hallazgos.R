@@ -92,6 +92,31 @@
   )
 }
 
+.patrones_raros_recortados <- function(patrones) {
+  resumen <- attr(patrones, "resumen_patrones", exact = TRUE)
+  if (is.null(resumen) || !is.data.frame(resumen)) return(FALSE)
+  n_raros <- attr(patrones, "n_patrones_raros", exact = TRUE)
+  if (length(n_raros) == 1L && is.finite(n_raros)) {
+    return(n_raros > max(0L, nrow(resumen) - 1L))
+  }
+  # Without the count, exhaustiveness cannot be established safely.
+  TRUE
+}
+
+.alcance_patron_raro <- function(patrones) {
+  parcial <- isTRUE(.patrones_raros_recortados(patrones))
+  muestreado <- isTRUE(attr(patrones, "muestreado", exact = TRUE))
+  if (parcial && muestreado) {
+    "muestra_patrones+patrones_parciales"
+  } else if (parcial) {
+    "patrones_parciales"
+  } else if (muestreado) {
+    "muestra_patrones"
+  } else {
+    "completo"
+  }
+}
+
 .nuevo_diagnostico_no_evaluado <- function(diagnostico, columna, motivo,
                                            como_resolverlo,
                                            dependencia = NA_character_) {
@@ -1172,11 +1197,7 @@
     tipos_geometria_mixtos = n,
     patron_raro = {
       resumen <- attr(resultado$patrones, "resumen_patrones")
-      distintos <- attr(resultado$patrones, "n_patrones_distintos")
-      completo <- !is.null(resumen) && (
-        is.null(distintos) || !is.finite(distintos) ||
-          distintos <= nrow(resumen)
-      )
+      completo <- !isTRUE(.patrones_raros_recortados(resultado$patrones))
       if (completo && !is.null(resumen) && nrow(resumen) > 1L) {
         sum(resumen$n[-1L], na.rm = TRUE)
       } else NA_real_
@@ -1275,9 +1296,7 @@
                                  distinguir_mayusculas = TRUE) {
   resumen <- attr(resultado$patrones, "resumen_patrones")
   if (is.null(resumen) || nrow(resumen) < 2L) return(NULL)
-  distintos <- attr(resultado$patrones, "n_patrones_distintos")
-  if (!is.null(distintos) && is.finite(distintos) &&
-      distintos > nrow(resumen)) return(NULL)
+  if (isTRUE(.patrones_raros_recortados(resultado$patrones))) return(NULL)
   total <- length(x)
   analizados <- attr(resultado$patrones, "analizados")
   muestreado <- isTRUE(attr(resultado$patrones, "muestreado"))
@@ -1572,18 +1591,20 @@
     tipo, datos[[indice]], resultados[[indice]]$fila,
     resultados[[indice]], expandir, distinguir_mayusculas
   )
+  if (tipo == "patron_raro") {
+    alcance <- .alcance_patron_raro(resultados[[indice]]$patrones)
+    if (is.null(indices)) {
+      return(.trazabilidad_vacia(alcance = alcance, limite = limite))
+    }
+    return(.trazabilidad_indices(
+      indices, alcance, limite, clave = clave, datos = datos
+    ))
+  }
   if (is.null(indices)) {
     return(.trazabilidad_vacia(limite = limite))
   }
-  alcance <- if (tipo == "patron_raro" &&
-                 isTRUE(attr(resultados[[indice]]$patrones,
-                             "muestreado", exact = TRUE))) {
-    "muestra_patrones"
-  } else {
-    "completo"
-  }
   .trazabilidad_indices(
-    indices, alcance, limite, clave = clave, datos = datos
+    indices, "completo", limite, clave = clave, datos = datos
   )
 }
 
@@ -2032,7 +2053,10 @@
         )
         agregar(.nuevo_hallazgo(
           nombre, "patron_raro", "sospechoso",
-          "Hay valores infrecuentes que no siguen el patr\u00f3n dominante.",
+          paste0(
+            "Hay valores infrecuentes que no siguen el patr\u00f3n dominante; ",
+            "los patrones de frecuencia intermedia no se consideran desv\u00edos."
+          ),
           paste0(
             "Dominante: ", patrones$patron[[1L]], ". Desv\u00edos: ",
             paste(utils::head(strsplit(evidencia, "; ", fixed = TRUE)[[1L]], 6L),
@@ -2043,6 +2067,19 @@
           ),
           "Revisar los valores concretos y validar el formato esperado."
         ))
+        if (isTRUE(.patrones_raros_recortados(resultado$patrones))) {
+          n_raros <- attr(resultado$patrones, "n_patrones_raros",
+                          exact = TRUE)
+          agregar_cobertura(
+            "patron_raro", nombre,
+            paste0(
+              "Se detectaron ", n_raros,
+              " patrones raros, pero el resumen conserva solo seis; ",
+              "la enumeracion de filas no cubre todos los patrones raros."
+            ),
+            "Revisar la distribucion completa de patrones antes de usar la enumeracion de filas como exhaustiva."
+          )
+        }
       }
     }
 

@@ -125,6 +125,72 @@ test_that("la trazabilidad de patrones muestreados declara su alcance", {
   expect_equal(hallazgo$trazabilidad[[1L]]$indices_fila, c(1980L, 2000L))
 })
 
+test_that("patron_raro separa patrones raros de patrones intermedios", {
+  valores <- c(
+    rep("AL", 880L), rep("uAL", 38L), rep("AiL", 22L), rep("L", 59L)
+  )
+  perfil <- perfilar(
+    data.frame(state = valores), analizar_dependencias = FALSE,
+    casi_duplicados_vocabulario = FALSE
+  )
+  patrones <- perfil$patrones$state
+  expect_equal(attr(patrones, "n_patrones_distintos"), 4L)
+  expect_equal(attr(patrones, "n_patrones_raros"), 2L)
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "patron_raro", , drop = FALSE
+  ]
+  expect_equal(hallazgo$n_afectados, 60)
+  expect_equal(hallazgo$trazabilidad[[1L]]$alcance, "completo")
+  expect_equal(hallazgo$trazabilidad[[1L]]$total, 60)
+  expect_equal(hallazgo$trazabilidad[[1L]]$indices_fila, 881:940)
+  expect_equal(nrow(perfil$cobertura_diagnosticos), 0L)
+})
+
+test_that("el recorte de patrones raros declara alcance y cobertura", {
+  raros <- c("x", "x1", "1x", "x-x", "1", "X-X", "x_x")
+  valores <- c(rep("AB", 90L), raros)
+  perfil <- perfilar(
+    data.frame(codigo = valores), analizar_dependencias = FALSE,
+    casi_duplicados_vocabulario = FALSE
+  )
+  patrones <- perfil$patrones$codigo
+  expect_equal(attr(patrones, "n_patrones_raros"), 7L)
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "patron_raro", , drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  expect_true(is.na(hallazgo$n_afectados))
+  traza <- hallazgo$trazabilidad[[1L]]
+  expect_equal(traza$estado, "no_disponible")
+  expect_equal(traza$alcance, "patrones_parciales")
+  expect_length(traza$indices_fila, 0L)
+  cobertura <- perfil$cobertura_diagnosticos[
+    perfil$cobertura_diagnosticos$diagnostico == "patron_raro", , drop = FALSE
+  ]
+  expect_equal(nrow(cobertura), 1L)
+  expect_match(cobertura$motivo, "7 patrones raros", fixed = TRUE)
+})
+
+test_that("el alcance conserva muestreo y recorte de patrones", {
+  raros <- c("x", "x1", "1x", "x-x", "1", "X-X", "x_x")
+  valores <- rep("AB", 200L)
+  valores[seq(1L, 13L, by = 2L)] <- raros
+  perfil <- perfilar(
+    data.frame(codigo = valores), muestra = 100L,
+    analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "patron_raro", , drop = FALSE
+  ]
+  expect_equal(hallazgo$n_evaluados, 100)
+  expect_true(is.na(hallazgo$n_afectados))
+  expect_equal(
+    hallazgo$trazabilidad[[1L]]$alcance,
+    "muestra_patrones+patrones_parciales"
+  )
+  expect_equal(nrow(perfil$cobertura_diagnosticos), 1L)
+})
+
 test_that("la trazabilidad es uniforme, acotada y no se imprime como indices", {
   datos <- data.frame(x = rep(1, 2005L))
   perfil <- perfilar(

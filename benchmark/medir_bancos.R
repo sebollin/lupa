@@ -80,7 +80,8 @@ verdad_riolu <- .cargar_verdad("riolu")
 verdad_addresstable <- .cargar_verdad("addresstable")
 options(lupa.benchmark.silencioso = opcion_anterior)
 
-.fila_no_medida <- function(referencia, razon = referencia$razon) {
+.fila_no_medida <- function(referencia, razon = referencia$razon,
+                            banco = NULL) {
   ## Un solo elemento vacio aca rompia el `data.frame` entero y con el la
   ## corrida completa: justamente en el camino que existe para declarar que algo
   ## NO se pudo medir. El caso de fallo no puede ser el que falla.
@@ -92,8 +93,10 @@ options(lupa.benchmark.silencioso = opcion_anterior)
       as.character(x)[[1L]]
     }
   }
-  nombre_banco <- primero(referencia$banco,
-                          primero(referencia$resumen$banco, "desconocido"))
+  nombre_banco <- primero(banco,
+                          primero(referencia$banco,
+                                  primero(referencia$resumen$banco,
+                                          "desconocido")))
   nombre_dataset <- primero(referencia$dataset, nombre_banco)
   razon <- primero(razon, "sin razon declarada")
   data.frame(
@@ -114,7 +117,9 @@ options(lupa.benchmark.silencioso = opcion_anterior)
 }
 
 .medir_una <- function(referencia, banco, tipos = NULL, alcance = "completo") {
-  if (!isTRUE(referencia$disponible)) return(.fila_no_medida(referencia))
+  if (!isTRUE(referencia$disponible)) {
+    return(.fila_no_medida(referencia, banco = banco))
+  }
   datos <- referencia$sucia
   mascara <- if (!is.null(referencia$mascara_patron)) {
     referencia$mascara_patron
@@ -129,7 +134,8 @@ options(lupa.benchmark.silencioso = opcion_anterior)
   if (!identical(dim(mascara), dim(datos))) {
     return(.fila_no_medida(
       referencia,
-      "la mascara de verdad no esta alineada con dirty.csv"
+      "la mascara de verdad no esta alineada con dirty.csv",
+      banco = banco
     ))
   }
   medido <- tryCatch(
@@ -139,7 +145,8 @@ options(lupa.benchmark.silencioso = opcion_anterior)
     error = function(e) e
   )
   if (inherits(medido, "error")) {
-    return(.fila_no_medida(referencia, conditionMessage(medido)))
+    return(.fila_no_medida(referencia, conditionMessage(medido),
+                           banco = banco))
   }
   medido$estado <- "medido"
   medido$banco <- banco
