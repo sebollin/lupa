@@ -49,6 +49,7 @@
 }
 
 test_that("falta stringi: la normalización Unicode se declara y el alcance es NA", {
+  skip_if_not_installed("stringdist")
   datos <- data.frame(texto = c("café", "café", "nino"), stringsAsFactors = FALSE)
 
   presente <- perfilar(datos)
@@ -68,6 +69,7 @@ test_that("falta stringi: la normalización Unicode se declara y el alcance es N
 })
 
 test_that("falta stringdist: la proximidad de vocabulario se declara", {
+  skip_if_not_installed("stringdist")
   datos <- data.frame(
     depto = c(rep("Montevideo", 40L), rep("Montevido", 3L), rep("Canelones", 30L)),
     stringsAsFactors = FALSE
@@ -201,6 +203,7 @@ test_that("el catálogo de razones conocidas está completo", {
 })
 
 test_that("los grupos bajo el piso de asimetría se declaran, no desaparecen", {
+  skip_if_not_installed("stringdist")
   # El piso de asimetría existe porque `este`/`oeste` —dos valores legítimos y
   # parecidos— se abría como sospechoso con asimetría 1,5. Pero en esa misma
   # banda cae una errata sistemática que afecta al 40 % de los registros, y por

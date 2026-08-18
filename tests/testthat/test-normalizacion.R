@@ -87,6 +87,7 @@ test_that("los pasos optativos son explícitos", {
 })
 
 test_that("la herencia pasa por el perfil y las fusiones quedan observables", {
+  skip_if_not_installed("stringdist")
   datos <- data.frame(nombre = c("JOSÉ", "jose"), stringsAsFactors = FALSE)
   perfil <- perfilar(datos, analizar_dependencias = FALSE,
                      normalizar = normalizacion(acentos = FALSE))
@@ -206,6 +207,7 @@ test_that("las fusiones declaran el vocabulario completo y sus contribuciones", 
 })
 
 test_that("los perfiles por columna se resuelven sin mezclar criterios", {
+  skip_if_not_installed("stringdist")
   datos <- data.frame(nombre = c("JOSÉ", "jose"), codigo = c("A-1", "A1"),
                       stringsAsFactors = FALSE)
   perfil <- list(

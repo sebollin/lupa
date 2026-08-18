@@ -93,6 +93,7 @@ test_that("el alcance declara un recorte del vocabulario o de sus pares", {
 })
 
 test_that("la distancia no encadena variantes en un solo grupo", {
+  skip_if_not_installed("stringdist")
   datos <- c(
     rep("Marano", 20), rep("Marabo", 5), rep("Marebo", 5),
     rep("Marebe", 5), rep("Karebe", 5)
@@ -132,6 +133,7 @@ test_that("el piso informa un grupo real en vocabularios pequenos", {
 })
 
 test_that("un componente grande no se presenta como toda una columna chica", {
+  skip_if_not_installed("stringdist")
   # Una forma dominante con catorce variantes raras: asimetria alta, que es lo
   # que hace de esto un candidato real y no un conjunto de valores distintos.
   # Con frecuencias parejas -`Zona A` a `Zona O` de 100 a 72- el piso de
@@ -177,6 +179,7 @@ test_that("un componente grande no se presenta como toda una columna chica", {
 })
 
 test_that("las secuencias numericas separan familias de entidades", {
+  skip_if_not_installed("stringdist")
   zonas <- function(n) paste0("Zona ", sprintf("%02d", seq_len(n)))
   for (n in c(9L, 15L)) {
     resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
@@ -240,6 +243,7 @@ test_that("las secuencias numericas separan familias de entidades", {
 })
 
 test_that("la regla numerica distingue las diez parejas de referencia", {
+  skip_if_not_installed("stringdist")
   parejas <- data.frame(
     izquierda = c(
       "Zona 01", "Escuela N 0001", "Calle 18", "Montevideo",
@@ -268,6 +272,7 @@ test_that("la regla numerica distingue las diez parejas de referencia", {
 })
 
 test_that("un grupo que abarca casi todo el vocabulario no se entrega", {
+  skip_if_not_installed("stringdist")
   letras <- vapply(seq_len(2000), function(i) {
     paste0(
       letters[(i - 1L) %/% 676L + 1L],
@@ -312,6 +317,7 @@ test_that("el detector de vocabulario se puede apagar", {
 })
 
 test_that("declara cuando la estrella no tiene asimetria", {
+  skip_if_not_installed("stringdist")
   datos <- data.frame(x = c("Marano", "Marabo", "Maravo"))
   perfil <- perfilar(
     datos, analizar_dependencias = FALSE, normalizar = TRUE
@@ -329,6 +335,7 @@ test_that("declara cuando la estrella no tiene asimetria", {
 })
 
 test_that("la ceguera de la estrella no oculta fusiones exactas", {
+  skip_if_not_installed("stringdist")
   datos <- data.frame(x = c("San José", "San Jose", "Marano", "Marabo"))
   perfil <- perfilar(
     datos, analizar_dependencias = FALSE, normalizar = TRUE
@@ -344,6 +351,7 @@ test_that("la ceguera de la estrella no oculta fusiones exactas", {
 })
 
 test_that("la distancia en nombres de vias queda declarada como sospecha", {
+  skip_if_not_installed("stringdist")
   datos <- c(
     rep("CAMINO CARRASCO", 30L), rep("CAMINO AGRARIOS", 2L),
     rep("CALLE A", 20L), rep("CALLE B", 3L),

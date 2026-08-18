@@ -313,6 +313,10 @@ transiciones_granularidad <- function() {
 #' @param umbral Umbral en `[0, 1]` requerido por `ratio_umbral`.
 #' @param pesos Vector numérico requerido por `promedio_ponderado`, con una
 #'   entrada por fila de `medidas`.
+#' @param coleccion Frontera declarada, exigida cuando `destino` es
+#'   `"coleccion"`: el objeto de [coleccion()] o el perfil de
+#'   [perfilar_coleccion()]. Sin ella no se sabe sobre qué tablas se está
+#'   agregando, y el número resultante no describiría nada.
 #'
 #' @return Objeto `medicion` agregado, con una fila por objeto de destino.
 #' @export

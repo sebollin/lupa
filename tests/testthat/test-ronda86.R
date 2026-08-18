@@ -32,6 +32,7 @@ test_that("la falta de stringdist se declara aunque no haya fusion exacta", {
 })
 
 test_that("la evidencia de variantes distingue token y edicion interna", {
+  skip_if_not_installed("stringdist")
   datos <- c(
     rep("CAMINO CARRASCO", 30L), rep("CAMINO AGRARIOS", 2L),
     rep("Montevideo", 30L), rep("Montevido", 2L)

@@ -137,6 +137,7 @@ test_that("31 tablas limpias tienen solo afirmaciones verdaderas", {
 })
 
 test_that("un resultado negativo de vocabulario queda en ok", {
+  skip_if_not_installed("stringdist")
   perfil <- perfilar(
     data.frame(clave = sprintf("R%06d", seq_len(300L))),
     analizar_dependencias = FALSE
@@ -153,6 +154,7 @@ test_that("un resultado negativo de vocabulario queda en ok", {
 })
 
 test_that("variantes reales de vocabulario siguen siendo sospechosas", {
+  skip_if_not_installed("stringdist")
   datos <- data.frame(localidad = c(
     rep("Montevideo", 30L), rep("Montevido", 3L), rep("MONTEVIDEO", 5L)
   ))
@@ -221,6 +223,7 @@ test_that("la unicidad completa no se afirma como categoria", {
 })
 
 test_that("una tabla ajena conserva el perfil base identico", {
+  skip_if_not_installed("stringdist")
   set.seed(10703)
   etiquetas <- replicate(24L, paste(sample(letters, 20L, replace = TRUE),
                                     collapse = ""))

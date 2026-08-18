@@ -142,6 +142,7 @@ test_that("un catalogo breve sesgado sin forma mayoritaria queda callado", {
 })
 
 test_that("las erratas breves raras frente a una forma dominante se detectan", {
+  skip_if_not_installed("stringdist")
   casos <- list(
     emergencia = c(
       rep("yes", 830L), rep("no", 143L), rep("yxs", 11L),
@@ -198,6 +199,7 @@ test_that("los umbrales del vocabulario corto son publicos y validados", {
 })
 
 test_that("las nueve detecciones reales de precision se conservan", {
+  skip_if_not_installed("stringdist")
   perfiles <- list(
     localidad = perfilar(
       data.frame(x = c(rep("Montevideo", 30L), rep("Montevido", 3L))),

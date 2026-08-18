@@ -142,6 +142,7 @@ test_that("faltantes disfrazados se retiran de variantes de vocabulario", {
 })
 
 test_that("una errata que no es faltante sigue como casi-duplicado", {
+  skip_if_not_installed("stringdist")
   datos <- data.frame(valor = c(
     rep("Montevideo", 240L), rep("MONTEVIDEO", 25L), rep("Montevido", 8L)
   ))

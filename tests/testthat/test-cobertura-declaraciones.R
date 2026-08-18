@@ -79,6 +79,7 @@ test_that("las ramas de normalizacion declaran perfiles y casos limite", {
 })
 
 test_that("las ramas de conversion y referenciales declaran su alcance", {
+  skip_if_not_installed("stringdist")
   ahora <- as.POSIXct("2026-01-01 00:00:00", tz = "UTC")
   expect_match(
     lupa:::.texto_representacion_conversion(ahora),

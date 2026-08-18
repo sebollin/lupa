@@ -101,6 +101,7 @@ test_that("texto libre de cardinalidad alta no degrada el perfil", {
 })
 
 test_that("el diagnóstico de vocabulario respeta su presupuesto de pares", {
+  skip_if_not_installed("stringdist")
   pares_comparados <- 0
   llamadas <- 0L
   original <- lupa:::.comparar_bloques_duplicados

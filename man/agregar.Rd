@@ -26,6 +26,11 @@ Debe contener una sola métrica específica, una corrida y una granularidad.}
 
 \item{pesos}{Vector numérico requerido por \code{promedio_ponderado}, con una
 entrada por fila de \code{medidas}.}
+
+\item{coleccion}{Frontera declarada, exigida cuando \code{destino} es
+\code{"coleccion"}: el objeto de \code{\link[=coleccion]{coleccion()}} o el perfil de
+\code{\link[=perfilar_coleccion]{perfilar_coleccion()}}. Sin ella no se sabe sobre qué tablas se está
+agregando, y el número resultante no describiría nada.}
 }
 \value{
 Objeto \code{medicion} agregado, con una fila por objeto de destino.
