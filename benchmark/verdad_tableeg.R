@@ -40,6 +40,40 @@ dir.create(.tableeg_temp)
 .tableeg_raices <- unique(c(.tableeg_local, .tableeg_extraido))
 .tableeg_raices <- .tableeg_raices[nzchar(.tableeg_raices)]
 
+.consultar_tableeg_drive <- function() {
+  if (length(.tableeg_raices)) {
+    return(list(ok = NA, detalle = "hay una copia local o un archivo ZIP indicado"))
+  }
+  destino <- file.path(.tableeg_temp, "carpeta-drive.html")
+  intento <- tryCatch(
+    utils::download.file(.tableeg_source, destino, mode = "wb", quiet = TRUE),
+    error = function(e) e
+  )
+  if (inherits(intento, "error")) {
+    return(list(
+      ok = FALSE,
+      detalle = paste0("la consulta de la carpeta fallo: ",
+                       conditionMessage(intento))
+    ))
+  }
+  if (!identical(as.integer(intento), 0L) || !file.exists(destino)) {
+    return(list(
+      ok = FALSE,
+      detalle = paste0("la consulta de la carpeta termino con codigo ",
+                       intento)
+    ))
+  }
+  list(
+    ok = TRUE,
+    detalle = paste0(
+      "se consulto la carpeta de Drive y se obtuvo su pagina HTML; ",
+      "no contiene una URL publica de archivo CSV/ZIP utilizable por R base"
+    )
+  )
+}
+
+.tableeg_drive <- .consultar_tableeg_drive()
+
 .candidatos_tableeg <- function(dataset, archivo) {
   nombre <- tolower(dataset)
   c(file.path("source", dataset, archivo), file.path("source", nombre, archivo),
@@ -52,8 +86,8 @@ dir.create(.tableeg_temp)
     return(.no_disponible(
       paste0("TableEG/", dataset), .tableeg_source,
       paste0(
-        "la fuente ofrece una carpeta de Google Drive, no una URL directa; ",
-        "defina TABLEEG_DATA_DIR con una copia extraida o TABLEEG_ARCHIVE_URL"
+        .tableeg_drive$detalle, "; defina TABLEEG_DATA_DIR con una copia ",
+        "extraida o TABLEEG_ARCHIVE_URL con un ZIP directo"
       )
     ))
   }

@@ -10,7 +10,10 @@
 } else getwd()
 source(file.path(.dir_riolu, "_comun_bancos.R"), local = FALSE)
 
-.riolu_datasets <- Sys.getenv("RIOLU_DATASETS", unset = "hosp_1k,flights")
+.riolu_datasets <- Sys.getenv(
+  "RIOLU_DATASETS",
+  unset = "flights,hosp_100k,hosp_10k,hosp_1k,movies"
+)
 .riolu_datasets <- trimws(unlist(strsplit(.riolu_datasets, ",", fixed = TRUE)))
 .riolu_datasets <- .riolu_datasets[nzchar(.riolu_datasets)]
 .riolu_local <- Sys.getenv("RIOLU_DATA_DIR", unset = "")
@@ -73,6 +76,7 @@ dir.create(.riolu_temp)
     error = function(e) .no_disponible(paste0("RIOLU/", dataset),
                                        .riolu_base, conditionMessage(e))
   )
+  if (!isTRUE(referencia$disponible)) return(referencia)
   referencia$dataset <- dataset
   mascara <- .mascara_verdad_larga(
     verdad$ruta, nrow(sucia), ncol(sucia), names(sucia)
@@ -83,21 +87,7 @@ dir.create(.riolu_temp)
       "el archivo de ground truth no tiene dimensiones ni columnas reconocibles"
     ))
   }
-  referencia$mascara_patron <- mascara
-  posiciones <- which(mascara, arr.ind = TRUE)
-  referencia$verdad <- if (length(posiciones)) data.frame(
-    fila = posiciones[, "row"],
-    columna_indice = posiciones[, "col"],
-    columna = names(sucia)[posiciones[, "col"]],
-    valor_sucio = as.matrix(sucia)[posiciones],
-    valor_limpio = as.matrix(limpia)[posiciones],
-    stringsAsFactors = FALSE
-  ) else referencia$verdad[0, , drop = FALSE]
-  referencia$columnas_afectadas <- unique(referencia$verdad$columna)
-  referencia$resumen$celdas_verdad <- sum(mascara)
-  referencia$resumen$filas_afectadas <- sum(rowSums(mascara) > 0L)
-  referencia$resumen$tasa_celdas_verdad <- sum(mascara) / length(mascara)
-  referencia$resumen$columnas_afectadas <- sum(colSums(mascara) > 0L)
+  referencia <- .aplicar_mascara_verdad(referencia, mascara, sucia)
   referencia$versiones <- rbind(referencia$versiones,
                                 .version_archivo(verdad))
   referencia

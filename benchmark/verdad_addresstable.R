@@ -14,7 +14,9 @@ source(file.path(.dir_address, "_comun_bancos.R"), local = FALSE)
 
 .address_local <- Sys.getenv("ADDRESSTABLE_DATA_DIR", unset = "")
 .address_url <- Sys.getenv("ADDRESSTABLE_FILE_URL", unset = "")
+.address_clean_url <- Sys.getenv("ADDRESSTABLE_CLEAN_URL", unset = "")
 .address_record <- "https://zenodo.org/records/20841898"
+.address_api <- "https://zenodo.org/api/records/20841898"
 .address_max_rows <- suppressWarnings(as.integer(
   Sys.getenv("ADDRESSTABLE_MAX_ROWS", unset = "10000")
 ))
@@ -22,19 +24,70 @@ if (is.na(.address_max_rows) || .address_max_rows < 1L) .address_max_rows <- 100
 .address_temp <- tempfile("lupa-addresstable-")
 dir.create(.address_temp)
 
+.consultar_address_record <- function() {
+  if (nzchar(.address_local) || nzchar(.address_url)) {
+    return(list(
+      ok = NA,
+      detalle = "hay una copia local o una URL directa indicada"
+    ))
+  }
+  urls <- c(.address_api, .address_record)
+  for (url in urls) {
+    destino <- file.path(
+      .address_temp,
+      paste0("registro-", if (identical(url, .address_api)) "api" else "web")
+    )
+    intento <- tryCatch(
+      utils::download.file(url, destino, mode = "wb", quiet = TRUE),
+      error = function(e) e
+    )
+    if (!inherits(intento, "error") && identical(as.integer(intento), 0L) &&
+        file.exists(destino) && isTRUE(file.info(destino)$size > 0)) {
+      return(list(
+        ok = TRUE,
+        detalle = paste0(
+          "se consulto el registro de Zenodo (", url, "); ",
+          "sus archivos publicados son de escala completa y no se bajo ninguno"
+        )
+      ))
+    }
+  }
+  list(
+    ok = FALSE,
+    detalle = paste0(
+      "se intento consultar el registro y su API, pero no se obtuvo la ",
+      "metadata"
+    )
+  )
+}
+
+.address_metadata <- .consultar_address_record()
+
 .construir_addresstable <- function() {
   if (!nzchar(.address_local) && !nzchar(.address_url)) {
     return(.no_disponible(
       "AddressTable", .address_record,
       paste0(
-        "el registro contiene archivos de escala y no se baja el completo ",
-        "sin una URL directa de muestra; defina ADDRESSTABLE_DATA_DIR o ",
-        "ADDRESSTABLE_FILE_URL"
+        .address_metadata$detalle, "; defina ADDRESSTABLE_DATA_DIR o ",
+        "ADDRESSTABLE_FILE_URL con una muestra autorizada"
+      )
+    ))
+  }
+  if (!nzchar(.address_local) && !nzchar(.address_clean_url)) {
+    return(.no_disponible(
+      "AddressTable", .address_record,
+      paste0(
+        "ADDRESSTABLE_FILE_URL requiere tambien ",
+        "ADDRESSTABLE_CLEAN_URL para comparar dirty y clean"
       )
     ))
   }
   url_dirty <- if (nzchar(.address_url)) .address_url else .address_record
-  url_clean <- Sys.getenv("ADDRESSTABLE_CLEAN_URL", unset = .address_url)
+  url_clean <- if (nzchar(.address_clean_url)) {
+    .address_clean_url
+  } else {
+    ""
+  }
   dirty <- .obtener_archivo(
     url_dirty, .address_local,
     c("dirty.csv", "full-named_dirty.csv", "dirty/full-named.csv",

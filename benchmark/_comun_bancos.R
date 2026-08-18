@@ -201,6 +201,35 @@
     return(valores %in% c("1", "true", "error", "anomalia", "anomaly"))
   }
   nombres <- tolower(names(x))
+  ## Formato ancho parcial: una fila por registro, una columna por atributo
+  ## EVALUADO -no por todos-, mas una columna de indice. Es lo que publica
+  ## RIOLU: marca anomalias solo en los atributos que su metodo mira, y el
+  ## resto de la tabla queda fuera de la verdad. Tratarlo como verdad completa
+  ## contaria como acierto lo que nadie etiqueto.
+  columna_indice <- which(nombres %in% c("index", "indice", "id", "row_index"))
+  if (length(columna_indice) == 1L && length(nombres_columnas)) {
+    atributos <- setdiff(names(x), names(x)[columna_indice])
+    if (length(atributos) && all(atributos %in% nombres_columnas)) {
+      mascara <- matrix(FALSE, nrow = as.integer(nfilas),
+                        ncol = as.integer(ncolumnas))
+      colnames(mascara) <- nombres_columnas
+      filas <- suppressWarnings(as.integer(x[[columna_indice]]))
+      ## El indice puede empezar en 0 o en 1; se detecta en vez de suponerlo.
+      if (length(filas) && !anyNA(filas) && min(filas) == 0L) {
+        filas <- filas + 1L
+      }
+      validas <- !is.na(filas) & filas >= 1L & filas <= nrow(mascara)
+      for (atributo in atributos) {
+        marcado <- tolower(trimws(as.character(x[[atributo]]))) %in%
+          c("1", "true", "error", "anomalia", "anomaly")
+        mascara[filas[validas], atributo] <- marcado[validas]
+      }
+      attr(mascara, "columnas_evaluadas") <- atributos
+      attr(mascara, "columnas_sin_verdad") <-
+        setdiff(nombres_columnas, atributos)
+      return(mascara)
+    }
+  }
   columna_fila <- which(nombres %in% c("row", "fila", "row_id", "tuple_id"))
   columna_col <- which(nombres %in% c("column", "columna", "attribute"))
   columna_valor <- which(nombres %in% c("error", "label", "value", "is_error"))
@@ -229,6 +258,83 @@
     )
   salida[cbind(filas[conservar], columnas_indice[conservar])] <- TRUE
   salida
+}
+
+## PED publica difference.csv como una lista de celdas, con las columnas
+## `Index` y `Attribute`; no hay una columna de etiqueta porque cada fila de
+## ese archivo ya es una celda con error. Index es cero basado en la fuente.
+.mascara_ped_difference <- function(ruta, nfilas, ncolumnas,
+                                    nombres_columnas = character(),
+                                    desplazamiento_fila = 1L) {
+  x <- tryCatch(.leer_csv_texto(ruta), error = function(e) NULL)
+  if (is.null(x) || !nrow(x)) return(NULL)
+  nombres <- tolower(trimws(names(x)))
+  columna_fila <- which(nombres %in% c(
+    "index", "row", "fila", "row_id", "tuple_id"
+  ))
+  columna_col <- which(nombres %in% c(
+    "attribute", "column", "columna", "attribute_name"
+  ))
+  if (!length(columna_fila) || !length(columna_col)) return(NULL)
+
+  filas_texto <- trimws(as.character(x[[columna_fila[[1L]]]]))
+  filas <- suppressWarnings(as.integer(filas_texto))
+  atributos <- trimws(as.character(x[[columna_col[[1L]]]]))
+  columnas_numericas <- suppressWarnings(as.integer(atributos))
+  columnas <- match(atributos, nombres_columnas)
+  columnas[is.na(columnas)] <- match(
+    tolower(atributos[is.na(columnas)]),
+    tolower(nombres_columnas)
+  )
+  numericas <- !is.na(columnas_numericas) & nzchar(atributos)
+  columnas[numericas] <- columnas_numericas[numericas]
+
+  ## Los indices de PED son cero basados; R los necesita uno basados. El
+  ## desplazamiento permite validar copias locales preparadas con indices R.
+  filas <- filas + as.integer(desplazamiento_fila)
+  if (any(columnas == 0L, na.rm = TRUE)) columnas <- columnas + 1L
+  validas <- !is.na(filas) & !is.na(columnas) &
+    filas >= 1L & filas <= nfilas & columnas >= 1L & columnas <= ncolumnas
+  if (!all(validas)) return(NULL)
+
+  salida <- matrix(FALSE, nrow = nfilas, ncol = ncolumnas)
+  salida[cbind(filas, columnas)] <- TRUE
+  salida
+}
+
+.aplicar_mascara_verdad <- function(referencia, mascara, datos) {
+  if (!identical(dim(mascara), dim(datos))) return(NULL)
+  posiciones <- which(mascara, arr.ind = TRUE)
+  nombres <- names(datos)
+  matriz <- as.matrix(datos)
+  referencia$mascara_patron <- mascara
+  referencia$verdad <- if (length(posiciones)) {
+    data.frame(
+      fila = posiciones[, "row"],
+      columna_indice = posiciones[, "col"],
+      columna = nombres[posiciones[, "col"]],
+      valor_sucio = matriz[posiciones],
+      valor_limpio = if (!is.null(referencia$limpia)) {
+        as.matrix(referencia$limpia)[posiciones]
+      } else {
+        rep(NA_character_, nrow(posiciones))
+      },
+      stringsAsFactors = FALSE
+    )
+  } else {
+    data.frame(
+      fila = integer(), columna_indice = integer(), columna = character(),
+      valor_sucio = character(), valor_limpio = character(),
+      stringsAsFactors = FALSE
+    )
+  }
+  por_columna <- colSums(mascara)
+  referencia$columnas_afectadas <- nombres[por_columna > 0L]
+  referencia$resumen$celdas_verdad <- sum(mascara)
+  referencia$resumen$filas_afectadas <- sum(rowSums(mascara) > 0L)
+  referencia$resumen$tasa_celdas_verdad <- sum(mascara) / length(mascara)
+  referencia$resumen$columnas_afectadas <- sum(por_columna > 0L)
+  referencia
 }
 
 .celdas_desde_hallazgos <- function(perfil, nombres_columnas, tipos = NULL) {

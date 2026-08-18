@@ -81,15 +81,21 @@ verdad_addresstable <- .cargar_verdad("addresstable")
 options(lupa.benchmark.silencioso = opcion_anterior)
 
 .fila_no_medida <- function(referencia, razon = referencia$razon) {
-  nombre_banco <- referencia$banco
-  if (is.null(nombre_banco) || !length(nombre_banco)) {
-    nombre_banco <- referencia$resumen$banco
+  ## Un solo elemento vacio aca rompia el `data.frame` entero y con el la
+  ## corrida completa: justamente en el camino que existe para declarar que algo
+  ## NO se pudo medir. El caso de fallo no puede ser el que falla.
+  primero <- function(x, alternativa) {
+    if (is.null(x) || !length(x) || all(is.na(x)) ||
+        !any(nzchar(as.character(x)))) {
+      alternativa
+    } else {
+      as.character(x)[[1L]]
+    }
   }
-  nombre_dataset <- referencia$dataset
-  if (is.null(nombre_dataset) || !length(nombre_dataset)) {
-    nombre_dataset <- nombre_banco
-  }
-  if (is.null(razon) || !length(razon)) razon <- "sin razon declarada"
+  nombre_banco <- primero(referencia$banco,
+                          primero(referencia$resumen$banco, "desconocido"))
+  nombre_dataset <- primero(referencia$dataset, nombre_banco)
+  razon <- primero(razon, "sin razon declarada")
   data.frame(
     estado = "no medido",
     banco = nombre_banco,

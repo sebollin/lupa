@@ -107,23 +107,77 @@ una parte de esas posiciones. En `beers/state`, la diferencia dirty/clean es
 estructura observada con su propio conteo de filas, no una correspondencia
 uno-a-uno con esas 127 posiciones.
 
-## Bancos adicionales: estado de disponibilidad
+## PED y RIOLU: estado de disponibilidad y alcance
 
-No se inventa un numero cuando no hubo una copia alineada. Las siguientes
-salidas son estados de esta corrida; los scripts quedan preparados para
-repetirlos sin red mediante las variables indicadas.
+No se inventa un numero cuando no hubo una copia alineada. En esta corrida se
+intentaron las URLs exactas de raw GitHub; el entorno de ejecucion no pudo
+resolver `raw.githubusercontent.com`. Esto es una limitacion local de red, no
+un diagnostico de que los hosts remotos esten caidos. Los scripts tambien fueron
+probados con copias locales y entonces construyen la verdad y pasan el resultado
+a `lupa`; se pueden repetir sin red con `PED_DATA_DIR` y `RIOLU_DATA_DIR`.
 
-| Banco | Estado | Fuente y condiciones de descarga | Motivo de no publicar una medicion |
+La unidad de `PED` es la posicion `(fila, columna)` listada en
+`difference.csv` (`Index`, `Attribute`). La unidad de `RIOLU` es la posicion
+cuya etiqueta en `gt_*.csv` es exactamente `1`; `0` y `-1` no cuentan. En ambos
+casos `dirty.csv` y `clean.csv` solo comprueban que la copia este alineada: no
+reemplazan la verdad publicada.
+
+| Banco / conjunto | Estado | Numero que se publicaria si la copia estuviera disponible | Condiciones de descarga y licencia |
 | --- | --- | --- | --- |
-| PED | No medido | [Repositorio PED](https://github.com/twinklelittlestars/PED), archivos `dirty.csv`, `clean.csv` y `difference.csv`; `PED_DATA_DIR` para copia local; `PED_DATASETS` controla la seleccion. No se encontro licencia de datos declarada; no se redistribuye. | La descarga de raw GitHub no resolvio el host en esta corrida. El script deja el error de cada archivo. |
-| TableEG | No medido | [Repositorio TableEG](https://github.com/viviancircle/TableEG) y su [carpeta de datos](https://drive.google.com/drive/folders/10LdB9LGgymbI6W8D2936uRF6eFRL24xy?usp=sharing); se requiere `TABLEEG_DATA_DIR` o `TABLEEG_ARCHIVE_URL`. No se encontro licencia de datos declarada; no se redistribuye. | La fuente ofrece una carpeta, no una URL directa de archivo que el script pueda bajar con R base; no se trato una pagina HTML como si fuera un ZIP. |
-| RIOLU | No medido | [Replicacion RIOLU](https://github.com/mooselab/Discover-Data-Quality-With-RIOLU), datos `dirty_*`, `clean_*`, `gt_*`; `RIOLU_DATA_DIR` para copia local. El codigo declara MIT, pero no una licencia separada para los datos; no se redistribuyen. | Las tres descargas raw (`dirty`, `clean`, `ground truth`) no resolvieron el host en esta corrida. |
-| AddressTable | No medido | [Registro AddressTable](https://zenodo.org/records/20841898); `ADDRESSTABLE_DATA_DIR` para una muestra local o `ADDRESSTABLE_FILE_URL` para una URL directa; `ADDRESSTABLE_MAX_ROWS` declara la muestra leida. La licencia de datos no pudo confirmarse desde el registro indicado; no se redistribuye. | El registro es de escala de varios GB y no expone en la nota una URL directa de muestra; el script evita descargar el archivo completo sin una copia y permiso concretos. |
+| PED / Flight | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | [Raw PED](https://raw.githubusercontent.com/twinklelittlestars/PED/main/data/Flight/); `PED_DATA_DIR`. El repositorio no declara licencia; se baja para medir y no se redistribuye. |
+| PED / Hospital | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | [Raw PED](https://raw.githubusercontent.com/twinklelittlestars/PED/main/data/Hospital/); `PED_DATA_DIR`. Sin licencia declarada; no se redistribuye. |
+| PED / MIMIC | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | [Raw PED](https://raw.githubusercontent.com/twinklelittlestars/PED/main/data/MIMIC/); `PED_DATA_DIR`. Sin licencia declarada; no se redistribuye. |
+| PED / Plane | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | [Raw PED](https://raw.githubusercontent.com/twinklelittlestars/PED/main/data/Plane/); `PED_DATA_DIR`. Sin licencia declarada; no se redistribuye. |
+| PED / Soccer | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | [Raw PED](https://raw.githubusercontent.com/twinklelittlestars/PED/main/data/Soccer/); `PED_DATA_DIR`. Sin licencia declarada; no se redistribuye. |
+| RIOLU / flights | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | [Raw RIOLU](https://raw.githubusercontent.com/mooselab/Discover-Data-Quality-With-RIOLU/main/); codigo MIT; licencia separada de los datos no declarada; no se redistribuyen. |
+| RIOLU / hosp_100k | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | Misma fuente y condiciones que RIOLU; `RIOLU_DATA_DIR`. |
+| RIOLU / hosp_10k | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | Misma fuente y condiciones que RIOLU; `RIOLU_DATA_DIR`. |
+| RIOLU / hosp_1k | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | Misma fuente y condiciones que RIOLU; `RIOLU_DATA_DIR`. |
+| RIOLU / movies | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | Misma fuente y condiciones que RIOLU; `RIOLU_DATA_DIR`. |
 
-Los conteos de filas, columnas o tamano que la nota de desarrollo atribuye a
-estas fuentes se mantienen como contexto de la fuente, no como resultados
-medidos por este banco. La unica medicion adicional publicada en esta corrida
-es, por tanto, la reproduccion de Raha anterior.
+Cuando haya datos, `benchmark/medir_bancos.R` publicara por cada conjunto:
+
+- `celdas_verdad`: posiciones de la verdad del banco;
+- `celdas_con_hallazgo_trazable`: union de posiciones que `lupa` adjunta a
+  hallazgos no `ok`, con filas localizables;
+- `celdas_acertadas_trazables`: interseccion de las dos anteriores;
+- `precision_celdas_trazables`: aciertos trazables dividido por hallazgos
+  trazables;
+- `cobertura_celdas_verdad`: aciertos trazables dividido por celdas de verdad;
+- `columnas_verdad_con_hallazgo`: interseccion de columnas con verdad y
+  columnas con hallazgo.
+
+Estos nombres declaran los denominadores. `cobertura_celdas_verdad` no es
+recall de un clasificador y `columnas_verdad_con_hallazgo` es cobertura de
+columnas, no recall de celdas.
+
+Como control de procedencia, los tamanos de bytes informados para las fuentes
+son metadatos del archivo, no resultados de `lupa`: PED Flight tiene
+`clean.csv` de 159992, `dirty.csv` de 163038 y `difference.csv` de 41526;
+PED Hospital tiene 299425, 299433 y 7359 respectivamente; RIOLU informa
+`gt_flights.csv` 1556500, `gt_hosp_100k.csv` 1288912,
+`gt_hosp_10k.csv` 118911, `gt_hosp_1k.csv` 10900 y `gt_movies.csv` 103021.
+
+## TableEG y AddressTable: intento y motivo de no medicion
+
+En [TableEG](https://github.com/viviancircle/TableEG) se reviso el README y la
+[carpeta de Google Drive](https://drive.google.com/drive/folders/10LdB9LGgymbI6W8D2936uRF6eFRL24xy?usp=sharing).
+La fuente publica una carpeta, no una URL directa de CSV/ZIP reutilizable por
+R base. El script intenta obtener la pagina HTML de esa carpeta; no la trata
+como un archivo de datos ni descarga a ciegas todo su contenido. Requiere
+`TABLEEG_DATA_DIR` o un ZIP directo indicado por `TABLEEG_ARCHIVE_URL`. No se
+declara licencia de datos y no se redistribuye.
+
+Para [AddressTable](https://zenodo.org/records/20841898) se intentan la API de
+metadata de Zenodo y la pagina del registro, pero no se baja el archivo
+completo: la publicacion contiene archivos de varios GB. Sin una muestra local
+o dos URLs directas autorizadas (`ADDRESSTABLE_FILE_URL` y
+`ADDRESSTABLE_CLEAN_URL`) no hay un alcance medible. La licencia especifica de
+los datos debe tomarse del campo Rights del registro; no se redistribuye.
+
+Por tanto, esta actualizacion no agrega numeros de TableEG ni AddressTable.
+La unica medicion externa numerica que permanece publicada en esta corrida es
+la reproduccion anterior de Raha, cuyo alcance esta declarado arriba.
 
 ## Version de los archivos de Raha
 
