@@ -345,3 +345,251 @@ print.perfil_coleccion <- function(x, ...) {
   cli::cli_text("Sin lectura instant\u00e1nea: cada tabla trae su `momento`.")
   invisible(x)
 }
+
+# Las relaciones entre tablas son el punto donde el costo explota. Con 1.730
+# tablas hay 1.495.585 pares no dirigidos, y una clave foranea **es dirigida**,
+# asi que son casi tres millones de direcciones, mas las autorreferenciales. Y
+# el costo real no depende del numero de tablas sino de las combinaciones de
+# columnas entre ellas.
+#
+# Por eso los pares se declaran, igual que la frontera. Explorar todos no es una
+# opcion cara: es una opcion imposible.
+
+#' Estimar el costo de buscar relaciones en una colección
+#'
+#' Cuenta cuántas comparaciones de columnas implicaría buscar claves foráneas
+#' entre los pares indicados, **antes** de hacerlas. El número que importa no es
+#' la cantidad de tablas sino la de pares de columnas: dos tablas de cincuenta
+#' columnas son dos mil quinientas comparaciones.
+#'
+#' Sin `pares` estima sobre todos los pares dirigidos de la colección, que es
+#' justamente lo que suele mostrar por qué hay que declararlos.
+#'
+#' @param coleccion Objeto creado por [coleccion()].
+#' @param pares Data frame con columnas `tabla_1` y `tabla_2`. Sin él, todos los
+#'   pares dirigidos.
+#'
+#' @return Lista con `n_tablas`, `n_pares_dirigidos`, `n_pares_declarados` y,
+#'   cuando se pueden leer los esquemas, `n_comparaciones_columnas`.
+#' @export
+#' @seealso [relaciones_coleccion()], [coleccion()]
+estimar_costo_coleccion <- function(coleccion, pares = NULL) {
+  if (!inherits(coleccion, "coleccion_lupa")) {
+    stop("`coleccion` debe venir de coleccion().", call. = FALSE)
+  }
+  n <- coleccion$n_declaradas
+  pares <- .validar_pares_coleccion(coleccion, pares, exigir = FALSE)
+  columnas_por_tabla <- vapply(coleccion$tablas$identificador, function(tabla) {
+    tryCatch({
+      esquema <- DBI::dbGetQuery(
+        coleccion$conexion,
+        paste0(
+          "SELECT * FROM ",
+          as.character(DBI::dbQuoteIdentifier(coleccion$conexion, tabla)),
+          " WHERE 1 = 0"
+        )
+      )
+      as.numeric(ncol(esquema))
+    }, error = function(e) NA_real_)
+  }, numeric(1L))
+  comparaciones <- if (nrow(pares)) {
+    sum(vapply(seq_len(nrow(pares)), function(i) {
+      a <- columnas_por_tabla[[pares$tabla_1[[i]]]]
+      b <- columnas_por_tabla[[pares$tabla_2[[i]]]]
+      if (is.na(a) || is.na(b)) NA_real_ else a * b
+    }, numeric(1L)), na.rm = TRUE)
+  } else 0
+  list(
+    n_tablas = n,
+    n_pares_dirigidos = n * (n - 1L),
+    n_pares_declarados = nrow(pares),
+    n_comparaciones_columnas = comparaciones,
+    nota = paste(
+      "Una clave foranea es dirigida, asi que los pares son n*(n-1) y no",
+      "n*(n-1)/2. El costo real lo dan las comparaciones de columnas, no el",
+      "numero de tablas."
+    )
+  )
+}
+
+.validar_pares_coleccion <- function(coleccion, pares, exigir = TRUE) {
+  declaradas <- coleccion$tablas$identificador
+  if (is.null(pares)) {
+    if (exigir) {
+      stop(
+        "`pares` debe declarar que tablas se comparan. Explorar todos los ",
+        "pares no es viable: una coleccion de mil tablas tiene casi un millon ",
+        "de pares dirigidos. Use estimar_costo_coleccion() para verlo.",
+        call. = FALSE
+      )
+    }
+    if (length(declaradas) < 2L) {
+      return(data.frame(
+        tabla_1 = character(), tabla_2 = character(), stringsAsFactors = FALSE
+      ))
+    }
+    combinaciones <- expand.grid(
+      tabla_1 = declaradas, tabla_2 = declaradas,
+      stringsAsFactors = FALSE, KEEP.OUT.ATTRS = FALSE
+    )
+    return(combinaciones[combinaciones$tabla_1 != combinaciones$tabla_2, ])
+  }
+  if (!inherits(pares, "data.frame") ||
+      !all(c("tabla_1", "tabla_2") %in% names(pares)) || !nrow(pares)) {
+    stop(
+      "`pares` debe ser un data.frame no vacio con columnas `tabla_1` y ",
+      "`tabla_2`.", call. = FALSE
+    )
+  }
+  desconocidas <- setdiff(c(pares$tabla_1, pares$tabla_2), declaradas)
+  if (length(desconocidas)) {
+    stop(
+      "`pares` nombra tablas que no estan declaradas en la coleccion: ",
+      paste(unique(desconocidas), collapse = ", "),
+      ". Declaradas: ", paste(declaradas, collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+  data.frame(
+    tabla_1 = as.character(pares$tabla_1),
+    tabla_2 = as.character(pares$tabla_2),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' Buscar claves foráneas candidatas entre pares declarados
+#'
+#' Corre [detectar_relaciones()] sobre los pares de tablas que se declaren, y
+#' devuelve las relaciones candidatas junto con la cobertura de los pares que no
+#' se pudieron comparar.
+#'
+#' **Los pares se declaran, igual que la frontera.** Con mil tablas hay casi un
+#' millón de pares dirigidos, así que explorar todos no es una opción cara sino
+#' una opción imposible. [estimar_costo_coleccion()] permite verlo antes.
+#'
+#' Cada par se compara sobre una muestra de filas de cada tabla, y el resultado
+#' declara ese alcance: una relación candidata sobre una muestra **no es una
+#' clave foránea comprobada**, es un indicio que hay que confirmar contra el
+#' diccionario de datos.
+#'
+#' @param coleccion Objeto creado por [coleccion()].
+#' @param pares Data frame con columnas `tabla_1` y `tabla_2`.
+#' @param muestra Filas traídas por tabla para comparar.
+#' @param umbral_cobertura Cobertura mínima para informar una relación.
+#'
+#' @return Objeto `relaciones_coleccion` con `relaciones`, `cobertura_pares` y
+#'   `meta`.
+#' @export
+#' @seealso [coleccion()], [estimar_costo_coleccion()], [detectar_relaciones()]
+relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
+                                 umbral_cobertura = 0.9) {
+  if (!inherits(coleccion, "coleccion_lupa")) {
+    stop("`coleccion` debe venir de coleccion().", call. = FALSE)
+  }
+  if (!is.numeric(umbral_cobertura) || length(umbral_cobertura) != 1L ||
+      is.na(umbral_cobertura) || umbral_cobertura < 0 ||
+      umbral_cobertura > 1) {
+    stop("`umbral_cobertura` debe estar entre 0 y 1.", call. = FALSE)
+  }
+  pares <- .validar_pares_coleccion(coleccion, pares, exigir = TRUE)
+  conexion <- coleccion$conexion
+  muestra <- .validar_muestra_dbi(muestra)
+
+  leer <- function(tabla) {
+    tryCatch({
+      sql <- paste0(
+        "SELECT * FROM ",
+        as.character(DBI::dbQuoteIdentifier(conexion, tabla)),
+        " LIMIT ", format(muestra, scientific = FALSE)
+      )
+      DBI::dbGetQuery(conexion, sql)
+    }, error = function(e) e)
+  }
+
+  encontradas <- list()
+  sin_comparar <- list()
+  for (i in seq_len(nrow(pares))) {
+    t1 <- pares$tabla_1[[i]]
+    t2 <- pares$tabla_2[[i]]
+    d1 <- leer(t1)
+    d2 <- leer(t2)
+    fallo <- if (inherits(d1, "condition")) d1 else if (inherits(d2, "condition")) d2 else NULL
+    if (!is.null(fallo)) {
+      sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
+        tabla_1 = t1, tabla_2 = t2,
+        motivo = paste0("No se pudo leer el par: ", conditionMessage(fallo)),
+        como_resolverlo = paste(
+          "Comprobar que las dos tablas existen y que la credencial las puede",
+          "leer."
+        ),
+        stringsAsFactors = FALSE
+      )
+      next
+    }
+    relacion <- tryCatch(
+      detectar_relaciones(d1, d2), error = function(e) e
+    )
+    if (inherits(relacion, "condition")) {
+      sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
+        tabla_1 = t1, tabla_2 = t2,
+        motivo = paste0("No se pudo comparar: ", conditionMessage(relacion)),
+        como_resolverlo = "Revisar los tipos de las columnas comparadas.",
+        stringsAsFactors = FALSE
+      )
+      next
+    }
+    if (!nrow(relacion)) next
+    candidatas <- relacion[
+      relacion$cobertura_tabla2_en_tabla1 >= umbral_cobertura, , drop = FALSE
+    ]
+    if (!nrow(candidatas)) next
+    candidatas$tabla_1 <- t1
+    candidatas$tabla_2 <- t2
+    candidatas$filas_leidas_1 <- nrow(d1)
+    candidatas$filas_leidas_2 <- nrow(d2)
+    encontradas[[length(encontradas) + 1L]] <- candidatas
+  }
+
+  relaciones <- if (length(encontradas)) {
+    do.call(rbind, encontradas)
+  } else {
+    data.frame(
+      tabla_1 = character(), tabla_2 = character(),
+      columna_tabla1 = character(), columna_tabla2 = character(),
+      cardinalidad = character(), n_valores_comunes = numeric(),
+      cobertura_tabla1_en_tabla2 = numeric(),
+      cobertura_tabla2_en_tabla1 = numeric(),
+      filas_leidas_1 = numeric(), filas_leidas_2 = numeric(),
+      stringsAsFactors = FALSE
+    )
+  }
+  cobertura_pares <- if (length(sin_comparar)) {
+    do.call(rbind, sin_comparar)
+  } else {
+    data.frame(
+      tabla_1 = character(), tabla_2 = character(), motivo = character(),
+      como_resolverlo = character(), stringsAsFactors = FALSE
+    )
+  }
+  rownames(relaciones) <- NULL
+  rownames(cobertura_pares) <- NULL
+  estructura <- list(
+    relaciones = relaciones,
+    cobertura_pares = cobertura_pares,
+    meta = list(
+      coleccion = coleccion$nombre,
+      pares_declarados = nrow(pares),
+      pares_comparados = nrow(pares) - nrow(cobertura_pares),
+      muestra_por_tabla = muestra,
+      umbral_cobertura = umbral_cobertura,
+      alcance = paste(
+        "Cada par se comparo sobre una muestra de filas de cada tabla. Una",
+        "relacion candidata sobre una muestra no es una clave foranea",
+        "comprobada: es un indicio que hay que confirmar contra el diccionario",
+        "de datos."
+      )
+    )
+  )
+  class(estructura) <- "relaciones_coleccion"
+  estructura
+}

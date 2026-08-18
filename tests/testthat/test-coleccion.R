@@ -261,3 +261,93 @@ test_that("las granularidades por encima de la colección dicen qué falta", {
     "qu\u00e9 bases le pertenecen"
   )
 })
+
+# --- Relaciones entre tablas declaradas ----------------------------------
+#
+# Es el punto donde el costo explota: con 1.730 tablas hay casi tres millones de
+# direcciones, porque una clave foránea es dirigida. Los pares se declaran igual
+# que la frontera.
+
+.con_con_relacion <- function() {
+  skip_if_not_installed("RSQLite")
+  skip_if_not_installed("DBI")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  DBI::dbWriteTable(con, "personas", data.frame(
+    id = 1:20, nombre = letters[1:20], stringsAsFactors = FALSE
+  ))
+  DBI::dbWriteTable(con, "visitas", data.frame(
+    persona_id = c(1:15, 1:5), fecha = rep("2023-01-01", 20L),
+    stringsAsFactors = FALSE
+  ))
+  con
+}
+
+test_that("el costo se estima en pares dirigidos y comparaciones de columnas", {
+  con <- .con_con_relacion()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  costo <- estimar_costo_coleccion(coleccion(con, c("personas", "visitas")))
+
+  expect_equal(costo$n_tablas, 2L)
+  # Una clave foránea es dirigida: n*(n-1), no n*(n-1)/2.
+  expect_equal(costo$n_pares_dirigidos, 2L)
+  # Dos tablas de dos columnas son cuatro comparaciones por dirección.
+  expect_equal(costo$n_comparaciones_columnas, 8)
+  expect_true(grepl("dirigida", costo$nota, fixed = TRUE))
+})
+
+test_that("los pares se declaran: explorar todos no es una opción", {
+  con <- .con_con_relacion()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  col <- coleccion(con, c("personas", "visitas"))
+
+  expect_error(relaciones_coleccion(col, pares = NULL), "no es viable")
+  expect_error(
+    relaciones_coleccion(col, pares = data.frame(
+      tabla_1 = "personas", tabla_2 = "inexistente"
+    )),
+    "no estan declaradas"
+  )
+})
+
+test_that("una clave foránea candidata aparece con su cardinalidad y alcance", {
+  con <- .con_con_relacion()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  col <- coleccion(con, c("personas", "visitas"), nombre = "padron")
+
+  resultado <- relaciones_coleccion(
+    col, pares = data.frame(tabla_1 = "personas", tabla_2 = "visitas")
+  )
+  expect_s3_class(resultado, "relaciones_coleccion")
+  expect_equal(nrow(resultado$relaciones), 1L)
+
+  relacion <- resultado$relaciones
+  expect_equal(relacion$columna_tabla1, "id")
+  expect_equal(relacion$columna_tabla2, "persona_id")
+  expect_equal(relacion$cardinalidad, "1:m")
+  expect_equal(relacion$cobertura_tabla2_en_tabla1, 1)
+  # El alcance de la lectura se declara.
+  expect_equal(relacion$filas_leidas_1, 20)
+  expect_equal(resultado$meta$pares_comparados, 1L)
+
+  # Y el objeto dice que un indicio sobre una muestra no es una clave
+  # comprobada.
+  expect_true(grepl("no es una clave foranea", resultado$meta$alcance,
+                    fixed = TRUE))
+})
+
+test_that("un par que no se pudo leer se declara en vez de desaparecer", {
+  con <- .con_con_relacion()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  col <- coleccion(con, c("personas", "visitas", "sin_permiso"))
+
+  resultado <- relaciones_coleccion(col, pares = data.frame(
+    tabla_1 = c("personas", "personas"),
+    tabla_2 = c("visitas", "sin_permiso"),
+    stringsAsFactors = FALSE
+  ))
+  expect_equal(resultado$meta$pares_declarados, 2L)
+  expect_equal(resultado$meta$pares_comparados, 1L)
+  expect_equal(nrow(resultado$cobertura_pares), 1L)
+  expect_equal(resultado$cobertura_pares$tabla_2, "sin_permiso")
+  expect_true(nzchar(resultado$cobertura_pares$motivo))
+})

@@ -36,6 +36,15 @@
   describiera la colección. Ahora el resultado trae `tablas_declaradas`,
   `tablas_en_el_numero`, `tablas_sin_medir` con su motivo, la `cobertura` y la
   advertencia de que leerlo sin ella sería exactamente ese error.
+- `relaciones_coleccion()` busca claves foráneas candidatas entre **los pares
+  que se declaren**, y `estimar_costo_coleccion()` permite ver el costo antes.
+  Los pares se declaran por la misma razón que la frontera: una clave foránea es
+  **dirigida**, así que mil tablas dan casi un millón de direcciones, y el costo
+  real no lo da el número de tablas sino el de comparaciones entre columnas.
+  Cada par se compara sobre una muestra, y el objeto declara que **una relación
+  candidata sobre una muestra no es una clave foránea comprobada**: es un
+  indicio que hay que confirmar contra el diccionario de datos. Un par que no se
+  pudo leer se declara en `cobertura_pares` en vez de desaparecer.
 - `granularidades()` declara el séptimo nivel como implementado: siete de diez.
   Los tres últimos siguen sin objeto, y no por falta de código: qué bases
   componen un conjunto y qué bases pertenecen a un organismo son decisiones de
