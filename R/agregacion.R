@@ -235,7 +235,10 @@ agregar <- function(medidas, destino,
                     ),
                     umbral = NULL, pesos = NULL) {
   medidas <- .validar_medidas_agregacion(medidas)
-  destino <- .validar_granularidad(destino)
+  # Se acepta el nombre relacional —`tabla`, `columna`, `celda`— igual que en
+  # `metrica()`: el mensaje de error ya los enumera, asi que rechazarlos aca era
+  # una inconsistencia. El objeto sigue guardando el nombre canonico del marco.
+  destino <- .validar_granularidad(destino, aceptar_relacional = TRUE)
   origen <- unique(medidas$granularidad)
   transicion <- .transiciones_granularidad$origen == origen &
     .transiciones_granularidad$destino == destino

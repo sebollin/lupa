@@ -1131,6 +1131,53 @@
   list(n_evaluados = n, n_afectados = afectados, unidad_conteo = unidad)
 }
 
+# Un patron es una secuencia de clases con su multiplicidad: `a+9+@a.a+` son
+# letras, digitos, arroba, letra, punto y letras, con `+` donde hay una corrida.
+# Esto separa las dos clases de desvio: el que cambia la ESTRUCTURA —otra
+# secuencia de clases— del que solo cambia el LARGO de una corrida, como
+# `persona9@` frente a `persona300@`.
+#
+# La distincion no cambia la severidad: esta medido y decidido que el caso
+# legitimo y el sospechoso son indistinguibles por la forma —un correo con
+# numero corto es normal, una cedula de un digito no lo es—. Se declara para que
+# quien lea el hallazgo lo resuelva de un vistazo en vez de comparar patrones a
+# ojo.
+.tokens_patron_raro <- function(patron) {
+  if (!length(patron) || is.na(patron) || !nzchar(patron)) return(NULL)
+  caracteres <- strsplit(patron, "", fixed = TRUE)[[1L]]
+  clases <- character(0)
+  multiples <- logical(0)
+  i <- 1L
+  while (i <= length(caracteres)) {
+    mas <- i < length(caracteres) && identical(caracteres[[i + 1L]], "+")
+    clases <- c(clases, caracteres[[i]])
+    multiples <- c(multiples, mas)
+    i <- i + if (mas) 2L else 1L
+  }
+  list(clases = clases, multiples = multiples)
+}
+
+.desvio_solo_por_largo <- function(dominante, desvio) {
+  a <- .tokens_patron_raro(dominante)
+  b <- .tokens_patron_raro(desvio)
+  if (is.null(a) || is.null(b)) return(FALSE)
+  identical(a$clases, b$clases) && !identical(a$multiples, b$multiples)
+}
+
+.clase_desvio_patron_raro <- function(dominante, desvios) {
+  if (!length(desvios)) return(NA_character_)
+  solo_largo <- vapply(
+    desvios, .desvio_solo_por_largo, logical(1L), dominante = dominante
+  )
+  if (all(solo_largo)) {
+    "largo_de_corrida"
+  } else if (any(solo_largo)) {
+    "mixto"
+  } else {
+    "estructural"
+  }
+}
+
 .indices_patron_raro <- function(x, resultado, expandir = FALSE,
                                  distinguir_mayusculas = TRUE) {
   resumen <- attr(resultado$patrones, "resumen_patrones")
@@ -1878,13 +1925,19 @@
           raros$patron, " [", raros$ejemplos, "]",
           collapse = "; "
         )
+        clase_desvio <- .clase_desvio_patron_raro(
+          patrones$patron[[1L]], raros$patron
+        )
         agregar(.nuevo_hallazgo(
           nombre, "patron_raro", "sospechoso",
           "Hay valores infrecuentes que no siguen el patr\u00f3n dominante.",
           paste0(
             "Dominante: ", patrones$patron[[1L]], ". Desv\u00edos: ",
             paste(utils::head(strsplit(evidencia, "; ", fixed = TRUE)[[1L]], 6L),
-                  collapse = "; ")
+                  collapse = "; "),
+            if (!is.na(clase_desvio)) {
+              paste0("; clase_desvio=", clase_desvio)
+            } else ""
           ),
           "Revisar los valores concretos y validar el formato esperado."
         ))

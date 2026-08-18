@@ -1,5 +1,19 @@
 # lupa 0.1.0
 
+## Dos cosas más que el objeto ahora declara
+
+- `patron_raro` distingue en la evidencia las dos clases de desvío:
+  `clase_desvio=largo_de_corrida` cuando el valor señalado sigue el mismo patrón
+  con un número de otro largo —`persona9@` frente a `persona300@`— y
+  `clase_desvio=estructural` cuando es otra forma —`SIN CODIGO` frente a
+  `AB-12345`—. **La severidad no cambia**: los dos casos son indistinguibles por
+  la forma y eso está medido. Lo que cambia es que quien lee el hallazgo lo
+  resuelve de un vistazo en vez de comparar patrones a ojo.
+- `agregar()` acepta el nombre relacional de la granularidad —`celda`,
+  `columna`, `tupla`, `tabla`— igual que `metrica()`. Su propio mensaje de error
+  ya los enumeraba, así que rechazarlos era una inconsistencia. El objeto sigue
+  guardando el nombre canónico del marco.
+
 ## Spearman para relaciones monótonas que no son lineales
 
 - `detectar_asociaciones()` acepta `metodo_numerico = "spearman"` y mide
