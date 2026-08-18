@@ -1,5 +1,32 @@
 # lupa 0.1.0
 
+## Colecciones: el séptimo nivel de granularidad deja de estar sólo declarado
+
+- `coleccion()` declara qué tablas componen una base de datos, con su esquema,
+  y `perfilar_coleccion()` devuelve una fila por tabla con sus agregados
+  exactos, más `cobertura_coleccion` con lo que no se pudo medir. La
+  granularidad `coleccion` del marco estaba declarada y no se medía: lo que
+  faltaba no era código sino el objeto.
+- **La frontera se declara, nunca se descubre.** Recorrer el catálogo
+  convertiría un error de permisos en un resultado, y una colección real pasa de
+  mil tablas repartidas en decenas de esquemas.
+- **El esquema es parte de la identidad de la tabla**, así que el mismo nombre
+  en dos esquemas son dos tablas y no una repetida.
+- **Lo que no se pudo leer se declara y nunca queda en cero**: una tabla sin
+  permiso, un objeto declarado como vista, un motor que rechaza un agregado. En
+  bases institucionales los permisos parciales son el caso normal.
+- **Cada tabla declara su propio muestreo**, y no se promedian alcances
+  distintos como si fueran uno.
+- **No hay lectura instantánea.** Perfilar una colección son muchas consultas y
+  la base puede cambiar entre ellas, así que cada fila trae el `momento` en que
+  se midió y `meta$snapshot` declara que no lo hubo.
+- El perfil pesado de cada tabla no se retiene salvo que se pida con
+  `conservar_perfiles = TRUE`: con cientos de tablas no entraría en memoria.
+- El mensaje de `agregar()` para esta granularidad ahora dice que la frontera se
+  puede declarar, y qué falta para llegar a un solo número: los pesos.
+  Promediar entre tablas de universos distintos sin declararlos sería inventar
+  un juicio.
+
 ## Evaluar estimaciones que calculó otra herramienta
 
 - `medicion_desde_estimaciones()` recibe estimaciones ya calculadas —por

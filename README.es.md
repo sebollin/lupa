@@ -15,6 +15,16 @@ explícitas, limpieza controlada de una copia y duplicados aproximados a escala.
 En vez de un puntaje opaco, cada resultado conserva alcance, evidencia e
 incertidumbre.
 
+**Bases enteras, no una tabla sola.** `coleccion()` declara qué tablas componen
+una base —con su esquema, porque el esquema es parte de la identidad de la
+tabla— y `perfilar_coleccion()` devuelve una fila por tabla más la cobertura de
+lo que no pudo medir. La frontera se *declara*, nunca se descubre: recorrer un
+catálogo convertiría un error de permisos en un resultado, y una colección real
+pasa de mil tablas repartidas en decenas de esquemas. Lo que una credencial no
+puede leer va a `cobertura_coleccion` con su motivo, **nunca a cero** —los
+permisos parciales son el caso normal, no el borde—. Y no hay lectura
+instantánea: cada tabla trae el momento en que se midió, y el objeto lo declara.
+
 **Contradicciones que ninguna columna muestra sola.** Con `senal_redundante()`
 se declara que varias columnas codifican el mismo hecho, y
 `detectar_discordancias()` informa las filas donde no concuerdan: el año de la

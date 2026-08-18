@@ -80,9 +80,23 @@
     ),
     "el objeto declarado y su frontera"
   )
+  # La frontera de una coleccion ya se puede declarar con `coleccion()`, asi que
+  # el mensaje lo dice en vez de sugerir que no hay forma. Lo que falta para
+  # agregar a ese nivel es la politica de pesos: promediar entre tablas sin
+  # declararlos seria inventar un juicio.
+  faltante <- if (identical(destino, "coleccion")) {
+    paste0(
+      " la frontera se declara con `coleccion()` y se mide con ",
+      "`perfilar_coleccion()`, que devuelve un tablero por tabla. Agregar a un ",
+      "solo numero en este nivel exige ademas declarar los pesos: promediar ",
+      "entre tablas de universos distintos sin declararlos seria inventar un ",
+      "juicio."
+    )
+  } else {
+    " `lupa` no recibe hoy esa frontera."
+  }
   paste0(
-    "La granularidad '", destino, "' requiere ", detalle,
-    "; `lupa` no recibe hoy esa frontera."
+    "La granularidad '", destino, "' requiere ", detalle, ";", faltante
   )
 }
 

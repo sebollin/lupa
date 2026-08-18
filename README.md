@@ -14,6 +14,17 @@ quality model declared for a particular use, explicit measurement, controlled
 cleanup of a copy, and approximate duplicate detection at scale. Instead of a
 single opaque score, every result carries its scope, evidence, and uncertainty.
 
+**Whole databases, not just one table.** `coleccion()` declares which tables
+make up a database — schema included, because the schema is part of a table's
+identity — and `perfilar_coleccion()` returns one row per table plus the
+coverage of what it could not measure. The boundary is *declared*, never
+discovered: walking a catalogue would turn a permissions error into a result,
+and real collections run past a thousand tables across dozens of schemas.
+Tables a credential cannot read land in `cobertura_coleccion` with their reason,
+never as a zero — partial permissions are the normal case, not the edge. There
+is no snapshot: every table carries the moment it was measured, and the object
+says so.
+
 **Contradictions no single column shows.** Declare that several columns encode
 the same fact with `senal_redundante()`, and `detectar_discordancias()` reports
 the rows where they disagree — the year of the date against the fiscal year
