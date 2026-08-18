@@ -75,7 +75,7 @@ dir.create(.riolu_temp)
   )
   referencia$dataset <- dataset
   mascara <- .mascara_verdad_larga(
-    verdad$ruta, nrow(sucia), ncol(sucia)
+    verdad$ruta, nrow(sucia), ncol(sucia), names(sucia)
   )
   if (is.null(mascara)) {
     return(.no_disponible(

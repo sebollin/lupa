@@ -2,6 +2,8 @@
 ## No descarga por defecto el archivo completo: el registro reporta varios GB.
 ## Se usa ADDRESSTABLE_DATA_DIR o ADDRESSTABLE_FILE_URL para una copia local
 ## o una URL directa de una muestra autorizada.
+## La licencia de los datos no pudo confirmarse en el registro consultado; no
+## se redistribuyen archivos.
 
 .args_address <- commandArgs(trailingOnly = FALSE)
 .file_address <- .args_address[startsWith(.args_address, "--file=")]

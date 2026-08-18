@@ -81,12 +81,19 @@ verdad_addresstable <- .cargar_verdad("addresstable")
 options(lupa.benchmark.silencioso = opcion_anterior)
 
 .fila_no_medida <- function(referencia, razon = referencia$razon) {
+  nombre_banco <- referencia$banco
+  if (is.null(nombre_banco) || !length(nombre_banco)) {
+    nombre_banco <- referencia$resumen$banco
+  }
+  nombre_dataset <- referencia$dataset
+  if (is.null(nombre_dataset) || !length(nombre_dataset)) {
+    nombre_dataset <- nombre_banco
+  }
+  if (is.null(razon) || !length(razon)) razon <- "sin razon declarada"
   data.frame(
     estado = "no medido",
-    banco = referencia$banco,
-    dataset = if (is.null(referencia$dataset)) referencia$banco else {
-      referencia$dataset
-    },
+    banco = nombre_banco,
+    dataset = nombre_dataset,
     alcance = NA_character_,
     filas = NA_integer_, columnas = NA_integer_,
     celdas_verdad = NA_integer_, celdas_con_hallazgo_trazable = NA_integer_,

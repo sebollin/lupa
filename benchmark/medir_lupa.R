@@ -5,7 +5,7 @@ if (sys.nframe() > 0L) {
   stop(
     paste0(
       "Este script no se ejecuta con source(). ",
-      "Desde la raíz del repositorio use: ",
+      "Desde la ra\u00edz del repositorio use: ",
       "Rscript benchmark/medir_lupa.R"
     ),
     call. = FALSE
@@ -53,7 +53,7 @@ if (inherits(perfil_sonda, "error")) {
 if (length(capacidades_faltantes)) {
   stop(
     paste0(
-      "La instalación de lupa no tiene las capacidades requeridas por ",
+      "La instalaci\u00f3n de lupa no tiene las capacidades requeridas por ",
       "este benchmark:\n- ",
       paste(capacidades_faltantes, collapse = "\n- "),
       "\nInstale un build de estas mismas fuentes con ",
@@ -80,7 +80,7 @@ if (length(rutas_script) != 1L) {
   stop(
     paste0(
       "No se pudo determinar la ruta de este script. ",
-      "Desde la raíz del repositorio use: ",
+      "Desde la ra\u00edz del repositorio use: ",
       "Rscript benchmark/medir_lupa.R"
     ),
     call. = FALSE

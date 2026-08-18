@@ -1,6 +1,7 @@
 ## Construye la verdad de PED a partir de dirty.csv y clean.csv.
 ## difference.csv se baja como comprobacion adicional cuando esta disponible.
-## El repositorio de datos no se redistribuye con lupa.
+## El repositorio no declara una licencia para los datos: se baja para medir y
+## no se redistribuye con lupa.
 
 .args_ped <- commandArgs(trailingOnly = FALSE)
 .file_ped <- .args_ped[startsWith(.args_ped, "--file=")]
@@ -72,12 +73,20 @@ dir.create(.ped_temp)
   referencia$difference_consistente <- NA
   if (isTRUE(diferencia$ok)) {
     mascara <- .mascara_verdad_larga(
-      diferencia$ruta, nrow(sucia), ncol(sucia)
+      diferencia$ruta, nrow(sucia), ncol(sucia), names(sucia)
     )
     if (!is.null(mascara)) {
+      diferencia_referencia <- matrix(
+        FALSE, nrow = nrow(sucia), ncol = ncol(sucia)
+      )
+      if (nrow(referencia$verdad)) {
+        diferencia_referencia[cbind(
+          referencia$verdad$fila, referencia$verdad$columna_indice
+        )] <- TRUE
+      }
       referencia$difference_consistente <- identical(
         which(mascara, arr.ind = TRUE),
-        which(as.matrix(referencia$por_columna) > 0, arr.ind = TRUE)
+        which(diferencia_referencia, arr.ind = TRUE)
       )
       referencia$difference_celdas <- sum(mascara)
     }

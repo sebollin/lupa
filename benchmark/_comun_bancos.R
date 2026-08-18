@@ -181,10 +181,22 @@
   if (nrow(referencia$versiones)) print(referencia$versiones, row.names = FALSE)
 }
 
-.mascara_verdad_larga <- function(ruta, nfilas, ncolumnas) {
-  x <- tryCatch(.leer_csv_texto(ruta), error = function(e) NULL)
+.mascara_verdad_larga <- function(ruta, nfilas, ncolumnas,
+                                  nombres_columnas = character()) {
+  lecturas <- list(
+    tryCatch(.leer_csv_texto(ruta), error = function(e) NULL),
+    tryCatch(utils::read.csv(
+      ruta, header = FALSE, colClasses = "character", na.strings = NULL,
+      check.names = FALSE, stringsAsFactors = FALSE, encoding = "UTF-8"
+    ), error = function(e) NULL)
+  )
+  dimensiones <- c(as.integer(nfilas), as.integer(ncolumnas))
+  exacta <- vapply(lecturas, function(y) {
+    !is.null(y) && all(dim(y) == dimensiones)
+  }, logical(1L))
+  x <- if (any(exacta)) lecturas[[which(exacta)[[1L]]]] else lecturas[[1L]]
   if (is.null(x)) return(NULL)
-  if (identical(dim(x), c(nfilas, ncolumnas))) {
+  if (all(dim(x) == dimensiones)) {
     valores <- tolower(trimws(as.character(as.matrix(x))))
     return(valores %in% c("1", "true", "error", "anomalia", "anomaly"))
   }
@@ -199,10 +211,16 @@
   filas <- suppressWarnings(as.integer(x[[columna_fila[[1L]]]]))
   columnas <- x[[columna_col[[1L]]]]
   valores <- tolower(trimws(as.character(x[[columna_valor[[1L]]]])))
-  columnas_indice <- if (is.numeric(columnas)) {
-    as.integer(columnas)
-  } else {
-    match(columnas, names(x))
+  columnas_texto <- trimws(as.character(columnas))
+  columnas_numericas <- suppressWarnings(as.integer(columnas_texto))
+  si_numericas <- !is.na(columnas_numericas) & columnas_texto != ""
+  columnas_indice <- columnas_numericas
+  if (any(!si_numericas)) {
+    if (!length(nombres_columnas)) return(NULL)
+    columnas_indice[!si_numericas] <- match(
+      tolower(columnas_texto[!si_numericas]),
+      tolower(nombres_columnas)
+    )
   }
   conservar <- !is.na(filas) & !is.na(columnas_indice) &
     filas >= 1L & filas <= nfilas & columnas_indice >= 1L &
@@ -288,9 +306,13 @@
   aciertos <- intersect(verdad_claves, pred_claves)
   columnas_verdad <- unique(celdas_verdad$columna)
   columnas_hallazgo <- intersect(names(datos), prediccion$columnas)
+  nombre_banco <- referencia$banco
+  if (is.null(nombre_banco) || !length(nombre_banco)) {
+    nombre_banco <- referencia$resumen$banco
+  }
   data.frame(
-    banco = referencia$banco,
-    dataset = referencia$dataset %||% referencia$banco,
+    banco = nombre_banco,
+    dataset = referencia$dataset %||% nombre_banco,
     alcance = alcance,
     filas = nrow(datos),
     columnas = ncol(datos),

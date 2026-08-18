@@ -215,41 +215,13 @@ transiciones_granularidad <- function() {
     coleccion = paste(sort(entidades), collapse = ", ")
   )
 }
+# Estos dos ayudantes van ANTES del bloque `roxygen` de `agregar()`, y no entre
+# el bloque y su definicion. Ponerlos en el medio hizo que `roxygen` le pegara
+# el `@export` y la documentacion de `agregar()` al ayudante: `agregar()` dejo
+# de exportarse y un interno con punto quedo exportado. La suite no lo vio
+# porque `pkgload::load_all()` expone todo; en un paquete instalado
+# `lupa::agregar()` no habria existido.
 
-#' Agregar medidas entre granularidades
-#'
-#' Aplica exactamente una de las cuatro agregaciones del marco: `ratio`,
-#' `ratio_umbral`, `promedio` o `promedio_ponderado`. La transición se valida
-#' contra el grafo de `transiciones_granularidad()`.
-#'
-#' `ratio` sólo acepta medidas booleanas. `ratio_umbral` sólo acepta medidas
-#' reales. Los promedios aceptan ambos tipos y siempre producen resultado real
-#' en `[0, 1]`. Para el promedio ponderado, los pesos deben estar en `[0, 1]` y
-#' sumar uno dentro de cada objeto de destino. La columna `orientacion` se
-#' conserva sin invertir el resultado: un ratio de una métrica de defecto sigue
-#' siendo la proporción de defectos.
-#'
-#' No existe una transición hacia factor, dimensión o modelo: esos campos son
-#' taxonómicos y esta función no calcula un índice global.
-#'
-#' @param medidas Data frame producido por `medir()` o una agregación anterior.
-#'   Debe contener una sola métrica específica, una corrida y una granularidad.
-#' @param destino Granularidad de destino.
-#' @param funcion Una de `"ratio"`, `"ratio_umbral"`, `"promedio"` o
-#'   `"promedio_ponderado"`.
-#' @param umbral Umbral en `[0, 1]` requerido por `ratio_umbral`.
-#' @param pesos Vector numérico requerido por `promedio_ponderado`, con una
-#'   entrada por fila de `medidas`.
-#'
-#' @return Objeto `medicion` agregado, con una fila por objeto de destino.
-#' @export
-#'
-#' @examples
-#' nucleo <- metricas_nucleo()
-#' especifica <- especializar(nucleo$NoNulo)
-#' instancia <- instanciar(especifica, "personas", "edad")
-#' medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
-#' agregar(medidas, "atributo", "ratio")
 .validar_coleccion_destino <- function(coleccion) {
   if (is.null(coleccion)) {
     stop(
@@ -316,6 +288,41 @@ transiciones_granularidad <- function() {
   )
 }
 
+
+#' Agregar medidas entre granularidades
+#'
+#' Aplica exactamente una de las cuatro agregaciones del marco: `ratio`,
+#' `ratio_umbral`, `promedio` o `promedio_ponderado`. La transición se valida
+#' contra el grafo de `transiciones_granularidad()`.
+#'
+#' `ratio` sólo acepta medidas booleanas. `ratio_umbral` sólo acepta medidas
+#' reales. Los promedios aceptan ambos tipos y siempre producen resultado real
+#' en `[0, 1]`. Para el promedio ponderado, los pesos deben estar en `[0, 1]` y
+#' sumar uno dentro de cada objeto de destino. La columna `orientacion` se
+#' conserva sin invertir el resultado: un ratio de una métrica de defecto sigue
+#' siendo la proporción de defectos.
+#'
+#' No existe una transición hacia factor, dimensión o modelo: esos campos son
+#' taxonómicos y esta función no calcula un índice global.
+#'
+#' @param medidas Data frame producido por `medir()` o una agregación anterior.
+#'   Debe contener una sola métrica específica, una corrida y una granularidad.
+#' @param destino Granularidad de destino.
+#' @param funcion Una de `"ratio"`, `"ratio_umbral"`, `"promedio"` o
+#'   `"promedio_ponderado"`.
+#' @param umbral Umbral en `[0, 1]` requerido por `ratio_umbral`.
+#' @param pesos Vector numérico requerido por `promedio_ponderado`, con una
+#'   entrada por fila de `medidas`.
+#'
+#' @return Objeto `medicion` agregado, con una fila por objeto de destino.
+#' @export
+#'
+#' @examples
+#' nucleo <- metricas_nucleo()
+#' especifica <- especializar(nucleo$NoNulo)
+#' instancia <- instanciar(especifica, "personas", "edad")
+#' medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
+#' agregar(medidas, "atributo", "ratio")
 agregar <- function(medidas, destino,
                     funcion = c(
                       "ratio", "ratio_umbral", "promedio",
