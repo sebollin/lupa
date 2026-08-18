@@ -683,5 +683,6 @@ names(.ftfy_tablas_bytes) <- c(
        n_reparables_parcialmente = sum(parciales), n_irreparables = sum(irreparables),
        n_no_se_pudo = sum(estados == "no_se_pudo", na.rm = TRUE), evidencia = evidencia,
        reparados = reparados, estados = estados, pasos = pasos,
+       afectados = afectados,
        estado = .ftfy_estado_agregado(estados))
 }

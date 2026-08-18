@@ -161,9 +161,12 @@ test_that("el recorte de patrones raros declara alcance y cobertura", {
   expect_equal(nrow(hallazgo), 1L)
   expect_true(is.na(hallazgo$n_afectados))
   traza <- hallazgo$trazabilidad[[1L]]
-  expect_equal(traza$estado, "no_disponible")
+  expect_equal(traza$estado, "disponible")
   expect_equal(traza$alcance, "patrones_parciales")
-  expect_length(traza$indices_fila, 0L)
+  resumen <- attr(patrones, "resumen_patrones")
+  esperados <- which(valores %in% resumen$ejemplos[-1L])
+  expect_equal(traza$total, length(esperados))
+  expect_setequal(traza$indices_fila, esperados)
   cobertura <- perfil$cobertura_diagnosticos[
     perfil$cobertura_diagnosticos$diagnostico == "patron_raro", , drop = FALSE
   ]

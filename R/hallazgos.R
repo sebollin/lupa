@@ -1292,11 +1292,27 @@
   }
 }
 
+# El resumen cuantitativo y los indices deben operar sobre la misma vista. En
+# particular, un texto declarado como tal puede ser numerico por inferencia.
+.valores_cuantitativos_hallazgo <- function(x, fila, resultado) {
+  tipo <- tryCatch(as.character(fila$tipo_inferido[[1L]]),
+                   error = function(e) NULL)
+  if (is.null(tipo) || !length(tipo) || is.na(tipo)) return(NULL)
+  valores <- tryCatch(.texto_analizable(x)$valores,
+                      error = function(e) NULL)
+  if (is.null(valores)) return(NULL)
+  tryCatch(
+    .valores_cuantitativos(
+      valores, list(tipo = tipo), resultado$formatos
+    ),
+    error = function(e) NULL
+  )
+}
+
 .indices_patron_raro <- function(x, resultado, expandir = FALSE,
                                  distinguir_mayusculas = TRUE) {
   resumen <- attr(resultado$patrones, "resumen_patrones")
   if (is.null(resumen) || nrow(resumen) < 2L) return(NULL)
-  if (isTRUE(.patrones_raros_recortados(resultado$patrones))) return(NULL)
   total <- length(x)
   analizados <- attr(resultado$patrones, "analizados")
   muestreado <- isTRUE(attr(resultado$patrones, "muestreado"))
@@ -1345,6 +1361,17 @@
   n <- length(x)
   if (!n) return(integer())
   texto <- tryCatch(.texto_analizable(x)$valores, error = function(e) NULL)
+  cuantitativos <- NULL
+  cuantitativos_evaluados <- FALSE
+  obtener_cuantitativos <- function() {
+    if (!cuantitativos_evaluados) {
+      cuantitativos <<- .valores_cuantitativos_hallazgo(
+        x, fila, resultado
+      )
+      cuantitativos_evaluados <<- TRUE
+    }
+    cuantitativos
+  }
   invisibles <- NULL
   obtener_invisibles <- function() {
     if (is.null(invisibles) && !is.null(texto) && is.character(texto)) {
@@ -1415,12 +1442,8 @@
     ),
     codificacion_rota = if (is.null(texto)) NULL else {
       cod <- tryCatch(.analizar_codificacion_vocabulario(texto), error = function(e) NULL)
-      if (is.null(cod)) NULL else {
-        candidatos <- grepl("[\u00c3\u00c2\u00e2\u00f0\ufffd]", texto,
-                             perl = TRUE)
-        which(candidatos & (!is.na(cod$reparados) |
-          grepl("\ufffd", texto, fixed = TRUE)))
-      }
+      if (is.null(cod) || is.null(cod$afectados)) NULL else
+        which(cod$afectados)
     },
     numero_como_texto = if (is.null(texto)) NULL else {
       partes <- tryCatch(.componentes_numero_texto_optimizado(texto),
@@ -1457,17 +1480,55 @@
       utc <- format(x, "%Y-%m-%d", tz = "UTC")
       which(presentes & origen != utc)
     } else NULL,
-    valores_no_finitos = if (is.numeric(x)) which(is.nan(x) | !is.finite(x)) else NULL,
-    ceros_no_permitidos = if (is.numeric(x)) which(!is.na(x) & x == 0) else NULL,
-    negativos_no_permitidos = if (is.numeric(x)) which(!is.na(x) & x < 0) else NULL,
-    outliers = if (is.numeric(x)) tryCatch({
-      valores <- x[is.finite(x)]
-      if (length(valores) < 4L) integer() else {
-        q <- stats::quantile(valores, c(0.25, 0.75), names = FALSE)
-        iqr <- q[[2L]] - q[[1L]]
-        which(x < q[[1L]] - 1.5 * iqr | x > q[[2L]] + 1.5 * iqr)
+    valores_no_finitos = {
+      cuantitativos <- obtener_cuantitativos()
+      if (is.null(cuantitativos) ||
+          !cuantitativos$clase %in% c("numero", "fecha", "fecha-hora")) {
+        NULL
+      } else {
+        valores <- cuantitativos$valores
+        which(is.nan(valores) | is.infinite(valores))
       }
-    }, error = function(e) NULL) else NULL,
+    },
+    ceros_no_permitidos = {
+      cuantitativos <- obtener_cuantitativos()
+      if (is.null(cuantitativos) || !identical(cuantitativos$clase, "numero")) {
+        NULL
+      } else {
+        valores <- cuantitativos$valores
+        which(is.finite(valores) & valores == 0)
+      }
+    },
+    negativos_no_permitidos = {
+      cuantitativos <- obtener_cuantitativos()
+      if (is.null(cuantitativos) || !identical(cuantitativos$clase, "numero")) {
+        NULL
+      } else {
+        valores <- cuantitativos$valores
+        which(is.finite(valores) & valores < 0)
+      }
+    },
+    outliers = {
+      cuantitativos <- obtener_cuantitativos()
+      if (is.null(cuantitativos) ||
+          !cuantitativos$clase %in% c("numero", "fecha", "fecha-hora")) {
+        NULL
+      } else {
+        tryCatch({
+          valores <- cuantitativos$valores
+          finitos <- is.finite(valores)
+          valores_finitos <- valores[finitos]
+          if (length(valores_finitos) < 4L) integer() else {
+            q <- stats::quantile(valores_finitos, c(0.25, 0.75), names = FALSE)
+            iqr <- q[[2L]] - q[[1L]]
+            which(finitos & (
+              valores < q[[1L]] - 1.5 * iqr |
+                valores > q[[2L]] + 1.5 * iqr
+            ))
+          }
+        }, error = function(e) NULL)
+      }
+    },
     patron_raro = .indices_patron_raro(
       x, resultado, expandir, distinguir_mayusculas
     ),
@@ -2075,9 +2136,9 @@
             paste0(
               "Se detectaron ", n_raros,
               " patrones raros, pero el resumen conserva solo seis; ",
-              "la enumeracion de filas no cubre todos los patrones raros."
+              "la enumeraci\u00f3n de filas no cubre todos los patrones raros."
             ),
-            "Revisar la distribucion completa de patrones antes de usar la enumeracion de filas como exhaustiva."
+            "Revisar la distribuci\u00f3n completa de patrones antes de usar la enumeraci\u00f3n de filas como exhaustiva."
           )
         }
       }
