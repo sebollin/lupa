@@ -4,8 +4,10 @@ test_that("la granularidad es un grafo y declara los diez niveles", {
 
   expect_equal(nrow(niveles), 10L)
   expect_equal(niveles$granularidad[[1L]], "instanciaAtributo")
-  expect_true(all(niveles$implementada[1:6]))
-  expect_false(any(niveles$implementada[7:10]))
+  # El septimo se mide desde que `coleccion()` permite declarar la frontera.
+  # Los tres ultimos siguen sin objeto: son decisiones de gobernanza.
+  expect_true(all(niveles$implementada[1:7]))
+  expect_false(any(niveles$implementada[8:10]))
   expect_false(is.ordered(niveles$granularidad))
   expect_true(any(
     transiciones$origen == "instanciaAtributo" &
@@ -368,9 +370,18 @@ test_that("las celdas se agregan por atributo o por instancia de entidad", {
     agregar(atributos, "entidad", "promedio_ponderado", pesos = c(0.2, 0.2)),
     "sumar 1"
   )
+  # Agregar a coleccion exige primero la frontera declarada: sin saber sobre
+  # que tablas se agrega, la funcion elegida es una discusion posterior. La
+  # restriccion a `promedio_ponderado` se prueba en test-coleccion.R, donde si
+  # hay una coleccion declarada.
   expect_error(
     agregar(entidad_desde_atributos, "coleccion", "promedio"),
-    "requiere una colecci\u00f3n declarada"
+    "declarar la frontera"
+  )
+  expect_error(
+    agregar(entidad_desde_atributos, "coleccion", "promedio_ponderado",
+            pesos = c(0.5, 0.5)),
+    "declarar la frontera"
   )
   coleccion <- transform(entidad_desde_atributos, granularidad = "coleccion")
   organizacion <- transform(coleccion, granularidad = "organizacion")

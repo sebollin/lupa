@@ -22,10 +22,24 @@
   se midió y `meta$snapshot` declara que no lo hubo.
 - El perfil pesado de cada tabla no se retiene salvo que se pida con
   `conservar_perfiles = TRUE`: con cientos de tablas no entraría en memoria.
-- El mensaje de `agregar()` para esta granularidad ahora dice que la frontera se
-  puede declarar, y qué falta para llegar a un solo número: los pesos.
-  Promediar entre tablas de universos distintos sin declararlos sería inventar
-  un juicio.
+- `agregar()` mide ahora esta granularidad, con tres condiciones. Exige la
+  **frontera declarada**, porque sin saber sobre qué tablas se agrega el número
+  no significa nada. Admite **sólo `promedio_ponderado`**: sin esa restricción
+  bastaba pedir `promedio` para obtener un número entre tablas de universos
+  distintos sin declarar nada, que es el juicio que el paquete se niega a
+  inventar. Y **la cobertura viaja pegada al número**.
+- Esa última condición es la que más importa, y salió de refutar el diseño. Un
+  número sobre «la colección» calculado sólo con las tablas que se pudieron
+  medir **informa como medido lo que no se midió**: el peso de la tabla ausente
+  desaparece en vez de manifestar la falta de cobertura. Con quince tablas
+  declaradas y seis sin permiso, el número describe nueve y se presenta como si
+  describiera la colección. Ahora el resultado trae `tablas_declaradas`,
+  `tablas_en_el_numero`, `tablas_sin_medir` con su motivo, la `cobertura` y la
+  advertencia de que leerlo sin ella sería exactamente ese error.
+- `granularidades()` declara el séptimo nivel como implementado: siete de diez.
+  Los tres últimos siguen sin objeto, y no por falta de código: qué bases
+  componen un conjunto y qué bases pertenecen a un organismo son decisiones de
+  gobernanza que no están en ningún dato.
 
 ## Evaluar estimaciones que calculó otra herramienta
 

@@ -153,3 +153,111 @@ test_that("una colección mal declarada se rechaza", {
   expect_error(coleccion(con, data.frame(x = 1)), "columna `tabla`")
   expect_error(perfilar_coleccion(list()), "coleccion\\(\\)")
 })
+
+# --- Agregar al nivel de colección ---------------------------------------
+#
+# El hallazgo central de refutar este diseño: un número sobre «la colección»
+# calculado sólo con las tablas que se pudieron medir informa como medido lo que
+# no se midió. El peso de la tabla ausente desaparece en vez de manifestar la
+# falta de cobertura. Por eso la cobertura viaja pegada al número.
+
+.medicion_de_dos_tablas <- function() {
+  nucleo <- metricas_nucleo()
+  modelo_dos <- modelo(list(
+    instanciar(especializar(nucleo$NoNulo), "personas", "nombre"),
+    instanciar(especializar(nucleo$NoNulo), "hogares", "depto")
+  ))
+  medicion <- medir(modelo_dos, list(
+    personas = data.frame(nombre = c("a", "b", NA), stringsAsFactors = FALSE),
+    hogares = data.frame(depto = c("MVD", NA, "CAN"), stringsAsFactors = FALSE)
+  ))
+  agregar(agregar(medicion, "atributo", "ratio"), "entidad", "promedio")
+}
+
+test_that("agregar a colección exige declarar la frontera", {
+  medidas <- .medicion_de_dos_tablas()
+  expect_error(
+    agregar(medidas, "coleccion", "promedio_ponderado", pesos = c(0.5, 0.5)),
+    "declarar la frontera"
+  )
+  expect_error(
+    agregar(medidas, "coleccion", "promedio_ponderado", pesos = c(0.5, 0.5),
+            coleccion = list()),
+    "coleccion\\(\\)"
+  )
+})
+
+test_that("la política de pesos no se puede esquivar con un promedio simple", {
+  con <- .con_de_prueba()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  perfil <- perfilar_coleccion(coleccion(con, c("personas", "hogares")))
+  medidas <- .medicion_de_dos_tablas()
+
+  # Sin esta restricción bastaba pedir `promedio` para obtener un número entre
+  # tablas sin declarar nada.
+  for (funcion in c("promedio", "ratio", "ratio_umbral")) {
+    expect_error(
+      agregar(medidas, "coleccion", funcion, coleccion = perfil, umbral = 0.5),
+      "solo se admite 'promedio_ponderado'"
+    )
+  }
+})
+
+test_that("el número de la colección viaja con su cobertura", {
+  con <- .con_de_prueba()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  # Tres tablas declaradas, una ilegible: el caso normal en una base real.
+  perfil <- perfilar_coleccion(
+    coleccion(con, c("personas", "hogares", "sin_permiso"), nombre = "padron")
+  )
+  medidas <- .medicion_de_dos_tablas()
+
+  agregado <- agregar(
+    medidas, "coleccion", "promedio_ponderado",
+    pesos = c(0.7, 0.3), coleccion = perfil
+  )
+  expect_equal(nrow(agregado), 1L)
+  expect_equal(agregado$granularidad, "coleccion")
+  expect_equal(agregado$entidad, "padron")
+
+  cobertura <- attr(agregado, "cobertura_coleccion")
+  expect_equal(cobertura$tablas_declaradas, 3L)
+  expect_equal(cobertura$tablas_en_el_numero, 2L)
+  expect_equal(cobertura$cobertura, 2 / 3)
+  expect_equal(cobertura$tablas_sin_medir, "sin_permiso")
+  expect_true(nzchar(cobertura$motivo_sin_medir))
+  # Y dice por qué leerlo sin la cobertura sería un error.
+  expect_true(grepl("no se midio", cobertura$advertencia, fixed = TRUE))
+})
+
+test_that("la granularidad coleccion ya figura como implementada", {
+  catalogo <- granularidades()
+  expect_true(
+    catalogo$implementada[catalogo$granularidad == "coleccion"]
+  )
+  # Las tres últimas siguen sin objeto: son decisiones de gobernanza.
+  expect_false(any(catalogo$implementada[catalogo$nivel > 7L]))
+})
+
+test_that("las granularidades por encima de la colección dicen qué falta", {
+  con <- .con_de_prueba()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  perfil <- perfilar_coleccion(coleccion(con, c("personas", "hogares")))
+  medidas <- .medicion_de_dos_tablas()
+
+  # Se llega hasta `coleccion`, que ahora sí se mide.
+  agregado <- agregar(
+    medidas, "coleccion", "promedio_ponderado",
+    pesos = c(0.5, 0.5), coleccion = perfil
+  )
+  # Y de ahí en adelante falta el objeto, no el código: qué bases componen un
+  # conjunto, qué bases pertenecen a un organismo. Son decisiones de gobernanza.
+  expect_error(
+    agregar(agregado, "conjuntoColecciones", "promedio"),
+    "no recibe hoy esa frontera"
+  )
+  expect_error(
+    agregar(agregado, "organizacion", "promedio"),
+    "qu\u00e9 bases le pertenecen"
+  )
+})

@@ -90,8 +90,10 @@ test_that("se validan instancias, modelos y vínculos", {
     "SinMetodo", "Sin método.", "atributo", "real"
   ))
   expect_error(instanciar(sin_metodo, "t", "x"), "requiere un `metodo`")
+  # `coleccion` ya se mide, asi que el ejemplo de granularidad todavia sin
+  # objeto pasa a ser una de las tres que siguen siendo de gobernanza.
   futura <- especializar(metrica(
-    "Futura", "Fuera del alcance.", "coleccion", "real",
+    "Futura", "Fuera del alcance.", "organizacion", "real",
     metodo = function(tablas, instancia) data.frame()
   ))
   expect_error(instanciar(futura, "bd"), "declarada")

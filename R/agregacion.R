@@ -9,7 +9,11 @@
     "celda", "columna", "conjunto de columnas", "tupla", "tabla",
     "conjunto de tablas", "base de datos", NA, NA, NA
   ),
-  implementada = c(rep(TRUE, 6L), rep(FALSE, 4L)),
+  # El septimo nivel se mide desde que existe `coleccion()` para declarar la
+  # frontera. Los tres ultimos siguen sin objeto: un conjunto de bases, una
+  # organizacion y un conjunto de organizaciones son decisiones de
+  # gobernanza que no estan en ningun dato.
+  implementada = c(rep(TRUE, 7L), rep(FALSE, 3L)),
   stringsAsFactors = FALSE
 )
 
@@ -174,6 +178,9 @@ transiciones_granularidad <- function() {
     instanciaEntidad = list(medidas$entidad, medidas$fila),
     entidad = list(medidas$entidad),
     conjuntoEntidades = list(rep("conjunto", nrow(medidas))),
+    # La coleccion entera es un solo objeto: todas las medidas de las tablas
+    # declaradas caen en el mismo grupo.
+    coleccion = list(rep("coleccion", nrow(medidas))),
     stop("La granularidad de destino todav\u00eda no admite agregaci\u00f3n.",
          call. = FALSE)
   )
@@ -204,7 +211,8 @@ transiciones_granularidad <- function() {
       entidades[[1L]], "[", medidas$fila[indices[[1L]]], ",]"
     ),
     entidad = entidades[[1L]],
-    conjuntoEntidades = paste(sort(entidades), collapse = ", ")
+    conjuntoEntidades = paste(sort(entidades), collapse = ", "),
+    coleccion = paste(sort(entidades), collapse = ", ")
   )
 }
 
@@ -242,12 +250,69 @@ transiciones_granularidad <- function() {
 #' instancia <- instanciar(especifica, "personas", "edad")
 #' medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #' agregar(medidas, "atributo", "ratio")
+.validar_coleccion_destino <- function(coleccion) {
+  if (is.null(coleccion)) {
+    stop(
+      "Agregar a la granularidad 'coleccion' exige declarar la frontera: ",
+      "pase `coleccion = ` con el objeto de coleccion() o el perfil de ",
+      "perfilar_coleccion(). Sin la frontera no se sabe sobre que tablas se ",
+      "esta agregando.", call. = FALSE
+    )
+  }
+  if (inherits(coleccion, "coleccion_lupa")) {
+    return(list(
+      nombre = coleccion$nombre,
+      declaradas = coleccion$tablas$tabla,
+      motivo_faltantes = character()
+    ))
+  }
+  if (inherits(coleccion, "perfil_coleccion")) {
+    faltantes <- coleccion$cobertura_coleccion
+    return(list(
+      nombre = coleccion$meta$nombre,
+      declaradas = c(
+        coleccion$resumen_coleccion$tabla, faltantes$tabla
+      ),
+      motivo_faltantes = stats::setNames(faltantes$motivo, faltantes$tabla)
+    ))
+  }
+  stop(
+    "`coleccion` debe venir de coleccion() o de perfilar_coleccion().",
+    call. = FALSE
+  )
+}
+
+# El hallazgo central de refutar este diseno: un numero sobre "la coleccion"
+# calculado solo con las tablas que se pudieron medir informa como medido lo que
+# no se midio. El peso de la tabla ausente desaparece en vez de manifestar la
+# falta de cobertura. Por eso la cobertura viaja pegada al numero, igual que en
+# indice_calidad().
+.cobertura_agregacion_coleccion <- function(frontera, entidades_medidas) {
+  declaradas <- unique(frontera$declaradas)
+  medidas <- unique(entidades_medidas)
+  sin_medir <- setdiff(declaradas, medidas)
+  list(
+    coleccion = frontera$nombre,
+    tablas_declaradas = length(declaradas),
+    tablas_en_el_numero = length(intersect(declaradas, medidas)),
+    tablas_sin_medir = sin_medir,
+    motivo_sin_medir = unname(frontera$motivo_faltantes[sin_medir]),
+    cobertura = if (length(declaradas)) {
+      length(intersect(declaradas, medidas)) / length(declaradas)
+    } else NA_real_,
+    advertencia = paste(
+      "El numero cubre las tablas medidas, no la coleccion declarada.",
+      "Leerlo sin su cobertura seria informar como medido lo que no se midio."
+    )
+  )
+}
+
 agregar <- function(medidas, destino,
                     funcion = c(
                       "ratio", "ratio_umbral", "promedio",
                       "promedio_ponderado"
                     ),
-                    umbral = NULL, pesos = NULL) {
+                    umbral = NULL, pesos = NULL, coleccion = NULL) {
   medidas <- .validar_medidas_agregacion(medidas)
   # Se acepta el nombre relacional —`tabla`, `columna`, `celda`— igual que en
   # `metrica()`: el mensaje de error ya los enumera, asi que rechazarlos aca era
@@ -262,10 +327,25 @@ agregar <- function(medidas, destino,
       "' a '", destino, "'.", call. = FALSE
     )
   }
+  if (identical(destino, "coleccion")) {
+    coleccion <- .validar_coleccion_destino(coleccion)
+  }
   if (!.granularidad_implementada(destino)) {
     stop(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
   }
   funcion <- match.arg(funcion)
+  if (identical(destino, "coleccion") &&
+      !identical(funcion, "promedio_ponderado")) {
+    # Sin esta restriccion la politica de pesos se esquiva por la puerta de al
+    # lado: `promedio` daria un numero entre tablas sin declarar nada, que es
+    # exactamente el juicio que el paquete se niega a inventar.
+    stop(
+      "En la granularidad 'coleccion' solo se admite 'promedio_ponderado': ",
+      "combinar tablas de universos distintos exige declarar los pesos. ",
+      "Sin pesos, `perfilar_coleccion()` devuelve el tablero por tabla.",
+      call. = FALSE
+    )
+  }
   tipo <- unique(medidas$tipo_resultado)
   if (funcion == "ratio" && tipo != "booleano") {
     stop("`ratio` s\u00f3lo admite m\u00e9tricas de resultado booleano.", call. = FALSE)
@@ -302,6 +382,8 @@ agregar <- function(medidas, destino,
     )
     entidad <- if (destino == "conjuntoEntidades") {
       paste(sort(unique(medidas$entidad[indices])), collapse = ", ")
+    } else if (destino == "coleccion") {
+      coleccion$nombre
     } else {
       medidas$entidad[[primera]]
     }
@@ -350,5 +432,10 @@ agregar <- function(medidas, destino,
     "resultado", "agregacion"
   )]
   class(resultado) <- c("medicion", "data.frame")
+  if (identical(destino, "coleccion")) {
+    attr(resultado, "cobertura_coleccion") <- .cobertura_agregacion_coleccion(
+      coleccion, medidas$entidad
+    )
+  }
   resultado
 }
