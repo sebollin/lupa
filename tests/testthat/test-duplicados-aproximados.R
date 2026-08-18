@@ -1186,3 +1186,38 @@ test_that("perfilar valida la configuración aproximada", {
     reportar(perfil, archivo = archivo)
   }
 })
+
+test_that("el hallazgo no afirma igualdad cuando la produjo la normalización", {
+  skip_if_not_installed("stringdist")
+  # Con la normalización por omisión estos pares quedan `tipo_par = "exacto"`,
+  # pero los valores guardados difieren: la descripción no puede decir que las
+  # filas tienen los mismos valores.
+  datos <- data.frame(
+    nombre = c("Jose Perez", "JOSÉ PÉREZ", "Ana  Lopez", "Ana Lopez"),
+    stringsAsFactors = FALSE
+  )
+  resultado <- detectar_duplicados_aproximados(datos, columnas = "nombre")
+
+  expect_true(all(resultado$pares$tipo_par == "exacto"))
+  expect_equal(nrow(resultado$hallazgos), 2L)
+  expect_true(all(grepl("normalización declarada",
+                        resultado$hallazgos$descripcion, fixed = TRUE)))
+  expect_false(any(grepl("tienen los mismos valores",
+                         resultado$hallazgos$descripcion, fixed = TRUE)))
+
+  # Cuando los valores guardados sí son iguales, la afirmación es cierta y se
+  # conserva.
+  identicos <- data.frame(
+    nombre = c("Ana Lopez", "Ana Lopez", "Otro Nombre"),
+    stringsAsFactors = FALSE
+  )
+  hallazgos_identicos <- detectar_duplicados_aproximados(
+    identicos, columnas = "nombre"
+  )$hallazgos
+  expect_true(all(grepl("tienen los mismos valores",
+                        hallazgos_identicos$descripcion, fixed = TRUE)))
+
+  # La clasificación y los contadores no cambian: el arreglo es compatible.
+  expect_equal(resultado$alcance$n_pares_exactos, 2)
+  expect_equal(resultado$alcance$n_pares_aproximados, 0)
+})

@@ -167,6 +167,13 @@ La clasificacion no depende de que una medida de distancia devuelva cero:
 por ejemplo, \code{soundex} puede dar distancia cero para textos distintos.
 Ningun par demuestra identidad.
 
+Como la normalizacion por omision iguala mayusculas, espacios, acentos y
+comillas, un par puede ser \code{"exacto"} sin que los valores guardados sean
+iguales. El hallazgo distingue los dos casos: afirma que las filas tienen
+los mismos valores solo cuando el texto original coincide, y en el otro caso
+declara que la coincidencia la produjo la normalizacion. La clasificacion en
+\code{tipo_par} no cambia.
+
 La comparacion usa teselas de \code{bloque} filas: cada matriz temporal se
 descarta antes de continuar, por lo que la memoria no crece con el tamaño
 de la tabla. El recorrido es exacto para las filas seleccionadas. \code{muestra}

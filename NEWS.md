@@ -1,5 +1,18 @@
 # lupa 0.1.0
 
+## Duplicados: el hallazgo no afirma una igualdad que produjo la normalización
+
+- La normalización por omisión iguala mayúsculas, espacios, acentos y comillas,
+  así que un par puede quedar clasificado como `tipo_par = "exacto"` sin que los
+  valores guardados sean iguales. El hallazgo
+  `duplicados_exactos_columnas` afirmaba en todos los casos que «dos filas
+  tienen los mismos valores en las columnas comparadas», lo que no es cierto
+  para `"Jose Perez"` frente a `"JOSÉ PÉREZ"`. Ahora distingue los dos casos:
+  conserva esa afirmación cuando el texto original coincide, y en el otro caso
+  declara que la coincidencia la produjo la normalización declarada. La
+  clasificación en `tipo_par`, los contadores `n_pares_exactos` y
+  `n_pares_aproximados` y la forma de `pares` no cambian.
+
 ## Casi-claves y precedencia de ausencias
 
 - `perfilar()` informa una `casi_clave` cuando una columna tiene al menos 100

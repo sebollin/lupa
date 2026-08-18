@@ -1339,6 +1339,25 @@
   paste0(columnas, "=", valores, collapse = "; ")
 }
 
+# Un par puede quedar clasificado como `exacto` porque los textos coinciden
+# despues de la normalizacion declarada, no porque los valores guardados sean
+# iguales. Esto distingue los dos casos para que el hallazgo no afirme una
+# igualdad que no existe en los datos.
+.pares_con_texto_original_igual <- function(datos, columnas, filas_1, filas_2) {
+  n <- length(filas_1)
+  if (!n) return(logical())
+  iguales <- rep(TRUE, n)
+  for (columna in columnas) {
+    valores <- suppressWarnings(as.character(datos[[columna]]))
+    a <- valores[filas_1]
+    b <- valores[filas_2]
+    coincide <- (is.na(a) & is.na(b)) |
+      (!is.na(a) & !is.na(b) & a == b)
+    iguales <- iguales & coincide
+  }
+  iguales
+}
+
 .evidencia_filas_aproximada <- function(datos, columnas, filas, protegidas) {
   n <- length(filas)
   if (!n) return(character())
@@ -1691,6 +1710,9 @@
   hallazgos <- if (nrow(pares)) {
     n <- nrow(pares)
     exactos <- pares$tipo_par == "exacto"
+    originales_iguales <- .pares_con_texto_original_igual(
+      datos, columnas, pares$fila_1, pares$fila_2
+    )
     data.frame(
       columna = rep(paste(columnas, collapse = ", "), n),
       tipo_hallazgo = ifelse(
@@ -1699,7 +1721,14 @@
       severidad = rep("sospechoso", n),
       descripcion = ifelse(
         exactos,
-        "Dos filas tienen los mismos valores en las columnas comparadas; esto no demuestra identidad.",
+        ifelse(
+          originales_iguales,
+          "Dos filas tienen los mismos valores en las columnas comparadas; esto no demuestra identidad.",
+          paste(
+            "Dos filas coinciden despu\u00e9s de la normalizaci\u00f3n declarada,",
+            "no en el texto original; esto no demuestra identidad."
+          )
+        ),
         "Dos filas presentan similitud; esto no demuestra identidad."
       ),
       evidencia = paste0(
@@ -1823,6 +1852,13 @@
 #' La clasificacion no depende de que una medida de distancia devuelva cero:
 #' por ejemplo, `soundex` puede dar distancia cero para textos distintos.
 #' Ningun par demuestra identidad.
+#'
+#' Como la normalizacion por omision iguala mayusculas, espacios, acentos y
+#' comillas, un par puede ser `"exacto"` sin que los valores guardados sean
+#' iguales. El hallazgo distingue los dos casos: afirma que las filas tienen
+#' los mismos valores solo cuando el texto original coincide, y en el otro caso
+#' declara que la coincidencia la produjo la normalizacion. La clasificacion en
+#' `tipo_par` no cambia.
 #'
 #' La comparacion usa teselas de `bloque` filas: cada matriz temporal se
 #' descarta antes de continuar, por lo que la memoria no crece con el tamaño
