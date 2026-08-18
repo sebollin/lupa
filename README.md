@@ -14,6 +14,15 @@ quality model declared for a particular use, explicit measurement, controlled
 cleanup of a copy, and approximate duplicate detection at scale. Instead of a
 single opaque score, every result carries its scope, evidence, and uncertainty.
 
+**Findings you can verify, not just read.** Pass `clave` to `perfilar()` with
+the columns that identify a row, and every finding's traceability carries those
+values for the rows it points at — so you can look the case up in the source
+system without opening the table. Row indices stay as the fallback;
+`trazabilidad$localizador` says which one you got. There is a tension the
+feature cannot ignore: the key that lets you verify is exactly what identifies a
+person, so a key column classified as personal data comes back masked, the same
+way evidence does, and `claves_protegidas` says which.
+
 **Profiling never touches your data.** No analysis function alters the table it
 receives — not its values, its types, its names, or its attributes — including
 `data.table` inputs, which R allows to be modified by reference. Only the

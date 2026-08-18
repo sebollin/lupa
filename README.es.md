@@ -15,6 +15,16 @@ explícitas, limpieza controlada de una copia y duplicados aproximados a escala.
 En vez de un puntaje opaco, cada resultado conserva alcance, evidencia e
 incertidumbre.
 
+**Hallazgos que se pueden verificar, no sólo leer.** Pasale `clave` a
+`perfilar()` con las columnas que identifican una fila, y la trazabilidad de
+cada hallazgo trae esos valores para las filas que señala, así el caso se busca
+en el sistema de origen sin abrir la tabla. El índice de fila queda como
+respaldo, y `trazabilidad$localizador` dice cuál de los dos te tocó. Hay una
+tensión que el rasgo no puede ignorar: **la clave que permite ir a verificar es
+exactamente lo que identifica a una persona**, así que una columna de la clave
+clasificada como dato personal vuelve enmascarada, igual que la evidencia, y
+`claves_protegidas` dice cuál.
+
 **El perfilado no toca los datos.** Ninguna función de análisis altera la tabla
 que recibe —ni sus valores, ni sus tipos, ni sus nombres, ni sus atributos—,
 incluidos los `data.table`, que R permite modificar por referencia. La única

@@ -1,14 +1,28 @@
+# La trazabilidad tiene dos ejes que no se pisan: `estado` dice si se pudo
+# localizar y hasta donde, y `localizador` dice CON QUE se localiza. Una
+# trazabilidad puede ser al mismo tiempo por clave y truncada; meter las dos
+# cosas en un solo campo perderia informacion.
 .trazabilidad_vacia <- function(estado = "no_disponible",
                                 indices = integer(), total = NA_real_,
-                                alcance = "no_evaluado", limite = 1000L) {
+                                alcance = "no_evaluado", limite = 1000L,
+                                claves = NULL) {
   indices <- as.integer(indices[!is.na(indices)])
   total <- if (length(total) && is.finite(total)) as.numeric(total) else NA_real_
   truncado <- estado %in% c("disponible", "truncada") &&
     is.finite(total) && length(indices) < total
   if (truncado) estado <- "truncada"
+  hay_claves <- !is.null(claves) && is.data.frame(claves) && nrow(claves) > 0L
   list(
     estado = estado,
+    localizador = if (hay_claves) {
+      "clave_declarada"
+    } else if (length(indices)) {
+      "indice_fila"
+    } else {
+      "ninguno"
+    },
     indices_fila = indices,
+    claves = if (hay_claves) claves else NULL,
     total = total,
     mostrados = length(indices),
     truncado = truncado,
@@ -17,14 +31,30 @@
   )
 }
 
-.trazabilidad_indices <- function(indices, alcance, limite = 1000L) {
+.trazabilidad_indices <- function(indices, alcance, limite = 1000L,
+                                  clave = NULL, datos = NULL) {
   indices <- as.integer(indices[!is.na(indices)])
   total <- length(indices)
+  mostrados <- utils::head(indices, limite)
   .trazabilidad_vacia(
     estado = if (total) "disponible" else "disponible",
-    indices = utils::head(indices, limite),
-    total = total, alcance = alcance, limite = limite
+    indices = mostrados,
+    total = total, alcance = alcance, limite = limite,
+    claves = .claves_de_filas(datos, clave, mostrados)
   )
+}
+
+# Las claves se devuelven como data frame: una fila por indice mostrado y una
+# columna por componente de la clave. Concatenarlas perderia los tipos y haria
+# ambigua una clave compuesta cuyos valores contengan el separador.
+.claves_de_filas <- function(datos, clave, indices) {
+  if (is.null(clave) || !length(clave) || is.null(datos)) return(NULL)
+  if (!length(indices)) return(NULL)
+  faltantes <- setdiff(clave, names(datos))
+  if (length(faltantes)) return(NULL)
+  salida <- datos[indices, clave, drop = FALSE]
+  rownames(salida) <- NULL
+  salida
 }
 
 .nuevo_hallazgo <- function(columna, tipo, severidad, descripcion,
@@ -1368,7 +1398,8 @@
 .trazabilidad_hallazgo <- function(tipo, hallazgo, datos, nombres,
                                    resultados, expandir, aproximados,
                                    indice_hallazgo, tipos_hallazgos, limite,
-                                   distinguir_mayusculas = TRUE) {
+                                   distinguir_mayusculas = TRUE,
+                                  clave = NULL) {
   unidad <- as.character(hallazgo$unidad_conteo[[1L]])
   if (unidad %in% c("columna", "formato")) {
     return(.trazabilidad_vacia("no_aplica", alcance = "no_aplica", limite = limite))
@@ -1399,12 +1430,15 @@
       aproximados$alcance$n_pares_posibles[[1L]]
     return(.trazabilidad_indices(
       c(pares$fila_1[[1L]], pares$fila_2[[1L]]),
-      if (parcial) "comparacion_parcial" else "comparacion_completa", limite
+      if (parcial) "comparacion_parcial" else "comparacion_completa", limite,
+      clave = clave, datos = datos
     ))
   }
   if (tipo == "filas_duplicadas") {
     indices <- which(duplicated(datos) | duplicated(datos, fromLast = TRUE))
-    return(.trazabilidad_indices(indices, "completo", limite))
+    return(.trazabilidad_indices(
+      indices, "completo", limite, clave = clave, datos = datos
+    ))
   }
   if (tipo == "relacion_orden_columnas") {
     nombres_par <- strsplit(
@@ -1439,7 +1473,9 @@
     }
     comparables <- is.finite(izquierda) & is.finite(derecha)
     indices <- which(comparables & izquierda > derecha)
-    return(.trazabilidad_indices(indices, "completo", limite))
+    return(.trazabilidad_indices(
+      indices, "completo", limite, clave = clave, datos = datos
+    ))
   }
   if (tipo == "relacion_aritmetica_columnas") {
     trazabilidad <- hallazgo$trazabilidad[[1L]]
@@ -1483,12 +1519,15 @@
   } else {
     "completo"
   }
-  .trazabilidad_indices(indices, alcance, limite)
+  .trazabilidad_indices(
+    indices, alcance, limite, clave = clave, datos = datos
+  )
 }
 
 .agregar_trazabilidad_hallazgos <- function(
     hallazgos, datos, nombres, resultados, expandir = FALSE,
-    aproximados = NULL, limite = 1000L, distinguir_mayusculas = TRUE) {
+    aproximados = NULL, limite = 1000L, distinguir_mayusculas = TRUE,
+    clave = NULL) {
   if (!nrow(hallazgos)) {
     hallazgos$trazabilidad <- I(list())
     return(hallazgos)
@@ -1498,7 +1537,7 @@
     .trazabilidad_hallazgo(
       as.character(hallazgos$tipo_hallazgo[[i]]), hallazgos[i, , drop = FALSE],
       datos, nombres, resultados, expandir, aproximados, i,
-      tipos_hallazgos, limite, distinguir_mayusculas
+      tipos_hallazgos, limite, distinguir_mayusculas, clave = clave
     )
   })
   hallazgos$trazabilidad <- I(trazabilidad)

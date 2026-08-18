@@ -14,6 +14,7 @@ perfilar(
   expandir = FALSE,
   umbral_alta_cardinalidad = 0.5,
   umbral_faltantes_sospechoso = 0.1,
+  clave = NULL,
   umbral_faltantes_error = 0.4,
   umbral_patron_raro = 0.05,
   umbral_patron_dominante = 0.5,
@@ -72,6 +73,14 @@ puede tener cardinalidad alta.}
 
 \item{umbral_faltantes_sospechoso}{Umbral inferior de faltantes. El
 hallazgo se activa al superarlo en sentido estricto.}
+
+\item{clave}{Nombres de las columnas que identifican una fila. Cuando se
+declaran, la trazabilidad de cada hallazgo trae además el valor de esas
+columnas para las filas señaladas, de modo que el caso se pueda verificar
+en el sistema de origen sin abrir la tabla. El índice de fila se conserva
+siempre. La clave declarada se trata como sensible: si la protección de
+datos personales está activa y alguna de esas columnas se clasifica como
+personal, sus valores salen enmascarados igual que la evidencia.}
 
 \item{umbral_faltantes_error}{Umbral por encima del cual los faltantes son
 un error; la igualdad conserva la severidad sospechosa.}

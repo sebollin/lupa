@@ -390,6 +390,13 @@
   indices_hallazgos <- !is.na(hallazgos$columna) &
     hallazgos$tipo_hallazgo != "dato_personal_posible" & coincide
   hallazgos$evidencia[indices_hallazgos] <- "[evidencia protegida]"
+  # La clave declarada es, por definicion, lo que identifica una fila: es la
+  # que permite ir a verificar el caso y tambien la que identifica a una
+  # persona. Si alguna de sus columnas quedo clasificada como personal, sus
+  # valores salen enmascarados igual que la evidencia, en TODOS los hallazgos y
+  # no solo en los de las columnas sensibles: la clave no pertenece a la
+  # columna del hallazgo, viaja con la fila.
+  hallazgos <- .proteger_claves_trazabilidad(hallazgos, sensibles)
   if (nrow(dependencias)) {
     indices_dependencias <- dependencias$determinante %in% sensibles |
       dependencias$dependiente %in% sensibles
@@ -400,6 +407,26 @@
     columnas = columnas, patrones = patrones, dependencias = dependencias,
     hallazgos = hallazgos
   )
+}
+
+.proteger_claves_trazabilidad <- function(hallazgos, sensibles) {
+  if (!nrow(hallazgos) || !length(sensibles)) return(hallazgos)
+  if (!"trazabilidad" %in% names(hallazgos)) return(hallazgos)
+  hallazgos$trazabilidad <- I(lapply(hallazgos$trazabilidad, function(traza) {
+    claves <- traza$claves
+    if (is.null(claves) || !is.data.frame(claves) || !nrow(claves)) {
+      return(traza)
+    }
+    protegidas <- intersect(names(claves), sensibles)
+    if (!length(protegidas)) return(traza)
+    for (columna in protegidas) {
+      claves[[columna]] <- rep("[clave protegida]", nrow(claves))
+    }
+    traza$claves <- claves
+    traza$claves_protegidas <- protegidas
+    traza
+  }))
+  hallazgos
 }
 
 .proteger_perfil <- function(perfil) {

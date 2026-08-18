@@ -1,5 +1,28 @@
 # lupa 0.1.0
 
+## Trazabilidad por clave declarada: del hallazgo que se lee al que se verifica
+
+- `perfilar()` acepta `clave` con las columnas que identifican una fila. La
+  trazabilidad de cada hallazgo trae además el valor de esas columnas para las
+  filas señaladas, así que el caso se puede buscar en el sistema de origen sin
+  abrir la tabla. `analizar()` lo traslada por `...` y por `argumentos_perfil`.
+- La trazabilidad separa dos ejes que antes se confundían: `estado`
+  —`disponible`, `truncada`, `no_disponible`, `no_aplica`— dice si se pudo
+  localizar y hasta dónde, y **`localizador`** —`indice_fila`,
+  `clave_declarada`, `ninguno`— dice con qué. Una trazabilidad puede ser al
+  mismo tiempo por clave y truncada.
+- Las claves viajan como data frame, una fila por índice mostrado y una columna
+  por componente: concatenarlas perdería los tipos y haría ambigua una clave
+  compuesta.
+- **La clave que permite verificar es la que identifica a una persona.** Si
+  alguna de sus columnas se clasifica como dato personal y la protección está
+  activa, sus valores salen enmascarados igual que la evidencia, en todos los
+  hallazgos —la clave viaja con la fila, no con la columna del hallazgo— y
+  `claves_protegidas` declara cuáles se enmascararon.
+- Una clave que nombra columnas inexistentes se rechaza enumerando las
+  disponibles; una que no es única avisa y sigue, porque sirve igual para
+  localizar aunque deje de ser una clave.
+
 ## La cobertura del vocabulario deja de contradecir al hallazgo
 
 - `casi_duplicados_vocabulario` nombraba dos diagnósticos distintos: agrupar

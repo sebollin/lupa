@@ -296,6 +296,13 @@
 #' @param max_patrones Máximo de patrones mostrados por columna.
 #' @param distinguir_mayusculas Si se distinguen mayúsculas y minúsculas.
 #' @param expandir Si se emite un token por carácter en los patrones.
+#' @param clave Nombres de las columnas que identifican una fila. Cuando se
+#'   declaran, la trazabilidad de cada hallazgo trae además el valor de esas
+#'   columnas para las filas señaladas, de modo que el caso se pueda verificar
+#'   en el sistema de origen sin abrir la tabla. El índice de fila se conserva
+#'   siempre. La clave declarada se trata como sensible: si la protección de
+#'   datos personales está activa y alguna de esas columnas se clasifica como
+#'   personal, sus valores salen enmascarados igual que la evidencia.
 #' @param umbral_alta_cardinalidad Umbral sobre la tasa de valores distintos
 #'   de una columna categórica. No alcanza por sí solo: el hallazgo exige
 #'   además al menos diez valores distintos, porque con pocos la tasa está
@@ -449,6 +456,7 @@ perfilar <- function(datos,
                      expandir = FALSE,
                      umbral_alta_cardinalidad = 0.5,
                      umbral_faltantes_sospechoso = 0.1,
+                     clave = NULL,
                      umbral_faltantes_error = 0.4,
                      umbral_patron_raro = 0.05,
                      umbral_patron_dominante = 0.5,
@@ -497,6 +505,37 @@ perfilar <- function(datos,
   }
   if (umbral_faltantes_error < umbral_faltantes_sospechoso) {
     stop("El umbral de error no puede ser menor que el sospechoso.", call. = FALSE)
+  }
+  if (!is.null(clave)) {
+    if (!is.character(clave) || !length(clave) || anyNA(clave) ||
+        !all(nzchar(clave))) {
+      stop(
+        "`clave` debe ser un vector de nombres de columna sin NA.",
+        call. = FALSE
+      )
+    }
+    faltantes <- setdiff(clave, names(datos))
+    if (length(faltantes)) {
+      stop(
+        "`clave` nombra columnas que no estan en los datos: ",
+        paste(faltantes, collapse = ", "),
+        ". Disponibles: ", paste(names(datos), collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+    if (anyDuplicated(clave)) {
+      stop("`clave` repite una columna.", call. = FALSE)
+    }
+    # Una clave que no identifica una fila sirve igual para localizar, pero
+    # deja de ser una clave: se avisa y se sigue, no se rompe.
+    if (nrow(datos) && anyDuplicated(datos[, clave, drop = FALSE])) {
+      repetidas <- sum(duplicated(datos[, clave, drop = FALSE]))
+      cli::cli_warn(paste0(
+        "La clave declarada no es unica: ", repetidas,
+        " filas repiten su valor. La trazabilidad la usa igual para localizar, ",
+        "pero un valor puede senalar mas de una fila."
+      ))
+    }
   }
   if (!is.numeric(sentinelas_numericos) || anyNA(sentinelas_numericos) ||
       any(!is.finite(sentinelas_numericos))) {
@@ -830,7 +869,7 @@ perfilar <- function(datos,
   hallazgos <- .agregar_trazabilidad_hallazgos(
     hallazgos, datos, nombres, resultados, expandir = expandir,
     aproximados = aproximados, limite = max_filas_hallazgo,
-    distinguir_mayusculas = distinguir_mayusculas
+    distinguir_mayusculas = distinguir_mayusculas, clave = clave
   )
   meta <- list(
     nombre = nombre,
