@@ -52,15 +52,14 @@
 ## Duplicados: el hallazgo no afirma una igualdad que produjo la normalización
 
 - La normalización por omisión iguala mayúsculas, espacios, acentos y comillas,
-  así que un par puede quedar clasificado como `tipo_par = "exacto"` sin que los
-  valores guardados sean iguales. El hallazgo
-  `duplicados_exactos_columnas` afirmaba en todos los casos que «dos filas
-  tienen los mismos valores en las columnas comparadas», lo que no es cierto
-  para `"Jose Perez"` frente a `"JOSÉ PÉREZ"`. Ahora distingue los dos casos:
-  conserva esa afirmación cuando el texto original coincide, y en el otro caso
-  declara que la coincidencia la produjo la normalización declarada. La
-  clasificación en `tipo_par`, los contadores `n_pares_exactos` y
-  `n_pares_aproximados` y la forma de `pares` no cambian.
+  así que un par puede coincidir después de normalizar sin que los valores
+  guardados sean iguales. `tipo_par` distingue ahora `exacto`,
+  `exacto_normalizado` y `aproximado`; `igualo_normalizar` deja esa causa
+  visible en cada fila. El hallazgo `duplicados_exactos_normalizados` evita
+  afirmar que dos filas tienen los mismos valores y la trazabilidad lo busca
+  entre los pares de ese tipo. `n_pares_exactos` cuenta sólo texto guardado
+  igual y `n_pares_exactos_normalizados` completa la explicación junto con
+  `n_pares_aproximados`.
 
 ## Casi-claves y precedencia de ausencias
 

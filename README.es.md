@@ -110,6 +110,13 @@ evalúa luego sobre toda la columna; `Inf` vuelve completo incluso el primer
 paso. Los duplicados aproximados están apagados por omisión y, cuando se
 activan, tienen sus propios límites declarados.
 
+En `detectar_duplicados_aproximados()`, `pares$tipo_par` se describe solo:
+`exacto` significa que los textos guardados son iguales,
+`exacto_normalizado` que sólo coinciden después de la normalización declarada,
+y `aproximado` que siguen siendo similares. `pares$igualo_normalizar` marca el
+caso intermedio. Los conteos correspondientes en el alcance son
+`n_pares_exactos`, `n_pares_exactos_normalizados` y `n_pares_aproximados`.
+
 El resultado deja el alcance efectivo en `meta$muestra`,
 `meta$filas_analizadas` y `meta$muestreo`; cada columna también publica
 `n_filas_analizadas_tipo` y `muestreado_tipo_inferido`, y la tabla de

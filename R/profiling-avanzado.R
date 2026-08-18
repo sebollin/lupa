@@ -356,18 +356,17 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
       filas[[k]] <- data.frame(
         columna_1 = a, columna_2 = b, tipo_1 = tipos[[i]], tipo_2 = tipos[[j]],
         metodo = metodo,
-        supuesto = if (metodo == "pearson_absoluto") {
-          "Las columnas numericas se tratan como cuantitativas; la escala no queda confirmada."
-        } else if (metodo == "spearman_absoluto") {
-          paste(
+        supuesto = switch(
+          metodo,
+          pearson_absoluto =
+            "Las columnas numericas se tratan como cuantitativas; la escala no queda confirmada.",
+          spearman_absoluto = paste(
             "Se mide asociacion monotona sobre los rangos: no supone",
             "linealidad ni que la escala sea de intervalo."
-          )
-        } else if (metodo == "cramer_v") {
-          "Las columnas se tratan como categorias sin orden."
-        } else {
+          ),
+          cramer_v = "Las columnas se tratan como categorias sin orden.",
           "La columna numerica se trata como cuantitativa y la otra como categoria."
-        },
+        ),
         asociacion = as.numeric(valor), n_pares = length(x),
         stringsAsFactors = FALSE
       )

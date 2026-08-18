@@ -215,7 +215,8 @@ test_that("los perfiles por columna se resuelven sin mezclar criterios", {
   salida <- detectar_duplicados_aproximados(
     datos, columnas = names(datos), normalizar = perfil, max_resultados = Inf
   )
-  expect_equal(salida$pares$tipo_par, "exacto")
+  expect_equal(salida$pares$tipo_par, "exacto_normalizado")
+  expect_true(salida$pares$igualo_normalizar)
 })
 
 test_that("las metricas de vocabulario aceptan perfiles de normalizacion", {

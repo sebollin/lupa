@@ -111,12 +111,17 @@ lsh <- detectar_duplicados_aproximados(
   datos, columnas = c("nombre", "domicilio"), estrategia = "lsh",
   max_resultados = 100
 )
-exacto$pares[, c("fila_1", "fila_2", "distancia", "tipo_par")]
+exacto$pares[, c(
+  "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
+)]
 lsh$alcance[, c("modo_comparacion", "n_pares_comparados", "n_pares_hallados")]
 ```
 
-Un par parecido nunca se presenta como identidad y no se propone eliminar ni
-fusionar registros. Si `stringdist` no está disponible, el resultado declara
+`tipo_par = "exacto"` se reserva para textos guardados iguales.
+`"exacto_normalizado"` identifica una coincidencia producida por la
+normalización y `igualo_normalizar` la marca fila a fila; `"aproximado"` queda
+para los pares que siguen siendo similares. Un par parecido nunca se presenta
+como identidad y no se propone eliminar ni fusionar registros. Si `stringdist` no está disponible, el resultado declara
 que la comparación no se ejecutó en vez de fallar con un error críptico.
 
 ## Bloquear declarando la pérdida

@@ -107,6 +107,13 @@ then evaluated on the complete column; `Inf` makes even the preliminary pass
 complete. Approximate duplicates are off by default and have their own declared
 bounds when enabled.
 
+In `detectar_duplicados_aproximados()`, `pares$tipo_par` is self-describing:
+`exacto` means the stored texts are equal, `exacto_normalizado` means they only
+match after the declared normalization, and `aproximado` means they remain
+similar rather than equal. `pares$igualo_normalizar` marks the middle case.
+The corresponding scope counts are `n_pares_exactos`,
+`n_pares_exactos_normalizados`, and `n_pares_aproximados`.
+
 The result records the effective scope in `meta$muestra`,
 `meta$filas_analizadas`, and `meta$muestreo`; each column also records
 `n_filas_analizadas_tipo` and `muestreado_tipo_inferido`, while the dependency

@@ -864,13 +864,29 @@ test_that("exacto es equivalente a igualdad del texto normalizado en cada camino
       pares <- resultado$pares
       if (nrow(pares)) {
         esperados <- textos[pares$fila_1] == textos[pares$fila_2]
-        expect_identical(pares$tipo_par, ifelse(esperados, "exacto", "aproximado"))
+        originales <- datos$nombre[pares$fila_1] == datos$nombre[pares$fila_2]
+        tipos_esperados <- ifelse(
+          !esperados, "aproximado",
+          ifelse(originales, "exacto", "exacto_normalizado")
+        )
+        expect_identical(pares$tipo_par, tipos_esperados)
+        expect_identical(pares$igualo_normalizar, esperados & !originales)
         expect_true(all(pares$fila_1 < pares$fila_2))
       }
       if (is.infinite(config$max_resultados)) {
         expect_equal(
           resultado$alcance$n_pares_exactos,
-          sum(textos[pares$fila_1] == textos[pares$fila_2])
+          sum(
+            textos[pares$fila_1] == textos[pares$fila_2] &
+              datos$nombre[pares$fila_1] == datos$nombre[pares$fila_2]
+          )
+        )
+        expect_equal(
+          resultado$alcance$n_pares_exactos_normalizados,
+          sum(
+            textos[pares$fila_1] == textos[pares$fila_2] &
+              datos$nombre[pares$fila_1] != datos$nombre[pares$fila_2]
+          )
         )
         expect_equal(
           resultado$alcance$n_pares_aproximados,
@@ -1189,7 +1205,8 @@ test_that("perfilar valida la configuración aproximada", {
 
 test_that("el hallazgo no afirma igualdad cuando la produjo la normalización", {
   skip_if_not_installed("stringdist")
-  # Con la normalización por omisión estos pares quedan `tipo_par = "exacto"`,
+  # Con la normalización por omisión estos pares quedan
+  # `tipo_par = "exacto_normalizado"`,
   # pero los valores guardados difieren: la descripción no puede decir que las
   # filas tienen los mismos valores.
   datos <- data.frame(
@@ -1198,12 +1215,22 @@ test_that("el hallazgo no afirma igualdad cuando la produjo la normalización", 
   )
   resultado <- detectar_duplicados_aproximados(datos, columnas = "nombre")
 
-  expect_true(all(resultado$pares$tipo_par == "exacto"))
+  expect_true(all(resultado$pares$tipo_par == "exacto_normalizado"))
+  expect_true(all(resultado$pares$igualo_normalizar))
   expect_equal(nrow(resultado$hallazgos), 2L)
+  expect_true(all(
+    resultado$hallazgos$tipo_hallazgo == "duplicados_exactos_normalizados"
+  ))
   expect_true(all(grepl("normalización declarada",
                         resultado$hallazgos$descripcion, fixed = TRUE)))
   expect_false(any(grepl("tienen los mismos valores",
                          resultado$hallazgos$descripcion, fixed = TRUE)))
+  archivo <- tempfile(fileext = ".html")
+  on.exit(unlink(archivo), add = TRUE)
+  reportar(resultado, archivo = archivo)
+  html <- paste(readLines(archivo, encoding = "UTF-8"), collapse = "\n")
+  expect_match(html, "exacto_normalizado", fixed = TRUE)
+  expect_false(grepl("tienen los mismos valores", html, fixed = TRUE))
 
   # Cuando los valores guardados sí son iguales, la afirmación es cierta y se
   # conserva.
@@ -1211,13 +1238,47 @@ test_that("el hallazgo no afirma igualdad cuando la produjo la normalización", 
     nombre = c("Ana Lopez", "Ana Lopez", "Otro Nombre"),
     stringsAsFactors = FALSE
   )
-  hallazgos_identicos <- detectar_duplicados_aproximados(
+  identicos_resultado <- detectar_duplicados_aproximados(
     identicos, columnas = "nombre"
-  )$hallazgos
+  )
+  expect_equal(identicos_resultado$pares$tipo_par, "exacto")
+  expect_false(identicos_resultado$pares$igualo_normalizar)
+  hallazgos_identicos <- identicos_resultado$hallazgos
   expect_true(all(grepl("tienen los mismos valores",
                         hallazgos_identicos$descripcion, fixed = TRUE)))
 
-  # La clasificación y los contadores no cambian: el arreglo es compatible.
-  expect_equal(resultado$alcance$n_pares_exactos, 2)
+  expect_equal(resultado$alcance$n_pares_exactos, 0)
+  expect_equal(resultado$alcance$n_pares_exactos_normalizados, 2)
   expect_equal(resultado$alcance$n_pares_aproximados, 0)
+  expect_equal(
+    resultado$alcance$n_pares_exactos +
+      resultado$alcance$n_pares_exactos_normalizados +
+      resultado$alcance$n_pares_aproximados,
+    nrow(resultado$pares)
+  )
+})
+
+test_that("la trazabilidad separa los pares exactos normalizados", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(
+    nombre = c("Jose Perez", "JOSÉ PÉREZ", "Ana  Lopez", "Ana Lopez"),
+    stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(
+    datos, analizar_dependencias = FALSE,
+    duplicados_aproximados = list(
+      columnas = "nombre", max_resultados = Inf
+    )
+  )
+  hallazgos <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "duplicados_exactos_normalizados", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(hallazgos), 2L)
+  expect_true(all(vapply(
+    hallazgos$trazabilidad,
+    function(x) identical(x$indices_fila, c(1L, 2L)) ||
+      identical(x$indices_fila, c(3L, 4L)),
+    logical(1L)
+  )))
 })
