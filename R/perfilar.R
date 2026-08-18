@@ -296,7 +296,12 @@
 #' @param max_patrones Máximo de patrones mostrados por columna.
 #' @param distinguir_mayusculas Si se distinguen mayúsculas y minúsculas.
 #' @param expandir Si se emite un token por carácter en los patrones.
-#' @param umbral_alta_cardinalidad Umbral para columnas categóricas.
+#' @param umbral_alta_cardinalidad Umbral sobre la tasa de valores distintos
+#'   de una columna categórica. No alcanza por sí solo: el hallazgo exige
+#'   además al menos diez valores distintos, porque con pocos la tasa está
+#'   dominada por el tamaño de la tabla —dos valores en tres filas dan 0,67 y
+#'   superan cualquier umbral razonable— y una columna de dos valores no
+#'   puede tener cardinalidad alta.
 #' @param umbral_faltantes_sospechoso Umbral inferior de faltantes. El
 #'   hallazgo se activa al superarlo en sentido estricto.
 #' @param umbral_faltantes_error Umbral por encima del cual los faltantes son

@@ -32,7 +32,9 @@ test_that("el plan es un objeto de datos con políticas explícitas", {
   ) %in% activas))
   expect_true(all(!plan$aplicar[plan$estrategia == "marcar_outliers"]))
   expect_true(all(plan$recomendada[plan$estrategia == "marcar_outliers"]))
-  expect_true(any(as.character(plan$estado) == "informativa"))
+  # El estado `informativa` se comprueba aparte, con una tabla que tenga
+  # cardinalidad alta de verdad: en estas cuatro filas no la hay, y exigirla
+  # aca obligaba a que el paquete la afirmara sin fundamento.
   expect_true(all(!plan$aplicar[as.character(plan$estado) == "informativa"]))
   expect_s3_class(plan[1, , drop = FALSE], "plan_limpieza")
   expect_false(inherits(plan[, c("estrategia", "aplicar")], "plan_limpieza"))
@@ -453,4 +455,27 @@ test_that("se rechazan una estrategia desconocida y la deriva de nombres", {
   datos_renombrados <- datos
   names(datos_renombrados) <- "y"
   expect_error(aplicar(nombres, datos_renombrados), "no coinciden")
+})
+
+
+test_that("una cardinalidad alta real produce una accion informativa", {
+  # `revisar_cardinalidad` es informativa por diseno: el perfil senala el
+  # problema y no tiene conocimiento del dominio para elegir una
+  # transformacion. Hace falta una columna que de verdad tenga cardinalidad
+  # alta: muchas filas y muchos valores distintos, no una tabla chica donde la
+  # tasa esta dominada por el tamano.
+  datos <- data.frame(
+    texto_libre = c(sprintf("observacion %02d", 1:30), rep("observacion 01", 10L)),
+    stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(datos)
+  expect_true("alta_cardinalidad" %in% as.character(perfil$hallazgos$tipo_hallazgo))
+
+  plan <- planificar_limpieza(perfil, datos)
+  informativas <- plan[as.character(plan$estado) == "informativa", , drop = FALSE]
+  expect_gt(nrow(informativas), 0L)
+  expect_true("revisar_cardinalidad" %in% as.character(informativas$estrategia))
+  # Una accion informativa nunca se aplica sola.
+  expect_true(all(!informativas$aplicar))
+  expect_true(all(nzchar(informativas$justificacion)))
 })

@@ -47,6 +47,13 @@
   )
 }
 
+# La tasa de valores distintos sola no alcanza: con dos valores en tres filas da
+# 0,67 y supera cualquier umbral razonable, aunque una columna de dos valores no
+# puede tener cardinalidad alta. Por debajo de este numero de valores distintos
+# la columna es una categoria, se mire como se mire, y eso es una conclusion
+# medida y no una falta de medicion.
+.min_distintos_alta_cardinalidad <- 10L
+
 .cobertura_diagnosticos_vacia <- function() {
   data.frame(
     diagnostico = character(), columna = character(), motivo = character(),
@@ -1716,7 +1723,7 @@
         is.finite(fila$tasa_distintos) &&
         fila$tasa_distintos > umbral_alta_cardinalidad &&
         fila$tasa_distintos < 1 &&
-        fila$n_distintos > 1L
+        fila$n_distintos >= .min_distintos_alta_cardinalidad
     ) {
       agregar(.nuevo_hallazgo(
         nombre, "alta_cardinalidad", "sospechoso",
@@ -2285,12 +2292,27 @@
       nrow(datos), n_filas_duplicadas, "fila"
     )
   }
-  if (nrow(duplicadas)) {
+  # Sin filas, dos columnas son triviamente iguales y la comparacion no tiene
+  # contenido sobre el que apoyarse. Eso se declara en vez de afirmarse.
+  if (nrow(datos) == 0L && ncol(datos) >= 2L) {
+    cobertura <- rbind(cobertura, .nuevo_diagnostico_no_evaluado(
+      "columnas_duplicadas", NA_character_,
+      paste(
+        "No se compararon las columnas entre si porque la tabla no tiene",
+        "filas: dos columnas vacias coinciden sin que eso sea evidencia."
+      ),
+      "Perfilar una tabla con al menos una fila para comparar contenidos."
+    ))
+  } else if (nrow(duplicadas)) {
     for (i in seq_len(nrow(duplicadas))) {
       hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
         duplicadas$columna_1[[i]], "columnas_duplicadas", "sospechoso",
         "Dos columnas tienen el mismo contenido.",
-        paste(duplicadas$columna_1[[i]], "=", duplicadas$columna_2[[i]]),
+        paste0(
+          duplicadas$columna_1[[i]], " = ", duplicadas$columna_2[[i]],
+          "; comparadas sobre ", nrow(datos),
+          if (nrow(datos) == 1L) " fila" else " filas"
+        ),
         "Confirmar si ambas columnas son necesarias o si existe redundancia.",
         ncol(datos), 2, "columna"
       )

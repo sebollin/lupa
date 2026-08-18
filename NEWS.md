@@ -1,5 +1,30 @@
 # lupa 0.1.0
 
+## Tres afirmaciones que el paquete hacía sin fundamento suficiente
+
+- `alta_cardinalidad` se apoyaba sólo en la tasa de valores distintos, y con
+  pocas filas esa tasa está dominada por el tamaño: una columna de dos valores
+  en tres filas daba 0,67 y superaba el umbral, aunque una columna de dos
+  valores no puede tener cardinalidad alta. Ahora el hallazgo exige además al
+  menos diez valores distintos. Las columnas con cardinalidad alta real —treinta
+  valores distintos en cuarenta filas— se siguen informando igual.
+- `columnas_duplicadas` afirmaba que dos columnas tienen el mismo contenido en
+  tablas **sin ninguna fila**, donde dos columnas vacías coinciden sin que eso
+  sea evidencia. Ese caso pasó a `cobertura_diagnosticos` con su motivo. Cuando
+  sí hay filas, la evidencia declara ahora sobre cuántas se comparó.
+- `relacion_aritmetica_columnas` se salteaba en silencio cuando la tabla no
+  llegaba al mínimo de filas comparables. Ahora se declara en
+  `cobertura_diagnosticos`, y sólo cuando había combinaciones de columnas
+  numéricas que evaluar.
+
+## El vínculo entre una acción del plan y su hallazgo ya no depende de la prosa
+
+- `planificar_limpieza()` recuperaba el par de columnas duplicadas comparando la
+  cadena de evidencia completa del hallazgo. Al enriquecerse ese texto, dos
+  pares distintos colapsaban en el mismo y el plan perdía una acción. El vínculo
+  se hace ahora contra el primer tramo de la evidencia, que es el que identifica
+  el par.
+
 ## El perfilado no toca los datos, y ahora está probado
 
 - Ninguna función de análisis altera la tabla que recibe: ni sus valores, ni sus

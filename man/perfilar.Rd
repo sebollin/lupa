@@ -63,7 +63,12 @@ Use \code{Inf} para analizar todas las filas.}
 
 \item{expandir}{Si se emite un token por carácter en los patrones.}
 
-\item{umbral_alta_cardinalidad}{Umbral para columnas categóricas.}
+\item{umbral_alta_cardinalidad}{Umbral sobre la tasa de valores distintos
+de una columna categórica. No alcanza por sí solo: el hallazgo exige
+además al menos diez valores distintos, porque con pocos la tasa está
+dominada por el tamaño de la tabla —dos valores en tres filas dan 0,67 y
+superan cualquier umbral razonable— y una columna de dos valores no
+puede tener cardinalidad alta.}
 
 \item{umbral_faltantes_sospechoso}{Umbral inferior de faltantes. El
 hallazgo se activa al superarlo en sentido estricto.}

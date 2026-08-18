@@ -64,6 +64,36 @@
 }
 
 .cobertura_aritmetica_columnas <- function(alcance) {
+  # Sin filas suficientes la busqueda no puede correr. Callarse dejaria un
+  # diagnostico ausente sin rastro, que es justo lo que el paquete no hace.
+  #
+  # Solo se declara cuando habia algo que buscar: si no hay combinaciones de
+  # columnas numericas candidatas, no hay diagnostico que dejar de evaluar y
+  # anunciarlo seria ruido en vez de alcance.
+  habia_que_buscar <- alcance$identidades_aditivas_posibles > 0 ||
+    alcance$pares_proporcionales_posibles > 0
+  sin_filas <- habia_que_buscar &&
+    is.finite(alcance$filas_totales) &&
+    alcance$filas_totales < alcance$minimo_filas_comparables
+  if (sin_filas) {
+    faltante <- .nuevo_diagnostico_no_evaluado(
+      "relacion_aritmetica_columnas",
+      paste(alcance$columnas_numericas, collapse = ","),
+      paste0(
+        "No se buscaron relaciones aritmeticas: la tabla tiene ",
+        alcance$filas_totales,
+        if (identical(alcance$filas_totales, 1)) " fila" else " filas",
+        " y se necesitan al menos ",
+        alcance$minimo_filas_comparables, " filas comparables."
+      ),
+      paste0(
+        "Perfilar una tabla con al menos ",
+        alcance$minimo_filas_comparables,
+        " filas, o bajar `min_filas_aritmetica`."
+      )
+    )
+    if (!isTRUE(alcance$truncado)) return(faltante)
+  }
   if (!isTRUE(alcance$truncado)) return(.cobertura_diagnosticos_vacia())
   omitidas <- alcance$columnas_omitidas
   .nuevo_diagnostico_no_evaluado(

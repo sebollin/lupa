@@ -61,9 +61,14 @@
   pares <- perfil$general$columnas_duplicadas
   if (is.null(pares) || !nrow(pares)) return(NULL)
   evidencias <- paste(pares$columna_1, "=", pares$columna_2)
+  # La evidencia es prosa para quien lee y puede crecer —hoy declara sobre
+  # cuantas filas se comparo—, asi que el vinculo se hace contra su primer
+  # tramo, no contra la cadena entera. Atarlo al texto completo hacia que
+  # cualquier agregado colapsara dos pares distintos en el mismo.
+  evidencia_hallazgo <- trimws(sub(";.*$", "", hallazgo$evidencia[[1L]]))
   indices <- which(
     pares$columna_1 == hallazgo$columna[[1L]] &
-      evidencias == hallazgo$evidencia[[1L]]
+      evidencias == evidencia_hallazgo
   )
   if (!length(indices)) {
     indices <- which(pares$columna_1 == hallazgo$columna[[1L]])
