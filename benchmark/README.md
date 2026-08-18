@@ -67,3 +67,55 @@ compara conteos de celdas de `lupa` con los de Raha. Por ejemplo, una columna
 puede estar afectada porque cambió la representación de una unidad y recibir un
 hallazgo verdadero sobre esa representación sin que exista una correspondencia
 uno a uno entre celdas.
+
+## Bancos adicionales
+
+Los scripts siguientes son independientes de `verdad_raha.R` y no agregan
+dependencias al paquete:
+
+```sh
+Rscript benchmark/verdad_ped.R
+Rscript benchmark/verdad_tableeg.R
+Rscript benchmark/verdad_riolu.R
+Rscript benchmark/verdad_addresstable.R
+Rscript benchmark/medir_bancos.R
+```
+
+Cada script imprime `no medido` cuando no puede obtener una copia completa y
+alineada. Esa salida no se convierte en cero. Las variables de entorno para
+repetir una corrida sin red son `PED_DATA_DIR`, `TABLEEG_DATA_DIR`,
+`RIOLU_DATA_DIR` y `ADDRESSTABLE_DATA_DIR`. Las cuatro deben apuntar a una
+copia local ya extraida; los CSV no se versionan.
+
+PED se obtiene del repositorio de `twinklelittlestars/PED`. No se encontro una
+licencia de datos declarada en el repositorio; por eso se descarga para medir y
+no se redistribuye. Por defecto se intentan `Flight` y `Hospital`; se puede
+cambiar la lista con `PED_DATASETS`. `difference.csv` se conserva como
+comprobacion auxiliar cuando la copia lo trae, pero la comparacion publicada
+se calcula en R base contra `dirty.csv` y `clean.csv`.
+
+TableEG describe sus datos en una carpeta de Google Drive, no en una URL de
+archivo directa. El repositorio tampoco declara una licencia de datos. Se
+requiere `TABLEEG_DATA_DIR` o una URL directa de un archivo ZIP en
+`TABLEEG_ARCHIVE_URL`; el script puede extraer ese ZIP con `utils::unzip` y no
+lo versiona. Las anotaciones JSONL se registran como metadato si estan en la
+copia, mientras que la verdad de celdas se valida con el par alineado.
+
+RIOLU tiene licencia MIT para el codigo de la replicacion, pero no declara una
+licencia separada para los datos reutilizados. El script usa sus archivos
+`dirty_*`, `clean_*` y `gt_*` desde GitHub o `RIOLU_DATA_DIR`. Para este banco
+la verdad de patrones es exactamente la etiqueta `1`; `-1` es nulo y `0` es
+normal.
+
+AddressTable se consulta en Zenodo. El archivo completo reportado por la fuente
+es de escala de varios GB, por lo que el script no lo descarga implicitamente:
+requiere una muestra local o `ADDRESSTABLE_FILE_URL`, y limita la lectura a
+`ADDRESSTABLE_MAX_ROWS` filas. La licencia aplicable a los datos no pudo
+confirmarse desde el registro indicado; no se redistribuye ninguna copia.
+
+La medicion de los tres bancos de errores por celda usa dos nombres que no se
+deben confundir: `celdas_verdad` cuenta las posiciones con diferencia o etiqueta
+de error; `celdas_con_hallazgo_trazable` cuenta posiciones que `lupa` adjunta a
+un hallazgo no `ok`. La interseccion se publica como precision de celdas
+trazables y cobertura de celdas de verdad, no como recall diagnostico. En
+AddressTable ambos numeros se refieren a la muestra declarada.

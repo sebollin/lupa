@@ -68,6 +68,19 @@
   if (is.na(fila$esquema)) fila$tabla else paste0(fila$esquema, ".", fila$tabla)
 }
 
+# `dbQuoteIdentifier(con, "public.personas")` cita UN identificador que contiene
+# un punto —`"public.personas"`— y no el compuesto `"public"."personas"`. Sobre
+# un motor con esquemas eso consulta una tabla que no existe y el par termina
+# declarado como ilegible aunque los permisos esten bien. El identificador
+# compuesto se construye con `DBI::Id`.
+.referencia_tabla <- function(fila) {
+  if (is.na(fila$esquema)) {
+    fila$tabla
+  } else {
+    DBI::Id(schema = fila$esquema, table = fila$tabla)
+  }
+}
+
 #' Declarar la frontera de una colección
 #'
 #' Una colección es una base de datos entera: el séptimo nivel de granularidad
@@ -121,6 +134,10 @@ coleccion <- function(conexion, tablas, nombre = NULL) {
     function(i) .identificador_tabla(declaradas[i, , drop = FALSE]),
     character(1L)
   )
+  declaradas$referencia <- I(lapply(
+    seq_len(nrow(declaradas)),
+    function(i) .referencia_tabla(declaradas[i, , drop = FALSE])
+  ))
   estructura <- list(
     nombre = if (is.null(nombre)) "coleccion" else nombre,
     conexion = conexion,
@@ -238,8 +255,9 @@ perfilar_coleccion <- function(coleccion, muestra = 1000L,
       next
     }
     momento <- Sys.time()
+    referencia <- declaradas$referencia[[i]]
     perfil <- tryCatch(
-      perfilar_dbi(conexion, identificador, muestra = muestra, ...),
+      perfilar_dbi(conexion, referencia, muestra = muestra, ...),
       error = function(e) e
     )
     if (inherits(perfil, "condition")) {
@@ -379,19 +397,22 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
   }
   n <- coleccion$n_declaradas
   pares <- .validar_pares_coleccion(coleccion, pares, exigir = FALSE)
-  columnas_por_tabla <- vapply(coleccion$tablas$identificador, function(tabla) {
+  columnas_por_tabla <- vapply(seq_len(nrow(coleccion$tablas)), function(k) {
     tryCatch({
       esquema <- DBI::dbGetQuery(
         coleccion$conexion,
         paste0(
           "SELECT * FROM ",
-          as.character(DBI::dbQuoteIdentifier(coleccion$conexion, tabla)),
+          as.character(DBI::dbQuoteIdentifier(
+            coleccion$conexion, coleccion$tablas$referencia[[k]]
+          )),
           " WHERE 1 = 0"
         )
       )
       as.numeric(ncol(esquema))
     }, error = function(e) NA_real_)
   }, numeric(1L))
+  names(columnas_por_tabla) <- coleccion$tablas$identificador
   comparaciones <- if (nrow(pares)) {
     sum(vapply(seq_len(nrow(pares)), function(i) {
       a <- columnas_por_tabla[[pares$tabla_1[[i]]]]
@@ -495,11 +516,15 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
   conexion <- coleccion$conexion
   muestra <- .validar_muestra_dbi(muestra)
 
+  referencia_de <- function(identificador) {
+    k <- match(identificador, coleccion$tablas$identificador)
+    if (is.na(k)) identificador else coleccion$tablas$referencia[[k]]
+  }
   leer <- function(tabla) {
     tryCatch({
       sql <- paste0(
         "SELECT * FROM ",
-        as.character(DBI::dbQuoteIdentifier(conexion, tabla)),
+        as.character(DBI::dbQuoteIdentifier(conexion, referencia_de(tabla))),
         " LIMIT ", format(muestra, scientific = FALSE)
       )
       DBI::dbGetQuery(conexion, sql)

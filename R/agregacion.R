@@ -259,21 +259,30 @@ transiciones_granularidad <- function() {
       "esta agregando.", call. = FALSE
     )
   }
+  # La frontera se lee por el IDENTIFICADOR completo, con esquema. Usar el
+  # nombre pelado hacia que `public.personas` y `auditoria.personas` colapsaran
+  # en una sola tabla, y entonces medir una de las dos daba cobertura 1 de 1 en
+  # vez de 1 de 2. Contradecia la afirmacion central de que el esquema es parte
+  # de la identidad.
+  identificador <- function(esquema, tabla) {
+    ifelse(is.na(esquema), tabla, paste0(esquema, ".", tabla))
+  }
   if (inherits(coleccion, "coleccion_lupa")) {
     return(list(
       nombre = coleccion$nombre,
-      declaradas = coleccion$tablas$tabla,
+      declaradas = coleccion$tablas$identificador,
       motivo_faltantes = character()
     ))
   }
   if (inherits(coleccion, "perfil_coleccion")) {
     faltantes <- coleccion$cobertura_coleccion
+    ids_faltantes <- identificador(faltantes$esquema, faltantes$tabla)
     return(list(
       nombre = coleccion$meta$nombre,
       declaradas = c(
-        coleccion$resumen_coleccion$tabla, faltantes$tabla
+        coleccion$resumen_coleccion$identificador, ids_faltantes
       ),
-      motivo_faltantes = stats::setNames(faltantes$motivo, faltantes$tabla)
+      motivo_faltantes = stats::setNames(faltantes$motivo, ids_faltantes)
     ))
   }
   stop(
@@ -329,6 +338,21 @@ agregar <- function(medidas, destino,
   }
   if (identical(destino, "coleccion")) {
     coleccion <- .validar_coleccion_destino(coleccion)
+    # Y la otra mitad de la frontera, que faltaba: ninguna medida puede venir
+    # de una entidad que no este declarada. Sin esto, un numero calculado a
+    # medias sobre una tabla ajena se presentaba como medida de la coleccion,
+    # con cobertura 1 de 1. Es el mismo invariante roto en la direccion
+    # contraria.
+    ajenas <- setdiff(unique(medidas$entidad), coleccion$declaradas)
+    if (length(ajenas)) {
+      stop(
+        "Hay medidas de entidades que no estan declaradas en la coleccion '",
+        coleccion$nombre, "': ", paste(sort(ajenas), collapse = ", "),
+        ". Declaradas: ", paste(sort(coleccion$declaradas), collapse = ", "),
+        ". Un numero que mezcle objetos de fuera de la frontera no describe la ",
+        "coleccion.", call. = FALSE
+      )
+    }
   }
   if (!.granularidad_implementada(destino)) {
     stop(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)

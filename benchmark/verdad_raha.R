@@ -90,6 +90,10 @@ base_raha <- paste0(
     tasa = sum(distintas) / length(distintas),
     columnas_afectadas = names(por_columna)[por_columna > 0L],
     por_columna = por_columna,
+    duplicados_sucio = sum(duplicated(sucia)),
+    vacias_sucio_con_limpio = sum(
+      matriz_sucia == "" & matriz_limpia != "", na.rm = TRUE
+    ),
     sucia = sucia,
     versiones = rbind(archivo_sucio$version, archivo_limpio$version)
   )
@@ -111,6 +115,8 @@ resumen_raha <- do.call(rbind, lapply(verdad_raha, function(x) {
     filas_afectadas = x$filas_afectadas,
     tasa = x$tasa,
     columnas_afectadas = length(x$columnas_afectadas),
+    duplicados_sucio = x$duplicados_sucio,
+    vacias_sucio_con_limpio = x$vacias_sucio_con_limpio,
     stringsAsFactors = FALSE
   )
 }))
@@ -127,6 +133,15 @@ if (!isTRUE(getOption("lupa.benchmark.silencioso"))) {
       x$dataset, x$filas, x$columnas, x$celdas_diferentes,
       x$filas_afectadas, 100 * x$tasa
     ))
+    por_columna <- verdad_raha[[as.character(x$dataset)]]$por_columna
+    cat("  columnas con diferencias: ", paste(
+      paste(names(por_columna)[por_columna > 0L],
+            por_columna[por_columna > 0L], sep = "="),
+      collapse = ", "
+    ), "\n", sep = "")
+    cat("  vacias en dirty con valor en clean: ",
+        x$vacias_sucio_con_limpio, "; duplicados exactos en dirty: ",
+        x$duplicados_sucio, "\n", sep = "")
   }
   cat("\nVersion de los archivos obtenidos (bytes y Adler-32):\n")
   for (i in seq_len(nrow(versiones_raha))) {

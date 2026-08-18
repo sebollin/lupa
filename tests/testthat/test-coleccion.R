@@ -351,3 +351,72 @@ test_that("un par que no se pudo leer se declara en vez de desaparecer", {
   expect_equal(resultado$cobertura_pares$tabla_2, "sin_permiso")
   expect_true(nzchar(resultado$cobertura_pares$motivo))
 })
+
+# --- Los tres defectos que encontró la auditoría cruzada ------------------
+
+test_that("un número de colección no puede mezclar entidades ajenas", {
+  con <- .con_de_prueba()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  col <- coleccion(con, "personas", nombre = "padron")
+
+  nucleo <- metricas_nucleo()
+  modelo_mixto <- modelo(list(
+    instanciar(especializar(nucleo$NoNulo), "personas", "nombre"),
+    instanciar(especializar(nucleo$NoNulo), "ajena", "campo")
+  ))
+  medicion <- medir(modelo_mixto, list(
+    personas = data.frame(nombre = c("a", "b", NA), stringsAsFactors = FALSE),
+    ajena = data.frame(campo = c(NA, NA, NA), stringsAsFactors = FALSE)
+  ))
+  medidas <- agregar(agregar(medicion, "atributo", "ratio"), "entidad", "promedio")
+
+  # Antes devolvía 0,3333 con cobertura 1 de 1, aunque la mitad del número
+  # venía de una tabla que no pertenece a la colección: el mismo invariante
+  # roto en la dirección contraria a la que se había protegido.
+  expect_error(
+    agregar(medidas, "coleccion", "promedio_ponderado",
+            pesos = c(0.5, 0.5), coleccion = col),
+    "no estan declaradas en la coleccion"
+  )
+})
+
+test_that("dos tablas con el mismo nombre en esquemas distintos no colapsan", {
+  con <- .con_de_prueba()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  col <- coleccion(con, data.frame(
+    esquema = c("public", "auditoria"), tabla = c("personas", "personas"),
+    stringsAsFactors = FALSE
+  ))
+
+  frontera <- lupa:::.validar_coleccion_destino(col)
+  expect_setequal(
+    frontera$declaradas, c("public.personas", "auditoria.personas")
+  )
+  # Medir una de las dos es cobertura 1 de 2, no 1 de 1.
+  cobertura <- lupa:::.cobertura_agregacion_coleccion(
+    frontera, "public.personas"
+  )
+  expect_equal(cobertura$tablas_declaradas, 2L)
+  expect_equal(cobertura$tablas_en_el_numero, 1L)
+  expect_equal(cobertura$cobertura, 0.5)
+  expect_equal(cobertura$tablas_sin_medir, "auditoria.personas")
+})
+
+test_that("una tabla con esquema se cita como identificador compuesto", {
+  con <- .con_de_prueba()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  col <- coleccion(con, data.frame(
+    esquema = c(NA, "public"), tabla = c("personas", "hogares"),
+    stringsAsFactors = FALSE
+  ))
+
+  # Sin esquema, el nombre simple. Con esquema, un `DBI::Id`, porque
+  # `dbQuoteIdentifier("public.hogares")` produce un identificador unico con un
+  # punto adentro y consulta una tabla que no existe.
+  expect_type(col$tablas$referencia[[1L]], "character")
+  expect_s4_class(col$tablas$referencia[[2L]], "Id")
+  expect_equal(
+    as.character(DBI::dbQuoteIdentifier(con, col$tablas$referencia[[2L]])),
+    "`public`.`hogares`"
+  )
+})
