@@ -420,3 +420,41 @@ test_that("una tabla con esquema se cita como identificador compuesto", {
     "`public`.`hogares`"
   )
 })
+
+test_that("un resultado malformado no se lleva puesta toda la colección", {
+  # Lo encontró la refutación externa. `perfilar_dbi()` puede no fallar y aun
+  # así devolver algo con otra forma —otra versión del paquete, un objeto a
+  # medio construir—. Si el error al leer sus piezas escapa del `tryCatch`,
+  # rompe el bucle y se pierden **todas** las tablas ya perfiladas: el usuario
+  # se queda sin resumen y sin cobertura. Un silencio total es el peor
+  # resultado posible para este paquete.
+  con <- .con_de_prueba()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbWriteTable(con, "tercera", data.frame(z = 1:5))
+  col <- coleccion(con, c("personas", "hogares", "tercera"))
+
+  llamada <- 0L
+  testthat::local_mocked_bindings(
+    perfilar_dbi = function(conexion, tabla, ...) {
+      llamada <<- llamada + 1L
+      if (llamada == 2L) return(list())
+      list(
+        resumen_tabla = list(
+          columnas = data.frame(prop_faltantes = 0),
+          meta = list(filas = 5)
+        ),
+        perfil_muestra = list(meta = list(filas_analizadas = 5))
+      )
+    },
+    .package = "lupa"
+  )
+  perfil <- perfilar_coleccion(col)
+
+  # Las otras dos sobreviven, y la malformada se declara.
+  expect_equal(perfil$meta$n_perfiladas, 2L)
+  expect_equal(nrow(perfil$cobertura_coleccion), 1L)
+  expect_true(grepl(
+    "no tiene la forma esperada", perfil$cobertura_coleccion$motivo,
+    fixed = TRUE
+  ))
+})

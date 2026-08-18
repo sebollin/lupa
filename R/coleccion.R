@@ -274,15 +274,47 @@ perfilar_coleccion <- function(coleccion, muestra = 1000L,
       )
       next
     }
-    resumen <- perfil$resumen_tabla
-    filas_tabla <- resumen$meta$filas
-    analizadas <- perfil$perfil_muestra$meta$filas_analizadas
-    prop_faltantes <- resumen$columnas$prop_faltantes
+    # Desestructurar tambien va dentro del `tryCatch`. Si `perfilar_dbi()` no
+    # falla pero devuelve algo con otra forma -una version distinta del paquete,
+    # un objeto a medio construir-, el error al leer sus piezas no estaba
+    # capturado y **rompia el bucle entero**: se perdian todas las tablas ya
+    # perfiladas y el usuario no recibia ni el resumen ni la cobertura. Un
+    # silencio total es el peor resultado posible para este paquete.
+    piezas <- tryCatch({
+      resumen <- perfil$resumen_tabla
+      if (is.null(resumen) || is.null(resumen$columnas)) {
+        stop("el perfil no trae `resumen_tabla$columnas`", call. = FALSE)
+      }
+      list(
+        filas = resumen$meta$filas,
+        analizadas = perfil$perfil_muestra$meta$filas_analizadas,
+        prop_faltantes = resumen$columnas$prop_faltantes,
+        n_columnas = nrow(resumen$columnas)
+      )
+    }, error = function(e) e)
+    if (inherits(piezas, "condition")) {
+      cobertura[[length(cobertura) + 1L]] <- data.frame(
+        tabla = fila$tabla, esquema = fila$esquema, tipo = fila$tipo,
+        motivo = paste0(
+          "La tabla se perfilo pero su resultado no tiene la forma esperada: ",
+          conditionMessage(piezas)
+        ),
+        como_resolverlo = paste(
+          "Comprobar que la version instalada de lupa y la que produjo el",
+          "perfil sean la misma."
+        ),
+        stringsAsFactors = FALSE
+      )
+      next
+    }
+    filas_tabla <- piezas$filas
+    analizadas <- piezas$analizadas
+    prop_faltantes <- piezas$prop_faltantes
     resumenes[[length(resumenes) + 1L]] <- data.frame(
       tabla = fila$tabla,
       esquema = fila$esquema,
       identificador = identificador,
-      n_columnas = as.numeric(nrow(resumen$columnas)),
+      n_columnas = as.numeric(piezas$n_columnas),
       n_filas = as.numeric(
         if (length(filas_tabla)) filas_tabla[[1L]] else NA_real_
       ),

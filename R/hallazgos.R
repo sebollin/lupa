@@ -818,12 +818,21 @@
     # 1,0: es una deteccion real y aplicarle el piso la mataria. Ahi la
     # diferencia no es una conjetura sobre una errata, es una equivalencia
     # comprobada.
+    #
+    # Y el costo de este piso, que hay que declarar en vez de esconder: una
+    # errata SISTEMATICA que afecta a la mitad de los registros tiene asimetria
+    # cercana a 1 y deja de informarse. `Montevideo` cinco veces contra
+    # `Montevido` cinco veces es un caso real -dos operadores, una plantilla
+    # rota- y es mas grave que el falso positivo que el piso evita. Por eso los
+    # grupos descartados por el piso no desaparecen: se cuentan y el alcance los
+    # declara.
     conserva <- vapply(grupos_salida, function(grupo) {
       solo_por_distancia <- !grepl("normalizacion", grupo$origen, fixed = TRUE)
       if (!solo_por_distancia) return(TRUE)
       asimetria <- grupo$asimetria
       !is.finite(asimetria) || asimetria >= min_asimetria_general
     }, logical(1L))
+    n_grupos_bajo_piso <- sum(!conserva)
     grupos_salida <- grupos_salida[conserva]
   }
   if (length(grupos_salida)) {
@@ -831,6 +840,7 @@
                    seq_along(grupos_salida))
     grupos_salida <- grupos_salida[orden]
   }
+  if (!exists("n_grupos_bajo_piso", inherits = FALSE)) n_grupos_bajo_piso <- 0L
   list(
     grupos = grupos_salida,
     alcance = list(
@@ -868,6 +878,7 @@
       umbral_variante_rara = umbral_variante_rara,
       min_asimetria_variante = min_asimetria_variante,
       min_asimetria_general = min_asimetria_general,
+      n_grupos_bajo_piso_asimetria = as.integer(n_grupos_bajo_piso),
       min_participacion_dominante = min_participacion_dominante,
       n_pares_descartados_numeros = n_pares_descartados_numeros,
       motivo_grupos = if (disponible && n_candidatos_distancia > 0L &&
