@@ -1,5 +1,21 @@
 # lupa 0.1.0
 
+## Evaluar estimaciones que calculó otra herramienta
+
+- `medicion_desde_estimaciones()` recibe estimaciones ya calculadas —por
+  `survey`, por [`calidad`](https://github.com/inesscc/calidad) del INE de
+  Chile, o por cualquier otra fuente— y las lleva al contrato de `medir()`, para
+  poder evaluarlas contra un marco declarado. **`lupa` no estima**: eso necesita
+  diseño muestral, estimación de varianza y otra disciplina; lo que sabe hacer
+  es evaluar contra un marco, y eso es lo que ofrece.
+- Cada estadístico se convierte en **su propia medida canónica**, con su
+  métrica, su tipo, su unidad y su orientación, porque los siete tienen dominios
+  distintos: un coeficiente de variación de `0,30` y un tamaño de muestra de
+  `0,30` no se leen igual. `estadisticos_estimacion()` publica el catálogo.
+- **La procedencia viaja en cada medida** y es obligatoria, para que nadie lea
+  el resultado como si `lupa` lo hubiera calculado. Los estadísticos que la
+  tabla no traiga no se rellenan con ceros: se declaran ausentes.
+
 ## Señales redundantes: la contradicción que ninguna columna muestra sola
 
 - `senal_redundante()` declara que varias columnas de una tabla codifican el
