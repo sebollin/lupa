@@ -153,6 +153,23 @@ dependencias conserva atributos con las filas analizadas y el muestreo.
 observados, y declara límites separados para asociaciones y los demás
 componentes.
 
+## 🔢 Unidades declaradas y trazabilidad por fila
+
+Cada hallazgo declara la unidad de `n_evaluados`, `n_afectados` y
+`unidad_conteo`. `mayusculas_inconsistentes` y `normalizacion_unicode` usan
+`valor_distinto`: cuentan valores distintos, mientras su traza sigue siendo
+por fila. Enumera todas las filas que contienen un valor afectado, no sólo las
+filas defectuosas. Por eso una traza puede tener más filas que `n_afectados`:
+esas filas sirven para revisar o unificar el grupo completo en el sistema de
+origen.
+
+`filas_duplicadas` cuenta todas las filas que participan en grupos duplicados,
+en línea con la métrica y con la acción predeterminada que las marca. El número
+de excedentes queda en la evidencia. `0` significa que se midió que no había
+unidades afectadas; `NA` significa que el conteo no se midió. La misma
+distinción vale para la cobertura: un diagnóstico que no pudo ejecutarse queda
+en `cobertura_diagnosticos`, nunca convertido en cero en silencio.
+
 ## 🛣️ ¿`perfilar()` o `analizar()`?
 
 Usá `perfilar()` cuando quieras el perfil enfocado e inspeccionable: resúmenes

@@ -1226,10 +1226,25 @@
     },
     NA_real_
   )
+  if (tipo %in% c("mayusculas_inconsistentes", "normalizacion_unicode")) {
+    n_distintos <- fila$n_distintos[[1L]]
+    n <- if (length(n_distintos) && isTRUE(is.finite(n_distintos))) {
+      as.numeric(n_distintos)
+    } else {
+      NA_real_
+    }
+  }
+  if (tipo == "constante" && identical(fila$tipo_declarado[[1L]], "lista")) {
+    afectados <- NA_real_
+  }
   unidad <- if (tipo %in% c(
     "formato_fecha_ambiguo", "anio_de_dos_digitos", "formatos_fecha_mixtos"
   )) {
     "formato"
+  } else if (tipo %in% c(
+    "mayusculas_inconsistentes", "normalizacion_unicode"
+  )) {
+    "valor_distinto"
   } else if (tipo %in% c(
     "posible_identificador", "alta_cardinalidad", "tipo_declarado_distinto",
     "integer64_fuera_precision_double", "integer64_sin_soporte",
@@ -1379,7 +1394,11 @@
     )
     if (!is.null(idx)) return(as.integer(idx))
   }
-  if (is.matrix(x) || is.list(x)) return(NULL)
+  if (is.matrix(x)) {
+    if (tipo == "tipo_compuesto_no_analizado") return(seq_len(NROW(x)))
+    return(NULL)
+  }
+  if (is.list(x)) return(NULL)
   n <- length(x)
   if (!n) return(integer())
   texto <- tryCatch(.texto_analizable(x)$valores, error = function(e) NULL)
@@ -1897,28 +1916,48 @@
 
     if (identical(fila$estado_resumen_cuantitativo, "tipo_compuesto_no_analizado")) {
       estructura <- resultado$estructura_no_analizada
-      agregar(.nuevo_hallazgo(
-        nombre, "tipo_compuesto_no_analizado", "sospechoso",
-        paste0(
-          "La columna contiene una matriz por fila; no se aplan\u00f3 porque mezclar ",
-          "sus componentes inventar\u00eda una sem\u00e1ntica de celda."
-        ),
-        paste0(
-          estructura$filas, " filas y ", estructura$componentes,
-          " componentes por fila; m\u00e9tricas por valor en NA."
-        ),
-        "Separar los componentes en columnas con significado expl\u00edcito antes de perfilarlos."
-      ))
+      if (isTRUE(estructura$filas > 0L)) {
+        agregar(.nuevo_hallazgo(
+          nombre, "tipo_compuesto_no_analizado", "sospechoso",
+          paste0(
+            "La columna contiene una matriz por fila; no se aplan\u00f3 porque mezclar ",
+            "sus componentes inventar\u00eda una sem\u00e1ntica de celda."
+          ),
+          paste0(
+            estructura$filas, " filas y ", estructura$componentes,
+            " componentes por fila; m\u00e9tricas por valor en NA."
+          ),
+          "Separar los componentes en columnas con significado expl\u00edcito antes de perfilarlos."
+        ))
+      } else {
+        agregar_cobertura(
+          "tipo_compuesto_no_analizado", nombre,
+          "La columna matricial no tiene filas sobre las que evaluar sus componentes.",
+          "Perfilar una entrega con filas para evaluar la estructura compuesta."
+        )
+      }
     }
 
     if (!is.na(fila$n_distintos) && fila$n_distintos == 1L &&
         isTRUE(n_validos > 1L)) {
+      es_lista <- identical(fila$tipo_declarado[[1L]], "lista")
       agregar(.nuevo_hallazgo(
         nombre, "constante", "sospechoso",
         "La columna contiene un \u00fanico valor no ausente.",
-        paste0("Valor: ", fila$moda, "; frecuencia: ", fila$frecuencia_moda),
+        if (es_lista) {
+          "La frecuencia del valor no se pudo contar porque la columna es de listas."
+        } else {
+          paste0("Valor: ", fila$moda, "; frecuencia: ", fila$frecuencia_moda)
+        },
         "Confirmar si la columna aporta informaci\u00f3n o si corresponde retirarla."
       ))
+      if (es_lista) {
+        agregar_cobertura(
+          "constante", nombre,
+          "Se midi\u00f3 un \u00fanico valor distinto, pero no se evalu\u00f3 su frecuencia porque la columna contiene listas.",
+          "Separar los componentes de la lista o declarar una comparaci\u00f3n de listas antes de contar las filas afectadas."
+        )
+      }
     }
 
     casi_clave <- resultado$casi_clave
@@ -2525,6 +2564,7 @@
                                  columnas_sin_ceros,
                                  columnas_no_negativas,
                                  n_filas_duplicadas,
+                                 n_filas_en_grupos_duplicados,
                                  relaciones_orden = list(),
                                  relaciones_aritmeticas = list(),
                                  normalizacion = NULL,
@@ -2566,9 +2606,12 @@
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
       NA_character_, "filas_duplicadas", "error",
       "La tabla contiene filas duplicadas exactas.",
-      paste(n_filas_duplicadas, "filas duplicadas"),
+      paste0(
+        n_filas_en_grupos_duplicados, " filas en grupos duplicados (",
+        n_filas_duplicadas, " excedentes)"
+      ),
       "Definir una clave y revisar la causa antes de eliminar duplicados.",
-      nrow(datos), n_filas_duplicadas, "fila"
+      nrow(datos), n_filas_en_grupos_duplicados, "fila"
     )
   }
   # Sin filas, dos columnas son triviamente iguales y la comparacion no tiene

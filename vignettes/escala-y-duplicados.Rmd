@@ -124,6 +124,11 @@ para los pares que siguen siendo similares. Un par parecido nunca se presenta
 como identidad y no se propone eliminar ni fusionar registros. Si `stringdist` no está disponible, el resultado declara
 que la comparación no se ejecutó en vez de fallar con un error críptico.
 
+Los duplicados exactos que informa `perfilar()` siguen otra unidad: el hallazgo
+`filas_duplicadas` cuenta todas las filas que participan en grupos duplicados y
+las enumera en la traza. La evidencia conserva además cuántas son excedentes,
+porque esa cifra sólo corresponde a la acción que conserva la primera fila.
+
 ## Bloquear declarando la pérdida
 
 Una clave indicada por el usuario puede bajar la constante del trabajo, pero es

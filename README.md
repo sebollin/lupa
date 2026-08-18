@@ -149,6 +149,23 @@ table carries its analysed-row and sampling attributes. `analizar()` reuses
 `muestra = 1e5` for its profile, distributions, and observed-level enumeration,
 and declares separate limits for associations and the other components.
 
+## 🔢 Declared units and row traceability
+
+Every finding declares the unit used by `n_evaluados`, `n_afectados`, and
+`unidad_conteo`. `mayusculas_inconsistentes` and `normalizacion_unicode` use
+`valor_distinto`: they count distinct values, while their trace remains a row
+trace. It lists every row containing an affected value, not only rows that are
+themselves defective. A trace can therefore contain more rows than
+`n_afectados`; those rows are useful when a whole collision group must be
+reviewed or unified.
+
+`filas_duplicadas` counts all rows participating in duplicate groups, matching
+the metric and the default action that marks those rows. The number of excess
+duplicates remains in the evidence. `0` means the check measured no affected
+units; `NA` means the count was not measured. The same distinction applies to
+diagnostic coverage: a check that could not run is listed in
+`cobertura_diagnosticos`, never silently converted to zero.
+
 ## 🛣️ `perfilar()` or `analizar()`?
 
 Use `perfilar()` when you want the focused, inspectable profile: column

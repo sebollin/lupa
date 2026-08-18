@@ -1,3 +1,7 @@
+tipos_con_traza_por_fila <- c(
+  "mayusculas_inconsistentes", "normalizacion_unicode"
+)
+
 test_that("las trazas por fila coinciden con fixtures de corrupcion conocidos", {
   set.seed(20260818)
   n <- 1000L
@@ -22,7 +26,10 @@ test_that("las trazas por fila coinciden con fixtures de corrupcion conocidos", 
       codificacion_rota = indices_mojibake
     )
   )
-  filas <- which(as.character(perfil$hallazgos$unidad_conteo) == "fila")
+  filas <- which(
+    as.character(perfil$hallazgos$unidad_conteo) == "fila" |
+      as.character(perfil$hallazgos$tipo_hallazgo) %in% tipos_con_traza_por_fila
+  )
   expect_gt(length(filas), 0L)
 
   for (i in filas) {
@@ -96,7 +103,9 @@ test_that("los hallazgos numericos textuales comparten la vista inferida", {
   )
   hallazgos <- perfil$hallazgos[
     perfil$hallazgos$columna == "cantidad" &
-      perfil$hallazgos$unidad_conteo == "fila", , drop = FALSE
+      perfil$hallazgos$unidad_conteo == "fila" |
+        perfil$hallazgos$tipo_hallazgo %in% tipos_con_traza_por_fila, ,
+      drop = FALSE
   ]
   expect_setequal(as.character(hallazgos$tipo_hallazgo), names(esperados))
   for (i in seq_len(nrow(hallazgos))) {

@@ -39,7 +39,7 @@ diagnósticos. \code{resumen_patrones} conserva sólo el patrón dominante
 y hasta seis patrones raros; nunca guarda la distribución completa. Las
 proporciones siempre están en \verb{[0, 1]}. \code{n_patrones_distintos} registra el
 total antes de truncar la tabla para informar omisiones sin retenerla.
-\code{n_patrones_raros} registra cu\u00e1ntos patrones raros hab\u00eda antes del tope de
+\code{n_patrones_raros} registra cuántos patrones raros había antes del tope de
 seis que aplica \code{resumen_patrones}.
 }
 \description{

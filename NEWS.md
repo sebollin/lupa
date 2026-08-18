@@ -1,5 +1,65 @@
 # lupa 0.1.0
 
+## Conteos y trazabilidad dejan de mezclar unidades
+
+- `mayusculas_inconsistentes` y `normalizacion_unicode` declaran
+  `unidad_conteo = "valor_distinto"` y cuentan en `n_evaluados` los valores
+  distintos evaluados. `n_afectados` ya contaba esos valores; su traza sigue
+  siendo por fila y enumera todas las filas que contienen los valores
+  afectados, no sólo las defectuosas.
+- `filas_duplicadas` cuenta ahora todas las filas participantes de los grupos,
+  en línea con `EntidadDuplicada` y con `marcar_filas_duplicadas`. La evidencia
+  conserva el número de excedentes para la acción que elimina repeticiones.
+- Una constante de listas cuya frecuencia no puede contarse informa `NA` en
+  `n_afectados` y deja el motivo en `cobertura_diagnosticos`; una matriz no
+  analizada enumera todas sus filas en la trazabilidad.
+
+## La trazabilidad deja de recalcular lo que el detector ya decidió
+
+Un hallazgo dice cuántas unidades afecta y, cuando puede, cuáles. Ese «cuáles» lo
+resolvía una rama de índices aparte que en varios casos aplicaba un criterio
+**distinto** del detector que había producido el hallazgo. Los dos no coincidían, y
+el desacuerdo no se veía porque nada comparaba la evidencia contra los índices.
+
+- `patron_raro` no nombraba ninguna fila cuando la columna tenía algún patrón de
+  frecuencia intermedia. La guarda comparaba el total de patrones distintos contra
+  el tamaño del resumen, que son cosas distintas: el resumen es el patrón dominante
+  **más los patrones raros**, no un top-N, así que se disparaba en una situación
+  perfectamente normal. Ahora `descubrir_patrones()` expone `n_patrones_raros` y la
+  guarda pregunta lo único que corresponde —si ese conjunto fue recortado por el
+  tope de seis—. Sin recorte la enumeración es completa y `n_afectados` toma su
+  valor real; con recorte se enumera igual y el alcance es `patrones_parciales`,
+  declarado en la cobertura.
+- `outliers`, `valores_no_finitos`, `ceros_no_permitidos` y
+  `negativos_no_permitidos` condicionaban la enumeración a que la columna fuera
+  numérica **en su tipo declarado**. Al leer un CSV como texto —el caso más común
+  que hay— el perfilador infiere numérico, convierte y cuenta bien, pero la rama
+  miraba un `character` y no devolvía nada: se informaban diez atípicos y no se
+  nombraba ninguna fila. Ahora rastrean sobre la vista cuantitativa inferida, la
+  misma que usó el detector.
+- `codificacion_rota` reimplementaba la detección con una clase de caracteres más
+  angosta que la del detector, de modo que un valor con el mojibake del carácter de
+  reemplazo se contaba y no se nombraba —y ese vacío salía declarado con alcance
+  `completo`, que es justo lo que este paquete no hace—. Ahora reutiliza la máscara
+  del detector.
+- `patron_raro` nombraba, además, filas que su propia evidencia acababa de
+  descartar. En una secuencia entera densa, un patrón que difiere sólo por el largo
+  —`9` frente a `9+`— no es un desvío: es el mismo número con menos dígitos. El
+  detector lo filtraba al armar la evidencia; la rama de índices y `n_afectados`
+  recorrían el resumen crudo. El conjunto filtrado se calcula ahora una sola vez y
+  viaja con el resultado, de modo que no puede haber dos criterios.
+
+**El principio que unifica los cuatro: la trazabilidad no recalcula lo que el
+detector ya resolvió.** Cada vez que lo recalculaba, los dos criterios se separaban
+en silencio.
+
+**Y la prueba que faltaba.** La suite verificaba conteos, no identidades: una prueba
+que comprueba `n_afectados == 10` pasa igual si el paquete nombra diez filas
+equivocadas, ninguna, o seiscientas. Por eso ninguno de estos desajustes se veía con
+toda la suite en verde. Ahora hay fixtures que construyen tablas con índices
+corrompidos **conocidos de antemano** y verifican aciertos, falsos positivos y
+pérdidas.
+
 ## El piso de asimetría del vocabulario declara lo que deja afuera
 
 - El comparador de vocabulario abría grupos por distancia con cualquier

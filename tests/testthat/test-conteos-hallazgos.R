@@ -27,6 +27,83 @@ test_that("cada hallazgo declara sus conteos y su unidad", {
   expect_equal(constante$unidad_conteo, "fila")
 })
 
+test_that("mayusculas inconsistentes cuentan valores y trazan filas", {
+  categoria <- c(
+    rep("alto", 339L), rep("altO", 4L), rep("bajo", 332L),
+    rep("BAJO", 6L), rep("medio", 319L)
+  )
+  perfil <- perfilar(
+    data.frame(categoria = categoria, stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "mayusculas_inconsistentes", ,
+    drop = FALSE
+  ]
+  expect_equal(hallazgo$n_evaluados, 5)
+  expect_equal(hallazgo$n_afectados, 4)
+  expect_equal(hallazgo$unidad_conteo, "valor_distinto")
+  expect_equal(hallazgo$trazabilidad[[1L]]$total, 681)
+  expect_setequal(hallazgo$trazabilidad[[1L]]$indices_fila, c(1:343, 344:681))
+})
+
+test_that("normalizacion Unicode cuenta valores y traza filas", {
+  skip_if_not_installed("stringi")
+  valores <- c(rep("caf\u00e9", 300L), rep("cafe\u0301", 305L))
+  perfil <- perfilar(
+    data.frame(nombre = valores, stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "normalizacion_unicode", ,
+    drop = FALSE
+  ]
+  expect_equal(hallazgo$n_evaluados, 2)
+  expect_equal(hallazgo$n_afectados, 2)
+  expect_equal(hallazgo$unidad_conteo, "valor_distinto")
+  expect_equal(hallazgo$trazabilidad[[1L]]$total, 605)
+  expect_setequal(hallazgo$trazabilidad[[1L]]$indices_fila, seq_len(605L))
+})
+
+test_that("las filas duplicadas cuentan participantes y dejan excedentes en evidencia", {
+  datos <- data.frame(
+    id = c(rep(1, 5L), rep(2, 5L)),
+    valor = c(rep("A", 5L), rep("B", 5L))
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "filas_duplicadas", , drop = FALSE
+  ]
+  expect_equal(hallazgo$n_evaluados, 10)
+  expect_equal(hallazgo$n_afectados, 10)
+  expect_equal(hallazgo$unidad_conteo, "fila")
+  expect_match(hallazgo$evidencia, "10 filas en grupos duplicados (8 excedentes)",
+               fixed = TRUE)
+  expect_equal(hallazgo$trazabilidad[[1L]]$total, 10)
+})
+
+test_that("una constante de listas declara que no pudo contar afectados", {
+  datos <- data.frame(x = seq_len(20L))
+  datos$compuesta <- I(replicate(20L, list(1:2), simplify = FALSE))
+  perfil <- perfilar(
+    datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$columna == "compuesta" &
+      perfil$hallazgos$tipo_hallazgo == "constante", , drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  expect_true(is.na(hallazgo$n_afectados))
+  expect_equal(hallazgo$n_evaluados, 20)
+  expect_equal(hallazgo$trazabilidad[[1L]]$estado, "no_disponible")
+  cobertura <- perfil$cobertura_diagnosticos[
+    perfil$cobertura_diagnosticos$diagnostico == "constante" &
+      perfil$cobertura_diagnosticos$columna == "compuesta", , drop = FALSE
+  ]
+  expect_equal(nrow(cobertura), 1L)
+  expect_match(cobertura$motivo, "lista", ignore.case = TRUE)
+})
+
 test_that("los hallazgos estructurales declaran unidades distintas", {
   datos <- data.frame(a = c(1, 1), b = c(1, 1), check.names = FALSE)
   names(datos) <- c("a", "a")

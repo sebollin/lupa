@@ -84,6 +84,16 @@ perfil$hallazgos[, c(
 )]
 ```
 
+Los conteos y la traza tienen unidades relacionadas, pero no necesariamente
+iguales. `mayusculas_inconsistentes` y `normalizacion_unicode` cuentan valores
+distintos (`unidad_conteo = "valor_distinto"`); su `trazabilidad` sigue
+enumerando por fila todas las filas que contienen esos valores, no sólo las
+filas defectuosas. Esas filas adicionales permiten revisar el grupo completo
+que se quiere unificar. En `filas_duplicadas`, tanto el conteo afectado como la
+traza incluyen todas las filas participantes; la evidencia informa aparte los
+excedentes. Un cero es una medición de cero, mientras que un `NA` declara que
+el conteo no pudo medirse.
+
 La tabla por columna mantiene todas las proporciones en `[0, 1]`.
 
 ```{r}

@@ -25,7 +25,7 @@
 #'   y hasta seis patrones raros; nunca guarda la distribución completa. Las
 #'   proporciones siempre están en `[0, 1]`. `n_patrones_distintos` registra el
 #'   total antes de truncar la tabla para informar omisiones sin retenerla.
-#'   `n_patrones_raros` registra cu\u00e1ntos patrones raros hab\u00eda antes del tope de
+#'   `n_patrones_raros` registra cuántos patrones raros había antes del tope de
 #'   seis que aplica `resumen_patrones`.
 #' @export
 #' @seealso [perfilar()], [inferir_tipo()], [detectar_formatos_fecha()]

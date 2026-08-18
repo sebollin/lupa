@@ -421,13 +421,25 @@
 #'
 #' @return Objeto S3 de clase `perfil`. Cada fila de hallazgos incluye
 #'   n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
-#'   declaradas (por ejemplo fila, columna, formato o par). Cuando el camino
+#'   declaradas (por ejemplo fila, columna, formato o par). En
+#'   `mayusculas_inconsistentes` y `normalizacion_unicode`, la unidad es
+#'   `valor_distinto`: `n_evaluados` cuenta los valores distintos evaluados y
+#'   `n_afectados` los valores distintos que participan en la colisión. Su
+#'   `trazabilidad` sigue siendo por fila y enumera todas las filas que
+#'   contienen esos valores, no sólo las filas defectuosas; por eso su total
+#'   puede ser mayor que `n_afectados`. En `filas_duplicadas`, el conteo y la
+#'   traza incluyen todas las filas participantes de los grupos; el número de
+#'   excedentes queda en la evidencia. Cuando el camino
 #'   no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 #'   `trazabilidad` distingue `disponible`, `truncada`, `no_aplica` y
 #'   `no_disponible`; cuando corresponde conserva índices de fila acotados por
 #'   `max_filas_hallazgo`, el total conocido y el alcance. Para `patron_raro`,
 #'   el alcance puede ser `completo`, `muestra_patrones`,
 #'   `patrones_parciales` o `muestra_patrones+patrones_parciales`.
+#'   Una matriz no analizada conserva en la traza todas sus filas. Si una
+#'   columna de listas se reconoce como constante pero no se puede contar su
+#'   frecuencia, el conteo afectado queda en NA y `cobertura_diagnosticos`
+#'   explica la no evaluación.
 #'   Los índices no contienen valores. Usarlos para extraer filas de los datos
 #'   originales puede volver a exponer datos personales; el paquete no realiza
 #'   esa extracción y la protección de salidas no sustituye el control de acceso
@@ -440,7 +452,7 @@
 #'   reúne aristas de más de una clase) o `indeterminada` (no hubo aristas
 #'   clasificables). Son categorías de evidencia, no veredictos de identidad.
 #'   `cobertura_diagnosticos` es una tabla hermana de `hallazgos`, con una fila
-#'   por diagn\u00f3stico que no pudo evaluarse o cuya enumeraci\u00f3n qued\u00f3 parcial y
+#'   por diagnóstico que no pudo evaluarse o cuya enumeración quedó parcial y
 #'   las columnas `diagnostico`,
 #'   `columna`, `motivo`, `como_resolverlo` y `dependencia`. Incluye la falta de
 #'   `stringdist`, `stringi`, `bit64` o `sf`, y las zonas horarias POSIXt sin
@@ -787,6 +799,8 @@ perfilar <- function(datos,
     umbral_patron_dominante, columnas_sin_ceros,
     columnas_no_negativas,
     if (is.na(n_filas_duplicadas)) 0L else n_filas_duplicadas,
+    if (is.na(n_filas_en_grupos_duplicados)) 0L else
+      n_filas_en_grupos_duplicados,
     relaciones_orden = relaciones_orden$hallazgos,
     relaciones_aritmeticas = relaciones_aritmeticas$hallazgos,
     normalizacion = normalizacion_resuelta,

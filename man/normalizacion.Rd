@@ -20,7 +20,7 @@ normalizacion(
 
 \item{proteger}{Grafemas cuyas marcas deben conservarse al quitar acentos.
 Puede incluir una base seguida de una o más marcas combinantes, como
-\code{"g\u0303"} para la letra guaraní.}
+la secuencia \code{g} seguida por una tilde combinante para la letra guaraní.}
 }
 \value{
 Un objeto de clase normalizacion_lupa.

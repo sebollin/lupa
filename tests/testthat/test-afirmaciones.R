@@ -383,6 +383,13 @@ test_that("una columna matricial conserva filas y omite estadísticas ambiguas",
   expect_true(
     "tipo_compuesto_no_analizado" %in% perfil$hallazgos$tipo_hallazgo
   )
+  compuesto <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "tipo_compuesto_no_analizado", ,
+    drop = FALSE
+  ]
+  expect_equal(compuesto$n_afectados, 3)
+  expect_equal(compuesto$trazabilidad[[1L]]$indices_fila, 1:3)
+  expect_equal(compuesto$trazabilidad[[1L]]$total, 3)
   expect_false("m" %in% detectar_claves(datos)$columnas)
 
   integral <- expect_no_error(analizar(datos))

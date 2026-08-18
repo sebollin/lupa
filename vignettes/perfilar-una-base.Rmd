@@ -120,6 +120,13 @@ perfil$perfil_muestra$columnas[, c(
 )]
 ```
 
+Los hallazgos de `perfil_muestra` conservan sus unidades declaradas. En
+particular, las inconsistencias de mayúsculas y las equivalencias Unicode
+cuentan valores distintos, pero su trazabilidad enumera por fila todas las
+filas que contienen esos valores, no sólo las filas defectuosas. Por eso la
+traza puede tener más filas que `n_afectados`; no es una contradicción de
+alcance, sino el localizador del grupo que se debe revisar.
+
 ## El muestreo declarado
 
 `muestra = 5` declara las filas pedidas. La metadata registra además las filas

@@ -224,13 +224,25 @@ edicion.}
 \value{
 Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye
 n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
-declaradas (por ejemplo fila, columna, formato o par). Cuando el camino
+declaradas (por ejemplo fila, columna, formato o par). En
+\code{mayusculas_inconsistentes} y \code{normalizacion_unicode}, la unidad es
+\code{valor_distinto}: \code{n_evaluados} cuenta los valores distintos evaluados y
+\code{n_afectados} los valores distintos que participan en la colisión. Su
+\code{trazabilidad} sigue siendo por fila y enumera todas las filas que
+contienen esos valores, no sólo las filas defectuosas; por eso su total
+puede ser mayor que \code{n_afectados}. En \code{filas_duplicadas}, el conteo y la
+traza incluyen todas las filas participantes de los grupos; el número de
+excedentes queda en la evidencia. Cuando el camino
 no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 \code{trazabilidad} distingue \code{disponible}, \code{truncada}, \code{no_aplica} y
 \code{no_disponible}; cuando corresponde conserva índices de fila acotados por
 \code{max_filas_hallazgo}, el total conocido y el alcance. Para \code{patron_raro},
 el alcance puede ser \code{completo}, \code{muestra_patrones},
 \code{patrones_parciales} o \code{muestra_patrones+patrones_parciales}.
+Una matriz no analizada conserva en la traza todas sus filas. Si una
+columna de listas se reconoce como constante pero no se puede contar su
+frecuencia, el conteo afectado queda en NA y \code{cobertura_diagnosticos}
+explica la no evaluación.
 Los índices no contienen valores. Usarlos para extraer filas de los datos
 originales puede volver a exponer datos personales; el paquete no realiza
 esa extracción y la protección de salidas no sustituye el control de acceso
@@ -243,7 +255,7 @@ son un solo token y esa distinción estructural no aplica), \code{mixta} (el gru
 reúne aristas de más de una clase) o \code{indeterminada} (no hubo aristas
 clasificables). Son categorías de evidencia, no veredictos de identidad.
 \code{cobertura_diagnosticos} es una tabla hermana de \code{hallazgos}, con una fila
-por diagn\u00f3stico que no pudo evaluarse o cuya enumeraci\u00f3n qued\u00f3 parcial y
+por diagnóstico que no pudo evaluarse o cuya enumeración quedó parcial y
 las columnas \code{diagnostico},
 \code{columna}, \code{motivo}, \code{como_resolverlo} y \code{dependencia}. Incluye la falta de
 \code{stringdist}, \code{stringi}, \code{bit64} o \code{sf}, y las zonas horarias POSIXt sin
