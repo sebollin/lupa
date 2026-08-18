@@ -368,6 +368,12 @@
 #'   aplica en vez de entregar un bloque que abarque casi toda la columna.
 #' @param umbral_variante_rara_vocabulario Proporcion maxima de la columna que
 #'   puede ocupar una variante breve para abrir la comparacion por una edicion.
+#' @param min_asimetria_vocabulario Razón mínima entre la frecuencia de la
+#'   forma dominante y la de la variante para abrir un grupo por la vía general
+#'   de distancia. Por omisión `2`. Una asimetría de `1,5` significa que las dos
+#'   formas son casi igual de comunes, que es evidencia muy floja de una errata:
+#'   medido sobre tablas limpias y sobre erratas sembradas, los falsos positivos
+#'   están entre `1,0` y `1,5` y las erratas reales desde `9,0`.
 #' @param min_asimetria_vocabulario_corto Razon minima entre la frecuencia de
 #'   una forma dominante y una variante breve para abrir la comparacion por una
 #'   edicion.
@@ -486,6 +492,7 @@ perfilar <- function(datos,
                      max_proporcion_grupo_vocabulario = 0.5,
                      umbral_variante_rara_vocabulario = 0.05,
                      min_asimetria_vocabulario_corto = 10,
+                     min_asimetria_vocabulario = 2,
                      min_participacion_dominante_vocabulario_corto = 0.5) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
@@ -782,6 +789,7 @@ perfilar <- function(datos,
     max_proporcion_grupo = max_proporcion_grupo_vocabulario,
     umbral_variante_rara = umbral_variante_rara_vocabulario,
     min_asimetria_variante = min_asimetria_vocabulario_corto,
+    min_asimetria_general = min_asimetria_vocabulario,
     min_participacion_dominante =
       min_participacion_dominante_vocabulario_corto
   )

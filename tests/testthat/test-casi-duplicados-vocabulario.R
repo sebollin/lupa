@@ -132,8 +132,13 @@ test_that("el piso informa un grupo real en vocabularios pequenos", {
 })
 
 test_that("un componente grande no se presenta como toda una columna chica", {
+  # Una forma dominante con catorce variantes raras: asimetria alta, que es lo
+  # que hace de esto un candidato real y no un conjunto de valores distintos.
+  # Con frecuencias parejas -`Zona A` a `Zona O` de 100 a 72- el piso de
+  # asimetria lo descarta, y hace bien: serian quince zonas, no quince grafias
+  # de una.
   datos <- rep(paste0("Zona ", LETTERS[seq_len(15)]),
-               times = seq(100, 72, by = -2))
+               times = c(100, rep(4, 14)))
   resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
     datos, lupa:::.resolver_normalizacion(FALSE), "zona"
   )

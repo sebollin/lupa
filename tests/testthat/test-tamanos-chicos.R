@@ -83,17 +83,11 @@ if (!exists(".tablas_limpias_r107", mode = "function")) {
   "unidad_unica::peso::numero_como_texto"
 )
 
-# En la tabla de factores, `region` toma cuatro valores repartidos con
-# `length.out = n`. Cuando el reparto queda disparejo aparece una asimetria de
-# frecuencias entre `este` y `oeste`, que estan a una edicion de distancia, y el
-# comparador de vocabulario abre el par con severidad `sospechoso`.
-#
-# Por forma la afirmacion es cierta y la severidad es la honesta, pero son dos
-# puntos cardinales distintos: como sugerencia es un falso positivo. Se declara
-# aca en vez de esconderlo. Esta anotado en `PENDIENTES.md` seccion 2.22 junto
-# con la medicion que hace falta antes de poner un piso de asimetria en la via
-# general de distancia.
-.tamanos_con_asimetria_cardinal_r107 <- c(11L, 19L, 51L, 99L)
+# El par `este` / `oeste` se abria como sospechoso en los tamanos con reparto
+# disparejo, con asimetria 1,0 a 1,5. Se midio la separacion entre esos falsos
+# positivos y las erratas reales -que van de 9,0 a 66,7- y se puso un piso de
+# asimetria de 2 en la via general de distancia. Ya no aparecen.
+.tamanos_con_asimetria_cardinal_r107 <- integer()
 
 .esperadas_r107 <- function(n) {
   if (n == 0L) return(character())

@@ -446,6 +446,7 @@
                                                 max_proporcion_grupo = 0.5,
                                                 umbral_variante_rara = 0.05,
                                                 min_asimetria_variante = 10,
+                                                min_asimetria_general = 2,
                                                 min_participacion_dominante = 0.5,
                                                 excluir = NULL) {
   if (!(is.character(x) || is.factor(x)) || is.matrix(x) || is.list(x)) {
@@ -801,6 +802,31 @@
         ), collapse = "+")
       )
     })
+    # Piso de asimetria, y SOLO para los grupos que se formaron por distancia.
+    #
+    # Sin el, cualquier par dentro del umbral se abre con cualquier desbalance, y
+    # una asimetria de 1,5 es evidencia muy floja de una errata: significa que
+    # las dos formas son casi igual de comunes. Medido sobre tablas limpias y
+    # sobre erratas sembradas, la separacion es limpia:
+    #
+    #   falsos positivos (este/oeste)            asimetria 1,0 a 1,5
+    #   erratas reales (Montevideo/Montevido)    asimetria 9,0 a 66,7
+    #
+    # Pero el piso NO puede aplicarse a los grupos que se formaron porque su
+    # forma normalizada coincide. `Montevideo`, `MONTEVIDEO` y `Montevideo ` son
+    # tres grafias del mismo valor, y con una aparicion cada una su asimetria es
+    # 1,0: es una deteccion real y aplicarle el piso la mataria. Ahi la
+    # diferencia no es una conjetura sobre una errata, es una equivalencia
+    # comprobada.
+    conserva <- vapply(grupos_salida, function(grupo) {
+      solo_por_distancia <- !grepl("normalizacion", grupo$origen, fixed = TRUE)
+      if (!solo_por_distancia) return(TRUE)
+      asimetria <- grupo$asimetria
+      !is.finite(asimetria) || asimetria >= min_asimetria_general
+    }, logical(1L))
+    grupos_salida <- grupos_salida[conserva]
+  }
+  if (length(grupos_salida)) {
     orden <- order(-vapply(grupos_salida, `[[`, numeric(1L), "asimetria"),
                    seq_along(grupos_salida))
     grupos_salida <- grupos_salida[orden]
@@ -841,6 +867,7 @@
       max_distancia_edicion_corta = 1L,
       umbral_variante_rara = umbral_variante_rara,
       min_asimetria_variante = min_asimetria_variante,
+      min_asimetria_general = min_asimetria_general,
       min_participacion_dominante = min_participacion_dominante,
       n_pares_descartados_numeros = n_pares_descartados_numeros,
       motivo_grupos = if (disponible && n_candidatos_distancia > 0L &&
@@ -853,7 +880,7 @@
 .hallazgos_casi_duplicados_vocabulario <- function(
     datos, columnas, perfil, resultados = NULL, max_proporcion_grupo = 0.5,
     umbral_variante_rara = 0.05, min_asimetria_variante = 10,
-    min_participacion_dominante = 0.5) {
+    min_asimetria_general = 2, min_participacion_dominante = 0.5) {
   max_grupos_mostrados <- 20L
   max_variantes_mostradas <- 20L
   hallazgos <- list()
@@ -868,6 +895,7 @@
       max_proporcion_grupo = max_proporcion_grupo,
       umbral_variante_rara = umbral_variante_rara,
       min_asimetria_variante = min_asimetria_variante,
+      min_asimetria_general = min_asimetria_general,
       min_participacion_dominante = min_participacion_dominante,
       excluir = excluir
     )
@@ -2355,6 +2383,7 @@
                                  max_proporcion_grupo = 0.5,
                                  umbral_variante_rara = 0.05,
                                  min_asimetria_variante = 10,
+                                 min_asimetria_general = 2,
                                  min_participacion_dominante = 0.5) {
   hallazgos_columnas <- .hallazgos_columnas(
     resultados, columnas, umbral_alta_cardinalidad,
@@ -2371,6 +2400,7 @@
       max_proporcion_grupo = max_proporcion_grupo,
       umbral_variante_rara = umbral_variante_rara,
       min_asimetria_variante = min_asimetria_variante,
+      min_asimetria_general = min_asimetria_general,
       min_participacion_dominante = min_participacion_dominante
     )
   } else list()

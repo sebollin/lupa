@@ -44,6 +44,7 @@ perfilar(
   max_proporcion_grupo_vocabulario = 0.5,
   umbral_variante_rara_vocabulario = 0.05,
   min_asimetria_vocabulario_corto = 10,
+  min_asimetria_vocabulario = 2,
   min_participacion_dominante_vocabulario_corto = 0.5
 )
 }
@@ -208,6 +209,13 @@ puede ocupar una variante breve para abrir la comparacion por una edicion.}
 \item{min_asimetria_vocabulario_corto}{Razon minima entre la frecuencia de
 una forma dominante y una variante breve para abrir la comparacion por una
 edicion.}
+
+\item{min_asimetria_vocabulario}{Razón mínima entre la frecuencia de la
+forma dominante y la de la variante para abrir un grupo por la vía general
+de distancia. Por omisión \code{2}. Una asimetría de \verb{1,5} significa que las dos
+formas son casi igual de comunes, que es evidencia muy floja de una errata:
+medido sobre tablas limpias y sobre erratas sembradas, los falsos positivos
+están entre \verb{1,0} y \verb{1,5} y las erratas reales desde \verb{9,0}.}
 
 \item{min_participacion_dominante_vocabulario_corto}{Proporcion minima de la
 columna que debe ocupar la forma dominante en la comparacion por una
