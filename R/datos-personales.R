@@ -376,6 +376,11 @@
         resumen$ejemplos[nzchar(resumen$ejemplos)] <- reemplazo
         attr(patrones[[i]], "resumen_patrones") <- resumen
       }
+      desvios <- attr(patrones[[i]], "desvios_patron_raro", exact = TRUE)
+      if (!is.null(desvios) && "ejemplos" %in% names(desvios)) {
+        desvios$ejemplos[nzchar(desvios$ejemplos)] <- reemplazo
+        attr(patrones[[i]], "desvios_patron_raro") <- desvios
+      }
     }
   }
   # `columna` puede ser una columna simple o una lista de columnas

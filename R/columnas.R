@@ -1189,6 +1189,10 @@
   secuencia_entera <- .resumen_secuencia_entera(
     x_analisis, inferencia, formatos
   )
+  attr(patrones, "desvios_patron_raro") <-
+    .desvios_patron_raro_detectados(
+      patrones, secuencia_entera$densa, umbral_patron_raro
+    )
   faltantes_disfrazados <- .detectar_faltantes_disfrazados(
     x_analisis, sentinelas_numericos = sentinelas_numericos,
     detectar_sentinelas_numericos = !isTRUE(secuencia_entera$densa)

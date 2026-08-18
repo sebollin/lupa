@@ -117,6 +117,27 @@
   }
 }
 
+.desvios_patron_raro_detectados <- function(patrones,
+                                            secuencia_entera_densa,
+                                            umbral_patron_raro) {
+  resumen <- attr(patrones, "resumen_patrones", exact = TRUE)
+  if (is.null(resumen) || !is.data.frame(resumen) || nrow(resumen) < 2L) {
+    return(NULL)
+  }
+  raros <- resumen[-1L, , drop = FALSE]
+  raros <- raros[!is.na(raros$proporcion) &
+                   raros$proporcion < umbral_patron_raro, , drop = FALSE]
+  if (isTRUE(secuencia_entera_densa) && nrow(raros)) {
+    solo_largo <- .patrones_solo_largo_corrida_numerica(
+      resumen$patron[[1L]], raros$patron
+    )
+    raros <- raros[!solo_largo, , drop = FALSE]
+  }
+  if (!nrow(raros)) return(raros)
+  raros[, intersect(c("patron", "n", "ejemplos"), names(raros)),
+        drop = FALSE]
+}
+
 .nuevo_diagnostico_no_evaluado <- function(diagnostico, columna, motivo,
                                            como_resolverlo,
                                            dependencia = NA_character_) {
@@ -1196,10 +1217,11 @@
     coordenada_fuera_dominio = as.numeric(fila$n_fuera_de_dominio),
     tipos_geometria_mixtos = n,
     patron_raro = {
-      resumen <- attr(resultado$patrones, "resumen_patrones")
       completo <- !isTRUE(.patrones_raros_recortados(resultado$patrones))
-      if (completo && !is.null(resumen) && nrow(resumen) > 1L) {
-        sum(resumen$n[-1L], na.rm = TRUE)
+      desvios <- attr(resultado$patrones, "desvios_patron_raro",
+                      exact = TRUE)
+      if (completo && !is.null(desvios) && nrow(desvios)) {
+        sum(desvios$n, na.rm = TRUE)
       } else NA_real_
     },
     NA_real_
@@ -1311,8 +1333,8 @@
 
 .indices_patron_raro <- function(x, resultado, expandir = FALSE,
                                  distinguir_mayusculas = TRUE) {
-  resumen <- attr(resultado$patrones, "resumen_patrones")
-  if (is.null(resumen) || nrow(resumen) < 2L) return(NULL)
+  desvios <- attr(resultado$patrones, "desvios_patron_raro", exact = TRUE)
+  if (is.null(desvios) || !nrow(desvios)) return(NULL)
   total <- length(x)
   analizados <- attr(resultado$patrones, "analizados")
   muestreado <- isTRUE(attr(resultado$patrones, "muestreado"))
@@ -1338,7 +1360,7 @@
     patrones[validos] <- gsub("a{2,}", "a+", patrones[validos], perl = TRUE)
     patrones[validos] <- gsub("A{2,}", "A+", patrones[validos], perl = TRUE)
   }
-  raros <- unique(as.character(resumen$patron[-1L]))
+  raros <- unique(as.character(desvios$patron))
   base[which(!is.na(patrones) & patrones %in% raros)]
 }
 
@@ -2096,15 +2118,9 @@
     patrones <- attr(resultado$patrones, "resumen_patrones")
     if (!is.null(patrones) && nrow(patrones) > 1L &&
         patrones$proporcion[[1L]] >= umbral_patron_dominante) {
-      raros <- patrones[-1L, , drop = FALSE]
-      raros <- raros[raros$proporcion < umbral_patron_raro, , drop = FALSE]
-      if (isTRUE(fila$secuencia_entera_densa) && nrow(raros)) {
-        solo_largo <- .patrones_solo_largo_corrida_numerica(
-          patrones$patron[[1L]], raros$patron
-        )
-        raros <- raros[!solo_largo, , drop = FALSE]
-      }
-      if (nrow(raros)) {
+      raros <- attr(resultado$patrones, "desvios_patron_raro",
+                    exact = TRUE)
+      if (!is.null(raros) && nrow(raros)) {
         evidencia <- paste0(
           raros$patron, " [", raros$ejemplos, "]",
           collapse = "; "

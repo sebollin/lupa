@@ -59,6 +59,9 @@ test_that("la trazabilidad de otro hallazgo no calcula invisibles", {
   patrones <- resultado$patrones
   attr(patrones, "resumen_patrones") <- as.data.frame(patrones)
   attr(patrones, "n_patrones_distintos") <- 2L
+  attr(patrones, "desvios_patron_raro") <- as.data.frame(patrones)[
+    -1L, , drop = FALSE
+  ]
   resultado$patrones <- patrones
   llamadas <- 0L
   original <- lupa:::.predicados_invisibles

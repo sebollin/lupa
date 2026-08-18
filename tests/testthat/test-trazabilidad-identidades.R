@@ -45,6 +45,30 @@ test_that("las trazas por fila coinciden con fixtures de corrupcion conocidos", 
   }
 })
 
+test_that("patron_raro enumera solo los desvios de una secuencia densa", {
+  set.seed(20260818)
+  x <- c(as.character(3:1000), rep(c("-5", "-6", "-7"), each = 2L))
+  perfil <- perfilar(
+    data.frame(col = x, stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "patron_raro", , drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  expect_equal(hallazgo$unidad_conteo, "fila")
+  expect_match(hallazgo$evidencia, "Desv\u00edos: -9", fixed = TRUE)
+  expect_equal(hallazgo$n_afectados, 6)
+  traza <- hallazgo$trazabilidad[[1L]]
+  expect_equal(traza$estado, "disponible")
+  expect_equal(traza$alcance, "completo")
+  expect_setequal(traza$indices_fila, 999:1004)
+  expect_setequal(x[traza$indices_fila], c("-5", "-6", "-7"))
+  expect_equal(length(unique(traza$indices_fila)), 6L)
+  expect_equal(traza$total, 6)
+})
+
 test_that("los hallazgos numericos textuales comparten la vista inferida", {
   n <- 1000L
   indices_ceros <- c(101L, 202L, 303L)
