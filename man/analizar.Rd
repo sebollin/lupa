@@ -25,6 +25,7 @@ analizar(
   max_columnas_asociacion = 50L,
   max_niveles_asociacion = 50L,
   max_pares_asociacion = 500L,
+  metodo_asociacion_numerica = c("pearson", "spearman"),
   calendario = 1:7,
   frecuencia_dias = NULL,
   max_huecos = 20L,
@@ -80,6 +81,10 @@ niveles observados.}
 \item{max_niveles_asociacion}{Máximo de niveles categóricos.}
 
 \item{max_pares_asociacion}{Máximo de pares devueltos.}
+
+\item{metodo_asociacion_numerica}{Medida entre columnas numéricas que usa
+\code{\link[=detectar_asociaciones]{detectar_asociaciones()}}: \code{"pearson"} por omisión, o \code{"spearman"}
+para asociación monótona sobre los rangos, que no supone linealidad.}
 
 \item{calendario}{Días ISO usados por el análisis temporal.}
 

@@ -206,6 +206,9 @@
 #' @param max_columnas_asociacion Máximo de columnas para asociaciones.
 #' @param max_niveles_asociacion Máximo de niveles categóricos.
 #' @param max_pares_asociacion Máximo de pares devueltos.
+#' @param metodo_asociacion_numerica Medida entre columnas numéricas que usa
+#'   [detectar_asociaciones()]: `"pearson"` por omisión, o `"spearman"`
+#'   para asociación monótona sobre los rangos, que no supone linealidad.
 #' @param calendario Días ISO usados por el análisis temporal.
 #' @param frecuencia_dias Frecuencia temporal conocida o `NULL` para proponerla.
 #' @param max_huecos Máximo de grupos de huecos por columna.
@@ -244,6 +247,7 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
                      max_columnas_asociacion = 50L,
                      max_niveles_asociacion = 50L,
                      max_pares_asociacion = 500L,
+                     metodo_asociacion_numerica = c("pearson", "spearman"),
                      calendario = 1:7, frecuencia_dias = NULL,
                      max_huecos = 20L, max_columnas_temporales = 50L,
                      conservar_datos = FALSE,
@@ -312,9 +316,11 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
     muestra = muestra,
     proteger_datos_personales = proteger_datos_personales
   )
+  metodo_asociacion_numerica <- match.arg(metodo_asociacion_numerica)
   asociaciones <- detectar_asociaciones(
     datos, perfil$dependencias, umbral_asociacion, muestra_asociacion,
-    max_columnas_asociacion, max_niveles_asociacion, max_pares_asociacion
+    max_columnas_asociacion, max_niveles_asociacion, max_pares_asociacion,
+    metodo_numerico = metodo_asociacion_numerica
   )
   temporal <- analizar_tiempo(
     datos, perfil, calendario = calendario, frecuencia_dias = frecuencia_dias,

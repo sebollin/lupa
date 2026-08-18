@@ -250,10 +250,17 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 
 #' Detectar asociaciones entre columnas
 #'
-#' Calcula Pearson entre numéricas, V de Cramér entre categóricas y eta cuadrado
-#' entre una categórica y una numérica. Las tres medidas se informan en `[0, 1]`:
-#' Pearson usa su valor absoluto. La tabla declara el método, soporte y posible
-#' muestreo; no presenta significancia estadística.
+#' Calcula Pearson —o Spearman, si se pide— entre numéricas, V de Cramér entre
+#' categóricas y eta cuadrado entre una categórica y una numérica. Las medidas se
+#' informan en `[0, 1]`: la correlación usa su valor absoluto. La tabla declara
+#' el método, su supuesto, el soporte y el posible muestreo; no presenta
+#' significancia estadística.
+#'
+#' `metodo_numerico = "spearman"` mide asociación **monótona** sobre los rangos
+#' y no supone linealidad, así que reconoce una relación creciente aunque sea
+#' curva. Pearson sigue siendo el valor por omisión porque es lo que la mayoría
+#' espera de una correlación, y el método elegido viaja en la columna `metodo`
+#' de la salida para que ninguna lectura dependa de recordar cuál se pidió.
 #'
 #' Se descartan constantes, fechas, listas, categóricas de cardinalidad alta y
 #' columnas posteriores a `max_columnas` antes de construir pares. Las
@@ -267,6 +274,8 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 #' @param max_columnas Máximo de columnas analizables.
 #' @param max_niveles Máximo de niveles para tratar una columna como categórica.
 #' @param max_pares Máximo de asociaciones devueltas después de ordenar.
+#' @param metodo_numerico Medida entre columnas numéricas: `"pearson"` por
+#'   omisión, o `"spearman"` para asociación monótona sobre los rangos.
 #'
 #' @return Data frame S3 `asociaciones_columnas`. Sus atributos declaran filas,
 #'   columnas y pares examinados, omisiones por dependencia y truncamiento.
@@ -278,7 +287,9 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
 #' detectar_asociaciones(d, umbral = 0)
 detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
                                   muestra = 1e4, max_columnas = 50L,
-                                  max_niveles = 50L, max_pares = 500L) {
+                                  max_niveles = 50L, max_pares = 500L,
+                                  metodo_numerico = c("pearson", "spearman")) {
+  metodo_numerico <- match.arg(metodo_numerico)
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
@@ -323,7 +334,11 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
       x <- x[completos]
       y <- y[completos]
       metodo <- if (tipos[[i]] == "numerica" && tipos[[j]] == "numerica") {
-        "pearson_absoluto"
+        if (identical(metodo_numerico, "spearman")) {
+          "spearman_absoluto"
+        } else {
+          "pearson_absoluto"
+        }
       } else if (tipos[[i]] == "categorica" && tipos[[j]] == "categorica") {
         "cramer_v"
       } else {
@@ -332,6 +347,7 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
       valor <- switch(
         metodo,
         pearson_absoluto = abs(stats::cor(x, y)),
+        spearman_absoluto = abs(stats::cor(x, y, method = "spearman")),
         cramer_v = .cramer_v(x, y),
         eta2 = if (tipos[[i]] == "categorica") .eta2(x, y) else .eta2(y, x)
       )
@@ -342,6 +358,11 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
         metodo = metodo,
         supuesto = if (metodo == "pearson_absoluto") {
           "Las columnas numericas se tratan como cuantitativas; la escala no queda confirmada."
+        } else if (metodo == "spearman_absoluto") {
+          paste(
+            "Se mide asociacion monotona sobre los rangos: no supone",
+            "linealidad ni que la escala sea de intervalo."
+          )
         } else if (metodo == "cramer_v") {
           "Las columnas se tratan como categorias sin orden."
         } else {

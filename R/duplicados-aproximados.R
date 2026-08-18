@@ -43,7 +43,8 @@
     p = 0.1) {
   pares <- data.frame(
     fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
-    tipo_par = character(), metodo = character(), p = numeric(), umbral = numeric(),
+    tipo_par = character(), igualo_normalizar = logical(), metodo = character(),
+    p = numeric(), umbral = numeric(),
     evidencia_1 = character(),
     evidencia_2 = character(), proteccion_evidencia = character(),
     stringsAsFactors = FALSE
@@ -58,6 +59,7 @@
     n_pares_sin_comparar = posibles,
     n_pares_hallados = 0,
     n_pares_exactos = 0,
+    n_pares_exactos_normalizados = 0,
     n_pares_aproximados = 0,
     n_pares_mostrados = 0,
     limite_pares = max_pares,
@@ -277,7 +279,8 @@
       fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
       stringsAsFactors = FALSE
     ),
-    n_hallados = 0, n_exactos = 0, n_aproximados = 0,
+    n_hallados = 0, n_exactos = 0, n_exactos_normalizados = 0,
+    n_aproximados = 0,
     max_resultados = max_resultados, lotes = list(),
     iguales = logical(), lotes_iguales = list()
   )
@@ -354,7 +357,8 @@
 #' persistente crezca con el número de candidatos.
 #' @noRd
 .acumular_pares_duplicados <- function(
-    acumulador, fila_1, fila_2, distancia, iguales = NULL) {
+    acumulador, fila_1, fila_2, distancia, iguales = NULL,
+    iguales_originales = NULL) {
   if (!length(fila_1)) return(acumulador)
   if (is.null(iguales)) {
     stop("El lote debe entregar la igualdad de los textos para cada par.",
@@ -376,8 +380,18 @@
   )
   iguales <- as.logical(iguales[validos])
   iguales[is.na(iguales)] <- FALSE
+  if (is.null(iguales_originales)) iguales_originales <- iguales
+  if (length(iguales_originales) != length(fila_1)) {
+    stop("La igualdad del texto original debe contener una entrada por par.",
+         call. = FALSE)
+  }
+  iguales_originales <- as.logical(iguales_originales[validos])
+  iguales_originales[is.na(iguales_originales)] <- FALSE
   acumulador$n_hallados <- acumulador$n_hallados + nrow(lote)
-  acumulador$n_exactos <- acumulador$n_exactos + sum(iguales)
+  acumulador$n_exactos <- acumulador$n_exactos +
+    sum(iguales & iguales_originales)
+  acumulador$n_exactos_normalizados <- acumulador$n_exactos_normalizados +
+    sum(iguales & !iguales_originales)
   acumulador$n_aproximados <- acumulador$n_aproximados +
     sum(!iguales)
   # Con `Inf` se conserva todo y ordenar cada lote vuelve cuadratica la
@@ -413,7 +427,7 @@
 .comparar_bloques_duplicados <- function(
     valores, filas, metodo, umbral, bloque, max_resultados,
     acumulador = NULL, on_pairs = NULL, bloqueos = NULL, nucleos = 2L,
-    p = 0.1) {
+    p = 0.1, igualdad_original = NULL) {
   n <- length(valores)
   acumular_en_externo <- !is.null(acumulador)
   if (is.null(acumulador)) {
@@ -429,6 +443,7 @@
       pares = salida$pares, iguales = salida$iguales,
       n_hallados = acumulador$n_hallados,
       n_exactos = acumulador$n_exactos,
+      n_exactos_normalizados = acumulador$n_exactos_normalizados,
       n_aproximados = acumulador$n_aproximados,
       n_bloques = 0L, acumulador = acumulador
     ))
@@ -466,9 +481,12 @@
         iguales <- iguales[dentro]
       }
       if (!length(f1)) next
+      iguales_originales <- if (is.null(igualdad_original)) NULL else {
+        igualdad_original(f1, f2)
+      }
       if (!is.null(on_pairs)) on_pairs(f1, f2, distancias)
       acumulador <- .acumular_pares_duplicados(
-        acumulador, f1, f2, distancias, iguales
+        acumulador, f1, f2, distancias, iguales, iguales_originales
       )
     }
   }
@@ -483,6 +501,7 @@
     pares = pares_acumulados, iguales = iguales_acumulados,
     n_hallados = acumulador$n_hallados,
     n_exactos = acumulador$n_exactos,
+    n_exactos_normalizados = acumulador$n_exactos_normalizados,
     n_aproximados = acumulador$n_aproximados, n_bloques = n_bloques,
     acumulador = acumulador
   )
@@ -499,12 +518,14 @@
 
 .comparar_por_lotes_duplicados <- function(
     valores, filas, metodo, umbral, bloque, tamano_lote, max_resultados,
-    bloqueos = NULL, directorio_lotes, nucleos = 2L, p = 0.1) {
+    bloqueos = NULL, directorio_lotes, nucleos = 2L, p = 0.1,
+    igualdad_original = NULL) {
   n <- length(valores)
   grupos <- split(seq_len(n), ceiling(seq_len(n) / tamano_lote))
   acumulador <- .nuevo_acumulador_duplicados(max_resultados)
   n_hallados <- 0
   n_exactos <- 0
+  n_exactos_normalizados <- 0
   n_aproximados <- 0
   n_bloques_archivo <- 0L
   archivos <- character()
@@ -520,7 +541,8 @@
         valores[indices], filas[indices], metodo, umbral, bloque, Inf,
         bloqueos = if (is.null(bloqueos)) NULL else {
           bloqueos[indices]
-        }, nucleos = nucleos, p = p
+        }, nucleos = nucleos, p = p,
+        igualdad_original = igualdad_original
       )
       # El comparador anterior compara también el rectángulo cruzado dentro
       # de la concatenación. Para i != j eso incluiría pares internos de cada
@@ -535,7 +557,15 @@
         parcial$iguales <- parcial$iguales[dentro]
       }
       parcial$n_hallados <- nrow(parcial$pares)
-      parcial$n_exactos <- sum(parcial$iguales)
+      iguales_originales <- if (is.null(igualdad_original)) {
+        parcial$iguales
+      } else {
+        igualdad_original(parcial$pares$fila_1, parcial$pares$fila_2)
+      }
+      parcial$n_exactos <- sum(parcial$iguales & iguales_originales)
+      parcial$n_exactos_normalizados <- sum(
+        parcial$iguales & !iguales_originales
+      )
       parcial$n_aproximados <- sum(!parcial$iguales)
       ruta <- file.path(
         directorio_lotes, sprintf("parcial-%06d.rds", parcial_id)
@@ -546,6 +576,7 @@
         iguales = parcial$iguales,
         n_hallados = parcial$n_hallados,
         n_exactos = parcial$n_exactos,
+        n_exactos_normalizados = parcial$n_exactos_normalizados,
         n_aproximados = parcial$n_aproximados,
         n_bloques = parcial$n_bloques
       )
@@ -555,13 +586,22 @@
       bytes <- c(bytes, as.numeric(file.info(ruta)$size))
       n_hallados <- n_hallados + parcial$n_hallados
       n_exactos <- n_exactos + parcial$n_exactos
+      n_exactos_normalizados <- n_exactos_normalizados +
+        parcial$n_exactos_normalizados
       n_aproximados <- n_aproximados + parcial$n_aproximados
       n_bloques_archivo <- n_bloques_archivo + parcial$n_bloques
       if (nrow(parcial_disco$pares)) {
+        iguales_originales_disco <- if (is.null(igualdad_original)) {
+          parcial_disco$iguales
+        } else {
+          igualdad_original(
+            parcial_disco$pares$fila_1, parcial_disco$pares$fila_2
+          )
+        }
         acumulador <- .acumular_pares_duplicados(
           acumulador, parcial_disco$pares$fila_1,
           parcial_disco$pares$fila_2, parcial_disco$pares$distancia,
-          parcial_disco$iguales
+          parcial_disco$iguales, iguales_originales_disco
         )
       }
     }
@@ -589,6 +629,7 @@
   list(
     pares = pares_finales, iguales = acumulados$iguales,
     n_hallados = n_hallados, n_exactos = n_exactos,
+    n_exactos_normalizados = n_exactos_normalizados,
     n_aproximados = n_aproximados, n_bloques = n_bloques,
     metadata = list(
       activo = TRUE, directorio = directorio_lotes,
@@ -893,7 +934,7 @@
     valores, filas, metodo, umbral, bandas, filas_banda, q,
     max_cubeta, max_resultados, muestra_estimacion = 400000L,
     presupuesto_pares = Inf, bloqueos = NULL, solo_estimacion = FALSE,
-    nucleos = 2L, p = 0.1) {
+    nucleos = 2L, p = 0.1, igualdad_original = NULL) {
   n <- length(valores)
   n_hashes <- bandas * filas_banda
   indice <- .ids_qgramas_por_bloques(valores, q)
@@ -1051,7 +1092,8 @@
           bloque = min(2000L, tamano), max_resultados = max_resultados,
           acumulador = acumulador, on_pairs = registrar_jaccard_filas,
           bloqueos = if (is.null(bloqueos)) NULL else bloqueos[indices],
-          nucleos = nucleos, p = p
+          nucleos = nucleos, p = p,
+          igualdad_original = igualdad_original
         )
         acumulador <- por_teselas$acumulador
         teselas_cubetas_grandes <- teselas_cubetas_grandes +
@@ -1126,6 +1168,9 @@
           filas_a <- filas[p1[indices_pasan]]
           filas_b <- filas[p2[indices_pasan]]
           iguales <- valores[p1[indices_pasan]] == valores[p2[indices_pasan]]
+          iguales_originales <- if (is.null(igualdad_original)) NULL else {
+            igualdad_original(filas_a, filas_b)
+          }
           intercambiar <- filas_a > filas_b
           if (any(intercambiar)) {
             temporal <- filas_a[intercambiar]
@@ -1133,7 +1178,8 @@
             filas_b[intercambiar] <- temporal
           }
           acumulador <- .acumular_pares_duplicados(
-            acumulador, filas_a, filas_b, distancias[indices_pasan], iguales
+            acumulador, filas_a, filas_b, distancias[indices_pasan], iguales,
+            iguales_originales
           )
         }
       }
@@ -1161,6 +1207,7 @@
     iguales = acumulados$iguales,
     n_hallados = acumulador$n_hallados,
     n_exactos = acumulador$n_exactos,
+    n_exactos_normalizados = acumulador$n_exactos_normalizados,
     n_aproximados = acumulador$n_aproximados,
     n_bloques = 0L,
     estimacion = list(
@@ -1489,6 +1536,9 @@
   textos <- .texto_fila_aproximada(
     datos, columnas, normalizacion_resuelta, fusiones_precomputadas
   )
+  igualdad_original <- function(filas_1, filas_2) {
+    .pares_con_texto_original_igual(datos, columnas, filas_1, filas_2)
+  }
   # Sobre el tope exhaustivo, `auto` reemplaza el muestreo de filas por LSH.
   # `max_pares` sigue gobernando el camino exacto; en LSH el alcance se expresa
   # mediante candidatos, cubetas y garantía de colisión.
@@ -1618,7 +1668,8 @@
       lsh_muestra_estimacion, presupuesto_pares,
       bloqueos = if (is.null(resumen_bloqueo)) NULL else {
         resumen_bloqueo$ids[validos]
-      }, solo_estimacion = solo_estimacion, nucleos = nucleos, p = p
+      }, solo_estimacion = solo_estimacion, nucleos = nucleos, p = p,
+      igualdad_original = igualdad_original
     )
     if (isTRUE(solo_estimacion)) {
       alcance <- lsh$alcance
@@ -1643,13 +1694,14 @@
         tamano_lote, max_resultados,
         bloqueos = if (is.null(resumen_bloqueo)) NULL else {
           resumen_bloqueo$ids[validos]
-        }, directorio_lotes = directorio_parciales, nucleos = nucleos, p = p
+        }, directorio_lotes = directorio_parciales, nucleos = nucleos, p = p,
+        igualdad_original = igualdad_original
       )
       lotes_metadata <- bloques$metadata
     } else if (is.null(resumen_bloqueo)) {
       bloques <- .comparar_bloques_duplicados(
         textos$valores[validos], validos, metodo, umbral, bloque, max_resultados,
-        nucleos = nucleos, p = p
+        nucleos = nucleos, p = p, igualdad_original = igualdad_original
       )
     } else {
       grupos <- split(seq_along(validos), resumen_bloqueo$ids[validos])
@@ -1659,7 +1711,7 @@
         parcial <- .comparar_bloques_duplicados(
           textos$valores[validos[grupo]], validos[grupo], metodo, umbral,
           bloque, max_resultados, acumulador = acumulador,
-          nucleos = nucleos, p = p
+          nucleos = nucleos, p = p, igualdad_original = igualdad_original
         )
         acumulador <- parcial$acumulador
         n_bloques <- n_bloques + parcial$n_bloques
@@ -1670,6 +1722,7 @@
         iguales = acumulados_bloqueados$iguales,
         n_hallados = acumulador$n_hallados,
         n_exactos = acumulador$n_exactos,
+        n_exactos_normalizados = acumulador$n_exactos_normalizados,
         n_aproximados = acumulador$n_aproximados,
         n_bloques = n_bloques
       )
@@ -1678,16 +1731,25 @@
   }
   n_hallados <- bloques$n_hallados
   n_exactos <- bloques$n_exactos
+  n_exactos_normalizados <- bloques$n_exactos_normalizados
   n_aproximados <- bloques$n_aproximados
   mostrados <- nrow(bloques$pares)
   pares <- if (mostrados) {
     distancias <- bloques$pares$distancia
     iguales <- as.logical(bloques$iguales)
+    originales_iguales <- igualdad_original(
+      bloques$pares$fila_1, bloques$pares$fila_2
+    )
+    igualo_normalizar <- iguales & !originales_iguales
     data.frame(
       fila_1 = bloques$pares$fila_1,
       fila_2 = bloques$pares$fila_2,
       distancia = distancias,
-      tipo_par = ifelse(iguales, "exacto", "aproximado"),
+      tipo_par = ifelse(
+        !iguales, "aproximado",
+        ifelse(originales_iguales, "exacto", "exacto_normalizado")
+      ),
+      igualo_normalizar = igualo_normalizar,
       metodo = metodo, p = p, umbral = umbral,
       evidencia_1 = .evidencia_filas_aproximada(
         datos, columnas, bloques$pares$fila_1, protegidas
@@ -1709,27 +1771,27 @@
   }
   hallazgos <- if (nrow(pares)) {
     n <- nrow(pares)
-    exactos <- pares$tipo_par == "exacto"
-    originales_iguales <- .pares_con_texto_original_igual(
-      datos, columnas, pares$fila_1, pares$fila_2
-    )
     data.frame(
       columna = rep(paste(columnas, collapse = ", "), n),
       tipo_hallazgo = ifelse(
-        exactos, "duplicados_exactos_columnas", "duplicados_aproximados"
+        pares$tipo_par == "exacto", "duplicados_exactos_columnas",
+        ifelse(
+          pares$tipo_par == "exacto_normalizado",
+          "duplicados_exactos_normalizados", "duplicados_aproximados"
+        )
       ),
       severidad = rep("sospechoso", n),
       descripcion = ifelse(
-        exactos,
+        pares$tipo_par == "exacto",
+        "Dos filas tienen los mismos valores en las columnas comparadas; esto no demuestra identidad.",
         ifelse(
-          originales_iguales,
-          "Dos filas tienen los mismos valores en las columnas comparadas; esto no demuestra identidad.",
+          pares$tipo_par == "exacto_normalizado",
           paste(
             "Dos filas coinciden despu\u00e9s de la normalizaci\u00f3n declarada,",
             "no en el texto original; esto no demuestra identidad."
-          )
-        ),
-        "Dos filas presentan similitud; esto no demuestra identidad."
+          ),
+          "Dos filas presentan similitud; esto no demuestra identidad."
+        )
       ),
       evidencia = paste0(
         "Filas ", pares$fila_1, " y ", pares$fila_2,
@@ -1786,6 +1848,7 @@
     n_pares_sin_comparar = max(0, posibles - n_pares_comparados),
     n_pares_hallados = n_hallados, n_pares_mostrados = mostrados,
     n_pares_exactos = n_exactos,
+    n_pares_exactos_normalizados = n_exactos_normalizados,
     n_pares_aproximados = n_aproximados,
     limite_pares = if (usar_lsh) NA_real_ else max_pares,
     limite_pares_configurado = max_pares,
@@ -1847,18 +1910,24 @@
 #' informados; el umbral se eligio como una precision prudente, no como una
 #' calibracion fina. Ambos argumentos se pueden cambiar.
 #'
-#' Los pares cuyos textos comparados son iguales despues de la normalizacion se
-#' incluyen como `tipo_par = "exacto"`; los restantes son `"aproximado"`.
-#' La clasificacion no depende de que una medida de distancia devuelva cero:
-#' por ejemplo, `soundex` puede dar distancia cero para textos distintos.
-#' Ningun par demuestra identidad.
+#' `tipo_par = "exacto"` indica que los textos guardados son iguales en las
+#' columnas comparadas. `tipo_par = "exacto_normalizado"` indica que coinciden
+#' despues de la normalizacion declarada, aunque los textos guardados difieran.
+#' Los restantes son `"aproximado"`. La columna logica `igualo_normalizar` es
+#' `TRUE` unicamente para el segundo caso. La clasificacion no depende de que
+#' una medida de distancia devuelva cero: por ejemplo, `soundex` puede dar
+#' distancia cero para textos distintos. Ningun par demuestra identidad.
 #'
 #' Como la normalizacion por omision iguala mayusculas, espacios, acentos y
-#' comillas, un par puede ser `"exacto"` sin que los valores guardados sean
-#' iguales. El hallazgo distingue los dos casos: afirma que las filas tienen
-#' los mismos valores solo cuando el texto original coincide, y en el otro caso
-#' declara que la coincidencia la produjo la normalizacion. La clasificacion en
-#' `tipo_par` no cambia.
+#' comillas, el objeto conserva esta distincion tanto en `pares` como en los
+#' hallazgos. `duplicados_exactos_normalizados` es un tipo de hallazgo propio:
+#' no afirma que los valores guardados sean iguales y tampoco oculta la causa
+#' de la coincidencia bajo `duplicados_aproximados`.
+#'
+#' En `alcance`, `n_pares_exactos` cuenta solo textos guardados iguales,
+#' `n_pares_exactos_normalizados` cuenta coincidencias producidas por la
+#' normalizacion y `n_pares_aproximados` cuenta los pares restantes. Son
+#' conteos disjuntos y explican `n_pares_hallados`.
 #'
 #' La comparacion usa teselas de `bloque` filas: cada matriz temporal se
 #' descarta antes de continuar, por lo que la memoria no crece con el tamaño

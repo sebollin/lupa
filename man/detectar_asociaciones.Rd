@@ -11,7 +11,8 @@ detectar_asociaciones(
   muestra = 10000,
   max_columnas = 50L,
   max_niveles = 50L,
-  max_pares = 500L
+  max_pares = 500L,
+  metodo_numerico = c("pearson", "spearman")
 )
 }
 \arguments{
@@ -28,18 +29,28 @@ detectar_asociaciones(
 \item{max_niveles}{Máximo de niveles para tratar una columna como categórica.}
 
 \item{max_pares}{Máximo de asociaciones devueltas después de ordenar.}
+
+\item{metodo_numerico}{Medida entre columnas numéricas: \code{"pearson"} por
+omisión, o \code{"spearman"} para asociación monótona sobre los rangos.}
 }
 \value{
 Data frame S3 \code{asociaciones_columnas}. Sus atributos declaran filas,
 columnas y pares examinados, omisiones por dependencia y truncamiento.
 }
 \description{
-Calcula Pearson entre numéricas, V de Cramér entre categóricas y eta cuadrado
-entre una categórica y una numérica. Las tres medidas se informan en \verb{[0, 1]}:
-Pearson usa su valor absoluto. La tabla declara el método, soporte y posible
-muestreo; no presenta significancia estadística.
+Calcula Pearson —o Spearman, si se pide— entre numéricas, V de Cramér entre
+categóricas y eta cuadrado entre una categórica y una numérica. Las medidas se
+informan en \verb{[0, 1]}: la correlación usa su valor absoluto. La tabla declara
+el método, su supuesto, el soporte y el posible muestreo; no presenta
+significancia estadística.
 }
 \details{
+\code{metodo_numerico = "spearman"} mide asociación \strong{monótona} sobre los rangos
+y no supone linealidad, así que reconoce una relación creciente aunque sea
+curva. Pearson sigue siendo el valor por omisión porque es lo que la mayoría
+espera de una correlación, y el método elegido viaja en la columna \code{metodo}
+de la salida para que ninguna lectura dependa de recordar cuál se pidió.
+
 Se descartan constantes, fechas, listas, categóricas de cardinalidad alta y
 columnas posteriores a \code{max_columnas} antes de construir pares. Las
 dependencias funcionales exactas recibidas en \code{dependencias} no se repiten

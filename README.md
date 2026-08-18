@@ -130,6 +130,18 @@ or supply a confirmed proposal/model. The function aggregates immediately and
 keeps the small dashboard; `conservar_detalle_medicion = TRUE` retains the
 row-level measurement detail.
 
+**Where the value distribution and the correlations live.** Both are in
+`analizar()`, not in `perfilar()`, and that separation is deliberate:
+`perfilar()` is the cheap pass whose object you carry around, while
+`distribucion_valores()` and `detectar_asociaciones()` cost more and produce
+tables of their own. `distribucion_valores()` returns per-column frequencies
+and quantiles with a declared cap and truncation flag; `detectar_asociaciones()`
+returns Pearson between numeric columns — or Spearman, with
+`metodo_numerico = "spearman"`, for a monotone relationship that isn't linear —
+plus Cramér's V and eta squared, each row declaring its method and its
+assumption. Both are exported, so you can call them on their own without paying
+for the whole route.
+
 ## 🚦 Severities and automation
 
 `severidad` is an **ordered factor**: `ok < sospechoso < error`.

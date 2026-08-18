@@ -1,5 +1,18 @@
 # lupa 0.1.0
 
+## Spearman para relaciones monótonas que no son lineales
+
+- `detectar_asociaciones()` acepta `metodo_numerico = "spearman"` y mide
+  asociación monótona sobre los rangos, sin suponer linealidad. Sobre una
+  relación cúbica con ruido, Pearson da 0,918 y Spearman 0,997. Pearson sigue
+  siendo el valor por omisión, y el método elegido viaja en la columna `metodo`
+  con su supuesto en `supuesto`, así que ninguna lectura depende de recordar
+  cuál se pidió. `analizar()` lo traslada con
+  `metodo_asociacion_numerica`.
+- Los dos README explican ahora dónde viven la distribución de valores y las
+  correlaciones —en `analizar()`, no en `perfilar()`— y por qué esa separación
+  es deliberada.
+
 ## Tres afirmaciones que el paquete hacía sin fundamento suficiente
 
 - `alta_cardinalidad` se apoyaba sólo en la tasa de valores distintos, y con

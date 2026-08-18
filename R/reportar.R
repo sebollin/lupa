@@ -451,6 +451,10 @@
     "`n_filas_muestra` indican cuantas filas entraron realmente en la comparacion. ",
     "La comparacion por bloques es exhaustiva para esas filas; el tamano del bloque ",
     "y los pares que quedaron fuera se declaran en el alcance.</p>",
+    "<p class=\"nota\"><code>tipo_par</code> distingue texto guardado ",
+    "igual (<code>exacto</code>), coincidencia creada por la normalizacion ",
+    "(<code>exacto_normalizado</code>) y similitud (<code>aproximado</code>). ",
+    "<code>igualo_normalizar</code> marca solo el segundo caso.</p>",
     "<h3>Alcance de la comparaci\u00f3n</h3>", .html_tabla(alcance, Inf),
     if (!is.null(estimacion)) paste0(
       "<h3>Referencia temporal</h3><p class=\"nota\">",

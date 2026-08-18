@@ -134,6 +134,17 @@ recorrido descriptivo, y también se puede entregar una propuesta o modelo
 confirmado. La función agrega de inmediato y conserva el tablero pequeño;
 `conservar_detalle_medicion = TRUE` retiene el detalle de medición fila a fila.
 
+**Dónde viven la distribución de valores y las correlaciones.** En `analizar()`,
+no en `perfilar()`, y la separación es deliberada: `perfilar()` es la pasada
+barata cuyo objeto uno lleva a todos lados, mientras que
+`distribucion_valores()` y `detectar_asociaciones()` cuestan más y devuelven
+tablas propias. `distribucion_valores()` da frecuencias y cuantiles por columna
+con su tope declarado y su marca de truncamiento; `detectar_asociaciones()` da
+Pearson entre numéricas —o Spearman, con `metodo_numerico = "spearman"`, para
+una relación monótona que no es lineal—, más V de Cramér y eta cuadrado, y cada
+fila declara su método y su supuesto. Las dos están exportadas, así que se
+pueden llamar sueltas sin pagar el recorrido entero.
+
 ## 🚦 Severidades y automatización
 
 `severidad` es un **factor ordenado**: `ok < sospechoso < error`.

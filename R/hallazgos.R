@@ -1326,7 +1326,10 @@
   if (unidad %in% c("columna", "formato")) {
     return(.trazabilidad_vacia("no_aplica", alcance = "no_aplica", limite = limite))
   }
-  if (tipo %in% c("duplicados_aproximados", "duplicados_exactos_columnas")) {
+  if (tipo %in% c(
+      "duplicados_aproximados", "duplicados_exactos_columnas",
+      "duplicados_exactos_normalizados"
+    )) {
     if (is.null(aproximados) || !nrow(aproximados$pares)) {
       return(.trazabilidad_vacia(limite = limite))
     }
@@ -1334,7 +1337,12 @@
     ocurrencia <- 1L + sum(
       tipos_hallazgos[anteriores] == tipo
     )
-    tipo_par <- if (tipo == "duplicados_exactos_columnas") "exacto" else "aproximado"
+    tipo_par <- switch(
+      tipo,
+      duplicados_exactos_columnas = "exacto",
+      duplicados_exactos_normalizados = "exacto_normalizado",
+      "aproximado"
+    )
     indices_pares <- which(aproximados$pares$tipo_par == tipo_par)
     if (ocurrencia > length(indices_pares)) {
       return(.trazabilidad_vacia(limite = limite))
