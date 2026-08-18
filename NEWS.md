@@ -1,5 +1,23 @@
 # lupa 0.1.0
 
+## Señales redundantes: la contradicción que ninguna columna muestra sola
+
+- `senal_redundante()` declara que varias columnas de una tabla codifican el
+  mismo hecho, y `detectar_discordancias()` informa las filas donde no
+  concuerdan dentro de la ventana declarada. El caso típico son el año de la
+  fecha, el año fiscal y el año del archivo: los tres pueden ser plausibles por
+  separado y aun así contradecirse.
+- **El grupo se declara, nunca se adivina.** Dos columnas de año pueden ser el
+  de nacimiento y el de ingreso, y no tienen por qué coincidir; suponerlo sería
+  inventar conocimiento del dominio.
+- `transformacion` lleva columnas guardadas de formas distintas a una escala
+  comparable —extraer el año de una fecha, por ejemplo—, y `ventana` es la
+  tolerancia **en las unidades del valor comparado**, que no se adivina.
+- Una fila con alguna columna ausente **no cuenta como desacuerdo**: sale del
+  universo, y `n_evaluadas` lo declara. Si ninguna fila tiene todas las columnas
+  presentes, `n_discordantes` queda en `NA` y la señal se declara no evaluada,
+  en vez de informar cero discordancias.
+
 ## Los umbrales de una regla salen del closure y se pueden consultar
 
 - `regla_evaluacion()` acepta `umbrales`, una lista con nombres que se le pasan

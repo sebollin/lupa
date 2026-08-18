@@ -15,6 +15,14 @@ explícitas, limpieza controlada de una copia y duplicados aproximados a escala.
 En vez de un puntaje opaco, cada resultado conserva alcance, evidencia e
 incertidumbre.
 
+**Contradicciones que ninguna columna muestra sola.** Con `senal_redundante()`
+se declara que varias columnas codifican el mismo hecho, y
+`detectar_discordancias()` informa las filas donde no concuerdan: el año de la
+fecha contra el año fiscal contra el año del archivo. Cada uno de los tres puede
+ser plausible por su cuenta y aun así contradecir a los otros. El grupo se
+declara, nunca se adivina: dos columnas de año pueden ser el de nacimiento y el
+de ingreso, y no tienen por qué coincidir.
+
 **Hallazgos que se pueden verificar, no sólo leer.** Pasale `clave` a
 `perfilar()` con las columnas que identifican una fila, y la trazabilidad de
 cada hallazgo trae esos valores para las filas que señala, así el caso se busca

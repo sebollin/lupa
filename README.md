@@ -14,6 +14,14 @@ quality model declared for a particular use, explicit measurement, controlled
 cleanup of a copy, and approximate duplicate detection at scale. Instead of a
 single opaque score, every result carries its scope, evidence, and uncertainty.
 
+**Contradictions no single column shows.** Declare that several columns encode
+the same fact with `senal_redundante()`, and `detectar_discordancias()` reports
+the rows where they disagree — the year of the date against the fiscal year
+against the file year. Each of the three can be perfectly plausible on its own
+and still contradict the others. The group is declared, never guessed: two year
+columns might be birth year and enrolment year, and there is no reason for those
+to match.
+
 **Findings you can verify, not just read.** Pass `clave` to `perfilar()` with
 the columns that identify a row, and every finding's traceability carries those
 values for the rows it points at — so you can look the case up in the source
