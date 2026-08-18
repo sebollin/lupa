@@ -9,3 +9,5 @@
 ^benchmark$
 ^doc$
 ^Meta$
+^CONTRIBUTING\.md$
+^\.lintr$
