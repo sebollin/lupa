@@ -1,5 +1,24 @@
 # lupa 0.1.0
 
+## El piso de asimetría del vocabulario declara lo que deja afuera
+
+- El comparador de vocabulario abría grupos por distancia con cualquier
+  desbalance de frecuencias, y así señalaba `este` frente a `oeste` —dos puntos
+  cardinales— como posibles variantes de un mismo valor. Medido sobre tablas
+  limpias y sobre erratas sembradas, los falsos positivos quedan entre `1,0` y
+  `1,5` de asimetría y las erratas reales desde `9,0`, así que ahora se exige
+  una asimetría mínima de `2`, configurable con `min_asimetria_vocabulario`.
+- **El piso no se aplica a los grupos formados por normalización.**
+  `Montevideo`, `MONTEVIDEO` y `Montevideo ` son tres grafías del mismo valor y
+  con una aparición cada una su asimetría es `1,0`: ahí la equivalencia está
+  comprobada y no es una conjetura sobre una errata.
+- **Y lo que el piso deja afuera se declara.** En la banda de asimetría baja cae
+  también una errata sistemática que afecte a una fracción grande de los
+  registros, y por la forma es indistinguible de dos valores legítimamente
+  parecidos. Elegir en silencio cuál se sacrifica sería justo lo que este
+  paquete no hace: `cobertura_diagnosticos` informa cuántos grupos quedaron bajo
+  el piso y cómo bajarlo.
+
 ## Colecciones: el séptimo nivel de granularidad deja de estar sólo declarado
 
 - `coleccion()` declara qué tablas componen una base de datos, con su esquema,

@@ -935,6 +935,30 @@
         )
       )
     }
+    # Los grupos que el piso de asimetria descarto no desaparecen: se declaran.
+    # Un error sistematico que afecta al 40 % de los registros tiene asimetria
+    # 1,5 y cae bajo el piso; el piso existe porque `este`/`oeste` tambien cae
+    # ahi, y por la forma son indistinguibles. Lo honesto no es elegir cual
+    # sacrificar en silencio, es decir cuantos quedaron afuera.
+    if (isTRUE(alcance$n_grupos_bajo_piso_asimetria > 0L)) {
+      cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
+        "proximidad_vocabulario", columnas[[i]],
+        paste0(
+          alcance$n_grupos_bajo_piso_asimetria,
+          if (alcance$n_grupos_bajo_piso_asimetria == 1L) {
+            " grupo de valores cercanos no se informo"
+          } else " grupos de valores cercanos no se informaron",
+          " porque su asimetria de frecuencias quedo por debajo de ",
+          alcance$min_asimetria_general,
+          ": las formas son casi igual de comunes y no se puede distinguir una",
+          " errata sistematica de dos valores legitimamente parecidos."
+        ),
+        paste0(
+          "Bajar `min_asimetria_vocabulario` si en esta columna interesan las",
+          " variantes de frecuencia pareja, sabiendo que aumenta el ruido."
+        )
+      )
+    }
     if (!isTRUE(alcance$aplicable)) {
       cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
         "proximidad_vocabulario", columnas[[i]],

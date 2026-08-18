@@ -199,3 +199,42 @@ test_that("el catálogo de razones conocidas está completo", {
   diagnosticos <- unique(vapply(partes, `[[`, character(1L), 1L))
   expect_length(diagnosticos, 10L)
 })
+
+test_that("los grupos bajo el piso de asimetría se declaran, no desaparecen", {
+  # El piso de asimetría existe porque `este`/`oeste` —dos valores legítimos y
+  # parecidos— se abría como sospechoso con asimetría 1,5. Pero en esa misma
+  # banda cae una errata sistemática que afecta al 40 % de los registros, y por
+  # la forma son indistinguibles.
+  #
+  # Lo honesto no es elegir en silencio cuál se sacrifica: es decir cuántos
+  # quedaron afuera y cómo cambiarlo.
+  seis_cuatro <- perfilar(
+    data.frame(v = c(rep("Montevideo", 6L), rep("Montevido", 4L)),
+               stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+  hallazgos <- seis_cuatro$hallazgos
+  sospechosos <- hallazgos[
+    as.character(hallazgos$tipo_hallazgo) == "casi_duplicados_vocabulario" &
+      as.character(hallazgos$severidad) != "ok", , drop = FALSE
+  ]
+  expect_equal(nrow(sospechosos), 0L)
+
+  # Pero queda declarado.
+  fila <- .fila_cobertura(seis_cuatro, "proximidad_vocabulario")
+  expect_equal(nrow(fila), 1L)
+  expect_true(grepl("asimetria de frecuencias", fila$motivo, fixed = TRUE))
+  expect_true(grepl("min_asimetria_vocabulario", fila$como_resolverlo,
+                    fixed = TRUE))
+
+  # Por encima del piso, el hallazgo se informa y no hay nada que declarar.
+  siete_tres <- perfilar(
+    data.frame(v = c(rep("Montevideo", 7L), rep("Montevido", 3L)),
+               stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+  hallazgos <- siete_tres$hallazgos
+  expect_true("casi_duplicados_vocabulario" %in%
+                as.character(hallazgos$tipo_hallazgo))
+  expect_equal(nrow(.fila_cobertura(siete_tres, "proximidad_vocabulario")), 0L)
+})
