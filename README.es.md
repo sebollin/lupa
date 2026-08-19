@@ -196,7 +196,12 @@ de patrones raros, sin conservar su tabla de frecuencias, hasta un
 límite separado de 5.000 nombres. Si se alcanza ese límite, el alcance
 de la traza es parcial y `cobertura_diagnosticos` publica el límite; el
 tope de seis de la presentación no es por sí mismo una falta de
-cobertura de la traza.
+cobertura de la traza. Cada hallazgo publica también la proporción del
+patrón dominante y cuántas filas quedaron en patrones no dominantes
+excluidos por superar `umbral_patron_raro`. Si ningún patrón dominante
+alcanza `umbral_patron_dominante`, no se emite un hallazgo y la no
+medición, su proporción observada y la forma de ajustar ese argumento
+quedan en `cobertura_diagnosticos`.
 
 `filas_duplicadas` cuenta todas las filas que participan en grupos
 duplicados, en línea con la métrica y con la acción predeterminada que

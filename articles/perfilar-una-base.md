@@ -161,7 +161,11 @@ grupo, incluida la dominante. Por eso la traza puede tener más filas que
 del grupo que se debe revisar. El orden de la traza prioriza las formas
 no dominantes antes de las dominantes, para que `max_filas_hallazgo`
 conserve primero las filas accionables; la evidencia declara cuántas
-filas mostradas pertenecen a cada forma.
+filas mostradas pertenecen a cada forma. En `patron_raro`, la evidencia
+agrega la proporción del patrón dominante y las filas en patrones no
+dominantes excluidos por superar `umbral_patron_raro`; si el dominante
+no alcanza `umbral_patron_dominante`, la no medición queda en
+`cobertura_diagnosticos`.
 
 ## El muestreo declarado
 

@@ -346,12 +346,18 @@ y el texto de evidencia de `patron_raro` muestran como maximo seis
 patrones, pero la trazabilidad conserva los nombres de todos los
 patrones raros hasta un limite de 5.000; `patrones_parciales` indica que
 se alcanzo ese limite, no que se haya alcanzado el tope de presentacion.
-Si el conteo y la traza no coinciden, conserva el hallazgo y emite una
-advertencia de clase `lupa_trazabilidad_incoherente`. La guarda compara
-el total previo al truncado y respeta la unidad declarada. Una matriz no
-analizada conserva en la traza todas sus filas. Si una columna de listas
-se reconoce como constante pero no se puede contar su frecuencia, el
-conteo afectado queda en NA y `cobertura_diagnosticos` explica la no
+Cuando se emite un hallazgo `patron_raro`, su evidencia incluye la
+proporcion del patron dominante y cuantas filas pertenecen a patrones no
+dominantes que superan `umbral_patron_raro` y por eso quedan excluidos.
+Si el patron dominante no alcanza `umbral_patron_dominante`, no se emite
+el hallazgo: `cobertura_diagnosticos` declara la no medicion, su
+proporcion observada y el argumento que se puede ajustar. Si el conteo y
+la traza no coinciden, conserva el hallazgo y emite una advertencia de
+clase `lupa_trazabilidad_incoherente`. La guarda compara el total previo
+al truncado y respeta la unidad declarada. Una matriz no analizada
+conserva en la traza todas sus filas. Si una columna de listas se
+reconoce como constante pero no se puede contar su frecuencia, el conteo
+afectado queda en NA y `cobertura_diagnosticos` explica la no
 evaluación. Los índices no contienen valores. Usarlos para extraer filas
 de los datos originales puede volver a exponer datos personales; el
 paquete no realiza esa extracción y la protección de salidas no

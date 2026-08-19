@@ -42,6 +42,12 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="patrones-raros-ventana-de-operacion-visible-0-1-0">Patrones raros: ventana de operacion visible<a class="anchor" aria-label="anchor" href="#patrones-raros-ventana-de-operacion-visible-0-1-0"></a></h3>
+<ul><li>
+<code>patron_raro</code> declara en <code>cobertura_diagnosticos</code> cuando no puede ejecutarse porque el patron dominante no alcanza <code>umbral_patron_dominante</code>. La fila conserva la proporcion observada y explica como ajustar ese argumento.</li>
+<li>La evidencia de cada hallazgo <code>patron_raro</code> publica la proporcion del patron dominante y cuantas filas quedaron en patrones no dominantes excluidos por superar <code>umbral_patron_raro</code>. Ese conteo queda en la evidencia, no en la cobertura, porque no es una no medicion del diagnostico.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="patrones-raros-y-trazas-accionables-0-1-0">Patrones raros y trazas accionables<a class="anchor" aria-label="anchor" href="#patrones-raros-y-trazas-accionables-0-1-0"></a></h3>
 <ul><li>
 <code>patron_raro</code> conserva separado el tope de presentación y el alcance de la trazabilidad: <code>resumen_patrones</code> y la evidencia siguen mostrando como máximo seis patrones, mientras la traza usa sus nombres raros completos hasta un límite de 5.000. Si se alcanza ese límite, <code>cobertura_diagnosticos</code> y el alcance de la traza lo declaran.</li>

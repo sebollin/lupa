@@ -65,6 +65,9 @@ proporciones siempre estan en `[0, 1]`. `n_patrones_distintos` registra
 el total antes de truncar la tabla para informar omisiones sin
 retenerla. `n_patrones_raros` y `n_patrones_raros_trazabilidad`
 registran cuantos patrones raros habia antes de sus respectivos limites.
+`n_filas_patrones_no_dominantes_excluidos` registra cuantas filas
+pertenecen a patrones no dominantes cuya proporcion no es rara y que por
+eso quedan fuera del hallazgo.
 
 ## Details
 

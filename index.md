@@ -189,7 +189,12 @@ rare patterns. Traceability uses the complete set of rare pattern names,
 without retaining their frequency table, up to a separate limit of 5,000
 names. If that limit is reached, the trace scope is partial and
 `cobertura_diagnosticos` states the limit; the six-pattern presentation
-cap is not itself a trace gap.
+cap is not itself a trace gap. Every finding also reports the dominant
+pattern proportion and how many rows belong to non-dominant patterns
+excluded for exceeding `umbral_patron_raro`. If no dominant pattern
+reaches `umbral_patron_dominante`, no finding is emitted: the
+non-measurement, its observed proportion, and how to adjust that
+argument are recorded in `cobertura_diagnosticos`.
 
 `filas_duplicadas` counts all rows participating in duplicate groups,
 matching the metric and the default action that marks those rows. The

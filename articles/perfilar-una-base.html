@@ -222,7 +222,12 @@ contradicción de alcance, sino el localizador del grupo que se debe
 revisar. El orden de la traza prioriza las formas no dominantes antes de
 las dominantes, para que <code>max_filas_hallazgo</code> conserve
 primero las filas accionables; la evidencia declara cuántas filas
-mostradas pertenecen a cada forma.</p>
+mostradas pertenecen a cada forma. En <code>patron_raro</code>, la
+evidencia agrega la proporción del patrón dominante y las filas en
+patrones no dominantes excluidos por superar
+<code>umbral_patron_raro</code>; si el dominante no alcanza
+<code>umbral_patron_dominante</code>, la no medición queda en
+<code>cobertura_diagnosticos</code>.</p>
 </div>
 <div class="section level2">
 <h2 id="el-muestreo-declarado">El muestreo declarado<a class="anchor" aria-label="anchor" href="#el-muestreo-declarado"></a>

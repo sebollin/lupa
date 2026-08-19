@@ -171,9 +171,14 @@ las de las formas dominantes después; la evidencia informa cuántas filas
 mostradas pertenecen a cada grupo. Para `patron_raro`, la evidencia
 conserva como máximo seis nombres, pero la trazabilidad usa todos los
 nombres raros hasta su límite separado de 5.000; un recorte de ese
-límite aparece en `cobertura_diagnosticos`. En `filas_duplicadas`, tanto
-el conteo afectado como la traza incluyen todas las filas participantes;
-la evidencia informa aparte los excedentes. Un cero es una medición de
+límite aparece en `cobertura_diagnosticos`. Cada hallazgo informa además
+la proporción del patrón dominante y cuántas filas quedaron en patrones
+no dominantes excluidos por superar `umbral_patron_raro`. Si el
+dominante no alcanza `umbral_patron_dominante`, no se emite el hallazgo:
+la no medición, la proporción observada y cómo ajustar ese argumento
+quedan en `cobertura_diagnosticos`. En `filas_duplicadas`, tanto el
+conteo afectado como la traza incluyen todas las filas participantes; la
+evidencia informa aparte los excedentes. Un cero es una medición de
 cero, mientras que un `NA` declara que el conteo no pudo medirse. Si se
 separan el conteo y la traza,
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
@@ -506,7 +511,7 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file21c476b926d4.html"
+#> [1] "file224138bfa43f.html"
 unlink(c(archivo, archivo_rds))
 ```
 
