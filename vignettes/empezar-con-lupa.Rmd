@@ -88,11 +88,15 @@ Los conteos y la traza tienen unidades relacionadas, pero no necesariamente
 iguales. `mayusculas_inconsistentes` y `normalizacion_unicode` cuentan valores
 distintos (`unidad_conteo = "valor_distinto"`); su `trazabilidad` sigue
 enumerando por fila todas las filas que contienen esos valores, no sólo las
-filas defectuosas. Esas filas adicionales permiten revisar el grupo completo
-que se quiere unificar. En `filas_duplicadas`, tanto el conteo afectado como la
-traza incluyen todas las filas participantes; la evidencia informa aparte los
-excedentes. Un cero es una medición de cero, mientras que un `NA` declara que
-el conteo no pudo medirse.
+filas defectuosas. `casi_duplicados_vocabulario` usa la misma forma: cuenta
+valores variantes y traza las filas que contienen los valores del grupo
+seleccionado, incluida la forma dominante. Como es una señal heurística, esa
+traza sirve para revisar el grupo y no afirma que todas sus filas sean errores.
+En `filas_duplicadas`, tanto el conteo afectado como la traza incluyen todas
+las filas participantes; la evidencia informa aparte los excedentes. Un cero
+es una medición de cero, mientras que un `NA` declara que el conteo no pudo
+medirse. Si se separan el conteo y la traza, `perfilar()` conserva el hallazgo
+y emite una advertencia de clase `lupa_trazabilidad_incoherente`.
 
 La tabla por columna mantiene todas las proporciones en `[0, 1]`.
 

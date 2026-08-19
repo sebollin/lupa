@@ -159,9 +159,13 @@ Cada hallazgo declara la unidad de `n_evaluados`, `n_afectados` y
 `unidad_conteo`. `mayusculas_inconsistentes` y `normalizacion_unicode` usan
 `valor_distinto`: cuentan valores distintos, mientras su traza sigue siendo
 por fila. Enumera todas las filas que contienen un valor afectado, no sólo las
-filas defectuosas. Por eso una traza puede tener más filas que `n_afectados`:
-esas filas sirven para revisar o unificar el grupo completo en el sistema de
-origen.
+filas defectuosas. `casi_duplicados_vocabulario` sigue el mismo contrato: su
+conteo es la cantidad de valores variantes y su traza enumera todas las filas
+cuyo valor pertenece a un grupo seleccionado, incluida la forma dominante.
+Por eso una traza puede tener más filas que `n_afectados`: esas filas sirven
+para revisar o unificar el grupo completo en el sistema de origen. El detector
+de vocabulario es heurístico; la traza es evidencia para revisar, no un
+veredicto de que todas esas filas deban corregirse.
 
 `filas_duplicadas` cuenta todas las filas que participan en grupos duplicados,
 en línea con la métrica y con la acción predeterminada que las marca. El número
@@ -169,6 +173,12 @@ de excedentes queda en la evidencia. `0` significa que se midió que no había
 unidades afectadas; `NA` significa que el conteo no se midió. La misma
 distinción vale para la cobertura: un diagnóstico que no pudo ejecutarse queda
 en `cobertura_diagnosticos`, nunca convertido en cero en silencio.
+
+Cuando un hallazgo y su traza no coinciden, `perfilar()` conserva el hallazgo y
+emite una advertencia de clase `lupa_trazabilidad_incoherente`. La guarda
+compara el total previo al truncado, verifica ambas direcciones y respeta la
+unidad declarada; es una red de diagnóstico, no un reemplazo para alinear el
+detector y su traza.
 
 ## 🛣️ ¿`perfilar()` o `analizar()`?
 

@@ -155,9 +155,13 @@ Every finding declares the unit used by `n_evaluados`, `n_afectados`, and
 `unidad_conteo`. `mayusculas_inconsistentes` and `normalizacion_unicode` use
 `valor_distinto`: they count distinct values, while their trace remains a row
 trace. It lists every row containing an affected value, not only rows that are
-themselves defective. A trace can therefore contain more rows than
-`n_afectados`; those rows are useful when a whole collision group must be
-reviewed or unified.
+themselves defective. `casi_duplicados_vocabulario` follows the same contract:
+its count is the number of variant values, and its trace lists every row whose
+value belongs to a selected group, including the dominant form. A trace can
+therefore contain more rows than `n_afectados`; those rows are useful when a
+whole collision group must be reviewed or unified. The vocabulary detector is
+heuristic, so the trace is evidence for review, not a verdict that every row
+must be corrected.
 
 `filas_duplicadas` counts all rows participating in duplicate groups, matching
 the metric and the default action that marks those rows. The number of excess
@@ -165,6 +169,12 @@ duplicates remains in the evidence. `0` means the check measured no affected
 units; `NA` means the count was not measured. The same distinction applies to
 diagnostic coverage: a check that could not run is listed in
 `cobertura_diagnosticos`, never silently converted to zero.
+
+When a finding and its trace disagree, `perfilar()` preserves the finding and
+emits a warning with class `lupa_trazabilidad_incoherente`. The guard compares
+the pre-truncation total, checks both directions, and respects the declared
+counting unit; it is a diagnostic net, not a substitute for aligning the
+detector and its trace.
 
 ## 🛣️ `perfilar()` or `analizar()`?
 

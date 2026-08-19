@@ -225,20 +225,29 @@ edicion.}
 Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye
 n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
 declaradas (por ejemplo fila, columna, formato o par). En
-\code{mayusculas_inconsistentes} y \code{normalizacion_unicode}, la unidad es
+\code{mayusculas_inconsistentes}, \code{normalizacion_unicode} y
+\code{casi_duplicados_vocabulario}, la unidad es
 \code{valor_distinto}: \code{n_evaluados} cuenta los valores distintos evaluados y
 \code{n_afectados} los valores distintos que participan en la colisión. Su
 \code{trazabilidad} sigue siendo por fila y enumera todas las filas que
 contienen esos valores, no sólo las filas defectuosas; por eso su total
-puede ser mayor que \code{n_afectados}. En \code{filas_duplicadas}, el conteo y la
-traza incluyen todas las filas participantes de los grupos; el número de
-excedentes queda en la evidencia. Cuando el camino
+puede ser mayor que \code{n_afectados}. En \code{casi_duplicados_vocabulario}, la
+traza incluye todas las filas cuyos
+valores pertenecen al grupo elegido, incluida la forma dominante. La
+distancia es una senal heuristica, no una prueba de que cada fila deba
+corregirse.
+En \code{filas_duplicadas}, el conteo y la traza incluyen todas las filas
+participantes de los grupos; el numero de excedentes queda en la
+evidencia. Cuando el camino
 no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 \code{trazabilidad} distingue \code{disponible}, \code{truncada}, \code{no_aplica} y
 \code{no_disponible}; cuando corresponde conserva índices de fila acotados por
 \code{max_filas_hallazgo}, el total conocido y el alcance. Para \code{patron_raro},
 el alcance puede ser \code{completo}, \code{muestra_patrones},
 \code{patrones_parciales} o \code{muestra_patrones+patrones_parciales}.
+Si el conteo y la traza no coinciden, conserva el hallazgo y emite una
+advertencia de clase \code{lupa_trazabilidad_incoherente}. La guarda compara el
+total previo al truncado y respeta la unidad declarada.
 Una matriz no analizada conserva en la traza todas sus filas. Si una
 columna de listas se reconoce como constante pero no se puede contar su
 frecuencia, el conteo afectado queda en NA y \code{cobertura_diagnosticos}

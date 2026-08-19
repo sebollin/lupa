@@ -194,10 +194,14 @@ test_that("un BLOB no se convierte en un agregado cuantitativo cero", {
     "INSERT INTO blobs VALUES (1, X'0102'), (2, X'0102'), (3, NULL)"
   )
 
-  resultado <- do.call(
-    perfilar_dbi,
-    c(list(conexion = con, tabla = "blobs", muestra = 10L,
-           orden_muestra = "id"), argumentos_perfil_r105)
+  resultado <- NULL
+  expect_warning(
+    resultado <- do.call(
+      perfilar_dbi,
+      c(list(conexion = con, tabla = "blobs", muestra = 10L,
+             orden_muestra = "id"), argumentos_perfil_r105)
+    ),
+    class = "lupa_trazabilidad_incoherente"
   )
   fila <- resultado$resumen_tabla$columnas[
     resultado$resumen_tabla$columnas$columna == "contenido", , drop = FALSE

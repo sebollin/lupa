@@ -1,5 +1,16 @@
 # lupa 0.1.0
 
+## La traza de vocabulario y la guarda de coherencia cierran el circuito
+
+- `casi_duplicados_vocabulario` conserva `unidad_conteo = "valor_distinto"`
+  y ahora enumera las filas que contienen los valores de cada grupo
+  seleccionado, incluida la forma dominante. La distancia sigue siendo una
+  señal heurística, no una afirmación de identidad.
+- `perfilar()` conserva cualquier hallazgo cuya traza no coincida y emite la
+  advertencia de clase `lupa_trazabilidad_incoherente`. La guarda compara el
+  total anterior al límite de presentación, funciona en ambas direcciones y
+  adapta la comparación a la unidad declarada.
+
 ## Conteos y trazabilidad dejan de mezclar unidades
 
 - `mayusculas_inconsistentes` y `normalizacion_unicode` declaran

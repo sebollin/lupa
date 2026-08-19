@@ -422,20 +422,29 @@
 #' @return Objeto S3 de clase `perfil`. Cada fila de hallazgos incluye
 #'   n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
 #'   declaradas (por ejemplo fila, columna, formato o par). En
-#'   `mayusculas_inconsistentes` y `normalizacion_unicode`, la unidad es
+#'   `mayusculas_inconsistentes`, `normalizacion_unicode` y
+#'   `casi_duplicados_vocabulario`, la unidad es
 #'   `valor_distinto`: `n_evaluados` cuenta los valores distintos evaluados y
 #'   `n_afectados` los valores distintos que participan en la colisión. Su
 #'   `trazabilidad` sigue siendo por fila y enumera todas las filas que
 #'   contienen esos valores, no sólo las filas defectuosas; por eso su total
-#'   puede ser mayor que `n_afectados`. En `filas_duplicadas`, el conteo y la
-#'   traza incluyen todas las filas participantes de los grupos; el número de
-#'   excedentes queda en la evidencia. Cuando el camino
+#'   puede ser mayor que `n_afectados`. En `casi_duplicados_vocabulario`, la
+#'   traza incluye todas las filas cuyos
+#'   valores pertenecen al grupo elegido, incluida la forma dominante. La
+#'   distancia es una senal heuristica, no una prueba de que cada fila deba
+#'   corregirse.
+#'   En `filas_duplicadas`, el conteo y la traza incluyen todas las filas
+#'   participantes de los grupos; el numero de excedentes queda en la
+#'   evidencia. Cuando el camino
 #'   no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 #'   `trazabilidad` distingue `disponible`, `truncada`, `no_aplica` y
 #'   `no_disponible`; cuando corresponde conserva índices de fila acotados por
 #'   `max_filas_hallazgo`, el total conocido y el alcance. Para `patron_raro`,
 #'   el alcance puede ser `completo`, `muestra_patrones`,
 #'   `patrones_parciales` o `muestra_patrones+patrones_parciales`.
+#'   Si el conteo y la traza no coinciden, conserva el hallazgo y emite una
+#'   advertencia de clase `lupa_trazabilidad_incoherente`. La guarda compara el
+#'   total previo al truncado y respeta la unidad declarada.
 #'   Una matriz no analizada conserva en la traza todas sus filas. Si una
 #'   columna de listas se reconoce como constante pero no se puede contar su
 #'   frecuencia, el conteo afectado queda en NA y `cobertura_diagnosticos`

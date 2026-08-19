@@ -44,6 +44,41 @@
   )
 }
 
+.limitar_trazabilidad <- function(trazabilidad, limite = 1000L,
+                                  clave = NULL, datos = NULL) {
+  if (!is.list(trazabilidad) ||
+      identical(trazabilidad$estado, "no_disponible")) {
+    return(trazabilidad)
+  }
+  indices <- as.integer(trazabilidad$indices_fila)
+  indices <- indices[!is.na(indices)]
+  trazabilidad$limite <- if (is.infinite(limite)) Inf else as.integer(limite)
+  trazabilidad$indices_fila <- utils::head(indices, limite)
+  trazabilidad$mostrados <- length(trazabilidad$indices_fila)
+  trazabilidad$truncado <- is.finite(trazabilidad$total) &&
+    trazabilidad$mostrados < trazabilidad$total
+  trazabilidad$estado <- if (trazabilidad$truncado) {
+    "truncada"
+  } else {
+    "disponible"
+  }
+  if (!is.null(clave)) {
+    trazabilidad$claves <- .claves_de_filas(
+      datos, clave, trazabilidad$indices_fila
+    )
+  }
+  hay_claves <- !is.null(trazabilidad$claves) &&
+    is.data.frame(trazabilidad$claves) && nrow(trazabilidad$claves) > 0L
+  trazabilidad$localizador <- if (hay_claves) {
+    "clave_declarada"
+  } else if (length(trazabilidad$indices_fila)) {
+    "indice_fila"
+  } else {
+    "ninguno"
+  }
+  trazabilidad
+}
+
 # Las claves se devuelven como data frame: una fila por indice mostrado y una
 # columna por componente de la clave. Concatenarlas perderia los tipos y haria
 # ambigua una clave compuesta cuyos valores contengan el separador.
@@ -1162,6 +1197,27 @@
       } else 0,
       "valor_distinto"
     )
+    if (hay_grupos) {
+      textos <- tryCatch(
+        suppressWarnings(as.character(.texto_analizable(datos[[i]])$valores)),
+        error = function(e) NULL
+      )
+      variantes <- unique(unlist(lapply(
+        grupos$grupos, `[[`, "variantes"
+      ), use.names = FALSE))
+      indices <- if (!is.null(textos)) {
+        which(!is.na(textos) & textos %in% variantes)
+      } else integer()
+      indices_unidades <- if (!is.null(textos)) {
+        match(variantes, textos)
+      } else integer()
+      indices_unidades <- as.integer(indices_unidades[!is.na(indices_unidades)])
+      traza <- .trazabilidad_indices(indices, "completo", limite = Inf)
+      traza$indices_unidades <- indices_unidades
+      hallazgo <- hallazgos[[length(hallazgos)]]
+      hallazgo$trazabilidad <- I(list(traza))
+      hallazgos[[length(hallazgos)]] <- hallazgo
+    }
   }
   salida <- hallazgos
   attr(salida, "cobertura_diagnosticos") <- if (length(cobertura)) {
@@ -1588,6 +1644,14 @@
   if (unidad %in% c("columna", "formato")) {
     return(.trazabilidad_vacia("no_aplica", alcance = "no_aplica", limite = limite))
   }
+  trazabilidad_precalculada <- hallazgo$trazabilidad[[1L]]
+  if (tipo == "casi_duplicados_vocabulario" &&
+      is.list(trazabilidad_precalculada) &&
+      !identical(trazabilidad_precalculada$estado, "no_disponible")) {
+    return(.limitar_trazabilidad(
+      trazabilidad_precalculada, limite = limite, clave = clave, datos = datos
+    ))
+  }
   if (tipo %in% c(
       "duplicados_aproximados", "duplicados_exactos_columnas",
       "duplicados_exactos_normalizados"
@@ -1665,17 +1729,9 @@
     trazabilidad <- hallazgo$trazabilidad[[1L]]
     if (is.list(trazabilidad) &&
         !identical(trazabilidad$estado, "no_disponible")) {
-      trazabilidad$limite <- if (is.infinite(limite)) Inf else as.integer(limite)
-      trazabilidad$indices_fila <- utils::head(
-        trazabilidad$indices_fila, limite
-      )
-      trazabilidad$mostrados <- length(trazabilidad$indices_fila)
-      trazabilidad$truncado <- is.finite(trazabilidad$total) &&
-        trazabilidad$mostrados < trazabilidad$total
-      trazabilidad$estado <- if (trazabilidad$truncado) {
-        "truncada"
-      } else "disponible"
-      return(trazabilidad)
+      return(.limitar_trazabilidad(
+        trazabilidad, limite = limite, clave = clave, datos = datos
+      ))
     }
     return(.trazabilidad_vacia(limite = limite))
   }
@@ -1727,7 +1783,133 @@
     )
   })
   hallazgos$trazabilidad <- I(trazabilidad)
+  .advertir_incoherencias_trazabilidad(hallazgos, datos, nombres)
   hallazgos
+}
+
+.indices_unidades_valor_distinto <- function(tipo, x, trazabilidad) {
+  if (tipo == "casi_duplicados_vocabulario") {
+    representantes <- trazabilidad$indices_unidades
+    if (is.null(representantes)) return(NULL)
+    textos <- tryCatch(
+      suppressWarnings(as.character(.texto_analizable(x)$valores)),
+      error = function(e) NULL
+    )
+    if (is.null(textos)) return(NULL)
+    unidades <- textos[as.integer(representantes)]
+    return(list(
+      indices = which(!is.na(textos) & textos %in% unidades),
+      n_unidades = length(representantes)
+    ))
+  }
+  textos <- tryCatch(
+    suppressWarnings(as.character(.texto_analizable(x)$valores)),
+    error = function(e) NULL
+  )
+  if (is.null(textos)) return(NULL)
+  presentes <- !is.na(textos)
+  unicos <- unique(textos[presentes])
+  if (tipo == "mayusculas_inconsistentes") {
+    canonicos <- tolower(unicos)
+  } else if (tipo == "normalizacion_unicode" &&
+             requireNamespace("stringi", quietly = TRUE)) {
+    canonicos <- stringi::stri_trans_nfc(unicos)
+  } else {
+    return(NULL)
+  }
+  colision <- duplicated(canonicos) | duplicated(canonicos, fromLast = TRUE)
+  list(
+    indices = which(presentes & textos %in% unicos[colision]),
+    n_unidades = sum(colision)
+  )
+}
+
+.advertir_incoherencias_trazabilidad <- function(hallazgos, datos = NULL,
+                                                 nombres = NULL) {
+  if (!nrow(hallazgos)) return(invisible(hallazgos))
+  problemas <- character()
+  for (i in seq_len(nrow(hallazgos))) {
+    severidad <- as.character(hallazgos$severidad[[i]])
+    afectados <- hallazgos$n_afectados[[i]]
+    unidad <- as.character(hallazgos$unidad_conteo[[i]])
+    traza <- hallazgos$trazabilidad[[i]]
+    if (identical(severidad, "ok") || !is.list(traza)) next
+    etiqueta <- paste0(
+      as.character(hallazgos$tipo_hallazgo[[i]]), " en ",
+      as.character(hallazgos$columna[[i]])
+    )
+    if (isTRUE(is.finite(afectados)) && afectados == 0) {
+      problemas <- c(problemas, paste0(etiqueta, ": n_afectados=0"))
+      next
+    }
+    if (!isTRUE(is.finite(afectados)) || is.na(unidad)) next
+    no_aplica <- identical(traza$estado, "no_aplica") ||
+      identical(traza$alcance, "no_aplica")
+    if (unidad %in% c("columna", "formato") && !no_aplica) {
+      problemas <- c(problemas, paste0(etiqueta, ": falta no_aplica"))
+      next
+    }
+    if (no_aplica || unidad %in% c("par", "valor_positivo")) next
+    if (identical(traza$estado, "no_disponible")) {
+      problemas <- c(problemas, paste0(etiqueta, ": traza no disponible"))
+      next
+    }
+    total <- traza$total
+    indices <- unique(as.integer(traza$indices_fila))
+    if (!isTRUE(is.finite(total)) ||
+        (total != length(indices) && !isTRUE(traza$truncado))) {
+      problemas <- c(problemas, paste0(
+        etiqueta, ": total de traza no coincide con sus indices"
+      ))
+      next
+    }
+    if (unidad %in% c("fila", "geometria")) {
+      if (total != afectados) {
+        problemas <- c(problemas, paste0(
+          etiqueta, ": cuenta ", afectados, " y traza ", total
+        ))
+      }
+      next
+    }
+    if (unidad == "valor_distinto" && !is.null(datos) &&
+        !is.null(nombres)) {
+      columna <- as.character(hallazgos$columna[[i]])
+      indice_columna <- match(columna, nombres)
+      esperados <- if (!is.na(indice_columna)) {
+        .indices_unidades_valor_distinto(
+          as.character(hallazgos$tipo_hallazgo[[i]]),
+          datos[[indice_columna]], traza
+        )
+      } else NULL
+      if (!is.null(esperados)) {
+        esperados_filas <- unique(as.integer(esperados$indices))
+        if (esperados$n_unidades != afectados ||
+            total != length(esperados_filas) ||
+            any(!indices %in% esperados_filas) ||
+            (!isTRUE(traza$truncado) &&
+              any(!esperados_filas %in% indices))) {
+          problemas <- c(problemas, paste0(
+            etiqueta, ": unidades y filas trazadas no coinciden"
+          ))
+        }
+      }
+    }
+  }
+  if (length(problemas)) {
+    condicion <- structure(
+      list(
+        message = paste0(
+          "La trazabilidad contiene incoherencias: ",
+          paste(problemas, collapse = "; "),
+          ". Se conserva el hallazgo para no ocultar la evidencia."
+        ),
+        call = NULL
+      ),
+      class = c("lupa_trazabilidad_incoherente", "warning", "condition")
+    )
+    warning(condicion)
+  }
+  invisible(hallazgos)
 }
 
 .tipos_equivalentes <- function(declarado, inferido) {

@@ -53,7 +53,11 @@ test_that("un dominio disponible sobre solo vacias tiene universo cero", {
   geometria <- sf::st_sfc(sf::st_point(), sf::st_point(), crs = 4326)
 
   metricas <- lupa:::.perfilar_geometria(geometria)
-  perfil <- perfilar_sf_ronda95(geometria)
+  perfil <- NULL
+  expect_warning(
+    perfil <- perfilar_sf_ronda95(geometria),
+    class = "lupa_trazabilidad_incoherente"
+  )
   fila <- fila_geometria_ronda95(perfil)
 
   expect_true(metricas$dominio_evaluado)
