@@ -107,56 +107,133 @@ una parte de esas posiciones. En `beers/state`, la diferencia dirty/clean es
 estructura observada con su propio conteo de filas, no una correspondencia
 uno-a-uno con esas 127 posiciones.
 
-## PED y RIOLU: estado de disponibilidad y alcance
+## PED y RIOLU: lo medido
 
-No se inventa un numero cuando no hubo una copia alineada. En esta corrida se
-intentaron las URLs exactas de raw GitHub; el entorno de ejecucion no pudo
-resolver `raw.githubusercontent.com`. Esto es una limitacion local de red, no
-un diagnostico de que los hosts remotos esten caidos. Los scripts tambien fueron
-probados con copias locales y entonces construyen la verdad y pasan el resultado
-a `lupa`; se pueden repetir sin red con `PED_DATA_DIR` y `RIOLU_DATA_DIR`.
+Medicion del 2026-08-18 sobre una copia local descargada para medir y **no
+redistribuida**. Se repite sin red con `PED_DATA_DIR` y `RIOLU_DATA_DIR`.
 
-La unidad de `PED` es la posicion `(fila, columna)` listada en
-`difference.csv` (`Index`, `Attribute`). La unidad de `RIOLU` es la posicion
-cuya etiqueta en `gt_*.csv` es exactamente `1`; `0` y `-1` no cuentan. En ambos
-casos `dirty.csv` y `clean.csv` solo comprueban que la copia este alineada: no
-reemplazan la verdad publicada.
+La unidad de `PED` es la posicion `(fila, columna)` listada en `difference.csv`
+(`Index`, `Attribute`). La unidad de `RIOLU` es la posicion cuya etiqueta en
+`gt_*.csv` es exactamente `1`; `0` y `-1` no cuentan. En ambos casos `dirty.csv` y
+`clean.csv` solo comprueban que la copia este alineada: no reemplazan la verdad
+publicada.
 
-| Banco / conjunto | Estado | Numero que se publicaria si la copia estuviera disponible | Condiciones de descarga y licencia |
-| --- | --- | --- | --- |
-| PED / Flight | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | [Raw PED](https://raw.githubusercontent.com/twinklelittlestars/PED/main/data/Flight/); `PED_DATA_DIR`. El repositorio no declara licencia; se baja para medir y no se redistribuye. |
-| PED / Hospital | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | [Raw PED](https://raw.githubusercontent.com/twinklelittlestars/PED/main/data/Hospital/); `PED_DATA_DIR`. Sin licencia declarada; no se redistribuye. |
-| PED / MIMIC | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | [Raw PED](https://raw.githubusercontent.com/twinklelittlestars/PED/main/data/MIMIC/); `PED_DATA_DIR`. Sin licencia declarada; no se redistribuye. |
-| PED / Plane | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | [Raw PED](https://raw.githubusercontent.com/twinklelittlestars/PED/main/data/Plane/); `PED_DATA_DIR`. Sin licencia declarada; no se redistribuye. |
-| PED / Soccer | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | [Raw PED](https://raw.githubusercontent.com/twinklelittlestars/PED/main/data/Soccer/); `PED_DATA_DIR`. Sin licencia declarada; no se redistribuye. |
-| RIOLU / flights | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | [Raw RIOLU](https://raw.githubusercontent.com/mooselab/Discover-Data-Quality-With-RIOLU/main/); codigo MIT; licencia separada de los datos no declarada; no se redistribuyen. |
-| RIOLU / hosp_100k | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | Misma fuente y condiciones que RIOLU; `RIOLU_DATA_DIR`. |
-| RIOLU / hosp_10k | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | Misma fuente y condiciones que RIOLU; `RIOLU_DATA_DIR`. |
-| RIOLU / hosp_1k | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | Misma fuente y condiciones que RIOLU; `RIOLU_DATA_DIR`. |
-| RIOLU / movies | No medido en esta corrida | Sin numero: no hubo copia local ni descarga ejecutable | Misma fuente y condiciones que RIOLU; `RIOLU_DATA_DIR`. |
+| Banco / conjunto | Filas x col | % celdas corruptas | Celdas de verdad | Trazables | Aciertos | Precision | Cobertura | Techo | Cobertura / techo |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| PED / Hospital | 1000 x 19 | 2,7 % | 509 | 4035 | 172 | 0,043 | 0,338 | 0,762 | 44 % |
+| RIOLU / movies | 7390 x 5 | 4,5 % | 1321 | 1763 | 588 | 0,334 | 0,445 | 1,000 | 45 % |
+| PED / Flight | 2376 x 6 | 18,3 % | 2608 | 546 | 447 | 0,819 | 0,171 | 0,423 | 40 % |
+| RIOLU / hosp_10k | 10000 x 7 | 24,3 % | 7289 | 1550 | 1406 | 0,907 | 0,193 | 0,608 | 32 % |
+| RIOLU / hosp_1k | 999 x 7 | 25,2 % | 755 | 156 | 144 | 0,923 | 0,191 | 0,656 | 29 % |
+| RIOLU / flights | 74066 x 6 | 52,5 % | 233173 | 16889 | 6240 | 0,369 | 0,027 | 1,000 | **3 %** |
+| RIOLU / hosp_100k | 100000 x 7 | 53,4 % | 160186 | 14700 | 13422 | 0,913 | 0,084 | 0,311 | 27 % |
 
-Cuando haya datos, `benchmark/medir_bancos.R` publicara por cada conjunto:
+### El techo estructural, y por que la cobertura no se lee sin el
 
-- `celdas_verdad`: posiciones de la verdad del banco;
-- `celdas_con_hallazgo_trazable`: union de posiciones que `lupa` adjunta a
-  hallazgos no `ok`, con filas localizables;
-- `celdas_acertadas_trazables`: interseccion de las dos anteriores;
-- `precision_celdas_trazables`: aciertos trazables dividido por hallazgos
-  trazables;
-- `cobertura_celdas_verdad`: aciertos trazables dividido por celdas de verdad;
-- `columnas_verdad_con_hallazgo`: interseccion de columnas con verdad y
-  columnas con hallazgo.
+**`Techo`** es la fraccion de las celdas de verdad cuyo valor corrupto **cambia el
+patron** de la columna. El resto conserva la forma dominante y es invisible para
+cualquier metodo basado en forma, `lupa` incluido.
 
-Estos nombres declaran los denominadores. `cobertura_celdas_verdad` no es
-recall de un clasificador y `columnas_verdad_con_hallazgo` es cobertura de
-columnas, no recall de celdas.
+En la columna `zip` de RIOLU el techo es **cero**: los 46 valores corruptos siguen
+teniendo cinco digitos. Un codigo postal equivocado es indistinguible de uno
+correcto sin un padron externo de codigos validos. Lo mismo con `LA` en lugar de
+`AL`, o con un telefono al que se le cambio un digito sin cambiar el largo.
 
-Como control de procedencia, los tamanos de bytes informados para las fuentes
-son metadatos del archivo, no resultados de `lupa`: PED Flight tiene
-`clean.csv` de 159992, `dirty.csv` de 163038 y `difference.csv` de 41526;
-PED Hospital tiene 299425, 299433 y 7359 respectivamente; RIOLU informa
-`gt_flights.csv` 1556500, `gt_hosp_100k.csv` 1288912,
-`gt_hosp_10k.csv` 118911, `gt_hosp_1k.csv` 10900 y `gt_movies.csv` 103021.
+Publicar la cobertura sin el techo hace parecer un fracaso lo que es un limite del
+metodo. `0,191` contra un techo de `0,656` significa **capturar el 29 % de lo
+capturable**, no fallar el 81 %.
+
+### Las dos precisiones no son comparables entre si
+
+Hay una asimetria deliberada en el alcance que **hay que leer antes que los
+numeros**: los conjuntos de `RIOLU` se miden restringiendo `lupa` a `patron_raro`,
+porque la verdad de ese banco son anomalias de patron; los de `PED` se miden con
+**todos** los diagnosticos, porque su verdad son las celdas que difieren entre la
+copia sucia y la limpia.
+
+Poner `0,923` al lado de `0,043` sin decir esto invita a una conclusion falsa.
+
+### Por que la precision de PED/Hospital es baja, y por que no es un error
+
+Las celdas trazables de esa tabla se reparten asi:
+
+| diagnostico | celdas trazables |
+| --- | ---: |
+| `constante` | 2000 |
+| `numero_como_texto` | 1761 |
+| `unidades_mixtas` | 1759 |
+| `patron_raro` | 197 |
+| `outliers` | 99 |
+| `codificacion_rota` | 1 |
+
+**El 95 % viene de tres diagnosticos que dicen algo verdadero sobre la tabla y
+ajeno a lo que el banco etiqueta.** Dos columnas efectivamente tienen un unico
+valor; los numeros efectivamente estan guardados como texto; las unidades
+efectivamente estan mezcladas. Nada de eso es una errata inyectada, que es lo que
+`difference.csv` marca.
+
+Es un desajuste de **categoria**, no de acierto. La medida lo confirma: restringido
+a `patron_raro`, el mismo conjunto pasa de **0,043 a 0,711** de precision.
+
+### El limite duro: cuando la corrupcion es mayoria
+
+`RIOLU / flights` es el unico conjunto donde `lupa` anda claramente mal: precision
+`0,369` y cobertura `0,027` **contra un techo de 1,000**, o sea que las anomalias si
+cambian el patron y aun asi no las ve.
+
+La causa esta en la tercera columna de la tabla: **el 52,5 % de sus celdas estan
+corruptas**. El analisis de patrones supone que **la forma dominante es la
+correcta**. Con mas de la mitad de las celdas mal, la forma dominante *es* la
+corrupta, y el supuesto se invierte.
+
+Es una condicion de uso, no una excusa: sobre una tabla con la mitad de las celdas
+corruptas, este metodo no aplica.
+
+### Las perillas se midieron y no se movieron
+
+Se barrieron `expandir` y `umbral_patron_raro` en los siete conjuntos. Sobre RIOLU,
+`expandir = TRUE` con `umbral = 0,10` mejora **las dos** metricas a la vez —en
+`hosp_1k`, de `0,923 / 0,191` a `0,955 / 0,334`— y no agrega un solo falso positivo
+sobre la bateria de 31 tablas limpias.
+
+**Sobre PED hace lo contrario**: cambia cobertura por precision. En `Flight` va de
+`0,819 / 0,171` a `0,945 / 0,166`.
+
+Por eso **los valores por omision no se cambiaron**. Calibrarlos contra el banco
+que se reporta es sobreajuste, y la evidencia disponible apunta en dos direcciones
+segun el banco.
+
+### Completitud: contraste contra un generador independiente
+
+El paquete `messy` genera desorden con un catalogo escrito por terceros, para otro
+fin, de modo que no puede estar ajustado a lo que `lupa` detecta. Se aplico cada
+una de sus transformaciones por separado sobre una tabla limpia y se comprobo si
+`lupa` produce el diagnostico especifico correspondiente:
+
+| transformacion | diagnostico esperado | resultado |
+| --- | --- | --- |
+| `add_special_chars` | `patron_raro` | detectado |
+| `add_whitespace` | `espacios_sobrantes` | detectado |
+| `change_case` | `mayusculas_inconsistentes` | detectado |
+| `duplicate_rows` | `filas_duplicadas` | detectado |
+| `make_missing` | `faltantes` | detectado |
+| `messy_colnames` | `nombres_columnas_problematicos` | detectado |
+| `messy_date_formats` | `formatos_fecha_mixtos` | detectado |
+| `split_dates` | `fecha_partida_columnas` | detectado |
+
+**Ocho de ocho.** No se publican cifras de precision contra `messy`: es sintetico y
+su modelo de corrupcion es propio, asi que serviria para medir contra un blanco que
+podriamos moldear. Se usa solo como control de completitud.
+
+### No medidos de PED, con su razon
+
+| Fuente | Razon |
+| --- | --- |
+| PED / MIMIC, PED / Plane | `difference.csv` no coincide con las celdas que difieren entre `dirty.csv` y `clean.csv` |
+| PED / Soccer | los archivos no estan publicados en la ruta declarada |
+
+Ninguna fila se publica sin razon declarada. `TableEG` y `AddressTable` tienen su
+propia seccion mas abajo.
 
 ## TableEG y AddressTable: intento y motivo de no medicion
 
