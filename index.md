@@ -8,6 +8,49 @@ controlled cleanup of a copy, and approximate duplicate detection at
 scale. Instead of a single opaque score, every result carries its scope,
 evidence, and uncertainty.
 
+**Whole databases, not just one table.**
+[`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
+declares which tables make up a database — schema included, because the
+schema is part of a table’s identity — and
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+returns one row per table plus the coverage of what it could not
+measure. The boundary is *declared*, never discovered: walking a
+catalogue would turn a permissions error into a result, and real
+collections run past a thousand tables across dozens of schemas. Tables
+a credential cannot read land in `cobertura_coleccion` with their
+reason, never as a zero — partial permissions are the normal case, not
+the edge. There is no snapshot: every table carries the moment it was
+measured, and the object says so.
+
+**Contradictions no single column shows.** Declare that several columns
+encode the same fact with
+[`senal_redundante()`](https://sebollin.github.io/lupa/reference/senal_redundante.md),
+and
+[`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md)
+reports the rows where they disagree — the year of the date against the
+fiscal year against the file year. Each of the three can be perfectly
+plausible on its own and still contradict the others. The group is
+declared, never guessed: two year columns might be birth year and
+enrolment year, and there is no reason for those to match.
+
+**Findings you can verify, not just read.** Pass `clave` to
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+with the columns that identify a row, and every finding’s traceability
+carries those values for the rows it points at — so you can look the
+case up in the source system without opening the table. Row indices stay
+as the fallback; `trazabilidad$localizador` says which one you got.
+There is a tension the feature cannot ignore: the key that lets you
+verify is exactly what identifies a person, so a key column classified
+as personal data comes back masked, the same way evidence does, and
+`claves_protegidas` says which.
+
+**Profiling never touches your data.** No analysis function alters the
+table it receives — not its values, its types, its names, or its
+attributes — including `data.table` inputs, which R allows to be
+modified by reference. Only the remediation layer produces different
+data, and it returns a copy: the table you passed in is still the table
+you have. A regression test asserts this for every entry point.
+
 ## 🌎 API language
 
 The public names are Spanish in examples, help pages, and vignettes:
@@ -106,6 +149,15 @@ filter is then evaluated on the complete column; `Inf` makes even the
 preliminary pass complete. Approximate duplicates are off by default and
 have their own declared bounds when enabled.
 
+In
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md),
+`pares$tipo_par` is self-describing: `exacto` means the stored texts are
+equal, `exacto_normalizado` means they only match after the declared
+normalization, and `aproximado` means they remain similar rather than
+equal. `pares$igualo_normalizar` marks the middle case. The
+corresponding scope counts are `n_pares_exactos`,
+`n_pares_exactos_normalizados`, and `n_pares_aproximados`.
+
 The result records the effective scope in `meta$muestra`,
 `meta$filas_analizadas`, and `meta$muestreo`; each column also records
 `n_filas_analizadas_tipo` and `muestreado_tipo_inferido`, while the
@@ -114,6 +166,46 @@ dependency table carries its analysed-row and sampling attributes.
 reuses `muestra = 1e5` for its profile, distributions, and
 observed-level enumeration, and declares separate limits for
 associations and the other components.
+
+## 🔢 Declared units and row traceability
+
+Every finding declares the unit used by `n_evaluados`, `n_afectados`,
+and `unidad_conteo`. `mayusculas_inconsistentes` and
+`normalizacion_unicode` use `valor_distinto`: they count distinct
+values, while their trace remains a row trace. It lists every row
+containing an affected value, not only rows that are themselves
+defective. `casi_duplicados_vocabulario` follows the same contract: its
+count is the number of variant values, and its trace lists every row
+whose value belongs to a selected group, including the dominant form. A
+trace can therefore contain more rows than `n_afectados`; those rows are
+useful when a whole collision group must be reviewed or unified. The
+vocabulary detector is heuristic, so the trace is evidence for review,
+not a verdict that every row must be corrected. The trace presents
+non-dominant forms first and dominant forms afterward; its evidence
+reports how many displayed rows belong to each.
+
+For `patron_raro`, `resumen_patrones` and the evidence show at most six
+rare patterns. Traceability uses the complete set of rare pattern names,
+without retaining their frequency table, up to a separate limit of 5,000
+names. If that limit is reached, the trace scope is partial and
+`cobertura_diagnosticos` states the limit; the six-pattern presentation
+cap is not itself a trace gap.
+
+`filas_duplicadas` counts all rows participating in duplicate groups,
+matching the metric and the default action that marks those rows. The
+number of excess duplicates remains in the evidence. `0` means the check
+measured no affected units; `NA` means the count was not measured. The
+same distinction applies to diagnostic coverage: a check that could not
+run is listed in `cobertura_diagnosticos`, never silently converted to
+zero.
+
+When a finding and its trace disagree,
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+preserves the finding and emits a warning with class
+`lupa_trazabilidad_incoherente`. The guard compares the pre-truncation
+total, checks both directions, and respects the declared counting unit;
+it is a diagnostic net, not a substitute for aligning the detector and
+its trace.
 
 ## 🛣️ `perfilar()` or `analizar()`?
 
@@ -135,6 +227,27 @@ proposal was inferred by `lupa`; nobody has confirmed it. Use
 confirmed proposal/model. The function aggregates immediately and keeps
 the small dashboard; `conservar_detalle_medicion = TRUE` retains the
 row-level measurement detail.
+
+**Where the value distribution and the correlations live.** Both are in
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+not in
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+and that separation is deliberate:
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) is
+the cheap pass whose object you carry around, while
+[`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
+and
+[`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md)
+cost more and produce tables of their own.
+[`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
+returns per-column frequencies and quantiles with a declared cap and
+truncation flag;
+[`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md)
+returns Pearson between numeric columns — or Spearman, with
+`metodo_numerico = "spearman"`, for a monotone relationship that isn’t
+linear — plus Cramér’s V and eta squared, each row declaring its method
+and its assumption. Both are exported, so you can call them on their own
+without paying for the whole route.
 
 ## 🚦 Severities and automation
 

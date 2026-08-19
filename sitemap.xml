@@ -1,5 +1,6 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://sebollin.github.io/lupa/404.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/CONTRIBUTING.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/README.es.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/articles/definir-la-calidad.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/articles/empezar-con-lupa.html</loc></url>
@@ -20,6 +21,7 @@
 <url><loc>https://sebollin.github.io/lupa/reference/catalogo_agesic.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/clasificar_variables.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/cobertura_analisis.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/coleccion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/comparar_evaluaciones.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/comparar_perfiles.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/contratos_medicion.html</loc></url>
@@ -30,11 +32,14 @@
 <url><loc>https://sebollin.github.io/lupa/reference/detectar_claves.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/detectar_dependencias.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/detectar_discordancias.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/detectar_relaciones.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/distribucion_valores.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/estadisticos_estimacion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/estimar_costo.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/estimar_costo_coleccion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/evaluar.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/granularidades.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/guardar_historico.html</loc></url>
@@ -45,6 +50,7 @@
 <url><loc>https://sebollin.github.io/lupa/reference/inferir_tipo.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/lupa-package.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/marco_calidad.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/medicion_desde_estimaciones.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/medir.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/metricas_referencial.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/modelo_calidad.html</loc></url>
@@ -52,13 +58,17 @@
 <url><loc>https://sebollin.github.io/lupa/reference/normalizacion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/pack_validadores.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/perfilar.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/perfilar_coleccion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/perfilar_dbi.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/persistir_analisis.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/planificar_limpieza.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/propiedades_regla.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/proponer_modelo.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/referencial.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/reglas_evaluacion.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/relaciones_coleccion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/reportar.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/senal_redundante.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/sentinelas_naniar.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/tablero_calidad.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/validadores_formato.html</loc></url>

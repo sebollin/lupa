@@ -117,23 +117,35 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.368 pares en
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 33.124 pares en
 #> 0,050 s.
-exacto$pares[, c("fila_1", "fila_2", "distancia", "tipo_par")]
-#>   fila_1 fila_2 distancia   tipo_par
-#> 1      3      4 0.0000000     exacto
-#> 2      5      6 0.0000000     exacto
-#> 3      7      8 0.0000000     exacto
-#> 4      1      2 0.0173913 aproximado
+exacto$pares[, c(
+  "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
+)]
+#>   fila_1 fila_2 distancia           tipo_par igualo_normalizar
+#> 1      3      4 0.0000000             exacto             FALSE
+#> 2      5      6 0.0000000 exacto_normalizado              TRUE
+#> 3      7      8 0.0000000 exacto_normalizado              TRUE
+#> 4      1      2 0.0173913         aproximado             FALSE
 lsh$alcance[, c("modo_comparacion", "n_pares_comparados", "n_pares_hallados")]
 #>   modo_comparacion n_pares_comparados n_pares_hallados
 #> 1      lsh_minhash                  4                4
 ```
 
-Un par parecido nunca se presenta como identidad y no se propone
-eliminar ni fusionar registros. Si `stringdist` no está disponible, el
-resultado declara que la comparación no se ejecutó en vez de fallar con
-un error críptico.
+`tipo_par = "exacto"` se reserva para textos guardados iguales.
+`"exacto_normalizado"` identifica una coincidencia producida por la
+normalización y `igualo_normalizar` la marca fila a fila; `"aproximado"`
+queda para los pares que siguen siendo similares. Un par parecido nunca
+se presenta como identidad y no se propone eliminar ni fusionar
+registros. Si `stringdist` no está disponible, el resultado declara que
+la comparación no se ejecutó en vez de fallar con un error críptico.
+
+Los duplicados exactos que informa
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+siguen otra unidad: el hallazgo `filas_duplicadas` cuenta todas las
+filas que participan en grupos duplicados y las enumera en la traza. La
+evidencia conserva además cuántas son excedentes, porque esa cifra sólo
+corresponde a la acción que conserva la primera fila.
 
 ## Bloquear declarando la pérdida
 
@@ -180,13 +192,13 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/RtmpbQweyP/lupa-lotes-213716664496/lupa-lotes-213733c253df"
+#> [1] "/tmp/RtmpjMKY2H/lupa-lotes-22012361e455/lupa-lotes-2201ad31f84"
 #> 
 #> $n_parciales
 #> [1] 6
 #> 
 #> $bytes_totales
-#> [1] 1516
+#> [1] 1608
 #> 
 #> $reanudable
 #> [1] FALSE

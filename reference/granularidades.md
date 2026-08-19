@@ -42,7 +42,7 @@ granularidades()
 #> 4      4       instanciaEntidad                tupla         TRUE
 #> 5      5                entidad                tabla         TRUE
 #> 6      6      conjuntoEntidades   conjunto de tablas         TRUE
-#> 7      7              coleccion        base de datos        FALSE
+#> 7      7              coleccion        base de datos         TRUE
 #> 8      8    conjuntoColecciones                 <NA>        FALSE
 #> 9      9           organizacion                 <NA>        FALSE
 #> 10    10 conjuntoOrganizaciones                 <NA>        FALSE

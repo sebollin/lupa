@@ -42,6 +42,151 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="patrones-raros-y-trazas-accionables-0-1-0">Patrones raros y trazas accionables<a class="anchor" aria-label="anchor" href="#patrones-raros-y-trazas-accionables-0-1-0"></a></h3>
+<ul><li>
+<code>patron_raro</code> conserva separado el tope de presentación y el alcance de la trazabilidad: <code>resumen_patrones</code> y la evidencia siguen mostrando como máximo seis patrones, mientras la traza usa sus nombres raros completos hasta un límite de 5.000. Si se alcanza ese límite, <code>cobertura_diagnosticos</code> y el alcance de la traza lo declaran.</li>
+<li>Las ausencias de una columna de lista se nombran, no sólo se cuentan. Una columna de listas —o un BLOB leído por <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>— informaba cuántos valores faltaban sin decir en qué filas, aunque <code><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na()</a></code> los identifica elemento a elemento y es el mismo criterio con el que se contaron. Lo encontró la propia guarda de coherencia, que era exactamente para lo que se agregó.</li>
+<li>
+<code>casi_duplicados_vocabulario</code> entrega primero las filas de formas no dominantes y después las de formas dominantes. La unidad sigue siendo <code>valor_distinto</code>, el grupo sigue incluyendo la forma dominante y la evidencia informa cuántas filas mostradas pertenecen a cada tipo de forma.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-traza-de-vocabulario-y-la-guarda-de-coherencia-cierran-el-circuito-0-1-0">La traza de vocabulario y la guarda de coherencia cierran el circuito<a class="anchor" aria-label="anchor" href="#la-traza-de-vocabulario-y-la-guarda-de-coherencia-cierran-el-circuito-0-1-0"></a></h3>
+<ul><li>
+<code>casi_duplicados_vocabulario</code> conserva <code>unidad_conteo = "valor_distinto"</code> y ahora enumera las filas que contienen los valores de cada grupo seleccionado, incluida la forma dominante. La distancia sigue siendo una señal heurística, no una afirmación de identidad.</li>
+<li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> conserva cualquier hallazgo cuya traza no coincida y emite la advertencia de clase <code>lupa_trazabilidad_incoherente</code>. La guarda compara el total anterior al límite de presentación, funciona en ambas direcciones y adapta la comparación a la unidad declarada.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="conteos-y-trazabilidad-dejan-de-mezclar-unidades-0-1-0">Conteos y trazabilidad dejan de mezclar unidades<a class="anchor" aria-label="anchor" href="#conteos-y-trazabilidad-dejan-de-mezclar-unidades-0-1-0"></a></h3>
+<ul><li>
+<code>mayusculas_inconsistentes</code> y <code>normalizacion_unicode</code> declaran <code>unidad_conteo = "valor_distinto"</code> y cuentan en <code>n_evaluados</code> los valores distintos evaluados. <code>n_afectados</code> ya contaba esos valores; su traza sigue siendo por fila y enumera todas las filas que contienen los valores afectados, no sólo las defectuosas.</li>
+<li>
+<code>filas_duplicadas</code> cuenta ahora todas las filas participantes de los grupos, en línea con <code>EntidadDuplicada</code> y con <code>marcar_filas_duplicadas</code>. La evidencia conserva el número de excedentes para la acción que elimina repeticiones.</li>
+<li>Una constante de listas cuya frecuencia no puede contarse informa <code>NA</code> en <code>n_afectados</code> y deja el motivo en <code>cobertura_diagnosticos</code>; una matriz no analizada enumera todas sus filas en la trazabilidad.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-trazabilidad-deja-de-recalcular-lo-que-el-detector-ya-decidió-0-1-0">La trazabilidad deja de recalcular lo que el detector ya decidió<a class="anchor" aria-label="anchor" href="#la-trazabilidad-deja-de-recalcular-lo-que-el-detector-ya-decidi%C3%B3-0-1-0"></a></h3>
+<p>Un hallazgo dice cuántas unidades afecta y, cuando puede, cuáles. Ese «cuáles» lo resolvía una rama de índices aparte que en varios casos aplicaba un criterio <strong>distinto</strong> del detector que había producido el hallazgo. Los dos no coincidían, y el desacuerdo no se veía porque nada comparaba la evidencia contra los índices.</p>
+<ul><li>
+<code>patron_raro</code> no nombraba ninguna fila cuando la columna tenía algún patrón de frecuencia intermedia. La guarda comparaba el total de patrones distintos contra el tamaño del resumen, que son cosas distintas: el resumen es el patrón dominante <strong>más los patrones raros</strong>, no un top-N, así que se disparaba en una situación perfectamente normal. Ahora <code><a href="../reference/descubrir_patrones.html">descubrir_patrones()</a></code> expone <code>n_patrones_raros</code> y la guarda pregunta lo único que corresponde —si ese conjunto fue recortado por el tope de seis—. Sin recorte la enumeración es completa y <code>n_afectados</code> toma su valor real; con recorte se enumera igual y el alcance es <code>patrones_parciales</code>, declarado en la cobertura.</li>
+<li>
+<code>outliers</code>, <code>valores_no_finitos</code>, <code>ceros_no_permitidos</code> y <code>negativos_no_permitidos</code> condicionaban la enumeración a que la columna fuera numérica <strong>en su tipo declarado</strong>. Al leer un CSV como texto —el caso más común que hay— el perfilador infiere numérico, convierte y cuenta bien, pero la rama miraba un <code>character</code> y no devolvía nada: se informaban diez atípicos y no se nombraba ninguna fila. Ahora rastrean sobre la vista cuantitativa inferida, la misma que usó el detector.</li>
+<li>
+<code>codificacion_rota</code> reimplementaba la detección con una clase de caracteres más angosta que la del detector, de modo que un valor con el mojibake del carácter de reemplazo se contaba y no se nombraba —y ese vacío salía declarado con alcance <code>completo</code>, que es justo lo que este paquete no hace—. Ahora reutiliza la máscara del detector.</li>
+<li>
+<code>patron_raro</code> nombraba, además, filas que su propia evidencia acababa de descartar. En una secuencia entera densa, un patrón que difiere sólo por el largo —<code>9</code> frente a <code>9+</code>— no es un desvío: es el mismo número con menos dígitos. El detector lo filtraba al armar la evidencia; la rama de índices y <code>n_afectados</code> recorrían el resumen crudo. El conjunto filtrado se calcula ahora una sola vez y viaja con el resultado, de modo que no puede haber dos criterios.</li>
+</ul><p><strong>El principio que unifica los cuatro: la trazabilidad no recalcula lo que el detector ya resolvió.</strong> Cada vez que lo recalculaba, los dos criterios se separaban en silencio.</p>
+<p><strong>Y la prueba que faltaba.</strong> La suite verificaba conteos, no identidades: una prueba que comprueba <code>n_afectados == 10</code> pasa igual si el paquete nombra diez filas equivocadas, ninguna, o seiscientas. Por eso ninguno de estos desajustes se veía con toda la suite en verde. Ahora hay fixtures que construyen tablas con índices corrompidos <strong>conocidos de antemano</strong> y verifican aciertos, falsos positivos y pérdidas.</p>
+</div>
+<div class="section level3">
+<h3 id="el-piso-de-asimetría-del-vocabulario-declara-lo-que-deja-afuera-0-1-0">El piso de asimetría del vocabulario declara lo que deja afuera<a class="anchor" aria-label="anchor" href="#el-piso-de-asimetr%C3%ADa-del-vocabulario-declara-lo-que-deja-afuera-0-1-0"></a></h3>
+<ul><li>El comparador de vocabulario abría grupos por distancia con cualquier desbalance de frecuencias, y así señalaba <code>este</code> frente a <code>oeste</code> —dos puntos cardinales— como posibles variantes de un mismo valor. Medido sobre tablas limpias y sobre erratas sembradas, los falsos positivos quedan entre <code>1,0</code> y <code>1,5</code> de asimetría y las erratas reales desde <code>9,0</code>, así que ahora se exige una asimetría mínima de <code>2</code>, configurable con <code>min_asimetria_vocabulario</code>.</li>
+<li>
+<strong>El piso no se aplica a los grupos formados por normalización.</strong> <code>Montevideo</code>, <code>MONTEVIDEO</code> y <code>Montevideo</code> son tres grafías del mismo valor y con una aparición cada una su asimetría es <code>1,0</code>: ahí la equivalencia está comprobada y no es una conjetura sobre una errata.</li>
+<li>
+<strong>Y lo que el piso deja afuera se declara.</strong> En la banda de asimetría baja cae también una errata sistemática que afecte a una fracción grande de los registros, y por la forma es indistinguible de dos valores legítimamente parecidos. Elegir en silencio cuál se sacrifica sería justo lo que este paquete no hace: <code>cobertura_diagnosticos</code> informa cuántos grupos quedaron bajo el piso y cómo bajarlo.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="colecciones-el-séptimo-nivel-de-granularidad-deja-de-estar-sólo-declarado-0-1-0">Colecciones: el séptimo nivel de granularidad deja de estar sólo declarado<a class="anchor" aria-label="anchor" href="#colecciones-el-s%C3%A9ptimo-nivel-de-granularidad-deja-de-estar-s%C3%B3lo-declarado-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/coleccion.html">coleccion()</a></code> declara qué tablas componen una base de datos, con su esquema, y <code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code> devuelve una fila por tabla con sus agregados exactos, más <code>cobertura_coleccion</code> con lo que no se pudo medir. La granularidad <code>coleccion</code> del marco estaba declarada y no se medía: lo que faltaba no era código sino el objeto.</li>
+<li>
+<strong>La frontera se declara, nunca se descubre.</strong> Recorrer el catálogo convertiría un error de permisos en un resultado, y una colección real pasa de mil tablas repartidas en decenas de esquemas.</li>
+<li>
+<strong>El esquema es parte de la identidad de la tabla</strong>, así que el mismo nombre en dos esquemas son dos tablas y no una repetida.</li>
+<li>
+<strong>Lo que no se pudo leer se declara y nunca queda en cero</strong>: una tabla sin permiso, un objeto declarado como vista, un motor que rechaza un agregado. En bases institucionales los permisos parciales son el caso normal.</li>
+<li>
+<strong>Cada tabla declara su propio muestreo</strong>, y no se promedian alcances distintos como si fueran uno.</li>
+<li>
+<strong>No hay lectura instantánea.</strong> Perfilar una colección son muchas consultas y la base puede cambiar entre ellas, así que cada fila trae el <code>momento</code> en que se midió y <code>meta$snapshot</code> declara que no lo hubo.</li>
+<li>El perfil pesado de cada tabla no se retiene salvo que se pida con <code>conservar_perfiles = TRUE</code>: con cientos de tablas no entraría en memoria.</li>
+<li>
+<code><a href="../reference/agregar.html">agregar()</a></code> mide ahora esta granularidad, con tres condiciones. Exige la <strong>frontera declarada</strong>, porque sin saber sobre qué tablas se agrega el número no significa nada. Admite <strong>sólo <code>promedio_ponderado</code></strong>: sin esa restricción bastaba pedir <code>promedio</code> para obtener un número entre tablas de universos distintos sin declarar nada, que es el juicio que el paquete se niega a inventar. Y <strong>la cobertura viaja pegada al número</strong>.</li>
+<li>Esa última condición es la que más importa, y salió de refutar el diseño. Un número sobre «la colección» calculado sólo con las tablas que se pudieron medir <strong>informa como medido lo que no se midió</strong>: el peso de la tabla ausente desaparece en vez de manifestar la falta de cobertura. Con quince tablas declaradas y seis sin permiso, el número describe nueve y se presenta como si describiera la colección. Ahora el resultado trae <code>tablas_declaradas</code>, <code>tablas_en_el_numero</code>, <code>tablas_sin_medir</code> con su motivo, la <code>cobertura</code> y la advertencia de que leerlo sin ella sería exactamente ese error.</li>
+<li>
+<code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code> busca claves foráneas candidatas entre <strong>los pares que se declaren</strong>, y <code><a href="../reference/estimar_costo_coleccion.html">estimar_costo_coleccion()</a></code> permite ver el costo antes. Los pares se declaran por la misma razón que la frontera: una clave foránea es <strong>dirigida</strong>, así que mil tablas dan casi un millón de direcciones, y el costo real no lo da el número de tablas sino el de comparaciones entre columnas. Cada par se compara sobre una muestra, y el objeto declara que <strong>una relación candidata sobre una muestra no es una clave foránea comprobada</strong>: es un indicio que hay que confirmar contra el diccionario de datos. Un par que no se pudo leer se declara en <code>cobertura_pares</code> en vez de desaparecer.</li>
+<li>
+<code><a href="../reference/granularidades.html">granularidades()</a></code> declara el séptimo nivel como implementado: siete de diez. Los tres últimos siguen sin objeto, y no por falta de código: qué bases componen un conjunto y qué bases pertenecen a un organismo son decisiones de gobernanza que no están en ningún dato.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="evaluar-estimaciones-que-calculó-otra-herramienta-0-1-0">Evaluar estimaciones que calculó otra herramienta<a class="anchor" aria-label="anchor" href="#evaluar-estimaciones-que-calcul%C3%B3-otra-herramienta-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/medicion_desde_estimaciones.html">medicion_desde_estimaciones()</a></code> recibe estimaciones ya calculadas —por <code>survey</code>, por <a href="https://github.com/inesscc/calidad" class="external-link"><code>calidad</code></a> del INE de Chile, o por cualquier otra fuente— y las lleva al contrato de <code><a href="../reference/medir.html">medir()</a></code>, para poder evaluarlas contra un marco declarado. <strong><code>lupa</code> no estima</strong>: eso necesita diseño muestral, estimación de varianza y otra disciplina; lo que sabe hacer es evaluar contra un marco, y eso es lo que ofrece.</li>
+<li>Cada estadístico se convierte en <strong>su propia medida canónica</strong>, con su métrica, su tipo, su unidad y su orientación, porque los siete tienen dominios distintos: un coeficiente de variación de <code>0,30</code> y un tamaño de muestra de <code>0,30</code> no se leen igual. <code><a href="../reference/estadisticos_estimacion.html">estadisticos_estimacion()</a></code> publica el catálogo.</li>
+<li>
+<strong>La procedencia viaja en cada medida</strong> y es obligatoria, para que nadie lea el resultado como si <code>lupa</code> lo hubiera calculado. Los estadísticos que la tabla no traiga no se rellenan con ceros: se declaran ausentes.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="señales-redundantes-la-contradicción-que-ninguna-columna-muestra-sola-0-1-0">Señales redundantes: la contradicción que ninguna columna muestra sola<a class="anchor" aria-label="anchor" href="#se%C3%B1ales-redundantes-la-contradicci%C3%B3n-que-ninguna-columna-muestra-sola-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/senal_redundante.html">senal_redundante()</a></code> declara que varias columnas de una tabla codifican el mismo hecho, y <code><a href="../reference/detectar_discordancias.html">detectar_discordancias()</a></code> informa las filas donde no concuerdan dentro de la ventana declarada. El caso típico son el año de la fecha, el año fiscal y el año del archivo: los tres pueden ser plausibles por separado y aun así contradecirse.</li>
+<li>
+<strong>El grupo se declara, nunca se adivina.</strong> Dos columnas de año pueden ser el de nacimiento y el de ingreso, y no tienen por qué coincidir; suponerlo sería inventar conocimiento del dominio.</li>
+<li>
+<code>transformacion</code> lleva columnas guardadas de formas distintas a una escala comparable —extraer el año de una fecha, por ejemplo—, y <code>ventana</code> es la tolerancia <strong>en las unidades del valor comparado</strong>, que no se adivina.</li>
+<li>Una fila con alguna columna ausente <strong>no cuenta como desacuerdo</strong>: sale del universo, y <code>n_evaluadas</code> lo declara. Si ninguna fila tiene todas las columnas presentes, <code>n_discordantes</code> queda en <code>NA</code> y la señal se declara no evaluada, en vez de informar cero discordancias.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="los-umbrales-de-una-regla-salen-del-closure-y-se-pueden-consultar-0-1-0">Los umbrales de una regla salen del closure y se pueden consultar<a class="anchor" aria-label="anchor" href="#los-umbrales-de-una-regla-salen-del-closure-y-se-pueden-consultar-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/reglas_evaluacion.html">regla_evaluacion()</a></code> acepta <code>umbrales</code>, una lista con nombres que se le pasan a la condición al evaluarla. Antes el umbral quedaba encerrado en el <em>closure</em>: para mover un número había que escribir otra regla, y nadie podía consultar cuál era. Ahora la misma función evalúa distinto con dos umbrales —0,67 y 0,33 sobre los mismos valores— sin reconstruir la lógica.</li>
+<li>Una condición que no recibe un umbral declarado se rechaza enumerando los argumentos que sí acepta, en vez de ignorarlo en silencio. Una condición con <code>...</code> los recibe todos.</li>
+<li>
+<strong><code><a href="../reference/propiedades_regla.html">propiedades_regla()</a></code></strong> muestra lo que una regla declara: métricas, nivel, proporción mínima, desenlace y umbrales. Es la contraparte de <code><a href="../reference/modelo_calidad.html">propiedades_metrica()</a></code>, que describe métricas: un umbral pertenece a una regla y no cabía allí.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="trazabilidad-por-clave-declarada-del-hallazgo-que-se-lee-al-que-se-verifica-0-1-0">Trazabilidad por clave declarada: del hallazgo que se lee al que se verifica<a class="anchor" aria-label="anchor" href="#trazabilidad-por-clave-declarada-del-hallazgo-que-se-lee-al-que-se-verifica-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> acepta <code>clave</code> con las columnas que identifican una fila. La trazabilidad de cada hallazgo trae además el valor de esas columnas para las filas señaladas, así que el caso se puede buscar en el sistema de origen sin abrir la tabla. <code><a href="../reference/analizar.html">analizar()</a></code> lo traslada por <code>...</code> y por <code>argumentos_perfil</code>.</li>
+<li>La trazabilidad separa dos ejes que antes se confundían: <code>estado</code> —<code>disponible</code>, <code>truncada</code>, <code>no_disponible</code>, <code>no_aplica</code>— dice si se pudo localizar y hasta dónde, y <strong><code>localizador</code></strong> —<code>indice_fila</code>, <code>clave_declarada</code>, <code>ninguno</code>— dice con qué. Una trazabilidad puede ser al mismo tiempo por clave y truncada.</li>
+<li>Las claves viajan como data frame, una fila por índice mostrado y una columna por componente: concatenarlas perdería los tipos y haría ambigua una clave compuesta.</li>
+<li>
+<strong>La clave que permite verificar es la que identifica a una persona.</strong> Si alguna de sus columnas se clasifica como dato personal y la protección está activa, sus valores salen enmascarados igual que la evidencia, en todos los hallazgos —la clave viaja con la fila, no con la columna del hallazgo— y <code>claves_protegidas</code> declara cuáles se enmascararon.</li>
+<li>Una clave que nombra columnas inexistentes se rechaza enumerando las disponibles; una que no es única avisa y sigue, porque sirve igual para localizar aunque deje de ser una clave.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-cobertura-del-vocabulario-deja-de-contradecir-al-hallazgo-0-1-0">La cobertura del vocabulario deja de contradecir al hallazgo<a class="anchor" aria-label="anchor" href="#la-cobertura-del-vocabulario-deja-de-contradecir-al-hallazgo-0-1-0"></a></h3>
+<ul><li>
+<code>casi_duplicados_vocabulario</code> nombraba dos diagnósticos distintos: agrupar valores por su forma normalizada, que no depende de nada, y medir proximidad por distancia de edición, que necesita <code>stringdist</code>. Sin ese paquete el primero medía y el segundo se declaraba <strong>bajo el mismo nombre y para la misma columna</strong>, así que cruzar <code>cobertura_diagnosticos</code> con <code>hallazgos</code> por <code>(diagnostico, columna)</code> —el uso natural para un consumidor automático— devolvía una contradicción: el mismo diagnóstico declarado como no evaluado y reportado como medido.</li>
+<li>La cobertura pasa a llamarse <strong><code>proximidad_vocabulario</code></strong> en las tres razones que le corresponden: falta <code>stringdist</code>, el vocabulario excede el alcance de comparación, y el grupo candidato mayor abarca tanto que el diagnóstico no aplica. El hallazgo conserva su nombre. Quien filtre la cobertura por el nombre viejo tiene que actualizar el filtro.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="dos-cosas-más-que-el-objeto-ahora-declara-0-1-0">Dos cosas más que el objeto ahora declara<a class="anchor" aria-label="anchor" href="#dos-cosas-m%C3%A1s-que-el-objeto-ahora-declara-0-1-0"></a></h3>
+<ul><li>
+<code>patron_raro</code> distingue en la evidencia las dos clases de desvío: <code>clase_desvio=largo_de_corrida</code> cuando el valor señalado sigue el mismo patrón con un número de otro largo —<code>persona9@</code> frente a <code>persona300@</code>— y <code>clase_desvio=estructural</code> cuando es otra forma —<code>SIN CODIGO</code> frente a <code>AB-12345</code>—. <strong>La severidad no cambia</strong>: los dos casos son indistinguibles por la forma y eso está medido. Lo que cambia es que quien lee el hallazgo lo resuelve de un vistazo en vez de comparar patrones a ojo.</li>
+<li>
+<code><a href="../reference/agregar.html">agregar()</a></code> acepta el nombre relacional de la granularidad —<code>celda</code>, <code>columna</code>, <code>tupla</code>, <code>tabla</code>— igual que <code><a href="../reference/modelo_calidad.html">metrica()</a></code>. Su propio mensaje de error ya los enumeraba, así que rechazarlos era una inconsistencia. El objeto sigue guardando el nombre canónico del marco.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="spearman-para-relaciones-monótonas-que-no-son-lineales-0-1-0">Spearman para relaciones monótonas que no son lineales<a class="anchor" aria-label="anchor" href="#spearman-para-relaciones-mon%C3%B3tonas-que-no-son-lineales-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/detectar_asociaciones.html">detectar_asociaciones()</a></code> acepta <code>metodo_numerico = "spearman"</code> y mide asociación monótona sobre los rangos, sin suponer linealidad. Sobre una relación cúbica con ruido, Pearson da 0,918 y Spearman 0,997. Pearson sigue siendo el valor por omisión, y el método elegido viaja en la columna <code>metodo</code> con su supuesto en <code>supuesto</code>, así que ninguna lectura depende de recordar cuál se pidió. <code><a href="../reference/analizar.html">analizar()</a></code> lo traslada con <code>metodo_asociacion_numerica</code>.</li>
+<li>Los dos README explican ahora dónde viven la distribución de valores y las correlaciones —en <code><a href="../reference/analizar.html">analizar()</a></code>, no en <code><a href="../reference/perfilar.html">perfilar()</a></code>— y por qué esa separación es deliberada.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="tres-afirmaciones-que-el-paquete-hacía-sin-fundamento-suficiente-0-1-0">Tres afirmaciones que el paquete hacía sin fundamento suficiente<a class="anchor" aria-label="anchor" href="#tres-afirmaciones-que-el-paquete-hac%C3%ADa-sin-fundamento-suficiente-0-1-0"></a></h3>
+<ul><li>
+<code>alta_cardinalidad</code> se apoyaba sólo en la tasa de valores distintos, y con pocas filas esa tasa está dominada por el tamaño: una columna de dos valores en tres filas daba 0,67 y superaba el umbral, aunque una columna de dos valores no puede tener cardinalidad alta. Ahora el hallazgo exige además al menos diez valores distintos. Las columnas con cardinalidad alta real —treinta valores distintos en cuarenta filas— se siguen informando igual.</li>
+<li>
+<code>columnas_duplicadas</code> afirmaba que dos columnas tienen el mismo contenido en tablas <strong>sin ninguna fila</strong>, donde dos columnas vacías coinciden sin que eso sea evidencia. Ese caso pasó a <code>cobertura_diagnosticos</code> con su motivo. Cuando sí hay filas, la evidencia declara ahora sobre cuántas se comparó.</li>
+<li>
+<code>relacion_aritmetica_columnas</code> se salteaba en silencio cuando la tabla no llegaba al mínimo de filas comparables. Ahora se declara en <code>cobertura_diagnosticos</code>, y sólo cuando había combinaciones de columnas numéricas que evaluar.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="el-vínculo-entre-una-acción-del-plan-y-su-hallazgo-ya-no-depende-de-la-prosa-0-1-0">El vínculo entre una acción del plan y su hallazgo ya no depende de la prosa<a class="anchor" aria-label="anchor" href="#el-v%C3%ADnculo-entre-una-acci%C3%B3n-del-plan-y-su-hallazgo-ya-no-depende-de-la-prosa-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> recuperaba el par de columnas duplicadas comparando la cadena de evidencia completa del hallazgo. Al enriquecerse ese texto, dos pares distintos colapsaban en el mismo y el plan perdía una acción. El vínculo se hace ahora contra el primer tramo de la evidencia, que es el que identifica el par.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="el-perfilado-no-toca-los-datos-y-ahora-está-probado-0-1-0">El perfilado no toca los datos, y ahora está probado<a class="anchor" aria-label="anchor" href="#el-perfilado-no-toca-los-datos-y-ahora-est%C3%A1-probado-0-1-0"></a></h3>
+<ul><li>Ninguna función de análisis altera la tabla que recibe: ni sus valores, ni sus tipos, ni sus nombres, ni sus atributos. Una prueba de regresión lo verifica en <code><a href="../reference/perfilar.html">perfilar()</a></code>, <code><a href="../reference/analizar.html">analizar()</a></code>, <code><a href="../reference/detectar_claves.html">detectar_claves()</a></code>, <code><a href="../reference/detectar_dependencias.html">detectar_dependencias()</a></code>, <code><a href="../reference/distribucion_valores.html">distribucion_valores()</a></code>, <code><a href="../reference/detectar_asociaciones.html">detectar_asociaciones()</a></code>, <code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>, <code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> y <code><a href="../reference/guiar_limpieza.html">guiar_limpieza()</a></code>. El caso que importa es <code>data.table</code>, que R permite modificar por referencia: la prueba compara además la dirección de memoria del objeto. <code><a href="../reference/planificar_limpieza.html">aplicar()</a></code> devuelve una copia y deja intacta la original.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="duplicados-el-hallazgo-no-afirma-una-igualdad-que-produjo-la-normalización-0-1-0">Duplicados: el hallazgo no afirma una igualdad que produjo la normalización<a class="anchor" aria-label="anchor" href="#duplicados-el-hallazgo-no-afirma-una-igualdad-que-produjo-la-normalizaci%C3%B3n-0-1-0"></a></h3>
+<ul><li>La normalización por omisión iguala mayúsculas, espacios, acentos y comillas, así que un par puede coincidir después de normalizar sin que los valores guardados sean iguales. <code>tipo_par</code> distingue ahora <code>exacto</code>, <code>exacto_normalizado</code> y <code>aproximado</code>; <code>igualo_normalizar</code> deja esa causa visible en cada fila. El hallazgo <code>duplicados_exactos_normalizados</code> evita afirmar que dos filas tienen los mismos valores y la trazabilidad lo busca entre los pares de ese tipo. <code>n_pares_exactos</code> cuenta sólo texto guardado igual y <code>n_pares_exactos_normalizados</code> completa la explicación junto con <code>n_pares_aproximados</code>.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="casi-claves-y-precedencia-de-ausencias-0-1-0">Casi-claves y precedencia de ausencias<a class="anchor" aria-label="anchor" href="#casi-claves-y-precedencia-de-ausencias-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/perfilar.html">perfilar()</a></code> informa una <code>casi_clave</code> cuando una columna tiene al menos 100 filas, supera 90 % de valores distintos y al menos la mitad de sus duplicados excedentes se concentra en un valor. Las fechas y fecha-hora se excluyen por su rol propuesto. La evidencia enumera las colisiones, sus frecuencias y los criterios aplicados. Los vectores <code>double</code> con algún valor finito fraccionario se excluyen, mientras que los formados por valores enteros se conservan para admitir identificadores importados desde archivos de texto. Los vectores <code>integer64</code> cuentan como enteros semánticos. <code><a href="../reference/detectar_claves.html">detectar_claves()</a></code> las expone sin confundirlas con claves exactas, y <code><a href="../reference/analizar.html">analizar()</a></code> las reitera en sus advertencias.</li>

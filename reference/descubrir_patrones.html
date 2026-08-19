@@ -103,9 +103,14 @@ y ejemplos. Los atributos <code>total</code>, <code>analizados</code>, <code>fil
 <code>muestreado</code> describen el posible muestreo; <code>filas_analizadas</code> es un alias
 explícito de <code>analizados</code> para mantener el alcance visible junto a otros
 diagnósticos. <code>resumen_patrones</code> conserva sólo el patrón dominante
-y hasta seis patrones raros; nunca guarda la distribución completa. Las
-proporciones siempre están en <code>[0, 1]</code>. <code>n_patrones_distintos</code> registra el
-total antes de truncar la tabla para informar omisiones sin retenerla.</p>
+y hasta seis patrones raros para presentacion; nunca guarda la distribucion
+completa. <code>patrones_raros_trazabilidad</code> conserva solo los nombres de los
+patrones raros, hasta 5.000, para que la trazabilidad pueda enumerar filas
+sin retener frecuencias ni ejemplos. Las proporciones siempre estan en
+<code>[0, 1]</code>. <code>n_patrones_distintos</code> registra el total antes de truncar la tabla
+para informar omisiones sin retenerla. <code>n_patrones_raros</code> y
+<code>n_patrones_raros_trazabilidad</code> registran cuantos patrones raros habia antes
+de sus respectivos limites.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

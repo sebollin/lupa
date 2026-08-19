@@ -76,6 +76,7 @@ conceptual y plan de limpieza. No modifica los datos.</p>
 <span>  max_columnas_asociacion <span class="op">=</span> <span class="fl">50L</span>,</span>
 <span>  max_niveles_asociacion <span class="op">=</span> <span class="fl">50L</span>,</span>
 <span>  max_pares_asociacion <span class="op">=</span> <span class="fl">500L</span>,</span>
+<span>  metodo_asociacion_numerica <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"pearson"</span>, <span class="st">"spearman"</span><span class="op">)</span>,</span>
 <span>  calendario <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">7</span>,</span>
 <span>  frecuencia_dias <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_huecos <span class="op">=</span> <span class="fl">20L</span>,</span>
@@ -174,6 +175,12 @@ niveles observados.</p></dd>
 
 <dt id="arg-max-pares-asociacion">max_pares_asociacion<a class="anchor" aria-label="anchor" href="#arg-max-pares-asociacion"></a></dt>
 <dd><p>Máximo de pares devueltos.</p></dd>
+
+
+<dt id="arg-metodo-asociacion-numerica">metodo_asociacion_numerica<a class="anchor" aria-label="anchor" href="#arg-metodo-asociacion-numerica"></a></dt>
+<dd><p>Medida entre columnas numéricas que usa
+<code><a href="detectar_asociaciones.html">detectar_asociaciones()</a></code>: <code>"pearson"</code> por omisión, o <code>"spearman"</code>
+para asociación monótona sobre los rangos, que no supone linealidad.</p></dd>
 
 
 <dt id="arg-calendario">calendario<a class="anchor" aria-label="anchor" href="#arg-calendario"></a></dt>

@@ -62,6 +62,7 @@ accionables. Todas las proporciones se expresan en <code>[0, 1]</code>.</p>
 <span>  expandir <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  umbral_alta_cardinalidad <span class="op">=</span> <span class="fl">0.5</span>,</span>
 <span>  umbral_faltantes_sospechoso <span class="op">=</span> <span class="fl">0.1</span>,</span>
+<span>  clave <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  umbral_faltantes_error <span class="op">=</span> <span class="fl">0.4</span>,</span>
 <span>  umbral_patron_raro <span class="op">=</span> <span class="fl">0.05</span>,</span>
 <span>  umbral_patron_dominante <span class="op">=</span> <span class="fl">0.5</span>,</span>
@@ -91,6 +92,7 @@ accionables. Todas las proporciones se expresan en <code>[0, 1]</code>.</p>
 <span>  max_proporcion_grupo_vocabulario <span class="op">=</span> <span class="fl">0.5</span>,</span>
 <span>  umbral_variante_rara_vocabulario <span class="op">=</span> <span class="fl">0.05</span>,</span>
 <span>  min_asimetria_vocabulario_corto <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>  min_asimetria_vocabulario <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  min_participacion_dominante_vocabulario_corto <span class="op">=</span> <span class="fl">0.5</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -130,12 +132,27 @@ Use <code>Inf</code> para analizar todas las filas.</p></dd>
 
 
 <dt id="arg-umbral-alta-cardinalidad">umbral_alta_cardinalidad<a class="anchor" aria-label="anchor" href="#arg-umbral-alta-cardinalidad"></a></dt>
-<dd><p>Umbral para columnas categóricas.</p></dd>
+<dd><p>Umbral sobre la tasa de valores distintos
+de una columna categórica. No alcanza por sí solo: el hallazgo exige
+además al menos diez valores distintos, porque con pocos la tasa está
+dominada por el tamaño de la tabla —dos valores en tres filas dan 0,67 y
+superan cualquier umbral razonable— y una columna de dos valores no
+puede tener cardinalidad alta.</p></dd>
 
 
 <dt id="arg-umbral-faltantes-sospechoso">umbral_faltantes_sospechoso<a class="anchor" aria-label="anchor" href="#arg-umbral-faltantes-sospechoso"></a></dt>
 <dd><p>Umbral inferior de faltantes. El
 hallazgo se activa al superarlo en sentido estricto.</p></dd>
+
+
+<dt id="arg-clave">clave<a class="anchor" aria-label="anchor" href="#arg-clave"></a></dt>
+<dd><p>Nombres de las columnas que identifican una fila. Cuando se
+declaran, la trazabilidad de cada hallazgo trae además el valor de esas
+columnas para las filas señaladas, de modo que el caso se pueda verificar
+en el sistema de origen sin abrir la tabla. El índice de fila se conserva
+siempre. La clave declarada se trata como sensible: si la protección de
+datos personales está activa y alguna de esas columnas se clasifica como
+personal, sus valores salen enmascarados igual que la evidencia.</p></dd>
 
 
 <dt id="arg-umbral-faltantes-error">umbral_faltantes_error<a class="anchor" aria-label="anchor" href="#arg-umbral-faltantes-error"></a></dt>
@@ -323,6 +340,15 @@ una forma dominante y una variante breve para abrir la comparacion por una
 edicion.</p></dd>
 
 
+<dt id="arg-min-asimetria-vocabulario">min_asimetria_vocabulario<a class="anchor" aria-label="anchor" href="#arg-min-asimetria-vocabulario"></a></dt>
+<dd><p>Razón mínima entre la frecuencia de la
+forma dominante y la de la variante para abrir un grupo por la vía general
+de distancia. Por omisión <code>2</code>. Una asimetría de <code>1,5</code> significa que las dos
+formas son casi igual de comunes, que es evidencia muy floja de una errata:
+medido sobre tablas limpias y sobre erratas sembradas, los falsos positivos
+están entre <code>1,0</code> y <code>1,5</code> y las erratas reales desde <code>9,0</code>.</p></dd>
+
+
 <dt id="arg-min-participacion-dominante-vocabulario-corto">min_participacion_dominante_vocabulario_corto<a class="anchor" aria-label="anchor" href="#arg-min-participacion-dominante-vocabulario-corto"></a></dt>
 <dd><p>Proporcion minima de la
 columna que debe ocupar la forma dominante en la comparacion por una
@@ -333,11 +359,46 @@ edicion.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Objeto S3 de clase <code>perfil</code>. Cada fila de hallazgos incluye
 n_evaluados, n_afectados y unidad_conteo: son conteos de las unidades
-declaradas (por ejemplo fila, columna, formato o par). Cuando el camino
+declaradas (por ejemplo fila, columna, formato o par). En
+<code>mayusculas_inconsistentes</code>, <code>normalizacion_unicode</code> y
+<code>casi_duplicados_vocabulario</code>, la unidad es
+<code>valor_distinto</code>: <code>n_evaluados</code> cuenta los valores distintos evaluados y
+<code>n_afectados</code> los valores distintos que participan en la colisión. Su
+<code>trazabilidad</code> sigue siendo por fila y enumera todas las filas que
+contienen esos valores, no sólo las filas defectuosas; por eso su total
+puede ser mayor que <code>n_afectados</code>. En <code>casi_duplicados_vocabulario</code>, la
+traza incluye todas las filas cuyos
+valores pertenecen al grupo elegido, incluida la forma dominante. La
+distancia es una senal heuristica, no una prueba de que cada fila deba
+corregirse; la evidencia declara cuantas filas mostradas pertenecen a las
+formas variantes y cuantas a las formas dominantes.
+En <code>filas_duplicadas</code>, el conteo y la traza incluyen todas las filas
+participantes de los grupos; el numero de excedentes queda en la
+evidencia. Cuando el camino
 no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 <code>trazabilidad</code> distingue <code>disponible</code>, <code>truncada</code>, <code>no_aplica</code> y
 <code>no_disponible</code>; cuando corresponde conserva índices de fila acotados por
-<code>max_filas_hallazgo</code>, el total conocido y el alcance (completo o parcial).
+<code>max_filas_hallazgo</code>, el total conocido y el alcance. En
+<code>casi_duplicados_vocabulario</code>, donde la traza mezcla filas de formas
+variantes con filas de la forma dominante, conserva además
+<code>n_filas_formas_variantes</code> y <code>n_filas_formas_dominantes</code> con el reparto
+completo, y <code>mostrados_formas_variantes</code> y <code>mostrados_formas_dominantes</code>
+con el reparto de lo que sobrevivió al truncado. Las variantes se entregan
+primero, de modo que el truncado no se lleve lo accionable. Para
+<code>patron_raro</code>,
+el alcance puede ser <code>completo</code>, <code>muestra_patrones</code>,
+<code>patrones_parciales</code> o <code>muestra_patrones+patrones_parciales</code>. El resumen y
+el texto de evidencia de <code>patron_raro</code> muestran como maximo seis patrones,
+pero la trazabilidad conserva los nombres de todos los patrones raros hasta
+un limite de 5.000; <code>patrones_parciales</code> indica que se alcanzo ese limite,
+no que se haya alcanzado el tope de presentacion.
+Si el conteo y la traza no coinciden, conserva el hallazgo y emite una
+advertencia de clase <code>lupa_trazabilidad_incoherente</code>. La guarda compara el
+total previo al truncado y respeta la unidad declarada.
+Una matriz no analizada conserva en la traza todas sus filas. Si una
+columna de listas se reconoce como constante pero no se puede contar su
+frecuencia, el conteo afectado queda en NA y <code>cobertura_diagnosticos</code>
+explica la no evaluación.
 Los índices no contienen valores. Usarlos para extraer filas de los datos
 originales puede volver a exponer datos personales; el paquete no realiza
 esa extracción y la protección de salidas no sustituye el control de acceso
@@ -350,10 +411,14 @@ son un solo token y esa distinción estructural no aplica), <code>mixta</code> (
 reúne aristas de más de una clase) o <code>indeterminada</code> (no hubo aristas
 clasificables). Son categorías de evidencia, no veredictos de identidad.
 <code>cobertura_diagnosticos</code> es una tabla hermana de <code>hallazgos</code>, con una fila
-por diagnóstico que no pudo evaluarse y las columnas <code>diagnostico</code>,
+por diagnóstico que no pudo evaluarse o cuya enumeración quedó parcial y
+las columnas <code>diagnostico</code>,
 <code>columna</code>, <code>motivo</code>, <code>como_resolverlo</code> y <code>dependencia</code>. Incluye la falta de
 <code>stringdist</code>, <code>stringi</code>, <code>bit64</code> o <code>sf</code>, y las zonas horarias POSIXt sin
-declarar.
+declarar. Los patrones de frecuencia intermedia no se consideran desvios
+del patron dominante: <code>patron_raro</code> es completo respecto de su criterio de
+rareza cuando no hay recorte de trazabilidad. Si el conjunto de nombres
+raros supera 5.000, <code>cobertura_diagnosticos</code> declara el recorte y su limite.
 Quien decida automáticamente sobre un perfil debe revisar
 <code>nrow(perfil$cobertura_diagnosticos)</code> además de las severidades: un perfil
 sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.</p>

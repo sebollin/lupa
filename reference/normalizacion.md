@@ -29,8 +29,8 @@ normalizacion(
 - proteger:
 
   Grafemas cuyas marcas deben conservarse al quitar acentos. Puede
-  incluir una base seguida de una o más marcas combinantes, como
-  `"g\u0303"` para la letra guaraní.
+  incluir una base seguida de una o más marcas combinantes, como la
+  secuencia `g` seguida por una tilde combinante para la letra guaraní.
 
 ## Value
 

@@ -17,6 +17,7 @@ perfilar(
   expandir = FALSE,
   umbral_alta_cardinalidad = 0.5,
   umbral_faltantes_sospechoso = 0.1,
+  clave = NULL,
   umbral_faltantes_error = 0.4,
   umbral_patron_raro = 0.05,
   umbral_patron_dominante = 0.5,
@@ -46,6 +47,7 @@ perfilar(
   max_proporcion_grupo_vocabulario = 0.5,
   umbral_variante_rara_vocabulario = 0.05,
   min_asimetria_vocabulario_corto = 10,
+  min_asimetria_vocabulario = 2,
   min_participacion_dominante_vocabulario_corto = 0.5
 )
 ```
@@ -84,12 +86,27 @@ perfilar(
 
 - umbral_alta_cardinalidad:
 
-  Umbral para columnas categóricas.
+  Umbral sobre la tasa de valores distintos de una columna categórica.
+  No alcanza por sí solo: el hallazgo exige además al menos diez valores
+  distintos, porque con pocos la tasa está dominada por el tamaño de la
+  tabla —dos valores en tres filas dan 0,67 y superan cualquier umbral
+  razonable— y una columna de dos valores no puede tener cardinalidad
+  alta.
 
 - umbral_faltantes_sospechoso:
 
   Umbral inferior de faltantes. El hallazgo se activa al superarlo en
   sentido estricto.
+
+- clave:
+
+  Nombres de las columnas que identifican una fila. Cuando se declaran,
+  la trazabilidad de cada hallazgo trae además el valor de esas columnas
+  para las filas señaladas, de modo que el caso se pueda verificar en el
+  sistema de origen sin abrir la tabla. El índice de fila se conserva
+  siempre. La clave declarada se trata como sensible: si la protección
+  de datos personales está activa y alguna de esas columnas se clasifica
+  como personal, sus valores salen enmascarados igual que la evidencia.
 
 - umbral_faltantes_error:
 
@@ -281,6 +298,15 @@ perfilar(
   Razon minima entre la frecuencia de una forma dominante y una variante
   breve para abrir la comparacion por una edicion.
 
+- min_asimetria_vocabulario:
+
+  Razón mínima entre la frecuencia de la forma dominante y la de la
+  variante para abrir un grupo por la vía general de distancia. Por
+  omisión `2`. Una asimetría de `1,5` significa que las dos formas son
+  casi igual de comunes, que es evidencia muy floja de una errata:
+  medido sobre tablas limpias y sobre erratas sembradas, los falsos
+  positivos están entre `1,0` y `1,5` y las erratas reales desde `9,0`.
+
 - min_participacion_dominante_vocabulario_corto:
 
   Proporcion minima de la columna que debe ocupar la forma dominante en
@@ -290,12 +316,43 @@ perfilar(
 
 Objeto S3 de clase `perfil`. Cada fila de hallazgos incluye n_evaluados,
 n_afectados y unidad_conteo: son conteos de las unidades declaradas (por
-ejemplo fila, columna, formato o par). Cuando el camino no puede conocer
-un conteo, informa NA, nunca cero. La columna de lista `trazabilidad`
+ejemplo fila, columna, formato o par). En `mayusculas_inconsistentes`,
+`normalizacion_unicode` y `casi_duplicados_vocabulario`, la unidad es
+`valor_distinto`: `n_evaluados` cuenta los valores distintos evaluados y
+`n_afectados` los valores distintos que participan en la colisión. Su
+`trazabilidad` sigue siendo por fila y enumera todas las filas que
+contienen esos valores, no sólo las filas defectuosas; por eso su total
+puede ser mayor que `n_afectados`. En `casi_duplicados_vocabulario`, la
+traza incluye todas las filas cuyos valores pertenecen al grupo elegido,
+incluida la forma dominante. La distancia es una senal heuristica, no
+una prueba de que cada fila deba corregirse; la evidencia declara
+cuantas filas mostradas pertenecen a las formas variantes y cuantas a
+las formas dominantes. En `filas_duplicadas`, el conteo y la traza
+incluyen todas las filas participantes de los grupos; el numero de
+excedentes queda en la evidencia. Cuando el camino no puede conocer un
+conteo, informa NA, nunca cero. La columna de lista `trazabilidad`
 distingue `disponible`, `truncada`, `no_aplica` y `no_disponible`;
 cuando corresponde conserva índices de fila acotados por
-`max_filas_hallazgo`, el total conocido y el alcance (completo o
-parcial). Los índices no contienen valores. Usarlos para extraer filas
+`max_filas_hallazgo`, el total conocido y el alcance. En
+`casi_duplicados_vocabulario`, donde la traza mezcla filas de formas
+variantes con filas de la forma dominante, conserva además
+`n_filas_formas_variantes` y `n_filas_formas_dominantes` con el reparto
+completo, y `mostrados_formas_variantes` y `mostrados_formas_dominantes`
+con el reparto de lo que sobrevivió al truncado. Las variantes se
+entregan primero, de modo que el truncado no se lleve lo accionable.
+Para `patron_raro`, el alcance puede ser `completo`, `muestra_patrones`,
+`patrones_parciales` o `muestra_patrones+patrones_parciales`. El resumen
+y el texto de evidencia de `patron_raro` muestran como maximo seis
+patrones, pero la trazabilidad conserva los nombres de todos los
+patrones raros hasta un limite de 5.000; `patrones_parciales` indica que
+se alcanzo ese limite, no que se haya alcanzado el tope de presentacion.
+Si el conteo y la traza no coinciden, conserva el hallazgo y emite una
+advertencia de clase `lupa_trazabilidad_incoherente`. La guarda compara
+el total previo al truncado y respeta la unidad declarada. Una matriz no
+analizada conserva en la traza todas sus filas. Si una columna de listas
+se reconoce como constante pero no se puede contar su frecuencia, el
+conteo afectado queda en NA y `cobertura_diagnosticos` explica la no
+evaluación. Los índices no contienen valores. Usarlos para extraer filas
 de los datos originales puede volver a exponer datos personales; el
 paquete no realiza esa extracción y la protección de salidas no
 sustituye el control de acceso a los datos de entrada. En la evidencia
@@ -307,11 +364,15 @@ valores son un solo token y esa distinción estructural no aplica),
 `mixta` (el grupo reúne aristas de más de una clase) o `indeterminada`
 (no hubo aristas clasificables). Son categorías de evidencia, no
 veredictos de identidad. `cobertura_diagnosticos` es una tabla hermana
-de `hallazgos`, con una fila por diagnóstico que no pudo evaluarse y las
-columnas `diagnostico`, `columna`, `motivo`, `como_resolverlo` y
-`dependencia`. Incluye la falta de `stringdist`, `stringi`, `bit64` o
-`sf`, y las zonas horarias POSIXt sin declarar. Quien decida
-automáticamente sobre un perfil debe revisar
+de `hallazgos`, con una fila por diagnóstico que no pudo evaluarse o
+cuya enumeración quedó parcial y las columnas `diagnostico`, `columna`,
+`motivo`, `como_resolverlo` y `dependencia`. Incluye la falta de
+`stringdist`, `stringi`, `bit64` o `sf`, y las zonas horarias POSIXt sin
+declarar. Los patrones de frecuencia intermedia no se consideran desvios
+del patron dominante: `patron_raro` es completo respecto de su criterio
+de rareza cuando no hay recorte de trazabilidad. Si el conjunto de
+nombres raros supera 5.000, `cobertura_diagnosticos` declara el recorte
+y su limite. Quien decida automáticamente sobre un perfil debe revisar
 `nrow(perfil$cobertura_diagnosticos)` además de las severidades: un
 perfil sin hallazgos y con diagnósticos no evaluados no es un perfil
 limpio.

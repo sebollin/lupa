@@ -57,7 +57,8 @@ contra el grafo de <code><a href="granularidades.html">transiciones_granularidad
 <span>  <span class="va">destino</span>,</span>
 <span>  funcion <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ratio"</span>, <span class="st">"ratio_umbral"</span>, <span class="st">"promedio"</span>, <span class="st">"promedio_ponderado"</span><span class="op">)</span>,</span>
 <span>  umbral <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  pesos <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  pesos <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  coleccion <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -87,6 +88,13 @@ Debe contener una sola métrica específica, una corrida y una granularidad.</p>
 <dd><p>Vector numérico requerido por <code>promedio_ponderado</code>, con una
 entrada por fila de <code>medidas</code>.</p></dd>
 
+
+<dt id="arg-coleccion">coleccion<a class="anchor" aria-label="anchor" href="#arg-coleccion"></a></dt>
+<dd><p>Frontera declarada, exigida cuando <code>destino</code> es
+<code>"coleccion"</code>: el objeto de <code><a href="coleccion.html">coleccion()</a></code> o el perfil de
+<code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code>. Sin ella no se sabe sobre qué tablas se está
+agregando, y el número resultante no describiría nada.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -112,9 +120,9 @@ taxonómicos y esta función no calcula un índice global.</p>
 <span class="r-in"><span><span class="va">medidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">agregar</span><span class="op">(</span><span class="va">medidas</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                               id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T205431.325549-7382-agg-ratio-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260819T034034.685444-7443-agg-ratio-000001</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260817T205431.325549-7382 2026-08-17 20:54:31  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260819T034034.685444-7443 2026-08-19 03:40:34  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica   metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado</span>

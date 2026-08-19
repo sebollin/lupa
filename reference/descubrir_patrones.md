@@ -57,10 +57,14 @@ ejemplos. Los atributos `total`, `analizados`, `filas_analizadas` y
 `muestreado` describen el posible muestreo; `filas_analizadas` es un
 alias explícito de `analizados` para mantener el alcance visible junto a
 otros diagnósticos. `resumen_patrones` conserva sólo el patrón dominante
-y hasta seis patrones raros; nunca guarda la distribución completa. Las
-proporciones siempre están en `[0, 1]`. `n_patrones_distintos` registra
+y hasta seis patrones raros para presentacion; nunca guarda la
+distribucion completa. `patrones_raros_trazabilidad` conserva solo los
+nombres de los patrones raros, hasta 5.000, para que la trazabilidad
+pueda enumerar filas sin retener frecuencias ni ejemplos. Las
+proporciones siempre estan en `[0, 1]`. `n_patrones_distintos` registra
 el total antes de truncar la tabla para informar omisiones sin
-retenerla.
+retenerla. `n_patrones_raros` y `n_patrones_raros_trazabilidad`
+registran cuantos patrones raros habia antes de sus respectivos limites.
 
 ## Details
 

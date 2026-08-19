@@ -217,11 +217,25 @@ lotes. Cada fila de `hallazgos` declara `n_evaluados`, `n_afectados` y
 
 ## Details
 
-Los pares cuyos textos comparados son iguales despues de la
-normalizacion se incluyen como `tipo_par = "exacto"`; los restantes son
-`"aproximado"`. La clasificacion no depende de que una medida de
-distancia devuelva cero: por ejemplo, `soundex` puede dar distancia cero
-para textos distintos. Ningun par demuestra identidad.
+`tipo_par = "exacto"` indica que los textos guardados son iguales en las
+columnas comparadas. `tipo_par = "exacto_normalizado"` indica que
+coinciden despues de la normalizacion declarada, aunque los textos
+guardados difieran. Los restantes son `"aproximado"`. La columna logica
+`igualo_normalizar` es `TRUE` unicamente para el segundo caso. La
+clasificacion no depende de que una medida de distancia devuelva cero:
+por ejemplo, `soundex` puede dar distancia cero para textos distintos.
+Ningun par demuestra identidad.
+
+Como la normalizacion por omision iguala mayusculas, espacios, acentos y
+comillas, el objeto conserva esta distincion tanto en `pares` como en
+los hallazgos. `duplicados_exactos_normalizados` es un tipo de hallazgo
+propio: no afirma que los valores guardados sean iguales y tampoco
+oculta la causa de la coincidencia bajo `duplicados_aproximados`.
+
+En `alcance`, `n_pares_exactos` cuenta solo textos guardados iguales,
+`n_pares_exactos_normalizados` cuenta coincidencias producidas por la
+normalizacion y `n_pares_aproximados` cuenta los pares restantes. Son
+conteos disjuntos y explican `n_pares_hallados`.
 
 La comparacion usa teselas de `bloque` filas: cada matriz temporal se
 descarta antes de continuar, por lo que la memoria no crece con el

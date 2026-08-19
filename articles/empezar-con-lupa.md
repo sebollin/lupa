@@ -118,48 +118,67 @@ perfil$hallazgos[, c(
 #> 4    fecha_evento       faltantes_disfrazados      error
 #> 5    fecha_evento       formatos_fecha_mixtos      error
 #> 6    fecha_evento     tipo_declarado_distinto sospechoso
-#> 7           canal           alta_cardinalidad sospechoso
-#> 8           canal                   faltantes sospechoso
-#> 9           canal       faltantes_disfrazados      error
-#> 10          canal          espacios_sobrantes sospechoso
-#> 11          canal   mayusculas_inconsistentes sospechoso
-#> 12          monto       faltantes_disfrazados sospechoso
-#> 13          monto                    outliers sospechoso
-#> 14        sistema                   constante sospechoso
-#> 15       contacto           alta_cardinalidad sospechoso
-#> 16      id_evento       posible_identificador         ok
-#> 17 codigo_usuario casi_duplicados_vocabulario         ok
-#> 18   fecha_evento casi_duplicados_vocabulario         ok
-#> 19          canal casi_duplicados_vocabulario sospechoso
-#> 20           zona casi_duplicados_vocabulario sospechoso
-#> 21           <NA>            filas_duplicadas      error
-#> 22    id_registro         columnas_duplicadas sospechoso
-#> 23       contacto       dato_personal_posible         ok
-#>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              evidencia
-#> 1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     Tasa de valores distintos: 0.846
-#> 2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              S/D (1)
-#> 3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     Tasa de valores distintos: 0.923
-#> 4                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             NULL (1)
-#> 5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   %d/%m/%Y (4); %Y-%m-%d (4); %d-%m-%Y (1); %Y/%m/%d (1); %Y%m%d (1)
-#> 6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 Declarado: texto; inferido: fecha (0.846 compatible)
-#> 7                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     Tasa de valores distintos: 0.615
-#> 8                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  0 ausentes reales y 2 disfrazados (0.154 del total)
-#> 9                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <blanco> (1); S/D (1)
-#> 10                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         1 valores; ejemplos: "web "
-#> 11                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        "web"; "Web"
-#> 12                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             -99 (1)
-#> 13                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           4 valores
-#> 14                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    Valor: principal; frecuencia: 13
-#> 15                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               [evidencia protegida]
-#> 16                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  12 valores distintos de 13 (0.923)
-#> 17                       No se formaron grupos por distancia: 28 pares cercanos se descartaron por secuencias numericas incompatibles; alcance: 10 de 10 valores; 45 pares comparados de 45; truncado=FALSE; unidades normalizadas: 10 de 10; grupos: 0, mostrados: 0; grupo_maximo: 0 (0.000); limite_aplicado=FALSE; valores_excluidos_faltantes_disfrazados=1; motivo_grupos=. pares descartados por secuencia numerica=28; grupo_maximo compatible=0 (0.000).  criterio_edicion_corta: distancia_edicion<=1; largo<=6; participacion_variante<=0.050; asimetria>=10.0; participacion_dominante>=0.500; candidatos=0; descartados_por_frecuencia=0.
-#> 18                         No se formaron grupos por distancia: 2 pares cercanos se descartaron por secuencias numericas incompatibles; alcance: 11 de 11 valores; 55 pares comparados de 55; truncado=FALSE; unidades normalizadas: 11 de 11; grupos: 0, mostrados: 0; grupo_maximo: 0 (0.000); limite_aplicado=FALSE; valores_excluidos_faltantes_disfrazados=1; motivo_grupos=. pares descartados por secuencia numerica=2; grupo_maximo compatible=0 (0.000).  criterio_edicion_corta: distancia_edicion<=1; largo<=6; participacion_variante<=0.050; asimetria>=10.0; participacion_dominante>=0.500; candidatos=0; descartados_por_frecuencia=0.
-#> 19                                [web (5) / Web (1) / web  (1)]; asimetria=5.0; origen=normalizacion; clase_diferencia=normalizacion_exacta; alcance: 6 de 6 valores; 6 pares comparados de 6; truncado=FALSE; unidades normalizadas: 4 de 4; grupos: 1, mostrados: 1; grupo_maximo: 3 (0.500); limite_aplicado=FALSE; valores_excluidos_faltantes_disfrazados=1; motivo_grupos=. pares descartados por secuencia numerica=0; grupo_maximo compatible=3 (0.500).  criterio_edicion_corta: distancia_edicion<=1; largo<=6; participacion_variante<=0.050; asimetria>=10.0; participacion_dominante>=0.500; candidatos=0; descartados_por_frecuencia=0.
-#> 20 [Este (2) / Oeste (3)]; asimetria=1.5; origen=distancia; clase_diferencia=token_unico; distancia_minima=0.0667; distancia_maxima=0.0667; alcance: 5 de 5 valores; 10 pares comparados de 10; truncado=FALSE; unidades normalizadas: 5 de 5; grupos: 1, mostrados: 1; grupo_maximo: 2 (0.400); limite_aplicado=FALSE; valores_excluidos_faltantes_disfrazados=0; motivo_grupos=. pares descartados por secuencia numerica=0; grupo_maximo compatible=2 (0.400).  criterio_edicion_corta: distancia_edicion<=1; largo<=6; participacion_variante<=0.050; asimetria>=10.0; participacion_dominante>=0.500; candidatos=0; descartados_por_frecuencia=0.
-#> 21                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  1 filas duplicadas
-#> 22                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              id_registro = id_copia
-#> 23                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     Tipo posible: correo; fundamento: forma de correo dominante; poder discriminante: alto; proteccion automatica: si; proporción compatible: 0.923
+#> 7           canal                   faltantes sospechoso
+#> 8           canal       faltantes_disfrazados      error
+#> 9           canal          espacios_sobrantes sospechoso
+#> 10          canal   mayusculas_inconsistentes sospechoso
+#> 11          monto       faltantes_disfrazados sospechoso
+#> 12          monto                    outliers sospechoso
+#> 13        sistema                   constante sospechoso
+#> 14       contacto           alta_cardinalidad sospechoso
+#> 15      id_evento       posible_identificador         ok
+#> 16 codigo_usuario casi_duplicados_vocabulario         ok
+#> 17   fecha_evento casi_duplicados_vocabulario         ok
+#> 18          canal casi_duplicados_vocabulario sospechoso
+#> 19           <NA>            filas_duplicadas      error
+#> 20    id_registro         columnas_duplicadas sospechoso
+#> 21       contacto       dato_personal_posible         ok
+#>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            evidencia
+#> 1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   Tasa de valores distintos: 0.846
+#> 2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            S/D (1)
+#> 3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   Tasa de valores distintos: 0.923
+#> 4                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           NULL (1)
+#> 5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 %d/%m/%Y (4); %Y-%m-%d (4); %d-%m-%Y (1); %Y/%m/%d (1); %Y%m%d (1)
+#> 6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               Declarado: texto; inferido: fecha (0.846 compatible)
+#> 7                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                0 ausentes reales y 2 disfrazados (0.154 del total)
+#> 8                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              <blanco> (1); S/D (1)
+#> 9                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        1 valores; ejemplos: "web "
+#> 10                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      "web"; "Web"
+#> 11                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           -99 (1)
+#> 12                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         4 valores
+#> 13                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  Valor: principal; frecuencia: 13
+#> 14                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             [evidencia protegida]
+#> 15                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                12 valores distintos de 13 (0.923)
+#> 16                                                                     No se formaron grupos por distancia: 28 pares cercanos se descartaron por secuencias numericas incompatibles; alcance: 10 de 10 valores; 45 pares comparados de 45; truncado=FALSE; unidades normalizadas: 10 de 10; grupos: 0, mostrados: 0; grupo_maximo: 0 (0.000); limite_aplicado=FALSE; valores_excluidos_faltantes_disfrazados=1; motivo_grupos=. pares descartados por secuencia numerica=28; grupo_maximo compatible=0 (0.000).  criterio_edicion_corta: distancia_edicion<=1; largo<=6; participacion_variante<=0.050; asimetria>=10.0; participacion_dominante>=0.500; candidatos=0; descartados_por_frecuencia=0.
+#> 17                                                                       No se formaron grupos por distancia: 2 pares cercanos se descartaron por secuencias numericas incompatibles; alcance: 11 de 11 valores; 55 pares comparados de 55; truncado=FALSE; unidades normalizadas: 11 de 11; grupos: 0, mostrados: 0; grupo_maximo: 0 (0.000); limite_aplicado=FALSE; valores_excluidos_faltantes_disfrazados=1; motivo_grupos=. pares descartados por secuencia numerica=2; grupo_maximo compatible=0 (0.000).  criterio_edicion_corta: distancia_edicion<=1; largo<=6; participacion_variante<=0.050; asimetria>=10.0; participacion_dominante>=0.500; candidatos=0; descartados_por_frecuencia=0.
+#> 18 [web (5) / Web (1) / web  (1)]; asimetria=5.0; origen=normalizacion; clase_diferencia=normalizacion_exacta; alcance: 6 de 6 valores; 6 pares comparados de 6; truncado=FALSE; unidades normalizadas: 4 de 4; grupos: 1, mostrados: 1; grupo_maximo: 3 (0.500); limite_aplicado=FALSE; valores_excluidos_faltantes_disfrazados=1; motivo_grupos=. pares descartados por secuencia numerica=0; grupo_maximo compatible=3 (0.500).  criterio_edicion_corta: distancia_edicion<=1; largo<=6; participacion_variante<=0.050; asimetria>=10.0; participacion_dominante>=0.500; candidatos=0; descartados_por_frecuencia=0.; traza: 7 filas mostradas (2 formas variantes, 5 formas dominantes); total=7
+#> 19                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       2 filas en grupos duplicados (1 excedentes)
+#> 20                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 id_registro = id_copia; comparadas sobre 13 filas
+#> 21                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   Tipo posible: correo; fundamento: forma de correo dominante; poder discriminante: alto; proteccion automatica: si; proporción compatible: 0.923
 ```
+
+Los conteos y la traza tienen unidades relacionadas, pero no
+necesariamente iguales. `mayusculas_inconsistentes` y
+`normalizacion_unicode` cuentan valores distintos
+(`unidad_conteo = "valor_distinto"`); su `trazabilidad` sigue enumerando
+por fila todas las filas que contienen esos valores, no sólo las filas
+defectuosas. `casi_duplicados_vocabulario` usa la misma forma: cuenta
+valores variantes y traza las filas que contienen los valores del grupo
+seleccionado, incluida la forma dominante. Como es una señal heurística,
+esa traza sirve para revisar el grupo y no afirma que todas sus filas
+sean errores. Las filas de las formas no dominantes aparecen primero y
+las de las formas dominantes después; la evidencia informa cuántas filas
+mostradas pertenecen a cada grupo. Para `patron_raro`, la evidencia
+conserva como máximo seis nombres, pero la trazabilidad usa todos los
+nombres raros hasta su límite separado de 5.000; un recorte de ese
+límite aparece en `cobertura_diagnosticos`. En `filas_duplicadas`, tanto
+el conteo afectado como la traza incluyen todas las filas participantes;
+la evidencia informa aparte los excedentes. Un cero es una medición de
+cero, mientras que un `NA` declara que el conteo no pudo medirse. Si se
+separan el conteo y la traza,
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+conserva el hallazgo y emite una advertencia de clase
+`lupa_trazabilidad_incoherente`.
 
 La tabla por columna mantiene todas las proporciones en `[0, 1]`.
 
@@ -281,18 +300,22 @@ analisis$cobertura[, c("marco", "dimension", "factor", "estado")]
 #> 2 Marco operativo del ejemplo   Estructura   Duplicación exacta       medida
 #> 3 Marco operativo del ejemplo Trazabilidad   Origen documentado no_declarada
 perfil$cobertura_diagnosticos
-#>                   diagnostico   columna
-#> 1 casi_duplicados_vocabulario  contacto
-#> 2 casi_duplicados_vocabulario id_evento
-#>                                                                              motivo
-#> 1 El grupo candidato mayor abarca 0.917 del vocabulario y el diagnostico no aplica.
-#> 2 El grupo candidato mayor abarca 1.000 del vocabulario y el diagnostico no aplica.
-#>                                                                                                              como_resolverlo
-#> 1 Usar una regla de dominio especifica para la columna o ajustar el criterio de agrupacion con conocimiento del vocabulario.
-#> 2 Usar una regla de dominio especifica para la columna o ajustar el criterio de agrupacion con conocimiento del vocabulario.
+#>              diagnostico   columna
+#> 1 proximidad_vocabulario      zona
+#> 2 proximidad_vocabulario  contacto
+#> 3 proximidad_vocabulario id_evento
+#>                                                                                                                                                                                                                             motivo
+#> 1 1 grupo de valores cercanos no se informo porque su asimetria de frecuencias quedo por debajo de 2: las formas son casi igual de comunes y no se puede distinguir una errata sistematica de dos valores legitimamente parecidos.
+#> 2                                                                                                                                                El grupo candidato mayor abarca 0.917 del vocabulario y el diagnostico no aplica.
+#> 3                                                                                                                                                El grupo candidato mayor abarca 1.000 del vocabulario y el diagnostico no aplica.
+#>                                                                                                                     como_resolverlo
+#> 1 Bajar `min_asimetria_vocabulario` si en esta columna interesan las variantes de frecuencia pareja, sabiendo que aumenta el ruido.
+#> 2        Usar una regla de dominio especifica para la columna o ajustar el criterio de agrupacion con conocimiento del vocabulario.
+#> 3        Usar una regla de dominio especifica para la columna o ajustar el criterio de agrupacion con conocimiento del vocabulario.
 #>   dependencia
 #> 1        <NA>
 #> 2        <NA>
+#> 3        <NA>
 ```
 
 `cobertura_diagnosticos` es la tabla que sostiene la regla central de
@@ -395,46 +418,44 @@ plan[, c(
 #> 3        <NA>   fecha_evento           revisar_cardinalidad       FALSE   FALSE
 #> 4        <NA>   fecha_evento  convertir_ausencias_textuales        TRUE    TRUE
 #> 5        <NA>   fecha_evento     convertir_fecha_confirmada       FALSE   FALSE
-#> 6        <NA>          canal           revisar_cardinalidad       FALSE   FALSE
-#> 7        <NA>          canal  convertir_ausencias_textuales        TRUE    TRUE
-#> 8        <NA>          canal              recortar_espacios        TRUE    TRUE
-#> 9  grupo-0011          canal           convertir_minusculas       FALSE   FALSE
-#> 10 grupo-0011          canal               convertir_titulo       FALSE   FALSE
-#> 11 grupo-0011          canal           convertir_mayusculas       FALSE   FALSE
-#> 12 grupo-0011          canal    convertir_segun_diccionario       FALSE   FALSE
-#> 13 grupo-0012          monto convertir_sentinelas_numericos       FALSE   FALSE
-#> 14 grupo-0013          monto                marcar_outliers        TRUE   FALSE
-#> 15 grupo-0013          monto            winsorizar_outliers       FALSE   FALSE
-#> 16 grupo-0014        sistema     eliminar_columna_constante       FALSE   FALSE
-#> 17       <NA>       contacto           revisar_cardinalidad       FALSE   FALSE
-#> 18 grupo-0021           <NA>        marcar_filas_duplicadas        TRUE    TRUE
-#> 19 grupo-0021           <NA>    conservar_primera_duplicada       FALSE   FALSE
-#> 20 grupo-0021           <NA>         conservar_mas_completa       FALSE   FALSE
-#> 21 grupo-0022    id_registro     marcar_columnas_duplicadas        TRUE    TRUE
-#> 22 grupo-0022    id_registro     eliminar_columna_duplicada       FALSE   FALSE
+#> 6        <NA>          canal  convertir_ausencias_textuales        TRUE    TRUE
+#> 7        <NA>          canal              recortar_espacios        TRUE    TRUE
+#> 8  grupo-0010          canal           convertir_minusculas       FALSE   FALSE
+#> 9  grupo-0010          canal               convertir_titulo       FALSE   FALSE
+#> 10 grupo-0010          canal           convertir_mayusculas       FALSE   FALSE
+#> 11 grupo-0010          canal    convertir_segun_diccionario       FALSE   FALSE
+#> 12 grupo-0011          monto convertir_sentinelas_numericos       FALSE   FALSE
+#> 13 grupo-0012          monto                marcar_outliers        TRUE   FALSE
+#> 14 grupo-0012          monto            winsorizar_outliers       FALSE   FALSE
+#> 15 grupo-0013        sistema     eliminar_columna_constante       FALSE   FALSE
+#> 16       <NA>       contacto           revisar_cardinalidad       FALSE   FALSE
+#> 17 grupo-0019           <NA>        marcar_filas_duplicadas        TRUE    TRUE
+#> 18 grupo-0019           <NA>    conservar_primera_duplicada       FALSE   FALSE
+#> 19 grupo-0019           <NA>         conservar_mas_completa       FALSE   FALSE
+#> 20 grupo-0020    id_registro     marcar_columnas_duplicadas        TRUE    TRUE
+#> 21 grupo-0020    id_registro     eliminar_columna_duplicada       FALSE   FALSE
 #>         estado
 #> 1  informativa
 #> 2        lista
 #> 3  informativa
 #> 4        lista
 #> 5    bloqueada
-#> 6  informativa
+#> 6        lista
 #> 7        lista
 #> 8        lista
 #> 9        lista
 #> 10       lista
-#> 11       lista
-#> 12   bloqueada
+#> 11   bloqueada
+#> 12       lista
 #> 13       lista
 #> 14       lista
 #> 15       lista
-#> 16       lista
-#> 17 informativa
+#> 16 informativa
+#> 17       lista
 #> 18       lista
-#> 19       lista
-#> 20   bloqueada
+#> 19   bloqueada
+#> 20       lista
 #> 21       lista
-#> 22       lista
 
 resultado <- aplicar(plan, datos_operativos)
 resultado$registro[, c("estrategia", "n_cambiadas")]
@@ -458,7 +479,7 @@ c(
   despues = nrow(perfil_despues$hallazgos)
 )
 #>   antes despues 
-#>      23      19
+#>      21      18
 ```
 
 ## Un archivo para compartir
@@ -485,7 +506,7 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file20f65d7cbb0e.html"
+#> [1] "file21c476b926d4.html"
 unlink(c(archivo, archivo_rds))
 ```
 

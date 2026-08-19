@@ -182,7 +182,10 @@ confirmarlas como reglas.</p>
 <p>Las funciones de columna reciben vectores. En particular,
 <code><a href="../reference/descubrir_patrones.html">descubrir_patrones()</a></code> no recibe un data frame. Sobre
 <code>codigo_usuario</code>, la salida cuenta las formas observadas y
-conserva ejemplos.</p>
+conserva ejemplos. El resumen conserva como máximo seis patrones raros
+para presentar; el atributo <code>patrones_raros_trazabilidad</code>
+conserva sus nombres hasta 5.000, sin guardar la tabla de
+frecuencias.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/descubrir_patrones.html">descubrir_patrones</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">$</span><span class="va">codigo_usuario</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   patron  n proporcion                    ejemplos</span></span>
@@ -329,7 +332,7 @@ agregaciones admitidas.</p>
 <span><span class="co">#&gt; 4      4       instanciaEntidad                tupla         TRUE</span></span>
 <span><span class="co">#&gt; 5      5                entidad                tabla         TRUE</span></span>
 <span><span class="co">#&gt; 6      6      conjuntoEntidades   conjunto de tablas         TRUE</span></span>
-<span><span class="co">#&gt; 7      7              coleccion        base de datos        FALSE</span></span>
+<span><span class="co">#&gt; 7      7              coleccion        base de datos         TRUE</span></span>
 <span><span class="co">#&gt; 8      8    conjuntoColecciones                 &lt;NA&gt;        FALSE</span></span>
 <span><span class="co">#&gt; 9      9           organizacion                 &lt;NA&gt;        FALSE</span></span>
 <span><span class="co">#&gt; 10    10 conjuntoOrganizaciones                 &lt;NA&gt;        FALSE</span></span>

@@ -151,6 +151,18 @@ perfil$perfil_muestra$columnas[, c(
 #> 4   fecha 5           0           5         fecha
 ```
 
+Los hallazgos de `perfil_muestra` conservan sus unidades declaradas. En
+particular, las inconsistencias de mayúsculas, las equivalencias Unicode
+y `casi_duplicados_vocabulario` cuentan valores distintos, pero su
+trazabilidad enumera por fila todas las filas que contienen esos
+valores. En el último caso incluye las formas seleccionadas por el
+grupo, incluida la dominante. Por eso la traza puede tener más filas que
+`n_afectados`; no es una contradicción de alcance, sino el localizador
+del grupo que se debe revisar. El orden de la traza prioriza las formas
+no dominantes antes de las dominantes, para que `max_filas_hallazgo`
+conserve primero las filas accionables; la evidencia declara cuántas
+filas mostradas pertenecen a cada forma.
+
 ## El muestreo declarado
 
 `muestra = 5` declara las filas pedidas. La metadata registra además las

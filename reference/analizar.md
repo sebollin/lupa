@@ -29,6 +29,7 @@ analizar(
   max_columnas_asociacion = 50L,
   max_niveles_asociacion = 50L,
   max_pares_asociacion = 500L,
+  metodo_asociacion_numerica = c("pearson", "spearman"),
   calendario = 1:7,
   frecuencia_dias = NULL,
   max_huecos = 20L,
@@ -135,6 +136,13 @@ analizar(
 - max_pares_asociacion:
 
   Máximo de pares devueltos.
+
+- metodo_asociacion_numerica:
+
+  Medida entre columnas numéricas que usa
+  [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md):
+  `"pearson"` por omisión, o `"spearman"` para asociación monótona sobre
+  los rangos, que no supone linealidad.
 
 - calendario:
 

@@ -13,7 +13,8 @@ regla_evaluacion(
   condicion,
   metricas = NULL,
   proporcion_minima = NULL,
-  desenlace = NULL
+  desenlace = NULL,
+  umbrales = list()
 )
 
 perfil_evaluacion(nombre, ...)
@@ -58,15 +59,15 @@ perfiles_madurez(metricas = NULL, umbrales = NULL)
   que las medidas que no cumplen `condicion` no deben publicarse. No
   existe un desenlace predeterminado.
 
-- ...:
-
-  Reglas creadas por `regla_evaluacion()` o una única lista que las
-  contenga.
-
 - umbrales:
 
   Vector numérico con nombres, estrictamente creciente y en `[0, 1]`.
   `NULL` conserva los tres perfiles incluidos de fábrica.
+
+- ...:
+
+  Reglas creadas por `regla_evaluacion()` o una única lista que las
+  contenga.
 
 ## Value
 

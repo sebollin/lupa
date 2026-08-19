@@ -126,7 +126,10 @@ la documentación del sistema es la que puede confirmarlas como reglas.
 Las funciones de columna reciben vectores. En particular,
 [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
 no recibe un data frame. Sobre `codigo_usuario`, la salida cuenta las
-formas observadas y conserva ejemplos.
+formas observadas y conserva ejemplos. El resumen conserva como máximo
+seis patrones raros para presentar; el atributo
+`patrones_raros_trazabilidad` conserva sus nombres hasta 5.000, sin
+guardar la tabla de frecuencias.
 
 ``` r
 
@@ -294,7 +297,7 @@ granularidades()
 #> 4      4       instanciaEntidad                tupla         TRUE
 #> 5      5                entidad                tabla         TRUE
 #> 6      6      conjuntoEntidades   conjunto de tablas         TRUE
-#> 7      7              coleccion        base de datos        FALSE
+#> 7      7              coleccion        base de datos         TRUE
 #> 8      8    conjuntoColecciones                 <NA>        FALSE
 #> 9      9           organizacion                 <NA>        FALSE
 #> 10    10 conjuntoOrganizaciones                 <NA>        FALSE

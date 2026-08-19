@@ -278,11 +278,22 @@ son <code>NA</code>, nunca cero.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>Los pares cuyos textos comparados son iguales despues de la normalizacion se
-incluyen como <code>tipo_par = "exacto"</code>; los restantes son <code>"aproximado"</code>.
-La clasificacion no depende de que una medida de distancia devuelva cero:
-por ejemplo, <code>soundex</code> puede dar distancia cero para textos distintos.
-Ningun par demuestra identidad.</p>
+    <p><code>tipo_par = "exacto"</code> indica que los textos guardados son iguales en las
+columnas comparadas. <code>tipo_par = "exacto_normalizado"</code> indica que coinciden
+despues de la normalizacion declarada, aunque los textos guardados difieran.
+Los restantes son <code>"aproximado"</code>. La columna logica <code>igualo_normalizar</code> es
+<code>TRUE</code> unicamente para el segundo caso. La clasificacion no depende de que
+una medida de distancia devuelva cero: por ejemplo, <code>soundex</code> puede dar
+distancia cero para textos distintos. Ningun par demuestra identidad.</p>
+<p>Como la normalizacion por omision iguala mayusculas, espacios, acentos y
+comillas, el objeto conserva esta distincion tanto en <code>pares</code> como en los
+hallazgos. <code>duplicados_exactos_normalizados</code> es un tipo de hallazgo propio:
+no afirma que los valores guardados sean iguales y tampoco oculta la causa
+de la coincidencia bajo <code>duplicados_aproximados</code>.</p>
+<p>En <code>alcance</code>, <code>n_pares_exactos</code> cuenta solo textos guardados iguales,
+<code>n_pares_exactos_normalizados</code> cuenta coincidencias producidas por la
+normalizacion y <code>n_pares_aproximados</code> cuenta los pares restantes. Son
+conteos disjuntos y explican <code>n_pares_hallados</code>.</p>
 <p>La comparacion usa teselas de <code>bloque</code> filas: cada matriz temporal se
 descarta antes de continuar, por lo que la memoria no crece con el tamaño
 de la tabla. El recorrido es exacto para las filas seleccionadas. <code>muestra</code>

@@ -18,6 +18,10 @@ Perfilar datos y descubrir su estructura.
   : Examinar regularidad y cobertura temporal
 - [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md)
   : Proponer escalas y roles de las variables
+- [`senal_redundante()`](https://sebollin.github.io/lupa/reference/senal_redundante.md)
+  : Declarar una señal redundante entre columnas
+- [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md)
+  : Detectar filas donde señales redundantes se contradicen
 - [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
   : Descubrir patrones de formato
 - [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
@@ -90,6 +94,23 @@ Declarar métricas, referenciales, granularidad y agregaciones.
   : Construir un tablero de calidad
 - [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)
   : Calcular un índice de calidad declarado por el usuario
+- [`estadisticos_estimacion()`](https://sebollin.github.io/lupa/reference/estadisticos_estimacion.md)
+  : Catálogo de estadísticos de estimación reconocidos
+- [`medicion_desde_estimaciones()`](https://sebollin.github.io/lupa/reference/medicion_desde_estimaciones.md)
+  : Llevar estimaciones ya calculadas al contrato de medición
+
+## Colecciones
+
+Declarar una base de varias tablas y perfilarla como conjunto.
+
+- [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
+  : Declarar la frontera de una colección
+- [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+  : Perfilar una colección declarada
+- [`estimar_costo_coleccion()`](https://sebollin.github.io/lupa/reference/estimar_costo_coleccion.md)
+  : Estimar el costo de buscar relaciones en una colección
+- [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  : Buscar claves foráneas candidatas entre pares declarados
 
 ## Validar
 
@@ -118,6 +139,8 @@ Aplicar reglas y perfiles de madurez a las medidas.
   [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
   [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
   : Reglas y perfiles de evaluación
+- [`propiedades_regla()`](https://sebollin.github.io/lupa/reference/propiedades_regla.md)
+  : Propiedades declaradas de una regla de evaluación
 - [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) :
   Evaluar medidas, reglas y perfiles
 - [`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md)

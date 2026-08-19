@@ -60,7 +60,8 @@ un índice global de calidad.</p>
 <span>  <span class="va">condicion</span>,</span>
 <span>  metricas <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  proporcion_minima <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  desenlace <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  desenlace <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  umbrales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">perfil_evaluacion</span><span class="op">(</span><span class="va">nombre</span>, <span class="va">...</span><span class="op">)</span></span>
@@ -105,14 +106,14 @@ para declarar que las medidas que no cumplen <code>condicion</code> no deben
 publicarse. No existe un desenlace predeterminado.</p></dd>
 
 
-<dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Reglas creadas por <code>regla_evaluacion()</code> o una única lista que las
-contenga.</p></dd>
-
-
 <dt id="arg-umbrales">umbrales<a class="anchor" aria-label="anchor" href="#arg-umbrales"></a></dt>
 <dd><p>Vector numérico con nombres, estrictamente creciente y en
 <code>[0, 1]</code>. <code>NULL</code> conserva los tres perfiles incluidos de fábrica.</p></dd>
+
+
+<dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
+<dd><p>Reglas creadas por <code>regla_evaluacion()</code> o una única lista que las
+contenga.</p></dd>
 
 </dl></div>
     <div class="section level2">

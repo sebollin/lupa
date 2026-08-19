@@ -16,6 +16,49 @@ mediciones explícitas, limpieza controlada de una copia y duplicados
 aproximados a escala. En vez de un puntaje opaco, cada resultado
 conserva alcance, evidencia e incertidumbre.
 
+**Bases enteras, no una tabla sola.**
+[`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
+declara qué tablas componen una base —con su esquema, porque el esquema
+es parte de la identidad de la tabla— y
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+devuelve una fila por tabla más la cobertura de lo que no pudo medir. La
+frontera se *declara*, nunca se descubre: recorrer un catálogo
+convertiría un error de permisos en un resultado, y una colección real
+pasa de mil tablas repartidas en decenas de esquemas. Lo que una
+credencial no puede leer va a `cobertura_coleccion` con su motivo,
+**nunca a cero** —los permisos parciales son el caso normal, no el
+borde—. Y no hay lectura instantánea: cada tabla trae el momento en que
+se midió, y el objeto lo declara.
+
+**Contradicciones que ninguna columna muestra sola.** Con
+[`senal_redundante()`](https://sebollin.github.io/lupa/reference/senal_redundante.md)
+se declara que varias columnas codifican el mismo hecho, y
+[`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md)
+informa las filas donde no concuerdan: el año de la fecha contra el año
+fiscal contra el año del archivo. Cada uno de los tres puede ser
+plausible por su cuenta y aun así contradecir a los otros. El grupo se
+declara, nunca se adivina: dos columnas de año pueden ser el de
+nacimiento y el de ingreso, y no tienen por qué coincidir.
+
+**Hallazgos que se pueden verificar, no sólo leer.** Pasale `clave` a
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+con las columnas que identifican una fila, y la trazabilidad de cada
+hallazgo trae esos valores para las filas que señala, así el caso se
+busca en el sistema de origen sin abrir la tabla. El índice de fila
+queda como respaldo, y `trazabilidad$localizador` dice cuál de los dos
+te tocó. Hay una tensión que el rasgo no puede ignorar: **la clave que
+permite ir a verificar es exactamente lo que identifica a una persona**,
+así que una columna de la clave clasificada como dato personal vuelve
+enmascarada, igual que la evidencia, y `claves_protegidas` dice cuál.
+
+**El perfilado no toca los datos.** Ninguna función de análisis altera
+la tabla que recibe —ni sus valores, ni sus tipos, ni sus nombres, ni
+sus atributos—, incluidos los `data.table`, que R permite modificar por
+referencia. La única capa que produce datos distintos es la de
+remediación, y devuelve una copia: la tabla que pasaste sigue siendo la
+que tenés. Hay una prueba de regresión que lo verifica en cada punto de
+entrada.
+
 ## 🌎 Idioma de la API
 
 Los nombres públicos están en español en ejemplos, ayuda y viñetas:
@@ -112,6 +155,15 @@ filtro se evalúa luego sobre toda la columna; `Inf` vuelve completo
 incluso el primer paso. Los duplicados aproximados están apagados por
 omisión y, cuando se activan, tienen sus propios límites declarados.
 
+En
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md),
+`pares$tipo_par` se describe solo: `exacto` significa que los textos
+guardados son iguales, `exacto_normalizado` que sólo coinciden después
+de la normalización declarada, y `aproximado` que siguen siendo
+similares. `pares$igualo_normalizar` marca el caso intermedio. Los
+conteos correspondientes en el alcance son `n_pares_exactos`,
+`n_pares_exactos_normalizados` y `n_pares_aproximados`.
+
 El resultado deja el alcance efectivo en `meta$muestra`,
 `meta$filas_analizadas` y `meta$muestreo`; cada columna también publica
 `n_filas_analizadas_tipo` y `muestreado_tipo_inferido`, y la tabla de
@@ -120,6 +172,47 @@ dependencias conserva atributos con las filas analizadas y el muestreo.
 reutiliza `muestra = 1e5` para su perfil, distribuciones y niveles
 observados, y declara límites separados para asociaciones y los demás
 componentes.
+
+## 🔢 Unidades declaradas y trazabilidad por fila
+
+Cada hallazgo declara la unidad de `n_evaluados`, `n_afectados` y
+`unidad_conteo`. `mayusculas_inconsistentes` y `normalizacion_unicode`
+usan `valor_distinto`: cuentan valores distintos, mientras su traza
+sigue siendo por fila. Enumera todas las filas que contienen un valor
+afectado, no sólo las filas defectuosas. `casi_duplicados_vocabulario`
+sigue el mismo contrato: su conteo es la cantidad de valores variantes y
+su traza enumera todas las filas cuyo valor pertenece a un grupo
+seleccionado, incluida la forma dominante. Por eso una traza puede tener
+más filas que `n_afectados`: esas filas sirven para revisar o unificar
+el grupo completo en el sistema de origen. El detector de vocabulario es
+heurístico; la traza es evidencia para revisar, no un veredicto de que
+todas esas filas deban corregirse. La traza entrega primero las formas
+no dominantes y después las dominantes; la evidencia declara cuántas
+filas mostradas pertenecen a cada grupo.
+
+En `patron_raro`, `resumen_patrones` y la evidencia muestran como máximo
+seis patrones raros. La trazabilidad usa el conjunto completo de nombres
+de patrones raros, sin conservar su tabla de frecuencias, hasta un
+límite separado de 5.000 nombres. Si se alcanza ese límite, el alcance
+de la traza es parcial y `cobertura_diagnosticos` publica el límite; el
+tope de seis de la presentación no es por sí mismo una falta de
+cobertura de la traza.
+
+`filas_duplicadas` cuenta todas las filas que participan en grupos
+duplicados, en línea con la métrica y con la acción predeterminada que
+las marca. El número de excedentes queda en la evidencia. `0` significa
+que se midió que no había unidades afectadas; `NA` significa que el
+conteo no se midió. La misma distinción vale para la cobertura: un
+diagnóstico que no pudo ejecutarse queda en `cobertura_diagnosticos`,
+nunca convertido en cero en silencio.
+
+Cuando un hallazgo y su traza no coinciden,
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+conserva el hallazgo y emite una advertencia de clase
+`lupa_trazabilidad_incoherente`. La guarda compara el total previo al
+truncado, verifica ambas direcciones y respeta la unidad declarada; es
+una red de diagnóstico, no un reemplazo para alinear el detector y su
+traza.
 
 ## 🛣️ ¿`perfilar()` o `analizar()`?
 
@@ -142,6 +235,27 @@ se puede entregar una propuesta o modelo confirmado. La función agrega
 de inmediato y conserva el tablero pequeño;
 `conservar_detalle_medicion = TRUE` retiene el detalle de medición fila
 a fila.
+
+**Dónde viven la distribución de valores y las correlaciones.** En
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md),
+no en
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), y
+la separación es deliberada:
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) es
+la pasada barata cuyo objeto uno lleva a todos lados, mientras que
+[`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
+y
+[`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md)
+cuestan más y devuelven tablas propias.
+[`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
+da frecuencias y cuantiles por columna con su tope declarado y su marca
+de truncamiento;
+[`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md)
+da Pearson entre numéricas —o Spearman, con
+`metodo_numerico = "spearman"`, para una relación monótona que no es
+lineal—, más V de Cramér y eta cuadrado, y cada fila declara su método y
+su supuesto. Las dos están exportadas, así que se pueden llamar sueltas
+sin pagar el recorrido entero.
 
 ## 🚦 Severidades y automatización
 
