@@ -291,7 +291,7 @@ manual encontró una observación apoyada en cada una de las ocho columnas
 adicionales: constantes, columnas duplicadas, mayúsculas inconsistentes,
 cadenas vacías y texto de alta cardinalidad. Por eso no informamos precisión ni
 recall diagnóstico a partir de Raha: 26/26 es cobertura por columna, no evidencia
-de que se haya identificado cada celda cambiada. [`benchmark/`](benchmark/)
+de que se haya identificado cada celda cambiada. [`benchmark/`](https://github.com/sebollin/lupa/tree/main/benchmark)
 reproduce la tabla desde las fuentes publicadas y registra las huellas exactas
 de los archivos usados en la corrida publicada, pero sólo cuando `lupa` está
 instalado a partir de un build de estas mismas fuentes. Desde la raíz del

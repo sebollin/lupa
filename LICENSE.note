@@ -13,6 +13,11 @@ redistribute literal data dumps of ftfy's character tables, badness categories
 and regular expressions as fixtures; these are data, not source code, and are
 distributed under the same Apache-2.0 terms.
 
+The material derived from ftfy is the larger of the two: seven data files
+shipped with the package -- character tables, badness categories, the CESU-8
+tables, the UTF-8 detector and the test corpus -- plus the design of the repair
+engine, reimplemented in R.
+
 The package also redistributes the frozen sentinel values from [naniar
 1.1.0](https://github.com/njtierney/naniar), an MIT-licensed package by
 [Nicholas Tierney](https://github.com/njtierney), [Di Cook](https://github.com/dicook),
@@ -21,3 +26,10 @@ and contributors. Copyright (c) Nicholas Tierney, Di Cook, Miles McBain, Colin
 Fay and contributors. The
 copyright and license notice for that package is available in its
 [LICENSE](https://github.com/njtierney/naniar/blob/main/LICENSE).
+
+The scope of that second borrowing is stated here so that each attribution can
+be read for what it is: twenty-six missing-value strings, of which twenty-three
+are taken verbatim and three are the values naniar publishes escaped for regular
+expressions and lupa stores as literals, plus the eight numeric sentinels
+`-9, -99, -999, -9999, 9999, 66, 77, 88`, taken unchanged. No naniar code is
+used. `DESCRIPTION` records what each copyright holder holds.

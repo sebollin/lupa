@@ -5,11 +5,16 @@ Authors@R:
     c(
       person("Sebastián", "Lucas", , "sebalucas@gmail.com", role = c("aut", "cre"),
              comment = c(ORCID = "0009-0009-9068-0276")),
-      person("Robyn", "Speer", role = "cph"),
-      person("Nicholas", "Tierney", role = "cph"),
-      person("Di", "Cook", role = "cph"),
-      person("Miles", "McBain", role = "cph"),
-      person("Colin", "Fay", role = "cph")
+      person("Robyn", "Speer", role = "cph",
+             comment = "encoding-repair design and character tables, from ftfy 6.3.1"),
+      person("Nicholas", "Tierney", role = "cph",
+             comment = "missing-value sentinel vectors, from naniar 1.1.0"),
+      person("Di", "Cook", role = "cph",
+             comment = "missing-value sentinel vectors, from naniar 1.1.0"),
+      person("Miles", "McBain", role = "cph",
+             comment = "missing-value sentinel vectors, from naniar 1.1.0"),
+      person("Colin", "Fay", role = "cph",
+             comment = "missing-value sentinel vectors, from naniar 1.1.0")
     )
 Description: Provides general-purpose data profiling and quality analysis for
     tabular data. Discovers structural patterns, implicit types, mixed date
