@@ -165,7 +165,16 @@ cuyo valor pertenece a un grupo seleccionado, incluida la forma dominante.
 Por eso una traza puede tener más filas que `n_afectados`: esas filas sirven
 para revisar o unificar el grupo completo en el sistema de origen. El detector
 de vocabulario es heurístico; la traza es evidencia para revisar, no un
-veredicto de que todas esas filas deban corregirse.
+veredicto de que todas esas filas deban corregirse. La traza entrega primero
+las formas no dominantes y después las dominantes; la evidencia declara cuántas
+filas mostradas pertenecen a cada grupo.
+
+En `patron_raro`, `resumen_patrones` y la evidencia muestran como máximo seis
+patrones raros. La trazabilidad usa el conjunto completo de nombres de patrones
+raros, sin conservar su tabla de frecuencias, hasta un límite separado de
+5.000 nombres. Si se alcanza ese límite, el alcance de la traza es parcial y
+`cobertura_diagnosticos` publica el límite; el tope de seis de la presentación
+no es por sí mismo una falta de cobertura de la traza.
 
 `filas_duplicadas` cuenta todas las filas que participan en grupos duplicados,
 en línea con la métrica y con la acción predeterminada que las marca. El número

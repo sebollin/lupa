@@ -1,3 +1,6 @@
+# El limite de trazabilidad conserva nombres, no la distribucion de frecuencias.
+.limite_patrones_raros_trazabilidad <- 5000L
+
 #' Descubrir patrones de formato
 #'
 #' Generaliza un vector de texto mediante la convención del *Pattern Finder*
@@ -22,11 +25,14 @@
 #'   `muestreado` describen el posible muestreo; `filas_analizadas` es un alias
 #'   explícito de `analizados` para mantener el alcance visible junto a otros
 #'   diagnósticos. `resumen_patrones` conserva sólo el patrón dominante
-#'   y hasta seis patrones raros; nunca guarda la distribución completa. Las
-#'   proporciones siempre están en `[0, 1]`. `n_patrones_distintos` registra el
-#'   total antes de truncar la tabla para informar omisiones sin retenerla.
-#'   `n_patrones_raros` registra cuántos patrones raros había antes del tope de
-#'   seis que aplica `resumen_patrones`.
+#'   y hasta seis patrones raros para presentacion; nunca guarda la distribucion
+#'   completa. `patrones_raros_trazabilidad` conserva solo los nombres de los
+#'   patrones raros, hasta 5.000, para que la trazabilidad pueda enumerar filas
+#'   sin retener frecuencias ni ejemplos. Las proporciones siempre estan en
+#'   `[0, 1]`. `n_patrones_distintos` registra el total antes de truncar la tabla
+#'   para informar omisiones sin retenerla. `n_patrones_raros` y
+#'   `n_patrones_raros_trazabilidad` registran cuantos patrones raros habia antes
+#'   de sus respectivos limites.
 #' @export
 #' @seealso [perfilar()], [inferir_tipo()], [detectar_formatos_fecha()]
 #'
@@ -98,10 +104,14 @@ descubrir_patrones <- function(x,
     seq_along(frecuencias) > 1L & proporciones < umbral_raro
   )
   n_patrones_raros <- length(indices_raros)
-  indices_raros <- utils::head(indices_raros, 6L)
+  nombres_raros <- names(frecuencias)[indices_raros]
+  nombres_raros_trazabilidad <- nombres_raros[
+    seq_len(min(length(nombres_raros), .limite_patrones_raros_trazabilidad))
+  ]
+  indices_raros_presentacion <- utils::head(indices_raros, 6L)
   indices_resumen <- unique(c(
     if (length(frecuencias)) 1L else integer(),
-    indices_raros
+    indices_raros_presentacion
   ))
   indices_objetivo <- sort(unique(c(indices_salida, indices_resumen)))
   nombres_objetivo <- names(frecuencias)[indices_objetivo]
@@ -146,6 +156,11 @@ descubrir_patrones <- function(x,
   attr(resultado, "muestreado") <- muestra_x$muestreado
   attr(resultado, "n_patrones_distintos") <- length(frecuencias)
   attr(resultado, "n_patrones_raros") <- n_patrones_raros
+  attr(resultado, "patrones_raros_trazabilidad") <-
+    nombres_raros_trazabilidad
+  attr(resultado, "n_patrones_raros_trazabilidad") <- n_patrones_raros
+  attr(resultado, "limite_patrones_raros_trazabilidad") <-
+    .limite_patrones_raros_trazabilidad
   attr(resultado, "resumen_patrones") <- resumen
   resultado
 }

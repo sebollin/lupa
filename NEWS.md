@@ -1,5 +1,23 @@
 # lupa 0.1.0
 
+## Patrones raros y trazas accionables
+
+- `patron_raro` conserva separado el tope de presentación y el alcance de la
+  trazabilidad: `resumen_patrones` y la evidencia siguen mostrando como máximo
+  seis patrones, mientras la traza usa sus nombres raros completos hasta un
+  límite de 5.000. Si se alcanza ese límite, `cobertura_diagnosticos` y el
+  alcance de la traza lo declaran.
+- Las ausencias de una columna de lista se nombran, no sólo se cuentan. Una
+  columna de listas —o un BLOB leído por `perfilar_dbi()`— informaba cuántos
+  valores faltaban sin decir en qué filas, aunque `is.na()` los identifica
+  elemento a elemento y es el mismo criterio con el que se contaron. Lo
+  encontró la propia guarda de coherencia, que era exactamente para lo que se
+  agregó.
+- `casi_duplicados_vocabulario` entrega primero las filas de formas no
+  dominantes y después las de formas dominantes. La unidad sigue siendo
+  `valor_distinto`, el grupo sigue incluyendo la forma dominante y la evidencia
+  informa cuántas filas mostradas pertenecen a cada tipo de forma.
+
 ## La traza de vocabulario y la guarda de coherencia cierran el circuito
 
 - `casi_duplicados_vocabulario` conserva `unidad_conteo = "valor_distinto"`

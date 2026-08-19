@@ -92,6 +92,11 @@ filas defectuosas. `casi_duplicados_vocabulario` usa la misma forma: cuenta
 valores variantes y traza las filas que contienen los valores del grupo
 seleccionado, incluida la forma dominante. Como es una señal heurística, esa
 traza sirve para revisar el grupo y no afirma que todas sus filas sean errores.
+Las filas de las formas no dominantes aparecen primero y las de las formas
+dominantes después; la evidencia informa cuántas filas mostradas pertenecen a
+cada grupo. Para `patron_raro`, la evidencia conserva como máximo seis nombres,
+pero la trazabilidad usa todos los nombres raros hasta su límite separado de
+5.000; un recorte de ese límite aparece en `cobertura_diagnosticos`.
 En `filas_duplicadas`, tanto el conteo afectado como la traza incluyen todas
 las filas participantes; la evidencia informa aparte los excedentes. Un cero
 es una medición de cero, mientras que un `NA` declara que el conteo no pudo

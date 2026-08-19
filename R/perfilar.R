@@ -432,16 +432,28 @@
 #'   traza incluye todas las filas cuyos
 #'   valores pertenecen al grupo elegido, incluida la forma dominante. La
 #'   distancia es una senal heuristica, no una prueba de que cada fila deba
-#'   corregirse.
+#'   corregirse; la evidencia declara cuantas filas mostradas pertenecen a las
+#'   formas variantes y cuantas a las formas dominantes.
 #'   En `filas_duplicadas`, el conteo y la traza incluyen todas las filas
 #'   participantes de los grupos; el numero de excedentes queda en la
 #'   evidencia. Cuando el camino
 #'   no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 #'   `trazabilidad` distingue `disponible`, `truncada`, `no_aplica` y
 #'   `no_disponible`; cuando corresponde conserva índices de fila acotados por
-#'   `max_filas_hallazgo`, el total conocido y el alcance. Para `patron_raro`,
+#'   `max_filas_hallazgo`, el total conocido y el alcance. En
+#'   `casi_duplicados_vocabulario`, donde la traza mezcla filas de formas
+#'   variantes con filas de la forma dominante, conserva además
+#'   `n_filas_formas_variantes` y `n_filas_formas_dominantes` con el reparto
+#'   completo, y `mostrados_formas_variantes` y `mostrados_formas_dominantes`
+#'   con el reparto de lo que sobrevivió al truncado. Las variantes se entregan
+#'   primero, de modo que el truncado no se lleve lo accionable. Para
+#'   `patron_raro`,
 #'   el alcance puede ser `completo`, `muestra_patrones`,
-#'   `patrones_parciales` o `muestra_patrones+patrones_parciales`.
+#'   `patrones_parciales` o `muestra_patrones+patrones_parciales`. El resumen y
+#'   el texto de evidencia de `patron_raro` muestran como maximo seis patrones,
+#'   pero la trazabilidad conserva los nombres de todos los patrones raros hasta
+#'   un limite de 5.000; `patrones_parciales` indica que se alcanzo ese limite,
+#'   no que se haya alcanzado el tope de presentacion.
 #'   Si el conteo y la traza no coinciden, conserva el hallazgo y emite una
 #'   advertencia de clase `lupa_trazabilidad_incoherente`. La guarda compara el
 #'   total previo al truncado y respeta la unidad declarada.
@@ -467,7 +479,8 @@
 #'   `stringdist`, `stringi`, `bit64` o `sf`, y las zonas horarias POSIXt sin
 #'   declarar. Los patrones de frecuencia intermedia no se consideran desvios
 #'   del patron dominante: `patron_raro` es completo respecto de su criterio de
-#'   rareza cuando no hay recorte de patrones.
+#'   rareza cuando no hay recorte de trazabilidad. Si el conjunto de nombres
+#'   raros supera 5.000, `cobertura_diagnosticos` declara el recorte y su limite.
 #'   Quien decida automáticamente sobre un perfil debe revisar
 #'   `nrow(perfil$cobertura_diagnosticos)` además de las severidades: un perfil
 #'   sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.

@@ -94,3 +94,27 @@ test_that("la guarda conserva el hallazgo cuando la traza queda separada", {
   )
   expect_equal(alterado$n_afectados[[1L]], 1)
 })
+
+test_that("las ausencias de una columna de lista se nombran, no solo se cuentan", {
+  n <- 60L
+  datos <- data.frame(a = seq_len(n))
+  contenido <- vector("list", n)
+  contenido[seq_len(n / 2L)] <- list(1:2)
+  contenido[(n / 2L + 1L):n] <- list(NA)
+  datos$contenido <- I(contenido)
+
+  expect_no_warning(
+    perfil <- perfilar(
+      datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+    ),
+    class = "lupa_trazabilidad_incoherente"
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "faltantes", , drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  traza <- hallazgo$trazabilidad[[1L]]
+  expect_equal(traza$estado, "disponible")
+  expect_equal(hallazgo$n_afectados[[1L]], n / 2)
+  expect_equal(sort(traza$indices_fila), which(is.na(contenido)))
+})

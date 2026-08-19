@@ -223,7 +223,7 @@ test_that("patron_raro separa patrones raros de patrones intermedios", {
   expect_equal(nrow(perfil$cobertura_diagnosticos), 0L)
 })
 
-test_that("el recorte de patrones raros declara alcance y cobertura", {
+test_that("la presentacion de patrones raros no recorta la trazabilidad", {
   raros <- c("x", "x1", "1x", "x-x", "1", "X-X", "x_x")
   valores <- c(rep("AB", 90L), raros)
   perfil <- perfilar(
@@ -236,19 +236,17 @@ test_that("el recorte de patrones raros declara alcance y cobertura", {
     perfil$hallazgos$tipo_hallazgo == "patron_raro", , drop = FALSE
   ]
   expect_equal(nrow(hallazgo), 1L)
-  expect_true(is.na(hallazgo$n_afectados))
+  expect_equal(hallazgo$n_afectados, 7)
   traza <- hallazgo$trazabilidad[[1L]]
   expect_equal(traza$estado, "disponible")
-  expect_equal(traza$alcance, "patrones_parciales")
-  resumen <- attr(patrones, "resumen_patrones")
-  esperados <- which(valores %in% resumen$ejemplos[-1L])
+  expect_equal(traza$alcance, "completo")
+  esperados <- which(valores %in% raros)
   expect_equal(traza$total, length(esperados))
   expect_setequal(traza$indices_fila, esperados)
   cobertura <- perfil$cobertura_diagnosticos[
     perfil$cobertura_diagnosticos$diagnostico == "patron_raro", , drop = FALSE
   ]
-  expect_equal(nrow(cobertura), 1L)
-  expect_match(cobertura$motivo, "7 patrones raros", fixed = TRUE)
+  expect_equal(nrow(cobertura), 0L)
 })
 
 test_that("el alcance conserva muestreo y recorte de patrones", {
@@ -263,12 +261,66 @@ test_that("el alcance conserva muestreo y recorte de patrones", {
     perfil$hallazgos$tipo_hallazgo == "patron_raro", , drop = FALSE
   ]
   expect_equal(hallazgo$n_evaluados, 100)
-  expect_true(is.na(hallazgo$n_afectados))
+  expect_equal(hallazgo$n_afectados, 7)
   expect_equal(
     hallazgo$trazabilidad[[1L]]$alcance,
-    "muestra_patrones+patrones_parciales"
+    "muestra_patrones"
   )
-  expect_equal(nrow(perfil$cobertura_diagnosticos), 1L)
+  expect_equal(nrow(perfil$cobertura_diagnosticos), 0L)
+})
+
+test_that("diez patrones raros conservan todas sus filas", {
+  base <- rep("ABC0001", 2000L)
+  simbolos <- c("#", "_", "/", "-", ".", ":", ";", "?", "=", "%")
+  indices <- seq_len(200L)
+  base[indices] <- rep(paste0(simbolos, "ABC0001"), each = 20L)
+  perfil <- perfilar(
+    data.frame(codigo = base), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE, casi_duplicados_vocabulario = FALSE,
+    max_filas_hallazgo = Inf
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "patron_raro" &
+      as.character(perfil$hallazgos$severidad) != "ok", , drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  expect_equal(hallazgo$n_afectados, 200)
+  traza <- hallazgo$trazabilidad[[1L]]
+  expect_equal(traza$alcance, "completo")
+  expect_equal(traza$total, 200)
+  expect_setequal(traza$indices_fila, indices)
+  expect_equal(traza$n_patrones_raros, 10L)
+  expect_equal(traza$n_patrones_raros_trazabilidad, 10L)
+  expect_equal(traza$limite_patrones_raros_trazabilidad, 5000L)
+  expect_equal(nrow(perfil$cobertura_diagnosticos), 0L)
+})
+
+test_that("la traza de vocabulario prioriza formas no dominantes", {
+  skip_if_not_installed("stringdist")
+  n <- 5000L
+  erratas <- c(seq_len(10L), 2001:2015)
+  ciudad <- rep("Montevideo", n)
+  ciudad[erratas] <- rep(
+    c("Montevido", "Montevideoo", "Motevideo", "Montevideo ",
+      "MONTEVIDEO"), length.out = length(erratas)
+  )
+  perfil <- perfilar(
+    data.frame(ciudad = ciudad), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE, max_filas_hallazgo = 1000L
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario" &
+      as.character(perfil$hallazgos$severidad) != "ok", , drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  traza <- hallazgo$trazabilidad[[1L]]
+  expect_equal(traza$total, n)
+  expect_equal(traza$mostrados, 1000L)
+  expect_true(all(ciudad[traza$indices_fila[seq_len(25L)]] != "Montevideo"))
+  expect_true(all(ciudad[traza$indices_fila[26:1000]] == "Montevideo"))
+  expect_equal(traza$mostrados_formas_variantes, 25L)
+  expect_equal(traza$mostrados_formas_dominantes, 975L)
+  expect_match(hallazgo$evidencia, "975 formas dominantes", fixed = TRUE)
 })
 
 test_that("la trazabilidad es uniforme, acotada y no se imprime como indices", {

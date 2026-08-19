@@ -195,7 +195,10 @@ test_that("un BLOB no se convierte en un agregado cuantitativo cero", {
   )
 
   resultado <- NULL
-  expect_warning(
+  ## La ausencia de un BLOB es conocible con `is.na()`, asi que se nombra y no
+  ## queda incoherencia que advertir. Antes se contaba sin nombrar y la guarda
+  ## avisaba; esta prueba fija que el hueco quedo cerrado.
+  expect_no_warning(
     resultado <- do.call(
       perfilar_dbi,
       c(list(conexion = con, tabla = "blobs", muestra = 10L,
@@ -203,6 +206,13 @@ test_that("un BLOB no se convierte en un agregado cuantitativo cero", {
     ),
     class = "lupa_trazabilidad_incoherente"
   )
+  faltantes_blob <- resultado$perfil_muestra$hallazgos[
+    resultado$perfil_muestra$hallazgos$columna == "contenido" &
+      resultado$perfil_muestra$hallazgos$tipo_hallazgo == "faltantes", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(faltantes_blob), 1L)
+  expect_equal(faltantes_blob$trazabilidad[[1L]]$indices_fila, 3L)
   fila <- resultado$resumen_tabla$columnas[
     resultado$resumen_tabla$columnas$columna == "contenido", , drop = FALSE
   ]

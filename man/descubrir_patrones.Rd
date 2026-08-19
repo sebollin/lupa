@@ -36,11 +36,14 @@ y ejemplos. Los atributos \code{total}, \code{analizados}, \code{filas_analizada
 \code{muestreado} describen el posible muestreo; \code{filas_analizadas} es un alias
 explícito de \code{analizados} para mantener el alcance visible junto a otros
 diagnósticos. \code{resumen_patrones} conserva sólo el patrón dominante
-y hasta seis patrones raros; nunca guarda la distribución completa. Las
-proporciones siempre están en \verb{[0, 1]}. \code{n_patrones_distintos} registra el
-total antes de truncar la tabla para informar omisiones sin retenerla.
-\code{n_patrones_raros} registra cuántos patrones raros había antes del tope de
-seis que aplica \code{resumen_patrones}.
+y hasta seis patrones raros para presentacion; nunca guarda la distribucion
+completa. \code{patrones_raros_trazabilidad} conserva solo los nombres de los
+patrones raros, hasta 5.000, para que la trazabilidad pueda enumerar filas
+sin retener frecuencias ni ejemplos. Las proporciones siempre estan en
+\verb{[0, 1]}. \code{n_patrones_distintos} registra el total antes de truncar la tabla
+para informar omisiones sin retenerla. \code{n_patrones_raros} y
+\code{n_patrones_raros_trazabilidad} registran cuantos patrones raros habia antes
+de sus respectivos limites.
 }
 \description{
 Generaliza un vector de texto mediante la convención del \emph{Pattern Finder}

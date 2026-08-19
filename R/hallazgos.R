@@ -57,6 +57,15 @@
   trazabilidad$mostrados <- length(trazabilidad$indices_fila)
   trazabilidad$truncado <- is.finite(trazabilidad$total) &&
     trazabilidad$mostrados < trazabilidad$total
+  if (length(trazabilidad$n_filas_formas_variantes) == 1L &&
+      is.finite(trazabilidad$n_filas_formas_variantes)) {
+    trazabilidad$mostrados_formas_variantes <- min(
+      trazabilidad$mostrados, trazabilidad$n_filas_formas_variantes
+    )
+    trazabilidad$mostrados_formas_dominantes <- max(
+      0L, trazabilidad$mostrados - trazabilidad$mostrados_formas_variantes
+    )
+  }
   trazabilidad$estado <- if (trazabilidad$truncado) {
     "truncada"
   } else {
@@ -128,6 +137,17 @@
 }
 
 .patrones_raros_recortados <- function(patrones) {
+  raros_trazabilidad <- attr(
+    patrones, "patrones_raros_trazabilidad", exact = TRUE
+  )
+  n_raros_trazabilidad <- attr(
+    patrones, "n_patrones_raros_trazabilidad", exact = TRUE
+  )
+  if (is.character(raros_trazabilidad) &&
+      length(n_raros_trazabilidad) == 1L &&
+      is.finite(n_raros_trazabilidad)) {
+    return(length(raros_trazabilidad) < n_raros_trazabilidad)
+  }
   resumen <- attr(patrones, "resumen_patrones", exact = TRUE)
   if (is.null(resumen) || !is.data.frame(resumen)) return(FALSE)
   n_raros <- attr(patrones, "n_patrones_raros", exact = TRUE)
@@ -156,21 +176,42 @@
                                             secuencia_entera_densa,
                                             umbral_patron_raro) {
   resumen <- attr(patrones, "resumen_patrones", exact = TRUE)
-  if (is.null(resumen) || !is.data.frame(resumen) || nrow(resumen) < 2L) {
+  if (is.null(resumen) || !is.data.frame(resumen) || !nrow(resumen)) {
     return(NULL)
   }
-  raros <- resumen[-1L, , drop = FALSE]
-  raros <- raros[!is.na(raros$proporcion) &
-                   raros$proporcion < umbral_patron_raro, , drop = FALSE]
-  if (isTRUE(secuencia_entera_densa) && nrow(raros)) {
-    solo_largo <- .patrones_solo_largo_corrida_numerica(
-      resumen$patron[[1L]], raros$patron
-    )
-    raros <- raros[!solo_largo, , drop = FALSE]
+  raros <- attr(patrones, "patrones_raros_trazabilidad", exact = TRUE)
+  if (!is.character(raros)) {
+    raros <- if (nrow(resumen) > 1L) resumen[-1L, "patron"] else character()
+    raros <- as.character(raros[
+      !is.na(resumen[-1L, "proporcion"]) &
+        resumen[-1L, "proporcion"] < umbral_patron_raro
+    ])
   }
-  if (!nrow(raros)) return(raros)
-  raros[, intersect(c("patron", "n", "ejemplos"), names(raros)),
-        drop = FALSE]
+  raros <- unique(raros[!is.na(raros)])
+  if (isTRUE(secuencia_entera_densa) && length(raros)) {
+    solo_largo <- .patrones_solo_largo_corrida_numerica(
+      resumen$patron[[1L]], raros
+    )
+    raros <- raros[!solo_largo]
+  }
+  raros
+}
+
+.desvios_patron_raro_presentacion <- function(patrones) {
+  resumen <- attr(patrones, "resumen_patrones", exact = TRUE)
+  desvios <- attr(patrones, "desvios_patron_raro", exact = TRUE)
+  if (is.null(resumen) || !is.data.frame(resumen)) {
+    return(data.frame(
+      patron = character(), n = integer(), proporcion = numeric(),
+      ejemplos = character(), stringsAsFactors = FALSE
+    ))
+  }
+  nombres <- if (is.data.frame(desvios) && "patron" %in% names(desvios)) {
+    as.character(desvios$patron)
+  } else if (is.character(desvios)) {
+    desvios
+  } else character()
+  resumen[resumen$patron %in% nombres, , drop = FALSE]
 }
 
 .nuevo_diagnostico_no_evaluado <- function(diagnostico, columna, motivo,
@@ -1202,18 +1243,42 @@
         suppressWarnings(as.character(.texto_analizable(datos[[i]])$valores)),
         error = function(e) NULL
       )
-      variantes <- unique(unlist(lapply(
-        grupos$grupos, `[[`, "variantes"
+      particion_grupos <- lapply(grupos$grupos, function(grupo) {
+        dominante <- which.max(grupo$frecuencias)
+        list(
+          variantes = grupo$variantes[-dominante],
+          dominantes = grupo$variantes[dominante]
+        )
+      })
+      variantes <- unique(c(
+        unlist(lapply(particion_grupos, `[[`, "variantes"),
+               use.names = FALSE),
+        unlist(lapply(particion_grupos, `[[`, "dominantes"),
+               use.names = FALSE)
+      ))
+      valores_variantes <- unique(unlist(lapply(
+        particion_grupos, `[[`, "variantes"
       ), use.names = FALSE))
-      indices <- if (!is.null(textos)) {
-        which(!is.na(textos) & textos %in% variantes)
-      } else integer()
+      valores_dominantes <- unique(unlist(lapply(
+        particion_grupos, `[[`, "dominantes"
+      ), use.names = FALSE))
+      indices_por_valor <- function(valores) {
+        if (is.null(textos) || !length(valores)) return(integer())
+        unlist(lapply(valores, function(valor) {
+          which(!is.na(textos) & textos == valor)
+        }), use.names = FALSE)
+      }
+      indices_variantes <- indices_por_valor(valores_variantes)
+      indices_dominantes <- indices_por_valor(valores_dominantes)
+      indices <- c(indices_variantes, indices_dominantes)
       indices_unidades <- if (!is.null(textos)) {
         match(variantes, textos)
       } else integer()
       indices_unidades <- as.integer(indices_unidades[!is.na(indices_unidades)])
       traza <- .trazabilidad_indices(indices, "completo", limite = Inf)
       traza$indices_unidades <- indices_unidades
+      traza$n_filas_formas_variantes <- length(indices_variantes)
+      traza$n_filas_formas_dominantes <- length(indices_dominantes)
       hallazgo <- hallazgos[[length(hallazgos)]]
       hallazgo$trazabilidad <- I(list(traza))
       hallazgos[[length(hallazgos)]] <- hallazgo
@@ -1276,7 +1341,8 @@
       completo <- !isTRUE(.patrones_raros_recortados(resultado$patrones))
       desvios <- attr(resultado$patrones, "desvios_patron_raro",
                       exact = TRUE)
-      if (completo && !is.null(desvios) && nrow(desvios)) {
+      if (completo && is.data.frame(desvios) && nrow(desvios) &&
+          "n" %in% names(desvios)) {
         sum(desvios$n, na.rm = TRUE)
       } else NA_real_
     },
@@ -1405,7 +1471,12 @@
 .indices_patron_raro <- function(x, resultado, expandir = FALSE,
                                  distinguir_mayusculas = TRUE) {
   desvios <- attr(resultado$patrones, "desvios_patron_raro", exact = TRUE)
-  if (is.null(desvios) || !nrow(desvios)) return(NULL)
+  raros <- if (is.data.frame(desvios) && "patron" %in% names(desvios)) {
+    as.character(desvios$patron)
+  } else if (is.character(desvios)) {
+    desvios
+  } else character()
+  if (!length(raros)) return(NULL)
   total <- length(x)
   analizados <- attr(resultado$patrones, "analizados")
   muestreado <- isTRUE(attr(resultado$patrones, "muestreado"))
@@ -1431,8 +1502,9 @@
     patrones[validos] <- gsub("a{2,}", "a+", patrones[validos], perl = TRUE)
     patrones[validos] <- gsub("A{2,}", "A+", patrones[validos], perl = TRUE)
   }
-  raros <- unique(as.character(desvios$patron))
-  base[which(!is.na(patrones) & patrones %in% raros)]
+  # The detector already chose `raros`; this branch only maps that decision to
+  # row positions and never applies a second rarity criterion.
+  base[which(!is.na(patrones) & patrones %in% unique(raros))]
 }
 
 .indices_hallazgo_columna <- function(tipo, x, fila, resultado,
@@ -1454,7 +1526,14 @@
     if (tipo == "tipo_compuesto_no_analizado") return(seq_len(NROW(x)))
     return(NULL)
   }
-  if (is.list(x)) return(NULL)
+  if (is.list(x)) {
+    ## Una columna de lista no admite analisis de texto, pero sus ausencias si
+    ## son conocibles: `is.na()` las identifica elemento a elemento, y es el
+    ## mismo criterio con el que se contaron. Contarlas sin nombrarlas era la
+    ## unica incoherencia que la guarda seguia encontrando sobre estas columnas.
+    if (identical(tipo, "faltantes")) return(which(is.na(x)))
+    return(NULL)
+  }
   n <- length(x)
   if (!n) return(integer())
   texto <- tryCatch(.texto_analizable(x)$valores, error = function(e) NULL)
@@ -1751,12 +1830,24 @@
   )
   if (tipo == "patron_raro") {
     alcance <- .alcance_patron_raro(resultados[[indice]]$patrones)
-    if (is.null(indices)) {
-      return(.trazabilidad_vacia(alcance = alcance, limite = limite))
+    traza <- if (is.null(indices)) {
+      .trazabilidad_vacia(alcance = alcance, limite = limite)
+    } else {
+      .trazabilidad_indices(
+        indices, alcance, limite, clave = clave, datos = datos
+      )
     }
-    return(.trazabilidad_indices(
-      indices, alcance, limite, clave = clave, datos = datos
+    patrones <- resultados[[indice]]$patrones
+    traza$n_patrones_raros <- attr(
+      patrones, "n_patrones_raros", exact = TRUE
+    )
+    traza$n_patrones_raros_trazabilidad <- length(attr(
+      patrones, "patrones_raros_trazabilidad", exact = TRUE
     ))
+    traza$limite_patrones_raros_trazabilidad <- attr(
+      patrones, "limite_patrones_raros_trazabilidad", exact = TRUE
+    )
+    return(traza)
   }
   if (is.null(indices)) {
     return(.trazabilidad_vacia(limite = limite))
@@ -1783,6 +1874,32 @@
     )
   })
   hallazgos$trazabilidad <- I(trazabilidad)
+  for (i in seq_len(nrow(hallazgos))) {
+    traza <- hallazgos$trazabilidad[[i]]
+    tipo <- as.character(hallazgos$tipo_hallazgo[[i]])
+    indice_resultado <- match(
+      as.character(hallazgos$columna[[i]]), nombres
+    )
+    if (tipo == "patron_raro" && is.list(traza) &&
+        !identical(traza$estado, "no_disponible") &&
+        isTRUE(is.finite(traza$total)) &&
+        !is.na(indice_resultado) &&
+        !isTRUE(.patrones_raros_recortados(
+          resultados[[indice_resultado]]$patrones
+        )) && is.na(hallazgos$n_afectados[[i]])) {
+      hallazgos$n_afectados[[i]] <- traza$total
+    }
+    if (tipo == "casi_duplicados_vocabulario" &&
+        length(traza$mostrados_formas_dominantes) == 1L &&
+        length(traza$mostrados_formas_variantes) == 1L) {
+      hallazgos$evidencia[[i]] <- paste0(
+        hallazgos$evidencia[[i]], "; traza: ", traza$mostrados,
+        " filas mostradas (", traza$mostrados_formas_variantes,
+        " formas variantes, ", traza$mostrados_formas_dominantes,
+        " formas dominantes); total=", traza$total
+      )
+    }
+  }
   .advertir_incoherencias_trazabilidad(hallazgos, datos, nombres)
   hallazgos
 }
@@ -2337,47 +2454,53 @@
     }
 
     patrones <- attr(resultado$patrones, "resumen_patrones")
-    if (!is.null(patrones) && nrow(patrones) > 1L &&
+    raros <- .desvios_patron_raro_presentacion(resultado$patrones)
+    if (!is.null(patrones) && nrow(patrones) > 1L && nrow(raros) > 0L &&
         patrones$proporcion[[1L]] >= umbral_patron_dominante) {
-      raros <- attr(resultado$patrones, "desvios_patron_raro",
-                    exact = TRUE)
-      if (!is.null(raros) && nrow(raros)) {
-        evidencia <- paste0(
-          raros$patron, " [", raros$ejemplos, "]",
-          collapse = "; "
+      evidencia <- paste0(
+        raros$patron, " [", raros$ejemplos, "]",
+        collapse = "; "
+      )
+      clase_desvio <- .clase_desvio_patron_raro(
+        patrones$patron[[1L]], raros$patron
+      )
+      agregar(.nuevo_hallazgo(
+        nombre, "patron_raro", "sospechoso",
+        paste0(
+          "Hay valores infrecuentes que no siguen el patr\u00f3n dominante; ",
+          "los patrones de frecuencia intermedia no se consideran desv\u00edos."
+        ),
+        paste0(
+          "Dominante: ", patrones$patron[[1L]], ". Desv\u00edos: ",
+          paste(utils::head(strsplit(evidencia, "; ", fixed = TRUE)[[1L]], 6L),
+                collapse = "; "),
+          if (!is.na(clase_desvio)) {
+            paste0("; clase_desvio=", clase_desvio)
+          } else ""
+        ),
+        "Revisar los valores concretos y validar el formato esperado."
+      ))
+      if (isTRUE(.patrones_raros_recortados(resultado$patrones))) {
+        n_raros <- attr(resultado$patrones, "n_patrones_raros",
+                        exact = TRUE)
+        limite_raros <- attr(
+          resultado$patrones, "limite_patrones_raros_trazabilidad",
+          exact = TRUE
         )
-        clase_desvio <- .clase_desvio_patron_raro(
-          patrones$patron[[1L]], raros$patron
-        )
-        agregar(.nuevo_hallazgo(
-          nombre, "patron_raro", "sospechoso",
+        agregar_cobertura(
+          "patron_raro", nombre,
           paste0(
-            "Hay valores infrecuentes que no siguen el patr\u00f3n dominante; ",
-            "los patrones de frecuencia intermedia no se consideran desv\u00edos."
+            "Se detectaron ", n_raros,
+            " patrones raros, pero la trazabilidad conserva solo ",
+            limite_raros, " nombres; la enumeracion de filas no cubre todos",
+            " los patrones raros. El resumen y la evidencia siguen mostrando",
+            " como maximo seis."
           ),
           paste0(
-            "Dominante: ", patrones$patron[[1L]], ". Desv\u00edos: ",
-            paste(utils::head(strsplit(evidencia, "; ", fixed = TRUE)[[1L]], 6L),
-                  collapse = "; "),
-            if (!is.na(clase_desvio)) {
-              paste0("; clase_desvio=", clase_desvio)
-            } else ""
-          ),
-          "Revisar los valores concretos y validar el formato esperado."
-        ))
-        if (isTRUE(.patrones_raros_recortados(resultado$patrones))) {
-          n_raros <- attr(resultado$patrones, "n_patrones_raros",
-                          exact = TRUE)
-          agregar_cobertura(
-            "patron_raro", nombre,
-            paste0(
-              "Se detectaron ", n_raros,
-              " patrones raros, pero el resumen conserva solo seis; ",
-              "la enumeraci\u00f3n de filas no cubre todos los patrones raros."
-            ),
-            "Revisar la distribuci\u00f3n completa de patrones antes de usar la enumeraci\u00f3n de filas como exhaustiva."
+            "Revisar la distribucion completa de patrones o aumentar el limite ",
+            "de trazabilidad antes de usar la enumeracion de filas como exhaustiva."
           )
-        }
+        )
       }
     }
 

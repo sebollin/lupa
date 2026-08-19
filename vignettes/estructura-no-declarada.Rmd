@@ -96,7 +96,10 @@ la que puede confirmarlas como reglas.
 
 Las funciones de columna reciben vectores. En particular,
 `descubrir_patrones()` no recibe un data frame. Sobre `codigo_usuario`, la
-salida cuenta las formas observadas y conserva ejemplos.
+salida cuenta las formas observadas y conserva ejemplos. El resumen conserva
+como máximo seis patrones raros para presentar; el atributo
+`patrones_raros_trazabilidad` conserva sus nombres hasta 5.000, sin guardar la
+tabla de frecuencias.
 
 ```{r patrones}
 descubrir_patrones(datos_operativos$codigo_usuario)

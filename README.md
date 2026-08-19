@@ -161,7 +161,14 @@ value belongs to a selected group, including the dominant form. A trace can
 therefore contain more rows than `n_afectados`; those rows are useful when a
 whole collision group must be reviewed or unified. The vocabulary detector is
 heuristic, so the trace is evidence for review, not a verdict that every row
-must be corrected.
+must be corrected. The trace presents non-dominant forms first and dominant
+forms afterward; its evidence reports how many displayed rows belong to each.
+
+For `patron_raro`, `resumen_patrones` and the evidence show at most six rare
+patterns. Traceability uses the complete set of rare pattern names, without
+retaining their frequency table, up to a separate limit of 5,000 names. If
+that limit is reached, the trace scope is partial and `cobertura_diagnosticos`
+states the limit; the six-pattern presentation cap is not itself a trace gap.
 
 `filas_duplicadas` counts all rows participating in duplicate groups, matching
 the metric and the default action that marks those rows. The number of excess
