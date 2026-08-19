@@ -32,7 +32,7 @@ Every result below is from one build of these exact sources, with no change to t
 package between them. `R CMD build` stamps `Packaged:` into `DESCRIPTION`, so two
 builds of identical sources are never byte-identical; the claim is about the
 sources, which is what can be checked. The build used throughout carries
-`Packaged: 2026-08-19 13:59:31 UTC`.
+`Packaged: 2026-08-19 17:16:02 UTC`.
 
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — 0 errors, 0 warnings,
   2 notes (new submission; no `tidy` executable in this environment), both with the
