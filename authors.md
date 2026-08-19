@@ -5,15 +5,20 @@
 - **Sebastián Lucas**. Author, maintainer.
   [](https://orcid.org/0009-0009-9068-0276)
 
-- **Robyn Speer**. Copyright holder.
+- **Robyn Speer**. Copyright holder.  
+  encoding-repair design and character tables, from ftfy 6.3.1
 
-- **Nicholas Tierney**. Copyright holder.
+- **Nicholas Tierney**. Copyright holder.  
+  missing-value sentinel vectors, from naniar 1.1.0
 
-- **Di Cook**. Copyright holder.
+- **Di Cook**. Copyright holder.  
+  missing-value sentinel vectors, from naniar 1.1.0
 
-- **Miles McBain**. Copyright holder.
+- **Miles McBain**. Copyright holder.  
+  missing-value sentinel vectors, from naniar 1.1.0
 
-- **Colin Fay**. Copyright holder.
+- **Colin Fay**. Copyright holder.  
+  missing-value sentinel vectors, from naniar 1.1.0
 
 ## Citation
 

@@ -329,9 +329,9 @@ columns—constants, duplicated columns, inconsistent case, empty strings,
 and high-cardinality text. We therefore report neither precision nor
 diagnostic recall from Raha: 26/26 is column coverage, not evidence that
 every changed cell was identified.
-[`benchmark/`](https://sebollin.github.io/lupa/benchmark/) reproduces
-the table from the published sources and records the exact file
-fingerprints used by the published run, but only when `lupa` is
+[`benchmark/`](https://github.com/sebollin/lupa/tree/main/benchmark)
+reproduces the table from the published sources and records the exact
+file fingerprints used by the published run, but only when `lupa` is
 installed from a build of these same sources. From the repository root,
 reproduce that condition and run the scripts with:
 
