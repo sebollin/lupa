@@ -8,45 +8,58 @@
   check reports no such NOTE. Examples, tests, vignettes, the PDF manual and the
   self-contained HTML produced by the package are checked in every environment.
 
+## A check that CRAN runs, and that this package now runs first
+
+```sh
+_R_CHECK_DEPENDS_ONLY_=true R CMD check --as-cran lupa_0.1.0.tar.gz
+```
+
+Result on these sources: **0 errors, 0 warnings, 2 notes**.
+
+This runs before any external service and is now the first step of the release
+script. An earlier revision passed in eight environments and still failed this one
+with `1 ERROR` and 68 test failures: twenty-two test blocks asserted behaviour that
+depends on `stringdist` without declaring it with `skip_if_not_installed()`. All
+eight of those environments had the optional packages installed, so none could see
+the gap.
+
+Eight green environments are not eight different environments if all eight have the
+same packages installed.
+
 ## Test environments
 
-Every result below is from a run of one build of these exact sources, with no
-change to the package between them. `R CMD build` stamps `Packaged:` into
-`DESCRIPTION`, so two builds of identical sources are never byte-identical; the
-claim is about the sources, which is what can be checked. The build used
-throughout carries `Packaged: 2026-08-17 14:37:38 UTC`.
+Every result below is from one build of these exact sources, with no change to the
+package between them. `R CMD build` stamps `Packaged:` into `DESCRIPTION`, so two
+builds of identical sources are never byte-identical; the claim is about the
+sources, which is what can be checked. The build used throughout carries
+`Packaged: 2026-08-19 13:59:31 UTC`.
 
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — 0 errors, 0 warnings,
-  2 notes (new submission; no `tidy` executable in this environment). Examples
-  OK; tests OK in 143s; vignettes rebuilt; PDF and HTML manuals OK.
-* win-builder, R-devel (2026-08-15 r90413 ucrt), x86_64-w64-mingw32 — 1 NOTE
-  (new submission), no URL notes; examples OK, tests OK in 411s, vignettes
-  rebuilt.
-* win-builder, R release, x86_64-w64-mingw32 — the tarball was accepted twice
-  (FTP 226) and taken off the queue both times, but the service returned no
-  result on either attempt. Windows under R release is covered instead by the
-  `windows-latest (release)` job of the GitHub Actions run below, which is
-  green on these sources.
-* R-hub v2, R-devel: Ubuntu Linux x86_64, Windows x86_64 and macOS — all three
-  OK.
-* Continuous integration (GitHub Actions, `R-CMD-check`): Ubuntu with R release,
-  R-devel and R oldrel-1; Windows with R release; and macOS with R release on
-  **`aarch64-apple-darwin23`** — 5 of 5 green.
+  2 notes (new submission; no `tidy` executable in this environment), both with the
+  ordinary check and with `_R_CHECK_DEPENDS_ONLY_=true`.
+* Continuous integration (GitHub Actions, `R-CMD-check`), 5 of 5 with
+  **`Status: OK`** and no notes: Ubuntu with R release, R-devel and R oldrel-1;
+  Windows with R release; and macOS with R release on
+  **`aarch64-apple-darwin23`**. The platforms exercised are
+  `x86_64-pc-linux-gnu`, `x86_64-w64-mingw32` and `aarch64-apple-darwin23`.
+* R-hub v2, R-devel: Linux, Windows and macOS — all three succeeded.
 * Container: R 3.6.3 (`rocker/r-ver:3.6.3`) for the declared minimum, against a
   2023-04-15 CRAN snapshot from Posit Package Manager, run with
   `--ignore-vignettes --no-tests --no-manual` and `_R_CHECK_FORCE_SUGGESTS_=false`
-  — 0 errors, 0 warnings, 2 notes, and `checking examples` OK. Both notes are
-  properties of that environment, not of the package: five suggested packages
-  (`covr`, `knitr`, `rmarkdown`, `sf`, `stringi`) have no installable build for
-  R 3.6 in that snapshot, and the shipped data contains one marked UTF-8 string.
-  Vignettes, tests and the manual are checked under R 4.6.1 and on the services
-  above.
+  — 0 errors, 0 warnings, 2 notes. Both notes are properties of that environment,
+  not of the package: five suggested packages (`covr`, `knitr`, `rmarkdown`, `sf`,
+  `stringi`) have no installable build for R 3.6 in that snapshot, and the shipped
+  data contains one marked UTF-8 string. Vignettes, tests and the manual are
+  checked under R 4.6.1 and on the services above.
+* win-builder, R-release and R-devel: the tarball was accepted by both queues
+  (FTP 226). Results are identified by the `Packaged` stamp above rather than by
+  the arrival time of the notification, because those arrive with delays and out
+  of order.
 
-The macOS builder at <https://mac.r-project.org/macbuilder/> returned HTTP 502
-for every submission attempt over more than twelve hours while this release was
-being prepared, so it could not be used. Apple silicon is covered instead by the
-GitHub Actions `macos-latest` runner, which reports
-`using platform: aarch64-apple-darwin23`.
+The macOS builder at <https://mac.r-project.org/macbuilder/> returned HTTP 502 for
+every submission attempt, as it did while the previous revision was being prepared.
+Apple silicon is covered instead by the GitHub Actions `macos-latest` runner, which
+reports `using platform: aarch64-apple-darwin23`.
 
 The arm64 run matters for this package: an earlier revision classified duplicate
 pairs by testing a floating-point distance for equality, which held on x86_64 and
@@ -81,6 +94,27 @@ found nothing is reported at severity `ok` with zero affected units, never as a
 suspicion. A profile with no findings and a non-empty `cobertura_diagnosticos` is
 therefore not a clean profile, and the documentation says so where an automated
 consumer will read it.
+
+The same rule now covers the pattern diagnostic. A column whose shape varies by
+nature — names, addresses, free text — has no dominant pattern reaching the
+threshold, so the diagnostic does not apply; that non-measurement is recorded in
+`cobertura_diagnosticos` with the observed proportion and the argument that
+controls it, rather than leaving the reader to infer that the column is clean. The
+evidence of a pattern finding states the proportion of the dominant pattern and how
+many rows fall in non-dominant patterns that were excluded for exceeding the
+rareness threshold, so that a count of thirty-two affected rows in a column with a
+hundred and sixty corrupt ones cannot be read as the whole story.
+
+Findings that name rows now derive those rows from what the detector decided rather
+than recomputing the criterion. Where the two used to be computed separately they
+could disagree silently, because nothing compared the evidence against the indices.
+A guard walks the findings and raises a condition of class
+`lupa_trazabilidad_incoherente` when a count and its trace cannot be reconciled; it
+compares the pre-truncation total, works in both directions, and respects the
+declared unit. The finding is kept: warning is not a reason to hide the evidence.
+The test suite checks identities and not only counts — fixtures build tables whose
+corrupted row indices are known in advance and assert hits, false positives and
+misses for each of the thirty-seven profiling finding types.
 
 Aggregated measurements carry an explicit orientation — `conformidad`, `defecto`
 or `no_aplica` — because a `0.006` proportion of duplicated entities and a
