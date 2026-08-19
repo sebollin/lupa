@@ -175,19 +175,70 @@ efectivamente estan mezcladas. Nada de eso es una errata inyectada, que es lo qu
 Es un desajuste de **categoria**, no de acierto. La medida lo confirma: restringido
 a `patron_raro`, el mismo conjunto pasa de **0,043 a 0,711** de precision.
 
-### El limite duro: cuando la corrupcion es mayoria
+### La ventana de operacion de `patron_raro`, medida
 
-`RIOLU / flights` es el unico conjunto donde `lupa` anda claramente mal: precision
-`0,369` y cobertura `0,027` **contra un techo de 1,000**, o sea que las anomalias si
-cambian el patron y aun asi no las ve.
+El diagnostico de patrones exige **dos condiciones a la vez**, y entre ellas queda
+una franja estrecha que conviene tener presente antes de leer cualquier cifra de
+cobertura:
 
-La causa esta en la tercera columna de la tabla: **el 52,5 % de sus celdas estan
-corruptas**. El analisis de patrones supone que **la forma dominante es la
-correcta**. Con mas de la mitad de las celdas mal, la forma dominante *es* la
-corrupta, y el supuesto se invierte.
+- un patron dominante que ocupe al menos `umbral_patron_dominante` (**0,5** por
+  omision) de la columna;
+- y una forma corrupta que ocupe menos de `umbral_patron_raro` (**0,05**).
 
-Es una condicion de uso, no una excusa: sobre una tabla con la mitad de las celdas
-corruptas, este metodo no aplica.
+**Fuera de esa franja el diagnostico no aplica.** Y eso explica el orden de la
+tabla mejor que la densidad de corrupcion. Proporcion del patron dominante, medida
+columna por columna:
+
+| conjunto | columna | dominante | ¿opera? |
+| --- | --- | ---: | --- |
+| RIOLU / flights | `ScheduledDeparture time` | 0,324 | **no** |
+| RIOLU / flights | `ActualDeparture time` | 0,157 | **no** |
+| RIOLU / flights | `ScheduledArrival time` | 0,319 | **no** |
+| RIOLU / flights | `ActualArrival time` | 0,163 | **no** |
+| RIOLU / flights | `DepartureGate` | 0,601 | si |
+| RIOLU / flights | `ArrivalGate` | 0,599 | si |
+| RIOLU / hosp_1k | `state`, `zip`, `phone` | 0,81 a 1,00 | si |
+| RIOLU / movies | las cuatro etiquetadas | 0,85 a 0,97 | si |
+
+**Cuatro de las seis columnas de `flights` no tienen patron dominante.** Son horas
+y puertas de embarque, cuya forma varia de por si. Por eso su cobertura es 0,027 y
+no por lo que se afirmaba antes en este documento: la explicacion anterior decia
+que con mas de la mitad de las celdas corruptas la forma dominante pasa a ser la
+corrupta y el supuesto se invierte. **Esa inversion existe pero exige alrededor del
+97 % de corrupcion**, no del 50 %; a 52,5 % el diagnostico simplemente no habla.
+
+### Tres limites medidos, que valen como condiciones de uso
+
+**Uno. En columnas de forma naturalmente variable, el diagnostico no aplica.**
+Misma corrupcion, mismas densidades, cambiando solo la base:
+
+| base | dominante | 2 % | 10 % | 20 % |
+| --- | ---: | ---: | ---: | ---: |
+| codigos tipo `ABC0001` | 1,000 | 1,000 | 0 | 0 |
+| direcciones reales | 0,468 | **0** | **0** | **0** |
+
+Nombres, direcciones y texto libre quedan fuera. Codigos, matriculas, telefonos e
+identificadores son su terreno.
+
+**Dos. Cuando la corrupcion se concentra en una forma, la magnitud informada
+subestima.** Corrupcion total del 8 % repartida en cinco formas:
+
+| peso de la forma mayoritaria | corruptas reales | `n_afectados` |
+| ---: | ---: | ---: |
+| 20 % | 160 | 160 |
+| 50 % | 160 | 160 |
+| 80 % | 160 | **32** |
+| 95 % | 160 | **8** |
+
+La forma mayoritaria supera ella misma el umbral de rareza y queda excluida por no
+ser rara. El conteo no miente sobre lo que midio, pero la desproporcion importa, y
+en datos reales la corrupcion suele concentrarse asi.
+
+**Tres. Con la columna casi toda corrupta, el diagnostico se invierte.** A partir
+de alrededor del 97 % de una sola forma corrupta, esa forma pasa a ser el dominante
+y el hallazgo enumera **las filas limpias** como raras. Medido: a 97 %, sesenta
+filas nombradas, todas correctas, cero corruptas. No es reparable ajustando
+umbrales: con esa proporcion nada en la columna dice cual era la forma correcta.
 
 ### Las perillas se midieron y no se movieron
 

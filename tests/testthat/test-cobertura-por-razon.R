@@ -12,7 +12,7 @@
 # que la rama se ejecute de verdad en vez de saltearse cuando el paquete está
 # instalado.
 
-# Las doce razones conocidas por las que `lupa` puede declarar que no midió.
+# Las trece razones conocidas por las que `lupa` puede declarar que no midió.
 # Si aparece una nueva y no se agrega acá, la última prueba del archivo falla.
 .razones_de_cobertura <- c(
   "normalizacion_unicode__falta_stringi",
@@ -26,7 +26,8 @@
   "dominio_geometria__crs_sin_dominio",
   "zona_horaria_fecha_hora__sin_tz_declarada",
   "ley_benford__supuestos_no_se_cumplen",
-  "relacion_aritmetica_columnas__busqueda_limitada"
+  "relacion_aritmetica_columnas__busqueda_limitada",
+  "patron_raro__dominante_insuficiente"
 )
 
 .fila_cobertura <- function(perfil, diagnostico) {
@@ -195,11 +196,11 @@ test_that("el catálogo de razones conocidas está completo", {
   # sumarla acá, esta lista deja de describir el comportamiento real. No se
   # puede leer `R/` desde un paquete instalado, así que la comprobación es de
   # forma: cada razón declarada nombra un diagnóstico y una causa.
-  expect_length(.razones_de_cobertura, 12L)
+  expect_length(.razones_de_cobertura, 13L)
   partes <- strsplit(.razones_de_cobertura, "__", fixed = TRUE)
   expect_true(all(lengths(partes) == 2L))
   diagnosticos <- unique(vapply(partes, `[[`, character(1L), 1L))
-  expect_length(diagnosticos, 10L)
+  expect_length(diagnosticos, 11L)
 })
 
 test_that("los grupos bajo el piso de asimetría se declaran, no desaparecen", {

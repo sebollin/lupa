@@ -32,7 +32,9 @@
 #'   `[0, 1]`. `n_patrones_distintos` registra el total antes de truncar la tabla
 #'   para informar omisiones sin retenerla. `n_patrones_raros` y
 #'   `n_patrones_raros_trazabilidad` registran cuantos patrones raros habia antes
-#'   de sus respectivos limites.
+#'   de sus respectivos limites. `n_filas_patrones_no_dominantes_excluidos`
+#'   registra cuantas filas pertenecen a patrones no dominantes cuya proporcion
+#'   no es rara y que por eso quedan fuera del hallazgo.
 #' @export
 #' @seealso [perfilar()], [inferir_tipo()], [detectar_formatos_fecha()]
 #'
@@ -103,6 +105,16 @@ descubrir_patrones <- function(x,
   indices_raros <- which(
     seq_along(frecuencias) > 1L & proporciones < umbral_raro
   )
+  indices_no_dominantes_excluidos <- which(
+    seq_along(frecuencias) > 1L & proporciones >= umbral_raro
+  )
+  n_filas_patrones_no_dominantes_excluidos <- if (
+    length(indices_no_dominantes_excluidos)
+  ) {
+    as.integer(sum(as.numeric(frecuencias[indices_no_dominantes_excluidos])))
+  } else {
+    0L
+  }
   n_patrones_raros <- length(indices_raros)
   nombres_raros <- names(frecuencias)[indices_raros]
   nombres_raros_trazabilidad <- nombres_raros[
@@ -161,6 +173,8 @@ descubrir_patrones <- function(x,
   attr(resultado, "n_patrones_raros_trazabilidad") <- n_patrones_raros
   attr(resultado, "limite_patrones_raros_trazabilidad") <-
     .limite_patrones_raros_trazabilidad
+  attr(resultado, "n_filas_patrones_no_dominantes_excluidos") <-
+    n_filas_patrones_no_dominantes_excluidos
   attr(resultado, "resumen_patrones") <- resumen
   resultado
 }

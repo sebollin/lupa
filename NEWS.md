@@ -1,5 +1,15 @@
 # lupa 0.1.0
 
+## Patrones raros: ventana de operacion visible
+
+- `patron_raro` declara en `cobertura_diagnosticos` cuando no puede ejecutarse
+  porque el patron dominante no alcanza `umbral_patron_dominante`. La fila
+  conserva la proporcion observada y explica como ajustar ese argumento.
+- La evidencia de cada hallazgo `patron_raro` publica la proporcion del patron
+  dominante y cuantas filas quedaron en patrones no dominantes excluidos por
+  superar `umbral_patron_raro`. Ese conteo queda en la evidencia, no en la
+  cobertura, porque no es una no medicion del diagnostico.
+
 ## Patrones raros y trazas accionables
 
 - `patron_raro` conserva separado el tope de presentación y el alcance de la

@@ -2455,8 +2455,40 @@
 
     patrones <- attr(resultado$patrones, "resumen_patrones")
     raros <- .desvios_patron_raro_presentacion(resultado$patrones)
-    if (!is.null(patrones) && nrow(patrones) > 1L && nrow(raros) > 0L &&
-        patrones$proporcion[[1L]] >= umbral_patron_dominante) {
+    proporcion_dominante <- if (!is.null(patrones) && nrow(patrones)) {
+      as.numeric(patrones$proporcion[[1L]])
+    } else {
+      NA_real_
+    }
+    if (is.finite(proporcion_dominante) && nrow(patrones) > 1L &&
+        proporcion_dominante < umbral_patron_dominante) {
+      agregar_cobertura(
+        "patron_raro", nombre,
+        paste0(
+          "No se evaluo patron_raro porque el patron dominante ocupa ",
+          sprintf("%.3f", proporcion_dominante),
+          " de los valores analizados; es menor que ",
+          "umbral_patron_dominante=",
+          sprintf("%.3f", umbral_patron_dominante), "."
+        ),
+        paste0(
+          "Revisar la variabilidad de la columna o ajustar ",
+          "umbral_patron_dominante (valor actual: ",
+          sprintf("%.3f", umbral_patron_dominante),
+          ") antes de volver a perfilar."
+        )
+      )
+    } else if (!is.null(patrones) && nrow(patrones) > 1L &&
+               nrow(raros) > 0L &&
+               proporcion_dominante >= umbral_patron_dominante) {
+      n_excluidos <- attr(
+        resultado$patrones,
+        "n_filas_patrones_no_dominantes_excluidos",
+        exact = TRUE
+      )
+      if (length(n_excluidos) != 1L || !is.finite(n_excluidos)) {
+        n_excluidos <- NA_integer_
+      }
       evidencia <- paste0(
         raros$patron, " [", raros$ejemplos, "]",
         collapse = "; "
@@ -2471,12 +2503,18 @@
           "los patrones de frecuencia intermedia no se consideran desv\u00edos."
         ),
         paste0(
-          "Dominante: ", patrones$patron[[1L]], ". Desv\u00edos: ",
+          "Dominante: ", patrones$patron[[1L]],
+          " (proporcion_dominante=", sprintf("%.3f", proporcion_dominante),
+          "). Desv\u00edos: ",
           paste(utils::head(strsplit(evidencia, "; ", fixed = TRUE)[[1L]], 6L),
                 collapse = "; "),
           if (!is.na(clase_desvio)) {
             paste0("; clase_desvio=", clase_desvio)
-          } else ""
+          } else "",
+          "; patrones_no_dominantes_excluidos_por_umbral=",
+          if (is.na(n_excluidos)) "NA" else as.character(n_excluidos),
+          " filas (umbral_patron_raro=", sprintf("%.3f", umbral_patron_raro),
+          ")"
         ),
         "Revisar los valores concretos y validar el formato esperado."
       ))

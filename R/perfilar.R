@@ -454,6 +454,12 @@
 #'   pero la trazabilidad conserva los nombres de todos los patrones raros hasta
 #'   un limite de 5.000; `patrones_parciales` indica que se alcanzo ese limite,
 #'   no que se haya alcanzado el tope de presentacion.
+#'   Cuando se emite un hallazgo `patron_raro`, su evidencia incluye la
+#'   proporcion del patron dominante y cuantas filas pertenecen a patrones no
+#'   dominantes que superan `umbral_patron_raro` y por eso quedan excluidos.
+#'   Si el patron dominante no alcanza `umbral_patron_dominante`, no se emite
+#'   el hallazgo: `cobertura_diagnosticos` declara la no medicion, su proporcion
+#'   observada y el argumento que se puede ajustar.
 #'   Si el conteo y la traza no coinciden, conserva el hallazgo y emite una
 #'   advertencia de clase `lupa_trazabilidad_incoherente`. La guarda compara el
 #'   total previo al truncado y respeta la unidad declarada.

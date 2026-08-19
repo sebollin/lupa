@@ -183,6 +183,34 @@ test_that("patron_raro conserva el total de valores afectados y sus filas", {
   expect_equal(traza$total, 2)
   expect_equal(traza$indices_fila, c(41L, 42L))
   expect_equal(traza$estado, "disponible")
+  expect_match(
+    hallazgo$evidencia,
+    "proporcion_dominante=0.952",
+    fixed = TRUE
+  )
+})
+
+test_that("patron_raro declara cuando no hay dominante suficiente", {
+  direcciones <- c(
+    sprintf("Av. 18 de Julio %04d", seq_len(936L)),
+    sprintf("Av 18 de Julio %04d", seq_len(500L)),
+    sprintf("18 de Julio %04d", seq_len(500L)),
+    rep("SIN NUMERO", 64L)
+  )
+  perfil <- perfilar(
+    data.frame(direccion = direcciones, stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
+    proteger_datos_personales = FALSE
+  )
+  expect_false("patron_raro" %in% as.character(perfil$hallazgos$tipo_hallazgo))
+  cobertura <- perfil$cobertura_diagnosticos[
+    perfil$cobertura_diagnosticos$diagnostico == "patron_raro" &
+      perfil$cobertura_diagnosticos$columna == "direccion", , drop = FALSE
+  ]
+  expect_equal(nrow(cobertura), 1L)
+  expect_match(cobertura$motivo, "0.468", fixed = TRUE)
+  expect_match(cobertura$motivo, "umbral_patron_dominante=0.500", fixed = TRUE)
+  expect_match(cobertura$como_resolverlo, "umbral_patron_dominante", fixed = TRUE)
 })
 
 test_that("la trazabilidad de patrones muestreados declara su alcance", {
@@ -220,7 +248,36 @@ test_that("patron_raro separa patrones raros de patrones intermedios", {
   expect_equal(hallazgo$trazabilidad[[1L]]$alcance, "completo")
   expect_equal(hallazgo$trazabilidad[[1L]]$total, 60)
   expect_equal(hallazgo$trazabilidad[[1L]]$indices_fila, 881:940)
+  expect_match(
+    hallazgo$evidencia,
+    "patrones_no_dominantes_excluidos_por_umbral=59 filas",
+    fixed = TRUE
+  )
   expect_equal(nrow(perfil$cobertura_diagnosticos), 0L)
+})
+
+test_that("la evidencia de patron_raro muestra filas intermedias excluidas", {
+  valores <- c(
+    rep("ABC123", 1840L), rep("ABC-123", 128L),
+    rep("ABC/123", 8L), rep("ABC 123", 8L), rep("ABC_123", 8L),
+    rep("ABC.123", 8L)
+  )
+  perfil <- perfilar(
+    data.frame(codigo = valores, stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
+    proteger_datos_personales = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "patron_raro", , drop = FALSE
+  ]
+  expect_equal(nrow(hallazgo), 1L)
+  expect_equal(hallazgo$n_afectados, 32)
+  expect_match(hallazgo$evidencia, "proporcion_dominante=0.920", fixed = TRUE)
+  expect_match(
+    hallazgo$evidencia,
+    "patrones_no_dominantes_excluidos_por_umbral=128 filas",
+    fixed = TRUE
+  )
 })
 
 test_that("la presentacion de patrones raros no recorta la trazabilidad", {
