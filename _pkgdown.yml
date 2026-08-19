@@ -58,6 +58,8 @@ reference:
   - detectar_asociaciones
   - analizar_tiempo
   - clasificar_variables
+  - senal_redundante
+  - detectar_discordancias
   - descubrir_patrones
   - normalizacion
   - inferir_tipo
@@ -102,6 +104,16 @@ reference:
   - agregar
   - tablero_calidad
   - indice_calidad
+  - estadisticos_estimacion
+  - medicion_desde_estimaciones
+
+- title: Colecciones
+  desc: Declarar una base de varias tablas y perfilarla como conjunto.
+  contents:
+  - coleccion
+  - perfilar_coleccion
+  - estimar_costo_coleccion
+  - relaciones_coleccion
 
 - title: Validar
   desc: Validadores internacionales y packs territoriales extensibles.
@@ -123,6 +135,7 @@ reference:
   desc: Aplicar reglas y perfiles de madurez a las medidas.
   contents:
   - regla_evaluacion
+  - propiedades_regla
   - perfil_evaluacion
   - perfiles_madurez
   - evaluar
