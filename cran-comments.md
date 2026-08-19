@@ -51,10 +51,16 @@ sources, which is what can be checked. The build used throughout carries
   `stringi`) have no installable build for R 3.6 in that snapshot, and the shipped
   data contains one marked UTF-8 string. Vignettes, tests and the manual are
   checked under R 4.6.1 and on the services above.
-* win-builder, R-release and R-devel: the tarball was accepted by both queues
-  (FTP 226). Results are identified by the `Packaged` stamp above rather than by
-  the arrival time of the notification, because those arrive with delays and out
-  of order.
+* win-builder, R-release (R 4.6.1) and R-devel (r90424): **1 NOTE on each**, the
+  new-submission note and nothing else. Both queues checked these sources on
+  2026-08-19 at 18:20 and 17:56 UTC respectively.
+
+  Results were matched to this build by reading each check log rather than by the
+  arrival time of the notification. That distinction mattered here: an earlier
+  build of the same sources sat in the R-release queue for over three hours, and
+  its result arrived after the corrected build had already been submitted. It was
+  identified as stale because it reported a note that these sources cannot
+  produce.
 
 The macOS builder at <https://mac.r-project.org/macbuilder/> returned HTTP 502 for
 every submission attempt, as it did while the previous revision was being prepared.
