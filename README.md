@@ -109,7 +109,7 @@ linked vignettes are the detailed manual. This table is the short map:
 | Task | Main functions | Read more |
 | --- | --- | --- |
 | Look at data for the first time | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Profile against a database | `perfilar_dbi()` — full-table SQL aggregates plus a 99-field profile from a declared sample; the scopes stay separate | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Profile against a database | `perfilar_dbi()` — full-table SQL aggregates plus a 105-field profile from a declared sample; the scopes stay separate | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Find undeclared structure | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Undeclared structure](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Define quality | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Define quality](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Measure and evaluate | `medir()`, `agregar()`, `tablero_calidad()`, `indice_calidad()` with project weights, `evaluar()`, `regla_evaluacion()` with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Measure and evaluate](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -148,6 +148,72 @@ The result records the effective scope in `meta$muestra`,
 table carries its analysed-row and sampling attributes. `analizar()` reuses
 `muestra = 1e5` for its profile, distributions, and observed-level enumeration,
 and declares separate limits for associations and the other components.
+
+## 🗄️ Engines: what is tested and what is expected
+
+`perfilar_dbi()` does not promise a universal dialect. It resolves the dialect
+with a zero-row probe **before** issuing the aggregate block, and whatever the
+engine rejects is recorded as unavailable with its reason — never as zero.
+
+| engine | dialect | status |
+| --- | --- | --- |
+| SQLite | `limit` | **tested** against the real engine, in the suite |
+| engine that rejects `LIMIT` | `top` / `portable` | **tested** with a simulated engine in the suite |
+| engine that folds aliases to upper case | any | **tested** with a simulated engine |
+| engine that rejects `SELECT *` over one column | any | **tested** with a simulated engine |
+| PostgreSQL, MySQL, MariaDB, DuckDB | `limit` | expected, not checked against the engine |
+| SQL Server 2012+ | `top` | expected, not checked against the engine |
+| Oracle 12c+ | `fetch_first` | expected, not checked against the engine |
+| Oracle 11 and earlier | `rownum` | expected, not checked against the engine |
+| any other DBI-compatible engine | `portable` | fallback: `dbSendQuery()` + `dbFetch(n)` |
+
+**Expected** means the dialect is built and tested against a simulated engine that
+reproduces the restriction, not that it has been run against the real engine. The
+distinction matters, which is why it is written down: the defects this version
+fixed did not surface in eight green environments precisely because all of them
+used the same engine.
+
+The dialect can be declared with `dialecto =` if the probe gets it wrong. A
+partial failure never discards what was already measured: if reading the sample
+fails, the object comes back with a complete `resumen_tabla`, `perfil_muestra =
+NULL`, and a coverage row carrying the reason.
+
+## 🕳️ Emptiness by design is declared, not counted as a defect
+
+Every profiler assumes a table shape. `lupa` assumes one row is one fact, one
+column is one semantic domain, and an empty cell should have had a value. The
+third assumption is the one that hurts: an administrative table is full of
+legitimate emptiness — an open-ended validity interval, a survey skip pattern,
+columns that are mutually exclusive by subtype, an entity-attribute-value model.
+Counting those as missing is arithmetically right and semantically wrong.
+
+`aplicabilidad` declares, per column, the rows where the column applies. Rows
+outside that universe leave `n_faltantes` and `prop_faltantes` instead of being
+reported as absence:
+
+```r
+perfilar(encuesta, aplicabilidad = list(marca_auto = ~ tiene_auto == "Si"))
+```
+
+`columnas_opcionales` covers the simpler case, where absence is never a defect
+and there is no rule to write. The declared rule, the resulting universe, and
+the rows where the rule could not be evaluated all land in
+`cobertura_diagnosticos`: a narrowed universe without a record would be the same
+defect in reverse. Rows whose rule cannot be determined are counted apart, in
+`n_aplicabilidad_indeterminada`, because not knowing is not the same as not
+applying.
+
+Declaring the universe also enables the symmetric error, which had no way to
+appear before: `valor_fuera_de_aplicabilidad` reports a value present where the
+rule says the column does not apply.
+
+`perfilar_por()` answers the long format, where one column stacks unrelated
+domains. It profiles each group separately, drops the wholly-absent columns
+inside each group before profiling, and declares what it dropped.
+
+`lupa` does not infer the model. Nothing here happens unless it is declared; the
+vignette `vacio-por-diseno` documents the assumption and the six table shapes
+where it does not hold.
 
 ## 🔢 Declared units and row traceability
 

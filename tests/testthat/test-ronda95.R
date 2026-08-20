@@ -54,11 +54,21 @@ test_that("un dominio disponible sobre solo vacias tiene universo cero", {
 
   metricas <- lupa:::.perfilar_geometria(geometria)
   perfil <- NULL
-  expect_warning(
-    perfil <- perfilar_sf_ronda95(geometria),
-    class = "lupa_trazabilidad_incoherente"
+  expect_no_warning(
+    perfil <- perfilar_sf_ronda95(geometria)
   )
   fila <- fila_geometria_ronda95(perfil)
+
+  ## El hallazgo `constante` sobre una columna no atomica informa la frecuencia
+  ## que se deduce de las filas validas, y las nombra. Antes contaba cero y la
+  ## guarda de coherencia protestaba con razon.
+  constante <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "constante", , drop = FALSE
+  ]
+  expect_equal(nrow(constante), 1L)
+  expect_equal(constante$n_afectados, 2)
+  expect_equal(constante$trazabilidad[[1L]]$indices_fila, 1:2)
+  expect_true(any(perfil$cobertura_diagnosticos$diagnostico == "constante"))
 
   expect_true(metricas$dominio_evaluado)
   expect_equal(metricas$n_dominio_evaluados, 0L)
@@ -70,6 +80,25 @@ test_that("un dominio disponible sobre solo vacias tiene universo cero", {
   expect_true(all(is.na(unlist(fila[c(
     "bbox_xmin", "bbox_xmax", "bbox_ymin", "bbox_ymax"
   )]))))
+})
+
+test_that("una sfc constante no vacia tampoco dispara la guarda", {
+  skip_if_not_installed("sf")
+  ## El disparador nunca fue la geometria vacia: es que la columna sea constante.
+  ## Este es el caso que el test de arriba no cubria.
+  geometria <- sf::st_sfc(
+    sf::st_point(c(1, 1)), sf::st_point(c(1, 1)), crs = 4326
+  )
+
+  perfil <- NULL
+  expect_no_warning(perfil <- perfilar_sf_ronda95(geometria))
+
+  constante <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "constante", , drop = FALSE
+  ]
+  expect_equal(constante$n_afectados, 2)
+  expect_equal(constante$trazabilidad[[1L]]$indices_fila, 1:2)
+  expect_false(any(is.na(constante$n_afectados)))
 })
 
 test_that("el dominio proyectado usa el mismo universo no vacio", {

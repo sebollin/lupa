@@ -64,11 +64,22 @@
       "numero_documento|nro_documento|identificacion|id_nacional|",
       "pasaporte|passport)($|_)"
     ),
-    correo = "(^|_)(correo|email|mail)($|_)",
-    telefono = "(^|_)(telefono|celular|movil)($|_)",
+    correo = "(^|_)(correo|email|mail|casilla)($|_)",
+    telefono = "(^|_)(telefono|celular|movil|contacto)($|_)",
     fecha_nacimiento = "(^|_)(fecha_nacimiento|f_nacimiento|nacimiento)($|_)",
-    nombre = "(^|_)(nombre|nombres|apellido|apellidos|nombre_completo)($|_)",
-    domicilio = "(^|_)(direccion|domicilio|calle|address)($|_)"
+    # El lexico de nombres no puede ser completo: una columna se puede llamar
+    # de cualquier forma. Cubre las mas frecuentes en registros administrativos
+    # y `columnas_personales` esta para el resto, que lo declara quien conoce
+    # el dato.
+    nombre = paste0(
+      "(^|_)(nombre|nombres|apellido|apellidos|nombre_completo|persona|",
+      "cliente|paciente|socio|beneficiario|titular|funcionario|usuario|",
+      "solicitante|responsable|contribuyente)($|_)"
+    ),
+    domicilio = paste0(
+      "(^|_)(direccion|domicilio|calle|address|residencia|",
+      "lugar_residencia|barrio)($|_)"
+    )
   )
   por_nombre <- names(reglas_nombre)[vapply(
     reglas_nombre, grepl, logical(1L), x = normalizado, perl = TRUE
@@ -101,6 +112,20 @@
       paste0(
         "^(?:[0-9]{7,12}|",
         "[0-9]{1,2}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9Kk]|",
+        "[0-9]{2}(?:[ .][0-9]{3}){2}[ .][0-9]{4})$"
+      )
+    )
+  } else NA_real_
+  # Un entero de ocho digitos y una cedula escrita con puntos y guion caen los
+  # dos en la forma de documento, y no son la misma evidencia. Un importe, un
+  # numero de factura o un identificador de transaccion son enteros de ese
+  # largo; nadie escribe un importe como `5.836.595-5`. La separacion importa
+  # porque decide si, ante un validador que no verifica, corresponde proteger.
+  proporcion_documento_formateado <- if (is.finite(proporcion_documento)) {
+    .proporcion_compatible(
+      x,
+      paste0(
+        "^(?:[0-9]{1,2}\\.[0-9]{3}\\.[0-9]{3}-[0-9Kk]|",
         "[0-9]{2}(?:[ .][0-9]{3}){2}[ .][0-9]{4})$"
       )
     )
@@ -174,7 +199,21 @@
       )
       poder <- "verificado"
       proteger <- TRUE
+    } else if (isTRUE(proporcion_documento_formateado >= 0.8) &&
+               documentos_distintos >= 3L) {
+      # Escritos como documento y sin verificar. Es el caso de una base sucia
+      # —documentos mal cargados, con digito verificador equivocado—, que es la
+      # poblacion para la que existe el paquete, y dejarlos sin proteger hacia
+      # que sus valores terminaran escritos en la evidencia de los hallazgos.
+      # Ante la duda se protege. La evidencia sigue declarandose debil.
+      fundamento <- "forma de documento con separadores, sin verificar"
+      poder <- "debil"
+      proteger <- TRUE
     } else {
+      # Digitos pelados. Aca la forma no distingue un documento de un importe,
+      # un numero de factura o un identificador de transaccion, y proteger por
+      # esa sola coincidencia le sacaria los estadisticos a media tabla. La
+      # sospecha se declara y no suprime nada.
       fundamento <- "forma de documento dominante"
       poder <- "debil"
       proteger <- FALSE
@@ -242,6 +281,10 @@
         fila$fundamento[[1L]],
         "; poder discriminante: ", fila$poder_discriminante[[1L]],
         "; proteccion automatica: ", if (fila$proteger[[1L]]) "si" else "no",
+        if (identical(fila$poder_discriminante[[1L]], "debil") &&
+            isTRUE(fila$proteger[[1L]])) {
+          " (por precaucion: la forma es compatible y no se pudo verificar)"
+        } else "",
         if (is.finite(fila$proporcion_compatible[[1L]])) {
           paste0("; proporci\u00f3n compatible: ",
                  sprintf("%.3f", fila$proporcion_compatible[[1L]]))

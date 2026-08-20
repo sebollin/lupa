@@ -31,6 +31,7 @@ articles:
   desc: Descubrir estructura y perfilar tablas remotas con alcance declarado.
   contents:
   - estructura-no-declarada
+  - vacio-por-diseno
   - perfilar-una-base
 
 - title: Recorrido
@@ -53,6 +54,7 @@ reference:
   contents:
   - analizar
   - perfilar
+  - perfilar_por
   - perfilar_dbi
   - distribucion_valores
   - detectar_asociaciones

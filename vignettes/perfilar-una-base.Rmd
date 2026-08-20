@@ -100,17 +100,17 @@ perfil$resumen_tabla$columnas[, c(
 )]
 ```
 
-`perfil_muestra$columnas` contiene los 99 campos del perfil, pero su universo
+`perfil_muestra$columnas` contiene los 105 campos del perfil, pero su universo
 son cinco filas en este ejemplo. Llamar *perfil* al resumen SQL afirmaría una
 completitud que no tiene: el resumen cubre quince de esos aspectos sobre doce
-filas; el perfil cubre sus 99 campos sobre las cinco filas obtenidas. Las
+filas; el perfil cubre sus 105 campos sobre las cinco filas obtenidas. Las
 consultas, estados y motivos de los agregados SQL quedan en `resumen_tabla$sql`
 para que también se vea qué aceptó o rechazó el motor.
 
 ## `perfil_muestra`: el perfil completo de la muestra
 
 El perfil completo se obtiene en memoria sobre las cinco filas seleccionadas.
-La salida muestra algunos de sus 99 campos para que se vean, junto con los
+La salida muestra algunos de sus 105 campos para que se vean, junto con los
 conteos, los faltantes, los distintos y el tipo inferido.
 
 ```{r muestra, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}

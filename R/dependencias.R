@@ -130,7 +130,12 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   seleccion <- utils::head(analizables, as.integer(max_columnas))
   nombres <- make.unique(names(datos))
   muestreo <- .muestrear_vector(seq_len(nrow(datos)), limite)
-  muestra_datos <- datos[muestreo$valores, seleccion, drop = FALSE]
+  # `as.data.frame()` antes de recortar: sobre un objeto `sf`, seleccionar
+  # columnas vuelve a pegar la geometria que `seleccion` habia excluido, y
+  # entonces `muestra_datos` queda con mas columnas que `seleccion`. Ademas de
+  # traer al analisis una columna que no corresponde, desalinea los indices con
+  # los que despues se buscan los nombres.
+  muestra_datos <- as.data.frame(datos)[muestreo$valores, seleccion, drop = FALSE]
   normalizados <- lapply(muestra_datos, .valores_relacion)
   estadisticas <- lapply(normalizados, function(x) {
     presentes <- x[!is.na(x)]
@@ -220,6 +225,10 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     stringsAsFactors = FALSE
   )
   attr(resultado, "truncado") <- length(seleccion) < length(analizables)
+  # El tope aplicado se conserva: sin el, quien ve columnas omitidas no puede
+  # saber contra que se recortaron ni que valor pasar para evitarlo.
+  attr(resultado, "max_columnas") <- as.integer(max_columnas)
+  attr(resultado, "seleccion_posicional") <- TRUE
   attr(resultado, "umbral") <- umbral
   resultado
 }
@@ -243,4 +252,30 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   })
   filas <- Filter(Negate(is.null), filas)
   if (length(filas)) do.call(rbind, filas) else pares[0, , drop = FALSE]
+}
+
+# El recorte por cantidad de columnas quedaba solo en los atributos del objeto
+# de dependencias, mientras el recorte hermano de la busqueda aritmetica si
+# declaraba el suyo en `cobertura_diagnosticos`. Es el mismo hecho y el usuario
+# lo busca en el mismo lugar.
+.cobertura_dependencias <- function(dependencias) {
+  if (!isTRUE(attr(dependencias, "truncado", exact = TRUE))) return(NULL)
+  omitidas <- attr(dependencias, "columnas_omitidas", exact = TRUE)
+  analizadas <- attr(dependencias, "columnas_analizadas", exact = TRUE)
+  tope <- attr(dependencias, "max_columnas", exact = TRUE)
+  .nuevo_diagnostico_no_evaluado(
+    "dependencias_funcionales",
+    paste(omitidas, collapse = ","),
+    paste0(
+      "La b\u00fasqueda de dependencias se limit\u00f3 a las primeras ",
+      if (is.null(tope)) length(analizadas) else tope,
+      " columnas analizables por posici\u00f3n: analiz\u00f3 ", length(analizadas),
+      " y dej\u00f3 ", length(omitidas), " fuera del diagn\u00f3stico."
+    ),
+    paste0(
+      "Aumentar `max_columnas_dependencias` o perfilar por bloques si las ",
+      "columnas omitidas deben intervenir. La selecci\u00f3n es por posici\u00f3n, ",
+      "as\u00ed que reordenar las columnas cambia cu\u00e1les entran."
+    )
+  )
 }

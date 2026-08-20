@@ -1,0 +1,209 @@
+---
+title: "El vacío por diseño"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{El vacío por diseño}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+options(width = 90)
+library(lupa)
+```
+
+## El supuesto que `lupa` hace y no hacía explícito
+
+Todo perfilador de datos asume una forma de tabla. `lupa` asume tres cosas a la
+vez:
+
+1. una fila es un hecho sobre una entidad;
+2. una columna es un dominio semántico;
+3. una celda vacía debería tener un valor y no lo tiene.
+
+Las tres son razonables y ninguna es universal. La tercera es la que hace daño,
+porque una base administrativa está llena de vacíos legítimos: la celda que no
+corresponde que tenga valor.
+
+Sin declarar nada, `lupa` cuenta esos vacíos como ausencia y los informa como
+defecto. El conteo es correcto y la lectura es falsa.
+
+## Seis formas de tabla donde el vacío es la estructura
+
+| forma | por qué hay vacíos |
+| --- | --- |
+| historial con vigencia abierta | `valido_hasta` vacío significa "sigue vigente" |
+| encuesta con salto de patrón | quien no tiene auto no responde nada del auto |
+| columnas excluyentes por subtipo | una persona jurídica no tiene fecha de nacimiento |
+| documento por tipo | quien tiene cédula no tiene pasaporte ni RUT |
+| entidad-atributo-valor | cada fila llena una sola de las columnas de valor |
+| formato largo | la misma tabla de arriba, apilada |
+
+## Qué pasa si no se declara nada
+
+```{r}
+set.seed(3)
+n <- 2000
+tiene_auto <- rep(c("Si", "No"), c(600, 1400))
+encuesta <- data.frame(
+  tiene_auto = tiene_auto,
+  marca_auto = ifelse(tiene_auto == "Si", "Ford", NA),
+  stringsAsFactors = FALSE
+)
+
+perfil <- perfilar(encuesta, analizar_dependencias = FALSE)
+perfil$hallazgos[
+  perfil$hallazgos$tipo_hallazgo == "faltantes",
+  c("columna", "severidad", "n_afectados", "n_evaluados")
+]
+```
+
+Setenta por ciento de ausencia, severidad `error`, sobre una columna que está
+completa en todas las filas donde corresponde que tenga valor.
+
+## Declarar el universo
+
+`aplicabilidad` toma una fórmula por columna. Las filas donde el predicado no se
+cumple salen del universo de esa columna.
+
+```{r}
+declarado <- perfilar(
+  encuesta,
+  analizar_dependencias = FALSE,
+  aplicabilidad = list(marca_auto = ~ tiene_auto == "Si")
+)
+
+sum(declarado$hallazgos$tipo_hallazgo == "faltantes")
+declarado$columnas[
+  declarado$columnas$columna == "marca_auto",
+  c("n", "n_aplicables", "n_no_aplica", "n_faltantes", "prop_faltantes")
+]
+```
+
+El recorte no es silencioso. La regla queda escrita donde se busca lo que no se
+midió:
+
+```{r}
+cobertura <- declarado$cobertura_diagnosticos
+cobertura$motivo[cobertura$columna == "marca_auto"]
+```
+
+Cuando la ausencia nunca es defecto y no hay una regla que escribir —el
+historial con vigencia abierta es el caso típico— alcanza con `columnas_opcionales`:
+
+```{r}
+historial <- data.frame(
+  id = 1:100,
+  valido_hasta = c(rep(NA, 40), 41:100)
+)
+opcional <- perfilar(
+  historial, analizar_dependencias = FALSE,
+  columnas_opcionales = "valido_hasta"
+)
+sum(opcional$hallazgos$tipo_hallazgo == "faltantes")
+```
+
+## El error simétrico
+
+Declarar el universo habilita un diagnóstico que antes no tenía forma de
+existir: el valor que aparece donde la regla dice que no corresponde.
+
+```{r}
+inconsistente <- data.frame(
+  tiene_auto = c("Si", "No", "No", "Si"),
+  marca_auto = c("Ford", NA, "Fiat", "VW"),
+  stringsAsFactors = FALSE
+)
+p <- perfilar(
+  inconsistente, analizar_dependencias = FALSE,
+  aplicabilidad = list(marca_auto = ~ tiene_auto == "Si")
+)
+h <- p$hallazgos[p$hallazgos$tipo_hallazgo == "valor_fuera_de_aplicabilidad", ]
+h[, c("columna", "severidad", "n_afectados", "evidencia")]
+h$trazabilidad[[1]]$indices_fila
+```
+
+La tercera fila declara no tener auto y tiene marca. Es un error real, y sin el
+universo declarado `lupa` no puede verlo.
+
+## Cuando la regla no se puede determinar
+
+Si la columna que discrimina también está ausente, no se sabe si la columna
+aplica. Esas filas no se cuentan como aplicables ni como no aplicables: se
+declaran aparte, porque no saber no es lo mismo que no corresponder.
+
+```{r}
+dudoso <- data.frame(
+  tiene_auto = c("Si", "No", NA, "Si"),
+  marca_auto = c("Ford", NA, NA, "VW"),
+  stringsAsFactors = FALSE
+)
+pd <- perfilar(
+  dudoso, analizar_dependencias = FALSE,
+  aplicabilidad = list(marca_auto = ~ tiene_auto == "Si")
+)
+pd$columnas[
+  pd$columnas$columna == "marca_auto",
+  c("n_aplicables", "n_no_aplica", "n_aplicabilidad_indeterminada")
+]
+```
+
+## El formato largo: `perfilar_por()`
+
+Una tabla en formato largo no es una tabla: son muchas apiladas. Perfilarla
+entera mezcla dominios que no tienen nada que ver, y el resultado no describe a
+ninguno.
+
+```{r}
+set.seed(9)
+n <- 900
+atributo <- rep(c("pais", "edad", "correo"), each = n / 3)
+largo <- data.frame(
+  entidad = rep(seq_len(n / 3), 3),
+  atributo = atributo,
+  valor_texto = ifelse(
+    atributo == "edad", NA,
+    ifelse(atributo == "pais", sample(c("UY", "uy", "AR"), n, TRUE),
+           paste0("a", seq_len(n), "@x.uy"))
+  ),
+  valor_num = ifelse(atributo == "edad", sample(18:80, n, TRUE), NA),
+  stringsAsFactors = FALSE
+)
+
+plano <- perfilar(largo, analizar_dependencias = FALSE)
+table(as.character(plano$hallazgos$tipo_hallazgo))
+```
+
+Por grupo, cada atributo se perfila contra su propio dominio. Las columnas
+enteramente ausentes dentro del grupo se descartan antes de perfilar, y ése es
+el paso que desactiva el faltante falso.
+
+```{r}
+por_grupo <- perfilar_por(
+  largo, "atributo", clave = "entidad", min_filas = 30,
+  analizar_dependencias = FALSE
+)
+sum(por_grupo$tipo_hallazgo == "faltantes")
+table(as.character(por_grupo$tipo_hallazgo))
+```
+
+El argumento `clave` no es cosmético. Sin la columna de identidad, cada
+repetición del valor de un atributo se lee como fila duplicada y el diagnóstico
+de unicidad informa la tabla entera.
+
+Lo que se descartó queda declarado:
+
+```{r}
+head(attr(por_grupo, "cobertura_grupos"), 3)
+```
+
+## Lo que `lupa` no hace
+
+No infiere el modelo. No mira una tabla y decide por su cuenta que es un
+entidad-atributo-valor, ni que dos columnas son mutuamente excluyentes. Una
+heurística de ese tipo fallaría sobre tablas anchas legítimas, y el paquete ya
+se niega a adivinar claves y jerarquías por la misma razón.
+
+El universo lo declara quien conoce el dato. Sin declaración, toda la columna
+aplica y el resultado es el de siempre: es la única omisión que no supone nada.

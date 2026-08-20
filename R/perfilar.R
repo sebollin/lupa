@@ -315,6 +315,24 @@
 #'   un error; la igualdad conserva la severidad sospechosa.
 #' @param umbral_patron_raro Máxima frecuencia de un patrón raro.
 #' @param umbral_patron_dominante Frecuencia mínima del patrón dominante.
+#' @param columnas_opcionales Nombres de columnas donde la ausencia no es un
+#'   defecto. Su universo de completitud son las celdas presentes, y
+#'   `cobertura_diagnosticos` declara el recorte. Sirve para el vacío por
+#'   diseño: un historial con vigencia abierta, una columna que sólo
+#'   corresponde a algunas filas.
+#' @param aplicabilidad Lista con nombre por columna, donde cada elemento es
+#'   una fórmula de un solo lado evaluada sobre `datos` — por ejemplo
+#'   `list(marca_auto = ~ tiene_auto == "Si")`. Las filas donde el predicado no
+#'   se cumple salen del universo de esa columna: no cuentan como ausencia. Las
+#'   filas donde el predicado no se puede determinar se declaran aparte, sin
+#'   contarse ni como aplicables ni como no aplicables. Un valor presente fuera
+#'   del universo produce el hallazgo `valor_fuera_de_aplicabilidad`, que es el
+#'   error simétrico y hoy no tiene otra forma de aparecer.
+#'
+#'   `lupa` no infiere el universo: si nadie lo declara, toda la columna aplica
+#'   y el resultado es el de siempre. Declararlo es lo que distingue el vacío
+#'   por diseño del vacío por error, y sin esa distinción una tabla sana puede
+#'   informar completitud baja siendo completa.
 #' @param columnas_sin_ceros Nombres de columnas donde cero no es admisible.
 #' @param columnas_no_negativas Nombres de columnas que deben ser no negativas.
 #' @param sentinelas_numericos Vector completo de valores numéricos que se
@@ -513,6 +531,8 @@ perfilar <- function(datos,
                      umbral_patron_dominante = 0.5,
                      columnas_sin_ceros = character(),
                      columnas_no_negativas = character(),
+                     columnas_opcionales = character(),
+                     aplicabilidad = NULL,
                      sentinelas_numericos = c(-9, -99, -999, -9999, 999),
                      analizar_dependencias = TRUE,
                      umbral_dependencia = 0.995,
@@ -740,11 +760,15 @@ perfilar <- function(datos,
     nombres <- paste0("V", seq_len(ncol(datos)))
   }
   nombres_lista <- make.unique(nombres)
+  aplicabilidad_resuelta <- .resolver_aplicabilidad(
+    datos, nombres, columnas_opcionales, aplicabilidad
+  )
   resultados <- lapply(seq_len(ncol(datos)), function(i) {
     .perfilar_columna(
       datos[[i]], nombres[[i]], muestra, max_patrones,
       distinguir_mayusculas, expandir, umbral_patron_raro,
-      sentinelas_numericos
+      sentinelas_numericos,
+      aplicable = aplicabilidad_resuelta$mascaras[[i]]
     )
   })
 
@@ -849,6 +873,18 @@ perfilar <- function(datos,
   if (nrow(relaciones_aritmeticas$cobertura)) {
     cobertura_diagnosticos <- rbind(
       cobertura_diagnosticos, relaciones_aritmeticas$cobertura
+    )
+  }
+  cobertura_dependencias <- .cobertura_dependencias(dependencias)
+  if (!is.null(cobertura_dependencias)) {
+    cobertura_diagnosticos <- rbind(
+      cobertura_diagnosticos, cobertura_dependencias
+    )
+  }
+  cobertura_aplicabilidad <- .cobertura_aplicabilidad(aplicabilidad_resuelta$reglas)
+  if (!is.null(cobertura_aplicabilidad)) {
+    cobertura_diagnosticos <- rbind(
+      cobertura_diagnosticos, cobertura_aplicabilidad
     )
   }
   attr(hallazgos, "cobertura_diagnosticos") <- NULL

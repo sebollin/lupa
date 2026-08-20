@@ -9,12 +9,14 @@ estimar_costo_coleccion(coleccion, pares = NULL)
 \arguments{
 \item{coleccion}{Objeto creado por \code{\link[=coleccion]{coleccion()}}.}
 
-\item{pares}{Data frame con columnas \code{tabla_1} y \code{tabla_2}. Sin él, todos los
-pares dirigidos.}
+\item{pares}{Data frame con columnas \code{tabla_1} y \code{tabla_2}. Un data frame
+con cero filas es una declaración válida de «ningún par». Sin \code{pares}
+—\code{NULL}—, todos los pares dirigidos.}
 }
 \value{
-Lista con \code{n_tablas}, \code{n_pares_dirigidos}, \code{n_pares_declarados} y,
-cuando se pueden leer los esquemas, \code{n_comparaciones_columnas}.
+Lista con \code{n_tablas}, \code{n_pares_dirigidos}, \code{n_pares_declarados},
+\code{n_pares_estimados}, \code{n_pares_sin_estimar}, \code{n_comparaciones_columnas},
+\code{n_tablas_sin_esquema}, \code{tablas_sin_esquema} y \code{alcance}.
 }
 \description{
 Cuenta cuántas comparaciones de columnas implicaría buscar claves foráneas
@@ -24,7 +26,28 @@ columnas son dos mil quinientas comparaciones.
 }
 \details{
 Sin \code{pares} estima sobre todos los pares dirigidos de la colección, que es
-justamente lo que suele mostrar por qué hay que declararlos.
+justamente lo que suele mostrar por qué hay que declararlos. Ese caso \strong{no
+materializa los pares}: la suma de \code{c_i * c_j} sobre los pares dirigidos es
+\code{sum(c)^2 - sum(c^2)}, así que el trabajo es lineal en el número de
+tablas y no cuadrático. Estimar el costo no puede costar más que medirlo.
+
+Sólo se consulta el ancho de las tablas que los pares nombran, por metadatos
+(\code{DBI::dbListFields()}), no leyendo datos.
+
+\strong{Una tabla cuyo esquema no se puede leer no se suma como cero.} Queda
+declarada en \code{tablas_sin_esquema} y los pares que la involucran se cuentan en
+\code{n_pares_sin_estimar}: el número devuelto cubre \code{n_pares_estimados}, no todos
+los pares.
+}
+\examples{
+if (requireNamespace("RSQLite", quietly = TRUE) &&
+    requireNamespace("DBI", quietly = TRUE)) {
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  DBI::dbWriteTable(con, "personas", data.frame(id = 1:3, nombre = letters[1:3]))
+  DBI::dbWriteTable(con, "visitas", data.frame(persona_id = 1:3, dia = 1:3))
+  estimar_costo_coleccion(coleccion(con, c("personas", "visitas")))
+  DBI::dbDisconnect(con)
+}
 }
 \seealso{
 \code{\link[=relaciones_coleccion]{relaciones_coleccion()}}, \code{\link[=coleccion]{coleccion()}}

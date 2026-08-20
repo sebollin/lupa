@@ -1,3 +1,15 @@
+> **Esta carta describe la validacion de una version anterior.** El 2026-08-20 el
+> paquete cambio de forma sustancial: se corrigieron quince pendientes que salieron
+> de correrlo contra bases reales de cinco motores distintos, incluida la
+> distincion entre el vacio por diseno y el vacio por error, dos fugas de datos
+> personales y el adaptador de dialecto SQL. La matriz de entornos de abajo
+> **corresponde al tarball anterior y hay que rehacerla entera** antes de cualquier
+> envio. No se envia nada hasta entonces.
+>
+> Estado local al 2026-08-20, sobre el codigo nuevo: `R CMD check --as-cran` y la
+> suite de 14.918 comprobaciones. Falta rehacer CI, R-hub, win-builder y el
+> contenedor de R 3.6.
+
 ## R CMD check results
 
 0 errors | 0 warnings | 2 notes

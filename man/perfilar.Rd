@@ -20,6 +20,8 @@ perfilar(
   umbral_patron_dominante = 0.5,
   columnas_sin_ceros = character(),
   columnas_no_negativas = character(),
+  columnas_opcionales = character(),
+  aplicabilidad = NULL,
   sentinelas_numericos = c(-9, -99, -999, -9999, 999),
   analizar_dependencias = TRUE,
   umbral_dependencia = 0.995,
@@ -93,6 +95,26 @@ un error; la igualdad conserva la severidad sospechosa.}
 \item{columnas_sin_ceros}{Nombres de columnas donde cero no es admisible.}
 
 \item{columnas_no_negativas}{Nombres de columnas que deben ser no negativas.}
+
+\item{columnas_opcionales}{Nombres de columnas donde la ausencia no es un
+defecto. Su universo de completitud son las celdas presentes, y
+\code{cobertura_diagnosticos} declara el recorte. Sirve para el vacío por
+diseño: un historial con vigencia abierta, una columna que sólo
+corresponde a algunas filas.}
+
+\item{aplicabilidad}{Lista con nombre por columna, donde cada elemento es
+una fórmula de un solo lado evaluada sobre \code{datos} — por ejemplo
+\code{list(marca_auto = ~ tiene_auto == "Si")}. Las filas donde el predicado no
+se cumple salen del universo de esa columna: no cuentan como ausencia. Las
+filas donde el predicado no se puede determinar se declaran aparte, sin
+contarse ni como aplicables ni como no aplicables. Un valor presente fuera
+del universo produce el hallazgo \code{valor_fuera_de_aplicabilidad}, que es el
+error simétrico y hoy no tiene otra forma de aparecer.
+
+\code{lupa} no infiere el universo: si nadie lo declara, toda la columna aplica
+y el resultado es el de siempre. Declararlo es lo que distingue el vacío
+por diseño del vacío por error, y sin esa distinción una tabla sana puede
+informar completitud baja siendo completa.}
 
 \item{sentinelas_numericos}{Vector completo de valores numéricos que se
 interpretan como ausencia. \code{numeric()} los desactiva; las cadenas de

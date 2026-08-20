@@ -109,7 +109,10 @@ test_that("el perfil completo declara el alcance de la muestra", {
 
   expect_named(resultado, c("resumen_tabla", "perfil_muestra"))
   expect_s3_class(perfil, "perfil")
-  expect_equal(ncol(perfil$columnas), 99L)
+  ## Canario de esquema: si este numero cambia sin querer, es que una columna
+  ## nueva del perfil se colo sin documentarse. Subio a 105 al declarar el
+  ## universo aplicable (4 campos) y la representacion geometrica (2).
+  expect_equal(ncol(perfil$columnas), 105L)
   expect_true(all(perfil$columnas$n == 1000L))
   expect_equal(alcance$filas_solicitadas, 1000)
   expect_equal(alcance$filas_obtenidas, 1000)

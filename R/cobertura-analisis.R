@@ -28,7 +28,22 @@
 }
 
 .perfil_tiene_geometria <- function(perfil) {
-  any(grepl("^(sfc|sfg|sf$)", perfil$columnas$tipo_declarado, perl = TRUE))
+  # El tipo declarado no alcanza: una columna WKT declara "texto" y una de WKB
+  # declara "lista", y aun asi el perfil ya trae su CRS, su tipo y su bbox.
+  # Decidir por la etiqueta hacia que la cobertura afirmara que la geometria no
+  # aplica sobre datos que si son geometricos, que es exactamente lo que esta
+  # tabla existe para evitar.
+  if (any(grepl("^(sfc|sfg|sf$)", perfil$columnas$tipo_declarado, perl = TRUE))) {
+    return(TRUE)
+  }
+  if (!is.null(perfil$columnas$tipo_geometria) &&
+      any(!is.na(perfil$columnas$tipo_geometria))) {
+    return(TRUE)
+  }
+  # Y tambien cuando se reconocio la columna como geometrica pero no se pudo
+  # convertir: ahi la geometria aplica y lo que falta es la medicion.
+  !is.null(perfil$columnas$representacion_geometria) &&
+    any(!is.na(perfil$columnas$representacion_geometria))
 }
 
 .perfil_tiene_tiempo <- function(perfil) {

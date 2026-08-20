@@ -9,9 +9,9 @@ coleccion(conexion, tablas, nombre = NULL)
 \arguments{
 \item{conexion}{Conexión abierta compatible con DBI.}
 
-\item{tablas}{Nombres de las tablas que componen la colección, como vector
-\code{"esquema.tabla"} o como data frame con columnas \code{esquema}, \code{tabla} y
-opcionalmente \code{tipo}.}
+\item{tablas}{Nombres de las tablas que componen la colección: un data frame
+con columnas \code{esquema}, \code{tabla} y opcionalmente \code{tipo}; un \code{DBI::Id} o una
+lista de \code{DBI::Id}; o un vector de texto \code{"esquema.tabla"}.}
 
 \item{nombre}{Etiqueta de la colección.}
 }
@@ -30,18 +30,47 @@ recorrerlas todas no es viable.
 Esta función no consulta nada: sólo declara. Lo que se mide viene después,
 con \code{\link[=perfilar_coleccion]{perfilar_coleccion()}}.
 
-El \strong{esquema es parte de la identidad de la tabla}. Se puede declarar como
-\code{"esquema.tabla"} o con un data frame de columnas \code{esquema} y \code{tabla}. Una
-tercera columna \code{tipo} permite declarar qué es cada objeto —\code{"tabla"},
-\code{"vista"}, \code{"temporal"}—, porque el conteo bruto de un catálogo mezcla tablas
-base con vistas, índices y secuencias, y no todas se perfilan igual.
+El \strong{esquema es parte de la identidad de la tabla}. Una tercera columna
+\code{tipo} permite declarar qué es cada objeto —\code{"tabla"}, \code{"vista"},
+\code{"temporal"}—, porque el conteo bruto de un catálogo mezcla tablas base con
+vistas, índices y secuencias, y no todas se perfilan igual.
 }
+\section{Cómo declarar el nombre}{
+
+
+Hay tres formas, y \strong{no son equivalentes}:
+
+\describe{
+\item{\code{data.frame(esquema =, tabla =)}}{\strong{La forma recomendada para
+cualquier nombre no trivial.} Los nombres viajan literales: puntos,
+espacios y comillas incluidos. No hay parseo y por lo tanto no hay nada
+que se pueda parsear mal.}
+\item{\code{DBI::Id}, suelto o en una lista}{La forma canónica de DBI. Tampoco
+se parsea. Se admiten hasta dos componentes —esquema y tabla—.}
+\item{Texto \code{"esquema.tabla"}}{Atajo cómodo para el caso simple. El texto
+\strong{se parte en el punto}, respetando el entrecomillado del motor:
+un nombre entrecomillado con un punto adentro queda entero, como una
+sola tabla. Un nombre de tres o más
+partes, un punto al principio o al final, o una comilla sin cerrar se
+\strong{rechazan acá}, con el motivo real. No se aceptan para fallar más tarde
+como si fueran un problema de permisos.}
+}
+
+El atajo de texto no puede resolver una ambigüedad genuina: \code{"informe.2024"}
+puede ser la tabla \code{2024} del esquema \code{informe} o una tabla llamada
+\code{informe.2024}. \code{lupa} elige la primera lectura y lo deja anotado, de modo
+que si después no encuentra la tabla dice que el nombre se partió. Para el
+caso ambiguo use el data frame.
+}
+
 \examples{
 if (requireNamespace("RSQLite", quietly = TRUE) &&
     requireNamespace("DBI", quietly = TRUE)) {
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   DBI::dbWriteTable(con, "personas", data.frame(id = 1:3, nombre = letters[1:3]))
   coleccion(con, "personas", nombre = "padron")
+  # La forma literal, sin parseo, para nombres con puntos:
+  coleccion(con, data.frame(esquema = NA, tabla = "personas"))
   DBI::dbDisconnect(con)
 }
 }

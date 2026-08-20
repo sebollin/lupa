@@ -82,26 +82,50 @@ test_that("las filas duplicadas cuentan participantes y dejan excedentes en evid
   expect_equal(hallazgo$trazabilidad[[1L]]$total, 10)
 })
 
-test_that("una constante de listas declara que no pudo contar afectados", {
+test_that("una constante de listas cuenta las filas y declara el valor no representable", {
+  ## Antes informaba `n_afectados = NA` y traza no disponible. Es mas de lo que
+  ## se sabia: con un unico valor distinto sobre 20 filas validas, ese valor las
+  ## ocupa a las 20 por definicion, sin necesidad de contar sobre la columna. Lo
+  ## que no se puede es representar el valor como texto, y eso es lo que va a
+  ## cobertura.
   datos <- data.frame(x = seq_len(20L))
   datos$compuesta <- I(replicate(20L, list(1:2), simplify = FALSE))
-  perfil <- perfilar(
-    datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  expect_no_warning(
+    perfil <- perfilar(
+      datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+    )
   )
   hallazgo <- perfil$hallazgos[
     perfil$hallazgos$columna == "compuesta" &
       perfil$hallazgos$tipo_hallazgo == "constante", , drop = FALSE
   ]
   expect_equal(nrow(hallazgo), 1L)
-  expect_true(is.na(hallazgo$n_afectados))
+  expect_equal(hallazgo$n_afectados, 20)
   expect_equal(hallazgo$n_evaluados, 20)
-  expect_equal(hallazgo$trazabilidad[[1L]]$estado, "no_disponible")
+  expect_equal(hallazgo$trazabilidad[[1L]]$estado, "disponible")
+  expect_equal(hallazgo$trazabilidad[[1L]]$indices_fila, seq_len(20L))
+  expect_match(hallazgo$evidencia, "no se pudo representar")
+
   cobertura <- perfil$cobertura_diagnosticos[
     perfil$cobertura_diagnosticos$diagnostico == "constante" &
       perfil$cobertura_diagnosticos$columna == "compuesta", , drop = FALSE
   ]
   expect_equal(nrow(cobertura), 1L)
-  expect_match(cobertura$motivo, "lista", ignore.case = TRUE)
+  expect_match(cobertura$motivo, "no se pudo representar")
+})
+
+test_that("contar distintos no depende de que la columna se pueda leer como texto", {
+  ## Regresion: al declarar no analizables las columnas no atomicas, el conteo
+  ## de valores distintos pasaba a hacerse sobre ausentes y daba cero sobre una
+  ## columna con valores. La identidad se compara sobre la columna, no sobre su
+  ## lectura como texto.
+  datos <- data.frame(x = seq_len(20L))
+  datos$compuesta <- I(replicate(20L, list(1:2), simplify = FALSE))
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  fila <- perfil$columnas[perfil$columnas$columna == "compuesta", ]
+  expect_equal(fila$n_distintos, 1L)
+  expect_equal(fila$n_faltantes, 0)
+  expect_true(is.na(fila$frecuencia_moda))
 })
 
 test_that("los hallazgos estructurales declaran unidades distintas", {

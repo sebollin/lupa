@@ -1,5 +1,135 @@
 # lupa 0.1.0
 
+## Numeros que no pueden ser
+
+- El universo aplicable declarado sale tambien del analisis, no solo de los
+  conteos. Con filas no aplicables que tienen valor, `n_distintos` las contaba
+  mientras `n_validos` ya no, y `tasa_distintos` podia pasar de 1.
+- La trazabilidad no nombra filas fuera del universo declarado. El conteo ya las
+  excluia y nombrarlas igual producia la incoherencia que la guarda detecta.
+- La via DBI valida la coherencia interna de lo que informa el motor: mas valores
+  distintos que validos, o una frecuencia de moda mayor que las filas validas,
+  son imposibles y se declaran no disponibles en vez de publicarse como
+  calculados.
+- El lexico de nombres de columna con datos personales cubre `persona`,
+  `cliente`, `paciente`, `socio`, `beneficiario`, `titular`, `funcionario`,
+  `usuario`, `solicitante`, `responsable`, `contribuyente`, `residencia`,
+  `lugar_residencia` y `barrio`. Ningun lexico puede ser completo; estos son los
+  frecuentes en registros administrativos.
+
+## La via DBI deja de asumir un dialecto y de tirar lo que ya midio
+
+- `perfilar_dbi()` resuelve el dialecto con una sonda de cero filas **antes** de
+  emitir el bloque de agregados: `limit`, `top`, `fetch_first`, `rownum` y una
+  via portable con `dbSendQuery()` + `dbFetch(n)`. Se puede declarar con
+  `dialecto =` si la sonda no acierta.
+- Las cuatro consultas obligatorias —campos, conteo, esquema y muestra— dejaron
+  de ser fatales. Si la muestra falla, el objeto vuelve con `resumen_tabla`
+  completo, `perfil_muestra = NULL` y una fila de cobertura con el motivo. Antes,
+  un motor que no acepta `LIMIT` descartaba las 777 consultas ya pagadas.
+- El esquema y la muestra enumeran columnas en vez de usar `SELECT *`, y si la
+  lectura conjunta falla sondean columna por columna para descartar solo la que
+  el motor rechaza.
+- Los `stop()` de la via DBI tienen clase de condicion propia, asi que un fallo
+  se puede atrapar y el resumen rescatar.
+- Los alias se comillan y se comparan sin distinguir caja. Un motor que los
+  pliega a mayusculas ya no produce metricas con estado `calculado` y valor
+  vacio, que era peor que declararlas no disponibles.
+- Argumentos nuevos para acotar el costo: `modo`, `metricas` y `max_consultas`,
+  mas `plan_perfilado_dbi()`, que dice cuantas consultas va a costar el
+  perfilado antes de emitirlas.
+- `resumen_tabla` pasa por la proteccion de datos personales, que antes solo
+  alcanzaba al perfil de la muestra: el bloque sin proteger era justamente el de
+  alcance completo. El SQL guardado del desvio ya no incrusta la media
+  observada. Nuevo `print.perfil_dbi`, que no imprime ningun valor de celda.
+
+## El nivel coleccion deja de informar cero donde no midio
+
+- Una tabla vacia ya no produce `prop_faltantes_maxima = -Inf` ni
+  `n_columnas_sin_faltantes = 0`: son `NA`, con una fila de cobertura que declara
+  que no hay nada que medir. Antes esa tabla se ordenaba como la de mejor calidad
+  de la base.
+- Componente nuevo `cobertura_metricas`: la declaracion de lo que el motor
+  rechazo sube al nivel coleccion antes de descartar los perfiles, y existe
+  tambien con `conservar_perfiles = FALSE`.
+- `estimar_costo_coleccion()` usa la formula cerrada en vez de materializar los
+  pares: 27,4 s y 233 MB con 1700 tablas pasaron a 0,42 s. El resultado es
+  identico. Acepta cero pares, deduplica y rechaza los autorreferenciales.
+- `relaciones_coleccion()` cachea cada tabla en vez de releerla una vez por par.
+- Los identificadores de mas de dos partes se rechazan nombrando la causa real.
+  Antes se aceptaban y el fallo se le devolvia al usuario como un problema de
+  permisos sobre una tabla que si podia leer.
+
+## El perfilado espacial deja de ser inviable por tiempo
+
+- Las columnas no atomicas ya no pasan por la maquinaria de texto. Convertirlas
+  no producia sus valores sino su representacion como codigo, una vez por cada
+  etapa que las tocaba: era el 85 % del costo de perfilar una capa espacial.
+  Perfilar 62 poligonos de 200.000 vertices paso de 323 s a 2,3 s.
+- La transformacion de coordenadas se hace en una sola llamada y no una por
+  geometria.
+- Presupuesto de geometrias y de vertices, con el recorte declarado.
+- WKT, WKB y hexadecimal se detectan, se convierten y se miden. Antes quedaban
+  todas las metricas en `NA` con `cobertura_diagnosticos` vacia, y
+  `cobertura_analisis()` llegaba a afirmar que la geometria no aplicaba sobre
+  datos que si eran geometricos.
+- Un fallo parcial ya no descarta la columna entera: una geometria
+  intransformable o un `NA` de la validez dejan de borrar el conteo y los
+  indices de todas las demas.
+
+## El vacio por diseno se declara y deja de contarse como defecto
+
+- `perfilar()` acepta `aplicabilidad`, una lista de formulas por columna que
+  declara en que filas la columna corresponde. Las filas fuera del universo
+  salen de `n_faltantes` y de `prop_faltantes` en vez de contarse como
+  ausencia. Antes, una tabla completa en las filas donde el dato corresponde
+  podia informar completitud baja: el conteo era correcto y la lectura falsa.
+- `perfilar()` acepta `columnas_opcionales` para el caso mas simple, donde la
+  ausencia nunca es defecto y no hay una regla que escribir.
+- La regla declarada, el universo resultante y las filas donde la regla no se
+  pudo determinar quedan en `cobertura_diagnosticos`. Un universo recortado sin
+  constancia seria el mismo defecto al reves.
+- Las filas donde la regla no se puede evaluar no se cuentan como aplicables ni
+  como no aplicables: van a `n_aplicabilidad_indeterminada`, porque no saber no
+  es lo mismo que no corresponder.
+- Nuevo hallazgo `valor_fuera_de_aplicabilidad`: un valor presente donde la
+  regla dice que la columna no corresponde. Es el error simetrico y sin universo
+  declarado no tenia forma de aparecer.
+- La metrica `NoNulo` acepta `aplicable` con el mismo criterio, para que el
+  universo declarado llegue al tablero y no solo al hallazgo.
+- Nueva funcion `perfilar_por()`: perfila cada grupo de filas por separado y
+  devuelve los hallazgos de todos los grupos en una tabla. Es la respuesta al
+  formato largo, donde una sola columna mezcla dominios sin relacion. Las
+  columnas enteramente ausentes dentro de cada grupo se descartan antes de
+  perfilar, y el descarte se declara.
+- Nueva vineta `vacio-por-diseno`, que documenta el supuesto tabular del
+  paquete y las seis formas de tabla donde no vale.
+
+## Privacidad: ante la duda se protege
+
+- El clasificador de datos personales dejaba sin proteger una columna cuya forma
+  era compatible con un documento de identidad cuando el validador no podia
+  verificarla. Ese es justamente el caso de una base sucia, y los valores reales
+  terminaban escritos en la evidencia de los hallazgos. Ahora se protege igual;
+  la evidencia sigue declarando que la clasificacion es debil.
+
+## Conteos que no se pueden contar
+
+- `.moda_columna()` distinguia mal dos ausencias: la frecuencia cero de una
+  columna sin valores validos y la imposibilidad de contar sobre una columna no
+  atomica. La segunda ahora es `NA`.
+- El hallazgo `constante` sobre una columna no atomica informa la frecuencia que
+  se deduce de las filas validas y las nombra en la trazabilidad, en vez de
+  informar cero afectados. El discriminador dejo de ser la etiqueta del tipo,
+  que dejaba afuera a las columnas espaciales.
+
+## Recortes declarados donde se los busca
+
+- El recorte por `max_columnas_dependencias` se declara en
+  `cobertura_diagnosticos`, como ya lo hacia el recorte hermano de la busqueda
+  aritmetica. El tope aplicado se conserva como atributo, y el motivo aclara que
+  la seleccion de columnas es por posicion.
+
 ## Patrones raros: ventana de operacion visible
 
 - `patron_raro` declara en `cobertura_diagnosticos` cuando no puede ejecutarse

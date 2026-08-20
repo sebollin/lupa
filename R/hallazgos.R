@@ -1302,11 +1302,23 @@
     tipo_compuesto_no_analizado = if (!is.null(resultado$estructura_no_analizada)) {
       as.numeric(resultado$estructura_no_analizada$filas)
     } else NA_real_,
-    constante = as.numeric(fila$frecuencia_moda),
+    constante = {
+      # El hallazgo solo se emite cuando n_distintos == 1, asi que el unico
+      # valor ocupa todas las filas validas: la frecuencia es conocible por
+      # definicion aunque no se haya podido contar sobre la columna.
+      frecuencia <- as.numeric(fila$frecuencia_moda)
+      if (length(frecuencia) && isTRUE(is.finite(frecuencia))) {
+        frecuencia
+      } else {
+        as.numeric(n_validos)
+      }
+    },
     casi_clave = if (!is.null(resultado$casi_clave)) {
       as.numeric(resultado$casi_clave$n_filas_en_colision)
     } else NA_real_,
     faltantes = as.numeric(fila$n_faltantes + fila$n_faltantes_disfrazados),
+    valor_fuera_de_aplicabilidad =
+      as.numeric(fila$n_presentes_fuera_de_aplicabilidad),
     faltantes_disfrazados = as.numeric(fila$n_faltantes_disfrazados),
     espacios_sobrantes = as.numeric(fila$n_espacios_borde),
     controles_invisibles = as.numeric(fila$n_controles_invisibles),
@@ -1356,9 +1368,6 @@
       NA_real_
     }
   }
-  if (tipo == "constante" && identical(fila$tipo_declarado[[1L]], "lista")) {
-    afectados <- NA_real_
-  }
   unidad <- if (tipo %in% c(
     "formato_fecha_ambiguo", "anio_de_dos_digitos", "formatos_fecha_mixtos"
   )) {
@@ -1400,6 +1409,18 @@
     n <- as.numeric(resultado$geometria$n_validez_evaluados)
   } else if (tipo == "coordenada_fuera_dominio") {
     n <- as.numeric(resultado$geometria$n_dominio_evaluados)
+  }
+  # Cuando se declaro un universo aplicable, el denominador de un diagnostico
+  # que cuenta filas es ese universo y no la tabla entera: informar "1 de 1000"
+  # sobre una columna cuyo universo declarado es 300 contradice la propia
+  # declaracion. Solo alcanza a la unidad `fila`; los diagnosticos que cuentan
+  # valores distintos ya operan sobre los presentes, que son aplicables por
+  # construccion.
+  if (identical(unidad, "fila") && !is.null(fila$n_aplicables) &&
+      isTRUE(is.finite(fila$n_aplicables[[1L]])) &&
+      isTRUE(is.finite(n)) && isTRUE(n == fila$n[[1L]]) &&
+      fila$n_aplicables[[1L]] < fila$n[[1L]]) {
+    n <- as.numeric(fila$n_aplicables[[1L]])
   }
   list(n_evaluados = n, n_afectados = afectados, unidad_conteo = unidad)
 }
@@ -1510,6 +1531,13 @@
 .indices_hallazgo_columna <- function(tipo, x, fila, resultado,
                                       expandir = FALSE,
                                       distinguir_mayusculas = TRUE) {
+  ## Vale para cualquier tipo de columna: las filas con valor fuera del universo
+  ## aplicable son las que la propia mascara declarada senala.
+  if (identical(tipo, "valor_fuera_de_aplicabilidad")) {
+    aplicable <- resultado$aplicable
+    if (is.null(aplicable)) return(NULL)
+    return(which(!is.na(x) & !aplicable))
+  }
   if (inherits(x, "sfc")) {
     geometria <- resultado$geometria
     idx <- switch(
@@ -1532,6 +1560,10 @@
     ## mismo criterio con el que se contaron. Contarlas sin nombrarlas era la
     ## unica incoherencia que la guarda seguia encontrando sobre estas columnas.
     if (identical(tipo, "faltantes")) return(which(is.na(x)))
+    ## Y por el mismo criterio, en una columna constante las filas afectadas son
+    ## todas las no ausentes: el unico valor distinto las ocupa por definicion.
+    ## Contarlas sin nombrarlas era la incoherencia que quedaba.
+    if (identical(tipo, "constante")) return(which(!is.na(x)))
     return(NULL)
   }
   n <- length(x)
@@ -1828,6 +1860,15 @@
     tipo, datos[[indice]], resultados[[indice]]$fila,
     resultados[[indice]], expandir, distinguir_mayusculas
   )
+  # Si se declaro un universo aplicable, la traza no puede nombrar filas que
+  # quedaron fuera: el conteo ya las excluye y nombrarlas igual produce la
+  # incoherencia que la guarda detecta con razon. El hallazgo del valor fuera de
+  # aplicabilidad es la excepcion, porque justamente vive ahi.
+  aplicable <- resultados[[indice]]$aplicable
+  if (!is.null(indices) && !is.null(aplicable) && !all(aplicable) &&
+      !identical(tipo, "valor_fuera_de_aplicabilidad")) {
+    indices <- indices[aplicable[indices]]
+  }
   if (tipo == "patron_raro") {
     alcance <- .alcance_patron_raro(resultados[[indice]]$patrones)
     traza <- if (is.null(indices)) {
@@ -2078,7 +2119,55 @@
     n_validos <- fila$n - fila$n_faltantes - n_invalidos
 
     geometria <- resultado$geometria
+    # La columna se reconocio como geometrica y no se pudo convertir: la
+    # geometria aplica y lo que falta es la medicion. Antes esto no producia
+    # ninguna fila y `cobertura_diagnosticos` quedaba vacia sobre una columna
+    # espacial, que es la forma silenciosa del mismo defecto.
+    if (!isTRUE(geometria$aplica) &&
+        !is.null(geometria$motivo_representacion) &&
+        !is.na(geometria$motivo_representacion)) {
+      agregar_cobertura(
+        "perfil_geometria", nombre, geometria$motivo_representacion,
+        paste(
+          "Convertir la columna a una geometria de 'sf' antes de perfilar, o",
+          "declarar que la columna no es geometrica."
+        )
+      )
+    }
     if (isTRUE(geometria$aplica)) {
+      if (isTRUE(geometria$geometrias_recortadas)) {
+        agregar_cobertura(
+          "perfil_geometria", nombre, geometria$motivo_recorte,
+          paste(
+            "Subir el presupuesto con options(lupa.max_geometrias=) o",
+            "options(lupa.max_vertices=) si la columna entera debe evaluarse."
+          )
+        )
+      }
+      if (isTRUE(geometria$n_validez_no_evaluados > 0L)) {
+        agregar_cobertura(
+          "geometria_invalida", nombre,
+          paste0(
+            "La validez topologica no se pudo evaluar en ",
+            geometria$n_validez_no_evaluados,
+            " geometrias; el conteo informado cubre las ",
+            geometria$n_validez_evaluados, " restantes."
+          ),
+          "Revisar esas geometrias con st_is_valid() para saber por que fallan."
+        )
+      }
+      if (isTRUE(geometria$n_dominio_no_evaluados > 0L)) {
+        agregar_cobertura(
+          "coordenada_fuera_dominio", nombre,
+          paste0(
+            "El dominio no se pudo evaluar en ",
+            geometria$n_dominio_no_evaluados,
+            " geometrias; el conteo informado cubre las ",
+            geometria$n_dominio_evaluados, " restantes."
+          ),
+          "Revisar el CRS declarado y las coordenadas de esas geometrias."
+        )
+      }
       if (isFALSE(geometria$sf_evaluado)) {
         agregar_cobertura(
           "perfil_geometria", nombre,
@@ -2239,22 +2328,27 @@
 
     if (!is.na(fila$n_distintos) && fila$n_distintos == 1L &&
         isTRUE(n_validos > 1L)) {
-      es_lista <- identical(fila$tipo_declarado[[1L]], "lista")
+      # La condicion real es que la moda no se haya podido representar, no la
+      # etiqueta del tipo: una columna `sfc` declara "sfc_POINT" y quedaba fuera.
+      valor_sin_representar <- !isTRUE(is.finite(fila$frecuencia_moda[[1L]]))
       agregar(.nuevo_hallazgo(
         nombre, "constante", "sospechoso",
         "La columna contiene un \u00fanico valor no ausente.",
-        if (es_lista) {
-          "La frecuencia del valor no se pudo contar porque la columna es de listas."
+        if (valor_sin_representar) {
+          paste0(
+            "El valor no se pudo representar como texto; frecuencia: ",
+            n_validos
+          )
         } else {
           paste0("Valor: ", fila$moda, "; frecuencia: ", fila$frecuencia_moda)
         },
         "Confirmar si la columna aporta informaci\u00f3n o si corresponde retirarla."
       ))
-      if (es_lista) {
+      if (valor_sin_representar) {
         agregar_cobertura(
           "constante", nombre,
-          "Se midi\u00f3 un \u00fanico valor distinto, pero no se evalu\u00f3 su frecuencia porque la columna contiene listas.",
-          "Separar los componentes de la lista o declarar una comparaci\u00f3n de listas antes de contar las filas afectadas."
+          "Se midi\u00f3 un \u00fanico valor distinto y la frecuencia se deduce de las filas validas, pero el valor no se pudo representar como texto porque la columna no es at\u00f3mica.",
+          "Separar los componentes de la columna o declarar una representaci\u00f3n textual antes de informar el valor."
         )
       }
     }
@@ -2329,6 +2423,23 @@
         "La columna categ\u00f3rica tiene alta cardinalidad.",
         sprintf("Tasa de valores distintos: %.3f", fila$tasa_distintos),
         "Revisar si es texto libre, un identificador o una categor\u00eda mal normalizada."
+      ))
+    }
+
+    # El espejo del faltante falso: un valor presente donde la regla declarada
+    # dice que la columna no corresponde. Sin aplicabilidad declarada este
+    # conteo es cero y el hallazgo no existe.
+    if (!is.null(fila$n_presentes_fuera_de_aplicabilidad) &&
+        isTRUE(fila$n_presentes_fuera_de_aplicabilidad > 0L)) {
+      agregar(.nuevo_hallazgo(
+        nombre, "valor_fuera_de_aplicabilidad", "sospechoso",
+        "La columna tiene valores en filas donde la regla declarada dice que no corresponde.",
+        paste0(
+          fila$n_presentes_fuera_de_aplicabilidad,
+          " valores presentes fuera del universo aplicable de ",
+          fila$n_no_aplica, " filas."
+        ),
+        "Revisar la regla de aplicabilidad o el proceso que carga la columna."
       ))
     }
 

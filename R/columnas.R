@@ -1,7 +1,14 @@
 .moda_columna <- function(x) {
   validos <- !is.na(x)
-  if (!any(validos) || is.list(x)) {
+  # Dos ausencias distintas, y la diferencia importa: sin valores validos la
+  # frecuencia es cero porque se conto y no hay ninguno; sobre una columna de
+  # listas no se pudo contar, y eso es NA. Confundirlas hacia que un hallazgo
+  # informara cero afectados sobre datos validos.
+  if (!any(validos)) {
     return(list(valor = NA_character_, frecuencia = 0L))
+  }
+  if (is.list(x)) {
+    return(list(valor = NA_character_, frecuencia = NA_integer_))
   }
   valores <- x[validos]
   unicos <- unique(valores)
@@ -1138,23 +1145,72 @@
   )
 }
 
+# Recorta un resultado de faltantes disfrazados al universo aplicable. La
+# mascara elemento a elemento es lo que permite hacerlo sin volver a detectar.
+.restringir_disfrazados <- function(disfrazados, aplicable) {
+  if (is.null(aplicable) || all(aplicable)) return(disfrazados)
+  mascara <- disfrazados$mascara & aplicable
+  n_aplicables <- sum(aplicable)
+  disfrazados$mascara <- mascara
+  disfrazados$n <- sum(mascara)
+  disfrazados$proporcion <- if (n_aplicables) sum(mascara) / n_aplicables else NA_real_
+  if (!is.null(disfrazados$mascara_textual)) {
+    disfrazados$mascara_textual <- disfrazados$mascara_textual & aplicable
+    disfrazados$n_textuales <- sum(disfrazados$mascara_textual)
+  }
+  if (!is.null(disfrazados$mascara_numerica)) {
+    disfrazados$mascara_numerica <- disfrazados$mascara_numerica & aplicable
+    disfrazados$n_numericos <- sum(disfrazados$mascara_numerica)
+  }
+  disfrazados
+}
+
 .perfilar_columna <- function(x, nombre, muestra, max_patrones,
                               distinguir_mayusculas, expandir,
                               umbral_patron_raro,
-                              sentinelas_numericos) {
+                              sentinelas_numericos,
+                              aplicable = NULL) {
   if (is.matrix(x)) {
     return(.perfilar_columna_matriz(
       x, nombre, muestra, max_patrones, distinguir_mayusculas, expandir,
       umbral_patron_raro, sentinelas_numericos
     ))
   }
+  # El universo aplicable se resuelve primero porque gobierna todos los conteos
+  # de ausencia de abajo. Sin declaracion, toda la columna aplica y el resto se
+  # reduce al comportamiento de siempre.
+  aplicable <- if (is.null(aplicable)) {
+    rep(TRUE, length(x))
+  } else {
+    # `as.logical()` borraria el conteo de indeterminados que viaja como
+    # atributo, y la fila volveria a confundir "no corresponde" con "no se sabe".
+    indeterminados <- attr(aplicable, "n_indeterminados", exact = TRUE)
+    convertida <- as.logical(aplicable)
+    attr(convertida, "n_indeterminados") <- indeterminados
+    convertida
+  }
   geometria <- .perfilar_geometria(x)
   preparacion_texto <- .texto_analizable(x)
   x_analisis <- preparacion_texto$valores
+  # La columna tal cual, para lo que compara por igualdad en vez de leer texto.
+  # Sobre una columna no analizable como texto, `valores` son ausentes
+  # declarados: inferir el tipo ahi diria "desconocido" sobre una columna cuyo
+  # tipo se conoce perfectamente.
+  x_identidad <- preparacion_texto$valores_identidad
+  if (is.null(x_identidad)) x_identidad <- x_analisis
+  # Las filas fuera del universo salen del analisis, no solo de los conteos.
+  # Dejarlas dentro hacia que `n_distintos` contara valores que no aplican
+  # mientras `n_validos` ya solo contaba los aplicables, y `tasa_distintos`
+  # podia pasar de 1, que es imposible. Se marcan como ausentes en vez de
+  # recortarse para que los indices de fila sigan alineados con la tabla.
+  if (!all(aplicable)) {
+    x_analisis[!aplicable] <- NA
+    x_identidad[!aplicable] <- NA
+  }
   # El perfilado conserva el resultado intermedio sólo durante esta llamada;
   # la función exportada `inferir_tipo()` nunca devuelve ese caché.
   inferencia <- .inferir_tipo_interno(
-    x_analisis, muestra = muestra, conservar_cache = TRUE
+    x_identidad, muestra = muestra, conservar_cache = TRUE
   )
   formatos <- inferencia$formatos_fecha
   if (is.null(formatos)) {
@@ -1197,15 +1253,28 @@
     x_analisis, sentinelas_numericos = sentinelas_numericos,
     detectar_sentinelas_numericos = !isTRUE(secuencia_entera$densa)
   )
+  faltantes_disfrazados <- .restringir_disfrazados(faltantes_disfrazados, aplicable)
   rol_propuesto <- .propuesta_escala(x, inferencia$tipo)$rol
   casi_clave <- .resumen_casi_clave(
     x_analisis, rol = rol_propuesto, tipo_implicito = inferencia$tipo
   )
   n <- length(x)
-  n_faltantes <- sum(is.na(x))
+  # El universo aplicable. Sin declaracion, toda la columna aplica y todo lo de
+  # abajo se reduce al comportamiento de siempre. Con declaracion, las filas
+  # donde la columna no corresponde salen del denominador: un ausente por
+  # diseno no es un ausente por error, y contarlos juntos era informar como
+  # defecto lo que es la forma del dato.
+  n_aplicables <- sum(aplicable)
+  n_indeterminados <- attr(aplicable, "n_indeterminados", exact = TRUE)
+  if (is.null(n_indeterminados)) n_indeterminados <- 0L
+  n_no_aplica <- n - n_aplicables - n_indeterminados
+  n_faltantes <- sum(is.na(x) & aplicable)
+  # Un valor presente donde la regla dice que no corresponde es un hallazgo por
+  # derecho propio, no algo para descartar en silencio.
+  n_presentes_fuera <- sum(!is.na(x) & !aplicable)
   n_codificacion_invalida <- length(preparacion_texto$posiciones)
-  n_validos <- n - n_faltantes - n_codificacion_invalida
-  n_distintos <- .n_distintos_columna(x_analisis)
+  n_validos <- n_aplicables - n_faltantes - n_codificacion_invalida
+  n_distintos <- .n_distintos_columna(x_identidad)
   vocabulario_texto <- if (
     (is.character(x_analisis) || is.factor(x_analisis)) &&
       n > 1L && is.finite(n_distintos) &&
@@ -1215,7 +1284,7 @@
   } else {
     NULL
   }
-  moda <- .moda_columna(x_analisis)
+  moda <- .moda_columna(x_identidad)
   longitudes <- .resumen_longitud(x_analisis)
   cuantitativo <- .resumen_cuantitativo(
     x_analisis, inferencia, formatos, meses_texto = meses_texto
@@ -1247,15 +1316,23 @@
     n_filas_analizadas_tipo = inferencia$n_analizados,
     muestreado_tipo_inferido = inferencia$muestreado,
     n = n,
+    # El denominador de toda proporcion de ausencia es el universo aplicable,
+    # no el total de filas. Sin declaracion son el mismo numero.
+    n_aplicables = n_aplicables,
+    n_no_aplica = n_no_aplica,
+    n_aplicabilidad_indeterminada = n_indeterminados,
+    n_presentes_fuera_de_aplicabilidad = n_presentes_fuera,
     n_faltantes = n_faltantes,
-    prop_faltantes = if (n) n_faltantes / n else NA_real_,
+    prop_faltantes = if (n_aplicables) n_faltantes / n_aplicables else NA_real_,
     n_faltantes_disfrazados = faltantes_disfrazados$n,
     n_faltantes_disfrazados_textuales = faltantes_disfrazados$n_textuales,
     n_faltantes_disfrazados_numericos = faltantes_disfrazados$n_numericos,
-    prop_faltantes_disfrazados = if (n) faltantes_disfrazados$n / n else NA_real_,
+    prop_faltantes_disfrazados = if (n_aplicables) {
+      faltantes_disfrazados$n / n_aplicables
+    } else NA_real_,
     n_faltantes_totales = n_faltantes + faltantes_disfrazados$n,
-    prop_faltantes_totales = if (n) {
-      (n_faltantes + faltantes_disfrazados$n) / n
+    prop_faltantes_totales = if (n_aplicables) {
+      (n_faltantes + faltantes_disfrazados$n) / n_aplicables
     } else {
       NA_real_
     },
@@ -1300,6 +1377,20 @@
     fecha_civil_distinta_utc = if (is.na(n_filas_fecha_civil_distinta_utc)) {
       NA
     } else n_filas_fecha_civil_distinta_utc > 0L,
+    # Como llego la geometria y si se pudo interpretar. Sin esto, una columna
+    # WKT o WKB queda indistinguible de un texto cualquiera aguas abajo, y la
+    # cobertura conceptual llega a afirmar que la geometria no aplica sobre
+    # datos que si son geometricos.
+    representacion_geometria = if (is.null(geometria$representacion_geometria)) {
+      NA_character_
+    } else {
+      geometria$representacion_geometria
+    },
+    motivo_representacion = if (is.null(geometria$motivo_representacion)) {
+      NA_character_
+    } else {
+      geometria$motivo_representacion
+    },
     crs_declarado = geometria$crs_declarado,
     tipo_geometria = geometria$tipo_geometria,
     dimension_geometria = geometria$dimension_geometria,
@@ -1322,7 +1413,8 @@
     n_espacios_borde = diagnostico_texto$n_espacios_borde,
     n_variantes_mayusculas = diagnostico_texto$n_variantes_mayusculas,
     n_variantes_unicode = diagnostico_texto$n_variantes_unicode,
-    unicode_evaluado = if (is.character(x_analisis) || is.factor(x_analisis)) {
+    unicode_evaluado = if (isTRUE(preparacion_texto$analizable) &&
+                           (is.character(x_analisis) || is.factor(x_analisis))) {
       diagnostico_texto$unicode_evaluado
     } else {
       NA
@@ -1361,7 +1453,10 @@
     diagnostico_texto = diagnostico_texto,
     numeros_texto = numeros_texto,
     multivaluados = multivaluados,
-    geometria = geometria
+    geometria = geometria,
+    # La mascara viaja con el resultado para que la trazabilidad pueda nombrar
+    # las filas del hallazgo de valor fuera de aplicabilidad.
+    aplicable = aplicable
   )
 }
 
@@ -1382,12 +1477,15 @@
   fila$muestreado_tipo_inferido <- NA
   fila$n <- NROW(x)
   enteros_na <- c(
+    "n_aplicables", "n_no_aplica", "n_aplicabilidad_indeterminada",
+    "n_presentes_fuera_de_aplicabilidad",
     "n_faltantes", "n_faltantes_disfrazados",
     "n_faltantes_disfrazados_textuales",
     "n_faltantes_disfrazados_numericos", "n_faltantes_totales",
     "n_distintos", "frecuencia_moda", "n_ceros", "n_negativos",
     "n_outliers", "n_nan", "n_infinito_positivo", "n_infinito_negativo",
     "n_blancos", "n_espacios_borde", "n_variantes_mayusculas",
+    "representacion_geometria", "motivo_representacion",
     "n_variantes_unicode", "n_codificacion_rota",
     "n_codificacion_reparable", "n_codificacion_reparable_parcialmente",
     "n_codificacion_irreparable", "n_codificacion_no_se_pudo",

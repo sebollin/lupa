@@ -103,17 +103,101 @@
   as.character(x[[1L]])
 }
 
+# ¿La clase de `x` sabe convertirse a texto por sí misma? Si define un método
+# de `as.character()`, la conversión produce los valores del dato. Si no, la
+# coerción cae en `as.character.default()`.
+.tiene_metodo_as_character <- function(x) {
+  for (clase in class(x)) {
+    metodo <- tryCatch(
+      utils::getS3method("as.character", clase, optional = TRUE),
+      error = function(e) NULL
+    )
+    if (!is.null(metodo)) return(TRUE)
+  }
+  FALSE
+}
+
+# Una columna se puede analizar como texto cuando aplicarle una primitiva de
+# texto devuelve sus valores. Sobre una lista de objetos —una `sfc`, una columna
+# de WKB crudo, una lista de vectores— `as.character.default()` no devuelve
+# valores: deparsa cada elemento a código fuente de R. Ese texto no describe el
+# dato, es más largo que el dato mismo y se rehace una vez por cada etapa que lo
+# toca, así que el costo del perfilado queda dominado por una conversión que
+# nadie pidió y que nadie puede leer.
+#
+# Las listas de escalares atómicos sí se coercionan a sus valores y siguen
+# siendo analizables: el corte separa lo que se convierte de lo que se deparsa,
+# no lo que es lista de lo que no lo es.
+.analizable_como_texto <- function(x) {
+  if (!is.list(x)) return(TRUE)
+  if (inherits(x, "sfc") || inherits(x, "sfg")) return(FALSE)
+  if (.tiene_metodo_as_character(x)) return(TRUE)
+  n <- length(x)
+  if (!n) return(TRUE)
+  largos <- tryCatch(lengths(x), error = function(e) NULL)
+  if (is.null(largos) || length(largos) != n || anyNA(largos) ||
+      !all(largos == 1L)) {
+    return(FALSE)
+  }
+  all(vapply(x, is.atomic, logical(1L)))
+}
+
+.motivo_no_analizable_texto <- function(x) {
+  paste0(
+    "La columna es una lista de objetos (", .tipo_declarado(x),
+    "); las etapas de texto no la evaluaron porque convertirla no produce sus ",
+    "valores sino su representaci\u00f3n como c\u00f3digo."
+  )
+}
+
+#' Preparar una columna para las etapas de texto
+#'
+#' Separa dos usos que hasta ahora viajaban juntos y que no son el mismo:
+#' aplicar una primitiva de texto sobre los valores, y compararlos por
+#' igualdad.
+#'
+#' @param x Columna que se va a analizar.
+#'
+#' @return Lista con cinco elementos.
+#'   `valores` es lo que puede recibir una primitiva de texto. Cuando la
+#'   columna no es analizable como texto, son ausentes declarados: la no
+#'   evaluación se declara en vez de dejar pasar la columna intacta para que
+#'   cada etapa la deparse por su cuenta.
+#'   `valores_identidad` es lo que puede recibir una comparación por igualdad
+#'   —`unique()`, `match()`, la moda, la inferencia de tipo—. Para toda columna
+#'   analizable es el mismo vector que `valores`; para las demás es la columna
+#'   original, de modo que contar sus distintos siga siendo posible sin
+#'   convertirla a texto.
+#'   `invalidos` y `posiciones` marcan los bytes UTF-8 inválidos aislados.
+#'   `analizable` declara si la columna pasa por las etapas de texto y `motivo`
+#'   dice por qué no, cuando corresponde.
+#' @noRd
 .texto_analizable <- function(x) {
   if (!is.character(x) && !is.factor(x)) {
+    if (!.analizable_como_texto(x)) {
+      n <- length(x)
+      return(list(
+        valores = rep(NA_character_, n),
+        invalidos = rep(FALSE, n),
+        posiciones = integer(),
+        analizable = FALSE,
+        valores_identidad = x,
+        motivo = .motivo_no_analizable_texto(x)
+      ))
+    }
     return(list(
-      valores = x, invalidos = rep(FALSE, length(x)), posiciones = integer()
+      valores = x, invalidos = rep(FALSE, length(x)), posiciones = integer(),
+      analizable = TRUE, valores_identidad = x, motivo = NA_character_
     ))
   }
   valores <- as.character(x)
   invalidos <- !is.na(valores) & !validUTF8(valores)
   posiciones <- which(invalidos)
   if (length(posiciones)) valores[posiciones] <- NA_character_
-  list(valores = valores, invalidos = invalidos, posiciones = posiciones)
+  list(
+    valores = valores, invalidos = invalidos, posiciones = posiciones,
+    analizable = TRUE, valores_identidad = valores, motivo = NA_character_
+  )
 }
 
 # Copia operativa de una tabla: los factores se interpretan como texto para

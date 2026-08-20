@@ -2,12 +2,23 @@
 % Please edit documentation in R/perfilar-dbi.R
 \name{perfilar_dbi}
 \alias{perfilar_dbi}
-\title{Perfilar una muestra leida mediante DBI}
+\title{Perfilar una muestra leída mediante DBI}
 \usage{
-perfilar_dbi(conexion, tabla, muestra = 1000L, orden_muestra = NULL, ...)
+perfilar_dbi(
+  conexion,
+  tabla,
+  muestra = 1000L,
+  orden_muestra = NULL,
+  modo = c("exacto", "seguro", "conteos"),
+  metricas = NULL,
+  max_consultas = Inf,
+  dialecto = "auto",
+  incluir_valores = TRUE,
+  ...
+)
 }
 \arguments{
-\item{conexion}{Conexion abierta compatible con DBI.}
+\item{conexion}{Conexión abierta compatible con DBI.}
 
 \item{tabla}{Nombre de tabla o un objeto aceptado por
 \code{\link[DBI:dbQuoteIdentifier]{DBI::dbQuoteIdentifier()}}.}
@@ -15,31 +26,99 @@ perfilar_dbi(conexion, tabla, muestra = 1000L, orden_muestra = NULL, ...)
 \item{muestra}{Cantidad positiva y finita de filas solicitadas.}
 
 \item{orden_muestra}{Columnas para \verb{ORDER BY}. La salida solo declara orden
-reproducible cuando la combinacion es unica en toda la tabla. Sin este
+reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y \code{meta} lo declara expresamente.}
+
+\item{modo}{Conjunto de métricas del resumen: \code{"exacto"} las calcula todas,
+\code{"seguro"} evita las que ordenan o agrupan la tabla completa y
+\code{"conteos"} deja solo el conteo de valores no nulos.}
+
+\item{metricas}{Selección explícita de grupos de métricas, que tiene
+prioridad sobre \code{modo}: \code{"validos"}, \code{"distintos"}, \code{"moda"},
+\code{"basicos"}, \code{"mediana"} y \code{"desvio"}.}
+
+\item{max_consultas}{Presupuesto declarado de consultas. Al agotarse, las
+métricas restantes quedan en \code{no_disponible} con ese motivo.}
+
+\item{dialecto}{Capacidad de acotar filas: \code{"auto"} la sondea, y
+\code{"limit"}, \code{"top"}, \code{"fetch_first"}, \code{"rownum"} o \code{"portable"} la
+declaran sin sondeo.}
+
+\item{incluir_valores}{Si el resumen informa valores de celda: moda, mínimo,
+máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
 
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
 }
 \value{
 Objeto de clase \code{perfil_dbi} con exactamente dos bloques:
 \code{resumen_tabla}, de alcance completo, y \code{perfil_muestra}, un objeto
-\code{perfil} cuyo \code{meta$origen_dbi} declara tabla, conexion, SQL y alcance.
+\code{perfil} cuyo \code{meta$origen_dbi} declara tabla, conexión, SQL y alcance, o
+\code{NULL} si la muestra no se pudo obtener.
 }
 \description{
 Calcula en SQL un resumen acotado sobre toda una tabla y, en un bloque
-separado, ejecuta \code{\link[=perfilar]{perfilar()}} sobre una muestra traida a memoria. El resumen
-completo de 99 campos no se presenta como calculado por la base: esos campos
+separado, ejecuta \code{\link[=perfilar]{perfilar()}} sobre una muestra traída a memoria. El resumen
+completo de 105 campos no se presenta como calculado por la base: esos campos
 pertenecen exclusivamente a \code{perfil_muestra} y su universo es la muestra.
 }
 \details{
-Esta funcion no escribe en la conexion ni crea objetos temporales. \code{DBI} es
+Esta función no escribe en la conexión ni crea objetos temporales. \code{DBI} es
 una dependencia opcional. Cada agregado no disponible queda en \code{NA} y su
 consulta, estado y motivo se conservan en \code{resumen_tabla$sql}.
 Las expresiones se ejecutan como capacidades a comprobar, no como un
-dialecto SQL universal: si el motor rechaza una, se registra como no
-disponible y las demas metricas siguen siendo independientes.
+dialecto SQL universal.
 }
+\section{Fallo parcial}{
+
+Ningún bloque descarta al otro. Si el motor rechaza la consulta de muestra,
+o si la muestra no se puede perfilar, el resultado sale igual con
+\code{perfil_muestra = NULL} y una fila en \code{resumen_tabla$cobertura} que declara
+el motivo y cómo resolverlo. Si el motor rechaza una columna, esa columna
+queda con sus métricas en \code{no_disponible} y las demás se perfilan enteras.
+Los \code{stop()} de esta vía llevan clase de condición propia —todas heredan de
+\code{lupa_error_dbi}— para que se puedan rescatar con \code{tryCatch()}:
+\code{lupa_error_conexion_dbi}, \code{lupa_error_tabla_dbi}, \code{lupa_error_campos_dbi},
+\code{lupa_error_conteo_dbi}, \code{lupa_error_esquema_dbi} y
+\code{lupa_error_argumento_dbi}.
+}
+
+\section{Dialecto}{
+
+Acotar filas no es SQL estándar. En vez de suponer \code{LIMIT}, la función
+sondea el motor con una consulta de cero filas y elige la primera capacidad
+que acepte: \verb{LIMIT n [OFFSET k]}, \code{TOP (n)} y \verb{OFFSET … FETCH NEXT},
+\verb{FETCH FIRST … ROWS ONLY}, o \code{ROWNUM}. Si ninguna sirve queda la vía
+portable, que acota en el cliente con \code{dbSendQuery()} y \code{dbFetch(n)}; en ese
+caso la mediana exacta se declara no disponible en vez de traer media tabla
+a memoria. El alias de subconsulta se escribe con \code{AS} o sin él según el
+motor, y los alias de columna van comillados y se comparan sin distinguir
+caja, porque hay motores que los pliegan a mayúsculas.
+}
+
+\section{Costo}{
+
+Perfilar 158 columnas con \code{modo = "exacto"} emite 778 consultas, y \code{muestra}
+acota lo que se trae a R, no el trabajo del motor. \code{modo}, \code{metricas} y
+\code{max_consultas} sí lo acotan, y \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} dice cuántas
+consultas se van a emitir antes de emitirlas. Lo que no entra en el
+presupuesto queda en \code{no_disponible} con su motivo, nunca en cero.
+}
+
+\section{Datos personales}{
+
+\code{proteger_datos_personales} viaja en \code{...} hacia \code{\link[=perfilar]{perfilar()}} y vale \code{TRUE}
+por omisión. La protección alcanza a los dos bloques: en \code{resumen_tabla} se
+reemplaza la moda de las columnas clasificadas como personales, se ocultan
+sus estadísticos de orden y sus momentos, se sanean los datos de conexión y
+el SQL guardado no contiene ningún valor derivado de los datos. La
+clasificación se toma del perfil de la muestra; si la muestra no se pudo
+leer, la protección se aplica a todas las columnas y \code{meta} lo declara.
+\code{incluir_valores = FALSE} va más lejos: no emite las consultas de moda ni de
+mediana y no informa mínimo ni máximo, útil cuando la tabla es un padrón y
+la moda de un identificador único es un documento real.
+}
+
 \examples{
 if (requireNamespace("DBI", quietly = TRUE) &&
     requireNamespace("RSQLite", quietly = TRUE)) {
@@ -48,4 +127,7 @@ if (requireNamespace("DBI", quietly = TRUE) &&
   resultado <- perfilar_dbi(con, "ejemplo", muestra = 5, orden_muestra = "id")
   DBI::dbDisconnect(con)
 }
+}
+\seealso{
+\code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}}, \code{\link[=perfilar]{perfilar()}}
 }

@@ -518,8 +518,21 @@ test_that("la clasificación personal explicita evidencia débil y protege depen
     analizar_dependencias = FALSE
   )
   expect_equal(por_forma$datos_personales$tipo, "documento_identidad")
+  ## Digitos pelados: la forma no distingue un documento de un importe o de un
+  ## numero de factura, asi que la sospecha se declara y no suprime nada.
   expect_equal(por_forma$datos_personales$fundamento,
                "forma de documento dominante")
+  expect_equal(por_forma$datos_personales$poder_discriminante, "debil")
+  expect_false(por_forma$datos_personales$proteger)
+
+  ## Escritos como documento y sin verificar, con suficientes valores distintos
+  ## para discriminar: ahi si corresponde proteger aunque la evidencia sea debil.
+  formateado <- perfilar(
+    data.frame(codigo = c("1.234.567-9", "2.345.678-9", "3.456.789-9")),
+    analizar_dependencias = FALSE
+  )
+  expect_equal(formateado$datos_personales$poder_discriminante, "debil")
+  expect_true(formateado$datos_personales$proteger)
 
   cedulas <- paste0(seq_len(10), ".234.567-2")
   categorias <- rep(LETTERS[seq_len(10)], each = 20)

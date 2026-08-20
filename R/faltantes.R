@@ -105,6 +105,10 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     mascara = mascara,
     evidencia = evidencia,
     n_textuales = sum(mascara_textual),
-    n_numericos = sum(mascara_numerica & !mascara_textual)
+    n_numericos = sum(mascara_numerica & !mascara_textual),
+    # Las submascaras salen para que un universo aplicable declarado pueda
+    # recortar los conteos sin volver a detectar.
+    mascara_textual = mascara_textual,
+    mascara_numerica = mascara_numerica & !mascara_textual
   )
 }

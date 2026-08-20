@@ -248,6 +248,14 @@ transiciones_granularidad <- function() {
   }
   if (inherits(coleccion, "perfil_coleccion")) {
     faltantes <- coleccion$cobertura_coleccion
+    # `cobertura_coleccion` ya no es solo la lista de tablas sin perfilar:
+    # tambien declara tablas vacias, mediciones incompletas y metricas
+    # rechazadas sobre tablas que si se perfilaron. Aca interesan solo las que
+    # faltan como tabla, y confiar en la deduplicacion posterior seria apoyarse
+    # en un efecto lateral.
+    if (!is.null(faltantes$alcance)) {
+      faltantes <- faltantes[faltantes$alcance == "tabla", , drop = FALSE]
+    }
     ids_faltantes <- identificador(faltantes$esquema, faltantes$tabla)
     return(list(
       nombre = coleccion$meta$nombre,

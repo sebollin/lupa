@@ -75,11 +75,11 @@ Authors:
 
 Other contributors:
 \itemize{
-  \item Robyn Speer [copyright holder]
-  \item Nicholas Tierney [copyright holder]
-  \item Di Cook [copyright holder]
-  \item Miles McBain [copyright holder]
-  \item Colin Fay [copyright holder]
+  \item Robyn Speer (encoding-repair design and character tables, from ftfy 6.3.1) [copyright holder]
+  \item Nicholas Tierney (missing-value sentinel vectors, from naniar 1.1.0) [copyright holder]
+  \item Di Cook (missing-value sentinel vectors, from naniar 1.1.0) [copyright holder]
+  \item Miles McBain (missing-value sentinel vectors, from naniar 1.1.0) [copyright holder]
+  \item Colin Fay (missing-value sentinel vectors, from naniar 1.1.0) [copyright holder]
 }
 
 }

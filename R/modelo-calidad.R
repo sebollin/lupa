@@ -666,11 +666,23 @@ modelo <- function(..., marco = NULL) {
 }
 
 .validar_config_no_nulo <- function(configuracion) {
-  desconocidas <- setdiff(names(configuracion), "valores_nulos")
+  desconocidas <- setdiff(names(configuracion), c("valores_nulos", "aplicable"))
   if (length(desconocidas)) {
-    stop("NoNulo s\u00f3lo acepta `valores_nulos`.", call. = FALSE)
+    stop("NoNulo s\u00f3lo acepta `valores_nulos` y `aplicable`.", call. = FALSE)
   }
-  if (is.null(configuracion$valores_nulos)) return(list(valores_nulos = NULL))
+  if (!is.null(configuracion$aplicable) &&
+      !(inherits(configuracion$aplicable, "formula") &&
+        length(configuracion$aplicable) == 2L)) {
+    stop(
+      "`aplicable` debe ser una formula de un solo lado, como ",
+      "`~ tiene_auto == \"Si\"`.", call. = FALSE
+    )
+  }
+  if (is.null(configuracion$valores_nulos)) {
+    return(list(
+      valores_nulos = NULL, aplicable = configuracion$aplicable
+    ))
+  }
   if (!is.atomic(configuracion$valores_nulos)) {
     stop("`valores_nulos` debe ser un vector at\u00f3mico.", call. = FALSE)
   }
@@ -755,6 +767,30 @@ modelo <- function(..., marco = NULL) {
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
   filas <- seq_along(x)
+  # El universo declarado recorta las filas antes de medir. Sin `aplicable`, el
+  # universo es la tabla entera y esto no cambia nada. Con `aplicable`, las
+  # filas donde la columna no corresponde salen del denominador en vez de
+  # contarse como incompletas: es el mismo criterio que `perfilar()`.
+  aplicable <- instancia$configuracion$aplicable
+  if (!is.null(aplicable)) {
+    crudo <- eval(aplicable[[2L]], envir = tabla, enclos = environment(aplicable))
+    if (!is.logical(crudo)) {
+      stop(
+        "`aplicable` debe dar un valor logico y dio ", class(crudo)[[1L]], ".",
+        call. = FALSE
+      )
+    }
+    if (length(crudo) == 1L) crudo <- rep(crudo, length(x))
+    if (length(crudo) != length(x)) {
+      stop(
+        "`aplicable` dio ", length(crudo), " valores y la entidad `", entidad,
+        "` tiene ", length(x), " filas.", call. = FALSE
+      )
+    }
+    dentro <- !is.na(crudo) & crudo
+    filas <- filas[dentro]
+    x <- x[dentro]
+  }
   ausente <- is.na(x)
   valores_nulos <- instancia$configuracion$valores_nulos
   if (length(valores_nulos)) {
@@ -894,7 +930,7 @@ metricas_nucleo <- function() {
   c(list(
     NoNulo = metrica(
       "NoNulo", "Indica si una instancia de atributo no es nula.",
-      "instanciaAtributo", "booleano", propiedades = "valores_nulos",
+      "instanciaAtributo", "booleano", propiedades = c("valores_nulos", "aplicable"),
       dimension = "Completitud", factor = "Densidad", metodo = .metodo_no_nulo,
       validar_propiedades = .validar_config_no_nulo,
       orientacion = "conformidad"

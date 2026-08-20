@@ -112,7 +112,7 @@ viñetas enlazadas son el manual detallado. Esta tabla es el mapa breve:
 | Tarea | Funciones principales | Para leer más |
 | --- | --- | --- |
 | Mirar los datos por primera vez | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Perfilar contra una base | `perfilar_dbi()` — agregados SQL de toda la tabla y un perfil de 99 campos sobre una muestra declarada; los alcances quedan separados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Perfilar contra una base | `perfilar_dbi()` — agregados SQL de toda la tabla y un perfil de 105 campos sobre una muestra declarada; los alcances quedan separados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Encontrar estructura no declarada | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Definir la calidad | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Definir la calidad](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Medir y evaluar | `medir()`, `agregar()`, `tablero_calidad()`, `indice_calidad()` con pesos del proyecto, `evaluar()`, `regla_evaluacion()` con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Medir y evaluar](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -152,6 +152,73 @@ dependencias conserva atributos con las filas analizadas y el muestreo.
 `analizar()` reutiliza `muestra = 1e5` para su perfil, distribuciones y niveles
 observados, y declara límites separados para asociaciones y los demás
 componentes.
+
+## 🗄️ Motores: qué está probado y qué está esperado
+
+`perfilar_dbi()` no promete un dialecto universal. Resuelve el dialecto con una
+sonda de cero filas **antes** de emitir el bloque de agregados, y lo que el motor
+rechaza queda declarado como no disponible con su motivo, nunca en cero.
+
+| motor | dialecto | estado |
+| --- | --- | --- |
+| SQLite | `limit` | **probado** contra el motor real, en la suite |
+| motor que rechaza `LIMIT` | `top` / `portable` | **probado** con un motor simulado en la suite |
+| motor que pliega los alias a mayúsculas | cualquiera | **probado** con un motor simulado |
+| motor que rechaza `SELECT *` por una columna | cualquiera | **probado** con un motor simulado |
+| PostgreSQL, MySQL, MariaDB, DuckDB | `limit` | esperado, sin comprobar contra el motor |
+| SQL Server 2012+ | `top` | esperado, sin comprobar contra el motor |
+| Oracle 12c+ | `fetch_first` | esperado, sin comprobar contra el motor |
+| Oracle 11 y anteriores | `rownum` | esperado, sin comprobar contra el motor |
+| cualquier otro compatible con DBI | `portable` | reserva: `dbSendQuery()` + `dbFetch(n)` |
+
+**Esperado** significa que el dialecto está construido y probado contra un motor
+simulado que reproduce esa restricción, no que se haya corrido contra el motor
+real. La diferencia importa y por eso está escrita: los defectos que esta versión
+corrigió no aparecieron en ocho entornos verdes justamente porque todos usaban el
+mismo motor.
+
+El dialecto se puede declarar con `dialecto =` si la sonda no acierta. Un fallo
+parcial nunca descarta lo ya medido: si la lectura de la muestra falla, el objeto
+vuelve con `resumen_tabla` completo, `perfil_muestra = NULL` y una fila de
+cobertura con el motivo.
+
+## 🕳️ El vacío por diseño se declara, no se cuenta como defecto
+
+Todo perfilador asume una forma de tabla. `lupa` asume que una fila es un hecho,
+que una columna es un dominio semántico y que una celda vacía debería tener un
+valor. La tercera es la que hace daño: una base administrativa está llena de
+vacíos legítimos — una vigencia abierta, un salto de patrón en una encuesta,
+columnas excluyentes por subtipo, un modelo entidad-atributo-valor. Contarlos
+como ausencia es correcto como cuenta y falso como lectura.
+
+`aplicabilidad` declara, por columna, en qué filas la columna corresponde. Las
+filas fuera de ese universo salen de `n_faltantes` y `prop_faltantes` en vez de
+informarse como ausencia:
+
+```r
+perfilar(encuesta, aplicabilidad = list(marca_auto = ~ tiene_auto == "Si"))
+```
+
+`columnas_opcionales` cubre el caso más simple, donde la ausencia nunca es
+defecto y no hay una regla que escribir. La regla declarada, el universo
+resultante y las filas donde la regla no se pudo evaluar quedan en
+`cobertura_diagnosticos`: un universo recortado sin constancia sería el mismo
+defecto al revés. Las filas cuya regla no se puede determinar se cuentan aparte,
+en `n_aplicabilidad_indeterminada`, porque no saber no es lo mismo que no
+corresponder.
+
+Declarar el universo habilita además el error simétrico, que antes no tenía
+forma de aparecer: `valor_fuera_de_aplicabilidad` informa un valor presente
+donde la regla dice que la columna no corresponde.
+
+`perfilar_por()` responde al formato largo, donde una sola columna apila
+dominios sin relación. Perfila cada grupo por separado, descarta las columnas
+enteramente ausentes dentro de cada grupo antes de perfilar, y declara lo que
+descartó.
+
+`lupa` no infiere el modelo. Nada de esto ocurre si no se declara; la viñeta
+`vacio-por-diseno` documenta el supuesto y las seis formas de tabla donde no
+vale.
 
 ## 🔢 Unidades declaradas y trazabilidad por fila
 
