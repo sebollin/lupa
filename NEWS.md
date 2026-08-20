@@ -1,5 +1,18 @@
 # lupa 0.1.0
 
+## Cuatro motores reales
+
+- El desvio se pide primero con la funcion nativa del motor —`STDDEV_SAMP` del
+  estandar, `STDEV` en SQL Server— y solo cae al calculo de dos pasadas donde no
+  existe ninguna de las dos. La forma anterior ponia la media como subconsulta
+  escalar para no incrustarla como literal en el SQL guardado, y SQL Server
+  rechaza una subconsulta dentro de un agregado: el arreglo de privacidad habia
+  roto la compatibilidad, y solo un motor real podia mostrarlo.
+- Verificado contra PostgreSQL 16, MySQL 8, SQL Server 2022 y SQLite: en los
+  cuatro, ninguna metrica queda no disponible, y la media, la mediana y el
+  desvio calculados por el motor coinciden con los calculados en R sobre la
+  tabla entera. En SQL Server la sonda resuelve el dialecto `top` por su cuenta.
+
 ## Numeros que no pueden ser
 
 - `perfilar_dbi()` resuelve un nombre calificado con punto igual que

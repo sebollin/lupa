@@ -584,7 +584,10 @@ test_that("el SQL guardado no incrusta ningun valor derivado de los datos", {
   desvio <- registros$sql[
     registros$columna == "ci" & registros$metrica == "desvio"
   ]
-  expect_match(desvio, "SELECT AVG", fixed = TRUE)
+  ## Lo que importa no es que forma se uso, sino que el SQL guardado no lleve
+  ## ningun valor derivado de los datos. La forma nativa del motor lo cumple sin
+  ## necesidad de la subconsulta, y es la que evita romper SQL Server.
+  expect_false(grepl("[0-9]{3,}\\.[0-9]{2,}", desvio))
   # Los datos de conexion tampoco quedan a la vista.
   informacion <- resultado$resumen_tabla$meta$motor$informacion_dbi
   expect_identical(informacion$dbname, "[dato de conexion protegido]")
@@ -770,4 +773,31 @@ test_that("un nombre calificado con punto se resuelve como en coleccion()", {
     perfilar_dbi(con, "nada.de.nada", muestra = 10),
     class = "lupa_error_tabla_dbi"
   )
+})
+
+test_that("el desvio usa la funcion nativa del motor antes que el calculo casero", {
+  ## Verificado contra SQL Server 2022 real: la forma de dos pasadas pone la
+  ## media como subconsulta escalar —para que el SQL guardado no lleve valores
+  ## derivados de los datos— y ese motor rechaza una subconsulta dentro de un
+  ## agregado. El arreglo de privacidad habia roto la compatibilidad, y ningun
+  ## motor simulado podia mostrarlo.
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  valores <- c(4, 8, 15, 16, 23, 42)
+  DBI::dbWriteTable(con, "t", data.frame(v = valores))
+
+  perfil <- perfilar_dbi(con, "t", muestra = 10)
+  fila <- perfil$resumen_tabla$columnas
+  expect_equal(fila$desvio, stats::sd(valores), tolerance = 1e-8)
+
+  sql <- perfil$resumen_tabla$sql
+  registro <- sql[sql$metrica == "desvio" & !is.na(sql$sql), ]
+  expect_equal(nrow(registro), 1L)
+  expect_equal(registro$estado, "calculado")
+
+  ## Y la razon por la que existe la forma con subconsulta se mantiene: el SQL
+  ## guardado no puede llevar ningun valor derivado de los datos.
+  expect_false(grepl(format(mean(valores)), registro$sql, fixed = TRUE))
 })

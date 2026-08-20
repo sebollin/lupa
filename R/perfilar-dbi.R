@@ -49,12 +49,38 @@
 # lo acota, y lo que no entra en el presupuesto se declara no disponible en
 # vez de quedar en un cero silencioso.
 
+# Resolver la forma del desvio cuesta siempre dos sondas, se acierte en la
+# primera o no. Podria cortarse al primer acierto y ahorrar una, pero entonces
+# el costo dependeria del motor y el plan dejaria de decir exactamente cuantas
+# consultas va a emitir. La exactitud del plan vale mas que una consulta.
+.PEAJE_FORMA_DESVIO <- 2L
+
+# Las sondas van sobre una constante, no sobre la tabla: lo unico que se prueba
+# es si el motor conoce la funcion.
+.sondar_forma_desvio <- function(conexion, presupuesto, alias) {
+  if (!is.null(presupuesto$forma_desvio)) return(invisible(NULL))
+  nativas <- c("STDDEV_SAMP", "STDEV")
+  elegida <- NULL
+  for (i in seq_along(nativas)) {
+    sql <- paste0("SELECT ", nativas[[i]], "(1.0) AS ", alias("desvio"))
+    intento <- .escalar_dbi(conexion, sql, "desvio", presupuesto)
+    if (is.null(elegida) && isTRUE(intento$ok)) elegida <- i
+  }
+  # Sin ninguna nativa queda el calculo de dos pasadas, que es la ultima forma.
+  presupuesto$forma_desvio <- if (is.null(elegida)) 3L else elegida
+  invisible(NULL)
+}
+
 .presupuesto_dbi <- function(max_consultas = Inf) {
   estado <- new.env(parent = emptyenv())
   estado$max <- max_consultas
   estado$usadas <- 0
   estado$reserva <- 0
   estado$agotado <- FALSE
+  # La forma de calcular el desvio se resuelve una vez por corrida y se recuerda:
+  # probarla por columna gastaria hasta tres consultas cada vez y rompería la
+  # promesa del plan, que dice exactamente cuantas va a emitir.
+  estado$forma_desvio <- NULL
   estado
 }
 
@@ -900,17 +926,32 @@
         NA_character_
       )))
     } else {
-      # La media va como subconsulta escalar, no como literal incrustado: el
-      # SQL guardado en la auditoria no debe contener ningun valor derivado de
-      # los datos. Sigue siendo el mismo algoritmo de dos pasadas.
+      # Tres formas, de la mas portable a la mas casera. Las dos primeras son
+      # funciones nativas del motor: `STDDEV_SAMP` es la del estandar y la
+      # aceptan PostgreSQL, MySQL y Oracle; `STDEV` es la de SQL Server. La
+      # tercera es el calculo de dos pasadas, que sirve donde no hay ninguna.
+      #
+      # Esa tercera forma pone la media como subconsulta escalar —para que el
+      # SQL guardado no lleve ningun valor derivado de los datos— y ahi esta el
+      # detalle que solo aparecio contra un motor real: SQL Server rechaza una
+      # subconsulta dentro de un agregado. El arreglo de privacidad habia roto
+      # la compatibilidad, y ningun motor simulado lo iba a mostrar.
       media_sql <- paste0(
         "(SELECT AVG(", columna_sql, " * 1.0) FROM ", tabla_sql, ")"
       )
-      sql_desvio <- paste0(
-        "SELECT SQRT(SUM((", columna_sql, " - ", media_sql, ") * (",
-        columna_sql, " - ", media_sql, ")) / (COUNT(", columna_sql,
-        ") - 1.0)) AS ", alias("desvio"), " FROM ", tabla_sql
+      formas <- list(
+        paste0("SELECT STDDEV_SAMP(", columna_sql, " * 1.0) AS ",
+               alias("desvio"), " FROM ", tabla_sql),
+        paste0("SELECT STDEV(", columna_sql, " * 1.0) AS ",
+               alias("desvio"), " FROM ", tabla_sql),
+        paste0(
+          "SELECT SQRT(SUM((", columna_sql, " - ", media_sql, ") * (",
+          columna_sql, " - ", media_sql, ")) / (COUNT(", columna_sql,
+          ") - 1.0)) AS ", alias("desvio"), " FROM ", tabla_sql
+        )
       )
+      .sondar_forma_desvio(conexion, presupuesto, alias)
+      sql_desvio <- formas[[presupuesto$forma_desvio]]
       desvio <- .escalar_dbi(conexion, sql_desvio, "desvio", presupuesto)
       desvio$sql <- sql_desvio
       if (desvio$ok) fila$desvio <- .escalar_finito_dbi(desvio$valor)
@@ -1216,7 +1257,13 @@
       "ordena la tabla completa"
     ),
     c(
-      "desvio (SUM de cuadrados)", if ("desvio" %in% metricas) n_numericas else 0,
+      # La primera columna numerica paga hasta dos consultas extra probando las
+      # formas nativas del motor; despues la forma queda resuelta y cada columna
+      # cuesta una sola. El plan cuenta ese peaje para seguir siendo exacto.
+      "desvio (nativo del motor, o SUM de cuadrados)",
+      if ("desvio" %in% metricas && n_numericas > 0) {
+        n_numericas + .PEAJE_FORMA_DESVIO
+      } else 0,
       "escanea la tabla completa dos veces"
     ),
     c(

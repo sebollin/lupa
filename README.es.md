@@ -165,9 +165,10 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 | motor que rechaza `LIMIT` | `top` / `portable` | **probado** con un motor simulado en la suite |
 | motor que pliega los alias a mayúsculas | cualquiera | **probado** con un motor simulado |
 | motor que rechaza `SELECT *` por una columna | cualquiera | **probado** con un motor simulado |
-| **PostgreSQL 16** | `limit` | **probado** contra el motor real: dialecto resuelto por sonda, agregados verificados contra R, esquemas, colecciones y permisos parciales |
-| MySQL, MariaDB, DuckDB | `limit` | esperado, sin comprobar contra el motor |
-| SQL Server 2012+ | `top` | esperado, sin comprobar contra el motor |
+| **PostgreSQL 16** | `limit` | **probado** contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, esquemas, colecciones y permisos parciales |
+| **MySQL 8** | `limit` | **probado** contra el motor real: mismos tres estadísticos verificados contra R |
+| **SQL Server 2022** | `top` | **probado** contra el motor real: la sonda resuelve `top` sola, y los tres estadísticos coinciden con R |
+| MariaDB, DuckDB | `limit` | esperado, sin comprobar contra el motor |
 | Oracle 12c+ | `fetch_first` | esperado, sin comprobar contra el motor |
 | Oracle 11 y anteriores | `rownum` | esperado, sin comprobar contra el motor |
 | cualquier otro compatible con DBI | `portable` | reserva: `dbSendQuery()` + `dbFetch(n)` |

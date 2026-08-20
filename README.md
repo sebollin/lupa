@@ -161,9 +161,10 @@ engine rejects is recorded as unavailable with its reason — never as zero.
 | engine that rejects `LIMIT` | `top` / `portable` | **tested** with a simulated engine in the suite |
 | engine that folds aliases to upper case | any | **tested** with a simulated engine |
 | engine that rejects `SELECT *` over one column | any | **tested** with a simulated engine |
-| **PostgreSQL 16** | `limit` | **tested** against the real engine: dialect resolved by probe, aggregates verified against R, schemas, collections and partial permissions |
-| MySQL, MariaDB, DuckDB | `limit` | expected, not checked against the engine |
-| SQL Server 2012+ | `top` | expected, not checked against the engine |
+| **PostgreSQL 16** | `limit` | **tested** against the real engine: dialect resolved by probe, mean, median and standard deviation verified against R, schemas, collections and partial permissions |
+| **MySQL 8** | `limit` | **tested** against the real engine: same three statistics verified against R |
+| **SQL Server 2022** | `top` | **tested** against the real engine: the probe resolves `top` on its own, and the three statistics match R |
+| MariaDB, DuckDB | `limit` | expected, not checked against the engine |
 | Oracle 12c+ | `fetch_first` | expected, not checked against the engine |
 | Oracle 11 and earlier | `rownum` | expected, not checked against the engine |
 | any other DBI-compatible engine | `portable` | fallback: `dbSendQuery()` + `dbFetch(n)` |

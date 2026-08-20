@@ -9,7 +9,8 @@
 #
 # La otra causa estructural, §2.50: toda la superficie DBI estaba probada contra
 # un solo motor, y SQLite comparte justamente las propiedades cuya ausencia es
-# el modo de falla —acepta `LIMIT`, tiene `SQRT`—. Acá se construyen conexiones
+# el modo de falla —acepta `LIMIT`, calcula el desvio sin quejarse—. Acá se
+# construyen conexiones
 # simuladas que NO las comparten.
 
 .con_arreglos <- function() {
@@ -92,7 +93,8 @@ test_that("una proporcion parcialmente conocida declara sobre cuantas columnas s
 # --- §2.46 (c): la cobertura por metrica ------------------------------------
 #
 # Un motor que rechaza un agregado producia un informe INDISTINGUIBLE de uno
-# donde todo se midio. El backend simulado rechaza `SQRT`, que es exactamente
+# donde todo se midio. El backend simulado rechaza las tres formas del desvio
+# —las dos nativas y el calculo casero con `SQRT`—, que es exactamente
 # la propiedad que SQLite no comparte con Oracle.
 
 # Un motor que rechaza una construccion SQL, sin necesitar un motor real: se
@@ -121,7 +123,7 @@ test_that("un agregado rechazado por el motor llega a la coleccion sin conservar
   DBI::dbWriteTable(con, "expedientes", data.frame(
     id = c(1, 2, 3), texto = c("a", "b", "a"), stringsAsFactors = FALSE
   ))
-  .rechazar_sql("SQRT")
+  .rechazar_sql("SQRT|STDDEV_SAMP|STDEV")
   col <- coleccion(con, "expedientes", nombre = "base_rechazada")
 
   liviano <- perfilar_coleccion(col, muestra = 10, conservar_perfiles = FALSE)
@@ -159,7 +161,7 @@ test_that("la cobertura por metrica es la misma con y sin perfiles, y el descart
   DBI::dbWriteTable(con, "expedientes", data.frame(
     id = c(1, 2, 3), texto = c("a", "b", "a"), stringsAsFactors = FALSE
   ))
-  .rechazar_sql("SQRT")
+  .rechazar_sql("SQRT|STDDEV_SAMP|STDEV")
   col <- coleccion(con, "expedientes")
 
   liviano <- perfilar_coleccion(col, muestra = 10)
