@@ -168,12 +168,42 @@ test_that("nombre correo y documentos con evidencia fuerte siguen protegidos", {
   expect_true(sin_nombre$datos_personales$proteger)
   expect_true(sin_nombre$columnas$dato_personal_protegido)
 
+  ## Decision cambiada el 2026-08-20, por Sebastian, a favor de la coherencia.
+  ## Antes una columna con un solo documento repetido no se protegia, con el
+  ## argumento de que no discrimina a nadie DENTRO de la tabla. Es cierto, y
+  ## tambien es cierto que identifica a una persona fuera de ella. La evidencia
+  ## sigue siendo debil —eso no cambio— pero la debilidad ya no decide por el
+  ## lado de mostrar el documento.
   repetido <- perfilar(
     data.frame(codigo = rep("1.234.567-2", 3L)),
     analizar_dependencias = FALSE
   )
   expect_equal(repetido$datos_personales$poder_discriminante, "debil")
-  expect_false(repetido$datos_personales$proteger)
+  expect_true(repetido$datos_personales$proteger)
+  expect_equal(repetido$columnas$moda, "[valor protegido]")
+
+  ## El hallazgo que nombra la columna sobrevive: para saber que es constante no
+  ## hace falta ver el valor.
+  constante <- repetido$hallazgos[
+    repetido$hallazgos$tipo_hallazgo == "constante", , drop = FALSE
+  ]
+  expect_equal(nrow(constante), 1L)
+  expect_equal(constante$n_afectados, 3)
+
+  ## Y el contraste que no debe moverse: digitos pelados sin separadores son
+  ## importes, facturas o identificadores de transaccion, y conservan sus
+  ## estadisticos. Protegerlos por la sola coincidencia de largo le sacaria el
+  ## resumen cuantitativo a media tabla.
+  base <- 41000000L
+  importes <- perfilar(
+    data.frame(
+      importe_pesos = base + seq_len(200L),
+      n_factura = base + 2000L + seq_len(200L)
+    ),
+    analizar_dependencias = FALSE
+  )
+  expect_false(any(importes$datos_personales$proteger))
+  expect_true(all(is.finite(importes$columnas$minimo)))
 
   esquema_anterior <- sin_nombre$datos_personales
   esquema_anterior$proteger <- NULL

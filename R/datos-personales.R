@@ -199,13 +199,15 @@
       )
       poder <- "verificado"
       proteger <- TRUE
-    } else if (isTRUE(proporcion_documento_formateado >= 0.8) &&
-               documentos_distintos >= 3L) {
+    } else if (isTRUE(proporcion_documento_formateado >= 0.8)) {
       # Escritos como documento y sin verificar. Es el caso de una base sucia
       # —documentos mal cargados, con digito verificador equivocado—, que es la
-      # poblacion para la que existe el paquete, y dejarlos sin proteger hacia
-      # que sus valores terminaran escritos en la evidencia de los hallazgos.
-      # Ante la duda se protege. La evidencia sigue declarandose debil.
+      # poblacion para la que existe el paquete. Ante la duda se protege, y sin
+      # exigir una cantidad minima de valores distintos: una columna con un solo
+      # documento repetido no identifica a nadie DENTRO de la tabla, pero si
+      # identifica a una persona fuera de ella, y el hallazgo que la nombra
+      # —que la columna es constante— no necesita mostrar cual es el valor.
+      # La evidencia sigue declarandose debil, que es lo que es.
       fundamento <- "forma de documento con separadores, sin verificar"
       poder <- "debil"
       proteger <- TRUE
@@ -310,6 +312,19 @@
   })
 }
 
+# Toda columna que el clasificador reconocio como personal, aunque la evidencia
+# sea debil y no corresponda suprimir sus estadisticos. Es el alcance que usa la
+# evidencia de los hallazgos.
+.columnas_personales_clasificadas <- function(clasificacion) {
+  if (inherits(clasificacion, "perfil")) {
+    clasificacion <- clasificacion$datos_personales
+  }
+  if (!inherits(clasificacion, "data.frame") || !nrow(clasificacion)) {
+    return(character())
+  }
+  unique(clasificacion$columna)
+}
+
 .columnas_personales_protegidas <- function(clasificacion) {
   if (inherits(clasificacion, "perfil")) {
     clasificacion <- clasificacion$datos_personales
@@ -375,7 +390,15 @@
 .proteger_componentes_perfil <- function(columnas, patrones, dependencias,
                                           hallazgos, clasificacion) {
   sensibles <- .columnas_personales_protegidas(clasificacion)
-  if (!length(sensibles)) {
+  # Dos alcances, y la diferencia es deliberada. `sensibles` gobierna los
+  # estadisticos de la tabla de columnas —minimo, maximo, moda—, donde suprimir
+  # de mas tiene un costo real: una columna de importes con forma de documento
+  # perderia su resumen cuantitativo. `clasificadas` gobierna la evidencia de
+  # los hallazgos, donde el valor casi nunca hace falta: el hallazgo `constante`
+  # dice que la columna tiene un unico valor, y para actuar sobre eso no se
+  # necesita saber cual. Ahi conviene ocultar aunque la clasificacion sea debil.
+  clasificadas <- .columnas_personales_clasificadas(clasificacion)
+  if (!length(sensibles) && !length(clasificadas)) {
     return(list(
       columnas = columnas, patrones = patrones, dependencias = dependencias,
       hallazgos = hallazgos
@@ -431,9 +454,9 @@
   # de hallazgo, para que los nuevos hallazgos compuestos queden protegidos
   # automáticamente.
   columna_completa <- as.character(hallazgos$columna)
-  coincide <- columna_completa %in% sensibles |
+  coincide <- columna_completa %in% clasificadas |
     vapply(strsplit(columna_completa, ",", fixed = TRUE),
-           function(columnas) any(trimws(columnas) %in% sensibles),
+           function(columnas) any(trimws(columnas) %in% clasificadas),
            logical(1L))
   indices_hallazgos <- !is.na(hallazgos$columna) &
     hallazgos$tipo_hallazgo != "dato_personal_posible" & coincide
