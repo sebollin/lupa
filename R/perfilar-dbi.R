@@ -1511,6 +1511,33 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
   }
   presupuesto <- .presupuesto_dbi(max_consultas)
   .contar_dbi(presupuesto)
+  # Un nombre de dos partes con punto es lo que cualquiera escribe, y
+  # `dbExistsTable()` no lo resuelve: lo toma como un nombre literal. Antes esto
+  # hacia que `coleccion("esquema.tabla")` funcionara y `perfilar_dbi()` con el
+  # mismo texto fallara diciendo que la tabla no existe. Se resuelve con el
+  # mismo parseo que usa `coleccion()`, y solo si el nombre literal no existe:
+  # una tabla que de verdad se llama con un punto adentro sigue ganando.
+  if (is.character(tabla) && length(tabla) == 1L && !is.na(tabla) &&
+      grepl(".", tabla, fixed = TRUE)) {
+    literal <- tryCatch(
+      isTRUE(DBI::dbExistsTable(conexion, tabla)), error = function(e) FALSE
+    )
+    if (!literal) {
+      cortado <- tryCatch(.partir_identificador(tabla), error = function(e) NULL)
+      partes <- if (!is.null(cortado) && !isTRUE(cortado$abierto)) {
+        vapply(cortado$partes, .quitar_comillas_identificador, character(1L),
+               USE.NAMES = FALSE)
+      } else character()
+      if (length(partes) == 2L && all(nzchar(partes))) {
+        calificada <- DBI::Id(schema = partes[[1L]], table = partes[[2L]])
+        if (isTRUE(tryCatch(
+          DBI::dbExistsTable(conexion, calificada), error = function(e) FALSE
+        ))) {
+          tabla <- calificada
+        }
+      }
+    }
+  }
   existe <- tryCatch(
     DBI::dbExistsTable(conexion, tabla),
     error = function(e) e

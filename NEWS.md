@@ -2,6 +2,11 @@
 
 ## Numeros que no pueden ser
 
+- `perfilar_dbi()` resuelve un nombre calificado con punto igual que
+  `coleccion()`. `dbExistsTable()` no lo resuelve, asi que el mismo texto
+  funcionaba en una funcion y fallaba en la otra diciendo que la tabla no
+  existe. Un nombre literal con punto adentro sigue teniendo prioridad.
+
 - El universo aplicable declarado sale tambien del analisis, no solo de los
   conteos. Con filas no aplicables que tienen valor, `n_distintos` las contaba
   mientras `n_validos` ya no, y `tasa_distintos` podia pasar de 1.

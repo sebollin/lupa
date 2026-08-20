@@ -161,7 +161,8 @@ engine rejects is recorded as unavailable with its reason — never as zero.
 | engine that rejects `LIMIT` | `top` / `portable` | **tested** with a simulated engine in the suite |
 | engine that folds aliases to upper case | any | **tested** with a simulated engine |
 | engine that rejects `SELECT *` over one column | any | **tested** with a simulated engine |
-| PostgreSQL, MySQL, MariaDB, DuckDB | `limit` | expected, not checked against the engine |
+| **PostgreSQL 16** | `limit` | **tested** against the real engine: dialect resolved by probe, aggregates verified against R, schemas, collections and partial permissions |
+| MySQL, MariaDB, DuckDB | `limit` | expected, not checked against the engine |
 | SQL Server 2012+ | `top` | expected, not checked against the engine |
 | Oracle 12c+ | `fetch_first` | expected, not checked against the engine |
 | Oracle 11 and earlier | `rownum` | expected, not checked against the engine |

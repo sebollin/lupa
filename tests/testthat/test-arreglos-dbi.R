@@ -734,3 +734,40 @@ test_that("una metrica internamente imposible se declara en vez de publicarse", 
   expect_lte(fila$tasa_distintos, 1)
   expect_lte(fila$frecuencia_moda, fila$n_validos)
 })
+
+test_that("un nombre calificado con punto se resuelve como en coleccion()", {
+  ## Verificado contra PostgreSQL real: `dbExistsTable()` no resuelve el punto,
+  ## asi que `coleccion("esquema.tabla")` funcionaba y `perfilar_dbi()` con el
+  ## mismo texto decia que la tabla no existe. Dos puertas del mismo paquete
+  ## comportandose distinto ante la misma entrada.
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  archivo <- tempfile(fileext = ".sqlite")
+  on.exit(unlink(archivo), add = TRUE)
+  auxiliar <- DBI::dbConnect(RSQLite::SQLite(), archivo)
+  DBI::dbWriteTable(auxiliar, "resumen", data.frame(k = 1:20, v = 21:40))
+  DBI::dbDisconnect(auxiliar)
+  DBI::dbExecute(con, sprintf("ATTACH DATABASE '%s' AS reportes", archivo))
+
+  expect_false(DBI::dbExistsTable(con, "reportes.resumen"))
+  por_texto <- perfilar_dbi(con, "reportes.resumen", muestra = 10)
+  expect_s3_class(por_texto, "perfil_dbi")
+  expect_equal(nrow(por_texto$resumen_tabla$columnas), 2L)
+
+  por_id <- perfilar_dbi(
+    con, DBI::Id(schema = "reportes", table = "resumen"), muestra = 10
+  )
+  expect_equal(
+    por_texto$resumen_tabla$columnas$columna,
+    por_id$resumen_tabla$columnas$columna
+  )
+
+  ## Una tabla que de verdad no existe sigue dando el error, y no afirma
+  ## inexistencia: dice que puede ser permiso.
+  expect_error(
+    perfilar_dbi(con, "nada.de.nada", muestra = 10),
+    class = "lupa_error_tabla_dbi"
+  )
+})

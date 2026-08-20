@@ -165,7 +165,8 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 | motor que rechaza `LIMIT` | `top` / `portable` | **probado** con un motor simulado en la suite |
 | motor que pliega los alias a mayúsculas | cualquiera | **probado** con un motor simulado |
 | motor que rechaza `SELECT *` por una columna | cualquiera | **probado** con un motor simulado |
-| PostgreSQL, MySQL, MariaDB, DuckDB | `limit` | esperado, sin comprobar contra el motor |
+| **PostgreSQL 16** | `limit` | **probado** contra el motor real: dialecto resuelto por sonda, agregados verificados contra R, esquemas, colecciones y permisos parciales |
+| MySQL, MariaDB, DuckDB | `limit` | esperado, sin comprobar contra el motor |
 | SQL Server 2012+ | `top` | esperado, sin comprobar contra el motor |
 | Oracle 12c+ | `fetch_first` | esperado, sin comprobar contra el motor |
 | Oracle 11 y anteriores | `rownum` | esperado, sin comprobar contra el motor |
