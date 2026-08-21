@@ -1,12 +1,16 @@
-> **Matriz rehecha el 2026-08-21** sobre el tarball con
-> `Packaged: 2026-08-21 17:22:25 UTC`, que sale del commit `163c859`. Las corridas
-> de abajo son de este tarball y no de uno anterior. Local, integracion continua
-> y R-hub estan cerradas; win-builder esta enviada y sus resultados llegan por
-> correo, asi que la fila de win-builder de mas abajo **sigue siendo la de la
-> revision anterior hasta que se reemplace**.
+> **Matriz rehecha el 2026-08-21** sobre el commit `6efc47e`. Local, integracion
+> continua y R-hub estan cerradas sobre ese commit, las tres en `Status: OK`, y
+> el estado por plataforma se leyo del log de cada corrida y no de su conclusion.
+> win-builder esta enviada y sus resultados llegan por correo, asi que la fila de
+> win-builder de mas abajo **sigue siendo la de la revision anterior hasta que se
+> reemplace leyendo el log, no la hora de llegada del aviso**.
 >
-> Estado local: `R CMD check --as-cran` con **`Status: OK`** -sin errores,
-> avisos ni notas- y la suite de **15.557** comprobaciones sin fallos, en 98
+> **Este bloque en espanol se saca antes de enviar.** Esta en otro idioma que
+> el resto de la carta justamente para que no se pueda enviar sin verlo.
+>
+> Estado local: `R CMD check --as-cran` con **`Status: OK`** -sin errores, avisos
+> ni notas-, el mismo check con `_R_CHECK_DEPENDS_ONLY_=true` tambien en
+> **`Status: OK`**, y la suite de **15.557** comprobaciones sin fallos en 98
 > archivos.
 
 ## R CMD check results
@@ -63,25 +67,32 @@ Every result below is from one build of these exact sources, with no change to t
 package between them. `R CMD build` stamps `Packaged:` into `DESCRIPTION`, so two
 builds of identical sources are never byte-identical; the claim is about the
 sources, which is what can be checked. The build used throughout carries
-`Packaged: 2026-08-19 17:16:02 UTC`.
+`Packaged: 2026-08-21 19:03:52 UTC`.
 
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — **`Status: OK`**, no
   errors, warnings or notes, both with the ordinary check and with
   `_R_CHECK_DEPENDS_ONLY_=true`.
-* Continuous integration (GitHub Actions, `R-CMD-check`, run 32508376333), 5 of 5
+* Continuous integration (GitHub Actions, `R-CMD-check`, run 32517725386 on `6efc47e`), 5 of 5
   with **`Status: OK`** and no notes: Ubuntu with R release, R-devel and R
   oldrel-1; Windows with R release; and macOS with R release on
   **`aarch64-apple-darwin23`**. The platforms exercised are
   `x86_64-pc-linux-gnu`, `x86_64-w64-mingw32` and `aarch64-apple-darwin23`.
-* R-hub v2, R-devel (run 32514230812): Linux, Windows and macOS — all three
+* R-hub v2, R-devel (run 32517756256 on `6efc47e`): Linux, Windows and macOS — all three
   **`Status: OK`**.
-* Container: R 3.6.3 (`rocker/r-ver:3.6.3`) for the declared minimum, against a
-  2023-04-15 CRAN snapshot from Posit Package Manager, run with
-  `--ignore-vignettes --no-tests --no-manual` and `_R_CHECK_FORCE_SUGGESTS_=false`
-  — 0 errors, 0 warnings, 2 notes. Both notes are properties of that environment,
-  not of the package: five suggested packages (`covr`, `knitr`, `rmarkdown`, `sf`,
-  `stringi`) have no installable build for R 3.6 in that snapshot, and the shipped
-  data contains one marked UTF-8 string.
+* Container: R 3.6.3 (`rocker/r-ver:3.6.3`) for the declared minimum, run with
+  `--ignore-vignettes --no-tests --no-manual` and `_R_CHECK_FORCE_SUGGESTS_=false`.
+  Against a 2023-04-15 CRAN snapshot from Posit Package Manager: 0 errors,
+  0 warnings, 2 notes. Both notes are properties of that environment, not of the
+  package: five suggested packages (`covr`, `knitr`, `rmarkdown`, `sf`, `stringi`)
+  have no installable build for R 3.6 in that snapshot, and the shipped data
+  contains one marked UTF-8 string. That last note does not appear under R 4.6.1,
+  which reports `checking data for non-ASCII characters ... OK`; it is a
+  difference between check versions, not a difference in the data.
+
+  A snapshot is required rather than plain CRAN, and its date is not arbitrary:
+  `DESCRIPTION` declares `cli (>= 3.0.0)`, published in 2021, so any earlier
+  snapshot fails with `Package required and available but unsuitable version` and
+  cannot exercise the package at all.
 
   **The test suite cannot be run under R 3.6, and that is a property of the
   testing tools rather than of this package.** `cli`, the package's only import,
@@ -115,11 +126,6 @@ pairs by testing a floating-point distance for equality, which held on x86_64 an
 failed on Apple silicon. The classification now compares the normalised strings
 directly, so the result no longer depends on the architecture, and a regression
 test forces a non-zero distance of 1e-16 to keep it that way.
-
-The snapshot date matters and is not arbitrary: `DESCRIPTION` declares
-`cli (>= 3.0.0)`, and `cli` 3.0.0 was published in 2021, so any earlier CRAN
-snapshot fails with `Package required and available but unsuitable version` and
-cannot exercise the package at all.
 
 ## Implementation notes
 
