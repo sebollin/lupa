@@ -14,6 +14,7 @@ perfilar_dbi(
   max_consultas = Inf,
   dialecto = "auto",
   incluir_valores = TRUE,
+  tamano_lote = .TAMANO_LOTE_DBI,
   ...
 )
 }
@@ -49,6 +50,10 @@ declaran sin sondeo.}
 
 \item{incluir_valores}{Si el resumen informa valores de celda: moda, mínimo,
 máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
+
+\item{tamano_lote}{Cantidad máxima de columnas por consulta consolidada.
+Veinte mantiene acotado el número de expresiones y se puede reducir para
+motores con límites más estrictos.}
 
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
 }
@@ -115,11 +120,11 @@ caja, porque hay motores que los pliegan a mayúsculas.
 
 \section{Costo}{
 
-Perfilar 158 columnas con \code{modo = "exacto"} emite 778 consultas, y \code{muestra}
-acota lo que se trae a R, no el trabajo del motor. \code{modo}, \code{metricas} y
-\code{max_consultas} sí lo acotan, y \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} dice cuántas
-consultas se van a emitir antes de emitirlas. Lo que no entra en el
-presupuesto queda en \code{no_disponible} con su motivo, nunca en cero.
+Los agregados de una tabla ancha se emiten por lotes; \code{muestra} acota lo que
+se trae a R, no el trabajo del motor. \code{modo}, \code{metricas}, \code{tamano_lote} y
+\code{max_consultas} sí lo acotan, y \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} dice cuántas consultas
+se van a emitir antes de emitirlas. Lo que no entra en el presupuesto queda
+en \code{no_disponible} con su motivo, nunca en cero.
 }
 
 \section{Datos personales}{

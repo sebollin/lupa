@@ -237,3 +237,54 @@ test_that("el umbral no inventa señales sobre conjuntos reales", {
     )
   }
 })
+
+test_that("el hallazgo de faltantes nombra la senal estructural sin bajar la severidad", {
+  perfil <- perfilar(tabla_condicionada(), analizar_dependencias = FALSE)
+  faltantes <- perfil$hallazgos[perfil$hallazgos$tipo_hallazgo == "faltantes", ]
+  expect_equal(nrow(faltantes), 1L)
+  # La severidad NO se toca: `posible_ausencia_estructural` es una sospecha, y
+  # bajar una severidad real apoyandose en una sospecha decide por el usuario.
+  # En una tabla pivoteada la correlacion es real y el hueco tambien puede serlo.
+  expect_equal(as.character(faltantes$severidad), "error")
+  expect_match(faltantes$evidencia, "posible_ausencia_estructural")
+  expect_match(faltantes$evidencia, "La severidad no se baja")
+})
+
+test_that("sin senal estructural, la evidencia de faltantes no se toca", {
+  datos <- data.frame(
+    x = c(rep(NA_real_, 120L), stats::runif(80L)),
+    y = stats::runif(200L)
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  faltantes <- perfil$hallazgos[perfil$hallazgos$tipo_hallazgo == "faltantes", ]
+  expect_true(nrow(faltantes) >= 1L)
+  expect_false(any(grepl("posible_ausencia_estructural", faltantes$evidencia)))
+})
+
+test_that("el cruce alcanza solo a la columna que tiene la senal", {
+  set.seed(19)
+  n <- 200L
+  tipo <- rep(c("A", "B"), each = n / 2L)
+  suelta <- stats::runif(n)
+  # Ausente al azar, no alineada con `tipo`: si se la hiciera complementaria de
+  # `condicionada` la senal disparia sobre ella con razon, y el fixture no
+  # probaria lo que dice probar.
+  suelta[sample(n, 60L)] <- NA_real_
+  datos <- data.frame(
+    tipo = tipo,
+    condicionada = ifelse(tipo == "A", seq_len(n) / n, NA_real_),
+    suelta = suelta
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  faltantes <- perfil$hallazgos[perfil$hallazgos$tipo_hallazgo == "faltantes", ]
+  con_senal <- faltantes$columna == "condicionada"
+  expect_true(any(con_senal))
+  expect_true(all(grepl(
+    "posible_ausencia_estructural", faltantes$evidencia[con_senal]
+  )))
+  if (any(!con_senal)) {
+    expect_false(any(grepl(
+      "posible_ausencia_estructural", faltantes$evidencia[!con_senal]
+    )))
+  }
+})

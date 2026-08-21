@@ -1,5 +1,98 @@
 # lupa 0.1.0
 
+## El costo a escala: de una consulta por columna a una por lote
+
+La segunda corrida contra bases reales dejo una sola reserva seria, y era esta:
+una tabla de decenas de millones de filas no terminaba de perfilarse ni en
+`modo = "muestreado"`. La causa no era el muestreo sino la cantidad de escaneos:
+el paquete emitia **una consulta por columna** para cada bloque de metricas.
+
+- Los agregados planos —conteos, minimo/maximo/media/ceros/negativos, y desvio—
+  se piden ahora para **varias columnas en una sola consulta**, por lotes. La
+  moda y la mediana siguen siendo una por columna, porque agrupan y ordenan.
+- Medido contra PostgreSQL 16 con **2 millones de filas por 40 columnas**:
+
+  | modo | antes | despues |
+  | --- | --- | --- |
+  | `conteos` | 46 consultas, 5,4 s | **8 consultas, 2,4 s** |
+  | `seguro` | 128 consultas, 15,2 s | **14 consultas, 5,3 s** |
+
+  Con las mismas 160 y 400 metricas calculadas.
+- **Y los numeros no cambian**: sobre la misma tabla sembrada una sola vez, el
+  perfil consolidado y el anterior coinciden en los dieciseis campos del resumen
+  para seis tipos de columna, y en los noventa estados por metrica.
+- **Si un lote falla, no se pierde el lote.** Se reintenta columna por columna,
+  y lo que igual falle queda `no_disponible` con su motivo mientras las vecinas
+  se calculan. Una consulta compartida es la forma perfecta de reintroducir el
+  reflejo de todo-o-nada que el paquete corrigio en cinco lugares, asi que la
+  degradacion se construyo desde el principio y tiene sus propios tests.
+- `resumen_tabla$sql` conserva **una fila por columna y metrica** con todos sus
+  campos, y agrega `lote` y `columnas_compartidas` para que se vea cual consulta
+  fue compartida. `plan_perfilado_dbi()` publica `tamano_lote`, y su total pasa
+  a estar declarado como **techo** en `attr(plan, "supuesto")`: se contaba una
+  mediana y un desvio por columna numerica, y una columna sin valores validos no
+  los emite. Se afirmo durante varias rondas que el plan predecia exacto; era
+  cierto sobre tablas con datos en todas las columnas y falso en cuanto aparece
+  una vacia. La version anterior erraba por tres consultas en ese caso y esta
+  por una, asi que no es una regresion: es una afirmacion que venia siendo mas
+  fuerte que el codigo.
+- En SQLite con tablas chicas el ahorro de tiempo es casi nulo: ahi domina el
+  costo de R y no los escaneos. Queda dicho porque una medicion que no distingue
+  las dos cosas invita a concluir de mas.
+
+## Lo que rompio la refutacion sobre estos mismos cambios
+
+- **Una conversion que pierde el valor ya no se publica como `calculado`.**
+  SQLite responde el `MIN` de una columna declarada `DATE` como el texto
+  `"2020-01-01"`; `as.numeric()` lo convierte en `NA` y el estado quedaba
+  `calculado`. Decir "se midio" y "no se midio" a la vez sobre el mismo campo.
+  Ahora la metrica queda `no_disponible` con el valor original del motor en el
+  motivo. Lo mismo para un `integer64` cuyo paso a doble lo cambiaria: el maximo
+  publicado no estaria en la columna.
+- **La guarda de exactitud de `integer64` tenia un agujero de un solo numero**:
+  comparaba el doble ya convertido contra 2^53, y 2^53+1 redondea justo a 2^53,
+  asi que pasaba. Ahora se comprueba con la vuelta completa -a doble y de vuelta
+  a entero-, que no depende de donde caiga el redondeo.
+- **`meta$muestras_independientes` decia algo que la consolidacion volvio
+  falso.** Las columnas de un mismo lote comparten consulta y por lo tanto
+  comparten filas: sus metricas son comparables entre si, y las de lotes
+  distintos no. El campo dice ahora las dos mitades.
+- **El total de `plan_perfilado_dbi()` pasa a estar declarado como techo.** Se
+  cuenta una mediana y un desvio por columna numerica, y una columna sin valores
+  validos no los emite. La version anterior a la consolidacion erraba por tres
+  consultas en ese caso y esta por una: no es una regresion, es una afirmacion
+  que venia siendo mas fuerte que el codigo.
+
+## Cuatro correcciones de honestidad
+
+Las cuatro salieron de mirar los datos crudos de la corrida real, y tres de
+ellas de reproducir lo que el informe atribuia a otra causa.
+
+- **La trazabilidad acepta `integer64`.** Un `bigint` llegaba a R como
+  `integer64` y la trazabilidad lo rechazaba: el hallazgo se publicaba y la
+  guarda tenia que avisar que no habia con que nombrar las filas. Se atribuyo a
+  las geometrias, pero la lista incluia `outliers` sobre columnas que no tienen
+  nada de espacial. **Afecta a cualquier `bigint`.** Por encima de 2^53 la traza
+  no se entrega, porque la conversion deja de ser exacta y una fila mal senalada
+  es peor que una sin senalar.
+- **Cuando el motor dice que es permiso, el mensaje lo dice.** `dbExistsTable()`
+  no distingue una tabla inexistente de una sin permiso, y el mensaje repetia esa
+  duda incluso cuando el motor habia respondido `permiso denegado a la relacion`.
+  En una corrida real fueron veintitres tablas descritas como inciertas con la
+  respuesta en la mano. El texto del motor se conserva: el diagnostico no
+  reemplaza la evidencia.
+- **El hallazgo `faltantes` nombra la senal estructural.** Cuando
+  `posible_ausencia_estructural` dispara sobre una columna, el `faltantes` de esa
+  columna dice en su evidencia que existe esa lectura alternativa. **La severidad
+  no se toca**, y eso se decidio con un caso en contra: en una tabla pivoteada la
+  correlacion entre el mes y la columna del ano es real, y un mes sin dato puede
+  ser un hueco genuino. Degradar ahi lo esconderia.
+- **El objeto declara que las metricas muestreadas no comparten filas.** Estaba
+  en la vineta, y un consumidor automatico lee el objeto. Aparece en
+  `meta$muestras_independientes` solo en `muestreado` y `aproximado`; en los
+  modos que miden sobre la tabla entera no hay nada que advertir.
+
+
 ## Leer un perfil sin conocer su forma, y saber que falta para cada motor
 
 - `hallazgos()`, `columnas()`, `cobertura()`, `n_filas()` y `sql_perfil()` leen

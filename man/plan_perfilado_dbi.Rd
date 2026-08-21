@@ -13,7 +13,8 @@ plan_perfilado_dbi(
   metricas = NULL,
   max_consultas = Inf,
   dialecto = "auto",
-  incluir_valores = TRUE
+  incluir_valores = TRUE,
+  tamano_lote = .TAMANO_LOTE_DBI
 )
 }
 \arguments{
@@ -48,18 +49,21 @@ declaran sin sondeo.}
 
 \item{incluir_valores}{Si el resumen informa valores de celda: moda, mínimo,
 máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
+
+\item{tamano_lote}{Cantidad máxima de columnas por consulta consolidada.
+Veinte mantiene acotado el número de expresiones y se puede reducir para
+motores con límites más estrictos.}
 }
 \value{
 Data frame con \code{clase_consulta}, \code{n_consultas} y \code{alcance}, y los
 atributos \code{total}, \code{columnas}, \code{columnas_numericas}, \code{dialecto},
-\code{consultas_emitidas} y \code{metricas}.
+\code{consultas_emitidas}, \code{metricas} y \code{tamano_lote}.
 }
 \description{
 Emite sólo las consultas-portón —contar filas, leer el esquema y sondear el
 dialecto— y devuelve cuántas consultas emitiría el perfilado completo, de
-qué clase y con qué alcance sobre la tabla. Con 158 columnas el perfilado
-por omisión emite 778 consultas; saberlo antes es la diferencia entre una
-herramienta y una sorpresa.
+qué clase y con qué alcance sobre la tabla. El plan hace visible cuántos lotes
+de agregados se emitirán antes de empezar y evita una sorpresa de costo.
 }
 \examples{
 if (requireNamespace("DBI", quietly = TRUE) &&

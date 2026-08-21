@@ -224,6 +224,34 @@ check. When it can only say "the R package is missing, and if installing it
 fails to compile, this is what you need", it says exactly that — the package's
 own invariant applied to its own installation.
 
+### One query per batch, not one per column
+
+Profiling issued **one query per column** for each block of metrics. On a table
+of tens of millions of rows that is the cost: not the sampling, the number of
+scans. The flat aggregates — counts, min/max/mean/zeros/negatives, and standard
+deviation — are now asked for **several columns in one query**, in batches. Mode
+and median stay one per column, because they group and sort.
+
+Measured against PostgreSQL 16 with **2 million rows by 40 columns**:
+
+| mode | before | after |
+| --- | --- | --- |
+| `conteos` | 46 queries, 5.4 s | **8 queries, 2.4 s** |
+| `seguro` | 128 queries, 15.2 s | **14 queries, 5.3 s** |
+
+Same 160 and 400 metrics computed, and the same numbers: on one table seeded
+once, the consolidated profile and the previous one agree on all sixteen summary
+fields across six column types.
+
+**If a batch fails, the batch is not lost.** It is retried column by column, and
+whatever still fails is left `no_disponible` with its reason while its
+neighbours are computed. A shared query is the perfect way to reintroduce the
+all-or-nothing reflex this package fixed in five places, so the degradation was
+built first and has its own tests.
+
+`resumen_tabla$sql` keeps **one row per column and metric** with every field it
+had, and adds `lote` and `columnas_compartidas` so a shared query is visible.
+
 ### Reading a profile without knowing its shape
 
 `perfilar()` returns a flat `perfil`; `perfilar_dbi()` returns a container. So
@@ -253,10 +281,16 @@ and chosen:
 plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # 5 queries, predicts the rest
 ```
 
-The plan **predicts exactly** how many queries the profiling will emit, in all
-five modes, and that exactness is a design constraint: every capability probe
-costs a fixed number of queries even when it succeeds on the first form,
-because a cost that depends on the engine would make the plan stop predicting.
+The plan gives a **ceiling** on how many queries the profiling will emit, and it
+says so in `attr(plan, "supuesto")`. It is exact whenever every column has at
+least one value; a column with none emits neither median nor standard deviation,
+and the plan cannot know which ones are empty without asking — which would change
+its own cost.
+
+The part that *is* a hard design constraint is that the ceiling does not depend
+on the engine: every capability probe costs a fixed number of queries even when
+it succeeds on the first form, because a cost that varied by engine would leave
+the user guessing again.
 
 | mode | what it does |
 | --- | --- |

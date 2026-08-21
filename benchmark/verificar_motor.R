@@ -36,6 +36,134 @@
   datos
 }
 
+.tabla_numerica_benchmark <- function(filas = 2000L, columnas = 20L) {
+  datos <- as.data.frame(replicate(
+    columnas, seq_len(filas), simplify = FALSE
+  ), stringsAsFactors = FALSE)
+  names(datos) <- sprintf("v%03d", seq_len(columnas))
+  datos
+}
+
+.lupa_benchmark_contador <- new.env(parent = emptyenv())
+.lupa_benchmark_contador$sql <- character()
+
+if (requireNamespace("DBI", quietly = TRUE) &&
+    requireNamespace("RSQLite", quietly = TRUE)) {
+  library(DBI)
+  if (!methods::isClass("ConexionBenchmarkLupa")) {
+    methods::setClass("ConexionBenchmarkLupa", contains = "SQLiteConnection")
+  }
+  methods::setMethod(
+    "dbSendQuery", c("ConexionBenchmarkLupa", "character"),
+    function(conn, statement, ...) {
+      .lupa_benchmark_contador$sql <- c(
+        .lupa_benchmark_contador$sql, statement
+      )
+      callNextMethod(conn, statement, ...)
+    }
+  )
+}
+
+.envolver_conexion_benchmark <- function(conexion) {
+  salida <- methods::new("ConexionBenchmarkLupa")
+  for (ranura in methods::slotNames(conexion)) {
+    methods::slot(salida, ranura) <- methods::slot(conexion, ranura)
+  }
+  salida
+}
+
+.consultas_antes_benchmark <- function(columnas, modo, portones = 0L) {
+  bloques <- switch(
+    modo,
+    exacto = c(columnas, columnas, columnas, columnas, columnas + 2L),
+    seguro = c(columnas, columnas, columnas + 2L),
+    conteos = columnas,
+    muestreado = c(columnas, columnas, columnas, columnas, columnas + 2L),
+    aproximado = c(columnas, columnas, columnas, columnas, columnas + 2L)
+  )
+  portones + sum(bloques) + 1L
+}
+
+.opciones_lote_benchmark <- function(funcion, tamano_lote) {
+  if ("tamano_lote" %in% names(formals(funcion))) {
+    list(tamano_lote = tamano_lote)
+  } else {
+    list()
+  }
+}
+
+# Mide una conexion SQLite instrumentada. La sonda de `dbSendQuery()` es la
+# unica fuente del contador: `dbGetQuery()` tambien pasa por ella y no se cuenta
+# dos veces.
+medir_consolidacion_dbi <- function(filas = 2000L,
+                                    columnas = c(20L, 60L, 120L),
+                                    modos = c("exacto", "seguro", "conteos"),
+                                    tamano_lote = 20L) {
+  if (!requireNamespace("DBI", quietly = TRUE) ||
+      !requireNamespace("RSQLite", quietly = TRUE)) {
+    stop("La medicion necesita instalar DBI y RSQLite.", call. = FALSE)
+  }
+  resultados <- list()
+  posicion <- 0L
+  for (n_columnas in columnas) {
+    cruda <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+    DBI::dbWriteTable(
+      cruda, "benchmark", .tabla_numerica_benchmark(filas, n_columnas)
+    )
+    conexion <- .envolver_conexion_benchmark(cruda)
+    for (modo in modos) {
+      .lupa_benchmark_contador$sql <- character()
+      plan <- do.call(
+        lupa::plan_perfilado_dbi,
+        c(
+          list(conexion = conexion, tabla = "benchmark", modo = modo,
+               muestra = 100L),
+          .opciones_lote_benchmark(lupa::plan_perfilado_dbi, tamano_lote)
+        )
+      )
+      plan_emitidas <- length(.lupa_benchmark_contador$sql)
+      .lupa_benchmark_contador$sql <- character()
+      inicio <- proc.time()[["elapsed"]]
+      perfil <- do.call(
+        lupa::perfilar_dbi,
+        c(
+          list(conexion = conexion, tabla = "benchmark", modo = modo,
+               muestra = 100L, proteger_datos_personales = FALSE),
+          .opciones_lote_benchmark(lupa::perfilar_dbi, tamano_lote)
+        )
+      )
+      transcurrido <- proc.time()[["elapsed"]] - inicio
+      emitidas <- length(.lupa_benchmark_contador$sql)
+      posicion <- posicion + 1L
+      resultados[[posicion]] <- data.frame(
+        etapa = if ("tamano_lote" %in% names(formals(lupa::perfilar_dbi))) {
+          "despues"
+        } else {
+          "antes"
+        },
+        columnas = n_columnas,
+        modo = modo,
+        antes = .consultas_antes_benchmark(
+          n_columnas, modo, portones = plan_emitidas
+        ),
+        plan_despues = as.numeric(attr(plan, "total")),
+        plan_portones = plan_emitidas,
+        emitidas = emitidas,
+        segundos = transcurrido,
+        plan_exacto = as.numeric(attr(plan, "total")) == emitidas,
+        stringsAsFactors = FALSE
+      )
+      invisible(perfil)
+    }
+    DBI::dbDisconnect(cruda)
+  }
+  salida <- do.call(rbind, resultados)
+  salida$ahorro <- salida$antes - salida$emitidas
+  salida$ahorro_porcentual <- 100 * salida$ahorro / salida$antes
+  print(salida, row.names = FALSE)
+  invisible(salida)
+}
+
 # La tabla de arriba es comoda, y esa comodidad escondio tres defectos: una
 # columna `DATE` medida como numero, un `BIGINT UNSIGNED` con maximo menor que
 # el minimo, y la extrapolacion del muestreo dividiendo por las filas pedidas

@@ -405,6 +405,44 @@
   salida
 }
 
+# El mismo perfil puede informar, sobre la misma ausencia, un `faltantes` de
+# severidad `error` y un `posible_ausencia_estructural` de severidad `ok`. Los
+# dos son ciertos -uno cuenta celdas vacias, el otro mide que la vacancia sigue
+# un patron- pero quien lee el primero sin ver el segundo se lleva un defecto
+# que probablemente no lo sea.
+#
+# La salida NO es degradar la severidad del `faltantes`. Se considero y se
+# descarto con un caso concreto: en una tabla pivoteada -meses por anios- la
+# correlacion entre el mes y la columna del anio es real, y sin embargo un mes
+# sin dato puede ser un hueco genuino. Degradar ahi esconderia el problema, que
+# es justo lo que este paquete no hace. Ademas `posible_ausencia_estructural`
+# tiene severidad `ok` porque el paquete **no sabe** que la ausencia sea
+# estructural: sabe que lo parece. Bajar una severidad real apoyandose en una
+# sospecha es decidir por el usuario.
+#
+# Lo que si corresponde es que el `faltantes` **nombre la senal**: quien lo lee
+# se entera de que hay una lectura alternativa y donde encontrarla. Ver y
+# decidir sigue siendo suyo.
+.cruzar_faltantes_con_estructural <- function(hallazgos, senales) {
+  if (!length(senales) || !nrow(hallazgos)) return(hallazgos)
+  columnas <- vapply(senales, function(h) as.character(h$columna[[1L]]),
+                     character(1L))
+  tipos <- vapply(senales, function(h) as.character(h$tipo_hallazgo[[1L]]),
+                  character(1L))
+  columnas <- unique(columnas[tipos == "posible_ausencia_estructural"])
+  if (!length(columnas)) return(hallazgos)
+  objetivo <- hallazgos$tipo_hallazgo == "faltantes" &
+    as.character(hallazgos$columna) %in% columnas
+  if (!any(objetivo)) return(hallazgos)
+  hallazgos$evidencia[objetivo] <- paste0(
+    sub("[.[:space:]]*$", "", hallazgos$evidencia[objetivo]),
+    ". Hay adem\u00e1s un hallazgo `posible_ausencia_estructural` sobre esta ",
+    "columna: parte de esta ausencia podr\u00eda ser por dise\u00f1o. La ",
+    "severidad no se baja por esa sospecha; leer las dos y decidir."
+  )
+  hallazgos
+}
+
 .cobertura_ausencia_estructural <- function(columna, motivo, como) {
   data.frame(
     diagnostico = "posible_ausencia_estructural",

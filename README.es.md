@@ -229,6 +229,36 @@ puede comprobar. Cuando sólo puede decir «el paquete de R no está, y si al
 instalarlo falla la compilación lo que falta es esto», dice exactamente eso: el
 invariante del paquete aplicado a su propia instalación.
 
+### Una consulta por lote, no una por columna
+
+El perfilado emitía **una consulta por columna** para cada bloque de métricas.
+Sobre una tabla de decenas de millones de filas ése es el costo: no el muestreo,
+la cantidad de escaneos. Los agregados planos —conteos, mínimo/máximo/media/
+ceros/negativos y desvío— se piden ahora para **varias columnas en una sola
+consulta**, por lotes. La moda y la mediana siguen siendo una por columna,
+porque agrupan y ordenan.
+
+Medido contra PostgreSQL 16 con **2 millones de filas por 40 columnas**:
+
+| modo | antes | después |
+| --- | --- | --- |
+| `conteos` | 46 consultas, 5,4 s | **8 consultas, 2,4 s** |
+| `seguro` | 128 consultas, 15,2 s | **14 consultas, 5,3 s** |
+
+Con las mismas 160 y 400 métricas calculadas, y con los mismos números: sobre
+una tabla sembrada una sola vez, el perfil consolidado y el anterior coinciden
+en los dieciséis campos del resumen para seis tipos de columna.
+
+**Si un lote falla, no se pierde el lote.** Se reintenta columna por columna, y
+lo que igual falle queda `no_disponible` con su motivo mientras las vecinas se
+calculan. Una consulta compartida es la forma perfecta de reintroducir el
+reflejo de todo-o-nada que este paquete corrigió en cinco lugares, así que la
+degradación se construyó desde el principio y tiene sus propios tests.
+
+`resumen_tabla$sql` conserva **una fila por columna y métrica** con todos sus
+campos, y agrega `lote` y `columnas_compartidas` para que se vea cuál consulta
+fue compartida.
+
 ### Leer un perfil sin conocer su forma
 
 `perfilar()` devuelve un `perfil` plano; `perfilar_dbi()` devuelve un
@@ -257,10 +287,16 @@ trae a R, no el trabajo del motor. Así que el costo se declara y se elige:
 plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # 5 consultas, predice el resto
 ```
 
-El plan **predice exactamente** cuántas consultas va a emitir el perfilado, en
-los cinco modos, y esa exactitud es una restricción de diseño: cada sonda de
-capacidad gasta un número fijo de consultas aunque acierte en la primera forma,
-porque un costo que dependiera del motor haría que el plan dejara de predecir.
+El plan da un **techo** de cuántas consultas va a emitir el perfilado, y lo dice
+en `attr(plan, "supuesto")`. Es exacto siempre que todas las columnas tengan al
+menos un valor; una columna sin ninguno no emite mediana ni desvío, y el plan no
+puede saber cuáles están vacías sin preguntarlo, cosa que cambiaría su propio
+costo.
+
+Lo que sí es una restricción dura de diseño es que ese techo **no dependa del
+motor**: cada sonda de capacidad gasta un número fijo de consultas aunque acierte
+en la primera forma, porque un costo que variara por motor dejaría al usuario
+adivinando otra vez.
 
 | modo | qué hace |
 | --- | --- |

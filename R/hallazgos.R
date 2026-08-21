@@ -230,6 +230,39 @@
 # Las relaciones de orden son una extension del diagnostico, no una metrica:
 # encuentran pares de columnas que parecen compartir una relacion aritmetica
 # estable para que el usuario pueda declararla despues en el marco de calidad.
+# Un `bigint` de Postgres llega como `integer64`, y la trazabilidad lo rechazaba:
+# el hallazgo se publicaba -`outliers`, `valores_no_finitos`- y la guarda tenia
+# que avisar que no habia con que nombrar las filas. El conteo salia y la
+# localizacion no, sobre un tipo que en una base administrativa es de los mas
+# comunes.
+#
+# Se acepta convirtiendo a doble, y con una condicion: por encima de 2^53 la
+# conversion deja de ser exacta y dos valores distintos pueden volverse el
+# mismo. Ahi la traza no se entrega a medias -se declara con su motivo-, porque
+# una fila mal senalada es peor que una fila sin senalar.
+.LIMITE_ENTERO_EXACTO <- 2^53
+
+.numerico_trazable <- function(cuantitativos) {
+  if (is.null(cuantitativos)) return(NULL)
+  clase <- cuantitativos$clase
+  if (clase %in% c("numero", "fecha", "fecha-hora")) {
+    return(suppressWarnings(as.numeric(cuantitativos$valores)))
+  }
+  if (!identical(clase, "integer64")) return(NULL)
+  originales <- cuantitativos$valores
+  valores <- suppressWarnings(as.numeric(originales))
+  # Comparar el doble ya convertido contra el limite no alcanza, y el caso que
+  # lo rompe es exactamente uno: 2^53+1 redondea a 2^53, asi que `abs > 2^53` da
+  # falso y dos enteros distintos quedan iguales. La unica comprobacion que no
+  # depende de donde caiga el redondeo es la vuelta completa: convertir a doble
+  # y de vuelta a entero, y exigir que nada haya cambiado.
+  regreso <- tryCatch(bit64::as.integer64(valores), error = function(e) NULL)
+  if (is.null(regreso)) return(NULL)
+  presentes <- !is.na(originales)
+  if (any(presentes & (is.na(regreso) | regreso != originales))) return(NULL)
+  valores
+}
+
 .tipo_orden_columna <- function(x, fila) {
   if (inherits(x, "Date")) return("fecha")
   if (inherits(x, "POSIXt")) return("fecha-hora")
@@ -248,11 +281,7 @@
     ),
     error = function(e) NULL
   )
-  if (is.null(cuantitativos) ||
-      !cuantitativos$clase %in% c("numero", "fecha", "fecha-hora")) {
-    return(NULL)
-  }
-  suppressWarnings(as.numeric(cuantitativos$valores))
+  .numerico_trazable(cuantitativos)
 }
 
 # Solapamiento relativo de los rangos intercuartilicos. Las columnas ya llegan
@@ -1960,12 +1989,10 @@
       which(presentes & origen != utc)
     } else NULL,
     valores_no_finitos = {
-      cuantitativos <- obtener_cuantitativos()
-      if (is.null(cuantitativos) ||
-          !cuantitativos$clase %in% c("numero", "fecha", "fecha-hora")) {
+      valores <- .numerico_trazable(obtener_cuantitativos())
+      if (is.null(valores)) {
         NULL
       } else {
-        valores <- cuantitativos$valores
         which(is.nan(valores) | is.infinite(valores))
       }
     },
@@ -1988,13 +2015,12 @@
       }
     },
     outliers = {
-      cuantitativos <- obtener_cuantitativos()
-      if (is.null(cuantitativos) ||
-          !cuantitativos$clase %in% c("numero", "fecha", "fecha-hora")) {
+      valores_traza <- .numerico_trazable(obtener_cuantitativos())
+      if (is.null(valores_traza)) {
         NULL
       } else {
         tryCatch({
-          valores <- cuantitativos$valores
+          valores <- valores_traza
           finitos <- is.finite(valores)
           valores_finitos <- valores[finitos]
           if (length(valores_finitos) < 4L) integer() else {

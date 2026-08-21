@@ -1004,6 +1004,9 @@ perfilar <- function(datos,
       )
     }
     if (length(estructural$hallazgos)) {
+      hallazgos <- .cruzar_faltantes_con_estructural(
+        hallazgos, estructural$hallazgos
+      )
       hallazgos <- do.call(rbind, c(list(hallazgos), estructural$hallazgos))
       hallazgos$severidad <- factor(
         as.character(hallazgos$severidad),
