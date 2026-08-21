@@ -14,7 +14,8 @@ detectar_dependencias(
   incluir_claves = FALSE,
   min_observaciones = 10L,
   max_ejemplos = 5L,
-  max_comparaciones = 200000L
+  max_comparaciones = 200000L,
+  max_trabajo = 1e+08
 )
 }
 \arguments{
@@ -43,6 +44,10 @@ dependencia.}
 
 \item{max_comparaciones}{Máximo de pares determinante-dependiente que se
 comparan. \code{Inf} desactiva el presupuesto.}
+
+\item{max_trabajo}{Máximo de unidades fila-par estimadas. \code{Inf} desactiva el
+presupuesto que escala con las filas; se combina con
+\code{max_comparaciones} y se aplica el límite más restrictivo.}
 }
 \value{
 Data frame de clase \code{dependencias_funcionales}, ordenado por
@@ -50,8 +55,11 @@ cumplimiento y soporte. Los atributos \code{muestreado}, \code{filas_analizadas}
 \code{columnas_analizadas}, \code{columnas_omitidas}, \code{columnas_descartadas} y
 \code{truncado} documentan el alcance efectivo. \code{n_pares_posibles},
 \code{n_pares_comparados}, \code{n_pares_sin_comparar} y \code{max_comparaciones}
-documentan el presupuesto de comparaciones. \code{columnas_descartadas} es un
-data frame que explica por qué una columna no se usó como determinante.
+documentan el presupuesto de comparaciones. \code{trabajo_estimado},
+\code{trabajo_comparado}, \code{trabajo_sin_comparar}, \code{unidad_trabajo} y
+\code{max_trabajo} documentan el presupuesto por filas. \code{columnas_descartadas}
+es un data frame que explica por qué una columna no se usó como
+determinante.
 }
 \description{
 Busca pares ordenados \code{determinante -> dependiente}. El cumplimiento es la
@@ -76,7 +84,10 @@ El costo crece aproximadamente como \code{columnas^2 * filas}. \code{max_columna
 conserva las primeras columnas analizables, \code{max_comparaciones} limita el
 número de pares columna a columna y \code{muestra} aplica una única muestra
 sistemática a toda la tabla, de modo que las relaciones entre filas no se
-rompen. Los atributos del resultado declaran todos los recortes.
+rompen. \code{max_trabajo} acota el producto entre pares posibles y filas
+analizadas. Es un presupuesto estimado, no una medición de segundos: permite
+que el tope efectivo de pares baje cuando la tabla tiene muchas filas. Los
+atributos del resultado declaran todos los recortes.
 }
 \examples{
 datos <- data.frame(

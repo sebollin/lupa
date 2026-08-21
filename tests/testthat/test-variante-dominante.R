@@ -107,7 +107,17 @@ test_that("las dependencias declaran los pares que el presupuesto omite", {
   expect_gt(attr(resultado, "n_pares_sin_comparar"), 0)
   cobertura <- lupa:::.cobertura_dependencias(resultado)
   expect_equal(nrow(cobertura), 1L)
-  expect_match(cobertura$motivo, "quedaron 10 sin comparar", fixed = TRUE)
+  # El motivo declara las dos unidades del presupuesto, no solo los pares: el
+  # tope efectivo puede venir de `max_comparaciones` o de `max_trabajo`, y
+  # decir cuantos pares quedaron sin decir cuanto trabajo era no permite
+  # elegir cual aflojar.
+  expect_match(cobertura$motivo, "quedaron 10 pares", fixed = TRUE)
+  expect_match(cobertura$motivo, "unidades sin comparar", fixed = TRUE)
+  expect_equal(attr(resultado, "unidad_trabajo"), "fila-par")
+  expect_equal(
+    attr(resultado, "trabajo_comparado") + attr(resultado, "trabajo_sin_comparar"),
+    attr(resultado, "trabajo_estimado")
+  )
 })
 
 test_that("la razon de permutacion queda como evidencia descriptiva", {

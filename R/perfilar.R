@@ -380,6 +380,10 @@
 #'   `columnas^2 x filas` y empeora con determinantes casi únicos; cuando el
 #'   presupuesto se agota, lo comparado se informa y lo que quedó sin comparar
 #'   se declara en `cobertura_diagnosticos`, nunca como cero.
+#' @param max_trabajo_dependencias Tope predeterminado de unidades fila-par para
+#'   las dependencias. Se combina con `max_comparaciones_dependencias`; el
+#'   límite efectivo baja cuando hay muchas filas. `Inf` desactiva este tope,
+#'   pero no el de pares.
 #' @param columnas_sin_ceros Nombres de columnas donde cero no es admisible.
 #' @param columnas_no_negativas Nombres de columnas que deben ser no negativas.
 #' @param sentinelas_numericos Vector completo de valores numéricos que se
@@ -431,6 +435,14 @@
 #'   que puede abarcar el grupo mayor para entregar grupos de variantes. Por
 #'   defecto es `0.5`; si se supera, el alcance declara que el diagnóstico no
 #'   aplica en vez de entregar un bloque que abarque casi toda la columna.
+#' @param max_trabajo_vocabulario Tope de comparaciones de carácter para las
+#'   comparaciones de distancia del vocabulario. Comparar dos valores cuesta del
+#'   orden del producto de sus largos, así que el trabajo es la suma de ese
+#'   producto sobre todos los pares. Contar pares por longitud media subestima
+#'   las cadenas largas: medido, el mismo presupuesto compraba 5,3 millones de
+#'   unidades por segundo con valores de 900 caracteres y 44 millones con
+#'   valores de 40. Se combina con `max_pares`, manda el más restrictivo, y el
+#'   recorte declara valores, pares y trabajo sin comparar. `Inf` lo desactiva.
 #' @param umbral_variante_rara_vocabulario Proporcion maxima de la columna que
 #'   puede ocupar una variante breve para abrir la comparacion por una edicion.
 #' @param min_asimetria_vocabulario Razón mínima entre la frecuencia de la
@@ -610,7 +622,9 @@ perfilar <- function(datos,
                      min_participacion_dominante_vocabulario_corto = 0.5,
                      variantes_equifrecuentes_vocabulario = FALSE,
                      max_asimetria_equifrecuente_vocabulario = 2,
-                     max_comparaciones_dependencias = 200000L) {
+                      max_comparaciones_dependencias = 200000L,
+                      max_trabajo_vocabulario = 2e10,
+                      max_trabajo_dependencias = 100000000) {
   # Una matriz de dos dimensiones es una tabla, y rechazarla obligaba a escribir
   # la conversion afuera. Se acepta y se convierte, y la conversion queda
   # declarada en `meta` para que el perfil no aparente haber recibido lo que no
@@ -789,11 +803,24 @@ perfilar <- function(datos,
   if (!is.numeric(max_comparaciones_dependencias) ||
       length(max_comparaciones_dependencias) != 1L ||
       is.na(max_comparaciones_dependencias) ||
-      max_comparaciones_dependencias < 1) {
+      max_comparaciones_dependencias < 1 ||
+      (!is.infinite(max_comparaciones_dependencias) &&
+       max_comparaciones_dependencias !=
+         floor(max_comparaciones_dependencias))) {
     stop(
-      "`max_comparaciones_dependencias` debe ser un numero mayor o igual a 1.",
+      "`max_comparaciones_dependencias` debe ser un entero positivo o Inf.",
       call. = FALSE
     )
+  }
+  for (argumento in c("max_trabajo_vocabulario", "max_trabajo_dependencias")) {
+    valor <- get(argumento)
+    if (!is.numeric(valor) || length(valor) != 1L || is.na(valor) ||
+        valor <= 0 || (!is.infinite(valor) && valor != floor(valor))) {
+      stop(
+        "`", argumento, "` debe ser un entero positivo o Inf.",
+        call. = FALSE
+      )
+    }
   }
   columnas_personales <- .normalizar_columnas_personales(
     columnas_personales, names(datos)
@@ -889,7 +916,8 @@ perfilar <- function(datos,
       datos, umbral = umbral_dependencia, muestra = muestra,
       max_columnas = max_columnas_dependencias,
       umbral_casi_clave = umbral_casi_clave_dependencia,
-      max_comparaciones = max_comparaciones_dependencias
+      max_comparaciones = max_comparaciones_dependencias,
+      max_trabajo = max_trabajo_dependencias
     )
   } else {
     # `datos[0, 0]` sobre un objeto `sf` conserva la geometria: la columna es
@@ -967,7 +995,8 @@ perfilar <- function(datos,
     min_participacion_dominante =
       min_participacion_dominante_vocabulario_corto,
     detectar_variantes_equifrecuentes = variantes_equifrecuentes_vocabulario,
-    max_asimetria_equifrecuente = max_asimetria_equifrecuente_vocabulario
+    max_asimetria_equifrecuente = max_asimetria_equifrecuente_vocabulario,
+    max_trabajo = max_trabajo_vocabulario
   )
   cobertura_diagnosticos <- attr(
     hallazgos, "cobertura_diagnosticos", exact = TRUE
@@ -1114,6 +1143,16 @@ perfilar <- function(datos,
     umbral_dependencia = umbral_dependencia,
     umbral_casi_clave_dependencia = umbral_casi_clave_dependencia,
     max_columnas_dependencias = max_columnas_dependencias,
+    max_comparaciones_dependencias = max_comparaciones_dependencias,
+    max_trabajo_dependencias = max_trabajo_dependencias,
+    trabajo_dependencias = list(
+      estimado = attr(dependencias, "trabajo_estimado", exact = TRUE),
+      comparado = attr(dependencias, "trabajo_comparado", exact = TRUE),
+      sin_comparar = attr(dependencias, "trabajo_sin_comparar", exact = TRUE),
+      unidad = attr(dependencias, "unidad_trabajo", exact = TRUE),
+      maximo = attr(dependencias, "max_trabajo", exact = TRUE)
+    ),
+    max_trabajo_vocabulario = max_trabajo_vocabulario,
     sentinelas_numericos = .numeros_na(sentinelas_numericos),
     datos_personales_permitidos = datos_personales_permitidos,
     proteger_datos_personales = proteger_datos_personales,

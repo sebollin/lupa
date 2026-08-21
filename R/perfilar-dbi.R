@@ -2532,6 +2532,100 @@
   plan
 }
 
+# Cuantas consultas se emiten no dice cuanto cuestan. Catorce consultas sobre
+# dos millones de filas son mucho mas trabajo que doscientas sobre mil, y el
+# plan que solo cuenta consultas deja al usuario sin la pregunta que de verdad
+# tiene: si esto tarda segundos, minutos u horas.
+#
+# La magnitud se estima en dos numeros que son cuentas de verdad y no indices
+# inventados: cuantas filas hay que leer, y cuantas veces hay que ordenar la
+# tabla entera. El peso de cada clase sale de su `alcance`, que es vocabulario
+# cerrado -lo escribe `.plan_consultas_dbi()` y nadie mas-.
+.lecturas_clase_dbi <- function(alcance, n_consultas, filas, muestra) {
+  switch(
+    alcance,
+    # Los portones son un punado de consultas triviales mas un COUNT(*), que si
+    # recorre la tabla: se cuenta esa pasada y no el resto.
+    "una vez" = filas,
+    "escanea la tabla completa" = n_consultas * filas,
+    "escanea la tabla completa dos veces" = 2 * n_consultas * filas,
+    "ordena la tabla completa" = n_consultas * filas,
+    "ordena o agrupa la tabla completa" = n_consultas * filas,
+    "lee una muestra del motor" = n_consultas * muestra,
+    "lee las filas pedidas" = muestra,
+    NA_real_
+  )
+}
+
+.UMBRAL_TRABAJO_MEDIO_DBI <- 1e7
+.UMBRAL_TRABAJO_ALTO_DBI <- 1e9
+
+.trabajo_plan_dbi <- function(plan, filas, muestra) {
+  vacio <- list(
+    filas_leidas = NA_real_, ordenaciones = NA_real_,
+    equivalente = NA_real_, magnitud = "desconocida"
+  )
+  # El conteo se convierte primero y se valida despues, en vez de exigir
+  # `is.numeric()`: sobre una tabla grande `n_total` llega como `integer64`, y
+  # `is.numeric()` da FALSE para esa clase. Rechazarla habria dejado sin
+  # estimacion justo el caso donde mas importa.
+  #
+  # Cada guarda esta por un caso que se probo y fallaba: `Inf` hacia NaN al
+  # multiplicar por cero ordenaciones y reventaba el `if`; un conteo negativo
+  # daba magnitud "baja" con lecturas negativas; y un conteo no numerico
+  # emitia un aviso de coercion antes de rendirse.
+  numero <- function(x) {
+    if (is.null(x) || length(x) != 1L) return(NA_real_)
+    valor <- suppressWarnings(as.numeric(x))
+    if (length(valor) != 1L || is.na(valor) || !is.finite(valor) ||
+        valor < 0) {
+      return(NA_real_)
+    }
+    valor
+  }
+  filas <- numero(filas)
+  if (!nrow(plan) || is.na(filas)) return(vacio)
+  muestra <- numero(muestra)
+  if (is.na(muestra)) muestra <- 0
+  lecturas <- vapply(seq_len(nrow(plan)), function(i) {
+    suppressWarnings(as.numeric(.lecturas_clase_dbi(
+      plan$alcance[[i]], plan$n_consultas[[i]], filas, muestra
+    )))
+  }, numeric(1L))
+  if (anyNA(lecturas) || any(!is.finite(lecturas))) return(vacio)
+  ordena <- grepl("^ordena", plan$alcance)
+  ordenaciones <- sum(plan$n_consultas[ordena])
+  # Ordenar no cuesta lo mismo que recorrer: una ordenacion completa se cuenta
+  # como log2(filas) pasadas. Es el supuesto de libro y queda declarado, para
+  # que quien no lo comparta pueda rehacer la cuenta con los dos numeros de
+  # arriba, que no dependen de el.
+  factor_orden <- max(1, log2(max(2, filas)))
+  equivalente <- sum(lecturas) + ordenaciones * filas * (factor_orden - 1)
+  if (!is.finite(equivalente)) return(vacio)
+  magnitud <- if (equivalente < .UMBRAL_TRABAJO_MEDIO_DBI) {
+    "baja"
+  } else if (equivalente < .UMBRAL_TRABAJO_ALTO_DBI) {
+    "media"
+  } else {
+    "alta"
+  }
+  list(
+    filas_leidas = sum(lecturas), ordenaciones = ordenaciones,
+    equivalente = equivalente, magnitud = magnitud
+  )
+}
+
+.SUPUESTO_TRABAJO_DBI <- paste(
+  "El trabajo es una estimaci\u00f3n, no una medici\u00f3n: cuenta",
+  "cu\u00e1ntas filas habr\u00eda que leer si ning\u00fan \u00edndice",
+  "ayudara, y cuenta cada ordenaci\u00f3n completa como log2(filas) pasadas.",
+  "Un \u00edndice sobre la columna ordenada, o una tabla que entra en la",
+  "memoria del motor, lo bajan mucho. Referencia medida sobre PostgreSQL 16",
+  "local, 2.000.000 de filas por 40 columnas en modo seguro: 14 consultas,",
+  "5,3 segundos, unos cinco millones de lecturas de fila por segundo."
+)
+
+
 #' Planificar el costo de `perfilar_dbi()` antes de pagarlo
 #'
 #' Emite sólo las consultas-portón —contar filas, leer el esquema y sondear el
@@ -2541,9 +2635,20 @@
 #'
 #' @inheritParams perfilar_dbi
 #'
-#' @return Data frame con `clase_consulta`, `n_consultas` y `alcance`, y los
-#'   atributos `total`, `columnas`, `columnas_numericas`, `dialecto`,
-#'   `consultas_emitidas`, `metricas` y `tamano_lote`.
+#' @return Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
+#'   `n_consultas` y `alcance`, y los atributos `total`, `columnas`,
+#'   `columnas_numericas`, `dialecto`, `consultas_emitidas`, `metricas`,
+#'   `filas` y `tamano_lote`.
+#'
+#'   Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
+#'   sobre dos millones de filas son mucho más trabajo que doscientas sobre
+#'   mil. Por eso el plan estima además la magnitud, en los atributos
+#'   `filas_leidas` (cuántas filas habría que leer), `ordenaciones_completas`
+#'   (cuántas veces habría que ordenar la tabla entera), `magnitud` —`"baja"`,
+#'   `"media"`, `"alta"` o `"desconocida"` si no se conoce el número de
+#'   filas— y `supuesto_costo`, que dice de dónde sale la cuenta. El método de
+#'   impresión avisa cuando la magnitud es alta y nombra las palancas para
+#'   acotarla.
 #' @export
 #' @seealso [perfilar_dbi()]
 #'
@@ -2609,7 +2714,83 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
   attr(plan, "metricas") <- preparacion$metricas
   attr(plan, "filas") <- preparacion$n_total
   attr(plan, "tamano_lote") <- preparacion$tamano_lote
+  trabajo <- .trabajo_plan_dbi(plan, preparacion$n_total, preparacion$muestra)
+  attr(plan, "filas_leidas") <- trabajo$filas_leidas
+  attr(plan, "ordenaciones_completas") <- trabajo$ordenaciones
+  attr(plan, "magnitud") <- trabajo$magnitud
+  attr(plan, "supuesto_costo") <- .SUPUESTO_TRABAJO_DBI
+  class(plan) <- c("plan_perfilado_dbi", class(plan))
   plan
+}
+
+.miles_dbi <- function(x) {
+  if (is.null(x) || length(x) != 1L || is.na(x)) return("sin dato")
+  # `decimal.mark` va explicito: por omision es el punto, y compartirlo con el
+  # separador de miles hace que R avise en cada llamada.
+  format(
+    round(x), big.mark = ".", decimal.mark = ",",
+    scientific = FALSE, trim = TRUE
+  )
+}
+
+#' @export
+print.plan_perfilado_dbi <- function(x, ...) {
+  cli::cli_h1("Plan de perfilado")
+  filas <- attr(x, "filas", exact = TRUE)
+  cli::cli_alert_info(paste0(
+    .miles_dbi(attr(x, "total", exact = TRUE)), " consultas como techo sobre ",
+    .miles_dbi(filas), " filas y ",
+    .miles_dbi(attr(x, "columnas", exact = TRUE)), " columnas (dialecto ",
+    attr(x, "dialecto", exact = TRUE), ")"
+  ))
+  magnitud <- attr(x, "magnitud", exact = TRUE)
+  if (is.null(magnitud)) magnitud <- "desconocida"
+  if (identical(magnitud, "desconocida")) {
+    cli::cli_alert_warning(paste(
+      "No se pudo estimar el trabajo: falta el n\u00famero de filas.",
+      "El conteo de consultas sigue siendo v\u00e1lido."
+    ))
+  } else {
+    trabajo <- paste0(
+      .miles_dbi(attr(x, "filas_leidas", exact = TRUE)), " lecturas de fila y ",
+      .miles_dbi(attr(x, "ordenaciones_completas", exact = TRUE)),
+      " ordenaciones completas"
+    )
+    # Una magnitud alta no es un error: es una corrida que conviene decidir a
+    # ojos abiertos. Por eso el aviso nombra las palancas concretas en vez de
+    # limitarse a decir que es grande.
+    if (identical(magnitud, "alta")) {
+      cli::cli_alert_danger(paste0("Trabajo estimado alto: ", trabajo))
+      cli::cli_text("Para acotarlo, sin cambiar nada m\u00e1s:")
+      cli::cli_ul(c(
+        "modo = 'muestreado' mide sobre una muestra que trae el motor",
+        "metricas = c(...) saca clases de consulta enteras del plan",
+        "muestra = n baja las filas que se traen a R",
+        "max_consultas = n pone un techo duro y declara lo que quede afuera"
+      ))
+    } else if (identical(magnitud, "media")) {
+      cli::cli_alert_warning(paste0("Trabajo estimado medio: ", trabajo))
+    } else {
+      cli::cli_alert_success(paste0("Trabajo estimado bajo: ", trabajo))
+    }
+  }
+  # Los supuestos son largos y solo pesan cuando el numero incomoda. Sobre una
+  # tabla chica el usuario ya tiene su respuesta en la linea de arriba, y dos
+  # parrafos de letra fina la tapan. No se ocultan: siguen en los atributos, y
+  # la palabra "techo" viaja con el conteo en todos los casos.
+  if (!identical(magnitud, "baja")) {
+    supuesto <- attr(x, "supuesto_costo", exact = TRUE)
+    if (!is.null(supuesto)) cli::cli_text(supuesto)
+    techo <- attr(x, "supuesto", exact = TRUE)
+    if (!is.null(techo)) cli::cli_text(techo)
+  } else {
+    cli::cli_text(
+      "Los supuestos de la cuenta est\u00e1n en los atributos ",
+      "`supuesto_costo` y `supuesto`."
+    )
+  }
+  print.data.frame(as.data.frame(x), row.names = FALSE)
+  invisible(x)
 }
 
 # ---- Proteccion de datos personales -------------------------------------
@@ -2681,10 +2862,32 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
 
 # ---- Bloque de la muestra ------------------------------------------------
 
+# Un tipo que el controlador no puede traer en una lectura corriente: `TEXT`,
+# `NTEXT`, `IMAGE`, los `MAX` de SQL Server, `CLOB`, `BLOB`, `BYTEA`. El caso
+# que lo destapo es real: en una tabla de 158 columnas, 90 son de estos tipos, y
+# el driver ODBC responde `07009` al leerlas.
+# Tipos que muchos controladores no saben traer en una lectura corriente: hay
+# que pedirlos aparte, o convertirlos, o no pedirlos. El nombre viene del motor
+# ya sin espacios (ver mas abajo), asi que "nvarchar (max)" llega pegado.
+.PATRON_TIPO_LARGO_DBI <- paste0(
+  "^(text|ntext|image|clob|nclob|blob|bytea|longtext|mediumtext|tinytext|",
+  "longblob|mediumblob|tinyblob|xml|xmltype|json|jsonb|geometry|geography|",
+  "long|longraw|bfile|n?(var)?(char|binary)\\(max\\))$"
+)
+
+.columnas_de_tipo_largo_dbi <- function(tipos) {
+  if (is.null(tipos) || !length(tipos)) return(integer())
+  limpio <- tolower(trimws(as.character(tipos)))
+  limpio <- gsub("[[:space:]]+", "", limpio)
+  which(!is.na(limpio) &
+          grepl(.PATRON_TIPO_LARGO_DBI, limpio, perl = TRUE))
+}
+
 .bloque_muestra_dbi <- function(conexion, tabla, tabla_sql, campos, campos_sql,
                                 muestra, orden_muestra, orden_sql, dialecto,
                                 n_total, presupuesto, info_conexion,
-                                argumentos, muestreo = NULL) {
+                                argumentos, muestreo = NULL,
+                                tipos_declarados = NULL) {
   cobertura <- .cobertura_dbi_vacia()
   verificacion <- if (length(orden_sql)) {
     .verificar_orden_dbi(conexion, tabla_sql, orden_sql, dialecto, presupuesto)
@@ -2767,6 +2970,89 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
     muestreo_meta$capacidad <- muestreo$candidato$nombre
   }
   consulta <- .consultar_dbi(conexion, sql_muestra, presupuesto, filas = filas)
+  campos_omitidos <- character()
+  if (!consulta$ok) {
+    # Una sola columna que el controlador no sabe traer se llevaba puesta la
+    # muestra entera: el usuario perdia el perfil por fila de las otras ciento
+    # cincuenta. Es el reflejo de todo-o-nada otra vez, y la salida es la misma
+    # que en los demas lugares: reintentar sin lo que no se puede leer y
+    # declarar que quedo afuera.
+    #
+    # El reintento no castea. Castear exige una sintaxis por motor y una
+    # decision sobre cuanto truncar, y las dos cosas son adivinar; dejar la
+    # columna afuera y decirlo no supone nada.
+    largas <- .columnas_de_tipo_largo_dbi(tipos_declarados)
+    if (length(largas) && length(largas) < length(campos_sql)) {
+      quedan <- setdiff(seq_along(campos_sql), largas)
+      base_reintento <- paste0(
+        "SELECT ", paste(campos_sql[quedan], collapse = ", "), " FROM ",
+        tabla_sql,
+        if (length(orden_sql)) {
+          paste0(" ORDER BY ", paste(orden_sql, collapse = ", "))
+        } else ""
+      )
+      acotado <- if (muestra < .numero_dbi(n_total)) {
+        dialecto$limitar(base_reintento, muestra, 0)
+      } else NULL
+      sql_reintento <- if (is.null(acotado)) base_reintento else acotado
+      reintento <- .consultar_dbi(
+        conexion, sql_reintento, presupuesto,
+        filas = if (is.null(acotado) && muestra < .numero_dbi(n_total)) {
+          muestra
+        } else -1L
+      )
+      if (isTRUE(reintento$ok)) {
+        campos_omitidos <- campos[largas]
+        motivo_original <- consulta$motivo
+        cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+          "perfil_muestra", .texto_tabla_dbi(tabla), "alcance_distinto",
+          # El mensaje cuenta la secuencia y no atribuye la causa. El
+          # reintento se dispara ante cualquier fallo de lectura habiendo
+          # columnas de tipo largo declaradas, y esas columnas son la
+          # explicacion probable pero no la comprobada: un corte de red que se
+          # recupera en el segundo intento produciria el mismo camino. Afirmar
+          # "el controlador las rechazo" seria informar como sabido algo que no
+          # se midio. El motivo textual del motor viaja entero para que quien
+          # lea decida.
+          paste0(
+            "La lectura completa de la muestra fallo y se reintento sin las ",
+            length(campos_omitidos),
+            if (length(campos_omitidos) == 1L) {
+              " columna de tipo largo declarada: "
+            } else {
+              " columnas de tipo largo declaradas: "
+            },
+            paste(campos_omitidos, collapse = ", "),
+            ". No se comprobo que sean la causa; el motor dijo: ",
+            consulta$motivo
+          ),
+          paste(
+            "El resumen por columna las cubre igual; lo que falta es su perfil",
+            "por fila. Para incluirlas, convertirlas a texto acotado en una",
+            "vista y perfilar esa vista."
+          ),
+          sql_reintento
+        ))
+        consulta <- reintento
+        sql_muestra <- sql_reintento
+        campos <- campos[quedan]
+        campos_sql <- campos_sql[quedan]
+        # `muestreo_meta` se arma antes de leer, asi que sin esto quedaba
+        # congelado con la lectura que fallo: declaraba haber leido la columna
+        # que justamente no se pudo leer, y publicaba el SQL original en vez
+        # del que de verdad se emitio. Es el invariante al reves -informar como
+        # medido lo que no se midio- y en el peor lugar, porque `meta` es donde
+        # se mira para saber que se hizo.
+        muestreo_meta$columnas_leidas <- campos
+        muestreo_meta$sql_muestra <- sql_reintento
+        muestreo_meta$columnas_omitidas <- campos_omitidos
+        muestreo_meta$motivo_columnas_omitidas <- paste0(
+          "El motor rechazo la lectura completa y se reintento sin estas ",
+          "columnas, de tipo largo. El motor dijo: ", motivo_original
+        )
+      }
+    }
+  }
   if (!consulta$ok) {
     # Antes se descartaba aca el resumen entero cuando fallaba la consulta de
     # muestra. Ahora la muestra se declara no disponible y el resumen sale igual,
@@ -3312,7 +3598,8 @@ perfilar_dbi <- function(conexion, tabla, muestra = 1000L,
     conexion, tabla, preparacion$tabla_sql, preparacion$campos,
     preparacion$campos_sql, preparacion$muestra, preparacion$orden_muestra,
     preparacion$orden_sql, preparacion$dialecto, preparacion$n_total,
-    presupuesto, info_conexion, list(...), muestreo = muestreo_meta
+    presupuesto, info_conexion, list(...), muestreo = muestreo_meta,
+    tipos_declarados = preparacion$tipos
   )
   cobertura <- rbind(cobertura, bloque$cobertura)
   if (isTRUE(presupuesto$agotado)) {

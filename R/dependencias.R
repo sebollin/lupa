@@ -39,7 +39,7 @@
     paste0(
       encodeString(resumen$x[[indices[[1L]]]], quote = '"'), " -> ",
       paste(encodeString(unique(resumen$y[indices]), quote = '"'), collapse = " | ")
-    )
+  )
   }, character(1L)), collapse = "; ")
 }
 
@@ -66,7 +66,10 @@
 #' conserva las primeras columnas analizables, `max_comparaciones` limita el
 #' número de pares columna a columna y `muestra` aplica una única muestra
 #' sistemática a toda la tabla, de modo que las relaciones entre filas no se
-#' rompen. Los atributos del resultado declaran todos los recortes.
+#' rompen. `max_trabajo` acota el producto entre pares posibles y filas
+#' analizadas. Es un presupuesto estimado, no una medición de segundos: permite
+#' que el tope efectivo de pares baje cuando la tabla tiene muchas filas. Los
+#' atributos del resultado declaran todos los recortes.
 #'
 #' @param datos Tabla que se desea examinar.
 #' @param umbral Cumplimiento mínimo en `[0, 1]`.
@@ -74,6 +77,9 @@
 #' @param max_columnas Máximo de columnas analizadas.
 #' @param max_comparaciones Máximo de pares determinante-dependiente que se
 #'   comparan. `Inf` desactiva el presupuesto.
+#' @param max_trabajo Máximo de unidades fila-par estimadas. `Inf` desactiva el
+#'   presupuesto que escala con las filas; se combina con
+#'   `max_comparaciones` y se aplica el límite más restrictivo.
 #' @param umbral_casi_constante Proporción modal a partir de la cual un
 #'   determinante se descarta por casi constante.
 #' @param umbral_casi_clave Tasa de valores distintos a partir de la cual un
@@ -90,8 +96,11 @@
 #'   `columnas_analizadas`, `columnas_omitidas`, `columnas_descartadas` y
 #'   `truncado` documentan el alcance efectivo. `n_pares_posibles`,
 #'   `n_pares_comparados`, `n_pares_sin_comparar` y `max_comparaciones`
-#'   documentan el presupuesto de comparaciones. `columnas_descartadas` es un
-#'   data frame que explica por qué una columna no se usó como determinante.
+#'   documentan el presupuesto de comparaciones. `trabajo_estimado`,
+#'   `trabajo_comparado`, `trabajo_sin_comparar`, `unidad_trabajo` y
+#'   `max_trabajo` documentan el presupuesto por filas. `columnas_descartadas`
+#'   es un data frame que explica por qué una columna no se usó como
+#'   determinante.
 #' @export
 #'
 #' @seealso [detectar_claves()], [proponer_modelo()], [perfilar()]
@@ -110,7 +119,8 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
                                   incluir_claves = FALSE,
                                   min_observaciones = 10L,
                                   max_ejemplos = 5L,
-                                  max_comparaciones = 200000L) {
+                                   max_comparaciones = 200000L,
+                                   max_trabajo = 100000000) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
@@ -133,11 +143,20 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     stop(
       "`max_comparaciones` debe ser un entero positivo o Inf.",
       call. = FALSE
-    )
+  )
   }
   max_comparaciones <- if (is.infinite(max_comparaciones)) {
     Inf
   } else as.numeric(max_comparaciones)
+  if (!is.numeric(max_trabajo) || length(max_trabajo) != 1L ||
+      is.na(max_trabajo) || max_trabajo <= 0 ||
+      (!is.infinite(max_trabajo) && max_trabajo != floor(max_trabajo))) {
+    stop(
+      "`max_trabajo` debe ser un entero positivo o Inf.",
+      call. = FALSE
+  )
+  }
+  max_trabajo <- if (is.infinite(max_trabajo)) Inf else as.numeric(max_trabajo)
   if (!is.logical(incluir_claves) || length(incluir_claves) != 1L ||
       is.na(incluir_claves)) {
     stop("`incluir_claves` debe ser un l\u00f3gico escalar sin NA.", call. = FALSE)
@@ -177,7 +196,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
       tasa_distintos = length(unicos) / n,
       es_clave = length(unicos) == n,
       n_distintos = length(unicos)
-    )
+  )
   })
   motivos <- vapply(estadisticas, function(x) {
     if (x$n < min_observaciones) return("soporte_insuficiente")
@@ -198,6 +217,15 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
         seq_along(seleccion) != i)
     }, numeric(1L)))
   } else 0
+  filas_trabajo <- muestreo$analizados
+  trabajo_estimado <- as.numeric(comparaciones_posibles) * filas_trabajo
+  max_comparaciones_trabajo <- if (is.infinite(max_trabajo) ||
+      filas_trabajo == 0L) {
+    Inf
+  } else floor(max_trabajo / filas_trabajo)
+  max_comparaciones_efectivo <- min(
+    max_comparaciones, max_comparaciones_trabajo
+  )
   filas <- list()
   k <- 0L
   comparaciones <- 0
@@ -208,8 +236,8 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
       x <- muestra_datos[[i]]
       for (j in seq_along(seleccion)) {
         if (i == j || !dependientes_variables[[j]]) next
-        if (is.finite(max_comparaciones) &&
-            comparaciones >= max_comparaciones) {
+        if (is.finite(max_comparaciones_efectivo) &&
+            comparaciones >= max_comparaciones_efectivo) {
           presupuesto_agotado <- TRUE
           break
         }
@@ -242,7 +270,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
       cumplimiento = numeric(), n_evaluados = integer(),
       n_grupos = integer(), n_violaciones = integer(), exacta = logical(),
       evidencia = character(), stringsAsFactors = FALSE
-    )
+  )
   }
   if (nrow(resultado)) {
     resultado <- resultado[order(
@@ -271,8 +299,17 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   attr(resultado, "n_pares_comparados") <- as.numeric(comparaciones)
   attr(resultado, "n_pares_sin_comparar") <- as.numeric(
     max(0, comparaciones_posibles - comparaciones)
-  )
+   )
   attr(resultado, "max_comparaciones") <- max_comparaciones
+   attr(resultado, "max_comparaciones_efectivo") <-
+     max_comparaciones_efectivo
+   attr(resultado, "trabajo_estimado") <- trabajo_estimado
+   attr(resultado, "trabajo_comparado") <- as.numeric(comparaciones) * filas_trabajo
+   attr(resultado, "trabajo_sin_comparar") <- as.numeric(
+     max(0, trabajo_estimado - attr(resultado, "trabajo_comparado"))
+   )
+   attr(resultado, "unidad_trabajo") <- "fila-par"
+   attr(resultado, "max_trabajo") <- max_trabajo
   attr(resultado, "presupuesto_agotado") <- presupuesto_agotado
   attr(resultado, "truncado") <- length(seleccion) < length(analizables) ||
     presupuesto_agotado
@@ -359,16 +396,20 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   }
   if (presupuesto_agotado) {
     motivos <- c(motivos, paste0(
-      "El presupuesto de comparaciones se agot\u00f3: se compararon ",
+      "El presupuesto de trabajo se agot\u00f3: se compararon ",
       attr(dependencias, "n_pares_comparados", exact = TRUE), " de ",
       attr(dependencias, "n_pares_posibles", exact = TRUE),
-      " pares determinante-dependiente; quedaron ",
+      " pares determinante-dependiente y ",
+      attr(dependencias, "trabajo_comparado", exact = TRUE), " de ",
+      attr(dependencias, "trabajo_estimado", exact = TRUE),
+      " unidades fila-par; quedaron ",
       attr(dependencias, "n_pares_sin_comparar", exact = TRUE),
-      " sin comparar."
+      " pares y ", attr(dependencias, "trabajo_sin_comparar", exact = TRUE),
+      " unidades sin comparar."
     ))
     soluciones <- c(soluciones, paste0(
-      "Aumentar `max_comparaciones` o reducir `muestra` si se necesita cubrir ",
-      "m\u00e1s pares. El costo aproximado es O(columnas^2 x filas)."
+      "Aumentar `max_trabajo` o `max_comparaciones`, o reducir `muestra`, si se ",
+      "necesita cubrir m\u00e1s pares. El costo aproximado es O(columnas^2 x filas)."
     ))
   }
   .nuevo_diagnostico_no_evaluado(

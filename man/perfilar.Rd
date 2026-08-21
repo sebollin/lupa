@@ -52,7 +52,9 @@ perfilar(
   min_participacion_dominante_vocabulario_corto = 0.5,
   variantes_equifrecuentes_vocabulario = FALSE,
   max_asimetria_equifrecuente_vocabulario = 2,
-  max_comparaciones_dependencias = 200000L
+  max_comparaciones_dependencias = 200000L,
+  max_trabajo_vocabulario = 2e+10,
+  max_trabajo_dependencias = 1e+08
 )
 }
 \arguments{
@@ -299,6 +301,20 @@ que se comparan. El costo de las dependencias es del orden de
 \verb{columnas^2 x filas} y empeora con determinantes casi únicos; cuando el
 presupuesto se agota, lo comparado se informa y lo que quedó sin comparar
 se declara en \code{cobertura_diagnosticos}, nunca como cero.}
+
+\item{max_trabajo_vocabulario}{Tope de comparaciones de carácter para las
+comparaciones de distancia del vocabulario. Comparar dos valores cuesta del
+orden del producto de sus largos, así que el trabajo es la suma de ese
+producto sobre todos los pares. Contar pares por longitud media subestima
+las cadenas largas: medido, el mismo presupuesto compraba 5,3 millones de
+unidades por segundo con valores de 900 caracteres y 44 millones con
+valores de 40. Se combina con \code{max_pares}, manda el más restrictivo, y el
+recorte declara valores, pares y trabajo sin comparar. \code{Inf} lo desactiva.}
+
+\item{max_trabajo_dependencias}{Tope predeterminado de unidades fila-par para
+las dependencias. Se combina con \code{max_comparaciones_dependencias}; el
+límite efectivo baja cuando hay muchas filas. \code{Inf} desactiva este tope,
+pero no el de pares.}
 }
 \value{
 Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye

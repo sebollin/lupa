@@ -2189,7 +2189,7 @@ print.plan_limpieza <- function(x, ...) {
   if (n_destructivas) {
     cli::cli_alert_danger(paste(
       n_destructivas,
-      "acciones destructivas activas; revise la p\\u00e9rdida declarada"
+      "acciones destructivas activas; revise la p\u00e9rdida declarada"
     ))
   }
   if (n_eliminatorias) {

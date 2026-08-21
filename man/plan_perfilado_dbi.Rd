@@ -55,9 +55,20 @@ Veinte mantiene acotado el número de expresiones y se puede reducir para
 motores con límites más estrictos.}
 }
 \value{
-Data frame con \code{clase_consulta}, \code{n_consultas} y \code{alcance}, y los
-atributos \code{total}, \code{columnas}, \code{columnas_numericas}, \code{dialecto},
-\code{consultas_emitidas}, \code{metricas} y \code{tamano_lote}.
+Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
+\code{n_consultas} y \code{alcance}, y los atributos \code{total}, \code{columnas},
+\code{columnas_numericas}, \code{dialecto}, \code{consultas_emitidas}, \code{metricas},
+\code{filas} y \code{tamano_lote}.
+
+Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
+sobre dos millones de filas son mucho más trabajo que doscientas sobre
+mil. Por eso el plan estima además la magnitud, en los atributos
+\code{filas_leidas} (cuántas filas habría que leer), \code{ordenaciones_completas}
+(cuántas veces habría que ordenar la tabla entera), \code{magnitud} —\code{"baja"},
+\code{"media"}, \code{"alta"} o \code{"desconocida"} si no se conoce el número de
+filas— y \code{supuesto_costo}, que dice de dónde sale la cuenta. El método de
+impresión avisa cuando la magnitud es alta y nombra las palancas para
+acotarla.
 }
 \description{
 Emite sólo las consultas-portón —contar filas, leer el esquema y sondear el

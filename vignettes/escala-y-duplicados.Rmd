@@ -174,3 +174,48 @@ unlink(dir, recursive = TRUE)
 Para decidir si la operación cabe, se recomienda llamar primero a
 `estimar_costo()` y establecer `presupuesto_pares` en la detección. Así la
 decisión queda separada del recorrido y el alcance permanece auditable.
+
+## Presupuestos que miden trabajo y no unidades
+
+Un tope que cuenta unidades trata igual a una columna de códigos de diez
+caracteres y a una de WKT de mil. Una tabla del catálogo de PostGIS —3.912
+filas, 5 columnas— tardaba **243 segundos**, y el detector de vocabulario era el
+99,6 % del costo: 800 valores distintos son 319.600 pares, muy por debajo del
+tope de dos millones, pero cada comparación era una Jaro-Winkler sobre 900
+caracteres.
+
+Por eso `max_trabajo_vocabulario` se mide en **comparaciones de carácter**, que
+es el bucle interno de la distancia: comparar dos valores de largos `L1` y `L2`
+cuesta del orden de `L1 × L2`. Contar pares por longitud media no alcanzaba —el
+mismo presupuesto compraba 5,3 millones de unidades por segundo con valores de
+900 caracteres y 44 millones con valores de 40—.
+
+El valor por omisión está calibrado contra la medición, no contra la intuición,
+y el criterio no fue sólo cortar el caso patológico sino **no tocar el común**:
+
+| valores | largo | sin tope | con tope | comparado |
+| --- | --- | --- | --- | --- |
+| 800 | 900 | 61,3 s | 4,6 s | 27,8 % |
+| 2000 | 80 | 5,0 s | 5,1 s | 100 % |
+
+Una columna corriente de dos mil valores se compara entera. Y lo que sí se
+recorta **se declara**, con las dos cuentas separadas: cuántas formas
+normalizadas quedaron sin comparar y cuánto trabajo eran, junto con cuál de los
+topes recortó, en el alcance del hallazgo y en `cobertura_diagnosticos`. Si
+aprietan los dos, el motivo los nombra a los dos, porque hay que poder elegir
+cuál aflojar.
+
+Un detalle que conviene saber antes de confiar en un recorte: las formas que sí
+se comparan son **las primeras en aparecer**, no una muestra. Con los mismos 300
+valores y el mismo presupuesto, poniendo primero los largos entran 8 formas y
+poniendo primero los cortos entran 150. Sobre una tabla ordenada —lo normal en
+un extracto— lo que queda afuera es un tramo del orden, así que si el recorte
+aparece y el alcance importa, conviene desordenar antes o subir el tope.
+
+`detectar_dependencias()` tiene el suyo, `max_trabajo`, en unidades **fila-par**:
+ahí el costo es del orden de `columnas² × filas`, y `max_comparaciones` no lo
+veía —158 columnas son 24.806 pares, muy por debajo de las 200.000 del tope—. Se
+combina con `max_comparaciones` y manda el más restrictivo.
+
+El banco `benchmark/medir_costo_texto.R` reproduce el barrido completo, para que
+la calibración se pueda rehacer si cambia la implementación de la distancia.

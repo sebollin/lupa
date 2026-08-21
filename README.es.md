@@ -277,6 +277,20 @@ hallazgos vacía **con su aviso**, y `sql_perfil()` sobre un perfil en memoria
 devuelve `NULL`, porque una tabla sin filas sugeriría que se emitió SQL y no
 encontró nada.
 
+### Un presupuesto mide trabajo, no cuenta unidades
+
+Un tope que cuenta unidades trata igual a una columna de códigos de diez
+caracteres y a una de WKT de mil. Una tabla del catálogo de PostGIS —3.912
+filas— tardaba 243 segundos, y el detector de vocabulario era el 99,6 %: 800
+valores distintos son 319.600 pares, muy por debajo del tope de dos millones,
+pero cada comparación era una Jaro-Winkler sobre 900 caracteres.
+
+El presupuesto se mide ahora en **comparaciones de carácter**, que es el bucle
+interno de la distancia. Calibrado contra la medición, la columna patológica
+baja de 61,3 s a 4,6 s, y una columna corriente de dos mil valores se sigue
+comparando entera. Lo que se recorta se declara: cuántas formas quedaron sin
+comparar, cuánto trabajo eran y cuál de los topes recortó.
+
 ### El costo se planifica antes de pagarlo
 
 Perfilar 158 columnas en `modo = "exacto"` emite 623 consultas, y 777 de las 778
@@ -297,6 +311,15 @@ Lo que sí es una restricción dura de diseño es que ese techo **no dependa del
 motor**: cada sonda de capacidad gasta un número fijo de consultas aunque acierte
 en la primera forma, porque un costo que variara por motor dejaría al usuario
 adivinando otra vez.
+
+Pero contar consultas no responde la pregunta que trae quien mira el plan:
+catorce consultas sobre dos millones de filas son mucho más trabajo que
+doscientas sobre mil. Así que el plan estima además la **magnitud**, en dos
+números que son cuentas de verdad —`filas_leidas` y `ordenaciones_completas`— y
+al imprimirlo avisa cuando el trabajo es alto, nombrando las palancas para
+acotarlo. Es una estimación y lo dice: cuenta las filas que habría que leer si
+ningún índice ayudara. Los dos números publicados no dependen de ese supuesto,
+así que quien no lo comparta puede rehacer la cuenta.
 
 | modo | qué hace |
 | --- | --- |

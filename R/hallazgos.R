@@ -610,6 +610,16 @@
     as.character(desvios) != as.character(dominante)
 }
 
+# Un presupuesto que no se puede leer no ayuda a decidir: 64638000000 sin
+# separadores no dice nada. `decimal.mark` va explicito porque por omision es
+# el punto y compartirlo con el separador de miles hace que R avise.
+.miles_trabajo <- function(x) {
+  format(
+    round(as.numeric(x)), big.mark = ".", decimal.mark = ",",
+    scientific = FALSE, trim = TRUE
+  )
+}
+
 .grupos_casi_duplicados_vocabulario <- function(x, perfil, columna,
                                                 max_valores = 5000L,
                                                 max_pares = 2000000L,
@@ -622,7 +632,17 @@
                                                 min_participacion_dominante = 0.5,
                                                 excluir = NULL,
                                                 detectar_variantes_equifrecuentes = FALSE,
-                                                max_asimetria_equifrecuente = 2) {
+                                                 max_asimetria_equifrecuente = 2,
+                                                 max_trabajo = 2e10) {
+  if (!is.numeric(max_trabajo) || length(max_trabajo) != 1L ||
+      is.na(max_trabajo) || max_trabajo <= 0 ||
+      (!is.infinite(max_trabajo) && max_trabajo != floor(max_trabajo))) {
+    stop(
+      "`max_trabajo` debe ser un entero positivo o Inf.",
+      call. = FALSE
+    )
+  }
+  max_trabajo <- if (is.infinite(max_trabajo)) Inf else as.numeric(max_trabajo)
   if (!(is.character(x) || is.factor(x)) || is.matrix(x) || is.list(x)) {
     return(NULL)
   }
@@ -665,6 +685,24 @@
   clases <- match(normalizados, unique(normalizados))
   n_unidades <- max(clases, 0L)
   valores_norm <- unique(normalizados)
+  longitudes <- if (n_unidades) {
+    as.numeric(nchar(valores_norm, type = "chars", allowNA = TRUE))
+  } else numeric()
+  longitudes[is.na(longitudes)] <- 0
+  # La unidad es la comparacion de un caracter contra otro, que es el bucle
+  # interno de la distancia: comparar dos valores de largos L1 y L2 cuesta del
+  # orden de L1 x L2. Contar pares por largo medio -en vez de por el producto-
+  # subestima las cadenas largas: medido, el mismo presupuesto compraba 5,3
+  # millones de unidades por segundo con valores de 900 caracteres y 44
+  # millones con valores de 40. Ocho veces de diferencia es no tener modelo.
+  #
+  # La suma de L_i x L_j sobre todos los pares de un prefijo sale exacta y en
+  # tiempo lineal de ((suma)^2 - suma de cuadrados) / 2, sin materializar la
+  # matriz. Y es creciente en k, que es lo que necesita el corte.
+  trabajo_prefijo <- if (n_unidades) {
+    suma <- cumsum(longitudes)
+    (suma^2 - cumsum(longitudes^2)) / 2
+  } else numeric()
   representantes <- vapply(
     split(seq_along(clases), clases), `[[`, integer(1L), 1L
   )
@@ -682,10 +720,26 @@
       pares <- rbind(pares, cbind(grupo[[1L]], grupo[-1L]))
     }
   }
-  max_unidades <- if (is.infinite(max_pares)) n_unidades else {
+  max_unidades_pares <- if (is.infinite(max_pares)) n_unidades else {
     floor((1 + sqrt(1 + 8 * max_pares)) / 2)
   }
-  max_unidades <- min(n_unidades, max(1L, max_unidades))
+  max_unidades_trabajo <- if (is.infinite(max_trabajo)) n_unidades else {
+    dentro <- which(trabajo_prefijo <= max_trabajo)
+    if (length(dentro)) max(dentro) else 1L
+  }
+  max_unidades <- min(
+    n_unidades, max(1L, max_unidades_pares),
+    max(1L, max_unidades_trabajo)
+  )
+  trabajo_posible <- if (n_unidades) trabajo_prefijo[[n_unidades]] else 0
+  trabajo_comparado <- if (max_unidades) {
+    trabajo_prefijo[[max_unidades]]
+  } else 0
+  trabajo_sin_comparar <- max(0, trabajo_posible - trabajo_comparado)
+  motivo_presupuesto <- paste(c(
+    if (max_unidades_trabajo < n_unidades) "max_trabajo" else character(),
+    if (max_unidades_pares < n_unidades) "max_pares" else character()
+  ), collapse = "+")
   distancia_pares <- data.frame(
     fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
     origen = character(),
@@ -1155,6 +1209,9 @@
       n_valores_evaluados = n_evaluados,
       n_unidades_normalizadas = n_unidades,
       n_unidades_comparadas = if (disponible) max_unidades else 0L,
+       n_unidades_sin_comparar = max(
+         0L, n_unidades - if (disponible) max_unidades else 0L
+       ),
       n_pares_posibles = if (n_unidades) choose(n_unidades, 2L) else 0,
       n_pares_comparados = if (disponible && max_unidades > 1L) {
         choose(max_unidades, 2L)
@@ -1162,6 +1219,13 @@
       n_pares_sin_comparar = (if (n_unidades) choose(n_unidades, 2L) else 0) -
         (if (disponible && max_unidades > 1L) choose(max_unidades, 2L) else 0),
       truncado = n_evaluados < n_total || max_unidades < n_unidades,
+       trabajo_estimado = trabajo_posible,
+       trabajo_comparado = if (disponible) trabajo_comparado else 0,
+       trabajo_sin_comparar = if (disponible) trabajo_sin_comparar else
+         trabajo_posible,
+       unidad_trabajo = "comparaciones de caracter",
+       max_trabajo = max_trabajo,
+       motivo_presupuesto = motivo_presupuesto,
       distancia_disponible = disponible,
       motivo_distancia = if (disponible) "" else
         "No se calculo la distancia: falta el paquete opcional 'stringdist'.",
@@ -1204,7 +1268,7 @@
     umbral_variante_rara = 0.05, min_asimetria_variante = 10,
     min_asimetria_general = 2, min_participacion_dominante = 0.5,
     detectar_variantes_equifrecuentes = FALSE,
-    max_asimetria_equifrecuente = 2) {
+    max_asimetria_equifrecuente = 2, max_trabajo = 2e10) {
   max_grupos_mostrados <- 20L
   max_variantes_mostradas <- 20L
   hallazgos <- list()
@@ -1223,6 +1287,7 @@
       min_participacion_dominante = min_participacion_dominante,
       detectar_variantes_equifrecuentes = detectar_variantes_equifrecuentes,
       max_asimetria_equifrecuente = max_asimetria_equifrecuente,
+      max_trabajo = max_trabajo,
       excluir = excluir
     )
     if (!is.null(grupos) && !isTRUE(grupos$alcance$distancia_disponible)) {
@@ -1238,15 +1303,37 @@
     if (isTRUE(alcance$truncado)) {
       cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
         "proximidad_vocabulario", columnas[[i]],
+        # "Unidades" nombraba dos cosas distintas en la misma frase -formas
+        # normalizadas y unidades de trabajo-, y quedaban una al lado de la
+        # otra. Las formas se llaman formas.
         paste0(
           "El vocabulario excede el alcance de comparacion: se evaluaron ",
-          alcance$n_valores_evaluados, " de ", alcance$n_valores_distintos,
-          " valores y ", alcance$n_pares_comparados, " de ",
-          alcance$n_pares_posibles, " pares posibles."
+          .miles_trabajo(alcance$n_valores_evaluados), " de ",
+          .miles_trabajo(alcance$n_valores_distintos),
+          " valores distintos, que son ",
+          .miles_trabajo(alcance$n_unidades_normalizadas),
+          " formas normalizadas, y se comparo entre si a las ",
+          .miles_trabajo(alcance$n_unidades_comparadas),
+          " primeras en aparecer. Eso son ",
+          .miles_trabajo(alcance$n_pares_comparados), " de ",
+          .miles_trabajo(alcance$n_pares_posibles), " pares posibles y ",
+          .miles_trabajo(alcance$trabajo_comparado), " de ",
+          .miles_trabajo(alcance$trabajo_estimado),
+          " ", alcance$unidad_trabajo, ". Quedaron ",
+          .miles_trabajo(alcance$n_unidades_sin_comparar), " formas y ",
+          .miles_trabajo(alcance$n_pares_sin_comparar),
+          " pares sin comparar por ", alcance$motivo_presupuesto, "."
         ),
+        # Decir cuantas formas quedaron afuera sin decir cuales son deja
+        # suponer que se comparo una muestra. No lo es: el corte toma las
+        # primeras en aparecer, asi que sobre una tabla ordenada lo que queda
+        # afuera es un tramo del orden y no un subconjunto cualquiera.
         paste0(
-          "Evaluar la columna con una regla de dominio especifica o dividir ",
-          "el vocabulario en subconjuntos con significado comun."
+          "Aumentar `max_trabajo_vocabulario` o `max_pares` si se necesita ",
+          "cubrir mas valores; tambien se puede dividir el vocabulario en ",
+          "subconjuntos con significado comun. Las formas comparadas son las ",
+          "primeras en aparecer, no una muestra: si la tabla viene ordenada, ",
+          "conviene desordenarla antes o subir el tope."
         )
       )
     }
@@ -3374,7 +3461,8 @@
                                  min_asimetria_general = 2,
                                  min_participacion_dominante = 0.5,
                                  detectar_variantes_equifrecuentes = FALSE,
-                                 max_asimetria_equifrecuente = 2) {
+                                 max_asimetria_equifrecuente = 2,
+                                 max_trabajo = 2e10) {
   hallazgos_columnas <- .hallazgos_columnas(
     resultados, columnas, umbral_alta_cardinalidad,
     umbral_faltantes_sospechoso, umbral_faltantes_error,
@@ -3393,7 +3481,8 @@
       min_asimetria_general = min_asimetria_general,
       min_participacion_dominante = min_participacion_dominante,
       detectar_variantes_equifrecuentes = detectar_variantes_equifrecuentes,
-      max_asimetria_equifrecuente = max_asimetria_equifrecuente
+      max_asimetria_equifrecuente = max_asimetria_equifrecuente,
+      max_trabajo = max_trabajo
     )
   } else list()
   cobertura_vocabulario <- attr(
