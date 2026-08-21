@@ -20,6 +20,7 @@ perfilar_dbi(
   max_consultas = Inf,
   dialecto = "auto",
   incluir_valores = TRUE,
+  tamano_lote = .TAMANO_LOTE_DBI,
   ...
 )
 ```
@@ -75,6 +76,12 @@ perfilar_dbi(
 
   Si el resumen informa valores de celda: moda, mínimo, máximo y
   mediana. Con `FALSE` esas consultas no se emiten.
+
+- tamano_lote:
+
+  Cantidad máxima de columnas por consulta consolidada. Veinte mantiene
+  acotado el número de expresiones y se puede reducir para motores con
+  límites más estrictos.
 
 - ...:
 
@@ -143,9 +150,9 @@ pliegan a mayúsculas.
 
 ## Costo
 
-Perfilar 158 columnas con `modo = "exacto"` emite 778 consultas, y
-`muestra` acota lo que se trae a R, no el trabajo del motor. `modo`,
-`metricas` y `max_consultas` sí lo acotan, y
+Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo
+que se trae a R, no el trabajo del motor. `modo`, `metricas`,
+`tamano_lote` y `max_consultas` sí lo acotan, y
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
 dice cuántas consultas se van a emitir antes de emitirlas. Lo que no
 entra en el presupuesto queda en `no_disponible` con su motivo, nunca en

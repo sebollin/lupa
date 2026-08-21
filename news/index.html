@@ -42,6 +42,51 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="el-costo-a-escala-de-una-consulta-por-columna-a-una-por-lote-0-1-0">El costo a escala: de una consulta por columna a una por lote<a class="anchor" aria-label="anchor" href="#el-costo-a-escala-de-una-consulta-por-columna-a-una-por-lote-0-1-0"></a></h3>
+<p>La segunda corrida contra bases reales dejo una sola reserva seria, y era esta: una tabla de decenas de millones de filas no terminaba de perfilarse ni en <code>modo = "muestreado"</code>. La causa no era el muestreo sino la cantidad de escaneos: el paquete emitia <strong>una consulta por columna</strong> para cada bloque de metricas.</p>
+<ul><li><p>Los agregados planos —conteos, minimo/maximo/media/ceros/negativos, y desvio— se piden ahora para <strong>varias columnas en una sola consulta</strong>, por lotes. La moda y la mediana siguen siendo una por columna, porque agrupan y ordenan.</p></li>
+<li>
+<p>Medido contra PostgreSQL 16 con <strong>2 millones de filas por 40 columnas</strong>:</p>
+<table class="table"><thead><tr><th>modo</th>
+<th>antes</th>
+<th>despues</th>
+</tr></thead><tbody><tr><td><code>conteos</code></td>
+<td>46 consultas, 5,4 s</td>
+<td><strong>8 consultas, 2,4 s</strong></td>
+</tr><tr><td><code>seguro</code></td>
+<td>128 consultas, 15,2 s</td>
+<td><strong>14 consultas, 5,3 s</strong></td>
+</tr></tbody></table><p>Con las mismas 160 y 400 metricas calculadas.</p>
+</li>
+<li><p><strong>Y los numeros no cambian</strong>: sobre la misma tabla sembrada una sola vez, el perfil consolidado y el anterior coinciden en los dieciseis campos del resumen para seis tipos de columna, y en los noventa estados por metrica.</p></li>
+<li><p><strong>Si un lote falla, no se pierde el lote.</strong> Se reintenta columna por columna, y lo que igual falle queda <code>no_disponible</code> con su motivo mientras las vecinas se calculan. Una consulta compartida es la forma perfecta de reintroducir el reflejo de todo-o-nada que el paquete corrigio en cinco lugares, asi que la degradacion se construyo desde el principio y tiene sus propios tests.</p></li>
+<li><p><code>resumen_tabla$sql</code> conserva <strong>una fila por columna y metrica</strong> con todos sus campos, y agrega <code>lote</code> y <code>columnas_compartidas</code> para que se vea cual consulta fue compartida. <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> publica <code>tamano_lote</code>, y su total pasa a estar declarado como <strong>techo</strong> en <code>attr(plan, "supuesto")</code>: se contaba una mediana y un desvio por columna numerica, y una columna sin valores validos no los emite. Se afirmo durante varias rondas que el plan predecia exacto; era cierto sobre tablas con datos en todas las columnas y falso en cuanto aparece una vacia. La version anterior erraba por tres consultas en ese caso y esta por una, asi que no es una regresion: es una afirmacion que venia siendo mas fuerte que el codigo.</p></li>
+<li><p>En SQLite con tablas chicas el ahorro de tiempo es casi nulo: ahi domina el costo de R y no los escaneos. Queda dicho porque una medicion que no distingue las dos cosas invita a concluir de mas.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="lo-que-rompio-la-refutacion-sobre-estos-mismos-cambios-0-1-0">Lo que rompio la refutacion sobre estos mismos cambios<a class="anchor" aria-label="anchor" href="#lo-que-rompio-la-refutacion-sobre-estos-mismos-cambios-0-1-0"></a></h3>
+<ul><li>
+<strong>Una conversion que pierde el valor ya no se publica como <code>calculado</code>.</strong> SQLite responde el <code>MIN</code> de una columna declarada <code>DATE</code> como el texto <code>"2020-01-01"</code>; <code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric()</a></code> lo convierte en <code>NA</code> y el estado quedaba <code>calculado</code>. Decir “se midio” y “no se midio” a la vez sobre el mismo campo. Ahora la metrica queda <code>no_disponible</code> con el valor original del motor en el motivo. Lo mismo para un <code>integer64</code> cuyo paso a doble lo cambiaria: el maximo publicado no estaria en la columna.</li>
+<li>
+<strong>La guarda de exactitud de <code>integer64</code> tenia un agujero de un solo numero</strong>: comparaba el doble ya convertido contra 2^53, y 2^53+1 redondea justo a 2^53, asi que pasaba. Ahora se comprueba con la vuelta completa -a doble y de vuelta a entero-, que no depende de donde caiga el redondeo.</li>
+<li>
+<strong><code>meta$muestras_independientes</code> decia algo que la consolidacion volvio falso.</strong> Las columnas de un mismo lote comparten consulta y por lo tanto comparten filas: sus metricas son comparables entre si, y las de lotes distintos no. El campo dice ahora las dos mitades.</li>
+<li>
+<strong>El total de <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> pasa a estar declarado como techo.</strong> Se cuenta una mediana y un desvio por columna numerica, y una columna sin valores validos no los emite. La version anterior a la consolidacion erraba por tres consultas en ese caso y esta por una: no es una regresion, es una afirmacion que venia siendo mas fuerte que el codigo.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="cuatro-correcciones-de-honestidad-0-1-0">Cuatro correcciones de honestidad<a class="anchor" aria-label="anchor" href="#cuatro-correcciones-de-honestidad-0-1-0"></a></h3>
+<p>Las cuatro salieron de mirar los datos crudos de la corrida real, y tres de ellas de reproducir lo que el informe atribuia a otra causa.</p>
+<ul><li>
+<strong>La trazabilidad acepta <code>integer64</code>.</strong> Un <code>bigint</code> llegaba a R como <code>integer64</code> y la trazabilidad lo rechazaba: el hallazgo se publicaba y la guarda tenia que avisar que no habia con que nombrar las filas. Se atribuyo a las geometrias, pero la lista incluia <code>outliers</code> sobre columnas que no tienen nada de espacial. <strong>Afecta a cualquier <code>bigint</code>.</strong> Por encima de 2^53 la traza no se entrega, porque la conversion deja de ser exacta y una fila mal senalada es peor que una sin senalar.</li>
+<li>
+<strong>Cuando el motor dice que es permiso, el mensaje lo dice.</strong> <code>dbExistsTable()</code> no distingue una tabla inexistente de una sin permiso, y el mensaje repetia esa duda incluso cuando el motor habia respondido <code>permiso denegado a la relacion</code>. En una corrida real fueron veintitres tablas descritas como inciertas con la respuesta en la mano. El texto del motor se conserva: el diagnostico no reemplaza la evidencia.</li>
+<li>
+<strong>El hallazgo <code>faltantes</code> nombra la senal estructural.</strong> Cuando <code>posible_ausencia_estructural</code> dispara sobre una columna, el <code>faltantes</code> de esa columna dice en su evidencia que existe esa lectura alternativa. <strong>La severidad no se toca</strong>, y eso se decidio con un caso en contra: en una tabla pivoteada la correlacion entre el mes y la columna del ano es real, y un mes sin dato puede ser un hueco genuino. Degradar ahi lo esconderia.</li>
+<li>
+<strong>El objeto declara que las metricas muestreadas no comparten filas.</strong> Estaba en la vineta, y un consumidor automatico lee el objeto. Aparece en <code>meta$muestras_independientes</code> solo en <code>muestreado</code> y <code>aproximado</code>; en los modos que miden sobre la tabla entera no hay nada que advertir.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="leer-un-perfil-sin-conocer-su-forma-y-saber-que-falta-para-cada-motor-0-1-0">Leer un perfil sin conocer su forma, y saber que falta para cada motor<a class="anchor" aria-label="anchor" href="#leer-un-perfil-sin-conocer-su-forma-y-saber-que-falta-para-cada-motor-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/accesores_perfil.html">hallazgos()</a></code>, <code><a href="../reference/accesores_perfil.html">columnas()</a></code>, <code><a href="../reference/accesores_perfil.html">cobertura()</a></code>, <code><a href="../reference/accesores_perfil.html">n_filas()</a></code> y <code><a href="../reference/accesores_perfil.html">sql_perfil()</a></code> leen las cuatro formas de salida del paquete sin depender de como estan armadas. <code>perfil$general$filas</code> funcionaba sobre la salida en memoria y devolvia <code>NULL</code> sobre la salida DBI, donde el conteo vive en <code>resumen_tabla$meta$filas</code>; un <code>NULL</code> silencioso en un guion de medicion no avisa, y lo que sigue calcula sobre nada. <strong>No inventan lo que no hay</strong>: un perfil DBI sin muestra leida devuelve una tabla de hallazgos vacia con su aviso, y <code><a href="../reference/accesores_perfil.html">sql_perfil()</a></code> sobre un perfil en memoria devuelve <code>NULL</code> porque no se emitio SQL.</li>

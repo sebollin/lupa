@@ -334,9 +334,12 @@ aproximado$resumen_tabla$meta$aproximaciones
 
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
 emite las sondas de capacidad y predice el total que costará la corrida.
-La predicción incluye las sondas aunque una forma acertada aparezca
-antes que las demás, porque el costo declarado no puede depender del
-motor.
+Es un **techo**, y lo declara en `attr(plan, "supuesto")`: se cuenta una
+mediana y un desvío por columna numérica, y una columna sin un solo
+valor válido no los emite. Para decidir si una corrida es viable, un
+techo alcanza. La predicción incluye las sondas aunque una forma
+acertada aparezca antes que las demás, porque el costo declarado no
+puede depender del motor.
 
 ### Lo que el muestreo en el motor no puede darte
 

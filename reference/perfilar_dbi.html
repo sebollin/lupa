@@ -68,6 +68,7 @@ exclusivamente a <code>perfil_muestra</code> y su universo es la muestra.</p>
 <span>  max_consultas <span class="op">=</span> <span class="cn">Inf</span>,</span>
 <span>  dialecto <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  incluir_valores <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  tamano_lote <span class="op">=</span> <span class="va">.TAMANO_LOTE_DBI</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -124,6 +125,12 @@ declaran sin sondeo.</p></dd>
 <dt id="arg-incluir-valores">incluir_valores<a class="anchor" aria-label="anchor" href="#arg-incluir-valores"></a></dt>
 <dd><p>Si el resumen informa valores de celda: moda, mínimo,
 máximo y mediana. Con <code>FALSE</code> esas consultas no se emiten.</p></dd>
+
+
+<dt id="arg-tamano-lote">tamano_lote<a class="anchor" aria-label="anchor" href="#arg-tamano-lote"></a></dt>
+<dd><p>Cantidad máxima de columnas por consulta consolidada.
+Veinte mantiene acotado el número de expresiones y se puede reducir para
+motores con límites más estrictos.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -193,11 +200,11 @@ caja, porque hay motores que los pliegan a mayúsculas.</p>
     <h2 id="costo">Costo<a class="anchor" aria-label="anchor" href="#costo"></a></h2>
 
 
-<p>Perfilar 158 columnas con <code>modo = "exacto"</code> emite 778 consultas, y <code>muestra</code>
-acota lo que se trae a R, no el trabajo del motor. <code>modo</code>, <code>metricas</code> y
-<code>max_consultas</code> sí lo acotan, y <code><a href="plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> dice cuántas
-consultas se van a emitir antes de emitirlas. Lo que no entra en el
-presupuesto queda en <code>no_disponible</code> con su motivo, nunca en cero.</p>
+<p>Los agregados de una tabla ancha se emiten por lotes; <code>muestra</code> acota lo que
+se trae a R, no el trabajo del motor. <code>modo</code>, <code>metricas</code>, <code>tamano_lote</code> y
+<code>max_consultas</code> sí lo acotan, y <code><a href="plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> dice cuántas consultas
+se van a emitir antes de emitirlas. Lo que no entra en el presupuesto queda
+en <code>no_disponible</code> con su motivo, nunca en cero.</p>
     </div>
     <div class="section level2">
     <h2 id="datos-personales">Datos personales<a class="anchor" aria-label="anchor" href="#datos-personales"></a></h2>

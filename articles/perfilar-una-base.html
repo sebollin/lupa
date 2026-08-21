@@ -386,9 +386,13 @@ efectivo.</p>
 <span><span class="op">)</span></span>
 <span><span class="va">aproximado</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">aproximaciones</span></span></code></pre></div>
 <p><code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> emite las sondas de capacidad y
-predice el total que costará la corrida. La predicción incluye las
-sondas aunque una forma acertada aparezca antes que las demás, porque el
-costo declarado no puede depender del motor.</p>
+predice el total que costará la corrida. Es un <strong>techo</strong>, y
+lo declara en <code>attr(plan, "supuesto")</code>: se cuenta una mediana
+y un desvío por columna numérica, y una columna sin un solo valor válido
+no los emite. Para decidir si una corrida es viable, un techo alcanza.
+La predicción incluye las sondas aunque una forma acertada aparezca
+antes que las demás, porque el costo declarado no puede depender del
+motor.</p>
 <div class="section level3">
 <h3 id="lo-que-el-muestreo-en-el-motor-no-puede-darte">Lo que el muestreo en el motor no puede darte<a class="anchor" aria-label="anchor" href="#lo-que-el-muestreo-en-el-motor-no-puede-darte"></a>
 </h3>

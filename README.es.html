@@ -243,6 +243,23 @@
 <p>Lo que <strong>no</strong> hace es afirmar que comprobó una biblioteca del sistema que no puede comprobar. Cuando sólo puede decir «el paquete de R no está, y si al instalarlo falla la compilación lo que falta es esto», dice exactamente eso: el invariante del paquete aplicado a su propia instalación.</p>
 </div>
 <div class="section level3">
+<h3 id="una-consulta-por-lote-no-una-por-columna">Una consulta por lote, no una por columna<a class="anchor" aria-label="anchor" href="#una-consulta-por-lote-no-una-por-columna"></a></h3>
+<p>El perfilado emitía <strong>una consulta por columna</strong> para cada bloque de métricas. Sobre una tabla de decenas de millones de filas ése es el costo: no el muestreo, la cantidad de escaneos. Los agregados planos —conteos, mínimo/máximo/media/ ceros/negativos y desvío— se piden ahora para <strong>varias columnas en una sola consulta</strong>, por lotes. La moda y la mediana siguen siendo una por columna, porque agrupan y ordenan.</p>
+<p>Medido contra PostgreSQL 16 con <strong>2 millones de filas por 40 columnas</strong>:</p>
+<table class="table"><thead><tr><th>modo</th>
+<th>antes</th>
+<th>después</th>
+</tr></thead><tbody><tr><td><code>conteos</code></td>
+<td>46 consultas, 5,4 s</td>
+<td><strong>8 consultas, 2,4 s</strong></td>
+</tr><tr><td><code>seguro</code></td>
+<td>128 consultas, 15,2 s</td>
+<td><strong>14 consultas, 5,3 s</strong></td>
+</tr></tbody></table><p>Con las mismas 160 y 400 métricas calculadas, y con los mismos números: sobre una tabla sembrada una sola vez, el perfil consolidado y el anterior coinciden en los dieciséis campos del resumen para seis tipos de columna.</p>
+<p><strong>Si un lote falla, no se pierde el lote.</strong> Se reintenta columna por columna, y lo que igual falle queda <code>no_disponible</code> con su motivo mientras las vecinas se calculan. Una consulta compartida es la forma perfecta de reintroducir el reflejo de todo-o-nada que este paquete corrigió en cinco lugares, así que la degradación se construyó desde el principio y tiene sus propios tests.</p>
+<p><code>resumen_tabla$sql</code> conserva <strong>una fila por columna y métrica</strong> con todos sus campos, y agrega <code>lote</code> y <code>columnas_compartidas</code> para que se vea cuál consulta fue compartida.</p>
+</div>
+<div class="section level3">
 <h3 id="leer-un-perfil-sin-conocer-su-forma">Leer un perfil sin conocer su forma<a class="anchor" aria-label="anchor" href="#leer-un-perfil-sin-conocer-su-forma"></a></h3>
 <p><code><a href="reference/perfilar.html">perfilar()</a></code> devuelve un <code>perfil</code> plano; <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> devuelve un contenedor. Así que <code>perfil$general$filas</code> funcionaba sobre uno y devolvía <code>NULL</code> sobre el otro, donde el conteo vive en <code>resumen_tabla$meta$filas</code>. Un <code>NULL</code> silencioso en un guion de medición es la peor forma de fallar: no avisa, y lo que sigue calcula sobre nada.</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">hallazgos</span>(x)    <span class="fu">columnas</span>(x)    <span class="fu">cobertura</span>(x)    <span class="fu">n_filas</span>(x)    <span class="fu">sql_perfil</span>(x)</span></code></pre></div>
@@ -253,7 +270,8 @@
 <p>Perfilar 158 columnas en <code>modo = "exacto"</code> emite 623 consultas, y 777 de las 778 originales escaneaban la tabla entera. <code>muestra</code> no acota eso: acota lo que se trae a R, no el trabajo del motor. Así que el costo se declara y se elige:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tabla"</span>, modo <span class="op">=</span> <span class="st">"muestreado"</span><span class="op">)</span>   <span class="co"># 5 consultas, predice el resto</span></span></code></pre></div>
-<p>El plan <strong>predice exactamente</strong> cuántas consultas va a emitir el perfilado, en los cinco modos, y esa exactitud es una restricción de diseño: cada sonda de capacidad gasta un número fijo de consultas aunque acierte en la primera forma, porque un costo que dependiera del motor haría que el plan dejara de predecir.</p>
+<p>El plan da un <strong>techo</strong> de cuántas consultas va a emitir el perfilado, y lo dice en <code>attr(plan, "supuesto")</code>. Es exacto siempre que todas las columnas tengan al menos un valor; una columna sin ninguno no emite mediana ni desvío, y el plan no puede saber cuáles están vacías sin preguntarlo, cosa que cambiaría su propio costo.</p>
+<p>Lo que sí es una restricción dura de diseño es que ese techo <strong>no dependa del motor</strong>: cada sonda de capacidad gasta un número fijo de consultas aunque acierte en la primera forma, porque un costo que variara por motor dejaría al usuario adivinando otra vez.</p>
 <table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>modo</th>
 <th>qué hace</th>
 </tr></thead><tbody><tr><td><code>exacto</code></td>

@@ -373,6 +373,34 @@
 <p>What it does <strong>not</strong> do is claim to have checked a system library it cannot check. When it can only say “the R package is missing, and if installing it fails to compile, this is what you need”, it says exactly that — the package’s own invariant applied to its own installation.</p>
 </div>
 <div class="section level3">
+<h3 id="one-query-per-batch-not-one-per-column">One query per batch, not one per column<a class="anchor" aria-label="anchor" href="#one-query-per-batch-not-one-per-column"></a>
+</h3>
+<p>Profiling issued <strong>one query per column</strong> for each block of metrics. On a table of tens of millions of rows that is the cost: not the sampling, the number of scans. The flat aggregates — counts, min/max/mean/zeros/negatives, and standard deviation — are now asked for <strong>several columns in one query</strong>, in batches. Mode and median stay one per column, because they group and sort.</p>
+<p>Measured against PostgreSQL 16 with <strong>2 million rows by 40 columns</strong>:</p>
+<table class="table">
+<thead><tr>
+<th>mode</th>
+<th>before</th>
+<th>after</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>conteos</code></td>
+<td>46 queries, 5.4 s</td>
+<td><strong>8 queries, 2.4 s</strong></td>
+</tr>
+<tr>
+<td><code>seguro</code></td>
+<td>128 queries, 15.2 s</td>
+<td><strong>14 queries, 5.3 s</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Same 160 and 400 metrics computed, and the same numbers: on one table seeded once, the consolidated profile and the previous one agree on all sixteen summary fields across six column types.</p>
+<p><strong>If a batch fails, the batch is not lost.</strong> It is retried column by column, and whatever still fails is left <code>no_disponible</code> with its reason while its neighbours are computed. A shared query is the perfect way to reintroduce the all-or-nothing reflex this package fixed in five places, so the degradation was built first and has its own tests.</p>
+<p><code>resumen_tabla$sql</code> keeps <strong>one row per column and metric</strong> with every field it had, and adds <code>lote</code> and <code>columnas_compartidas</code> so a shared query is visible.</p>
+</div>
+<div class="section level3">
 <h3 id="reading-a-profile-without-knowing-its-shape">Reading a profile without knowing its shape<a class="anchor" aria-label="anchor" href="#reading-a-profile-without-knowing-its-shape"></a>
 </h3>
 <p><code><a href="reference/perfilar.html">perfilar()</a></code> returns a flat <code>perfil</code>; <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> returns a container. So <code>perfil$general$filas</code> worked on one and returned <code>NULL</code> on the other, where the count lives in <code>resumen_tabla$meta$filas</code>. A silent <code>NULL</code> in a measurement script is the worst way to fail: it does not warn, and everything after it computes on nothing.</p>
@@ -385,7 +413,8 @@
 <p>Profiling 158 columns in <code>modo = "exacto"</code> emits 623 queries, and 777 of the original 778 scanned the whole table. <code>muestra</code> does not bound that: it bounds what is brought into R, not the work the engine does. So the cost is declared and chosen:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tabla"</span>, modo <span class="op">=</span> <span class="st">"muestreado"</span><span class="op">)</span>   <span class="co"># 5 queries, predicts the rest</span></span></code></pre></div>
-<p>The plan <strong>predicts exactly</strong> how many queries the profiling will emit, in all five modes, and that exactness is a design constraint: every capability probe costs a fixed number of queries even when it succeeds on the first form, because a cost that depends on the engine would make the plan stop predicting.</p>
+<p>The plan gives a <strong>ceiling</strong> on how many queries the profiling will emit, and it says so in <code>attr(plan, "supuesto")</code>. It is exact whenever every column has at least one value; a column with none emits neither median nor standard deviation, and the plan cannot know which ones are empty without asking — which would change its own cost.</p>
+<p>The part that <em>is</em> a hard design constraint is that the ceiling does not depend on the engine: every capability probe costs a fixed number of queries even when it succeeds on the first form, because a cost that varied by engine would leave the user guessing again.</p>
 <table class="table">
 <colgroup>
 <col width="50%">

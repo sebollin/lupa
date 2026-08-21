@@ -2,9 +2,9 @@
 
 Emite sólo las consultas-portón —contar filas, leer el esquema y sondear
 el dialecto— y devuelve cuántas consultas emitiría el perfilado
-completo, de qué clase y con qué alcance sobre la tabla. Con 158
-columnas el perfilado por omisión emite 778 consultas; saberlo antes es
-la diferencia entre una herramienta y una sorpresa.
+completo, de qué clase y con qué alcance sobre la tabla. El plan hace
+visible cuántos lotes de agregados se emitirán antes de empezar y evita
+una sorpresa de costo.
 
 ## Usage
 
@@ -18,7 +18,8 @@ plan_perfilado_dbi(
   metricas = NULL,
   max_consultas = Inf,
   dialecto = "auto",
-  incluir_valores = TRUE
+  incluir_valores = TRUE,
+  tamano_lote = .TAMANO_LOTE_DBI
 )
 ```
 
@@ -74,11 +75,17 @@ plan_perfilado_dbi(
   Si el resumen informa valores de celda: moda, mínimo, máximo y
   mediana. Con `FALSE` esas consultas no se emiten.
 
+- tamano_lote:
+
+  Cantidad máxima de columnas por consulta consolidada. Veinte mantiene
+  acotado el número de expresiones y se puede reducir para motores con
+  límites más estrictos.
+
 ## Value
 
 Data frame con `clase_consulta`, `n_consultas` y `alcance`, y los
 atributos `total`, `columnas`, `columnas_numericas`, `dialecto`,
-`consultas_emitidas` y `metricas`.
+`consultas_emitidas`, `metricas` y `tamano_lote`.
 
 ## See also
 
