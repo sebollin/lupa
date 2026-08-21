@@ -83,9 +83,20 @@ plan_perfilado_dbi(
 
 ## Value
 
-Data frame con `clase_consulta`, `n_consultas` y `alcance`, y los
-atributos `total`, `columnas`, `columnas_numericas`, `dialecto`,
-`consultas_emitidas`, `metricas` y `tamano_lote`.
+Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
+`n_consultas` y `alcance`, y los atributos `total`, `columnas`,
+`columnas_numericas`, `dialecto`, `consultas_emitidas`, `metricas`,
+`filas` y `tamano_lote`.
+
+Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
+sobre dos millones de filas son mucho más trabajo que doscientas sobre
+mil. Por eso el plan estima además la magnitud, en los atributos
+`filas_leidas` (cuántas filas habría que leer), `ordenaciones_completas`
+(cuántas veces habría que ordenar la tabla entera), `magnitud`
+—`"baja"`, `"media"`, `"alta"` o `"desconocida"` si no se conoce el
+número de filas— y `supuesto_costo`, que dice de dónde sale la cuenta.
+El método de impresión avisa cuando la magnitud es alta y nombra las
+palancas para acotarla.
 
 ## See also
 

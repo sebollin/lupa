@@ -303,6 +303,21 @@ warning**, and
 on an in-memory profile returns `NULL`, because a table with no rows
 would suggest SQL was issued and found nothing.
 
+### A budget measures work, it does not count units
+
+A cap that counts units treats a column of ten-character codes and one
+of thousand-character WKT alike. A table in the PostGIS catalogue —
+3,912 rows — took 243 seconds, and the vocabulary detector was 99.6% of
+it: 800 distinct values are 319,600 pairs, well under the two-million
+cap, but each comparison was a Jaro-Winkler over 900 characters.
+
+The budget is now measured in **character comparisons**, the inner loop
+of the distance. Calibrated against measurement, the pathological column
+drops from 61.3 s to 4.6 s, while an ordinary column of two thousand
+values is still compared in full. What does get trimmed is declared: how
+many normalised forms went uncompared, how much work that was, and which
+cap did the trimming.
+
 ### Cost is planned before it is paid
 
 Profiling 158 columns in `modo = "exacto"` emits 623 queries, and 777 of
@@ -325,6 +340,16 @@ The part that *is* a hard design constraint is that the ceiling does not
 depend on the engine: every capability probe costs a fixed number of
 queries even when it succeeds on the first form, because a cost that
 varied by engine would leave the user guessing again.
+
+But counting queries does not answer the question the reader actually
+brings: fourteen queries over two million rows are far more work than
+two hundred over a thousand. So the plan also estimates **magnitude**,
+in two numbers that are real counts — `filas_leidas` and
+`ordenaciones_completas` — and printing it warns when the work is high,
+naming the levers that bound it. It is an estimate and says so: it
+counts the rows that would have to be read if no index helped. The two
+published numbers do not depend on that assumption, so anyone who
+disagrees with it can redo the arithmetic.
 
 | mode | what it does |
 |----|----|

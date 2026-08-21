@@ -2,6 +2,187 @@
 
 ## lupa 0.1.0
 
+### Presupuestos que miden trabajo, no que cuentan unidades
+
+Una tabla del catalogo de PostGIS —`spatial_ref_sys`, **3.912 filas y 5
+columnas**— tardaba **243 segundos**. No era la geometria: eran cadenas
+largas, WKT de proyecciones, y el detector de vocabulario se llevaba el
+99,6 % del costo. Tenia dos topes, `max_valores = 5000` y
+`max_pares = 2000000`, y **ninguno de los dos miraba cuanto costaba cada
+unidad**: 800 valores son 319.600 pares, muy por debajo del tope, pero
+cada comparacion era una Jaro-Winkler sobre 900 caracteres.
+
+- La unidad del presupuesto es ahora la **comparacion de un caracter
+  contra otro**, que es el bucle interno de la distancia: comparar dos
+  valores de largos L1 y L2 cuesta del orden de `L1 x L2`. La suma sobre
+  todos los pares de un prefijo sale **exacta y en tiempo lineal**, sin
+  materializar la matriz.
+
+- Contar pares por largo medio no alcanzaba. Medido, ese modelo compraba
+  **5,3 millones de unidades por segundo con valores de 900 caracteres y
+  44 millones con valores de 40**: ocho veces de diferencia es no tener
+  modelo. Con el producto de largos la dispersion baja a 4,25 veces, y
+  lo que queda es a favor de las columnas de valores cortos, que son el
+  caso comun.
+
+- `max_trabajo_vocabulario` vale `2e10` por omision, calibrado contra la
+  medicion y no contra la intuicion:
+
+  | valores | largo | sin tope | con tope  | comparado |
+  |---------|-------|----------|-----------|-----------|
+  | 400     | 900   | 15,1 s   | **4,3 s** | 55,5 %    |
+  | 500     | 900   | 23,0 s   | **4,3 s** | 44,4 %    |
+  | 800     | 900   | 61,3 s   | **4,6 s** | 27,8 %    |
+  | 2000    | 80    | 5,0 s    | 5,1 s     | **100 %** |
+
+  El ultimo renglon es el que importa tanto como el tercero: **una
+  columna corriente de dos mil valores no se recorta**. Tampoco 500x20
+  ni 1000x30. El riesgo del arreglo era romper el caso comun para
+  arreglar el patologico.
+
+- Una aclaracion que hay que hacer, porque la primera version de esta
+  nota afirmaba de mas: **3000x20 si se recorta**, pero no por el
+  presupuesto nuevo sino por `max_pares`, el tope viejo, que acota en
+  2.000 formas sin mirar el largo. Sigue puesto porque acota la memoria
+  de la matriz de pares. El recorte se declara con su motivo, asi que no
+  se pierde en silencio, pero decir “no se recorta” era falso. Salio de
+  que el banco apagaba `max_pares` para aislar el efecto del tope nuevo
+  y despues se leyo esa medicion como si fuera lo que recibe un usuario.
+  El banco separa ahora las dos cosas.
+
+- Lo recortado **se declara**, con las dos cuentas separadas: cuantas
+  formas normalizadas quedaron sin comparar y cuanto trabajo era, en el
+  alcance del hallazgo y en `cobertura_diagnosticos`, junto con cual de
+  los dos topes recorto. Si aprietan los dos, el motivo los nombra a los
+  dos: el usuario tiene que poder elegir cual aflojar.
+
+- El recorte toma las **primeras formas en aparecer**, no una muestra, y
+  ahora lo dice. Con los mismos 300 valores y el mismo presupuesto,
+  poniendo primero los largos entran 8 formas y poniendo primero los
+  cortos entran 150: sobre una tabla ordenada lo que queda afuera es un
+  tramo del orden. Decir cuantas quedaron sin comparar y callar cuales
+  dejaba suponer un muestreo que no hubo.
+
+- [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
+  gana `max_trabajo`, en unidades **fila-par**, porque ahi el costo es
+  del orden de `columnas^2 x filas` y `max_comparaciones` no lo veia:
+  158 columnas son 24.806 pares, muy por debajo de las 200.000 del tope.
+  Se combina con `max_comparaciones` y manda el mas restrictivo.
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  lo expone como `max_trabajo_dependencias`.
+
+### Un plan que dice cuanto cuesta, no solo cuantas consultas son
+
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+contaba consultas, y contar consultas no responde la pregunta que trae
+quien lo mira: si la corrida tarda segundos, minutos u horas. Catorce
+consultas sobre dos millones de filas son mucho mas trabajo que
+doscientas sobre mil.
+
+- El plan estima ahora la **magnitud** en dos numeros que son cuentas de
+  verdad y no un indice inventado: `filas_leidas` —cuantas filas habria
+  que leer— y `ordenaciones_completas` —cuantas veces habria que ordenar
+  la tabla entera—. De ahi sale `magnitud`: `"baja"`, `"media"`,
+  `"alta"`, o `"desconocida"` si no se conoce el numero de filas. El
+  peso de cada clase de consulta sale de su `alcance`, que ya venia
+  declarado.
+
+- Al imprimirlo, un trabajo alto viene con las **palancas concretas**
+  para acotarlo —`modo = "muestreado"`, recortar `metricas`, bajar
+  `muestra`, `max_consultas`—. Avisar que algo es grande sin decir que
+  hacer no le sirve a nadie.
+
+- Es una estimacion y lo dice en `supuesto_costo`: cuenta las filas que
+  habria que leer **si ningun indice ayudara**, y cada ordenacion
+  completa como `log2(filas)` pasadas. Los dos numeros publicados no
+  dependen de ese supuesto, asi que quien no lo comparta puede rehacer
+  la cuenta. La referencia esta medida: PostgreSQL 16 local, 2 millones
+  de filas por 40 columnas en modo seguro, 14 consultas y 5,3 segundos.
+
+- Sobre la forma que se midio contra PostgreSQL 16 —2 millones de filas
+  por 40 columnas—, la clasificacion cae donde tiene que caer, y el
+  ultimo renglon es la razon de ser de todo esto:
+
+  | modo         | consultas | lecturas de fila | ordenaciones | magnitud |
+  |--------------|-----------|------------------|--------------|----------|
+  | `conteos`    | 8         | 6.001.000        | 0            | baja     |
+  | `seguro`     | 14        | 26.001.000       | 0            | media    |
+  | `exacto`     | 94        | 186.001.000      | 80           | alta     |
+  | `muestreado` | 94        | 2.445.000        | 0            | **baja** |
+
+  Las mismas **94 consultas** son «alta» en `exacto` y «baja» en
+  `muestreado`: el conteo es identico y el trabajo difiere por setenta y
+  seis veces. Contar consultas no podia distinguirlos. Y los conteos de
+  `conteos` y `seguro` son los mismos 8 y 14 que se cronometraron en 2,4
+  y 5,3 segundos.
+
+- Si aparece una clase de consulta cuyo alcance no tiene peso declarado,
+  la magnitud queda **`"desconocida"`** en vez de estimarse de menos en
+  silencio.
+
+- Sobre una tabla chica los parrafos de supuestos no se imprimen: tapan
+  la respuesta en vez de matizarla. Siguen en los atributos, y la
+  palabra «techo» viaja con el conteo en todos los casos.
+
+### Una columna que el controlador no sabe traer ya no se lleva la muestra entera
+
+Hay columnas que muchos controladores no pueden devolver en una lectura
+corriente: `TEXT` y `NTEXT` en SQL Server, `CLOB` y `BLOB` en Oracle,
+`bytea` en PostgreSQL. Pedirlas junto con el resto hace fallar la
+consulta completa, y con ella se perdia toda la muestra. En una de las
+tablas de la corrida real, 90 de 158 columnas eran de esos tipos.
+
+- Cuando la lectura de la muestra falla y hay columnas declaradas con
+  esos tipos, se **reintenta sin ellas**. La muestra vuelve con las
+  columnas que si se pudieron leer, en vez de no volver.
+- Lo que quedo afuera se declara: `resumen_tabla$cobertura` gana una
+  fila `alcance_distinto` que nombra las columnas omitidas y **conserva
+  el motivo textual del motor**, mas la via para incluirlas
+  —convertirlas a texto acotado en una vista y perfilar la vista—.
+- El aviso cuenta la **secuencia y no atribuye la causa**. El reintento
+  salta ante cualquier fallo de lectura habiendo columnas de esos tipos
+  declaradas; que ellas sean el motivo es lo probable, no lo comprobado,
+  y un corte de red que se recupera en el segundo intento daria el mismo
+  camino. Decir “el controlador las rechazo” seria informar como sabido
+  algo que no se midio.
+- El resumen por columna las cubre igual, porque esos agregados se
+  calculan en el motor. Lo que falta es su perfil por fila, y eso es lo
+  que dice la cobertura.
+- **`meta` tambien se corrige, y esto lo encontro la refutacion.** El
+  bloque de metadatos del muestreo se arma antes de leer, asi que
+  quedaba congelado con la lectura que fallo: `columnas_leidas`
+  declaraba haber leido justamente la columna que no se pudo leer, y
+  `sql_muestra` publicaba la consulta original en vez de la que de
+  verdad se emitio. La cobertura decia la verdad y `meta` decia otra
+  cosa, que es informar como medido lo que no se midio, en el lugar
+  donde se mira para saber que se hizo. Ahora `meta` trae las columnas
+  que realmente se leyeron, el SQL del reintento, y ademas
+  `columnas_omitidas` con su motivo.
+- El reintento es **portable**: no emite conversiones propias de un
+  motor, solo vuelve a pedir la consulta sin las columnas rechazadas. Un
+  `CAST` distinto por dialecto habria sido otra superficie que mantener
+  y probar contra cada motor.
+
+### Un mensaje que se leia mal
+
+El aviso de acciones destructivas de `plan_limpieza` mostraba
+`p\u00e9rdida` en pantalla: la cadena tenia la barra invertida
+duplicada, asi que el escape nunca se resolvia. Es un error que no ve
+nadie —el paquete instala, la suite pasa y `R CMD check` no protesta,
+porque la cadena es ASCII perfectamente valida— y solo se nota leyendo
+el mensaje. Hay ahora un barrido que recorre los literales de cadena del
+espacio de nombres y falla si alguno lleva un escape sin resolver. Era
+el unico caso en el paquete.
+
+La primera version del barrido miraba solo el cuerpo de cada funcion, y
+la refutacion mostro que eso dejaba fuera dos sitios donde de verdad
+viven mensajes: los **valores por omision de los argumentos** y los
+**atributos**. Ahora los recorre. Lo que sigue sin ver es una constante
+capturada por closure desde un ambito local, y eso queda dicho en el
+propio test en vez de suponerse cubierto: en `lupa` no es un agujero,
+porque las constantes del paquete son enlaces del espacio de nombres y
+el barrido las recorre una por una.
+
 ### El costo a escala: de una consulta por columna a una por lote
 
 La segunda corrida contra bases reales dejo una sola reserva seria, y

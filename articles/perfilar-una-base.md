@@ -237,6 +237,23 @@ dominantes excluidos por superar `umbral_patron_raro`; si el dominante
 no alcanza `umbral_patron_dominante`, la no medición queda en
 `cobertura_diagnosticos`.
 
+Algunos controladores no saben traer ciertas columnas en una lectura
+corriente —`TEXT` y `NTEXT` en SQL Server, `CLOB` y `BLOB` en Oracle,
+`bytea` en PostgreSQL— y responden con un error al pedirlas junto con el
+resto. Una sola columna así se llevaba puesta la muestra entera. Ahora,
+cuando la lectura falla y hay columnas declaradas con esos tipos, se
+reintenta **sin ellas**: la muestra vuelve con las columnas que sí se
+pudieron leer, y `resumen_tabla$cobertura` gana una fila
+`alcance_distinto` que nombra las que quedaron afuera y conserva el
+motivo textual del motor. El aviso cuenta la **secuencia** y no atribuye
+la causa: el reintento salta ante cualquier fallo de lectura habiendo
+columnas de esos tipos declaradas, y que ellas sean el motivo es lo
+probable, no lo medido —un corte de red que se recupera en el segundo
+intento daría el mismo camino—. El resumen por columna las cubre igual,
+porque los agregados se calculan en el motor; lo que falta es su perfil
+por fila. Para incluirlas, conviene convertirlas a texto acotado en una
+vista y perfilar la vista.
+
 ## El muestreo declarado
 
 `muestra = 5` declara las filas pedidas. La metadata registra además las
@@ -340,6 +357,26 @@ valor válido no los emite. Para decidir si una corrida es viable, un
 techo alcanza. La predicción incluye las sondas aunque una forma
 acertada aparezca antes que las demás, porque el costo declarado no
 puede depender del motor.
+
+Ahora bien, **cuántas consultas se emiten no dice cuánto cuestan**:
+catorce consultas sobre dos millones de filas son mucho más trabajo que
+doscientas sobre mil, y quien mira el plan quiere saber si esto tarda
+segundos, minutos u horas. Por eso el plan estima además la magnitud, en
+dos números que son cuentas de verdad y no un índice inventado:
+`filas_leidas`, cuántas filas habría que leer, y
+`ordenaciones_completas`, cuántas veces habría que ordenar la tabla
+entera. De ahí sale `magnitud` —`"baja"`, `"media"`, `"alta"`, o
+`"desconocida"` si no se conoce el número de filas—, y al imprimir el
+plan el aviso de magnitud alta viene con las palancas concretas para
+acotarla: `modo = "muestreado"`, recortar `metricas`, bajar `muestra` o
+poner `max_consultas`.
+
+Es una estimación y lo dice en `attr(plan, "supuesto_costo")`: cuenta
+las filas que habría que leer **si ningún índice ayudara**, y cada
+ordenación completa como `log2(filas)` pasadas. Un índice sobre la
+columna ordenada, o una tabla que entra en la memoria del motor, la
+bajan mucho. Los dos números publicados no dependen de ese supuesto, así
+que quien no lo comparta puede rehacer la cuenta.
 
 ### Lo que el muestreo en el motor no puede darte
 

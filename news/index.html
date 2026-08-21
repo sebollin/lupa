@@ -42,6 +42,99 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="presupuestos-que-miden-trabajo-no-que-cuentan-unidades-0-1-0">Presupuestos que miden trabajo, no que cuentan unidades<a class="anchor" aria-label="anchor" href="#presupuestos-que-miden-trabajo-no-que-cuentan-unidades-0-1-0"></a></h3>
+<p>Una tabla del catalogo de PostGIS —<code>spatial_ref_sys</code>, <strong>3.912 filas y 5 columnas</strong>— tardaba <strong>243 segundos</strong>. No era la geometria: eran cadenas largas, WKT de proyecciones, y el detector de vocabulario se llevaba el 99,6 % del costo. Tenia dos topes, <code>max_valores = 5000</code> y <code>max_pares = 2000000</code>, y <strong>ninguno de los dos miraba cuanto costaba cada unidad</strong>: 800 valores son 319.600 pares, muy por debajo del tope, pero cada comparacion era una Jaro-Winkler sobre 900 caracteres.</p>
+<ul><li><p>La unidad del presupuesto es ahora la <strong>comparacion de un caracter contra otro</strong>, que es el bucle interno de la distancia: comparar dos valores de largos L1 y L2 cuesta del orden de <code>L1 x L2</code>. La suma sobre todos los pares de un prefijo sale <strong>exacta y en tiempo lineal</strong>, sin materializar la matriz.</p></li>
+<li><p>Contar pares por largo medio no alcanzaba. Medido, ese modelo compraba <strong>5,3 millones de unidades por segundo con valores de 900 caracteres y 44 millones con valores de 40</strong>: ocho veces de diferencia es no tener modelo. Con el producto de largos la dispersion baja a 4,25 veces, y lo que queda es a favor de las columnas de valores cortos, que son el caso comun.</p></li>
+<li>
+<p><code>max_trabajo_vocabulario</code> vale <code>2e10</code> por omision, calibrado contra la medicion y no contra la intuicion:</p>
+<table class="table"><thead><tr><th>valores</th>
+<th>largo</th>
+<th>sin tope</th>
+<th>con tope</th>
+<th>comparado</th>
+</tr></thead><tbody><tr><td>400</td>
+<td>900</td>
+<td>15,1 s</td>
+<td><strong>4,3 s</strong></td>
+<td>55,5 %</td>
+</tr><tr><td>500</td>
+<td>900</td>
+<td>23,0 s</td>
+<td><strong>4,3 s</strong></td>
+<td>44,4 %</td>
+</tr><tr><td>800</td>
+<td>900</td>
+<td>61,3 s</td>
+<td><strong>4,6 s</strong></td>
+<td>27,8 %</td>
+</tr><tr><td>2000</td>
+<td>80</td>
+<td>5,0 s</td>
+<td>5,1 s</td>
+<td><strong>100 %</strong></td>
+</tr></tbody></table><p>El ultimo renglon es el que importa tanto como el tercero: <strong>una columna corriente de dos mil valores no se recorta</strong>. Tampoco 500x20 ni 1000x30. El riesgo del arreglo era romper el caso comun para arreglar el patologico.</p>
+</li>
+<li><p>Una aclaracion que hay que hacer, porque la primera version de esta nota afirmaba de mas: <strong>3000x20 si se recorta</strong>, pero no por el presupuesto nuevo sino por <code>max_pares</code>, el tope viejo, que acota en 2.000 formas sin mirar el largo. Sigue puesto porque acota la memoria de la matriz de pares. El recorte se declara con su motivo, asi que no se pierde en silencio, pero decir “no se recorta” era falso. Salio de que el banco apagaba <code>max_pares</code> para aislar el efecto del tope nuevo y despues se leyo esa medicion como si fuera lo que recibe un usuario. El banco separa ahora las dos cosas.</p></li>
+<li><p>Lo recortado <strong>se declara</strong>, con las dos cuentas separadas: cuantas formas normalizadas quedaron sin comparar y cuanto trabajo era, en el alcance del hallazgo y en <code>cobertura_diagnosticos</code>, junto con cual de los dos topes recorto. Si aprietan los dos, el motivo los nombra a los dos: el usuario tiene que poder elegir cual aflojar.</p></li>
+<li><p>El recorte toma las <strong>primeras formas en aparecer</strong>, no una muestra, y ahora lo dice. Con los mismos 300 valores y el mismo presupuesto, poniendo primero los largos entran 8 formas y poniendo primero los cortos entran 150: sobre una tabla ordenada lo que queda afuera es un tramo del orden. Decir cuantas quedaron sin comparar y callar cuales dejaba suponer un muestreo que no hubo.</p></li>
+<li><p><code><a href="../reference/detectar_dependencias.html">detectar_dependencias()</a></code> gana <code>max_trabajo</code>, en unidades <strong>fila-par</strong>, porque ahi el costo es del orden de <code>columnas^2 x filas</code> y <code>max_comparaciones</code> no lo veia: 158 columnas son 24.806 pares, muy por debajo de las 200.000 del tope. Se combina con <code>max_comparaciones</code> y manda el mas restrictivo. <code><a href="../reference/perfilar.html">perfilar()</a></code> lo expone como <code>max_trabajo_dependencias</code>.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="un-plan-que-dice-cuanto-cuesta-no-solo-cuantas-consultas-son-0-1-0">Un plan que dice cuanto cuesta, no solo cuantas consultas son<a class="anchor" aria-label="anchor" href="#un-plan-que-dice-cuanto-cuesta-no-solo-cuantas-consultas-son-0-1-0"></a></h3>
+<p><code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> contaba consultas, y contar consultas no responde la pregunta que trae quien lo mira: si la corrida tarda segundos, minutos u horas. Catorce consultas sobre dos millones de filas son mucho mas trabajo que doscientas sobre mil.</p>
+<ul><li><p>El plan estima ahora la <strong>magnitud</strong> en dos numeros que son cuentas de verdad y no un indice inventado: <code>filas_leidas</code> —cuantas filas habria que leer— y <code>ordenaciones_completas</code> —cuantas veces habria que ordenar la tabla entera—. De ahi sale <code>magnitud</code>: <code>"baja"</code>, <code>"media"</code>, <code>"alta"</code>, o <code>"desconocida"</code> si no se conoce el numero de filas. El peso de cada clase de consulta sale de su <code>alcance</code>, que ya venia declarado.</p></li>
+<li><p>Al imprimirlo, un trabajo alto viene con las <strong>palancas concretas</strong> para acotarlo —<code>modo = "muestreado"</code>, recortar <code>metricas</code>, bajar <code>muestra</code>, <code>max_consultas</code>—. Avisar que algo es grande sin decir que hacer no le sirve a nadie.</p></li>
+<li><p>Es una estimacion y lo dice en <code>supuesto_costo</code>: cuenta las filas que habria que leer <strong>si ningun indice ayudara</strong>, y cada ordenacion completa como <code>log2(filas)</code> pasadas. Los dos numeros publicados no dependen de ese supuesto, asi que quien no lo comparta puede rehacer la cuenta. La referencia esta medida: PostgreSQL 16 local, 2 millones de filas por 40 columnas en modo seguro, 14 consultas y 5,3 segundos.</p></li>
+<li>
+<p>Sobre la forma que se midio contra PostgreSQL 16 —2 millones de filas por 40 columnas—, la clasificacion cae donde tiene que caer, y el ultimo renglon es la razon de ser de todo esto:</p>
+<table class="table"><thead><tr><th>modo</th>
+<th>consultas</th>
+<th>lecturas de fila</th>
+<th>ordenaciones</th>
+<th>magnitud</th>
+</tr></thead><tbody><tr><td><code>conteos</code></td>
+<td>8</td>
+<td>6.001.000</td>
+<td>0</td>
+<td>baja</td>
+</tr><tr><td><code>seguro</code></td>
+<td>14</td>
+<td>26.001.000</td>
+<td>0</td>
+<td>media</td>
+</tr><tr><td><code>exacto</code></td>
+<td>94</td>
+<td>186.001.000</td>
+<td>80</td>
+<td>alta</td>
+</tr><tr><td><code>muestreado</code></td>
+<td>94</td>
+<td>2.445.000</td>
+<td>0</td>
+<td><strong>baja</strong></td>
+</tr></tbody></table><p>Las mismas <strong>94 consultas</strong> son «alta» en <code>exacto</code> y «baja» en <code>muestreado</code>: el conteo es identico y el trabajo difiere por setenta y seis veces. Contar consultas no podia distinguirlos. Y los conteos de <code>conteos</code> y <code>seguro</code> son los mismos 8 y 14 que se cronometraron en 2,4 y 5,3 segundos.</p>
+</li>
+<li><p>Si aparece una clase de consulta cuyo alcance no tiene peso declarado, la magnitud queda <strong><code>"desconocida"</code></strong> en vez de estimarse de menos en silencio.</p></li>
+<li><p>Sobre una tabla chica los parrafos de supuestos no se imprimen: tapan la respuesta en vez de matizarla. Siguen en los atributos, y la palabra «techo» viaja con el conteo en todos los casos.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="una-columna-que-el-controlador-no-sabe-traer-ya-no-se-lleva-la-muestra-entera-0-1-0">Una columna que el controlador no sabe traer ya no se lleva la muestra entera<a class="anchor" aria-label="anchor" href="#una-columna-que-el-controlador-no-sabe-traer-ya-no-se-lleva-la-muestra-entera-0-1-0"></a></h3>
+<p>Hay columnas que muchos controladores no pueden devolver en una lectura corriente: <code>TEXT</code> y <code>NTEXT</code> en SQL Server, <code>CLOB</code> y <code>BLOB</code> en Oracle, <code>bytea</code> en PostgreSQL. Pedirlas junto con el resto hace fallar la consulta completa, y con ella se perdia toda la muestra. En una de las tablas de la corrida real, 90 de 158 columnas eran de esos tipos.</p>
+<ul><li>Cuando la lectura de la muestra falla y hay columnas declaradas con esos tipos, se <strong>reintenta sin ellas</strong>. La muestra vuelve con las columnas que si se pudieron leer, en vez de no volver.</li>
+<li>Lo que quedo afuera se declara: <code>resumen_tabla$cobertura</code> gana una fila <code>alcance_distinto</code> que nombra las columnas omitidas y <strong>conserva el motivo textual del motor</strong>, mas la via para incluirlas —convertirlas a texto acotado en una vista y perfilar la vista—.</li>
+<li>El aviso cuenta la <strong>secuencia y no atribuye la causa</strong>. El reintento salta ante cualquier fallo de lectura habiendo columnas de esos tipos declaradas; que ellas sean el motivo es lo probable, no lo comprobado, y un corte de red que se recupera en el segundo intento daria el mismo camino. Decir “el controlador las rechazo” seria informar como sabido algo que no se midio.</li>
+<li>El resumen por columna las cubre igual, porque esos agregados se calculan en el motor. Lo que falta es su perfil por fila, y eso es lo que dice la cobertura.</li>
+<li>
+<strong><code>meta</code> tambien se corrige, y esto lo encontro la refutacion.</strong> El bloque de metadatos del muestreo se arma antes de leer, asi que quedaba congelado con la lectura que fallo: <code>columnas_leidas</code> declaraba haber leido justamente la columna que no se pudo leer, y <code>sql_muestra</code> publicaba la consulta original en vez de la que de verdad se emitio. La cobertura decia la verdad y <code>meta</code> decia otra cosa, que es informar como medido lo que no se midio, en el lugar donde se mira para saber que se hizo. Ahora <code>meta</code> trae las columnas que realmente se leyeron, el SQL del reintento, y ademas <code>columnas_omitidas</code> con su motivo.</li>
+<li>El reintento es <strong>portable</strong>: no emite conversiones propias de un motor, solo vuelve a pedir la consulta sin las columnas rechazadas. Un <code>CAST</code> distinto por dialecto habria sido otra superficie que mantener y probar contra cada motor.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="un-mensaje-que-se-leia-mal-0-1-0">Un mensaje que se leia mal<a class="anchor" aria-label="anchor" href="#un-mensaje-que-se-leia-mal-0-1-0"></a></h3>
+<p>El aviso de acciones destructivas de <code>plan_limpieza</code> mostraba <code>p\u00e9rdida</code> en pantalla: la cadena tenia la barra invertida duplicada, asi que el escape nunca se resolvia. Es un error que no ve nadie —el paquete instala, la suite pasa y <code>R CMD check</code> no protesta, porque la cadena es ASCII perfectamente valida— y solo se nota leyendo el mensaje. Hay ahora un barrido que recorre los literales de cadena del espacio de nombres y falla si alguno lleva un escape sin resolver. Era el unico caso en el paquete.</p>
+<p>La primera version del barrido miraba solo el cuerpo de cada funcion, y la refutacion mostro que eso dejaba fuera dos sitios donde de verdad viven mensajes: los <strong>valores por omision de los argumentos</strong> y los <strong>atributos</strong>. Ahora los recorre. Lo que sigue sin ver es una constante capturada por closure desde un ambito local, y eso queda dicho en el propio test en vez de suponerse cubierto: en <code>lupa</code> no es un agujero, porque las constantes del paquete son enlaces del espacio de nombres y el barrido las recorre una por una.</p>
+</div>
+<div class="section level3">
 <h3 id="el-costo-a-escala-de-una-consulta-por-columna-a-una-por-lote-0-1-0">El costo a escala: de una consulta por columna a una por lote<a class="anchor" aria-label="anchor" href="#el-costo-a-escala-de-una-consulta-por-columna-a-una-por-lote-0-1-0"></a></h3>
 <p>La segunda corrida contra bases reales dejo una sola reserva seria, y era esta: una tabla de decenas de millones de filas no terminaba de perfilarse ni en <code>modo = "muestreado"</code>. La causa no era el muestreo sino la cantidad de escaneos: el paquete emitia <strong>una consulta por columna</strong> para cada bloque de metricas.</p>
 <ul><li><p>Los agregados planos —conteos, minimo/maximo/media/ceros/negativos, y desvio— se piden ahora para <strong>varias columnas en una sola consulta</strong>, por lotes. La moda y la mediana siguen siendo una por columna, porque agrupan y ordenan.</p></li>

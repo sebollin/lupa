@@ -131,9 +131,19 @@ motores con límites más estrictos.</p></dd>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Data frame con <code>clase_consulta</code>, <code>n_consultas</code> y <code>alcance</code>, y los
-atributos <code>total</code>, <code>columnas</code>, <code>columnas_numericas</code>, <code>dialecto</code>,
-<code>consultas_emitidas</code>, <code>metricas</code> y <code>tamano_lote</code>.</p>
+    <p>Data frame de clase <code>plan_perfilado_dbi</code> con <code>clase_consulta</code>,
+<code>n_consultas</code> y <code>alcance</code>, y los atributos <code>total</code>, <code>columnas</code>,
+<code>columnas_numericas</code>, <code>dialecto</code>, <code>consultas_emitidas</code>, <code>metricas</code>,
+<code>filas</code> y <code>tamano_lote</code>.</p>
+<p>Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
+sobre dos millones de filas son mucho más trabajo que doscientas sobre
+mil. Por eso el plan estima además la magnitud, en los atributos
+<code>filas_leidas</code> (cuántas filas habría que leer), <code>ordenaciones_completas</code>
+(cuántas veces habría que ordenar la tabla entera), <code>magnitud</code> —<code>"baja"</code>,
+<code>"media"</code>, <code>"alta"</code> o <code>"desconocida"</code> si no se conoce el número de
+filas— y <code>supuesto_costo</code>, que dice de dónde sale la cuenta. El método de
+impresión avisa cuando la magnitud es alta y nombra las palancas para
+acotarla.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

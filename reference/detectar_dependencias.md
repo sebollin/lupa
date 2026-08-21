@@ -19,7 +19,8 @@ detectar_dependencias(
   incluir_claves = FALSE,
   min_observaciones = 10L,
   max_ejemplos = 5L,
-  max_comparaciones = 200000L
+  max_comparaciones = 200000L,
+  max_trabajo = 1e+08
 )
 ```
 
@@ -69,6 +70,12 @@ detectar_dependencias(
   Máximo de pares determinante-dependiente que se comparan. `Inf`
   desactiva el presupuesto.
 
+- max_trabajo:
+
+  Máximo de unidades fila-par estimadas. `Inf` desactiva el presupuesto
+  que escala con las filas; se combina con `max_comparaciones` y se
+  aplica el límite más restrictivo.
+
 ## Value
 
 Data frame de clase `dependencias_funcionales`, ordenado por
@@ -76,8 +83,11 @@ cumplimiento y soporte. Los atributos `muestreado`, `filas_analizadas`,
 `columnas_analizadas`, `columnas_omitidas`, `columnas_descartadas` y
 `truncado` documentan el alcance efectivo. `n_pares_posibles`,
 `n_pares_comparados`, `n_pares_sin_comparar` y `max_comparaciones`
-documentan el presupuesto de comparaciones. `columnas_descartadas` es un
-data frame que explica por qué una columna no se usó como determinante.
+documentan el presupuesto de comparaciones. `trabajo_estimado`,
+`trabajo_comparado`, `trabajo_sin_comparar`, `unidad_trabajo` y
+`max_trabajo` documentan el presupuesto por filas.
+`columnas_descartadas` es un data frame que explica por qué una columna
+no se usó como determinante.
 
 ## Details
 
@@ -97,7 +107,10 @@ El costo crece aproximadamente como `columnas^2 * filas`. `max_columnas`
 conserva las primeras columnas analizables, `max_comparaciones` limita
 el número de pares columna a columna y `muestra` aplica una única
 muestra sistemática a toda la tabla, de modo que las relaciones entre
-filas no se rompen. Los atributos del resultado declaran todos los
+filas no se rompen. `max_trabajo` acota el producto entre pares posibles
+y filas analizadas. Es un presupuesto estimado, no una medición de
+segundos: permite que el tope efectivo de pares baje cuando la tabla
+tiene muchas filas. Los atributos del resultado declaran todos los
 recortes.
 
 ## See also

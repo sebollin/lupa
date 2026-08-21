@@ -408,6 +408,12 @@
 <p>They work over <code>perfil</code>, <code>analisis</code>, <code>perfil_dbi</code> and <code>perfil_coleccion</code>, and they do not invent what is not there: a DBI profile with no sample read returns an empty findings table <strong>with its warning</strong>, and <code><a href="reference/accesores_perfil.html">sql_perfil()</a></code> on an in-memory profile returns <code>NULL</code>, because a table with no rows would suggest SQL was issued and found nothing.</p>
 </div>
 <div class="section level3">
+<h3 id="a-budget-measures-work-it-does-not-count-units">A budget measures work, it does not count units<a class="anchor" aria-label="anchor" href="#a-budget-measures-work-it-does-not-count-units"></a>
+</h3>
+<p>A cap that counts units treats a column of ten-character codes and one of thousand-character WKT alike. A table in the PostGIS catalogue — 3,912 rows — took 243 seconds, and the vocabulary detector was 99.6% of it: 800 distinct values are 319,600 pairs, well under the two-million cap, but each comparison was a Jaro-Winkler over 900 characters.</p>
+<p>The budget is now measured in <strong>character comparisons</strong>, the inner loop of the distance. Calibrated against measurement, the pathological column drops from 61.3 s to 4.6 s, while an ordinary column of two thousand values is still compared in full. What does get trimmed is declared: how many normalised forms went uncompared, how much work that was, and which cap did the trimming.</p>
+</div>
+<div class="section level3">
 <h3 id="cost-is-planned-before-it-is-paid">Cost is planned before it is paid<a class="anchor" aria-label="anchor" href="#cost-is-planned-before-it-is-paid"></a>
 </h3>
 <p>Profiling 158 columns in <code>modo = "exacto"</code> emits 623 queries, and 777 of the original 778 scanned the whole table. <code>muestra</code> does not bound that: it bounds what is brought into R, not the work the engine does. So the cost is declared and chosen:</p>
@@ -415,6 +421,7 @@
 <code class="sourceCode R"><span><span class="fu"><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tabla"</span>, modo <span class="op">=</span> <span class="st">"muestreado"</span><span class="op">)</span>   <span class="co"># 5 queries, predicts the rest</span></span></code></pre></div>
 <p>The plan gives a <strong>ceiling</strong> on how many queries the profiling will emit, and it says so in <code>attr(plan, "supuesto")</code>. It is exact whenever every column has at least one value; a column with none emits neither median nor standard deviation, and the plan cannot know which ones are empty without asking — which would change its own cost.</p>
 <p>The part that <em>is</em> a hard design constraint is that the ceiling does not depend on the engine: every capability probe costs a fixed number of queries even when it succeeds on the first form, because a cost that varied by engine would leave the user guessing again.</p>
+<p>But counting queries does not answer the question the reader actually brings: fourteen queries over two million rows are far more work than two hundred over a thousand. So the plan also estimates <strong>magnitude</strong>, in two numbers that are real counts — <code>filas_leidas</code> and <code>ordenaciones_completas</code> — and printing it warns when the work is high, naming the levers that bound it. It is an estimate and says so: it counts the rows that would have to be read if no index helped. The two published numbers do not depend on that assumption, so anyone who disagrees with it can redo the arithmetic.</p>
 <table class="table">
 <colgroup>
 <col width="50%">

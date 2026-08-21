@@ -100,7 +100,9 @@ accionables. Todas las proporciones se expresan en <code>[0, 1]</code>.</p>
 <span>  min_participacion_dominante_vocabulario_corto <span class="op">=</span> <span class="fl">0.5</span>,</span>
 <span>  variantes_equifrecuentes_vocabulario <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  max_asimetria_equifrecuente_vocabulario <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>  max_comparaciones_dependencias <span class="op">=</span> <span class="fl">200000L</span></span>
+<span>  max_comparaciones_dependencias <span class="op">=</span> <span class="fl">200000L</span>,</span>
+<span>  max_trabajo_vocabulario <span class="op">=</span> <span class="fl">2e+10</span>,</span>
+<span>  max_trabajo_dependencias <span class="op">=</span> <span class="fl">1e+08</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -442,6 +444,24 @@ que se comparan. El costo de las dependencias es del orden de
 <code>columnas^2 x filas</code> y empeora con determinantes casi únicos; cuando el
 presupuesto se agota, lo comparado se informa y lo que quedó sin comparar
 se declara en <code>cobertura_diagnosticos</code>, nunca como cero.</p></dd>
+
+
+<dt id="arg-max-trabajo-vocabulario">max_trabajo_vocabulario<a class="anchor" aria-label="anchor" href="#arg-max-trabajo-vocabulario"></a></dt>
+<dd><p>Tope de comparaciones de carácter para las
+comparaciones de distancia del vocabulario. Comparar dos valores cuesta del
+orden del producto de sus largos, así que el trabajo es la suma de ese
+producto sobre todos los pares. Contar pares por longitud media subestima
+las cadenas largas: medido, el mismo presupuesto compraba 5,3 millones de
+unidades por segundo con valores de 900 caracteres y 44 millones con
+valores de 40. Se combina con <code>max_pares</code>, manda el más restrictivo, y el
+recorte declara valores, pares y trabajo sin comparar. <code>Inf</code> lo desactiva.</p></dd>
+
+
+<dt id="arg-max-trabajo-dependencias">max_trabajo_dependencias<a class="anchor" aria-label="anchor" href="#arg-max-trabajo-dependencias"></a></dt>
+<dd><p>Tope predeterminado de unidades fila-par para
+las dependencias. Se combina con <code>max_comparaciones_dependencias</code>; el
+límite efectivo baja cuando hay muchas filas. <code>Inf</code> desactiva este tope,
+pero no el de pares.</p></dd>
 
 </dl></div>
     <div class="section level2">

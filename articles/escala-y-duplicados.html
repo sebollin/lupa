@@ -206,8 +206,8 @@ colisión.</p>
 <span>  max_resultados <span class="op">=</span> <span class="fl">100</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;</span></span>
-<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 32.452 pares en</span></span>
-<span><span class="co">#&gt; 0,051 s.</span></span>
+<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 27.272 pares en</span></span>
+<span><span class="co">#&gt; 0,050 s.</span></span>
 <span><span class="va">exacto</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span>, <span class="st">"igualo_normalizar"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
@@ -274,7 +274,7 @@ siendo exacta; sólo cambia cuánta memoria se usa a la vez.</p>
 <span>  <span class="st">"directorio"</span>, <span class="st">"n_parciales"</span>, <span class="st">"bytes_totales"</span>, <span class="st">"reanudable"</span>, <span class="st">"perdida"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $directorio</span></span>
-<span><span class="co">#&gt; [1] "/tmp/RtmpypkzbM/lupa-lotes-223933342175/lupa-lotes-22397e7b4f9"</span></span>
+<span><span class="co">#&gt; [1] "/tmp/Rtmpw2hDSV/lupa-lotes-230068e9475f/lupa-lotes-23004013119a"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $n_parciales</span></span>
 <span><span class="co">#&gt; [1] 6</span></span>
@@ -292,6 +292,74 @@ siendo exacta; sólo cambia cuánta memoria se usa a la vez.</p>
 <code><a href="../reference/estimar_costo.html">estimar_costo()</a></code> y establecer <code>presupuesto_pares</code>
 en la detección. Así la decisión queda separada del recorrido y el
 alcance permanece auditable.</p>
+</div>
+<div class="section level2">
+<h2 id="presupuestos-que-miden-trabajo-y-no-unidades">Presupuestos que miden trabajo y no unidades<a class="anchor" aria-label="anchor" href="#presupuestos-que-miden-trabajo-y-no-unidades"></a>
+</h2>
+<p>Un tope que cuenta unidades trata igual a una columna de códigos de
+diez caracteres y a una de WKT de mil. Una tabla del catálogo de PostGIS
+—3.912 filas, 5 columnas— tardaba <strong>243 segundos</strong>, y el
+detector de vocabulario era el 99,6 % del costo: 800 valores distintos
+son 319.600 pares, muy por debajo del tope de dos millones, pero cada
+comparación era una Jaro-Winkler sobre 900 caracteres.</p>
+<p>Por eso <code>max_trabajo_vocabulario</code> se mide en
+<strong>comparaciones de carácter</strong>, que es el bucle interno de
+la distancia: comparar dos valores de largos <code>L1</code> y
+<code>L2</code> cuesta del orden de <code>L1 × L2</code>. Contar pares
+por longitud media no alcanzaba —el mismo presupuesto compraba 5,3
+millones de unidades por segundo con valores de 900 caracteres y 44
+millones con valores de 40—.</p>
+<p>El valor por omisión está calibrado contra la medición, no contra la
+intuición, y el criterio no fue sólo cortar el caso patológico sino
+<strong>no tocar el común</strong>:</p>
+<table class="table">
+<thead><tr class="header">
+<th>valores</th>
+<th>largo</th>
+<th>sin tope</th>
+<th>con tope</th>
+<th>comparado</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>800</td>
+<td>900</td>
+<td>61,3 s</td>
+<td>4,6 s</td>
+<td>27,8 %</td>
+</tr>
+<tr class="even">
+<td>2000</td>
+<td>80</td>
+<td>5,0 s</td>
+<td>5,1 s</td>
+<td>100 %</td>
+</tr>
+</tbody>
+</table>
+<p>Una columna corriente de dos mil valores se compara entera. Y lo que
+sí se recorta <strong>se declara</strong>, con las dos cuentas
+separadas: cuántas formas normalizadas quedaron sin comparar y cuánto
+trabajo eran, junto con cuál de los topes recortó, en el alcance del
+hallazgo y en <code>cobertura_diagnosticos</code>. Si aprietan los dos,
+el motivo los nombra a los dos, porque hay que poder elegir cuál
+aflojar.</p>
+<p>Un detalle que conviene saber antes de confiar en un recorte: las
+formas que sí se comparan son <strong>las primeras en aparecer</strong>,
+no una muestra. Con los mismos 300 valores y el mismo presupuesto,
+poniendo primero los largos entran 8 formas y poniendo primero los
+cortos entran 150. Sobre una tabla ordenada —lo normal en un extracto—
+lo que queda afuera es un tramo del orden, así que si el recorte aparece
+y el alcance importa, conviene desordenar antes o subir el tope.</p>
+<p><code><a href="../reference/detectar_dependencias.html">detectar_dependencias()</a></code> tiene el suyo,
+<code>max_trabajo</code>, en unidades <strong>fila-par</strong>: ahí el
+costo es del orden de <code>columnas² × filas</code>, y
+<code>max_comparaciones</code> no lo veía —158 columnas son 24.806
+pares, muy por debajo de las 200.000 del tope—. Se combina con
+<code>max_comparaciones</code> y manda el más restrictivo.</p>
+<p>El banco <code>benchmark/medir_costo_texto.R</code> reproduce el
+barrido completo, para que la calibración se pueda rehacer si cambia la
+implementación de la distancia.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
