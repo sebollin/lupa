@@ -4,13 +4,11 @@ test_that("la granularidad es un grafo y declara los diez niveles", {
 
   expect_equal(nrow(niveles), 10L)
   expect_equal(niveles$granularidad[[1L]], "instanciaAtributo")
-  # El septimo se mide desde que `coleccion()` permite declarar la frontera, y
-  # el octavo desde que `agregar()` acepta el conjunto de colecciones
-  # declarado. Los dos ultimos siguen sin objeto: `organizacion` y
-  # `conjuntoOrganizaciones` son alcances institucionales que no estan en
-  # ningun dato, y adivinarlos seria inventar la frontera.
-  expect_true(all(niveles$implementada[1:8]))
-  expect_false(any(niveles$implementada[9:10]))
+  # Las diez se miden. Las cuatro de arriba exigen que el usuario declare la
+  # frontera -que tablas, que bases, que colecciones, que organizaciones-,
+  # porque ninguna de las cuatro esta en los datos. `organizacion()` cerro las
+  # dos ultimas: el alcance institucional se declara, no se adivina.
+  expect_true(all(niveles$implementada))
   expect_false(is.ordered(niveles$granularidad))
   expect_true(any(
     transiciones$origen == "instanciaAtributo" &

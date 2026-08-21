@@ -6,9 +6,11 @@
 > **corresponde al tarball anterior y hay que rehacerla entera** antes de cualquier
 > envio. No se envia nada hasta entonces.
 >
-> Estado local al 2026-08-20, sobre el codigo nuevo: `R CMD check --as-cran` y la
-> suite de 14.918 comprobaciones. Falta rehacer CI, R-hub, win-builder y el
-> contenedor de R 3.6.
+> Estado local al 2026-08-20, sobre el codigo nuevo: `R CMD check --as-cran` con
+> dos NOTE -`New submission` y la falta del binario `tidy`, las dos del entorno-
+> y la suite de **15.163** comprobaciones sin fallos. Se agrego ademas DuckDB a
+> los motores probados contra motor real, con lo que son cinco. Falta rehacer CI,
+> R-hub, win-builder y el contenedor de R 3.6.
 
 ## R CMD check results
 

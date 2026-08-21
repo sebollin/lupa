@@ -55,8 +55,11 @@ reference:
   - analizar
   - perfilar
   - perfilar_por
+  - organizacion
   - perfilar_dbi
   - plan_perfilado_dbi
+  - requisitos_motor
+  - hallazgos
   - distribucion_valores
   - detectar_asociaciones
   - analizar_tiempo

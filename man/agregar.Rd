@@ -11,7 +11,9 @@ agregar(
   umbral = NULL,
   pesos = NULL,
   coleccion = NULL,
-  colecciones = NULL
+  colecciones = NULL,
+  organizacion = NULL,
+  organizaciones = NULL
 )
 }
 \arguments{
@@ -37,6 +39,20 @@ agregando, y el número resultante no describiría nada.}
 \code{\link[=perfilar_coleccion]{perfilar_coleccion()}}, exigida cuando \code{destino} es
 \code{"conjuntoColecciones"}. Los nombres declaran la identidad y la frontera
 del conjunto; no se agregan organizaciones ni otros alcances implícitos.}
+
+\item{organizacion}{Frontera institucional declarada con \code{\link[=organizacion]{organizacion()}},
+exigida cuando \code{destino} es \code{"organizacion"}. Qué bases pertenecen a un
+organismo \strong{no está en los datos}, así que lo declara quien lo sabe.}
+
+\item{organizaciones}{Lista de objetos de \code{\link[=organizacion]{organizacion()}}, exigida cuando
+\code{destino} es \code{"conjuntoOrganizaciones"}.
+
+Los dos niveles institucionales son \strong{opcionales}: un análisis de calidad
+no siempre tiene una organización detrás —una entrega suelta, un archivo
+que alguien mandó, una base sin dueño declarado—, y nada obliga a pasar por
+ellos. Existen para quien los necesita, y sin declaración \code{agregar()} se
+niega y explica cómo declararla, que es distinto de inventar una frontera
+que nadie nombró.}
 }
 \value{
 Objeto \code{medicion} agregado, con una fila por objeto de destino.

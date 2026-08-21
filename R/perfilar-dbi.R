@@ -66,7 +66,10 @@
   nativas <- c("STDDEV_SAMP", "STDEV")
   elegida <- NULL
   for (i in seq_along(nativas)) {
-    sql <- paste0("SELECT ", nativas[[i]], "(1.0) AS ", alias("desvio"))
+    sql <- paste0(
+      "SELECT ", nativas[[i]], "(1.0) AS ", alias("desvio"),
+      if (.es_oracle_dbi(conexion)) " FROM DUAL" else ""
+    )
     intento <- .escalar_dbi(conexion, sql, "desvio", presupuesto)
     if (is.null(elegida) && isTRUE(intento$ok)) elegida <- i
   }
@@ -190,7 +193,8 @@
         )
       },
       muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
-                   "tablesample_system", "tablesample_percent", "random_limit")
+                   "tablesample_system", "tablesample_percent", "oracle_sample",
+                   "random_limit")
     ),
     rownum = list(
       nombre = "rownum",
@@ -206,7 +210,8 @@
         )
       },
       muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
-                   "tablesample_system", "tablesample_percent")
+                   "tablesample_system", "tablesample_percent", "oracle_sample",
+                   "random_limit")
     ),
     portable = list(
       nombre = "portable",
@@ -276,6 +281,15 @@
       tipo = "tablesample",
       constructor = function(tabla, porcentaje) paste0(
         tabla, " TABLESAMPLE (", porcentaje, " PERCENT)"
+      )
+    ),
+    oracle_sample = list(
+      nombre = "oracle_sample",
+      descripcion = "SAMPLE (p)",
+      patron = "oracle",
+      tipo = "tablesample",
+      constructor = function(tabla, porcentaje) paste0(
+        tabla, " SAMPLE (", porcentaje, ")"
       )
     ),
     random_limit = list(
@@ -431,7 +445,17 @@
   )
   if (is.null(forma)) return(NULL)
   forma$fraccion <- fraccion
-  forma$filas_solicitadas <- as.numeric(muestra)
+  # Lo pedido y lo que la tabla puede dar no son lo mismo. Pedir mil filas de
+  # una tabla de diez devuelve diez, y extrapolar dividiendo por mil hundia
+  # todos los conteos: `n_validos` caia a cero sobre una columna llena y
+  # disparaba `sin_valores`. El tamano efectivo es el que se informa y el que
+  # divide.
+  total <- .numero_dbi(n_total)
+  efectivas <- if (is.finite(total)) min(as.numeric(muestra), total) else {
+    as.numeric(muestra)
+  }
+  forma$filas_solicitadas <- efectivas
+  forma$filas_pedidas <- as.numeric(muestra)
   forma
 }
 
@@ -567,6 +591,10 @@
   elegida <- NULL
   for (candidato in candidatos) {
     sql <- candidato$sonda(alias)
+    if (.es_oracle_dbi(conexion) &&
+        !grepl("\\bFROM\\b", sql, ignore.case = TRUE, perl = TRUE)) {
+      sql <- paste0(sql, " FROM DUAL")
+    }
     sondas <- c(sondas, sql)
     resultado <- .consultar_dbi(conexion, sql, presupuesto)
     if (is.null(elegida) && isTRUE(resultado$ok)) elegida <- candidato
@@ -623,6 +651,10 @@
   )
   textos <- as.character(textos)
   tolower(paste(textos[nzchar(textos) & !is.na(textos)], collapse = " "))
+}
+
+.es_oracle_dbi <- function(conexion) {
+  grepl("oracle", .senas_conexion_dbi(conexion), fixed = TRUE)
 }
 
 # El orden de los candidatos sale de las senas del motor, pero la palabra final
@@ -695,6 +727,18 @@
   isTRUE(tryCatch(
     inherits(conexion, "DBIConnection"), error = function(e) FALSE
   ))
+}
+
+.conexion_valida_dbi <- function(conexion) {
+  tryCatch(
+    isTRUE(DBI::dbIsValid(conexion)),
+    error = function(e) {
+      isTRUE(tryCatch({
+        DBI::dbGetInfo(conexion)
+        TRUE
+      }, error = function(e) FALSE))
+    }
+  )
 }
 
 # `filas >= 0` usa la via portable: el motor prepara el resultado y R lee solo
@@ -825,6 +869,10 @@
     }
     return(NA_real_)
   }
+  # Cuando la muestra cubre el universo no hay nada que extrapolar: el conteo
+  # observado ya es el del universo, y multiplicarlo por una razon mayor que
+  # uno inventaria filas que no existen.
+  if (muestra_numero >= universo_numero) return(.conteo_dbi(observado))
   .conteo_dbi(round(observado / muestra_numero * universo_numero))
 }
 
@@ -1002,8 +1050,28 @@
   grepl(.PATRON_TIPO_NUMERICO_DBI, limpio, perl = TRUE)
 }
 
+# Un tipo temporal declarado por el motor manda sobre lo que diga el prototipo.
+# El `dbFetch(n = 0)` de algunos controladores -RMariaDB entre ellos- devuelve
+# un `numeric(0)` para una columna `DATE`: la clase se pierde con las filas. Sin
+# esta comprobacion, `is.numeric()` decia que si, y la columna se media como
+# numero: `MIN` daba los dias desde 1970 y `AVG(f * 1.0)` daba YYYYMMDD en
+# MariaDB. Dos unidades distintas, las dos publicadas como `calculado`.
+.PATRON_TIPO_TEMPORAL_DBI <- paste0(
+  "^(date|datetime|datetime2|smalldatetime|timestamp|timestamptz|",
+  "timestampwithtimezone|timestampwithouttimezone|time|timetz|year|",
+  "interval|datetimeoffset)$"
+)
+
+.tipo_declarado_temporal_dbi <- function(tipo) {
+  if (is.null(tipo) || !length(tipo) || is.na(tipo[[1L]])) return(FALSE)
+  limpio <- tolower(trimws(sub("\\(.*", "", as.character(tipo[[1L]]))))
+  limpio <- gsub("[[:space:]_-]+", "", limpio)
+  grepl(.PATRON_TIPO_TEMPORAL_DBI, limpio, perl = TRUE)
+}
+
 .es_numerico_dbi <- function(prototipo, tipo_declarado = NA_character_) {
   if (inherits(prototipo, c("Date", "POSIXt", "difftime"))) return(FALSE)
+  if (.tipo_declarado_temporal_dbi(tipo_declarado)) return(FALSE)
   if (is.numeric(prototipo)) return(TRUE)
   if (inherits(prototipo, "integer64")) return(TRUE)
   if (is.logical(prototipo) || is.raw(prototipo) || is.list(prototipo)) {
@@ -1466,6 +1534,22 @@
           .escalar_finito_dbi(celda$valor)
         }
       }
+      # Un maximo menor que el minimo es imposible, y aparece de verdad: un
+      # `BIGINT UNSIGNED` cerca del tope vuelve del driver como `integer64`
+      # negativo, asi que el motor informa `min = 1` y `max = -1` sin mentir
+      # -miente la representacion-. Se declara no disponible en vez de
+      # publicarse, igual que se hace cuando hay mas distintos que validos.
+      rango <- c(leidos[["minimo"]], leidos[["maximo"]])
+      if (length(rango) == 2L && all(is.finite(rango)) &&
+          rango[[2L]] < rango[[1L]]) {
+        basicos$ok <- FALSE
+        basicos$motivo <- paste0(
+          "El motor informo un maximo (", rango[[2L]], ") menor que el minimo (",
+          rango[[1L]], "), que es imposible: probablemente el tipo no entra en ",
+          "la representacion del controlador. Las metricas no se publican."
+        )
+        leidos <- list()
+      }
       for (metrica in names(leidos)) fila[[metrica]] <- leidos[[metrica]]
       if (es_muestreado) {
         for (metrica in c("n_ceros", "n_negativos")) {
@@ -1715,6 +1799,18 @@
       criterio_moda = paste(
         "mayor frecuencia; empates resueltos por el valor ascendente",
         "segun el orden del motor"
+      ),
+      # El motor compara con su cotejamiento y R con `==`. Sobre una columna
+      # `utf8mb4_general_ci`, `"A"` y `"a"` son un valor para el motor y dos
+      # para R, asi que `resumen_tabla` y `perfil_muestra` pueden informar
+      # cardinalidades distintas de las mismas filas. Las dos son ciertas en su
+      # propia comparacion; lo que faltaba era decir cual usa cada bloque.
+      criterio_comparacion = paste(
+        "el resumen SQL agrupa y ordena con el cotejamiento del motor, que",
+        "puede ignorar caja o acentos; el perfil de muestra compara en R, que",
+        "distingue byte a byte. Una diferencia entre los dos bloques en",
+        "`n_distintos` o en la moda es esperable sobre columnas con",
+        "cotejamiento insensible, y no es un error de ninguno de los dos"
       ),
       solo_lectura = TRUE,
        objetos_temporales = FALSE
@@ -2263,7 +2359,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
       "`conexion` debe ser una conexion DBI: no hereda de `DBIConnection`."
     )
   }
-  if (!DBI::dbIsValid(conexion)) {
+  if (!.conexion_valida_dbi(conexion)) {
     .detener_dbi(
       "lupa_error_conexion_dbi",
       "`conexion` debe ser una conexion DBI abierta y valida."
@@ -2274,30 +2370,8 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
   # Un nombre de dos partes con punto es lo que cualquiera escribe, y
   # `dbExistsTable()` no lo resuelve: lo toma como un nombre literal. Antes esto
   # hacia que `coleccion("esquema.tabla")` funcionara y `perfilar_dbi()` con el
-  # mismo texto fallara diciendo que la tabla no existe. Se resuelve con el
-  # mismo parseo que usa `coleccion()`, y solo si el nombre literal no existe:
-  # una tabla que de verdad se llama con un punto adentro sigue ganando.
-  if (is.character(tabla) && length(tabla) == 1L && !is.na(tabla) &&
-      grepl(".", tabla, fixed = TRUE)) {
-    literal <- tryCatch(
-      isTRUE(DBI::dbExistsTable(conexion, tabla)), error = function(e) FALSE
-    )
-    if (!literal) {
-      cortado <- tryCatch(.partir_identificador(tabla), error = function(e) NULL)
-      partes <- if (!is.null(cortado) && !isTRUE(cortado$abierto)) {
-        vapply(cortado$partes, .quitar_comillas_identificador, character(1L),
-               USE.NAMES = FALSE)
-      } else character()
-      if (length(partes) == 2L && all(nzchar(partes))) {
-        calificada <- DBI::Id(schema = partes[[1L]], table = partes[[2L]])
-        if (isTRUE(tryCatch(
-          DBI::dbExistsTable(conexion, calificada), error = function(e) FALSE
-        ))) {
-          tabla <- calificada
-        }
-      }
-    }
-  }
+  # mismo texto fallara diciendo que la tabla no existe. Se conserva el literal
+  # cuando existe y, si no, se usa el mismo parseo que `coleccion()`.
   existe <- tryCatch(
     DBI::dbExistsTable(conexion, tabla),
     error = function(e) e
@@ -2307,17 +2381,38 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
       "No se pudo comprobar `tabla`: ", conditionMessage(existe)
     ))
   }
+  if (is.character(tabla) && length(tabla) == 1L && !is.na(tabla) &&
+      grepl(".", tabla, fixed = TRUE)) {
+    if (!isTRUE(existe)) {
+      cortado <- tryCatch(.partir_identificador(tabla), error = function(e) NULL)
+      partes <- if (!is.null(cortado) && !isTRUE(cortado$abierto)) {
+        vapply(cortado$partes, .quitar_comillas_identificador, character(1L),
+               USE.NAMES = FALSE)
+      } else character()
+      if (length(partes) == 2L && all(nzchar(partes))) {
+        tabla <- DBI::Id(schema = partes[[1L]], table = partes[[2L]])
+      }
+    }
+  }
+  tabla_sql <- as.character(DBI::dbQuoteIdentifier(conexion, tabla))
+  motivo_existe <- NA_character_
   if (!isTRUE(existe)) {
-    # `dbExistsTable()` devuelve FALSE tanto si la tabla no existe como si la
-    # credencial no la ve. Confundir las dos cosas manda al usuario a crear una
-    # tabla que ya esta ahi.
+    # Algunos controladores no implementan nombres calificados en
+    # `dbExistsTable()`. La consulta no trae datos y confirma la tabla sin
+    # depender de una API de metadatos incompleta.
+    comprobacion <- .consultar_dbi(
+      conexion, paste0("SELECT 1 FROM ", tabla_sql, " WHERE 1 = 0"), presupuesto
+    )
+    existe <- isTRUE(comprobacion$ok)
+    if (!isTRUE(existe)) motivo_existe <- comprobacion$motivo
+  }
+  if (!isTRUE(existe)) {
     .detener_dbi("lupa_error_tabla_dbi", paste(
       "La tabla solicitada no existe en la conexion DBI, o la credencial no",
       "tiene permiso para verla. Las dos situaciones se ven igual desde",
-      "dbExistsTable()."
+      "dbExistsTable().", if (!is.na(motivo_existe)) motivo_existe else ""
     ))
   }
-  tabla_sql <- as.character(DBI::dbQuoteIdentifier(conexion, tabla))
   lista_campos <- .campos_dbi(conexion, tabla, tabla_sql, presupuesto)
   campos_declarados <- lista_campos$campos
   if (!is.null(orden_muestra) &&

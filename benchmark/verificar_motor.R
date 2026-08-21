@@ -36,9 +36,85 @@
   datos
 }
 
+# La tabla de arriba es comoda, y esa comodidad escondio tres defectos: una
+# columna `DATE` medida como numero, un `BIGINT UNSIGNED` con maximo menor que
+# el minimo, y la extrapolacion del muestreo dividiendo por las filas pedidas
+# en vez de las obtenidas. Ninguno aparecia porque la tabla no tenia fecha
+# nativa, ni enteros sin signo, ni menos filas que la muestra por omision.
+#
+# Estas comprobaciones existen para que la proxima tabla comoda no vuelva a
+# certificar un motor que no lo esta. Cada una es un tipo o un tamano que un
+# perfilador encuentra en una base real y que un fixture rara vez tiene.
+.tipos_incomodos_motor <- function(conexion) {
+  pruebas <- list(
+    list(
+      nombre = "fecha nativa",
+      crear = "CREATE TABLE lupa_incomoda_fecha (f DATE)",
+      poblar = "INSERT INTO lupa_incomoda_fecha VALUES ('2020-01-01')",
+      tabla = "lupa_incomoda_fecha",
+      revisar = function(perfil) {
+        fila <- perfil$resumen_tabla$columnas
+        # Una fecha no se promedia: o queda declarada sin aplicar, o el numero
+        # sale en una unidad que nadie pidio.
+        if (isTRUE(is.finite(fila$media[[1L]]))) {
+          return("la media de una columna DATE salio como numero")
+        }
+        ""
+      }
+    ),
+    list(
+      nombre = "tabla mas chica que la muestra",
+      crear = "CREATE TABLE lupa_incomoda_chica (monto DOUBLE PRECISION)",
+      poblar = paste0(
+        "INSERT INTO lupa_incomoda_chica VALUES ",
+        paste0("(", 11:20, ")", collapse = ", ")
+      ),
+      tabla = "lupa_incomoda_chica",
+      modo = "muestreado",
+      revisar = function(perfil) {
+        fila <- perfil$resumen_tabla$columnas
+        validos <- as.numeric(fila$n_validos[[1L]])
+        if (!isTRUE(is.finite(validos)) || validos != 10) {
+          return(paste0("n_validos dio ", validos, " sobre una columna llena"))
+        }
+        if (!isTRUE(all.equal(fila$media[[1L]], 15.5))) {
+          return(paste0("la media dio ", fila$media[[1L]], " y son 15.5"))
+        }
+        ""
+      }
+    )
+  )
+  cat("\ntipos y tamanos incomodos:\n")
+  for (prueba in pruebas) {
+    salida <- tryCatch({
+      try(DBI::dbExecute(conexion, paste0("DROP TABLE ", prueba$tabla)),
+          silent = TRUE)
+      DBI::dbExecute(conexion, prueba$crear)
+      DBI::dbExecute(conexion, prueba$poblar)
+      perfil <- lupa::perfilar_dbi(
+        conexion, prueba$tabla,
+        modo = if (is.null(prueba$modo)) "exacto" else prueba$modo
+      )
+      queja <- prueba$revisar(perfil)
+      if (nzchar(queja)) paste("!!", queja) else "ok"
+    }, error = function(e) paste("el motor no admitio la prueba:",
+                                 conditionMessage(e)))
+    cat(sprintf("  %-32s %s\n", prueba$nombre, salida))
+    try(DBI::dbExecute(conexion, paste0("DROP TABLE ", prueba$tabla)),
+        silent = TRUE)
+  }
+  invisible(NULL)
+}
+
 verificar_motor <- function(conexion, nombre_motor, tabla = "lupa_verificacion",
                             esquema = "lupa_esquema") {
   stopifnot(inherits(conexion, "DBIConnection"))
+  informacion <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) list())
+  es_oracle <- grepl(
+    "oracle",
+    paste(nombre_motor, class(conexion), unlist(informacion), collapse = " "),
+    ignore.case = TRUE
+  )
   datos <- .tabla_de_prueba_motor()
   DBI::dbWriteTable(conexion, tabla, datos, overwrite = TRUE)
   cat("=== ", nombre_motor, " ===\n", sep = "")
@@ -90,19 +166,52 @@ verificar_motor <- function(conexion, nombre_motor, tabla = "lupa_verificacion",
 
   cat("\nnombre calificado con esquema:\n")
   creado <- tryCatch({
-    DBI::dbExecute(conexion, paste0("CREATE SCHEMA IF NOT EXISTS ", esquema))
-    DBI::dbExecute(conexion, paste0(
-      "CREATE TABLE ", esquema, ".", tabla, " AS SELECT * FROM ", tabla
-    ))
+    if (es_oracle) {
+      # Oracle usa el usuario como esquema y no acepta CREATE SCHEMA IF NOT
+      # EXISTS. La tabla fuente de dbWriteTable() queda con nombre comillado.
+      esquema_usuario <- informacion$username
+      esquema <- if (length(esquema_usuario) && !is.na(esquema_usuario)) {
+        toupper(esquema_usuario)
+      } else {
+        toupper(esquema)
+      }
+      tabla_esquema <- toupper(tabla)
+      tabla_calificada <- DBI::Id(schema = esquema, table = tabla_esquema)
+      tabla_calificada_sql <- as.character(
+        DBI::dbQuoteIdentifier(conexion, tabla_calificada)
+      )
+      try(
+        DBI::dbExecute(conexion, paste0(
+          "DROP TABLE ", tabla_calificada_sql, " PURGE"
+        )),
+        silent = TRUE
+      )
+      DBI::dbExecute(conexion, paste0(
+        "CREATE TABLE ", tabla_calificada_sql, " AS SELECT * FROM ",
+        as.character(DBI::dbQuoteIdentifier(conexion, tabla))
+      ))
+    } else {
+      DBI::dbExecute(conexion, paste0("CREATE SCHEMA IF NOT EXISTS ", esquema))
+      DBI::dbExecute(conexion, paste0(
+        "CREATE TABLE ", esquema, ".", tabla, " AS SELECT * FROM ", tabla
+      ))
+    }
     TRUE
   }, error = function(e) {
     cat("  el motor no acepto crear el esquema:", conditionMessage(e), "\n")
     FALSE
   })
   if (creado) {
-    for (referencia_tabla in list(
-      paste0(esquema, ".", tabla), DBI::Id(schema = esquema, table = tabla)
-    )) {
+    referencia_texto <- if (es_oracle) {
+      paste0(toupper(esquema), ".", toupper(tabla))
+    } else {
+      paste0(esquema, ".", tabla)
+    }
+    referencia_id <- DBI::Id(
+      schema = if (es_oracle) toupper(esquema) else esquema,
+      table = if (es_oracle) toupper(tabla) else tabla
+    )
+    for (referencia_tabla in list(referencia_texto, referencia_id)) {
       etiqueta <- if (is.character(referencia_tabla)) "por texto" else "por Id"
       salida <- tryCatch(
         as.character(lupa::perfilar_dbi(
@@ -115,11 +224,14 @@ verificar_motor <- function(conexion, nombre_motor, tabla = "lupa_verificacion",
     cat("\ncoleccion de dos tablas:\n")
     salida <- tryCatch({
       perfil <- lupa::perfilar_coleccion(
-        lupa::coleccion(conexion, c(tabla, paste0(esquema, ".", tabla)))
+        lupa::coleccion(conexion, c(tabla, referencia_texto))
       )
       paste("ok,", nrow(perfil$resumen_coleccion), "tablas perfiladas")
     }, error = function(e) paste("ERROR:", conditionMessage(e)))
     cat("  ", salida, "\n", sep = "")
   }
+  # Fuera del bloque de esquema: los tipos incomodos no dependen de que el
+  # motor acepte crear esquemas, y son la parte que mas importa.
+  .tipos_incomodos_motor(conexion)
   invisible(resumen)
 }

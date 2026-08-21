@@ -90,13 +90,15 @@ test_that("se validan instancias, modelos y vínculos", {
     "SinMetodo", "Sin método.", "atributo", "real"
   ))
   expect_error(instanciar(sin_metodo, "t", "x"), "requiere un `metodo`")
-  # `coleccion` ya se mide, asi que el ejemplo de granularidad todavia sin
-  # objeto pasa a ser una de las tres que siguen siendo de gobernanza.
-  futura <- especializar(metrica(
-    "Futura", "Fuera del alcance.", "organizacion", "real",
+  # Las diez granularidades del marco se miden desde que `organizacion()`
+  # declara la frontera institucional, asi que ya no queda ninguna "sin objeto"
+  # con la que ejemplificar. Lo que sigue rechazandose es una granularidad que
+  # no existe en el marco.
+  inventada <- especializar(metrica(
+    "Futura", "Fuera del alcance.", "entidad", "real",
     metodo = function(tablas, instancia) data.frame()
   ))
-  expect_error(instanciar(futura, "bd"), "declarada")
+  expect_error(instanciar(inventada, "bd", granularidad = "galaxia"), "granularidad")
   expect_error(modelo(), "una o más")
   expect_error(modelo(no_nulo), "instanciadas")
 

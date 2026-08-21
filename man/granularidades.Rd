@@ -13,13 +13,18 @@ transiciones_granularidad()
 Data frames con niveles o aristas del grafo de granularidad.
 }
 \description{
-\code{granularidades()} declara los diez niveles del marco. Los primeros ocho
-están implementados cuando el usuario declara la frontera de la colección o
-del conjunto de colecciones. Los dos restantes se registran, pero no se
-miden porque una organización y un conjunto de organizaciones requieren una
-declaración institucional que no está en los datos.
+\code{granularidades()} declara los diez niveles del marco, y los diez se miden.
+Los cuatro de arriba —colección, conjunto de colecciones, organización y
+conjunto de organizaciones— sólo cuando el usuario \strong{declara la frontera}:
+qué tablas componen una colección, qué bases un conjunto, qué colecciones una
+organización, qué organizaciones un conjunto. \code{lupa} no infiere ninguna de las
+cuatro, porque ninguna está en los datos.
 }
 \details{
+Que estén implementadas no obliga a usarlas. Un análisis que no tiene una
+organización detrás se detiene donde corresponda; los niveles superiores
+existen para quien los necesita.
+
 \code{transiciones_granularidad()} devuelve el grafo dirigido de agregaciones.
 La transición \code{instanciaAtributo} a \code{instanciaEntidad} se incorpora porque
 el propio marco la usa aunque no aparezca en su tabla no exhaustiva.

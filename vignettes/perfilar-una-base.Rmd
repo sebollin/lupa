@@ -74,6 +74,48 @@ La conexión y los dos perfiles ya están preparados. Los bloques siguientes
 consultan ese mismo estado: partir la explicación no implica recrear la base ni
 volver a medirla.
 
+## Antes de conectarse: qué hace falta para cada motor
+
+`lupa` tiene una sola dependencia obligatoria. El paquete del motor y la
+biblioteca del sistema que va debajo son cosa de quien instala, y el error que
+aparece cuando falta alguna rara vez dice cuál es.
+
+```{r requisitos, eval=FALSE}
+requisitos_motor()            # el catálogo entero
+requisitos_motor("mariadb")   # qué necesita MariaDB, y cómo conseguirlo
+```
+
+Por cada motor devuelve el paquete de R, la biblioteca del sistema con su nombre
+en Debian y en Fedora, **la salida sin permisos de administrador** cuando
+existe, el dialecto esperado y si está probado contra motor real o sólo
+esperado.
+
+Eso último importa y conviene leerlo con cuidado: la columna dice si **`lupa`**
+se probó contra ese motor, no si tu instalación funciona. Y la comprobación de
+la biblioteca del sistema es honesta sobre su propio límite — cuando sólo puede
+decir «el paquete de R no está, y si al instalarlo falla la compilación lo que
+falta es esto», dice eso, porque comprobar de verdad exigiría intentar compilar.
+
+## Leer el resultado sin memorizar su forma
+
+`perfilar()` devuelve un `perfil` plano y `perfilar_dbi()` un contenedor con dos
+bloques. Es una diferencia real —una tabla en memoria y una tabla remota no son
+lo mismo— pero convertía la lectura en un acertijo: `perfil$general$filas`
+funciona sobre el primero y devuelve `NULL` sobre el segundo.
+
+```{r accesores}
+library(lupa)
+en_memoria <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
+n_filas(en_memoria)
+nrow(hallazgos(en_memoria))
+nrow(cobertura(en_memoria))
+sql_perfil(en_memoria)   # NULL: un perfil en memoria no emitió SQL
+```
+
+Los mismos cinco nombres sirven para las cuatro formas de salida. Y no inventan
+lo que no hay: un perfil DBI sin muestra leída devuelve una tabla de hallazgos
+vacía **con su aviso**, no una tabla que aparente que se midió y no había nada.
+
 ## Los dos bloques del resultado
 
 `names(perfil)` hace visible la separación que devuelve `perfilar_dbi()`. La

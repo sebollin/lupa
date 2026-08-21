@@ -238,8 +238,8 @@ test_that("la granularidad coleccion ya figura como implementada", {
   expect_true(
     catalogo$implementada[catalogo$granularidad == "conjuntoColecciones"]
   )
-  # Las dos últimas siguen sin objeto: son decisiones de gobernanza.
-  expect_false(any(catalogo$implementada[catalogo$nivel > 8L]))
+  # Las diez se miden: las cuatro de arriba, sólo con la frontera declarada.
+  expect_true(all(catalogo$implementada))
 })
 
 test_that("las granularidades por encima de la colección dicen qué falta", {

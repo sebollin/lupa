@@ -374,10 +374,7 @@
 #'   DBI::dbDisconnect(con)
 #' }
 coleccion <- function(conexion, tablas, nombre = NULL) {
-  .requerir_dbi()
-  if (!DBI::dbIsValid(conexion)) {
-    stop("`conexion` debe ser una conexion DBI abierta y valida.", call. = FALSE)
-  }
+  .validar_conexion_dbi(conexion, accion = "declarar una coleccion")
   declaradas <- .normalizar_tablas_coleccion(tablas)
   if (anyDuplicated(declaradas[, c("esquema", "tabla")])) {
     stop("`tablas` repite una tabla.", call. = FALSE)
@@ -611,9 +608,7 @@ perfilar_coleccion <- function(coleccion, muestra = 1000L,
   }
   tope_cobertura_metricas <- as.numeric(tope_cobertura_metricas)
   conexion <- coleccion$conexion
-  if (!DBI::dbIsValid(conexion)) {
-    stop("La conexion de la coleccion ya no es valida.", call. = FALSE)
-  }
+  .validar_conexion_dbi(conexion, accion = "perfilar una coleccion")
   declaradas <- coleccion$tablas
   inicio <- Sys.time()
   cobertura <- list()

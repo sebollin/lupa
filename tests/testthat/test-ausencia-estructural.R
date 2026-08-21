@@ -165,3 +165,75 @@ test_that("el universo declarado llega al plan de limpieza", {
   expect_equal(afectadas(sin), 700)
   expect_equal(afectadas(con), 200)
 })
+
+test_that("un umbral numerico tambien es una regla y se ofrece como tal", {
+  # Es el caso mas frecuente en datos administrativos -`edad >= 65` decide si
+  # hay jubilacion- y el camino por niveles no lo veia: una edad tiene sesenta
+  # y tres valores distintos y quedaba descartada por parecer identificador.
+  edad <- rep(18:80, each = 4L)
+  datos <- data.frame(
+    edad = edad, jubilacion = ifelse(edad >= 65, edad * 100, NA_real_)
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  senal <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural",
+  ]
+  expect_equal(nrow(senal), 1L)
+  expect_match(senal$evidencia, "por un umbral")
+  expect_match(senal$sugerencia, "jubilacion = ~ edad >= 65", fixed = TRUE)
+})
+
+test_that("el corte de una fecha se escribe como fecha y se puede pegar", {
+  set.seed(2)
+  n <- 400L
+  alta <- as.Date("2020-01-01") + sample(0:600, n, replace = TRUE)
+  datos <- data.frame(
+    alta = alta,
+    campo = ifelse(alta >= as.Date("2021-01-01"), 1, NA_real_)
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  senal <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural",
+  ]
+  expect_equal(nrow(senal), 1L)
+  # `as.numeric()` sobre una fecha da los dias desde 1970, y una sugerencia que
+  # dijera `>= 18628` no se podria pegar.
+  expect_match(senal$sugerencia, 'as.Date("2021-01-01")', fixed = TRUE)
+
+  formula <- eval(parse(text = sub(
+    "\\)\\)`.*", "", sub(".*aplicabilidad = list\\(campo = ", "",
+                         senal$sugerencia)
+  )))
+  con <- perfilar(datos, aplicabilidad = list(campo = formula),
+                  analizar_dependencias = FALSE)
+  expect_true(any(perfil$hallazgos$tipo_hallazgo == "faltantes"))
+  expect_false(any(con$hallazgos$tipo_hallazgo == "faltantes"))
+  expect_false(
+    any(con$hallazgos$tipo_hallazgo == "posible_ausencia_estructural")
+  )
+})
+
+test_that("el umbral tampoco afirma cuando la regla no se cumple", {
+  set.seed(7)
+  edad <- rep(18:80, each = 4L)
+  jubilacion <- ifelse(edad >= 65, 1, NA_real_)
+  jubilacion[sample(which(edad < 65), 25L)] <- 1
+  perfil <- perfilar(
+    data.frame(edad = edad, jubilacion = jubilacion),
+    analizar_dependencias = FALSE
+  )
+  expect_false(
+    any(perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural")
+  )
+})
+
+test_that("el umbral no inventa señales sobre conjuntos reales", {
+  for (conjunto in list(datasets::airquality, datasets::quakes,
+                        datasets::swiss, datasets::attitude,
+                        as.data.frame(datasets::CO2))) {
+    perfil <- perfilar(as.data.frame(conjunto), analizar_dependencias = FALSE)
+    expect_false(
+      any(perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural")
+    )
+  }
+})

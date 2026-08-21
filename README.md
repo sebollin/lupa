@@ -165,8 +165,8 @@ engine rejects is recorded as unavailable with its reason — never as zero.
 | **MySQL 8** | `limit` | **tested** against the real engine: same three statistics verified against R |
 | **SQL Server 2022** | `top` | **tested** against the real engine: the probe resolves `top` on its own, and the three statistics match R |
 | **DuckDB 1.5** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, and the three statistics verified against R |
-| MariaDB | `limit` | expected, not checked against the engine |
-| Oracle 12c+ | `fetch_first` | expected, not checked against the engine |
+| **MariaDB 11** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, the three statistics against R, and the plan exact in the five |
+| **Oracle Free 23 (23c)** | `fetch_first` | **tested** against the real engine: dialect resolved by probe, five modes with no unavailable metric, the three statistics against R, exact plan, qualified names by text and by `DBI::Id`, and `SAMPLE (p)` sampling |
 | Oracle 11 and earlier | `rownum` | expected, not checked against the engine |
 | any other DBI-compatible engine | `portable` | fallback: `dbSendQuery()` + `dbFetch(n)` |
 
@@ -195,6 +195,52 @@ The dialect can be declared with `dialecto =` if the probe gets it wrong. A
 partial failure never discards what was already measured: if reading the sample
 fails, the object comes back with a complete `resumen_tabla`, `perfil_muestra =
 NULL`, and a coverage row carrying the reason.
+
+### Knowing what is missing before you hit it
+
+`lupa` has one hard dependency, `cli`. Everything else is optional — and what
+used to happen when something was missing was an R error, or a driver error,
+that named neither what was missing nor how to get it. The hard case is not the
+R package but the **system library underneath it**: `RMariaDB` does not compile
+without the MySQL or MariaDB client headers, `ROracle` needs Oracle Instant
+Client, and someone staring at `installation of package 'RMariaDB' had non-zero
+exit status` has no way to know the answer is `libmariadb-dev`.
+
+```r
+requisitos_motor()            # the whole catalogue
+requisitos_motor("oracle")    # what Oracle needs, and how to get it
+```
+
+For each engine it declares the R package, the system library with its name on
+Debian and on Fedora, **the way around it without administrator rights** where
+one exists, the expected dialect, and whether it is tested against the real
+engine. The escape hatches are not hypothetical: SQL Server had no ODBC driver
+and no way to install one, and it was solved by compiling FreeTDS into a user
+prefix and pointing `odbc` at the `.so` by path; Oracle Instant Client unzips
+into a user directory. Neither needed `sudo`.
+
+What it does **not** do is claim to have checked a system library it cannot
+check. When it can only say "the R package is missing, and if installing it
+fails to compile, this is what you need", it says exactly that — the package's
+own invariant applied to its own installation.
+
+### Reading a profile without knowing its shape
+
+`perfilar()` returns a flat `perfil`; `perfilar_dbi()` returns a container. So
+`perfil$general$filas` worked on one and returned `NULL` on the other, where the
+count lives in `resumen_tabla$meta$filas`. A silent `NULL` in a measurement
+script is the worst way to fail: it does not warn, and everything after it
+computes on nothing.
+
+```r
+hallazgos(x)    columnas(x)    cobertura(x)    n_filas(x)    sql_perfil(x)
+```
+
+They work over `perfil`, `analisis`, `perfil_dbi` and `perfil_coleccion`, and
+they do not invent what is not there: a DBI profile with no sample read returns
+an empty findings table **with its warning**, and `sql_perfil()` on an in-memory
+profile returns `NULL`, because a table with no rows would suggest SQL was
+issued and found nothing.
 
 ### Cost is planned before it is paid
 
