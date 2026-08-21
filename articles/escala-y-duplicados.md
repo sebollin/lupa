@@ -117,7 +117,7 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 27.272 pares en
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.732 pares en
 #> 0,050 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
@@ -192,7 +192,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/Rtmpw2hDSV/lupa-lotes-230068e9475f/lupa-lotes-23004013119a"
+#> [1] "/tmp/RtmpyzLrN3/lupa-lotes-228a2bd00316/lupa-lotes-228a2f231582"
 #> 
 #> $n_parciales
 #> [1] 6
@@ -257,7 +257,10 @@ conviene desordenar antes o subir el tope.
 tiene el suyo, `max_trabajo`, en unidades **fila-par**: ahí el costo es
 del orden de `columnas² × filas`, y `max_comparaciones` no lo veía —158
 columnas son 24.806 pares, muy por debajo de las 200.000 del tope—. Se
-combina con `max_comparaciones` y manda el más restrictivo.
+combina con `max_comparaciones` y manda el más restrictivo. Desde
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+los dos presupuestos se llaman `max_trabajo_vocabulario` y
+`max_trabajo_dependencias`, y `Inf` desactiva cualquiera de ellos.
 
 El banco `benchmark/medir_costo_texto.R` reproduce el barrido completo,
 para que la calibración se pueda rehacer si cambia la implementación de

@@ -311,6 +311,13 @@ camino—. El resumen por columna las cubre igual, porque los agregados se
 calculan en el motor; lo que falta es su perfil por fila. Para
 incluirlas, conviene convertirlas a texto acotado en una vista y
 perfilar la vista.</p>
+<p>El bloque de metadatos del muestreo
+—<code>perfil_muestra$meta$origen_dbi$muestreo</code>— describe lo que
+<strong>de verdad</strong> se leyó y no lo que se había planeado leer:
+<code>columnas_leidas</code> son las columnas que la muestra trae,
+<code>sql_muestra</code> es la consulta que se emitió, y
+<code>columnas_omitidas</code> con <code>motivo_columnas_omitidas</code>
+dicen cuáles quedaron afuera y qué respondió el motor.</p>
 </div>
 <div class="section level2">
 <h2 id="el-muestreo-declarado">El muestreo declarado<a class="anchor" aria-label="anchor" href="#el-muestreo-declarado"></a>

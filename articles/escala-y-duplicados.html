@@ -206,7 +206,7 @@ colisión.</p>
 <span>  max_resultados <span class="op">=</span> <span class="fl">100</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;</span></span>
-<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 27.272 pares en</span></span>
+<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.732 pares en</span></span>
 <span><span class="co">#&gt; 0,050 s.</span></span>
 <span><span class="va">exacto</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span>, <span class="st">"igualo_normalizar"</span></span>
@@ -274,7 +274,7 @@ siendo exacta; sólo cambia cuánta memoria se usa a la vez.</p>
 <span>  <span class="st">"directorio"</span>, <span class="st">"n_parciales"</span>, <span class="st">"bytes_totales"</span>, <span class="st">"reanudable"</span>, <span class="st">"perdida"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $directorio</span></span>
-<span><span class="co">#&gt; [1] "/tmp/Rtmpw2hDSV/lupa-lotes-230068e9475f/lupa-lotes-23004013119a"</span></span>
+<span><span class="co">#&gt; [1] "/tmp/RtmpyzLrN3/lupa-lotes-228a2bd00316/lupa-lotes-228a2f231582"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $n_parciales</span></span>
 <span><span class="co">#&gt; [1] 6</span></span>
@@ -356,7 +356,11 @@ y el alcance importa, conviene desordenar antes o subir el tope.</p>
 costo es del orden de <code>columnas² × filas</code>, y
 <code>max_comparaciones</code> no lo veía —158 columnas son 24.806
 pares, muy por debajo de las 200.000 del tope—. Se combina con
-<code>max_comparaciones</code> y manda el más restrictivo.</p>
+<code>max_comparaciones</code> y manda el más restrictivo. Desde
+<code><a href="../reference/perfilar.html">perfilar()</a></code> los dos presupuestos se llaman
+<code>max_trabajo_vocabulario</code> y
+<code>max_trabajo_dependencias</code>, y <code>Inf</code> desactiva
+cualquiera de ellos.</p>
 <p>El banco <code>benchmark/medir_costo_texto.R</code> reproduce el
 barrido completo, para que la calibración se pueda rehacer si cambia la
 implementación de la distancia.</p>
