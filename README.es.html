@@ -200,7 +200,7 @@
 </tr><tr><td><strong>PostgreSQL 16</strong></td>
 <td><code>limit</code></td>
 <td>
-<strong>probado</strong> contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, esquemas, colecciones y permisos parciales</td>
+<strong>probado</strong> contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, esquemas, colecciones y permisos parciales; vuelto a probar en los cinco modos, donde la sonda elige <code>BERNOULLI</code> a nivel de fila antes que <code>SYSTEM</code> a nivel de bloque</td>
 </tr><tr><td><strong>MySQL 8</strong></td>
 <td><code>limit</code></td>
 <td>
@@ -209,9 +209,13 @@
 <td><code>top</code></td>
 <td>
 <strong>probado</strong> contra el motor real: la sonda resuelve <code>top</code> sola, y los tres estadísticos coinciden con R</td>
-</tr><tr><td>MariaDB, DuckDB</td>
+</tr><tr><td><strong>DuckDB 1.5</strong></td>
 <td><code>limit</code></td>
-<td>esperado, sin comprobar contra el motor</td>
+<td>
+<strong>probado</strong> contra el motor real: los cinco modos sin ninguna métrica no disponible, y los tres estadísticos verificados contra R</td>
+</tr><tr><td>MariaDB</td>
+<td><code>limit</code></td>
+<td>esperado, no comprobado contra el motor</td>
 </tr><tr><td>Oracle 12c+</td>
 <td><code>fetch_first</code></td>
 <td>esperado, sin comprobar contra el motor</td>
@@ -222,7 +226,9 @@
 <td><code>portable</code></td>
 <td>reserva: <code>dbSendQuery()</code> + <code>dbFetch(n)</code>
 </td>
-</tr></tbody></table><p><strong>Esperado</strong> significa que el dialecto está construido y probado contra un motor simulado que reproduce esa restricción, no que se haya corrido contra el motor real. La diferencia importa y por eso está escrita: los defectos que esta versión corrigió no aparecieron en ocho entornos verdes justamente porque todos usaban el mismo motor.</p>
+</tr></tbody></table><p>La afirmación es reproducible: <code>benchmark/verificar_motor.R</code> toma cualquier conexión DBI y comprueba las seis cosas que la tabla promete — dialecto resuelto por sonda, ninguna métrica no disponible en los cinco modos, los tres estadísticos contra R, el plan contra las consultas realmente emitidas, el nombre calificado con esquema por texto y por <code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">DBI::Id</a></code>, y una colección de dos tablas.</p>
+<p><strong>Esperado</strong> significa que el dialecto está construido y probado contra un motor simulado que reproduce esa restricción, no que se haya corrido contra el motor real. La diferencia importa y por eso está escrita: los defectos que esta versión corrigió no aparecieron en ocho entornos verdes justamente porque todos usaban el mismo motor.</p>
+<p>Cada motor que se agregó a esta tabla encontró un defecto que ningún motor simulado podía encontrar. El de DuckDB es el más filoso: acepta <code>TABLESAMPLE SYSTEM (10) WHERE 1 = 0</code> y rechaza la misma cláusula sin el filtro, porque con un filtro trivialmente falso su parser no llega a validar el método de muestreo. La sonda de capacidad usaba justo ese filtro para salir barata, así que pasaba, y la consulta real fallaba. <strong>Una sonda que no ejercita la forma que después se emite no prueba nada</strong> — la misma lección que había dejado la sonda del desvío una ronda antes.</p>
 <p>El dialecto se puede declarar con <code>dialecto =</code> si la sonda no acierta. Un fallo parcial nunca descarta lo ya medido: si la lectura de la muestra falla, el objeto vuelve con <code>resumen_tabla</code> completo, <code>perfil_muestra = NULL</code> y una fila de cobertura con el motivo.</p>
 <div class="section level3">
 <h3 id="el-costo-se-planifica-antes-de-pagarlo">El costo se planifica antes de pagarlo<a class="anchor" aria-label="anchor" href="#el-costo-se-planifica-antes-de-pagarlo"></a></h3>

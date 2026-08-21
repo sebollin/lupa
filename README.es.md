@@ -186,19 +186,38 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 | motor que rechaza `LIMIT` | `top` / `portable` | **probado** con un motor simulado en la suite |
 | motor que pliega los alias a mayúsculas | cualquiera | **probado** con un motor simulado |
 | motor que rechaza `SELECT *` por una columna | cualquiera | **probado** con un motor simulado |
-| **PostgreSQL 16** | `limit` | **probado** contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, esquemas, colecciones y permisos parciales |
+| **PostgreSQL 16** | `limit` | **probado** contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, esquemas, colecciones y permisos parciales; vuelto a probar en los cinco modos, donde la sonda elige `BERNOULLI` a nivel de fila antes que `SYSTEM` a nivel de bloque |
 | **MySQL 8** | `limit` | **probado** contra el motor real: mismos tres estadísticos verificados contra R |
 | **SQL Server 2022** | `top` | **probado** contra el motor real: la sonda resuelve `top` sola, y los tres estadísticos coinciden con R |
-| MariaDB, DuckDB | `limit` | esperado, sin comprobar contra el motor |
+| **DuckDB 1.5** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, y los tres estadísticos verificados contra R |
+| MariaDB | `limit` | esperado, no comprobado contra el motor |
 | Oracle 12c+ | `fetch_first` | esperado, sin comprobar contra el motor |
 | Oracle 11 y anteriores | `rownum` | esperado, sin comprobar contra el motor |
 | cualquier otro compatible con DBI | `portable` | reserva: `dbSendQuery()` + `dbFetch(n)` |
+
+La afirmación es reproducible: `benchmark/verificar_motor.R` toma
+cualquier conexión DBI y comprueba las seis cosas que la tabla promete —
+dialecto resuelto por sonda, ninguna métrica no disponible en los cinco
+modos, los tres estadísticos contra R, el plan contra las consultas
+realmente emitidas, el nombre calificado con esquema por texto y por
+[`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html), y una colección de
+dos tablas.
 
 **Esperado** significa que el dialecto está construido y probado contra
 un motor simulado que reproduce esa restricción, no que se haya corrido
 contra el motor real. La diferencia importa y por eso está escrita: los
 defectos que esta versión corrigió no aparecieron en ocho entornos
 verdes justamente porque todos usaban el mismo motor.
+
+Cada motor que se agregó a esta tabla encontró un defecto que ningún
+motor simulado podía encontrar. El de DuckDB es el más filoso: acepta
+`TABLESAMPLE SYSTEM (10) WHERE 1 = 0` y rechaza la misma cláusula sin el
+filtro, porque con un filtro trivialmente falso su parser no llega a
+validar el método de muestreo. La sonda de capacidad usaba justo ese
+filtro para salir barata, así que pasaba, y la consulta real fallaba.
+**Una sonda que no ejercita la forma que después se emite no prueba
+nada** — la misma lección que había dejado la sonda del desvío una ronda
+antes.
 
 El dialecto se puede declarar con `dialecto =` si la sonda no acierta.
 Un fallo parcial nunca descarta lo ya medido: si la lectura de la

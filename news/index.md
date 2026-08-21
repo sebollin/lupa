@@ -2,6 +2,37 @@
 
 ## lupa 0.1.0
 
+### DuckDB, y una sonda que mentia
+
+- Verificado contra DuckDB 1.5 real: los cinco modos corren sin ninguna
+  metrica no disponible, la media, la mediana y el desvio coinciden con
+  los calculados en R sobre la tabla entera, y los nombres calificados
+  con punto y las colecciones de dos esquemas funcionan.
+- **Y encontro un defecto que ningun motor simulado podia encontrar.**
+  DuckDB acepta `TABLESAMPLE SYSTEM (10) WHERE 1 = 0` y rechaza la misma
+  clausula sin el filtro: con un filtro trivialmente falso el parser no
+  llega a validar el metodo de muestreo. La sonda de capacidad usaba
+  justo ese filtro para salir barata, asi que declaraba disponible una
+  forma que el motor despues rechazaba. Ahora la sonda emite la forma
+  real acotada por el limite del dialecto. **Una sonda que no ejercita
+  la forma que despues se emite no prueba nada**, que es la misma
+  leccion de la sonda del desvio, una ronda antes.
+- El muestreo prefiere las formas de tamano predecible: primero la de
+  **cantidad fija** —`TABLESAMPLE RESERVOIR (n ROWS)`—, despues la de
+  **nivel de fila** —`TABLESAMPLE BERNOULLI (p)`—, y solo al final las
+  de bloque. Medido contra PostgreSQL 16 pidiendo el 20 % de una tabla
+  de 5.000 filas: `SYSTEM` devolvio 678, 904, 452 y 1.384 filas en
+  cuatro corridas; `BERNOULLI`, 1.011, 1.017, 981 y 1.050. Un tamano que
+  no se puede anticipar hace que dos metricas del mismo perfil dejen de
+  ser comparables. Medido: `TABLESAMPLE (20 PERCENT)` en DuckDB es a
+  nivel de bloque y devuelve `0` o `2048` filas sobre una tabla de
+  5.000, asi que dos consultas del mismo perfil veian muestras de tamano
+  distinto, y la guarda de coherencia declaraba no disponible una moda
+  cuya frecuencia superaba unos validos que valian cero. Con la forma de
+  cantidad fija, las cuatro metricas que caian vuelven a calcularse.
+- El motor simulado que reproduce la trampa esta en la suite, asi que la
+  regresion queda cubierta sin necesidad de DuckDB instalado.
+
 ### La senal que faltaba: nadie declara lo que no sabe que existe
 
 - `posible_ausencia_estructural`, severidad `ok`. `aplicabilidad`

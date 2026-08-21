@@ -312,7 +312,8 @@
 <td><strong>PostgreSQL 16</strong></td>
 <td><code>limit</code></td>
 <td>
-<strong>tested</strong> against the real engine: dialect resolved by probe, mean, median and standard deviation verified against R, schemas, collections and partial permissions</td>
+<strong>tested</strong> against the real engine: dialect resolved by probe, mean, median and standard deviation verified against R, schemas, collections and partial permissions; re-tested for the five modes, where the probe picks row-level <code>BERNOULLI</code> over block-level <code>SYSTEM</code>
+</td>
 </tr>
 <tr>
 <td><strong>MySQL 8</strong></td>
@@ -327,7 +328,13 @@
 <strong>tested</strong> against the real engine: the probe resolves <code>top</code> on its own, and the three statistics match R</td>
 </tr>
 <tr>
-<td>MariaDB, DuckDB</td>
+<td><strong>DuckDB 1.5</strong></td>
+<td><code>limit</code></td>
+<td>
+<strong>tested</strong> against the real engine: all five modes with no unavailable metric, and the three statistics verified against R</td>
+</tr>
+<tr>
+<td>MariaDB</td>
 <td><code>limit</code></td>
 <td>expected, not checked against the engine</td>
 </tr>
@@ -349,7 +356,9 @@
 </tr>
 </tbody>
 </table>
+<p>The claim is reproducible: <code>benchmark/verificar_motor.R</code> takes any DBI connection and checks the six things the table promises — dialect resolved by probe, no unavailable metric in the five modes, the three statistics against R, the plan against the queries actually emitted, schema-qualified names by text and by <code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">DBI::Id</a></code>, and a two-table collection.</p>
 <p><strong>Expected</strong> means the dialect is built and tested against a simulated engine that reproduces the restriction, not that it has been run against the real engine. The distinction matters, which is why it is written down: the defects this version fixed did not surface in eight green environments precisely because all of them used the same engine.</p>
+<p>Every engine added to this table so far has found a defect no simulated engine could. DuckDB found the sharpest one: it accepts <code>TABLESAMPLE SYSTEM (10) WHERE 1 = 0</code> and rejects the same clause without the filter, because with a trivially false filter its parser never validates the sampling method. The capability probe used exactly that filter to stay cheap, so it passed and the real query failed. <strong>A probe that does not exercise the form it later emits proves nothing</strong> — the same lesson the standard-deviation probe taught one round earlier.</p>
 <p>The dialect can be declared with <code>dialecto =</code> if the probe gets it wrong. A partial failure never discards what was already measured: if reading the sample fails, the object comes back with a complete <code>resumen_tabla</code>, <code>perfil_muestra = NULL</code>, and a coverage row carrying the reason.</p>
 <div class="section level3">
 <h3 id="cost-is-planned-before-it-is-paid">Cost is planned before it is paid<a class="anchor" aria-label="anchor" href="#cost-is-planned-before-it-is-paid"></a>
