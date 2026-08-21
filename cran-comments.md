@@ -1,6 +1,12 @@
-> **Matriz rehecha el 2026-08-21** sobre el commit `6efc47e`. Local, integracion
-> continua y R-hub estan cerradas sobre ese commit, las tres en `Status: OK`, y
-> el estado por plataforma se leyo del log de cada corrida y no de su conclusion.
+> **Matriz rehecha el 2026-08-21** sobre las fuentes del commit `6efc47e`. Local,
+> integracion continua y R-hub estan cerradas sobre ese commit, las tres en
+> `Status: OK`, y el estado por plataforma se leyo del log de cada corrida y no
+> de su conclusion, que es otra cosa: una corrida puede concluir con exito y
+> traer notas.
+>
+> Los commits posteriores que tocan **solo este archivo** no mueven esas fuentes,
+> porque `cran-comments.md` esta en `.Rbuildignore` y no entra al tarball. Si se
+> toca cualquier otra cosa, la matriz se rehace.
 > win-builder esta enviada y sus resultados llegan por correo, asi que la fila de
 > win-builder de mas abajo **sigue siendo la de la revision anterior hasta que se
 > reemplace leyendo el log, no la hora de llegada del aviso**.
