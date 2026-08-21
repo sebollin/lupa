@@ -41,13 +41,13 @@ regla <- regla_evaluacion("Al menos 90%", function(x) x > 0.9)
 evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> $medidas
 #>                                     id_medida
-#> 1 medicion-20260819T190858.553015-7663-000001
-#> 2 medicion-20260819T190858.553015-7663-000002
-#> 3 medicion-20260819T190858.553015-7663-000003
+#> 1 medicion-20260821T000553.660395-7518-000001
+#> 2 medicion-20260821T000553.660395-7518-000002
+#> 3 medicion-20260821T000553.660395-7518-000003
 #>                            id_medicion               fecha   perfil
-#> 1 medicion-20260819T190858.553015-7663 2026-08-19 19:08:58 Avanzado
-#> 2 medicion-20260819T190858.553015-7663 2026-08-19 19:08:58 Avanzado
-#> 3 medicion-20260819T190858.553015-7663 2026-08-19 19:08:58 Avanzado
+#> 1 medicion-20260821T000553.660395-7518 2026-08-21 00:05:53 Avanzado
+#> 2 medicion-20260821T000553.660395-7518 2026-08-21 00:05:53 Avanzado
+#> 3 medicion-20260821T000553.660395-7518 2026-08-21 00:05:53 Avanzado
 #>          regla  metrica_instanciada orientacion resultado
 #> 1 Al menos 90% NoNulo@personas.edad conformidad      TRUE
 #> 2 Al menos 90% NoNulo@personas.edad conformidad     FALSE
@@ -55,13 +55,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> 
 #> $reglas
 #>                            id_medicion               fecha   perfil
-#> 1 medicion-20260819T190858.553015-7663 2026-08-19 19:08:58 Avanzado
+#> 1 medicion-20260821T000553.660395-7518 2026-08-21 00:05:53 Avanzado
 #>          regla n_medidas resultado
 #> 1 Al menos 90%         3 0.6666667
 #> 
 #> $perfiles
 #>                            id_medicion               fecha   perfil n_reglas
-#> 1 medicion-20260819T190858.553015-7663 2026-08-19 19:08:58 Avanzado        1
+#> 1 medicion-20260821T000553.660395-7518 2026-08-21 00:05:53 Avanzado        1
 #>   resultado
 #> 1 0.6666667
 #> 

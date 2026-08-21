@@ -55,7 +55,7 @@ columnas son dos mil quinientas comparaciones.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">estimar_costo_coleccion</span><span class="op">(</span><span class="va">coleccion</span>, pares <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">estimar_costo_coleccion</span><span class="op">(</span><span class="va">coleccion</span>, pares <span class="op">=</span> <span class="cn">NULL</span>, columnas_candidatas <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -67,25 +67,59 @@ columnas son dos mil quinientas comparaciones.</p>
 
 
 <dt id="arg-pares">pares<a class="anchor" aria-label="anchor" href="#arg-pares"></a></dt>
-<dd><p>Data frame con columnas <code>tabla_1</code> y <code>tabla_2</code>. Sin él, todos los
-pares dirigidos.</p></dd>
+<dd><p>Data frame con columnas <code>tabla_1</code> y <code>tabla_2</code>. Un data frame
+con cero filas es una declaración válida de «ningún par». Sin <code>pares</code>
+—<code>NULL</code>—, todos los pares dirigidos.</p></dd>
+
+
+<dt id="arg-columnas-candidatas">columnas_candidatas<a class="anchor" aria-label="anchor" href="#arg-columnas-candidatas"></a></dt>
+<dd><p>Lista nombrada por identificador de tabla. Cada
+entrada declara las columnas que pueden participar de una relación; las
+tablas no nombradas conservan todas sus columnas. La declaración reduce
+tanto la lectura como el número de comparaciones.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Lista con <code>n_tablas</code>, <code>n_pares_dirigidos</code>, <code>n_pares_declarados</code> y,
-cuando se pueden leer los esquemas, <code>n_comparaciones_columnas</code>.</p>
+    <p>Lista con <code>n_tablas</code>, <code>n_pares_dirigidos</code>, <code>n_pares_declarados</code>,
+<code>n_pares_estimados</code>, <code>n_pares_sin_estimar</code>, <code>n_comparaciones_columnas</code>,
+<code>n_tablas_sin_esquema</code>, <code>tablas_sin_esquema</code> y <code>alcance</code>. También publica
+<code>columnas_candidatas</code> y el alcance real de las comparaciones.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Sin <code>pares</code> estima sobre todos los pares dirigidos de la colección, que es
-justamente lo que suele mostrar por qué hay que declararlos.</p>
+justamente lo que suele mostrar por qué hay que declararlos. Ese caso <strong>no
+materializa los pares</strong>: la suma de <code>c_i * c_j</code> sobre los pares dirigidos es
+<code>sum(c)^2 - sum(c^2)</code>, así que el trabajo es lineal en el número de
+tablas y no cuadrático. Estimar el costo no puede costar más que medirlo.</p>
+<p>Sólo se consulta el ancho de las tablas que los pares nombran, por metadatos
+(<code><a href="https://dbi.r-dbi.org/reference/dbListFields.html" class="external-link">DBI::dbListFields()</a></code>), no leyendo datos.</p>
+<p><strong>Una tabla cuyo esquema no se puede leer no se suma como cero.</strong> Queda
+declarada en <code>tablas_sin_esquema</code> y los pares que la involucran se cuentan en
+<code>n_pares_sin_estimar</code>: el número devuelto cubre <code>n_pares_estimados</code>, no todos
+los pares.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="relaciones_coleccion.html">relaciones_coleccion()</a></code>, <code><a href="coleccion.html">coleccion()</a></code></p></div>
     </div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"RSQLite"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span></span></span>
+<span class="r-in"><span>    <span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"DBI"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>  <span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/SQLite.html" class="external-link">SQLite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">":memory:"</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"personas"</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, nombre <span class="op">=</span> <span class="va">letters</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"visitas"</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>persona_id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, dia <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu">estimar_costo_coleccion</span><span class="op">(</span></span></span>
+<span class="r-in"><span>    <span class="fu"><a href="coleccion.html">coleccion</a></span><span class="op">(</span><span class="va">con</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"personas"</span>, <span class="st">"visitas"</span><span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>    columnas_candidatas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>personas <span class="op">=</span> <span class="st">"id"</span>, visitas <span class="op">=</span> <span class="st">"persona_id"</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 

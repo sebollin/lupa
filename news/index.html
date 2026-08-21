@@ -42,6 +42,137 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="la-senal-que-faltaba-nadie-declara-lo-que-no-sabe-que-existe-0-1-0">La senal que faltaba: nadie declara lo que no sabe que existe<a class="anchor" aria-label="anchor" href="#la-senal-que-faltaba-nadie-declara-lo-que-no-sabe-que-existe-0-1-0"></a></h3>
+<ul><li>
+<code>posible_ausencia_estructural</code>, severidad <code>ok</code>. <code>aplicabilidad</code> resolvia el vacio por diseno y funcionaba, pero exigia que el usuario supiera que existe: quien perfilaba una tabla con columnas condicionadas sin declarar nada recibia el mismo informe enganoso que antes. Ahora, cuando el valor de una columna decide que filas tienen otra —<code>cumplimiento &gt;= 0.99</code>—, o cuando dos o mas columnas se reparten las filas sin pisarse, el hallazgo lo dice con la evidencia medida y <strong>la linea exacta que habria que escribir</strong>. Sugiere; no decide, y no reescribe el universo por su cuenta. Las columnas ya declaradas quedan fuera del examen.</li>
+<li>Medido antes de encenderlo: sobre veinte conjuntos que vienen con R y sesenta tablas al azar con ausencia independiente produce <strong>cero</strong> senales, y dispara en el modelo entidad-atributo-valor, en el salto de patron de una encuesta y en las columnas excluyentes. Con 10 % de las filas fuera de la regla se calla, porque entonces la relacion existe y no es una regla. Cuesta 0,11 s sobre 200 columnas por 20.000 filas.</li>
+<li>
+<code>regla_silencia_ausencia</code>, tambien <code>ok</code>. Declarar opcional una columna con 80 % de ausentes dejaba el perfil limpio y la cobertura lo documentaba, pero quien no la leyera no se enteraba. El aviso existe para que eso sea una decision y no un efecto de la declaracion.</li>
+<li>
+<code>columnas_personales</code> declara que columnas traen datos personales, con tipo o sin el. Ningun lexico de nombres puede ser completo —una columna con documentos se puede llamar <code>cod_benef</code>— y esta es la salida correcta a ese limite: lo declara quien conoce el dato, gana sobre lo inferido, y no se vuelve a examinar.</li>
+<li>
+<code>dato_personal_protegido</code> dice si el valor <strong>quedo</strong> protegido, no si la clasificacion pensaba protegerlo. Con <code>proteger_datos_personales = FALSE</code> la moda se ve, y decir <code>TRUE</code> al lado de un valor visible era informar como hecho algo que no paso. La intencion sigue en <code>datos_personales$proteger</code>.</li>
+<li>Un correo ofuscado —<code>usuario at ejemplo punto com</code>— vuelve a ser un correo para la clasificacion, aunque <code><a href="../reference/validadores_formato.html">validar_correo()</a></code> siga diciendo con razon que no es un correo valido. Son dos preguntas distintas: una mide la forma, la otra decide si hay dato personal. La frase <code>lunes at casa</code> no entra: el dominio tiene que traer su separador.</li>
+<li>Una matriz de dos dimensiones es una tabla y <code><a href="../reference/perfilar.html">perfilar()</a></code> la acepta. La conversion queda declarada en <code>meta$entrada_convertida</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-via-dbi-sobre-tablas-que-no-entran-en-memoria-0-1-0">La via DBI sobre tablas que no entran en memoria<a class="anchor" aria-label="anchor" href="#la-via-dbi-sobre-tablas-que-no-entran-en-memoria-0-1-0"></a></h3>
+<ul><li>Modos <code>muestreado</code> y <code>aproximado</code>. El primero muestrea <strong>en el motor</strong> —<code>TABLESAMPLE</code> donde existe, orden pseudoaleatorio con limite donde no—; el segundo usa las funciones aproximadas nativas —<code>APPROX_COUNT_DISTINCT</code>, <code>PERCENTILE_CONT</code>, <code>approx_quantile</code>— con la misma mecanica de capacidad declarada y resuelta por sonda que ya usaba el dialecto.</li>
+<li>Toda metrica muestreada o aproximada viaja diciendolo: <code>estado</code> distingue <code>calculado</code>, <code>estimado</code> y <code>no_disponible</code>, y cada fila lleva <code>universo</code>, <code>tamano_muestra</code>, <code>fraccion</code>, <code>metodo</code> y <code>error_esperado</code>, que es <code>desconocido</code> cuando el motor no documenta una cota. <strong>Nunca una cota inventada.</strong>
+</li>
+<li>El conteo de distintos tiene estado propio, <code>observado_muestra</code>. La cardinalidad de una muestra no estima la del universo sin un estimador declarado, asi que se informa por lo que es, con el universo al lado.</li>
+<li>
+<code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> predice <strong>exactamente</strong> las consultas de los cinco modos. Las sondas nuevas gastan un numero fijo aunque acierten en la primera forma, por la misma razon que la del desvio: un costo que dependa del motor hace que el plan deje de predecir.</li>
+<li>Los conteos conservan <code>integer64</code> cuando <code>bit64</code> esta instalado, asi que un conteo por encima de 2^53 deja de perder exactitud. Sin <code>bit64</code>, <code>meta$conteo_exacto</code> lo sigue declarando.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="bases-enteras-y-el-costo-de-compararlas-0-1-0">Bases enteras, y el costo de compararlas<a class="anchor" aria-label="anchor" href="#bases-enteras-y-el-costo-de-compararlas-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/detectar_relaciones.html">detectar_relaciones()</a></code> y <code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code> aceptan <code>columnas_candidatas</code>: declarar que columnas pueden participar es lo que hace manejable un costo que crece con el producto de anchos. En una prueba de 32 por 32 columnas, 1.024 combinaciones bajan a 9.</li>
+<li>
+<strong>Dos clases de poda, y no se tratan igual.</strong> Dos columnas de la misma familia con rangos numericos disjuntos no comparten ningun valor y eso se sabe sin comparar: la fila sale como siempre y la comparacion se ahorra. Esa poda esta siempre activa porque no cambia nada de lo informado. Las otras dos —familias distintas, cardinalidad imposible— si lo cambiarian: una columna de texto puede guardar <code>"2020-01-05"</code> y coincidir con una de fecha, y una cardinalidad imposible no dice que no haya coincidencias sino que no llegan al umbral. Van detras de <code>podar = TRUE</code>, y cuando se aplican <strong>el par no desaparece</strong>: sale con <code>cardinalidad = "sin_comparar"</code>, coberturas <code>NA</code> y su motivo. Un par que no se evaluo no es un par sin relacion.</li>
+<li>
+<code>tope_memoria_mb</code> acota las filas comparadas y declara los pares pendientes en vez de devolver menos sin decirlo.</li>
+<li>La granularidad <code>conjuntoColecciones</code> pasa a medirse, con la frontera declarada por el usuario y pesos explicitos: agregar entre colecciones sin pesos seria inventar un juicio, que es lo que <code><a href="../reference/indice_calidad.html">indice_calidad()</a></code> se niega a hacer. <code>organizacion</code> y <code>conjuntoOrganizaciones</code> siguen sin implementar, y por la misma razon de siempre: no falta codigo, falta el objeto.</li>
+<li>La entrada <code>data.frame</code> de <code><a href="../reference/coleccion.html">coleccion()</a></code> valida <code>NA</code>, cadenas vacias y tipos igual que la entrada por vector de texto. Dos puertas del mismo paquete dejaron de comportarse distinto ante la misma entrada mala.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="lo-que-el-detector-de-vocabulario-no-puede-ver-dicho-0-1-0">Lo que el detector de vocabulario no puede ver, dicho<a class="anchor" aria-label="anchor" href="#lo-que-el-detector-de-vocabulario-no-puede-ver-dicho-0-1-0"></a></h3>
+<ul><li>
+<code>n_grupos_sin_variante_rara</code> cuenta los grupos de formas cercanas que el criterio de variante rara <strong>nunca llego a formar</strong>. Una variante mal escrita que ocupa la mitad de la columna no es una variante rara para el comparador y no se informaba; ahora el limite se declara aunque la deteccion no cambie.</li>
+<li>
+<code>variantes_equifrecuentes_vocabulario</code> es el diagnostico para ese caso: dos formas cercanas que se reparten la columna sin que ninguna sea dominante, que es la firma de dos operadores, una plantilla rota o una migracion parcial. <strong>Queda apagado por omision, y la razon esta medida</strong>: sobre la bateria de 31 tablas limpias produce un grupo sospechoso donde no hay defecto, y dispara en tablas de menos de veinte filas. Es aditivo: encenderlo no cambia ni pierde ninguna deteccion de <code>casi_duplicados_vocabulario</code>.</li>
+<li>La evidencia de <code>patron_raro</code> declara <code>desvio_unicamente_largo_corrida_numerica</code> cuando el unico desvio es la cantidad de digitos. No baja el ruido de trescientos correos correlativos —eso no tiene solucion sin dominio— pero convierte una lectura de dos segundos en una de cero.</li>
+<li>La razon de permutacion viaja como evidencia descriptiva del detector de orden. No filtra nada: el criterio quedo refutado con precision 0 % en cuatro tablas reales y no se usa para decidir.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="costos-declarados-donde-antes-solo-se-tardaba-0-1-0">Costos declarados donde antes solo se tardaba<a class="anchor" aria-label="anchor" href="#costos-declarados-donde-antes-solo-se-tardaba-0-1-0"></a></h3>
+<ul><li>
+<code>max_comparaciones_dependencias</code> acota la busqueda de dependencias funcionales, cuyo costo es del orden de <code>columnas^2 x filas</code> y empeora con determinantes casi unicos. Cuando el presupuesto se agota, lo comparado se informa y lo que quedo sin comparar se declara.</li>
+<li>La deteccion de fechas partidas dejo de materializar el producto cartesiano de los candidatos ano/mes/dia; el detector de vocabulario dejo de recorrer el vocabulario completo antes de aplicar su tope. Los dos declaran lo que no evaluaron.</li>
+<li>La confirmacion de un validador de documentos deja de recorrer la columna entera sin presupuesto. Cuando el tope se alcanza, el fundamento dice sobre cuantos valores se confirmo.</li>
+<li>
+<code>datos[0, 0]</code> sobre un objeto <code>sf</code> conserva la geometria, porque esa columna es pegajosa por diseno de ese paquete. Con las dependencias apagadas, el objeto vacio llegaba con una columna y el diagnostico declaraba un recorte que nadie pidio.</li>
+<li>Un par no comparado trae cobertura <code>NA</code>, y <code>datos[NA, ]</code> devuelve una fila entera de <code>NA</code> en vez de ninguna. <code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code> filtra con <code><a href="https://rdrr.io/r/base/which.html" class="external-link">which()</a></code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="infraestructura-0-1-0">Infraestructura<a class="anchor" aria-label="anchor" href="#infraestructura-0-1-0"></a></h3>
+<ul><li>
+<code>inst/WORDLIST</code> completa la lista que faltaba: <code>spelling::spell_check_package()</code> vuelve cero. Las palabras son nombres propios, siglas, terminos tecnicos y fragmentos de identificadores del paquete.</li>
+<li>
+<code>CONTRIBUTING.md</code> corrige el orden de la verificacion previa. <code>test_dir()</code> y <code>test_file()</code> cargan el paquete con <code><a href="https://github.com/sebollin/lupa" class="external-link">library(lupa)</a></code>, que no expone las funciones internas y produce veinte errores falsos de «could not find function»; <code>test_check("lupa")</code> es lo que corre <code>R CMD check</code>, y necesita el paquete instalado.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="cuatro-motores-reales-0-1-0">Cuatro motores reales<a class="anchor" aria-label="anchor" href="#cuatro-motores-reales-0-1-0"></a></h3>
+<ul><li>El desvio se pide primero con la funcion nativa del motor —<code>STDDEV_SAMP</code> del estandar, <code>STDEV</code> en SQL Server— y solo cae al calculo de dos pasadas donde no existe ninguna de las dos. La forma anterior ponia la media como subconsulta escalar para no incrustarla como literal en el SQL guardado, y SQL Server rechaza una subconsulta dentro de un agregado: el arreglo de privacidad habia roto la compatibilidad, y solo un motor real podia mostrarlo.</li>
+<li>Verificado contra PostgreSQL 16, MySQL 8, SQL Server 2022 y SQLite: en los cuatro, ninguna metrica queda no disponible, y la media, la mediana y el desvio calculados por el motor coinciden con los calculados en R sobre la tabla entera. En SQL Server la sonda resuelve el dialecto <code>top</code> por su cuenta.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="numeros-que-no-pueden-ser-0-1-0">Numeros que no pueden ser<a class="anchor" aria-label="anchor" href="#numeros-que-no-pueden-ser-0-1-0"></a></h3>
+<ul><li><p><code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> resuelve un nombre calificado con punto igual que <code><a href="../reference/coleccion.html">coleccion()</a></code>. <code>dbExistsTable()</code> no lo resuelve, asi que el mismo texto funcionaba en una funcion y fallaba en la otra diciendo que la tabla no existe. Un nombre literal con punto adentro sigue teniendo prioridad.</p></li>
+<li><p>El universo aplicable declarado sale tambien del analisis, no solo de los conteos. Con filas no aplicables que tienen valor, <code>n_distintos</code> las contaba mientras <code>n_validos</code> ya no, y <code>tasa_distintos</code> podia pasar de 1.</p></li>
+<li><p>La trazabilidad no nombra filas fuera del universo declarado. El conteo ya las excluia y nombrarlas igual producia la incoherencia que la guarda detecta.</p></li>
+<li><p>La via DBI valida la coherencia interna de lo que informa el motor: mas valores distintos que validos, o una frecuencia de moda mayor que las filas validas, son imposibles y se declaran no disponibles en vez de publicarse como calculados.</p></li>
+<li><p>El lexico de nombres de columna con datos personales cubre <code>persona</code>, <code>cliente</code>, <code>paciente</code>, <code>socio</code>, <code>beneficiario</code>, <code>titular</code>, <code>funcionario</code>, <code>usuario</code>, <code>solicitante</code>, <code>responsable</code>, <code>contribuyente</code>, <code>residencia</code>, <code>lugar_residencia</code> y <code>barrio</code>. Ningun lexico puede ser completo; estos son los frecuentes en registros administrativos.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-via-dbi-deja-de-asumir-un-dialecto-y-de-tirar-lo-que-ya-midio-0-1-0">La via DBI deja de asumir un dialecto y de tirar lo que ya midio<a class="anchor" aria-label="anchor" href="#la-via-dbi-deja-de-asumir-un-dialecto-y-de-tirar-lo-que-ya-midio-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> resuelve el dialecto con una sonda de cero filas <strong>antes</strong> de emitir el bloque de agregados: <code>limit</code>, <code>top</code>, <code>fetch_first</code>, <code>rownum</code> y una via portable con <code>dbSendQuery()</code> + <code>dbFetch(n)</code>. Se puede declarar con <code>dialecto =</code> si la sonda no acierta.</li>
+<li>Las cuatro consultas obligatorias —campos, conteo, esquema y muestra— dejaron de ser fatales. Si la muestra falla, el objeto vuelve con <code>resumen_tabla</code> completo, <code>perfil_muestra = NULL</code> y una fila de cobertura con el motivo. Antes, un motor que no acepta <code>LIMIT</code> descartaba las 777 consultas ya pagadas.</li>
+<li>El esquema y la muestra enumeran columnas en vez de usar <code>SELECT *</code>, y si la lectura conjunta falla sondean columna por columna para descartar solo la que el motor rechaza.</li>
+<li>Los <code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop()</a></code> de la via DBI tienen clase de condicion propia, asi que un fallo se puede atrapar y el resumen rescatar.</li>
+<li>Los alias se comillan y se comparan sin distinguir caja. Un motor que los pliega a mayusculas ya no produce metricas con estado <code>calculado</code> y valor vacio, que era peor que declararlas no disponibles.</li>
+<li>Argumentos nuevos para acotar el costo: <code>modo</code>, <code>metricas</code> y <code>max_consultas</code>, mas <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code>, que dice cuantas consultas va a costar el perfilado antes de emitirlas.</li>
+<li>
+<code>resumen_tabla</code> pasa por la proteccion de datos personales, que antes solo alcanzaba al perfil de la muestra: el bloque sin proteger era justamente el de alcance completo. El SQL guardado del desvio ya no incrusta la media observada. Nuevo <code>print.perfil_dbi</code>, que no imprime ningun valor de celda.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="el-nivel-coleccion-deja-de-informar-cero-donde-no-midio-0-1-0">El nivel coleccion deja de informar cero donde no midio<a class="anchor" aria-label="anchor" href="#el-nivel-coleccion-deja-de-informar-cero-donde-no-midio-0-1-0"></a></h3>
+<ul><li>Una tabla vacia ya no produce <code>prop_faltantes_maxima = -Inf</code> ni <code>n_columnas_sin_faltantes = 0</code>: son <code>NA</code>, con una fila de cobertura que declara que no hay nada que medir. Antes esa tabla se ordenaba como la de mejor calidad de la base.</li>
+<li>Componente nuevo <code>cobertura_metricas</code>: la declaracion de lo que el motor rechazo sube al nivel coleccion antes de descartar los perfiles, y existe tambien con <code>conservar_perfiles = FALSE</code>.</li>
+<li>
+<code><a href="../reference/estimar_costo_coleccion.html">estimar_costo_coleccion()</a></code> usa la formula cerrada en vez de materializar los pares: 27,4 s y 233 MB con 1700 tablas pasaron a 0,42 s. El resultado es identico. Acepta cero pares, deduplica y rechaza los autorreferenciales.</li>
+<li>
+<code><a href="../reference/relaciones_coleccion.html">relaciones_coleccion()</a></code> cachea cada tabla en vez de releerla una vez por par.</li>
+<li>Los identificadores de mas de dos partes se rechazan nombrando la causa real. Antes se aceptaban y el fallo se le devolvia al usuario como un problema de permisos sobre una tabla que si podia leer.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="el-perfilado-espacial-deja-de-ser-inviable-por-tiempo-0-1-0">El perfilado espacial deja de ser inviable por tiempo<a class="anchor" aria-label="anchor" href="#el-perfilado-espacial-deja-de-ser-inviable-por-tiempo-0-1-0"></a></h3>
+<ul><li>Las columnas no atomicas ya no pasan por la maquinaria de texto. Convertirlas no producia sus valores sino su representacion como codigo, una vez por cada etapa que las tocaba: era el 85 % del costo de perfilar una capa espacial. Perfilar 62 poligonos de 200.000 vertices paso de 323 s a 2,3 s.</li>
+<li>La transformacion de coordenadas se hace en una sola llamada y no una por geometria.</li>
+<li>Presupuesto de geometrias y de vertices, con el recorte declarado.</li>
+<li>WKT, WKB y hexadecimal se detectan, se convierten y se miden. Antes quedaban todas las metricas en <code>NA</code> con <code>cobertura_diagnosticos</code> vacia, y <code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> llegaba a afirmar que la geometria no aplicaba sobre datos que si eran geometricos.</li>
+<li>Un fallo parcial ya no descarta la columna entera: una geometria intransformable o un <code>NA</code> de la validez dejan de borrar el conteo y los indices de todas las demas.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="el-vacio-por-diseno-se-declara-y-deja-de-contarse-como-defecto-0-1-0">El vacio por diseno se declara y deja de contarse como defecto<a class="anchor" aria-label="anchor" href="#el-vacio-por-diseno-se-declara-y-deja-de-contarse-como-defecto-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> acepta <code>aplicabilidad</code>, una lista de formulas por columna que declara en que filas la columna corresponde. Las filas fuera del universo salen de <code>n_faltantes</code> y de <code>prop_faltantes</code> en vez de contarse como ausencia. Antes, una tabla completa en las filas donde el dato corresponde podia informar completitud baja: el conteo era correcto y la lectura falsa.</li>
+<li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> acepta <code>columnas_opcionales</code> para el caso mas simple, donde la ausencia nunca es defecto y no hay una regla que escribir.</li>
+<li>La regla declarada, el universo resultante y las filas donde la regla no se pudo determinar quedan en <code>cobertura_diagnosticos</code>. Un universo recortado sin constancia seria el mismo defecto al reves.</li>
+<li>Las filas donde la regla no se puede evaluar no se cuentan como aplicables ni como no aplicables: van a <code>n_aplicabilidad_indeterminada</code>, porque no saber no es lo mismo que no corresponder.</li>
+<li>Nuevo hallazgo <code>valor_fuera_de_aplicabilidad</code>: un valor presente donde la regla dice que la columna no corresponde. Es el error simetrico y sin universo declarado no tenia forma de aparecer.</li>
+<li>La metrica <code>NoNulo</code> acepta <code>aplicable</code> con el mismo criterio, para que el universo declarado llegue al tablero y no solo al hallazgo.</li>
+<li>Nueva funcion <code><a href="../reference/perfilar_por.html">perfilar_por()</a></code>: perfila cada grupo de filas por separado y devuelve los hallazgos de todos los grupos en una tabla. Es la respuesta al formato largo, donde una sola columna mezcla dominios sin relacion. Las columnas enteramente ausentes dentro de cada grupo se descartan antes de perfilar, y el descarte se declara.</li>
+<li>Nueva vineta <code>vacio-por-diseno</code>, que documenta el supuesto tabular del paquete y las seis formas de tabla donde no vale.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="privacidad-ante-la-duda-se-protege-0-1-0">Privacidad: ante la duda se protege<a class="anchor" aria-label="anchor" href="#privacidad-ante-la-duda-se-protege-0-1-0"></a></h3>
+<ul><li>El clasificador de datos personales dejaba sin proteger una columna cuya forma era compatible con un documento de identidad cuando el validador no podia verificarla. Ese es justamente el caso de una base sucia, y los valores reales terminaban escritos en la evidencia de los hallazgos. Ahora se protege igual; la evidencia sigue declarando que la clasificacion es debil.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="conteos-que-no-se-pueden-contar-0-1-0">Conteos que no se pueden contar<a class="anchor" aria-label="anchor" href="#conteos-que-no-se-pueden-contar-0-1-0"></a></h3>
+<ul><li>
+<code>.moda_columna()</code> distinguia mal dos ausencias: la frecuencia cero de una columna sin valores validos y la imposibilidad de contar sobre una columna no atomica. La segunda ahora es <code>NA</code>.</li>
+<li>El hallazgo <code>constante</code> sobre una columna no atomica informa la frecuencia que se deduce de las filas validas y las nombra en la trazabilidad, en vez de informar cero afectados. El discriminador dejo de ser la etiqueta del tipo, que dejaba afuera a las columnas espaciales.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="recortes-declarados-donde-se-los-busca-0-1-0">Recortes declarados donde se los busca<a class="anchor" aria-label="anchor" href="#recortes-declarados-donde-se-los-busca-0-1-0"></a></h3>
+<ul><li>El recorte por <code>max_columnas_dependencias</code> se declara en <code>cobertura_diagnosticos</code>, como ya lo hacia el recorte hermano de la busqueda aritmetica. El tope aplicado se conserva como atributo, y el motivo aclara que la seleccion de columnas es por posicion.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="patrones-raros-ventana-de-operacion-visible-0-1-0">Patrones raros: ventana de operacion visible<a class="anchor" aria-label="anchor" href="#patrones-raros-ventana-de-operacion-visible-0-1-0"></a></h3>
 <ul><li>
 <code>patron_raro</code> declara en <code>cobertura_diagnosticos</code> cuando no puede ejecutarse porque el patron dominante no alcanza <code>umbral_patron_dominante</code>. La fila conserva la proporcion observada y explica como ajustar ese argumento.</li>

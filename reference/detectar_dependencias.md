@@ -18,7 +18,8 @@ detectar_dependencias(
   umbral_casi_clave = 0.8,
   incluir_claves = FALSE,
   min_observaciones = 10L,
-  max_ejemplos = 5L
+  max_ejemplos = 5L,
+  max_comparaciones = 200000L
 )
 ```
 
@@ -63,12 +64,19 @@ detectar_dependencias(
 
   Máximo de contradicciones concretas en `evidencia`.
 
+- max_comparaciones:
+
+  Máximo de pares determinante-dependiente que se comparan. `Inf`
+  desactiva el presupuesto.
+
 ## Value
 
 Data frame de clase `dependencias_funcionales`, ordenado por
 cumplimiento y soporte. Los atributos `muestreado`, `filas_analizadas`,
 `columnas_analizadas`, `columnas_omitidas`, `columnas_descartadas` y
-`truncado` documentan el alcance efectivo. `columnas_descartadas` es un
+`truncado` documentan el alcance efectivo. `n_pares_posibles`,
+`n_pares_comparados`, `n_pares_sin_comparar` y `max_comparaciones`
+documentan el presupuesto de comparaciones. `columnas_descartadas` es un
 data frame que explica por qué una columna no se usó como determinante.
 
 ## Details
@@ -85,10 +93,12 @@ determinantes con menos de 1,25 filas por valor distinto en promedio:
 aun si cumplen, suelen describir una casi-clave y no una regla
 reutilizable.
 
-El costo crece con el cuadrado de las columnas. `max_columnas` conserva
-las primeras columnas analizables y `muestra` aplica una única muestra
-sistemática a toda la tabla, de modo que las relaciones entre filas no
-se rompen. Los atributos del resultado declaran ambos recortes.
+El costo crece aproximadamente como `columnas^2 * filas`. `max_columnas`
+conserva las primeras columnas analizables, `max_comparaciones` limita
+el número de pares columna a columna y `muestra` aplica una única
+muestra sistemática a toda la tabla, de modo que las relaciones entre
+filas no se rompen. Los atributos del resultado declaran todos los
+recortes.
 
 ## See also
 

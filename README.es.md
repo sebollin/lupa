@@ -127,7 +127,7 @@ breve:
 | Tarea | Funciones principales | Para leer más |
 |----|----|----|
 | Mirar los datos por primera vez | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md), [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md), [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md), [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md), `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Perfilar contra una base | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — agregados SQL de toda la tabla y un perfil de 99 campos sobre una muestra declarada; los alcances quedan separados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Perfilar contra una base | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — agregados SQL de toda la tabla y un perfil de 105 campos sobre una muestra declarada; los alcances quedan separados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Encontrar estructura no declarada | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md), [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md) | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Definir la calidad | [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md), [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md), [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md) | [Definir la calidad](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Medir y evaluar | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md), [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md) con pesos del proyecto, [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md) con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Medir y evaluar](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -172,6 +172,149 @@ dependencias conserva atributos con las filas analizadas y el muestreo.
 reutiliza `muestra = 1e5` para su perfil, distribuciones y niveles
 observados, y declara límites separados para asociaciones y los demás
 componentes.
+
+## 🗄️ Motores: qué está probado y qué está esperado
+
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+no promete un dialecto universal. Resuelve el dialecto con una sonda de
+cero filas **antes** de emitir el bloque de agregados, y lo que el motor
+rechaza queda declarado como no disponible con su motivo, nunca en cero.
+
+| motor | dialecto | estado |
+|----|----|----|
+| SQLite | `limit` | **probado** contra el motor real, en la suite |
+| motor que rechaza `LIMIT` | `top` / `portable` | **probado** con un motor simulado en la suite |
+| motor que pliega los alias a mayúsculas | cualquiera | **probado** con un motor simulado |
+| motor que rechaza `SELECT *` por una columna | cualquiera | **probado** con un motor simulado |
+| **PostgreSQL 16** | `limit` | **probado** contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, esquemas, colecciones y permisos parciales |
+| **MySQL 8** | `limit` | **probado** contra el motor real: mismos tres estadísticos verificados contra R |
+| **SQL Server 2022** | `top` | **probado** contra el motor real: la sonda resuelve `top` sola, y los tres estadísticos coinciden con R |
+| MariaDB, DuckDB | `limit` | esperado, sin comprobar contra el motor |
+| Oracle 12c+ | `fetch_first` | esperado, sin comprobar contra el motor |
+| Oracle 11 y anteriores | `rownum` | esperado, sin comprobar contra el motor |
+| cualquier otro compatible con DBI | `portable` | reserva: `dbSendQuery()` + `dbFetch(n)` |
+
+**Esperado** significa que el dialecto está construido y probado contra
+un motor simulado que reproduce esa restricción, no que se haya corrido
+contra el motor real. La diferencia importa y por eso está escrita: los
+defectos que esta versión corrigió no aparecieron en ocho entornos
+verdes justamente porque todos usaban el mismo motor.
+
+El dialecto se puede declarar con `dialecto =` si la sonda no acierta.
+Un fallo parcial nunca descarta lo ya medido: si la lectura de la
+muestra falla, el objeto vuelve con `resumen_tabla` completo,
+`perfil_muestra = NULL` y una fila de cobertura con el motivo.
+
+### El costo se planifica antes de pagarlo
+
+Perfilar 158 columnas en `modo = "exacto"` emite 623 consultas, y 777 de
+las 778 originales escaneaban la tabla entera. `muestra` no acota eso:
+acota lo que se trae a R, no el trabajo del motor. Así que el costo se
+declara y se elige:
+
+``` r
+
+plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # 5 consultas, predice el resto
+```
+
+El plan **predice exactamente** cuántas consultas va a emitir el
+perfilado, en los cinco modos, y esa exactitud es una restricción de
+diseño: cada sonda de capacidad gasta un número fijo de consultas aunque
+acierte en la primera forma, porque un costo que dependiera del motor
+haría que el plan dejara de predecir.
+
+| modo | qué hace |
+|----|----|
+| `exacto` | todas las métricas sobre la tabla entera |
+| `seguro` | deja fuera las métricas que ordenan la columna completa |
+| `conteos` | sólo conteos |
+| `muestreado` | métricas sobre filas muestreadas **en el motor**: `TABLESAMPLE` donde existe, un orden pseudoaleatorio con límite donde no |
+| `aproximado` | funciones aproximadas nativas: `APPROX_COUNT_DISTINCT`, `PERCENTILE_CONT`, `approx_quantile` y sus respaldos |
+
+Toda métrica muestreada o aproximada viaja diciéndolo. `estado`
+distingue `calculado`, `estimado` y `no_disponible`, y cada fila lleva
+`universo`, `tamano_muestra`, `fraccion`, `metodo` y `error_esperado`
+—`desconocido` cuando el motor no documenta una cota, nunca una
+inventada—. El conteo de distintos tiene su propio estado,
+`observado_muestra`: la cardinalidad de una muestra no estima la
+cardinalidad del universo sin un estimador declarado, así que se informa
+por lo que es —lo visto en la muestra, con el universo al lado—. Un
+motor sin capacidad de muestreo no rompe: el modo degrada y lo dice en
+la tabla de cobertura.
+
+## 🕳️ El vacío por diseño se declara, no se cuenta como defecto
+
+Todo perfilador asume una forma de tabla. `lupa` asume que una fila es
+un hecho, que una columna es un dominio semántico y que una celda vacía
+debería tener un valor. La tercera es la que hace daño: una base
+administrativa está llena de vacíos legítimos — una vigencia abierta, un
+salto de patrón en una encuesta, columnas excluyentes por subtipo, un
+modelo entidad-atributo-valor. Contarlos como ausencia es correcto como
+cuenta y falso como lectura.
+
+`aplicabilidad` declara, por columna, en qué filas la columna
+corresponde. Las filas fuera de ese universo salen de `n_faltantes` y
+`prop_faltantes` en vez de informarse como ausencia:
+
+``` r
+
+perfilar(encuesta, aplicabilidad = list(marca_auto = ~ tiene_auto == "Si"))
+```
+
+`columnas_opcionales` cubre el caso más simple, donde la ausencia nunca
+es defecto y no hay una regla que escribir. La regla declarada, el
+universo resultante y las filas donde la regla no se pudo evaluar quedan
+en `cobertura_diagnosticos`: un universo recortado sin constancia sería
+el mismo defecto al revés. Las filas cuya regla no se puede determinar
+se cuentan aparte, en `n_aplicabilidad_indeterminada`, porque no saber
+no es lo mismo que no corresponder.
+
+Declarar el universo habilita además el error simétrico, que antes no
+tenía forma de aparecer: `valor_fuera_de_aplicabilidad` informa un valor
+presente donde la regla dice que la columna no corresponde.
+
+[`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+responde al formato largo, donde una sola columna apila dominios sin
+relación. Perfila cada grupo por separado, descarta las columnas
+enteramente ausentes dentro de cada grupo antes de perfilar, y declara
+lo que descartó.
+
+`lupa` no infiere el modelo. Pero declarar el universo exige saber que
+la opción existe, y quien perfilaba una tabla condicionada sin declarar
+nada recibía justo el informe engañoso que la declaración vino a evitar.
+Así que el paquete **mide la evidencia y la ofrece**: cuando el valor de
+una columna decide qué filas tienen otra, o cuando dos columnas se
+reparten las filas sin pisarse, `posible_ausencia_estructural` lo
+informa con severidad `ok`, la evidencia medida y la línea exacta que
+habría que escribir:
+
+    valor_a  posible_ausencia_estructural  ok
+      evidencia   `tipo` predice la presencia de `valor_a` en 100.0 % de 200 filas,
+                  con 2 valores distintos. La columna corresponde cuando tipo es "A".
+      sugerencia  perfilar(datos, aplicabilidad = list(valor_a = ~ tipo == "A"))
+
+Sugiere; no decide, y nunca reescribe el universo por su cuenta. Las
+columnas ya declaradas quedan fuera del examen. Sobre veinte conjuntos
+reales que vienen con R y sesenta tablas al azar con ausencia
+independiente no produce ninguna señal; dispara en el modelo
+entidad-atributo-valor, en el salto de patrón de una encuesta y en las
+columnas excluyentes, y se calla cuando el diez por ciento de las filas
+rompe la regla, porque entonces la relación existe y no es una regla.
+
+La otra cara es `regla_silencia_ausencia`, también `ok`: una columna
+declarada opcional o con universo propio que sigue casi vacía *dentro*
+de ese universo recibe un aviso. La declaración funcionó y por eso el
+perfil salió limpio; el aviso existe para que eso sea una decisión y no
+un efecto.
+
+`columnas_personales` cierra el hueco equivalente en la otra declaración
+que el paquete no puede hacer solo. Ningún léxico de nombres de columna
+puede ser completo: una columna con documentos se puede llamar
+`cod_benef`, y ninguna lista de nombres frecuentes la va a reconocer. Lo
+declarado gana sobre lo inferido y no se vuelve a examinar.
+
+La viñeta `vacio-por-diseno` documenta el supuesto y las seis formas de
+tabla donde no vale.
 
 ## 🔢 Unidades declaradas y trazabilidad por fila
 

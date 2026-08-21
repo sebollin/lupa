@@ -104,15 +104,20 @@ Authors:
 
 Other contributors:
 
-- Robyn Speer \[copyright holder\]
+- Robyn Speer (encoding-repair design and character tables, from ftfy
+  6.3.1) \[copyright holder\]
 
-- Nicholas Tierney \[copyright holder\]
+- Nicholas Tierney (missing-value sentinel vectors, from naniar 1.1.0)
+  \[copyright holder\]
 
-- Di Cook \[copyright holder\]
+- Di Cook (missing-value sentinel vectors, from naniar 1.1.0)
+  \[copyright holder\]
 
-- Miles McBain \[copyright holder\]
+- Miles McBain (missing-value sentinel vectors, from naniar 1.1.0)
+  \[copyright holder\]
 
-- Colin Fay \[copyright holder\]
+- Colin Fay (missing-value sentinel vectors, from naniar 1.1.0)
+  \[copyright holder\]
 
 ## Examples
 
@@ -156,8 +161,8 @@ subset(resultado$perfil$hallazgos, severidad != "ok")
 #> 19                                            La tabla contiene filas duplicadas exactas.
 #> 20                                                Dos columnas tienen el mismo contenido.
 #>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            evidencia
-#> 1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   Tasa de valores distintos: 0.846
-#> 2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            S/D (1)
+#> 1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              [evidencia protegida]
+#> 2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              [evidencia protegida]
 #> 3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   Tasa de valores distintos: 0.923
 #> 4                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           NULL (1)
 #> 5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 %Y-%m-%d (4); %d/%m/%Y (4); %Y%m%d (1); %Y/%m/%d (1); %d-%m-%Y (1)

@@ -49,7 +49,14 @@ tabla</strong> con su resumen exacto, más la cobertura de lo que no se pudo med
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">perfilar_coleccion</span><span class="op">(</span><span class="va">coleccion</span>, muestra <span class="op">=</span> <span class="fl">1000L</span>, conservar_perfiles <span class="op">=</span> <span class="cn">FALSE</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">perfilar_coleccion</span><span class="op">(</span></span>
+<span>  <span class="va">coleccion</span>,</span>
+<span>  muestra <span class="op">=</span> <span class="fl">1000L</span>,</span>
+<span>  conservar_perfiles <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  cobertura_metricas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"no_medidas"</span>, <span class="st">"completa"</span>, <span class="st">"ninguna"</span><span class="op">)</span>,</span>
+<span>  tope_cobertura_metricas <span class="op">=</span> <span class="fl">20000L</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -69,6 +76,19 @@ tabla</strong> con su resumen exacto, más la cobertura de lo que no se pudo med
 Por omisión <code>FALSE</code>.</p></dd>
 
 
+<dt id="arg-cobertura-metricas">cobertura_metricas<a class="anchor" aria-label="anchor" href="#arg-cobertura-metricas"></a></dt>
+<dd><p>Qué se sube a <code>cobertura_metricas</code>: <code>"no_medidas"</code>
+(por omisión) sólo las métricas que no se calcularon, <code>"completa"</code> todas
+con su estado, <code>"ninguna"</code> para omitirla. Los conteos por tabla de
+<code>resumen_coleccion</code> no dependen de esta elección.</p></dd>
+
+
+<dt id="arg-tope-cobertura-metricas">tope_cobertura_metricas<a class="anchor" aria-label="anchor" href="#arg-tope-cobertura-metricas"></a></dt>
+<dd><p>Máximo de filas de <code>cobertura_metricas</code>. El
+total real queda siempre en <code>meta$n_metricas_no_medidas</code>, aunque la tabla
+se haya recortado.</p></dd>
+
+
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Argumentos enviados a <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>.</p></dd>
 
@@ -76,7 +96,8 @@ Por omisión <code>FALSE</code>.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Objeto de clase <code>perfil_coleccion</code> con <code>resumen_coleccion</code>,
-<code>cobertura_coleccion</code>, <code>meta</code> y, si se pidió, <code>perfiles</code>.</p>
+<code>cobertura_coleccion</code>, <code>cobertura_metricas</code>, <code>meta</code> y, si se pidió,
+<code>perfiles</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -84,11 +105,23 @@ Por omisión <code>FALSE</code>.</p></dd>
 <strong>no</strong> retiene el perfil de la muestra de cada tabla, que es el objeto
 pesado: con cientos de tablas eso no entra en memoria. <code>conservar_perfiles</code>
 permite retenerlos cuando la colección es chica y se los necesita.</p>
-<p><strong>Lo que no se pudo medir se declara.</strong> Una tabla que la credencial no puede
-leer, un objeto que no es una tabla base, un motor que rechaza un agregado:
-cada caso va a <code>cobertura_coleccion</code> con su motivo y su <code>como_resolverlo</code>,
-y <strong>nunca a cero</strong>. En bases institucionales los permisos parciales son el caso
-normal, no el borde.</p>
+<p><strong>Lo que no se pudo medir se declara, y nunca a cero.</strong> Una tabla que la
+credencial no puede leer, un objeto que no es una tabla base y una tabla
+vacía van a <code>cobertura_coleccion</code> con su motivo y su <code>como_resolverlo</code>. Un
+motor que rechaza un agregado —o una columna cuyo tipo no lo admite— va a
+<code>cobertura_metricas</code>, con una fila por columna y métrica, y deja además una
+línea de resumen en <code>cobertura_coleccion</code>. Esa cobertura por métrica <strong>se
+calcula antes de descartar el perfil</strong>, así que existe también con
+<code>conservar_perfiles = FALSE</code>. En bases institucionales los permisos parciales
+son el caso normal, no el borde.</p>
+<p><strong>Donde no hubo medición va <code>NA</code>, no <code>0</code>.</strong> Una tabla vacía deja
+<code>prop_faltantes</code> en <code>NA</code> en todas sus columnas: antes eso producía
+<code>prop_faltantes_maxima = -Inf</code> —fuera del <code>[0, 1]</code> que el paquete promete, y
+ordenada como la tabla de mejor calidad de la base— y
+<code>n_columnas_sin_faltantes = 0</code>, que afirmaba tres columnas sin ausencias
+sobre una tabla de la que no se sabía nada. <code>n_columnas_medidas</code> declara
+sobre cuántas columnas se conoce la proporción de ausentes, para que los dos
+números anteriores se lean con su alcance.</p>
 <p><strong>No hay lectura instantánea.</strong> Perfilar una colección son muchas consultas y
 la base puede cambiar entre ellas: una tabla puede truncarse después de que se
 contaron sus filas. Por eso cada fila declara el <code>momento</code> en que se midió y

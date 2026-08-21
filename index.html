@@ -188,7 +188,7 @@
 <tr>
 <td>Profile against a database</td>
 <td>
-<code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> — full-table SQL aggregates plus a 99-field profile from a declared sample; the scopes stay separate</td>
+<code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> — full-table SQL aggregates plus a 105-field profile from a declared sample; the scopes stay separate</td>
 <td><a href="https://sebollin.github.io/lupa/articles/perfilar-una-base.html">Profiling a database</a></td>
 </tr>
 <tr>
@@ -264,6 +264,154 @@
 <p>Personal-document validators have a separate preliminary filter: <code>muestra_validadores = 1000</code> by default. A validator that passes that filter is then evaluated on the complete column; <code>Inf</code> makes even the preliminary pass complete. Approximate duplicates are off by default and have their own declared bounds when enabled.</p>
 <p>In <code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>, <code>pares$tipo_par</code> is self-describing: <code>exacto</code> means the stored texts are equal, <code>exacto_normalizado</code> means they only match after the declared normalization, and <code>aproximado</code> means they remain similar rather than equal. <code>pares$igualo_normalizar</code> marks the middle case. The corresponding scope counts are <code>n_pares_exactos</code>, <code>n_pares_exactos_normalizados</code>, and <code>n_pares_aproximados</code>.</p>
 <p>The result records the effective scope in <code>meta$muestra</code>, <code>meta$filas_analizadas</code>, and <code>meta$muestreo</code>; each column also records <code>n_filas_analizadas_tipo</code> and <code>muestreado_tipo_inferido</code>, while the dependency table carries its analysed-row and sampling attributes. <code><a href="reference/analizar.html">analizar()</a></code> reuses <code>muestra = 1e5</code> for its profile, distributions, and observed-level enumeration, and declares separate limits for associations and the other components.</p>
+</div>
+<div class="section level2">
+<h2 id="file_cabinet-engines-what-is-tested-and-what-is-expected">🗄️ Engines: what is tested and what is expected<a class="anchor" aria-label="anchor" href="#file_cabinet-engines-what-is-tested-and-what-is-expected"></a>
+</h2>
+<p><code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> does not promise a universal dialect. It resolves the dialect with a zero-row probe <strong>before</strong> issuing the aggregate block, and whatever the engine rejects is recorded as unavailable with its reason — never as zero.</p>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr>
+<th>engine</th>
+<th>dialect</th>
+<th>status</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>SQLite</td>
+<td><code>limit</code></td>
+<td>
+<strong>tested</strong> against the real engine, in the suite</td>
+</tr>
+<tr>
+<td>engine that rejects <code>LIMIT</code>
+</td>
+<td>
+<code>top</code> / <code>portable</code>
+</td>
+<td>
+<strong>tested</strong> with a simulated engine in the suite</td>
+</tr>
+<tr>
+<td>engine that folds aliases to upper case</td>
+<td>any</td>
+<td>
+<strong>tested</strong> with a simulated engine</td>
+</tr>
+<tr>
+<td>engine that rejects <code>SELECT *</code> over one column</td>
+<td>any</td>
+<td>
+<strong>tested</strong> with a simulated engine</td>
+</tr>
+<tr>
+<td><strong>PostgreSQL 16</strong></td>
+<td><code>limit</code></td>
+<td>
+<strong>tested</strong> against the real engine: dialect resolved by probe, mean, median and standard deviation verified against R, schemas, collections and partial permissions</td>
+</tr>
+<tr>
+<td><strong>MySQL 8</strong></td>
+<td><code>limit</code></td>
+<td>
+<strong>tested</strong> against the real engine: same three statistics verified against R</td>
+</tr>
+<tr>
+<td><strong>SQL Server 2022</strong></td>
+<td><code>top</code></td>
+<td>
+<strong>tested</strong> against the real engine: the probe resolves <code>top</code> on its own, and the three statistics match R</td>
+</tr>
+<tr>
+<td>MariaDB, DuckDB</td>
+<td><code>limit</code></td>
+<td>expected, not checked against the engine</td>
+</tr>
+<tr>
+<td>Oracle 12c+</td>
+<td><code>fetch_first</code></td>
+<td>expected, not checked against the engine</td>
+</tr>
+<tr>
+<td>Oracle 11 and earlier</td>
+<td><code>rownum</code></td>
+<td>expected, not checked against the engine</td>
+</tr>
+<tr>
+<td>any other DBI-compatible engine</td>
+<td><code>portable</code></td>
+<td>fallback: <code>dbSendQuery()</code> + <code>dbFetch(n)</code>
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Expected</strong> means the dialect is built and tested against a simulated engine that reproduces the restriction, not that it has been run against the real engine. The distinction matters, which is why it is written down: the defects this version fixed did not surface in eight green environments precisely because all of them used the same engine.</p>
+<p>The dialect can be declared with <code>dialecto =</code> if the probe gets it wrong. A partial failure never discards what was already measured: if reading the sample fails, the object comes back with a complete <code>resumen_tabla</code>, <code>perfil_muestra = NULL</code>, and a coverage row carrying the reason.</p>
+<div class="section level3">
+<h3 id="cost-is-planned-before-it-is-paid">Cost is planned before it is paid<a class="anchor" aria-label="anchor" href="#cost-is-planned-before-it-is-paid"></a>
+</h3>
+<p>Profiling 158 columns in <code>modo = "exacto"</code> emits 623 queries, and 777 of the original 778 scanned the whole table. <code>muestra</code> does not bound that: it bounds what is brought into R, not the work the engine does. So the cost is declared and chosen:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tabla"</span>, modo <span class="op">=</span> <span class="st">"muestreado"</span><span class="op">)</span>   <span class="co"># 5 queries, predicts the rest</span></span></code></pre></div>
+<p>The plan <strong>predicts exactly</strong> how many queries the profiling will emit, in all five modes, and that exactness is a design constraint: every capability probe costs a fixed number of queries even when it succeeds on the first form, because a cost that depends on the engine would make the plan stop predicting.</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr>
+<th>mode</th>
+<th>what it does</th>
+</tr></thead>
+<tbody>
+<tr>
+<td><code>exacto</code></td>
+<td>every metric over the whole table</td>
+</tr>
+<tr>
+<td><code>seguro</code></td>
+<td>drops the metrics that sort the whole column</td>
+</tr>
+<tr>
+<td><code>conteos</code></td>
+<td>counts only</td>
+</tr>
+<tr>
+<td><code>muestreado</code></td>
+<td>metrics over rows sampled <strong>in the engine</strong>: <code>TABLESAMPLE</code> where it exists, a pseudo-random order with a limit where it does not</td>
+</tr>
+<tr>
+<td><code>aproximado</code></td>
+<td>native approximate functions: <code>APPROX_COUNT_DISTINCT</code>, <code>PERCENTILE_CONT</code>, <code>approx_quantile</code> and their fallbacks</td>
+</tr>
+</tbody>
+</table>
+<p>Every sampled or approximated metric travels saying so. <code>estado</code> distinguishes <code>calculado</code>, <code>estimado</code> and <code>no_disponible</code>, and each row carries <code>universo</code>, <code>tamano_muestra</code>, <code>fraccion</code>, <code>metodo</code> and <code>error_esperado</code> — <code>desconocido</code> when the engine documents no bound, never an invented one. Distinct counts get their own state, <code>observado_muestra</code>: the cardinality of a sample does not estimate the cardinality of the universe without a declared estimator, so it is reported as what it is — what was seen in the sample, with the universe stated beside it. An engine with no sampling capability does not break: the mode degrades and says so in the coverage table.</p>
+</div>
+</div>
+<div class="section level2">
+<h2 id="hole-emptiness-by-design-is-declared-not-counted-as-a-defect">🕳️ Emptiness by design is declared, not counted as a defect<a class="anchor" aria-label="anchor" href="#hole-emptiness-by-design-is-declared-not-counted-as-a-defect"></a>
+</h2>
+<p>Every profiler assumes a table shape. <code>lupa</code> assumes one row is one fact, one column is one semantic domain, and an empty cell should have had a value. The third assumption is the one that hurts: an administrative table is full of legitimate emptiness — an open-ended validity interval, a survey skip pattern, columns that are mutually exclusive by subtype, an entity-attribute-value model. Counting those as missing is arithmetically right and semantically wrong.</p>
+<p><code>aplicabilidad</code> declares, per column, the rows where the column applies. Rows outside that universe leave <code>n_faltantes</code> and <code>prop_faltantes</code> instead of being reported as absence:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">encuesta</span>, aplicabilidad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>marca_auto <span class="op">=</span> <span class="op">~</span> <span class="va">tiene_auto</span> <span class="op">==</span> <span class="st">"Si"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p><code>columnas_opcionales</code> covers the simpler case, where absence is never a defect and there is no rule to write. The declared rule, the resulting universe, and the rows where the rule could not be evaluated all land in <code>cobertura_diagnosticos</code>: a narrowed universe without a record would be the same defect in reverse. Rows whose rule cannot be determined are counted apart, in <code>n_aplicabilidad_indeterminada</code>, because not knowing is not the same as not applying.</p>
+<p>Declaring the universe also enables the symmetric error, which had no way to appear before: <code>valor_fuera_de_aplicabilidad</code> reports a value present where the rule says the column does not apply.</p>
+<p><code><a href="reference/perfilar_por.html">perfilar_por()</a></code> answers the long format, where one column stacks unrelated domains. It profiles each group separately, drops the wholly-absent columns inside each group before profiling, and declares what it dropped.</p>
+<p><code>lupa</code> does not infer the model. But declaring the universe requires knowing the option exists, and someone profiling a conditioned table without declaring anything got exactly the misleading report the feature was built to prevent. So the package <strong>measures the evidence and offers it</strong>: when the value of one column decides which rows have another, or when two columns split the rows without overlapping, <code>posible_ausencia_estructural</code> reports it with severity <code>ok</code>, the measured evidence, and the line to paste:</p>
+<pre><code>valor_a  posible_ausencia_estructural  ok
+  evidence  `tipo` predicts the presence of `valor_a` in 100.0 % of 200 rows,
+            with 2 distinct values. The column applies when tipo is "A".
+  suggests  perfilar(datos, aplicabilidad = list(valor_a = ~ tipo == "A"))</code></pre>
+<p>It suggests; it does not decide, and it never rewrites the universe on its own. Columns already declared are left out of the examination. On twenty real datasets shipped with R and sixty random tables with independent missingness it produces zero signals; it fires on the entity-attribute-value model, the survey skip pattern and the mutually exclusive columns, and stays quiet when ten per cent of the rows break the rule, because then the relation exists and is not a rule.</p>
+<p>The other side of the same coin is <code>regla_silencia_ausencia</code>, also <code>ok</code>: a column declared optional or with its own universe that stays almost empty <em>inside</em> that universe gets a notice. The declaration worked and that is why the profile came out clean — the notice exists so that is a decision and not a side effect.</p>
+<p><code>columnas_personales</code> closes the equivalent gap on the other declaration the package cannot make alone. No lexicon of column names can be complete: a column holding identity documents can be called <code>cod_benef</code>, and no list of frequent names will recognise it. Declaring it wins over inference and is not re-examined.</p>
+<p>The vignette <code>vacio-por-diseno</code> documents the assumption and the six table shapes where it does not hold.</p>
 </div>
 <div class="section level2">
 <h2 id="id_1234-declared-units-and-row-traceability">🔢 Declared units and row traceability<a class="anchor" aria-label="anchor" href="#id_1234-declared-units-and-row-traceability"></a>
@@ -354,9 +502,9 @@
 </tbody>
 </table>
 <p>In the Raha pairs the dirty/clean comparison labels changed cells; it does not label every property observable in an unchanged column. Manual review found a supported observation in each of the eight further columns—constants, duplicated columns, inconsistent case, empty strings, and high-cardinality text. We therefore report neither precision nor diagnostic recall from Raha: 26/26 is column coverage, not evidence that every changed cell was identified. <a href="https://github.com/sebollin/lupa/tree/main/benchmark" class="external-link"><code>benchmark/</code></a> reproduces the table from the published sources and records the exact file fingerprints used by the published run, but only when <code>lupa</code> is installed from a build of these same sources. From the repository root, reproduce that condition and run the scripts with:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/verdad_raha.R</span>
-<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_lupa.R</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/verdad_raha.R</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_lupa.R</span></code></pre></div>
 <p>The benchmark records the installed version and full <code>Built</code> stamp and stops when that installation lacks a capability required by the published table.</p>
 </div>
 <div class="section level2">
@@ -373,7 +521,7 @@
 <div class="section level3">
 <h3 id="citation-and-references">Citation and references<a class="anchor" aria-label="anchor" href="#citation-and-references"></a>
 </h3>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"lupa"</span><span class="op">)</span></span></code></pre></div>
 <p>Conceptual references are <a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini and Scannapieco (2016)</a>, the <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC Digital Government Data Quality Framework v1.6</a>, and <a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC 25012:2008</a>.</p>
 </div>

@@ -73,9 +73,9 @@ recorrerlas todas no es viable.</p>
 
 
 <dt id="arg-tablas">tablas<a class="anchor" aria-label="anchor" href="#arg-tablas"></a></dt>
-<dd><p>Nombres de las tablas que componen la colección, como vector
-<code>"esquema.tabla"</code> o como data frame con columnas <code>esquema</code>, <code>tabla</code> y
-opcionalmente <code>tipo</code>.</p></dd>
+<dd><p>Nombres de las tablas que componen la colección: un data frame
+con columnas <code>esquema</code>, <code>tabla</code> y opcionalmente <code>tipo</code>; un <code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">DBI::Id</a></code> o una
+lista de <code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">DBI::Id</a></code>; o un vector de texto <code>"esquema.tabla"</code>.</p></dd>
 
 
 <dt id="arg-nombre">nombre<a class="anchor" aria-label="anchor" href="#arg-nombre"></a></dt>
@@ -90,11 +90,42 @@ opcionalmente <code>tipo</code>.</p></dd>
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Esta función no consulta nada: sólo declara. Lo que se mide viene después,
 con <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code>.</p>
-<p>El <strong>esquema es parte de la identidad de la tabla</strong>. Se puede declarar como
-<code>"esquema.tabla"</code> o con un data frame de columnas <code>esquema</code> y <code>tabla</code>. Una
-tercera columna <code>tipo</code> permite declarar qué es cada objeto —<code>"tabla"</code>,
-<code>"vista"</code>, <code>"temporal"</code>—, porque el conteo bruto de un catálogo mezcla tablas
-base con vistas, índices y secuencias, y no todas se perfilan igual.</p>
+<p>El <strong>esquema es parte de la identidad de la tabla</strong>. Una tercera columna
+<code>tipo</code> permite declarar qué es cada objeto —<code>"tabla"</code>, <code>"vista"</code>,
+<code>"temporal"</code>—, porque el conteo bruto de un catálogo mezcla tablas base con
+vistas, índices y secuencias, y no todas se perfilan igual.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="c-mo-declarar-el-nombre">Cómo declarar el nombre<a class="anchor" aria-label="anchor" href="#c-mo-declarar-el-nombre"></a></h2>
+
+
+
+<p>Hay tres formas, y <strong>no son equivalentes</strong>:</p>
+<dl><dt><code>data.frame(esquema =, tabla =)</code></dt>
+<dd><p><strong>La forma recomendada para
+cualquier nombre no trivial.</strong> Los nombres viajan literales: puntos,
+espacios y comillas incluidos. No hay parseo y por lo tanto no hay nada
+que se pueda parsear mal.</p></dd>
+
+<dt><code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">DBI::Id</a></code>, suelto o en una lista</dt>
+<dd><p>La forma canónica de DBI. Tampoco
+se parsea. Se admiten hasta dos componentes —esquema y tabla—.</p></dd>
+
+<dt>Texto <code>"esquema.tabla"</code></dt>
+<dd><p>Atajo cómodo para el caso simple. El texto
+<strong>se parte en el punto</strong>, respetando el entrecomillado del motor:
+un nombre entrecomillado con un punto adentro queda entero, como una
+sola tabla. Un nombre de tres o más
+partes, un punto al principio o al final, o una comilla sin cerrar se
+<strong>rechazan acá</strong>, con el motivo real. No se aceptan para fallar más tarde
+como si fueran un problema de permisos.</p></dd>
+
+
+</dl><p>El atajo de texto no puede resolver una ambigüedad genuina: <code>"informe.2024"</code>
+puede ser la tabla <code>2024</code> del esquema <code>informe</code> o una tabla llamada
+<code>informe.2024</code>. <code>lupa</code> elige la primera lectura y lo deja anotado, de modo
+que si después no encuentra la tabla dice que el nombre se partió. Para el
+caso ambiguo use el data frame.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -108,6 +139,8 @@ base con vistas, índices y secuencias, y no todas se perfilan igual.</p>
 <span class="r-in"><span>  <span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">RSQLite</span><span class="fu">::</span><span class="fu"><a href="https://rsqlite.r-dbi.org/reference/SQLite.html" class="external-link">SQLite</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">":memory:"</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"personas"</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, nombre <span class="op">=</span> <span class="va">letters</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="fu">coleccion</span><span class="op">(</span><span class="va">con</span>, <span class="st">"personas"</span>, nombre <span class="op">=</span> <span class="st">"padron"</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="co"># La forma literal, sin parseo, para nombres con puntos:</span></span></span>
+<span class="r-in"><span>  <span class="fu">coleccion</span><span class="op">(</span><span class="va">con</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>esquema <span class="op">=</span> <span class="cn">NA</span>, tabla <span class="op">=</span> <span class="st">"personas"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">con</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span></span></span>
 </code></pre></div>

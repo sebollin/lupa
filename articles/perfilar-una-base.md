@@ -9,6 +9,23 @@ distintos:
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   sobre las filas traídas a memoria.
 
+El resumen SQL usa `modo = "exacto"` por omisión. Para tablas grandes se
+puede pedir `modo = "muestreado"`: las métricas se calculan sobre una
+relación muestreada por el motor, no sobre una tabla traída a R. La
+capacidad se sondea antes de medir; PostgreSQL y SQL Server pueden
+resolverla con `TABLESAMPLE`, y otros motores con una función
+pseudoaleatoria y el límite de su dialecto. Si ninguna forma es
+aceptada, las métricas quedan en `NA` y `resumen_tabla$cobertura`
+conserva el motivo.
+
+Cada registro de `resumen_tabla$sql` declara `alcance`, `universo`,
+`tamano_muestra`, `fraccion`, `metodo` y `error_esperado`. En el modo
+muestreado, `n_distintos` se conserva como cardinalidad observada en la
+muestra, no como una estimación de la cardinalidad de la tabla completa.
+`modo = "aproximado"` sondea las funciones nativas de cardinalidad y
+cuantiles; si una no existe, se usa el respaldo exacto y el método queda
+registrado.
+
 Mezclarlos en una fila, aun con un campo de alcance por resultado,
 permitiría comparar cantidades como si pertenecieran al mismo perfil.
 Los dos bloques impiden esa lectura.
@@ -99,7 +116,7 @@ data.frame(
 )
 #>           bloque filas_fuente campos_analiticos columnas_del_resultado
 #> 1  resumen_tabla           12                15                     16
-#> 2 perfil_muestra            5                98                     99
+#> 2 perfil_muestra            5               104                    105
 ```
 
 ## `resumen_tabla`: agregados sobre la tabla completa
@@ -123,18 +140,18 @@ perfil$resumen_tabla$columnas[, c(
 #> 4   fecha 12           0          12     NA     NA       NA
 ```
 
-`perfil_muestra$columnas` contiene los 99 campos del perfil, pero su
+`perfil_muestra$columnas` contiene los 105 campos del perfil, pero su
 universo son cinco filas en este ejemplo. Llamar *perfil* al resumen SQL
 afirmaría una completitud que no tiene: el resumen cubre quince de esos
-aspectos sobre doce filas; el perfil cubre sus 99 campos sobre las cinco
-filas obtenidas. Las consultas, estados y motivos de los agregados SQL
-quedan en `resumen_tabla$sql` para que también se vea qué aceptó o
+aspectos sobre doce filas; el perfil cubre sus 105 campos sobre las
+cinco filas obtenidas. Las consultas, estados y motivos de los agregados
+SQL quedan en `resumen_tabla$sql` para que también se vea qué aceptó o
 rechazó el motor.
 
 ## `perfil_muestra`: el perfil completo de la muestra
 
 El perfil completo se obtiene en memoria sobre las cinco filas
-seleccionadas. La salida muestra algunos de sus 99 campos para que se
+seleccionadas. La salida muestra algunos de sus 105 campos para que se
 vean, junto con los conteos, los faltantes, los distintos y el tipo
 inferido.
 
@@ -232,3 +249,38 @@ invisible(DBI::dbDisconnect(conexion))
 La metadata no convierte una muestra en la tabla completa. Permite que
 quien consume el resultado compare cada bloque dentro de su propio
 alcance.
+
+## Muestras y aproximaciones para tablas grandes
+
+La muestra usada por `perfil_muestra` y la relación usada por
+`modo = "muestreado"` son declaradas por separado. La primera se trae a
+R para ejecutar el perfil completo; la segunda permanece en SQL para que
+los agregados no recorran la tabla completa. La metadata de ambos
+bloques publica el universo y el método efectivo.
+
+``` r
+
+estimado <- perfilar_dbi(
+  conexion, "entregas", muestra = 5000,
+  modo = "muestreado", metricas = c(
+    "validos", "distintos", "moda", "basicos", "mediana", "desvio"
+  )
+)
+
+estimado$resumen_tabla$sql[
+  estimado$resumen_tabla$sql$estado %in% c("estimado", "observado_muestra"),
+  c("columna", "metrica", "estado", "universo", "tamano_muestra",
+    "metodo", "fraccion", "error_esperado")
+]
+
+aproximado <- perfilar_dbi(
+  conexion, "entregas", muestra = 5000, modo = "aproximado"
+)
+aproximado$resumen_tabla$meta$aproximaciones
+```
+
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+emite las sondas de capacidad y predice el total que costará la corrida.
+La predicción incluye las sondas aunque una forma acertada aparezca
+antes que las demás, porque el costo declarado no puede depender del
+motor.

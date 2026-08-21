@@ -324,13 +324,13 @@ instancia <- instanciar(no_nulo, entidad = "personas", atributos = "edad")
 modelo_calidad <- modelo(instancia)
 medir(modelo_calidad, data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260819T190902.321217-7663-000001
-#> 2 medicion-20260819T190902.321217-7663-000002
-#> 3 medicion-20260819T190902.321217-7663-000003
+#> 1 medicion-20260821T000557.272507-7518-000001
+#> 2 medicion-20260821T000557.272507-7518-000002
+#> 3 medicion-20260821T000557.272507-7518-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260819T190902.321217-7663 2026-08-19 19:09:02  NoNulo
-#> 2 medicion-20260819T190902.321217-7663 2026-08-19 19:09:02  NoNulo
-#> 3 medicion-20260819T190902.321217-7663 2026-08-19 19:09:02  NoNulo
+#> 1 medicion-20260821T000557.272507-7518 2026-08-21 00:05:57  NoNulo
+#> 2 medicion-20260821T000557.272507-7518 2026-08-21 00:05:57  NoNulo
+#> 3 medicion-20260821T000557.272507-7518 2026-08-21 00:05:57  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
@@ -381,13 +381,13 @@ medir(
   data.frame(origen = c("sistema_a", "", NA), stringsAsFactors = FALSE)
 )
 #>                                     id_medida
-#> 1 medicion-20260819T190902.328299-7663-000001
-#> 2 medicion-20260819T190902.328299-7663-000002
-#> 3 medicion-20260819T190902.328299-7663-000003
+#> 1 medicion-20260821T000557.280205-7518-000001
+#> 2 medicion-20260821T000557.280205-7518-000002
+#> 3 medicion-20260821T000557.280205-7518-000003
 #>                            id_medicion               fecha         metrica
-#> 1 medicion-20260819T190902.328299-7663 2026-08-19 19:09:02 OrigenDeclarado
-#> 2 medicion-20260819T190902.328299-7663 2026-08-19 19:09:02 OrigenDeclarado
-#> 3 medicion-20260819T190902.328299-7663 2026-08-19 19:09:02 OrigenDeclarado
+#> 1 medicion-20260821T000557.280205-7518 2026-08-21 00:05:57 OrigenDeclarado
+#> 2 medicion-20260821T000557.280205-7518 2026-08-21 00:05:57 OrigenDeclarado
+#> 3 medicion-20260821T000557.280205-7518 2026-08-21 00:05:57 OrigenDeclarado
 #>   metrica_especifica            metrica_instanciada    dimension
 #> 1    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
 #> 2    OrigenDeclarado OrigenDeclarado@entrega.origen Trazabilidad
@@ -419,11 +419,11 @@ medir(
   data.frame(fecha = as.Date(c("2026-06-29", "2026-07-01")))
 )
 #>                                     id_medida
-#> 1 medicion-20260819T190902.333396-7663-000001
-#> 2 medicion-20260819T190902.333396-7663-000002
+#> 1 medicion-20260821T000557.285750-7518-000001
+#> 2 medicion-20260821T000557.285750-7518-000002
 #>                            id_medicion               fecha
-#> 1 medicion-20260819T190902.333396-7663 2026-08-19 19:09:02
-#> 2 medicion-20260819T190902.333396-7663 2026-08-19 19:09:02
+#> 1 medicion-20260821T000557.285750-7518 2026-08-21 00:05:57
+#> 2 medicion-20260821T000557.285750-7518 2026-08-21 00:05:57
 #>                       metrica metrica_especifica           metrica_instanciada
 #> 1 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha
 #> 2 OportunidadAtributoPorFecha     EntregaATiempo EntregaATiempo@entregas.fecha

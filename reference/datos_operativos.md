@@ -97,5 +97,6 @@ analisis$perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")]
 #> 18          canal casi_duplicados_vocabulario sospechoso
 #> 19           <NA>            filas_duplicadas      error
 #> 20    id_registro         columnas_duplicadas sospechoso
-#> 21       contacto       dato_personal_posible         ok
+#> 21 codigo_usuario       dato_personal_posible         ok
+#> 22       contacto       dato_personal_posible         ok
 ```

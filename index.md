@@ -121,7 +121,7 @@ map:
 | Task | Main functions | Read more |
 |----|----|----|
 | Look at data for the first time | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md), [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md), [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md), [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md), `sentinelas_naniar` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Profile against a database | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — full-table SQL aggregates plus a 99-field profile from a declared sample; the scopes stay separate | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Profile against a database | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — full-table SQL aggregates plus a 105-field profile from a declared sample; the scopes stay separate | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Find undeclared structure | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md), [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md) | [Undeclared structure](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Define quality | [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md), [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md), [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md) | [Define quality](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Measure and evaluate | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md), [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md) with project weights, [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md) with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Measure and evaluate](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -166,6 +166,150 @@ dependency table carries its analysed-row and sampling attributes.
 reuses `muestra = 1e5` for its profile, distributions, and
 observed-level enumeration, and declares separate limits for
 associations and the other components.
+
+## 🗄️ Engines: what is tested and what is expected
+
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+does not promise a universal dialect. It resolves the dialect with a
+zero-row probe **before** issuing the aggregate block, and whatever the
+engine rejects is recorded as unavailable with its reason — never as
+zero.
+
+| engine | dialect | status |
+|----|----|----|
+| SQLite | `limit` | **tested** against the real engine, in the suite |
+| engine that rejects `LIMIT` | `top` / `portable` | **tested** with a simulated engine in the suite |
+| engine that folds aliases to upper case | any | **tested** with a simulated engine |
+| engine that rejects `SELECT *` over one column | any | **tested** with a simulated engine |
+| **PostgreSQL 16** | `limit` | **tested** against the real engine: dialect resolved by probe, mean, median and standard deviation verified against R, schemas, collections and partial permissions |
+| **MySQL 8** | `limit` | **tested** against the real engine: same three statistics verified against R |
+| **SQL Server 2022** | `top` | **tested** against the real engine: the probe resolves `top` on its own, and the three statistics match R |
+| MariaDB, DuckDB | `limit` | expected, not checked against the engine |
+| Oracle 12c+ | `fetch_first` | expected, not checked against the engine |
+| Oracle 11 and earlier | `rownum` | expected, not checked against the engine |
+| any other DBI-compatible engine | `portable` | fallback: `dbSendQuery()` + `dbFetch(n)` |
+
+**Expected** means the dialect is built and tested against a simulated
+engine that reproduces the restriction, not that it has been run against
+the real engine. The distinction matters, which is why it is written
+down: the defects this version fixed did not surface in eight green
+environments precisely because all of them used the same engine.
+
+The dialect can be declared with `dialecto =` if the probe gets it
+wrong. A partial failure never discards what was already measured: if
+reading the sample fails, the object comes back with a complete
+`resumen_tabla`, `perfil_muestra = NULL`, and a coverage row carrying
+the reason.
+
+### Cost is planned before it is paid
+
+Profiling 158 columns in `modo = "exacto"` emits 623 queries, and 777 of
+the original 778 scanned the whole table. `muestra` does not bound that:
+it bounds what is brought into R, not the work the engine does. So the
+cost is declared and chosen:
+
+``` r
+
+plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # 5 queries, predicts the rest
+```
+
+The plan **predicts exactly** how many queries the profiling will emit,
+in all five modes, and that exactness is a design constraint: every
+capability probe costs a fixed number of queries even when it succeeds
+on the first form, because a cost that depends on the engine would make
+the plan stop predicting.
+
+| mode | what it does |
+|----|----|
+| `exacto` | every metric over the whole table |
+| `seguro` | drops the metrics that sort the whole column |
+| `conteos` | counts only |
+| `muestreado` | metrics over rows sampled **in the engine**: `TABLESAMPLE` where it exists, a pseudo-random order with a limit where it does not |
+| `aproximado` | native approximate functions: `APPROX_COUNT_DISTINCT`, `PERCENTILE_CONT`, `approx_quantile` and their fallbacks |
+
+Every sampled or approximated metric travels saying so. `estado`
+distinguishes `calculado`, `estimado` and `no_disponible`, and each row
+carries `universo`, `tamano_muestra`, `fraccion`, `metodo` and
+`error_esperado` — `desconocido` when the engine documents no bound,
+never an invented one. Distinct counts get their own state,
+`observado_muestra`: the cardinality of a sample does not estimate the
+cardinality of the universe without a declared estimator, so it is
+reported as what it is — what was seen in the sample, with the universe
+stated beside it. An engine with no sampling capability does not break:
+the mode degrades and says so in the coverage table.
+
+## 🕳️ Emptiness by design is declared, not counted as a defect
+
+Every profiler assumes a table shape. `lupa` assumes one row is one
+fact, one column is one semantic domain, and an empty cell should have
+had a value. The third assumption is the one that hurts: an
+administrative table is full of legitimate emptiness — an open-ended
+validity interval, a survey skip pattern, columns that are mutually
+exclusive by subtype, an entity-attribute-value model. Counting those as
+missing is arithmetically right and semantically wrong.
+
+`aplicabilidad` declares, per column, the rows where the column applies.
+Rows outside that universe leave `n_faltantes` and `prop_faltantes`
+instead of being reported as absence:
+
+``` r
+
+perfilar(encuesta, aplicabilidad = list(marca_auto = ~ tiene_auto == "Si"))
+```
+
+`columnas_opcionales` covers the simpler case, where absence is never a
+defect and there is no rule to write. The declared rule, the resulting
+universe, and the rows where the rule could not be evaluated all land in
+`cobertura_diagnosticos`: a narrowed universe without a record would be
+the same defect in reverse. Rows whose rule cannot be determined are
+counted apart, in `n_aplicabilidad_indeterminada`, because not knowing
+is not the same as not applying.
+
+Declaring the universe also enables the symmetric error, which had no
+way to appear before: `valor_fuera_de_aplicabilidad` reports a value
+present where the rule says the column does not apply.
+
+[`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+answers the long format, where one column stacks unrelated domains. It
+profiles each group separately, drops the wholly-absent columns inside
+each group before profiling, and declares what it dropped.
+
+`lupa` does not infer the model. But declaring the universe requires
+knowing the option exists, and someone profiling a conditioned table
+without declaring anything got exactly the misleading report the feature
+was built to prevent. So the package **measures the evidence and offers
+it**: when the value of one column decides which rows have another, or
+when two columns split the rows without overlapping,
+`posible_ausencia_estructural` reports it with severity `ok`, the
+measured evidence, and the line to paste:
+
+    valor_a  posible_ausencia_estructural  ok
+      evidence  `tipo` predicts the presence of `valor_a` in 100.0 % of 200 rows,
+                with 2 distinct values. The column applies when tipo is "A".
+      suggests  perfilar(datos, aplicabilidad = list(valor_a = ~ tipo == "A"))
+
+It suggests; it does not decide, and it never rewrites the universe on
+its own. Columns already declared are left out of the examination. On
+twenty real datasets shipped with R and sixty random tables with
+independent missingness it produces zero signals; it fires on the
+entity-attribute-value model, the survey skip pattern and the mutually
+exclusive columns, and stays quiet when ten per cent of the rows break
+the rule, because then the relation exists and is not a rule.
+
+The other side of the same coin is `regla_silencia_ausencia`, also `ok`:
+a column declared optional or with its own universe that stays almost
+empty *inside* that universe gets a notice. The declaration worked and
+that is why the profile came out clean — the notice exists so that is a
+decision and not a side effect.
+
+`columnas_personales` closes the equivalent gap on the other declaration
+the package cannot make alone. No lexicon of column names can be
+complete: a column holding identity documents can be called `cod_benef`,
+and no list of frequent names will recognise it. Declaring it wins over
+inference and is not re-examined.
+
+The vignette `vacio-por-diseno` documents the assumption and the six
+table shapes where it does not hold.
 
 ## 🔢 Declared units and row traceability
 

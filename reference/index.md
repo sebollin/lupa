@@ -6,46 +6,77 @@ Perfilar datos y descubrir su estructura.
 
 - [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
   : Ejecutar el análisis descriptivo completo
+
 - [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   : Perfilar un conjunto de datos
+
+- [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  : Perfilar una tabla por grupos de filas
+
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
-  : Perfilar una muestra leida mediante DBI
+  : Perfilar una muestra leída mediante DBI
+
+- [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  :
+
+  Planificar el costo de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  antes de pagarlo
+
 - [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
   : Distribuciones de valores y cuantiles por columna
+
 - [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md)
   : Detectar asociaciones entre columnas
+
 - [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md)
   : Examinar regularidad y cobertura temporal
+
 - [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md)
   : Proponer escalas y roles de las variables
+
 - [`senal_redundante()`](https://sebollin.github.io/lupa/reference/senal_redundante.md)
   : Declarar una señal redundante entre columnas
+
 - [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md)
   : Detectar filas donde señales redundantes se contradicen
+
 - [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
   : Descubrir patrones de formato
+
 - [`normalizacion()`](https://sebollin.github.io/lupa/reference/normalizacion.md)
   : Perfiles de normalizacion para comparar valores
+
 - [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md)
   : Inferir el tipo implícito de un vector
+
 - [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md)
   : Detectar formatos de fecha
+
 - [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
   : Detectar claves candidatas
+
 - [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
   : Detectar dependencias funcionales entre columnas
+
 - [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
   : Detectar relaciones entre dos tablas
+
 - [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
   : Detectar pares de filas con similitud aproximada
+
 - [`estimar_costo()`](https://sebollin.github.io/lupa/reference/estimar_costo.md)
   : Estimar el costo de una comparación de duplicados
+
 - [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
   : Informar la cobertura conceptual de un análisis
+
 - [`as_tibble(`*`<perfil>`*`)`](https://sebollin.github.io/lupa/reference/as_tibble.perfil.md)
   : Convertir un perfil a tibble
+
 - [`datos_administrativos`](https://sebollin.github.io/lupa/reference/datos_administrativos.md)
   : Datos administrativos sintéticos con problemas sembrados
+
 - [`datos_operativos`](https://sebollin.github.io/lupa/reference/datos_operativos.md)
   : Datos operativos sintéticos y neutrales
 

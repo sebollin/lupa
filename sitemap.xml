@@ -11,6 +11,7 @@
 <url><loc>https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/articles/medir-y-evaluar.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/articles/perfilar-una-base.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/articles/vacio-por-diseno.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/authors.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/index.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/news/index.html</loc></url>
@@ -60,7 +61,9 @@
 <url><loc>https://sebollin.github.io/lupa/reference/perfilar.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/perfilar_coleccion.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/perfilar_dbi.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/perfilar_por.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/persistir_analisis.html</loc></url>
+<url><loc>https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/planificar_limpieza.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/propiedades_regla.html</loc></url>
 <url><loc>https://sebollin.github.io/lupa/reference/proponer_modelo.html</loc></url>

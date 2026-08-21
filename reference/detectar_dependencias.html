@@ -64,7 +64,8 @@ directamente las filas minoritarias que pueden ser errores de carga.</p>
 <span>  umbral_casi_clave <span class="op">=</span> <span class="fl">0.8</span>,</span>
 <span>  incluir_claves <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  min_observaciones <span class="op">=</span> <span class="fl">10L</span>,</span>
-<span>  max_ejemplos <span class="op">=</span> <span class="fl">5L</span></span>
+<span>  max_ejemplos <span class="op">=</span> <span class="fl">5L</span>,</span>
+<span>  max_comparaciones <span class="op">=</span> <span class="fl">200000L</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -112,13 +113,20 @@ dependencia.</p></dd>
 <dt id="arg-max-ejemplos">max_ejemplos<a class="anchor" aria-label="anchor" href="#arg-max-ejemplos"></a></dt>
 <dd><p>Máximo de contradicciones concretas en <code>evidencia</code>.</p></dd>
 
+
+<dt id="arg-max-comparaciones">max_comparaciones<a class="anchor" aria-label="anchor" href="#arg-max-comparaciones"></a></dt>
+<dd><p>Máximo de pares determinante-dependiente que se
+comparan. <code>Inf</code> desactiva el presupuesto.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Data frame de clase <code>dependencias_funcionales</code>, ordenado por
 cumplimiento y soporte. Los atributos <code>muestreado</code>, <code>filas_analizadas</code>,
 <code>columnas_analizadas</code>, <code>columnas_omitidas</code>, <code>columnas_descartadas</code> y
-<code>truncado</code> documentan el alcance efectivo. <code>columnas_descartadas</code> es un
+<code>truncado</code> documentan el alcance efectivo. <code>n_pares_posibles</code>,
+<code>n_pares_comparados</code>, <code>n_pares_sin_comparar</code> y <code>max_comparaciones</code>
+documentan el presupuesto de comparaciones. <code>columnas_descartadas</code> es un
 data frame que explica por qué una columna no se usó como determinante.</p>
     </div>
     <div class="section level2">
@@ -134,10 +142,11 @@ El descarte ocurre antes de construir agrupaciones. El valor predeterminado
 <code>umbral_casi_clave = 0.8</code> excluye determinantes con menos de 1,25 filas por
 valor distinto en promedio: aun si cumplen, suelen describir una casi-clave
 y no una regla reutilizable.</p>
-<p>El costo crece con el cuadrado de las columnas. <code>max_columnas</code> conserva las
-primeras columnas analizables y <code>muestra</code> aplica una única muestra
+<p>El costo crece aproximadamente como <code>columnas^2 * filas</code>. <code>max_columnas</code>
+conserva las primeras columnas analizables, <code>max_comparaciones</code> limita el
+número de pares columna a columna y <code>muestra</code> aplica una única muestra
 sistemática a toda la tabla, de modo que las relaciones entre filas no se
-rompen. Los atributos del resultado declaran ambos recortes.</p>
+rompen. Los atributos del resultado declaran todos los recortes.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

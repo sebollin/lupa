@@ -93,8 +93,8 @@ detectar_relaciones(
 )
 #>   columna_tabla1 columna_tabla2 cardinalidad n_valores_comunes cobertura_tabla1_en_tabla2
 #> 1     id_persona     id_persona          1:m                 8                          1
-#>   cobertura_tabla2_en_tabla1
-#> 1                          1
+#>   cobertura_tabla2_en_tabla1 motivo_poda
+#> 1                          1        <NA>
 ```
 
 En `personas`, cada ciudad observada pertenece a un solo departamento.
@@ -298,7 +298,7 @@ granularidades()
 #> 5      5                entidad                tabla         TRUE
 #> 6      6      conjuntoEntidades   conjunto de tablas         TRUE
 #> 7      7              coleccion        base de datos         TRUE
-#> 8      8    conjuntoColecciones                 <NA>        FALSE
+#> 8      8    conjuntoColecciones                 <NA>         TRUE
 #> 9      9           organizacion                 <NA>        FALSE
 #> 10    10 conjuntoOrganizaciones                 <NA>        FALSE
 transiciones_granularidad()

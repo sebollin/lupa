@@ -2,6 +2,344 @@
 
 ## lupa 0.1.0
 
+### La senal que faltaba: nadie declara lo que no sabe que existe
+
+- `posible_ausencia_estructural`, severidad `ok`. `aplicabilidad`
+  resolvia el vacio por diseno y funcionaba, pero exigia que el usuario
+  supiera que existe: quien perfilaba una tabla con columnas
+  condicionadas sin declarar nada recibia el mismo informe enganoso que
+  antes. Ahora, cuando el valor de una columna decide que filas tienen
+  otra —`cumplimiento >= 0.99`—, o cuando dos o mas columnas se reparten
+  las filas sin pisarse, el hallazgo lo dice con la evidencia medida y
+  **la linea exacta que habria que escribir**. Sugiere; no decide, y no
+  reescribe el universo por su cuenta. Las columnas ya declaradas quedan
+  fuera del examen.
+- Medido antes de encenderlo: sobre veinte conjuntos que vienen con R y
+  sesenta tablas al azar con ausencia independiente produce **cero**
+  senales, y dispara en el modelo entidad-atributo-valor, en el salto de
+  patron de una encuesta y en las columnas excluyentes. Con 10 % de las
+  filas fuera de la regla se calla, porque entonces la relacion existe y
+  no es una regla. Cuesta 0,11 s sobre 200 columnas por 20.000 filas.
+- `regla_silencia_ausencia`, tambien `ok`. Declarar opcional una columna
+  con 80 % de ausentes dejaba el perfil limpio y la cobertura lo
+  documentaba, pero quien no la leyera no se enteraba. El aviso existe
+  para que eso sea una decision y no un efecto de la declaracion.
+- `columnas_personales` declara que columnas traen datos personales, con
+  tipo o sin el. Ningun lexico de nombres puede ser completo —una
+  columna con documentos se puede llamar `cod_benef`— y esta es la
+  salida correcta a ese limite: lo declara quien conoce el dato, gana
+  sobre lo inferido, y no se vuelve a examinar.
+- `dato_personal_protegido` dice si el valor **quedo** protegido, no si
+  la clasificacion pensaba protegerlo. Con
+  `proteger_datos_personales = FALSE` la moda se ve, y decir `TRUE` al
+  lado de un valor visible era informar como hecho algo que no paso. La
+  intencion sigue en `datos_personales$proteger`.
+- Un correo ofuscado —`usuario at ejemplo punto com`— vuelve a ser un
+  correo para la clasificacion, aunque
+  [`validar_correo()`](https://sebollin.github.io/lupa/reference/validadores_formato.md)
+  siga diciendo con razon que no es un correo valido. Son dos preguntas
+  distintas: una mide la forma, la otra decide si hay dato personal. La
+  frase `lunes at casa` no entra: el dominio tiene que traer su
+  separador.
+- Una matriz de dos dimensiones es una tabla y
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  la acepta. La conversion queda declarada en `meta$entrada_convertida`.
+
+### La via DBI sobre tablas que no entran en memoria
+
+- Modos `muestreado` y `aproximado`. El primero muestrea **en el motor**
+  —`TABLESAMPLE` donde existe, orden pseudoaleatorio con limite donde
+  no—; el segundo usa las funciones aproximadas nativas
+  —`APPROX_COUNT_DISTINCT`, `PERCENTILE_CONT`, `approx_quantile`— con la
+  misma mecanica de capacidad declarada y resuelta por sonda que ya
+  usaba el dialecto.
+- Toda metrica muestreada o aproximada viaja diciendolo: `estado`
+  distingue `calculado`, `estimado` y `no_disponible`, y cada fila lleva
+  `universo`, `tamano_muestra`, `fraccion`, `metodo` y `error_esperado`,
+  que es `desconocido` cuando el motor no documenta una cota. **Nunca
+  una cota inventada.**
+- El conteo de distintos tiene estado propio, `observado_muestra`. La
+  cardinalidad de una muestra no estima la del universo sin un estimador
+  declarado, asi que se informa por lo que es, con el universo al lado.
+- [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  predice **exactamente** las consultas de los cinco modos. Las sondas
+  nuevas gastan un numero fijo aunque acierten en la primera forma, por
+  la misma razon que la del desvio: un costo que dependa del motor hace
+  que el plan deje de predecir.
+- Los conteos conservan `integer64` cuando `bit64` esta instalado, asi
+  que un conteo por encima de 2^53 deja de perder exactitud. Sin
+  `bit64`, `meta$conteo_exacto` lo sigue declarando.
+
+### Bases enteras, y el costo de compararlas
+
+- [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+  y
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  aceptan `columnas_candidatas`: declarar que columnas pueden participar
+  es lo que hace manejable un costo que crece con el producto de anchos.
+  En una prueba de 32 por 32 columnas, 1.024 combinaciones bajan a 9.
+- **Dos clases de poda, y no se tratan igual.** Dos columnas de la misma
+  familia con rangos numericos disjuntos no comparten ningun valor y eso
+  se sabe sin comparar: la fila sale como siempre y la comparacion se
+  ahorra. Esa poda esta siempre activa porque no cambia nada de lo
+  informado. Las otras dos —familias distintas, cardinalidad imposible—
+  si lo cambiarian: una columna de texto puede guardar `"2020-01-05"` y
+  coincidir con una de fecha, y una cardinalidad imposible no dice que
+  no haya coincidencias sino que no llegan al umbral. Van detras de
+  `podar = TRUE`, y cuando se aplican **el par no desaparece**: sale con
+  `cardinalidad = "sin_comparar"`, coberturas `NA` y su motivo. Un par
+  que no se evaluo no es un par sin relacion.
+- `tope_memoria_mb` acota las filas comparadas y declara los pares
+  pendientes en vez de devolver menos sin decirlo.
+- La granularidad `conjuntoColecciones` pasa a medirse, con la frontera
+  declarada por el usuario y pesos explicitos: agregar entre colecciones
+  sin pesos seria inventar un juicio, que es lo que
+  [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)
+  se niega a hacer. `organizacion` y `conjuntoOrganizaciones` siguen sin
+  implementar, y por la misma razon de siempre: no falta codigo, falta
+  el objeto.
+- La entrada `data.frame` de
+  [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
+  valida `NA`, cadenas vacias y tipos igual que la entrada por vector de
+  texto. Dos puertas del mismo paquete dejaron de comportarse distinto
+  ante la misma entrada mala.
+
+### Lo que el detector de vocabulario no puede ver, dicho
+
+- `n_grupos_sin_variante_rara` cuenta los grupos de formas cercanas que
+  el criterio de variante rara **nunca llego a formar**. Una variante
+  mal escrita que ocupa la mitad de la columna no es una variante rara
+  para el comparador y no se informaba; ahora el limite se declara
+  aunque la deteccion no cambie.
+- `variantes_equifrecuentes_vocabulario` es el diagnostico para ese
+  caso: dos formas cercanas que se reparten la columna sin que ninguna
+  sea dominante, que es la firma de dos operadores, una plantilla rota o
+  una migracion parcial. **Queda apagado por omision, y la razon esta
+  medida**: sobre la bateria de 31 tablas limpias produce un grupo
+  sospechoso donde no hay defecto, y dispara en tablas de menos de
+  veinte filas. Es aditivo: encenderlo no cambia ni pierde ninguna
+  deteccion de `casi_duplicados_vocabulario`.
+- La evidencia de `patron_raro` declara
+  `desvio_unicamente_largo_corrida_numerica` cuando el unico desvio es
+  la cantidad de digitos. No baja el ruido de trescientos correos
+  correlativos —eso no tiene solucion sin dominio— pero convierte una
+  lectura de dos segundos en una de cero.
+- La razon de permutacion viaja como evidencia descriptiva del detector
+  de orden. No filtra nada: el criterio quedo refutado con precision 0 %
+  en cuatro tablas reales y no se usa para decidir.
+
+### Costos declarados donde antes solo se tardaba
+
+- `max_comparaciones_dependencias` acota la busqueda de dependencias
+  funcionales, cuyo costo es del orden de `columnas^2 x filas` y empeora
+  con determinantes casi unicos. Cuando el presupuesto se agota, lo
+  comparado se informa y lo que quedo sin comparar se declara.
+- La deteccion de fechas partidas dejo de materializar el producto
+  cartesiano de los candidatos ano/mes/dia; el detector de vocabulario
+  dejo de recorrer el vocabulario completo antes de aplicar su tope. Los
+  dos declaran lo que no evaluaron.
+- La confirmacion de un validador de documentos deja de recorrer la
+  columna entera sin presupuesto. Cuando el tope se alcanza, el
+  fundamento dice sobre cuantos valores se confirmo.
+- `datos[0, 0]` sobre un objeto `sf` conserva la geometria, porque esa
+  columna es pegajosa por diseno de ese paquete. Con las dependencias
+  apagadas, el objeto vacio llegaba con una columna y el diagnostico
+  declaraba un recorte que nadie pidio.
+- Un par no comparado trae cobertura `NA`, y `datos[NA, ]` devuelve una
+  fila entera de `NA` en vez de ninguna.
+  [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  filtra con [`which()`](https://rdrr.io/r/base/which.html).
+
+### Infraestructura
+
+- `inst/WORDLIST` completa la lista que faltaba:
+  `spelling::spell_check_package()` vuelve cero. Las palabras son
+  nombres propios, siglas, terminos tecnicos y fragmentos de
+  identificadores del paquete.
+- `CONTRIBUTING.md` corrige el orden de la verificacion previa.
+  `test_dir()` y `test_file()` cargan el paquete con
+  [`library(lupa)`](https://github.com/sebollin/lupa), que no expone las
+  funciones internas y produce veinte errores falsos de «could not find
+  function»; `test_check("lupa")` es lo que corre `R CMD check`, y
+  necesita el paquete instalado.
+
+### Cuatro motores reales
+
+- El desvio se pide primero con la funcion nativa del motor
+  —`STDDEV_SAMP` del estandar, `STDEV` en SQL Server— y solo cae al
+  calculo de dos pasadas donde no existe ninguna de las dos. La forma
+  anterior ponia la media como subconsulta escalar para no incrustarla
+  como literal en el SQL guardado, y SQL Server rechaza una subconsulta
+  dentro de un agregado: el arreglo de privacidad habia roto la
+  compatibilidad, y solo un motor real podia mostrarlo.
+- Verificado contra PostgreSQL 16, MySQL 8, SQL Server 2022 y SQLite: en
+  los cuatro, ninguna metrica queda no disponible, y la media, la
+  mediana y el desvio calculados por el motor coinciden con los
+  calculados en R sobre la tabla entera. En SQL Server la sonda resuelve
+  el dialecto `top` por su cuenta.
+
+### Numeros que no pueden ser
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  resuelve un nombre calificado con punto igual que
+  [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md).
+  `dbExistsTable()` no lo resuelve, asi que el mismo texto funcionaba en
+  una funcion y fallaba en la otra diciendo que la tabla no existe. Un
+  nombre literal con punto adentro sigue teniendo prioridad.
+
+- El universo aplicable declarado sale tambien del analisis, no solo de
+  los conteos. Con filas no aplicables que tienen valor, `n_distintos`
+  las contaba mientras `n_validos` ya no, y `tasa_distintos` podia pasar
+  de 1.
+
+- La trazabilidad no nombra filas fuera del universo declarado. El
+  conteo ya las excluia y nombrarlas igual producia la incoherencia que
+  la guarda detecta.
+
+- La via DBI valida la coherencia interna de lo que informa el motor:
+  mas valores distintos que validos, o una frecuencia de moda mayor que
+  las filas validas, son imposibles y se declaran no disponibles en vez
+  de publicarse como calculados.
+
+- El lexico de nombres de columna con datos personales cubre `persona`,
+  `cliente`, `paciente`, `socio`, `beneficiario`, `titular`,
+  `funcionario`, `usuario`, `solicitante`, `responsable`,
+  `contribuyente`, `residencia`, `lugar_residencia` y `barrio`. Ningun
+  lexico puede ser completo; estos son los frecuentes en registros
+  administrativos.
+
+### La via DBI deja de asumir un dialecto y de tirar lo que ya midio
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  resuelve el dialecto con una sonda de cero filas **antes** de emitir
+  el bloque de agregados: `limit`, `top`, `fetch_first`, `rownum` y una
+  via portable con `dbSendQuery()` + `dbFetch(n)`. Se puede declarar con
+  `dialecto =` si la sonda no acierta.
+- Las cuatro consultas obligatorias —campos, conteo, esquema y muestra—
+  dejaron de ser fatales. Si la muestra falla, el objeto vuelve con
+  `resumen_tabla` completo, `perfil_muestra = NULL` y una fila de
+  cobertura con el motivo. Antes, un motor que no acepta `LIMIT`
+  descartaba las 777 consultas ya pagadas.
+- El esquema y la muestra enumeran columnas en vez de usar `SELECT *`, y
+  si la lectura conjunta falla sondean columna por columna para
+  descartar solo la que el motor rechaza.
+- Los [`stop()`](https://rdrr.io/r/base/stop.html) de la via DBI tienen
+  clase de condicion propia, asi que un fallo se puede atrapar y el
+  resumen rescatar.
+- Los alias se comillan y se comparan sin distinguir caja. Un motor que
+  los pliega a mayusculas ya no produce metricas con estado `calculado`
+  y valor vacio, que era peor que declararlas no disponibles.
+- Argumentos nuevos para acotar el costo: `modo`, `metricas` y
+  `max_consultas`, mas
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
+  que dice cuantas consultas va a costar el perfilado antes de
+  emitirlas.
+- `resumen_tabla` pasa por la proteccion de datos personales, que antes
+  solo alcanzaba al perfil de la muestra: el bloque sin proteger era
+  justamente el de alcance completo. El SQL guardado del desvio ya no
+  incrusta la media observada. Nuevo `print.perfil_dbi`, que no imprime
+  ningun valor de celda.
+
+### El nivel coleccion deja de informar cero donde no midio
+
+- Una tabla vacia ya no produce `prop_faltantes_maxima = -Inf` ni
+  `n_columnas_sin_faltantes = 0`: son `NA`, con una fila de cobertura
+  que declara que no hay nada que medir. Antes esa tabla se ordenaba
+  como la de mejor calidad de la base.
+- Componente nuevo `cobertura_metricas`: la declaracion de lo que el
+  motor rechazo sube al nivel coleccion antes de descartar los perfiles,
+  y existe tambien con `conservar_perfiles = FALSE`.
+- [`estimar_costo_coleccion()`](https://sebollin.github.io/lupa/reference/estimar_costo_coleccion.md)
+  usa la formula cerrada en vez de materializar los pares: 27,4 s y 233
+  MB con 1700 tablas pasaron a 0,42 s. El resultado es identico. Acepta
+  cero pares, deduplica y rechaza los autorreferenciales.
+- [`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  cachea cada tabla en vez de releerla una vez por par.
+- Los identificadores de mas de dos partes se rechazan nombrando la
+  causa real. Antes se aceptaban y el fallo se le devolvia al usuario
+  como un problema de permisos sobre una tabla que si podia leer.
+
+### El perfilado espacial deja de ser inviable por tiempo
+
+- Las columnas no atomicas ya no pasan por la maquinaria de texto.
+  Convertirlas no producia sus valores sino su representacion como
+  codigo, una vez por cada etapa que las tocaba: era el 85 % del costo
+  de perfilar una capa espacial. Perfilar 62 poligonos de 200.000
+  vertices paso de 323 s a 2,3 s.
+- La transformacion de coordenadas se hace en una sola llamada y no una
+  por geometria.
+- Presupuesto de geometrias y de vertices, con el recorte declarado.
+- WKT, WKB y hexadecimal se detectan, se convierten y se miden. Antes
+  quedaban todas las metricas en `NA` con `cobertura_diagnosticos`
+  vacia, y
+  [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
+  llegaba a afirmar que la geometria no aplicaba sobre datos que si eran
+  geometricos.
+- Un fallo parcial ya no descarta la columna entera: una geometria
+  intransformable o un `NA` de la validez dejan de borrar el conteo y
+  los indices de todas las demas.
+
+### El vacio por diseno se declara y deja de contarse como defecto
+
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  acepta `aplicabilidad`, una lista de formulas por columna que declara
+  en que filas la columna corresponde. Las filas fuera del universo
+  salen de `n_faltantes` y de `prop_faltantes` en vez de contarse como
+  ausencia. Antes, una tabla completa en las filas donde el dato
+  corresponde podia informar completitud baja: el conteo era correcto y
+  la lectura falsa.
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  acepta `columnas_opcionales` para el caso mas simple, donde la
+  ausencia nunca es defecto y no hay una regla que escribir.
+- La regla declarada, el universo resultante y las filas donde la regla
+  no se pudo determinar quedan en `cobertura_diagnosticos`. Un universo
+  recortado sin constancia seria el mismo defecto al reves.
+- Las filas donde la regla no se puede evaluar no se cuentan como
+  aplicables ni como no aplicables: van a
+  `n_aplicabilidad_indeterminada`, porque no saber no es lo mismo que no
+  corresponder.
+- Nuevo hallazgo `valor_fuera_de_aplicabilidad`: un valor presente donde
+  la regla dice que la columna no corresponde. Es el error simetrico y
+  sin universo declarado no tenia forma de aparecer.
+- La metrica `NoNulo` acepta `aplicable` con el mismo criterio, para que
+  el universo declarado llegue al tablero y no solo al hallazgo.
+- Nueva funcion
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md):
+  perfila cada grupo de filas por separado y devuelve los hallazgos de
+  todos los grupos en una tabla. Es la respuesta al formato largo, donde
+  una sola columna mezcla dominios sin relacion. Las columnas
+  enteramente ausentes dentro de cada grupo se descartan antes de
+  perfilar, y el descarte se declara.
+- Nueva vineta `vacio-por-diseno`, que documenta el supuesto tabular del
+  paquete y las seis formas de tabla donde no vale.
+
+### Privacidad: ante la duda se protege
+
+- El clasificador de datos personales dejaba sin proteger una columna
+  cuya forma era compatible con un documento de identidad cuando el
+  validador no podia verificarla. Ese es justamente el caso de una base
+  sucia, y los valores reales terminaban escritos en la evidencia de los
+  hallazgos. Ahora se protege igual; la evidencia sigue declarando que
+  la clasificacion es debil.
+
+### Conteos que no se pueden contar
+
+- `.moda_columna()` distinguia mal dos ausencias: la frecuencia cero de
+  una columna sin valores validos y la imposibilidad de contar sobre una
+  columna no atomica. La segunda ahora es `NA`.
+- El hallazgo `constante` sobre una columna no atomica informa la
+  frecuencia que se deduce de las filas validas y las nombra en la
+  trazabilidad, en vez de informar cero afectados. El discriminador dejo
+  de ser la etiqueta del tipo, que dejaba afuera a las columnas
+  espaciales.
+
+### Recortes declarados donde se los busca
+
+- El recorte por `max_columnas_dependencias` se declara en
+  `cobertura_diagnosticos`, como ya lo hacia el recorte hermano de la
+  busqueda aritmetica. El tope aplicado se conserva como atributo, y el
+  motivo aclara que la seleccion de columnas es por posicion.
+
 ### Patrones raros: ventana de operacion visible
 
 - `patron_raro` declara en `cobertura_diagnosticos` cuando no puede

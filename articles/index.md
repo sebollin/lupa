@@ -6,6 +6,8 @@ Descubrir estructura y perfilar tablas remotas con alcance declarado.
 
 - [Estructura no
   declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.md):
+- [El vacío por
+  diseño](https://sebollin.github.io/lupa/articles/vacio-por-diseno.md):
 - [Perfilar una
   base](https://sebollin.github.io/lupa/articles/perfilar-una-base.md):
 

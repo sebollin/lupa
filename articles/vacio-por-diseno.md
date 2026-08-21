@@ -1,0 +1,336 @@
+# El vacío por diseño
+
+## El supuesto que `lupa` hace y no hacía explícito
+
+Todo perfilador de datos asume una forma de tabla. `lupa` asume tres
+cosas a la vez:
+
+1.  una fila es un hecho sobre una entidad;
+2.  una columna es un dominio semántico;
+3.  una celda vacía debería tener un valor y no lo tiene.
+
+Las tres son razonables y ninguna es universal. La tercera es la que
+hace daño, porque una base administrativa está llena de vacíos
+legítimos: la celda que no corresponde que tenga valor.
+
+Sin declarar nada, `lupa` cuenta esos vacíos como ausencia y los informa
+como defecto. El conteo es correcto y la lectura es falsa.
+
+## Seis formas de tabla donde el vacío es la estructura
+
+| forma | por qué hay vacíos |
+|----|----|
+| historial con vigencia abierta | `valido_hasta` vacío significa “sigue vigente” |
+| encuesta con salto de patrón | quien no tiene auto no responde nada del auto |
+| columnas excluyentes por subtipo | una persona jurídica no tiene fecha de nacimiento |
+| documento por tipo | quien tiene cédula no tiene pasaporte ni RUT |
+| entidad-atributo-valor | cada fila llena una sola de las columnas de valor |
+| formato largo | la misma tabla de arriba, apilada |
+
+## Qué pasa si no se declara nada
+
+``` r
+
+set.seed(3)
+n <- 2000
+tiene_auto <- rep(c("Si", "No"), c(600, 1400))
+encuesta <- data.frame(
+  tiene_auto = tiene_auto,
+  marca_auto = ifelse(tiene_auto == "Si", "Ford", NA),
+  stringsAsFactors = FALSE
+)
+
+perfil <- perfilar(encuesta, analizar_dependencias = FALSE)
+perfil$hallazgos[
+  perfil$hallazgos$tipo_hallazgo == "faltantes",
+  c("columna", "severidad", "n_afectados", "n_evaluados")
+]
+#>      columna severidad n_afectados n_evaluados
+#> 3 marca_auto     error        1400        2000
+```
+
+Setenta por ciento de ausencia, severidad `error`, sobre una columna que
+está completa en todas las filas donde corresponde que tenga valor.
+
+## La señal que dice que hay algo para declarar
+
+El arreglo de arriba exige que quien perfila sepa que `aplicabilidad`
+existe. Si no lo sabe, recibe el informe engañoso y nada más. Por eso el
+mismo perfil trae otra fila:
+
+``` r
+
+perfil$hallazgos[
+  perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural",
+  c("columna", "severidad", "n_afectados")
+]
+#>      columna severidad n_afectados
+#> 5 marca_auto        ok        1400
+cat(perfil$hallazgos$evidencia[
+  perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural"
+])
+#> `tiene_auto` predice la presencia de `marca_auto` en 100.0 % de 2000 filas, con 2 valores distintos. La columna corresponde cuando tiene_auto es "Si".
+cat(perfil$hallazgos$sugerencia[
+  perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural"
+])
+#> Si es así, declararlo y volver a perfilar: `perfilar(datos, aplicabilidad = list(marca_auto = ~ tiene_auto == "Si"))`. Con la regla declarada, la ausencia fuera de ese universo deja de contarse como defecto y el alcance queda escrito en `cobertura_diagnosticos`.
+```
+
+Severidad `ok`: no es un defecto, es una lectura de la estructura. La
+evidencia es un hecho medido sobre los datos —qué proporción de las
+filas queda explicada por el valor de la otra columna— y la sugerencia
+trae la línea exacta que habría que escribir. Quien decide sigue siendo
+el usuario: el paquete no reescribe el universo por su cuenta, y las
+columnas ya declaradas quedan fuera del examen.
+
+La señal sale por dos caminos. Uno es el de arriba: **una columna
+determina la presencia de otra**, con un cumplimiento de al menos 0,99,
+y entonces se puede escribir la fórmula. El otro es el reparto: **dos o
+más columnas se turnan las filas sin pisarse** y entre todas cubren la
+tabla, que es la forma de los atributos excluyentes por subtipo. Ahí no
+hay fórmula que ofrecer —falta la columna que diga cuál corresponde— y
+la sugerencia es la honesta: si existe esa columna, `aplicabilidad`; si
+no existe y la ausencia es por diseño, `columnas_opcionales`.
+
+Y no dispara por cualquier cosa. Con un diez por ciento de las filas
+fuera del patrón se calla, porque entonces la relación existe y no es
+una regla, y ofrecer una fórmula sería afirmar de más:
+
+``` r
+
+set.seed(4)
+ruidosa <- encuesta
+fuera <- sample(which(ruidosa$tiene_auto == "No"), 200)
+ruidosa$marca_auto[fuera] <- "Ford"
+sum(perfilar(ruidosa, analizar_dependencias = FALSE)$hallazgos$tipo_hallazgo ==
+      "posible_ausencia_estructural")
+#> [1] 0
+```
+
+## Declarar el universo
+
+`aplicabilidad` toma una fórmula por columna. Las filas donde el
+predicado no se cumple salen del universo de esa columna.
+
+``` r
+
+declarado <- perfilar(
+  encuesta,
+  analizar_dependencias = FALSE,
+  aplicabilidad = list(marca_auto = ~ tiene_auto == "Si")
+)
+
+sum(declarado$hallazgos$tipo_hallazgo == "faltantes")
+#> [1] 0
+declarado$columnas[
+  declarado$columnas$columna == "marca_auto",
+  c("n", "n_aplicables", "n_no_aplica", "n_faltantes", "prop_faltantes")
+]
+#>      n n_aplicables n_no_aplica n_faltantes prop_faltantes
+#> 2 2000          600        1400           0              0
+```
+
+El recorte no es silencioso. La regla queda escrita donde se busca lo
+que no se midió:
+
+``` r
+
+cobertura <- declarado$cobertura_diagnosticos
+cobertura$motivo[cobertura$columna == "marca_auto"]
+#> [1] "La completitud se midió sobre 600 filas aplicables de 2000; la regla declarada es `~tiene_auto == \"Si\"`."
+```
+
+Cuando la ausencia nunca es defecto y no hay una regla que escribir —el
+historial con vigencia abierta es el caso típico— alcanza con
+`columnas_opcionales`:
+
+``` r
+
+historial <- data.frame(
+  id = 1:100,
+  valido_hasta = c(rep(NA, 40), 41:100)
+)
+opcional <- perfilar(
+  historial, analizar_dependencias = FALSE,
+  columnas_opcionales = "valido_hasta"
+)
+sum(opcional$hallazgos$tipo_hallazgo == "faltantes")
+#> [1] 0
+```
+
+## El error simétrico
+
+Declarar el universo habilita un diagnóstico que antes no tenía forma de
+existir: el valor que aparece donde la regla dice que no corresponde.
+
+``` r
+
+inconsistente <- data.frame(
+  tiene_auto = c("Si", "No", "No", "Si"),
+  marca_auto = c("Ford", NA, "Fiat", "VW"),
+  stringsAsFactors = FALSE
+)
+p <- perfilar(
+  inconsistente, analizar_dependencias = FALSE,
+  aplicabilidad = list(marca_auto = ~ tiene_auto == "Si")
+)
+h <- p$hallazgos[p$hallazgos$tipo_hallazgo == "valor_fuera_de_aplicabilidad", ]
+h[, c("columna", "severidad", "n_afectados", "evidencia")]
+#>      columna  severidad n_afectados
+#> 2 marca_auto sospechoso           1
+#>                                                      evidencia
+#> 2 1 valores presentes fuera del universo aplicable de 2 filas.
+h$trazabilidad[[1]]$indices_fila
+#> [1] 3
+```
+
+La tercera fila declara no tener auto y tiene marca. Es un error real, y
+sin el universo declarado `lupa` no puede verlo.
+
+## Cuando la regla no se puede determinar
+
+Si la columna que discrimina también está ausente, no se sabe si la
+columna aplica. Esas filas no se cuentan como aplicables ni como no
+aplicables: se declaran aparte, porque no saber no es lo mismo que no
+corresponder.
+
+``` r
+
+dudoso <- data.frame(
+  tiene_auto = c("Si", "No", NA, "Si"),
+  marca_auto = c("Ford", NA, NA, "VW"),
+  stringsAsFactors = FALSE
+)
+pd <- perfilar(
+  dudoso, analizar_dependencias = FALSE,
+  aplicabilidad = list(marca_auto = ~ tiene_auto == "Si")
+)
+pd$columnas[
+  pd$columnas$columna == "marca_auto",
+  c("n_aplicables", "n_no_aplica", "n_aplicabilidad_indeterminada")
+]
+#>   n_aplicables n_no_aplica n_aplicabilidad_indeterminada
+#> 2            2           1                             1
+```
+
+## El formato largo: `perfilar_por()`
+
+Una tabla en formato largo no es una tabla: son muchas apiladas.
+Perfilarla entera mezcla dominios que no tienen nada que ver, y el
+resultado no describe a ninguno.
+
+``` r
+
+set.seed(9)
+n <- 900
+atributo <- rep(c("pais", "edad", "correo"), each = n / 3)
+largo <- data.frame(
+  entidad = rep(seq_len(n / 3), 3),
+  atributo = atributo,
+  valor_texto = ifelse(
+    atributo == "edad", NA,
+    ifelse(atributo == "pais", sample(c("UY", "uy", "AR"), n, TRUE),
+           paste0("a", seq_len(n), "@x.uy"))
+  ),
+  valor_num = ifelse(atributo == "edad", sample(18:80, n, TRUE), NA),
+  stringsAsFactors = FALSE
+)
+
+plano <- perfilar(largo, analizar_dependencias = FALSE)
+table(as.character(plano$hallazgos$tipo_hallazgo))
+#> 
+#>            alta_cardinalidad  casi_duplicados_vocabulario                    faltantes 
+#>                            1                            1                            2 
+#>    mayusculas_inconsistentes posible_ausencia_estructural 
+#>                            1                            2
+```
+
+Por grupo, cada atributo se perfila contra su propio dominio. Las
+columnas enteramente ausentes dentro del grupo se descartan antes de
+perfilar, y ése es el paso que desactiva el faltante falso.
+
+``` r
+
+por_grupo <- perfilar_por(
+  largo, "atributo", clave = "entidad", min_filas = 30,
+  analizar_dependencias = FALSE
+)
+sum(por_grupo$tipo_hallazgo == "faltantes")
+#> [1] 0
+table(as.character(por_grupo$tipo_hallazgo))
+#> 
+#> casi_duplicados_vocabulario       dato_personal_posible   mayusculas_inconsistentes 
+#>                           2                           1                           1 
+#>       posible_identificador 
+#>                           3
+```
+
+El argumento `clave` no es cosmético. Sin la columna de identidad, cada
+repetición del valor de un atributo se lee como fila duplicada y el
+diagnóstico de unicidad informa la tabla entera.
+
+Lo que se descartó queda declarado:
+
+``` r
+
+head(attr(por_grupo, "cobertura_grupos"), 3)
+#>    grupo n_filas_grupo
+#> 1   pais           300
+#> 2   edad           300
+#> 3 correo           300
+#>                                                                            motivo
+#> 1 Se descartaron 1 columnas enteramente ausentes en este grupo antes de perfilar.
+#> 2 Se descartaron 1 columnas enteramente ausentes en este grupo antes de perfilar.
+#> 3 Se descartaron 1 columnas enteramente ausentes en este grupo antes de perfilar.
+#>   columnas_descartadas
+#> 1            valor_num
+#> 2          valor_texto
+#> 3            valor_num
+```
+
+## Lo que `lupa` no hace
+
+No infiere el modelo. No mira una tabla y decide por su cuenta que es un
+entidad-atributo-valor, ni que dos columnas son mutuamente excluyentes.
+Una heurística de ese tipo fallaría sobre tablas anchas legítimas, y el
+paquete ya se niega a adivinar claves y jerarquías por la misma razón.
+
+El universo lo declara quien conoce el dato. Sin declaración, toda la
+columna aplica y el resultado es el de siempre: es la única omisión que
+no supone nada.
+
+Lo que sí hace es medir la evidencia y ofrecerla. La diferencia importa:
+sugerir con la evidencia a la vista deja la decisión donde estaba, y
+adivinar la mueve.
+
+## Y el reverso: cuando la declaración tapa un problema
+
+Una regla declarada puede silenciar algo real. Declarar opcional una
+columna con ochenta por ciento de ausentes deja el perfil limpio, y
+quien no lea `cobertura_diagnosticos` no se entera de nada.
+
+``` r
+
+casi_vacia <- data.frame(
+  x = c(rep(NA_character_, 160), rep(letters[1:20], 2)),
+  stringsAsFactors = FALSE
+)
+p <- perfilar(casi_vacia, columnas_opcionales = "x",
+              analizar_dependencias = FALSE)
+p$hallazgos[
+  p$hallazgos$tipo_hallazgo == "regla_silencia_ausencia",
+  c("columna", "severidad", "n_afectados", "n_evaluados")
+]
+#>   columna severidad n_afectados n_evaluados
+#> 2       x        ok         160         200
+cat(p$hallazgos$evidencia[
+  p$hallazgos$tipo_hallazgo == "regla_silencia_ausencia"
+])
+#> Faltan 160 de 200 celdas de la columna (80.0 %), y la columna se declaró con `columnas_opcionales`: la ausencia no es defecto en esta columna.
+```
+
+También es `ok`, y por la misma razón: la declaración hizo su trabajo.
+El aviso existe para que eso sea una decisión y no un efecto lateral.
+Vale igual cuando el universo se declaró con `aplicabilidad` y la
+columna sigue casi vacía *dentro* de ese universo, que es el caso donde
+la regla resultó más ancha que el universo real.

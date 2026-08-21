@@ -117,7 +117,7 @@
 <td><a href="https://sebollin.github.io/lupa/articles/empezar-con-lupa.html">Empezar con lupa</a></td>
 </tr><tr><td>Perfilar contra una base</td>
 <td>
-<code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> — agregados SQL de toda la tabla y un perfil de 99 campos sobre una muestra declarada; los alcances quedan separados</td>
+<code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> — agregados SQL de toda la tabla y un perfil de 105 campos sobre una muestra declarada; los alcances quedan separados</td>
 <td><a href="https://sebollin.github.io/lupa/articles/perfilar-una-base.html">Perfilar una base</a></td>
 </tr><tr><td>Encontrar estructura no declarada</td>
 <td>
@@ -171,6 +171,98 @@
 <p>Los validadores de documentos personales tienen otro filtro preliminar: <code>muestra_validadores = 1000</code> por omisión. Si un validador supera ese filtro se evalúa luego sobre toda la columna; <code>Inf</code> vuelve completo incluso el primer paso. Los duplicados aproximados están apagados por omisión y, cuando se activan, tienen sus propios límites declarados.</p>
 <p>En <code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>, <code>pares$tipo_par</code> se describe solo: <code>exacto</code> significa que los textos guardados son iguales, <code>exacto_normalizado</code> que sólo coinciden después de la normalización declarada, y <code>aproximado</code> que siguen siendo similares. <code>pares$igualo_normalizar</code> marca el caso intermedio. Los conteos correspondientes en el alcance son <code>n_pares_exactos</code>, <code>n_pares_exactos_normalizados</code> y <code>n_pares_aproximados</code>.</p>
 <p>El resultado deja el alcance efectivo en <code>meta$muestra</code>, <code>meta$filas_analizadas</code> y <code>meta$muestreo</code>; cada columna también publica <code>n_filas_analizadas_tipo</code> y <code>muestreado_tipo_inferido</code>, y la tabla de dependencias conserva atributos con las filas analizadas y el muestreo. <code><a href="reference/analizar.html">analizar()</a></code> reutiliza <code>muestra = 1e5</code> para su perfil, distribuciones y niveles observados, y declara límites separados para asociaciones y los demás componentes.</p>
+</div>
+<div class="section level2">
+<h2 id="file_cabinet-motores-qué-está-probado-y-qué-está-esperado">🗄️ Motores: qué está probado y qué está esperado<a class="anchor" aria-label="anchor" href="#file_cabinet-motores-qu%C3%A9-est%C3%A1-probado-y-qu%C3%A9-est%C3%A1-esperado"></a></h2>
+<p><code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> no promete un dialecto universal. Resuelve el dialecto con una sonda de cero filas <strong>antes</strong> de emitir el bloque de agregados, y lo que el motor rechaza queda declarado como no disponible con su motivo, nunca en cero.</p>
+<table class="table"><colgroup><col width="33%"><col width="33%"><col width="33%"></colgroup><thead><tr><th>motor</th>
+<th>dialecto</th>
+<th>estado</th>
+</tr></thead><tbody><tr><td>SQLite</td>
+<td><code>limit</code></td>
+<td>
+<strong>probado</strong> contra el motor real, en la suite</td>
+</tr><tr><td>motor que rechaza <code>LIMIT</code>
+</td>
+<td>
+<code>top</code> / <code>portable</code>
+</td>
+<td>
+<strong>probado</strong> con un motor simulado en la suite</td>
+</tr><tr><td>motor que pliega los alias a mayúsculas</td>
+<td>cualquiera</td>
+<td>
+<strong>probado</strong> con un motor simulado</td>
+</tr><tr><td>motor que rechaza <code>SELECT *</code> por una columna</td>
+<td>cualquiera</td>
+<td>
+<strong>probado</strong> con un motor simulado</td>
+</tr><tr><td><strong>PostgreSQL 16</strong></td>
+<td><code>limit</code></td>
+<td>
+<strong>probado</strong> contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, esquemas, colecciones y permisos parciales</td>
+</tr><tr><td><strong>MySQL 8</strong></td>
+<td><code>limit</code></td>
+<td>
+<strong>probado</strong> contra el motor real: mismos tres estadísticos verificados contra R</td>
+</tr><tr><td><strong>SQL Server 2022</strong></td>
+<td><code>top</code></td>
+<td>
+<strong>probado</strong> contra el motor real: la sonda resuelve <code>top</code> sola, y los tres estadísticos coinciden con R</td>
+</tr><tr><td>MariaDB, DuckDB</td>
+<td><code>limit</code></td>
+<td>esperado, sin comprobar contra el motor</td>
+</tr><tr><td>Oracle 12c+</td>
+<td><code>fetch_first</code></td>
+<td>esperado, sin comprobar contra el motor</td>
+</tr><tr><td>Oracle 11 y anteriores</td>
+<td><code>rownum</code></td>
+<td>esperado, sin comprobar contra el motor</td>
+</tr><tr><td>cualquier otro compatible con DBI</td>
+<td><code>portable</code></td>
+<td>reserva: <code>dbSendQuery()</code> + <code>dbFetch(n)</code>
+</td>
+</tr></tbody></table><p><strong>Esperado</strong> significa que el dialecto está construido y probado contra un motor simulado que reproduce esa restricción, no que se haya corrido contra el motor real. La diferencia importa y por eso está escrita: los defectos que esta versión corrigió no aparecieron en ocho entornos verdes justamente porque todos usaban el mismo motor.</p>
+<p>El dialecto se puede declarar con <code>dialecto =</code> si la sonda no acierta. Un fallo parcial nunca descarta lo ya medido: si la lectura de la muestra falla, el objeto vuelve con <code>resumen_tabla</code> completo, <code>perfil_muestra = NULL</code> y una fila de cobertura con el motivo.</p>
+<div class="section level3">
+<h3 id="el-costo-se-planifica-antes-de-pagarlo">El costo se planifica antes de pagarlo<a class="anchor" aria-label="anchor" href="#el-costo-se-planifica-antes-de-pagarlo"></a></h3>
+<p>Perfilar 158 columnas en <code>modo = "exacto"</code> emite 623 consultas, y 777 de las 778 originales escaneaban la tabla entera. <code>muestra</code> no acota eso: acota lo que se trae a R, no el trabajo del motor. Así que el costo se declara y se elige:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tabla"</span>, modo <span class="op">=</span> <span class="st">"muestreado"</span><span class="op">)</span>   <span class="co"># 5 consultas, predice el resto</span></span></code></pre></div>
+<p>El plan <strong>predice exactamente</strong> cuántas consultas va a emitir el perfilado, en los cinco modos, y esa exactitud es una restricción de diseño: cada sonda de capacidad gasta un número fijo de consultas aunque acierte en la primera forma, porque un costo que dependiera del motor haría que el plan dejara de predecir.</p>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>modo</th>
+<th>qué hace</th>
+</tr></thead><tbody><tr><td><code>exacto</code></td>
+<td>todas las métricas sobre la tabla entera</td>
+</tr><tr><td><code>seguro</code></td>
+<td>deja fuera las métricas que ordenan la columna completa</td>
+</tr><tr><td><code>conteos</code></td>
+<td>sólo conteos</td>
+</tr><tr><td><code>muestreado</code></td>
+<td>métricas sobre filas muestreadas <strong>en el motor</strong>: <code>TABLESAMPLE</code> donde existe, un orden pseudoaleatorio con límite donde no</td>
+</tr><tr><td><code>aproximado</code></td>
+<td>funciones aproximadas nativas: <code>APPROX_COUNT_DISTINCT</code>, <code>PERCENTILE_CONT</code>, <code>approx_quantile</code> y sus respaldos</td>
+</tr></tbody></table><p>Toda métrica muestreada o aproximada viaja diciéndolo. <code>estado</code> distingue <code>calculado</code>, <code>estimado</code> y <code>no_disponible</code>, y cada fila lleva <code>universo</code>, <code>tamano_muestra</code>, <code>fraccion</code>, <code>metodo</code> y <code>error_esperado</code> —<code>desconocido</code> cuando el motor no documenta una cota, nunca una inventada—. El conteo de distintos tiene su propio estado, <code>observado_muestra</code>: la cardinalidad de una muestra no estima la cardinalidad del universo sin un estimador declarado, así que se informa por lo que es —lo visto en la muestra, con el universo al lado—. Un motor sin capacidad de muestreo no rompe: el modo degrada y lo dice en la tabla de cobertura.</p>
+</div>
+</div>
+<div class="section level2">
+<h2 id="hole-el-vacío-por-diseño-se-declara-no-se-cuenta-como-defecto">🕳️ El vacío por diseño se declara, no se cuenta como defecto<a class="anchor" aria-label="anchor" href="#hole-el-vac%C3%ADo-por-dise%C3%B1o-se-declara-no-se-cuenta-como-defecto"></a></h2>
+<p>Todo perfilador asume una forma de tabla. <code>lupa</code> asume que una fila es un hecho, que una columna es un dominio semántico y que una celda vacía debería tener un valor. La tercera es la que hace daño: una base administrativa está llena de vacíos legítimos — una vigencia abierta, un salto de patrón en una encuesta, columnas excluyentes por subtipo, un modelo entidad-atributo-valor. Contarlos como ausencia es correcto como cuenta y falso como lectura.</p>
+<p><code>aplicabilidad</code> declara, por columna, en qué filas la columna corresponde. Las filas fuera de ese universo salen de <code>n_faltantes</code> y <code>prop_faltantes</code> en vez de informarse como ausencia:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">encuesta</span>, aplicabilidad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>marca_auto <span class="op">=</span> <span class="op">~</span> <span class="va">tiene_auto</span> <span class="op">==</span> <span class="st">"Si"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p><code>columnas_opcionales</code> cubre el caso más simple, donde la ausencia nunca es defecto y no hay una regla que escribir. La regla declarada, el universo resultante y las filas donde la regla no se pudo evaluar quedan en <code>cobertura_diagnosticos</code>: un universo recortado sin constancia sería el mismo defecto al revés. Las filas cuya regla no se puede determinar se cuentan aparte, en <code>n_aplicabilidad_indeterminada</code>, porque no saber no es lo mismo que no corresponder.</p>
+<p>Declarar el universo habilita además el error simétrico, que antes no tenía forma de aparecer: <code>valor_fuera_de_aplicabilidad</code> informa un valor presente donde la regla dice que la columna no corresponde.</p>
+<p><code><a href="reference/perfilar_por.html">perfilar_por()</a></code> responde al formato largo, donde una sola columna apila dominios sin relación. Perfila cada grupo por separado, descarta las columnas enteramente ausentes dentro de cada grupo antes de perfilar, y declara lo que descartó.</p>
+<p><code>lupa</code> no infiere el modelo. Pero declarar el universo exige saber que la opción existe, y quien perfilaba una tabla condicionada sin declarar nada recibía justo el informe engañoso que la declaración vino a evitar. Así que el paquete <strong>mide la evidencia y la ofrece</strong>: cuando el valor de una columna decide qué filas tienen otra, o cuando dos columnas se reparten las filas sin pisarse, <code>posible_ausencia_estructural</code> lo informa con severidad <code>ok</code>, la evidencia medida y la línea exacta que habría que escribir:</p>
+<pre><code>valor_a  posible_ausencia_estructural  ok
+  evidencia   `tipo` predice la presencia de `valor_a` en 100.0 % de 200 filas,
+              con 2 valores distintos. La columna corresponde cuando tipo es "A".
+  sugerencia  perfilar(datos, aplicabilidad = list(valor_a = ~ tipo == "A"))</code></pre>
+<p>Sugiere; no decide, y nunca reescribe el universo por su cuenta. Las columnas ya declaradas quedan fuera del examen. Sobre veinte conjuntos reales que vienen con R y sesenta tablas al azar con ausencia independiente no produce ninguna señal; dispara en el modelo entidad-atributo-valor, en el salto de patrón de una encuesta y en las columnas excluyentes, y se calla cuando el diez por ciento de las filas rompe la regla, porque entonces la relación existe y no es una regla.</p>
+<p>La otra cara es <code>regla_silencia_ausencia</code>, también <code>ok</code>: una columna declarada opcional o con universo propio que sigue casi vacía <em>dentro</em> de ese universo recibe un aviso. La declaración funcionó y por eso el perfil salió limpio; el aviso existe para que eso sea una decisión y no un efecto.</p>
+<p><code>columnas_personales</code> cierra el hueco equivalente en la otra declaración que el paquete no puede hacer solo. Ningún léxico de nombres de columna puede ser completo: una columna con documentos se puede llamar <code>cod_benef</code>, y ninguna lista de nombres frecuentes la va a reconocer. Lo declarado gana sobre lo inferido y no se vuelve a examinar.</p>
+<p>La viñeta <code>vacio-por-diseno</code> documenta el supuesto y las seis formas de tabla donde no vale.</p>
 </div>
 <div class="section level2">
 <h2 id="id_1234-unidades-declaradas-y-trazabilidad-por-fila">🔢 Unidades declaradas y trazabilidad por fila<a class="anchor" aria-label="anchor" href="#id_1234-unidades-declaradas-y-trazabilidad-por-fila"></a></h2>
@@ -233,9 +325,9 @@
 <td>hallazgos de severidad error sobre 2.556 filas</td>
 <td align="right">8/8 confirmados de manera independiente</td>
 </tr></tbody></table><p>En los pares de Raha la comparación dirty/clean etiqueta celdas cambiadas; no etiqueta toda propiedad observable en una columna sin cambios. La revisión manual encontró una observación apoyada en cada una de las ocho columnas adicionales: constantes, columnas duplicadas, mayúsculas inconsistentes, cadenas vacías y texto de alta cardinalidad. Por eso no informamos precisión ni recall diagnóstico a partir de Raha: 26/26 es cobertura por columna, no evidencia de que se haya identificado cada celda cambiada. <a href="https://github.com/sebollin/lupa/tree/main/benchmark" class="external-link"><code>benchmark/</code></a> reproduce la tabla desde las fuentes publicadas y registra las huellas exactas de los archivos usados en la corrida publicada, pero sólo cuando <code>lupa</code> está instalado a partir de un build de estas mismas fuentes. Desde la raíz del repositorio, reproducí esa condición y corré los scripts con:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/verdad_raha.R</span>
-<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_lupa.R</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/verdad_raha.R</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_lupa.R</span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="mag-límites-lugar-estabilidad-y-referencias">🔍 Límites, lugar, estabilidad y referencias<a class="anchor" aria-label="anchor" href="#mag-l%C3%ADmites-lugar-estabilidad-y-referencias"></a></h2>
@@ -248,7 +340,7 @@
 </div>
 <div class="section level3">
 <h3 id="cita-y-referencias">Cita y referencias<a class="anchor" aria-label="anchor" href="#cita-y-referencias"></a></h3>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"lupa"</span><span class="op">)</span></span></code></pre></div>
 <p>Las referencias conceptuales son <a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini y Scannapieco (2016)</a>, el <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">Marco de trabajo de AGESIC para la Gestión de la Calidad de Datos en Gobierno Digital v1.6</a> y <a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC 25012:2008</a>.</p>
 </div>

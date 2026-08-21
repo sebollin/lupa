@@ -23,6 +23,9 @@ perfilar(
   umbral_patron_dominante = 0.5,
   columnas_sin_ceros = character(),
   columnas_no_negativas = character(),
+  columnas_opcionales = character(),
+  aplicabilidad = NULL,
+  ausencia_estructural = TRUE,
   sentinelas_numericos = c(-9, -99, -999, -9999, 999),
   analizar_dependencias = TRUE,
   umbral_dependencia = 0.995,
@@ -30,6 +33,7 @@ perfilar(
   max_columnas_dependencias = 100L,
   datos_personales_permitidos = TRUE,
   proteger_datos_personales = TRUE,
+  columnas_personales = character(),
   validadores_personales = NULL,
   umbral_documento_verificado = 0.9,
   muestra_validadores = 1000L,
@@ -48,7 +52,10 @@ perfilar(
   umbral_variante_rara_vocabulario = 0.05,
   min_asimetria_vocabulario_corto = 10,
   min_asimetria_vocabulario = 2,
-  min_participacion_dominante_vocabulario_corto = 0.5
+  min_participacion_dominante_vocabulario_corto = 0.5,
+  variantes_equifrecuentes_vocabulario = FALSE,
+  max_asimetria_equifrecuente_vocabulario = 2,
+  max_comparaciones_dependencias = 200000L
 )
 ```
 
@@ -56,7 +63,11 @@ perfilar(
 
 - datos:
 
-  Objeto que hereda de `data.frame`.
+  Objeto que hereda de `data.frame` —`tibble` y `data.table` entran por
+  ahí— o una matriz de dos dimensiones, que se convierte con
+  [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html). La
+  conversión queda declarada en `meta$entrada_convertida` para que el
+  perfil no aparente haber recibido lo que no recibió.
 
 - nombre:
 
@@ -129,6 +140,49 @@ perfilar(
 
   Nombres de columnas que deben ser no negativas.
 
+- columnas_opcionales:
+
+  Nombres de columnas donde la ausencia no es un defecto. Su universo de
+  completitud son las celdas presentes, y `cobertura_diagnosticos`
+  declara el recorte. Sirve para el vacío por diseño: un historial con
+  vigencia abierta, una columna que sólo corresponde a algunas filas.
+
+- aplicabilidad:
+
+  Lista con nombre por columna, donde cada elemento es una fórmula de un
+  solo lado evaluada sobre `datos` — por ejemplo
+  `list(marca_auto = ~ tiene_auto == "Si")`. Las filas donde el
+  predicado no se cumple salen del universo de esa columna: no cuentan
+  como ausencia. Las filas donde el predicado no se puede determinar se
+  declaran aparte, sin contarse ni como aplicables ni como no
+  aplicables. Un valor presente fuera del universo produce el hallazgo
+  `valor_fuera_de_aplicabilidad`, que es el error simétrico y hoy no
+  tiene otra forma de aparecer.
+
+  `lupa` no infiere el universo: si nadie lo declara, toda la columna
+  aplica y el resultado es el de siempre. Declararlo es lo que distingue
+  el vacío por diseño del vacío por error, y sin esa distinción una
+  tabla sana puede informar completitud baja siendo completa.
+
+- ausencia_estructural:
+
+  Si se busca evidencia de que la ausencia de una columna es por diseño.
+  `lupa` no infiere el universo ni lo cambia por su cuenta, pero
+  declarar `aplicabilidad` exige saber que existe: quien perfila una
+  tabla con columnas condicionadas sin declarar nada recibe el mismo
+  informe engañoso que si el vacío fuera un defecto. Con `TRUE`, cuando
+  el valor de otra columna decide qué filas tienen ésta, o cuando dos
+  columnas se reparten las filas sin pisarse, se emite
+  `posible_ausencia_estructural` con severidad `ok`, la evidencia medida
+  y la línea exacta que habría que escribir para declararlo. Sugiere; no
+  decide. Las columnas ya declaradas quedan fuera del examen.
+
+  Con el mismo argumento viaja `regla_silencia_ausencia`, también `ok`:
+  avisa cuando una columna declarada opcional o con universo propio
+  sigue casi vacía dentro de ese universo. La declaración funcionó y por
+  eso el perfil salió limpio; el aviso existe para que eso sea una
+  decisión y no un efecto.
+
 - sentinelas_numericos:
 
   Vector completo de valores numéricos que se interpretan como ausencia.
@@ -170,6 +224,19 @@ perfilar(
   explícitamente;
   [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
   aplica además su propia protección predeterminada.
+
+- columnas_personales:
+
+  Columnas que traen datos personales, declaradas por quien conoce el
+  dato. `c("cod_benef", "apodo")` las nombra sin decir de qué tipo son;
+  `c(cod_benef = "documento_identidad")` además lo dice. Lo declarado
+  gana sobre lo inferido y no se vuelve a examinar.
+
+  Existe porque el léxico de nombres de columna **no puede ser
+  completo**: una columna con documentos se puede llamar de cualquier
+  manera, y ninguna lista de nombres frecuentes la va a reconocer. Es el
+  mismo patrón que `columnas_opcionales`, aplicado a la otra decisión
+  que el paquete no puede tomar solo.
 
 - validadores_personales:
 
@@ -311,6 +378,35 @@ perfilar(
 
   Proporcion minima de la columna que debe ocupar la forma dominante en
   la comparacion por una edicion.
+
+- variantes_equifrecuentes_vocabulario:
+
+  Si se informa el diagnóstico `variantes_equifrecuentes_vocabulario`,
+  que señala dos formas cercanas que se reparten la columna sin que
+  ninguna sea dominante —el error sistemático de dos operadores, una
+  plantilla rota o una migración parcial—.
+
+  **Está apagado por omisión y la razón está medida**: sobre la batería
+  de 31 tablas limpias produce un grupo sospechoso donde no hay defecto,
+  y dispara en tablas de menos de veinte filas donde dos formas
+  parecidas se reparten por casualidad. Es aditivo: encenderlo no cambia
+  ni pierde ninguna detección de `casi_duplicados_vocabulario`. El
+  límite que deja de cubrir se declara igual, encendido o apagado, en
+  `n_grupos_sin_variante_rara`.
+
+- max_asimetria_equifrecuente_vocabulario:
+
+  Razón máxima entre la frecuencia mayor y la menor para considerar que
+  dos formas se reparten la columna. Con `2`, `40` contra `5` no entra y
+  `5` contra `5` sí.
+
+- max_comparaciones_dependencias:
+
+  Tope de pares determinante-dependiente que se comparan. El costo de
+  las dependencias es del orden de `columnas^2 x filas` y empeora con
+  determinantes casi únicos; cuando el presupuesto se agota, lo
+  comparado se informa y lo que quedó sin comparar se declara en
+  `cobertura_diagnosticos`, nunca como cero.
 
 ## Value
 
@@ -712,7 +808,7 @@ perfil
 #> ── Perfil de datos: datos_administrativos ──────────────────────────────────────
 #> ✖ 5 hallazgos con severidad error
 #> ! 10 hallazgos sospechosos
-#> ✔ 5 hallazgos informativos ok
+#> ✔ 6 hallazgos informativos ok
 #> ℹ 2 diagnosticos no evaluados
 #> 
 #> ── Resumen general ──
@@ -760,17 +856,28 @@ summary(perfil)
 #> 8            correo          texto         texto                1.0000000
 #> 9          id_copia          doble         doble                1.0000000
 #> 10       id_tramite          texto identificador                1.0000000
-#>    n_filas_analizadas_tipo muestreado_tipo_inferido  n n_faltantes
-#> 1                       13                    FALSE 13           0
-#> 2                       13                    FALSE 13           0
-#> 3                       13                    FALSE 13           0
-#> 4                       12                    FALSE 13           0
-#> 5                       13                    FALSE 13           0
-#> 6                       13                    FALSE 13           0
-#> 7                       13                    FALSE 13           0
-#> 8                       13                    FALSE 13           0
-#> 9                       13                    FALSE 13           0
-#> 10                      13                    FALSE 13           0
+#>    n_filas_analizadas_tipo muestreado_tipo_inferido  n n_aplicables n_no_aplica
+#> 1                       13                    FALSE 13           13           0
+#> 2                       13                    FALSE 13           13           0
+#> 3                       13                    FALSE 13           13           0
+#> 4                       12                    FALSE 13           13           0
+#> 5                       13                    FALSE 13           13           0
+#> 6                       13                    FALSE 13           13           0
+#> 7                       13                    FALSE 13           13           0
+#> 8                       13                    FALSE 13           13           0
+#> 9                       13                    FALSE 13           13           0
+#> 10                      13                    FALSE 13           13           0
+#>    n_aplicabilidad_indeterminada n_presentes_fuera_de_aplicabilidad n_faltantes
+#> 1                              0                                  0           0
+#> 2                              0                                  0           0
+#> 3                              0                                  0           0
+#> 4                              0                                  0           0
+#> 5                              0                                  0           0
+#> 6                              0                                  0           0
+#> 7                              0                                  0           0
+#> 8                              0                                  0           0
+#> 9                              0                                  0           0
+#> 10                             0                                  0           0
 #>    prop_faltantes n_faltantes_disfrazados n_faltantes_disfrazados_textuales
 #> 1               0                       0                                 0
 #> 2               0                       1                                 1
@@ -838,7 +945,7 @@ summary(perfil)
 #> 9                               0.8                             20
 #> 10                              0.8                             20
 #>                 moda frecuencia_moda longitud_minima longitud_maxima
-#> 1                  1               2              NA              NA
+#> 1  [valor protegido]               2              NA              NA
 #> 2  [valor protegido]               2               3              11
 #> 3  [valor protegido]               2               4              10
 #> 4                  F               6               0               3
@@ -849,7 +956,7 @@ summary(perfil)
 #> 9                  1               2              NA              NA
 #> 10             TR001               2               5               5
 #>    longitud_media minimo  maximo        media mediana       desvio
-#> 1              NA      1      11 5.923077e+00       6 3.546396e+00
+#> 1              NA     NA      NA 5.923077e+00      NA 3.546396e+00
 #> 2        9.692308     NA      NA           NA      NA           NA
 #> 3        9.384615     NA      NA           NA      NA 1.191710e+08
 #> 4        1.076923     NA      NA           NA      NA           NA
@@ -903,83 +1010,94 @@ summary(perfil)
 #> 8                    no_aplica                <NA>
 #> 9                   calculados                <NA>
 #> 10                   no_aplica                <NA>
-#>    n_filas_fecha_civil_distinta_utc fecha_civil_distinta_utc crs_declarado
-#> 1                                NA                       NA          <NA>
-#> 2                                NA                       NA          <NA>
-#> 3                                NA                       NA          <NA>
-#> 4                                NA                       NA          <NA>
-#> 5                                NA                       NA          <NA>
-#> 6                                NA                       NA          <NA>
-#> 7                                NA                       NA          <NA>
-#> 8                                NA                       NA          <NA>
-#> 9                                NA                       NA          <NA>
-#> 10                               NA                       NA          <NA>
-#>    tipo_geometria dimension_geometria dimensiones_no_evaluadas
-#> 1            <NA>                <NA>                     <NA>
-#> 2            <NA>                <NA>                     <NA>
-#> 3            <NA>                <NA>                     <NA>
-#> 4            <NA>                <NA>                     <NA>
-#> 5            <NA>                <NA>                     <NA>
-#> 6            <NA>                <NA>                     <NA>
-#> 7            <NA>                <NA>                     <NA>
-#> 8            <NA>                <NA>                     <NA>
-#> 9            <NA>                <NA>                     <NA>
-#> 10           <NA>                <NA>                     <NA>
-#>    n_geometrias_vacias n_geometrias_invalidas n_validez_evaluados
-#> 1                   NA                     NA                  NA
-#> 2                   NA                     NA                  NA
-#> 3                   NA                     NA                  NA
-#> 4                   NA                     NA                  NA
-#> 5                   NA                     NA                  NA
-#> 6                   NA                     NA                  NA
-#> 7                   NA                     NA                  NA
-#> 8                   NA                     NA                  NA
-#> 9                   NA                     NA                  NA
-#> 10                  NA                     NA                  NA
-#>    validez_criterio validez_preprocesamiento n_fuera_de_dominio
-#> 1              <NA>                     <NA>                 NA
-#> 2              <NA>                     <NA>                 NA
-#> 3              <NA>                     <NA>                 NA
-#> 4              <NA>                     <NA>                 NA
-#> 5              <NA>                     <NA>                 NA
-#> 6              <NA>                     <NA>                 NA
-#> 7              <NA>                     <NA>                 NA
-#> 8              <NA>                     <NA>                 NA
-#> 9              <NA>                     <NA>                 NA
-#> 10             <NA>                     <NA>                 NA
-#>    n_dominio_evaluados n_bbox_evaluados bbox_alcance bbox_xmin bbox_xmax
-#> 1                   NA               NA         <NA>        NA        NA
-#> 2                   NA               NA         <NA>        NA        NA
-#> 3                   NA               NA         <NA>        NA        NA
-#> 4                   NA               NA         <NA>        NA        NA
-#> 5                   NA               NA         <NA>        NA        NA
-#> 6                   NA               NA         <NA>        NA        NA
-#> 7                   NA               NA         <NA>        NA        NA
-#> 8                   NA               NA         <NA>        NA        NA
-#> 9                   NA               NA         <NA>        NA        NA
-#> 10                  NA               NA         <NA>        NA        NA
-#>    bbox_ymin bbox_ymax        detalle_proteccion_personal n_blancos
-#> 1         NA        NA                               <NA>         0
-#> 2         NA        NA                               <NA>         0
-#> 3         NA        NA [estadisticos de orden protegidos]         0
-#> 4         NA        NA                               <NA>         1
-#> 5         NA        NA                               <NA>         0
-#> 6         NA        NA                               <NA>         0
-#> 7         NA        NA                               <NA>         0
-#> 8         NA        NA                               <NA>         0
-#> 9         NA        NA                               <NA>         0
-#> 10        NA        NA                               <NA>         0
-#>    n_espacios_borde n_variantes_mayusculas n_variantes_unicode unicode_evaluado
-#> 1                 0                      0                  NA               NA
-#> 2                 0                      0                   0             TRUE
-#> 3                 0                      0                   0             TRUE
-#> 4                 0                      0                   0             TRUE
-#> 5                 0                      0                  NA               NA
-#> 6                 0                      0                   0             TRUE
-#> 7                 0                      0                   0             TRUE
-#> 8                 0                      0                   0             TRUE
-#> 9                 0                      0                  NA               NA
-#> 10                0                      0                   0             TRUE
+#>    n_filas_fecha_civil_distinta_utc fecha_civil_distinta_utc
+#> 1                                NA                       NA
+#> 2                                NA                       NA
+#> 3                                NA                       NA
+#> 4                                NA                       NA
+#> 5                                NA                       NA
+#> 6                                NA                       NA
+#> 7                                NA                       NA
+#> 8                                NA                       NA
+#> 9                                NA                       NA
+#> 10                               NA                       NA
+#>    representacion_geometria motivo_representacion crs_declarado tipo_geometria
+#> 1                      <NA>                  <NA>          <NA>           <NA>
+#> 2                      <NA>                  <NA>          <NA>           <NA>
+#> 3                      <NA>                  <NA>          <NA>           <NA>
+#> 4                      <NA>                  <NA>          <NA>           <NA>
+#> 5                      <NA>                  <NA>          <NA>           <NA>
+#> 6                      <NA>                  <NA>          <NA>           <NA>
+#> 7                      <NA>                  <NA>          <NA>           <NA>
+#> 8                      <NA>                  <NA>          <NA>           <NA>
+#> 9                      <NA>                  <NA>          <NA>           <NA>
+#> 10                     <NA>                  <NA>          <NA>           <NA>
+#>    dimension_geometria dimensiones_no_evaluadas n_geometrias_vacias
+#> 1                 <NA>                     <NA>                  NA
+#> 2                 <NA>                     <NA>                  NA
+#> 3                 <NA>                     <NA>                  NA
+#> 4                 <NA>                     <NA>                  NA
+#> 5                 <NA>                     <NA>                  NA
+#> 6                 <NA>                     <NA>                  NA
+#> 7                 <NA>                     <NA>                  NA
+#> 8                 <NA>                     <NA>                  NA
+#> 9                 <NA>                     <NA>                  NA
+#> 10                <NA>                     <NA>                  NA
+#>    n_geometrias_invalidas n_validez_evaluados validez_criterio
+#> 1                      NA                  NA             <NA>
+#> 2                      NA                  NA             <NA>
+#> 3                      NA                  NA             <NA>
+#> 4                      NA                  NA             <NA>
+#> 5                      NA                  NA             <NA>
+#> 6                      NA                  NA             <NA>
+#> 7                      NA                  NA             <NA>
+#> 8                      NA                  NA             <NA>
+#> 9                      NA                  NA             <NA>
+#> 10                     NA                  NA             <NA>
+#>    validez_preprocesamiento n_fuera_de_dominio n_dominio_evaluados
+#> 1                      <NA>                 NA                  NA
+#> 2                      <NA>                 NA                  NA
+#> 3                      <NA>                 NA                  NA
+#> 4                      <NA>                 NA                  NA
+#> 5                      <NA>                 NA                  NA
+#> 6                      <NA>                 NA                  NA
+#> 7                      <NA>                 NA                  NA
+#> 8                      <NA>                 NA                  NA
+#> 9                      <NA>                 NA                  NA
+#> 10                     <NA>                 NA                  NA
+#>    n_bbox_evaluados bbox_alcance bbox_xmin bbox_xmax bbox_ymin bbox_ymax
+#> 1                NA         <NA>        NA        NA        NA        NA
+#> 2                NA         <NA>        NA        NA        NA        NA
+#> 3                NA         <NA>        NA        NA        NA        NA
+#> 4                NA         <NA>        NA        NA        NA        NA
+#> 5                NA         <NA>        NA        NA        NA        NA
+#> 6                NA         <NA>        NA        NA        NA        NA
+#> 7                NA         <NA>        NA        NA        NA        NA
+#> 8                NA         <NA>        NA        NA        NA        NA
+#> 9                NA         <NA>        NA        NA        NA        NA
+#> 10               NA         <NA>        NA        NA        NA        NA
+#>           detalle_proteccion_personal n_blancos n_espacios_borde
+#> 1  [estadisticos de orden protegidos]         0                0
+#> 2                                <NA>         0                0
+#> 3  [estadisticos de orden protegidos]         0                0
+#> 4                                <NA>         1                0
+#> 5                                <NA>         0                0
+#> 6                                <NA>         0                0
+#> 7                                <NA>         0                0
+#> 8                                <NA>         0                0
+#> 9                                <NA>         0                0
+#> 10                               <NA>         0                0
+#>    n_variantes_mayusculas n_variantes_unicode unicode_evaluado
+#> 1                       0                  NA               NA
+#> 2                       0                   0             TRUE
+#> 3                       0                   0             TRUE
+#> 4                       0                   0             TRUE
+#> 5                       0                  NA               NA
+#> 6                       0                   0             TRUE
+#> 7                       0                   0             TRUE
+#> 8                       0                   0             TRUE
+#> 9                       0                  NA               NA
+#> 10                      0                   0             TRUE
 #>    n_codificacion_rota n_codificacion_reparable
 #> 1                    0                        0
 #> 2                    0                        0
@@ -1058,7 +1176,7 @@ summary(perfil)
 #> 9                 FALSE               FALSE                    
 #> 10                FALSE               FALSE                    
 #>    numero_texto_moneda numero_texto_convencion dato_personal_posible
-#> 1                                                              FALSE
+#> 1                                                               TRUE
 #> 2                                                               TRUE
 #> 3                                                               TRUE
 #> 4                                                              FALSE
@@ -1069,7 +1187,7 @@ summary(perfil)
 #> 9                                                              FALSE
 #> 10                                                             FALSE
 #>     tipo_dato_personal proporcion_dato_personal
-#> 1                 <NA>                       NA
+#> 1               nombre                       NA
 #> 2  documento_identidad                0.8461538
 #> 3     fecha_nacimiento                1.0000000
 #> 4                 <NA>                       NA
@@ -1080,7 +1198,7 @@ summary(perfil)
 #> 9                 <NA>                       NA
 #> 10                <NA>                       NA
 #>    poder_discriminante_dato_personal dato_personal_protegido
-#> 1                               <NA>                   FALSE
+#> 1                              medio                    TRUE
 #> 2                               alto                    TRUE
 #> 3                              medio                    TRUE
 #> 4                               <NA>                   FALSE

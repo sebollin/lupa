@@ -14,7 +14,8 @@ agregar(
   funcion = c("ratio", "ratio_umbral", "promedio", "promedio_ponderado"),
   umbral = NULL,
   pesos = NULL,
-  coleccion = NULL
+  coleccion = NULL,
+  colecciones = NULL
 )
 ```
 
@@ -55,6 +56,16 @@ agregar(
   Sin ella no se sabe sobre qué tablas se está agregando, y el número
   resultante no describiría nada.
 
+- colecciones:
+
+  Lista nombrada de objetos de
+  [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
+  o
+  [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md),
+  exigida cuando `destino` es `"conjuntoColecciones"`. Los nombres
+  declaran la identidad y la frontera del conjunto; no se agregan
+  organizaciones ni otros alcances implícitos.
+
 ## Value
 
 Objeto `medicion` agregado, con una fila por objeto de destino.
@@ -80,9 +91,9 @@ instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
 #>                                               id_medida
-#> 1 medicion-20260819T190846.570503-7663-agg-ratio-000001
+#> 1 medicion-20260821T000542.031255-7518-agg-ratio-000001
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260819T190846.570503-7663 2026-08-19 19:08:46  NoNulo
+#> 1 medicion-20260821T000542.031255-7518 2026-08-21 00:05:42  NoNulo
 #>   metrica_especifica   metrica_instanciada   dimension   factor orientacion
 #> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad
 #>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado
