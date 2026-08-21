@@ -653,6 +653,9 @@ test_that("incluir_valores = FALSE no emite las consultas de valores", {
 # ---- 2.52: defectos menores de la misma ronda ----------------------------
 
 test_that("una conexion que no es DBI recibe el mensaje del paquete", {
+  # Sin DBI el paquete se queja de que falta DBI, no de la clase del argumento:
+  # es otro mensaje y otra comprobacion.
+  skip_if_not_installed("DBI")
   expect_error(
     perfilar_dbi(list(a = 1), "tabla"),
     "no hereda de `DBIConnection`", fixed = TRUE

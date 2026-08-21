@@ -215,7 +215,9 @@ aparece y el alcance importa, conviene desordenar antes o subir el tope.
 `detectar_dependencias()` tiene el suyo, `max_trabajo`, en unidades **fila-par**:
 ahí el costo es del orden de `columnas² × filas`, y `max_comparaciones` no lo
 veía —158 columnas son 24.806 pares, muy por debajo de las 200.000 del tope—. Se
-combina con `max_comparaciones` y manda el más restrictivo.
+combina con `max_comparaciones` y manda el más restrictivo. Desde `perfilar()`
+los dos presupuestos se llaman `max_trabajo_vocabulario` y
+`max_trabajo_dependencias`, y `Inf` desactiva cualquiera de ellos.
 
 El banco `benchmark/medir_costo_texto.R` reproduce el barrido completo, para que
 la calibración se pueda rehacer si cambia la implementación de la distancia.

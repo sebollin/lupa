@@ -1,26 +1,28 @@
-> **Esta carta describe la validacion de una version anterior.** El 2026-08-20 el
-> paquete cambio de forma sustancial: se corrigieron quince pendientes que salieron
-> de correrlo contra bases reales de cinco motores distintos, incluida la
-> distincion entre el vacio por diseno y el vacio por error, dos fugas de datos
-> personales y el adaptador de dialecto SQL. La matriz de entornos de abajo
-> **corresponde al tarball anterior y hay que rehacerla entera** antes de cualquier
-> envio. No se envia nada hasta entonces.
+> **Matriz rehecha el 2026-08-21** sobre el tarball con
+> `Packaged: 2026-08-21 17:22:25 UTC`, que sale del commit `163c859`. Las corridas
+> de abajo son de este tarball y no de uno anterior. Local, integracion continua
+> y R-hub estan cerradas; win-builder esta enviada y sus resultados llegan por
+> correo, asi que la fila de win-builder de mas abajo **sigue siendo la de la
+> revision anterior hasta que se reemplace**.
 >
-> Estado local al 2026-08-20, sobre el codigo nuevo: `R CMD check --as-cran` con
-> dos NOTE -`New submission` y la falta del binario `tidy`, las dos del entorno-
-> y la suite de **15.163** comprobaciones sin fallos. Se agrego ademas DuckDB a
-> los motores probados contra motor real, con lo que son cinco. Falta rehacer CI,
-> R-hub, win-builder y el contenedor de R 3.6.
+> Estado local: `R CMD check --as-cran` con **`Status: OK`** -sin errores,
+> avisos ni notas- y la suite de **15.557** comprobaciones sin fallos, en 98
+> archivos.
 
 ## R CMD check results
 
-0 errors | 0 warnings | 2 notes
+0 errors | 0 warnings | 1 note
 
-* This is a new submission.
-* Some check environments do not provide the external `tidy` executable, so R
-  skips HTML manual validation and emits a NOTE. Where `tidy` is available the
-  check reports no such NOTE. Examples, tests, vignettes, the PDF manual and the
-  self-contained HTML produced by the package are checked in every environment.
+* This is a new submission. That note comes from the CRAN incoming checks and
+  cannot be avoided.
+
+Run locally with `_R_CHECK_CRAN_INCOMING_=false` and `--no-manual`, the check on
+these sources reports **`Status: OK`** with no notes at all. The `tidy` note that
+earlier revisions reported is not absent because the environment gained `tidy` —
+it has none — but because `--no-manual` skips HTML manual validation altogether.
+The services above build the manual and report no such note. Examples, tests,
+vignettes, the PDF manual and the self-contained HTML produced by the package are
+checked in every environment that can run them.
 
 ## A check that CRAN runs, and that this package now runs first
 
@@ -28,17 +30,32 @@
 _R_CHECK_DEPENDS_ONLY_=true R CMD check --as-cran lupa_0.1.0.tar.gz
 ```
 
-Result on these sources: **0 errors, 0 warnings, 2 notes**.
+Result on these sources: **`Status: OK`**.
 
-This runs before any external service and is now the first step of the release
-script. An earlier revision passed in eight environments and still failed this one
-with `1 ERROR` and 68 test failures: twenty-two test blocks asserted behaviour that
+This runs before any external service and is the first step of the release script.
+An earlier revision passed in eight environments and still failed this one with
+`1 ERROR` and 68 test failures: twenty-two test blocks asserted behaviour that
 depends on `stringdist` without declaring it with `skip_if_not_installed()`. All
 eight of those environments had the optional packages installed, so none could see
 the gap.
 
 Eight green environments are not eight different environments if all eight have the
 same packages installed.
+
+**And the same gap reopened, in a smaller way, without this section noticing.**
+Rebuilding the environment matrix on 2026-08-21 found this check at `1 ERROR`
+again, with ten failures: nine in one test file that carried no
+`skip_if_not_installed()` at all and whose assertions read the output of the
+`stringdist`-backed vocabulary detector, and one asserting a DBI error message
+that a machine without DBI never produces. The failures predate the current
+revision, so this paragraph had been claiming a result it no longer had. Both
+files now guard per test rather than per file, so the blocks that do run without
+the optional packages still run.
+
+The lesson is about this letter and not about those tests. A section stating a
+check result is exactly as verifiable — and as forgettable — as a code comment
+stating that something is fast. It is now re-run for every revision rather than
+carried forward.
 
 ## Test environments
 
@@ -48,23 +65,35 @@ builds of identical sources are never byte-identical; the claim is about the
 sources, which is what can be checked. The build used throughout carries
 `Packaged: 2026-08-19 17:16:02 UTC`.
 
-* Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — 0 errors, 0 warnings,
-  2 notes (new submission; no `tidy` executable in this environment), both with the
-  ordinary check and with `_R_CHECK_DEPENDS_ONLY_=true`.
-* Continuous integration (GitHub Actions, `R-CMD-check`), 5 of 5 with
-  **`Status: OK`** and no notes: Ubuntu with R release, R-devel and R oldrel-1;
-  Windows with R release; and macOS with R release on
+* Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — **`Status: OK`**, no
+  errors, warnings or notes, both with the ordinary check and with
+  `_R_CHECK_DEPENDS_ONLY_=true`.
+* Continuous integration (GitHub Actions, `R-CMD-check`, run 32508376333), 5 of 5
+  with **`Status: OK`** and no notes: Ubuntu with R release, R-devel and R
+  oldrel-1; Windows with R release; and macOS with R release on
   **`aarch64-apple-darwin23`**. The platforms exercised are
   `x86_64-pc-linux-gnu`, `x86_64-w64-mingw32` and `aarch64-apple-darwin23`.
-* R-hub v2, R-devel: Linux, Windows and macOS — all three succeeded.
+* R-hub v2, R-devel (run 32514230812): Linux, Windows and macOS — all three
+  **`Status: OK`**.
 * Container: R 3.6.3 (`rocker/r-ver:3.6.3`) for the declared minimum, against a
   2023-04-15 CRAN snapshot from Posit Package Manager, run with
   `--ignore-vignettes --no-tests --no-manual` and `_R_CHECK_FORCE_SUGGESTS_=false`
   — 0 errors, 0 warnings, 2 notes. Both notes are properties of that environment,
   not of the package: five suggested packages (`covr`, `knitr`, `rmarkdown`, `sf`,
   `stringi`) have no installable build for R 3.6 in that snapshot, and the shipped
-  data contains one marked UTF-8 string. Vignettes, tests and the manual are
-  checked under R 4.6.1 and on the services above.
+  data contains one marked UTF-8 string.
+
+  **The test suite cannot be run under R 3.6, and that is a property of the
+  testing tools rather than of this package.** `cli`, the package's only import,
+  declares `R (>= 3.4)` and installs there. `testthat` declares `R (>= 4.1.0)` and
+  pulls `rlang`, which declares `R (>= 4.0.0)`; against current CRAN neither
+  installs on R 3.6, so `tests/testthat.R` fails at `library(testthat)`. This is
+  why the R 3.6 run passes `--no-tests`: not for speed, but because the suite has
+  no way to load there. Checked against current CRAN on 2026-08-21, that
+  environment still reports `checking whether package 'lupa' can be installed ...
+  OK`, `checking R code for possible problems ... OK` and `checking examples ...
+  OK`, which is the part of the R 3.6 claim that can be verified. Vignettes, tests
+  and the manual are checked under R 4.6.1 and on the services above.
 * win-builder, R-release (R 4.6.1) and R-devel (r90424): **1 NOTE on each**, the
   new-submission note and nothing else. Both queues checked these sources on
   2026-08-19 at 18:20 and 17:56 UTC respectively.

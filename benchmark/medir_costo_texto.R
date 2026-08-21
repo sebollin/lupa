@@ -158,4 +158,66 @@ cat(paste(
   "Se declara igual, pero conviene saber cual de los dos recorto.\n"
 ))
 
+## ---- 4. Cadenas que comparten prefijo ------------------------------------
+##
+## Una refutacion pregunto si el modelo de costo vale para cadenas reales, que
+## comparten prefijos, y no solo para letras al azar. Importa porque
+## Jaro-Winkler pondera el prefijo comun, y porque el caso que origino todo
+## esto -WKT de proyecciones- empieza igual en todos los valores.
+
+cat("\nCadenas con prefijo comun contra cadenas al azar\n")
+cat(sprintf("%-24s %16s %9s %16s\n", "familia", "trabajo", "segundos",
+            "unidades/seg"))
+
+.con_prefijo <- function(n, largo, cola = 40L, semilla = 7L) {
+  set.seed(semilla)
+  cabecera <- strrep("PROJCS_GEOGCS_DATUM_SPHEROID_", 40L)
+  base <- vapply(seq_len(n), function(i) {
+    paste0(
+      substr(cabecera, 1L, max(0L, largo - cola)),
+      paste(sample(letters, cola, TRUE), collapse = "")
+    )
+  }, character(1L))
+  rep(base, each = 3L)
+}
+
+tasas_prefijo <- numeric()
+for (caso in list(c(400, 200), c(400, 400), c(400, 900))) {
+  for (familia in c("al azar", "prefijo comun")) {
+    x <- if (familia == "al azar") {
+      .valores_de(caso[[1L]], caso[[2L]])
+    } else {
+      .con_prefijo(caso[[1L]], caso[[2L]])
+    }
+    medida <- .aislado(x, max_trabajo = Inf)
+    trabajo <- medida$alcance$trabajo_estimado
+    tasas_prefijo <- c(tasas_prefijo, trabajo / medida$segundos)
+    cat(sprintf(
+      "%-24s %16s %9.2f %16s\n",
+      paste0(familia, " ", caso[[1L]], "x", caso[[2L]]),
+      .miles(trabajo), medida$segundos, .miles(trabajo / medida$segundos)
+    ))
+  }
+}
+## La tasa se queda en la banda de la calibracion, asi que el modelo no se
+## rompe. Pero la diferencia no es ruido: el prefijo comun sale
+## sistematicamente mas rapido, y la ventaja crece con el largo, porque
+## Jaro-Winkler corta antes cuando las cadenas empiezan igual. O sea que el
+## modelo es **pesimista** para datos con prefijo comun -como el WKT- y ahi el
+## presupuesto recorta un poco antes de lo que el reloj pediria. Es la
+## direccion segura, pero conviene tenerlo escrito y no confundirlo con "da lo
+## mismo".
+razones <- tasas_prefijo[c(FALSE, TRUE)] / tasas_prefijo[c(TRUE, FALSE)]
+cat(sprintf(
+  paste(
+    "\nTasa entre %s y %s unidades/seg, dentro de la banda de la calibracion:",
+    "el modelo no se rompe. Pero el prefijo comun sale %.2f a %.2f veces mas",
+    "rapido por unidad, y la ventaja crece con el largo, asi que el modelo",
+    "sobreestima el costo de esos datos y el presupuesto recorta antes de lo",
+    "necesario.\n"
+  ),
+  .miles(min(tasas_prefijo)), .miles(max(tasas_prefijo)),
+  min(razones), max(razones)
+))
+
 cat("\nListo.\n")

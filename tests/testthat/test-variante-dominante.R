@@ -1,4 +1,8 @@
+# La proximidad de vocabulario se calcula con `stringdist`, que es opcional.
+# Sin el paquete el detector no corre y estas comprobaciones miran una salida
+# que no existe: hay que saltearlas, no dejarlas fallar.
 test_that("el alcance declara las variantes cercanas sin forma dominante", {
+  skip_if_not_installed("stringdist")
   resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
     c(rep("Montevideo", 5L), rep("Montevido", 5L)),
     lupa:::.resolver_normalizacion(TRUE), "departamento"
@@ -25,6 +29,7 @@ test_that("el alcance declara las variantes cercanas sin forma dominante", {
 })
 
 test_that("la variante rara dominante conserva su deteccion calibrada", {
+  skip_if_not_installed("stringdist")
   perfil <- perfilar(
     data.frame(departamento = c(
       rep("Montevideo", 40L), rep("Montevido", 5L)
@@ -42,6 +47,7 @@ test_that("la variante rara dominante conserva su deteccion calibrada", {
 })
 
 test_that("las formas equifrecuentes tienen un diagnostico separado", {
+  skip_if_not_installed("stringdist")
   datos <- data.frame(
     departamento = c(rep("Montevideo", 5L), rep("Montevido", 5L))
   )

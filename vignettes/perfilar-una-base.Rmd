@@ -207,6 +207,12 @@ agregados se calculan en el motor; lo que falta es su perfil por fila. Para
 incluirlas, conviene convertirlas a texto acotado en una vista y perfilar la
 vista.
 
+El bloque de metadatos del muestreo —`perfil_muestra$meta$origen_dbi$muestreo`—
+describe lo que **de verdad** se leyó y no lo que se había planeado leer:
+`columnas_leidas` son las columnas que la muestra trae, `sql_muestra` es la
+consulta que se emitió, y `columnas_omitidas` con `motivo_columnas_omitidas`
+dicen cuáles quedaron afuera y qué respondió el motor.
+
 ## El muestreo declarado
 
 `muestra = 5` declara las filas pedidas. La metadata registra además las filas
