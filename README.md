@@ -161,19 +161,35 @@ engine rejects is recorded as unavailable with its reason — never as zero.
 | engine that rejects `LIMIT` | `top` / `portable` | **tested** with a simulated engine in the suite |
 | engine that folds aliases to upper case | any | **tested** with a simulated engine |
 | engine that rejects `SELECT *` over one column | any | **tested** with a simulated engine |
-| **PostgreSQL 16** | `limit` | **tested** against the real engine: dialect resolved by probe, mean, median and standard deviation verified against R, schemas, collections and partial permissions |
+| **PostgreSQL 16** | `limit` | **tested** against the real engine: dialect resolved by probe, mean, median and standard deviation verified against R, schemas, collections and partial permissions; re-tested for the five modes, where the probe picks row-level `BERNOULLI` over block-level `SYSTEM` |
 | **MySQL 8** | `limit` | **tested** against the real engine: same three statistics verified against R |
 | **SQL Server 2022** | `top` | **tested** against the real engine: the probe resolves `top` on its own, and the three statistics match R |
-| MariaDB, DuckDB | `limit` | expected, not checked against the engine |
+| **DuckDB 1.5** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, and the three statistics verified against R |
+| MariaDB | `limit` | expected, not checked against the engine |
 | Oracle 12c+ | `fetch_first` | expected, not checked against the engine |
 | Oracle 11 and earlier | `rownum` | expected, not checked against the engine |
 | any other DBI-compatible engine | `portable` | fallback: `dbSendQuery()` + `dbFetch(n)` |
+
+The claim is reproducible: `benchmark/verificar_motor.R` takes any DBI
+connection and checks the six things the table promises — dialect resolved by
+probe, no unavailable metric in the five modes, the three statistics against R,
+the plan against the queries actually emitted, schema-qualified names by text and
+by `DBI::Id`, and a two-table collection.
 
 **Expected** means the dialect is built and tested against a simulated engine that
 reproduces the restriction, not that it has been run against the real engine. The
 distinction matters, which is why it is written down: the defects this version
 fixed did not surface in eight green environments precisely because all of them
 used the same engine.
+
+Every engine added to this table so far has found a defect no simulated engine
+could. DuckDB found the sharpest one: it accepts
+`TABLESAMPLE SYSTEM (10) WHERE 1 = 0` and rejects the same clause without the
+filter, because with a trivially false filter its parser never validates the
+sampling method. The capability probe used exactly that filter to stay cheap, so
+it passed and the real query failed. **A probe that does not exercise the form it
+later emits proves nothing** — the same lesson the standard-deviation probe
+taught one round earlier.
 
 The dialect can be declared with `dialecto =` if the probe gets it wrong. A
 partial failure never discards what was already measured: if reading the sample

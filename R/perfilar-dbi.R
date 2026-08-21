@@ -154,7 +154,8 @@
           if (salto > 0) paste0(" OFFSET ", .entero_sql_dbi(salto)) else ""
         )
       },
-      muestreo = c("tablesample_system", "tablesample_percent", "random_limit")
+      muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
+                   "tablesample_system", "tablesample_percent", "random_limit")
     ),
     top = list(
       nombre = "top",
@@ -172,7 +173,8 @@
         if (!grepl("^SELECT ", sql)) return(NULL)
         sub("^SELECT ", paste0("SELECT TOP (", .entero_sql_dbi(n), ") "), sql)
       },
-      muestreo = c("tablesample_system", "tablesample_percent", "random_limit")
+      muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
+                   "tablesample_system", "tablesample_percent", "random_limit")
     ),
     fetch_first = list(
       nombre = "fetch_first",
@@ -187,7 +189,8 @@
           " FETCH FIRST ", .entero_sql_dbi(n), " ROWS ONLY"
         )
       },
-      muestreo = c("tablesample_system", "tablesample_percent", "random_limit")
+      muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
+                   "tablesample_system", "tablesample_percent", "random_limit")
     ),
     rownum = list(
       nombre = "rownum",
@@ -202,7 +205,8 @@
           .entero_sql_dbi(n)
         )
       },
-      muestreo = c("tablesample_system", "tablesample_percent")
+      muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
+                   "tablesample_system", "tablesample_percent")
     ),
     portable = list(
       nombre = "portable",
@@ -211,7 +215,8 @@
       patron = NA_character_,
       alias_tabla = function(nombre) paste0(" AS ", nombre),
       limitar = function(sql, n, salto = 0) NULL,
-      muestreo = c("tablesample_system", "tablesample_percent", "random_limit")
+      muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
+                   "tablesample_system", "tablesample_percent", "random_limit")
     )
   )
 }
@@ -219,6 +224,42 @@
 .candidatos_muestreo_dbi <- function(conexion, dialecto) {
   nombres <- if (!is.null(dialecto$muestreo)) dialecto$muestreo else character()
   todas <- list(
+    # Primero la forma de cantidad fija, y la razon salio de medir contra
+    # DuckDB: `TABLESAMPLE (p PERCENT)` es a nivel de bloque y devuelve 0 filas
+    # o 2.048 sobre una tabla de 5.000, asi que dos consultas del mismo perfil
+    # ven muestras de tamano distinto -o una ve cero- y las metricas dejan de
+    # ser comparables entre si. Una forma que devuelve exactamente `n` filas no
+    # arregla que cada consulta saque su propia muestra, pero al menos las saca
+    # todas del mismo tamano.
+    tablesample_reservoir = list(
+      nombre = "tablesample_reservoir",
+      descripcion = "TABLESAMPLE RESERVOIR (n ROWS)",
+      patron = "duckdb",
+      tipo = "tablesample_filas",
+      constructor = function(tabla, filas) paste0(
+        tabla, " TABLESAMPLE RESERVOIR (", .entero_sql_dbi(filas), " ROWS)"
+      )
+    ),
+    # Y antes de las de bloque, la de fila. Medido contra PostgreSQL 16 sobre una
+    # tabla de 5.000 filas, pidiendo el 20 %:
+    #
+    #   TABLESAMPLE SYSTEM (20)      678  904  452  1384
+    #   TABLESAMPLE BERNOULLI (20)  1011 1017  981  1050
+    #
+    # `SYSTEM` elige bloques enteros, asi que sobre una tabla chica el tamano de
+    # la muestra salta de un tercio al doble de lo pedido, y puede dar cero.
+    # `BERNOULLI` decide fila por fila y se queda donde se le pidio. Cuesta mas
+    # en el motor -recorre la tabla- pero un tamano que no se puede anticipar
+    # hace que dos metricas del mismo perfil no sean comparables.
+    tablesample_bernoulli = list(
+      nombre = "tablesample_bernoulli",
+      descripcion = "TABLESAMPLE BERNOULLI (p)",
+      patron = "postgres|redshift|duckdb",
+      tipo = "tablesample",
+      constructor = function(tabla, porcentaje) paste0(
+        tabla, " TABLESAMPLE BERNOULLI (", porcentaje, ")"
+      )
+    ),
     tablesample_system = list(
       nombre = "tablesample_system",
       descripcion = "TABLESAMPLE SYSTEM (p)",
@@ -267,6 +308,18 @@
 
 .forma_muestreo_dbi <- function(candidato, tabla_sql, campos_sql, porcentaje,
                                 muestra, dialecto, alias) {
+  if (identical(candidato$tipo, "tablesample_filas")) {
+    return(list(
+      sql = paste0(
+        "SELECT ", paste(campos_sql, collapse = ", "), " FROM ",
+        candidato$constructor(tabla_sql, muestra)
+      ),
+      filas = -1L,
+      metodo = candidato$nombre,
+      descripcion = candidato$descripcion,
+      funcion = NA_character_
+    ))
+  }
   if (identical(candidato$tipo, "tablesample")) {
     base <- paste0(
       "SELECT ", paste(campos_sql, collapse = ", "), " FROM ",
@@ -307,9 +360,22 @@
   sondas <- character()
   aceptada <- NULL
   for (candidato in candidatos) {
-    if (identical(candidato$tipo, "tablesample")) {
+    if (identical(candidato$tipo, "tablesample_filas")) {
+      sql <- paste0(
+        "SELECT 1 AS ", alias, " FROM ", candidato$constructor(tabla_sql, 1L)
+      )
+    } else if (identical(candidato$tipo, "tablesample")) {
+      # Sin `WHERE 1 = 0`, y la razon vale la pena: DuckDB acepta
+      # `TABLESAMPLE SYSTEM (10) WHERE 1 = 0` y rechaza la misma clausula sin el
+      # filtro, porque con un filtro trivialmente falso no llega a validar el
+      # metodo de muestreo. La sonda pasaba y la consulta real fallaba: una
+      # sonda que no ejercita la forma que despues se emite no prueba nada. El
+      # recorte lo pone el propio muestreo mas el limite del dialecto, asi que
+      # sigue siendo barata.
       tabla_sondeada <- candidato$constructor(tabla_sql, "1")
-      sql <- paste0("SELECT 1 AS ", alias, " FROM ", tabla_sondeada, " WHERE 1 = 0")
+      sql <- paste0("SELECT 1 AS ", alias, " FROM ", tabla_sondeada)
+      acotada <- dialecto$limitar(sql, 1L, 0)
+      if (!is.null(acotada)) sql <- acotada
     } else {
       funciones <- candidato$funciones
       for (funcion in funciones) {

@@ -236,3 +236,35 @@ aproximado$resumen_tabla$meta$aproximaciones
 costará la corrida. La predicción incluye las sondas aunque una forma acertada
 aparezca antes que las demás, porque el costo declarado no puede depender del
 motor.
+
+### Lo que el muestreo en el motor no puede darte
+
+Cada métrica se pide en su propia consulta, así que **cada una saca su propia
+muestra**. Eso es inherente a muestrear en el motor sin materializar una tabla
+intermedia, y `lupa` no la materializa porque perfilar es una operación de sólo
+lectura. La consecuencia es concreta: la media y la mediana de una misma columna
+en `modo = "muestreado"` describen conjuntos de filas distintos, del mismo
+tamaño pero no los mismos.
+
+Por eso las formas candidatas están ordenadas por **previsibilidad del tamaño**
+y no por costo. Primero la de cantidad fija, `TABLESAMPLE RESERVOIR (n ROWS)`;
+después la de nivel de fila, `TABLESAMPLE BERNOULLI (p)`; y recién al final las
+de bloque. Medido contra PostgreSQL 16, pidiendo el 20 % de una tabla de 5.000
+filas en cuatro corridas:
+
+```
+TABLESAMPLE SYSTEM (20)      678  904  452  1384
+TABLESAMPLE BERNOULLI (20)  1011 1017  981  1050
+```
+
+`SYSTEM` elige bloques enteros, así que el tamaño de la muestra salta de un
+tercio al doble de lo pedido, y sobre una tabla chica puede dar cero. Con
+tamaños tan distintos entre consultas, dos métricas del mismo perfil dejan de
+ser comparables entre sí, y la guarda de coherencia interna —que compara, por
+ejemplo, la frecuencia de la moda contra los válidos— empieza a declarar no
+disponible lo que en realidad es incomparable.
+
+Si necesitás que todas las métricas describan exactamente las mismas filas, el
+camino es `perfil_muestra`: trae una muestra a R **una sola vez** y corre sobre
+ella el perfil completo. Cuesta traer los datos; a cambio, todo lo que informa
+habla del mismo conjunto.

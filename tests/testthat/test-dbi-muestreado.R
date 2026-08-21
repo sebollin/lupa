@@ -66,6 +66,18 @@ if (!methods::isClass("ConexionAproximadaLupa")) {
       grepl("TABLESAMPLE", statement, ignore.case = TRUE)) {
     stop("TABLESAMPLE no disponible.", call. = FALSE)
   }
+  # Reproduce lo que hace DuckDB: con un filtro trivialmente falso el parser no
+  # llega a validar el metodo de muestreo, asi que una sonda que use
+  # `WHERE 1 = 0` pasa y la consulta real falla. Un motor asi convierte una
+  # sonda descuidada en una promesa falsa.
+  if (identical(modo, "tablesample_mentiroso") &&
+      grepl("TABLESAMPLE SYSTEM", statement, ignore.case = TRUE) &&
+      !grepl("WHERE 1 = 0", statement, fixed = TRUE)) {
+    stop(
+      "Sample method System cannot be used with a discrete sample count.",
+      call. = FALSE
+    )
+  }
   if (!identical(modo, "aprox_distintos") &&
       !identical(modo, "aprox_quantile") &&
       grepl("APPROX_COUNT_DISTINCT|approx_count_distinct", statement,
@@ -296,4 +308,27 @@ test_that("los conteos textuales conservan integer64 cuando bit64 esta disponibl
   valor <- lupa:::.conteo_dbi("9007199254740993")
   expect_s3_class(valor, "integer64")
   expect_identical(as.character(valor), "9007199254740993")
+})
+
+
+test_that("la sonda de muestreo ejercita la forma que despues se emite", {
+  con <- .conexion_capacidad_dbi("ConexionCapacidadLupa")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  .reiniciar_capacidad_dbi("tablesample_mentiroso")
+
+  resultado <- .perfil_liviano_dbi_muestreado(con, "muestreado")
+  sondas <- grep("TABLESAMPLE", .capacidad_dbi_prueba$sql, value = TRUE)
+  expect_true(length(sondas) > 0L)
+  # Ninguna sonda de TABLESAMPLE puede llevar el filtro trivialmente falso: es
+  # justo lo que le impide al motor validar la clausula.
+  expect_false(any(grepl("WHERE 1 = 0", sondas, fixed = TRUE)))
+
+  # Y el resultado tiene que ser util: el motor rechaza `SYSTEM`, la sonda lo
+  # detecta, y el perfilado cae en otra forma en vez de publicar metricas que
+  # no se pudieron calcular.
+  registros <- resultado$resumen_tabla$sql
+  metricas <- registros[registros$metrica != "n", , drop = FALSE]
+  expect_false(any(metricas$estado == "no_disponible"))
+  expect_true(any(metricas$estado %in% c("estimado", "observado_muestra")))
+  expect_false(any(grepl("TABLESAMPLE SYSTEM", metricas$sql, ignore.case = TRUE)))
 })
