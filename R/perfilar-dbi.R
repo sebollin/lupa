@@ -55,6 +55,10 @@
 # consultas va a emitir. La exactitud del plan vale mas que una consulta.
 .PEAJE_FORMA_DESVIO <- 2L
 
+# Las capacidades nuevas se sondean una vez por corrida. Todas sus formas
+# candidatas se prueban aunque una ya haya acertado: el costo no puede depender
+# de que el primer candidato sea aceptado por el motor.
+
 # Las sondas van sobre una constante, no sobre la tabla: lo unico que se prueba
 # es si el motor conoce la funcion.
 .sondar_forma_desvio <- function(conexion, presupuesto, alias) {
@@ -127,6 +131,9 @@
 # quien llama decide entonces si acota en el cliente o si degrada la metrica.
 
 .entero_sql_dbi <- function(n) {
+  if (inherits(n, "integer64") && .bit64_disponible_dbi()) {
+    return(as.character(n[[1L]]))
+  }
   format(round(as.numeric(n)), scientific = FALSE, trim = TRUE)
 }
 
@@ -146,7 +153,8 @@
           sql, " LIMIT ", .entero_sql_dbi(n),
           if (salto > 0) paste0(" OFFSET ", .entero_sql_dbi(salto)) else ""
         )
-      }
+      },
+      muestreo = c("tablesample_system", "tablesample_percent", "random_limit")
     ),
     top = list(
       nombre = "top",
@@ -163,7 +171,8 @@
         }
         if (!grepl("^SELECT ", sql)) return(NULL)
         sub("^SELECT ", paste0("SELECT TOP (", .entero_sql_dbi(n), ") "), sql)
-      }
+      },
+      muestreo = c("tablesample_system", "tablesample_percent", "random_limit")
     ),
     fetch_first = list(
       nombre = "fetch_first",
@@ -177,7 +186,8 @@
           if (salto > 0) paste0(" OFFSET ", .entero_sql_dbi(salto), " ROWS") else "",
           " FETCH FIRST ", .entero_sql_dbi(n), " ROWS ONLY"
         )
-      }
+      },
+      muestreo = c("tablesample_system", "tablesample_percent", "random_limit")
     ),
     rownum = list(
       nombre = "rownum",
@@ -191,7 +201,8 @@
           "SELECT * FROM (", sql, ") lupa_recorte WHERE ROWNUM <= ",
           .entero_sql_dbi(n)
         )
-      }
+      },
+      muestreo = c("tablesample_system", "tablesample_percent")
     ),
     portable = list(
       nombre = "portable",
@@ -199,8 +210,340 @@
       motores = "cualquier motor con DBI",
       patron = NA_character_,
       alias_tabla = function(nombre) paste0(" AS ", nombre),
-      limitar = function(sql, n, salto = 0) NULL
+      limitar = function(sql, n, salto = 0) NULL,
+      muestreo = c("tablesample_system", "tablesample_percent", "random_limit")
     )
+  )
+}
+
+.candidatos_muestreo_dbi <- function(conexion, dialecto) {
+  nombres <- if (!is.null(dialecto$muestreo)) dialecto$muestreo else character()
+  todas <- list(
+    tablesample_system = list(
+      nombre = "tablesample_system",
+      descripcion = "TABLESAMPLE SYSTEM (p)",
+      patron = "postgres|redshift|sql server|microsoft sql|sqlserver|mssql",
+      tipo = "tablesample",
+      constructor = function(tabla, porcentaje) paste0(
+        tabla, " TABLESAMPLE SYSTEM (", porcentaje, ")"
+      )
+    ),
+    tablesample_percent = list(
+      nombre = "tablesample_percent",
+      descripcion = "TABLESAMPLE (p PERCENT)",
+      patron = "sql server|microsoft sql|sqlserver|mssql|sybase",
+      tipo = "tablesample",
+      constructor = function(tabla, porcentaje) paste0(
+        tabla, " TABLESAMPLE (", porcentaje, " PERCENT)"
+      )
+    ),
+    random_limit = list(
+      nombre = "random_limit",
+      descripcion = "ORDER BY funcion pseudoaleatoria con limite del dialecto",
+      patron = NA_character_,
+      tipo = "aleatorio",
+      funciones = list(
+        list(nombre = "random", patron = "sqlite|postgres|redshift|duckdb|snowflake|bigquery", sql = "RANDOM()"),
+        list(nombre = "rand", patron = "mysql|mariadb|clickhouse", sql = "RAND()"),
+        list(nombre = "newid", patron = "sql server|microsoft sql|sqlserver|mssql", sql = "NEWID()"),
+        list(nombre = "dbms_random", patron = "oracle", sql = "DBMS_RANDOM.VALUE"),
+        list(nombre = "random_generic", patron = NA_character_, sql = "RANDOM()")
+      )
+    )
+  )
+  senas <- .senas_conexion_dbi(conexion)
+  orden_funciones <- function(funciones) {
+    reconocidas <- vapply(funciones, function(x) {
+      !is.na(x$patron) && grepl(x$patron, senas, perl = TRUE)
+    }, logical(1L))
+    c(which(reconocidas), which(!reconocidas))
+  }
+  if ("random_limit" %in% nombres) {
+    funciones <- todas$random_limit$funciones
+    todas$random_limit$funciones <- funciones[orden_funciones(funciones)]
+  }
+  todas[nombres]
+}
+
+.forma_muestreo_dbi <- function(candidato, tabla_sql, campos_sql, porcentaje,
+                                muestra, dialecto, alias) {
+  if (identical(candidato$tipo, "tablesample")) {
+    base <- paste0(
+      "SELECT ", paste(campos_sql, collapse = ", "), " FROM ",
+      candidato$constructor(tabla_sql, porcentaje)
+    )
+    acotada <- dialecto$limitar(base, muestra, 0)
+    return(list(
+      sql = if (is.null(acotada)) base else acotada,
+      filas = -1L,
+      metodo = candidato$nombre,
+      descripcion = candidato$descripcion,
+      funcion = NA_character_
+    ))
+  }
+  funcion <- candidato$funciones[[1L]]
+  base <- paste0(
+    "SELECT ", paste(campos_sql, collapse = ", "), " FROM ", tabla_sql,
+    " ORDER BY ", funcion$sql
+  )
+  acotada <- dialecto$limitar(base, muestra, 0)
+  if (is.null(acotada)) return(NULL)
+  list(
+    sql = acotada, filas = -1L, metodo = candidato$nombre,
+    descripcion = candidato$descripcion,
+    funcion = funcion$nombre
+  )
+}
+
+.sondar_muestreo_dbi <- function(conexion, tabla_sql, dialecto, presupuesto) {
+  candidatos <- .candidatos_muestreo_dbi(conexion, dialecto)
+  if (!length(candidatos)) {
+    return(list(
+      disponible = FALSE, candidato = NULL, sondas = character(),
+      motivo = "El adaptador no declara formas candidatas de muestreo."
+    ))
+  }
+  alias <- as.character(DBI::dbQuoteIdentifier(conexion, "lupa_sonda"))
+  sondas <- character()
+  aceptada <- NULL
+  for (candidato in candidatos) {
+    if (identical(candidato$tipo, "tablesample")) {
+      tabla_sondeada <- candidato$constructor(tabla_sql, "1")
+      sql <- paste0("SELECT 1 AS ", alias, " FROM ", tabla_sondeada, " WHERE 1 = 0")
+    } else {
+      funciones <- candidato$funciones
+      for (funcion in funciones) {
+        sql <- paste0(
+          "SELECT 1 AS ", alias, " FROM ", tabla_sql,
+          " WHERE 1 = 0 ORDER BY ", funcion$sql
+        )
+        acotada <- dialecto$limitar(sql, 1L, 0)
+        if (!is.null(acotada)) sql <- acotada
+        sondas <- c(sondas, sql)
+        prueba <- .consultar_dbi(conexion, sql, presupuesto)
+        if (is.null(aceptada) && isTRUE(prueba$ok) && !is.null(acotada)) {
+          aceptada <- candidato
+          aceptada$funciones <- list(funcion)
+        }
+      }
+      next
+    }
+    sondas <- c(sondas, sql)
+    prueba <- .consultar_dbi(conexion, sql, presupuesto)
+    if (is.null(aceptada) && isTRUE(prueba$ok)) aceptada <- candidato
+  }
+  if (is.null(aceptada)) {
+    return(list(
+      disponible = FALSE, candidato = NULL, sondas = sondas,
+      motivo = paste(
+        "El motor rechazo todas las formas candidatas de muestreo; no se",
+        "calcularon metricas parciales sobre la tabla completa."
+      )
+    ))
+  }
+  list(
+    disponible = TRUE, candidato = aceptada, sondas = sondas,
+    motivo = paste0(
+      "El motor acepto la sonda de muestreo `", aceptada$nombre, "`."
+    )
+  )
+}
+
+.fraccion_muestreo_dbi <- function(muestra, n_total) {
+  total <- .numero_dbi(n_total)
+  if (!is.finite(total) || total <= 0) return(1)
+  min(1, max(.Machine$double.eps, muestra / total))
+}
+
+.fuente_muestreada_dbi <- function(tabla_sql, campos_sql, muestra, n_total,
+                                   dialecto, resolucion) {
+  fraccion <- .fraccion_muestreo_dbi(muestra, n_total)
+  porcentaje <- formatC(fraccion * 100, format = "fg", digits = 8)
+  forma <- .forma_muestreo_dbi(
+    resolucion$candidato, tabla_sql, campos_sql, porcentaje, muestra,
+    dialecto, NULL
+  )
+  if (is.null(forma)) return(NULL)
+  forma$fraccion <- fraccion
+  forma$filas_solicitadas <- as.numeric(muestra)
+  forma
+}
+
+.candidatos_aproximacion_dbi <- function(conexion, tipo) {
+  senas <- .senas_conexion_dbi(conexion)
+  if (identical(tipo, "distintos")) {
+    candidatos <- list(
+      list(
+        nombre = "APPROX_COUNT_DISTINCT",
+        patron = "sql server|microsoft sql|sqlserver|mssql",
+        error_esperado = "desconocido",
+        construir = function(expr, tabla, alias) paste0(
+          "SELECT APPROX_COUNT_DISTINCT(", expr, ") AS ", alias,
+          " FROM ", tabla
+        ),
+        sonda = function(alias) paste0(
+          "SELECT APPROX_COUNT_DISTINCT(1) AS ", alias
+        )
+      ),
+      list(
+        nombre = "approx_count_distinct",
+        patron = "spark|databricks|hive",
+        error_esperado = "desconocido",
+        construir = function(expr, tabla, alias) paste0(
+          "SELECT approx_count_distinct(", expr, ") AS ", alias,
+          " FROM ", tabla
+        ),
+        sonda = function(alias) paste0(
+          "SELECT approx_count_distinct(1) AS ", alias
+        )
+      ),
+      list(
+        nombre = "approx_count_distinct_generico",
+        patron = NA_character_,
+        error_esperado = "desconocido",
+        construir = function(expr, tabla, alias) paste0(
+          "SELECT APPROX_COUNT_DISTINCT(", expr, ") AS ", alias,
+          " FROM ", tabla
+        ),
+        sonda = function(alias) paste0(
+          "SELECT APPROX_COUNT_DISTINCT(1) AS ", alias
+        )
+      )
+    )
+  } else {
+    candidatos <- list(
+      list(
+        nombre = "PERCENTILE_CONT",
+        patron = "postgres|redshift|sql server|microsoft sql|sqlserver|mssql",
+        error_esperado = "desconocido",
+        construir = function(expr, tabla, alias) paste0(
+          "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
+          ") AS ", alias, " FROM ", tabla
+        ),
+        sonda = function(alias) paste0(
+          "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY 1.0) AS ",
+          alias, " FROM (SELECT 1.0 AS lupa_valor) lupa_sonda"
+        )
+      ),
+      list(
+        nombre = "PERCENTILE_CONT_OVER",
+        patron = "sql server|microsoft sql|sqlserver|mssql",
+        error_esperado = "desconocido",
+        construir = function(expr, tabla, alias) paste0(
+          "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
+          ") OVER () AS ", alias, " FROM ", tabla
+        ),
+        sonda = function(alias) paste0(
+          "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY 1.0) OVER () AS ",
+          alias, " FROM (SELECT 1.0 AS lupa_valor) lupa_sonda"
+        )
+      ),
+      list(
+        nombre = "approx_percentile",
+        patron = "snowflake|presto|trino",
+        error_esperado = "desconocido",
+        construir = function(expr, tabla, alias) paste0(
+          "SELECT APPROX_PERCENTILE(", expr, ", 0.5) AS ", alias,
+          " FROM ", tabla
+        ),
+        sonda = function(alias) paste0(
+          "SELECT APPROX_PERCENTILE(1.0, 0.5) AS ", alias
+        )
+      ),
+      list(
+        nombre = "approx_quantile",
+        patron = "duckdb",
+        error_esperado = "desconocido",
+        construir = function(expr, tabla, alias) paste0(
+          "SELECT approx_quantile(", expr, ", 0.5) AS ", alias,
+          " FROM ", tabla
+        ),
+        sonda = function(alias) paste0(
+          "SELECT approx_quantile(1.0, 0.5) AS ", alias
+        )
+      ),
+      list(
+        nombre = "percentile_approx",
+        patron = "spark|databricks|hive",
+        error_esperado = "desconocido",
+        construir = function(expr, tabla, alias) paste0(
+          "SELECT percentile_approx(", expr, ", 0.5) AS ", alias,
+          " FROM ", tabla
+        ),
+        sonda = function(alias) paste0(
+          "SELECT percentile_approx(1.0, 0.5) AS ", alias
+        )
+      ),
+      list(
+        nombre = "quantile",
+        patron = "clickhouse",
+        error_esperado = "desconocido",
+        construir = function(expr, tabla, alias) paste0(
+          "SELECT quantile(0.5)(", expr, ") AS ", alias,
+          " FROM ", tabla
+        ),
+        sonda = function(alias) paste0(
+          "SELECT quantile(0.5)(1.0) AS ", alias
+        )
+      )
+    )
+  }
+  reconocidos <- vapply(candidatos, function(x) {
+    !is.na(x$patron) && grepl(x$patron, senas, perl = TRUE)
+  }, logical(1L))
+  candidatos[c(which(reconocidos), which(!reconocidos))]
+}
+
+.sondar_aproximacion_dbi <- function(conexion, tipo, presupuesto) {
+  candidatos <- .candidatos_aproximacion_dbi(conexion, tipo)
+  alias <- as.character(DBI::dbQuoteIdentifier(conexion, "lupa_sonda"))
+  sondas <- character()
+  elegida <- NULL
+  for (candidato in candidatos) {
+    sql <- candidato$sonda(alias)
+    sondas <- c(sondas, sql)
+    resultado <- .consultar_dbi(conexion, sql, presupuesto)
+    if (is.null(elegida) && isTRUE(resultado$ok)) elegida <- candidato
+  }
+  list(
+    disponible = !is.null(elegida), candidato = elegida, sondas = sondas,
+    motivo = if (is.null(elegida)) {
+      paste0("El motor no acepto una funcion aproximada para `", tipo, "`.")
+    } else {
+      paste0("El motor acepto `", elegida$nombre, "` para `", tipo, "`.")
+    }
+  )
+}
+
+.publicar_muestreo_dbi <- function(resolucion, forma = NULL, n_total = NA) {
+  candidato <- resolucion$candidato
+  list(
+    disponible = isTRUE(resolucion$disponible),
+    metodo = if (is.null(forma)) {
+      if (is.null(candidato)) NA_character_ else candidato$nombre
+    } else forma$metodo,
+    descripcion = if (is.null(forma)) {
+      if (is.null(candidato)) NA_character_ else candidato$descripcion
+    } else forma$descripcion,
+    fraccion = if (is.null(forma)) NA_real_ else forma$fraccion,
+    tamano_muestra = if (is.null(forma)) NA_real_ else forma$filas_solicitadas,
+    universo = n_total,
+    sondas = resolucion$sondas,
+    motivo = resolucion$motivo,
+    sql = if (is.null(forma)) NA_character_ else forma$sql
+  )
+}
+
+.publicar_aproximacion_dbi <- function(resolucion) {
+  candidato <- resolucion$candidato
+  list(
+    disponible = isTRUE(resolucion$disponible),
+    metodo = if (is.null(candidato)) NA_character_ else candidato$nombre,
+    error_esperado = if (is.null(candidato)) NA_character_ else {
+      candidato$error_esperado
+    },
+    sondas = resolucion$sondas,
+    motivo = resolucion$motivo
   )
 }
 
@@ -372,21 +715,108 @@
   .valor_campo_dbi(resultado$datos, campo)
 }
 
+.bit64_disponible_dbi <- function() {
+  requireNamespace("bit64", quietly = TRUE)
+}
+
+.numero_dbi <- function(valor) {
+  if (is.null(valor) || !length(valor)) return(NA_real_)
+  if (inherits(valor, "integer64")) {
+    return(suppressWarnings(as.numeric(valor[[1L]])))
+  }
+  suppressWarnings(as.numeric(valor[[1L]]))
+}
+
+.conteo_dbi <- function(valor) {
+  if (is.null(valor) || !length(valor)) return(NA_real_)
+  if (inherits(valor, "integer64")) return(valor[[1L]])
+  texto <- if (is.character(valor)) {
+    as.character(valor[[1L]])
+  } else {
+    NA_character_
+  }
+  if (.bit64_disponible_dbi() && !is.na(texto) &&
+      grepl("^[+-]?[0-9]+$", texto)) {
+    return(bit64::as.integer64(texto))
+  }
+  numero <- suppressWarnings(as.numeric(valor[[1L]]))
+  if (!length(numero) || is.na(numero)) return(NA_real_)
+  if (.bit64_disponible_dbi() && is.finite(numero) &&
+      abs(numero) <= 2^53) {
+    return(bit64::as.integer64(format(numero, scientific = FALSE, trim = TRUE)))
+  }
+  numero
+}
+
+.conteo_estimado_dbi <- function(valor, universo, tamano_muestra) {
+  observado <- .numero_dbi(valor)
+  universo_numero <- .numero_dbi(universo)
+  muestra_numero <- .numero_dbi(tamano_muestra)
+  if (!is.finite(observado) || !is.finite(universo_numero) ||
+      !is.finite(muestra_numero) || muestra_numero <= 0) {
+    if (is.finite(universo_numero) && universo_numero == 0) {
+      return(.conteo_dbi(0))
+    }
+    return(NA_real_)
+  }
+  .conteo_dbi(round(observado / muestra_numero * universo_numero))
+}
+
+.conteo_exacto_dbi <- function(valor) {
+  if (is.null(valor) || !length(valor)) return(FALSE)
+  if (inherits(valor, "integer64")) return(.bit64_disponible_dbi())
+  numero <- .numero_dbi(valor)
+  is.finite(numero) && abs(numero) <= 2^53
+}
+
+.metadatos_sql_dbi <- function(alcance = "tabla_completa", universo = NA,
+                               tamano_muestra = NA, fraccion = NA_real_,
+                               metodo = NA_character_,
+                               error_esperado = NA_character_) {
+  list(
+    alcance = alcance,
+    universo = universo,
+    tamano_muestra = tamano_muestra,
+    fraccion = fraccion,
+    metodo = metodo,
+    error_esperado = error_esperado
+  )
+}
+
+.mezclar_metadatos_dbi <- function(base, extra = NULL) {
+  if (is.null(extra)) return(base)
+  for (nombre in names(extra)) {
+    if (!is.null(extra[[nombre]])) base[[nombre]] <- extra[[nombre]]
+  }
+  base
+}
+
 # ---- Registro de auditoria ----------------------------------------------
 
-.registro_sql_dbi <- function(columna, metricas, estado, motivo, sql) {
+.registro_sql_dbi <- function(columna, metricas, estado, motivo, sql,
+                              metadatos = NULL) {
+  if (is.null(metadatos)) metadatos <- .metadatos_sql_dbi()
   data.frame(
     columna = rep_len(as.character(columna), length(metricas)),
     metrica = as.character(metricas),
     estado = rep_len(as.character(estado), length(metricas)),
     motivo = rep_len(as.character(motivo), length(metricas)),
     sql = rep_len(as.character(sql), length(metricas)),
+    alcance = rep_len(as.character(metadatos$alcance), length(metricas)),
+    universo = rep_len(metadatos$universo, length(metricas)),
+    tamano_muestra = rep_len(metadatos$tamano_muestra, length(metricas)),
+    fraccion = rep_len(as.numeric(metadatos$fraccion), length(metricas)),
+    metodo = rep_len(as.character(metadatos$metodo), length(metricas)),
+    error_esperado = rep_len(as.character(metadatos$error_esperado), length(metricas)),
     stringsAsFactors = FALSE
   )
 }
 
 .registrar_resultado_dbi <- function(registros, columna, metricas, resultado,
-                                     motivo_exito = NA_character_) {
+                                     motivo_exito = NA_character_,
+                                     metadatos = NULL) {
+  metadatos <- .mezclar_metadatos_dbi(metadatos, resultado$metadatos)
+  if (is.null(metadatos)) metadatos <- .metadatos_sql_dbi()
   estado <- if (!is.null(resultado$estado)) {
     resultado$estado
   } else if (resultado$ok) {
@@ -396,7 +826,9 @@
   }
   motivo <- if (resultado$ok) motivo_exito else resultado$motivo
   sql <- if (is.null(resultado$sql)) NA_character_ else resultado$sql
-  c(registros, list(.registro_sql_dbi(columna, metricas, estado, motivo, sql)))
+  c(registros, list(.registro_sql_dbi(
+    columna, metricas, estado, motivo, sql, metadatos
+  )))
 }
 
 .cobertura_dbi_vacia <- function() {
@@ -439,7 +871,9 @@
     modo,
     exacto = .METRICAS_DBI,
     seguro = c("validos", "basicos", "desvio"),
-    conteos = "validos"
+    conteos = "validos",
+    muestreado = .METRICAS_DBI,
+    aproximado = .METRICAS_DBI
   )
 }
 
@@ -517,7 +951,7 @@
 .fila_resumen_dbi <- function(columna, n_total) {
   list(
     columna = columna,
-    n = as.numeric(n_total),
+    n = .conteo_dbi(n_total),
     n_validos = NA_real_,
     n_faltantes = NA_real_,
     prop_faltantes = NA_real_,
@@ -546,11 +980,13 @@
 }
 
 .metricas_omitidas_dbi <- function(registros, columna, metricas, estado,
-                                   motivo) {
+                                    motivo, metadatos = NULL) {
   campos <- unlist(.CAMPOS_METRICA_DBI[metricas], use.names = FALSE)
   if (!length(campos)) return(registros)
   c(registros, list(
-    .registro_sql_dbi(columna, campos, estado, motivo, NA_character_)
+    .registro_sql_dbi(
+      columna, campos, estado, motivo, NA_character_, metadatos = metadatos
+    )
   ))
 }
 
@@ -561,15 +997,22 @@
 # metrica.
 .conteos_columna_dbi <- function(conexion, tabla_sql, columna_sql, alias,
                                  pide_validos, pide_distintos,
-                                 presupuesto = NULL) {
+                                 presupuesto = NULL,
+                                 aproximacion_distintos = NULL) {
   sql_validos <- paste0(
     "SELECT COUNT(", columna_sql, ") AS ", alias("n_validos"),
     " FROM ", tabla_sql
   )
-  sql_distintos <- paste0(
-    "SELECT COUNT(DISTINCT ", columna_sql, ") AS ", alias("n_distintos"),
-    " FROM ", tabla_sql
-  )
+  sql_distintos <- if (!is.null(aproximacion_distintos)) {
+    aproximacion_distintos$construir(
+      columna_sql, tabla_sql, alias("n_distintos")
+    )
+  } else {
+    paste0(
+      "SELECT COUNT(DISTINCT ", columna_sql, ") AS ", alias("n_distintos"),
+      " FROM ", tabla_sql
+    )
+  }
   if (pide_validos && pide_distintos) {
     sql <- paste0(
       "SELECT COUNT(", columna_sql, ") AS ", alias("n_validos"),
@@ -583,6 +1026,13 @@
       if (validos$ok && distintos$ok) {
         validos$sql <- sql
         distintos$sql <- sql
+        if (!is.null(aproximacion_distintos)) {
+          distintos$metadatos <- list(
+            metodo = aproximacion_distintos$nombre,
+            error_esperado = aproximacion_distintos$error_esperado
+          )
+          distintos$estado <- "estimado"
+        }
         return(list(
           validos = validos, distintos = distintos, consolidada = TRUE
         ))
@@ -600,6 +1050,13 @@
       conexion, sql_distintos, "n_distintos", presupuesto
     )
     distintos$sql <- sql_distintos
+    if (!is.null(aproximacion_distintos)) {
+      distintos$metadatos <- list(
+        metodo = aproximacion_distintos$nombre,
+        error_esperado = aproximacion_distintos$error_esperado
+      )
+      distintos$estado <- "estimado"
+    }
     resultado$distintos <- distintos
   }
   resultado
@@ -610,14 +1067,70 @@
                                  metricas = .METRICAS_DBI, presupuesto = NULL,
                                  incluir_valores = TRUE,
                                  tipo_declarado = NA_character_,
-                                 motivo_ilegible = NA_character_) {
+                                 motivo_ilegible = NA_character_,
+                                 modo = "exacto", muestreo = NULL,
+                                 aproximacion_distintos = NULL,
+                                 aproximacion_mediana = NULL,
+                                 tamano_muestra = NA_real_,
+                                 fraccion_muestra = NA_real_) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   fila <- .fila_resumen_dbi(columna, n_total)
   literales <- character()
+  es_muestreado <- identical(modo, "muestreado")
+  metadatos <- if (es_muestreado) {
+    .metadatos_sql_dbi(
+      alcance = "muestra", universo = n_total,
+      tamano_muestra = tamano_muestra, fraccion = fraccion_muestra,
+      metodo = if (is.null(muestreo) || is.null(muestreo$metodo)) {
+        NA_character_
+      } else {
+        muestreo$metodo
+      },
+      error_esperado = "desconocido"
+    )
+  } else {
+    .metadatos_sql_dbi(
+      alcance = "tabla_completa", universo = n_total, tamano_muestra = NA,
+      fraccion = 1,
+      metodo = if (identical(modo, "aproximado")) "respaldo_exacto" else
+        "tabla_completa",
+      error_esperado = NA_character_
+    )
+  }
+  registrar <- function(registros, metrica, resultado, motivo_exito = NA_character_) {
+    if (es_muestreado && isTRUE(resultado$ok) && is.null(resultado$estado)) {
+      resultado$estado <- if (any(metrica %in% c("n_distintos", "tasa_distintos"))) {
+        "observado_muestra"
+      } else {
+        "estimado"
+      }
+    }
+    .registrar_resultado_dbi(
+      registros, columna, metrica, resultado, motivo_exito,
+      metadatos = metadatos
+    )
+  }
+  omitir <- function(registros, metrica, estado, motivo) {
+    .metricas_omitidas_dbi(
+      registros, columna, metrica, estado, motivo, metadatos = metadatos
+    )
+  }
   if (!is.na(motivo_ilegible)) {
     registros <- .metricas_omitidas_dbi(
-      list(), columna, .METRICAS_DBI, "no_disponible", motivo_ilegible
+      list(), columna, .METRICAS_DBI, "no_disponible", motivo_ilegible,
+      metadatos = metadatos
     )
+    return(list(
+      fila = fila, sql = do.call(rbind, registros), literales = literales
+    ))
+  }
+  if (es_muestreado && (is.null(muestreo) || !isTRUE(muestreo$disponible))) {
+    motivo <- if (is.null(muestreo)) {
+      "No se resolvio una capacidad de muestreo del motor."
+    } else {
+      muestreo$motivo
+    }
+    registros <- omitir(list(), .METRICAS_DBI, "no_disponible", motivo)
     return(list(
       fila = fila, sql = do.call(rbind, registros), literales = literales
     ))
@@ -637,48 +1150,71 @@
 
   conteos <- .conteos_columna_dbi(
     conexion, tabla_sql, columna_sql, alias,
-    "validos" %in% metricas, "distintos" %in% metricas, presupuesto
+    "validos" %in% metricas, "distintos" %in% metricas, presupuesto,
+    aproximacion_distintos = aproximacion_distintos
   )
 
   if ("validos" %in% metricas) {
     validos <- conteos$validos
-    registros <- .registrar_resultado_dbi(
-      registros, columna, .CAMPOS_METRICA_DBI$validos, validos
-    )
+    registros <- registrar(registros, .CAMPOS_METRICA_DBI$validos, validos)
     if (validos$ok) {
-      fila$n_validos <- .escalar_finito_dbi(validos$valor)
+      validos_observados <- .conteo_dbi(validos$valor)
+      fila$n_validos <- if (es_muestreado) {
+        .conteo_estimado_dbi(validos_observados, n_total, tamano_muestra)
+      } else {
+        validos_observados
+      }
       if (!is.na(fila$n_validos)) {
         fila$n_faltantes <- n_total - fila$n_validos
-        fila$prop_faltantes <- if (n_total) fila$n_faltantes / n_total else NA_real_
+        if (es_muestreado) {
+          muestra_numero <- .numero_dbi(tamano_muestra)
+          fila$prop_faltantes <- if (is.finite(muestra_numero) && muestra_numero > 0) {
+            (muestra_numero - .numero_dbi(validos_observados)) / muestra_numero
+          } else if (.numero_dbi(n_total) == 0) {
+            NA_real_
+          } else {
+            NA_real_
+          }
+        } else {
+          fila$prop_faltantes <- if (.numero_dbi(n_total) > 0) {
+            .numero_dbi(fila$n_faltantes) / .numero_dbi(n_total)
+          } else {
+            NA_real_
+          }
+        }
       }
     }
   } else {
-    registros <- .metricas_omitidas_dbi(
-      registros, columna, "validos", "no_solicitado", motivo_no_pedida
-    )
+    registros <- omitir(registros, "validos", "no_solicitado", motivo_no_pedida)
   }
 
   if ("distintos" %in% metricas) {
     distintos <- conteos$distintos
-    registros <- .registrar_resultado_dbi(
-      registros, columna, .CAMPOS_METRICA_DBI$distintos, distintos
-    )
+    if (identical(modo, "aproximado") && is.null(aproximacion_distintos)) {
+      distintos$metadatos <- list(metodo = "COUNT(DISTINCT)")
+    }
+    registros <- registrar(registros, .CAMPOS_METRICA_DBI$distintos, distintos)
     if (distintos$ok) {
-      candidato <- .escalar_finito_dbi(distintos$valor)
+      candidato <- .conteo_dbi(distintos$valor)
       # Coherencia interna antes de aceptar el numero. No puede haber mas
       # valores distintos que validos; si el motor lo dice, el resultado es
       # imposible y corresponde declararlo no disponible en vez de publicarlo
       # como calculado. Una tasa mayor que 1 no es un dato: es un sintoma.
-      imposible <- !is.na(candidato) && !is.na(fila$n_validos) &&
-        candidato > fila$n_validos
+      limite_distintos <- if (es_muestreado && exists("validos_observados")) {
+        .numero_dbi(validos_observados)
+      } else {
+        .numero_dbi(fila$n_validos)
+      }
+      imposible <- !is.na(candidato) && is.finite(limite_distintos) &&
+        .numero_dbi(candidato) > limite_distintos
       if (imposible) {
-        registros <- .registrar_resultado_dbi(
-          registros, columna, .CAMPOS_METRICA_DBI$distintos,
+        registros <- registrar(
+          registros, .CAMPOS_METRICA_DBI$distintos,
           list(
             ok = FALSE, valor = NULL, sql = distintos$sql,
             motivo = paste0(
               "El motor informo ", candidato, " valores distintos sobre ",
-              fila$n_validos,
+              limite_distintos,
               " validos, que es imposible; la metrica no se publica."
             )
           )
@@ -686,25 +1222,24 @@
       } else {
         fila$n_distintos <- candidato
         if (!is.na(fila$n_distintos) && !is.na(fila$n_validos) &&
-            fila$n_validos > 0) {
-          fila$tasa_distintos <- fila$n_distintos / fila$n_validos
+            .numero_dbi(fila$n_validos) > 0) {
+          denominador <- if (es_muestreado && exists("validos_observados")) {
+            .numero_dbi(validos_observados)
+          } else {
+            .numero_dbi(fila$n_validos)
+          }
+          fila$tasa_distintos <- .numero_dbi(fila$n_distintos) / denominador
         }
       }
     }
   } else {
-    registros <- .metricas_omitidas_dbi(
-      registros, columna, "distintos", "no_solicitado", motivo_no_pedida
-    )
+    registros <- omitir(registros, "distintos", "no_solicitado", motivo_no_pedida)
   }
 
   if (!("moda" %in% metricas)) {
-    registros <- .metricas_omitidas_dbi(
-      registros, columna, "moda", "no_solicitado", motivo_no_pedida
-    )
+    registros <- omitir(registros, "moda", "no_solicitado", motivo_no_pedida)
   } else if (!incluir_valores) {
-    registros <- .metricas_omitidas_dbi(
-      registros, columna, "moda", "omitido_por_privacidad", motivo_privacidad
-    )
+    registros <- omitir(registros, "moda", "omitido_por_privacidad", motivo_privacidad)
   } else {
     sin_limite <- paste0(
       "SELECT ", columna_sql, " AS ", alias("valor"), ", COUNT(*) AS ",
@@ -737,20 +1272,29 @@
           moda$ok <- FALSE
           moda$motivo <- conditionMessage(valor_moda)
         } else {
-          candidato <- .escalar_finito_dbi(frecuencia$valor)
+          candidato <- .conteo_dbi(frecuencia$valor)
           # Un valor no puede repetirse mas veces que la cantidad de filas
           # validas. Si el motor lo dice, la metrica es imposible y se declara,
           # no se publica.
-          if (!is.na(candidato) && !is.na(fila$n_validos) &&
-              candidato > fila$n_validos) {
+          limite_moda <- if (es_muestreado && exists("validos_observados")) {
+            .numero_dbi(validos_observados)
+          } else {
+            .numero_dbi(fila$n_validos)
+          }
+          if (!is.na(candidato) && is.finite(limite_moda) &&
+              .numero_dbi(candidato) > limite_moda) {
             moda$ok <- FALSE
             moda$motivo <- paste0(
               "El motor informo una frecuencia de ", candidato, " sobre ",
-              fila$n_validos, " valores validos, que es imposible."
+              limite_moda, " valores validos, que es imposible."
             )
           } else {
             fila$moda <- valor_moda
-            fila$frecuencia_moda <- candidato
+            fila$frecuencia_moda <- if (es_muestreado) {
+              .conteo_estimado_dbi(candidato, n_total, tamano_muestra)
+            } else {
+              candidato
+            }
           }
         }
       }
@@ -759,9 +1303,8 @@
       moda$estado <- "sin_valores"
     }
     moda$sql <- sql_moda
-    registros <- .registrar_resultado_dbi(
-      registros, columna, .CAMPOS_METRICA_DBI$moda, moda,
-      motivo_exito = moda$motivo
+    registros <- registrar(
+      registros, .CAMPOS_METRICA_DBI$moda, moda, motivo_exito = moda$motivo
     )
   }
 
@@ -771,9 +1314,8 @@
   pedidas_numericas <- intersect(metricas, .METRICAS_NUMERICAS_DBI)
   no_pedidas_numericas <- setdiff(.METRICAS_NUMERICAS_DBI, metricas)
   if (length(no_pedidas_numericas)) {
-    registros <- .metricas_omitidas_dbi(
-      registros, columna, no_pedidas_numericas, "no_solicitado",
-      motivo_no_pedida
+    registros <- omitir(
+      registros, no_pedidas_numericas, "no_solicitado", motivo_no_pedida
     )
   }
   if (!length(pedidas_numericas)) {
@@ -795,7 +1337,7 @@
         } else "",
         "; no se aplicaron agregados cuantitativos."
       ),
-      NA_character_
+      NA_character_, metadatos = metadatos
     )))
     return(list(
       fila = fila, sql = do.call(rbind, registros), literales = literales
@@ -805,10 +1347,11 @@
   # `n_validos` solo condiciona a las metricas que lo necesitan de verdad. Que
   # no se haya podido contar no es motivo para no calcular un minimo.
   sin_conteo <- is.na(fila$n_validos)
-  if (!sin_conteo && fila$n_validos == 0) {
+  if (!sin_conteo && .numero_dbi(fila$n_validos) == 0) {
     registros <- c(registros, list(.registro_sql_dbi(
       columna, campos_pedidos, "sin_valores",
-      "La columna no contiene valores no nulos.", NA_character_
+      "La columna no contiene valores no nulos.", NA_character_,
+      metadatos = metadatos
     )))
     return(list(
       fila = fila, sql = do.call(rbind, registros), literales = literales
@@ -851,21 +1394,32 @@
           leidos <- list()
           break
         }
-        leidos[[metrica]] <- .escalar_finito_dbi(celda$valor)
+        leidos[[metrica]] <- if (metrica %in% c("n_ceros", "n_negativos")) {
+          .conteo_dbi(celda$valor)
+        } else {
+          .escalar_finito_dbi(celda$valor)
+        }
       }
       for (metrica in names(leidos)) fila[[metrica]] <- leidos[[metrica]]
+      if (es_muestreado) {
+        for (metrica in c("n_ceros", "n_negativos")) {
+          if (!is.null(leidos[[metrica]])) {
+            fila[[metrica]] <- .conteo_estimado_dbi(
+              leidos[[metrica]], n_total, tamano_muestra
+            )
+          }
+        }
+      }
     } else if (basicos$ok) {
       basicos$ok <- FALSE
       basicos$motivo <- "La consulta de agregados no devolvio ninguna fila."
     }
     basicos$sql <- sql_basicos
-    registros <- .registrar_resultado_dbi(
-      registros, columna, calculados, basicos
-    )
+    registros <- registrar(registros, calculados, basicos)
     if (!incluir_valores) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, c("minimo", "maximo"), "omitido_por_privacidad",
-        motivo_privacidad, NA_character_
+        motivo_privacidad, NA_character_, metadatos = metadatos
       )))
     }
   }
@@ -874,20 +1428,38 @@
     if (!incluir_valores) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "mediana", "omitido_por_privacidad", motivo_privacidad,
-        NA_character_
+        NA_character_, metadatos = metadatos
       )))
-    } else if (sin_conteo) {
+    } else if (!is.null(aproximacion_mediana)) {
+      sql_mediana <- aproximacion_mediana$construir(
+        columna_sql, tabla_sql, alias("mediana")
+      )
+      mediana <- .escalar_dbi(conexion, sql_mediana, "mediana", presupuesto)
+      mediana$sql <- sql_mediana
+      mediana$estado <- "estimado"
+      mediana$metadatos <- list(
+        metodo = aproximacion_mediana$nombre,
+        error_esperado = aproximacion_mediana$error_esperado
+      )
+      if (mediana$ok) fila$mediana <- .escalar_finito_dbi(mediana$valor)
+      registros <- registrar(registros, "mediana", mediana)
+    } else if (sin_conteo || (es_muestreado && !exists("validos_observados"))) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "mediana", "no_disponible",
         paste(
           "La mediana exacta necesita la cantidad de valores no nulos,",
           "que no se pudo conocer."
         ),
-        NA_character_
+        NA_character_, metadatos = metadatos
       )))
     } else {
-      limite <- if (fila$n_validos %% 2 == 0) 2 else 1
-      desplazamiento <- floor((fila$n_validos - 1) / 2)
+      n_validos_numero <- if (es_muestreado) {
+        .numero_dbi(validos_observados)
+      } else {
+        .numero_dbi(fila$n_validos)
+      }
+      limite <- if (n_validos_numero %% 2 == 0) 2 else 1
+      desplazamiento <- floor((n_validos_numero - 1) / 2)
       interna <- paste0(
         "SELECT ", columna_sql, " AS ", alias("valor"), " FROM ", tabla_sql,
         " WHERE ", columna_sql, " IS NOT NULL ORDER BY ", columna_sql
@@ -901,7 +1473,7 @@
             "la mediana exacta exigiria traer ",
             .entero_sql_dbi(desplazamiento + limite), " filas a memoria."
           ),
-          NA_character_
+          NA_character_, metadatos = metadatos
         )))
       } else {
         sql_mediana <- paste0(
@@ -911,19 +1483,20 @@
         mediana <- .escalar_dbi(conexion, sql_mediana, "mediana", presupuesto)
         if (mediana$ok) fila$mediana <- .escalar_finito_dbi(mediana$valor)
         mediana$sql <- sql_mediana
-        registros <- .registrar_resultado_dbi(
-          registros, columna, "mediana", mediana
-        )
+        if (identical(modo, "aproximado")) {
+          mediana$metadatos <- list(metodo = "mediana_exacta")
+        }
+        registros <- registrar(registros, "mediana", mediana)
       }
     }
   }
 
   if ("desvio" %in% pedidas_numericas) {
-    if (!sin_conteo && fila$n_validos < 2) {
+    if (!sin_conteo && .numero_dbi(fila$n_validos) < 2) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "desvio", "no_aplica",
         "El desvio muestral requiere al menos dos valores no nulos.",
-        NA_character_
+        NA_character_, metadatos = metadatos
       )))
     } else {
       # Tres formas, de la mas portable a la mas casera. Las dos primeras son
@@ -955,7 +1528,7 @@
       desvio <- .escalar_dbi(conexion, sql_desvio, "desvio", presupuesto)
       desvio$sql <- sql_desvio
       if (desvio$ok) fila$desvio <- .escalar_finito_dbi(desvio$valor)
-      registros <- .registrar_resultado_dbi(registros, columna, "desvio", desvio)
+      registros <- registrar(registros, "desvio", desvio)
     }
   }
 
@@ -967,7 +1540,8 @@
   if (length(sobrantes)) {
     registros <- c(registros, list(.registro_sql_dbi(
       columna, sobrantes, "no_disponible",
-      "La metrica no se pudo calcular en esta corrida.", NA_character_
+      "La metrica no se pudo calcular en esta corrida.", NA_character_,
+      metadatos = metadatos
     )))
   }
 
@@ -991,7 +1565,11 @@
                                dialecto = NULL, metricas = .METRICAS_DBI,
                                presupuesto = NULL, incluir_valores = TRUE,
                                tipos_declarados = NULL,
-                               motivos_ilegibles = NULL) {
+                               motivos_ilegibles = NULL,
+                               modo = "exacto", tabla_metricas_sql = tabla_sql,
+                               muestreo = NULL, aproximaciones = list(),
+                               tamano_muestra = NA_real_,
+                               fraccion_muestra = NA_real_) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   tipo_de <- function(i) {
     if (is.null(tipos_declarados) || i > length(tipos_declarados)) {
@@ -1008,11 +1586,15 @@
   resultados <- lapply(seq_along(campos), function(i) {
     campo <- campos[[i]]
     .resumen_columna_dbi(
-      conexion, tabla_sql, campo,
+      conexion, tabla_metricas_sql, campo,
       if (i <= length(prototipo)) prototipo[[i]] else NA,
       n_total, dialecto = dialecto, metricas = metricas,
       presupuesto = presupuesto, incluir_valores = incluir_valores,
-      tipo_declarado = tipo_de(i), motivo_ilegible = motivo_de(campo)
+      tipo_declarado = tipo_de(i), motivo_ilegible = motivo_de(campo),
+      modo = modo, muestreo = muestreo,
+      aproximacion_distintos = aproximaciones$distintos,
+      aproximacion_mediana = aproximaciones$mediana,
+      tamano_muestra = tamano_muestra, fraccion_muestra = fraccion_muestra
     )
   })
   columnas <- if (length(resultados)) {
@@ -1022,12 +1604,25 @@
   } else {
     .columnas_dbi_vacias()
   }
-  numericas <- setdiff(names(columnas), c("columna", "moda"))
+  numericas <- intersect(
+    c("prop_faltantes", "tasa_distintos", "minimo", "maximo", "media",
+      "mediana", "desvio"), names(columnas)
+  )
   columnas[numericas] <- lapply(columnas[numericas], as.numeric)
   sql <- if (length(resultados)) {
     rbind(
       .registro_sql_dbi(
-        campos, rep("n", length(campos)), "calculado", NA_character_, sql_conteo
+        campos, rep("n", length(campos)), "calculado", NA_character_, sql_conteo,
+        metadatos = .metadatos_sql_dbi(
+          alcance = if (identical(modo, "muestreado")) "tabla_muestreada" else
+            "tabla_completa",
+          universo = n_total, tamano_muestra = if (identical(modo, "muestreado")) {
+            tamano_muestra
+          } else NA_real_,
+          fraccion = if (identical(modo, "muestreado")) fraccion_muestra else 1,
+          metodo = if (identical(modo, "muestreado")) "conteo_universo" else
+            "conteo_universo"
+        )
       ),
       do.call(rbind, lapply(resultados, `[[`, "sql"))
     )
@@ -1042,9 +1637,13 @@
     cobertura = .cobertura_dbi_vacia(),
     literales = unlist(lapply(resultados, `[[`, "literales"), use.names = TRUE),
     meta = list(
-      alcance = "tabla_completa",
+       alcance = if (identical(modo, "muestreado")) {
+         "tabla_muestreada"
+       } else {
+         "tabla_completa"
+       },
       tabla = .texto_tabla_dbi(tabla),
-      filas = as.numeric(n_total),
+       filas = n_total,
       motor = info_conexion,
       sql_conteo_filas = sql_conteo,
       criterio_moda = paste(
@@ -1052,7 +1651,7 @@
         "segun el orden del motor"
       ),
       solo_lectura = TRUE,
-      objetos_temporales = FALSE
+       objetos_temporales = FALSE
     )
   )
 }
@@ -1217,54 +1816,64 @@
 # ---- Plan previo ---------------------------------------------------------
 
 .plan_consultas_dbi <- function(campos, es_numerico, metricas, incluir_valores,
-                                con_orden, dialecto, emitidas = 0) {
+                                 con_orden, dialecto, emitidas = 0,
+                                 modo = "exacto", muestreo_disponible = TRUE) {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
   acota_con_salto <- !is.null(dialecto$limitar("SELECT 1", 1L, 1))
   consolida_conteos <- all(c("validos", "distintos") %in% metricas)
+  mide_metricas <- !identical(modo, "muestreado") || isTRUE(muestreo_disponible)
+  n_metricas <- function(valor) if (mide_metricas) valor else 0
   clases <- list(
     c("portones (conteo, esquema y sondas)", emitidas, "una vez"),
     c(
       "conteos consolidados (no nulos + distintos)",
-      if (consolida_conteos) n_columnas else 0,
-      "ordena o agrupa la tabla completa"
+       if (consolida_conteos) n_metricas(n_columnas) else 0,
+       if (identical(modo, "muestreado")) "lee una muestra del motor" else
+         "ordena o agrupa la tabla completa"
     ),
     c(
       "COUNT(col) no nulos",
-      if ("validos" %in% metricas && !consolida_conteos) n_columnas else 0,
-      "escanea la tabla completa"
+       if ("validos" %in% metricas && !consolida_conteos) n_metricas(n_columnas) else 0,
+       if (identical(modo, "muestreado")) "lee una muestra del motor" else
+         "escanea la tabla completa"
     ),
     c(
       "COUNT DISTINCT",
-      if ("distintos" %in% metricas && !consolida_conteos) n_columnas else 0,
-      "ordena o agrupa la tabla completa"
+       if ("distintos" %in% metricas && !consolida_conteos) n_metricas(n_columnas) else 0,
+       if (identical(modo, "muestreado")) "lee una muestra del motor" else
+         "ordena o agrupa la tabla completa"
     ),
     c(
       "moda (GROUP BY + orden + limite)",
-      if ("moda" %in% metricas && con_valores) n_columnas else 0,
-      "ordena o agrupa la tabla completa"
+       if ("moda" %in% metricas && con_valores) n_metricas(n_columnas) else 0,
+       if (identical(modo, "muestreado")) "lee una muestra del motor" else
+         "ordena o agrupa la tabla completa"
     ),
     c(
-      "MIN/MAX/AVG/SUM CASE", if ("basicos" %in% metricas) n_numericas else 0,
-      "escanea la tabla completa"
+      "MIN/MAX/AVG/SUM CASE", if ("basicos" %in% metricas) n_metricas(n_numericas) else 0,
+      if (identical(modo, "muestreado")) "lee una muestra del motor" else
+        "escanea la tabla completa"
     ),
     c(
       "mediana (orden total + limite/salto)",
-      if ("mediana" %in% metricas && con_valores && acota_con_salto) {
-        n_numericas
-      } else 0,
-      "ordena la tabla completa"
+       if ("mediana" %in% metricas && con_valores && acota_con_salto) {
+         n_metricas(n_numericas)
+       } else 0,
+       if (identical(modo, "muestreado")) "lee una muestra del motor" else
+         "ordena la tabla completa"
     ),
     c(
       # La primera columna numerica paga hasta dos consultas extra probando las
       # formas nativas del motor; despues la forma queda resuelta y cada columna
       # cuesta una sola. El plan cuenta ese peaje para seguir siendo exacto.
       "desvio (nativo del motor, o SUM de cuadrados)",
-      if ("desvio" %in% metricas && n_numericas > 0) {
-        n_numericas + .PEAJE_FORMA_DESVIO
-      } else 0,
-      "escanea la tabla completa dos veces"
+       if ("desvio" %in% metricas && n_numericas > 0) {
+         n_metricas(n_numericas + .PEAJE_FORMA_DESVIO)
+       } else 0,
+       if (identical(modo, "muestreado")) "lee una muestra del motor" else
+         "escanea la tabla completa dos veces"
     ),
     c(
       "verificacion de unicidad del orden", if (con_orden) 1 else 0,
@@ -1309,7 +1918,8 @@
 #' }
 plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
                                orden_muestra = NULL,
-                               modo = c("exacto", "seguro", "conteos"),
+                               modo = c("exacto", "seguro", "conteos",
+                                         "muestreado", "aproximado"),
                                metricas = NULL, max_consultas = Inf,
                                dialecto = "auto", incluir_valores = TRUE) {
   preparacion <- .preparar_dbi(
@@ -1326,7 +1936,9 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
   plan <- .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas, incluir_valores,
     length(preparacion$orden_sql) > 0, preparacion$dialecto,
-    emitidas = preparacion$presupuesto$usadas
+    emitidas = preparacion$presupuesto$usadas, modo = preparacion$modo,
+    muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
+      preparacion$muestreo$disponible
   )
   attr(plan, "total") <- sum(plan$n_consultas)
   attr(plan, "columnas") <- length(preparacion$campos)
@@ -1411,7 +2023,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
 .bloque_muestra_dbi <- function(conexion, tabla, tabla_sql, campos, campos_sql,
                                 muestra, orden_muestra, orden_sql, dialecto,
                                 n_total, presupuesto, info_conexion,
-                                argumentos) {
+                                argumentos, muestreo = NULL) {
   cobertura <- .cobertura_dbi_vacia()
   verificacion <- if (length(orden_sql)) {
     .verificar_orden_dbi(conexion, tabla_sql, orden_sql, dialecto, presupuesto)
@@ -1421,19 +2033,46 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
       motivo = "No se declaro `orden_muestra`; SQL no garantiza el orden de las filas."
     )
   }
-  n_obtener <- min(n_total, muestra)
-  base_muestra <- paste0(
-    "SELECT ", paste(campos_sql, collapse = ", "), " FROM ", tabla_sql,
-    if (length(orden_sql)) {
-      paste0(" ORDER BY ", paste(orden_sql, collapse = ", "))
-    } else ""
-  )
-  acotada <- if (muestra < n_total) dialecto$limitar(base_muestra, muestra, 0) else NULL
+  n_obtener <- min(.numero_dbi(n_total), muestra)
+  usa_muestreo <- !is.null(muestreo) && isTRUE(muestreo$disponible)
+  fuente <- if (usa_muestreo) {
+    .fuente_muestreada_dbi(
+      tabla_sql, campos_sql, muestra, n_total, dialecto,
+      list(candidato = muestreo$candidato)
+    )
+  } else {
+    NULL
+  }
+  base_muestra <- if (!is.null(fuente)) {
+    fuente$sql
+  } else {
+    paste0(
+      "SELECT ", paste(campos_sql, collapse = ", "), " FROM ", tabla_sql,
+      if (length(orden_sql)) {
+        paste0(" ORDER BY ", paste(orden_sql, collapse = ", "))
+      } else ""
+    )
+  }
+  acotada <- if (!is.null(fuente)) {
+    NULL
+  } else if (muestra < .numero_dbi(n_total)) {
+    dialecto$limitar(base_muestra, muestra, 0)
+  } else {
+    NULL
+  }
   sql_muestra <- if (is.null(acotada)) base_muestra else acotada
-  filas <- if (is.null(acotada) && muestra < n_total) muestra else -1L
-  acotado_en <- if (!is.null(acotada)) {
+  filas <- if (!is.null(fuente)) {
+    fuente$filas
+  } else if (is.null(acotada) && muestra < .numero_dbi(n_total)) {
+    muestra
+  } else {
+    -1L
+  }
+  acotado_en <- if (!is.null(fuente)) {
+    "motor_muestreo"
+  } else if (!is.null(acotada)) {
     "motor"
-  } else if (muestra < n_total) {
+  } else if (muestra < .numero_dbi(n_total)) {
     "cliente"
   } else {
     "sin recorte"
@@ -1441,9 +2080,11 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
   muestreo_meta <- list(
     filas_solicitadas = as.numeric(muestra),
     filas_obtenidas = NA_real_,
-    filas_totales_fuente = as.numeric(n_total),
+    filas_totales_fuente = n_total,
     tabla_completa = FALSE,
-    metodo = if (length(orden_sql)) {
+    metodo = if (!is.null(fuente)) {
+      fuente$metodo
+    } else if (length(orden_sql)) {
       "primeras_filas_segun_orden"
     } else {
       "primeras_filas_sin_orden_garantizado"
@@ -1458,6 +2099,12 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
     sql_verificacion_orden = verificacion$sql,
     sql_muestra = sql_muestra
   )
+  if (!is.null(fuente)) {
+    muestreo_meta$fraccion <- fuente$fraccion
+    muestreo_meta$tamano_muestra <- fuente$filas_solicitadas
+    muestreo_meta$universo <- n_total
+    muestreo_meta$capacidad <- muestreo$candidato$nombre
+  }
   consulta <- .consultar_dbi(conexion, sql_muestra, presupuesto, filas = filas)
   if (!consulta$ok) {
     # Antes se descartaba aca el resumen entero: 158 columnas y 1548 metricas
@@ -1478,7 +2125,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
   datos_muestra <- consulta$datos
   n_obtenidas <- nrow(datos_muestra)
   muestreo_meta$filas_obtenidas <- as.numeric(n_obtenidas)
-  muestreo_meta$tabla_completa <- n_obtenidas == n_total
+  muestreo_meta$tabla_completa <- n_obtenidas == .numero_dbi(n_total)
   if (!identical(as.numeric(n_obtenidas), as.numeric(n_obtener))) {
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
       "perfil_muestra", .texto_tabla_dbi(tabla), "alcance_distinto",
@@ -1536,7 +2183,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
                           metricas, max_consultas, dialecto) {
   .requerir_dbi()
   modo <- match.arg(
-    modo, c("exacto", "seguro", "conteos")
+    modo, c("exacto", "seguro", "conteos", "muestreado", "aproximado")
   )
   dialecto <- match.arg(
     dialecto, c("auto", "limit", "top", "fetch_first", "rownum", "portable")
@@ -1636,7 +2283,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
       "No se pudo contar la tabla: ", conteo$motivo
     ), datos = list(sql = sql_conteo))
   }
-  n_total <- .escalar_finito_dbi(conteo$valor)
+  n_total <- .conteo_dbi(conteo$valor)
   if (is.na(n_total)) {
     .detener_dbi("lupa_error_conteo_dbi", paste0(
       "La consulta de conteo no devolvio un numero utilizable. SQL: ",
@@ -1675,11 +2322,52 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
   resolucion <- .resolver_dialecto_dbi(
     conexion, sql_forma, dialecto, presupuesto
   )
+  es_numerico <- vapply(seq_along(campos), function(i) {
+    .es_numerico_dbi(
+      prototipo[[i]],
+      if (i <= length(esquema$tipos)) esquema$tipos[[i]] else NA_character_
+    )
+  }, logical(1L))
+  muestreo <- NULL
+  if (identical(modo, "muestreado")) {
+    muestreo <- .sondar_muestreo_dbi(
+      conexion, tabla_sql, resolucion$dialecto, presupuesto
+    )
+  }
+  aproximaciones <- list()
+  aproximaciones_resolucion <- list()
+  if (identical(modo, "aproximado")) {
+    if ("distintos" %in% metricas) {
+      resolucion_distintos <- .sondar_aproximacion_dbi(
+        conexion, "distintos", presupuesto
+      )
+      aproximaciones_resolucion$distintos <- resolucion_distintos
+      if (!isTRUE(resolucion_distintos$disponible)) {
+        aproximaciones$distintos <- NULL
+      } else {
+        aproximaciones$distintos <- resolucion_distintos$candidato
+      }
+    }
+    if ("mediana" %in% metricas && any(es_numerico)) {
+      resolucion_mediana <- .sondar_aproximacion_dbi(
+        conexion, "mediana", presupuesto
+      )
+      aproximaciones_resolucion$mediana <- resolucion_mediana
+      if (!isTRUE(resolucion_mediana$disponible)) {
+        aproximaciones$mediana <- NULL
+      } else {
+        aproximaciones$mediana <- resolucion_mediana$candidato
+      }
+    }
+  }
   list(
     modo = modo, metricas = metricas, muestra = muestra,
     max_consultas = max_consultas, presupuesto = presupuesto,
     tabla_sql = tabla_sql, campos = campos, campos_sql = esquema$campos_sql,
     prototipo = prototipo, tipos = esquema$tipos, esquema = esquema,
+    es_numerico = es_numerico, muestreo = muestreo,
+    aproximaciones = aproximaciones,
+    aproximaciones_resolucion = aproximaciones_resolucion,
     n_total = n_total, sql_conteo = sql_conteo, orden_sql = orden_sql,
     orden_muestra = orden_muestra, dialecto = resolucion$dialecto,
     resolucion = resolucion, campos_declarados = campos_declarados,
@@ -1689,10 +2377,11 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
 
 #' Perfilar una muestra leída mediante DBI
 #'
-#' Calcula en SQL un resumen acotado sobre toda una tabla y, en un bloque
-#' separado, ejecuta [perfilar()] sobre una muestra traída a memoria. El resumen
-#' completo de 105 campos no se presenta como calculado por la base: esos campos
-#' pertenecen exclusivamente a `perfil_muestra` y su universo es la muestra.
+#' Calcula en SQL un resumen sobre la tabla completa o sobre una relación
+#' muestreada por el motor, según `modo`, y en un bloque separado ejecuta
+#' [perfilar()] sobre una muestra traída a memoria. El resumen completo de 105
+#' campos no se presenta como calculado por la base: esos campos pertenecen
+#' exclusivamente a `perfil_muestra` y su universo es la muestra.
 #'
 #' Esta función no escribe en la conexión ni crea objetos temporales. `DBI` es
 #' una dependencia opcional. Cada agregado no disponible queda en `NA` y su
@@ -1711,6 +2400,19 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
 #' `lupa_error_conexion_dbi`, `lupa_error_tabla_dbi`, `lupa_error_campos_dbi`,
 #' `lupa_error_conteo_dbi`, `lupa_error_esquema_dbi` y
 #' `lupa_error_argumento_dbi`.
+#'
+#' @section Muestra y aproximaciones:
+#' `modo = "muestreado"` sondea las formas declaradas por el adaptador y usa
+#' `TABLESAMPLE` cuando el motor lo acepta, o una función pseudoaleatoria con el
+#' límite del dialecto. Si ninguna forma es compatible, las métricas SQL quedan
+#' en `no_disponible`: no se sustituyen por resultados de la tabla completa.
+#' Cada registro publica `alcance`, `universo`, `tamano_muestra`, `fraccion`,
+#' `metodo` y `error_esperado`. Los distintos de una muestra se publican como
+#' cardinalidad de la muestra, no como cardinalidad del universo. `modo =
+#' "aproximado"` sondea `APPROX_COUNT_DISTINCT`, `approx_count_distinct` y las
+#' formas de cuantiles del motor; cuando ninguna responde usa el respaldo exacto
+#' y lo registra por métrica. Las cotas de error no documentadas quedan como
+#' `"desconocido"`.
 #'
 #' @section Dialecto:
 #' Acotar filas no es SQL estándar. En vez de suponer `LIMIT`, la función
@@ -1752,7 +2454,9 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
 #'   limitada, y `meta` lo declara expresamente.
 #' @param modo Conjunto de métricas del resumen: `"exacto"` las calcula todas,
 #'   `"seguro"` evita las que ordenan o agrupan la tabla completa y
-#'   `"conteos"` deja solo el conteo de valores no nulos.
+#'   `"conteos"` deja solo el conteo de valores no nulos, `"muestreado"`
+#'   calcula estimaciones sobre filas elegidas por el motor y `"aproximado"`
+#'   usa funciones nativas aproximadas cuando la sonda las acepta.
 #' @param metricas Selección explícita de grupos de métricas, que tiene
 #'   prioridad sobre `modo`: `"validos"`, `"distintos"`, `"moda"`,
 #'   `"basicos"`, `"mediana"` y `"desvio"`.
@@ -1766,9 +2470,9 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
 #' @param ... Argumentos enviados a [perfilar()] para analizar la muestra.
 #'
 #' @return Objeto de clase `perfil_dbi` con exactamente dos bloques:
-#'   `resumen_tabla`, de alcance completo, y `perfil_muestra`, un objeto
-#'   `perfil` cuyo `meta$origen_dbi` declara tabla, conexión, SQL y alcance, o
-#'   `NULL` si la muestra no se pudo obtener.
+#'   `resumen_tabla`, de alcance completo o muestreado según `modo`, y
+#'   `perfil_muestra`, un objeto `perfil` cuyo `meta$origen_dbi` declara tabla,
+#'   conexión, SQL y alcance, o `NULL` si la muestra no se pudo obtener.
 #' @export
 #' @seealso [plan_perfilado_dbi()], [perfilar()]
 #'
@@ -1782,7 +2486,8 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
 #' }
 perfilar_dbi <- function(conexion, tabla, muestra = 1000L,
                          orden_muestra = NULL,
-                         modo = c("exacto", "seguro", "conteos"),
+                         modo = c("exacto", "seguro", "conteos", "muestreado",
+                                   "aproximado"),
                          metricas = NULL, max_consultas = Inf,
                          dialecto = "auto", incluir_valores = TRUE, ...) {
   preparacion <- .preparar_dbi(
@@ -1801,11 +2506,58 @@ perfilar_dbi <- function(conexion, tabla, muestra = 1000L,
   plan <- .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas, incluir_valores,
     length(preparacion$orden_sql) > 0, preparacion$dialecto,
-    emitidas = presupuesto$usadas
+    emitidas = presupuesto$usadas, modo = preparacion$modo,
+    muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
+      preparacion$muestreo$disponible
   )
   # Las dos consultas obligatorias que faltan -verificacion de orden y
   # muestra- se reservan para que el presupuesto no se las coma.
   presupuesto$reserva <- if (length(preparacion$orden_sql)) 2 else 1
+
+  fuente_muestreada <- NULL
+  muestreo_meta <- preparacion$muestreo
+  muestreo_publico <- if (is.null(preparacion$muestreo)) {
+    NULL
+  } else {
+    .publicar_muestreo_dbi(preparacion$muestreo, n_total = preparacion$n_total)
+  }
+  tabla_metricas_sql <- preparacion$tabla_sql
+  if (identical(preparacion$modo, "muestreado") &&
+      !is.null(preparacion$muestreo) &&
+      isTRUE(preparacion$muestreo$disponible)) {
+    fuente_muestreada <- .fuente_muestreada_dbi(
+      preparacion$tabla_sql, preparacion$campos_sql, preparacion$muestra,
+      preparacion$n_total, preparacion$dialecto, preparacion$muestreo
+    )
+    if (is.null(fuente_muestreada)) {
+      preparacion$muestreo$disponible <- FALSE
+      preparacion$muestreo$motivo <- paste(
+        "La forma muestreada resuelta no pudo construir una consulta de",
+        "subconjunto compatible con el dialecto elegido."
+      )
+      muestreo_publico <- .publicar_muestreo_dbi(
+        preparacion$muestreo, n_total = preparacion$n_total
+      )
+    } else {
+      tabla_metricas_sql <- paste0(
+        "(", fuente_muestreada$sql, ")",
+        preparacion$dialecto$alias_tabla("lupa_muestra")
+      )
+      muestreo_meta <- c(
+        preparacion$muestreo,
+        list(
+          metodo = fuente_muestreada$metodo,
+          descripcion = fuente_muestreada$descripcion,
+          fraccion = fuente_muestreada$fraccion,
+          tamano_muestra = fuente_muestreada$filas_solicitadas,
+          sql = fuente_muestreada$sql
+        )
+      )
+      muestreo_publico <- .publicar_muestreo_dbi(
+        preparacion$muestreo, fuente_muestreada, preparacion$n_total
+      )
+    }
+  }
 
   campos_todos <- unique(c(preparacion$campos, preparacion$esquema$ilegibles))
   resumen <- .resumen_tabla_dbi(
@@ -1814,7 +2566,13 @@ perfilar_dbi <- function(conexion, tabla, muestra = 1000L,
     info_conexion, dialecto = preparacion$dialecto,
     metricas = preparacion$metricas, presupuesto = presupuesto,
     incluir_valores = incluir_valores, tipos_declarados = preparacion$tipos,
-    motivos_ilegibles = preparacion$esquema$motivos
+    motivos_ilegibles = preparacion$esquema$motivos,
+    modo = preparacion$modo, tabla_metricas_sql = tabla_metricas_sql,
+    muestreo = muestreo_publico, aproximaciones = preparacion$aproximaciones,
+    tamano_muestra = if (is.null(fuente_muestreada)) NA_real_ else
+      fuente_muestreada$filas_solicitadas,
+    fraccion_muestra = if (is.null(fuente_muestreada)) NA_real_ else
+      fuente_muestreada$fraccion
   )
   resumen$meta$sql_esquema <- preparacion$esquema$sql
   resumen$meta$modo <- preparacion$modo
@@ -1828,11 +2586,34 @@ perfilar_dbi <- function(conexion, tabla, muestra = 1000L,
     declarado = preparacion$resolucion$declarado,
     sondas = preparacion$resolucion$sondas
   )
+  if (identical(preparacion$modo, "aproximado")) {
+    resumen$meta$aproximaciones <- lapply(
+      preparacion$aproximaciones_resolucion, .publicar_aproximacion_dbi
+    )
+  }
+  cobertura <- .cobertura_dbi_vacia()
+  if (identical(preparacion$modo, "muestreado")) {
+    resumen$meta$muestreo <- muestreo_publico
+    if (is.null(fuente_muestreada)) {
+      cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+        "resumen_tabla", .texto_tabla_dbi(tabla), "no_disponible",
+        if (is.null(preparacion$muestreo)) {
+          "No se pudo resolver una capacidad de muestreo del motor."
+        } else {
+          preparacion$muestreo$motivo
+        },
+        paste(
+          "El modo `muestreado` no reemplaza la estimacion por un calculo",
+          "sobre la tabla completa. Usar otro modo o un adaptador compatible."
+        ),
+        NA_character_
+      ))
+    }
+  }
   # Un conteo por encima de 2^53 no sobrevive al doble. Se declara en vez de
   # afirmar una exactitud que no hay.
-  resumen$meta$conteo_exacto <- preparacion$n_total <= 2^53
+  resumen$meta$conteo_exacto <- .conteo_exacto_dbi(preparacion$n_total)
 
-  cobertura <- .cobertura_dbi_vacia()
   if (length(preparacion$esquema$ilegibles)) {
     for (campo in preparacion$esquema$ilegibles) {
       cobertura <- rbind(cobertura, .registro_cobertura_dbi(
@@ -1860,7 +2641,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = 1000L,
     conexion, tabla, preparacion$tabla_sql, preparacion$campos,
     preparacion$campos_sql, preparacion$muestra, preparacion$orden_muestra,
     preparacion$orden_sql, preparacion$dialecto, preparacion$n_total,
-    presupuesto, info_conexion, list(...)
+    presupuesto, info_conexion, list(...), muestreo = muestreo_meta
   )
   cobertura <- rbind(cobertura, bloque$cobertura)
   if (isTRUE(presupuesto$agotado)) {
@@ -1912,7 +2693,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = 1000L,
       bloque$cobertura$estado == "no_disponible"
     ]
     .avisar_dbi("lupa_muestra_dbi_no_disponible", paste0(
-      "El resumen de tabla completa se calculo y se devuelve, pero la muestra no: ",
+      "El resumen SQL se calculo y se devuelve, pero la muestra no: ",
       paste(motivos, collapse = " "),
       " Ver `resumen_tabla$cobertura`."
     ))
@@ -1926,9 +2707,14 @@ perfilar_dbi <- function(conexion, tabla, muestra = 1000L,
 #' @export
 print.perfil_dbi <- function(x, ...) {
   meta <- x$resumen_tabla$meta
+  alcance <- if (identical(meta$alcance, "tabla_muestreada")) {
+    "tabla muestreada"
+  } else {
+    "tabla completa"
+  }
   cli::cli_text("Perfil DBI de {.strong {meta$tabla}}")
   cli::cli_text(
-    "Resumen de tabla completa: {nrow(x$resumen_tabla$columnas)} columnas sobre {meta$filas} filas"
+    "Resumen de {alcance}: {nrow(x$resumen_tabla$columnas)} columnas sobre {meta$filas} filas"
   )
   estados <- table(x$resumen_tabla$sql$estado)
   if (length(estados)) {

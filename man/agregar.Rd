@@ -10,7 +10,8 @@ agregar(
   funcion = c("ratio", "ratio_umbral", "promedio", "promedio_ponderado"),
   umbral = NULL,
   pesos = NULL,
-  coleccion = NULL
+  coleccion = NULL,
+  colecciones = NULL
 )
 }
 \arguments{
@@ -31,6 +32,11 @@ entrada por fila de \code{medidas}.}
 \code{"coleccion"}: el objeto de \code{\link[=coleccion]{coleccion()}} o el perfil de
 \code{\link[=perfilar_coleccion]{perfilar_coleccion()}}. Sin ella no se sabe sobre qué tablas se está
 agregando, y el número resultante no describiría nada.}
+
+\item{colecciones}{Lista nombrada de objetos de \code{\link[=coleccion]{coleccion()}} o
+\code{\link[=perfilar_coleccion]{perfilar_coleccion()}}, exigida cuando \code{destino} es
+\code{"conjuntoColecciones"}. Los nombres declaran la identidad y la frontera
+del conjunto; no se agregan organizaciones ni otros alcances implícitos.}
 }
 \value{
 Objeto \code{medicion} agregado, con una fila por objeto de destino.

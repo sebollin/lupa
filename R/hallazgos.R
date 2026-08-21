@@ -299,6 +299,17 @@
   as.numeric(cuartiles[[2L]] - cuartiles[[1L]])
 }
 
+.razon_permutacion_orden <- function(a, b, proporcion) {
+  a <- a[is.finite(a)]
+  b <- b[is.finite(b)]
+  if (!length(a) || !length(b) || !is.finite(proporcion)) return(NA_real_)
+  ordenada <- sort(b)
+  n <- length(ordenada)
+  esperada <- mean((n - findInterval(a, ordenada, left.open = TRUE)) / n)
+  if (!is.finite(esperada) || esperada == 0) return(NA_real_)
+  as.numeric(proporcion / esperada)
+}
+
 .alcance_orden_columnas <- function(nombres, seleccion, max_columnas,
                                     tipos, n_filas, umbral,
                                     umbral_solapamiento = 0.1) {
@@ -408,6 +419,11 @@
     proporcion <- if (direccion_izquierda) {
       proporcion_izquierda
     } else proporcion_derecha
+    razon_permutacion <- if (direccion_izquierda) {
+      .razon_permutacion_orden(izquierda, derecha, proporcion)
+    } else {
+      .razon_permutacion_orden(derecha, izquierda, proporcion)
+    }
     # Con pocas filas se permite una sola inversion para no perder el caso
     # minimo (2 de 3); desde 20 comparables se exige el umbral medido de 95 %.
     umbral_efectivo <- if (n_evaluados < 20L) {
@@ -453,6 +469,11 @@
           "IQR de la brecha: %.3f; criterio alternativo: 0.000. ",
           iqr_brecha
         ),
+        "Razon de permutacion descriptiva (observado/esperado al permutar filas): ",
+        if (is.finite(razon_permutacion)) {
+          sprintf("%.3f", razon_permutacion)
+        } else "NA",
+        "; no filtra la deteccion. ",
         evidencia_ejemplos
       ),
       paste0(
@@ -570,7 +591,9 @@
                                                 min_asimetria_variante = 10,
                                                 min_asimetria_general = 2,
                                                 min_participacion_dominante = 0.5,
-                                                excluir = NULL) {
+                                                excluir = NULL,
+                                                detectar_variantes_equifrecuentes = FALSE,
+                                                max_asimetria_equifrecuente = 2) {
   if (!(is.character(x) || is.factor(x)) || is.matrix(x) || is.list(x)) {
     return(NULL)
   }
@@ -584,10 +607,27 @@
   n_excluidos_faltantes <- sum(presentes_originales & excluir)
   presentes <- presentes_originales & !excluir
   if (!any(presentes)) return(NULL)
-  vocabulario <- unique(textos[presentes])
-  frecuencias <- tabulate(match(textos[presentes], vocabulario),
-                          nbins = length(vocabulario))
-  n_total <- length(vocabulario)
+  vistos <- new.env(hash = TRUE, parent = emptyenv())
+  vocabulario <- character()
+  frecuencias <- integer()
+  n_total <- 0L
+  for (valor in textos[presentes]) {
+    clave <- paste0("v", valor)
+    if (exists(clave, envir = vistos, inherits = FALSE)) {
+      indice <- get(clave, envir = vistos, inherits = FALSE)
+    } else {
+      n_total <- n_total + 1L
+      indice <- n_total
+      assign(clave, indice, envir = vistos)
+      if (indice <= max_valores) {
+        vocabulario[[indice]] <- valor
+        frecuencias[[indice]] <- 0L
+      }
+    }
+    if (indice <= max_valores) {
+      frecuencias[[indice]] <- frecuencias[[indice]] + 1L
+    }
+  }
   n_evaluados <- min(n_total, max_valores)
   crudos <- vocabulario[seq_len(n_evaluados)]
   frecuencias <- frecuencias[seq_len(n_evaluados)]
@@ -629,6 +669,62 @@
   n_descartados_frecuencia_edicion_corta <- 0L
   n_pares_descartados_numeros <- 0L
   hay_firmas_numericas_distintas <- length(unique(firmas_numericas)) > 1L
+  max_asimetria_equifrecuente <- as.numeric(max_asimetria_equifrecuente)
+  padre_equifrecuente <- seq_len(n_unidades)
+  rango_equifrecuente <- integer(n_unidades)
+  activos_equifrecuentes <- logical(n_unidades)
+  raiz_equifrecuente <- function(x) {
+    while (padre_equifrecuente[[x]] != x) {
+      padre_equifrecuente[[x]] <<- padre_equifrecuente[[
+        padre_equifrecuente[[x]]
+      ]]
+      x <- padre_equifrecuente[[x]]
+    }
+    x
+  }
+  unir_equifrecuentes <- function(a, b) {
+    raiz_a <- raiz_equifrecuente(a)
+    raiz_b <- raiz_equifrecuente(b)
+    if (raiz_a == raiz_b) return(invisible(NULL))
+    if (rango_equifrecuente[[raiz_a]] < rango_equifrecuente[[raiz_b]]) {
+      padre_equifrecuente[[raiz_a]] <<- raiz_b
+    } else if (rango_equifrecuente[[raiz_a]] > rango_equifrecuente[[raiz_b]]) {
+      padre_equifrecuente[[raiz_b]] <<- raiz_a
+    } else {
+      padre_equifrecuente[[raiz_b]] <<- raiz_a
+      rango_equifrecuente[[raiz_a]] <<- rango_equifrecuente[[raiz_a]] + 1L
+    }
+    invisible(NULL)
+  }
+  registrar_equifrecuentes <- function(fila_1, fila_2, distancia) {
+    if (!length(fila_1)) return(invisible(NULL))
+    frecuencias_1 <- frecuencia_unidad[fila_1]
+    frecuencias_2 <- frecuencia_unidad[fila_2]
+    menor <- pmin(frecuencias_1, frecuencias_2)
+    mayor <- pmax(frecuencias_1, frecuencias_2)
+    conservar <- is.finite(menor) & menor > 0 &
+      mayor / menor <= max_asimetria_equifrecuente
+    if (!any(conservar)) return(invisible(NULL))
+    fila_1 <- fila_1[conservar]
+    fila_2 <- fila_2[conservar]
+    distancia <- distancia[conservar]
+    n_pares_equifrecuentes <<- n_pares_equifrecuentes + length(fila_1)
+    for (i in seq_along(fila_1)) {
+      activos_equifrecuentes[[fila_1[[i]]]] <<- TRUE
+      activos_equifrecuentes[[fila_2[[i]]]] <<- TRUE
+      unir_equifrecuentes(fila_1[[i]], fila_2[[i]])
+    }
+    if (isTRUE(detectar_variantes_equifrecuentes)) {
+      pares_equifrecuentes_1 <<- c(pares_equifrecuentes_1, fila_1)
+      pares_equifrecuentes_2 <<- c(pares_equifrecuentes_2, fila_2)
+      distancias_equifrecuentes <<- c(distancias_equifrecuentes, distancia)
+    }
+    invisible(NULL)
+  }
+  n_pares_equifrecuentes <- 0L
+  pares_equifrecuentes_1 <- integer()
+  pares_equifrecuentes_2 <- integer()
+  distancias_equifrecuentes <- numeric()
   if (disponible && max_unidades > 1L) {
     if (hay_firmas_numericas_distintas) {
       mejor_frecuencia_sin_filtro <- numeric(n_unidades)
@@ -737,6 +833,7 @@
       fila_1 <- fila_1[compatibles]
       fila_2 <- fila_2[compatibles]
       distancia <- distancia[compatibles]
+      registrar_equifrecuentes(fila_1, fila_2, distancia)
       n_candidatos_distancia <<- n_candidatos_distancia + length(fila_1)
       actualizar_estrellas(fila_1, fila_2, distancia, origen = origen)
       invisible(NULL)
@@ -963,8 +1060,66 @@
     grupos_salida <- grupos_salida[orden]
   }
   if (!exists("n_grupos_bajo_piso", inherits = FALSE)) n_grupos_bajo_piso <- 0L
+  componentes_equifrecuentes <- if (n_unidades) {
+    vapply(seq_len(n_unidades), raiz_equifrecuente, integer(1L))
+  } else integer()
+  grupos_equifrecuentes_candidatos <- if (length(activos_equifrecuentes)) {
+    candidatos <- split(
+      which(activos_equifrecuentes),
+      componentes_equifrecuentes[activos_equifrecuentes]
+    )
+    Filter(function(indices) {
+      frecuencias_grupo <- frecuencias[indices]
+      length(indices) > 1L &&
+        !any(indices %in% as.integer(pares)) &&
+        max(frecuencias_grupo) / min(frecuencias_grupo) <=
+          max_asimetria_equifrecuente
+    }, candidatos)
+  } else list()
+  grupos_equifrecuentes <- list()
+  if (isTRUE(detectar_variantes_equifrecuentes) &&
+      length(grupos_equifrecuentes_candidatos) && aplicable) {
+    grupos_equifrecuentes <- lapply(
+      grupos_equifrecuentes_candidatos,
+      function(indices) {
+        aristas <- which(
+          pares_equifrecuentes_1 %in% indices &
+            pares_equifrecuentes_2 %in% indices
+        )
+        frecuencias_grupo <- frecuencias[indices]
+        distancias_grupo <- distancias_equifrecuentes[aristas]
+        clases_aristas <- vapply(aristas, function(j) {
+          .clase_diferencia_vocabulario(
+            crudos[[pares_equifrecuentes_1[[j]]]],
+            crudos[[pares_equifrecuentes_2[[j]]]]
+          )
+        }, character(1L))
+        clase <- if (!length(clases_aristas)) "indeterminada" else
+          if (all(clases_aristas == "dentro_de_palabra")) {
+            "dentro_de_palabra"
+          } else if (all(clases_aristas == "token_completo")) {
+            "token_completo"
+          } else if (all(clases_aristas == "token_unico")) {
+            "token_unico"
+          } else "mixta"
+        list(
+          variantes = crudos[indices], frecuencias = frecuencias_grupo,
+          asimetria = max(frecuencias_grupo) / min(frecuencias_grupo),
+          distancia_minima = if (length(distancias_grupo)) {
+            min(distancias_grupo)
+          } else NA_real_,
+          distancia_maxima = if (length(distancias_grupo)) {
+            max(distancias_grupo)
+          } else NA_real_,
+          clase_diferencia = clase,
+          origen = "distancia_equifrecuente"
+        )
+      }
+    )
+  }
   list(
     grupos = grupos_salida,
+    grupos_equifrecuentes = grupos_equifrecuentes,
     alcance = list(
       n_valores_distintos = n_total,
       n_excluidos_faltantes_disfrazados = n_excluidos_faltantes,
@@ -1001,6 +1156,11 @@
       min_asimetria_variante = min_asimetria_variante,
       min_asimetria_general = min_asimetria_general,
       n_grupos_bajo_piso_asimetria = as.integer(n_grupos_bajo_piso),
+      n_grupos_sin_variante_rara = as.integer(
+        length(grupos_equifrecuentes_candidatos)
+      ),
+      n_pares_equifrecuentes = as.numeric(n_pares_equifrecuentes),
+      max_asimetria_equifrecuente = max_asimetria_equifrecuente,
       min_participacion_dominante = min_participacion_dominante,
       n_pares_descartados_numeros = n_pares_descartados_numeros,
       motivo_grupos = if (disponible && n_candidatos_distancia > 0L &&
@@ -1013,7 +1173,9 @@
 .hallazgos_casi_duplicados_vocabulario <- function(
     datos, columnas, perfil, resultados = NULL, max_proporcion_grupo = 0.5,
     umbral_variante_rara = 0.05, min_asimetria_variante = 10,
-    min_asimetria_general = 2, min_participacion_dominante = 0.5) {
+    min_asimetria_general = 2, min_participacion_dominante = 0.5,
+    detectar_variantes_equifrecuentes = FALSE,
+    max_asimetria_equifrecuente = 2) {
   max_grupos_mostrados <- 20L
   max_variantes_mostradas <- 20L
   hallazgos <- list()
@@ -1030,6 +1192,8 @@
       min_asimetria_variante = min_asimetria_variante,
       min_asimetria_general = min_asimetria_general,
       min_participacion_dominante = min_participacion_dominante,
+      detectar_variantes_equifrecuentes = detectar_variantes_equifrecuentes,
+      max_asimetria_equifrecuente = max_asimetria_equifrecuente,
       excluir = excluir
     )
     if (!is.null(grupos) && !isTRUE(grupos$alcance$distancia_disponible)) {
@@ -1081,6 +1245,46 @@
         )
       )
     }
+    if (isTRUE(alcance$n_grupos_sin_variante_rara > 0L) &&
+        isTRUE(alcance$aplicable)) {
+      nueva_cobertura <- .nuevo_diagnostico_no_evaluado(
+        "proximidad_vocabulario", columnas[[i]],
+        paste0(
+          alcance$n_grupos_sin_variante_rara,
+          if (alcance$n_grupos_sin_variante_rara == 1L) {
+            " grupo de formas cercanas no se formo"
+          } else " grupos de formas cercanas no se formaron",
+          " porque sus frecuencias fueron parecidas: el criterio de variante",
+          " rara no pudo distinguir una forma correcta de otra.",
+          " Se identificaron ", alcance$n_pares_equifrecuentes,
+          " pares cercanos con asimetria <= ",
+          formatC(alcance$max_asimetria_equifrecuente,
+                  format = "f", digits = 1), "."
+        ),
+        paste0(
+          "Activar un detector de formas equifrecuentes con conocimiento del ",
+          "dominio, o revisar los pares manualmente; no se puede elegir una ",
+          "forma correcta solo por su frecuencia."
+        )
+      )
+      indice_cobertura <- which(vapply(cobertura, function(x) {
+        identical(x$diagnostico[[1L]], "proximidad_vocabulario") &&
+          identical(x$columna[[1L]], columnas[[i]])
+      }, logical(1L)))
+      if (length(indice_cobertura)) {
+        indice_cobertura <- indice_cobertura[[1L]]
+        cobertura[[indice_cobertura]]$motivo <- paste(
+          cobertura[[indice_cobertura]]$motivo,
+          nueva_cobertura$motivo, sep = " "
+        )
+        cobertura[[indice_cobertura]]$como_resolverlo <- paste(
+          cobertura[[indice_cobertura]]$como_resolverlo,
+          nueva_cobertura$como_resolverlo, sep = " "
+        )
+      } else {
+        cobertura[[length(cobertura) + 1L]] <- nueva_cobertura
+      }
+    }
     if (!isTRUE(alcance$aplicable)) {
       cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
         "proximidad_vocabulario", columnas[[i]],
@@ -1097,12 +1301,14 @@
       )
     }
     hay_grupos <- length(grupos$grupos) > 0L
+    hay_grupos_equifrecuentes <- length(grupos$grupos_equifrecuentes) > 0L
     resultado_negativo <- !hay_grupos &&
       isTRUE(alcance$distancia_disponible) &&
       !isTRUE(alcance$truncado) && isTRUE(alcance$aplicable) &&
-      (identical(alcance$motivo_grupos, "sin_asimetria") ||
-       isTRUE(alcance$n_pares_descartados_numeros > 0L))
-    if (!hay_grupos && !resultado_negativo) next
+       (identical(alcance$motivo_grupos, "sin_asimetria") ||
+        isTRUE(alcance$n_pares_descartados_numeros > 0L))
+    if (!hay_grupos && !resultado_negativo && !hay_grupos_equifrecuentes) next
+    if (hay_grupos || resultado_negativo) {
     grupos_a_mostrar <- utils::head(grupos$grupos, max_grupos_mostrados)
     evidencia_grupos <- vapply(grupos_a_mostrar, function(grupo) {
       indices <- seq_len(min(length(grupo$variantes), max_variantes_mostradas))
@@ -1282,6 +1488,71 @@
       hallazgo <- hallazgos[[length(hallazgos)]]
       hallazgo$trazabilidad <- I(list(traza))
       hallazgos[[length(hallazgos)]] <- hallazgo
+    }
+    }
+    if (hay_grupos_equifrecuentes) {
+      grupos_a_mostrar <- utils::head(
+        grupos$grupos_equifrecuentes, max_grupos_mostrados
+      )
+      evidencia_grupos <- vapply(grupos_a_mostrar, function(grupo) {
+        indices <- seq_len(min(length(grupo$variantes), max_variantes_mostradas))
+        variantes <- paste(vapply(indices, function(j) {
+          paste0(.escapar_texto_visible(grupo$variantes[[j]]), " (",
+                 grupo$frecuencias[[j]], ")")
+        }, character(1L)), collapse = " / ")
+        distancia <- if (is.finite(grupo$distancia_minima)) {
+          paste0("; distancia_minima=", formatC(
+            grupo$distancia_minima, format = "f", digits = 4
+          ), "; distancia_maxima=", formatC(
+            grupo$distancia_maxima, format = "f", digits = 4
+          ))
+        } else ""
+        paste0(
+          "[", variantes, "]; asimetria=",
+          formatC(grupo$asimetria, format = "f", digits = 1),
+          "; origen=", grupo$origen,
+          "; clase_diferencia=", grupo$clase_diferencia, distancia
+        )
+      }, character(1L))
+      valores <- unique(unlist(lapply(
+        grupos$grupos_equifrecuentes, `[[`, "variantes"
+      ), use.names = FALSE))
+      textos <- tryCatch(
+        suppressWarnings(as.character(.texto_analizable(datos[[i]])$valores)),
+        error = function(e) NULL
+      )
+      indices <- if (is.null(textos)) integer() else unlist(lapply(
+        valores, function(valor) which(!is.na(textos) & textos == valor)
+      ), use.names = FALSE)
+      indices_unidades <- if (is.null(textos)) integer() else as.integer(
+        match(valores, textos)[!is.na(match(valores, textos))]
+      )
+      traza <- .trazabilidad_indices(indices, "completo", limite = Inf)
+      traza$indices_unidades <- indices_unidades
+      traza$n_filas_formas_variantes <- length(indices)
+      traza$n_filas_formas_dominantes <- 0L
+      nuevo <- .nuevo_hallazgo(
+        columnas[[i]], "variantes_equifrecuentes_vocabulario", "sospechoso",
+        "Dos formas cercanas se reparten la columna; ninguna evidencia dice cual es la correcta.",
+        paste(
+          paste(evidencia_grupos, collapse = "; "),
+          "; alcance: ", alcance$n_valores_evaluados, " de ",
+          alcance$n_valores_distintos, " valores; ",
+          length(grupos$grupos_equifrecuentes),
+          " grupos; max_asimetria_equifrecuente=",
+          formatC(alcance$max_asimetria_equifrecuente,
+                  format = "f", digits = 1), sep = ""
+        ),
+        "Revisar el dominio y declarar una forma canonica solo con evidencia externa; la frecuencia no decide entre las formas.",
+        alcance$n_valores_evaluados,
+        sum(vapply(
+          grupos$grupos_equifrecuentes, function(g) length(g$variantes),
+          integer(1L)
+        )),
+        "valor_distinto"
+      )
+      nuevo$trazabilidad <- I(list(traza))
+      hallazgos[[length(hallazgos) + 1L]] <- nuevo
     }
   }
   salida <- hallazgos
@@ -1756,7 +2027,9 @@
     return(.trazabilidad_vacia("no_aplica", alcance = "no_aplica", limite = limite))
   }
   trazabilidad_precalculada <- hallazgo$trazabilidad[[1L]]
-  if (tipo == "casi_duplicados_vocabulario" &&
+  if (tipo %in% c(
+      "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario"
+    ) &&
       is.list(trazabilidad_precalculada) &&
       !identical(trazabilidad_precalculada$estado, "no_disponible")) {
     return(.limitar_trazabilidad(
@@ -1930,7 +2203,9 @@
         )) && is.na(hallazgos$n_afectados[[i]])) {
       hallazgos$n_afectados[[i]] <- traza$total
     }
-    if (tipo == "casi_duplicados_vocabulario" &&
+    if (tipo %in% c(
+        "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario"
+      ) &&
         length(traza$mostrados_formas_dominantes) == 1L &&
         length(traza$mostrados_formas_variantes) == 1L) {
       hallazgos$evidencia[[i]] <- paste0(
@@ -1946,7 +2221,9 @@
 }
 
 .indices_unidades_valor_distinto <- function(tipo, x, trazabilidad) {
-  if (tipo == "casi_duplicados_vocabulario") {
+  if (tipo %in% c(
+      "casi_duplicados_vocabulario", "variantes_equifrecuentes_vocabulario"
+    )) {
     representantes <- trazabilidad$indices_unidades
     if (is.null(representantes)) return(NULL)
     textos <- tryCatch(
@@ -2622,6 +2899,8 @@
           if (!is.na(clase_desvio)) {
             paste0("; clase_desvio=", clase_desvio)
           } else "",
+          "; desvio_unicamente_largo_corrida_numerica=",
+          identical(clase_desvio, "largo_de_corrida"),
           "; patrones_no_dominantes_excluidos_por_umbral=",
           if (is.na(n_excluidos)) "NA" else as.character(n_excluidos),
           " filas (umbral_patron_raro=", sprintf("%.3f", umbral_patron_raro),
@@ -2942,8 +3221,22 @@
   tolower(gsub("[^[:alnum:]]+", "_", y, perl = TRUE))
 }
 
-.detectar_fecha_partida <- function(datos, nombres) {
-  if (ncol(datos) < 3L || !nrow(datos)) return(character())
+.detectar_fecha_partida <- function(datos, nombres, max_candidatos = 10000L) {
+  vacio <- function(posibles = 0, evaluados = 0L) {
+    list(
+      hallados = character(),
+      alcance = list(
+        n_candidatos_posibles = as.numeric(posibles),
+        n_candidatos_evaluados = as.numeric(evaluados),
+        n_candidatos_sin_comparar = as.numeric(max(
+          0, posibles - evaluados
+        )),
+        max_candidatos = as.integer(max_candidatos),
+        truncado = posibles > evaluados
+      )
+    )
+  }
+  if (ncol(datos) < 3L || !nrow(datos)) return(vacio())
   normalizados <- .normalizar_nombre_fecha(nombres)
   roles <- list(
     anio = "(?:anio|ano|year)", mes = "(?:mes|month)", dia = "(?:dia|day)"
@@ -2951,37 +3244,63 @@
   indices <- lapply(roles, function(patron) {
     which(grepl(paste0("(^|_)", patron, "($|_)"), normalizados, perl = TRUE))
   })
-  if (any(lengths(indices) == 0L)) return(character())
-  candidatos <- expand.grid(indices, KEEP.OUT.ATTRS = FALSE,
-                            stringsAsFactors = FALSE)
-  names(candidatos) <- names(roles)
-  candidatos <- candidatos[
-    apply(candidatos, 1L, function(x) length(unique(x)) == 3L), , drop = FALSE
-  ]
+  if (any(lengths(indices) == 0L)) return(vacio())
+  inter_anio_mes <- length(intersect(indices$anio, indices$mes))
+  inter_anio_dia <- length(intersect(indices$anio, indices$dia))
+  inter_mes_dia <- length(intersect(indices$mes, indices$dia))
+  inter_todos <- length(Reduce(intersect, indices))
+  posibles <- prod(lengths(indices)) -
+    inter_anio_mes * length(indices$dia) -
+    inter_anio_dia * length(indices$mes) -
+    inter_mes_dia * length(indices$anio) + 2 * inter_todos
   hallados <- character()
-  for (i in seq_len(nrow(candidatos))) {
-    posicion <- unlist(candidatos[i, ], use.names = FALSE)
-    valores <- lapply(posicion, function(j) {
-      suppressWarnings(as.integer(trimws(as.character(datos[[j]]))))
-    })
-    names(valores) <- c("anio", "mes", "dia")
-    presentes <- Reduce(`&`, lapply(valores, Negate(is.na)))
-    if (sum(presentes) < 3L) next
-    en_rango <- valores$anio >= 1800L & valores$anio <= 2100L &
-      valores$mes >= 1L & valores$mes <= 12L &
-      valores$dia >= 1L & valores$dia <= 31L
-    fechas <- suppressWarnings(as.Date(sprintf(
-      "%04d-%02d-%02d", valores$anio, valores$mes, valores$dia
-    )))
-    proporcion <- mean(en_rango[presentes] & !is.na(fechas[presentes]))
-    if (is.finite(proporcion) && proporcion >= 0.8) {
-      hallados <- c(hallados, paste0(
-        nombres[[posicion[[3L]]]], " + ", nombres[[posicion[[2L]]]], " + ",
-        nombres[[posicion[[1L]]]], " (", sprintf("%.3f", proporcion), " v\u00e1lidas)"
-      ))
+  evaluados <- 0L
+  agotado <- FALSE
+  for (anio in indices$anio) {
+    for (mes in indices$mes) {
+      for (dia in indices$dia) {
+        posicion <- c(anio, mes, dia)
+        if (length(unique(posicion)) != 3L) next
+        if (evaluados >= max_candidatos) {
+          agotado <- TRUE
+          break
+        }
+        evaluados <- evaluados + 1L
+        valores <- lapply(posicion, function(j) {
+          suppressWarnings(as.integer(trimws(as.character(datos[[j]]))))
+        })
+        names(valores) <- c("anio", "mes", "dia")
+        presentes <- Reduce(`&`, lapply(valores, Negate(is.na)))
+        if (sum(presentes) < 3L) next
+        en_rango <- valores$anio >= 1800L & valores$anio <= 2100L &
+          valores$mes >= 1L & valores$mes <= 12L &
+          valores$dia >= 1L & valores$dia <= 31L
+        fechas <- suppressWarnings(as.Date(sprintf(
+          "%04d-%02d-%02d", valores$anio, valores$mes, valores$dia
+        )))
+        proporcion <- mean(en_rango[presentes] & !is.na(fechas[presentes]))
+        if (is.finite(proporcion) && proporcion >= 0.8) {
+          hallados <- c(hallados, paste0(
+            nombres[[posicion[[3L]]]], " + ", nombres[[posicion[[2L]]]],
+            " + ", nombres[[posicion[[1L]]]], " (",
+            sprintf("%.3f", proporcion), " v\u00e1lidas)"
+          ))
+        }
+      }
+      if (agotado) break
     }
+    if (agotado) break
   }
-  unique(hallados)
+  list(
+    hallados = unique(hallados),
+    alcance = list(
+      n_candidatos_posibles = as.numeric(posibles),
+      n_candidatos_evaluados = as.numeric(evaluados),
+      n_candidatos_sin_comparar = as.numeric(max(0, posibles - evaluados)),
+      max_candidatos = as.integer(max_candidatos),
+      truncado = posibles > evaluados
+    )
+  )
 }
 
 .columnas_duplicadas <- function(datos, nombres) {
@@ -3027,7 +3346,9 @@
                                  umbral_variante_rara = 0.05,
                                  min_asimetria_variante = 10,
                                  min_asimetria_general = 2,
-                                 min_participacion_dominante = 0.5) {
+                                 min_participacion_dominante = 0.5,
+                                 detectar_variantes_equifrecuentes = FALSE,
+                                 max_asimetria_equifrecuente = 2) {
   hallazgos_columnas <- .hallazgos_columnas(
     resultados, columnas, umbral_alta_cardinalidad,
     umbral_faltantes_sospechoso, umbral_faltantes_error,
@@ -3044,7 +3365,9 @@
       umbral_variante_rara = umbral_variante_rara,
       min_asimetria_variante = min_asimetria_variante,
       min_asimetria_general = min_asimetria_general,
-      min_participacion_dominante = min_participacion_dominante
+      min_participacion_dominante = min_participacion_dominante,
+      detectar_variantes_equifrecuentes = detectar_variantes_equifrecuentes,
+      max_asimetria_equifrecuente = max_asimetria_equifrecuente
     )
   } else list()
   cobertura_vocabulario <- attr(
@@ -3111,17 +3434,32 @@
     )
   }
   fechas_partidas <- .detectar_fecha_partida(datos, columnas)
-  if (length(fechas_partidas)) {
+  if (length(fechas_partidas$hallados)) {
     columnas_partidas <- unique(trimws(unlist(strsplit(
-      sub("\\s*\\(.*$", "", fechas_partidas), "\\+"
+      sub("\\s*\\(.*$", "", fechas_partidas$hallados), "\\+"
     ))))
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
       NA_character_, "fecha_partida_columnas", "sospechoso",
       "La tabla parece representar una fecha mediante columnas separadas de a\u00f1o, mes y d\u00eda.",
-      paste(fechas_partidas, collapse = "; "),
+      paste(fechas_partidas$hallados, collapse = "; "),
       "Confirmar la sem\u00e1ntica y construir una fecha expl\u00edcita sin descartar las columnas de origen.",
       ncol(datos), length(columnas_partidas), "columna"
     )
+  }
+  if (isTRUE(fechas_partidas$alcance$truncado)) {
+    cobertura <- rbind(cobertura, .nuevo_diagnostico_no_evaluado(
+      "fecha_partida_columnas", NA_character_,
+      paste0(
+        "La b\u00fasqueda de fechas partidas compar\u00f3 ",
+        fechas_partidas$alcance$n_candidatos_evaluados, " de ",
+        fechas_partidas$alcance$n_candidatos_posibles,
+        " combinaciones de columnas; quedaron ",
+        fechas_partidas$alcance$n_candidatos_sin_comparar,
+        " sin comparar por el presupuesto de ",
+        fechas_partidas$alcance$max_candidatos, "."
+      ),
+      "Reducir las columnas candidatas, o solicitar una regla de fecha explicita por nombre y rol."
+    ))
   }
   if (length(relaciones_orden)) {
     hallazgos <- c(hallazgos, relaciones_orden)

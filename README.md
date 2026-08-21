@@ -180,6 +180,40 @@ partial failure never discards what was already measured: if reading the sample
 fails, the object comes back with a complete `resumen_tabla`, `perfil_muestra =
 NULL`, and a coverage row carrying the reason.
 
+### Cost is planned before it is paid
+
+Profiling 158 columns in `modo = "exacto"` emits 623 queries, and 777 of the
+original 778 scanned the whole table. `muestra` does not bound that: it bounds
+what is brought into R, not the work the engine does. So the cost is declared
+and chosen:
+
+```r
+plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # 5 queries, predicts the rest
+```
+
+The plan **predicts exactly** how many queries the profiling will emit, in all
+five modes, and that exactness is a design constraint: every capability probe
+costs a fixed number of queries even when it succeeds on the first form,
+because a cost that depends on the engine would make the plan stop predicting.
+
+| mode | what it does |
+| --- | --- |
+| `exacto` | every metric over the whole table |
+| `seguro` | drops the metrics that sort the whole column |
+| `conteos` | counts only |
+| `muestreado` | metrics over rows sampled **in the engine**: `TABLESAMPLE` where it exists, a pseudo-random order with a limit where it does not |
+| `aproximado` | native approximate functions: `APPROX_COUNT_DISTINCT`, `PERCENTILE_CONT`, `approx_quantile` and their fallbacks |
+
+Every sampled or approximated metric travels saying so. `estado` distinguishes
+`calculado`, `estimado` and `no_disponible`, and each row carries `universo`,
+`tamano_muestra`, `fraccion`, `metodo` and `error_esperado` — `desconocido` when
+the engine documents no bound, never an invented one. Distinct counts get their
+own state, `observado_muestra`: the cardinality of a sample does not estimate
+the cardinality of the universe without a declared estimator, so it is reported
+as what it is — what was seen in the sample, with the universe stated beside it.
+An engine with no sampling capability does not break: the mode degrades and says
+so in the coverage table.
+
 ## 🕳️ Emptiness by design is declared, not counted as a defect
 
 Every profiler assumes a table shape. `lupa` assumes one row is one fact, one
@@ -213,9 +247,42 @@ rule says the column does not apply.
 domains. It profiles each group separately, drops the wholly-absent columns
 inside each group before profiling, and declares what it dropped.
 
-`lupa` does not infer the model. Nothing here happens unless it is declared; the
-vignette `vacio-por-diseno` documents the assumption and the six table shapes
-where it does not hold.
+`lupa` does not infer the model. But declaring the universe requires knowing the
+option exists, and someone profiling a conditioned table without declaring
+anything got exactly the misleading report the feature was built to prevent. So
+the package **measures the evidence and offers it**: when the value of one
+column decides which rows have another, or when two columns split the rows
+without overlapping, `posible_ausencia_estructural` reports it with severity
+`ok`, the measured evidence, and the line to paste:
+
+```
+valor_a  posible_ausencia_estructural  ok
+  evidence  `tipo` predicts the presence of `valor_a` in 100.0 % of 200 rows,
+            with 2 distinct values. The column applies when tipo is "A".
+  suggests  perfilar(datos, aplicabilidad = list(valor_a = ~ tipo == "A"))
+```
+
+It suggests; it does not decide, and it never rewrites the universe on its own.
+Columns already declared are left out of the examination. On twenty real
+datasets shipped with R and sixty random tables with independent missingness it
+produces zero signals; it fires on the entity-attribute-value model, the survey
+skip pattern and the mutually exclusive columns, and stays quiet when ten per
+cent of the rows break the rule, because then the relation exists and is not a
+rule.
+
+The other side of the same coin is `regla_silencia_ausencia`, also `ok`: a
+column declared optional or with its own universe that stays almost empty
+*inside* that universe gets a notice. The declaration worked and that is why the
+profile came out clean — the notice exists so that is a decision and not a side
+effect.
+
+`columnas_personales` closes the equivalent gap on the other declaration the
+package cannot make alone. No lexicon of column names can be complete: a column
+holding identity documents can be called `cod_benef`, and no list of frequent
+names will recognise it. Declaring it wins over inference and is not re-examined.
+
+The vignette `vacio-por-diseno` documents the assumption and the six table
+shapes where it does not hold.
 
 ## 🔢 Declared units and row traceability
 

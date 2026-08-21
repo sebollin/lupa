@@ -22,6 +22,7 @@ perfilar(
   columnas_no_negativas = character(),
   columnas_opcionales = character(),
   aplicabilidad = NULL,
+  ausencia_estructural = TRUE,
   sentinelas_numericos = c(-9, -99, -999, -9999, 999),
   analizar_dependencias = TRUE,
   umbral_dependencia = 0.995,
@@ -29,6 +30,7 @@ perfilar(
   max_columnas_dependencias = 100L,
   datos_personales_permitidos = TRUE,
   proteger_datos_personales = TRUE,
+  columnas_personales = character(),
   validadores_personales = NULL,
   umbral_documento_verificado = 0.9,
   muestra_validadores = 1000L,
@@ -47,11 +49,17 @@ perfilar(
   umbral_variante_rara_vocabulario = 0.05,
   min_asimetria_vocabulario_corto = 10,
   min_asimetria_vocabulario = 2,
-  min_participacion_dominante_vocabulario_corto = 0.5
+  min_participacion_dominante_vocabulario_corto = 0.5,
+  variantes_equifrecuentes_vocabulario = FALSE,
+  max_asimetria_equifrecuente_vocabulario = 2,
+  max_comparaciones_dependencias = 200000L
 )
 }
 \arguments{
-\item{datos}{Objeto que hereda de \code{data.frame}.}
+\item{datos}{Objeto que hereda de \code{data.frame} —\code{tibble} y \code{data.table}
+entran por ahí— o una matriz de dos dimensiones, que se convierte con
+\code{\link[=as.data.frame]{as.data.frame()}}. La conversión queda declarada en \code{meta$entrada_convertida}
+para que el perfil no aparente haber recibido lo que no recibió.}
 
 \item{nombre}{Nombre descriptivo del objeto.}
 
@@ -116,6 +124,22 @@ y el resultado es el de siempre. Declararlo es lo que distingue el vacío
 por diseño del vacío por error, y sin esa distinción una tabla sana puede
 informar completitud baja siendo completa.}
 
+\item{ausencia_estructural}{Si se busca evidencia de que la ausencia de una
+columna es por diseño. \code{lupa} no infiere el universo ni lo cambia por su
+cuenta, pero declarar \code{aplicabilidad} exige saber que existe: quien perfila
+una tabla con columnas condicionadas sin declarar nada recibe el mismo
+informe engañoso que si el vacío fuera un defecto. Con \code{TRUE}, cuando el
+valor de otra columna decide qué filas tienen ésta, o cuando dos columnas
+se reparten las filas sin pisarse, se emite \code{posible_ausencia_estructural}
+con severidad \code{ok}, la evidencia medida y la línea exacta que habría que
+escribir para declararlo. Sugiere; no decide. Las columnas ya declaradas
+quedan fuera del examen.
+
+Con el mismo argumento viaja \code{regla_silencia_ausencia}, también \code{ok}: avisa
+cuando una columna declarada opcional o con universo propio sigue casi
+vacía dentro de ese universo. La declaración funcionó y por eso el perfil
+salió limpio; el aviso existe para que eso sea una decisión y no un efecto.}
+
 \item{sentinelas_numericos}{Vector completo de valores numéricos que se
 interpretan como ausencia. \code{numeric()} los desactiva; las cadenas de
 ausencia se siguen evaluando por separado.}
@@ -142,6 +166,17 @@ alto o verificado. Las clasificaciones débiles se conservan como aviso pero
 no suprimen estadísticos. Para conservar todo en el objeto debe desactivarse
 explícitamente; \code{\link[=reportar]{reportar()}} aplica además su propia protección
 predeterminada.}
+
+\item{columnas_personales}{Columnas que traen datos personales, declaradas
+por quien conoce el dato. \code{c("cod_benef", "apodo")} las nombra sin decir de
+qué tipo son; \code{c(cod_benef = "documento_identidad")} además lo dice. Lo
+declarado gana sobre lo inferido y no se vuelve a examinar.
+
+Existe porque el léxico de nombres de columna \strong{no puede ser completo}:
+una columna con documentos se puede llamar de cualquier manera, y ninguna
+lista de nombres frecuentes la va a reconocer. Es el mismo patrón que
+\code{columnas_opcionales}, aplicado a la otra decisión que el paquete no puede
+tomar solo.}
 
 \item{validadores_personales}{Pack o lista nombrada de funciones que reciben
 un vector de texto y devuelven un lógico de igual longitud. \code{NULL} usa
@@ -242,6 +277,28 @@ están entre \verb{1,0} y \verb{1,5} y las erratas reales desde \verb{9,0}.}
 \item{min_participacion_dominante_vocabulario_corto}{Proporcion minima de la
 columna que debe ocupar la forma dominante en la comparacion por una
 edicion.}
+
+\item{variantes_equifrecuentes_vocabulario}{Si se informa el diagnóstico
+\code{variantes_equifrecuentes_vocabulario}, que señala dos formas cercanas que
+se reparten la columna sin que ninguna sea dominante —el error sistemático
+de dos operadores, una plantilla rota o una migración parcial—.
+
+\strong{Está apagado por omisión y la razón está medida}: sobre la batería de
+31 tablas limpias produce un grupo sospechoso donde no hay defecto, y
+dispara en tablas de menos de veinte filas donde dos formas parecidas se
+reparten por casualidad. Es aditivo: encenderlo no cambia ni pierde ninguna
+detección de \code{casi_duplicados_vocabulario}. El límite que deja de cubrir se
+declara igual, encendido o apagado, en \code{n_grupos_sin_variante_rara}.}
+
+\item{max_asimetria_equifrecuente_vocabulario}{Razón máxima entre la
+frecuencia mayor y la menor para considerar que dos formas se reparten la
+columna. Con \code{2}, \code{40} contra \code{5} no entra y \code{5} contra \code{5} sí.}
+
+\item{max_comparaciones_dependencias}{Tope de pares determinante-dependiente
+que se comparan. El costo de las dependencias es del orden de
+\verb{columnas^2 x filas} y empeora con determinantes casi únicos; cuando el
+presupuesto se agota, lo comparado se informa y lo que quedó sin comparar
+se declara en \code{cobertura_diagnosticos}, nunca como cero.}
 }
 \value{
 Objeto S3 de clase \code{perfil}. Cada fila de hallazgos incluye

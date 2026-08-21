@@ -79,10 +79,27 @@ posteriores a esa versión no se pueden usar sin más.
 
 ```sh
 Rscript -e 'roxygen2::roxygenise(".")'
-NOT_CRAN=true Rscript -e 'testthat::test_dir("tests/testthat")'
+R CMD INSTALL --no-multiarch --with-keep.source .
+NOT_CRAN=true Rscript -e 'testthat::test_check("lupa")'
 Rscript -e 'lintr::lint_dir("R")'
+Rscript -e 'spelling::spell_check_package(".")'
 R CMD build . && R CMD check --as-cran lupa_*.tar.gz
 ```
+
+**El orden importa y la forma de correr los tests también.** `test_dir()` y
+`test_file()` cargan el paquete con `library(lupa)`, que **no expone las
+funciones internas**: la mitad de la suite prueba funciones con punto inicial y
+da veinte errores falsos de «could not find function». `test_check("lupa")` es
+lo que corre `R CMD check`, y necesita el paquete instalado, por eso el
+`R CMD INSTALL` va antes. Si vas a comparar contra cifras publicadas, comprobá
+además el sello `Built` de la instalación que estás midiendo: apuntar `R_LIBS` a
+un directorio vacío cae en silencio a la biblioteca del usuario y termina
+midiendo otra versión.
+
+`spelling` usa `inst/WORDLIST`, que **tiene que dejar la corrida en cero**. Las
+palabras que hay ahí son nombres propios, siglas, términos técnicos y fragmentos
+de identificadores del paquete; si tu cambio agrega una palabra legítima nueva,
+agregala al archivo ordenado. Si agrega una que no es legítima, es una errata.
 
 `lintr` está configurado en `.lintr` con los linters que el código ya cumple,
 así que **tiene que dar cero avisos**. Los que quedan afuera están anotados ahí

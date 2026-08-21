@@ -62,15 +62,18 @@
 #' valor distinto en promedio: aun si cumplen, suelen describir una casi-clave
 #' y no una regla reutilizable.
 #'
-#' El costo crece con el cuadrado de las columnas. `max_columnas` conserva las
-#' primeras columnas analizables y `muestra` aplica una única muestra
+#' El costo crece aproximadamente como `columnas^2 * filas`. `max_columnas`
+#' conserva las primeras columnas analizables, `max_comparaciones` limita el
+#' número de pares columna a columna y `muestra` aplica una única muestra
 #' sistemática a toda la tabla, de modo que las relaciones entre filas no se
-#' rompen. Los atributos del resultado declaran ambos recortes.
+#' rompen. Los atributos del resultado declaran todos los recortes.
 #'
 #' @param datos Tabla que se desea examinar.
 #' @param umbral Cumplimiento mínimo en `[0, 1]`.
 #' @param muestra Máximo de filas; `Inf` desactiva el muestreo.
 #' @param max_columnas Máximo de columnas analizadas.
+#' @param max_comparaciones Máximo de pares determinante-dependiente que se
+#'   comparan. `Inf` desactiva el presupuesto.
 #' @param umbral_casi_constante Proporción modal a partir de la cual un
 #'   determinante se descarta por casi constante.
 #' @param umbral_casi_clave Tasa de valores distintos a partir de la cual un
@@ -85,7 +88,9 @@
 #' @return Data frame de clase `dependencias_funcionales`, ordenado por
 #'   cumplimiento y soporte. Los atributos `muestreado`, `filas_analizadas`,
 #'   `columnas_analizadas`, `columnas_omitidas`, `columnas_descartadas` y
-#'   `truncado` documentan el alcance efectivo. `columnas_descartadas` es un
+#'   `truncado` documentan el alcance efectivo. `n_pares_posibles`,
+#'   `n_pares_comparados`, `n_pares_sin_comparar` y `max_comparaciones`
+#'   documentan el presupuesto de comparaciones. `columnas_descartadas` es un
 #'   data frame que explica por qué una columna no se usó como determinante.
 #' @export
 #'
@@ -104,7 +109,8 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
                                   umbral_casi_clave = 0.8,
                                   incluir_claves = FALSE,
                                   min_observaciones = 10L,
-                                  max_ejemplos = 5L) {
+                                  max_ejemplos = 5L,
+                                  max_comparaciones = 200000L) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
@@ -120,12 +126,29 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
       any(enteros != floor(enteros))) {
     stop("Los l\u00edmites deben ser enteros positivos.", call. = FALSE)
   }
+  if (!is.numeric(max_comparaciones) || length(max_comparaciones) != 1L ||
+      is.na(max_comparaciones) || max_comparaciones <= 0 ||
+      (!is.infinite(max_comparaciones) &&
+       max_comparaciones != floor(max_comparaciones))) {
+    stop(
+      "`max_comparaciones` debe ser un entero positivo o Inf.",
+      call. = FALSE
+    )
+  }
+  max_comparaciones <- if (is.infinite(max_comparaciones)) {
+    Inf
+  } else as.numeric(max_comparaciones)
   if (!is.logical(incluir_claves) || length(incluir_claves) != 1L ||
       is.na(incluir_claves)) {
     stop("`incluir_claves` debe ser un l\u00f3gico escalar sin NA.", call. = FALSE)
   }
+  # `raw` entra por aca aunque sea un vector atomico: agrupar exige ordenar, y
+  # `order()` no implementa ese tipo. Sin este filtro, una columna `raw` no
+  # produce un diagnostico sino un error crudo de R -"tipo no implementado 'raw'
+  # en 'orderVector1'"- que aborta el perfil entero. Un tipo que no se puede
+  # agrupar se declara, no revienta.
   analizables <- which(!vapply(datos, function(x) {
-    is.list(x) || is.matrix(x)
+    is.list(x) || is.matrix(x) || is.raw(x)
   }, logical(1L)))
   seleccion <- utils::head(analizables, as.integer(max_columnas))
   nombres <- make.unique(names(datos))
@@ -169,14 +192,28 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   dependientes_variables <- vapply(
     estadisticas, function(x) x$n_distintos > 1L, logical(1L)
   )
+  comparaciones_posibles <- if (length(determinantes)) {
+    sum(vapply(determinantes, function(i) {
+      sum(dependientes_variables[seq_along(seleccion)] &
+        seq_along(seleccion) != i)
+    }, numeric(1L)))
+  } else 0
   filas <- list()
   k <- 0L
+  comparaciones <- 0
+  presupuesto_agotado <- FALSE
 
   if (length(seleccion) >= 2L && length(determinantes)) {
     for (i in determinantes) {
       x <- muestra_datos[[i]]
       for (j in seq_along(seleccion)) {
         if (i == j || !dependientes_variables[[j]]) next
+        if (is.finite(max_comparaciones) &&
+            comparaciones >= max_comparaciones) {
+          presupuesto_agotado <- TRUE
+          break
+        }
+        comparaciones <- comparaciones + 1
         resumen <- .resumen_dependencia(x, muestra_datos[[j]])
         if (resumen$n < min_observaciones ||
             !is.finite(resumen$cumplimiento) ||
@@ -194,6 +231,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
           stringsAsFactors = FALSE
         )
       }
+      if (presupuesto_agotado) break
     }
   }
   resultado <- if (length(filas)) {
@@ -219,12 +257,25 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   attr(resultado, "muestreado") <- muestreo$muestreado
   attr(resultado, "columnas_analizadas") <- nombres[seleccion]
   attr(resultado, "columnas_omitidas") <- nombres[setdiff(seq_along(datos), seleccion)]
+  # Quedar fuera por el tope y quedar fuera porque el tipo no se puede agrupar
+  # son dos hechos distintos, y el motivo que se informa tiene que decir cual
+  # fue: subir `max_columnas` resuelve el primero y no hace nada con el segundo.
+  attr(resultado, "columnas_no_analizables") <-
+    nombres[setdiff(seq_along(datos), analizables)]
   attr(resultado, "columnas_descartadas") <- data.frame(
     columna = nombres[seleccion[nzchar(motivos)]],
     motivo = unname(motivos[nzchar(motivos)]),
     stringsAsFactors = FALSE
   )
-  attr(resultado, "truncado") <- length(seleccion) < length(analizables)
+  attr(resultado, "n_pares_posibles") <- as.numeric(comparaciones_posibles)
+  attr(resultado, "n_pares_comparados") <- as.numeric(comparaciones)
+  attr(resultado, "n_pares_sin_comparar") <- as.numeric(
+    max(0, comparaciones_posibles - comparaciones)
+  )
+  attr(resultado, "max_comparaciones") <- max_comparaciones
+  attr(resultado, "presupuesto_agotado") <- presupuesto_agotado
+  attr(resultado, "truncado") <- length(seleccion) < length(analizables) ||
+    presupuesto_agotado
   # El tope aplicado se conserva: sin el, quien ve columnas omitidas no puede
   # saber contra que se recortaron ni que valor pasar para evitarlo.
   attr(resultado, "max_columnas") <- as.integer(max_columnas)
@@ -259,23 +310,71 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
 # declaraba el suyo en `cobertura_diagnosticos`. Es el mismo hecho y el usuario
 # lo busca en el mismo lugar.
 .cobertura_dependencias <- function(dependencias) {
-  if (!isTRUE(attr(dependencias, "truncado", exact = TRUE))) return(NULL)
+  no_analizables <- attr(
+    dependencias, "columnas_no_analizables", exact = TRUE
+  )
+  truncado_columnas <- length(setdiff(
+    attr(dependencias, "columnas_omitidas", exact = TRUE), no_analizables
+  )) > 0L
+  presupuesto_agotado <- isTRUE(attr(
+    dependencias, "presupuesto_agotado", exact = TRUE
+  ))
+  if (!truncado_columnas && !presupuesto_agotado &&
+      !length(no_analizables)) {
+    return(NULL)
+  }
   omitidas <- attr(dependencias, "columnas_omitidas", exact = TRUE)
   analizadas <- attr(dependencias, "columnas_analizadas", exact = TRUE)
   tope <- attr(dependencias, "max_columnas", exact = TRUE)
-  .nuevo_diagnostico_no_evaluado(
-    "dependencias_funcionales",
-    paste(omitidas, collapse = ","),
-    paste0(
+  diagnostico_columna <- if (length(omitidas)) {
+    paste(omitidas, collapse = ",")
+  } else {
+    paste(analizadas, collapse = ",")
+  }
+  motivos <- character()
+  soluciones <- character()
+  if (length(no_analizables)) {
+    motivos <- c(motivos, paste0(
+      "No se buscaron dependencias en ", length(no_analizables),
+      " columnas cuyo tipo no se puede agrupar -listas, matrices y vectores ",
+      "de bytes-: ", paste(no_analizables, collapse = ", "), "."
+    ))
+    soluciones <- c(soluciones, paste0(
+      "Convertir la columna a un tipo comparable si tiene que intervenir en ",
+      "el diagn\u00f3stico; el tope de columnas no cambia esto."
+    ))
+  }
+  if (truncado_columnas) {
+    motivos <- c(motivos, paste0(
       "La b\u00fasqueda de dependencias se limit\u00f3 a las primeras ",
       if (is.null(tope)) length(analizadas) else tope,
       " columnas analizables por posici\u00f3n: analiz\u00f3 ", length(analizadas),
       " y dej\u00f3 ", length(omitidas), " fuera del diagn\u00f3stico."
-    ),
-    paste0(
+    ))
+    soluciones <- c(soluciones, paste0(
       "Aumentar `max_columnas_dependencias` o perfilar por bloques si las ",
       "columnas omitidas deben intervenir. La selecci\u00f3n es por posici\u00f3n, ",
       "as\u00ed que reordenar las columnas cambia cu\u00e1les entran."
-    )
+    ))
+  }
+  if (presupuesto_agotado) {
+    motivos <- c(motivos, paste0(
+      "El presupuesto de comparaciones se agot\u00f3: se compararon ",
+      attr(dependencias, "n_pares_comparados", exact = TRUE), " de ",
+      attr(dependencias, "n_pares_posibles", exact = TRUE),
+      " pares determinante-dependiente; quedaron ",
+      attr(dependencias, "n_pares_sin_comparar", exact = TRUE),
+      " sin comparar."
+    ))
+    soluciones <- c(soluciones, paste0(
+      "Aumentar `max_comparaciones` o reducir `muestra` si se necesita cubrir ",
+      "m\u00e1s pares. El costo aproximado es O(columnas^2 x filas)."
+    ))
+  }
+  .nuevo_diagnostico_no_evaluado(
+    "dependencias_funcionales",
+    diagnostico_columna,
+    paste(motivos, collapse = " "),
+    paste(soluciones, collapse = " ")
   )
 }

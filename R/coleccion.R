@@ -985,10 +985,15 @@ print.perfil_coleccion <- function(x, ...) {
 #' @param pares Data frame con columnas `tabla_1` y `tabla_2`. Un data frame
 #'   con cero filas es una declaración válida de «ningún par». Sin `pares`
 #'   —`NULL`—, todos los pares dirigidos.
+#' @param columnas_candidatas Lista nombrada por identificador de tabla. Cada
+#'   entrada declara las columnas que pueden participar de una relación; las
+#'   tablas no nombradas conservan todas sus columnas. La declaración reduce
+#'   tanto la lectura como el número de comparaciones.
 #'
 #' @return Lista con `n_tablas`, `n_pares_dirigidos`, `n_pares_declarados`,
 #'   `n_pares_estimados`, `n_pares_sin_estimar`, `n_comparaciones_columnas`,
-#'   `n_tablas_sin_esquema`, `tablas_sin_esquema` y `alcance`.
+#'   `n_tablas_sin_esquema`, `tablas_sin_esquema` y `alcance`. También publica
+#'   `columnas_candidatas` y el alcance real de las comparaciones.
 #' @export
 #' @seealso [relaciones_coleccion()], [coleccion()]
 #'
@@ -998,13 +1003,20 @@ print.perfil_coleccion <- function(x, ...) {
 #'   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
 #'   DBI::dbWriteTable(con, "personas", data.frame(id = 1:3, nombre = letters[1:3]))
 #'   DBI::dbWriteTable(con, "visitas", data.frame(persona_id = 1:3, dia = 1:3))
-#'   estimar_costo_coleccion(coleccion(con, c("personas", "visitas")))
+#'   estimar_costo_coleccion(
+#'     coleccion(con, c("personas", "visitas")),
+#'     columnas_candidatas = list(personas = "id", visitas = "persona_id")
+#'   )
 #'   DBI::dbDisconnect(con)
 #' }
-estimar_costo_coleccion <- function(coleccion, pares = NULL) {
+estimar_costo_coleccion <- function(coleccion, pares = NULL,
+                                    columnas_candidatas = NULL) {
   if (!inherits(coleccion, "coleccion_lupa")) {
     stop("`coleccion` debe venir de coleccion().", call. = FALSE)
   }
+  columnas_candidatas <- .validar_columnas_candidatas_coleccion(
+    coleccion, columnas_candidatas
+  )
   n <- coleccion$n_declaradas
   todos <- is.null(pares)
   # `n * (n - 1L)` con `n` entero desborda a partir de 46.342 tablas y devuelve
@@ -1014,6 +1026,17 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
   if (todos) {
     identificadores <- coleccion$tablas$identificador
     anchos <- .columnas_por_tabla_coleccion(coleccion, identificadores)
+    if (!is.null(columnas_candidatas)) {
+      anchos <- vapply(names(anchos), function(identificador) {
+        candidatas <- columnas_candidatas[[identificador]]
+        if (is.na(anchos[[identificador]]) || is.null(candidatas)) {
+          anchos[[identificador]]
+        } else {
+          as.numeric(length(candidatas))
+        }
+      }, numeric(1L))
+      names(anchos) <- identificadores
+    }
     conocidos <- anchos[!is.na(anchos)]
     k <- length(conocidos)
     n_pares_estimados <- as.numeric(k) * (as.numeric(k) - 1)
@@ -1036,6 +1059,17 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
       .columnas_por_tabla_coleccion(coleccion, identificadores)
     } else {
       stats::setNames(numeric(), character())
+    }
+    if (!is.null(columnas_candidatas) && length(anchos)) {
+      anchos <- vapply(names(anchos), function(identificador) {
+        candidatas <- columnas_candidatas[[identificador]]
+        if (is.na(anchos[[identificador]]) || is.null(candidatas)) {
+          anchos[[identificador]]
+        } else {
+          as.numeric(length(candidatas))
+        }
+      }, numeric(1L))
+      names(anchos) <- identificadores
     }
     a <- anchos[match(pares$tabla_1, names(anchos))]
     b <- anchos[match(pares$tabla_2, names(anchos))]
@@ -1064,6 +1098,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
     n_pares_estimados = n_pares_estimados,
     n_pares_sin_estimar = n_pares_sin_estimar,
     n_comparaciones_columnas = comparaciones,
+    columnas_candidatas = columnas_candidatas,
     n_tablas_sin_esquema = as.numeric(length(sin_esquema)),
     tablas_sin_esquema = sin_esquema,
     alcance = alcance,
@@ -1172,6 +1207,61 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
   )
 }
 
+.cobertura_podas_vacia <- function() {
+  data.frame(
+    tabla_1 = character(), tabla_2 = character(),
+    columna_tabla1 = character(), columna_tabla2 = character(),
+    motivo = character(), detalle = character(), stringsAsFactors = FALSE
+  )
+}
+
+.validar_columnas_candidatas_coleccion <- function(coleccion, columnas) {
+  if (is.null(columnas)) return(NULL)
+  if (!is.list(columnas) || is.null(names(columnas)) ||
+      anyNA(names(columnas)) || any(!nzchar(names(columnas))) ||
+      anyDuplicated(names(columnas))) {
+    stop(
+      "`columnas_candidatas` debe ser una lista nombrada por identificador de tabla.",
+      call. = FALSE
+    )
+  }
+  declaradas <- coleccion$tablas$identificador
+  desconocidas <- setdiff(names(columnas), declaradas)
+  if (length(desconocidas)) {
+    stop(
+      "`columnas_candidatas` nombra tablas no declaradas en la coleccion: ",
+      paste(desconocidas, collapse = ", "), ".", call. = FALSE
+    )
+  }
+  for (identificador in names(columnas)) {
+    candidatas <- columnas[[identificador]]
+    if (!is.character(candidatas) || !length(candidatas) ||
+        anyNA(candidatas) || any(!nzchar(candidatas))) {
+      stop(
+        "`columnas_candidatas` para `", identificador,
+        "` debe ser un vector de nombres no vacio.", call. = FALSE
+      )
+    }
+    k <- match(identificador, declaradas)
+    campos <- tryCatch(
+      DBI::dbListFields(coleccion$conexion, coleccion$tablas$referencia[[k]]),
+      error = function(e) NULL
+    )
+    if (!is.null(campos)) {
+      desconocidas <- setdiff(candidatas, campos)
+      if (length(desconocidas)) {
+        stop(
+          "`columnas_candidatas` nombra columnas inexistentes en `",
+          identificador, "`: ", paste(desconocidas, collapse = ", "), ".",
+          call. = FALSE
+        )
+      }
+    }
+    columnas[[identificador]] <- unique(candidatas)
+  }
+  columnas
+}
+
 # Lector con cache. `leer()` se llamaba DOS VECES POR PAR, sin cache: dos pares
 # que comparten una tabla la leian dos veces, y con veinte pares sobre cinco
 # tablas se pagaban cuarenta lecturas para cinco tablas distintas.
@@ -1181,7 +1271,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
 # `LIMIT` es el primer intento y `dbSendQuery()` + `dbFetch(n = )`, que es
 # DBI puro y acota la lectura en el cliente, es la reserva.
 .lector_tablas_coleccion <- function(conexion, coleccion, muestra, orden,
-                                     tope_cache_mb) {
+                                     tope_cache_mb, columnas_candidatas = NULL) {
   cache <- new.env(parent = emptyenv())
   bitacora <- list()
   usados_mb <- 0
@@ -1199,6 +1289,12 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
     if (is.null(columnas)) character() else as.character(columnas)
   }
 
+  candidatas_de <- function(identificador) {
+    if (is.null(columnas_candidatas)) return(NULL)
+    columnas <- columnas_candidatas[[identificador]]
+    if (is.null(columnas)) NULL else as.character(columnas)
+  }
+
   leer <- function(identificador) {
     if (exists(identificador, envir = cache, inherits = FALSE)) {
       reutilizaciones <<- reutilizaciones + 1L
@@ -1210,6 +1306,14 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
       error = function(e) NA_character_
     )
     columnas_orden <- orden_de(identificador)
+    columnas_seleccionadas <- candidatas_de(identificador)
+    columnas_lectura <- unique(c(columnas_seleccionadas, columnas_orden))
+    seleccion_sql <- if (length(columnas_lectura)) {
+      paste(
+        as.character(DBI::dbQuoteIdentifier(conexion, columnas_lectura)),
+        collapse = ", "
+      )
+    } else "*"
     orden_sql <- if (length(columnas_orden)) {
       paste0(
         " ORDER BY ",
@@ -1219,7 +1323,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
     } else ""
     momento <- Sys.time()
     sql_limite <- paste0(
-      "SELECT * FROM ", tabla_sql, orden_sql,
+      "SELECT ", seleccion_sql, " FROM ", tabla_sql, orden_sql,
       " LIMIT ", format(muestra, scientific = FALSE)
     )
     resultado <- tryCatch(
@@ -1230,7 +1334,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
     motivo_limite <- NA_character_
     if (inherits(resultado, "condition")) {
       motivo_limite <- conditionMessage(resultado)
-      sql_llano <- paste0("SELECT * FROM ", tabla_sql, orden_sql)
+       sql_llano <- paste0(
+         "SELECT ", seleccion_sql, " FROM ", tabla_sql, orden_sql
+       )
       resultado <- tryCatch({
         consulta <- DBI::dbSendQuery(conexion, sql_llano)
         on.exit(DBI::dbClearResult(consulta), add = TRUE)
@@ -1329,9 +1435,15 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
 #' clave foránea comprobada**, es un indicio que hay que confirmar contra el
 #' diccionario de datos.
 #'
+#' Las columnas candidatas se podan antes de materializar cada comparación. Las
+#' podas quedan declaradas en `cobertura_podas`, con su motivo y conteo.
+#'
 #' @param coleccion Objeto creado por [coleccion()].
 #' @param pares Data frame con columnas `tabla_1` y `tabla_2`. Cero filas es una
 #'   declaración válida de «ningún par».
+#' @param columnas_candidatas Lista nombrada por identificador de tabla. Cada
+#'   vector declara las columnas que pueden participar; una tabla no nombrada
+#'   conserva todas sus columnas.
 #' @param muestra Filas traídas por tabla para comparar.
 #' @param umbral_cobertura Cobertura mínima para informar una relación.
 #' @param orden Columnas para `ORDER BY`: un vector de texto que se aplica a
@@ -1339,10 +1451,17 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
 #'   la lectura no es repetible y el objeto lo declara.
 #' @param tope_cache_mb Presupuesto de memoria para la caché de lecturas, en
 #'   megabytes. Al agotarse se sigue leyendo sin cachear y `meta` lo declara.
+#' @param tope_memoria_mb Presupuesto de memoria para resultados de relaciones,
+#'   en megabytes. Al agotarse, las combinaciones pendientes se declaran en
+#'   `cobertura_podas` y los pares pendientes en `cobertura_pares`.
 #'
-#' @return Objeto `relaciones_coleccion` con `relaciones`, `cobertura_pares` y
-#'   `meta`.
+#' @return Objeto `relaciones_coleccion` con `relaciones`, `cobertura_pares`,
+#'   `cobertura_podas` y `meta`.
 #' @export
+#' @param podar Si se aplican las podas que cambiarían lo informado —tipos
+#'   incompatibles y cardinalidades imposibles—, tal como en
+#'   [detectar_relaciones()]. `FALSE` por omisión; la poda cierta por rangos
+#'   disjuntos se aplica siempre porque no cambia ninguna fila.
 #' @seealso [coleccion()], [estimar_costo_coleccion()], [detectar_relaciones()]
 #'
 #' @examples
@@ -1354,13 +1473,17 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL) {
 #'   col <- coleccion(con, c("personas", "visitas"), nombre = "padron")
 #'   relaciones_coleccion(
 #'     col, pares = data.frame(tabla_1 = "personas", tabla_2 = "visitas"),
-#'     orden = "id"
+#'     columnas_candidatas = list(personas = "id", visitas = "persona_id"),
+#'     orden = list(personas = "id", visitas = "persona_id")
 #'   )
 #'   DBI::dbDisconnect(con)
 #' }
 relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
                                  umbral_cobertura = 0.9, orden = NULL,
-                                 tope_cache_mb = 512) {
+                                 tope_cache_mb = 512,
+                                 columnas_candidatas = NULL,
+                                 podar = FALSE,
+                                 tope_memoria_mb = 512) {
   if (!inherits(coleccion, "coleccion_lupa")) {
     stop("`coleccion` debe venir de coleccion().", call. = FALSE)
   }
@@ -1373,6 +1496,10 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       is.na(tope_cache_mb) || tope_cache_mb < 0) {
     stop("`tope_cache_mb` debe ser un numero no negativo.", call. = FALSE)
   }
+  if (!is.numeric(tope_memoria_mb) || length(tope_memoria_mb) != 1L ||
+      is.na(tope_memoria_mb) || tope_memoria_mb < 0) {
+    stop("`tope_memoria_mb` debe ser un numero no negativo.", call. = FALSE)
+  }
   if (!is.null(orden) && !is.character(orden) && !is.list(orden)) {
     stop(
       "`orden` debe ser NULL, un vector de nombres de columnas o una lista ",
@@ -1380,20 +1507,44 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     )
   }
   pares <- .validar_pares_coleccion(coleccion, pares, exigir = TRUE)
+  columnas_candidatas <- .validar_columnas_candidatas_coleccion(
+    coleccion, columnas_candidatas
+  )
   repetidos <- attr(pares, "repetidos_descartados")
   if (is.null(repetidos)) repetidos <- 0
   conexion <- coleccion$conexion
   muestra <- .validar_muestra_dbi(muestra)
 
   lector <- .lector_tablas_coleccion(
-    conexion, coleccion, muestra, orden, tope_cache_mb
+    conexion, coleccion, muestra, orden, tope_cache_mb, columnas_candidatas
   )
 
   encontradas <- list()
   sin_comparar <- list()
+  podas <- list()
+  memoria_resultado_mb <- 0
+  combinaciones_comparadas <- 0
+  pares_parciales <- 0L
+  pares_presupuesto <- 0L
   for (i in seq_len(nrow(pares))) {
     t1 <- pares$tabla_1[[i]]
     t2 <- pares$tabla_2[[i]]
+    if (is.finite(tope_memoria_mb) &&
+        memoria_resultado_mb >= tope_memoria_mb) {
+      pares_presupuesto <- pares_presupuesto + 1L
+      sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
+        tabla_1 = t1, tabla_2 = t2,
+        motivo = paste0(
+          "No se comparo el par: se agoto `tope_memoria_mb` (",
+          tope_memoria_mb, ")."
+        ),
+        como_resolverlo = paste(
+          "Aumentar `tope_memoria_mb` o procesar los pares en varias corridas;",
+          "las combinaciones pendientes no se interpretan como ausencia de relacion."
+        ), stringsAsFactors = FALSE
+      )
+      next
+    }
     momento <- Sys.time()
     d1 <- lector$leer(t1)
     d2 <- lector$leer(t2)
@@ -1412,8 +1563,24 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       )
       next
     }
+    candidatas_1 <- if (is.null(columnas_candidatas)) {
+      names(d1)
+    } else {
+      columnas_candidatas[[t1]]
+    }
+    candidatas_2 <- if (is.null(columnas_candidatas)) {
+      names(d2)
+    } else {
+      columnas_candidatas[[t2]]
+    }
     relacion <- tryCatch(
-      detectar_relaciones(d1, d2), error = function(e) e
+      detectar_relaciones(
+        d1, d2, columnas_candidatas = list(candidatas_1, candidatas_2),
+        umbral_cobertura = umbral_cobertura, podar = podar,
+        tope_memoria_mb = if (is.finite(tope_memoria_mb)) {
+          max(0, tope_memoria_mb - memoria_resultado_mb)
+        } else Inf
+      ), error = function(e) e
     )
     if (inherits(relacion, "condition")) {
       sin_comparar[[length(sin_comparar) + 1L]] <- data.frame(
@@ -1424,9 +1591,30 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       )
       next
     }
+    podas_relacion <- attr(relacion, "podas", exact = TRUE)
+    if (nrow(podas_relacion)) {
+      podas[[length(podas) + 1L]] <- data.frame(
+        tabla_1 = rep(t1, nrow(podas_relacion)),
+        tabla_2 = rep(t2, nrow(podas_relacion)),
+        podas_relacion, stringsAsFactors = FALSE
+      )
+    }
+    if (isTRUE(attr(relacion, "presupuesto_memoria_agotado", exact = TRUE))) {
+      pares_parciales <- pares_parciales + 1L
+    }
+    combinaciones_comparadas <- combinaciones_comparadas +
+      as.numeric(attr(relacion, "n_pares_comparados", exact = TRUE))
+    memoria_relacion_mb <- attr(relacion, "memoria_resultado_mb", exact = TRUE)
+    if (length(memoria_relacion_mb) && is.finite(memoria_relacion_mb)) {
+      memoria_resultado_mb <- max(memoria_resultado_mb, memoria_relacion_mb)
+    }
     if (!nrow(relacion)) next
+    # `which()` y no la mascara: un par no comparado trae cobertura `NA`, y
+    # `datos[NA, ]` devuelve una fila entera de `NA` en vez de ninguna. Lo que
+    # no se comparo ya esta declarado en `cobertura_podas`; aca no corresponde.
     candidatas <- relacion[
-      relacion$cobertura_tabla2_en_tabla1 >= umbral_cobertura, , drop = FALSE
+      which(relacion$cobertura_tabla2_en_tabla1 >= umbral_cobertura), ,
+      drop = FALSE
     ]
     if (!nrow(candidatas)) next
     candidatas$tabla_1 <- t1
@@ -1435,6 +1623,8 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
     candidatas$filas_leidas_2 <- nrow(d2)
     candidatas$momento <- momento
     encontradas[[length(encontradas) + 1L]] <- candidatas
+    memoria_resultado_mb <- memoria_resultado_mb +
+      as.numeric(utils::object.size(candidatas)) / 1024^2
   }
 
   relaciones <- if (length(encontradas)) {
@@ -1450,8 +1640,14 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       como_resolverlo = character(), stringsAsFactors = FALSE
     )
   }
+  cobertura_podas <- if (length(podas)) {
+    do.call(rbind, podas)
+  } else {
+    .cobertura_podas_vacia()
+  }
   rownames(relaciones) <- NULL
   rownames(cobertura_pares) <- NULL
+  rownames(cobertura_podas) <- NULL
   estado <- lector$estado()
   bitacora <- lector$bitacora()
   estructura <- list(
@@ -1461,6 +1657,9 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       coleccion = coleccion$nombre,
       pares_declarados = nrow(pares),
       pares_comparados = nrow(pares) - nrow(cobertura_pares),
+      pares_faltantes = nrow(cobertura_pares),
+      pares_parciales = pares_parciales,
+      pares_sin_comparar_por_presupuesto = pares_presupuesto,
       pares_repetidos_descartados = repetidos,
       muestra_por_tabla = muestra,
       umbral_cobertura = umbral_cobertura,
@@ -1471,6 +1670,14 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       memoria_cache_mb = estado$memoria_cache_mb,
       cache_completa = estado$cache_completa,
       tope_cache_mb = tope_cache_mb,
+      tope_memoria_mb = tope_memoria_mb,
+      memoria_resultado_mb = memoria_resultado_mb,
+      combinaciones_comparadas = combinaciones_comparadas,
+      combinaciones_podadas = nrow(cobertura_podas),
+      columnas_candidatas = columnas_candidatas,
+      podas_por_motivo = if (nrow(cobertura_podas)) {
+        as.list(table(cobertura_podas$motivo))
+      } else list(),
       lecturas = bitacora,
       orden_declarado = orden,
       estable = !is.null(orden),
@@ -1493,6 +1700,7 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       )
     )
   )
+  estructura$cobertura_podas <- cobertura_podas
   class(estructura) <- "relaciones_coleccion"
   estructura
 }

@@ -235,8 +235,11 @@ test_that("la granularidad coleccion ya figura como implementada", {
   expect_true(
     catalogo$implementada[catalogo$granularidad == "coleccion"]
   )
-  # Las tres últimas siguen sin objeto: son decisiones de gobernanza.
-  expect_false(any(catalogo$implementada[catalogo$nivel > 7L]))
+  expect_true(
+    catalogo$implementada[catalogo$granularidad == "conjuntoColecciones"]
+  )
+  # Las dos últimas siguen sin objeto: son decisiones de gobernanza.
+  expect_false(any(catalogo$implementada[catalogo$nivel > 8L]))
 })
 
 test_that("las granularidades por encima de la colección dicen qué falta", {
@@ -250,11 +253,11 @@ test_that("las granularidades por encima de la colección dicen qué falta", {
     medidas, "coleccion", "promedio_ponderado",
     pesos = c(0.5, 0.5), coleccion = perfil
   )
-  # Y de ahí en adelante falta el objeto, no el código: qué bases componen un
-  # conjunto, qué bases pertenecen a un organismo. Son decisiones de gobernanza.
+  # El conjunto de colecciones ya se mide, y exige que la frontera se declare:
+  # qué bases lo componen no está en ningún dato.
   expect_error(
     agregar(agregado, "conjuntoColecciones", "promedio"),
-    "no recibe hoy esa frontera"
+    "`colecciones` debe ser"
   )
   expect_error(
     agregar(agregado, "organizacion", "promedio"),

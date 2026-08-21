@@ -4,7 +4,7 @@
 \alias{estimar_costo_coleccion}
 \title{Estimar el costo de buscar relaciones en una colección}
 \usage{
-estimar_costo_coleccion(coleccion, pares = NULL)
+estimar_costo_coleccion(coleccion, pares = NULL, columnas_candidatas = NULL)
 }
 \arguments{
 \item{coleccion}{Objeto creado por \code{\link[=coleccion]{coleccion()}}.}
@@ -12,11 +12,17 @@ estimar_costo_coleccion(coleccion, pares = NULL)
 \item{pares}{Data frame con columnas \code{tabla_1} y \code{tabla_2}. Un data frame
 con cero filas es una declaración válida de «ningún par». Sin \code{pares}
 —\code{NULL}—, todos los pares dirigidos.}
+
+\item{columnas_candidatas}{Lista nombrada por identificador de tabla. Cada
+entrada declara las columnas que pueden participar de una relación; las
+tablas no nombradas conservan todas sus columnas. La declaración reduce
+tanto la lectura como el número de comparaciones.}
 }
 \value{
 Lista con \code{n_tablas}, \code{n_pares_dirigidos}, \code{n_pares_declarados},
 \code{n_pares_estimados}, \code{n_pares_sin_estimar}, \code{n_comparaciones_columnas},
-\code{n_tablas_sin_esquema}, \code{tablas_sin_esquema} y \code{alcance}.
+\code{n_tablas_sin_esquema}, \code{tablas_sin_esquema} y \code{alcance}. También publica
+\code{columnas_candidatas} y el alcance real de las comparaciones.
 }
 \description{
 Cuenta cuántas comparaciones de columnas implicaría buscar claves foráneas
@@ -45,7 +51,10 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   DBI::dbWriteTable(con, "personas", data.frame(id = 1:3, nombre = letters[1:3]))
   DBI::dbWriteTable(con, "visitas", data.frame(persona_id = 1:3, dia = 1:3))
-  estimar_costo_coleccion(coleccion(con, c("personas", "visitas")))
+  estimar_costo_coleccion(
+    coleccion(con, c("personas", "visitas")),
+    columnas_candidatas = list(personas = "id", visitas = "persona_id")
+  )
   DBI::dbDisconnect(con)
 }
 }

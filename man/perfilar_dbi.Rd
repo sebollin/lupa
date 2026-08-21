@@ -9,7 +9,7 @@ perfilar_dbi(
   tabla,
   muestra = 1000L,
   orden_muestra = NULL,
-  modo = c("exacto", "seguro", "conteos"),
+  modo = c("exacto", "seguro", "conteos", "muestreado", "aproximado"),
   metricas = NULL,
   max_consultas = Inf,
   dialecto = "auto",
@@ -32,7 +32,9 @@ limitada, y \code{meta} lo declara expresamente.}
 
 \item{modo}{Conjunto de métricas del resumen: \code{"exacto"} las calcula todas,
 \code{"seguro"} evita las que ordenan o agrupan la tabla completa y
-\code{"conteos"} deja solo el conteo de valores no nulos.}
+\code{"conteos"} deja solo el conteo de valores no nulos, \code{"muestreado"}
+calcula estimaciones sobre filas elegidas por el motor y \code{"aproximado"}
+usa funciones nativas aproximadas cuando la sonda las acepta.}
 
 \item{metricas}{Selección explícita de grupos de métricas, que tiene
 prioridad sobre \code{modo}: \code{"validos"}, \code{"distintos"}, \code{"moda"},
@@ -52,15 +54,16 @@ máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
 }
 \value{
 Objeto de clase \code{perfil_dbi} con exactamente dos bloques:
-\code{resumen_tabla}, de alcance completo, y \code{perfil_muestra}, un objeto
-\code{perfil} cuyo \code{meta$origen_dbi} declara tabla, conexión, SQL y alcance, o
-\code{NULL} si la muestra no se pudo obtener.
+\code{resumen_tabla}, de alcance completo o muestreado según \code{modo}, y
+\code{perfil_muestra}, un objeto \code{perfil} cuyo \code{meta$origen_dbi} declara tabla,
+conexión, SQL y alcance, o \code{NULL} si la muestra no se pudo obtener.
 }
 \description{
-Calcula en SQL un resumen acotado sobre toda una tabla y, en un bloque
-separado, ejecuta \code{\link[=perfilar]{perfilar()}} sobre una muestra traída a memoria. El resumen
-completo de 105 campos no se presenta como calculado por la base: esos campos
-pertenecen exclusivamente a \code{perfil_muestra} y su universo es la muestra.
+Calcula en SQL un resumen sobre la tabla completa o sobre una relación
+muestreada por el motor, según \code{modo}, y en un bloque separado ejecuta
+\code{\link[=perfilar]{perfilar()}} sobre una muestra traída a memoria. El resumen completo de 105
+campos no se presenta como calculado por la base: esos campos pertenecen
+exclusivamente a \code{perfil_muestra} y su universo es la muestra.
 }
 \details{
 Esta función no escribe en la conexión ni crea objetos temporales. \code{DBI} es
@@ -81,6 +84,20 @@ Los \code{stop()} de esta vía llevan clase de condición propia —todas hereda
 \code{lupa_error_conexion_dbi}, \code{lupa_error_tabla_dbi}, \code{lupa_error_campos_dbi},
 \code{lupa_error_conteo_dbi}, \code{lupa_error_esquema_dbi} y
 \code{lupa_error_argumento_dbi}.
+}
+
+\section{Muestra y aproximaciones}{
+
+\code{modo = "muestreado"} sondea las formas declaradas por el adaptador y usa
+\code{TABLESAMPLE} cuando el motor lo acepta, o una función pseudoaleatoria con el
+límite del dialecto. Si ninguna forma es compatible, las métricas SQL quedan
+en \code{no_disponible}: no se sustituyen por resultados de la tabla completa.
+Cada registro publica \code{alcance}, \code{universo}, \code{tamano_muestra}, \code{fraccion},
+\code{metodo} y \code{error_esperado}. Los distintos de una muestra se publican como
+cardinalidad de la muestra, no como cardinalidad del universo. \code{modo = "aproximado"} sondea \code{APPROX_COUNT_DISTINCT}, \code{approx_count_distinct} y las
+formas de cuantiles del motor; cuando ninguna responde usa el respaldo exacto
+y lo registra por métrica. Las cotas de error no documentadas quedan como
+\code{"desconocido"}.
 }
 
 \section{Dialecto}{

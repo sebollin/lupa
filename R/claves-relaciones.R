@@ -360,24 +360,174 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   .texto_analizable(x)$valores
 }
 
+.familia_relacion <- function(x) {
+  if (inherits(x, "POSIXt")) return("fecha-hora")
+  if (inherits(x, "Date")) return("fecha")
+  if (inherits(x, "integer64") || is.integer(x) || is.double(x)) {
+    return("numerica")
+  }
+  if (is.factor(x) || is.character(x)) return("texto")
+  if (is.logical(x)) return("logica")
+  .tipo_declarado(x)
+}
+
+.rango_relacion <- function(x, familia) {
+  if (!familia %in% c("numerica", "fecha", "fecha-hora")) {
+    return(c(minimo = NA_real_, maximo = NA_real_))
+  }
+  valores <- tryCatch(as.numeric(x[!is.na(x)]), error = function(e) NULL)
+  if (is.null(valores) || !length(valores) || any(!is.finite(valores))) {
+    return(c(minimo = NA_real_, maximo = NA_real_))
+  }
+  c(minimo = min(valores), maximo = max(valores))
+}
+
 .resumir_columna_relacion <- function(x, muestra) {
   valores <- .valores_relacion(x)
   valores_muestra <- .muestrear_vector(valores, muestra)$valores
   valores_completos <- valores[!is.na(valores)]
+  familia <- .familia_relacion(x)
   list(
     muestra = valores_muestra[!is.na(valores_muestra)],
     unicos = unique(valores_completos),
-    unico = anyDuplicated(valores_completos) == 0L
+    unico = anyDuplicated(valores_completos) == 0L,
+    n_distintos = length(unique(valores_completos)),
+    familia = familia,
+    rango = .rango_relacion(x, familia)
+  )
+}
+
+.validar_columnas_candidatas_relacion <- function(datos, columnas, lado) {
+  nombres <- if (is.character(datos)) datos else make.unique(names(datos))
+  if (is.null(columnas)) return(nombres)
+  if (!is.character(columnas) || !length(columnas) || anyNA(columnas) ||
+      any(!nzchar(columnas))) {
+    stop(
+      "`columnas_candidatas` para ", lado,
+      " debe ser un vector de nombres no vacios.", call. = FALSE
+    )
+  }
+  desconocidas <- setdiff(columnas, nombres)
+  if (length(desconocidas)) {
+    stop(
+      "`columnas_candidatas` nombra columnas inexistentes en ", lado, ": ",
+      paste(desconocidas, collapse = ", "), ".", call. = FALSE
+    )
+  }
+  unique(columnas)
+}
+
+.resolver_columnas_candidatas_relacion <- function(columnas, n1, n2) {
+  if (is.null(columnas)) return(list(tabla1 = n1, tabla2 = n2))
+  if (!is.list(columnas) || length(columnas) != 2L) {
+    stop(
+      "`columnas_candidatas` debe ser una lista con una entrada para cada tabla,",
+      " en el orden `tabla1`, `tabla2`.", call. = FALSE
+    )
+  }
+  nombres <- names(columnas)
+  if (!is.null(nombres) && all(c("tabla1", "tabla2") %in% nombres)) {
+    columnas <- columnas[c("tabla1", "tabla2")]
+  }
+  list(
+    tabla1 = .validar_columnas_candidatas_relacion(
+      n1, columnas[[1L]], "tabla1"
+    ),
+    tabla2 = .validar_columnas_candidatas_relacion(
+      n2, columnas[[2L]], "tabla2"
+    )
+  )
+}
+
+# Hay dos clases de poda y no se pueden tratar igual.
+#
+# Una es **cierta**: dos columnas de la misma familia con rangos numericos
+# disjuntos no comparten ningun valor, y eso se sabe sin comparar. La respuesta
+# es la misma que daria la comparacion —cero comunes, cobertura cero—, asi que
+# saltearla es puro ahorro y la fila sale igual que siempre.
+#
+# La otra **no lo es**. Familias distintas parece decisivo y no lo es: una
+# columna de texto puede guardar `"2020-01-05"` y coincidir con una de fecha, y
+# una logica coincide con `"TRUE"` guardado como texto. Y la cardinalidad
+# imposible no dice que no haya coincidencias: dice que no alcanzan el umbral,
+# que es otra cosa. Podar por esas dos cambia lo que el objeto informa, asi que
+# no se hace por omision, y cuando se pide, la fila sale como no comparada con
+# su motivo en vez de desaparecer.
+.poda_cierta_relacion <- function(x, y) {
+  if (!identical(x$familia, y$familia)) return(NULL)
+  rango_x <- x$rango
+  rango_y <- y$rango
+  if (!all(is.finite(c(rango_x, rango_y)))) return(NULL)
+  if (rango_x[["maximo"]] >= rango_y[["minimo"]] &&
+      rango_y[["maximo"]] >= rango_x[["minimo"]]) {
+    return(NULL)
+  }
+  list(
+    motivo = "rangos_disjuntos",
+    detalle = paste0(
+      "[", rango_x[["minimo"]], ", ", rango_x[["maximo"]], "] y [",
+      rango_y[["minimo"]], ", ", rango_y[["maximo"]], "]"
+    )
+  )
+}
+
+.poda_relacion <- function(x, y, umbral_cobertura) {
+  if (!identical(x$familia, y$familia) &&
+      !all(c(x$familia, y$familia) %in% "numerica")) {
+    return(list(
+      motivo = "tipos_incompatibles",
+      detalle = paste0("familias ", x$familia, " y ", y$familia)
+    ))
+  }
+  if (umbral_cobertura > 0 && x$n_distintos > 0L && y$n_distintos > 0L &&
+      y$n_distintos * umbral_cobertura > x$n_distintos) {
+    return(list(
+      motivo = "cardinalidades_imposibles",
+      detalle = paste0(
+        y$n_distintos, " distintos en tabla2 contra ", x$n_distintos,
+        " en tabla1 con umbral ", umbral_cobertura
+      )
+    ))
+  }
+  NULL
+}
+
+.podas_relacion_vacias <- function() {
+  data.frame(
+    columna_tabla1 = character(), columna_tabla2 = character(),
+    motivo = character(), detalle = character(), stringsAsFactors = FALSE
   )
 }
 
 #' Detectar relaciones entre dos tablas
 #'
-#' Examina todos los pares de columnas y describe su cardinalidad a partir de
-#' la unicidad completa de cada lado. La cobertura `tabla1_en_tabla2` es la
+#' Examina los pares de columnas declarados y describe su cardinalidad a partir
+#' de la unicidad completa de cada lado. La cobertura `tabla1_en_tabla2` es la
 #' proporción de valores no ausentes de la primera columna que existe en la
 #' segunda; la cobertura inversa se informa de forma simétrica. Así se puede
 #' escoger la dirección PK/FK sin imponerla de antemano.
+#'
+#' `columnas_candidatas` permite evitar la exploración de columnas que el usuario
+#' sabe que no pueden participar. El costo crece con el producto de anchos: dos
+#' tablas de treinta columnas son novecientas combinaciones por par de tablas, y
+#' declarar cuáles pueden participar es lo que lo vuelve manejable.
+#'
+#' **Hay dos clases de poda y el paquete no las trata igual.** Dos columnas de
+#' la misma familia con rangos numéricos disjuntos no comparten ningún valor, y
+#' eso se sabe sin comparar: la fila sale como siempre —`sin_coincidencias`, con
+#' cobertura cero— y la comparación se ahorra. Esa poda está siempre activa
+#' porque no cambia lo que el objeto informa.
+#'
+#' Las otras dos sí lo cambiarían. Familias distintas parece decisivo y no lo
+#' es: una columna de texto puede guardar `"2020-01-05"` y coincidir con una de
+#' fecha. Y una cardinalidad imposible no dice que no haya coincidencias, dice
+#' que no alcanzan `umbral_cobertura`, que es otra cosa. Por eso van detrás de
+#' `podar = TRUE`, y cuando se aplican **el par no desaparece**: sale con
+#' `cardinalidad = "sin_comparar"`, coberturas `NA` y su motivo en `motivo_poda`.
+#' Un par que no se evaluó no es un par sin relación.
+#'
+#' Todas las podas, de las dos clases, quedan además en el atributo `podas` con
+#' su motivo y su detalle.
 #'
 #' Cuando una tabla supera `muestra`, la función estima cada cobertura con una
 #' muestra sistemática del lado que se verifica y conserva completo el conjunto
@@ -388,10 +538,23 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #' @param muestra Máximo de filas del lado verificado que se usan para estimar
 #'   cada cobertura. El muestreo es sistemático y reproducible; el lado de
 #'   referencia no se muestrea. Use `Inf` para calcular todo sin muestreo.
+#' @param columnas_candidatas Lista de dos vectores de nombres, para `tabla1` y
+#'   `tabla2`, que declara las columnas que pueden participar. `NULL` conserva
+#'   la exploración completa por compatibilidad.
+#' @param umbral_cobertura Umbral usado por la poda de cardinalidades imposibles.
+#' @param podar Si se aplican las podas que cambiarían lo informado —tipos
+#'   incompatibles y cardinalidades imposibles—. `FALSE` por omisión: sólo se
+#'   aplica la poda cierta, que no cambia ninguna fila.
+#' @param tope_memoria_mb Presupuesto de memoria para las filas comparadas, en
+#'   megabytes. Las combinaciones pendientes se declaran como podas cuando se
+#'   alcanza; `Inf` no limita el procesamiento.
 #'
-#' @return Data frame con columnas comparadas, cardinalidad, coincidencias y
-#'   coberturas de integridad referencial en ambas direcciones. Los atributos
-#'   `filas_totales`, `filas_analizadas` y `muestreado` documentan el muestreo.
+#' @return Data frame con columnas comparadas, cardinalidad, coincidencias,
+#'   coberturas de integridad referencial en ambas direcciones y `motivo_poda`,
+#'   que sólo tiene valor en los pares no comparados. Los atributos
+#'   `filas_totales`, `filas_analizadas` y `muestreado` documentan el muestreo;
+#'   `podas`, `n_pares_totales`, `n_pares_comparados` y `n_pares_podados`
+#'   documentan qué se comparó y qué no.
 #' @export
 #' @seealso [detectar_claves()], [referencial()], [proponer_modelo()]
 #'
@@ -399,27 +562,101 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 #' personas <- data.frame(id = 1:3)
 #' tramites <- data.frame(persona_id = c(1, 1, 3, 4))
 #' detectar_relaciones(personas, tramites)
-detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5) {
+detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
+                                columnas_candidatas = NULL,
+                                umbral_cobertura = 0.9,
+                                podar = FALSE,
+                                tope_memoria_mb = Inf) {
   if (!inherits(tabla1, "data.frame") || !inherits(tabla2, "data.frame")) {
     stop("`tabla1` y `tabla2` deben heredar de data.frame.", call. = FALSE)
+  }
+  if (!is.logical(podar) || length(podar) != 1L || is.na(podar)) {
+    stop("`podar` debe ser TRUE o FALSE.", call. = FALSE)
+  }
+  if (!is.numeric(umbral_cobertura) || length(umbral_cobertura) != 1L ||
+      is.na(umbral_cobertura) || umbral_cobertura < 0 ||
+      umbral_cobertura > 1) {
+    stop("`umbral_cobertura` debe estar entre 0 y 1.", call. = FALSE)
+  }
+  if (!is.numeric(tope_memoria_mb) || length(tope_memoria_mb) != 1L ||
+      is.na(tope_memoria_mb) || tope_memoria_mb < 0) {
+    stop("`tope_memoria_mb` debe ser un numero no negativo.", call. = FALSE)
   }
   limite_muestra <- .validar_muestra(muestra)
   nombres_1 <- make.unique(names(tabla1))
   nombres_2 <- make.unique(names(tabla2))
-  columnas_1 <- lapply(seq_len(ncol(tabla1)), function(i) {
+  candidatas <- .resolver_columnas_candidatas_relacion(
+    columnas_candidatas, nombres_1, nombres_2
+  )
+  indices_1 <- match(candidatas$tabla1, nombres_1)
+  indices_2 <- match(candidatas$tabla2, nombres_2)
+  columnas_1 <- lapply(indices_1, function(i) {
     .resumir_columna_relacion(tabla1[[i]], limite_muestra)
   })
-  columnas_2 <- lapply(seq_len(ncol(tabla2)), function(i) {
+  columnas_2 <- lapply(indices_2, function(i) {
     .resumir_columna_relacion(tabla2[[i]], limite_muestra)
   })
-  filas <- vector("list", ncol(tabla1) * ncol(tabla2))
-  k <- 0L
+  filas <- list()
+  podas <- list()
+  memoria_mb <- 0
+  comparadas <- 0L
+  presupuesto_agotado <- FALSE
 
-  for (i in seq_len(ncol(tabla1))) {
+  for (i in seq_along(indices_1)) {
     x <- columnas_1[[i]]
-    for (j in seq_len(ncol(tabla2))) {
+    for (j in seq_along(indices_2)) {
       y <- columnas_2[[j]]
-      k <- k + 1L
+      nombre_1 <- candidatas$tabla1[[i]]
+      nombre_2 <- candidatas$tabla2[[j]]
+      poda <- if (isTRUE(podar)) {
+        .poda_relacion(x, y, umbral_cobertura)
+      } else NULL
+      if (!is.null(poda)) {
+        podas[[length(podas) + 1L]] <- data.frame(
+          columna_tabla1 = nombre_1, columna_tabla2 = nombre_2,
+          motivo = poda$motivo, detalle = poda$detalle,
+          stringsAsFactors = FALSE
+        )
+        # El par no desaparece: sale declarado como no comparado. Un par que no
+        # se evaluo no es un par sin relacion.
+        filas[[length(filas) + 1L]] <- data.frame(
+          columna_tabla1 = nombre_1, columna_tabla2 = nombre_2,
+          cardinalidad = "sin_comparar", n_valores_comunes = NA_integer_,
+          cobertura_tabla1_en_tabla2 = NA_real_,
+          cobertura_tabla2_en_tabla1 = NA_real_,
+          motivo_poda = poda$motivo, stringsAsFactors = FALSE
+        )
+        next
+      }
+      cierta <- .poda_cierta_relacion(x, y)
+      if (!is.null(cierta)) {
+        podas[[length(podas) + 1L]] <- data.frame(
+          columna_tabla1 = nombre_1, columna_tabla2 = nombre_2,
+          motivo = cierta$motivo, detalle = cierta$detalle,
+          stringsAsFactors = FALSE
+        )
+        # Rangos disjuntos de la misma familia: la respuesta se conoce sin
+        # comparar, y es la misma. Se informa igual que siempre.
+        filas[[length(filas) + 1L]] <- data.frame(
+          columna_tabla1 = nombre_1, columna_tabla2 = nombre_2,
+          cardinalidad = "sin_coincidencias", n_valores_comunes = 0L,
+          cobertura_tabla1_en_tabla2 = if (length(x$muestra)) 0 else NA_real_,
+          cobertura_tabla2_en_tabla1 = if (length(y$muestra)) 0 else NA_real_,
+          motivo_poda = NA_character_, stringsAsFactors = FALSE
+        )
+        comparadas <- comparadas + 1L
+        next
+      }
+      if (is.finite(tope_memoria_mb) && memoria_mb >= tope_memoria_mb) {
+        presupuesto_agotado <- TRUE
+        podas[[length(podas) + 1L]] <- data.frame(
+          columna_tabla1 = nombre_1, columna_tabla2 = nombre_2,
+          motivo = "presupuesto_memoria_agotado",
+          detalle = paste0("tope_memoria_mb = ", tope_memoria_mb),
+          stringsAsFactors = FALSE
+        )
+        next
+      }
       n_valores_comunes <- length(intersect(x$unicos, y$unicos))
       unico_x <- x$unico
       unico_y <- y$unico
@@ -434,9 +671,9 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5) {
       } else {
         "m:m"
       }
-      filas[[k]] <- data.frame(
-        columna_tabla1 = nombres_1[[i]],
-        columna_tabla2 = nombres_2[[j]],
+      fila <- data.frame(
+        columna_tabla1 = nombre_1,
+        columna_tabla2 = nombre_2,
         cardinalidad = cardinalidad,
         n_valores_comunes = n_valores_comunes,
         cobertura_tabla1_en_tabla2 = if (length(x$muestra)) {
@@ -449,8 +686,12 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5) {
         } else {
           NA_real_
         },
+        motivo_poda = NA_character_,
         stringsAsFactors = FALSE
       )
+      filas[[length(filas) + 1L]] <- fila
+      comparadas <- comparadas + 1L
+      memoria_mb <- memoria_mb + as.numeric(utils::object.size(fila)) / 1024^2
     }
   }
 
@@ -462,7 +703,8 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5) {
       columna_tabla1 = character(), columna_tabla2 = character(),
       cardinalidad = character(), n_valores_comunes = integer(),
       cobertura_tabla1_en_tabla2 = numeric(),
-      cobertura_tabla2_en_tabla1 = numeric(), stringsAsFactors = FALSE
+      cobertura_tabla2_en_tabla1 = numeric(), motivo_poda = character(),
+      stringsAsFactors = FALSE
     )
   }
   class(resultado) <- c("relaciones_detectadas", "data.frame")
@@ -477,5 +719,15 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5) {
     tabla1 = nrow(tabla1) > limite_muestra,
     tabla2 = nrow(tabla2) > limite_muestra
   )
+  attr(resultado, "podas") <- if (length(podas)) {
+    do.call(rbind, podas)
+  } else {
+    .podas_relacion_vacias()
+  }
+  attr(resultado, "n_pares_totales") <- length(indices_1) * length(indices_2)
+  attr(resultado, "n_pares_comparados") <- comparadas
+  attr(resultado, "n_pares_podados") <- length(podas)
+  attr(resultado, "presupuesto_memoria_agotado") <- presupuesto_agotado
+  attr(resultado, "memoria_resultado_mb") <- memoria_mb
   resultado
 }

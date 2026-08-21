@@ -13,7 +13,8 @@ detectar_dependencias(
   umbral_casi_clave = 0.8,
   incluir_claves = FALSE,
   min_observaciones = 10L,
-  max_ejemplos = 5L
+  max_ejemplos = 5L,
+  max_comparaciones = 200000L
 )
 }
 \arguments{
@@ -39,12 +40,17 @@ dependencias de forma trivial.}
 dependencia.}
 
 \item{max_ejemplos}{Máximo de contradicciones concretas en \code{evidencia}.}
+
+\item{max_comparaciones}{Máximo de pares determinante-dependiente que se
+comparan. \code{Inf} desactiva el presupuesto.}
 }
 \value{
 Data frame de clase \code{dependencias_funcionales}, ordenado por
 cumplimiento y soporte. Los atributos \code{muestreado}, \code{filas_analizadas},
 \code{columnas_analizadas}, \code{columnas_omitidas}, \code{columnas_descartadas} y
-\code{truncado} documentan el alcance efectivo. \code{columnas_descartadas} es un
+\code{truncado} documentan el alcance efectivo. \code{n_pares_posibles},
+\code{n_pares_comparados}, \code{n_pares_sin_comparar} y \code{max_comparaciones}
+documentan el presupuesto de comparaciones. \code{columnas_descartadas} es un
 data frame que explica por qué una columna no se usó como determinante.
 }
 \description{
@@ -66,10 +72,11 @@ El descarte ocurre antes de construir agrupaciones. El valor predeterminado
 valor distinto en promedio: aun si cumplen, suelen describir una casi-clave
 y no una regla reutilizable.
 
-El costo crece con el cuadrado de las columnas. \code{max_columnas} conserva las
-primeras columnas analizables y \code{muestra} aplica una única muestra
+El costo crece aproximadamente como \code{columnas^2 * filas}. \code{max_columnas}
+conserva las primeras columnas analizables, \code{max_comparaciones} limita el
+número de pares columna a columna y \code{muestra} aplica una única muestra
 sistemática a toda la tabla, de modo que las relaciones entre filas no se
-rompen. Los atributos del resultado declaran ambos recortes.
+rompen. Los atributos del resultado declaran todos los recortes.
 }
 \examples{
 datos <- data.frame(

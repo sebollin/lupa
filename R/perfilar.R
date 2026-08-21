@@ -287,7 +287,10 @@
 #' delimitador, la cantidad de celdas y la distribución de valores por celda
 #' quedan en la evidencia del hallazgo.
 #'
-#' @param datos Objeto que hereda de `data.frame`.
+#' @param datos Objeto que hereda de `data.frame` —`tibble` y `data.table`
+#'   entran por ahí— o una matriz de dos dimensiones, que se convierte con
+#'   [as.data.frame()]. La conversión queda declarada en `meta$entrada_convertida`
+#'   para que el perfil no aparente haber recibido lo que no recibió.
 #' @param nombre Nombre descriptivo del objeto.
 #' @param fecha Fecha y hora de la corrida. Se puede fijar para construir series
 #'   reproducibles; se normaliza a UTC.
@@ -333,6 +336,50 @@
 #'   y el resultado es el de siempre. Declararlo es lo que distingue el vacío
 #'   por diseño del vacío por error, y sin esa distinción una tabla sana puede
 #'   informar completitud baja siendo completa.
+#' @param ausencia_estructural Si se busca evidencia de que la ausencia de una
+#'   columna es por diseño. `lupa` no infiere el universo ni lo cambia por su
+#'   cuenta, pero declarar `aplicabilidad` exige saber que existe: quien perfila
+#'   una tabla con columnas condicionadas sin declarar nada recibe el mismo
+#'   informe engañoso que si el vacío fuera un defecto. Con `TRUE`, cuando el
+#'   valor de otra columna decide qué filas tienen ésta, o cuando dos columnas
+#'   se reparten las filas sin pisarse, se emite `posible_ausencia_estructural`
+#'   con severidad `ok`, la evidencia medida y la línea exacta que habría que
+#'   escribir para declararlo. Sugiere; no decide. Las columnas ya declaradas
+#'   quedan fuera del examen.
+#'
+#'   Con el mismo argumento viaja `regla_silencia_ausencia`, también `ok`: avisa
+#'   cuando una columna declarada opcional o con universo propio sigue casi
+#'   vacía dentro de ese universo. La declaración funcionó y por eso el perfil
+#'   salió limpio; el aviso existe para que eso sea una decisión y no un efecto.
+#' @param columnas_personales Columnas que traen datos personales, declaradas
+#'   por quien conoce el dato. `c("cod_benef", "apodo")` las nombra sin decir de
+#'   qué tipo son; `c(cod_benef = "documento_identidad")` además lo dice. Lo
+#'   declarado gana sobre lo inferido y no se vuelve a examinar.
+#'
+#'   Existe porque el léxico de nombres de columna **no puede ser completo**:
+#'   una columna con documentos se puede llamar de cualquier manera, y ninguna
+#'   lista de nombres frecuentes la va a reconocer. Es el mismo patrón que
+#'   `columnas_opcionales`, aplicado a la otra decisión que el paquete no puede
+#'   tomar solo.
+#' @param variantes_equifrecuentes_vocabulario Si se informa el diagnóstico
+#'   `variantes_equifrecuentes_vocabulario`, que señala dos formas cercanas que
+#'   se reparten la columna sin que ninguna sea dominante —el error sistemático
+#'   de dos operadores, una plantilla rota o una migración parcial—.
+#'
+#'   **Está apagado por omisión y la razón está medida**: sobre la batería de
+#'   31 tablas limpias produce un grupo sospechoso donde no hay defecto, y
+#'   dispara en tablas de menos de veinte filas donde dos formas parecidas se
+#'   reparten por casualidad. Es aditivo: encenderlo no cambia ni pierde ninguna
+#'   detección de `casi_duplicados_vocabulario`. El límite que deja de cubrir se
+#'   declara igual, encendido o apagado, en `n_grupos_sin_variante_rara`.
+#' @param max_asimetria_equifrecuente_vocabulario Razón máxima entre la
+#'   frecuencia mayor y la menor para considerar que dos formas se reparten la
+#'   columna. Con `2`, `40` contra `5` no entra y `5` contra `5` sí.
+#' @param max_comparaciones_dependencias Tope de pares determinante-dependiente
+#'   que se comparan. El costo de las dependencias es del orden de
+#'   `columnas^2 x filas` y empeora con determinantes casi únicos; cuando el
+#'   presupuesto se agota, lo comparado se informa y lo que quedó sin comparar
+#'   se declara en `cobertura_diagnosticos`, nunca como cero.
 #' @param columnas_sin_ceros Nombres de columnas donde cero no es admisible.
 #' @param columnas_no_negativas Nombres de columnas que deben ser no negativas.
 #' @param sentinelas_numericos Vector completo de valores numéricos que se
@@ -533,6 +580,7 @@ perfilar <- function(datos,
                      columnas_no_negativas = character(),
                      columnas_opcionales = character(),
                      aplicabilidad = NULL,
+                     ausencia_estructural = TRUE,
                      sentinelas_numericos = c(-9, -99, -999, -9999, 999),
                      analizar_dependencias = TRUE,
                      umbral_dependencia = 0.995,
@@ -540,6 +588,7 @@ perfilar <- function(datos,
                      max_columnas_dependencias = 100L,
                      datos_personales_permitidos = TRUE,
                      proteger_datos_personales = TRUE,
+                     columnas_personales = character(),
                      validadores_personales = NULL,
                      umbral_documento_verificado = 0.9,
                      muestra_validadores = 1000L,
@@ -558,9 +607,27 @@ perfilar <- function(datos,
                      umbral_variante_rara_vocabulario = 0.05,
                      min_asimetria_vocabulario_corto = 10,
                      min_asimetria_vocabulario = 2,
-                     min_participacion_dominante_vocabulario_corto = 0.5) {
+                     min_participacion_dominante_vocabulario_corto = 0.5,
+                     variantes_equifrecuentes_vocabulario = FALSE,
+                     max_asimetria_equifrecuente_vocabulario = 2,
+                     max_comparaciones_dependencias = 200000L) {
+  # Una matriz de dos dimensiones es una tabla, y rechazarla obligaba a escribir
+  # la conversion afuera. Se acepta y se convierte, y la conversion queda
+  # declarada en `meta` para que el perfil no aparente haber recibido lo que no
+  # recibio. Una matriz sin nombres de columna los recibe de R.
+  entrada_convertida <- NA_character_
+  if (!inherits(datos, "data.frame") && is.matrix(datos)) {
+    entrada_convertida <- paste0(
+      "matriz de ", nrow(datos), " por ", ncol(datos),
+      " convertida con as.data.frame()"
+    )
+    datos <- as.data.frame(datos, stringsAsFactors = FALSE)
+  }
   if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
+    stop(
+      "`datos` debe ser un data.frame, tibble, data.table o una matriz.",
+      call. = FALSE
+    )
   }
   normalizacion_resuelta <- .resolver_normalizacion(normalizar)
   fecha_hora <- tryCatch(.fecha_utc(fecha), error = function(e) NA)
@@ -700,6 +767,37 @@ perfilar <- function(datos,
       is.na(casi_duplicados_vocabulario)) {
     stop("`casi_duplicados_vocabulario` debe ser TRUE o FALSE.", call. = FALSE)
   }
+  if (!is.logical(ausencia_estructural) ||
+      length(ausencia_estructural) != 1L || is.na(ausencia_estructural)) {
+    stop("`ausencia_estructural` debe ser TRUE o FALSE.", call. = FALSE)
+  }
+  if (!is.logical(variantes_equifrecuentes_vocabulario) ||
+      length(variantes_equifrecuentes_vocabulario) != 1L ||
+      is.na(variantes_equifrecuentes_vocabulario)) {
+    stop("`variantes_equifrecuentes_vocabulario` debe ser TRUE o FALSE.",
+         call. = FALSE)
+  }
+  if (!is.numeric(max_asimetria_equifrecuente_vocabulario) ||
+      length(max_asimetria_equifrecuente_vocabulario) != 1L ||
+      is.na(max_asimetria_equifrecuente_vocabulario) ||
+      max_asimetria_equifrecuente_vocabulario < 1) {
+    stop(
+      "`max_asimetria_equifrecuente_vocabulario` debe ser un numero mayor o igual a 1.",
+      call. = FALSE
+    )
+  }
+  if (!is.numeric(max_comparaciones_dependencias) ||
+      length(max_comparaciones_dependencias) != 1L ||
+      is.na(max_comparaciones_dependencias) ||
+      max_comparaciones_dependencias < 1) {
+    stop(
+      "`max_comparaciones_dependencias` debe ser un numero mayor o igual a 1.",
+      call. = FALSE
+    )
+  }
+  columnas_personales <- .normalizar_columnas_personales(
+    columnas_personales, names(datos)
+  )
   if (!is.numeric(max_proporcion_grupo_vocabulario) ||
       length(max_proporcion_grupo_vocabulario) != 1L ||
       is.na(max_proporcion_grupo_vocabulario) ||
@@ -790,11 +888,16 @@ perfilar <- function(datos,
     detectar_dependencias(
       datos, umbral = umbral_dependencia, muestra = muestra,
       max_columnas = max_columnas_dependencias,
-      umbral_casi_clave = umbral_casi_clave_dependencia
+      umbral_casi_clave = umbral_casi_clave_dependencia,
+      max_comparaciones = max_comparaciones_dependencias
     )
   } else {
+    # `datos[0, 0]` sobre un objeto `sf` conserva la geometria: la columna es
+    # pegajosa por diseno de ese paquete. Con la clase puesta, el objeto vacio
+    # llegaba con una columna y el diagnostico declaraba un recorte que nadie
+    # pidio -- las dependencias estaban apagadas, no truncadas.
     detectar_dependencias(
-      datos[0, 0, drop = FALSE], umbral = umbral_dependencia,
+      as.data.frame(datos)[0, 0, drop = FALSE], umbral = umbral_dependencia,
       max_columnas = 1L,
       umbral_casi_clave = umbral_casi_clave_dependencia
     )
@@ -862,7 +965,9 @@ perfilar <- function(datos,
     min_asimetria_variante = min_asimetria_vocabulario_corto,
     min_asimetria_general = min_asimetria_vocabulario,
     min_participacion_dominante =
-      min_participacion_dominante_vocabulario_corto
+      min_participacion_dominante_vocabulario_corto,
+    detectar_variantes_equifrecuentes = variantes_equifrecuentes_vocabulario,
+    max_asimetria_equifrecuente = max_asimetria_equifrecuente_vocabulario
   )
   cobertura_diagnosticos <- attr(
     hallazgos, "cobertura_diagnosticos", exact = TRUE
@@ -888,6 +993,25 @@ perfilar <- function(datos,
     )
   }
   attr(hallazgos, "cobertura_diagnosticos") <- NULL
+  if (isTRUE(ausencia_estructural)) {
+    estructural <- .diagnosticar_ausencia_estructural(
+      datos, nombres, resultados, aplicabilidad_resuelta,
+      umbral_faltantes_error
+    )
+    if (nrow(estructural$cobertura)) {
+      cobertura_diagnosticos <- rbind(
+        cobertura_diagnosticos, estructural$cobertura
+      )
+    }
+    if (length(estructural$hallazgos)) {
+      hallazgos <- do.call(rbind, c(list(hallazgos), estructural$hallazgos))
+      hallazgos$severidad <- factor(
+        as.character(hallazgos$severidad),
+        levels = c("ok", "sospechoso", "error"), ordered = TRUE
+      )
+      rownames(hallazgos) <- NULL
+    }
+  }
   benford <- .diagnosticar_benford(datos, columnas, hallazgos)
   if (nrow(benford$cobertura)) {
     cobertura_diagnosticos <- rbind(
@@ -906,7 +1030,8 @@ perfilar <- function(datos,
     datos, nombres, resultados,
     validadores = validadores_personales,
     umbral_verificado = umbral_documento_verificado,
-    muestra_validadores = muestra_validadores
+    muestra_validadores = muestra_validadores,
+    declaradas = columnas_personales
   )
   indice_personal <- match(columnas$columna, datos_personales$columna)
   columnas$dato_personal_posible <- !is.na(indice_personal)
@@ -915,7 +1040,12 @@ perfilar <- function(datos,
     datos_personales$proporcion_compatible[indice_personal]
   columnas$poder_discriminante_dato_personal <-
     datos_personales$poder_discriminante[indice_personal]
-  columnas$dato_personal_protegido <- ifelse(
+  # El campo dice si el valor **quedo** protegido, no si la clasificacion
+  # pensaba protegerlo: con `proteger_datos_personales = FALSE` la moda se ve, y
+  # decir `TRUE` al lado de un valor visible es informar como hecho algo que no
+  # paso. La intencion de la clasificacion sigue disponible en
+  # `datos_personales$proteger`.
+  columnas$dato_personal_protegido <- isTRUE(proteger_datos_personales) & ifelse(
     is.na(indice_personal), FALSE, datos_personales$proteger[indice_personal]
   )
   hallazgos_personales <- .hallazgos_datos_personales(
@@ -966,6 +1096,9 @@ perfilar <- function(datos,
     nombre = nombre,
     fecha_hora = fecha_hora,
     version = .version_paquete(),
+    entrada_convertida = entrada_convertida,
+    columnas_personales_declaradas = names(columnas_personales),
+    ausencia_estructural = ausencia_estructural,
     filas_totales = nrow(datos),
     filas_analizadas = min(nrow(datos), floor(muestra)),
     muestreo = nrow(datos) > muestra,

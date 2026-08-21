@@ -4,7 +4,15 @@
 \alias{detectar_relaciones}
 \title{Detectar relaciones entre dos tablas}
 \usage{
-detectar_relaciones(tabla1, tabla2, muestra = 1e+05)
+detectar_relaciones(
+  tabla1,
+  tabla2,
+  muestra = 1e+05,
+  columnas_candidatas = NULL,
+  umbral_cobertura = 0.9,
+  podar = FALSE,
+  tope_memoria_mb = Inf
+)
 }
 \arguments{
 \item{tabla1, tabla2}{Objetos que heredan de \code{data.frame}.}
@@ -12,20 +20,59 @@ detectar_relaciones(tabla1, tabla2, muestra = 1e+05)
 \item{muestra}{Máximo de filas del lado verificado que se usan para estimar
 cada cobertura. El muestreo es sistemático y reproducible; el lado de
 referencia no se muestrea. Use \code{Inf} para calcular todo sin muestreo.}
+
+\item{columnas_candidatas}{Lista de dos vectores de nombres, para \code{tabla1} y
+\code{tabla2}, que declara las columnas que pueden participar. \code{NULL} conserva
+la exploración completa por compatibilidad.}
+
+\item{umbral_cobertura}{Umbral usado por la poda de cardinalidades imposibles.}
+
+\item{podar}{Si se aplican las podas que cambiarían lo informado —tipos
+incompatibles y cardinalidades imposibles—. \code{FALSE} por omisión: sólo se
+aplica la poda cierta, que no cambia ninguna fila.}
+
+\item{tope_memoria_mb}{Presupuesto de memoria para las filas comparadas, en
+megabytes. Las combinaciones pendientes se declaran como podas cuando se
+alcanza; \code{Inf} no limita el procesamiento.}
 }
 \value{
-Data frame con columnas comparadas, cardinalidad, coincidencias y
-coberturas de integridad referencial en ambas direcciones. Los atributos
-\code{filas_totales}, \code{filas_analizadas} y \code{muestreado} documentan el muestreo.
+Data frame con columnas comparadas, cardinalidad, coincidencias,
+coberturas de integridad referencial en ambas direcciones y \code{motivo_poda},
+que sólo tiene valor en los pares no comparados. Los atributos
+\code{filas_totales}, \code{filas_analizadas} y \code{muestreado} documentan el muestreo;
+\code{podas}, \code{n_pares_totales}, \code{n_pares_comparados} y \code{n_pares_podados}
+documentan qué se comparó y qué no.
 }
 \description{
-Examina todos los pares de columnas y describe su cardinalidad a partir de
-la unicidad completa de cada lado. La cobertura \code{tabla1_en_tabla2} es la
+Examina los pares de columnas declarados y describe su cardinalidad a partir
+de la unicidad completa de cada lado. La cobertura \code{tabla1_en_tabla2} es la
 proporción de valores no ausentes de la primera columna que existe en la
 segunda; la cobertura inversa se informa de forma simétrica. Así se puede
 escoger la dirección PK/FK sin imponerla de antemano.
 }
 \details{
+\code{columnas_candidatas} permite evitar la exploración de columnas que el usuario
+sabe que no pueden participar. El costo crece con el producto de anchos: dos
+tablas de treinta columnas son novecientas combinaciones por par de tablas, y
+declarar cuáles pueden participar es lo que lo vuelve manejable.
+
+\strong{Hay dos clases de poda y el paquete no las trata igual.} Dos columnas de
+la misma familia con rangos numéricos disjuntos no comparten ningún valor, y
+eso se sabe sin comparar: la fila sale como siempre —\code{sin_coincidencias}, con
+cobertura cero— y la comparación se ahorra. Esa poda está siempre activa
+porque no cambia lo que el objeto informa.
+
+Las otras dos sí lo cambiarían. Familias distintas parece decisivo y no lo
+es: una columna de texto puede guardar \code{"2020-01-05"} y coincidir con una de
+fecha. Y una cardinalidad imposible no dice que no haya coincidencias, dice
+que no alcanzan \code{umbral_cobertura}, que es otra cosa. Por eso van detrás de
+\code{podar = TRUE}, y cuando se aplican \strong{el par no desaparece}: sale con
+\code{cardinalidad = "sin_comparar"}, coberturas \code{NA} y su motivo en \code{motivo_poda}.
+Un par que no se evaluó no es un par sin relación.
+
+Todas las podas, de las dos clases, quedan además en el atributo \code{podas} con
+su motivo y su detalle.
+
 Cuando una tabla supera \code{muestra}, la función estima cada cobertura con una
 muestra sistemática del lado que se verifica y conserva completo el conjunto
 de referencia. La cardinalidad y la cantidad de valores comunes siempre se

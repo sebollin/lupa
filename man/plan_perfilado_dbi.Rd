@@ -9,7 +9,7 @@ plan_perfilado_dbi(
   tabla,
   muestra = 1000L,
   orden_muestra = NULL,
-  modo = c("exacto", "seguro", "conteos"),
+  modo = c("exacto", "seguro", "conteos", "muestreado", "aproximado"),
   metricas = NULL,
   max_consultas = Inf,
   dialecto = "auto",
@@ -31,7 +31,9 @@ limitada, y \code{meta} lo declara expresamente.}
 
 \item{modo}{Conjunto de métricas del resumen: \code{"exacto"} las calcula todas,
 \code{"seguro"} evita las que ordenan o agrupan la tabla completa y
-\code{"conteos"} deja solo el conteo de valores no nulos.}
+\code{"conteos"} deja solo el conteo de valores no nulos, \code{"muestreado"}
+calcula estimaciones sobre filas elegidas por el motor y \code{"aproximado"}
+usa funciones nativas aproximadas cuando la sonda las acepta.}
 
 \item{metricas}{Selección explícita de grupos de métricas, que tiene
 prioridad sobre \code{modo}: \code{"validos"}, \code{"distintos"}, \code{"moda"},

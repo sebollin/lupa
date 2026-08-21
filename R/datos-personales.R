@@ -21,29 +21,62 @@
   validadores
 }
 
+# Cuantos valores puede recorrer la confirmacion completa. Cuando la muestra
+# supera el umbral, el validador se vuelve a correr para confirmar sobre la
+# columna entera, y sobre una tabla de millones de filas eso es una pasada que
+# nadie pidio. El tope la acota, y lo que se evaluo viaja con el resultado.
+.max_validacion_completa <- 200000L
+
+# Un alcance parcial se dice; uno completo no necesita decirse.
+.alcance_validacion <- function(proporciones, indice) {
+  evaluados <- attr(proporciones, "n_evaluados", exact = TRUE)
+  total <- attr(proporciones, "n_total", exact = TRUE)
+  if (is.null(evaluados) || is.null(total) || is.na(evaluados[[indice]]) ||
+      evaluados[[indice]] >= total) {
+    return("")
+  }
+  paste0(" sobre ", evaluados[[indice]], " de ", total, " valores")
+}
+
 .proporcion_validadores <- function(textos, validadores, umbral,
-                                    muestra = 1000L) {
+                                    muestra = 1000L,
+                                    max_completo = .max_validacion_completa) {
   if (!length(validadores) || !length(textos)) return(numeric())
   indices <- if (length(textos) <= muestra) seq_along(textos) else {
     unique(round(seq(1, length(textos), length.out = muestra)))
   }
-  proporciones <- vapply(validadores, function(validador) {
+  evaluados <- rep(NA_integer_, length(validadores))
+  proporciones <- vapply(seq_along(validadores), function(k) {
+    validador <- validadores[[k]]
     parcial <- validador(textos[indices])
     if (!is.logical(parcial) || length(parcial) != length(indices)) {
       stop("Cada validador personal debe devolver un vector l\u00f3gico de igual longitud.",
            call. = FALSE)
     }
     parcial <- mean(parcial %in% TRUE)
+    evaluados[[k]] <<- length(indices)
     if (!is.finite(parcial) || parcial < umbral || length(indices) == length(textos)) {
       return(parcial)
     }
-    completo <- validador(textos)
-    if (!is.logical(completo) || length(completo) != length(textos)) {
+    confirmacion <- if (length(textos) <= max_completo) {
+      seq_along(textos)
+    } else {
+      unique(round(seq(1, length(textos), length.out = max_completo)))
+    }
+    completo <- validador(textos[confirmacion])
+    if (!is.logical(completo) || length(completo) != length(confirmacion)) {
       stop("Cada validador personal debe devolver un vector l\u00f3gico de igual longitud.",
            call. = FALSE)
     }
+    evaluados[[k]] <<- length(confirmacion)
     mean(completo %in% TRUE)
   }, numeric(1L))
+  names(proporciones) <- names(validadores)
+  # El conteo viaja con la proporcion para que el fundamento pueda decir sobre
+  # cuantos valores se confirmo: una proporcion medida sobre una parte no es
+  # una proporcion de la columna.
+  attr(proporciones, "n_evaluados") <- evaluados
+  attr(proporciones, "n_total") <- length(textos)
   proporciones
 }
 
@@ -89,6 +122,24 @@
   proporcion_correo <- if ("correo" %in% por_nombre ||
     any(grepl("@", textos[presentes], fixed = TRUE))) {
     if (any(presentes)) mean(validar_correo(textos[presentes])) else NA_real_
+  } else NA_real_
+  # Un correo escrito `usuario at dominio punto com` no es un correo valido y
+  # `validar_correo()` tiene razon en decir que no lo es: eso es una medida de
+  # formato. Pero la columna sigue trayendo direcciones de personas, y esa es
+  # una pregunta distinta. Las dos respuestas conviven: el validador mide la
+  # forma, el clasificador decide si hay dato personal.
+  proporcion_correo_ofuscado <- if (any(presentes)) {
+    mean(grepl(
+      paste0(
+        "^[A-Za-z0-9._%+-]+[[:space:]]*(?:\\(|\\[)?(?:at|arroba)(?:\\)|\\])?",
+        "[[:space:]]*[A-Za-z0-9-]+",
+        # El dominio tiene que traer su separador: sin el, `lunes at casa` es
+        # una frase y no una direccion, y protegerla seria inventar el dato.
+        "(?:[[:space:]]*(?:\\(|\\[)?(?:dot|punto)(?:\\)|\\])?[[:space:]]*|\\.)",
+        "[A-Za-z]{2,}$"
+      ),
+      textos[presentes], perl = TRUE, ignore.case = TRUE
+    ))
   } else NA_real_
   textos_presentes <- textos[presentes]
   longitudes_crudas <- nchar(textos_presentes, type = "chars")
@@ -168,6 +219,13 @@
     fundamento <- "nombre de columna"
     poder <- "medio"
     proteger <- TRUE
+  } else if (is.finite(proporcion_correo_ofuscado) &&
+             proporcion_correo_ofuscado >= 0.8) {
+    tipo <- "correo"
+    proporcion <- proporcion_correo_ofuscado
+    fundamento <- "forma de correo ofuscada dominante"
+    poder <- "debil"
+    proteger <- TRUE
   } else if (length(por_nombre)) {
     tipo <- por_nombre[[1L]]
     proporcion <- switch(
@@ -185,7 +243,8 @@
     if (tipo == "documento_identidad" && documento_verificado) {
       fundamento <- paste0(
         "nombre de columna y forma verificada por ",
-        names(proporciones_validadores)[[indice_validador]]
+        names(proporciones_validadores)[[indice_validador]],
+        .alcance_validacion(proporciones_validadores, indice_validador)
       )
       poder <- "verificado"
     }
@@ -195,7 +254,9 @@
     proporcion <- proporcion_documento
     if (documento_verificado) {
       fundamento <- paste0(
-        "forma verificada por ", names(proporciones_validadores)[[indice_validador]]
+        "forma verificada por ",
+        names(proporciones_validadores)[[indice_validador]],
+        .alcance_validacion(proporciones_validadores, indice_validador)
       )
       poder <- "verificado"
       proteger <- TRUE
@@ -227,11 +288,83 @@
   )
 }
 
+# Los tipos que el paquete sabe nombrar. Declarar uno de estos hace que la
+# columna se trate igual que si el lexico la hubiera reconocido; declarar otro
+# nombre tambien vale, y viaja tal cual, porque el usuario puede conocer una
+# categoria que el paquete no tiene.
+.tipos_personales_conocidos <- c(
+  "documento_identidad", "correo", "telefono", "fecha_nacimiento", "nombre",
+  "domicilio"
+)
+
+# El lexico de nombres de columna no puede ser completo: una columna con
+# documentos se puede llamar `cod_benef` y ninguna lista de nombres la va a
+# reconocer. `columnas_personales` es la salida correcta a ese limite, y es el
+# mismo patron que `columnas_opcionales`: lo declara quien conoce el dato, y lo
+# declarado gana sobre lo inferido.
+.normalizar_columnas_personales <- function(columnas_personales, nombres) {
+  if (is.null(columnas_personales)) return(character())
+  if (!is.character(columnas_personales) || anyNA(columnas_personales)) {
+    stop(
+      "`columnas_personales` debe ser un vector de texto: nombres de columna, ",
+      "o un vector con nombre donde el nombre es la columna y el valor es el ",
+      "tipo de dato personal.", call. = FALSE
+    )
+  }
+  if (!length(columnas_personales)) return(character())
+  etiquetas <- names(columnas_personales)
+  declaradas <- if (is.null(etiquetas) || !all(nzchar(etiquetas))) {
+    if (!is.null(etiquetas) && any(nzchar(etiquetas))) {
+      stop(
+        "`columnas_personales` mezcla elementos con nombre y sin nombre. ",
+        "Corresponde una sola forma: o todos nombres de columna, o todos ",
+        "`columna = \"tipo\"`.", call. = FALSE
+      )
+    }
+    stats::setNames(rep("declarado", length(columnas_personales)),
+                    columnas_personales)
+  } else {
+    stats::setNames(as.character(columnas_personales), etiquetas)
+  }
+  if (any(!nzchar(names(declaradas)))) {
+    stop("`columnas_personales` nombra una columna vac\u00eda.", call. = FALSE)
+  }
+  if (anyDuplicated(names(declaradas))) {
+    stop("`columnas_personales` repite una columna.", call. = FALSE)
+  }
+  desconocidas <- setdiff(names(declaradas), nombres)
+  if (length(desconocidas)) {
+    stop("`columnas_personales` nombra columnas inexistentes: ",
+         paste(desconocidas, collapse = ", "), ".", call. = FALSE)
+  }
+  vacios <- names(declaradas)[!nzchar(declaradas)]
+  if (length(vacios)) {
+    stop("`columnas_personales` declara un tipo vac\u00edo en: ",
+         paste(vacios, collapse = ", "), ".", call. = FALSE)
+  }
+  declaradas
+}
+
 .detectar_datos_personales <- function(datos, nombres, resultados,
                                        validadores = list(),
                                        umbral_verificado = 0.9,
-                                       muestra_validadores = 1000L) {
+                                       muestra_validadores = 1000L,
+                                       declaradas = character()) {
   filas <- lapply(seq_along(datos), function(i) {
+    if (nombres[[i]] %in% names(declaradas)) {
+      # Lo declarado no se vuelve a inferir. El paquete no tiene con que
+      # contradecir a quien conoce el dato, y una columna declarada personal
+      # que el lexico no reconoce es justamente el caso que esto resuelve.
+      return(data.frame(
+        columna = nombres[[i]],
+        tipo = unname(declaradas[[nombres[[i]]]]),
+        proporcion_compatible = NA_real_,
+        fundamento = "declarado con `columnas_personales`",
+        poder_discriminante = "declarado",
+        proteger = TRUE,
+        stringsAsFactors = FALSE
+      ))
+    }
     clasificacion <- .clasificar_dato_personal(
       datos[[i]], nombres[[i]], resultados[[i]]$inferencia,
       validadores = validadores, umbral_verificado = umbral_verificado,

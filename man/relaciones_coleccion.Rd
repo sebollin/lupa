@@ -10,7 +10,10 @@ relaciones_coleccion(
   muestra = 10000,
   umbral_cobertura = 0.9,
   orden = NULL,
-  tope_cache_mb = 512
+  tope_cache_mb = 512,
+  columnas_candidatas = NULL,
+  podar = FALSE,
+  tope_memoria_mb = 512
 )
 }
 \arguments{
@@ -29,10 +32,23 @@ la lectura no es repetible y el objeto lo declara.}
 
 \item{tope_cache_mb}{Presupuesto de memoria para la caché de lecturas, en
 megabytes. Al agotarse se sigue leyendo sin cachear y \code{meta} lo declara.}
+
+\item{columnas_candidatas}{Lista nombrada por identificador de tabla. Cada
+vector declara las columnas que pueden participar; una tabla no nombrada
+conserva todas sus columnas.}
+
+\item{podar}{Si se aplican las podas que cambiarían lo informado —tipos
+incompatibles y cardinalidades imposibles—, tal como en
+\code{\link[=detectar_relaciones]{detectar_relaciones()}}. \code{FALSE} por omisión; la poda cierta por rangos
+disjuntos se aplica siempre porque no cambia ninguna fila.}
+
+\item{tope_memoria_mb}{Presupuesto de memoria para resultados de relaciones,
+en megabytes. Al agotarse, las combinaciones pendientes se declaran en
+\code{cobertura_podas} y los pares pendientes en \code{cobertura_pares}.}
 }
 \value{
-Objeto \code{relaciones_coleccion} con \code{relaciones}, \code{cobertura_pares} y
-\code{meta}.
+Objeto \code{relaciones_coleccion} con \code{relaciones}, \code{cobertura_pares},
+\code{cobertura_podas} y \code{meta}.
 }
 \description{
 Corre \code{\link[=detectar_relaciones]{detectar_relaciones()}} sobre los pares de tablas que se declaren, y
@@ -58,6 +74,9 @@ Cada par se compara sobre una muestra de filas de cada tabla, y el resultado
 declara ese alcance: una relación candidata sobre una muestra \strong{no es una
 clave foránea comprobada}, es un indicio que hay que confirmar contra el
 diccionario de datos.
+
+Las columnas candidatas se podan antes de materializar cada comparación. Las
+podas quedan declaradas en \code{cobertura_podas}, con su motivo y conteo.
 }
 \examples{
 if (requireNamespace("RSQLite", quietly = TRUE) &&
@@ -68,7 +87,8 @@ if (requireNamespace("RSQLite", quietly = TRUE) &&
   col <- coleccion(con, c("personas", "visitas"), nombre = "padron")
   relaciones_coleccion(
     col, pares = data.frame(tabla_1 = "personas", tabla_2 = "visitas"),
-    orden = "id"
+    columnas_candidatas = list(personas = "id", visitas = "persona_id"),
+    orden = list(personas = "id", visitas = "persona_id")
   )
   DBI::dbDisconnect(con)
 }

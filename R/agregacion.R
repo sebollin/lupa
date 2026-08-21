@@ -9,11 +9,9 @@
     "celda", "columna", "conjunto de columnas", "tupla", "tabla",
     "conjunto de tablas", "base de datos", NA, NA, NA
   ),
-  # El septimo nivel se mide desde que existe `coleccion()` para declarar la
-  # frontera. Los tres ultimos siguen sin objeto: un conjunto de bases, una
-  # organizacion y un conjunto de organizaciones son decisiones de
-  # gobernanza que no estan en ningun dato.
-  implementada = c(rep(TRUE, 7L), rep(FALSE, 3L)),
+  # Los niveles 7 y 8 reciben una frontera declarada por el usuario. Los dos
+  # niveles institucionales siguen fuera del dato que conoce el paquete.
+  implementada = c(rep(TRUE, 8L), rep(FALSE, 2L)),
   stringsAsFactors = FALSE
 )
 
@@ -106,11 +104,11 @@
 
 #' Granularidades y transiciones de agregación
 #'
-#' `granularidades()` declara los diez niveles del marco. Los primeros seis
-#' están implementados. Los cuatro restantes se registran, pero no se miden
-#' porque falta declarar la frontera del objeto: qué tablas componen una
-#' colección, qué bases componen un conjunto de colecciones, qué bases
-#' pertenecen a una organización y qué organizaciones se comparan.
+#' `granularidades()` declara los diez niveles del marco. Los primeros ocho
+#' están implementados cuando el usuario declara la frontera de la colección o
+#' del conjunto de colecciones. Los dos restantes se registran, pero no se
+#' miden porque una organización y un conjunto de organizaciones requieren una
+#' declaración institucional que no está en los datos.
 #'
 #' `transiciones_granularidad()` devuelve el grafo dirigido de agregaciones.
 #' La transición `instanciaAtributo` a `instanciaEntidad` se incorpora porque
@@ -181,6 +179,7 @@ transiciones_granularidad <- function() {
     # La coleccion entera es un solo objeto: todas las medidas de las tablas
     # declaradas caen en el mismo grupo.
     coleccion = list(rep("coleccion", nrow(medidas))),
+    conjuntoColecciones = list(rep("conjunto_colecciones", nrow(medidas))),
     stop("La granularidad de destino todav\u00eda no admite agregaci\u00f3n.",
          call. = FALSE)
   )
@@ -212,7 +211,8 @@ transiciones_granularidad <- function() {
     ),
     entidad = entidades[[1L]],
     conjuntoEntidades = paste(sort(entidades), collapse = ", "),
-    coleccion = paste(sort(entidades), collapse = ", ")
+    coleccion = paste(sort(entidades), collapse = ", "),
+    conjuntoColecciones = paste(sort(entidades), collapse = ", ")
   )
 }
 # Estos dos ayudantes van ANTES del bloque `roxygen` de `agregar()`, y no entre
@@ -243,7 +243,11 @@ transiciones_granularidad <- function() {
     return(list(
       nombre = coleccion$nombre,
       declaradas = coleccion$tablas$identificador,
-      motivo_faltantes = character()
+      motivo_faltantes = stats::setNames(
+        rep("No hay una medida de esta tabla en la entrada.",
+            nrow(coleccion$tablas)),
+        coleccion$tablas$identificador
+      )
     ))
   }
   if (inherits(coleccion, "perfil_coleccion")) {
@@ -280,17 +284,76 @@ transiciones_granularidad <- function() {
   declaradas <- unique(frontera$declaradas)
   medidas <- unique(entidades_medidas)
   sin_medir <- setdiff(declaradas, medidas)
+  motivos <- unname(frontera$motivo_faltantes[sin_medir])
+  motivos[is.na(motivos)] <-
+    "No hay una medida de esta tabla en la entrada; no se midio en este alcance."
   list(
     coleccion = frontera$nombre,
     tablas_declaradas = length(declaradas),
     tablas_en_el_numero = length(intersect(declaradas, medidas)),
     tablas_sin_medir = sin_medir,
-    motivo_sin_medir = unname(frontera$motivo_faltantes[sin_medir]),
+    motivo_sin_medir = motivos,
     cobertura = if (length(declaradas)) {
       length(intersect(declaradas, medidas)) / length(declaradas)
     } else NA_real_,
     advertencia = paste(
       "El numero cubre las tablas medidas, no la coleccion declarada.",
+      "Leerlo sin su cobertura seria informar como medido lo que no se midio."
+    )
+  )
+}
+
+.validar_conjunto_colecciones <- function(colecciones) {
+  if (!is.list(colecciones) || !length(colecciones)) {
+    stop(
+      "`colecciones` debe ser una lista no vacia de objetos creados por ",
+      "coleccion() o perfilar_coleccion().", call. = FALSE
+    )
+  }
+  clases_validas <- vapply(
+    colecciones, function(x) inherits(x, c("coleccion_lupa", "perfil_coleccion")),
+    logical(1L)
+  )
+  if (any(!clases_validas)) {
+    stop(
+      "Cada elemento de `colecciones` debe provenir de coleccion() o ",
+      "perfilar_coleccion().", call. = FALSE
+    )
+  }
+  nombres <- names(colecciones)
+  if (is.null(nombres) || anyNA(nombres) || any(!nzchar(nombres))) {
+    nombres <- vapply(colecciones, function(x) {
+      if (inherits(x, "coleccion_lupa")) x$nombre else x$meta$nombre
+    }, character(1L))
+  }
+  if (anyNA(nombres) || any(!nzchar(nombres)) || anyDuplicated(nombres)) {
+    stop(
+      "`colecciones` debe tener nombres unicos y no vacios; esos nombres son",
+      " la identidad de cada coleccion en el conjunto.", call. = FALSE
+    )
+  }
+  names(colecciones) <- nombres
+  list(nombre = "conjuntoColecciones", declaradas = nombres)
+}
+
+.cobertura_agregacion_conjunto <- function(frontera, entidades_medidas) {
+  declaradas <- unique(frontera$declaradas)
+  medidas <- unique(entidades_medidas)
+  sin_medir <- setdiff(declaradas, medidas)
+  list(
+    conjunto = frontera$nombre,
+    colecciones_declaradas = length(declaradas),
+    colecciones_en_el_numero = length(intersect(declaradas, medidas)),
+    colecciones_sin_medir = sin_medir,
+    motivo_sin_medir = rep(
+      "No hay una medida de esta coleccion en la entrada; no se midio en este alcance.",
+      length(sin_medir)
+    ),
+    cobertura = if (length(declaradas)) {
+      length(intersect(declaradas, medidas)) / length(declaradas)
+    } else NA_real_,
+    advertencia = paste(
+      "El numero cubre las colecciones medidas, no todas las declaradas.",
       "Leerlo sin su cobertura seria informar como medido lo que no se midio."
     )
   )
@@ -325,6 +388,10 @@ transiciones_granularidad <- function() {
 #'   `"coleccion"`: el objeto de [coleccion()] o el perfil de
 #'   [perfilar_coleccion()]. Sin ella no se sabe sobre qué tablas se está
 #'   agregando, y el número resultante no describiría nada.
+#' @param colecciones Lista nombrada de objetos de [coleccion()] o
+#'   [perfilar_coleccion()], exigida cuando `destino` es
+#'   `"conjuntoColecciones"`. Los nombres declaran la identidad y la frontera
+#'   del conjunto; no se agregan organizaciones ni otros alcances implícitos.
 #'
 #' @return Objeto `medicion` agregado, con una fila por objeto de destino.
 #' @export
@@ -340,7 +407,8 @@ agregar <- function(medidas, destino,
                       "ratio", "ratio_umbral", "promedio",
                       "promedio_ponderado"
                     ),
-                    umbral = NULL, pesos = NULL, coleccion = NULL) {
+                    umbral = NULL, pesos = NULL, coleccion = NULL,
+                    colecciones = NULL) {
   medidas <- .validar_medidas_agregacion(medidas)
   # Se acepta el nombre relacional —`tabla`, `columna`, `celda`— igual que en
   # `metrica()`: el mensaje de error ya los enumera, asi que rechazarlos aca era
@@ -373,19 +441,31 @@ agregar <- function(medidas, destino,
       )
     }
   }
+  conjunto <- NULL
+  if (identical(destino, "conjuntoColecciones")) {
+    conjunto <- .validar_conjunto_colecciones(colecciones)
+    ajenas <- setdiff(unique(medidas$entidad), conjunto$declaradas)
+    if (length(ajenas)) {
+      stop(
+        "Hay medidas de colecciones que no estan declaradas en el conjunto: ",
+        paste(sort(ajenas), collapse = ", "), ". Declaradas: ",
+        paste(sort(conjunto$declaradas), collapse = ", "), ".", call. = FALSE
+      )
+    }
+  }
   if (!.granularidad_implementada(destino)) {
     stop(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
   }
   funcion <- match.arg(funcion)
-  if (identical(destino, "coleccion") &&
+  if (destino %in% c("coleccion", "conjuntoColecciones") &&
       !identical(funcion, "promedio_ponderado")) {
     # Sin esta restriccion la politica de pesos se esquiva por la puerta de al
     # lado: `promedio` daria un numero entre tablas sin declarar nada, que es
     # exactamente el juicio que el paquete se niega a inventar.
     stop(
-      "En la granularidad 'coleccion' solo se admite 'promedio_ponderado': ",
-      "combinar tablas de universos distintos exige declarar los pesos. ",
-      "Sin pesos, `perfilar_coleccion()` devuelve el tablero por tabla.",
+      "En las granularidades 'coleccion' y 'conjuntoColecciones' solo se admite ",
+      "'promedio_ponderado': combinar alcances distintos exige declarar los ",
+      "pesos. Sin pesos, se devuelve el tablero por tabla o por coleccion.",
       call. = FALSE
     )
   }
@@ -427,6 +507,8 @@ agregar <- function(medidas, destino,
       paste(sort(unique(medidas$entidad[indices])), collapse = ", ")
     } else if (destino == "coleccion") {
       coleccion$nombre
+    } else if (destino == "conjuntoColecciones") {
+      conjunto$nombre
     } else {
       medidas$entidad[[primera]]
     }
@@ -479,6 +561,10 @@ agregar <- function(medidas, destino,
     attr(resultado, "cobertura_coleccion") <- .cobertura_agregacion_coleccion(
       coleccion, medidas$entidad
     )
+  }
+  if (identical(destino, "conjuntoColecciones")) {
+    attr(resultado, "cobertura_conjunto_colecciones") <-
+      .cobertura_agregacion_conjunto(conjunto, medidas$entidad)
   }
   resultado
 }

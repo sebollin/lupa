@@ -62,6 +62,53 @@ perfil$hallazgos[
 Setenta por ciento de ausencia, severidad `error`, sobre una columna que está
 completa en todas las filas donde corresponde que tenga valor.
 
+## La señal que dice que hay algo para declarar
+
+El arreglo de arriba exige que quien perfila sepa que `aplicabilidad` existe. Si
+no lo sabe, recibe el informe engañoso y nada más. Por eso el mismo perfil trae
+otra fila:
+
+```{r}
+perfil$hallazgos[
+  perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural",
+  c("columna", "severidad", "n_afectados")
+]
+cat(perfil$hallazgos$evidencia[
+  perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural"
+])
+cat(perfil$hallazgos$sugerencia[
+  perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural"
+])
+```
+
+Severidad `ok`: no es un defecto, es una lectura de la estructura. La evidencia
+es un hecho medido sobre los datos —qué proporción de las filas queda explicada
+por el valor de la otra columna— y la sugerencia trae la línea exacta que habría
+que escribir. Quien decide sigue siendo el usuario: el paquete no reescribe el
+universo por su cuenta, y las columnas ya declaradas quedan fuera del examen.
+
+La señal sale por dos caminos. Uno es el de arriba: **una columna determina la
+presencia de otra**, con un cumplimiento de al menos 0,99, y entonces se puede
+escribir la fórmula. El otro es el reparto: **dos o más columnas se turnan las
+filas sin pisarse** y entre todas cubren la tabla, que es la forma de los
+atributos excluyentes por subtipo. Ahí no hay fórmula que ofrecer —falta la
+columna que diga cuál corresponde— y la sugerencia es la honesta: si existe esa
+columna, `aplicabilidad`; si no existe y la ausencia es por diseño,
+`columnas_opcionales`.
+
+Y no dispara por cualquier cosa. Con un diez por ciento de las filas fuera del
+patrón se calla, porque entonces la relación existe y no es una regla, y
+ofrecer una fórmula sería afirmar de más:
+
+```{r}
+set.seed(4)
+ruidosa <- encuesta
+fuera <- sample(which(ruidosa$tiene_auto == "No"), 200)
+ruidosa$marca_auto[fuera] <- "Ford"
+sum(perfilar(ruidosa, analizar_dependencias = FALSE)$hallazgos$tipo_hallazgo ==
+      "posible_ausencia_estructural")
+```
+
 ## Declarar el universo
 
 `aplicabilidad` toma una fórmula por columna. Las filas donde el predicado no se
@@ -207,3 +254,35 @@ se niega a adivinar claves y jerarquías por la misma razón.
 
 El universo lo declara quien conoce el dato. Sin declaración, toda la columna
 aplica y el resultado es el de siempre: es la única omisión que no supone nada.
+
+Lo que sí hace es medir la evidencia y ofrecerla. La diferencia importa: sugerir
+con la evidencia a la vista deja la decisión donde estaba, y adivinar la
+mueve.
+
+## Y el reverso: cuando la declaración tapa un problema
+
+Una regla declarada puede silenciar algo real. Declarar opcional una columna con
+ochenta por ciento de ausentes deja el perfil limpio, y quien no lea
+`cobertura_diagnosticos` no se entera de nada.
+
+```{r}
+casi_vacia <- data.frame(
+  x = c(rep(NA_character_, 160), rep(letters[1:20], 2)),
+  stringsAsFactors = FALSE
+)
+p <- perfilar(casi_vacia, columnas_opcionales = "x",
+              analizar_dependencias = FALSE)
+p$hallazgos[
+  p$hallazgos$tipo_hallazgo == "regla_silencia_ausencia",
+  c("columna", "severidad", "n_afectados", "n_evaluados")
+]
+cat(p$hallazgos$evidencia[
+  p$hallazgos$tipo_hallazgo == "regla_silencia_ausencia"
+])
+```
+
+También es `ok`, y por la misma razón: la declaración hizo su trabajo. El aviso
+existe para que eso sea una decisión y no un efecto lateral. Vale igual cuando
+el universo se declaró con `aplicabilidad` y la columna sigue casi vacía
+*dentro* de ese universo, que es el caso donde la regla resultó más ancha que el
+universo real.

@@ -184,6 +184,39 @@ parcial nunca descarta lo ya medido: si la lectura de la muestra falla, el objet
 vuelve con `resumen_tabla` completo, `perfil_muestra = NULL` y una fila de
 cobertura con el motivo.
 
+### El costo se planifica antes de pagarlo
+
+Perfilar 158 columnas en `modo = "exacto"` emite 623 consultas, y 777 de las 778
+originales escaneaban la tabla entera. `muestra` no acota eso: acota lo que se
+trae a R, no el trabajo del motor. Así que el costo se declara y se elige:
+
+```r
+plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # 5 consultas, predice el resto
+```
+
+El plan **predice exactamente** cuántas consultas va a emitir el perfilado, en
+los cinco modos, y esa exactitud es una restricción de diseño: cada sonda de
+capacidad gasta un número fijo de consultas aunque acierte en la primera forma,
+porque un costo que dependiera del motor haría que el plan dejara de predecir.
+
+| modo | qué hace |
+| --- | --- |
+| `exacto` | todas las métricas sobre la tabla entera |
+| `seguro` | deja fuera las métricas que ordenan la columna completa |
+| `conteos` | sólo conteos |
+| `muestreado` | métricas sobre filas muestreadas **en el motor**: `TABLESAMPLE` donde existe, un orden pseudoaleatorio con límite donde no |
+| `aproximado` | funciones aproximadas nativas: `APPROX_COUNT_DISTINCT`, `PERCENTILE_CONT`, `approx_quantile` y sus respaldos |
+
+Toda métrica muestreada o aproximada viaja diciéndolo. `estado` distingue
+`calculado`, `estimado` y `no_disponible`, y cada fila lleva `universo`,
+`tamano_muestra`, `fraccion`, `metodo` y `error_esperado` —`desconocido` cuando
+el motor no documenta una cota, nunca una inventada—. El conteo de distintos
+tiene su propio estado, `observado_muestra`: la cardinalidad de una muestra no
+estima la cardinalidad del universo sin un estimador declarado, así que se
+informa por lo que es —lo visto en la muestra, con el universo al lado—. Un
+motor sin capacidad de muestreo no rompe: el modo degrada y lo dice en la tabla
+de cobertura.
+
 ## 🕳️ El vacío por diseño se declara, no se cuenta como defecto
 
 Todo perfilador asume una forma de tabla. `lupa` asume que una fila es un hecho,
@@ -218,9 +251,41 @@ dominios sin relación. Perfila cada grupo por separado, descarta las columnas
 enteramente ausentes dentro de cada grupo antes de perfilar, y declara lo que
 descartó.
 
-`lupa` no infiere el modelo. Nada de esto ocurre si no se declara; la viñeta
-`vacio-por-diseno` documenta el supuesto y las seis formas de tabla donde no
-vale.
+`lupa` no infiere el modelo. Pero declarar el universo exige saber que la opción
+existe, y quien perfilaba una tabla condicionada sin declarar nada recibía justo
+el informe engañoso que la declaración vino a evitar. Así que el paquete **mide
+la evidencia y la ofrece**: cuando el valor de una columna decide qué filas
+tienen otra, o cuando dos columnas se reparten las filas sin pisarse,
+`posible_ausencia_estructural` lo informa con severidad `ok`, la evidencia
+medida y la línea exacta que habría que escribir:
+
+```
+valor_a  posible_ausencia_estructural  ok
+  evidencia   `tipo` predice la presencia de `valor_a` en 100.0 % de 200 filas,
+              con 2 valores distintos. La columna corresponde cuando tipo es "A".
+  sugerencia  perfilar(datos, aplicabilidad = list(valor_a = ~ tipo == "A"))
+```
+
+Sugiere; no decide, y nunca reescribe el universo por su cuenta. Las columnas ya
+declaradas quedan fuera del examen. Sobre veinte conjuntos reales que vienen con
+R y sesenta tablas al azar con ausencia independiente no produce ninguna señal;
+dispara en el modelo entidad-atributo-valor, en el salto de patrón de una
+encuesta y en las columnas excluyentes, y se calla cuando el diez por ciento de
+las filas rompe la regla, porque entonces la relación existe y no es una regla.
+
+La otra cara es `regla_silencia_ausencia`, también `ok`: una columna declarada
+opcional o con universo propio que sigue casi vacía *dentro* de ese universo
+recibe un aviso. La declaración funcionó y por eso el perfil salió limpio; el
+aviso existe para que eso sea una decisión y no un efecto.
+
+`columnas_personales` cierra el hueco equivalente en la otra declaración que el
+paquete no puede hacer solo. Ningún léxico de nombres de columna puede ser
+completo: una columna con documentos se puede llamar `cod_benef`, y ninguna
+lista de nombres frecuentes la va a reconocer. Lo declarado gana sobre lo
+inferido y no se vuelve a examinar.
+
+La viñeta `vacio-por-diseno` documenta el supuesto y las seis formas de tabla
+donde no vale.
 
 ## 🔢 Unidades declaradas y trazabilidad por fila
 
