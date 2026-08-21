@@ -153,13 +153,60 @@ siguientes consultan ese mismo estado: partir la explicación no implica
 recrear la base ni volver a medirla.</p>
 </div>
 <div class="section level2">
+<h2 id="antes-de-conectarse-qué-hace-falta-para-cada-motor">Antes de conectarse: qué hace falta para cada motor<a class="anchor" aria-label="anchor" href="#antes-de-conectarse-qu%C3%A9-hace-falta-para-cada-motor"></a>
+</h2>
+<p><code>lupa</code> tiene una sola dependencia obligatoria. El paquete
+del motor y la biblioteca del sistema que va debajo son cosa de quien
+instala, y el error que aparece cuando falta alguna rara vez dice cuál
+es.</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="op">)</span>            <span class="co"># el catálogo entero</span></span>
+<span><span class="fu"><a href="../reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="st">"mariadb"</span><span class="op">)</span>   <span class="co"># qué necesita MariaDB, y cómo conseguirlo</span></span></code></pre></div>
+<p>Por cada motor devuelve el paquete de R, la biblioteca del sistema
+con su nombre en Debian y en Fedora, <strong>la salida sin permisos de
+administrador</strong> cuando existe, el dialecto esperado y si está
+probado contra motor real o sólo esperado.</p>
+<p>Eso último importa y conviene leerlo con cuidado: la columna dice si
+<strong><code>lupa</code></strong> se probó contra ese motor, no si tu
+instalación funciona. Y la comprobación de la biblioteca del sistema es
+honesta sobre su propio límite — cuando sólo puede decir «el paquete de
+R no está, y si al instalarlo falla la compilación lo que falta es
+esto», dice eso, porque comprobar de verdad exigiría intentar
+compilar.</p>
+</div>
+<div class="section level2">
+<h2 id="leer-el-resultado-sin-memorizar-su-forma">Leer el resultado sin memorizar su forma<a class="anchor" aria-label="anchor" href="#leer-el-resultado-sin-memorizar-su-forma"></a>
+</h2>
+<p><code><a href="../reference/perfilar.html">perfilar()</a></code> devuelve un <code>perfil</code> plano y
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> un contenedor con dos bloques. Es una
+diferencia real —una tabla en memoria y una tabla remota no son lo
+mismo— pero convertía la lectura en un acertijo:
+<code>perfil$general$filas</code> funciona sobre el primero y devuelve
+<code>NULL</code> sobre el segundo.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/sebollin/lupa" class="external-link">lupa</a></span><span class="op">)</span></span>
+<span><span class="va">en_memoria</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos_administrativos</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/accesores_perfil.html">n_filas</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 13</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 21</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 2</span></span>
+<span><span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span>   <span class="co"># NULL: un perfil en memoria no emitió SQL</span></span>
+<span><span class="co">#&gt; NULL</span></span></code></pre></div>
+<p>Los mismos cinco nombres sirven para las cuatro formas de salida. Y
+no inventan lo que no hay: un perfil DBI sin muestra leída devuelve una
+tabla de hallazgos vacía <strong>con su aviso</strong>, no una tabla que
+aparente que se midió y no había nada.</p>
+</div>
+<div class="section level2">
 <h2 id="los-dos-bloques-del-resultado">Los dos bloques del resultado<a class="anchor" aria-label="anchor" href="#los-dos-bloques-del-resultado"></a>
 </h2>
 <p><code>names(perfil)</code> hace visible la separación que devuelve
 <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>. La tabla siguiente compara el alcance de
 cada bloque: las filas de origen y la cantidad de campos analíticos, sin
 presentarlos como un único perfil.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">perfil</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "resumen_tabla"  "perfil_muestra"</span></span>
@@ -192,7 +239,7 @@ analíticos, además del nombre de la columna. Son los conteos y agregados
 que esta interfaz puede calcular en SQL sin traer la tabla: faltantes,
 distintos, moda y resúmenes cuantitativos, entre otros. La salida se
 calcula sobre las doce filas completas de <code>entregas</code>.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">perfil</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">columnas</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"columna"</span>, <span class="st">"n"</span>, <span class="st">"n_faltantes"</span>, <span class="st">"n_distintos"</span>, <span class="st">"minimo"</span>, <span class="st">"maximo"</span>, <span class="st">"media"</span></span>
@@ -219,7 +266,7 @@ rechazó el motor.</p>
 seleccionadas. La salida muestra algunos de sus 105 campos para que se
 vean, junto con los conteos, los faltantes, los distintos y el tipo
 inferido.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">perfil</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">columnas</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"columna"</span>, <span class="st">"n"</span>, <span class="st">"n_faltantes"</span>, <span class="st">"n_distintos"</span>, <span class="st">"tipo_inferido"</span></span>
@@ -260,7 +307,7 @@ la tabla completa que el orden sea único. Sólo entonces informa
 <code>reproducible = TRUE</code>. Indicar una columna que se repite no
 alcanza: el orden puede quedar declarado y aun así no determinar qué
 filas ocupan el límite.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">resumir_muestreo</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">x</span>, <span class="va">caso</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">m</span> <span class="op">&lt;-</span> <span class="va">x</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">origen_dbi</span><span class="op">$</span><span class="va">muestreo</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
@@ -320,7 +367,7 @@ primera se trae a R para ejecutar el perfil completo; la segunda
 permanece en SQL para que los agregados no recorran la tabla completa.
 La metadata de ambos bloques publica el universo y el método
 efectivo.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">estimado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar_dbi.html">perfilar_dbi</a></span><span class="op">(</span></span>
 <span>  <span class="va">conexion</span>, <span class="st">"entregas"</span>, muestra <span class="op">=</span> <span class="fl">5000</span>,</span>
 <span>  modo <span class="op">=</span> <span class="st">"muestreado"</span>, metricas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>

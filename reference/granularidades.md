@@ -1,10 +1,12 @@
 # Granularidades y transiciones de agregación
 
-`granularidades()` declara los diez niveles del marco. Los primeros ocho
-están implementados cuando el usuario declara la frontera de la
-colección o del conjunto de colecciones. Los dos restantes se registran,
-pero no se miden porque una organización y un conjunto de organizaciones
-requieren una declaración institucional que no está en los datos.
+`granularidades()` declara los diez niveles del marco, y los diez se
+miden. Los cuatro de arriba —colección, conjunto de colecciones,
+organización y conjunto de organizaciones— sólo cuando el usuario
+**declara la frontera**: qué tablas componen una colección, qué bases un
+conjunto, qué colecciones una organización, qué organizaciones un
+conjunto. `lupa` no infiere ninguna de las cuatro, porque ninguna está
+en los datos.
 
 ## Usage
 
@@ -19,6 +21,10 @@ transiciones_granularidad()
 Data frames con niveles o aristas del grafo de granularidad.
 
 ## Details
+
+Que estén implementadas no obliga a usarlas. Un análisis que no tiene
+una organización detrás se detiene donde corresponda; los niveles
+superiores existen para quien los necesita.
 
 `transiciones_granularidad()` devuelve el grafo dirigido de
 agregaciones. La transición `instanciaAtributo` a `instanciaEntidad` se
@@ -44,8 +50,8 @@ granularidades()
 #> 6      6      conjuntoEntidades   conjunto de tablas         TRUE
 #> 7      7              coleccion        base de datos         TRUE
 #> 8      8    conjuntoColecciones                 <NA>         TRUE
-#> 9      9           organizacion                 <NA>        FALSE
-#> 10    10 conjuntoOrganizaciones                 <NA>        FALSE
+#> 9      9           organizacion                 <NA>         TRUE
+#> 10    10 conjuntoOrganizaciones                 <NA>         TRUE
 transiciones_granularidad()
 #>              origen                destino                fuente
 #> 1 instanciaAtributo               atributo                 marco

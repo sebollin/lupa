@@ -334,14 +334,16 @@
 <strong>tested</strong> against the real engine: all five modes with no unavailable metric, and the three statistics verified against R</td>
 </tr>
 <tr>
-<td>MariaDB</td>
+<td><strong>MariaDB 11</strong></td>
 <td><code>limit</code></td>
-<td>expected, not checked against the engine</td>
+<td>
+<strong>tested</strong> against the real engine: all five modes with no unavailable metric, the three statistics against R, and the plan exact in the five</td>
 </tr>
 <tr>
-<td>Oracle 12c+</td>
+<td><strong>Oracle Free 23 (23c)</strong></td>
 <td><code>fetch_first</code></td>
-<td>expected, not checked against the engine</td>
+<td>
+<strong>tested</strong> against the real engine: dialect resolved by probe, five modes with no unavailable metric, the three statistics against R, exact plan, qualified names by text and by <code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">DBI::Id</a></code>, and <code>SAMPLE (p)</code> sampling</td>
 </tr>
 <tr>
 <td>Oracle 11 and earlier</td>
@@ -361,10 +363,27 @@
 <p>Every engine added to this table so far has found a defect no simulated engine could. DuckDB found the sharpest one: it accepts <code>TABLESAMPLE SYSTEM (10) WHERE 1 = 0</code> and rejects the same clause without the filter, because with a trivially false filter its parser never validates the sampling method. The capability probe used exactly that filter to stay cheap, so it passed and the real query failed. <strong>A probe that does not exercise the form it later emits proves nothing</strong> — the same lesson the standard-deviation probe taught one round earlier.</p>
 <p>The dialect can be declared with <code>dialecto =</code> if the probe gets it wrong. A partial failure never discards what was already measured: if reading the sample fails, the object comes back with a complete <code>resumen_tabla</code>, <code>perfil_muestra = NULL</code>, and a coverage row carrying the reason.</p>
 <div class="section level3">
+<h3 id="knowing-what-is-missing-before-you-hit-it">Knowing what is missing before you hit it<a class="anchor" aria-label="anchor" href="#knowing-what-is-missing-before-you-hit-it"></a>
+</h3>
+<p><code>lupa</code> has one hard dependency, <code>cli</code>. Everything else is optional — and what used to happen when something was missing was an R error, or a driver error, that named neither what was missing nor how to get it. The hard case is not the R package but the <strong>system library underneath it</strong>: <code>RMariaDB</code> does not compile without the MySQL or MariaDB client headers, <code>ROracle</code> needs Oracle Instant Client, and someone staring at <code>installation of package 'RMariaDB' had non-zero exit status</code> has no way to know the answer is <code>libmariadb-dev</code>.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="op">)</span>            <span class="co"># the whole catalogue</span></span>
+<span><span class="fu"><a href="reference/requisitos_motor.html">requisitos_motor</a></span><span class="op">(</span><span class="st">"oracle"</span><span class="op">)</span>    <span class="co"># what Oracle needs, and how to get it</span></span></code></pre></div>
+<p>For each engine it declares the R package, the system library with its name on Debian and on Fedora, <strong>the way around it without administrator rights</strong> where one exists, the expected dialect, and whether it is tested against the real engine. The escape hatches are not hypothetical: SQL Server had no ODBC driver and no way to install one, and it was solved by compiling FreeTDS into a user prefix and pointing <code>odbc</code> at the <code>.so</code> by path; Oracle Instant Client unzips into a user directory. Neither needed <code>sudo</code>.</p>
+<p>What it does <strong>not</strong> do is claim to have checked a system library it cannot check. When it can only say “the R package is missing, and if installing it fails to compile, this is what you need”, it says exactly that — the package’s own invariant applied to its own installation.</p>
+</div>
+<div class="section level3">
+<h3 id="reading-a-profile-without-knowing-its-shape">Reading a profile without knowing its shape<a class="anchor" aria-label="anchor" href="#reading-a-profile-without-knowing-its-shape"></a>
+</h3>
+<p><code><a href="reference/perfilar.html">perfilar()</a></code> returns a flat <code>perfil</code>; <code><a href="reference/perfilar_dbi.html">perfilar_dbi()</a></code> returns a container. So <code>perfil$general$filas</code> worked on one and returned <code>NULL</code> on the other, where the count lives in <code>resumen_tabla$meta$filas</code>. A silent <code>NULL</code> in a measurement script is the worst way to fail: it does not warn, and everything after it computes on nothing.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">hallazgos</span>(x)    <span class="fu">columnas</span>(x)    <span class="fu">cobertura</span>(x)    <span class="fu">n_filas</span>(x)    <span class="fu">sql_perfil</span>(x)</span></code></pre></div>
+<p>They work over <code>perfil</code>, <code>analisis</code>, <code>perfil_dbi</code> and <code>perfil_coleccion</code>, and they do not invent what is not there: a DBI profile with no sample read returns an empty findings table <strong>with its warning</strong>, and <code><a href="reference/accesores_perfil.html">sql_perfil()</a></code> on an in-memory profile returns <code>NULL</code>, because a table with no rows would suggest SQL was issued and found nothing.</p>
+</div>
+<div class="section level3">
 <h3 id="cost-is-planned-before-it-is-paid">Cost is planned before it is paid<a class="anchor" aria-label="anchor" href="#cost-is-planned-before-it-is-paid"></a>
 </h3>
 <p>Profiling 158 columns in <code>modo = "exacto"</code> emits 623 queries, and 777 of the original 778 scanned the whole table. <code>muestra</code> does not bound that: it bounds what is brought into R, not the work the engine does. So the cost is declared and chosen:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tabla"</span>, modo <span class="op">=</span> <span class="st">"muestreado"</span><span class="op">)</span>   <span class="co"># 5 queries, predicts the rest</span></span></code></pre></div>
 <p>The plan <strong>predicts exactly</strong> how many queries the profiling will emit, in all five modes, and that exactness is a design constraint: every capability probe costs a fixed number of queries even when it succeeds on the first form, because a cost that depends on the engine would make the plan stop predicting.</p>
 <table class="table">
@@ -407,7 +426,7 @@
 </h2>
 <p>Every profiler assumes a table shape. <code>lupa</code> assumes one row is one fact, one column is one semantic domain, and an empty cell should have had a value. The third assumption is the one that hurts: an administrative table is full of legitimate emptiness — an open-ended validity interval, a survey skip pattern, columns that are mutually exclusive by subtype, an entity-attribute-value model. Counting those as missing is arithmetically right and semantically wrong.</p>
 <p><code>aplicabilidad</code> declares, per column, the rows where the column applies. Rows outside that universe leave <code>n_faltantes</code> and <code>prop_faltantes</code> instead of being reported as absence:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="reference/perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">encuesta</span>, aplicabilidad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>marca_auto <span class="op">=</span> <span class="op">~</span> <span class="va">tiene_auto</span> <span class="op">==</span> <span class="st">"Si"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p><code>columnas_opcionales</code> covers the simpler case, where absence is never a defect and there is no rule to write. The declared rule, the resulting universe, and the rows where the rule could not be evaluated all land in <code>cobertura_diagnosticos</code>: a narrowed universe without a record would be the same defect in reverse. Rows whose rule cannot be determined are counted apart, in <code>n_aplicabilidad_indeterminada</code>, because not knowing is not the same as not applying.</p>
 <p>Declaring the universe also enables the symmetric error, which had no way to appear before: <code>valor_fuera_de_aplicabilidad</code> reports a value present where the rule says the column does not apply.</p>
@@ -511,9 +530,9 @@
 </tbody>
 </table>
 <p>In the Raha pairs the dirty/clean comparison labels changed cells; it does not label every property observable in an unchanged column. Manual review found a supported observation in each of the eight further columns—constants, duplicated columns, inconsistent case, empty strings, and high-cardinality text. We therefore report neither precision nor diagnostic recall from Raha: 26/26 is column coverage, not evidence that every changed cell was identified. <a href="https://github.com/sebollin/lupa/tree/main/benchmark" class="external-link"><code>benchmark/</code></a> reproduces the table from the published sources and records the exact file fingerprints used by the published run, but only when <code>lupa</code> is installed from a build of these same sources. From the repository root, reproduce that condition and run the scripts with:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
-<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/verdad_raha.R</span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_lupa.R</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/verdad_raha.R</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_lupa.R</span></code></pre></div>
 <p>The benchmark records the installed version and full <code>Built</code> stamp and stops when that installation lacks a capability required by the published table.</p>
 </div>
 <div class="section level2">
@@ -530,7 +549,7 @@
 <div class="section level3">
 <h3 id="citation-and-references">Citation and references<a class="anchor" aria-label="anchor" href="#citation-and-references"></a>
 </h3>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"lupa"</span><span class="op">)</span></span></code></pre></div>
 <p>Conceptual references are <a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini and Scannapieco (2016)</a>, the <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC Digital Government Data Quality Framework v1.6</a>, and <a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC 25012:2008</a>.</p>
 </div>

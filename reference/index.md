@@ -13,6 +13,9 @@ Perfilar datos y descubrir su estructura.
 - [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
   : Perfilar una tabla por grupos de filas
 
+- [`organizacion()`](https://sebollin.github.io/lupa/reference/organizacion.md)
+  : Declarar una organización y las colecciones que le pertenecen
+
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   : Perfilar una muestra leída mediante DBI
 
@@ -22,6 +25,16 @@ Perfilar datos y descubrir su estructura.
   Planificar el costo de
   [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   antes de pagarlo
+
+- [`requisitos_motor()`](https://sebollin.github.io/lupa/reference/requisitos_motor.md)
+  : Consultar requisitos para conectarse a motores de bases
+
+- [`hallazgos()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  [`columnas()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  [`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  [`n_filas()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  [`sql_perfil()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  : Leer un perfil sin depender de su forma
 
 - [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
   : Distribuciones de valores y cuantiles por columna

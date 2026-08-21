@@ -59,7 +59,9 @@ contra el grafo de <code><a href="granularidades.html">transiciones_granularidad
 <span>  umbral <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  pesos <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  coleccion <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  colecciones <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  colecciones <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  organizacion <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  organizaciones <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -103,6 +105,23 @@ agregando, y el número resultante no describiría nada.</p></dd>
 <code>"conjuntoColecciones"</code>. Los nombres declaran la identidad y la frontera
 del conjunto; no se agregan organizaciones ni otros alcances implícitos.</p></dd>
 
+
+<dt id="arg-organizacion">organizacion<a class="anchor" aria-label="anchor" href="#arg-organizacion"></a></dt>
+<dd><p>Frontera institucional declarada con <code><a href="organizacion.html">organizacion()</a></code>,
+exigida cuando <code>destino</code> es <code>"organizacion"</code>. Qué bases pertenecen a un
+organismo <strong>no está en los datos</strong>, así que lo declara quien lo sabe.</p></dd>
+
+
+<dt id="arg-organizaciones">organizaciones<a class="anchor" aria-label="anchor" href="#arg-organizaciones"></a></dt>
+<dd><p>Lista de objetos de <code><a href="organizacion.html">organizacion()</a></code>, exigida cuando
+<code>destino</code> es <code>"conjuntoOrganizaciones"</code>.</p>
+<p>Los dos niveles institucionales son <strong>opcionales</strong>: un análisis de calidad
+no siempre tiene una organización detrás —una entrega suelta, un archivo
+que alguien mandó, una base sin dueño declarado—, y nada obliga a pasar por
+ellos. Existen para quien los necesita, y sin declaración <code>agregar()</code> se
+niega y explica cómo declararla, que es distinto de inventar una frontera
+que nadie nombró.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -128,9 +147,9 @@ taxonómicos y esta función no calcula un índice global.</p>
 <span class="r-in"><span><span class="va">medidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">agregar</span><span class="op">(</span><span class="va">medidas</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                               id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260821T004746.653046-7444-agg-ratio-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260821T035552.302413-7549-agg-ratio-000001</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260821T004746.653046-7444 2026-08-21 00:47:46  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260821T035552.302413-7549 2026-08-21 03:55:52  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica   metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado</span>

@@ -2,6 +2,128 @@
 
 ## lupa 0.1.0
 
+### Leer un perfil sin conocer su forma, y saber que falta para cada motor
+
+- [`hallazgos()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md),
+  [`columnas()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md),
+  [`cobertura()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md),
+  [`n_filas()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  y
+  [`sql_perfil()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  leen las cuatro formas de salida del paquete sin depender de como
+  estan armadas. `perfil$general$filas` funcionaba sobre la salida en
+  memoria y devolvia `NULL` sobre la salida DBI, donde el conteo vive en
+  `resumen_tabla$meta$filas`; un `NULL` silencioso en un guion de
+  medicion no avisa, y lo que sigue calcula sobre nada. **No inventan lo
+  que no hay**: un perfil DBI sin muestra leida devuelve una tabla de
+  hallazgos vacia con su aviso, y
+  [`sql_perfil()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+  sobre un perfil en memoria devuelve `NULL` porque no se emitio SQL.
+- [`requisitos_motor()`](https://sebollin.github.io/lupa/reference/requisitos_motor.md)
+  contesta que hace falta para hablar con cada motor antes de chocarse:
+  el paquete de R, la biblioteca del sistema con su nombre en Debian y
+  en Fedora, **la alternativa sin permisos de administrador** cuando
+  existe, el dialecto esperado y si esta probado contra motor real. Los
+  errores de conexion se traducen: un
+  `Can't open lib ... file not found` de ODBC pasa a decir que falta
+  `unixodbc-dev` y cual es la salida sin `sudo`.
+- Un controlador que no implementa `dbIsValid()` ya no se toma por
+  conexion rota: se prueba `dbGetInfo()` antes de rendirse. El `ROracle`
+  archivado es el caso, y por eso Oracle quedaba fuera de
+  [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
+  aunque el SQL funcionara.
+
+### Oracle contra motor real
+
+- Verificado contra Oracle Free 23. Importa aparte porque **sus dos
+  dialectos -`fetch_first` y `rownum`- nunca habian corrido contra un
+  motor real**; los otros seis usan `limit` o `top`. Encontro cuatro
+  cosas: la sonda del desvio necesitaba `FROM DUAL`; Oracle rechaza
+  `TABLESAMPLE` y usa `SAMPLE (p)`, que se agrego como forma candidata
+  con su sonda; `dbExistsTable()` del `ROracle` archivado devuelve falso
+  para nombres calificados aunque el SQL funcione; y una columna `CLOB`
+  no se puede agrupar ni ordenar, cosa que el paquete ya declaraba como
+  no disponible sin haberlo previsto.
+- Con esto son **siete motores probados contra motor real**, y los siete
+  encontraron algo que ningun motor simulado habia encontrado.
+
+### Lo que encontro una refutacion adversarial
+
+Se puso un agente a romper las afirmaciones de esta tanda en vez de a
+confirmarlas. Encontro ocho defectos, y los tres peores tenian la misma
+forma: **la tabla con la que se verificaban los motores era comoda**.
+Tenia 5.000 filas de tipos faciles, sin fecha nativa, sin enteros sin
+signo y nunca mas chica que la muestra pedida. Es el mismo error que el
+paquete ya persigue en los demas —el fixture que comparte la propiedad
+cuya ausencia es el fallo— aplicado al propio verificador.
+
+- **Una columna `DATE` se media como numero, con estado `calculado`.**
+  El `dbFetch(n = 0)` de RMariaDB devuelve `numeric(0)` para una fecha:
+  la clase se pierde junto con las filas, e
+  [`is.numeric()`](https://rdrr.io/r/base/numeric.html) decia que si.
+  Salian `minimo` en dias desde 1970 y `media` en YYYYMMDD -dos unidades
+  distintas, las dos publicadas como la misma-. Ahora el tipo declarado
+  por el motor manda sobre el prototipo.
+- **Un `BIGINT UNSIGNED` cerca del tope daba `maximo` menor que
+  `minimo`**, los dos `calculado`. Habia guarda de coherencia para “mas
+  distintos que validos” y no para un rango imposible. Ahora tambien.
+- **El muestreo extrapolaba dividiendo por las filas pedidas y no por
+  las obtenidas.** Pedir mil filas de una tabla de diez daba
+  `n_validos = 0` y `sin_valores` sobre una columna llena, con
+  `fraccion = 1` al lado contradiciendolo. El tamano que se informa y
+  que divide es el efectivo.
+- **El objeto declara con que criterio se comparo.** Un cotejamiento que
+  ignora la caja hace que el resumen SQL cuente dos valores distintos
+  donde el perfil de muestra cuenta cuatro, sobre las mismas filas. Los
+  dos numeros son ciertos en su propia comparacion; faltaba que el
+  objeto dijera cual usa cada bloque.
+- **La cobertura de una parte incompleta ya no se pierde al subir de
+  nivel.** Un conjunto armado con una organizacion a la que le falto una
+  coleccion decia cobertura 1. Ahora hereda `cobertura_de_partes` y
+  marca `completo = FALSE`.
+- **El renombre de partes rompia la composicion**:
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)
+  escribia el nombre del objeto y el nivel de arriba comparaba contra el
+  declarado. Los dos identifican a la misma parte.
+- Una parte con **peso cero** entraba a la cobertura sin aportar al
+  numero, y ahora se declara.
+- **`posible_ausencia_estructural` no disparaba con mas de 20 niveles**,
+  o sea no veia `edad >= 65`, que es el caso mas frecuente de todos. De
+  ahi salio una capacidad nueva: un corte numerico o de fecha tambien se
+  ofrece como regla, con la formula escrita en el tipo correcto
+  -`~ alta >= as.Date("2021-01-01")`, no `>= 18628`-.
+
+`benchmark/verificar_motor.R` incorpora ahora los tipos y tamanos que
+escondian esos defectos, para que la proxima tabla comoda no certifique
+un motor que no lo esta.
+
+### MariaDB, y las diez granularidades del marco
+
+- Verificado contra MariaDB 11 real: los cinco modos sin ninguna metrica
+  no disponible, los tres estadisticos coincidiendo con R, el plan
+  exacto en los cinco. **Es el primer motor real que no encontro ningun
+  defecto**, y tiene explicacion: habla el mismo protocolo que MySQL 8,
+  que ya estaba verificado.
+- [`organizacion()`](https://sebollin.github.io/lupa/reference/organizacion.md)
+  declara que colecciones pertenecen a un organismo, y con eso
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md)
+  mide las granularidades novena y decima del marco. Que bases
+  pertenecen a que organismo **no esta en los datos**, asi que lo
+  declara quien lo sabe; es el mismo mecanismo que ya usaba el conjunto
+  de colecciones.
+- **Los dos niveles institucionales son opcionales.** Un analisis de
+  calidad no siempre tiene una organizacion detras -una entrega suelta,
+  un archivo que alguien mando, una base sin dueno declarado- y nada
+  obliga a pasar por ellos. Sin declaracion,
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) se
+  niega y explica como declararla, que es distinto de inventar una
+  frontera que nadie nombro.
+- La politica de pesos vale para los cuatro niveles con frontera:
+  promediar organismos de tamano distinto sin declararlo es el mismo
+  juicio inventado que el paquete se niega a hacer un piso mas abajo. Y
+  el numero viaja con su cobertura: cuantas de las partes declaradas
+  entraron efectivamente.
+
 ### DuckDB, y una sonda que mentia
 
 - Verificado contra DuckDB 1.5 real: los cinco modos corren sin ninguna

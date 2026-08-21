@@ -15,7 +15,9 @@ agregar(
   umbral = NULL,
   pesos = NULL,
   coleccion = NULL,
-  colecciones = NULL
+  colecciones = NULL,
+  organizacion = NULL,
+  organizaciones = NULL
 )
 ```
 
@@ -66,6 +68,27 @@ agregar(
   declaran la identidad y la frontera del conjunto; no se agregan
   organizaciones ni otros alcances implícitos.
 
+- organizacion:
+
+  Frontera institucional declarada con
+  [`organizacion()`](https://sebollin.github.io/lupa/reference/organizacion.md),
+  exigida cuando `destino` es `"organizacion"`. Qué bases pertenecen a
+  un organismo **no está en los datos**, así que lo declara quien lo
+  sabe.
+
+- organizaciones:
+
+  Lista de objetos de
+  [`organizacion()`](https://sebollin.github.io/lupa/reference/organizacion.md),
+  exigida cuando `destino` es `"conjuntoOrganizaciones"`.
+
+  Los dos niveles institucionales son **opcionales**: un análisis de
+  calidad no siempre tiene una organización detrás —una entrega suelta,
+  un archivo que alguien mandó, una base sin dueño declarado—, y nada
+  obliga a pasar por ellos. Existen para quien los necesita, y sin
+  declaración `agregar()` se niega y explica cómo declararla, que es
+  distinto de inventar una frontera que nadie nombró.
+
 ## Value
 
 Objeto `medicion` agregado, con una fila por objeto de destino.
@@ -91,9 +114,9 @@ instancia <- instanciar(especifica, "personas", "edad")
 medidas <- medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 agregar(medidas, "atributo", "ratio")
 #>                                               id_medida
-#> 1 medicion-20260821T004746.653046-7444-agg-ratio-000001
+#> 1 medicion-20260821T035552.302413-7549-agg-ratio-000001
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260821T004746.653046-7444 2026-08-21 00:47:46  NoNulo
+#> 1 medicion-20260821T035552.302413-7549 2026-08-21 03:55:52  NoNulo
 #>   metrica_especifica   metrica_instanciada   dimension   factor orientacion
 #> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad
 #>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado

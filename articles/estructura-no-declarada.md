@@ -299,8 +299,8 @@ granularidades()
 #> 6      6      conjuntoEntidades   conjunto de tablas         TRUE
 #> 7      7              coleccion        base de datos         TRUE
 #> 8      8    conjuntoColecciones                 <NA>         TRUE
-#> 9      9           organizacion                 <NA>        FALSE
-#> 10    10 conjuntoOrganizaciones                 <NA>        FALSE
+#> 9      9           organizacion                 <NA>         TRUE
+#> 10    10 conjuntoOrganizaciones                 <NA>         TRUE
 transiciones_granularidad()
 #>              origen                destino                fuente
 #> 1 instanciaAtributo               atributo                 marco

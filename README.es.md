@@ -190,9 +190,9 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 | **MySQL 8** | `limit` | **probado** contra el motor real: mismos tres estadísticos verificados contra R |
 | **SQL Server 2022** | `top` | **probado** contra el motor real: la sonda resuelve `top` sola, y los tres estadísticos coinciden con R |
 | **DuckDB 1.5** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, y los tres estadísticos verificados contra R |
-| MariaDB | `limit` | esperado, no comprobado contra el motor |
-| Oracle 12c+ | `fetch_first` | esperado, sin comprobar contra el motor |
-| Oracle 11 y anteriores | `rownum` | esperado, sin comprobar contra el motor |
+| **MariaDB 11** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, y el plan exacto en los cinco |
+| **Oracle Free 23 (23c)** | `fetch_first` | **probado** contra el motor real: dialecto resuelto por sonda, los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, plan exacto, nombres calificados por texto y por [`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html), y muestreo `SAMPLE (p)` |
+| Oracle 11 y anterior | `rownum` | esperado, no comprobado contra el motor |
 | cualquier otro compatible con DBI | `portable` | reserva: `dbSendQuery()` + `dbFetch(n)` |
 
 La afirmación es reproducible: `benchmark/verificar_motor.R` toma
@@ -223,6 +223,59 @@ El dialecto se puede declarar con `dialecto =` si la sonda no acierta.
 Un fallo parcial nunca descarta lo ya medido: si la lectura de la
 muestra falla, el objeto vuelve con `resumen_tabla` completo,
 `perfil_muestra = NULL` y una fila de cobertura con el motivo.
+
+### Saber qué falta antes de chocarse
+
+`lupa` tiene una sola dependencia obligatoria, `cli`. Todo lo demás es
+opcional —y lo que pasaba cuando faltaba algo era un error de R, o del
+controlador, que no decía ni qué faltaba ni cómo conseguirlo. El caso
+duro no es el paquete de R sino la **biblioteca del sistema que va
+debajo**: `RMariaDB` no compila sin las cabeceras del cliente de MySQL o
+MariaDB, `ROracle` necesita el Instant Client de Oracle, y quien ve
+`installation of package 'RMariaDB' had non-zero exit status` no tiene
+forma de saber que la respuesta es `libmariadb-dev`.
+
+``` r
+
+requisitos_motor()            # el catálogo entero
+requisitos_motor("oracle")    # qué necesita Oracle, y cómo conseguirlo
+```
+
+Por cada motor declara el paquete de R, la biblioteca del sistema con su
+nombre en Debian y en Fedora, **la salida sin permisos de
+administrador** cuando existe, el dialecto esperado y si está probado
+contra motor real. Las salidas no son hipotéticas: para SQL Server no
+había driver ODBC ni forma de instalarlo, y se resolvió compilando
+FreeTDS en un prefijo del usuario y pasándole la ruta a `odbc`; el
+Instant Client de Oracle se descomprime en una carpeta propia. Ninguna
+de las dos necesitó `sudo`.
+
+Lo que **no** hace es afirmar que comprobó una biblioteca del sistema
+que no puede comprobar. Cuando sólo puede decir «el paquete de R no
+está, y si al instalarlo falla la compilación lo que falta es esto»,
+dice exactamente eso: el invariante del paquete aplicado a su propia
+instalación.
+
+### Leer un perfil sin conocer su forma
+
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+devuelve un `perfil` plano;
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+devuelve un contenedor. Así que `perfil$general$filas` funcionaba sobre
+uno y devolvía `NULL` sobre el otro, donde el conteo vive en
+`resumen_tabla$meta$filas`. Un `NULL` silencioso en un guion de medición
+es la peor forma de fallar: no avisa, y lo que sigue calcula sobre nada.
+
+``` r
+hallazgos(x)    columnas(x)    cobertura(x)    n_filas(x)    sql_perfil(x)
+```
+
+Andan sobre `perfil`, `analisis`, `perfil_dbi` y `perfil_coleccion`, y
+no inventan lo que no hay: un perfil DBI sin muestra leída devuelve una
+tabla de hallazgos vacía **con su aviso**, y
+[`sql_perfil()`](https://sebollin.github.io/lupa/reference/accesores_perfil.md)
+sobre un perfil en memoria devuelve `NULL`, porque una tabla sin filas
+sugeriría que se emitió SQL y no encontró nada.
 
 ### El costo se planifica antes de pagarlo
 

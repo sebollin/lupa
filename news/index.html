@@ -42,6 +42,48 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="leer-un-perfil-sin-conocer-su-forma-y-saber-que-falta-para-cada-motor-0-1-0">Leer un perfil sin conocer su forma, y saber que falta para cada motor<a class="anchor" aria-label="anchor" href="#leer-un-perfil-sin-conocer-su-forma-y-saber-que-falta-para-cada-motor-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/accesores_perfil.html">hallazgos()</a></code>, <code><a href="../reference/accesores_perfil.html">columnas()</a></code>, <code><a href="../reference/accesores_perfil.html">cobertura()</a></code>, <code><a href="../reference/accesores_perfil.html">n_filas()</a></code> y <code><a href="../reference/accesores_perfil.html">sql_perfil()</a></code> leen las cuatro formas de salida del paquete sin depender de como estan armadas. <code>perfil$general$filas</code> funcionaba sobre la salida en memoria y devolvia <code>NULL</code> sobre la salida DBI, donde el conteo vive en <code>resumen_tabla$meta$filas</code>; un <code>NULL</code> silencioso en un guion de medicion no avisa, y lo que sigue calcula sobre nada. <strong>No inventan lo que no hay</strong>: un perfil DBI sin muestra leida devuelve una tabla de hallazgos vacia con su aviso, y <code><a href="../reference/accesores_perfil.html">sql_perfil()</a></code> sobre un perfil en memoria devuelve <code>NULL</code> porque no se emitio SQL.</li>
+<li>
+<code><a href="../reference/requisitos_motor.html">requisitos_motor()</a></code> contesta que hace falta para hablar con cada motor antes de chocarse: el paquete de R, la biblioteca del sistema con su nombre en Debian y en Fedora, <strong>la alternativa sin permisos de administrador</strong> cuando existe, el dialecto esperado y si esta probado contra motor real. Los errores de conexion se traducen: un <code>Can't open lib ... file not found</code> de ODBC pasa a decir que falta <code>unixodbc-dev</code> y cual es la salida sin <code>sudo</code>.</li>
+<li>Un controlador que no implementa <code>dbIsValid()</code> ya no se toma por conexion rota: se prueba <code>dbGetInfo()</code> antes de rendirse. El <code>ROracle</code> archivado es el caso, y por eso Oracle quedaba fuera de <code><a href="../reference/coleccion.html">coleccion()</a></code> aunque el SQL funcionara.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="oracle-contra-motor-real-0-1-0">Oracle contra motor real<a class="anchor" aria-label="anchor" href="#oracle-contra-motor-real-0-1-0"></a></h3>
+<ul><li>Verificado contra Oracle Free 23. Importa aparte porque <strong>sus dos dialectos -<code>fetch_first</code> y <code>rownum</code>- nunca habian corrido contra un motor real</strong>; los otros seis usan <code>limit</code> o <code>top</code>. Encontro cuatro cosas: la sonda del desvio necesitaba <code>FROM DUAL</code>; Oracle rechaza <code>TABLESAMPLE</code> y usa <code>SAMPLE (p)</code>, que se agrego como forma candidata con su sonda; <code>dbExistsTable()</code> del <code>ROracle</code> archivado devuelve falso para nombres calificados aunque el SQL funcione; y una columna <code>CLOB</code> no se puede agrupar ni ordenar, cosa que el paquete ya declaraba como no disponible sin haberlo previsto.</li>
+<li>Con esto son <strong>siete motores probados contra motor real</strong>, y los siete encontraron algo que ningun motor simulado habia encontrado.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="lo-que-encontro-una-refutacion-adversarial-0-1-0">Lo que encontro una refutacion adversarial<a class="anchor" aria-label="anchor" href="#lo-que-encontro-una-refutacion-adversarial-0-1-0"></a></h3>
+<p>Se puso un agente a romper las afirmaciones de esta tanda en vez de a confirmarlas. Encontro ocho defectos, y los tres peores tenian la misma forma: <strong>la tabla con la que se verificaban los motores era comoda</strong>. Tenia 5.000 filas de tipos faciles, sin fecha nativa, sin enteros sin signo y nunca mas chica que la muestra pedida. Es el mismo error que el paquete ya persigue en los demas —el fixture que comparte la propiedad cuya ausencia es el fallo— aplicado al propio verificador.</p>
+<ul><li>
+<strong>Una columna <code>DATE</code> se media como numero, con estado <code>calculado</code>.</strong> El <code>dbFetch(n = 0)</code> de RMariaDB devuelve <code>numeric(0)</code> para una fecha: la clase se pierde junto con las filas, e <code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">is.numeric()</a></code> decia que si. Salian <code>minimo</code> en dias desde 1970 y <code>media</code> en YYYYMMDD -dos unidades distintas, las dos publicadas como la misma-. Ahora el tipo declarado por el motor manda sobre el prototipo.</li>
+<li>
+<strong>Un <code>BIGINT UNSIGNED</code> cerca del tope daba <code>maximo</code> menor que <code>minimo</code></strong>, los dos <code>calculado</code>. Habia guarda de coherencia para “mas distintos que validos” y no para un rango imposible. Ahora tambien.</li>
+<li>
+<strong>El muestreo extrapolaba dividiendo por las filas pedidas y no por las obtenidas.</strong> Pedir mil filas de una tabla de diez daba <code>n_validos = 0</code> y <code>sin_valores</code> sobre una columna llena, con <code>fraccion = 1</code> al lado contradiciendolo. El tamano que se informa y que divide es el efectivo.</li>
+<li>
+<strong>El objeto declara con que criterio se comparo.</strong> Un cotejamiento que ignora la caja hace que el resumen SQL cuente dos valores distintos donde el perfil de muestra cuenta cuatro, sobre las mismas filas. Los dos numeros son ciertos en su propia comparacion; faltaba que el objeto dijera cual usa cada bloque.</li>
+<li>
+<strong>La cobertura de una parte incompleta ya no se pierde al subir de nivel.</strong> Un conjunto armado con una organizacion a la que le falto una coleccion decia cobertura 1. Ahora hereda <code>cobertura_de_partes</code> y marca <code>completo = FALSE</code>.</li>
+<li>
+<strong>El renombre de partes rompia la composicion</strong>: <code><a href="../reference/agregar.html">agregar()</a></code> escribia el nombre del objeto y el nivel de arriba comparaba contra el declarado. Los dos identifican a la misma parte.</li>
+<li>Una parte con <strong>peso cero</strong> entraba a la cobertura sin aportar al numero, y ahora se declara.</li>
+<li>
+<strong><code>posible_ausencia_estructural</code> no disparaba con mas de 20 niveles</strong>, o sea no veia <code>edad &gt;= 65</code>, que es el caso mas frecuente de todos. De ahi salio una capacidad nueva: un corte numerico o de fecha tambien se ofrece como regla, con la formula escrita en el tipo correcto -<code>~ alta &gt;= as.Date("2021-01-01")</code>, no <code>&gt;= 18628</code>-.</li>
+</ul><p><code>benchmark/verificar_motor.R</code> incorpora ahora los tipos y tamanos que escondian esos defectos, para que la proxima tabla comoda no certifique un motor que no lo esta.</p>
+</div>
+<div class="section level3">
+<h3 id="mariadb-y-las-diez-granularidades-del-marco-0-1-0">MariaDB, y las diez granularidades del marco<a class="anchor" aria-label="anchor" href="#mariadb-y-las-diez-granularidades-del-marco-0-1-0"></a></h3>
+<ul><li>Verificado contra MariaDB 11 real: los cinco modos sin ninguna metrica no disponible, los tres estadisticos coincidiendo con R, el plan exacto en los cinco. <strong>Es el primer motor real que no encontro ningun defecto</strong>, y tiene explicacion: habla el mismo protocolo que MySQL 8, que ya estaba verificado.</li>
+<li>
+<code><a href="../reference/organizacion.html">organizacion()</a></code> declara que colecciones pertenecen a un organismo, y con eso <code><a href="../reference/agregar.html">agregar()</a></code> mide las granularidades novena y decima del marco. Que bases pertenecen a que organismo <strong>no esta en los datos</strong>, asi que lo declara quien lo sabe; es el mismo mecanismo que ya usaba el conjunto de colecciones.</li>
+<li>
+<strong>Los dos niveles institucionales son opcionales.</strong> Un analisis de calidad no siempre tiene una organizacion detras -una entrega suelta, un archivo que alguien mando, una base sin dueno declarado- y nada obliga a pasar por ellos. Sin declaracion, <code><a href="../reference/agregar.html">agregar()</a></code> se niega y explica como declararla, que es distinto de inventar una frontera que nadie nombro.</li>
+<li>La politica de pesos vale para los cuatro niveles con frontera: promediar organismos de tamano distinto sin declararlo es el mismo juicio inventado que el paquete se niega a hacer un piso mas abajo. Y el numero viaja con su cobertura: cuantas de las partes declaradas entraron efectivamente.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="duckdb-y-una-sonda-que-mentia-0-1-0">DuckDB, y una sonda que mentia<a class="anchor" aria-label="anchor" href="#duckdb-y-una-sonda-que-mentia-0-1-0"></a></h3>
 <ul><li>Verificado contra DuckDB 1.5 real: los cinco modos corren sin ninguna metrica no disponible, la media, la mediana y el desvio coinciden con los calculados en R sobre la tabla entera, y los nombres calificados con punto y las colecciones de dos esquemas funcionan.</li>
 <li>
