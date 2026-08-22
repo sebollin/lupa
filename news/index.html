@@ -42,6 +42,39 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="el-veredicto-ya-no-depende-de-como-venga-ordenado-el-archivo-0-1-0">El veredicto ya no depende de como venga ordenado el archivo<a class="anchor" aria-label="anchor" href="#el-veredicto-ya-no-depende-de-como-venga-ordenado-el-archivo-0-1-0"></a></h3>
+<p>Cuando el vocabulario de una columna de texto excede el presupuesto, hay que elegir que formas comparar. Se elegian <strong>las primeras en aparecer</strong>, y eso hacia que el resultado dependiera del orden de las filas.</p>
+<p>Medido sobre la columna <code>nombre</code> de <em>Ejes de vias de circulacion</em> de Montevideo —45.400 filas, 8.318 formas distintas, del catalogo nacional de datos abiertos—, las <strong>mismas filas</strong> daban:</p>
+<table class="table"><thead><tr><th>orden de las filas</th>
+<th>grupos de casi-duplicados</th>
+</tr></thead><tbody><tr><td>tal como viene el archivo</td>
+<td><strong>26</strong></td>
+</tr><tr><td>desordenado (semillas 11, 202, 7777)</td>
+<td>71, 85, 70</td>
+</tr><tr><td>alfabetico</td>
+<td><strong>148</strong></td>
+</tr></tbody></table><p>De 26 a 148 segun como estuviera ordenado el archivo. Un perfilador que hace eso mide la forma fisica de la tabla, no los datos, que es exactamente lo que el paquete promete no hacer.</p>
+<ul><li>Ahora las formas se <strong>ordenan antes de recortar</strong>. Los cinco ordenes de arriba dan <strong>148</strong> grupos: el resultado es el mismo venga como venga el archivo.</li>
+<li>Ordenar tiene ademas una razon de fondo: los casi-duplicados quedan <strong>adyacentes</strong> —<code>CAMINO CARRASCO</code> junto a <code>CAMINO AGRARIOS</code>—, asi que el corte cae entre familias en vez de partirlas. Una muestra al azar rompe pares: si de un grupo de dos sobrevive uno, el grupo desaparece. Por eso el azar rinde 70-85 y el orden rinde 148 <strong>con el mismo presupuesto</strong>.</li>
+<li>El orden es por bytes (<code>method = "radix"</code>) y no el del entorno: la intercalacion por omision cambia de una maquina a otra, y eso habria cambiado el defecto de lugar en vez de sacarlo.</li>
+<li>El mensaje de cobertura dice ahora que las formas comparadas son las primeras del alfabeto y que lo que queda afuera es su tramo final. Antes recomendaba “desordenar la tabla antes”, que era el mejor consejo posible mientras el defecto estuviera.</li>
+</ul><p>Lo destapo la tercera vuelta contra bases reales, que dejo esta afirmacion sin verificar por no encontrar una columna que la ejercitara. La columna existia.</p>
+</div>
+<div class="section level3">
+<h3 id="un-conteo-del-perfil-ya-no-cambia-de-clase-segun-que-tenga-instalado-el-usuario-0-1-0">Un conteo del perfil ya no cambia de clase segun que tenga instalado el usuario<a class="anchor" aria-label="anchor" href="#un-conteo-del-perfil-ya-no-cambia-de-clase-segun-que-tenga-instalado-el-usuario-0-1-0"></a></h3>
+<p><code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> devolvia <code>n_validos</code>, <code>n_faltantes</code>, <code>n_distintos</code>, <code>frecuencia_moda</code>, <code>meta$filas</code> y <code>filas_totales_fuente</code> como <strong><code>integer64</code></strong> siempre que <code>bit64</code> estuviera instalado, incluido un conteo de 20.</p>
+<ul><li><p>Eso no agregaba precision: por debajo de 2^53 un <code>double</code> ya representa el entero exacto.</p></li>
+<li><p>Y agregaba tres problemas. La clase del mismo campo dependia de un <code>Suggests</code>. <code><a href="../reference/perfilar.html">perfilar()</a></code> devolvia <code>integer</code> para <code>n_distintos</code> y <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> devolvia <code>integer64</code>: dos puertas del mismo paquete en desacuerdo sobre el mismo campo.</p></li>
+<li>
+<p>El tercero es el que decide. Un perfil guardado en una maquina con <code>bit64</code> y leido en una que no lo tiene mostraba:</p>
+<pre><code>  columna     n_validos   n_distintos
+1      id 9.881313e-323 9.881313e-323</code></pre>
+<p>donde midio <code>20</code>. Sin error, sin aviso, y sumando como si fuera un numero. Informar como medido algo que no lo es, en el paquete cuyo argumento es justamente ese.</p>
+</li>
+<li><p>Los conteos salen ahora <code>numeric</code>. <code>integer64</code> se conserva <strong>solo donde compra exactitud</strong>: un conteo por encima de 2^53 que el motor entrega como texto o como <code>integer64</code>. Para un conteo de filas eso significa una tabla de mas de nueve mil billones.</p></li>
+<li><p>De paso se corrige el error simetrico: <code>conteo_exacto</code> decia <code>FALSE</code> para un conteo entregado como texto por encima de 2^53, que es justo el caso donde si se guarda exacto. El paquete se declaraba menos preciso de lo que era.</p></li>
+</ul></div>
+<div class="section level3">
 <h3 id="el-r-minimo-declarado-ahora-es-un-r-medido-0-1-0">El R minimo declarado ahora es un R medido<a class="anchor" aria-label="anchor" href="#el-r-minimo-declarado-ahora-es-un-r-medido-0-1-0"></a></h3>
 <p><code>DESCRIPTION</code> declaraba <code>R (&gt;= 3.6.0)</code>, y era una promesa que el paquete <strong>no cumple</strong>. Pasa a <code>R (&gt;= 4.1.0)</code>.</p>
 <ul><li>Se venia afirmando que la suite <strong>no puede</strong> correr bajo R 3.6, porque <code>testthat</code> declara <code>R (&gt;= 4.1.0)</code>. Eso es cierto contra CRAN de hoy y falso contra el snapshot de la epoca: ahi <code>testthat 3.1.7</code> instala sin problema. La suite corre, y da <code>[ FAIL 18 | PASS 15356 ]</code>. La generalizacion tapo dieciocho fallos.</li>

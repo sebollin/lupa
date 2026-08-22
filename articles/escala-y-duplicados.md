@@ -117,8 +117,8 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.424 pares en
-#> 0,051 s.
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 24.948 pares en
+#> 0,050 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
 )]
@@ -192,7 +192,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/RtmpxRgf0h/lupa-lotes-2285724b926/lupa-lotes-22857600b74f"
+#> [1] "/tmp/Rtmpx9RAch/lupa-lotes-23037f3cdcd8/lupa-lotes-2303672ce693"
 #> 
 #> $n_parciales
 #> [1] 6
@@ -246,12 +246,33 @@ de los topes recortó, en el alcance del hallazgo y en
 los dos, porque hay que poder elegir cuál aflojar.
 
 Un detalle que conviene saber antes de confiar en un recorte: las formas
-que sí se comparan son **las primeras en aparecer**, no una muestra. Con
-los mismos 300 valores y el mismo presupuesto, poniendo primero los
-largos entran 8 formas y poniendo primero los cortos entran 150. Sobre
-una tabla ordenada —lo normal en un extracto— lo que queda afuera es un
-tramo del orden, así que si el recorte aparece y el alcance importa,
-conviene desordenar antes o subir el tope.
+que sí se comparan son **las primeras en orden alfabético**, no una
+muestra ni las primeras en aparecer. Lo que queda afuera es el tramo
+final del alfabeto, y eso se declara.
+
+Que sea el alfabeto y no el orden de llegada no es una preferencia de
+estilo: **tomarlas en orden de llegada hacía que el veredicto dependiera
+de cómo viniera ordenado el archivo.** Medido sobre la columna `nombre`
+de *Ejes de vías de circulación* de Montevideo —45.400 filas, 8.318
+formas distintas, del catálogo nacional de datos abiertos—, las mismas
+filas daban:
+
+| orden de las filas          | grupos de casi-duplicados |
+|-----------------------------|---------------------------|
+| tal como viene el archivo   | 26                        |
+| desordenado (tres semillas) | 70, 71, 85                |
+| alfabético                  | 148                       |
+
+Un perfilador que da 26 o 148 según el orden de las filas está midiendo
+la forma física de la tabla y no los datos. Ordenando antes de recortar,
+los cinco órdenes dan **148**.
+
+El alfabeto además no es una elección arbitraria entre órdenes estables:
+deja los casi-duplicados **adyacentes** —`CAMINO CARRASCO` al lado de
+`CAMINO AGRARIOS`—, así que el corte cae entre familias en vez de
+partirlas. Una muestra al azar rompe pares: si de un grupo de dos
+sobrevive uno, el grupo desaparece. Por eso el azar rinde 70–85 y el
+orden rinde 148 con el mismo presupuesto.
 
 [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
 tiene el suyo, `max_trabajo`, en unidades **fila-par**: ahí el costo es

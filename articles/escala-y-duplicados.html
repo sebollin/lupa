@@ -206,8 +206,8 @@ colisión.</p>
 <span>  max_resultados <span class="op">=</span> <span class="fl">100</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;</span></span>
-<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.424 pares en</span></span>
-<span><span class="co">#&gt; 0,051 s.</span></span>
+<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 24.948 pares en</span></span>
+<span><span class="co">#&gt; 0,050 s.</span></span>
 <span><span class="va">exacto</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span>, <span class="st">"igualo_normalizar"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
@@ -274,7 +274,7 @@ siendo exacta; sólo cambia cuánta memoria se usa a la vez.</p>
 <span>  <span class="st">"directorio"</span>, <span class="st">"n_parciales"</span>, <span class="st">"bytes_totales"</span>, <span class="st">"reanudable"</span>, <span class="st">"perdida"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $directorio</span></span>
-<span><span class="co">#&gt; [1] "/tmp/RtmpxRgf0h/lupa-lotes-2285724b926/lupa-lotes-22857600b74f"</span></span>
+<span><span class="co">#&gt; [1] "/tmp/Rtmpx9RAch/lupa-lotes-23037f3cdcd8/lupa-lotes-2303672ce693"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $n_parciales</span></span>
 <span><span class="co">#&gt; [1] 6</span></span>
@@ -345,12 +345,45 @@ hallazgo y en <code>cobertura_diagnosticos</code>. Si aprietan los dos,
 el motivo los nombra a los dos, porque hay que poder elegir cuál
 aflojar.</p>
 <p>Un detalle que conviene saber antes de confiar en un recorte: las
-formas que sí se comparan son <strong>las primeras en aparecer</strong>,
-no una muestra. Con los mismos 300 valores y el mismo presupuesto,
-poniendo primero los largos entran 8 formas y poniendo primero los
-cortos entran 150. Sobre una tabla ordenada —lo normal en un extracto—
-lo que queda afuera es un tramo del orden, así que si el recorte aparece
-y el alcance importa, conviene desordenar antes o subir el tope.</p>
+formas que sí se comparan son <strong>las primeras en orden
+alfabético</strong>, no una muestra ni las primeras en aparecer. Lo que
+queda afuera es el tramo final del alfabeto, y eso se declara.</p>
+<p>Que sea el alfabeto y no el orden de llegada no es una preferencia de
+estilo: <strong>tomarlas en orden de llegada hacía que el veredicto
+dependiera de cómo viniera ordenado el archivo.</strong> Medido sobre la
+columna <code>nombre</code> de <em>Ejes de vías de circulación</em> de
+Montevideo —45.400 filas, 8.318 formas distintas, del catálogo nacional
+de datos abiertos—, las mismas filas daban:</p>
+<table class="table">
+<thead><tr class="header">
+<th>orden de las filas</th>
+<th>grupos de casi-duplicados</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>tal como viene el archivo</td>
+<td>26</td>
+</tr>
+<tr class="even">
+<td>desordenado (tres semillas)</td>
+<td>70, 71, 85</td>
+</tr>
+<tr class="odd">
+<td>alfabético</td>
+<td>148</td>
+</tr>
+</tbody>
+</table>
+<p>Un perfilador que da 26 o 148 según el orden de las filas está
+midiendo la forma física de la tabla y no los datos. Ordenando antes de
+recortar, los cinco órdenes dan <strong>148</strong>.</p>
+<p>El alfabeto además no es una elección arbitraria entre órdenes
+estables: deja los casi-duplicados <strong>adyacentes</strong>
+—<code>CAMINO CARRASCO</code> al lado de <code>CAMINO AGRARIOS</code>—,
+así que el corte cae entre familias en vez de partirlas. Una muestra al
+azar rompe pares: si de un grupo de dos sobrevive uno, el grupo
+desaparece. Por eso el azar rinde 70–85 y el orden rinde 148 con el
+mismo presupuesto.</p>
 <p><code><a href="../reference/detectar_dependencias.html">detectar_dependencias()</a></code> tiene el suyo,
 <code>max_trabajo</code>, en unidades <strong>fila-par</strong>: ahí el
 costo es del orden de <code>columnas² × filas</code>, y
