@@ -14,14 +14,14 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **Estado de la matriz sobre `49b644b`:**
+> **Estado de la matriz sobre `426064a`:**
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-22c/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-22c/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-22c/sin-incoming/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| PASS 14613 ]` | `../verificacion/2026-08-22c/r41/lupa.Rcheck/00check.log` |
+> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-22d/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-22d/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-22d/sin-incoming/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| PASS 14613 ]` | `../verificacion/2026-08-22d/r41/lupa.Rcheck/00check.log` |
 > | GitHub Actions (5 plataformas) | PENDIENTE_ACTIONS | log de la corrida |
 > | R-hub v2 R-devel (3 plataformas) | PENDIENTE_RHUB | log de la corrida |
 > | win-builder release y devel | PENDIENTE_WB | log de cada corrida |
@@ -65,7 +65,9 @@ checked in every environment that can run them.
 _R_CHECK_DEPENDS_ONLY_=true R CMD check --as-cran lupa_0.1.0.tar.gz
 ```
 
-Result on these sources: **`Status: OK`**.
+Result on these sources: **`Status: 1 NOTE`**, the new-submission note and nothing
+else — the same result as the ordinary check, which is the point: removing the
+optional packages changes nothing.
 
 This runs before any external service and is the first step of the release script.
 An earlier revision passed in eight environments and still failed this one with
@@ -86,6 +88,15 @@ that a machine without DBI never produces. The failures predate the current
 revision, so this paragraph had been claiming a result it no longer had. Both
 files now guard per test rather than per file, so the blocks that do run without
 the optional packages still run.
+
+**And this check turns out not to be equivalent to the environment it stands in
+for.** Running the suite in a container where `bit64` genuinely has no build,
+two tests failed that pass here — both of them tests *about* `bit64` being
+absent, which built their fixture in a way that needed `bit64` present to
+construct it. This check had hidden `bit64` well enough for
+`skip_if_not_installed()` to skip eight other tests, and still those two ran and
+passed. A check that removes packages from the library path is close to, but not
+the same as, a machine that never had them.
 
 The lesson is about this letter and not about those tests. A section stating a
 check result is exactly as verifiable — and as forgettable — as a code comment
