@@ -14,15 +14,15 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **Estado de la matriz sobre `7212024`:**
+> **Estado de la matriz sobre `9a7583d`:**
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-22e/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-22e/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-22e/sin-incoming/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| PASS 14639 ]` | `../verificacion/2026-08-22e/r41/lupa.Rcheck/00check.log` |
-> | suite completa | **15.672 comprobaciones, 0 fallos** | `test_dir()` |
+> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-22f/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-22f/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-22f/sin-incoming/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| PASS 14641 ]` | `../verificacion/2026-08-22f/r41/lupa.Rcheck/00check.log` |
+> | suite completa | **15.677 comprobaciones, 0 fallos** | `test_dir()` |
 > | GitHub Actions (5 plataformas) | PENDIENTE_ACTIONS | log de la corrida |
 > | R-hub v2 R-devel (3 plataformas) | PENDIENTE_RHUB | log de la corrida |
 > | win-builder release y devel | PENDIENTE_WB | log de cada corrida, y el `Packaged:` del binario |
