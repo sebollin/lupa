@@ -14,17 +14,18 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **Estado de la matriz sobre `426064a`:**
+> **Estado de la matriz sobre `7212024`:**
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-22d/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-22d/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-22d/sin-incoming/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| PASS 14613 ]` | `../verificacion/2026-08-22d/r41/lupa.Rcheck/00check.log` |
-> | GitHub Actions (5 plataformas) | **5 de 5 `Status: OK`**, sin notas | log de la corrida `32545183793` |
-> | R-hub v2 R-devel (3 plataformas) | **3 de 3 `Status: OK`**, sin notas | log de la corrida `32545201079` |
-> | win-builder release y devel | **`Status: 1 NOTE`** las dos (`New submission` + timeout de gnu.org, que es su red) | `rRhNd1dyVrar` y `QSvwsYu86S9J`; el `Packaged:` de cada binario es `2026-08-22 01:55:31 UTC`, que es este tarball |
+> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-22e/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-22e/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-22e/sin-incoming/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| PASS 14639 ]` | `../verificacion/2026-08-22e/r41/lupa.Rcheck/00check.log` |
+> | suite completa | **15.672 comprobaciones, 0 fallos** | `test_dir()` |
+> | GitHub Actions (5 plataformas) | PENDIENTE_ACTIONS | log de la corrida |
+> | R-hub v2 R-devel (3 plataformas) | PENDIENTE_RHUB | log de la corrida |
+> | win-builder release y devel | PENDIENTE_WB | log de cada corrida, y el `Packaged:` del binario |
 >
 > **El minimo declarado se midio antes de declararlo**, que es justamente lo que
 > no se habia hecho con `R (>= 3.6.0)`: ahi la carta afirmaba que la suite no
