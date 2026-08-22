@@ -195,23 +195,44 @@ alcanza `umbral_patron_dominante`, la no medición queda en
 Algunos controladores no saben traer ciertas columnas en una lectura corriente
 —`TEXT` y `NTEXT` en SQL Server, `CLOB` y `BLOB` en Oracle, `bytea` en
 PostgreSQL— y responden con un error al pedirlas junto con el resto. Una sola
-columna así se llevaba puesta la muestra entera. Ahora, cuando la lectura falla
-y hay columnas declaradas con esos tipos, se reintenta **sin ellas**: la muestra
+columna así se llevaba puesta la muestra entera. Ahora, cuando la lectura falla,
+`lupa` **averigua cuáles no se pueden leer y reintenta sin ellas**: la muestra
 vuelve con las columnas que sí se pudieron leer, y `resumen_tabla$cobertura`
 gana una fila `alcance_distinto` que nombra las que quedaron afuera y conserva
-el motivo textual del motor. El aviso cuenta la **secuencia** y no atribuye la
-causa: el reintento salta ante cualquier fallo de lectura habiendo columnas de
-esos tipos declaradas, y que ellas sean el motivo es lo probable, no lo medido
-—un corte de red que se recupera en el segundo intento daría el mismo camino—. El resumen por columna las cubre igual, porque los
-agregados se calculan en el motor; lo que falta es su perfil por fila. Para
-incluirlas, conviene convertirlas a texto acotado en una vista y perfilar la
-vista.
+el motivo textual del motor.
+
+Averiguarlo, y no deducirlo, es lo que hace que esto funcione contra un
+controlador cualquiera. La versión anterior miraba el tipo que declara el motor
+y lo comparaba contra una lista de nombres. Contra el driver `{SQL Server}` eso
+no reconocía **ninguna** columna, porque ese driver no informa nombres sino
+códigos numéricos de ODBC —`"-1"` en vez de `"varchar(max)"`—, y la muestra se
+perdía igual, en silencio. Ahora el reintento **le pregunta al motor**: divide
+el conjunto de columnas y va podando los subconjuntos que sí se leen, hasta
+aislar las que fallan. El nombre del tipo sigue sirviendo de atajo —si se
+reconoce, se ahorra el descarte—, pero ya no decide.
+
+Eso cambia también lo que se puede afirmar. Cuando la omisión se resolvió por
+descarte, `omision_comprobada` es `TRUE` y el aviso lo dice: cada una de esas
+columnas falló por sí sola y el resto se leyó junto. Cuando la resolvió el
+atajo, es `FALSE` y el aviso mantiene el "no se comprobó que sean la causa",
+porque el reintento salta ante cualquier fallo y un corte de red que se recupera
+en el segundo intento daría el mismo camino. `sondas_descarte` publica cuántas
+consultas costó averiguarlo. El descarte está acotado: como mucho dos sondas por
+columna, y nunca más de la mitad del saldo de `max_consultas`.
+
+Si el descarte no aísla nada, no se inventa una culpable: la muestra se declara
+no disponible y el motivo dice cuántos subconjuntos se probaron y cómo terminó.
+En todos los casos el resumen por columna las cubre igual, porque los agregados
+se calculan en el motor; lo que falta es su perfil por fila. Para incluirlas,
+conviene convertirlas a texto acotado en una vista y perfilar la vista.
 
 El bloque de metadatos del muestreo —`perfil_muestra$meta$origen_dbi$muestreo`—
 describe lo que **de verdad** se leyó y no lo que se había planeado leer:
 `columnas_leidas` son las columnas que la muestra trae, `sql_muestra` es la
-consulta que se emitió, y `columnas_omitidas` con `motivo_columnas_omitidas`
-dicen cuáles quedaron afuera y qué respondió el motor.
+consulta que se emitió, `metodo` y `acotado_en` describen la lectura que salió
+—no la que se había planeado, que el reintento puede cambiar—, y
+`columnas_omitidas` con `motivo_columnas_omitidas` dicen cuáles quedaron afuera
+y qué respondió el motor.
 
 ## El muestreo declarado
 
@@ -306,20 +327,36 @@ motor.
 Ahora bien, **cuántas consultas se emiten no dice cuánto cuestan**: catorce
 consultas sobre dos millones de filas son mucho más trabajo que doscientas
 sobre mil, y quien mira el plan quiere saber si esto tarda segundos, minutos u
-horas. Por eso el plan estima además la magnitud, en dos números que son
-cuentas de verdad y no un índice inventado: `filas_leidas`, cuántas filas
-habría que leer, y `ordenaciones_completas`, cuántas veces habría que ordenar
-la tabla entera. De ahí sale `magnitud` —`"baja"`, `"media"`, `"alta"`, o
-`"desconocida"` si no se conoce el número de filas—, y al imprimir el plan el
-aviso de magnitud alta viene con las palancas concretas para acotarla:
-`modo = "muestreado"`, recortar `metricas`, bajar `muestra` o poner
-`max_consultas`.
+horas. Por eso el plan estima además la magnitud, en cuentas de verdad y no en
+un índice inventado, y la estima en **dos mitades**, porque el reloj de una
+corrida no lo decide siempre el motor.
 
-Es una estimación y lo dice en `attr(plan, "supuesto_costo")`: cuenta las filas
-que habría que leer **si ningún índice ayudara**, y cada ordenación completa
-como `log2(filas)` pasadas. Un índice sobre la columna ordenada, o una tabla que
-entra en la memoria del motor, la bajan mucho. Los dos números publicados no
-dependen de ese supuesto, así que quien no lo comparta puede rehacer la cuenta.
+La del motor son `filas_leidas`, cuántas filas habría que leer, y
+`ordenaciones_completas`, cuántas veces habría que ordenar la tabla entera; se
+resume en `magnitud_motor`. La del cliente son `columnas_texto` y
+`pares_texto`, cuántos pares de formas podría comparar en R el detector de
+vocabulario sobre la muestra; se resume en `magnitud_texto`. `magnitud` es **la
+mayor de las dos** —`"baja"`, `"media"`, `"alta"`, o `"desconocida"` si no se
+conoce el número de filas—.
+
+Contar sólo el motor daba juicios falsos con números ciertos. Una tabla del
+catálogo de PostGIS de 3.912 filas, con una columna de geometría guardada como
+texto, pedía 64.592 lecturas de fila y cero ordenaciones: magnitud `"baja"`. Y
+tardaba 35 segundos. El trabajo estaba del otro lado, comparando formas, que no
+es una lectura de fila. Al imprimir el plan se ven las dos mitades, y el aviso
+de magnitud alta viene con las palancas concretas para acotarla —que no son las
+mismas de un lado que del otro—: `modo = "muestreado"`, recortar `metricas`,
+bajar `muestra` o poner `max_consultas` para el motor, y
+`max_trabajo_vocabulario` para lo que se hace en R.
+
+Es una estimación y lo dice en `attr(plan, "supuesto_costo")`. La del motor
+cuenta las filas que habría que leer **si ningún índice ayudara**, y cada
+ordenación completa como `log2(filas)` pasadas; un índice sobre la columna
+ordenada, o una tabla que entra en la memoria del motor, la bajan mucho. La del
+cliente cuenta pares, y **cuánto cuesta cada par depende del largo de los
+valores, que el plan no conoce sin leerlos**: con textos muy largos el número es
+un piso. Los números publicados no dependen de esos supuestos, así que quien no
+los comparta puede rehacer la cuenta.
 
 ### Lo que el muestreo en el motor no puede darte
 

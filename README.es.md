@@ -314,12 +314,26 @@ adivinando otra vez.
 
 Pero contar consultas no responde la pregunta que trae quien mira el plan:
 catorce consultas sobre dos millones de filas son mucho más trabajo que
-doscientas sobre mil. Así que el plan estima además la **magnitud**, en dos
-números que son cuentas de verdad —`filas_leidas` y `ordenaciones_completas`— y
-al imprimirlo avisa cuando el trabajo es alto, nombrando las palancas para
-acotarlo. Es una estimación y lo dice: cuenta las filas que habría que leer si
-ningún índice ayudara. Los dos números publicados no dependen de ese supuesto,
-así que quien no lo comparta puede rehacer la cuenta.
+doscientas sobre mil. Así que el plan estima además la **magnitud**, en cuentas
+de verdad y no en un índice inventado, y la estima en **dos mitades**, porque el
+reloj no lo pone siempre el motor. La del motor son `filas_leidas` y
+`ordenaciones_completas`, resumidas en `magnitud_motor`; la del cliente son
+`columnas_texto` y `pares_texto` —cuántos pares de formas podría comparar en R
+el detector de vocabulario sobre la muestra—, resumidas en `magnitud_texto`.
+`magnitud` es la mayor de las dos.
+
+Contar sólo el motor daba juicios falsos con números ciertos: una tabla del
+catálogo de PostGIS de 3.912 filas, con una columna de geometría guardada como
+texto, pedía 64.592 lecturas de fila y cero ordenaciones —magnitud `"baja"`— y
+tardaba 35 segundos, porque el trabajo estaba en comparar formas, que no es una
+lectura de fila. Al imprimir el plan se ven las dos mitades, y el aviso de
+trabajo alto nombra las palancas para acotarlo, que no son las mismas de un lado
+que del otro. Es una estimación y lo dice: la del motor cuenta las filas que
+habría que leer si ningún índice ayudara, y la del cliente cuenta pares, cuyo
+costo unitario depende del largo de los valores —que el plan no conoce sin
+leerlos, así que con textos muy largos el número es un piso—. Los números
+publicados no dependen de esos supuestos, así que quien no los comparta puede
+rehacer la cuenta.
 
 | modo | qué hace |
 | --- | --- |

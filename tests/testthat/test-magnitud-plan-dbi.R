@@ -153,3 +153,96 @@ test_that("declarar la magnitud no cambia el conteo de consultas", {
   expect_equal(attr(plan, "total"), sum(plan$n_consultas))
   expect_true(all(c("clase_consulta", "n_consultas", "alcance") %in% names(plan)))
 })
+
+# ---- La mitad que se hacia en R y no se contaba --------------------------
+
+.plan_con_muestra <- function(alcance_muestra = "lee las filas pedidas") {
+  data.frame(
+    clase_consulta = c("conteos", "muestra"),
+    n_consultas = c(1, 1),
+    alcance = c("escanea la tabla completa", alcance_muestra),
+    stringsAsFactors = FALSE
+  )
+}
+
+test_that("el plan cuenta el trabajo por valor, no solo el del motor", {
+  plan <- .plan_con_muestra()
+  # El caso que lo destapo: 3.912 filas, una columna de geometria en texto.
+  # El motor pone poquisimo y el reloj marca 35 segundos.
+  sin_texto <- .trabajo_plan_dbi(plan, 3912, 3912, columnas_texto = 0)
+  expect_equal(sin_texto$magnitud_motor, "baja")
+  expect_equal(sin_texto$pares_texto, 0)
+  expect_equal(sin_texto$magnitud, "baja")
+
+  con_texto <- .trabajo_plan_dbi(plan, 3912, 3912, columnas_texto = 1)
+  # El motor sigue poniendo lo mismo: lo que cambia es lo que ahora se cuenta.
+  expect_equal(con_texto$magnitud_motor, "baja")
+  expect_equal(con_texto$filas_leidas, sin_texto$filas_leidas)
+  expect_gt(con_texto$pares_texto, 0)
+  expect_false(identical(con_texto$magnitud, "baja"))
+  # Y el titular es la mayor de las dos mitades, no la del motor.
+  expect_equal(
+    con_texto$magnitud,
+    .mayor_magnitud_dbi(con_texto$magnitud_motor, con_texto$magnitud_texto)
+  )
+})
+
+test_that("los pares se acotan por la muestra y por el tope del detector", {
+  plan <- .plan_con_muestra()
+  # Con una muestra chica el techo lo pone la muestra: m*(m-1)/2.
+  chica <- .trabajo_plan_dbi(plan, 1e6, 100, columnas_texto = 1)
+  expect_equal(chica$pares_texto, 100 * 99 / 2)
+  expect_equal(chica$magnitud_texto, "baja")
+
+  # Con una muestra grande el techo lo pone `max_pares`, que se lee de la firma
+  # del detector para que no se pueda ir por su lado.
+  grande <- .trabajo_plan_dbi(plan, 1e9, 1e6, columnas_texto = 1)
+  expect_equal(grande$pares_texto, .max_pares_vocabulario_dbi())
+
+  # Y escala con las columnas de texto, que es lo que multiplica el trabajo.
+  diez <- .trabajo_plan_dbi(plan, 1e9, 1e6, columnas_texto = 10)
+  expect_equal(diez$pares_texto, 10 * .max_pares_vocabulario_dbi())
+  expect_equal(diez$columnas_texto, 10)
+})
+
+test_that("sin muestra no hay trabajo por valor que contar", {
+  # En `modo = "conteos"` no se trae ninguna fila a R: el detector de
+  # vocabulario no corre, y contar pares ahi seria inventar trabajo.
+  plan <- data.frame(
+    clase_consulta = "conteos", n_consultas = 1,
+    alcance = "escanea la tabla completa", stringsAsFactors = FALSE
+  )
+  sin_muestra <- .trabajo_plan_dbi(plan, 1e9, 1e6, columnas_texto = 40)
+  expect_equal(sin_muestra$pares_texto, 0)
+  expect_equal(sin_muestra$magnitud_texto, "baja")
+  expect_equal(sin_muestra$magnitud, sin_muestra$magnitud_motor)
+})
+
+test_that("la magnitud combinada nunca baja la del motor", {
+  expect_equal(.mayor_magnitud_dbi("baja", "alta"), "alta")
+  expect_equal(.mayor_magnitud_dbi("alta", "baja"), "alta")
+  expect_equal(.mayor_magnitud_dbi("media", "media"), "media")
+  # Un valor fuera del vocabulario cerrado no se cuela como magnitud valida.
+  expect_equal(.mayor_magnitud_dbi("baja", "enorme"), "desconocida")
+  expect_equal(.mayor_magnitud_dbi("desconocida", "alta"), "desconocida")
+})
+
+test_that("el plan real declara las dos mitades y la impresion las muestra", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbWriteTable(con, "t", data.frame(
+    id = 1:300, texto = paste0("valor ", 1:300), stringsAsFactors = FALSE
+  ))
+  plan <- plan_perfilado_dbi(con, "t", muestra = 300)
+  expect_equal(attr(plan, "columnas_texto", exact = TRUE), 1)
+  expect_equal(attr(plan, "pares_texto", exact = TRUE), 300 * 299 / 2)
+  expect_true(attr(plan, "magnitud_motor", exact = TRUE) %in% .ORDEN_MAGNITUD_DBI)
+  expect_true(attr(plan, "magnitud_texto", exact = TRUE) %in% .ORDEN_MAGNITUD_DBI)
+  salida <- paste(
+    capture.output(print(plan), type = "message"), collapse = " "
+  )
+  expect_match(salida, "columna de texto")
+  expect_match(salida, "pares de formas")
+})

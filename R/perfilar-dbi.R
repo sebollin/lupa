@@ -2560,10 +2560,48 @@
 .UMBRAL_TRABAJO_MEDIO_DBI <- 1e7
 .UMBRAL_TRABAJO_ALTO_DBI <- 1e9
 
-.trabajo_plan_dbi <- function(plan, filas, muestra) {
+# El otro medio del reloj. Lo de arriba cuenta el trabajo del MOTOR; el
+# detector de vocabulario y las comparaciones de proximidad se hacen en R,
+# sobre la muestra, y no aparecen en ninguna lectura de fila. Una tabla de
+# 3.912 filas con una columna de geometria en texto salia "baja" -64.592
+# lecturas- y tardaba 35 segundos: cada numero que informaba era cierto y el
+# juicio era falso, porque medir la mitad y llamarlo el total es informar como
+# completo algo parcial.
+#
+# La unidad es el par de formas comparadas, que es una cuenta y no un indice:
+# la muestra trae m filas, las formas distintas son a lo sumo m, y el detector
+# nunca compara mas de `max_pares` por columna. Cuanto cuesta cada par depende
+# del largo de los valores, que el plan no puede saber sin leerlos; el supuesto
+# queda declarado igual que el de `log2(filas)`.
+.UMBRAL_PARES_MEDIO_DBI <- 2e6
+.UMBRAL_PARES_ALTO_DBI <- 2e8
+
+# Los alcances que traen filas a R. Vocabulario cerrado: lo escribe
+# `.plan_consultas_dbi()` y nadie mas.
+.ALCANCES_CON_MUESTRA_DBI <- c("lee una muestra del motor", "lee las filas pedidas")
+
+# El tope de pares se lee de la firma del detector en vez de copiarse: si el
+# valor cambia alla, el plan no se queda estimando contra un numero viejo.
+.max_pares_vocabulario_dbi <- function() {
+  as.numeric(eval(formals(.grupos_casi_duplicados_vocabulario)$max_pares))
+}
+
+.ORDEN_MAGNITUD_DBI <- c("baja", "media", "alta")
+
+.mayor_magnitud_dbi <- function(a, b) {
+  pos_a <- match(a, .ORDEN_MAGNITUD_DBI)
+  pos_b <- match(b, .ORDEN_MAGNITUD_DBI)
+  if (is.na(pos_a) || is.na(pos_b)) return("desconocida")
+  .ORDEN_MAGNITUD_DBI[[max(pos_a, pos_b)]]
+}
+
+.trabajo_plan_dbi <- function(plan, filas, muestra, columnas_texto = 0,
+                              max_pares = NULL) {
   vacio <- list(
     filas_leidas = NA_real_, ordenaciones = NA_real_,
-    equivalente = NA_real_, magnitud = "desconocida"
+    equivalente = NA_real_, magnitud = "desconocida",
+    magnitud_motor = "desconocida", magnitud_texto = "desconocida",
+    columnas_texto = NA_real_, pares_texto = NA_real_
   )
   # El conteo se convierte primero y se valida despues, en vez de exigir
   # `is.numeric()`: sobre una tabla grande `n_total` llega como `integer64`, y
@@ -2602,27 +2640,57 @@
   factor_orden <- max(1, log2(max(2, filas)))
   equivalente <- sum(lecturas) + ordenaciones * filas * (factor_orden - 1)
   if (!is.finite(equivalente)) return(vacio)
-  magnitud <- if (equivalente < .UMBRAL_TRABAJO_MEDIO_DBI) {
+  magnitud_motor <- if (equivalente < .UMBRAL_TRABAJO_MEDIO_DBI) {
     "baja"
   } else if (equivalente < .UMBRAL_TRABAJO_ALTO_DBI) {
     "media"
   } else {
     "alta"
   }
+  # El trabajo por valor solo existe si algo se trae a R. En `modo = "conteos"`
+  # no hay muestra, y entonces no hay nada que contar de este lado.
+  n_texto <- numero(columnas_texto)
+  if (is.na(n_texto)) n_texto <- 0
+  if (is.null(max_pares)) max_pares <- .max_pares_vocabulario_dbi()
+  tope_pares <- numero(max_pares)
+  if (is.na(tope_pares)) tope_pares <- Inf
+  filas_muestra <- if (any(plan$alcance %in% .ALCANCES_CON_MUESTRA_DBI)) {
+    min(filas, muestra)
+  } else {
+    0
+  }
+  pares_texto <- n_texto * min(filas_muestra * (filas_muestra - 1) / 2, tope_pares)
+  if (!is.finite(pares_texto)) pares_texto <- 0
+  magnitud_texto <- if (pares_texto < .UMBRAL_PARES_MEDIO_DBI) {
+    "baja"
+  } else if (pares_texto < .UMBRAL_PARES_ALTO_DBI) {
+    "media"
+  } else {
+    "alta"
+  }
   list(
     filas_leidas = sum(lecturas), ordenaciones = ordenaciones,
-    equivalente = equivalente, magnitud = magnitud
+    equivalente = equivalente,
+    magnitud = .mayor_magnitud_dbi(magnitud_motor, magnitud_texto),
+    magnitud_motor = magnitud_motor, magnitud_texto = magnitud_texto,
+    columnas_texto = n_texto, pares_texto = pares_texto
   )
 }
 
 .SUPUESTO_TRABAJO_DBI <- paste(
-  "El trabajo es una estimaci\u00f3n, no una medici\u00f3n: cuenta",
-  "cu\u00e1ntas filas habr\u00eda que leer si ning\u00fan \u00edndice",
-  "ayudara, y cuenta cada ordenaci\u00f3n completa como log2(filas) pasadas.",
-  "Un \u00edndice sobre la columna ordenada, o una tabla que entra en la",
-  "memoria del motor, lo bajan mucho. Referencia medida sobre PostgreSQL 16",
-  "local, 2.000.000 de filas por 40 columnas en modo seguro: 14 consultas,",
-  "5,3 segundos, unos cinco millones de lecturas de fila por segundo."
+  "El trabajo es una estimaci\u00f3n, no una medici\u00f3n, y son dos",
+  "mitades. La del motor cuenta cu\u00e1ntas filas habr\u00eda que leer si",
+  "ning\u00fan \u00edndice ayudara, y cuenta cada ordenaci\u00f3n completa",
+  "como log2(filas) pasadas; un \u00edndice sobre la columna ordenada, o una",
+  "tabla que entra en la memoria del motor, la bajan mucho. La del cliente",
+  "cuenta los pares de formas que el detector de vocabulario podr\u00eda",
+  "comparar en R sobre la muestra: como mucho `max_pares` por columna de",
+  "texto. Cu\u00e1nto cuesta cada par depende del largo de los valores, que",
+  "el plan no conoce sin leerlos, as\u00ed que con textos muy largos el",
+  "n\u00famero es un piso. Referencias medidas: unos cinco millones de",
+  "lecturas de fila por segundo sobre PostgreSQL 16 local (2.000.000 de filas",
+  "por 40 columnas en modo seguro: 14 consultas, 5,3 segundos), y unos",
+  "ochocientos mil pares por segundo sobre valores de cuarenta caracteres."
 )
 
 
@@ -2642,13 +2710,25 @@
 #'
 #'   Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 #'   sobre dos millones de filas son mucho más trabajo que doscientas sobre
-#'   mil. Por eso el plan estima además la magnitud, en los atributos
-#'   `filas_leidas` (cuántas filas habría que leer), `ordenaciones_completas`
-#'   (cuántas veces habría que ordenar la tabla entera), `magnitud` —`"baja"`,
-#'   `"media"`, `"alta"` o `"desconocida"` si no se conoce el número de
-#'   filas— y `supuesto_costo`, que dice de dónde sale la cuenta. El método de
-#'   impresión avisa cuando la magnitud es alta y nombra las palancas para
-#'   acotarla.
+#'   mil. Por eso el plan estima además la magnitud, y la estima en sus dos
+#'   mitades, porque el reloj de una corrida no lo decide siempre el motor.
+#'
+#'   La del motor va en `filas_leidas` (cuántas filas habría que leer) y
+#'   `ordenaciones_completas` (cuántas veces habría que ordenar la tabla
+#'   entera), y se resume en `magnitud_motor`. La del cliente va en
+#'   `columnas_texto` y `pares_texto` —cuántos pares de formas podría comparar
+#'   en R el detector de vocabulario sobre la muestra— y se resume en
+#'   `magnitud_texto`. `magnitud` es la mayor de las dos: `"baja"`, `"media"`,
+#'   `"alta"`, o `"desconocida"` si no se conoce el número de filas.
+#'   `supuesto_costo` dice de dónde sale cada cuenta.
+#'
+#'   Contar sólo el motor daba juicios falsos con números ciertos: una tabla de
+#'   3.912 filas con una columna de geometría en texto pedía 64.592 lecturas
+#'   —magnitud `"baja"`— y tardaba 35 segundos, porque el trabajo estaba en la
+#'   comparación de formas, que no es una lectura de fila. El método de
+#'   impresión muestra las dos mitades, avisa cuando la magnitud es alta y
+#'   nombra las palancas para acotarla, que no son las mismas de un lado que
+#'   del otro.
 #' @export
 #' @seealso [perfilar_dbi()]
 #'
@@ -2714,9 +2794,27 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
   attr(plan, "metricas") <- preparacion$metricas
   attr(plan, "filas") <- preparacion$n_total
   attr(plan, "tamano_lote") <- preparacion$tamano_lote
-  trabajo <- .trabajo_plan_dbi(plan, preparacion$n_total, preparacion$muestra)
+  # Que columnas van a pasar por el detector de vocabulario. Se mira el
+  # prototipo -lo que devuelve el driver- y no el tipo declarado: es lo que de
+  # verdad va a llegar a R.
+  es_texto <- if (is.null(preparacion$prototipo)) {
+    logical()
+  } else {
+    vapply(
+      preparacion$prototipo,
+      function(x) is.character(x) || is.factor(x),
+      logical(1L)
+    )
+  }
+  trabajo <- .trabajo_plan_dbi(
+    plan, preparacion$n_total, preparacion$muestra, sum(es_texto)
+  )
   attr(plan, "filas_leidas") <- trabajo$filas_leidas
   attr(plan, "ordenaciones_completas") <- trabajo$ordenaciones
+  attr(plan, "columnas_texto") <- trabajo$columnas_texto
+  attr(plan, "pares_texto") <- trabajo$pares_texto
+  attr(plan, "magnitud_motor") <- trabajo$magnitud_motor
+  attr(plan, "magnitud_texto") <- trabajo$magnitud_texto
   attr(plan, "magnitud") <- trabajo$magnitud
   attr(plan, "supuesto_costo") <- .SUPUESTO_TRABAJO_DBI
   class(plan) <- c("plan_perfilado_dbi", class(plan))
@@ -2756,18 +2854,42 @@ print.plan_perfilado_dbi <- function(x, ...) {
       .miles_dbi(attr(x, "ordenaciones_completas", exact = TRUE)),
       " ordenaciones completas"
     )
+    # El trabajo en R no se puede dejar afuera del titular. Cuando la mitad que
+    # decide el reloj es esta, un "bajo" a secas manda al usuario a esperar
+    # treinta segundos creyendo que iban a ser dos.
+    n_texto <- attr(x, "columnas_texto", exact = TRUE)
+    if (!is.null(n_texto) && !is.na(n_texto) && n_texto > 0) {
+      trabajo <- paste0(
+        trabajo, " en el motor, m\u00e1s ",
+        .miles_dbi(attr(x, "pares_texto", exact = TRUE)),
+        " pares de formas a comparar en R sobre ", .miles_dbi(n_texto),
+        if (n_texto == 1) " columna de texto" else " columnas de texto"
+      )
+    }
     # Una magnitud alta no es un error: es una corrida que conviene decidir a
     # ojos abiertos. Por eso el aviso nombra las palancas concretas en vez de
     # limitarse a decir que es grande.
     if (identical(magnitud, "alta")) {
       cli::cli_alert_danger(paste0("Trabajo estimado alto: ", trabajo))
       cli::cli_text("Para acotarlo, sin cambiar nada m\u00e1s:")
-      cli::cli_ul(c(
+      palancas <- c(
         "modo = 'muestreado' mide sobre una muestra que trae el motor",
         "metricas = c(...) saca clases de consulta enteras del plan",
         "muestra = n baja las filas que se traen a R",
         "max_consultas = n pone un techo duro y declara lo que quede afuera"
-      ))
+      )
+      # Si lo que pesa es el trabajo por valor, las palancas del motor no
+      # alcanzan: bajar consultas no toca lo que se hace despues en R.
+      if (identical(attr(x, "magnitud_texto", exact = TRUE), "alta")) {
+        palancas <- c(
+          palancas,
+          paste(
+            "max_trabajo_vocabulario = n acota la comparaci\u00f3n de formas,",
+            "que es lo que pesa en R"
+          )
+        )
+      }
+      cli::cli_ul(palancas)
     } else if (identical(magnitud, "media")) {
       cli::cli_alert_warning(paste0("Trabajo estimado medio: ", trabajo))
     } else {
@@ -2869,18 +2991,117 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # Tipos que muchos controladores no saben traer en una lectura corriente: hay
 # que pedirlos aparte, o convertirlos, o no pedirlos. El nombre viene del motor
 # ya sin espacios (ver mas abajo), asi que "nvarchar (max)" llega pegado.
+#
+# Este patron es un ATAJO, no la comprobacion. Reconocer el tipo ahorra el
+# descarte, pero no reconocerlo no puede costar la muestra: quien decide es
+# `.aislar_ilegibles_dbi()`, que le pregunta al motor.
 .PATRON_TIPO_LARGO_DBI <- paste0(
   "^(text|ntext|image|clob|nclob|blob|bytea|longtext|mediumtext|tinytext|",
   "longblob|mediumblob|tinyblob|xml|xmltype|json|jsonb|geometry|geography|",
-  "long|longraw|bfile|n?(var)?(char|binary)\\(max\\))$"
+  "long|longraw|bfile|n?(var)?(char|binary)\\(max\\)|",
+  "(sql_?)?w?longvar(char|binary))$"
 )
+
+# Un controlador no tiene por que informar el nombre del tipo. `odbc` resuelve
+# `dbColumnInfo()` con `nanodbc::result::column_datatype()`, que devuelve el
+# codigo numerico de ODBC: contra el driver `{SQL Server}` una tabla de noventa
+# columnas `varchar(max)` llega como noventa veces "-1". Un patron de nombres
+# reconoce cero de noventa, y esa es exactamente la tabla que motivo el
+# reintento.
+#   -1  SQL_LONGVARCHAR    -4  SQL_LONGVARBINARY    -10  SQL_WLONGVARCHAR
+.CODIGOS_TIPO_LARGO_DBI <- c("-1", "-4", "-10")
 
 .columnas_de_tipo_largo_dbi <- function(tipos) {
   if (is.null(tipos) || !length(tipos)) return(integer())
   limpio <- tolower(trimws(as.character(tipos)))
   limpio <- gsub("[[:space:]]+", "", limpio)
   which(!is.na(limpio) &
-          grepl(.PATRON_TIPO_LARGO_DBI, limpio, perl = TRUE))
+          (limpio %in% .CODIGOS_TIPO_LARGO_DBI |
+             grepl(.PATRON_TIPO_LARGO_DBI, limpio, perl = TRUE)))
+}
+
+# Tope de sondas del descarte. Aislar por biseccion cuesta a lo sumo 2n-1
+# sondas sobre n columnas -es el tamano del arbol cuando todas las hojas son
+# culpables-, asi que 2n es "lo que alcanza en el peor caso" y no un numero
+# elegido a dedo. El tope absoluto acota el costo cuando la tabla es enorme; si
+# se agota, el aislamiento queda parcial y se declara.
+.TOPE_SONDAS_DESCARTE_DBI <- 512L
+
+# Averigua CUALES columnas impiden leer, en vez de adivinarlo por el nombre del
+# tipo. Divide el conjunto en dos y baja solo por las mitades que siguen
+# fallando: los subconjuntos que se leen bien se podan enteros.
+#
+# `sondear(indices)` devuelve TRUE si el motor entrega una fila con esas
+# columnas. `hay_saldo()` se consulta ANTES de cada sonda: sin eso una sonda
+# rechazada por presupuesto se leeria como "esta columna no se puede leer", que
+# es una causa que nadie midio.
+#
+# Devuelve las columnas que fallan por si solas. Que el resto se lea junto no
+# esta probado todavia: lo prueba la lectura final, y si esa falla el fallo no
+# era por columna y no se declara ninguna.
+.aislar_ilegibles_dbi <- function(sondear, hay_saldo, n, tope) {
+  culpables <- integer()
+  gastadas <- 0L
+  agotado <- FALSE
+  pendientes <- list(seq_len(n))
+  while (length(pendientes)) {
+    if (gastadas >= tope || !isTRUE(hay_saldo())) {
+      agotado <- TRUE
+      break
+    }
+    grupo <- pendientes[[1L]]
+    pendientes <- pendientes[-1L]
+    gastadas <- gastadas + 1L
+    if (isTRUE(sondear(grupo))) next
+    if (length(grupo) == 1L) {
+      culpables <- c(culpables, grupo)
+      next
+    }
+    corte <- length(grupo) %/% 2L
+    pendientes <- c(
+      list(grupo[seq_len(corte)]),
+      list(grupo[(corte + 1L):length(grupo)]),
+      pendientes
+    )
+  }
+  list(culpables = sort(culpables), sondas = gastadas, agotado = agotado)
+}
+
+# Dos omisiones distintas no pueden contarse igual. El descarte COMPROBO que
+# esas columnas no se leen: cada una fallo sola y el resto se leyo junto. El
+# atajo por tipo solo las SUPUSO, porque el reintento se dispara ante cualquier
+# fallo habiendo columnas de tipo largo declaradas, y un corte de red que se
+# recupera en el segundo intento produciria el mismo camino. El texto lo dice
+# distinto segun cual de los dos fue, y el motivo textual del motor viaja
+# entero en los dos para que quien lea decida.
+.motivo_omision_muestra_dbi <- function(modo, columnas, sondas, motivo_motor) {
+  n <- length(columnas)
+  lista <- paste(columnas, collapse = ", ")
+  if (identical(modo, "descarte")) {
+    paste0(
+      "La lectura completa de la muestra fallo. Se aislo por descarte, con ",
+      sondas, if (sondas == 1L) " sonda" else " sondas", " al motor, ",
+      if (n == 1L) {
+        "la columna que no se puede leer: "
+      } else {
+        paste0("las ", n, " columnas que no se pueden leer: ")
+      },
+      lista,
+      ". Cada una fallo por si sola y el resto se leyo junto. El motor dijo: ",
+      motivo_motor
+    )
+  } else {
+    paste0(
+      "La lectura completa de la muestra fallo y se reintento sin ",
+      if (n == 1L) {
+        "la columna de tipo largo declarada: "
+      } else {
+        paste0("las ", n, " columnas de tipo largo declaradas: ")
+      },
+      lista,
+      ". No se comprobo que sean la causa; el motor dijo: ", motivo_motor
+    )
+  }
 }
 
 .bloque_muestra_dbi <- function(conexion, tabla, tabla_sql, campos, campos_sql,
@@ -2899,48 +3120,90 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }
   n_obtener <- min(.numero_dbi(n_total), muestra)
   usa_muestreo <- !is.null(muestreo) && isTRUE(muestreo$disponible)
-  fuente <- if (usa_muestreo) {
-    .fuente_muestreada_dbi(
-      tabla_sql, campos_sql, muestra, n_total, dialecto,
-      list(candidato = muestreo$candidato)
+  # La receta de la lectura estaba escrita una sola vez y el reintento la
+  # rehacia a mano, asi que perdia por el camino el muestreo del motor: volvia a
+  # una lectura de primeras filas mientras `metodo` seguia declarando
+  # `TABLESAMPLE`. Ahora la arma la misma funcion para cualquier subconjunto de
+  # columnas, y lo que se declara sale de lo que se emitio.
+  armar_muestra_dbi <- function(indices) {
+    sub_sql <- campos_sql[indices]
+    origen <- if (usa_muestreo) {
+      .fuente_muestreada_dbi(
+        tabla_sql, sub_sql, muestra, n_total, dialecto,
+        list(candidato = muestreo$candidato)
+      )
+    } else {
+      NULL
+    }
+    base <- if (!is.null(origen)) {
+      origen$sql
+    } else {
+      paste0(
+        "SELECT ", paste(sub_sql, collapse = ", "), " FROM ", tabla_sql,
+        if (length(orden_sql)) {
+          paste0(" ORDER BY ", paste(orden_sql, collapse = ", "))
+        } else ""
+      )
+    }
+    recorte <- if (!is.null(origen)) {
+      NULL
+    } else if (muestra < .numero_dbi(n_total)) {
+      dialecto$limitar(base, muestra, 0)
+    } else {
+      NULL
+    }
+    list(
+      fuente = origen,
+      sql = if (is.null(recorte)) base else recorte,
+      filas = if (!is.null(origen)) {
+        origen$filas
+      } else if (is.null(recorte) && muestra < .numero_dbi(n_total)) {
+        muestra
+      } else {
+        -1L
+      },
+      acotado_en = if (!is.null(origen)) {
+        "motor_muestreo"
+      } else if (!is.null(recorte)) {
+        "motor"
+      } else if (muestra < .numero_dbi(n_total)) {
+        "cliente"
+      } else {
+        "sin recorte"
+      },
+      metodo = if (!is.null(origen)) {
+        origen$metodo
+      } else if (length(orden_sql)) {
+        "primeras_filas_segun_orden"
+      } else {
+        "primeras_filas_sin_orden_garantizado"
+      }
     )
-  } else {
-    NULL
   }
-  base_muestra <- if (!is.null(fuente)) {
-    fuente$sql
-  } else {
-    paste0(
-      "SELECT ", paste(campos_sql, collapse = ", "), " FROM ", tabla_sql,
-      if (length(orden_sql)) {
-        paste0(" ORDER BY ", paste(orden_sql, collapse = ", "))
-      } else ""
+  # Una sonda pregunta si el motor entrega UNA fila con este subconjunto. Va sin
+  # `ORDER BY` y acotada a una fila porque lo unico que interesa es si la
+  # lectura sale, no que devuelva.
+  sondear_muestra_dbi <- function(indices) {
+    if (!length(indices)) return(TRUE)
+    base <- paste0(
+      "SELECT ", paste(campos_sql[indices], collapse = ", "),
+      " FROM ", tabla_sql
     )
+    recorte <- dialecto$limitar(base, 1, 0)
+    respuesta <- .consultar_dbi(
+      conexion, if (is.null(recorte)) base else recorte, presupuesto,
+      filas = if (is.null(recorte)) 1L else -1L
+    )
+    isTRUE(respuesta$ok)
   }
-  acotada <- if (!is.null(fuente)) {
-    NULL
-  } else if (muestra < .numero_dbi(n_total)) {
-    dialecto$limitar(base_muestra, muestra, 0)
-  } else {
-    NULL
+  hay_saldo_dbi <- function() {
+    is.null(presupuesto) || .saldo_dbi(presupuesto) >= 1
   }
-  sql_muestra <- if (is.null(acotada)) base_muestra else acotada
-  filas <- if (!is.null(fuente)) {
-    fuente$filas
-  } else if (is.null(acotada) && muestra < .numero_dbi(n_total)) {
-    muestra
-  } else {
-    -1L
-  }
-  acotado_en <- if (!is.null(fuente)) {
-    "motor_muestreo"
-  } else if (!is.null(acotada)) {
-    "motor"
-  } else if (muestra < .numero_dbi(n_total)) {
-    "cliente"
-  } else {
-    "sin recorte"
-  }
+  armado <- armar_muestra_dbi(seq_along(campos_sql))
+  fuente <- armado$fuente
+  sql_muestra <- armado$sql
+  filas <- armado$filas
+  acotado_en <- armado$acotado_en
   muestreo_meta <- list(
     filas_solicitadas = as.numeric(muestra),
     filas_obtenidas = NA_real_,
@@ -2981,76 +3244,137 @@ print.plan_perfilado_dbi <- function(x, ...) {
     # El reintento no castea. Castear exige una sintaxis por motor y una
     # decision sobre cuanto truncar, y las dos cosas son adivinar; dejar la
     # columna afuera y decirlo no supone nada.
+    #
+    # Dos caminos, y el orden importa. El primero es el atajo por tipo: sale
+    # gratis cuando el motor informa nombres que se reconocen. El segundo es el
+    # descarte, que le PREGUNTA al motor cuales columnas no puede traer en vez
+    # de deducirlo del nombre del tipo. La version anterior tenia solo el
+    # atajo, y contra el driver `{SQL Server}` -que informa el tipo como codigo
+    # ODBC, "-1" y no "varchar(max)"- reconocia cero de noventa columnas: el
+    # reintento no se disparaba nunca y la muestra se perdia igual, en
+    # silencio. Cualquier patron de tipos va a ir siempre atras del zoo de
+    # controladores; la correccion no puede colgar de el.
+    motivo_original <- consulta$motivo
+    recuperado <- NULL
+    modo_omision <- NA_character_
+    sondas_descarte <- 0L
+    descarte_agotado <- FALSE
     largas <- .columnas_de_tipo_largo_dbi(tipos_declarados)
     if (length(largas) && length(largas) < length(campos_sql)) {
       quedan <- setdiff(seq_along(campos_sql), largas)
-      base_reintento <- paste0(
-        "SELECT ", paste(campos_sql[quedan], collapse = ", "), " FROM ",
-        tabla_sql,
-        if (length(orden_sql)) {
-          paste0(" ORDER BY ", paste(orden_sql, collapse = ", "))
-        } else ""
+      candidato <- armar_muestra_dbi(quedan)
+      prueba <- .consultar_dbi(
+        conexion, candidato$sql, presupuesto, filas = candidato$filas
       )
-      acotado <- if (muestra < .numero_dbi(n_total)) {
-        dialecto$limitar(base_reintento, muestra, 0)
-      } else NULL
-      sql_reintento <- if (is.null(acotado)) base_reintento else acotado
-      reintento <- .consultar_dbi(
-        conexion, sql_reintento, presupuesto,
-        filas = if (is.null(acotado) && muestra < .numero_dbi(n_total)) {
-          muestra
-        } else -1L
+      if (isTRUE(prueba$ok)) {
+        recuperado <- list(
+          consulta = prueba, armado = candidato,
+          quedan = quedan, omitidas = largas
+        )
+        modo_omision <- "tipo_declarado"
+      }
+    }
+    culpables <- integer()
+    tope_descarte <- 0
+    if (is.null(recuperado) && length(campos_sql) > 1L) {
+      # El descarte gasta consultas del mismo presupuesto que el resto del
+      # perfil. Recuperar la muestra a costa de quedarse sin saldo para las
+      # demas mediciones seria cambiar un agujero por otro, asi que el descarte
+      # no puede llevarse mas de la mitad de lo que queda.
+      saldo_actual <- if (is.null(presupuesto)) Inf else .saldo_dbi(presupuesto)
+      tope_descarte <- min(
+        2L * length(campos_sql), .TOPE_SONDAS_DESCARTE_DBI,
+        max(0, floor(saldo_actual / 2))
       )
-      if (isTRUE(reintento$ok)) {
-        campos_omitidos <- campos[largas]
-        motivo_original <- consulta$motivo
-        cobertura <- rbind(cobertura, .registro_cobertura_dbi(
-          "perfil_muestra", .texto_tabla_dbi(tabla), "alcance_distinto",
-          # El mensaje cuenta la secuencia y no atribuye la causa. El
-          # reintento se dispara ante cualquier fallo de lectura habiendo
-          # columnas de tipo largo declaradas, y esas columnas son la
-          # explicacion probable pero no la comprobada: un corte de red que se
-          # recupera en el segundo intento produciria el mismo camino. Afirmar
-          # "el controlador las rechazo" seria informar como sabido algo que no
-          # se midio. El motivo textual del motor viaja entero para que quien
-          # lea decida.
-          paste0(
-            "La lectura completa de la muestra fallo y se reintento sin las ",
-            length(campos_omitidos),
-            if (length(campos_omitidos) == 1L) {
-              " columna de tipo largo declarada: "
-            } else {
-              " columnas de tipo largo declaradas: "
-            },
-            paste(campos_omitidos, collapse = ", "),
-            ". No se comprobo que sean la causa; el motor dijo: ",
-            consulta$motivo
-          ),
-          paste(
-            "El resumen por columna las cubre igual; lo que falta es su perfil",
-            "por fila. Para incluirlas, convertirlas a texto acotado en una",
-            "vista y perfilar esa vista."
-          ),
-          sql_reintento
-        ))
-        consulta <- reintento
-        sql_muestra <- sql_reintento
-        campos <- campos[quedan]
-        campos_sql <- campos_sql[quedan]
-        # `muestreo_meta` se arma antes de leer, asi que sin esto quedaba
-        # congelado con la lectura que fallo: declaraba haber leido la columna
-        # que justamente no se pudo leer, y publicaba el SQL original en vez
-        # del que de verdad se emitio. Es el invariante al reves -informar como
-        # medido lo que no se midio- y en el peor lugar, porque `meta` es donde
-        # se mira para saber que se hizo.
-        muestreo_meta$columnas_leidas <- campos
-        muestreo_meta$sql_muestra <- sql_reintento
-        muestreo_meta$columnas_omitidas <- campos_omitidos
-        muestreo_meta$motivo_columnas_omitidas <- paste0(
-          "El motor rechazo la lectura completa y se reintento sin estas ",
-          "columnas, de tipo largo. El motor dijo: ", motivo_original
+      aislamiento <- .aislar_ilegibles_dbi(
+        sondear_muestra_dbi, hay_saldo_dbi, length(campos_sql), tope_descarte
+      )
+      sondas_descarte <- aislamiento$sondas
+      descarte_agotado <- isTRUE(aislamiento$agotado)
+      culpables <- aislamiento$culpables
+      if (length(culpables) && length(culpables) < length(campos_sql)) {
+        quedan <- setdiff(seq_along(campos_sql), culpables)
+        candidato <- armar_muestra_dbi(quedan)
+        prueba <- .consultar_dbi(
+          conexion, candidato$sql, presupuesto, filas = candidato$filas
+        )
+        if (isTRUE(prueba$ok)) {
+          recuperado <- list(
+            consulta = prueba, armado = candidato,
+            quedan = quedan, omitidas = culpables
+          )
+          modo_omision <- "descarte"
+        }
+      }
+    }
+    if (!is.null(recuperado)) {
+      campos_omitidos <- campos[recuperado$omitidas]
+      motivo_omision <- .motivo_omision_muestra_dbi(
+        modo_omision, campos_omitidos, sondas_descarte, motivo_original
+      )
+      cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+        "perfil_muestra", .texto_tabla_dbi(tabla), "alcance_distinto",
+        motivo_omision,
+        paste(
+          "El resumen por columna las cubre igual; lo que falta es su perfil",
+          "por fila. Para incluirlas, convertirlas a texto acotado en una",
+          "vista y perfilar esa vista."
+        ),
+        recuperado$armado$sql
+      ))
+      consulta <- recuperado$consulta
+      sql_muestra <- recuperado$armado$sql
+      filas <- recuperado$armado$filas
+      campos <- campos[recuperado$quedan]
+      campos_sql <- campos_sql[recuperado$quedan]
+      # `muestreo_meta` se arma antes de leer, asi que sin esto quedaba
+      # congelado con la lectura que fallo: declaraba haber leido la columna
+      # que justamente no se pudo leer, y publicaba el SQL original en vez
+      # del que de verdad se emitio. Es el invariante al reves -informar como
+      # medido lo que no se midio- y en el peor lugar, porque `meta` es donde
+      # se mira para saber que se hizo. `metodo` y `acotado_en` entran por lo
+      # mismo: el reintento puede cambiar la forma de muestrear.
+      muestreo_meta$columnas_leidas <- campos
+      muestreo_meta$sql_muestra <- sql_muestra
+      muestreo_meta$acotado_en <- recuperado$armado$acotado_en
+      muestreo_meta$metodo <- recuperado$armado$metodo
+      if (!is.null(recuperado$armado$fuente)) {
+        muestreo_meta$fraccion <- recuperado$armado$fuente$fraccion
+        muestreo_meta$tamano_muestra <- recuperado$armado$fuente$filas_solicitadas
+      }
+      muestreo_meta$columnas_omitidas <- campos_omitidos
+      muestreo_meta$motivo_columnas_omitidas <- motivo_omision
+      # Como se decidio la omision, para que se pueda filtrar: comprobada por
+      # descarte, o supuesta por el tipo que declaro el motor.
+      muestreo_meta$omision_comprobada <- identical(modo_omision, "descarte")
+      muestreo_meta$sondas_descarte <- as.numeric(sondas_descarte)
+    } else if (sondas_descarte > 0L) {
+      # El descarte corrio y no sirvio. Decirlo es parte del resultado: sin
+      # esto el motivo final seria el del motor a secas y nadie sabria que ya
+      # se busco la columna culpable. Y cada final es distinto -no aislar
+      # ninguna no es lo mismo que que fallen todas-, asi que el texto no puede
+      # ser uno solo.
+      detalle <- if (!length(culpables)) {
+        paste(
+          "ninguna fallo por si sola: el fallo no es de una columna en",
+          "particular."
+        )
+      } else if (length(culpables) == length(campos_sql)) {
+        "todas fallan por si solas: no queda ningun subconjunto legible."
+      } else {
+        "la lectura sin las que fallan tampoco salio."
+      }
+      if (descarte_agotado) {
+        detalle <- paste0(
+          "se agoto el tope de sondas (", tope_descarte,
+          ") y el aislamiento quedo parcial; ", detalle
         )
       }
+      consulta$motivo <- paste0(
+        motivo_original, " Se sondearon ", sondas_descarte,
+        " subconjuntos de columnas para aislar cual no se puede leer, y ",
+        detalle
+      )
     }
   }
   if (!consulta$ok) {

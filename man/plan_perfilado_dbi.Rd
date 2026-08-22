@@ -62,13 +62,25 @@ Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre
-mil. Por eso el plan estima además la magnitud, en los atributos
-\code{filas_leidas} (cuántas filas habría que leer), \code{ordenaciones_completas}
-(cuántas veces habría que ordenar la tabla entera), \code{magnitud} —\code{"baja"},
-\code{"media"}, \code{"alta"} o \code{"desconocida"} si no se conoce el número de
-filas— y \code{supuesto_costo}, que dice de dónde sale la cuenta. El método de
-impresión avisa cuando la magnitud es alta y nombra las palancas para
-acotarla.
+mil. Por eso el plan estima además la magnitud, y la estima en sus dos
+mitades, porque el reloj de una corrida no lo decide siempre el motor.
+
+La del motor va en \code{filas_leidas} (cuántas filas habría que leer) y
+\code{ordenaciones_completas} (cuántas veces habría que ordenar la tabla
+entera), y se resume en \code{magnitud_motor}. La del cliente va en
+\code{columnas_texto} y \code{pares_texto} —cuántos pares de formas podría comparar
+en R el detector de vocabulario sobre la muestra— y se resume en
+\code{magnitud_texto}. \code{magnitud} es la mayor de las dos: \code{"baja"}, \code{"media"},
+\code{"alta"}, o \code{"desconocida"} si no se conoce el número de filas.
+\code{supuesto_costo} dice de dónde sale cada cuenta.
+
+Contar sólo el motor daba juicios falsos con números ciertos: una tabla de
+3.912 filas con una columna de geometría en texto pedía 64.592 lecturas
+—magnitud \code{"baja"}— y tardaba 35 segundos, porque el trabajo estaba en la
+comparación de formas, que no es una lectura de fila. El método de
+impresión muestra las dos mitades, avisa cuando la magnitud es alta y
+nombra las palancas para acotarla, que no son las mismas de un lado que
+del otro.
 }
 \description{
 Emite sólo las consultas-portón —contar filas, leer el esquema y sondear el
