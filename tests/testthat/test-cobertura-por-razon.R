@@ -49,13 +49,24 @@
   invisible(fila)
 }
 
-test_that("falta stringi: la normalización Unicode se declara y el alcance es NA", {
+# Las dos mitades van separadas a proposito. La mitad que mide necesita
+# `stringi` instalado; la mitad que declara su ausencia no puede necesitarlo,
+# porque es justamente la que simula que no esta. Juntas, en una maquina sin
+# `stringi`, la primera fallaba y se llevaba puesta a la segunda: la prueba de
+# la ausencia exigia la presencia.
+test_that("con stringi, la normalización Unicode se mide y el alcance no es NA", {
   skip_if_not_installed("stringdist")
+  skip_if_not_installed("stringi")
   datos <- data.frame(texto = c("café", "café", "nino"), stringsAsFactors = FALSE)
 
   presente <- perfilar(datos)
   expect_true(presente$columnas$unicode_evaluado[[1L]])
   expect_false(is.na(presente$columnas$n_variantes_unicode[[1L]]))
+})
+
+test_that("falta stringi: la normalización Unicode se declara y el alcance es NA", {
+  skip_if_not_installed("stringdist")
+  datos <- data.frame(texto = c("café", "café", "nino"), stringsAsFactors = FALSE)
 
   testthat::local_mocked_bindings(
     .stringi_disponible = function() FALSE, .package = "lupa"

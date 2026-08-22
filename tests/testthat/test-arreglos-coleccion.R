@@ -579,8 +579,13 @@ test_that("un DBI::Id declara la tabla sin pasar por el parseo", {
 
   suelto <- coleccion(con, DBI::Id(table = "raro.nombre"))
   expect_equal(suelto$n_declaradas, 1L)
-  # Tres componentes no se admiten, con la causa nombrada.
-  expect_error(coleccion(con, DBI::Id("a", "b", "c")), "dos componentes")
+  # Tres componentes no se admiten, con la causa nombrada. Los argumentos van
+  # nombrados porque `DBI::Id()` solo acepta los sueltos desde 1.2: con la
+  # version anterior el error que salta es el de DBI y la prueba mide otra cosa.
+  expect_error(
+    coleccion(con, DBI::Id(catalog = "a", schema = "b", table = "c")),
+    "dos componentes"
+  )
 })
 
 test_that("el unicode y las palabras reservadas siguen funcionando", {
