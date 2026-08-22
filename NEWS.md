@@ -1,5 +1,56 @@
 # lupa 0.1.0
 
+## El R minimo declarado ahora es un R medido
+
+`DESCRIPTION` declaraba `R (>= 3.6.0)`, y era una promesa que el paquete **no
+cumple**. Pasa a `R (>= 4.1.0)`.
+
+- Se venia afirmando que la suite **no puede** correr bajo R 3.6, porque
+  `testthat` declara `R (>= 4.1.0)`. Eso es cierto contra CRAN de hoy y falso
+  contra el snapshot de la epoca: ahi `testthat 3.1.7` instala sin problema. La
+  suite corre, y da `[ FAIL 18 | PASS 15356 ]`. La generalizacion tapo dieciocho
+  fallos.
+- **Seis de los dieciocho salen de una sola causa.** Bajo R < 4.0,
+  `data.frame()` trae `stringsAsFactors = TRUE`, y el paquete tiene 275 llamadas
+  a `data.frame()` que no lo declaran: ahi las columnas de texto nacen factor. No
+  es cosmetico: la proteccion de datos personales escribe `"[valor protegido]"`
+  en una columna factor, R lo rechaza por nivel invalido y queda `NA`. No hay
+  fuga, pero la promesa sobre esa celda no se cumple, y falla en silencio. Bajo
+  R 4.0.5 con los mismos paquetes esos seis desaparecen.
+- **`4.1.0` y no `4.0.0`** porque es lo que pide `testthat` actual: en el piso
+  declarado la suite corre con las herramientas de hoy, que es lo que hace
+  verificable la promesa. Medido en contenedor antes de declararlo:
+  `rocker/r-ver:4.1.3`, `checking tests ... OK`, `[ FAIL 0 | PASS 14613 ]`.
+  Nada obligaba al numero viejo: `cli`, el unico Import, pide `R (>= 3.4)`.
+- Los doce fallos restantes bajo versiones viejas de los `Suggests` no son del R:
+  con `RSQLite 2.3.1` y `bit64 4.0.5` los conteos vuelven como `integer64` y
+  viajan asi hasta el perfil, asi que un mismo campo cambia de clase segun que
+  tenga instalado el usuario. Queda anotado como trabajo abierto, no como
+  resuelto.
+
+## Tres pruebas que exigian justo lo que decian no tener
+
+Las tres tenian la misma forma, y solo se ven en un entorno donde el paquete
+opcional de verdad no esta.
+
+- La normalizacion Unicode juntaba en un bloque la mitad que **mide** —que
+  necesita `stringi`— y la mitad que **declara su ausencia**, simulada con un
+  mock. Sin `stringi`, la primera fallaba y se llevaba puesta a la segunda.
+  Poner una guarda habria salteado las dos, incluida la que no la necesitaba:
+  van separadas, con la guarda donde corresponde.
+- Las dos pruebas de `integer64_sin_soporte` armaban el `data.frame` con la
+  columna ya marcada como `integer64`, y eso obliga a `as.data.frame()` a buscar
+  el metodo de `bit64`. La prueba de que falta `bit64` exigia que `bit64`
+  estuviera. Ahora la clase se pone despues de armar la tabla, que ademas es el
+  camino realista: la columna llega marcada dentro de una tabla que ya existe.
+- `DBI::Id()` acepta argumentos sueltos recien desde 1.2. Con la version anterior
+  el error que salta es el de DBI y la prueba mide otra cosa; van nombrados.
+
+Nota sobre el instrumento: `_R_CHECK_DEPENDS_ONLY_=true` ocultaba `bit64` para
+`skip_if_not_installed()` —saltaba ocho pruebas por eso— y aun asi las dos de
+`integer64` pasaban ahi, mientras fallaban en el contenedor. **El check con
+dependencias recortadas no es equivalente a un entorno que no tiene el paquete.**
+
 ## El reintento que contra el driver real no se disparaba nunca
 
 La version anterior agrego un reintento: si la lectura de la muestra falla y
