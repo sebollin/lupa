@@ -1,3 +1,25 @@
+# El orden por bytes (`method = "radix"`) exige que la codificacion este
+# DECLARADA: R rechaza con "Character encoding must be UTF-8, Latin-1 or bytes"
+# una cadena marcada `unknown` que contenga bytes no ASCII, aunque sean UTF-8
+# perfectamente validos. Y asi llega cualquier CSV en espanol leido con
+# `read.csv()`: `"Combustibles liquidos"` con tilde sale con `Encoding()` en
+# `unknown` y rompe el perfil entero.
+#
+# Se marca la codificacion antes de ordenar. Lo que despues de eso siga sin ser
+# UTF-8 valido se pasa por `iconv(sub = "byte")`, que reemplaza el byte suelto
+# por su codigo: no es bonito, pero es determinista y ordenable, que es lo que
+# el orden necesita. La alternativa -caer al orden del entorno- devolveria la
+# dependencia de la maquina que este orden existe para sacar.
+.ordenar_por_bytes <- function(x) {
+  if (!length(x)) return(x)
+  clave <- tryCatch(enc2utf8(as.character(x)), error = function(e) as.character(x))
+  invalidos <- !is.na(clave) & !validUTF8(clave)
+  if (any(invalidos)) {
+    clave[invalidos] <- iconv(clave[invalidos], to = "UTF-8", sub = "byte")
+  }
+  x[order(clave, method = "radix")]
+}
+
 # `.columnas_duplicadas()` y `.pares_redundantes()` eran el mismo bloque escrito
 # dos veces en archivos distintos, con una sola diferencia: que columnas se
 # comparan -todas, o un subconjunto de claves-. Corregir un detalle obligaba a

@@ -788,7 +788,7 @@
   # configuracion regional de la maquina, y eso cambiaria el resultado de una
   # computadora a otra. El radix ordena por bytes, igual en todas.
   presentes_texto <- textos[presentes]
-  formas <- sort(unique(presentes_texto), method = "radix")
+  formas <- .ordenar_por_bytes(unique(presentes_texto))
   n_total <- length(formas)
   n_evaluados <- min(n_total, max_valores)
   crudos <- formas[seq_len(n_evaluados)]

@@ -563,11 +563,20 @@ cambia las acciones elegidas de un plan editable.
 Cada comprobación usa una unidad y una referencia declaradas diferentes.
 Ninguna estima una exactitud única para todo el paquete.
 
-| Comprobación | Unidad declarada | Resultado |
-| --- | --- | ---: |
-| Pares dirty/clean de Raha | columnas que contienen al menos una celda cambiada | 26/26 recibieron al menos un hallazgo; se señalaron 8 columnas más |
-| Controles limpios construidos | 31 tablas | 0 hallazgos de severidad error; 8 señales para revisar |
-| Registro real de sanciones | hallazgos de severidad error sobre 2.556 filas | 8/8 confirmados de manera independiente |
+| Comprobación | Unidad declarada | Resultado | Se reproduce con |
+| --- | --- | ---: | --- |
+| Pares dirty/clean de Raha | columnas que contienen al menos una celda cambiada | 26/26 recibieron al menos un hallazgo; se señalaron 8 columnas más | `benchmark/medir_lupa.R` |
+| Controles limpios construidos | 31 tablas | 0 hallazgos de severidad error; 8 señales para revisar | `test-ronda107.R` |
+| Registro real de sanciones | hallazgos de severidad error sobre 2.556 filas | 9/9 confirmados de manera independiente | `benchmark/medir_sanciones.R` |
+
+**Cada fila dice con qué se reproduce, y eso es parte de la comprobación.** Esta
+tabla llegó a publicar tres números que nadie podía comprobar desde el
+repositorio: uno describía un conjunto de controles que se había reducido de 43
+tablas a 31 —y el ruido de 25 señales a 8, o sea que el paquete había mejorado y
+el texto seguía diciendo lo viejo—, otro medía nueve defectos plantados cuyo
+banco no está acá, y el tercero un registro real sin script que lo bajara. El
+primero se volvió a medir, el segundo se sacó hasta que exista su banco, y el
+tercero tiene ahora el script.
 
 En los pares de Raha la comparación dirty/clean etiqueta celdas cambiadas; no
 etiqueta toda propiedad observable en una columna sin cambios. La revisión

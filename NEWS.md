@@ -1,5 +1,51 @@
 # lupa 0.1.0
 
+## Una tabla con acentos rompia el perfil entero
+
+Es el defecto mas serio de la tanda, y **lo introdujo el arreglo del orden del
+vocabulario de ayer**. Sobre cualquier tabla leida con `read.csv()` que tuviera
+acentos:
+
+```
+Error: Character encoding must be UTF-8, Latin-1 or bytes
+```
+
+El orden por bytes de R rechaza una cadena marcada `unknown` que contenga bytes
+no ASCII, **aunque sean UTF-8 perfectamente validos**, y asi llega cualquier CSV
+en espanol por el camino mas comun que hay: `"Combustibles liquidos"`,
+`"Energia Electrica"`. El mismo error estaba en el desempate de la moda.
+
+- Ahora la codificacion se marca antes de ordenar. Lo que despues de eso siga
+  sin ser valido pasa por `iconv(sub = "byte")`: no es bonito, pero es
+  determinista y ordenable. Caer al orden del entorno habria devuelto la
+  dependencia de la maquina que este orden existe para sacar.
+- Los otros tres usos de orden por bytes del paquete ordenan enteros, que no
+  tienen requisito de codificacion.
+- **Ni las cuatro auditorias externas ni las 15.696 comprobaciones de la suite
+  lo encontraron, porque todos los fixtures son ASCII.** Aparecio buscando otra
+  cosa: el registro publico con el que se cierra una fila de la tabla de
+  evidencia. La prueba nueva construye la cadena con `rawToChar()`, porque un
+  literal en el fuente lo marca el parser de R y el caso no se ejercita.
+
+## La tabla de evidencia dice ahora con que se reproduce cada fila
+
+Llego a publicar tres numeros que nadie podia comprobar desde el repositorio.
+El problema de fondo no eran los tres numeros sino que la tabla no obligaba a
+que cada afirmacion tuviera un reproductor. Ahora tiene una columna que lo dice.
+
+- **Controles limpios**: decia 43 tablas y 25 senales. El generador esta en el
+  repositorio, se redujo a 31 tablas y el ruido bajo a 8 -el paquete mejoro y el
+  texto seguia diciendo lo viejo-. Los tres numeros quedan fijados en
+  `test-ronda107.R`.
+- **Defectos plantados**: se saca la fila. El numero es real, se midio en tres
+  rondas, pero su banco no esta en el repositorio y reconstruirlo de memoria
+  daria nueve defectos parecidos y no los mismos. Vuelve cuando exista su test.
+- **Registro real de sanciones**: ahora hay `benchmark/medir_sanciones.R`, que
+  baja el registro publico del catalogo nacional -2.556 filas- y contrasta cada
+  hallazgo de severidad `error` contra una comprobacion escrita a mano en R
+  base. Da **9 de 9**, uno mas que cuando se midio. Ese archivo es ademas la
+  regresion del defecto de codificacion de arriba: es el que lo destapo.
+
 ## Un token que es marca de formato ya no genera un falso duplicado
 
 Mirando **que** reportaba el detector de vocabulario sobre una tabla real de

@@ -30,17 +30,14 @@
   # clave equivalente donde hace falta, y si aun asi no se puede, se deja el
   # orden de aparicion: es peor que ordenar, pero mucho mejor que romper el
   # perfil entero por una columna exotica.
-  clave <- if (is.raw(unicos)) as.integer(unicos) else unicos
-  orden <- tryCatch(
-    if (is.character(clave)) {
-      order(clave, method = "radix")
-    } else {
-      order(clave)
-    },
-    error = function(e) NULL
-  )
-  if (!is.null(orden) && length(orden) == length(unicos)) {
-    unicos <- unicos[orden]
+  if (is.character(unicos)) {
+    unicos <- .ordenar_por_bytes(unicos)
+  } else {
+    clave <- if (is.raw(unicos)) as.integer(unicos) else unicos
+    orden <- tryCatch(order(clave), error = function(e) NULL)
+    if (!is.null(orden) && length(orden) == length(unicos)) {
+      unicos <- unicos[orden]
+    }
   }
   indices <- match(valores, unicos)
   frecuencias <- tabulate(indices, nbins = length(unicos))
