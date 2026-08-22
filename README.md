@@ -284,6 +284,15 @@ distance. Calibrated against measurement, the pathological column drops from
 compared in full. What does get trimmed is declared: how many normalised forms
 went uncompared, how much work that was, and which cap did the trimming.
 
+And when a budget must trim, the forms it keeps are the **alphabetically first**,
+not the first to appear. That distinction was a defect, measured on a real column
+— 45,400 street names from the national open-data catalogue, 8,318 distinct
+forms. The same rows yielded 26 near-duplicate groups in the order the file
+arrives, 70–85 shuffled, and 148 sorted. A profiler whose verdict depends on the
+row order is measuring the physical shape of the table rather than the data.
+Sorting first, all five orders yield 148 — and sorting also keeps near-duplicates
+adjacent, so the cut falls between families instead of splitting them.
+
 ### Cost is planned before it is paid
 
 Profiling 158 columns in `modo = "exacto"` emits 623 queries, and 777 of the

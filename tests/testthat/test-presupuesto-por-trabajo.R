@@ -160,29 +160,55 @@ test_that("el recorte dice que no es una muestra, porque no lo es", {
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
   cobertura <- perfil$cobertura_diagnosticos
   fila <- cobertura[cobertura$diagnostico == "proximidad_vocabulario", ]
-  # El corte toma las primeras formas en aparecer. Decir cuantas quedaron
+  # El corte toma las primeras formas del alfabeto. Decir cuantas quedaron
   # afuera sin decir cuales deja suponer que se comparo una muestra al azar, y
-  # sobre una tabla ordenada lo que queda afuera es un tramo del orden.
-  expect_match(fila$motivo[[1L]], "primeras en aparecer")
+  # lo que queda afuera es el tramo final del alfabeto.
+  expect_match(fila$motivo[[1L]], "primeras en orden alfabetico")
   expect_match(fila$como_resolverlo[[1L]], "no una muestra")
+  expect_match(fila$como_resolverlo[[1L]], "no depende del orden de las filas")
 })
 
-test_that("el orden del vocabulario cambia lo que entra en el recorte", {
-  # Los mismos 300 valores y el mismo presupuesto, cambiando solo el orden en
-  # que aparecen: si los largos vienen primero se agotan enseguida y entran
-  # ocho formas; si vienen primero los cortos, entran las trescientas. El
-  # recorte es por orden de aparicion, no una muestra, y por eso el motivo lo
-  # dice.
+test_that("el orden de las filas ya no cambia lo que entra en el recorte", {
+  # Esta prueba media lo contrario y pasaba: los mismos 300 valores daban ocho
+  # formas comparadas si los largos venian primero y ciento cincuenta si venian
+  # primero los cortos. Eso estaba declarado en la documentacion como una
+  # advertencia al usuario -"si la tabla viene ordenada, conviene desordenarla
+  # antes"-, cuando en realidad era un defecto: el veredicto dependia de la
+  # forma fisica de la tabla.
   largos <- .valores_de(150, 400, semilla = 3L)
   cortos <- .valores_de(150, 20, semilla = 4L)
   primero_largos <- .vocabulario(c(largos, cortos), max_trabajo = 5e6)$alcance
   primero_cortos <- .vocabulario(c(cortos, largos), max_trabajo = 5e6)$alcance
-  expect_lt(primero_largos$n_unidades_comparadas, 20L)
-  expect_gt(primero_cortos$n_unidades_comparadas, 100L)
-  # El trabajo total posible es el mismo en los dos: lo que cambia es cuanto
-  # de el entra en el presupuesto.
+  expect_equal(
+    primero_largos$n_unidades_comparadas,
+    primero_cortos$n_unidades_comparadas
+  )
+  expect_equal(primero_largos$n_pares_comparados,
+               primero_cortos$n_pares_comparados)
+  # El trabajo total posible es el mismo en los dos, y ahora tambien lo es el
+  # que entra en el presupuesto.
   expect_equal(
     primero_largos$trabajo_estimado, primero_cortos$trabajo_estimado
+  )
+})
+
+test_that("cuando las formas caras caen primero en el alfabeto, entran menos", {
+  # El presupuesto sigue siendo de trabajo, asi que cuantas formas entran
+  # depende de cuanto cuesta cada una. Lo que cambio es que ya no depende de
+  # como venga ordenado el archivo: si las caras estan al principio del
+  # alfabeto, entran menos, y eso pasa siempre igual.
+  #
+  # Es la misma limitacion de antes, dejada de ser una loteria. El usuario que
+  # necesite mas alcance sube `max_trabajo_vocabulario`, y el motivo se lo dice.
+  caras <- paste0("AAA", .valores_de(60, 400, semilla = 3L))
+  baratas <- paste0("ZZZ", .valores_de(60, 20, semilla = 4L))
+  alcance <- .vocabulario(c(baratas, caras), max_trabajo = 5e6)$alcance
+  expect_true(isTRUE(alcance$truncado))
+  con_mas_presupuesto <- .vocabulario(
+    c(baratas, caras), max_trabajo = 5e11
+  )$alcance
+  expect_gt(
+    con_mas_presupuesto$n_unidades_comparadas, alcance$n_unidades_comparadas
   )
 })
 

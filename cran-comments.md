@@ -24,7 +24,7 @@
 > | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| PASS 14613 ]` | `../verificacion/2026-08-22d/r41/lupa.Rcheck/00check.log` |
 > | GitHub Actions (5 plataformas) | **5 de 5 `Status: OK`**, sin notas | log de la corrida `32545183793` |
 > | R-hub v2 R-devel (3 plataformas) | **3 de 3 `Status: OK`**, sin notas | log de la corrida `32545201079` |
-> | win-builder release y devel | enviados el 2026-08-22, esperando | log de cada corrida, y el `Packaged:` del binario para confirmar que chequearon estas fuentes |
+> | win-builder release y devel | **`Status: 1 NOTE`** las dos (`New submission` + timeout de gnu.org, que es su red) | `rRhNd1dyVrar` y `QSvwsYu86S9J`; el `Packaged:` de cada binario es `2026-08-22 01:55:31 UTC`, que es este tarball |
 >
 > **El minimo declarado se midio antes de declararlo**, que es justamente lo que
 > no se habia hecho con `R (>= 3.6.0)`: ahi la carta afirmaba que la suite no
@@ -155,9 +155,14 @@ revision. Each result was read from that run's own check log.
   `Suggests` versions and none of this affects the checks above; it is recorded
   as open work rather than presented as solved.
 
-* win-builder, R-release (R 4.6.1) and R-devel (r90424): **1 NOTE on each**, the
-  new-submission note and nothing else. Both queues checked these sources on
-  2026-08-19 at 18:20 and 17:56 UTC respectively.
+* win-builder, R-release (R 4.6.1) and R-devel (r90440): **1 NOTE on each**. The
+  note is the new-submission one plus a URL the checker could not reach —
+  `https://www.gnu.org/licenses/gpl-3.0.html`, reported as
+  `Timeout was reached ... Failed to connect to www.gnu.org port 443`. The link
+  is the GPL-3 text and resolves; the timeout is that machine's network, and it
+  appeared on every run of the day. Both queues report `checking tests ... OK`
+  and both manual formats OK, including the HTML manual that cannot be checked
+  locally for want of `tidy`.
 
   Results were matched to this build by reading each check log rather than by the
   arrival time of the notification. That distinction mattered here: an earlier

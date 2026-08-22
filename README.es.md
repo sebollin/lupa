@@ -291,6 +291,16 @@ baja de 61,3 s a 4,6 s, y una columna corriente de dos mil valores se sigue
 comparando entera. Lo que se recorta se declara: cuántas formas quedaron sin
 comparar, cuánto trabajo eran y cuál de los topes recortó.
 
+Y cuando hay que recortar, las formas que quedan son las **primeras del
+alfabeto**, no las primeras en aparecer. Esa diferencia era un defecto, medido
+sobre una columna real: 45.400 nombres de calle del catálogo nacional de datos
+abiertos, 8.318 formas distintas. Las mismas filas daban 26 grupos de
+casi-duplicados en el orden en que viene el archivo, 70–85 desordenadas y 148
+ordenadas. Un perfilador cuyo veredicto depende del orden de las filas está
+midiendo la forma física de la tabla y no los datos. Ordenando antes, los cinco
+órdenes dan 148 —y ordenar además deja los casi-duplicados adyacentes, así que el
+corte cae entre familias en vez de partirlas—.
+
 ### El costo se planifica antes de pagarlo
 
 Perfilar 158 columnas en `modo = "exacto"` emite 623 consultas, y 777 de las 778

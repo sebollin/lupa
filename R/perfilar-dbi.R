@@ -851,24 +851,58 @@
   suppressWarnings(as.numeric(valor[[1L]]))
 }
 
+# El limite donde un `double` deja de representar enteros exactamente. Debajo de
+# el, `numeric` y `integer64` guardan el mismo numero y `integer64` no compra
+# nada; encima, el `double` ya perdio digitos y `integer64` es la unica forma de
+# conservarlos.
+.MAX_ENTERO_EXACTO_DBI <- 2^53
+
+.entero_exacto_grande_dbi <- function(texto) {
+  if (is.na(texto) || !grepl("^[+-]?[0-9]+$", texto)) return(FALSE)
+  # La comparacion se hace sobre el texto para no perder el digito justo al
+  # convertirlo: `as.numeric("9007199254740993")` ya devuelve ...992.
+  digitos <- sub("^[+-]", "", texto)
+  digitos <- sub("^0+(?=[0-9])", "", digitos, perl = TRUE)
+  nchar(digitos) > 16L ||
+    (nchar(digitos) == 16L && digitos > "9007199254740992")
+}
+
+# Un conteo sale `numeric`, salvo que sea tan grande que un `double` ya no lo
+# represente y el motor lo haya entregado de una forma que si lo conserva
+# -texto, o `integer64`-.
+#
+# La version anterior devolvia `integer64` para cualquier conteo cuando `bit64`
+# estaba instalado, incluido un 20. Eso no agregaba precision -el double ya era
+# exacto- y agregaba tres problemas medidos:
+#
+#  1. La clase del mismo campo dependia de si el usuario tenia `bit64`, que es
+#     un `Suggests`.
+#  2. `perfilar()` devolvia `integer` para `n_distintos` y `perfilar_dbi()`
+#     devolvia `integer64`: dos puertas del mismo paquete en desacuerdo sobre el
+#     mismo campo.
+#  3. Lo peor: un perfil guardado con `bit64` presente y leido donde no esta
+#     muestra `9.881313e-323` donde midio `20`, sin error y sin aviso, y suma
+#     como si fuera un numero. Informar como medido algo que no lo es, en el
+#     paquete cuyo argumento es justamente ese.
+#
+# El caso donde `integer64` si compra exactitud queda intacto, y para un conteo
+# significa una tabla de mas de nueve mil billones de filas.
 .conteo_dbi <- function(valor) {
   if (is.null(valor) || !length(valor)) return(NA_real_)
-  if (inherits(valor, "integer64")) return(valor[[1L]])
-  texto <- if (is.character(valor)) {
-    as.character(valor[[1L]])
-  } else {
-    NA_character_
+  primero <- valor[[1L]]
+  if (inherits(valor, "integer64")) {
+    if (is.na(primero)) return(NA_real_)
+    texto <- format(primero, scientific = FALSE, trim = TRUE)
+    if (.entero_exacto_grande_dbi(texto)) return(primero)
+    return(suppressWarnings(as.numeric(primero)))
   }
-  if (.bit64_disponible_dbi() && !is.na(texto) &&
-      grepl("^[+-]?[0-9]+$", texto)) {
+  texto <- if (is.character(valor)) as.character(primero) else NA_character_
+  if (!is.na(texto) && .entero_exacto_grande_dbi(texto) &&
+      .bit64_disponible_dbi()) {
     return(bit64::as.integer64(texto))
   }
-  numero <- suppressWarnings(as.numeric(valor[[1L]]))
+  numero <- suppressWarnings(as.numeric(primero))
   if (!length(numero) || is.na(numero)) return(NA_real_)
-  if (.bit64_disponible_dbi() && is.finite(numero) &&
-      abs(numero) <= 2^53) {
-    return(bit64::as.integer64(format(numero, scientific = FALSE, trim = TRUE)))
-  }
   numero
 }
 
@@ -890,11 +924,25 @@
   .conteo_dbi(round(observado / muestra_numero * universo_numero))
 }
 
+# Si el conteo que se guarda representa el numero del motor sin perder digitos.
+# Tiene que contestar sobre lo que `.conteo_dbi()` guarda y no sobre otra cosa:
+# antes decia FALSE para un conteo entregado como texto por encima de 2^53, que
+# es justamente el caso donde si se guarda exacto. El paquete se declaraba menos
+# preciso de lo que era, que es el error simetrico del que importa, pero error
+# igual.
 .conteo_exacto_dbi <- function(valor) {
   if (is.null(valor) || !length(valor)) return(FALSE)
-  if (inherits(valor, "integer64")) return(.bit64_disponible_dbi())
+  primero <- valor[[1L]]
+  if (inherits(valor, "integer64")) {
+    if (is.na(primero)) return(FALSE)
+    return(.bit64_disponible_dbi())
+  }
+  if (is.character(valor)) {
+    texto <- as.character(primero)
+    if (.entero_exacto_grande_dbi(texto)) return(.bit64_disponible_dbi())
+  }
   numero <- .numero_dbi(valor)
-  is.finite(numero) && abs(numero) <= 2^53
+  is.finite(numero) && abs(numero) <= .MAX_ENTERO_EXACTO_DBI
 }
 
 .metadatos_sql_dbi <- function(alcance = "tabla_completa", universo = NA,

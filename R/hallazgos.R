@@ -656,30 +656,33 @@
   n_excluidos_faltantes <- sum(presentes_originales & excluir)
   presentes <- presentes_originales & !excluir
   if (!any(presentes)) return(NULL)
-  vistos <- new.env(hash = TRUE, parent = emptyenv())
-  vocabulario <- character()
-  frecuencias <- integer()
-  n_total <- 0L
-  for (valor in textos[presentes]) {
-    clave <- paste0("v", valor)
-    if (exists(clave, envir = vistos, inherits = FALSE)) {
-      indice <- get(clave, envir = vistos, inherits = FALSE)
-    } else {
-      n_total <- n_total + 1L
-      indice <- n_total
-      assign(clave, indice, envir = vistos)
-      if (indice <= max_valores) {
-        vocabulario[[indice]] <- valor
-        frecuencias[[indice]] <- 0L
-      }
-    }
-    if (indice <= max_valores) {
-      frecuencias[[indice]] <- frecuencias[[indice]] + 1L
-    }
-  }
+  # El vocabulario se ordena antes de recortar, y no se toma en el orden en que
+  # las formas aparecen. Ese detalle decide el resultado: sobre la columna
+  # `nombre` de "Ejes de vias de circulacion" de Montevideo -45.400 filas, 8.318
+  # formas distintas- las MISMAS filas dan, segun como vengan ordenadas,
+  #
+  #   orden de llegada     26 grupos       desordenado (3 semillas)  70, 71, 85
+  #   orden alfabetico    148 grupos
+  #
+  # y el paquete promete que el veredicto no depende de la forma fisica de la
+  # tabla. Tomar las primeras en aparecer lo hacia depender.
+  #
+  # Ordenar tiene ademas una razon de fondo y no solo de reproducibilidad: los
+  # casi-duplicados quedan **adyacentes** -`CAMINO CARRASCO` junto a `CAMINO
+  # AGRARIOS`-, asi que el corte cae entre familias en vez de partirlas. Una
+  # muestra al azar rompe pares: si de un grupo de dos sobrevive uno, el grupo
+  # desaparece. Por eso el azar rinde 70-85 y el orden rinde 148.
+  #
+  # `method = "radix"` no es un detalle: el orden por omision depende de la
+  # configuracion regional de la maquina, y eso cambiaria el resultado de una
+  # computadora a otra. El radix ordena por bytes, igual en todas.
+  presentes_texto <- textos[presentes]
+  formas <- sort(unique(presentes_texto), method = "radix")
+  n_total <- length(formas)
   n_evaluados <- min(n_total, max_valores)
-  crudos <- vocabulario[seq_len(n_evaluados)]
-  frecuencias <- frecuencias[seq_len(n_evaluados)]
+  crudos <- formas[seq_len(n_evaluados)]
+  posicion <- match(presentes_texto, crudos)
+  frecuencias <- tabulate(posicion[!is.na(posicion)], nbins = n_evaluados)
   perfil_columna <- .normalizacion_para_columna(perfil, columna)
   normalizados <- .normalizacion_aplicar(crudos, perfil_columna)
   clases <- match(normalizados, unique(normalizados))
@@ -1314,7 +1317,7 @@
           .miles_trabajo(alcance$n_unidades_normalizadas),
           " formas normalizadas, y se comparo entre si a las ",
           .miles_trabajo(alcance$n_unidades_comparadas),
-          " primeras en aparecer. Eso son ",
+          " primeras en orden alfabetico. Eso son ",
           .miles_trabajo(alcance$n_pares_comparados), " de ",
           .miles_trabajo(alcance$n_pares_posibles), " pares posibles y ",
           .miles_trabajo(alcance$trabajo_comparado), " de ",
@@ -1325,15 +1328,16 @@
           " pares sin comparar por ", alcance$motivo_presupuesto, "."
         ),
         # Decir cuantas formas quedaron afuera sin decir cuales son deja
-        # suponer que se comparo una muestra. No lo es: el corte toma las
-        # primeras en aparecer, asi que sobre una tabla ordenada lo que queda
-        # afuera es un tramo del orden y no un subconjunto cualquiera.
+        # suponer que se comparo una muestra. No lo es: el corte toma un tramo
+        # del alfabeto, asi que lo que queda afuera son las formas que empiezan
+        # mas adelante, no un subconjunto cualquiera.
         paste0(
           "Aumentar `max_trabajo_vocabulario` o `max_pares` si se necesita ",
           "cubrir mas valores; tambien se puede dividir el vocabulario en ",
           "subconjuntos con significado comun. Las formas comparadas son las ",
-          "primeras en aparecer, no una muestra: si la tabla viene ordenada, ",
-          "conviene desordenarla antes o subir el tope."
+          "primeras en orden alfabetico, no una muestra: lo que queda afuera es ",
+          "el tramo final del alfabeto. El resultado no depende del orden de ",
+          "las filas."
         )
       )
     }

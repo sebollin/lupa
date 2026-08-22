@@ -1,5 +1,73 @@
 # lupa 0.1.0
 
+## El veredicto ya no depende de como venga ordenado el archivo
+
+Cuando el vocabulario de una columna de texto excede el presupuesto, hay que
+elegir que formas comparar. Se elegian **las primeras en aparecer**, y eso hacia
+que el resultado dependiera del orden de las filas.
+
+Medido sobre la columna `nombre` de *Ejes de vias de circulacion* de Montevideo
+—45.400 filas, 8.318 formas distintas, del catalogo nacional de datos abiertos—,
+las **mismas filas** daban:
+
+| orden de las filas | grupos de casi-duplicados |
+| --- | --- |
+| tal como viene el archivo | **26** |
+| desordenado (semillas 11, 202, 7777) | 71, 85, 70 |
+| alfabetico | **148** |
+
+De 26 a 148 segun como estuviera ordenado el archivo. Un perfilador que hace eso
+mide la forma fisica de la tabla, no los datos, que es exactamente lo que el
+paquete promete no hacer.
+
+- Ahora las formas se **ordenan antes de recortar**. Los cinco ordenes de arriba
+  dan **148** grupos: el resultado es el mismo venga como venga el archivo.
+- Ordenar tiene ademas una razon de fondo: los casi-duplicados quedan
+  **adyacentes** —`CAMINO CARRASCO` junto a `CAMINO AGRARIOS`—, asi que el corte
+  cae entre familias en vez de partirlas. Una muestra al azar rompe pares: si de
+  un grupo de dos sobrevive uno, el grupo desaparece. Por eso el azar rinde 70-85
+  y el orden rinde 148 **con el mismo presupuesto**.
+- El orden es por bytes (`method = "radix"`) y no el del entorno: la
+  intercalacion por omision cambia de una maquina a otra, y eso habria cambiado
+  el defecto de lugar en vez de sacarlo.
+- El mensaje de cobertura dice ahora que las formas comparadas son las primeras
+  del alfabeto y que lo que queda afuera es su tramo final. Antes recomendaba
+  "desordenar la tabla antes", que era el mejor consejo posible mientras el
+  defecto estuviera.
+
+Lo destapo la tercera vuelta contra bases reales, que dejo esta afirmacion sin
+verificar por no encontrar una columna que la ejercitara. La columna existia.
+
+## Un conteo del perfil ya no cambia de clase segun que tenga instalado el usuario
+
+`perfilar_dbi()` devolvia `n_validos`, `n_faltantes`, `n_distintos`,
+`frecuencia_moda`, `meta$filas` y `filas_totales_fuente` como **`integer64`**
+siempre que `bit64` estuviera instalado, incluido un conteo de 20.
+
+- Eso no agregaba precision: por debajo de 2^53 un `double` ya representa el
+  entero exacto.
+- Y agregaba tres problemas. La clase del mismo campo dependia de un `Suggests`.
+  `perfilar()` devolvia `integer` para `n_distintos` y `perfilar_dbi()` devolvia
+  `integer64`: dos puertas del mismo paquete en desacuerdo sobre el mismo campo.
+- El tercero es el que decide. Un perfil guardado en una maquina con `bit64` y
+  leido en una que no lo tiene mostraba:
+
+  ```
+    columna     n_validos   n_distintos
+  1      id 9.881313e-323 9.881313e-323
+  ```
+
+  donde midio `20`. Sin error, sin aviso, y sumando como si fuera un numero.
+  Informar como medido algo que no lo es, en el paquete cuyo argumento es
+  justamente ese.
+- Los conteos salen ahora `numeric`. `integer64` se conserva **solo donde compra
+  exactitud**: un conteo por encima de 2^53 que el motor entrega como texto o
+  como `integer64`. Para un conteo de filas eso significa una tabla de mas de
+  nueve mil billones.
+- De paso se corrige el error simetrico: `conteo_exacto` decia `FALSE` para un
+  conteo entregado como texto por encima de 2^53, que es justo el caso donde si
+  se guarda exacto. El paquete se declaraba menos preciso de lo que era.
+
 ## El R minimo declarado ahora es un R medido
 
 `DESCRIPTION` declaraba `R (>= 3.6.0)`, y era una promesa que el paquete **no
