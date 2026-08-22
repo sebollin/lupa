@@ -1,23 +1,48 @@
-> **Matriz rehecha el 2026-08-21** sobre las fuentes del commit `6efc47e`. Local,
-> integracion continua y R-hub estan cerradas sobre ese commit, las tres en
-> `Status: OK`, y el estado por plataforma se leyo del log de cada corrida y no
-> de su conclusion, que es otra cosa: una corrida puede concluir con exito y
-> traer notas.
->
-> Los commits posteriores que tocan **solo este archivo** no mueven esas fuentes,
-> porque `cran-comments.md` esta en `.Rbuildignore` y no entra al tarball. Si se
-> toca cualquier otra cosa, la matriz se rehace.
-> win-builder esta enviada y sus resultados llegan por correo, asi que la fila de
-> win-builder de mas abajo **sigue siendo la de la revision anterior hasta que se
-> reemplace leyendo el log, no la hora de llegada del aviso**.
->
 > **Este bloque en espanol se saca antes de enviar.** Esta en otro idioma que
 > el resto de la carta justamente para que no se pueda enviar sin verlo.
 >
-> Estado local: `R CMD check --as-cran` con **`Status: OK`** -sin errores, avisos
-> ni notas-, el mismo check con `_R_CHECK_DEPENDS_ONLY_=true` tambien en
-> **`Status: OK`**, y la suite de **15.557** comprobaciones sin fallos en 98
-> archivos.
+> **Las fuentes se identifican por commit, no por el sello `Packaged:`.** La
+> version anterior de esta carta citaba `Packaged: 2026-08-21 19:03:52 UTC` como
+> identidad de lo chequeado, y al ir a verificarlo resulto que **ninguna de las
+> cuatro corridas de win-builder uso ese tarball**: `R CMD build` sella el
+> momento de armar, asi que cada subida tiene su propio sello y el sello no
+> identifica fuentes. Lo que identifica fuentes es el commit.
+>
+> **Y el estado de cada fila sale del log de esa corrida.** No de su conclusion
+> -una corrida puede concluir con exito y traer notas- ni de la hora en que
+> llego el aviso. Los logs de las corridas locales quedan en
+> `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
+> declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
+>
+> **Estado de la matriz sobre `49b644b`:**
+>
+> | entorno | estado | de donde sale |
+> | --- | --- | --- |
+> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-22c/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-22c/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-22c/sin-incoming/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| PASS 14613 ]` | `../verificacion/2026-08-22c/r41/lupa.Rcheck/00check.log` |
+> | GitHub Actions (5 plataformas) | PENDIENTE_ACTIONS | log de la corrida |
+> | R-hub v2 R-devel (3 plataformas) | PENDIENTE_RHUB | log de la corrida |
+> | win-builder release y devel | PENDIENTE_WB | log de cada corrida |
+>
+> **El minimo declarado se midio antes de declararlo**, que es justamente lo que
+> no se habia hecho con `R (>= 3.6.0)`: ahi la carta afirmaba que la suite no
+> podia correr, y contra el snapshot de la epoca corre y da 18 fallos. Ver la
+> seccion del contenedor mas abajo.
+>
+> **win-builder del 2026-08-21, para el archivo:** las cuatro corridas de ese dia
+> dan `Status: 1 NOTE`, siempre la misma -`New submission` mas
+> `https://www.gnu.org/licenses/gpl-3.0.html` con `Timeout was reached`, que es
+> la maquina de win-builder sin poder conectar, no una URL rota-. Dos de esas
+> cuatro chequearon fuentes anteriores a las que se queria probar: se supo
+> leyendo el `Packaged:` del binario de cada corrida, no la hora del aviso. Dato
+> util: ahi si corre `checking HTML version of manual` y da **OK**, que aca no se
+> puede medir por falta de `tidy`.
+>
+> Los commits posteriores que tocan **solo este archivo** no mueven las fuentes,
+> porque `cran-comments.md` esta en `.Rbuildignore` y no entra al tarball. Si se
+> toca cualquier otra cosa, la matriz se rehace entera.
 
 ## R CMD check results
 
@@ -70,10 +95,10 @@ carried forward.
 ## Test environments
 
 Every result below is from one build of these exact sources, with no change to the
-package between them. `R CMD build` stamps `Packaged:` into `DESCRIPTION`, so two
-builds of identical sources are never byte-identical; the claim is about the
-sources, which is what can be checked. The build used throughout carries
-`Packaged: 2026-08-21 19:03:52 UTC`.
+package between them. The sources are identified by their commit, not by the
+`Packaged:` stamp: `R CMD build` writes that stamp at build time, so two builds of
+identical sources carry different stamps and the stamp identifies a build, not a
+revision. Each result was read from that run's own check log.
 
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — **`Status: OK`**, no
   errors, warnings or notes, both with the ordinary check and with
@@ -85,32 +110,40 @@ sources, which is what can be checked. The build used throughout carries
   `x86_64-pc-linux-gnu`, `x86_64-w64-mingw32` and `aarch64-apple-darwin23`.
 * R-hub v2, R-devel (run 32517756256 on `6efc47e`): Linux, Windows and macOS — all three
   **`Status: OK`**.
-* Container: R 3.6.3 (`rocker/r-ver:3.6.3`) for the declared minimum, run with
-  `--ignore-vignettes --no-tests --no-manual` and `_R_CHECK_FORCE_SUGGESTS_=false`.
-  Against a 2023-04-15 CRAN snapshot from Posit Package Manager: 0 errors,
-  0 warnings, 2 notes. Both notes are properties of that environment, not of the
-  package: five suggested packages (`covr`, `knitr`, `rmarkdown`, `sf`, `stringi`)
-  have no installable build for R 3.6 in that snapshot, and the shipped data
-  contains one marked UTF-8 string. That last note does not appear under R 4.6.1,
-  which reports `checking data for non-ASCII characters ... OK`; it is a
-  difference between check versions, not a difference in the data.
+* Container: R 4.1.3 (`rocker/r-ver:4.1.3`) for the declared minimum, with the
+  suggested packages installed and the test suite running. Result:
+  **0 errors, 0 warnings**, and notes that are properties of that container
+  rather than of the package (`pandoc` absent, and packages that have no build
+  there).
 
-  A snapshot is required rather than plain CRAN, and its date is not arbitrary:
-  `DESCRIPTION` declares `cli (>= 3.0.0)`, published in 2021, so any earlier
-  snapshot fails with `Package required and available but unsuitable version` and
-  cannot exercise the package at all.
+  **`DESCRIPTION` used to declare `R (>= 3.6.0)`, and that was a claim this
+  package did not keep.** An earlier revision stated that the suite could not be
+  run under R 3.6 because `testthat` declares `R (>= 4.1.0)`. That is true
+  against current CRAN and false against a period-appropriate snapshot, where
+  `testthat 3.1.7` installs without trouble. Run there, the suite reports
+  `[ FAIL 18 | PASS 15356 ]`.
 
-  **The test suite cannot be run under R 3.6, and that is a property of the
-  testing tools rather than of this package.** `cli`, the package's only import,
-  declares `R (>= 3.4)` and installs there. `testthat` declares `R (>= 4.1.0)` and
-  pulls `rlang`, which declares `R (>= 4.0.0)`; against current CRAN neither
-  installs on R 3.6, so `tests/testthat.R` fails at `library(testthat)`. This is
-  why the R 3.6 run passes `--no-tests`: not for speed, but because the suite has
-  no way to load there. Checked against current CRAN on 2026-08-21, that
-  environment still reports `checking whether package 'lupa' can be installed ...
-  OK`, `checking R code for possible problems ... OK` and `checking examples ...
-  OK`, which is the part of the R 3.6 claim that can be verified. Vignettes, tests
-  and the manual are checked under R 4.6.1 and on the services above.
+  Six of those eighteen come from one cause: under R < 4.0 `data.frame()`
+  defaults to `stringsAsFactors = TRUE`, and this package has 275 `data.frame()`
+  calls that do not say otherwise, so text columns are born as factors. The
+  consequence is not cosmetic — writing the personal-data marker
+  `"[valor protegido]"` into a factor column yields `NA` instead, so a promise
+  the package makes about that cell silently goes unkept. Under R 4.0.5 with the
+  same period packages those six disappear.
+
+  The minimum is now `R (>= 4.1.0)`, which is both what current `testthat`
+  requires — so the suite runs at the declared floor with today's tools — and a
+  floor that was measured in a container before being declared, rather than
+  asserted. The only import, `cli`, declares `R (>= 3.4)`, so nothing forced the
+  older number.
+
+  The remaining twelve failures under old suggested-package versions are not
+  about the R version: with `RSQLite 2.3.1` and `bit64 4.0.5`, counts come back
+  as `integer64` and travel into the profile that way, so fields change class
+  with the user's installed optional packages. CRAN does not check against old
+  `Suggests` versions and none of this affects the checks above; it is recorded
+  as open work rather than presented as solved.
+
 * win-builder, R-release (R 4.6.1) and R-devel (r90424): **1 NOTE on each**, the
   new-submission note and nothing else. Both queues checked these sources on
   2026-08-19 at 18:20 and 17:56 UTC respectively.
@@ -208,18 +241,18 @@ integration, where a shared runner cannot support the claim; the structural
 assertions they used to carry — that sampling activates, that the result stays
 within a memory bound — run everywhere.
 
-The declared minimum R version is 3.6.0, and the R 3.6.3 run is why `cli` carries
-a floor. Under an older snapshot `cli` resolves to 2.0.2, which does not export
-`cli_progress_bar()`, `cli_progress_update()` or `cli_progress_done()`; those were
-added in cli 3.0.0. `DESCRIPTION` declares `cli (>= 3.0.0)` so the requirement is
-stated rather than assumed.
+The declared minimum R version is 4.1.0, and the reason `cli` carries a floor of
+its own came out of running against an old snapshot: there `cli` resolves to
+2.0.2, which does not export `cli_progress_bar()`, `cli_progress_update()` or
+`cli_progress_done()`; those arrived in cli 3.0.0. `DESCRIPTION` declares
+`cli (>= 3.0.0)` so the requirement is stated rather than assumed.
 
-An earlier R 3.6.3 run found two further compatibility defects, both fixed:
-`utils::URLencode()` is scalar in that release, so
-`.escapar_clave()` now applies it element by element, and factor columns reached
-text-oriented methods, so all operational metric inputs pass through a
-factor-to-character boundary while profiling retains the declared factor type.
-The Date-to-POSIXct historical conversion sets `tzone` to `UTC` explicitly.
+Runs against old R releases also found three compatibility defects, all fixed:
+`utils::URLencode()` is scalar in R 3.6, so `.escapar_clave()` applies it element
+by element; factor columns reached text-oriented methods, so all operational
+metric inputs pass through a factor-to-character boundary while profiling retains
+the declared factor type; and the Date-to-POSIXct historical conversion sets
+`tzone` to `UTC` explicitly.
 
 The quality frameworks shipped with the package are taxonomies, not measurements.
 `marco_cepal()` declares the four levels and nineteen principles of the United
