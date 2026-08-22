@@ -28,3 +28,15 @@ significa que el dialecto está implementado pero no se comprobó contra ese
 motor real en este repositorio. Los motores que no figuran en esa tabla no se
 presentan como probados.
 }
+\examples{
+# El catálogo completo: una fila por variante documentada.
+todos <- requisitos_motor()
+nrow(todos)
+
+# Lo que hace falta para un motor en particular, antes de intentar conectarse.
+requisitos_motor("postgresql")[, c("paquete_r", "estado_paquete_r")]
+
+# `no_comprobada` en la biblioteca del sistema no significa instalada: el
+# paquete no puede saberlo sin intentarlo, y lo dice en vez de suponerlo.
+unique(requisitos_motor()$estado_biblioteca_sistema)
+}

@@ -109,8 +109,35 @@ uno-a-uno con esas 127 posiciones.
 
 ## PED y RIOLU: lo medido
 
-Medicion del 2026-08-18 sobre una copia local descargada para medir y **no
+Medicion del **2026-08-22** sobre una copia local descargada para medir y **no
 redistribuida**. Se repite sin red con `PED_DATA_DIR` y `RIOLU_DATA_DIR`.
+
+> **Esta tabla se rehizo el 2026-08-22 y cuatro de sus siete filas cambiaron.**
+> La medicion anterior, del 2026-08-18, quedo vieja al corregirse el recorte del
+> vocabulario: se elegian las formas a comparar por orden de llegada y ahora se
+> ordenan antes de recortar. Eso cambia que se compara, y por lo tanto que se
+> encuentra. Los numeros viejos no eran falsos cuando se publicaron; dejaron de
+> valer y **nadie se entero hasta que una auditoria los volvio a correr**, que es
+> justamente lo que esta pagina existe para evitar.
+>
+> | conjunto | antes (prec / cob) | ahora |
+> | --- | ---: | ---: |
+> | PED / Hospital | 0,043 / 0,338 | 0,035 / **0,821** |
+> | PED / Flight | 0,819 / 0,171 | **0,524** / 0,281 |
+> | RIOLU / flights | 0,369 / 0,027 | 0,501 / 0,054 |
+> | RIOLU / movies | 0,334 / 0,445 | 0,338 / 0,494 |
+> | los tres `hosp_*` | sin cambio | sin cambio |
+>
+> **La cobertura sube en las cuatro que cambiaron; la precision baja en dos**, y
+> en PED/Flight baja fuerte. El paquete encuentra bastante mas, y una porcion
+> mayor de lo que encuentra no coincide con la verdad declarada. Se publica asi
+> y no como una mejora limpia.
+>
+> Con un matiz que vale para PED y que esta escrito mas arriba para Raha: la
+> verdad de PED es la diferencia `dirty`/`clean`, que **solo etiqueta celdas
+> cambiadas**. Una parte de esos "falsos positivos" pueden ser problemas reales
+> que la verdad no etiqueta. No esta comprobado que lo sean, asi que se cuentan
+> como fallos.
 
 La unidad de `PED` es la posicion `(fila, columna)` listada en `difference.csv`
 (`Index`, `Attribute`). La unidad de `RIOLU` es la posicion cuya etiqueta en
@@ -120,13 +147,30 @@ publicada.
 
 | Banco / conjunto | Filas x col | % celdas corruptas | Celdas de verdad | Trazables | Aciertos | Precision | Cobertura | Techo | Cobertura / techo |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| PED / Hospital | 1000 x 19 | 2,7 % | 509 | 4035 | 172 | 0,043 | 0,338 | 0,762 | 44 % |
-| RIOLU / movies | 7390 x 5 | 4,5 % | 1321 | 1763 | 588 | 0,334 | 0,445 | 1,000 | 45 % |
-| PED / Flight | 2376 x 6 | 18,3 % | 2608 | 546 | 447 | 0,819 | 0,171 | 0,423 | 40 % |
+| PED / Hospital | 1000 x 19 | 2,7 % | 509 | 11795 | 418 | 0,035 | 0,821 | 0,762 | — |
+| RIOLU / movies | 7390 x 5 | 4,5 % | 1321 | 1930 | 652 | 0,338 | 0,494 | 1,000 | 49 % |
+| PED / Flight | 2376 x 6 | 18,3 % | 2608 | 1398 | 733 | 0,524 | 0,281 | 0,423 | — |
 | RIOLU / hosp_10k | 10000 x 7 | 24,3 % | 7289 | 1550 | 1406 | 0,907 | 0,193 | 0,608 | 32 % |
 | RIOLU / hosp_1k | 999 x 7 | 25,2 % | 755 | 156 | 144 | 0,923 | 0,191 | 0,656 | 29 % |
-| RIOLU / flights | 74066 x 6 | 52,5 % | 233173 | 16889 | 6240 | 0,369 | 0,027 | 1,000 | **3 %** |
+| RIOLU / flights | 74066 x 6 | 52,5 % | 233173 | 25088 | 12558 | 0,501 | 0,054 | 1,000 | 5 % |
 | RIOLU / hosp_100k | 100000 x 7 | 53,4 % | 160186 | 14700 | 13422 | 0,913 | 0,084 | 0,311 | 27 % |
+
+**El techo no acota a PED, y nunca lo acoto.** El techo es la fraccion de celdas
+de verdad cuyo valor corrupto **cambia el patron** de la columna: es una cota para
+un metodo basado en forma. Los conjuntos de `RIOLU` se miden restringiendo `lupa`
+a `patron_raro`, asi que ahi el techo es la cota correcta. Los de `PED` se miden
+con **todos** los diagnosticos —`constante`, `numero_como_texto`,
+`unidades_mixtas` y los demas encuentran cosas que no son anomalias de forma—,
+asi que el techo nunca fue su cota. Era un error de categoria que la medicion
+vieja no dejaba ver, y la nueva si: en PED/Hospital la cobertura (0,821)
+**supera el techo** (0,762). Por eso la razon `Cobertura / techo` no se informa
+para las dos filas de PED.
+
+Ademas, **ningun script del repositorio calcula el techo**: `medir_bancos.R` no
+emite esa columna. Los valores que quedan son los de la medicion del 2026-08-18,
+heredados. Hasta que exista el codigo que los reproduzca, la columna `Techo` es
+un numero viejo y no una medicion vigente, y esta pagina no puede pedirle al
+lector que confie en el.
 
 ### El techo estructural, y por que la cobertura no se lee sin el
 
@@ -154,6 +198,11 @@ copia sucia y la limpia.
 Poner `0,923` al lado de `0,043` sin decir esto invita a una conclusion falsa.
 
 ### Por que la precision de PED/Hospital es baja, y por que no es un error
+
+> **Este desglose es de la medicion del 2026-08-18 y ya no suma a las celdas
+> trazables actuales** (11.795 contra las 4.035 de entonces). Se deja porque la
+> explicacion de por que la precision es baja sigue valiendo, pero los conteos
+> hay que rehacerlos.
 
 Las celdas trazables de esa tabla se reparten asi:
 

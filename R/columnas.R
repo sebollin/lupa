@@ -315,25 +315,6 @@
   )
 }
 
-.reparar_mojibake_uno <- function(x, max_iteraciones = 4L) {
-  if (is.na(x) || !nzchar(x)) return(NA_character_)
-  actual <- enc2utf8(as.character(x))
-  cambio <- FALSE
-  for (i in seq_len(max_iteraciones)) {
-    crudo <- tryCatch(
-      iconv(actual, from = "UTF-8", to = "latin1", toRaw = TRUE)[[1L]],
-      error = function(e) NULL
-    )
-    if (is.null(crudo)) break
-    candidato <- rawToChar(crudo)
-    Encoding(candidato) <- "UTF-8"
-    if (!validUTF8(candidato) || identical(candidato, actual)) break
-    actual <- candidato
-    cambio <- TRUE
-  }
-  if (cambio) actual else NA_character_
-}
-
 .umbral_vocabulario_barato <- 0.5
 .umbral_vocabulario_codificacion <- 0.8
 

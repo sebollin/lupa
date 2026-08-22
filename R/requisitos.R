@@ -367,6 +367,17 @@ print.requisitos_motor <- function(x, ...) {
 #'   para la biblioteca del sistema: `no_comprobada` no significa instalada.
 #'
 #' @export
+#' @examples
+#' # El catálogo completo: una fila por variante documentada.
+#' todos <- requisitos_motor()
+#' nrow(todos)
+#'
+#' # Lo que hace falta para un motor en particular, antes de intentar conectarse.
+#' requisitos_motor("postgresql")[, c("paquete_r", "estado_paquete_r")]
+#'
+#' # `no_comprobada` en la biblioteca del sistema no significa instalada: el
+#' # paquete no puede saberlo sin intentarlo, y lo dice en vez de suponerlo.
+#' unique(requisitos_motor()$estado_biblioteca_sistema)
 requisitos_motor <- function(motor = NULL) {
   if (!is.null(motor) &&
       (!is.character(motor) || length(motor) != 1L || is.na(motor) ||

@@ -198,7 +198,23 @@ y el criterio no fue sólo cortar el caso patológico sino **no tocar el común*
 | 800 | 900 | 61,3 s | 4,6 s | 27,8 % |
 | 2000 | 80 | 5,0 s | 5,1 s | 100 % |
 
-Una columna corriente de dos mil valores se compara entera. Y lo que sí se
+Una columna corriente de dos mil valores se compara entera **mientras sus
+valores midan menos de unos cien caracteres**. El tope por trabajo muerde cuando
+`L² · n(n-1)/2` supera `2e10`, así que para dos mil valores distintos el corte
+está en 101 caracteres:
+
+| valores | largo | ¿se recorta? | formas comparadas |
+| ---: | ---: | --- | ---: |
+| 2000 | 80 | no | 2000 |
+| 2000 | 100 | no | 2000 |
+| 2000 | 101 | **sí**, por `max_trabajo` | 1980 |
+| 2000 | 200 | sí, por `max_trabajo` | 1000 |
+
+Conviene tenerlo presente porque la columna que motivó el presupuesto —WKT de
+900 caracteres— cae del lado recortado: la tranquilidad de «dos mil valores se
+comparan enteros» no alcanza a los datos que hicieron falta el tope.
+
+Y lo que sí se
 recorta **se declara**, con las dos cuentas separadas: cuántas formas
 normalizadas quedaron sin comparar y cuánto trabajo eran, junto con cuál de los
 topes recortó, en el alcance del hallazgo y en `cobertura_diagnosticos`. Si

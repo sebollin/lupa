@@ -61,9 +61,15 @@ test_that("analizar protege valores crudos de los cuatro tipos personales", {
   expect_true(all(is.na(columnas$minimo[documentos])))
   expect_true(all(is.na(columnas$maximo[documentos])))
   expect_true(all(is.na(columnas$mediana[documentos])))
+  # La media tambien. Quedaba expuesta por esta via mientras `perfilar_dbi()` la
+  # tapaba, asi que la proteccion dependia de por que puerta entraras: la misma
+  # columna de documentos salia con `media = 5108024` por aca y con `media = NA`
+  # por la otra. El argumento esta escrito del lado DBI desde antes: la media de
+  # las cedulas de una tabla chica reconstruye demasiado.
+  expect_true(all(is.na(columnas$media[documentos])))
   expect_true(all(
     columnas$detalle_proteccion_personal[documentos] ==
-      "[estadisticos de orden protegidos]"
+      "[estadisticos de orden y momentos protegidos]"
   ))
   expect_true(all(
     columnas$minimo_fecha[nacimiento] == "[valor protegido]"

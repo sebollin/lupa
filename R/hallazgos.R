@@ -37,7 +37,15 @@
   total <- length(indices)
   mostrados <- utils::head(indices, limite)
   .trazabilidad_vacia(
-    estado = if (total) "disponible" else "disponible",
+    # Las dos ramas de este `if` devolvian "disponible", que es un resto de una
+    # correccion: con cero indices el objeto decia `estado = "disponible"` y a la
+    # vez `localizador = "ninguno"` y `mostrados = 0`, o sea prometia una
+    # localizacion que no existe. Un consumidor que mire `estado` para decidir si
+    # puede ubicar filas decidia mal.
+    #
+    # La rama vacia va a `no_disponible`, que es el valor por omision de
+    # `.trazabilidad_vacia()` y el que `.limitar_trazabilidad()` ya sabe saltear.
+    estado = if (total) "disponible" else "no_disponible",
     indices = mostrados,
     total = total, alcance = alcance, limite = limite,
     claves = .claves_de_filas(datos, clave, mostrados)
@@ -227,6 +235,47 @@
   )
 }
 
+# Un valor de texto cuyos bytes no son UTF-8 validos y cuya codificacion nadie
+# declaro no se puede analizar: no hay forma de adivinar si `0xE9` era una `e`
+# con tilde, una `i` con dieresis o basura. Descartarlo es correcto. Hacerlo en
+# silencio no lo es, y era lo que pasaba: esos valores se volvian NA antes de
+# llegar a cualquier diagnostico, y el perfil informaba `n_distintos` sobre los
+# que quedaron y `n_faltantes` sin contarlos. Medido sobre una columna Latin-1
+# de cinco valores distintos, el perfil decia `n_distintos = 2`,
+# `n_faltantes = 0` y cero filas de cobertura.
+#
+# Lo que R sabe convertir ya se convierte en `.texto_analizable()`. Esto declara
+# lo que queda, que es texto de codificacion desconocida.
+.cobertura_texto_indescifrable <- function(datos, nombres) {
+  filas <- list()
+  for (i in seq_along(nombres)) {
+    columna <- datos[[i]]
+    if (!is.character(columna) && !is.factor(columna)) next
+    analizable <- .texto_analizable(columna)
+    descartados <- length(analizable$posiciones)
+    if (!descartados) next
+    presentes <- sum(!is.na(as.character(columna)))
+    filas[[length(filas) + 1L]] <- .nuevo_diagnostico_no_evaluado(
+      "texto_no_descifrable", nombres[[i]],
+      paste0(
+        "No se pudieron analizar ", descartados, " de ", presentes,
+        " valores presentes: sus bytes no son UTF-8 v\u00e1lidos y la columna no ",
+        "declara su codificaci\u00f3n. Quedaron fuera de todo diagn\u00f3stico ",
+        "de texto, y por eso no cuentan ni como distintos ni como faltantes."
+      ),
+      paste(
+        "Leer el archivo declarando su codificaci\u00f3n \u2014por ejemplo",
+        "`read.csv(..., fileEncoding = \"ISO-8859-1\")`\u2014 o marcarla con",
+        "`Encoding(x) <- \"latin1\"`. El texto con codificaci\u00f3n declarada se",
+        "convierte y se analiza; lo que no se puede identificar se descarta, y",
+        "esta fila es la que lo dice."
+      )
+    )
+  }
+  if (!length(filas)) return(NULL)
+  do.call(rbind, filas)
+}
+
 # Las relaciones de orden son una extension del diagnostico, no una metrica:
 # encuentran pares de columnas que parecen compartir una relacion aritmetica
 # estable para que el usuario pueda declararla despues en el marco de calidad.
@@ -369,7 +418,11 @@
   )
 }
 
-.detectar_orden_columnas <- function(datos, columnas, resultados,
+# `resultados` estaba en la firma y el cuerpo no lo tocaba: el llamador
+# construia y pasaba un objeto que esta funcion habia dejado de consumir. Es la
+# senal mas clara de un refactor a medio terminar, y hace creer que hay una
+# dependencia que no existe.
+.detectar_orden_columnas <- function(datos, columnas,
                                      formatos_fecha, umbral = 0.95,
                                      max_columnas = 20L,
                                      umbral_solapamiento = 0.1) {

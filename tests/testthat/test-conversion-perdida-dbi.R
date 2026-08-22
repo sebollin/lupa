@@ -69,10 +69,23 @@ test_that("el plan declara que su total es un techo", {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", data.frame(a = 1:10, b = 2:11))
   plan <- plan_perfilado_dbi(con, "t")
-  # Se afirmo durante rondas que el plan predecia exacto. Es cierto mientras
-  # todas las columnas tengan valores; una vacia no emite mediana ni desvio.
-  expect_match(attr(plan, "supuesto"), "techo")
+  # Se afirmo durante rondas que el plan predecia exacto, y despues que era un
+  # techo. Ninguna de las dos: el total se mueve en LAS DOS direcciones. Hacia
+  # abajo porque una columna sin valores validos no emite mediana ni desvio.
+  # Hacia arriba porque si el motor rechaza un lote se emite la consulta del
+  # lote y ademas una por columna. Medido contra un motor que rechaza lotes: el
+  # plan decia 22 y se emitieron 30.
+  #
+  # Por eso ya no dice "techo" y publica el rango. Esta prueba fija las dos
+  # mitades: sin la de "hacia arriba", volver a llamarlo techo pasaria.
   expect_match(attr(plan, "supuesto"), "sin valores validos")
+  expect_match(attr(plan, "supuesto"), "rechaza un lote")
+  expect_false(grepl("es un techo", attr(plan, "supuesto"), fixed = TRUE))
+  # Y el otro extremo del rango existe y no es menor que el total.
+  total <- attr(plan, "total", exact = TRUE)
+  peor <- attr(plan, "total_lotes_rechazados", exact = TRUE)
+  expect_false(is.null(peor))
+  expect_gte(peor, total)
 })
 
 test_that("la puerta de exactitud cubre el entero que redondea hacia el limite", {

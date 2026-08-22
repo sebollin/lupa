@@ -241,9 +241,17 @@ for (n in c(1000, 2000)) {
   for (largo in c(40, 200)) {
     medida <- .por_omision(.valores_de(n, largo))
     segundos <- medida$segundos
-    # Los pares que el plan contaria para esta columna: los que hay, acotados
-    # por el mismo tope que usa el plan.
-    pares <- min(n * (n - 1) / 2, eval(formals(.vocabulario)$max_pares))
+    # Los pares que DE VERDAD se compararon, no los que el plan contaria.
+    #
+    # Esta linea decia `min(n*(n-1)/2, max_pares)`, que es el conteo del plan, y
+    # con valores largos el detector recorta ademas por `max_trabajo`: sobre
+    # 2000x200 el plan cuenta 1.999.000 pares y se comparan 499.500. Dividir el
+    # tiempo por el conteo del plan inflaba la tasa cuatro veces, y ese numero
+    # inflado se publico en NEWS y en `supuesto_costo` como si fuera la tasa
+    # medida. Medir una cosa y publicarla como otra es el error que este banco
+    # existe para no cometer.
+    comparadas <- medida$alcance$n_unidades_comparadas
+    pares <- comparadas * (comparadas - 1) / 2
     tasas_pares <- c(tasas_pares, pares / segundos)
     cat(sprintf(
       "%10s %8d %14s %10.2f %14s\n",
@@ -257,10 +265,11 @@ for (n in c(1000, 2000)) {
 ## pares es un piso y no una promesa.
 cat(sprintf(
   paste(
-    "\nEl plan declara ~800.000 pares/seg sobre valores de cuarenta",
-    "caracteres. Medido aca: %s a %s pares/seg segun el largo. Con textos",
-    "mucho mas largos la tasa cae, asi que la cuenta de pares del plan es un",
-    "piso: por eso `supuesto_costo` lo dice en vez de prometer segundos.\n"
+    "\nMedido aca: %s a %s pares/seg segun el largo, contando los pares que se",
+    "compararon y no los que el plan contaria. Con valores de doscientos",
+    "caracteres la tasa cae a menos de una decima parte de la de cuarenta, asi",
+    "que la cuenta de pares del plan es un piso: por eso `supuesto_costo` lo",
+    "dice en vez de prometer segundos.\n"
   ),
   .miles(min(tasas_pares)), .miles(max(tasas_pares))
 ))

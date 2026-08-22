@@ -31,3 +31,19 @@ nunca modifica los datos de entrada. La descomposicion canonica y el orden
 de sus marcas son siempre activos para que NFC y NFD sean equivalentes en el
 subconjunto latino cubierto por lupa.
 }
+\examples{
+# El perfil por omisión: minúsculas, espacios, acentos y comillas.
+normalizacion()
+
+# Comparar sin quitar acentos, para que "canon" y "cañón" no se fusionen.
+perfil <- normalizacion(acentos = FALSE)
+perfil$acentos
+
+# La normalización sólo afecta la representación usada para COMPARAR; no
+# modifica los datos ni los conteos. Estas tres formas siguen siendo tres
+# valores distintos, y así se informan: lo que la normalización habilita es
+# que se reconozcan como variantes de la misma cosa al buscar duplicados.
+datos <- data.frame(ciudad = c("Montevideo", "MONTEVIDEO", "montevideo"))
+salida <- perfilar(datos, normalizar = normalizacion())
+salida$columnas$n_distintos  # 3, no 1
+}

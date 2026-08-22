@@ -108,6 +108,16 @@
 }
 
 test_that("31 tablas limpias tienen solo afirmaciones verdaderas", {
+  # Estos tres numeros son los que publica la tabla de evidencia del README:
+  # 31 tablas de control, 0 hallazgos de severidad error, 8 senales para
+  # revisar. Se fijan aca a proposito.
+  #
+  # Antes decia 43 tablas y 25 senales, de cuando el conjunto era mas grande y
+  # el paquete hacia mas ruido. El generador se redujo, el ruido bajo a 8, y el
+  # README siguio publicando los viejos porque ninguna prueba los ataba. Un
+  # numero publicado que ninguna prueba vigila se vuelve mentira sin que nadie
+  # se entere; que este fallando aca es la unica forma de que eso no pase otra
+  # vez.
   tablas <- .tablas_limpias_r107()
   expect_equal(length(tablas), 31L)
 
@@ -120,6 +130,8 @@ test_that("31 tablas limpias tienen solo afirmaciones verdaderas", {
 
   expect_false(any(as.character(hallazgos$severidad) == "error"))
   observados <- hallazgos[as.character(hallazgos$severidad) != "ok", ]
+  # Las "senales para revisar" del README son exactamente estas.
+  expect_equal(nrow(observados), 8L)
   afirmaciones <- sort(paste(
     observados$tabla, observados$columna, observados$tipo_hallazgo, sep = "::"
   ))

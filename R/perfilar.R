@@ -945,7 +945,7 @@ perfilar <- function(datos,
   )
   duplicadas <- .columnas_duplicadas(datos, nombres)
   relaciones_orden <- .detectar_orden_columnas(
-    datos, columnas, resultados, formatos_fecha,
+    datos, columnas, formatos_fecha,
     umbral = umbral_orden_columnas, max_columnas = max_columnas_orden,
     umbral_solapamiento = umbral_solapamiento_orden
   )
@@ -1019,6 +1019,12 @@ perfilar <- function(datos,
   if (!is.null(cobertura_aplicabilidad)) {
     cobertura_diagnosticos <- rbind(
       cobertura_diagnosticos, cobertura_aplicabilidad
+    )
+  }
+  cobertura_indescifrable <- .cobertura_texto_indescifrable(datos, nombres)
+  if (!is.null(cobertura_indescifrable)) {
+    cobertura_diagnosticos <- rbind(
+      cobertura_diagnosticos, cobertura_indescifrable
     )
   }
   attr(hallazgos, "cobertura_diagnosticos") <- NULL

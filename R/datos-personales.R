@@ -540,9 +540,16 @@
   reemplazo <- "[valor protegido]"
   indices_columnas <- columnas$columna %in% sensibles
   columnas$moda[indices_columnas & !is.na(columnas$moda)] <- reemplazo
+  # `media` entra por lo mismo que la via DBI ya la tapaba, y con el mismo
+  # argumento que esta escrito alla: la media de las cedulas de una tabla chica
+  # reconstruye demasiado. Que una puerta la ocultara y la otra la publicara
+  # significaba que la proteccion dependia de por donde entraras: la misma
+  # columna de documentos salia con `media = 5108024` por `perfilar()` y con
+  # `media = NA` por `perfilar_dbi()`.
   campos_numericos <- intersect(
-    c("minimo", "maximo", "mediana"), names(columnas)
+    c("minimo", "maximo", "mediana", "media"), names(columnas)
   )
+  campos_momento <- c("media")
   campos_texto <- intersect(
     c(
       "minimo_exacto", "maximo_exacto", "minimo_fecha", "maximo_fecha",
@@ -551,9 +558,14 @@
     names(columnas)
   )
   tenia_orden <- rep(FALSE, nrow(columnas))
+  tenia_momento <- rep(FALSE, nrow(columnas))
   for (campo in campos_numericos) {
     ocultar <- indices_columnas & !is.na(columnas[[campo]])
-    tenia_orden <- tenia_orden | ocultar
+    if (campo %in% campos_momento) {
+      tenia_momento <- tenia_momento | ocultar
+    } else {
+      tenia_orden <- tenia_orden | ocultar
+    }
     columnas[[campo]][ocultar] <- NA_real_
   }
   for (campo in campos_texto) {
@@ -565,8 +577,14 @@
   if (!"detalle_proteccion_personal" %in% names(columnas)) {
     columnas$detalle_proteccion_personal <- NA_character_
   }
-  columnas$detalle_proteccion_personal[tenia_orden] <-
+  # El texto dice lo que de verdad se tapo. Decir "y momentos" cuando la media
+  # ya era NA seria declarar una proteccion que no se aplico.
+  columnas$detalle_proteccion_personal[tenia_orden & !tenia_momento] <-
     "[estadisticos de orden protegidos]"
+  columnas$detalle_proteccion_personal[tenia_momento & !tenia_orden] <-
+    "[momentos protegidos]"
+  columnas$detalle_proteccion_personal[tenia_orden & tenia_momento] <-
+    "[estadisticos de orden y momentos protegidos]"
   for (i in seq_along(patrones)) {
     if (names(patrones)[[i]] %in% sensibles && "ejemplos" %in% names(patrones[[i]])) {
       patrones[[i]]$ejemplos[nzchar(patrones[[i]]$ejemplos)] <- reemplazo

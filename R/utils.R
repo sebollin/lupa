@@ -1,7 +1,20 @@
+# `muestra = 1.5` se aceptaba y se perfilaba UNA fila, en silencio. Un usuario
+# que pide una muestra y medio recibe un perfil sobre una fila sin enterarse, y
+# la misma llamada por la via DBI da error. Ahora las dos rechazan el no entero.
+#
+# La unica diferencia que queda entre las dos vias es deliberada y esta
+# documentada: `Inf` vale en memoria -significa "todas las filas"- y no vale
+# contra un motor, donde hay que decir cuantas filas traer.
 .validar_muestra <- function(muestra) {
   if (!is.numeric(muestra) || length(muestra) != 1L || is.na(muestra) ||
       muestra < 1) {
     stop("`muestra` debe ser un n\u00famero positivo.", call. = FALSE)
+  }
+  if (is.finite(muestra) && muestra != floor(muestra)) {
+    stop(
+      "`muestra` debe ser un entero positivo, o `Inf` para no muestrear.",
+      call. = FALSE
+    )
   }
   floor(muestra)
 }
@@ -191,6 +204,30 @@
     ))
   }
   valores <- as.character(x)
+  # Lo que R sabe convertir se convierte, no se descarta.
+  #
+  # `validUTF8()` mira los bytes, y los de un texto marcado `latin1` no son UTF-8
+  # validos. Sin este paso, una columna de un CSV viejo en espanol -el caso mas
+  # comun que hay en datos publicos de la region- perdia todos sus valores
+  # acentuados: `CAFE`, `ANO` y `NUMERO` sobrevivian y `CAFE con tilde`, `ANO con
+  # tilde` y `NUMERO con tilde` se volvian NA. El perfil informaba entonces
+  # `n_distintos = 2` sobre cinco valores distintos y `n_faltantes = 0`, sin
+  # declarar nada: informar como medido lo que se descarto, que es exactamente lo
+  # que el paquete promete no hacer.
+  #
+  # `Encoding()` dice `latin1` cuando R conoce la codificacion, y ahi `enc2utf8()`
+  # convierte sin perder nada. Lo que queda invalido despues de eso es texto cuya
+  # codificacion nadie declaro y no se puede adivinar; eso si se descarta, y se
+  # informa en `invalidos` y `posiciones`.
+  declarados <- Encoding(valores) %in% c("latin1", "UTF-8")
+  if (any(declarados)) {
+    convertidos <- suppressWarnings(
+      tryCatch(enc2utf8(valores[declarados]), error = function(e) NULL)
+    )
+    if (!is.null(convertidos) && length(convertidos) == sum(declarados)) {
+      valores[declarados] <- convertidos
+    }
+  }
   invalidos <- !is.na(valores) & !validUTF8(valores)
   posiciones <- which(invalidos)
   if (length(posiciones)) valores[posiciones] <- NA_character_

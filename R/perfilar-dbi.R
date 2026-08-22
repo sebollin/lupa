@@ -839,9 +839,11 @@
   .valor_campo_dbi(resultado$datos, campo)
 }
 
-.bit64_disponible_dbi <- function() {
-  requireNamespace("bit64", quietly = TRUE)
-}
+# Habia dos funciones con cuerpos identicos para la misma pregunta -esta y
+# `.bit64_disponible()` en columnas.R- y una tercera forma distinta en
+# `.hay_paquete()`. Tres puntos de verdad para "esta bit64?": cambiar el
+# criterio en uno y olvidar el otro es cuestion de tiempo. Queda uno solo.
+.bit64_disponible_dbi <- function() .bit64_disponible()
 
 .numero_dbi <- function(valor) {
   if (is.null(valor) || !length(valor)) return(NA_real_)
@@ -2587,6 +2589,24 @@
   )
   plan <- plan[plan$n_consultas > 0, , drop = FALSE]
   rownames(plan) <- NULL
+  # El total NO es un techo cuando el motor rechaza lotes, y ese es justamente
+  # el escenario que motivo la consolidacion. Si un lote falla, el codigo emite
+  # la consulta del lote -que falla- y ademas una consulta por columna, asi que
+  # un bloque de `n_lotes` pasa a costar `n_lotes + n_columnas`.
+  #
+  # Medido sobre el motor simulado que rechaza un SELECT con demasiadas
+  # expresiones: el plan predecia 22 consultas y se emitieron 30. El `supuesto`
+  # solo declaraba la direccion "menos" -una columna vacia no emite sus
+  # metricas- y nunca la direccion "mas". Quien decide la viabilidad de una
+  # corrida con ese numero se queda corto justo en el escenario de degradacion.
+  #
+  # Se publica el rango en vez de elegir un extremo: `total` sigue siendo lo que
+  # cuesta si ningun lote se rechaza, y `total_lotes_rechazados` lo que costaria
+  # si se rechazaran todos.
+  attr(plan, "extra_si_se_rechazan_lotes") <-
+    (if (consolida_conteos) n_metricas(n_columnas) else 0) +
+    (if ("basicos" %in% metricas) n_metricas(n_numericas) else 0) +
+    (if ("desvio" %in% metricas && n_numericas > 0) n_metricas(n_numericas) else 0)
   plan
 }
 
@@ -2750,7 +2770,7 @@
   "de fila por segundo sobre PostgreSQL 16 local (2.000.000 de filas por 40",
   "columnas en modo seguro: 14 consultas, 5,3 segundos); y de 660.000 a",
   "960.000 pares por segundo sobre valores de cuarenta caracteres, que bajan a",
-  "entre 70.000 y 270.000 sobre valores de doscientos."
+  "unos 70.000 sobre valores de doscientos."
 )
 
 
@@ -2828,6 +2848,10 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
     tamano_lote = preparacion$tamano_lote
   )
   attr(plan, "total") <- sum(plan$n_consultas)
+  extra <- attr(plan, "extra_si_se_rechazan_lotes", exact = TRUE)
+  if (is.null(extra)) extra <- 0
+  attr(plan, "total_lotes_rechazados") <- sum(plan$n_consultas) + extra
+  attr(plan, "extra_si_se_rechazan_lotes") <- NULL
   # El total es un TECHO, no una prediccion exacta, y conviene que lo diga.
   # El plan cuenta una mediana y un desvio por columna numerica; una columna sin
   # un solo valor valido no los emite, porque no hay sobre que calcularlos. El
@@ -2841,10 +2865,14 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
   # yerra por una. Declararlo como techo es lo unico honesto: el numero sirve
   # para decidir si una corrida es viable, y para eso un techo alcanza.
   attr(plan, "supuesto") <- paste(
-    "El total es un techo. Se cuenta una mediana y un desvio por columna",
-    "numerica; una columna sin valores validos no los emite, asi que el costo",
-    "real puede ser menor. El plan no consulta cuantos validos hay para no",
-    "cambiar su propio costo."
+    "El total vale si ningun lote se rechaza, y puede moverse en las dos",
+    "direcciones. Hacia abajo: se cuenta una mediana y un desvio por columna",
+    "numerica, y una columna sin valores validos no los emite; el plan no",
+    "consulta cuantos validos hay para no cambiar su propio costo. Hacia",
+    "arriba: si el motor rechaza un lote de columnas, se emite la consulta del",
+    "lote y ademas una por columna, asi que el costo real supera el total.",
+    "`total_lotes_rechazados` es el otro extremo, con todos los lotes",
+    "rechazados; el costo real cae entre los dos."
   )
   attr(plan, "columnas") <- length(preparacion$campos)
   attr(plan, "columnas_numericas") <- sum(es_numerico)

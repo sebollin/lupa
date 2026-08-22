@@ -1,5 +1,116 @@
 # lupa 0.1.0
 
+## Una columna en Latin-1 perdia sus acentos en silencio
+
+Es el defecto mas grave que encontro esta tanda, y no es un caso de borde: es un
+CSV viejo en espanol, que es la mayoria de lo que hay en datos publicos de la
+region. Sobre una columna con cinco valores distintos, el perfil informaba:
+
+```
+n_distintos: 2        <- son 5
+n_faltantes: 0        <- dice que no falta nada
+cobertura:   0 filas  <- no declara nada
+```
+
+`validUTF8()` mira los bytes, y los de un texto marcado `latin1` no son UTF-8
+validos, asi que `CAFE`, `ANO` y `NUMERO` con tilde se volvian `NA` antes de
+llegar a cualquier diagnostico. El invariante del paquete roto en su forma mas
+directa: informar como medido lo que se descarto.
+
+- **Lo que R sabe convertir ahora se convierte.** `Encoding()` dice `latin1`
+  cuando R conoce la codificacion, y `enc2utf8()` convierte sin perder nada. El
+  paquete estaba tirando informacion que podia recuperar con una llamada. Con
+  eso, la misma columna informa `n_distintos = 5`.
+- **Y lo que no se puede convertir, se declara.** Un texto cuya codificacion
+  nadie declaro y cuyos bytes no son UTF-8 validos se sigue descartando —no hay
+  forma de adivinar si `0xE9` era una `e` con tilde o basura— pero ahora
+  `cobertura_diagnosticos` gana una fila `texto_no_descifrable` que dice cuantos
+  valores quedaron afuera, y por que no cuentan ni como distintos ni como
+  faltantes.
+
+## La proteccion de datos personales dependia de por que puerta entraras
+
+La media de una columna de cedulas salia **expuesta** por `perfilar()` y
+**tapada** por `perfilar_dbi()`:
+
+```
+perfilar()      media = 5108024      detalle: [estadisticos de orden protegidos]
+perfilar_dbi()  media = NA           detalle: [estadisticos de orden y momentos protegidos]
+```
+
+El argumento estaba escrito del lado DBI desde antes —"la media de las cedulas
+de una tabla chica reconstruye demasiado"— y el camino principal no lo aplicaba.
+Ahora las dos tapan la media, y el texto distingue si se taparon estadisticos de
+orden, momentos o los dos, para no declarar una proteccion que no se aplico.
+
+## El total del plan no era un techo, y ahora se publica como rango
+
+`attr(plan, "supuesto")` decia que el total era un techo y declaraba solo la
+direccion "menos": una columna sin valores validos no emite sus metricas. Nunca
+declaraba la direccion "mas". Medido contra un motor que rechaza lotes —el caso
+exacto que motivo la consolidacion—:
+
+```
+plan (techo) = 22 consultas        real emitidas = 30
+```
+
+Si un lote falla, se emite la consulta del lote y ademas una por columna. Quien
+decide la viabilidad de una corrida con ese numero se quedaba corto justo en el
+escenario de degradacion. Ahora el plan publica `total` —lo que cuesta si ningun
+lote se rechaza— y `total_lotes_rechazados` —si se rechazaran todos—, y el costo
+real cae entre los dos.
+
+## Dos numeros publicados que no resistieron que otro los midiera
+
+Los dos eran nuestros y de esta semana, y los dos son la misma forma de error:
+**medir una cosa y publicarla como otra.**
+
+- **"Una columna corriente de dos mil valores se compara entera"** es falso sin
+  calificar el largo. El tope por trabajo muerde cuando `L^2 x n(n-1)/2` supera
+  `2e10`, o sea a partir de **101 caracteres** para dos mil valores distintos. Y
+  falso en el peor lugar: la columna de WKT de 900 caracteres que motivo el
+  presupuesto cae del lado recortado, asi que la frase tranquilizadora no
+  alcanzaba justo a los datos que hicieron falta el tope.
+- **La tasa de 200 caracteres estaba inflada cuatro veces.** El banco dividia el
+  tiempo por los pares que el *plan* contaria y no por los que de verdad se
+  compararon: sobre 2000x200 el plan cuenta 1.999.000 pares y se comparan
+  499.500, porque `max_trabajo` recorta a 1.000 formas. La tasa real es unos
+  **70.000** pares/seg, no "70.000 a 270.000".
+
+## La tabla de evidencia del README, medida de nuevo
+
+Publicaba **43 tablas de control y 25 senales**. El generador esta en el
+repositorio, se redujo a 31 tablas, y el ruido bajo a 8 —el paquete mejoro— pero
+el README siguio publicando los numeros viejos **porque ninguna prueba los
+ataba**. Ahora dice 31 tablas, 0 errores y 8 senales, y los tres estan fijados en
+`test-ronda107.R`: si cambian, la suite falla y hay que actualizarlos a
+proposito.
+
+Se saco la fila de los nueve defectos plantados. El numero es real —se midio en
+tres rondas— pero el fixture no esta en el repositorio, y reconstruirlo de
+memoria daria nueve defectos parecidos y no los mismos. En la tabla que sostiene
+el argumento del paquete, una fila menos es mejor que una fila que no se puede
+comprobar. Vuelve cuando exista su test.
+
+## Restos de correcciones anteriores
+
+- Una trazabilidad sin filas se declaraba **disponible**: el condicional tenia
+  las dos ramas iguales (`if (total) "disponible" else "disponible"`), resto de
+  una correccion. Con cero indices el objeto prometia una localizacion que no
+  existe, con `localizador = "ninguno"` al lado. La rama vacia va a
+  `no_disponible`, que es el valor por omision de la propia funcion.
+- `.reparar_mojibake_uno` estaba definida **dos veces con algoritmos distintos**
+  y topes distintos (4 y 20 iteraciones). El orden alfabetico de carga decidia
+  cual corria; la otra era codigo muerto que alguien podia "arreglar" creyendo
+  que era la que se usa.
+- `.bit64_disponible` y `.bit64_disponible_dbi` eran la misma funcion con dos
+  nombres. Queda un solo punto de verdad.
+- `.detectar_orden_columnas()` recibia un argumento `resultados` que su cuerpo no
+  usaba, y el llamador lo construia para nada.
+- `muestra = 1.5` se aceptaba en memoria y perfilaba **una** fila en silencio,
+  mientras la via DBI daba error. Ahora las dos lo rechazan. La unica diferencia
+  que queda es deliberada: `Inf` vale en memoria y no contra un motor.
+
 ## El veredicto ya no depende de como venga ordenado el archivo
 
 Cuando el vocabulario de una columna de texto excede el presupuesto, hay que
@@ -192,7 +303,7 @@ parcial.
 - Lo que el plan **no** puede saber queda dicho, no escondido: el conteo de
   pares es exacto, pero cuanto cuesta cada uno depende del largo de los valores,
   que el plan no leyo. Sobre valores de doscientos caracteres la tasa cae a
-  entre 70.000 y 270.000 pares por segundo, asi que con textos muy largos el
+  unos 70.000 pares por segundo, asi que con textos muy largos el
   tiempo real es varias veces el que sugiere la referencia. `supuesto_costo` lo
   declara en vez de prometer segundos.
 - La impresion muestra las dos mitades, y cuando la que pesa es la de R nombra
@@ -229,7 +340,10 @@ Jaro-Winkler sobre 900 caracteres.
   | 2000 | 80 | 5,0 s | 5,1 s | **100 %** |
 
   El ultimo renglon es el que importa tanto como el tercero: **una columna
-  corriente de dos mil valores no se recorta**. Tampoco 500x20 ni 1000x30. El
+  corriente de dos mil valores no se recorta**, siempre que sus valores midan
+  menos de unos cien caracteres: el tope por trabajo muerde cuando
+  `L^2 x n(n-1)/2` supera `2e10`, o sea a partir de 101 caracteres para dos mil
+  valores distintos. Tampoco 500x20 ni 1000x30. El
   riesgo del arreglo era romper el caso comun para arreglar el patologico.
 - Una aclaracion que hay que hacer, porque la primera version de esta nota
   afirmaba de mas: **3000x20 si se recorta**, pero no por el presupuesto nuevo
