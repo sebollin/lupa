@@ -61,9 +61,16 @@ test_that("integer64 sin bit64 es una declaracion informativa", {
     .bit64_disponible = function() FALSE,
     .package = "lupa"
   )
-  x <- structure(c(1, 2), class = "integer64")
+  # La columna se marca DESPUES de armar el data.frame, no antes. Armarlo con
+  # una columna ya de clase `integer64` obliga a `as.data.frame()` a buscar el
+  # metodo de bit64, asi que la prueba de "no esta bit64" exigia que bit64
+  # estuviera instalado. Y este camino es ademas el realista: la columna llega
+  # marcada dentro de una tabla que ya existe -de un RDS, de un driver- en una
+  # maquina donde bit64 no esta.
+  datos <- data.frame(codigo = c(1, 2))
+  class(datos$codigo) <- "integer64"
   perfil <- perfilar(
-    data.frame(codigo = x), analizar_dependencias = FALSE,
+    datos, analizar_dependencias = FALSE,
     proteger_datos_personales = FALSE
   )
   cobertura <- perfil$cobertura_diagnosticos[
