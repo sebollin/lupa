@@ -117,8 +117,8 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 50.904 pares en
-#> 0,050 s.
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.424 pares en
+#> 0,051 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
 )]
@@ -192,7 +192,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/Rtmp7mYC4S/lupa-lotes-21b7729eb40f/lupa-lotes-21b7471b0b24"
+#> [1] "/tmp/RtmpxRgf0h/lupa-lotes-2285724b926/lupa-lotes-22857600b74f"
 #> 
 #> $n_parciales
 #> [1] 6
