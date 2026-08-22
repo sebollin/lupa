@@ -2,6 +2,94 @@
 
 ## lupa 0.1.0
 
+### El reintento que contra el driver real no se disparaba nunca
+
+La version anterior agrego un reintento: si la lectura de la muestra
+falla y hay columnas de tipo largo declaradas, se reintenta sin ellas y
+se declara que quedaron afuera. Contra una base real no se disparo **ni
+una vez**. En la tabla que motivo el arreglo —158 columnas, 90 de ellas
+`varchar(max)`— el patron de tipos reconocio **0 de 90**, la muestra se
+perdio entera y no aparecio el aviso de alcance: exactamente lo que el
+arreglo prometia evitar.
+
+- La causa no es un tipo que falte en la lista. El driver **no informa
+  nombres**: `odbc` resuelve `dbColumnInfo()` con
+  `nanodbc::result::column_datatype()`, que devuelve el **codigo
+  numerico de ODBC**. Contra `{SQL Server}` las noventa columnas llegan
+  como noventa veces `"-1"`. Comprobado en las dos puntas: la biblioteca
+  compilada no expone `column_datatype_name` ni contiene un solo literal
+  de nombre de tipo SQL, y el patron de nombres no matchea `"-1"`.
+- El arreglo se habia probado contra un banco que hablaba en nombres,
+  que es la unica forma de tipo que el patron sabe leer. El banco
+  compartia con el patron justo la propiedad cuya ausencia era el fallo.
+- **El reintento ya no infiere: pregunta.** Cuando la lectura falla, se
+  aisla por descarte cuales columnas no se pueden leer —biseccion sobre
+  el conjunto, podando los subconjuntos que si se leen— y se declaran
+  esas. Es independiente del controlador: funciona sin reconocer ningun
+  tipo.
+- El patron queda como **atajo optimista**: si reconoce el tipo, ahorra
+  el descarte. Se le agregaron los codigos ODBC (`-1`, `-4`, `-10`) y
+  las variantes de nombre (`LONG VARCHAR`, `SQL_LONGVARCHAR`,
+  `WLONGVARCHAR`) que tampoco veia. Pero la correccion ya no cuelga de
+  el.
+- Lo que se declara cambia segun como se supo. `omision_comprobada`
+  distingue **medido** de **supuesto**: por descarte, cada columna fallo
+  sola y el resto se leyo junto, y el aviso lo dice; por el atajo, sigue
+  diciendo “no se comprobo que sean la causa”. Y `sondas_descarte`
+  publica cuantas consultas costo averiguarlo.
+- El descarte esta acotado por los dos lados: como mucho `2n` sondas
+  sobre `n` columnas —que es lo que cuesta la biseccion en el peor
+  caso—, tope absoluto de 512, y **nunca mas de la mitad del saldo de
+  `max_consultas`**, para no recuperar la muestra a costa de quedarse
+  sin presupuesto para el resto.
+- Si el descarte no aisla nada, no se inventa una culpable: la muestra
+  se declara no disponible y el motivo dice cuantos subconjuntos se
+  sondearon y como termino —ninguna falla sola, o fallan todas, o el
+  tope corto antes—.
+- De paso: el reintento rearmaba el SQL a mano y perdia el muestreo del
+  motor por el camino —volvia a una lectura de primeras filas mientras
+  `metodo` seguia declarando el muestreo nativo—. Ahora la lectura
+  original y el reintento salen de la misma receta, y `metodo`,
+  `acotado_en` y `fraccion` se corrigen con lo que de verdad se emitio.
+
+### Un plan que contaba la mitad del reloj
+
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+le ponia magnitud **`"baja"`** a una tabla de 3.912 filas que tardaba
+**35 segundos**. Cada numero que informaba era cierto —64.592 lecturas
+de fila, cero ordenaciones— y el juicio era falso: el trabajo no estaba
+en el motor sino en R, comparando formas de una columna de geometria en
+texto. Medir una mitad y llamarla el total es informar como completo
+algo parcial.
+
+- La magnitud se estima ahora en **dos mitades**. La del motor sigue en
+  `filas_leidas` y `ordenaciones_completas`, resumida en
+  `magnitud_motor`. La del cliente esta en `columnas_texto` y
+  `pares_texto` —cuantos pares de formas podria comparar el detector de
+  vocabulario sobre la muestra—, resumida en `magnitud_texto`.
+  `magnitud` es **la mayor de las dos**.
+- La unidad es el par de formas comparadas, que es una cuenta y no un
+  indice: la muestra trae `m` filas, las formas distintas son a lo sumo
+  `m`, y el detector nunca compara mas de `max_pares` por columna. El
+  tope se lee de la firma del detector, no se copia, asi que no puede
+  quedar estimando contra un numero viejo.
+- Los umbrales (2e6 y 2e8 pares) estan anclados a la misma escala de
+  segundos que los del motor, con la tasa medida: **de 660.000 a 960.000
+  pares por segundo sobre valores de cuarenta caracteres**, contra los
+  cinco millones de lecturas de fila por segundo de la referencia de
+  PostgreSQL. La medicion esta en `benchmark/medir_costo_texto.R`,
+  seccion 5, para que el umbral no sea un numero elegido a dedo.
+- Lo que el plan **no** puede saber queda dicho, no escondido: el conteo
+  de pares es exacto, pero cuanto cuesta cada uno depende del largo de
+  los valores, que el plan no leyo. Sobre valores de doscientos
+  caracteres la tasa cae a entre 70.000 y 270.000 pares por segundo, asi
+  que con textos muy largos el tiempo real es varias veces el que
+  sugiere la referencia. `supuesto_costo` lo declara en vez de prometer
+  segundos.
+- La impresion muestra las dos mitades, y cuando la que pesa es la de R
+  nombra la palanca de ese lado —`max_trabajo_vocabulario`—, que las
+  palancas del motor no tocan.
+
 ### Presupuestos que miden trabajo, no que cuentan unidades
 
 Una tabla del catalogo de PostGIS —`spatial_ref_sys`, **3.912 filas y 5

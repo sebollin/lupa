@@ -344,12 +344,26 @@ varied by engine would leave the user guessing again.
 But counting queries does not answer the question the reader actually
 brings: fourteen queries over two million rows are far more work than
 two hundred over a thousand. So the plan also estimates **magnitude**,
-in two numbers that are real counts — `filas_leidas` and
-`ordenaciones_completas` — and printing it warns when the work is high,
-naming the levers that bound it. It is an estimate and says so: it
-counts the rows that would have to be read if no index helped. The two
-published numbers do not depend on that assumption, so anyone who
-disagrees with it can redo the arithmetic.
+in real counts rather than an invented index — and it estimates it in
+**two halves**, because the clock is not always set by the engine. The
+engine half is `filas_leidas` and `ordenaciones_completas`, summarised
+in `magnitud_motor`; the client half is `columnas_texto` and
+`pares_texto` — how many pairs of forms the vocabulary detector could
+compare in R over the sample — summarised in `magnitud_texto`.
+`magnitud` is the larger of the two.
+
+Counting only the engine gave false verdicts out of true numbers: a
+3,912-row PostGIS catalogue table with one geometry column stored as
+text asked for 64,592 row reads and no sorts — magnitude `"baja"` — and
+took 35 seconds, because the work was in comparing forms, which is not a
+row read. Printing the plan shows both halves, and the high-work warning
+names the levers that bound it, which differ on each side. It is an
+estimate and says so: the engine half counts the rows that would have to
+be read if no index helped, and the client half counts pairs, whose unit
+cost depends on value length — something the plan cannot know without
+reading them, so for very long text the real time is several times what
+the reference suggests. The published numbers do not depend on those
+assumptions, so anyone who disagrees with them can redo the arithmetic.
 
 | mode | what it does |
 |----|----|
