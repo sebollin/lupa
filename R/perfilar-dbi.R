@@ -325,8 +325,12 @@
   todas[nombres]
 }
 
+# `alias` estaba en la firma y la funcion lo REASIGNA antes de usarlo, con
+# `dbQuoteIdentifier(conexion, "lupa_sonda")`. O sea que lo que pasara el
+# llamador se descartaba siempre; y de hecho pasaba `NULL`. Un argumento
+# sombreado es peor que uno sin usar: hace creer que el valor influye.
 .forma_muestreo_dbi <- function(candidato, tabla_sql, campos_sql, porcentaje,
-                                muestra, dialecto, alias) {
+                                muestra, dialecto) {
   if (identical(candidato$tipo, "tablesample_filas")) {
     return(list(
       sql = paste0(
@@ -446,7 +450,7 @@
   porcentaje <- formatC(fraccion * 100, format = "fg", digits = 8)
   forma <- .forma_muestreo_dbi(
     resolucion$candidato, tabla_sql, campos_sql, porcentaje, muestra,
-    dialecto, NULL
+    dialecto
   )
   if (is.null(forma)) return(NULL)
   forma$fraccion <- fraccion
@@ -2203,7 +2207,13 @@
                                presupuesto = NULL, incluir_valores = TRUE,
                                tipos_declarados = NULL,
                                motivos_ilegibles = NULL,
-                                modo = "exacto", tabla_metricas_sql = tabla_sql,
+                                modo = "exacto",
+                                # `tabla_sql` no se usa en el cuerpo: esta para
+                                # ser el valor por omision de la linea de abajo.
+                                # Es una omision razonable -medir sobre la misma
+                                # tabla- aunque el unico llamador siempre la
+                                # pise con la tabla muestreada.
+                                tabla_metricas_sql = tabla_sql,
                                 muestreo = NULL, aproximaciones = list(),
                                 tamano_muestra = NA_real_,
                                 fraccion_muestra = NA_real_,

@@ -623,6 +623,64 @@
 # Clasifica la forma de la diferencia como evidencia, nunca como filtro. Se
 # aplica solo a las aristas que ya sobrevivieron al detector, no al cuadrado
 # completo del vocabulario.
+# Un token que aparece en buena parte de la columna es parte del FORMATO, no una
+# errata. Medido sobre PED/Flight, el detector agrupaba
+#
+#   [12:00 a.m. (5) / 12:00 p.m. (42)]     <- doce horas de diferencia
+#   [7:10 a.m. (100) / 7:10 p.m. (18)]
+#
+# porque `a.m.` y `p.m.` difieren en una letra. Pero los dos aparecen en casi
+# todos los valores de esa columna: la diferencia es una distincion sistematica
+# del formato y no una variante de escritura. En cambio
+#
+#   [1:48 p.m. (27) / 1:48 p.m.  Delayed (1)]
+#
+# difiere en un token que aparece UNA vez, y ese si es un problema real: es el
+# estado del vuelo pegado dentro de una columna de hora.
+#
+# El discriminante es esa asimetria: si TODOS los tokens que distinguen a dos
+# formas son comunes en la columna, la diferencia es del formato.
+.token_frecuencias_vocabulario <- function(formas) {
+  if (!length(formas)) return(integer())
+  tokens <- strsplit(trimws(as.character(formas)), "[[:space:]]+", perl = TRUE)
+  tabla <- table(unlist(lapply(tokens, unique), use.names = FALSE))
+  stats::setNames(as.integer(tabla), names(tabla))
+}
+
+# Por debajo de este vocabulario la proporcion no dice nada: con cinco formas,
+# un token que aparece en una ya esta en el 20 %.
+.MIN_FORMAS_TOKEN_SISTEMATICO <- 20L
+
+.diferencia_sistematica_vocabulario <- function(a, b, frecuencias, n_formas,
+                                                minimo = 0.2) {
+  if (!length(frecuencias) || !n_formas) return(FALSE)
+  tokens_a <- strsplit(trimws(as.character(a)), "[[:space:]]+", perl = TRUE)[[1L]]
+  tokens_b <- strsplit(trimws(as.character(b)), "[[:space:]]+", perl = TRUE)[[1L]]
+  # Tres condiciones antes de descartar nada, y las tres salieron de romper la
+  # suite con una version que no las tenia (44 pruebas caidas):
+  #
+  # 1. **Varios tokens.** Si el valor es un solo token, "el token que difiere" es
+  #    el valor entero, y entonces la regla borra justamente el caso central del
+  #    detector: `Marano` contra `Marebo`. La idea de "marca de formato" solo
+  #    existe cuando hay un token que acompaña y otro que distingue.
+  # 2. **Misma cantidad de tokens.** Cuando cambia -como al pegar "Delayed"- no
+  #    se descarta nada, que es justo lo que hay que conservar.
+  # 3. **Vocabulario suficiente.** "Aparece en toda la columna" no significa nada
+  #    sobre cinco formas: ahi cualquier token pasa el umbral por aritmetica.
+  if (length(tokens_a) < 2L) return(FALSE)
+  if (length(tokens_a) != length(tokens_b)) return(FALSE)
+  if (n_formas < .MIN_FORMAS_TOKEN_SISTEMATICO) return(FALSE)
+  distintos <- which(tokens_a != tokens_b)
+  if (!length(distintos)) return(FALSE)
+  proporcion <- function(token) {
+    valor <- frecuencias[[token]]
+    if (is.null(valor) || is.na(valor)) 0 else valor / n_formas
+  }
+  all(vapply(distintos, function(i) {
+    proporcion(tokens_a[[i]]) >= minimo && proporcion(tokens_b[[i]]) >= minimo
+  }, logical(1L)))
+}
+
 .clase_diferencia_vocabulario <- function(a, b) {
   a <- trimws(as.character(a)); b <- trimws(as.character(b))
   tokens_a <- strsplit(a, "[[:space:]]+", perl = TRUE)[[1L]]
@@ -807,7 +865,10 @@
   n_candidatos_edicion_corta <- 0L
   n_descartados_frecuencia_edicion_corta <- 0L
   n_pares_descartados_numeros <- 0L
+  n_pares_descartados_formato <- 0L
   hay_firmas_numericas_distintas <- length(unique(firmas_numericas)) > 1L
+  frecuencias_token <- .token_frecuencias_vocabulario(crudos)
+  n_formas_token <- length(crudos)
   max_asimetria_equifrecuente <- as.numeric(max_asimetria_equifrecuente)
   padre_equifrecuente <- seq_len(n_unidades)
   rango_equifrecuente <- integer(n_unidades)
@@ -972,6 +1033,18 @@
       fila_1 <- fila_1[compatibles]
       fila_2 <- fila_2[compatibles]
       distancia <- distancia[compatibles]
+      del_formato <- vapply(seq_along(fila_1), function(k) {
+        .diferencia_sistematica_vocabulario(
+          crudos[[fila_1[[k]]]], crudos[[fila_2[[k]]]],
+          frecuencias_token, n_formas_token
+        )
+      }, logical(1L))
+      n_pares_descartados_formato <<- n_pares_descartados_formato +
+        sum(del_formato)
+      if (all(del_formato)) return(invisible(NULL))
+      fila_1 <- fila_1[!del_formato]
+      fila_2 <- fila_2[!del_formato]
+      distancia <- distancia[!del_formato]
       registrar_equifrecuentes(fila_1, fila_2, distancia)
       n_candidatos_distancia <<- n_candidatos_distancia + length(fila_1)
       actualizar_estrellas(fila_1, fila_2, distancia, origen = origen)
@@ -1312,6 +1385,7 @@
       max_asimetria_equifrecuente = max_asimetria_equifrecuente,
       min_participacion_dominante = min_participacion_dominante,
       n_pares_descartados_numeros = n_pares_descartados_numeros,
+      n_pares_descartados_formato = n_pares_descartados_formato,
       motivo_grupos = if (disponible && n_candidatos_distancia > 0L &&
           !nrow(distancia_pares)) "sin_asimetria" else "",
       aplicable = aplicable
@@ -3474,28 +3548,7 @@
 }
 
 .columnas_duplicadas <- function(datos, nombres) {
-  if (ncol(datos) < 2L) {
-    return(data.frame(
-      columna_1 = character(), columna_2 = character(), stringsAsFactors = FALSE
-    ))
-  }
-  pares <- utils::combn(seq_len(ncol(datos)), 2L)
-  iguales <- apply(pares, 2L, function(indice) {
-    x <- datos[[indice[[1L]]]]
-    y <- datos[[indice[[2L]]]]
-    .columnas_identicas(x, y)
-  })
-  pares <- pares[, iguales, drop = FALSE]
-  if (!ncol(pares)) {
-    return(data.frame(
-      columna_1 = character(), columna_2 = character(), stringsAsFactors = FALSE
-    ))
-  }
-  data.frame(
-    columna_1 = nombres[pares[1L, ]],
-    columna_2 = nombres[pares[2L, ]],
-    stringsAsFactors = FALSE
-  )
+  .pares_de_columnas_identicas(datos, seq_len(ncol(datos)), nombres)
 }
 
 .construir_hallazgos <- function(datos, resultados, columnas, duplicadas,

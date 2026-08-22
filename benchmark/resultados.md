@@ -123,7 +123,7 @@ redistribuida**. Se repite sin red con `PED_DATA_DIR` y `RIOLU_DATA_DIR`.
 > | conjunto | antes (prec / cob) | ahora |
 > | --- | ---: | ---: |
 > | PED / Hospital | 0,043 / 0,338 | 0,035 / **0,821** |
-> | PED / Flight | 0,819 / 0,171 | **0,524** / 0,281 |
+> | PED / Flight | 0,819 / 0,171 | 0,658 / 0,238 |
 > | RIOLU / flights | 0,369 / 0,027 | 0,501 / 0,054 |
 > | RIOLU / movies | 0,334 / 0,445 | 0,338 / 0,494 |
 > | los tres `hosp_*` | sin cambio | sin cambio |
@@ -149,11 +149,51 @@ publicada.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | PED / Hospital | 1000 x 19 | 2,7 % | 509 | 11795 | 418 | 0,035 | 0,821 | 0,762 | — |
 | RIOLU / movies | 7390 x 5 | 4,5 % | 1321 | 1930 | 652 | 0,338 | 0,494 | 1,000 | 49 % |
-| PED / Flight | 2376 x 6 | 18,3 % | 2608 | 1398 | 733 | 0,524 | 0,281 | 0,423 | — |
+| PED / Flight | 2376 x 6 | 18,3 % | 2608 | 946 | 622 | 0,524 -> **0,658** | 0,281 -> 0,238 | 0,423 | — |
 | RIOLU / hosp_10k | 10000 x 7 | 24,3 % | 7289 | 1550 | 1406 | 0,907 | 0,193 | 0,608 | 32 % |
 | RIOLU / hosp_1k | 999 x 7 | 25,2 % | 755 | 156 | 144 | 0,923 | 0,191 | 0,656 | 29 % |
 | RIOLU / flights | 74066 x 6 | 52,5 % | 233173 | 25088 | 12558 | 0,501 | 0,054 | 1,000 | 5 % |
 | RIOLU / hosp_100k | 100000 x 7 | 53,4 % | 160186 | 14700 | 13422 | 0,913 | 0,084 | 0,311 | 27 % |
+
+### Los pares que la columna no puede distinguir
+
+Mirando **que** reportaba el detector de vocabulario en `PED/Flight` aparecieron
+dos familias mezcladas:
+
+```
+[1:48 p.m. (27)  / 1:48 p.m.            Delayed (1)]   <- el estado del vuelo pegado
+[11:08 p.m. (20) / 11:08 p.m.            On Time (1)]     dentro de una columna de hora
+[12:00 a.m. (5)  / 12:00 p.m. (42)]                    <- doce horas de diferencia
+[7:10 a.m. (100) / 7:10 p.m. (18)]
+```
+
+Las dos primeras son hallazgos reales que la verdad de PED **no etiqueta**,
+porque no son erratas inyectadas: estaban en los datos. Las dos ultimas son
+falsos positivos: `12:00 a.m.` y `12:00 p.m.` son **dos valores legitimos
+distintos**, y no hay forma de saber mirando la columna cual fue tipeado mal.
+
+Marcarlos a todos no es detectar: es sospechar en bloque de todos los valores de
+una forma y acertar los inyectados por casualidad. La precision de ese
+diagnostico sobre `Flight` era **0,259**, o sea tres de cada cuatro marcados eran
+valores legitimos.
+
+Ahora el detector descarta un par cuando **todos los tokens que lo distinguen
+aparecen en buena parte de la columna**: son marca de formato y no una errata.
+`a.m.` y `p.m.` estan en casi todos los valores; `Delayed` esta en uno. El
+descarte se declara en `n_pares_descartados_formato`.
+
+**El costo, medido y a la vista:** sobre `Flight` la precision sube de 0,524 a
+0,658 y la cobertura baja de 0,281 a 0,238. Se pierden 111 aciertos, porque PED
+inyecto erratas que son exactamente un cambio de meridiano. **Esas caen debajo
+del techo estructural**: un `p.m.` mal tipeado es indistinguible de uno correcto
+sin una referencia externa, igual que el codigo postal de cinco digitos. El
+lugar correcto para atraparlas no es la proximidad de cadenas sino una regla
+entre columnas -que la llegada no sea anterior a la salida-, que es otro
+diagnostico.
+
+Sobre `Hospital` el descarte **no cambia nada**: lo que distingue dos nombres de
+hospital es contenido, no una marca de formato. La regla actua solo donde la
+marca existe.
 
 **El techo no acota a PED, y nunca lo acoto.** El techo es la fraccion de celdas
 de verdad cuyo valor corrupto **cambia el patron** de la columna: es una cota para

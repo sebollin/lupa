@@ -152,30 +152,7 @@
 }
 
 .pares_redundantes <- function(datos, indices_clave, nombres) {
-  if (length(indices_clave) < 2L) {
-    return(data.frame(
-      columna_1 = character(), columna_2 = character(),
-      stringsAsFactors = FALSE
-    ))
-  }
-  pares <- utils::combn(indices_clave, 2L)
-  iguales <- apply(pares, 2L, function(indice) {
-    x <- datos[[indice[[1L]]]]
-    y <- datos[[indice[[2L]]]]
-    .columnas_identicas(x, y)
-  })
-  pares <- pares[, iguales, drop = FALSE]
-  if (!ncol(pares)) {
-    return(data.frame(
-      columna_1 = character(), columna_2 = character(),
-      stringsAsFactors = FALSE
-    ))
-  }
-  data.frame(
-    columna_1 = nombres[pares[1L, ]],
-    columna_2 = nombres[pares[2L, ]],
-    stringsAsFactors = FALSE
-  )
+  .pares_de_columnas_identicas(datos, indices_clave, nombres)
 }
 
 #' Detectar claves candidatas

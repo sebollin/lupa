@@ -1,3 +1,26 @@
+# `.columnas_duplicadas()` y `.pares_redundantes()` eran el mismo bloque escrito
+# dos veces en archivos distintos, con una sola diferencia: que columnas se
+# comparan -todas, o un subconjunto de claves-. Corregir un detalle obligaba a
+# acordarse de hacerlo en los dos lados. Los dos nombres se conservan porque
+# dicen cosas distintas en su contexto, pero ahora son envoltorios de esto.
+.pares_de_columnas_identicas <- function(datos, indices, nombres) {
+  vacio <- data.frame(
+    columna_1 = character(), columna_2 = character(), stringsAsFactors = FALSE
+  )
+  if (length(indices) < 2L) return(vacio)
+  pares <- utils::combn(indices, 2L)
+  iguales <- apply(pares, 2L, function(indice) {
+    .columnas_identicas(datos[[indice[[1L]]]], datos[[indice[[2L]]]])
+  })
+  pares <- pares[, iguales, drop = FALSE]
+  if (!ncol(pares)) return(vacio)
+  data.frame(
+    columna_1 = nombres[pares[1L, ]],
+    columna_2 = nombres[pares[2L, ]],
+    stringsAsFactors = FALSE
+  )
+}
+
 # `muestra = 1.5` se aceptaba y se perfilaba UNA fila, en silencio. Un usuario
 # que pide una muestra y medio recibe un perfil sobre una fila sin enterarse, y
 # la misma llamada por la via DBI da error. Ahora las dos rechazan el no entero.
