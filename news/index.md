@@ -2,6 +2,95 @@
 
 ## lupa 0.1.0
 
+### Una tabla con acentos rompia el perfil entero
+
+Es el defecto mas serio de la tanda, y **lo introdujo el arreglo del
+orden del vocabulario de ayer**. Sobre cualquier tabla leida con
+[`read.csv()`](https://rdrr.io/r/utils/read.table.html) que tuviera
+acentos:
+
+    Error: Character encoding must be UTF-8, Latin-1 or bytes
+
+El orden por bytes de R rechaza una cadena marcada `unknown` que
+contenga bytes no ASCII, **aunque sean UTF-8 perfectamente validos**, y
+asi llega cualquier CSV en espanol por el camino mas comun que hay:
+`"Combustibles liquidos"`, `"Energia Electrica"`. El mismo error estaba
+en el desempate de la moda.
+
+- Ahora la codificacion se marca antes de ordenar. Lo que despues de eso
+  siga sin ser valido pasa por `iconv(sub = "byte")`: no es bonito, pero
+  es determinista y ordenable. Caer al orden del entorno habria devuelto
+  la dependencia de la maquina que este orden existe para sacar.
+- Los otros tres usos de orden por bytes del paquete ordenan enteros,
+  que no tienen requisito de codificacion.
+- **Ni las cuatro auditorias externas ni las 15.696 comprobaciones de la
+  suite lo encontraron, porque todos los fixtures son ASCII.** Aparecio
+  buscando otra cosa: el registro publico con el que se cierra una fila
+  de la tabla de evidencia. La prueba nueva construye la cadena con
+  [`rawToChar()`](https://rdrr.io/r/base/rawConversion.html), porque un
+  literal en el fuente lo marca el parser de R y el caso no se ejercita.
+
+### La tabla de evidencia dice ahora con que se reproduce cada fila
+
+Llego a publicar tres numeros que nadie podia comprobar desde el
+repositorio. El problema de fondo no eran los tres numeros sino que la
+tabla no obligaba a que cada afirmacion tuviera un reproductor. Ahora
+tiene una columna que lo dice.
+
+- **Controles limpios**: decia 43 tablas y 25 senales. El generador esta
+  en el repositorio, se redujo a 31 tablas y el ruido bajo a 8 -el
+  paquete mejoro y el texto seguia diciendo lo viejo-. Los tres numeros
+  quedan fijados en `test-ronda107.R`.
+- **Defectos plantados**: se saca la fila. El numero es real, se midio
+  en tres rondas, pero su banco no esta en el repositorio y
+  reconstruirlo de memoria daria nueve defectos parecidos y no los
+  mismos. Vuelve cuando exista su test.
+- **Registro real de sanciones**: ahora hay
+  `benchmark/medir_sanciones.R`, que baja el registro publico del
+  catalogo nacional -2.556 filas- y contrasta cada hallazgo de severidad
+  `error` contra una comprobacion escrita a mano en R base. Da **9 de
+  9**, uno mas que cuando se midio. Ese archivo es ademas la regresion
+  del defecto de codificacion de arriba: es el que lo destapo.
+
+### Un token que es marca de formato ya no genera un falso duplicado
+
+Mirando **que** reportaba el detector de vocabulario sobre una tabla
+real de vuelos aparecieron dos familias mezcladas:
+
+    [1:48 p.m. (27)  / 1:48 p.m.            Delayed (1)]   <- el estado del vuelo pegado
+    [12:00 a.m. (5)  / 12:00 p.m. (42)]                    <- doce horas de diferencia
+
+La primera es un hallazgo real. La segunda es un falso positivo:
+`12:00 a.m.` y `12:00 p.m.` son **dos valores legitimos distintos**, y
+no hay forma de saber mirando la columna cual fue tipeado mal. Marcarlos
+a todos no es detectar, es sospechar en bloque de todos los valores de
+una forma y acertar por casualidad los que estaban mal: la precision de
+ese diagnostico era **0,259**, tres de cada cuatro marcados eran valores
+correctos.
+
+- El detector descarta un par cuando **todos los tokens que lo
+  distinguen aparecen en buena parte de la columna**. `a.m.` y `p.m.`
+  estan en casi todos los valores; `Delayed` esta en uno.
+- Tres condiciones lo acotan, y las tres salieron de romper la suite con
+  una version que no las tenia (44 pruebas caidas): el valor tiene que
+  tener **mas de un token** —si no, el token que difiere es el valor
+  entero y la regla borra el caso central del detector—, la cantidad de
+  tokens tiene que coincidir —cuando cambia, como al pegar `Delayed`,
+  hay que conservarlo— y el vocabulario tiene que tener al menos 20
+  formas, porque “aparece en toda la columna” no significa nada sobre
+  cinco.
+- El descarte se declara en `n_pares_descartados_formato`.
+- **El costo esta medido y publicado.** Sobre el banco de vuelos la
+  precision sube de 0,524 a 0,658 y la cobertura baja de 0,281 a 0,238:
+  se pierden 111 aciertos porque el banco inyecto erratas que son
+  exactamente un cambio de meridiano. Esas caen debajo del techo
+  estructural —un `p.m.` mal tipeado es indistinguible de uno correcto
+  sin una referencia externa— y el lugar correcto para atraparlas es una
+  regla entre columnas, no la proximidad de cadenas.
+- Sobre el banco de hospitales **no cambia nada**: lo que distingue dos
+  nombres es contenido y no una marca de formato. La regla actua solo
+  donde la marca existe.
+
 ### Una columna en Latin-1 perdia sus acentos en silencio
 
 Es el defecto mas grave que encontro esta tanda, y no es un caso de

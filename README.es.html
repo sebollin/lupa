@@ -359,19 +359,24 @@
 <div class="section level2">
 <h2 id="test_tube-evidencia-con-el-alcance-declarado">🧪 Evidencia, con el alcance declarado<a class="anchor" aria-label="anchor" href="#test_tube-evidencia-con-el-alcance-declarado"></a></h2>
 <p>Cada comprobación usa una unidad y una referencia declaradas diferentes. Ninguna estima una exactitud única para todo el paquete.</p>
-<table class="table"><colgroup><col width="30%"><col width="30%"><col width="40%"></colgroup><thead><tr><th>Comprobación</th>
+<table class="table"><colgroup><col width="23%"><col width="23%"><col width="30%"><col width="23%"></colgroup><thead><tr><th>Comprobación</th>
 <th>Unidad declarada</th>
 <th align="right">Resultado</th>
+<th>Se reproduce con</th>
 </tr></thead><tbody><tr><td>Pares dirty/clean de Raha</td>
 <td>columnas que contienen al menos una celda cambiada</td>
 <td align="right">26/26 recibieron al menos un hallazgo; se señalaron 8 columnas más</td>
+<td><code>benchmark/medir_lupa.R</code></td>
 </tr><tr><td>Controles limpios construidos</td>
 <td>31 tablas</td>
 <td align="right">0 hallazgos de severidad error; 8 señales para revisar</td>
+<td><code>test-ronda107.R</code></td>
 </tr><tr><td>Registro real de sanciones</td>
 <td>hallazgos de severidad error sobre 2.556 filas</td>
-<td align="right">8/8 confirmados de manera independiente</td>
-</tr></tbody></table><p>En los pares de Raha la comparación dirty/clean etiqueta celdas cambiadas; no etiqueta toda propiedad observable en una columna sin cambios. La revisión manual encontró una observación apoyada en cada una de las ocho columnas adicionales: constantes, columnas duplicadas, mayúsculas inconsistentes, cadenas vacías y texto de alta cardinalidad. Por eso no informamos precisión ni recall diagnóstico a partir de Raha: 26/26 es cobertura por columna, no evidencia de que se haya identificado cada celda cambiada. <a href="https://github.com/sebollin/lupa/tree/main/benchmark" class="external-link"><code>benchmark/</code></a> reproduce la tabla desde las fuentes publicadas y registra las huellas exactas de los archivos usados en la corrida publicada, pero sólo cuando <code>lupa</code> está instalado a partir de un build de estas mismas fuentes. Desde la raíz del repositorio, reproducí esa condición y corré los scripts con:</p>
+<td align="right">9/9 confirmados de manera independiente</td>
+<td><code>benchmark/medir_sanciones.R</code></td>
+</tr></tbody></table><p><strong>Cada fila dice con qué se reproduce, y eso es parte de la comprobación.</strong> Esta tabla llegó a publicar tres números que nadie podía comprobar desde el repositorio: uno describía un conjunto de controles que se había reducido de 43 tablas a 31 —y el ruido de 25 señales a 8, o sea que el paquete había mejorado y el texto seguía diciendo lo viejo—, otro medía nueve defectos plantados cuyo banco no está acá, y el tercero un registro real sin script que lo bajara. El primero se volvió a medir, el segundo se sacó hasta que exista su banco, y el tercero tiene ahora el script.</p>
+<p>En los pares de Raha la comparación dirty/clean etiqueta celdas cambiadas; no etiqueta toda propiedad observable en una columna sin cambios. La revisión manual encontró una observación apoyada en cada una de las ocho columnas adicionales: constantes, columnas duplicadas, mayúsculas inconsistentes, cadenas vacías y texto de alta cardinalidad. Por eso no informamos precisión ni recall diagnóstico a partir de Raha: 26/26 es cobertura por columna, no evidencia de que se haya identificado cada celda cambiada. <a href="https://github.com/sebollin/lupa/tree/main/benchmark" class="external-link"><code>benchmark/</code></a> reproduce la tabla desde las fuentes publicadas y registra las huellas exactas de los archivos usados en la corrida publicada, pero sólo cuando <code>lupa</code> está instalado a partir de un build de estas mismas fuentes. Desde la raíz del repositorio, reproducí esa condición y corré los scripts con:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
 <span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/verdad_raha.R</span>
 <span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_lupa.R</span></code></pre></div>

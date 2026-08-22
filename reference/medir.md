@@ -47,13 +47,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260822T182633.611629-7518-000001
-#> 2 medicion-20260822T182633.611629-7518-000002
-#> 3 medicion-20260822T182633.611629-7518-000003
+#> 1 medicion-20260822T233647.537205-7412-000001
+#> 2 medicion-20260822T233647.537205-7412-000002
+#> 3 medicion-20260822T233647.537205-7412-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260822T182633.611629-7518 2026-08-22 18:26:33  NoNulo
-#> 2 medicion-20260822T182633.611629-7518 2026-08-22 18:26:33  NoNulo
-#> 3 medicion-20260822T182633.611629-7518 2026-08-22 18:26:33  NoNulo
+#> 1 medicion-20260822T233647.537205-7412 2026-08-22 23:36:47  NoNulo
+#> 2 medicion-20260822T233647.537205-7412 2026-08-22 23:36:47  NoNulo
+#> 3 medicion-20260822T233647.537205-7412 2026-08-22 23:36:47  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

@@ -621,11 +621,21 @@ changes only actions selected from an editable plan.
 Each check below uses a different declared unit and reference. None of
 them estimates a single package-wide accuracy.
 
-| Check | Declared unit | Result |
-|----|----|---:|
-| Raha dirty/clean pairs | columns containing at least one changed cell | 26/26 received at least one finding; 8 further columns were flagged |
-| Constructed clean controls | 31 tables | 0 error-severity findings; 8 review signals |
-| Real sanctions register | error-severity findings over 2,556 rows | 8/8 independently confirmed |
+| Check | Declared unit | Result | Reproduced by |
+|----|----|---:|----|
+| Raha dirty/clean pairs | columns containing at least one changed cell | 26/26 received at least one finding; 8 further columns were flagged | `benchmark/medir_lupa.R` |
+| Constructed clean controls | 31 tables | 0 error-severity findings; 8 review signals | `test-ronda107.R` |
+| Real sanctions register | error-severity findings over 2,556 rows | 9/9 independently confirmed | `benchmark/medir_sanciones.R` |
+
+**Every row names what reproduces it, and that is part of the check.**
+This table once carried three numbers nobody could verify from the
+repository: one described a control set that had shrunk from 43 tables
+to 31 — and its noise from 25 signals to 8, meaning the package had
+improved while the text still said the old figures — another counted
+nine seeded defects whose fixture is not here, and the third a real
+registry with no script to fetch it. The first was measured again, the
+second was removed until its fixture exists, and the third now has its
+script.
 
 In the Raha pairs the dirty/clean comparison labels changed cells; it
 does not label every property observable in an unchanged column. Manual

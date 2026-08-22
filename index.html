@@ -535,33 +535,39 @@
 <p>Each check below uses a different declared unit and reference. None of them estimates a single package-wide accuracy.</p>
 <table class="table">
 <colgroup>
+<col width="23%">
+<col width="23%">
 <col width="30%">
-<col width="30%">
-<col width="40%">
+<col width="23%">
 </colgroup>
 <thead><tr>
 <th>Check</th>
 <th>Declared unit</th>
 <th align="right">Result</th>
+<th>Reproduced by</th>
 </tr></thead>
 <tbody>
 <tr>
 <td>Raha dirty/clean pairs</td>
 <td>columns containing at least one changed cell</td>
 <td align="right">26/26 received at least one finding; 8 further columns were flagged</td>
+<td><code>benchmark/medir_lupa.R</code></td>
 </tr>
 <tr>
 <td>Constructed clean controls</td>
 <td>31 tables</td>
 <td align="right">0 error-severity findings; 8 review signals</td>
+<td><code>test-ronda107.R</code></td>
 </tr>
 <tr>
 <td>Real sanctions register</td>
 <td>error-severity findings over 2,556 rows</td>
-<td align="right">8/8 independently confirmed</td>
+<td align="right">9/9 independently confirmed</td>
+<td><code>benchmark/medir_sanciones.R</code></td>
 </tr>
 </tbody>
 </table>
+<p><strong>Every row names what reproduces it, and that is part of the check.</strong> This table once carried three numbers nobody could verify from the repository: one described a control set that had shrunk from 43 tables to 31 — and its noise from 25 signals to 8, meaning the package had improved while the text still said the old figures — another counted nine seeded defects whose fixture is not here, and the third a real registry with no script to fetch it. The first was measured again, the second was removed until its fixture exists, and the third now has its script.</p>
 <p>In the Raha pairs the dirty/clean comparison labels changed cells; it does not label every property observable in an unchanged column. Manual review found a supported observation in each of the eight further columns—constants, duplicated columns, inconsistent case, empty strings, and high-cardinality text. We therefore report neither precision nor diagnostic recall from Raha: 26/26 is column coverage, not evidence that every changed cell was identified. <a href="https://github.com/sebollin/lupa/tree/main/benchmark" class="external-link"><code>benchmark/</code></a> reproduces the table from the published sources and records the exact file fingerprints used by the published run, but only when <code>lupa</code> is installed from a build of these same sources. From the repository root, reproduce that condition and run the scripts with:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
 <span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/verdad_raha.R</span>
