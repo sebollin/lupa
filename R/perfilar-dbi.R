@@ -2685,12 +2685,14 @@
   "tabla que entra en la memoria del motor, la bajan mucho. La del cliente",
   "cuenta los pares de formas que el detector de vocabulario podr\u00eda",
   "comparar en R sobre la muestra: como mucho `max_pares` por columna de",
-  "texto. Cu\u00e1nto cuesta cada par depende del largo de los valores, que",
-  "el plan no conoce sin leerlos, as\u00ed que con textos muy largos el",
-  "n\u00famero es un piso. Referencias medidas: unos cinco millones de",
-  "lecturas de fila por segundo sobre PostgreSQL 16 local (2.000.000 de filas",
-  "por 40 columnas en modo seguro: 14 consultas, 5,3 segundos), y unos",
-  "ochocientos mil pares por segundo sobre valores de cuarenta caracteres."
+  "texto. El conteo de pares es exacto; lo que el plan no puede saber sin",
+  "leer los valores es cu\u00e1nto cuesta cada uno, que depende de su largo,",
+  "as\u00ed que con valores muy largos el tiempo real es varias veces el que",
+  "sugiere la referencia. Referencias medidas: unos cinco millones de lecturas",
+  "de fila por segundo sobre PostgreSQL 16 local (2.000.000 de filas por 40",
+  "columnas en modo seguro: 14 consultas, 5,3 segundos); y de 660.000 a",
+  "960.000 pares por segundo sobre valores de cuarenta caracteres, que bajan a",
+  "entre 70.000 y 270.000 sobre valores de doscientos."
 )
 
 

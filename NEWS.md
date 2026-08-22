@@ -65,12 +65,17 @@ parcial.
   firma del detector, no se copia, asi que no puede quedar estimando contra un
   numero viejo.
 - Los umbrales (2e6 y 2e8 pares) estan anclados a la misma escala de segundos
-  que los del motor, con la tasa medida: **unos 800.000 pares por segundo sobre
-  valores de cuarenta caracteres**, contra los cinco millones de lecturas de
-  fila por segundo de la referencia de PostgreSQL.
-- Lo que el plan **no** puede saber queda dicho, no escondido: cuanto cuesta
-  cada par depende del largo de los valores, y el plan no los leyo. Con textos
-  muy largos el numero es un piso, y `supuesto_costo` lo declara.
+  que los del motor, con la tasa medida: **de 660.000 a 960.000 pares por
+  segundo sobre valores de cuarenta caracteres**, contra los cinco millones de
+  lecturas de fila por segundo de la referencia de PostgreSQL. La medicion esta
+  en `benchmark/medir_costo_texto.R`, seccion 5, para que el umbral no sea un
+  numero elegido a dedo.
+- Lo que el plan **no** puede saber queda dicho, no escondido: el conteo de
+  pares es exacto, pero cuanto cuesta cada uno depende del largo de los valores,
+  que el plan no leyo. Sobre valores de doscientos caracteres la tasa cae a
+  entre 70.000 y 270.000 pares por segundo, asi que con textos muy largos el
+  tiempo real es varias veces el que sugiere la referencia. `supuesto_costo` lo
+  declara en vez de prometer segundos.
 - La impresion muestra las dos mitades, y cuando la que pesa es la de R nombra
   la palanca de ese lado —`max_trabajo_vocabulario`—, que las palancas del
   motor no tocan.

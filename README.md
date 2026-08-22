@@ -324,7 +324,8 @@ both halves, and the high-work warning names the levers that bound it, which
 differ on each side. It is an estimate and says so: the engine half counts the
 rows that would have to be read if no index helped, and the client half counts
 pairs, whose unit cost depends on value length — something the plan cannot know
-without reading them, so for very long text the number is a floor. The published
+without reading them, so for very long text the real time is several times what
+the reference suggests. The published
 numbers do not depend on those assumptions, so anyone who disagrees with them can
 redo the arithmetic.
 

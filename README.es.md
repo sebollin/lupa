@@ -331,7 +331,8 @@ trabajo alto nombra las palancas para acotarlo, que no son las mismas de un lado
 que del otro. Es una estimación y lo dice: la del motor cuenta las filas que
 habría que leer si ningún índice ayudara, y la del cliente cuenta pares, cuyo
 costo unitario depende del largo de los valores —que el plan no conoce sin
-leerlos, así que con textos muy largos el número es un piso—. Los números
+leerlos, así que con textos muy largos el tiempo real es varias veces el que
+sugiere la referencia—. Los números
 publicados no dependen de esos supuestos, así que quien no los comparta puede
 rehacer la cuenta.
 

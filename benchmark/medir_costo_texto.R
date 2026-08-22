@@ -220,4 +220,49 @@ cat(sprintf(
   min(razones), max(razones)
 ))
 
+## ---- 5. La tasa que ancla los umbrales del plan ---------------------------
+
+## `plan_perfilado_dbi()` estima el trabajo del cliente en pares de formas
+## comparadas, y sus umbrales (2e6 y 2e8) estan anclados a la misma escala de
+## segundos que los del motor. El ancla es esta medicion: sin ella los umbrales
+## serian dos numeros elegidos a dedo.
+##
+## Se mide con los topes POR OMISION, que es lo que recibe un usuario. Cuando
+## `max_pares` recorta, el tiempo deja de crecer con los valores: eso no es un
+## error de la medicion, es el techo haciendo su trabajo, y es justamente el
+## techo que el plan usa para acotar.
+cat("\nTasa de pares por segundo, con los topes por omision\n")
+cat(sprintf(
+  "%10s %8s %14s %10s %14s\n",
+  "valores", "largo", "pares", "segundos", "pares/seg"
+))
+tasas_pares <- numeric()
+for (n in c(1000, 2000)) {
+  for (largo in c(40, 200)) {
+    medida <- .por_omision(.valores_de(n, largo))
+    segundos <- medida$segundos
+    # Los pares que el plan contaria para esta columna: los que hay, acotados
+    # por el mismo tope que usa el plan.
+    pares <- min(n * (n - 1) / 2, eval(formals(.vocabulario)$max_pares))
+    tasas_pares <- c(tasas_pares, pares / segundos)
+    cat(sprintf(
+      "%10s %8d %14s %10.2f %14s\n",
+      .miles(n), largo, .miles(pares), segundos, .miles(pares / segundos)
+    ))
+  }
+}
+## El numero que viaja en `supuesto_costo` es el de cuarenta caracteres, que es
+## el largo comun en columnas de texto de una base administrativa. Con valores
+## mucho mas largos la tasa cae, y por eso el plan declara que su cuenta de
+## pares es un piso y no una promesa.
+cat(sprintf(
+  paste(
+    "\nEl plan declara ~800.000 pares/seg sobre valores de cuarenta",
+    "caracteres. Medido aca: %s a %s pares/seg segun el largo. Con textos",
+    "mucho mas largos la tasa cae, asi que la cuenta de pares del plan es un",
+    "piso: por eso `supuesto_costo` lo dice en vez de prometer segundos.\n"
+  ),
+  .miles(min(tasas_pares)), .miles(max(tasas_pares))
+))
+
 cat("\nListo.\n")
