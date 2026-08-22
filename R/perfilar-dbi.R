@@ -1914,6 +1914,16 @@
     } else if (moda$ok) {
       moda$motivo <- "La columna no contiene valores no nulos."
       moda$estado <- "sin_valores"
+      # `frecuencia_moda` quedaba en NA, y NA dice "no se midio". Aca si se
+      # midio: el motor conto los valores no nulos y no hay ninguno. Es la
+      # distincion que el paquete sostiene en todas partes -cero es medido y
+      # ninguno-, y `perfilar()` ya devolvia cero para esta misma columna. Las
+      # dos puertas daban numeros distintos sobre el mismo dato.
+      #
+      # Solo cuando la lectura fue sobre la tabla entera. Si se midio sobre una
+      # muestra, que la muestra no traiga valores no prueba que la columna este
+      # vacia, y ahi NA con su motivo es lo correcto.
+      if (!es_muestreado) fila$frecuencia_moda <- 0
     }
     moda$sql <- sql_moda
     registros <- registrar(

@@ -12,6 +12,36 @@
   }
   valores <- x[validos]
   unicos <- unique(valores)
+  # `unique()` devuelve en orden de aparicion y `which.max()` toma el primer
+  # maximo, asi que ante un empate la moda salia por el orden de las filas: la
+  # columna 1,2,3,0,-4 daba moda 1, y la misma columna invertida daba -4. El
+  # veredicto no puede depender de la forma fisica de la tabla.
+  #
+  # El desempate es por valor ascendente, que es el mismo criterio que ya usaba
+  # la via DBI -`ORDER BY frecuencia DESC, columna ASC`- y estaba documentado
+  # solo de aquel lado. Ahora las dos puertas dan la misma moda sobre los mismos
+  # datos.
+  #
+  # `method = "radix"` en texto: el orden por omision depende de la
+  # configuracion regional, y con eso el desempate cambiaria de una maquina a
+  # otra. Es el mismo cuidado que en el recorte del vocabulario.
+  # `order()` no sabe ordenar todos los tipos: sobre una columna de blobs
+  # (`raw`) tira "unimplemented type 'raw' in 'orderVector1'". Se ordena por una
+  # clave equivalente donde hace falta, y si aun asi no se puede, se deja el
+  # orden de aparicion: es peor que ordenar, pero mucho mejor que romper el
+  # perfil entero por una columna exotica.
+  clave <- if (is.raw(unicos)) as.integer(unicos) else unicos
+  orden <- tryCatch(
+    if (is.character(clave)) {
+      order(clave, method = "radix")
+    } else {
+      order(clave)
+    },
+    error = function(e) NULL
+  )
+  if (!is.null(orden) && length(orden) == length(unicos)) {
+    unicos <- unicos[orden]
+  }
   indices <- match(valores, unicos)
   frecuencias <- tabulate(indices, nbins = length(unicos))
   posicion <- which.max(frecuencias)
@@ -329,17 +359,6 @@
     usar = usar,
     n_distintos = distintos
   )
-}
-
-.mapear_vocabulario <- function(textos, fn, umbral = .umbral_vocabulario_barato,
-                               valores = NULL) {
-  vocabulario <- .vocabulario_texto(textos, umbral, valores = valores)
-  evaluados <- fn(vocabulario$valores)
-  if (isTRUE(vocabulario$usar)) {
-    evaluados[vocabulario$indices]
-  } else {
-    evaluados
-  }
 }
 
 .componentes_numero_texto_optimizado <- function(textos, valores = NULL) {
@@ -857,19 +876,6 @@
   # La deteccion informa todos los invisibles, incluidos los espacios Unicode
   # y ZWJ/ZWNJ; la remediacion separa los grupos por neutralidad semantica.
   codigos %in% .codigos_control_invisible_set
-}
-
-.codigos_espacio_invisible <- function(codigos) {
-  codigos %in% .codigos_espacios_invisibles
-}
-
-.codigos_invisible_significativo <- function(codigos) {
-  codigos %in% .codigos_invisibles_significativos
-}
-
-.codigos_salto_linea <- function(codigos) {
-  # Los cinco separadores C0 pueden delimitar campos o lineas.
-  codigos %in% .codigos_salto_linea_set
 }
 
 .predicados_invisibles <- function(textos) {

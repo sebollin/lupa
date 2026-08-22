@@ -293,19 +293,11 @@
   ifelse(is.na(esquema), tabla, paste0(esquema, ".", tabla))
 }
 
-.identificador_tabla <- function(fila) {
-  .identificadores_tabla(fila$esquema, fila$tabla)
-}
-
 # `dbQuoteIdentifier(con, "public.personas")` cita UN identificador que contiene
 # un punto -`"public.personas"`- y no el compuesto `"public"."personas"`. Sobre
 # un motor con esquemas eso consulta una tabla que no existe y el par termina
 # declarado como ilegible aunque los permisos esten bien. El identificador
 # compuesto se construye con `DBI::Id`.
-.referencia_tabla <- function(fila) {
-  .referencia_de_partes(fila$esquema, fila$tabla)
-}
-
 .referencia_de_partes <- function(esquema, tabla) {
   if (is.na(esquema)) tabla else DBI::Id(schema = esquema, table = tabla)
 }
