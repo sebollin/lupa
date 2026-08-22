@@ -513,7 +513,7 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file21f338b0e3a7.html"
+#> [1] "file217a285917bf.html"
 unlink(c(archivo, archivo_rds))
 ```
 
