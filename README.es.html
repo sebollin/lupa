@@ -268,7 +268,7 @@
 <div class="section level3">
 <h3 id="un-presupuesto-mide-trabajo-no-cuenta-unidades">Un presupuesto mide trabajo, no cuenta unidades<a class="anchor" aria-label="anchor" href="#un-presupuesto-mide-trabajo-no-cuenta-unidades"></a></h3>
 <p>Un tope que cuenta unidades trata igual a una columna de códigos de diez caracteres y a una de WKT de mil. Una tabla del catálogo de PostGIS —3.912 filas— tardaba 243 segundos, y el detector de vocabulario era el 99,6 %: 800 valores distintos son 319.600 pares, muy por debajo del tope de dos millones, pero cada comparación era una Jaro-Winkler sobre 900 caracteres.</p>
-<p>El presupuesto se mide ahora en <strong>comparaciones de carácter</strong>, que es el bucle interno de la distancia. Calibrado contra la medición, la columna patológica baja de 61,3 s a 4,6 s, y una columna corriente de dos mil valores se sigue comparando entera. Lo que se recorta se declara: cuántas formas quedaron sin comparar, cuánto trabajo eran y cuál de los topes recortó.</p>
+<p>El presupuesto se mide ahora en <strong>comparaciones de carácter</strong>, que es el bucle interno de la distancia. Calibrado contra la medición, la columna patológica baja de 61,3 s a 4,6 s. Una columna corriente de dos mil valores se compara entera <strong>mientras sus valores midan menos de unos cien caracteres</strong>: el presupuesto muerde cuando <code>L² · n(n−1)/2</code> supera <code>2e10</code>, que para dos mil valores distintos es un largo de 101. Decir «dos mil valores se comparan enteros» sin esa condición era falso, y falso en el peor lugar: la columna de WKT de 900 caracteres que motivó el presupuesto es justo de las que sí se recortan. Lo que se recorta se declara: cuántas formas quedaron sin comparar, cuánto trabajo eran y cuál de los topes recortó.</p>
 <p>Y cuando hay que recortar, las formas que quedan son las <strong>primeras del alfabeto</strong>, no las primeras en aparecer. Esa diferencia era un defecto, medido sobre una columna real: 45.400 nombres de calle del catálogo nacional de datos abiertos, 8.318 formas distintas. Las mismas filas daban 26 grupos de casi-duplicados en el orden en que viene el archivo, 70–85 desordenadas y 148 ordenadas. Un perfilador cuyo veredicto depende del orden de las filas está midiendo la forma física de la tabla y no los datos. Ordenando antes, los cinco órdenes dan 148 —y ordenar además deja los casi-duplicados adyacentes, así que el corte cae entre familias en vez de partirlas—.</p>
 </div>
 <div class="section level3">
@@ -366,11 +366,8 @@
 <td>columnas que contienen al menos una celda cambiada</td>
 <td align="right">26/26 recibieron al menos un hallazgo; se señalaron 8 columnas más</td>
 </tr><tr><td>Controles limpios construidos</td>
-<td>43 tablas</td>
-<td align="right">0 hallazgos de severidad error; 25 señales para revisar</td>
-</tr><tr><td>Defectos plantados</td>
-<td>9 defectos plantados</td>
-<td align="right">9/9 detectados</td>
+<td>31 tablas</td>
+<td align="right">0 hallazgos de severidad error; 8 señales para revisar</td>
 </tr><tr><td>Registro real de sanciones</td>
 <td>hallazgos de severidad error sobre 2.556 filas</td>
 <td align="right">8/8 confirmados de manera independiente</td>

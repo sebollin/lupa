@@ -971,13 +971,13 @@ summary(perfil)
 #> 3  [valor protegido]               2               4              10
 #> 4                  F               6               0               3
 #> 5              25000               2              NA              NA
-#> 6         Montevideo               2               5              10
+#> 6            Florida               2               5              10
 #> 7                 UY              13               2               2
 #> 8  [valor protegido]               2              10              26
 #> 9                  1               2              NA              NA
 #> 10             TR001               2               5               5
 #>    longitud_media minimo  maximo        media mediana       desvio
-#> 1              NA     NA      NA 5.923077e+00      NA 3.546396e+00
+#> 1              NA     NA      NA           NA      NA 3.546396e+00
 #> 2        9.692308     NA      NA           NA      NA           NA
 #> 3        9.384615     NA      NA           NA      NA 1.191710e+08
 #> 4        1.076923     NA      NA           NA      NA           NA
@@ -1097,17 +1097,17 @@ summary(perfil)
 #> 8                NA         <NA>        NA        NA        NA        NA
 #> 9                NA         <NA>        NA        NA        NA        NA
 #> 10               NA         <NA>        NA        NA        NA        NA
-#>           detalle_proteccion_personal n_blancos n_espacios_borde
-#> 1  [estadisticos de orden protegidos]         0                0
-#> 2                                <NA>         0                0
-#> 3  [estadisticos de orden protegidos]         0                0
-#> 4                                <NA>         1                0
-#> 5                                <NA>         0                0
-#> 6                                <NA>         0                0
-#> 7                                <NA>         0                0
-#> 8                                <NA>         0                0
-#> 9                                <NA>         0                0
-#> 10                               <NA>         0                0
+#>                      detalle_proteccion_personal n_blancos n_espacios_borde
+#> 1  [estadisticos de orden y momentos protegidos]         0                0
+#> 2                                           <NA>         0                0
+#> 3             [estadisticos de orden protegidos]         0                0
+#> 4                                           <NA>         1                0
+#> 5                                           <NA>         0                0
+#> 6                                           <NA>         0                0
+#> 7                                           <NA>         0                0
+#> 8                                           <NA>         0                0
+#> 9                                           <NA>         0                0
+#> 10                                          <NA>         0                0
 #>    n_variantes_mayusculas n_variantes_unicode unicode_evaluado
 #> 1                       0                  NA               NA
 #> 2                       0                   0             TRUE

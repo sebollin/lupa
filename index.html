@@ -411,7 +411,7 @@
 <h3 id="a-budget-measures-work-it-does-not-count-units">A budget measures work, it does not count units<a class="anchor" aria-label="anchor" href="#a-budget-measures-work-it-does-not-count-units"></a>
 </h3>
 <p>A cap that counts units treats a column of ten-character codes and one of thousand-character WKT alike. A table in the PostGIS catalogue — 3,912 rows — took 243 seconds, and the vocabulary detector was 99.6% of it: 800 distinct values are 319,600 pairs, well under the two-million cap, but each comparison was a Jaro-Winkler over 900 characters.</p>
-<p>The budget is now measured in <strong>character comparisons</strong>, the inner loop of the distance. Calibrated against measurement, the pathological column drops from 61.3 s to 4.6 s, while an ordinary column of two thousand values is still compared in full. What does get trimmed is declared: how many normalised forms went uncompared, how much work that was, and which cap did the trimming.</p>
+<p>The budget is now measured in <strong>character comparisons</strong>, the inner loop of the distance. Calibrated against measurement, the pathological column drops from 61.3 s to 4.6 s. An ordinary column of two thousand values is compared in full <strong>as long as its values are under about a hundred characters</strong>: the budget bites when <code>L² · n(n−1)/2</code> exceeds <code>2e10</code>, which for two thousand distinct values means a length of 101. Saying “two thousand values are compared in full” without that qualifier was wrong, and wrong in the worst place — the 900-character WKT column that motivated the budget is exactly the kind that gets trimmed. What does get trimmed is declared: how many normalised forms went uncompared, how much work that was, and which cap did the trimming.</p>
 <p>And when a budget must trim, the forms it keeps are the <strong>alphabetically first</strong>, not the first to appear. That distinction was a defect, measured on a real column — 45,400 street names from the national open-data catalogue, 8,318 distinct forms. The same rows yielded 26 near-duplicate groups in the order the file arrives, 70–85 shuffled, and 148 sorted. A profiler whose verdict depends on the row order is measuring the physical shape of the table rather than the data. Sorting first, all five orders yield 148 — and sorting also keeps near-duplicates adjacent, so the cut falls between families instead of splitting them.</p>
 </div>
 <div class="section level3">
@@ -552,13 +552,8 @@
 </tr>
 <tr>
 <td>Constructed clean controls</td>
-<td>43 tables</td>
-<td align="right">0 error-severity findings; 25 review signals</td>
-</tr>
-<tr>
-<td>Seeded defects</td>
-<td>9 planted defects</td>
-<td align="right">9/9 detected</td>
+<td>31 tables</td>
+<td align="right">0 error-severity findings; 8 review signals</td>
 </tr>
 <tr>
 <td>Real sanctions register</td>

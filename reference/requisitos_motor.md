@@ -33,3 +33,22 @@ El estado `probado` se copia de la tabla de motores de los README.
 `esperado` significa que el dialecto está implementado pero no se
 comprobó contra ese motor real en este repositorio. Los motores que no
 figuran en esa tabla no se presentan como probados.
+
+## Examples
+
+``` r
+# El catálogo completo: una fila por variante documentada.
+todos <- requisitos_motor()
+nrow(todos)
+#> [1] 12
+
+# Lo que hace falta para un motor en particular, antes de intentar conectarse.
+requisitos_motor("postgresql")[, c("paquete_r", "estado_paquete_r")]
+#>   paquete_r estado_paquete_r
+#> 3 RPostgres            falta
+
+# `no_comprobada` en la biblioteca del sistema no significa instalada: el
+# paquete no puede saberlo sin intentarlo, y lo dice en vez de suponerlo.
+unique(requisitos_motor()$estado_biblioteca_sistema)
+#> [1] "no_requerida"  "no_comprobada"
+```

@@ -117,7 +117,7 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 24.948 pares en
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 24.528 pares en
 #> 0,050 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
@@ -192,7 +192,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/Rtmpx9RAch/lupa-lotes-23037f3cdcd8/lupa-lotes-2303672ce693"
+#> [1] "/tmp/RtmpAy3ZbP/lupa-lotes-228c1c0457d2/lupa-lotes-228c11775771"
 #> 
 #> $n_parciales
 #> [1] 6
@@ -238,10 +238,26 @@ tocar el común**:
 | 800     | 900   | 61,3 s   | 4,6 s    | 27,8 %    |
 | 2000    | 80    | 5,0 s    | 5,1 s    | 100 %     |
 
-Una columna corriente de dos mil valores se compara entera. Y lo que sí
-se recorta **se declara**, con las dos cuentas separadas: cuántas formas
-normalizadas quedaron sin comparar y cuánto trabajo eran, junto con cuál
-de los topes recortó, en el alcance del hallazgo y en
+Una columna corriente de dos mil valores se compara entera **mientras
+sus valores midan menos de unos cien caracteres**. El tope por trabajo
+muerde cuando `L² · n(n-1)/2` supera `2e10`, así que para dos mil
+valores distintos el corte está en 101 caracteres:
+
+| valores | largo | ¿se recorta?              | formas comparadas |
+|--------:|------:|---------------------------|------------------:|
+|    2000 |    80 | no                        |              2000 |
+|    2000 |   100 | no                        |              2000 |
+|    2000 |   101 | **sí**, por `max_trabajo` |              1980 |
+|    2000 |   200 | sí, por `max_trabajo`     |              1000 |
+
+Conviene tenerlo presente porque la columna que motivó el presupuesto
+—WKT de 900 caracteres— cae del lado recortado: la tranquilidad de «dos
+mil valores se comparan enteros» no alcanza a los datos que hicieron
+falta el tope.
+
+Y lo que sí se recorta **se declara**, con las dos cuentas separadas:
+cuántas formas normalizadas quedaron sin comparar y cuánto trabajo eran,
+junto con cuál de los topes recortó, en el alcance del hallazgo y en
 `cobertura_diagnosticos`. Si aprietan los dos, el motivo los nombra a
 los dos, porque hay que poder elegir cuál aflojar.
 

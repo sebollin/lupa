@@ -84,6 +84,24 @@ motor real en este repositorio. Los motores que no figuran en esa tabla no se
 presentan como probados.</p>
     </div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># El catálogo completo: una fila por variante documentada.</span></span></span>
+<span class="r-in"><span><span class="va">todos</span> <span class="op">&lt;-</span> <span class="fu">requisitos_motor</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">todos</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 12</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Lo que hace falta para un motor en particular, antes de intentar conectarse.</span></span></span>
+<span class="r-in"><span><span class="fu">requisitos_motor</span><span class="op">(</span><span class="st">"postgresql"</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"paquete_r"</span>, <span class="st">"estado_paquete_r"</span><span class="op">)</span><span class="op">]</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   paquete_r estado_paquete_r</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 RPostgres            falta</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># `no_comprobada` en la biblioteca del sistema no significa instalada: el</span></span></span>
+<span class="r-in"><span><span class="co"># paquete no puede saberlo sin intentarlo, y lo dice en vez de suponerlo.</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="fu">requisitos_motor</span><span class="op">(</span><span class="op">)</span><span class="op">$</span><span class="va">estado_biblioteca_sistema</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "no_requerida"  "no_comprobada"</span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 

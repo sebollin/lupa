@@ -206,7 +206,7 @@ colisión.</p>
 <span>  max_resultados <span class="op">=</span> <span class="fl">100</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;</span></span>
-<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 24.948 pares en</span></span>
+<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 24.528 pares en</span></span>
 <span><span class="co">#&gt; 0,050 s.</span></span>
 <span><span class="va">exacto</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span>, <span class="st">"igualo_normalizar"</span></span>
@@ -274,7 +274,7 @@ siendo exacta; sólo cambia cuánta memoria se usa a la vez.</p>
 <span>  <span class="st">"directorio"</span>, <span class="st">"n_parciales"</span>, <span class="st">"bytes_totales"</span>, <span class="st">"reanudable"</span>, <span class="st">"perdida"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $directorio</span></span>
-<span><span class="co">#&gt; [1] "/tmp/Rtmpx9RAch/lupa-lotes-23037f3cdcd8/lupa-lotes-2303672ce693"</span></span>
+<span><span class="co">#&gt; [1] "/tmp/RtmpAy3ZbP/lupa-lotes-228c1c0457d2/lupa-lotes-228c11775771"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $n_parciales</span></span>
 <span><span class="co">#&gt; [1] 6</span></span>
@@ -337,12 +337,57 @@ intuición, y el criterio no fue sólo cortar el caso patológico sino
 </tr>
 </tbody>
 </table>
-<p>Una columna corriente de dos mil valores se compara entera. Y lo que
-sí se recorta <strong>se declara</strong>, con las dos cuentas
-separadas: cuántas formas normalizadas quedaron sin comparar y cuánto
-trabajo eran, junto con cuál de los topes recortó, en el alcance del
-hallazgo y en <code>cobertura_diagnosticos</code>. Si aprietan los dos,
-el motivo los nombra a los dos, porque hay que poder elegir cuál
+<p>Una columna corriente de dos mil valores se compara entera
+<strong>mientras sus valores midan menos de unos cien
+caracteres</strong>. El tope por trabajo muerde cuando
+<code>L² · n(n-1)/2</code> supera <code>2e10</code>, así que para dos
+mil valores distintos el corte está en 101 caracteres:</p>
+<table class="table">
+<thead><tr class="header">
+<th align="right">valores</th>
+<th align="right">largo</th>
+<th>¿se recorta?</th>
+<th align="right">formas comparadas</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="right">2000</td>
+<td align="right">80</td>
+<td>no</td>
+<td align="right">2000</td>
+</tr>
+<tr class="even">
+<td align="right">2000</td>
+<td align="right">100</td>
+<td>no</td>
+<td align="right">2000</td>
+</tr>
+<tr class="odd">
+<td align="right">2000</td>
+<td align="right">101</td>
+<td>
+<strong>sí</strong>, por <code>max_trabajo</code>
+</td>
+<td align="right">1980</td>
+</tr>
+<tr class="even">
+<td align="right">2000</td>
+<td align="right">200</td>
+<td>sí, por <code>max_trabajo</code>
+</td>
+<td align="right">1000</td>
+</tr>
+</tbody>
+</table>
+<p>Conviene tenerlo presente porque la columna que motivó el presupuesto
+—WKT de 900 caracteres— cae del lado recortado: la tranquilidad de «dos
+mil valores se comparan enteros» no alcanza a los datos que hicieron
+falta el tope.</p>
+<p>Y lo que sí se recorta <strong>se declara</strong>, con las dos
+cuentas separadas: cuántas formas normalizadas quedaron sin comparar y
+cuánto trabajo eran, junto con cuál de los topes recortó, en el alcance
+del hallazgo y en <code>cobertura_diagnosticos</code>. Si aprietan los
+dos, el motivo los nombra a los dos, porque hay que poder elegir cuál
 aflojar.</p>
 <p>Un detalle que conviene saber antes de confiar en un recorte: las
 formas que sí se comparan son <strong>las primeras en orden

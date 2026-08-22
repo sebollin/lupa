@@ -313,10 +313,15 @@ cap, but each comparison was a Jaro-Winkler over 900 characters.
 
 The budget is now measured in **character comparisons**, the inner loop
 of the distance. Calibrated against measurement, the pathological column
-drops from 61.3 s to 4.6 s, while an ordinary column of two thousand
-values is still compared in full. What does get trimmed is declared: how
-many normalised forms went uncompared, how much work that was, and which
-cap did the trimming.
+drops from 61.3 s to 4.6 s. An ordinary column of two thousand values is
+compared in full **as long as its values are under about a hundred
+characters**: the budget bites when `L² · n(n−1)/2` exceeds `2e10`,
+which for two thousand distinct values means a length of 101. Saying
+“two thousand values are compared in full” without that qualifier was
+wrong, and wrong in the worst place — the 900-character WKT column that
+motivated the budget is exactly the kind that gets trimmed. What does
+get trimmed is declared: how many normalised forms went uncompared, how
+much work that was, and which cap did the trimming.
 
 And when a budget must trim, the forms it keeps are the **alphabetically
 first**, not the first to appear. That distinction was a defect,
@@ -619,8 +624,7 @@ them estimates a single package-wide accuracy.
 | Check | Declared unit | Result |
 |----|----|---:|
 | Raha dirty/clean pairs | columns containing at least one changed cell | 26/26 received at least one finding; 8 further columns were flagged |
-| Constructed clean controls | 43 tables | 0 error-severity findings; 25 review signals |
-| Seeded defects | 9 planted defects | 9/9 detected |
+| Constructed clean controls | 31 tables | 0 error-severity findings; 8 review signals |
 | Real sanctions register | error-severity findings over 2,556 rows | 8/8 independently confirmed |
 
 In the Raha pairs the dirty/clean comparison labels changed cells; it

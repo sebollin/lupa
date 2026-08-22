@@ -422,11 +422,10 @@ la columna ordenada, o una tabla que entra en la memoria del motor, la
 bajan mucho. La del cliente cuenta pares: el conteo es exacto, pero
 **cuánto cuesta cada par depende del largo de los valores, que el plan
 no conoce sin leerlos**. Medido acá, entre 660.000 y 960.000 pares por
-segundo con valores de cuarenta caracteres, y entre 70.000 y 270.000 con
-valores de doscientos: con textos muy largos el tiempo real es varias
-veces el que sugiere la referencia. Los números publicados no dependen
-de esos supuestos, así que quien no los comparta puede rehacer la
-cuenta.
+segundo con valores de cuarenta caracteres, y unos 70.000 con valores de
+doscientos: con textos muy largos el tiempo real es varias veces el que
+sugiere la referencia. Los números publicados no dependen de esos
+supuestos, así que quien no los comparta puede rehacer la cuenta.
 
 ### Lo que el muestreo en el motor no puede darte
 

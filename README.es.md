@@ -320,10 +320,15 @@ caracteres.
 
 El presupuesto se mide ahora en **comparaciones de carácter**, que es el
 bucle interno de la distancia. Calibrado contra la medición, la columna
-patológica baja de 61,3 s a 4,6 s, y una columna corriente de dos mil
-valores se sigue comparando entera. Lo que se recorta se declara:
-cuántas formas quedaron sin comparar, cuánto trabajo eran y cuál de los
-topes recortó.
+patológica baja de 61,3 s a 4,6 s. Una columna corriente de dos mil
+valores se compara entera **mientras sus valores midan menos de unos
+cien caracteres**: el presupuesto muerde cuando `L² · n(n−1)/2` supera
+`2e10`, que para dos mil valores distintos es un largo de 101. Decir
+«dos mil valores se comparan enteros» sin esa condición era falso, y
+falso en el peor lugar: la columna de WKT de 900 caracteres que motivó
+el presupuesto es justo de las que sí se recortan. Lo que se recorta se
+declara: cuántas formas quedaron sin comparar, cuánto trabajo eran y
+cuál de los topes recortó.
 
 Y cuando hay que recortar, las formas que quedan son las **primeras del
 alfabeto**, no las primeras en aparecer. Esa diferencia era un defecto,
@@ -632,8 +637,7 @@ Ninguna estima una exactitud única para todo el paquete.
 | Comprobación | Unidad declarada | Resultado |
 |----|----|---:|
 | Pares dirty/clean de Raha | columnas que contienen al menos una celda cambiada | 26/26 recibieron al menos un hallazgo; se señalaron 8 columnas más |
-| Controles limpios construidos | 43 tablas | 0 hallazgos de severidad error; 25 señales para revisar |
-| Defectos plantados | 9 defectos plantados | 9/9 detectados |
+| Controles limpios construidos | 31 tablas | 0 hallazgos de severidad error; 8 señales para revisar |
 | Registro real de sanciones | hallazgos de severidad error sobre 2.556 filas | 8/8 confirmados de manera independiente |
 
 En los pares de Raha la comparación dirty/clean etiqueta celdas

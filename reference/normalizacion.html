@@ -86,6 +86,35 @@ la secuencia <code>g</code> seguida por una tilde combinante para la letra guara
     <p>Un objeto de clase normalizacion_lupa.</p>
     </div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># El perfil por omisión: minúsculas, espacios, acentos y comillas.</span></span></span>
+<span class="r-in"><span><span class="fu">normalizacion</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Perfil de normalizacion de lupa</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   minusculas = TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   espacios = TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   acentos = TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   comillas = TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   puntuacion = FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   ligaduras = FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   ancho = FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   proteger = ñ, ü, g̃</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Comparar sin quitar acentos, para que "canon" y "cañón" no se fusionen.</span></span></span>
+<span class="r-in"><span><span class="va">perfil</span> <span class="op">&lt;-</span> <span class="fu">normalizacion</span><span class="op">(</span>acentos <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">perfil</span><span class="op">$</span><span class="va">acentos</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># La normalización sólo afecta la representación usada para COMPARAR; no</span></span></span>
+<span class="r-in"><span><span class="co"># modifica los datos ni los conteos. Estas tres formas siguen siendo tres</span></span></span>
+<span class="r-in"><span><span class="co"># valores distintos, y así se informan: lo que la normalización habilita es</span></span></span>
+<span class="r-in"><span><span class="co"># que se reconozcan como variantes de la misma cosa al buscar duplicados.</span></span></span>
+<span class="r-in"><span><span class="va">datos</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>ciudad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Montevideo"</span>, <span class="st">"MONTEVIDEO"</span>, <span class="st">"montevideo"</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">salida</span> <span class="op">&lt;-</span> <span class="fu"><a href="perfilar.html">perfilar</a></span><span class="op">(</span><span class="va">datos</span>, normalizar <span class="op">=</span> <span class="fu">normalizacion</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">salida</span><span class="op">$</span><span class="va">columnas</span><span class="op">$</span><span class="va">n_distintos</span>  <span class="co"># 3, no 1</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3</span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 

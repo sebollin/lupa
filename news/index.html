@@ -42,6 +42,56 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="una-columna-en-latin-perdia-sus-acentos-en-silencio-0-1-0">Una columna en Latin-1 perdia sus acentos en silencio<a class="anchor" aria-label="anchor" href="#una-columna-en-latin-perdia-sus-acentos-en-silencio-0-1-0"></a></h3>
+<p>Es el defecto mas grave que encontro esta tanda, y no es un caso de borde: es un CSV viejo en espanol, que es la mayoria de lo que hay en datos publicos de la region. Sobre una columna con cinco valores distintos, el perfil informaba:</p>
+<pre><code>n_distintos: 2        &lt;- son 5
+n_faltantes: 0        &lt;- dice que no falta nada
+cobertura:   0 filas  &lt;- no declara nada</code></pre>
+<p><code><a href="https://rdrr.io/r/base/validUTF8.html" class="external-link">validUTF8()</a></code> mira los bytes, y los de un texto marcado <code>latin1</code> no son UTF-8 validos, asi que <code>CAFE</code>, <code>ANO</code> y <code>NUMERO</code> con tilde se volvian <code>NA</code> antes de llegar a cualquier diagnostico. El invariante del paquete roto en su forma mas directa: informar como medido lo que se descarto.</p>
+<ul><li>
+<strong>Lo que R sabe convertir ahora se convierte.</strong> <code><a href="https://rdrr.io/r/base/Encoding.html" class="external-link">Encoding()</a></code> dice <code>latin1</code> cuando R conoce la codificacion, y <code><a href="https://rdrr.io/r/base/Encoding.html" class="external-link">enc2utf8()</a></code> convierte sin perder nada. El paquete estaba tirando informacion que podia recuperar con una llamada. Con eso, la misma columna informa <code>n_distintos = 5</code>.</li>
+<li>
+<strong>Y lo que no se puede convertir, se declara.</strong> Un texto cuya codificacion nadie declaro y cuyos bytes no son UTF-8 validos se sigue descartando —no hay forma de adivinar si <code>0xE9</code> era una <code>e</code> con tilde o basura— pero ahora <code>cobertura_diagnosticos</code> gana una fila <code>texto_no_descifrable</code> que dice cuantos valores quedaron afuera, y por que no cuentan ni como distintos ni como faltantes.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-proteccion-de-datos-personales-dependia-de-por-que-puerta-entraras-0-1-0">La proteccion de datos personales dependia de por que puerta entraras<a class="anchor" aria-label="anchor" href="#la-proteccion-de-datos-personales-dependia-de-por-que-puerta-entraras-0-1-0"></a></h3>
+<p>La media de una columna de cedulas salia <strong>expuesta</strong> por <code><a href="../reference/perfilar.html">perfilar()</a></code> y <strong>tapada</strong> por <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>:</p>
+<pre><code>perfilar()      media = 5108024      detalle: [estadisticos de orden protegidos]
+perfilar_dbi()  media = NA           detalle: [estadisticos de orden y momentos protegidos]</code></pre>
+<p>El argumento estaba escrito del lado DBI desde antes —“la media de las cedulas de una tabla chica reconstruye demasiado”— y el camino principal no lo aplicaba. Ahora las dos tapan la media, y el texto distingue si se taparon estadisticos de orden, momentos o los dos, para no declarar una proteccion que no se aplico.</p>
+</div>
+<div class="section level3">
+<h3 id="el-total-del-plan-no-era-un-techo-y-ahora-se-publica-como-rango-0-1-0">El total del plan no era un techo, y ahora se publica como rango<a class="anchor" aria-label="anchor" href="#el-total-del-plan-no-era-un-techo-y-ahora-se-publica-como-rango-0-1-0"></a></h3>
+<p><code>attr(plan, "supuesto")</code> decia que el total era un techo y declaraba solo la direccion “menos”: una columna sin valores validos no emite sus metricas. Nunca declaraba la direccion “mas”. Medido contra un motor que rechaza lotes —el caso exacto que motivo la consolidacion—:</p>
+<pre><code>plan (techo) = 22 consultas        real emitidas = 30</code></pre>
+<p>Si un lote falla, se emite la consulta del lote y ademas una por columna. Quien decide la viabilidad de una corrida con ese numero se quedaba corto justo en el escenario de degradacion. Ahora el plan publica <code>total</code> —lo que cuesta si ningun lote se rechaza— y <code>total_lotes_rechazados</code> —si se rechazaran todos—, y el costo real cae entre los dos.</p>
+</div>
+<div class="section level3">
+<h3 id="dos-numeros-publicados-que-no-resistieron-que-otro-los-midiera-0-1-0">Dos numeros publicados que no resistieron que otro los midiera<a class="anchor" aria-label="anchor" href="#dos-numeros-publicados-que-no-resistieron-que-otro-los-midiera-0-1-0"></a></h3>
+<p>Los dos eran nuestros y de esta semana, y los dos son la misma forma de error: <strong>medir una cosa y publicarla como otra.</strong></p>
+<ul><li>
+<strong>“Una columna corriente de dos mil valores se compara entera”</strong> es falso sin calificar el largo. El tope por trabajo muerde cuando <code>L^2 x n(n-1)/2</code> supera <code>2e10</code>, o sea a partir de <strong>101 caracteres</strong> para dos mil valores distintos. Y falso en el peor lugar: la columna de WKT de 900 caracteres que motivo el presupuesto cae del lado recortado, asi que la frase tranquilizadora no alcanzaba justo a los datos que hicieron falta el tope.</li>
+<li>
+<strong>La tasa de 200 caracteres estaba inflada cuatro veces.</strong> El banco dividia el tiempo por los pares que el <em>plan</em> contaria y no por los que de verdad se compararon: sobre 2000x200 el plan cuenta 1.999.000 pares y se comparan 499.500, porque <code>max_trabajo</code> recorta a 1.000 formas. La tasa real es unos <strong>70.000</strong> pares/seg, no “70.000 a 270.000”.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-tabla-de-evidencia-del-readme-medida-de-nuevo-0-1-0">La tabla de evidencia del README, medida de nuevo<a class="anchor" aria-label="anchor" href="#la-tabla-de-evidencia-del-readme-medida-de-nuevo-0-1-0"></a></h3>
+<p>Publicaba <strong>43 tablas de control y 25 senales</strong>. El generador esta en el repositorio, se redujo a 31 tablas, y el ruido bajo a 8 —el paquete mejoro— pero el README siguio publicando los numeros viejos <strong>porque ninguna prueba los ataba</strong>. Ahora dice 31 tablas, 0 errores y 8 senales, y los tres estan fijados en <code>test-ronda107.R</code>: si cambian, la suite falla y hay que actualizarlos a proposito.</p>
+<p>Se saco la fila de los nueve defectos plantados. El numero es real —se midio en tres rondas— pero el fixture no esta en el repositorio, y reconstruirlo de memoria daria nueve defectos parecidos y no los mismos. En la tabla que sostiene el argumento del paquete, una fila menos es mejor que una fila que no se puede comprobar. Vuelve cuando exista su test.</p>
+</div>
+<div class="section level3">
+<h3 id="restos-de-correcciones-anteriores-0-1-0">Restos de correcciones anteriores<a class="anchor" aria-label="anchor" href="#restos-de-correcciones-anteriores-0-1-0"></a></h3>
+<ul><li>Una trazabilidad sin filas se declaraba <strong>disponible</strong>: el condicional tenia las dos ramas iguales (<code>if (total) "disponible" else "disponible"</code>), resto de una correccion. Con cero indices el objeto prometia una localizacion que no existe, con <code>localizador = "ninguno"</code> al lado. La rama vacia va a <code>no_disponible</code>, que es el valor por omision de la propia funcion.</li>
+<li>
+<code>.reparar_mojibake_uno</code> estaba definida <strong>dos veces con algoritmos distintos</strong> y topes distintos (4 y 20 iteraciones). El orden alfabetico de carga decidia cual corria; la otra era codigo muerto que alguien podia “arreglar” creyendo que era la que se usa.</li>
+<li>
+<code>.bit64_disponible</code> y <code>.bit64_disponible_dbi</code> eran la misma funcion con dos nombres. Queda un solo punto de verdad.</li>
+<li>
+<code>.detectar_orden_columnas()</code> recibia un argumento <code>resultados</code> que su cuerpo no usaba, y el llamador lo construia para nada.</li>
+<li>
+<code>muestra = 1.5</code> se aceptaba en memoria y perfilaba <strong>una</strong> fila en silencio, mientras la via DBI daba error. Ahora las dos lo rechazan. La unica diferencia que queda es deliberada: <code>Inf</code> vale en memoria y no contra un motor.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="el-veredicto-ya-no-depende-de-como-venga-ordenado-el-archivo-0-1-0">El veredicto ya no depende de como venga ordenado el archivo<a class="anchor" aria-label="anchor" href="#el-veredicto-ya-no-depende-de-como-venga-ordenado-el-archivo-0-1-0"></a></h3>
 <p>Cuando el vocabulario de una columna de texto excede el presupuesto, hay que elegir que formas comparar. Se elegian <strong>las primeras en aparecer</strong>, y eso hacia que el resultado dependiera del orden de las filas.</p>
 <p>Medido sobre la columna <code>nombre</code> de <em>Ejes de vias de circulacion</em> de Montevideo —45.400 filas, 8.318 formas distintas, del catalogo nacional de datos abiertos—, las <strong>mismas filas</strong> daban:</p>
@@ -112,7 +162,7 @@
 <ul><li>La magnitud se estima ahora en <strong>dos mitades</strong>. La del motor sigue en <code>filas_leidas</code> y <code>ordenaciones_completas</code>, resumida en <code>magnitud_motor</code>. La del cliente esta en <code>columnas_texto</code> y <code>pares_texto</code> —cuantos pares de formas podria comparar el detector de vocabulario sobre la muestra—, resumida en <code>magnitud_texto</code>. <code>magnitud</code> es <strong>la mayor de las dos</strong>.</li>
 <li>La unidad es el par de formas comparadas, que es una cuenta y no un indice: la muestra trae <code>m</code> filas, las formas distintas son a lo sumo <code>m</code>, y el detector nunca compara mas de <code>max_pares</code> por columna. El tope se lee de la firma del detector, no se copia, asi que no puede quedar estimando contra un numero viejo.</li>
 <li>Los umbrales (2e6 y 2e8 pares) estan anclados a la misma escala de segundos que los del motor, con la tasa medida: <strong>de 660.000 a 960.000 pares por segundo sobre valores de cuarenta caracteres</strong>, contra los cinco millones de lecturas de fila por segundo de la referencia de PostgreSQL. La medicion esta en <code>benchmark/medir_costo_texto.R</code>, seccion 5, para que el umbral no sea un numero elegido a dedo.</li>
-<li>Lo que el plan <strong>no</strong> puede saber queda dicho, no escondido: el conteo de pares es exacto, pero cuanto cuesta cada uno depende del largo de los valores, que el plan no leyo. Sobre valores de doscientos caracteres la tasa cae a entre 70.000 y 270.000 pares por segundo, asi que con textos muy largos el tiempo real es varias veces el que sugiere la referencia. <code>supuesto_costo</code> lo declara en vez de prometer segundos.</li>
+<li>Lo que el plan <strong>no</strong> puede saber queda dicho, no escondido: el conteo de pares es exacto, pero cuanto cuesta cada uno depende del largo de los valores, que el plan no leyo. Sobre valores de doscientos caracteres la tasa cae a unos 70.000 pares por segundo, asi que con textos muy largos el tiempo real es varias veces el que sugiere la referencia. <code>supuesto_costo</code> lo declara en vez de prometer segundos.</li>
 <li>La impresion muestra las dos mitades, y cuando la que pesa es la de R nombra la palanca de ese lado —<code>max_trabajo_vocabulario</code>—, que las palancas del motor no tocan.</li>
 </ul></div>
 <div class="section level3">
@@ -147,7 +197,7 @@
 <td>5,0 s</td>
 <td>5,1 s</td>
 <td><strong>100 %</strong></td>
-</tr></tbody></table><p>El ultimo renglon es el que importa tanto como el tercero: <strong>una columna corriente de dos mil valores no se recorta</strong>. Tampoco 500x20 ni 1000x30. El riesgo del arreglo era romper el caso comun para arreglar el patologico.</p>
+</tr></tbody></table><p>El ultimo renglon es el que importa tanto como el tercero: <strong>una columna corriente de dos mil valores no se recorta</strong>, siempre que sus valores midan menos de unos cien caracteres: el tope por trabajo muerde cuando <code>L^2 x n(n-1)/2</code> supera <code>2e10</code>, o sea a partir de 101 caracteres para dos mil valores distintos. Tampoco 500x20 ni 1000x30. El riesgo del arreglo era romper el caso comun para arreglar el patologico.</p>
 </li>
 <li><p>Una aclaracion que hay que hacer, porque la primera version de esta nota afirmaba de mas: <strong>3000x20 si se recorta</strong>, pero no por el presupuesto nuevo sino por <code>max_pares</code>, el tope viejo, que acota en 2.000 formas sin mirar el largo. Sigue puesto porque acota la memoria de la matriz de pares. El recorte se declara con su motivo, asi que no se pierde en silencio, pero decir “no se recorta” era falso. Salio de que el banco apagaba <code>max_pares</code> para aislar el efecto del tope nuevo y despues se leyo esa medicion como si fuera lo que recibe un usuario. El banco separa ahora las dos cosas.</p></li>
 <li><p>Lo recortado <strong>se declara</strong>, con las dos cuentas separadas: cuantas formas normalizadas quedaron sin comparar y cuanto trabajo era, en el alcance del hallazgo y en <code>cobertura_diagnosticos</code>, junto con cual de los dos topes recorto. Si aprietan los dos, el motivo los nombra a los dos: el usuario tiene que poder elegir cual aflojar.</p></li>
