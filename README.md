@@ -165,8 +165,8 @@ engine rejects is recorded as unavailable with its reason — never as zero.
 | **MySQL 8** | `limit` | **tested** against the real engine: same three statistics verified against R |
 | **SQL Server 2022** | `top` | **tested** against the real engine: the probe resolves `top` on its own, and the three statistics match R |
 | **DuckDB 1.5** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, and the three statistics verified against R |
-| **MariaDB 11** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, the three statistics against R, and the plan exact in the five |
-| **Oracle Free 23 (23c)** | `fetch_first` | **tested** against the real engine: dialect resolved by probe, five modes with no unavailable metric, the three statistics against R, exact plan, qualified names by text and by `DBI::Id`, and `SAMPLE (p)` sampling |
+| **MariaDB 11** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, the three statistics against R, and the plan's lower bound matching the queries actually emitted in the five |
+| **Oracle Free 23 (23c)** | `fetch_first` | **tested** against the real engine: dialect resolved by probe, five modes with no unavailable metric, the three statistics against R, the plan's lower bound matching the queries actually emitted, qualified names by text and by `DBI::Id`, and `SAMPLE (p)` sampling |
 | Oracle 11 and earlier | `rownum` | expected, not checked against the engine |
 | any other DBI-compatible engine | `portable` | fallback: `dbSendQuery()` + `dbFetch(n)` |
 
@@ -299,22 +299,28 @@ adjacent, so the cut falls between families instead of splitting them.
 
 ### Cost is planned before it is paid
 
-Profiling 158 columns in `modo = "exacto"` emits 623 queries, and 777 of the
-original 778 scanned the whole table. `muestra` does not bound that: it bounds
-what is brought into R, not the work the engine does. So the cost is declared
-and chosen:
+Profiling a 158-column table in `modo = "exacto"` emits 262 queries, and 256 of
+them scan, sort or group the whole table. The count follows the composition, not
+the column count: the same 158 columns as text only cost 172, because a median
+asks for a full sort per numeric column. `muestra` does not bound any of it — it
+bounds what is brought into R, not the work the engine does, and the sampled plan
+over the same table costs 271. So the cost is declared and chosen
+(`benchmark/medir_plan_ancho.R` reproduces the four numbers):
 
 ```r
 plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # 5 queries, predicts the rest
 ```
 
-The plan gives a **ceiling** on how many queries the profiling will emit, and it
-says so in `attr(plan, "supuesto")`. It is exact whenever every column has at
-least one value; a column with none emits neither median nor standard deviation,
-and the plan cannot know which ones are empty without asking — which would change
-its own cost.
+The plan gives a **range** for how many queries the profiling will emit, and it
+says so in `attr(plan, "supuesto")`. The low end is `total`, reached when no
+batch is rejected: a column with no value emits neither median nor standard
+deviation, and the plan cannot know which ones are empty without asking — which
+would change its own cost. The high end is `total_lotes_rechazados`, reached
+when the engine rejects every batch and each column is retried on its own. The
+real cost falls between the two, and the plan says so in both directions rather
+than promising a bound it cannot keep.
 
-The part that *is* a hard design constraint is that the ceiling does not depend
+The part that *is* a hard design constraint is that the prediction does not depend
 on the engine: every capability probe costs a fixed number of queries even when
 it succeeds on the first form, because a cost that varied by engine would leave
 the user guessing again.
@@ -388,6 +394,24 @@ applying.
 Declaring the universe also enables the symmetric error, which had no way to
 appear before: `valor_fuera_de_aplicabilidad` reports a value present where the
 rule says the column does not apply.
+
+The same idea governs the statistical tests. A run against three real
+administrative tables produced 24 signals and **eleven were false**: the
+arithmetic was right in all eleven, but the test did not apply. Benford assumes a
+multiplicative process and Tukey's fences assume a distribution; a numbering — an
+identifier, a code — is neither, and a code sitting far from the median says
+nothing about its quality. What separates a numbering from a magnitude is not
+uniqueness, since an amount is nearly unique too, but **density**: an identifier
+occupies a compact stretch of the integers while a magnitude spreads across
+several orders. A value off the scale breaks that compactness, so the cases worth
+seeing — a `10000` among identifiers from 1 to 100, a 1900 sentinel year among
+years 2000-2030 — are still seen.
+
+**None of those tests is switched off silently.** Lowering the noise by going
+quiet would improve the number without improving the package, so every test that
+is not run leaves its row in `cobertura_diagnosticos` with the measured reason:
+what share of the integers the column covers, how many values would have been
+flagged, how many rows out of how many the sample carries.
 
 `perfilar_por()` answers the long format, where one column stacks unrelated
 domains. It profiles each group separately, drops the wholly-absent columns

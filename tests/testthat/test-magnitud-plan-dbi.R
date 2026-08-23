@@ -128,10 +128,13 @@ test_that("la impresion avisa cuando el trabajo es alto y nombra las palancas", 
   expect_true(any(grepl("bajo", bajo)))
   expect_false(any(grepl("muestreado", bajo)))
   # Sobre una tabla chica los dos parrafos de supuestos son ruido: tapan la
-  # respuesta en vez de matizarla. Pero la palabra "techo" viaja igual con el
-  # conteo, y los supuestos siguen accesibles.
+  # respuesta en vez de matizarla. Pero el conteo viaja como lo que es -un rango
+  # entre el extremo sin lotes rechazados y el extremo con todos rechazados- y
+  # los supuestos siguen accesibles.
   expect_false(any(grepl("ning\u00fan \u00edndice", bajo)))
-  expect_true(any(grepl("techo", bajo)))
+  # Decia "techo", y el atributo `supuesto` lo desmentia dos lineas mas abajo.
+  expect_false(any(grepl("techo", bajo)))
+  expect_true(any(grepl("entre 15 y 21 consultas", bajo, fixed = TRUE)))
   expect_true(any(grepl("supuesto_costo", bajo)))
 
   attr(plan, "magnitud") <- "alta"

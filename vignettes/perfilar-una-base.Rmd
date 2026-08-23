@@ -317,10 +317,13 @@ aproximado$resumen_tabla$meta$aproximaciones
 ```
 
 `plan_perfilado_dbi()` emite las sondas de capacidad y predice el total que
-costará la corrida. Es un **techo**, y lo declara en `attr(plan, "supuesto")`:
-se cuenta una mediana y un desvío por columna numérica, y una columna sin un
-solo valor válido no los emite. Para decidir si una corrida es viable, un techo
-alcanza. La predicción incluye las sondas aunque una forma acertada
+costará la corrida. Publica un **rango**, y lo declara en
+`attr(plan, "supuesto")`: `total` si no se rechaza ningún lote y
+`total_lotes_rechazados` si se rechazan todos; el costo real cae entre los dos.
+El extremo inferior cuenta una mediana y un desvío por columna numérica, y una
+columna sin un solo valor válido no los emite; el superior suma los reintentos
+por columna cuando el motor rechaza un lote. Para decidir si una corrida es
+viable, saber entre qué y qué se mueve alcanza. La predicción incluye las sondas aunque una forma acertada
 aparezca antes que las demás, porque el costo declarado no puede depender del
 motor.
 

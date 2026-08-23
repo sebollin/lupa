@@ -228,7 +228,12 @@ fila a fila. No se aplica una tolerancia oculta. Use \code{0} para desactivar el
 filtro de magnitud. Ambos criterios se publican en la evidencia. Los pares
 descartados se cuentan en
 \code{meta$orden_columnas$pares_descartados_magnitud} y los recuperados en
-\code{meta$orden_columnas$pares_rescatados_brecha_estable}.}
+\code{meta$orden_columnas$pares_rescatados_brecha_estable}. Un par en el que
+ambas columnas se comportan como identificadores tampoco se evalúa: dos
+numeraciones correlativas se ordenan igual sin que medie ninguna regla.
+Esos pares se cuentan en
+\code{meta$orden_columnas$pares_descartados_identificador} y se nombran en
+\code{meta$orden_columnas$pares_identificador_descartados}.}
 
 \item{umbral_aritmetica}{Proporción mínima de filas comparables que deben
 satisfacer una identidad dentro de \code{tolerancia_aritmetica} para reconocer

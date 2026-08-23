@@ -169,8 +169,8 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 | **MySQL 8** | `limit` | **probado** contra el motor real: mismos tres estadísticos verificados contra R |
 | **SQL Server 2022** | `top` | **probado** contra el motor real: la sonda resuelve `top` sola, y los tres estadísticos coinciden con R |
 | **DuckDB 1.5** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, y los tres estadísticos verificados contra R |
-| **MariaDB 11** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, y el plan exacto en los cinco |
-| **Oracle Free 23 (23c)** | `fetch_first` | **probado** contra el motor real: dialecto resuelto por sonda, los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, plan exacto, nombres calificados por texto y por `DBI::Id`, y muestreo `SAMPLE (p)` |
+| **MariaDB 11** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, y el extremo inferior del plan coincidiendo con las consultas emitidas en los cinco |
+| **Oracle Free 23 (23c)** | `fetch_first` | **probado** contra el motor real: dialecto resuelto por sonda, los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, el extremo inferior del plan coincidiendo con las consultas emitidas, nombres calificados por texto y por `DBI::Id`, y muestreo `SAMPLE (p)` |
 | Oracle 11 y anterior | `rownum` | esperado, no comprobado contra el motor |
 | cualquier otro compatible con DBI | `portable` | reserva: `dbSendQuery()` + `dbFetch(n)` |
 
@@ -307,21 +307,29 @@ corte cae entre familias en vez de partirlas—.
 
 ### El costo se planifica antes de pagarlo
 
-Perfilar 158 columnas en `modo = "exacto"` emite 623 consultas, y 777 de las 778
-originales escaneaban la tabla entera. `muestra` no acota eso: acota lo que se
-trae a R, no el trabajo del motor. Así que el costo se declara y se elige:
+Perfilar una tabla de 158 columnas en `modo = "exacto"` emite 262 consultas, y
+256 de ellas escanean, ordenan o agrupan la tabla entera. La cuenta sigue a la
+composición y no a la cantidad de columnas: esas mismas 158 columnas, todas de
+texto, cuestan 172, porque una mediana pide un orden total por columna numérica.
+`muestra` no acota nada de eso —acota lo que se trae a R, no el trabajo del
+motor, y el plan muestreado sobre la misma tabla cuesta 271—. Así que el costo se
+declara y se elige (`benchmark/medir_plan_ancho.R` reproduce los cuatro
+números):
 
 ```r
 plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # 5 consultas, predice el resto
 ```
 
-El plan da un **techo** de cuántas consultas va a emitir el perfilado, y lo dice
-en `attr(plan, "supuesto")`. Es exacto siempre que todas las columnas tengan al
-menos un valor; una columna sin ninguno no emite mediana ni desvío, y el plan no
-puede saber cuáles están vacías sin preguntarlo, cosa que cambiaría su propio
-costo.
+El plan da un **rango** de cuántas consultas va a emitir el perfilado, y lo dice
+en `attr(plan, "supuesto")`. El extremo inferior es `total`, y se alcanza si no
+se rechaza ningún lote: una columna sin ningún valor no emite mediana ni
+desvío, y el plan no puede saber cuáles están vacías sin preguntarlo, cosa que
+cambiaría su propio costo. El extremo superior es `total_lotes_rechazados`, y se
+alcanza si el motor rechaza todos los lotes y cada columna se reintenta sola. El
+costo real cae entre los dos, y el plan lo declara en las dos direcciones en vez
+de prometer una cota que no puede sostener.
 
-Lo que sí es una restricción dura de diseño es que ese techo **no dependa del
+Lo que sí es una restricción dura de diseño es que esa predicción **no dependa del
 motor**: cada sonda de capacidad gasta un número fijo de consultas aunque acierte
 en la primera forma, porque un costo que variara por motor dejaría al usuario
 adivinando otra vez.
@@ -396,6 +404,25 @@ corresponder.
 Declarar el universo habilita además el error simétrico, que antes no tenía
 forma de aparecer: `valor_fuera_de_aplicabilidad` informa un valor presente
 donde la regla dice que la columna no corresponde.
+
+La misma idea gobierna las pruebas estadísticas. Una corrida contra tres tablas
+administrativas reales dio 24 señales y **once eran falsas**: el cálculo estaba
+bien en las once, pero la prueba no correspondía. Benford supone un proceso
+multiplicativo y los límites de Tukey suponen una distribución; una numeración
+—un identificador, un código— no es ninguna de las dos cosas, y que un código
+quede lejos de la mediana no dice nada de su calidad. Lo que separa una
+numeración de una magnitud no es la unicidad, porque un monto también es casi
+único, sino la **densidad**: un identificador ocupa un tramo compacto de los
+enteros y una magnitud se reparte por varios órdenes. Un valor fuera de escala
+rompe esa compacidad, así que los casos que hay que ver —un `10000` entre
+identificadores de 1 a 100, un año centinela 1900 entre años 2000-2030— se
+siguen viendo.
+
+**Ninguna de esas pruebas se apaga en silencio.** Bajar el ruido callando sería
+mejorar el número sin mejorar el paquete, así que cada prueba que no se corre
+deja su fila en `cobertura_diagnosticos` con el motivo medido: qué porcentaje de
+los enteros cubre la columna, cuántos valores se habrían señalado, cuántas filas
+de cuántas trae la muestra.
 
 `perfilar_por()` responde al formato largo, donde una sola columna apila
 dominios sin relación. Perfila cada grupo por separado, descarta las columnas

@@ -479,7 +479,12 @@
 #'   filtro de magnitud. Ambos criterios se publican en la evidencia. Los pares
 #'   descartados se cuentan en
 #'   `meta$orden_columnas$pares_descartados_magnitud` y los recuperados en
-#'   `meta$orden_columnas$pares_rescatados_brecha_estable`.
+#'   `meta$orden_columnas$pares_rescatados_brecha_estable`. Un par en el que
+#'   ambas columnas se comportan como identificadores tampoco se evalúa: dos
+#'   numeraciones correlativas se ordenan igual sin que medie ninguna regla.
+#'   Esos pares se cuentan en
+#'   `meta$orden_columnas$pares_descartados_identificador` y se nombran en
+#'   `meta$orden_columnas$pares_identificador_descartados`.
 #' @param umbral_aritmetica Proporción mínima de filas comparables que deben
 #'   satisfacer una identidad dentro de `tolerancia_aritmetica` para reconocer
 #'   una regularidad aritmética entre columnas numéricas. El valor por omisión

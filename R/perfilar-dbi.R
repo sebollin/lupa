@@ -2794,9 +2794,15 @@
 #' @inheritParams perfilar_dbi
 #'
 #' @return Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
-#'   `n_consultas` y `alcance`, y los atributos `total`, `columnas`,
-#'   `columnas_numericas`, `dialecto`, `consultas_emitidas`, `metricas`,
-#'   `filas` y `tamano_lote`.
+#'   `n_consultas` y `alcance`, y los atributos `total`,
+#'   `total_lotes_rechazados`, `columnas`, `columnas_numericas`, `dialecto`,
+#'   `consultas_emitidas`, `metricas`, `filas` y `tamano_lote`.
+#'
+#'   El costo no se declara como un número sino como un rango: `total` es el
+#'   extremo inferior, alcanzado si el motor no rechaza ningún lote, y
+#'   `total_lotes_rechazados` el superior, alcanzado si los rechaza todos y cada
+#'   columna se reintenta sola. El costo real cae entre los dos, y
+#'   `attr(plan, "supuesto")` dice por qué se mueve en cada dirección.
 #'
 #'   Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 #'   sobre dos millones de filas son mucho más trabajo que doscientas sobre
@@ -2862,18 +2868,19 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
   if (is.null(extra)) extra <- 0
   attr(plan, "total_lotes_rechazados") <- sum(plan$n_consultas) + extra
   attr(plan, "extra_si_se_rechazan_lotes") <- NULL
-  # El total es un TECHO, no una prediccion exacta, y conviene que lo diga.
-  # El plan cuenta una mediana y un desvio por columna numerica; una columna sin
-  # un solo valor valido no los emite, porque no hay sobre que calcularlos. El
-  # plan no puede saber cuales estan vacias sin preguntarlo, y preguntarlo
-  # cambiaria su propio costo.
+  # El total es un RANGO, no una prediccion exacta ni un techo, y conviene que lo
+  # diga. Hacia abajo: el plan cuenta una mediana y un desvio por columna
+  # numerica, y una columna sin un solo valor valido no los emite; el plan no
+  # puede saber cuales estan vacias sin preguntarlo, y preguntarlo cambiaria su
+  # propio costo. Hacia arriba: un lote rechazado se reintenta columna por
+  # columna y el costo real supera el total.
   #
   # Se afirmo durante varias rondas que el plan predecia "exacto en los cinco
   # modos". Era cierto sobre las tablas con las que se probo -todas con datos en
-  # todas las columnas- y falso en cuanto aparece una columna vacia. La version
-  # anterior a la consolidacion erraba por tres consultas en el mismo caso; esta
-  # yerra por una. Declararlo como techo es lo unico honesto: el numero sirve
-  # para decidir si una corrida es viable, y para eso un techo alcanza.
+  # todas las columnas- y falso en cuanto aparece una columna vacia. Despues se
+  # lo llamo techo, y eso tambien resulto falso: con lotes rechazados el costo
+  # real llego a 30 donde el plan decia 22. Un rango que se declara en las dos
+  # direcciones es lo unico que se sostiene.
   attr(plan, "supuesto") <- paste(
     "El total vale si ningun lote se rechaza, y puede moverse en las dos",
     "direcciones. Hacia abajo: se cuenta una mediana y un desvio por columna",
@@ -2931,10 +2938,31 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
 
 #' @export
 print.plan_perfilado_dbi <- function(x, ...) {
+  # Subconjuntar un plan -`plan[, c("clase_consulta", "n_consultas")]`- conserva
+  # la clase y pierde los atributos, y este metodo imprimia entonces "sin dato
+  # consultas sobre sin dato filas". Un encabezado que no puede decir nada no es
+  # un plan: se imprime la tabla y se dice por que falta el resto.
+  total <- attr(x, "total", exact = TRUE)
+  if (is.null(total)) {
+    cli::cli_alert_warning(paste(
+      "Este objeto conserva la clase del plan pero no sus atributos;",
+      "seguramente sea un subconjunto. Se imprime solo la tabla."
+    ))
+    print.data.frame(x, ...)
+    return(invisible(x))
+  }
   cli::cli_h1("Plan de perfilado")
   filas <- attr(x, "filas", exact = TRUE)
+  techo <- attr(x, "total_lotes_rechazados", exact = TRUE)
+  # El rango se imprime como rango. Decir "techo" era exactamente lo que el
+  # atributo `supuesto` desmiente dos lineas mas abajo.
+  cuenta <- if (!is.null(techo) && !is.na(techo) && techo > total) {
+    paste0("entre ", .miles_dbi(total), " y ", .miles_dbi(techo), " consultas")
+  } else {
+    paste0(.miles_dbi(total), " consultas")
+  }
   cli::cli_alert_info(paste0(
-    .miles_dbi(attr(x, "total", exact = TRUE)), " consultas como techo sobre ",
+    cuenta, " sobre ",
     .miles_dbi(filas), " filas y ",
     .miles_dbi(attr(x, "columnas", exact = TRUE)), " columnas (dialecto ",
     attr(x, "dialecto", exact = TRUE), ")"
@@ -3200,6 +3228,51 @@ print.plan_perfilado_dbi <- function(x, ...) {
       ". No se comprobo que sean la causa; el motor dijo: ", motivo_motor
     )
   }
+}
+
+# `constante` afirma que la columna tiene un unico valor no ausente. Sobre una
+# muestra esa afirmacion no se puede sostener: basta una fila no leida para
+# desmentirla, y una tabla de 200 filas con tres valores donde 50 filas traen
+# uno solo produce exactamente ese hallazgo. Es el caso que separa una
+# proporcion de una universal: `prop_faltantes` estimada sobre la muestra sigue
+# siendo una estimacion honesta de la tabla, pero "un unico valor" es una
+# cuantificacion universal y la muestra no la alcanza.
+#
+# El hallazgo no se apaga: se traslada a `cobertura_diagnosticos`, con el
+# tamano de la muestra y el de la tabla, para que quede escrito que se dejo de
+# decir y por que.
+.constante_no_medible_en_muestra_dbi <- function(perfil, muestreo) {
+  if (is.null(perfil) || isTRUE(muestreo$tabla_completa)) return(perfil)
+  hallazgos <- perfil$hallazgos
+  if (is.null(hallazgos) || !nrow(hallazgos)) return(perfil)
+  sobra <- as.character(hallazgos$tipo_hallazgo) == "constante"
+  if (!any(sobra)) return(perfil)
+  filas <- .entero_sql_dbi(muestreo$filas_obtenidas)
+  total <- .entero_sql_dbi(muestreo$filas_totales_fuente)
+  nuevas <- do.call(rbind, lapply(which(sobra), function(i) {
+    .nuevo_diagnostico_no_evaluado(
+      "constante", as.character(hallazgos$columna[[i]]),
+      paste0(
+        "No se evaluo si la columna es constante: el perfil describe ", filas,
+        " filas de las ", total, " de la tabla. En la muestra se observo un ",
+        "unico valor, y eso no prueba que sea el unico de la tabla."
+      ),
+      paste(
+        "Perfilar la tabla completa, o contar los valores distintos con",
+        "`resumen_tabla_dbi()`, que los mide sobre todas las filas."
+      )
+    )
+  }))
+  perfil$hallazgos <- hallazgos[!sobra, , drop = FALSE]
+  rownames(perfil$hallazgos) <- NULL
+  cobertura <- perfil$cobertura_diagnosticos
+  perfil$cobertura_diagnosticos <- if (is.null(cobertura) || !nrow(cobertura)) {
+    nuevas
+  } else {
+    rbind(cobertura, nuevas)
+  }
+  rownames(perfil$cobertura_diagnosticos) <- NULL
+  perfil
 }
 
 .bloque_muestra_dbi <- function(conexion, tabla, tabla_sql, campos, campos_sql,
@@ -3535,6 +3608,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     ))
     return(list(perfil = NULL, cobertura = cobertura, muestreo = muestreo_meta))
   }
+  perfil <- .constante_no_medible_en_muestra_dbi(perfil, muestreo_meta)
   perfil$meta$origen_dbi <- list(
     tipo = "DBI",
     conexion = info_conexion,

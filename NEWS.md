@@ -1,5 +1,62 @@
 # lupa 0.1.0
 
+## Once senales falsas sobre una base real, y ninguna se apaga en silencio
+
+Una corrida contra tres tablas administrativas reales dio 24 senales, de las
+cuales **once eran falsas**. El calculo estaba bien en las once; lo que fallaba
+era el juicio de si la prueba corresponde. Un identificador no es una magnitud,
+y hay pruebas que solo describen magnitudes.
+
+- **Benford y limites de Tukey sobre numeraciones** (seis falsos). La guarda que
+  ya tenia Benford exigia una corrida consecutiva *sin huecos*, y un
+  identificador real tiene huecos: los que se dieron de baja. Un `MotId` de 1 a
+  4557 sobre 3.159 filas no la pasaba y Benford se corria igual.
+
+  Lo que separa una numeracion de una magnitud no es la unicidad -un monto
+  tambien es casi unico- sino la **densidad**: un identificador ocupa un tramo
+  compacto de los enteros (0,69 en ese caso) y una magnitud se reparte por
+  varios ordenes (0,00005 para montos entre 9 y 9.999.999).
+
+  Un valor fuera de escala rompe esa compacidad, asi que los casos que hay que
+  ver se siguen viendo: un `10000` entre identificadores de 1 a 100, o un ano
+  centinela 1900 entre anos 2000-2030, bajan la densidad y vuelven a senalarse.
+
+- **`alta_cardinalidad` sobre texto libre** (tres falsos). Un nombre, una
+  descripcion o un objetivo tienen cardinalidad alta por definicion. Ahora una
+  columna de texto cuyos valores promedian 40 caracteres o mas no se marca.
+
+- **Relacion de orden entre dos numeraciones** (un falso). `MotId <= MEsId` se
+  cumplia en el 99,1 % de las filas porque los dos contadores avanzan juntos, y
+  el 0,9 % restante "violaba" una regla que no existe. Lo que separa ese par de
+  un `inicio`/`fin` legitimo -tambien entero, tambien denso- es la brecha:
+  constante fila a fila cuando hay una regla detras, erratica cuando solo hay
+  dos contadores. La guarda respeta el rescate por brecha estable que ya existia.
+
+- **`constante` medido sobre una muestra** (un falso). Una tabla de 200 filas
+  con tres valores, muestreada en 50, informaba "la columna contiene un unico
+  valor". Una proporcion estimada sobre una muestra sigue siendo honesta; una
+  cuantificacion universal no: basta una fila no leida para desmentirla.
+
+**Ninguno de los seis se apaga en silencio.** Bajar el ruido callando seria
+mejorar el numero sin mejorar el paquete, asi que cada prueba que no se corre
+deja su fila en `cobertura_diagnosticos`, con el motivo medido -que porcentaje
+de los enteros cubre la columna, cuantos valores se habrian senalado, cuantas
+filas de cuantas trae la muestra- y que hacer si el usuario no esta de acuerdo.
+Los pares de orden descartados quedan nombrados en
+`meta$orden_columnas$pares_identificador_descartados`.
+
+## El plan de consultas dice rango en todas partes
+
+`attr(plan, "supuesto")` ya declaraba un rango, pero el metodo de impresion, el
+`@return` de la ayuda, los dos README y la vinieta seguian diciendo "techo". Un
+techo que el propio objeto desmiente dos lineas mas abajo es peor que no decir
+nada.
+
+- `print()` ahora dice "entre N y M consultas", y sobre un plan subconjuntado
+  -que conserva la clase y pierde los atributos- imprime la tabla y avisa, en
+  vez de titular "sin dato consultas sobre sin dato filas".
+- `total_lotes_rechazados` aparece en el `@return`, que no lo documentaba.
+
 ## Una tabla con acentos rompia el perfil entero
 
 Es el defecto mas serio de la tanda, y **lo introdujo el arreglo del orden del
@@ -680,8 +737,8 @@ ellas de reproducir lo que el informe atribuia a otra causa.
 
 ## Lo que encontro una refutacion adversarial
 
-Se puso un agente a romper las afirmaciones de esta tanda en vez de a
-confirmarlas. Encontro ocho defectos, y los tres peores tenian la misma forma:
+Esta tanda se reviso al reves: buscando romper cada afirmacion en vez de
+confirmarla. Encontro ocho defectos, y los tres peores tenian la misma forma:
 **la tabla con la que se verificaban los motores era comoda**. Tenia 5.000 filas
 de tipos faciles, sin fecha nativa, sin enteros sin signo y nunca mas chica que
 la muestra pedida. Es el mismo error que el paquete ya persigue en los demas

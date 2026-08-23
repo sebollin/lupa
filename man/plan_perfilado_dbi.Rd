@@ -56,9 +56,15 @@ motores con límites más estrictos.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
-\code{n_consultas} y \code{alcance}, y los atributos \code{total}, \code{columnas},
-\code{columnas_numericas}, \code{dialecto}, \code{consultas_emitidas}, \code{metricas},
-\code{filas} y \code{tamano_lote}.
+\code{n_consultas} y \code{alcance}, y los atributos \code{total},
+\code{total_lotes_rechazados}, \code{columnas}, \code{columnas_numericas}, \code{dialecto},
+\code{consultas_emitidas}, \code{metricas}, \code{filas} y \code{tamano_lote}.
+
+El costo no se declara como un número sino como un rango: \code{total} es el
+extremo inferior, alcanzado si el motor no rechaza ningún lote, y
+\code{total_lotes_rechazados} el superior, alcanzado si los rechaza todos y cada
+columna se reintenta sola. El costo real cae entre los dos, y
+\code{attr(plan, "supuesto")} dice por qué se mueve en cada dirección.
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre

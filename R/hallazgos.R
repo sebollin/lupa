@@ -136,6 +136,57 @@
 # medida y no una falta de medicion.
 .min_distintos_alta_cardinalidad <- 10L
 
+# Un identificador o un codigo no son magnitudes, y hay pruebas que solo
+# describen magnitudes: Benford supone un proceso multiplicativo, y los limites
+# de Tukey suponen una distribucion. Que `MotId` se desvie de Benford es cierto y
+# no significa nada.
+#
+# Lo que los separa no es la unicidad: un monto tambien es casi unico. Es la
+# DENSIDAD de la numeracion. Un identificador ocupa un tramo compacto de los
+# enteros -1 a 4557, con los huecos de las bajas-, mientras que una magnitud se
+# reparte por varios ordenes de magnitud. Sobre tres tablas reales de SMART:
+#
+#   MotId    1..4557, 3.159 distintos   -> densidad 0,69   numeracion
+#   EstCod   1..284,  codigo repetido   -> densidad alta   numeracion
+#   montos   9..9.999.999, 530 valores  -> densidad 0,00005 magnitud
+#
+# La guarda que ya tenia Benford exigia una corrida SIN HUECOS, y un
+# identificador real tiene huecos; `secuencia_entera_densa` pide 0,8 y `MotId`
+# se quedaba en 0,69. De ahi el umbral propio.
+#
+# Un identificador con un valor fuera de escala -1..100 y un 10000- deja de
+# tener densidad, asi que ese caso sigue senalandose: es justamente el que hay
+# que ver. Lo mismo con un ano centinela 1900 entre anos 2000-2030.
+#
+# **No se apaga: se declara.** Bajar el ruido callando seria mejorar el numero
+# sin mejorar el paquete; lo que dejo de decirse queda en `cobertura_diagnosticos`.
+.MIN_DENSIDAD_NUMERACION <- 0.5
+
+.parece_identificador_numerico <- function(fila) {
+  entero <- identical(as.character(fila$tipo_inferido), "entero") ||
+    identical(as.character(fila$tipo_declarado), "entero")
+  if (!isTRUE(entero)) return(FALSE)
+  densidad <- suppressWarnings(as.numeric(fila$densidad_secuencia_entera))
+  distintos <- suppressWarnings(as.numeric(fila$n_distintos))
+  # El minimo de valores distintos es el que uso el propio detector de
+  # secuencias al medir la densidad, no uno nuevo: una columna de tres codigos
+  # no es una numeracion, y ahi Tukey tampoco senala nada.
+  minimo <- suppressWarnings(as.numeric(fila$min_distintos_secuencia_entera))
+  if (!isTRUE(is.finite(minimo))) minimo <- 20
+  isTRUE(is.finite(densidad) && densidad >= .MIN_DENSIDAD_NUMERACION) &&
+    isTRUE(is.finite(distintos) && distintos >= minimo)
+}
+
+# Texto largo y variado es prosa, no una categoria mal normalizada. Una
+# descripcion o un objetivo tienen cardinalidad alta por definicion, y decir que
+# eso es sospechoso es ruido: fueron tres de los once falsos.
+.MIN_LARGO_TEXTO_LIBRE <- 40
+
+.parece_texto_libre <- function(fila) {
+  largo <- suppressWarnings(as.numeric(fila$longitud_media))
+  isTRUE(is.finite(largo) && largo >= .MIN_LARGO_TEXTO_LIBRE)
+}
+
 .cobertura_diagnosticos_vacia <- function() {
   data.frame(
     diagnostico = character(), columna = character(), motivo = character(),
@@ -412,6 +463,8 @@
     umbral_solapamiento_iqr = as.numeric(umbral_solapamiento),
     umbral_iqr_brecha = 0,
     pares_descartados_magnitud = 0,
+    pares_descartados_identificador = 0,
+    pares_identificador_descartados = character(),
     pares_rescatados_brecha_estable = 0,
     pares_evaluados_orden = 0,
     minimo_filas = 3L
@@ -490,6 +543,29 @@
     if (magnitudes_separadas && brecha_estable) {
       alcance$pares_rescatados_brecha_estable <-
         alcance$pares_rescatados_brecha_estable + 1
+    }
+    # Dos numeraciones se ordenan igual sin que medie ninguna regla: se dan de
+    # alta uno detras de otro, asi que `MotId <= MEsId` se cumple en el 99,1 %
+    # de las filas y el 0,9 % restante "viola" una regla que no existe.
+    # Proponer formalizarla es aconsejar que se congele una coincidencia.
+    #
+    # `inicio`/`fin` tambien son dos columnas enteras y densas, y ahi la
+    # relacion SI existe. Lo que las separa es la brecha: constante fila a fila
+    # cuando hay una regla detras, erratica cuando solo hay dos contadores. Por
+    # eso la guarda va despues del rescate por brecha estable y lo respeta.
+    #
+    # No se calla: el par descartado queda con nombre y apellido en
+    # `meta$orden_columnas$pares_identificador_descartados`.
+    if (!brecha_estable &&
+        .parece_identificador_numerico(columnas[par[[1L]], , drop = FALSE]) &&
+        .parece_identificador_numerico(columnas[par[[2L]], , drop = FALSE])) {
+      alcance$pares_descartados_identificador <-
+        alcance$pares_descartados_identificador + 1
+      alcance$pares_identificador_descartados <- c(
+        alcance$pares_identificador_descartados,
+        paste(names(datos)[[par[[1L]]]], names(datos)[[par[[2L]]]], sep = ",")
+      )
+      next
     }
     alcance$pares_evaluados_orden <- alcance$pares_evaluados_orden + 1
     cumple_izquierda <- izquierda <= derecha
@@ -2939,12 +3015,29 @@
         fila$tasa_distintos < 1 &&
         fila$n_distintos >= .min_distintos_alta_cardinalidad
     ) {
-      agregar(.nuevo_hallazgo(
-        nombre, "alta_cardinalidad", "sospechoso",
-        "La columna categ\u00f3rica tiene alta cardinalidad.",
-        sprintf("Tasa de valores distintos: %.3f", fila$tasa_distintos),
-        "Revisar si es texto libre, un identificador o una categor\u00eda mal normalizada."
-      ))
+      if (.parece_texto_libre(fila)) {
+        cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
+          "alta_cardinalidad", nombre,
+          paste0(
+            "No se evaluo la cardinalidad como problema: los valores miden ",
+            sprintf("%.0f", as.numeric(fila$longitud_media)),
+            " caracteres en promedio, asi que la columna es texto libre y no ",
+            "una categoria. Que una descripcion casi no se repita es lo ",
+            "esperado, no una senal."
+          ),
+          paste(
+            "Si en realidad es una categoria con valores largos, declararla",
+            "como dominio para que la cardinalidad se mida contra el catalogo."
+          )
+        )
+      } else {
+        agregar(.nuevo_hallazgo(
+          nombre, "alta_cardinalidad", "sospechoso",
+          "La columna categ\u00f3rica tiene alta cardinalidad.",
+          sprintf("Tasa de valores distintos: %.3f", fila$tasa_distintos),
+          "Revisar si es texto libre, un identificador o una categor\u00eda mal normalizada."
+        ))
+      }
     }
 
     # El espejo del faltante falso: un valor presente donde la regla declarada
@@ -3424,12 +3517,38 @@
       ))
     }
     if (!is.na(fila$n_outliers) && fila$n_outliers > 0L) {
-      agregar(.nuevo_hallazgo(
-        nombre, "outliers", "sospechoso",
-        "Se detectaron valores fuera de los l\u00edmites de Tukey (1,5 x IQR).",
-        paste(fila$n_outliers, "valores"),
-        "Examinar los valores extremos antes de decidir si son errores."
-      ))
+      if (.parece_identificador_numerico(fila)) {
+        cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
+          "outliers", nombre,
+          paste0(
+            "No se evaluaron los limites de Tukey: la columna es de enteros y ",
+            "cubre ",
+            sprintf(
+              "%.0f%%",
+              100 * suppressWarnings(
+                as.numeric(fila$densidad_secuencia_entera)
+              )
+            ),
+            " de los enteros entre su minimo y su maximo, asi que es una ",
+            "numeracion -un identificador o un codigo- y no una magnitud. ",
+            "Los limites de Tukey describen una distribucion; que un codigo ",
+            "quede lejos de la mediana no dice nada de su calidad. Se habrian ",
+            "senalado ", fila$n_outliers, " valores."
+          ),
+          paste(
+            "Si la columna es una magnitud y no una numeracion, revisar por que",
+            "sus valores ocupan un tramo tan compacto de los enteros. Un valor",
+            "fuera de escala rompe esa compacidad y vuelve a senalarse."
+          )
+        )
+      } else {
+        agregar(.nuevo_hallazgo(
+          nombre, "outliers", "sospechoso",
+          "Se detectaron valores fuera de los l\u00edmites de Tukey (1,5 x IQR).",
+          paste(fila$n_outliers, "valores"),
+          "Examinar los valores extremos antes de decidir si son errores."
+        ))
+      }
     }
   }
   salida <- hallazgos
