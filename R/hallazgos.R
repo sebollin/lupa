@@ -740,7 +740,7 @@
   # 1. **Varios tokens.** Si el valor es un solo token, "el token que difiere" es
   #    el valor entero, y entonces la regla borra justamente el caso central del
   #    detector: `Marano` contra `Marebo`. La idea de "marca de formato" solo
-  #    existe cuando hay un token que acompaña y otro que distingue.
+  #    existe cuando hay un token que acompana y otro que distingue.
   # 2. **Misma cantidad de tokens.** Cuando cambia -como al pegar "Delayed"- no
   #    se descarta nada, que es justo lo que hay que conservar.
   # 3. **Vocabulario suficiente.** "Aparece en toda la columna" no significa nada
@@ -1183,9 +1183,9 @@
     aristas_estrellas <- function(mejor_hub, mejor_distancia,
                                   empate_mejor_hub,
                                   origen = rep("distancia", n_unidades)) {
-      # Sólo sobreviven estrellas centradas en un máximo local único. Una hoja
+      # Solo sobreviven estrellas centradas en un maximo local unico. Una hoja
       # nunca se conecta a otra hoja ni a un nodo que ya depende de un tercero:
-      # así se evita el cierre transitivo de cadenas.
+      # asi se evita el cierre transitivo de cadenas.
       hojas <- which(mejor_hub > 0L & !empate_mejor_hub)
       aristas <- hojas[vapply(hojas, function(hoja) {
         hub <- mejor_hub[[hoja]]
@@ -1699,11 +1699,11 @@
       n_escritura <- .variantes_de_escritura_vocabulario(grupo$variantes)
       escritura <- if (n_escritura > 0L) {
         # Se dice QUE SE COMPARO, no que sean la misma palabra. La comparacion
-        # ignora acentos, y en español el acento distingue palabras: `papa` y
-        # `papá` colapsan, igual que `año` y `ano`, `mas` y `más`, `Montes` y
-        # `Montés`. El mismo mecanismo que junta `Jose` con `José` -que si es la
-        # misma- junta esas otras, y no hay forma de separarlas sin un
-        # diccionario del idioma.
+        # ignora acentos, y en espanol el acento distingue palabras: `papa` y
+        # `papa` con tilde colapsa con `papa`, igual que `ano` con tilde y `ano`,
+        # o `mas` con tilde y `mas`. El mismo mecanismo que junta `Jose` con
+        # `Jose` con tilde -que si es la misma- junta esas otras, y no hay forma
+        # de separarlas sin un diccionario del idioma.
         #
         # Afirmar "es la misma palabra escrita distinto" seria decir lo que no
         # se sabe. Informar en que difieren es un hecho verificable, y le deja
@@ -1711,7 +1711,7 @@
         paste0(
           "; ", n_escritura, " de ", length(grupo$variantes) - 1L,
           " variantes difieren de la forma dominante solo en mayusculas, ",
-          "acentos o puntuacion (en español el acento puede cambiar la ",
+          "acentos o puntuacion (en espa\u00f1ol el acento puede cambiar la ",
           "palabra: conviene mirarlas antes de unificar)"
         )
       } else ""
@@ -2073,13 +2073,13 @@
 
 # Un patron es una secuencia de clases con su multiplicidad: `a+9+@a.a+` son
 # letras, digitos, arroba, letra, punto y letras, con `+` donde hay una corrida.
-# Esto separa las dos clases de desvio: el que cambia la ESTRUCTURA —otra
-# secuencia de clases— del que solo cambia el LARGO de una corrida, como
+# Esto separa las dos clases de desvio: el que cambia la ESTRUCTURA -otra
+# secuencia de clases- del que solo cambia el LARGO de una corrida, como
 # `persona9@` frente a `persona300@`.
 #
 # La distincion no cambia la severidad: esta medido y decidido que el caso
-# legitimo y el sospechoso son indistinguibles por la forma —un correo con
-# numero corto es normal, una cedula de un digito no lo es—. Se declara para que
+# legitimo y el sospechoso son indistinguibles por la forma -un correo con
+# numero corto es normal, una cedula de un digito no lo es-. Se declara para que
 # quien lea el hallazgo lo resuelva de un vistazo en vez de comparar patrones a
 # ojo.
 .tokens_patron_raro <- function(patron) {
@@ -3447,15 +3447,22 @@
       hay <- function(x) isTRUE(is.finite(x) && x > 0)
       solo_significativos <- hay(significativos) && !hay(eliminables) &&
         !hay(espacios)
+      # Cuando solo hay uniones de ancho cero no hay nada que ELIMINAR, pero eso
+      # no las vuelve correctas: un ZWJ entre `Juan` y `Perez` no tiene funcion
+      # tipografica -el ZWJ une emojis y liga escrituras arabes o indicas, no
+      # letras latinas- y rompe las comparaciones igual, porque `Juan<ZWJ>Perez`
+      # no es `Juan Perez`. El paquete no puede saber si la union corresponde a
+      # esa columna, asi que baja de `error` a `sospechoso` y lo dice: no
+      # afirma que sea basura ni que este bien.
       agregar(.nuevo_hallazgo(
         nombre, "controles_invisibles",
-        if (solo_significativos) "ok" else "error",
+        if (solo_significativos) "sospechoso" else "error",
         if (solo_significativos) {
           paste(
             "Los unicos caracteres invisibles son uniones de ancho cero",
-            "(ZWJ/ZWNJ), que forman parte del texto: unen emojis o ligaduras.",
-            "No hay nada que limpiar; se informa para que no sorprendan al",
-            "comparar valores."
+            "(ZWJ/ZWNJ). Unen emojis y ligan escrituras como el arabe, y ahi",
+            "forman parte del texto; entre letras latinas no cumplen ninguna",
+            "funcion y rompen las comparaciones sin verse."
           )
         } else {
           paste0(
@@ -3466,8 +3473,9 @@
         resultado$diagnostico_texto$evidencia_controles_invisibles,
         if (solo_significativos) {
           paste(
-            "Nada que hacer, salvo que en esta columna esas uniones no",
-            "correspondan; en ese caso hay que revisarlas una por una."
+            "Mirar entre que caracteres estan: si unen emojis o ligan una",
+            "escritura que lo requiere, no hay nada que hacer; si separan",
+            "palabras latinas, hay que eliminarlas."
           )
         } else if (hay(eliminables) && !hay(espacios) && !hay(significativos)) {
           paste0(

@@ -112,7 +112,10 @@ test_that("una union invisible con significado no es un error", {
   )
   expect_equal(solo_significativos$columnas$n_invisibles_significativos, 1L)
   expect_equal(solo_significativos$columnas$n_invisibles_eliminables, 0L)
-  expect_equal(severidad_de(solo_significativos), "ok")
+  # No es `error` -no hay nada que eliminar- pero tampoco `ok`: un ZWJ entre
+  # `Juan` y `Perez` no cumple ninguna funcion y rompe las comparaciones. El
+  # paquete no puede saber si la union corresponde a esa columna.
+  expect_equal(severidad_de(solo_significativos), "sospechoso")
 
   # Con basura de transporte sigue siendo un error: ahi si hay algo que sacar.
   con_transporte <- perfilar_texto(
@@ -332,7 +335,8 @@ test_that("perfilar con do.call no rompe el informe", {
   )
   expect_length(perfil$meta$nombre, 1L)
 
-  archivo <- withr::local_tempfile(fileext = ".html")
+  archivo <- tempfile(fileext = ".html")
+  on.exit(unlink(archivo), add = TRUE)
   expect_no_error(
     suppressMessages(reportar(perfil, archivo = archivo, sobrescribir = TRUE))
   )
