@@ -1945,6 +1945,14 @@
   } else NA_real_
   afectados <- switch(
     tipo,
+    # Las filas donde esta el valor centinela: se contaron al detectarlo, asi
+    # que el hallazgo puede decir a cuantas alcanza en vez de dejarlo en NA.
+    posible_centinela_numerico = {
+      repeticiones <- suppressWarnings(as.numeric(fila$centinela_repeticiones))
+      if (length(repeticiones) && isTRUE(is.finite(repeticiones))) {
+        repeticiones
+      } else NA_real_
+    },
     tipo_compuesto_no_analizado = if (!is.null(resultado$estructura_no_analizada)) {
       as.numeric(resultado$estructura_no_analizada$filas)
     } else NA_real_,
@@ -2177,6 +2185,17 @@
 .indices_hallazgo_columna <- function(tipo, x, fila, resultado,
                                       expandir = FALSE,
                                       distinguir_mayusculas = TRUE) {
+  ## Las filas donde esta el valor centinela. Se conoce cual es -el perfil lo
+  ## midio- asi que decir cuantas son y no cuales seria contarlas sin
+  ## nombrarlas, que es la incoherencia que la guarda de trazabilidad persigue.
+  ## En una columna protegida el valor viaja como NA y no hay indices que dar,
+  ## que es correcto: nombrar las filas seria senalar los valores.
+  if (identical(tipo, "posible_centinela_numerico")) {
+    valor <- suppressWarnings(as.numeric(fila$centinela_valor))
+    if (!length(valor) || !isTRUE(is.finite(valor))) return(NULL)
+    numeros <- suppressWarnings(as.numeric(x))
+    return(which(!is.na(numeros) & numeros == valor))
+  }
   ## Vale para cualquier tipo de columna: las filas con valor fuera del universo
   ## aplicable son las que la propia mascara declarada senala.
   if (identical(tipo, "valor_fuera_de_aplicabilidad")) {

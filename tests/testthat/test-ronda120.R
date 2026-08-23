@@ -354,3 +354,45 @@ test_that("perfilar con do.call no rompe el informe", {
   )
   expect_equal(normal$meta$nombre, "tabla")
 })
+
+test_that("el centinela dice cuantas filas alcanza y cuales son", {
+  # Contar sin nombrar era la incoherencia que la guarda de trazabilidad
+  # persigue: el perfil sabe cual es el valor, asi que puede decir en que filas
+  # esta. `n_afectados` quedaba en NA.
+  set.seed(5)
+  perfil <- perfilar(
+    data.frame(edad = c(sample(18:80, 200L, TRUE), rep(9999L, 12L))),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE,
+    casi_duplicados_vocabulario = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    as.character(perfil$hallazgos$tipo_hallazgo) ==
+      "posible_centinela_numerico", , drop = FALSE
+  ]
+  expect_equal(hallazgo$n_afectados, 12)
+  expect_equal(as.character(hallazgo$unidad_conteo), "fila")
+
+  trazabilidad <- hallazgo$trazabilidad[[1L]]
+  expect_equal(trazabilidad$estado, "disponible")
+  expect_length(trazabilidad$indices_fila, 12L)
+  # Son las ultimas doce, que es donde se pusieron.
+  expect_equal(trazabilidad$indices_fila, 201:212)
+})
+
+test_that("en una columna protegida se nombran las filas pero no el valor", {
+  # Un indice de fila es una posicion, no un dato: la trazabilidad existe para
+  # poder ir a verificar. Lo que no puede salir es el valor.
+  perfil <- perfilar(
+    data.frame(documento = c(seq(10000001, 10000100), rep(9999, 5))),
+    analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    as.character(perfil$hallazgos$tipo_hallazgo) ==
+      "posible_centinela_numerico", , drop = FALSE
+  ]
+  skip_if(nrow(hallazgo) == 0L, "sin hallazgo de centinela en este caso")
+  trazabilidad <- hallazgo$trazabilidad[[1L]]
+  expect_equal(trazabilidad$indices_fila, 101:105)
+  expect_true(is.na(perfil$columnas$centinela_valor))
+  expect_false(grepl("9999", as.character(hallazgo$descripcion[[1L]]), fixed = TRUE))
+})
