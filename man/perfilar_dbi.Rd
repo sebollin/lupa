@@ -77,6 +77,20 @@ consulta, estado y motivo se conservan en \code{resumen_tabla$sql}.
 Las expresiones se ejecutan como capacidades a comprobar, no como un
 dialecto SQL universal.
 }
+\section{Dos tablas se llaman cobertura}{
+
+El resultado trae dos, y cubren cosas distintas. \code{resumen_tabla$cobertura}
+habla de \strong{métricas SQL}: qué pidió esta función al motor y qué pasó, con
+\code{bloque}, \code{elemento}, \code{estado} —\code{no_disponible}, \code{degradado},
+\code{presupuesto_agotado}, \code{alcance_distinto}— y la consulta en \code{sql}.
+\code{perfil_muestra$cobertura_diagnosticos} habla de \strong{diagnósticos}: qué
+comprobación no se corrió sobre la muestra y por qué, con \code{diagnostico},
+\code{columna}, \code{motivo} y \code{como_resolverlo}, el mismo esquema que devuelve
+\code{\link[=perfilar]{perfilar()}}. Un motor que rechaza una columna aparece en la primera; una
+prueba estadística que no corresponde a esa columna, en la segunda. Comparten
+la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.
+}
+
 \section{Fallo parcial}{
 
 Ningún bloque descarta al otro. Si el motor rechaza la consulta de muestra,
