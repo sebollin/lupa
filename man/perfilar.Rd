@@ -124,7 +124,22 @@ error simétrico y hoy no tiene otra forma de aparecer.
 \code{lupa} no infiere el universo: si nadie lo declara, toda la columna aplica
 y el resultado es el de siempre. Declararlo es lo que distingue el vacío
 por diseño del vacío por error, y sin esa distinción una tabla sana puede
-informar completitud baja siendo completa.}
+informar completitud baja siendo completa.
+
+\strong{Hasta dónde llega el universo.} Gobierna todo el perfilado: los conteos,
+las proporciones, los hallazgos y las acciones que propone
+\code{\link[=planificar_limpieza]{planificar_limpieza()}}. Medido sobre una columna condicionada de mil filas
+con universo de trescientas, treinta de ellas vacías: declarándolo, la
+proporción de faltantes es \verb{0,100}, no hay hallazgo y el plan no propone
+nada; sin declararlo son \verb{0,730}, sale \code{faltantes} y el plan propone dos
+acciones.
+
+Lo que \strong{no} alcanza es la medición contra un marco: \code{\link[=medir]{medir()}} no recibe
+\code{aplicabilidad}, así que el histórico y la deriva —que consumen mediciones,
+no perfiles— tampoco lo heredan. Quien mida una columna condicionada contra
+un marco tiene que acotar los datos antes de medirlos. El \code{aplicabilidad}
+de \code{\link[=marco_calidad]{marco_calidad()}} es otra cosa: dice si un factor aplica a datos
+temporales o geométricos, no qué filas entran al universo.}
 
 \item{ausencia_estructural}{Si se busca evidencia de que la ausencia de una
 columna es por diseño. \code{lupa} no infiere el universo ni lo cambia por su

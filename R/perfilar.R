@@ -352,6 +352,21 @@
 #'   y el resultado es el de siempre. Declararlo es lo que distingue el vacío
 #'   por diseño del vacío por error, y sin esa distinción una tabla sana puede
 #'   informar completitud baja siendo completa.
+#'
+#'   **Hasta dónde llega el universo.** Gobierna todo el perfilado: los conteos,
+#'   las proporciones, los hallazgos y las acciones que propone
+#'   [planificar_limpieza()]. Medido sobre una columna condicionada de mil filas
+#'   con universo de trescientas, treinta de ellas vacías: declarándolo, la
+#'   proporción de faltantes es `0,100`, no hay hallazgo y el plan no propone
+#'   nada; sin declararlo son `0,730`, sale `faltantes` y el plan propone dos
+#'   acciones.
+#'
+#'   Lo que **no** alcanza es la medición contra un marco: [medir()] no recibe
+#'   `aplicabilidad`, así que el histórico y la deriva —que consumen mediciones,
+#'   no perfiles— tampoco lo heredan. Quien mida una columna condicionada contra
+#'   un marco tiene que acotar los datos antes de medirlos. El `aplicabilidad`
+#'   de [marco_calidad()] es otra cosa: dice si un factor aplica a datos
+#'   temporales o geométricos, no qué filas entran al universo.
 #' @param ausencia_estructural Si se busca evidencia de que la ausencia de una
 #'   columna es por diseño. `lupa` no infiere el universo ni lo cambia por su
 #'   cuenta, pero declarar `aplicabilidad` exige saber que existe: quien perfila
