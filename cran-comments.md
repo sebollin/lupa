@@ -14,19 +14,29 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **Estado de la matriz sobre `016394c`:** las anteriores no valen. Cada una se
-> hizo sobre fuentes distintas y se rehace entera cada vez.
+> **Estado de la matriz sobre `97b80af`:**
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | PENDIENTE | `../verificacion/2026-08-23h/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | PENDIENTE | `../verificacion/2026-08-23h/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | PENDIENTE | `../verificacion/2026-08-23h/sin-incoming/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | PENDIENTE | `../verificacion/2026-08-23h/r41/lupa.Rcheck/00check.log` |
+> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-23i/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-23i/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-23i/sin-incoming/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| WARN 0 \| SKIP 169 \| PASS 14823 ]` | `../verificacion/2026-08-23i/r41/lupa.Rcheck/00check.log` |
 > | suite completa | **15.904 comprobaciones, 0 fallos, 0 avisos** | `devtools::test()` |
 > | GitHub Actions (5 plataformas) | PENDIENTE | log de la corrida |
 > | R-hub v2 R-devel (3 plataformas) | PENDIENTE | log de la corrida |
 > | win-builder release y devel | PENDIENTE | log de cada corrida, y el `Packaged:` del binario |
+>
+> **El tarball se reviso por dentro, que es una comprobacion que no se hacia.**
+> Llevaba `tests/testthat/_problems/` -diez archivos con fragmentos de pruebas
+> que habian fallado, el directorio de trabajo de `testthat`-. Estaba en
+> `.gitignore` pero no en `.Rbuildignore`, asi que no llegaba al repositorio y si
+> al paquete. Ningun check lo senala porque no rompe nada. Ahora el tarball trae
+> cero, y los 107 archivos de prueba y los fixtures siguen viajando enteros.
+>
+> **Y se probo el artefacto, no el arbol**: el tarball se instalo en una
+> biblioteca limpia y se perfilo con el, para ver lo que ve quien instala el
+> paquete. Las 87 funciones exportadas tienen ejemplos.
 >
 > **Sobre `6dd768e`, el commit anterior, los tres entornos locales dieron**
 > `1 NOTE`, `1 NOTE` y `OK`. Se rehace igual porque `016394c` toca una vinieta.
