@@ -163,9 +163,12 @@
 .MIN_DENSIDAD_NUMERACION <- 0.5
 
 .parece_identificador_numerico <- function(fila) {
-  entero <- identical(as.character(fila$tipo_inferido), "entero") ||
-    identical(as.character(fila$tipo_declarado), "entero")
-  if (!isTRUE(entero)) return(FALSE)
+  # No alcanza con `entero`: por la puerta DBI casi todo llega como `doble`, y
+  # varios lectores de CSV tambien. La densidad solo se mide cuando todos los
+  # valores son enteros, asi que el tipo de almacenamiento no aporta nada.
+  numerico <- as.character(fila$tipo_inferido) %in% c("entero", "doble") ||
+    as.character(fila$tipo_declarado) %in% c("entero", "doble")
+  if (!isTRUE(numerico)) return(FALSE)
   densidad <- suppressWarnings(as.numeric(fila$densidad_secuencia_entera))
   distintos <- suppressWarnings(as.numeric(fila$n_distintos))
   # El minimo de valores distintos es el que uso el propio detector de

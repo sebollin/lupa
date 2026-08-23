@@ -106,3 +106,44 @@ test_that("las cuatro funciones que solo llamaba la suite ya no viajan", {
   expect_true(exists(".evidencia_filas_aproximada",
                      envir = asNamespace("lupa"), inherits = FALSE))
 })
+
+test_that("una numeracion se describe igual sea integer o double", {
+  # La guarda miraba el tipo inferido, y por la puerta DBI casi todo llega como
+  # `doble`: el mismo codigo 1..284, con los mismos 179 valores fuera de los
+  # limites de Tukey, se callaba guardado como `integer` y se senalaba guardado
+  # como `double`. El detector de secuencias ya comprobaba que los valores
+  # fueran enteros; exigir ademas el tipo de almacenamiento solo dejaba gente
+  # afuera.
+  set.seed(9)
+  codigos <- c(sample(seq_len(60L), 1900L, TRUE), sample(61:284, 224L, TRUE))
+  perfilar_codigo <- function(x) {
+    perfilar(
+      data.frame(cod = x), analizar_dependencias = FALSE,
+      proteger_datos_personales = FALSE, casi_duplicados_vocabulario = FALSE
+    )
+  }
+  como_entero <- perfilar_codigo(as.integer(codigos))
+  como_doble <- perfilar_codigo(as.numeric(codigos))
+
+  # Las dos miden los mismos valores extremos...
+  expect_gt(como_entero$columnas$n_outliers, 0L)
+  expect_equal(como_doble$columnas$n_outliers, como_entero$columnas$n_outliers)
+  # ...y las dos miden la misma densidad, que antes era NA para `double`.
+  expect_equal(
+    como_doble$columnas$densidad_secuencia_entera,
+    como_entero$columnas$densidad_secuencia_entera
+  )
+
+  senalado <- function(perfil) {
+    "outliers" %in% as.character(perfil$hallazgos$tipo_hallazgo[
+      as.character(perfil$hallazgos$severidad) != "ok"
+    ])
+  }
+  declarado <- function(perfil) {
+    "outliers" %in% as.character(perfil$cobertura_diagnosticos$diagnostico)
+  }
+  expect_false(senalado(como_entero))
+  expect_false(senalado(como_doble))
+  expect_true(declarado(como_entero))
+  expect_true(declarado(como_doble))
+})

@@ -135,7 +135,15 @@
     n_huecos = NA_real_, umbral_densidad = umbral_densidad,
     min_distintos = as.integer(min_distintos)
   )
-  if (!identical(as.character(inferencia$tipo), "entero")) return(vacio)
+  # Se miraba el tipo inferido y solo se aceptaba `entero`, pero unas lineas mas
+  # abajo se comprueba que todos los valores sean enteros, que es la condicion
+  # real. La del tipo dejaba afuera a las columnas guardadas como `double` con
+  # valores enteros -que es como llegan casi todas por la puerta DBI, y como las
+  # devuelven varios lectores de CSV-, asi que el mismo codigo se describia
+  # distinto segun como estuviera almacenado. Medido: un codigo 1..284 con 179
+  # valores fuera de los limites de Tukey se callaba como `integer` y se
+  # senalaba como `double`.
+  if (!as.character(inferencia$tipo) %in% c("entero", "doble")) return(vacio)
   cuantitativos <- .valores_cuantitativos(x, inferencia, formatos)
   if (!identical(cuantitativos$clase, "numero")) return(vacio)
   presentes <- !is.na(x)

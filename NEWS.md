@@ -45,6 +45,25 @@ filas de cuantas trae la muestra- y que hacer si el usuario no esta de acuerdo.
 Los pares de orden descartados quedan nombrados en
 `meta$orden_columnas$pares_identificador_descartados`.
 
+## La misma numeracion, descrita de dos maneras
+
+Aparecio al intentar romper el arreglo de arriba. Un codigo 1..284 con 179
+valores fuera de los limites de Tukey:
+
+- guardado como `integer`, se callaba y quedaba declarado en cobertura;
+- guardado como `double`, se senalaba.
+
+La guarda dependia de **como estaba almacenado el numero, no de que es**. Y eso
+pesa mas de lo que parece: por la puerta DBI casi todo llega como `doble` -SQLite
+entrega asi hasta las fechas- y varios lectores de CSV tambien, asi que el
+arreglo no cubria el caso que lo motivo cuando el identificador venia de una
+base.
+
+La causa estaba en la raiz. `.resumen_secuencia_entera` exigia tipo `entero` y
+**dos lineas mas abajo comprobaba que todos los valores fueran enteros**. La
+segunda condicion es la real; la primera solo dejaba columnas afuera, y con
+ellas su `densidad_secuencia_entera`, que quedaba en `NA`.
+
 ## Lo que dijeron las cinco auditorias externas
 
 Cinco revisiones independientes -coherencia entre las dos puertas, prueba de las

@@ -30,7 +30,11 @@ no una predicción para otra máquina.
 
 En un control de 100.000 filas del padrón difícil, con 140.097.499 candidatos
 y 29.844 pares informados, la cantidad de hilos produjo estas medianas (tres
-procesos separados por configuración):
+procesos separados por configuración). Ese padrón no se distribuye, así que la
+tabla no se puede rehacer tal cual; `benchmark/medir_escala_hilos.R` genera un
+padrón sintético equivalente y vuelve a medir la curva, que es lo que esta
+sección afirma —los segundos absolutos dependen del conjunto y de la máquina, la
+forma de la curva no—:
 
 | hilos | mediana (s) | relativo a 2 |
 | ---: | ---: | ---: |
