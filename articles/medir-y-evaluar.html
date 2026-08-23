@@ -190,10 +190,13 @@ y su cobertura. La columna <code>orientacion</code> dice cómo leer cada
 proporción: <code>conformidad</code> significa que un valor mayor es
 mejor, <code>defecto</code> que un valor menor es mejor y
 <code>no_aplica</code> que la métrica no es una proporción combinable.
-Un <code>0.0063</code> de <code>EntidadDuplicada</code> expresa poco
-defecto; un <code>0.9992</code> de <code>NoNulo</code> expresa mucha
-conformidad. Los números no se leen igual aunque estén en la misma
-escala.</p>
+En el ejemplo que sigue, el <code>0.50</code> de
+<code>EntidadDuplicada</code> expresa la mitad de las entidades
+duplicadas —cuanto más bajo, mejor— y el <code>0.75</code> de
+<code>NoNulo</code> expresa tres cuartos de valores presentes —cuanto
+más alto, mejor—. Los números no se leen igual aunque estén en la misma
+escala, y promediarlos sin mirar <code>orientacion</code> da un número
+que no significa nada.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">modelo_tablero</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="../reference/modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="../reference/modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">nucleo</span><span class="op">$</span><span class="va">NoNulo</span><span class="op">)</span>, <span class="st">"padron"</span>, <span class="st">"codigo"</span><span class="op">)</span>,</span>

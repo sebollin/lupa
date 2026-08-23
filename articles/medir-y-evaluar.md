@@ -131,10 +131,12 @@ agregar(medidas, "atributo", "ratio")[, c(
 resume la medición y conserva su marco y su cobertura. La columna
 `orientacion` dice cómo leer cada proporción: `conformidad` significa
 que un valor mayor es mejor, `defecto` que un valor menor es mejor y
-`no_aplica` que la métrica no es una proporción combinable. Un `0.0063`
-de `EntidadDuplicada` expresa poco defecto; un `0.9992` de `NoNulo`
-expresa mucha conformidad. Los números no se leen igual aunque estén en
-la misma escala.
+`no_aplica` que la métrica no es una proporción combinable. En el
+ejemplo que sigue, el `0.50` de `EntidadDuplicada` expresa la mitad de
+las entidades duplicadas —cuanto más bajo, mejor— y el `0.75` de
+`NoNulo` expresa tres cuartos de valores presentes —cuanto más alto,
+mejor—. Los números no se leen igual aunque estén en la misma escala, y
+promediarlos sin mirar `orientacion` da un número que no significa nada.
 
 ``` r
 

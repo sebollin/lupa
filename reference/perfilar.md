@@ -9,7 +9,7 @@ accionables. Todas las proporciones se expresan en `[0, 1]`.
 ``` r
 perfilar(
   datos,
-  nombre = deparse(substitute(datos)),
+  nombre = .nombre_de_los_datos(substitute(datos)),
   fecha = Sys.time(),
   muestra = 1e+05,
   max_patrones = 20,
@@ -165,6 +165,25 @@ perfilar(
   aplica y el resultado es el de siempre. Declararlo es lo que distingue
   el vacío por diseño del vacío por error, y sin esa distinción una
   tabla sana puede informar completitud baja siendo completa.
+
+  **Hasta dónde llega el universo.** Gobierna todo el perfilado: los
+  conteos, las proporciones, los hallazgos y las acciones que propone
+  [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md).
+  Medido sobre una columna condicionada de mil filas con universo de
+  trescientas, treinta de ellas vacías: declarándolo, la proporción de
+  faltantes es `0,100`, no hay hallazgo y el plan no propone nada; sin
+  declararlo son `0,730`, sale `faltantes` y el plan propone dos
+  acciones.
+
+  Lo que **no** alcanza es la medición contra un marco:
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) no
+  recibe `aplicabilidad`, así que el histórico y la deriva —que consumen
+  mediciones, no perfiles— tampoco lo heredan. Quien mida una columna
+  condicionada contra un marco tiene que acotar los datos antes de
+  medirlos. El `aplicabilidad` de
+  [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+  es otra cosa: dice si un factor aplica a datos temporales o
+  geométricos, no qué filas entran al universo.
 
 - ausencia_estructural:
 
@@ -389,12 +408,15 @@ perfilar(
   plantilla rota o una migración parcial—.
 
   **Está apagado por omisión y la razón está medida**: sobre la batería
-  de 31 tablas limpias produce un grupo sospechoso donde no hay defecto,
-  y dispara en tablas de menos de veinte filas donde dos formas
-  parecidas se reparten por casualidad. Es aditivo: encenderlo no cambia
-  ni pierde ninguna detección de `casi_duplicados_vocabulario`. El
-  límite que deja de cubrir se declara igual, encendido o apagado, en
-  `n_grupos_sin_variante_rara`.
+  de 31 tablas limpias produce un grupo sospechoso donde no hay defecto.
+  Lo que lo dispara no es el tamaño de la tabla sino el reparto: dos
+  formas parecidas con frecuencias del mismo orden lo activan igual con
+  cuatro filas que con quinientas, y en una tabla chica ese reparto sale
+  por casualidad más seguido. Decía «tablas de menos de veinte filas», y
+  se midió de cuatro a quinientas: dispara en todas. Es aditivo:
+  encenderlo no cambia ni pierde ninguna detección de
+  `casi_duplicados_vocabulario`. El límite que deja de cubrir se declara
+  igual, encendido o apagado, en `n_grupos_sin_variante_rara`.
 
 - max_asimetria_equifrecuente_vocabulario:
 
@@ -531,6 +553,25 @@ muestreados, no el alcance del perfil completo. En cada fila de
 declaran el alcance concreto de `proporcion_tipo_inferido`; no debe
 interpretarse esa proporción como si hubiera usado necesariamente toda
 la columna.
+
+En una columna temporal, `minimo`, `maximo`, `media` y `mediana` quedan
+en `NA` y su valor viaja en `minimo_fecha`, `maximo_fecha`,
+`media_fecha` y `mediana_fecha`, que son texto legible. `desvio` es la
+excepción y conviene saberlo: no es un momento sino una duración, así
+que se informa como número, y ese número está **en segundos** tanto para
+`"fecha"` como para `"fecha-hora"`, porque las dos clases se unifican en
+esa unidad antes de resumirlas. Un desvío de `136610.4` sobre una
+columna de fechas son 1,6 días.
+
+Ese detalle importa al comparar las dos puertas.
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+no clasifica tipos: informa el que declara el motor, y un motor que no
+preserva `DATE` ni `BOOLEAN` —SQLite guarda ambos como número— hace que
+esas columnas se midan como números. La misma columna de fechas da
+entonces `desvio` en días por la puerta DBI y en segundos por ésta, y su
+`moda` sale como el entero crudo del motor en vez de la fecha
+formateada. No es una discrepancia de cálculo: cada puerta describe lo
+que tiene delante, y lo que tiene delante es distinto.
 
 Una columna cuyo año se expresa con dos dígitos se informa con su
 `tipo_inferido` —`"fecha"` o `"fecha-hora"`— pero deja `minimo_fecha`,
@@ -829,7 +870,7 @@ perfil
 #> ── Perfil de datos: datos_administrativos ──────────────────────────────────────
 #> ✖ 5 hallazgos con severidad error
 #> ! 10 hallazgos sospechosos
-#> ✔ 6 hallazgos informativos ok
+#> ✔ 8 hallazgos informativos ok
 #> ℹ 2 diagnosticos no evaluados
 #> 
 #> ── Resumen general ──
@@ -933,27 +974,38 @@ summary(perfil)
 #> 9                    0             0.00000000          11     0.84615385
 #> 10                   0             0.00000000          12     0.92307692
 #>    secuencia_entera_densa densidad_secuencia_entera
-#> 1                   FALSE                        NA
+#> 1                   FALSE              1.000000e+00
 #> 2                   FALSE                        NA
 #> 3                   FALSE                        NA
 #> 4                   FALSE                        NA
-#> 5                   FALSE                        NA
+#> 5                   FALSE              1.199988e-06
 #> 6                   FALSE                        NA
 #> 7                   FALSE                        NA
 #> 8                   FALSE                        NA
-#> 9                   FALSE                        NA
+#> 9                   FALSE              1.000000e+00
 #> 10                  FALSE                        NA
 #>    n_posiciones_secuencia_entera n_huecos_secuencia_entera
-#> 1                             NA                        NA
+#> 1                             11                         0
 #> 2                             NA                        NA
 #> 3                             NA                        NA
 #> 4                             NA                        NA
-#> 5                             NA                        NA
+#> 5                       10000099                  10000087
 #> 6                             NA                        NA
 #> 7                             NA                        NA
 #> 8                             NA                        NA
-#> 9                             NA                        NA
+#> 9                             11                         0
 #> 10                            NA                        NA
+#>    hueco_maximo_secuencia_entera salto_de_escala_secuencia_entera
+#> 1                              1                            FALSE
+#> 2                             NA                            FALSE
+#> 3                             NA                            FALSE
+#> 4                             NA                            FALSE
+#> 5                        9965499                             TRUE
+#> 6                             NA                            FALSE
+#> 7                             NA                            FALSE
+#> 8                             NA                            FALSE
+#> 9                              1                            FALSE
+#> 10                            NA                            FALSE
 #>    umbral_densidad_secuencia_entera min_distintos_secuencia_entera
 #> 1                               0.8                             20
 #> 2                               0.8                             20
@@ -1009,17 +1061,28 @@ summary(perfil)
 #> 8               <NA>                 NA                              NA      NA
 #> 9               <NA>                 NA                              NA       0
 #> 10              <NA>                 NA                              NA      NA
-#>    n_negativos n_outliers n_nan n_infinito_positivo n_infinito_negativo
-#> 1            0          0     0                   0                   0
-#> 2           NA         NA     0                   0                   0
-#> 3            0          0     0                   0                   0
-#> 4           NA         NA     0                   0                   0
-#> 5            2          4     0                   0                   0
-#> 6           NA         NA     0                   0                   0
-#> 7           NA         NA     0                   0                   0
-#> 8           NA         NA     0                   0                   0
-#> 9            0          0     0                   0                   0
-#> 10          NA         NA     0                   0                   0
+#>    n_negativos n_outliers centinela_valor centinela_repeticiones
+#> 1            0          0              NA                     NA
+#> 2           NA         NA              NA                     NA
+#> 3            0          0              NA                     NA
+#> 4           NA         NA              NA                     NA
+#> 5            2          4              NA                     NA
+#> 6           NA         NA              NA                     NA
+#> 7           NA         NA              NA                     NA
+#> 8           NA         NA              NA                     NA
+#> 9            0          0              NA                     NA
+#> 10          NA         NA              NA                     NA
+#>    densidad_sin_centinela n_nan n_infinito_positivo n_infinito_negativo
+#> 1                      NA     0                   0                   0
+#> 2                      NA     0                   0                   0
+#> 3                      NA     0                   0                   0
+#> 4                      NA     0                   0                   0
+#> 5                      NA     0                   0                   0
+#> 6                      NA     0                   0                   0
+#> 7                      NA     0                   0                   0
+#> 8                      NA     0                   0                   0
+#> 9                      NA     0                   0                   0
+#> 10                     NA     0                   0                   0
 #>    estado_resumen_cuantitativo zona_horaria_origen
 #> 1                   calculados                <NA>
 #> 2                    no_aplica                <NA>

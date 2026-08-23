@@ -42,6 +42,89 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="once-senales-falsas-sobre-una-base-real-y-ninguna-se-apaga-en-silencio-0-1-0">Once senales falsas sobre una base real, y ninguna se apaga en silencio<a class="anchor" aria-label="anchor" href="#once-senales-falsas-sobre-una-base-real-y-ninguna-se-apaga-en-silencio-0-1-0"></a></h3>
+<p>Una corrida contra tres tablas administrativas reales dio 24 senales, de las cuales <strong>once eran falsas</strong>. El calculo estaba bien en las once; lo que fallaba era el juicio de si la prueba corresponde. Un identificador no es una magnitud, y hay pruebas que solo describen magnitudes.</p>
+<ul><li>
+<p><strong>Benford y limites de Tukey sobre numeraciones</strong> (seis falsos). La guarda que ya tenia Benford exigia una corrida consecutiva <em>sin huecos</em>, y un identificador real tiene huecos: los que se dieron de baja. Un <code>MotId</code> de 1 a 4557 sobre 3.159 filas no la pasaba y Benford se corria igual.</p>
+<p>Lo que separa una numeracion de una magnitud no es la unicidad -un monto tambien es casi unico- sino la <strong>densidad</strong>: un identificador ocupa un tramo compacto de los enteros (0,69 en ese caso) y una magnitud se reparte por varios ordenes (0,00005 para montos entre 9 y 9.999.999).</p>
+<p>Un valor fuera de escala rompe esa compacidad, asi que los casos que hay que ver se siguen viendo: un <code>10000</code> entre identificadores de 1 a 100, o un ano centinela 1900 entre anos 2000-2030, bajan la densidad y vuelven a senalarse.</p>
+</li>
+<li><p><strong><code>alta_cardinalidad</code> sobre texto libre</strong> (tres falsos). Un nombre, una descripcion o un objetivo tienen cardinalidad alta por definicion. Ahora una columna de texto cuyos valores promedian 40 caracteres o mas no se marca.</p></li>
+<li><p><strong>Relacion de orden entre dos numeraciones</strong> (un falso). <code>MotId &lt;= MEsId</code> se cumplia en el 99,1 % de las filas porque los dos contadores avanzan juntos, y el 0,9 % restante “violaba” una regla que no existe. Lo que separa ese par de un <code>inicio</code>/<code>fin</code> legitimo -tambien entero, tambien denso- es la brecha: constante fila a fila cuando hay una regla detras, erratica cuando solo hay dos contadores. La guarda respeta el rescate por brecha estable que ya existia.</p></li>
+<li><p><strong><code>constante</code> medido sobre una muestra</strong> (un falso). Una tabla de 200 filas con tres valores, muestreada en 50, informaba “la columna contiene un unico valor”. Una proporcion estimada sobre una muestra sigue siendo honesta; una cuantificacion universal no: basta una fila no leida para desmentirla.</p></li>
+</ul><p><strong>Ninguno de los seis se apaga en silencio.</strong> Bajar el ruido callando seria mejorar el numero sin mejorar el paquete, asi que cada prueba que no se corre deja su fila en <code>cobertura_diagnosticos</code>, con el motivo medido -que porcentaje de los enteros cubre la columna, cuantos valores se habrian senalado, cuantas filas de cuantas trae la muestra- y que hacer si el usuario no esta de acuerdo. Los pares de orden descartados quedan nombrados en <code>meta$orden_columnas$pares_identificador_descartados</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="la-ganancia-por-hilos-no-era-una-propiedad-del-paquete-0-1-0">La ganancia por hilos no era una propiedad del paquete<a class="anchor" aria-label="anchor" href="#la-ganancia-por-hilos-no-era-una-propiedad-del-paquete-0-1-0"></a></h3>
+<p>La vinieta de escala publicaba una tabla -133,28 s con dos hilos, 70,31 con dieciseis- medida sobre un padron que no se distribuye, asi que nadie podia rehacerla. Ahora <code>benchmark/medir_escala_hilos.R</code> genera un padron sintetico y mide la misma curva, y <strong>no da lo mismo</strong>: sobre 100.000 filas con 23.800 nombres distintos, de dos a dieciseis hilos se gana un 12 %, no la mitad del reloj.</p>
+<p>La explicacion es que los hilos los usa <code>stringdist</code> al comparar, y generar los candidatos y armar los grupos no los usa. Segun cuanto pese cada parte en un conjunto concreto, la ganancia va del 90 % al 12 %. La vinieta publica las dos tablas y dice que quien vaya a subir el valor conviene que mida su caso.</p>
+<p>Lo que si vale en las dos: pasados dieciseis hilos no hay ganancia medible, y el resultado no cambia. <strong>Y esto ultimo recien ahora esta comprobado de verdad.</strong> El banco comparaba cuantos pares devolvia cada configuracion, y como el tope de resultados se alcanza en todas, el numero era siempre el mismo: la comprobacion se cumplia sola. Ahora compara los 50.000 pares uno por uno.</p>
+<p>Otros dos defectos del mismo banco, encontrados antes de que publicara ningun numero: el generador daba 80 nombres distintos para 100.000 filas -el detector trabaja sobre formas distintas, no sobre filas, asi que no ejercitaba nada- y <code><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow()</a></code> sobre el resultado devolvia <code>NULL</code>, porque es una lista con <code>$pares</code> y no un data frame.</p>
+</div>
+<div class="section level3">
+<h3 id="un-diagnostico-nuevo-el-centinela-que-ninguna-lista-puede-declarar-0-1-0">Un diagnostico nuevo: el centinela que ninguna lista puede declarar<a class="anchor" aria-label="anchor" href="#un-diagnostico-nuevo-el-centinela-que-ninguna-lista-puede-declarar-0-1-0"></a></h3>
+<p>Un <code>9999</code> es una edad imposible y un codigo postal perfectamente valido. Por eso la lista de <code>sentinelas_numericos</code> no lo trae por omision, y hace bien: marcarlo siempre romperia cualquier columna donde ese numero es un dato.</p>
+<p>Lo que si lo distingue es cumplir <strong>las tres cosas a la vez</strong>: quedar fuera de los limites de la columna, repetirse cinco veces o mas, y tener forma de digito repetido. <code>posible_centinela_numerico</code> lo informa sin contarlo como ausencia -esa decision es de quien conoce la columna, agregandolo a la lista- y nombra las filas donde esta.</p>
+<p>Medido sobre doce columnas con la respuesta conocida, acierta las doce. Los tres controles que podrian haberlo roto: un codigo postal <code>9999</code> repetido treinta veces no es extremo dentro de su columna, un monto real de <code>9999</code> no se repite, y un ano <code>1999</code> no tiene esa forma.</p>
+<p>Es el unico diagnostico del paquete que <strong>ninguna senal sola podia dar</strong>: la forma sin los limites marca codigos validos, los limites sin la forma marcan cualquier extremo, y la repeticion sin las otras dos marca cualquier valor frecuente.</p>
+</div>
+<div class="section level3">
+<h3 id="un-valor-centinela-se-escapaba-de-la-proteccion-de-datos-personales-0-1-0">Un valor centinela se escapaba de la proteccion de datos personales<a class="anchor" aria-label="anchor" href="#un-valor-centinela-se-escapaba-de-la-proteccion-de-datos-personales-0-1-0"></a></h3>
+<p>Es lo mas serio de la tanda y lo introdujo la tanda misma. El perfil pasa a medir cual es el valor que una columna usa para decir “sin dato” -un <code>9999</code> entre edades- y ese campo publicaba un valor de celda sin pasar por el enmascarado. Sobre una columna de documentos protegida se veia asi:</p>
+<pre><code>moda                    [valor protegido]
+minimo                  NA
+centinela_valor         9999</code></pre>
+<p>Y la descripcion del hallazgo lo nombraba en texto, con lo cual llegaba hasta el informe HTML. La evidencia si salia protegida: la fuga entraba por la puerta de al lado.</p>
+<p>Ahora <code>centinela_valor</code> se enmascara igual que el minimo, la moda y la media, y la descripcion se limpia en la misma capa que ya limpiaba la evidencia. Las repeticiones se siguen informando, porque son un conteo y no un valor.</p>
+<p>Que el valor sea casi seguro un centinela y no un documento no cambia la regla: <strong>la proteccion no adivina cuales valores son inocentes</strong>.</p>
+</div>
+<div class="section level3">
+<h3 id="dos-diagnosticos-que-se-contradecian-sobre-la-misma-columna-0-1-0">Dos diagnosticos que se contradecian sobre la misma columna<a class="anchor" aria-label="anchor" href="#dos-diagnosticos-que-se-contradecian-sobre-la-misma-columna-0-1-0"></a></h3>
+<p><code>999</code> esta en la lista de centinelas declarados, asi que <code>faltantes_disfrazados</code> lo cuenta como ausencia con severidad <code>error</code>. El diagnostico nuevo decia, sobre esa misma columna, que “no se cuenta como ausencia porque no esta declarado”. Los valores que la lista ya cubre dejan de producirlo: el diagnostico existe para los que <strong>no</strong> estan declarados, como un <code>8888</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="perfilar-dentro-de-docall-rompia-el-informe-0-1-0">
+<code>perfilar()</code> dentro de <code>do.call()</code> rompia el informe<a class="anchor" aria-label="anchor" href="#perfilar-dentro-de-docall-rompia-el-informe-0-1-0"></a></h3>
+<p><code><a href="https://rdrr.io/r/base/deparse.html" class="external-link">deparse()</a></code> de una expresion larga devuelve varias lineas, y con <code>do.call(perfilar, list(tabla, ...))</code> la expresion es la tabla entera: el nombre del conjunto salia con ocho elementos y <code><a href="../reference/reportar.html">reportar()</a></code> fallaba con “values must be length 1”. Pasar los argumentos en una lista es lo natural cuando se perfila en un bucle. Si la expresion no cabe en una linea, no la escribio nadie y se usa una etiqueta generica.</p>
+</div>
+<div class="section level3">
+<h3 id="lo-que-el-idioma-no-deja-resolver-0-1-0">Lo que el idioma no deja resolver<a class="anchor" aria-label="anchor" href="#lo-que-el-idioma-no-deja-resolver-0-1-0"></a></h3>
+<p>La comparacion que separa una errata de la misma palabra escrita de otra manera ignora acentos, y en español el acento distingue palabras. El mismo mecanismo que junta <code>Jose</code> con <code>José</code> -que si es la misma- junta <code>papa</code> con <code>papá</code> y <code>ano</code> con <code>año</code>, que no lo son. Separarlos pide un diccionario del idioma.</p>
+<p>Asi que se corrigio la afirmacion, no la medida: el texto decia “son la forma dominante escrita distinto” y ahora dice <strong>en que difieren</strong>, que es verificable, y avisa de que en español el acento puede cambiar la palabra.</p>
+</div>
+<div class="section level3">
+<h3 id="la-misma-numeracion-descrita-de-dos-maneras-0-1-0">La misma numeracion, descrita de dos maneras<a class="anchor" aria-label="anchor" href="#la-misma-numeracion-descrita-de-dos-maneras-0-1-0"></a></h3>
+<p>Aparecio al intentar romper el arreglo de arriba. Un codigo 1..284 con 179 valores fuera de los limites de Tukey:</p>
+<ul><li>guardado como <code>integer</code>, se callaba y quedaba declarado en cobertura;</li>
+<li>guardado como <code>double</code>, se senalaba.</li>
+</ul><p>La guarda dependia de <strong>como estaba almacenado el numero, no de que es</strong>. Y eso pesa mas de lo que parece: por la puerta DBI casi todo llega como <code>doble</code> -SQLite entrega asi hasta las fechas- y varios lectores de CSV tambien, asi que el arreglo no cubria el caso que lo motivo cuando el identificador venia de una base.</p>
+<p>La causa estaba en la raiz. <code>.resumen_secuencia_entera</code> exigia tipo <code>entero</code> y <strong>dos lineas mas abajo comprobaba que todos los valores fueran enteros</strong>. La segunda condicion es la real; la primera solo dejaba columnas afuera, y con ellas su <code>densidad_secuencia_entera</code>, que quedaba en <code>NA</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="lo-que-dijeron-las-cinco-auditorias-externas-0-1-0">Lo que dijeron las cinco auditorias externas<a class="anchor" aria-label="anchor" href="#lo-que-dijeron-las-cinco-auditorias-externas-0-1-0"></a></h3>
+<p>Cinco revisiones independientes -coherencia entre las dos puertas, prueba de las afirmaciones publicadas, barrido de codigo, bancos y redaccion- dejaron sus informes. Lo que sigue es lo que quedaba abierto de ellas.</p>
+<ul><li><p><strong>La tasa de referencia no era una tasa del motor.</strong> <code>supuesto_costo</code> decia “unos cinco millones de lecturas de fila por segundo sobre PostgreSQL 16”, y ese cociente esta en las unidades que cuenta el plan, no en filas que el motor haya leido: la cuenta supone que ningun indice ayuda y cobra el desvio como dos pasadas aunque un motor con desvio nativo lo resuelva en una. El numero sirve para lo que existe -convertir <code>filas_leidas</code> en segundos- y ahora lo dice. Se midio: 26.001.000 lecturas en las unidades del plan sobre 5,3 segundos.</p></li>
+<li><p><strong>La tasa de pares se remidio con el banco.</strong> Da de 660.000 a 1.150.000 pares por segundo con valores de cuarenta caracteres -la banda cubre dos maquinas- y unos 80.000 con valores de doscientos, contando los pares que se comparan de verdad. Con doscientos caracteres el detector recorta por <code>max_trabajo</code> a 1.005 formas de 2.000, asi que dividir por los pares que el plan contaria inflaba la cifra cuatro veces.</p></li>
+<li><p><strong>Las dos puertas describen tipos distintos, y ahora se declara.</strong> <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> informa el tipo que declara el motor, y un motor que no preserva <code>DATE</code> ni <code>BOOLEAN</code> hace que esas columnas se midan como numeros: la misma columna de fechas da el desvio en dias por una puerta y en segundos por la otra, y la moda como entero crudo en vez de fecha formateada. Cada puerta describe lo que tiene delante; lo que faltaba era decirlo.</p></li>
+<li><p><strong>El desvio de una columna temporal esta en segundos</strong> y no lo decia ninguna parte. Los demas momentos viajan formateados en <code>minimo_fecha</code>, <code>media_fecha</code> y compania; el desvio no es un momento sino una duracion, queda como numero, y un <code>136610.4</code> sobre fechas son 1,6 dias.</p></li>
+<li><p><strong>Cuatro funciones internas que solo llamaba la suite</strong> se sacaron del paquete. Viajaban en cada instalacion sin que nada las usara, y sus pruebas daban la impresion de que estaban vivas. La unica que servia de algo -una version escalar contra la que medir la vectorizada- sigue existiendo como oraculo dentro de su propia prueba.</p></li>
+<li><p><strong>Dos etiquetas exigian saber estadistica para poder descartarlas.</strong> Un hallazgo que hay que traducir antes de juzgarlo cuesta mas que uno que se entiende: quien no sabe que es Benford no lo puede descartar con criterio, o le cree. Ahora <code>desviacion_benford</code> explica que en muchas magnitudes el 1 encabeza cerca del 30 % de los valores y el 9 menos del 5 %, y <code>outliers</code> dice que hay valores muy alejados del grueso de la columna antes de nombrar a Tukey.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="una-prueba-que-pasaba-sin-probar-nada-0-1-0">Una prueba que pasaba sin probar nada<a class="anchor" aria-label="anchor" href="#una-prueba-que-pasaba-sin-probar-nada-0-1-0"></a></h3>
+<p><code>test-formatos-adicionales.R</code> verifica que los meses escritos se detecten igual en cualquier <code>LC_TIME</code>. Recorria tres locales con <code>try(Sys.setlocale(...))</code> y comparaba contra la base medida en <code>C</code>. En una maquina donde esos locales no estan generados -una imagen minima de contenedor no los trae- la llamada falla, el <code>try</code> se traga el fallo, el locale nunca cambia y el test compara el resultado contra si mismo.</p>
+<p>Pasaba. Y la unica senal de que no habia medido nada era un aviso suelto en el resumen de la suite: “OS reports request to set locale cannot be honored”.</p>
+<p>Ahora comprueba que el locale quedo puesto, y si ninguno se puede poner se saltea declarando el motivo en vez de contar un exito vacio.</p>
+</div>
+<div class="section level3">
+<h3 id="el-plan-de-consultas-dice-rango-en-todas-partes-0-1-0">El plan de consultas dice rango en todas partes<a class="anchor" aria-label="anchor" href="#el-plan-de-consultas-dice-rango-en-todas-partes-0-1-0"></a></h3>
+<p><code>attr(plan, "supuesto")</code> ya declaraba un rango, pero el metodo de impresion, el <code>@return</code> de la ayuda, los dos README y la vinieta seguian diciendo “techo”. Un techo que el propio objeto desmiente dos lineas mas abajo es peor que no decir nada.</p>
+<ul><li>
+<code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> ahora dice “entre N y M consultas”, y sobre un plan subconjuntado -que conserva la clase y pierde los atributos- imprime la tabla y avisa, en vez de titular “sin dato consultas sobre sin dato filas”.</li>
+<li>
+<code>total_lotes_rechazados</code> aparece en el <code>@return</code>, que no lo documentaba.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="una-tabla-con-acentos-rompia-el-perfil-entero-0-1-0">Una tabla con acentos rompia el perfil entero<a class="anchor" aria-label="anchor" href="#una-tabla-con-acentos-rompia-el-perfil-entero-0-1-0"></a></h3>
 <p>Es el defecto mas serio de la tanda, y <strong>lo introdujo el arreglo del orden del vocabulario de ayer</strong>. Sobre cualquier tabla leida con <code><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv()</a></code> que tuviera acentos:</p>
 <pre><code>Error: Character encoding must be UTF-8, Latin-1 or bytes</code></pre>
@@ -351,7 +434,7 @@ perfilar_dbi()  media = NA           detalle: [estadisticos de orden y momentos 
 </ul></div>
 <div class="section level3">
 <h3 id="lo-que-encontro-una-refutacion-adversarial-0-1-0">Lo que encontro una refutacion adversarial<a class="anchor" aria-label="anchor" href="#lo-que-encontro-una-refutacion-adversarial-0-1-0"></a></h3>
-<p>Se puso un agente a romper las afirmaciones de esta tanda en vez de a confirmarlas. Encontro ocho defectos, y los tres peores tenian la misma forma: <strong>la tabla con la que se verificaban los motores era comoda</strong>. Tenia 5.000 filas de tipos faciles, sin fecha nativa, sin enteros sin signo y nunca mas chica que la muestra pedida. Es el mismo error que el paquete ya persigue en los demas —el fixture que comparte la propiedad cuya ausencia es el fallo— aplicado al propio verificador.</p>
+<p>Esta tanda se reviso al reves: buscando romper cada afirmacion en vez de confirmarla. Encontro ocho defectos, y los tres peores tenian la misma forma: <strong>la tabla con la que se verificaban los motores era comoda</strong>. Tenia 5.000 filas de tipos faciles, sin fecha nativa, sin enteros sin signo y nunca mas chica que la muestra pedida. Es el mismo error que el paquete ya persigue en los demas —el fixture que comparte la propiedad cuya ausencia es el fallo— aplicado al propio verificador.</p>
 <ul><li>
 <strong>Una columna <code>DATE</code> se media como numero, con estado <code>calculado</code>.</strong> El <code>dbFetch(n = 0)</code> de RMariaDB devuelve <code>numeric(0)</code> para una fecha: la clase se pierde junto con las filas, e <code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">is.numeric()</a></code> decia que si. Salian <code>minimo</code> en dias desde 1970 y <code>media</code> en YYYYMMDD -dos unidades distintas, las dos publicadas como la misma-. Ahora el tipo declarado por el motor manda sobre el prototipo.</li>
 <li>

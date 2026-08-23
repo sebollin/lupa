@@ -121,7 +121,7 @@ map:
 | Task | Main functions | Read more |
 |----|----|----|
 | Look at data for the first time | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md), [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md), [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md), [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md), `sentinelas_naniar` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Profile against a database | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — full-table SQL aggregates plus a 105-field profile from a declared sample; the scopes stay separate | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Profile against a database | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — full-table SQL aggregates plus a 109-analytic-field profile from a declared sample; the scopes stay separate | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Find undeclared structure | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md), [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md) | [Undeclared structure](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Define quality | [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md), [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md), [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md) | [Define quality](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Measure and evaluate | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md), [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md) with project weights, [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md) with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Measure and evaluate](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -185,8 +185,8 @@ zero.
 | **MySQL 8** | `limit` | **tested** against the real engine: same three statistics verified against R |
 | **SQL Server 2022** | `top` | **tested** against the real engine: the probe resolves `top` on its own, and the three statistics match R |
 | **DuckDB 1.5** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, and the three statistics verified against R |
-| **MariaDB 11** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, the three statistics against R, and the plan exact in the five |
-| **Oracle Free 23 (23c)** | `fetch_first` | **tested** against the real engine: dialect resolved by probe, five modes with no unavailable metric, the three statistics against R, exact plan, qualified names by text and by [`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html), and `SAMPLE (p)` sampling |
+| **MariaDB 11** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, the three statistics against R, and the plan’s lower bound matching the queries actually emitted in the five |
+| **Oracle Free 23 (23c)** | `fetch_first` | **tested** against the real engine: dialect resolved by probe, five modes with no unavailable metric, the three statistics against R, the plan’s lower bound matching the queries actually emitted, qualified names by text and by [`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html), and `SAMPLE (p)` sampling |
 | Oracle 11 and earlier | `rownum` | expected, not checked against the engine |
 | any other DBI-compatible engine | `portable` | fallback: `dbSendQuery()` + `dbFetch(n)` |
 
@@ -197,6 +197,14 @@ statistics against R, the plan against the queries actually emitted,
 schema-qualified names by text and by
 [`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html), and a two-table
 collection.
+
+What that script checks is **behaviour**, and it can be redone against
+any connection. The **timings** of those runs — the seconds and row
+reads that appear in the release notes — cannot be redone from the
+repository: they need the infrastructure of the run, up to two million
+rows by forty columns on an engine brought up for the occasion. They are
+published as what they are, references from a one-off run, and no result
+of the package depends on them.
 
 **Expected** means the dialect is built and tested against a simulated
 engine that reproduces the restriction, not that it has been run against
@@ -336,24 +344,32 @@ splitting them.
 
 ### Cost is planned before it is paid
 
-Profiling 158 columns in `modo = "exacto"` emits 623 queries, and 777 of
-the original 778 scanned the whole table. `muestra` does not bound that:
-it bounds what is brought into R, not the work the engine does. So the
-cost is declared and chosen:
+Profiling a 158-column table in `modo = "exacto"` emits 262 queries, and
+256 of them scan, sort or group the whole table. The count follows the
+composition, not the column count: the same 158 columns as text only
+cost 172, because a median asks for a full sort per numeric column.
+`muestra` does not bound any of it — it bounds what is brought into R,
+not the work the engine does, and the sampled plan over the same table
+costs 271. So the cost is declared and chosen
+(`benchmark/medir_plan_ancho.R` reproduces the four numbers):
 
 ``` r
 
 plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # 5 queries, predicts the rest
 ```
 
-The plan gives a **ceiling** on how many queries the profiling will
-emit, and it says so in `attr(plan, "supuesto")`. It is exact whenever
-every column has at least one value; a column with none emits neither
+The plan gives a **range** for how many queries the profiling will emit,
+and it says so in `attr(plan, "supuesto")`. The low end is `total`,
+reached when no batch is rejected: a column with no value emits neither
 median nor standard deviation, and the plan cannot know which ones are
-empty without asking — which would change its own cost.
+empty without asking — which would change its own cost. The high end is
+`total_lotes_rechazados`, reached when the engine rejects every batch
+and each column is retried on its own. The real cost falls between the
+two, and the plan says so in both directions rather than promising a
+bound it cannot keep.
 
-The part that *is* a hard design constraint is that the ceiling does not
-depend on the engine: every capability probe costs a fixed number of
+The part that *is* a hard design constraint is that the prediction does
+not depend on the engine: every capability probe costs a fixed number of
 queries even when it succeeds on the first form, because a cost that
 varied by engine would leave the user guessing again.
 
@@ -430,6 +446,51 @@ is not the same as not applying.
 Declaring the universe also enables the symmetric error, which had no
 way to appear before: `valor_fuera_de_aplicabilidad` reports a value
 present where the rule says the column does not apply.
+
+The same idea governs the statistical tests. Benford assumes a
+multiplicative process and Tukey’s fences assume a distribution; a
+numbering — an identifier, a code — is neither, and a code sitting far
+from the median says nothing about its quality.
+
+Recognising a numbering takes **two signals, and it needs both**. The
+first is **density**: an identifier occupies a compact stretch of the
+integers while a magnitude spreads across several orders. Uniqueness
+does not work, since an amount is nearly unique too. The second is the
+**absence of a scale jump**, and without it the first does harm: a value
+off the scale by up to twice the maximum does not lower the density
+enough, so a `120` among ages 18 to 70 — or a `2000` behind 1..1000 —
+was hidden exactly when it was the only thing worth seeing. What does
+give them away is the gap they open: 50 and 1,000 where the typical one
+is 1.
+
+The criterion was chosen by measuring. A bench of thirteen columns with
+the known answer — five numberings and eight magnitudes with a bad value
+inside — compared four variants: crossing both signals gets all thirteen
+right and **never silences a real bad value**; density alone got eleven
+and silenced two. It lives in `test-ronda118.R`.
+
+**And what is not run is not switched off silently**: it leaves its row
+in `cobertura_diagnosticos` with the measured reason — what share of the
+integers the column covers, how many values would have been flagged, how
+many rows out of how many the sample carries.
+
+The same idea, reversed, yields a diagnostic no single signal could
+give. A `9999` may be an impossible age or a perfectly valid postal
+code, so the `sentinelas_numericos` list does not include it by default
+— and rightly so: flagging it always would break any column where that
+number is data. But a value that **falls outside the fences, repeats,
+and has the shape of a repeated digit** is a sentinel with all three
+together, and `posible_centinela_numerico` reports it without counting
+it as missing — that call belongs to whoever knows the column, by adding
+it to the list. A postal code `9999` repeated thirty times is not
+extreme within its column; a real amount of `9999` does not repeat; a
+year `1999` does not have that shape.
+
+Where no signal discriminates, `lupa` speaks. High cardinality in a text
+column is always reported, because the length of the values does not
+tell a catalogue from prose — it fails in both directions, measured —
+and the finding does not claim it is a defect: it offers the three
+possible readings so that whoever knows the column decides.
 
 [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
 answers the long format, where one column stacks unrelated domains. It

@@ -19,7 +19,11 @@ referencia de escala, no una predicción para otra máquina.
 
 En un control de 100.000 filas del padrón difícil, con 140.097.499
 candidatos y 29.844 pares informados, la cantidad de hilos produjo estas
-medianas (tres procesos separados por configuración):
+medianas (tres procesos separados por configuración). Ese padrón no se
+distribuye, así que la tabla no se puede rehacer tal cual;
+`benchmark/medir_escala_hilos.R` genera un padrón sintético equivalente
+y vuelve a medir la curva, que es lo que esta sección afirma. Conviene
+leer las dos tablas juntas, porque no dicen lo mismo:
 
 | hilos | mediana (s) | relativo a 2 |
 |------:|------------:|-------------:|
@@ -29,11 +33,33 @@ medianas (tres procesos separados por configuración):
 |    16 |       70,31 |        0,53x |
 |    31 |       71,69 |        0,54x |
 
-Pasados dieciséis hilos no hubo una ganancia medible: el valor
-predeterminado de `stringdist` (todos los núcleos menos uno) no es el
-mejor. El resultado fue el mismo en las cinco configuraciones; sólo
-cambió el reloj. El valor por omisión de dos hilos es deliberadamente
-conservador y se puede subir cuando la máquina y la carga lo justifican.
+Sobre el padrón sintético del banco —100.000 filas, 23.800 nombres
+distintos, la misma máquina— la curva es mucho más plana:
+
+| hilos | mediana (s) | relativo a 2 |
+|------:|------------:|-------------:|
+|     2 |      324,36 |        1,00x |
+|     4 |      303,84 |        0,94x |
+|     8 |      296,93 |        0,92x |
+|    16 |      290,42 |        0,90x |
+|    31 |      302,18 |        0,93x |
+
+**La ganancia no es una propiedad del paquete: depende de qué fracción
+del trabajo cae en la parte que se paraleliza.** Los hilos los usa
+`stringdist` al comparar; generar los candidatos y armar los grupos no
+los usa. En el padrón difícil la comparación dominaba el reloj y
+dieciséis hilos lo bajaban a la mitad; en el sintético domina el resto y
+la ganancia es del 12 %. Quien vaya a subir el valor conviene que mida
+su propio caso, no que copie una de estas dos tablas.
+
+Lo que **sí** vale en las dos: pasados dieciséis hilos no hubo ganancia
+medible —el valor predeterminado de `stringdist`, todos los núcleos
+menos uno, no es el mejor— y el resultado no cambia, sólo el reloj. Esto
+último está comprobado comparando los 50.000 pares informados uno por
+uno entre las cinco configuraciones, y no su cantidad: como el tope de
+resultados se alcanza en todas, contar pares habría dado siempre el
+mismo número y la comprobación se habría cumplido sola. El valor por
+omisión de dos hilos es deliberadamente conservador.
 
 ## Un conjunto pequeño
 
@@ -117,8 +143,8 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 31.220 pares en
-#> 0,051 s.
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.088 pares en
+#> 0,050 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
 )]
@@ -192,7 +218,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/Rtmpf7O7k8/lupa-lotes-22237600bb9d/lupa-lotes-22233f2ba557"
+#> [1] "/tmp/RtmpcA6iWh/lupa-lotes-233442522edd/lupa-lotes-233443ae9ec0"
 #> 
 #> $n_parciales
 #> [1] 6

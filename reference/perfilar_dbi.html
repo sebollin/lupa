@@ -153,6 +153,21 @@ Las expresiones se ejecutan como capacidades a comprobar, no como un
 dialecto SQL universal.</p>
     </div>
     <div class="section level2">
+    <h2 id="dos-tablas-se-llaman-cobertura">Dos tablas se llaman cobertura<a class="anchor" aria-label="anchor" href="#dos-tablas-se-llaman-cobertura"></a></h2>
+
+
+<p>El resultado trae dos, y cubren cosas distintas. <code>resumen_tabla$cobertura</code>
+habla de <strong>métricas SQL</strong>: qué pidió esta función al motor y qué pasó, con
+<code>bloque</code>, <code>elemento</code>, <code>estado</code> —<code>no_disponible</code>, <code>degradado</code>,
+<code>presupuesto_agotado</code>, <code>alcance_distinto</code>— y la consulta en <code>sql</code>.
+<code>perfil_muestra$cobertura_diagnosticos</code> habla de <strong>diagnósticos</strong>: qué
+comprobación no se corrió sobre la muestra y por qué, con <code>diagnostico</code>,
+<code>columna</code>, <code>motivo</code> y <code>como_resolverlo</code>, el mismo esquema que devuelve
+<code><a href="perfilar.html">perfilar()</a></code>. Un motor que rechaza una columna aparece en la primera; una
+prueba estadística que no corresponde a esa columna, en la segunda. Comparten
+la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.</p>
+    </div>
+    <div class="section level2">
     <h2 id="fallo-parcial">Fallo parcial<a class="anchor" aria-label="anchor" href="#fallo-parcial"></a></h2>
 
 

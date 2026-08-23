@@ -127,7 +127,7 @@ breve:
 | Tarea | Funciones principales | Para leer más |
 |----|----|----|
 | Mirar los datos por primera vez | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md), [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md), [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md), [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md), `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Perfilar contra una base | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — agregados SQL de toda la tabla y un perfil de 105 campos sobre una muestra declarada; los alcances quedan separados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Perfilar contra una base | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — agregados SQL de toda la tabla y un perfil de 109 campos analíticos sobre una muestra declarada; los alcances quedan separados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Encontrar estructura no declarada | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md), [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md) | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Definir la calidad | [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md), [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md), [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md) | [Definir la calidad](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Medir y evaluar | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md), [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md) con pesos del proyecto, [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md) con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Medir y evaluar](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -190,8 +190,8 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 | **MySQL 8** | `limit` | **probado** contra el motor real: mismos tres estadísticos verificados contra R |
 | **SQL Server 2022** | `top` | **probado** contra el motor real: la sonda resuelve `top` sola, y los tres estadísticos coinciden con R |
 | **DuckDB 1.5** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, y los tres estadísticos verificados contra R |
-| **MariaDB 11** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, y el plan exacto en los cinco |
-| **Oracle Free 23 (23c)** | `fetch_first` | **probado** contra el motor real: dialecto resuelto por sonda, los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, plan exacto, nombres calificados por texto y por [`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html), y muestreo `SAMPLE (p)` |
+| **MariaDB 11** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, y el extremo inferior del plan coincidiendo con las consultas emitidas en los cinco |
+| **Oracle Free 23 (23c)** | `fetch_first` | **probado** contra el motor real: dialecto resuelto por sonda, los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, el extremo inferior del plan coincidiendo con las consultas emitidas, nombres calificados por texto y por [`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html), y muestreo `SAMPLE (p)` |
 | Oracle 11 y anterior | `rownum` | esperado, no comprobado contra el motor |
 | cualquier otro compatible con DBI | `portable` | reserva: `dbSendQuery()` + `dbFetch(n)` |
 
@@ -202,6 +202,15 @@ modos, los tres estadísticos contra R, el plan contra las consultas
 realmente emitidas, el nombre calificado con esquema por texto y por
 [`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html), y una colección de
 dos tablas.
+
+Lo que ese script comprueba es el **comportamiento**, y se puede rehacer
+contra cualquier conexión. Los **cronometrajes** de esas corridas —los
+segundos y las lecturas de fila que aparecen en las notas de versión— no
+se rehacen desde el repositorio: necesitan la infraestructura de la
+corrida, hasta dos millones de filas por cuarenta columnas sobre un
+motor levantado para la ocasión. Están publicados como lo que son,
+referencias de una corrida puntual, y ningún resultado del paquete
+depende de ellos.
 
 **Esperado** significa que el dialecto está construido y probado contra
 un motor simulado que reproduce esa restricción, no que se haya corrido
@@ -343,23 +352,31 @@ en vez de partirlas—.
 
 ### El costo se planifica antes de pagarlo
 
-Perfilar 158 columnas en `modo = "exacto"` emite 623 consultas, y 777 de
-las 778 originales escaneaban la tabla entera. `muestra` no acota eso:
-acota lo que se trae a R, no el trabajo del motor. Así que el costo se
-declara y se elige:
+Perfilar una tabla de 158 columnas en `modo = "exacto"` emite 262
+consultas, y 256 de ellas escanean, ordenan o agrupan la tabla entera.
+La cuenta sigue a la composición y no a la cantidad de columnas: esas
+mismas 158 columnas, todas de texto, cuestan 172, porque una mediana
+pide un orden total por columna numérica. `muestra` no acota nada de eso
+—acota lo que se trae a R, no el trabajo del motor, y el plan muestreado
+sobre la misma tabla cuesta 271—. Así que el costo se declara y se elige
+(`benchmark/medir_plan_ancho.R` reproduce los cuatro números):
 
 ``` r
 
 plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # 5 consultas, predice el resto
 ```
 
-El plan da un **techo** de cuántas consultas va a emitir el perfilado, y
-lo dice en `attr(plan, "supuesto")`. Es exacto siempre que todas las
-columnas tengan al menos un valor; una columna sin ninguno no emite
-mediana ni desvío, y el plan no puede saber cuáles están vacías sin
-preguntarlo, cosa que cambiaría su propio costo.
+El plan da un **rango** de cuántas consultas va a emitir el perfilado, y
+lo dice en `attr(plan, "supuesto")`. El extremo inferior es `total`, y
+se alcanza si no se rechaza ningún lote: una columna sin ningún valor no
+emite mediana ni desvío, y el plan no puede saber cuáles están vacías
+sin preguntarlo, cosa que cambiaría su propio costo. El extremo superior
+es `total_lotes_rechazados`, y se alcanza si el motor rechaza todos los
+lotes y cada columna se reintenta sola. El costo real cae entre los dos,
+y el plan lo declara en las dos direcciones en vez de prometer una cota
+que no puede sostener.
 
-Lo que sí es una restricción dura de diseño es que ese techo **no
+Lo que sí es una restricción dura de diseño es que esa predicción **no
 dependa del motor**: cada sonda de capacidad gasta un número fijo de
 consultas aunque acierte en la primera forma, porque un costo que
 variara por motor dejaría al usuario adivinando otra vez.
@@ -438,6 +455,52 @@ no es lo mismo que no corresponder.
 Declarar el universo habilita además el error simétrico, que antes no
 tenía forma de aparecer: `valor_fuera_de_aplicabilidad` informa un valor
 presente donde la regla dice que la columna no corresponde.
+
+La misma idea gobierna las pruebas estadísticas. Benford supone un
+proceso multiplicativo y los límites de Tukey suponen una distribución;
+una numeración —un identificador, un código— no es ninguna de las dos
+cosas, y que un código quede lejos de la mediana no dice nada de su
+calidad.
+
+Reconocer una numeración pide **dos señales, y hacen falta las dos**. La
+primera es la **densidad**: un identificador ocupa un tramo compacto de
+los enteros y una magnitud se reparte por varios órdenes. La unicidad no
+sirve, porque un monto también es casi único. La segunda es la
+**ausencia de un salto de escala**, y sin ella la primera hace daño: un
+valor fuera de escala de hasta el doble del máximo no baja la densidad
+lo suficiente, así que un `120` entre edades de 18 a 70 —o un `2000`
+detrás de 1..1000— quedaba tapado justo cuando era lo único que había
+que ver. Lo que sí los delata es el hueco que abren: 50 y 1.000 donde el
+típico es 1.
+
+El criterio se eligió midiendo. Un banco de trece columnas con la
+respuesta conocida —cinco numeraciones y ocho magnitudes con un dato
+malo adentro— comparó cuatro variantes: cruzar las dos señales acierta
+las trece y **no calla ningún dato malo real**; la densidad sola
+acertaba once y callaba dos. Está en `test-ronda118.R`.
+
+**Y lo que no se corre no se apaga en silencio**: deja su fila en
+`cobertura_diagnosticos` con el motivo medido —qué porcentaje de los
+enteros cubre la columna, cuántos valores se habrían señalado, cuántas
+filas de cuántas trae la muestra—.
+
+La misma idea, al revés, produce un diagnóstico que ninguna señal sola
+podía dar. Un `9999` puede ser una edad imposible o un código postal
+perfectamente válido, así que la lista de `sentinelas_numericos` no lo
+trae por omisión y hace bien: marcarlo siempre rompería cualquier
+columna donde ese número es un dato. Pero un valor que **queda fuera de
+los límites, se repite y tiene forma de dígito repetido** es un
+centinela con las tres cosas juntas, y `posible_centinela_numerico` lo
+informa sin contarlo como ausencia —eso lo decide quien conoce la
+columna, agregándolo a la lista—. Un código postal `9999` repetido
+treinta veces no es extremo en su columna; un monto real de `9999` no se
+repite; un año `1999` no tiene esa forma.
+
+Donde no hay señal que discrimine, `lupa` habla. La cardinalidad alta de
+una columna de texto se informa siempre, porque el largo de los valores
+no distingue un catálogo de la prosa —falla en los dos sentidos, medido—
+y el hallazgo no afirma que sea un defecto: ofrece las tres lecturas
+posibles para que decida quien conoce la columna.
 
 [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
 responde al formato largo, donde una sola columna apila dominios sin

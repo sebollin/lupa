@@ -84,9 +84,15 @@ plan_perfilado_dbi(
 ## Value
 
 Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
-`n_consultas` y `alcance`, y los atributos `total`, `columnas`,
-`columnas_numericas`, `dialecto`, `consultas_emitidas`, `metricas`,
-`filas` y `tamano_lote`.
+`n_consultas` y `alcance`, y los atributos `total`,
+`total_lotes_rechazados`, `columnas`, `columnas_numericas`, `dialecto`,
+`consultas_emitidas`, `metricas`, `filas` y `tamano_lote`.
+
+El costo no se declara como un número sino como un rango: `total` es el
+extremo inferior, alcanzado si el motor no rechaza ningún lote, y
+`total_lotes_rechazados` el superior, alcanzado si los rechaza todos y
+cada columna se reintenta sola. El costo real cae entre los dos, y
+`attr(plan, "supuesto")` dice por qué se mueve en cada dirección.
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre

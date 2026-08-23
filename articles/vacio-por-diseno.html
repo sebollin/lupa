@@ -321,8 +321,8 @@ resultado no describe a ninguno.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;            alta_cardinalidad  casi_duplicados_vocabulario                    faltantes </span></span>
 <span><span class="co">#&gt;                            1                            1                            2 </span></span>
-<span><span class="co">#&gt;    mayusculas_inconsistentes posible_ausencia_estructural </span></span>
-<span><span class="co">#&gt;                            1                            2</span></span></code></pre></div>
+<span><span class="co">#&gt;    mayusculas_inconsistentes posible_ausencia_estructural        posible_identificador </span></span>
+<span><span class="co">#&gt;                            1                            2                            2</span></span></code></pre></div>
 <p>Por grupo, cada atributo se perfila contra su propio dominio. Las
 columnas enteramente ausentes dentro del grupo se descartan antes de
 perfilar, y ése es el paso que desactiva el faltante falso.</p>
@@ -338,7 +338,7 @@ perfilar, y ése es el paso que desactiva el faltante falso.</p>
 <span><span class="co">#&gt; casi_duplicados_vocabulario       dato_personal_posible   mayusculas_inconsistentes </span></span>
 <span><span class="co">#&gt;                           2                           1                           1 </span></span>
 <span><span class="co">#&gt;       posible_identificador </span></span>
-<span><span class="co">#&gt;                           3</span></span></code></pre></div>
+<span><span class="co">#&gt;                           4</span></span></code></pre></div>
 <p>El argumento <code>clave</code> no es cosmético. Sin la columna de
 identidad, cada repetición del valor de un atributo se lee como fila
 duplicada y el diagnóstico de unicidad informa la tabla entera.</p>

@@ -2,6 +2,270 @@
 
 ## lupa 0.1.0
 
+### Once senales falsas sobre una base real, y ninguna se apaga en silencio
+
+Una corrida contra tres tablas administrativas reales dio 24 senales, de
+las cuales **once eran falsas**. El calculo estaba bien en las once; lo
+que fallaba era el juicio de si la prueba corresponde. Un identificador
+no es una magnitud, y hay pruebas que solo describen magnitudes.
+
+- **Benford y limites de Tukey sobre numeraciones** (seis falsos). La
+  guarda que ya tenia Benford exigia una corrida consecutiva *sin
+  huecos*, y un identificador real tiene huecos: los que se dieron de
+  baja. Un `MotId` de 1 a 4557 sobre 3.159 filas no la pasaba y Benford
+  se corria igual.
+
+  Lo que separa una numeracion de una magnitud no es la unicidad -un
+  monto tambien es casi unico- sino la **densidad**: un identificador
+  ocupa un tramo compacto de los enteros (0,69 en ese caso) y una
+  magnitud se reparte por varios ordenes (0,00005 para montos entre 9 y
+  9.999.999).
+
+  Un valor fuera de escala rompe esa compacidad, asi que los casos que
+  hay que ver se siguen viendo: un `10000` entre identificadores de 1 a
+  100, o un ano centinela 1900 entre anos 2000-2030, bajan la densidad y
+  vuelven a senalarse.
+
+- **`alta_cardinalidad` sobre texto libre** (tres falsos). Un nombre,
+  una descripcion o un objetivo tienen cardinalidad alta por definicion.
+  Ahora una columna de texto cuyos valores promedian 40 caracteres o mas
+  no se marca.
+
+- **Relacion de orden entre dos numeraciones** (un falso).
+  `MotId <= MEsId` se cumplia en el 99,1 % de las filas porque los dos
+  contadores avanzan juntos, y el 0,9 % restante “violaba” una regla que
+  no existe. Lo que separa ese par de un `inicio`/`fin` legitimo
+  -tambien entero, tambien denso- es la brecha: constante fila a fila
+  cuando hay una regla detras, erratica cuando solo hay dos contadores.
+  La guarda respeta el rescate por brecha estable que ya existia.
+
+- **`constante` medido sobre una muestra** (un falso). Una tabla de 200
+  filas con tres valores, muestreada en 50, informaba “la columna
+  contiene un unico valor”. Una proporcion estimada sobre una muestra
+  sigue siendo honesta; una cuantificacion universal no: basta una fila
+  no leida para desmentirla.
+
+**Ninguno de los seis se apaga en silencio.** Bajar el ruido callando
+seria mejorar el numero sin mejorar el paquete, asi que cada prueba que
+no se corre deja su fila en `cobertura_diagnosticos`, con el motivo
+medido -que porcentaje de los enteros cubre la columna, cuantos valores
+se habrian senalado, cuantas filas de cuantas trae la muestra- y que
+hacer si el usuario no esta de acuerdo. Los pares de orden descartados
+quedan nombrados en
+`meta$orden_columnas$pares_identificador_descartados`.
+
+### La ganancia por hilos no era una propiedad del paquete
+
+La vinieta de escala publicaba una tabla -133,28 s con dos hilos, 70,31
+con dieciseis- medida sobre un padron que no se distribuye, asi que
+nadie podia rehacerla. Ahora `benchmark/medir_escala_hilos.R` genera un
+padron sintetico y mide la misma curva, y **no da lo mismo**: sobre
+100.000 filas con 23.800 nombres distintos, de dos a dieciseis hilos se
+gana un 12 %, no la mitad del reloj.
+
+La explicacion es que los hilos los usa `stringdist` al comparar, y
+generar los candidatos y armar los grupos no los usa. Segun cuanto pese
+cada parte en un conjunto concreto, la ganancia va del 90 % al 12 %. La
+vinieta publica las dos tablas y dice que quien vaya a subir el valor
+conviene que mida su caso.
+
+Lo que si vale en las dos: pasados dieciseis hilos no hay ganancia
+medible, y el resultado no cambia. **Y esto ultimo recien ahora esta
+comprobado de verdad.** El banco comparaba cuantos pares devolvia cada
+configuracion, y como el tope de resultados se alcanza en todas, el
+numero era siempre el mismo: la comprobacion se cumplia sola. Ahora
+compara los 50.000 pares uno por uno.
+
+Otros dos defectos del mismo banco, encontrados antes de que publicara
+ningun numero: el generador daba 80 nombres distintos para 100.000 filas
+-el detector trabaja sobre formas distintas, no sobre filas, asi que no
+ejercitaba nada- y [`nrow()`](https://rdrr.io/r/base/nrow.html) sobre el
+resultado devolvia `NULL`, porque es una lista con `$pares` y no un data
+frame.
+
+### Un diagnostico nuevo: el centinela que ninguna lista puede declarar
+
+Un `9999` es una edad imposible y un codigo postal perfectamente valido.
+Por eso la lista de `sentinelas_numericos` no lo trae por omision, y
+hace bien: marcarlo siempre romperia cualquier columna donde ese numero
+es un dato.
+
+Lo que si lo distingue es cumplir **las tres cosas a la vez**: quedar
+fuera de los limites de la columna, repetirse cinco veces o mas, y tener
+forma de digito repetido. `posible_centinela_numerico` lo informa sin
+contarlo como ausencia -esa decision es de quien conoce la columna,
+agregandolo a la lista- y nombra las filas donde esta.
+
+Medido sobre doce columnas con la respuesta conocida, acierta las doce.
+Los tres controles que podrian haberlo roto: un codigo postal `9999`
+repetido treinta veces no es extremo dentro de su columna, un monto real
+de `9999` no se repite, y un ano `1999` no tiene esa forma.
+
+Es el unico diagnostico del paquete que **ninguna senal sola podia
+dar**: la forma sin los limites marca codigos validos, los limites sin
+la forma marcan cualquier extremo, y la repeticion sin las otras dos
+marca cualquier valor frecuente.
+
+### Un valor centinela se escapaba de la proteccion de datos personales
+
+Es lo mas serio de la tanda y lo introdujo la tanda misma. El perfil
+pasa a medir cual es el valor que una columna usa para decir “sin dato”
+-un `9999` entre edades- y ese campo publicaba un valor de celda sin
+pasar por el enmascarado. Sobre una columna de documentos protegida se
+veia asi:
+
+    moda                    [valor protegido]
+    minimo                  NA
+    centinela_valor         9999
+
+Y la descripcion del hallazgo lo nombraba en texto, con lo cual llegaba
+hasta el informe HTML. La evidencia si salia protegida: la fuga entraba
+por la puerta de al lado.
+
+Ahora `centinela_valor` se enmascara igual que el minimo, la moda y la
+media, y la descripcion se limpia en la misma capa que ya limpiaba la
+evidencia. Las repeticiones se siguen informando, porque son un conteo y
+no un valor.
+
+Que el valor sea casi seguro un centinela y no un documento no cambia la
+regla: **la proteccion no adivina cuales valores son inocentes**.
+
+### Dos diagnosticos que se contradecian sobre la misma columna
+
+`999` esta en la lista de centinelas declarados, asi que
+`faltantes_disfrazados` lo cuenta como ausencia con severidad `error`.
+El diagnostico nuevo decia, sobre esa misma columna, que “no se cuenta
+como ausencia porque no esta declarado”. Los valores que la lista ya
+cubre dejan de producirlo: el diagnostico existe para los que **no**
+estan declarados, como un `8888`.
+
+### `perfilar()` dentro de `do.call()` rompia el informe
+
+[`deparse()`](https://rdrr.io/r/base/deparse.html) de una expresion
+larga devuelve varias lineas, y con
+`do.call(perfilar, list(tabla, ...))` la expresion es la tabla entera:
+el nombre del conjunto salia con ocho elementos y
+[`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+fallaba con “values must be length 1”. Pasar los argumentos en una lista
+es lo natural cuando se perfila en un bucle. Si la expresion no cabe en
+una linea, no la escribio nadie y se usa una etiqueta generica.
+
+### Lo que el idioma no deja resolver
+
+La comparacion que separa una errata de la misma palabra escrita de otra
+manera ignora acentos, y en español el acento distingue palabras. El
+mismo mecanismo que junta `Jose` con `José` -que si es la misma- junta
+`papa` con `papá` y `ano` con `año`, que no lo son. Separarlos pide un
+diccionario del idioma.
+
+Asi que se corrigio la afirmacion, no la medida: el texto decia “son la
+forma dominante escrita distinto” y ahora dice **en que difieren**, que
+es verificable, y avisa de que en español el acento puede cambiar la
+palabra.
+
+### La misma numeracion, descrita de dos maneras
+
+Aparecio al intentar romper el arreglo de arriba. Un codigo 1..284 con
+179 valores fuera de los limites de Tukey:
+
+- guardado como `integer`, se callaba y quedaba declarado en cobertura;
+- guardado como `double`, se senalaba.
+
+La guarda dependia de **como estaba almacenado el numero, no de que
+es**. Y eso pesa mas de lo que parece: por la puerta DBI casi todo llega
+como `doble` -SQLite entrega asi hasta las fechas- y varios lectores de
+CSV tambien, asi que el arreglo no cubria el caso que lo motivo cuando
+el identificador venia de una base.
+
+La causa estaba en la raiz. `.resumen_secuencia_entera` exigia tipo
+`entero` y **dos lineas mas abajo comprobaba que todos los valores
+fueran enteros**. La segunda condicion es la real; la primera solo
+dejaba columnas afuera, y con ellas su `densidad_secuencia_entera`, que
+quedaba en `NA`.
+
+### Lo que dijeron las cinco auditorias externas
+
+Cinco revisiones independientes -coherencia entre las dos puertas,
+prueba de las afirmaciones publicadas, barrido de codigo, bancos y
+redaccion- dejaron sus informes. Lo que sigue es lo que quedaba abierto
+de ellas.
+
+- **La tasa de referencia no era una tasa del motor.** `supuesto_costo`
+  decia “unos cinco millones de lecturas de fila por segundo sobre
+  PostgreSQL 16”, y ese cociente esta en las unidades que cuenta el
+  plan, no en filas que el motor haya leido: la cuenta supone que ningun
+  indice ayuda y cobra el desvio como dos pasadas aunque un motor con
+  desvio nativo lo resuelva en una. El numero sirve para lo que existe
+  -convertir `filas_leidas` en segundos- y ahora lo dice. Se midio:
+  26.001.000 lecturas en las unidades del plan sobre 5,3 segundos.
+
+- **La tasa de pares se remidio con el banco.** Da de 660.000 a
+  1.150.000 pares por segundo con valores de cuarenta caracteres -la
+  banda cubre dos maquinas- y unos 80.000 con valores de doscientos,
+  contando los pares que se comparan de verdad. Con doscientos
+  caracteres el detector recorta por `max_trabajo` a 1.005 formas de
+  2.000, asi que dividir por los pares que el plan contaria inflaba la
+  cifra cuatro veces.
+
+- **Las dos puertas describen tipos distintos, y ahora se declara.**
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  informa el tipo que declara el motor, y un motor que no preserva
+  `DATE` ni `BOOLEAN` hace que esas columnas se midan como numeros: la
+  misma columna de fechas da el desvio en dias por una puerta y en
+  segundos por la otra, y la moda como entero crudo en vez de fecha
+  formateada. Cada puerta describe lo que tiene delante; lo que faltaba
+  era decirlo.
+
+- **El desvio de una columna temporal esta en segundos** y no lo decia
+  ninguna parte. Los demas momentos viajan formateados en
+  `minimo_fecha`, `media_fecha` y compania; el desvio no es un momento
+  sino una duracion, queda como numero, y un `136610.4` sobre fechas son
+  1,6 dias.
+
+- **Cuatro funciones internas que solo llamaba la suite** se sacaron del
+  paquete. Viajaban en cada instalacion sin que nada las usara, y sus
+  pruebas daban la impresion de que estaban vivas. La unica que servia
+  de algo -una version escalar contra la que medir la vectorizada- sigue
+  existiendo como oraculo dentro de su propia prueba.
+
+- **Dos etiquetas exigian saber estadistica para poder descartarlas.**
+  Un hallazgo que hay que traducir antes de juzgarlo cuesta mas que uno
+  que se entiende: quien no sabe que es Benford no lo puede descartar
+  con criterio, o le cree. Ahora `desviacion_benford` explica que en
+  muchas magnitudes el 1 encabeza cerca del 30 % de los valores y el 9
+  menos del 5 %, y `outliers` dice que hay valores muy alejados del
+  grueso de la columna antes de nombrar a Tukey.
+
+### Una prueba que pasaba sin probar nada
+
+`test-formatos-adicionales.R` verifica que los meses escritos se
+detecten igual en cualquier `LC_TIME`. Recorria tres locales con
+`try(Sys.setlocale(...))` y comparaba contra la base medida en `C`. En
+una maquina donde esos locales no estan generados -una imagen minima de
+contenedor no los trae- la llamada falla, el `try` se traga el fallo, el
+locale nunca cambia y el test compara el resultado contra si mismo.
+
+Pasaba. Y la unica senal de que no habia medido nada era un aviso suelto
+en el resumen de la suite: “OS reports request to set locale cannot be
+honored”.
+
+Ahora comprueba que el locale quedo puesto, y si ninguno se puede poner
+se saltea declarando el motivo en vez de contar un exito vacio.
+
+### El plan de consultas dice rango en todas partes
+
+`attr(plan, "supuesto")` ya declaraba un rango, pero el metodo de
+impresion, el `@return` de la ayuda, los dos README y la vinieta seguian
+diciendo “techo”. Un techo que el propio objeto desmiente dos lineas mas
+abajo es peor que no decir nada.
+
+- [`print()`](https://rdrr.io/r/base/print.html) ahora dice “entre N y M
+  consultas”, y sobre un plan subconjuntado -que conserva la clase y
+  pierde los atributos- imprime la tabla y avisa, en vez de titular “sin
+  dato consultas sobre sin dato filas”.
+- `total_lotes_rechazados` aparece en el `@return`, que no lo
+  documentaba.
+
 ### Una tabla con acentos rompia el perfil entero
 
 Es el defecto mas serio de la tanda, y **lo introdujo el arreglo del
@@ -777,8 +1041,8 @@ de ellas de reproducir lo que el informe atribuia a otra causa.
 
 ### Lo que encontro una refutacion adversarial
 
-Se puso un agente a romper las afirmaciones de esta tanda en vez de a
-confirmarlas. Encontro ocho defectos, y los tres peores tenian la misma
+Esta tanda se reviso al reves: buscando romper cada afirmacion en vez de
+confirmarla. Encontro ocho defectos, y los tres peores tenian la misma
 forma: **la tabla con la que se verificaban los motores era comoda**.
 Tenia 5.000 filas de tipos faciles, sin fecha nativa, sin enteros sin
 signo y nunca mas chica que la muestra pedida. Es el mismo error que el

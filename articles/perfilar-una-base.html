@@ -189,7 +189,7 @@ mismo— pero convertía la lectura en un acertijo:
 <span><span class="fu"><a href="../reference/accesores_perfil.html">n_filas</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 13</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">hallazgos</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 21</span></span>
+<span><span class="co">#&gt; [1] 23</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/accesores_perfil.html">cobertura</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 2</span></span>
 <span><span class="fu"><a href="../reference/accesores_perfil.html">sql_perfil</a></span><span class="op">(</span><span class="va">en_memoria</span><span class="op">)</span>   <span class="co"># NULL: un perfil en memoria no emitió SQL</span></span>
@@ -228,7 +228,7 @@ presentarlos como un único perfil.</p>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;           bloque filas_fuente campos_analiticos columnas_del_resultado</span></span>
 <span><span class="co">#&gt; 1  resumen_tabla           12                15                     16</span></span>
-<span><span class="co">#&gt; 2 perfil_muestra            5               104                    105</span></span></code></pre></div>
+<span><span class="co">#&gt; 2 perfil_muestra            5               109                    110</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="resumen_tabla-agregados-sobre-la-tabla-completa">
@@ -249,12 +249,12 @@ calcula sobre las doce filas completas de <code>entregas</code>.</p>
 <span><span class="co">#&gt; 2   grupo 12           0           3     NA     NA       NA</span></span>
 <span><span class="co">#&gt; 3   valor 12           1          11     10     36 23.63636</span></span>
 <span><span class="co">#&gt; 4   fecha 12           0          12     NA     NA       NA</span></span></code></pre></div>
-<p><code>perfil_muestra$columnas</code> contiene los 105 campos del
-perfil, pero su universo son cinco filas en este ejemplo. Llamar
-<em>perfil</em> al resumen SQL afirmaría una completitud que no tiene:
-el resumen cubre quince de esos aspectos sobre doce filas; el perfil
-cubre sus 105 campos sobre las cinco filas obtenidas. Las consultas,
-estados y motivos de los agregados SQL quedan en
+<p><code>perfil_muestra$columnas</code> trae 109 campos analíticos
+además del nombre de la columna, pero su universo son cinco filas en
+este ejemplo. Llamar <em>perfil</em> al resumen SQL afirmaría una
+completitud que no tiene: el resumen cubre quince de esos aspectos sobre
+doce filas; el perfil cubre sus 109 sobre las cinco filas obtenidas. Las
+consultas, estados y motivos de los agregados SQL quedan en
 <code>resumen_tabla$sql</code> para que también se vea qué aceptó o
 rechazó el motor.</p>
 </div>
@@ -263,9 +263,9 @@ rechazó el motor.</p>
 <code>perfil_muestra</code>: el perfil completo de la muestra<a class="anchor" aria-label="anchor" href="#perfil_muestra-el-perfil-completo-de-la-muestra"></a>
 </h2>
 <p>El perfil completo se obtiene en memoria sobre las cinco filas
-seleccionadas. La salida muestra algunos de sus 105 campos para que se
-vean, junto con los conteos, los faltantes, los distintos y el tipo
-inferido.</p>
+seleccionadas. La salida muestra algunos de sus 109 campos analíticos
+para que se vean, junto con los conteos, los faltantes, los distintos y
+el tipo inferido.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">perfil</span><span class="op">$</span><span class="va">perfil_muestra</span><span class="op">$</span><span class="va">columnas</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
@@ -433,13 +433,17 @@ efectivo.</p>
 <span><span class="op">)</span></span>
 <span><span class="va">aproximado</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">meta</span><span class="op">$</span><span class="va">aproximaciones</span></span></code></pre></div>
 <p><code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> emite las sondas de capacidad y
-predice el total que costará la corrida. Es un <strong>techo</strong>, y
-lo declara en <code>attr(plan, "supuesto")</code>: se cuenta una mediana
+predice el total que costará la corrida. Publica un
+<strong>rango</strong>, y lo declara en
+<code>attr(plan, "supuesto")</code>: <code>total</code> si no se rechaza
+ningún lote y <code>total_lotes_rechazados</code> si se rechazan todos;
+el costo real cae entre los dos. El extremo inferior cuenta una mediana
 y un desvío por columna numérica, y una columna sin un solo valor válido
-no los emite. Para decidir si una corrida es viable, un techo alcanza.
-La predicción incluye las sondas aunque una forma acertada aparezca
-antes que las demás, porque el costo declarado no puede depender del
-motor.</p>
+no los emite; el superior suma los reintentos por columna cuando el
+motor rechaza un lote. Para decidir si una corrida es viable, saber
+entre qué y qué se mueve alcanza. La predicción incluye las sondas
+aunque una forma acertada aparezca antes que las demás, porque el costo
+declarado no puede depender del motor.</p>
 <p>Ahora bien, <strong>cuántas consultas se emiten no dice cuánto
 cuestan</strong>: catorce consultas sobre dos millones de filas son
 mucho más trabajo que doscientas sobre mil, y quien mira el plan quiere
@@ -475,8 +479,8 @@ sobre la columna ordenada, o una tabla que entra en la memoria del
 motor, la bajan mucho. La del cliente cuenta pares: el conteo es exacto,
 pero <strong>cuánto cuesta cada par depende del largo de los valores,
 que el plan no conoce sin leerlos</strong>. Medido acá, entre 660.000 y
-960.000 pares por segundo con valores de cuarenta caracteres, y unos
-70.000 con valores de doscientos: con textos muy largos el tiempo real
+1.150.000 pares por segundo con valores de cuarenta caracteres, y unos
+80.000 con valores de doscientos: con textos muy largos el tiempo real
 es varias veces el que sugiere la referencia. Los números publicados no
 dependen de esos supuestos, así que quien no los comparta puede rehacer
 la cuenta.</p>

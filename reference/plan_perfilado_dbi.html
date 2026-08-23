@@ -132,9 +132,14 @@ motores con límites más estrictos.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Data frame de clase <code>plan_perfilado_dbi</code> con <code>clase_consulta</code>,
-<code>n_consultas</code> y <code>alcance</code>, y los atributos <code>total</code>, <code>columnas</code>,
-<code>columnas_numericas</code>, <code>dialecto</code>, <code>consultas_emitidas</code>, <code>metricas</code>,
-<code>filas</code> y <code>tamano_lote</code>.</p>
+<code>n_consultas</code> y <code>alcance</code>, y los atributos <code>total</code>,
+<code>total_lotes_rechazados</code>, <code>columnas</code>, <code>columnas_numericas</code>, <code>dialecto</code>,
+<code>consultas_emitidas</code>, <code>metricas</code>, <code>filas</code> y <code>tamano_lote</code>.</p>
+<p>El costo no se declara como un número sino como un rango: <code>total</code> es el
+extremo inferior, alcanzado si el motor no rechaza ningún lote, y
+<code>total_lotes_rechazados</code> el superior, alcanzado si los rechaza todos y cada
+columna se reintenta sola. El costo real cae entre los dos, y
+<code>attr(plan, "supuesto")</code> dice por qué se mueve en cada dirección.</p>
 <p>Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre
 mil. Por eso el plan estima además la magnitud, y la estima en sus dos

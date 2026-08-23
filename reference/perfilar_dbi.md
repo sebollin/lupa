@@ -105,6 +105,22 @@ su consulta, estado y motivo se conservan en `resumen_tabla$sql`. Las
 expresiones se ejecutan como capacidades a comprobar, no como un
 dialecto SQL universal.
 
+## Dos tablas se llaman cobertura
+
+El resultado trae dos, y cubren cosas distintas.
+`resumen_tabla$cobertura` habla de **métricas SQL**: qué pidió esta
+función al motor y qué pasó, con `bloque`, `elemento`, `estado`
+—`no_disponible`, `degradado`, `presupuesto_agotado`,
+`alcance_distinto`— y la consulta en `sql`.
+`perfil_muestra$cobertura_diagnosticos` habla de **diagnósticos**: qué
+comprobación no se corrió sobre la muestra y por qué, con `diagnostico`,
+`columna`, `motivo` y `como_resolverlo`, el mismo esquema que devuelve
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+Un motor que rechaza una columna aparece en la primera; una prueba
+estadística que no corresponde a esa columna, en la segunda. Comparten
+la palabra y no el vocabulario, así que conviene mirar cuál se está
+leyendo.
+
 ## Fallo parcial
 
 Ningún bloque descarta al otro. Si el motor rechaza la consulta de

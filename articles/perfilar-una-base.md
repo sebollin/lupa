@@ -126,7 +126,7 @@ en_memoria <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
 n_filas(en_memoria)
 #> [1] 13
 nrow(hallazgos(en_memoria))
-#> [1] 21
+#> [1] 23
 nrow(cobertura(en_memoria))
 #> [1] 2
 sql_perfil(en_memoria)   # NULL: un perfil en memoria no emitió SQL
@@ -169,7 +169,7 @@ data.frame(
 )
 #>           bloque filas_fuente campos_analiticos columnas_del_resultado
 #> 1  resumen_tabla           12                15                     16
-#> 2 perfil_muestra            5               104                    105
+#> 2 perfil_muestra            5               109                    110
 ```
 
 ## `resumen_tabla`: agregados sobre la tabla completa
@@ -193,20 +193,20 @@ perfil$resumen_tabla$columnas[, c(
 #> 4   fecha 12           0          12     NA     NA       NA
 ```
 
-`perfil_muestra$columnas` contiene los 105 campos del perfil, pero su
-universo son cinco filas en este ejemplo. Llamar *perfil* al resumen SQL
-afirmaría una completitud que no tiene: el resumen cubre quince de esos
-aspectos sobre doce filas; el perfil cubre sus 105 campos sobre las
-cinco filas obtenidas. Las consultas, estados y motivos de los agregados
-SQL quedan en `resumen_tabla$sql` para que también se vea qué aceptó o
-rechazó el motor.
+`perfil_muestra$columnas` trae 109 campos analíticos además del nombre
+de la columna, pero su universo son cinco filas en este ejemplo. Llamar
+*perfil* al resumen SQL afirmaría una completitud que no tiene: el
+resumen cubre quince de esos aspectos sobre doce filas; el perfil cubre
+sus 109 sobre las cinco filas obtenidas. Las consultas, estados y
+motivos de los agregados SQL quedan en `resumen_tabla$sql` para que
+también se vea qué aceptó o rechazó el motor.
 
 ## `perfil_muestra`: el perfil completo de la muestra
 
 El perfil completo se obtiene en memoria sobre las cinco filas
-seleccionadas. La salida muestra algunos de sus 105 campos para que se
-vean, junto con los conteos, los faltantes, los distintos y el tipo
-inferido.
+seleccionadas. La salida muestra algunos de sus 109 campos analíticos
+para que se vean, junto con los conteos, los faltantes, los distintos y
+el tipo inferido.
 
 ``` r
 
@@ -381,12 +381,15 @@ aproximado$resumen_tabla$meta$aproximaciones
 
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
 emite las sondas de capacidad y predice el total que costará la corrida.
-Es un **techo**, y lo declara en `attr(plan, "supuesto")`: se cuenta una
+Publica un **rango**, y lo declara en `attr(plan, "supuesto")`: `total`
+si no se rechaza ningún lote y `total_lotes_rechazados` si se rechazan
+todos; el costo real cae entre los dos. El extremo inferior cuenta una
 mediana y un desvío por columna numérica, y una columna sin un solo
-valor válido no los emite. Para decidir si una corrida es viable, un
-techo alcanza. La predicción incluye las sondas aunque una forma
-acertada aparezca antes que las demás, porque el costo declarado no
-puede depender del motor.
+valor válido no los emite; el superior suma los reintentos por columna
+cuando el motor rechaza un lote. Para decidir si una corrida es viable,
+saber entre qué y qué se mueve alcanza. La predicción incluye las sondas
+aunque una forma acertada aparezca antes que las demás, porque el costo
+declarado no puede depender del motor.
 
 Ahora bien, **cuántas consultas se emiten no dice cuánto cuestan**:
 catorce consultas sobre dos millones de filas son mucho más trabajo que
@@ -421,8 +424,8 @@ y cada ordenación completa como `log2(filas)` pasadas; un índice sobre
 la columna ordenada, o una tabla que entra en la memoria del motor, la
 bajan mucho. La del cliente cuenta pares: el conteo es exacto, pero
 **cuánto cuesta cada par depende del largo de los valores, que el plan
-no conoce sin leerlos**. Medido acá, entre 660.000 y 960.000 pares por
-segundo con valores de cuarenta caracteres, y unos 70.000 con valores de
+no conoce sin leerlos**. Medido acá, entre 660.000 y 1.150.000 pares por
+segundo con valores de cuarenta caracteres, y unos 80.000 con valores de
 doscientos: con textos muy largos el tiempo real es varias veces el que
 sugiere la referencia. Los números publicados no dependen de esos
 supuestos, así que quien no los comparta puede rehacer la cuenta.

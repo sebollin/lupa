@@ -241,8 +241,8 @@ table(as.character(plano$hallazgos$tipo_hallazgo))
 #> 
 #>            alta_cardinalidad  casi_duplicados_vocabulario                    faltantes 
 #>                            1                            1                            2 
-#>    mayusculas_inconsistentes posible_ausencia_estructural 
-#>                            1                            2
+#>    mayusculas_inconsistentes posible_ausencia_estructural        posible_identificador 
+#>                            1                            2                            2
 ```
 
 Por grupo, cada atributo se perfila contra su propio dominio. Las
@@ -262,7 +262,7 @@ table(as.character(por_grupo$tipo_hallazgo))
 #> casi_duplicados_vocabulario       dato_personal_posible   mayusculas_inconsistentes 
 #>                           2                           1                           1 
 #>       posible_identificador 
-#>                           3
+#>                           4
 ```
 
 El argumento `clave` no es cosmético. Sin la columna de identidad, cada
