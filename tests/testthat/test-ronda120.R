@@ -131,6 +131,11 @@ test_that("dentro de un grupo se separa la escritura de la errata", {
   # un humano normalizo a mano, las variantes de escritura estan MAS lejos
   # (2,29) que las erratas (1,56)-. Lo que si los separa es si colapsan al
   # quitar caja, acentos y puntuacion.
+  # La errata `Mayp` entra al grupo por distancia de edicion, que la calcula
+  # `stringdist`. Sin ese paquete el grupo se forma igual pero solo con las
+  # variantes de escritura, y el caso que esta prueba mide -separar una errata
+  # de una variante- no existe.
+  skip_if_not_installed("stringdist")
   columna <- c(
     rep("San Jose de Mayo", 40L),
     rep("SAN JOSE DE MAYO", 12L),

@@ -14,24 +14,37 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **Estado de la matriz sobre `031fa59`:** las matrices anteriores no valen.
-> Cada una se hizo sobre fuentes distintas, y desde `394c767` hasta aca se
-> cambiaron `R/`, `tests/`, `man/`, las vinietas y los README. Se rehace entera
-> cada vez.
+> **Estado de la matriz sobre `92e9945`:** las anteriores no valen. Cada una se
+> hizo sobre fuentes distintas y se rehace entera cada vez.
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-23d/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-23d/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-23d/sin-incoming/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| WARN 0 \| SKIP 169 \| PASS 14700 ]` | `../verificacion/2026-08-23d/r41/lupa.Rcheck/00check.log` |
-> | suite completa | **15.781 comprobaciones, 0 fallos, 0 avisos** | `devtools::test()` |
+> | local, R 4.6.1, `--as-cran` | PENDIENTE | `../verificacion/2026-08-23f/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | PENDIENTE | `../verificacion/2026-08-23f/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | PENDIENTE | `../verificacion/2026-08-23f/sin-incoming/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | PENDIENTE | `../verificacion/2026-08-23f/r41/lupa.Rcheck/00check.log` |
+> | suite completa | PENDIENTE | `devtools::test()` |
 > | GitHub Actions (5 plataformas) | PENDIENTE | log de la corrida |
 > | R-hub v2 R-devel (3 plataformas) | PENDIENTE | log de la corrida |
 > | win-builder release y devel | PENDIENTE | log de cada corrida, y el `Packaged:` del binario |
 >
-> En la corrida local, `checking tests` tarda 482 s, `checking examples` 11 s y
-> la reconstruccion de las vinietas 11 s, las tres **OK**.
+> **Dos WARNINGs que la suite no podia ver.** La matriz anterior, sobre
+> `9956c6c`, dio `2 WARNINGs` donde la de `031fa59` habia dado `1 NOTE`. Los dos
+> los introdujo esa misma tanda y ninguno aparecia con 15.887 comprobaciones en
+> verde:
+>
+> - **`non-ASCII characters in R code`**: un mensaje nuevo tenia la palabra
+>   "espanol" escrita con enie dentro de una cadena. Los acentos de los
+>   comentarios estan permitidos -y hay archivos con 76 lineas asi que nunca
+>   dispararon nada-; el que cuenta es el de codigo. Comprobar esa diferencia
+>   antes de tocar evito "limpiar" medio paquete sin motivo.
+> - **`'::' import not declared from 'withr'`**: una prueba usaba
+>   `withr::local_tempfile()` y `withr` no esta en `Suggests`. Se reemplazo por
+>   `tempfile()` con su `on.exit(unlink())`.
+>
+> Es la razon por la que la matriz se rehace entera y no se confia en la suite:
+> **`R CMD check` ve clases de defecto que ninguna comprobacion de la suite
+> alcanza.**
 >
 > **El `WARN 1` que traia la fila del contenedor ya no esta.** Venia de una
 > prueba que se tragaba el fallo de `Sys.setlocale` con un `try` y, en una
