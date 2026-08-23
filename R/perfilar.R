@@ -30,6 +30,22 @@
 #' `proporcion_tipo_inferido`; no debe interpretarse esa proporción como si
 #' hubiera usado necesariamente toda la columna.
 #'
+#' En una columna temporal, `minimo`, `maximo`, `media` y `mediana` quedan en
+#' `NA` y su valor viaja en `minimo_fecha`, `maximo_fecha`, `media_fecha` y
+#' `mediana_fecha`, que son texto legible. `desvio` es la excepción y conviene
+#' saberlo: no es un momento sino una duración, así que se informa como número,
+#' y ese número está **en segundos** tanto para `"fecha"` como para
+#' `"fecha-hora"`, porque las dos clases se unifican en esa unidad antes de
+#' resumirlas. Un desvío de `136610.4` sobre una columna de fechas son 1,6 días.
+#'
+#' Ese detalle importa al comparar las dos puertas. [perfilar_dbi()] no clasifica
+#' tipos: informa el que declara el motor, y un motor que no preserva `DATE` ni
+#' `BOOLEAN` —SQLite guarda ambos como número— hace que esas columnas se midan
+#' como números. La misma columna de fechas da entonces `desvio` en días por la
+#' puerta DBI y en segundos por ésta, y su `moda` sale como el entero crudo del
+#' motor en vez de la fecha formateada. No es una discrepancia de cálculo: cada
+#' puerta describe lo que tiene delante, y lo que tiene delante es distinto.
+#'
 #' Una columna cuyo año se expresa con dos dígitos se informa con su
 #' `tipo_inferido` —`"fecha"` o `"fecha-hora"`— pero deja `minimo_fecha`,
 #' `maximo_fecha`, `media_fecha` y `mediana_fecha` en `NA`. No es una omisión:

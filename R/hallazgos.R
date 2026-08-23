@@ -3544,9 +3544,17 @@
       } else {
         agregar(.nuevo_hallazgo(
           nombre, "outliers", "sospechoso",
-          "Se detectaron valores fuera de los l\u00edmites de Tukey (1,5 x IQR).",
+          paste(
+            "Hay valores muy alejados del grueso de la columna: quedan fuera de",
+            "la horquilla que va del primer al tercer cuartil ampliada una vez y",
+            "media a cada lado (el criterio de Tukey, 1,5 x IQR)."
+          ),
           paste(fila$n_outliers, "valores"),
-          "Examinar los valores extremos antes de decidir si son errores."
+          paste(
+            "Mirar esos valores: un centinela como 9999 o una fecha de 1900",
+            "aparecen asi, y tambien un dato real poco frecuente. Estar lejos",
+            "no los vuelve errores."
+          )
         ))
       }
     }

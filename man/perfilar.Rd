@@ -426,6 +426,22 @@ En cada fila de \code{columnas}, \code{n_filas_analizadas_tipo} y
 \code{proporcion_tipo_inferido}; no debe interpretarse esa proporción como si
 hubiera usado necesariamente toda la columna.
 
+En una columna temporal, \code{minimo}, \code{maximo}, \code{media} y \code{mediana} quedan en
+\code{NA} y su valor viaja en \code{minimo_fecha}, \code{maximo_fecha}, \code{media_fecha} y
+\code{mediana_fecha}, que son texto legible. \code{desvio} es la excepción y conviene
+saberlo: no es un momento sino una duración, así que se informa como número,
+y ese número está \strong{en segundos} tanto para \code{"fecha"} como para
+\code{"fecha-hora"}, porque las dos clases se unifican en esa unidad antes de
+resumirlas. Un desvío de \code{136610.4} sobre una columna de fechas son 1,6 días.
+
+Ese detalle importa al comparar las dos puertas. \code{\link[=perfilar_dbi]{perfilar_dbi()}} no clasifica
+tipos: informa el que declara el motor, y un motor que no preserva \code{DATE} ni
+\code{BOOLEAN} —SQLite guarda ambos como número— hace que esas columnas se midan
+como números. La misma columna de fechas da entonces \code{desvio} en días por la
+puerta DBI y en segundos por ésta, y su \code{moda} sale como el entero crudo del
+motor en vez de la fecha formateada. No es una discrepancia de cálculo: cada
+puerta describe lo que tiene delante, y lo que tiene delante es distinto.
+
 Una columna cuyo año se expresa con dos dígitos se informa con su
 \code{tipo_inferido} —\code{"fecha"} o \code{"fecha-hora"}— pero deja \code{minimo_fecha},
 \code{maximo_fecha}, \code{media_fecha} y \code{mediana_fecha} en \code{NA}. No es una omisión:

@@ -85,16 +85,6 @@ test_that("las ramas de conversion y referenciales declaran su alcance", {
     lupa:::.texto_representacion_conversion(ahora),
     "UTC"
   )
-  desalineado <- lupa:::.comparar_representacion_conversion(
-    c("a", "b"), "a"
-  )
-  expect_false(desalineado$reversible)
-  expect_equal(desalineado$n_no_reversibles, 2L)
-  igual <- lupa:::.comparar_representacion_conversion(
-    c("a", NA_character_), c("a", NA_character_)
-  )
-  expect_true(igual$reversible)
-
   config <- lupa:::.validar_config_referencial(list())
   expect_error(lupa:::.validar_config_referencial(list(extra = TRUE)), "no aceptan")
   expect_error(lupa:::.validar_config_referencial(list(normalizar = 1)), "perfil valido")
@@ -173,7 +163,6 @@ test_that("las ramas de claves y utilidades conservan declaraciones vacias", {
   expect_true(is.na(lupa:::.texto_valor(integer())))
   expect_identical(lupa:::.normalizar_columnas_texto(1:2), 1:2)
   expect_identical(lupa:::.normalizar_columnas_texto(data.frame(x = 1:2)), data.frame(x = 1:2))
-  expect_equal(nrow(lupa:::.data_frame_vacio()), 0L)
 })
 
 test_that("los decodificadores declaran entradas imposibles y no reparables", {

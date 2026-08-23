@@ -58,15 +58,42 @@ test_that("los meses escritos no dependen de LC_TIME", {
   on.exit(Sys.setlocale("LC_TIME", anterior), add = TRUE)
   expect_equal(Sys.setlocale("LC_TIME", "C"), "C")
   base <- detectar_formatos_fecha(valores)
-  locales <- c("C", "es_UY.UTF-8", "en_US.UTF-8")
-  resultados <- lapply(locales, function(locale) {
-    try(Sys.setlocale("LC_TIME", locale), silent = TRUE)
-    detectar_formatos_fecha(valores)
-  })
-  for (resultado in resultados) {
+
+  # El `try()` que habia aca se tragaba el fallo de `Sys.setlocale`, y entonces
+  # en una maquina sin esos locales -una imagen minima de contenedor no los
+  # genera- el locale no cambiaba y el test comparaba el resultado contra si
+  # mismo: pasaba sin haber probado su propia afirmacion. Ademas dejaba el aviso
+  # "OS reports request to set locale cannot be honored" en el resumen de la
+  # suite, que es la unica pista que quedaba de que no habia medido nada.
+  #
+  # Ahora se comprueba que el locale quedo puesto, y si ninguno de los dos se
+  # puede poner, el test se saltea diciendo por que en vez de dar por bueno un
+  # PASS vacio.
+  fijar_locale <- function(locale) {
+    puesto <- suppressWarnings(
+      tryCatch(Sys.setlocale("LC_TIME", locale), error = function(e) "")
+    )
+    identical(puesto, locale)
+  }
+  locales <- c("es_UY.UTF-8", "en_US.UTF-8")
+  efectivos <- Filter(fijar_locale, locales)
+  skip_if(
+    !length(efectivos),
+    paste(
+      "Ninguno de los locales", paste(locales, collapse = " ni "),
+      "esta generado en esta maquina: sin cambiar LC_TIME el test no puede",
+      "probar que el resultado no depende de LC_TIME."
+    )
+  )
+
+  for (locale in efectivos) {
+    expect_true(fijar_locale(locale))
+    resultado <- detectar_formatos_fecha(valores)
     expect_equal(resultado[, c("formato", "n", "estado", "anio_dos_digitos")],
-                 base[, c("formato", "n", "estado", "anio_dos_digitos")])
-    expect_equal(attr(resultado, "compatibles"), attr(base, "compatibles"))
+                 base[, c("formato", "n", "estado", "anio_dos_digitos")],
+                 info = locale)
+    expect_equal(attr(resultado, "compatibles"), attr(base, "compatibles"),
+                 info = locale)
   }
 })
 

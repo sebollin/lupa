@@ -14,18 +14,35 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **Estado de la matriz sobre `394c767`:**
+> **Estado de la matriz sobre `b08b180`:** la matriz anterior, sobre `394c767`,
+> **no vale**: ese commit cambia `R/`, `tests/`, `man/` y las vinietas, asi que
+> las fuentes son otras. Se rehace entera.
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-22g/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-22g/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-22g/sin-incoming/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| PASS 14660 ]` | `../verificacion/2026-08-22g/r41/lupa.Rcheck/00check.log` |
-> | suite completa | **15.696 comprobaciones, 0 fallos** | `test_dir()` |
-> | GitHub Actions (5 plataformas) | PENDIENTE_ACTIONS | log de la corrida |
-> | R-hub v2 R-devel (3 plataformas) | PENDIENTE_RHUB | log de la corrida |
-> | win-builder release y devel | PENDIENTE_WB | log de cada corrida, y el `Packaged:` del binario |
+> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-23/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-23/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-23/sin-incoming/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| WARN 1 \| SKIP 173 \| PASS 14737 ]` | `../verificacion/2026-08-23/r41/lupa.Rcheck/00check.log` |
+> | suite completa | **15.759 comprobaciones, 0 fallos** | `devtools::test()` |
+> | GitHub Actions (5 plataformas) | PENDIENTE | log de la corrida |
+> | R-hub v2 R-devel (3 plataformas) | PENDIENTE | log de la corrida |
+> | win-builder release y devel | PENDIENTE | log de cada corrida, y el `Packaged:` del binario |
+>
+> **El `WARN 1` de la fila del contenedor no es nuevo y la carta anterior no lo
+> decia.** Estaba igual en la corrida del 2026-08-22 -`[ FAIL 0 | WARN 1 | SKIP
+> 165 | PASS 14660 ]`- y se transcribio como `[ FAIL 0 | PASS 14660 ]`. Copiar
+> la mitad buena de un resumen es la misma falta que el paquete persigue en los
+> demas. Las dos NOTEs son del entorno: siete paquetes de `Suggests` que no estan
+> en la imagen, y una cadena UTF-8 en los datos.
+>
+> **Un fallo intermitente que no es del paquete.** Una corrida de la suite dio
+> un error en `test-ronda90.R` dentro de un `data.frame()` de constantes que no
+> depende de los datos de entrada; el archivo pasa entero corrido aparte y la
+> corrida siguiente dio cero fallos. Es el estado corrupto que deja
+> `pkgload::load_all()` de vez en cuando, y por eso la fila de la suite sale de
+> una corrida completa y no de la primera que se mire. `R CMD check`, que corre
+> los tests contra el paquete instalado, da `checking tests ... OK`.
 >
 > **El minimo declarado se midio antes de declararlo**, que es justamente lo que
 > no se habia hecho con `R (>= 3.6.0)`: ahi la carta afirmaba que la suite no

@@ -344,10 +344,6 @@
   .ordenar_pares_con_igualdad(pares, iguales)
 }
 
-.pares_acumulador_duplicados <- function(acumulador) {
-  .pares_acumulador_con_igualdad(acumulador)$pares
-}
-
 #' Acumula un lote de pares candidatos ya filtrados
 #'
 #' El contrato del generador es entregar cada par una sola vez. El acumulador
@@ -1373,17 +1369,6 @@
   }
   list(valores = filas, presentes = presentes,
        normalizacion = normalizacion_resuelta, fusiones = fusiones)
-}
-
-.evidencia_fila_aproximada <- function(datos, columnas, fila, protegidas) {
-  valores <- vapply(columnas, function(columna) {
-    if (columna %in% protegidas) return("[valor protegido]")
-    valor <- suppressWarnings(
-      as.character(.texto_analizable(datos[[columna]][[fila]])$valores)
-    )
-    if (!length(valor) || is.na(valor)) "[ausente]" else valor
-  }, character(1L))
-  paste0(columnas, "=", valores, collapse = "; ")
 }
 
 # Un par puede quedar clasificado como `exacto` porque los textos coinciden

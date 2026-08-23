@@ -181,6 +181,14 @@ estadísticos contra R, el plan contra las consultas realmente emitidas, el
 nombre calificado con esquema por texto y por `DBI::Id`, y una colección de dos
 tablas.
 
+Lo que ese script comprueba es el **comportamiento**, y se puede rehacer contra
+cualquier conexión. Los **cronometrajes** de esas corridas —los segundos y las
+lecturas de fila que aparecen en las notas de versión— no se rehacen desde el
+repositorio: necesitan la infraestructura de la corrida, hasta dos millones de
+filas por cuarenta columnas sobre un motor levantado para la ocasión. Están
+publicados como lo que son, referencias de una corrida puntual, y ningún
+resultado del paquete depende de ellos.
+
 **Esperado** significa que el dialecto está construido y probado contra un motor
 simulado que reproduce esa restricción, no que se haya corrido contra el motor
 real. La diferencia importa y por eso está escrita: los defectos que esta versión

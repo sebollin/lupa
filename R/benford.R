@@ -219,9 +219,12 @@
     .nuevo_hallazgo(
       resultado$columna, "desviacion_benford", "sospechoso",
       paste0(
-        "La distribucion de primeros digitos se aparta de la esperada por la ",
-        "ley de Benford. Es una senal descriptiva para revisar, no evidencia ",
-        "de fraude ni de manipulacion."
+        "En muchas magnitudes que crecen por acumulacion -importes, poblaciones, ",
+        "areas- el primer digito no aparece con la misma frecuencia: el 1 encabeza ",
+        "cerca del 30 % de los valores y el 9 menos del 5 %. En esta columna los ",
+        "primeros digitos no siguen ese reparto. Es una senal descriptiva para ",
+        "revisar, no evidencia de fraude ni de manipulacion: un tope ",
+        "administrativo o un monto fijo la producen igual."
       ),
       paste0(
         resultado$metodo, ": X2=", sprintf("%.3f", resultado$estadistico),

@@ -176,6 +176,13 @@ probe, no unavailable metric in the five modes, the three statistics against R,
 the plan against the queries actually emitted, schema-qualified names by text and
 by `DBI::Id`, and a two-table collection.
 
+What that script checks is **behaviour**, and it can be redone against any
+connection. The **timings** of those runs — the seconds and row reads that appear
+in the release notes — cannot be redone from the repository: they need the
+infrastructure of the run, up to two million rows by forty columns on an engine
+brought up for the occasion. They are published as what they are, references from
+a one-off run, and no result of the package depends on them.
+
 **Expected** means the dialect is built and tested against a simulated engine that
 reproduces the restriction, not that it has been run against the real engine. The
 distinction matters, which is why it is written down: the defects this version

@@ -263,9 +263,6 @@ test_that("bloquear_por valida columnas atomicas y filtra candidatos", {
     bloqueos = c(1L, 2L)
   )
   expect_equal(nrow(comparado$pares), 0L)
-  vacio <- lupa:::.nuevo_acumulador_duplicados(Inf)
-  vacio$lotes <- list(vacio$pares)
-  expect_equal(lupa:::.pares_acumulador_duplicados(vacio), vacio$pares)
 })
 
 test_that("LSH mide y compara bloques declarados", {
@@ -669,9 +666,6 @@ test_that("las primitivas LSH cubren casos vacios, cortos y con padding", {
                c(2L, 2L))
   expect_equal(dim(lupa:::.firmas_minhash_lsh(matrix(0L, 2L, 2L), 0L)),
                c(2L, 0L))
-  expect_equal(lupa:::.pares_acumulador_duplicados(
-    lupa:::.nuevo_acumulador_duplicados(Inf)
-  ), data.frame(fila_1 = integer(), fila_2 = integer(), distancia = numeric()))
   expect_equal(lupa:::.jaccard_qgramas(character(), character()), 1)
   expect_equal(lupa:::.jaccard_qgramas(c("ab"), c("bc")), 0)
 })
@@ -1035,12 +1029,6 @@ test_that("valida entradas y tipos no comparables", {
   expect_identical(
     lupa:::.proteger_duplicados_aproximados(vacio, character()), vacio
   )
-  expect_equal(
-    lupa:::.evidencia_fila_aproximada(
-      data.frame(a = NA_character_), "a", 1L, character()
-    ),
-    "a=[ausente]"
-  )
   expect_error(detectar_duplicados_aproximados(1:3), "data.frame")
   datos <- data.frame(a = c("x", "y"), b = 1:2)
   expect_error(detectar_duplicados_aproximados(datos, columnas = "no"),
@@ -1109,11 +1097,23 @@ test_that("la evidencia vectorizada conserva la salida escalar", {
     stringsAsFactors = FALSE
   )
   filas <- c(1L, 2L, 3L)
+  # El oraculo vive aca y no en `R/`: era una funcion del paquete que solo esta
+  # prueba llamaba, asi que viajaba en cada instalacion sin que nada la usara.
+  # Como referencia contra la que medir la version vectorizada sigue sirviendo;
+  # como codigo del paquete, no.
+  evidencia_escalar <- function(datos, columnas, fila, protegidas) {
+    valores <- vapply(columnas, function(columna) {
+      if (columna %in% protegidas) return("[valor protegido]")
+      valor <- suppressWarnings(
+        as.character(lupa:::.texto_analizable(datos[[columna]][[fila]])$valores)
+      )
+      if (!length(valor) || is.na(valor)) "[ausente]" else valor
+    }, character(1L))
+    paste0(columnas, "=", valores, collapse = "; ")
+  }
   escalar <- vapply(
     filas,
-    function(i) lupa:::.evidencia_fila_aproximada(
-      datos, names(datos), i, character()
-    ),
+    function(i) evidencia_escalar(datos, names(datos), i, character()),
     character(1L)
   )
   expect_identical(

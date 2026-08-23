@@ -316,10 +316,6 @@
   )
 }
 
-.data_frame_vacio <- function() {
-  data.frame(stringsAsFactors = FALSE)
-}
-
 .pegar_nombres <- function(x) {
   paste(x, collapse = " + ")
 }

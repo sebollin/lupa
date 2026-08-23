@@ -2776,11 +2776,19 @@
   "texto. El conteo de pares es exacto; lo que el plan no puede saber sin",
   "leer los valores es cu\u00e1nto cuesta cada uno, que depende de su largo,",
   "as\u00ed que con valores muy largos el tiempo real es varias veces el que",
-  "sugiere la referencia. Referencias medidas: unos cinco millones de lecturas",
-  "de fila por segundo sobre PostgreSQL 16 local (2.000.000 de filas por 40",
-  "columnas en modo seguro: 14 consultas, 5,3 segundos); y de 660.000 a",
-  "960.000 pares por segundo sobre valores de cuarenta caracteres, que bajan a",
-  "unos 70.000 sobre valores de doscientos."
+  "sugiere la referencia. Referencias: unos cinco millones de lecturas de fila",
+  "por segundo sobre PostgreSQL 16 local (2.000.000 de filas por 40 columnas en",
+  "modo seguro: 14 consultas, 5,3 segundos). Ese cociente est\u00e1 en las",
+  "unidades que cuenta este plan, no en filas que el motor haya le\u00eddo: la",
+  "cuenta supone que ning\u00fan \u00edndice ayuda y cobra el desv\u00edo como",
+  "dos pasadas, aunque un motor con desv\u00edo nativo lo resuelva en una. Sirve",
+  "para convertir `filas_leidas` en segundos, que es para lo que est\u00e1, y no",
+  "como medida de lo que el motor lee. Y de 660.000 a 1.150.000 pares por",
+  "segundo sobre valores de cuarenta caracteres -la banda cubre dos m\u00e1quinas",
+  "distintas-, que bajan a unos 80.000 sobre valores de doscientos. Esa tasa",
+  "cuenta los pares que se comparan de verdad: con valores largos el detector",
+  "recorta por `max_trabajo`, y dividir por los pares que el plan contar\u00eda",
+  "inflaba la cifra cuatro veces."
 )
 
 
@@ -3830,6 +3838,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' consulta, estado y motivo se conservan en `resumen_tabla$sql`.
 #' Las expresiones se ejecutan como capacidades a comprobar, no como un
 #' dialecto SQL universal.
+#'
+#' @section Dos tablas se llaman cobertura:
+#' El resultado trae dos, y cubren cosas distintas. `resumen_tabla$cobertura`
+#' habla de **métricas SQL**: qué pidió esta función al motor y qué pasó, con
+#' `bloque`, `elemento`, `estado` —`no_disponible`, `degradado`,
+#' `presupuesto_agotado`, `alcance_distinto`— y la consulta en `sql`.
+#' `perfil_muestra$cobertura_diagnosticos` habla de **diagnósticos**: qué
+#' comprobación no se corrió sobre la muestra y por qué, con `diagnostico`,
+#' `columna`, `motivo` y `como_resolverlo`, el mismo esquema que devuelve
+#' [perfilar()]. Un motor que rechaza una columna aparece en la primera; una
+#' prueba estadística que no corresponde a esa columna, en la segunda. Comparten
+#' la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.
 #'
 #' @section Fallo parcial:
 #' Ningún bloque descarta al otro. Si el motor rechaza la consulta de muestra,

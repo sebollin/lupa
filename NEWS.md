@@ -45,6 +45,68 @@ filas de cuantas trae la muestra- y que hacer si el usuario no esta de acuerdo.
 Los pares de orden descartados quedan nombrados en
 `meta$orden_columnas$pares_identificador_descartados`.
 
+## Lo que dijeron las cinco auditorias externas
+
+Cinco revisiones independientes -coherencia entre las dos puertas, prueba de las
+afirmaciones publicadas, barrido de codigo, bancos y redaccion- dejaron sus
+informes. Lo que sigue es lo que quedaba abierto de ellas.
+
+- **La tasa de referencia no era una tasa del motor.** `supuesto_costo` decia
+  "unos cinco millones de lecturas de fila por segundo sobre PostgreSQL 16", y
+  ese cociente esta en las unidades que cuenta el plan, no en filas que el motor
+  haya leido: la cuenta supone que ningun indice ayuda y cobra el desvio como
+  dos pasadas aunque un motor con desvio nativo lo resuelva en una. El numero
+  sirve para lo que existe -convertir `filas_leidas` en segundos- y ahora lo
+  dice. Se midio: 26.001.000 lecturas en las unidades del plan sobre 5,3
+  segundos.
+
+- **La tasa de pares se remidio con el banco.** Da de 660.000 a 1.150.000 pares
+  por segundo con valores de cuarenta caracteres -la banda cubre dos maquinas- y
+  unos 80.000 con valores de doscientos, contando los pares que se comparan de
+  verdad. Con doscientos caracteres el detector recorta por `max_trabajo` a
+  1.005 formas de 2.000, asi que dividir por los pares que el plan contaria
+  inflaba la cifra cuatro veces.
+
+- **Las dos puertas describen tipos distintos, y ahora se declara.**
+  `perfilar_dbi()` informa el tipo que declara el motor, y un motor que no
+  preserva `DATE` ni `BOOLEAN` hace que esas columnas se midan como numeros: la
+  misma columna de fechas da el desvio en dias por una puerta y en segundos por
+  la otra, y la moda como entero crudo en vez de fecha formateada. Cada puerta
+  describe lo que tiene delante; lo que faltaba era decirlo.
+
+- **El desvio de una columna temporal esta en segundos** y no lo decia ninguna
+  parte. Los demas momentos viajan formateados en `minimo_fecha`, `media_fecha`
+  y compania; el desvio no es un momento sino una duracion, queda como numero, y
+  un `136610.4` sobre fechas son 1,6 dias.
+
+- **Cuatro funciones internas que solo llamaba la suite** se sacaron del
+  paquete. Viajaban en cada instalacion sin que nada las usara, y sus pruebas
+  daban la impresion de que estaban vivas. La unica que servia de algo -una
+  version escalar contra la que medir la vectorizada- sigue existiendo como
+  oraculo dentro de su propia prueba.
+
+- **Dos etiquetas exigian saber estadistica para poder descartarlas.** Un
+  hallazgo que hay que traducir antes de juzgarlo cuesta mas que uno que se
+  entiende: quien no sabe que es Benford no lo puede descartar con criterio, o
+  le cree. Ahora `desviacion_benford` explica que en muchas magnitudes el 1
+  encabeza cerca del 30 % de los valores y el 9 menos del 5 %, y `outliers` dice
+  que hay valores muy alejados del grueso de la columna antes de nombrar a Tukey.
+
+## Una prueba que pasaba sin probar nada
+
+`test-formatos-adicionales.R` verifica que los meses escritos se detecten igual
+en cualquier `LC_TIME`. Recorria tres locales con `try(Sys.setlocale(...))` y
+comparaba contra la base medida en `C`. En una maquina donde esos locales no
+estan generados -una imagen minima de contenedor no los trae- la llamada falla,
+el `try` se traga el fallo, el locale nunca cambia y el test compara el
+resultado contra si mismo.
+
+Pasaba. Y la unica senal de que no habia medido nada era un aviso suelto en el
+resumen de la suite: "OS reports request to set locale cannot be honored".
+
+Ahora comprueba que el locale quedo puesto, y si ninguno se puede poner se
+saltea declarando el motivo en vez de contar un exito vacio.
+
 ## El plan de consultas dice rango en todas partes
 
 `attr(plan, "supuesto")` ya declaraba un rango, pero el metodo de impresion, el
