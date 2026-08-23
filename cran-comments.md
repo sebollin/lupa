@@ -14,25 +14,31 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **Estado de la matriz sobre `c9353d6`:** las matrices anteriores no valen.
+> **Estado de la matriz sobre `031fa59`:** las matrices anteriores no valen.
 > Cada una se hizo sobre fuentes distintas, y desde `394c767` hasta aca se
 > cambiaron `R/`, `tests/`, `man/`, las vinietas y los README. Se rehace entera
 > cada vez.
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | PENDIENTE | `../verificacion/2026-08-23c/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | PENDIENTE | `../verificacion/2026-08-23c/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | PENDIENTE | `../verificacion/2026-08-23c/sin-incoming/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | PENDIENTE | `../verificacion/2026-08-23c/r41/lupa.Rcheck/00check.log` |
+> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-23d/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-23d/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-23d/sin-incoming/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| WARN 0 \| SKIP 169 \| PASS 14700 ]` | `../verificacion/2026-08-23d/r41/lupa.Rcheck/00check.log` |
 > | suite completa | **15.781 comprobaciones, 0 fallos, 0 avisos** | `devtools::test()` |
 > | GitHub Actions (5 plataformas) | PENDIENTE | log de la corrida |
 > | R-hub v2 R-devel (3 plataformas) | PENDIENTE | log de la corrida |
 > | win-builder release y devel | PENDIENTE | log de cada corrida, y el `Packaged:` del binario |
 >
-> **Sobre `5749259`, el commit anterior, la matriz local dio** `1 NOTE`,
-> `1 NOTE`, `OK` y `2 NOTEs` del entorno con `[ FAIL 0 | WARN 0 | SKIP 169 |
-> PASS 14693 ]` en el contenedor. Se rehace igual porque `c9353d6` toca `R/`.
+> En la corrida local, `checking tests` tarda 482 s, `checking examples` 11 s y
+> la reconstruccion de las vinietas 11 s, las tres **OK**.
+>
+> **El `WARN 1` que traia la fila del contenedor ya no esta.** Venia de una
+> prueba que se tragaba el fallo de `Sys.setlocale` con un `try` y, en una
+> imagen sin esos locales generados, comparaba el resultado contra si mismo:
+> pasaba sin probar su propia afirmacion. Ahora comprueba que el locale quedo
+> puesto y, si no se puede poner, se saltea diciendo por que. De ahi que los
+> `SKIP` pasen de 165 a 169.
 >
 > **El `WARN 1` de la fila del contenedor no es nuevo y la carta anterior no lo
 > decia.** Estaba igual en la corrida del 2026-08-22 -`[ FAIL 0 | WARN 1 | SKIP
