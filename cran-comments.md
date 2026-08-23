@@ -14,19 +14,28 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **Estado de la matriz sobre `92e9945`:** las anteriores no valen. Cada una se
+> **Estado de la matriz sobre `016394c`:** las anteriores no valen. Cada una se
 > hizo sobre fuentes distintas y se rehace entera cada vez.
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | PENDIENTE | `../verificacion/2026-08-23f/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | PENDIENTE | `../verificacion/2026-08-23f/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | PENDIENTE | `../verificacion/2026-08-23f/sin-incoming/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | PENDIENTE | `../verificacion/2026-08-23f/r41/lupa.Rcheck/00check.log` |
-> | suite completa | PENDIENTE | `devtools::test()` |
+> | local, R 4.6.1, `--as-cran` | PENDIENTE | `../verificacion/2026-08-23h/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | PENDIENTE | `../verificacion/2026-08-23h/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | PENDIENTE | `../verificacion/2026-08-23h/sin-incoming/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | PENDIENTE | `../verificacion/2026-08-23h/r41/lupa.Rcheck/00check.log` |
+> | suite completa | **15.904 comprobaciones, 0 fallos, 0 avisos** | `devtools::test()` |
 > | GitHub Actions (5 plataformas) | PENDIENTE | log de la corrida |
 > | R-hub v2 R-devel (3 plataformas) | PENDIENTE | log de la corrida |
 > | win-builder release y devel | PENDIENTE | log de cada corrida, y el `Packaged:` del binario |
+>
+> **Sobre `6dd768e`, el commit anterior, los tres entornos locales dieron**
+> `1 NOTE`, `1 NOTE` y `OK`. Se rehace igual porque `016394c` toca una vinieta.
+>
+> **La tabla de evidencia se remidio despues de la tanda.** Seis de los cambios
+> son guardas que deciden **callar** un diagnostico, y una guarda de mas se
+> lleva puesta una columna cubierta sin que ninguna prueba lo note. Contra los
+> pares dirty/clean: **26 de 26 columnas afectadas cubiertas** y ocho senaladas
+> de mas, que es exactamente lo que publican el README y `benchmark/README.md`.
 >
 > **Dos WARNINGs que la suite no podia ver.** La matriz anterior, sobre
 > `9956c6c`, dio `2 WARNINGs` donde la de `031fa59` habia dado `1 NOTE`. Los dos
