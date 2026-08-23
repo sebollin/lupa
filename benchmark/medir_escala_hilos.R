@@ -41,9 +41,13 @@ N_FILAS <- 100000L
 set.seed(20260823L)
 
 nombres <- c("ana", "juan", "maria", "jose", "luis", "carmen", "pedro", "rosa",
-             "carlos", "marta", "jorge", "silvia", "raul", "elena", "diego")
+             "carlos", "marta", "jorge", "silvia", "raul", "elena", "diego",
+             "laura", "martin", "sofia", "andres", "valeria", "gonzalo",
+             "natalia", "sebastian", "paula", "federico")
 apellidos <- c("perez", "gomez", "rodriguez", "fernandez", "lopez", "martinez",
-               "gonzalez", "sanchez", "romero", "suarez", "alvarez", "torres")
+               "gonzalez", "sanchez", "romero", "suarez", "alvarez", "torres",
+               "silva", "castro", "rios", "vega", "ferreira", "cabrera",
+               "acosta", "medina", "nunez", "pereira", "olivera", "machado")
 calles <- c("rivera", "artigas", "sarandi", "colonia", "mercedes", "canelones",
             "durazno", "maldonado", "soriano", "cerrito")
 
@@ -59,8 +63,13 @@ calles <- c("rivera", "artigas", "sarandi", "colonia", "mercedes", "canelones",
   )
 }
 
+# Dos apellidos, como en el padron real. Con un solo apellido las
+# combinaciones posibles son unos cientos y el detector -que trabaja sobre
+# formas distintas, no sobre filas- no tiene nada que comparar: la calibracion
+# con 10 nombres por 8 apellidos daba 80 formas para 100.000 filas.
 base_nombres <- paste(
   sample(nombres, N_FILAS, replace = TRUE),
+  sample(apellidos, N_FILAS, replace = TRUE),
   sample(apellidos, N_FILAS, replace = TRUE)
 )
 # Una de cada diez filas es una variante de otra: son los pares que hay que
@@ -88,20 +97,35 @@ cat("padron: ", nrow(padron), " filas, ",
 HILOS <- c(2L, 4L, 8L, 16L, max(2L, parallel::detectCores() - 1L))
 REPETICIONES <- 3L
 
+# El tope de resultados tiene que quedar por encima de los pares que aparecen.
+# Con `max_resultados = 1000` la calibracion devolvia exactamente 1.000 pares en
+# todas las configuraciones: la comprobacion de que los hilos no cambian el
+# resultado se cumplia sola, porque comparaba dos numeros saturados en el tope.
+MAX_RESULTADOS <- 50000L
+
 medir <- function(nucleos) {
   tiempos <- numeric(REPETICIONES)
   pares <- NA_integer_
   for (i in seq_len(REPETICIONES)) {
     reloj <- system.time(
       resultado <- lupa::detectar_duplicados_aproximados(
-        padron, umbral = 0.15, nucleos = nucleos, max_resultados = 1000L
+        padron, umbral = 0.15, nucleos = nucleos,
+        max_resultados = MAX_RESULTADOS
       )
     )
     tiempos[[i]] <- reloj[["elapsed"]]
-    pares <- nrow(resultado)
+    # El objeto es una lista con `$pares`; `nrow()` sobre el objeto entero
+    # devuelve NULL y la tabla salia con la columna vacia.
+    pares <- nrow(resultado$pares)
   }
+  # Se guardan LOS PARES, no cuantos son. Con el tope alcanzado, todas las
+  # configuraciones devuelven el mismo numero y comparar numeros no prueba
+  # nada: la comprobacion se cumpliria sola. Lo que hay que comparar es el
+  # contenido, que con tope o sin tope tiene que ser identico.
   list(mediana = stats::median(tiempos), pares = pares,
-       alcance = attr(resultado, "alcance"))
+       detalle = resultado$pares[order(resultado$pares$fila_1,
+                                       resultado$pares$fila_2), ],
+       alcance = resultado$alcance)
 }
 
 cat(sprintf("%6s %14s %14s %12s\n", "hilos", "mediana (s)", "relativo a 2", "pares"))
@@ -121,8 +145,22 @@ for (nucleos in HILOS) {
 pares <- vapply(resultados, function(x) x$pares, integer(1L))
 cat("\npares informados por configuracion: ",
     paste(pares, collapse = ", "), "\n", sep = "")
+if (any(pares >= MAX_RESULTADOS)) {
+  cat("Los pares llegan al tope de ", MAX_RESULTADOS,
+      ": por eso la comprobacion compara el contenido y no la cantidad.\n",
+      sep = "")
+}
+referencia <- resultados[[1L]]$detalle
+iguales <- vapply(resultados, function(x) {
+  isTRUE(all.equal(x$detalle, referencia, check.attributes = FALSE))
+}, logical(1L))
 cat("el resultado no depende de los hilos: ",
-    if (length(unique(pares)) == 1L) "SI" else "NO", "\n", sep = "")
+    if (all(iguales)) "SI" else "NO", " (comparando los ", nrow(referencia),
+    " pares uno por uno, no su cantidad)\n", sep = "")
+if (!all(iguales)) {
+  cat("  difieren en: ", paste(names(iguales)[!iguales], collapse = ", "),
+      " hilos\n", sep = "")
+}
 
 mejor <- names(resultados)[[which.min(vapply(resultados, function(x) x$mediana,
                                              numeric(1L)))]]

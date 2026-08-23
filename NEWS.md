@@ -45,6 +45,32 @@ filas de cuantas trae la muestra- y que hacer si el usuario no esta de acuerdo.
 Los pares de orden descartados quedan nombrados en
 `meta$orden_columnas$pares_identificador_descartados`.
 
+## La ganancia por hilos no era una propiedad del paquete
+
+La vinieta de escala publicaba una tabla -133,28 s con dos hilos, 70,31 con
+dieciseis- medida sobre un padron que no se distribuye, asi que nadie podia
+rehacerla. Ahora `benchmark/medir_escala_hilos.R` genera un padron sintetico y
+mide la misma curva, y **no da lo mismo**: sobre 100.000 filas con 23.800
+nombres distintos, de dos a dieciseis hilos se gana un 12 %, no la mitad del
+reloj.
+
+La explicacion es que los hilos los usa `stringdist` al comparar, y generar los
+candidatos y armar los grupos no los usa. Segun cuanto pese cada parte en un
+conjunto concreto, la ganancia va del 90 % al 12 %. La vinieta publica las dos
+tablas y dice que quien vaya a subir el valor conviene que mida su caso.
+
+Lo que si vale en las dos: pasados dieciseis hilos no hay ganancia medible, y el
+resultado no cambia. **Y esto ultimo recien ahora esta comprobado de verdad.**
+El banco comparaba cuantos pares devolvia cada configuracion, y como el tope de
+resultados se alcanza en todas, el numero era siempre el mismo: la comprobacion
+se cumplia sola. Ahora compara los 50.000 pares uno por uno.
+
+Otros dos defectos del mismo banco, encontrados antes de que publicara ningun
+numero: el generador daba 80 nombres distintos para 100.000 filas -el detector
+trabaja sobre formas distintas, no sobre filas, asi que no ejercitaba nada- y
+`nrow()` sobre el resultado devolvia `NULL`, porque es una lista con `$pares` y
+no un data frame.
+
 ## La misma numeracion, descrita de dos maneras
 
 Aparecio al intentar romper el arreglo de arriba. Un codigo 1..284 con 179

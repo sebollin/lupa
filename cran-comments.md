@@ -14,20 +14,25 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **Estado de la matriz sobre `b08b180`:** la matriz anterior, sobre `394c767`,
-> **no vale**: ese commit cambia `R/`, `tests/`, `man/` y las vinietas, asi que
-> las fuentes son otras. Se rehace entera.
+> **Estado de la matriz sobre `c9353d6`:** las matrices anteriores no valen.
+> Cada una se hizo sobre fuentes distintas, y desde `394c767` hasta aca se
+> cambiaron `R/`, `tests/`, `man/`, las vinietas y los README. Se rehace entera
+> cada vez.
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-23/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-23/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-23/sin-incoming/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| WARN 1 \| SKIP 173 \| PASS 14737 ]` | `../verificacion/2026-08-23/r41/lupa.Rcheck/00check.log` |
-> | suite completa | **15.759 comprobaciones, 0 fallos** | `devtools::test()` |
+> | local, R 4.6.1, `--as-cran` | PENDIENTE | `../verificacion/2026-08-23c/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | PENDIENTE | `../verificacion/2026-08-23c/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | PENDIENTE | `../verificacion/2026-08-23c/sin-incoming/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | PENDIENTE | `../verificacion/2026-08-23c/r41/lupa.Rcheck/00check.log` |
+> | suite completa | **15.781 comprobaciones, 0 fallos, 0 avisos** | `devtools::test()` |
 > | GitHub Actions (5 plataformas) | PENDIENTE | log de la corrida |
 > | R-hub v2 R-devel (3 plataformas) | PENDIENTE | log de la corrida |
 > | win-builder release y devel | PENDIENTE | log de cada corrida, y el `Packaged:` del binario |
+>
+> **Sobre `5749259`, el commit anterior, la matriz local dio** `1 NOTE`,
+> `1 NOTE`, `OK` y `2 NOTEs` del entorno con `[ FAIL 0 | WARN 0 | SKIP 169 |
+> PASS 14693 ]` en el contenedor. Se rehace igual porque `c9353d6` toca `R/`.
 >
 > **El `WARN 1` de la fila del contenedor no es nuevo y la carta anterior no lo
 > decia.** Estaba igual en la corrida del 2026-08-22 -`[ FAIL 0 | WARN 1 | SKIP
