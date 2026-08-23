@@ -112,7 +112,7 @@ viñetas enlazadas son el manual detallado. Esta tabla es el mapa breve:
 | Tarea | Funciones principales | Para leer más |
 | --- | --- | --- |
 | Mirar los datos por primera vez | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Perfilar contra una base | `perfilar_dbi()` — agregados SQL de toda la tabla y un perfil de 104 campos analíticos sobre una muestra declarada; los alcances quedan separados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Perfilar contra una base | `perfilar_dbi()` — agregados SQL de toda la tabla y un perfil de 108 campos analíticos sobre una muestra declarada; los alcances quedan separados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Encontrar estructura no declarada | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Definir la calidad | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Definir la calidad](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Medir y evaluar | `medir()`, `agregar()`, `tablero_calidad()`, `indice_calidad()` con pesos del proyecto, `evaluar()`, `regla_evaluacion()` con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Medir y evaluar](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -413,24 +413,36 @@ Declarar el universo habilita además el error simétrico, que antes no tenía
 forma de aparecer: `valor_fuera_de_aplicabilidad` informa un valor presente
 donde la regla dice que la columna no corresponde.
 
-La misma idea gobierna las pruebas estadísticas. Una corrida contra tres tablas
-administrativas reales dio 24 señales y **once eran falsas**: el cálculo estaba
-bien en las once, pero la prueba no correspondía. Benford supone un proceso
+La misma idea gobierna las pruebas estadísticas. Benford supone un proceso
 multiplicativo y los límites de Tukey suponen una distribución; una numeración
 —un identificador, un código— no es ninguna de las dos cosas, y que un código
-quede lejos de la mediana no dice nada de su calidad. Lo que separa una
-numeración de una magnitud no es la unicidad, porque un monto también es casi
-único, sino la **densidad**: un identificador ocupa un tramo compacto de los
-enteros y una magnitud se reparte por varios órdenes. Un valor fuera de escala
-rompe esa compacidad, así que los casos que hay que ver —un `10000` entre
-identificadores de 1 a 100, un año centinela 1900 entre años 2000-2030— se
-siguen viendo.
+quede lejos de la mediana no dice nada de su calidad.
 
-**Ninguna de esas pruebas se apaga en silencio.** Bajar el ruido callando sería
-mejorar el número sin mejorar el paquete, así que cada prueba que no se corre
-deja su fila en `cobertura_diagnosticos` con el motivo medido: qué porcentaje de
-los enteros cubre la columna, cuántos valores se habrían señalado, cuántas filas
-de cuántas trae la muestra.
+Reconocer una numeración pide **dos señales, y hacen falta las dos**. La primera
+es la **densidad**: un identificador ocupa un tramo compacto de los enteros y una
+magnitud se reparte por varios órdenes. La unicidad no sirve, porque un monto
+también es casi único. La segunda es la **ausencia de un salto de escala**, y sin
+ella la primera hace daño: un valor fuera de escala de hasta el doble del máximo
+no baja la densidad lo suficiente, así que un `120` entre edades de 18 a 70 —o un
+`2000` detrás de 1..1000— quedaba tapado justo cuando era lo único que había que
+ver. Lo que sí los delata es el hueco que abren: 50 y 1.000 donde el típico es 1.
+
+El criterio se eligió midiendo. Un banco de trece columnas con la respuesta
+conocida —cinco numeraciones y ocho magnitudes con un dato malo adentro—
+comparó cuatro variantes: cruzar las dos señales acierta las trece y **no calla
+ningún dato malo real**; la densidad sola acertaba once y callaba dos. Está en
+`test-ronda118.R`.
+
+**Y lo que no se corre no se apaga en silencio**: deja su fila en
+`cobertura_diagnosticos` con el motivo medido —qué porcentaje de los enteros
+cubre la columna, cuántos valores se habrían señalado, cuántas filas de cuántas
+trae la muestra—.
+
+Donde no hay señal que discrimine, `lupa` habla. La cardinalidad alta de una
+columna de texto se informa siempre, porque el largo de los valores no distingue
+un catálogo de la prosa —falla en los dos sentidos, medido— y el hallazgo no
+afirma que sea un defecto: ofrece las tres lecturas posibles para que decida
+quien conoce la columna.
 
 `perfilar_por()` responde al formato largo, donde una sola columna apila
 dominios sin relación. Perfila cada grupo por separado, descarta las columnas

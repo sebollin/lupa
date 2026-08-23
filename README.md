@@ -109,7 +109,7 @@ linked vignettes are the detailed manual. This table is the short map:
 | Task | Main functions | Read more |
 | --- | --- | --- |
 | Look at data for the first time | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Profile against a database | `perfilar_dbi()` — full-table SQL aggregates plus a 104-analytic-field profile from a declared sample; the scopes stay separate | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Profile against a database | `perfilar_dbi()` — full-table SQL aggregates plus a 108-analytic-field profile from a declared sample; the scopes stay separate | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Find undeclared structure | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Undeclared structure](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Define quality | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Define quality](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Measure and evaluate | `medir()`, `agregar()`, `tablero_calidad()`, `indice_calidad()` with project weights, `evaluar()`, `regla_evaluacion()` with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Measure and evaluate](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -402,23 +402,36 @@ Declaring the universe also enables the symmetric error, which had no way to
 appear before: `valor_fuera_de_aplicabilidad` reports a value present where the
 rule says the column does not apply.
 
-The same idea governs the statistical tests. A run against three real
-administrative tables produced 24 signals and **eleven were false**: the
-arithmetic was right in all eleven, but the test did not apply. Benford assumes a
-multiplicative process and Tukey's fences assume a distribution; a numbering — an
-identifier, a code — is neither, and a code sitting far from the median says
-nothing about its quality. What separates a numbering from a magnitude is not
-uniqueness, since an amount is nearly unique too, but **density**: an identifier
-occupies a compact stretch of the integers while a magnitude spreads across
-several orders. A value off the scale breaks that compactness, so the cases worth
-seeing — a `10000` among identifiers from 1 to 100, a 1900 sentinel year among
-years 2000-2030 — are still seen.
+The same idea governs the statistical tests. Benford assumes a multiplicative
+process and Tukey's fences assume a distribution; a numbering — an identifier, a
+code — is neither, and a code sitting far from the median says nothing about its
+quality.
 
-**None of those tests is switched off silently.** Lowering the noise by going
-quiet would improve the number without improving the package, so every test that
-is not run leaves its row in `cobertura_diagnosticos` with the measured reason:
-what share of the integers the column covers, how many values would have been
-flagged, how many rows out of how many the sample carries.
+Recognising a numbering takes **two signals, and it needs both**. The first is
+**density**: an identifier occupies a compact stretch of the integers while a
+magnitude spreads across several orders. Uniqueness does not work, since an
+amount is nearly unique too. The second is the **absence of a scale jump**, and
+without it the first does harm: a value off the scale by up to twice the maximum
+does not lower the density enough, so a `120` among ages 18 to 70 — or a `2000`
+behind 1..1000 — was hidden exactly when it was the only thing worth seeing. What
+does give them away is the gap they open: 50 and 1,000 where the typical one is 1.
+
+The criterion was chosen by measuring. A bench of thirteen columns with the known
+answer — five numberings and eight magnitudes with a bad value inside — compared
+four variants: crossing both signals gets all thirteen right and **never silences
+a real bad value**; density alone got eleven and silenced two. It lives in
+`test-ronda118.R`.
+
+**And what is not run is not switched off silently**: it leaves its row in
+`cobertura_diagnosticos` with the measured reason — what share of the integers
+the column covers, how many values would have been flagged, how many rows out of
+how many the sample carries.
+
+Where no signal discriminates, `lupa` speaks. High cardinality in a text column is
+always reported, because the length of the values does not tell a catalogue from
+prose — it fails in both directions, measured — and the finding does not claim it
+is a defect: it offers the three possible readings so that whoever knows the
+column decides.
 
 `perfilar_por()` answers the long format, where one column stacks unrelated
 domains. It profiles each group separately, drops the wholly-absent columns

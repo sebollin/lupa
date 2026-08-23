@@ -32,11 +32,25 @@
   )
 }
 
+# `disfrazados` es la mascara de los valores que dicen ausencia sin ser `NA`.
+# Sin ella, una clave sana con treinta filas en `"SIN DATO"` se informaba como
+# clave rota: esas treinta colisionan entre si, la concentracion da 1 y el
+# hallazgo dice que la columna no sirve como identificador. La lectura correcta
+# es la contraria -la clave esta bien y faltan treinta documentos-, y el error
+# va en los dos sentidos, porque una clave con colisiones **reales** mas unos
+# `"SIN DATO"` ve su concentracion diluida por debajo del umbral y se calla.
+#
+# La mascara ya estaba calculada seis lineas antes de esta llamada, y el propio
+# paquete la usa para lo mismo en el detector de vocabulario.
 .resumen_casi_clave <- function(
     x, umbral_unicidad = .umbral_unicidad_casi_clave,
     umbral_concentracion = .umbral_concentracion_casi_clave,
     min_filas = .min_filas_casi_clave, rol = NULL,
-    tipo_implicito = NULL) {
+    tipo_implicito = NULL, disfrazados = NULL) {
+  if (!is.null(disfrazados) && length(disfrazados) == length(x) &&
+      is.logical(disfrazados) && any(disfrazados, na.rm = TRUE)) {
+    x <- x[!(!is.na(disfrazados) & disfrazados)]
+  }
   tipo_candidato <- .resumen_tipo_candidato_clave(x)
   if (is.null(tipo_implicito)) {
     tipo_implicito <- if (is.character(x) || is.factor(x)) {

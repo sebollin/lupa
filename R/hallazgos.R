@@ -138,29 +138,36 @@
 
 # Un identificador o un codigo no son magnitudes, y hay pruebas que solo
 # describen magnitudes: Benford supone un proceso multiplicativo, y los limites
-# de Tukey suponen una distribucion. Que `MotId` se desvie de Benford es cierto y
-# no significa nada.
+# de Tukey suponen una distribucion. Que un codigo quede lejos de la mediana es
+# cierto y no significa nada.
 #
-# Lo que los separa no es la unicidad: un monto tambien es casi unico. Es la
-# DENSIDAD de la numeracion. Un identificador ocupa un tramo compacto de los
-# enteros -1 a 4557, con los huecos de las bajas-, mientras que una magnitud se
-# reparte por varios ordenes de magnitud. Sobre tres tablas reales de SMART:
+# Dos senales, y hacen falta las dos. La primera es la DENSIDAD: una numeracion
+# ocupa un tramo compacto de los enteros -`MotId` cubre el 69 % de los que hay
+# entre su minimo y su maximo- y una magnitud se reparte por varios ordenes
+# -0,005 % para montos entre 9 y 9.999.999-. La unicidad no sirve para esto,
+# porque un monto tambien es casi unico.
 #
-#   MotId    1..4557, 3.159 distintos   -> densidad 0,69   numeracion
-#   EstCod   1..284,  codigo repetido   -> densidad alta   numeracion
-#   montos   9..9.999.999, 530 valores  -> densidad 0,00005 magnitud
+# La segunda es la AUSENCIA DE UN SALTO DE ESCALA. La densidad sola no alcanza:
+# un valor fuera de escala de hasta el doble del maximo no la baja lo
+# suficiente, asi que quedaban tapados justo los casos que hay que ver. Un `120`
+# entre edades de 18 a 70 deja la densidad en 0,52 y el hallazgo se perdia; un
+# `2000` detras de 1..1000 la deja en 0,5005 y tambien. Lo que si los delata es
+# el hueco que abren: 50 y 1.000 donde el tipico es 1.
 #
-# La guarda que ya tenia Benford exigia una corrida SIN HUECOS, y un
-# identificador real tiene huecos; `secuencia_entera_densa` pide 0,8 y `MotId`
-# se quedaba en 0,69. De ahi el umbral propio.
+# Medido sobre un banco de quince columnas con la respuesta conocida -seis
+# numeraciones reales y nueve magnitudes con un dato malo dentro-, cruzar las dos
+# senales acierta catorce y **no calla ningun dato malo real**. La densidad sola
+# acertaba once y callaba dos. Su unico error es hablar de mas sobre un
+# identificador disperso, que es el lado barato de equivocarse.
 #
-# Un identificador con un valor fuera de escala -1..100 y un 10000- deja de
-# tener densidad, asi que ese caso sigue senalandose: es justamente el que hay
-# que ver. Lo mismo con un ano centinela 1900 entre anos 2000-2030.
-#
-# **No se apaga: se declara.** Bajar el ruido callando seria mejorar el numero
-# sin mejorar el paquete; lo que dejo de decirse queda en `cobertura_diagnosticos`.
+# **No se apaga: se declara.** Lo que dejo de decirse queda en
+# `cobertura_diagnosticos` con el motivo medido.
 .MIN_DENSIDAD_NUMERACION <- 0.5
+
+# Con menos de cinco valores distintos una densidad alta no dice nada. Estaba en
+# veinte y era un salto arbitrario: un codigo de diecinueve valores recibia el
+# falso positivo y el mismo codigo con un valor mas no lo recibia.
+.MIN_DISTINTOS_NUMERACION <- 5L
 
 .parece_identificador_numerico <- function(fila) {
   # No alcanza con `entero`: por la puerta DBI casi todo llega como `doble`, y
@@ -169,25 +176,11 @@
   numerico <- as.character(fila$tipo_inferido) %in% c("entero", "doble") ||
     as.character(fila$tipo_declarado) %in% c("entero", "doble")
   if (!isTRUE(numerico)) return(FALSE)
+  if (isTRUE(fila$salto_de_escala_secuencia_entera)) return(FALSE)
   densidad <- suppressWarnings(as.numeric(fila$densidad_secuencia_entera))
   distintos <- suppressWarnings(as.numeric(fila$n_distintos))
-  # El minimo de valores distintos es el que uso el propio detector de
-  # secuencias al medir la densidad, no uno nuevo: una columna de tres codigos
-  # no es una numeracion, y ahi Tukey tampoco senala nada.
-  minimo <- suppressWarnings(as.numeric(fila$min_distintos_secuencia_entera))
-  if (!isTRUE(is.finite(minimo))) minimo <- 20
   isTRUE(is.finite(densidad) && densidad >= .MIN_DENSIDAD_NUMERACION) &&
-    isTRUE(is.finite(distintos) && distintos >= minimo)
-}
-
-# Texto largo y variado es prosa, no una categoria mal normalizada. Una
-# descripcion o un objetivo tienen cardinalidad alta por definicion, y decir que
-# eso es sospechoso es ruido: fueron tres de los once falsos.
-.MIN_LARGO_TEXTO_LIBRE <- 40
-
-.parece_texto_libre <- function(fila) {
-  largo <- suppressWarnings(as.numeric(fila$longitud_media))
-  isTRUE(is.finite(largo) && largo >= .MIN_LARGO_TEXTO_LIBRE)
+    isTRUE(is.finite(distintos) && distintos >= .MIN_DISTINTOS_NUMERACION)
 }
 
 .cobertura_diagnosticos_vacia <- function() {
@@ -466,8 +459,6 @@
     umbral_solapamiento_iqr = as.numeric(umbral_solapamiento),
     umbral_iqr_brecha = 0,
     pares_descartados_magnitud = 0,
-    pares_descartados_identificador = 0,
-    pares_identificador_descartados = character(),
     pares_rescatados_brecha_estable = 0,
     pares_evaluados_orden = 0,
     minimo_filas = 3L
@@ -547,29 +538,23 @@
       alcance$pares_rescatados_brecha_estable <-
         alcance$pares_rescatados_brecha_estable + 1
     }
-    # Dos numeraciones se ordenan igual sin que medie ninguna regla: se dan de
-    # alta uno detras de otro, asi que `MotId <= MEsId` se cumple en el 99,1 %
-    # de las filas y el 0,9 % restante "viola" una regla que no existe.
-    # Proponer formalizarla es aconsejar que se congele una coincidencia.
+    # Aca hubo una guarda que descartaba el par cuando ambas columnas parecian
+    # numeraciones y la brecha entre ellas no era constante. Se saco: **perdia
+    # relaciones reales**. Sobre un banco de cinco pares con la respuesta
+    # conocida, se llevaba puesto `anio_inicio <= anio_fin` con duracion
+    # variable de uno a diez anios -tres violaciones reales sin informar-, que es
+    # de las reglas de integridad mas comunes que hay en una base administrativa.
     #
-    # `inicio`/`fin` tambien son dos columnas enteras y densas, y ahi la
-    # relacion SI existe. Lo que las separa es la brecha: constante fila a fila
-    # cuando hay una regla detras, erratica cuando solo hay dos contadores. Por
-    # eso la guarda va despues del rescate por brecha estable y lo respeta.
+    # La brecha constante, que era la senal para rescatar el par, solo describe
+    # `fin = inicio + k`. Una vigencia real dura lo que dura.
     #
-    # No se calla: el par descartado queda con nombre y apellido en
-    # `meta$orden_columnas$pares_identificador_descartados`.
-    if (!brecha_estable &&
-        .parece_identificador_numerico(columnas[par[[1L]], , drop = FALSE]) &&
-        .parece_identificador_numerico(columnas[par[[2L]], , drop = FALSE])) {
-      alcance$pares_descartados_identificador <-
-        alcance$pares_descartados_identificador + 1
-      alcance$pares_identificador_descartados <- c(
-        alcance$pares_identificador_descartados,
-        paste(names(datos)[[par[[1L]]]], names(datos)[[par[[2L]]]], sep = ",")
-      )
-      next
-    }
+    # Y del otro lado no hay nada que ganar: se midio `IQR(brecha) / rango` en
+    # los pares reales y en los espurios y no separa -0,167 en el par real,
+    # 0,016 en el espurio-. Un par de contadores independientes supera el umbral
+    # de cumplimiento por azar segun la muestra: con una semilla da 0,96 y se
+    # informa, con otra da 0,91 y no. Contra eso no hay guarda estructural, y
+    # cambiar un falso positivo ocasional por perder `inicio <= fin` es un mal
+    # negocio.
     alcance$pares_evaluados_orden <- alcance$pares_evaluados_orden + 1
     cumple_izquierda <- izquierda <= derecha
     cumple_derecha <- derecha <= izquierda
@@ -758,6 +743,33 @@
   all(vapply(distintos, function(i) {
     proporcion(tokens_a[[i]]) >= minimo && proporcion(tokens_b[[i]]) >= minimo
   }, logical(1L)))
+}
+
+# Dos formas de un mismo grupo pueden diferir por dos motivos que piden dos
+# arreglos distintos: **la misma palabra escrita de otra manera** -mayusculas,
+# acentos, puntuacion- se corrige normalizando la columna entera, y una
+# **errata** se corrige en las filas donde aparece.
+#
+# La distancia de edicion no los separa. Medido sobre 1.718 pares crudo/canonico
+# que un humano normalizo a mano en un registro real: las 416 variantes de
+# escritura estan a distancia media 2,29 y las 422 erratas a 1,56, asi que
+# ordenar por distancia clasifica al reves. Lo que si los separa es si colapsan
+# al quitar caja, acentos y puntuacion.
+.clave_sin_escritura <- function(x) {
+  y <- tryCatch(enc2utf8(as.character(x)), error = function(e) as.character(x))
+  y <- tryCatch(
+    iconv(y, from = "UTF-8", to = "ASCII//TRANSLIT"),
+    error = function(e) y
+  )
+  y[is.na(y)] <- ""
+  gsub("[^[:alnum:]]", "", tolower(y))
+}
+
+# De un grupo de formas, cuantas son la dominante escrita de otra manera.
+.variantes_de_escritura_vocabulario <- function(formas) {
+  if (length(formas) < 2L) return(0L)
+  claves <- .clave_sin_escritura(formas)
+  sum(claves[-1L] == claves[[1L]] & nzchar(claves[[1L]]))
 }
 
 .clase_diferencia_vocabulario <- function(a, b) {
@@ -1666,11 +1678,23 @@
           )
         )
       } else ""
+      # Cuantas de las formas del grupo son la dominante escrita de otra
+      # manera. Sin esto, el grupo mezcla variantes de escritura con erratas y
+      # el usuario no sabe si el arreglo es normalizar la columna o corregir
+      # filas.
+      n_escritura <- .variantes_de_escritura_vocabulario(grupo$variantes)
+      escritura <- if (n_escritura > 0L) {
+        paste0(
+          "; ", n_escritura, " de ", length(grupo$variantes) - 1L,
+          " variantes son la forma dominante escrita distinto ",
+          "(mayusculas, acentos o puntuacion), no valores distintos"
+        )
+      } else ""
       paste0("[", variantes, "]; asimetria=",
              formatC(grupo$asimetria, format = "f", digits = 1),
              "; origen=", grupo$origen,
              "; clase_diferencia=", grupo$clase_diferencia, distancia,
-             criterio_corto)
+             escritura, criterio_corto)
     }, character(1L))
     grupos_texto <- if (length(evidencia_grupos)) {
       paste(evidencia_grupos, collapse = "; ")
@@ -2926,7 +2950,32 @@
       }
     }
 
-    if (!is.na(fila$n_distintos) && fila$n_distintos == 1L &&
+    # Cruce con los faltantes disfrazados. `n_distintos` y `n_validos` cuentan
+    # los valores tal como estan guardados, y no descuentan los que dicen
+    # ausencia sin ser `NA`. Una columna entera de `"N/A"` daba `n_distintos`
+    # igual a 1 y el hallazgo afirmaba, con estas palabras, que la columna
+    # "contiene un unico valor **no ausente**". Es falso: no contiene ninguno.
+    # La medida ya estaba calculada en la misma fila.
+    todo_disfrazado <- isTRUE(
+      is.finite(fila$n_faltantes_disfrazados) &&
+        fila$n_faltantes_disfrazados > 0L &&
+        fila$n_faltantes_disfrazados >= n_validos
+    )
+    if (todo_disfrazado) {
+      agregar(.nuevo_hallazgo(
+        nombre, "constante", "sospechoso",
+        paste(
+          "La columna no tiene ningun valor: los", fila$n_faltantes_disfrazados,
+          "que hay dicen ausencia sin estar codificados como NA, asi que es una",
+          "columna vacia escrita de otra forma, no una columna constante."
+        ),
+        paste0("Valor unico: ", fila$moda, "; frecuencia: ", fila$frecuencia_moda),
+        paste(
+          "Convertir esos valores a NA antes de decidir si la columna aporta",
+          "algo; `faltantes_disfrazados` los enumera."
+        )
+      ))
+    } else if (!is.na(fila$n_distintos) && fila$n_distintos == 1L &&
         isTRUE(n_validos > 1L)) {
       # La condicion real es que la moda no se haya podido representar, no la
       # etiqueta del tipo: una columna `sfc` declara "sfc_POINT" y quedaba fuera.
@@ -2992,13 +3041,43 @@
       ))
     }
 
+    # Dos lugares del paquete contestaban la misma pregunta -si la columna es una
+    # numeracion- con reglas distintas, y no coincidian. Aca se exigia
+    # `secuencia_entera_densa`, que pide densidad 0,8 y veinte distintos; la
+    # guarda que decide callar Benford y los limites de Tukey usa 0,5, cinco
+    # distintos y la ausencia de salto de escala.
+    #
+    # El resultado medido: un `MotId` de 1 a 4557 sobre 3.159 filas tiene
+    # densidad 0,694. Las guardas lo trataban como numeracion y callaban dos
+    # diagnosticos, y este hallazgo no disparaba, asi que **el perfil se
+    # quedaba callado sobre dos pruebas sin decir nunca que habia detectado una
+    # numeracion**. Ahora las dos preguntas se contestan con el mismo criterio.
     if (isTRUE(n_validos > 1L) &&
         (fila$tipo_inferido == "identificador" ||
-         isTRUE(fila$secuencia_entera_densa)) &&
-        is.finite(fila$tasa_distintos) && fila$tasa_distintos >= 0.9) {
+         isTRUE(fila$secuencia_entera_densa) ||
+         .parece_identificador_numerico(fila)) &&
+        (isTRUE(is.finite(fila$tasa_distintos) && fila$tasa_distintos >= 0.9) ||
+         .parece_identificador_numerico(fila))) {
+      # Una numeracion puede ser casi unica -un identificador de fila- o
+      # repetirse mucho -un codigo de catalogo-, y son dos cosas distintas que
+      # merecen dos textos distintos. Exigir unicidad alta para las dos dejaba
+      # al codigo sin diagnostico: sobre `EstCod`, de 1 a 284 con tasa 0,097,
+      # las guardas callaban los limites de Tukey y Benford por tratarse de una
+      # numeracion **y el perfil no decia en ninguna parte que lo fuera**. Es el
+      # mismo hueco que tenia `MotId` por el lado de la densidad, visto desde el
+      # otro extremo.
+      es_unico <- isTRUE(is.finite(fila$tasa_distintos) &&
+                           fila$tasa_distintos >= 0.9)
       agregar(.nuevo_hallazgo(
         nombre, "posible_identificador", "ok",
-        "La forma y la alta unicidad son compatibles con un identificador.",
+        if (es_unico) {
+          "La forma y la alta unicidad son compatibles con un identificador."
+        } else {
+          paste(
+            "Los valores ocupan un tramo compacto de los enteros y se repiten:",
+            "la forma es la de un codigo de catalogo, no la de una magnitud."
+          )
+        },
         paste0(
           fila$n_distintos, " valores distintos de ", n_validos,
           " (", sprintf("%.3f", fila$tasa_distintos), ")",
@@ -3007,9 +3086,19 @@
             sprintf("%.3f", fila$densidad_secuencia_entera),
             "; umbral=",
             sprintf("%.3f", fila$umbral_densidad_secuencia_entera)
+          ) else if (is.finite(fila$densidad_secuencia_entera)) paste0(
+            "; densidad del tramo de enteros=",
+            sprintf("%.3f", fila$densidad_secuencia_entera)
           ) else ""
         ),
-        "Validar con el diccionario de datos si corresponde declarar una clave."
+        if (es_unico) {
+          "Validar con el diccionario de datos si corresponde declarar una clave."
+        } else {
+          paste(
+            "Validar con el diccionario de datos si es un codigo; si lo es,",
+            "declarar su catalogo permite medir los valores fuera de dominio."
+          )
+        }
       ))
     } else if (
       fila$tipo_declarado %in% c("texto", "factor", "factor-ordenado") &&
@@ -3018,29 +3107,25 @@
         fila$tasa_distintos < 1 &&
         fila$n_distintos >= .min_distintos_alta_cardinalidad
     ) {
-      if (.parece_texto_libre(fila)) {
-        cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
-          "alta_cardinalidad", nombre,
-          paste0(
-            "No se evaluo la cardinalidad como problema: los valores miden ",
-            sprintf("%.0f", as.numeric(fila$longitud_media)),
-            " caracteres en promedio, asi que la columna es texto libre y no ",
-            "una categoria. Que una descripcion casi no se repita es lo ",
-            "esperado, no una senal."
-          ),
-          paste(
-            "Si en realidad es una categoria con valores largos, declararla",
-            "como dominio para que la cardinalidad se mida contra el catalogo."
-          )
-        )
-      } else {
-        agregar(.nuevo_hallazgo(
-          nombre, "alta_cardinalidad", "sospechoso",
-          "La columna categ\u00f3rica tiene alta cardinalidad.",
-          sprintf("Tasa de valores distintos: %.3f", fila$tasa_distintos),
-          "Revisar si es texto libre, un identificador o una categor\u00eda mal normalizada."
-        ))
-      }
+      # Hubo aca una guarda que callaba este hallazgo cuando los valores
+      # promediaban 40 caracteres o mas, por suponerlos texto libre. Se saco:
+      # **el largo no distingue una categoria de la prosa**, y fallaba en los
+      # dos sentidos. Medido: un catalogo de sesenta categorias de producto con
+      # etiquetas de 49 caracteres dejaba de medirse -y su cardinalidad alta es
+      # justo la senal de normalizacion rota que hay que ver-, mientras que
+      # comentarios libres de diez caracteres se seguian marcando.
+      #
+      # Y no hacia falta: el hallazgo **no afirma que sea un defecto**. Dice que
+      # la cardinalidad es alta y ofrece las tres lecturas -texto libre,
+      # identificador o categoria mal normalizada- para que decida quien conoce
+      # la columna. Callarlo era responder por el usuario una pregunta que el
+      # texto ya le estaba haciendo bien.
+      agregar(.nuevo_hallazgo(
+        nombre, "alta_cardinalidad", "sospechoso",
+        "La columna categ\u00f3rica tiene alta cardinalidad.",
+        sprintf("Tasa de valores distintos: %.3f", fila$tasa_distintos),
+        "Revisar si es texto libre, un identificador o una categor\u00eda mal normalizada."
+      ))
     }
 
     # El espejo del faltante falso: un valor presente donde la regla declarada
@@ -3169,15 +3254,48 @@
       is.finite(fila$tasa_distintos) && fila$tasa_distintos >= 0.9
     if (!.tipos_equivalentes(fila$tipo_declarado, fila$tipo_inferido) &&
         fila$tipo_inferido != "desconocido" && !identificador_secuencial) {
+      # La proporcion compatible se calculaba, se imprimia en la evidencia y no
+      # decidia nada: el hallazgo sugeria "convertir la columna" igual con 0,98
+      # que con 0,85, y esas dos conversiones no cuestan lo mismo -la segunda
+      # deja quince de cada cien filas en `NA`-. La capa de remediacion ya
+      # distingue los dos casos y exige compatibilidad total antes de proponer
+      # la conversion; el hallazgo no lo decia.
+      #
+      # Tambien se declara si la proporcion salio de una muestra, que es otro
+      # campo que estaba calculado y no viajaba a ninguna parte.
+      compatible <- suppressWarnings(as.numeric(fila$proporcion_tipo_inferido))
+      analizadas <- suppressWarnings(as.numeric(fila$n_filas_analizadas_tipo))
+      incompatibles <- if (is.finite(compatible) && is.finite(analizadas)) {
+        round(analizadas * (1 - compatible))
+      } else NA_real_
+      sobre_muestra <- isTRUE(fila$muestreado_tipo_inferido)
       agregar(.nuevo_hallazgo(
         nombre, "tipo_declarado_distinto", "sospechoso",
         "El tipo declarado no coincide con el tipo impl\u00edcito dominante.",
-        sprintf(
-          "Declarado: %s; inferido: %s (%.3f compatible)",
-          fila$tipo_declarado, fila$tipo_inferido,
-          fila$proporcion_tipo_inferido
+        paste0(
+          sprintf(
+            "Declarado: %s; inferido: %s (%.3f compatible)",
+            fila$tipo_declarado, fila$tipo_inferido, compatible
+          ),
+          if (is.finite(incompatibles) && incompatibles > 0) paste0(
+            "; convertir dejaria ", .miles_trabajo(incompatibles), " de ",
+            .miles_trabajo(analizadas), " valores en NA"
+          ) else if (isTRUE(compatible == 1)) {
+            "; la conversion no pierde ningun valor"
+          } else "",
+          if (sobre_muestra) paste0(
+            "; medido sobre una muestra de ", .miles_trabajo(analizadas),
+            " filas, no sobre la columna entera"
+          ) else ""
         ),
-        "Confirmar el tipo esperado y convertir la columna de forma expl\u00edcita."
+        if (isTRUE(compatible == 1)) {
+          "Confirmar el tipo esperado y convertir la columna de forma expl\u00edcita."
+        } else {
+          paste(
+            "Confirmar el tipo esperado. Antes de convertir, revisar los valores",
+            "que no encajan: la conversion los vuelve NA sin avisar."
+          )
+        }
       ))
     }
 
@@ -3284,14 +3402,56 @@
       ))
     }
     if (isTRUE(fila$n_controles_invisibles > 0L)) {
+      # El hallazgo decidia con el total y tiene los tres subtotales al lado,
+      # calculados y sin consultar. Son tres cosas distintas con tres acciones
+      # distintas, y se informaban como una sola con severidad `error` fija:
+      #
+      #   - invisibles de transporte -BOM, ZWSP-: basura, hay que sacarla;
+      #   - espacios Unicode -NBSP-: pueden ser deliberados, hay que mirarlos;
+      #   - ZWJ/ZWNJ significativos: **parte del texto**, no hay nada que hacer.
+      #
+      # Una columna cuyo unico invisible es un ZWJ significativo -un emoji
+      # compuesto, una ligadura- no tiene ningun defecto, y se marcaba `error`.
+      # `n_invisibles_significativos` no lo consultaba ningun archivo del
+      # paquete. La capa de remediacion si separa los tres casos.
+      eliminables <- suppressWarnings(as.numeric(fila$n_invisibles_eliminables))
+      espacios <- suppressWarnings(as.numeric(fila$n_espacios_invisibles))
+      significativos <- suppressWarnings(
+        as.numeric(fila$n_invisibles_significativos)
+      )
+      hay <- function(x) isTRUE(is.finite(x) && x > 0)
+      solo_significativos <- hay(significativos) && !hay(eliminables) &&
+        !hay(espacios)
       agregar(.nuevo_hallazgo(
-        nombre, "controles_invisibles", "error",
-        paste0(
-          "Hay controles, espacios Unicode o marcas invisibles dentro de los ",
-          "valores; los ZWJ/ZWNJ se informan porque pueden ser sem\u00e1nticos."
-        ),
+        nombre, "controles_invisibles",
+        if (solo_significativos) "ok" else "error",
+        if (solo_significativos) {
+          paste(
+            "Los unicos caracteres invisibles son uniones de ancho cero",
+            "(ZWJ/ZWNJ), que forman parte del texto: unen emojis o ligaduras.",
+            "No hay nada que limpiar; se informa para que no sorprendan al",
+            "comparar valores."
+          )
+        } else {
+          paste0(
+            "Hay controles, espacios Unicode o marcas invisibles dentro de los ",
+            "valores; los ZWJ/ZWNJ se informan porque pueden ser sem\u00e1nticos."
+          )
+        },
         resultado$diagnostico_texto$evidencia_controles_invisibles,
-        "Eliminar s\u00f3lo los invisibles de transporte; revisar los espacios Unicode y conservar ZWJ/ZWNJ cuando tengan significado."
+        if (solo_significativos) {
+          paste(
+            "Nada que hacer, salvo que en esta columna esas uniones no",
+            "correspondan; en ese caso hay que revisarlas una por una."
+          )
+        } else if (hay(eliminables) && !hay(espacios) && !hay(significativos)) {
+          paste0(
+            "Eliminar los ", .miles_trabajo(eliminables), " invisibles de ",
+            "transporte: no aportan nada y rompen las comparaciones."
+          )
+        } else {
+          "Eliminar s\u00f3lo los invisibles de transporte; revisar los espacios Unicode y conservar ZWJ/ZWNJ cuando tengan significado."
+        }
       ))
     }
     if (isTRUE(fila$n_entidades_html > 0L)) {
@@ -3519,6 +3679,38 @@
         "Corregir los valores o ajustar la restricci\u00f3n del dominio."
       ))
     }
+    # Un valor que cumple las tres senales a la vez -extremo, repetido y con
+    # forma de todo nueves- es un centinela, aunque no este en la lista
+    # declarada. Ninguna de las tres alcanza sola: `9999` es una edad imposible
+    # y un codigo postal valido, un monto real no se repite, y un ano 1999 no
+    # tiene esa forma. Por eso la lista por omision no lo trae y hace bien.
+    #
+    # Se informa aparte de `faltantes_disfrazados`, que sigue contando solo lo
+    # declarado. Aca no se afirma que sea ausencia: se dice que tiene la forma
+    # de serlo y se ofrece la accion.
+    if (!is.na(fila$centinela_valor) &&
+        !is.na(fila$centinela_repeticiones)) {
+      agregar(.nuevo_hallazgo(
+        nombre, "posible_centinela_numerico", "sospechoso",
+        paste0(
+          "El valor ", .texto_valor(fila$centinela_valor), " aparece ",
+          fila$centinela_repeticiones, " veces, queda fuera de los limites de ",
+          "la columna y tiene la forma de los codigos que se usan para decir ",
+          "\"sin dato\". No se cuenta como ausencia porque no esta declarado."
+        ),
+        paste0(
+          "Valor: ", .texto_valor(fila$centinela_valor), "; repeticiones: ",
+          fila$centinela_repeticiones, "; valores fuera de los limites: ",
+          fila$n_outliers
+        ),
+        paste0(
+          "Si es un codigo de ausencia, agregarlo a `sentinelas_numericos` ",
+          "para que se cuente como faltante; si es un dato real, no hay nada ",
+          "que hacer."
+        )
+      ))
+    }
+
     if (!is.na(fila$n_outliers) && fila$n_outliers > 0L) {
       if (.parece_identificador_numerico(fila)) {
         cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(

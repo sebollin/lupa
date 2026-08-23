@@ -32,10 +32,21 @@ test_that("las secuencias enteras densas apagan solo la lectura del contenido", 
   identificadores <- perfil$hallazgos[
     perfil$hallazgos$tipo_hallazgo == "posible_identificador", , drop = FALSE
   ]
-  expect_setequal(identificadores$columna, c("index", "id"))
+  # `brewery_id` se sumo cuando las dos preguntas sobre si algo es una
+  # numeracion pasaron a contestarse con el mismo criterio. Es una clave foranea
+  # -0..557 repetidos a lo largo de 2.410 filas-, o sea un codigo de catalogo, y
+  # antes quedaba sin diagnostico: las guardas la trataban como numeracion para
+  # callar Benford y Tukey, y el perfil no decia que lo fuera.
+  expect_setequal(identificadores$columna, c("index", "id", "brewery_id"))
   expect_true(all(as.character(identificadores$severidad) == "ok"))
-  expect_true(all(grepl("secuencia_entera_densa=TRUE", identificadores$evidencia,
-                        fixed = TRUE)))
+  expect_true(all(grepl("secuencia_entera_densa=TRUE|densidad del tramo",
+                        identificadores$evidencia)))
+  # Las dos lecturas se distinguen: unicas son identificador de fila, repetidas
+  # son codigo.
+  descripciones <- as.character(identificadores$descripcion)
+  names(descripciones) <- as.character(identificadores$columna)
+  expect_match(descripciones[["id"]], "unicidad")
+  expect_match(descripciones[["brewery_id"]], "codigo de catalogo")
 
   con_ausente_y_duplicado <- data.frame(
     id = c(as.character(seq_len(100L)), "50", rep(NA_character_, 20L))
@@ -79,7 +90,8 @@ test_that("la condicion densa es causal para las dos supresiones", {
     .resumen_secuencia_entera = function(...) {
       list(
         densa = FALSE, densidad = 1, n_posiciones = 1000,
-        n_huecos = 0, umbral_densidad = 0.8, min_distintos = 20L
+        n_huecos = 0, hueco_maximo = 1, salto_de_escala = FALSE,
+        umbral_densidad = 0.8, min_distintos = 20L
       )
     },
     .package = "lupa"

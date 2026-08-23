@@ -95,58 +95,96 @@ test_that("un anio centinela sigue senalandose entre anios validos", {
   expect_true("outliers" %in% .tipos_r116(perfil, "ProAnio"))
 })
 
-test_that("la cardinalidad de un texto libre no es un defecto", {
-  # Un nombre, una descripcion o un objetivo tienen cardinalidad alta por
-  # definicion. Eran tres de los once falsos.
-  descripciones <- paste(
-    "Descripcion extensa del expediente numero", seq_len(1500L),
-    "con redaccion administrativa que no se normaliza"
-  )
-  set.seed(3)
-  columna <- c(descripciones, sample(descripciones, 500L, TRUE))
-  perfil <- .perfil_r116(data.frame(descripcion = columna))
-
-  expect_gt(perfil$columnas$longitud_media, 40)
-  expect_lt(perfil$columnas$tasa_distintos, 1)
-  expect_false("alta_cardinalidad" %in% .tipos_r116(perfil, "descripcion"))
-
-  motivo <- .motivo_r116(perfil, "descripcion", "alta_cardinalidad")
-  expect_length(motivo, 1L)
-  expect_match(motivo, "texto libre")
-})
-
-test_that("una categoria de valores cortos sigue midiendo su cardinalidad", {
-  # 60 categorias sobre 100 filas: cardinalidad alta para una categoria, y
-  # lejos de la unicidad que la volveria un identificador.
-  set.seed(5)
-  catalogo <- paste0("C", sprintf("%03d", seq_len(60L)))
-  codigos <- c(catalogo, sample(catalogo, 40L, replace = TRUE))
-  perfil <- .perfil_r116(data.frame(codigo = codigos))
-
-  expect_lt(perfil$columnas$longitud_media, 40)
-  expect_true("alta_cardinalidad" %in% .tipos_r116(perfil, "codigo"))
-})
-
-test_that("el orden entre dos numeraciones no se propone como regla", {
-  # `MotId <= MEsId` se cumplia en el 99,1 % de las filas porque los dos
-  # contadores avanzan juntos. El 0,9 % restante violaba una regla que no existe.
+test_that("la cardinalidad alta se informa, sea texto largo o corto", {
+  # Hubo una guarda que callaba este hallazgo con valores de 40 caracteres o
+  # mas. Se saco porque el largo no distingue una categoria de la prosa: fallaba
+  # en los dos sentidos, y el hallazgo no afirma que sea un defecto -ofrece las
+  # tres lecturas para que decida quien conoce la columna-.
   set.seed(4)
-  perfil <- .perfil_r116(data.frame(
+  adjetivos <- c(
+    "de alta gama con acabado premium", "profesional de uso intensivo",
+    "industrial de gran capacidad", "domestico de bajo consumo",
+    "compacto para espacios reducidos", "portatil con bateria recargable"
+  )
+  sustantivos <- c(
+    "horno electrico de conveccion", "lavarropas de carga frontal",
+    "heladera no frost", "microondas digital", "cafetera espresso",
+    "aspiradora robot", "licuadora de vaso", "plancha a vapor",
+    "freidora de aire", "batidora de pie"
+  )
+  catalogo <- as.vector(outer(adjetivos, sustantivos, paste))
+  largas <- .perfil_r116(data.frame(
+    categoria = c(catalogo, sample(catalogo, 40L, replace = TRUE))
+  ))
+  # Etiquetas de 49 caracteres: son categorias, no prosa, y su cardinalidad
+  # alta es la senal de normalizacion rota que el diagnostico existe para dar.
+  expect_gt(largas$columnas$longitud_media, 40)
+  expect_true("alta_cardinalidad" %in% .tipos_r116(largas, "categoria"))
+
+  set.seed(5)
+  corto <- paste0("C", sprintf("%03d", seq_len(60L)))
+  cortas <- .perfil_r116(data.frame(
+    codigo = c(corto, sample(corto, 40L, replace = TRUE))
+  ))
+  expect_lt(cortas$columnas$longitud_media, 40)
+  expect_true("alta_cardinalidad" %in% .tipos_r116(cortas, "codigo"))
+})
+
+test_that("una vigencia de duracion variable conserva su regla de orden", {
+  # Hubo una guarda que descartaba el par cuando ambas columnas parecian
+  # numeraciones y la brecha no era constante. Se llevaba puesto
+  # `anio_inicio <= anio_fin`, que es de las reglas de integridad mas comunes
+  # que hay en una base administrativa: una vigencia real dura lo que dura.
+  set.seed(11)
+  inicio <- sample(2000:2020, 300L, replace = TRUE)
+  fin <- inicio + sample(1:10, 300L, replace = TRUE)
+  fin[c(5L, 100L, 250L)] <- inicio[c(5L, 100L, 250L)] - 1L
+  perfil <- .perfil_r116(data.frame(anio_inicio = inicio, anio_fin = fin))
+
+  expect_true(
+    "relacion_orden_columnas" %in% as.character(perfil$hallazgos$tipo_hallazgo)
+  )
+})
+
+test_that("dos contadores independientes no se proponen como regla", {
+  # El par espurio se descarta igual, por el filtro de magnitud que ya existia:
+  # la guarda que se saco no hacia falta para esto.
+  set.seed(4)
+  grandes <- .perfil_r116(data.frame(
     MotId = sort(sample(seq_len(4557L), 3159L)),
     MEsId = sort(sample(seq_len(4600L), 3159L))
   ))
-
   expect_false(
-    "relacion_orden_columnas" %in% as.character(perfil$hallazgos$tipo_hallazgo)
+    "relacion_orden_columnas" %in% as.character(grandes$hallazgos$tipo_hallazgo)
   )
-  alcance <- perfil$meta$orden_columnas
-  expect_equal(alcance$pares_descartados_identificador, 1)
-  expect_equal(alcance$pares_identificador_descartados, "MotId,MEsId")
+
 })
 
-test_that("una brecha estable conserva la relacion aunque ambas sean densas", {
-  # `inicio`/`fin` son dos columnas enteras, unicas y densas, igual que el par
-  # de identificadores. Lo que las separa es que la brecha es constante.
+test_that("entre dos contadores chicos el veredicto depende de la muestra", {
+  # Este es un limite conocido y medido, no un descuido. Con dos contadores
+  # independientes de pocos valores, la proporcion de filas que cumplen el orden
+  # sale del azar: con una muestra da 0,91 y no llega al umbral, con otra da
+  # 0,96 y se informa. No hay senal estructural que los separe de una relacion
+  # real debil -se midio `IQR(brecha) / rango` en pares reales y espurios y da
+  # 0,167 contra 0,016, al reves de lo que haria falta-.
+  #
+  # La prueba fija el limite en vez de taparlo: sobre veinte muestras hay de las
+  # dos clases. Un test que fijara una sola semilla afirmaria una regularidad
+  # que no existe.
+  informa <- vapply(seq_len(20L), function(semilla) {
+    set.seed(semilla)
+    perfil <- .perfil_r116(data.frame(
+      MotId = sort(sample(seq_len(15L), 100L, replace = TRUE)),
+      MEsId = sort(sample(seq_len(15L), 100L, replace = TRUE))
+    ))
+    "relacion_orden_columnas" %in% as.character(perfil$hallazgos$tipo_hallazgo)
+  }, logical(1L))
+
+  expect_true(any(informa))
+  expect_true(any(!informa))
+})
+
+test_that("una brecha constante conserva la relacion", {
   inicio <- seq_len(100L)
   fin <- inicio + 10L
   fin[seq_len(3L)] <- inicio[seq_len(3L)] - 1L
@@ -155,7 +193,6 @@ test_that("una brecha estable conserva la relacion aunque ambas sean densas", {
   expect_true(
     "relacion_orden_columnas" %in% as.character(perfil$hallazgos$tipo_hallazgo)
   )
-  expect_equal(perfil$meta$orden_columnas$pares_descartados_identificador, 0)
 })
 
 test_that("`constante` no se afirma desde una muestra", {

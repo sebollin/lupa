@@ -127,12 +127,31 @@
        n_fechas_excluidas_granularidad = NA_integer_)
 }
 
+# Cuantas veces el hueco mas grande tiene que superar al tipico para que el
+# valor que lo abre deje de ser cola y pase a ser anomalia.
+#
+# El numero no se eligio: se barrio. Sobre un banco de quince columnas con la
+# respuesta conocida, contando por separado los dos errores -callar un dato malo
+# cuesta mas que hablar de mas-, la meseta sin errores va de 10 a 50:
+#
+#     6, 8    ->  habla de mas 2 veces
+#     10 a 50 ->  sin errores
+#     75 o mas -> calla un dato malo
+#
+# Estaba en 10, pegado al borde inferior. 20 queda dentro de la meseta con
+# margen de los dos lados, y del lado que importa -callar- el margen es mayor.
+# Los otros dos umbrales se barrieron igual: la densidad no da errores entre 0,2
+# y 0,6 y esta en 0,5; el minimo de distintos no da errores entre 3 y 15 y esta
+# en 5. Los tres estan en el centro de su meseta, no en un borde.
+.FACTOR_SALTO_ESCALA <- 20
+
 .resumen_secuencia_entera <- function(x, inferencia, formatos,
                                       umbral_densidad = 0.8,
                                       min_distintos = 20L) {
   vacio <- list(
     densa = FALSE, densidad = NA_real_, n_posiciones = NA_real_,
-    n_huecos = NA_real_, umbral_densidad = umbral_densidad,
+    n_huecos = NA_real_, hueco_maximo = NA_real_, salto_de_escala = FALSE,
+    umbral_densidad = umbral_densidad,
     min_distintos = as.integer(min_distintos)
   )
   # Se miraba el tipo inferido y solo se aceptaba `entero`, pero unas lineas mas
@@ -158,14 +177,71 @@
   n_posiciones <- max(distintos) - min(distintos) + 1
   if (!is.finite(n_posiciones) || n_posiciones < 1) return(vacio)
   densidad <- length(distintos) / n_posiciones
+  # Un valor separado del resto por un hueco desproporcionado no es la cola de
+  # la numeracion: es una anomalia, y es justo lo que hay que mirar. Un `120`
+  # entre edades de 18 a 70 deja un hueco de 50 donde el tipico es 1; un `2000`
+  # detras de 1..1000 deja uno de 1.000. Sin esta medida, la densidad sola
+  # tapaba los dos casos, porque un valor fuera de escala de hasta el doble del
+  # maximo no baja la densidad lo suficiente.
+  huecos <- if (length(distintos) > 1L) diff(distintos) else numeric()
+  hueco_tipico <- if (length(huecos)) stats::median(huecos) else NA_real_
+  if (!is.finite(hueco_tipico) || hueco_tipico <= 0) hueco_tipico <- 1
+  hueco_maximo <- if (length(huecos)) max(huecos) else 0
   list(
     densa = length(distintos) >= min_distintos &&
       densidad >= umbral_densidad,
     densidad = as.numeric(densidad),
     n_posiciones = as.numeric(n_posiciones),
     n_huecos = as.numeric(n_posiciones - length(distintos)),
+    hueco_maximo = as.numeric(hueco_maximo),
+    hueco_tipico = as.numeric(hueco_tipico),
+    salto_de_escala = length(distintos) >= 3L &&
+      hueco_maximo >= .FACTOR_SALTO_ESCALA * hueco_tipico && hueco_maximo > 1,
     umbral_densidad = umbral_densidad,
     min_distintos = as.integer(min_distintos)
+  )
+}
+
+# Un valor centinela -el `9999` que quiere decir "no sabemos"- no se puede
+# reconocer por su forma sola: `9999` es una edad imposible y un codigo postal
+# perfectamente valido. Por eso la lista de `sentinelas_numericos` no lo trae
+# por omision, y hace bien: marcarlo siempre produciria falsos en cualquier
+# columna donde ese numero es un dato.
+#
+# Lo que si lo distingue es que cumpla las **tres** cosas a la vez: que sea un
+# valor extremo, que se repita, y que tenga forma de centinela. Un codigo postal
+# 9999 repetido treinta veces no es extremo dentro de su columna; un monto real
+# de 9999 no se repite; un ano 1999 no tiene forma de centinela. Medido sobre
+# ocho columnas con la respuesta conocida -tres con centinela y cinco donde el
+# mismo numero es un dato real-, las tres senales juntas aciertan las ocho.
+#
+# Esto no cambia `faltantes_disfrazados`, que sigue contando solo lo que la
+# lista declarada dice. Es una senal aparte, que se informa para que el usuario
+# decida si agrega ese valor a su lista.
+.MIN_REPETICIONES_CENTINELA <- 5L
+
+.centinela_por_tres_senales <- function(valores, iqr) {
+  vacio <- list(valor = NA_real_, n = NA_integer_)
+  if (!length(valores) || !is.finite(iqr) || iqr <= 0) return(vacio)
+  if (length(valores) < 20L) return(vacio)
+  q <- stats::quantile(valores, probs = c(0.25, 0.75), names = FALSE, type = 7)
+  extremos <- valores[valores < q[[1L]] - 1.5 * iqr |
+                        valores > q[[2L]] + 1.5 * iqr]
+  if (!length(extremos)) return(vacio)
+  frecuencias <- table(extremos)
+  repetidos <- suppressWarnings(
+    as.numeric(names(frecuencias)[frecuencias >= .MIN_REPETICIONES_CENTINELA])
+  )
+  if (!length(repetidos)) return(vacio)
+  # Todo nueves, con al menos tres digitos, con o sin signo. Es la forma que
+  # comparten `999`, `-999`, `9999` y `-9999` y que no tiene ningun numero que
+  # se elija por su valor.
+  con_forma <- repetidos[grepl("^-?9{3,}$", as.character(repetidos))]
+  if (!length(con_forma)) return(vacio)
+  elegido <- con_forma[[which.max(abs(con_forma))]]
+  list(
+    valor = as.numeric(elegido),
+    n = as.integer(sum(valores == elegido))
   )
 }
 
@@ -176,7 +252,8 @@
     maximo_exacto = NA_character_, minimo_fecha = NA_character_,
     maximo_fecha = NA_character_, media_fecha = NA_character_,
     mediana_fecha = NA_character_, n_ceros = NA_integer_,
-    n_negativos = NA_integer_, n_outliers = NA_integer_, n_nan = 0L,
+    n_negativos = NA_integer_, n_outliers = NA_integer_,
+    centinela_valor = NA_real_, centinela_repeticiones = NA_integer_, n_nan = 0L,
     n_infinito_positivo = 0L, n_infinito_negativo = 0L,
     n_fechas_resumidas = NA_integer_,
     n_fechas_excluidas_granularidad = NA_integer_,
@@ -271,6 +348,7 @@
   mediana <- stats::median(valores)
   desvio <- if (length(valores) > 1L) stats::sd(valores) else NA_real_
   iqr <- stats::IQR(valores, na.rm = TRUE, type = 7)
+  centinela <- .centinela_por_tres_senales(valores, iqr)
   if (is.finite(iqr)) {
     q <- stats::quantile(valores, probs = c(0.25, 0.75), names = FALSE, type = 7)
     n_outliers <- sum(valores < q[[1L]] - 1.5 * iqr |
@@ -286,7 +364,8 @@
       minimo_fecha = NA_character_, maximo_fecha = NA_character_,
       media_fecha = NA_character_, mediana_fecha = NA_character_,
       n_ceros = sum(valores == 0), n_negativos = sum(valores < 0),
-      n_outliers = n_outliers, n_nan = as.integer(n_nan),
+      n_outliers = n_outliers, centinela_valor = centinela$valor,
+      centinela_repeticiones = centinela$n, n_nan = as.integer(n_nan),
       n_infinito_positivo = as.integer(n_infinito_positivo),
       n_infinito_negativo = as.integer(n_infinito_negativo),
       n_fechas_resumidas = NA_integer_,
@@ -303,6 +382,7 @@
     media_fecha = .fecha_resumida(media, cuantitativos$clase),
     mediana_fecha = .fecha_resumida(mediana, cuantitativos$clase),
     n_ceros = 0L, n_negativos = 0L, n_outliers = n_outliers,
+    centinela_valor = centinela$valor, centinela_repeticiones = centinela$n,
     n_nan = as.integer(n_nan),
     n_infinito_positivo = as.integer(n_infinito_positivo),
     n_infinito_negativo = as.integer(n_infinito_negativo),
@@ -1248,7 +1328,8 @@
   faltantes_disfrazados <- .restringir_disfrazados(faltantes_disfrazados, aplicable)
   rol_propuesto <- .propuesta_escala(x, inferencia$tipo)$rol
   casi_clave <- .resumen_casi_clave(
-    x_analisis, rol = rol_propuesto, tipo_implicito = inferencia$tipo
+    x_analisis, rol = rol_propuesto, tipo_implicito = inferencia$tipo,
+    disfrazados = faltantes_disfrazados$mascara
   )
   n <- length(x)
   # El universo aplicable. Sin declaracion, toda la columna aplica y todo lo de
@@ -1336,6 +1417,8 @@
     densidad_secuencia_entera = secuencia_entera$densidad,
     n_posiciones_secuencia_entera = secuencia_entera$n_posiciones,
     n_huecos_secuencia_entera = secuencia_entera$n_huecos,
+    hueco_maximo_secuencia_entera = secuencia_entera$hueco_maximo,
+    salto_de_escala_secuencia_entera = secuencia_entera$salto_de_escala,
     umbral_densidad_secuencia_entera = secuencia_entera$umbral_densidad,
     min_distintos_secuencia_entera = secuencia_entera$min_distintos,
     moda = moda$valor,
@@ -1360,6 +1443,8 @@
     n_ceros = cuantitativo$n_ceros,
     n_negativos = cuantitativo$n_negativos,
     n_outliers = cuantitativo$n_outliers,
+    centinela_valor = cuantitativo$centinela_valor,
+    centinela_repeticiones = cuantitativo$centinela_repeticiones,
     n_nan = cuantitativo$n_nan,
     n_infinito_positivo = cuantitativo$n_infinito_positivo,
     n_infinito_negativo = cuantitativo$n_infinito_negativo,

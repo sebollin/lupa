@@ -65,20 +65,24 @@
 # magnitud -0,00005 para montos entre 9 y 9.999.999-. La unicidad no sirve: un
 # monto tambien es casi unico.
 
-# El minimo de valores distintos es el mismo que usa el detector de secuencias
-# enteras: con menos de veinte, una densidad alta no dice nada.
-.MIN_DISTINTOS_NUMERACION_BENFORD <- 20L
-
 .parece_correlativo_benford <- function(x) {
   if (!is.numeric(x)) return(FALSE)
   valores <- as.numeric(x[is.finite(x)])
   if (length(valores) < 2L) return(FALSE)
   if (any(valores != floor(valores))) return(FALSE)
   distintos <- sort(unique(valores))
-  if (length(distintos) < .MIN_DISTINTOS_NUMERACION_BENFORD) return(FALSE)
+  if (length(distintos) < .MIN_DISTINTOS_NUMERACION) return(FALSE)
   rango <- distintos[[length(distintos)]] - distintos[[1L]] + 1
   if (!is.finite(rango) || rango <= 0) return(FALSE)
-  length(distintos) / rango >= .MIN_DENSIDAD_NUMERACION
+  if (length(distintos) / rango < .MIN_DENSIDAD_NUMERACION) return(FALSE)
+  # La misma segunda senal que usa la guarda de los limites de Tukey: un valor
+  # separado del resto por un hueco desproporcionado no es cola de la
+  # numeracion, y una columna que lo tiene vuelve a evaluarse.
+  huecos <- diff(distintos)
+  tipico <- stats::median(huecos)
+  if (!is.finite(tipico) || tipico <= 0) tipico <- 1
+  !(length(distintos) >= 3L && max(huecos) >= .FACTOR_SALTO_ESCALA * tipico &&
+      max(huecos) > 1)
 }
 
 .resultado_benford_columna <- function(x, nombre, tipo_inferido,
