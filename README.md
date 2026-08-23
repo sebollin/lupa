@@ -427,6 +427,17 @@ a real bad value**; density alone got eleven and silenced two. It lives in
 the column covers, how many values would have been flagged, how many rows out of
 how many the sample carries.
 
+The same idea, reversed, yields a diagnostic no single signal could give. A
+`9999` may be an impossible age or a perfectly valid postal code, so the
+`sentinelas_numericos` list does not include it by default — and rightly so:
+flagging it always would break any column where that number is data. But a value
+that **falls outside the fences, repeats, and has the shape of a repeated digit**
+is a sentinel with all three together, and `posible_centinela_numerico` reports it
+without counting it as missing — that call belongs to whoever knows the column,
+by adding it to the list. A postal code `9999` repeated thirty times is not
+extreme within its column; a real amount of `9999` does not repeat; a year `1999`
+does not have that shape.
+
 Where no signal discriminates, `lupa` speaks. High cardinality in a text column is
 always reported, because the length of the values does not tell a catalogue from
 prose — it fails in both directions, measured — and the finding does not claim it

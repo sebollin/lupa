@@ -438,6 +438,17 @@ ningún dato malo real**; la densidad sola acertaba once y callaba dos. Está en
 cubre la columna, cuántos valores se habrían señalado, cuántas filas de cuántas
 trae la muestra—.
 
+La misma idea, al revés, produce un diagnóstico que ninguna señal sola podía
+dar. Un `9999` puede ser una edad imposible o un código postal perfectamente
+válido, así que la lista de `sentinelas_numericos` no lo trae por omisión y hace
+bien: marcarlo siempre rompería cualquier columna donde ese número es un dato.
+Pero un valor que **queda fuera de los límites, se repite y tiene forma de dígito
+repetido** es un centinela con las tres cosas juntas, y `posible_centinela_numerico`
+lo informa sin contarlo como ausencia —eso lo decide quien conoce la columna,
+agregándolo a la lista—. Un código postal `9999` repetido treinta veces no es
+extremo en su columna; un monto real de `9999` no se repite; un año `1999` no
+tiene esa forma.
+
 Donde no hay señal que discrimine, `lupa` habla. La cardinalidad alta de una
 columna de texto se informa siempre, porque el largo de los valores no distingue
 un catálogo de la prosa —falla en los dos sentidos, medido— y el hallazgo no

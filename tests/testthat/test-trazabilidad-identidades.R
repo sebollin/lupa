@@ -9,7 +9,8 @@ tipos_perfilado <- c(
   "formatos_fecha_mixtos", "geometria_invalida", "geometria_vacia",
   "mayusculas_inconsistentes", "monedas_mixtas", "negativos_no_permitidos",
   "nombres_columnas_problematicos", "normalizacion_unicode",
-  "numero_como_texto", "outliers", "patron_raro", "posible_identificador",
+  "numero_como_texto", "outliers", "patron_raro",
+  "posible_centinela_numerico", "posible_identificador",
   "relacion_orden_columnas", "separadores_en_campo",
   "tipo_compuesto_no_analizado", "tipo_declarado_distinto",
   "tipos_geometria_mixtos", "unidades_mixtas", "valores_no_finitos",
@@ -431,8 +432,21 @@ test_that("las geometrias trazan exactamente sus filas afectadas", {
   )
 })
 
-test_that("la lista de identidades cubre los treinta y siete tipos", {
-  expect_length(tipos_perfilado, 37L)
+test_that("el centinela numerico nombra sus filas", {
+  # Un valor que cumple las tres senales -extremo, repetido y con forma de
+  # digito repetido- se informa aparte de los faltantes declarados, y como
+  # cualquier otro hallazgo por fila tiene que decir en cuales esta.
+  set.seed(5)
+  edades <- c(sample(18:80, 200L, TRUE), rep(8888L, 12L))
+  perfil <- perfilar(
+    data.frame(edad = edades), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE, casi_duplicados_vocabulario = FALSE
+  )
+  esperar_filas(perfil, "posible_centinela_numerico", "edad", 201:212)
+})
+
+test_that("la lista de identidades cubre los treinta y ocho tipos", {
+  expect_length(tipos_perfilado, 38L)
   opcionales_ausentes <- c(
     if (requireNamespace("stringdist", quietly = TRUE)) {
       character()

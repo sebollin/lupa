@@ -71,6 +71,28 @@ trabaja sobre formas distintas, no sobre filas, asi que no ejercitaba nada- y
 `nrow()` sobre el resultado devolvia `NULL`, porque es una lista con `$pares` y
 no un data frame.
 
+## Un diagnostico nuevo: el centinela que ninguna lista puede declarar
+
+Un `9999` es una edad imposible y un codigo postal perfectamente valido. Por eso
+la lista de `sentinelas_numericos` no lo trae por omision, y hace bien: marcarlo
+siempre romperia cualquier columna donde ese numero es un dato.
+
+Lo que si lo distingue es cumplir **las tres cosas a la vez**: quedar fuera de
+los limites de la columna, repetirse cinco veces o mas, y tener forma de digito
+repetido. `posible_centinela_numerico` lo informa sin contarlo como ausencia
+-esa decision es de quien conoce la columna, agregandolo a la lista- y nombra
+las filas donde esta.
+
+Medido sobre doce columnas con la respuesta conocida, acierta las doce. Los tres
+controles que podrian haberlo roto: un codigo postal `9999` repetido treinta
+veces no es extremo dentro de su columna, un monto real de `9999` no se repite, y
+un ano `1999` no tiene esa forma.
+
+Es el unico diagnostico del paquete que **ninguna senal sola podia dar**: la
+forma sin los limites marca codigos validos, los limites sin la forma marcan
+cualquier extremo, y la repeticion sin las otras dos marca cualquier valor
+frecuente.
+
 ## Un valor centinela se escapaba de la proteccion de datos personales
 
 Es lo mas serio de la tanda y lo introdujo la tanda misma. El perfil pasa a
