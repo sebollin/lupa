@@ -546,8 +546,15 @@
   # significaba que la proteccion dependia de por donde entraras: la misma
   # columna de documentos salia con `media = 5108024` por `perfilar()` y con
   # `media = NA` por `perfilar_dbi()`.
+  # `centinela_valor` publica un valor de celda de la columna, igual que el
+  # minimo o la moda, asi que tiene que taparse por el mismo motivo. Quedaba
+  # afuera y sobre una columna de documentos protegida el perfil mostraba
+  # `moda = "[valor protegido]"`, `minimo = NA`... y `centinela_valor = 9999`.
+  # Que el valor sea casi seguro un centinela y no un documento no cambia la
+  # regla: la proteccion no adivina cuales valores son inocentes.
   campos_numericos <- intersect(
-    c("minimo", "maximo", "mediana", "media"), names(columnas)
+    c("minimo", "maximo", "mediana", "media", "centinela_valor"),
+    names(columnas)
   )
   campos_momento <- c("media")
   campos_texto <- intersect(
@@ -612,6 +619,25 @@
   indices_hallazgos <- !is.na(hallazgos$columna) &
     hallazgos$tipo_hallazgo != "dato_personal_posible" & coincide
   hallazgos$evidencia[indices_hallazgos] <- "[evidencia protegida]"
+  # La evidencia se tapaba y la descripcion no, y hay hallazgos que nombran un
+  # valor de celda ahi adentro: `posible_centinela_numerico` decia "El valor
+  # 9999 aparece 5 veces". Sobre una columna de documentos protegida eso es una
+  # fuga por la puerta de al lado, y llegaba hasta el informe HTML.
+  #
+  # No se tapa la descripcion entera, que explica el diagnostico y hay que poder
+  # leerla: se saca el valor y se dice que se saco.
+  con_valor <- indices_hallazgos &
+    grepl("^El valor ", as.character(hallazgos$descripcion))
+  if (any(con_valor)) {
+    hallazgos$descripcion[con_valor] <- sub(
+      "^El valor [^ ]+ aparece", "Un valor aparece",
+      as.character(hallazgos$descripcion[con_valor])
+    )
+    hallazgos$descripcion[con_valor] <- paste(
+      hallazgos$descripcion[con_valor],
+      "El valor no se nombra porque la columna esta protegida."
+    )
+  }
   # La clave declarada es, por definicion, lo que identifica una fila: es la
   # que permite ir a verificar el caso y tambien la que identifica a una
   # persona. Si alguna de sus columnas quedo clasificada como personal, sus

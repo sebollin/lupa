@@ -176,6 +176,20 @@
   numerico <- as.character(fila$tipo_inferido) %in% c("entero", "doble") ||
     as.character(fila$tipo_declarado) %in% c("entero", "doble")
   if (!isTRUE(numerico)) return(FALSE)
+  # Un centinela adentro hunde la densidad y abre el salto: un identificador de
+  # 1 a 4000 con quince `9999` pasaba de densidad 0,625 a 0,250 y dejaba de
+  # reconocerse. Si sacando el centinela la columna es compacta, la numeracion
+  # esta ahi y el centinela es lo que hay que informar aparte.
+  densidad_limpia <- suppressWarnings(as.numeric(fila$densidad_sin_centinela))
+  hay_centinela <- isTRUE(is.finite(densidad_limpia))
+  if (hay_centinela) {
+    distintos_limpios <- suppressWarnings(as.numeric(fila$n_distintos)) - 1
+    return(
+      isTRUE(densidad_limpia >= .MIN_DENSIDAD_NUMERACION) &&
+        isTRUE(is.finite(distintos_limpios) &&
+                 distintos_limpios >= .MIN_DISTINTOS_NUMERACION)
+    )
+  }
   if (isTRUE(fila$salto_de_escala_secuencia_entera)) return(FALSE)
   densidad <- suppressWarnings(as.numeric(fila$densidad_secuencia_entera))
   distintos <- suppressWarnings(as.numeric(fila$n_distintos))
@@ -1684,10 +1698,21 @@
       # filas.
       n_escritura <- .variantes_de_escritura_vocabulario(grupo$variantes)
       escritura <- if (n_escritura > 0L) {
+        # Se dice QUE SE COMPARO, no que sean la misma palabra. La comparacion
+        # ignora acentos, y en español el acento distingue palabras: `papa` y
+        # `papá` colapsan, igual que `año` y `ano`, `mas` y `más`, `Montes` y
+        # `Montés`. El mismo mecanismo que junta `Jose` con `José` -que si es la
+        # misma- junta esas otras, y no hay forma de separarlas sin un
+        # diccionario del idioma.
+        #
+        # Afirmar "es la misma palabra escrita distinto" seria decir lo que no
+        # se sabe. Informar en que difieren es un hecho verificable, y le deja
+        # la lectura a quien conoce la columna.
         paste0(
           "; ", n_escritura, " de ", length(grupo$variantes) - 1L,
-          " variantes son la forma dominante escrita distinto ",
-          "(mayusculas, acentos o puntuacion), no valores distintos"
+          " variantes difieren de la forma dominante solo en mayusculas, ",
+          "acentos o puntuacion (en español el acento puede cambiar la ",
+          "palabra: conviene mirarlas antes de unificar)"
         )
       } else ""
       paste0("[", variantes, "]; asimetria=",
@@ -3692,17 +3717,37 @@
         !is.na(fila$centinela_repeticiones)) {
       agregar(.nuevo_hallazgo(
         nombre, "posible_centinela_numerico", "sospechoso",
-        paste0(
-          "El valor ", .texto_valor(fila$centinela_valor), " aparece ",
-          fila$centinela_repeticiones, " veces, queda fuera de los limites de ",
-          "la columna y tiene la forma de los codigos que se usan para decir ",
-          "\"sin dato\". No se cuenta como ausencia porque no esta declarado."
-        ),
-        paste0(
-          "Valor: ", .texto_valor(fila$centinela_valor), "; repeticiones: ",
-          fila$centinela_repeticiones, "; valores fuera de los limites: ",
-          fila$n_outliers
-        ),
+        # La descripcion nombra un valor de la columna, asi que en una columna
+        # protegida no puede decirlo. La evidencia ya salia protegida y la
+        # descripcion no: la fuga entraba por ahi.
+        if (isTRUE(fila$dato_personal_protegido)) {
+          paste0(
+            "Un valor aparece ", fila$centinela_repeticiones, " veces, queda ",
+            "fuera de los limites de la columna y tiene la forma de los codigos ",
+            "que se usan para decir \"sin dato\". No se nombra porque la columna ",
+            "esta protegida, y no se cuenta como ausencia porque no esta ",
+            "declarado."
+          )
+        } else {
+          paste0(
+            "El valor ", .texto_valor(fila$centinela_valor), " aparece ",
+            fila$centinela_repeticiones, " veces, queda fuera de los limites de ",
+            "la columna y tiene la forma de los codigos que se usan para decir ",
+            "\"sin dato\". No se cuenta como ausencia porque no esta declarado."
+          )
+        },
+        if (isTRUE(fila$dato_personal_protegido)) {
+          paste0(
+            "Repeticiones: ", fila$centinela_repeticiones,
+            "; valores fuera de los limites: ", fila$n_outliers
+          )
+        } else {
+          paste0(
+            "Valor: ", .texto_valor(fila$centinela_valor), "; repeticiones: ",
+            fila$centinela_repeticiones, "; valores fuera de los limites: ",
+            fila$n_outliers
+          )
+        },
         paste0(
           "Si es un codigo de ausencia, agregarlo a `sentinelas_numericos` ",
           "para que se cuente como faltante; si es un dato real, no hay nada ",

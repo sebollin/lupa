@@ -6,7 +6,7 @@
 \usage{
 perfilar(
   datos,
-  nombre = deparse(substitute(datos)),
+  nombre = .nombre_de_los_datos(substitute(datos)),
   fecha = Sys.time(),
   muestra = 1e+05,
   max_patrones = 20,
@@ -228,12 +228,7 @@ fila a fila. No se aplica una tolerancia oculta. Use \code{0} para desactivar el
 filtro de magnitud. Ambos criterios se publican en la evidencia. Los pares
 descartados se cuentan en
 \code{meta$orden_columnas$pares_descartados_magnitud} y los recuperados en
-\code{meta$orden_columnas$pares_rescatados_brecha_estable}. Un par en el que
-ambas columnas se comportan como identificadores tampoco se evalúa: dos
-numeraciones correlativas se ordenan igual sin que medie ninguna regla.
-Esos pares se cuentan en
-\code{meta$orden_columnas$pares_descartados_identificador} y se nombran en
-\code{meta$orden_columnas$pares_identificador_descartados}.}
+\code{meta$orden_columnas$pares_rescatados_brecha_estable}.}
 
 \item{umbral_aritmetica}{Proporción mínima de filas comparables que deben
 satisfacer una identidad dentro de \code{tolerancia_aritmetica} para reconocer
@@ -291,9 +286,12 @@ se reparten la columna sin que ninguna sea dominante —el error sistemático
 de dos operadores, una plantilla rota o una migración parcial—.
 
 \strong{Está apagado por omisión y la razón está medida}: sobre la batería de
-31 tablas limpias produce un grupo sospechoso donde no hay defecto, y
-dispara en tablas de menos de veinte filas donde dos formas parecidas se
-reparten por casualidad. Es aditivo: encenderlo no cambia ni pierde ninguna
+31 tablas limpias produce un grupo sospechoso donde no hay defecto. Lo que
+lo dispara no es el tamaño de la tabla sino el reparto: dos formas
+parecidas con frecuencias del mismo orden lo activan igual con cuatro filas
+que con quinientas, y en una tabla chica ese reparto sale por casualidad
+más seguido. Decía «tablas de menos de veinte filas», y se midió de cuatro
+a quinientas: dispara en todas. Es aditivo: encenderlo no cambia ni pierde ninguna
 detección de \code{casi_duplicados_vocabulario}. El límite que deja de cubrir se
 declara igual, encendido o apagado, en \code{n_grupos_sin_variante_rara}.}
 

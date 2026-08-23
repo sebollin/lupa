@@ -383,9 +383,12 @@
 #'   de dos operadores, una plantilla rota o una migración parcial—.
 #'
 #'   **Está apagado por omisión y la razón está medida**: sobre la batería de
-#'   31 tablas limpias produce un grupo sospechoso donde no hay defecto, y
-#'   dispara en tablas de menos de veinte filas donde dos formas parecidas se
-#'   reparten por casualidad. Es aditivo: encenderlo no cambia ni pierde ninguna
+#'   31 tablas limpias produce un grupo sospechoso donde no hay defecto. Lo que
+#'   lo dispara no es el tamaño de la tabla sino el reparto: dos formas
+#'   parecidas con frecuencias del mismo orden lo activan igual con cuatro filas
+#'   que con quinientas, y en una tabla chica ese reparto sale por casualidad
+#'   más seguido. Decía «tablas de menos de veinte filas», y se midió de cuatro
+#'   a quinientas: dispara en todas. Es aditivo: encenderlo no cambia ni pierde ninguna
 #'   detección de `casi_duplicados_vocabulario`. El límite que deja de cubrir se
 #'   declara igual, encendido o apagado, en `n_grupos_sin_variante_rara`.
 #' @param max_asimetria_equifrecuente_vocabulario Razón máxima entre la
@@ -592,7 +595,7 @@
 #' perfil
 #' summary(perfil)
 perfilar <- function(datos,
-                     nombre = deparse(substitute(datos)),
+                     nombre = .nombre_de_los_datos(substitute(datos)),
                      fecha = Sys.time(),
                      muestra = 1e5,
                      max_patrones = 20,
@@ -642,6 +645,23 @@ perfilar <- function(datos,
                       max_trabajo_vocabulario = 2e10,
                       max_trabajo_dependencias = 100000000) {
   # Una matriz de dos dimensiones es una tabla, y rechazarla obligaba a escribir
+
+# `deparse()` de una expresion larga devuelve VARIAS lineas, y con
+# `do.call(perfilar, list(data.frame(...)))` la expresion es la tabla entera: el
+# nombre salia con ocho elementos y `reportar()` reventaba con "values must be
+# length 1". `do.call()` es una forma corriente de llamar a esto -pasar los
+# argumentos en una lista es lo natural cuando se perfila en un bucle-, asi que
+# el nombre tiene que sobrevivirla.
+#
+# Si la expresion no cabe en una linea no sirve como nombre: no lo escribio
+# nadie, es una tabla deparseada. En ese caso se usa una etiqueta generica.
+.nombre_de_los_datos <- function(expresion) {
+  texto <- tryCatch(deparse(expresion), error = function(e) character())
+  if (length(texto) != 1L || !nzchar(trimws(texto)) || nchar(texto) > 120L) {
+    return("datos")
+  }
+  texto
+}
   # la conversion afuera. Se acepta y se convierte, y la conversion queda
   # declarada en `meta` para que el perfil no aparente haber recibido lo que no
   # recibio. Una matriz sin nombres de columna los recibe de R.

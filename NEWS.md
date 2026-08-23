@@ -71,6 +71,58 @@ trabaja sobre formas distintas, no sobre filas, asi que no ejercitaba nada- y
 `nrow()` sobre el resultado devolvia `NULL`, porque es una lista con `$pares` y
 no un data frame.
 
+## Un valor centinela se escapaba de la proteccion de datos personales
+
+Es lo mas serio de la tanda y lo introdujo la tanda misma. El perfil pasa a
+medir cual es el valor que una columna usa para decir "sin dato" -un `9999`
+entre edades- y ese campo publicaba un valor de celda sin pasar por el
+enmascarado. Sobre una columna de documentos protegida se veia asi:
+
+```
+moda                    [valor protegido]
+minimo                  NA
+centinela_valor         9999
+```
+
+Y la descripcion del hallazgo lo nombraba en texto, con lo cual llegaba hasta el
+informe HTML. La evidencia si salia protegida: la fuga entraba por la puerta de
+al lado.
+
+Ahora `centinela_valor` se enmascara igual que el minimo, la moda y la media, y
+la descripcion se limpia en la misma capa que ya limpiaba la evidencia. Las
+repeticiones se siguen informando, porque son un conteo y no un valor.
+
+Que el valor sea casi seguro un centinela y no un documento no cambia la regla:
+**la proteccion no adivina cuales valores son inocentes**.
+
+## Dos diagnosticos que se contradecian sobre la misma columna
+
+`999` esta en la lista de centinelas declarados, asi que `faltantes_disfrazados`
+lo cuenta como ausencia con severidad `error`. El diagnostico nuevo decia, sobre
+esa misma columna, que "no se cuenta como ausencia porque no esta declarado".
+Los valores que la lista ya cubre dejan de producirlo: el diagnostico existe
+para los que **no** estan declarados, como un `8888`.
+
+## `perfilar()` dentro de `do.call()` rompia el informe
+
+`deparse()` de una expresion larga devuelve varias lineas, y con
+`do.call(perfilar, list(tabla, ...))` la expresion es la tabla entera: el nombre
+del conjunto salia con ocho elementos y `reportar()` fallaba con "values must be
+length 1". Pasar los argumentos en una lista es lo natural cuando se perfila en
+un bucle. Si la expresion no cabe en una linea, no la escribio nadie y se usa una
+etiqueta generica.
+
+## Lo que el idioma no deja resolver
+
+La comparacion que separa una errata de la misma palabra escrita de otra manera
+ignora acentos, y en español el acento distingue palabras. El mismo mecanismo
+que junta `Jose` con `José` -que si es la misma- junta `papa` con `papá` y `ano`
+con `año`, que no lo son. Separarlos pide un diccionario del idioma.
+
+Asi que se corrigio la afirmacion, no la medida: el texto decia "son la forma
+dominante escrita distinto" y ahora dice **en que difieren**, que es
+verificable, y avisa de que en español el acento puede cambiar la palabra.
+
 ## La misma numeracion, descrita de dos maneras
 
 Aparecio al intentar romper el arreglo de arriba. Un codigo 1..284 con 179

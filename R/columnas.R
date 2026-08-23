@@ -145,6 +145,10 @@
 # en 5. Los tres estan en el centro de su meseta, no en un borde.
 .FACTOR_SALTO_ESCALA <- 20
 
+# La otra via: el hueco mas grande como proporcion del rango. Las numeraciones
+# reales del banco no pasan de 0,067 y los casos a informar arrancan en 0,409.
+.PROPORCION_SALTO_ESCALA <- 0.25
+
 .resumen_secuencia_entera <- function(x, inferencia, formatos,
                                       umbral_densidad = 0.8,
                                       min_distintos = 20L) {
@@ -195,8 +199,20 @@
     n_huecos = as.numeric(n_posiciones - length(distintos)),
     hueco_maximo = as.numeric(hueco_maximo),
     hueco_tipico = as.numeric(hueco_tipico),
-    salto_de_escala = length(distintos) >= 3L &&
-      hueco_maximo >= .FACTOR_SALTO_ESCALA * hueco_tipico && hueco_maximo > 1,
+    # Hay salto de escala por dos vias, y hacen falta las dos. La primera
+    # compara el hueco con el tipico, y se le escapa una columna de pocos
+    # valores: puntajes del 1 al 13 con un 22 repetido veinte veces abren un
+    # hueco de 9 sobre un tipico de 1, que no llega al factor y deja la columna
+    # clasificada como numeracion, callando veinte valores extremos.
+    #
+    # La segunda mira el hueco contra el RANGO, y ahi la separacion es limpia:
+    # las numeraciones reales llegan a 0,067 -el mayor es un codigo de 1 a 15- y
+    # los casos que hay que informar empiezan en 0,409. Entre medio no hay
+    # ninguno, asi que cualquier umbral entre 0,10 y 0,40 da cero errores sobre
+    # el banco; 0,25 queda en el centro de esa meseta.
+    salto_de_escala = length(distintos) >= 3L && hueco_maximo > 1 &&
+      (hueco_maximo >= .FACTOR_SALTO_ESCALA * hueco_tipico ||
+         hueco_maximo / n_posiciones >= .PROPORCION_SALTO_ESCALA),
     umbral_densidad = umbral_densidad,
     min_distintos = as.integer(min_distintos)
   )
@@ -220,8 +236,10 @@
 # decida si agrega ese valor a su lista.
 .MIN_REPETICIONES_CENTINELA <- 5L
 
-.centinela_por_tres_senales <- function(valores, iqr) {
-  vacio <- list(valor = NA_real_, n = NA_integer_)
+.centinela_por_tres_senales <- function(valores, iqr,
+                                       sentinelas_numericos = NULL) {
+  vacio <- list(valor = NA_real_, n = NA_integer_,
+                densidad_sin_centinela = NA_real_)
   if (!length(valores) || !is.finite(iqr) || iqr <= 0) return(vacio)
   if (length(valores) < 20L) return(vacio)
   q <- stats::quantile(valores, probs = c(0.25, 0.75), names = FALSE, type = 7)
@@ -233,15 +251,45 @@
     as.numeric(names(frecuencias)[frecuencias >= .MIN_REPETICIONES_CENTINELA])
   )
   if (!length(repetidos)) return(vacio)
-  # Todo nueves, con al menos tres digitos, con o sin signo. Es la forma que
-  # comparten `999`, `-999`, `9999` y `-9999` y que no tiene ningun numero que
-  # se elija por su valor.
-  con_forma <- repetidos[grepl("^-?9{3,}$", as.character(repetidos))]
+  # Un digito repetido tres veces o mas, con o sin signo: `999`, `-999`, `9999`,
+  # `8888`, `7777`. Empezo siendo solo nueves y se amplio midiendo: sobre doce
+  # columnas con la respuesta conocida, solo-nueves acertaba diez y se perdia
+  # dos centinelas reales -`8888` y `7777` en columnas de edad-, y el patron
+  # ancho acierta las doce sin inventar ninguno.
+  #
+  # Los controles que podrian haberlo roto y no lo hacen: un codigo `111` en una
+  # columna de 100 a 200, un `0` repetido veinticinco veces entre cantidades, y
+  # un `222` entre mediciones de 200 a 260. Ninguno es extremo dentro de su
+  # columna, y ahi es donde las otras dos senales hacen su trabajo.
+  con_forma <- repetidos[grepl("^-?([0-9])\\1{2,}$", as.character(repetidos))]
+  # Los valores que la lista declarada YA cuenta como ausencia no son asunto de
+  # este diagnostico: `faltantes_disfrazados` los informa, y con severidad
+  # `error`. Sin este descarte los dos hallazgos se contradecian sobre la misma
+  # columna -uno decia que el `999` era una ausencia y el otro que "no se cuenta
+  # como ausencia porque no esta declarado", cuando si lo estaba-.
+  declarados <- suppressWarnings(as.numeric(sentinelas_numericos))
+  declarados <- declarados[is.finite(declarados)]
+  if (length(declarados)) con_forma <- setdiff(con_forma, declarados)
   if (!length(con_forma)) return(vacio)
   elegido <- con_forma[[which.max(abs(con_forma))]]
+  # Una numeracion con un centinela adentro deja de parecer numeracion: el
+  # `9999` abre un hueco enorme y hunde la densidad, asi que sobre un
+  # identificador de 1 a 4000 con quince `9999` se volvian a correr Benford y
+  # los limites de Tukey. Medido: la densidad cae de 0,625 a 0,250 por culpa del
+  # centinela.
+  #
+  # La columna sin el centinela es lo que hay que mirar para decidir si es una
+  # numeracion. El centinela se informa igual, por su cuenta.
+  restantes <- valores[valores != elegido]
+  distintos <- unique(restantes)
+  densidad_limpia <- if (length(distintos) > 1L) {
+    rango <- max(distintos) - min(distintos) + 1
+    if (is.finite(rango) && rango > 0) length(distintos) / rango else NA_real_
+  } else NA_real_
   list(
     valor = as.numeric(elegido),
-    n = as.integer(sum(valores == elegido))
+    n = as.integer(sum(valores == elegido)),
+    densidad_sin_centinela = as.numeric(densidad_limpia)
   )
 }
 
@@ -253,7 +301,8 @@
     maximo_fecha = NA_character_, media_fecha = NA_character_,
     mediana_fecha = NA_character_, n_ceros = NA_integer_,
     n_negativos = NA_integer_, n_outliers = NA_integer_,
-    centinela_valor = NA_real_, centinela_repeticiones = NA_integer_, n_nan = 0L,
+    centinela_valor = NA_real_, centinela_repeticiones = NA_integer_,
+    densidad_sin_centinela = NA_real_, n_nan = 0L,
     n_infinito_positivo = 0L, n_infinito_negativo = 0L,
     n_fechas_resumidas = NA_integer_,
     n_fechas_excluidas_granularidad = NA_integer_,
@@ -309,7 +358,8 @@
 }
 
 .resumen_cuantitativo <- function(x, inferencia, formatos,
-                                  meses_texto = NULL) {
+                                  meses_texto = NULL,
+                                  sentinelas_numericos = NULL) {
   cuantitativos <- .valores_cuantitativos(
     x, inferencia, formatos, meses_texto = meses_texto
   )
@@ -348,7 +398,7 @@
   mediana <- stats::median(valores)
   desvio <- if (length(valores) > 1L) stats::sd(valores) else NA_real_
   iqr <- stats::IQR(valores, na.rm = TRUE, type = 7)
-  centinela <- .centinela_por_tres_senales(valores, iqr)
+  centinela <- .centinela_por_tres_senales(valores, iqr, sentinelas_numericos)
   if (is.finite(iqr)) {
     q <- stats::quantile(valores, probs = c(0.25, 0.75), names = FALSE, type = 7)
     n_outliers <- sum(valores < q[[1L]] - 1.5 * iqr |
@@ -365,7 +415,9 @@
       media_fecha = NA_character_, mediana_fecha = NA_character_,
       n_ceros = sum(valores == 0), n_negativos = sum(valores < 0),
       n_outliers = n_outliers, centinela_valor = centinela$valor,
-      centinela_repeticiones = centinela$n, n_nan = as.integer(n_nan),
+      centinela_repeticiones = centinela$n,
+      densidad_sin_centinela = centinela$densidad_sin_centinela,
+      n_nan = as.integer(n_nan),
       n_infinito_positivo = as.integer(n_infinito_positivo),
       n_infinito_negativo = as.integer(n_infinito_negativo),
       n_fechas_resumidas = NA_integer_,
@@ -383,6 +435,7 @@
     mediana_fecha = .fecha_resumida(mediana, cuantitativos$clase),
     n_ceros = 0L, n_negativos = 0L, n_outliers = n_outliers,
     centinela_valor = centinela$valor, centinela_repeticiones = centinela$n,
+    densidad_sin_centinela = centinela$densidad_sin_centinela,
     n_nan = as.integer(n_nan),
     n_infinito_positivo = as.integer(n_infinito_positivo),
     n_infinito_negativo = as.integer(n_infinito_negativo),
@@ -1360,7 +1413,8 @@
   moda <- .moda_columna(x_identidad)
   longitudes <- .resumen_longitud(x_analisis)
   cuantitativo <- .resumen_cuantitativo(
-    x_analisis, inferencia, formatos, meses_texto = meses_texto
+    x_analisis, inferencia, formatos, meses_texto = meses_texto,
+    sentinelas_numericos = sentinelas_numericos
   )
   diagnostico_texto <- .diagnosticar_texto(x, vocabulario = vocabulario_texto)
   vocabulario_numeros <- if (
@@ -1445,6 +1499,7 @@
     n_outliers = cuantitativo$n_outliers,
     centinela_valor = cuantitativo$centinela_valor,
     centinela_repeticiones = cuantitativo$centinela_repeticiones,
+    densidad_sin_centinela = cuantitativo$densidad_sin_centinela,
     n_nan = cuantitativo$n_nan,
     n_infinito_positivo = cuantitativo$n_infinito_positivo,
     n_infinito_negativo = cuantitativo$n_infinito_negativo,
