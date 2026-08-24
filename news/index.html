@@ -42,6 +42,12 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="el-modo-aproximado-dice-qué-métrica-aproximó-y-con-qué-función-0-1-0">El modo aproximado dice qué métrica aproximó, y con qué función<a class="anchor" aria-label="anchor" href="#el-modo-aproximado-dice-qu%C3%A9-m%C3%A9trica-aproxim%C3%B3-y-con-qu%C3%A9-funci%C3%B3n-0-1-0"></a></h3>
+<p><code>perfilar_dbi(modo = "aproximado")</code> sondea las funciones aproximadas nativas del motor y cae a la medida exacta cuando el motor las rechaza. Esa contabilidad ya estaba completa por métrica en <code>resumen_tabla$sql</code> —<code>estado</code>, <code>metodo</code> y <code>error_esperado</code>—, pero al imprimir el perfil se leía <code>Métricas: calculado 24, estimado 6</code> sin saber <strong>cuáles</strong> eran las seis ni con qué función se calcularon.</p>
+<p>Ahora el print lo dice: <code>Aproximaciones aplicadas: distintos por APPROX_COUNT_DISTINCT y mediana por approx_quantile</code>, o bien <code>Sin aproximación para distintos y mediana: el motor no la aceptó y las métricas se midieron exactas</code>. No cambia ningún número: publica donde se lee lo que ya estaba medido.</p>
+<p><code>error_esperado</code> sigue respondiendo <code>desconocido</code> cuando el motor no documenta una cota. Medir un error sobre una tabla no autoriza a declararlo como garantía sobre todas.</p>
+</div>
+<div class="section level3">
 <h3 id="los-motores-reales-se-verifican-en-cada-push-0-1-0">Los motores reales se verifican en cada push<a class="anchor" aria-label="anchor" href="#los-motores-reales-se-verifican-en-cada-push-0-1-0"></a></h3>
 <p>La fila «probado contra el motor real» de la tabla de motores dependia de que alguien se acordara de correrlo a mano: se media una vez, quedaba en notas, y la tabla envejecia sin avisar.</p>
 <p><code>benchmark/verificar_motor.R</code> comprueba contra un motor real que las columnas se perfilan, que el dialecto se resuelve por sonda, que <strong>la media del motor coincide con la de R sobre la misma columna</strong> -que corra no alcanza-, que la clave primaria se lee del catalogo, y que la cobertura existe. Se configura por variables de entorno, asi que el mismo guion sirve en una maquina y en integracion continua, y sale con codigo distinto de cero si algo falla.</p>

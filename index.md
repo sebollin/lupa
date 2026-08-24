@@ -1,5 +1,8 @@
 # lupa
 
+Auditable data profiling and quality measurement: every result carries
+its scope and its evidence.
+
 ## 🔎 What it is and how it differs
 
 `lupa` is an auditable R toolkit that connects first-pass profiling with

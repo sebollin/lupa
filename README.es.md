@@ -1,5 +1,8 @@
 # lupa
 
+Perfilado y medición de calidad de datos auditables: cada resultado
+conserva su alcance y su evidencia.
+
 [![Licencia:
 GPL-3](https://img.shields.io/badge/licencia-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![R-CMD-check](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sebollin/lupa/actions/workflows/R-CMD-check.yaml)
