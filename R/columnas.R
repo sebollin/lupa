@@ -236,6 +236,16 @@
 # decida si agrega ese valor a su lista.
 .MIN_REPETICIONES_CENTINELA <- 5L
 
+# Un centinela esta solo: nadie escribe `9998` al lado de `9999`. Un codigo de
+# catalogo, en cambio, vive en un tramo, y sus vecinos aparecen tanto como el.
+# Si los vecinos inmediatos suman al menos la mitad de las veces que aparece el
+# candidato, lo que hay es un tramo y no un valor reservado.
+#
+# Medido: `222` entre `221` y `223`, los tres ocho veces, da razon 1,00; los
+# centinelas reales -`9999` entre documentos, `8888` entre edades- dan 0,00. La
+# separacion es total, asi que el umbral solo tiene que caer entre las dos.
+.PROPORCION_VECINOS_CODIGO <- 0.5
+
 .centinela_por_tres_senales <- function(valores, iqr,
                                        sentinelas_numericos = NULL) {
   vacio <- list(valor = NA_real_, n = NA_integer_,
@@ -257,10 +267,16 @@
   # dos centinelas reales -`8888` y `7777` en columnas de edad-, y el patron
   # ancho acierta las doce sin inventar ninguno.
   #
-  # Los controles que podrian haberlo roto y no lo hacen: un codigo `111` en una
-  # columna de 100 a 200, un `0` repetido veinticinco veces entre cantidades, y
-  # un `222` entre mediciones de 200 a 260. Ninguno es extremo dentro de su
-  # columna, y ahi es donde las otras dos senales hacen su trabajo.
+  # Los controles que se le pasaron: un codigo `111` en una columna de 100 a
+  # 200, un `0` repetido veinticinco veces entre cantidades, y un `222` entre
+  # mediciones de 200 a 260. Ninguno es extremo dentro de su columna.
+  #
+  # **Y ahi estaba la trampa**, que se descubrio despues: los tres controles
+  # eligen valores que no son extremos, o sea que ninguno ejercita la unica
+  # situacion en que esta senal puede hacer dano. Se probaba el caso comodo y se
+  # leia el resultado como si cubriera el dificil. El `222` de un tramo de
+  # codigos altos dentro de una columna concentrada abajo SI es extremo, y ahi
+  # esta forma decidia sola. Lo frena la guarda de vecinos, mas abajo.
   con_forma <- repetidos[grepl("^-?([0-9])\\1{2,}$", as.character(repetidos))]
   # Los valores que la lista declarada YA cuenta como ausencia no son asunto de
   # este diagnostico: `faltantes_disfrazados` los informa, y con severidad
@@ -270,6 +286,20 @@
   declarados <- suppressWarnings(as.numeric(sentinelas_numericos))
   declarados <- declarados[is.finite(declarados)]
   if (length(declarados)) con_forma <- setdiff(con_forma, declarados)
+  # La forma de digito repetido es la mas debil de las tres senales: `222` la
+  # tiene por casualidad. Mientras el valor no fuera extremo, las otras dos lo
+  # frenaban -y asi se habia comprobado, con un `222` entre mediciones de 200 a
+  # 260-. Pero un tramo de codigos altos dentro de una columna concentrada abajo
+  # SI es extremo, y ahi la forma decidia sola: se marcaba `222` y no `221` ni
+  # `223`, con la misma frecuencia y la misma lejania. La unica diferencia era
+  # como se escribe el numero.
+  con_vecinos <- vapply(con_forma, function(candidato) {
+    propias <- sum(valores == candidato, na.rm = TRUE)
+    vecinas <- sum(valores == candidato - 1, na.rm = TRUE) +
+      sum(valores == candidato + 1, na.rm = TRUE)
+    isTRUE(propias > 0 && vecinas >= propias * .PROPORCION_VECINOS_CODIGO)
+  }, logical(1L))
+  con_forma <- con_forma[!con_vecinos]
   if (!length(con_forma)) return(vacio)
   elegido <- con_forma[[which.max(abs(con_forma))]]
   # Una numeracion con un centinela adentro deja de parecer numeracion: el
