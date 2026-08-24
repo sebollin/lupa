@@ -31,8 +31,8 @@ test_that("EntidadContradictoria compara el vocabulario y declara su alcance", {
   instancia <- instanciar(metrica, "personas", "nombre")
   datos <- data.frame(
     nombre = c(
-      "Ministerio de Desarrollo Social",
-      "Ministerio de Desarrolo Social",
+      "Organismo Nacional de Estadistica",
+      "Organismo Nacional de Estadstica",
       "MONTEVIDEO", "Montevideo ", "Otra entidad", NA_character_
     ),
     stringsAsFactors = FALSE

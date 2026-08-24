@@ -38,6 +38,21 @@ colecciones medidas en momentos distintos o contra motores distintos.
 organismo <- organizacion("Organismo A", c("padron", "tramites"))
 organismo
 organismo$declaradas
+
+# Cuando los nombres siguen una convencion, la agrupacion se deriva de ella
+# y despues se declara. `lupa` no aplica la regla por su cuenta -deducir el
+# dueno de una base a partir de su nombre es una inferencia, y la frontera
+# se declara-, pero tampoco obliga a escribir la lista a mano: la regla la
+# pone quien conoce la convencion, y con la forma que quiera.
+esquemas <- c("org_a_padron", "org_a_tramites", "org_b_registro", "cruce")
+sigla <- ifelse(grepl("^org_", esquemas), sub("_[^_]+$", "", esquemas), NA)
+partes <- split(esquemas[!is.na(sigla)], sigla[!is.na(sigla)])
+organismos <- Map(organizacion, names(partes), partes)
+
+# Y lo que la convencion no alcanza -aca, una base de un integrador, que no
+# tiene dueno unico- se declara aparte, en vez de quedar afuera en silencio.
+organismos[["integrador"]] <- organizacion("integrador", esquemas[is.na(sigla)])
+vapply(organismos, function(o) o$n_declaradas, integer(1))
 }
 \seealso{
 \code{\link[=agregar]{agregar()}}, \code{\link[=coleccion]{coleccion()}}, \code{\link[=granularidades]{granularidades()}}

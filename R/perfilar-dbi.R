@@ -4252,6 +4252,39 @@ print.perfil_dbi <- function(x, ...) {
       "Protecci\u00f3n de datos personales aplicada a {n_protegidas} columna{?/s}."
     )
   }
+  aproximaciones <- meta$aproximaciones
+  if (length(aproximaciones)) {
+    aplicada <- vapply(
+      aproximaciones, function(a) isTRUE(a$disponible), logical(1L)
+    )
+    if (any(aplicada)) {
+      detalle <- paste(
+        paste0(
+          names(aproximaciones)[aplicada], " por ",
+          vapply(aproximaciones[aplicada], function(a) a$metodo, character(1L))
+        ),
+        collapse = " y "
+      )
+      cli::cli_text(
+        "Aproximaciones aplicadas: {detalle}. El error esperado y las sondas ",
+        "est\u00e1n en `resumen_tabla$meta$aproximaciones`."
+      )
+    }
+    if (any(!aplicada)) {
+      sin_aproximar <- paste(
+        names(aproximaciones)[!aplicada], collapse = " y "
+      )
+      cierre <- if (sum(!aplicada) > 1L) {
+        "las m\u00e9tricas se midieron exactas."
+      } else {
+        "la m\u00e9trica se midi\u00f3 exacta."
+      }
+      cli::cli_text(
+        "Sin aproximaci\u00f3n para {sin_aproximar}: el motor no la ",
+        "acept\u00f3 y {cierre}"
+      )
+    }
+  }
   cli::cli_text(
     "No se imprime ning\u00fan valor de celda: est\u00e1n en `resumen_tabla$columnas`."
   )

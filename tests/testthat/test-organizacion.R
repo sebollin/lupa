@@ -213,7 +213,7 @@ test_that("el nombre de lista y el del objeto identifican a la misma parte", {
   expect_equal(medida$entidad, "Organismo A")
   agregado <- expect_no_error(agregar(
     medida, "conjuntoOrganizaciones", "promedio_ponderado", pesos = 1,
-    organizaciones = list(Ministerio = organismo)
+    organizaciones = list(Sector = organismo)
   ))
   cobertura <- attr(agregado, "cobertura_conjunto_organizaciones")
   expect_equal(cobertura$declaradas, 1L)

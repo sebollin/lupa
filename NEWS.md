@@ -1,5 +1,23 @@
 # lupa 0.1.0
 
+## El modo aproximado dice qué métrica aproximó, y con qué función
+
+`perfilar_dbi(modo = "aproximado")` sondea las funciones aproximadas nativas del
+motor y cae a la medida exacta cuando el motor las rechaza. Esa contabilidad ya
+estaba completa por métrica en `resumen_tabla$sql` —`estado`, `metodo` y
+`error_esperado`—, pero al imprimir el perfil se leía `Métricas: calculado 24,
+estimado 6` sin saber **cuáles** eran las seis ni con qué función se calcularon.
+
+Ahora el print lo dice: `Aproximaciones aplicadas: distintos por
+APPROX_COUNT_DISTINCT y mediana por approx_quantile`, o bien `Sin aproximación
+para distintos y mediana: el motor no la aceptó y las métricas se midieron
+exactas`. No cambia ningún número: publica donde se lee lo que ya estaba medido.
+
+`error_esperado` sigue respondiendo `desconocido` cuando el motor no documenta
+una cota. Medir un error sobre una tabla no autoriza a declararlo como garantía
+sobre todas.
+
+
 ## Los motores reales se verifican en cada push
 
 La fila «probado contra el motor real» de la tabla de motores dependia de que
