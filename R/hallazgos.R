@@ -953,22 +953,28 @@
     suma <- cumsum(longitudes)
     (suma^2 - cumsum(longitudes^2)) / 2
   } else numeric()
-  representantes <- vapply(
-    split(seq_along(clases), clases), `[[`, integer(1L), 1L
-  )
+  # El mismo `split()` se calculaba aqui y otra vez, identico, en el bucle de
+  # mas abajo.
+  grupos_de_clase <- split(seq_along(clases), clases)
+  representantes <- vapply(grupos_de_clase, `[[`, integer(1L), 1L)
   disponible <- .stringdist_disponible()
   firmas_numericas <- if (disponible) {
     .firmas_numericas_vocabulario(valores_norm)
   } else {
     rep("", length(valores_norm))
   }
-  pares <- matrix(integer(), ncol = 2L)
-  for (grupo in split(seq_along(clases), clases)) {
-    if (length(grupo) > 1L) {
-      # Para unir una clase exacta basta una estrella: no materializamos el
-      # cuadrado de pares que ya son iguales por normalizacion.
-      pares <- rbind(pares, cbind(grupo[[1L]], grupo[-1L]))
-    }
+  # Y el `rbind()` copiaba la matriz entera en cada vuelta. Se arma la lista y
+  # se une una sola vez: medido en el tope realista -2.500 clases de dos- da
+  # 0,0116 s contra 0,0056 s, con los mismos pares y en el mismo orden.
+  con_pares <- Filter(function(g) length(g) > 1L, grupos_de_clase)
+  pares <- if (length(con_pares)) {
+    # Para unir una clase exacta basta una estrella: no materializamos el
+    # cuadrado de pares que ya son iguales por normalizacion.
+    do.call(rbind, lapply(con_pares, function(grupo) {
+      cbind(grupo[[1L]], grupo[-1L])
+    }))
+  } else {
+    matrix(integer(), ncol = 2L)
   }
   max_unidades_pares <- if (is.infinite(max_pares)) n_unidades else {
     floor((1 + sqrt(1 + 8 * max_pares)) / 2)
@@ -1874,11 +1880,21 @@
       valores_dominantes <- unique(unlist(lapply(
         particion_grupos, `[[`, "dominantes"
       ), use.names = FALSE))
+      # Un barrido de la columna por cada variante costaba k veces el largo de
+      # la columna. Medido sobre 500.000 filas y 200 variantes: 0,965 s contra
+      # 0,018 s con un solo barrido, o sea 54 veces. El paquete ya usa esta
+      # forma en el detector de unidades, unas lineas mas abajo.
+      #
+      # El conjunto de indices es el mismo; cambia el orden DENTRO de cada
+      # grupo, que pasa de agrupado-por-valor a orden de fila. Los dos grupos
+      # siguen separados y concatenados en el mismo orden, que es de lo que
+      # depende `.limitar_trazabilidad()` para partir la traza. Cuando la traza
+      # se trunca cambian las filas de ejemplo que se muestran, y mostrar las
+      # primeras filas donde aparece es mas util para ir a verificar que
+      # mostrarlas agrupadas por valor.
       indices_por_valor <- function(valores) {
         if (is.null(textos) || !length(valores)) return(integer())
-        unlist(lapply(valores, function(valor) {
-          which(!is.na(textos) & textos == valor)
-        }), use.names = FALSE)
+        which(!is.na(textos) & textos %in% valores)
       }
       indices_variantes <- indices_por_valor(valores_variantes)
       indices_dominantes <- indices_por_valor(valores_dominantes)
@@ -1931,7 +1947,10 @@
         valores, function(valor) which(!is.na(textos) & textos == valor)
       ), use.names = FALSE)
       indices_unidades <- if (is.null(textos)) integer() else as.integer(
-        match(valores, textos)[!is.na(match(valores, textos))]
+        # `match` es O(n) sobre la columna entera y se pagaba dos veces. La
+        # rama hermana, unas lineas mas arriba, ya lo hacia con uno solo.
+        { posiciones <- match(valores, textos)
+          posiciones[!is.na(posiciones)] }
       )
       traza <- .trazabilidad_indices(indices, "completo", limite = Inf)
       traza$indices_unidades <- indices_unidades
@@ -2196,18 +2215,12 @@
   if (is.null(valores)) return(NULL)
   patrones <- as.character(valores)
   validos <- !is.na(patrones)
-  patrones[validos] <- gsub("[[:digit:]]", "9", patrones[validos], perl = TRUE)
-  if (isTRUE(distinguir_mayusculas)) {
-    patrones[validos] <- gsub("[[:lower:]]", "a", patrones[validos], perl = TRUE)
-    patrones[validos] <- gsub("[[:upper:]]", "A", patrones[validos], perl = TRUE)
-  } else {
-    patrones[validos] <- gsub("[[:alpha:]]", "a", patrones[validos], perl = TRUE)
-  }
-  if (!isTRUE(expandir)) {
-    patrones[validos] <- gsub("9{2,}", "9+", patrones[validos], perl = TRUE)
-    patrones[validos] <- gsub("a{2,}", "a+", patrones[validos], perl = TRUE)
-    patrones[validos] <- gsub("A{2,}", "A+", patrones[validos], perl = TRUE)
-  }
+  # La misma generalizacion que usa `descubrir_patrones()`, y por la misma
+  # funcion: estas dos comparan sus resultados unas lineas mas abajo, asi que
+  # tenerlas escritas por separado era una divergencia esperando pasar.
+  patrones[validos] <- .generalizar_a_patron(
+    patrones[validos], distinguir_mayusculas, expandir
+  )
   # The detector already chose `raros`; this branch only maps that decision to
   # row positions and never applies a second rarity criterion.
   base[which(!is.na(patrones) & patrones %in% unique(raros))]

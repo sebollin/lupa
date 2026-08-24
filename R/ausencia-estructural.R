@@ -77,10 +77,20 @@
 # ser barata sin costar exactitud.
 .huella_mascara <- function(m) {
   idx <- which(m)
+  # `idx * idx` desbordaba el entero a partir de la fila 46.341, y el desborde
+  # no se notaba por su aviso sino por lo que hacia: el tercer numero salia `NA`
+  # y la huella quedaba con dos, o sea mas debil justo en las tablas grandes,
+  # que es donde comparar cuesta. Medido, dos mascaras distintas de una tabla de
+  # 60.000 filas daban las dos `2-105000-NA`.
+  #
+  # Se reduce antes de multiplicar, que es la misma cuenta -`(a*a) mod p` es
+  # `((a mod p) * (a mod p)) mod p`- pero sin salirse del rango: el resto es
+  # menor que 1.000.003, asi que su cuadrado entra holgado en un doble exacto.
+  restos <- as.numeric(idx %% 1000003L)
   paste(
     length(idx),
-    sum(idx %% 1000003),
-    sum((idx * idx) %% 1000003),
+    sum(restos),
+    sum((restos * restos) %% 1000003),
     sep = "-"
   )
 }

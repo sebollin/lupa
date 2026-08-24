@@ -686,15 +686,9 @@
     valores, distinguir_mayusculas = TRUE, expandir = expandir,
     max_patrones = 100L, muestra = Inf, umbral_raro = 0
   )
-  patrones <- gsub("[[:digit:]]", "9", valores, perl = TRUE)
-  patrones <- gsub("[[:lower:]]", "a", patrones, perl = TRUE)
-  patrones <- gsub("[[:upper:]]", "A", patrones, perl = TRUE)
-  if (!isTRUE(expandir)) {
-    patrones <- gsub("9{2,}", "9+", patrones, perl = TRUE)
-    patrones <- gsub("a{2,}", "a+", patrones, perl = TRUE)
-    patrones <- gsub("A{2,}", "A+", patrones, perl = TRUE)
-  }
-  patrones
+  .generalizar_a_patron(
+    valores, distinguir_mayusculas = TRUE, expandir = expandir
+  )
 }
 
 .detectar_multivaluados <- function(x) {

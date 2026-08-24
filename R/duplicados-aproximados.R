@@ -1079,8 +1079,10 @@
         posibles_bloque <- if (is.null(bloqueos)) {
           posibles_grupo
         } else {
-          sum(table(bloqueos[indices]) *
-                pmax(table(bloqueos[indices]) - 1, 0) / 2)
+          # `table()` sobre la misma cubeta, que en esta rama supera el
+          # maximo por omision de mil elementos, se calculaba dos veces.
+          { conteos <- table(bloqueos[indices])
+            sum(conteos * pmax(conteos - 1, 0) / 2) }
         }
         pares_cubetas_troceadas <- pares_cubetas_troceadas + posibles_bloque
         por_teselas <- .comparar_bloques_duplicados(

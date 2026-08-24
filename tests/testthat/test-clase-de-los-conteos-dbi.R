@@ -49,13 +49,16 @@ test_that("el perfil DBI no deja integer64 en ningun conteo", {
   ))
   perfil <- perfilar_dbi(con, "t", muestra = 10)
   columnas <- perfil$resumen_tabla$columnas
-  for (campo in c("n_validos", "n_faltantes", "n_distintos", "frecuencia_moda")) {
-    if (campo %in% names(columnas)) {
-      expect_false(
-        inherits(columnas[[campo]], "integer64"),
-        info = paste("el campo", campo, "quedo como integer64")
-      )
-    }
+  # Que falte un campo esperado es un fallo, no una excusa para no mirarlo: con
+  # `if (campo %in% names(columnas))` un renombre dejaba el bucle entero sin una
+  # sola asercion y el bloque seguia en verde.
+  campos <- c("n_validos", "n_faltantes", "n_distintos", "frecuencia_moda")
+  expect_true(all(campos %in% names(columnas)))
+  for (campo in campos) {
+    expect_false(
+      inherits(columnas[[campo]], "integer64"),
+      info = paste("el campo", campo, "quedo como integer64")
+    )
   }
   expect_false(inherits(perfil$resumen_tabla$meta$filas, "integer64"))
   muestreo <- perfil$perfil_muestra$meta$origen_dbi$muestreo

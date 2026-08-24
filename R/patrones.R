@@ -43,6 +43,29 @@
 #'   c("2020-01-31", "2021-12-01", "31/01/2020"),
 #'   expandir = TRUE
 #' )
+# La misma generalizacion se escribia en tres lugares -aqui, en el detector de
+# patrones raros y en el resumen de columnas- y no era solo repeticion: las tres
+# TIENEN que coincidir o el paquete miente. `.indices_patron_raro()` cierra
+# comparando sus patrones contra los que produjo `descubrir_patrones()`, asi que
+# si una de las copias cambiaba, el `%in%` no encontraba nada, el hallazgo se
+# publicaba igual y su trazabilidad salia vacia **sin ningun error**.
+.generalizar_a_patron <- function(x, distinguir_mayusculas = TRUE,
+                                  expandir = FALSE) {
+  x <- gsub("[[:digit:]]", "9", x, perl = TRUE)
+  if (isTRUE(distinguir_mayusculas)) {
+    x <- gsub("[[:lower:]]", "a", x, perl = TRUE)
+    x <- gsub("[[:upper:]]", "A", x, perl = TRUE)
+  } else {
+    x <- gsub("[[:alpha:]]", "a", x, perl = TRUE)
+  }
+  if (!isTRUE(expandir)) {
+    x <- gsub("9{2,}", "9+", x, perl = TRUE)
+    x <- gsub("a{2,}", "a+", x, perl = TRUE)
+    x <- gsub("A{2,}", "A+", x, perl = TRUE)
+  }
+  x
+}
+
 descubrir_patrones <- function(x,
                                distinguir_mayusculas = TRUE,
                                expandir = FALSE,
@@ -75,18 +98,9 @@ descubrir_patrones <- function(x,
 
   if (length(indices_validos)) {
     generalizados <- textos[indices_validos]
-    generalizados <- gsub("[[:digit:]]", "9", generalizados, perl = TRUE)
-    if (isTRUE(distinguir_mayusculas)) {
-      generalizados <- gsub("[[:lower:]]", "a", generalizados, perl = TRUE)
-      generalizados <- gsub("[[:upper:]]", "A", generalizados, perl = TRUE)
-    } else {
-      generalizados <- gsub("[[:alpha:]]", "a", generalizados, perl = TRUE)
-    }
-    if (!isTRUE(expandir)) {
-      generalizados <- gsub("9{2,}", "9+", generalizados, perl = TRUE)
-      generalizados <- gsub("a{2,}", "a+", generalizados, perl = TRUE)
-      generalizados <- gsub("A{2,}", "A+", generalizados, perl = TRUE)
-    }
+    generalizados <- .generalizar_a_patron(
+      generalizados, distinguir_mayusculas, expandir
+    )
     patrones[indices_validos] <- generalizados
   }
 

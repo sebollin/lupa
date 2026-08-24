@@ -282,9 +282,14 @@ test_that("el cruce alcanza solo a la columna que tiene la senal", {
   expect_true(all(grepl(
     "posible_ausencia_estructural", faltantes$evidencia[con_senal]
   )))
-  if (any(!con_senal)) {
-    expect_false(any(grepl(
-      "posible_ausencia_estructural", faltantes$evidencia[!con_senal]
-    )))
-  }
+  # La mitad que da sentido al titulo -que la senal NO se pegue a la columna sin
+  # relacion- estaba en `if (any(!con_senal))`. La columna `suelta` tiene sus NA
+  # sembrados justo para aparecer aqui; si dejara de aparecer, la comprobacion
+  # del falso positivo se evaporaba en silencio y el bloque pasaba habiendo
+  # mirado solo el lado comodo.
+  expect_setequal(unique(as.character(faltantes$columna)),
+                  c("condicionada", "suelta"))
+  expect_false(any(grepl(
+    "posible_ausencia_estructural", faltantes$evidencia[!con_senal]
+  )))
 })
