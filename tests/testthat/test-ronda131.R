@@ -123,3 +123,70 @@ test_that("el rango canonico sale del universo entero y es simetrico", {
   expect_equal(nrow(salida$pares), 2L)
   expect_equal(salida$pares$distancia, c(0.1, 0.1))
 })
+
+test_that("los cuatro caminos de acumulacion resisten la permutacion", {
+  # El rango se calcula en CUATRO constructores distintos -bloques, lotes, LSH y
+  # la rama con `bloquear_por`-. Probar solo el de por omision dejaria sin cubrir
+  # tres, que es donde un rango calculado por lote en vez de por universo
+  # completo se notaria.
+  skip_if_not_installed("stringdist")
+  set.seed(7)
+  pref <- unique(vapply(
+    seq_len(60L), function(i) paste(sample(LETTERS, 8L, TRUE), collapse = ""),
+    character(1L)
+  ))
+  g <- length(pref)
+  anio <- rep(c(2023L, 2024L), length.out = g)   # por GRUPO, no por fila: si
+  # alterna por fila, las dos variantes caen en bloques distintos, no se
+  # emparejan y el recorte no llega a morder -la prueba pasaria sin probar nada-.
+  d0 <- data.frame(
+    nombre = as.vector(rbind(
+      paste0(pref, " SOCIEDAD ANONIMA"), paste0(pref, " SOCIEDAD ANONMA")
+    )),
+    grupo = as.vector(rbind(seq_len(g), seq_len(g))),
+    anio = as.vector(rbind(anio, anio)),
+    stringsAsFactors = FALSE
+  )
+  ordenes <- .ordenes_de_prueba(nrow(d0))
+
+  caminos <- list(
+    bloques = function(d) detectar_duplicados_aproximados(
+      d["nombre"], umbral = 0.10, max_resultados = 30L
+    ),
+    lotes = function(d) detectar_duplicados_aproximados(
+      d["nombre"], umbral = 0.10, max_resultados = 30L,
+      lotes = TRUE, tamano_lote = 25L
+    ),
+    lsh = function(d) detectar_duplicados_aproximados(
+      d["nombre"], umbral = 0.10, max_resultados = 30L, estrategia = "lsh"
+    ),
+    bloqueado = function(d) detectar_duplicados_aproximados(
+      d[c("nombre", "anio")], columnas = "nombre", umbral = 0.10,
+      max_resultados = 30L, bloquear_por = "anio"
+    )
+  )
+
+  for (nombre_camino in names(caminos)) {
+    hacer <- caminos[[nombre_camino]]
+    # El recorte tiene que morder de verdad en este camino, si no la prueba
+    # pasaria sin ejercitar el desempate.
+    sin_tope <- detectar_duplicados_aproximados(
+      if (identical(nombre_camino, "bloqueado")) d0[c("nombre", "anio")] else d0["nombre"],
+      columnas = if (identical(nombre_camino, "bloqueado")) "nombre" else NULL,
+      umbral = 0.10, max_resultados = Inf,
+      bloquear_por = if (identical(nombre_camino, "bloqueado")) "anio" else NULL
+    )
+    expect_gt(nrow(sin_tope$pares), 30L)
+
+    grupos <- lapply(ordenes, function(orden) {
+      d <- d0[orden, , drop = FALSE]
+      rownames(d) <- NULL
+      r <- hacer(d)
+      sort(unique(d$grupo[c(r$pares$fila_1, r$pares$fila_2)]))
+    })
+    expect_equal(
+      Reduce(union, grupos), Reduce(intersect, grupos),
+      info = paste("camino", nombre_camino)
+    )
+  }
+})
