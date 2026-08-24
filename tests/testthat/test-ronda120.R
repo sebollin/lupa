@@ -390,7 +390,10 @@ test_that("en una columna protegida se nombran las filas pero no el valor", {
     as.character(perfil$hallazgos$tipo_hallazgo) ==
       "posible_centinela_numerico", , drop = FALSE
   ]
-  skip_if(nrow(hallazgo) == 0L, "sin hallazgo de centinela en este caso")
+  # No se saltea si no hay hallazgo: que el centinela no se detecte en una
+  # columna protegida seria un fallo, no un caso inaplicable. Un salteo aqui
+  # apagaria en silencio la prueba que cuida que no se publique el valor.
+  expect_equal(nrow(hallazgo), 1L)
   trazabilidad <- hallazgo$trazabilidad[[1L]]
   expect_equal(trazabilidad$indices_fila, 101:105)
   expect_true(is.na(perfil$columnas$centinela_valor))
