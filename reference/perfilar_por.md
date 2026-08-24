@@ -52,6 +52,13 @@ Data frame de clase `hallazgos_por_grupo` con las columnas de
 precedidas por `grupo` y `n_filas_grupo`. El atributo `cobertura_grupos`
 declara los grupos no perfilados y las columnas descartadas por grupo.
 
+El atributo `cobertura_diagnosticos` declara, **por grupo**, los
+diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
+separado, así que cada uno declina los suyos: una columna puede tener
+bastantes filas en un grupo y muy pocas en otro. Sin esa tabla, un grupo
+sin hallazgos se lee como un grupo sano, cuando puede ser un grupo sobre
+el que no se miró.
+
 ## Details
 
 Dentro de cada grupo se descartan las columnas enteramente ausentes

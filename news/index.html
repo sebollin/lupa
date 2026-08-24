@@ -42,6 +42,22 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="lo-que-no-se-evaluo-llega-a-las-cuatro-puertas-0-1-0">Lo que no se evaluo llega a las cuatro puertas<a class="anchor" aria-label="anchor" href="#lo-que-no-se-evaluo-llega-a-las-cuatro-puertas-0-1-0"></a></h3>
+<p>Cuando <code>lupa</code> decide no correr un diagnostico lo anota con su motivo, pero esa tabla solo llegaba a quien mirara el perfil. Ahora llega a las cuatro puertas desde las que se trabaja:</p>
+<ul><li>
+<code><a href="../reference/perfilar_por.html">perfilar_por()</a></code> la lleva <strong>por grupo</strong>. Cada grupo se perfila por separado, asi que cada uno declina los suyos: una columna puede tener bastantes filas en un grupo y muy pocas en otro. Sin esa tabla, un grupo sin hallazgos se lee como un grupo sano, cuando puede ser un grupo sobre el que no se miro.</li>
+<li>
+<code><a href="../reference/planificar_limpieza.html">planificar_limpieza()</a></code> la lleva y la anuncia al imprimir el plan.</li>
+<li>
+<code><a href="../reference/comparar_perfiles.html">comparar_perfiles()</a></code> la consulta para no informar como <code>resuelto</code> un diagnostico que simplemente dejo de correrse.</li>
+<li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> ya la tenia en <code>resumen_tabla$cobertura</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="una-gramatica-de-entidades-html-no-dos-0-1-0">Una gramatica de entidades HTML, no dos<a class="anchor" aria-label="anchor" href="#una-gramatica-de-entidades-html-no-dos-0-1-0"></a></h3>
+<p>La misma expresion estaba escrita dos veces: una para <strong>detectar</strong> entidades y otra para <strong>repararlas</strong>. Si divergian se detectaba lo que no se reparaba, o al reves, y ninguna de las dos avisaba. Es el mismo acoplamiento que tenian las tres copias de la generalizacion de patrones.</p>
+</div>
+<div class="section level3">
 <h3 id="en-oracle-la-cadena-vacia-es-el-nulo-y-eso-se-declara-0-1-0">En Oracle la cadena vacia es el nulo, y eso se declara<a class="anchor" aria-label="anchor" href="#en-oracle-la-cadena-vacia-es-el-nulo-y-eso-se-declara-0-1-0"></a></h3>
 <p>Medido contra Oracle Free 23 real: las mismas tres filas -<code>""</code>, <code>NA</code>, <code>"x"</code>- dan <code>n_faltantes = 2</code> por Oracle y <code>1</code> por un motor que las distingue. La misma columna tiene una completitud distinta segun el motor, y no porque el dato cambie.</p>
 <p>No es un defecto que se pueda arreglar -es la semantica del motor- pero callarlo si lo seria: quien compare completitud entre entregas de motores distintos leeria una diferencia que no esta en los datos. Queda en la cobertura del resumen, y solo en los motores donde corresponde.</p>

@@ -97,6 +97,12 @@ grupos donde ningún diagnóstico tiene soporte.</p></dd>
 <code>hallazgos</code> de <code><a href="perfilar.html">perfilar()</a></code> precedidas por <code>grupo</code> y <code>n_filas_grupo</code>. El
 atributo <code>cobertura_grupos</code> declara los grupos no perfilados y las columnas
 descartadas por grupo.</p>
+<p>El atributo <code>cobertura_diagnosticos</code> declara, <strong>por grupo</strong>, los
+diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
+separado, así que cada uno declina los suyos: una columna puede tener
+bastantes filas en un grupo y muy pocas en otro. Sin esa tabla, un grupo sin
+hallazgos se lee como un grupo sano, cuando puede ser un grupo sobre el que
+no se miró.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
