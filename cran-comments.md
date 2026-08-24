@@ -23,7 +23,7 @@
 > | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-23k/sin-incoming/lupa.Rcheck/00check.log` |
 > | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| WARN 0 \| SKIP 169 \| PASS 14838 ]` | `../verificacion/2026-08-23k/r41/lupa.Rcheck/00check.log` |
 > | suite completa | **15.917 comprobaciones, 0 fallos, 0 avisos** | `devtools::test()` |
-> | GitHub Actions (5 plataformas) | **las cinco en verde sobre `b1f0059`**: Ubuntu devel, release y oldrel-1, Windows release, macOS release. Las de `ff9a117` y `3591c47` en curso | corrida 32676130323 |
+> | GitHub Actions (5 plataformas) | **las cinco con `Status: OK` sobre `ff9a117`**, sin notas: Ubuntu devel, release y oldrel-1, Windows release, macOS release. Leido del log, no del tilde verde | corrida 32676845573 |
 > | R-hub v2 R-devel (3 plataformas) | PENDIENTE, disparo manual | log de la corrida |
 > | win-builder release y devel | PENDIENTE, subida manual | log de cada corrida, y el `Packaged:` del binario |
 >
@@ -171,13 +171,16 @@ the package byte-identical -- `git diff --stat ff9a117..HEAD` lists
   `_R_CHECK_CRAN_INCOMING_=false` the result is **`Status: OK`**, no notes at
   all, which locates that note in the incoming checks rather than in the
   package.
-* Continuous integration (GitHub Actions, `R-CMD-check`, run 32676130323) on
-  `b1f0059`, 5 of 5 with **`Status: OK`** and no notes: Ubuntu with R release,
+* Continuous integration (GitHub Actions, `R-CMD-check`, run 32676845573) on
+  `ff9a117`, 5 of 5 with **`Status: OK`** and no notes: Ubuntu with R release,
   R-devel and R oldrel-1; Windows with R release; and macOS with R release on
   **`aarch64-apple-darwin23`**. The platforms exercised are
   `x86_64-pc-linux-gnu`, `x86_64-w64-mingw32` and `aarch64-apple-darwin23`. The
-  run for `ff9a117` is in progress at the time of writing; this
-  letter will not be sent claiming a result that has not been read from a log.
+  suite runs on all five: `[ FAIL 0 | WARN 0 | SKIP 4 | PASS 15911 ]`, and
+  `PASS 15915` on the two where four more tests find their optional package.
+  The five `Status: OK` lines and the absence of notes were read from the run's
+  own log rather than inferred from the green tick, because a run can conclude
+  successfully and still carry notes.
 * R-hub v2, R-devel — **not yet run on these sources.** The last R-hub run
   (32545201079, Linux, Windows and macOS, all three `Status: OK` with no notes)
   measured `787cc0d`, which is twenty-nine commits behind the sources submitted
