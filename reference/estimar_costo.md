@@ -145,11 +145,12 @@ estimar_costo(
 
 - presupuesto_pares:
 
-  Presupuesto de pares candidatos. Por defecto es `Inf`; si la
-  estimación previa lo supera, una sesión no interactiva aborta antes
-  del recorrido y una interactiva pregunta si se continúa. También
-  limita la comparación exacta: allí el número de pares se conoce antes
-  de empezar.
+  Se acepta por simetría de la firma y **no aborta aquí**: estimar el
+  costo es justamente lo que se hace antes de fijar un presupuesto, así
+  que interrumpir la estimación por superarlo dejaría sin respuesta la
+  pregunta que motivó la llamada. Quien aborta es
+  [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md),
+  con el número que devuelve esta función.
 
 - bloquear_por:
 

@@ -973,7 +973,7 @@ summary(perfil)
 #> 9                    0             0.00000000          11     0.84615385
 #> 10                   0             0.00000000          12     0.92307692
 #>    secuencia_entera_densa densidad_secuencia_entera
-#> 1                   FALSE              1.000000e+00
+#> 1                   FALSE                        NA
 #> 2                   FALSE                        NA
 #> 3                   FALSE                        NA
 #> 4                   FALSE                        NA
@@ -984,7 +984,7 @@ summary(perfil)
 #> 9                   FALSE              1.000000e+00
 #> 10                  FALSE                        NA
 #>    n_posiciones_secuencia_entera n_huecos_secuencia_entera
-#> 1                             11                         0
+#> 1                             NA                        NA
 #> 2                             NA                        NA
 #> 3                             NA                        NA
 #> 4                             NA                        NA
@@ -995,7 +995,7 @@ summary(perfil)
 #> 9                             11                         0
 #> 10                            NA                        NA
 #>    hueco_maximo_secuencia_entera salto_de_escala_secuencia_entera
-#> 1                              1                            FALSE
+#> 1                             NA                            FALSE
 #> 2                             NA                            FALSE
 #> 3                             NA                            FALSE
 #> 4                             NA                            FALSE

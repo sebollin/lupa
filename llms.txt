@@ -454,32 +454,14 @@ from the median says nothing about its quality.
 
 Recognising a numbering takes **two signals, and it needs both**. The
 first is **density**: an identifier occupies a compact stretch of the
-integers while a magnitude spreads across several orders. Plain
-uniqueness does not work, since an amount is nearly unique too. The
-second is the **absence of a scale jump**, and without it the first does
-harm: a value off the scale by up to twice the maximum does not lower
-the density enough, so a `120` among ages 18 to 70 — or a `2000` behind
-1..1000 — was hidden exactly when it was the only thing worth seeing.
-What does give them away is the gap they open: 50 and 1,000 where the
-typical one is 1.
-
-**A key spread thinly is the case density cannot reach**, and it needed
-a third signal rather than a different threshold: a key running from 1
-to 2,300,000 has density 0.0043 — *sparser* than an amount at 0.0096 —
-so no cut on that axis separates them, and a real primary key was
-receiving `desviacion_benford`, which asserts a quality problem about a
-column that has no distribution to analyse.
-
-What separates them is not the uniqueness but **whether chance explains
-it**. With `n` values spread over `P` integer positions, chance produces
-on the order of `n² / (2P)` collisions; none at all where many were
-expected means something forbids them, and what forbids repeating an
-integer is a key. Amounts that come out unique — they only do so up to
-about a hundred values — expect 0.08 collisions; sparse keys expect 21
-to 834. A fourth condition keeps the two cases apart that both look
-unique and jagged: if the largest gap accounts for most of the missing
-positions there is a *single* hole, which is a value off the scale and
-not spread, so `1..1000` plus a `2000` keeps reporting the `2000`.
+integers while a magnitude spreads across several orders. Uniqueness
+does not work, since an amount is nearly unique too. The second is the
+**absence of a scale jump**, and without it the first does harm: a value
+off the scale by up to twice the maximum does not lower the density
+enough, so a `120` among ages 18 to 70 — or a `2000` behind 1..1000 —
+was hidden exactly when it was the only thing worth seeing. What does
+give them away is the gap they open: 50 and 1,000 where the typical one
+is 1.
 
 The criterion was chosen by measuring. A bench of thirteen columns with
 the known answer — five numberings and eight magnitudes with a bad value
@@ -503,17 +485,6 @@ it as missing — that call belongs to whoever knows the column, by adding
 it to the list. A postal code `9999` repeated thirty times is not
 extreme within its column; a real amount of `9999` does not repeat; a
 year `1999` does not have that shape.
-
-**Shape is the weakest of the three**, and a fourth condition stops it
-deciding alone: a sentinel *is alone*. Nobody writes `9998` next to
-`9999`, while a catalogue code lives in a stretch where its neighbours
-appear as often as it does. Without that check, codes concentrated low
-with a high stretch flagged `222` and not `221` or `223` — same
-frequency, same distance, the only difference being how the number is
-written. Measured, the neighbour ratio is 1.00 in that case and 0.00 for
-real sentinels; a single stray `9998` against eight `9999` gives 0.125
-and the sentinel still stands, because a guard that a lone datum could
-silence would be worse than the problem it fixes.
 
 Where no signal discriminates, `lupa` speaks. High cardinality in a text
 column is always reported, because the length of the values does not

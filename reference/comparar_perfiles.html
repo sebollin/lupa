@@ -89,6 +89,11 @@ de comparabilidad y esa parte de la comparación se omite.</p>
 <p>Las columnas que aparecen o desaparecen generan cambios estructurales de
 severidad <code>error</code>, pero no impiden comparar las columnas compartidas. Un
 hallazgo de una columna retirada no se presenta como resuelto.</p>
+<p>Un hallazgo que ya no aparece se informa como <code>resuelto</code> sólo si el
+diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice en
+su <code>cobertura_diagnosticos</code>—, el cambio se informa como <code>no_evaluado</code> con
+severidad <code>sospechoso</code>, porque no se sabe si el hallazgo sigue: dejar de
+mirar no es lo mismo que arreglar.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

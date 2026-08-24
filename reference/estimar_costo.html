@@ -190,11 +190,12 @@ se intentan 400.000 pares.</p></dd>
 
 
 <dt id="arg-presupuesto-pares">presupuesto_pares<a class="anchor" aria-label="anchor" href="#arg-presupuesto-pares"></a></dt>
-<dd><p>Presupuesto de pares candidatos. Por
-defecto es <code>Inf</code>; si la estimación previa lo supera, una sesión no
-interactiva aborta antes del recorrido y una interactiva pregunta si se
-continúa. También limita la comparación exacta: allí el número de pares
-se conoce antes de empezar.</p></dd>
+<dd><p>Se acepta por simetría de la firma y <strong>no aborta
+aquí</strong>: estimar el costo es justamente lo que se hace antes de fijar un
+presupuesto, así que interrumpir la estimación por superarlo dejaría sin
+respuesta la pregunta que motivó la llamada. Quien aborta es
+<code><a href="detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>, con el número que devuelve esta
+función.</p></dd>
 
 
 <dt id="arg-bloquear-por">bloquear_por<a class="anchor" aria-label="anchor" href="#arg-bloquear-por"></a></dt>

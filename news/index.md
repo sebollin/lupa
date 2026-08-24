@@ -2,48 +2,47 @@
 
 ## lupa 0.1.0
 
-### Tres casos donde una regla decidia con la senal equivocada
+### Dos arreglos medidos y retirados, y los limites que quedan declarados
 
-Las tres reglas calculaban bien. Lo que fallaba era **cual senal
-decidia**, y en los tres casos la senal que faltaba se encontro midiendo
-y no razonando.
+Se probaron dos reglas para cerrar dos falsos hallazgos conocidos. Las
+dos funcionaban sobre el caso que las motivo y las dos **callaban algo
+real**, asi que ninguna entra: la regla del paquete es que una guarda
+solo se acepta si no calla nada verdadero. Lo que se midio queda escrito
+en el codigo, y los limites quedan fijados en `test-ronda124.R` para que
+esten declarados y no se redescubran.
 
-- **Benford sobre una clave primaria dispersa.** Una clave repartida en
-  un rango ancho recibia `desviacion_benford` y no recibia
-  `posible_identificador`: se le afirmaba un problema de calidad a una
-  columna que no tiene distribucion que analizar.
+- **Reconocer una clave dispersa por unicidad.** El problema es real:
+  sobre una clave repartida en un rango ancho se emite
+  `desviacion_benford`, que afirma un problema de calidad sobre una
+  columna que no tiene distribucion que analizar. Y la densidad no puede
+  resolverlo, porque una clave de 1 a 2.300.000 tiene densidad 0,0043,
+  **mas dispersa que un monto** (0,0096).
 
-  La densidad no podia arreglarlo, y ese es el dato que obligo a buscar
-  otra senal: una clave de 1 a 2.300.000 tiene densidad 0,0043, **mas
-  dispersa que un monto** (0,0096). No hay umbral sobre ese eje que los
-  separe.
+  El criterio probado fue “unicidad que el azar no explica”. Fallo por
+  dos motivos medidos. Primero, **depende de cuantas filas se
+  cargaron**: el estadistico crece con el cuadrado de las filas, asi que
+  la misma clave de cedulas cambia de veredicto al pasar las ~5.200
+  filas, y un padron de 2.000 filas recibe `desviacion_benford` mientras
+  el mismo padron con 30.000 se reconoce bien. Eso es una propiedad de
+  la consulta, no del dato. Segundo, **calla magnitudes reales**: una
+  lectura acumulada de medidor, un timestamp en segundos, una coordenada
+  UTM redondeada y un monto que solo se llena en algunos expedientes son
+  unicos por su mecanismo, y sobre la lectura de medidor con un valor
+  absurdo adentro el criterio se tragaba el valor absurdo.
 
-  La unicidad a secas tampoco alcanza, porque un monto es casi unico y
-  hasta un centenar de valores es perfectamente unico. Lo que separa es
-  si el azar explica esa unicidad: con `n` valores en `P` posiciones el
-  azar produce del orden de `n^2/(2P)` coincidencias, y que no haya
-  ninguna cuando se esperaban muchas significa que algo las prohibe.
-  Medido sobre nueve columnas: los montos unicos esperan 0,08
-  coincidencias y las claves dispersas de 21 a 834.
+- **Descartar el centinela que tiene vecinos.** La idea era que un
+  centinela esta solo y un codigo de catalogo vive en un tramo, y sobre
+  `222` entre `221` y `223` funcionaba. Lo tumbo la codificacion mas
+  comun de los microdatos de encuesta: `9999` = “no sabe” junto a `9998`
+  = “no contesta”. Medido, el `9998` contaba como vecino y descartaba al
+  `9999`, y como el `9998` no tiene forma de digito repetido tampoco
+  entraba por su cuenta: los dos centinelas quedaban invisibles y salian
+  **cincuenta y cinco codigos de ausencia informados como valores
+  extremos de una magnitud**.
 
-  Una cuarta condicion separa los dos casos que se parecen por unicos y
-  por irregulares: si el hueco mas grande explica casi todas las
-  posiciones faltantes hay **un solo** agujero, que es un valor fuera de
-  escala y no dispersion. Asi `1..1000` mas un `2000` sigue informando
-  el `2000`.
-
-- **Un tramo de codigos confundido con un centinela.** Con codigos
-  concentrados abajo y un tramo alto se marcaba `222` y no `221` ni
-  `223`, teniendo los tres la misma frecuencia y la misma lejania. La
-  unica diferencia era como se escribe el numero.
-
-  La forma de digito repetido es la mas debil de las tres senales, y
-  decidia sola en cuanto el valor era extremo. La senal que faltaba es
-  que **un centinela esta solo**: nadie escribe `9998` al lado de
-  `9999`, y un codigo de catalogo vive en un tramo donde sus vecinos
-  aparecen tanto como el. La razon de vecinos da 1,00 en el caso falso y
-  0,00 en los centinelas reales. Un `9998` suelto contra ocho `9999` da
-  0,125 y el centinela se sigue reconociendo.
+  No hay senal de forma que separe `221/222/223` de `9998/9999`: en los
+  dos casos son valores contiguos, extremos y repetidos. La diferencia
+  es semantica.
 
 - **Una comprobacion que no podia fallar.** La prueba que cuida que una
   columna protegida no publique el valor centinela se salteaba a si
