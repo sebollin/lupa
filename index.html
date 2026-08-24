@@ -343,7 +343,7 @@
 <td><strong>Oracle Free 23 (23c)</strong></td>
 <td><code>fetch_first</code></td>
 <td>
-<strong>tested</strong> against the real engine: dialect resolved by probe, five modes with no unavailable metric, the three statistics against R, the plan’s lower bound matching the queries actually emitted, qualified names by text and by <code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">DBI::Id</a></code>, and <code>SAMPLE (p)</code> sampling</td>
+<strong>tested</strong> against the real engine: dialect resolved by probe, five modes with no unavailable metric, the three statistics against R, the plan’s lower bound matching the queries actually emitted, qualified names by text and by <code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">DBI::Id</a></code>, and <code>SAMPLE (p)</code> sampling, and verified again on 2026-08-24 against the real engine: dialect by probe, all 54 metrics with none unavailable, the three statistics against R, the primary key read from the catalogue, and the empty string declared as null</td>
 </tr>
 <tr>
 <td>Oracle 11 and earlier</td>

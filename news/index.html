@@ -42,6 +42,12 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="en-oracle-la-cadena-vacia-es-el-nulo-y-eso-se-declara-0-1-0">En Oracle la cadena vacia es el nulo, y eso se declara<a class="anchor" aria-label="anchor" href="#en-oracle-la-cadena-vacia-es-el-nulo-y-eso-se-declara-0-1-0"></a></h3>
+<p>Medido contra Oracle Free 23 real: las mismas tres filas -<code>""</code>, <code>NA</code>, <code>"x"</code>- dan <code>n_faltantes = 2</code> por Oracle y <code>1</code> por un motor que las distingue. La misma columna tiene una completitud distinta segun el motor, y no porque el dato cambie.</p>
+<p>No es un defecto que se pueda arreglar -es la semantica del motor- pero callarlo si lo seria: quien compare completitud entre entregas de motores distintos leeria una diferencia que no esta en los datos. Queda en la cobertura del resumen, y solo en los motores donde corresponde.</p>
+<p>En la misma corrida se verifico contra el motor real que el dialecto se resuelve solo en <code>fetch_first</code>, que las 54 metricas se calculan sin ninguna no disponible, y que la media, la mediana y el desvio calculados por Oracle coinciden con los de R sobre la tabla entera.</p>
+</div>
+<div class="section level3">
 <h3 id="la-clave-primaria-se-lee-del-catalogo-cuando-esta-declarada-0-1-0">La clave primaria se lee del catalogo cuando esta declarada<a class="anchor" aria-label="anchor" href="#la-clave-primaria-se-lee-del-catalogo-cuando-esta-declarada-0-1-0"></a></h3>
 <p>Sobre un <code>data.frame</code> no hay a quien preguntarle cual es la clave, y por eso <code><a href="../reference/sugerir_clave.html">sugerir_clave()</a></code> ordena candidatas. En una base relacional esa pregunta <strong>ya tiene respuesta escrita</strong>: la clave primaria esta en el catalogo del motor. Ahi no hay nada que sugerir, hay que leerla.</p>
 <p>Se resuelve en <strong>una sola consulta</strong>, elegida por el controlador y no probando una tras otra: probar hasta acertar gastaria un numero de consultas que depende del motor, y <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> promete exactamente cuantas emite. Es el mismo criterio por el que la sonda del desvio gasta siempre dos aunque acierte en la primera.</p>

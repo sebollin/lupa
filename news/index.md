@@ -2,6 +2,23 @@
 
 ## lupa 0.1.0
 
+### En Oracle la cadena vacia es el nulo, y eso se declara
+
+Medido contra Oracle Free 23 real: las mismas tres filas -`""`, `NA`,
+`"x"`- dan `n_faltantes = 2` por Oracle y `1` por un motor que las
+distingue. La misma columna tiene una completitud distinta segun el
+motor, y no porque el dato cambie.
+
+No es un defecto que se pueda arreglar -es la semantica del motor- pero
+callarlo si lo seria: quien compare completitud entre entregas de
+motores distintos leeria una diferencia que no esta en los datos. Queda
+en la cobertura del resumen, y solo en los motores donde corresponde.
+
+En la misma corrida se verifico contra el motor real que el dialecto se
+resuelve solo en `fetch_first`, que las 54 metricas se calculan sin
+ninguna no disponible, y que la media, la mediana y el desvio calculados
+por Oracle coinciden con los de R sobre la tabla entera.
+
 ### La clave primaria se lee del catalogo cuando esta declarada
 
 Sobre un `data.frame` no hay a quien preguntarle cual es la clave, y por
