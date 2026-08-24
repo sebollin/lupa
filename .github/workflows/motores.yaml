@@ -71,13 +71,12 @@ jobs:
         with:
           use-public-rspm: true
 
-      # Las cabeceras del cliente que cada controlador necesita para compilar.
-      # Sin esto `RMariaDB` no instala, y ese fue justamente el motivo por el que
-      # este frente quedo sin cubrir tanto tiempo.
-      - name: Instalar cabeceras del cliente
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libpq-dev libmariadb-dev
+      # Las cabeceras del cliente las resuelve `setup-r-dependencies` con los
+      # requisitos de sistema que declara cada paquete. Hubo aqui un paso manual
+      # que instalaba `libpq-dev` y `libmariadb-dev`: MariaDB pasaba, pero en
+      # PostgreSQL chocaba con lo que el runner ya trae —«pkgProblemResolver
+      # generated breaks»— y tumbaba el trabajo. Instalar a mano lo que el
+      # instalador ya sabe resolver agrega una forma de fallar sin agregar nada.
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
