@@ -169,6 +169,23 @@
 # falso positivo y el mismo codigo con un valor mas no lo recibia.
 .MIN_DISTINTOS_NUMERACION <- 5L
 
+# Una clave es unica por construccion; un monto puede serlo por casualidad. Lo
+# que las separa no es la unicidad -las dos la tienen- sino si esa unicidad se
+# explica por azar. Con `n` valores repartidos en `P` posiciones enteras, el
+# azar produce del orden de `n^2 / (2P)` coincidencias; que no haya ninguna
+# cuando se esperaban muchas significa que algo las prohibe, y lo que prohibe
+# repetir un entero es una clave.
+#
+# Medido sobre nueve columnas: los montos que resultan unicos -que lo son solo
+# hasta unos cien valores- esperan 0,08 coincidencias, y las claves dispersas
+# de 21 a 834. El umbral queda en 3, que es p(azar) = 0,05, con dos ordenes de
+# margen a cada lado.
+#
+# La densidad no puede resolver este caso, y por eso hizo falta otra senal: una
+# clave de 1 a 2.300.000 tiene densidad 0,0043, mas dispersa que un monto
+# (0,0096). No hay umbral de densidad que las separe.
+.MIN_COINCIDENCIAS_ESPERADAS_CLAVE <- 3
+
 .parece_identificador_numerico <- function(fila) {
   # No alcanza con `entero`: por la puerta DBI casi todo llega como `doble`, y
   # varios lectores de CSV tambien. La densidad solo se mide cuando todos los
@@ -176,6 +193,26 @@
   numerico <- as.character(fila$tipo_inferido) %in% c("entero", "doble") ||
     as.character(fila$tipo_declarado) %in% c("entero", "doble")
   if (!isTRUE(numerico)) return(FALSE)
+  # Unicidad que el azar no explica: una clave dispersa. Se mira antes que el
+  # salto de escala porque los huecos de una clave son irregulares por
+  # naturaleza -no hay nada que los empareje-, y esa irregularidad la hacia
+  # fallar justo donde mas importa. Sin esto se emitia `desviacion_benford`
+  # sobre una clave primaria, que es afirmar un problema de calidad inexistente
+  # sobre una columna que no tiene distribucion que analizar.
+  distintos_totales <- suppressWarnings(as.numeric(fila$n_distintos))
+  tasa <- suppressWarnings(as.numeric(fila$tasa_distintos))
+  posiciones <- suppressWarnings(
+    as.numeric(fila$n_posiciones_secuencia_entera)
+  )
+  if (isTRUE(is.finite(tasa) && tasa >= 1) &&
+        isTRUE(is.finite(posiciones) && posiciones > 0) &&
+        isTRUE(is.finite(distintos_totales) &&
+                 distintos_totales >= .MIN_DISTINTOS_NUMERACION)) {
+    coincidencias <- distintos_totales^2 / (2 * posiciones)
+    if (isTRUE(coincidencias >= .MIN_COINCIDENCIAS_ESPERADAS_CLAVE)) {
+      return(TRUE)
+    }
+  }
   # Un centinela adentro hunde la densidad y abre el salto: un identificador de
   # 1 a 4000 con quince `9999` pasaba de densidad 0,625 a 0,250 y dejaba de
   # reconocerse. Si sacando el centinela la columna es compacta, la numeracion
