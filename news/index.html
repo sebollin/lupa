@@ -42,6 +42,12 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="los-motores-reales-se-verifican-en-cada-push-0-1-0">Los motores reales se verifican en cada push<a class="anchor" aria-label="anchor" href="#los-motores-reales-se-verifican-en-cada-push-0-1-0"></a></h3>
+<p>La fila «probado contra el motor real» de la tabla de motores dependia de que alguien se acordara de correrlo a mano: se media una vez, quedaba en notas, y la tabla envejecia sin avisar.</p>
+<p><code>benchmark/verificar_motor.R</code> comprueba contra un motor real que las columnas se perfilan, que el dialecto se resuelve por sonda, que <strong>la media del motor coincide con la de R sobre la misma columna</strong> -que corra no alcanza-, que la clave primaria se lee del catalogo, y que la cobertura existe. Se configura por variables de entorno, asi que el mismo guion sirve en una maquina y en integracion continua, y sale con codigo distinto de cero si algo falla.</p>
+<p>El flujo <code>motores.yaml</code> lo corre contra PostgreSQL 16 y MariaDB 11 levantados como servicios. Los que exigen un cliente propietario se siguen verificando a mano, y su fila de la tabla dice con que fecha.</p>
+</div>
+<div class="section level3">
 <h3 id="el-catalogo-entra-en-la-identidad-de-una-tabla-0-1-0">El catalogo entra en la identidad de una tabla<a class="anchor" aria-label="anchor" href="#el-catalogo-entra-en-la-identidad-de-una-tabla-0-1-0"></a></h3>
 <p><code>catalogo.esquema.tabla</code> es el nombre de tres partes que usan SQL Server y otros motores, y <code>lupa</code> perdia el del medio: se quedaba con la primera y la ultima. Como las dos que quedaban eran sintacticamente validas, el SQL salia bien formado contra una tabla inexistente y el error volvia al usuario como <strong>un problema suyo de permisos</strong> —lo mandaba a pedirle al DBA acceso a una tabla que ya podia leer—.</p>
 <p>Ahora el catalogo es una columna estructurada, siempre presente y <code>NA</code> cuando no existe. El identificador une las partes que hay y sigue siendo inyectivo: <code>t</code>, <code>esq.t</code>, <code>cat.esq.t</code> y <code>cat.t</code> son cuatro identidades distintas.</p>

@@ -94,19 +94,19 @@ medicion_desde_estimaciones(
   fuente = "survey 4.4, diseno complejo declarado por el equipo"
 )
 #>                                                        id_medida
-#> 1           estimaciones-20260824T173321-ech2024-Estimacion-0001
-#> 2           estimaciones-20260824T173321-ech2024-Estimacion-0002
-#> 3 estimaciones-20260824T173321-ech2024-CoeficienteVariacion-0001
-#> 4 estimaciones-20260824T173321-ech2024-CoeficienteVariacion-0002
-#> 5        estimaciones-20260824T173321-ech2024-TamanoMuestra-0001
-#> 6        estimaciones-20260824T173321-ech2024-TamanoMuestra-0002
+#> 1           estimaciones-20260824T182641-ech2024-Estimacion-0001
+#> 2           estimaciones-20260824T182641-ech2024-Estimacion-0002
+#> 3 estimaciones-20260824T182641-ech2024-CoeficienteVariacion-0001
+#> 4 estimaciones-20260824T182641-ech2024-CoeficienteVariacion-0002
+#> 5        estimaciones-20260824T182641-ech2024-TamanoMuestra-0001
+#> 6        estimaciones-20260824T182641-ech2024-TamanoMuestra-0002
 #>                            id_medicion               fecha              metrica
-#> 1 estimaciones-20260824T173321-ech2024 2026-08-24 17:33:21           Estimacion
-#> 2 estimaciones-20260824T173321-ech2024 2026-08-24 17:33:21           Estimacion
-#> 3 estimaciones-20260824T173321-ech2024 2026-08-24 17:33:21 CoeficienteVariacion
-#> 4 estimaciones-20260824T173321-ech2024 2026-08-24 17:33:21 CoeficienteVariacion
-#> 5 estimaciones-20260824T173321-ech2024 2026-08-24 17:33:21        TamanoMuestra
-#> 6 estimaciones-20260824T173321-ech2024 2026-08-24 17:33:21        TamanoMuestra
+#> 1 estimaciones-20260824T182641-ech2024 2026-08-24 18:26:41           Estimacion
+#> 2 estimaciones-20260824T182641-ech2024 2026-08-24 18:26:41           Estimacion
+#> 3 estimaciones-20260824T182641-ech2024 2026-08-24 18:26:41 CoeficienteVariacion
+#> 4 estimaciones-20260824T182641-ech2024 2026-08-24 18:26:41 CoeficienteVariacion
+#> 5 estimaciones-20260824T182641-ech2024 2026-08-24 18:26:41        TamanoMuestra
+#> 6 estimaciones-20260824T182641-ech2024 2026-08-24 18:26:41        TamanoMuestra
 #>     metrica_especifica          metrica_instanciada dimension
 #> 1           Estimacion           Estimacion@ech2024 Precision
 #> 2           Estimacion           Estimacion@ech2024 Precision
