@@ -37,13 +37,13 @@ propuesta <- proponer_modelo(perfilar(datos), datos)
 modelo_propuesto <- modelo_desde_propuesta(propuesta)
 medir(modelo_propuesto, datos)
 #>                                     id_medida
-#> 1 medicion-20260824T011527.230743-7624-000001
-#> 2 medicion-20260824T011527.230743-7624-000002
-#> 3 medicion-20260824T011527.230743-7624-000003
+#> 1 medicion-20260824T012547.208641-7420-000001
+#> 2 medicion-20260824T012547.208641-7420-000002
+#> 3 medicion-20260824T012547.208641-7420-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260824T011527.230743-7624 2026-08-24 01:15:27  NoNulo
-#> 2 medicion-20260824T011527.230743-7624 2026-08-24 01:15:27  NoNulo
-#> 3 medicion-20260824T011527.230743-7624 2026-08-24 01:15:27  NoNulo
+#> 1 medicion-20260824T012547.208641-7420 2026-08-24 01:25:47  NoNulo
+#> 2 medicion-20260824T012547.208641-7420 2026-08-24 01:25:47  NoNulo
+#> 3 medicion-20260824T012547.208641-7420 2026-08-24 01:25:47  NoNulo
 #>   metrica_especifica metrica_instanciada   dimension   factor orientacion
 #> 1    NoNuloPropuesto     sugerencia-0001 Completitud Densidad conformidad
 #> 2    NoNuloPropuesto     sugerencia-0001 Completitud Densidad conformidad
