@@ -258,8 +258,8 @@ colisión.</p>
 <span>  max_resultados <span class="op">=</span> <span class="fl">100</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;</span></span>
-<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.284 pares en</span></span>
-<span><span class="co">#&gt; 0,051 s.</span></span>
+<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 31.164 pares en</span></span>
+<span><span class="co">#&gt; 0,050 s.</span></span>
 <span><span class="va">exacto</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span>, <span class="st">"igualo_normalizar"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
@@ -326,7 +326,7 @@ siendo exacta; sólo cambia cuánta memoria se usa a la vez.</p>
 <span>  <span class="st">"directorio"</span>, <span class="st">"n_parciales"</span>, <span class="st">"bytes_totales"</span>, <span class="st">"reanudable"</span>, <span class="st">"perdida"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $directorio</span></span>
-<span><span class="co">#&gt; [1] "/tmp/RtmpSlOjo9/lupa-lotes-22bb30373889/lupa-lotes-22bb289680c5"</span></span>
+<span><span class="co">#&gt; [1] "/tmp/RtmpJy4hTc/lupa-lotes-228d602c2c93/lupa-lotes-228d1ce480ea"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $n_parciales</span></span>
 <span><span class="co">#&gt; [1] 6</span></span>
@@ -494,6 +494,94 @@ cualquiera de ellos.</p>
 <p>El banco <code>benchmark/medir_costo_texto.R</code> reproduce el
 barrido completo, para que la calibración se pueda rehacer si cambia la
 implementación de la distancia.</p>
+</div>
+<div class="section level2">
+<h2 id="el-recorte-de-pares-y-por-qué-también-se-ordena-por-contenido">El recorte de pares, y por qué también se ordena por contenido<a class="anchor" aria-label="anchor" href="#el-recorte-de-pares-y-por-qu%C3%A9-tambi%C3%A9n-se-ordena-por-contenido"></a>
+</h2>
+<p>Hay un segundo recorte, y hasta acá lo veníamos usando sin mirarlo:
+<code>max_resultados</code>, que en todos los ejemplos de arriba vale
+<code>100</code>. Ese tope no decide <strong>qué formas se
+comparan</strong> —eso era el presupuesto de vocabulario— sino
+<strong>cuántos pares se devuelven</strong> una vez comparadas.</p>
+<p>Conserva los más cercanos, ordenando por distancia. El problema
+aparecía entre pares <strong>empatados</strong>: ahí desempataba por
+posición de fila, así que cuáles sobrevivían al corte dependía del orden
+en que llegaron las filas.</p>
+<p>No es un caso raro. Los empates son la regla cuando las variantes se
+parecen del mismo modo —un espacio de más, un sufijo societario, una
+letra caída—, porque la distancia sale idéntica. Medido sobre 60 grupos
+construidos para que sus 60 pares internos compartan exactamente la
+misma distancia, con el corte en 30:</p>
+<table class="table">
+<thead><tr class="header">
+<th>orden de las filas</th>
+<th>grupos representados</th>
+<th>en común con el natural</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>natural</td>
+<td>30</td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td>inverso</td>
+<td>30</td>
+<td><strong>0</strong></td>
+</tr>
+<tr class="odd">
+<td>barajado (tres semillas)</td>
+<td>30</td>
+<td><strong>0</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Cinco órdenes, treinta grupos cada uno, ni uno compartido. Es el
+mismo defecto que la sección anterior ya había encontrado y resuelto
+para el recorte de formas, así que la respuesta es la misma:
+<strong>ordenar por contenido</strong>. El desempate usa ahora el rango
+canónico del valor, con una clave simétrica —<code>min</code> y
+<code>max</code> del rango— para que tampoco dependa de cuál fila quedó
+primera dentro del par. Los cinco órdenes devuelven exactamente los
+mismos grupos.</p>
+<p>El rango se calcula una sola vez sobre el universo completo de la
+corrida, no por lote ni por tesela: una numeración local volvería a
+hacer que la comparación entre lotes dependiera de cómo se
+repartieron.</p>
+<div class="section level3">
+<h3 id="lo-que-ordenar-no-arregla">Lo que ordenar no arregla<a class="anchor" aria-label="anchor" href="#lo-que-ordenar-no-arregla"></a>
+</h3>
+<p>Un corte dentro de un empate deja afuera pares <strong>igual de
+cercanos</strong> que los que conserva. Eso no lo arregla ningún orden,
+y por eso se declara:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">alcance</span><span class="op">$</span><span class="va">distancia_corte</span>        <span class="co"># la distancia donde cayó el corte</span></span>
+<span><span class="va">alcance</span><span class="op">$</span><span class="va">n_en_distancia_corte</span>   <span class="co"># cuántos de los conservados la comparten</span></span>
+<span><span class="va">alcance</span><span class="op">$</span><span class="va">corte_en_empate</span>        <span class="co"># TRUE si el corte cayó dentro de un empate</span></span></code></pre></div>
+<p><code>corte_en_empate</code> <strong>no es <code>truncado</code> con
+otro nombre</strong>: cuando el corte cae en una distancia única, da
+<code>FALSE</code> aunque haya habido recorte. Si da <code>TRUE</code>,
+el número de grupos que ve es un subconjunto de los que había —estable y
+reproducible, pero subconjunto—, y subir <code>max_resultados</code> por
+encima del empate los trae a todos.</p>
+</div>
+<div class="section level3">
+<h3 id="y-una-advertencia-sobre-el-camino-lsh">Y una advertencia sobre el camino LSH<a class="anchor" aria-label="anchor" href="#y-una-advertencia-sobre-el-camino-lsh"></a>
+</h3>
+<p>Con más de diez mil valores distintos entra MinHash/LSH, y ahí el
+<strong>conjunto de candidatos</strong> depende del orden de las filas:
+el vocabulario de q-gramas se numera por orden de primera aparición y
+esa numeración alimenta las firmas. Reordenar la tabla cambia qué pares
+se proponen.</p>
+<p>Eso está <strong>dentro de la garantía declarada</strong>, no es un
+defecto: medido sobre 1.200 filas, de los 11.822 pares que cambian al
+barajar, el Jaccard de q-gramas más alto es 0,7857 y no se pierde
+<strong>ninguno</strong> por encima de 0,8, donde el alcance declara un
+recall de 0,9998. La rotación está entera en la cola de pares apenas
+parecidos, donde LSH dice que no promete nada. Pero conviene saberlo
+antes de comparar dos corridas sobre el mismo contenido exportado en
+distinto orden.</p>
+</div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

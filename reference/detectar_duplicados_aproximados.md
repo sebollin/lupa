@@ -88,7 +88,12 @@ detectar_duplicados_aproximados(
 
 - max_resultados:
 
-  Maximo de pares devueltos. Por defecto `100`.
+  Maximo de pares devueltos. Por defecto `100`. Se conservan los mas
+  cercanos; entre pares empatados en distancia, el desempate usa el
+  orden canonico de los valores y no la posicion de las filas, de modo
+  que reordenar la tabla no cambia que pares sobreviven. Un corte que
+  cae dentro de un empate deja afuera pares igual de cercanos, y eso se
+  declara en `alcance$corte_en_empate`.
 
 - normalizar:
 
@@ -249,6 +254,33 @@ inferirlo. El objeto informa cuantos pares eran posibles, cuantos se
 compararon, el modo, el tamaño de las teselas o los parámetros LSH y los
 que quedaron fuera. Solo se muestran `max_resultados` coincidencias; el
 truncamiento tambien queda declarado.
+
+El recorte conserva los pares mas cercanos y, entre los empatados en
+distancia, desempata por el **rango canonico del valor** con una clave
+simetrica. Es la misma regla que gobierna el recorte del vocabulario, y
+existe por lo mismo: desempatar por posicion de fila hacia que cuales
+pares sobrevivieran dependiera de como viniera ordenado el archivo.
+Medido sobre 60 pares empatados con el corte en 30, cinco ordenes
+distintos devolvian 30 grupos cada uno sin compartir ninguno; ahora
+devuelven los mismos.
+
+Lo que ningun orden evita es que un corte dentro de un empate deje
+afuera pares igual de cercanos, asi que se declara. `alcance` publica
+`distancia_corte` —la distancia donde cayo el corte—,
+`n_en_distancia_corte` —cuantos de los conservados la comparten— y
+`corte_en_empate`, que **no** es `truncado` con otro nombre: vale
+`FALSE` cuando el corte cae en una distancia unica. Si vale `TRUE`,
+subir `max_resultados` por encima del empate devuelve todos los pares de
+esa distancia.
+
+En el camino LSH el conjunto de **candidatos** depende del orden de las
+filas, porque el vocabulario de q-gramas se numera por orden de primera
+aparicion y esa numeracion alimenta las firmas. Eso ocurre dentro de la
+garantia declarada en `lsh_garantia_jaccard_*`: medido sobre 1.200
+filas, de los pares que cambian al barajar ninguno supera un Jaccard de
+q-gramas de 0,8, donde el recall declarado es 0,9998. Conviene saberlo
+antes de comparar dos corridas sobre el mismo contenido exportado en
+distinto orden.
 
 `stringdist` es una dependencia opcional. Si no esta instalado, la
 funcion devuelve un objeto con `disponible = FALSE`, una tabla vacia y

@@ -79,7 +79,12 @@ estimar_costo(
 
 - max_resultados:
 
-  Maximo de pares devueltos. Por defecto `100`.
+  Maximo de pares devueltos. Por defecto `100`. Se conservan los mas
+  cercanos; entre pares empatados en distancia, el desempate usa el
+  orden canonico de los valores y no la posicion de las filas, de modo
+  que reordenar la tabla no cambia que pares sobreviven. Un corte que
+  cae dentro de un empate deja afuera pares igual de cercanos, y eso se
+  declara en `alcance$corte_en_empate`.
 
 - normalizar:
 

@@ -2,29 +2,33 @@
 
 ## lupa 0.1.0
 
-### El recorte de duplicados dice cuándo su resultado depende del orden
+### El recorte de duplicados ya no depende del orden de las filas
 
 [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
-recorta con `max_resultados` ordenando por distancia, y entre pares
-empatados desempata por posición de fila. Cuando el corte cae dentro de
-una banda de distancias iguales, entonces, **cuáles pares sobreviven
-depende del orden en que llegaron las filas y no de los datos**: la
-misma tabla exportada con otro `ORDER BY` puede devolver otro
-subconjunto.
+recorta con `max_resultados` conservando los pares más cercanos. Entre
+pares **empatados en distancia** desempataba por posición de fila, así
+que cuáles sobrevivían dependía del orden en que llegaron las filas y no
+de los datos: la misma tabla exportada con otro `ORDER BY` podía
+devolver otro subconjunto.
 
 Medido sobre 60 grupos cuyos pares internos comparten exactamente la
 misma distancia, con el corte en 30: cinco órdenes distintos —natural,
-inverso y tres barajados— devuelven 30 grupos cada uno y **no comparten
-ni uno solo**.
+inverso y tres barajados— devolvían 30 grupos cada uno y **no compartían
+ninguno**. Ahora los cinco devuelven exactamente los mismos.
 
-`alcance` gana tres campos que lo declaran: `distancia_corte`,
-`n_en_distancia_corte` y `recorte_depende_del_orden`. El informe HTML lo
-dice con todas las letras y explica la salida: subir `max_resultados`
-por encima del empate devuelve un resultado independiente del orden.
+El desempate usa el **rango canónico del valor**, que es la misma
+decisión que ya gobernaba el recorte del vocabulario —ahí tomar las
+formas en orden de llegada daba 26 grupos y en orden alfabético 148—. La
+clave es simétrica, `min` y `max` del rango, para que tampoco dependa de
+cuál fila quedó primera dentro del par, y el rango se calcula una vez
+sobre el universo completo de la corrida: una numeración por lote sería
+local y haría que la comparación entre lotes dependiera del reparto.
 
-Hasta ahora el único aviso era `truncado`, que se lee como «conservé los
-más cercanos» — y cuando el corte cae dentro de un empate esa lectura es
-falsa: los conservados no son los mejores, son los de índice más bajo.
+Lo que ordenar no arregla —que un corte dentro de un empate deje afuera
+pares igual de cercanos— se declara. `alcance` gana `distancia_corte`,
+`n_en_distancia_corte` y `corte_en_empate`, y ese último no es
+`truncado` con otro nombre: da `FALSE` cuando el corte cae en una
+distancia única.
 
 ### El modo aproximado dice qué métrica aproximó, y con qué función
 

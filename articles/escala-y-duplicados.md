@@ -143,8 +143,8 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.284 pares en
-#> 0,051 s.
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 31.164 pares en
+#> 0,050 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
 )]
@@ -218,7 +218,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/RtmpSlOjo9/lupa-lotes-22bb30373889/lupa-lotes-22bb289680c5"
+#> [1] "/tmp/RtmpJy4hTc/lupa-lotes-228d602c2c93/lupa-lotes-228d1ce480ea"
 #> 
 #> $n_parciales
 #> [1] 6
@@ -328,3 +328,73 @@ los dos presupuestos se llaman `max_trabajo_vocabulario` y
 El banco `benchmark/medir_costo_texto.R` reproduce el barrido completo,
 para que la calibración se pueda rehacer si cambia la implementación de
 la distancia.
+
+## El recorte de pares, y por qué también se ordena por contenido
+
+Hay un segundo recorte, y hasta acá lo veníamos usando sin mirarlo:
+`max_resultados`, que en todos los ejemplos de arriba vale `100`. Ese
+tope no decide **qué formas se comparan** —eso era el presupuesto de
+vocabulario— sino **cuántos pares se devuelven** una vez comparadas.
+
+Conserva los más cercanos, ordenando por distancia. El problema aparecía
+entre pares **empatados**: ahí desempataba por posición de fila, así que
+cuáles sobrevivían al corte dependía del orden en que llegaron las
+filas.
+
+No es un caso raro. Los empates son la regla cuando las variantes se
+parecen del mismo modo —un espacio de más, un sufijo societario, una
+letra caída—, porque la distancia sale idéntica. Medido sobre 60 grupos
+construidos para que sus 60 pares internos compartan exactamente la
+misma distancia, con el corte en 30:
+
+| orden de las filas       | grupos representados | en común con el natural |
+|--------------------------|----------------------|-------------------------|
+| natural                  | 30                   | —                       |
+| inverso                  | 30                   | **0**                   |
+| barajado (tres semillas) | 30                   | **0**                   |
+
+Cinco órdenes, treinta grupos cada uno, ni uno compartido. Es el mismo
+defecto que la sección anterior ya había encontrado y resuelto para el
+recorte de formas, así que la respuesta es la misma: **ordenar por
+contenido**. El desempate usa ahora el rango canónico del valor, con una
+clave simétrica —`min` y `max` del rango— para que tampoco dependa de
+cuál fila quedó primera dentro del par. Los cinco órdenes devuelven
+exactamente los mismos grupos.
+
+El rango se calcula una sola vez sobre el universo completo de la
+corrida, no por lote ni por tesela: una numeración local volvería a
+hacer que la comparación entre lotes dependiera de cómo se repartieron.
+
+### Lo que ordenar no arregla
+
+Un corte dentro de un empate deja afuera pares **igual de cercanos** que
+los que conserva. Eso no lo arregla ningún orden, y por eso se declara:
+
+``` r
+
+alcance$distancia_corte        # la distancia donde cayó el corte
+alcance$n_en_distancia_corte   # cuántos de los conservados la comparten
+alcance$corte_en_empate        # TRUE si el corte cayó dentro de un empate
+```
+
+`corte_en_empate` **no es `truncado` con otro nombre**: cuando el corte
+cae en una distancia única, da `FALSE` aunque haya habido recorte. Si da
+`TRUE`, el número de grupos que ve es un subconjunto de los que había
+—estable y reproducible, pero subconjunto—, y subir `max_resultados` por
+encima del empate los trae a todos.
+
+### Y una advertencia sobre el camino LSH
+
+Con más de diez mil valores distintos entra MinHash/LSH, y ahí el
+**conjunto de candidatos** depende del orden de las filas: el
+vocabulario de q-gramas se numera por orden de primera aparición y esa
+numeración alimenta las firmas. Reordenar la tabla cambia qué pares se
+proponen.
+
+Eso está **dentro de la garantía declarada**, no es un defecto: medido
+sobre 1.200 filas, de los 11.822 pares que cambian al barajar, el
+Jaccard de q-gramas más alto es 0,7857 y no se pierde **ninguno** por
+encima de 0,8, donde el alcance declara un recall de 0,9998. La rotación
+está entera en la cola de pares apenas parecidos, donde LSH dice que no
+promete nada. Pero conviene saberlo antes de comparar dos corridas sobre
+el mismo contenido exportado en distinto orden.

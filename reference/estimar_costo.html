@@ -124,7 +124,12 @@ límite no se usa para recortar filas; el resultado lo marca explícitamente.</p
 
 
 <dt id="arg-max-resultados">max_resultados<a class="anchor" aria-label="anchor" href="#arg-max-resultados"></a></dt>
-<dd><p>Maximo de pares devueltos. Por defecto <code>100</code>.</p></dd>
+<dd><p>Maximo de pares devueltos. Por defecto <code>100</code>. Se
+conservan los mas cercanos; entre pares empatados en distancia, el
+desempate usa el orden canonico de los valores y no la posicion de las
+filas, de modo que reordenar la tabla no cambia que pares sobreviven. Un
+corte que cae dentro de un empate deja afuera pares igual de cercanos, y eso
+se declara en <code>alcance$corte_en_empate</code>.</p></dd>
 
 
 <dt id="arg-normalizar">normalizar<a class="anchor" aria-label="anchor" href="#arg-normalizar"></a></dt>

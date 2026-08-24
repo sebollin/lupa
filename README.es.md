@@ -353,6 +353,22 @@ los datos. Ordenando antes, los cinco órdenes dan 148 —y ordenar además
 deja los casi-duplicados adyacentes, así que el corte cae entre familias
 en vez de partirlas—.
 
+**El otro recorte, el de pares, sigue la misma regla desde la misma
+medición.** `max_resultados` conserva los pares más cercanos ordenando
+por distancia, y entre pares **empatados** desempataba por posición de
+fila. Medido sobre 60 grupos cuyos pares internos comparten exactamente
+la misma distancia, con el corte en 30, cinco órdenes distintos
+devolvían 30 grupos cada uno **sin compartir ninguno**. Ahora desempata
+por el orden canónico de los valores, con una clave simétrica para que
+tampoco dependa de cuál fila quedó primera dentro del par, y los cinco
+órdenes devuelven exactamente los mismos grupos.
+
+Lo que ningún orden arregla es que un corte dentro de un empate deja
+afuera pares igual de cercanos. Eso no se arregla: se declara. `alcance`
+trae `distancia_corte`, `n_en_distancia_corte` y `corte_en_empate`, y
+ese último no es `truncado` con otro nombre —da `FALSE` cuando el corte
+cae en una distancia única—.
+
 ### El costo se planifica antes de pagarlo
 
 Perfilar una tabla de 158 columnas en `modo = "exacto"` emite 262

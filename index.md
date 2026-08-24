@@ -345,6 +345,22 @@ first, all five orders yield 148 — and sorting also keeps
 near-duplicates adjacent, so the cut falls between families instead of
 splitting them.
 
+**The other trim, the one over pairs, follows the same rule, from the
+same kind of measurement.** `max_resultados` keeps the closest pairs by
+ordering on distance, and among **tied** pairs it used to break ties by
+row position. Measured over 60 groups whose internal pairs share exactly
+the same distance, with the cut at 30, five different orders each
+returned 30 groups **sharing none of them**. It now breaks ties by the
+canonical order of the values, with a symmetric key so the result does
+not depend on which row came first within a pair either, and all five
+orders return exactly the same groups.
+
+What no ordering fixes is that a cut inside a tie leaves out pairs that
+are equally close. That is not fixed: it is declared. `alcance` carries
+`distancia_corte`, `n_en_distancia_corte` and `corte_en_empate`, and
+that last one is not `truncado` under another name — it is `FALSE` when
+the cut lands on a unique distance.
+
 ### Cost is planned before it is paid
 
 Profiling a 158-column table in `modo = "exacto"` emits 262 queries, and
