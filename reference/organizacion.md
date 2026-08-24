@@ -56,9 +56,9 @@ distintos.
 ## Examples
 
 ``` r
-organismo <- organizacion("MIDES", c("padron", "tramites"))
+organismo <- organizacion("Organismo A", c("padron", "tramites"))
 organismo
-#> Organización declarada: MIDES
+#> Organización declarada: Organismo A
 #> 2 colecciones: "padron" and "tramites"
 #> La frontera es declarada: `lupa` no infiere a qué organismo pertenece una base.
 organismo$declaradas

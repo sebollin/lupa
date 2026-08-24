@@ -2,6 +2,17 @@
 
 ## lupa 0.1.0
 
+### Los ejemplos no nombran organismos
+
+El ejemplo de
+[`organizacion()`](https://sebollin.github.io/lupa/reference/organizacion.md)
+y las pruebas de esa granularidad usaban el nombre de organismos reales.
+Un ejemplo de roxygen viaja al `.Rd` y al sitio publicado, y las pruebas
+viajan en el tarball. Ahora usan nombres genericos -`"Organismo A"`,
+`"Organismo B"`-, que es lo que corresponde: la frontera de una
+organizacion la declara quien la conoce, y el paquete no tiene por que
+nombrar a ninguno.
+
 ### Lo que no se evaluo llega a las cuatro puertas
 
 Cuando `lupa` decide no correr un diagnostico lo anota con su motivo,
