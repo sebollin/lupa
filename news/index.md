@@ -2,6 +2,49 @@
 
 ## lupa 0.1.0
 
+### Una clave declarada excluye Benford, y queda declarado
+
+Sobre una clave primaria se emitia una desviacion de Benford: se le
+afirmaba un problema de calidad a una columna que no tiene distribucion
+que analizar.
+
+Se intento adivinar cual columna era clave por la forma de sus valores y
+ese camino se retiro, porque el criterio terminaba dependiendo de
+cuantas filas se habian cargado y callaba magnitudes reales. **Declarada
+no hay nada que adivinar**: si se pasa `clave` a
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), o
+se lee del catalogo de la base, Benford no corre sobre esas columnas y
+la cobertura lo declara. Sin declararla el comportamiento no cambia.
+
+Y el motivo dice cual de las dos cosas paso. «Parece un identificador»
+es una inferencia del paquete; «la clave fue declarada» es un hecho que
+trajo el usuario, y publicar la primera cuando corresponde la segunda le
+atribuye al paquete una deduccion que no hizo.
+
+### Menos codigo repetido, y el que quedaba ya habia divergido
+
+Seis reglas estaban escritas mas de una vez. Dos de ellas **tenian que
+coincidir o el paquete mentia**, y una ya habia divergido en tres cosas
+a la vez.
+
+- **La identidad de una tabla** en una coleccion estaba en dos lugares.
+  La frontera se declara con una y se lee con la otra, asi que si
+  divergian la cobertura de una coleccion dejaba de cuadrar.
+- **La validacion del destino de un archivo**, en tres. Ya diferian en
+  el orden de las comprobaciones, en si el mensaje nombra el directorio
+  que falta —una no lo nombraba— y en la redaccion del aviso de
+  sobrescritura.
+- **`datos` debe heredar de data.frame**, once veces. **`perfil` debe
+  corresponder a las columnas**, seis, con dos redacciones que convivian
+  en el mismo archivo a trescientas lineas de distancia.
+- **La interpretacion de numeros escritos como texto** —convencion
+  decimal, unidad y moneda— estaba dos veces, cuarenta y ocho lineas
+  cada una. Las dos tienen que dar el mismo veredicto o la misma columna
+  se describiria distinto segun por que camino se la miro.
+- **Los dos metodos de correctitud referencial** eran la misma funcion
+  escrita dos veces: 48 de sus 68 lineas coincidian y lo unico que
+  cambiaba era que columnas de la referencia se usan.
+
 ### Los ejemplos no nombran organismos
 
 El ejemplo de
