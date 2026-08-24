@@ -1,5 +1,22 @@
 # lupa 0.1.0
 
+## Los motores reales se verifican en cada push
+
+La fila «probado contra el motor real» de la tabla de motores dependia de que
+alguien se acordara de correrlo a mano: se media una vez, quedaba en notas, y la
+tabla envejecia sin avisar.
+
+`benchmark/verificar_motor.R` comprueba contra un motor real que las columnas se
+perfilan, que el dialecto se resuelve por sonda, que **la media del motor
+coincide con la de R sobre la misma columna** -que corra no alcanza-, que la
+clave primaria se lee del catalogo, y que la cobertura existe. Se configura por
+variables de entorno, asi que el mismo guion sirve en una maquina y en
+integracion continua, y sale con codigo distinto de cero si algo falla.
+
+El flujo `motores.yaml` lo corre contra PostgreSQL 16 y MariaDB 11 levantados
+como servicios. Los que exigen un cliente propietario se siguen verificando a
+mano, y su fila de la tabla dice con que fecha.
+
 ## El catalogo entra en la identidad de una tabla
 
 `catalogo.esquema.tabla` es el nombre de tres partes que usan SQL Server y otros

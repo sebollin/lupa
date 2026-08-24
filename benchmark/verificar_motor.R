@@ -1,365 +1,137 @@
-# Verifica una conexion DBI cualquiera contra las promesas de la tabla de
-# motores de los README. No forma parte del paquete instalado.
-#
-# La tabla dice "probado contra el motor real" para algunos motores y "esperado"
-# para otros, y esa distincion solo vale si la comprobacion se puede repetir.
-# Este guion es la comprobacion. Se usa asi:
-#
-#   source("benchmark/verificar_motor.R")
-#   con <- DBI::dbConnect(duckdb::duckdb())
-#   verificar_motor(con, "DuckDB 1.5")
-#
-# Lo que comprueba, en este orden, porque cada uno depende del anterior:
-#
-#   1. que el dialecto se resuelva por sonda y no por el nombre del driver;
-#   2. que ninguna metrica quede no disponible en los cinco modos;
-#   3. que la media, la mediana y el desvio calculados por el motor coincidan
-#      con los calculados en R sobre la tabla entera -- no alcanza con que
-#      corra, tiene que dar bien;
-#   4. que `plan_perfilado_dbi()` prediga exactamente las consultas emitidas
-#      -- el contador es el del propio paquete, comprobado aparte contra una
-#      conexion instrumentada que cuenta `dbSendQuery`;
-#   5. que un nombre calificado con esquema funcione por texto y por `DBI::Id`;
-#   6. que una coleccion de dos tablas se perfile.
+## Verifica la superficie DBI de `lupa` contra un motor REAL.
+##
+## Existe para que la fila "probado contra el motor real" de la tabla de motores
+## de los README no dependa de que alguien se acuerde de correrlo a mano. Se
+## media una vez, quedaba en notas, y la tabla envejecia sin avisar.
+##
+## Se configura por variables de entorno, asi que el mismo guion sirve en una
+## maquina y en integracion continua:
+##
+##   LUPA_MOTOR      postgres | mariadb | sqlite
+##   LUPA_DB_HOST    servidor          (no aplica a sqlite)
+##   LUPA_DB_PORT    puerto
+##   LUPA_DB_NAME    base
+##   LUPA_DB_USER    usuario
+##   LUPA_DB_PASS    contrasena
+##
+## Sale con codigo distinto de cero si alguna comprobacion falla, para que la
+## integracion lo marque en rojo.
 
-.tabla_de_prueba_motor <- function(n = 5000L, semilla = 11L) {
-  set.seed(semilla)
-  datos <- data.frame(
-    id = seq_len(n),
-    monto = stats::runif(n, 0, 1e5),
-    categoria = sample(letters[1:8], n, replace = TRUE),
-    texto = paste0("registro ", seq_len(n)),
-    fecha = as.Date("2020-01-01") + sample(0:900, n, replace = TRUE),
-    stringsAsFactors = FALSE
-  )
-  datos$monto[sample(n, 200L)] <- NA_real_
-  datos
+motor <- Sys.getenv("LUPA_MOTOR", unset = "sqlite")
+cat("motor:", motor, "\n")
+
+.paquete <- switch(motor,
+  postgres = "RPostgres", mariadb = "RMariaDB", sqlite = "RSQLite",
+  stop("LUPA_MOTOR no reconocido: ", motor, call. = FALSE)
+)
+if (!requireNamespace(.paquete, quietly = TRUE)) {
+  cat("SALTEADO:", .paquete, "no esta instalado.\n")
+  quit(status = 0)
 }
+library(lupa)
 
-.tabla_numerica_benchmark <- function(filas = 2000L, columnas = 20L) {
-  datos <- as.data.frame(replicate(
-    columnas, seq_len(filas), simplify = FALSE
-  ), stringsAsFactors = FALSE)
-  names(datos) <- sprintf("v%03d", seq_len(columnas))
-  datos
-}
-
-.lupa_benchmark_contador <- new.env(parent = emptyenv())
-.lupa_benchmark_contador$sql <- character()
-
-if (requireNamespace("DBI", quietly = TRUE) &&
-    requireNamespace("RSQLite", quietly = TRUE)) {
-  library(DBI)
-  if (!methods::isClass("ConexionBenchmarkLupa")) {
-    methods::setClass("ConexionBenchmarkLupa", contains = "SQLiteConnection")
-  }
-  methods::setMethod(
-    "dbSendQuery", c("ConexionBenchmarkLupa", "character"),
-    function(conn, statement, ...) {
-      .lupa_benchmark_contador$sql <- c(
-        .lupa_benchmark_contador$sql, statement
-      )
-      callNextMethod(conn, statement, ...)
-    }
-  )
-}
-
-.envolver_conexion_benchmark <- function(conexion) {
-  salida <- methods::new("ConexionBenchmarkLupa")
-  for (ranura in methods::slotNames(conexion)) {
-    methods::slot(salida, ranura) <- methods::slot(conexion, ranura)
-  }
-  salida
-}
-
-.consultas_antes_benchmark <- function(columnas, modo, portones = 0L) {
-  bloques <- switch(
-    modo,
-    exacto = c(columnas, columnas, columnas, columnas, columnas + 2L),
-    seguro = c(columnas, columnas, columnas + 2L),
-    conteos = columnas,
-    muestreado = c(columnas, columnas, columnas, columnas, columnas + 2L),
-    aproximado = c(columnas, columnas, columnas, columnas, columnas + 2L)
-  )
-  portones + sum(bloques) + 1L
-}
-
-.opciones_lote_benchmark <- function(funcion, tamano_lote) {
-  if ("tamano_lote" %in% names(formals(funcion))) {
-    list(tamano_lote = tamano_lote)
-  } else {
-    list()
-  }
-}
-
-# Mide una conexion SQLite instrumentada. La sonda de `dbSendQuery()` es la
-# unica fuente del contador: `dbGetQuery()` tambien pasa por ella y no se cuenta
-# dos veces.
-medir_consolidacion_dbi <- function(filas = 2000L,
-                                    columnas = c(20L, 60L, 120L),
-                                    modos = c("exacto", "seguro", "conteos"),
-                                    tamano_lote = 20L) {
-  if (!requireNamespace("DBI", quietly = TRUE) ||
-      !requireNamespace("RSQLite", quietly = TRUE)) {
-    stop("La medicion necesita instalar DBI y RSQLite.", call. = FALSE)
-  }
-  resultados <- list()
-  posicion <- 0L
-  for (n_columnas in columnas) {
-    cruda <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
-    DBI::dbWriteTable(
-      cruda, "benchmark", .tabla_numerica_benchmark(filas, n_columnas)
-    )
-    conexion <- .envolver_conexion_benchmark(cruda)
-    for (modo in modos) {
-      .lupa_benchmark_contador$sql <- character()
-      plan <- do.call(
-        lupa::plan_perfilado_dbi,
-        c(
-          list(conexion = conexion, tabla = "benchmark", modo = modo,
-               muestra = 100L),
-          .opciones_lote_benchmark(lupa::plan_perfilado_dbi, tamano_lote)
-        )
-      )
-      plan_emitidas <- length(.lupa_benchmark_contador$sql)
-      .lupa_benchmark_contador$sql <- character()
-      inicio <- proc.time()[["elapsed"]]
-      perfil <- do.call(
-        lupa::perfilar_dbi,
-        c(
-          list(conexion = conexion, tabla = "benchmark", modo = modo,
-               muestra = 100L, proteger_datos_personales = FALSE),
-          .opciones_lote_benchmark(lupa::perfilar_dbi, tamano_lote)
-        )
-      )
-      transcurrido <- proc.time()[["elapsed"]] - inicio
-      emitidas <- length(.lupa_benchmark_contador$sql)
-      posicion <- posicion + 1L
-      resultados[[posicion]] <- data.frame(
-        etapa = if ("tamano_lote" %in% names(formals(lupa::perfilar_dbi))) {
-          "despues"
-        } else {
-          "antes"
-        },
-        columnas = n_columnas,
-        modo = modo,
-        antes = .consultas_antes_benchmark(
-          n_columnas, modo, portones = plan_emitidas
-        ),
-        plan_despues = as.numeric(attr(plan, "total")),
-        plan_portones = plan_emitidas,
-        emitidas = emitidas,
-        segundos = transcurrido,
-        plan_exacto = as.numeric(attr(plan, "total")) == emitidas,
-        stringsAsFactors = FALSE
-      )
-      invisible(perfil)
-    }
-    DBI::dbDisconnect(cruda)
-  }
-  salida <- do.call(rbind, resultados)
-  salida$ahorro <- salida$antes - salida$emitidas
-  salida$ahorro_porcentual <- 100 * salida$ahorro / salida$antes
-  print(salida, row.names = FALSE)
-  invisible(salida)
-}
-
-# La tabla de arriba es comoda, y esa comodidad escondio tres defectos: una
-# columna `DATE` medida como numero, un `BIGINT UNSIGNED` con maximo menor que
-# el minimo, y la extrapolacion del muestreo dividiendo por las filas pedidas
-# en vez de las obtenidas. Ninguno aparecia porque la tabla no tenia fecha
-# nativa, ni enteros sin signo, ni menos filas que la muestra por omision.
-#
-# Estas comprobaciones existen para que la proxima tabla comoda no vuelva a
-# certificar un motor que no lo esta. Cada una es un tipo o un tamano que un
-# perfilador encuentra en una base real y que un fixture rara vez tiene.
-.tipos_incomodos_motor <- function(conexion) {
-  pruebas <- list(
-    list(
-      nombre = "fecha nativa",
-      crear = "CREATE TABLE lupa_incomoda_fecha (f DATE)",
-      poblar = "INSERT INTO lupa_incomoda_fecha VALUES ('2020-01-01')",
-      tabla = "lupa_incomoda_fecha",
-      revisar = function(perfil) {
-        fila <- perfil$resumen_tabla$columnas
-        # Una fecha no se promedia: o queda declarada sin aplicar, o el numero
-        # sale en una unidad que nadie pidio.
-        if (isTRUE(is.finite(fila$media[[1L]]))) {
-          return("la media de una columna DATE salio como numero")
-        }
-        ""
-      }
+conectar <- function() {
+  switch(motor,
+    sqlite = DBI::dbConnect(RSQLite::SQLite(), ":memory:"),
+    postgres = DBI::dbConnect(
+      RPostgres::Postgres(),
+      host = Sys.getenv("LUPA_DB_HOST", "127.0.0.1"),
+      port = as.integer(Sys.getenv("LUPA_DB_PORT", "5432")),
+      dbname = Sys.getenv("LUPA_DB_NAME", "lupa"),
+      user = Sys.getenv("LUPA_DB_USER", "lupa"),
+      password = Sys.getenv("LUPA_DB_PASS", "")
     ),
-    list(
-      nombre = "tabla mas chica que la muestra",
-      crear = "CREATE TABLE lupa_incomoda_chica (monto DOUBLE PRECISION)",
-      poblar = paste0(
-        "INSERT INTO lupa_incomoda_chica VALUES ",
-        paste0("(", 11:20, ")", collapse = ", ")
-      ),
-      tabla = "lupa_incomoda_chica",
-      modo = "muestreado",
-      revisar = function(perfil) {
-        fila <- perfil$resumen_tabla$columnas
-        validos <- as.numeric(fila$n_validos[[1L]])
-        if (!isTRUE(is.finite(validos)) || validos != 10) {
-          return(paste0("n_validos dio ", validos, " sobre una columna llena"))
-        }
-        if (!isTRUE(all.equal(fila$media[[1L]], 15.5))) {
-          return(paste0("la media dio ", fila$media[[1L]], " y son 15.5"))
-        }
-        ""
-      }
+    mariadb = DBI::dbConnect(
+      RMariaDB::MariaDB(),
+      host = Sys.getenv("LUPA_DB_HOST", "127.0.0.1"),
+      port = as.integer(Sys.getenv("LUPA_DB_PORT", "3306")),
+      dbname = Sys.getenv("LUPA_DB_NAME", "lupa"),
+      username = Sys.getenv("LUPA_DB_USER", "lupa"),
+      password = Sys.getenv("LUPA_DB_PASS", "")
     )
   )
-  cat("\ntipos y tamanos incomodos:\n")
-  for (prueba in pruebas) {
-    salida <- tryCatch({
-      try(DBI::dbExecute(conexion, paste0("DROP TABLE ", prueba$tabla)),
-          silent = TRUE)
-      DBI::dbExecute(conexion, prueba$crear)
-      DBI::dbExecute(conexion, prueba$poblar)
-      perfil <- lupa::perfilar_dbi(
-        conexion, prueba$tabla,
-        modo = if (is.null(prueba$modo)) "exacto" else prueba$modo
-      )
-      queja <- prueba$revisar(perfil)
-      if (nzchar(queja)) paste("!!", queja) else "ok"
-    }, error = function(e) paste("el motor no admitio la prueba:",
-                                 conditionMessage(e)))
-    cat(sprintf("  %-32s %s\n", prueba$nombre, salida))
-    try(DBI::dbExecute(conexion, paste0("DROP TABLE ", prueba$tabla)),
-        silent = TRUE)
-  }
-  invisible(NULL)
 }
 
-verificar_motor <- function(conexion, nombre_motor, tabla = "lupa_verificacion",
-                            esquema = "lupa_esquema") {
-  stopifnot(inherits(conexion, "DBIConnection"))
-  informacion <- tryCatch(DBI::dbGetInfo(conexion), error = function(e) list())
-  es_oracle <- grepl(
-    "oracle",
-    paste(nombre_motor, class(conexion), unlist(informacion), collapse = " "),
-    ignore.case = TRUE
-  )
-  datos <- .tabla_de_prueba_motor()
-  DBI::dbWriteTable(conexion, tabla, datos, overwrite = TRUE)
-  cat("=== ", nombre_motor, " ===\n", sep = "")
+con <- conectar()
+on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
+cat("conectado. clase:", paste(class(con), collapse = ", "), "\n\n")
 
-  modos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
-  filas <- lapply(modos, function(modo) {
-    perfil <- lupa::perfilar_dbi(conexion, tabla, modo = modo)
-    registros <- perfil$resumen_tabla$sql
-    plan <- lupa::plan_perfilado_dbi(conexion, tabla, modo = modo)
-    data.frame(
-      modo = modo,
-      dialecto = perfil$resumen_tabla$meta$dialecto$nombre,
-      calculadas = sum(registros$estado == "calculado"),
-      estimadas = sum(registros$estado == "estimado"),
-      en_muestra = sum(registros$estado == "observado_muestra"),
-      no_disponibles = sum(registros$estado == "no_disponible"),
-      plan = as.numeric(attr(plan, "total")),
-      emitidas = as.numeric(perfil$resumen_tabla$meta$consultas$emitidas),
-      stringsAsFactors = FALSE
-    )
-  })
-  resumen <- do.call(rbind, filas)
-  resumen$plan_exacto <- resumen$plan == resumen$emitidas
-  print(resumen, row.names = FALSE)
-  if (any(resumen$no_disponibles > 0L)) {
-    cat("\n!! hay metricas no disponibles: el motor rechazo algo\n")
-  }
-  if (!all(resumen$plan_exacto)) {
-    cat("\n!! el plan no predijo el costo en algun modo\n")
-  }
+## ---- La tabla de prueba --------------------------------------------------
+##
+## Realista a proposito: un identificador, un documento, una categoria, un monto
+## que se reparte por ordenes de magnitud, una edad con ausentes y duplicados de
+## fila. Cada columna existe para ejercitar un diagnostico distinto.
+set.seed(11)
+n <- 5000L
+datos <- data.frame(
+  id_tramite = seq_len(n),
+  documento = sample(10000000:49999999, n, replace = TRUE),
+  categoria = sample(c("A", "B", "C", "D"), n, replace = TRUE),
+  monto = round(stats::rlnorm(n, 9, 1.1), 2),
+  edad = c(sample(18:85, n - 20L, replace = TRUE), rep(NA_integer_, 20L)),
+  stringsAsFactors = FALSE
+)
+try(DBI::dbRemoveTable(con, "tramites"), silent = TRUE)
+DBI::dbWriteTable(con, "tramites", datos)
 
-  columnas <- lupa::perfilar_dbi(conexion, tabla, modo = "exacto")$
-    resumen_tabla$columnas
-  del_motor <- function(metrica) columnas[[metrica]][columnas$columna == "monto"]
-  referencia <- c(
-    media = mean(datos$monto, na.rm = TRUE),
-    mediana = stats::median(datos$monto, na.rm = TRUE),
-    desvio = stats::sd(datos$monto, na.rm = TRUE)
-  )
-  cat("\nlos tres estadisticos contra R, sobre la tabla entera:\n")
-  for (metrica in names(referencia)) {
-    valor <- del_motor(metrica)
-    cat(sprintf(
-      "  %-8s motor %.6f   R %.6f   coincide %s\n", metrica, valor,
-      referencia[[metrica]],
-      isTRUE(all.equal(valor, referencia[[metrica]]))
-    ))
-  }
-
-  cat("\nnombre calificado con esquema:\n")
-  creado <- tryCatch({
-    if (es_oracle) {
-      # Oracle usa el usuario como esquema y no acepta CREATE SCHEMA IF NOT
-      # EXISTS. La tabla fuente de dbWriteTable() queda con nombre comillado.
-      esquema_usuario <- informacion$username
-      esquema <- if (length(esquema_usuario) && !is.na(esquema_usuario)) {
-        toupper(esquema_usuario)
-      } else {
-        toupper(esquema)
-      }
-      tabla_esquema <- toupper(tabla)
-      tabla_calificada <- DBI::Id(schema = esquema, table = tabla_esquema)
-      tabla_calificada_sql <- as.character(
-        DBI::dbQuoteIdentifier(conexion, tabla_calificada)
-      )
-      try(
-        DBI::dbExecute(conexion, paste0(
-          "DROP TABLE ", tabla_calificada_sql, " PURGE"
-        )),
-        silent = TRUE
-      )
-      DBI::dbExecute(conexion, paste0(
-        "CREATE TABLE ", tabla_calificada_sql, " AS SELECT * FROM ",
-        as.character(DBI::dbQuoteIdentifier(conexion, tabla))
-      ))
-    } else {
-      DBI::dbExecute(conexion, paste0("CREATE SCHEMA IF NOT EXISTS ", esquema))
-      DBI::dbExecute(conexion, paste0(
-        "CREATE TABLE ", esquema, ".", tabla, " AS SELECT * FROM ", tabla
-      ))
-    }
-    TRUE
-  }, error = function(e) {
-    cat("  el motor no acepto crear el esquema:", conditionMessage(e), "\n")
-    FALSE
-  })
-  if (creado) {
-    referencia_texto <- if (es_oracle) {
-      paste0(toupper(esquema), ".", toupper(tabla))
-    } else {
-      paste0(esquema, ".", tabla)
-    }
-    referencia_id <- DBI::Id(
-      schema = if (es_oracle) toupper(esquema) else esquema,
-      table = if (es_oracle) toupper(tabla) else tabla
-    )
-    for (referencia_tabla in list(referencia_texto, referencia_id)) {
-      etiqueta <- if (is.character(referencia_tabla)) "por texto" else "por Id"
-      salida <- tryCatch(
-        as.character(lupa::perfilar_dbi(
-          conexion, referencia_tabla, modo = "conteos"
-        )$resumen_tabla$meta$filas),
-        error = function(e) paste("ERROR:", conditionMessage(e))
-      )
-      cat("  ", etiqueta, ": ", salida, "\n", sep = "")
-    }
-    cat("\ncoleccion de dos tablas:\n")
-    salida <- tryCatch({
-      perfil <- lupa::perfilar_coleccion(
-        lupa::coleccion(conexion, c(tabla, referencia_texto))
-      )
-      paste("ok,", nrow(perfil$resumen_coleccion), "tablas perfiladas")
-    }, error = function(e) paste("ERROR:", conditionMessage(e)))
-    cat("  ", salida, "\n", sep = "")
-  }
-  # Fuera del bloque de esquema: los tipos incomodos no dependen de que el
-  # motor acepte crear esquemas, y son la parte que mas importa.
-  .tipos_incomodos_motor(conexion)
-  invisible(resumen)
+fallos <- character()
+comprobar <- function(etiqueta, condicion, detalle = "") {
+  ok <- isTRUE(condicion)
+  cat(sprintf("%-46s %s%s\n", etiqueta, if (ok) "si" else "NO",
+              if (nzchar(detalle)) paste0("  (", detalle, ")") else ""))
+  if (!ok) fallos <<- c(fallos, etiqueta)
+  invisible(ok)
 }
+
+perfil <- perfilar_dbi(con, "tramites", muestra = 500L)
+resumen <- perfil$resumen_tabla
+
+comprobar("perfila las cinco columnas", nrow(resumen$columnas) == 5L,
+          paste(nrow(resumen$columnas), "columnas"))
+comprobar("el dialecto se resuelve por sonda",
+          !is.null(resumen$meta$dialecto$nombre),
+          as.character(resumen$meta$dialecto$nombre))
+
+## Que corra no alcanza: los estadisticos del motor tienen que coincidir con los
+## de R sobre la MISMA columna, traida de la propia tabla.
+real <- DBI::dbGetQuery(con, "SELECT monto FROM tramites")[[1L]]
+fila <- resumen$columnas[resumen$columnas$columna == "monto", , drop = FALSE]
+if (nrow(fila) && !is.na(fila$media)) {
+  comprobar("la media del motor coincide con la de R",
+            isTRUE(all.equal(as.numeric(fila$media), mean(real), tolerance = 1e-8)),
+            sprintf("%.6f contra %.6f", as.numeric(fila$media), mean(real)))
+} else {
+  cat("la media no se calculo en este modo; no se compara\n")
+}
+
+## La clave primaria se lee del catalogo cuando el motor la declara.
+try(DBI::dbExecute(con, "DROP TABLE padron"), silent = TRUE)
+DBI::dbExecute(con, paste(
+  "CREATE TABLE padron (id_persona INTEGER PRIMARY KEY,",
+  "nombre VARCHAR(60))"
+))
+## Se pide por nombre en vez de con `:::` directo para que el guion no muera
+## cuando corre contra una version instalada que todavia no la trae: eso diria
+## "fallo el motor" cuando lo que falta es una funcion.
+if (exists(".clave_primaria_dbi", asNamespace("lupa"), inherits = FALSE)) {
+  leer_clave <- get(".clave_primaria_dbi", asNamespace("lupa"))
+  clave <- leer_clave(con, "padron")
+  comprobar("la clave primaria se lee del catalogo",
+            identical(tolower(clave$columnas), "id_persona"),
+            paste(clave$columnas, collapse = ", "))
+} else {
+  cat("la lectura de clave primaria no esta en esta version; no se comprueba\n")
+}
+
+## Lo que no se pudo medir queda declarado, nunca en cero.
+cobertura <- resumen$cobertura
+comprobar("la cobertura existe y es una tabla",
+          inherits(cobertura, "data.frame"),
+          paste(if (is.null(cobertura)) 0 else nrow(cobertura), "filas"))
+
+cat("\n")
+if (length(fallos)) {
+  cat("FALLARON:", paste(fallos, collapse = "; "), "\n")
+  quit(status = 1)
+}
+cat("Todas las comprobaciones pasaron contra", motor, "\n")

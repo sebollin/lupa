@@ -239,27 +239,40 @@ Poner `0,923` al lado de `0,043` sin decir esto invita a una conclusion falsa.
 
 ### Por que la precision de PED/Hospital es baja, y por que no es un error
 
-> **Este desglose es de la medicion del 2026-08-18 y ya no suma a las celdas
-> trazables actuales** (11.795 contra las 4.035 de entonces). Se deja porque la
-> explicacion de por que la precision es baja sigue valiendo, pero los conteos
-> hay que rehacerlos.
+> **Rehecho el 2026-08-24** con `benchmark/_ped_desglose.R`, que lo reproduce
+> desde el repositorio. El desglose anterior era del 2026-08-18 y sumaba 4.035
+> celdas contra las 11.795 de hoy.
 
 Las celdas trazables de esa tabla se reparten asi:
 
 | diagnostico | celdas trazables |
 | --- | ---: |
+| `casi_duplicados_vocabulario` | 8056 |
 | `constante` | 2000 |
 | `numero_como_texto` | 1761 |
 | `unidades_mixtas` | 1759 |
-| `patron_raro` | 197 |
+| `patron_raro` | 216 |
 | `outliers` | 99 |
 | `codificacion_rota` | 1 |
 
-**El 95 % viene de tres diagnosticos que dicen algo verdadero sobre la tabla y
-ajeno a lo que el banco etiqueta.** Dos columnas efectivamente tienen un unico
-valor; los numeros efectivamente estan guardados como texto; las unidades
-efectivamente estan mezcladas. Nada de eso es una errata inyectada, que es lo que
-`difference.csv` marca.
+**Una celda trazable es un par (fila, columna), y el total es su union, no la
+suma de la tabla.** La suma da 13.892 porque dos diagnosticos pueden senalar la
+misma celda; la union da 11.795, que es la cifra de la fila. Contar filas en vez
+de celdas daria 1.000 —todas—, que no dice nada.
+
+**Cuatro diagnosticos aportan el 97 % y los cuatro dicen algo verdadero sobre la
+tabla, ajeno a lo que el banco etiqueta.** Dos columnas efectivamente tienen un
+unico valor; los numeros efectivamente estan guardados como texto; las unidades
+efectivamente estan mezcladas; y el vocabulario efectivamente tiene formas casi
+iguales. Nada de eso es una errata inyectada, que es lo que `difference.csv`
+marca.
+
+**El mas grande cambio de dueno al rehacer el desglose**: en la medicion vieja
+encabezaba `constante` con 2.000 celdas, y hoy lo hace
+`casi_duplicados_vocabulario` con 8.056 —dos tercios del total—. No es que el
+paquete empeorara: es que el detector de vocabulario paso a trazar sus filas, y
+lo que antes no se contaba ahora se cuenta. Un desglose que no se rehace despues
+de un cambio asi describe un paquete que ya no existe.
 
 Es un desajuste de **categoria**, no de acierto. La medida lo confirma: restringido
 a `patron_raro`, el mismo conjunto pasa de **0,043 a 0,711** de precision.

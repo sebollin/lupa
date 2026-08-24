@@ -158,6 +158,16 @@
   etiquetas <- c(
     sin_variacion = "sin variacion",
     parece_identificador = if (isTRUE(resultado$clave_declarada)) {
+      # Se probo agregar un aviso cuando la columna declarada como clave se
+      # reparte por muchos ordenes de magnitud, para que una declaracion
+      # equivocada -un monto declarado como clave- no se lleve el analisis en
+      # silencio. **Se retiro midiendo**: una clave dispersa real de 1 a 600.000
+      # da 4,3 ordenes y un monto da 3,3, asi que el aviso salta en las dos y
+      # deja de significar algo. Es la misma razon por la que la densidad no
+      # servia para reconocer una clave.
+      #
+      # Lo que si cubre el caso comun: si la columna declarada repite valores,
+      # `clave_no_unica` lo informa con severidad `error`.
       "la clave fue declarada, asi que la columna identifica filas y no es una magnitud"
     } else {
       "parece un identificador (tipo_inferido, posible_identificador o secuencia correlativa)"

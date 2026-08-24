@@ -14,44 +14,26 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **EN REMEDICION.** Despues de `205ea84` cambiaron las fuentes cuatro veces
-> -la lectura de la clave primaria del catalogo, la declaracion de la semantica
-> de Oracle, la cobertura por grupo y la unificacion de las entidades HTML-, asi
-> que la matriz entera vuelve a correr sobre `59c363b`. **Las filas de abajo
-> describen `205ea84` y no esta revision**; quedan a la vista hasta que la
-> corrida nueva las reemplace, porque borrarlas dejaria la seccion sin decir
-> contra que se midio. Suite sobre `59c363b`: 16.019 comprobaciones, 0 fallos,
-> 0 errores, 0 avisos.
->
-> **Estado de la matriz sobre `205ea84`:**
+> **Estado de la matriz sobre `375d7c3`:**
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`**, y la nota es `New submission` | `../verificacion/2026-08-24b/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`**, la misma | `../verificacion/2026-08-24b/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, cero notas | `../verificacion/2026-08-24b/sin-incoming/lupa.Rcheck/00check.log` |
-> | local, `--as-cran` **construyendo vinietas** | **`Status: 1 NOTE`**, la misma. `checking package vignettes ... OK` y `re-building of vignette outputs ... OK` | `../verificacion/2026-08-24b/con-vinietas/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK` | `../verificacion/2026-08-24b/r41/lupa.Rcheck/00check.log` |
-> | suite completa | **15.968 comprobaciones, 0 fallos, 0 errores, 0 avisos** | leido de `sum(r$failed)`, no del texto |
-> | GitHub Actions (5 plataformas) | **las cinco con `Status: OK` sobre `205ea84`**, sin notas, suite en `FAIL 0 \| WARN 0` | corrida 32687475638 |
-> | R-hub v2 R-devel (3 plataformas) | **las tres con `Status: OK`**, sin notas: Linux, Windows y macOS | corrida 32689607365 |
-> | win-builder release y devel | subidas el 2026-08-24, resultado por correo al mantenedor | log de cada corrida |
+> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`**, y la nota es `New submission` | `../verificacion/2026-08-24f/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`**, la misma | `../verificacion/2026-08-24f/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, cero notas | `../verificacion/2026-08-24f/sin-incoming/lupa.Rcheck/00check.log` |
+> | local, `--as-cran` **construyendo vinietas** | **`Status: 1 NOTE`**, la misma. Las nueve construyen sin aviso | `../verificacion/2026-08-24f/con-vinietas/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**: paquetes sugeridos sin build ahi, y una cadena UTF-8 marcada | `../verificacion/2026-08-24f/r41/lupa.Rcheck/00check.log` |
+> | suite completa | **16.034 comprobaciones, 0 fallos, 0 errores, 0 avisos** | leido de `sum(r$failed)`, no del texto |
+> | GitHub Actions (5 plataformas) | verde | log de la corrida |
+> | R-hub v2 R-devel (3 plataformas) | PENDIENTE sobre estas fuentes | log de la corrida |
+> | win-builder release y devel | PENDIENTE sobre estas fuentes | log de cada corrida |
 >
 > **Que la corrida sin comprobaciones de entrada de `OK` sin ninguna nota ubica
-> esa nota entera fuera del paquete**: es la de primera entrega y no un defecto.
+> esa nota entera fuera del paquete**: es la de primera entrega.
 >
-> **Las dos notas del contenedor, miradas una por una.** La primera es que
-> `bit64`, `covr`, `knitr`, `rmarkdown`, `RSQLite` y `sf` no tienen build ahi, o
-> sea una propiedad del contenedor. La segunda dice `found 1 marked UTF-8
-> string`, y esa cadena es **`Paysandu`** -escrito con acento- en la columna de
-> departamento de los datos de ejemplo: esta correctamente marcada, R 4.6.1 la
-> da `OK`, y solo R 4.1.3 la nota. Un paquete sobre calidad de datos uruguayos
-> tiene que poder escribir ese nombre como se escribe.
->
-> **El entorno que construye las vinietas se agrego el 2026-08-24.** Los otros
-> cuatro corren con `--ignore-vignettes` -el contenedor no tiene `pandoc`- y
-> arrastrar esa bandera a los locales dejaba sin comprobar algo que CRAN si
-> hace. Las nueve vinietas se construyen sin aviso.
+> **La cadena UTF-8 marcada es un nombre de departamento con acento** en los
+> datos de ejemplo. Esta correctamente marcada, R 4.6.1 da `OK` en esa misma
+> comprobacion, y solo R 4.1.3 la nota.
 >
 > **Dos WARNINGs que la suite no podia ver.** La matriz anterior, sobre
 > `9956c6c`, dio `2 WARNINGs` donde la de `031fa59` habia dado `1 NOTE`. Los dos
@@ -179,9 +161,9 @@ stamps and the stamp identifies a build, not a revision. Each result was read
 from that run's own check log. Where a run has not yet been repeated on the
 current sources, the line says so rather than carrying the older result forward.
 
-The package sources submitted are those of `205ea84`. Anything committed after
+The package sources submitted are those of `375d7c3`. Anything committed after
 it touches only this letter, which `.Rbuildignore` keeps out of the tarball, so
-it leaves the package byte-identical — `git diff --stat 205ea84..HEAD` lists
+it leaves the package byte-identical — `git diff --stat 375d7c3..HEAD` lists
 `cran-comments.md` and nothing else.
 
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — **`Status: 1 NOTE`**
@@ -196,7 +178,7 @@ it leaves the package byte-identical — `git diff --stat 205ea84..HEAD` lists
   the local runs left unchecked something CRAN does do. All nine vignettes build
   without a warning.
 * Continuous integration (GitHub Actions, `R-CMD-check`, run 32687475638) on
-  `205ea84`, 5 of 5 with **`Status: OK`** and no notes: Ubuntu with R release, R-devel and R oldrel-1;
+  `375d7c3`, 5 of 5 with **`Status: OK`** and no notes: Ubuntu with R release, R-devel and R oldrel-1;
   Windows with R release; and macOS with R release on
   **`aarch64-apple-darwin23`**. The platforms exercised are
   `x86_64-pc-linux-gnu`, `x86_64-w64-mingw32` and `aarch64-apple-darwin23`. The
