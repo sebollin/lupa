@@ -449,6 +449,12 @@ agregándolo a la lista—. Un código postal `9999` repetido treinta veces no e
 extremo en su columna; un monto real de `9999` no se repite; un año `1999` no
 tiene esa forma.
 
+**La unicidad no se adivina: se pregunta —y en una base, se lee.** Cuando los
+datos vienen por DBI, la clave primaria **está declarada en el catálogo del
+motor**, así que no se sugiere nada: se lee, en una sola consulta elegida por el
+controlador. Y se distingue «esta tabla no declara clave» de «no se pudo
+preguntar», que no son lo mismo.
+
 **La unicidad no se adivina: se pregunta.** Si se declara la clave con
 `perfilar(clave = ...)`, que se repita es un hallazgo de severidad `error` con
 las filas que repiten, no un aviso de consola. Y para no dejar al usuario ante

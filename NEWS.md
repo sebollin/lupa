@@ -1,5 +1,24 @@
 # lupa 0.1.0
 
+## La clave primaria se lee del catalogo cuando esta declarada
+
+Sobre un `data.frame` no hay a quien preguntarle cual es la clave, y por eso
+`sugerir_clave()` ordena candidatas. En una base relacional esa pregunta **ya
+tiene respuesta escrita**: la clave primaria esta en el catalogo del motor. Ahi
+no hay nada que sugerir, hay que leerla.
+
+Se resuelve en **una sola consulta**, elegida por el controlador y no probando
+una tras otra: probar hasta acertar gastaria un numero de consultas que depende
+del motor, y `plan_perfilado_dbi()` promete exactamente cuantas emite. Es el
+mismo criterio por el que la sonda del desvio gasta siempre dos aunque acierte
+en la primera.
+
+Y se distinguen dos respuestas que se confundian. SQLite devuelve cero filas
+**sin error** para una tabla que no existe, asi que filtrando en el SQL "no
+declara clave" y "no se pudo preguntar" llegaban iguales. Se piden todas las
+columnas y se filtra despues: cero filas significa que la tabla no esta, y filas
+sin ninguna marcada significa que no tiene clave.
+
 ## Lo que no se evaluo se dice donde se decide, y la clave se pregunta
 
 - **Una comprobacion de no-ASCII que la suite si puede hacer.** `R CMD check`
