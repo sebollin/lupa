@@ -579,13 +579,57 @@ test_that("un DBI::Id declara la tabla sin pasar por el parseo", {
 
   suelto <- coleccion(con, DBI::Id(table = "raro.nombre"))
   expect_equal(suelto$n_declaradas, 1L)
-  # Tres componentes no se admiten, con la causa nombrada. Los argumentos van
+  # Tres componentes SI se admiten desde que el catalogo es parte de la
+  # identidad, y el identificador los une en orden. Los argumentos van
   # nombrados porque `DBI::Id()` solo acepta los sueltos desde 1.2: con la
   # version anterior el error que salta es el de DBI y la prueba mide otra cosa.
+  DBI::dbExecute(con, "CREATE TABLE c (a INTEGER)")
+  tres <- coleccion(con, DBI::Id(catalog = "a", schema = "b", table = "c"))
+  expect_equal(tres$tablas$catalogo, "a")
+  expect_equal(tres$tablas$esquema, "b")
+  expect_equal(tres$tablas$tabla, "c")
+  expect_equal(tres$tablas$identificador, "a.b.c")
+
+  # Cuatro no, y esa es la garantia que no se afloja: un identificador mal
+  # formado se rechaza **nombrando la causa**, para que el usuario no lo lea
+  # como un problema suyo de permisos y vaya a pedirle al DBA acceso a una
+  # tabla que ya puede leer.
   expect_error(
-    coleccion(con, DBI::Id(catalog = "a", schema = "b", table = "c")),
-    "dos componentes"
+    coleccion(con, DBI::Id(
+      cluster = "z", catalog = "a", schema = "b", table = "c"
+    )),
+    "tres componentes"
   )
+})
+
+test_that("el catalogo no cambia la identidad de lo que no lo tiene", {
+  # La compatibilidad se conserva por construccion: `NA` no aporta parte, asi
+  # que una tabla declarada sin catalogo da el MISMO identificador que antes de
+  # que la columna existiera. Si esto falla, toda coleccion guardada deja de
+  # cruzar con la frontera declarada.
+  con <- .con_arreglos()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbExecute(con, "CREATE TABLE personas (a INTEGER)")
+  expect_equal(coleccion(con, "personas")$tablas$identificador, "personas")
+  expect_equal(
+    coleccion(con, data.frame(esquema = "esq", tabla = "personas"))$tablas$identificador,
+    "esq.personas"
+  )
+})
+
+test_that("dos tablas homonimas en catalogos distintos no colapsan", {
+  # Es el mismo defecto que tenia el nombre pelado con los esquemas: si la
+  # identidad no lleva el catalogo, medir una de las dos daria cobertura 1 de 1
+  # en vez de 1 de 2.
+  con <- .con_arreglos()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  declaradas <- data.frame(
+    catalogo = c("cat1", "cat2"), esquema = c("esq", "esq"),
+    tabla = c("personas", "personas"), stringsAsFactors = FALSE
+  )
+  col <- coleccion(con, declaradas)
+  expect_equal(col$n_declaradas, 2L)
+  expect_equal(length(unique(col$tablas$identificador)), 2L)
 })
 
 test_that("el unicode y las palabras reservadas siguen funcionando", {

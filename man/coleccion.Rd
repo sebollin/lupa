@@ -30,7 +30,12 @@ recorrerlas todas no es viable.
 Esta función no consulta nada: sólo declara. Lo que se mide viene después,
 con \code{\link[=perfilar_coleccion]{perfilar_coleccion()}}.
 
-El \strong{esquema es parte de la identidad de la tabla}. Una tercera columna
+El \strong{esquema es parte de la identidad de la tabla}, y el \strong{catálogo también}
+cuando existe: \code{catalogo.esquema.tabla} es el nombre de tres partes que usan
+SQL Server y otros motores. Se declara con la columna \code{catalogo}, y donde no
+hay catálogo se omite —o va \code{NA}— y la identidad queda igual que siempre. Dos
+tablas con el mismo nombre y esquema en catálogos distintos son \strong{dos tablas
+distintas}, y se cuentan como dos. Una tercera columna
 \code{tipo} permite declarar qué es cada objeto —\code{"tabla"}, \code{"vista"},
 \code{"temporal"}—, porque el conteo bruto de un catálogo mezcla tablas base con
 vistas, índices y secuencias, y no todas se perfilan igual.
@@ -46,7 +51,11 @@ cualquier nombre no trivial.} Los nombres viajan literales: puntos,
 espacios y comillas incluidos. No hay parseo y por lo tanto no hay nada
 que se pueda parsear mal.}
 \item{\code{DBI::Id}, suelto o en una lista}{La forma canónica de DBI. Tampoco
-se parsea. Se admiten hasta dos componentes —esquema y tabla—.}
+se parsea. Se admiten hasta tres componentes —catálogo, esquema y tabla—.
+Con cuatro o más se rechaza \strong{nombrando la causa}: por encima del
+catálogo no hay un nivel que la colección sepa declarar, y devolver ese
+error como si fuera un problema de permisos mandaría a pedir un acceso
+que ya se tiene.}
 \item{Texto \code{"esquema.tabla"}}{Atajo cómodo para el caso simple. El texto
 \strong{se parte en el punto}, respetando el entrecomillado del motor:
 un nombre entrecomillado con un punto adentro queda entero, como una

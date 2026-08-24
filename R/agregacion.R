@@ -262,6 +262,10 @@ transiciones_granularidad <- function() {
   # si una cambiara, la frontera declarada y la leida dejarian de cruzar.
   identificador <- .identificadores_tabla
   if (inherits(coleccion, "coleccion_lupa")) {
+    # Una coleccion guardada antes de que existiera la columna `catalogo` llega
+    # sin ella. Se completa con `NA` para que su identificador siga siendo el
+    # mismo que tenia y la frontera cruce igual.
+    coleccion$tablas <- .completar_catalogo_coleccion(coleccion$tablas)
     return(list(
       nombre = coleccion$nombre,
       declaradas = coleccion$tablas$identificador,

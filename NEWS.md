@@ -1,5 +1,26 @@
 # lupa 0.1.0
 
+## El catalogo entra en la identidad de una tabla
+
+`catalogo.esquema.tabla` es el nombre de tres partes que usan SQL Server y otros
+motores, y `lupa` perdia el del medio: se quedaba con la primera y la ultima.
+Como las dos que quedaban eran sintacticamente validas, el SQL salia bien formado
+contra una tabla inexistente y el error volvia al usuario como **un problema suyo
+de permisos** —lo mandaba a pedirle al DBA acceso a una tabla que ya podia leer—.
+
+Ahora el catalogo es una columna estructurada, siempre presente y `NA` cuando no
+existe. El identificador une las partes que hay y sigue siendo inyectivo: `t`,
+`esq.t`, `cat.esq.t` y `cat.t` son cuatro identidades distintas.
+
+**Y la unicidad pasa a mirar la identidad completa.** Antes, dos tablas con el
+mismo nombre y esquema en catalogos distintos colapsaban y la coleccion las
+rechazaba como repetidas: se rechazaba una frontera valida.
+
+Lo que **no** cambia: sin catalogo el identificador es identico al de antes, asi
+que ninguna coleccion guardada deja de cruzar con su frontera; y un identificador
+mal formado -cuatro partes, comillas sin cerrar, punto inicial o final- se sigue
+rechazando **nombrando la causa**.
+
 ## Una clave declarada excluye Benford, y queda declarado
 
 Sobre una clave primaria se emitia una desviacion de Benford: se le afirmaba un

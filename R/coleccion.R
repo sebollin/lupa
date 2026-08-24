@@ -182,13 +182,25 @@
     )
   }
   etiquetas <- names(nombres)
-  if (length(nombres) > 2L) {
+  # Tres componentes SI se admiten desde que el catalogo es parte de la
+  # identidad. Cuatro no: no hay un nivel por encima del catalogo en el modelo
+  # de DBI, asi que un identificador de cuatro partes es un nombre mal formado y
+  # se rechaza **nombrando la causa**, que es lo que evita que el usuario lo lea
+  # como un problema suyo de permisos.
+  if (length(nombres) > 3L) {
     stop(
-      "`lupa` no admite un `DBI::Id` de mas de dos componentes: el nivel de ",
-      "catalogo no forma parte de la identidad que la coleccion sabe declarar. ",
-      "Declare la tabla con `data.frame(esquema = , tabla = )`.",
+      "`lupa` no admite un `DBI::Id` de mas de tres componentes: por encima del ",
+      "catalogo no hay un nivel que la coleccion sepa declarar. Revise el ",
+      "identificador; si el nombre lleva puntos, decl\u00e1relo con ",
+      "`data.frame(catalogo = , esquema = , tabla = )`.",
       call. = FALSE
     )
+  }
+  if (length(nombres) == 3L) {
+    return(c(
+      catalogo = unname(nombres[[1L]]), esquema = unname(nombres[[2L]]),
+      tabla = unname(nombres[[3L]])
+    ))
   }
   if (length(nombres) == 2L) {
     return(c(esquema = unname(nombres[[1L]]), tabla = unname(nombres[[2L]])))
@@ -253,7 +265,17 @@
     } else {
       rep("tabla", nrow(tablas))
     }
+    # El catalogo es la tercera parte que usan SQL Server y otros motores. Va
+    # como columna estructurada y siempre presente -`NA` cuando no existe- en
+    # vez de dentro del texto: asi no hay que volver a partir nada, que es de
+    # donde salian los defectos de esta seccion.
+    catalogo <- if ("catalogo" %in% names(tablas)) {
+      .exigir_texto_declarado(tablas$catalogo, "catalogo", permitir_na = TRUE)
+    } else {
+      rep(NA_character_, nrow(tablas))
+    }
     return(data.frame(
+      catalogo = as.character(catalogo),
       esquema = as.character(esquema), tabla = as.character(nombre_tabla),
       tipo = as.character(tipo),
       # Un nombre declarado nunca se partio: viaja literal.
@@ -265,6 +287,12 @@
       all(vapply(tablas, .es_id_dbi, logical(1L)))) {
     partes <- lapply(tablas, .partes_id_dbi)
     return(data.frame(
+      # `.partes_id_dbi()` devuelve un vector con nombres, asi que pedirle una
+      # etiqueta que no trae **sale de rango** en vez de dar NULL. Hay que
+      # mirar los nombres antes de indexar.
+      catalogo = vapply(partes, function(x) {
+        if ("catalogo" %in% names(x)) unname(x[["catalogo"]]) else NA_character_
+      }, character(1L)),
       esquema = vapply(partes, function(x) unname(x[["esquema"]]), character(1L)),
       tabla = vapply(partes, function(x) unname(x[["tabla"]]), character(1L)),
       tipo = rep("tabla", length(tablas)),
@@ -281,6 +309,11 @@
   }
   parseadas <- .parsear_identificadores_texto(tablas)
   data.frame(
+    catalogo = if (!is.null(parseadas$catalogo)) {
+      parseadas$catalogo
+    } else {
+      rep(NA_character_, length(tablas))
+    },
     esquema = parseadas$esquema,
     tabla = parseadas$tabla,
     tipo = rep("tabla", length(tablas)),
@@ -298,8 +331,16 @@
 # `auditoria.personas` colapsaran en una sola tabla, y entonces medir una de las
 # dos daba cobertura 1 de 1 en vez de 1 de 2. El esquema es parte de la
 # identidad, no un adorno.
-.identificadores_tabla <- function(esquema, tabla) {
-  ifelse(is.na(esquema), tabla, paste0(esquema, ".", tabla))
+# Se unen las partes que existen, en orden. Sigue siendo inyectivo: `t`,
+# `esq.t`, `cat.esq.t` y `cat.t` son cuatro identidades distintas, y dos tablas
+# con el mismo nombre en catalogos distintos no colapsan —que era el defecto que
+# tenia el nombre pelado con los esquemas—.
+.identificadores_tabla <- function(esquema, tabla, catalogo = NULL) {
+  if (is.null(catalogo)) catalogo <- rep(NA_character_, length(tabla))
+  vapply(seq_along(tabla), function(i) {
+    partes <- c(catalogo[[i]], esquema[[i]], tabla[[i]])
+    paste(partes[!is.na(partes)], collapse = ".")
+  }, character(1L))
 }
 
 # `dbQuoteIdentifier(con, "public.personas")` cita UN identificador que contiene
@@ -307,8 +348,27 @@
 # un motor con esquemas eso consulta una tabla que no existe y el par termina
 # declarado como ilegible aunque los permisos esten bien. El identificador
 # compuesto se construye con `DBI::Id`.
-.referencia_de_partes <- function(esquema, tabla) {
+.referencia_de_partes <- function(esquema, tabla, catalogo = NA_character_) {
+  if (!is.na(catalogo)) {
+    if (is.na(esquema)) {
+      return(DBI::Id(catalog = catalogo, table = tabla))
+    }
+    return(DBI::Id(catalog = catalogo, schema = esquema, table = tabla))
+  }
   if (is.na(esquema)) tabla else DBI::Id(schema = esquema, table = tabla)
+}
+
+# Una coleccion guardada antes de que existiera la columna `catalogo` se
+# deserializa bien, pero al perfilarla fallaba: el codigo nuevo la lee y no esta.
+# Medido: sin este adaptador el objeto viejo se lee y no se puede perfilar.
+#
+# Se completa con `NA`, que es exactamente lo que significa -esa coleccion se
+# declaro sin catalogos- y deja el identificador igual al que tenia.
+.completar_catalogo_coleccion <- function(tablas) {
+  if (inherits(tablas, "data.frame") && !"catalogo" %in% names(tablas)) {
+    tablas$catalogo <- rep(NA_character_, nrow(tablas))
+  }
+  tablas
 }
 
 #' Declarar la frontera de una colección
@@ -323,7 +383,12 @@
 #' Esta función no consulta nada: sólo declara. Lo que se mide viene después,
 #' con [perfilar_coleccion()].
 #'
-#' El **esquema es parte de la identidad de la tabla**. Una tercera columna
+#' El **esquema es parte de la identidad de la tabla**, y el **catálogo también**
+#' cuando existe: `catalogo.esquema.tabla` es el nombre de tres partes que usan
+#' SQL Server y otros motores. Se declara con la columna `catalogo`, y donde no
+#' hay catálogo se omite —o va `NA`— y la identidad queda igual que siempre. Dos
+#' tablas con el mismo nombre y esquema en catálogos distintos son **dos tablas
+#' distintas**, y se cuentan como dos. Una tercera columna
 #' `tipo` permite declarar qué es cada objeto —`"tabla"`, `"vista"`,
 #' `"temporal"`—, porque el conteo bruto de un catálogo mezcla tablas base con
 #' vistas, índices y secuencias, y no todas se perfilan igual.
@@ -338,7 +403,11 @@
 #'     espacios y comillas incluidos. No hay parseo y por lo tanto no hay nada
 #'     que se pueda parsear mal.}
 #'   \item{`DBI::Id`, suelto o en una lista}{La forma canónica de DBI. Tampoco
-#'     se parsea. Se admiten hasta dos componentes —esquema y tabla—.}
+#'     se parsea. Se admiten hasta tres componentes —catálogo, esquema y tabla—.
+#'     Con cuatro o más se rechaza **nombrando la causa**: por encima del
+#'     catálogo no hay un nivel que la colección sepa declarar, y devolver ese
+#'     error como si fuera un problema de permisos mandaría a pedir un acceso
+#'     que ya se tiene.}
 #'   \item{Texto `"esquema.tabla"`}{Atajo cómodo para el caso simple. El texto
 #'     **se parte en el punto**, respetando el entrecomillado del motor:
 #'     un nombre entrecomillado con un punto adentro queda entero, como una
@@ -377,18 +446,26 @@
 coleccion <- function(conexion, tablas, nombre = NULL) {
   .validar_conexion_dbi(conexion, accion = "declarar una coleccion")
   declaradas <- .normalizar_tablas_coleccion(tablas)
-  if (anyDuplicated(declaradas[, c("esquema", "tabla")])) {
+  # La unicidad es por la identidad COMPLETA, catalogo incluido. Mirando solo
+  # `esquema.tabla`, dos tablas legitimas en catalogos distintos -el caso de
+  # `cat1.esq.personas` y `cat2.esq.personas`- se rechazaban como repetidas, que
+  # es rechazar una frontera valida. Es el mismo razonamiento por el que el
+  # esquema entro en la identidad: lo que distingue dos tablas tiene que
+  # distinguirlas tambien al contarlas.
+  if (anyDuplicated(declaradas[, c("catalogo", "esquema", "tabla")])) {
     stop("`tablas` repite una tabla.", call. = FALSE)
   }
   if (!is.null(nombre) && !.es_texto_escalar(nombre)) {
     stop("`nombre` debe ser NULL o una cadena no vacia.", call. = FALSE)
   }
   declaradas$identificador <- .identificadores_tabla(
-    declaradas$esquema, declaradas$tabla
+    declaradas$esquema, declaradas$tabla, declaradas$catalogo
   )
   declaradas$referencia <- I(lapply(
     seq_len(nrow(declaradas)),
-    function(i) .referencia_de_partes(declaradas$esquema[[i]], declaradas$tabla[[i]])
+    function(i) .referencia_de_partes(
+      declaradas$esquema[[i]], declaradas$tabla[[i]], declaradas$catalogo[[i]]
+    )
   ))
   estructura <- list(
     nombre = if (is.null(nombre)) "coleccion" else nombre,
