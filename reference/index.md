@@ -69,6 +69,12 @@ Perfilar datos y descubrir su estructura.
 - [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
   : Detectar claves candidatas
 
+- [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md)
+  : Sugerir qué columnas podrían ser la clave
+
+- [`elegir_clave()`](https://sebollin.github.io/lupa/reference/elegir_clave.md)
+  : Elegir la clave entre las sugeridas
+
 - [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
   : Detectar dependencias funcionales entre columnas
 

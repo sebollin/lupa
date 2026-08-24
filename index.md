@@ -486,6 +486,19 @@ it to the list. A postal code `9999` repeated thirty times is not
 extreme within its column; a real amount of `9999` does not repeat; a
 year `1999` does not have that shape.
 
+**Uniqueness is not guessed: it is asked.** Declare the key with
+`perfilar(clave = ...)` and a key that repeats is a finding of severity
+`error` carrying the offending rows, not a console warning. So that the
+user is not left facing a blank field,
+[`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md)
+ranks the candidate columns by three signals it publishes separately —
+whether it identifies every row, whether it has no missing values, and
+how closely its name resembles a key’s — and
+[`elegir_clave()`](https://sebollin.github.io/lupa/reference/elegir_clave.md)
+offers them numbered with an option to type another. Ranking is not
+deciding: a unique column may be a key or a magnitude that happens not
+to repeat, and that difference is not in the data.
+
 Where no signal discriminates, `lupa` speaks. High cardinality in a text
 column is always reported, because the length of the values does not
 tell a catalogue from prose — it fails in both directions, measured —
