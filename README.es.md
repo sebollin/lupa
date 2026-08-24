@@ -464,8 +464,8 @@ calidad.
 
 Reconocer una numeración pide **dos señales, y hacen falta las dos**. La
 primera es la **densidad**: un identificador ocupa un tramo compacto de
-los enteros y una magnitud se reparte por varios órdenes. La unicidad no
-sirve, porque un monto también es casi único. La segunda es la
+los enteros y una magnitud se reparte por varios órdenes. La unicidad a
+secas no sirve, porque un monto también es casi único. La segunda es la
 **ausencia de un salto de escala**, y sin ella la primera hace daño: un
 valor fuera de escala de hasta el doble del máximo no baja la densidad
 lo suficiente, así que un `120` entre edades de 18 a 70 —o un `2000`
@@ -478,6 +478,26 @@ respuesta conocida —cinco numeraciones y ocho magnitudes con un dato
 malo adentro— comparó cuatro variantes: cruzar las dos señales acierta
 las trece y **no calla ningún dato malo real**; la densidad sola
 acertaba once y callaba dos. Está en `test-ronda118.R`.
+
+**Una clave repartida fina es el caso al que la densidad no llega**, y
+pidió una tercera señal en vez de otro umbral: una clave que va de 1 a
+2.300.000 tiene densidad 0,0043 —*más dispersa* que un monto, que da
+0,0096—, así que ningún corte sobre ese eje los separa, y una clave
+primaria real venía recibiendo `desviacion_benford`, que es afirmar un
+problema de calidad sobre una columna que no tiene distribución que
+analizar.
+
+Lo que los separa no es la unicidad sino **si el azar la explica**. Con
+`n` valores repartidos en `P` posiciones enteras, el azar produce del
+orden de `n² / (2P)` coincidencias; que no haya ninguna donde se
+esperaban muchas significa que algo las prohíbe, y lo que prohíbe
+repetir un entero es una clave. Los montos que salen únicos —y sólo lo
+son hasta un centenar de valores— esperan 0,08 coincidencias; las claves
+dispersas, de 21 a 834. Una cuarta condición separa los dos casos que se
+parecen por únicos y por irregulares: si el hueco más grande explica
+casi todas las posiciones faltantes hay **un solo** agujero, que es un
+valor fuera de escala y no dispersión, así que `1..1000` más un `2000`
+sigue informando el `2000`.
 
 **Y lo que no se corre no se apaga en silencio**: deja su fila en
 `cobertura_diagnosticos` con el motivo medido —qué porcentaje de los
@@ -495,6 +515,18 @@ informa sin contarlo como ausencia —eso lo decide quien conoce la
 columna, agregándolo a la lista—. Un código postal `9999` repetido
 treinta veces no es extremo en su columna; un monto real de `9999` no se
 repite; un año `1999` no tiene esa forma.
+
+**La forma es la más débil de las tres**, y una cuarta condición le
+impide decidir sola: un centinela *está solo*. Nadie escribe `9998` al
+lado de `9999`, mientras que un código de catálogo vive en un tramo
+donde sus vecinos aparecen tanto como él. Sin ese control, una columna
+de códigos concentrada abajo con un tramo alto marcaba `222` y no `221`
+ni `223` —la misma frecuencia, la misma lejanía, y como única diferencia
+cómo se escribe el número—. Medida, la razón de vecinos da 1,00 en ese
+caso y 0,00 en los centinelas reales; un `9998` suelto contra ocho
+`9999` da 0,125 y el centinela se sigue reconociendo, porque una guarda
+que un dato aislado pudiera callar sería peor que el problema que
+arregla.
 
 Donde no hay señal que discrimine, `lupa` habla. La cardinalidad alta de
 una columna de texto se informa siempre, porque el largo de los valores
