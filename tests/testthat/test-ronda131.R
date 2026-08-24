@@ -38,6 +38,7 @@
 }
 
 test_that("el recorte dentro de un empate no depende del orden de las filas", {
+  skip_if_not_installed("stringdist")
   d0 <- .tabla_con_empates()
   todos <- detectar_duplicados_aproximados(
     d0["nombre"], umbral = 0.10, max_resultados = Inf
@@ -64,6 +65,7 @@ test_that("el recorte dentro de un empate no depende del orden de las filas", {
 })
 
 test_that("dejar pares empatados afuera se declara aunque el corte sea estable", {
+  skip_if_not_installed("stringdist")
   d0 <- .tabla_con_empates()
   a <- detectar_duplicados_aproximados(
     d0["nombre"], umbral = 0.10, max_resultados = 30L
@@ -74,6 +76,7 @@ test_that("dejar pares empatados afuera se declara aunque el corte sea estable",
 })
 
 test_that("sin recorte no hay corte ni empate que declarar", {
+  skip_if_not_installed("stringdist")
   d0 <- .tabla_con_empates()
   a <- detectar_duplicados_aproximados(
     d0["nombre"], umbral = 0.10, max_resultados = 1000L
@@ -85,6 +88,7 @@ test_that("sin recorte no hay corte ni empate que declarar", {
 })
 
 test_that("truncado con un borde unico NO declara empate en el corte", {
+  skip_if_not_installed("stringdist")
   # El control que hace valer la senal: si diera TRUE siempre que hay recorte,
   # seria `truncado` con otro nombre y no informaria nada nuevo.
   set.seed(1)
@@ -105,6 +109,7 @@ test_that("truncado con un borde unico NO declara empate en el corte", {
 })
 
 test_that("el rango canonico sale del universo entero y es simetrico", {
+  skip_if_not_installed("stringdist")
   # Un rango recalculado por lote seria local y cambiaria la comparacion entre
   # lotes; y una clave no simetrica dependeria de cual fila quedo primera.
   valores <- c("BETA", "ALFA", "GAMA")
