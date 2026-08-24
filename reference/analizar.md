@@ -91,7 +91,11 @@ analizar(
 - id_medicion:
 
   Identificador opcional enviado a
-  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md).
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md). Si
+  `argumentos_perfil` declara `aplicabilidad`, esa misma declaración
+  viaja a la medición: el universo se declara una vez y gobierna todo el
+  análisis, así que el perfil y el tablero cuentan el mismo dato de la
+  misma manera.
 
 - medir_propuesta:
 
