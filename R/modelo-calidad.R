@@ -1057,6 +1057,48 @@ metricas_nucleo <- function() {
   )
 }
 
+# Resuelve el universo aplicable de cada tabla una sola vez, para no repetir el
+# trabajo por cada metrica que toque la misma columna.
+.mascaras_aplicabilidad_medicion <- function(tablas, aplicabilidad) {
+  if (is.null(aplicabilidad) || !length(aplicabilidad)) return(NULL)
+  if (!is.list(aplicabilidad) || is.null(names(aplicabilidad)) ||
+      any(!nzchar(names(aplicabilidad)))) {
+    stop(
+      "`aplicabilidad` debe ser una lista con nombre por columna.",
+      call. = FALSE
+    )
+  }
+  lapply(tablas, function(tabla) {
+    presentes <- intersect(names(aplicabilidad), names(tabla))
+    if (!length(presentes)) return(NULL)
+    resuelto <- .resolver_aplicabilidad(
+      tabla, names(tabla), character(), aplicabilidad[presentes]
+    )
+    stats::setNames(resuelto$mascaras, names(tabla))
+  })
+}
+
+# Recorta la tabla a las filas donde la columna que la metrica mide corresponde.
+# Se recorta por el ATRIBUTO de la instancia: una metrica sobre `marca_auto` se
+# mide en las filas donde esa columna aplica, y una sobre otra columna no se
+# toca aunque compartan tabla.
+.recortar_tablas_aplicables <- function(tablas, aplicables, instancia) {
+  if (is.null(aplicables)) return(tablas)
+  atributo <- instancia$atributo
+  if (is.null(atributo) || !length(atributo) || is.na(atributo[[1L]])) {
+    return(tablas)
+  }
+  atributo <- as.character(atributo[[1L]])
+  for (nombre in names(tablas)) {
+    mascaras <- aplicables[[nombre]]
+    if (is.null(mascaras) || !atributo %in% names(mascaras)) next
+    mascara <- mascaras[[atributo]]
+    if (is.null(mascara) || all(mascara)) next
+    tablas[[nombre]] <- tablas[[nombre]][which(mascara), , drop = FALSE]
+  }
+  tablas
+}
+
 #' Medir un modelo de calidad
 #'
 #' Ejecuta todas las métricas instanciadas de un `modelo_calidad`. Cada fila es
@@ -1067,6 +1109,18 @@ metricas_nucleo <- function() {
 #'   frames para varias entidades.
 #' @param id_medicion Identificador de corrida. Si se omite, se genera uno.
 #' @param fecha Fecha y hora de la corrida.
+#' @param aplicabilidad Lista con nombre por columna, donde cada elemento es
+#'   una fórmula que dice en qué filas esa columna corresponde —por ejemplo
+#'   `list(marca_auto = ~ tiene_auto == "Si")`—. Las filas fuera de ese universo
+#'   salen de la medición en vez de contarse como ausencia.
+#'
+#'   Es la misma declaración que recibe [perfilar()], y hace falta porque una
+#'   métrica de completitud sobre una columna condicionada mide lo que no
+#'   corresponde: con universo de 300 filas sobre 1.000 y 30 vacías de verdad,
+#'   sin declararlo da `0,270` y declarándolo `0,900`. El histórico y la deriva
+#'   consumen mediciones, así que heredan el número que salga de acá.
+#'
+#'   Sin declaración toda la tabla aplica y el resultado es el de siempre.
 #'
 #' @return Data frame S3 de clase `medicion`, con una fila por objeto medido.
 #'   Los booleanos se almacenan como `0` y `1` en la columna común `resultado`.
@@ -1081,7 +1135,8 @@ metricas_nucleo <- function() {
 #' especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 #' instancia <- instanciar(especifica, "personas", "edad")
 #' medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
-medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time()) {
+medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
+                  aplicabilidad = NULL) {
   if (!inherits(modelo, "modelo_calidad")) {
     stop("`modelo` debe provenir de modelo().", call. = FALSE)
   }
@@ -1096,9 +1151,21 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time()) {
     stop("`id_medicion` debe ser una cadena no vac\u00eda.", call. = FALSE)
   }
   tablas <- .normalizar_tablas_modelo(datos, modelo)
+  # El universo aplicable gobernaba el perfilado y se cortaba aca: quien medía
+  # una columna condicionada contra un marco obtenia la completitud sobre la
+  # tabla entera. Medido: una columna con universo de 300 filas sobre 1.000, con
+  # 30 vacias de verdad, daba 0,270 cuando la respuesta es 0,900. Y el historico
+  # y la deriva -que consumen mediciones, no perfiles- arrastraban ese numero.
+  #
+  # La regla recorta las filas antes de medir, columna por columna, con el mismo
+  # resolvedor que usa `perfilar()`. Sin declaracion no cambia nada.
+  aplicables <- .mascaras_aplicabilidad_medicion(tablas, aplicabilidad)
   partes <- lapply(modelo$metricas, function(instancia) {
+    tablas_instancia <- .recortar_tablas_aplicables(
+      tablas, aplicables, instancia
+    )
     salida <- .validar_salida_medicion(
-      instancia$metodo(tablas, instancia), instancia
+      instancia$metodo(tablas_instancia, instancia), instancia
     )
     n <- nrow(salida)
     list(

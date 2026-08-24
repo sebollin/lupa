@@ -134,12 +134,12 @@ proporción de faltantes es \verb{0,100}, no hay hallazgo y el plan no propone
 nada; sin declararlo son \verb{0,730}, sale \code{faltantes} y el plan propone dos
 acciones.
 
-Lo que \strong{no} alcanza es la medición contra un marco: \code{\link[=medir]{medir()}} no recibe
-\code{aplicabilidad}, así que el histórico y la deriva —que consumen mediciones,
-no perfiles— tampoco lo heredan. Quien mida una columna condicionada contra
-un marco tiene que acotar los datos antes de medirlos. El \code{aplicabilidad}
-de \code{\link[=marco_calidad]{marco_calidad()}} es otra cosa: dice si un factor aplica a datos
-temporales o geométricos, no qué filas entran al universo.}
+La medición contra un marco recibe la misma declaración: \code{\link[=medir]{medir()}} acepta
+\code{aplicabilidad} y recorta las filas antes de medir, así que el histórico y
+la deriva —que consumen mediciones, no perfiles— heredan el número
+correcto. El \code{aplicabilidad} de \code{\link[=marco_calidad]{marco_calidad()}} es otra cosa: dice si un
+factor aplica a datos temporales o geométricos, no qué filas entran al
+universo.}
 
 \item{ausencia_estructural}{Si se busca evidencia de que la ausencia de una
 columna es por diseño. \code{lupa} no infiere el universo ni lo cambia por su

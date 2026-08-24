@@ -4,7 +4,13 @@
 \alias{medir}
 \title{Medir un modelo de calidad}
 \usage{
-medir(modelo, datos, id_medicion = NULL, fecha = Sys.time())
+medir(
+  modelo,
+  datos,
+  id_medicion = NULL,
+  fecha = Sys.time(),
+  aplicabilidad = NULL
+)
 }
 \arguments{
 \item{modelo}{Objeto creado por \code{modelo()}.}
@@ -15,6 +21,19 @@ frames para varias entidades.}
 \item{id_medicion}{Identificador de corrida. Si se omite, se genera uno.}
 
 \item{fecha}{Fecha y hora de la corrida.}
+
+\item{aplicabilidad}{Lista con nombre por columna, donde cada elemento es
+una fórmula que dice en qué filas esa columna corresponde —por ejemplo
+\code{list(marca_auto = ~ tiene_auto == "Si")}—. Las filas fuera de ese universo
+salen de la medición en vez de contarse como ausencia.
+
+Es la misma declaración que recibe \code{\link[=perfilar]{perfilar()}}, y hace falta porque una
+métrica de completitud sobre una columna condicionada mide lo que no
+corresponde: con universo de 300 filas sobre 1.000 y 30 vacías de verdad,
+sin declararlo da \verb{0,270} y declarándolo \verb{0,900}. El histórico y la deriva
+consumen mediciones, así que heredan el número que salga de acá.
+
+Sin declaración toda la tabla aplica y el resultado es el de siempre.}
 }
 \value{
 Data frame S3 de clase \code{medicion}, con una fila por objeto medido.
