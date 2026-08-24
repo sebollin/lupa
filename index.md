@@ -486,6 +486,12 @@ it to the list. A postal code `9999` repeated thirty times is not
 extreme within its column; a real amount of `9999` does not repeat; a
 year `1999` does not have that shape.
 
+**Uniqueness is not guessed: it is asked — and in a database, read.**
+When the data arrives over DBI the primary key is **declared in the
+engine’s catalogue**, so nothing is suggested: it is read, in a single
+query chosen by the driver. And «this table declares no key» is kept
+apart from «the key could not be read», which are not the same thing.
+
 **Uniqueness is not guessed: it is asked.** Declare the key with
 `perfilar(clave = ...)` and a key that repeats is a finding of severity
 `error` carrying the offending rows, not a console warning. So that the
