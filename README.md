@@ -166,7 +166,7 @@ engine rejects is recorded as unavailable with its reason — never as zero.
 | **SQL Server 2022** | `top` | **tested** against the real engine: the probe resolves `top` on its own, and the three statistics match R |
 | **DuckDB 1.5** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, and the three statistics verified against R |
 | **MariaDB 11** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, the three statistics against R, and the plan's lower bound matching the queries actually emitted in the five |
-| **Oracle Free 23 (23c)** | `fetch_first` | **tested** against the real engine: dialect resolved by probe, five modes with no unavailable metric, the three statistics against R, the plan's lower bound matching the queries actually emitted, qualified names by text and by `DBI::Id`, and `SAMPLE (p)` sampling |
+| **Oracle Free 23 (23c)** | `fetch_first` | **tested** against the real engine: dialect resolved by probe, five modes with no unavailable metric, the three statistics against R, the plan's lower bound matching the queries actually emitted, qualified names by text and by `DBI::Id`, and `SAMPLE (p)` sampling, and verified again on 2026-08-24 against the real engine: dialect by probe, all 54 metrics with none unavailable, the three statistics against R, the primary key read from the catalogue, and the empty string declared as null |
 | Oracle 11 and earlier | `rownum` | expected, not checked against the engine |
 | any other DBI-compatible engine | `portable` | fallback: `dbSendQuery()` + `dbFetch(n)` |
 

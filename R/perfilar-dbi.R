@@ -3289,6 +3289,31 @@ print.plan_perfilado_dbi <- function(x, ...) {
                                 argumentos, muestreo = NULL,
                                 tipos_declarados = NULL) {
   cobertura <- .cobertura_dbi_vacia()
+  # En Oracle la cadena vacia **es** NULL: no hay forma de distinguirlas, ni
+  # desde SQL ni desde el controlador. Eso cambia una medida que el paquete
+  # publica: los mismos tres valores `("", NA, "x")` dan dos faltantes por
+  # Oracle y uno por SQLite. La completitud de la misma columna sale distinta
+  # segun el motor, y no porque el dato cambie.
+  #
+  # No es un defecto que se pueda arreglar -es la semantica del motor- pero
+  # callarlo si lo seria: quien compare completitud entre entregas de motores
+  # distintos estaria leyendo una diferencia que no esta en los datos.
+  if (identical(.via_clave_primaria(conexion), "all_constraints")) {
+    cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+      "faltantes", NA_character_, "advertido",
+      paste(
+        "En este motor la cadena vacia y el nulo son el mismo valor, asi que",
+        "los faltantes informados incluyen las cadenas vacias y no se pueden",
+        "separar. Medido: las mismas tres filas dan dos faltantes aqui y uno",
+        "en un motor que las distingue."
+      ),
+      paste(
+        "Al comparar completitud entre motores, tener presente que la",
+        "diferencia puede venir de esta semantica y no del dato. Si importa",
+        "distinguirlas, hay que marcarlas con un valor propio antes de cargar."
+      )
+    ))
+  }
   verificacion <- if (length(orden_sql)) {
     .verificar_orden_dbi(conexion, tabla_sql, orden_sql, dialecto, presupuesto)
   } else {
