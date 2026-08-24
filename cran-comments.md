@@ -159,8 +159,11 @@ stamps and the stamp identifies a build, not a revision. Each result was read
 from that run's own check log. Where a run has not yet been repeated on the
 current sources, the line says so rather than carrying the older result forward.
 
-The sources submitted are `3591c47`. `ff9a117` is the same package: the only
-change between them is this letter, which does not travel in the tarball.
+The package sources submitted are those of `ff9a117`. Commits after it touch
+only this letter, which `.Rbuildignore` keeps out of the tarball, so they leave
+the package byte-identical -- `git diff --stat ff9a117..HEAD` lists
+`cran-comments.md` and nothing else. That is why the results below are dated to
+`ff9a117` and remain valid for the revision submitted.
 
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS, on `ff9a117` —
   **`Status: 1 NOTE`** with `--as-cran`, the note being `New submission`, and
@@ -173,7 +176,7 @@ change between them is this letter, which does not travel in the tarball.
   R-devel and R oldrel-1; Windows with R release; and macOS with R release on
   **`aarch64-apple-darwin23`**. The platforms exercised are
   `x86_64-pc-linux-gnu`, `x86_64-w64-mingw32` and `aarch64-apple-darwin23`. The
-  runs for `ff9a117` and `3591c47` are in progress at the time of writing; this
+  run for `ff9a117` is in progress at the time of writing; this
   letter will not be sent claiming a result that has not been read from a log.
 * R-hub v2, R-devel — **not yet run on these sources.** The last R-hub run
   (32545201079, Linux, Windows and macOS, all three `Status: OK` with no notes)
