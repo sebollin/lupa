@@ -111,6 +111,17 @@
   ifelse(is.na(x), "<NA>", as.character(x))
 }
 
+# Los diagnosticos que el perfil declino, como `columna tipo`, para poder
+# distinguir un hallazgo resuelto de uno que no se volvio a evaluar.
+.diagnosticos_declinados_deriva <- function(perfil) {
+  cobertura <- perfil$cobertura_diagnosticos
+  if (!inherits(cobertura, "data.frame") || !nrow(cobertura) ||
+        !all(c("columna", "diagnostico") %in% names(cobertura))) {
+    return(character())
+  }
+  paste(as.character(cobertura$columna), as.character(cobertura$diagnostico))
+}
+
 .resumir_hallazgos_deriva <- function(perfil) {
   x <- perfil$hallazgos
   if (!nrow(x)) {
@@ -164,6 +175,12 @@
 #' Las columnas que aparecen o desaparecen generan cambios estructurales de
 #' severidad `error`, pero no impiden comparar las columnas compartidas. Un
 #' hallazgo de una columna retirada no se presenta como resuelto.
+#'
+#' Un hallazgo que ya no aparece se informa como `resuelto` sólo si el
+#' diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice en
+#' su `cobertura_diagnosticos`—, el cambio se informa como `no_evaluado` con
+#' severidad `sospechoso`, porque no se sabe si el hallazgo sigue: dejar de
+#' mirar no es lo mismo que arreglar.
 #'
 #' @export
 #' @seealso [perfilar()], [detectar_deriva_calidad()], [reportar()]
@@ -357,13 +374,31 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       evidencia = x$evidencia
     )
   }
+  # Un hallazgo que ya no esta puede haberse resuelto o puede no haberse
+  # evaluado, y son cosas distintas: la primera es una mejora y la segunda es
+  # una medicion que falta. Se distinguen mirando la cobertura del perfil nuevo,
+  # que es donde el paquete declara lo que declino. Sin esta consulta se
+  # informaba "resuelto" con severidad `ok` sobre un diagnostico que decia, en
+  # esa misma tabla, "no se evaluaron los limites de Tukey".
+  declinados_ahora <- .diagnosticos_declinados_deriva(actual)
   for (clave in resueltos) {
     x <- hallazgos_a[match(clave, hallazgos_a$clave), , drop = FALSE]
     if (x$columna != "<tabla>" && !x$columna %in% nombres_actuales) next
+    declinado <- paste(x$columna, x$tipo_hallazgo) %in% declinados_ahora
     agregar(
       if (x$columna == "<tabla>") NA_character_ else x$columna,
-      "hallazgo", "resuelto", "ok", x$tipo_hallazgo, NA_character_,
-      descripcion = "Un hallazgo del perfil anterior ya no est\u00e1 presente.",
+      "hallazgo",
+      if (declinado) "no_evaluado" else "resuelto",
+      if (declinado) "sospechoso" else "ok",
+      x$tipo_hallazgo, NA_character_,
+      descripcion = if (declinado) {
+        paste(
+          "El diagn\u00f3stico no se evalu\u00f3 en el perfil nuevo, as\u00ed que no se sabe",
+          "si el hallazgo sigue: el motivo est\u00e1 en `cobertura_diagnosticos`."
+        )
+      } else {
+        "Un hallazgo del perfil anterior ya no est\u00e1 presente."
+      },
       evidencia = x$evidencia
     )
   }

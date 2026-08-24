@@ -2151,6 +2151,12 @@ detectar_duplicados_aproximados <- function(
 #' La función no escribe archivos ni modifica el estado del generador de R.
 #'
 #' @inheritParams detectar_duplicados_aproximados
+#' @param presupuesto_pares Se acepta por simetría de la firma y **no aborta
+#'   aquí**: estimar el costo es justamente lo que se hace antes de fijar un
+#'   presupuesto, así que interrumpir la estimación por superarlo dejaría sin
+#'   respuesta la pregunta que motivó la llamada. Quien aborta es
+#'   [detectar_duplicados_aproximados()], con el número que devuelve esta
+#'   función.
 #' @param lotes Se acepta por simetría de la firma, pero la estimación no
 #'   escribe parciales ni modifica el directorio indicado.
 #' @param tamano_lote Se acepta por simetría; no cambia el pronóstico.

@@ -245,13 +245,16 @@ test_that("el valor centinela no se publica en una columna protegida", {
     as.character(perfil$hallazgos$tipo_hallazgo) ==
       "posible_centinela_numerico", , drop = FALSE
   ]
-  if (nrow(hallazgo)) {
-    expect_false(grepl("9999", as.character(hallazgo$descripcion[[1L]]),
-                       fixed = TRUE))
-    expect_false(grepl("9999", as.character(hallazgo$evidencia[[1L]]),
-                       fixed = TRUE))
-    expect_match(as.character(hallazgo$descripcion[[1L]]), "esta protegida")
-  }
+  # Sin condicional: la proteccion redacta el texto, no suprime el hallazgo, asi
+  # que el conteo se puede fijar. Envuelto en `if (nrow(hallazgo))` las tres
+  # aserciones sobre la fuga desaparecian justo si el hallazgo dejaba de
+  # emitirse, que es cuando hay que mirarlas.
+  expect_equal(nrow(hallazgo), 1L)
+  expect_false(grepl("9999", as.character(hallazgo$descripcion[[1L]]),
+                     fixed = TRUE))
+  expect_false(grepl("9999", as.character(hallazgo$evidencia[[1L]]),
+                     fixed = TRUE))
+  expect_match(as.character(hallazgo$descripcion[[1L]]), "esta protegida")
 })
 
 test_that("sin proteccion el valor centinela se dice, que para eso esta", {

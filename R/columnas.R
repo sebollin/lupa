@@ -236,15 +236,25 @@
 # decida si agrega ese valor a su lista.
 .MIN_REPETICIONES_CENTINELA <- 5L
 
-# Un centinela esta solo: nadie escribe `9998` al lado de `9999`. Un codigo de
-# catalogo, en cambio, vive en un tramo, y sus vecinos aparecen tanto como el.
-# Si los vecinos inmediatos suman al menos la mitad de las veces que aparece el
-# candidato, lo que hay es un tramo y no un valor reservado.
+# **Se probo descartar al candidato que tiene vecinos inmediatos y se retiro.**
+# La idea era que un centinela esta solo mientras que un codigo de catalogo vive
+# en un tramo, y sobre el caso que la motivo funcionaba: `222` entre `221` y
+# `223` daba razon de vecinos 1,00 y los centinelas sueltos 0,00.
 #
-# Medido: `222` entre `221` y `223`, los tres ocho veces, da razon 1,00; los
-# centinelas reales -`9999` entre documentos, `8888` entre edades- dan 0,00. La
-# separacion es total, asi que el umbral solo tiene que caer entre las dos.
-.PROPORCION_VECINOS_CODIGO <- 0.5
+# Lo que la tumbo es la codificacion mas comun que existe en microdatos de
+# encuesta: `9999` = "no sabe" junto a `9998` = "no contesta". Medido sobre una
+# columna de horas trabajadas con treinta `9999` y veinticinco `9998`, el `9998`
+# contaba como vecino -razon 0,833-, descartaba al `9999`, y como el `9998` no
+# tiene forma de digito repetido tampoco entraba por su cuenta: los dos
+# centinelas quedaban invisibles Y la columna dejaba de verse como numeracion,
+# asi que salian **cincuenta y cinco codigos de ausencia informados como valores
+# extremos de una magnitud**.
+#
+# No hay senal de forma que separe `221/222/223` de `9998/9999`: en los dos
+# casos son valores contiguos, extremos y repetidos. La diferencia es semantica.
+# Y la regla del paquete es que una guarda solo entra si no calla nada real, asi
+# que se prefiere el falso positivo del `222` -un aviso que dice que lo decida
+# quien conoce la columna- antes que callar un centinela verdadero.
 
 .centinela_por_tres_senales <- function(valores, iqr,
                                        sentinelas_numericos = NULL) {
@@ -286,20 +296,6 @@
   declarados <- suppressWarnings(as.numeric(sentinelas_numericos))
   declarados <- declarados[is.finite(declarados)]
   if (length(declarados)) con_forma <- setdiff(con_forma, declarados)
-  # La forma de digito repetido es la mas debil de las tres senales: `222` la
-  # tiene por casualidad. Mientras el valor no fuera extremo, las otras dos lo
-  # frenaban -y asi se habia comprobado, con un `222` entre mediciones de 200 a
-  # 260-. Pero un tramo de codigos altos dentro de una columna concentrada abajo
-  # SI es extremo, y ahi la forma decidia sola: se marcaba `222` y no `221` ni
-  # `223`, con la misma frecuencia y la misma lejania. La unica diferencia era
-  # como se escribe el numero.
-  con_vecinos <- vapply(con_forma, function(candidato) {
-    propias <- sum(valores == candidato, na.rm = TRUE)
-    vecinas <- sum(valores == candidato - 1, na.rm = TRUE) +
-      sum(valores == candidato + 1, na.rm = TRUE)
-    isTRUE(propias > 0 && vecinas >= propias * .PROPORCION_VECINOS_CODIGO)
-  }, logical(1L))
-  con_forma <- con_forma[!con_vecinos]
   if (!length(con_forma)) return(vacio)
   elegido <- con_forma[[which.max(abs(con_forma))]]
   # Una numeracion con un centinela adentro deja de parecer numeracion: el

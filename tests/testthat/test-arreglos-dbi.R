@@ -713,15 +713,25 @@ test_that("ninguna metrica no medida sale como cero", {
   registros <- resultado$resumen_tabla$sql
   columnas <- resultado$resumen_tabla$columnas
   numericas <- setdiff(names(columnas), c("columna", "moda"))
+  # Se fija que haya algo que mirar antes de mirarlo. Con `if (!length(fallidas))
+  # next` y una sola metrica fallida, trece de las catorce vueltas no aseveraban
+  # nada: si la etiqueta `no_disponible` se renombrara, o si el modo del juguete
+  # dejara de romper esa metrica, el bloque entero quedaba sin una sola
+  # asercion y seguia en verde.
+  expect_gt(sum(registros$estado == "no_disponible"), 0L)
+  ejercitadas <- 0L
   for (metrica in numericas) {
     fallidas <- registros$columna[
       registros$metrica == metrica & registros$estado == "no_disponible"
     ]
     if (!length(fallidas)) next
+    ejercitadas <- ejercitadas + 1L
     valores <- columnas[[metrica]][columnas$columna %in% fallidas]
     expect_true(all(is.na(valores)))
     expect_false(any(valores %in% 0))
   }
+  # Y que el bucle haya entrado de verdad en alguna vuelta.
+  expect_gt(ejercitadas, 0L)
 })
 
 test_that("una metrica internamente imposible se declara en vez de publicarse", {

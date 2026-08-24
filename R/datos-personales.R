@@ -292,10 +292,8 @@
 # columna se trate igual que si el lexico la hubiera reconocido; declarar otro
 # nombre tambien vale, y viaja tal cual, porque el usuario puede conocer una
 # categoria que el paquete no tiene.
-.tipos_personales_conocidos <- c(
-  "documento_identidad", "correo", "telefono", "fecha_nacimiento", "nombre",
-  "domicilio"
-)
+# No hay lista cerrada a proposito: hubo una y no la miraba nadie, que es peor
+# que no tenerla porque se lee como una lista blanca que no existe.
 
 # El lexico de nombres de columna no puede ser completo: una columna con
 # documentos se puede llamar `cod_benef` y ninguna lista de nombres la va a
@@ -552,8 +550,23 @@
   # `moda = "[valor protegido]"`, `minimo = NA`... y `centinela_valor = 9999`.
   # Que el valor sea casi seguro un centinela y no un documento no cambia la
   # regla: la proteccion no adivina cuales valores son inocentes.
+  # Los campos de la secuencia entera codifican el rango aunque no lo muestren:
+  # `n_posiciones` es `maximo - minimo + 1`, `n_huecos` es eso menos los
+  # distintos, y la densidad es los distintos sobre eso. Con cualquiera de los
+  # tres y un segundo dato del mismo perfil se despeja el par.
+  #
+  # Medido sobre una columna de cedulas protegida: `n_posiciones` = 599.891 junto
+  # con los ordenes de magnitud que publica Benford -log10(maximo/minimo)- son
+  # dos ecuaciones con dos incognitas y devuelven **27 y 599.917 exactos**,
+  # mientras `minimo` y `maximo` salian en NA como corresponde. Proteger el
+  # minimo y el maximo y dejar publicado su rango no protege nada.
   campos_numericos <- intersect(
-    c("minimo", "maximo", "mediana", "media", "centinela_valor"),
+    c(
+      "minimo", "maximo", "mediana", "media", "centinela_valor",
+      "n_posiciones_secuencia_entera", "n_huecos_secuencia_entera",
+      "hueco_maximo_secuencia_entera", "densidad_secuencia_entera",
+      "densidad_sin_centinela"
+    ),
     names(columnas)
   )
   campos_momento <- c("media")
@@ -677,6 +690,36 @@
   hallazgos
 }
 
+# `meta` y `cobertura_diagnosticos` quedaban fuera de la proteccion, y las dos
+# publican cantidades derivadas de los extremos: Benford guarda
+# `ordenes_magnitud`, que es log10(maximo/minimo), y el motivo de la cobertura lo
+# imprime en el texto. Ninguno muestra un valor de celda, y por eso se pasaron
+# por alto: lo que se filtra no es el dato sino la relacion entre dos datos, que
+# con otra del mismo perfil se despeja.
+.proteger_meta_y_cobertura <- function(perfil, sensibles) {
+  if (!length(sensibles)) return(perfil)
+  resultados <- perfil$meta$benford$resultados
+  if (length(resultados)) {
+    for (nombre in intersect(names(resultados), sensibles)) {
+      perfil$meta$benford$resultados[[nombre]]$ordenes_magnitud <- NA_real_
+    }
+  }
+  cobertura <- perfil$cobertura_diagnosticos
+  if (inherits(cobertura, "data.frame") && nrow(cobertura) &&
+        "columna" %in% names(cobertura) && "motivo" %in% names(cobertura)) {
+    afectadas <- as.character(cobertura$columna) %in% sensibles
+    if (any(afectadas)) {
+      cobertura$motivo[afectadas] <- gsub(
+        "log10\\(max/min\\)[[:space:]]*[-+0-9.eE]+",
+        "log10(max/min) [valor protegido]",
+        as.character(cobertura$motivo[afectadas])
+      )
+      perfil$cobertura_diagnosticos <- cobertura
+    }
+  }
+  perfil
+}
+
 .proteger_perfil <- function(perfil) {
   protegidos <- .proteger_componentes_perfil(
     perfil$columnas, perfil$patrones, perfil$dependencias,
@@ -686,7 +729,10 @@
   perfil$patrones <- protegidos$patrones
   perfil$dependencias <- protegidos$dependencias
   perfil$hallazgos <- protegidos$hallazgos
-  perfil
+  sensibles <- as.character(protegidos$columnas$columna[
+    !is.na(protegidos$columnas$tipo_dato_personal)
+  ])
+  .proteger_meta_y_cobertura(perfil, sensibles)
 }
 
 .proteger_duplicados_aproximados <- function(resultado, sensibles) {

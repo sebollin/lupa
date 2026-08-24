@@ -35,6 +35,12 @@ de comparabilidad y esa parte de la comparación se omite.
 Las columnas que aparecen o desaparecen generan cambios estructurales de
 severidad \code{error}, pero no impiden comparar las columnas compartidas. Un
 hallazgo de una columna retirada no se presenta como resuelto.
+
+Un hallazgo que ya no aparece se informa como \code{resuelto} sólo si el
+diagnóstico volvió a evaluarse. Si el perfil nuevo lo declinó —y lo dice en
+su \code{cobertura_diagnosticos}—, el cambio se informa como \code{no_evaluado} con
+severidad \code{sospechoso}, porque no se sabe si el hallazgo sigue: dejar de
+mirar no es lo mismo que arreglar.
 }
 \examples{
 anterior <- perfilar(data.frame(codigo = c("AA1", "AA2")),

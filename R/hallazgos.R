@@ -169,33 +169,32 @@
 # falso positivo y el mismo codigo con un valor mas no lo recibia.
 .MIN_DISTINTOS_NUMERACION <- 5L
 
-# Una clave es unica por construccion; un monto puede serlo por casualidad. Lo
-# que las separa no es la unicidad -las dos la tienen- sino si esa unicidad se
-# explica por azar. Con `n` valores repartidos en `P` posiciones enteras, el
-# azar produce del orden de `n^2 / (2P)` coincidencias; que no haya ninguna
-# cuando se esperaban muchas significa que algo las prohibe, y lo que prohibe
-# repetir un entero es una clave.
+# **Se probo reconocer la clave dispersa por unicidad y se retiro.** El problema
+# es real: sobre una clave repartida en un rango ancho se emite
+# `desviacion_benford`, que afirma un problema de calidad sobre una columna que
+# no tiene distribucion que analizar. Y la densidad no puede resolverlo, porque
+# una clave de 1 a 2.300.000 tiene densidad 0,0043 -mas dispersa que un monto,
+# que da 0,0096-: no hay umbral sobre ese eje que los separe.
 #
-# Medido sobre nueve columnas: los montos que resultan unicos -que lo son solo
-# hasta unos cien valores- esperan 0,08 coincidencias, y las claves dispersas
-# de 21 a 834. El umbral queda en 3, que es p(azar) = 0,05, con dos ordenes de
-# margen a cada lado.
+# El criterio que se probo era "unicidad que el azar no explica": con `n` valores
+# en `P` posiciones el azar produce del orden de `n^2/(2P)` coincidencias, y no
+# tener ninguna cuando se esperaban muchas significa que algo las prohibe. Falla
+# por dos motivos medidos:
 #
-# La densidad no puede resolver este caso, y por eso hizo falta otra senal: una
-# clave de 1 a 2.300.000 tiene densidad 0,0043, mas dispersa que un monto
-# (0,0096). No hay umbral de densidad que las separe.
-.MIN_COINCIDENCIAS_ESPERADAS_CLAVE <- 3
-
-# Unicidad y huecos irregulares los tienen tanto una clave dispersa como una
-# numeracion con un valor fuera de escala -`1..1000` mas un `2000` es unica y
-# abre un salto-. Lo que las separa es **como se reparten los faltantes**: si el
-# hueco mas grande explica casi todos, hay un solo agujero y lo que lo abrio es
-# el dato anomalo que hay que informar; si estan repartidos en muchos, la
-# columna es dispersa pareja y eso es una clave.
+# 1. **Depende de cuantas filas se cargaron, no de la columna.** El estadistico
+#    crece con el cuadrado de `n`, asi que la misma clave de cedulas cambia de
+#    veredicto al pasar las ~5.200 filas. Medido: un padron de 2.000 filas recibe
+#    `desviacion_benford` y el mismo padron con 30.000 se reconoce bien. Eso es
+#    una propiedad de la consulta, no del dato.
+# 2. **Calla magnitudes reales.** Una lectura acumulada de medidor, un timestamp
+#    en segundos, una coordenada UTM redondeada y un monto que solo se llena en
+#    algunos expedientes son unicos por su mecanismo, no por ser claves. Sobre la
+#    lectura de medidor con un valor absurdo adentro, el criterio se tragaba el
+#    valor absurdo -y cuanto mas sutil el error, mas seguro se lo tragaba-.
 #
-# Medido: los datos malos dan cociente 1,00 -el agujero es uno- y las claves
-# dispersas de 0,0009 a 0,0013. Tres ordenes de magnitud de separacion.
-.PROPORCION_AGUJERO_UNICO <- 0.5
+# La regla del paquete es que una guarda solo entra si no calla nada real. Esta
+# callaba, asi que no entra: se prefiere hablar de mas sobre un identificador
+# disperso, que es el lado barato de equivocarse, y queda dicho arriba.
 
 .parece_identificador_numerico <- function(fila) {
   # No alcanza con `entero`: por la puerta DBI casi todo llega como `doble`, y
@@ -204,38 +203,6 @@
   numerico <- as.character(fila$tipo_inferido) %in% c("entero", "doble") ||
     as.character(fila$tipo_declarado) %in% c("entero", "doble")
   if (!isTRUE(numerico)) return(FALSE)
-  # Unicidad que el azar no explica: una clave dispersa. Se mira antes que el
-  # salto de escala porque los huecos de una clave son irregulares por
-  # naturaleza -no hay nada que los empareje-, y esa irregularidad la hacia
-  # fallar justo donde mas importa. Sin esto se emitia `desviacion_benford`
-  # sobre una clave primaria, que es afirmar un problema de calidad inexistente
-  # sobre una columna que no tiene distribucion que analizar.
-  distintos_totales <- suppressWarnings(as.numeric(fila$n_distintos))
-  tasa <- suppressWarnings(as.numeric(fila$tasa_distintos))
-  posiciones <- suppressWarnings(
-    as.numeric(fila$n_posiciones_secuencia_entera)
-  )
-  if (isTRUE(is.finite(tasa) && tasa >= 1) &&
-        isTRUE(is.finite(posiciones) && posiciones > 0) &&
-        isTRUE(is.finite(distintos_totales) &&
-                 distintos_totales >= .MIN_DISTINTOS_NUMERACION)) {
-    coincidencias <- distintos_totales^2 / (2 * posiciones)
-    # Un solo agujero no es dispersion: es un valor fuera de escala. Sin esta
-    # condicion, `1..1000` mas un `2000` entraba por unicidad y se dejaba de
-    # informar el `2000`, que es exactamente el dato que hay que ver.
-    huecos <- suppressWarnings(as.numeric(fila$n_huecos_secuencia_entera))
-    hueco_mayor <- suppressWarnings(
-      as.numeric(fila$hueco_maximo_secuencia_entera)
-    )
-    un_solo_agujero <- isTRUE(
-      is.finite(huecos) && huecos > 0 && is.finite(hueco_mayor) &&
-        hueco_mayor >= huecos * .PROPORCION_AGUJERO_UNICO
-    )
-    if (!un_solo_agujero &&
-          isTRUE(coincidencias >= .MIN_COINCIDENCIAS_ESPERADAS_CLAVE)) {
-      return(TRUE)
-    }
-  }
   # Un centinela adentro hunde la densidad y abre el salto: un identificador de
   # 1 a 4000 con quince `9999` pasaba de densidad 0,625 a 0,250 y dejaba de
   # reconocerse. Si sacando el centinela la columna es compacta, la numeracion
@@ -410,7 +377,11 @@
 # conversion deja de ser exacta y dos valores distintos pueden volverse el
 # mismo. Ahi la traza no se entrega a medias -se declara con su motivo-, porque
 # una fila mal senalada es peor que una fila sin senalar.
-.LIMITE_ENTERO_EXACTO <- 2^53
+#
+# La comprobacion no compara contra 2^53: hace la ida y vuelta a `integer64` y
+# mira si el valor volvio igual, que es la unica forma de saberlo sin suponer
+# nada del formato. Hubo una constante con el limite y quedo sin usar por esta
+# misma decision.
 
 .numerico_trazable <- function(cuantitativos) {
   if (is.null(cuantitativos)) return(NULL)
@@ -3850,13 +3821,29 @@
           paste0(
             "No se evaluaron los limites de Tukey: la columna es de enteros y ",
             "cubre ",
+            # La decision se toma con la densidad sin el centinela cuando hay
+            # uno, y el texto imprimia la otra: sobre `1..1000` con quince
+            # `9999` decidia con 100 % y publicaba "cubre 10 %", que leido como
+            # evidencia dice lo contrario de lo que la regla concluyo. El motivo
+            # tiene que nombrar el numero que decidio, y decir de donde sale.
             sprintf(
               "%.0f%%",
-              100 * suppressWarnings(
-                as.numeric(fila$densidad_secuencia_entera)
-              )
+              100 * suppressWarnings(as.numeric(
+                if (isTRUE(is.finite(as.numeric(fila$densidad_sin_centinela)))) {
+                  fila$densidad_sin_centinela
+                } else {
+                  fila$densidad_secuencia_entera
+                }
+              ))
             ),
-            " de los enteros entre su minimo y su maximo, asi que es una ",
+            if (isTRUE(is.finite(
+              suppressWarnings(as.numeric(fila$densidad_sin_centinela))
+            ))) {
+              " de los enteros entre su minimo y su maximo una vez descontado el centinela"
+            } else {
+              " de los enteros entre su minimo y su maximo"
+            },
+            ", asi que es una ",
             "numeracion -un identificador o un codigo- y no una magnitud. ",
             "Los limites de Tukey describen una distribucion; que un codigo ",
             "quede lejos de la mediana no dice nada de su calidad. Se habrian ",

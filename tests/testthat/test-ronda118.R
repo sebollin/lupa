@@ -28,32 +28,37 @@ test_that("las numeraciones no reciben pruebas de magnitud, y queda declarado", 
   set.seed(101)
   numeraciones <- list(
     list(nombre = "MotId 1..4557", valores = sort(sample(4557L, 3159L)),
-         diagnostico = "ley_benford", hallazgo = "desviacion_benford"),
+         diagnostico = "ley_benford", hallazgo = "desviacion_benford",
+         n_outliers = 0L, declara = TRUE),
     list(nombre = "EstCod 1..284 con cola",
          valores = c(sample(60L, 1900L, TRUE), sample(61:284, 224L, TRUE)),
-         diagnostico = "outliers", hallazgo = "outliers"),
+         diagnostico = "outliers", hallazgo = "outliers",
+         n_outliers = 181L, declara = TRUE),
     list(nombre = "BenId 105 valores", valores = sample(105L, 2000L, TRUE),
-         diagnostico = "outliers", hallazgo = "outliers"),
+         diagnostico = "outliers", hallazgo = "outliers",
+         n_outliers = 0L, declara = FALSE),
     list(nombre = "MEsId con huecos", valores = sort(sample(4600L, 3000L)),
-         diagnostico = "ley_benford", hallazgo = "desviacion_benford"),
+         diagnostico = "ley_benford", hallazgo = "desviacion_benford",
+         n_outliers = 0L, declara = TRUE),
     list(nombre = "codigo 1..15", valores = sort(sample(15L, 100L, TRUE)),
-         diagnostico = "outliers", hallazgo = "outliers")
+         diagnostico = "outliers", hallazgo = "outliers",
+         n_outliers = 0L, declara = FALSE)
   )
   for (caso in numeraciones) {
     perfil <- .perfil_r118(caso$valores)
     expect_false(.senalado_r118(perfil, caso$hallazgo), info = caso$nombre)
-    # No se apaga: se declara. Pero solo hay algo que declarar cuando habia
-    # algo que decir: una columna sin ningun valor fuera de los limites no
-    # necesita una fila que cuente que no se evaluaron.
-    hubo_que_decir <- identical(caso$diagnostico, "ley_benford") ||
-      perfil$columnas$n_outliers > 0L
-    if (hubo_que_decir) {
-      expect_true(
-        caso$diagnostico %in%
-          as.character(perfil$cobertura_diagnosticos$diagnostico),
-        info = caso$nombre
-      )
-    }
+    # No se apaga: se declara. Pero solo hay algo que declarar cuando habia algo
+    # que decir: una columna sin ningun valor fuera de los limites no necesita
+    # una fila que cuente que no se evaluaron.
+    #
+    # El banco tiene la respuesta conocida, asi que el conteo va como literal y
+    # no derivado del resultado. Escrito como `if (n_outliers > 0)` la
+    # comprobacion de la declaracion desaparecia si el conteo se rompia a cero:
+    # el paquete podia callar del todo y la prueba quedaba en verde.
+    expect_equal(perfil$columnas$n_outliers, caso$n_outliers, info = caso$nombre)
+    declarado <- caso$diagnostico %in%
+      as.character(perfil$cobertura_diagnosticos$diagnostico)
+    expect_equal(declarado, caso$declara, info = caso$nombre)
   }
 })
 
@@ -91,16 +96,26 @@ test_that("el salto de escala se mide y viaja en el perfil", {
   expect_gt(con_salto$columnas$densidad_secuencia_entera, 0.5)
 })
 
-test_that("un valor fuera de escala de hasta el doble tambien se ve", {
-  # Era el agujero exacto de la densidad sola: con 1..N y un valor M, la
-  # densidad solo baja de 0,5 cuando M supera 2N. Todo lo de en medio quedaba
-  # tapado.
-  for (extremo in c(1500L, 2000L, 2500L)) {
+test_that("el limite real es la horquilla de Tukey, y esta medido", {
+  # El titulo decia "hasta el doble" y la comprobacion estaba envuelta en
+  # `if (n_outliers > 0)`, o sea que se anulaba justo cuando el comportamiento
+  # fallaba. Medido, el limite no esta en el doble sino en **una vez y media**,
+  # y es aritmetica de Tukey y no del paquete: con 1..N uniforme el primer
+  # cuartil cae en N/4 y el tercero en 3N/4, asi que el IQR es N/2 y la
+  # horquilla superior queda en 3N/4 + 1,5 x N/2 = 1,5 N. Un valor por debajo de
+  # eso no es un atipico de Tukey por definicion.
+  #
+  # Se fija en las dos direcciones para que el limite quede declarado y no se
+  # descubra otra vez leyendo un titulo que prometia de mas.
+  for (extremo in c(1200L, 1500L)) {
     perfil <- .perfil_r118(c(1:1000, extremo))
-    if (perfil$columnas$n_outliers > 0L) {
-      expect_true(.senalado_r118(perfil, "outliers"),
-                  info = paste("extremo", extremo))
-    }
+    expect_equal(perfil$columnas$n_outliers, 0L, info = paste("extremo", extremo))
+  }
+  for (extremo in c(1800L, 2000L, 2500L)) {
+    perfil <- .perfil_r118(c(1:1000, extremo))
+    expect_gt(perfil$columnas$n_outliers, 0L)
+    expect_true(.senalado_r118(perfil, "outliers"),
+                info = paste("extremo", extremo))
   }
 })
 

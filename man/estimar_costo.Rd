@@ -98,11 +98,12 @@ estimar la proporción de candidatos, el tiempo del camino LSH y, si hay
 interna, reproducible y su tamaño efectivo queda en \code{alcance}. Por defecto
 se intentan 400.000 pares.}
 
-\item{presupuesto_pares}{Presupuesto de pares candidatos. Por
-defecto es \code{Inf}; si la estimación previa lo supera, una sesión no
-interactiva aborta antes del recorrido y una interactiva pregunta si se
-continúa. También limita la comparación exacta: allí el número de pares
-se conoce antes de empezar.}
+\item{presupuesto_pares}{Se acepta por simetría de la firma y \strong{no aborta
+aquí}: estimar el costo es justamente lo que se hace antes de fijar un
+presupuesto, así que interrumpir la estimación por superarlo dejaría sin
+respuesta la pregunta que motivó la llamada. Quien aborta es
+\code{\link[=detectar_duplicados_aproximados]{detectar_duplicados_aproximados()}}, con el número que devuelve esta
+función.}
 
 \item{bloquear_por}{Nombre de una columna declarada por el usuario para
 restringir la comparación a filas con la misma clave. La clave no tiene

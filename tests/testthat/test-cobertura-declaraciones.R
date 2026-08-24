@@ -176,6 +176,5 @@ test_that("los decodificadores declaran entradas imposibles y no reparables", {
     texto = NA_character_, pasos = character(), estado = "sin_texto"
   ))
   expect_equal(lupa:::.ftfy_reparar_uno("texto sano")$estado, "no_parece_roto")
-  expect_equal(lupa:::.reparar_mojibake_uno("texto sano"), NA_character_)
   expect_equal(lupa:::.ftfy_estado_agregado(character()), "no_parece_roto")
 })

@@ -240,8 +240,11 @@ test_that("restore_byte_a0 coincide con las dos expresiones de ftfy", {
     testthat::test_path("fixtures", "ftfy-a0-6.3.1.json"),
     simplifyVector = FALSE
   )
-  expect_identical(.ftfy_altered_utf8_pattern, fixture$altered_utf8_pattern)
-  expect_identical(.ftfy_a_grave_word_pattern, fixture$a_grave_word_pattern)
+  # Los casos del fixture son lo que comprueba la implementacion. Habia dos
+  # aserciones mas que comparaban dos constantes del paquete contra las
+  # expresiones de ftfy; esas constantes no las usaba nadie, asi que pasaban
+  # aunque la restauracion byte a byte estuviera rota.
+  expect_gt(length(fixture$cases), 0L)
   for (caso in fixture$cases) {
     salida <- .ftfy_restaurar_a0(as.raw(as.integer(caso$bytes)))
     expect_identical(as.integer(if (is.null(salida)) caso$bytes else salida),

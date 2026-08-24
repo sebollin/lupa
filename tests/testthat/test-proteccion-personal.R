@@ -58,6 +58,14 @@ test_that("analizar protege valores crudos de los cuatro tipos personales", {
   columnas <- analisis$perfil$columnas
   documentos <- columnas$tipo_dato_personal == "documento_identidad"
   nacimiento <- columnas$tipo_dato_personal == "fecha_nacimiento"
+  # Se fija cuantas columnas selecciona cada mascara antes de usarlas: sobre una
+  # mascara toda FALSE, `all(is.na(x[mascara]))` es `all(logical(0))`, o sea
+  # TRUE. Si la clasificacion dejara de marcar una de las dos columnas de
+  # documento, la media de esa columna se publicaria y ninguna de las
+  # aserciones de abajo lo notaria -y la media no la atrapa el barrido de
+  # valores crudos, porque no es un valor crudo-.
+  expect_equal(sum(documentos), 2L)
+  expect_equal(sum(nacimiento), 1L)
   expect_true(all(is.na(columnas$minimo[documentos])))
   expect_true(all(is.na(columnas$maximo[documentos])))
   expect_true(all(is.na(columnas$mediana[documentos])))
@@ -204,11 +212,17 @@ test_that("extremos exactos integer64 personales tambien se protegen", {
 
 test_that("planes deriva e historico no reintroducen los valores protegidos", {
   datos <- .datos_personales_cinco()
-  crudos <- .valores_crudos_prueba(datos)
   perfil <- perfilar(datos, analizar_dependencias = FALSE)
   plan <- planificar_limpieza(perfil, datos)
   actualizados <- datos
   actualizados$ci <- actualizados$ci + 10
+  # Los crudos salen de las DOS tablas. La deriva se construye contra el perfil
+  # de `actualizados`, cuyas cinco cedulas no estan en `datos`: buscando solo
+  # los valores de la tabla vieja, una fuga de los extremos del perfil nuevo
+  # dentro de `comparar_perfiles()` era invisible para las cuatro aserciones.
+  crudos <- union(
+    .valores_crudos_prueba(datos), .valores_crudos_prueba(actualizados)
+  )
   perfil_actual <- perfilar(actualizados, analizar_dependencias = FALSE)
   deriva <- comparar_perfiles(perfil, perfil_actual)
 

@@ -14,6 +14,15 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
+> **EN REMEDICION.** Las fuentes cambiaron despues de `ff9a117`: tres arreglos
+> -la clave dispersa, el tramo de codigos confundido con centinela, y la prueba
+> que se salteaba sola- tocan `R/` y `tests/`, asi que viajan en el tarball y la
+> matriz entera vuelve a correr sobre `05815fd`. **Las filas de abajo describen
+> `ff9a117` y no esta revision**; quedan a la vista hasta que la corrida nueva
+> las reemplace, porque borrarlas dejaria la seccion sin decir contra que se
+> midio. Suite sobre `05815fd`: 15.932 comprobaciones, 0 fallos, 0 errores,
+> 0 avisos, leido de `sum(r$failed)` y no del texto del reporte.
+>
 > **Estado de la matriz sobre `ff9a117`:**
 >
 > | entorno | estado | de donde sale |

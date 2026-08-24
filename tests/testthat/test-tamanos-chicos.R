@@ -324,6 +324,32 @@ test_that("las relaciones aritmeticas sin soporte no se presentan como medidas",
   }
 })
 
+test_that("el minimo de filas de casi_clave corta donde dice", {
+  # El bloque de abajo comprueba que el banco no produce `casi_clave` en ningun
+  # tamano, y eso es cierto -pero pasa por el fixture y no por la guarda-:
+  # ninguna de sus columnas cae en la banda que el criterio exige (tasa de
+  # distintos en [0,9, 1) con excedentes), asi que borrar el minimo de filas del
+  # paquete lo dejaba igual de verde. Aqui se construye el fenomeno y se mira el
+  # borde de verdad: cero por debajo del minimo, uno a partir de el.
+  casi_clave_en <- function(n) {
+    valores <- seq_len(n)
+    valores[c(2L, 4L)] <- valores[c(1L, 3L)]
+    perfil <- perfilar(
+      data.frame(casi = valores, otra = rep(c("a", "b"), length.out = n)),
+      analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE
+    )
+    hallazgos <- perfil$hallazgos
+    nrow(hallazgos[
+      as.character(hallazgos$tipo_hallazgo) == "casi_clave", , drop = FALSE
+    ])
+  }
+  # La tasa es 0,98 en los cuatro, o sea que lo unico que cambia es el tamano.
+  expect_equal(casi_clave_en(98L), 0L)
+  expect_equal(casi_clave_en(99L), 0L)
+  expect_equal(casi_clave_en(100L), 1L)
+  expect_equal(casi_clave_en(101L), 1L)
+})
+
 test_that("casi_clave no se afirma en los bordes de su minimo de filas", {
   for (n in c(99L, 100L, 101L)) {
     tablas <- .preparar_tablas_r107(n)$tablas
