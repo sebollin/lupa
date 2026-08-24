@@ -10,3 +10,7 @@ revdep/
 /Meta/
 tests/testthat/_problems/
 tests/testthat/testthat-problems.rds
+
+# Sitio construido por pkgdown: se publica desde Actions a gh-pages, no viaja
+# en el repositorio ni en el tarball.
+docs/

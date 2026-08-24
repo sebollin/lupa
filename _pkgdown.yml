@@ -71,6 +71,8 @@ reference:
   - inferir_tipo
   - detectar_formatos_fecha
   - detectar_claves
+  - sugerir_clave
+  - elegir_clave
   - detectar_dependencias
   - detectar_relaciones
   - detectar_duplicados_aproximados

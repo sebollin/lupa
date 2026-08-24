@@ -195,13 +195,13 @@ elegir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   if (!interactive()) {
     if (nrow(sugerencias)) {
       cli::cli_alert_info(paste0(
-        "Sesión no interactiva: no se pregunta. Se habría ofrecido ",
+        "Sesi\u00f3n no interactiva: no se pregunta. Se habr\u00eda ofrecido ",
         paste0("`", sugerencias$columna, "`", collapse = ", "),
         ". Usar `sugerir_clave()` y pasar la elegida a `perfilar(clave = ...)`."
       ))
     } else {
       cli::cli_alert_info(
-        "Sesión no interactiva, y ninguna columna se acerca a ser clave."
+        "Sesi\u00f3n no interactiva, y ninguna columna se acerca a ser clave."
       )
     }
     return(NULL)

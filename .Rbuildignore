@@ -12,3 +12,4 @@
 ^CONTRIBUTING\.md$
 ^\.lintr$
 ^tests/testthat/_problems$
+^docs$

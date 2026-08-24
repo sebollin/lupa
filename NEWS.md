@@ -2,6 +2,18 @@
 
 ## Lo que no se evaluo se dice donde se decide, y la clave se pregunta
 
+- **Una comprobacion de no-ASCII que la suite si puede hacer.** `R CMD check`
+  avisa cuando un archivo de `R/` trae un caracter no ASCII fuera de un
+  comentario, y la suite no podia verlo: el barrido que existia mira los
+  literales del espacio de nombres ya cargado, donde una cadena escrita con
+  acento crudo y otra escrita con `\uXXXX` son **la misma cadena**. La unica
+  forma de distinguirlas es mirar el fuente. La comprobacion nueva lo hace, se
+  saltea diciendo por que cuando `R/` no esta a la vista -bajo `R CMD check`,
+  donde el trabajo lo hace el check nativo-, y se comprobo que falla: se le
+  introdujo un acento crudo a proposito.
+
+
+
 - **El plan de limpieza dice lo que no se evaluo.** El plan se arma desde los
   hallazgos, asi que por construccion no puede tener una accion para un
   diagnostico que se declino. Quien trabajaba desde el plan leia tres acciones y
