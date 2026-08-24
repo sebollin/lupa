@@ -14,38 +14,24 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **Estado de la matriz sobre `b1f0059`:**
+> **Estado de la matriz sobre `ff9a117`:**
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-23j/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-23j/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-23j/sin-incoming/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| WARN 0 \| SKIP 169 \| PASS 14832 ]` | `../verificacion/2026-08-23j/r41/lupa.Rcheck/00check.log` |
-> | suite completa | **15.913 comprobaciones, 0 fallos, 0 avisos** | `devtools::test()` |
-> | GitHub Actions (5 plataformas) | PENDIENTE | log de la corrida |
-> | R-hub v2 R-devel (3 plataformas) | PENDIENTE | log de la corrida |
-> | win-builder release y devel | PENDIENTE | log de cada corrida, y el `Packaged:` del binario |
+> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-23k/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-23k/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-23k/sin-incoming/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| WARN 0 \| SKIP 169 \| PASS 14838 ]` | `../verificacion/2026-08-23k/r41/lupa.Rcheck/00check.log` |
+> | suite completa | **15.917 comprobaciones, 0 fallos, 0 avisos** | `devtools::test()` |
+> | GitHub Actions (5 plataformas) | en curso, disparadas por el push | log de la corrida |
+> | R-hub v2 R-devel (3 plataformas) | PENDIENTE, disparo manual | log de la corrida |
+> | win-builder release y devel | PENDIENTE, subida manual | log de cada corrida, y el `Packaged:` del binario |
 >
-> **El tarball se reviso por dentro, que es una comprobacion que no se hacia.**
-> Llevaba `tests/testthat/_problems/` -diez archivos con fragmentos de pruebas
-> que habian fallado, el directorio de trabajo de `testthat`-. Estaba en
-> `.gitignore` pero no en `.Rbuildignore`, asi que no llegaba al repositorio y si
-> al paquete. Ningun check lo senala porque no rompe nada. Ahora el tarball trae
-> cero, y los 107 archivos de prueba y los fixtures siguen viajando enteros.
->
-> **Y se probo el artefacto, no el arbol**: el tarball se instalo en una
-> biblioteca limpia y se perfilo con el, para ver lo que ve quien instala el
-> paquete. Las 87 funciones exportadas tienen ejemplos.
->
-> **Sobre `6dd768e`, el commit anterior, los tres entornos locales dieron**
-> `1 NOTE`, `1 NOTE` y `OK`. Se rehace igual porque `016394c` toca una vinieta.
->
-> **La tabla de evidencia se remidio despues de la tanda.** Seis de los cambios
-> son guardas que deciden **callar** un diagnostico, y una guarda de mas se
-> lleva puesta una columna cubierta sin que ninguna prueba lo note. Contra los
-> pares dirty/clean: **26 de 26 columnas afectadas cubiertas** y ocho senaladas
-> de mas, que es exactamente lo que publican el README y `benchmark/README.md`.
+> **Lo que se verifico ademas del check**, porque cada uno ve algo que los otros
+> no: el tarball por dentro -no lleva ningun archivo de trabajo-, el artefacto
+> instalado en una biblioteca limpia -perfila y emite los diagnosticos nuevos-,
+> las 87 funciones exportadas -todas con ejemplos- y el sitio publicado -117
+> paginas-.
 >
 > **Dos WARNINGs que la suite no podia ver.** La matriz anterior, sobre
 > `9956c6c`, dio `2 WARNINGs` donde la de `031fa59` habia dado `1 NOTE`. Los dos
