@@ -1,5 +1,27 @@
 # lupa 0.1.0
 
+## Lo que no se evaluo llega a las cuatro puertas
+
+Cuando `lupa` decide no correr un diagnostico lo anota con su motivo, pero esa
+tabla solo llegaba a quien mirara el perfil. Ahora llega a las cuatro puertas
+desde las que se trabaja:
+
+- `perfilar_por()` la lleva **por grupo**. Cada grupo se perfila por separado,
+  asi que cada uno declina los suyos: una columna puede tener bastantes filas en
+  un grupo y muy pocas en otro. Sin esa tabla, un grupo sin hallazgos se lee
+  como un grupo sano, cuando puede ser un grupo sobre el que no se miro.
+- `planificar_limpieza()` la lleva y la anuncia al imprimir el plan.
+- `comparar_perfiles()` la consulta para no informar como `resuelto` un
+  diagnostico que simplemente dejo de correrse.
+- `perfilar_dbi()` ya la tenia en `resumen_tabla$cobertura`.
+
+## Una gramatica de entidades HTML, no dos
+
+La misma expresion estaba escrita dos veces: una para **detectar** entidades y
+otra para **repararlas**. Si divergian se detectaba lo que no se reparaba, o al
+reves, y ninguna de las dos avisaba. Es el mismo acoplamiento que tenian las
+tres copias de la generalizacion de patrones.
+
 ## En Oracle la cadena vacia es el nulo, y eso se declara
 
 Medido contra Oracle Free 23 real: las mismas tres filas -`""`, `NA`, `"x"`- dan

@@ -28,6 +28,13 @@ Data frame de clase \code{hallazgos_por_grupo} con las columnas de
 \code{hallazgos} de \code{\link[=perfilar]{perfilar()}} precedidas por \code{grupo} y \code{n_filas_grupo}. El
 atributo \code{cobertura_grupos} declara los grupos no perfilados y las columnas
 descartadas por grupo.
+
+El atributo \code{cobertura_diagnosticos} declara, \strong{por grupo}, los
+diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
+separado, así que cada uno declina los suyos: una columna puede tener
+bastantes filas en un grupo y muy pocas en otro. Sin esa tabla, un grupo sin
+hallazgos se lee como un grupo sano, cuando puede ser un grupo sobre el que
+no se miró.
 }
 \description{
 Aplica \code{\link[=perfilar]{perfilar()}} a cada grupo de filas por separado y devuelve los

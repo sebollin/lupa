@@ -31,6 +31,13 @@
 #'   `hallazgos` de [perfilar()] precedidas por `grupo` y `n_filas_grupo`. El
 #'   atributo `cobertura_grupos` declara los grupos no perfilados y las columnas
 #'   descartadas por grupo.
+#'
+#'   El atributo `cobertura_diagnosticos` declara, **por grupo**, los
+#'   diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
+#'   separado, así que cada uno declina los suyos: una columna puede tener
+#'   bastantes filas en un grupo y muy pocas en otro. Sin esa tabla, un grupo sin
+#'   hallazgos se lee como un grupo sano, cuando puede ser un grupo sobre el que
+#'   no se miró.
 #' @export
 #' @seealso [perfilar()], [cobertura_analisis()]
 #'
@@ -76,6 +83,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
 
   hallazgos <- list()
   cobertura <- list()
+  cobertura_diagnosticos <- list()
 
   for (nombre_grupo in names(grupos)) {
     filas <- grupos[[nombre_grupo]]
@@ -110,6 +118,21 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       next
     }
     perfil <- perfilar(rebanada, ...)
+    # Cada grupo se perfila por separado, asi que cada uno declina sus propios
+    # diagnosticos: una columna puede tener bastantes filas en un grupo y muy
+    # pocas en otro. Sin juntar esas declaraciones, quien mira los hallazgos por
+    # grupo no tiene forma de saber que sobre tal grupo no se miro, y leeria un
+    # grupo sin hallazgos como un grupo sano.
+    cb_grupo <- perfil$cobertura_diagnosticos
+    if (inherits(cb_grupo, "data.frame") && nrow(cb_grupo)) {
+      cobertura_diagnosticos[[length(cobertura_diagnosticos) + 1L]] <- cbind(
+        data.frame(
+          grupo = nombre_grupo, n_filas_grupo = length(filas),
+          stringsAsFactors = FALSE
+        ),
+        cb_grupo
+      )
+    }
     if (nrow(perfil$hallazgos)) {
       fila <- cbind(
         data.frame(
@@ -147,6 +170,17 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     data.frame(
       grupo = character(), n_filas_grupo = integer(), motivo = character(),
       columnas_descartadas = character(), stringsAsFactors = FALSE
+    )
+  }
+  attr(salida, "cobertura_diagnosticos") <- if (length(cobertura_diagnosticos)) {
+    do.call(rbind, cobertura_diagnosticos)
+  } else {
+    cbind(
+      data.frame(
+        grupo = character(), n_filas_grupo = integer(),
+        stringsAsFactors = FALSE
+      ),
+      .cobertura_diagnosticos_vacia()
     )
   }
   attr(salida, "n_grupos") <- length(grupos)

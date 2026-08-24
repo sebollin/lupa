@@ -1065,8 +1065,16 @@
   uuml = "\u00fc", ugrave = "\u00f9", yacute = "\u00fd", yuml = "\u00ff"
 )
 
+# La misma gramatica la usan dos funciones que tienen que coincidir: esta la usa
+# para **detectar** entidades y `.decodificar_entidades_html()` para
+# **repararlas**. Escritas por separado, si una cambiaba se detectaba lo que no
+# se reparaba, o al reves, y ninguna de las dos avisaba. Es el mismo
+# acoplamiento que tenian las tres copias de la generalizacion de patrones.
+.PATRON_ENTIDAD_HTML <-
+  "&(?:#(?:[xX][0-9A-Fa-f]{1,6}|[0-9]{1,7})|[A-Za-z][A-Za-z0-9]+);"
+
 .entidades_html_en_texto <- function(textos) {
-  patron <- "&(?:#(?:[xX][0-9A-Fa-f]{1,6}|[0-9]{1,7})|[A-Za-z][A-Za-z0-9]+);"
+  patron <- .PATRON_ENTIDAD_HTML
   vapply(textos, function(texto) {
     if (is.na(texto)) return(FALSE)
     posiciones <- gregexpr(patron, texto, perl = TRUE)[[1L]]

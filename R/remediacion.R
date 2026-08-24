@@ -1265,7 +1265,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
     stop("La decodificaci\u00f3n HTML requiere una columna de texto.", call. = FALSE)
   }
   anterior <- as.character(x)
-  patron <- "&(?:#(?:[xX][0-9A-Fa-f]{1,6}|[0-9]{1,7})|[A-Za-z][A-Za-z0-9]+);"
+  # La misma que usa la deteccion: las dos tienen que coincidir.
+  patron <- .PATRON_ENTIDAD_HTML
   nuevo <- vapply(anterior, function(texto) {
     if (is.na(texto)) return(NA_character_)
     coincidencias <- gregexpr(patron, texto, perl = TRUE)[[1L]]
