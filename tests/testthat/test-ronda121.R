@@ -88,3 +88,77 @@ test_that("una aplicabilidad mal formada se rechaza", {
     "lista con nombre"
   )
 })
+
+test_that("analizar propaga el universo del perfil a la medicion", {
+  # El universo se declara una sola vez, en `argumentos_perfil`, y tiene que
+  # gobernar todo el analisis. Sin propagarlo, el mismo objeto informaba el
+  # dato de dos maneras: el perfil decia 0,100 de faltantes -sobre las filas
+  # del universo- y el tablero 0,270 de completitud -sobre la tabla entera-.
+  set.seed(3)
+  datos <- data.frame(
+    tiene_auto = c(rep("Si", 300L), rep("No", 700L)),
+    marca_auto = c(
+      sample(c("Ford", "Fiat", "VW"), 270L, replace = TRUE),
+      rep(NA, 30L), rep(NA, 700L)
+    ),
+    stringsAsFactors = FALSE
+  )
+  completitud <- function(analisis) {
+    medicion <- analisis$medicion
+    fila <- medicion[
+      grepl("marca_auto", as.character(medicion$objeto_medible)), ,
+      drop = FALSE
+    ]
+    fila$resultado[[1L]]
+  }
+
+  con <- analizar(
+    datos, proteger_datos_personales = FALSE,
+    argumentos_perfil = list(
+      aplicabilidad = list(marca_auto = ~ tiene_auto == "Si")
+    )
+  )
+  sin <- analizar(datos, proteger_datos_personales = FALSE)
+
+  expect_equal(completitud(con), 0.9)
+  expect_equal(completitud(sin), 0.27)
+
+  # Y el perfil del mismo objeto cuenta lo mismo: 30 de 300 faltantes.
+  fila <- con$perfil$columnas[con$perfil$columnas$columna == "marca_auto", ]
+  expect_equal(fila$prop_faltantes, 0.1)
+  expect_equal(fila$n_aplicables, 300L)
+})
+
+test_that("la regla se resuelve por tabla y no globalmente", {
+  # Una regla puede nombrar una columna que existe en varias tablas del modelo.
+  # El universo se evalua en cada una con sus propias filas: recortar una tabla
+  # con la mascara de otra seria peor que no recortar.
+  set.seed(4)
+  personas <- data.frame(
+    activo = c(rep("Si", 50L), rep("No", 50L)),
+    correo = c(sample(c("a@b.c", "d@e.f"), 45L, replace = TRUE),
+               rep(NA, 5L), rep(NA, 50L)),
+    stringsAsFactors = FALSE
+  )
+  tramites <- data.frame(
+    activo = rep("Si", 30L),
+    correo = c(sample("x@y.z", 28L, replace = TRUE), rep(NA, 2L)),
+    stringsAsFactors = FALSE
+  )
+  marco <- marco_calidad("m", list(Completitud = "Densidad"))
+  modelo_medicion <- modelo(list(
+    instanciar(especializar(metricas_nucleo()$NoNulo), "personas", "correo"),
+    instanciar(especializar(metricas_nucleo()$NoNulo), "tramites", "correo")
+  ), marco = marco)
+
+  medido <- medir(
+    modelo_medicion, list(personas = personas, tramites = tramites),
+    id_medicion = "x", aplicabilidad = list(correo = ~ activo == "Si")
+  )
+  filas_de <- function(tabla) {
+    sum(grepl(tabla, as.character(medido$objeto_medible), fixed = TRUE))
+  }
+  # `personas` tiene 50 activos de 100; `tramites` los 30.
+  expect_equal(filas_de("personas"), 50L)
+  expect_equal(filas_de("tramites"), 30L)
+})

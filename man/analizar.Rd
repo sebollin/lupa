@@ -56,7 +56,10 @@ usa la asociada a \code{modelo_confirmado} y, en último término,
 
 \item{perfil_evaluacion}{Perfil explícito para \code{\link[=evaluar]{evaluar()}} o \code{NULL}.}
 
-\item{id_medicion}{Identificador opcional enviado a \code{\link[=medir]{medir()}}.}
+\item{id_medicion}{Identificador opcional enviado a \code{\link[=medir]{medir()}}. Si
+\code{argumentos_perfil} declara \code{aplicabilidad}, esa misma declaración viaja a
+la medición: el universo se declara una vez y gobierna todo el análisis,
+así que el perfil y el tablero cuentan el mismo dato de la misma manera.}
 
 \item{medir_propuesta}{Si se mide automáticamente la propuesta en estado
 \code{"lista"} cuando no se recibe un modelo o una propuesta confirmada. Use

@@ -14,15 +14,15 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **Estado de la matriz sobre `97b80af`:**
+> **Estado de la matriz sobre `b1f0059`:**
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-23i/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-23i/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-23i/sin-incoming/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| WARN 0 \| SKIP 169 \| PASS 14823 ]` | `../verificacion/2026-08-23i/r41/lupa.Rcheck/00check.log` |
-> | suite completa | **15.904 comprobaciones, 0 fallos, 0 avisos** | `devtools::test()` |
+> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-23j/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-23j/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-23j/sin-incoming/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| WARN 0 \| SKIP 169 \| PASS 14832 ]` | `../verificacion/2026-08-23j/r41/lupa.Rcheck/00check.log` |
+> | suite completa | **15.913 comprobaciones, 0 fallos, 0 avisos** | `devtools::test()` |
 > | GitHub Actions (5 plataformas) | PENDIENTE | log de la corrida |
 > | R-hub v2 R-devel (3 plataformas) | PENDIENTE | log de la corrida |
 > | win-builder release y devel | PENDIENTE | log de cada corrida, y el `Packaged:` del binario |

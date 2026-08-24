@@ -191,7 +191,10 @@
 #'   usa la asociada a `modelo_confirmado` y, en último término,
 #'   [marco_agesic()].
 #' @param perfil_evaluacion Perfil explícito para [evaluar()] o `NULL`.
-#' @param id_medicion Identificador opcional enviado a [medir()].
+#' @param id_medicion Identificador opcional enviado a [medir()]. Si
+#'   `argumentos_perfil` declara `aplicabilidad`, esa misma declaración viaja a
+#'   la medición: el universo se declara una vez y gobierna todo el análisis,
+#'   así que el perfil y el tablero cuentan el mismo dato de la misma manera.
 #' @param medir_propuesta Si se mide automáticamente la propuesta en estado
 #'   `"lista"` cuando no se recibe un modelo o una propuesta confirmada. Use
 #'   `FALSE` para conservar el comportamiento descriptivo anterior.
@@ -371,8 +374,19 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
       modelo_elegido <- modelo(modelo_elegido$metricas, marco = marco_elegido)
     }
   }
+  # El universo aplicable se declara una sola vez, en `argumentos_perfil`, y
+  # tiene que gobernar todo el analisis. Sin esta linea el perfil lo respetaba
+  # -la proporcion de faltantes salia sobre las filas del universo- y la
+  # medicion no: sobre una columna condicionada con universo de 300 filas de
+  # 1.000, el perfil informaba 0,100 de faltantes y el tablero 0,270 de
+  # completitud, que es el mismo dato contado de dos maneras dentro del mismo
+  # objeto.
+  aplicabilidad_declarada <- if (is.list(argumentos_perfil)) {
+    argumentos_perfil[["aplicabilidad"]]
+  } else NULL
   detalle_medicion <- if (!is.null(modelo_elegido)) {
-    medir(modelo_elegido, datos, id_medicion = id_medicion, fecha = fecha)
+    medir(modelo_elegido, datos, id_medicion = id_medicion, fecha = fecha,
+          aplicabilidad = aplicabilidad_declarada)
   } else NULL
   if (!is.null(perfil_evaluacion) && is.null(detalle_medicion)) {
     stop("`perfil_evaluacion` requiere una medici\u00f3n activa.",
