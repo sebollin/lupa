@@ -175,12 +175,11 @@ perfilar(
   declararlo son `0,730`, sale `faltantes` y el plan propone dos
   acciones.
 
-  Lo que **no** alcanza es la medición contra un marco:
-  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) no
-  recibe `aplicabilidad`, así que el histórico y la deriva —que consumen
-  mediciones, no perfiles— tampoco lo heredan. Quien mida una columna
-  condicionada contra un marco tiene que acotar los datos antes de
-  medirlos. El `aplicabilidad` de
+  La medición contra un marco recibe la misma declaración:
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) acepta
+  `aplicabilidad` y recorta las filas antes de medir, así que el
+  histórico y la deriva —que consumen mediciones, no perfiles— heredan
+  el número correcto. El `aplicabilidad` de
   [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
   es otra cosa: dice si un factor aplica a datos temporales o
   geométricos, no qué filas entran al universo.

@@ -216,12 +216,12 @@ con universo de trescientas, treinta de ellas vacías: declarándolo, la
 proporción de faltantes es <code>0,100</code>, no hay hallazgo y el plan no propone
 nada; sin declararlo son <code>0,730</code>, sale <code>faltantes</code> y el plan propone dos
 acciones.</p>
-<p>Lo que <strong>no</strong> alcanza es la medición contra un marco: <code><a href="medir.html">medir()</a></code> no recibe
-<code>aplicabilidad</code>, así que el histórico y la deriva —que consumen mediciones,
-no perfiles— tampoco lo heredan. Quien mida una columna condicionada contra
-un marco tiene que acotar los datos antes de medirlos. El <code>aplicabilidad</code>
-de <code><a href="marco_calidad.html">marco_calidad()</a></code> es otra cosa: dice si un factor aplica a datos
-temporales o geométricos, no qué filas entran al universo.</p></dd>
+<p>La medición contra un marco recibe la misma declaración: <code><a href="medir.html">medir()</a></code> acepta
+<code>aplicabilidad</code> y recorta las filas antes de medir, así que el histórico y
+la deriva —que consumen mediciones, no perfiles— heredan el número
+correcto. El <code>aplicabilidad</code> de <code><a href="marco_calidad.html">marco_calidad()</a></code> es otra cosa: dice si un
+factor aplica a datos temporales o geométricos, no qué filas entran al
+universo.</p></dd>
 
 
 <dt id="arg-ausencia-estructural">ausencia_estructural<a class="anchor" aria-label="anchor" href="#arg-ausencia-estructural"></a></dt>

@@ -49,7 +49,13 @@ una medida reutilizable y conserva el identificador y la fecha de la corrida.</p
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">medir</span><span class="op">(</span><span class="va">modelo</span>, <span class="va">datos</span>, id_medicion <span class="op">=</span> <span class="cn">NULL</span>, fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">medir</span><span class="op">(</span></span>
+<span>  <span class="va">modelo</span>,</span>
+<span>  <span class="va">datos</span>,</span>
+<span>  id_medicion <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  aplicabilidad <span class="op">=</span> <span class="cn">NULL</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -72,6 +78,19 @@ frames para varias entidades.</p></dd>
 <dt id="arg-fecha">fecha<a class="anchor" aria-label="anchor" href="#arg-fecha"></a></dt>
 <dd><p>Fecha y hora de la corrida.</p></dd>
 
+
+<dt id="arg-aplicabilidad">aplicabilidad<a class="anchor" aria-label="anchor" href="#arg-aplicabilidad"></a></dt>
+<dd><p>Lista con nombre por columna, donde cada elemento es
+una fórmula que dice en qué filas esa columna corresponde —por ejemplo
+<code>list(marca_auto = ~ tiene_auto == "Si")</code>—. Las filas fuera de ese universo
+salen de la medición en vez de contarse como ausencia.</p>
+<p>Es la misma declaración que recibe <code><a href="perfilar.html">perfilar()</a></code>, y hace falta porque una
+métrica de completitud sobre una columna condicionada mide lo que no
+corresponde: con universo de 300 filas sobre 1.000 y 30 vacías de verdad,
+sin declararlo da <code>0,270</code> y declarándolo <code>0,900</code>. El histórico y la deriva
+consumen mediciones, así que heredan el número que salga de acá.</p>
+<p>Sin declaración toda la tabla aplica y el resultado es el de siempre.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -90,13 +109,13 @@ que trabajan con un vocabulario o un alcance parcial agregan un atributo
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">medir</span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260823T225359.723312-7688-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260823T225359.723312-7688-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260823T225359.723312-7688-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260824T001802.889194-7520-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260824T001802.889194-7520-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260824T001802.889194-7520-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260823T225359.723312-7688 2026-08-23 22:53:59  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260823T225359.723312-7688 2026-08-23 22:53:59  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260823T225359.723312-7688 2026-08-23 22:53:59  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260824T001802.889194-7520 2026-08-24 00:18:02  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260824T001802.889194-7520 2026-08-24 00:18:02  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260824T001802.889194-7520 2026-08-24 00:18:02  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
