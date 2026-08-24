@@ -14,33 +14,35 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
-> **EN REMEDICION.** Las fuentes cambiaron despues de `ff9a117`: tres arreglos
-> -la clave dispersa, el tramo de codigos confundido con centinela, y la prueba
-> que se salteaba sola- tocan `R/` y `tests/`, asi que viajan en el tarball y la
-> matriz entera vuelve a correr sobre `05815fd`. **Las filas de abajo describen
-> `ff9a117` y no esta revision**; quedan a la vista hasta que la corrida nueva
-> las reemplace, porque borrarlas dejaria la seccion sin decir contra que se
-> midio. Suite sobre `05815fd`: 15.932 comprobaciones, 0 fallos, 0 errores,
-> 0 avisos, leido de `sum(r$failed)` y no del texto del reporte.
->
-> **Estado de la matriz sobre `ff9a117`:**
+> **Estado de la matriz sobre `205ea84`:**
 >
 > | entorno | estado | de donde sale |
 > | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`** (solo `New submission`) | `../verificacion/2026-08-23k/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`** (la misma) | `../verificacion/2026-08-23k/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, ni una nota | `../verificacion/2026-08-23k/sin-incoming/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK`, `[ FAIL 0 \| WARN 0 \| SKIP 169 \| PASS 14838 ]` | `../verificacion/2026-08-23k/r41/lupa.Rcheck/00check.log` |
-> | suite completa | **15.917 comprobaciones, 0 fallos, 0 avisos** | `devtools::test()` |
-> | GitHub Actions (5 plataformas) | **las cinco con `Status: OK` sobre `ff9a117`**, sin notas: Ubuntu devel, release y oldrel-1, Windows release, macOS release. Leido del log, no del tilde verde | corrida 32676845573 |
+> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`**, y la nota es `New submission` | `../verificacion/2026-08-24b/normal/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`**, la misma | `../verificacion/2026-08-24b/depends-only/lupa.Rcheck/00check.log` |
+> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, cero notas | `../verificacion/2026-08-24b/sin-incoming/lupa.Rcheck/00check.log` |
+> | local, `--as-cran` **construyendo vinietas** | **`Status: 1 NOTE`**, la misma. `checking package vignettes ... OK` y `re-building of vignette outputs ... OK` | `../verificacion/2026-08-24b/con-vinietas/lupa.Rcheck/00check.log` |
+> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK` | `../verificacion/2026-08-24b/r41/lupa.Rcheck/00check.log` |
+> | suite completa | **15.968 comprobaciones, 0 fallos, 0 errores, 0 avisos** | leido de `sum(r$failed)`, no del texto |
+> | GitHub Actions (5 plataformas) | verde sobre `8d68901`; la de `205ea84` en curso | log de la corrida |
 > | R-hub v2 R-devel (3 plataformas) | PENDIENTE, disparo manual | log de la corrida |
-> | win-builder release y devel | PENDIENTE, subida manual | log de cada corrida, y el `Packaged:` del binario |
+> | win-builder release y devel | PENDIENTE, subida manual | log de cada corrida |
 >
-> **Lo que se verifico ademas del check**, porque cada uno ve algo que los otros
-> no: el tarball por dentro -no lleva ningun archivo de trabajo-, el artefacto
-> instalado en una biblioteca limpia -perfila y emite los diagnosticos nuevos-,
-> las 87 funciones exportadas -todas con ejemplos- y el sitio publicado -117
-> paginas-.
+> **Que la corrida sin comprobaciones de entrada de `OK` sin ninguna nota ubica
+> esa nota entera fuera del paquete**: es la de primera entrega y no un defecto.
+>
+> **Las dos notas del contenedor, miradas una por una.** La primera es que
+> `bit64`, `covr`, `knitr`, `rmarkdown`, `RSQLite` y `sf` no tienen build ahi, o
+> sea una propiedad del contenedor. La segunda dice `found 1 marked UTF-8
+> string`, y esa cadena es **`Paysandu`** -escrito con acento- en la columna de
+> departamento de los datos de ejemplo: esta correctamente marcada, R 4.6.1 la
+> da `OK`, y solo R 4.1.3 la nota. Un paquete sobre calidad de datos uruguayos
+> tiene que poder escribir ese nombre como se escribe.
+>
+> **El entorno que construye las vinietas se agrego el 2026-08-24.** Los otros
+> cuatro corren con `--ignore-vignettes` -el contenedor no tiene `pandoc`- y
+> arrastrar esa bandera a los locales dejaba sin comprobar algo que CRAN si
+> hace. Las nueve vinietas se construyen sin aviso.
 >
 > **Dos WARNINGs que la suite no podia ver.** La matriz anterior, sobre
 > `9956c6c`, dio `2 WARNINGs` donde la de `031fa59` habia dado `1 NOTE`. Los dos
@@ -168,40 +170,44 @@ stamps and the stamp identifies a build, not a revision. Each result was read
 from that run's own check log. Where a run has not yet been repeated on the
 current sources, the line says so rather than carrying the older result forward.
 
-The package sources submitted are those of `ff9a117`. Commits after it touch
-only this letter, which `.Rbuildignore` keeps out of the tarball, so they leave
-the package byte-identical -- `git diff --stat ff9a117..HEAD` lists
-`cran-comments.md` and nothing else. That is why the results below are dated to
-`ff9a117` and remain valid for the revision submitted.
+The package sources submitted are those of `205ea84`. Anything committed after
+it touches only this letter, which `.Rbuildignore` keeps out of the tarball, so
+it leaves the package byte-identical — `git diff --stat 205ea84..HEAD` lists
+`cran-comments.md` and nothing else.
 
-* Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS, on `ff9a117` —
-  **`Status: 1 NOTE`** with `--as-cran`, the note being `New submission`, and
-  the same single note with `_R_CHECK_DEPENDS_ONLY_=true`. With
-  `_R_CHECK_CRAN_INCOMING_=false` the result is **`Status: OK`**, no notes at
-  all, which locates that note in the incoming checks rather than in the
-  package.
-* Continuous integration (GitHub Actions, `R-CMD-check`, run 32676845573) on
-  `ff9a117`, 5 of 5 with **`Status: OK`** and no notes: Ubuntu with R release,
-  R-devel and R oldrel-1; Windows with R release; and macOS with R release on
+* Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — **`Status: 1 NOTE`**
+  with `--as-cran`, the note being `New submission`, and the same single note
+  with `_R_CHECK_DEPENDS_ONLY_=true`. With `_R_CHECK_CRAN_INCOMING_=false` the
+  result is **`Status: OK`**, no notes at all, which locates that note in the
+  incoming checks rather than in the package.
+* Local, `--as-cran` **building the vignettes** — **`Status: 1 NOTE`**, the same
+  one, with `checking package vignettes ... OK` and `checking re-building of
+  vignette outputs ... OK`. The other local runs pass `--ignore-vignettes`
+  because the R 4.1.3 container has no `pandoc`, and carrying that flag over to
+  the local runs left unchecked something CRAN does do. All nine vignettes build
+  without a warning.
+* Continuous integration (GitHub Actions, `R-CMD-check`), 5 of 5 with
+  **`Status: OK`** and no notes: Ubuntu with R release, R-devel and R oldrel-1;
+  Windows with R release; and macOS with R release on
   **`aarch64-apple-darwin23`**. The platforms exercised are
   `x86_64-pc-linux-gnu`, `x86_64-w64-mingw32` and `aarch64-apple-darwin23`. The
-  suite runs on all five: `[ FAIL 0 | WARN 0 | SKIP 4 | PASS 15911 ]`, and
-  `PASS 15915` on the two where four more tests find their optional package.
-  The five `Status: OK` lines and the absence of notes were read from the run's
-  own log rather than inferred from the green tick, because a run can conclude
+  five `Status: OK` lines and the absence of notes are read from the run's own
+  log rather than inferred from the green tick, because a run can conclude
   successfully and still carry notes.
 * R-hub v2, R-devel — **not yet run on these sources.** The last R-hub run
-  (32545201079, Linux, Windows and macOS, all three `Status: OK` with no notes)
-  measured `787cc0d`, which is twenty-nine commits behind the sources submitted
-  here, so it is reported as what it is and not counted as a result for this
-  revision.
+  measured `787cc0d`, far behind the sources submitted here, so it is reported
+  as what it is and not counted as a result for this revision.
 * win-builder, R release and R-devel — **not yet run on these sources.**
-* Container: R 4.1.3 (`rocker/r-ver:4.1.3`) for the declared minimum, on
-  `ff9a117`, with the suggested packages installed and the test suite running.
-  Result: **0 errors, 0 warnings**, and notes that are properties of that
-  container rather than of the package (`pandoc` absent, and packages that have
-  no build there). The suite runs at the declared floor:
-  `[ FAIL 0 | WARN 0 | SKIP 169 | PASS 14838 ]`.
+* Container: R 4.1.3 (`rocker/r-ver:4.1.3`) for the declared minimum, with the
+  suggested packages installed and the test suite running. Result:
+  **0 errors, 0 warnings**, `checking tests ... OK`, and two notes that are
+  properties of that container rather than of the package. The first is that
+  `bit64`, `covr`, `knitr`, `rmarkdown`, `RSQLite` and `sf` have no build there.
+  The second says `found 1 marked UTF-8 string`, and that string is
+  **`Paysandú`** in the department column of the example data: it is correctly
+  marked, R 4.6.1 reports `OK` for that same check, and only R 4.1.3 notes it. A
+  package about the quality of Uruguayan data has to be able to write that name
+  the way it is written.
 
   **`DESCRIPTION` used to declare `R (>= 3.6.0)`, and that was a claim this
   package did not keep.** An earlier revision stated that the suite could not be
