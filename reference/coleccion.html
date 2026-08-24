@@ -90,7 +90,12 @@ lista de <code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Esta función no consulta nada: sólo declara. Lo que se mide viene después,
 con <code><a href="perfilar_coleccion.html">perfilar_coleccion()</a></code>.</p>
-<p>El <strong>esquema es parte de la identidad de la tabla</strong>. Una tercera columna
+<p>El <strong>esquema es parte de la identidad de la tabla</strong>, y el <strong>catálogo también</strong>
+cuando existe: <code>catalogo.esquema.tabla</code> es el nombre de tres partes que usan
+SQL Server y otros motores. Se declara con la columna <code>catalogo</code>, y donde no
+hay catálogo se omite —o va <code>NA</code>— y la identidad queda igual que siempre. Dos
+tablas con el mismo nombre y esquema en catálogos distintos son <strong>dos tablas
+distintas</strong>, y se cuentan como dos. Una tercera columna
 <code>tipo</code> permite declarar qué es cada objeto —<code>"tabla"</code>, <code>"vista"</code>,
 <code>"temporal"</code>—, porque el conteo bruto de un catálogo mezcla tablas base con
 vistas, índices y secuencias, y no todas se perfilan igual.</p>
@@ -109,7 +114,11 @@ que se pueda parsear mal.</p></dd>
 
 <dt><code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external-link">DBI::Id</a></code>, suelto o en una lista</dt>
 <dd><p>La forma canónica de DBI. Tampoco
-se parsea. Se admiten hasta dos componentes —esquema y tabla—.</p></dd>
+se parsea. Se admiten hasta tres componentes —catálogo, esquema y tabla—.
+Con cuatro o más se rechaza <strong>nombrando la causa</strong>: por encima del
+catálogo no hay un nivel que la colección sepa declarar, y devolver ese
+error como si fuera un problema de permisos mandaría a pedir un acceso
+que ya se tiene.</p></dd>
 
 <dt>Texto <code>"esquema.tabla"</code></dt>
 <dd><p>Atajo cómodo para el caso simple. El texto

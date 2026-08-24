@@ -43,10 +43,16 @@ Esta función no consulta nada: sólo declara. Lo que se mide viene
 después, con
 [`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md).
 
-El **esquema es parte de la identidad de la tabla**. Una tercera columna
-`tipo` permite declarar qué es cada objeto —`"tabla"`, `"vista"`,
-`"temporal"`—, porque el conteo bruto de un catálogo mezcla tablas base
-con vistas, índices y secuencias, y no todas se perfilan igual.
+El **esquema es parte de la identidad de la tabla**, y el **catálogo
+también** cuando existe: `catalogo.esquema.tabla` es el nombre de tres
+partes que usan SQL Server y otros motores. Se declara con la columna
+`catalogo`, y donde no hay catálogo se omite —o va `NA`— y la identidad
+queda igual que siempre. Dos tablas con el mismo nombre y esquema en
+catálogos distintos son **dos tablas distintas**, y se cuentan como dos.
+Una tercera columna `tipo` permite declarar qué es cada objeto
+—`"tabla"`, `"vista"`, `"temporal"`—, porque el conteo bruto de un
+catálogo mezcla tablas base con vistas, índices y secuencias, y no todas
+se perfilan igual.
 
 ## Cómo declarar el nombre
 
@@ -61,8 +67,11 @@ Hay tres formas, y **no son equivalentes**:
 - [`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html), suelto o en una
   lista:
 
-  La forma canónica de DBI. Tampoco se parsea. Se admiten hasta dos
-  componentes —esquema y tabla—.
+  La forma canónica de DBI. Tampoco se parsea. Se admiten hasta tres
+  componentes —catálogo, esquema y tabla—. Con cuatro o más se rechaza
+  **nombrando la causa**: por encima del catálogo no hay un nivel que la
+  colección sepa declarar, y devolver ese error como si fuera un
+  problema de permisos mandaría a pedir un acceso que ya se tiene.
 
 - Texto `"esquema.tabla"`:
 
