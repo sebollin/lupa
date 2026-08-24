@@ -50,6 +50,29 @@
 # La unica diferencia que queda entre las dos vias es deliberada y esta
 # documentada: `Inf` vale en memoria -significa "todas las filas"- y no vale
 # contra un motor, donde hay que decir cuantas filas traer.
+# Las dos comprobaciones de entrada que mas se repetian: once veces la de `datos`
+# y seis la de `perfil`. La de `perfil` habia derivado en dos redacciones que
+# conviven en el mismo archivo a trescientas lineas de distancia -«a las columnas
+# de `datos`» y «a `datos`»-, que es lo que pasa cuando la misma regla se escribe
+# muchas veces: no diverge de golpe, diverge de a poco.
+.validar_datos_tabla <- function(datos, nombre = "datos") {
+  if (!inherits(datos, "data.frame")) {
+    stop("`", nombre, "` debe heredar de data.frame.", call. = FALSE)
+  }
+  invisible(datos)
+}
+
+# `perfil` es opcional en casi todos los llamadores: si viene, tiene que
+# corresponder a las mismas columnas y en el mismo orden, porque los indices de
+# columna del perfil se usan para leer `datos`.
+.validar_perfil_de <- function(perfil, datos) {
+  if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
+        !identical(names(datos), perfil$columnas$columna))) {
+    stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
+  }
+  invisible(perfil)
+}
+
 .validar_muestra <- function(muestra) {
   if (!is.numeric(muestra) || length(muestra) != 1L || is.na(muestra) ||
       muestra < 1) {

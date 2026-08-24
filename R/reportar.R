@@ -767,14 +767,7 @@
       is.na(sobrescribir)) {
     stop("`sobrescribir` debe ser TRUE o FALSE.", call. = FALSE)
   }
-  directorio <- dirname(archivo)
-  if (!dir.exists(directorio)) {
-    stop("No existe el directorio de destino: ", directorio, ".", call. = FALSE)
-  }
-  if (file.exists(archivo) && !sobrescribir) {
-    stop("El archivo ya existe; use `sobrescribir = TRUE` para reemplazarlo.",
-         call. = FALSE)
-  }
+  directorio <- .validar_destino_archivo(archivo, sobrescribir)
   temporal <- tempfile(".lupa-reporte-", tmpdir = directorio, fileext = ".html")
   on.exit(unlink(temporal), add = TRUE)
   conexion <- file(temporal, open = "wt", encoding = "UTF-8")

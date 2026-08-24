@@ -210,13 +210,8 @@
 #' detectar_claves(data.frame(id = 1:4, grupo = c("a", "a", "b", "b")))
 detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
                             perfil = NULL) {
-  if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe heredar de data.frame.", call. = FALSE)
-  }
-  if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
-      !identical(names(datos), perfil$columnas$columna))) {
-    stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
-  }
+  .validar_datos_tabla(datos)
+  .validar_perfil_de(perfil, datos)
   normalizacion_resuelta <- .resolver_normalizacion(normalizar, perfil)
   if (length(max_combinacion) != 1L || is.na(max_combinacion) ||
       max_combinacion < 1L || max_combinacion > 3L) {

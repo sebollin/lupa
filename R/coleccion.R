@@ -289,6 +289,15 @@
   )
 }
 
+# El identificador completo de una tabla dentro de una coleccion. Es la UNICA
+# forma de armarlo: `agregacion.R` tenia una copia identica como cierre local, y
+# las dos **tienen que coincidir** o la cobertura de una coleccion deja de
+# cuadrar —la frontera se declara con una y se lee con la otra—.
+#
+# Por que lleva el esquema: usar el nombre pelado hacia que `public.personas` y
+# `auditoria.personas` colapsaran en una sola tabla, y entonces medir una de las
+# dos daba cobertura 1 de 1 en vez de 1 de 2. El esquema es parte de la
+# identidad, no un adorno.
 .identificadores_tabla <- function(esquema, tabla) {
   ifelse(is.na(esquema), tabla, paste0(esquema, ".", tabla))
 }

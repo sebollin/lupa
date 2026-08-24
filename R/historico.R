@@ -1,3 +1,24 @@
+# La misma validacion estaba escrita tres veces —aqui, en `reportar.R` y en
+# `analisis.R`— y ya habia divergido en tres cosas a la vez: el orden de las
+# comprobaciones, si el mensaje nombra el directorio que falta, y la redaccion
+# del aviso de sobrescritura. La de `analisis.R` decia "No existe el directorio
+# de destino." sin decir cual, que es justo el dato que necesita quien lo lee.
+#
+# Devuelve el directorio porque las tres lo usan despues para el archivo
+# temporal: escribir primero al lado del destino y copiar es lo que evita dejar
+# un archivo a medias si algo falla.
+.validar_destino_archivo <- function(archivo, sobrescribir) {
+  directorio <- dirname(archivo)
+  if (!dir.exists(directorio)) {
+    stop("No existe el directorio de destino: ", directorio, ".", call. = FALSE)
+  }
+  if (file.exists(archivo) && !sobrescribir) {
+    stop("El archivo ya existe; use `sobrescribir = TRUE` para reemplazarlo.",
+         call. = FALSE)
+  }
+  directorio
+}
+
 .version_esquema_historico <- 1L
 
 .columnas_historico <- c(
@@ -383,14 +404,7 @@ guardar_historico <- function(historico, archivo, sobrescribir = FALSE) {
       is.na(sobrescribir)) {
     stop("`sobrescribir` debe ser TRUE o FALSE.", call. = FALSE)
   }
-  directorio <- dirname(archivo)
-  if (!dir.exists(directorio)) {
-    stop("No existe el directorio de destino: ", directorio, ".", call. = FALSE)
-  }
-  if (file.exists(archivo) && !sobrescribir) {
-    stop("El archivo ya existe; use `sobrescribir = TRUE` para reemplazarlo.",
-         call. = FALSE)
-  }
+  directorio <- .validar_destino_archivo(archivo, sobrescribir)
   temporal <- tempfile(".lupa-historico-", tmpdir = directorio)
   on.exit(unlink(temporal), add = TRUE)
   saveRDS(historico, temporal, version = 3L)

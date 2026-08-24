@@ -256,14 +256,11 @@ transiciones_granularidad <- function() {
       "esta agregando.", call. = FALSE
     )
   }
-  # La frontera se lee por el IDENTIFICADOR completo, con esquema. Usar el
-  # nombre pelado hacia que `public.personas` y `auditoria.personas` colapsaran
-  # en una sola tabla, y entonces medir una de las dos daba cobertura 1 de 1 en
-  # vez de 1 de 2. Contradecia la afirmacion central de que el esquema es parte
-  # de la identidad.
-  identificador <- function(esquema, tabla) {
-    ifelse(is.na(esquema), tabla, paste0(esquema, ".", tabla))
-  }
+  # La frontera se lee por el IDENTIFICADOR completo, con esquema, y con la
+  # MISMA funcion con que se arma en `coleccion.R`. Habia una copia identica
+  # aca, y dos copias que tienen que coincidir son una divergencia esperando:
+  # si una cambiara, la frontera declarada y la leida dejarian de cruzar.
+  identificador <- .identificadores_tabla
   if (inherits(coleccion, "coleccion_lupa")) {
     return(list(
       nombre = coleccion$nombre,

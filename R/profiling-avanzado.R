@@ -104,13 +104,8 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
                                  probabilidades = c(0, 0.25, 0.5, 0.75, 1),
                                  muestra = 1e5,
                                  proteger_datos_personales = TRUE) {
-  if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe heredar de data.frame.", call. = FALSE)
-  }
-  if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
-      !identical(names(datos), perfil$columnas$columna))) {
-    stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
-  }
+  .validar_datos_tabla(datos)
+  .validar_perfil_de(perfil, datos)
   max_valores <- .validar_entero_positivo(max_valores, "max_valores")
   limite <- .validar_muestra(muestra)
   if (!is.numeric(probabilidades) || !length(probabilidades) ||
@@ -290,9 +285,7 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
                                   max_niveles = 50L, max_pares = 500L,
                                   metodo_numerico = c("pearson", "spearman")) {
   metodo_numerico <- match.arg(metodo_numerico)
-  if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe heredar de data.frame.", call. = FALSE)
-  }
+  .validar_datos_tabla(datos)
   if (!is.null(dependencias) && !inherits(dependencias, "data.frame")) {
     stop("`dependencias` debe ser NULL o un data frame.", call. = FALSE)
   }
@@ -464,13 +457,8 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
 analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
                             calendario = 1:7, frecuencia_dias = NULL,
                             max_huecos = 20L, max_columnas = 50L) {
-  if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe heredar de data.frame.", call. = FALSE)
-  }
-  if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
-      !identical(names(datos), perfil$columnas$columna))) {
-    stop("`perfil` debe corresponder a `datos`.", call. = FALSE)
-  }
+  .validar_datos_tabla(datos)
+  .validar_perfil_de(perfil, datos)
   if (!is.numeric(calendario) || !length(calendario) || anyNA(calendario) ||
       any(calendario < 1 | calendario > 7) || any(calendario != floor(calendario))) {
     stop("`calendario` debe contener dias ISO entre 1 y 7.", call. = FALSE)

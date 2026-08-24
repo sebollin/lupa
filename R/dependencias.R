@@ -121,9 +121,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
                                   max_ejemplos = 5L,
                                    max_comparaciones = 200000L,
                                    max_trabajo = 100000000) {
-  if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe heredar de data.frame.", call. = FALSE)
-  }
+  .validar_datos_tabla(datos)
   proporciones <- c(umbral, umbral_casi_constante, umbral_casi_clave)
   if (anyNA(proporciones) || any(!is.finite(proporciones)) ||
       any(proporciones < 0 | proporciones > 1)) {

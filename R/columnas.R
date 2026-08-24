@@ -786,31 +786,17 @@
   ))
 }
 
-.analizar_numeros_texto_directo <- function(x, umbral_compatibilidad = 0.8) {
-  vacio <- list(
-    n = 0L, proporcion = NA_real_, ambiguo = FALSE, seguro = FALSE,
-    evidencia = "", unidad = "", moneda = "", convencion = "",
-    unidades = stats::setNames(integer(), character()),
-    monedas = stats::setNames(integer(), character()), n_presentes = 0L
-  )
-  if (!is.character(x) && !is.factor(x)) return(vacio)
-  textos <- as.character(x)
-  presentes <- !is.na(textos) & nzchar(textos)
-  n_presentes <- sum(presentes)
-  vacio$n_presentes <- n_presentes
-  if (!n_presentes || !any(grepl("[0-9]", textos[presentes], perl = TRUE))) {
-    return(vacio)
-  }
-  inicio_numerico <- grepl(
-    paste0(
-      "^[[:space:]]*(?:(?:[[:upper:]]{3}|U\\$S)[[:space:]]+|",
-      "\\p{Sc}[[:space:]]*)?[+-]?[0-9]"
-    ), textos[presentes], perl = TRUE
-  )
-  if (mean(inicio_numerico) < umbral_compatibilidad) return(vacio)
-  partes <- .componentes_numero_texto(textos)
-  especiales <- presentes & partes$compatible & partes$especial
-  if (!any(especiales)) return(vacio)
+# Las dos formas de analizar numeros escritos como texto -la directa y la que
+# pasa por el vocabulario- comparten toda la interpretacion: convencion decimal,
+# unidad y moneda. Lo unico que cambia entre ellas es COMO se obtienen `partes`,
+# `presentes` y `especiales`; una vez que estan, la lectura es la misma.
+#
+# Estaba escrita dos veces, cuarenta y ocho lineas cada una. No es solo
+# repeticion: las dos tienen que dar el mismo veredicto sobre los mismos
+# valores, o la misma columna se describiria distinto segun por que camino se
+# la miro.
+.interpretar_numeros_texto <- function(partes, presentes, especiales,
+                                      n_presentes) {
   hay_evidencia_coma <- any(partes$evidencia_coma[presentes])
   hay_evidencia_punto <- any(partes$evidencia_punto[presentes])
   convencion <- if (hay_evidencia_coma && hay_evidencia_punto) {
@@ -859,6 +845,34 @@
     monedas = .frecuencias_monedas_numero(partes, presentes),
     n_presentes = n_presentes
   )
+}
+
+.analizar_numeros_texto_directo <- function(x, umbral_compatibilidad = 0.8) {
+  vacio <- list(
+    n = 0L, proporcion = NA_real_, ambiguo = FALSE, seguro = FALSE,
+    evidencia = "", unidad = "", moneda = "", convencion = "",
+    unidades = stats::setNames(integer(), character()),
+    monedas = stats::setNames(integer(), character()), n_presentes = 0L
+  )
+  if (!is.character(x) && !is.factor(x)) return(vacio)
+  textos <- as.character(x)
+  presentes <- !is.na(textos) & nzchar(textos)
+  n_presentes <- sum(presentes)
+  vacio$n_presentes <- n_presentes
+  if (!n_presentes || !any(grepl("[0-9]", textos[presentes], perl = TRUE))) {
+    return(vacio)
+  }
+  inicio_numerico <- grepl(
+    paste0(
+      "^[[:space:]]*(?:(?:[[:upper:]]{3}|U\\$S)[[:space:]]+|",
+      "\\p{Sc}[[:space:]]*)?[+-]?[0-9]"
+    ), textos[presentes], perl = TRUE
+  )
+  if (mean(inicio_numerico) < umbral_compatibilidad) return(vacio)
+  partes <- .componentes_numero_texto(textos)
+  especiales <- presentes & partes$compatible & partes$especial
+  if (!any(especiales)) return(vacio)
+  .interpretar_numeros_texto(partes, presentes, especiales, n_presentes)
 }
 
 .analizar_numeros_texto <- function(x, umbral_compatibilidad = 0.8,
@@ -931,54 +945,7 @@
   if (!any(especiales)) {
     return(vacio)
   }
-  hay_evidencia_coma <- any(partes$evidencia_coma[presentes])
-  hay_evidencia_punto <- any(partes$evidencia_punto[presentes])
-  convencion <- if (hay_evidencia_coma && hay_evidencia_punto) {
-    "mixta"
-  } else if (hay_evidencia_coma) {
-    "decimal_coma"
-  } else if (hay_evidencia_punto) {
-    "decimal_punto"
-  } else if (any((partes$punto_tres | partes$coma_tres) & especiales)) {
-    "ambigua"
-  } else {
-    "sin_separadores"
-  }
-  compatibles_convencion <- switch(
-    convencion,
-    decimal_coma = partes$compatible_coma,
-    decimal_punto = partes$compatible_punto,
-    sin_separadores = partes$compatible,
-    partes$compatible
-  )
-  ambiguos <- convencion %in% c("ambigua", "mixta") |
-    any(presentes & !compatibles_convencion)
-  unidades <- unique(partes$unidad[presentes & partes$compatible])
-  unidades_no_vacias <- unidades[nzchar(unidades)]
-  unidad_consistente <- length(unidades_no_vacias) <= 1L &&
-    !(length(unidades_no_vacias) && any(!nzchar(unidades)))
-  monedas <- unique(partes$moneda[presentes & partes$compatible])
-  monedas_no_vacias <- monedas[nzchar(monedas)]
-  moneda_consistente <- length(monedas_no_vacias) <= 1L &&
-    !(length(monedas_no_vacias) && any(!nzchar(monedas)))
-  compatibles <- sum(presentes & partes$compatible)
-  list(
-    n = sum(especiales),
-    proporcion = if (n_presentes) compatibles / n_presentes else NA_real_,
-    ambiguo = isTRUE(ambiguos),
-    seguro = compatibles == n_presentes && !isTRUE(ambiguos) &&
-      unidad_consistente && moneda_consistente,
-    evidencia = paste(
-      encodeString(utils::head(unique(partes$texto[especiales]), 6L), quote = '"'),
-      collapse = "; "
-    ),
-    unidad = if (length(unidades_no_vacias) == 1L) unidades_no_vacias else "",
-    moneda = if (length(monedas_no_vacias) == 1L) monedas_no_vacias else "",
-    convencion = convencion,
-    unidades = .frecuencias_unidades_numero(partes, presentes),
-    monedas = .frecuencias_monedas_numero(partes, presentes),
-    n_presentes = n_presentes
-  )
+  .interpretar_numeros_texto(partes, presentes, especiales, n_presentes)
 }
 
 .codigos_espacios_invisibles <- c(

@@ -127,7 +127,10 @@ test_that("sin columnas numericas candidatas el perfil es identico", {
   fecha <- as.POSIXct("2026-08-16 12:00:00", tz = "UTC")
   actual <- perfilar(datos, fecha = fecha, analizar_dependencias = FALSE)
   local_mocked_bindings(
-    .diagnosticar_benford = function(datos, columnas, hallazgos) {
+    # El doble tiene que aceptar la misma firma que la funcion real, o el
+    # simulacro falla por un motivo que no es el que el test mira. `...` lo
+    # deja a salvo de que la firma crezca otra vez.
+    .diagnosticar_benford = function(datos, columnas, hallazgos, ...) {
       list(
         hallazgos = list(),
         cobertura = lupa:::.cobertura_diagnosticos_vacia(),

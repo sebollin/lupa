@@ -269,9 +269,7 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
       "referencial"
     }
   }
-  if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe heredar de data.frame.", call. = FALSE)
-  }
+  .validar_datos_tabla(datos)
   if (is.null(names(datos)) || anyNA(names(datos)) || any(!nzchar(names(datos))) ||
       anyDuplicated(names(datos))) {
     stop("El referencial requiere nombres de columna \u00fanicos y no vac\u00edos.",
@@ -360,9 +358,14 @@ print.referencial <- function(x, ...) {
   referencia
 }
 
-.metodo_correctitud_fuerte <- function(tablas, instancia) {
-  referencia <- .exigir_referencial(instancia)
-  .validar_vinculo(instancia, 1L, length(referencia$clave))
+# Los dos metodos de correctitud referencial -el fuerte, que exige que la clave
+# exista en el referencial, y el debil, que ademas compara los valores- eran la
+# misma funcion escrita dos veces: 48 de sus 68 lineas coincidian y lo unico que
+# cambiaba era QUE COLUMNAS de la referencia se usan. Se parametriza eso y el
+# resto es uno solo, que ademas garantiza que los dos midan igual lo que miden
+# igual.
+.metodo_correctitud_comun <- function(tablas, instancia, referencia,
+                                     valores_referencia, columnas_referencia) {
   entidad <- instancia$entidad[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   faltantes <- setdiff(instancia$atributos, names(tabla))
@@ -375,7 +378,6 @@ print.referencial <- function(x, ...) {
   filas <- which(presentes)
   perfil <- .referencial_normalizacion(instancia, referencia)
   objetivo_presente <- objetivo[presentes, , drop = FALSE]
-  referencia_clave <- referencia$datos[referencia$clave]
   usa_normalizacion <- !is.null(instancia$configuracion$normalizar) ||
     !is.null(referencia$normalizar)
   if (usa_normalizacion) {
@@ -383,28 +385,28 @@ print.referencial <- function(x, ...) {
       objetivo_presente, instancia$atributos, perfil
     )
     referencia_comparable <- .referencial_tabla_normalizada(
-      referencia_clave, referencia$clave, perfil
+      valores_referencia, columnas_referencia, perfil
     )
     resultado <- .filas_en_referencial(objetivo_comparable, referencia_comparable)
     texto_objetivo <- .referencial_filas_texto(
       objetivo_presente, instancia$atributos, perfil
     )
     texto_referencia <- .referencial_filas_texto(
-      referencia_clave, referencia$clave, perfil
+      valores_referencia, columnas_referencia, perfil
     )
   } else {
-    resultado <- .filas_en_referencial(objetivo_presente, referencia_clave)
+    resultado <- .filas_en_referencial(objetivo_presente, valores_referencia)
     texto_objetivo <- .referencial_filas_original_texto(
       objetivo_presente, instancia$atributos
     )
     texto_referencia <- .referencial_filas_original_texto(
-      referencia_clave, referencia$clave
+      valores_referencia, columnas_referencia
     )
   }
   config <- instancia$configuracion
   fallos <- which(!resultado)
   proximidad <- .referencial_proximidad(
-    fallos, texto_objetivo, texto_referencia, referencia_clave, config
+    fallos, texto_objetivo, texto_referencia, valores_referencia, config
   )
   objetos <- paste0(entidad, "[", filas, ",",
                     paste(instancia$atributos, collapse = "+"), "]")
@@ -428,73 +430,23 @@ print.referencial <- function(x, ...) {
   salida
 }
 
+
+.metodo_correctitud_fuerte <- function(tablas, instancia) {
+  referencia <- .exigir_referencial(instancia)
+  .validar_vinculo(instancia, 1L, length(referencia$clave))
+  .metodo_correctitud_comun(
+    tablas, instancia, referencia, referencia$datos[referencia$clave],
+    referencia$clave
+  )
+}
+
 .metodo_correctitud_debil <- function(tablas, instancia) {
   referencia <- .exigir_referencial(instancia, valores = TRUE)
   columnas_ref <- c(referencia$clave, referencia$valor)
   .validar_vinculo(instancia, 1L, length(columnas_ref))
-  entidad <- instancia$entidad[[1L]]
-  tabla <- .obtener_tabla_modelo(tablas, entidad)
-  faltantes <- setdiff(instancia$atributos, names(tabla))
-  if (length(faltantes)) {
-    stop("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
-         call. = FALSE)
-  }
-  objetivo <- tabla[instancia$atributos]
-  presentes <- stats::complete.cases(objetivo)
-  filas <- which(presentes)
-  perfil <- .referencial_normalizacion(instancia, referencia)
-  objetivo_presente <- objetivo[presentes, , drop = FALSE]
-  referencia_valores <- referencia$datos[columnas_ref]
-  usa_normalizacion <- !is.null(instancia$configuracion$normalizar) ||
-    !is.null(referencia$normalizar)
-  if (usa_normalizacion) {
-    objetivo_comparable <- .referencial_tabla_normalizada(
-      objetivo_presente, instancia$atributos, perfil
-    )
-    referencia_comparable <- .referencial_tabla_normalizada(
-      referencia_valores, columnas_ref, perfil
-    )
-    resultado <- .filas_en_referencial(objetivo_comparable, referencia_comparable)
-    texto_objetivo <- .referencial_filas_texto(
-      objetivo_presente, instancia$atributos, perfil
-    )
-    texto_referencia <- .referencial_filas_texto(
-      referencia_valores, columnas_ref, perfil
-    )
-  } else {
-    resultado <- .filas_en_referencial(objetivo_presente, referencia_valores)
-    texto_objetivo <- .referencial_filas_original_texto(
-      objetivo_presente, instancia$atributos
-    )
-    texto_referencia <- .referencial_filas_original_texto(
-      referencia_valores, columnas_ref
-    )
-  }
-  config <- instancia$configuracion
-  fallos <- which(!resultado)
-  proximidad <- .referencial_proximidad(
-    fallos, texto_objetivo, texto_referencia, referencia_valores, config
+  .metodo_correctitud_comun(
+    tablas, instancia, referencia, referencia$datos[columnas_ref], columnas_ref
   )
-  objetos <- paste0(entidad, "[", filas, ",",
-                    paste(instancia$atributos, collapse = "+"), "]")
-  objetos[fallos] <- ifelse(
-    nzchar(proximidad$evidencia[fallos]),
-    paste0(objetos[fallos], " {", proximidad$evidencia[fallos], "}"),
-    objetos[fallos]
-  )
-  salida <- .salida_metodo(
-    resultado, entidad, paste(instancia$atributos, collapse = "+"), filas, objetos
-  )
-  attr(salida, "alcance") <- list(
-    normalizar = if (is.null(instancia$configuracion$normalizar)) {
-      "heredado_del_referencial"
-    } else instancia$configuracion$normalizar,
-    normalizacion = .normalizacion_resumen(perfil),
-    n_evaluados = length(filas), n_presentes = length(filas),
-    n_afectados = sum(!resultado),
-    proximidad = proximidad$alcance
-  )
-  salida
 }
 
 .metodo_ratio_cobertura <- function(tablas, instancia) {

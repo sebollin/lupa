@@ -255,9 +255,7 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
                      max_huecos = 20L, max_columnas_temporales = 50L,
                      conservar_datos = FALSE,
                      proteger_datos_personales = TRUE, ...) {
-  if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe heredar de data.frame.", call. = FALSE)
-  }
+  .validar_datos_tabla(datos)
   extras <- list(...)
   if (!is.list(argumentos_perfil) || is.null(names(argumentos_perfil)) &&
       length(argumentos_perfil)) {
@@ -721,12 +719,9 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
       !as.character(comprimir) %in% compresiones) {
     stop("`comprimir` no es un metodo admitido por saveRDS().", call. = FALSE)
   }
-  if (file.exists(archivo) && !sobrescribir) {
-    stop("El archivo ya existe; use `sobrescribir = TRUE`.", call. = FALSE)
-  }
-  if (!dir.exists(dirname(archivo))) {
-    stop("No existe el directorio de destino.", call. = FALSE)
-  }
+  # Usaba su propia copia, que no nombraba el directorio que falta: el usuario
+  # leia "No existe el directorio de destino." sin saber cual.
+  .validar_destino_archivo(archivo, sobrescribir)
   if (incluir_datos && is.null(x$datos)) {
     stop("El analisis no conservo datos; use `conservar_datos = TRUE`.",
          call. = FALSE)

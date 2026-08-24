@@ -1102,7 +1102,9 @@ perfilar <- function(datos,
       rownames(hallazgos) <- NULL
     }
   }
-  benford <- .diagnosticar_benford(datos, columnas, hallazgos)
+  benford <- .diagnosticar_benford(
+    datos, columnas, hallazgos, clave_declarada = clave
+  )
   if (nrow(benford$cobertura)) {
     cobertura_diagnosticos <- rbind(
       cobertura_diagnosticos, benford$cobertura

@@ -180,13 +180,8 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
                                   max_niveles = 100L,
                                   muestra = 1e5,
                                   proteger_datos_personales = TRUE) {
-  if (!inherits(datos, "data.frame")) {
-    stop("`datos` debe heredar de data.frame.", call. = FALSE)
-  }
-  if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
-      !identical(names(datos), perfil$columnas$columna))) {
-    stop("`perfil` debe corresponder a `datos`.", call. = FALSE)
-  }
+  .validar_datos_tabla(datos)
+  .validar_perfil_de(perfil, datos)
   max_niveles <- .validar_entero_positivo(max_niveles, "max_niveles")
   limite <- .validar_muestra(muestra)
   if (!is.logical(proteger_datos_personales) ||

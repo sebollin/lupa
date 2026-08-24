@@ -87,7 +87,8 @@
 
 .resultado_benford_columna <- function(x, nombre, tipo_inferido,
                                        posible_identificador,
-                                       umbrales = .umbrales_benford()) {
+                                       umbrales = .umbrales_benford(),
+                                       clave_declarada = FALSE) {
   finitos <- if (is.numeric(x)) {
     as.numeric(x[is.finite(x)])
   } else {
@@ -119,7 +120,8 @@
     n_positivos = as.integer(n_positivos),
     proporcion_positivos = proporcion_positivos,
     ordenes_magnitud = ordenes,
-    parece_identificador = es_identificador
+    parece_identificador = es_identificador,
+    clave_declarada = isTRUE(clave_declarada)
   )
   if (length(fallas)) return(base)
 
@@ -148,11 +150,18 @@
 }
 
 .motivo_no_aplica_benford <- function(resultado, umbrales) {
+  # «Parece un identificador» y «se declaro como clave» son dos afirmaciones
+  # distintas: la primera es una inferencia del paquete y la segunda un hecho que
+  # trajo el usuario. Publicar la primera cuando corresponde la segunda le
+  # atribuye al paquete una deduccion que no hizo, y ademas invita a discutirle
+  # el criterio cuando no hubo criterio.
   etiquetas <- c(
     sin_variacion = "sin variacion",
-    parece_identificador = paste0(
+    parece_identificador = if (isTRUE(resultado$clave_declarada)) {
+      "la clave fue declarada, asi que la columna identifica filas y no es una magnitud"
+    } else {
       "parece un identificador (tipo_inferido, posible_identificador o secuencia correlativa)"
-    ),
+    },
     observaciones_utilizables_insuficientes = paste0(
       "observaciones positivas utilizables ", resultado$n_positivos,
       " < ", umbrales$minimo_observaciones_utilizables
@@ -178,7 +187,8 @@
   )
 }
 
-.diagnosticar_benford <- function(datos, columnas, hallazgos) {
+.diagnosticar_benford <- function(datos, columnas, hallazgos,
+                                  clave_declarada = NULL) {
   candidatas <- which(vapply(datos, .columna_candidata_benford, logical(1L)))
   if (!length(candidatas)) {
     return(list(hallazgos = list(), cobertura = .cobertura_diagnosticos_vacia(),
@@ -189,10 +199,24 @@
   identificadores <- as.character(hallazgos$columna[
     hallazgos$tipo_hallazgo == "posible_identificador"
   ])
+  # Una clave que el usuario DECLARO no necesita que se infiera nada: dijo que
+  # identifica una fila, y una numeracion no tiene distribucion que analizar.
+  #
+  # Esto cierra el caso que motivo -y tumbo- la regla de la clave dispersa: ahi
+  # se intentaba adivinar cual columna era clave por la forma de sus valores, y
+  # el criterio terminaba dependiendo de cuantas filas se habian cargado y
+  # callando magnitudes reales. Declarada, la respuesta ya esta, no depende del
+  # tamano de la tabla, y no calla nada: si la columna es de verdad una clave,
+  # Benford sobre ella no significaba nada.
+  #
+  # Lo mismo vale para la clave leida del catalogo de la base, que llega por
+  # aca cuando quien perfila la pasa.
+  identificadores <- unique(c(identificadores, as.character(clave_declarada)))
   resultados <- lapply(candidatas, function(i) {
     .resultado_benford_columna(
       datos[[i]], names(datos)[[i]], columnas$tipo_inferido[[i]],
-      names(datos)[[i]] %in% identificadores, umbrales
+      names(datos)[[i]] %in% identificadores, umbrales,
+      clave_declarada = names(datos)[[i]] %in% as.character(clave_declarada)
     )
   })
   names(resultados) <- make.unique(names(datos)[candidatas])
