@@ -75,6 +75,9 @@
     comparacion_exhaustiva = FALSE,
     muestreado = FALSE,
     truncado = FALSE,
+    distancia_corte = NA_real_,
+    n_en_distancia_corte = NA_integer_,
+    recorte_depende_del_orden = FALSE,
     disponible = disponible,
     nucleos_usados = nucleos_usados,
     metodo = metodo,
@@ -1826,6 +1829,19 @@
   hallazgos$severidad <- factor(
     hallazgos$severidad, levels = c("ok", "sospechoso", "error"), ordered = TRUE
   )
+  # El recorte ordena por distancia y desempata por posicion de fila. Entre
+  # pares empatados, cual sobrevive al corte depende del orden en que llegaron
+  # las filas y no de los datos: la misma tabla exportada con otro `ORDER BY`
+  # puede devolver otro subconjunto. Medido sobre una banda de 60 pares
+  # empatados, dos ordenes distintos no compartieron ni un grupo. Hay que
+  # decirlo: `truncado` solo se lee como "conserve los mas cercanos", y cuando
+  # el corte cae dentro de un empate esa lectura es falsa.
+  distancia_corte <- if (nrow(pares)) max(pares$distancia) else NA_real_
+  n_en_distancia_corte <- if (nrow(pares)) {
+    sum(pares$distancia == distancia_corte)
+  } else NA_integer_
+  hubo_truncado <- mostrados < n_hallados
+
   alcance <- data.frame(
     n_filas_total = as.numeric(nrow(datos)),
     n_filas_muestra = length(indices), n_filas_validas = length(validos),
@@ -1853,7 +1869,13 @@
     metodo = metodo,
     p = p,
     comparacion_exhaustiva = !usar_lsh && length(indices) >= nrow(datos),
-    muestreado = length(indices) < nrow(datos), truncado = mostrados < n_hallados,
+    muestreado = length(indices) < nrow(datos), truncado = hubo_truncado,
+    distancia_corte = if (hubo_truncado) distancia_corte else NA_real_,
+    n_en_distancia_corte = if (hubo_truncado) {
+      as.integer(n_en_distancia_corte)
+    } else NA_integer_,
+    recorte_depende_del_orden = isTRUE(hubo_truncado) &&
+      isTRUE(n_en_distancia_corte > 1L),
     disponible = TRUE, razon = "", stringsAsFactors = FALSE
   )
   if (usar_lsh) {

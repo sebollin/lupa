@@ -464,7 +464,21 @@
     ) else "",
     "<h3>Pares detectados</h3>", .html_tabla(pares, max_filas),
     if (isTRUE(x$alcance$truncado[[1L]])) {
-      "<p class=\"nota\">La tabla de pares mostrados est\u00e1 truncada; el total hallado permanece en el alcance.</p>"
+      paste0(
+        "<p class=\"nota\">La tabla de pares mostrados est\u00e1 truncada; el ",
+        "total hallado permanece en el alcance.",
+        if (isTRUE(x$alcance$recorte_depende_del_orden[[1L]])) paste0(
+          " <strong>El corte cay\u00f3 dentro de un empate</strong>: ",
+          x$alcance$n_en_distancia_corte[[1L]], " de los pares conservados ",
+          "estan a la misma distancia (", x$alcance$distancia_corte[[1L]],
+          "), y el recorte desempata por posicion de fila. Entre pares igual de ",
+          "cercanos, cuales sobreviven depende del orden en que llegaron las ",
+          "filas, no de los datos: la misma tabla con otro orden puede devolver ",
+          "otro subconjunto. Para un resultado independiente del orden, suba ",
+          "<code>max_resultados</code> por encima del empate."
+        ) else "",
+        "</p>"
+      )
     } else "",
     "</section>"
   )
