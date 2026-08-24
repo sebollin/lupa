@@ -28,15 +28,15 @@ test_that("las diez granularidades del marco figuran implementadas", {
 })
 
 test_that("una organizacion es una declaracion y no necesita conexion", {
-  organismo <- organizacion("MIDES", c("padron", "tramites"))
+  organismo <- organizacion("Organismo A", c("padron", "tramites"))
   expect_s3_class(organismo, "organizacion_lupa")
-  expect_equal(organismo$nombre, "MIDES")
+  expect_equal(organismo$nombre, "Organismo A")
   expect_equal(organismo$declaradas, c("padron", "tramites"))
   expect_equal(organismo$n_declaradas, 2L)
   # `cli` escribe por la via de mensajes, igual que los demas `print()` del
   # paquete; capturar stdout devolveria vacio.
   impreso <- capture.output(print(organismo), type = "message")
-  expect_true(any(grepl("MIDES", impreso)))
+  expect_true(any(grepl("Organismo A", impreso)))
   expect_true(any(grepl("no infiere", impreso)))
 })
 
@@ -47,15 +47,15 @@ test_that("el nombre de la lista manda sobre el del objeto", {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", data.frame(a = 1:3))
   base <- coleccion(con, "t", nombre = "base_tecnica")
-  expect_equal(organizacion("MIDES", list(base))$declaradas, "base_tecnica")
+  expect_equal(organizacion("Organismo A", list(base))$declaradas, "base_tecnica")
   expect_equal(
-    organizacion("MIDES", list(padron_social = base))$declaradas,
+    organizacion("Organismo A", list(padron_social = base))$declaradas,
     "padron_social"
   )
 })
 
 test_that("agregar a organizacion respeta la frontera declarada", {
-  organismo <- organizacion("MIDES", c("padron", "tramites"))
+  organismo <- organizacion("Organismo A", c("padron", "tramites"))
   medidas <- .unir_medidas(
     .medida_coleccion("padron", 0.9), .medida_coleccion("tramites", 0.5)
   )
@@ -64,13 +64,13 @@ test_that("agregar a organizacion respeta la frontera declarada", {
     organizacion = organismo
   )
   expect_equal(agregado$resultado, 0.6)
-  expect_equal(agregado$entidad, "MIDES")
+  expect_equal(agregado$entidad, "Organismo A")
   expect_equal(agregado$granularidad, "organizacion")
   expect_equal(attr(agregado, "cobertura_organizacion")$cobertura, 1)
 })
 
 test_that("la cobertura de la organizacion declara lo que no entro al numero", {
-  organismo <- organizacion("MIDES", c("padron", "tramites", "encuestas"))
+  organismo <- organizacion("Organismo A", c("padron", "tramites", "encuestas"))
   medidas <- .unir_medidas(
     .medida_coleccion("padron", 0.9), .medida_coleccion("tramites", 0.5)
   )
@@ -87,21 +87,21 @@ test_that("la cobertura de la organizacion declara lo que no entro al numero", {
 })
 
 test_that("un conjunto de organizaciones exige objetos de organizacion()", {
-  mides <- organizacion("MIDES", c("padron", "tramites"))
-  mtss <- organizacion("MTSS", "planillas")
+  organismo_a <- organizacion("Organismo A", c("padron", "tramites"))
+  organismo_b <- organizacion("Organismo B", "planillas")
   parcial <- function(org, medidas, pesos) {
     agregar(medidas, "organizacion", "promedio_ponderado", pesos = pesos,
             organizacion = org)
   }
-  a <- parcial(mides, .unir_medidas(
+  a <- parcial(organismo_a, .unir_medidas(
     .medida_coleccion("padron", 0.9), .medida_coleccion("tramites", 0.5)
   ), c(0.5, 0.5))
-  b <- parcial(mtss, .medida_coleccion("planillas", 0.7), 1)
+  b <- parcial(organismo_b, .medida_coleccion("planillas", 0.7), 1)
   conjunto <- .unir_medidas(a, b)
 
   agregado <- agregar(
     conjunto, "conjuntoOrganizaciones", "promedio_ponderado",
-    pesos = c(0.6, 0.4), organizaciones = list(mides, mtss)
+    pesos = c(0.6, 0.4), organizaciones = list(organismo_a, organismo_b)
   )
   expect_equal(agregado$resultado, 0.7)
   expect_equal(agregado$granularidad, "conjuntoOrganizaciones")
@@ -111,7 +111,7 @@ test_that("un conjunto de organizaciones exige objetos de organizacion()", {
 
   expect_error(
     agregar(conjunto, "conjuntoOrganizaciones", "promedio_ponderado",
-            pesos = c(0.5, 0.5), organizaciones = list("MIDES", "MTSS")),
+            pesos = c(0.5, 0.5), organizaciones = list("Organismo A", "Organismo B")),
     "debe provenir de organizacion"
   )
 })
@@ -129,8 +129,8 @@ test_that("sin frontera declarada se niega y dice como declararla", {
   # El conjunto se alimenta de medidas de nivel organizacion: con medidas de
   # coleccion lo que falla primero es la transicion, que es otro error.
   de_organismos <- .unir_medidas(
-    .medida_coleccion("MIDES", 0.7, granularidad = "organizacion"),
-    .medida_coleccion("MTSS", 0.7, granularidad = "organizacion")
+    .medida_coleccion("Organismo A", 0.7, granularidad = "organizacion"),
+    .medida_coleccion("Organismo B", 0.7, granularidad = "organizacion")
   )
   expect_error(
     agregar(de_organismos, "conjuntoOrganizaciones", "promedio_ponderado",
@@ -140,7 +140,7 @@ test_that("sin frontera declarada se niega y dice como declararla", {
 })
 
 test_that("los dos niveles institucionales exigen pesos declarados", {
-  organismo <- organizacion("MIDES", c("padron", "tramites"))
+  organismo <- organizacion("Organismo A", c("padron", "tramites"))
   medidas <- .unir_medidas(
     .medida_coleccion("padron", 0.9), .medida_coleccion("tramites", 0.5)
   )
@@ -153,7 +153,7 @@ test_that("los dos niveles institucionales exigen pesos declarados", {
 })
 
 test_that("una medida de fuera de la frontera no entra al numero", {
-  organismo <- organizacion("MIDES", c("padron", "tramites"))
+  organismo <- organizacion("Organismo A", c("padron", "tramites"))
   medidas <- .unir_medidas(
     .medida_coleccion("padron", 0.9), .medida_coleccion("tramites", 0.5),
     .medida_coleccion("base_ajena", 1)
@@ -167,9 +167,9 @@ test_that("una medida de fuera de la frontera no entra al numero", {
 
 test_that("una declaracion que no identifica sus partes se rechaza", {
   expect_error(organizacion("", "padron"), "texto no vacio")
-  expect_error(organizacion("MIDES", character()), "lista no vacia")
-  expect_error(organizacion("MIDES", c("a", "a")), "repite nombres")
-  expect_error(organizacion("MIDES", list(1L)), "quedar identificado")
+  expect_error(organizacion("Organismo A", character()), "lista no vacia")
+  expect_error(organizacion("Organismo A", c("a", "a")), "repite nombres")
+  expect_error(organizacion("Organismo A", list(1L)), "quedar identificado")
 })
 
 test_that("la cobertura de una parte incompleta no se pierde al subir", {
@@ -202,7 +202,7 @@ test_that("la cobertura de una parte incompleta no se pierde al subir", {
 test_that("el nombre de lista y el del objeto identifican a la misma parte", {
   # `agregar()` escribe el nombre del objeto y el nivel de arriba compara contra
   # el declarado: sin alias, la composicion documentada no corria.
-  organismo <- organizacion("MIDES", c("padron", "tramites"))
+  organismo <- organizacion("Organismo A", c("padron", "tramites"))
   medida <- agregar(
     .unir_medidas(
       .medida_coleccion("padron", 0.9), .medida_coleccion("tramites", 0.7)
@@ -210,7 +210,7 @@ test_that("el nombre de lista y el del objeto identifican a la misma parte", {
     "organizacion", "promedio_ponderado", pesos = c(0.5, 0.5),
     organizacion = organismo
   )
-  expect_equal(medida$entidad, "MIDES")
+  expect_equal(medida$entidad, "Organismo A")
   agregado <- expect_no_error(agregar(
     medida, "conjuntoOrganizaciones", "promedio_ponderado", pesos = 1,
     organizaciones = list(Ministerio = organismo)
@@ -221,7 +221,7 @@ test_that("el nombre de lista y el del objeto identifican a la misma parte", {
 })
 
 test_that("una parte con peso cero entra a la cobertura y se declara", {
-  organismo <- organizacion("MIDES", c("padron", "tramites"))
+  organismo <- organizacion("Organismo A", c("padron", "tramites"))
   agregado <- agregar(
     .unir_medidas(
       .medida_coleccion("padron", 0.9), .medida_coleccion("tramites", 0.1)

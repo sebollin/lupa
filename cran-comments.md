@@ -14,6 +14,15 @@
 > `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
 > declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
 >
+> **EN REMEDICION.** Despues de `205ea84` cambiaron las fuentes cuatro veces
+> -la lectura de la clave primaria del catalogo, la declaracion de la semantica
+> de Oracle, la cobertura por grupo y la unificacion de las entidades HTML-, asi
+> que la matriz entera vuelve a correr sobre `59c363b`. **Las filas de abajo
+> describen `205ea84` y no esta revision**; quedan a la vista hasta que la
+> corrida nueva las reemplace, porque borrarlas dejaria la seccion sin decir
+> contra que se midio. Suite sobre `59c363b`: 16.019 comprobaciones, 0 fallos,
+> 0 errores, 0 avisos.
+>
 > **Estado de la matriz sobre `205ea84`:**
 >
 > | entorno | estado | de donde sale |

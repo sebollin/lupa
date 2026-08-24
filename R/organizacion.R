@@ -112,7 +112,7 @@
 #' @seealso [agregar()], [coleccion()], [granularidades()]
 #'
 #' @examples
-#' organismo <- organizacion("MIDES", c("padron", "tramites"))
+#' organismo <- organizacion("Organismo A", c("padron", "tramites"))
 #' organismo
 #' organismo$declaradas
 organizacion <- function(nombre, colecciones) {

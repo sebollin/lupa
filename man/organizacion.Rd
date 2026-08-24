@@ -35,7 +35,7 @@ pero una organización es un enunciado \emph{sobre} colecciones, y puede reunir
 colecciones medidas en momentos distintos o contra motores distintos.
 }
 \examples{
-organismo <- organizacion("MIDES", c("padron", "tramites"))
+organismo <- organizacion("Organismo A", c("padron", "tramites"))
 organismo
 organismo$declaradas
 }
