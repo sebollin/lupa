@@ -324,6 +324,14 @@ conservados la comparten— y <code>corte_en_empate</code>, que <strong>no</stro
 otro nombre: vale <code>FALSE</code> cuando el corte cae en una distancia unica. Si vale
 <code>TRUE</code>, subir <code>max_resultados</code> por encima del empate devuelve todos los pares
 de esa distancia.</p>
+<p><strong>Queda un limite que ningun orden puede sacar</strong>: si varias filas tienen el
+mismo valor en la columna comparada, sus pares empatan tambien en el rango, y
+ahi el desempate cae en la posicion. Medido: con cuatro filas y solo dos
+valores distintos, el conjunto de <strong>pares de valores</strong> es identico en los cinco
+ordenes, pero <strong>cuales instancias de fila</strong> los representan cambia. Es
+irreducible: dos filas con el mismo valor son indistinguibles en esa columna, y
+su unica identidad es la posicion, que es justamente lo que varia al reordenar.
+Si importa que instancia se informa, hace falta una clave que las distinga.</p>
 <p>En el camino LSH el conjunto de <strong>candidatos</strong> depende del orden de las filas,
 porque el vocabulario de q-gramas se numera por orden de primera aparicion y esa
 numeracion alimenta las firmas. Eso ocurre dentro de la garantia declarada en

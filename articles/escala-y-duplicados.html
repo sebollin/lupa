@@ -258,7 +258,7 @@ colisión.</p>
 <span>  max_resultados <span class="op">=</span> <span class="fl">100</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;</span></span>
-<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 53.844 pares en</span></span>
+<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 26.572 pares en</span></span>
 <span><span class="co">#&gt; 0,051 s.</span></span>
 <span><span class="va">exacto</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span>, <span class="st">"igualo_normalizar"</span></span>
@@ -326,7 +326,7 @@ siendo exacta; sólo cambia cuánta memoria se usa a la vez.</p>
 <span>  <span class="st">"directorio"</span>, <span class="st">"n_parciales"</span>, <span class="st">"bytes_totales"</span>, <span class="st">"reanudable"</span>, <span class="st">"perdida"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $directorio</span></span>
-<span><span class="co">#&gt; [1] "/tmp/Rtmpmwd33Q/lupa-lotes-21d84621d47a/lupa-lotes-21d813031f1e"</span></span>
+<span><span class="co">#&gt; [1] "/tmp/Rtmp48YRxT/lupa-lotes-2322665e69b1/lupa-lotes-23225851f615"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $n_parciales</span></span>
 <span><span class="co">#&gt; [1] 6</span></span>
@@ -564,6 +564,17 @@ otro nombre</strong>: cuando el corte cae en una distancia única, da
 el número de grupos que ve es un subconjunto de los que había —estable y
 reproducible, pero subconjunto—, y subir <code>max_resultados</code> por
 encima del empate los trae a todos.</p>
+<p>Se mide contra <strong>lo que el recorte descartó</strong>, no contra
+lo que quedó: si en el borde sobrevive un solo par, contar los
+conservados daría 1 y la señal diría que no hubo empate, cuando puede
+haber tirado varios a esa misma distancia.</p>
+<p>Y hay un límite que ningún orden saca: si varias filas comparten el
+valor comparado, el conjunto de <strong>pares de valores</strong> sale
+idéntico en cualquier orden, pero <strong>cuáles filas</strong> los
+representan cambia. Esas filas son indistinguibles en la columna que se
+compara, así que su única identidad es la posición —justo lo que varía
+al reordenar—. Si importa qué instancia se informa, hace falta una clave
+que las distinga.</p>
 </div>
 <div class="section level3">
 <h3 id="y-una-advertencia-sobre-el-camino-lsh">Y una advertencia sobre el camino LSH<a class="anchor" aria-label="anchor" href="#y-una-advertencia-sobre-el-camino-lsh"></a>

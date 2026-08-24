@@ -273,6 +273,16 @@ afuera pares igual de cercanos, asi que se declara. `alcance` publica
 subir `max_resultados` por encima del empate devuelve todos los pares de
 esa distancia.
 
+**Queda un limite que ningun orden puede sacar**: si varias filas tienen
+el mismo valor en la columna comparada, sus pares empatan tambien en el
+rango, y ahi el desempate cae en la posicion. Medido: con cuatro filas y
+solo dos valores distintos, el conjunto de **pares de valores** es
+identico en los cinco ordenes, pero **cuales instancias de fila** los
+representan cambia. Es irreducible: dos filas con el mismo valor son
+indistinguibles en esa columna, y su unica identidad es la posicion, que
+es justamente lo que varia al reordenar. Si importa que instancia se
+informa, hace falta una clave que las distinga.
+
 En el camino LSH el conjunto de **candidatos** depende del orden de las
 filas, porque el vocabulario de q-gramas se numera por orden de primera
 aparicion y esa numeracion alimenta las firmas. Eso ocurre dentro de la

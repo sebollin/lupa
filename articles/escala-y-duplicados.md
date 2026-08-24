@@ -143,7 +143,7 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 53.844 pares en
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 26.572 pares en
 #> 0,051 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
@@ -218,7 +218,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/Rtmpmwd33Q/lupa-lotes-21d84621d47a/lupa-lotes-21d813031f1e"
+#> [1] "/tmp/Rtmp48YRxT/lupa-lotes-2322665e69b1/lupa-lotes-23225851f615"
 #> 
 #> $n_parciales
 #> [1] 6
@@ -382,6 +382,18 @@ cae en una distancia única, da `FALSE` aunque haya habido recorte. Si da
 `TRUE`, el número de grupos que ve es un subconjunto de los que había
 —estable y reproducible, pero subconjunto—, y subir `max_resultados` por
 encima del empate los trae a todos.
+
+Se mide contra **lo que el recorte descartó**, no contra lo que quedó:
+si en el borde sobrevive un solo par, contar los conservados daría 1 y
+la señal diría que no hubo empate, cuando puede haber tirado varios a
+esa misma distancia.
+
+Y hay un límite que ningún orden saca: si varias filas comparten el
+valor comparado, el conjunto de **pares de valores** sale idéntico en
+cualquier orden, pero **cuáles filas** los representan cambia. Esas
+filas son indistinguibles en la columna que se compara, así que su única
+identidad es la posición —justo lo que varía al reordenar—. Si importa
+qué instancia se informa, hace falta una clave que las distinga.
 
 ### Y una advertencia sobre el camino LSH
 
