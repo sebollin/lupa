@@ -2,6 +2,30 @@
 
 ## lupa 0.1.0
 
+### El recorte de duplicados dice cuándo su resultado depende del orden
+
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+recorta con `max_resultados` ordenando por distancia, y entre pares
+empatados desempata por posición de fila. Cuando el corte cae dentro de
+una banda de distancias iguales, entonces, **cuáles pares sobreviven
+depende del orden en que llegaron las filas y no de los datos**: la
+misma tabla exportada con otro `ORDER BY` puede devolver otro
+subconjunto.
+
+Medido sobre 60 grupos cuyos pares internos comparten exactamente la
+misma distancia, con el corte en 30: cinco órdenes distintos —natural,
+inverso y tres barajados— devuelven 30 grupos cada uno y **no comparten
+ni uno solo**.
+
+`alcance` gana tres campos que lo declaran: `distancia_corte`,
+`n_en_distancia_corte` y `recorte_depende_del_orden`. El informe HTML lo
+dice con todas las letras y explica la salida: subir `max_resultados`
+por encima del empate devuelve un resultado independiente del orden.
+
+Hasta ahora el único aviso era `truncado`, que se lee como «conservé los
+más cercanos» — y cuando el corte cae dentro de un empate esa lectura es
+falsa: los conservados no son los mejores, son los de índice más bajo.
+
 ### El modo aproximado dice qué métrica aproximó, y con qué función
 
 `perfilar_dbi(modo = "aproximado")` sondea las funciones aproximadas
