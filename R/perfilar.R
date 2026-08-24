@@ -1035,6 +1035,7 @@ perfilar <- function(datos,
     if (is.na(n_filas_duplicadas)) 0L else n_filas_duplicadas,
     if (is.na(n_filas_en_grupos_duplicados)) 0L else
       n_filas_en_grupos_duplicados,
+    clave_declarada = clave,
     relaciones_orden = relaciones_orden$hallazgos,
     relaciones_aritmeticas = relaciones_aritmeticas$hallazgos,
     normalizacion = normalizacion_resuelta,

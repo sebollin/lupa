@@ -449,6 +449,16 @@ agregándolo a la lista—. Un código postal `9999` repetido treinta veces no e
 extremo en su columna; un monto real de `9999` no se repite; un año `1999` no
 tiene esa forma.
 
+**La unicidad no se adivina: se pregunta.** Si se declara la clave con
+`perfilar(clave = ...)`, que se repita es un hallazgo de severidad `error` con
+las filas que repiten, no un aviso de consola. Y para no dejar al usuario ante
+una casilla en blanco, `sugerir_clave()` ordena las columnas candidatas por tres
+señales que publica por separado —si identifica cada fila, si no tiene ausentes,
+y cuánto se parece su nombre al de una clave— y `elegir_clave()` las ofrece
+numeradas con una opción para escribir otra. Ordenar no es decidir: una columna
+única puede ser una clave o una magnitud que no repite, y esa diferencia no está
+en los datos.
+
 Donde no hay señal que discrimine, `lupa` habla. La cardinalidad alta de una
 columna de texto se informa siempre, porque el largo de los valores no distingue
 un catálogo de la prosa —falla en los dos sentidos, medido— y el hallazgo no

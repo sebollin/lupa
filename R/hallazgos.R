@@ -879,8 +879,8 @@
                                                 min_participacion_dominante = 0.5,
                                                 excluir = NULL,
                                                 detectar_variantes_equifrecuentes = FALSE,
-                                                 max_asimetria_equifrecuente = 2,
-                                                 max_trabajo = 2e10) {
+                                                max_asimetria_equifrecuente = 2,
+                                                max_trabajo = 2e10) {
   if (!is.numeric(max_trabajo) || length(max_trabajo) != 1L ||
       is.na(max_trabajo) || max_trabajo <= 0 ||
       (!is.infinite(max_trabajo) && max_trabajo != floor(max_trabajo))) {
@@ -2507,6 +2507,18 @@
       indices, "completo", limite, clave = clave, datos = datos
     ))
   }
+  # Un hallazgo sobre la clave sin las filas que repiten obliga a buscarlas a
+  # mano, que es justo lo que la trazabilidad existe para evitar.
+  if (tipo == "clave_no_unica") {
+    if (is.null(clave) || !length(clave) || !all(clave %in% names(datos))) {
+      return(.trazabilidad_vacia(limite = limite))
+    }
+    valores <- datos[, clave, drop = FALSE]
+    indices <- which(duplicated(valores) | duplicated(valores, fromLast = TRUE))
+    return(.trazabilidad_indices(
+      indices, "completo", limite, clave = clave, datos = datos
+    ))
+  }
   if (tipo == "relacion_orden_columnas") {
     nombres_par <- strsplit(
       as.character(hallazgo$columna[[1L]]), ",", fixed = TRUE
@@ -4026,7 +4038,8 @@
                                  min_participacion_dominante = 0.5,
                                  detectar_variantes_equifrecuentes = FALSE,
                                  max_asimetria_equifrecuente = 2,
-                                 max_trabajo = 2e10) {
+                                 max_trabajo = 2e10,
+                                 clave_declarada = NULL) {
   hallazgos_columnas <- .hallazgos_columnas(
     resultados, columnas, umbral_alta_cardinalidad,
     umbral_faltantes_sospechoso, umbral_faltantes_error,
@@ -4057,6 +4070,43 @@
   }
   if (length(hallazgos_vocabulario)) {
     hallazgos <- c(hallazgos, hallazgos_vocabulario)
+  }
+  # Una clave declarada que se repite es la comprobacion mas directa que hay de
+  # unicidad, y se informaba con `cli_warn` -un aviso que se lo lleva la
+  # consola-. No entraba en la tabla de hallazgos, asi que no tenia severidad, no
+  # viajaba al informe ni al plan de limpieza, y no decia que filas repiten.
+  # Que el usuario declare la clave es justamente el caso en que el paquete
+  # **sabe** cual es: ahi no hay nada que inferir, solo que contar.
+  if (!is.null(clave_declarada) && length(clave_declarada) &&
+        all(clave_declarada %in% names(datos)) && nrow(datos)) {
+    valores_clave <- datos[, clave_declarada, drop = FALSE]
+    repetidas <- duplicated(valores_clave) | duplicated(valores_clave, fromLast = TRUE)
+    n_repetidas <- sum(repetidas)
+    if (n_repetidas > 0L) {
+      hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
+        NA_character_, "clave_no_unica", "error",
+        paste0(
+          "La clave declarada no identifica una fila: ",
+          if (length(clave_declarada) == 1L) {
+            paste0("la columna `", clave_declarada, "`")
+          } else {
+            paste0("las columnas ", paste0("`", clave_declarada, "`", collapse = ", "))
+          },
+          " repite valores."
+        ),
+        paste0(
+          n_repetidas, " filas en ",
+          nrow(unique(valores_clave[repetidas, , drop = FALSE])),
+          " valores repetidos"
+        ),
+        paste(
+          "Revisar si sobra una columna en la clave, si hay duplicados de carga",
+          "o si la clave real es otra. La trazabilidad sigue localizando por",
+          "ella, pero un valor puede senalar mas de una fila."
+        ),
+        nrow(datos), n_repetidas, "fila"
+      )
+    }
   }
   if (n_filas_duplicadas > 0L) {
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(

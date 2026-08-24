@@ -43,29 +43,6 @@
 #'   c("2020-01-31", "2021-12-01", "31/01/2020"),
 #'   expandir = TRUE
 #' )
-# La misma generalizacion se escribia en tres lugares -aqui, en el detector de
-# patrones raros y en el resumen de columnas- y no era solo repeticion: las tres
-# TIENEN que coincidir o el paquete miente. `.indices_patron_raro()` cierra
-# comparando sus patrones contra los que produjo `descubrir_patrones()`, asi que
-# si una de las copias cambiaba, el `%in%` no encontraba nada, el hallazgo se
-# publicaba igual y su trazabilidad salia vacia **sin ningun error**.
-.generalizar_a_patron <- function(x, distinguir_mayusculas = TRUE,
-                                  expandir = FALSE) {
-  x <- gsub("[[:digit:]]", "9", x, perl = TRUE)
-  if (isTRUE(distinguir_mayusculas)) {
-    x <- gsub("[[:lower:]]", "a", x, perl = TRUE)
-    x <- gsub("[[:upper:]]", "A", x, perl = TRUE)
-  } else {
-    x <- gsub("[[:alpha:]]", "a", x, perl = TRUE)
-  }
-  if (!isTRUE(expandir)) {
-    x <- gsub("9{2,}", "9+", x, perl = TRUE)
-    x <- gsub("a{2,}", "a+", x, perl = TRUE)
-    x <- gsub("A{2,}", "A+", x, perl = TRUE)
-  }
-  x
-}
-
 descubrir_patrones <- function(x,
                                distinguir_mayusculas = TRUE,
                                expandir = FALSE,
@@ -191,4 +168,27 @@ descubrir_patrones <- function(x,
     n_filas_patrones_no_dominantes_excluidos
   attr(resultado, "resumen_patrones") <- resumen
   resultado
+}
+
+# La misma generalizacion se escribia en tres lugares -aqui, en el detector de
+# patrones raros y en el resumen de columnas- y no era solo repeticion: las tres
+# TIENEN que coincidir o el paquete miente. `.indices_patron_raro()` cierra
+# comparando sus patrones contra los que produjo `descubrir_patrones()`, asi que
+# si una de las copias cambiaba, el `%in%` no encontraba nada, el hallazgo se
+# publicaba igual y su trazabilidad salia vacia **sin ningun error**.
+.generalizar_a_patron <- function(x, distinguir_mayusculas = TRUE,
+                                  expandir = FALSE) {
+  x <- gsub("[[:digit:]]", "9", x, perl = TRUE)
+  if (isTRUE(distinguir_mayusculas)) {
+    x <- gsub("[[:lower:]]", "a", x, perl = TRUE)
+    x <- gsub("[[:upper:]]", "A", x, perl = TRUE)
+  } else {
+    x <- gsub("[[:alpha:]]", "a", x, perl = TRUE)
+  }
+  if (!isTRUE(expandir)) {
+    x <- gsub("9{2,}", "9+", x, perl = TRUE)
+    x <- gsub("a{2,}", "a+", x, perl = TRUE)
+    x <- gsub("A{2,}", "A+", x, perl = TRUE)
+  }
+  x
 }

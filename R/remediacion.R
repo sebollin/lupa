@@ -993,6 +993,19 @@ planificar_limpieza <- function(perfil, datos = NULL,
     )
   )
   class(resultado) <- c("plan_limpieza", "data.frame")
+  # El plan se arma desde `perfil$hallazgos`, asi que por construccion no puede
+  # tener una accion para un diagnostico que no se evaluo. Quien trabaja desde
+  # el plan no tenia forma de enterarse de que uno se declino: leia tres
+  # acciones y concluia que lo demas estaba bien, cuando lo que habia pasado es
+  # que sobre esa columna no se miro. La cobertura viaja con el plan para que
+  # ese silencio sea visible desde la misma puerta donde se decide que limpiar.
+  attr(resultado, "cobertura_diagnosticos") <- if (
+    inherits(perfil$cobertura_diagnosticos, "data.frame")
+  ) {
+    perfil$cobertura_diagnosticos
+  } else {
+    .cobertura_diagnosticos_vacia()
+  }
   resultado
 }
 
@@ -2196,6 +2209,25 @@ print.plan_limpieza <- function(x, ...) {
     cli::cli_alert_danger(paste(
       n_eliminatorias,
       "acciones eliminatorias activas; requieren un segundo consentimiento"
+    ))
+  }
+  # Lo que no se evaluo se dice aca, no solo en el perfil. Un plan que enumera
+  # acciones sin avisar que sobre tal columna no se miro invita a leerlo como si
+  # lo demas estuviera bien.
+  cobertura <- attr(x, "cobertura_diagnosticos", exact = TRUE)
+  if (inherits(cobertura, "data.frame") && nrow(cobertura)) {
+    columnas <- unique(as.character(cobertura$columna))
+    cli::cli_alert_warning(paste0(
+      nrow(cobertura),
+      if (nrow(cobertura) == 1L) {
+        " diagn\u00f3stico no se evalu\u00f3"
+      } else {
+        " diagn\u00f3sticos no se evaluaron"
+      },
+      " y por eso no hay acci\u00f3n para ellos, en: ",
+      paste(columnas, collapse = ", "),
+      ". El motivo medido de cada uno esta en ",
+      "`attr(plan, \"cobertura_diagnosticos\")`."
     ))
   }
   vista <- x[c(

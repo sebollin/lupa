@@ -1,5 +1,33 @@
 # lupa 0.1.0
 
+## Lo que no se evaluo se dice donde se decide, y la clave se pregunta
+
+- **El plan de limpieza dice lo que no se evaluo.** El plan se arma desde los
+  hallazgos, asi que por construccion no puede tener una accion para un
+  diagnostico que se declino. Quien trabajaba desde el plan leia tres acciones y
+  concluia que lo demas estaba bien, cuando lo que habia pasado es que sobre esa
+  columna no se miro. Ahora la cobertura viaja con el plan y se anuncia al
+  imprimirlo, con el motivo medido de cada diagnostico.
+
+- **Una clave declarada que repite es un hallazgo, no un aviso.** Se informaba
+  con `cli_warn`, que no tiene severidad, no viaja al informe ni al plan y no
+  dice que filas repiten. Ahora es un hallazgo de severidad `error` con la
+  trazabilidad a las filas.
+
+- **`sugerir_clave()` y `elegir_clave()`.** Adivinar si una columna es clave
+  mirando solo sus valores no funciona -un monto tambien es casi unico-.
+  Preguntar si funciona, y preguntar bien es ofrecer las candidatas ordenadas en
+  vez de una casilla en blanco. El orden combina tres senales que se publican por
+  separado, para poder discutirlo en vez de aceptarlo: si identifica cada fila,
+  si no tiene ausentes, y cuanto se parece su nombre al de una clave. `Otra`
+  permite escribir una que no este en la lista, o varias para una clave
+  compuesta. En sesion no interactiva no pregunta ni elige sola.
+
+  Se distinguen dos motivos que antes se confundian: una columna que **repite**
+  tiene duplicados de carga o la clave es otra; una que **no esta en todas las
+  filas** esta incompleta. Piden arreglos distintos.
+
+
 ## Dos arreglos medidos y retirados, y los limites que quedan declarados
 
 Se probaron dos reglas para cerrar dos falsos hallazgos conocidos. Las dos
