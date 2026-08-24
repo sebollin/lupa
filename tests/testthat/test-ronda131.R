@@ -195,3 +195,68 @@ test_that("los cuatro caminos de acumulacion resisten la permutacion", {
     )
   }
 })
+
+test_that("el empate en el corte se mide contra lo descartado, no contra lo que quedo", {
+  skip_if_not_installed("stringdist")
+  # Contar cuantos de los CONSERVADOS comparten la distancia del borde no
+  # alcanza: si en el borde sobrevive uno solo, el conteo da 1 y la senal caeria
+  # en FALSE aunque se hubieran descartado pares a esa misma distancia. Con
+  # cuatro filas y `max_resultados = 1` pasaba exactamente eso.
+  d <- data.frame(
+    nombre = c(
+      "ALFA SOCIEDAD ANONIMA", "ALFA SOCIEDAD ANONMA",
+      "BETA SOCIEDAD ANONIMA", "BETA SOCIEDAD ANONMA"
+    ),
+    stringsAsFactors = FALSE
+  )
+  todos <- detectar_duplicados_aproximados(
+    d, umbral = 0.10, max_resultados = Inf, proteger_datos_personales = FALSE
+  )
+  a <- detectar_duplicados_aproximados(
+    d, umbral = 0.10, max_resultados = 1L, proteger_datos_personales = FALSE
+  )$alcance
+
+  expect_true(a$truncado)
+  # Queda UN solo par conservado en el borde: el conteo por conservados diria 1.
+  expect_equal(a$n_en_distancia_corte, 1L)
+  # Y sin embargo se descarto otro a esa misma distancia, asi que el corte SI
+  # partio un empate.
+  descartados_empatados <- sum(
+    round(todos$pares$distancia, 10L) == round(a$distancia_corte, 10L)
+  ) - a$n_en_distancia_corte
+  expect_gt(descartados_empatados, 0L)
+  expect_true(a$corte_en_empate)
+})
+
+test_that("con valores repetidos, los pares de VALORES son estables y las filas no", {
+  skip_if_not_installed("stringdist")
+  # El limite que ningun orden saca: si varias filas comparten el valor
+  # comparado, sus pares empatan tambien en el rango y el desempate cae en la
+  # posicion. No es arreglable -esas filas son indistinguibles en esa columna- y
+  # por eso se declara en la documentacion en vez de perseguirse.
+  d0 <- data.frame(
+    nombre = c("alfa", "beta", "alfa", "beta"), id = 1:4,
+    stringsAsFactors = FALSE
+  )
+  ordenes <- .ordenes_de_prueba(4L)
+  mirar <- function(orden, como) {
+    d <- d0[orden, , drop = FALSE]
+    rownames(d) <- NULL
+    r <- detectar_duplicados_aproximados(
+      d["nombre"], umbral = 0.5, max_resultados = 3L,
+      proteger_datos_personales = FALSE
+    )
+    a <- if (identical(como, "filas")) d$id[r$pares$fila_1] else d$nombre[r$pares$fila_1]
+    b <- if (identical(como, "filas")) d$id[r$pares$fila_2] else d$nombre[r$pares$fila_2]
+    sort(paste(pmin(a, b), pmax(a, b), sep = "~"))
+  }
+  por_valor <- lapply(ordenes, mirar, como = "valores")
+  por_fila <- lapply(ordenes, mirar, como = "filas")
+
+  # Lo que el paquete si garantiza.
+  for (v in por_valor) expect_equal(v, por_valor[[1L]])
+  # Y lo que no, escrito para que no se lea como garantia.
+  expect_false(all(vapply(
+    por_fila, function(x) identical(x, por_fila[[1L]]), logical(1L)
+  )))
+})

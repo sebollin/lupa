@@ -332,6 +332,17 @@ distancia única, da `FALSE` aunque haya habido recorte. Si da `TRUE`, el númer
 grupos que ve es un subconjunto de los que había —estable y reproducible, pero
 subconjunto—, y subir `max_resultados` por encima del empate los trae a todos.
 
+Se mide contra **lo que el recorte descartó**, no contra lo que quedó: si en el
+borde sobrevive un solo par, contar los conservados daría 1 y la señal diría que
+no hubo empate, cuando puede haber tirado varios a esa misma distancia.
+
+Y hay un límite que ningún orden saca: si varias filas comparten el valor
+comparado, el conjunto de **pares de valores** sale idéntico en cualquier orden,
+pero **cuáles filas** los representan cambia. Esas filas son indistinguibles en la
+columna que se compara, así que su única identidad es la posición —justo lo que
+varía al reordenar—. Si importa qué instancia se informa, hace falta una clave que
+las distinga.
+
 ### Y una advertencia sobre el camino LSH
 
 Con más de diez mil valores distintos entra MinHash/LSH, y ahí el **conjunto de

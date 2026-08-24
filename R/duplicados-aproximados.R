@@ -297,6 +297,12 @@
       fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
       stringsAsFactors = FALSE
     ),
+    # La distancia mas cercana que el recorte llego a tirar. Con eso se sabe si
+    # el corte cayo dentro de un empate: si lo mas cercano descartado esta a la
+    # misma distancia que el borde, quedaron afuera pares igual de cercanos.
+    # Contar solo entre los conservados no alcanza -si sobrevive uno solo en el
+    # borde, el conteo da 1 y la senal caeria en FALSE con descartes empatados-.
+    distancia_minima_descartada = Inf,
     n_hallados = 0, n_exactos = 0, n_exactos_normalizados = 0,
     n_aproximados = 0,
     max_resultados = max_resultados, lotes = list(),
@@ -436,6 +442,14 @@
   acumulador$iguales <- ordenados$iguales
   limite <- acumulador$max_resultados
   if (!is.infinite(limite) && nrow(acumulador$pares) > limite) {
+    descartadas <- acumulador$pares$distancia[
+      seq.int(limite + 1L, nrow(acumulador$pares))
+    ]
+    if (length(descartadas)) {
+      acumulador$distancia_minima_descartada <- min(
+        acumulador$distancia_minima_descartada, min(descartadas)
+      )
+    }
     acumulador$pares <- acumulador$pares[seq_len(limite), , drop = FALSE]
     acumulador$iguales <- acumulador$iguales[seq_len(limite)]
   }
@@ -468,7 +482,8 @@
     }
     return(list(
       pares = salida$pares, iguales = salida$iguales,
-      n_hallados = acumulador$n_hallados,
+      distancia_minima_descartada = acumulador$distancia_minima_descartada,
+    n_hallados = acumulador$n_hallados,
       n_exactos = acumulador$n_exactos,
       n_exactos_normalizados = acumulador$n_exactos_normalizados,
       n_aproximados = acumulador$n_aproximados,
@@ -526,6 +541,7 @@
   iguales_acumulados <- acumulados$iguales
   list(
     pares = pares_acumulados, iguales = iguales_acumulados,
+    distancia_minima_descartada = acumulador$distancia_minima_descartada,
     n_hallados = acumulador$n_hallados,
     n_exactos = acumulador$n_exactos,
     n_exactos_normalizados = acumulador$n_exactos_normalizados,
@@ -659,6 +675,7 @@
   }
   list(
     pares = pares_finales, iguales = acumulados$iguales,
+    distancia_minima_descartada = acumulador$distancia_minima_descartada,
     n_hallados = n_hallados, n_exactos = n_exactos,
     n_exactos_normalizados = n_exactos_normalizados,
     n_aproximados = n_aproximados, n_bloques = n_bloques,
@@ -1240,6 +1257,7 @@
   list(
     pares = acumulador$pares,
     iguales = acumulados$iguales,
+    distancia_minima_descartada = acumulador$distancia_minima_descartada,
     n_hallados = acumulador$n_hallados,
     n_exactos = acumulador$n_exactos,
     n_exactos_normalizados = acumulador$n_exactos_normalizados,
@@ -1747,7 +1765,8 @@
       bloques <- list(
         pares = acumulados_bloqueados$pares,
         iguales = acumulados_bloqueados$iguales,
-        n_hallados = acumulador$n_hallados,
+        distancia_minima_descartada = acumulador$distancia_minima_descartada,
+    n_hallados = acumulador$n_hallados,
         n_exactos = acumulador$n_exactos,
         n_exactos_normalizados = acumulador$n_exactos_normalizados,
         n_aproximados = acumulador$n_aproximados,
@@ -1757,6 +1776,9 @@
     estimacion_resultado <- NULL
   }
   n_hallados <- bloques$n_hallados
+  distancia_minima_descartada <- if (
+    is.null(bloques$distancia_minima_descartada)
+  ) Inf else bloques$distancia_minima_descartada
   n_exactos <- bloques$n_exactos
   n_exactos_normalizados <- bloques$n_exactos_normalizados
   n_aproximados <- bloques$n_aproximados
@@ -1868,13 +1890,19 @@
   hallazgos$severidad <- factor(
     hallazgos$severidad, levels = c("ok", "sospechoso", "error"), ordered = TRUE
   )
-  # El recorte ordena por distancia y desempata por posicion de fila. Entre
-  # pares empatados, cual sobrevive al corte depende del orden en que llegaron
-  # las filas y no de los datos: la misma tabla exportada con otro `ORDER BY`
-  # puede devolver otro subconjunto. Medido sobre una banda de 60 pares
-  # empatados, dos ordenes distintos no compartieron ni un grupo. Hay que
-  # decirlo: `truncado` solo se lee como "conserve los mas cercanos", y cuando
-  # el corte cae dentro de un empate esa lectura es falsa.
+  # `truncado` solo se lee como "conserve los mas cercanos", y cuando el corte
+  # cae dentro de un empate esa lectura es falsa: quedaron afuera pares igual de
+  # cercanos que los conservados.
+  #
+  # Contar cuantos de los CONSERVADOS comparten la distancia del borde no
+  # alcanza para saberlo, y por eso no se usa para decidir: si en el borde
+  # sobrevive uno solo, el conteo da 1 y la senal caeria en FALSE aunque se
+  # hubieran descartado pares a esa misma distancia. Reproducido con cuatro
+  # filas y `max_resultados = 1`.
+  #
+  # Lo que si lo decide es la distancia mas cercana que el recorte llego a
+  # tirar: si coincide con la del borde, hubo empate partido. El acumulador la
+  # registra en cada recorte.
   distancia_corte <- if (nrow(pares)) max(pares$distancia) else NA_real_
   n_en_distancia_corte <- if (nrow(pares)) {
     sum(pares$distancia == distancia_corte)
@@ -1914,7 +1942,7 @@
       as.integer(n_en_distancia_corte)
     } else NA_integer_,
     corte_en_empate = isTRUE(hubo_truncado) &&
-      isTRUE(n_en_distancia_corte > 1L),
+      isTRUE(distancia_minima_descartada == distancia_corte),
     disponible = TRUE, razon = "", stringsAsFactors = FALSE
   )
   if (usar_lsh) {
@@ -2002,6 +2030,15 @@
 #' otro nombre: vale `FALSE` cuando el corte cae en una distancia unica. Si vale
 #' `TRUE`, subir `max_resultados` por encima del empate devuelve todos los pares
 #' de esa distancia.
+#'
+#' **Queda un limite que ningun orden puede sacar**: si varias filas tienen el
+#' mismo valor en la columna comparada, sus pares empatan tambien en el rango, y
+#' ahi el desempate cae en la posicion. Medido: con cuatro filas y solo dos
+#' valores distintos, el conjunto de **pares de valores** es identico en los cinco
+#' ordenes, pero **cuales instancias de fila** los representan cambia. Es
+#' irreducible: dos filas con el mismo valor son indistinguibles en esa columna, y
+#' su unica identidad es la posicion, que es justamente lo que varia al reordenar.
+#' Si importa que instancia se informa, hace falta una clave que las distinga.
 #'
 #' En el camino LSH el conjunto de **candidatos** depende del orden de las filas,
 #' porque el vocabulario de q-gramas se numera por orden de primera aparicion y esa

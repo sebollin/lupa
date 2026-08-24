@@ -26,6 +26,17 @@ igual de cercanos— se declara. `alcance` gana `distancia_corte`,
 `n_en_distancia_corte` y `corte_en_empate`, y ese último no es `truncado` con otro
 nombre: da `FALSE` cuando el corte cae en una distancia única.
 
+`corte_en_empate` se mide **contra lo que el recorte descartó**, no contra lo que
+quedó. Contar cuántos de los conservados comparten la distancia del borde no
+alcanza: si en el borde sobrevive uno solo, el conteo da 1 y la señal caería en
+`FALSE` aunque se hubieran tirado pares a esa misma distancia. Pasaba con cuatro
+filas y `max_resultados = 1`.
+
+Y queda un límite que ningún orden saca: si varias filas comparten el valor
+comparado, el conjunto de **pares de valores** es idéntico en cualquier orden,
+pero **cuáles instancias de fila** los representan cambia. Es irreducible —esas
+filas son indistinguibles en esa columna— y está declarado en la documentación.
+
 ## El modo aproximado dice qué métrica aproximó, y con qué función
 
 `perfilar_dbi(modo = "aproximado")` sondea las funciones aproximadas nativas del
