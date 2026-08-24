@@ -1,5 +1,49 @@
 # lupa 0.1.0
 
+## Tres casos donde una regla decidia con la senal equivocada
+
+Las tres reglas calculaban bien. Lo que fallaba era **cual senal decidia**, y en
+los tres casos la senal que faltaba se encontro midiendo y no razonando.
+
+- **Benford sobre una clave primaria dispersa.** Una clave repartida en un rango
+  ancho recibia `desviacion_benford` y no recibia `posible_identificador`: se le
+  afirmaba un problema de calidad a una columna que no tiene distribucion que
+  analizar.
+
+  La densidad no podia arreglarlo, y ese es el dato que obligo a buscar otra
+  senal: una clave de 1 a 2.300.000 tiene densidad 0,0043, **mas dispersa que un
+  monto** (0,0096). No hay umbral sobre ese eje que los separe.
+
+  La unicidad a secas tampoco alcanza, porque un monto es casi unico y hasta un
+  centenar de valores es perfectamente unico. Lo que separa es si el azar
+  explica esa unicidad: con `n` valores en `P` posiciones el azar produce del
+  orden de `n^2/(2P)` coincidencias, y que no haya ninguna cuando se esperaban
+  muchas significa que algo las prohibe. Medido sobre nueve columnas: los montos
+  unicos esperan 0,08 coincidencias y las claves dispersas de 21 a 834.
+
+  Una cuarta condicion separa los dos casos que se parecen por unicos y por
+  irregulares: si el hueco mas grande explica casi todas las posiciones
+  faltantes hay **un solo** agujero, que es un valor fuera de escala y no
+  dispersion. Asi `1..1000` mas un `2000` sigue informando el `2000`.
+
+- **Un tramo de codigos confundido con un centinela.** Con codigos concentrados
+  abajo y un tramo alto se marcaba `222` y no `221` ni `223`, teniendo los tres
+  la misma frecuencia y la misma lejania. La unica diferencia era como se
+  escribe el numero.
+
+  La forma de digito repetido es la mas debil de las tres senales, y decidia
+  sola en cuanto el valor era extremo. La senal que faltaba es que **un centinela
+  esta solo**: nadie escribe `9998` al lado de `9999`, y un codigo de catalogo
+  vive en un tramo donde sus vecinos aparecen tanto como el. La razon de vecinos
+  da 1,00 en el caso falso y 0,00 en los centinelas reales. Un `9998` suelto
+  contra ocho `9999` da 0,125 y el centinela se sigue reconociendo.
+
+- **Una comprobacion que no podia fallar.** La prueba que cuida que una columna
+  protegida no publique el valor centinela se salteaba a si misma cuando el
+  hallazgo no aparecia: si el detector dejaba de emitir, la suite quedaba verde.
+  Ahora asevera que el hallazgo esta.
+
+
 ## Once senales falsas sobre una base real, y ninguna se apaga en silencio
 
 Una corrida contra tres tablas administrativas reales dio 24 senales, de las

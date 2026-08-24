@@ -186,6 +186,17 @@
 # (0,0096). No hay umbral de densidad que las separe.
 .MIN_COINCIDENCIAS_ESPERADAS_CLAVE <- 3
 
+# Unicidad y huecos irregulares los tienen tanto una clave dispersa como una
+# numeracion con un valor fuera de escala -`1..1000` mas un `2000` es unica y
+# abre un salto-. Lo que las separa es **como se reparten los faltantes**: si el
+# hueco mas grande explica casi todos, hay un solo agujero y lo que lo abrio es
+# el dato anomalo que hay que informar; si estan repartidos en muchos, la
+# columna es dispersa pareja y eso es una clave.
+#
+# Medido: los datos malos dan cociente 1,00 -el agujero es uno- y las claves
+# dispersas de 0,0009 a 0,0013. Tres ordenes de magnitud de separacion.
+.PROPORCION_AGUJERO_UNICO <- 0.5
+
 .parece_identificador_numerico <- function(fila) {
   # No alcanza con `entero`: por la puerta DBI casi todo llega como `doble`, y
   # varios lectores de CSV tambien. La densidad solo se mide cuando todos los
@@ -209,7 +220,19 @@
         isTRUE(is.finite(distintos_totales) &&
                  distintos_totales >= .MIN_DISTINTOS_NUMERACION)) {
     coincidencias <- distintos_totales^2 / (2 * posiciones)
-    if (isTRUE(coincidencias >= .MIN_COINCIDENCIAS_ESPERADAS_CLAVE)) {
+    # Un solo agujero no es dispersion: es un valor fuera de escala. Sin esta
+    # condicion, `1..1000` mas un `2000` entraba por unicidad y se dejaba de
+    # informar el `2000`, que es exactamente el dato que hay que ver.
+    huecos <- suppressWarnings(as.numeric(fila$n_huecos_secuencia_entera))
+    hueco_mayor <- suppressWarnings(
+      as.numeric(fila$hueco_maximo_secuencia_entera)
+    )
+    un_solo_agujero <- isTRUE(
+      is.finite(huecos) && huecos > 0 && is.finite(hueco_mayor) &&
+        hueco_mayor >= huecos * .PROPORCION_AGUJERO_UNICO
+    )
+    if (!un_solo_agujero &&
+          isTRUE(coincidencias >= .MIN_COINCIDENCIAS_ESPERADAS_CLAVE)) {
       return(TRUE)
     }
   }
