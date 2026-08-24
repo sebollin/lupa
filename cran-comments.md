@@ -24,9 +24,9 @@
 > | local, `--as-cran` **construyendo vinietas** | **`Status: 1 NOTE`**, la misma. `checking package vignettes ... OK` y `re-building of vignette outputs ... OK` | `../verificacion/2026-08-24b/con-vinietas/lupa.Rcheck/00check.log` |
 > | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**, `checking tests ... OK` | `../verificacion/2026-08-24b/r41/lupa.Rcheck/00check.log` |
 > | suite completa | **15.968 comprobaciones, 0 fallos, 0 errores, 0 avisos** | leido de `sum(r$failed)`, no del texto |
-> | GitHub Actions (5 plataformas) | verde sobre `8d68901`; la de `205ea84` en curso | log de la corrida |
-> | R-hub v2 R-devel (3 plataformas) | PENDIENTE, disparo manual | log de la corrida |
-> | win-builder release y devel | PENDIENTE, subida manual | log de cada corrida |
+> | GitHub Actions (5 plataformas) | **las cinco con `Status: OK` sobre `205ea84`**, sin notas, suite en `FAIL 0 \| WARN 0` | corrida 32687475638 |
+> | R-hub v2 R-devel (3 plataformas) | **las tres con `Status: OK`**, sin notas: Linux, Windows y macOS | corrida 32689607365 |
+> | win-builder release y devel | subidas el 2026-08-24, resultado por correo al mantenedor | log de cada corrida |
 >
 > **Que la corrida sin comprobaciones de entrada de `OK` sin ninguna nota ubica
 > esa nota entera fuera del paquete**: es la de primera entrega y no un defecto.
@@ -186,18 +186,22 @@ it leaves the package byte-identical — `git diff --stat 205ea84..HEAD` lists
   because the R 4.1.3 container has no `pandoc`, and carrying that flag over to
   the local runs left unchecked something CRAN does do. All nine vignettes build
   without a warning.
-* Continuous integration (GitHub Actions, `R-CMD-check`), 5 of 5 with
-  **`Status: OK`** and no notes: Ubuntu with R release, R-devel and R oldrel-1;
+* Continuous integration (GitHub Actions, `R-CMD-check`, run 32687475638) on
+  `205ea84`, 5 of 5 with **`Status: OK`** and no notes: Ubuntu with R release, R-devel and R oldrel-1;
   Windows with R release; and macOS with R release on
   **`aarch64-apple-darwin23`**. The platforms exercised are
   `x86_64-pc-linux-gnu`, `x86_64-w64-mingw32` and `aarch64-apple-darwin23`. The
   five `Status: OK` lines and the absence of notes are read from the run's own
   log rather than inferred from the green tick, because a run can conclude
   successfully and still carry notes.
-* R-hub v2, R-devel — **not yet run on these sources.** The last R-hub run
-  measured `787cc0d`, far behind the sources submitted here, so it is reported
-  as what it is and not counted as a result for this revision.
-* win-builder, R release and R-devel — **not yet run on these sources.**
+* R-hub v2, R-devel (run 32689607365): Linux, Windows and macOS — all three
+  **`Status: OK`**, no notes, with the suite at `[ FAIL 0 | WARN 0 ]` on each.
+  The macOS result was read from that job's own log rather than from the
+  combined run log, which the API returned truncated before the check summary —
+  a green tick with no readable `Status:` line is not a result.
+* win-builder, R release and R-devel: the tarball was uploaded to both queues on
+  2026-08-24. Results are reported to the maintainer by e-mail and are not in
+  this letter yet.
 * Container: R 4.1.3 (`rocker/r-ver:4.1.3`) for the declared minimum, with the
   suggested packages installed and the test suite running. Result:
   **0 errors, 0 warnings**, `checking tests ... OK`, and two notes that are
