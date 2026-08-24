@@ -54,7 +54,12 @@ método y el bloque predeterminados; se puede reducir para limitar el tiempo.
 En LSH el alcance se expresa con candidatos y cubetas, por lo que este
 límite no se usa para recortar filas; el resultado lo marca explícitamente.}
 
-\item{max_resultados}{Maximo de pares devueltos. Por defecto \code{100}.}
+\item{max_resultados}{Maximo de pares devueltos. Por defecto \code{100}. Se
+conservan los mas cercanos; entre pares empatados en distancia, el
+desempate usa el orden canonico de los valores y no la posicion de las
+filas, de modo que reordenar la tabla no cambia que pares sobreviven. Un
+corte que cae dentro de un empate deja afuera pares igual de cercanos, y eso
+se declara en \code{alcance$corte_en_empate}.}
 
 \item{normalizar}{Perfil de comparación. \code{TRUE} conserva el perfil
 predeterminado, \code{FALSE} desactiva sus pasos configurables, \code{"amplio"}
@@ -191,6 +196,30 @@ En ese camino \code{alcance$limite_pares} es \code{NA}, mientras
 El objeto informa cuantos pares eran posibles, cuantos se compararon, el
 modo, el tamaño de las teselas o los parámetros LSH y los que quedaron fuera. Solo se muestran
 \code{max_resultados} coincidencias; el truncamiento tambien queda declarado.
+
+El recorte conserva los pares mas cercanos y, entre los empatados en
+distancia, desempata por el \strong{rango canonico del valor} con una clave
+simetrica. Es la misma regla que gobierna el recorte del vocabulario, y existe
+por lo mismo: desempatar por posicion de fila hacia que cuales pares
+sobrevivieran dependiera de como viniera ordenado el archivo. Medido sobre 60
+pares empatados con el corte en 30, cinco ordenes distintos devolvian 30 grupos
+cada uno sin compartir ninguno; ahora devuelven los mismos.
+
+Lo que ningun orden evita es que un corte dentro de un empate deje afuera pares
+igual de cercanos, asi que se declara. \code{alcance} publica \code{distancia_corte} —la
+distancia donde cayo el corte—, \code{n_en_distancia_corte} —cuantos de los
+conservados la comparten— y \code{corte_en_empate}, que \strong{no} es \code{truncado} con
+otro nombre: vale \code{FALSE} cuando el corte cae en una distancia unica. Si vale
+\code{TRUE}, subir \code{max_resultados} por encima del empate devuelve todos los pares
+de esa distancia.
+
+En el camino LSH el conjunto de \strong{candidatos} depende del orden de las filas,
+porque el vocabulario de q-gramas se numera por orden de primera aparicion y esa
+numeracion alimenta las firmas. Eso ocurre dentro de la garantia declarada en
+\verb{lsh_garantia_jaccard_*}: medido sobre 1.200 filas, de los pares que cambian al
+barajar ninguno supera un Jaccard de q-gramas de 0,8, donde el recall declarado
+es 0,9998. Conviene saberlo antes de comparar dos corridas sobre el mismo
+contenido exportado en distinto orden.
 
 \code{stringdist} es una dependencia opcional. Si no esta instalado, la funcion
 devuelve un objeto con \code{disponible = FALSE}, una tabla vacia y el motivo

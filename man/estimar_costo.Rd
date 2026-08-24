@@ -54,7 +54,12 @@ método y el bloque predeterminados; se puede reducir para limitar el tiempo.
 En LSH el alcance se expresa con candidatos y cubetas, por lo que este
 límite no se usa para recortar filas; el resultado lo marca explícitamente.}
 
-\item{max_resultados}{Maximo de pares devueltos. Por defecto \code{100}.}
+\item{max_resultados}{Maximo de pares devueltos. Por defecto \code{100}. Se
+conservan los mas cercanos; entre pares empatados en distancia, el
+desempate usa el orden canonico de los valores y no la posicion de las
+filas, de modo que reordenar la tabla no cambia que pares sobreviven. Un
+corte que cae dentro de un empate deja afuera pares igual de cercanos, y eso
+se declara en \code{alcance$corte_en_empate}.}
 
 \item{normalizar}{Perfil de comparación. \code{TRUE} conserva el perfil
 predeterminado, \code{FALSE} desactiva sus pasos configurables, \code{"amplio"}

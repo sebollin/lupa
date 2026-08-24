@@ -1,9 +1,17 @@
-# El recorte de `max_resultados` ordena por distancia y desempata por posicion de
-# fila. Cuando el corte cae dentro de una banda de distancias empatadas, cuales
-# pares sobreviven depende del orden en que llegaron las filas y no de los datos.
-# Medido: sobre 60 pares empatados y un corte en 30, dos ordenes distintos no
-# comparten ni un solo grupo. El alcance tiene que decirlo, porque `truncado`
-# solo se lee como "conserve los mas cercanos".
+# El recorte de `max_resultados` ordena por distancia. Entre pares empatados
+# desempataba por POSICION DE FILA, y eso hacia que cuales sobrevivieran
+# dependiera del orden de llegada y no de los datos: medido sobre 60 pares
+# empatados con el corte en 30, cinco ordenes distintos devolvian 30 grupos cada
+# uno y no compartian NINGUNO.
+#
+# Ahora desempata por el rango canonico del valor -la misma decision que ya
+# gobierna el recorte del vocabulario, donde tomar las formas en orden de llegada
+# daba 26 grupos y en orden alfabetico 148-. La clave es simetrica, `min` y `max`
+# del rango, para que tampoco dependa de cual fila quedo primera dentro del par.
+#
+# Lo que el recorte sigue sin poder evitar es dejar afuera pares igual de
+# cercanos cuando el corte cae dentro de un empate. Eso no se arregla: se
+# declara, en `corte_en_empate`.
 
 .tabla_con_empates <- function(g = 60L) {
   set.seed(7)
@@ -20,15 +28,23 @@
   )
 }
 
-test_that("el recorte dentro de un empate depende del orden, y queda declarado", {
+.ordenes_de_prueba <- function(n) {
+  ordenes <- list(natural = seq_len(n), inverso = rev(seq_len(n)))
+  for (s in 1:3) {
+    set.seed(100L + s)
+    ordenes[[paste0("barajado", s)]] <- sample(n)
+  }
+  ordenes
+}
+
+test_that("el recorte dentro de un empate no depende del orden de las filas", {
   d0 <- .tabla_con_empates()
   todos <- detectar_duplicados_aproximados(
     d0["nombre"], umbral = 0.10, max_resultados = Inf
   )
-  # La banda de empate existe: si el generador cambiara y dejara de haberla,
-  # esta prueba no estaria midiendo lo que dice medir.
-  banda <- max(table(round(todos$pares$distancia, 10L)))
-  expect_gte(banda, 40L)
+  # La banda de empate tiene que existir: sin ella esta prueba no mide lo que
+  # dice medir, porque el desempate nunca entraria en juego.
+  expect_gte(max(table(round(todos$pares$distancia, 10L))), 40L)
 
   grupos_de <- function(orden, limite) {
     d <- d0[orden, , drop = FALSE]
@@ -38,27 +54,26 @@ test_that("el recorte dentro de un empate depende del orden, y queda declarado",
     )
     sort(unique(d$grupo[c(r$pares$fila_1, r$pares$fila_2)]))
   }
-  natural <- seq_len(nrow(d0))
-  g_nat <- grupos_de(natural, 30L)
-  g_inv <- grupos_de(rev(natural), 30L)
+  ordenes <- .ordenes_de_prueba(nrow(d0))
+  for (limite in c(30L, 40L)) {
+    grupos <- lapply(ordenes, grupos_de, limite = limite)
+    expect_equal(length(Reduce(union, grupos)), limite)
+    # Union e interseccion iguales: los cinco ordenes ven exactamente lo mismo.
+    expect_equal(Reduce(union, grupos), Reduce(intersect, grupos))
+  }
+})
 
-  # El defecto, escrito: mismo dato, mismo limite, conjuntos disjuntos.
-  expect_equal(length(g_nat), length(g_inv))
-  expect_false(identical(g_nat, g_inv))
-  expect_length(intersect(g_nat, g_inv), 0L)
-
-  # Y el alcance lo declara en vez de callarlo.
+test_that("dejar pares empatados afuera se declara aunque el corte sea estable", {
+  d0 <- .tabla_con_empates()
   a <- detectar_duplicados_aproximados(
     d0["nombre"], umbral = 0.10, max_resultados = 30L
   )$alcance
   expect_true(a$truncado)
-  expect_true(a$recorte_depende_del_orden)
+  expect_true(a$corte_en_empate)
   expect_equal(a$n_en_distancia_corte, 30L)
-  expect_equal(a$distancia_corte, max(todos$pares$distancia[
-    order(todos$pares$distancia)][seq_len(30L)]))
 })
 
-test_that("sin recorte no se declara dependencia del orden", {
+test_that("sin recorte no hay corte ni empate que declarar", {
   d0 <- .tabla_con_empates()
   a <- detectar_duplicados_aproximados(
     d0["nombre"], umbral = 0.10, max_resultados = 1000L
@@ -66,10 +81,10 @@ test_that("sin recorte no se declara dependencia del orden", {
   expect_false(a$truncado)
   expect_true(is.na(a$distancia_corte))
   expect_true(is.na(a$n_en_distancia_corte))
-  expect_false(a$recorte_depende_del_orden)
+  expect_false(a$corte_en_empate)
 })
 
-test_that("truncado con un borde unico NO declara dependencia del orden", {
+test_that("truncado con un borde unico NO declara empate en el corte", {
   # El control que hace valer la senal: si diera TRUE siempre que hay recorte,
   # seria `truncado` con otro nombre y no informaria nada nuevo.
   set.seed(1)
@@ -86,5 +101,25 @@ test_that("truncado con un borde unico NO declara dependencia del orden", {
   a <- detectar_duplicados_aproximados(d, umbral = 0.95, max_resultados = 2L)$alcance
   expect_true(a$truncado)
   expect_equal(a$n_en_distancia_corte, 1L)
-  expect_false(a$recorte_depende_del_orden)
+  expect_false(a$corte_en_empate)
+})
+
+test_that("el rango canonico sale del universo entero y es simetrico", {
+  # Un rango recalculado por lote seria local y cambiaria la comparacion entre
+  # lotes; y una clave no simetrica dependeria de cual fila quedo primera.
+  valores <- c("BETA", "ALFA", "GAMA")
+  filas <- c(3L, 7L, 5L)
+  rango <- lupa:::.rango_canonico_duplicados(valores, filas)
+  expect_length(rango, 7L)
+  expect_equal(rango[[7L]], 1L)   # ALFA es la primera del orden canonico
+  expect_equal(rango[[3L]], 2L)   # BETA
+  expect_equal(rango[[5L]], 3L)   # GAMA
+
+  pares <- data.frame(fila_1 = c(3L, 5L), fila_2 = c(5L, 3L),
+                      distancia = c(0.1, 0.1), stringsAsFactors = FALSE)
+  salida <- lupa:::.ordenar_pares_con_igualdad(pares, c(FALSE, FALSE), rango)
+  # Los dos pares son el mismo par escrito al reves: la clave simetrica los deja
+  # empatados entre si y el orden no lo decide cual fila vino primera.
+  expect_equal(nrow(salida$pares), 2L)
+  expect_equal(salida$pares$distancia, c(0.1, 0.1))
 })

@@ -77,7 +77,7 @@
     truncado = FALSE,
     distancia_corte = NA_real_,
     n_en_distancia_corte = NA_integer_,
-    recorte_depende_del_orden = FALSE,
+    corte_en_empate = FALSE,
     disponible = disponible,
     nucleos_usados = nucleos_usados,
     metodo = metodo,
@@ -276,8 +276,23 @@
   as.integer(x)
 }
 
-.nuevo_acumulador_duplicados <- function(max_resultados) {
+# Numera los valores comparados por su orden canonico -alfabetico- y devuelve un
+# entero por fila global. Es la misma decision que ya gobierna el recorte del
+# vocabulario: cuando hay que elegir que se conserva, se elige por contenido y no
+# por orden de llegada, porque si no el veredicto depende de como venga ordenado
+# el archivo. Se calcula UNA vez, sobre el universo completo de la corrida: un
+# rango recalculado por tesela o por lote seria local y cambiaria la comparacion
+# entre lotes.
+.rango_canonico_duplicados <- function(valores, filas) {
+  if (!length(filas)) return(integer())
+  rango <- integer(max(as.integer(filas)))
+  rango[as.integer(filas)] <- match(valores, sort(unique(valores)))
+  rango
+}
+
+.nuevo_acumulador_duplicados <- function(max_resultados, rango = NULL) {
   list(
+    rango = rango,
     pares = data.frame(
       fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
       stringsAsFactors = FALSE
@@ -289,7 +304,7 @@
   )
 }
 
-.ordenar_pares_con_igualdad <- function(pares, iguales) {
+.ordenar_pares_con_igualdad <- function(pares, iguales, rango = NULL) {
   if (!inherits(pares, "data.frame") ||
       !all(c("distancia", "fila_1", "fila_2") %in% names(pares))) {
     stop("Los pares deben ser un data frame con filas y distancia.",
@@ -302,7 +317,18 @@
     rownames(pares) <- NULL
     return(list(pares = pares, iguales = logical()))
   }
-  orden <- order(pares$distancia, pares$fila_1, pares$fila_2)
+  # Entre pares empatados en distancia, desempatar por posicion de fila hace que
+  # cual sobrevive al recorte dependa del orden de llegada. La clave por rango de
+  # valor es simetrica -min y max- para que tampoco dependa de cual fila quedo
+  # primera dentro del par.
+  if (!is.null(rango) && length(rango)) {
+    r1 <- rango[pares$fila_1]
+    r2 <- rango[pares$fila_2]
+    orden <- order(pares$distancia, pmin(r1, r2), pmax(r1, r2),
+                   pares$fila_1, pares$fila_2)
+  } else {
+    orden <- order(pares$distancia, pares$fila_1, pares$fila_2)
+  }
   salida <- pares[orden, , drop = FALSE]
   rownames(salida) <- NULL
   list(pares = salida, iguales = as.logical(iguales)[orden])
@@ -312,14 +338,14 @@
   if (!is.infinite(acumulador$max_resultados) ||
       !length(acumulador$lotes)) {
     return(.ordenar_pares_con_igualdad(
-      acumulador$pares, as.logical(acumulador$iguales)
+      acumulador$pares, as.logical(acumulador$iguales), acumulador$rango
     ))
   }
   lotes_todos <- c(list(acumulador$pares), acumulador$lotes)
   indices_lotes <- which(vapply(lotes_todos, nrow, integer(1L)) > 0L)
   lotes <- lotes_todos[indices_lotes]
   if (!length(lotes)) return(.ordenar_pares_con_igualdad(
-    acumulador$pares, logical()
+    acumulador$pares, logical(), acumulador$rango
   ))
   iguales_lotes <- lapply(indices_lotes, function(indice) {
     iguales <- if (indice == 1L) acumulador$iguales else {
@@ -344,7 +370,7 @@
     stringsAsFactors = FALSE
   )
   iguales <- unlist(iguales_lotes, use.names = FALSE)
-  .ordenar_pares_con_igualdad(pares, iguales)
+  .ordenar_pares_con_igualdad(pares, iguales, acumulador$rango)
 }
 
 #' Acumula un lote de pares candidatos ya filtrados
@@ -404,7 +430,7 @@
   acumulador$pares <- rbind(acumulador$pares, lote)
   acumulador$iguales <- c(acumulador$iguales, iguales)
   ordenados <- .ordenar_pares_con_igualdad(
-    acumulador$pares, acumulador$iguales
+    acumulador$pares, acumulador$iguales, acumulador$rango
   )
   acumulador$pares <- ordenados$pares
   acumulador$iguales <- ordenados$iguales
@@ -430,7 +456,9 @@
   n <- length(valores)
   acumular_en_externo <- !is.null(acumulador)
   if (is.null(acumulador)) {
-    acumulador <- .nuevo_acumulador_duplicados(max_resultados)
+    acumulador <- .nuevo_acumulador_duplicados(
+      max_resultados, .rango_canonico_duplicados(valores, filas)
+    )
   }
   if (n < 2L) {
     salida <- if (acumular_en_externo) {
@@ -521,7 +549,11 @@
     igualdad_original = NULL) {
   n <- length(valores)
   grupos <- split(seq_len(n), ceiling(seq_len(n) / tamano_lote))
-  acumulador <- .nuevo_acumulador_duplicados(max_resultados)
+  # El rango sale del universo entero, no de cada lote: una numeracion local
+  # cambiaria la comparacion entre lotes.
+  acumulador <- .nuevo_acumulador_duplicados(
+    max_resultados, .rango_canonico_duplicados(valores, filas)
+  )
   n_hallados <- 0
   n_exactos <- 0
   n_exactos_normalizados <- 0
@@ -992,7 +1024,9 @@
   # construir la firma. Liberarlas antes del recorrido evita que la memoria
   # del índice se sume a la de las cubetas; el Jaccard de los pocos pares que
   # pasan el umbral se recalcula bajo demanda.
-  acumulador <- .nuevo_acumulador_duplicados(max_resultados)
+  acumulador <- .nuevo_acumulador_duplicados(
+    max_resultados, .rango_canonico_duplicados(valores, filas)
+  )
   candidatos_generados <- 0
   candidatos_unicos <- 0
   candidatos_descartados_bandas <- 0
@@ -1693,7 +1727,12 @@
       )
     } else {
       grupos <- split(seq_along(validos), resumen_bloqueo$ids[validos])
-      acumulador <- .nuevo_acumulador_duplicados(max_resultados)
+      # Sobre todos los validos, no sobre cada grupo: el acumulador es unico
+      # para el bucle y el desempate tiene que ser comparable entre grupos.
+      acumulador <- .nuevo_acumulador_duplicados(
+        max_resultados,
+        .rango_canonico_duplicados(textos$valores[validos], validos)
+      )
       n_bloques <- 0L
       for (grupo in grupos) {
         parcial <- .comparar_bloques_duplicados(
@@ -1874,7 +1913,7 @@
     n_en_distancia_corte = if (hubo_truncado) {
       as.integer(n_en_distancia_corte)
     } else NA_integer_,
-    recorte_depende_del_orden = isTRUE(hubo_truncado) &&
+    corte_en_empate = isTRUE(hubo_truncado) &&
       isTRUE(n_en_distancia_corte > 1L),
     disponible = TRUE, razon = "", stringsAsFactors = FALSE
   )
@@ -1947,6 +1986,30 @@
 #' El objeto informa cuantos pares eran posibles, cuantos se compararon, el
 #' modo, el tamaño de las teselas o los parámetros LSH y los que quedaron fuera. Solo se muestran
 #' `max_resultados` coincidencias; el truncamiento tambien queda declarado.
+#'
+#' El recorte conserva los pares mas cercanos y, entre los empatados en
+#' distancia, desempata por el **rango canonico del valor** con una clave
+#' simetrica. Es la misma regla que gobierna el recorte del vocabulario, y existe
+#' por lo mismo: desempatar por posicion de fila hacia que cuales pares
+#' sobrevivieran dependiera de como viniera ordenado el archivo. Medido sobre 60
+#' pares empatados con el corte en 30, cinco ordenes distintos devolvian 30 grupos
+#' cada uno sin compartir ninguno; ahora devuelven los mismos.
+#'
+#' Lo que ningun orden evita es que un corte dentro de un empate deje afuera pares
+#' igual de cercanos, asi que se declara. `alcance` publica `distancia_corte` —la
+#' distancia donde cayo el corte—, `n_en_distancia_corte` —cuantos de los
+#' conservados la comparten— y `corte_en_empate`, que **no** es `truncado` con
+#' otro nombre: vale `FALSE` cuando el corte cae en una distancia unica. Si vale
+#' `TRUE`, subir `max_resultados` por encima del empate devuelve todos los pares
+#' de esa distancia.
+#'
+#' En el camino LSH el conjunto de **candidatos** depende del orden de las filas,
+#' porque el vocabulario de q-gramas se numera por orden de primera aparicion y esa
+#' numeracion alimenta las firmas. Eso ocurre dentro de la garantia declarada en
+#' `lsh_garantia_jaccard_*`: medido sobre 1.200 filas, de los pares que cambian al
+#' barajar ninguno supera un Jaccard de q-gramas de 0,8, donde el recall declarado
+#' es 0,9998. Conviene saberlo antes de comparar dos corridas sobre el mismo
+#' contenido exportado en distinto orden.
 #'
 #' `stringdist` es una dependencia opcional. Si no esta instalado, la funcion
 #' devuelve un objeto con `disponible = FALSE`, una tabla vacia y el motivo
@@ -2022,7 +2085,12 @@
 #'   método y el bloque predeterminados; se puede reducir para limitar el tiempo.
 #'   En LSH el alcance se expresa con candidatos y cubetas, por lo que este
 #'   límite no se usa para recortar filas; el resultado lo marca explícitamente.
-#' @param max_resultados Maximo de pares devueltos. Por defecto `100`.
+#' @param max_resultados Maximo de pares devueltos. Por defecto `100`. Se
+#'   conservan los mas cercanos; entre pares empatados en distancia, el
+#'   desempate usa el orden canonico de los valores y no la posicion de las
+#'   filas, de modo que reordenar la tabla no cambia que pares sobreviven. Un
+#'   corte que cae dentro de un empate deja afuera pares igual de cercanos, y eso
+#'   se declara en `alcance$corte_en_empate`.
 #' @param bloque Cantidad de filas por tesela de comparación. Por defecto
 #'   `1000`; controla la memoria temporal, no el número de pares comparados.
 #' @param nucleos Cantidad máxima de hilos que `stringdist` puede usar. Por

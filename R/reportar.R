@@ -442,7 +442,16 @@
     paste0(
       "<p class=\"nota\">La similitud no demuestra identidad. Se us\u00f3 ",
       .html_texto(x$metodo), " con umbral ", .html_texto(x$umbral),
-      "; el alcance y los pares omitidos se muestran abajo.</p>"
+      "; el alcance y los pares omitidos se muestran abajo.</p>",
+      if (identical(x$alcance$modo_comparacion[[1L]], "lsh_minhash")) paste0(
+        "<p class=\"nota\">Con MinHash/LSH el conjunto de <em>candidatos</em> ",
+        "depende del orden de las filas: el vocabulario de q-gramas se numera ",
+        "por orden de primera aparicion y esa numeracion alimenta las firmas. ",
+        "Ocurre dentro de la garantia declarada en <code>lsh_garantia_jaccard_*</code>",
+        " -medido, ningun par con Jaccard de q-gramas sobre 0,8 se pierde al ",
+        "reordenar-, pero conviene saberlo antes de comparar dos corridas sobre ",
+        "el mismo contenido exportado en distinto orden.</p>"
+      ) else ""
     )
   }
   paste0(
@@ -467,15 +476,16 @@
       paste0(
         "<p class=\"nota\">La tabla de pares mostrados est\u00e1 truncada; el ",
         "total hallado permanece en el alcance.",
-        if (isTRUE(x$alcance$recorte_depende_del_orden[[1L]])) paste0(
+        if (isTRUE(x$alcance$corte_en_empate[[1L]])) paste0(
           " <strong>El corte cay\u00f3 dentro de un empate</strong>: ",
           x$alcance$n_en_distancia_corte[[1L]], " de los pares conservados ",
           "estan a la misma distancia (", x$alcance$distancia_corte[[1L]],
-          "), y el recorte desempata por posicion de fila. Entre pares igual de ",
-          "cercanos, cuales sobreviven depende del orden en que llegaron las ",
-          "filas, no de los datos: la misma tabla con otro orden puede devolver ",
-          "otro subconjunto. Para un resultado independiente del orden, suba ",
-          "<code>max_resultados</code> por encima del empate."
+          "), asi que quedaron afuera pares igual de cercanos. Cuales se ",
+          "conservan se decide por el orden canonico de los valores, no por el ",
+          "orden en que llegaron las filas, de modo que el resultado no cambia ",
+          "si se reordena la tabla; pero sigue siendo un subconjunto. Para no ",
+          "dejar afuera pares empatados, suba <code>max_resultados</code> por ",
+          "encima del empate."
         ) else "",
         "</p>"
       )
