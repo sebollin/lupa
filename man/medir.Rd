@@ -16,7 +16,13 @@ medir(
 \item{modelo}{Objeto creado por \code{modelo()}.}
 
 \item{datos}{Data frame para una sola entidad o lista con nombre de data
-frames para varias entidades.}
+frames para varias entidades.
+
+Con una lista, tienen que estar las tablas de \strong{todas} las entidades que el
+modelo mide; si falta alguna se rechaza antes de medir, nombrando todas las
+que faltan y cuáles se recibieron. Una tabla que el modelo no pide \strong{se
+ignora}: no hace falta que la lista coincida exactamente con las entidades,
+sólo que no falte ninguna.}
 
 \item{id_medicion}{Identificador de corrida. Si se omite, se genera uno.}
 

@@ -1133,6 +1133,12 @@ metricas_nucleo <- function() {
 #' @param modelo Objeto creado por `modelo()`.
 #' @param datos Data frame para una sola entidad o lista con nombre de data
 #'   frames para varias entidades.
+#'
+#'   Con una lista, tienen que estar las tablas de **todas** las entidades que el
+#'   modelo mide; si falta alguna se rechaza antes de medir, nombrando todas las
+#'   que faltan y cuáles se recibieron. Una tabla que el modelo no pide **se
+#'   ignora**: no hace falta que la lista coincida exactamente con las entidades,
+#'   sólo que no falte ninguna.
 #' @param id_medicion Identificador de corrida. Si se omite, se genera uno.
 #' @param fecha Fecha y hora de la corrida.
 #' @param aplicabilidad Lista con nombre por columna, donde cada elemento es
