@@ -58,7 +58,7 @@ de agregados se emitirán antes de empezar y evita una sorpresa de costo.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">plan_perfilado_dbi</span><span class="op">(</span></span>
 <span>  <span class="va">conexion</span>,</span>
 <span>  <span class="va">tabla</span>,</span>
-<span>  muestra <span class="op">=</span> <span class="fl">1000L</span>,</span>
+<span>  muestra <span class="op">=</span> <span class="cn">Inf</span>,</span>
 <span>  orden_muestra <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  modo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exacto"</span>, <span class="st">"seguro"</span>, <span class="st">"conteos"</span>, <span class="st">"muestreado"</span>, <span class="st">"aproximado"</span><span class="op">)</span>,</span>
 <span>  metricas <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -83,7 +83,18 @@ de agregados se emitirán antes de empezar y evita una sorpresa de costo.</p>
 
 
 <dt id="arg-muestra">muestra<a class="anchor" aria-label="anchor" href="#arg-muestra"></a></dt>
-<dd><p>Cantidad positiva y finita de filas solicitadas.</p></dd>
+<dd><p>Cantidad positiva de filas solicitadas para el perfil de
+muestra, o <code>Inf</code> para traer la tabla entera. Con <code>Inf</code> la consulta sale sin
+<code>LIMIT</code> y <code>tabla_completa</code> queda en <code>TRUE</code>.</p>
+<p>El resumen de tabla <strong>no</strong> se muestrea: con <code>modo = "exacto"</code> se calcula en
+el motor sobre todas las filas. Lo que sale de esta muestra son los
+diagnosticos que necesitan los valores en R -patrones, formatos,
+casi-duplicados-, y sin <code>orden_muestra</code> no son una muestra aleatoria sino
+las primeras filas que devuelva el motor. Medido sobre una tabla de 200.000
+filas con un defecto plantado al final: con el valor por omision aparecen
+tres hallazgos y con <code>Inf</code> aparecen cinco, a cambio de 10 segundos en vez
+de 2. Un analisis de calidad no se corre todos los dias; si el tiempo no es
+la restriccion, <code>Inf</code> es la opcion honesta.</p></dd>
 
 
 <dt id="arg-orden-muestra">orden_muestra<a class="anchor" aria-label="anchor" href="#arg-orden-muestra"></a></dt>

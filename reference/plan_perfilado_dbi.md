@@ -12,7 +12,7 @@ una sorpresa de costo.
 plan_perfilado_dbi(
   conexion,
   tabla,
-  muestra = 1000L,
+  muestra = Inf,
   orden_muestra = NULL,
   modo = c("exacto", "seguro", "conteos", "muestreado", "aproximado"),
   metricas = NULL,
@@ -36,7 +36,20 @@ plan_perfilado_dbi(
 
 - muestra:
 
-  Cantidad positiva y finita de filas solicitadas.
+  Cantidad positiva de filas solicitadas para el perfil de muestra, o
+  `Inf` para traer la tabla entera. Con `Inf` la consulta sale sin
+  `LIMIT` y `tabla_completa` queda en `TRUE`.
+
+  El resumen de tabla **no** se muestrea: con `modo = "exacto"` se
+  calcula en el motor sobre todas las filas. Lo que sale de esta muestra
+  son los diagnosticos que necesitan los valores en R -patrones,
+  formatos, casi-duplicados-, y sin `orden_muestra` no son una muestra
+  aleatoria sino las primeras filas que devuelva el motor. Medido sobre
+  una tabla de 200.000 filas con un defecto plantado al final: con el
+  valor por omision aparecen tres hallazgos y con `Inf` aparecen cinco,
+  a cambio de 10 segundos en vez de 2. Un analisis de calidad no se
+  corre todos los dias; si el tiempo no es la restriccion, `Inf` es la
+  opcion honesta.
 
 - orden_muestra:
 

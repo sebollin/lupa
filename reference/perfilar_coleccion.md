@@ -10,7 +10,7 @@ cobertura de lo que no se pudo medir.
 ``` r
 perfilar_coleccion(
   coleccion,
-  muestra = 1000L,
+  muestra = Inf,
   conservar_perfiles = FALSE,
   cobertura_metricas = c("no_medidas", "completa", "ninguna"),
   tope_cobertura_metricas = 20000L,
@@ -27,7 +27,14 @@ perfilar_coleccion(
 
 - muestra:
 
-  Filas solicitadas por tabla para el bloque en memoria.
+  Filas solicitadas por tabla para el bloque en memoria. Por omision
+  `Inf`: cada tabla se trae entera. El resumen por tabla se calcula en
+  el motor y no depende de esto; lo que depende son los diagnosticos que
+  miran los valores en R. Acotarlo con `muestra = n` es mas rapido a
+  cambio de mirar menos filas, y sobre una coleccion grande conviene
+  mirar antes
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  tabla por tabla.
 
 - conservar_perfiles:
 
