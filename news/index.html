@@ -42,6 +42,13 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="faltar-tablas-se-rechaza-antes-y-se-nombran-todas-0-1-0">Faltar tablas se rechaza antes, y se nombran todas<a class="anchor" aria-label="anchor" href="#faltar-tablas-se-rechaza-antes-y-se-nombran-todas-0-1-0"></a></h3>
+<p><code><a href="../reference/medir.html">medir()</a></code> acepta los datos como un data frame o como una lista con nombre. La primera forma exigía que el modelo tuviera una sola entidad; la segunda comprobaba la forma de la lista pero <strong>no que estuvieran las tablas de todas las entidades que el modelo necesita</strong>.</p>
+<p>El faltante aparecía después, al ligar cada métrica, con un mensaje que nombraba <strong>una sola</strong> entidad. Con tres ausentes eso son tres vueltas para el mismo problema: agregar la primera, volver a correr, chocar con la segunda.</p>
+<p>Ahora se rechaza en la frontera, nombrando <strong>todas</strong> las que faltan y diciendo cuáles se recibieron —que es la mitad que deja ver un error de tipeo—.</p>
+<p><strong>No es igualdad exacta, a propósito.</strong> Una tabla que el modelo no pide se sigue ignorando: exigir que sobren cero habría apagado un uso legítimo.</p>
+</div>
+<div class="section level3">
 <h3 id="el-muestreo-en-el-motor-declina-una-muestra-infinita-en-un-solo-lugar-0-1-0">El muestreo en el motor declina una muestra infinita, en un solo lugar<a class="anchor" aria-label="anchor" href="#el-muestreo-en-el-motor-declina-una-muestra-infinita-en-un-solo-lugar-0-1-0"></a></h3>
 <p>Desde que <code>muestra = Inf</code> —la tabla entera— es el valor por omisión, el muestreo <strong>en el motor</strong> no tiene sentido: quedarse con «todas» las filas no es muestrear. Eso estaba guardado rama por rama, y de tres ramas se guardaron dos. La tercera —la de <code>TABLESAMPLE RESERVOIR (n ROWS)</code>— pasaba <code>Inf</code> directo al constructor y contra un motor real producía <code>RESERVOIR (Inf ROWS)</code> y un error de sintaxis.</p>
 <p>El paquete lo declaraba honestamente —«El resumen SQL se calculó y se devuelve, pero la muestra no»— pero el usuario se quedaba sin perfil de muestra sin haber pedido nada raro.</p>

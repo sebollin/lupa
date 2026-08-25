@@ -2,6 +2,27 @@
 
 ## lupa 0.1.0
 
+### Faltar tablas se rechaza antes, y se nombran todas
+
+[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) acepta
+los datos como un data frame o como una lista con nombre. La primera
+forma exigía que el modelo tuviera una sola entidad; la segunda
+comprobaba la forma de la lista pero **no que estuvieran las tablas de
+todas las entidades que el modelo necesita**.
+
+El faltante aparecía después, al ligar cada métrica, con un mensaje que
+nombraba **una sola** entidad. Con tres ausentes eso son tres vueltas
+para el mismo problema: agregar la primera, volver a correr, chocar con
+la segunda.
+
+Ahora se rechaza en la frontera, nombrando **todas** las que faltan y
+diciendo cuáles se recibieron —que es la mitad que deja ver un error de
+tipeo—.
+
+**No es igualdad exacta, a propósito.** Una tabla que el modelo no pide
+se sigue ignorando: exigir que sobren cero habría apagado un uso
+legítimo.
+
 ### El muestreo en el motor declina una muestra infinita, en un solo lugar
 
 Desde que `muestra = Inf` —la tabla entera— es el valor por omisión, el
