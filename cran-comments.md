@@ -226,11 +226,20 @@ The command is now run for each revision and its output pasted, not summarised.
   The macOS result was read from that job's own log rather than from the
   combined run log, which the API returned truncated before the check summary —
   a green tick with no readable `Status:` line is not a result.
-* win-builder, R release and R-devel: the tarball built from `ee5f6ac` was
-  uploaded to both queues on 2026-08-25. Results are reported to the maintainer
-  by e-mail. **They are not transcribed here yet**, and the line will say so
-  until the check log itself has been read: an e-mail having arrived is not a
-  result, and neither is being told that it arrived.
+* win-builder, R release (4.6.1) and R-devel (r90445), from `ee5f6ac`, uploaded
+  on 2026-08-25: **`Status: 1 NOTE` on both**, and the note is `New submission`
+  and nothing else. Read from each run's own `00check.log`
+  (`uFmJuRmKB3GQ` and `8PUkKn3a9w9D`) rather than from the notification e-mail,
+  which reports the count but not which note it is. `checking tests ... OK` at
+  108 and 105 minutes respectively, `checking re-building of vignette
+  outputs ... OK`, `checking PDF version of manual ... OK`.
+
+  **The URL note recorded below did not recur.** An earlier revision reported
+  `https://www.gnu.org/licenses/gpl-3.0.html` as unreachable on every win-builder
+  run of that day, and the paragraph concluded it was that machine's network.
+  These two runs report no URL note at all, which is what a transient network
+  failure looks like once it stops — and is the reason that paragraph said what
+  it could support rather than declaring the link fine.
 * Container: R 4.1.3 (`rocker/r-ver:4.1.3`) for the declared minimum, with the
   suggested packages installed and the test suite running. Result:
   **0 errors, 0 warnings**, `checking tests ... OK`, and two notes that are
@@ -280,7 +289,9 @@ The command is now run for each revision and its output pasted, not summarised.
   `Suggests` versions and none of this affects the checks above; it is recorded
   as open work rather than presented as solved.
 
-* win-builder, R-release (R 4.6.1) and R-devel (r90440): **1 NOTE on each**. The
+* win-builder on an **earlier revision** (R-release 4.6.1 and R-devel r90440),
+  kept because of what it records about reading results rather than for its
+  status: **1 NOTE on each**. The
   note is the new-submission one plus a URL the checker could not reach —
   `https://www.gnu.org/licenses/gpl-3.0.html`, reported as
   `Timeout was reached ... Failed to connect to www.gnu.org port 443`. The link
