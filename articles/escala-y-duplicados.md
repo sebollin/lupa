@@ -143,7 +143,7 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.340 pares en
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 33.292 pares en
 #> 0,051 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
@@ -218,7 +218,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/RtmpDK9MsL/lupa-lotes-22cf24458cfe/lupa-lotes-22cf52ffef4e"
+#> [1] "/tmp/RtmpftjLeP/lupa-lotes-22516dcaf67b/lupa-lotes-2251625387b4"
 #> 
 #> $n_parciales
 #> [1] 6
@@ -408,5 +408,19 @@ sobre 1.200 filas, de los 11.822 pares que cambian al barajar, el
 Jaccard de q-gramas más alto es 0,7857 y no se pierde **ninguno** por
 encima de 0,8, donde el alcance declara un recall de 0,9998. La rotación
 está entera en la cola de pares apenas parecidos, donde LSH dice que no
-promete nada. Pero conviene saberlo antes de comparar dos corridas sobre
-el mismo contenido exportado en distinto orden.
+promete nada.
+
+Pero es una propiedad del resultado, así que el alcance la declara y no
+hay que venir a buscarla acá:
+
+``` r
+
+alcance$lsh_candidatos_dependen_orden_filas   # TRUE bajo LSH
+alcance$lsh_orden_vocabulario                 # "primera_aparicion"
+```
+
+El segundo no es decorativo. Nombra **el mecanismo**: el vocabulario se
+numera por orden de primera aparición, y si alguna vez esa numeración se
+canoniza, ese valor cambia y la dependencia deja de declararse sola.
+Ninguno de los dos aparece en el camino exhaustivo, que no tiene esa
+dependencia.

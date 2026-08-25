@@ -28,6 +28,12 @@ medir(
   Data frame para una sola entidad o lista con nombre de data frames
   para varias entidades.
 
+  Con una lista, tienen que estar las tablas de **todas** las entidades
+  que el modelo mide; si falta alguna se rechaza antes de medir,
+  nombrando todas las que faltan y cuáles se recibieron. Una tabla que
+  el modelo no pide **se ignora**: no hace falta que la lista coincida
+  exactamente con las entidades, sólo que no falte ninguna.
+
 - id_medicion:
 
   Identificador de corrida. Si se omite, se genera uno.
@@ -70,13 +76,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260825T170117.430073-7563-000001
-#> 2 medicion-20260825T170117.430073-7563-000002
-#> 3 medicion-20260825T170117.430073-7563-000003
+#> 1 medicion-20260825T173110.688697-7435-000001
+#> 2 medicion-20260825T173110.688697-7435-000002
+#> 3 medicion-20260825T173110.688697-7435-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260825T170117.430073-7563 2026-08-25 17:01:17  NoNulo
-#> 2 medicion-20260825T170117.430073-7563 2026-08-25 17:01:17  NoNulo
-#> 3 medicion-20260825T170117.430073-7563 2026-08-25 17:01:17  NoNulo
+#> 1 medicion-20260825T173110.688697-7435 2026-08-25 17:31:10  NoNulo
+#> 2 medicion-20260825T173110.688697-7435 2026-08-25 17:31:10  NoNulo
+#> 3 medicion-20260825T173110.688697-7435 2026-08-25 17:31:10  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

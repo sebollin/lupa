@@ -68,7 +68,12 @@ una medida reutilizable y conserva el identificador y la fecha de la corrida.</p
 
 <dt id="arg-datos">datos<a class="anchor" aria-label="anchor" href="#arg-datos"></a></dt>
 <dd><p>Data frame para una sola entidad o lista con nombre de data
-frames para varias entidades.</p></dd>
+frames para varias entidades.</p>
+<p>Con una lista, tienen que estar las tablas de <strong>todas</strong> las entidades que el
+modelo mide; si falta alguna se rechaza antes de medir, nombrando todas las
+que faltan y cuáles se recibieron. Una tabla que el modelo no pide <strong>se
+ignora</strong>: no hace falta que la lista coincida exactamente con las entidades,
+sólo que no falte ninguna.</p></dd>
 
 
 <dt id="arg-id-medicion">id_medicion<a class="anchor" aria-label="anchor" href="#arg-id-medicion"></a></dt>
@@ -109,13 +114,13 @@ que trabajan con un vocabulario o un alcance parcial agregan un atributo
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">medir</span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260825T170117.430073-7563-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260825T170117.430073-7563-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260825T170117.430073-7563-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260825T173110.688697-7435-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260825T173110.688697-7435-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260825T173110.688697-7435-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260825T170117.430073-7563 2026-08-25 17:01:17  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260825T170117.430073-7563 2026-08-25 17:01:17  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260825T170117.430073-7563 2026-08-25 17:01:17  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260825T173110.688697-7435 2026-08-25 17:31:10  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260825T173110.688697-7435 2026-08-25 17:31:10  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260825T173110.688697-7435 2026-08-25 17:31:10  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
