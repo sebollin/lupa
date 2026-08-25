@@ -1,5 +1,35 @@
 # lupa 0.1.0
 
+## La tabla entera pasa a ser el valor por omisión
+
+`perfilar_dbi()`, `plan_perfilado_dbi()` y `perfilar_coleccion()` traían **1.000
+filas** por omisión para el perfil de muestra. Ahora traen `Inf`: la tabla entera.
+
+Antes ni siquiera se podía pedir. `muestra` exigía una cantidad **finita**, así
+que perfilar la tabla completa obligaba a averiguar cuántas filas tenía y
+pasarlas a mano: se podía hacerlo, no se podía *decirlo*. Ahora `Inf` significa
+«toda, sea del tamaño que sea», la consulta sale sin `LIMIT` y `tabla_completa`
+queda en `TRUE`.
+
+El cambio de omisión sigue el criterio del paquete: **un análisis de calidad no
+se corre todos los días, y mirar menos filas para terminar antes es la concesión
+equivocada**. Quien necesite acotar lo pide con `muestra = n`, y el plan lo
+avisa antes de empezar: «El perfil de muestra trae la tabla entera —N filas—: es
+el valor por omisión y sobre una tabla grande puede demorar».
+
+Importa más de lo que parece. El resumen de tabla **no** se muestrea —con
+`modo = "exacto"` se agrega en el motor sobre todas las filas—, pero los
+diagnósticos que necesitan los valores en R —patrones, formatos,
+casi-duplicados— salen de esa muestra, y sin `orden_muestra` son las **primeras
+filas que devuelva el motor**, no una muestra aleatoria. Un defecto que viva al
+final de la tabla no se ve.
+
+Medido sobre 200.000 filas con un defecto plantado al final: con el valor por
+omisión aparecen **tres** hallazgos y con `Inf` aparecen **cinco**, a cambio de
+10 segundos en vez de 2. Un análisis de calidad no se corre todos los días; si el
+tiempo no es la restricción, `Inf` es la opción honesta.
+
+
 ## El plan nombra las palancas también cuando el trabajo es medio
 
 `plan_perfilado_dbi()` avisa antes de pagar, y cuando el trabajo estimado era

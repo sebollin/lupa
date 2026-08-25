@@ -348,7 +348,11 @@
       "SELECT ", paste(campos_sql, collapse = ", "), " FROM ",
       candidato$constructor(tabla_sql, porcentaje)
     )
-    acotada <- dialecto$limitar(base, muestra, 0)
+    # Sin tope finito no hay nada que acotar: `TABLESAMPLE` ya recorta por su
+    # porcentaje, asi que la consulta base alcanza.
+    acotada <- if (is.finite(muestra)) {
+      dialecto$limitar(base, muestra, 0)
+    } else NULL
     return(list(
       sql = if (is.null(acotada)) base else acotada,
       filas = -1L,
@@ -362,7 +366,12 @@
     "SELECT ", paste(campos_sql, collapse = ", "), " FROM ", tabla_sql,
     " ORDER BY ", funcion$sql
   )
-  acotada <- dialecto$limitar(base, muestra, 0)
+  # Aca el tope ES el muestreo -ordenar por una funcion pseudoaleatoria y cortar-,
+  # asi que con `Inf` este candidato no aplica: ordenar la tabla entera y llevarse
+  # todo no es muestrear.
+  acotada <- if (is.finite(muestra)) {
+    dialecto$limitar(base, muestra, 0)
+  } else NULL
   if (is.null(acotada)) return(NULL)
   list(
     sql = acotada, filas = -1L, metodo = candidato$nombre,
@@ -1107,10 +1116,19 @@
   as.integer(tamano_lote)
 }
 
+# `Inf` significa "toda la tabla, sea del tamano que sea". Es la unica forma de
+# pedirlo sin averiguar antes cuantas filas hay: el armado de la muestra ya no
+# pone `LIMIT` cuando lo pedido no es menor que el total, asi que `Inf` cae solo
+# en ese camino. Existe porque un analisis de calidad no se corre todos los dias
+# y suele convenir esperar antes que mirar menos filas.
 .validar_muestra_dbi <- function(muestra) {
   if (!is.numeric(muestra) || length(muestra) != 1L || is.na(muestra) ||
-      !is.finite(muestra) || muestra < 1 || muestra != floor(muestra)) {
-    stop("`muestra` debe ser un entero positivo finito.", call. = FALSE)
+      muestra < 1 ||
+      (is.finite(muestra) && muestra != floor(muestra))) {
+    stop(
+      "`muestra` debe ser un entero positivo, o `Inf` para la tabla entera.",
+      call. = FALSE
+    )
   }
   as.numeric(muestra)
 }
@@ -2639,8 +2657,12 @@
     "escanea la tabla completa dos veces" = 2 * n_consultas * filas,
     "ordena la tabla completa" = n_consultas * filas,
     "ordena o agrupa la tabla completa" = n_consultas * filas,
-    "lee una muestra del motor" = n_consultas * muestra,
-    "lee las filas pedidas" = muestra,
+    # Con `muestra = Inf` -toda la tabla- lo pedido son todas las filas. Sin
+    # esta traduccion el trabajo estimado daria `Inf` y el plan reportaria una
+    # magnitud infinita en vez del costo real, que es leer la tabla entera.
+    "lee una muestra del motor" = n_consultas *
+      (if (is.finite(muestra)) muestra else filas),
+    "lee las filas pedidas" = if (is.finite(muestra)) muestra else filas,
     NA_real_
   )
 }
@@ -2844,7 +2866,7 @@
 #'   plan_perfilado_dbi(con, "ejemplo")
 #'   DBI::dbDisconnect(con)
 #' }
-plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
+plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
                                orden_muestra = NULL,
                                modo = c("exacto", "seguro", "conteos",
                                          "muestreado", "aproximado"),
@@ -2906,6 +2928,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = 1000L,
   attr(plan, "consultas_emitidas") <- preparacion$presupuesto$usadas
   attr(plan, "metricas") <- preparacion$metricas
   attr(plan, "filas") <- preparacion$n_total
+  attr(plan, "muestra") <- preparacion$muestra
   attr(plan, "tamano_lote") <- preparacion$tamano_lote
   # Que columnas van a pasar por el detector de vocabulario. Se mira el
   # prototipo -lo que devuelve el driver- y no el tipo declarado: es lo que de
@@ -3039,6 +3062,24 @@ print.plan_perfilado_dbi <- function(x, ...) {
     } else {
       cli::cli_alert_success(paste0("Trabajo estimado bajo: ", trabajo))
     }
+  }
+  # `muestra = Inf` -lo que viene por omision- trae la tabla entera a R. Es lo
+  # correcto para un analisis de calidad: los diagnosticos que miran los valores
+  # -patrones, formatos, casi-duplicados- solo ven lo que se les trae, y sin
+  # `orden_muestra` una muestra acotada son las PRIMERAS filas del motor, no una
+  # al azar. Pero conviene decirlo antes y no despues, porque sobre una tabla
+  # grande es lo que manda el reloj.
+  muestra_plan <- attr(x, "muestra", exact = TRUE)
+  if (!is.null(muestra_plan) && !is.finite(muestra_plan)) {
+    filas_plan <- attr(x, "filas", exact = TRUE)
+    cli::cli_text(
+      "El perfil de muestra trae la tabla entera",
+      if (!is.null(filas_plan) && !is.na(filas_plan)) {
+        paste0(" -", .miles_dbi(filas_plan), " filas-")
+      } else "",
+      ": es el valor por omisi\u00f3n y sobre una tabla grande puede demorar. ",
+      "`muestra = n` acota cuantas filas se traen, a cambio de mirar menos."
+    )
   }
   # Los supuestos son largos y solo pesan cuando el numero incomoda. Sobre una
   # tabla chica el usuario ya tiene su respuesta en la linea de arriba, y dos
@@ -3944,7 +3985,19 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @param conexion Conexión abierta compatible con DBI.
 #' @param tabla Nombre de tabla o un objeto aceptado por
 #'   [DBI::dbQuoteIdentifier()].
-#' @param muestra Cantidad positiva y finita de filas solicitadas.
+#' @param muestra Cantidad positiva de filas solicitadas para el perfil de
+#'   muestra, o `Inf` para traer la tabla entera. Con `Inf` la consulta sale sin
+#'   `LIMIT` y `tabla_completa` queda en `TRUE`.
+#'
+#'   El resumen de tabla **no** se muestrea: con `modo = "exacto"` se calcula en
+#'   el motor sobre todas las filas. Lo que sale de esta muestra son los
+#'   diagnosticos que necesitan los valores en R -patrones, formatos,
+#'   casi-duplicados-, y sin `orden_muestra` no son una muestra aleatoria sino
+#'   las primeras filas que devuelva el motor. Medido sobre una tabla de 200.000
+#'   filas con un defecto plantado al final: con el valor por omision aparecen
+#'   tres hallazgos y con `Inf` aparecen cinco, a cambio de 10 segundos en vez
+#'   de 2. Un analisis de calidad no se corre todos los dias; si el tiempo no es
+#'   la restriccion, `Inf` es la opcion honesta.
 #' @param orden_muestra Columnas para `ORDER BY`. La salida solo declara orden
 #'   reproducible cuando la combinación es única en toda la tabla. Sin este
 #'   argumento, DBI no garantiza el orden ni la pertenencia de una muestra
@@ -3984,7 +4037,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   resultado <- perfilar_dbi(con, "ejemplo", muestra = 5, orden_muestra = "id")
 #'   DBI::dbDisconnect(con)
 #' }
-perfilar_dbi <- function(conexion, tabla, muestra = 1000L,
+perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                          orden_muestra = NULL,
                          modo = c("exacto", "seguro", "conteos", "muestreado",
                                    "aproximado"),

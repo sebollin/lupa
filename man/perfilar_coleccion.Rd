@@ -6,7 +6,7 @@
 \usage{
 perfilar_coleccion(
   coleccion,
-  muestra = 1000L,
+  muestra = Inf,
   conservar_perfiles = FALSE,
   cobertura_metricas = c("no_medidas", "completa", "ninguna"),
   tope_cobertura_metricas = 20000L,
@@ -16,7 +16,12 @@ perfilar_coleccion(
 \arguments{
 \item{coleccion}{Objeto creado por \code{\link[=coleccion]{coleccion()}}.}
 
-\item{muestra}{Filas solicitadas por tabla para el bloque en memoria.}
+\item{muestra}{Filas solicitadas por tabla para el bloque en memoria. Por
+omision \code{Inf}: cada tabla se trae entera. El resumen por tabla se calcula en
+el motor y no depende de esto; lo que depende son los diagnosticos que miran
+los valores en R. Acotarlo con \code{muestra = n} es mas rapido a cambio de mirar
+menos filas, y sobre una coleccion grande conviene mirar antes
+\code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} tabla por tabla.}
 
 \item{conservar_perfiles}{Si se retienen los objetos \code{perfil_dbi} completos.
 Por omisión \code{FALSE}.}

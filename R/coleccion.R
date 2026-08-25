@@ -635,7 +635,12 @@ print.coleccion_lupa <- function(x, ...) {
 #' `meta$snapshot` declara que no lo hubo.
 #'
 #' @param coleccion Objeto creado por [coleccion()].
-#' @param muestra Filas solicitadas por tabla para el bloque en memoria.
+#' @param muestra Filas solicitadas por tabla para el bloque en memoria. Por
+#'   omision `Inf`: cada tabla se trae entera. El resumen por tabla se calcula en
+#'   el motor y no depende de esto; lo que depende son los diagnosticos que miran
+#'   los valores en R. Acotarlo con `muestra = n` es mas rapido a cambio de mirar
+#'   menos filas, y sobre una coleccion grande conviene mirar antes
+#'   [plan_perfilado_dbi()] tabla por tabla.
 #' @param conservar_perfiles Si se retienen los objetos `perfil_dbi` completos.
 #'   Por omisión `FALSE`.
 #' @param cobertura_metricas Qué se sube a `cobertura_metricas`: `"no_medidas"`
@@ -661,7 +666,7 @@ print.coleccion_lupa <- function(x, ...) {
 #'   perfilar_coleccion(coleccion(con, "personas", nombre = "padron"))
 #'   DBI::dbDisconnect(con)
 #' }
-perfilar_coleccion <- function(coleccion, muestra = 1000L,
+perfilar_coleccion <- function(coleccion, muestra = Inf,
                                conservar_perfiles = FALSE,
                                cobertura_metricas = c("no_medidas", "completa",
                                                       "ninguna"),
