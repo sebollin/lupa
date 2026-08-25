@@ -2247,8 +2247,22 @@
     if (is.null(aplicable)) return(NULL)
     return(which(!is.na(x) & !aplicable))
   }
-  if (inherits(x, "sfc")) {
-    geometria <- resultado$geometria
+  # La condicion es que el analisis de geometria haya dejado sus indices, no que
+  # la columna sea un objeto `sfc`. Estaba al reves, y eso descartaba una traza
+  # que el paquete ya tenia calculada.
+  #
+  # Importa por como llegan las geometrias de una base: por DBI vienen como texto
+  # WKT o como blob WKB, no como `sfc`. Con `inherits(x, "sfc")` el `switch` no
+  # corria, `idx` quedaba NULL y la traza salia `no_disponible` -avisando de una
+  # incoherencia que no existia, porque los indices estaban ahi-. Contra una tabla
+  # PostGIS real eso produjo
+  # `coordenada_fuera_dominio en geom: traza no disponible`.
+  #
+  # Los indices son posiciones de fila: valen igual este la geometria como `sfc`,
+  # como texto o como binario. Mirar la clase de la columna era mirar lo que no
+  # decidia.
+  geometria <- resultado$geometria
+  if (is.list(geometria)) {
     idx <- switch(
       tipo,
       geometria_invalida = geometria$indices_invalidas,
