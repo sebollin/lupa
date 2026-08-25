@@ -342,3 +342,16 @@
 .pegar_nombres <- function(x) {
   paste(x, collapse = " + ")
 }
+
+# Una corrida larga y callada no se distingue de una colgada, pero una barra en
+# la salida de un guion es ruido que despues hay que filtrar. La decision es la
+# misma en todos los caminos, asi que vive en un solo lugar: `interactive()`
+# decide y `options(lupa.progreso = )` manda sobre eso en los dos sentidos.
+.progreso_activo <- function(total, minimo) {
+  if (!isTRUE(getOption("lupa.progreso", interactive()))) return(FALSE)
+  # Sin total conocido no hay porcentaje que mostrar, y un porcentaje contra un
+  # total inventado es peor que ninguno. Debajo del minimo la corrida termina
+  # antes de que la barra sirva.
+  is.numeric(total) && length(total) == 1L && !is.na(total) &&
+    is.finite(total) && total >= minimo
+}

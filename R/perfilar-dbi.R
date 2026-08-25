@@ -111,15 +111,9 @@
 # aparece en la salida de un guion es ruido que despues hay que filtrar.
 .abrir_progreso_dbi <- function(presupuesto, previstas, envir) {
   if (is.null(presupuesto)) return(invisible(NULL))
-  if (!isTRUE(getOption("lupa.progreso", interactive()))) {
-    return(invisible(NULL))
-  }
-  if (!is.numeric(previstas) || length(previstas) != 1L ||
-      is.na(previstas) || !is.finite(previstas) || previstas < 12) {
-    # Debajo de una docena de consultas la corrida termina antes de que la barra
-    # sirva para algo.
-    return(invisible(NULL))
-  }
+  # Debajo de una docena de consultas la corrida termina antes de que la barra
+  # sirva para algo.
+  if (!.progreso_activo(previstas, 12)) return(invisible(NULL))
   presupuesto$previstas <- previstas
   presupuesto$barra <- cli::cli_progress_bar(
     "Perfilando", total = previstas, .envir = envir, clear = TRUE

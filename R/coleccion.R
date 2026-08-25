@@ -702,9 +702,28 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
   filas_metricas <- 0
   metricas_truncadas <- FALSE
 
+  # Una coleccion es el caso donde mas se nota el silencio: son muchas tablas y
+  # cada una puede tardar minutos. La barra avanza por tabla -un total conocido-
+  # y dice cual esta perfilando, que es lo que permite saber si una se trabo.
+  # Con dos tablas o menos no aparece: termina antes de servir.
+  barra_tablas <- if (.progreso_activo(nrow(declaradas), 3)) {
+    cli::cli_progress_bar(
+      "Perfilando tablas", total = nrow(declaradas),
+      .envir = environment(), clear = TRUE
+    )
+  } else NULL
+
   for (i in seq_len(nrow(declaradas))) {
     fila <- declaradas[i, , drop = FALSE]
     identificador <- fila$identificador
+    if (!is.null(barra_tablas)) {
+      try(
+        cli::cli_progress_update(
+          id = barra_tablas, set = i - 1L, status = identificador
+        ),
+        silent = TRUE
+      )
+    }
     if (!identical(fila$tipo, "tabla")) {
       cobertura[[length(cobertura) + 1L]] <- .fila_cobertura_coleccion(
         fila, "tabla",

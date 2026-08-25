@@ -7,7 +7,9 @@ filas puede tardar minutos. Y una corrida callada no se distingue de una colgada
 
 En una sesión interactiva `perfilar_dbi()` muestra una barra que avanza contra
 **las consultas que el plan dice que va a emitir**: un total conocido, no una
-estimación. No aparece cuando la corrida es de menos de una docena de consultas
+estimación. Y `perfilar_coleccion()` avanza **por tabla**, diciendo cuál está
+perfilando —que es lo que permite ver si una se trabó— y sin aparecer cuando hay
+dos tablas o menos. No aparece cuando la corrida es de menos de una docena de consultas
 —termina antes de que sirva— ni fuera de una sesión interactiva, para que la
 salida de un guion no traiga ruido. `options(lupa.progreso = )` manda sobre eso
 en los dos sentidos.
