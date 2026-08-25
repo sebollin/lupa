@@ -93,7 +93,38 @@
   # probarla por columna gastaria hasta tres consultas cada vez y romperia la
   # promesa del plan, que dice exactamente cuantas va a emitir.
   estado$forma_desvio <- NULL
+  # Cuantas consultas espera emitir la corrida y la barra que lo muestra. Van
+  # aca porque el presupuesto es el unico objeto que ve pasar TODAS las
+  # consultas: colgarlo de otro lado obligaria a enhebrarlo por cada camino.
+  estado$previstas <- NA_real_
+  estado$barra <- NULL
   estado
+}
+
+# Perfilar la tabla entera -lo que viene por omision- puede tardar minutos sobre
+# una tabla grande, y una corrida callada no se distingue de una colgada. La
+# barra avanza contra las consultas que el plan dice que se van a emitir, que es
+# un total conocido y no una estimacion.
+#
+# No se abre sola en pruebas ni en guiones: `interactive()` decide, y
+# `options(lupa.progreso = )` manda sobre eso en los dos sentidos. Una barra que
+# aparece en la salida de un guion es ruido que despues hay que filtrar.
+.abrir_progreso_dbi <- function(presupuesto, previstas, envir) {
+  if (is.null(presupuesto)) return(invisible(NULL))
+  if (!isTRUE(getOption("lupa.progreso", interactive()))) {
+    return(invisible(NULL))
+  }
+  if (!is.numeric(previstas) || length(previstas) != 1L ||
+      is.na(previstas) || !is.finite(previstas) || previstas < 12) {
+    # Debajo de una docena de consultas la corrida termina antes de que la barra
+    # sirva para algo.
+    return(invisible(NULL))
+  }
+  presupuesto$previstas <- previstas
+  presupuesto$barra <- cli::cli_progress_bar(
+    "Perfilando", total = previstas, .envir = envir, clear = TRUE
+  )
+  invisible(presupuesto$barra)
 }
 
 .saldo_dbi <- function(presupuesto) {
@@ -107,6 +138,17 @@
     return(FALSE)
   }
   presupuesto$usadas <- presupuesto$usadas + 1
+  if (!is.null(presupuesto$barra)) {
+    # `set` y no `inc`: la cuenta que manda es la del presupuesto, que ya
+    # incluye las consultas-porton emitidas antes de abrir la barra.
+    try(
+      cli::cli_progress_update(
+        id = presupuesto$barra,
+        set = min(presupuesto$usadas, presupuesto$previstas)
+      ),
+      silent = TRUE
+    )
+  }
   TRUE
 }
 
@@ -4002,6 +4044,19 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   reproducible cuando la combinación es única en toda la tabla. Sin este
 #'   argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 #'   limitada, y `meta` lo declara expresamente.
+#' @section Progreso:
+#' Traer la tabla entera puede tardar minutos sobre una tabla grande, y una
+#' corrida callada no se distingue de una colgada. En una sesión interactiva se
+#' muestra una barra que avanza contra las consultas que el plan dice que se van
+#' a emitir —un total conocido, no una estimación—, y no aparece cuando la
+#' corrida es de menos de una docena de consultas, porque termina antes de que
+#' sirva.
+#'
+#' `options(lupa.progreso = TRUE)` la fuerza y `FALSE` la apaga; fuera de una
+#' sesión interactiva está apagada, para que la salida de un guion no traiga
+#' ruido que despues haya que filtrar. No cambia ningún valor de lo que se mide:
+#' hay una prueba que compara el perfil con la barra y sin ella.
+#'
 #' @param modo Conjunto de métricas del resumen: `"exacto"` las calcula todas,
 #'   `"seguro"` evita las que ordenan o agrupan la tabla completa y
 #'   `"conteos"` deja solo el conteo de valores no nulos, `"muestreado"`
@@ -4069,6 +4124,12 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   # Las dos consultas obligatorias que faltan -verificacion de orden y
   # muestra- se reservan para que el presupuesto no se las coma.
   presupuesto$reserva <- if (length(preparacion$orden_sql)) 2 else 1
+  # El plan ya dice cuantas consultas se van a emitir, asi que la barra avanza
+  # contra un total conocido y no contra una estimacion. Se abre en el marco de
+  # esta funcion para que viva lo que dure el perfilado y se cierre sola.
+  .abrir_progreso_dbi(
+    presupuesto, sum(plan$n_consultas), environment()
+  )
 
   fuente_muestreada <- NULL
   muestreo_meta <- preparacion$muestreo
