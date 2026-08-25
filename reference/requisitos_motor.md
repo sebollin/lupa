@@ -45,7 +45,7 @@ nrow(todos)
 # Lo que hace falta para un motor en particular, antes de intentar conectarse.
 requisitos_motor("postgresql")[, c("paquete_r", "estado_paquete_r")]
 #>   paquete_r estado_paquete_r
-#> 3 RPostgres            falta
+#> 3 RPostgres        instalado
 
 # `no_comprobada` en la biblioteca del sistema no significa instalada: el
 # paquete no puede saberlo sin intentarlo, y lo dice en vez de suponerlo.
