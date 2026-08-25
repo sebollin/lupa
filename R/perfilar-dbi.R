@@ -367,6 +367,20 @@
 # sombreado es peor que uno sin usar: hace creer que el valor influye.
 .forma_muestreo_dbi <- function(candidato, tabla_sql, campos_sql, porcentaje,
                                 muestra, dialecto) {
+  # Con `muestra = Inf` -la tabla entera, que es el valor por omision- ninguna
+  # forma de muestreo en el motor tiene sentido, y hay que decirlo una sola vez:
+  #
+  # - la de cantidad fija escribiria `RESERVOIR (Inf ROWS)` y el motor no parsea;
+  # - la de porcentaje recibe una fraccion saturada en 1, o sea `100 PERCENT`,
+  #   que es la tabla entera;
+  # - la de orden pseudoaleatorio no tiene donde cortar, y ordenar todo para
+  #   llevarse todo tampoco es muestrear.
+  #
+  # Estaba guardado rama por rama y de tres se guardaron dos: la de DuckDB se
+  # paso por alto y contra un motor real daba error de sintaxis. Guardar caso por
+  # caso es exactamente como se olvida uno, y ademas deja la siguiente rama que
+  # se agregue sin proteger. Por eso vive aca y no adentro.
+  if (!is.finite(muestra)) return(NULL)
   if (identical(candidato$tipo, "tablesample_filas")) {
     return(list(
       sql = paste0(
@@ -384,11 +398,7 @@
       "SELECT ", paste(campos_sql, collapse = ", "), " FROM ",
       candidato$constructor(tabla_sql, porcentaje)
     )
-    # Sin tope finito no hay nada que acotar: `TABLESAMPLE` ya recorta por su
-    # porcentaje, asi que la consulta base alcanza.
-    acotada <- if (is.finite(muestra)) {
-      dialecto$limitar(base, muestra, 0)
-    } else NULL
+    acotada <- dialecto$limitar(base, muestra, 0)
     return(list(
       sql = if (is.null(acotada)) base else acotada,
       filas = -1L,
@@ -402,12 +412,7 @@
     "SELECT ", paste(campos_sql, collapse = ", "), " FROM ", tabla_sql,
     " ORDER BY ", funcion$sql
   )
-  # Aca el tope ES el muestreo -ordenar por una funcion pseudoaleatoria y cortar-,
-  # asi que con `Inf` este candidato no aplica: ordenar la tabla entera y llevarse
-  # todo no es muestrear.
-  acotada <- if (is.finite(muestra)) {
-    dialecto$limitar(base, muestra, 0)
-  } else NULL
+  acotada <- dialecto$limitar(base, muestra, 0)
   if (is.null(acotada)) return(NULL)
   list(
     sql = acotada, filas = -1L, metodo = candidato$nombre,

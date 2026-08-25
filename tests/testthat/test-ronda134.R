@@ -83,3 +83,52 @@ test_that("el alcance LSH declara que sus candidatos dependen del orden", {
   expect_false("lsh_candidatos_dependen_orden_filas" %in% names(sin_lsh))
   expect_false("lsh_orden_vocabulario" %in% names(sin_lsh))
 })
+
+test_that("el muestreo por cantidad fija de filas declina una muestra infinita", {
+  # `muestra = Inf` -la tabla entera- es el valor por omision desde hoy, y el
+  # muestreo EN EL MOTOR no puede acotar con eso: quedarse con "todas" las filas
+  # no es muestrear.
+  #
+  # Esto salio de una refutacion externa: de las tres ramas de
+  # `.forma_muestreo_dbi()`, dos se guardaron al aceptar `Inf` y la tercera se
+  # paso por alto. Contra un motor real producia
+  # `TABLESAMPLE RESERVOIR (Inf ROWS)` y un error de sintaxis; el paquete lo
+  # declaraba honestamente, pero el usuario se quedaba sin perfil de muestra sin
+  # haber pedido nada raro. Guardar caso por caso, en vez de en la entrada, es
+  # exactamente como se olvida uno.
+  candidato <- list(
+    nombre = "tablesample_reservoir",
+    descripcion = "TABLESAMPLE RESERVOIR (n ROWS)",
+    tipo = "tablesample_filas",
+    constructor = function(tabla, filas) paste0(
+      tabla, " TABLESAMPLE RESERVOIR (", filas, " ROWS)"
+    )
+  )
+  dialecto <- list(limitar = function(sql, n, salto) paste0(sql, " LIMIT ", n))
+
+  expect_null(lupa:::.forma_muestreo_dbi(
+    candidato, "`t`", "`a`", 10, Inf, dialecto
+  ))
+})
+
+test_that("con una muestra finita ese mismo candidato sigue aplicando", {
+  # El control que hace valer la prueba de arriba: si la guarda nueva hiciera
+  # declinar tambien el caso finito, habria apagado el muestreo en el motor
+  # entero y la prueba anterior pasaria igual, sin haber probado nada.
+  candidato <- list(
+    nombre = "tablesample_reservoir",
+    descripcion = "TABLESAMPLE RESERVOIR (n ROWS)",
+    tipo = "tablesample_filas",
+    constructor = function(tabla, filas) paste0(
+      tabla, " TABLESAMPLE RESERVOIR (", filas, " ROWS)"
+    )
+  )
+  dialecto <- list(limitar = function(sql, n, salto) paste0(sql, " LIMIT ", n))
+
+  forma <- lupa:::.forma_muestreo_dbi(
+    candidato, "`t`", "`a`", 10, 2000L, dialecto
+  )
+  expect_false(is.null(forma))
+  expect_match(forma$sql, "2000", fixed = TRUE)
+  expect_false(grepl("Inf", forma$sql, fixed = TRUE))
+})
