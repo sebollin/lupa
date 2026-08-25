@@ -3000,11 +3000,23 @@ print.plan_perfilado_dbi <- function(x, ...) {
         if (n_texto == 1) " columna de texto" else " columnas de texto"
       )
     }
-    # Una magnitud alta no es un error: es una corrida que conviene decidir a
-    # ojos abiertos. Por eso el aviso nombra las palancas concretas en vez de
-    # limitarse a decir que es grande.
-    if (identical(magnitud, "alta")) {
-      cli::cli_alert_danger(paste0("Trabajo estimado alto: ", trabajo))
+    # Una magnitud alta o media no es un error: es una corrida que conviene
+    # decidir a ojos abiertos. Por eso el aviso nombra las palancas concretas en
+    # vez de limitarse a decir que es grande.
+    #
+    # Las nombra tambien en "media", y eso salio de una corrida contra motores
+    # reales: una tabla de 4,5 millones de filas en PostgreSQL tardo 6,2 minutos
+    # con las opciones por omision y su plan la clasificaba **media**. El aviso
+    # avisaba, pero quien no conociera `modo = 'muestreado'` -que baja esa misma
+    # tabla a 39 segundos- no tenia como enterarse. Un plan que dice "va a
+    # costar" sin decir "y asi se acota" deja al usuario a mitad de camino
+    # justo donde la decision importa.
+    if (identical(magnitud, "alta") || identical(magnitud, "media")) {
+      if (identical(magnitud, "alta")) {
+        cli::cli_alert_danger(paste0("Trabajo estimado alto: ", trabajo))
+      } else {
+        cli::cli_alert_warning(paste0("Trabajo estimado medio: ", trabajo))
+      }
       cli::cli_text("Para acotarlo, sin cambiar nada m\u00e1s:")
       palancas <- c(
         "modo = 'muestreado' mide sobre una muestra que trae el motor",
@@ -3024,8 +3036,6 @@ print.plan_perfilado_dbi <- function(x, ...) {
         )
       }
       cli::cli_ul(palancas)
-    } else if (identical(magnitud, "media")) {
-      cli::cli_alert_warning(paste0("Trabajo estimado medio: ", trabajo))
     } else {
       cli::cli_alert_success(paste0("Trabajo estimado bajo: ", trabajo))
     }

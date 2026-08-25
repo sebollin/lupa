@@ -249,3 +249,48 @@ test_that("el plan real declara las dos mitades y la impresion las muestra", {
   expect_match(salida, "columna de texto")
   expect_match(salida, "pares de formas")
 })
+
+test_that("una magnitud media tambien nombra las palancas, y una baja no", {
+  skip_if_not_installed("RSQLite")
+  # Salio de una corrida contra motores reales: una tabla de millones de filas
+  # tardaba minutos con las opciones por omision y su plan la clasificaba
+  # **media**, donde el aviso avisaba pero no nombraba `modo = 'muestreado'`.
+  # Un plan que dice "va a costar" sin decir "y asi se acota" deja la decision a
+  # medias justo donde importa.
+  palancas_de <- function(datos) {
+    con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+    on.exit(DBI::dbDisconnect(con), add = TRUE)
+    DBI::dbWriteTable(con, "t", datos)
+    plan <- plan_perfilado_dbi(con, "t")
+    salida <- c(
+      capture.output(print(plan)),
+      capture.output(print(plan), type = "message")
+    )
+    list(
+      magnitud = attr(plan, "magnitud", exact = TRUE),
+      nombra = any(grepl("modo = .muestreado", salida))
+    )
+  }
+
+  set.seed(4)
+  chica <- palancas_de(data.frame(
+    id = 1:500, v = letters[sample(26L, 500L, TRUE)], stringsAsFactors = FALSE
+  ))
+  expect_equal(chica$magnitud, "baja")
+  # En una tabla chica el usuario ya tiene su respuesta: listar palancas seria
+  # ruido en cada corrida.
+  expect_false(chica$nombra)
+
+  vocabulario <- replicate(
+    500L, paste(sample(LETTERS, 60L, TRUE), collapse = "")
+  )
+  grande <- palancas_de(data.frame(
+    id = 1:400000L,
+    monto = round(rlnorm(400000L, 9, 1), 2),
+    t1 = vocabulario[sample(500L, 400000L, TRUE)],
+    t2 = vocabulario[sample(500L, 400000L, TRUE)],
+    stringsAsFactors = FALSE
+  ))
+  expect_true(grande$magnitud %in% c("media", "alta"))
+  expect_true(grande$nombra)
+})
