@@ -138,6 +138,27 @@ revision, so this paragraph had been claiming a result it no longer had. Both
 files now guard per test rather than per file, so the blocks that do run without
 the optional packages still run.
 
+**It reopened a third time on 2026-08-24, in a new test file, and this check was
+again the only thing that saw it.** Six test blocks exercising approximate
+duplicate detection were written; `skip_if_not_installed("stringdist")` was added
+to one of them — the last one written. The local suite reported `FAIL 0` with
+16 064 passing checks, and the three continuous-integration workflows reported
+success, because all of them have the optional packages installed. With
+`_R_CHECK_DEPENDS_ONLY_=true` the same sources gave **`1 ERROR` with 7 failures**,
+all in that one file, the first of them a `subscript out of bounds` on a table
+that comes back empty when the package is absent. After guarding all six, the
+same check gives **`Status: 1 NOTE`** with `FAIL 0 | SKIP 278`, six more skips
+than before — which is the number of blocks now declining to run, and the check
+that the guard is real rather than decorative.
+
+The recurrence is worth stating plainly: the note in the working memory of this
+project already recorded the first occurrence, with this same optional package,
+and it did not prevent the third. The guard is missed on the blocks written
+*first*, because portability is what one thinks about at the end. So the rule is
+no longer "remember to add it" but a step: on creating a test file, check whether
+it touches a `Suggests` package and guard **every** block, and verify with this
+command rather than with the local suite, which structurally cannot see it.
+
 **And this check turns out not to be equivalent to the environment it stands in
 for.** Running the suite in a container where `bit64` genuinely has no build,
 two tests failed that pass here — both of them tests *about* `bit64` being
@@ -161,10 +182,21 @@ stamps and the stamp identifies a build, not a revision. Each result was read
 from that run's own check log. Where a run has not yet been repeated on the
 current sources, the line says so rather than carrying the older result forward.
 
-The package sources submitted are those of `375d7c3`. Anything committed after
-it touches only this letter, which `.Rbuildignore` keeps out of the tarball, so
-it leaves the package byte-identical — `git diff --stat 375d7c3..HEAD` lists
-`cran-comments.md` and nothing else.
+The package sources submitted are those of `ee5f6ac`.
+
+**This paragraph was wrong until it was re-run.** It claimed the sources were
+those of `375d7c3` and that everything committed after it touched only this
+letter, leaving the package byte-identical. Running the very command it cites
+returns `28 files changed, 1565 insertions(+), 439 deletions(-)`, of which 23
+travel in the tarball, six of them under `R/`. The claim had been carried
+forward across a day of work that rewrote the tie-breaking of a trimming step,
+changed a default from a bounded sample to the whole table, and added progress
+reporting.
+
+It is recorded rather than quietly corrected because the failure is the subject
+of the section above: a statement of fact in prose ages silently, and the
+reproducer being written next to it is not the same as the reproducer being run.
+The command is now run for each revision and its output pasted, not summarised.
 
 * Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — **`Status: 1 NOTE`**
   with `--as-cran`, the note being `New submission`, and the same single note
@@ -177,22 +209,28 @@ it leaves the package byte-identical — `git diff --stat 375d7c3..HEAD` lists
   because the R 4.1.3 container has no `pandoc`, and carrying that flag over to
   the local runs left unchecked something CRAN does do. All nine vignettes build
   without a warning.
-* Continuous integration (GitHub Actions, `R-CMD-check`, run 32687475638) on
-  `375d7c3`, 5 of 5 with **`Status: OK`** and no notes: Ubuntu with R release, R-devel and R oldrel-1;
+* Continuous integration (GitHub Actions, `R-CMD-check`, run 32800861652) on
+  `ee5f6ac`, 5 of 5 with **`Status: OK`** and no notes: Ubuntu with R release, R-devel and R oldrel-1;
   Windows with R release; and macOS with R release on
   **`aarch64-apple-darwin23`**. The platforms exercised are
   `x86_64-pc-linux-gnu`, `x86_64-w64-mingw32` and `aarch64-apple-darwin23`. The
   five `Status: OK` lines and the absence of notes are read from the run's own
   log rather than inferred from the green tick, because a run can conclude
   successfully and still carry notes.
-* R-hub v2, R-devel (run 32689607365): Linux, Windows and macOS — all three
-  **`Status: OK`**, no notes, with the suite at `[ FAIL 0 | WARN 0 ]` on each.
+* R-hub v2, R-devel (run 32800095271) on **`7244ee1`, one commit before the
+  submitted sources**: Linux, Windows and macOS — all three **`Status: OK`**, no
+  notes. The gap is one commit that adds a progress bar to collection profiling;
+  it is named here rather than glossed, because a result that measured other
+  sources is not a result for these. Re-dispatching R-hub on `ee5f6ac` costs
+  time and no work, and should precede the actual submission.
   The macOS result was read from that job's own log rather than from the
   combined run log, which the API returned truncated before the check summary —
   a green tick with no readable `Status:` line is not a result.
-* win-builder, R release and R-devel: the tarball was uploaded to both queues on
-  2026-08-24. Results are reported to the maintainer by e-mail and are not in
-  this letter yet.
+* win-builder, R release and R-devel: the tarball built from `ee5f6ac` was
+  uploaded to both queues on 2026-08-25. Results are reported to the maintainer
+  by e-mail. **They are not transcribed here yet**, and the line will say so
+  until the check log itself has been read: an e-mail having arrived is not a
+  result, and neither is being told that it arrived.
 * Container: R 4.1.3 (`rocker/r-ver:4.1.3`) for the declared minimum, with the
   suggested packages installed and the test suite running. Result:
   **0 errors, 0 warnings**, `checking tests ... OK`, and two notes that are
@@ -211,13 +249,23 @@ it leaves the package byte-identical — `git diff --stat 375d7c3..HEAD` lists
   `testthat 3.1.7` installs without trouble. Run there, the suite reports
   `[ FAIL 18 | PASS 15356 ]`.
 
-  Six of those eighteen come from one cause: under R < 4.0 `data.frame()`
-  defaults to `stringsAsFactors = TRUE`, and this package has 275 `data.frame()`
-  calls that do not say otherwise, so text columns are born as factors. The
-  consequence is not cosmetic — writing the personal-data marker
-  `"[valor protegido]"` into a factor column yields `NA` instead, so a promise
-  the package makes about that cell silently goes unkept. Under R 4.0.5 with the
-  same period packages those six disappear.
+  Six of those eighteen came from one cause: under R < 4.0 `data.frame()`
+  defaults to `stringsAsFactors = TRUE`, and at the time of that run the package
+  had 275 `data.frame()` calls that did not say otherwise, so text columns were
+  born as factors. The consequence is not cosmetic — writing the personal-data
+  marker `"[valor protegido]"` into a factor column yields `NA` instead, so a
+  promise the package makes about that cell silently goes unkept. Under R 4.0.5
+  with the same period packages those six disappeared.
+
+  **That count is no longer 275, and this line said it was until it was
+  measured.** Parsing `R/` rather than grepping it — `grep` counts
+  `as.data.frame(` and `is.data.frame(` as well, and returns 297 where the
+  constructor is called 195 times — there is exactly **one** call without the
+  argument, and it constructs an empty frame, where there is no column to
+  coerce. The sentence is left in the past tense with the current figure beside
+  it rather than deleted: what it describes is why the floor was raised, and a
+  letter that erases the state it was written about stops being evidence of
+  anything.
 
   The minimum is now `R (>= 4.1.0)`, which is both what current `testthat`
   requires — so the suite runs at the declared floor with today's tools — and a
