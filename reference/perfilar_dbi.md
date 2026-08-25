@@ -202,6 +202,21 @@ lejos: no emite las consultas de moda ni de mediana y no informa mínimo
 ni máximo, útil cuando la tabla es un padrón y la moda de un
 identificador único es un documento real.
 
+## Progreso
+
+Traer la tabla entera puede tardar minutos sobre una tabla grande, y una
+corrida callada no se distingue de una colgada. En una sesión
+interactiva se muestra una barra que avanza contra las consultas que el
+plan dice que se van a emitir —un total conocido, no una estimación—, y
+no aparece cuando la corrida es de menos de una docena de consultas,
+porque termina antes de que sirva.
+
+`options(lupa.progreso = TRUE)` la fuerza y `FALSE` la apaga; fuera de
+una sesión interactiva está apagada, para que la salida de un guion no
+traiga ruido que despues haya que filtrar. No cambia ningún valor de lo
+que se mide: hay una prueba que compara el perfil con la barra y sin
+ella.
+
 ## See also
 
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),

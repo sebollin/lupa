@@ -2,6 +2,24 @@
 
 ## lupa 0.1.0
 
+### Una barra de progreso para las corridas largas
+
+Ahora que la tabla entera es el valor por omisión, una corrida sobre
+millones de filas puede tardar minutos. Y una corrida callada no se
+distingue de una colgada.
+
+En una sesión interactiva
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+muestra una barra que avanza contra **las consultas que el plan dice que
+va a emitir**: un total conocido, no una estimación. No aparece cuando
+la corrida es de menos de una docena de consultas —termina antes de que
+sirva— ni fuera de una sesión interactiva, para que la salida de un
+guion no traiga ruido. `options(lupa.progreso = )` manda sobre eso en
+los dos sentidos.
+
+No cambia ningún valor de lo que se mide, y hay una prueba que compara
+el perfil con la barra y sin ella para que siga siendo cierto.
+
 ### La tabla entera pasa a ser el valor por omisión
 
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),

@@ -42,6 +42,12 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="una-barra-de-progreso-para-las-corridas-largas-0-1-0">Una barra de progreso para las corridas largas<a class="anchor" aria-label="anchor" href="#una-barra-de-progreso-para-las-corridas-largas-0-1-0"></a></h3>
+<p>Ahora que la tabla entera es el valor por omisión, una corrida sobre millones de filas puede tardar minutos. Y una corrida callada no se distingue de una colgada.</p>
+<p>En una sesión interactiva <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> muestra una barra que avanza contra <strong>las consultas que el plan dice que va a emitir</strong>: un total conocido, no una estimación. No aparece cuando la corrida es de menos de una docena de consultas —termina antes de que sirva— ni fuera de una sesión interactiva, para que la salida de un guion no traiga ruido. <code>options(lupa.progreso = )</code> manda sobre eso en los dos sentidos.</p>
+<p>No cambia ningún valor de lo que se mide, y hay una prueba que compara el perfil con la barra y sin ella para que siga siendo cierto.</p>
+</div>
+<div class="section level3">
 <h3 id="la-tabla-entera-pasa-a-ser-el-valor-por-omisión-0-1-0">La tabla entera pasa a ser el valor por omisión<a class="anchor" aria-label="anchor" href="#la-tabla-entera-pasa-a-ser-el-valor-por-omisi%C3%B3n-0-1-0"></a></h3>
 <p><code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code>, <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> y <code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code> traían <strong>1.000 filas</strong> por omisión para el perfil de muestra. Ahora traen <code>Inf</code>: la tabla entera.</p>
 <p>Antes ni siquiera se podía pedir. <code>muestra</code> exigía una cantidad <strong>finita</strong>, así que perfilar la tabla completa obligaba a averiguar cuántas filas tenía y pasarlas a mano: se podía hacerlo, no se podía <em>decirlo</em>. Ahora <code>Inf</code> significa «toda, sea del tamaño que sea», la consulta sale sin <code>LIMIT</code> y <code>tabla_completa</code> queda en <code>TRUE</code>.</p>
