@@ -2777,13 +2777,31 @@
       }
     }
   }
+  # Las seis condiciones de arriba comparan dos salidas del propio `lupa` -lo que
+  # el hallazgo afirma contra las filas que se le adjuntaron-, y ninguna mira los
+  # datos del usuario. No hay nada que corregir en la tabla, y decir "la
+  # trazabilidad contiene incoherencias" mandaba a buscar en los datos algo que
+  # esta en el codigo.
+  #
+  # Es una guarda de invariante contra regresiones, y su destinatario nunca fue
+  # quien usa el paquete: `tests/testthat/test-guardas-trazabilidad.R` la dispara
+  # **mutando `n_afectados` a mano** despues de perfilar, y comprueba con
+  # `expect_no_warning()` que el perfil intacto no la emite.
   if (length(problemas)) {
     condicion <- structure(
       list(
         message = paste0(
-          "La trazabilidad contiene incoherencias: ",
-          paste(problemas, collapse = "; "),
-          ". Se conserva el hallazgo para no ocultar la evidencia."
+          "Un hallazgo quedo con su trazabilidad inconsistente. ",
+          "**Es un problema de `lupa`, no de sus datos**: no hay nada que ",
+          "corregir en la tabla.
+",
+          "Lo que significa para lo que esta leyendo: las filas que respaldan ",
+          "ese hallazgo pueden no corresponderse con lo que el hallazgo cuenta. ",
+          "El hallazgo se conserva para no ocultar la evidencia.
+",
+          "Si modifico a mano el objeto del perfil, esa es la causa mas ",
+          "probable; si no, conviene reportarlo con este detalle: ",
+          paste(problemas, collapse = "; "), "."
         ),
         call = NULL
       ),

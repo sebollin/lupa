@@ -1282,6 +1282,20 @@
       lsh_vocabulario = vocabulario_n,
       lsh_semilla_hash = 1L,
       lsh_hash_familia = "permutacion_aleatoria_determinista_inyectiva",
+      # El vocabulario de q-gramas se numera por orden de primera aparicion y esa
+      # numeracion alimenta las firmas, asi que reordenar las filas cambia que
+      # pares se proponen como candidatos. **No es un defecto**: ocurre dentro de
+      # la garantia declarada arriba -medido sobre 1.200 filas, de los pares que
+      # cambian al barajar ninguno supera un Jaccard de q-gramas de 0,8, donde el
+      # recall declarado es 0,9998-. Pero es una propiedad del resultado y hasta
+      # ahora vivia solo en la documentacion: quien lee el `alcance` o el informe
+      # no se enteraba.
+      #
+      # El segundo campo no es decorativo: nombra el mecanismo, asi que si alguna
+      # vez la numeracion se canoniza, este valor cambia y la dependencia deja de
+      # declararse sola.
+      lsh_candidatos_dependen_orden_filas = TRUE,
+      lsh_orden_vocabulario = "primera_aparicion",
       lsh_max_cubeta = max_cubeta,
       lsh_garantia_jaccard_09 = .garantia_lsh(
         0.9, bandas, filas_banda, pares_descartados_cubetas

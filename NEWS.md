@@ -1,5 +1,39 @@
 # lupa 0.1.0
 
+## El aviso de trazabilidad dice de quién es el problema
+
+Cuando un hallazgo quedaba con su trazabilidad inconsistente, el aviso decía «La
+trazabilidad contiene incoherencias» seguido del detalle interno. Una corrida
+contra bases reales lo describió como honesto pero críptico, y al mirarlo resultó
+peor que críptico: **estaba dirigido a la persona equivocada**.
+
+Las seis condiciones que lo disparan comparan dos salidas del propio `lupa` —lo
+que el hallazgo afirma contra las filas que se le adjuntaron— y **ninguna mira los
+datos del usuario**. Es una guarda de invariante contra regresiones: la prueba que
+la cubre la dispara mutando `n_afectados` a mano después de perfilar, y comprueba
+que un perfil intacto no la emite.
+
+Ahora el aviso dice, en ese orden: que es un problema de `lupa` y no de sus datos,
+que no hay nada que corregir en la tabla, qué significa para el hallazgo que está
+leyendo —las filas que lo respaldan pueden no corresponderse con su conteo—, que
+se conserva para no ocultar la evidencia, y el detalle interno con la etiqueta del
+hallazgo para poder reportarlo.
+
+## El alcance LSH declara que sus candidatos dependen del orden
+
+Con MinHash/LSH el conjunto de candidatos depende del orden de las filas: el
+vocabulario de q-gramas se numera por orden de primera aparición y esa numeración
+alimenta las firmas. **No es un defecto** —ocurre dentro de la garantía declarada,
+y está medido: de los pares que cambian al barajar, ninguno supera un Jaccard de
+q-gramas de 0,8, donde el recall declarado es 0,9998— pero era una propiedad del
+resultado que vivía sólo en la documentación.
+
+`alcance` gana `lsh_candidatos_dependen_orden_filas` y `lsh_orden_vocabulario`.
+El segundo no es decorativo: nombra el mecanismo, así que si alguna vez la
+numeración se canoniza, ese valor cambia y la dependencia deja de declararse sola.
+Ninguno de los dos aparece en el camino exhaustivo, que no tiene esa dependencia.
+
+
 ## Una barra de progreso para las corridas largas
 
 Ahora que la tabla entera es el valor por omisión, una corrida sobre millones de
