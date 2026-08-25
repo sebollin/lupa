@@ -2,6 +2,26 @@
 
 ## lupa 0.1.0
 
+### El plan nombra las palancas también cuando el trabajo es medio
+
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+avisa antes de pagar, y cuando el trabajo estimado era **alto** listaba
+las opciones concretas para acotarlo. Cuando era **medio**, se limitaba
+a avisar.
+
+Eso dejaba la decisión a medias justo donde importa. Corriendo contra
+motores reales, una tabla de 4,5 millones de filas en PostgreSQL tardó
+**6,2 minutos** con las opciones por omisión, y su plan la clasificaba
+**media**: el aviso avisaba, pero quien no conociera
+`modo = "muestreado"` —que baja esa misma tabla a **39 segundos**, 9,5
+veces menos— no tenía cómo enterarse.
+
+Ahora las nombra en los dos casos: `modo`, `metricas`, `muestra`,
+`max_consultas`, y `max_trabajo_vocabulario` cuando lo que pesa es la
+comparación de formas en R. En una tabla chica no las lista: ahí el
+usuario ya tiene su respuesta y cuatro viñetas serían ruido en cada
+corrida.
+
 ### El recorte de duplicados ya no depende del orden de las filas
 
 [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)

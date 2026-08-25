@@ -42,6 +42,12 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="el-plan-nombra-las-palancas-también-cuando-el-trabajo-es-medio-0-1-0">El plan nombra las palancas también cuando el trabajo es medio<a class="anchor" aria-label="anchor" href="#el-plan-nombra-las-palancas-tambi%C3%A9n-cuando-el-trabajo-es-medio-0-1-0"></a></h3>
+<p><code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> avisa antes de pagar, y cuando el trabajo estimado era <strong>alto</strong> listaba las opciones concretas para acotarlo. Cuando era <strong>medio</strong>, se limitaba a avisar.</p>
+<p>Eso dejaba la decisión a medias justo donde importa. Corriendo contra motores reales, una tabla de 4,5 millones de filas en PostgreSQL tardó <strong>6,2 minutos</strong> con las opciones por omisión, y su plan la clasificaba <strong>media</strong>: el aviso avisaba, pero quien no conociera <code>modo = "muestreado"</code> —que baja esa misma tabla a <strong>39 segundos</strong>, 9,5 veces menos— no tenía cómo enterarse.</p>
+<p>Ahora las nombra en los dos casos: <code>modo</code>, <code>metricas</code>, <code>muestra</code>, <code>max_consultas</code>, y <code>max_trabajo_vocabulario</code> cuando lo que pesa es la comparación de formas en R. En una tabla chica no las lista: ahí el usuario ya tiene su respuesta y cuatro viñetas serían ruido en cada corrida.</p>
+</div>
+<div class="section level3">
 <h3 id="el-recorte-de-duplicados-ya-no-depende-del-orden-de-las-filas-0-1-0">El recorte de duplicados ya no depende del orden de las filas<a class="anchor" aria-label="anchor" href="#el-recorte-de-duplicados-ya-no-depende-del-orden-de-las-filas-0-1-0"></a></h3>
 <p><code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code> recorta con <code>max_resultados</code> conservando los pares más cercanos. Entre pares <strong>empatados en distancia</strong> desempataba por posición de fila, así que cuáles sobrevivían dependía del orden en que llegaron las filas y no de los datos: la misma tabla exportada con otro <code>ORDER BY</code> podía devolver otro subconjunto.</p>
 <p>Medido sobre 60 grupos cuyos pares internos comparten exactamente la misma distancia, con el corte en 30: cinco órdenes distintos —natural, inverso y tres barajados— devolvían 30 grupos cada uno y <strong>no compartían ninguno</strong>. Ahora los cinco devuelven exactamente los mismos.</p>
