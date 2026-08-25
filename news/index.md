@@ -2,6 +2,29 @@
 
 ## lupa 0.1.0
 
+### El muestreo en el motor declina una muestra infinita, en un solo lugar
+
+Desde que `muestra = Inf` —la tabla entera— es el valor por omisión, el
+muestreo **en el motor** no tiene sentido: quedarse con «todas» las
+filas no es muestrear. Eso estaba guardado rama por rama, y de tres
+ramas se guardaron dos. La tercera —la de
+`TABLESAMPLE RESERVOIR (n ROWS)`— pasaba `Inf` directo al constructor y
+contra un motor real producía `RESERVOIR (Inf ROWS)` y un error de
+sintaxis.
+
+El paquete lo declaraba honestamente —«El resumen SQL se calculó y se
+devuelve, pero la muestra no»— pero el usuario se quedaba sin perfil de
+muestra sin haber pedido nada raro.
+
+La guarda pasa a estar **en la entrada** de la función y no dentro de
+cada rama. Antes de moverla se comprobó que valiera para las tres: con
+`Inf` la fracción se satura en 1, o sea `TABLESAMPLE (100 PERCENT)`, que
+es la tabla entera. Si no se hubiera saturado, la rama de porcentaje
+habría sido un caso legítimo y la guarda única, un error.
+
+Guardar caso por caso es cómo se olvidó una de tres, y además deja sin
+proteger a la rama que se agregue después.
+
 ### El aviso de trazabilidad dice de quién es el problema
 
 Cuando un hallazgo quedaba con su trazabilidad inconsistente, el aviso

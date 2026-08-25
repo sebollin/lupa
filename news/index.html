@@ -42,6 +42,13 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="el-muestreo-en-el-motor-declina-una-muestra-infinita-en-un-solo-lugar-0-1-0">El muestreo en el motor declina una muestra infinita, en un solo lugar<a class="anchor" aria-label="anchor" href="#el-muestreo-en-el-motor-declina-una-muestra-infinita-en-un-solo-lugar-0-1-0"></a></h3>
+<p>Desde que <code>muestra = Inf</code> —la tabla entera— es el valor por omisión, el muestreo <strong>en el motor</strong> no tiene sentido: quedarse con «todas» las filas no es muestrear. Eso estaba guardado rama por rama, y de tres ramas se guardaron dos. La tercera —la de <code>TABLESAMPLE RESERVOIR (n ROWS)</code>— pasaba <code>Inf</code> directo al constructor y contra un motor real producía <code>RESERVOIR (Inf ROWS)</code> y un error de sintaxis.</p>
+<p>El paquete lo declaraba honestamente —«El resumen SQL se calculó y se devuelve, pero la muestra no»— pero el usuario se quedaba sin perfil de muestra sin haber pedido nada raro.</p>
+<p>La guarda pasa a estar <strong>en la entrada</strong> de la función y no dentro de cada rama. Antes de moverla se comprobó que valiera para las tres: con <code>Inf</code> la fracción se satura en 1, o sea <code>TABLESAMPLE (100 PERCENT)</code>, que es la tabla entera. Si no se hubiera saturado, la rama de porcentaje habría sido un caso legítimo y la guarda única, un error.</p>
+<p>Guardar caso por caso es cómo se olvidó una de tres, y además deja sin proteger a la rama que se agregue después.</p>
+</div>
+<div class="section level3">
 <h3 id="el-aviso-de-trazabilidad-dice-de-quién-es-el-problema-0-1-0">El aviso de trazabilidad dice de quién es el problema<a class="anchor" aria-label="anchor" href="#el-aviso-de-trazabilidad-dice-de-qui%C3%A9n-es-el-problema-0-1-0"></a></h3>
 <p>Cuando un hallazgo quedaba con su trazabilidad inconsistente, el aviso decía «La trazabilidad contiene incoherencias» seguido del detalle interno. Una corrida contra bases reales lo describió como honesto pero críptico, y al mirarlo resultó peor que críptico: <strong>estaba dirigido a la persona equivocada</strong>.</p>
 <p>Las seis condiciones que lo disparan comparan dos salidas del propio <code>lupa</code> —lo que el hallazgo afirma contra las filas que se le adjuntaron— y <strong>ninguna mira los datos del usuario</strong>. Es una guarda de invariante contra regresiones: la prueba que la cubre la dispara mutando <code>n_afectados</code> a mano después de perfilar, y comprueba que un perfil intacto no la emite.</p>
