@@ -1003,6 +1003,32 @@ metricas_nucleo <- function() {
       call. = FALSE
     )
   }
+  # La rama de un solo data frame exige, arriba, que el modelo tenga una sola
+  # entidad. La de lista comprobaba la forma -nombrada, sin repetidos, todo data
+  # frames- pero no que estuvieran las entidades que el modelo necesita, asi que
+  # el faltante aparecia mucho despues, al ligar cada metrica.
+  #
+  # Y aparecia **de a una**: con tres entidades ausentes el mensaje nombraba la
+  # primera, el usuario la agregaba, y volvia a chocar con la siguiente. Tres
+  # vueltas para un mismo problema. Nombrarlas todas de una convierte eso en una.
+  #
+  # No es igualdad exacta a proposito: una tabla que el modelo no pide se ignora
+  # y eso es legitimo -medido: cuatro metricas siguen dando cuatro medidas con
+  # una tabla extra presente-. Exigir igualdad seria apagar un uso valido.
+  requeridas <- unique(unlist(
+    lapply(modelo$metricas, `[[`, "entidad"), use.names = FALSE
+  ))
+  faltantes <- setdiff(requeridas, names(datos))
+  if (length(faltantes)) {
+    stop(
+      "Faltan tablas para las entidades del modelo: ",
+      paste(faltantes, collapse = ", "),
+      ". `datos` tiene: ",
+      if (length(names(datos))) paste(names(datos), collapse = ", ") else "ninguna",
+      ".",
+      call. = FALSE
+    )
+  }
   lapply(datos, .normalizar_columnas_texto)
 }
 
