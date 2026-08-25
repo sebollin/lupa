@@ -2,6 +2,24 @@
 
 ## lupa 0.1.0
 
+### Las geometrías que vienen de una base ya no pierden su trazabilidad
+
+Un hallazgo sobre una columna de geometría —una coordenada fuera del
+dominio, una geometría inválida, una vacía— devolvía las filas que lo
+respaldan **sólo si la columna era un objeto `sfc`**. Por DBI las
+geometrías llegan como texto WKT o como blob WKB, así que la traza salía
+`no_disponible` y el paquete avisaba de una incoherencia **que no
+existía**: los índices ya estaban calculados, y se descartaban por la
+clase de la columna.
+
+Contra una tabla PostGIS real eso producía
+`coordenada_fuera_dominio en geom: traza no disponible`.
+
+La condición pasa a ser que el análisis haya dejado sus índices, no de
+qué clase es la columna: son posiciones de fila y valen igual esté la
+geometría como `sfc`, como texto o como binario. Una columna común sin
+análisis de geometría sigue sin traza, que es lo correcto.
+
 ### Faltar tablas se rechaza antes, y se nombran todas
 
 [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) acepta

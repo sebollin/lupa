@@ -42,6 +42,12 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="las-geometrías-que-vienen-de-una-base-ya-no-pierden-su-trazabilidad-0-1-0">Las geometrías que vienen de una base ya no pierden su trazabilidad<a class="anchor" aria-label="anchor" href="#las-geometr%C3%ADas-que-vienen-de-una-base-ya-no-pierden-su-trazabilidad-0-1-0"></a></h3>
+<p>Un hallazgo sobre una columna de geometría —una coordenada fuera del dominio, una geometría inválida, una vacía— devolvía las filas que lo respaldan <strong>sólo si la columna era un objeto <code>sfc</code></strong>. Por DBI las geometrías llegan como texto WKT o como blob WKB, así que la traza salía <code>no_disponible</code> y el paquete avisaba de una incoherencia <strong>que no existía</strong>: los índices ya estaban calculados, y se descartaban por la clase de la columna.</p>
+<p>Contra una tabla PostGIS real eso producía <code>coordenada_fuera_dominio en geom: traza no disponible</code>.</p>
+<p>La condición pasa a ser que el análisis haya dejado sus índices, no de qué clase es la columna: son posiciones de fila y valen igual esté la geometría como <code>sfc</code>, como texto o como binario. Una columna común sin análisis de geometría sigue sin traza, que es lo correcto.</p>
+</div>
+<div class="section level3">
 <h3 id="faltar-tablas-se-rechaza-antes-y-se-nombran-todas-0-1-0">Faltar tablas se rechaza antes, y se nombran todas<a class="anchor" aria-label="anchor" href="#faltar-tablas-se-rechaza-antes-y-se-nombran-todas-0-1-0"></a></h3>
 <p><code><a href="../reference/medir.html">medir()</a></code> acepta los datos como un data frame o como una lista con nombre. La primera forma exigía que el modelo tuviera una sola entidad; la segunda comprobaba la forma de la lista pero <strong>no que estuvieran las tablas de todas las entidades que el modelo necesita</strong>.</p>
 <p>El faltante aparecía después, al ligar cada métrica, con un mensaje que nombraba <strong>una sola</strong> entidad. Con tres ausentes eso son tres vueltas para el mismo problema: agregar la primera, volver a correr, chocar con la segunda.</p>
