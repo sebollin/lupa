@@ -2774,8 +2774,18 @@
   }
   filas <- numero(filas)
   if (!nrow(plan) || is.na(filas)) return(vacio)
+  # `muestra = Inf` no es un valor invalido: es "la tabla entera", y es el valor
+  # por omision. `numero()` rechaza lo no finito -- bien para `filas` y para los
+  # conteos, que con `Inf` hacian NaN --, asi que aca hay que traducirlo antes de
+  # perderlo. Sin esta linea el plan contaba el bloque de muestra como CERO filas
+  # leidas y CERO pares de formas: `muestra = Inf` declaraba menos trabajo que
+  # `muestra = filas` pidiendo exactamente las mismas filas, y caia en magnitud
+  # "baja", que es la que no imprime palancas. Medido sobre 200.000 x 4:
+  # 400.000 lecturas y 0 pares contra 600.000 y 4.000.000.
+  muestra_entera <- is.numeric(muestra) && length(muestra) == 1L &&
+    !is.na(muestra) && is.infinite(muestra) && muestra > 0
   muestra <- numero(muestra)
-  if (is.na(muestra)) muestra <- 0
+  if (is.na(muestra)) muestra <- if (muestra_entera) filas else 0
   lecturas <- vapply(seq_len(nrow(plan)), function(i) {
     suppressWarnings(as.numeric(.lecturas_clase_dbi(
       plan$alcance[[i]], plan$n_consultas[[i]], filas, muestra

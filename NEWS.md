@@ -1,5 +1,20 @@
 # lupa 0.1.0
 
+## El plan declaraba cero trabajo para la tabla entera
+
+`plan_perfilado_dbi()` subdeclaraba el costo justo en el caso por omisión. Con
+`muestra = Inf` —que trae la tabla entera— el bloque de muestra se contaba como
+**cero filas leídas y cero pares de formas a comparar**, de modo que pedir todas
+las filas declaraba menos trabajo que pedir mil. Sobre una tabla de 200.000 × 4,
+`muestra = Inf` anunciaba 400.000 lecturas y `muestra = 200000` —que pide
+exactamente las mismas filas— anunciaba 600.000.
+
+Como la magnitud del trabajo se decide sobre esos números, el caso por omisión
+caía en «baja» y el plan **no imprimía las palancas** para bajar el costo.
+
+Las dos formas de pedir la tabla entera declaran ahora lo mismo. Los valores que
+sí son inválidos siguen tratándose como antes.
+
 ## Las geometrías que vienen de una base ya no pierden su trazabilidad
 
 Un hallazgo sobre una columna de geometría —una coordenada fuera del dominio, una
