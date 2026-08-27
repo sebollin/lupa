@@ -98,14 +98,21 @@
   # o sea que igualarlo SI se informa-. Escrita como el maximo alcanzable
   # contra lo que el umbral exige, el borde no se pierde: medido sobre 200.000
   # casos, la forma anterior podaba de mas 88 veces y esta ninguna.
-  n - (estadistica_y$n_distintos - estadistica_x$n_distintos) < n * umbral
+  # La comparacion se hace con la DIVISION y no con el producto. Escribirla
+  # `n - d < n * umbral` parece equivalente y no lo es: `25 * 0.56` da
+  # 14.000000000000002, asi que `14 < 25 * 0.56` es cierto y se poda un par
+  # cuyo cumplimiento maximo vale exactamente 0,56. Con `(n - d) / n < umbral`
+  # el borde se conserva. Barrido con umbrales de hasta seis decimales y `n`
+  # hasta un millon: la forma del producto poda de mas, esta no falla en
+  # ninguno de los dos sentidos.
+  (n - (estadistica_y$n_distintos - estadistica_x$n_distintos)) / n < umbral
 }
 
 .poda_dependencia_pares <- function(particion, umbral) {
   if (!particion$n) return(FALSE)
   # Misma forma que la cota debil, y por el mismo motivo de exactitud.
-  particion$n - (length(particion$conteos) - particion$grupos) <
-    particion$n * umbral
+  (particion$n - (length(particion$conteos) - particion$grupos)) /
+    particion$n < umbral
 }
 
 #' Detectar dependencias funcionales entre columnas

@@ -1,5 +1,24 @@
 # lupa 0.1.0
 
+## Dos podas descartaban lo que igualaba el umbral
+
+`detectar_dependencias()` y `detectar_relaciones()` descartan pares sin
+calcularlos cuando el umbral es inalcanzable. Las dos comparaciones se escribían
+multiplicando, y la multiplicación redondea: `25 * 0.56` da `14.000000000000002`,
+así que un par cuyo cumplimiento máximo vale exactamente `0,56` quedaba por
+debajo y se descartaba. Como el informe descarta sólo lo que está **por debajo**
+del umbral, ese par debía informarse.
+
+Lo mismo en la poda por cardinalidades de `detectar_relaciones()`: con siete
+valores distintos contra veinticinco y umbral `0,28`, el producto daba
+`7.0000000000000009` y declaraba `cardinalidades_imposibles` una cobertura que sí
+era alcanzable.
+
+Las dos comparan ahora dividiendo. Los umbrales por omisión del paquete no
+disparaban el defecto —por eso no se había visto—, pero `umbral` y
+`umbral_cobertura` admiten cualquier proporción, y un barrido exhaustivo con la
+forma anterior encontró setecientas dos podas de más.
+
 ## Pedir sólo agregados sin leer la muestra
 
 `perfilar_dbi()` y `perfilar_coleccion()` aceptan

@@ -470,8 +470,13 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       detalle = paste0("familias ", x$familia, " y ", y$familia)
     ))
   }
+  # Misma cautela que en la poda de dependencias: la cobertura maxima posible
+  # es `x$n_distintos / y$n_distintos`, y se compara dividiendo. Escrita como
+  # `y * umbral > x`, con 25 distintos contra 7 y umbral 0,28, el producto da
+  # 7.0000000000000009 y declara imposible un par cuya cobertura maxima vale
+  # exactamente el umbral -o sea alcanzable-.
   if (umbral_cobertura > 0 && x$n_distintos > 0L && y$n_distintos > 0L &&
-      y$n_distintos * umbral_cobertura > x$n_distintos) {
+      x$n_distintos / y$n_distintos < umbral_cobertura) {
     return(list(
       motivo = "cardinalidades_imposibles",
       detalle = paste0(
