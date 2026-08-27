@@ -429,22 +429,28 @@
   maximo <- max(valores)
   media <- mean(valores)
   cuartiles <- stats::quantile(
-    valores, probs = c(0.25, 0.5, 0.75), na.rm = TRUE,
-    names = FALSE, type = 7
+    valores, probs = c(0.25, 0.75), na.rm = TRUE, names = FALSE, type = 7
   )
-  mediana <- cuartiles[[2L]]
+  # La mediana sigue saliendo de `median()` y no del cuantil 0,5. No son lo
+  # mismo hasta el ultimo bit: `median()` promedia los dos centrales con
+  # `(a + b) / 2` y `quantile(type = 7)` interpola con `a + 0,5 * (b - a)`, que
+  # redondean distinto cuando los centrales son de magnitudes muy dispares.
+  # Medido con `c(-1000, 0.000111, 0.25, 1000)`: 0,12505549999999999 contra
+  # 0,12505550000000001, y la diferencia llegaba a la mediana informada.
+  # Ahorrar un recorrido no vale cambiar un numero que se publica.
+  mediana <- stats::median(valores)
   desvio <- if (length(valores) > 1L) stats::sd(valores) else NA_real_
   # `valores` ya fue filtrado con `is.finite()`: `na.rm = TRUE` conserva la
   # semántica del IQR anterior y también deja la llamada segura si este bloque
   # vuelve a recibir valores ausentes en el futuro.
-  iqr <- cuartiles[[3L]] - cuartiles[[1L]]
+  iqr <- cuartiles[[2L]] - cuartiles[[1L]]
   centinela <- .centinela_por_tres_senales(
     valores, iqr, sentinelas_numericos,
-    q1 = cuartiles[[1L]], q3 = cuartiles[[3L]]
+    q1 = cuartiles[[1L]], q3 = cuartiles[[2L]]
   )
   if (is.finite(iqr)) {
     n_outliers <- sum(valores < cuartiles[[1L]] - 1.5 * iqr |
-      valores > cuartiles[[3L]] + 1.5 * iqr)
+      valores > cuartiles[[2L]] + 1.5 * iqr)
   } else {
     n_outliers <- 0L
   }

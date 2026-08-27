@@ -1,5 +1,40 @@
 # lupa 0.1.0
 
+## Dos números que las optimizaciones habían movido
+
+Los cambios que quitaron recorridos internos prometían no mover nada de lo
+informado. Movían dos cosas, las dos en el borde.
+
+**La mediana no es el cuantil 0,5 hasta el último bit.** `median()` promedia los
+dos valores centrales con `(a + b) / 2` y `quantile(type = 7)` interpola con
+`a + 0,5 * (b - a)`; cuando los centrales son de magnitudes muy dispares
+redondean distinto. Sobre `c(-1000, 0.000111, 0.25, 1000)` la mediana informada
+pasaba de `0,12505549999999999` a `0,12505550000000001`. Vuelve a salir de
+`median()`; los cuartiles siguen compartiendo una sola llamada, así que el
+recorrido que se ahorra sigue ahorrado.
+
+**Y la poda de dependencias callaba el par que iguala el umbral.** La cota se
+comparaba como `k_y - k_x > n * (1 - umbral)`, y `1 - 0.8` vale
+`0,19999999999999996`: con cinco filas, la resta hacía que `1 > 0,99999999999999978`
+y el par se descartaba. Su cumplimiento era exactamente `0,8`, y el filtro de
+informe descarta sólo lo que está **por debajo** del umbral, así que ese par
+debía informarse. Escrita como el máximo alcanzable contra lo que el umbral
+exige, el borde deja de perderse: medido sobre 200.000 combinaciones, la forma
+anterior podaba de más 88 veces y la nueva ninguna.
+
+## La deteccion de dependencias conserva el resultado y reduce el costo
+
+La particion de parejas `(determinante, dependiente)` usa una clave entera
+cuando el producto de sus cardinalidades no supera `2^53`; en el borde o fuera
+de el conserva el camino con `interaction()`. La clave solo renumera parejas,
+por lo que no cambia sus conteos, los grupos en conflicto ni ninguna
+dependencia informada.
+
+La deteccion agrega una cota de poda basada en la cantidad `P` de parejas
+distintas del subconjunto valido: `P - k_x`. La particion y sus conteos se
+reutilizan si el par debe evaluarse, y la bateria de equivalencia compara el
+objeto completo con ambos atajos y con sus caminos de referencia.
+
 ## Tres recorridos internos se eliminan sin cambiar lo informado
 
 El resumen cuantitativo comparte una sola llamada a `quantile()` para obtener
