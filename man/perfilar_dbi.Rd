@@ -77,11 +77,13 @@ alcance de esos agregados: eso lo decide \code{modo}.}
 
 \item{instrumentar}{Si se cronometra cada consulta y las etapas grandes de R.
 Por omisión es \code{TRUE}; agrega \code{duracion_ms}, \code{n_filas_resultado},
-\code{bytes_resultado_r}, \code{consulta_id} y \code{etapa} a \code{resumen_tabla$sql}, y el
-resumen \code{resumen_tabla$tiempos}. Con \code{FALSE} se conserva el mismo plan, la
-misma cantidad y el mismo orden de consultas, pero los campos medibles
-quedan en \code{NA}. Las duraciones usan \code{Sys.time()} y los intervalos que el
-reloj no puede resolver no se publican como cero.}
+\code{bytes_resultado_r}, \code{consulta_id} y \code{etapa} a
+\code{resumen_tabla$sql}, y el resumen \code{resumen_tabla$tiempos}. Con \code{FALSE} se
+conserva el mismo plan, la misma cantidad y el mismo orden de consultas,
+pero los campos medibles quedan en \code{NA}. \code{id_muestra} \strong{no} depende de
+esta opción: no es una medición sino un hecho estructural sobre qué consulta
+produjo cada métrica, y se publica igual con \code{FALSE}. Las duraciones usan \code{Sys.time()} y
+los intervalos que el reloj no puede resolver no se publican como cero.}
 
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
 }
@@ -178,9 +180,15 @@ muestra; \code{modo}, \code{metricas}, \code{tamano_lote} y \code{max_consultas}
 SQL. \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} dice cuántas consultas se van a emitir antes de
 emitirlas. Los agregados planos sobre la misma tabla y filtro —\code{COUNT(col)},
 mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
-por lote; \verb{COUNT(DISTINCT ...)} queda en una clase separada. Si un lote es
-rechazado, sus mitades se sondean por bisección: los grupos aceptados se
-reutilizan como mediciones y las columnas culpables se reintentan por métrica.
+por lote; cuando la fuente no necesita el total por adelantado, la primera
+consulta de agregados lleva además el \verb{COUNT(*)} exacto con el alias
+\code{lupa_n_total}. Si el lote completo es rechazado, se emite un \verb{COUNT(*)} solo
+como repliegue obligatorio y sus mitades se sondean por bisección: los grupos
+aceptados se reutilizan como mediciones y las columnas culpables se reintentan
+por métrica. El denominador de completitud nunca se estima a partir de un
+catálogo ni de un lote parcial. Las fuentes \code{TABLESAMPLE} que necesitan el
+total para escribir un porcentaje lo cuentan antes y no reclaman este ahorro.
+\verb{COUNT(DISTINCT ...)} queda en una clase separada.
 Lo que no entra en el presupuesto queda en \code{no_disponible} con su motivo,
 nunca en cero. \code{meta$tamano_lote_funciono} conserva el mayor lote aceptado
 durante esa corrida; no se guarda estado global asociado a la conexión.
@@ -191,7 +199,12 @@ durante esa corrida; no se guarda estado global asociado a la conexión.
 \code{resumen_tabla$sql} conserva una fila por métrica y agrega la duración de la
 consulta que la respalda, las filas devueltas y los bytes que ese resultado
 ocupa en R. \code{consulta_id} identifica el intento dentro de la corrida y
-\code{etapa} permite agruparlo (\code{conteos}, \code{moda}, \code{basicos}, \code{mediana},
+\code{id_muestra} identifica la consulta de datos que produjo la medición: dos
+métricas con el mismo identificador vieron exactamente las mismas filas y se
+pueden comparar directamente. \code{NA} declara que esa garantía no se puede
+hacer; en particular, las métricas por columna —moda, frecuencia de la moda
+y mediana— no comparten filas con otras métricas. \code{etapa} permite agruparlo
+(\code{conteos}, \code{moda}, \code{basicos}, \code{mediana},
 \code{desvio}, \code{lectura_muestra} y las sondas). Las métricas no solicitadas o que
 no emitieron consulta conservan esos campos y los dejan en \code{NA}; en
 particular, \code{NA} no significa cero.
@@ -200,11 +213,11 @@ particular, \code{NA} no significa cero.
 unidades (\code{duracion_ms}): \code{lectura_muestra}, \code{perfilado_muestra},
 \code{perfilado_columnas}, y los análisis opcionales cuando se solicitan. Una
 etapa apagada queda con estado \code{no_solicitado}; si la instrumentación se
-apaga queda con estado \code{no_medido} y duración \code{NA}. La columna \code{nivel} dice
-cuáles se pueden sumar: las de \code{nivel = 1} son disjuntas entre sí, y las de
-nivel mayor están contenidas en alguna de ellas. \code{perfilado_muestra} es
-inclusivo -contiene el perfilado por columna, las dependencias y los
-casi-duplicados-, así que sumar la columna entera da más que la corrida.
+apaga queda con estado \code{no_medido} y duración \code{NA}. La columna \code{nivel} dice cuáles se
+pueden sumar: las de \code{nivel = 1} son disjuntas entre sí, y las de nivel mayor
+están contenidas en alguna de ellas. \code{perfilado_muestra} es inclusivo
+-contiene el perfilado por columna, las dependencias y los casi-duplicados-,
+así que sumar la columna entera da más que la corrida.
 }
 
 \section{Datos personales}{

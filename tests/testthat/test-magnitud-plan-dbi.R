@@ -134,7 +134,7 @@ test_that("la impresion avisa cuando el trabajo es alto y nombra las palancas", 
   expect_false(any(grepl("ning\u00fan \u00edndice", bajo)))
   # Decia "techo", y el atributo `supuesto` lo desmentia dos lineas mas abajo.
   expect_false(any(grepl("techo", bajo)))
-  expect_true(any(grepl("entre 14 y 20 consultas", bajo, fixed = TRUE)))
+  expect_true(any(grepl("entre 13 y 19 consultas", bajo, fixed = TRUE)))
   expect_true(any(grepl("supuesto_costo", bajo)))
 
   attr(plan, "magnitud") <- "alta"

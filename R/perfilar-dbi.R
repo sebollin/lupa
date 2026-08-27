@@ -1195,7 +1195,8 @@
                                tamano_muestra = NA, fraccion = NA_real_,
                                metodo = NA_character_,
                                error_esperado = NA_character_, lote = NA_integer_,
-                               columnas_compartidas = NA_integer_) {
+                               columnas_compartidas = NA_integer_,
+                               id_muestra = NA_integer_) {
   list(
     alcance = alcance,
     universo = universo,
@@ -1204,7 +1205,8 @@
     metodo = metodo,
     error_esperado = error_esperado,
     lote = lote,
-    columnas_compartidas = columnas_compartidas
+    columnas_compartidas = columnas_compartidas,
+    id_muestra = id_muestra
   )
 }
 
@@ -1255,6 +1257,9 @@
     lote = rep_len(as.integer(metadatos$lote), length(metricas)),
     columnas_compartidas = rep_len(
       as.integer(metadatos$columnas_compartidas), length(metricas)
+    ),
+    id_muestra = rep_len(
+      as.integer(metadatos$id_muestra), length(metricas)
     ),
     duracion_ms = rep_len(
       as.numeric(medicion_valor("duracion_ms", NA_real_)), length(metricas)
@@ -1640,7 +1645,8 @@
 .metadatos_lote_dbi <- function(numero, columnas) {
   list(
     lote = as.integer(numero),
-    columnas_compartidas = as.integer(length(columnas))
+    columnas_compartidas = as.integer(length(columnas)),
+    id_muestra = NA_integer_
   )
 }
 
@@ -1665,6 +1671,10 @@
   resultado <- .valor_campo_dbi(consulta$datos, .nombre_alias_dbi(alias))
   resultado$sql <- sql
   resultado$metadatos <- metadatos
+  if (isTRUE(resultado$ok) && !is.null(consulta$consulta_id) &&
+      length(consulta$consulta_id) == 1L && !is.na(consulta$consulta_id)) {
+    resultado$metadatos$id_muestra <- as.integer(consulta$consulta_id)
+  }
   .adjuntar_medicion_dbi(resultado, consulta)
 }
 
@@ -1695,7 +1705,14 @@
   datos <- as.data.frame(valores, stringsAsFactors = FALSE)
   .adjuntar_medicion_dbi(
     list(ok = TRUE, datos = datos, motivo = NA_character_, sql = sql,
-         metadatos = metadatos),
+         metadatos = modifyList(
+           metadatos,
+           if (!is.null(consulta$consulta_id) &&
+               length(consulta$consulta_id) == 1L &&
+               !is.na(consulta$consulta_id)) {
+             list(id_muestra = as.integer(consulta$consulta_id))
+           } else list()
+         )),
     consulta
   )
 }
@@ -1813,7 +1830,8 @@
 .agregados_lote_con_biseccion_dbi <- function(
     conexion, tabla_sql, lote, nombres_sql, es_numerico, metricas,
     incluir_valores, presupuesto, tamano_lote, numero, alias, forma,
-    etapa = "agregados") {
+    etapa = "agregados", incluir_total = FALSE,
+    tabla_total_sql = tabla_sql) {
   metricas_basicos <- if ("basicos" %in% metricas) {
     if (incluir_valores) {
       c("minimo", "maximo", "media", "n_ceros", "n_negativos")
@@ -1879,9 +1897,16 @@
       }
     )
   }
-  construir <- function(indices) {
-    expresiones <- unlist(
-      lapply(indices, expresiones_columna), use.names = FALSE
+  total_alias <- alias("lupa_n_total")
+  expresion_total <- if (identical(tabla_total_sql, tabla_sql)) {
+    paste0("COUNT(*) AS ", total_alias)
+  } else {
+    paste0("(SELECT COUNT(*) FROM ", tabla_total_sql, ") AS ", total_alias)
+  }
+  construir <- function(indices, con_total = FALSE) {
+    expresiones <- c(
+      if (isTRUE(con_total)) expresion_total,
+      unlist(lapply(indices, expresiones_columna), use.names = FALSE)
     )
     paste0(
       "SELECT ", paste(expresiones, collapse = ", "), " FROM ", tabla_sql
@@ -1890,10 +1915,10 @@
 
   cache <- list()
   clave <- function(indices) paste(indices, collapse = ",")
-  sondear <- function(indices) {
+  sondear <- function(indices, con_total = FALSE) {
     llave <- clave(indices)
     if (!is.null(cache[[llave]])) return(isTRUE(cache[[llave]]$ok))
-    sql <- construir(indices)
+    sql <- construir(indices, con_total = con_total)
     consulta <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = etapa
     )
@@ -1902,7 +1927,36 @@
   }
 
   completo <- seq_along(lote)
-  inicial <- sondear(completo)
+  inicial <- sondear(completo, con_total = incluir_total)
+  conteo <- NULL
+  if (isTRUE(incluir_total)) {
+    entrada_total <- cache[[clave(completo)]]
+    if (isTRUE(inicial)) {
+      valor_total <- .valor_campo_dbi(
+        entrada_total$consulta$datos, .nombre_alias_dbi(total_alias)
+      )
+      if (isTRUE(valor_total$ok) &&
+          !is.na(.conteo_dbi(valor_total$valor))) {
+        conteo <- valor_total
+        conteo$sql <- entrada_total$sql
+        conteo$metadatos <- list(
+          id_muestra = as.integer(entrada_total$consulta$consulta_id)
+        )
+        conteo <- .adjuntar_medicion_dbi(conteo, entrada_total$consulta)
+      }
+    }
+    if (is.null(conteo)) {
+      sql_total <- paste0(
+        "SELECT COUNT(*) AS ", total_alias, " FROM ", tabla_total_sql
+      )
+      conteo <- .escalar_dbi(
+        conexion, sql_total, .nombre_alias_dbi(total_alias), presupuesto,
+        etapa = "conteo_filas"
+      )
+      conteo$sql <- sql_total
+      if (!isTRUE(conteo$ok)) conteo$metadatos <- NULL
+    }
+  }
   if (inicial) {
     grupos <- list(completo)
     culpables <- integer()
@@ -2014,13 +2068,14 @@
   }
   list(
     resultados = resultado, sondas = sondas, agotado = agotado,
-    inicial = inicial
+    inicial = inicial, conteo = conteo
   )
 }
 
 .conteos_distintos_lote_dbi <- function(
     conexion, tabla_sql, lote, nombres_sql, alias, numero, presupuesto,
-    aproximacion_distintos = NULL) {
+    aproximacion_distintos = NULL, incluir_total = FALSE,
+    tabla_total_sql = tabla_sql) {
   alias_por_columna <- vapply(seq_along(lote), function(i) {
     .alias_agregado_dbi(alias, numero, i, "n_distintos")
   }, character(1L), USE.NAMES = FALSE)
@@ -2036,18 +2091,27 @@
       nombres_sql[[lote[[i]]]], alias_por_columna[[i]]
     )
   }
-  construir <- function(indices) {
-    expresiones <- unlist(lapply(indices, expresion), use.names = FALSE)
+  total_alias <- alias("lupa_n_total")
+  expresion_total <- if (identical(tabla_total_sql, tabla_sql)) {
+    paste0("COUNT(*) AS ", total_alias)
+  } else {
+    paste0("(SELECT COUNT(*) FROM ", tabla_total_sql, ") AS ", total_alias)
+  }
+  construir <- function(indices, con_total = FALSE) {
+    expresiones <- c(
+      if (isTRUE(con_total)) expresion_total,
+      unlist(lapply(indices, expresion), use.names = FALSE)
+    )
     paste0(
       "SELECT ", paste(expresiones, collapse = ", "), " FROM ", tabla_sql
     )
   }
   cache <- list()
   clave <- function(indices) paste(indices, collapse = ",")
-  sondear <- function(indices) {
+  sondear <- function(indices, con_total = FALSE) {
     llave <- clave(indices)
     if (!is.null(cache[[llave]])) return(isTRUE(cache[[llave]]$ok))
-    sql <- construir(indices)
+    sql <- construir(indices, con_total = con_total)
     consulta <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = "conteos"
     )
@@ -2055,7 +2119,36 @@
     isTRUE(consulta$ok)
   }
   completo <- seq_along(lote)
-  inicial <- sondear(completo)
+  inicial <- sondear(completo, con_total = incluir_total)
+  conteo <- NULL
+  if (isTRUE(incluir_total)) {
+    entrada_total <- cache[[clave(completo)]]
+    if (isTRUE(inicial)) {
+      valor_total <- .valor_campo_dbi(
+        entrada_total$consulta$datos, .nombre_alias_dbi(total_alias)
+      )
+      if (isTRUE(valor_total$ok) &&
+          !is.na(.conteo_dbi(valor_total$valor))) {
+        conteo <- valor_total
+        conteo$sql <- entrada_total$sql
+        conteo$metadatos <- list(
+          id_muestra = as.integer(entrada_total$consulta$consulta_id)
+        )
+        conteo <- .adjuntar_medicion_dbi(conteo, entrada_total$consulta)
+      }
+    }
+    if (is.null(conteo)) {
+      sql_total <- paste0(
+        "SELECT COUNT(*) AS ", total_alias, " FROM ", tabla_total_sql
+      )
+      conteo <- .escalar_dbi(
+        conexion, sql_total, .nombre_alias_dbi(total_alias), presupuesto,
+        etapa = "conteo_filas"
+      )
+      conteo$sql <- sql_total
+      if (!isTRUE(conteo$ok)) conteo$metadatos <- NULL
+    }
+  }
   if (inicial) {
     grupos <- list(completo)
     culpables <- integer()
@@ -2142,14 +2235,17 @@
       )
     }
   }
-  list(resultados = salida, sondas = sondas, agotado = agotado)
+  list(resultados = salida, sondas = sondas, agotado = agotado,
+       conteo = conteo)
 }
 
 .agregados_consolidados_dbi <- function(conexion, tabla_sql, columnas,
                                         columnas_sql, es_numerico, metricas,
                                         incluir_valores, presupuesto,
                                         tamano_lote,
-                                        aproximacion_distintos = NULL) {
+                                        aproximacion_distintos = NULL,
+                                        tabla_total_sql = tabla_sql,
+                                        conteo_inicial = NULL) {
   alias <- function(nombre) {
     as.character(DBI::dbQuoteIdentifier(conexion, nombre))
   }
@@ -2162,6 +2258,15 @@
     conteos = por_columna(), basicos = por_columna(), desvio = por_columna()
   )
   nombres_sql <- stats::setNames(columnas_sql, columnas)
+  conteo <- conteo_inicial
+  n_total <- if (is.null(conteo)) NA_real_ else .conteo_dbi(conteo$valor)
+  tomar_conteo <- function(resultado) {
+    if (is.null(conteo) && !is.null(resultado$conteo)) {
+      conteo <<- resultado$conteo
+      n_total <<- .conteo_dbi(conteo$valor)
+    }
+    invisible(NULL)
+  }
 
   # COUNT(DISTINCT) queda en su propia clase de consulta. Los otros agregados
   # planos comparten el mismo SELECT sólo cuando se aplican a la misma fuente.
@@ -2171,10 +2276,13 @@
     lotes <- .lotes_columnas_dbi(columnas, tamano_lote)
     for (numero in seq_along(lotes)) {
       lote <- lotes[[numero]]
-      resultados <- .conteos_distintos_lote_dbi(
+      resultado_lote <- .conteos_distintos_lote_dbi(
         conexion, tabla_sql, lote, nombres_sql, alias, numero, presupuesto,
-        aproximacion_distintos
-      )$resultados
+        aproximacion_distintos,
+        incluir_total = is.null(conteo), tabla_total_sql = tabla_total_sql
+      )
+      tomar_conteo(resultado_lote)
+      resultados <- resultado_lote$resultados
       for (campo in lote) {
         agregados$conteos[[campo]] <- resultados[[campo]]
       }
@@ -2208,8 +2316,11 @@
       resultado_lote <- .agregados_lote_con_biseccion_dbi(
         conexion, tabla_sql, lote, nombres_sql, es_numerico_lote,
         metricas_planas, incluir_valores, presupuesto, tamano_lote, numero,
-        alias, forma, etapa
-      )$resultados
+        alias, forma, etapa,
+        incluir_total = is.null(conteo), tabla_total_sql = tabla_total_sql
+      )
+      tomar_conteo(resultado_lote)
+      resultado_lote <- resultado_lote$resultados
       for (campo in lote) {
         resultado <- resultado_lote[[campo]]
         # Un resultado con filas pero sin uno de sus alias no es un rechazo de
@@ -2255,6 +2366,21 @@
       }
     }
   }
+  if (is.null(conteo)) {
+    total_alias <- alias("lupa_n_total")
+    sql_total <- paste0(
+      "SELECT COUNT(*) AS ", total_alias, " FROM ", tabla_total_sql
+    )
+    conteo <- .escalar_dbi(
+      conexion, sql_total, .nombre_alias_dbi(total_alias), presupuesto,
+      etapa = "conteo_filas"
+    )
+    conteo$sql <- sql_total
+    n_total <- .conteo_dbi(conteo$valor)
+  }
+  agregados$n_total <- n_total
+  agregados$conteo <- conteo
+  agregados$sql_conteo <- if (is.null(conteo$sql)) NA_character_ else conteo$sql
   agregados
 }
 
@@ -2808,7 +2934,8 @@
                                 campos_sql_consolidados = NULL,
                                 es_numerico_consolidados = NULL,
                                 tamano_lote = .TAMANO_LOTE_DBI,
-                                conteo = NULL) {
+                                conteo = NULL,
+                                tabla_total_sql = tabla_sql) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   if (is.null(campos_consolidados)) campos_consolidados <- campos
   if (is.null(campos_sql_consolidados)) {
@@ -2828,8 +2955,44 @@
     conexion, tabla_metricas_sql, campos_consolidados,
     campos_sql_consolidados, es_numerico_consolidados, metricas,
     incluir_valores, presupuesto, tamano_lote,
-    aproximacion_distintos = aproximaciones$distintos
+    aproximacion_distintos = aproximaciones$distintos,
+    tabla_total_sql = tabla_total_sql, conteo_inicial = conteo
   )
+  conteo <- agregados$conteo
+  n_total <- agregados$n_total
+  if (is.null(conteo) || !isTRUE(conteo$ok) || is.na(n_total)) {
+    motivo <- if (is.null(conteo)) {
+      "No se pudo obtener el conteo exacto de la tabla."
+    } else if (!isTRUE(conteo$ok)) {
+      paste0("No se pudo contar la tabla: ", conteo$motivo)
+    } else {
+      "La consulta de conteo no devolvio un numero utilizable."
+    }
+    .detener_dbi(
+      "lupa_error_conteo_dbi", motivo,
+      datos = list(sql = if (is.null(conteo)) NA_character_ else conteo$sql)
+    )
+  }
+  sql_conteo_registro <- if (is.null(conteo$sql)) {
+    sql_conteo
+  } else {
+    conteo$sql
+  }
+  if (identical(modo, "muestreado")) {
+    if (is.finite(.numero_dbi(tamano_muestra))) {
+      # Si la solicitud supera el universo, la consulta puede devolver menos
+      # filas que las pedidas. El tamano efectivo es el que se midio y el que
+      # debe aparecer en la metadata; usar el pedido volveria a extrapolar una
+      # muestra que en realidad cubrio toda la tabla.
+      tamano_muestra <- min(.numero_dbi(tamano_muestra), .numero_dbi(n_total))
+      fraccion_muestra <- .fraccion_muestreo_dbi(tamano_muestra, n_total)
+    }
+    if (!is.null(muestreo)) {
+      muestreo$universo <- n_total
+      muestreo$tamano_muestra <- tamano_muestra
+      muestreo$fraccion <- fraccion_muestra
+    }
+  }
   tipo_de <- function(i) {
     if (is.null(tipos_declarados) || i > length(tipos_declarados)) {
       return(NA_character_)
@@ -2872,8 +3035,9 @@
   sql <- if (length(resultados)) {
     rbind(
       .registro_sql_dbi(
-        campos, rep("n", length(campos)), "calculado", NA_character_, sql_conteo,
-        metadatos = .metadatos_sql_dbi(
+        campos, rep("n", length(campos)), "calculado", NA_character_,
+        sql_conteo_registro,
+        metadatos = .mezclar_metadatos_dbi(.metadatos_sql_dbi(
           alcance = if (identical(modo, "muestreado")) "tabla_muestreada" else
             "tabla_completa",
           universo = n_total, tamano_muestra = if (identical(modo, "muestreado")) {
@@ -2882,7 +3046,7 @@
           fraccion = if (identical(modo, "muestreado")) fraccion_muestra else 1,
           metodo = if (identical(modo, "muestreado")) "conteo_universo" else
             "conteo_universo"
-        ),
+        ), conteo$metadatos),
         medicion = conteo,
         etapa = "conteo_filas"
       ),
@@ -2935,15 +3099,17 @@
       # columnas que comparten una consulta comparten tambien las filas
       # muestreadas. La consolidacion mejora la coherencia dentro del lote -las
       # razones entre columnas del mismo lote son exactas- y la empeora entre
-      # lotes, y las dos cosas hay que decirlas. Un campo que describe un
-      # alcance de muestreo que no es el real es peor que no tenerlo.
+      # lotes. `id_muestra` deja la garantia comprobable en cada fila; un valor
+      # ausente declara que no se puede afirmar que dos metricas vieron las
+      # mismas filas. Un campo que describe un alcance de muestreo que no es el
+      # real es peor que no tenerlo.
       muestras_independientes = if (modo %in% c("muestreado", "aproximado")) {
         paste(
           "el muestreo se resuelve por consulta, no por perfilado. Las columnas",
-          "que comparten una consulta consolidada -ver `lote` y",
+          "que comparten una consulta consolidada -ver `id_muestra`, `lote` y",
           "`columnas_compartidas` en `sql`- se miden sobre las MISMAS filas, asi",
           "que sus metricas son comparables entre si. Dos consultas distintas",
-          "-otro lote, u otra clase como moda o mediana- sacan muestras",
+          "-otro `id_muestra`, u otra clase como moda o mediana- sacan muestras",
           "distintas del mismo tamano, asi que comparar entre ellas es comparar",
           "conjuntos de filas que no coinciden. Es inherente a muestrear en el",
           "motor sin materializar una tabla intermedia, y perfilar es solo",
@@ -3444,6 +3610,13 @@
 #' dialecto— y devuelve cuántas consultas emitiría el perfilado completo, de
 #' qué clase y con qué alcance sobre la tabla. El plan hace visible cuántos lotes
 #' de agregados se emitirán antes de empezar y evita una sorpresa de costo.
+#' El conteo que paga el plan es necesario para estimar el trabajo antes de
+#' ejecutar los agregados; durante una corrida normal, el total exacto viaja en
+#' la primera consulta de agregados y no se vuelve a contar como una consulta
+#' separada del perfil. Las fuentes `TABLESAMPLE` que necesitan el total para
+#' construir un porcentaje lo cuentan antes. Si una consulta de agregados no
+#' acepta el lote, el perfil conserva un conteo exacto independiente y sigue con
+#' la bisección.
 #'
 #' @inheritParams perfilar_dbi
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas-portón
@@ -3514,7 +3687,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     orden_muestra = orden_muestra, modo = modo, metricas = metricas,
     max_consultas = max_consultas, dialecto = dialecto,
     tamano_lote = tamano_lote, bloque_muestra = bloque_muestra,
-    instrumentar = instrumentar
+    instrumentar = instrumentar, contar = TRUE
   )
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
     .es_numerico_dbi(
@@ -3526,7 +3699,12 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     preparacion$campos, es_numerico, preparacion$metricas, incluir_valores,
     length(preparacion$orden_sql) > 0 &&
       identical(preparacion$bloque_muestra, "con_muestra"), preparacion$dialecto,
-    emitidas = preparacion$presupuesto$usadas, modo = preparacion$modo,
+    # El plan acaba de pagar el COUNT(*) para conocer las filas. En la corrida
+    # normal ese mismo total viaja en el primer agregado; no se vuelve a sumar
+    # como consulta del perfil, aunque el plan siga pagando su recorrido.
+    emitidas = preparacion$presupuesto$usadas -
+      if (isTRUE(preparacion$conteo_fusionable)) 1 else 0,
+    modo = preparacion$modo,
     muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
       preparacion$muestreo$disponible,
     tamano_lote = preparacion$tamano_lote,
@@ -4389,7 +4567,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 
 .preparar_dbi <- function(conexion, tabla, muestra, orden_muestra, modo,
                           metricas, max_consultas, dialecto, tamano_lote,
-                          bloque_muestra, instrumentar = TRUE) {
+                          bloque_muestra, instrumentar = TRUE,
+                          contar = TRUE) {
   .requerir_dbi()
   modo <- match.arg(
     modo, c("exacto", "seguro", "conteos", "muestreado", "aproximado")
@@ -4494,25 +4673,6 @@ print.plan_perfilado_dbi <- function(x, ...) {
     orden_muestra <- campos_declarados[posicion]
   }
 
-  sql_conteo <- paste0(
-    "SELECT COUNT(*) AS ",
-    as.character(DBI::dbQuoteIdentifier(conexion, "n")), " FROM ", tabla_sql
-  )
-  conteo <- .escalar_dbi(
-    conexion, sql_conteo, "n", presupuesto, etapa = "conteo_filas"
-  )
-  if (!conteo$ok) {
-    .detener_dbi("lupa_error_conteo_dbi", paste0(
-      "No se pudo contar la tabla: ", conteo$motivo
-    ), datos = list(sql = sql_conteo))
-  }
-  n_total <- .conteo_dbi(conteo$valor)
-  if (is.na(n_total)) {
-    .detener_dbi("lupa_error_conteo_dbi", paste0(
-      "La consulta de conteo no devolvio un numero utilizable. SQL: ",
-      sql_conteo
-    ), datos = list(sql = sql_conteo))
-  }
   esquema <- .esquema_dbi(conexion, tabla_sql, campos_declarados, presupuesto)
   campos <- esquema$campos
   prototipo <- esquema$prototipo
@@ -4583,6 +4743,45 @@ print.plan_perfilado_dbi <- function(x, ...) {
       }
     }
   }
+  sql_conteo <- paste0(
+    "SELECT COUNT(*) AS ",
+    as.character(DBI::dbQuoteIdentifier(conexion, "lupa_n_total")),
+    " FROM ", tabla_sql
+  )
+  # El plan necesita el total antes de estimar el trabajo y conserva por eso el
+  # conteo como porton propio. En una corrida, en cambio, el total viaja con la
+  # primera consulta de agregados. Las formas de TABLESAMPLE necesitan conocer
+  # el total antes de poder escribir su porcentaje; ese es el unico camino de
+  # una corrida que paga el porton por adelantado para no cambiar su muestra.
+  contar_adelante <- isTRUE(contar) || (
+    identical(modo, "muestreado") && !is.null(muestreo) &&
+      !is.null(muestreo$candidato) &&
+      identical(muestreo$candidato$tipo, "tablesample")
+  )
+  conteo <- NULL
+  n_total <- NA_real_
+  if (contar_adelante) {
+    conteo <- .escalar_dbi(
+      conexion, sql_conteo, "lupa_n_total", presupuesto,
+      etapa = "conteo_filas"
+    )
+    if (!conteo$ok) {
+      .detener_dbi("lupa_error_conteo_dbi", paste0(
+        "No se pudo contar la tabla: ", conteo$motivo
+      ), datos = list(sql = sql_conteo))
+    }
+    n_total <- .conteo_dbi(conteo$valor)
+    if (is.na(n_total)) {
+      .detener_dbi("lupa_error_conteo_dbi", paste0(
+        "La consulta de conteo no devolvio un numero utilizable. SQL: ",
+        sql_conteo
+      ), datos = list(sql = sql_conteo))
+    }
+  }
+  hay_agregados_fusionables <- length(campos) > 0L && (
+    any(metricas %in% c("validos", "distintos")) ||
+      any(es_numerico) && any(metricas %in% c("basicos", "desvio"))
+  )
   list(
     modo = modo, metricas = metricas, muestra = muestra,
     bloque_muestra = bloque_muestra,
@@ -4595,6 +4794,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
     aproximaciones = aproximaciones,
     aproximaciones_resolucion = aproximaciones_resolucion,
     n_total = n_total, conteo = conteo, sql_conteo = sql_conteo,
+    conteo_fusionable = hay_agregados_fusionables && !(
+      identical(modo, "muestreado") && !is.null(muestreo) &&
+        !is.null(muestreo$candidato) &&
+        identical(muestreo$candidato$tipo, "tablesample")
+    ),
     orden_sql = orden_sql,
     orden_muestra = orden_muestra, dialecto = resolucion$dialecto,
     resolucion = resolucion, campos_declarados = campos_declarados,
@@ -4679,9 +4883,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' SQL. [plan_perfilado_dbi()] dice cuántas consultas se van a emitir antes de
 #' emitirlas. Los agregados planos sobre la misma tabla y filtro —`COUNT(col)`,
 #' mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
-#' por lote; `COUNT(DISTINCT ...)` queda en una clase separada. Si un lote es
-#' rechazado, sus mitades se sondean por bisección: los grupos aceptados se
-#' reutilizan como mediciones y las columnas culpables se reintentan por métrica.
+#' por lote; cuando la fuente no necesita el total por adelantado, la primera
+#' consulta de agregados lleva además el `COUNT(*)` exacto con el alias
+#' `lupa_n_total`. Si el lote completo es rechazado, se emite un `COUNT(*)` solo
+#' como repliegue obligatorio y sus mitades se sondean por bisección: los grupos
+#' aceptados se reutilizan como mediciones y las columnas culpables se reintentan
+#' por métrica. El denominador de completitud nunca se estima a partir de un
+#' catálogo ni de un lote parcial. Las fuentes `TABLESAMPLE` que necesitan el
+#' total para escribir un porcentaje lo cuentan antes y no reclaman este ahorro.
+#' `COUNT(DISTINCT ...)` queda en una clase separada.
 #' Lo que no entra en el presupuesto queda en `no_disponible` con su motivo,
 #' nunca en cero. `meta$tamano_lote_funciono` conserva el mayor lote aceptado
 #' durante esa corrida; no se guarda estado global asociado a la conexión.
@@ -4690,7 +4900,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `resumen_tabla$sql` conserva una fila por métrica y agrega la duración de la
 #' consulta que la respalda, las filas devueltas y los bytes que ese resultado
 #' ocupa en R. `consulta_id` identifica el intento dentro de la corrida y
-#' `etapa` permite agruparlo (`conteos`, `moda`, `basicos`, `mediana`,
+#' `id_muestra` identifica la consulta de datos que produjo la medición: dos
+#' métricas con el mismo identificador vieron exactamente las mismas filas y se
+#' pueden comparar directamente. `NA` declara que esa garantía no se puede
+#' hacer; en particular, las métricas por columna —moda, frecuencia de la moda
+#' y mediana— no comparten filas con otras métricas. `etapa` permite agruparlo
+#' (`conteos`, `moda`, `basicos`, `mediana`,
 #' `desvio`, `lectura_muestra` y las sondas). Las métricas no solicitadas o que
 #' no emitieron consulta conservan esos campos y los dejan en `NA`; en
 #' particular, `NA` no significa cero.
@@ -4775,11 +4990,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   alcance de esos agregados: eso lo decide `modo`.
 #' @param instrumentar Si se cronometra cada consulta y las etapas grandes de R.
 #'   Por omisión es `TRUE`; agrega `duracion_ms`, `n_filas_resultado`,
-#'   `bytes_resultado_r`, `consulta_id` y `etapa` a `resumen_tabla$sql`, y el
-#'   resumen `resumen_tabla$tiempos`. Con `FALSE` se conserva el mismo plan, la
-#'   misma cantidad y el mismo orden de consultas, pero los campos medibles
-#'   quedan en `NA`. Las duraciones usan `Sys.time()` y los intervalos que el
-#'   reloj no puede resolver no se publican como cero.
+#'   `bytes_resultado_r`, `consulta_id` y `etapa` a
+#'   `resumen_tabla$sql`, y el resumen `resumen_tabla$tiempos`. Con `FALSE` se
+#'   conserva el mismo plan, la misma cantidad y el mismo orden de consultas,
+#'   pero los campos medibles quedan en `NA`. `id_muestra` **no** depende de
+#'   esta opcion: no es una medicion sino un hecho estructural sobre que
+#'   consulta produjo cada metrica, y se publica igual con `FALSE`. Las
+#'   duraciones usan `Sys.time()` y
+#'   los intervalos que el reloj no puede resolver no se publican como cero.
 #' @param ... Argumentos enviados a [perfilar()] para analizar la muestra.
 #'
 #' @return Objeto de clase `perfil_dbi` con dos componentes: `resumen_tabla`, de
@@ -4814,7 +5032,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     orden_muestra = orden_muestra, modo = modo, metricas = metricas,
     max_consultas = max_consultas, dialecto = dialecto,
     tamano_lote = tamano_lote, bloque_muestra = bloque_muestra,
-    instrumentar = instrumentar
+    instrumentar = instrumentar, contar = FALSE
   )
   presupuesto <- preparacion$presupuesto
   info_conexion <- .info_conexion_dbi(conexion)
@@ -4914,6 +5132,42 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
      tamano_lote = preparacion$tamano_lote,
      conteo = preparacion$conteo
   )
+  # En la corrida el conteo sale de la primera consulta de agregados. Desde
+  # aca es el total que gobierna el denominador, la muestra y toda la metadata;
+  # no se conserva el valor desconocido de la preparacion.
+  preparacion$n_total <- resumen$meta$filas
+  if (identical(preparacion$modo, "muestreado")) {
+    if (!is.null(fuente_muestreada)) {
+      fuente_muestreada$filas_solicitadas <- min(
+        as.numeric(fuente_muestreada$filas_solicitadas),
+        .numero_dbi(preparacion$n_total)
+      )
+      fuente_muestreada$fraccion <- .fraccion_muestreo_dbi(
+        fuente_muestreada$filas_solicitadas, preparacion$n_total
+      )
+      muestreo_meta <- c(
+        preparacion$muestreo,
+        list(
+          metodo = fuente_muestreada$metodo,
+          descripcion = fuente_muestreada$descripcion,
+          fraccion = fuente_muestreada$fraccion,
+          tamano_muestra = fuente_muestreada$filas_solicitadas,
+          sql = fuente_muestreada$sql
+        )
+      )
+      muestreo_publico <- .publicar_muestreo_dbi(
+        preparacion$muestreo, fuente_muestreada, preparacion$n_total
+      )
+    } else {
+      muestreo_publico <- .publicar_muestreo_dbi(
+        if (is.null(preparacion$muestreo)) {
+          list(disponible = FALSE, candidato = NULL, sondas = character(),
+               motivo = "No se resolvio una capacidad de muestreo del motor.")
+        } else preparacion$muestreo,
+        n_total = preparacion$n_total
+      )
+    }
+  }
   resumen$meta$sql_esquema <- preparacion$esquema$sql
   resumen$meta$modo <- preparacion$modo
   resumen$meta$metricas <- preparacion$metricas

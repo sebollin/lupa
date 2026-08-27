@@ -22,7 +22,7 @@ skip_if_not_installed("RSQLite")
 .ronda152_sin_auditoria <- function(x) {
   campos_auditoria <- c(
     "sql", "lote", "columnas_compartidas", "consulta_id", "etapa",
-    "duracion_ms", "n_filas_resultado", "bytes_resultado_r"
+    "duracion_ms", "n_filas_resultado", "bytes_resultado_r", "id_muestra"
   )
   x$resumen_tabla$sql <- x$resumen_tabla$sql[
     , setdiff(names(x$resumen_tabla$sql), campos_auditoria), drop = FALSE

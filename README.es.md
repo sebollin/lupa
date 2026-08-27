@@ -271,7 +271,20 @@ legibles. La degradación tiene sus propios tests.
 
 `resumen_tabla$sql` conserva **una fila por columna y métrica** con todos sus
 campos, y agrega `lote` y `columnas_compartidas` para que se vea cuál consulta
-fue compartida.
+fue compartida. También agrega `id_muestra`: dos métricas con el mismo valor
+fueron producidas por la misma consulta de datos y vieron exactamente las
+mismas filas. Las métricas por columna —moda, frecuencia de la moda y mediana—
+dejan `id_muestra = NA`, porque no comparten filas con otras métricas; `NA`
+declara que no hay garantía, no que se haya inventado una coincidencia.
+
+El total exacto (`COUNT(*)`) viaja en la primera consulta de agregados y se
+comparte con el recorrido que ya necesitaban los agregados. Si el lote completo
+es rechazado por el motor, se emite un `COUNT(*)` solo y se continúa con la
+bisección: la completitud siempre usa `n_total - n_validos`, nunca un total
+estimado. En la corrida normal eso ahorra una consulta y un recorrido separado
+de la tabla; el plan sigue pagando su propio conteo porque necesita conocer las
+filas antes de estimar el trabajo. Una forma `TABLESAMPLE` que necesita el
+total para escribir un porcentaje lo cuenta antes y no reclama este ahorro.
 
 ### Leer un perfil sin conocer su forma
 
@@ -358,6 +371,11 @@ alcanza si el motor rechaza todos los lotes y se recorre cada árbol de
 bisección: hasta `2n - 1` sondas adicionales para un lote de `n` columnas. El
 costo real cae entre los dos, y el plan lo declara en las dos direcciones en vez
 de prometer una cota que no puede sostener.
+
+El plan paga un `COUNT(*)` exacto propio antes de los agregados, porque necesita
+el total para estimar el trabajo. Ese recorrido sigue siendo parte del costo del
+plan; la corrida no vuelve a pagar una consulta separada cuando puede llevar el
+conteo en su primer agregado.
 
 Lo que sí es una restricción dura de diseño es que esa predicción **no dependa del
 motor**: cada sonda de capacidad gasta un número fijo de consultas aunque acierte

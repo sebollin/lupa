@@ -264,7 +264,20 @@ unmeasured; they are not assumed to be culprits or readable. The degradation has
 its own tests.
 
 `resumen_tabla$sql` keeps **one row per column and metric** with every field it
-had, and adds `lote` and `columnas_compartidas` so a shared query is visible.
+had, and adds `lote` and `columnas_compartidas` so a shared query is visible. It
+also adds `id_muestra`: two metrics with the same value came from the same data
+query and saw exactly the same rows. Per-column metrics — mode, mode frequency,
+and median — leave `id_muestra = NA`, because they do not share rows with other
+metrics; `NA` declares that there is no guarantee rather than inventing a match.
+
+The exact total (`COUNT(*)`) travels in the first aggregate query and shares the
+scan the aggregates already needed. If the complete batch is rejected by the
+engine, a standalone `COUNT(*)` is issued and bisection continues: completeness
+always uses `n_total - n_validos`, never an estimated total. In a normal run this
+saves one query and one separate table scan; the plan still pays its own count
+because it needs the row total before estimating the work. A `TABLESAMPLE` form
+that needs the total to write a percentage counts it first and does not claim
+this saving.
 
 ### Reading a profile without knowing its shape
 
@@ -349,6 +362,11 @@ when the engine rejects every batch and each bisection tree is traversed: up to
 `2n - 1` additional probes for a batch of `n` columns. The real cost falls
 between the two, and the plan says so in both directions rather than promising a
 bound it cannot keep.
+
+The plan pays its own exact `COUNT(*)` before the aggregates because it needs the
+total to estimate the work. That scan remains part of the plan's cost; the run
+does not pay a separate count query when it can carry the count in its first
+aggregate.
 
 The part that *is* a hard design constraint is that the prediction does not depend
 on the engine: every capability probe costs a fixed number of queries even when

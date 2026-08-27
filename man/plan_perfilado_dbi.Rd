@@ -124,6 +124,13 @@ Emite sólo las consultas-portón —contar filas, leer el esquema y sondear el
 dialecto— y devuelve cuántas consultas emitiría el perfilado completo, de
 qué clase y con qué alcance sobre la tabla. El plan hace visible cuántos lotes
 de agregados se emitirán antes de empezar y evita una sorpresa de costo.
+El conteo que paga el plan es necesario para estimar el trabajo antes de
+ejecutar los agregados; durante una corrida normal, el total exacto viaja en
+la primera consulta de agregados y no se vuelve a contar como una consulta
+separada del perfil. Las fuentes \code{TABLESAMPLE} que necesitan el total para
+construir un porcentaje lo cuentan antes. Si una consulta de agregados no
+acepta el lote, el perfil conserva un conteo exacto independiente y sigue con
+la bisección.
 }
 \examples{
 if (requireNamespace("DBI", quietly = TRUE) &&

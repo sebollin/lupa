@@ -33,6 +33,12 @@ muestra, no como una estimación de la cardinalidad de la tabla completa.
 `modo = "aproximado"` sondea las funciones nativas de cardinalidad y cuantiles;
 si una no existe, se usa el respaldo exacto y el método queda registrado.
 
+Además, `id_muestra` identifica la consulta de datos que produjo cada métrica.
+Dos métricas con el mismo valor vieron exactamente las mismas filas y se pueden
+comparar directamente, sin cruzar `lote` ni `columnas_compartidas`. Un `NA`
+declara que esa garantía no se puede hacer; en particular, moda, frecuencia de
+la moda y mediana son métricas por columna y no comparten filas con otras.
+
 Mezclarlos en una fila, aun con un campo de alcance por resultado, permitiría
 comparar cantidades como si pertenecieran al mismo perfil. Los dos bloques
 impiden esa lectura.
@@ -184,8 +190,8 @@ para que también se vea qué aceptó o rechazó el motor.
 
 La instrumentación queda activa por omisión y sólo agrega metadatos. Cada fila
 de `resumen_tabla$sql` conserva la métrica que ya representaba y suma
-`duracion_ms`, `n_filas_resultado`, `bytes_resultado_r`, `consulta_id` y
-`etapa`. La duración incluye la ejecución y la lectura del resultado que DBI
+`duracion_ms`, `n_filas_resultado`, `bytes_resultado_r`, `consulta_id` e
+`id_muestra`, además de `etapa`. La duración incluye la ejecución y la lectura del resultado que DBI
 entregó a R; el tamaño es `object.size()` de ese resultado. Las filas que no
 emitieron consulta dejan esos campos en `NA`, que significa «no medido», no
 `0`.
@@ -193,7 +199,7 @@ emitieron consulta dejan esos campos en `NA`, que significa «no medido», no
 ```{r tiempos-sql, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}
 perfil$resumen_tabla$sql[, c(
   "metrica", "estado", "duracion_ms", "n_filas_resultado",
-  "bytes_resultado_r", "consulta_id", "etapa"
+  "bytes_resultado_r", "consulta_id", "id_muestra", "etapa"
 )]
 
 perfil$resumen_tabla$tiempos
@@ -375,6 +381,14 @@ si una corrida es viable, saber entre qué y qué se mueve alcanza. La predicci�
 incluye las sondas aunque una forma acertada aparezca antes que las demás,
 porque el costo declarado no puede depender del motor.
 
+El plan paga un `COUNT(*)` exacto propio antes de los agregados, porque necesita
+el total para estimar el trabajo. La corrida lleva ese total en su primera
+consulta de agregados; si el lote es rechazado, se repliega a un `COUNT(*)`
+solo y continúa con la bisección. Así la completitud sigue siendo medida, no
+estimada, y la corrida evita una consulta y un recorrido separado en los casos
+sin rechazo. Una forma `TABLESAMPLE` que necesita el total para construir un
+porcentaje lo cuenta antes y no reclama este ahorro.
+
 Ahora bien, **cuántas consultas se emiten no dice cuánto cuestan**: catorce
 consultas sobre dos millones de filas son mucho más trabajo que doscientas
 sobre mil, y quien mira el plan quiere saber si esto tarda segundos, minutos u
@@ -421,7 +435,10 @@ moda y mediana conservan consultas separadas por sus planes propios. En
 `modo = "muestreado"`, una consulta distinta vuelve a resolver el muestreo: la
 media y la mediana de una misma columna describen conjuntos de filas distintos,
 del mismo tamaño pero no necesariamente los mismos. Las métricas planas del
-mismo lote sí comparten las filas de esa consulta.
+mismo lote sí comparten las filas de esa consulta, y `id_muestra` lo deja
+comprobable directamente. Un `id_muestra` ausente declara que no se puede
+garantizar esa coincidencia; queda ausente para moda, frecuencia de la moda y
+mediana, que son métricas por columna.
 
 Por eso las formas candidatas están ordenadas por **previsibilidad del tamaño**
 y no por costo. Primero la de cantidad fija, `TABLESAMPLE RESERVOIR (n ROWS)`;

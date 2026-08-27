@@ -1,5 +1,32 @@
 # lupa 0.1.0
 
+## Ronda 153: el recorrido que se paga sólo por contar, y el identificador de muestra
+
+El `COUNT(*)` exacto ya viaja en la primera consulta de agregados. Si el lote
+completo es rechazado, `lupa` emite un `COUNT(*)` solo como repliegue y continúa
+con la bisección: la completitud sigue derivando `n_faltantes` y
+`prop_faltantes` de un denominador medido, nunca estimado. El plan sigue pagando
+su propio conteo porque necesita conocer el total antes de estimar el trabajo.
+
+En una tabla en memoria de 12 filas y tres columnas, con `tamano_lote = 4` y
+`bloque_muestra = "solo_agregados"`, la traza SQL dio estos conteos. La columna
+de recorridos cuenta las apariciones de la fuente en el SQL; no se usó tiempo.
+
+| modo | consultas antes | consultas ahora | recorridos antes | recorridos ahora | ahorro de recorridos |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `exacto` | 14 | 13 | 14 | 13 | 1 |
+| `seguro` | 8 | 7 | 8 | 7 | 1 |
+| `conteos` | 6 | 5 | 6 | 5 | 1 |
+| `muestreado` | 23 | 22 | 23 | 23 | 0 |
+| `aproximado` | 23 | 22 | 23 | 22 | 1 |
+
+En `resumen_tabla$sql`, `id_muestra` identifica la consulta de datos: el mismo
+identificador garantiza exactamente las mismas filas. Moda, frecuencia de la
+moda y mediana son métricas por columna y quedan con `NA`; también queda `NA`
+cualquier camino que no pueda sostener esa garantía. Así la comparabilidad se
+comprueba por comparación directa, sin cruzar `lote` ni
+`columnas_compartidas`.
+
 ## Ronda 152: bisección y agregados planos fusionados
 
 Los lotes de agregados que el motor rechaza ya no se reintentan columna por
