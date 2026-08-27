@@ -362,8 +362,10 @@ detector could compare in R over the sample — summarised in `magnitud_texto`.
 
 Counting only the engine gave false verdicts out of true numbers: a 3,912-row
 PostGIS catalogue table with one geometry column stored as text asked for 64,592
-row reads and no sorts — magnitude `"baja"` — and took 35 seconds, because the
-work was in comparing forms, which is not a row read. Printing the plan shows
+row reads and no sorts — magnitude `"baja"` — and took 35 seconds **with the
+work budget already calibrated**, because what remained was in comparing forms,
+which is not a row read. It is the same table that took 243 seconds above,
+before the budget measured work instead of counting units. Printing the plan shows
 both halves, and the high-work warning names the levers that bound it, which
 differ on each side. It is an estimate and says so: the engine half counts the
 rows that would have to be read if no index helped, and the client half counts

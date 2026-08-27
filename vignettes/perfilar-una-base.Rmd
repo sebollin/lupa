@@ -346,8 +346,10 @@ conoce el número de filas—.
 Contar sólo el motor daba juicios falsos con números ciertos. Una tabla del
 catálogo de PostGIS de 3.912 filas, con una columna de geometría guardada como
 texto, pedía 64.592 lecturas de fila y cero ordenaciones: magnitud `"baja"`. Y
-tardaba 35 segundos. El trabajo estaba del otro lado, comparando formas, que no
-es una lectura de fila. Al imprimir el plan se ven las dos mitades, y el aviso
+tardaba 35 segundos, **ya con el presupuesto de trabajo calibrado** —la misma
+tabla tardaba 243 segundos antes, y esa medición es la que aparece en
+`vignette("escala-y-duplicados")`—. El trabajo que quedaba estaba del otro lado,
+comparando formas, que no es una lectura de fila. Al imprimir el plan se ven las dos mitades, y el aviso
 de magnitud alta viene con las palancas concretas para acotarla —que no son las
 mismas de un lado que del otro—: `modo = "muestreado"`, recortar `metricas`,
 bajar `muestra` o poner `max_consultas` para el motor, y

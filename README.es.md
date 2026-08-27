@@ -373,8 +373,10 @@ el detector de vocabulario sobre la muestra—, resumidas en `magnitud_texto`.
 Contar sólo el motor daba juicios falsos con números ciertos: una tabla del
 catálogo de PostGIS de 3.912 filas, con una columna de geometría guardada como
 texto, pedía 64.592 lecturas de fila y cero ordenaciones —magnitud `"baja"`— y
-tardaba 35 segundos, porque el trabajo estaba en comparar formas, que no es una
-lectura de fila. Al imprimir el plan se ven las dos mitades, y el aviso de
+tardaba 35 segundos **ya con el presupuesto de trabajo calibrado**, porque lo que
+quedaba estaba en comparar formas, que no es una lectura de fila. Es la misma
+tabla que arriba tardaba 243 segundos antes de que el presupuesto midiera
+trabajo en vez de contar unidades. Al imprimir el plan se ven las dos mitades, y el aviso de
 trabajo alto nombra las palancas para acotarlo, que no son las mismas de un lado
 que del otro. Es una estimación y lo dice: la del motor cuenta las filas que
 habría que leer si ningún índice ayudara, y la del cliente cuenta pares, cuyo
