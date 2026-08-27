@@ -2819,8 +2819,13 @@
   } else {
     "alta"
   }
-  # El trabajo por valor solo existe si algo se trae a R. En `modo = "conteos"`
-  # no hay muestra, y entonces no hay nada que contar de este lado.
+  # El trabajo por valor solo existe si algo se trae a R, y por eso se pregunta
+  # por el alcance de las consultas y no por el modo. Decia que en
+  # `modo = "conteos"` no hay muestra, y es falso: el bloque de muestra se arma
+  # igual en ese modo -el plan trae su fila con alcance "lee las filas pedidas"-
+  # y sobre 200.000 x 8 se lleva el 98 % del tiempo. Que `conteos` no traiga la
+  # muestra seria razonable y hoy no ocurre; mientras no haya como pedir los
+  # agregados sin ella, la cuenta tiene que contarla.
   n_texto <- numero(columnas_texto)
   if (is.na(n_texto)) n_texto <- 0
   if (is.null(max_pares)) max_pares <- .max_pares_vocabulario_dbi()
