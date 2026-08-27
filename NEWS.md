@@ -1,6 +1,6 @@
 # lupa 0.1.0
 
-## Ronda 153: el recorrido que se paga sólo por contar, y el identificador de muestra
+## El recorrido que se pagaba sólo por contar, y qué filas vio cada métrica
 
 El `COUNT(*)` exacto ya viaja en la primera consulta de agregados. Si el lote
 completo es rechazado, `lupa` emite un `COUNT(*)` solo como repliegue y continúa
@@ -27,7 +27,7 @@ cualquier camino que no pueda sostener esa garantía. Así la comparabilidad se
 comprueba por comparación directa, sin cruzar `lote` ni
 `columnas_compartidas`.
 
-## Ronda 152: bisección y agregados planos fusionados
+## Aislar la columna culpable en pocas consultas, y no recorrer tres veces lo que cabe en una
 
 Los lotes de agregados que el motor rechaza ya no se reintentan columna por
 columna sin información. La vía de agregados reutiliza la bisección de la
