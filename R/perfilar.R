@@ -1,3 +1,27 @@
+.conteos_filas_duplicadas <- function(datos) {
+  duplicadas_adelante <- tryCatch(
+    duplicated(datos),
+    error = function(e) NULL
+  )
+  n_filas_duplicadas <- if (is.null(duplicadas_adelante)) {
+    NA_integer_
+  } else {
+    tryCatch(sum(duplicadas_adelante), error = function(e) NA_integer_)
+  }
+  n_filas_en_grupos_duplicados <- if (is.null(duplicadas_adelante)) {
+    NA_integer_
+  } else {
+    tryCatch(
+      sum(duplicadas_adelante | duplicated(datos, fromLast = TRUE)),
+      error = function(e) NA_integer_
+    )
+  }
+  list(
+    filas_duplicadas = n_filas_duplicadas,
+    filas_en_grupos_duplicados = n_filas_en_grupos_duplicados
+  )
+}
+
 #' Perfilar un conjunto de datos
 #'
 #' Examina un `data.frame`, `tibble` o `data.table` y devuelve estadísticas
@@ -677,6 +701,7 @@ perfilar <- function(datos,
   }
   texto
 }
+
   # la conversion afuera. Se acepta y se convierte, y la conversion queda
   # declarada en `meta` para que el perfil no aparente haber recibido lo que no
   # recibio. Una matriz sin nombres de columna los recibe de R.
@@ -982,14 +1007,10 @@ perfilar <- function(datos,
     )
   }
 
-  n_filas_duplicadas <- tryCatch(
-    sum(duplicated(datos)),
-    error = function(e) NA_integer_
-  )
-  n_filas_en_grupos_duplicados <- tryCatch(
-    sum(duplicated(datos) | duplicated(datos, fromLast = TRUE)),
-    error = function(e) NA_integer_
-  )
+  conteos_duplicados <- .conteos_filas_duplicadas(datos)
+  n_filas_duplicadas <- conteos_duplicados$filas_duplicadas
+  n_filas_en_grupos_duplicados <-
+    conteos_duplicados$filas_en_grupos_duplicados
   filas_completas <- tryCatch(
     sum(stats::complete.cases(datos)),
     error = function(e) NA_integer_

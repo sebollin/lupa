@@ -257,14 +257,21 @@
 # quien conoce la columna- antes que callar un centinela verdadero.
 
 .centinela_por_tres_senales <- function(valores, iqr,
-                                       sentinelas_numericos = NULL) {
+                                       sentinelas_numericos = NULL,
+                                       q1 = NULL, q3 = NULL) {
   vacio <- list(valor = NA_real_, n = NA_integer_,
                 densidad_sin_centinela = NA_real_)
   if (!length(valores) || !is.finite(iqr) || iqr <= 0) return(vacio)
   if (length(valores) < 20L) return(vacio)
-  q <- stats::quantile(valores, probs = c(0.25, 0.75), names = FALSE, type = 7)
-  extremos <- valores[valores < q[[1L]] - 1.5 * iqr |
-                        valores > q[[2L]] + 1.5 * iqr]
+  if (is.null(q1) || is.null(q3)) {
+    q <- stats::quantile(
+      valores, probs = c(0.25, 0.75), names = FALSE, type = 7
+    )
+    q1 <- q[[1L]]
+    q3 <- q[[2L]]
+  }
+  extremos <- valores[valores < q1 - 1.5 * iqr |
+                        valores > q3 + 1.5 * iqr]
   if (!length(extremos)) return(vacio)
   frecuencias <- table(extremos)
   repetidos <- suppressWarnings(
@@ -421,14 +428,23 @@
   minimo <- min(valores)
   maximo <- max(valores)
   media <- mean(valores)
-  mediana <- stats::median(valores)
+  cuartiles <- stats::quantile(
+    valores, probs = c(0.25, 0.5, 0.75), na.rm = TRUE,
+    names = FALSE, type = 7
+  )
+  mediana <- cuartiles[[2L]]
   desvio <- if (length(valores) > 1L) stats::sd(valores) else NA_real_
-  iqr <- stats::IQR(valores, na.rm = TRUE, type = 7)
-  centinela <- .centinela_por_tres_senales(valores, iqr, sentinelas_numericos)
+  # `valores` ya fue filtrado con `is.finite()`: `na.rm = TRUE` conserva la
+  # semántica del IQR anterior y también deja la llamada segura si este bloque
+  # vuelve a recibir valores ausentes en el futuro.
+  iqr <- cuartiles[[3L]] - cuartiles[[1L]]
+  centinela <- .centinela_por_tres_senales(
+    valores, iqr, sentinelas_numericos,
+    q1 = cuartiles[[1L]], q3 = cuartiles[[3L]]
+  )
   if (is.finite(iqr)) {
-    q <- stats::quantile(valores, probs = c(0.25, 0.75), names = FALSE, type = 7)
-    n_outliers <- sum(valores < q[[1L]] - 1.5 * iqr |
-      valores > q[[2L]] + 1.5 * iqr)
+    n_outliers <- sum(valores < cuartiles[[1L]] - 1.5 * iqr |
+      valores > cuartiles[[3L]] + 1.5 * iqr)
   } else {
     n_outliers <- 0L
   }

@@ -1,5 +1,28 @@
 # lupa 0.1.0
 
+## Tres recorridos internos se eliminan sin cambiar lo informado
+
+El resumen cuantitativo comparte una sola llamada a `quantile()` para obtener
+los cuartiles y la mediana, deriva el IQR de esos valores y pasa `q1` y `q3` al
+diagnóstico de sentinelas. La guarda que evita ese diagnóstico con menos de 20
+valores sigue decidiendo antes de sus cuantiles. Sobre un millón de valores, la
+expresión equivalente pasó de una mediana de **0,048 s** a **0,027 s**; el
+resultado fue `identical()`.
+
+El conteo general de duplicados calcula una vez cada dirección de `duplicated()`
+y deriva los dos conteos. Los `tryCatch` siguen aislando un fallo inicial
+(`NA, NA`) de un fallo sólo en `fromLast` (`valor, NA`). Sobre 300.000 × 5, la
+mediana pasó de **0,928 s** a **0,707 s**; los dos conteos fueron idénticos.
+
+La detección de dependencias poda un par sólo cuando ninguna de sus columnas
+tiene ausentes y la cota `k_y - k_x > n * (1 - umbral)` hace inalcanzable el
+umbral. Las cardinalidades usadas son las de `estadisticas`, que en ese caso
+son exactamente las del subconjunto válido; con ausentes el par se evalúa
+completo. Sobre 20.000 × 12 se podaron **36 de 132** pares y se hicieron 96
+llamadas al resumen: la mediana pasó de **0,575 s** a **0,444 s**. El objeto
+completo fue `identical()` con la ejecución sin poda, y el caso que cumple
+0,996 se conserva.
+
 ## El plan declaraba cero trabajo para la tabla entera
 
 `plan_perfilado_dbi()` subdeclaraba el costo justo en el caso por omisión. Con

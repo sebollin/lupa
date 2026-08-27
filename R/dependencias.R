@@ -43,6 +43,18 @@
   }, character(1L)), collapse = "; ")
 }
 
+# Si faltan valores en cualquiera de las dos columnas, las cardinalidades de
+# `estadisticas` no pertenecen al mismo subconjunto que `.resumen_dependencia`
+# y no sirven para acotar nada. Sin ausentes, en cambio, ya son exactamente las
+# cardinalidades del subconjunto valido y la cota es segura: cada grupo de X
+# puede aportar como maximo un valor modal de Y, asi que al menos `k_y - k_x`
+# apariciones contradicen X -> Y.
+.poda_dependencia_cardinalidad <- function(estadistica_x, estadistica_y,
+                                           n, umbral) {
+  if (estadistica_x$n != n || estadistica_y$n != n) return(FALSE)
+  estadistica_y$n_distintos - estadistica_x$n_distintos > n * (1 - umbral)
+}
+
 #' Detectar dependencias funcionales entre columnas
 #'
 #' Busca pares ordenados `determinante -> dependiente`. El cumplimiento es la
@@ -240,6 +252,9 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
           break
         }
         comparaciones <- comparaciones + 1
+        if (.poda_dependencia_cardinalidad(
+            estadisticas[[i]], estadisticas[[j]], filas_trabajo, umbral
+        )) next
         resumen <- .resumen_dependencia(x, muestra_datos[[j]])
         if (resumen$n < min_observaciones ||
             !is.finite(resumen$cumplimiento) ||
