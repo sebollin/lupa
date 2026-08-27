@@ -2590,7 +2590,8 @@
 .plan_consultas_dbi <- function(campos, es_numerico, metricas, incluir_valores,
                                   con_orden, dialecto, emitidas = 0,
                                   modo = "exacto", muestreo_disponible = TRUE,
-                                  tamano_lote = .TAMANO_LOTE_DBI) {
+                                  tamano_lote = .TAMANO_LOTE_DBI,
+                                  incluir_muestra = TRUE) {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
@@ -2647,9 +2648,13 @@
     c(
       "verificacion de unicidad del orden", if (con_orden) 1 else 0,
       "ordena o agrupa la tabla completa"
-    ),
-    c("muestra", 1, "lee las filas pedidas")
+    )
   )
+  if (isTRUE(incluir_muestra)) {
+    clases[[length(clases) + 1L]] <- c(
+      "muestra", 1, "lee las filas pedidas"
+    )
+  }
   plan <- data.frame(
     clase_consulta = vapply(clases, function(x) x[[1L]], character(1L)),
     n_consultas = vapply(clases, function(x) as.numeric(x[[2L]]), numeric(1L)),
@@ -2820,12 +2825,9 @@
     "alta"
   }
   # El trabajo por valor solo existe si algo se trae a R, y por eso se pregunta
-  # por el alcance de las consultas y no por el modo. Decia que en
-  # `modo = "conteos"` no hay muestra, y es falso: el bloque de muestra se arma
-  # igual en ese modo -el plan trae su fila con alcance "lee las filas pedidas"-
-  # y sobre 200.000 x 8 se lleva el 98 % del tiempo. Que `conteos` no traiga la
-  # muestra seria razonable y hoy no ocurre; mientras no haya como pedir los
-  # agregados sin ella, la cuenta tiene que contarla.
+  # por el alcance de las consultas y no por el modo. `modo` selecciona metricas
+  # SQL; `bloque_muestra` decide aparte si el plan trae filas. Cuando ese bloque
+  # se omite no hay pares de formas que contar, aunque haya columnas de texto.
   n_texto <- numero(columnas_texto)
   if (is.na(n_texto)) n_texto <- 0
   if (is.null(max_pares)) max_pares <- .max_pares_vocabulario_dbi()
@@ -2893,7 +2895,9 @@
 #' @return Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
 #'   `n_consultas` y `alcance`, y los atributos `total`,
 #'   `total_lotes_rechazados`, `columnas`, `columnas_numericas`, `dialecto`,
-#'   `consultas_emitidas`, `metricas`, `filas` y `tamano_lote`.
+#'   `consultas_emitidas`, `metricas`, `filas` y `tamano_lote`. Cuando se pide
+#'   `bloque_muestra = "solo_agregados"`, también conserva ese valor en el
+#'   atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
 #'
 #'   El costo no se declara como un número sino como un rango: `total` es el
 #'   extremo inferior, alcanzado si el motor no rechaza ningún lote, y
@@ -2939,12 +2943,13 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
                                          "muestreado", "aproximado"),
                                metricas = NULL, max_consultas = Inf,
                                dialecto = "auto", incluir_valores = TRUE,
-                               tamano_lote = .TAMANO_LOTE_DBI) {
+                               tamano_lote = .TAMANO_LOTE_DBI,
+                               bloque_muestra = c("con_muestra", "solo_agregados")) {
   preparacion <- .preparar_dbi(
     conexion = conexion, tabla = tabla, muestra = muestra,
     orden_muestra = orden_muestra, modo = modo, metricas = metricas,
     max_consultas = max_consultas, dialecto = dialecto,
-    tamano_lote = tamano_lote
+    tamano_lote = tamano_lote, bloque_muestra = bloque_muestra
   )
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
     .es_numerico_dbi(
@@ -2954,11 +2959,13 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   }, logical(1L))
   plan <- .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas, incluir_valores,
-    length(preparacion$orden_sql) > 0, preparacion$dialecto,
+    length(preparacion$orden_sql) > 0 &&
+      identical(preparacion$bloque_muestra, "con_muestra"), preparacion$dialecto,
     emitidas = preparacion$presupuesto$usadas, modo = preparacion$modo,
     muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
       preparacion$muestreo$disponible,
-    tamano_lote = preparacion$tamano_lote
+    tamano_lote = preparacion$tamano_lote,
+    incluir_muestra = identical(preparacion$bloque_muestra, "con_muestra")
   )
   attr(plan, "total") <- sum(plan$n_consultas)
   extra <- attr(plan, "extra_si_se_rechazan_lotes", exact = TRUE)
@@ -2995,8 +3002,13 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "consultas_emitidas") <- preparacion$presupuesto$usadas
   attr(plan, "metricas") <- preparacion$metricas
   attr(plan, "filas") <- preparacion$n_total
-  attr(plan, "muestra") <- preparacion$muestra
+  attr(plan, "muestra") <- if (identical(
+    preparacion$bloque_muestra, "con_muestra"
+  )) preparacion$muestra else NA_real_
   attr(plan, "tamano_lote") <- preparacion$tamano_lote
+  if (identical(preparacion$bloque_muestra, "solo_agregados")) {
+    attr(plan, "bloque_muestra") <- preparacion$bloque_muestra
+  }
   # Que columnas van a pasar por el detector de vocabulario. Se mira el
   # prototipo -lo que devuelve el driver- y no el tipo declarado: es lo que de
   # verdad va a llegar a R.
@@ -3065,6 +3077,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
     .miles_dbi(attr(x, "columnas", exact = TRUE)), " columnas (dialecto ",
     attr(x, "dialecto", exact = TRUE), ")"
   ))
+  if (identical(attr(x, "bloque_muestra", exact = TRUE), "solo_agregados")) {
+    cli::cli_text(
+      "Perfil de muestra: no solicitado; el plan incluye solo agregados SQL."
+    )
+  }
   magnitud <- attr(x, "magnitud", exact = TRUE)
   if (is.null(magnitud)) magnitud <- "desconocida"
   if (identical(magnitud, "desconocida")) {
@@ -3137,7 +3154,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # al azar. Pero conviene decirlo antes y no despues, porque sobre una tabla
   # grande es lo que manda el reloj.
   muestra_plan <- attr(x, "muestra", exact = TRUE)
-  if (!is.null(muestra_plan) && !is.finite(muestra_plan)) {
+  if (!identical(attr(x, "bloque_muestra", exact = TRUE), "solo_agregados") &&
+      !is.null(muestra_plan) && !is.finite(muestra_plan)) {
     filas_plan <- attr(x, "filas", exact = TRUE)
     cli::cli_text(
       "El perfil de muestra trae la tabla entera",
@@ -3774,7 +3792,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # ---- Portones ------------------------------------------------------------
 
 .preparar_dbi <- function(conexion, tabla, muestra, orden_muestra, modo,
-                          metricas, max_consultas, dialecto, tamano_lote) {
+                          metricas, max_consultas, dialecto, tamano_lote,
+                          bloque_muestra) {
   .requerir_dbi()
   modo <- match.arg(
     modo, c("exacto", "seguro", "conteos", "muestreado", "aproximado")
@@ -3783,6 +3802,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
     dialecto, c("auto", "limit", "top", "fetch_first", "rownum", "portable")
   )
   muestra <- .validar_muestra_dbi(muestra)
+  bloque_muestra <- match.arg(
+    bloque_muestra, c("con_muestra", "solo_agregados")
+  )
+  if (identical(bloque_muestra, "solo_agregados")) {
+    orden_muestra <- NULL
+  }
   metricas <- .validar_metricas_dbi(metricas, modo)
   max_consultas <- .validar_max_consultas_dbi(max_consultas)
   tamano_lote <- .validar_tamano_lote_dbi(tamano_lote)
@@ -3954,6 +3979,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }
   list(
     modo = modo, metricas = metricas, muestra = muestra,
+    bloque_muestra = bloque_muestra,
     max_consultas = max_consultas, presupuesto = presupuesto,
     tamano_lote = tamano_lote,
     tabla_sql = tabla_sql, campos = campos, campos_sql = esquema$campos_sql,
@@ -3971,10 +3997,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Perfilar una muestra leída mediante DBI
 #'
 #' Calcula en SQL un resumen sobre la tabla completa o sobre una relación
-#' muestreada por el motor, según `modo`, y en un bloque separado ejecuta
-#' [perfilar()] sobre una muestra traída a memoria. El resumen completo de 105
-#' campos no se presenta como calculado por la base: esos campos pertenecen
-#' exclusivamente a `perfil_muestra` y su universo es la muestra.
+#' muestreada por el motor, según `modo`, y, por omisión, en un bloque separado
+#' ejecuta [perfilar()] sobre una muestra traída a memoria. El resumen completo
+#' de 105 campos no se presenta como calculado por la base: esos campos
+#' pertenecen exclusivamente a `perfil_muestra` y su universo es la muestra.
+#' `bloque_muestra = "solo_agregados"` permite omitir esa lectura y pedir sólo
+#' los agregados SQL.
 #'
 #' Esta función no escribe en la conexión ni crea objetos temporales. `DBI` es
 #' una dependencia opcional. Cada agregado no disponible queda en `NA` y su
@@ -3985,20 +4013,26 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @section Dos tablas se llaman cobertura:
 #' El resultado trae dos, y cubren cosas distintas. `resumen_tabla$cobertura`
 #' habla de **métricas SQL**: qué pidió esta función al motor y qué pasó, con
-#' `bloque`, `elemento`, `estado` —`no_disponible`, `degradado`,
-#' `presupuesto_agotado`, `alcance_distinto`— y la consulta en `sql`.
+#' `bloque`, `elemento`, `estado` —`no_disponible`, `no_solicitado`,
+#' `degradado`, `presupuesto_agotado`, `alcance_distinto`— y la consulta en
+#' `sql`.
 #' `perfil_muestra$cobertura_diagnosticos` habla de **diagnósticos**: qué
 #' comprobación no se corrió sobre la muestra y por qué, con `diagnostico`,
 #' `columna`, `motivo` y `como_resolverlo`, el mismo esquema que devuelve
 #' [perfilar()]. Un motor que rechaza una columna aparece en la primera; una
 #' prueba estadística que no corresponde a esa columna, en la segunda. Comparten
 #' la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.
+#' Si se omite el bloque con `bloque_muestra = "solo_agregados"`, la cobertura
+#' usa el estado `no_solicitado`: no es un fallo ni se cuenta como una métrica
+#' no disponible.
 #'
 #' @section Fallo parcial:
-#' Ningún bloque descarta al otro. Si el motor rechaza la consulta de muestra,
-#' o si la muestra no se puede perfilar, el resultado sale igual con
+#' Ningún bloque descarta al otro. Si se pide la muestra pero el motor rechaza su
+#' consulta, o si la muestra no se puede perfilar, el resultado sale igual con
 #' `perfil_muestra = NULL` y una fila en `resumen_tabla$cobertura` que declara
-#' el motivo y cómo resolverlo. Si el motor rechaza una columna, esa columna
+#' el estado `no_disponible`, el motivo y cómo resolverlo. Si se pide sólo
+#' agregados, `perfil_muestra = NULL` se acompaña de una fila `no_solicitado`:
+#' no se intentó leer la muestra. Si el motor rechaza una columna, esa columna
 #' queda con sus métricas en `no_disponible` y las demás se perfilan enteras.
 #' Los `stop()` de esta vía llevan clase de condición propia —todas heredan de
 #' `lupa_error_dbi`— para que se puedan rescatar con `tryCatch()`:
@@ -4032,10 +4066,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'
 #' @section Costo:
 #' Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo que
-#' se trae a R, no el trabajo del motor. `modo`, `metricas`, `tamano_lote` y
-#' `max_consultas` sí lo acotan, y [plan_perfilado_dbi()] dice cuántas consultas
-#' se van a emitir antes de emitirlas. Lo que no entra en el presupuesto queda
-#' en `no_disponible` con su motivo, nunca en cero.
+#' se trae a R, no el trabajo del motor. `bloque_muestra` decide si se trae esa
+#' muestra; `modo`, `metricas`, `tamano_lote` y `max_consultas` acotan el trabajo
+#' SQL. [plan_perfilado_dbi()] dice cuántas consultas se van a emitir antes de
+#' emitirlas. Lo que no entra en el presupuesto queda en `no_disponible` con su
+#' motivo, nunca en cero.
 #'
 #' @section Datos personales:
 #' `proteger_datos_personales` viaja en `...` hacia [perfilar()] y vale `TRUE`
@@ -4068,7 +4103,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @param orden_muestra Columnas para `ORDER BY`. La salida solo declara orden
 #'   reproducible cuando la combinación es única en toda la tabla. Sin este
 #'   argumento, DBI no garantiza el orden ni la pertenencia de una muestra
-#'   limitada, y `meta` lo declara expresamente.
+#'   limitada, y `meta` lo declara expresamente. No se usa cuando
+#'   `bloque_muestra = "solo_agregados"`.
 #' @section Progreso:
 #' Traer la tabla entera puede tardar minutos sobre una tabla grande, y una
 #' corrida callada no se distingue de una colgada. En una sesión interactiva se
@@ -4100,12 +4136,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   declaran sin sondeo.
 #' @param incluir_valores Si el resumen informa valores de celda: moda, mínimo,
 #'   máximo y mediana. Con `FALSE` esas consultas no se emiten.
+#' @param bloque_muestra Qué bloques se solicitan: `"con_muestra"` (por
+#'   omisión) calcula también `perfil_muestra`, o `"solo_agregados"` omite su
+#'   lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
+#'   alcance de esos agregados: eso lo decide `modo`.
 #' @param ... Argumentos enviados a [perfilar()] para analizar la muestra.
 #'
-#' @return Objeto de clase `perfil_dbi` con exactamente dos bloques:
-#'   `resumen_tabla`, de alcance completo o muestreado según `modo`, y
-#'   `perfil_muestra`, un objeto `perfil` cuyo `meta$origen_dbi` declara tabla,
-#'   conexión, SQL y alcance, o `NULL` si la muestra no se pudo obtener.
+#' @return Objeto de clase `perfil_dbi` con dos componentes: `resumen_tabla`, de
+#'   alcance completo o muestreado según `modo`, y `perfil_muestra`, un objeto
+#'   `perfil` cuyo `meta$origen_dbi` declara tabla, conexión, SQL y alcance.
+#'   `perfil_muestra` es `NULL` si la muestra no se pudo obtener o si se pidió
+#'   `bloque_muestra = "solo_agregados"`; `resumen_tabla$cobertura` distingue
+#'   esos casos con `no_disponible` y `no_solicitado`, respectivamente.
 #' @export
 #' @seealso [plan_perfilado_dbi()], [perfilar()]
 #'
@@ -4123,12 +4165,14 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                                    "aproximado"),
                          metricas = NULL, max_consultas = Inf,
                          dialecto = "auto", incluir_valores = TRUE,
-                         tamano_lote = .TAMANO_LOTE_DBI, ...) {
+                         tamano_lote = .TAMANO_LOTE_DBI,
+                         bloque_muestra = c("con_muestra", "solo_agregados"),
+                         ...) {
   preparacion <- .preparar_dbi(
     conexion = conexion, tabla = tabla, muestra = muestra,
     orden_muestra = orden_muestra, modo = modo, metricas = metricas,
     max_consultas = max_consultas, dialecto = dialecto,
-    tamano_lote = tamano_lote
+    tamano_lote = tamano_lote, bloque_muestra = bloque_muestra
   )
   presupuesto <- preparacion$presupuesto
   info_conexion <- .info_conexion_dbi(conexion)
@@ -4140,15 +4184,21 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   }, logical(1L))
   plan <- .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas, incluir_valores,
-    length(preparacion$orden_sql) > 0, preparacion$dialecto,
+    length(preparacion$orden_sql) > 0 &&
+      identical(preparacion$bloque_muestra, "con_muestra"), preparacion$dialecto,
     emitidas = presupuesto$usadas, modo = preparacion$modo,
     muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
       preparacion$muestreo$disponible,
-    tamano_lote = preparacion$tamano_lote
+    tamano_lote = preparacion$tamano_lote,
+    incluir_muestra = identical(preparacion$bloque_muestra, "con_muestra")
   )
-  # Las dos consultas obligatorias que faltan -verificacion de orden y
-  # muestra- se reservan para que el presupuesto no se las coma.
-  presupuesto$reserva <- if (length(preparacion$orden_sql)) 2 else 1
+  # Las consultas obligatorias que faltan -verificacion de orden y, cuando se
+  # pidio, muestra- se reservan para que el presupuesto no se las coma.
+  presupuesto$reserva <- if (identical(preparacion$bloque_muestra, "con_muestra")) {
+    if (length(preparacion$orden_sql)) 2 else 1
+  } else {
+    0
+  }
   # El plan ya dice cuantas consultas se van a emitir, asi que la barra avanza
   # contra un total conocido y no contra una estimacion. Se abre en el marco de
   # esta funcion para que viva lo que dure el perfilado y se cierre sola.
@@ -4284,13 +4334,31 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   }
 
   presupuesto$reserva <- 0
-  bloque <- .bloque_muestra_dbi(
-    conexion, tabla, preparacion$tabla_sql, preparacion$campos,
-    preparacion$campos_sql, preparacion$muestra, preparacion$orden_muestra,
-    preparacion$orden_sql, preparacion$dialecto, preparacion$n_total,
-    presupuesto, info_conexion, list(...), muestreo = muestreo_meta,
-    tipos_declarados = preparacion$tipos
-  )
+  bloque <- if (identical(preparacion$bloque_muestra, "con_muestra")) {
+    .bloque_muestra_dbi(
+      conexion, tabla, preparacion$tabla_sql, preparacion$campos,
+      preparacion$campos_sql, preparacion$muestra, preparacion$orden_muestra,
+      preparacion$orden_sql, preparacion$dialecto, preparacion$n_total,
+      presupuesto, info_conexion, list(...), muestreo = muestreo_meta,
+      tipos_declarados = preparacion$tipos
+    )
+  } else {
+    list(
+      perfil = NULL,
+      cobertura = .registro_cobertura_dbi(
+        "perfil_muestra", .texto_tabla_dbi(tabla), "no_solicitado",
+        paste(
+          "No se solicito el perfil de muestra: este resultado contiene",
+          "unicamente los agregados SQL del modo elegido."
+        ),
+        paste(
+          "Para obtener diagnosticos sobre valores y hallazgos por fila, volver",
+          "a perfilar con `bloque_muestra = \"con_muestra\"`."
+        )
+      ),
+      muestreo = NULL
+    )
+  }
   cobertura <- rbind(cobertura, bloque$cobertura)
   if (isTRUE(presupuesto$agotado)) {
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
@@ -4336,7 +4404,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   }
   resumen$literales <- NULL
 
-  if (is.null(bloque$perfil)) {
+  if (is.null(bloque$perfil) && any(bloque$cobertura$estado == "no_disponible")) {
     motivos <- bloque$cobertura$motivo[
       bloque$cobertura$estado == "no_disponible"
     ]
@@ -4374,7 +4442,12 @@ print.perfil_dbi <- function(x, ...) {
       "Consultas emitidas: {meta$consultas$emitidas} (dialecto {meta$dialecto$nombre})"
     )
   }
-  if (is.null(x$perfil_muestra)) {
+  estado_muestra <- .estado_bloque_muestra_dbi(x)
+  if (identical(estado_muestra, "no_solicitado")) {
+    cli::cli_text(
+      "Perfil de muestra: no solicitado; el motivo est\u00e1 en `resumen_tabla$cobertura`."
+    )
+  } else if (is.null(x$perfil_muestra)) {
     cli::cli_text(
       "Perfil de muestra: no disponible; el motivo est\u00e1 en `resumen_tabla$cobertura`."
     )

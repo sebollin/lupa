@@ -603,7 +603,8 @@ print.coleccion_lupa <- function(x, ...) {
 #' Perfilar una colección declarada
 #'
 #' Recorre las tablas declaradas en [coleccion()] y devuelve **una fila por
-#' tabla** con su resumen exacto, más la cobertura de lo que no se pudo medir.
+#' tabla** con su resumen exacto, más la cobertura de lo que no se pudo medir o
+#' no se solicitó.
 #'
 #' Conserva el resumen calculado en SQL sobre toda la tabla, que es acotado, y
 #' **no** retiene el perfil de la muestra de cada tabla, que es el objeto
@@ -641,6 +642,11 @@ print.coleccion_lupa <- function(x, ...) {
 #'   los valores en R. Acotarlo con `muestra = n` es mas rapido a cambio de mirar
 #'   menos filas, y sobre una coleccion grande conviene mirar antes
 #'   [plan_perfilado_dbi()] tabla por tabla.
+#' @param bloque_muestra Qué bloques se solicitan en cada tabla: `"con_muestra"`
+#'   (por omisión) calcula también el perfil de la muestra, o
+#'   `"solo_agregados"` evita leerla y devuelve sólo los agregados SQL. Se pasa
+#'   al mismo argumento de [perfilar_dbi()] para que todas las tablas de la
+#'   colección respeten la misma decisión.
 #' @param conservar_perfiles Si se retienen los objetos `perfil_dbi` completos.
 #'   Por omisión `FALSE`.
 #' @param cobertura_metricas Qué se sube a `cobertura_metricas`: `"no_medidas"`
@@ -670,7 +676,9 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
                                conservar_perfiles = FALSE,
                                cobertura_metricas = c("no_medidas", "completa",
                                                       "ninguna"),
-                               tope_cobertura_metricas = 20000L, ...) {
+                               tope_cobertura_metricas = 20000L,
+                               bloque_muestra = c("con_muestra", "solo_agregados"),
+                               ...) {
   if (!inherits(coleccion, "coleccion_lupa")) {
     stop(
       "`coleccion` debe ser una coleccion declarada por coleccion().",
@@ -682,6 +690,9 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     stop("`conservar_perfiles` debe ser TRUE o FALSE.", call. = FALSE)
   }
   cobertura_metricas <- match.arg(cobertura_metricas)
+  bloque_muestra <- match.arg(
+    bloque_muestra, c("con_muestra", "solo_agregados")
+  )
   if (!is.numeric(tope_cobertura_metricas) ||
       length(tope_cobertura_metricas) != 1L ||
       is.na(tope_cobertura_metricas) || tope_cobertura_metricas < 0) {
@@ -741,7 +752,10 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
     momento <- Sys.time()
     referencia <- declaradas$referencia[[i]]
     perfil <- tryCatch(
-      perfilar_dbi(conexion, referencia, muestra = muestra, ...),
+      perfilar_dbi(
+        conexion, referencia, muestra = muestra,
+        bloque_muestra = bloque_muestra, ...
+      ),
       error = function(e) e
     )
     if (inherits(perfil, "condition")) {
@@ -763,13 +777,21 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       if (is.null(resumen) || is.null(resumen$columnas)) {
         stop("el perfil no trae `resumen_tabla$columnas`", call. = FALSE)
       }
+      muestra_perfil <- perfil$perfil_muestra
       list(
         filas = resumen$meta$filas,
-        analizadas = perfil$perfil_muestra$meta$filas_analizadas,
+        analizadas = if (is.null(muestra_perfil)) {
+          NA_real_
+        } else {
+          muestra_perfil$meta$filas_analizadas
+        },
         prop_faltantes = resumen$columnas$prop_faltantes,
         n_columnas = nrow(resumen$columnas),
         # Se lee ANTES de descartar el perfil: es la unica oportunidad.
-        sql = resumen$sql
+        sql = resumen$sql,
+        cobertura_muestra = resumen$cobertura[
+          resumen$cobertura$bloque == "perfil_muestra", , drop = FALSE
+        ]
       )
     }, error = function(e) e)
     if (inherits(piezas, "condition")) {
@@ -823,13 +845,35 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
       n_metricas_declaradas = estado_metricas$n,
       n_metricas_calculadas = estado_metricas$calculadas,
       n_metricas_no_disponibles = estado_metricas$no_disponibles,
-      muestra_solicitada = as.numeric(muestra),
+      muestra_solicitada = if (identical(bloque_muestra, "con_muestra")) {
+        as.numeric(muestra)
+      } else NA_real_,
       muestra_analizada = as.numeric(
         if (length(analizadas)) analizadas[[1L]] else NA_real_
       ),
       momento = momento,
       stringsAsFactors = FALSE
     )
+
+    cobertura_muestra <- piezas$cobertura_muestra
+    if (is.data.frame(cobertura_muestra) && nrow(cobertura_muestra)) {
+      estados_muestra <- as.character(cobertura_muestra$estado)
+      indice_estado <- which(estados_muestra %in%
+        c("no_solicitado", "no_disponible"))[1L]
+      if (!is.na(indice_estado)) {
+        estado_muestra <- estados_muestra[[indice_estado]]
+        alcance_muestra <- if (identical(estado_muestra, "no_solicitado")) {
+          "muestra_no_solicitada"
+        } else {
+          "muestra_no_disponible"
+        }
+        cobertura[[length(cobertura) + 1L]] <- .fila_cobertura_coleccion(
+          fila, alcance_muestra,
+          as.character(cobertura_muestra$motivo[[indice_estado]]),
+          as.character(cobertura_muestra$como_resolverlo[[indice_estado]])
+        )
+      }
+    }
 
     # Una tabla vacia no es un caso exotico: es rutina institucional -tabla
     # recien creada, staging truncada, particion del mes que viene-. Antes se

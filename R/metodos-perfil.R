@@ -92,6 +92,17 @@ as_tibble.perfil <- function(x, ...) {
   NULL
 }
 
+.estado_bloque_muestra_dbi <- function(x) {
+  if (!inherits(x, "perfil_dbi")) return(NA_character_)
+  cobertura <- tryCatch(x$resumen_tabla$cobertura, error = function(e) NULL)
+  if (is.data.frame(cobertura) && nrow(cobertura) &&
+      all(c("bloque", "estado") %in% names(cobertura))) {
+    fila <- cobertura[cobertura$bloque == "perfil_muestra", , drop = FALSE]
+    if (nrow(fila)) return(as.character(fila$estado[[1L]]))
+  }
+  if (is.null(x$perfil_muestra)) "no_disponible" else "disponible"
+}
+
 .fuente_columnas <- function(x) {
   if (inherits(x, "perfil")) return(x$columnas)
   if (inherits(x, "analisis")) return(x$perfil$columnas)
@@ -165,11 +176,19 @@ hallazgos <- function(x, ...) {
   salida <- .fuente_hallazgos(x)
   if (is.null(salida)) {
     if (inherits(x, "perfil_dbi")) {
-      warning(
-        "Este perfil DBI no trae muestra leida, asi que no hay hallazgos por ",
-        "fila. El resumen por columna sigue disponible en columnas(); el ",
-        "motivo, en cobertura().", call. = FALSE
-      )
+      if (identical(.estado_bloque_muestra_dbi(x), "no_solicitado")) {
+        warning(
+          "Este perfil DBI no solicito la muestra, asi que no hay hallazgos por ",
+          "fila. El resumen por columna sigue disponible en columnas(); el ",
+          "detalle, en cobertura().", call. = FALSE
+        )
+      } else {
+        warning(
+          "Este perfil DBI no trae muestra leida, asi que no hay hallazgos por ",
+          "fila. El resumen por columna sigue disponible en columnas(); el ",
+          "motivo, en cobertura().", call. = FALSE
+        )
+      }
       return(.hallazgos_sin_filas())
     }
     return(.hallazgos_sin_filas())

@@ -10,6 +10,7 @@ perfilar_coleccion(
   conservar_perfiles = FALSE,
   cobertura_metricas = c("no_medidas", "completa", "ninguna"),
   tope_cobertura_metricas = 20000L,
+  bloque_muestra = c("con_muestra", "solo_agregados"),
   ...
 )
 }
@@ -35,6 +36,12 @@ con su estado, \code{"ninguna"} para omitirla. Los conteos por tabla de
 total real queda siempre en \code{meta$n_metricas_no_medidas}, aunque la tabla
 se haya recortado.}
 
+\item{bloque_muestra}{Qué bloques se solicitan en cada tabla: \code{"con_muestra"}
+(por omisión) calcula también el perfil de la muestra, o
+\code{"solo_agregados"} evita leerla y devuelve sólo los agregados SQL. Se pasa
+al mismo argumento de \code{\link[=perfilar_dbi]{perfilar_dbi()}} para que todas las tablas de la
+colección respeten la misma decisión.}
+
 \item{...}{Argumentos enviados a \code{\link[=perfilar_dbi]{perfilar_dbi()}}.}
 }
 \value{
@@ -44,7 +51,8 @@ Objeto de clase \code{perfil_coleccion} con \code{resumen_coleccion},
 }
 \description{
 Recorre las tablas declaradas en \code{\link[=coleccion]{coleccion()}} y devuelve \strong{una fila por
-tabla} con su resumen exacto, más la cobertura de lo que no se pudo medir.
+tabla} con su resumen exacto, más la cobertura de lo que no se pudo medir o
+no se solicitó.
 }
 \details{
 Conserva el resumen calculado en SQL sobre toda la tabla, que es acotado, y

@@ -12,8 +12,8 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 options(width = 90)
 ```
 
-`perfilar_dbi()` mantiene separados dos resultados porque provienen de
-universos distintos:
+Por omisión, `perfilar_dbi()` mantiene separados dos resultados porque
+provienen de universos distintos:
 
 - `resumen_tabla` calcula agregados SQL sobre la tabla completa;
 - `perfil_muestra` ejecuta `perfilar()` sobre las filas traídas a memoria.
@@ -36,6 +36,12 @@ si una no existe, se usa el respaldo exacto y el método queda registrado.
 Mezclarlos en una fila, aun con un campo de alcance por resultado, permitiría
 comparar cantidades como si pertenecieran al mismo perfil. Los dos bloques
 impiden esa lectura.
+
+Si sólo se necesitan los agregados del motor, `bloque_muestra =
+"solo_agregados"` evita traer filas a R y deja `perfil_muestra = NULL`. La
+cobertura lo declara como `no_solicitado`, que no es un fallo. La lectura
+habitual se conserva con `bloque_muestra = "con_muestra"`, que es el valor por
+omisión.
 
 ## Un ejemplo en memoria
 
@@ -68,6 +74,9 @@ sin_orden <- perfilar_dbi(
 perfil <- perfilar_dbi(
   conexion, "entregas", muestra = 5, orden_muestra = "id"
 )
+solo_agregados <- perfilar_dbi(
+  conexion, "entregas", modo = "conteos", bloque_muestra = "solo_agregados"
+)
 ```
 
 La conexión y los dos perfiles ya están preparados. Los bloques siguientes
@@ -99,9 +108,11 @@ falta es esto», dice eso, porque comprobar de verdad exigiría intentar compila
 ## Leer el resultado sin memorizar su forma
 
 `perfilar()` devuelve un `perfil` plano y `perfilar_dbi()` un contenedor con dos
-bloques. Es una diferencia real —una tabla en memoria y una tabla remota no son
-lo mismo— pero convertía la lectura en un acertijo: `perfil$general$filas`
-funciona sobre el primero y devuelve `NULL` sobre el segundo.
+componentes: el segundo puede ser `NULL` si la muestra no se pidió o no estuvo
+disponible. Es una diferencia real —una tabla en memoria y una tabla remota no
+son lo mismo— pero convertía la lectura en un acertijo:
+`perfil$general$filas` funciona sobre el primero y devuelve `NULL` sobre el
+segundo.
 
 ```{r accesores}
 library(lupa)
@@ -113,10 +124,11 @@ sql_perfil(en_memoria)   # NULL: un perfil en memoria no emitió SQL
 ```
 
 Los mismos cinco nombres sirven para las cuatro formas de salida. Y no inventan
-lo que no hay: un perfil DBI sin muestra leída devuelve una tabla de hallazgos
-vacía **con su aviso**, no una tabla que aparente que se midió y no había nada.
+lo que no hay: un perfil DBI sin muestra leída, o con la muestra no solicitada,
+devuelve una tabla de hallazgos vacía **con su aviso**, no una tabla que aparente
+que se midió y no había nada.
 
-## Los dos bloques del resultado
+## Los dos bloques posibles del resultado
 
 `names(perfil)` hace visible la separación que devuelve `perfilar_dbi()`. La
 tabla siguiente compara el alcance de cada bloque: las filas de origen y la
@@ -125,6 +137,11 @@ cantidad de campos analíticos, sin presentarlos como un único perfil.
 ```{r resultado, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}
 
 names(perfil)
+solo_agregados$perfil_muestra
+solo_agregados$resumen_tabla$cobertura[
+  solo_agregados$resumen_tabla$cobertura$bloque == "perfil_muestra", ,
+  drop = FALSE
+]
 
 data.frame(
   bloque = c("resumen_tabla", "perfil_muestra"),

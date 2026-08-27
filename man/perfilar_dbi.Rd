@@ -15,6 +15,7 @@ perfilar_dbi(
   dialecto = "auto",
   incluir_valores = TRUE,
   tamano_lote = .TAMANO_LOTE_DBI,
+  bloque_muestra = c("con_muestra", "solo_agregados"),
   ...
 )
 }
@@ -41,7 +42,8 @@ la restriccion, \code{Inf} es la opcion honesta.}
 \item{orden_muestra}{Columnas para \verb{ORDER BY}. La salida solo declara orden
 reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
-limitada, y \code{meta} lo declara expresamente.}
+limitada, y \code{meta} lo declara expresamente. No se usa cuando
+\code{bloque_muestra = "solo_agregados"}.}
 
 \item{modo}{Conjunto de métricas del resumen: \code{"exacto"} las calcula todas,
 \code{"seguro"} evita las que ordenan o agrupan la tabla completa y
@@ -67,20 +69,29 @@ máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
 Veinte mantiene acotado el número de expresiones y se puede reducir para
 motores con límites más estrictos.}
 
+\item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
+omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
+lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
+alcance de esos agregados: eso lo decide \code{modo}.}
+
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
 }
 \value{
-Objeto de clase \code{perfil_dbi} con exactamente dos bloques:
-\code{resumen_tabla}, de alcance completo o muestreado según \code{modo}, y
-\code{perfil_muestra}, un objeto \code{perfil} cuyo \code{meta$origen_dbi} declara tabla,
-conexión, SQL y alcance, o \code{NULL} si la muestra no se pudo obtener.
+Objeto de clase \code{perfil_dbi} con dos componentes: \code{resumen_tabla}, de
+alcance completo o muestreado según \code{modo}, y \code{perfil_muestra}, un objeto
+\code{perfil} cuyo \code{meta$origen_dbi} declara tabla, conexión, SQL y alcance.
+\code{perfil_muestra} es \code{NULL} si la muestra no se pudo obtener o si se pidió
+\code{bloque_muestra = "solo_agregados"}; \code{resumen_tabla$cobertura} distingue
+esos casos con \code{no_disponible} y \code{no_solicitado}, respectivamente.
 }
 \description{
 Calcula en SQL un resumen sobre la tabla completa o sobre una relación
-muestreada por el motor, según \code{modo}, y en un bloque separado ejecuta
-\code{\link[=perfilar]{perfilar()}} sobre una muestra traída a memoria. El resumen completo de 105
-campos no se presenta como calculado por la base: esos campos pertenecen
-exclusivamente a \code{perfil_muestra} y su universo es la muestra.
+muestreada por el motor, según \code{modo}, y, por omisión, en un bloque separado
+ejecuta \code{\link[=perfilar]{perfilar()}} sobre una muestra traída a memoria. El resumen completo
+de 105 campos no se presenta como calculado por la base: esos campos
+pertenecen exclusivamente a \code{perfil_muestra} y su universo es la muestra.
+\code{bloque_muestra = "solo_agregados"} permite omitir esa lectura y pedir sólo
+los agregados SQL.
 }
 \details{
 Esta función no escribe en la conexión ni crea objetos temporales. \code{DBI} es
@@ -93,22 +104,28 @@ dialecto SQL universal.
 
 El resultado trae dos, y cubren cosas distintas. \code{resumen_tabla$cobertura}
 habla de \strong{métricas SQL}: qué pidió esta función al motor y qué pasó, con
-\code{bloque}, \code{elemento}, \code{estado} —\code{no_disponible}, \code{degradado},
-\code{presupuesto_agotado}, \code{alcance_distinto}— y la consulta en \code{sql}.
+\code{bloque}, \code{elemento}, \code{estado} —\code{no_disponible}, \code{no_solicitado},
+\code{degradado}, \code{presupuesto_agotado}, \code{alcance_distinto}— y la consulta en
+\code{sql}.
 \code{perfil_muestra$cobertura_diagnosticos} habla de \strong{diagnósticos}: qué
 comprobación no se corrió sobre la muestra y por qué, con \code{diagnostico},
 \code{columna}, \code{motivo} y \code{como_resolverlo}, el mismo esquema que devuelve
 \code{\link[=perfilar]{perfilar()}}. Un motor que rechaza una columna aparece en la primera; una
 prueba estadística que no corresponde a esa columna, en la segunda. Comparten
 la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.
+Si se omite el bloque con \code{bloque_muestra = "solo_agregados"}, la cobertura
+usa el estado \code{no_solicitado}: no es un fallo ni se cuenta como una métrica
+no disponible.
 }
 
 \section{Fallo parcial}{
 
-Ningún bloque descarta al otro. Si el motor rechaza la consulta de muestra,
-o si la muestra no se puede perfilar, el resultado sale igual con
+Ningún bloque descarta al otro. Si se pide la muestra pero el motor rechaza su
+consulta, o si la muestra no se puede perfilar, el resultado sale igual con
 \code{perfil_muestra = NULL} y una fila en \code{resumen_tabla$cobertura} que declara
-el motivo y cómo resolverlo. Si el motor rechaza una columna, esa columna
+el estado \code{no_disponible}, el motivo y cómo resolverlo. Si se pide sólo
+agregados, \code{perfil_muestra = NULL} se acompaña de una fila \code{no_solicitado}:
+no se intentó leer la muestra. Si el motor rechaza una columna, esa columna
 queda con sus métricas en \code{no_disponible} y las demás se perfilan enteras.
 Los \code{stop()} de esta vía llevan clase de condición propia —todas heredan de
 \code{lupa_error_dbi}— para que se puedan rescatar con \code{tryCatch()}:
@@ -147,10 +164,11 @@ caja, porque hay motores que los pliegan a mayúsculas.
 \section{Costo}{
 
 Los agregados de una tabla ancha se emiten por lotes; \code{muestra} acota lo que
-se trae a R, no el trabajo del motor. \code{modo}, \code{metricas}, \code{tamano_lote} y
-\code{max_consultas} sí lo acotan, y \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} dice cuántas consultas
-se van a emitir antes de emitirlas. Lo que no entra en el presupuesto queda
-en \code{no_disponible} con su motivo, nunca en cero.
+se trae a R, no el trabajo del motor. \code{bloque_muestra} decide si se trae esa
+muestra; \code{modo}, \code{metricas}, \code{tamano_lote} y \code{max_consultas} acotan el trabajo
+SQL. \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} dice cuántas consultas se van a emitir antes de
+emitirlas. Lo que no entra en el presupuesto queda en \code{no_disponible} con su
+motivo, nunca en cero.
 }
 
 \section{Datos personales}{

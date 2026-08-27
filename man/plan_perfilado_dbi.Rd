@@ -14,7 +14,8 @@ plan_perfilado_dbi(
   max_consultas = Inf,
   dialecto = "auto",
   incluir_valores = TRUE,
-  tamano_lote = .TAMANO_LOTE_DBI
+  tamano_lote = .TAMANO_LOTE_DBI,
+  bloque_muestra = c("con_muestra", "solo_agregados")
 )
 }
 \arguments{
@@ -40,7 +41,8 @@ la restriccion, \code{Inf} es la opcion honesta.}
 \item{orden_muestra}{Columnas para \verb{ORDER BY}. La salida solo declara orden
 reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
-limitada, y \code{meta} lo declara expresamente.}
+limitada, y \code{meta} lo declara expresamente. No se usa cuando
+\code{bloque_muestra = "solo_agregados"}.}
 
 \item{modo}{Conjunto de métricas del resumen: \code{"exacto"} las calcula todas,
 \code{"seguro"} evita las que ordenan o agrupan la tabla completa y
@@ -65,12 +67,19 @@ máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
 \item{tamano_lote}{Cantidad máxima de columnas por consulta consolidada.
 Veinte mantiene acotado el número de expresiones y se puede reducir para
 motores con límites más estrictos.}
+
+\item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
+omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
+lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
+alcance de esos agregados: eso lo decide \code{modo}.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
 \code{n_consultas} y \code{alcance}, y los atributos \code{total},
 \code{total_lotes_rechazados}, \code{columnas}, \code{columnas_numericas}, \code{dialecto},
-\code{consultas_emitidas}, \code{metricas}, \code{filas} y \code{tamano_lote}.
+\code{consultas_emitidas}, \code{metricas}, \code{filas} y \code{tamano_lote}. Cuando se pide
+\code{bloque_muestra = "solo_agregados"}, también conserva ese valor en el
+atributo \code{bloque_muestra} y no incluye la fila de la lectura de muestra.
 
 El costo no se declara como un número sino como un rango: \code{total} es el
 extremo inferior, alcanzado si el motor no rechaza ningún lote, y

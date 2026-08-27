@@ -1,5 +1,15 @@
 # lupa 0.1.0
 
+## Pedir sólo agregados sin leer la muestra
+
+`perfilar_dbi()` y `perfilar_coleccion()` aceptan
+`bloque_muestra = "solo_agregados"` para calcular los agregados SQL sin traer
+filas a R ni ejecutar el perfil de la muestra. El valor por omisión
+`"con_muestra"` conserva el comportamiento anterior. `plan_perfilado_dbi()`
+omite la fila y el costo de la muestra cuando corresponde, y la cobertura usa
+`no_solicitado` para distinguirlo de una muestra que se intentó leer y no estuvo
+disponible.
+
 ## La inferencia de tipo clasifica el vocabulario repetido una sola vez
 
 `.inferir_tipo()` usa el vocabulario textual cuando su cardinalidad hace
