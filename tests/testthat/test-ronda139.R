@@ -85,11 +85,21 @@ test_that("los dos conteos caen por separado ante fallos de duplicated", {
   )
 })
 
+# El fixture tiene que informar dependencias, si no `expect_identical(podada,
+# sin_poda)` compara dos tablas vacias y pasa sin haber probado que la poda
+# conserva lo que se informa. `x`/`y` es el par podable -veinte formas contra
+# dos, sin dependencia que informar- y `clave`/`derivada` es el par que SI se
+# informa, con dos filas que lo contradicen para que no sea exacto.
 .ronda139_datos_dependencias <- function() {
   n <- 1000L
+  clave <- rep(sprintf("K%02d", seq_len(25L)), length.out = n)
+  derivada <- paste0("D", match(clave, unique(clave)))
+  derivada[c(7L, 113L)] <- "Dxx"
   data.frame(
     x = rep(c("A", "B"), each = n / 2L),
     y = rep(sprintf("Y%02d", seq_len(20L)), length.out = n),
+    clave = clave,
+    derivada = derivada,
     stringsAsFactors = FALSE
   )
 }
