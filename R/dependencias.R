@@ -78,6 +78,26 @@
   }, character(1L)), collapse = "; ")
 }
 
+# Una sola funcion contesta "¿esta proporcion alcanza el umbral?", y la usan
+# los DOS lugares que lo preguntan: la poda -con el maximo de conformes que el
+# par podria llegar a tener- y el filtro del informe -con los conformes reales-.
+#
+# Escribirlas por separado costo tres correcciones en la misma noche, porque dos
+# expresiones algebraicamente equivalentes no son iguales en punto flotante:
+# `d > n * (1 - umbral)` pierde el borde con `umbral = 0.8`, `n - d < n * umbral`
+# lo pierde con `0.56`, y cada forma tiene su propio conjunto de umbrales donde
+# falla. Mientras la poda y el filtro sean expresiones distintas, la unica manera
+# de saber que coinciden es probar todos los umbrales; compartiendo funcion, no
+# hay nada que coincidir.
+#
+# No lleva tolerancia a proposito: una tolerancia cambiaria lo que el umbral
+# significa, y eso seria parte del contrato publico, no un detalle interno.
+.alcanza_umbral_dependencia <- function(conformes, n, umbral) {
+  if (length(n) != 1L || is.na(n) || n <= 0) return(FALSE)
+  proporcion <- conformes / n
+  is.finite(proporcion) && proporcion >= umbral
+}
+
 # Si faltan valores en cualquiera de las dos columnas, las cardinalidades de
 # `estadisticas` no pertenecen al mismo subconjunto que `.resumen_dependencia`
 # y no sirven para acotar nada. Sin ausentes, en cambio, ya son exactamente las
@@ -105,14 +125,16 @@
   # el borde se conserva. Barrido con umbrales de hasta seis decimales y `n`
   # hasta un millon: la forma del producto poda de mas, esta no falla en
   # ninguno de los dos sentidos.
-  (n - (estadistica_y$n_distintos - estadistica_x$n_distintos)) / n < umbral
+  maximo_conformes <- n - (estadistica_y$n_distintos - estadistica_x$n_distintos)
+  !.alcanza_umbral_dependencia(maximo_conformes, n, umbral)
 }
 
 .poda_dependencia_pares <- function(particion, umbral) {
   if (!particion$n) return(FALSE)
   # Misma forma que la cota debil, y por el mismo motivo de exactitud.
-  (particion$n - (length(particion$conteos) - particion$grupos)) /
-    particion$n < umbral
+  maximo_conformes <- particion$n -
+    (length(particion$conteos) - particion$grupos)
+  !.alcanza_umbral_dependencia(maximo_conformes, particion$n, umbral)
 }
 
 #' Detectar dependencias funcionales entre columnas
@@ -320,9 +342,12 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
         resumen <- .resumen_dependencia(
           x, muestra_datos[[j]], particion = particion
         )
+        # `n - violaciones` es exactamente `conformes`: los dos son conteos
+        # enteros y la resta no pierde nada.
         if (resumen$n < min_observaciones ||
-            !is.finite(resumen$cumplimiento) ||
-            resumen$cumplimiento < umbral) next
+            !.alcanza_umbral_dependencia(
+              resumen$n - resumen$violaciones, resumen$n, umbral
+            )) next
         k <- k + 1L
         filas[[k]] <- data.frame(
           determinante = nombres[[seleccion[[i]]]],

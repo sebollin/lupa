@@ -1,5 +1,21 @@
 # lupa 0.1.0
 
+## La poda y el informe preguntan ahora por la misma función
+
+`detectar_dependencias()` decide dos veces lo mismo: si un par puede alcanzar el
+umbral —para descartarlo sin calcularlo— y si lo alcanzó —para informarlo—. Las
+dos decisiones estaban escritas como desigualdades separadas, y dos expresiones
+algebraicamente equivalentes no son iguales en punto flotante: cada forma pierde
+el borde con su propio conjunto de umbrales, y ahí la poda descarta un par que el
+informe habría publicado.
+
+Ahora las dos preguntan por `.alcanza_umbral_dependencia()`. Mientras fueran
+expresiones distintas, saber que coinciden exigía probar todos los umbrales;
+compartiendo función, no hay nada que coincidir.
+
+No lleva tolerancia a propósito: una tolerancia cambiaría lo que el umbral
+significa, y eso sería parte del contrato público y no un detalle interno.
+
 ## Dos podas descartaban lo que igualaba el umbral
 
 `detectar_dependencias()` y `detectar_relaciones()` descartan pares sin

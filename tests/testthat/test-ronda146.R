@@ -83,3 +83,57 @@ test_that("la poda de relaciones tampoco descarta la cobertura que iguala", {
     as.character(imposible$motivo_poda) %in% "cardinalidades_imposibles"
   ))
 })
+
+# Y la parte estructural, que es lo que cierra la clase en vez de la instancia.
+# Mientras la poda y el filtro del informe sean expresiones distintas, saber que
+# coinciden exige probar todos los umbrales; compartiendo funcion, no hay nada
+# que coincidir. Estas dos comprobaciones fijan que la comparten de verdad: si
+# alguien vuelve a escribir la desigualdad a mano en cualquiera de los dos
+# lugares, el parche deja de afectarlo y la prueba cae.
+
+test_that("la poda y el filtro preguntan por la misma funcion", {
+  datos <- data.frame(
+    x = rep(c("A", "B"), each = 250L),
+    y = rep(sprintf("Y%02d", seq_len(10L)), length.out = 500L),
+    clave = rep(sprintf("K%02d", seq_len(20L)), length.out = 500L),
+    stringsAsFactors = FALSE
+  )
+  argumentos <- list(
+    datos = datos, umbral = 0.6, muestra = Inf, min_observaciones = 10L,
+    max_comparaciones = Inf, max_trabajo = Inf
+  )
+  normal <- do.call(detectar_dependencias, argumentos)
+
+  # Con la funcion forzada a decir que SIEMPRE se alcanza el umbral: ninguna
+  # poda descarta y ningun par queda fuera del informe. Si la poda o el filtro
+  # tuvieran su propia desigualdad, uno de los dos ignoraria el parche.
+  todo <- testthat::with_mocked_bindings(
+    do.call(detectar_dependencias, argumentos),
+    .alcanza_umbral_dependencia = function(conformes, n, umbral) TRUE,
+    .package = "lupa"
+  )
+  expect_gt(nrow(todo), nrow(normal))
+
+  # Y forzada a decir que NUNCA se alcanza: el informe queda vacio.
+  nada <- testthat::with_mocked_bindings(
+    do.call(detectar_dependencias, argumentos),
+    .alcanza_umbral_dependencia = function(conformes, n, umbral) FALSE,
+    .package = "lupa"
+  )
+  expect_identical(nrow(nada), 0L)
+})
+
+test_that("la funcion compartida trata los bordes como el informe", {
+  # Alcanzar el umbral es alcanzarlo: el informe descarta lo que esta por
+  # DEBAJO, asi que la igualdad entra.
+  expect_true(lupa:::.alcanza_umbral_dependencia(14, 25, 0.56))
+  expect_true(lupa:::.alcanza_umbral_dependencia(7, 25, 0.28))
+  expect_false(lupa:::.alcanza_umbral_dependencia(13, 25, 0.56))
+  # Sin observaciones no se alcanza nada, y no rompe.
+  expect_false(lupa:::.alcanza_umbral_dependencia(0, 0, 0.5))
+  expect_false(lupa:::.alcanza_umbral_dependencia(1, NA_integer_, 0.5))
+  # Umbral 0 lo alcanza cualquiera; umbral 1 solo la dependencia exacta.
+  expect_true(lupa:::.alcanza_umbral_dependencia(0, 10, 0))
+  expect_true(lupa:::.alcanza_umbral_dependencia(10, 10, 1))
+  expect_false(lupa:::.alcanza_umbral_dependencia(9, 10, 1))
+})
