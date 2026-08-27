@@ -246,27 +246,28 @@ invariante del paquete aplicado a su propia instalación.
 
 El perfilado emitía **una consulta por columna** para cada bloque de métricas.
 Sobre una tabla de decenas de millones de filas ése es el costo: no el muestreo,
-la cantidad de escaneos. Los agregados planos —conteos, mínimo/máximo/media/
-ceros/negativos y desvío— se piden ahora para **varias columnas en una sola
-consulta**, por lotes. La moda y la mediana siguen siendo una por columna,
-porque agrupan y ordenan.
+la cantidad de escaneos. Los agregados planos —`COUNT(col)`, mínimo/máximo/
+media/ceros/negativos y desvío— se piden ahora para **varias columnas en una
+sola consulta**, por lotes. `COUNT(DISTINCT ...)` conserva una clase separada;
+la moda y la mediana siguen siendo una por columna porque agrupan y ordenan.
 
 Medido contra PostgreSQL 16 con **2 millones de filas por 40 columnas**:
 
 | modo | antes | después |
 | --- | --- | --- |
 | `conteos` | 46 consultas, 5,4 s | **8 consultas, 2,4 s** |
-| `seguro` | 128 consultas, 15,2 s | **14 consultas, 5,3 s** |
+| `seguro` | 128 consultas, 15,2 s | 14 consultas, 5,3 s; **10 consultas** con la fusión plana |
 
 Con las mismas 160 y 400 métricas calculadas, y con los mismos números: sobre
 una tabla sembrada una sola vez, el perfil consolidado y el anterior coinciden
 en los dieciséis campos del resumen para seis tipos de columna.
 
-**Si un lote falla, no se pierde el lote.** Se reintenta columna por columna, y
-lo que igual falle queda `no_disponible` con su motivo mientras las vecinas se
-calculan. Una consulta compartida es la forma perfecta de reintroducir el
-reflejo de todo-o-nada que este paquete corrigió en cinco lugares, así que la
-degradación se construyó desde el principio y tiene sus propios tests.
+**Si un lote falla, no se pierde el lote.** Se sondean sus mitades por bisección:
+los grupos aceptados se reutilizan como mediciones y las columnas culpables se
+reintentan por métrica. Lo que igual falle queda `no_disponible` con su motivo,
+mientras las vecinas se calculan. Si el presupuesto se agota antes de aislar
+todo, las columnas pendientes quedan sin medir; no se las supone culpables ni
+legibles. La degradación tiene sus propios tests.
 
 `resumen_tabla$sql` conserva **una fila por columna y métrica** con todos sus
 campos, y agrega `lote` y `columnas_compartidas` para que se vea cuál consulta
@@ -353,7 +354,8 @@ en `attr(plan, "supuesto")`. El extremo inferior es `total`, y se alcanza si no
 se rechaza ningún lote: una columna sin ningún valor no emite mediana ni
 desvío, y el plan no puede saber cuáles están vacías sin preguntarlo, cosa que
 cambiaría su propio costo. El extremo superior es `total_lotes_rechazados`, y se
-alcanza si el motor rechaza todos los lotes y cada columna se reintenta sola. El
+alcanza si el motor rechaza todos los lotes y se recorre cada árbol de
+bisección: hasta `2n - 1` sondas adicionales para un lote de `n` columnas. El
 costo real cae entre los dos, y el plan lo declara en las dos direcciones en vez
 de prometer una cota que no puede sostener.
 

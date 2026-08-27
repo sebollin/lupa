@@ -176,8 +176,14 @@ Los agregados de una tabla ancha se emiten por lotes; \code{muestra} acota lo qu
 se trae a R, no el trabajo del motor. \code{bloque_muestra} decide si se trae esa
 muestra; \code{modo}, \code{metricas}, \code{tamano_lote} y \code{max_consultas} acotan el trabajo
 SQL. \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} dice cuántas consultas se van a emitir antes de
-emitirlas. Lo que no entra en el presupuesto queda en \code{no_disponible} con su
-motivo, nunca en cero.
+emitirlas. Los agregados planos sobre la misma tabla y filtro —\code{COUNT(col)},
+mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
+por lote; \verb{COUNT(DISTINCT ...)} queda en una clase separada. Si un lote es
+rechazado, sus mitades se sondean por bisección: los grupos aceptados se
+reutilizan como mediciones y las columnas culpables se reintentan por métrica.
+Lo que no entra en el presupuesto queda en \code{no_disponible} con su motivo,
+nunca en cero. \code{meta$tamano_lote_funciono} conserva el mayor lote aceptado
+durante esa corrida; no se guarda estado global asociado a la conexión.
 }
 
 \section{Instrumentación}{

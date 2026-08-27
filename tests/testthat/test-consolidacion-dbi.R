@@ -219,3 +219,114 @@ test_that("un agregado rechazado para una columna conserva las demas del lote", 
     ]
   )))
 })
+
+test_that("la biseccion de agregados conserva las columnas culpables", {
+  casos <- list(
+    `3 una` = list(n = 3L, malas = 2L),
+    `8 dos` = list(n = 8L, malas = c(2L, 7L)),
+    `20 cinco` = list(n = 20L, malas = c(1L, 6L, 11L, 16L, 20L))
+  )
+  for (caso in casos) {
+    sondear <- function(indices) !any(indices %in% caso$malas)
+    obtenido <- lupa:::.aislar_ilegibles_dbi(
+      sondear, function() TRUE, caso$n, 2L * caso$n
+    )
+    expect_setequal(obtenido$culpables, caso$malas)
+    expect_false(obtenido$agotado)
+  }
+
+  # El tope no convierte una hoja que no se pudo probar en culpable.
+  parcial <- lupa:::.aislar_ilegibles_dbi(
+    function(indices) !any(indices == 1L), function() TRUE, 8L, 3L,
+    conservar_legibles = TRUE
+  )
+  expect_true(parcial$agotado)
+  expect_false(1L %in% parcial$culpables)
+  expect_true(length(parcial$pendientes) > 0L)
+})
+
+test_that("la biseccion reduce el descarte de agregados y publica su lote", {
+  base <- as.data.frame(setNames(
+    replicate(20L, seq_len(100L), simplify = FALSE),
+    paste0("c", seq_len(20L))
+  ))
+  esperadas <- c(`1` = 19L, `2` = 22L, `5` = 35L)
+  for (cantidad in c(1L, 2L, 5L)) {
+    datos <- base
+    nombres <- c(
+      paste0("mala", seq_len(cantidad)),
+      paste0("c", seq_len(20L - cantidad))
+    )
+    names(datos) <- nombres
+    bases <- .conexion_consolidacion_dbi("tipo_malo", datos)
+    resultado <- .perfilar_consolidacion_dbi(
+      bases$conexion, modo = "seguro", muestra = 5L,
+      bloque_muestra = "solo_agregados", tamano_lote = 20L,
+      instrumentar = FALSE
+    )
+    registros <- resultado$resumen_tabla$sql
+    no_disponibles <- unique(registros$columna[
+      registros$metrica != "n" & registros$estado == "no_disponible"
+    ])
+    expect_setequal(no_disponibles, nombres[seq_len(cantidad)])
+    expect_identical(
+      as.integer(resultado$resumen_tabla$meta$consultas$emitidas),
+      unname(esperadas[as.character(cantidad)])
+    )
+    expect_identical(resultado$resumen_tabla$meta$tamano_lote_funciono, 10L)
+    DBI::dbDisconnect(bases$cruda)
+  }
+})
+
+test_that("el plan predice la fusion plana y separa COUNT DISTINCT", {
+  bases <- .conexion_consolidacion_dbi()
+  on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
+  .reiniciar_consolidacion_dbi("normal")
+  plan <- lupa:::plan_perfilado_dbi(
+    bases$conexion, "datos", modo = "exacto", muestra = 5L,
+    bloque_muestra = "solo_agregados", tamano_lote = 2L
+  )
+  .reiniciar_consolidacion_dbi("normal")
+  resultado <- .perfilar_consolidacion_dbi(
+    bases$conexion, modo = "exacto", muestra = 5L,
+    bloque_muestra = "solo_agregados", tamano_lote = 2L
+  )
+  expect_identical(
+    as.integer(resultado$resumen_tabla$meta$consultas$emitidas),
+    as.integer(attr(plan, "total"))
+  )
+  registros <- resultado$resumen_tabla$sql
+  planos <- registros[
+    registros$metrica %in% c(
+      "n_validos", "n_faltantes", "prop_faltantes", "minimo", "maximo",
+      "media", "n_ceros", "n_negativos", "desvio"
+    ) & !is.na(registros$sql), , drop = FALSE]
+  expect_equal(length(unique(planos$sql)), 2L)
+  distintos <- registros[registros$metrica == "n_distintos", , drop = FALSE]
+  expect_true(all(grepl("COUNT(DISTINCT", distintos$sql, fixed = TRUE)))
+  expect_true(all(!grepl(
+    "COUNT(DISTINCT", planos$sql, fixed = TRUE
+  )))
+  expect_true(any(grepl("agregados planos", plan$clase_consulta, fixed = TRUE)))
+  expect_true(any(grepl("clase separada", plan$clase_consulta, fixed = TRUE)))
+})
+
+test_that("el rango del plan incluye el costo de una biseccion rechazada", {
+  bases <- .conexion_consolidacion_dbi("muchas_expresiones")
+  on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
+  .reiniciar_consolidacion_dbi("muchas_expresiones")
+  plan <- lupa:::plan_perfilado_dbi(
+    bases$conexion, "datos", modo = "exacto", muestra = 5L,
+    bloque_muestra = "solo_agregados", tamano_lote = 4L
+  )
+  .reiniciar_consolidacion_dbi("muchas_expresiones")
+  resultado <- .perfilar_consolidacion_dbi(
+    bases$conexion, modo = "exacto", muestra = 5L,
+    bloque_muestra = "solo_agregados", tamano_lote = 4L
+  )
+  emitidas <- as.integer(resultado$resumen_tabla$meta$consultas$emitidas)
+  expect_gte(emitidas, as.integer(attr(plan, "total")))
+  expect_lte(
+    emitidas, as.integer(attr(plan, "total_lotes_rechazados"))
+  )
+})

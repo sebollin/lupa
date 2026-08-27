@@ -89,9 +89,10 @@ atributo \code{bloque_muestra} y no incluye la fila de la lectura de muestra.
 
 El costo no se declara como un número sino como un rango: \code{total} es el
 extremo inferior, alcanzado si el motor no rechaza ningún lote, y
-\code{total_lotes_rechazados} el superior, alcanzado si los rechaza todos y cada
-columna se reintenta sola. El costo real cae entre los dos, y
-\code{attr(plan, "supuesto")} dice por qué se mueve en cada dirección.
+\code{total_lotes_rechazados} el superior, alcanzado si todos los lotes se
+rechazan y se recorre el árbol completo de bisección. El costo real cae
+entre los dos, y \code{attr(plan, "supuesto")} dice por qué se mueve en cada
+dirección.
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre

@@ -240,26 +240,28 @@ own invariant applied to its own installation.
 
 Profiling issued **one query per column** for each block of metrics. On a table
 of tens of millions of rows that is the cost: not the sampling, the number of
-scans. The flat aggregates — counts, min/max/mean/zeros/negatives, and standard
-deviation — are now asked for **several columns in one query**, in batches. Mode
-and median stay one per column, because they group and sort.
+scans. The flat aggregates — `COUNT(col)`, min/max/mean/zeros/negatives, and
+standard deviation — are now asked for **several columns in one query**, in
+batches. `COUNT(DISTINCT ...)` keeps a separate query class; mode and median
+stay one per column, because they group and sort.
 
 Measured against PostgreSQL 16 with **2 million rows by 40 columns**:
 
 | mode | before | after |
 | --- | --- | --- |
 | `conteos` | 46 queries, 5.4 s | **8 queries, 2.4 s** |
-| `seguro` | 128 queries, 15.2 s | **14 queries, 5.3 s** |
+| `seguro` | 128 queries, 15.2 s | 14 queries, 5.3 s; **10 queries** with flat fusion |
 
 Same 160 and 400 metrics computed, and the same numbers: on one table seeded
 once, the consolidated profile and the previous one agree on all sixteen summary
 fields across six column types.
 
-**If a batch fails, the batch is not lost.** It is retried column by column, and
-whatever still fails is left `no_disponible` with its reason while its
-neighbours are computed. A shared query is the perfect way to reintroduce the
-all-or-nothing reflex this package fixed in five places, so the degradation was
-built first and has its own tests.
+**If a batch fails, the batch is not lost.** Its halves are probed by bisection:
+accepted groups are reused as measurements and culprit columns are retried per
+metric. Whatever still fails is left `no_disponible` with its reason while its
+neighbours are computed. If the probe budget runs out, pending columns remain
+unmeasured; they are not assumed to be culprits or readable. The degradation has
+its own tests.
 
 `resumen_tabla$sql` keeps **one row per column and metric** with every field it
 had, and adds `lote` and `columnas_compartidas` so a shared query is visible.
@@ -343,9 +345,10 @@ says so in `attr(plan, "supuesto")`. The low end is `total`, reached when no
 batch is rejected: a column with no value emits neither median nor standard
 deviation, and the plan cannot know which ones are empty without asking — which
 would change its own cost. The high end is `total_lotes_rechazados`, reached
-when the engine rejects every batch and each column is retried on its own. The
-real cost falls between the two, and the plan says so in both directions rather
-than promising a bound it cannot keep.
+when the engine rejects every batch and each bisection tree is traversed: up to
+`2n - 1` additional probes for a batch of `n` columns. The real cost falls
+between the two, and the plan says so in both directions rather than promising a
+bound it cannot keep.
 
 The part that *is* a hard design constraint is that the prediction does not depend
 on the engine: every capability probe costs a fixed number of queries even when

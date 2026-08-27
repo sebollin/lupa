@@ -365,12 +365,15 @@ aproximado$resumen_tabla$meta$aproximaciones
 costará la corrida. Publica un **rango**, y lo declara en
 `attr(plan, "supuesto")`: `total` si no se rechaza ningún lote y
 `total_lotes_rechazados` si se rechazan todos; el costo real cae entre los dos.
-El extremo inferior cuenta una mediana y un desvío por columna numérica, y una
-columna sin un solo valor válido no los emite; el superior suma los reintentos
-por columna cuando el motor rechaza un lote. Para decidir si una corrida es
-viable, saber entre qué y qué se mueve alcanza. La predicción incluye las sondas aunque una forma acertada
-aparezca antes que las demás, porque el costo declarado no puede depender del
-motor.
+El extremo inferior cuenta una consulta por lote de agregados planos y mantiene
+`COUNT(DISTINCT ...)` en su clase separada; moda y mediana siguen siendo una por
+columna. Una columna sin un solo valor válido no emite mediana ni desvío, y el
+plan no puede saber cuáles están vacías sin preguntarlo. El extremo superior
+suma hasta `2n - 1` sondas adicionales por cada lote rechazado de `n` columnas:
+la bisección aísla las culpables y reutiliza los grupos aceptados. Para decidir
+si una corrida es viable, saber entre qué y qué se mueve alcanza. La predicción
+incluye las sondas aunque una forma acertada aparezca antes que las demás,
+porque el costo declarado no puede depender del motor.
 
 Ahora bien, **cuántas consultas se emiten no dice cuánto cuestan**: catorce
 consultas sobre dos millones de filas son mucho más trabajo que doscientas
@@ -412,12 +415,13 @@ los comparta puede rehacer la cuenta.
 
 ### Lo que el muestreo en el motor no puede darte
 
-Cada métrica se pide en su propia consulta, así que **cada una saca su propia
-muestra**. Eso es inherente a muestrear en el motor sin materializar una tabla
-intermedia, y `lupa` no la materializa porque perfilar es una operación de sólo
-lectura. La consecuencia es concreta: la media y la mediana de una misma columna
-en `modo = "muestreado"` describen conjuntos de filas distintos, del mismo
-tamaño pero no los mismos.
+Los agregados planos que comparten lote —`COUNT(col)`, mínimo, máximo, media,
+ceros, negativos y desvío— se piden en una sola consulta. `COUNT(DISTINCT ...)`,
+moda y mediana conservan consultas separadas por sus planes propios. En
+`modo = "muestreado"`, una consulta distinta vuelve a resolver el muestreo: la
+media y la mediana de una misma columna describen conjuntos de filas distintos,
+del mismo tamaño pero no necesariamente los mismos. Las métricas planas del
+mismo lote sí comparten las filas de esa consulta.
 
 Por eso las formas candidatas están ordenadas por **previsibilidad del tamaño**
 y no por costo. Primero la de cantidad fija, `TABLESAMPLE RESERVOIR (n ROWS)`;

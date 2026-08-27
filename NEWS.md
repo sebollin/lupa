@@ -1,5 +1,41 @@
 # lupa 0.1.0
 
+## Ronda 152: bisección y agregados planos fusionados
+
+Los lotes de agregados que el motor rechaza ya no se reintentan columna por
+columna sin información. La vía de agregados reutiliza la bisección de la
+lectura de muestras: sondea mitades, conserva los grupos aceptados como datos
+medidos y reintenta por métrica sólo las columnas culpables. El tope sigue
+siendo de hasta `2n - 1` sondas para un lote de `n` columnas y, si el presupuesto
+se agota, las hojas pendientes quedan `no_disponible` sin ser supuestas. El
+tamaño mayor de lote aceptado se guarda sólo en el presupuesto de la corrida y
+se publica como `meta$tamano_lote_funciono`; no queda estado global asociado a
+la conexión.
+
+Los agregados planos sobre la misma tabla y filtro —`COUNT(col)`, mínimos,
+máximos, medias, ceros, negativos y desvío— comparten ahora una consulta por
+lote. `COUNT(DISTINCT ...)` conserva su clase separada. La fusión no cambia las
+métricas ni su disponibilidad: una falla de un agregado en una columna todavía
+se prueba por separado antes de declararla no disponible.
+
+La medición se hizo sobre una tabla en memoria de 20 columnas y 100 filas,
+recreando la expresión en cada vuelta, con `muestra = 12` y
+`bloque_muestra = "solo_agregados"`. Las consultas emitidas antes y después
+fueron, en orden `exacto`, `seguro`, `conteos`, `muestreado`, `aproximado`:
+
+| modo | antes | después | ahorro |
+| --- | ---: | ---: | ---: |
+| `exacto` | 50 | 49 | 1 |
+| `seguro` | 10 | 8 | 2 |
+| `conteos` | 6 | 6 | 0 |
+| `muestreado` | 59 | 58 | 1 |
+| `aproximado` | 59 | 58 | 1 |
+
+El ahorro es deliberadamente pequeño en el modo por omisión porque
+`COUNT(DISTINCT ...)`, moda y mediana siguen fuera de la consulta plana; la
+fusión paga sobre todo en `seguro`, donde las tres pasadas planas pasan a una.
+`plan_perfilado_dbi()` refleja esas clases y su rango de sondas por bisección.
+
 ## El plan ya no cobra trabajo de R que no va a ocurrir
 
 Con `bloque_muestra = "solo_agregados"` no se trae ninguna fila a R, así que el
