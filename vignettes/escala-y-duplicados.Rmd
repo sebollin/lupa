@@ -161,6 +161,13 @@ con pérdida: dos filas cuya clave difiere no se comparan. Las filas con `NA`
 forman un bloque propio y también quedan contabilizadas. `alcance` informa los
 pares fuera del alcance y su estimación sobre la muestra.
 
+En `perfilar(clave = ...)`, la unicidad y la ausencia de nulos son comprobaciones
+separadas. `meta$clave` conserva el estado de cada una cuando alguna no queda
+verificada: una colisión entre `NA` puede ser útil para seguir la traza con la
+semántica de R, pero no prueba una colisión de `NULL` en SQL; los ausentes son la
+evidencia independiente contra `NOT NULL`. Una clave sin ausentes y única no
+agrega ese metadato al perfil histórico.
+
 ```{r bloqueo, eval= requireNamespace("stringdist", quietly = TRUE)}
 bloqueado <- detectar_duplicados_aproximados(
   datos, columnas = c("nombre", "domicilio"), estrategia = "teselas",

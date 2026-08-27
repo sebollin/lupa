@@ -111,6 +111,15 @@ la biblioteca del sistema es honesta sobre su propio límite — cuando sólo pu
 decir «el paquete de R no está, y si al instalarlo falla la compilación lo que
 falta es esto», dice eso, porque comprobar de verdad exigiría intentar compilar.
 
+La clave primaria que se lee después de esa conexión conserva dos datos
+distintos: `fuente` dice qué catálogo respondió y `garantia` dice si el estado
+consultado alcanza para confiar en el motor. Oracle sólo queda garantizado con
+`STATUS = ENABLED` y `VALIDATED`; PostgreSQL consulta `enforced` y la
+validación, y MySQL `enforced`. MariaDB, SQL Server, SQLite y DuckDB no ofrecen
+en esta lectura un estado comparable, así que allí una clave visible queda con
+garantía desconocida. No hay que leer una entrada del catálogo como prueba de
+los datos existentes cuando el estado no fue consultable.
+
 ## Leer el resultado sin memorizar su forma
 
 `perfilar()` devuelve un `perfil` plano y `perfilar_dbi()` un contenedor con dos
@@ -190,15 +199,17 @@ para que también se vea qué aceptó o rechazó el motor.
 
 La instrumentación queda activa por omisión y sólo agrega metadatos. Cada fila
 de `resumen_tabla$sql` conserva la métrica que ya representaba y suma
-`duracion_ms`, `n_filas_resultado`, `bytes_resultado_r`, `consulta_id` e
+`duracion_ms`, `cpu_ms`, `n_filas_resultado`, `bytes_resultado_r`, `consulta_id` e
 `id_muestra`, además de `etapa`. La duración incluye la ejecución y la lectura del resultado que DBI
-entregó a R; el tamaño es `object.size()` de ese resultado. Las filas que no
-emitieron consulta dejan esos campos en `NA`, que significa «no medido», no
-`0`.
+entregó a R; el tamaño es `object.size()` de ese resultado. `cpu_ms` es la
+suma de `user.self` y `sys.self` de `proc.time()`: cerca de cero indica
+espera y cerca de uno al dividirlo por `duracion_ms` indica trabajo del
+cliente. Las filas que no emitieron consulta dejan esos campos en `NA`, que
+significa «no medido», no `0`.
 
 ```{r tiempos-sql, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}
 perfil$resumen_tabla$sql[, c(
-  "metrica", "estado", "duracion_ms", "n_filas_resultado",
+  "metrica", "estado", "duracion_ms", "cpu_ms", "n_filas_resultado",
   "bytes_resultado_r", "consulta_id", "id_muestra", "etapa"
 )]
 
@@ -212,8 +223,8 @@ de `nivel = 1` son disjuntas entre sí y las de nivel mayor están contenidas en
 alguna de ellas. `perfilado_muestra` es inclusivo —contiene el perfilado por
 columna, las dependencias y los casi-duplicados—, así que sumar la columna
 entera da más que la corrida completa. `instrumentar = FALSE` conserva el mismo plan, la
-misma cantidad y el mismo orden de consultas, pero deja las duraciones y los
-metadatos de tamaño en `NA` y marca las etapas como `no_medido`.
+misma cantidad y el mismo orden de consultas, pero deja las duraciones, el CPU
+y los metadatos de tamaño en `NA` y marca las etapas como `no_medido`.
 
 ## `perfil_muestra`: el perfil completo de la muestra
 
@@ -372,8 +383,10 @@ costará la corrida. Publica un **rango**, y lo declara en
 `attr(plan, "supuesto")`: `total` si no se rechaza ningún lote y
 `total_lotes_rechazados` si se rechazan todos; el costo real cae entre los dos.
 El extremo inferior cuenta una consulta por lote de agregados planos y mantiene
-`COUNT(DISTINCT ...)` en su clase separada; moda y mediana siguen siendo una por
-columna. Una columna sin un solo valor válido no emite mediana ni desvío, y el
+`COUNT(DISTINCT ...)` en su clase separada; la moda sigue siendo una por
+columna y la mediana conserva ese camino como respaldo. Cuando la sonda acepta
+`PERCENTILE_CONT(...) WITHIN GROUP`, varias medianas viajan en un solo
+`SELECT` por lote. Una columna sin un solo valor válido no emite mediana ni desvío, y el
 plan no puede saber cuáles están vacías sin preguntarlo. El extremo superior
 suma hasta `2n - 1` sondas adicionales por cada lote rechazado de `n` columnas:
 la bisección aísla las culpables y reutiliza los grupos aceptados. Para decidir
@@ -388,6 +401,15 @@ solo y continúa con la bisección. Así la completitud sigue siendo medida, no
 estimada, y la corrida evita una consulta y un recorrido separado en los casos
 sin rechazo. Una forma `TABLESAMPLE` que necesita el total para construir un
 porcentaje lo cuenta antes y no reclama este ahorro.
+
+La decisión de pagar moda y mediana es explícita. `politica_costo = "todas"`
+es el valor por omisión y conserva todas las métricas solicitadas. Con
+`politica_costo = "por_cardinalidad"`, primero se miden los valores válidos y
+distintos; luego se omiten, por columna, las métricas caras cuando
+`n_distintos / n_validos >= umbral_cardinalidad`. El umbral por omisión es
+`0.95`, se puede cambiar en la llamada, y cada omisión queda declarada en
+`resumen_tabla$sql` como `omitido_por_costo`, con el motivo y la forma de
+pedirla igual.
 
 Ahora bien, **cuántas consultas se emiten no dice cuánto cuestan**: catorce
 consultas sobre dos millones de filas son mucho más trabajo que doscientas
@@ -430,8 +452,11 @@ los comparta puede rehacer la cuenta.
 ### Lo que el muestreo en el motor no puede darte
 
 Los agregados planos que comparten lote —`COUNT(col)`, mínimo, máximo, media,
-ceros, negativos y desvío— se piden en una sola consulta. `COUNT(DISTINCT ...)`,
-moda y mediana conservan consultas separadas por sus planes propios. En
+ceros, negativos y desvío— se piden en una sola consulta. `COUNT(DISTINCT ...)`
+y la moda conservan consultas separadas por sus planes propios. La mediana
+también conserva ese camino como respaldo; un motor que acepta
+`PERCENTILE_CONT(...) WITHIN GROUP` puede consolidar varias en un solo
+`SELECT` por lote. En
 `modo = "muestreado"`, una consulta distinta vuelve a resolver el muestreo: la
 media y la mediana de una misma columna describen conjuntos de filas distintos,
 del mismo tamaño pero no necesariamente los mismos. Las métricas planas del

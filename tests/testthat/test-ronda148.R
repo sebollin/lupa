@@ -21,7 +21,7 @@ library(DBI)
 .sin_instrumentacion_ronda148 <- function(x) {
   campos_nuevos <- c(
     "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
-    "consulta_id", "etapa"
+    "cpu_ms", "consulta_id", "etapa"
   )
   x$resumen_tabla$sql <- x$resumen_tabla$sql[
     , setdiff(names(x$resumen_tabla$sql), campos_nuevos), drop = FALSE
@@ -71,7 +71,7 @@ test_that("sql publica medicion real, identificador y etapa", {
 
   expect_true(all(c(
     "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
-    "consulta_id", "etapa"
+    "cpu_ms", "consulta_id", "etapa"
   ) %in% names(sql)))
   emitidas <- sql[!is.na(sql$consulta_id), , drop = FALSE]
   expect_true(nrow(emitidas) > 0L)
@@ -79,6 +79,8 @@ test_that("sql publica medicion real, identificador y etapa", {
   expect_true(all(emitidas$bytes_resultado_r > 0))
   expect_true(all(emitidas$etapa %in% c("conteo_filas", "conteos")))
   expect_true(any(!is.na(emitidas$duracion_ms)))
+  expect_true(any(!is.na(emitidas$cpu_ms)))
+  expect_true(all(emitidas$cpu_ms >= 0))
 })
 
 test_that("no solicitado y sin consulta no se publican como cero", {
@@ -94,6 +96,7 @@ test_that("no solicitado y sin consulta no se publican como cero", {
   expect_true(all(is.na(no_solicitado$duracion_ms)))
   expect_true(all(is.na(no_solicitado$n_filas_resultado)))
   expect_true(all(is.na(no_solicitado$bytes_resultado_r)))
+  expect_true(all(is.na(no_solicitado$cpu_ms)))
   expect_true(all(is.na(no_solicitado$consulta_id)))
   expect_true(all(no_solicitado$etapa == "no_solicitado"))
 })
@@ -113,6 +116,8 @@ test_that("un fallo de consulta conserva su etapa y duracion cuando se midio", {
   expect_true(is.na(resultado$n_filas_resultado))
   expect_true(is.na(resultado$bytes_resultado_r))
   expect_true(!is.na(resultado$duracion_ms))
+  expect_true(!is.na(resultado$cpu_ms))
+  expect_true(resultado$cpu_ms >= 0)
 })
 
 test_that("el apagado deja explicito que no se midio", {
@@ -123,8 +128,10 @@ test_that("el apagado deja explicito que no se midio", {
 
   expect_true(all(tiempos$estado %in% c("no_medido", "no_solicitado")))
   expect_true(all(is.na(tiempos$duracion_ms)))
+  expect_true(all(is.na(tiempos$cpu_ms)))
   expect_false(any(is.na(resultado$resumen_tabla$sql$etapa)))
   expect_true(all(is.na(resultado$resumen_tabla$sql$duracion_ms)))
+  expect_true(all(is.na(resultado$resumen_tabla$sql$cpu_ms)))
 })
 
 test_that("tiempos de R incluyen lectura, perfil y analisis opcional", {
@@ -141,7 +148,7 @@ test_that("tiempos de R incluyen lectura, perfil y analisis opcional", {
     "ausencia_estructural"
   ) %in% tiempos$etapa))
   expect_true(all(c(
-    "etapa", "duracion_ms", "estado", "n_ejecuciones"
+    "etapa", "duracion_ms", "cpu_ms", "estado", "n_ejecuciones"
   ) %in% names(tiempos)))
   expect_true(any(tiempos$estado == "medido"))
   expect_true(all(tiempos$n_ejecuciones >= 1L))
@@ -215,4 +222,5 @@ test_that("apagar la instrumentacion no inventa niveles", {
   tiempos <- perfilar_dbi(conexion, "t", instrumentar = FALSE)$resumen_tabla$tiempos
   expect_true("nivel" %in% names(tiempos))
   expect_true(all(is.na(tiempos$duracion_ms[tiempos$estado == "no_medido"])))
+  expect_true(all(is.na(tiempos$cpu_ms[tiempos$estado == "no_medido"])))
 })

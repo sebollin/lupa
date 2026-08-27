@@ -1,5 +1,65 @@
 # lupa 0.1.0
 
+## Claves declaradas: unicidad, ausencias y trazabilidad separadas
+
+`perfilar(clave = ...)` informa por separado si la combinación es única bajo
+la semántica de R y si sus componentes están completos. Cada eje queda como
+`verificada`, `refutada` o `no_verificada`; una ausencia no se presenta como un
+duplicado SQL. Si la semántica de R agrupa dos ausentes para localizar filas,
+esa colisión y la falta de valores se informan juntas y quedan en
+`meta$clave`, junto a la trazabilidad. Una clave única y completa conserva el
+objeto histórico sin metadatos adicionales.
+
+## Garantía de claves primarias según el estado del catálogo
+
+La lectura DBI de claves primarias separa la fuente (`fuente`) de la garantía
+(`garantia`) y conserva el estado consultado. Oracle lee `STATUS` y
+`VALIDATED`: una restricción deshabilitada o no validada queda declarada en el
+catálogo, pero no garantizada; si esos estados no se pueden consultar, quedan
+desconocidos. PostgreSQL consulta `enforced` y su estado de validación, y MySQL
+`enforced`; MariaDB, SQL Server, SQLite y DuckDB no ofrecen en esta vía un
+estado comparable, por lo que el resultado no inventa una garantía. Los casos
+Oracle se verifican con respuestas DBI simuladas; no se afirma una prueba contra
+un servidor Oracle real.
+
+## CPU del cliente y política explícita para métricas caras
+
+La instrumentación de DBI publica ahora `cpu_ms` junto a `duracion_ms` en
+`resumen_tabla$sql` y en `resumen_tabla$tiempos`. Se calcula con
+`proc.time()` como `user.self + sys.self`: cerca de cero distingue espera
+del trabajo del proceso cliente, y cerca de uno al dividir CPU por tiempo
+transcurrido indica que el cliente está trabajando. Cero es una medición válida;
+`NA` queda reservado para lo que no se pudo medir, y
+`instrumentar = FALSE` deja el campo en `NA` como los demás. En un
+microbenchmark de un millón de consultas simuladas, dos lecturas de
+`proc.time()` costaron 1,122 microsegundos por consulta; dos de `Sys.time()`
+costaron 1,778 microsegundos. En la tabla ancha de 158 columnas, el agregado
+no duplicó el costo de instrumentar: cinco corridas con reloj solamente tuvieron
+mediana de 1,093 s y cinco con reloj más CPU de 0,962 s, una diferencia dominada
+por la variación de SQLite. El número reproducible que se publica es el costo
+directo de 1,122 microsegundos por consulta.
+
+Moda y mediana se pueden controlar con `politica_costo`. El valor por omisión
+es `"todas"`, que conserva el perfil anterior; `"por_cardinalidad"`
+hace primero los conteos baratos de valores válidos y distintos y decide luego
+por columna. Si `n_distintos / n_validos` alcanza
+`umbral_cardinalidad` (por omisión `0.95`), omite moda y mediana de esa
+columna. La omisión no desaparece ni se vuelve `NA` silencioso: queda
+`omitido_por_costo` con el motivo, la proporción observada y la forma de
+pedirla igual (`politica_costo = "todas"`) o mover el umbral.
+
+La política hace explícito el plan en dos etapas. En una tabla reproducible de
+158 columnas, 80 numéricas, 200 filas y 60 columnas con cardinalidad al menos
+0,95, `politica_costo = "todas"` emitió 260 consultas y la política
+selectiva 140: se ahorraron **120 consultas**, no tiempo. Se omitieron 60 modas
+y 60 medianas. El valor por omisión no cambia: esos 60 casos muestran el ahorro
+posible, pero no autorizan al paquete a elegir qué métrica sacrificar.
+
+Cuando la sonda reconoce un motor con `PERCENTILE_CONT(...) WITHIN GROUP`,
+las medianas numéricas se consolidan en un `SELECT` por lote; el camino
+actual, una mediana por columna, queda como respaldo si la capacidad no está
+disponible o falla la consulta consolidada.
+
 ## El recorrido que se pagaba sólo por contar, y qué filas vio cada métrica
 
 El `COUNT(*)` exacto ya viaja en la primera consulta de agregados. Si el lote
@@ -59,8 +119,10 @@ fueron, en orden `exacto`, `seguro`, `conteos`, `muestreado`, `aproximado`:
 | `aproximado` | 59 | 58 | 1 |
 
 El ahorro es deliberadamente pequeño en el modo por omisión porque
-`COUNT(DISTINCT ...)`, moda y mediana siguen fuera de la consulta plana; la
-fusión paga sobre todo en `seguro`, donde las tres pasadas planas pasan a una.
+`COUNT(DISTINCT ...)` y la moda siguen fuera de la consulta plana; la mediana
+también, salvo en los motores cuya sonda acepta la consolidación con
+`PERCENTILE_CONT`. La fusión paga sobre todo en `seguro`, donde las tres
+pasadas planas pasan a una.
 `plan_perfilado_dbi()` refleja esas clases y su rango de sondas por bisección.
 
 ## El plan ya no cobra trabajo de R que no va a ocurrir
@@ -77,7 +139,7 @@ distintas: el muestreo **del motor**, que en ese modo ocurre igual, y el bloque
 
 ## Instrumentación de consultas y etapas R
 
-`perfilar_dbi()` agrega a `resumen_tabla$sql` `duracion_ms`,
+`perfilar_dbi()` agrega a `resumen_tabla$sql` `duracion_ms`, `cpu_ms`,
 `n_filas_resultado`, `bytes_resultado_r`, `consulta_id` y `etapa`. También
 publica `resumen_tabla$tiempos`, con las duraciones en milisegundos de la
 lectura y el perfilado de la muestra, el perfilado por columna y los análisis

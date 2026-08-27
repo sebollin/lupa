@@ -15,8 +15,6 @@ perfilar_dbi(
   dialecto = "auto",
   incluir_valores = TRUE,
   tamano_lote = .TAMANO_LOTE_DBI,
-  bloque_muestra = c("con_muestra", "solo_agregados"),
-  instrumentar = TRUE,
   ...
 )
 }
@@ -70,22 +68,36 @@ máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
 Veinte mantiene acotado el número de expresiones y se puede reducir para
 motores con límites más estrictos.}
 
+\item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
+
+\item{politica_costo}{Política optativa para las métricas caras. El valor por
+omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
+solicitadas. \code{"por_cardinalidad"} (también \code{"cardinalidad"}) mide primero
+valores válidos y distintos y omite, por columna, moda y mediana cuando la
+proporción de distintos alcanza \code{umbral_cardinalidad}.}
+
+\item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
+activa \code{politica_costo = "por_cardinalidad"}. El valor por omisión es \code{0.95}
+sólo cuando esa política se pide explícitamente; se puede mover en cada
+llamada. Para pedir todas las métricas use \code{politica_costo = "todas"}.}
+
 \item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
 omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
 lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
 alcance de esos agregados: eso lo decide \code{modo}.}
 
 \item{instrumentar}{Si se cronometra cada consulta y las etapas grandes de R.
-Por omisión es \code{TRUE}; agrega \code{duracion_ms}, \code{n_filas_resultado},
-\code{bytes_resultado_r}, \code{consulta_id} y \code{etapa} a
+Por omisión es \code{TRUE}; agrega \code{duracion_ms}, \code{cpu_ms},
+\code{n_filas_resultado}, \code{bytes_resultado_r}, \code{consulta_id} y \code{etapa} a
 \code{resumen_tabla$sql}, y el resumen \code{resumen_tabla$tiempos}. Con \code{FALSE} se
 conserva el mismo plan, la misma cantidad y el mismo orden de consultas,
 pero los campos medibles quedan en \code{NA}. \code{id_muestra} \strong{no} depende de
-esta opción: no es una medición sino un hecho estructural sobre qué consulta
-produjo cada métrica, y se publica igual con \code{FALSE}. Las duraciones usan \code{Sys.time()} y
-los intervalos que el reloj no puede resolver no se publican como cero.}
-
-\item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
+esta opcion: no es una medicion sino un hecho estructural sobre que
+consulta produjo cada metrica, y se publica igual con \code{FALSE}. Las
+duraciones usan \code{Sys.time()} y el CPU del cliente usa la suma de
+\code{proc.time()[c("user.self", "sys.self")]}. \code{cpu_ms} es cero cuando el
+proceso no consumió CPU; \code{NA} significa que no se pudo medir. Los
+intervalos que el reloj no puede resolver no se publican como cero.}
 }
 \value{
 Objeto de clase \code{perfil_dbi} con dos componentes: \code{resumen_tabla}, de

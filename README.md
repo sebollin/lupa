@@ -489,13 +489,22 @@ which are not the same thing.
 
 **Uniqueness is not guessed: it is asked.** Declare the key with
 `perfilar(clave = ...)` and a key that repeats is a finding of severity `error`
-carrying the offending rows, not a console warning. So that the user is not left
-facing a blank field, `sugerir_clave()` ranks the candidate columns by three
-signals it publishes separately — whether it identifies every row, whether it
-has no missing values, and how closely its name resembles a key's — and
-`elegir_clave()` offers them numbered with an option to type another. Ranking is
-not deciding: a unique column may be a key or a magnitude that happens not to
-repeat, and that difference is not in the data.
+carrying the offending rows. The warning and `meta$clave` keep that check apart
+from missing values: a key may have no non-missing collision and still violate
+`NOT NULL`; if traceability groups those missing values with R semantics, both
+facts remain visible. So that the user is not left facing a blank field,
+`sugerir_clave()` ranks the candidate columns by three signals it publishes
+separately — whether it identifies every row, whether it has no missing values,
+and how closely its name resembles a key's — and `elegir_clave()` offers them
+numbered with an option to type another. Ranking is not deciding: a unique
+column may be a key or a magnitude that happens not to repeat, and that
+difference is not in the data.
+
+DBI key lookup also keeps catalogue source apart from guarantee. Oracle is
+reported as guaranteed only when `STATUS` is `ENABLED` and `VALIDATED`;
+PostgreSQL and MySQL publish comparable catalogue states. MariaDB, SQL Server,
+SQLite, and DuckDB do not let this path distinguish that state, so a visible key
+there keeps an unknown guarantee.
 
 Where no signal discriminates, `lupa` speaks. High cardinality in a text column is
 always reported, because the length of the values does not tell a catalogue from

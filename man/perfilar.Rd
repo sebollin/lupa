@@ -93,7 +93,18 @@ columnas para las filas señaladas, de modo que el caso se pueda verificar
 en el sistema de origen sin abrir la tabla. El índice de fila se conserva
 siempre. La clave declarada se trata como sensible: si la protección de
 datos personales está activa y alguna de esas columnas se clasifica como
-personal, sus valores salen enmascarados igual que la evidencia.}
+personal, sus valores salen enmascarados igual que la evidencia.
+La comprobación de una clave tiene dos ejes independientes:
+\code{meta$clave$unicidad} comprueba si sus combinaciones son únicas con la
+semántica de R,
+y \code{meta$clave$ausencia_nulos} comprueba que sus componentes no tengan
+valores ausentes. Cada eje declara \code{verificada}, \code{refutada} o
+\code{no_verificada}; una clave con ambos ejes verificados conserva exactamente
+el objeto histórico y no agrega metadatos. Cuando un eje falla o no se
+puede comprobar, \code{meta$clave$trazabilidad} explica que la localización
+agrupa con la semántica de R, incluso si el motor SQL trata dos \code{NULL} como
+distintos. Por eso una clave puede tener a la vez una colisión para la
+trazabilidad y una ausencia que impide la garantía \verb{NOT NULL}.}
 
 \item{umbral_faltantes_error}{Umbral por encima del cual los faltantes son
 un error; la igualdad conserva la severidad sospechosa.}
@@ -406,6 +417,9 @@ raros supera 5.000, \code{cobertura_diagnosticos} declara el recorte y su limite
 Quien decida automáticamente sobre un perfil debe revisar
 \code{nrow(perfil$cobertura_diagnosticos)} además de las severidades: un perfil
 sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.
+Cuando una clave declarada no queda plenamente verificada, \code{meta$clave}
+conserva los estados de unicidad y ausencia de nulos, sus conteos y la
+semántica usada por la trazabilidad.
 }
 \description{
 Examina un \code{data.frame}, \code{tibble} o \code{data.table} y devuelve estadísticas

@@ -168,9 +168,9 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 | motor que rechaza `LIMIT` | `top` / `portable` | **probado** con un motor simulado en la suite |
 | motor que pliega los alias a mayúsculas | cualquiera | **probado** con un motor simulado |
 | motor que rechaza `SELECT *` por una columna | cualquiera | **probado** con un motor simulado |
-| **PostgreSQL 16** | `limit` | **probado** contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, esquemas, colecciones y permisos parciales; vuelto a probar en los cinco modos, donde la sonda elige `BERNOULLI` a nivel de fila antes que `SYSTEM` a nivel de bloque |
+| **PostgreSQL 16** | `limit` | **probado** contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, medianas múltiples consolidadas con `PERCENTILE_CONT`, esquemas, colecciones y permisos parciales; vuelto a probar en los cinco modos, donde la sonda elige `BERNOULLI` a nivel de fila antes que `SYSTEM` a nivel de bloque |
 | **MySQL 8** | `limit` | **probado** contra el motor real: mismos tres estadísticos verificados contra R |
-| **SQL Server 2022** | `top` | **probado** contra el motor real: la sonda resuelve `top` sola, y los tres estadísticos coinciden con R |
+| **SQL Server 2022** | `top` | **probado** contra el motor real: la sonda resuelve `top` sola, las medianas múltiples usan `PERCENTILE_CONT ... OVER`, y los tres estadísticos coinciden con R |
 | **DuckDB 1.5** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, y los tres estadísticos verificados contra R |
 | **MariaDB 11** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, y el extremo inferior del plan coincidiendo con las consultas emitidas en los cinco |
 | **Oracle Free 23 (23c)** | `fetch_first` | **probado** contra el motor real: dialecto resuelto por sonda, los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, el extremo inferior del plan coincidiendo con las consultas emitidas, nombres calificados por texto y por `DBI::Id`, y muestreo `SAMPLE (p)`, y verificado de nuevo el 2026-08-24 contra el motor real: dialecto por sonda, las 54 métricas sin ninguna no disponible, los tres estadísticos contra R, la clave primaria leída del catálogo, y la cadena vacía declarada como nulo |
@@ -249,7 +249,10 @@ Sobre una tabla de decenas de millones de filas ése es el costo: no el muestreo
 la cantidad de escaneos. Los agregados planos —`COUNT(col)`, mínimo/máximo/
 media/ceros/negativos y desvío— se piden ahora para **varias columnas en una
 sola consulta**, por lotes. `COUNT(DISTINCT ...)` conserva una clase separada;
-la moda y la mediana siguen siendo una por columna porque agrupan y ordenan.
+la moda sigue siendo una por columna porque agrupa. La mediana conserva una por
+columna como respaldo; cuando la sonda del motor acepta
+`PERCENTILE_CONT(...) WITHIN GROUP`, varias medianas viajan en un solo
+`SELECT` por lote.
 
 Medido contra PostgreSQL 16 con **2 millones de filas por 40 columnas**:
 
@@ -276,6 +279,14 @@ fueron producidas por la misma consulta de datos y vieron exactamente las
 mismas filas. Las métricas por columna —moda, frecuencia de la moda y mediana—
 dejan `id_muestra = NA`, porque no comparten filas con otras métricas; `NA`
 declara que no hay garantía, no que se haya inventado una coincidencia.
+
+Con `instrumentar = TRUE`, cada consulta suma `duracion_ms` y
+`cpu_ms`. El primero usa `Sys.time()`; el segundo suma
+`proc.time()[c("user.self", "sys.self")]` y representa el trabajo de CPU
+del cliente, incluida la conversión del resultado que hace el driver. Cero es
+medido; `NA` significa que no se pudo medir. `instrumentar = FALSE` apaga
+ambos relojes y deja esos campos en `NA`, sin alterar la consulta ni su
+resultado.
 
 El total exacto (`COUNT(*)`) viaja en la primera consulta de agregados y se
 comparte con el recorrido que ya necesitaban los agregados. Si el lote completo
@@ -381,6 +392,17 @@ Lo que sí es una restricción dura de diseño es que esa predicción **no depen
 motor**: cada sonda de capacidad gasta un número fijo de consultas aunque acierte
 en la primera forma, porque un costo que variara por motor dejaría al usuario
 adivinando otra vez.
+
+La moda y la mediana tienen una política de costo explícita. El valor por omisión
+es `politica_costo = "todas"`: el paquete no elige por el usuario. Con
+`politica_costo = "por_cardinalidad"`, primero se miden `validos` y
+`distintos`; después se decide por columna si se emiten moda y mediana cuando
+`n_distintos / n_validos >= umbral_cardinalidad`. El umbral por omisión es
+`0.95` y se puede mover en cada llamada. Cada omisión queda en
+`resumen_tabla$sql` como `omitido_por_costo`, con qué se omitió, por qué y
+cómo pedirlo de nuevo: `politica_costo = "todas"` o un umbral diferente.
+El banco reproducible `benchmark/medir_politica_costo.R` mide el ahorro en
+consultas sobre una tabla de 158 columnas.
 
 Pero contar consultas no responde la pregunta que trae quien mira el plan:
 catorce consultas sobre dos millones de filas son mucho más trabajo que
@@ -499,13 +521,22 @@ preguntar», que no son lo mismo.
 
 **La unicidad no se adivina: se pregunta.** Si se declara la clave con
 `perfilar(clave = ...)`, que se repita es un hallazgo de severidad `error` con
-las filas que repiten, no un aviso de consola. Y para no dejar al usuario ante
-una casilla en blanco, `sugerir_clave()` ordena las columnas candidatas por tres
-señales que publica por separado —si identifica cada fila, si no tiene ausentes,
-y cuánto se parece su nombre al de una clave— y `elegir_clave()` las ofrece
-numeradas con una opción para escribir otra. Ordenar no es decidir: una columna
-única puede ser una clave o una magnitud que no repite, y esa diferencia no está
-en los datos.
+las filas que repiten. La advertencia y `meta$clave` separan esa comprobación de
+la ausencia de nulos: una clave puede no tener colisiones distintas de los
+ausentes y aun así no cumplir `NOT NULL`; si la trazabilidad agrupa esos ausentes
+con la semántica de R, ambas cosas quedan declaradas. Y para no dejar al usuario
+ante una casilla en blanco, `sugerir_clave()` ordena las columnas candidatas por
+tres señales que publica por separado —si identifica cada fila, si no tiene
+ausentes, y cuánto se parece su nombre al de una clave— y `elegir_clave()` las
+ofrece numeradas con una opción para escribir otra. Ordenar no es decidir: una
+columna única puede ser una clave o una magnitud que no repite, y esa diferencia
+no está en los datos.
+
+La lectura DBI también separa catálogo y garantía. Oracle sólo se presenta como
+garantizado cuando `STATUS` es `ENABLED` y `VALIDATED`; PostgreSQL y MySQL
+publican estados comparables en el catálogo. MariaDB, SQL Server, SQLite y
+DuckDB no permiten distinguir aquí ese estado, y por eso una clave visible en
+ellos conserva garantía desconocida.
 
 Donde no hay señal que discrimine, `lupa` habla. La cardinalidad alta de una
 columna de texto se informa siempre, porque el largo de los valores no distingue

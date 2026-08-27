@@ -22,6 +22,152 @@
   )
 }
 
+# Una clave declarada responde dos preguntas distintas. `duplicated()` resuelve
+# la unicidad con la semantica de R, donde dos `NA` de una misma posicion
+# colisionan; `is.na()` resuelve si todos los componentes estan presentes. No
+# mezclar las dos respuestas evita atribuir una colision de la traza a SQL.
+.evaluar_clave_declarada <- function(datos, clave) {
+  if (is.null(clave) || !length(clave)) return(NULL)
+
+  valores <- datos[, clave, drop = FALSE]
+  n <- nrow(datos)
+  # La clave se evalua con la semantica de un data.frame de R, aunque otro
+  # objeto haya registrado un metodo `duplicated()` durante la sesion.
+  duplicadas <- tryCatch(
+    base::duplicated.data.frame(valores), error = function(e) NULL
+  )
+  ausentes <- tryCatch(is.na(valores), error = function(e) NULL)
+  pudo_contar_ausentes <- !is.null(ausentes) &&
+    length(dim(ausentes)) == 2L
+  n_ausentes <- if (pudo_contar_ausentes) {
+    sum(ausentes)
+  } else {
+    NA_integer_
+  }
+  filas_con_ausentes <- if (pudo_contar_ausentes && n) {
+    sum(rowSums(ausentes) > 0L)
+  } else if (pudo_contar_ausentes) {
+    0L
+  } else {
+    NA_integer_
+  }
+  pudo_comprobar_unicidad <- !is.null(duplicadas)
+  colisionan <- if (pudo_comprobar_unicidad) {
+    tryCatch(
+      duplicadas | base::duplicated.data.frame(valores, fromLast = TRUE),
+      error = function(e) NULL
+    )
+  } else {
+    logical()
+  }
+  filas_con_ausentes_logica <- if (pudo_contar_ausentes && n) {
+    rowSums(ausentes) > 0L
+  } else {
+    logical()
+  }
+  n_repeticiones <- if (pudo_comprobar_unicidad) sum(duplicadas) else NA_integer_
+  n_filas_colision <- if (!is.null(colisionan)) sum(colisionan) else NA_integer_
+  n_filas_colision_con_ausentes <- if (length(colisionan) &&
+      length(filas_con_ausentes_logica) == length(colisionan)) {
+    sum(colisionan & filas_con_ausentes_logica)
+  } else {
+    NA_integer_
+  }
+  unicidad <- if (is.null(duplicadas)) {
+    "no_verificada"
+  } else if (isTRUE(n_repeticiones > 0L)) {
+    "refutada"
+  } else {
+    "verificada"
+  }
+  ausencia_nulos <- if (!pudo_contar_ausentes) {
+    "no_verificada"
+  } else if (isTRUE(n_ausentes > 0L)) {
+    "refutada"
+  } else {
+    "verificada"
+  }
+  list(
+    columnas = as.character(clave),
+    unicidad = list(
+      estado = unicidad,
+      semantica = "R",
+      filas_evaluadas = as.integer(n),
+      filas_repetidas = as.numeric(n_repeticiones),
+      filas_en_colision = as.numeric(n_filas_colision)
+    ),
+    ausencia_nulos = list(
+      estado = ausencia_nulos,
+      valores_ausentes = as.numeric(n_ausentes),
+      filas_con_ausentes = as.numeric(filas_con_ausentes),
+      columnas_evaluadas = as.integer(length(clave))
+    ),
+    trazabilidad = list(
+      localizador = "clave_declarada",
+      semantica = "R",
+      colisiona_con_ausentes = isTRUE(n_filas_colision_con_ausentes > 0L),
+      filas_colision_con_ausentes = as.numeric(
+        n_filas_colision_con_ausentes
+      ),
+      nota = paste(
+        "La trazabilidad agrupa valores de la clave con la semantica de R;",
+        "dos NULL de SQL no son iguales, pero una ausencia sigue violando",
+        "la exigencia de NOT NULL."
+      )
+    ),
+    requiere_declaracion = !identical(unicidad, "verificada") ||
+      !identical(ausencia_nulos, "verificada")
+  )
+}
+
+.advertir_clave_declarada <- function(evaluacion) {
+  if (is.null(evaluacion) || !isTRUE(evaluacion$requiere_declaracion)) {
+    return(invisible(NULL))
+  }
+  unicidad <- evaluacion$unicidad
+  ausencia <- evaluacion$ausencia_nulos
+  mensajes <- character()
+  if (identical(unicidad$estado, "refutada")) {
+    mensajes <- c(mensajes, paste0(
+      "La clave declarada no es unica: la comprobacion de unicidad bajo la semantica de R fue refutada: ",
+      unicidad$filas_repetidas, " filas repiten su valor (",
+      unicidad$filas_en_colision, " filas participan en colisiones)."
+    ))
+  } else if (identical(unicidad$estado, "verificada")) {
+    mensajes <- c(mensajes,
+      "La comprobacion de unicidad bajo la semantica de R fue verificada: no se encontraron colisiones."
+    )
+  } else {
+    mensajes <- c(mensajes,
+      "La comprobacion de unicidad bajo la semantica de R no fue verificada: no habia filas o no se pudo comparar la clave."
+    )
+  }
+  if (identical(ausencia$estado, "refutada")) {
+    mensajes <- c(mensajes, paste0(
+      "La comprobacion de ausencia de nulos fue refutada: se encontraron ",
+      ausencia$valores_ausentes, " valores ausentes en la clave (",
+      ausencia$filas_con_ausentes, " filas afectadas)."
+    ))
+  } else if (identical(ausencia$estado, "verificada")) {
+    mensajes <- c(mensajes,
+      "La comprobacion de ausencia de nulos fue verificada: no se encontraron valores ausentes."
+    )
+  } else {
+    mensajes <- c(mensajes,
+      "La comprobacion de ausencia de nulos no fue verificada: no habia filas o no se pudo leer la clave."
+    )
+  }
+  if (isTRUE(evaluacion$trazabilidad$colisiona_con_ausentes)) {
+    mensajes <- c(mensajes, paste(
+      "La trazabilidad conserva la semantica de R para localizar esas filas;",
+      "la colision entre ausentes no demuestra por si sola una violacion de",
+      "unicidad SQL, pero los valores ausentes impiden la garantia NOT NULL."
+    ))
+  }
+  cli::cli_warn(paste(mensajes, collapse = " "))
+  invisible(NULL)
+}
+
 #' Perfilar un conjunto de datos
 #'
 #' Examina un `data.frame`, `tibble` o `data.table` y devuelve estadísticas
@@ -346,6 +492,17 @@
 #'   siempre. La clave declarada se trata como sensible: si la protección de
 #'   datos personales está activa y alguna de esas columnas se clasifica como
 #'   personal, sus valores salen enmascarados igual que la evidencia.
+#'   La comprobación de una clave tiene dos ejes independientes:
+#'   `meta$clave$unicidad` comprueba si sus combinaciones son únicas con la
+#'   semántica de R,
+#'   y `meta$clave$ausencia_nulos` comprueba que sus componentes no tengan
+#'   valores ausentes. Cada eje declara `verificada`, `refutada` o
+#'   `no_verificada`; una clave con ambos ejes verificados conserva exactamente
+#'   el objeto histórico y no agrega metadatos. Cuando un eje falla o no se
+#'   puede comprobar, `meta$clave$trazabilidad` explica que la localización
+#'   agrupa con la semántica de R, incluso si el motor SQL trata dos `NULL` como
+#'   distintos. Por eso una clave puede tener a la vez una colisión para la
+#'   trazabilidad y una ausencia que impide la garantía `NOT NULL`.
 #' @param umbral_alta_cardinalidad Umbral sobre la tasa de valores distintos
 #'   de una columna categórica. No alcanza por sí solo: el hallazgo exige
 #'   además al menos diez valores distintos, porque con pocos la tasa está
@@ -625,6 +782,9 @@
 #'   Quien decida automáticamente sobre un perfil debe revisar
 #'   `nrow(perfil$cobertura_diagnosticos)` además de las severidades: un perfil
 #'   sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.
+#'   Cuando una clave declarada no queda plenamente verificada, `meta$clave`
+#'   conserva los estados de unicidad y ausencia de nulos, sus conteos y la
+#'   semántica usada por la trazabilidad.
 #' @export
 #' @seealso [descubrir_patrones()], [detectar_dependencias()],
 #'   [proponer_modelo()], [planificar_limpieza()]
@@ -738,6 +898,7 @@ perfilar <- function(datos,
   if (umbral_faltantes_error < umbral_faltantes_sospechoso) {
     stop("El umbral de error no puede ser menor que el sospechoso.", call. = FALSE)
   }
+  evaluacion_clave <- NULL
   if (!is.null(clave)) {
     if (!is.character(clave) || !length(clave) || anyNA(clave) ||
         !all(nzchar(clave))) {
@@ -758,16 +919,11 @@ perfilar <- function(datos,
     if (anyDuplicated(clave)) {
       stop("`clave` repite una columna.", call. = FALSE)
     }
-    # Una clave que no identifica una fila sirve igual para localizar, pero
-    # deja de ser una clave: se avisa y se sigue, no se rompe.
-    if (nrow(datos) && anyDuplicated(datos[, clave, drop = FALSE])) {
-      repetidas <- sum(duplicated(datos[, clave, drop = FALSE]))
-      cli::cli_warn(paste0(
-        "La clave declarada no es unica: ", repetidas,
-        " filas repiten su valor. La trazabilidad la usa igual para localizar, ",
-        "pero un valor puede senalar mas de una fila."
-      ))
-    }
+    evaluacion_clave <- .evaluar_clave_declarada(datos, clave)
+    # Una clave que no identifica una fila o que tiene ausentes sirve igual
+    # para localizar, pero no queda garantizada: cada eje se informa por
+    # separado y se sigue sin romper el perfil.
+    .advertir_clave_declarada(evaluacion_clave)
   }
   if (!is.numeric(sentinelas_numericos) || anyNA(sentinelas_numericos) ||
       any(!is.finite(sentinelas_numericos))) {
@@ -1280,6 +1436,14 @@ perfilar <- function(datos,
     normalizacion_resumen = .normalizacion_resumen(normalizacion_resuelta),
     normalizacion_fusiones = normalizacion_fusiones
   )
+  # Una clave plenamente verificada no cambia el objeto histórico: su presencia
+  # ya queda en `trazabilidad$localizador`. Cuando hay algo que impide llamarla
+  # garantía, la explicación queda junto a esa trazabilidad y no depende de que
+  # el consumidor haya visto el warning.
+  if (!is.null(evaluacion_clave) &&
+      isTRUE(evaluacion_clave$requiere_declaracion)) {
+    meta$clave <- evaluacion_clave
+  }
   if (!is.null(benford$meta)) {
     meta$benford <- benford$meta
   }

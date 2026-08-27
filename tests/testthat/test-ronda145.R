@@ -75,7 +75,7 @@ test_that("el valor por omision conserva el perfil anterior", {
   quitar_tiempos <- function(x) {
     campos_nuevos <- c(
       "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
-      "consulta_id", "etapa"
+      "cpu_ms", "consulta_id", "etapa"
     )
     x$resumen_tabla$sql <- x$resumen_tabla$sql[
       , setdiff(names(x$resumen_tabla$sql), campos_nuevos), drop = FALSE

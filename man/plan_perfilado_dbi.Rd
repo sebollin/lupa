@@ -14,9 +14,7 @@ plan_perfilado_dbi(
   max_consultas = Inf,
   dialecto = "auto",
   incluir_valores = TRUE,
-  tamano_lote = .TAMANO_LOTE_DBI,
-  bloque_muestra = c("con_muestra", "solo_agregados"),
-  instrumentar = FALSE
+  tamano_lote = .TAMANO_LOTE_DBI
 )
 }
 \arguments{
@@ -69,21 +67,18 @@ máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
 Veinte mantiene acotado el número de expresiones y se puede reducir para
 motores con límites más estrictos.}
 
-\item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
-omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
-lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
-alcance de esos agregados: eso lo decide \code{modo}.}
-
 \item{instrumentar}{En el plan, si es \code{TRUE}, cronometra las consultas-portón
-que el plan necesita leer para conocer el esquema y las capacidades del
-motor, pero no agrega mediciones al objeto devuelto: sus costos siguen
-siendo predicciones. Por omisión es \code{FALSE}.}
+y, con \code{politica_costo = "por_cardinalidad"}, las consultas baratas que el
+plan necesita leer para conocer el esquema, las capacidades del motor y
+la cardinalidad. No agrega mediciones al objeto devuelto: sus costos
+siguen siendo predicciones. Por omisión es \code{FALSE}.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
 \code{n_consultas} y \code{alcance}, y los atributos \code{total},
 \code{total_lotes_rechazados}, \code{columnas}, \code{columnas_numericas}, \code{dialecto},
-\code{consultas_emitidas}, \code{metricas}, \code{filas} y \code{tamano_lote}. Cuando se pide
+\code{consultas_emitidas}, \code{metricas}, \code{metricas_ejecucion},
+\code{politica_costo}, \code{mediana_consolidada}, \code{filas} y \code{tamano_lote}. Cuando se pide
 \code{bloque_muestra = "solo_agregados"}, también conserva ese valor en el
 atributo \code{bloque_muestra} y no incluye la fila de la lectura de muestra.
 
@@ -108,8 +103,13 @@ en R el detector de vocabulario sobre la muestra— y se resume en
 \code{"alta"}, o \code{"desconocida"} si no se conoce el número de filas.
 \code{supuesto_costo} dice de dónde sale cada cuenta.
 
-El plan no publica duraciones, filas ni bytes medidos: sus campos de costo
-siguen siendo predicciones basadas en los supuestos anteriores.
+El plan no publica duraciones, CPU, filas ni bytes medidos: sus campos de
+costo siguen siendo predicciones basadas en los supuestos anteriores.
+
+Si se pide \code{politica_costo = "por_cardinalidad"}, el plan hace primero las
+consultas baratas de válidos y distintos. Después decide por columna si
+emite moda y mediana según \code{umbral_cardinalidad}. La política por omisión
+es \code{"todas"}: el paquete no elige por el usuario. \code{attr(plan, "politica_costo")} conserva la decisión y el umbral.
 
 Contar sólo el motor daba juicios falsos con números ciertos: una tabla de
 3.912 filas con una columna de geometría en texto pedía 64.592 lecturas
@@ -120,10 +120,12 @@ nombra las palancas para acotarla, que no son las mismas de un lado que
 del otro.
 }
 \description{
-Emite sólo las consultas-portón —contar filas, leer el esquema y sondear el
+Emite las consultas-portón —contar filas, leer el esquema y sondear el
 dialecto— y devuelve cuántas consultas emitiría el perfilado completo, de
-qué clase y con qué alcance sobre la tabla. El plan hace visible cuántos lotes
-de agregados se emitirán antes de empezar y evita una sorpresa de costo.
+qué clase y con qué alcance sobre la tabla. Con \code{politica_costo = "por_cardinalidad"}
+también hace primero las consultas baratas de válidos y distintos para
+decidir qué columnas pasan a moda y mediana. El plan hace visible cuántos
+lotes de agregados se emitirán antes de empezar y evita una sorpresa de costo.
 El conteo que paga el plan es necesario para estimar el trabajo antes de
 ejecutar los agregados; durante una corrida normal, el total exacto viaja en
 la primera consulta de agregados y no se vuelve a contar como una consulta

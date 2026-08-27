@@ -48,7 +48,8 @@ setMethod(
 .ronda153_sin_instrumentacion <- function(x) {
   campos <- c(
     "sql", "lote", "columnas_compartidas", "id_muestra", "consulta_id",
-    "etapa", "duracion_ms", "n_filas_resultado", "bytes_resultado_r"
+    "etapa", "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
+    "cpu_ms"
   )
   x$resumen_tabla$sql <- x$resumen_tabla$sql[
     , setdiff(names(x$resumen_tabla$sql), campos), drop = FALSE
