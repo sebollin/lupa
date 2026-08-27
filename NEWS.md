@@ -1,5 +1,14 @@
 # lupa 0.1.0
 
+## La inferencia de tipo clasifica el vocabulario repetido una sola vez
+
+`.inferir_tipo()` usa el vocabulario textual cuando su cardinalidad hace
+conveniente el recorrido, y pondera cada forma por su frecuencia en las filas.
+El camino que no activa el atajo conserva las mismas pasadas sobre cada valor.
+La detección de fechas queda sobre las filas muestreadas: sus atributos
+`compatibles`, `total`, `analizados`, `muestreado` y el caché interno de meses
+forman parte del contrato del perfilado y no se reemplazan por conteos de formas.
+
 ## Dos números que las optimizaciones habían movido
 
 Los cambios que quitaron recorridos internos prometían no mover nada de lo

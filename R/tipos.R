@@ -69,29 +69,40 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
     return(.inferencia("desconocido", 0L, 0L, muestreo, candidatos))
   }
 
-  logicos_base <- tolower(valores) %in% c(
+  # La clasificacion barata -siete pasadas de expresiones regulares- se hace
+  # sobre las FORMAS distintas y se pesa por frecuencia, porque las proporciones
+  # cuentan filas y no formas. `.vocabulario_texto()` decide si conviene: cuando
+  # no, devuelve el vector entero con `indices = seq_len(n)`, los pesos son todos
+  # 1 y la cuenta es la de siempre. Por eso hay UN camino que a veces trabaja
+  # sobre menos valores, y no dos: dos copias de los mismos siete patrones es
+  # pedir que algun dia difieran.
+  vocabulario <- .vocabulario_texto(valores, .umbral_vocabulario_barato)
+  formas <- vocabulario$valores
+  pesos <- tabulate(vocabulario$indices, nbins = length(formas))
+
+  logicos_base <- tolower(formas) %in% c(
     "true", "false", "t", "f", "si", "s\u00ed", "s", "no", "n", "0", "1"
   )
   contiene_logico_alfabetico <- any(
-    logicos_base & grepl("[[:alpha:]]", valores, perl = TRUE)
+    logicos_base & grepl("[[:alpha:]]", formas, perl = TRUE)
   )
   logicos <- if (contiene_logico_alfabetico) {
     logicos_base
   } else {
-    rep(FALSE, length(valores))
+    rep(FALSE, length(formas))
   }
-  enteros <- grepl("^[+-]?[0-9]+$", valores, perl = TRUE)
+  enteros <- grepl("^[+-]?[0-9]+$", formas, perl = TRUE)
   dobles <- grepl(
     "^[+-]?(?:[0-9]+(?:[.,][0-9]+)?|[.,][0-9]+)(?:[eE][+-]?[0-9]+)?$",
-    valores, perl = TRUE
+    formas, perl = TRUE
   )
-  punto_ambiguo <- grepl("^[+-]?[0-9]+\\.[0-9]{3}$", valores, perl = TRUE)
-  if (!any(grepl(",", valores, fixed = TRUE))) {
+  punto_ambiguo <- grepl("^[+-]?[0-9]+\\.[0-9]{3}$", formas, perl = TRUE)
+  if (!any(grepl(",", formas, fixed = TRUE))) {
     dobles[punto_ambiguo] <- FALSE
   }
   horas <- grepl(
     "^(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?$",
-    valores, perl = TRUE
+    formas, perl = TRUE
   )
 
   formatos <- .detectar_formatos_fecha_interno(valores, muestra = muestra)
@@ -105,21 +116,23 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
   formatos_hora <- if (nrow(formatos)) grepl("%H", formatos$formato) else logical()
   tipo_fecha <- if (any(formatos_hora)) "fecha-hora" else "fecha"
 
-  proporcion_distintos <- length(unique(valores)) / n
-  forma_id <- grepl("^[[:alnum:]_.:/-]+$", valores, perl = TRUE)
-  tiene_cero_inicial <- grepl("^0[0-9]+$", valores, perl = TRUE)
-  tiene_letras_numeros <- grepl("[[:alpha:]]", valores, perl = TRUE) &
-    grepl("[[:digit:]]", valores, perl = TRUE)
+  # `n_distintos` sale de `.vocabulario_texto()` ANTES de que decida si usa el
+  # vocabulario, asi que vale en los dos casos.
+  proporcion_distintos <- vocabulario$n_distintos / n
+  forma_id <- grepl("^[[:alnum:]_.:/-]+$", formas, perl = TRUE)
+  tiene_cero_inicial <- grepl("^0[0-9]+$", formas, perl = TRUE)
+  tiene_letras_numeros <- grepl("[[:alpha:]]", formas, perl = TRUE) &
+    grepl("[[:digit:]]", formas, perl = TRUE)
   estructura_id <- forma_id & (tiene_cero_inicial | tiene_letras_numeros)
-  n_id <- sum(estructura_id)
+  n_id <- sum(estructura_id * pesos)
 
   conteos <- c(
-    logico = sum(logicos),
-    entero = sum(enteros),
-    doble = sum(dobles),
+    logico = sum(logicos * pesos),
+    entero = sum(enteros * pesos),
+    doble = sum(dobles * pesos),
     fecha = if (identical(tipo_fecha, "fecha")) n_fechas else 0L,
     `fecha-hora` = if (identical(tipo_fecha, "fecha-hora")) n_fechas else 0L,
-    hora = sum(horas),
+    hora = sum(horas * pesos),
     identificador = n_id,
     texto = n
   )
@@ -176,4 +189,3 @@ print.inferencia_tipo <- function(x, ...) {
   }
   as.character(x)
 }
-
