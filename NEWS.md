@@ -38,6 +38,14 @@ caía en «baja» y el plan **no imprimía las palancas** para bajar el costo.
 Las dos formas de pedir la tabla entera declaran ahora lo mismo. Los valores que
 sí son inválidos siguen tratándose como antes.
 
+Y el hueco simétrico: una `muestra` finita **mayor** que las filas de la tabla
+tampoco quedaba acotada. Pedir un millón de filas de una tabla de cien no trae
+más de cien —la lectura real es `min(n_total, muestra)`—, pero el plan imputaba
+un millón de lecturas. La inconsistencia era interna: el trabajo del cliente sí
+se acotaba, así que las dos mitades de la misma cuenta usaban tamaños de muestra
+distintos. Ahora el tamaño efectivo se calcula una sola vez y las dos mitades lo
+comparten.
+
 ## Las geometrías que vienen de una base ya no pierden su trazabilidad
 
 Un hallazgo sobre una columna de geometría —una coordenada fuera del dominio, una

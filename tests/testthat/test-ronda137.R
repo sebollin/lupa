@@ -91,3 +91,84 @@ test_that("la traduccion de `Inf` no ablanda la guarda de valores invalidos", {
     expect_lt(salida$filas_leidas, referencia$filas_leidas)
   }
 })
+
+# Los tres bloques de arriba miraban `Inf` contra `nrow`. Una refutacion externa
+# mostro el hueco simetrico: `muestra` finita pero MAYOR que las filas. Pedir un
+# millon de filas de una tabla de cien no trae mas de cien -la lectura real es
+# `min(n_total, muestra)`-, pero el plan imputaba un millon de lecturas. Y la
+# inconsistencia era interna: el lado del cliente SI se acotaba con
+# `min(filas, muestra)`, asi que las dos mitades de la misma cuenta usaban
+# tamanos de muestra distintos.
+
+test_that("pedir mas filas de las que hay no declara mas trabajo", {
+  skip_if_not_installed("RSQLite")
+  datos <- .tabla_plan_137()
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(conexion, "t", datos)
+
+  justo <- plan_perfilado_dbi(conexion, "t", muestra = nrow(datos))
+  de_mas <- plan_perfilado_dbi(conexion, "t", muestra = nrow(datos) * 1000)
+  entera <- plan_perfilado_dbi(conexion, "t", muestra = Inf)
+
+  for (campo in c("filas_leidas", "pares_texto", "magnitud")) {
+    expect_identical(attr(de_mas, campo, exact = TRUE),
+                     attr(justo, campo, exact = TRUE), info = campo)
+    expect_identical(attr(entera, campo, exact = TRUE),
+                     attr(justo, campo, exact = TRUE), info = campo)
+  }
+})
+
+test_that("la equivalencia vale tambien cuando el motor muestrea", {
+  skip_if_not_installed("RSQLite")
+  datos <- .tabla_plan_137()
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(conexion, "t", datos)
+
+  for (modo in c("muestreado", "aproximado", "seguro")) {
+    entera <- plan_perfilado_dbi(conexion, "t", modo = modo, muestra = Inf)
+    explicita <- plan_perfilado_dbi(conexion, "t", modo = modo,
+                                    muestra = nrow(datos))
+    expect_identical(attr(entera, "filas_leidas", exact = TRUE),
+                     attr(explicita, "filas_leidas", exact = TRUE), info = modo)
+    expect_identical(attr(entera, "pares_texto", exact = TRUE),
+                     attr(explicita, "pares_texto", exact = TRUE), info = modo)
+  }
+})
+
+test_that("los bordes del tamano de muestra no rompen la cuenta", {
+  plan <- data.frame(
+    clase_consulta = "muestra", n_consultas = 1,
+    alcance = "lee las filas pedidas", stringsAsFactors = FALSE
+  )
+  # `NaN` y un vector de largo dos no son "la tabla entera": caen en cero.
+  for (borde in list(NaN, c(Inf, Inf), Inf, 0, 1e9)) {
+    salida <- lupa:::.trabajo_plan_dbi(plan, filas = 500, muestra = borde,
+                                       columnas_texto = 1)
+    expect_true(is.finite(salida$filas_leidas))
+    expect_true(is.finite(salida$pares_texto))
+    expect_lte(salida$filas_leidas, 500)
+  }
+  # Una tabla vacia no declara trabajo, venga la muestra como venga.
+  for (borde in list(Inf, 1000, 0)) {
+    vacia <- lupa:::.trabajo_plan_dbi(plan, filas = 0, muestra = borde,
+                                      columnas_texto = 2)
+    expect_identical(vacia$filas_leidas, 0)
+    expect_identical(vacia$pares_texto, 0)
+  }
+})
+
+test_that("la equivalencia no depende de cuantas columnas de texto haya", {
+  plan <- data.frame(
+    clase_consulta = "muestra", n_consultas = 1,
+    alcance = "lee las filas pedidas", stringsAsFactors = FALSE
+  )
+  for (n_texto in c(0, 1, 5)) {
+    entera <- lupa:::.trabajo_plan_dbi(plan, filas = 800, muestra = Inf,
+                                       columnas_texto = n_texto)
+    explicita <- lupa:::.trabajo_plan_dbi(plan, filas = 800, muestra = 800,
+                                          columnas_texto = n_texto)
+    expect_identical(entera, explicita)
+  }
+})

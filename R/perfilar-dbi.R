@@ -2698,12 +2698,16 @@
     "escanea la tabla completa dos veces" = 2 * n_consultas * filas,
     "ordena la tabla completa" = n_consultas * filas,
     "ordena o agrupa la tabla completa" = n_consultas * filas,
-    # Con `muestra = Inf` -toda la tabla- lo pedido son todas las filas. Sin
-    # esta traduccion el trabajo estimado daria `Inf` y el plan reportaria una
-    # magnitud infinita en vez del costo real, que es leer la tabla entera.
-    "lee una muestra del motor" = n_consultas *
-      (if (is.finite(muestra)) muestra else filas),
-    "lee las filas pedidas" = if (is.finite(muestra)) muestra else filas,
+    # `muestra` llega SIEMPRE finita: el unico que llama es `.trabajo_plan_dbi()`,
+    # que traduce ahi el `Inf` -toda la tabla- a `filas` antes de bajar hasta
+    # aca. Hubo un tiempo en que esta linea intentaba traducirlo tambien, con un
+    # `if (is.finite(muestra)) muestra else filas`; la rama `else` nunca corria
+    # porque la normalizacion de arriba ya habia cerrado el valor, y el
+    # comentario que la acompanaba afirmaba una traduccion que no ocurria. Dos
+    # sitios que dicen hacer lo mismo y uno que no se ejecuta es peor que uno
+    # solo: la traduccion vive arriba y aca se cuenta lo que llego.
+    "lee una muestra del motor" = n_consultas * muestra,
+    "lee las filas pedidas" = muestra,
     NA_real_
   )
 }
@@ -2786,6 +2790,13 @@
     !is.na(muestra) && is.infinite(muestra) && muestra > 0
   muestra <- numero(muestra)
   if (is.na(muestra)) muestra <- if (muestra_entera) filas else 0
+  # Y se acota una sola vez, aca, por el mismo motivo. Pedir mas filas de las
+  # que hay no trae mas filas: la lectura real es `min(n_total, muestra)`. Sin
+  # este tope, `muestra = 1e6` sobre una tabla de 100 filas declaraba 1.001.200
+  # lecturas contra las 1.300 de `muestra = 100`, trayendo las dos las mismas
+  # 100 filas. El lado del cliente ya se acotaba -por eso `pares_texto` daba
+  # bien-, o sea que las dos mitades de la cuenta usaban tamanos distintos.
+  muestra <- min(filas, muestra)
   lecturas <- vapply(seq_len(nrow(plan)), function(i) {
     suppressWarnings(as.numeric(.lecturas_clase_dbi(
       plan$alcance[[i]], plan$n_consultas[[i]], filas, muestra
