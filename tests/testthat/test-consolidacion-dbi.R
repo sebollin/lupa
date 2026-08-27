@@ -183,6 +183,12 @@ test_that("un lote rechazado degrada a columnas sin perder las sanas", {
   expect_true(all(medidos$estado == "calculado"))
   expect_true(any(.consolidacion_dbi$rechazos == "muchas expresiones"))
   expect_true(any(registros$columnas_compartidas == 1L, na.rm = TRUE))
+  reintentos <- medidos[!is.na(medidos$consulta_id), , drop = FALSE]
+  expect_true(nrow(reintentos) > 0L)
+  expect_true(all(reintentos$etapa %in% c(
+    "conteos", "basicos", "desvio", "moda", "mediana"
+  )))
+  expect_true(all(reintentos$n_filas_resultado == 1))
 })
 
 test_that("un agregado rechazado para una columna conserva las demas del lote", {
@@ -203,6 +209,10 @@ test_that("un agregado rechazado para una columna conserva las demas del lote", 
   expect_true(all(mala$estado == "no_disponible"))
   expect_true(any(.consolidacion_dbi$rechazos == "tipo malo lote"))
   expect_true(any(grepl("mala|agregado|tipo", mala$motivo, ignore.case = TRUE)))
+  fallas_mala <- mala[!is.na(mala$consulta_id), , drop = FALSE]
+  expect_true(nrow(fallas_mala) > 0L)
+  expect_true(all(is.na(fallas_mala$n_filas_resultado)))
+  expect_true(all(is.na(fallas_mala$bytes_resultado_r)))
   expect_true(all(is.na(
     resultado$resumen_tabla$columnas$media[
       resultado$resumen_tabla$columnas$columna == "mala"

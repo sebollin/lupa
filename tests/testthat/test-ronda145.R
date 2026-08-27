@@ -72,7 +72,19 @@ test_that("el valor por omision conserva el perfil anterior", {
     analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
     fecha = as.POSIXct("2026-01-01", tz = "UTC")
   )
-  expect_identical(por_omision, explicito)
+  quitar_tiempos <- function(x) {
+    campos_nuevos <- c(
+      "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
+      "consulta_id", "etapa"
+    )
+    x$resumen_tabla$sql <- x$resumen_tabla$sql[
+      , setdiff(names(x$resumen_tabla$sql), campos_nuevos), drop = FALSE
+    ]
+    x$resumen_tabla$tiempos <- NULL
+    x$resumen_tabla$meta$instrumentacion <- NULL
+    x
+  }
+  expect_identical(quitar_tiempos(por_omision), quitar_tiempos(explicito))
 })
 
 test_that("perfilar_coleccion propaga solo_agregados y no rompe con muestra NULL", {
@@ -97,4 +109,44 @@ test_that("perfilar_coleccion propaga solo_agregados y no rompe con muestra NULL
   ]
   expect_equal(nrow(fila), 1L)
   expect_match(fila$motivo, "No se solicito")
+})
+
+# Con `bloque_muestra = "solo_agregados"` no se trae ninguna fila a R, asi que el
+# detector de vocabulario no corre y el plan no puede cobrar sus pares. Lo hacia
+# bien en cuatro modos y mal en `muestreado`, porque el conteo colgaba del
+# conjunto `.ALCANCES_CON_MUESTRA_DBI`, que mete en la misma bolsa el muestreo
+# DEL MOTOR -que en ese modo ocurre igual- y el bloque DEL CLIENTE, que es lo
+# unico que trae filas. El plan impreso llegaba a contradecirse a dos lineas:
+# "el plan incluye solo agregados SQL" y despues "mas 4.000.000 pares de formas
+# a comparar en R".
+
+test_that("solo_agregados no cobra trabajo de R en ningun modo", {
+  skip_if_not_installed("RSQLite")
+  set.seed(145L)
+  n <- 3000L
+  datos <- data.frame(
+    t1 = sample(sprintf("v%02d", seq_len(80L)), n, TRUE),
+    t2 = sample(sprintf("w%02d", seq_len(60L)), n, TRUE),
+    x = stats::rnorm(n),
+    stringsAsFactors = FALSE
+  )
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(conexion, "t", datos)
+
+  for (modo in c("exacto", "seguro", "conteos", "aproximado", "muestreado")) {
+    solo <- plan_perfilado_dbi(
+      conexion, "t", modo = modo, bloque_muestra = "solo_agregados"
+    )
+    expect_identical(
+      attr(solo, "pares_texto", exact = TRUE), 0,
+      info = paste("solo_agregados en modo", modo)
+    )
+    # Y con el bloque pedido, el mismo modo si los cuenta: la prueba caeria
+    # tambien si alguien apagara el conteo para todos los casos.
+    con <- plan_perfilado_dbi(
+      conexion, "t", modo = modo, bloque_muestra = "con_muestra"
+    )
+    expect_gt(attr(con, "pares_texto", exact = TRUE), 0)
+  }
 })

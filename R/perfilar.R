@@ -681,9 +681,12 @@ perfilar <- function(datos,
                      variantes_equifrecuentes_vocabulario = FALSE,
                      max_asimetria_equifrecuente_vocabulario = 2,
                       max_comparaciones_dependencias = 200000L,
-                      max_trabajo_vocabulario = 2e10,
-                      max_trabajo_dependencias = 100000000) {
+                     max_trabajo_vocabulario = 2e10,
+                     max_trabajo_dependencias = 100000000) {
   # Una matriz de dos dimensiones es una tabla, y rechazarla obligaba a escribir
+  trazador_tiempos <- attr(
+    datos, "lupa_trazador_tiempos_dbi", exact = TRUE
+  )
 
 # `deparse()` de una expresion larga devuelve VARIAS lineas, y con
 # `do.call(perfilar, list(data.frame(...)))` la expresion es la tabla entera: el
@@ -964,14 +967,17 @@ perfilar <- function(datos,
   aplicabilidad_resuelta <- .resolver_aplicabilidad(
     datos, nombres, columnas_opcionales, aplicabilidad
   )
-  resultados <- lapply(seq_len(ncol(datos)), function(i) {
-    .perfilar_columna(
-      datos[[i]], nombres[[i]], muestra, max_patrones,
-      distinguir_mayusculas, expandir, umbral_patron_raro,
-      sentinelas_numericos,
-      aplicable = aplicabilidad_resuelta$mascaras[[i]]
-    )
-  })
+  resultados <- .medir_etapa_dbi(
+    trazador_tiempos, "perfilado_columnas",
+    lapply(seq_len(ncol(datos)), function(i) {
+      .perfilar_columna(
+        datos[[i]], nombres[[i]], muestra, max_patrones,
+        distinguir_mayusculas, expandir, umbral_patron_raro,
+        sentinelas_numericos,
+        aplicable = aplicabilidad_resuelta$mascaras[[i]]
+      )
+    })
+  )
 
   columnas <- if (length(resultados)) {
     do.call(rbind, lapply(resultados, `[[`, "fila"))
@@ -987,25 +993,29 @@ perfilar <- function(datos,
   formatos_fecha <- lapply(resultados, `[[`, "formatos")
   names(patrones) <- nombres_lista
   names(formatos_fecha) <- nombres_lista
-  dependencias <- if (analizar_dependencias) {
-    detectar_dependencias(
-      datos, umbral = umbral_dependencia, muestra = muestra,
-      max_columnas = max_columnas_dependencias,
-      umbral_casi_clave = umbral_casi_clave_dependencia,
-      max_comparaciones = max_comparaciones_dependencias,
-      max_trabajo = max_trabajo_dependencias
-    )
-  } else {
-    # `datos[0, 0]` sobre un objeto `sf` conserva la geometria: la columna es
-    # pegajosa por diseno de ese paquete. Con la clase puesta, el objeto vacio
-    # llegaba con una columna y el diagnostico declaraba un recorte que nadie
-    # pidio -- las dependencias estaban apagadas, no truncadas.
-    detectar_dependencias(
-      as.data.frame(datos)[0, 0, drop = FALSE], umbral = umbral_dependencia,
-      max_columnas = 1L,
-      umbral_casi_clave = umbral_casi_clave_dependencia
-    )
-  }
+  dependencias <- .medir_etapa_dbi(
+    trazador_tiempos, "dependencias",
+    if (analizar_dependencias) {
+      detectar_dependencias(
+        datos, umbral = umbral_dependencia, muestra = muestra,
+        max_columnas = max_columnas_dependencias,
+        umbral_casi_clave = umbral_casi_clave_dependencia,
+        max_comparaciones = max_comparaciones_dependencias,
+        max_trabajo = max_trabajo_dependencias
+      )
+    } else {
+      # `datos[0, 0]` sobre un objeto `sf` conserva la geometria: la columna es
+      # pegajosa por diseno de ese paquete. Con la clase puesta, el objeto vacio
+      # llegaba con una columna y el diagnostico declaraba un recorte que nadie
+      # pidio -- las dependencias estaban apagadas, no truncadas.
+      detectar_dependencias(
+        as.data.frame(datos)[0, 0, drop = FALSE], umbral = umbral_dependencia,
+        max_columnas = 1L,
+        umbral_casi_clave = umbral_casi_clave_dependencia
+      )
+    },
+    activa = analizar_dependencias
+  )
 
   conteos_duplicados <- .conteos_filas_duplicadas(datos)
   n_filas_duplicadas <- conteos_duplicados$filas_duplicadas
@@ -1069,7 +1079,8 @@ perfilar <- function(datos,
       min_participacion_dominante_vocabulario_corto,
     detectar_variantes_equifrecuentes = variantes_equifrecuentes_vocabulario,
     max_asimetria_equifrecuente = max_asimetria_equifrecuente_vocabulario,
-    max_trabajo = max_trabajo_vocabulario
+    max_trabajo = max_trabajo_vocabulario,
+    trazador_tiempos = trazador_tiempos
   )
   cobertura_diagnosticos <- attr(
     hallazgos, "cobertura_diagnosticos", exact = TRUE
@@ -1102,9 +1113,12 @@ perfilar <- function(datos,
   }
   attr(hallazgos, "cobertura_diagnosticos") <- NULL
   if (isTRUE(ausencia_estructural)) {
-    estructural <- .diagnosticar_ausencia_estructural(
-      datos, nombres, resultados, aplicabilidad_resuelta,
-      umbral_faltantes_error
+    estructural <- .medir_etapa_dbi(
+      trazador_tiempos, "ausencia_estructural",
+      .diagnosticar_ausencia_estructural(
+        datos, nombres, resultados, aplicabilidad_resuelta,
+        umbral_faltantes_error
+      )
     )
     if (nrow(estructural$cobertura)) {
       cobertura_diagnosticos <- rbind(
@@ -1122,6 +1136,10 @@ perfilar <- function(datos,
       )
       rownames(hallazgos) <- NULL
     }
+  } else {
+    .registrar_etapa_dbi(
+      trazador_tiempos, "ausencia_estructural", estado = "no_solicitado"
+    )
   }
   benford <- .diagnosticar_benford(
     datos, columnas, hallazgos, clave_declarada = clave
@@ -1178,21 +1196,27 @@ perfilar <- function(datos,
   }
   aproximados <- if (is.logical(duplicados_aproximados) &&
       !duplicados_aproximados) {
+    .registrar_etapa_dbi(
+      trazador_tiempos, "duplicados_aproximados", estado = "no_solicitado"
+    )
     NULL
   } else {
     configuracion <- if (isTRUE(duplicados_aproximados)) {
       list()
     } else duplicados_aproximados
-    do.call(
-      .detectar_duplicados_aproximados,
-      c(
-        list(
-          datos = datos, clasificacion = datos_personales,
-          normalizar = normalizacion_resuelta,
-          proteger_datos_personales = proteger_datos_personales,
-          fusiones_precomputadas = normalizacion_fusiones
-        ),
-        configuracion
+    .medir_etapa_dbi(
+      trazador_tiempos, "duplicados_aproximados",
+      do.call(
+        .detectar_duplicados_aproximados,
+        c(
+          list(
+            datos = datos, clasificacion = datos_personales,
+            normalizar = normalizacion_resuelta,
+            proteger_datos_personales = proteger_datos_personales,
+            fusiones_precomputadas = normalizacion_fusiones
+          ),
+          configuracion
+        )
       )
     )
   }

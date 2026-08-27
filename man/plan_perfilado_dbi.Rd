@@ -15,7 +15,8 @@ plan_perfilado_dbi(
   dialecto = "auto",
   incluir_valores = TRUE,
   tamano_lote = .TAMANO_LOTE_DBI,
-  bloque_muestra = c("con_muestra", "solo_agregados")
+  bloque_muestra = c("con_muestra", "solo_agregados"),
+  instrumentar = FALSE
 )
 }
 \arguments{
@@ -72,6 +73,11 @@ motores con límites más estrictos.}
 omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
 lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
 alcance de esos agregados: eso lo decide \code{modo}.}
+
+\item{instrumentar}{En el plan, si es \code{TRUE}, cronometra las consultas-portón
+que el plan necesita leer para conocer el esquema y las capacidades del
+motor, pero no agrega mediciones al objeto devuelto: sus costos siguen
+siendo predicciones. Por omisión es \code{FALSE}.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
@@ -100,6 +106,9 @@ en R el detector de vocabulario sobre la muestra— y se resume en
 \code{magnitud_texto}. \code{magnitud} es la mayor de las dos: \code{"baja"}, \code{"media"},
 \code{"alta"}, o \code{"desconocida"} si no se conoce el número de filas.
 \code{supuesto_costo} dice de dónde sale cada cuenta.
+
+El plan no publica duraciones, filas ni bytes medidos: sus campos de costo
+siguen siendo predicciones basadas en los supuestos anteriores.
 
 Contar sólo el motor daba juicios falsos con números ciertos: una tabla de
 3.912 filas con una columna de geometría en texto pedía 64.592 lecturas

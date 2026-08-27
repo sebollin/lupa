@@ -182,6 +182,33 @@ obtenidas. Las consultas, estados y motivos de los agregados SQL quedan en
 `resumen_tabla$sql`
 para que también se vea qué aceptó o rechazó el motor.
 
+La instrumentación queda activa por omisión y sólo agrega metadatos. Cada fila
+de `resumen_tabla$sql` conserva la métrica que ya representaba y suma
+`duracion_ms`, `n_filas_resultado`, `bytes_resultado_r`, `consulta_id` y
+`etapa`. La duración incluye la ejecución y la lectura del resultado que DBI
+entregó a R; el tamaño es `object.size()` de ese resultado. Las filas que no
+emitieron consulta dejan esos campos en `NA`, que significa «no medido», no
+`0`.
+
+```{r tiempos-sql, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}
+perfil$resumen_tabla$sql[, c(
+  "metrica", "estado", "duracion_ms", "n_filas_resultado",
+  "bytes_resultado_r", "consulta_id", "etapa"
+)]
+
+perfil$resumen_tabla$tiempos
+```
+
+`resumen_tabla$tiempos` reúne en milisegundos las etapas grandes del lado R,
+incluidas la lectura y el perfilado de la muestra, el perfilado por columna y
+los análisis opcionales. La columna `nivel` dice cuáles se pueden sumar: las
+de `nivel = 1` son disjuntas entre sí y las de nivel mayor están contenidas en
+alguna de ellas. `perfilado_muestra` es inclusivo —contiene el perfilado por
+columna, las dependencias y los casi-duplicados—, así que sumar la columna
+entera da más que la corrida completa. `instrumentar = FALSE` conserva el mismo plan, la
+misma cantidad y el mismo orden de consultas, pero deja las duraciones y los
+metadatos de tamaño en `NA` y marca las etapas como `no_medido`.
+
 ## `perfil_muestra`: el perfil completo de la muestra
 
 El perfil completo se obtiene en memoria sobre las cinco filas seleccionadas.

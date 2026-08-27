@@ -75,7 +75,9 @@
       "SELECT ", nativas[[i]], "(1.0) AS ", alias("desvio"),
       if (.es_oracle_dbi(conexion)) " FROM DUAL" else ""
     )
-    intento <- .escalar_dbi(conexion, sql, "desvio", presupuesto)
+    intento <- .escalar_dbi(
+      conexion, sql, "desvio", presupuesto, etapa = "sonda_desvio"
+    )
     if (is.null(elegida) && isTRUE(intento$ok)) elegida <- i
   }
   # Sin ninguna nativa queda el calculo de dos pasadas, que es la ultima forma.
@@ -83,12 +85,17 @@
   invisible(NULL)
 }
 
-.presupuesto_dbi <- function(max_consultas = Inf) {
+.presupuesto_dbi <- function(max_consultas = Inf, instrumentar = TRUE) {
   estado <- new.env(parent = emptyenv())
   estado$max <- max_consultas
   estado$usadas <- 0
   estado$reserva <- 0
   estado$agotado <- FALSE
+  # La instrumentacion se puede apagar porque medir tambien es trabajo. Los
+  # identificadores siguen avanzando cuando esta apagada: identifican el
+  # intento de consulta, no afirman que su duracion se haya medido.
+  estado$instrumentar <- isTRUE(instrumentar)
+  estado$siguiente_consulta <- 0L
   # La forma de calcular el desvio se resuelve una vez por corrida y se recuerda:
   # probarla por columna gastaria hasta tres consultas cada vez y romperia la
   # promesa del plan, que dice exactamente cuantas va a emitir.
@@ -99,6 +106,167 @@
   estado$previstas <- NA_real_
   estado$barra <- NULL
   estado
+}
+
+# ---- Reloj e instrumentacion --------------------------------------------
+
+# `Sys.time()` puede devolver el mismo instante para dos lecturas. En ese caso
+# una duracion cero seria una precision inventada, no una consulta instantanea:
+# se publica `NA` y la metadata declara que el reloj no pudo resolver el
+# intervalo.
+.ahora_dbi <- function() {
+  tryCatch(Sys.time(), error = function(e) NULL)
+}
+
+.duracion_ms_dbi <- function(inicio, fin) {
+  if (is.null(inicio) || is.null(fin)) return(NA_real_)
+  segundos <- tryCatch(
+    as.numeric(difftime(fin, inicio, units = "secs")),
+    error = function(e) NA_real_
+  )
+  if (!length(segundos) || is.na(segundos) || !is.finite(segundos) ||
+      segundos <= 0) {
+    return(NA_real_)
+  }
+  segundos * 1000
+}
+
+.medicion_consulta_vacia_dbi <- function(etapa = NA_character_) {
+  list(
+    consulta_id = NA_integer_, etapa = as.character(etapa),
+    duracion_ms = NA_real_, n_filas_resultado = NA_real_,
+    bytes_resultado_r = NA_real_, instrumentar = FALSE
+  )
+}
+
+.iniciar_consulta_dbi <- function(presupuesto, etapa) {
+  if (is.null(presupuesto)) return(.medicion_consulta_vacia_dbi(etapa))
+  presupuesto$siguiente_consulta <- presupuesto$siguiente_consulta + 1L
+  list(
+    consulta_id = as.integer(presupuesto$siguiente_consulta),
+    etapa = as.character(etapa),
+    instrumentar = isTRUE(presupuesto$instrumentar),
+    inicio = if (isTRUE(presupuesto$instrumentar)) .ahora_dbi() else NULL
+  )
+}
+
+.terminar_consulta_dbi <- function(medicion, datos = NULL) {
+  resultado <- .medicion_consulta_vacia_dbi(medicion$etapa)
+  resultado$consulta_id <- medicion$consulta_id
+  if (isTRUE(medicion$instrumentar)) {
+    resultado$duracion_ms <- .duracion_ms_dbi(medicion$inicio, .ahora_dbi())
+    if (is.null(datos)) {
+      resultado$n_filas_resultado <- NA_real_
+      resultado$bytes_resultado_r <- NA_real_
+    } else {
+      resultado$n_filas_resultado <- tryCatch(
+        as.numeric(nrow(datos)), error = function(e) NA_real_
+      )
+      resultado$bytes_resultado_r <- tryCatch(
+        as.numeric(utils::object.size(datos)), error = function(e) NA_real_
+      )
+    }
+  }
+  resultado
+}
+
+.adjuntar_medicion_dbi <- function(resultado, medicion) {
+  if (is.null(medicion)) return(resultado)
+  for (nombre in c(
+    "consulta_id", "etapa", "duracion_ms", "n_filas_resultado",
+    "bytes_resultado_r"
+  )) {
+    if (!is.null(medicion[[nombre]])) resultado[[nombre]] <- medicion[[nombre]]
+  }
+  resultado
+}
+
+.trazador_tiempos_dbi <- function(activo = TRUE) {
+  estado <- new.env(parent = emptyenv())
+  estado$activo <- isTRUE(activo)
+  estado$etapas <- list()
+  # Las etapas se anidan -`perfilado_muestra` envuelve al perfilado por columna,
+  # a las dependencias y a los casi-duplicados-, asi que sus duraciones NO se
+  # pueden sumar. Eso estaba dicho en la viñeta y en el `Rd`, y no en el objeto:
+  # quien lo mira en la consola ve siete filas sin nada que lo advierta. El
+  # trazador lleva la profundidad para que el objeto lo diga solo, en vez de
+  # depender de una tabla de jerarquia escrita a mano que se desactualiza en
+  # cuanto alguien agregue una etapa en otro archivo.
+  estado$profundidad <- 0L
+  estado
+}
+
+.registrar_etapa_dbi <- function(trazador, etapa, inicio = NULL, fin = NULL,
+                                 estado = NULL, nivel = NULL) {
+  if (is.null(trazador)) return(invisible(NULL))
+  medido <- isTRUE(trazador$activo)
+  if (is.null(estado)) estado <- if (medido) "medido" else "no_medido"
+  if (is.null(nivel)) nivel <- trazador$profundidad + 1L
+  trazador$etapas[[length(trazador$etapas) + 1L]] <- list(
+    etapa = as.character(etapa),
+    duracion_ms = if (medido) .duracion_ms_dbi(inicio, fin) else NA_real_,
+    estado = as.character(estado),
+    nivel = as.integer(nivel)
+  )
+  invisible(NULL)
+}
+
+.medir_etapa_dbi <- function(trazador, etapa, expresion, activa = TRUE) {
+  if (is.null(trazador)) return(force(expresion))
+  if (!isTRUE(activa)) {
+    .registrar_etapa_dbi(trazador, etapa, estado = "no_solicitado")
+    return(force(expresion))
+  }
+  inicio <- if (isTRUE(trazador$activo)) .ahora_dbi() else NULL
+  nivel <- trazador$profundidad + 1L
+  trazador$profundidad <- nivel
+  # El descuento va por `on.exit` para que un error dentro de la etapa no deje
+  # la profundidad corrida y todo lo que venga despues mal clasificado.
+  on.exit(trazador$profundidad <- nivel - 1L, add = TRUE)
+  valor <- tryCatch(
+    list(ok = TRUE, valor = force(expresion)),
+    error = function(e) list(ok = FALSE, error = e)
+  )
+  .registrar_etapa_dbi(trazador, etapa, inicio, .ahora_dbi(), nivel = nivel)
+  if (!isTRUE(valor$ok)) stop(valor$error)
+  valor$valor
+}
+
+.resumen_tiempos_dbi <- function(trazador) {
+  vacio <- data.frame(
+    etapa = character(), duracion_ms = numeric(), estado = character(),
+    nivel = integer(), n_ejecuciones = integer(), stringsAsFactors = FALSE
+  )
+  if (is.null(trazador) || !length(trazador$etapas)) return(vacio)
+  datos <- do.call(rbind, lapply(trazador$etapas, function(x) {
+    data.frame(
+      etapa = x$etapa, duracion_ms = x$duracion_ms, estado = x$estado,
+      nivel = if (is.null(x$nivel)) 1L else x$nivel,
+      n_ejecuciones = 1L, stringsAsFactors = FALSE
+    )
+  }))
+  grupos <- split(seq_len(nrow(datos)), datos$etapa)
+  salida <- do.call(rbind, lapply(names(grupos), function(etapa) {
+    filas <- datos[grupos[[etapa]], , drop = FALSE]
+    duraciones <- filas$duracion_ms
+    data.frame(
+      etapa = etapa,
+      duracion_ms = if (all(!is.na(duraciones))) sum(duraciones) else NA_real_,
+      estado = if (any(filas$estado == "no_solicitado")) {
+        "no_solicitado"
+      } else if (any(filas$estado == "no_medido")) {
+        "no_medido"
+      } else {
+        "medido"
+      },
+      # Sólo las de nivel 1 se pueden sumar entre sí; las demás están
+      # contenidas en alguna de ellas.
+      nivel = min(filas$nivel),
+      n_ejecuciones = nrow(filas), stringsAsFactors = FALSE
+    )
+  }))
+  rownames(salida) <- NULL
+  salida
 }
 
 # Perfilar la tabla entera -lo que viene por omision- puede tardar minutos sobre
@@ -459,7 +627,9 @@
         acotada <- dialecto$limitar(sql, 1L, 0)
         if (!is.null(acotada)) sql <- acotada
         sondas <- c(sondas, sql)
-        prueba <- .consultar_dbi(conexion, sql, presupuesto)
+        prueba <- .consultar_dbi(
+          conexion, sql, presupuesto, etapa = "sonda_muestreo"
+        )
         if (is.null(aceptada) && isTRUE(prueba$ok) && !is.null(acotada)) {
           aceptada <- candidato
           aceptada$funciones <- list(funcion)
@@ -468,7 +638,9 @@
       next
     }
     sondas <- c(sondas, sql)
-    prueba <- .consultar_dbi(conexion, sql, presupuesto)
+    prueba <- .consultar_dbi(
+      conexion, sql, presupuesto, etapa = "sonda_muestreo"
+    )
     if (is.null(aceptada) && isTRUE(prueba$ok)) aceptada <- candidato
   }
   if (is.null(aceptada)) {
@@ -664,7 +836,9 @@
       sql <- paste0(sql, " FROM DUAL")
     }
     sondas <- c(sondas, sql)
-    resultado <- .consultar_dbi(conexion, sql, presupuesto)
+    resultado <- .consultar_dbi(
+      conexion, sql, presupuesto, etapa = "sonda_aproximacion"
+    )
     if (is.null(elegida) && isTRUE(resultado$ok)) elegida <- candidato
   }
   list(
@@ -753,7 +927,9 @@
     sql <- candidato$limitar(sql_forma, 1L, 0)
     if (is.null(sql)) next
     sondas <- c(sondas, sql)
-    resultado <- .consultar_dbi(conexion, sql, presupuesto)
+    resultado <- .consultar_dbi(
+      conexion, sql, presupuesto, etapa = "sonda_dialecto"
+    )
     if (resultado$ok) {
       return(list(
         dialecto = candidato, sondas = sondas, declarado = FALSE,
@@ -811,18 +987,23 @@
 
 # `filas >= 0` usa la via portable: el motor prepara el resultado y R lee solo
 # las filas pedidas. Es la unica forma de acotar sin clausula de dialecto.
-.consultar_dbi <- function(conexion, sql, presupuesto = NULL, filas = -1L) {
+.consultar_dbi <- function(conexion, sql, presupuesto = NULL, filas = -1L,
+                           etapa = "consulta") {
   if (!.gastar_dbi(presupuesto)) {
-    return(list(
+    return(.adjuntar_medicion_dbi(list(
       ok = FALSE, datos = NULL, motivo = .motivo_presupuesto_dbi(presupuesto)
-    ))
+    ), .medicion_consulta_vacia_dbi(etapa)))
   }
+  medicion <- .iniciar_consulta_dbi(presupuesto, etapa)
   if (filas < 0) {
-    return(tryCatch(
+    salida <- tryCatch(
       list(ok = TRUE, datos = DBI::dbGetQuery(conexion, sql), motivo = NA_character_),
       error = function(e) {
         list(ok = FALSE, datos = NULL, motivo = conditionMessage(e))
       }
+    )
+    return(.adjuntar_medicion_dbi(
+      salida, .terminar_consulta_dbi(medicion, salida$datos)
     ))
   }
   resultado <- NULL
@@ -830,12 +1011,15 @@
     if (!is.null(resultado)) try(DBI::dbClearResult(resultado), silent = TRUE),
     add = TRUE
   )
-  tryCatch({
+  salida <- tryCatch({
     resultado <- DBI::dbSendQuery(conexion, sql)
     list(ok = TRUE, datos = DBI::dbFetch(resultado, n = filas), motivo = NA_character_)
   }, error = function(e) {
     list(ok = FALSE, datos = NULL, motivo = conditionMessage(e))
   })
+  .adjuntar_medicion_dbi(
+    salida, .terminar_consulta_dbi(medicion, salida$datos)
+  )
 }
 
 # Oracle, DB2, Firebird y Snowflake pliegan a mayusculas los identificadores.
@@ -885,12 +1069,15 @@
   posicion
 }
 
-.escalar_dbi <- function(conexion, sql, campo, presupuesto = NULL) {
-  resultado <- .consultar_dbi(conexion, sql, presupuesto)
+.escalar_dbi <- function(conexion, sql, campo, presupuesto = NULL,
+                         etapa = "consulta") {
+  resultado <- .consultar_dbi(conexion, sql, presupuesto, etapa = etapa)
   if (!resultado$ok) {
-    return(list(ok = FALSE, valor = NULL, motivo = resultado$motivo))
+    return(.adjuntar_medicion_dbi(
+      list(ok = FALSE, valor = NULL, motivo = resultado$motivo), resultado
+    ))
   }
-  .valor_campo_dbi(resultado$datos, campo)
+  .adjuntar_medicion_dbi(.valor_campo_dbi(resultado$datos, campo), resultado)
 }
 
 # Habia dos funciones con cuerpos identicos para la misma pregunta -esta y
@@ -1029,8 +1216,27 @@
 # ---- Registro de auditoria ----------------------------------------------
 
 .registro_sql_dbi <- function(columna, metricas, estado, motivo, sql,
-                              metadatos = NULL) {
+                              metadatos = NULL, medicion = NULL,
+                              etapa = NULL) {
   if (is.null(metadatos)) metadatos <- .metadatos_sql_dbi()
+  if (is.null(medicion)) {
+    medicion <- .medicion_consulta_vacia_dbi()
+  }
+  etapa_publicada <- if (!is.null(medicion$etapa) &&
+                         length(medicion$etapa) == 1L &&
+                         !is.na(medicion$etapa)) {
+    medicion$etapa
+  } else if (!is.null(etapa) && length(etapa) == 1L && !is.na(etapa)) {
+    etapa
+  } else if (identical(estado, "no_solicitado")) {
+    "no_solicitado"
+  } else {
+    "resumen_sql"
+  }
+  medicion_valor <- function(nombre, defecto) {
+    valor <- medicion[[nombre]]
+    if (is.null(valor) || !length(valor)) defecto else valor
+  }
   data.frame(
     columna = rep_len(as.character(columna), length(metricas)),
     metrica = as.character(metricas),
@@ -1047,6 +1253,19 @@
     columnas_compartidas = rep_len(
       as.integer(metadatos$columnas_compartidas), length(metricas)
     ),
+    duracion_ms = rep_len(
+      as.numeric(medicion_valor("duracion_ms", NA_real_)), length(metricas)
+    ),
+    n_filas_resultado = rep_len(
+      as.numeric(medicion_valor("n_filas_resultado", NA_real_)), length(metricas)
+    ),
+    bytes_resultado_r = rep_len(
+      as.numeric(medicion_valor("bytes_resultado_r", NA_real_)), length(metricas)
+    ),
+    consulta_id = rep_len(
+      as.integer(medicion_valor("consulta_id", NA_integer_)), length(metricas)
+    ),
+    etapa = rep_len(as.character(etapa_publicada), length(metricas)),
     stringsAsFactors = FALSE
   )
 }
@@ -1066,7 +1285,7 @@
   motivo <- if (resultado$ok) motivo_exito else resultado$motivo
   sql <- if (is.null(resultado$sql)) NA_character_ else resultado$sql
   c(registros, list(.registro_sql_dbi(
-    columna, metricas, estado, motivo, sql, metadatos
+    columna, metricas, estado, motivo, sql, metadatos, medicion = resultado
   )))
 }
 
@@ -1360,13 +1579,17 @@
       ", COUNT(DISTINCT ", columna_sql, ") AS ", alias("n_distintos"),
       " FROM ", tabla_sql
     )
-    consulta <- .consultar_dbi(conexion, sql, presupuesto)
+    consulta <- .consultar_dbi(
+      conexion, sql, presupuesto, etapa = "conteos"
+    )
     if (consulta$ok) {
       validos <- .valor_campo_dbi(consulta$datos, "n_validos")
       distintos <- .valor_campo_dbi(consulta$datos, "n_distintos")
       if (validos$ok && distintos$ok) {
         validos$sql <- sql
         distintos$sql <- sql
+        validos <- .adjuntar_medicion_dbi(validos, consulta)
+        distintos <- .adjuntar_medicion_dbi(distintos, consulta)
         if (!is.null(aproximacion_distintos)) {
           distintos$metadatos <- list(
             metodo = aproximacion_distintos$nombre,
@@ -1382,13 +1605,16 @@
   }
   resultado <- list(consolidada = FALSE)
   if (pide_validos) {
-    validos <- .escalar_dbi(conexion, sql_validos, "n_validos", presupuesto)
+    validos <- .escalar_dbi(
+      conexion, sql_validos, "n_validos", presupuesto, etapa = "conteos"
+    )
     validos$sql <- sql_validos
     resultado$validos <- validos
   }
   if (pide_distintos) {
     distintos <- .escalar_dbi(
-      conexion, sql_distintos, "n_distintos", presupuesto
+      conexion, sql_distintos, "n_distintos", presupuesto,
+      etapa = "conteos"
     )
     distintos$sql <- sql_distintos
     if (!is.null(aproximacion_distintos)) {
@@ -1428,24 +1654,24 @@
 
 .resultado_lote_dbi <- function(consulta, sql, alias, metadatos) {
   if (!consulta$ok) {
-    return(list(
+    return(.adjuntar_medicion_dbi(list(
       ok = FALSE, valor = NULL, motivo = consulta$motivo, sql = sql,
       metadatos = metadatos
-    ))
+    ), consulta))
   }
   resultado <- .valor_campo_dbi(consulta$datos, .nombre_alias_dbi(alias))
   resultado$sql <- sql
   resultado$metadatos <- metadatos
-  resultado
+  .adjuntar_medicion_dbi(resultado, consulta)
 }
 
 .resultado_lote_campos_dbi <- function(consulta, sql, alias, metricas,
                                        metadatos) {
   if (!consulta$ok) {
-    return(list(
+    return(.adjuntar_medicion_dbi(list(
       ok = FALSE, datos = NULL, motivo = consulta$motivo, sql = sql,
       metadatos = metadatos
-    ))
+    ), consulta))
   }
   celdas <- lapply(metricas, function(metrica) {
     .valor_campo_dbi(
@@ -1454,18 +1680,21 @@
   })
   fallas <- vapply(celdas, function(celda) !isTRUE(celda$ok), logical(1L))
   if (any(fallas)) {
-    return(list(
+    return(.adjuntar_medicion_dbi(list(
       ok = FALSE, datos = NULL,
       motivo = paste(vapply(celdas[fallas], `[[`, character(1L), "motivo"),
                      collapse = " "),
       sql = sql, metadatos = metadatos
-    ))
+    ), consulta))
   }
   valores <- lapply(celdas, `[[`, "valor")
   names(valores) <- metricas
   datos <- as.data.frame(valores, stringsAsFactors = FALSE)
-  list(ok = TRUE, datos = datos, motivo = NA_character_, sql = sql,
-       metadatos = metadatos)
+  .adjuntar_medicion_dbi(
+    list(ok = TRUE, datos = datos, motivo = NA_character_, sql = sql,
+         metadatos = metadatos),
+    consulta
+  )
 }
 
 .basicos_columna_dbi <- function(conexion, tabla_sql, columna_sql, alias,
@@ -1485,7 +1714,9 @@
     )
   )
   sql <- paste0("SELECT ", paste(partes, collapse = ", "), " FROM ", tabla_sql)
-  resultado <- .consultar_dbi(conexion, sql, presupuesto)
+  resultado <- .consultar_dbi(
+    conexion, sql, presupuesto, etapa = "basicos"
+  )
   resultado$sql <- sql
   resultado$metadatos <- metadatos
   resultado
@@ -1514,7 +1745,9 @@
                                 forma, presupuesto = NULL, metadatos = NULL) {
   formas <- .formas_desvio_dbi(tabla_sql, columna_sql, alias)
   sql <- paste0("SELECT ", formas[[forma]], " FROM ", tabla_sql)
-  resultado <- .escalar_dbi(conexion, sql, "desvio", presupuesto)
+  resultado <- .escalar_dbi(
+    conexion, sql, "desvio", presupuesto, etapa = "desvio"
+  )
   resultado$sql <- sql
   resultado$metadatos <- metadatos
   resultado
@@ -1579,7 +1812,9 @@
       sql <- paste0(
         "SELECT ", paste(expresiones, collapse = ", "), " FROM ", tabla_sql
       )
-      consulta <- .consultar_dbi(conexion, sql, presupuesto)
+      consulta <- .consultar_dbi(
+        conexion, sql, presupuesto, etapa = "conteos"
+      )
       for (i in seq_along(lote)) {
         campo <- lote[[i]]
         resultado <- list(consolidada = TRUE)
@@ -1676,7 +1911,9 @@
       sql <- paste0(
         "SELECT ", paste(expresiones, collapse = ", "), " FROM ", tabla_sql
       )
-      consulta <- .consultar_dbi(conexion, sql, presupuesto)
+      consulta <- .consultar_dbi(
+        conexion, sql, presupuesto, etapa = "basicos"
+      )
       for (i in seq_along(lote)) {
         campo <- lote[[i]]
         resultado <- .resultado_lote_campos_dbi(
@@ -1714,7 +1951,9 @@
       sql <- paste0(
         "SELECT ", paste(expresiones, collapse = ", "), " FROM ", tabla_sql
       )
-      consulta <- .consultar_dbi(conexion, sql, presupuesto)
+      consulta <- .consultar_dbi(
+        conexion, sql, presupuesto, etapa = "desvio"
+      )
       for (i in seq_along(lote)) {
         campo <- lote[[i]]
         resultado <- .resultado_lote_dbi(
@@ -1886,16 +2125,15 @@
       imposible <- !is.na(candidato) && is.finite(limite_distintos) &&
         .numero_dbi(candidato) > limite_distintos
       if (imposible) {
+        distintos$ok <- FALSE
+        distintos$valor <- NULL
+        distintos$motivo <- paste0(
+          "El motor informo ", candidato, " valores distintos sobre ",
+          limite_distintos,
+          " validos, que es imposible; la metrica no se publica."
+        )
         registros <- registrar(
-          registros, .CAMPOS_METRICA_DBI$distintos,
-          list(
-            ok = FALSE, valor = NULL, sql = distintos$sql,
-            motivo = paste0(
-              "El motor informo ", candidato, " valores distintos sobre ",
-              limite_distintos,
-              " validos, que es imposible; la metrica no se publica."
-            )
-          )
+          registros, .CAMPOS_METRICA_DBI$distintos, distintos
         )
       } else {
         fila$n_distintos <- candidato
@@ -1929,7 +2167,8 @@
     sql_moda <- if (is.null(acotada)) sin_limite else acotada
     moda <- .consultar_dbi(
       conexion, sql_moda, presupuesto,
-      filas = if (is.null(acotada)) 1L else -1L
+      filas = if (is.null(acotada)) 1L else -1L,
+      etapa = "moda"
     )
     if (moda$ok && nrow(moda$datos)) {
       # La moda no pasaba por la verificacion de nombre: un motor que plegara
@@ -2152,7 +2391,9 @@
       sql_mediana <- aproximacion_mediana$construir(
         columna_sql, tabla_sql, alias("mediana")
       )
-      mediana <- .escalar_dbi(conexion, sql_mediana, "mediana", presupuesto)
+      mediana <- .escalar_dbi(
+        conexion, sql_mediana, "mediana", presupuesto, etapa = "mediana"
+      )
       mediana$sql <- sql_mediana
       mediana$estado <- "estimado"
       mediana$metadatos <- list(
@@ -2198,7 +2439,9 @@
           "SELECT AVG(", alias("valor"), " * 1.0) AS ", alias("mediana"),
           " FROM (", acotada, ")", dialecto$alias_tabla("lupa_mediana")
         )
-        mediana <- .escalar_dbi(conexion, sql_mediana, "mediana", presupuesto)
+        mediana <- .escalar_dbi(
+          conexion, sql_mediana, "mediana", presupuesto, etapa = "mediana"
+        )
         if (mediana$ok) fila$mediana <- .escalar_finito_dbi(mediana$valor)
         mediana$sql <- sql_mediana
         if (identical(modo, "aproximado")) {
@@ -2279,7 +2522,8 @@
                                 campos_consolidados = NULL,
                                 campos_sql_consolidados = NULL,
                                 es_numerico_consolidados = NULL,
-                                tamano_lote = .TAMANO_LOTE_DBI) {
+                                tamano_lote = .TAMANO_LOTE_DBI,
+                                conteo = NULL) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   if (is.null(campos_consolidados)) campos_consolidados <- campos
   if (is.null(campos_sql_consolidados)) {
@@ -2353,7 +2597,9 @@
           fraccion = if (identical(modo, "muestreado")) fraccion_muestra else 1,
           metodo = if (identical(modo, "muestreado")) "conteo_universo" else
             "conteo_universo"
-        )
+        ),
+        medicion = conteo,
+        etapa = "conteo_filas"
       ),
       do.call(rbind, lapply(resultados, `[[`, "sql"))
     )
@@ -2437,7 +2683,10 @@
     " GROUP BY ", paste(orden_sql, collapse = ", "),
     " HAVING COUNT(*) > 1)", dialecto$alias_tabla("lupa_orden_repetido")
   )
-  resultado <- .escalar_dbi(conexion, sql, "n_grupos_repetidos", presupuesto)
+  resultado <- .escalar_dbi(
+    conexion, sql, "n_grupos_repetidos", presupuesto,
+    etapa = "verificacion_orden"
+  )
   repetidos <- .escalar_finito_dbi(resultado$valor)
   list(
     unico = resultado$ok && identical(repetidos, 0),
@@ -2480,7 +2729,8 @@
   # sin `LIMIT` muere aca, en la primera consulta, con el texto crudo del
   # driver. Se degrada a leer el esquema con una consulta de cero filas.
   respaldo <- .consultar_dbi(
-    conexion, paste0("SELECT * FROM ", tabla_sql, " WHERE 1 = 0"), presupuesto
+    conexion, paste0("SELECT * FROM ", tabla_sql, " WHERE 1 = 0"),
+    presupuesto, etapa = "esquema"
   )
   if (respaldo$ok && length(names(respaldo$datos))) {
     return(list(
@@ -2505,19 +2755,20 @@
   )
 }
 
-.leer_esquema_dbi <- function(conexion, sql, presupuesto) {
+.leer_esquema_dbi <- function(conexion, sql, presupuesto, etapa = "esquema") {
   if (!.gastar_dbi(presupuesto)) {
-    return(list(
+    return(c(list(
       ok = FALSE, datos = NULL, tipos = NULL,
       motivo = .motivo_presupuesto_dbi(presupuesto)
-    ))
+    ), .medicion_consulta_vacia_dbi(etapa)))
   }
+  medicion <- .iniciar_consulta_dbi(presupuesto, etapa)
   resultado <- NULL
   on.exit(
     if (!is.null(resultado)) try(DBI::dbClearResult(resultado), silent = TRUE),
     add = TRUE
   )
-  tryCatch({
+  salida <- tryCatch({
     resultado <- DBI::dbSendQuery(conexion, sql)
     prototipo <- DBI::dbFetch(resultado, n = 0L)
     informacion <- tryCatch(DBI::dbColumnInfo(resultado), error = function(e) NULL)
@@ -2530,6 +2781,9 @@
   }, error = function(e) {
     list(ok = FALSE, datos = NULL, tipos = NULL, motivo = conditionMessage(e))
   })
+  .adjuntar_medicion_dbi(
+    salida, .terminar_consulta_dbi(medicion, salida$datos)
+  )
 }
 
 .esquema_dbi <- function(conexion, tabla_sql, campos, presupuesto) {
@@ -2556,7 +2810,9 @@
   motivos <- list()
   for (i in seq_along(campos)) {
     sonda <- .sql_esquema_dbi(tabla_sql, campos_sql[[i]])
-    parcial <- .leer_esquema_dbi(conexion, sonda, presupuesto)
+    parcial <- .leer_esquema_dbi(
+      conexion, sonda, presupuesto, etapa = "esquema"
+    )
     if (parcial$ok && length(names(parcial$datos))) {
       legibles <- c(legibles, campos[[i]])
       legibles_sql <- c(legibles_sql, campos_sql[[i]])
@@ -2738,7 +2994,18 @@
 
 # Los alcances que traen filas a R. Vocabulario cerrado: lo escribe
 # `.plan_consultas_dbi()` y nadie mas.
+# Los dos alcances que involucran una muestra, que NO son la misma cosa:
+# `"lee una muestra del motor"` es trabajo del motor -en `modo = "muestreado"`
+# el motor muestrea para sus propios agregados- y `"lee las filas pedidas"` es
+# el bloque del cliente, que es lo unico que trae filas a R.
 .ALCANCES_CON_MUESTRA_DBI <- c("lee una muestra del motor", "lee las filas pedidas")
+
+# El trabajo del CLIENTE cuelga solo del segundo. Contarlo sobre el conjunto de
+# los dos hacia que `modo = "muestreado"` con `bloque_muestra = "solo_agregados"`
+# declarara cuatro millones de pares de formas a comparar en R sin traer una sola
+# fila, y el plan impreso se contradecia a dos lineas: "el plan incluye solo
+# agregados SQL" y despues "mas 4.000.000 pares de formas a comparar en R".
+.ALCANCE_BLOQUE_CLIENTE_DBI <- "lee las filas pedidas"
 
 # El tope de pares se lee de la firma del detector en vez de copiarse: si el
 # valor cambia alla, el plan no se queda estimando contra un numero viejo.
@@ -2833,7 +3100,7 @@
   if (is.null(max_pares)) max_pares <- .max_pares_vocabulario_dbi()
   tope_pares <- numero(max_pares)
   if (is.na(tope_pares)) tope_pares <- Inf
-  filas_muestra <- if (any(plan$alcance %in% .ALCANCES_CON_MUESTRA_DBI)) {
+  filas_muestra <- if (any(plan$alcance %in% .ALCANCE_BLOQUE_CLIENTE_DBI)) {
     min(filas, muestra)
   } else {
     0
@@ -2891,6 +3158,10 @@
 #' de agregados se emitirán antes de empezar y evita una sorpresa de costo.
 #'
 #' @inheritParams perfilar_dbi
+#' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas-portón
+#'   que el plan necesita leer para conocer el esquema y las capacidades del
+#'   motor, pero no agrega mediciones al objeto devuelto: sus costos siguen
+#'   siendo predicciones. Por omisión es `FALSE`.
 #'
 #' @return Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
 #'   `n_consultas` y `alcance`, y los atributos `total`,
@@ -2919,6 +3190,9 @@
 #'   `"alta"`, o `"desconocida"` si no se conoce el número de filas.
 #'   `supuesto_costo` dice de dónde sale cada cuenta.
 #'
+#'   El plan no publica duraciones, filas ni bytes medidos: sus campos de costo
+#'   siguen siendo predicciones basadas en los supuestos anteriores.
+#'
 #'   Contar sólo el motor daba juicios falsos con números ciertos: una tabla de
 #'   3.912 filas con una columna de geometría en texto pedía 64.592 lecturas
 #'   —magnitud `"baja"`— y tardaba 35 segundos, porque el trabajo estaba en la
@@ -2944,12 +3218,14 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
                                metricas = NULL, max_consultas = Inf,
                                dialecto = "auto", incluir_valores = TRUE,
                                tamano_lote = .TAMANO_LOTE_DBI,
-                               bloque_muestra = c("con_muestra", "solo_agregados")) {
+                               bloque_muestra = c("con_muestra", "solo_agregados"),
+                               instrumentar = FALSE) {
   preparacion <- .preparar_dbi(
     conexion = conexion, tabla = tabla, muestra = muestra,
     orden_muestra = orden_muestra, modo = modo, metricas = metricas,
     max_consultas = max_consultas, dialecto = dialecto,
-    tamano_lote = tamano_lote, bloque_muestra = bloque_muestra
+    tamano_lote = tamano_lote, bloque_muestra = bloque_muestra,
+    instrumentar = instrumentar
   )
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
     .es_numerico_dbi(
@@ -3423,7 +3699,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
                                 muestra, orden_muestra, orden_sql, dialecto,
                                 n_total, presupuesto, info_conexion,
                                 argumentos, muestreo = NULL,
-                                tipos_declarados = NULL) {
+                                tipos_declarados = NULL,
+                                trazador = NULL) {
   cobertura <- .cobertura_dbi_vacia()
   # En Oracle la cadena vacia **es** NULL: no hay forma de distinguirlas, ni
   # desde SQL ni desde el controlador. Eso cambia una medida que el paquete
@@ -3532,7 +3809,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     recorte <- dialecto$limitar(base, 1, 0)
     respuesta <- .consultar_dbi(
       conexion, if (is.null(recorte)) base else recorte, presupuesto,
-      filas = if (is.null(recorte)) 1L else -1L
+      filas = if (is.null(recorte)) 1L else -1L,
+      etapa = "sonda_lectura_muestra"
     )
     isTRUE(respuesta$ok)
   }
@@ -3572,7 +3850,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
     muestreo_meta$universo <- n_total
     muestreo_meta$capacidad <- muestreo$candidato$nombre
   }
-  consulta <- .consultar_dbi(conexion, sql_muestra, presupuesto, filas = filas)
+  lectura_inicio <- if (isTRUE(presupuesto$instrumentar)) .ahora_dbi() else NULL
+  consulta <- .consultar_dbi(
+    conexion, sql_muestra, presupuesto, filas = filas,
+    etapa = "lectura_muestra"
+  )
   campos_omitidos <- character()
   if (!consulta$ok) {
     # Una sola columna que el controlador no sabe traer se llevaba puesta la
@@ -3604,7 +3886,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
       quedan <- setdiff(seq_along(campos_sql), largas)
       candidato <- armar_muestra_dbi(quedan)
       prueba <- .consultar_dbi(
-        conexion, candidato$sql, presupuesto, filas = candidato$filas
+        conexion, candidato$sql, presupuesto, filas = candidato$filas,
+        etapa = "lectura_muestra"
       )
       if (isTRUE(prueba$ok)) {
         recuperado <- list(
@@ -3636,7 +3919,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
         quedan <- setdiff(seq_along(campos_sql), culpables)
         candidato <- armar_muestra_dbi(quedan)
         prueba <- .consultar_dbi(
-          conexion, candidato$sql, presupuesto, filas = candidato$filas
+          conexion, candidato$sql, presupuesto, filas = candidato$filas,
+          etapa = "lectura_muestra"
         )
         if (isTRUE(prueba$ok)) {
           recuperado <- list(
@@ -3718,6 +4002,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }
   }
   if (!consulta$ok) {
+    .registrar_etapa_dbi(
+      trazador, "lectura_muestra", lectura_inicio, .ahora_dbi()
+    )
+    .registrar_etapa_dbi(
+      trazador, "perfilado_muestra", estado = "no_solicitado"
+    )
     # Antes se descartaba aca el resumen entero cuando fallaba la consulta de
     # muestra. Ahora la muestra se declara no disponible y el resumen sale igual,
     # con su alcance.
@@ -3735,6 +4025,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }
   datos_muestra <- consulta$datos
   n_obtenidas <- nrow(datos_muestra)
+  .registrar_etapa_dbi(
+    trazador, "lectura_muestra", lectura_inicio, .ahora_dbi()
+  )
   muestreo_meta$filas_obtenidas <- as.numeric(n_obtenidas)
   muestreo_meta$tabla_completa <- n_obtenidas == .numero_dbi(n_total)
   if (!identical(as.numeric(n_obtenidas), as.numeric(n_obtener))) {
@@ -3758,8 +4051,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
     argumentos$nombre <- paste0("muestra DBI de ", .texto_tabla_dbi(tabla))
   }
   argumentos$muestra <- Inf
+  if (!is.null(trazador)) {
+    attr(datos_muestra, "lupa_trazador_tiempos_dbi") <- trazador
+  }
   perfil <- tryCatch(
-    do.call(perfilar, c(list(datos = datos_muestra), argumentos)),
+    .medir_etapa_dbi(
+      trazador, "perfilado_muestra",
+      do.call(perfilar, c(list(datos = datos_muestra), argumentos))
+    ),
     error = function(e) e
   )
   if (inherits(perfil, "condition")) {
@@ -3793,7 +4092,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 
 .preparar_dbi <- function(conexion, tabla, muestra, orden_muestra, modo,
                           metricas, max_consultas, dialecto, tamano_lote,
-                          bloque_muestra) {
+                          bloque_muestra, instrumentar = TRUE) {
   .requerir_dbi()
   modo <- match.arg(
     modo, c("exacto", "seguro", "conteos", "muestreado", "aproximado")
@@ -3811,6 +4110,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
   metricas <- .validar_metricas_dbi(metricas, modo)
   max_consultas <- .validar_max_consultas_dbi(max_consultas)
   tamano_lote <- .validar_tamano_lote_dbi(tamano_lote)
+  if (!is.logical(instrumentar) || length(instrumentar) != 1L ||
+      is.na(instrumentar)) {
+    .detener_dbi(
+      "lupa_error_argumento_dbi",
+      "`instrumentar` debe ser TRUE o FALSE."
+    )
+  }
   if (!.es_conexion_dbi(conexion)) {
     .detener_dbi(
       "lupa_error_conexion_dbi",
@@ -3823,7 +4129,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       "`conexion` debe ser una conexion DBI abierta y valida."
     )
   }
-  presupuesto <- .presupuesto_dbi(max_consultas)
+  presupuesto <- .presupuesto_dbi(max_consultas, instrumentar = instrumentar)
   .contar_dbi(presupuesto)
   # Un nombre de dos partes con punto es lo que cualquiera escribe, y
   # `dbExistsTable()` no lo resuelve: lo toma como un nombre literal. Antes esto
@@ -3859,7 +4165,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     # `dbExistsTable()`. La consulta no trae datos y confirma la tabla sin
     # depender de una API de metadatos incompleta.
     comprobacion <- .consultar_dbi(
-      conexion, paste0("SELECT 1 FROM ", tabla_sql, " WHERE 1 = 0"), presupuesto
+      conexion, paste0("SELECT 1 FROM ", tabla_sql, " WHERE 1 = 0"),
+      presupuesto, etapa = "porton_tabla"
     )
     existe <- isTRUE(comprobacion$ok)
     if (!isTRUE(existe)) motivo_existe <- comprobacion$motivo
@@ -3894,7 +4201,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
     "SELECT COUNT(*) AS ",
     as.character(DBI::dbQuoteIdentifier(conexion, "n")), " FROM ", tabla_sql
   )
-  conteo <- .escalar_dbi(conexion, sql_conteo, "n", presupuesto)
+  conteo <- .escalar_dbi(
+    conexion, sql_conteo, "n", presupuesto, etapa = "conteo_filas"
+  )
   if (!conteo$ok) {
     .detener_dbi("lupa_error_conteo_dbi", paste0(
       "No se pudo contar la tabla: ", conteo$motivo
@@ -3981,13 +4290,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
     modo = modo, metricas = metricas, muestra = muestra,
     bloque_muestra = bloque_muestra,
     max_consultas = max_consultas, presupuesto = presupuesto,
+    instrumentar = isTRUE(instrumentar),
     tamano_lote = tamano_lote,
     tabla_sql = tabla_sql, campos = campos, campos_sql = esquema$campos_sql,
     prototipo = prototipo, tipos = esquema$tipos, esquema = esquema,
     es_numerico = es_numerico, muestreo = muestreo,
     aproximaciones = aproximaciones,
     aproximaciones_resolucion = aproximaciones_resolucion,
-    n_total = n_total, sql_conteo = sql_conteo, orden_sql = orden_sql,
+    n_total = n_total, conteo = conteo, sql_conteo = sql_conteo,
+    orden_sql = orden_sql,
     orden_muestra = orden_muestra, dialecto = resolucion$dialecto,
     resolucion = resolucion, campos_declarados = campos_declarados,
     lista_campos = lista_campos
@@ -4072,6 +4383,25 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' emitirlas. Lo que no entra en el presupuesto queda en `no_disponible` con su
 #' motivo, nunca en cero.
 #'
+#' @section Instrumentación:
+#' `resumen_tabla$sql` conserva una fila por métrica y agrega la duración de la
+#' consulta que la respalda, las filas devueltas y los bytes que ese resultado
+#' ocupa en R. `consulta_id` identifica el intento dentro de la corrida y
+#' `etapa` permite agruparlo (`conteos`, `moda`, `basicos`, `mediana`,
+#' `desvio`, `lectura_muestra` y las sondas). Las métricas no solicitadas o que
+#' no emitieron consulta conservan esos campos y los dejan en `NA`; en
+#' particular, `NA` no significa cero.
+#'
+#' `resumen_tabla$tiempos` reúne las etapas grandes del cliente en las mismas
+#' unidades (`duracion_ms`): `lectura_muestra`, `perfilado_muestra`,
+#' `perfilado_columnas`, y los análisis opcionales cuando se solicitan. Una
+#' etapa apagada queda con estado `no_solicitado`; si la instrumentación se
+#' apaga queda con estado `no_medido` y duración `NA`. La columna `nivel` dice cuáles se
+#' pueden sumar: las de `nivel = 1` son disjuntas entre sí, y las de nivel mayor
+#' están contenidas en alguna de ellas. `perfilado_muestra` es inclusivo
+#' -contiene el perfilado por columna, las dependencias y los casi-duplicados-,
+#' así que sumar la columna entera da más que la corrida.
+#'
 #' @section Datos personales:
 #' `proteger_datos_personales` viaja en `...` hacia [perfilar()] y vale `TRUE`
 #' por omisión. La protección alcanza a los dos bloques: en `resumen_tabla` se
@@ -4140,6 +4470,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   omisión) calcula también `perfil_muestra`, o `"solo_agregados"` omite su
 #'   lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
 #'   alcance de esos agregados: eso lo decide `modo`.
+#' @param instrumentar Si se cronometra cada consulta y las etapas grandes de R.
+#'   Por omisión es `TRUE`; agrega `duracion_ms`, `n_filas_resultado`,
+#'   `bytes_resultado_r`, `consulta_id` y `etapa` a `resumen_tabla$sql`, y el
+#'   resumen `resumen_tabla$tiempos`. Con `FALSE` se conserva el mismo plan, la
+#'   misma cantidad y el mismo orden de consultas, pero los campos medibles
+#'   quedan en `NA`. Las duraciones usan `Sys.time()` y los intervalos que el
+#'   reloj no puede resolver no se publican como cero.
 #' @param ... Argumentos enviados a [perfilar()] para analizar la muestra.
 #'
 #' @return Objeto de clase `perfil_dbi` con dos componentes: `resumen_tabla`, de
@@ -4167,12 +4504,14 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                          dialecto = "auto", incluir_valores = TRUE,
                          tamano_lote = .TAMANO_LOTE_DBI,
                          bloque_muestra = c("con_muestra", "solo_agregados"),
+                         instrumentar = TRUE,
                          ...) {
   preparacion <- .preparar_dbi(
     conexion = conexion, tabla = tabla, muestra = muestra,
     orden_muestra = orden_muestra, modo = modo, metricas = metricas,
     max_consultas = max_consultas, dialecto = dialecto,
-    tamano_lote = tamano_lote, bloque_muestra = bloque_muestra
+    tamano_lote = tamano_lote, bloque_muestra = bloque_muestra,
+    instrumentar = instrumentar
   )
   presupuesto <- preparacion$presupuesto
   info_conexion <- .info_conexion_dbi(conexion)
@@ -4252,6 +4591,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   }
 
   campos_todos <- unique(c(preparacion$campos, preparacion$esquema$ilegibles))
+  trazador <- .trazador_tiempos_dbi(preparacion$instrumentar)
   resumen <- .resumen_tabla_dbi(
     conexion, tabla, preparacion$tabla_sql, campos_todos,
     preparacion$prototipo, preparacion$n_total, preparacion$sql_conteo,
@@ -4268,13 +4608,24 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
      campos_consolidados = preparacion$campos,
      campos_sql_consolidados = preparacion$esquema$campos_sql,
      es_numerico_consolidados = preparacion$es_numerico,
-     tamano_lote = preparacion$tamano_lote
+     tamano_lote = preparacion$tamano_lote,
+     conteo = preparacion$conteo
   )
   resumen$meta$sql_esquema <- preparacion$esquema$sql
   resumen$meta$modo <- preparacion$modo
   resumen$meta$metricas <- preparacion$metricas
   resumen$meta$incluir_valores <- incluir_valores
   resumen$meta$tamano_lote <- preparacion$tamano_lote
+  resumen$meta$instrumentacion <- list(
+    activa = isTRUE(preparacion$instrumentar),
+    unidad_duracion = "ms",
+    reloj = "Sys.time()",
+    precision = paste(
+      "La precision efectiva es la de la plataforma; los intervalos que el",
+      "reloj no puede resolver quedan en NA y nunca se publican como cero."
+    ),
+    apagable = TRUE
+  )
   resumen$meta$plan <- plan
   resumen$meta$dialecto <- list(
     nombre = preparacion$dialecto$nombre,
@@ -4340,9 +4691,15 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
       preparacion$campos_sql, preparacion$muestra, preparacion$orden_muestra,
       preparacion$orden_sql, preparacion$dialecto, preparacion$n_total,
       presupuesto, info_conexion, list(...), muestreo = muestreo_meta,
-      tipos_declarados = preparacion$tipos
+      tipos_declarados = preparacion$tipos, trazador = trazador
     )
   } else {
+    .registrar_etapa_dbi(
+      trazador, "lectura_muestra", estado = "no_solicitado"
+    )
+    .registrar_etapa_dbi(
+      trazador, "perfilado_muestra", estado = "no_solicitado"
+    )
     list(
       perfil = NULL,
       cobertura = .registro_cobertura_dbi(
@@ -4360,6 +4717,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     )
   }
   cobertura <- rbind(cobertura, bloque$cobertura)
+  resumen$tiempos <- .resumen_tiempos_dbi(trazador)
   if (isTRUE(presupuesto$agotado)) {
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
       "resumen_tabla", .texto_tabla_dbi(tabla), "presupuesto_agotado",

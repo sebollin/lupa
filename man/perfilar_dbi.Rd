@@ -16,6 +16,7 @@ perfilar_dbi(
   incluir_valores = TRUE,
   tamano_lote = .TAMANO_LOTE_DBI,
   bloque_muestra = c("con_muestra", "solo_agregados"),
+  instrumentar = TRUE,
   ...
 )
 }
@@ -73,6 +74,14 @@ motores con límites más estrictos.}
 omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
 lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
 alcance de esos agregados: eso lo decide \code{modo}.}
+
+\item{instrumentar}{Si se cronometra cada consulta y las etapas grandes de R.
+Por omisión es \code{TRUE}; agrega \code{duracion_ms}, \code{n_filas_resultado},
+\code{bytes_resultado_r}, \code{consulta_id} y \code{etapa} a \code{resumen_tabla$sql}, y el
+resumen \code{resumen_tabla$tiempos}. Con \code{FALSE} se conserva el mismo plan, la
+misma cantidad y el mismo orden de consultas, pero los campos medibles
+quedan en \code{NA}. Las duraciones usan \code{Sys.time()} y los intervalos que el
+reloj no puede resolver no se publican como cero.}
 
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
 }
@@ -169,6 +178,27 @@ muestra; \code{modo}, \code{metricas}, \code{tamano_lote} y \code{max_consultas}
 SQL. \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} dice cuántas consultas se van a emitir antes de
 emitirlas. Lo que no entra en el presupuesto queda en \code{no_disponible} con su
 motivo, nunca en cero.
+}
+
+\section{Instrumentación}{
+
+\code{resumen_tabla$sql} conserva una fila por métrica y agrega la duración de la
+consulta que la respalda, las filas devueltas y los bytes que ese resultado
+ocupa en R. \code{consulta_id} identifica el intento dentro de la corrida y
+\code{etapa} permite agruparlo (\code{conteos}, \code{moda}, \code{basicos}, \code{mediana},
+\code{desvio}, \code{lectura_muestra} y las sondas). Las métricas no solicitadas o que
+no emitieron consulta conservan esos campos y los dejan en \code{NA}; en
+particular, \code{NA} no significa cero.
+
+\code{resumen_tabla$tiempos} reúne las etapas grandes del cliente en las mismas
+unidades (\code{duracion_ms}): \code{lectura_muestra}, \code{perfilado_muestra},
+\code{perfilado_columnas}, y los análisis opcionales cuando se solicitan. Una
+etapa apagada queda con estado \code{no_solicitado}; si la instrumentación se
+apaga queda con estado \code{no_medido} y duración \code{NA}. La columna \code{nivel} dice
+cuáles se pueden sumar: las de \code{nivel = 1} son disjuntas entre sí, y las de
+nivel mayor están contenidas en alguna de ellas. \code{perfilado_muestra} es
+inclusivo -contiene el perfilado por columna, las dependencias y los
+casi-duplicados-, así que sumar la columna entera da más que la corrida.
 }
 
 \section{Datos personales}{

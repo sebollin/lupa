@@ -1,5 +1,35 @@
 # lupa 0.1.0
 
+## El plan ya no cobra trabajo de R que no va a ocurrir
+
+Con `bloque_muestra = "solo_agregados"` no se trae ninguna fila a R, así que el
+detector de vocabulario no corre. El plan lo reflejaba bien en cuatro modos y mal
+en `"muestreado"`: seguía anunciando los pares de formas a comparar en R, y el
+texto impreso se contradecía a dos líneas de distancia —«el plan incluye sólo
+agregados SQL» y después «más 4.000.000 pares de formas a comparar en R»—.
+
+El conteo colgaba de un conjunto de alcances que mete en la misma bolsa dos cosas
+distintas: el muestreo **del motor**, que en ese modo ocurre igual, y el bloque
+**del cliente**, que es lo único que trae filas. Ahora cuelga sólo del segundo.
+
+## Instrumentación de consultas y etapas R
+
+`perfilar_dbi()` agrega a `resumen_tabla$sql` `duracion_ms`,
+`n_filas_resultado`, `bytes_resultado_r`, `consulta_id` y `etapa`. También
+publica `resumen_tabla$tiempos`, con las duraciones en milisegundos de la
+lectura y el perfilado de la muestra, el perfilado por columna y los análisis
+opcionales. Las ramas sin consulta dejan `NA`; no se publican ceros por falta
+de resolución del reloj. `instrumentar = FALSE` apaga la medición sin cambiar
+el plan ni el orden o la cantidad de consultas.
+
+Un microbenchmark de 158 columnas y 262 consultas pasó de 0,2230 s sin
+instrumentar a 0,2368 s con reloj, filas y bytes (+0,0138 s; 6,188 %); dos
+lecturas de `Sys.time()` solas costaron aproximadamente 10 µs por consulta.
+En el flujo real de `perfilar_dbi()` (158 columnas, 10.000 filas y 347
+consultas), cinco pares alternados dieron medianas de 2,398 s y 2,419 s
+(+0,021 s; 0,876 %). Por eso la medición queda activa por omisión y conserva
+un interruptor explícito para corridas donde ese costo relativo importe.
+
 ## La poda y el informe preguntan ahora por la misma función
 
 `detectar_dependencias()` decide dos veces lo mismo: si un par puede alcanzar el

@@ -4071,7 +4071,8 @@
                                  detectar_variantes_equifrecuentes = FALSE,
                                  max_asimetria_equifrecuente = 2,
                                  max_trabajo = 2e10,
-                                 clave_declarada = NULL) {
+                                 clave_declarada = NULL,
+                                 trazador_tiempos = NULL) {
   hallazgos_columnas <- .hallazgos_columnas(
     resultados, columnas, umbral_alta_cardinalidad,
     umbral_faltantes_sospechoso, umbral_faltantes_error,
@@ -4082,18 +4083,27 @@
   if (is.null(cobertura)) cobertura <- .cobertura_diagnosticos_vacia()
   hallazgos <- hallazgos_columnas
   hallazgos_vocabulario <- if (isTRUE(detectar_casi_duplicados)) {
-    .hallazgos_casi_duplicados_vocabulario(
-      datos, columnas, normalizacion, resultados = resultados,
-      max_proporcion_grupo = max_proporcion_grupo,
-      umbral_variante_rara = umbral_variante_rara,
-      min_asimetria_variante = min_asimetria_variante,
-      min_asimetria_general = min_asimetria_general,
-      min_participacion_dominante = min_participacion_dominante,
-      detectar_variantes_equifrecuentes = detectar_variantes_equifrecuentes,
-      max_asimetria_equifrecuente = max_asimetria_equifrecuente,
-      max_trabajo = max_trabajo
+    .medir_etapa_dbi(
+      trazador_tiempos, "casi_duplicados_vocabulario",
+      .hallazgos_casi_duplicados_vocabulario(
+        datos, columnas, normalizacion, resultados = resultados,
+        max_proporcion_grupo = max_proporcion_grupo,
+        umbral_variante_rara = umbral_variante_rara,
+        min_asimetria_variante = min_asimetria_variante,
+        min_asimetria_general = min_asimetria_general,
+        min_participacion_dominante = min_participacion_dominante,
+        detectar_variantes_equifrecuentes = detectar_variantes_equifrecuentes,
+        max_asimetria_equifrecuente = max_asimetria_equifrecuente,
+        max_trabajo = max_trabajo
+      )
     )
-  } else list()
+  } else {
+    .registrar_etapa_dbi(
+      trazador_tiempos, "casi_duplicados_vocabulario",
+      estado = "no_solicitado"
+    )
+    list()
+  }
   cobertura_vocabulario <- attr(
     hallazgos_vocabulario, "cobertura_diagnosticos", exact = TRUE
   )
