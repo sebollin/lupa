@@ -130,7 +130,7 @@ breve:
 | Tarea | Funciones principales | Para leer más |
 |----|----|----|
 | Mirar los datos por primera vez | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md), [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md), [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md), [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md), `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Perfilar contra una base | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — agregados SQL de toda la tabla y un perfil de 109 campos analíticos sobre una muestra declarada; los alcances quedan separados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Perfilar contra una base | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — agregados SQL de toda la tabla y, por omisión, un perfil de 109 campos analíticos sobre una muestra declarada; `bloque_muestra = "solo_agregados"` permite pedir sólo los agregados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Encontrar estructura no declarada | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md), [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md) | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Definir la calidad | [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md), [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md), [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md) | [Definir la calidad](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Medir y evaluar | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md), [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md) con pesos del proyecto, [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md) con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Medir y evaluar](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -189,9 +189,9 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 | motor que rechaza `LIMIT` | `top` / `portable` | **probado** con un motor simulado en la suite |
 | motor que pliega los alias a mayúsculas | cualquiera | **probado** con un motor simulado |
 | motor que rechaza `SELECT *` por una columna | cualquiera | **probado** con un motor simulado |
-| **PostgreSQL 16** | `limit` | **probado** contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, esquemas, colecciones y permisos parciales; vuelto a probar en los cinco modos, donde la sonda elige `BERNOULLI` a nivel de fila antes que `SYSTEM` a nivel de bloque |
+| **PostgreSQL 16** | `limit` | **probado** contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, medianas múltiples consolidadas con `PERCENTILE_CONT`, esquemas, colecciones y permisos parciales; vuelto a probar en los cinco modos, donde la sonda elige `BERNOULLI` a nivel de fila antes que `SYSTEM` a nivel de bloque |
 | **MySQL 8** | `limit` | **probado** contra el motor real: mismos tres estadísticos verificados contra R |
-| **SQL Server 2022** | `top` | **probado** contra el motor real: la sonda resuelve `top` sola, y los tres estadísticos coinciden con R |
+| **SQL Server 2022** | `top` | **probado** contra el motor real: la sonda resuelve `top` sola, las medianas múltiples usan `PERCENTILE_CONT ... OVER`, y los tres estadísticos coinciden con R |
 | **DuckDB 1.5** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, y los tres estadísticos verificados contra R |
 | **MariaDB 11** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, y el extremo inferior del plan coincidiendo con las consultas emitidas en los cinco |
 | **Oracle Free 23 (23c)** | `fetch_first` | **probado** contra el motor real: dialecto resuelto por sonda, los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, el extremo inferior del plan coincidiendo con las consultas emitidas, nombres calificados por texto y por [`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html), y muestreo `SAMPLE (p)`, y verificado de nuevo el 2026-08-24 contra el motor real: dialecto por sonda, las 54 métricas sin ninguna no disponible, los tres estadísticos contra R, la clave primaria leída del catálogo, y la cadena vacía declarada como nulo |
@@ -234,16 +234,23 @@ antes.
 El dialecto se puede declarar con `dialecto =` si la sonda no acierta.
 Un fallo parcial nunca descarta lo ya medido: si la lectura de la
 muestra falla, el objeto vuelve con `resumen_tabla` completo,
-`perfil_muestra = NULL` y una fila de cobertura con el motivo.
+`perfil_muestra = NULL` y una fila de cobertura con el motivo. Si no se
+pidió la muestra, la cobertura usa `no_solicitado`, que no es un fallo;
+se puede pedir sólo los agregados con
+`bloque_muestra = "solo_agregados"`.
 
 ### Saber qué falta antes de chocarse
 
-`lupa` tiene una sola dependencia obligatoria, `cli`. Todo lo demás es
-opcional —y lo que pasaba cuando faltaba algo era un error de R, o del
-controlador, que no decía ni qué faltaba ni cómo conseguirlo. El caso
-duro no es el paquete de R sino la **biblioteca del sistema que va
-debajo**: `RMariaDB` no compila sin las cabeceras del cliente de MySQL o
-MariaDB, `ROracle` necesita el Instant Client de Oracle, y quien ve
+`lupa` tiene dos dependencias obligatorias, `cli` y `data.table`.
+`data.table` se usa únicamente para acelerar el conteo exacto de filas
+duplicadas, y nunca se importa al espacio de nombres; las tablas con
+columnas de lista o matriz, o con `NaN`, repliegan a la implementación
+de base, que es la que fija el resultado. Todo lo demás es opcional —y
+lo que pasaba cuando faltaba algo era un error de R, o del controlador,
+que no decía ni qué faltaba ni cómo conseguirlo. El caso duro no es el
+paquete de R sino la **biblioteca del sistema que va debajo**:
+`RMariaDB` no compila sin las cabeceras del cliente de MySQL o MariaDB,
+`ROracle` necesita el Instant Client de Oracle, y quien ve
 `installation of package 'RMariaDB' had non-zero exit status` no tiene
 forma de saber que la respuesta es `libmariadb-dev`.
 
@@ -273,32 +280,60 @@ instalación.
 El perfilado emitía **una consulta por columna** para cada bloque de
 métricas. Sobre una tabla de decenas de millones de filas ése es el
 costo: no el muestreo, la cantidad de escaneos. Los agregados planos
-—conteos, mínimo/máximo/media/ ceros/negativos y desvío— se piden ahora
-para **varias columnas en una sola consulta**, por lotes. La moda y la
-mediana siguen siendo una por columna, porque agrupan y ordenan.
+—`COUNT(col)`, mínimo/máximo/ media/ceros/negativos y desvío— se piden
+ahora para **varias columnas en una sola consulta**, por lotes.
+`COUNT(DISTINCT ...)` conserva una clase separada; la moda sigue siendo
+una por columna porque agrupa. La mediana conserva una por columna como
+respaldo; cuando la sonda del motor acepta
+`PERCENTILE_CONT(...) WITHIN GROUP`, varias medianas viajan en un solo
+`SELECT` por lote.
 
 Medido contra PostgreSQL 16 con **2 millones de filas por 40 columnas**:
 
-| modo      | antes                 | después                 |
-|-----------|-----------------------|-------------------------|
-| `conteos` | 46 consultas, 5,4 s   | **8 consultas, 2,4 s**  |
-| `seguro`  | 128 consultas, 15,2 s | **14 consultas, 5,3 s** |
+| modo | antes | después |
+|----|----|----|
+| `conteos` | 46 consultas, 5,4 s | **8 consultas, 2,4 s** |
+| `seguro` | 128 consultas, 15,2 s | 14 consultas, 5,3 s; **10 consultas** con la fusión plana |
 
 Con las mismas 160 y 400 métricas calculadas, y con los mismos números:
 sobre una tabla sembrada una sola vez, el perfil consolidado y el
 anterior coinciden en los dieciséis campos del resumen para seis tipos
 de columna.
 
-**Si un lote falla, no se pierde el lote.** Se reintenta columna por
-columna, y lo que igual falle queda `no_disponible` con su motivo
-mientras las vecinas se calculan. Una consulta compartida es la forma
-perfecta de reintroducir el reflejo de todo-o-nada que este paquete
-corrigió en cinco lugares, así que la degradación se construyó desde el
-principio y tiene sus propios tests.
+**Si un lote falla, no se pierde el lote.** Se sondean sus mitades por
+bisección: los grupos aceptados se reutilizan como mediciones y las
+columnas culpables se reintentan por métrica. Lo que igual falle queda
+`no_disponible` con su motivo, mientras las vecinas se calculan. Si el
+presupuesto se agota antes de aislar todo, las columnas pendientes
+quedan sin medir; no se las supone culpables ni legibles. La degradación
+tiene sus propios tests.
 
 `resumen_tabla$sql` conserva **una fila por columna y métrica** con
 todos sus campos, y agrega `lote` y `columnas_compartidas` para que se
-vea cuál consulta fue compartida.
+vea cuál consulta fue compartida. También agrega `id_muestra`: dos
+métricas con el mismo valor fueron producidas por la misma consulta de
+datos y vieron exactamente las mismas filas. Las métricas por columna
+—moda, frecuencia de la moda y mediana— dejan `id_muestra = NA`, porque
+no comparten filas con otras métricas; `NA` declara que no hay garantía,
+no que se haya inventado una coincidencia.
+
+Con `instrumentar = TRUE`, cada consulta suma `duracion_ms` y `cpu_ms`.
+El primero usa [`Sys.time()`](https://rdrr.io/r/base/Sys.time.html); el
+segundo suma `proc.time()[c("user.self", "sys.self")]` y representa el
+trabajo de CPU del cliente, incluida la conversión del resultado que
+hace el driver. Cero es medido; `NA` significa que no se pudo medir.
+`instrumentar = FALSE` apaga ambos relojes y deja esos campos en `NA`,
+sin alterar la consulta ni su resultado.
+
+El total exacto (`COUNT(*)`) viaja en la primera consulta de agregados y
+se comparte con el recorrido que ya necesitaban los agregados. Si el
+lote completo es rechazado por el motor, se emite un `COUNT(*)` solo y
+se continúa con la bisección: la completitud siempre usa
+`n_total - n_validos`, nunca un total estimado. En la corrida normal eso
+ahorra una consulta y un recorrido separado de la tabla; el plan sigue
+pagando su propio conteo porque necesita conocer las filas antes de
+estimar el trabajo. Una forma `TABLESAMPLE` que necesita el total para
+escribir un porcentaje lo cuenta antes y no reclama este ahorro.
 
 ### Leer un perfil sin conocer su forma
 
@@ -391,14 +426,32 @@ se alcanza si no se rechaza ningún lote: una columna sin ningún valor no
 emite mediana ni desvío, y el plan no puede saber cuáles están vacías
 sin preguntarlo, cosa que cambiaría su propio costo. El extremo superior
 es `total_lotes_rechazados`, y se alcanza si el motor rechaza todos los
-lotes y cada columna se reintenta sola. El costo real cae entre los dos,
-y el plan lo declara en las dos direcciones en vez de prometer una cota
-que no puede sostener.
+lotes y se recorre cada árbol de bisección: hasta `2n - 1` sondas
+adicionales para un lote de `n` columnas. El costo real cae entre los
+dos, y el plan lo declara en las dos direcciones en vez de prometer una
+cota que no puede sostener.
+
+El plan paga un `COUNT(*)` exacto propio antes de los agregados, porque
+necesita el total para estimar el trabajo. Ese recorrido sigue siendo
+parte del costo del plan; la corrida no vuelve a pagar una consulta
+separada cuando puede llevar el conteo en su primer agregado.
 
 Lo que sí es una restricción dura de diseño es que esa predicción **no
 dependa del motor**: cada sonda de capacidad gasta un número fijo de
 consultas aunque acierte en la primera forma, porque un costo que
 variara por motor dejaría al usuario adivinando otra vez.
+
+La moda y la mediana tienen una política de costo explícita. El valor
+por omisión es `politica_costo = "todas"`: el paquete no elige por el
+usuario. Con `politica_costo = "por_cardinalidad"`, primero se miden
+`validos` y `distintos`; después se decide por columna si se emiten moda
+y mediana cuando `n_distintos / n_validos >= umbral_cardinalidad`. El
+umbral por omisión es `0.95` y se puede mover en cada llamada. Cada
+omisión queda en `resumen_tabla$sql` como `omitido_por_costo`, con qué
+se omitió, por qué y cómo pedirlo de nuevo: `politica_costo = "todas"` o
+un umbral diferente. El banco reproducible
+`benchmark/medir_politica_costo.R` mide el ahorro en consultas sobre una
+tabla de 158 columnas.
 
 Pero contar consultas no responde la pregunta que trae quien mira el
 plan: catorce consultas sobre dos millones de filas son mucho más
@@ -414,16 +467,19 @@ de las dos.
 Contar sólo el motor daba juicios falsos con números ciertos: una tabla
 del catálogo de PostGIS de 3.912 filas, con una columna de geometría
 guardada como texto, pedía 64.592 lecturas de fila y cero ordenaciones
-—magnitud `"baja"`— y tardaba 35 segundos, porque el trabajo estaba en
-comparar formas, que no es una lectura de fila. Al imprimir el plan se
-ven las dos mitades, y el aviso de trabajo alto nombra las palancas para
-acotarlo, que no son las mismas de un lado que del otro. Es una
-estimación y lo dice: la del motor cuenta las filas que habría que leer
-si ningún índice ayudara, y la del cliente cuenta pares, cuyo costo
-unitario depende del largo de los valores —que el plan no conoce sin
-leerlos, así que con textos muy largos el tiempo real es varias veces el
-que sugiere la referencia—. Los números publicados no dependen de esos
-supuestos, así que quien no los comparta puede rehacer la cuenta.
+—magnitud `"baja"`— y tardaba 35 segundos **ya con el presupuesto de
+trabajo calibrado**, porque lo que quedaba estaba en comparar formas,
+que no es una lectura de fila. Es la misma tabla que arriba tardaba 243
+segundos antes de que el presupuesto midiera trabajo en vez de contar
+unidades. Al imprimir el plan se ven las dos mitades, y el aviso de
+trabajo alto nombra las palancas para acotarlo, que no son las mismas de
+un lado que del otro. Es una estimación y lo dice: la del motor cuenta
+las filas que habría que leer si ningún índice ayudara, y la del cliente
+cuenta pares, cuyo costo unitario depende del largo de los valores —que
+el plan no conoce sin leerlos, así que con textos muy largos el tiempo
+real es varias veces el que sugiere la referencia—. Los números
+publicados no dependen de esos supuestos, así que quien no los comparta
+puede rehacer la cuenta.
 
 | modo | qué hace |
 |----|----|
@@ -523,8 +579,12 @@ declara clave» de «no se pudo preguntar», que no son lo mismo.
 
 **La unicidad no se adivina: se pregunta.** Si se declara la clave con
 `perfilar(clave = ...)`, que se repita es un hallazgo de severidad
-`error` con las filas que repiten, no un aviso de consola. Y para no
-dejar al usuario ante una casilla en blanco,
+`error` con las filas que repiten. La advertencia y `meta$clave` separan
+esa comprobación de la ausencia de nulos: una clave puede no tener
+colisiones distintas de los ausentes y aun así no cumplir `NOT NULL`; si
+la trazabilidad agrupa esos ausentes con la semántica de R, ambas cosas
+quedan declaradas. Y para no dejar al usuario ante una casilla en
+blanco,
 [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md)
 ordena las columnas candidatas por tres señales que publica por separado
 —si identifica cada fila, si no tiene ausentes, y cuánto se parece su
@@ -533,6 +593,12 @@ nombre al de una clave— y
 las ofrece numeradas con una opción para escribir otra. Ordenar no es
 decidir: una columna única puede ser una clave o una magnitud que no
 repite, y esa diferencia no está en los datos.
+
+La lectura DBI también separa catálogo y garantía. Oracle sólo se
+presenta como garantizado cuando `STATUS` es `ENABLED` y `VALIDATED`;
+PostgreSQL y MySQL publican estados comparables en el catálogo. MariaDB,
+SQL Server, SQLite y DuckDB no permiten distinguir aquí ese estado, y
+por eso una clave visible en ellos conserva garantía desconocida.
 
 Donde no hay señal que discrimine, `lupa` habla. La cardinalidad alta de
 una columna de texto se informa siempre, porque el largo de los valores

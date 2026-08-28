@@ -1,5 +1,6 @@
 # Perfilar una base
 
+Por omisión,
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
 mantiene separados dos resultados porque provienen de universos
 distintos:
@@ -26,9 +27,22 @@ muestra, no como una estimación de la cardinalidad de la tabla completa.
 cuantiles; si una no existe, se usa el respaldo exacto y el método queda
 registrado.
 
+Además, `id_muestra` identifica la consulta de datos que produjo cada
+métrica. Dos métricas con el mismo valor vieron exactamente las mismas
+filas y se pueden comparar directamente, sin cruzar `lote` ni
+`columnas_compartidas`. Un `NA` declara que esa garantía no se puede
+hacer; en particular, moda, frecuencia de la moda y mediana son métricas
+por columna y no comparten filas con otras.
+
 Mezclarlos en una fila, aun con un campo de alcance por resultado,
 permitiría comparar cantidades como si pertenecieran al mismo perfil.
 Los dos bloques impiden esa lectura.
+
+Si sólo se necesitan los agregados del motor,
+`bloque_muestra = "solo_agregados"` evita traer filas a R y deja
+`perfil_muestra = NULL`. La cobertura lo declara como `no_solicitado`,
+que no es un fallo. La lectura habitual se conserva con
+`bloque_muestra = "con_muestra"`, que es el valor por omisión.
 
 ## Un ejemplo en memoria
 
@@ -79,6 +93,9 @@ sin_orden <- perfilar_dbi(
 perfil <- perfilar_dbi(
   conexion, "entregas", muestra = 5, orden_muestra = "id"
 )
+solo_agregados <- perfilar_dbi(
+  conexion, "entregas", modo = "conteos", bloque_muestra = "solo_agregados"
+)
 ```
 
 La conexión y los dos perfiles ya están preparados. Los bloques
@@ -87,9 +104,10 @@ recrear la base ni volver a medirla.
 
 ## Antes de conectarse: qué hace falta para cada motor
 
-`lupa` tiene una sola dependencia obligatoria. El paquete del motor y la
-biblioteca del sistema que va debajo son cosa de quien instala, y el
-error que aparece cuando falta alguna rara vez dice cuál es.
+`lupa` tiene dos dependencias obligatorias, `cli` y `data.table`. El
+paquete del motor y la biblioteca del sistema que va debajo son cosa de
+quien instala, y el error que aparece cuando falta alguna rara vez dice
+cuál es.
 
 ``` r
 
@@ -109,15 +127,26 @@ límite — cuando sólo puede decir «el paquete de R no está, y si al
 instalarlo falla la compilación lo que falta es esto», dice eso, porque
 comprobar de verdad exigiría intentar compilar.
 
+La clave primaria que se lee después de esa conexión conserva dos datos
+distintos: `fuente` dice qué catálogo respondió y `garantia` dice si el
+estado consultado alcanza para confiar en el motor. Oracle sólo queda
+garantizado con `STATUS = ENABLED` y `VALIDATED`; PostgreSQL consulta
+`enforced` y la validación, y MySQL `enforced`. MariaDB, SQL Server,
+SQLite y DuckDB no ofrecen en esta lectura un estado comparable, así que
+allí una clave visible queda con garantía desconocida. No hay que leer
+una entrada del catálogo como prueba de los datos existentes cuando el
+estado no fue consultable.
+
 ## Leer el resultado sin memorizar su forma
 
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 devuelve un `perfil` plano y
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
-un contenedor con dos bloques. Es una diferencia real —una tabla en
-memoria y una tabla remota no son lo mismo— pero convertía la lectura en
-un acertijo: `perfil$general$filas` funciona sobre el primero y devuelve
-`NULL` sobre el segundo.
+un contenedor con dos componentes: el segundo puede ser `NULL` si la
+muestra no se pidió o no estuvo disponible. Es una diferencia real —una
+tabla en memoria y una tabla remota no son lo mismo— pero convertía la
+lectura en un acertijo: `perfil$general$filas` funciona sobre el primero
+y devuelve `NULL` sobre el segundo.
 
 ``` r
 
@@ -134,11 +163,11 @@ sql_perfil(en_memoria)   # NULL: un perfil en memoria no emitió SQL
 ```
 
 Los mismos cinco nombres sirven para las cuatro formas de salida. Y no
-inventan lo que no hay: un perfil DBI sin muestra leída devuelve una
-tabla de hallazgos vacía **con su aviso**, no una tabla que aparente que
-se midió y no había nada.
+inventan lo que no hay: un perfil DBI sin muestra leída, o con la
+muestra no solicitada, devuelve una tabla de hallazgos vacía **con su
+aviso**, no una tabla que aparente que se midió y no había nada.
 
-## Los dos bloques del resultado
+## Los dos bloques posibles del resultado
 
 `names(perfil)` hace visible la separación que devuelve
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
@@ -151,6 +180,20 @@ origen y la cantidad de campos analíticos, sin presentarlos como un
 
 names(perfil)
 #> [1] "resumen_tabla"  "perfil_muestra"
+solo_agregados$perfil_muestra
+#> NULL
+solo_agregados$resumen_tabla$cobertura[
+  solo_agregados$resumen_tabla$cobertura$bloque == "perfil_muestra", ,
+  drop = FALSE
+]
+#>           bloque elemento        estado
+#> 1 perfil_muestra entregas no_solicitado
+#>                                                                                                        motivo
+#> 1 No se solicito el perfil de muestra: este resultado contiene unicamente los agregados SQL del modo elegido.
+#>                                                                                                         como_resolverlo
+#> 1 Para obtener diagnosticos sobre valores y hallazgos por fila, volver a perfilar con `bloque_muestra = "con_muestra"`.
+#>    sql
+#> 1 <NA>
 
 data.frame(
   bloque = c("resumen_tabla", "perfil_muestra"),
@@ -200,6 +243,170 @@ resumen cubre quince de esos aspectos sobre doce filas; el perfil cubre
 sus 109 sobre las cinco filas obtenidas. Las consultas, estados y
 motivos de los agregados SQL quedan en `resumen_tabla$sql` para que
 también se vea qué aceptó o rechazó el motor.
+
+La instrumentación queda activa por omisión y sólo agrega metadatos.
+Cada fila de `resumen_tabla$sql` conserva la métrica que ya representaba
+y suma `duracion_ms`, `cpu_ms`, `n_filas_resultado`,
+`bytes_resultado_r`, `consulta_id` e `id_muestra`, además de `etapa`. La
+duración incluye la ejecución y la lectura del resultado que DBI entregó
+a R; el tamaño es
+[`object.size()`](https://rdrr.io/r/utils/object.size.html) de ese
+resultado. `cpu_ms` es la suma de `user.self` y `sys.self` de
+[`proc.time()`](https://rdrr.io/r/base/proc.time.html): cerca de cero
+indica espera y cerca de uno al dividirlo por `duracion_ms` indica
+trabajo del cliente. Las filas que no emitieron consulta dejan esos
+campos en `NA`, que significa «no medido», no `0`.
+
+``` r
+
+perfil$resumen_tabla$sql[, c(
+  "metrica", "estado", "duracion_ms", "cpu_ms", "n_filas_resultado",
+  "bytes_resultado_r", "consulta_id", "id_muestra", "etapa"
+)]
+#>            metrica    estado duracion_ms cpu_ms n_filas_resultado bytes_resultado_r
+#> 1                n calculado   0.4014969      0                 1              1368
+#> 2                n calculado   0.4014969      0                 1              1368
+#> 3                n calculado   0.4014969      0                 1              1368
+#> 4                n calculado   0.4014969      0                 1              1368
+#> 5        n_validos calculado   0.4200935      0                 1              3040
+#> 6      n_faltantes calculado   0.4200935      0                 1              3040
+#> 7   prop_faltantes calculado   0.4200935      0                 1              3040
+#> 8      n_distintos calculado   0.4014969      0                 1              1368
+#> 9   tasa_distintos calculado   0.4014969      0                 1              1368
+#> 10            moda calculado   0.3840923      1                 1               872
+#> 11 frecuencia_moda calculado   0.3840923      1                 1               872
+#> 12          minimo calculado   0.4200935      0                 1              3040
+#> 13          maximo calculado   0.4200935      0                 1              3040
+#> 14           media calculado   0.4200935      0                 1              3040
+#> 15         n_ceros calculado   0.4200935      0                 1              3040
+#> 16     n_negativos calculado   0.4200935      0                 1              3040
+#> 17         mediana calculado   0.4296303      0                 1               736
+#> 18          desvio calculado   0.4200935      0                 1              3040
+#> 19       n_validos calculado   0.4200935      0                 1              3040
+#> 20     n_faltantes calculado   0.4200935      0                 1              3040
+#> 21  prop_faltantes calculado   0.4200935      0                 1              3040
+#> 22     n_distintos calculado   0.4014969      0                 1              1368
+#> 23  tasa_distintos calculado   0.4014969      0                 1              1368
+#> 24            moda calculado   0.3793240      0                 1               928
+#> 25 frecuencia_moda calculado   0.3793240      0                 1               928
+#> 26          minimo no_aplica          NA     NA                NA                NA
+#> 27          maximo no_aplica          NA     NA                NA                NA
+#> 28           media no_aplica          NA     NA                NA                NA
+#> 29         n_ceros no_aplica          NA     NA                NA                NA
+#> 30     n_negativos no_aplica          NA     NA                NA                NA
+#> 31         mediana no_aplica          NA     NA                NA                NA
+#> 32          desvio no_aplica          NA     NA                NA                NA
+#> 33       n_validos calculado   0.4200935      0                 1              3040
+#> 34     n_faltantes calculado   0.4200935      0                 1              3040
+#> 35  prop_faltantes calculado   0.4200935      0                 1              3040
+#> 36     n_distintos calculado   0.4014969      0                 1              1368
+#> 37  tasa_distintos calculado   0.4014969      0                 1              1368
+#> 38            moda calculado   0.3988743      0                 1               872
+#> 39 frecuencia_moda calculado   0.3988743      0                 1               872
+#> 40          minimo calculado   0.4200935      0                 1              3040
+#> 41          maximo calculado   0.4200935      0                 1              3040
+#> 42           media calculado   0.4200935      0                 1              3040
+#> 43         n_ceros calculado   0.4200935      0                 1              3040
+#> 44     n_negativos calculado   0.4200935      0                 1              3040
+#> 45         mediana calculado   0.4267693      1                 1               736
+#> 46          desvio calculado   0.4200935      0                 1              3040
+#> 47       n_validos calculado   0.4200935      0                 1              3040
+#> 48     n_faltantes calculado   0.4200935      0                 1              3040
+#> 49  prop_faltantes calculado   0.4200935      0                 1              3040
+#> 50     n_distintos calculado   0.4014969      0                 1              1368
+#> 51  tasa_distintos calculado   0.4014969      0                 1              1368
+#> 52            moda calculado   0.4019737      1                 1               936
+#> 53 frecuencia_moda calculado   0.4019737      1                 1               936
+#> 54          minimo no_aplica          NA     NA                NA                NA
+#> 55          maximo no_aplica          NA     NA                NA                NA
+#> 56           media no_aplica          NA     NA                NA                NA
+#> 57         n_ceros no_aplica          NA     NA                NA                NA
+#> 58     n_negativos no_aplica          NA     NA                NA                NA
+#> 59         mediana no_aplica          NA     NA                NA                NA
+#> 60          desvio no_aplica          NA     NA                NA                NA
+#>    consulta_id id_muestra       etapa
+#> 1            3          3     conteos
+#> 2            3          3     conteos
+#> 3            3          3     conteos
+#> 4            3          3     conteos
+#> 5            6          6     basicos
+#> 6            6          6     basicos
+#> 7            6          6     basicos
+#> 8            3          3     conteos
+#> 9            3          3     conteos
+#> 10           7         NA        moda
+#> 11           7         NA        moda
+#> 12           6          6     basicos
+#> 13           6          6     basicos
+#> 14           6          6     basicos
+#> 15           6          6     basicos
+#> 16           6          6     basicos
+#> 17           8         NA     mediana
+#> 18           6          6     basicos
+#> 19           6          6     basicos
+#> 20           6          6     basicos
+#> 21           6          6     basicos
+#> 22           3          3     conteos
+#> 23           3          3     conteos
+#> 24           9         NA        moda
+#> 25           9         NA        moda
+#> 26          NA         NA resumen_sql
+#> 27          NA         NA resumen_sql
+#> 28          NA         NA resumen_sql
+#> 29          NA         NA resumen_sql
+#> 30          NA         NA resumen_sql
+#> 31          NA         NA resumen_sql
+#> 32          NA         NA resumen_sql
+#> 33           6          6     basicos
+#> 34           6          6     basicos
+#> 35           6          6     basicos
+#> 36           3          3     conteos
+#> 37           3          3     conteos
+#> 38          10         NA        moda
+#> 39          10         NA        moda
+#> 40           6          6     basicos
+#> 41           6          6     basicos
+#> 42           6          6     basicos
+#> 43           6          6     basicos
+#> 44           6          6     basicos
+#> 45          11         NA     mediana
+#> 46           6          6     basicos
+#> 47           6          6     basicos
+#> 48           6          6     basicos
+#> 49           6          6     basicos
+#> 50           3          3     conteos
+#> 51           3          3     conteos
+#> 52          12         NA        moda
+#> 53          12         NA        moda
+#> 54          NA         NA resumen_sql
+#> 55          NA         NA resumen_sql
+#> 56          NA         NA resumen_sql
+#> 57          NA         NA resumen_sql
+#> 58          NA         NA resumen_sql
+#> 59          NA         NA resumen_sql
+#> 60          NA         NA resumen_sql
+
+perfil$resumen_tabla$tiempos
+#>                         etapa duracion_ms cpu_ms        estado nivel n_ejecuciones
+#> 1        ausencia_estructural   0.7767677      2        medido     2             1
+#> 2 casi_duplicados_vocabulario  10.3900433     19        medido     2             1
+#> 3                dependencias   1.0380745      1        medido     2             1
+#> 4      duplicados_aproximados          NA     NA no_solicitado     2             1
+#> 5             lectura_muestra   0.5435944      1        medido     1             1
+#> 6          perfilado_columnas 304.6543598    305        medido     2             1
+#> 7           perfilado_muestra 399.2016315    410        medido     1             1
+```
+
+`resumen_tabla$tiempos` reúne en milisegundos las etapas grandes del
+lado R, incluidas la lectura y el perfilado de la muestra, el perfilado
+por columna y los análisis opcionales. La columna `nivel` dice cuáles se
+pueden sumar: las de `nivel = 1` son disjuntas entre sí y las de nivel
+mayor están contenidas en alguna de ellas. `perfilado_muestra` es
+inclusivo —contiene el perfilado por columna, las dependencias y los
+casi-duplicados—, así que sumar la columna entera da más que la corrida
+completa. `instrumentar = FALSE` conserva el mismo plan, la misma
+cantidad y el mismo orden de consultas, pero deja las duraciones, el CPU
+y los metadatos de tamaño en `NA` y marca las etapas como `no_medido`.
 
 ## `perfil_muestra`: el perfil completo de la muestra
 
@@ -384,12 +591,37 @@ emite las sondas de capacidad y predice el total que costará la corrida.
 Publica un **rango**, y lo declara en `attr(plan, "supuesto")`: `total`
 si no se rechaza ningún lote y `total_lotes_rechazados` si se rechazan
 todos; el costo real cae entre los dos. El extremo inferior cuenta una
-mediana y un desvío por columna numérica, y una columna sin un solo
-valor válido no los emite; el superior suma los reintentos por columna
-cuando el motor rechaza un lote. Para decidir si una corrida es viable,
-saber entre qué y qué se mueve alcanza. La predicción incluye las sondas
-aunque una forma acertada aparezca antes que las demás, porque el costo
-declarado no puede depender del motor.
+consulta por lote de agregados planos y mantiene `COUNT(DISTINCT ...)`
+en su clase separada; la moda sigue siendo una por columna y la mediana
+conserva ese camino como respaldo. Cuando la sonda acepta
+`PERCENTILE_CONT(...) WITHIN GROUP`, varias medianas viajan en un solo
+`SELECT` por lote. Una columna sin un solo valor válido no emite mediana
+ni desvío, y el plan no puede saber cuáles están vacías sin preguntarlo.
+El extremo superior suma hasta `2n - 1` sondas adicionales por cada lote
+rechazado de `n` columnas: la bisección aísla las culpables y reutiliza
+los grupos aceptados. Para decidir si una corrida es viable, saber entre
+qué y qué se mueve alcanza. La predicción incluye las sondas aunque una
+forma acertada aparezca antes que las demás, porque el costo declarado
+no puede depender del motor.
+
+El plan paga un `COUNT(*)` exacto propio antes de los agregados, porque
+necesita el total para estimar el trabajo. La corrida lleva ese total en
+su primera consulta de agregados; si el lote es rechazado, se repliega a
+un `COUNT(*)` solo y continúa con la bisección. Así la completitud sigue
+siendo medida, no estimada, y la corrida evita una consulta y un
+recorrido separado en los casos sin rechazo. Una forma `TABLESAMPLE` que
+necesita el total para construir un porcentaje lo cuenta antes y no
+reclama este ahorro.
+
+La decisión de pagar moda y mediana es explícita.
+`politica_costo = "todas"` es el valor por omisión y conserva todas las
+métricas solicitadas. Con `politica_costo = "por_cardinalidad"`, primero
+se miden los valores válidos y distintos; luego se omiten, por columna,
+las métricas caras cuando
+`n_distintos / n_validos >= umbral_cardinalidad`. El umbral por omisión
+es `0.95`, se puede cambiar en la llamada, y cada omisión queda
+declarada en `resumen_tabla$sql` como `omitido_por_costo`, con el motivo
+y la forma de pedirla igual.
 
 Ahora bien, **cuántas consultas se emiten no dice cuánto cuestan**:
 catorce consultas sobre dos millones de filas son mucho más trabajo que
@@ -410,13 +642,16 @@ filas—.
 Contar sólo el motor daba juicios falsos con números ciertos. Una tabla
 del catálogo de PostGIS de 3.912 filas, con una columna de geometría
 guardada como texto, pedía 64.592 lecturas de fila y cero ordenaciones:
-magnitud `"baja"`. Y tardaba 35 segundos. El trabajo estaba del otro
-lado, comparando formas, que no es una lectura de fila. Al imprimir el
-plan se ven las dos mitades, y el aviso de magnitud alta viene con las
-palancas concretas para acotarla —que no son las mismas de un lado que
-del otro—: `modo = "muestreado"`, recortar `metricas`, bajar `muestra` o
-poner `max_consultas` para el motor, y `max_trabajo_vocabulario` para lo
-que se hace en R.
+magnitud `"baja"`. Y tardaba 35 segundos, **ya con el presupuesto de
+trabajo calibrado** —la misma tabla tardaba 243 segundos antes, y esa
+medición es la que aparece en
+[`vignette("escala-y-duplicados")`](https://sebollin.github.io/lupa/articles/escala-y-duplicados.md)—.
+El trabajo que quedaba estaba del otro lado, comparando formas, que no
+es una lectura de fila. Al imprimir el plan se ven las dos mitades, y el
+aviso de magnitud alta viene con las palancas concretas para acotarla
+—que no son las mismas de un lado que del otro—: `modo = "muestreado"`,
+recortar `metricas`, bajar `muestra` o poner `max_consultas` para el
+motor, y `max_trabajo_vocabulario` para lo que se hace en R.
 
 Es una estimación y lo dice en `attr(plan, "supuesto_costo")`. La del
 motor cuenta las filas que habría que leer **si ningún índice ayudara**,
@@ -432,13 +667,19 @@ supuestos, así que quien no los comparta puede rehacer la cuenta.
 
 ### Lo que el muestreo en el motor no puede darte
 
-Cada métrica se pide en su propia consulta, así que **cada una saca su
-propia muestra**. Eso es inherente a muestrear en el motor sin
-materializar una tabla intermedia, y `lupa` no la materializa porque
-perfilar es una operación de sólo lectura. La consecuencia es concreta:
-la media y la mediana de una misma columna en `modo = "muestreado"`
-describen conjuntos de filas distintos, del mismo tamaño pero no los
-mismos.
+Los agregados planos que comparten lote —`COUNT(col)`, mínimo, máximo,
+media, ceros, negativos y desvío— se piden en una sola consulta.
+`COUNT(DISTINCT ...)` y la moda conservan consultas separadas por sus
+planes propios. La mediana también conserva ese camino como respaldo; un
+motor que acepta `PERCENTILE_CONT(...) WITHIN GROUP` puede consolidar
+varias en un solo `SELECT` por lote. En `modo = "muestreado"`, una
+consulta distinta vuelve a resolver el muestreo: la media y la mediana
+de una misma columna describen conjuntos de filas distintos, del mismo
+tamaño pero no necesariamente los mismos. Las métricas planas del mismo
+lote sí comparten las filas de esa consulta, y `id_muestra` lo deja
+comprobable directamente. Un `id_muestra` ausente declara que no se
+puede garantizar esa coincidencia; queda ausente para moda, frecuencia
+de la moda y mediana, que son métricas por columna.
 
 Por eso las formas candidatas están ordenadas por **previsibilidad del
 tamaño** y no por costo. Primero la de cantidad fija,

@@ -267,7 +267,11 @@ table(as.character(por_grupo$tipo_hallazgo))
 
 El argumento `clave` no es cosmético. Sin la columna de identidad, cada
 repetición del valor de un atributo se lee como fila duplicada y el
-diagnóstico de unicidad informa la tabla entera.
+diagnóstico de unicidad informa la tabla entera. Si se declara,
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+separa la unicidad de la ausencia de nulos: `meta$clave` conserva ambos
+estados cuando alguno no queda verificado, y la trazabilidad deja
+explícita su semántica de R cuando agrupa ausentes.
 
 Lo que se descartó queda declarado:
 

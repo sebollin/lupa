@@ -143,8 +143,8 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 33.656 pares en
-#> 0,050 s.
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.452 pares en
+#> 0,051 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
 )]
@@ -180,6 +180,14 @@ pero es con pérdida: dos filas cuya clave difiere no se comparan. Las
 filas con `NA` forman un bloque propio y también quedan contabilizadas.
 `alcance` informa los pares fuera del alcance y su estimación sobre la
 muestra.
+
+En `perfilar(clave = ...)`, la unicidad y la ausencia de nulos son
+comprobaciones separadas. `meta$clave` conserva el estado de cada una
+cuando alguna no queda verificada: una colisión entre `NA` puede ser
+útil para seguir la traza con la semántica de R, pero no prueba una
+colisión de `NULL` en SQL; los ausentes son la evidencia independiente
+contra `NOT NULL`. Una clave sin ausentes y única no agrega ese metadato
+al perfil histórico.
 
 ``` r
 
@@ -218,7 +226,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/RtmpNGTstd/lupa-lotes-22ec77253f3d/lupa-lotes-22ec237895ff"
+#> [1] "/tmp/RtmpHOt6pL/lupa-lotes-231c49e725c5/lupa-lotes-231c51e3b51d"
 #> 
 #> $n_parciales
 #> [1] 6

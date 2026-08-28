@@ -3,7 +3,7 @@
 Recorre las tablas declaradas en
 [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
 y devuelve **una fila por tabla** con su resumen exacto, más la
-cobertura de lo que no se pudo medir.
+cobertura de lo que no se pudo medir o no se solicitó.
 
 ## Usage
 
@@ -14,6 +14,7 @@ perfilar_coleccion(
   conservar_perfiles = FALSE,
   cobertura_metricas = c("no_medidas", "completa", "ninguna"),
   tope_cobertura_metricas = 20000L,
+  bloque_muestra = c("con_muestra", "solo_agregados"),
   ...
 )
 ```
@@ -52,6 +53,15 @@ perfilar_coleccion(
 
   Máximo de filas de `cobertura_metricas`. El total real queda siempre
   en `meta$n_metricas_no_medidas`, aunque la tabla se haya recortado.
+
+- bloque_muestra:
+
+  Qué bloques se solicitan en cada tabla: `"con_muestra"` (por omisión)
+  calcula también el perfil de la muestra, o `"solo_agregados"` evita
+  leerla y devuelve sólo los agregados SQL. Se pasa al mismo argumento
+  de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  para que todas las tablas de la colección respeten la misma decisión.
 
 - ...:
 

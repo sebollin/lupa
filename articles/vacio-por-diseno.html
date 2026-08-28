@@ -341,7 +341,11 @@ perfilar, y ése es el paso que desactiva el faltante falso.</p>
 <span><span class="co">#&gt;                           4</span></span></code></pre></div>
 <p>El argumento <code>clave</code> no es cosmético. Sin la columna de
 identidad, cada repetición del valor de un atributo se lee como fila
-duplicada y el diagnóstico de unicidad informa la tabla entera.</p>
+duplicada y el diagnóstico de unicidad informa la tabla entera. Si se
+declara, <code><a href="../reference/perfilar.html">perfilar()</a></code> separa la unicidad de la ausencia de
+nulos: <code>meta$clave</code> conserva ambos estados cuando alguno no
+queda verificado, y la trazabilidad deja explícita su semántica de R
+cuando agrupa ausentes.</p>
 <p>Lo que se descartó queda declarado:</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">por_grupo</span>, <span class="st">"cobertura_grupos"</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>

@@ -120,6 +120,17 @@ perfilar(
   siempre. La clave declarada se trata como sensible: si la protección
   de datos personales está activa y alguna de esas columnas se clasifica
   como personal, sus valores salen enmascarados igual que la evidencia.
+  La comprobación de una clave tiene dos ejes independientes:
+  `meta$clave$unicidad` comprueba si sus combinaciones son únicas con la
+  semántica de R, y `meta$clave$ausencia_nulos` comprueba que sus
+  componentes no tengan valores ausentes. Cada eje declara `verificada`,
+  `refutada` o `no_verificada`; una clave con ambos ejes verificados
+  conserva exactamente el objeto histórico y no agrega metadatos. Cuando
+  un eje falla o no se puede comprobar, `meta$clave$trazabilidad`
+  explica que la localización agrupa con la semántica de R, incluso si
+  el motor SQL trata dos `NULL` como distintos. Por eso una clave puede
+  tener a la vez una colisión para la trazabilidad y una ausencia que
+  impide la garantía `NOT NULL`.
 
 - umbral_faltantes_error:
 
@@ -519,7 +530,9 @@ nombres raros supera 5.000, `cobertura_diagnosticos` declara el recorte
 y su limite. Quien decida automáticamente sobre un perfil debe revisar
 `nrow(perfil$cobertura_diagnosticos)` además de las severidades: un
 perfil sin hallazgos y con diagnósticos no evaluados no es un perfil
-limpio.
+limpio. Cuando una clave declarada no queda plenamente verificada,
+`meta$clave` conserva los estados de unicidad y ausencia de nulos, sus
+conteos y la semántica usada por la trazabilidad.
 
 ## Details
 

@@ -2,6 +2,410 @@
 
 ## lupa 0.1.0
 
+### Catalogos de claves sin confundir ausencia con falta de visibilidad
+
+La lectura DBI ya no llama `no_declarada` a cualquier consulta de
+catalogo que vuelve vacia. Una consulta fallida queda con
+`garantia = "desconocida"`, `visible = NA` y su motivo; una vista que
+devolvio cero filas pero puede ocultar metadatos queda con
+`garantia = "desconocida"`, `visible = FALSE` y la ambiguedad escrita en
+`motivo`. Solo las vias cuyo catalogo es visible para una tabla
+accesible conservan `no_declarada`.
+
+PostgreSQL deja de partir de `information_schema.table_constraints`, que
+oculta restricciones a un rol que solo tiene `SELECT`, y consulta
+directamente `pg_constraint`, `pg_class`, `pg_namespace` y
+`pg_attribute`, conservando el orden de una clave compuesta y el estado
+`convalidated`. La ruta contra un servidor PostgreSQL con una credencial
+que solo tiene `SELECT` queda pendiente de verificacion en esta entrega.
+
+SQLite pide tambien `notnull`. Su estado separa
+`unicidad = "garantizada"` entre los valores no nulos de la PRIMARY KEY
+de `ausencia_de_nulos`: es `"garantizada"` cuando todas sus columnas
+devuelven `notnull = 1` y `"no_verificada"` en los demas casos. La
+garantia conjunta queda desconocida cuando la no-nulidad no se puede
+sostener. Esto subclasifica honestamente los casos especiales que pueden
+garantizar no-nulidad sin que este camino distinga su declaracion, como
+`INTEGER PRIMARY KEY`; no se lanza un recorrido de los datos. Se
+verifico con dos `NULL` reales en una PRIMARY KEY de texto sin
+`NOT NULL`, y con el rechazo de un `NULL` en otra con `NOT NULL`.
+
+### La clase de la tabla ya no cambia el resultado
+
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md) y
+el resto de la API que recibe tablas dan el mismo resultado con un
+`data.frame`, un `data.table` o un `tibble`. Las entradas se normalizan
+en la frontera —una sola vez por llamada— y las tablas internas del
+modelo de calidad también, de modo que la sintaxis de selección de
+columnas significa lo mismo en todos los caminos.
+
+Esto corrige además cinco selecciones de una dimensión que no eran
+portables: `tabla["columna"]` selecciona una columna en un `data.frame`
+y en un `tibble`, pero en un `data.table` intenta un cruce y aborta.
+Ahora son selecciones explícitas de dos dimensiones.
+
+### Conteo exacto de filas duplicadas sin mutar la entrada
+
+El contador de filas duplicadas de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+obtiene los grupos de filas con
+[`data.table::frank()`](https://rdrr.io/pkg/data.table/man/frank.html)
+en vez de armar la estructura intermedia que combina todas las columnas,
+que es lo que hace
+[`duplicated()`](https://rdrr.io/r/base/duplicated.html) sobre un
+`data.frame` y lo que hace crecer su costo con el ancho de la tabla. La
+entrada no se convierte ni se copia.
+
+`data.table` se llama con `::` y **no** se importa al espacio de
+nombres, a propósito: `data.table` decide la semántica de `[` según si
+el paquete que llama lo tiene entre sus imports, de modo que importarlo
+cambiaría el significado de `tabla[, columnas, drop = FALSE]` en toda
+función que recibe una tabla de quien usa el paquete. `frank()` no
+depende de esa condición;
+[`duplicated()`](https://rdrr.io/r/base/duplicated.html) sobre un
+`data.table` sí, y por eso no se usa.
+
+Las columnas de lista o matriz se detectan antes y usan la semántica de
+base, y también las tablas con `NaN`: `frank()` ordena y no distingue
+`NaN` de `NA`, mientras que
+[`duplicated()`](https://rdrr.io/r/base/duplicated.html) sobre un
+`data.frame` sí los distingue. La dependencia pasa de `Suggests` a
+`Imports`, y el resultado queda cubierto por pruebas de equivalencia
+contra base sobre `data.frame`, `data.table` y `tibble`.
+
+### Claves declaradas: unicidad, ausencias y trazabilidad separadas
+
+`perfilar(clave = ...)` informa por separado si la combinación es única
+bajo la semántica de R y si sus componentes están completos. Cada eje
+queda como `verificada`, `refutada` o `no_verificada`; una ausencia no
+se presenta como un duplicado SQL. Si la semántica de R agrupa dos
+ausentes para localizar filas, esa colisión y la falta de valores se
+informan juntas y quedan en `meta$clave`, junto a la trazabilidad. Una
+clave única y completa conserva el objeto histórico sin metadatos
+adicionales.
+
+### Garantía de claves primarias según el estado del catálogo
+
+La lectura DBI de claves primarias separa la fuente (`fuente`) de la
+garantía (`garantia`) y conserva el estado consultado. Oracle lee
+`STATUS` y `VALIDATED`: una restricción deshabilitada o no validada
+queda declarada en el catálogo, pero no garantizada; si esos estados no
+se pueden consultar, quedan desconocidos. PostgreSQL consulta `enforced`
+y su estado de validación, y MySQL `enforced`; MariaDB, SQL Server,
+SQLite y DuckDB no ofrecen en esta vía un estado comparable, por lo que
+el resultado no inventa una garantía. Los casos Oracle se verifican con
+respuestas DBI simuladas; no se afirma una prueba contra un servidor
+Oracle real.
+
+### CPU del cliente y política explícita para métricas caras
+
+La instrumentación de DBI publica ahora `cpu_ms` junto a `duracion_ms`
+en `resumen_tabla$sql` y en `resumen_tabla$tiempos`. Se calcula con
+[`proc.time()`](https://rdrr.io/r/base/proc.time.html) como
+`user.self + sys.self`: cerca de cero distingue espera del trabajo del
+proceso cliente, y cerca de uno al dividir CPU por tiempo transcurrido
+indica que el cliente está trabajando. Cero es una medición válida; `NA`
+queda reservado para lo que no se pudo medir, y `instrumentar = FALSE`
+deja el campo en `NA` como los demás. En un microbenchmark de un millón
+de consultas simuladas, dos lecturas de
+[`proc.time()`](https://rdrr.io/r/base/proc.time.html) costaron 1,122
+microsegundos por consulta; dos de
+[`Sys.time()`](https://rdrr.io/r/base/Sys.time.html) costaron 1,778
+microsegundos. En la tabla ancha de 158 columnas, el agregado no duplicó
+el costo de instrumentar: cinco corridas con reloj solamente tuvieron
+mediana de 1,093 s y cinco con reloj más CPU de 0,962 s, una diferencia
+dominada por la variación de SQLite. El número reproducible que se
+publica es el costo directo de 1,122 microsegundos por consulta.
+
+Moda y mediana se pueden controlar con `politica_costo`. El valor por
+omisión es `"todas"`, que conserva el perfil anterior;
+`"por_cardinalidad"` hace primero los conteos baratos de valores válidos
+y distintos y decide luego por columna. Si `n_distintos / n_validos`
+alcanza `umbral_cardinalidad` (por omisión `0.95`), omite moda y mediana
+de esa columna. La omisión no desaparece ni se vuelve `NA` silencioso:
+queda `omitido_por_costo` con el motivo, la proporción observada y la
+forma de pedirla igual (`politica_costo = "todas"`) o mover el umbral.
+
+La política hace explícito el plan en dos etapas. En una tabla
+reproducible de 158 columnas, 80 numéricas, 200 filas y 60 columnas con
+cardinalidad al menos 0,95, `politica_costo = "todas"` emitió 260
+consultas y la política selectiva 140: se ahorraron **120 consultas**,
+no tiempo. Se omitieron 60 modas y 60 medianas. El valor por omisión no
+cambia: esos 60 casos muestran el ahorro posible, pero no autorizan al
+paquete a elegir qué métrica sacrificar.
+
+Cuando la sonda reconoce un motor con
+`PERCENTILE_CONT(...) WITHIN GROUP`, las medianas numéricas se
+consolidan en un `SELECT` por lote; el camino actual, una mediana por
+columna, queda como respaldo si la capacidad no está disponible o falla
+la consulta consolidada.
+
+### El recorrido que se pagaba sólo por contar, y qué filas vio cada métrica
+
+El `COUNT(*)` exacto ya viaja en la primera consulta de agregados. Si el
+lote completo es rechazado, `lupa` emite un `COUNT(*)` solo como
+repliegue y continúa con la bisección: la completitud sigue derivando
+`n_faltantes` y `prop_faltantes` de un denominador medido, nunca
+estimado. El plan sigue pagando su propio conteo porque necesita conocer
+el total antes de estimar el trabajo.
+
+En una tabla en memoria de 12 filas y tres columnas, con
+`tamano_lote = 4` y `bloque_muestra = "solo_agregados"`, la traza SQL
+dio estos conteos. La columna de recorridos cuenta las apariciones de la
+fuente en el SQL; no se usó tiempo.
+
+| modo | consultas antes | consultas ahora | recorridos antes | recorridos ahora | ahorro de recorridos |
+|----|---:|---:|---:|---:|---:|
+| `exacto` | 14 | 13 | 14 | 13 | 1 |
+| `seguro` | 8 | 7 | 8 | 7 | 1 |
+| `conteos` | 6 | 5 | 6 | 5 | 1 |
+| `muestreado` | 23 | 22 | 23 | 23 | 0 |
+| `aproximado` | 23 | 22 | 23 | 22 | 1 |
+
+En `resumen_tabla$sql`, `id_muestra` identifica la consulta de datos: el
+mismo identificador garantiza exactamente las mismas filas. Moda,
+frecuencia de la moda y mediana son métricas por columna y quedan con
+`NA`; también queda `NA` cualquier camino que no pueda sostener esa
+garantía. Así la comparabilidad se comprueba por comparación directa,
+sin cruzar `lote` ni `columnas_compartidas`.
+
+### Aislar la columna culpable en pocas consultas, y no recorrer tres veces lo que cabe en una
+
+Los lotes de agregados que el motor rechaza ya no se reintentan columna
+por columna sin información. La vía de agregados reutiliza la bisección
+de la lectura de muestras: sondea mitades, conserva los grupos aceptados
+como datos medidos y reintenta por métrica sólo las columnas culpables.
+El tope sigue siendo de hasta `2n - 1` sondas para un lote de `n`
+columnas y, si el presupuesto se agota, las hojas pendientes quedan
+`no_disponible` sin ser supuestas. El tamaño mayor de lote aceptado se
+guarda sólo en el presupuesto de la corrida y se publica como
+`meta$tamano_lote_funciono`; no queda estado global asociado a la
+conexión.
+
+Los agregados planos sobre la misma tabla y filtro —`COUNT(col)`,
+mínimos, máximos, medias, ceros, negativos y desvío— comparten ahora una
+consulta por lote. `COUNT(DISTINCT ...)` conserva su clase separada. La
+fusión no cambia las métricas ni su disponibilidad: una falla de un
+agregado en una columna todavía se prueba por separado antes de
+declararla no disponible.
+
+La medición se hizo sobre una tabla en memoria de 20 columnas y 100
+filas, recreando la expresión en cada vuelta, con `muestra = 12` y
+`bloque_muestra = "solo_agregados"`. Las consultas emitidas antes y
+después fueron, en orden `exacto`, `seguro`, `conteos`, `muestreado`,
+`aproximado`:
+
+| modo         | antes | después | ahorro |
+|--------------|------:|--------:|-------:|
+| `exacto`     |    50 |      49 |      1 |
+| `seguro`     |    10 |       8 |      2 |
+| `conteos`    |     6 |       6 |      0 |
+| `muestreado` |    59 |      58 |      1 |
+| `aproximado` |    59 |      58 |      1 |
+
+El ahorro es deliberadamente pequeño en el modo por omisión porque
+`COUNT(DISTINCT ...)` y la moda siguen fuera de la consulta plana; la
+mediana también, salvo en los motores cuya sonda acepta la consolidación
+con `PERCENTILE_CONT`. La fusión paga sobre todo en `seguro`, donde las
+tres pasadas planas pasan a una.
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+refleja esas clases y su rango de sondas por bisección.
+
+### El plan ya no cobra trabajo de R que no va a ocurrir
+
+Con `bloque_muestra = "solo_agregados"` no se trae ninguna fila a R, así
+que el detector de vocabulario no corre. El plan lo reflejaba bien en
+cuatro modos y mal en `"muestreado"`: seguía anunciando los pares de
+formas a comparar en R, y el texto impreso se contradecía a dos líneas
+de distancia —«el plan incluye sólo agregados SQL» y después «más
+4.000.000 pares de formas a comparar en R»—.
+
+El conteo colgaba de un conjunto de alcances que mete en la misma bolsa
+dos cosas distintas: el muestreo **del motor**, que en ese modo ocurre
+igual, y el bloque **del cliente**, que es lo único que trae filas.
+Ahora cuelga sólo del segundo.
+
+### Instrumentación de consultas y etapas R
+
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+agrega a `resumen_tabla$sql` `duracion_ms`, `cpu_ms`,
+`n_filas_resultado`, `bytes_resultado_r`, `consulta_id` y `etapa`.
+También publica `resumen_tabla$tiempos`, con las duraciones en
+milisegundos de la lectura y el perfilado de la muestra, el perfilado
+por columna y los análisis opcionales. Las ramas sin consulta dejan
+`NA`; no se publican ceros por falta de resolución del reloj.
+`instrumentar = FALSE` apaga la medición sin cambiar el plan ni el orden
+o la cantidad de consultas.
+
+Un microbenchmark de 158 columnas y 262 consultas pasó de 0,2230 s sin
+instrumentar a 0,2368 s con reloj, filas y bytes (+0,0138 s; 6,188 %);
+dos lecturas de [`Sys.time()`](https://rdrr.io/r/base/Sys.time.html)
+solas costaron aproximadamente 10 µs por consulta. En el flujo real de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+(158 columnas, 10.000 filas y 347 consultas), cinco pares alternados
+dieron medianas de 2,398 s y 2,419 s (+0,021 s; 0,876 %). Por eso la
+medición queda activa por omisión y conserva un interruptor explícito
+para corridas donde ese costo relativo importe.
+
+### La poda y el informe preguntan ahora por la misma función
+
+[`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
+decide dos veces lo mismo: si un par puede alcanzar el umbral —para
+descartarlo sin calcularlo— y si lo alcanzó —para informarlo—. Las dos
+decisiones estaban escritas como desigualdades separadas, y dos
+expresiones algebraicamente equivalentes no son iguales en punto
+flotante: cada forma pierde el borde con su propio conjunto de umbrales,
+y ahí la poda descarta un par que el informe habría publicado.
+
+Ahora las dos preguntan por `.alcanza_umbral_dependencia()`. Mientras
+fueran expresiones distintas, saber que coinciden exigía probar todos
+los umbrales; compartiendo función, no hay nada que coincidir.
+
+No lleva tolerancia a propósito: una tolerancia cambiaría lo que el
+umbral significa, y eso sería parte del contrato público y no un detalle
+interno.
+
+### Dos podas descartaban lo que igualaba el umbral
+
+[`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md)
+y
+[`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+descartan pares sin calcularlos cuando el umbral es inalcanzable. Las
+dos comparaciones se escribían multiplicando, y la multiplicación
+redondea: `25 * 0.56` da `14.000000000000002`, así que un par cuyo
+cumplimiento máximo vale exactamente `0,56` quedaba por debajo y se
+descartaba. Como el informe descarta sólo lo que está **por debajo** del
+umbral, ese par debía informarse.
+
+Lo mismo en la poda por cardinalidades de
+[`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md):
+con siete valores distintos contra veinticinco y umbral `0,28`, el
+producto daba `7.0000000000000009` y declaraba
+`cardinalidades_imposibles` una cobertura que sí era alcanzable.
+
+Las dos comparan ahora dividiendo. Los umbrales por omisión del paquete
+no disparaban el defecto —por eso no se había visto—, pero `umbral` y
+`umbral_cobertura` admiten cualquier proporción, y un barrido exhaustivo
+con la forma anterior encontró setecientas dos podas de más.
+
+### Pedir sólo agregados sin leer la muestra
+
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+y
+[`perfilar_coleccion()`](https://sebollin.github.io/lupa/reference/perfilar_coleccion.md)
+aceptan `bloque_muestra = "solo_agregados"` para calcular los agregados
+SQL sin traer filas a R ni ejecutar el perfil de la muestra. El valor
+por omisión `"con_muestra"` conserva el comportamiento anterior.
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+omite la fila y el costo de la muestra cuando corresponde, y la
+cobertura usa `no_solicitado` para distinguirlo de una muestra que se
+intentó leer y no estuvo disponible.
+
+### La inferencia de tipo clasifica el vocabulario repetido una sola vez
+
+`.inferir_tipo()` usa el vocabulario textual cuando su cardinalidad hace
+conveniente el recorrido, y pondera cada forma por su frecuencia en las
+filas. El camino que no activa el atajo conserva las mismas pasadas
+sobre cada valor. La detección de fechas queda sobre las filas
+muestreadas: sus atributos `compatibles`, `total`, `analizados`,
+`muestreado` y el caché interno de meses forman parte del contrato del
+perfilado y no se reemplazan por conteos de formas.
+
+### Dos números que las optimizaciones habían movido
+
+Los cambios que quitaron recorridos internos prometían no mover nada de
+lo informado. Movían dos cosas, las dos en el borde.
+
+**La mediana no es el cuantil 0,5 hasta el último bit.**
+[`median()`](https://rdrr.io/r/stats/median.html) promedia los dos
+valores centrales con `(a + b) / 2` y `quantile(type = 7)` interpola con
+`a + 0,5 * (b - a)`; cuando los centrales son de magnitudes muy dispares
+redondean distinto. Sobre `c(-1000, 0.000111, 0.25, 1000)` la mediana
+informada pasaba de `0,12505549999999999` a `0,12505550000000001`.
+Vuelve a salir de [`median()`](https://rdrr.io/r/stats/median.html); los
+cuartiles siguen compartiendo una sola llamada, así que el recorrido que
+se ahorra sigue ahorrado.
+
+**Y la poda de dependencias callaba el par que iguala el umbral.** La
+cota se comparaba como `k_y - k_x > n * (1 - umbral)`, y `1 - 0.8` vale
+`0,19999999999999996`: con cinco filas, la resta hacía que
+`1 > 0,99999999999999978` y el par se descartaba. Su cumplimiento era
+exactamente `0,8`, y el filtro de informe descarta sólo lo que está
+**por debajo** del umbral, así que ese par debía informarse. Escrita
+como el máximo alcanzable contra lo que el umbral exige, el borde deja
+de perderse: medido sobre 200.000 combinaciones, la forma anterior
+podaba de más 88 veces y la nueva ninguna.
+
+### La deteccion de dependencias conserva el resultado y reduce el costo
+
+La particion de parejas `(determinante, dependiente)` usa una clave
+entera cuando el producto de sus cardinalidades no supera `2^53`; en el
+borde o fuera de el conserva el camino con
+[`interaction()`](https://rdrr.io/r/base/interaction.html). La clave
+solo renumera parejas, por lo que no cambia sus conteos, los grupos en
+conflicto ni ninguna dependencia informada.
+
+La deteccion agrega una cota de poda basada en la cantidad `P` de
+parejas distintas del subconjunto valido: `P - k_x`. La particion y sus
+conteos se reutilizan si el par debe evaluarse, y la bateria de
+equivalencia compara el objeto completo con ambos atajos y con sus
+caminos de referencia.
+
+### Tres recorridos internos se eliminan sin cambiar lo informado
+
+El resumen cuantitativo comparte una sola llamada a
+[`quantile()`](https://rdrr.io/r/stats/quantile.html) para obtener los
+cuartiles y la mediana, deriva el IQR de esos valores y pasa `q1` y `q3`
+al diagnóstico de sentinelas. La guarda que evita ese diagnóstico con
+menos de 20 valores sigue decidiendo antes de sus cuantiles. Sobre un
+millón de valores, la expresión equivalente pasó de una mediana de
+**0,048 s** a **0,027 s**; el resultado fue
+[`identical()`](https://rdrr.io/r/base/identical.html).
+
+El conteo general de duplicados calcula una vez cada dirección de
+[`duplicated()`](https://rdrr.io/r/base/duplicated.html) y deriva los
+dos conteos. Los `tryCatch` siguen aislando un fallo inicial (`NA, NA`)
+de un fallo sólo en `fromLast` (`valor, NA`). Sobre 300.000 × 5, la
+mediana pasó de **0,928 s** a **0,707 s**; los dos conteos fueron
+idénticos.
+
+La detección de dependencias poda un par sólo cuando ninguna de sus
+columnas tiene ausentes y la cota `k_y - k_x > n * (1 - umbral)` hace
+inalcanzable el umbral. Las cardinalidades usadas son las de
+`estadisticas`, que en ese caso son exactamente las del subconjunto
+válido; con ausentes el par se evalúa completo. Sobre 20.000 × 12 se
+podaron **36 de 132** pares y se hicieron 96 llamadas al resumen: la
+mediana pasó de **0,575 s** a **0,444 s**. El objeto completo fue
+[`identical()`](https://rdrr.io/r/base/identical.html) con la ejecución
+sin poda, y el caso que cumple 0,996 se conserva.
+
+### El plan declaraba cero trabajo para la tabla entera
+
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+subdeclaraba el costo justo en el caso por omisión. Con `muestra = Inf`
+—que trae la tabla entera— el bloque de muestra se contaba como **cero
+filas leídas y cero pares de formas a comparar**, de modo que pedir
+todas las filas declaraba menos trabajo que pedir mil. Sobre una tabla
+de 200.000 × 4, `muestra = Inf` anunciaba 400.000 lecturas y
+`muestra = 200000` —que pide exactamente las mismas filas— anunciaba
+600.000.
+
+Como la magnitud del trabajo se decide sobre esos números, el caso por
+omisión caía en «baja» y el plan **no imprimía las palancas** para bajar
+el costo.
+
+Las dos formas de pedir la tabla entera declaran ahora lo mismo. Los
+valores que sí son inválidos siguen tratándose como antes.
+
+Y el hueco simétrico: una `muestra` finita **mayor** que las filas de la
+tabla tampoco quedaba acotada. Pedir un millón de filas de una tabla de
+cien no trae más de cien —la lectura real es `min(n_total, muestra)`—,
+pero el plan imputaba un millón de lecturas. La inconsistencia era
+interna: el trabajo del cliente sí se acotaba, así que las dos mitades
+de la misma cuenta usaban tamaños de muestra distintos. Ahora el tamaño
+efectivo se calcula una sola vez y las dos mitades lo comparten.
+
 ### Las geometrías que vienen de una base ya no pierden su trazabilidad
 
 Un hallazgo sobre una columna de geometría —una coordenada fuera del

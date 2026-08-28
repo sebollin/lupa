@@ -164,7 +164,18 @@ columnas para las filas señaladas, de modo que el caso se pueda verificar
 en el sistema de origen sin abrir la tabla. El índice de fila se conserva
 siempre. La clave declarada se trata como sensible: si la protección de
 datos personales está activa y alguna de esas columnas se clasifica como
-personal, sus valores salen enmascarados igual que la evidencia.</p></dd>
+personal, sus valores salen enmascarados igual que la evidencia.
+La comprobación de una clave tiene dos ejes independientes:
+<code>meta$clave$unicidad</code> comprueba si sus combinaciones son únicas con la
+semántica de R,
+y <code>meta$clave$ausencia_nulos</code> comprueba que sus componentes no tengan
+valores ausentes. Cada eje declara <code>verificada</code>, <code>refutada</code> o
+<code>no_verificada</code>; una clave con ambos ejes verificados conserva exactamente
+el objeto histórico y no agrega metadatos. Cuando un eje falla o no se
+puede comprobar, <code>meta$clave$trazabilidad</code> explica que la localización
+agrupa con la semántica de R, incluso si el motor SQL trata dos <code>NULL</code> como
+distintos. Por eso una clave puede tener a la vez una colisión para la
+trazabilidad y una ausencia que impide la garantía <code>NOT NULL</code>.</p></dd>
 
 
 <dt id="arg-umbral-faltantes-error">umbral_faltantes_error<a class="anchor" aria-label="anchor" href="#arg-umbral-faltantes-error"></a></dt>
@@ -552,7 +563,10 @@ rareza cuando no hay recorte de trazabilidad. Si el conjunto de nombres
 raros supera 5.000, <code>cobertura_diagnosticos</code> declara el recorte y su limite.
 Quien decida automáticamente sobre un perfil debe revisar
 <code>nrow(perfil$cobertura_diagnosticos)</code> además de las severidades: un perfil
-sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.</p>
+sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.
+Cuando una clave declarada no queda plenamente verificada, <code>meta$clave</code>
+conserva los estados de unicidad y ausencia de nulos, sus conteos y la
+semántica usada por la trazabilidad.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

@@ -124,7 +124,7 @@ map:
 | Task | Main functions | Read more |
 |----|----|----|
 | Look at data for the first time | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md), [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md), [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md), [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md), `sentinelas_naniar` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Profile against a database | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — full-table SQL aggregates plus a 109-analytic-field profile from a declared sample; the scopes stay separate | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Profile against a database | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — full-table SQL aggregates plus, by default, a 109-analytic-field profile from a declared sample; `bloque_muestra = "solo_agregados"` requests only aggregates | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Find undeclared structure | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md), [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md) | [Undeclared structure](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Define quality | [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md), [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md), [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md) | [Define quality](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Measure and evaluate | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md), [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md) with project weights, [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md) with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Measure and evaluate](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -228,16 +228,22 @@ The dialect can be declared with `dialecto =` if the probe gets it
 wrong. A partial failure never discards what was already measured: if
 reading the sample fails, the object comes back with a complete
 `resumen_tabla`, `perfil_muestra = NULL`, and a coverage row carrying
-the reason.
+the reason. If the sample was not requested, coverage uses
+`no_solicitado`, which is not a failure; request only aggregates with
+`bloque_muestra = "solo_agregados"`.
 
 ### Knowing what is missing before you hit it
 
-`lupa` has one hard dependency, `cli`. Everything else is optional — and
-what used to happen when something was missing was an R error, or a
-driver error, that named neither what was missing nor how to get it. The
-hard case is not the R package but the **system library underneath it**:
-`RMariaDB` does not compile without the MySQL or MariaDB client headers,
-`ROracle` needs Oracle Instant Client, and someone staring at
+`lupa` has two hard dependencies, `cli` and `data.table`. `data.table`
+is used only to accelerate the exact count of duplicated rows, and it is
+never imported into the namespace; tables with list or matrix columns,
+or with `NaN`, fall back to base R, which is what fixes the result.
+Everything else is optional — and what used to happen when something was
+missing was an R error, or a driver error, that named neither what was
+missing nor how to get it. The hard case is not the R package but the
+**system library underneath it**: `RMariaDB` does not compile without
+the MySQL or MariaDB client headers, `ROracle` needs Oracle Instant
+Client, and someone staring at
 `installation of package 'RMariaDB' had non-zero exit status` has no way
 to know the answer is `libmariadb-dev`.
 
@@ -265,31 +271,48 @@ that — the package’s own invariant applied to its own installation.
 
 Profiling issued **one query per column** for each block of metrics. On
 a table of tens of millions of rows that is the cost: not the sampling,
-the number of scans. The flat aggregates — counts,
+the number of scans. The flat aggregates — `COUNT(col)`,
 min/max/mean/zeros/negatives, and standard deviation — are now asked for
-**several columns in one query**, in batches. Mode and median stay one
-per column, because they group and sort.
+**several columns in one query**, in batches. `COUNT(DISTINCT ...)`
+keeps a separate query class; mode and median stay one per column,
+because they group and sort.
 
 Measured against PostgreSQL 16 with **2 million rows by 40 columns**:
 
-| mode      | before              | after                 |
-|-----------|---------------------|-----------------------|
-| `conteos` | 46 queries, 5.4 s   | **8 queries, 2.4 s**  |
-| `seguro`  | 128 queries, 15.2 s | **14 queries, 5.3 s** |
+| mode | before | after |
+|----|----|----|
+| `conteos` | 46 queries, 5.4 s | **8 queries, 2.4 s** |
+| `seguro` | 128 queries, 15.2 s | 14 queries, 5.3 s; **10 queries** with flat fusion |
 
 Same 160 and 400 metrics computed, and the same numbers: on one table
 seeded once, the consolidated profile and the previous one agree on all
 sixteen summary fields across six column types.
 
-**If a batch fails, the batch is not lost.** It is retried column by
-column, and whatever still fails is left `no_disponible` with its reason
-while its neighbours are computed. A shared query is the perfect way to
-reintroduce the all-or-nothing reflex this package fixed in five places,
-so the degradation was built first and has its own tests.
+**If a batch fails, the batch is not lost.** Its halves are probed by
+bisection: accepted groups are reused as measurements and culprit
+columns are retried per metric. Whatever still fails is left
+`no_disponible` with its reason while its neighbours are computed. If
+the probe budget runs out, pending columns remain unmeasured; they are
+not assumed to be culprits or readable. The degradation has its own
+tests.
 
 `resumen_tabla$sql` keeps **one row per column and metric** with every
 field it had, and adds `lote` and `columnas_compartidas` so a shared
-query is visible.
+query is visible. It also adds `id_muestra`: two metrics with the same
+value came from the same data query and saw exactly the same rows.
+Per-column metrics — mode, mode frequency, and median — leave
+`id_muestra = NA`, because they do not share rows with other metrics;
+`NA` declares that there is no guarantee rather than inventing a match.
+
+The exact total (`COUNT(*)`) travels in the first aggregate query and
+shares the scan the aggregates already needed. If the complete batch is
+rejected by the engine, a standalone `COUNT(*)` is issued and bisection
+continues: completeness always uses `n_total - n_validos`, never an
+estimated total. In a normal run this saves one query and one separate
+table scan; the plan still pays its own count because it needs the row
+total before estimating the work. A `TABLESAMPLE` form that needs the
+total to write a percentage counts it first and does not claim this
+saving.
 
 ### Reading a profile without knowing its shape
 
@@ -383,9 +406,15 @@ reached when no batch is rejected: a column with no value emits neither
 median nor standard deviation, and the plan cannot know which ones are
 empty without asking — which would change its own cost. The high end is
 `total_lotes_rechazados`, reached when the engine rejects every batch
-and each column is retried on its own. The real cost falls between the
-two, and the plan says so in both directions rather than promising a
-bound it cannot keep.
+and each bisection tree is traversed: up to `2n - 1` additional probes
+for a batch of `n` columns. The real cost falls between the two, and the
+plan says so in both directions rather than promising a bound it cannot
+keep.
+
+The plan pays its own exact `COUNT(*)` before the aggregates because it
+needs the total to estimate the work. That scan remains part of the
+plan’s cost; the run does not pay a separate count query when it can
+carry the count in its first aggregate.
 
 The part that *is* a hard design constraint is that the prediction does
 not depend on the engine: every capability probe costs a fixed number of
@@ -406,15 +435,18 @@ compare in R over the sample — summarised in `magnitud_texto`.
 Counting only the engine gave false verdicts out of true numbers: a
 3,912-row PostGIS catalogue table with one geometry column stored as
 text asked for 64,592 row reads and no sorts — magnitude `"baja"` — and
-took 35 seconds, because the work was in comparing forms, which is not a
-row read. Printing the plan shows both halves, and the high-work warning
-names the levers that bound it, which differ on each side. It is an
-estimate and says so: the engine half counts the rows that would have to
-be read if no index helped, and the client half counts pairs, whose unit
-cost depends on value length — something the plan cannot know without
-reading them, so for very long text the real time is several times what
-the reference suggests. The published numbers do not depend on those
-assumptions, so anyone who disagrees with them can redo the arithmetic.
+took 35 seconds **with the work budget already calibrated**, because
+what remained was in comparing forms, which is not a row read. It is the
+same table that took 243 seconds above, before the budget measured work
+instead of counting units. Printing the plan shows both halves, and the
+high-work warning names the levers that bound it, which differ on each
+side. It is an estimate and says so: the engine half counts the rows
+that would have to be read if no index helped, and the client half
+counts pairs, whose unit cost depends on value length — something the
+plan cannot know without reading them, so for very long text the real
+time is several times what the reference suggests. The published numbers
+do not depend on those assumptions, so anyone who disagrees with them
+can redo the arithmetic.
 
 | mode | what it does |
 |----|----|
@@ -513,7 +545,10 @@ apart from «the key could not be read», which are not the same thing.
 
 **Uniqueness is not guessed: it is asked.** Declare the key with
 `perfilar(clave = ...)` and a key that repeats is a finding of severity
-`error` carrying the offending rows, not a console warning. So that the
+`error` carrying the offending rows. The warning and `meta$clave` keep
+that check apart from missing values: a key may have no non-missing
+collision and still violate `NOT NULL`; if traceability groups those
+missing values with R semantics, both facts remain visible. So that the
 user is not left facing a blank field,
 [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md)
 ranks the candidate columns by three signals it publishes separately —
@@ -523,6 +558,12 @@ how closely its name resembles a key’s — and
 offers them numbered with an option to type another. Ranking is not
 deciding: a unique column may be a key or a magnitude that happens not
 to repeat, and that difference is not in the data.
+
+DBI key lookup also keeps catalogue source apart from guarantee. Oracle
+is reported as guaranteed only when `STATUS` is `ENABLED` and
+`VALIDATED`; PostgreSQL and MySQL publish comparable catalogue states.
+MariaDB, SQL Server, SQLite, and DuckDB do not let this path distinguish
+that state, so a visible key there keeps an unknown guarantee.
 
 Where no signal discriminates, `lupa` speaks. High cardinality in a text
 column is always reported, because the length of the values does not

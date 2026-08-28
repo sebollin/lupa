@@ -42,6 +42,165 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="catalogos-de-claves-sin-confundir-ausencia-con-falta-de-visibilidad-0-1-0">Catalogos de claves sin confundir ausencia con falta de visibilidad<a class="anchor" aria-label="anchor" href="#catalogos-de-claves-sin-confundir-ausencia-con-falta-de-visibilidad-0-1-0"></a></h3>
+<p>La lectura DBI ya no llama <code>no_declarada</code> a cualquier consulta de catalogo que vuelve vacia. Una consulta fallida queda con <code>garantia = "desconocida"</code>, <code>visible = NA</code> y su motivo; una vista que devolvio cero filas pero puede ocultar metadatos queda con <code>garantia = "desconocida"</code>, <code>visible = FALSE</code> y la ambiguedad escrita en <code>motivo</code>. Solo las vias cuyo catalogo es visible para una tabla accesible conservan <code>no_declarada</code>.</p>
+<p>PostgreSQL deja de partir de <code>information_schema.table_constraints</code>, que oculta restricciones a un rol que solo tiene <code>SELECT</code>, y consulta directamente <code>pg_constraint</code>, <code>pg_class</code>, <code>pg_namespace</code> y <code>pg_attribute</code>, conservando el orden de una clave compuesta y el estado <code>convalidated</code>. La ruta contra un servidor PostgreSQL con una credencial que solo tiene <code>SELECT</code> queda pendiente de verificacion en esta entrega.</p>
+<p>SQLite pide tambien <code>notnull</code>. Su estado separa <code>unicidad = "garantizada"</code> entre los valores no nulos de la PRIMARY KEY de <code>ausencia_de_nulos</code>: es <code>"garantizada"</code> cuando todas sus columnas devuelven <code>notnull = 1</code> y <code>"no_verificada"</code> en los demas casos. La garantia conjunta queda desconocida cuando la no-nulidad no se puede sostener. Esto subclasifica honestamente los casos especiales que pueden garantizar no-nulidad sin que este camino distinga su declaracion, como <code>INTEGER PRIMARY KEY</code>; no se lanza un recorrido de los datos. Se verifico con dos <code>NULL</code> reales en una PRIMARY KEY de texto sin <code>NOT NULL</code>, y con el rechazo de un <code>NULL</code> en otra con <code>NOT NULL</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="la-clase-de-la-tabla-ya-no-cambia-el-resultado-0-1-0">La clase de la tabla ya no cambia el resultado<a class="anchor" aria-label="anchor" href="#la-clase-de-la-tabla-ya-no-cambia-el-resultado-0-1-0"></a></h3>
+<p><code><a href="../reference/perfilar.html">perfilar()</a></code>, <code><a href="../reference/analizar.html">analizar()</a></code> y el resto de la API que recibe tablas dan el mismo resultado con un <code>data.frame</code>, un <code>data.table</code> o un <code>tibble</code>. Las entradas se normalizan en la frontera —una sola vez por llamada— y las tablas internas del modelo de calidad también, de modo que la sintaxis de selección de columnas significa lo mismo en todos los caminos.</p>
+<p>Esto corrige además cinco selecciones de una dimensión que no eran portables: <code>tabla["columna"]</code> selecciona una columna en un <code>data.frame</code> y en un <code>tibble</code>, pero en un <code>data.table</code> intenta un cruce y aborta. Ahora son selecciones explícitas de dos dimensiones.</p>
+</div>
+<div class="section level3">
+<h3 id="conteo-exacto-de-filas-duplicadas-sin-mutar-la-entrada-0-1-0">Conteo exacto de filas duplicadas sin mutar la entrada<a class="anchor" aria-label="anchor" href="#conteo-exacto-de-filas-duplicadas-sin-mutar-la-entrada-0-1-0"></a></h3>
+<p>El contador de filas duplicadas de <code><a href="../reference/perfilar.html">perfilar()</a></code> obtiene los grupos de filas con <code><a href="https://rdrr.io/pkg/data.table/man/frank.html" class="external-link">data.table::frank()</a></code> en vez de armar la estructura intermedia que combina todas las columnas, que es lo que hace <code><a href="https://rdrr.io/r/base/duplicated.html" class="external-link">duplicated()</a></code> sobre un <code>data.frame</code> y lo que hace crecer su costo con el ancho de la tabla. La entrada no se convierte ni se copia.</p>
+<p><code>data.table</code> se llama con <code>::</code> y <strong>no</strong> se importa al espacio de nombres, a propósito: <code>data.table</code> decide la semántica de <code>[</code> según si el paquete que llama lo tiene entre sus imports, de modo que importarlo cambiaría el significado de <code>tabla[, columnas, drop = FALSE]</code> en toda función que recibe una tabla de quien usa el paquete. <code>frank()</code> no depende de esa condición; <code><a href="https://rdrr.io/r/base/duplicated.html" class="external-link">duplicated()</a></code> sobre un <code>data.table</code> sí, y por eso no se usa.</p>
+<p>Las columnas de lista o matriz se detectan antes y usan la semántica de base, y también las tablas con <code>NaN</code>: <code>frank()</code> ordena y no distingue <code>NaN</code> de <code>NA</code>, mientras que <code><a href="https://rdrr.io/r/base/duplicated.html" class="external-link">duplicated()</a></code> sobre un <code>data.frame</code> sí los distingue. La dependencia pasa de <code>Suggests</code> a <code>Imports</code>, y el resultado queda cubierto por pruebas de equivalencia contra base sobre <code>data.frame</code>, <code>data.table</code> y <code>tibble</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="claves-declaradas-unicidad-ausencias-y-trazabilidad-separadas-0-1-0">Claves declaradas: unicidad, ausencias y trazabilidad separadas<a class="anchor" aria-label="anchor" href="#claves-declaradas-unicidad-ausencias-y-trazabilidad-separadas-0-1-0"></a></h3>
+<p><code>perfilar(clave = ...)</code> informa por separado si la combinación es única bajo la semántica de R y si sus componentes están completos. Cada eje queda como <code>verificada</code>, <code>refutada</code> o <code>no_verificada</code>; una ausencia no se presenta como un duplicado SQL. Si la semántica de R agrupa dos ausentes para localizar filas, esa colisión y la falta de valores se informan juntas y quedan en <code>meta$clave</code>, junto a la trazabilidad. Una clave única y completa conserva el objeto histórico sin metadatos adicionales.</p>
+</div>
+<div class="section level3">
+<h3 id="garantía-de-claves-primarias-según-el-estado-del-catálogo-0-1-0">Garantía de claves primarias según el estado del catálogo<a class="anchor" aria-label="anchor" href="#garant%C3%ADa-de-claves-primarias-seg%C3%BAn-el-estado-del-cat%C3%A1logo-0-1-0"></a></h3>
+<p>La lectura DBI de claves primarias separa la fuente (<code>fuente</code>) de la garantía (<code>garantia</code>) y conserva el estado consultado. Oracle lee <code>STATUS</code> y <code>VALIDATED</code>: una restricción deshabilitada o no validada queda declarada en el catálogo, pero no garantizada; si esos estados no se pueden consultar, quedan desconocidos. PostgreSQL consulta <code>enforced</code> y su estado de validación, y MySQL <code>enforced</code>; MariaDB, SQL Server, SQLite y DuckDB no ofrecen en esta vía un estado comparable, por lo que el resultado no inventa una garantía. Los casos Oracle se verifican con respuestas DBI simuladas; no se afirma una prueba contra un servidor Oracle real.</p>
+</div>
+<div class="section level3">
+<h3 id="cpu-del-cliente-y-política-explícita-para-métricas-caras-0-1-0">CPU del cliente y política explícita para métricas caras<a class="anchor" aria-label="anchor" href="#cpu-del-cliente-y-pol%C3%ADtica-expl%C3%ADcita-para-m%C3%A9tricas-caras-0-1-0"></a></h3>
+<p>La instrumentación de DBI publica ahora <code>cpu_ms</code> junto a <code>duracion_ms</code> en <code>resumen_tabla$sql</code> y en <code>resumen_tabla$tiempos</code>. Se calcula con <code><a href="https://rdrr.io/r/base/proc.time.html" class="external-link">proc.time()</a></code> como <code>user.self + sys.self</code>: cerca de cero distingue espera del trabajo del proceso cliente, y cerca de uno al dividir CPU por tiempo transcurrido indica que el cliente está trabajando. Cero es una medición válida; <code>NA</code> queda reservado para lo que no se pudo medir, y <code>instrumentar = FALSE</code> deja el campo en <code>NA</code> como los demás. En un microbenchmark de un millón de consultas simuladas, dos lecturas de <code><a href="https://rdrr.io/r/base/proc.time.html" class="external-link">proc.time()</a></code> costaron 1,122 microsegundos por consulta; dos de <code><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time()</a></code> costaron 1,778 microsegundos. En la tabla ancha de 158 columnas, el agregado no duplicó el costo de instrumentar: cinco corridas con reloj solamente tuvieron mediana de 1,093 s y cinco con reloj más CPU de 0,962 s, una diferencia dominada por la variación de SQLite. El número reproducible que se publica es el costo directo de 1,122 microsegundos por consulta.</p>
+<p>Moda y mediana se pueden controlar con <code>politica_costo</code>. El valor por omisión es <code>"todas"</code>, que conserva el perfil anterior; <code>"por_cardinalidad"</code> hace primero los conteos baratos de valores válidos y distintos y decide luego por columna. Si <code>n_distintos / n_validos</code> alcanza <code>umbral_cardinalidad</code> (por omisión <code>0.95</code>), omite moda y mediana de esa columna. La omisión no desaparece ni se vuelve <code>NA</code> silencioso: queda <code>omitido_por_costo</code> con el motivo, la proporción observada y la forma de pedirla igual (<code>politica_costo = "todas"</code>) o mover el umbral.</p>
+<p>La política hace explícito el plan en dos etapas. En una tabla reproducible de 158 columnas, 80 numéricas, 200 filas y 60 columnas con cardinalidad al menos 0,95, <code>politica_costo = "todas"</code> emitió 260 consultas y la política selectiva 140: se ahorraron <strong>120 consultas</strong>, no tiempo. Se omitieron 60 modas y 60 medianas. El valor por omisión no cambia: esos 60 casos muestran el ahorro posible, pero no autorizan al paquete a elegir qué métrica sacrificar.</p>
+<p>Cuando la sonda reconoce un motor con <code>PERCENTILE_CONT(...) WITHIN GROUP</code>, las medianas numéricas se consolidan en un <code>SELECT</code> por lote; el camino actual, una mediana por columna, queda como respaldo si la capacidad no está disponible o falla la consulta consolidada.</p>
+</div>
+<div class="section level3">
+<h3 id="el-recorrido-que-se-pagaba-sólo-por-contar-y-qué-filas-vio-cada-métrica-0-1-0">El recorrido que se pagaba sólo por contar, y qué filas vio cada métrica<a class="anchor" aria-label="anchor" href="#el-recorrido-que-se-pagaba-s%C3%B3lo-por-contar-y-qu%C3%A9-filas-vio-cada-m%C3%A9trica-0-1-0"></a></h3>
+<p>El <code>COUNT(*)</code> exacto ya viaja en la primera consulta de agregados. Si el lote completo es rechazado, <code>lupa</code> emite un <code>COUNT(*)</code> solo como repliegue y continúa con la bisección: la completitud sigue derivando <code>n_faltantes</code> y <code>prop_faltantes</code> de un denominador medido, nunca estimado. El plan sigue pagando su propio conteo porque necesita conocer el total antes de estimar el trabajo.</p>
+<p>En una tabla en memoria de 12 filas y tres columnas, con <code>tamano_lote = 4</code> y <code>bloque_muestra = "solo_agregados"</code>, la traza SQL dio estos conteos. La columna de recorridos cuenta las apariciones de la fuente en el SQL; no se usó tiempo.</p>
+<table class="table"><colgroup><col width="13%"><col width="17%"><col width="17%"><col width="17%"><col width="17%"><col width="17%"></colgroup><thead><tr><th>modo</th>
+<th align="right">consultas antes</th>
+<th align="right">consultas ahora</th>
+<th align="right">recorridos antes</th>
+<th align="right">recorridos ahora</th>
+<th align="right">ahorro de recorridos</th>
+</tr></thead><tbody><tr><td><code>exacto</code></td>
+<td align="right">14</td>
+<td align="right">13</td>
+<td align="right">14</td>
+<td align="right">13</td>
+<td align="right">1</td>
+</tr><tr><td><code>seguro</code></td>
+<td align="right">8</td>
+<td align="right">7</td>
+<td align="right">8</td>
+<td align="right">7</td>
+<td align="right">1</td>
+</tr><tr><td><code>conteos</code></td>
+<td align="right">6</td>
+<td align="right">5</td>
+<td align="right">6</td>
+<td align="right">5</td>
+<td align="right">1</td>
+</tr><tr><td><code>muestreado</code></td>
+<td align="right">23</td>
+<td align="right">22</td>
+<td align="right">23</td>
+<td align="right">23</td>
+<td align="right">0</td>
+</tr><tr><td><code>aproximado</code></td>
+<td align="right">23</td>
+<td align="right">22</td>
+<td align="right">23</td>
+<td align="right">22</td>
+<td align="right">1</td>
+</tr></tbody></table><p>En <code>resumen_tabla$sql</code>, <code>id_muestra</code> identifica la consulta de datos: el mismo identificador garantiza exactamente las mismas filas. Moda, frecuencia de la moda y mediana son métricas por columna y quedan con <code>NA</code>; también queda <code>NA</code> cualquier camino que no pueda sostener esa garantía. Así la comparabilidad se comprueba por comparación directa, sin cruzar <code>lote</code> ni <code>columnas_compartidas</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="aislar-la-columna-culpable-en-pocas-consultas-y-no-recorrer-tres-veces-lo-que-cabe-en-una-0-1-0">Aislar la columna culpable en pocas consultas, y no recorrer tres veces lo que cabe en una<a class="anchor" aria-label="anchor" href="#aislar-la-columna-culpable-en-pocas-consultas-y-no-recorrer-tres-veces-lo-que-cabe-en-una-0-1-0"></a></h3>
+<p>Los lotes de agregados que el motor rechaza ya no se reintentan columna por columna sin información. La vía de agregados reutiliza la bisección de la lectura de muestras: sondea mitades, conserva los grupos aceptados como datos medidos y reintenta por métrica sólo las columnas culpables. El tope sigue siendo de hasta <code>2n - 1</code> sondas para un lote de <code>n</code> columnas y, si el presupuesto se agota, las hojas pendientes quedan <code>no_disponible</code> sin ser supuestas. El tamaño mayor de lote aceptado se guarda sólo en el presupuesto de la corrida y se publica como <code>meta$tamano_lote_funciono</code>; no queda estado global asociado a la conexión.</p>
+<p>Los agregados planos sobre la misma tabla y filtro —<code>COUNT(col)</code>, mínimos, máximos, medias, ceros, negativos y desvío— comparten ahora una consulta por lote. <code>COUNT(DISTINCT ...)</code> conserva su clase separada. La fusión no cambia las métricas ni su disponibilidad: una falla de un agregado en una columna todavía se prueba por separado antes de declararla no disponible.</p>
+<p>La medición se hizo sobre una tabla en memoria de 20 columnas y 100 filas, recreando la expresión en cada vuelta, con <code>muestra = 12</code> y <code>bloque_muestra = "solo_agregados"</code>. Las consultas emitidas antes y después fueron, en orden <code>exacto</code>, <code>seguro</code>, <code>conteos</code>, <code>muestreado</code>, <code>aproximado</code>:</p>
+<table class="table"><thead><tr><th>modo</th>
+<th align="right">antes</th>
+<th align="right">después</th>
+<th align="right">ahorro</th>
+</tr></thead><tbody><tr><td><code>exacto</code></td>
+<td align="right">50</td>
+<td align="right">49</td>
+<td align="right">1</td>
+</tr><tr><td><code>seguro</code></td>
+<td align="right">10</td>
+<td align="right">8</td>
+<td align="right">2</td>
+</tr><tr><td><code>conteos</code></td>
+<td align="right">6</td>
+<td align="right">6</td>
+<td align="right">0</td>
+</tr><tr><td><code>muestreado</code></td>
+<td align="right">59</td>
+<td align="right">58</td>
+<td align="right">1</td>
+</tr><tr><td><code>aproximado</code></td>
+<td align="right">59</td>
+<td align="right">58</td>
+<td align="right">1</td>
+</tr></tbody></table><p>El ahorro es deliberadamente pequeño en el modo por omisión porque <code>COUNT(DISTINCT ...)</code> y la moda siguen fuera de la consulta plana; la mediana también, salvo en los motores cuya sonda acepta la consolidación con <code>PERCENTILE_CONT</code>. La fusión paga sobre todo en <code>seguro</code>, donde las tres pasadas planas pasan a una. <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> refleja esas clases y su rango de sondas por bisección.</p>
+</div>
+<div class="section level3">
+<h3 id="el-plan-ya-no-cobra-trabajo-de-r-que-no-va-a-ocurrir-0-1-0">El plan ya no cobra trabajo de R que no va a ocurrir<a class="anchor" aria-label="anchor" href="#el-plan-ya-no-cobra-trabajo-de-r-que-no-va-a-ocurrir-0-1-0"></a></h3>
+<p>Con <code>bloque_muestra = "solo_agregados"</code> no se trae ninguna fila a R, así que el detector de vocabulario no corre. El plan lo reflejaba bien en cuatro modos y mal en <code>"muestreado"</code>: seguía anunciando los pares de formas a comparar en R, y el texto impreso se contradecía a dos líneas de distancia —«el plan incluye sólo agregados SQL» y después «más 4.000.000 pares de formas a comparar en R»—.</p>
+<p>El conteo colgaba de un conjunto de alcances que mete en la misma bolsa dos cosas distintas: el muestreo <strong>del motor</strong>, que en ese modo ocurre igual, y el bloque <strong>del cliente</strong>, que es lo único que trae filas. Ahora cuelga sólo del segundo.</p>
+</div>
+<div class="section level3">
+<h3 id="instrumentación-de-consultas-y-etapas-r-0-1-0">Instrumentación de consultas y etapas R<a class="anchor" aria-label="anchor" href="#instrumentaci%C3%B3n-de-consultas-y-etapas-r-0-1-0"></a></h3>
+<p><code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> agrega a <code>resumen_tabla$sql</code> <code>duracion_ms</code>, <code>cpu_ms</code>, <code>n_filas_resultado</code>, <code>bytes_resultado_r</code>, <code>consulta_id</code> y <code>etapa</code>. También publica <code>resumen_tabla$tiempos</code>, con las duraciones en milisegundos de la lectura y el perfilado de la muestra, el perfilado por columna y los análisis opcionales. Las ramas sin consulta dejan <code>NA</code>; no se publican ceros por falta de resolución del reloj. <code>instrumentar = FALSE</code> apaga la medición sin cambiar el plan ni el orden o la cantidad de consultas.</p>
+<p>Un microbenchmark de 158 columnas y 262 consultas pasó de 0,2230 s sin instrumentar a 0,2368 s con reloj, filas y bytes (+0,0138 s; 6,188 %); dos lecturas de <code><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time()</a></code> solas costaron aproximadamente 10 µs por consulta. En el flujo real de <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> (158 columnas, 10.000 filas y 347 consultas), cinco pares alternados dieron medianas de 2,398 s y 2,419 s (+0,021 s; 0,876 %). Por eso la medición queda activa por omisión y conserva un interruptor explícito para corridas donde ese costo relativo importe.</p>
+</div>
+<div class="section level3">
+<h3 id="la-poda-y-el-informe-preguntan-ahora-por-la-misma-función-0-1-0">La poda y el informe preguntan ahora por la misma función<a class="anchor" aria-label="anchor" href="#la-poda-y-el-informe-preguntan-ahora-por-la-misma-funci%C3%B3n-0-1-0"></a></h3>
+<p><code><a href="../reference/detectar_dependencias.html">detectar_dependencias()</a></code> decide dos veces lo mismo: si un par puede alcanzar el umbral —para descartarlo sin calcularlo— y si lo alcanzó —para informarlo—. Las dos decisiones estaban escritas como desigualdades separadas, y dos expresiones algebraicamente equivalentes no son iguales en punto flotante: cada forma pierde el borde con su propio conjunto de umbrales, y ahí la poda descarta un par que el informe habría publicado.</p>
+<p>Ahora las dos preguntan por <code>.alcanza_umbral_dependencia()</code>. Mientras fueran expresiones distintas, saber que coinciden exigía probar todos los umbrales; compartiendo función, no hay nada que coincidir.</p>
+<p>No lleva tolerancia a propósito: una tolerancia cambiaría lo que el umbral significa, y eso sería parte del contrato público y no un detalle interno.</p>
+</div>
+<div class="section level3">
+<h3 id="dos-podas-descartaban-lo-que-igualaba-el-umbral-0-1-0">Dos podas descartaban lo que igualaba el umbral<a class="anchor" aria-label="anchor" href="#dos-podas-descartaban-lo-que-igualaba-el-umbral-0-1-0"></a></h3>
+<p><code><a href="../reference/detectar_dependencias.html">detectar_dependencias()</a></code> y <code><a href="../reference/detectar_relaciones.html">detectar_relaciones()</a></code> descartan pares sin calcularlos cuando el umbral es inalcanzable. Las dos comparaciones se escribían multiplicando, y la multiplicación redondea: <code>25 * 0.56</code> da <code>14.000000000000002</code>, así que un par cuyo cumplimiento máximo vale exactamente <code>0,56</code> quedaba por debajo y se descartaba. Como el informe descarta sólo lo que está <strong>por debajo</strong> del umbral, ese par debía informarse.</p>
+<p>Lo mismo en la poda por cardinalidades de <code><a href="../reference/detectar_relaciones.html">detectar_relaciones()</a></code>: con siete valores distintos contra veinticinco y umbral <code>0,28</code>, el producto daba <code>7.0000000000000009</code> y declaraba <code>cardinalidades_imposibles</code> una cobertura que sí era alcanzable.</p>
+<p>Las dos comparan ahora dividiendo. Los umbrales por omisión del paquete no disparaban el defecto —por eso no se había visto—, pero <code>umbral</code> y <code>umbral_cobertura</code> admiten cualquier proporción, y un barrido exhaustivo con la forma anterior encontró setecientas dos podas de más.</p>
+</div>
+<div class="section level3">
+<h3 id="pedir-sólo-agregados-sin-leer-la-muestra-0-1-0">Pedir sólo agregados sin leer la muestra<a class="anchor" aria-label="anchor" href="#pedir-s%C3%B3lo-agregados-sin-leer-la-muestra-0-1-0"></a></h3>
+<p><code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> y <code><a href="../reference/perfilar_coleccion.html">perfilar_coleccion()</a></code> aceptan <code>bloque_muestra = "solo_agregados"</code> para calcular los agregados SQL sin traer filas a R ni ejecutar el perfil de la muestra. El valor por omisión <code>"con_muestra"</code> conserva el comportamiento anterior. <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> omite la fila y el costo de la muestra cuando corresponde, y la cobertura usa <code>no_solicitado</code> para distinguirlo de una muestra que se intentó leer y no estuvo disponible.</p>
+</div>
+<div class="section level3">
+<h3 id="la-inferencia-de-tipo-clasifica-el-vocabulario-repetido-una-sola-vez-0-1-0">La inferencia de tipo clasifica el vocabulario repetido una sola vez<a class="anchor" aria-label="anchor" href="#la-inferencia-de-tipo-clasifica-el-vocabulario-repetido-una-sola-vez-0-1-0"></a></h3>
+<p><code>.inferir_tipo()</code> usa el vocabulario textual cuando su cardinalidad hace conveniente el recorrido, y pondera cada forma por su frecuencia en las filas. El camino que no activa el atajo conserva las mismas pasadas sobre cada valor. La detección de fechas queda sobre las filas muestreadas: sus atributos <code>compatibles</code>, <code>total</code>, <code>analizados</code>, <code>muestreado</code> y el caché interno de meses forman parte del contrato del perfilado y no se reemplazan por conteos de formas.</p>
+</div>
+<div class="section level3">
+<h3 id="dos-números-que-las-optimizaciones-habían-movido-0-1-0">Dos números que las optimizaciones habían movido<a class="anchor" aria-label="anchor" href="#dos-n%C3%BAmeros-que-las-optimizaciones-hab%C3%ADan-movido-0-1-0"></a></h3>
+<p>Los cambios que quitaron recorridos internos prometían no mover nada de lo informado. Movían dos cosas, las dos en el borde.</p>
+<p><strong>La mediana no es el cuantil 0,5 hasta el último bit.</strong> <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">median()</a></code> promedia los dos valores centrales con <code>(a + b) / 2</code> y <code>quantile(type = 7)</code> interpola con <code>a + 0,5 * (b - a)</code>; cuando los centrales son de magnitudes muy dispares redondean distinto. Sobre <code>c(-1000, 0.000111, 0.25, 1000)</code> la mediana informada pasaba de <code>0,12505549999999999</code> a <code>0,12505550000000001</code>. Vuelve a salir de <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">median()</a></code>; los cuartiles siguen compartiendo una sola llamada, así que el recorrido que se ahorra sigue ahorrado.</p>
+<p><strong>Y la poda de dependencias callaba el par que iguala el umbral.</strong> La cota se comparaba como <code>k_y - k_x &gt; n * (1 - umbral)</code>, y <code>1 - 0.8</code> vale <code>0,19999999999999996</code>: con cinco filas, la resta hacía que <code>1 &gt; 0,99999999999999978</code> y el par se descartaba. Su cumplimiento era exactamente <code>0,8</code>, y el filtro de informe descarta sólo lo que está <strong>por debajo</strong> del umbral, así que ese par debía informarse. Escrita como el máximo alcanzable contra lo que el umbral exige, el borde deja de perderse: medido sobre 200.000 combinaciones, la forma anterior podaba de más 88 veces y la nueva ninguna.</p>
+</div>
+<div class="section level3">
+<h3 id="la-deteccion-de-dependencias-conserva-el-resultado-y-reduce-el-costo-0-1-0">La deteccion de dependencias conserva el resultado y reduce el costo<a class="anchor" aria-label="anchor" href="#la-deteccion-de-dependencias-conserva-el-resultado-y-reduce-el-costo-0-1-0"></a></h3>
+<p>La particion de parejas <code>(determinante, dependiente)</code> usa una clave entera cuando el producto de sus cardinalidades no supera <code>2^53</code>; en el borde o fuera de el conserva el camino con <code><a href="https://rdrr.io/r/base/interaction.html" class="external-link">interaction()</a></code>. La clave solo renumera parejas, por lo que no cambia sus conteos, los grupos en conflicto ni ninguna dependencia informada.</p>
+<p>La deteccion agrega una cota de poda basada en la cantidad <code>P</code> de parejas distintas del subconjunto valido: <code>P - k_x</code>. La particion y sus conteos se reutilizan si el par debe evaluarse, y la bateria de equivalencia compara el objeto completo con ambos atajos y con sus caminos de referencia.</p>
+</div>
+<div class="section level3">
+<h3 id="tres-recorridos-internos-se-eliminan-sin-cambiar-lo-informado-0-1-0">Tres recorridos internos se eliminan sin cambiar lo informado<a class="anchor" aria-label="anchor" href="#tres-recorridos-internos-se-eliminan-sin-cambiar-lo-informado-0-1-0"></a></h3>
+<p>El resumen cuantitativo comparte una sola llamada a <code><a href="https://rdrr.io/r/stats/quantile.html" class="external-link">quantile()</a></code> para obtener los cuartiles y la mediana, deriva el IQR de esos valores y pasa <code>q1</code> y <code>q3</code> al diagnóstico de sentinelas. La guarda que evita ese diagnóstico con menos de 20 valores sigue decidiendo antes de sus cuantiles. Sobre un millón de valores, la expresión equivalente pasó de una mediana de <strong>0,048 s</strong> a <strong>0,027 s</strong>; el resultado fue <code><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical()</a></code>.</p>
+<p>El conteo general de duplicados calcula una vez cada dirección de <code><a href="https://rdrr.io/r/base/duplicated.html" class="external-link">duplicated()</a></code> y deriva los dos conteos. Los <code>tryCatch</code> siguen aislando un fallo inicial (<code>NA, NA</code>) de un fallo sólo en <code>fromLast</code> (<code>valor, NA</code>). Sobre 300.000 × 5, la mediana pasó de <strong>0,928 s</strong> a <strong>0,707 s</strong>; los dos conteos fueron idénticos.</p>
+<p>La detección de dependencias poda un par sólo cuando ninguna de sus columnas tiene ausentes y la cota <code>k_y - k_x &gt; n * (1 - umbral)</code> hace inalcanzable el umbral. Las cardinalidades usadas son las de <code>estadisticas</code>, que en ese caso son exactamente las del subconjunto válido; con ausentes el par se evalúa completo. Sobre 20.000 × 12 se podaron <strong>36 de 132</strong> pares y se hicieron 96 llamadas al resumen: la mediana pasó de <strong>0,575 s</strong> a <strong>0,444 s</strong>. El objeto completo fue <code><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical()</a></code> con la ejecución sin poda, y el caso que cumple 0,996 se conserva.</p>
+</div>
+<div class="section level3">
+<h3 id="el-plan-declaraba-cero-trabajo-para-la-tabla-entera-0-1-0">El plan declaraba cero trabajo para la tabla entera<a class="anchor" aria-label="anchor" href="#el-plan-declaraba-cero-trabajo-para-la-tabla-entera-0-1-0"></a></h3>
+<p><code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> subdeclaraba el costo justo en el caso por omisión. Con <code>muestra = Inf</code> —que trae la tabla entera— el bloque de muestra se contaba como <strong>cero filas leídas y cero pares de formas a comparar</strong>, de modo que pedir todas las filas declaraba menos trabajo que pedir mil. Sobre una tabla de 200.000 × 4, <code>muestra = Inf</code> anunciaba 400.000 lecturas y <code>muestra = 200000</code> —que pide exactamente las mismas filas— anunciaba 600.000.</p>
+<p>Como la magnitud del trabajo se decide sobre esos números, el caso por omisión caía en «baja» y el plan <strong>no imprimía las palancas</strong> para bajar el costo.</p>
+<p>Las dos formas de pedir la tabla entera declaran ahora lo mismo. Los valores que sí son inválidos siguen tratándose como antes.</p>
+<p>Y el hueco simétrico: una <code>muestra</code> finita <strong>mayor</strong> que las filas de la tabla tampoco quedaba acotada. Pedir un millón de filas de una tabla de cien no trae más de cien —la lectura real es <code>min(n_total, muestra)</code>—, pero el plan imputaba un millón de lecturas. La inconsistencia era interna: el trabajo del cliente sí se acotaba, así que las dos mitades de la misma cuenta usaban tamaños de muestra distintos. Ahora el tamaño efectivo se calcula una sola vez y las dos mitades lo comparten.</p>
+</div>
+<div class="section level3">
 <h3 id="las-geometrías-que-vienen-de-una-base-ya-no-pierden-su-trazabilidad-0-1-0">Las geometrías que vienen de una base ya no pierden su trazabilidad<a class="anchor" aria-label="anchor" href="#las-geometr%C3%ADas-que-vienen-de-una-base-ya-no-pierden-su-trazabilidad-0-1-0"></a></h3>
 <p>Un hallazgo sobre una columna de geometría —una coordenada fuera del dominio, una geometría inválida, una vacía— devolvía las filas que lo respaldan <strong>sólo si la columna era un objeto <code>sfc</code></strong>. Por DBI las geometrías llegan como texto WKT o como blob WKB, así que la traza salía <code>no_disponible</code> y el paquete avisaba de una incoherencia <strong>que no existía</strong>: los índices ya estaban calculados, y se descartaban por la clase de la columna.</p>
 <p>Contra una tabla PostGIS real eso producía <code>coordenada_fuera_dominio en geom: traza no disponible</code>.</p>
