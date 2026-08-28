@@ -391,7 +391,19 @@
   if (identical(via, "show_index") && identical(motor, "mariadb")) {
     return(TRUE)
   }
-  identical(via, "information_schema") && identical(motor, "mysql")
+  # `information_schema.table_constraints` NO se comporta igual en motores que
+  # aceptan la misma consulta. Medido con un rol de solo SELECT sobre una tabla
+  # con clave primaria declarada:
+  #
+  #   MySQL 8        -> 1 fila   (visible)
+  #   SQL Server     -> 1 fila   (visible)
+  #   MariaDB 11     -> 0 filas  (por eso usa `show_index`)
+  #   PostgreSQL     -> 0 filas  (por eso usa `pg_catalog`)
+  #
+  # SQL Server esta sostenido por dos mediciones independientes: un contenedor
+  # 2022 local y un servidor 2016 con la credencial real de un perfilado.
+  identical(via, "information_schema") &&
+    motor %in% c("mysql", "sqlserver")
 }
 
 #' Lee la clave primaria desde el catalogo del motor sin recorrer la tabla.

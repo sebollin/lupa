@@ -51,9 +51,12 @@ test_that("la visibilidad vacia conserva las diferencias entre motores", {
   # de MariaDB que si la tiene.
   expect_true(.catalogo_clave_visible("information_schema", "mysql"))
   expect_false(.catalogo_clave_visible("information_schema", "mariadb"))
-  # SQL Server no se pudo medir -el contenedor no levanto- asi que queda
-  # ambiguo, que es la respuesta segura. Cuando se mida, se mueve con su numero.
-  expect_false(.catalogo_clave_visible("information_schema", "sqlserver"))
+  # SQL Server: medido el 2026-08-28, con un rol de solo `SELECT` sobre tablas
+  # con clave simple, compuesta y sin clave. La vista devuelve 1, 1 y 0. Lo
+  # sostienen dos mediciones independientes -un contenedor 2022 y un servidor
+  # 2016 con la credencial real de un perfilado-, no la documentacion: MariaDB
+  # documenta lo mismo que MySQL y midiendo dio lo contrario.
+  expect_true(.catalogo_clave_visible("information_schema", "sqlserver"))
   expect_false(.catalogo_clave_visible("information_schema", "desconocido"))
 })
 
@@ -170,10 +173,10 @@ test_that("la visibilidad del catalogo no agrupa motores por parecido", {
   expect_true(lupa:::.catalogo_clave_visible("information_schema", "mysql"))
   expect_false(lupa:::.catalogo_clave_visible("information_schema", "mariadb"))
 
-  # Sin medir todavia: SQL Server y cualquier motor no reconocido quedan
-  # ambiguos. Ambiguo es la respuesta segura; suponer visibilidad convierte una
-  # falta de permiso en una afirmacion sobre los datos.
-  expect_false(lupa:::.catalogo_clave_visible("information_schema", "sqlserver"))
+  # SQL Server ya esta medido y pasa a visible. Un motor no reconocido sigue
+  # ambiguo: ambiguo es la respuesta segura, porque suponer visibilidad convierte
+  # una falta de permiso en una afirmacion sobre los datos.
+  expect_true(lupa:::.catalogo_clave_visible("information_schema", "sqlserver"))
   expect_false(lupa:::.catalogo_clave_visible("information_schema", "desconocido"))
 })
 

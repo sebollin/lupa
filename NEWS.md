@@ -34,6 +34,15 @@ su declaracion, como `INTEGER PRIMARY KEY`; no se lanza un recorrido de los
 datos. Se verifico con dos `NULL` reales en una PRIMARY KEY de texto sin
 `NOT NULL`, y con el rechazo de un `NULL` en otra con `NOT NULL`.
 
+## SQL Server lee su catálogo por la vista estándar
+
+La clasificación de visibilidad de `information_schema.table_constraints` deja de
+tratar a SQL Server como ambiguo. Medido con un rol de sólo `SELECT` sobre tablas
+con clave simple, compuesta y sin clave, la vista devuelve las restricciones: la
+vía es exhaustiva para esa credencial, así que un resultado vacío significa que
+la clave no está declarada. Lo sostienen dos mediciones independientes sobre dos
+versiones distintas del motor.
+
 ## La unicidad de una clave se evalúa entre las filas con la clave completa
 
 `perfilar(clave = ...)` evaluaba la unicidad sobre todas las filas con la
