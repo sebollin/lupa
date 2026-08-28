@@ -270,7 +270,9 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   # entonces `muestra_datos` queda con mas columnas que `seleccion`. Ademas de
   # traer al analisis una columna que no corresponde, desalinea los indices con
   # los que despues se buscan los nombres.
-  muestra_datos <- as.data.frame(datos)[muestreo$valores, seleccion, drop = FALSE]
+  muestra_datos <- .seleccionar_columnas(
+    datos, seleccion, filas = muestreo$valores
+  )
   normalizados <- lapply(muestra_datos, .valores_relacion)
   estadisticas <- lapply(normalizados, function(x) {
     presentes <- x[!is.na(x)]

@@ -523,8 +523,10 @@ controlador. Y se distingue «esta tabla no declara clave» de «no se pudo
 preguntar», que no son lo mismo.
 
 **La unicidad no se adivina: se pregunta.** Si se declara la clave con
-`perfilar(clave = ...)`, que se repita es un hallazgo de severidad `error` con
-las filas que repiten. La advertencia y `meta$clave` separan esa comprobación de
+`perfilar(clave = ...)`, que se repita entre las filas con la clave completa es
+un hallazgo de severidad `error` con las filas que repiten. Si ninguna fila tiene
+la clave completa, el estado es `sin_casos_evaluables` y no `verificada`: cierto
+sobre un conjunto vacío es cierto y engañoso a la vez. La advertencia y `meta$clave` separan esa comprobación de
 la ausencia de nulos: una clave puede no tener colisiones distintas de los
 ausentes y aun así no cumplir `NOT NULL`; si la trazabilidad agrupa esos ausentes
 con la semántica de R, ambas cosas quedan declaradas. Y para no dejar al usuario

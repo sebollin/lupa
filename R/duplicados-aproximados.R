@@ -1390,7 +1390,8 @@
     stop("`columnas` debe nombrar columnas atomicas existentes y sin repetir.",
          call. = FALSE)
   }
-  if (any(vapply(datos[columnas], function(x) is.matrix(x) || is.list(x),
+  datos_columnas <- .seleccionar_columnas(datos, columnas)
+  if (any(vapply(datos_columnas, function(x) is.matrix(x) || is.list(x),
                  logical(1L)))) {
     stop("Las columnas aproximadas no pueden ser matrices ni listas.",
          call. = FALSE)
@@ -1401,6 +1402,7 @@
 .texto_fila_aproximada <- function(
     datos, columnas, normalizar = TRUE, fusiones_precomputadas = NULL) {
   normalizacion_resuelta <- .resolver_normalizacion(normalizar)
+  datos_columnas <- .seleccionar_columnas(datos, columnas)
   valores <- Map(function(x, columna) {
     # Reutilizar el saneamiento del perfil: los bytes UTF-8 invalidos no
     # deben abortar una comparacion ni entrar como evidencia.
@@ -1413,7 +1415,7 @@
       ),
       presentes = presentes
     )
-  }, datos[columnas], columnas)
+  }, datos_columnas, columnas)
   filas <- do.call(paste, c(lapply(valores, `[[`, "valores"), sep = " | "))
   presentes <- Reduce(`|`, lapply(valores, `[[`, "presentes"),
                       init = rep(FALSE, nrow(datos)))

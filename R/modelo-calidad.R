@@ -867,7 +867,7 @@ modelo <- function(..., marco = NULL) {
     stop("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
          call. = FALSE)
   }
-  datos_regla <- tabla[, instancia$atributos, drop = FALSE]
+  datos_regla <- .seleccionar_columnas(tabla, instancia$atributos)
   resultado <- .resultado_validador(
     instancia$configuracion$regla(datos_regla), nrow(tabla),
     "ReglaIntegridadIntraEntidad"
@@ -890,8 +890,8 @@ modelo <- function(..., marco = NULL) {
   .obtener_columna_modelo(tabla_referencia, atributo_pk, entidad_referencia)
   .obtener_columna_modelo(tabla_dependiente, atributo_fk, entidad_dependiente)
   relacion <- detectar_relaciones(
-    tabla_referencia[, atributo_pk, drop = FALSE],
-    tabla_dependiente[, atributo_fk, drop = FALSE],
+    .seleccionar_columnas(tabla_referencia, atributo_pk),
+    .seleccionar_columnas(tabla_dependiente, atributo_fk),
     muestra = instancia$configuracion$muestra
   )
   .salida_metodo(
@@ -1074,7 +1074,7 @@ metricas_nucleo <- function() {
     stop("Una m\u00e9trica de duraci\u00f3n debe devolver valores finitos no negativos.",
          call. = FALSE)
   }
-  salida_validada <- salida[, requeridas, drop = FALSE]
+  salida_validada <- .seleccionar_columnas(salida, requeridas)
   attr(salida_validada, "alcance") <- attr(salida, "alcance", exact = TRUE)
   salida_validada
 }

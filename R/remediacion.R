@@ -1592,7 +1592,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
       call. = FALSE
     )
   }
-  claves <- datos_base[clave]
+  claves <- .seleccionar_columnas(datos_base, clave)
   if (any(vapply(claves, is.list, logical(1L)))) {
     stop("La clave no puede contener columnas de lista.", call. = FALSE)
   }

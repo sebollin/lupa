@@ -94,7 +94,7 @@
   if (!inherits(x, "data.frame")) x <- as.data.frame(x, stringsAsFactors = FALSE)
   x <- .tabla_base(x)
   columnas <- intersect(columnas, names(x))
-  x <- x[, columnas, drop = FALSE]
+  x <- .seleccionar_columnas(x, columnas)
   total <- nrow(x)
   limite <- if (is.infinite(max_filas)) total else min(total, max_filas)
   if (!total || !length(columnas)) {
@@ -514,9 +514,10 @@
 }
 
 .evolucion_historico <- function(x) {
-  perfiles <- x[x$nivel == "evaluacion_perfil", c(
-    "id_medicion", "fecha", "perfil", "resultado"
-  ), drop = FALSE]
+  perfiles <- .seleccionar_columnas(
+    x, c("id_medicion", "fecha", "perfil", "resultado"),
+    filas = x$nivel == "evaluacion_perfil"
+  )
   if (!nrow(perfiles)) return(perfiles)
   perfiles <- perfiles[order(perfiles$perfil, perfiles$fecha, perfiles$id_medicion), ]
   perfiles$delta <- NA_real_

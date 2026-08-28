@@ -291,11 +291,12 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       exactos <- if (es_casi_clave) {
         resumen$n_distintos
       } else if (nrow(datos)) {
-        completos <- !apply(is.na(as.data.frame(datos[indices])), 1L, any)
+        seleccion <- .seleccionar_columnas(datos, indices)
+        completos <- !apply(is.na(seleccion), 1L, any)
         if (length(indices) == 1L) {
           length(unique(datos[[indices[[1L]]]][completos]))
         } else {
-          combinado <- do.call(paste, c(lapply(datos[indices], `[`, completos),
+          combinado <- do.call(paste, c(lapply(seleccion, `[`, completos),
                                          sep = "\u001f"))
           length(unique(combinado))
         }

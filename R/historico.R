@@ -243,7 +243,7 @@
            call. = FALSE)
     }
   }
-  x <- x[, .columnas_historico, drop = FALSE]
+  x <- .seleccionar_columnas(x, .columnas_historico)
   x$fecha <- .fecha_utc(x$fecha)
   class(x) <- c("historico_calidad", "data.frame")
   attr(x, "version_esquema") <- .version_esquema_historico
@@ -259,8 +259,8 @@
     iguales <- vapply(repetidos, function(i) {
       j <- coincidencias[[i]]
       isTRUE(all.equal(
-        anterior[j, .columnas_historico, drop = FALSE],
-        nuevo[i, .columnas_historico, drop = FALSE],
+        .seleccionar_columnas(anterior, .columnas_historico, filas = j),
+        .seleccionar_columnas(nuevo, .columnas_historico, filas = i),
         check.attributes = FALSE
       ))
     }, logical(1L))

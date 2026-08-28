@@ -34,6 +34,18 @@ su declaracion, como `INTEGER PRIMARY KEY`; no se lanza un recorrido de los
 datos. Se verifico con dos `NULL` reales en una PRIMARY KEY de texto sin
 `NOT NULL`, y con el rechazo de un `NULL` en otra con `NOT NULL`.
 
+## La selección de columnas pasa por una primitiva con semántica declarada
+
+El paquete deja de escribir `datos[, columnas, drop = FALSE]` en cada sitio que
+recibe una tabla y lo hace a través de una función interna cuya semántica de
+referencia está declarada, de modo que el significado no dependa de la clase de
+la tabla ni del estado del espacio de nombres. Esto corrige además selecciones de
+una dimensión que quedaban en `agregacion`, `claves-relaciones`,
+`duplicados-aproximados`, `referencial`, `remediacion` y `tablero-calidad`:
+`tabla["columna"]` selecciona una columna en un `data.frame` y en un `tibble`,
+pero en un `data.table` intenta un cruce y aborta. No agrega conversiones: sigue
+habiendo una sola por llamada.
+
 ## SQL Server lee su catálogo por la vista estándar
 
 La clasificación de visibilidad de `information_schema.table_constraints` deja de

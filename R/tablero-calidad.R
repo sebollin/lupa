@@ -33,7 +33,7 @@
   if (inherits(asociado, "marco_calidad")) return(asociado)
   if (inherits(medidas, "data.frame") && nrow(medidas) &&
       all(c("dimension", "factor") %in% names(medidas))) {
-    pares <- unique(medidas[c("dimension", "factor")])
+    pares <- unique(.seleccionar_columnas(medidas, c("dimension", "factor")))
     agesic <- marco_agesic()
     claves <- paste(pares$dimension, pares$factor, sep = "\r")
     claves_agesic <- paste(
@@ -153,7 +153,7 @@
   )
   por_metrica <- split(seq_len(nrow(medidas)), medidas$metrica_instanciada)
   invalidas <- names(por_metrica)[vapply(por_metrica, function(i) {
-    any(vapply(medidas[i, campos, drop = FALSE], function(x) {
+    any(vapply(.seleccionar_columnas(medidas, campos, filas = i), function(x) {
       length(unique(x)) != 1L
     }, logical(1L)))
   }, logical(1L))]

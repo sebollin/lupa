@@ -165,7 +165,12 @@ En `perfilar(clave = ...)`, la unicidad y la ausencia de nulos son comprobacione
 separadas. `meta$clave` conserva el estado de cada una cuando alguna no queda
 verificada: una colisión entre `NA` puede ser útil para seguir la traza con la
 semántica de R, pero no prueba una colisión de `NULL` en SQL; los ausentes son la
-evidencia independiente contra `NOT NULL`. Una clave sin ausentes y única no
+evidencia independiente contra `NOT NULL`.
+
+Por eso la unicidad se evalúa **sólo entre las filas con la clave completa**, y
+`filas_evaluadas` cuenta esas filas frente a `filas_totales`. Si ninguna fila
+tiene la clave completa, el estado no es `verificada` —sería cierto sobre un
+conjunto vacío— sino `sin_casos_evaluables`. Una clave sin ausentes y única no
 agrega ese metadato al perfil histórico.
 
 ```{r bloqueo, eval= requireNamespace("stringdist", quietly = TRUE)}

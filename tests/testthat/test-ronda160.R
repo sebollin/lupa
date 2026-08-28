@@ -255,8 +255,8 @@ test_that("el contador de duplicados fija los bordes de la semantica de base", {
 
 test_that("las selecciones de columnas quedan auditadas", {
   # Necesita `R/`, que bajo `R CMD check` no existe: alli se corre contra el
-  # paquete instalado. Lo que fija el comportamiento es la prueba de conducta,
-  # no este recuento; esto documenta el tamano de la superficie.
+  # paquete instalado. La primitiva concentra las selecciones de tablas de
+  # entrada; lo que queda son tablas internas, matrices o selecciones de filas.
   raiz <- testthat::test_path("..", "..", "R")
   skip_if_not(
     dir.exists(raiz),
@@ -268,7 +268,7 @@ test_that("las selecciones de columnas quedan auditadas", {
     grepl("\\[,.*drop[[:space:]]*=[[:space:]]*FALSE", lineas) &
       !grepl("^[[:space:]]*#", lineas)
   ]
-  expect_gte(length(sitios), 18L)
+  expect_lte(length(sitios), 8L)
 })
 
 test_that("NAMESPACE no importa data.table porque cedta cambia la sintaxis de [", {

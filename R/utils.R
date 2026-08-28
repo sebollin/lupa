@@ -74,6 +74,25 @@
   tabla
 }
 
+# Equivalente a `data.frame[, columnas, drop = FALSE]`, sin depender de la
+# clase de `datos` ni del estado del espacio de nombres. La seleccion de filas
+# es opcional para los llamadores que necesitan ambas dimensiones.
+.seleccionar_columnas <- function(datos, columnas, filas = NULL) {
+  if (!inherits(datos, "data.frame")) {
+    stop("`datos` debe heredar de data.frame.", call. = FALSE)
+  }
+  salida <- if (is.null(filas)) {
+    base::`[.data.frame`(datos, , columnas, drop = FALSE)
+  } else {
+    base::`[.data.frame`(datos, filas, columnas, drop = FALSE)
+  }
+  # La clase de la entrada no forma parte de esta primitiva: los llamadores
+  # trabajan con tablas base despues de la frontera y no necesitan propagar
+  # subclases con otra semantica de `[`. La seleccion ya fue materializada.
+  class(salida) <- "data.frame"
+  salida
+}
+
 # `perfil` es opcional en casi todos los llamadores: si viene, tiene que
 # corresponder a las mismas columnas y en el mismo orden, porque los indices de
 # columna del perfil se usan para leer `datos`.

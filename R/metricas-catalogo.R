@@ -136,7 +136,7 @@
   entidad <- instancia$entidad[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   .validar_atributos_tabla(tabla, instancia, minimo = 2L)
-  valores <- tabla[, instancia$atributos, drop = FALSE]
+  valores <- .seleccionar_columnas(tabla, instancia$atributos)
   filas <- seq_len(nrow(tabla))
   .salida_metodo(
     .duplicados_completos(valores), entidad, NA_character_, filas,
@@ -157,7 +157,7 @@
   } else {
     .validar_atributos_tabla(tabla, instancia, minimo = 1L)
     grupos <- split(
-      filas, .codigos_filas(tabla[, instancia$atributos, drop = FALSE])
+      filas, .codigos_filas(.seleccionar_columnas(tabla, instancia$atributos))
     )
     resultado <- rep(FALSE, nrow(tabla))
     otros <- setdiff(names(tabla), instancia$atributos)
@@ -249,7 +249,7 @@
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
   config <- instancia$configuracion
   textos <- .texto_fila_aproximada(
-    tabla[, atributo, drop = FALSE], atributo, config$normalizar
+    .seleccionar_columnas(tabla, atributo), atributo, config$normalizar
   )
   valores <- textos$valores
   presentes <- textos$presentes
@@ -599,7 +599,7 @@
   } else if (length(pesos) != length(instancia$atributos)) {
     stop("Debe haber un coeficiente por atributo ligado.", call. = FALSE)
   }
-  presencia <- !is.na(tabla[, instancia$atributos, drop = FALSE])
+  presencia <- !is.na(.seleccionar_columnas(tabla, instancia$atributos))
   resultado <- as.numeric(as.matrix(presencia) %*% pesos)
   filas <- seq_len(nrow(tabla))
   .salida_metodo(

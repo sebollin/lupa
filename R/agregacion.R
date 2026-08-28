@@ -175,7 +175,8 @@ transiciones_granularidad <- function() {
     "tipo_resultado", "orientacion"
   )
   no_unicos <- campos_unicos[vapply(
-    medidas[campos_unicos], function(x) length(unique(x)) != 1L, logical(1L)
+    .seleccionar_columnas(medidas, campos_unicos),
+    function(x) length(unique(x)) != 1L, logical(1L)
   )]
   if (length(no_unicos)) {
     stop(

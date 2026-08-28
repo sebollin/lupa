@@ -104,7 +104,7 @@
   if (!length(indices)) return(NULL)
   faltantes <- setdiff(clave, names(datos))
   if (length(faltantes)) return(NULL)
-  salida <- datos[indices, clave, drop = FALSE]
+  salida <- .seleccionar_columnas(datos, clave, filas = indices)
   rownames(salida) <- NULL
   salida
 }
@@ -2530,7 +2530,7 @@
     if (is.null(clave) || !length(clave) || !all(clave %in% names(datos))) {
       return(.trazabilidad_vacia(limite = limite))
     }
-    valores <- datos[, clave, drop = FALSE]
+    valores <- .seleccionar_columnas(datos, clave)
     indices <- which(
       base::duplicated.data.frame(valores) |
         base::duplicated.data.frame(valores, fromLast = TRUE)
@@ -4127,7 +4127,7 @@
   # **sabe** cual es: ahi no hay nada que inferir, solo que contar.
   if (!is.null(clave_declarada) && length(clave_declarada) &&
         all(clave_declarada %in% names(datos)) && nrow(datos)) {
-    valores_clave <- datos[, clave_declarada, drop = FALSE]
+    valores_clave <- .seleccionar_columnas(datos, clave_declarada)
     repetidas <- base::duplicated.data.frame(valores_clave) |
       base::duplicated.data.frame(valores_clave, fromLast = TRUE)
     n_repetidas <- sum(repetidas)

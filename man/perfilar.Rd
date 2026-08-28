@@ -419,7 +419,22 @@ Quien decida automáticamente sobre un perfil debe revisar
 sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.
 Cuando una clave declarada no queda plenamente verificada, \code{meta$clave}
 conserva los estados de unicidad y ausencia de nulos, sus conteos y la
-semántica usada por la trazabilidad.
+semántica usada por la trazabilidad. Los tres responden preguntas distintas
+y no comparten universo:
+\itemize{
+\item \code{unicidad} se evalúa \strong{sólo entre las filas con la clave completa}
+(\code{semantica = "claves_completas"}), porque una repetición entre filas
+incompletas no viola la unicidad: en SQL dos \code{NULL} no son iguales.
+\code{filas_evaluadas} cuenta esas filas y \code{filas_totales} la tabla entera. Su
+estado es \code{"verificada"}, \code{"refutada"}, \code{"no_verificada"} cuando no se
+pudo comparar, o \code{"sin_casos_evaluables"} cuando \strong{ninguna} fila tiene la
+clave completa: ahí la unicidad sería cierta sobre un conjunto vacío, que
+es cierto y engañoso a la vez, y por eso tiene estado propio.
+\item \code{ausencia_nulos} responde si todos los componentes están presentes.
+\item \code{trazabilidad} conserva la semántica de R, que es la que localiza las
+filas, e informa en \code{colisiona_con_ausentes} si el localizador queda
+ambiguo porque dos filas con ausentes comparten representación.
+}
 }
 \description{
 Examina un \code{data.frame}, \code{tibble} o \code{data.table} y devuelve estadísticas

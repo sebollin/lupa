@@ -491,8 +491,10 @@ so nothing is suggested: it is read, in a single query chosen by the driver. And
 which are not the same thing.
 
 **Uniqueness is not guessed: it is asked.** Declare the key with
-`perfilar(clave = ...)` and a key that repeats is a finding of severity `error`
-carrying the offending rows. The warning and `meta$clave` keep that check apart
+`perfilar(clave = ...)` and a key that repeats among the rows whose key is
+complete is a finding of severity `error` carrying the offending rows. When no
+row has a complete key the state is `sin_casos_evaluables`, not `verificada`:
+true over an empty set is true and misleading at once. The warning and `meta$clave` keep that check apart
 from missing values: a key may have no non-missing collision and still violate
 `NOT NULL`; if traceability groups those missing values with R semantics, both
 facts remain visible. So that the user is not left facing a blank field,

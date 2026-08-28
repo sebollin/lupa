@@ -99,7 +99,9 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       )
       next
     }
-    rebanada <- datos[filas, setdiff(names(datos), por), drop = FALSE]
+    rebanada <- .seleccionar_columnas(
+      datos, setdiff(names(datos), por), filas = filas
+    )
     # Las columnas enteramente ausentes dentro del grupo se descartan: son las
     # que no corresponden a este atributo, y contarlas como falta era el defecto.
     # La clave declarada nunca se descarta, porque de ella dependen los
@@ -107,7 +109,9 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     vacias <- vapply(rebanada, function(x) all(is.na(x)), logical(1L))
     descartables <- setdiff(names(rebanada)[vacias], clave)
     if (length(descartables)) {
-      rebanada <- rebanada[, setdiff(names(rebanada), descartables), drop = FALSE]
+      rebanada <- .seleccionar_columnas(
+        rebanada, setdiff(names(rebanada), descartables)
+      )
     }
     if (!ncol(rebanada)) {
       cobertura[[length(cobertura) + 1L]] <- data.frame(

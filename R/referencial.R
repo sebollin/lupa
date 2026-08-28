@@ -283,14 +283,16 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
   if (length(intersect(clave, valor))) {
     stop("`clave` y `valor` no pueden compartir columnas.", call. = FALSE)
   }
-  if (any(vapply(tabla[c(clave, valor)], is.list, logical(1L)))) {
+  if (any(vapply(
+    .seleccionar_columnas(tabla, c(clave, valor)), is.list, logical(1L)
+  ))) {
     stop("Las columnas del referencial deben ser vectores at\u00f3micos.", call. = FALSE)
   }
-  if (any(!stats::complete.cases(tabla[clave]))) {
+  if (any(!stats::complete.cases(.seleccionar_columnas(tabla, clave)))) {
     stop("La clave del referencial no puede contener valores ausentes.",
          call. = FALSE)
   }
-  if (anyDuplicated(tabla[clave])) {
+  if (anyDuplicated(.seleccionar_columnas(tabla, clave))) {
     stop("La clave del referencial debe identificar un\u00edvocamente cada fila.",
          call. = FALSE)
   }
@@ -373,7 +375,7 @@ print.referencial <- function(x, ...) {
     stop("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
          call. = FALSE)
   }
-  objetivo <- tabla[, instancia$atributos, drop = FALSE]
+  objetivo <- .seleccionar_columnas(tabla, instancia$atributos)
   presentes <- stats::complete.cases(objetivo)
   filas <- which(presentes)
   perfil <- .referencial_normalizacion(instancia, referencia)
@@ -435,7 +437,8 @@ print.referencial <- function(x, ...) {
   referencia <- .exigir_referencial(instancia)
   .validar_vinculo(instancia, 1L, length(referencia$clave))
   .metodo_correctitud_comun(
-    tablas, instancia, referencia, referencia$datos[referencia$clave],
+    tablas, instancia, referencia,
+    .seleccionar_columnas(referencia$datos, referencia$clave),
     referencia$clave
   )
 }
@@ -445,7 +448,8 @@ print.referencial <- function(x, ...) {
   columnas_ref <- c(referencia$clave, referencia$valor)
   .validar_vinculo(instancia, 1L, length(columnas_ref))
   .metodo_correctitud_comun(
-    tablas, instancia, referencia, referencia$datos[columnas_ref], columnas_ref
+    tablas, instancia, referencia,
+    .seleccionar_columnas(referencia$datos, columnas_ref), columnas_ref
   )
 }
 
@@ -459,9 +463,15 @@ print.referencial <- function(x, ...) {
     stop("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
          call. = FALSE)
   }
-  objetivo <- unique(tabla[stats::complete.cases(tabla[instancia$atributos]),
-                           instancia$atributos, drop = FALSE])
-  referencia_clave <- referencia$datos[referencia$clave]
+  filas_completas <- stats::complete.cases(
+    .seleccionar_columnas(tabla, instancia$atributos)
+  )
+  objetivo <- unique(.seleccionar_columnas(
+    tabla, instancia$atributos, filas = filas_completas
+  ))
+  referencia_clave <- .seleccionar_columnas(
+    referencia$datos, referencia$clave
+  )
   perfil <- .referencial_normalizacion(instancia, referencia)
   usa_normalizacion <- !is.null(instancia$configuracion$normalizar) ||
     !is.null(referencia$normalizar)
