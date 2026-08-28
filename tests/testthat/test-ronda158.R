@@ -180,3 +180,125 @@ test_that("los conteos rapidos coinciden con base sin filas repetidas", {
 
   expect_identical(unname(unlist(resultado)), unname(esperado))
 })
+
+test_that("el acelerador respeta la semantica de base con cualquier redondeo", {
+  # `setNumericRounding()` es un ajuste GLOBAL de la sesion que cambia cuantos
+  # bits se comparan de un doble al ordenar. `frank()` ordena, asi que con 1 o 2
+  # agrupa valores que `duplicated()` distingue. Cualquier otro paquete de la
+  # sesion puede haberlo cambiado.
+  skip_if_not_installed("data.table")
+  anterior <- data.table::getNumericRounding()
+  on.exit(data.table::setNumericRounding(anterior), add = TRUE)
+
+  eps <- .Machine$double.eps
+  casos <- list(
+    dobles_contiguos = data.frame(
+      x = rep(c(1, 1 + eps, 2, 2 + eps), 10L),
+      y = rep(c("a", "a", "b", "b"), 10L),
+      stringsAsFactors = FALSE
+    ),
+    una_columna_doble = data.frame(x = rep(c(1, 1 + eps, 1 + 2 * eps), 15L)),
+    momentos_submicro = data.frame(
+      t = rep(as.POSIXct("2020-01-01", tz = "UTC") + c(0, 1e-6, 2e-6), 15L)
+    ),
+    magnitud_grande = data.frame(
+      x = rep(c(2^40, 2^40 + 1e-3, 2^40 + 2e-3), 15L)
+    )
+  )
+
+  for (nombre in names(casos)) {
+    datos <- casos[[nombre]]
+    for (redondeo in 0:2) {
+      data.table::setNumericRounding(redondeo)
+      expect_identical(
+        unname(unlist(lupa:::.conteos_filas_duplicadas(datos))),
+        unname(.conteos_base_ronda158(datos)),
+        info = paste(nombre, "con redondeo", redondeo)
+      )
+    }
+  }
+})
+
+test_that("una tabla sin dobles no paga la guarda de redondeo", {
+  # El ajuste solo puede cambiar la comparacion de dobles. Si no hay ninguno, la
+  # via rapida tiene que seguir corriendo aunque la sesion este en 2.
+  skip_if_not_installed("data.table")
+  anterior <- data.table::getNumericRounding()
+  on.exit(data.table::setNumericRounding(anterior), add = TRUE)
+  datos <- data.frame(
+    a = rep(c("x", "y", "z"), 15L), b = rep(1:3, 15L), stringsAsFactors = FALSE
+  )
+
+  data.table::setNumericRounding(2L)
+
+  expect_true(lupa:::.redondeo_numerico_es_exacto(datos))
+  llamada <- FALSE
+  original <- lupa:::.filas_duplicadas_frank
+  local_mocked_bindings(
+    .filas_duplicadas_frank = function(datos) {
+      llamada <<- TRUE
+      original(datos)
+    },
+    .package = "lupa"
+  )
+
+  lupa:::.conteos_filas_duplicadas(datos)
+
+  expect_true(llamada)
+})
+
+test_that("con dobles y redondeo inexacto se mide por la via de base", {
+  skip_if_not_installed("data.table")
+  anterior <- data.table::getNumericRounding()
+  on.exit(data.table::setNumericRounding(anterior), add = TRUE)
+  datos <- data.frame(x = rep(c(1.5, 2.5, 3.5), 15L))
+
+  data.table::setNumericRounding(1L)
+
+  expect_false(lupa:::.redondeo_numerico_es_exacto(datos))
+  llamada <- FALSE
+  local_mocked_bindings(
+    .filas_duplicadas_frank = function(datos) {
+      llamada <<- TRUE
+      NULL
+    },
+    .package = "lupa"
+  )
+
+  resultado <- lupa:::.conteos_filas_duplicadas(datos)
+
+  expect_false(llamada)
+  expect_identical(
+    unname(unlist(resultado)), unname(.conteos_base_ronda158(datos))
+  )
+})
+
+test_that("un metodo de duplicated que ignora fromLast no cambia el conteo", {
+  # `bit64` devuelve para `integer64` el mismo vector con `fromLast = TRUE` que
+  # sin el. La via de base heredaba ese defecto y la rapida no, asi que la
+  # respuesta cambiaba segun el umbral de filas. Ahora las dos dan vuelta las
+  # filas en vez de confiar en el argumento.
+  skip_if_not_installed("bit64")
+  valores <- rep(bit64::as.integer64(c(100, 200, 300)), 10L)
+  datos <- data.frame(x = valores)
+
+  # 30 filas, 3 valores distintos: todas participan en grupos repetidos.
+  for (n in c(10L, 30L)) {
+    parcial <- datos[seq_len(n), , drop = FALSE]
+    resultado <- lupa:::.conteos_filas_duplicadas(parcial)
+    expect_identical(
+      as.integer(resultado$filas_en_grupos_duplicados), n,
+      info = paste(n, "filas")
+    )
+    expect_identical(
+      as.integer(resultado$filas_duplicadas), n - 3L,
+      info = paste(n, "filas")
+    )
+  }
+
+  # Y las dos vias tienen que coincidir, que es lo que el umbral rompia.
+  base <- lupa:::.filas_duplicadas_base(datos)
+  rapida <- lupa:::.filas_duplicadas_frank(datos)
+  expect_identical(base$adelante, rapida$adelante)
+  expect_identical(base$atras, rapida$atras)
+})

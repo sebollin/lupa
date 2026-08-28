@@ -7,9 +7,9 @@
 # ordenar ni que sugerir, hay que leerla.
 #
 # Se usa la forma propia de PostgreSQL y, para el resto, primero la forma
-# estandar -`information_schema`, que soportan MySQL, MariaDB y SQL Server-;
-# despues las formas propias de los motores que no la traen. Si ninguna funciona
-# **no se inventa nada**: se devuelve el motivo, y quien llama lo declara en
+# estandar -`information_schema`, que soportan MySQL y SQL Server-; despues las
+# formas propias de los motores que no la traen. Si ninguna funciona **no se
+# inventa nada**: se devuelve el motivo, y quien llama lo declara en
 # `cobertura_diagnosticos`.
 
 # La via se elige por el controlador, no probando una tras otra. Probar hasta
@@ -18,11 +18,11 @@
 # razon por la que la sonda del desvio gasta siempre dos aunque acierte en la
 # primera. Con el controlador se resuelve en una, y el plan la puede contar.
 #
-# `information_schema` es el estandar y lo trae la mayoria; PostgreSQL tiene una
-# via propia porque su vista estandar oculta restricciones a quien solo tiene
-# SELECT. SQLite y Oracle no lo traen, y DuckDB tambien tiene el suyo. Un
-# controlador desconocido cae al estandar, que es la apuesta con mas chance de
-# andar.
+# `information_schema` es el estandar y lo trae la mayoria; MariaDB usa
+# `SHOW INDEX` porque su vista estandar oculta la clave a quien solo tiene
+# SELECT. PostgreSQL tiene una via propia por la misma razon. SQLite y Oracle
+# no lo traen, y DuckDB tambien tiene el suyo. Un controlador desconocido cae
+# al estandar, que es la apuesta con mas chance de andar.
 .motor_clave_primaria <- function(conexion) {
   clase <- paste(class(conexion), collapse = " ")
   if (grepl("Ora|Oracle", clase)) return("oracle")
@@ -68,6 +68,7 @@
 
 .via_clave_primaria <- function(conexion) {
   motor <- .motor_clave_primaria(conexion)
+  if (identical(motor, "mariadb")) return("show_index")
   if (identical(motor, "postgresql")) return("pg_catalog")
   if (identical(motor, "sqlite")) return("pragma")
   if (identical(motor, "oracle")) return("all_constraints")
@@ -80,7 +81,7 @@
   list(
     list(
       nombre = "information_schema",
-      motores = "MySQL, MariaDB, SQL Server",
+      motores = "MySQL, SQL Server",
       sql = function(esquema, tabla, motor = "desconocido") {
         estado <- if (identical(motor, "mysql")) {
           ", t.enforced AS constraint_enforced"
@@ -195,6 +196,21 @@
           " ORDER BY k.ordinal_position"
         )
       }
+    ),
+    list(
+      nombre = "show_index",
+      motores = "MariaDB",
+      sql = function(esquema, tabla) {
+        identificador <- function(x) {
+          paste0("`", gsub("`", "``", as.character(x), fixed = TRUE), "`")
+        }
+        origen <- if (is.na(esquema)) {
+          identificador(tabla)
+        } else {
+          paste0(identificador(esquema), ".", identificador(tabla))
+        }
+        paste0("SHOW INDEX FROM ", origen)
+      }
     )
   )
 }
@@ -204,6 +220,17 @@
 # lo unico que viaja son nombres de tabla y de esquema que ya se validaron.
 .texto_sql_clave <- function(x) {
   paste0("'", gsub("'", "''", as.character(x), fixed = TRUE), "'")
+}
+
+.error_permiso_clave <- function(motivo) {
+  if (is.null(motivo) || !length(motivo) || all(is.na(motivo))) {
+    return(FALSE)
+  }
+  texto <- tolower(paste(as.character(motivo), collapse = " "))
+  grepl(
+    "permission|privilege|permiso|privileg|access denied|command denied|denegad|not authorized|unauthorized",
+    texto
+  )
 }
 
 # El estado bruto se conserva aparte de la conclusion. Una entrada visible en
@@ -346,7 +373,7 @@
 # `information_schema.table_constraints`.
 #
 #   MySQL 8        el rol restringido ve 1  -> visible
-#   MariaDB 11     el rol restringido ve 0  -> AMBIGUO
+#   MariaDB 11     el rol restringido ve 0  -> usa `show_index`
 #   PostgreSQL 16  el rol restringido ve 0  -> por eso su via es `pg_catalog`
 #
 # MariaDB y MySQL parecen el mismo motor y aca no lo son. Suponerlo habria
@@ -361,6 +388,9 @@
     return(TRUE)
   }
   if (identical(via, "all_constraints")) return(TRUE)
+  if (identical(via, "show_index") && identical(motor, "mariadb")) {
+    return(TRUE)
+  }
   identical(via, "information_schema") && identical(motor, "mysql")
 }
 
@@ -409,7 +439,10 @@
   }
   respuesta <- .consultar_dbi(conexion, sql, presupuesto)
   if (!isTRUE(respuesta$ok)) {
-    return(vacio(via$nombre, paste0(via$nombre, ": ", respuesta$motivo)))
+    return(vacio(
+      via$nombre, paste0(via$nombre, ": ", respuesta$motivo),
+      visible = if (.error_permiso_clave(respuesta$motivo)) FALSE else NA
+    ))
   }
   datos <- respuesta$datos
   if (!inherits(datos, "data.frame") || !nrow(datos)) {
@@ -418,7 +451,7 @@
       return(vacio(via$nombre, paste0(
         via$nombre, ": la tabla no existe o no es visible, ",
         "asi que no se pudo preguntar por su clave."
-      ), visible = FALSE))
+      ), visible = NA))
     }
     if (.catalogo_clave_visible(via$nombre, motor)) {
       # Que una tabla inexistente conteste igual es un limite conocido de
@@ -438,19 +471,35 @@
         via$nombre, ": no devolvio filas; la clave puede no estar declarada ",
         "o no ser visible para esta credencial."
       ),
-      garantia = "desconocida", visible = FALSE
+      garantia = "desconocida", visible = NA
     ))
   }
-  columna <- if ("column_name" %in% names(datos)) {
-    "column_name"
-  } else {
-    names(datos)[[1L]]
+  if (identical(via$nombre, "show_index")) {
+    nombre_clave <- .campo_clave(datos, c("key_name"))
+    if (is.null(nombre_clave)) {
+      return(vacio(
+        via$nombre,
+        "show_index: la consulta no devolvio el campo `Key_name`.",
+        visible = NA
+      ))
+    }
+    primarias <- which(
+      !is.na(nombre_clave) &
+        toupper(trimws(as.character(nombre_clave))) == "PRIMARY"
+    )
+    if (!length(primarias)) {
+      return(vacio(
+        via$nombre, motivo = NA_character_, garantia = "no_declarada",
+        visible = TRUE
+      ))
+    }
+    datos <- datos[primarias, , drop = FALSE]
   }
-  posicion <- if ("ordinal_position" %in% names(datos)) {
-    suppressWarnings(as.numeric(datos$ordinal_position))
-  } else {
-    rep(1, nrow(datos))
-  }
+  columna <- .campo_clave(datos, c("column_name"))
+  if (is.null(columna)) columna <- datos[[1L]]
+  posicion <- .campo_clave(datos, c("ordinal_position", "seq_in_index"))
+  if (is.null(posicion)) posicion <- rep(1, nrow(datos))
+  posicion <- suppressWarnings(as.numeric(posicion))
   if (identical(via$nombre, "pragma")) {
     # `pk` vale 0 en las columnas que no son parte de la clave.
     partes <- which(is.finite(posicion) & posicion > 0)
@@ -463,14 +512,23 @@
     orden <- partes[order(posicion[partes])]
     garantia <- .garantia_clave_primaria(datos, via$nombre, motor)
     return(list(
-      columnas = as.character(datos[[columna]])[orden], fuente = via$nombre,
+      columnas = as.character(columna)[orden], fuente = via$nombre,
+      motivo = NA_character_, garantia = garantia$garantia,
+      estado = garantia$estado
+    ))
+  }
+  if (identical(via$nombre, "show_index")) {
+    orden <- order(posicion, na.last = TRUE)
+    garantia <- .garantia_clave_primaria(datos, via$nombre, motor)
+    return(list(
+      columnas = as.character(columna)[orden], fuente = via$nombre,
       motivo = NA_character_, garantia = garantia$garantia,
       estado = garantia$estado
     ))
   }
   garantia <- .garantia_clave_primaria(datos, via$nombre, motor)
   list(
-    columnas = as.character(datos[[columna]]), fuente = via$nombre,
+    columnas = as.character(columna), fuente = via$nombre,
     motivo = NA_character_, garantia = garantia$garantia,
     estado = garantia$estado
   )

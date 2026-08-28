@@ -36,11 +36,20 @@
     base::duplicated.data.frame(datos_base),
     error = function(e) NULL
   )
+  # `fromLast` se calcula dando vuelta las filas y no pidiendoselo al metodo,
+  # porque hay metodos de `duplicated()` que lo ignoran: `bit64` devuelve para
+  # `integer64` el mismo vector con `fromLast = TRUE` que sin el. Con eso, una
+  # tabla de 30 filas y 3 valores distintos daba 27 filas en grupos repetidos en
+  # vez de 30, y la respuesta cambiaba segun el umbral de filas, porque la via
+  # rapida si daba 30. Dar vuelta las filas no depende de que el metodo respete
+  # el argumento.
   duplicadas_atras <- if (is.null(duplicadas_adelante)) {
     NULL
   } else {
     tryCatch(
-      base::duplicated.data.frame(datos_base, fromLast = TRUE),
+      rev(base::duplicated.data.frame(
+        datos_base[rev(seq_len(nrow(datos_base))), , drop = FALSE]
+      )),
       error = function(e) NULL
     )
   }
@@ -112,7 +121,8 @@
     return(.conteos_filas_duplicadas_imprevistos(datos))
   }
   usa_via_rapida <- nrow(datos) >= .UMBRAL_FILAS_DATA_TABLE_DUPLICADOS &&
-    !any(columnas_no_compatibles) && !.tiene_nan_en_dobles(datos)
+    !any(columnas_no_compatibles) && !.tiene_nan_en_dobles(datos) &&
+    .redondeo_numerico_es_exacto(datos)
   # Un fallo imprevisto de la via rapida repliega a base en vez de abortar:
   # el resultado exacto lo fija `duplicated()`, no el atajo.
   duplicadas <- if (usa_via_rapida) {
@@ -146,6 +156,24 @@
     adelante = duplicated(ids),
     atras = duplicated(ids, fromLast = TRUE)
   )
+}
+
+# `data.table` tiene un ajuste GLOBAL DE LA SESION, `setNumericRounding()`, que
+# cambia cuantos bits se comparan de un doble al ordenar. Con 1 o 2, `frank()`
+# agrupa valores que `duplicated()` distingue, y el conteo cambia: medido sobre
+# dobles que difieren en un `eps`, sobre `POSIXct` con diferencias de
+# microsegundos y sobre magnitudes grandes, los tres divergen.
+#
+# Cualquier otro paquete de la sesion puede haberlo cambiado, asi que el ajuste
+# se consulta, no se supone -y no se modifica: cambiarlo desde aca alteraria el
+# comportamiento de codigo ajeno-. Solo importa si hay columnas dobles;
+# `POSIXct` cuenta como doble.
+.redondeo_numerico_es_exacto <- function(datos) {
+  if (!any(vapply(datos, is.double, logical(1L)))) return(TRUE)
+  redondeo <- tryCatch(
+    data.table::getNumericRounding(), error = function(e) NA_integer_
+  )
+  isTRUE(redondeo == 0L)
 }
 
 # `frank()` ordena y por eso no distingue `NaN` de `NA`, mientras que la
@@ -212,9 +240,56 @@
   } else {
     NA_integer_
   }
-  unicidad <- if (is.null(duplicadas)) {
+  # La unicidad se evalua SOLO entre las filas con la clave completa. Una
+  # repeticion entre filas incompletas no viola la unicidad -en SQL dos NULL no
+  # son iguales-, y contarla aca hacia que `lupa` llamara "no es unica" a una
+  # clave que si lo es entre sus casos evaluables. Esa colision no se pierde: se
+  # informa en `trazabilidad`, que es donde importa, porque deja el localizador
+  # ambiguo.
+  completas_logica <- if (pudo_contar_ausentes && n) {
+    !filas_con_ausentes_logica
+  } else if (pudo_contar_ausentes) {
+    logical()
+  } else {
+    NULL
+  }
+  n_completas <- if (is.null(completas_logica)) {
+    NA_integer_
+  } else {
+    sum(completas_logica)
+  }
+  duplicadas_completas <- if (pudo_comprobar_unicidad &&
+      !is.null(completas_logica)) {
+    tryCatch(
+      base::duplicated.data.frame(valores[completas_logica, , drop = FALSE]),
+      error = function(e) NULL
+    )
+  } else {
+    NULL
+  }
+  n_repeticiones_completas <- if (is.null(duplicadas_completas)) {
+    NA_integer_
+  } else {
+    sum(duplicadas_completas)
+  }
+  n_colision_completas <- if (is.null(duplicadas_completas)) {
+    NA_integer_
+  } else {
+    tryCatch(
+      sum(duplicadas_completas | base::duplicated.data.frame(
+        valores[completas_logica, , drop = FALSE], fromLast = TRUE
+      )),
+      error = function(e) NA_integer_
+    )
+  }
+  # Cuando ninguna fila tiene la clave completa, la unicidad entre claves
+  # completas es cierta sobre un conjunto vacio. Decir "verificada" seria cierto
+  # y engañoso a la vez, asi que tiene estado propio.
+  unicidad <- if (is.null(duplicadas_completas) || is.na(n_completas)) {
     "no_verificada"
-  } else if (isTRUE(n_repeticiones > 0L)) {
+  } else if (n_completas == 0L) {
+    "sin_casos_evaluables"
+  } else if (isTRUE(n_repeticiones_completas > 0L)) {
     "refutada"
   } else {
     "verificada"
@@ -230,10 +305,11 @@
     columnas = as.character(clave),
     unicidad = list(
       estado = unicidad,
-      semantica = "R",
-      filas_evaluadas = as.integer(n),
-      filas_repetidas = as.numeric(n_repeticiones),
-      filas_en_colision = as.numeric(n_filas_colision)
+      semantica = "claves_completas",
+      filas_evaluadas = as.integer(n_completas),
+      filas_totales = as.integer(n),
+      filas_repetidas = as.numeric(n_repeticiones_completas),
+      filas_en_colision = as.numeric(n_colision_completas)
     ),
     ausencia_nulos = list(
       estado = ausencia_nulos,
@@ -268,17 +344,29 @@
   mensajes <- character()
   if (identical(unicidad$estado, "refutada")) {
     mensajes <- c(mensajes, paste0(
-      "La clave declarada no es unica: la comprobacion de unicidad bajo la semantica de R fue refutada: ",
-      unicidad$filas_repetidas, " filas repiten su valor (",
-      unicidad$filas_en_colision, " filas participan en colisiones)."
+      "La clave declarada no es unica: entre las ", unicidad$filas_evaluadas,
+      " filas con la clave completa, ", unicidad$filas_repetidas,
+      " repiten su valor (", unicidad$filas_en_colision,
+      " filas participan en colisiones)."
     ))
   } else if (identical(unicidad$estado, "verificada")) {
-    mensajes <- c(mensajes,
-      "La comprobacion de unicidad bajo la semantica de R fue verificada: no se encontraron colisiones."
-    )
+    mensajes <- c(mensajes, paste0(
+      "La comprobacion de unicidad fue verificada entre las ",
+      unicidad$filas_evaluadas, " filas con la clave completa: no se ",
+      "encontraron colisiones."
+    ))
+  } else if (identical(unicidad$estado, "sin_casos_evaluables")) {
+    # No es "verificada" -seria cierto sobre un conjunto vacio y enganoso- ni
+    # "no verificada" -si se recorrio la tabla entera y se comprobo que no habia
+    # ningun caso-. Es un tercer estado y se dice por que.
+    mensajes <- c(mensajes, paste0(
+      "No se pudo evaluar la unicidad: ninguna de las ",
+      unicidad$filas_totales,
+      " filas tiene la clave completa, asi que no hay casos que comparar."
+    ))
   } else {
     mensajes <- c(mensajes,
-      "La comprobacion de unicidad bajo la semantica de R no fue verificada: no habia filas o no se pudo comparar la clave."
+      "La comprobacion de unicidad no fue verificada: no se pudo comparar la clave."
     )
   }
   if (identical(ausencia$estado, "refutada")) {

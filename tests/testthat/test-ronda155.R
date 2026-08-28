@@ -71,9 +71,13 @@ test_that("the five key cases publish separate states", {
       unicidad = "refutada", ausencia = "verificada",
       advertencia = "no es unica"
     ),
+    # Las unicas repeticiones son los dos ausentes. Entre las claves COMPLETAS
+    # -"a" y "d"- no hay ninguna, asi que la unicidad esta verificada. Llamarla
+    # "refutada" era afirmar una violacion que en SQL no existe: dos NULL no son
+    # iguales. La colision se informa en `trazabilidad`, que es su eje.
     duplicada_con_ausencias = list(
       datos = data.frame(k = c("a", NA_character_, NA_character_, "d")),
-      unicidad = "refutada", ausencia = "refutada",
+      unicidad = "verificada", ausencia = "refutada",
       advertencia = "colision"
     ),
     valida = list(
@@ -104,8 +108,10 @@ test_that("the five key cases publish separate states", {
     expect_identical(
       perfil$meta$clave$ausencia_nulos$estado, caso$ausencia, info = nombre
     )
+    # La unicidad se evalua entre claves completas; la trazabilidad conserva la
+    # semantica de R, porque es la que localiza las filas.
     expect_identical(
-      perfil$meta$clave$unicidad$semantica, "R", info = nombre
+      perfil$meta$clave$unicidad$semantica, "claves_completas", info = nombre
     )
     expect_identical(
       perfil$meta$clave$trazabilidad$semantica, "R", info = nombre
@@ -113,18 +119,22 @@ test_that("the five key cases publish separate states", {
   }
 })
 
-test_that("a duplicated key with missing values reports both axes", {
+test_that("a key whose only repetitions are missing values is not called non-unique", {
   datos <- data.frame(k = c("a", NA_character_, NA_character_, "d"))
   capturado <- .ronda155_capturar_warning(
     .ronda155_perfilar(datos, "k")
   )
   perfil <- capturado$valor
-  expect_match(capturado$mensaje, "no es unica")
+  # Lo que NO tiene que decir: la unicidad no esta refutada.
+  expect_false(grepl("no es unica", capturado$mensaje, fixed = TRUE))
   expect_match(capturado$mensaje, "ausencia de nulos")
   expect_match(capturado$mensaje, "colision")
   meta <- perfil$meta$clave
-  expect_equal(meta$unicidad$filas_repetidas, 1)
-  expect_equal(meta$unicidad$filas_en_colision, 2)
+  expect_identical(meta$unicidad$estado, "verificada")
+  expect_identical(meta$unicidad$filas_evaluadas, 2L)
+  expect_identical(meta$unicidad$filas_totales, 4L)
+  expect_equal(meta$unicidad$filas_repetidas, 0)
+  expect_equal(meta$unicidad$filas_en_colision, 0)
   expect_equal(meta$ausencia_nulos$valores_ausentes, 2)
   expect_true(meta$trazabilidad$colisiona_con_ausentes)
   expect_equal(meta$trazabilidad$filas_colision_con_ausentes, 2)
@@ -275,7 +285,7 @@ test_that("an unconsultable catalogue keeps state unknown", {
   resultado <- .ronda155_clave_no_consultable(oracle)
   expect_identical(resultado$fuente, "all_constraints")
   expect_identical(resultado$garantia, "desconocida")
-  expect_true(is.na(resultado$estado$visible))
+  expect_false(resultado$estado$visible)
   expect_true(is.na(resultado$estado$aplicada))
   expect_true(is.na(resultado$estado$validada))
   expect_match(resultado$motivo, "sin permisos")

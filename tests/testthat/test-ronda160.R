@@ -291,6 +291,14 @@ test_that("NAMESPACE no importa data.table porque cedta cambia la sintaxis de ["
   expect_length(importaciones, 0L)
 })
 
+test_that("el espacio de nombres no declara .datatable.aware", {
+  # `cedta()` tambien consulta esta variable. Agregarla cambia la semantica de
+  # `tabla[, columnas, drop = FALSE]` aunque NAMESPACE siga sin imports.
+  expect_false(exists(
+    ".datatable.aware", envir = asNamespace("lupa"), inherits = FALSE
+  ))
+})
+
 test_that("dentro del paquete, [ , columnas, drop = FALSE] selecciona columnas", {
   # La prueba de conducta que corresponde a la estructural de arriba: lo que
   # importa no es el texto del NAMESPACE sino que la sintaxis siga significando

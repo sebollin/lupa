@@ -11,13 +11,30 @@
   )
 }
 
+.ronda159_clave_simulada <- function(conexion, datos, ok = TRUE,
+                                     motivo = NA_character_) {
+  llamadas <- new.env(parent = emptyenv())
+  llamadas$n <- 0L
+  llamadas$sql <- NA_character_
+  resultado <- testthat::with_mocked_bindings(
+    lupa:::.clave_primaria_dbi(conexion, "tabla", esquema = "esquema"),
+    .consultar_dbi = function(conexion, sql, presupuesto) {
+      llamadas$n <- llamadas$n + 1L
+      llamadas$sql <- sql
+      list(ok = ok, datos = datos, motivo = motivo)
+    },
+    .package = "lupa"
+  )
+  list(resultado = resultado, consultas = llamadas$n, sql = llamadas$sql)
+}
+
 test_that("un catalogo vacio no se presenta como clave no declarada", {
   conexion <- structure(list(), class = "MotorInventado")
   resultado <- .ronda159_clave_vacia(conexion)
 
   expect_identical(resultado$columnas, character())
   expect_identical(resultado$garantia, "desconocida")
-  expect_false(resultado$estado$visible)
+  expect_true(is.na(resultado$estado$visible))
   expect_match(resultado$motivo, "no devolvio filas")
   expect_match(resultado$motivo, "no ser visible")
 })
@@ -27,6 +44,7 @@ test_that("la visibilidad vacia conserva las diferencias entre motores", {
   expect_true(.catalogo_clave_visible("pragma", "sqlite"))
   expect_true(.catalogo_clave_visible("duckdb_constraints", "duckdb"))
   expect_true(.catalogo_clave_visible("all_constraints", "oracle"))
+  expect_true(.catalogo_clave_visible("show_index", "mariadb"))
   # Medido contra contenedores el 2026-08-27, no deducido: MySQL 8 muestra la
   # restriccion a un rol con solo `SELECT` y MariaDB 11 no. Agruparlos por
   # parecido hacia que `lupa` afirmara "no hay clave declarada" sobre una tabla
@@ -131,7 +149,8 @@ test_that("SQLite confirma la ausencia de clave cuando el catalogo si es visible
 # contando lo que devuelve `information_schema.table_constraints`.
 #
 #   MySQL 8        el rol restringido ve 1  -> la vista es visible
-#   MariaDB 11     el rol restringido ve 0  -> AMBIGUO
+#   MariaDB 11     el rol restringido ve 0  -> usa `SHOW INDEX`, que devuelve 1
+#                   para la misma clave
 #   PostgreSQL 16  el rol restringido ve 0  -> por eso su via es `pg_catalog`
 #
 # MariaDB y MySQL parecen el mismo motor y aca no lo son. La primera version de
@@ -146,7 +165,8 @@ test_that("la visibilidad del catalogo no agrupa motores por parecido", {
   }
   expect_true(lupa:::.catalogo_clave_visible("all_constraints", "oracle"))
 
-  # Medido: MySQL si, MariaDB no.
+  # Medido: MySQL si; MariaDB no en `information_schema`, porque usa
+  # `show_index`.
   expect_true(lupa:::.catalogo_clave_visible("information_schema", "mysql"))
   expect_false(lupa:::.catalogo_clave_visible("information_schema", "mariadb"))
 
@@ -159,8 +179,55 @@ test_that("la visibilidad del catalogo no agrupa motores por parecido", {
 
 test_that("un catalogo ambiguo no afirma que no hay clave", {
   # La funcion que decide el estado a partir de una respuesta vacia: con la via
-  # ambigua tiene que quedar `desconocida` y `visible = FALSE`, nunca
+  # ambigua tiene que quedar `desconocida` y `visible = NA`, nunca
   # `no_declarada`, que seria afirmar algo sobre los datos.
   expect_false(lupa:::.catalogo_clave_visible("information_schema", "mariadb"))
   expect_true(lupa:::.catalogo_clave_visible("information_schema", "mysql"))
+})
+
+test_that("SHOW INDEX identifica y ordena la clave de MariaDB", {
+  maria <- structure(list(), class = "MariaDBConnection")
+  datos <- data.frame(
+    Table = rep("tabla", 3L),
+    Key_name = c("indice_auxiliar", "PRIMARY", "PRIMARY"),
+    Seq_in_index = c(1L, 2L, 1L),
+    Column_name = c("valor", "parte_a", "parte_b"),
+    stringsAsFactors = FALSE
+  )
+  capturado <- .ronda159_clave_simulada(maria, datos)
+
+  expect_identical(.via_clave_primaria(maria), "show_index")
+  expect_identical(capturado$consultas, 1L)
+  expect_match(capturado$sql, "SHOW INDEX FROM `esquema`.`tabla`", fixed = TRUE)
+  expect_identical(capturado$resultado$fuente, "show_index")
+  expect_identical(capturado$resultado$columnas, c("parte_b", "parte_a"))
+  expect_true(capturado$resultado$estado$visible)
+  expect_identical(capturado$resultado$garantia, "desconocida")
+})
+
+test_that("la decision de visibilidad distingue ceros y errores", {
+  maria <- structure(list(), class = "MariaDBConnection")
+  sin_pk <- .ronda159_clave_simulada(maria, data.frame())$resultado
+  expect_identical(sin_pk$garantia, "no_declarada")
+  expect_true(sin_pk$estado$visible)
+
+  sin_primaria <- .ronda159_clave_simulada(
+    maria,
+    data.frame(Key_name = "indice_auxiliar", Seq_in_index = 1L,
+               Column_name = "valor")
+  )$resultado
+  expect_identical(sin_primaria$garantia, "no_declarada")
+  expect_true(sin_primaria$estado$visible)
+
+  permiso <- .ronda159_clave_simulada(
+    maria, NULL, ok = FALSE, motivo = "SHOW command denied"
+  )$resultado
+  expect_identical(permiso$garantia, "desconocida")
+  expect_false(permiso$estado$visible)
+
+  otro_error <- .ronda159_clave_simulada(
+    maria, NULL, ok = FALSE, motivo = "table does not exist"
+  )$resultado
+  expect_identical(otro_error$garantia, "desconocida")
+  expect_true(is.na(otro_error$estado$visible))
 })
