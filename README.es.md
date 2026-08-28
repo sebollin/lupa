@@ -288,6 +288,12 @@ respaldo; cuando la sonda del motor acepta
 `PERCENTILE_CONT(...) WITHIN GROUP`, varias medianas viajan en un solo
 `SELECT` por lote.
 
+En el modo aproximado, una cardinalidad sólo se consolida si la
+capacidad proporciona una expresión que se pueda incrustar en ese
+`SELECT`. Si sólo puede construir una consulta completa, válidos y
+distintos se emiten por separado y cada registro conserva el método de
+la consulta que efectivamente se ejecutó.
+
 Medido contra PostgreSQL 16 con **2 millones de filas por 40 columnas**:
 
 | modo | antes | después |
@@ -500,6 +506,11 @@ por lo que es —lo visto en la muestra, con el universo al lado—. Un
 motor sin capacidad de muestreo no rompe: el modo degrada y lo dice en
 la tabla de cobertura.
 
+Una aproximación no se etiqueta como estimada cuando su consulta no se
+emitió o no devolvió un valor utilizable. Si el motor no ofrece la
+función aproximada, el respaldo exacto conserva `COUNT(DISTINCT ...)`
+como método publicado.
+
 ## 🕳️ El vacío por diseño se declara, no se cuenta como defecto
 
 Todo perfilador asume una forma de tabla. `lupa` asume que una fila es
@@ -578,9 +589,12 @@ consulta elegida por el controlador. Y se distingue «esta tabla no
 declara clave» de «no se pudo preguntar», que no son lo mismo.
 
 **La unicidad no se adivina: se pregunta.** Si se declara la clave con
-`perfilar(clave = ...)`, que se repita es un hallazgo de severidad
-`error` con las filas que repiten. La advertencia y `meta$clave` separan
-esa comprobación de la ausencia de nulos: una clave puede no tener
+`perfilar(clave = ...)`, que se repita entre las filas con la clave
+completa es un hallazgo de severidad `error` con las filas que repiten.
+Si ninguna fila tiene la clave completa, el estado es
+`sin_casos_evaluables` y no `verificada`: cierto sobre un conjunto vacío
+es cierto y engañoso a la vez. La advertencia y `meta$clave` separan esa
+comprobación de la ausencia de nulos: una clave puede no tener
 colisiones distintas de los ausentes y aun así no cumplir `NOT NULL`; si
 la trazabilidad agrupa esos ausentes con la semántica de R, ambas cosas
 quedan declaradas. Y para no dejar al usuario ante una casilla en

@@ -532,7 +532,24 @@ y su limite. Quien decida automáticamente sobre un perfil debe revisar
 perfil sin hallazgos y con diagnósticos no evaluados no es un perfil
 limpio. Cuando una clave declarada no queda plenamente verificada,
 `meta$clave` conserva los estados de unicidad y ausencia de nulos, sus
-conteos y la semántica usada por la trazabilidad.
+conteos y la semántica usada por la trazabilidad. Los tres responden
+preguntas distintas y no comparten universo:
+
+- `unicidad` se evalúa **sólo entre las filas con la clave completa**
+  (`semantica = "claves_completas"`), porque una repetición entre filas
+  incompletas no viola la unicidad: en SQL dos `NULL` no son iguales.
+  `filas_evaluadas` cuenta esas filas y `filas_totales` la tabla entera.
+  Su estado es `"verificada"`, `"refutada"`, `"no_verificada"` cuando no
+  se pudo comparar, o `"sin_casos_evaluables"` cuando **ninguna** fila
+  tiene la clave completa: ahí la unicidad sería cierta sobre un
+  conjunto vacío, que es cierto y engañoso a la vez, y por eso tiene
+  estado propio.
+
+- `ausencia_nulos` responde si todos los componentes están presentes.
+
+- `trazabilidad` conserva la semántica de R, que es la que localiza las
+  filas, e informa en `colisiona_con_ausentes` si el localizador queda
+  ambiguo porque dos filas con ausentes comparten representación.
 
 ## Details
 

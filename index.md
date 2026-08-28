@@ -277,6 +277,12 @@ min/max/mean/zeros/negatives, and standard deviation — are now asked for
 keeps a separate query class; mode and median stay one per column,
 because they group and sort.
 
+In approximate mode, a distinct count is consolidated only when the
+capability provides an expression that can be embedded in the `SELECT`.
+If it only builds a complete query, valid counts and distinct counts are
+issued separately, and each record keeps the method of the query that
+was actually run.
+
 Measured against PostgreSQL 16 with **2 million rows by 40 columns**:
 
 | mode | before | after |
@@ -467,6 +473,11 @@ reported as what it is — what was seen in the sample, with the universe
 stated beside it. An engine with no sampling capability does not break:
 the mode degrades and says so in the coverage table.
 
+An approximation is not marked as estimated when its query was not
+issued or did not return a usable value. If the engine lacks the
+approximate function, the exact fallback keeps `COUNT(DISTINCT ...)` as
+the published method.
+
 ## 🕳️ Emptiness by design is declared, not counted as a defect
 
 Every profiler assumes a table shape. `lupa` assumes one row is one
@@ -544,12 +555,15 @@ query chosen by the driver. And «this table declares no key» is kept
 apart from «the key could not be read», which are not the same thing.
 
 **Uniqueness is not guessed: it is asked.** Declare the key with
-`perfilar(clave = ...)` and a key that repeats is a finding of severity
-`error` carrying the offending rows. The warning and `meta$clave` keep
-that check apart from missing values: a key may have no non-missing
-collision and still violate `NOT NULL`; if traceability groups those
-missing values with R semantics, both facts remain visible. So that the
-user is not left facing a blank field,
+`perfilar(clave = ...)` and a key that repeats among the rows whose key
+is complete is a finding of severity `error` carrying the offending
+rows. When no row has a complete key the state is
+`sin_casos_evaluables`, not `verificada`: true over an empty set is true
+and misleading at once. The warning and `meta$clave` keep that check
+apart from missing values: a key may have no non-missing collision and
+still violate `NOT NULL`; if traceability groups those missing values
+with R semantics, both facts remain visible. So that the user is not
+left facing a blank field,
 [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md)
 ranks the candidate columns by three signals it publishes separately —
 whether it identifies every row, whether it has no missing values, and

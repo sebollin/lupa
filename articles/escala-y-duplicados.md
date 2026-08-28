@@ -143,8 +143,8 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.452 pares en
-#> 0,051 s.
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.228 pares en
+#> 0,050 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
 )]
@@ -186,8 +186,14 @@ comprobaciones separadas. `meta$clave` conserva el estado de cada una
 cuando alguna no queda verificada: una colisión entre `NA` puede ser
 útil para seguir la traza con la semántica de R, pero no prueba una
 colisión de `NULL` en SQL; los ausentes son la evidencia independiente
-contra `NOT NULL`. Una clave sin ausentes y única no agrega ese metadato
-al perfil histórico.
+contra `NOT NULL`.
+
+Por eso la unicidad se evalúa **sólo entre las filas con la clave
+completa**, y `filas_evaluadas` cuenta esas filas frente a
+`filas_totales`. Si ninguna fila tiene la clave completa, el estado no
+es `verificada` —sería cierto sobre un conjunto vacío— sino
+`sin_casos_evaluables`. Una clave sin ausentes y única no agrega ese
+metadato al perfil histórico.
 
 ``` r
 
@@ -226,7 +232,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/RtmpHOt6pL/lupa-lotes-231c49e725c5/lupa-lotes-231c51e3b51d"
+#> [1] "/tmp/RtmpqHzej7/lupa-lotes-2368363304c0/lupa-lotes-236844fa7563"
 #> 
 #> $n_parciales
 #> [1] 6

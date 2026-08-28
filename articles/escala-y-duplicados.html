@@ -258,8 +258,8 @@ colisión.</p>
 <span>  max_resultados <span class="op">=</span> <span class="fl">100</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;</span></span>
-<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.452 pares en</span></span>
-<span><span class="co">#&gt; 0,051 s.</span></span>
+<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.228 pares en</span></span>
+<span><span class="co">#&gt; 0,050 s.</span></span>
 <span><span class="va">exacto</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span>, <span class="st">"igualo_normalizar"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
@@ -298,8 +298,14 @@ nulos son comprobaciones separadas. <code>meta$clave</code> conserva el
 estado de cada una cuando alguna no queda verificada: una colisión entre
 <code>NA</code> puede ser útil para seguir la traza con la semántica de
 R, pero no prueba una colisión de <code>NULL</code> en SQL; los ausentes
-son la evidencia independiente contra <code>NOT NULL</code>. Una clave
-sin ausentes y única no agrega ese metadato al perfil histórico.</p>
+son la evidencia independiente contra <code>NOT NULL</code>.</p>
+<p>Por eso la unicidad se evalúa <strong>sólo entre las filas con la
+clave completa</strong>, y <code>filas_evaluadas</code> cuenta esas
+filas frente a <code>filas_totales</code>. Si ninguna fila tiene la
+clave completa, el estado no es <code>verificada</code> —sería cierto
+sobre un conjunto vacío— sino <code>sin_casos_evaluables</code>. Una
+clave sin ausentes y única no agrega ese metadato al perfil
+histórico.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">bloqueado</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados</a></span><span class="op">(</span></span>
 <span>  <span class="va">datos</span>, columnas <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"nombre"</span>, <span class="st">"domicilio"</span><span class="op">)</span>, estrategia <span class="op">=</span> <span class="st">"teselas"</span>,</span>
@@ -333,7 +339,7 @@ siendo exacta; sólo cambia cuánta memoria se usa a la vez.</p>
 <span>  <span class="st">"directorio"</span>, <span class="st">"n_parciales"</span>, <span class="st">"bytes_totales"</span>, <span class="st">"reanudable"</span>, <span class="st">"perdida"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $directorio</span></span>
-<span><span class="co">#&gt; [1] "/tmp/RtmpHOt6pL/lupa-lotes-231c49e725c5/lupa-lotes-231c51e3b51d"</span></span>
+<span><span class="co">#&gt; [1] "/tmp/RtmpqHzej7/lupa-lotes-2368363304c0/lupa-lotes-236844fa7563"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $n_parciales</span></span>
 <span><span class="co">#&gt; [1] 6</span></span>

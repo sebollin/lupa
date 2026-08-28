@@ -2,15 +2,37 @@
 
 ## lupa 0.1.0
 
+### El estado publicado queda atado a la consulta ejecutada
+
+Los conteos aproximados sólo se consolidan cuando el adaptador entrega
+una expresión que se puede incrustar en el `SELECT`. Una capacidad que
+sólo construye consultas completas conserva los conteos de válidos y
+distintos por separado, sin presentar `COUNT(DISTINCT ...)` como una
+aproximación. Un resultado no emitido no se publica como estimado, y el
+registro fuerza `no_disponible` cuando `ok` es falso.
+
+La cota `n_distintos <= n_validos` se valida antes del único registro.
+Los valores imposibles no se recortan ni se publican; el valor bruto
+queda en el motivo de auditoría.
+
 ### Catalogos de claves sin confundir ausencia con falta de visibilidad
 
 La lectura DBI ya no llama `no_declarada` a cualquier consulta de
 catalogo que vuelve vacia. Una consulta fallida queda con
 `garantia = "desconocida"`, `visible = NA` y su motivo; una vista que
 devolvio cero filas pero puede ocultar metadatos queda con
-`garantia = "desconocida"`, `visible = FALSE` y la ambiguedad escrita en
-`motivo`. Solo las vias cuyo catalogo es visible para una tabla
+`garantia = "desconocida"`, `visible = NA` y la ambiguedad escrita en
+`motivo`. Un error de permisos identificable queda con
+`visible = FALSE`; solo las vias cuyo catalogo es visible para una tabla
 accesible conservan `no_declarada`.
+
+Medido contra MariaDB 11 y MySQL 8 reales, con una cuenta propietaria y
+otra con solo `SELECT`, `SHOW INDEX` devolvio las filas `PRIMARY` en las
+dos cuentas para las claves simples y compuestas, y cero filas en las
+tablas sin clave. MariaDB usa esa via en una sola consulta y conserva el
+orden de las columnas con `Seq_in_index`; su garantia sigue desconocida
+porque esa salida no publica un estado comparable de aplicacion y
+validacion.
 
 PostgreSQL deja de partir de `information_schema.table_constraints`, que
 oculta restricciones a un rol que solo tiene `SELECT`, y consulta
@@ -29,6 +51,75 @@ garantizar no-nulidad sin que este camino distinga su declaracion, como
 `INTEGER PRIMARY KEY`; no se lanza un recorrido de los datos. Se
 verifico con dos `NULL` reales en una PRIMARY KEY de texto sin
 `NOT NULL`, y con el rechazo de un `NULL` en otra con `NOT NULL`.
+
+### La selección de columnas pasa por una primitiva con semántica declarada
+
+El paquete deja de escribir `datos[, columnas, drop = FALSE]` en cada
+sitio que recibe una tabla y lo hace a través de una función interna
+cuya semántica de referencia está declarada, de modo que el significado
+no dependa de la clase de la tabla ni del estado del espacio de nombres.
+Esto corrige además selecciones de una dimensión que quedaban en
+`agregacion`, `claves-relaciones`, `duplicados-aproximados`,
+`referencial`, `remediacion` y `tablero-calidad`: `tabla["columna"]`
+selecciona una columna en un `data.frame` y en un `tibble`, pero en un
+`data.table` intenta un cruce y aborta. No agrega conversiones: sigue
+habiendo una sola por llamada.
+
+### SQL Server lee su catálogo por la vista estándar
+
+La clasificación de visibilidad de
+`information_schema.table_constraints` deja de tratar a SQL Server como
+ambiguo. Medido con un rol de sólo `SELECT` sobre tablas con clave
+simple, compuesta y sin clave, la vista devuelve las restricciones: la
+vía es exhaustiva para esa credencial, así que un resultado vacío
+significa que la clave no está declarada. Lo sostienen dos mediciones
+independientes sobre dos versiones distintas del motor.
+
+### La unicidad de una clave se evalúa entre las filas con la clave completa
+
+`perfilar(clave = ...)` evaluaba la unicidad sobre todas las filas con
+la semántica de R, donde dos ausentes de la misma posición colisionan.
+Eso hacía que una clave cuyas únicas repeticiones venían de filas
+incompletas se informara como **«no es única»**, cuando en SQL dos
+`NULL` no son iguales y no violarían nada.
+
+Ahora la unicidad se evalúa sólo entre las filas con la clave completa,
+y la colisión entre ausentes se informa donde corresponde: en
+`trazabilidad`, porque lo que deja ambiguo es el localizador.
+`unicidad$semantica` pasa de `"R"` a `"claves_completas"`, y se agrega
+`unicidad$filas_totales` junto a `filas_evaluadas`, que ahora cuenta las
+filas evaluables.
+
+Cuando **ninguna** fila tiene la clave completa, el estado es
+`"sin_casos_evaluables"`. Decir `"verificada"` sería cierto sobre un
+conjunto vacío y engañoso a la vez, y `"no_verificada"` sería falso si
+se recorrió la tabla entera y se comprobó que no había casos.
+
+### El conteo de duplicados no depende de ajustes globales de la sesión
+
+[`data.table::setNumericRounding()`](https://rdrr.io/pkg/data.table/man/setNumericRounding.html)
+es un ajuste global que cambia cuántos bits se comparan de un doble al
+ordenar. Como la vía rápida ordena, con los valores 1 y 2 agrupaba
+valores que [`duplicated()`](https://rdrr.io/r/base/duplicated.html)
+distingue: medido sobre dobles separados por un `eps`, sobre `POSIXct`
+con diferencias de microsegundos y sobre magnitudes grandes, los tres
+divergían. La vía rápida ahora sólo corre con precisión completa, y sólo
+consulta el ajuste si hay columnas dobles. `lupa` no lo modifica:
+cambiarlo alteraría el comportamiento de código ajeno.
+
+Se comprobó además que el número de hilos, la configuración regional, la
+zona horaria, la codificación y las opciones de `data.table` no cambian
+el resultado.
+
+### Un `duplicated()` que ignora `fromLast` ya no cambia el conteo
+
+`bit64` devuelve para una columna `integer64` el mismo vector con
+`fromLast = TRUE` que sin él. La cuenta de filas en grupos repetidos
+heredaba ese defecto: una tabla de 30 filas con 3 valores distintos daba
+27 en vez de 30, y la respuesta cambiaba según el umbral de filas,
+porque la vía rápida sí daba 30. El conteo hacia atrás se calcula ahora
+dando vuelta las filas, que no depende de que el método respete el
+argumento.
 
 ### La clase de la tabla ya no cambia el resultado
 

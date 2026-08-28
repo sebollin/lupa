@@ -217,7 +217,10 @@ muestra, no como cardinalidad del universo. `modo = "aproximado"` sondea
 `APPROX_COUNT_DISTINCT`, `approx_count_distinct` y las formas de
 cuantiles del motor; cuando ninguna responde usa el respaldo exacto y lo
 registra por métrica. Las cotas de error no documentadas quedan como
-`"desconocido"`.
+`"desconocido"`. Una aproximacion solo se consolida cuando entrega una
+expresion que se puede incrustar en el `SELECT`; si solo construye una
+consulta completa, se emite por separado. Una consulta no emitida o sin
+un valor utilizable queda `no_disponible`.
 
 ## Dialecto
 

@@ -566,8 +566,20 @@ Quien decida automáticamente sobre un perfil debe revisar
 sin hallazgos y con diagnósticos no evaluados no es un perfil limpio.
 Cuando una clave declarada no queda plenamente verificada, <code>meta$clave</code>
 conserva los estados de unicidad y ausencia de nulos, sus conteos y la
-semántica usada por la trazabilidad.</p>
-    </div>
+semántica usada por la trazabilidad. Los tres responden preguntas distintas
+y no comparten universo:</p><ul><li><p><code>unicidad</code> se evalúa <strong>sólo entre las filas con la clave completa</strong>
+(<code>semantica = "claves_completas"</code>), porque una repetición entre filas
+incompletas no viola la unicidad: en SQL dos <code>NULL</code> no son iguales.
+<code>filas_evaluadas</code> cuenta esas filas y <code>filas_totales</code> la tabla entera. Su
+estado es <code>"verificada"</code>, <code>"refutada"</code>, <code>"no_verificada"</code> cuando no se
+pudo comparar, o <code>"sin_casos_evaluables"</code> cuando <strong>ninguna</strong> fila tiene la
+clave completa: ahí la unicidad sería cierta sobre un conjunto vacío, que
+es cierto y engañoso a la vez, y por eso tiene estado propio.</p></li>
+<li><p><code>ausencia_nulos</code> responde si todos los componentes están presentes.</p></li>
+<li><p><code>trazabilidad</code> conserva la semántica de R, que es la que localiza las
+filas, e informa en <code>colisiona_con_ausentes</code> si el localizador queda
+ambiguo porque dos filas con ausentes comparten representación.</p></li>
+</ul></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Los umbrales de faltantes se aplican a la suma de ausentes reales y
