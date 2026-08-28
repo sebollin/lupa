@@ -1,5 +1,20 @@
 # lupa 0.1.0
 
+## Una clave heredada ya no se declara garantizada sobre otro universo
+
+En PostgreSQL, una consulta sin `ONLY` incluye a las tablas que heredan, y la
+clave primaria del padre **no gobierna las filas de los hijos**. El catálogo
+sigue informando la restricción como válida, así que `perfilar_dbi()` publicaba
+`garantia = "garantizada"` sobre un universo donde la unicidad puede no
+cumplirse: medido, una tabla con un hijo que repite un valor da 6001 valores y
+6000 distintos en la consulta que ejecuta el paquete.
+
+Ahora la misma consulta de catálogo trae si la tabla tiene descendientes —sin
+agregar una ida y vuelta— y en ese caso la garantía baja a
+`declarada_no_garantizada`, con el hecho anotado en
+`estado$universo_incluye_descendientes`. La restricción existe y es válida; lo
+que no vale es sobre las filas que se van a perfilar.
+
 ## El estado publicado queda atado a la consulta ejecutada
 
 Los conteos aproximados sólo se consolidan cuando el adaptador entrega una

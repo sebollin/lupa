@@ -178,7 +178,12 @@
         paste0(
           "SELECT a.attname AS column_name, k.ordinal_position, ",
           "TRUE AS constraint_enforced, ",
-          "c.convalidated AS constraint_validated ",
+          "c.convalidated AS constraint_validated, ",
+          # Una consulta sin ONLY incluye a los descendientes, y la clave del
+          # padre NO gobierna sus filas. Se pide en la misma consulta para no
+          # agregar una ida y vuelta.
+          "(SELECT count(*) FROM pg_catalog.pg_inherits i ",
+          "WHERE i.inhparent = r.oid) AS constraint_descendientes ",
           "FROM pg_catalog.pg_constraint c ",
           "JOIN pg_catalog.pg_class r ON r.oid = c.conrelid ",
           "JOIN pg_catalog.pg_namespace n ON n.oid = r.relnamespace ",
@@ -278,10 +283,20 @@
     .estado_clave(enforced, "si_no")
   }
   validada <- .estado_clave(validated, "oraculo")
+  # En PostgreSQL una consulta sin `ONLY` incluye a las tablas que heredan, y la
+  # restriccion del padre no gobierna esas filas. Medido: sobre una tabla con un
+  # hijo que repite un valor, el catalogo informa `contype = p` y
+  # `convalidated = t`, y la consulta que corre el paquete da 6001 valores con
+  # 6000 distintos. Publicar "garantizada" ahi seria afirmar sobre un universo
+  # que no es el que se midio.
+  descendientes <- .campo_clave(datos, "constraint_descendientes")
+  hay_descendientes <- !is.null(descendientes) &&
+    isTRUE(suppressWarnings(as.numeric(descendientes[[1L]]) > 0))
   estado <- list(
     visible = TRUE,
     aplicada = aplicada,
     validada = validada,
+    universo_incluye_descendientes = hay_descendientes,
     unicidad = NA_character_,
     unicidad_aplica_a = NA_character_,
     ausencia_de_nulos = NA_character_,
@@ -341,7 +356,11 @@
   # documenta ENFORCED=YES para ella. El resto de motores de esta via no expone
   # un estado comparable y queda desconocido.
   if (identical(via, "pg_catalog") && identical(motor, "postgresql")) {
-    garantia <- if (identical(aplicada, TRUE) && isTRUE(validada)) {
+    garantia <- if (hay_descendientes) {
+      # La restriccion existe y es valida, pero sobre otro universo que el que
+      # se perfila. Declarada, no garantizada aca.
+      "declarada_no_garantizada"
+    } else if (identical(aplicada, TRUE) && isTRUE(validada)) {
       "garantizada"
     } else if (identical(aplicada, FALSE) || identical(validada, FALSE)) {
       "declarada_no_garantizada"
