@@ -9,7 +9,7 @@
 # El catalogo decia `garantizada` en los dos casos.
 
 .ronda162_catalogo <- function(descendientes = 0L, validated = TRUE,
-                               diferible = FALSE) {
+                               diferible = FALSE, relkind = "r") {
   datos <- data.frame(
     column_name = "id",
     ordinal_position = 1L,
@@ -20,6 +20,7 @@
   if (!is.null(descendientes)) {
     datos$constraint_descendientes <- descendientes
     datos$constraint_diferible <- diferible
+    datos$constraint_relkind <- relkind
   }
   datos
 }
@@ -113,4 +114,45 @@ test_that("las dos condiciones se acumulan sin taparse", {
   expect_identical(resultado$garantia, "declarada_no_garantizada")
   expect_true(resultado$estado$universo_incluye_descendientes)
   expect_true(resultado$estado$restriccion_diferible)
+})
+
+test_that("una tabla particionada conserva la garantia pese a tener hijos", {
+  # `pg_inherits` registra la herencia tradicional Y el particionado
+  # declarativo, y solo la primera deja filas fuera del alcance de la clave: el
+  # motor exige que la clave de una tabla particionada incluya las columnas de
+  # particion. Medido contra PostgreSQL 16:
+  #   relkind = 'r' con un hijo que repite -> 6001 validos, 6000 distintos
+  #   relkind = 'p' con dos particiones    -> 19999 validos, 19999 distintos
+  resultado <- lupa:::.garantia_clave_primaria(
+    .ronda162_catalogo(descendientes = 2L, relkind = "p"),
+    "pg_catalog", "postgresql"
+  )
+
+  expect_identical(resultado$garantia, "garantizada")
+  expect_true(resultado$estado$relacion_particionada)
+  expect_false(resultado$estado$universo_incluye_descendientes)
+})
+
+test_that("una tabla regular con hijos si pierde la garantia", {
+  resultado <- lupa:::.garantia_clave_primaria(
+    .ronda162_catalogo(descendientes = 2L, relkind = "r"),
+    "pg_catalog", "postgresql"
+  )
+
+  expect_identical(resultado$garantia, "declarada_no_garantizada")
+  expect_false(resultado$estado$relacion_particionada)
+  expect_true(resultado$estado$universo_incluye_descendientes)
+})
+
+test_that("sin la columna relkind se trata como herencia, que es lo seguro", {
+  # PostgreSQL anterior a la version 10 no tiene particionado declarativo: toda
+  # descendencia es herencia, y ahi degradar es lo correcto.
+  datos <- .ronda162_catalogo(descendientes = 1L, relkind = "r")
+  datos$constraint_relkind <- NULL
+
+  resultado <- lupa:::.garantia_clave_primaria(
+    datos, "pg_catalog", "postgresql"
+  )
+
+  expect_identical(resultado$garantia, "declarada_no_garantizada")
 })

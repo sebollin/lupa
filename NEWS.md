@@ -25,6 +25,16 @@ agregar una ida y vuelta— y en ese caso la garantía baja a
 `estado$universo_incluye_descendientes`. La restricción existe y es válida; lo
 que no vale es sobre las filas que se van a perfilar.
 
+El particionado declarativo **no** pierde la garantía. `pg_inherits` registra
+tanto la herencia tradicional como las particiones, y sólo la primera deja filas
+fuera del alcance de la clave: el motor exige que la clave de una tabla
+particionada incluya sus columnas de partición, justamente para poder
+garantizarla sobre el árbol. Medido: una tabla regular con un hijo que repite un
+valor da 6001 válidos y 6000 distintos; una particionada con dos particiones da
+19999 y 19999. Se distinguen por `relkind`, en la misma consulta. En PostgreSQL
+anterior a la versión 10 no existe el particionado declarativo, y ahí toda
+descendencia es herencia.
+
 La misma consulta trae también si la restricción es `DEFERRABLE`. Una clave
 diferible puede estar violada mientras una transacción sigue abierta, y el
 catálogo la informa validada igual: medido, dentro de una transacción que inserta

@@ -179,11 +179,15 @@
           "SELECT a.attname AS column_name, k.ordinal_position, ",
           "TRUE AS constraint_enforced, ",
           "c.convalidated AS constraint_validated, ",
-          # Una consulta sin ONLY incluye a los descendientes, y la clave del
-          # padre NO gobierna sus filas. Se pide en la misma consulta para no
-          # agregar una ida y vuelta.
+          # Una consulta sin ONLY incluye a los descendientes. Con herencia
+          # tradicional la clave del padre NO gobierna sus filas; con
+          # particionado declarativo SI, porque el motor exige que la clave
+          # incluya las columnas de particion. `pg_inherits` registra las dos
+          # relaciones, asi que hace falta `relkind` para distinguirlas: 'p' es
+          # una tabla particionada. Todo en la misma consulta, sin ida y vuelta.
           "(SELECT count(*) FROM pg_catalog.pg_inherits i ",
           "WHERE i.inhparent = r.oid) AS constraint_descendientes, ",
+          "r.relkind AS constraint_relkind, ",
           # Una restriccion diferible puede estar violada dentro de una
           # transaccion abierta: el catalogo la informa validada igual.
           "c.condeferrable AS constraint_diferible ",
@@ -293,8 +297,18 @@
   # 6000 distintos. Publicar "garantizada" ahi seria afirmar sobre un universo
   # que no es el que se midio.
   descendientes <- .campo_clave(datos, "constraint_descendientes")
+  relkind <- .campo_clave(datos, "constraint_relkind")
+  # `pg_inherits` registra tanto la herencia tradicional como el particionado
+  # declarativo, y sólo la primera deja filas fuera del alcance de la clave.
+  # Medido contra PostgreSQL 16: una tabla `relkind = 'r'` con un hijo que
+  # repite un valor da 6001 validos y 6000 distintos; una `relkind = 'p'` con
+  # dos particiones da 19999 y 19999. En PostgreSQL anterior a la version 10 no
+  # existe 'p', y ahi toda descendencia es herencia, que es lo correcto.
+  es_particionada <- !is.null(relkind) &&
+    identical(as.character(relkind[[1L]]), "p")
   hay_descendientes <- !is.null(descendientes) &&
-    isTRUE(suppressWarnings(as.numeric(descendientes[[1L]]) > 0))
+    isTRUE(suppressWarnings(as.numeric(descendientes[[1L]]) > 0)) &&
+    !es_particionada
   # Una restriccion `DEFERRABLE` puede estar violada mientras una transaccion
   # sigue abierta, y el catalogo la sigue informando validada. Medido: dentro de
   # una transaccion que inserta un duplicado, `convalidated = t` y la consulta da
@@ -308,6 +322,7 @@
     aplicada = aplicada,
     validada = validada,
     universo_incluye_descendientes = hay_descendientes,
+    relacion_particionada = es_particionada,
     restriccion_diferible = es_diferible,
     unicidad = NA_character_,
     unicidad_aplica_a = NA_character_,
@@ -367,6 +382,13 @@
   # de una PRIMARY KEY. MySQL no tiene un segundo estado para PRIMARY KEY y
   # documenta ENFORCED=YES para ella. El resto de motores de esta via no expone
   # un estado comparable y queda desconocido.
+  #
+  # `convalidated` es una guarda DEFENSIVA, no la compensacion de una diferencia
+  # entre motores. Medido contra PostgreSQL 16: `PRIMARY KEY ... NOT VALID` y
+  # `UNIQUE ... NOT VALID` los rechaza el motor -"constraints cannot be marked
+  # NOT VALID"-, igual que MySQL. La columna existe en el catalogo para todos los
+  # tipos de restriccion, pero una clave primaria no puede llegar a `FALSE` por
+  # DDL normal: se comprueba por si aparece un estado transitorio o anormal.
   if (identical(via, "pg_catalog") && identical(motor, "postgresql")) {
     garantia <- if (hay_descendientes || es_diferible) {
       # La restriccion existe y es valida, pero no gobierna lo que se va a
