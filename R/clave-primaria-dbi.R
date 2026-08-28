@@ -183,7 +183,10 @@
           # padre NO gobierna sus filas. Se pide en la misma consulta para no
           # agregar una ida y vuelta.
           "(SELECT count(*) FROM pg_catalog.pg_inherits i ",
-          "WHERE i.inhparent = r.oid) AS constraint_descendientes ",
+          "WHERE i.inhparent = r.oid) AS constraint_descendientes, ",
+          # Una restriccion diferible puede estar violada dentro de una
+          # transaccion abierta: el catalogo la informa validada igual.
+          "c.condeferrable AS constraint_diferible ",
           "FROM pg_catalog.pg_constraint c ",
           "JOIN pg_catalog.pg_class r ON r.oid = c.conrelid ",
           "JOIN pg_catalog.pg_namespace n ON n.oid = r.relnamespace ",
@@ -292,11 +295,20 @@
   descendientes <- .campo_clave(datos, "constraint_descendientes")
   hay_descendientes <- !is.null(descendientes) &&
     isTRUE(suppressWarnings(as.numeric(descendientes[[1L]]) > 0))
+  # Una restriccion `DEFERRABLE` puede estar violada mientras una transaccion
+  # sigue abierta, y el catalogo la sigue informando validada. Medido: dentro de
+  # una transaccion que inserta un duplicado, `convalidated = t` y la consulta da
+  # 3 validos con 2 distintos. No se puede saber desde aca si hay una
+  # transaccion con violaciones pendientes, y el costo de equivocarse es
+  # publicar un exacto falso, asi que la garantia no se afirma.
+  diferible <- .campo_clave(datos, "constraint_diferible")
+  es_diferible <- !is.null(diferible) && isTRUE(.estado_clave(diferible, "si_no"))
   estado <- list(
     visible = TRUE,
     aplicada = aplicada,
     validada = validada,
     universo_incluye_descendientes = hay_descendientes,
+    restriccion_diferible = es_diferible,
     unicidad = NA_character_,
     unicidad_aplica_a = NA_character_,
     ausencia_de_nulos = NA_character_,
@@ -356,9 +368,10 @@
   # documenta ENFORCED=YES para ella. El resto de motores de esta via no expone
   # un estado comparable y queda desconocido.
   if (identical(via, "pg_catalog") && identical(motor, "postgresql")) {
-    garantia <- if (hay_descendientes) {
-      # La restriccion existe y es valida, pero sobre otro universo que el que
-      # se perfila. Declarada, no garantizada aca.
+    garantia <- if (hay_descendientes || es_diferible) {
+      # La restriccion existe y es valida, pero no gobierna lo que se va a
+      # medir: o el universo es otro -descendientes-, o puede estar violada en
+      # este instante -diferible-. Declarada, no garantizada aca.
       "declarada_no_garantizada"
     } else if (identical(aplicada, TRUE) && isTRUE(validada)) {
       "garantizada"

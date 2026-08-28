@@ -15,6 +15,13 @@ agregar una ida y vuelta— y en ese caso la garantía baja a
 `estado$universo_incluye_descendientes`. La restricción existe y es válida; lo
 que no vale es sobre las filas que se van a perfilar.
 
+La misma consulta trae también si la restricción es `DEFERRABLE`. Una clave
+diferible puede estar violada mientras una transacción sigue abierta, y el
+catálogo la informa validada igual: medido, dentro de una transacción que inserta
+un duplicado la tabla tiene 3 valores válidos y 2 distintos. Desde el paquete no
+se puede saber si hay una transacción con violaciones pendientes, así que la
+garantía no se afirma y queda `estado$restriccion_diferible`.
+
 ## El estado publicado queda atado a la consulta ejecutada
 
 Los conteos aproximados sólo se consolidan cuando el adaptador entrega una

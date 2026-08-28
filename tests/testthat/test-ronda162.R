@@ -8,7 +8,8 @@
 #   FROM ONLY padre  -> 5000 validos, 5000 distintos
 # El catalogo decia `garantizada` en los dos casos.
 
-.ronda162_catalogo <- function(descendientes = 0L, validated = TRUE) {
+.ronda162_catalogo <- function(descendientes = 0L, validated = TRUE,
+                               diferible = FALSE) {
   datos <- data.frame(
     column_name = "id",
     ordinal_position = 1L,
@@ -18,6 +19,7 @@
   )
   if (!is.null(descendientes)) {
     datos$constraint_descendientes <- descendientes
+    datos$constraint_diferible <- diferible
   }
   datos
 }
@@ -74,4 +76,41 @@ test_that("un catalogo sin la columna de descendientes no rompe", {
 
   expect_identical(resultado$garantia, "garantizada")
   expect_false(resultado$estado$universo_incluye_descendientes)
+})
+
+test_that("una restriccion diferible no se declara garantizada", {
+  # Una PK `DEFERRABLE INITIALLY DEFERRED` puede estar violada mientras una
+  # transaccion sigue abierta, y el catalogo la informa validada igual. Medido
+  # contra PostgreSQL 16, dentro de una transaccion que inserta un duplicado:
+  #   contype = p, convalidated = t, condeferrable = t
+  #   count(*) = 3, count(id) = 3, count(DISTINCT id) = 2
+  # Una derivacion de la unicidad habria publicado 3 cuando el valor es 2.
+  resultado <- lupa:::.garantia_clave_primaria(
+    .ronda162_catalogo(descendientes = 0L, diferible = TRUE),
+    "pg_catalog", "postgresql"
+  )
+
+  expect_identical(resultado$garantia, "declarada_no_garantizada")
+  expect_true(resultado$estado$restriccion_diferible)
+})
+
+test_that("una restriccion no diferible y sin descendientes si esta garantizada", {
+  resultado <- lupa:::.garantia_clave_primaria(
+    .ronda162_catalogo(descendientes = 0L, diferible = FALSE),
+    "pg_catalog", "postgresql"
+  )
+
+  expect_identical(resultado$garantia, "garantizada")
+  expect_false(resultado$estado$restriccion_diferible)
+})
+
+test_that("las dos condiciones se acumulan sin taparse", {
+  resultado <- lupa:::.garantia_clave_primaria(
+    .ronda162_catalogo(descendientes = 2L, diferible = TRUE),
+    "pg_catalog", "postgresql"
+  )
+
+  expect_identical(resultado$garantia, "declarada_no_garantizada")
+  expect_true(resultado$estado$universo_incluye_descendientes)
+  expect_true(resultado$estado$restriccion_diferible)
 })
