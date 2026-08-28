@@ -210,8 +210,11 @@ with `bloque_muestra = "solo_agregados"`.
 
 ### Knowing what is missing before you hit it
 
-`lupa` has one hard dependency, `cli`. Everything else is optional — and what
-used to happen when something was missing was an R error, or a driver error,
+`lupa` has two hard dependencies, `cli` and `data.table`. `data.table` is used
+only to accelerate the exact count of duplicated rows, and it is never imported
+into the namespace; tables with list or matrix columns, or with `NaN`, fall back
+to base R, which is what fixes the result. Everything else is optional — and what used
+to happen when something was missing was an R error, or a driver error,
 that named neither what was missing nor how to get it. The hard case is not the
 R package but the **system library underneath it**: `RMariaDB` does not compile
 without the MySQL or MariaDB client headers, `ROracle` needs Oracle Instant

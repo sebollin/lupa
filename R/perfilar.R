@@ -1,25 +1,164 @@
-.conteos_filas_duplicadas <- function(datos) {
+.UMBRAL_FILAS_DATA_TABLE_DUPLICADOS <- 25L
+
+.filas_duplicadas_base <- function(datos) {
+  datos_base <- if (inherits(datos, "data.table")) {
+    as.data.frame(datos, stringsAsFactors = FALSE)
+  } else {
+    datos
+  }
+  columnas_matriciales <- vapply(
+    datos_base,
+    function(columna) is.matrix(columna) ||
+      (is.array(columna) && length(dim(columna)) > 1L),
+    logical(1L)
+  )
+  if (any(columnas_matriciales)) {
+    columnas <- list()
+    for (i in seq_along(datos_base)) {
+      columna <- datos_base[[i]]
+      if (columnas_matriciales[[i]]) {
+        componentes <- as.data.frame(
+          unclass(columna), stringsAsFactors = FALSE
+        )
+        for (j in seq_along(componentes)) {
+          columnas[[length(columnas) + 1L]] <- componentes[[j]]
+        }
+      } else {
+        columnas[[length(columnas) + 1L]] <- columna
+      }
+    }
+    datos_base <- as.data.frame(
+      columnas, check.names = FALSE, stringsAsFactors = FALSE
+    )
+  }
+
   duplicadas_adelante <- tryCatch(
-    duplicated(datos),
+    base::duplicated.data.frame(datos_base),
     error = function(e) NULL
   )
-  n_filas_duplicadas <- if (is.null(duplicadas_adelante)) {
-    NA_integer_
-  } else {
-    tryCatch(sum(duplicadas_adelante), error = function(e) NA_integer_)
-  }
-  n_filas_en_grupos_duplicados <- if (is.null(duplicadas_adelante)) {
-    NA_integer_
+  duplicadas_atras <- if (is.null(duplicadas_adelante)) {
+    NULL
   } else {
     tryCatch(
-      sum(duplicadas_adelante | duplicated(datos, fromLast = TRUE)),
+      base::duplicated.data.frame(datos_base, fromLast = TRUE),
+      error = function(e) NULL
+    )
+  }
+  if (is.null(duplicadas_adelante) || is.null(duplicadas_atras) ||
+      length(duplicadas_adelante) != nrow(datos_base) ||
+      length(duplicadas_atras) != nrow(datos_base)) {
+    return(NULL)
+  }
+  list(adelante = duplicadas_adelante, atras = duplicadas_atras)
+}
+
+.resumir_filas_duplicadas <- function(duplicadas, n_filas) {
+  pudo_contar_adelante <- !is.null(duplicadas) &&
+    length(duplicadas$adelante) == n_filas
+  pudo_contar_atras <- pudo_contar_adelante &&
+    length(duplicadas$atras) == n_filas
+  n_filas_duplicadas <- if (pudo_contar_adelante) {
+    tryCatch(sum(duplicadas$adelante), error = function(e) NA_integer_)
+  } else {
+    NA_integer_
+  }
+  n_filas_en_grupos_duplicados <- if (pudo_contar_atras) {
+    tryCatch(
+      sum(duplicadas$adelante | duplicadas$atras),
       error = function(e) NA_integer_
     )
+  } else {
+    NA_integer_
   }
   list(
     filas_duplicadas = n_filas_duplicadas,
     filas_en_grupos_duplicados = n_filas_en_grupos_duplicados
   )
+}
+
+.tiene_metodo_duplicated_personalizado <- function(datos) {
+  clases <- setdiff(class(datos), c("data.frame", "data.table", "tbl_df", "tbl"))
+  if (!length(clases)) return(FALSE)
+  any(vapply(clases, function(clase) {
+    !is.null(utils::getS3method("duplicated", clase, optional = TRUE))
+  }, logical(1L)))
+}
+
+.conteos_filas_duplicadas_imprevistos <- function(datos) {
+  duplicadas_adelante <- tryCatch(
+    duplicated(datos), error = function(e) NULL
+  )
+  duplicadas_atras <- if (is.null(duplicadas_adelante)) {
+    NULL
+  } else {
+    tryCatch(
+      duplicated(datos, fromLast = TRUE), error = function(e) NULL
+    )
+  }
+  .resumir_filas_duplicadas(
+    list(adelante = duplicadas_adelante, atras = duplicadas_atras),
+    nrow(datos)
+  )
+}
+
+.conteos_filas_duplicadas <- function(datos) {
+  columnas_no_compatibles <- vapply(
+    datos,
+    function(columna) is.list(columna) || is.matrix(columna) ||
+      (is.array(columna) && length(dim(columna)) > 1L),
+    logical(1L)
+  )
+  if (.tiene_metodo_duplicated_personalizado(datos)) {
+    return(.conteos_filas_duplicadas_imprevistos(datos))
+  }
+  usa_via_rapida <- nrow(datos) >= .UMBRAL_FILAS_DATA_TABLE_DUPLICADOS &&
+    !any(columnas_no_compatibles) && !.tiene_nan_en_dobles(datos)
+  # Un fallo imprevisto de la via rapida repliega a base en vez de abortar:
+  # el resultado exacto lo fija `duplicated()`, no el atajo.
+  duplicadas <- if (usa_via_rapida) {
+    tryCatch(.filas_duplicadas_frank(datos), error = function(e) NULL)
+  } else {
+    NULL
+  }
+  if (is.null(duplicadas)) duplicadas <- .filas_duplicadas_base(datos)
+  .resumir_filas_duplicadas(duplicadas, nrow(datos))
+}
+
+# `duplicated()` de un `data.frame` arma una estructura intermedia que combina
+# todas las columnas -desde R 4.0 con `Map()`, antes pegando cadenas-, de modo
+# que su costo crece con el ancho de la tabla. `frank()` con rangos densos da el
+# mismo agrupamiento ordenando las columnas directamente.
+#
+# Se llama a `data.table` con `::` y NO se lo importa al NAMESPACE a proposito.
+# `data.table` decide la semantica de `[` segun si el paquete que llama lo tiene
+# entre sus imports (lo que su documentacion llama `cedta`): con el import
+# puesto, `tabla[, columnas, drop = FALSE]` deja de seleccionar columnas en toda
+# funcion de `lupa` que recibe una tabla del usuario. `frank()` y `uniqueN()` no
+# consultan `cedta`, asi que dan su velocidad sin ese efecto; `duplicated()`
+# sobre un `data.table` si la consulta, y por eso no se usa aca.
+.filas_duplicadas_frank <- function(datos) {
+  ids <- tryCatch(
+    data.table::frank(datos, ties.method = "dense", na.last = TRUE),
+    error = function(e) NULL
+  )
+  if (is.null(ids) || length(ids) != nrow(datos) || anyNA(ids)) return(NULL)
+  list(
+    adelante = duplicated(ids),
+    atras = duplicated(ids, fromLast = TRUE)
+  )
+}
+
+# `frank()` ordena y por eso no distingue `NaN` de `NA`, mientras que la
+# semantica de `duplicated()` sobre un `data.frame` si los distingue. Donde
+# aparece un `NaN` se mide por la via de base, que es la que fija el resultado.
+.tiene_nan_en_dobles <- function(datos) {
+  any(vapply(
+    datos,
+    function(columna) {
+      is.double(columna) && anyNA(columna) && any(is.nan(columna))
+    },
+    logical(1L)
+  ))
 }
 
 # Una clave declarada responde dos preguntas distintas. `duplicated()` resuelve
@@ -881,6 +1020,13 @@ perfilar <- function(datos,
       "`datos` debe ser un data.frame, tibble, data.table o una matriz.",
       call. = FALSE
     )
+  }
+  if (inherits(datos, "data.table")) {
+    entrada_convertida <- paste0(
+      "data.table de ", nrow(datos), " por ", ncol(datos),
+      " convertida con as.data.frame()"
+    )
+    datos <- as.data.frame(datos, stringsAsFactors = FALSE)
   }
   normalizacion_resuelta <- .resolver_normalizacion(normalizar)
   fecha_hora <- tryCatch(.fecha_utc(fecha), error = function(e) NA)

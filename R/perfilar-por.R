@@ -53,6 +53,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data frame.", call. = FALSE)
   }
+  datos <- .tabla_base(datos)
   if (!is.character(por) || length(por) != 1L || is.na(por)) {
     stop("`por` debe ser el nombre de una sola columna.", call. = FALSE)
   }

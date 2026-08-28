@@ -216,8 +216,11 @@ cobertura con el motivo. Si no se pidió la muestra, la cobertura usa
 
 ### Saber qué falta antes de chocarse
 
-`lupa` tiene una sola dependencia obligatoria, `cli`. Todo lo demás es opcional
-—y lo que pasaba cuando faltaba algo era un error de R, o del controlador, que
+`lupa` tiene dos dependencias obligatorias, `cli` y `data.table`. `data.table` se
+usa únicamente para acelerar el conteo exacto de filas duplicadas, y nunca se
+importa al espacio de nombres; las tablas con columnas de lista o matriz, o con
+`NaN`, repliegan a la implementación de base, que es la que fija el resultado. Todo lo
+demás es opcional —y lo que pasaba cuando faltaba algo era un error de R, o del controlador, que
 no decía ni qué faltaba ni cómo conseguirlo. El caso duro no es el paquete de R
 sino la **biblioteca del sistema que va debajo**: `RMariaDB` no compila sin las
 cabeceras del cliente de MySQL o MariaDB, `ROracle` necesita el Instant Client

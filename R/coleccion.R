@@ -248,6 +248,7 @@
 .normalizar_tablas_coleccion <- function(tablas) {
   if (.es_id_dbi(tablas)) tablas <- list(tablas)
   if (inherits(tablas, "data.frame")) {
+    tablas <- .tabla_base(tablas)
     if (!"tabla" %in% names(tablas) || !nrow(tablas)) {
       stop(
         "`tablas` como data.frame debe traer una columna `tabla` y al menos ",
@@ -1286,6 +1287,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       call. = FALSE
     )
   }
+  pares <- .tabla_base(pares)
   if (!nrow(pares)) return(.pares_vacios_coleccion())
   tabla_1 <- as.character(pares$tabla_1)
   tabla_2 <- as.character(pares$tabla_2)

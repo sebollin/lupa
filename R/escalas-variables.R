@@ -182,6 +182,8 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
                                   proteger_datos_personales = TRUE) {
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
+  datos <- .tabla_base(datos)
+  if (!is.null(metadatos)) metadatos <- .tabla_base(metadatos)
   max_niveles <- .validar_entero_positivo(max_niveles, "max_niveles")
   limite <- .validar_muestra(muestra)
   if (!is.logical(proteger_datos_personales) ||

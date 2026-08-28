@@ -256,6 +256,7 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
                      conservar_datos = FALSE,
                      proteger_datos_personales = TRUE, ...) {
   .validar_datos_tabla(datos)
+  datos_originales <- datos
   extras <- list(...)
   if (!is.list(argumentos_perfil) || is.null(names(argumentos_perfil)) &&
       length(argumentos_perfil)) {
@@ -304,10 +305,11 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
     stop("`marco` debe provenir de marco_calidad().", call. = FALSE)
   }
   argumentos <- c(list(
-    datos = datos, nombre = nombre, fecha = fecha, muestra = muestra,
+    datos = datos_originales, nombre = nombre, fecha = fecha, muestra = muestra,
     proteger_datos_personales = proteger_datos_personales
   ), argumentos_perfil)
   perfil <- do.call(perfilar, argumentos)
+  datos <- .tabla_base(datos_originales)
   distribuciones <- distribucion_valores(
     datos, perfil, max_valores, probabilidades, muestra,
     proteger_datos_personales

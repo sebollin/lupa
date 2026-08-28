@@ -49,11 +49,11 @@ Roxygen: list(markdown = TRUE)
 Depends:
     R (>= 4.1.0)
 Imports:
-    cli (>= 3.0.0)
+    cli (>= 3.0.0),
+    data.table
 Suggests:
     bit64,
     covr,
-    data.table,
     DBI,
     jsonlite,
     knitr,

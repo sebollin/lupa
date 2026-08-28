@@ -2516,7 +2516,10 @@
     ))
   }
   if (tipo == "filas_duplicadas") {
-    indices <- which(duplicated(datos) | duplicated(datos, fromLast = TRUE))
+    indices <- which(
+      base::duplicated.data.frame(datos) |
+        base::duplicated.data.frame(datos, fromLast = TRUE)
+    )
     return(.trazabilidad_indices(
       indices, "completo", limite, clave = clave, datos = datos
     ))
@@ -2528,7 +2531,10 @@
       return(.trazabilidad_vacia(limite = limite))
     }
     valores <- datos[, clave, drop = FALSE]
-    indices <- which(duplicated(valores) | duplicated(valores, fromLast = TRUE))
+    indices <- which(
+      base::duplicated.data.frame(valores) |
+        base::duplicated.data.frame(valores, fromLast = TRUE)
+    )
     return(.trazabilidad_indices(
       indices, "completo", limite, clave = clave, datos = datos
     ))
@@ -4122,7 +4128,8 @@
   if (!is.null(clave_declarada) && length(clave_declarada) &&
         all(clave_declarada %in% names(datos)) && nrow(datos)) {
     valores_clave <- datos[, clave_declarada, drop = FALSE]
-    repetidas <- duplicated(valores_clave) | duplicated(valores_clave, fromLast = TRUE)
+    repetidas <- base::duplicated.data.frame(valores_clave) |
+      base::duplicated.data.frame(valores_clave, fromLast = TRUE)
     n_repetidas <- sum(repetidas)
     if (n_repetidas > 0L) {
       hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(

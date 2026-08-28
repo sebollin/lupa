@@ -62,6 +62,18 @@
   invisible(datos)
 }
 
+# Copia las subclases con semantica propia de `[` a un data.frame base antes
+# de ejecutar codigo que selecciona columnas o agrega columnas.
+.tabla_base <- function(tabla) {
+  if (inherits(tabla, "data.table")) {
+    return(as.data.frame(data.table::copy(tabla), stringsAsFactors = FALSE))
+  }
+  if (inherits(tabla, "tbl_df")) {
+    return(as.data.frame(tabla, stringsAsFactors = FALSE))
+  }
+  tabla
+}
+
 # `perfil` es opcional en casi todos los llamadores: si viene, tiene que
 # corresponder a las mismas columnas y en el mismo orden, porque los indices de
 # columna del perfil se usan para leer `datos`.
@@ -311,6 +323,7 @@
 # contratos que leen valores.
 .normalizar_columnas_texto <- function(tabla) {
   if (!inherits(tabla, "data.frame")) return(tabla)
+  tabla <- .tabla_base(tabla)
   factores <- vapply(tabla, is.factor, logical(1L))
   if (!any(factores)) return(tabla)
   salida <- tabla

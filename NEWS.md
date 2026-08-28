@@ -26,6 +26,40 @@ su declaracion, como `INTEGER PRIMARY KEY`; no se lanza un recorrido de los
 datos. Se verifico con dos `NULL` reales en una PRIMARY KEY de texto sin
 `NOT NULL`, y con el rechazo de un `NULL` en otra con `NOT NULL`.
 
+## La clase de la tabla ya no cambia el resultado
+
+`perfilar()`, `analizar()` y el resto de la API que recibe tablas dan el mismo
+resultado con un `data.frame`, un `data.table` o un `tibble`. Las entradas se
+normalizan en la frontera —una sola vez por llamada— y las tablas internas del
+modelo de calidad también, de modo que la sintaxis de selección de columnas
+significa lo mismo en todos los caminos.
+
+Esto corrige además cinco selecciones de una dimensión que no eran portables:
+`tabla["columna"]` selecciona una columna en un `data.frame` y en un `tibble`,
+pero en un `data.table` intenta un cruce y aborta. Ahora son selecciones
+explícitas de dos dimensiones.
+
+## Conteo exacto de filas duplicadas sin mutar la entrada
+
+El contador de filas duplicadas de `perfilar()` obtiene los grupos de filas con
+`data.table::frank()` en vez de armar la estructura intermedia que combina todas
+las columnas, que es lo que hace `duplicated()` sobre un `data.frame` y lo que
+hace crecer su costo con el ancho de la tabla. La entrada no se convierte ni se
+copia.
+
+`data.table` se llama con `::` y **no** se importa al espacio de nombres, a
+propósito: `data.table` decide la semántica de `[` según si el paquete que llama
+lo tiene entre sus imports, de modo que importarlo cambiaría el significado de
+`tabla[, columnas, drop = FALSE]` en toda función que recibe una tabla de quien
+usa el paquete. `frank()` no depende de esa condición; `duplicated()` sobre un
+`data.table` sí, y por eso no se usa.
+
+Las columnas de lista o matriz se detectan antes y usan la semántica de base, y
+también las tablas con `NaN`: `frank()` ordena y no distingue `NaN` de `NA`,
+mientras que `duplicated()` sobre un `data.frame` sí los distingue. La
+dependencia pasa de `Suggests` a `Imports`, y el resultado queda cubierto por
+pruebas de equivalencia contra base sobre `data.frame`, `data.table` y `tibble`.
+
 ## Claves declaradas: unicidad, ausencias y trazabilidad separadas
 
 `perfilar(clave = ...)` informa por separado si la combinación es única bajo

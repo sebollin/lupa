@@ -91,9 +91,9 @@ volver a medirla.
 
 ## Antes de conectarse: qué hace falta para cada motor
 
-`lupa` tiene una sola dependencia obligatoria. El paquete del motor y la
-biblioteca del sistema que va debajo son cosa de quien instala, y el error que
-aparece cuando falta alguna rara vez dice cuál es.
+`lupa` tiene dos dependencias obligatorias, `cli` y `data.table`. El paquete del
+motor y la biblioteca del sistema que va debajo son cosa de quien instala, y el
+error que aparece cuando falta alguna rara vez dice cuál es.
 
 ```{r requisitos, eval=FALSE}
 requisitos_motor()            # el catálogo entero

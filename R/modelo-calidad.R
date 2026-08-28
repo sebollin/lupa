@@ -721,7 +721,7 @@ modelo <- function(..., marco = NULL) {
   if (!nombre %in% names(tablas)) {
     stop("No se encontr\u00f3 la entidad ligada: ", nombre, ".", call. = FALSE)
   }
-  tablas[[nombre]]
+  .tabla_base(tablas[[nombre]])
 }
 
 .obtener_columna_modelo <- function(tabla, nombre, entidad) {
@@ -890,7 +890,8 @@ modelo <- function(..., marco = NULL) {
   .obtener_columna_modelo(tabla_referencia, atributo_pk, entidad_referencia)
   .obtener_columna_modelo(tabla_dependiente, atributo_fk, entidad_dependiente)
   relacion <- detectar_relaciones(
-    tabla_referencia[atributo_pk], tabla_dependiente[atributo_fk],
+    tabla_referencia[, atributo_pk, drop = FALSE],
+    tabla_dependiente[, atributo_fk, drop = FALSE],
     muestra = instancia$configuracion$muestra
   )
   .salida_metodo(
@@ -1041,6 +1042,7 @@ metricas_nucleo <- function() {
       call. = FALSE
     )
   }
+  salida <- .tabla_base(salida)
   resultado <- salida$resultado
   tipo <- instancia$declaracion$tipo_resultado
   if (tipo == "booleano" &&

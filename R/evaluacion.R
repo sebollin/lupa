@@ -288,6 +288,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     stop("`medicion` debe ser un data frame no vac\u00edo producido por medir().",
          call. = FALSE)
   }
+  medicion <- .tabla_base(medicion)
   if (!.resultados_validos_tipo(
     medicion$resultado, medicion$tipo_resultado
   )) {
@@ -532,6 +533,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 #' regla <- regla_evaluacion("Al menos 90%", function(x) x > 0.9)
 #' evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 evaluar <- function(medicion, perfil) {
+  if (inherits(medicion, "data.frame")) medicion <- .tabla_base(medicion)
   medicion <- .validar_medicion_evaluacion(medicion)
   if (!inherits(perfil, "perfil_evaluacion")) {
     stop("`perfil` debe provenir de perfil_evaluacion().", call. = FALSE)

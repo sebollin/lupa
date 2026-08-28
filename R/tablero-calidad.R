@@ -137,6 +137,7 @@
       call. = FALSE
     )
   }
+  medidas <- .tabla_base(medidas)
   if (length(unique(medidas$id_medicion)) != 1L) {
     stop("El tablero admite una sola corrida de medici\u00f3n.", call. = FALSE)
   }

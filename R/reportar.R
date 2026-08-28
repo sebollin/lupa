@@ -92,6 +92,7 @@
 
 .html_tabla <- function(x, max_filas, columnas = names(x)) {
   if (!inherits(x, "data.frame")) x <- as.data.frame(x, stringsAsFactors = FALSE)
+  x <- .tabla_base(x)
   columnas <- intersect(columnas, names(x))
   x <- x[, columnas, drop = FALSE]
   total <- nrow(x)

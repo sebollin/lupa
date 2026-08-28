@@ -195,6 +195,7 @@
       !all(.columnas_historico %in% names(x))) {
     stop("`historico` no cumple el esquema tabular esperado.", call. = FALSE)
   }
+  x <- .tabla_base(x)
   version <- unique(x$version_esquema)
   if (!length(version)) version <- attr(x, "version_esquema", exact = TRUE)
   if (length(version) != 1L || is.na(version) ||

@@ -373,7 +373,7 @@ print.referencial <- function(x, ...) {
     stop("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
          call. = FALSE)
   }
-  objetivo <- tabla[instancia$atributos]
+  objetivo <- tabla[, instancia$atributos, drop = FALSE]
   presentes <- stats::complete.cases(objetivo)
   filas <- which(presentes)
   perfil <- .referencial_normalizacion(instancia, referencia)

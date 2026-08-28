@@ -83,6 +83,7 @@
 #' @export
 sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   .validar_datos_tabla(datos)
+  datos <- .tabla_base(datos)
   if (!is.numeric(maximo) || length(maximo) != 1L || is.na(maximo) ||
         maximo < 1) {
     stop("`maximo` debe ser un entero positivo.", call. = FALSE)

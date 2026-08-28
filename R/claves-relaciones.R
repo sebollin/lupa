@@ -212,6 +212,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
                             perfil = NULL) {
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
+  datos <- .tabla_base(datos)
   normalizacion_resuelta <- .resolver_normalizacion(normalizar, perfil)
   if (length(max_combinacion) != 1L || is.na(max_combinacion) ||
       max_combinacion < 1L || max_combinacion > 3L) {
@@ -566,6 +567,8 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
   if (!inherits(tabla1, "data.frame") || !inherits(tabla2, "data.frame")) {
     stop("`tabla1` y `tabla2` deben heredar de data.frame.", call. = FALSE)
   }
+  tabla1 <- .tabla_base(tabla1)
+  tabla2 <- .tabla_base(tabla2)
   if (!is.logical(podar) || length(podar) != 1L || is.na(podar)) {
     stop("`podar` debe ser TRUE o FALSE.", call. = FALSE)
   }

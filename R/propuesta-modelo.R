@@ -124,6 +124,7 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
   if (!is.null(datos) && !inherits(datos, "data.frame")) {
     stop("`datos` debe ser NULL o heredar de data.frame.", call. = FALSE)
   }
+  if (!is.null(datos)) datos <- .tabla_base(datos)
   limites <- c(max_valores_dominio, max_sugerencias)
   if (anyNA(limites) || any(!is.finite(limites)) || any(limites < 1) ||
       any(limites != floor(limites))) {
@@ -256,6 +257,7 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
         call. = FALSE
       )
     }
+    relaciones <- .tabla_base(relaciones)
     for (i in seq_len(nrow(relaciones))) {
       relacion <- relaciones[i, , drop = FALSE]
       direcciones <- list(

@@ -212,13 +212,17 @@ test_that("catalogue SQL exposes only the states each motor has", {
   estandar <- consultas[[1L]]$sql
   oracle <- consultas[[4L]]$sql
   pragma <- consultas[[2L]]$sql
+  pg_catalogo <- consultas[[5L]]$sql
 
-  postgres <- estandar(NA_character_, "tabla", motor = "postgresql")
   mysql <- estandar(NA_character_, "tabla", motor = "mysql")
   mariadb <- estandar(NA_character_, "tabla", motor = "mariadb")
   sqlserver <- estandar(NA_character_, "tabla", motor = "sqlserver")
-  expect_match(postgres, "enforced", ignore.case = TRUE)
+  postgres <- pg_catalogo(NA_character_, "tabla")
+  expect_match(postgres, "pg_catalog.pg_constraint", fixed = TRUE)
+  expect_match(postgres, "pg_catalog.pg_class", fixed = TRUE)
+  expect_match(postgres, "pg_catalog.pg_namespace", fixed = TRUE)
   expect_match(postgres, "convalidated", ignore.case = TRUE)
+  expect_false(grepl("information_schema", postgres, fixed = TRUE))
   expect_match(mysql, "enforced", ignore.case = TRUE)
   expect_false(grepl("enforced", mariadb, ignore.case = TRUE))
   expect_false(grepl("enforced", sqlserver, ignore.case = TRUE))
@@ -246,10 +250,10 @@ test_that("PostgreSQL and MySQL use the states they expose", {
   postgres <- structure(list(), class = "PqConnection")
   pg_data <- data.frame(
     column_name = "id", ordinal_position = 1L,
-    constraint_enforced = "YES", constraint_validated = TRUE
+    constraint_enforced = TRUE, constraint_validated = TRUE
   )
   pg <- .ronda155_clave_simulada(postgres, pg_data)
-  expect_identical(pg$fuente, "information_schema")
+  expect_identical(pg$fuente, "pg_catalog")
   expect_identical(pg$garantia, "garantizada")
   expect_true(pg$estado$aplicada)
   expect_true(pg$estado$validada)

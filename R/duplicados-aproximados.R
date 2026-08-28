@@ -1494,6 +1494,7 @@
     lotes = FALSE, tamano_lote = 1000L, directorio_lotes = NULL,
     nucleos = getOption("lupa.nucleos", 2L), fusiones_precomputadas = NULL) {
   .validar_datos_tabla(datos)
+  datos <- .tabla_base(datos)
   columnas <- .columnas_duplicados_aproximados(datos, columnas)
   normalizacion_resuelta <- .resolver_normalizacion(normalizar)
   muestra <- .validar_limite_duplicados(muestra, "muestra")
@@ -2238,7 +2239,9 @@ detectar_duplicados_aproximados <- function(
     lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
     bloquear_por = NULL, lotes = FALSE, tamano_lote = 1000L,
     directorio_lotes = NULL, nucleos = getOption("lupa.nucleos", 2L)) {
+  .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
+  datos <- .tabla_base(datos)
   normalizar_original <- normalizar
   normalizar <- .resolver_normalizacion(normalizar, perfil)
   fusiones_precomputadas <- if (!is.null(perfil) &&
@@ -2323,7 +2326,9 @@ estimar_costo <- function(
     lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
     bloquear_por = NULL, lotes = FALSE, tamano_lote = 1000L,
     directorio_lotes = NULL, nucleos = getOption("lupa.nucleos", 2L)) {
+  .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
+  datos <- .tabla_base(datos)
   normalizar <- .resolver_normalizacion(normalizar, perfil)
   clasificacion <- if (is.null(perfil)) NULL else perfil$datos_personales
   interno <- suppressMessages(.detectar_duplicados_aproximados(

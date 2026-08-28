@@ -168,6 +168,7 @@ transiciones_granularidad <- function() {
     stop("`medidas` debe ser un data frame no vac\u00edo producido por medir() o agregar().",
          call. = FALSE)
   }
+  medidas <- .tabla_base(medidas)
   medidas$orientacion <- .orientacion_medidas(medidas)
   campos_unicos <- c(
     "id_medicion", "metrica", "metrica_especifica", "granularidad",

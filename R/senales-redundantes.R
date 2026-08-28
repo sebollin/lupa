@@ -162,6 +162,7 @@ print.senal_redundante <- function(x, ...) {
 #' detectar_discordancias(d, senal_redundante(c("anio_fiscal", "anio_archivo")))
 detectar_discordancias <- function(datos, senales, max_ejemplos = 5L) {
   .validar_datos_tabla(datos)
+  datos <- .tabla_base(datos)
   if (inherits(senales, "senal_redundante")) senales <- list(senales)
   if (!is.list(senales) || !length(senales) ||
       !all(vapply(senales, inherits, logical(1L), "senal_redundante"))) {

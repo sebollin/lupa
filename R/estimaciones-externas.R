@@ -109,6 +109,7 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
   if (!inherits(estimaciones, "data.frame") || !nrow(estimaciones)) {
     stop("`estimaciones` debe ser un data.frame no vacio.", call. = FALSE)
   }
+  estimaciones <- .tabla_base(estimaciones)
   if (!.es_texto_escalar(entidad)) {
     stop("`entidad` debe ser una cadena no vacia.", call. = FALSE)
   }

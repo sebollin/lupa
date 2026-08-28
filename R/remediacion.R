@@ -359,6 +359,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (!is.null(datos) && !inherits(datos, "data.frame")) {
     stop("`datos` debe ser NULL o heredar de data.frame.", call. = FALSE)
   }
+  if (!is.null(datos)) datos <- .tabla_base(datos)
   if (length(soporte_minimo_dependencia) != 1L ||
       is.na(soporte_minimo_dependencia) ||
       !is.finite(soporte_minimo_dependencia) ||
@@ -1543,25 +1544,28 @@ planificar_limpieza <- function(perfil, datos = NULL,
 }
 
 .grupos_filas_duplicadas <- function(datos) {
-  if (!ncol(datos)) {
-    repetidas <- seq_len(nrow(datos)) > 1L
-    grupos <- if (nrow(datos) > 1L) {
-      rep.int(1L, nrow(datos))
+  datos_base <- .tabla_base(datos)
+  if (!ncol(datos_base)) {
+    repetidas <- seq_len(nrow(datos_base)) > 1L
+    grupos <- if (nrow(datos_base) > 1L) {
+      rep.int(1L, nrow(datos_base))
     } else {
-      rep.int(NA_integer_, nrow(datos))
+      rep.int(NA_integer_, nrow(datos_base))
     }
     return(list(repetidas = repetidas, grupos = grupos))
   }
-  repetidas <- duplicated(datos)
-  participantes <- repetidas | duplicated(datos, fromLast = TRUE)
-  grupos <- rep(NA_integer_, nrow(datos))
+  repetidas <- base::duplicated.data.frame(datos_base)
+  participantes <- repetidas | base::duplicated.data.frame(
+    datos_base, fromLast = TRUE
+  )
+  grupos <- rep(NA_integer_, nrow(datos_base))
   if (!any(participantes)) {
     return(list(repetidas = repetidas, grupos = grupos))
   }
-  if (any(vapply(datos, is.list, logical(1L)))) {
+  if (any(vapply(datos_base, is.list, logical(1L)))) {
     stop("No se pueden agrupar duplicados con columnas de lista.", call. = FALSE)
   }
-  factores <- lapply(datos, function(x) factor(x, exclude = NULL))
+  factores <- lapply(datos_base, function(x) factor(x, exclude = NULL))
   codigos <- as.integer(do.call(
     interaction, c(factores, list(drop = TRUE, lex.order = TRUE))
   ))
@@ -1573,20 +1577,22 @@ planificar_limpieza <- function(perfil, datos = NULL,
 
 .filtrar_filas <- function(datos, conservar) {
   if (inherits(datos, "data.table")) {
-    datos[which(conservar), ]
+    salida <- as.data.frame(data.table::copy(datos), stringsAsFactors = FALSE)
+    data.table::as.data.table(salida[which(conservar), , drop = FALSE])
   } else {
     datos[conservar, , drop = FALSE]
   }
 }
 
 .conservar_mas_completa <- function(datos, clave) {
-  if (!length(clave) || any(!clave %in% names(datos))) {
+  datos_base <- .tabla_base(datos)
+  if (!length(clave) || any(!clave %in% names(datos_base))) {
     stop(
       "`conservar_mas_completa` requiere configurar nombres de clave existentes.",
       call. = FALSE
     )
   }
-  claves <- datos[clave]
+  claves <- datos_base[clave]
   if (any(vapply(claves, is.list, logical(1L)))) {
     stop("La clave no puede contener columnas de lista.", call. = FALSE)
   }
@@ -1594,9 +1600,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
   codigos <- as.integer(do.call(
     interaction, c(factores, list(drop = TRUE, lex.order = TRUE))
   ))
-  grupos <- split(seq_len(nrow(datos)), codigos)
-  completitud <- rowSums(!is.na(datos))
-  conservar <- rep(TRUE, nrow(datos))
+  grupos <- split(seq_len(nrow(datos_base)), codigos)
+  completitud <- rowSums(!is.na(datos_base))
+  conservar <- rep(TRUE, nrow(datos_base))
   for (indices in grupos) {
     if (length(indices) > 1L) {
       elegido <- indices[[which.max(completitud[indices])]]
@@ -1654,7 +1660,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     return(list(datos = datos, n = sum(!is.na(marcas$grupos))))
   }
   if (identical(estrategia, "conservar_primera_duplicada")) {
-    eliminar <- duplicated(datos)
+    eliminar <- base::duplicated.data.frame(.tabla_base(datos))
     retiradas <- .filtrar_filas(datos, eliminar)
     datos <- .filtrar_filas(datos, !eliminar)
     return(list(
@@ -1860,7 +1866,10 @@ planificar_limpieza <- function(perfil, datos = NULL,
 #' @export
 aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
                     conservar_eliminados = TRUE) {
+  era_plan <- inherits(plan, "plan_limpieza")
   .validar_plan_limpieza(plan)
+  plan <- .tabla_base(plan)
+  if (era_plan) class(plan) <- unique(c("plan_limpieza", class(plan)))
   plan <- .sincronizar_decisiones(plan)
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
@@ -2080,7 +2089,10 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
 #' identical(plan, guiado) # TRUE en una sesión no interactiva
 guiar_limpieza <- function(plan, datos, selector = NULL,
                            diccionarios = list(), max_ejemplos = 5L) {
+  era_plan <- inherits(plan, "plan_limpieza")
   .validar_plan_limpieza(plan)
+  plan <- .tabla_base(plan)
+  if (era_plan) class(plan) <- unique(c("plan_limpieza", class(plan)))
   plan <- .sincronizar_decisiones(plan)
   if (is.null(selector) && !interactive()) return(plan)
   if (!is.null(selector) && !is.function(selector)) {
@@ -2089,6 +2101,7 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe ser un data.frame, tibble o data.table.", call. = FALSE)
   }
+  datos <- .tabla_base(datos)
   if (!is.list(diccionarios) ||
       (length(diccionarios) &&
        (is.null(names(diccionarios)) || any(!nzchar(names(diccionarios)))))) {

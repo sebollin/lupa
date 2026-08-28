@@ -106,6 +106,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
                                  proteger_datos_personales = TRUE) {
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
+  datos <- .tabla_base(datos)
   max_valores <- .validar_entero_positivo(max_valores, "max_valores")
   limite <- .validar_muestra(muestra)
   if (!is.numeric(probabilidades) || !length(probabilidades) ||
@@ -286,6 +287,7 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
                                   metodo_numerico = c("pearson", "spearman")) {
   metodo_numerico <- match.arg(metodo_numerico)
   .validar_datos_tabla(datos)
+  datos <- .tabla_base(datos)
   if (!is.null(dependencias) && !inherits(dependencias, "data.frame")) {
     stop("`dependencias` debe ser NULL o un data frame.", call. = FALSE)
   }
@@ -459,6 +461,7 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
                             max_huecos = 20L, max_columnas = 50L) {
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
+  datos <- .tabla_base(datos)
   if (!is.numeric(calendario) || !length(calendario) || anyNA(calendario) ||
       any(calendario < 1 | calendario > 7) || any(calendario != floor(calendario))) {
     stop("`calendario` debe contener dias ISO entre 1 y 7.", call. = FALSE)

@@ -156,7 +156,9 @@
     resultado <- .duplicados_completos(tabla)
   } else {
     .validar_atributos_tabla(tabla, instancia, minimo = 1L)
-    grupos <- split(filas, .codigos_filas(tabla[instancia$atributos]))
+    grupos <- split(
+      filas, .codigos_filas(tabla[, instancia$atributos, drop = FALSE])
+    )
     resultado <- rep(FALSE, nrow(tabla))
     otros <- setdiff(names(tabla), instancia$atributos)
     compatibles <- function(b, a) {
@@ -247,7 +249,7 @@
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
   config <- instancia$configuracion
   textos <- .texto_fila_aproximada(
-    tabla[atributo], atributo, config$normalizar
+    tabla[, atributo, drop = FALSE], atributo, config$normalizar
   )
   valores <- textos$valores
   presentes <- textos$presentes
