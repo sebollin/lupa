@@ -14,7 +14,11 @@ plan_perfilado_dbi(
   max_consultas = Inf,
   dialecto = "auto",
   incluir_valores = TRUE,
-  tamano_lote = .TAMANO_LOTE_DBI
+  tamano_lote = .TAMANO_LOTE_DBI,
+  bloque_muestra = c("con_muestra", "solo_agregados"),
+  instrumentar = FALSE,
+  politica_costo = c("todas", "por_cardinalidad", "cardinalidad"),
+  umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI
 )
 }
 \arguments{
@@ -67,11 +71,27 @@ máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
 Veinte mantiene acotado el número de expresiones y se puede reducir para
 motores con límites más estrictos.}
 
+\item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
+omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
+lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
+alcance de esos agregados: eso lo decide \code{modo}.}
+
 \item{instrumentar}{En el plan, si es \code{TRUE}, cronometra las consultas-portón
 y, con \code{politica_costo = "por_cardinalidad"}, las consultas baratas que el
 plan necesita leer para conocer el esquema, las capacidades del motor y
 la cardinalidad. No agrega mediciones al objeto devuelto: sus costos
 siguen siendo predicciones. Por omisión es \code{FALSE}.}
+
+\item{politica_costo}{Política optativa para las métricas caras. El valor por
+omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
+solicitadas. \code{"por_cardinalidad"} (también \code{"cardinalidad"}) mide primero
+valores válidos y distintos y omite, por columna, moda y mediana cuando la
+proporción de distintos alcanza \code{umbral_cardinalidad}.}
+
+\item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
+activa \code{politica_costo = "por_cardinalidad"}. El valor por omisión es \code{0.95}
+sólo cuando esa política se pide explícitamente; se puede mover en cada
+llamada. Para pedir todas las métricas use \code{politica_costo = "todas"}.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},

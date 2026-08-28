@@ -1,5 +1,31 @@
 # lupa 0.1.0
 
+## Catalogos de claves sin confundir ausencia con falta de visibilidad
+
+La lectura DBI ya no llama `no_declarada` a cualquier consulta de catalogo que
+vuelve vacia. Una consulta fallida queda con `garantia = "desconocida"`,
+`visible = NA` y su motivo; una vista que devolvio cero filas pero puede ocultar
+metadatos queda con `garantia = "desconocida"`, `visible = FALSE` y la
+ambiguedad escrita en `motivo`. Solo las vias cuyo catalogo es visible para una
+tabla accesible conservan `no_declarada`.
+
+PostgreSQL deja de partir de `information_schema.table_constraints`, que oculta
+restricciones a un rol que solo tiene `SELECT`, y consulta directamente
+`pg_constraint`, `pg_class`, `pg_namespace` y `pg_attribute`, conservando el
+orden de una clave compuesta y el estado `convalidated`. La ruta contra un
+servidor PostgreSQL con una credencial que solo tiene `SELECT` queda pendiente
+de verificacion en esta entrega.
+
+SQLite pide tambien `notnull`. Su estado separa `unicidad = "garantizada"`
+entre los valores no nulos de la PRIMARY KEY de `ausencia_de_nulos`: es
+`"garantizada"` cuando todas sus columnas devuelven `notnull = 1` y
+`"no_verificada"` en los demas casos. La garantia conjunta queda desconocida
+cuando la no-nulidad no se puede sostener. Esto subclasifica honestamente los
+casos especiales que pueden garantizar no-nulidad sin que este camino distinga
+su declaracion, como `INTEGER PRIMARY KEY`; no se lanza un recorrido de los
+datos. Se verifico con dos `NULL` reales en una PRIMARY KEY de texto sin
+`NOT NULL`, y con el rechazo de un `NULL` en otra con `NOT NULL`.
+
 ## Claves declaradas: unicidad, ausencias y trazabilidad separadas
 
 `perfilar(clave = ...)` informa por separado si la combinación es única bajo

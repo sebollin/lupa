@@ -15,6 +15,10 @@ perfilar_dbi(
   dialecto = "auto",
   incluir_valores = TRUE,
   tamano_lote = .TAMANO_LOTE_DBI,
+  bloque_muestra = c("con_muestra", "solo_agregados"),
+  instrumentar = TRUE,
+  politica_costo = c("todas", "por_cardinalidad", "cardinalidad"),
+  umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
   ...
 )
 }
@@ -68,19 +72,6 @@ máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
 Veinte mantiene acotado el número de expresiones y se puede reducir para
 motores con límites más estrictos.}
 
-\item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
-
-\item{politica_costo}{Política optativa para las métricas caras. El valor por
-omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
-solicitadas. \code{"por_cardinalidad"} (también \code{"cardinalidad"}) mide primero
-valores válidos y distintos y omite, por columna, moda y mediana cuando la
-proporción de distintos alcanza \code{umbral_cardinalidad}.}
-
-\item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
-activa \code{politica_costo = "por_cardinalidad"}. El valor por omisión es \code{0.95}
-sólo cuando esa política se pide explícitamente; se puede mover en cada
-llamada. Para pedir todas las métricas use \code{politica_costo = "todas"}.}
-
 \item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
 omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
 lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
@@ -98,6 +89,19 @@ duraciones usan \code{Sys.time()} y el CPU del cliente usa la suma de
 \code{proc.time()[c("user.self", "sys.self")]}. \code{cpu_ms} es cero cuando el
 proceso no consumió CPU; \code{NA} significa que no se pudo medir. Los
 intervalos que el reloj no puede resolver no se publican como cero.}
+
+\item{politica_costo}{Política optativa para las métricas caras. El valor por
+omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
+solicitadas. \code{"por_cardinalidad"} (también \code{"cardinalidad"}) mide primero
+valores válidos y distintos y omite, por columna, moda y mediana cuando la
+proporción de distintos alcanza \code{umbral_cardinalidad}.}
+
+\item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
+activa \code{politica_costo = "por_cardinalidad"}. El valor por omisión es \code{0.95}
+sólo cuando esa política se pide explícitamente; se puede mover en cada
+llamada. Para pedir todas las métricas use \code{politica_costo = "todas"}.}
+
+\item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
 }
 \value{
 Objeto de clase \code{perfil_dbi} con dos componentes: \code{resumen_tabla}, de

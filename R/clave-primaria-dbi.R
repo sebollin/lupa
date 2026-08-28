@@ -6,10 +6,11 @@
 # primaria esta declarada en el catalogo del motor. Ahi no hay nada que
 # ordenar ni que sugerir, hay que leerla.
 #
-# Se intenta en orden: primero la forma estandar -`information_schema`, que
-# soportan PostgreSQL, MySQL, MariaDB y SQL Server-, despues las formas propias
-# de los motores que no la traen. Si ninguna funciona **no se inventa nada**: se
-# devuelve el motivo, y quien llama lo declara en `cobertura_diagnosticos`.
+# Se usa la forma propia de PostgreSQL y, para el resto, primero la forma
+# estandar -`information_schema`, que soportan MySQL, MariaDB y SQL Server-;
+# despues las formas propias de los motores que no la traen. Si ninguna funciona
+# **no se inventa nada**: se devuelve el motivo, y quien llama lo declara en
+# `cobertura_diagnosticos`.
 
 # La via se elige por el controlador, no probando una tras otra. Probar hasta
 # acertar gastaria un numero de consultas que depende del motor, y
@@ -17,9 +18,11 @@
 # razon por la que la sonda del desvio gasta siempre dos aunque acierte en la
 # primera. Con el controlador se resuelve en una, y el plan la puede contar.
 #
-# `information_schema` es el estandar y lo trae la mayoria; SQLite y Oracle no,
-# y DuckDB lo trae pero tambien tiene el suyo. Un controlador desconocido cae al
-# estandar, que es la apuesta con mas chance de andar.
+# `information_schema` es el estandar y lo trae la mayoria; PostgreSQL tiene una
+# via propia porque su vista estandar oculta restricciones a quien solo tiene
+# SELECT. SQLite y Oracle no lo traen, y DuckDB tambien tiene el suyo. Un
+# controlador desconocido cae al estandar, que es la apuesta con mas chance de
+# andar.
 .motor_clave_primaria <- function(conexion) {
   clase <- paste(class(conexion), collapse = " ")
   if (grepl("Ora|Oracle", clase)) return("oracle")
@@ -65,6 +68,7 @@
 
 .via_clave_primaria <- function(conexion) {
   motor <- .motor_clave_primaria(conexion)
+  if (identical(motor, "postgresql")) return("pg_catalog")
   if (identical(motor, "sqlite")) return("pragma")
   if (identical(motor, "oracle")) return("all_constraints")
   if (identical(motor, "duckdb")) return("duckdb_constraints")
@@ -76,32 +80,10 @@
   list(
     list(
       nombre = "information_schema",
-      motores = "PostgreSQL, MySQL, MariaDB, SQL Server",
+      motores = "MySQL, MariaDB, SQL Server",
       sql = function(esquema, tabla, motor = "desconocido") {
-        estado <- if (motor %in% c("postgresql", "mysql")) {
-          paste0(
-            ", t.enforced AS constraint_enforced",
-            if (identical(motor, "postgresql")) {
-              ", pc.convalidated AS constraint_validated"
-            } else {
-              ""
-            }
-          )
-        } else {
-          ""
-        }
-        joins <- if (identical(motor, "postgresql")) {
-          paste(
-            "JOIN pg_catalog.pg_class pc_rel",
-            "ON pc_rel.relname = t.table_name",
-            "JOIN pg_catalog.pg_namespace pc_ns",
-            "ON pc_ns.oid = pc_rel.relnamespace",
-            "AND pc_ns.nspname = t.table_schema",
-            "JOIN pg_catalog.pg_constraint pc",
-            "ON pc.conrelid = pc_rel.oid",
-            "AND pc.conname = t.constraint_name",
-            "AND pc.contype = 'p'"
-          )
+        estado <- if (identical(motor, "mysql")) {
+          ", t.enforced AS constraint_enforced"
         } else {
           ""
         }
@@ -112,7 +94,6 @@
           "ON t.constraint_name = k.constraint_name ",
           "AND t.table_schema = k.table_schema ",
           "AND t.table_name = k.table_name ",
-          joins, " ",
           "WHERE t.constraint_type = 'PRIMARY KEY' ",
           "AND t.table_name = ", .texto_sql_clave(tabla),
           if (!is.na(esquema)) {
@@ -183,6 +164,37 @@
           " ORDER BY c.position"
         )
       }
+    ),
+    list(
+      nombre = "pg_catalog",
+      motores = "PostgreSQL",
+      sql = function(esquema, tabla) {
+        # `information_schema.table_constraints` no muestra las restricciones
+        # de una tabla cuyo unico privilegio del usuario es SELECT. En los
+        # catalogos del sistema la restriccion y sus columnas se relacionan por
+        # OID y `conkey`, de modo que tampoco hace falta adivinar el nombre de
+        # la restriccion ni recorrer los datos de la tabla.
+        paste0(
+          "SELECT a.attname AS column_name, k.ordinal_position, ",
+          "TRUE AS constraint_enforced, ",
+          "c.convalidated AS constraint_validated ",
+          "FROM pg_catalog.pg_constraint c ",
+          "JOIN pg_catalog.pg_class r ON r.oid = c.conrelid ",
+          "JOIN pg_catalog.pg_namespace n ON n.oid = r.relnamespace ",
+          "CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY ",
+          "AS k(attnum, ordinal_position) ",
+          "JOIN pg_catalog.pg_attribute a ON a.attrelid = r.oid ",
+          "AND a.attnum = k.attnum ",
+          "WHERE c.contype = 'p' ",
+          "AND r.relname = ", .texto_sql_clave(tabla),
+          if (!is.na(esquema)) {
+            paste0(" AND n.nspname = ", .texto_sql_clave(esquema))
+          } else {
+            ""
+          },
+          " ORDER BY k.ordinal_position"
+        )
+      }
     )
   )
 }
@@ -195,9 +207,12 @@
 }
 
 # El estado bruto se conserva aparte de la conclusion. Una entrada visible en
-# el catalogo es la fuente; solo un estado que diga que la restriccion esta
-# aplicada y validada permite llamarla garantia. Si el catalogo no expone esos
-# campos, no se los completa con una suposicion.
+# el catalogo es la fuente; en los motores que publican esos estados, solo una
+# restriccion aplicada y validada permite llamarla garantia. Si el catalogo no
+# expone esos campos, no se los completa con una suposicion. SQLite agrega dos
+# ejes: la unicidad que su PRIMARY KEY da entre valores no nulos y la ausencia
+# de nulos que solo se puede garantizar cuando `notnull` lo dice para cada
+# columna.
 .campo_clave <- function(datos, candidatos) {
   nombres <- names(datos)
   posicion <- match(candidatos, nombres)
@@ -240,6 +255,9 @@
     visible = TRUE,
     aplicada = aplicada,
     validada = validada,
+    unicidad = NA_character_,
+    unicidad_aplica_a = NA_character_,
+    ausencia_de_nulos = NA_character_,
     consultado = c(
       enforced = !is.null(enforced), status = !is.null(status),
       validated = !is.null(validated)
@@ -250,6 +268,34 @@
       validated = if (is.null(validated)) NA_character_ else as.character(validated[[1L]])
     )
   )
+
+  if (identical(via, "pragma")) {
+    posicion <- .campo_clave(datos, c("ordinal_position", "pk"))
+    posicion <- suppressWarnings(as.numeric(posicion))
+    partes <- which(is.finite(posicion) & posicion > 0)
+    notnull <- .campo_clave(datos, c("column_notnull", "notnull"))
+    estado$unicidad <- "garantizada"
+    estado$unicidad_aplica_a <- "valores no nulos"
+    if (length(partes) && !is.null(notnull) && length(notnull) >= max(partes)) {
+      estados_notnull <- vapply(
+        notnull[partes], .estado_clave, logical(1L), tipo = "si_no"
+      )
+      if (length(estados_notnull) && all(!is.na(estados_notnull)) &&
+          all(estados_notnull)) {
+        estado$ausencia_de_nulos <- "garantizada"
+      } else {
+        estado$ausencia_de_nulos <- "no_verificada"
+      }
+    } else {
+      estado$ausencia_de_nulos <- "no_verificada"
+    }
+    garantia <- if (identical(estado$ausencia_de_nulos, "garantizada")) {
+      "garantizada"
+    } else {
+      "desconocida"
+    }
+    return(list(garantia = garantia, estado = estado))
+  }
 
   if (identical(via, "all_constraints")) {
     garantia <- if (isTRUE(aplicada) && isTRUE(validada)) {
@@ -262,12 +308,12 @@
     return(list(garantia = garantia, estado = estado))
   }
 
-  # PostgreSQL y MySQL publican ENFORCED en TABLE_CONSTRAINTS. PostgreSQL
-  # tambien permite consultar la validacion en pg_constraint; MySQL no tiene
-  # un segundo estado para PRIMARY KEY y documenta ENFORCED=YES para ella. El
-  # resto de motores de esta via no expone un estado comparable y queda
-  # desconocido.
-  if (identical(via, "information_schema") && identical(motor, "postgresql")) {
+  # PostgreSQL publica la validacion en pg_constraint. La via directa agrega
+  # TRUE para `aplicada`: la fila filtrada por `contype = 'p'` es la declaracion
+  # de una PRIMARY KEY. MySQL no tiene un segundo estado para PRIMARY KEY y
+  # documenta ENFORCED=YES para ella. El resto de motores de esta via no expone
+  # un estado comparable y queda desconocido.
+  if (identical(via, "pg_catalog") && identical(motor, "postgresql")) {
     garantia <- if (identical(aplicada, TRUE) && isTRUE(validada)) {
       "garantizada"
     } else if (identical(aplicada, FALSE) || identical(validada, FALSE)) {
@@ -290,10 +336,48 @@
   list(garantia = "desconocida", estado = estado)
 }
 
+# Una respuesta vacia solo permite decir "no declarada" cuando la via puede
+# ver el catalogo completo de una tabla que ya es accesible para quien perfila.
+# Una consulta fallida se representa antes con `visible = NA`.
+#
+# Que motores filtran `information_schema` por permisos NO se deduce: se midio,
+# el 2026-08-27, contra contenedores reales, creando un rol con solo `SELECT`
+# sobre una tabla con clave primaria y contando las filas que devuelve
+# `information_schema.table_constraints`.
+#
+#   MySQL 8        el rol restringido ve 1  -> visible
+#   MariaDB 11     el rol restringido ve 0  -> AMBIGUO
+#   PostgreSQL 16  el rol restringido ve 0  -> por eso su via es `pg_catalog`
+#
+# MariaDB y MySQL parecen el mismo motor y aca no lo son. Suponerlo habria
+# hecho que `lupa` afirmara "no hay clave declarada" sobre una tabla que si la
+# tiene, que es exactamente el defecto que este cambio corrige.
+#
+# SQL Server queda ambiguo por precaucion: sus vistas `INFORMATION_SCHEMA`
+# tambien filtran por permisos y no se midio con un rol restringido. Cuando se
+# mida, se mueve con su numero.
+.catalogo_clave_visible <- function(via, motor) {
+  if (via %in% c("pg_catalog", "pragma", "duckdb_constraints")) {
+    return(TRUE)
+  }
+  if (identical(via, "all_constraints")) return(TRUE)
+  identical(via, "information_schema") && identical(motor, "mysql")
+}
+
+#' Lee la clave primaria desde el catalogo del motor sin recorrer la tabla.
+#'
+#' La salida separa una clave no declarada, una consulta fallida y un catalogo
+#' que no mostro filas con visibilidad ambigua. En SQLite, `estado` separa la
+#' unicidad entre valores no nulos de la ausencia de nulos.
+#'
+#' @keywords internal
+#' @noRd
+#
 # Devuelve `list(columnas, fuente, motivo, garantia, estado)`. `columnas` es
-# `character(0)` cuando la tabla no declara clave primaria -que es una
-# respuesta, no un fallo- y `motivo` dice por que no se pudo leer cuando no se
-# pudo. `garantia` nunca convierte la mera visibilidad en una validacion.
+# `character(0)` cuando el catalogo visible no declara clave primaria o cuando
+# no se pudo resolver la visibilidad; `motivo` distingue ambos casos y los
+# errores de consulta. `garantia` nunca convierte la mera visibilidad en una
+# validacion.
 .clave_primaria_dbi <- function(conexion, tabla, esquema = NA_character_,
                                 presupuesto = NULL) {
   vacio <- function(fuente, motivo, garantia = "desconocida",
@@ -303,6 +387,8 @@
       garantia = garantia,
       estado = list(
         visible = visible, aplicada = NA, validada = NA,
+        unicidad = NA_character_, unicidad_aplica_a = NA_character_,
+        ausencia_de_nulos = NA_character_,
         consultado = c(enforced = FALSE, status = FALSE, validated = FALSE),
         valores = list(enforced = NA_character_, status = NA_character_,
                         validated = NA_character_)
@@ -332,15 +418,27 @@
       return(vacio(via$nombre, paste0(
         via$nombre, ": la tabla no existe o no es visible, ",
         "asi que no se pudo preguntar por su clave."
-      )))
+      ), visible = FALSE))
     }
-    # En las otras vias, cero filas es la respuesta del catalogo: no hay clave
-    # declarada. Que una tabla inexistente conteste igual es un limite conocido
-    # de preguntar en una sola consulta, y por eso quien llama desde
-    # `perfilar_dbi()` ya comprobo que la tabla existe.
+    if (.catalogo_clave_visible(via$nombre, motor)) {
+      # Que una tabla inexistente conteste igual es un limite conocido de
+      # preguntar en una sola consulta, y por eso quien llama desde
+      # `perfilar_dbi()` ya comprobo que la tabla existe.
+      return(vacio(
+        via$nombre, motivo = NA_character_, garantia = "no_declarada",
+        visible = TRUE
+      ))
+    }
+    # Una vista de catalogo con visibilidad restringida puede devolver cero
+    # filas tanto para una tabla sin clave como para una clave que el usuario no
+    # puede ver. No se elige una de esas explicaciones.
     return(vacio(
-      via$nombre, motivo = NA_character_, garantia = "no_declarada",
-      visible = FALSE
+      via$nombre,
+      motivo = paste0(
+        via$nombre, ": no devolvio filas; la clave puede no estar declarada ",
+        "o no ser visible para esta credencial."
+      ),
+      garantia = "desconocida", visible = FALSE
     ))
   }
   columna <- if ("column_name" %in% names(datos)) {
@@ -359,7 +457,7 @@
     if (!length(partes)) {
       return(vacio(
         via$nombre, motivo = NA_character_, garantia = "no_declarada",
-        visible = FALSE
+        visible = TRUE
       ))
     }
     orden <- partes[order(posicion[partes])]

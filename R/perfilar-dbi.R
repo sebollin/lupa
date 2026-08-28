@@ -1937,7 +1937,7 @@
   datos <- as.data.frame(valores, stringsAsFactors = FALSE)
   .adjuntar_medicion_dbi(
     list(ok = TRUE, datos = datos, motivo = NA_character_, sql = sql,
-         metadatos = modifyList(
+         metadatos = utils::modifyList(
            metadatos,
            if (!is.null(consulta$consulta_id) &&
                length(consulta$consulta_id) == 1L &&
@@ -2646,7 +2646,7 @@
         if ("validos" %in% metricas_planas) {
           base_conteos <- agregados$conteos[[campo]]
           if (is.null(base_conteos)) base_conteos <- list(consolidada = TRUE)
-          agregados$conteos[[campo]] <- modifyList(
+          agregados$conteos[[campo]] <- utils::modifyList(
             base_conteos, list(validos = resultado$validos)
           )
         }

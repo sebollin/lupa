@@ -62,7 +62,7 @@ test_that("la via se elige por el controlador y no probando una tras otra", {
   )
   expect_equal(
     .via_clave_primaria(structure(list(), class = "PqConnection")),
-    "information_schema"
+    "pg_catalog"
   )
   # Un controlador desconocido cae al estandar, que es la apuesta con mas chance.
   expect_equal(
