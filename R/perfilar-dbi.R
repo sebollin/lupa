@@ -58,7 +58,15 @@
 # Veinte columnas dejan el bloque de cinco agregados en unas cien expresiones;
 # es un limite conservador para motores con topes de expresiones y sigue dando
 # tres consultas sobre una tabla de sesenta columnas.
-.TAMANO_LOTE_DBI <- 20L
+.TAMANO_LOTE_PLANOS_DBI <- 20L
+# Una cardinalidad exacta puede derramar mucho mas que un bloque de agregados
+# planos. Hasta tener mediciones comparables entre motores, una columna por
+# consulta es la opcion conservadora: limita el radio de un derrame y permite
+# bajar el lote sin cambiar el tamano de los planos.
+.TAMANO_LOTE_DISTINTOS_DBI <- 1L
+# Alias interno y de compatibilidad para codigo que aun menciona el nombre
+# anterior. Las dos familias no usan este valor como tamano comun.
+.TAMANO_LOTE_DBI <- .TAMANO_LOTE_PLANOS_DBI
 
 # Las capacidades nuevas se sondean una vez por corrida. Todas sus formas
 # candidatas se prueban aunque una ya haya acertado: el costo no puede depender
@@ -103,6 +111,8 @@
   # Este valor vive en el presupuesto de la corrida y muere con el: sirve para
   # recordar un lote aceptado sin guardar estado global asociado a una conexion.
   estado$tamano_lote_funciono <- NULL
+  estado$tamano_lote_planos_funciono <- NULL
+  estado$tamano_lote_distintos_funciono <- NULL
   # Cuantas consultas espera emitir la corrida y la barra que lo muestra. Van
   # aca porque el presupuesto es el unico objeto que ve pasar TODAS las
   # consultas: colgarlo de otro lado obligaria a enhebrarlo por cada camino.
@@ -573,6 +583,18 @@
     todas$random_limit$funciones <- funciones[orden_funciones(funciones)]
   }
   todas[nombres]
+}
+
+.sondas_muestreo_previstas_dbi <- function(candidatos) {
+  if (!length(candidatos)) return(0L)
+  as.integer(sum(vapply(candidatos, function(candidato) {
+    if (identical(candidato$tipo, "tablesample_filas") ||
+        identical(candidato$tipo, "tablesample")) {
+      1L
+    } else {
+      length(candidato$funciones)
+    }
+  }, integer(1L))))
 }
 
 # `alias` estaba en la firma y la funcion lo REASIGNA antes de usarlo, con
@@ -1478,8 +1500,10 @@
 .validar_politica_costo_dbi <- function(politica_costo,
                                        umbral_cardinalidad) {
   politica <- match.arg(
-    politica_costo, c("todas", "por_cardinalidad", "cardinalidad")
+    politica_costo,
+    c("todas", "ninguna", "por_cardinalidad", "cardinalidad")
   )
+  if (identical(politica, "ninguna")) politica <- "todas"
   if (identical(politica, "cardinalidad")) politica <- "por_cardinalidad"
   if (!is.numeric(umbral_cardinalidad) ||
       length(umbral_cardinalidad) != 1L ||
@@ -1504,6 +1528,36 @@
     return(metricas)
   }
   unique(c(metricas, "validos", "distintos"))
+}
+
+.estrategia_distintos_dbi <- function(metricas_solicitadas, politica,
+                                      incluir_valores) {
+  publica <- "distintos" %in% metricas_solicitadas
+  para_costo <- identical(politica$nombre, "por_cardinalidad") &&
+    isTRUE(incluir_valores) &&
+    any(.METRICAS_COSTOSAS_DBI %in% metricas_solicitadas)
+  list(
+    publica = publica,
+    para_costo = para_costo,
+    requiere_medicion = publica || para_costo
+  )
+}
+
+.fuente_cardinalidad_desconocida_dbi <- function() {
+  list(
+    nombre = "desconocida", exacta = FALSE,
+    proporcion_distintos = NA_real_, motivo = paste(
+      "No hay una garantia estructural ni una estimacion de catalogo utilizable;",
+      "la cardinalidad solo se puede conocer midiendo `distintos`."
+    )
+  )
+}
+
+.fuentes_cardinalidad_vacias_dbi <- function(columnas) {
+  salida <- rep(list(.fuente_cardinalidad_desconocida_dbi()),
+                length(columnas))
+  names(salida) <- columnas
+  salida
 }
 
 .metricas_de_modo_dbi <- function(modo) {
@@ -1546,16 +1600,36 @@
   as.numeric(max_consultas)
 }
 
-.validar_tamano_lote_dbi <- function(tamano_lote) {
+.validar_tamano_lote_dbi <- function(tamano_lote, nombre = "tamano_lote") {
   if (!is.numeric(tamano_lote) || length(tamano_lote) != 1L ||
       is.na(tamano_lote) || !is.finite(tamano_lote) || tamano_lote < 1 ||
       tamano_lote != floor(tamano_lote)) {
     .detener_dbi(
       "lupa_error_argumento_dbi",
-      "`tamano_lote` debe ser un entero positivo finito."
+      paste0("`", nombre, "` debe ser un entero positivo finito.")
     )
   }
   as.integer(tamano_lote)
+}
+
+.resolver_tamanos_lote_dbi <- function(tamano_lote,
+                                       tamano_lote_planos,
+                                       tamano_lote_distintos) {
+  # El argumento antiguo sigue siendo util para reproducir corridas previas.
+  # Solo en ese caso se copia a las dos familias; la API nueva siempre deja
+  # que los distintos tengan un lote propio y conservador.
+  if (!is.null(tamano_lote)) {
+    tamano_lote_planos <- tamano_lote
+    tamano_lote_distintos <- tamano_lote
+  }
+  list(
+    planos = .validar_tamano_lote_dbi(
+      tamano_lote_planos, "tamano_lote_planos"
+    ),
+    distintos = .validar_tamano_lote_dbi(
+      tamano_lote_distintos, "tamano_lote_distintos"
+    )
+  )
 }
 
 # `Inf` significa "toda la tabla, sea del tamano que sea". Es la unica forma de
@@ -1734,11 +1808,15 @@
 
 .decision_costo_dbi <- function(columna, conteos, politica,
                                 n_validos = NA_real_, n_distintos = NA_real_,
-                                alcance = "la tabla") {
+                                alcance = "la tabla",
+                                fuente_cardinalidad_costo = NULL) {
   conservar <- list(moda = TRUE, mediana = TRUE)
+  fuente <- fuente_cardinalidad_costo
+  if (is.null(fuente)) fuente <- .fuente_cardinalidad_desconocida_dbi()
   detalle <- list(
     n_validos = n_validos, n_distintos = n_distintos,
-    proporcion_distintos = NA_real_, motivo = NA_character_
+    proporcion_distintos = NA_real_, motivo = NA_character_,
+    fuente_cardinalidad_costo = fuente$nombre
   )
   if (!identical(politica$nombre, "por_cardinalidad")) {
     return(c(conservar, detalle = list(detalle)))
@@ -1751,6 +1829,19 @@
   } else {
     NA_real_
   }
+  if (!is.null(fuente$proporcion_distintos) &&
+      is.finite(fuente$proporcion_distintos)) {
+    proporcion <- as.numeric(fuente$proporcion_distintos)
+    if (!is.finite(validos) && proporcion == 1) validos <- NA_real_
+    if (!is.finite(distintos) && is.finite(validos) && proporcion == 1) {
+      distintos <- validos
+    }
+    detalle$fuente_cardinalidad_costo <- fuente$nombre
+  } else if (is.finite(proporcion)) {
+    detalle$fuente_cardinalidad_costo <- "medicion_exacta"
+  }
+  detalle$n_validos <- if (is.finite(validos)) validos else n_validos
+  detalle$n_distintos <- if (is.finite(distintos)) distintos else n_distintos
   detalle$proporcion_distintos <- proporcion
   if (is.finite(proporcion) && proporcion >= politica$umbral) {
     conservar$moda <- FALSE
@@ -1770,7 +1861,8 @@
 }
 
 .decisiones_costo_dbi <- function(conexion, columnas, agregados, politica,
-                                  n_total, modo) {
+                                  n_total, modo,
+                                  fuentes_cardinalidad_costo = NULL) {
   salida <- vector("list", length(columnas))
   names(salida) <- columnas
   alcance <- if (identical(modo, "muestreado")) "la muestra medida" else
@@ -1783,11 +1875,69 @@
     distintos <- if (is.null(conteo) || is.null(conteo$distintos)) {
       NA_real_
     } else .numero_dbi(conteo$distintos$valor)
+    fuente <- if (is.null(fuentes_cardinalidad_costo)) {
+      NULL
+    } else {
+      fuentes_cardinalidad_costo[[columna]]
+    }
     salida[[columna]] <- .decision_costo_dbi(
-      columna, conteo, politica, validos, distintos, alcance
+      columna, conteo, politica, validos, distintos, alcance,
+      fuente_cardinalidad_costo = fuente
     )
   }
   salida
+}
+
+.piezas_tabla_cardinalidad_dbi <- function(tabla) {
+  if (isTRUE(.es_id_dbi(tabla))) {
+    piezas <- .partes_id_dbi(tabla)
+    return(list(
+      esquema = if ("esquema" %in% names(piezas)) piezas[["esquema"]] else NA_character_,
+      tabla = unname(piezas[["tabla"]])
+    ))
+  }
+  if (is.character(tabla) && length(tabla) == 1L && !is.na(tabla)) {
+    cortado <- .partir_identificador(tabla)
+    partes <- vapply(
+      cortado$partes, .quitar_comillas_identificador, character(1L),
+      USE.NAMES = FALSE
+    )
+    if (length(partes) == 2L) {
+      return(list(esquema = partes[[1L]], tabla = partes[[2L]]))
+    }
+    return(list(esquema = NA_character_, tabla = partes[[1L]]))
+  }
+  list(esquema = NA_character_, tabla = NA_character_)
+}
+
+.resolver_fuentes_cardinalidad_dbi <- function(conexion, tabla, columnas,
+                                               estrategia, presupuesto) {
+  fuentes <- .fuentes_cardinalidad_vacias_dbi(columnas)
+  if (!isTRUE(estrategia$para_costo)) {
+    return(list(fuentes = fuentes, catalogo = NULL))
+  }
+  piezas <- .piezas_tabla_cardinalidad_dbi(tabla)
+  catalogo <- .clave_primaria_dbi(
+    conexion, piezas$tabla, piezas$esquema, presupuesto = presupuesto
+  )
+  # Una clave compuesta no vuelve unica cada columna por separado. Solo una
+  # clave primaria simple, aplicada y validada, permite afirmar que su columna
+  # tiene tantos distintos como valores validos, sin contarla.
+  if (length(catalogo$columnas) == 1L &&
+      identical(catalogo$garantia, "garantizada")) {
+    posicion <- .resolver_columnas_dbi(catalogo$columnas, columnas)
+    if (length(posicion) == 1L && !is.na(posicion)) {
+      columna <- columnas[[posicion]]
+      fuentes[[columna]] <- list(
+        nombre = "clave_primaria_garantizada", exacta = TRUE,
+        proporcion_distintos = 1, motivo = paste(
+          "La clave primaria simple esta declarada y garantizada por el",
+          "catalogo; sus valores validos son unicos."
+        )
+      )
+    }
+  }
+  list(fuentes = fuentes, catalogo = catalogo)
 }
 
 # Los dos conteos recorren la misma tabla, asi que se piden juntos: una
@@ -2136,10 +2286,21 @@
   min(2 * n, .TOPE_SONDAS_DESCARTE_DBI, max(0, floor(saldo / 2)))
 }
 
-.recordar_lote_agregados_dbi <- function(presupuesto, n) {
+.recordar_lote_agregados_dbi <- function(presupuesto, n, familia = "planos") {
   if (is.null(presupuesto) || n < 1) return(invisible(NULL))
-  previo <- presupuesto$tamano_lote_funciono
-  if (is.null(previo) || n > previo) presupuesto$tamano_lote_funciono <- n
+  ranura <- if (identical(familia, "distintos")) {
+    "tamano_lote_distintos_funciono"
+  } else {
+    "tamano_lote_planos_funciono"
+  }
+  previo <- presupuesto[[ranura]]
+  if (is.null(previo) || n > previo) presupuesto[[ranura]] <- n
+  # Alias de compatibilidad: conserva el mayor lote plano, que era el unico
+  # lote que existia antes de separar las familias.
+  previo_total <- presupuesto$tamano_lote_funciono
+  if (is.null(previo_total) || n > previo_total) {
+    presupuesto$tamano_lote_funciono <- n
+  }
   invisible(NULL)
 }
 
@@ -2294,7 +2455,7 @@
   }
   if (length(grupos)) {
     .recordar_lote_agregados_dbi(
-      presupuesto, max(vapply(grupos, length, integer(1L)))
+      presupuesto, max(vapply(grupos, length, integer(1L))), "planos"
     )
   }
   clasificados <- sort(unique(c(unlist(grupos, use.names = FALSE), culpables)))
@@ -2529,7 +2690,7 @@
   }
   if (length(grupos)) {
     .recordar_lote_agregados_dbi(
-      presupuesto, max(vapply(grupos, length, integer(1L)))
+      presupuesto, max(vapply(grupos, length, integer(1L))), "distintos"
     )
   }
   clasificados <- sort(unique(c(unlist(grupos, use.names = FALSE), culpables)))
@@ -2602,10 +2763,12 @@
 .agregados_consolidados_dbi <- function(conexion, tabla_sql, columnas,
                                         columnas_sql, es_numerico, metricas,
                                         incluir_valores, presupuesto,
-                                        tamano_lote,
+                                        tamano_lote_planos,
+                                        tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
                                         aproximacion_distintos = NULL,
                                         tabla_total_sql = tabla_sql,
-                                        conteo_inicial = NULL) {
+                                        conteo_inicial = NULL,
+                                        columnas_distintos = NULL) {
   alias <- function(nombre) {
     as.character(DBI::dbQuoteIdentifier(conexion, nombre))
   }
@@ -2628,27 +2791,6 @@
     invisible(NULL)
   }
 
-  # COUNT(DISTINCT) queda en su propia clase de consulta. Los otros agregados
-  # planos comparten el mismo SELECT sólo cuando se aplican a la misma fuente.
-  # En particular, no se mezcla la cardinalidad con COUNT(col), aunque ambas
-  # sean conteos, porque varios motores construyen planes peores al combinarlas.
-  if ("distintos" %in% metricas) {
-    lotes <- .lotes_columnas_dbi(columnas, tamano_lote)
-    for (numero in seq_along(lotes)) {
-      lote <- lotes[[numero]]
-      resultado_lote <- .conteos_distintos_lote_dbi(
-        conexion, tabla_sql, lote, nombres_sql, alias, numero, presupuesto,
-        aproximacion_distintos,
-        incluir_total = is.null(conteo), tabla_total_sql = tabla_total_sql
-      )
-      tomar_conteo(resultado_lote)
-      resultados <- resultado_lote$resultados
-      for (campo in lote) {
-        agregados$conteos[[campo]] <- resultados[[campo]]
-      }
-    }
-  }
-
   metricas_planas <- intersect(c("validos", "basicos", "desvio"), metricas)
   numericas <- columnas[es_numerico]
   columnas_planas <- if ("validos" %in% metricas_planas) {
@@ -2661,7 +2803,7 @@
       conexion, presupuesto, alias
     )
     forma <- presupuesto$forma_desvio
-    lotes <- .lotes_columnas_dbi(columnas_planas, tamano_lote)
+    lotes <- .lotes_columnas_dbi(columnas_planas, tamano_lote_planos)
     etapa <- if ("basicos" %in% metricas_planas) {
       "basicos"
     } else if ("desvio" %in% metricas_planas) {
@@ -2675,7 +2817,7 @@
       es_numerico_lote <- es_numerico[indices]
       resultado_lote <- .agregados_lote_con_biseccion_dbi(
         conexion, tabla_sql, lote, nombres_sql, es_numerico_lote,
-        metricas_planas, incluir_valores, presupuesto, tamano_lote, numero,
+        metricas_planas, incluir_valores, presupuesto, tamano_lote_planos, numero,
         alias, forma, etapa,
         incluir_total = is.null(conteo), tabla_total_sql = tabla_total_sql
       )
@@ -2726,6 +2868,8 @@
       }
     }
   }
+  # Si no hubo una familia plana que pudiera llevar el total fusionado, se
+  # obtiene ahora, antes de pagar cualquier cardinalidad exacta.
   if (is.null(conteo)) {
     total_alias <- alias("lupa_n_total")
     sql_total <- paste0(
@@ -2738,10 +2882,56 @@
     conteo$sql <- sql_total
     n_total <- .conteo_dbi(conteo$valor)
   }
+  # Primero quedan disponibles los agregados planos y el total exacto que se
+  # fusiona con su primera consulta. Despues se paga COUNT(DISTINCT),
+  # que conserva su propia familia y su lote conservador.
+  if ("distintos" %in% metricas) {
+    if (is.null(columnas_distintos)) columnas_distintos <- columnas
+    lotes <- .lotes_columnas_dbi(
+      columnas_distintos, tamano_lote_distintos
+    )
+    for (numero in seq_along(lotes)) {
+      lote <- lotes[[numero]]
+      resultado_lote <- .conteos_distintos_lote_dbi(
+        conexion, tabla_sql, lote, nombres_sql, alias, numero, presupuesto,
+        aproximacion_distintos,
+        incluir_total = FALSE, tabla_total_sql = tabla_total_sql
+      )
+      tomar_conteo(resultado_lote)
+      resultados <- resultado_lote$resultados
+      for (campo in lote) {
+        agregados$conteos[[campo]] <- utils::modifyList(
+          agregados$conteos[[campo]], resultados[[campo]]
+        )
+      }
+    }
+  }
   agregados$n_total <- n_total
   agregados$conteo <- conteo
   agregados$sql_conteo <- if (is.null(conteo$sql)) NA_character_ else conteo$sql
   agregados
+}
+
+.moda_columna_dbi <- function(conexion, tabla_sql, columna_sql, dialecto,
+                              presupuesto) {
+  alias <- function(nombre) {
+    as.character(DBI::dbQuoteIdentifier(conexion, nombre))
+  }
+  sin_limite <- paste0(
+    "SELECT ", columna_sql, " AS ", alias("valor"), ", COUNT(*) AS ",
+    alias("frecuencia"), " FROM ", tabla_sql, " WHERE ", columna_sql,
+    " IS NOT NULL GROUP BY ", columna_sql, " ORDER BY ", alias("frecuencia"),
+    " DESC, ", columna_sql, " ASC"
+  )
+  acotada <- dialecto$limitar(sin_limite, 1L, 0)
+  sql_moda <- if (is.null(acotada)) sin_limite else acotada
+  resultado <- .consultar_dbi(
+    conexion, sql_moda, presupuesto,
+    filas = if (is.null(acotada)) 1L else -1L,
+    etapa = "moda"
+  )
+  resultado$sql <- sql_moda
+  resultado
 }
 
 .resumen_columna_dbi <- function(conexion, tabla_sql, columna, prototipo,
@@ -2757,7 +2947,9 @@
                                  fraccion_muestra = NA_real_,
                                  agregados = NULL,
                                  mediana_consolidada = NULL,
-                                 decisiones_costo = NULL) {
+                                 moda_precalculada = NULL,
+                                 decisiones_costo = NULL,
+                                 publica_distintos = TRUE) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
   fila <- .fila_resumen_dbi(columna, n_total)
   literales <- character()
@@ -2905,7 +3097,7 @@
           limite_distintos,
           " validos, que es imposible; la metrica no se publica."
         )
-      } else {
+      } else if (isTRUE(publica_distintos)) {
         fila$n_distintos <- candidato
         if (!is.na(fila$n_distintos) && !is.na(fila$n_validos) &&
             .numero_dbi(fila$n_validos) > 0) {
@@ -2918,7 +3110,9 @@
         }
       }
     }
-    registros <- registrar(registros, .CAMPOS_METRICA_DBI$distintos, distintos)
+    if (isTRUE(publica_distintos)) {
+      registros <- registrar(registros, .CAMPOS_METRICA_DBI$distintos, distintos)
+    }
   } else {
     registros <- omitir(registros, "distintos", "no_solicitado", motivo_no_pedida)
   }
@@ -2933,19 +3127,13 @@
       registros, "moda", "omitido_por_costo", decisiones_costo$detalle$motivo
     )
   } else {
-    sin_limite <- paste0(
-      "SELECT ", columna_sql, " AS ", alias("valor"), ", COUNT(*) AS ",
-      alias("frecuencia"), " FROM ", tabla_sql, " WHERE ", columna_sql,
-      " IS NOT NULL GROUP BY ", columna_sql, " ORDER BY ", alias("frecuencia"),
-      " DESC, ", columna_sql, " ASC"
-    )
-    acotada <- dialecto$limitar(sin_limite, 1L, 0)
-    sql_moda <- if (is.null(acotada)) sin_limite else acotada
-    moda <- .consultar_dbi(
-      conexion, sql_moda, presupuesto,
-      filas = if (is.null(acotada)) 1L else -1L,
-      etapa = "moda"
-    )
+    moda <- if (is.null(moda_precalculada)) {
+      .moda_columna_dbi(
+        conexion, tabla_sql, columna_sql, dialecto, presupuesto
+      )
+    } else {
+      moda_precalculada
+    }
     if (moda$ok && nrow(moda$datos)) {
       # La moda no pasaba por la verificacion de nombre: un motor que plegara
       # el alias devolvia `NULL[[1L]]`, o sea NA, con estado `calculado`. Un
@@ -3005,7 +3193,6 @@
       # vacia, y ahi NA con su motivo es lo correcto.
       if (!es_muestreado) fila$frecuencia_moda <- 0
     }
-    moda$sql <- sql_moda
     registros <- registrar(
       registros, .CAMPOS_METRICA_DBI$moda, moda, motivo_exito = moda$motivo
     )
@@ -3291,6 +3478,32 @@
   )
 }
 
+.incorporar_distintos_estructurales_dbi <- function(agregados, fuentes,
+                                                     n_total, modo) {
+  if (is.null(fuentes) || !length(fuentes)) return(agregados)
+  for (columna in names(fuentes)) {
+    fuente <- fuentes[[columna]]
+    if (is.null(fuente) || !isTRUE(fuente$exacta) ||
+        !is.finite(fuente$proporcion_distintos) ||
+        fuente$proporcion_distintos != 1 || is.na(n_total) ||
+        modo %in% c("muestreado", "aproximado")) {
+      next
+    }
+    resultado <- list(
+      ok = TRUE, valor = n_total, motivo = NA_character_, sql = NA_character_,
+      estado = if (identical(modo, "muestreado")) "estimado" else "garantizado",
+      metadatos = list(fuente = fuente$nombre)
+    )
+    base <- agregados$conteos[[columna]]
+    if (!is.null(base) && !is.null(base$distintos)) next
+    if (is.null(base)) base <- list(consolidada = TRUE)
+    agregados$conteos[[columna]] <- utils::modifyList(
+      base, list(distintos = resultado)
+    )
+  }
+  agregados
+}
+
 .resumen_tabla_dbi <- function(conexion, tabla, tabla_sql, campos, prototipo,
                                n_total, sql_conteo, info_conexion,
                                dialecto = NULL, metricas = .METRICAS_DBI,
@@ -3311,10 +3524,13 @@
                                 campos_consolidados = NULL,
                                 campos_sql_consolidados = NULL,
                                 es_numerico_consolidados = NULL,
-                                tamano_lote = .TAMANO_LOTE_DBI,
+                                tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
+                                tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
                                 conteo = NULL,
                                 tabla_total_sql = tabla_sql,
                                 mediana_consolidada = NULL,
+                                fuentes_cardinalidad_costo = NULL,
+                                estrategia_distintos = list(publica = TRUE),
                                 politica_costo = list(
                                   nombre = "todas",
                                   umbral = .UMBRAL_CARDINALIDAD_COSTO_DBI
@@ -3337,9 +3553,25 @@
   agregados <- .agregados_consolidados_dbi(
     conexion, tabla_metricas_sql, campos_consolidados,
     campos_sql_consolidados, es_numerico_consolidados, metricas_ejecucion,
-    incluir_valores, presupuesto, tamano_lote,
+    incluir_valores, presupuesto, tamano_lote_planos, tamano_lote_distintos,
     aproximacion_distintos = aproximaciones$distintos,
-    tabla_total_sql = tabla_total_sql, conteo_inicial = conteo
+    tabla_total_sql = tabla_total_sql, conteo_inicial = conteo,
+    columnas_distintos = if (is.null(fuentes_cardinalidad_costo)) NULL else {
+      # Una fuente exacta solo evita medir cuando `distintos` es interno para
+      # decidir el costo. Si quien llama pidio la metrica, hay que publicarla;
+      # en una muestra o con una aproximacion tambien hay que medir el universo
+      # que corresponde a esa estrategia.
+      if (isTRUE(estrategia_distintos$publica)) {
+        campos_consolidados
+      } else if (identical(politica_costo$nombre, "por_cardinalidad")) {
+        campos_consolidados[vapply(
+          fuentes_cardinalidad_costo,
+          function(x) !isTRUE(x$exacta), logical(1L)
+        )]
+      } else {
+        character()
+      }
+    }
   )
   conteo <- agregados$conteo
   n_total <- agregados$n_total
@@ -3351,11 +3583,26 @@
     } else {
       "La consulta de conteo no devolvio un numero utilizable."
     }
-    .detener_dbi(
-      "lupa_error_conteo_dbi", motivo,
-      datos = list(sql = if (is.null(conteo)) NA_character_ else conteo$sql)
-    )
+    # El presupuesto es una degradacion esperable, no un error fatal: las
+    # metricas que ya entraron siguen siendo utiles aunque el denominador no
+    # haya entrado. Otros fallos de conteo si impiden interpretar el resumen y
+    # conservan la condicion de error que ya tenia la via DBI.
+    motivo_conteo <- if (is.null(conteo)) "" else {
+      if (is.null(conteo$motivo)) "" else as.character(conteo$motivo)
+    }
+    agotado_por_presupuesto <- length(motivo_conteo) == 1L &&
+      grepl("presupuesto declarado", motivo_conteo, fixed = TRUE)
+    if (!agotado_por_presupuesto) {
+      .detener_dbi(
+        "lupa_error_conteo_dbi", motivo,
+        datos = list(sql = if (is.null(conteo)) NA_character_ else conteo$sql)
+      )
+    }
+    n_total <- NA_real_
   }
+  agregados <- .incorporar_distintos_estructurales_dbi(
+    agregados, fuentes_cardinalidad_costo, n_total, modo
+  )
   sql_conteo_registro <- if (is.null(conteo$sql)) {
     sql_conteo
   } else {
@@ -3377,8 +3624,36 @@
     }
   }
   decisiones_costo <- .decisiones_costo_dbi(
-    conexion, campos_consolidados, agregados, politica_costo, n_total, modo
+    conexion, campos_consolidados, agregados, politica_costo, n_total, modo,
+    fuentes_cardinalidad_costo = fuentes_cardinalidad_costo
   )
+  # La moda y la mediana son dos familias distintas: preparar todas las modas
+  # antes de entrar en la mediana deja disponibles primero las metricas con
+  # mayor cobertura, incluso cuando no hay una consolidacion de medianas.
+  columnas_modas <- intersect(campos_consolidados, campos)
+  columnas_modas <- columnas_modas[
+    vapply(columnas_modas, function(campo) {
+      decision <- decisiones_costo[[campo]]
+      motivo <- if (is.null(motivos_ilegibles) ||
+                    !campo %in% names(motivos_ilegibles)) {
+        NA_character_
+      } else {
+        motivos_ilegibles[[campo]]
+      }
+      "moda" %in% metricas && isTRUE(incluir_valores) &&
+        (is.null(decision) || isTRUE(decision$moda)) &&
+        is.na(motivo)
+    }, logical(1L))
+  ]
+  modas <- vector("list", length(columnas_modas))
+  names(modas) <- columnas_modas
+  for (campo in columnas_modas) {
+    modas[[campo]] <- .moda_columna_dbi(
+      conexion, tabla_metricas_sql,
+      as.character(DBI::dbQuoteIdentifier(conexion, campo)),
+      dialecto, presupuesto
+    )
+  }
   columnas_medianas <- intersect(campos_consolidados, campos)
   columnas_medianas <- columnas_medianas[
     match(columnas_medianas, campos_consolidados) <= length(es_numerico_consolidados) &
@@ -3398,7 +3673,7 @@
       conexion, tabla_metricas_sql, columnas_medianas,
       stats::setNames(campos_sql_consolidados, campos_consolidados),
       function(nombre) as.character(DBI::dbQuoteIdentifier(conexion, nombre)),
-      mediana_consolidada, presupuesto, tamano_lote,
+      mediana_consolidada, presupuesto, tamano_lote_planos,
       estado = if (identical(modo, "aproximado")) "estimado" else NULL
     )
   }
@@ -3428,7 +3703,9 @@
       tamano_muestra = tamano_muestra, fraccion_muestra = fraccion_muestra,
       agregados = agregados,
       mediana_consolidada = medianas[[campo]],
-      decisiones_costo = decisiones_costo[[campo]]
+      moda_precalculada = modas[[campo]],
+      decisiones_costo = decisiones_costo[[campo]],
+      publica_distintos = isTRUE(estrategia_distintos$publica)
     )
   })
   columnas <- if (length(resultados)) {
@@ -3710,36 +3987,49 @@
 .plan_consultas_dbi <- function(campos, es_numerico, metricas, incluir_valores,
                                   con_orden, dialecto, emitidas = 0,
                                   modo = "exacto", muestreo_disponible = TRUE,
-                                  tamano_lote = .TAMANO_LOTE_DBI,
+                                  tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
+                                  tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
                                   incluir_muestra = TRUE,
                                   mediana_consolidada = FALSE,
+                                  columnas_distintos = NULL,
                                   columnas_moda = NULL,
-                                  columnas_mediana = NULL) {
+                                  columnas_moda_max = NULL,
+                                  columnas_mediana = NULL,
+                                  columnas_mediana_max = NULL) {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
   acota_con_salto <- !is.null(dialecto$limitar("SELECT 1", 1L, 1))
-  n_lotes <- function(n) if (n > 0) ceiling(n / tamano_lote) else 0
-  tamanos_lotes <- function(n) {
+  n_lotes <- function(n, tamano) if (n > 0) ceiling(n / tamano) else 0
+  tamanos_lotes <- function(n, tamano) {
     if (n < 1) return(numeric())
-    cantidad <- n %/% tamano_lote
-    resto <- n %% tamano_lote
+    cantidad <- n %/% tamano
+    resto <- n %% tamano
     c(
-      rep(tamano_lote, cantidad),
+      rep(tamano, cantidad),
       if (resto > 0) resto else numeric()
     )
   }
-  extra_biseccion <- function(n) {
-    sum(2 * tamanos_lotes(n) - 1)
+  extra_biseccion <- function(n, tamano) {
+    sum(2 * tamanos_lotes(n, tamano) - 1)
   }
   columnas_planas <- if ("validos" %in% metricas) n_columnas else n_numericas
   hay_planos <- any(c("validos", "basicos", "desvio") %in% metricas) &&
     columnas_planas > 0
   mide_metricas <- !identical(modo, "muestreado") || isTRUE(muestreo_disponible)
   n_metricas <- function(valor) if (mide_metricas) valor else 0
+  n_distintos <- if (is.null(columnas_distintos)) n_columnas else {
+    length(columnas_distintos)
+  }
   n_moda <- if (is.null(columnas_moda)) n_columnas else length(columnas_moda)
+  n_moda_max <- if (is.null(columnas_moda_max)) n_moda else {
+    length(columnas_moda_max)
+  }
   n_mediana <- if (is.null(columnas_mediana)) n_numericas else {
     length(columnas_mediana)
+  }
+  n_mediana_max <- if (is.null(columnas_mediana_max)) n_mediana else {
+    length(columnas_mediana_max)
   }
   alcance_agregado <- if (identical(modo, "muestreado")) {
     "lee una muestra del motor"
@@ -3747,22 +4037,27 @@
     "escanea la tabla completa"
   }
   clases <- list(c(
-    "portones (conteo, esquema y sondas)", emitidas, "una vez"
+    "portones (esquema y sondas)", emitidas, "una vez"
   ))
-  if ("distintos" %in% metricas) {
-    clases[[length(clases) + 1L]] <- c(
-      "distintos por lotes (clase separada)",
-      n_metricas(n_lotes(n_columnas)), alcance_agregado
-    )
-  }
   if (hay_planos) {
-    n_planos <- n_lotes(columnas_planas)
+    n_planos <- n_lotes(columnas_planas, tamano_lote_planos)
     if ("desvio" %in% metricas && n_numericas > 0) {
       n_planos <- n_planos + .PEAJE_FORMA_DESVIO
     }
     clases[[length(clases) + 1L]] <- c(
       "agregados planos por lotes (COUNT + MIN/MAX/AVG/SUM CASE + desvio)",
       n_metricas(n_planos), alcance_agregado
+    )
+  }
+  if (!hay_planos) {
+    clases[[length(clases) + 1L]] <- c(
+      "total exacto (COUNT)", 1, "escanea la tabla completa"
+    )
+  }
+  if ("distintos" %in% metricas && n_distintos > 0) {
+    clases[[length(clases) + 1L]] <- c(
+      "distintos por lotes (clase separada)",
+      n_metricas(n_lotes(n_distintos, tamano_lote_distintos)), alcance_agregado
     )
   }
   clases <- c(
@@ -3772,16 +4067,27 @@
         "moda (GROUP BY + orden + limite)",
         if ("moda" %in% metricas && con_valores) n_metricas(n_moda) else 0,
         if (identical(modo, "muestreado")) "lee una muestra del motor" else
-          "ordena o agrupa la tabla completa"
+          "ordena o agrupa la tabla completa",
+        if ("moda" %in% metricas && con_valores) n_metricas(n_moda_max) else 0
       ),
       c(
         "mediana (orden total + limite/salto)",
         if ("mediana" %in% metricas && con_valores && acota_con_salto) {
-          if (isTRUE(mediana_consolidada)) n_metricas(n_lotes(n_mediana)) else
+          if (isTRUE(mediana_consolidada)) {
+            n_metricas(n_lotes(n_mediana, tamano_lote_planos))
+          } else {
             n_metricas(n_mediana)
+          }
         } else 0,
         if (identical(modo, "muestreado")) "lee una muestra del motor" else
-          "ordena la tabla completa"
+          "ordena la tabla completa",
+        if ("mediana" %in% metricas && con_valores && acota_con_salto) {
+          if (isTRUE(mediana_consolidada)) {
+            n_metricas(n_lotes(n_mediana_max, tamano_lote_planos))
+          } else {
+            n_metricas(n_mediana_max)
+          }
+        } else 0
       ),
       c(
         "verificacion de unicidad del orden", if (con_orden) 1 else 0,
@@ -3798,9 +4104,12 @@
     clase_consulta = vapply(clases, function(x) x[[1L]], character(1L)),
     n_consultas = vapply(clases, function(x) as.numeric(x[[2L]]), numeric(1L)),
     alcance = vapply(clases, function(x) x[[3L]], character(1L)),
+    n_consultas_max = vapply(clases, function(x) {
+      if (length(x) >= 4L) as.numeric(x[[4L]]) else as.numeric(x[[2L]])
+    }, numeric(1L)),
     stringsAsFactors = FALSE
   )
-  plan <- plan[plan$n_consultas > 0, , drop = FALSE]
+  plan <- plan[plan$n_consultas > 0 | plan$n_consultas_max > 0, , drop = FALSE]
   rownames(plan) <- NULL
   # El total NO es un techo cuando el motor rechaza lotes. La biseccion vuelve a
   # sondear el grupo y puede recorrer el arbol hasta 2n - 1 nodos adicionales
@@ -3809,8 +4118,12 @@
   # sin suponer que todas las columnas individuales fallan.
   attr(plan, "extra_si_se_rechazan_lotes") <-
     n_metricas(
-      (if ("distintos" %in% metricas) extra_biseccion(n_columnas) else 0) +
-      (if (hay_planos) extra_biseccion(columnas_planas) else 0)
+      (if ("distintos" %in% metricas) {
+        extra_biseccion(n_distintos, tamano_lote_distintos)
+      } else 0) +
+      (if (hay_planos) {
+        extra_biseccion(columnas_planas, tamano_lote_planos)
+      } else 0)
     )
   plan
 }
@@ -3924,7 +4237,46 @@
     valor
   }
   filas <- numero(filas)
-  if (!nrow(plan) || is.na(filas)) return(vacio)
+  if (!nrow(plan)) return(vacio)
+  muestra_entera <- is.numeric(muestra) && length(muestra) == 1L &&
+    !is.na(muestra) && is.infinite(muestra) && muestra > 0
+  if (is.na(filas)) {
+    # Aunque el tamano de la tabla sea desconocido, una muestra finita pedida
+    # por el usuario acota el trabajo que ocurrira en R. La mitad del motor
+    # sigue desconocida; no se convierte esa incertidumbre en cero.
+    n_texto <- numero(columnas_texto)
+    if (is.na(n_texto)) n_texto <- 0
+    muestra_numero <- numero(muestra)
+    if (is.na(muestra_numero) && muestra_entera) muestra_numero <- NA_real_
+    max_pares_numero <- if (is.null(max_pares)) {
+      .max_pares_vocabulario_dbi()
+    } else numero(max_pares)
+    if (is.na(max_pares_numero)) max_pares_numero <- Inf
+    hay_bloque_cliente <- any(plan$alcance %in% .ALCANCE_BLOQUE_CLIENTE_DBI)
+    pares <- if (!hay_bloque_cliente) {
+      0
+    } else if (is.finite(muestra_numero)) {
+      n_texto * min(muestra_numero * (muestra_numero - 1) / 2,
+                    max_pares_numero)
+    } else {
+      NA_real_
+    }
+    if (!is.na(pares) && is.finite(pares)) {
+      magnitud_texto <- if (pares < .UMBRAL_PARES_MEDIO_DBI) {
+        "baja"
+      } else if (pares < .UMBRAL_PARES_ALTO_DBI) {
+        "media"
+      } else {
+        "alta"
+      }
+    } else {
+      magnitud_texto <- "desconocida"
+    }
+    vacio$columnas_texto <- n_texto
+    vacio$pares_texto <- pares
+    vacio$magnitud_texto <- magnitud_texto
+    return(vacio)
+  }
   # `muestra = Inf` no es un valor invalido: es "la tabla entera", y es el valor
   # por omision. `numero()` rechaza lo no finito -- bien para `filas` y para los
   # conteos, que con `Inf` hacian NaN --, asi que aca hay que traducirlo antes de
@@ -3933,8 +4285,6 @@
   # `muestra = filas` pidiendo exactamente las mismas filas, y caia en magnitud
   # "baja", que es la que no imprime palancas. Medido sobre 200.000 x 4:
   # 400.000 lecturas y 0 pares contra 600.000 y 4.000.000.
-  muestra_entera <- is.numeric(muestra) && length(muestra) == 1L &&
-    !is.na(muestra) && is.infinite(muestra) && muestra > 0
   muestra <- numero(muestra)
   if (is.na(muestra)) muestra <- if (muestra_entera) filas else 0
   # Y se acota una sola vez, aca, por el mismo motivo. Pedir mas filas de las
@@ -4027,41 +4377,43 @@
 
 #' Planificar el costo de `perfilar_dbi()` antes de pagarlo
 #'
-#' Emite las consultas-portón —contar filas, leer el esquema y sondear el
-#' dialecto— y devuelve cuántas consultas emitiría el perfilado completo, de
-#' qué clase y con qué alcance sobre la tabla. Con `politica_costo = "por_cardinalidad"`
-#' también hace primero las consultas baratas de válidos y distintos para
-#' decidir qué columnas pasan a moda y mediana. El plan hace visible cuántos
-#' lotes de agregados se emitirán antes de empezar y evita una sorpresa de costo.
-#' El conteo que paga el plan es necesario para estimar el trabajo antes de
-#' ejecutar los agregados; durante una corrida normal, el total exacto viaja en
-#' la primera consulta de agregados y no se vuelve a contar como una consulta
-#' separada del perfil. Las fuentes `TABLESAMPLE` que necesitan el total para
-#' construir un porcentaje lo cuentan antes. Si una consulta de agregados no
-#' acepta el lote, el perfil conserva un conteo exacto independiente y sigue con
-#' la bisección.
+#' Emite sólo consultas de preparación —leer el esquema y sondear capacidades—
+#' y devuelve cuántas consultas emitiría el perfilado completo, de qué clase y
+#' con qué alcance sobre la tabla. No escanea datos para decidir el costo.
+#' Cuando `politica_costo = "por_cardinalidad"`, una clave estructural exacta
+#' puede cerrar la decisión; si no hay una fuente de catálogo utilizable, el
+#' plan publica el rango entre omitir y ejecutar las métricas caras. Nunca
+#' lanza `COUNT(DISTINCT ...)` para despejar esa incertidumbre.
+#'
+#' `estrategia_distintos` separa la métrica que se publica de
+#' `fuente_cardinalidad_costo`, que dice de dónde sale el número usado para
+#' decidir. Por eso se puede omitir `n_distintos` del resultado y usar una clave
+#' declarada o una fuente de catálogo para decidir si conviene la moda. La
+#' corrida sigue la política explícita y reutiliza la medición de distintos una
+#' sola vez cuando la necesita.
 #'
 #' @inheritParams perfilar_dbi
-#' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas-portón
-#'   y, con `politica_costo = "por_cardinalidad"`, las consultas baratas que el
-#'   plan necesita leer para conocer el esquema, las capacidades del motor y
-#'   la cardinalidad. No agrega mediciones al objeto devuelto: sus costos
-#'   siguen siendo predicciones. Por omisión es `FALSE`.
+#' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
+#'   preparación. No habilita consultas de datos ni agrega mediciones al objeto
+#'   devuelto: sus costos siguen siendo predicciones. Por omisión es `FALSE`.
 #'
 #' @return Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
-#'   `n_consultas` y `alcance`, y los atributos `total`,
-#'   `total_lotes_rechazados`, `columnas`, `columnas_numericas`, `dialecto`,
-#'   `consultas_emitidas`, `metricas`, `metricas_ejecucion`,
-#'   `politica_costo`, `mediana_consolidada`, `filas` y `tamano_lote`. Cuando se pide
+#'   `n_consultas`, `n_consultas_max` y `alcance`, y los atributos `total`,
+#'   `total_minimo`, `total_maximo`, `total_lotes_rechazados`, `columnas`,
+#'   `columnas_numericas`, `dialecto`, `consultas_emitidas`, `metricas`,
+#'   `metricas_ejecucion`, `politica_costo`, `estrategia_distintos`,
+#'   `fuente_cardinalidad_costo`, `mediana_consolidada`, `filas`,
+#'   `tamano_lote_planos` y `tamano_lote_distintos`. Cuando se pide
 #'   `bloque_muestra = "solo_agregados"`, también conserva ese valor en el
 #'   atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
 #'
 #'   El costo no se declara como un número sino como un rango: `total` es el
-#'   extremo inferior, alcanzado si el motor no rechaza ningún lote, y
-#'   `total_lotes_rechazados` el superior, alcanzado si todos los lotes se
-#'   rechazan y se recorre el árbol completo de bisección. El costo real cae
-#'   entre los dos, y `attr(plan, "supuesto")` dice por qué se mueve en cada
-#'   dirección.
+#'   extremo inferior, que supone que la política omite las métricas caras cuya
+#'   cardinalidad no se conoce, y `total_maximo` el superior, que supone que las
+#'   ejecuta. Ambos incluyen la preparación y el perfilado previsto; el rechazo
+#'   de lotes puede agregar las sondas de bisección declaradas por
+#'   `total_lotes_rechazados`. El costo real cae entre los extremos, y
+#'   `attr(plan, "supuesto")` dice por qué se mueve en cada dirección.
 #'
 #'   Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 #'   sobre dos millones de filas son mucho más trabajo que doscientas sobre
@@ -4080,11 +4432,12 @@
 #'   El plan no publica duraciones, CPU, filas ni bytes medidos: sus campos de
 #'   costo siguen siendo predicciones basadas en los supuestos anteriores.
 #'
-#'   Si se pide `politica_costo = "por_cardinalidad"`, el plan hace primero las
-#'   consultas baratas de válidos y distintos. Después decide por columna si
-#'   emite moda y mediana según `umbral_cardinalidad`. La política por omisión
-#'   es `"todas"`: el paquete no elige por el usuario. `attr(plan,
-#'   "politica_costo")` conserva la decisión y el umbral.
+#'   Si se pide `politica_costo = "por_cardinalidad"`, el plan busca primero una
+#'   garantía estructural o una fuente de catálogo. Si la fuente queda
+#'   desconocida, no emite un agregado para aclararla: `n_consultas` omite moda
+#'   y mediana, y `n_consultas_max` deja abierto el camino que las ejecuta. La
+#'   corrida mide `distintos` sólo si la política lo necesita. La política por
+#'   omisión es `"todas"`: el paquete no elige por el usuario.
 #'
 #'   Contar sólo el motor daba juicios falsos con números ciertos: una tabla de
 #'   3.912 filas con una columna de geometría en texto pedía 64.592 lecturas
@@ -4110,18 +4463,24 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
                                          "muestreado", "aproximado"),
                                metricas = NULL, max_consultas = Inf,
                                dialecto = "auto", incluir_valores = TRUE,
-                               tamano_lote = .TAMANO_LOTE_DBI,
+                               tamano_lote = NULL,
+                               tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
+                               tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
                                bloque_muestra = c("con_muestra", "solo_agregados"),
                                instrumentar = FALSE,
-                               politica_costo = c("todas", "por_cardinalidad",
-                                                   "cardinalidad"),
+                               politica_costo = c("todas", "ninguna",
+                                                   "por_cardinalidad", "cardinalidad"),
                                umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI) {
   preparacion <- .preparar_dbi(
     conexion = conexion, tabla = tabla, muestra = muestra,
     orden_muestra = orden_muestra, modo = modo, metricas = metricas,
     max_consultas = max_consultas, dialecto = dialecto,
-    tamano_lote = tamano_lote, bloque_muestra = bloque_muestra,
-    instrumentar = instrumentar, contar = TRUE,
+    tamano_lote = tamano_lote,
+    tamano_lote_planos = tamano_lote_planos,
+    tamano_lote_distintos = tamano_lote_distintos,
+    bloque_muestra = bloque_muestra, instrumentar = instrumentar,
+    contar = FALSE, contar_muestreo = FALSE,
+    sondar_muestreo = FALSE,
     incluir_valores = incluir_valores, politica_costo = politica_costo,
     umbral_cardinalidad = umbral_cardinalidad
   )
@@ -4131,96 +4490,119 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
       if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else NA_character_
     )
   }, logical(1L))
-  decisiones_costo <- NULL
-  tabla_metricas_plan <- preparacion$tabla_sql
   consultas_antes_agregados <- preparacion$presupuesto$usadas
-  if (identical(preparacion$modo, "muestreado") &&
-      !is.null(preparacion$muestreo) &&
-      isTRUE(preparacion$muestreo$disponible)) {
-    fuente_plan <- .fuente_muestreada_dbi(
-      preparacion$tabla_sql, preparacion$campos_sql, preparacion$muestra,
-      preparacion$n_total, preparacion$dialecto, preparacion$muestreo
-    )
-    if (!is.null(fuente_plan)) {
-      tabla_metricas_plan <- paste0(
-        "(", fuente_plan$sql, ")",
-        preparacion$dialecto$alias_tabla("lupa_muestra")
+  # La corrida real cuenta el universo antes de construir un porcentaje para
+  # TABLESAMPLE. El plan no ejecuta ese COUNT(*), pero si debe publicarlo en la
+  # cantidad prevista para que su total siga coincidiendo con la corrida.
+  muestreo_plan <- identical(preparacion$modo, "muestreado") &&
+    !is.null(preparacion$muestreo) &&
+    !is.null(preparacion$muestreo$candidato)
+  emitidas_plan <- consultas_antes_agregados +
+    if (isTRUE(muestreo_plan)) {
+      sondas_muestreo <- if (is.null(preparacion$muestreo$sondas_previstas)) {
+        length(preparacion$muestreo$sondas)
+      } else {
+        preparacion$muestreo$sondas_previstas
+      }
+      conteo_muestreo <- identical(
+        preparacion$muestreo$candidato$tipo, "tablesample"
       )
+      as.integer(sondas_muestreo) + as.integer(conteo_muestreo)
+    } else {
+      0L
     }
-  }
+  # El plan no consulta la tabla para despejar la cardinalidad. Un catalogo
+  # estructural ya leido puede fijar la decision; lo demas abre un rango entre
+  # omitir y ejecutar las metricas caras. La corrida medira lo que la politica
+  # explicita necesite, una sola vez.
+  decisiones_costo <- .decisiones_costo_dbi(
+    conexion, preparacion$campos,
+    list(conteos = stats::setNames(
+      vector("list", length(preparacion$campos)), preparacion$campos
+    )),
+    preparacion$politica_costo, preparacion$n_total, preparacion$modo,
+    fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo
+  )
+  columnas_moda_plan <- NULL
+  columnas_moda_max <- NULL
+  columnas_mediana_plan <- NULL
+  columnas_mediana_max <- NULL
   if (identical(preparacion$politica_costo$nombre, "por_cardinalidad") &&
       isTRUE(incluir_valores) &&
       any(.METRICAS_COSTOSAS_DBI %in% preparacion$metricas)) {
-    metricas_baratas <- setdiff(
-      preparacion$metricas_ejecucion, .METRICAS_COSTOSAS_DBI
+    desconocidas <- vapply(
+      preparacion$fuentes_cardinalidad_costo,
+      function(x) identical(x$nombre, "desconocida"), logical(1L)
     )
-    agregados_plan <- .agregados_consolidados_dbi(
-      conexion, tabla_metricas_plan, preparacion$campos,
-      preparacion$campos_sql, preparacion$es_numerico, metricas_baratas,
-      incluir_valores, preparacion$presupuesto, preparacion$tamano_lote,
-      aproximacion_distintos = preparacion$aproximaciones$distintos,
-      tabla_total_sql = preparacion$tabla_sql,
-      conteo_inicial = preparacion$conteo
-    )
-    decisiones_costo <- .decisiones_costo_dbi(
-      conexion, preparacion$campos, agregados_plan,
-      preparacion$politica_costo, agregados_plan$n_total, preparacion$modo
-    )
-  }
-  columnas_moda_plan <- if (is.null(decisiones_costo)) NULL else {
-    names(decisiones_costo)[vapply(
-      decisiones_costo, function(x) isTRUE(x$moda), logical(1L)
-    )]
-  }
-  columnas_mediana_plan <- if (is.null(decisiones_costo)) NULL else {
-    names(decisiones_costo)[vapply(
-      decisiones_costo, function(x) isTRUE(x$mediana), logical(1L)
-    )]
-  }
-  if (!is.null(columnas_mediana_plan)) {
-    columnas_mediana_plan <- intersect(
-      columnas_mediana_plan, preparacion$campos[preparacion$es_numerico]
-    )
+    if ("moda" %in% preparacion$metricas) {
+      columnas_moda_plan <- preparacion$campos[
+        vapply(decisiones_costo, function(x) isTRUE(x$moda), logical(1L)) &
+          !desconocidas
+      ]
+      columnas_moda_max <- unique(c(
+        columnas_moda_plan, preparacion$campos[desconocidas]
+      ))
+    } else {
+      columnas_moda_plan <- character()
+      columnas_moda_max <- character()
+    }
+    if ("mediana" %in% preparacion$metricas) {
+      columnas_mediana_plan <- preparacion$campos[
+        vapply(decisiones_costo, function(x) isTRUE(x$mediana), logical(1L)) &
+          !desconocidas
+      ]
+      columnas_mediana_plan <- intersect(
+        columnas_mediana_plan, preparacion$campos[preparacion$es_numerico]
+      )
+      columnas_mediana_max <- unique(c(
+        columnas_mediana_plan,
+        preparacion$campos[desconocidas & preparacion$es_numerico]
+      ))
+    } else {
+      columnas_mediana_plan <- character()
+      columnas_mediana_max <- character()
+    }
   }
   plan <- .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
     length(preparacion$orden_sql) > 0 &&
       identical(preparacion$bloque_muestra, "con_muestra"), preparacion$dialecto,
-    # El plan acaba de pagar el COUNT(*) para conocer las filas. En la corrida
-    # normal ese mismo total viaja en el primer agregado; no se vuelve a sumar
-    # como consulta del perfil, aunque el plan siga pagando su recorrido.
-    emitidas = consultas_antes_agregados -
-      if (isTRUE(preparacion$conteo_fusionable)) 1 else 0,
+    # Solo se cuentan aqui las consultas de preparacion. No hay un COUNT(*)
+    # propio: el total se conocera en la corrida y viajara con el primer
+    # agregado plano que pueda llevarlo.
+    emitidas = emitidas_plan,
     modo = preparacion$modo,
     muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
       preparacion$muestreo$disponible,
-    tamano_lote = preparacion$tamano_lote,
+    tamano_lote_planos = preparacion$tamano_lote_planos,
+    tamano_lote_distintos = preparacion$tamano_lote_distintos,
     incluir_muestra = identical(preparacion$bloque_muestra, "con_muestra"),
     mediana_consolidada = !is.null(preparacion$mediana_consolidada),
+    columnas_distintos = preparacion$columnas_distintos_ejecucion,
     columnas_moda = columnas_moda_plan,
-    columnas_mediana = columnas_mediana_plan
+    columnas_moda_max = columnas_moda_max,
+    columnas_mediana = columnas_mediana_plan,
+    columnas_mediana_max = columnas_mediana_max
   )
   attr(plan, "total") <- sum(plan$n_consultas)
   extra <- attr(plan, "extra_si_se_rechazan_lotes", exact = TRUE)
   if (is.null(extra)) extra <- 0
-  attr(plan, "total_lotes_rechazados") <- sum(plan$n_consultas) + extra
+  attr(plan, "total_minimo") <- sum(plan$n_consultas)
+  attr(plan, "total_maximo") <- sum(plan$n_consultas_max) + extra
+  attr(plan, "total_lotes_rechazados") <- attr(plan, "total_maximo")
   attr(plan, "extra_si_se_rechazan_lotes") <- NULL
-  # El total es un RANGO, no una prediccion exacta ni un techo, y conviene que lo
-  # diga. Hacia abajo: el plan cuenta una mediana y un desvio por columna
-  # numerica, y una columna sin un solo valor valido no los emite; el plan no
-  # puede saber cuales estan vacias sin preguntarlo, y preguntarlo cambiaria su
-  # propio costo. Hacia arriba: un lote rechazado vuelve a sondear su arbol de
-  # biseccion, hasta 2n - 1 sondas adicionales para n columnas.
+  # El total es un RANGO, no una prediccion exacta ni un techo. Ademas de las
+  # sondas por rechazo de lotes, la cardinalidad desconocida deja abiertas las
+  # metricas caras que la politica puede omitir despues de medir.
   attr(plan, "supuesto") <- paste(
-    "El total vale si ningun lote se rechaza, y puede moverse en las dos",
-    "direcciones. Hacia abajo: se cuenta una mediana y un desvio por columna",
-    "numerica, y una columna sin valores validos no los emite; el plan no",
-    "consulta cuantos validos hay para no cambiar su propio costo. Hacia",
-    "arriba: si el motor rechaza un lote de columnas, se vuelve a sondear el",
-    "arbol de biseccion; puede haber hasta 2n - 1 sondas adicionales para un",
-    "lote de n columnas, y las respuestas aceptadas se reutilizan como datos.",
-    "`total_lotes_rechazados` es el otro extremo, con todos los lotes",
-    "rechazados y sus arboles recorridos; el costo real cae entre los dos."
+    "El plan no escanea datos para decidir el costo. Cuando la fuente de",
+    "cardinalidad es desconocida, `total` supone que la politica omite las",
+    "metricas caras y `total_maximo` que las ejecuta; la corrida mide",
+    "`distintos` si la politica lo necesita y sigue esa decision.",
+    "Las fuentes estructurales exactas cierran ese intervalo. En cualquiera",
+    "de los dos extremos, si el motor rechaza un lote se vuelve a sondear el",
+    "arbol de biseccion, hasta 2n - 1 consultas adicionales por lote; las",
+    "respuestas aceptadas se reutilizan."
   )
   attr(plan, "columnas") <- length(preparacion$campos)
   attr(plan, "columnas_numericas") <- sum(es_numerico)
@@ -4230,12 +4612,17 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "metricas") <- preparacion$metricas
   attr(plan, "metricas_ejecucion") <- preparacion$metricas_ejecucion
   attr(plan, "politica_costo") <- preparacion$politica_costo
+  attr(plan, "estrategia_distintos") <- preparacion$estrategia_distintos
+  attr(plan, "fuente_cardinalidad_costo") <-
+    preparacion$fuentes_cardinalidad_costo
   attr(plan, "mediana_consolidada") <- preparacion$mediana_consolidada_resolucion
   attr(plan, "filas") <- preparacion$n_total
   attr(plan, "muestra") <- if (identical(
     preparacion$bloque_muestra, "con_muestra"
   )) preparacion$muestra else NA_real_
-  attr(plan, "tamano_lote") <- preparacion$tamano_lote
+  attr(plan, "tamano_lote") <- preparacion$tamano_lote_planos
+  attr(plan, "tamano_lote_planos") <- preparacion$tamano_lote_planos
+  attr(plan, "tamano_lote_distintos") <- preparacion$tamano_lote_distintos
   if (identical(preparacion$bloque_muestra, "solo_agregados")) {
     attr(plan, "bloque_muestra") <- preparacion$bloque_muestra
   }
@@ -4319,6 +4706,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
       "No se pudo estimar el trabajo: falta el n\u00famero de filas.",
       "El conteo de consultas sigue siendo v\u00e1lido."
     ))
+    supuesto_costo <- attr(x, "supuesto_costo", exact = TRUE)
+    if (!is.null(supuesto_costo)) cli::cli_text(supuesto_costo)
+    techo <- attr(x, "supuesto", exact = TRUE)
+    if (!is.null(techo)) cli::cli_text(techo)
   } else {
     trabajo <- paste0(
       .miles_dbi(attr(x, "filas_leidas", exact = TRUE)), " lecturas de fila y ",
@@ -4703,7 +5094,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
       motivo = "No se declaro `orden_muestra`; SQL no garantiza el orden de las filas."
     )
   }
-  n_obtener <- min(.numero_dbi(n_total), muestra)
+  total_numero <- .numero_dbi(n_total)
+  total_conocido <- length(total_numero) == 1L &&
+    !is.na(total_numero) && is.finite(total_numero)
+  n_obtener <- if (total_conocido) min(total_numero, muestra) else muestra
   usa_muestreo <- !is.null(muestreo) && isTRUE(muestreo$disponible)
   # La receta de la lectura estaba escrita una sola vez y el reintento la
   # rehacia a mano, asi que perdia por el camino el muestreo del motor: volvia a
@@ -4732,7 +5126,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }
     recorte <- if (!is.null(origen)) {
       NULL
-    } else if (muestra < .numero_dbi(n_total)) {
+    } else if (!total_conocido || muestra < total_numero) {
       dialecto$limitar(base, muestra, 0)
     } else {
       NULL
@@ -4742,7 +5136,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       sql = if (is.null(recorte)) base else recorte,
       filas = if (!is.null(origen)) {
         origen$filas
-      } else if (is.null(recorte) && muestra < .numero_dbi(n_total)) {
+      } else if (is.null(recorte) && (!total_conocido || muestra < total_numero)) {
         muestra
       } else {
         -1L
@@ -4751,7 +5145,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
         "motor_muestreo"
       } else if (!is.null(recorte)) {
         "motor"
-      } else if (muestra < .numero_dbi(n_total)) {
+      } else if (!total_conocido || muestra < total_numero) {
         "cliente"
       } else {
         "sin recorte"
@@ -5064,11 +5458,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # ---- Portones ------------------------------------------------------------
 
 .preparar_dbi <- function(conexion, tabla, muestra, orden_muestra, modo,
-                          metricas, max_consultas, dialecto, tamano_lote,
+                          metricas, max_consultas, dialecto, tamano_lote = NULL,
+                          tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
+                          tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
                           bloque_muestra, instrumentar = TRUE,
                           contar = TRUE, incluir_valores = TRUE,
                           politica_costo = "todas",
-                          umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI) {
+                          umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
+                          contar_muestreo = TRUE,
+                          sondar_muestreo = TRUE) {
   .requerir_dbi()
   modo <- match.arg(
     modo, c("exacto", "seguro", "conteos", "muestreado", "aproximado")
@@ -5091,7 +5489,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
     metricas_solicitadas, politica_costo, incluir_valores
   )
   max_consultas <- .validar_max_consultas_dbi(max_consultas)
-  tamano_lote <- .validar_tamano_lote_dbi(tamano_lote)
+  tamanos_lote <- .resolver_tamanos_lote_dbi(
+    tamano_lote, tamano_lote_planos, tamano_lote_distintos
+  )
   if (!is.logical(instrumentar) || length(instrumentar) != 1L ||
       is.na(instrumentar)) {
     .detener_dbi(
@@ -5219,10 +5619,46 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }, logical(1L))
   muestreo <- NULL
   if (identical(modo, "muestreado")) {
-    muestreo <- .sondar_muestreo_dbi(
-      conexion, tabla_sql, resolucion$dialecto, presupuesto
-    )
+    if (isTRUE(sondar_muestreo)) {
+      muestreo <- .sondar_muestreo_dbi(
+        conexion, tabla_sql, resolucion$dialecto, presupuesto
+      )
+      muestreo$sondas_previstas <- length(muestreo$sondas)
+    } else {
+      # Elegir una candidata por las senas del motor no comprueba que funcione:
+      # el plan no puede pagar una sonda que ya lee la tabla solo para saberlo.
+      # Publica las sondas que la corrida intentara y deja la verificacion para
+      # la corrida; si fallan, el resultado se degrada como cualquier capacidad.
+      candidatos <- .candidatos_muestreo_dbi(conexion, resolucion$dialecto)
+      muestreo <- list(
+        disponible = length(candidatos) > 0L,
+        candidato = if (length(candidatos)) candidatos[[1L]] else NULL,
+        sondas = character(),
+        sondas_previstas = .sondas_muestreo_previstas_dbi(candidatos),
+        motivo = "La capacidad de muestreo queda sin sondear hasta la corrida."
+      )
+    }
   }
+  estrategia_distintos <- .estrategia_distintos_dbi(
+    metricas_solicitadas, politica_costo, incluir_valores
+  )
+  fuentes_cardinalidad_costo <- .fuentes_cardinalidad_vacias_dbi(campos)
+  catalogo_cardinalidad <- NULL
+  if (isTRUE(estrategia_distintos$para_costo)) {
+    fuentes <- .resolver_fuentes_cardinalidad_dbi(
+      conexion, tabla, campos, estrategia_distintos, presupuesto
+    )
+    fuentes_cardinalidad_costo <- fuentes$fuentes
+    catalogo_cardinalidad <- fuentes$catalogo
+  }
+  fuentes_no_exactas <- vapply(
+    fuentes_cardinalidad_costo,
+    function(x) !isTRUE(x$exacta), logical(1L)
+  )
+  estrategia_distintos$requiere_medicion <-
+    (isTRUE(estrategia_distintos$publica) &&
+       (identical(modo, "muestreado") || any(fuentes_no_exactas))) ||
+    (isTRUE(estrategia_distintos$para_costo) && any(fuentes_no_exactas))
   aproximaciones <- list()
   aproximaciones_resolucion <- list()
   mediana_consolidada_resolucion <- NULL
@@ -5274,7 +5710,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # el total antes de poder escribir su porcentaje; ese es el unico camino de
   # una corrida que paga el porton por adelantado para no cambiar su muestra.
   contar_adelante <- isTRUE(contar) || (
-    identical(modo, "muestreado") && !is.null(muestreo) &&
+    isTRUE(contar_muestreo) && identical(modo, "muestreado") &&
+      !is.null(muestreo) &&
       !is.null(muestreo$candidato) &&
       identical(muestreo$candidato$tipo, "tablesample")
   )
@@ -5302,13 +5739,27 @@ print.plan_perfilado_dbi <- function(x, ...) {
     any(metricas %in% c("validos", "distintos")) ||
       any(es_numerico) && any(metricas %in% c("basicos", "desvio"))
   )
+  columnas_distintos_ejecucion <- if ("distintos" %in% metricas) {
+    if (isTRUE(estrategia_distintos$publica)) {
+      campos
+    } else {
+      campos[vapply(
+        fuentes_cardinalidad_costo,
+        function(x) !isTRUE(x$exacta), logical(1L)
+      )]
+    }
+  } else {
+    character()
+  }
   list(
     modo = modo, metricas = metricas_solicitadas,
     metricas_ejecucion = metricas, muestra = muestra,
     bloque_muestra = bloque_muestra,
     max_consultas = max_consultas, presupuesto = presupuesto,
     instrumentar = isTRUE(instrumentar),
-    tamano_lote = tamano_lote,
+    tamano_lote = tamanos_lote$planos,
+    tamano_lote_planos = tamanos_lote$planos,
+    tamano_lote_distintos = tamanos_lote$distintos,
     tabla_sql = tabla_sql, campos = campos, campos_sql = esquema$campos_sql,
     prototipo = prototipo, tipos = esquema$tipos, esquema = esquema,
     es_numerico = es_numerico, muestreo = muestreo,
@@ -5317,6 +5768,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
     mediana_consolidada = mediana_consolidada,
     mediana_consolidada_resolucion = mediana_consolidada_resolucion,
     politica_costo = politica_costo,
+    estrategia_distintos = estrategia_distintos,
+    fuentes_cardinalidad_costo = fuentes_cardinalidad_costo,
+    catalogo_cardinalidad = catalogo_cardinalidad,
+    columnas_distintos_ejecucion = columnas_distintos_ejecucion,
     n_total = n_total, conteo = conteo, sql_conteo = sql_conteo,
     conteo_fusionable = hay_agregados_fusionables && !(
       identical(modo, "muestreado") && !is.null(muestreo) &&
@@ -5406,9 +5861,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @section Costo:
 #' Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo que
 #' se trae a R, no el trabajo del motor. `bloque_muestra` decide si se trae esa
-#' muestra; `modo`, `metricas`, `tamano_lote` y `max_consultas` acotan el trabajo
-#' SQL. [plan_perfilado_dbi()] dice cuántas consultas se van a emitir antes de
-#' emitirlas. Los agregados planos sobre la misma tabla y filtro —`COUNT(col)`,
+#' muestra; `modo`, `metricas`, `tamano_lote_planos`, `tamano_lote_distintos` y
+#' `max_consultas` acotan el trabajo SQL. [plan_perfilado_dbi()] dice cuántas
+#' consultas se van a emitir antes de emitirlas. El orden de degradación es
+#' agregados planos, total exacto fusionado, distintos, moda y mediana. Los
+#' agregados planos sobre la misma tabla y filtro —`COUNT(col)`,
 #' mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
 #' por lote; cuando la fuente no necesita el total por adelantado, la primera
 #' consulta de agregados lleva además el `COUNT(*)` exacto con el alias
@@ -5418,7 +5875,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' por métrica. El denominador de completitud nunca se estima a partir de un
 #' catálogo ni de un lote parcial. Las fuentes `TABLESAMPLE` que necesitan el
 #' total para escribir un porcentaje lo cuentan antes y no reclaman este ahorro.
-#' `COUNT(DISTINCT ...)` queda en una clase separada.
+#' `COUNT(DISTINCT ...)` queda en una clase separada y usa su propio tamaño de
+#' lote, conservador por omisión porque una cardinalidad puede derramar mucho
+#' más que veinte agregados planos.
 #' Lo que no entra en el presupuesto queda en `no_disponible` con su motivo,
 #' nunca en cero. `meta$tamano_lote_funciono` conserva el mayor lote aceptado
 #' durante esa corrida; no se guarda estado global asociado a la conexión.
@@ -5504,8 +5963,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @param max_consultas Presupuesto declarado de consultas. Al agotarse, las
 #'   métricas restantes quedan en `no_disponible` con ese motivo.
 #' @param tamano_lote Cantidad máxima de columnas por consulta consolidada.
-#'   Veinte mantiene acotado el número de expresiones y se puede reducir para
-#'   motores con límites más estrictos.
+#'   Se conserva por compatibilidad y, si se informa, fija el tamaño de las dos
+#'   familias. Para control separado, usar `tamano_lote_planos` y
+#'   `tamano_lote_distintos`.
+#' @param tamano_lote_planos Cantidad máxima de columnas por consulta de
+#'   agregados planos. El valor por omisión es 20.
+#' @param tamano_lote_distintos Cantidad máxima de columnas por consulta de
+#'   cardinalidades exactas. El valor por omisión es 1, deliberadamente
+#'   conservador hasta contar con mediciones comparables: una sola cardinalidad
+#'   puede forzar un agregado pesado y derramar mucho más que un lote plano.
 #' @param dialecto Capacidad de acotar filas: `"auto"` la sondea, y
 #'   `"limit"`, `"top"`, `"fetch_first"`, `"rownum"` o `"portable"` la
 #'   declaran sin sondeo.
@@ -5513,9 +5979,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   máximo y mediana. Con `FALSE` esas consultas no se emiten.
 #' @param politica_costo Política optativa para las métricas caras. El valor por
 #'   omisión, `"todas"`, conserva moda y mediana para todas las columnas
-#'   solicitadas. `"por_cardinalidad"` (también `"cardinalidad"`) mide primero
-#'   valores válidos y distintos y omite, por columna, moda y mediana cuando la
-#'   proporción de distintos alcanza `umbral_cardinalidad`.
+#'   solicitadas. `"ninguna"` es un alias de `"todas"`; `"por_cardinalidad"`
+#'   (también `"cardinalidad"`) mide primero valores válidos y distintos cuando
+#'   no hay una fuente exacta utilizable y omite, por columna, moda y mediana
+#'   cuando la proporción de distintos alcanza `umbral_cardinalidad`.
 #' @param umbral_cardinalidad Proporción entre valores distintos y válidos que
 #'   activa `politica_costo = "por_cardinalidad"`. El valor por omisión es `0.95`
 #'   sólo cuando esa política se pide explícitamente; se puede mover en cada
@@ -5561,19 +6028,24 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                                    "aproximado"),
                          metricas = NULL, max_consultas = Inf,
                          dialecto = "auto", incluir_valores = TRUE,
-                         tamano_lote = .TAMANO_LOTE_DBI,
+                         tamano_lote = NULL,
+                         tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
+                         tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
                          bloque_muestra = c("con_muestra", "solo_agregados"),
                          instrumentar = TRUE,
-                         politica_costo = c("todas", "por_cardinalidad",
-                                             "cardinalidad"),
+                         politica_costo = c("todas", "ninguna",
+                                             "por_cardinalidad", "cardinalidad"),
                          umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
                          ...) {
   preparacion <- .preparar_dbi(
     conexion = conexion, tabla = tabla, muestra = muestra,
     orden_muestra = orden_muestra, modo = modo, metricas = metricas,
     max_consultas = max_consultas, dialecto = dialecto,
-    tamano_lote = tamano_lote, bloque_muestra = bloque_muestra,
-    instrumentar = instrumentar, contar = FALSE,
+    tamano_lote = tamano_lote,
+    tamano_lote_planos = tamano_lote_planos,
+    tamano_lote_distintos = tamano_lote_distintos,
+    bloque_muestra = bloque_muestra, instrumentar = instrumentar, contar = FALSE,
+    contar_muestreo = TRUE,
     incluir_valores = incluir_valores, politica_costo = politica_costo,
     umbral_cardinalidad = umbral_cardinalidad
   )
@@ -5592,7 +6064,9 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     emitidas = presupuesto$usadas, modo = preparacion$modo,
     muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
       preparacion$muestreo$disponible,
-    tamano_lote = preparacion$tamano_lote,
+    tamano_lote_planos = preparacion$tamano_lote_planos,
+    tamano_lote_distintos = preparacion$tamano_lote_distintos,
+    columnas_distintos = preparacion$columnas_distintos_ejecucion,
     incluir_muestra = identical(preparacion$bloque_muestra, "con_muestra"),
     mediana_consolidada = !is.null(preparacion$mediana_consolidada)
   )
@@ -5606,8 +6080,8 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   # El plan ya dice cuantas consultas se van a emitir, asi que la barra avanza
   # contra un total conocido y no contra una estimacion. Se abre en el marco de
   # esta funcion para que viva lo que dure el perfilado y se cierre sola.
-  .abrir_progreso_dbi(
-    presupuesto, sum(plan$n_consultas), environment()
+    .abrir_progreso_dbi(
+    presupuesto, sum(plan$n_consultas_max), environment()
   )
 
   fuente_muestreada <- NULL
@@ -5675,10 +6149,13 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
      campos_consolidados = preparacion$campos,
      campos_sql_consolidados = preparacion$esquema$campos_sql,
      es_numerico_consolidados = preparacion$es_numerico,
-     tamano_lote = preparacion$tamano_lote,
-     conteo = preparacion$conteo,
-     mediana_consolidada = preparacion$mediana_consolidada,
-     politica_costo = preparacion$politica_costo
+    tamano_lote_planos = preparacion$tamano_lote_planos,
+    tamano_lote_distintos = preparacion$tamano_lote_distintos,
+    conteo = preparacion$conteo,
+    mediana_consolidada = preparacion$mediana_consolidada,
+    fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo,
+    estrategia_distintos = preparacion$estrategia_distintos,
+    politica_costo = preparacion$politica_costo
   )
   if (identical(preparacion$politica_costo$nombre, "por_cardinalidad")) {
     decisiones <- resumen$meta$decisiones_costo
@@ -5700,10 +6177,14 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
       modo = preparacion$modo,
       muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
         preparacion$muestreo$disponible,
-      tamano_lote = preparacion$tamano_lote,
+      tamano_lote_planos = preparacion$tamano_lote_planos,
+      tamano_lote_distintos = preparacion$tamano_lote_distintos,
+      columnas_distintos = preparacion$columnas_distintos_ejecucion,
       incluir_muestra = identical(preparacion$bloque_muestra, "con_muestra"),
       mediana_consolidada = !is.null(preparacion$mediana_consolidada),
-      columnas_moda = columnas_moda, columnas_mediana = columnas_mediana
+      columnas_moda = columnas_moda, columnas_moda_max = columnas_moda,
+      columnas_mediana = columnas_mediana,
+      columnas_mediana_max = columnas_mediana
     )
   }
   # En la corrida el conteo sale de la primera consulta de agregados. Desde
@@ -5747,11 +6228,20 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   resumen$meta$metricas <- preparacion$metricas
   resumen$meta$metricas_ejecucion <- preparacion$metricas_ejecucion
   resumen$meta$politica_costo <- preparacion$politica_costo
+  resumen$meta$estrategia_distintos <- preparacion$estrategia_distintos
+  resumen$meta$fuente_cardinalidad_costo <-
+    preparacion$fuentes_cardinalidad_costo
   resumen$meta$mediana_consolidada <-
     preparacion$mediana_consolidada_resolucion
   resumen$meta$incluir_valores <- incluir_valores
   resumen$meta$tamano_lote <- preparacion$tamano_lote
   resumen$meta$tamano_lote_funciono <- presupuesto$tamano_lote_funciono
+  resumen$meta$tamano_lote_planos <- preparacion$tamano_lote_planos
+  resumen$meta$tamano_lote_distintos <- preparacion$tamano_lote_distintos
+  resumen$meta$tamano_lote_planos_funciono <-
+    presupuesto$tamano_lote_planos_funciono
+  resumen$meta$tamano_lote_distintos_funciono <-
+    presupuesto$tamano_lote_distintos_funciono
   resumen$meta$instrumentacion <- list(
     activa = isTRUE(preparacion$instrumentar),
     unidad_duracion = "ms",

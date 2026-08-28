@@ -146,6 +146,41 @@ test_that("SQLite confirma la ausencia de clave cuando el catalogo si es visible
   expect_true(is.na(resultado$motivo))
 })
 
+test_that("la clave estructural decide sin publicar ni medir distintos", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbExecute(con, paste(
+    "CREATE TABLE tabla_clave (id TEXT NOT NULL PRIMARY KEY, valor INTEGER)"
+  ))
+  DBI::dbExecute(con, "INSERT INTO tabla_clave VALUES ('a', 1), ('b', 1)")
+
+  plan <- plan_perfilado_dbi(
+    con, "tabla_clave", metricas = "moda",
+    politica_costo = "por_cardinalidad", bloque_muestra = "solo_agregados"
+  )
+  fuente <- attr(plan, "fuente_cardinalidad_costo", exact = TRUE)$id
+  expect_identical(fuente$nombre, "clave_primaria_garantizada")
+  expect_false(attr(plan, "estrategia_distintos", exact = TRUE)$publica)
+  distintos <- plan[grepl("distintos por lotes", plan$clase_consulta), , drop = FALSE]
+  # `id` no entra en el lote: solo se mide `valor`, cuya fuente sigue siendo
+  # desconocida.
+  expect_equal(distintos$n_consultas, 1)
+
+  resultado <- perfilar_dbi(
+    con, "tabla_clave", metricas = "moda",
+    politica_costo = "por_cardinalidad", bloque_muestra = "solo_agregados",
+    proteger_datos_personales = FALSE
+  )
+  expect_true(all(is.na(resultado$resumen_tabla$columnas$n_distintos)))
+  n_distintos <- resultado$resumen_tabla$sql[
+    resultado$resumen_tabla$sql$metrica == "n_distintos", , drop = FALSE
+  ]
+  expect_true(all(n_distintos$estado == "no_solicitado"))
+  expect_false(resultado$resumen_tabla$meta$estrategia_distintos$publica)
+})
+
 # Que motores filtran `information_schema` por permisos NO se deduce del
 # parecido entre ellos: se midio contra contenedores reales el 2026-08-27,
 # creando un rol con solo `SELECT` sobre una tabla con clave primaria y

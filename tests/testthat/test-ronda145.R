@@ -28,8 +28,10 @@ test_that("solo_agregados no lee ni cobra el bloque de muestra", {
   expect_false(any(plan_solo$clase_consulta == "muestra"))
   expect_true(is.na(attr(plan_solo, "muestra", exact = TRUE)))
   expect_equal(attr(plan_solo, "bloque_muestra", exact = TRUE), "solo_agregados")
-  expect_lt(attr(plan_solo, "filas_leidas", exact = TRUE),
-            attr(plan_con, "filas_leidas", exact = TRUE))
+  expect_true(is.na(attr(plan_solo, "filas_leidas", exact = TRUE)))
+  expect_true(is.na(attr(plan_con, "filas_leidas", exact = TRUE)))
+  expect_lt(attr(plan_solo, "total", exact = TRUE),
+            attr(plan_solo, "total_maximo", exact = TRUE))
 
   resultado <- perfilar_dbi(
     con, "tabla145", modo = "conteos", muestra = 10L,
@@ -136,7 +138,8 @@ test_that("solo_agregados no cobra trabajo de R en ningun modo", {
 
   for (modo in c("exacto", "seguro", "conteos", "aproximado", "muestreado")) {
     solo <- plan_perfilado_dbi(
-      conexion, "t", modo = modo, bloque_muestra = "solo_agregados"
+      conexion, "t", modo = modo, muestra = 100L,
+      bloque_muestra = "solo_agregados"
     )
     expect_identical(
       attr(solo, "pares_texto", exact = TRUE), 0,
@@ -145,7 +148,8 @@ test_that("solo_agregados no cobra trabajo de R en ningun modo", {
     # Y con el bloque pedido, el mismo modo si los cuenta: la prueba caeria
     # tambien si alguien apagara el conteo para todos los casos.
     con <- plan_perfilado_dbi(
-      conexion, "t", modo = modo, bloque_muestra = "con_muestra"
+      conexion, "t", modo = modo, muestra = 100L,
+      bloque_muestra = "con_muestra"
     )
     expect_gt(attr(con, "pares_texto", exact = TRUE), 0)
   }

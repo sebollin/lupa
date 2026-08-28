@@ -14,10 +14,12 @@ plan_perfilado_dbi(
   max_consultas = Inf,
   dialecto = "auto",
   incluir_valores = TRUE,
-  tamano_lote = .TAMANO_LOTE_DBI,
+  tamano_lote = NULL,
+  tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
+  tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
   bloque_muestra = c("con_muestra", "solo_agregados"),
   instrumentar = FALSE,
-  politica_costo = c("todas", "por_cardinalidad", "cardinalidad"),
+  politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI
 )
 }
@@ -68,25 +70,33 @@ declaran sin sondeo.}
 máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
 
 \item{tamano_lote}{Cantidad máxima de columnas por consulta consolidada.
-Veinte mantiene acotado el número de expresiones y se puede reducir para
-motores con límites más estrictos.}
+Se conserva por compatibilidad y, si se informa, fija el tamaño de las dos
+familias. Para control separado, usar \code{tamano_lote_planos} y
+\code{tamano_lote_distintos}.}
+
+\item{tamano_lote_planos}{Cantidad máxima de columnas por consulta de
+agregados planos. El valor por omisión es 20.}
+
+\item{tamano_lote_distintos}{Cantidad máxima de columnas por consulta de
+cardinalidades exactas. El valor por omisión es 1, deliberadamente
+conservador hasta contar con mediciones comparables: una sola cardinalidad
+puede forzar un agregado pesado y derramar mucho más que un lote plano.}
 
 \item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
 omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
 lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
 alcance de esos agregados: eso lo decide \code{modo}.}
 
-\item{instrumentar}{En el plan, si es \code{TRUE}, cronometra las consultas-portón
-y, con \code{politica_costo = "por_cardinalidad"}, las consultas baratas que el
-plan necesita leer para conocer el esquema, las capacidades del motor y
-la cardinalidad. No agrega mediciones al objeto devuelto: sus costos
-siguen siendo predicciones. Por omisión es \code{FALSE}.}
+\item{instrumentar}{En el plan, si es \code{TRUE}, cronometra las consultas de
+preparación. No habilita consultas de datos ni agrega mediciones al objeto
+devuelto: sus costos siguen siendo predicciones. Por omisión es \code{FALSE}.}
 
 \item{politica_costo}{Política optativa para las métricas caras. El valor por
 omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
-solicitadas. \code{"por_cardinalidad"} (también \code{"cardinalidad"}) mide primero
-valores válidos y distintos y omite, por columna, moda y mediana cuando la
-proporción de distintos alcanza \code{umbral_cardinalidad}.}
+solicitadas. \code{"ninguna"} es un alias de \code{"todas"}; \code{"por_cardinalidad"}
+(también \code{"cardinalidad"}) mide primero valores válidos y distintos cuando
+no hay una fuente exacta utilizable y omite, por columna, moda y mediana
+cuando la proporción de distintos alcanza \code{umbral_cardinalidad}.}
 
 \item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
 activa \code{politica_costo = "por_cardinalidad"}. El valor por omisión es \code{0.95}
@@ -95,19 +105,22 @@ llamada. Para pedir todas las métricas use \code{politica_costo = "todas"}.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
-\code{n_consultas} y \code{alcance}, y los atributos \code{total},
-\code{total_lotes_rechazados}, \code{columnas}, \code{columnas_numericas}, \code{dialecto},
-\code{consultas_emitidas}, \code{metricas}, \code{metricas_ejecucion},
-\code{politica_costo}, \code{mediana_consolidada}, \code{filas} y \code{tamano_lote}. Cuando se pide
+\code{n_consultas}, \code{n_consultas_max} y \code{alcance}, y los atributos \code{total},
+\code{total_minimo}, \code{total_maximo}, \code{total_lotes_rechazados}, \code{columnas},
+\code{columnas_numericas}, \code{dialecto}, \code{consultas_emitidas}, \code{metricas},
+\code{metricas_ejecucion}, \code{politica_costo}, \code{estrategia_distintos},
+\code{fuente_cardinalidad_costo}, \code{mediana_consolidada}, \code{filas},
+\code{tamano_lote_planos} y \code{tamano_lote_distintos}. Cuando se pide
 \code{bloque_muestra = "solo_agregados"}, también conserva ese valor en el
 atributo \code{bloque_muestra} y no incluye la fila de la lectura de muestra.
 
 El costo no se declara como un número sino como un rango: \code{total} es el
-extremo inferior, alcanzado si el motor no rechaza ningún lote, y
-\code{total_lotes_rechazados} el superior, alcanzado si todos los lotes se
-rechazan y se recorre el árbol completo de bisección. El costo real cae
-entre los dos, y \code{attr(plan, "supuesto")} dice por qué se mueve en cada
-dirección.
+extremo inferior, que supone que la política omite las métricas caras cuya
+cardinalidad no se conoce, y \code{total_maximo} el superior, que supone que las
+ejecuta. Ambos incluyen la preparación y el perfilado previsto; el rechazo
+de lotes puede agregar las sondas de bisección declaradas por
+\code{total_lotes_rechazados}. El costo real cae entre los extremos, y
+\code{attr(plan, "supuesto")} dice por qué se mueve en cada dirección.
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre
@@ -126,10 +139,12 @@ en R el detector de vocabulario sobre la muestra— y se resume en
 El plan no publica duraciones, CPU, filas ni bytes medidos: sus campos de
 costo siguen siendo predicciones basadas en los supuestos anteriores.
 
-Si se pide \code{politica_costo = "por_cardinalidad"}, el plan hace primero las
-consultas baratas de válidos y distintos. Después decide por columna si
-emite moda y mediana según \code{umbral_cardinalidad}. La política por omisión
-es \code{"todas"}: el paquete no elige por el usuario. \code{attr(plan, "politica_costo")} conserva la decisión y el umbral.
+Si se pide \code{politica_costo = "por_cardinalidad"}, el plan busca primero una
+garantía estructural o una fuente de catálogo. Si la fuente queda
+desconocida, no emite un agregado para aclararla: \code{n_consultas} omite moda
+y mediana, y \code{n_consultas_max} deja abierto el camino que las ejecuta. La
+corrida mide \code{distintos} sólo si la política lo necesita. La política por
+omisión es \code{"todas"}: el paquete no elige por el usuario.
 
 Contar sólo el motor daba juicios falsos con números ciertos: una tabla de
 3.912 filas con una columna de geometría en texto pedía 64.592 lecturas
@@ -140,19 +155,21 @@ nombra las palancas para acotarla, que no son las mismas de un lado que
 del otro.
 }
 \description{
-Emite las consultas-portón —contar filas, leer el esquema y sondear el
-dialecto— y devuelve cuántas consultas emitiría el perfilado completo, de
-qué clase y con qué alcance sobre la tabla. Con \code{politica_costo = "por_cardinalidad"}
-también hace primero las consultas baratas de válidos y distintos para
-decidir qué columnas pasan a moda y mediana. El plan hace visible cuántos
-lotes de agregados se emitirán antes de empezar y evita una sorpresa de costo.
-El conteo que paga el plan es necesario para estimar el trabajo antes de
-ejecutar los agregados; durante una corrida normal, el total exacto viaja en
-la primera consulta de agregados y no se vuelve a contar como una consulta
-separada del perfil. Las fuentes \code{TABLESAMPLE} que necesitan el total para
-construir un porcentaje lo cuentan antes. Si una consulta de agregados no
-acepta el lote, el perfil conserva un conteo exacto independiente y sigue con
-la bisección.
+Emite sólo consultas de preparación —leer el esquema y sondear capacidades—
+y devuelve cuántas consultas emitiría el perfilado completo, de qué clase y
+con qué alcance sobre la tabla. No escanea datos para decidir el costo.
+Cuando \code{politica_costo = "por_cardinalidad"}, una clave estructural exacta
+puede cerrar la decisión; si no hay una fuente de catálogo utilizable, el
+plan publica el rango entre omitir y ejecutar las métricas caras. Nunca
+lanza \verb{COUNT(DISTINCT ...)} para despejar esa incertidumbre.
+}
+\details{
+\code{estrategia_distintos} separa la métrica que se publica de
+\code{fuente_cardinalidad_costo}, que dice de dónde sale el número usado para
+decidir. Por eso se puede omitir \code{n_distintos} del resultado y usar una clave
+declarada o una fuente de catálogo para decidir si conviene la moda. La
+corrida sigue la política explícita y reutiliza la medición de distintos una
+sola vez cuando la necesita.
 }
 \examples{
 if (requireNamespace("DBI", quietly = TRUE) &&

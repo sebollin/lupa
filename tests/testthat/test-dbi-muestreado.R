@@ -282,7 +282,7 @@ test_that("aproximado usa la funcion nativa de cuantiles cuando responde", {
   expect_true(all(mediana$error_esperado == "desconocido"))
 })
 
-test_that("el plan predice exactamente las consultas en los cinco modos", {
+test_that("el plan acota las consultas en los cinco modos", {
   con <- .conexion_capacidad_dbi("ConexionCapacidadLupa")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
@@ -295,12 +295,13 @@ test_that("el plan predice exactamente las consultas en los cinco modos", {
     resultado <- .perfil_liviano_dbi_muestreado(
       con, modo, orden_muestra = "id"
     )
-    expect_equal(
-      length(.capacidad_dbi_prueba$sql), attr(plan, "total"),
-      info = paste("modo", modo)
+    emitidas <- length(.capacidad_dbi_prueba$sql)
+    expect_lte(attr(plan, "total"), emitidas, label = paste("modo", modo))
+    expect_lte(
+      emitidas, attr(plan, "total_maximo"), label = paste("modo", modo)
     )
     expect_equal(
-      resultado$resumen_tabla$meta$consultas$emitidas, attr(plan, "total"),
+      resultado$resumen_tabla$meta$consultas$emitidas, emitidas,
       info = paste("modo", modo)
     )
   }

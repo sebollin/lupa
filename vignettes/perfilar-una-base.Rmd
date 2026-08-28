@@ -384,38 +384,39 @@ consulta completa, el conteo de válidos y el de distintos se emiten por
 separado. El método publicado sigue al SQL que efectivamente se ejecutó; una
 consulta no emitida o sin un valor utilizable queda `no_disponible`.
 
-`plan_perfilado_dbi()` emite las sondas de capacidad y predice el total que
-costará la corrida. Publica un **rango**, y lo declara en
-`attr(plan, "supuesto")`: `total` si no se rechaza ningún lote y
-`total_lotes_rechazados` si se rechazan todos; el costo real cae entre los dos.
-El extremo inferior cuenta una consulta por lote de agregados planos y mantiene
-`COUNT(DISTINCT ...)` en su clase separada; la moda sigue siendo una por
-columna y la mediana conserva ese camino como respaldo. Cuando la sonda acepta
-`PERCENTILE_CONT(...) WITHIN GROUP`, varias medianas viajan en un solo
-`SELECT` por lote. Una columna sin un solo valor válido no emite mediana ni desvío, y el
-plan no puede saber cuáles están vacías sin preguntarlo. El extremo superior
-suma hasta `2n - 1` sondas adicionales por cada lote rechazado de `n` columnas:
-la bisección aísla las culpables y reutiliza los grupos aceptados. Para decidir
-si una corrida es viable, saber entre qué y qué se mueve alcanza. La predicción
-incluye las sondas aunque una forma acertada aparezca antes que las demás,
-porque el costo declarado no puede depender del motor.
+`plan_perfilado_dbi()` emite las sondas de capacidad y publica un **rango** de
+consultas en `attr(plan, "supuesto")`. No escanea datos para decidir el costo:
+lee el esquema, sondea capacidades y, con
+`politica_costo = "por_cardinalidad"`, puede usar una garantía estructural o una
+fuente de catálogo. Nunca lanza `COUNT(DISTINCT ...)` sólo para despejar una
+duda.
 
-El plan paga un `COUNT(*)` exacto propio antes de los agregados, porque necesita
-el total para estimar el trabajo. La corrida lleva ese total en su primera
-consulta de agregados; si el lote es rechazado, se repliega a un `COUNT(*)`
-solo y continúa con la bisección. Así la completitud sigue siendo medida, no
-estimada, y la corrida evita una consulta y un recorrido separado en los casos
-sin rechazo. Una forma `TABLESAMPLE` que necesita el total para construir un
-porcentaje lo cuenta antes y no reclama este ahorro.
+El extremo inferior es `total`: si la fuente de cardinalidad queda desconocida,
+supone que la política omite las métricas caras. El extremo superior es
+`total_maximo` —también reflejado en `total_lotes_rechazados` tras sumar la
+bisección— y deja abierto el camino que las ejecuta. Si un lote es rechazado,
+se agregan hasta `2n - 1` sondas por lote de `n` columnas. El costo real cae
+entre los dos, y el plan lo declara en las dos direcciones.
+
+`estrategia_distintos` dice si `n_distintos` se publica o sólo se usa para
+decidir; `fuente_cardinalidad_costo` dice de dónde sale la proporción. Son
+independientes: una clave declarada puede cerrar la decisión sin emitir un
+agregado de distintos. Si la fuente es desconocida, la corrida sigue la
+política explícita y mide el agregado una sola vez cuando lo necesita.
+
+La corrida ejecuta primero los agregados planos, fusiona allí el `COUNT(*)`
+exacto cuando puede, y después ejecuta distintos, moda y mediana. Si no hay
+agregados planos que puedan llevar el total, el conteo exacto se emite antes de
+la familia de distintos. `tamano_lote_planos` y `tamano_lote_distintos` son
+independientes; este último vale 1 por omisión hasta contar con mediciones,
+porque una sola cardinalidad puede derramar mucho más que un lote plano.
 
 La decisión de pagar moda y mediana es explícita. `politica_costo = "todas"`
 es el valor por omisión y conserva todas las métricas solicitadas. Con
-`politica_costo = "por_cardinalidad"`, primero se miden los valores válidos y
-distintos; luego se omiten, por columna, las métricas caras cuando
-`n_distintos / n_validos >= umbral_cardinalidad`. El umbral por omisión es
-`0.95`, se puede cambiar en la llamada, y cada omisión queda declarada en
-`resumen_tabla$sql` como `omitido_por_costo`, con el motivo y la forma de
-pedirla igual.
+`politica_costo = "por_cardinalidad"`, la corrida mide los valores válidos y
+distintos sólo cuando no hay una fuente exacta de catálogo; luego omite, por
+columna, las métricas caras cuando `n_distintos / n_validos >=
+umbral_cardinalidad`. Cada omisión queda declarada en `resumen_tabla$sql`.
 
 Ahora bien, **cuántas consultas se emiten no dice cuánto cuestan**: catorce
 consultas sobre dos millones de filas son mucho más trabajo que doscientas

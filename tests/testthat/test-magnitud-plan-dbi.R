@@ -104,7 +104,7 @@ test_that("un alcance sin peso declarado no se estima en silencio", {
   expect_true(is.na(trabajo$filas_leidas))
 })
 
-test_that("el plan real trae la magnitud y sigue siendo un data.frame", {
+test_that("el plan real conserva la magnitud desconocida sin escanear", {
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", data.frame(id = 1:50, valor = as.numeric(1:50)))
@@ -112,12 +112,12 @@ test_that("el plan real trae la magnitud y sigue siendo un data.frame", {
 
   expect_s3_class(plan, "data.frame")
   expect_s3_class(plan, "plan_perfilado_dbi")
-  expect_equal(attr(plan, "magnitud"), "baja")
-  expect_true(is.finite(attr(plan, "filas_leidas")))
+  expect_equal(attr(plan, "magnitud"), "desconocida")
+  expect_true(is.na(attr(plan, "filas_leidas")))
   expect_match(attr(plan, "supuesto_costo"), "estimaci")
 })
 
-test_that("la impresion avisa cuando el trabajo es alto y nombra las palancas", {
+test_that("la impresion declara la incertidumbre del trabajo", {
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", data.frame(id = 1:50, valor = as.numeric(1:50)))
@@ -125,17 +125,13 @@ test_that("la impresion avisa cuando el trabajo es alto y nombra las palancas", 
 
   # cli escribe por el flujo de mensajes, no por la salida estandar.
   bajo <- capture.output(print(plan), type = "message")
-  expect_true(any(grepl("bajo", bajo)))
-  expect_false(any(grepl("muestreado", bajo)))
-  # Sobre una tabla chica los dos parrafos de supuestos son ruido: tapan la
-  # respuesta en vez de matizarla. Pero el conteo viaja como lo que es -un rango
-  # entre el extremo sin lotes rechazados y el extremo con todos rechazados- y
-  # los supuestos siguen accesibles.
-  expect_false(any(grepl("ning\u00fan \u00edndice", bajo)))
-  # Decia "techo", y el atributo `supuesto` lo desmentia dos lineas mas abajo.
+  expect_true(any(grepl("desconocida|No se pudo estimar", bajo)))
+  expect_true(any(grepl("No se pudo estimar", bajo)))
+  expect_true(any(grepl("no escanea datos", bajo)))
+  # El rango y los supuestos siguen accesibles aunque falte el total.
   expect_false(any(grepl("techo", bajo)))
-  expect_true(any(grepl("entre 13 y 19 consultas", bajo, fixed = TRUE)))
-  expect_true(any(grepl("supuesto_costo", bajo)))
+  expect_true(any(grepl("entre [0-9]", bajo)))
+  expect_true(any(grepl("El trabajo es una estimación", bajo)))
 
   attr(plan, "magnitud") <- "alta"
   attr(plan, "filas_leidas") <- 5e9
@@ -241,7 +237,8 @@ test_that("el plan real declara las dos mitades y la impresion las muestra", {
   plan <- plan_perfilado_dbi(con, "t", muestra = 300)
   expect_equal(attr(plan, "columnas_texto", exact = TRUE), 1)
   expect_equal(attr(plan, "pares_texto", exact = TRUE), 300 * 299 / 2)
-  expect_true(attr(plan, "magnitud_motor", exact = TRUE) %in% .ORDEN_MAGNITUD_DBI)
+  expect_equal(attr(plan, "magnitud_motor", exact = TRUE), "desconocida")
+  expect_equal(attr(plan, "magnitud", exact = TRUE), "desconocida")
   expect_true(attr(plan, "magnitud_texto", exact = TRUE) %in% .ORDEN_MAGNITUD_DBI)
   salida <- paste(
     capture.output(print(plan), type = "message"), collapse = " "
@@ -250,7 +247,7 @@ test_that("el plan real declara las dos mitades y la impresion las muestra", {
   expect_match(salida, "pares de formas")
 })
 
-test_that("una magnitud media tambien nombra las palancas, y una baja no", {
+test_that("una magnitud desconocida no inventa palancas", {
   skip_if_not_installed("RSQLite")
   # Salio de una corrida contra motores reales: una tabla de millones de filas
   # tardaba minutos con las opciones por omision y su plan la clasificaba
@@ -276,9 +273,7 @@ test_that("una magnitud media tambien nombra las palancas, y una baja no", {
   chica <- palancas_de(data.frame(
     id = 1:500, v = letters[sample(26L, 500L, TRUE)], stringsAsFactors = FALSE
   ))
-  expect_equal(chica$magnitud, "baja")
-  # En una tabla chica el usuario ya tiene su respuesta: listar palancas seria
-  # ruido en cada corrida.
+  expect_equal(chica$magnitud, "desconocida")
   expect_false(chica$nombra)
 
   vocabulario <- replicate(
@@ -291,6 +286,6 @@ test_that("una magnitud media tambien nombra las palancas, y una baja no", {
     t2 = vocabulario[sample(500L, 400000L, TRUE)],
     stringsAsFactors = FALSE
   ))
-  expect_true(grande$magnitud %in% c("media", "alta"))
-  expect_true(grande$nombra)
+  expect_equal(grande$magnitud, "desconocida")
+  expect_false(grande$nombra)
 })

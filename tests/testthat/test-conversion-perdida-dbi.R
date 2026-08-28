@@ -62,23 +62,17 @@ test_that("una columna numerica normal se sigue midiendo", {
   expect_equal(fila$media, c(14 / 3, 2))
 })
 
-test_that("el plan declara que su total es un techo", {
+test_that("el plan declara un rango sin consultar los datos", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", data.frame(a = 1:10, b = 2:11))
   plan <- plan_perfilado_dbi(con, "t")
-  # Se afirmo durante rondas que el plan predecia exacto, y despues que era un
-  # techo. Ninguna de las dos: el total se mueve en LAS DOS direcciones. Hacia
-  # abajo porque una columna sin valores validos no emite mediana ni desvio.
-  # Hacia arriba porque si el motor rechaza un lote se emite la consulta del
-  # lote y ademas una por columna. Medido contra un motor que rechaza lotes: el
-  # plan decia 22 y se emitieron 30.
-  #
-  # Por eso ya no dice "techo" y publica el rango. Esta prueba fija las dos
-  # mitades: sin la de "hacia arriba", volver a llamarlo techo pasaria.
-  expect_match(attr(plan, "supuesto"), "sin valores validos")
+  # El plan no cuenta filas ni despeja cardinalidades para estimar el costo.
+  # Publica el rango de consultas y deja la explicacion en sus atributos.
+  expect_match(attr(plan, "supuesto"), "no escanea datos")
+  expect_match(attr(plan, "supuesto"), "cardinalidad es desconocida")
   expect_match(attr(plan, "supuesto"), "rechaza un lote")
   expect_false(grepl("es un techo", attr(plan, "supuesto"), fixed = TRUE))
   # Y el otro extremo del rango existe y no es menor que el total.

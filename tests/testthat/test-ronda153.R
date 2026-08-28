@@ -59,6 +59,10 @@ setMethod(
   x$resumen_tabla$meta$consultas <- NULL
   x$resumen_tabla$meta$tamano_lote <- NULL
   x$resumen_tabla$meta$tamano_lote_funciono <- NULL
+  x$resumen_tabla$meta$tamano_lote_planos <- NULL
+  x$resumen_tabla$meta$tamano_lote_distintos <- NULL
+  x$resumen_tabla$meta$tamano_lote_planos_funciono <- NULL
+  x$resumen_tabla$meta$tamano_lote_distintos_funciono <- NULL
   x$resumen_tabla$meta$instrumentacion <- NULL
   x
 }
@@ -113,14 +117,20 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
   modos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
   mediciones <- list()
   for (modo in modos) {
+    .ronda153_estado$sql <- character()
     plan <- plan_perfilado_dbi(
       conexion$conexion, "tabla_prueba", modo = modo, muestra = 12L,
       bloque_muestra = "solo_agregados", tamano_lote = 4L
     )
-    expect_true(any(grepl(
-      "SELECT COUNT(*) AS `lupa_n_total` FROM `tabla_prueba`",
-      .ronda153_estado$sql, fixed = TRUE
-    )), info = paste("conteo propio del plan", modo))
+    datos_plan <- grepl("FROM `tabla_prueba`", .ronda153_estado$sql,
+                        fixed = TRUE) &
+      !grepl("WHERE[[:space:]]+1[[:space:]]*=[[:space:]]*0",
+             .ronda153_estado$sql, ignore.case = TRUE) &
+      !grepl("LIMIT[[:space:]]+0[[:space:]]*$", .ronda153_estado$sql,
+             ignore.case = TRUE)
+    expect_false(any(datos_plan), info = paste("datos en el plan", modo))
+    expect_false(any(grepl("COUNT(DISTINCT", .ronda153_estado$sql,
+                           fixed = TRUE)), info = paste("distinct en el plan", modo))
     .ronda153_estado$modo <- "normal"
     .ronda153_estado$sql <- character()
     resultado <- .ronda153_perfil(conexion$conexion, 4L, modo)

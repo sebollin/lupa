@@ -118,7 +118,7 @@ test_that("la politica de cardinalidad declara omisiones y ahorra consultas", {
   expect_equal(
     todas$resumen_tabla$meta$consultas$emitidas -
       selectiva$resumen_tabla$meta$consultas$emitidas,
-    2
+    1
   )
   expect_true(is.na(selectiva$resumen_tabla$columnas$moda[1L]))
   expect_true(is.na(selectiva$resumen_tabla$columnas$mediana[1L]))
@@ -147,14 +147,16 @@ test_that("la politica de cardinalidad declara omisiones y ahorra consultas", {
     bloque_muestra = "solo_agregados", instrumentar = FALSE,
     politica_costo = "por_cardinalidad"
   )
-  expect_equal(
-    attr(plan, "total"),
-    selectiva$resumen_tabla$meta$consultas$emitidas
-  )
+  expect_lt(attr(plan, "total"),
+            selectiva$resumen_tabla$meta$consultas$emitidas)
+  expect_lte(selectiva$resumen_tabla$meta$consultas$emitidas,
+             attr(plan, "total_maximo"))
   fila_moda <- plan$clase_consulta == "moda (GROUP BY + orden + limite)"
   fila_mediana <- plan$clase_consulta == "mediana (orden total + limite/salto)"
-  expect_equal(plan$n_consultas[fila_moda], 2)
-  expect_equal(plan$n_consultas[fila_mediana], 1)
+  expect_equal(plan$n_consultas[fila_moda], 0)
+  expect_equal(plan$n_consultas_max[fila_moda], 3)
+  expect_equal(plan$n_consultas[fila_mediana], 0)
+  expect_equal(plan$n_consultas_max[fila_mediana], 2)
   expect_true(all(c("validos", "distintos") %in%
                   attr(plan, "metricas_ejecucion")))
 })

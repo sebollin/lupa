@@ -1,17 +1,7 @@
-# `muestra = Inf` es el valor por omision y significa "la tabla entera". El plan
-# lo contaba como CERO: `.trabajo_plan_dbi()` normaliza sus entradas con un
-# `numero()` que rechaza todo lo no finito -correcto para `filas` y los conteos,
-# que con `Inf` hacian NaN- y el `NA` resultante caia en `muestra <- 0`.
-#
-# Consecuencia medida sobre 200.000 x 4: `muestra = Inf` declaraba 400.000
-# lecturas y 0 pares de formas, y `muestra = 200000` -que pide exactamente las
-# mismas filas- declaraba 600.000 y 4.000.000. El bloque de muestra se contaba
-# como cero filas leidas en los dos lados. Y como la magnitud se decide sobre
-# esos numeros, el caso por omision caia en "baja", que es justo la que no
-# imprime las palancas para bajar el costo.
-#
-# Lo delata pedir las mismas filas de las dos maneras: si `Inf` y `nrow` no
-# declaran lo mismo, una de las dos esta mal.
+# `muestra = Inf` es el valor por omision y significa "la tabla entera". Un plan
+# ya no cuenta filas para decidir el costo, asi que la mitad del motor queda
+# desconocida hasta que la corrida la mida. La muestra finita sigue acotando el
+# trabajo que se hara en R, sin convertir esa cota en un conteo de la tabla.
 
 .tabla_plan_137 <- function() {
   set.seed(137L)
@@ -25,7 +15,7 @@
   )
 }
 
-test_that("`muestra = Inf` declara el mismo trabajo que pedir todas las filas", {
+test_that("una muestra sin conteo declara desconocida la mitad del motor", {
   skip_if_not_installed("RSQLite")
   datos <- .tabla_plan_137()
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
@@ -35,17 +25,16 @@ test_that("`muestra = Inf` declara el mismo trabajo que pedir todas las filas", 
   entera <- plan_perfilado_dbi(conexion, "t", muestra = Inf)
   explicita <- plan_perfilado_dbi(conexion, "t", muestra = nrow(datos))
 
-  for (campo in c("filas_leidas", "pares_texto", "magnitud",
-                  "magnitud_texto", "magnitud_motor")) {
-    expect_identical(
-      attr(entera, campo, exact = TRUE),
-      attr(explicita, campo, exact = TRUE),
-      info = campo
-    )
-  }
+  expect_true(is.na(attr(entera, "filas_leidas", exact = TRUE)))
+  expect_true(is.na(attr(entera, "pares_texto", exact = TRUE)))
+  expect_equal(attr(entera, "magnitud_motor", exact = TRUE), "desconocida")
+  expect_equal(attr(entera, "magnitud", exact = TRUE), "desconocida")
+  expect_true(is.na(attr(explicita, "filas_leidas", exact = TRUE)))
+  expect_equal(attr(explicita, "pares_texto", exact = TRUE),
+               2 * lupa:::.max_pares_vocabulario_dbi())
 })
 
-test_that("el bloque de muestra no se cuenta como cero filas leidas", {
+test_that("el bloque de muestra conserva la incertidumbre del motor", {
   skip_if_not_installed("RSQLite")
   datos <- .tabla_plan_137()
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
@@ -55,17 +44,12 @@ test_that("el bloque de muestra no se cuenta como cero filas leidas", {
   entera <- plan_perfilado_dbi(conexion, "t", modo = "conteos", muestra = Inf)
   acotada <- plan_perfilado_dbi(conexion, "t", modo = "conteos", muestra = 100)
 
-  # Traer 5.000 filas no puede declarar menos trabajo que traer 100.
-  expect_gt(attr(entera, "filas_leidas", exact = TRUE),
-            attr(acotada, "filas_leidas", exact = TRUE))
-  expect_gt(attr(entera, "pares_texto", exact = TRUE),
-            attr(acotada, "pares_texto", exact = TRUE))
-  # Y la diferencia es exactamente las filas de mas que se traen.
-  expect_equal(
-    attr(entera, "filas_leidas", exact = TRUE) -
-      attr(acotada, "filas_leidas", exact = TRUE),
-    nrow(datos) - 100
-  )
+  # Traer 5.000 filas deja la mitad del motor desconocida, mientras que el
+  # cliente puede acotar los pares de formas cuando se pide una muestra finita.
+  expect_true(is.na(attr(entera, "filas_leidas", exact = TRUE)))
+  expect_true(is.na(attr(entera, "pares_texto", exact = TRUE)))
+  expect_true(is.na(attr(acotada, "filas_leidas", exact = TRUE)))
+  expect_equal(attr(acotada, "pares_texto", exact = TRUE), 9900)
 })
 
 test_that("la traduccion de `Inf` no ablanda la guarda de valores invalidos", {
@@ -92,31 +76,24 @@ test_that("la traduccion de `Inf` no ablanda la guarda de valores invalidos", {
   }
 })
 
-# Los tres bloques de arriba miraban `Inf` contra `nrow`. Una refutacion externa
-# mostro el hueco simetrico: `muestra` finita pero MAYOR que las filas. Pedir un
-# millon de filas de una tabla de cien no trae mas de cien -la lectura real es
-# `min(n_total, muestra)`-, pero el plan imputaba un millon de lecturas. Y la
-# inconsistencia era interna: el lado del cliente SI se acotaba con
-# `min(filas, muestra)`, asi que las dos mitades de la misma cuenta usaban
-# tamanos de muestra distintos.
+# Una muestra finita mayor que la tabla tambien queda acotada en el lado del
+# cliente. El motor sigue desconocido, porque el plan no pide el conteo solo
+# para poder aplicar ese minimo.
 
-test_that("pedir mas filas de las que hay no declara mas trabajo", {
+test_that("pedir mas filas no cambia la incertidumbre del plan", {
   skip_if_not_installed("RSQLite")
   datos <- .tabla_plan_137()
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbWriteTable(conexion, "t", datos)
 
-  justo <- plan_perfilado_dbi(conexion, "t", muestra = nrow(datos))
-  de_mas <- plan_perfilado_dbi(conexion, "t", muestra = nrow(datos) * 1000)
   entera <- plan_perfilado_dbi(conexion, "t", muestra = Inf)
+  de_mas <- plan_perfilado_dbi(conexion, "t", muestra = nrow(datos) * 1000)
 
-  for (campo in c("filas_leidas", "pares_texto", "magnitud")) {
-    expect_identical(attr(de_mas, campo, exact = TRUE),
-                     attr(justo, campo, exact = TRUE), info = campo)
-    expect_identical(attr(entera, campo, exact = TRUE),
-                     attr(justo, campo, exact = TRUE), info = campo)
-  }
+  expect_true(is.na(attr(entera, "filas_leidas", exact = TRUE)))
+  expect_true(is.na(attr(de_mas, "filas_leidas", exact = TRUE)))
+  expect_equal(attr(entera, "magnitud", exact = TRUE), "desconocida")
+  expect_equal(attr(de_mas, "magnitud", exact = TRUE), "desconocida")
 })
 
 test_that("la equivalencia vale tambien cuando el motor muestrea", {
@@ -130,10 +107,11 @@ test_that("la equivalencia vale tambien cuando el motor muestrea", {
     entera <- plan_perfilado_dbi(conexion, "t", modo = modo, muestra = Inf)
     explicita <- plan_perfilado_dbi(conexion, "t", modo = modo,
                                     muestra = nrow(datos))
-    expect_identical(attr(entera, "filas_leidas", exact = TRUE),
-                     attr(explicita, "filas_leidas", exact = TRUE), info = modo)
-    expect_identical(attr(entera, "pares_texto", exact = TRUE),
-                     attr(explicita, "pares_texto", exact = TRUE), info = modo)
+    expect_true(is.na(attr(entera, "filas_leidas", exact = TRUE)), info = modo)
+    expect_true(is.na(attr(entera, "pares_texto", exact = TRUE)), info = modo)
+    expect_true(is.na(attr(explicita, "filas_leidas", exact = TRUE)), info = modo)
+    expect_equal(attr(explicita, "pares_texto", exact = TRUE),
+                 2 * lupa:::.max_pares_vocabulario_dbi(), info = modo)
   }
 })
 

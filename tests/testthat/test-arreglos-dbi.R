@@ -19,12 +19,18 @@ if (.dbi_de_prueba) {
   .juguete$sql <- character()
   .juguete$dentro <- FALSE
   .juguete$columna_mala <- "zzz_ninguna"
+  .juguete$get_query <- 0L
+  .juguete$send_query <- 0L
+  .juguete$metadata_query <- 0L
 
   .juguete_reiniciar <- function(modo = "normal", columna_mala = "zzz_ninguna") {
     .juguete$modo <- modo
     .juguete$sql <- character()
     .juguete$dentro <- FALSE
     .juguete$columna_mala <- columna_mala
+    .juguete$get_query <- 0L
+    .juguete$send_query <- 0L
+    .juguete$metadata_query <- 0L
     invisible(NULL)
   }
   .juguete_consultas <- function() .juguete$sql
@@ -84,6 +90,7 @@ if (.dbi_de_prueba) {
     "dbGetQuery", c("ConexionJugueteLupa", "character"),
     function(conn, statement, ...) {
       if (!.juguete$dentro) {
+        .juguete$get_query <- .juguete$get_query + 1L
         .juguete$sql <- c(.juguete$sql, statement)
         .juguete_sabotear(statement)
       }
@@ -98,6 +105,7 @@ if (.dbi_de_prueba) {
     "dbSendQuery", c("ConexionJugueteLupa", "character"),
     function(conn, statement, ...) {
       if (!.juguete$dentro) {
+        .juguete$send_query <- .juguete$send_query + 1L
         .juguete$sql <- c(.juguete$sql, statement)
         .juguete_sabotear(statement)
       }
@@ -128,6 +136,7 @@ if (.dbi_de_prueba) {
         "SELECT * FROM ", dbQuoteIdentifier(conn, name), " LIMIT 0"
       )
       if (!.juguete$dentro) {
+        .juguete$metadata_query <- .juguete$metadata_query + 1L
         .juguete$sql <- c(.juguete$sql, sql)
         .juguete_sabotear(sql)
       }
@@ -424,6 +433,64 @@ test_that("el plan previo dice cuantas consultas se van a emitir", {
   )
   # Planificar cuesta mucho menos que medir.
   expect_lt(emitidas_al_planificar, attr(plan, "total"))
+})
+
+test_that("el plan no ejecuta datos ni duplica el conteo de DBI", {
+  bases <- .conexion_juguete()
+  on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
+
+  for (politica in c("todas", "ninguna", "por_cardinalidad")) {
+    .juguete_reiniciar("normal")
+    plan <- lupa:::plan_perfilado_dbi(
+      bases$juguete, "juguete", bloque_muestra = "solo_agregados",
+      politica_costo = politica
+    )
+    sql <- .juguete_consultas()
+    # dbGetQuery puede llamar internamente a dbSendQuery. El contador de
+    # ejecuciones suma solo la entrada externa a cada metodo: la bandera
+    # `dentro` evita contar dos veces el mismo viaje.
+    expect_equal(
+      length(sql), .juguete$get_query + .juguete$send_query +
+        .juguete$metadata_query
+    )
+    datos <- grepl("FROM `juguete`", sql, fixed = TRUE) &
+      !grepl("WHERE[[:space:]]+1[[:space:]]*=[[:space:]]*0", sql,
+             ignore.case = TRUE) &
+      !grepl("LIMIT[[:space:]]+0[[:space:]]*$", sql, ignore.case = TRUE)
+    expect_false(any(datos), info = politica)
+    expect_false(
+      any(grepl("COUNT(DISTINCT", sql, fixed = TRUE)), info = politica
+    )
+    expect_true(.juguete$get_query + .juguete$send_query > 0L)
+    expect_s3_class(plan, "plan_perfilado_dbi")
+  }
+})
+
+test_that("pedir el plan y despues perfilar ejecuta cada distinto una vez", {
+  bases <- .conexion_juguete()
+  on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
+
+  .juguete_reiniciar("normal")
+  plan <- lupa:::plan_perfilado_dbi(
+    bases$juguete, "juguete", bloque_muestra = "solo_agregados",
+    politica_costo = "por_cardinalidad"
+  )
+  consultas_plan <- .juguete_consultas()
+  expect_false(any(grepl("COUNT(DISTINCT", consultas_plan, fixed = TRUE)))
+
+  resultado <- .perfilar_juguete(
+    bases$juguete, bloque_muestra = "solo_agregados",
+    politica_costo = "por_cardinalidad"
+  )
+  consultas <- .juguete_consultas()
+  distintos <- grepl("COUNT(DISTINCT", consultas, fixed = TRUE)
+  expect_equal(sum(distintos), 3L)
+  expect_equal(
+    length(consultas), .juguete$get_query + .juguete$send_query +
+      .juguete$metadata_query
+  )
+  expect_s3_class(resultado, "perfil_dbi")
+  expect_lt(attr(plan, "total"), resultado$resumen_tabla$meta$consultas$emitidas)
 })
 
 # ---- 2.41: la caja del alias ---------------------------------------------

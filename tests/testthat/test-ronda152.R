@@ -33,6 +33,10 @@ skip_if_not_installed("RSQLite")
   x$resumen_tabla$meta$consultas <- NULL
   x$resumen_tabla$meta$tamano_lote <- NULL
   x$resumen_tabla$meta$tamano_lote_funciono <- NULL
+  x$resumen_tabla$meta$tamano_lote_planos <- NULL
+  x$resumen_tabla$meta$tamano_lote_distintos <- NULL
+  x$resumen_tabla$meta$tamano_lote_planos_funciono <- NULL
+  x$resumen_tabla$meta$tamano_lote_distintos_funciono <- NULL
   x$resumen_tabla$meta$instrumentacion <- NULL
   x
 }

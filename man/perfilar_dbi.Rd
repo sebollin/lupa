@@ -14,10 +14,12 @@ perfilar_dbi(
   max_consultas = Inf,
   dialecto = "auto",
   incluir_valores = TRUE,
-  tamano_lote = .TAMANO_LOTE_DBI,
+  tamano_lote = NULL,
+  tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
+  tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
   bloque_muestra = c("con_muestra", "solo_agregados"),
   instrumentar = TRUE,
-  politica_costo = c("todas", "por_cardinalidad", "cardinalidad"),
+  politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
   ...
 )
@@ -69,8 +71,17 @@ declaran sin sondeo.}
 máximo y mediana. Con \code{FALSE} esas consultas no se emiten.}
 
 \item{tamano_lote}{Cantidad máxima de columnas por consulta consolidada.
-Veinte mantiene acotado el número de expresiones y se puede reducir para
-motores con límites más estrictos.}
+Se conserva por compatibilidad y, si se informa, fija el tamaño de las dos
+familias. Para control separado, usar \code{tamano_lote_planos} y
+\code{tamano_lote_distintos}.}
+
+\item{tamano_lote_planos}{Cantidad máxima de columnas por consulta de
+agregados planos. El valor por omisión es 20.}
+
+\item{tamano_lote_distintos}{Cantidad máxima de columnas por consulta de
+cardinalidades exactas. El valor por omisión es 1, deliberadamente
+conservador hasta contar con mediciones comparables: una sola cardinalidad
+puede forzar un agregado pesado y derramar mucho más que un lote plano.}
 
 \item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
 omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
@@ -92,9 +103,10 @@ intervalos que el reloj no puede resolver no se publican como cero.}
 
 \item{politica_costo}{Política optativa para las métricas caras. El valor por
 omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
-solicitadas. \code{"por_cardinalidad"} (también \code{"cardinalidad"}) mide primero
-valores válidos y distintos y omite, por columna, moda y mediana cuando la
-proporción de distintos alcanza \code{umbral_cardinalidad}.}
+solicitadas. \code{"ninguna"} es un alias de \code{"todas"}; \code{"por_cardinalidad"}
+(también \code{"cardinalidad"}) mide primero valores válidos y distintos cuando
+no hay una fuente exacta utilizable y omite, por columna, moda y mediana
+cuando la proporción de distintos alcanza \code{umbral_cardinalidad}.}
 
 \item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
 activa \code{politica_costo = "por_cardinalidad"}. El valor por omisión es \code{0.95}
@@ -195,9 +207,11 @@ caja, porque hay motores que los pliegan a mayúsculas.
 
 Los agregados de una tabla ancha se emiten por lotes; \code{muestra} acota lo que
 se trae a R, no el trabajo del motor. \code{bloque_muestra} decide si se trae esa
-muestra; \code{modo}, \code{metricas}, \code{tamano_lote} y \code{max_consultas} acotan el trabajo
-SQL. \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} dice cuántas consultas se van a emitir antes de
-emitirlas. Los agregados planos sobre la misma tabla y filtro —\code{COUNT(col)},
+muestra; \code{modo}, \code{metricas}, \code{tamano_lote_planos}, \code{tamano_lote_distintos} y
+\code{max_consultas} acotan el trabajo SQL. \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} dice cuántas
+consultas se van a emitir antes de emitirlas. El orden de degradación es
+agregados planos, total exacto fusionado, distintos, moda y mediana. Los
+agregados planos sobre la misma tabla y filtro —\code{COUNT(col)},
 mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
 por lote; cuando la fuente no necesita el total por adelantado, la primera
 consulta de agregados lleva además el \verb{COUNT(*)} exacto con el alias
@@ -207,7 +221,9 @@ aceptados se reutilizan como mediciones y las columnas culpables se reintentan
 por métrica. El denominador de completitud nunca se estima a partir de un
 catálogo ni de un lote parcial. Las fuentes \code{TABLESAMPLE} que necesitan el
 total para escribir un porcentaje lo cuentan antes y no reclaman este ahorro.
-\verb{COUNT(DISTINCT ...)} queda en una clase separada.
+\verb{COUNT(DISTINCT ...)} queda en una clase separada y usa su propio tamaño de
+lote, conservador por omisión porque una cardinalidad puede derramar mucho
+más que veinte agregados planos.
 Lo que no entra en el presupuesto queda en \code{no_disponible} con su motivo,
 nunca en cero. \code{meta$tamano_lote_funciono} conserva el mayor lote aceptado
 durante esa corrida; no se guarda estado global asociado a la conexión.

@@ -1,5 +1,15 @@
 # lupa 0.1.0
 
+## Cambios en desarrollo
+
+- `plan_perfilado_dbi()` deja de ejecutar agregados de datos para decidir el
+  costo. Con una cardinalidad desconocida publica un rango y conserva separadas
+  `estrategia_distintos` y `fuente_cardinalidad_costo`.
+- `perfilar_dbi()` ejecuta primero los agregados planos, luego el total exacto,
+  los distintos, la moda y la mediana. `tamano_lote_planos` y
+  `tamano_lote_distintos` son independientes; este último es 1 por omisión
+  hasta contar con mediciones.
+
 ## Una clave heredada ya no se declara garantizada sobre otro universo
 
 En PostgreSQL, una consulta sin `ONLY` incluye a las tablas que heredan, y la
