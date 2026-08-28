@@ -239,6 +239,8 @@ test_that("aproximado usa APPROX_COUNT_DISTINCT cuando la sonda responde", {
   expect_true(any(grepl("APPROX_COUNT_DISTINCT", .capacidad_dbi_prueba$sql)))
   expect_true(all(distintos$estado == "estimado"))
   expect_true(all(distintos$metodo == "APPROX_COUNT_DISTINCT"))
+  expect_true(all(grepl("APPROX_COUNT_DISTINCT", distintos$sql)))
+  expect_false(any(grepl("COUNT(DISTINCT", distintos$sql, fixed = TRUE)))
   expect_true(all(distintos$universo == 20))
   expect_true(all(distintos$error_esperado == "desconocido"))
 })
@@ -255,6 +257,7 @@ test_that("aproximado declara el respaldo COUNT DISTINCT si no hay funcion nativ
   distintos <- registros[registros$metrica == "n_distintos", , drop = FALSE]
 
   expect_false(any(grepl("APPROX_COUNT_DISTINCT", distintos$sql)))
+  expect_true(all(grepl("COUNT(DISTINCT", distintos$sql, fixed = TRUE)))
   expect_true(all(distintos$estado == "calculado"))
   expect_true(all(distintos$metodo == "COUNT(DISTINCT)"))
 })

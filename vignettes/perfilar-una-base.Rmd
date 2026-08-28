@@ -378,6 +378,12 @@ aproximado <- perfilar_dbi(
 aproximado$resumen_tabla$meta$aproximaciones
 ```
 
+El modo aproximado sólo consolida un conteo de distintos cuando la capacidad
+del motor entrega una expresión incrustable. Si la capacidad sólo construye una
+consulta completa, el conteo de válidos y el de distintos se emiten por
+separado. El método publicado sigue al SQL que efectivamente se ejecutó; una
+consulta no emitida o sin un valor utilizable queda `no_disponible`.
+
 `plan_perfilado_dbi()` emite las sondas de capacidad y predice el total que
 costará la corrida. Publica un **rango**, y lo declara en
 `attr(plan, "supuesto")`: `total` si no se rechaza ningún lote y

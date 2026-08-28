@@ -248,6 +248,11 @@ standard deviation — are now asked for **several columns in one query**, in
 batches. `COUNT(DISTINCT ...)` keeps a separate query class; mode and median
 stay one per column, because they group and sort.
 
+In approximate mode, a distinct count is consolidated only when the capability
+provides an expression that can be embedded in the `SELECT`. If it only builds
+a complete query, valid counts and distinct counts are issued separately, and
+each record keeps the method of the query that was actually run.
+
 Measured against PostgreSQL 16 with **2 million rows by 40 columns**:
 
 | mode | before | after |
@@ -418,6 +423,10 @@ the cardinality of the universe without a declared estimator, so it is reported
 as what it is — what was seen in the sample, with the universe stated beside it.
 An engine with no sampling capability does not break: the mode degrades and says
 so in the coverage table.
+
+An approximation is not marked as estimated when its query was not issued or
+did not return a usable value. If the engine lacks the approximate function,
+the exact fallback keeps `COUNT(DISTINCT ...)` as the published method.
 
 ## 🕳️ Emptiness by design is declared, not counted as a defect
 

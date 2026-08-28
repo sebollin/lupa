@@ -257,6 +257,11 @@ columna como respaldo; cuando la sonda del motor acepta
 `PERCENTILE_CONT(...) WITHIN GROUP`, varias medianas viajan en un solo
 `SELECT` por lote.
 
+En el modo aproximado, una cardinalidad sólo se consolida si la capacidad
+proporciona una expresión que se pueda incrustar en ese `SELECT`. Si sólo puede
+construir una consulta completa, válidos y distintos se emiten por separado y
+cada registro conserva el método de la consulta que efectivamente se ejecutó.
+
 Medido contra PostgreSQL 16 con **2 millones de filas por 40 columnas**:
 
 | modo | antes | después |
@@ -450,6 +455,10 @@ estima la cardinalidad del universo sin un estimador declarado, así que se
 informa por lo que es —lo visto en la muestra, con el universo al lado—. Un
 motor sin capacidad de muestreo no rompe: el modo degrada y lo dice en la tabla
 de cobertura.
+
+Una aproximación no se etiqueta como estimada cuando su consulta no se emitió o
+no devolvió un valor utilizable. Si el motor no ofrece la función aproximada,
+el respaldo exacto conserva `COUNT(DISTINCT ...)` como método publicado.
 
 ## 🕳️ El vacío por diseño se declara, no se cuenta como defecto
 

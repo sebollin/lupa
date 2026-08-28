@@ -1420,14 +1420,14 @@
                                      metadatos = NULL) {
   metadatos <- .mezclar_metadatos_dbi(metadatos, resultado$metadatos)
   if (is.null(metadatos)) metadatos <- .metadatos_sql_dbi()
-  estado <- if (!is.null(resultado$estado)) {
-    resultado$estado
-  } else if (resultado$ok) {
-    "calculado"
-  } else {
+  estado <- if (!isTRUE(resultado$ok)) {
     "no_disponible"
+  } else if (!is.null(resultado$estado)) {
+    resultado$estado
+  } else {
+    "calculado"
   }
-  motivo <- if (resultado$ok) motivo_exito else resultado$motivo
+  motivo <- if (isTRUE(resultado$ok)) motivo_exito else resultado$motivo
   sql <- if (is.null(resultado$sql)) NA_character_ else resultado$sql
   c(registros, list(.registro_sql_dbi(
     columna, metricas, estado, motivo, sql, metadatos, medicion = resultado
@@ -1813,33 +1813,48 @@
       " FROM ", tabla_sql
     )
   }
+  expresion_distintos <- if (is.null(aproximacion_distintos)) {
+    paste0(
+      "COUNT(DISTINCT ", columna_sql, ") AS ", alias("n_distintos")
+    )
+  } else if (is.function(aproximacion_distintos$expresion)) {
+    aproximacion_distintos$expresion(
+      columna_sql, alias("n_distintos")
+    )
+  } else {
+    NULL
+  }
+  puede_consolidar <- is.character(expresion_distintos) &&
+    length(expresion_distintos) == 1L &&
+    !is.na(expresion_distintos) && nzchar(trimws(expresion_distintos))
   if (pide_validos && pide_distintos) {
-    sql <- paste0(
-      "SELECT COUNT(", columna_sql, ") AS ", alias("n_validos"),
-      ", COUNT(DISTINCT ", columna_sql, ") AS ", alias("n_distintos"),
-      " FROM ", tabla_sql
-    )
-    consulta <- .consultar_dbi(
-      conexion, sql, presupuesto, etapa = "conteos"
-    )
-    if (consulta$ok) {
-      validos <- .valor_campo_dbi(consulta$datos, "n_validos")
-      distintos <- .valor_campo_dbi(consulta$datos, "n_distintos")
-      if (validos$ok && distintos$ok) {
-        validos$sql <- sql
-        distintos$sql <- sql
-        validos <- .adjuntar_medicion_dbi(validos, consulta)
-        distintos <- .adjuntar_medicion_dbi(distintos, consulta)
-        if (!is.null(aproximacion_distintos)) {
-          distintos$metadatos <- list(
-            metodo = aproximacion_distintos$nombre,
-            error_esperado = aproximacion_distintos$error_esperado
-          )
-          distintos$estado <- "estimado"
+    if (puede_consolidar) {
+      sql <- paste0(
+        "SELECT COUNT(", columna_sql, ") AS ", alias("n_validos"),
+        ", ", expresion_distintos, " FROM ", tabla_sql
+      )
+      consulta <- .consultar_dbi(
+        conexion, sql, presupuesto, etapa = "conteos"
+      )
+      if (isTRUE(consulta$ok)) {
+        validos <- .valor_campo_dbi(consulta$datos, "n_validos")
+        distintos <- .valor_campo_dbi(consulta$datos, "n_distintos")
+        if (isTRUE(validos$ok) && isTRUE(distintos$ok)) {
+          validos$sql <- sql
+          distintos$sql <- sql
+          validos <- .adjuntar_medicion_dbi(validos, consulta)
+          distintos <- .adjuntar_medicion_dbi(distintos, consulta)
+          if (!is.null(aproximacion_distintos)) {
+            distintos$metadatos <- list(
+              metodo = aproximacion_distintos$nombre,
+              error_esperado = aproximacion_distintos$error_esperado
+            )
+            distintos$estado <- "estimado"
+          }
+          return(list(
+            validos = validos, distintos = distintos, consolidada = TRUE
+          ))
         }
-        return(list(
-          validos = validos, distintos = distintos, consolidada = TRUE
-        ))
       }
     }
   }
@@ -1857,7 +1872,7 @@
       etapa = "conteos"
     )
     distintos$sql <- sql_distintos
-    if (!is.null(aproximacion_distintos)) {
+    if (!is.null(aproximacion_distintos) && isTRUE(distintos$ok)) {
       distintos$metadatos <- list(
         metodo = aproximacion_distintos$nombre,
         error_esperado = aproximacion_distintos$error_esperado
@@ -2030,11 +2045,19 @@
     if (!isTRUE(celda$ok)) next
     valor <- .escalar_finito_dbi(celda$valor)
     if (.valor_perdido_en_conversion_dbi(celda$valor, valor)) next
+    metadatos_resultado <- .metadatos_lote_dbi(numero, lote)
+    if (identical(estado, "estimado")) {
+      metadatos_resultado <- c(
+        metadatos_resultado,
+        list(metodo = candidato$nombre,
+             error_esperado = candidato$error_esperado)
+      )
+    }
     salida[[lote[[i]]]] <- .adjuntar_medicion_dbi(
       list(
         ok = TRUE, valor = valor, motivo = NA_character_, sql = sql,
         estado = estado,
-        metadatos = .metadatos_lote_dbi(numero, lote)
+        metadatos = metadatos_resultado
       ), consulta
     )
   }
@@ -2372,6 +2395,49 @@
   alias_por_columna <- vapply(seq_along(lote), function(i) {
     .alias_agregado_dbi(alias, numero, i, "n_distintos")
   }, character(1L), USE.NAMES = FALSE)
+  if (!is.null(aproximacion_distintos) &&
+      !is.function(aproximacion_distintos$expresion)) {
+    salida <- vector("list", length(lote))
+    names(salida) <- lote
+    conteo <- NULL
+    if (isTRUE(incluir_total)) {
+      total_alias <- alias("lupa_n_total")
+      sql_total <- paste0(
+        "SELECT COUNT(*) AS ", total_alias, " FROM ", tabla_total_sql
+      )
+      conteo <- .escalar_dbi(
+        conexion, sql_total, .nombre_alias_dbi(total_alias), presupuesto,
+        etapa = "conteo_filas"
+      )
+      conteo$sql <- sql_total
+    }
+    for (i in seq_along(lote)) {
+      sql <- aproximacion_distintos$construir(
+        nombres_sql[[lote[[i]]]], tabla_sql, alias_por_columna[[i]]
+      )
+      resultado <- .escalar_dbi(
+        conexion, sql, .nombre_alias_dbi(alias_por_columna[[i]]),
+        presupuesto, etapa = "conteos"
+      )
+      resultado$sql <- sql
+      resultado$metadatos <- .metadatos_lote_dbi(numero, lote[[i]])
+      if (isTRUE(resultado$ok)) {
+        resultado$metadatos <- c(
+          resultado$metadatos,
+          list(metodo = aproximacion_distintos$nombre,
+               error_esperado = aproximacion_distintos$error_esperado)
+        )
+        resultado$estado <- "estimado"
+      }
+      salida[[lote[[i]]]] <- list(
+        consolidada = FALSE, distintos = resultado
+      )
+    }
+    return(list(
+      resultados = salida, sondas = 0L, agotado = isTRUE(presupuesto$agotado),
+      inicial = FALSE, conteo = conteo
+    ))
+  }
   expresion <- function(i) {
     if (is.null(aproximacion_distintos)) {
       return(paste0(
@@ -2474,14 +2540,15 @@
   salida <- vector("list", length(lote))
   names(salida) <- lote
   estimar <- function(resultado) {
-    if (!is.null(aproximacion_distintos)) {
-      resultado$metadatos <- c(
-        resultado$metadatos,
-        list(metodo = aproximacion_distintos$nombre,
-             error_esperado = aproximacion_distintos$error_esperado)
-      )
-      resultado$estado <- "estimado"
+    if (is.null(aproximacion_distintos) || !isTRUE(resultado$ok)) {
+      return(resultado)
     }
+    resultado$metadatos <- c(
+      resultado$metadatos,
+      list(metodo = aproximacion_distintos$nombre,
+           error_esperado = aproximacion_distintos$error_esperado)
+    )
+    resultado$estado <- "estimado"
     resultado
   }
   for (grupo in grupos) {
@@ -2813,11 +2880,11 @@
 
   if ("distintos" %in% metricas) {
     distintos <- conteos$distintos
-    if (identical(modo, "aproximado") && is.null(aproximacion_distintos)) {
+    if (identical(modo, "aproximado") && is.null(aproximacion_distintos) &&
+        isTRUE(distintos$ok)) {
       distintos$metadatos <- list(metodo = "COUNT(DISTINCT)")
     }
-    registros <- registrar(registros, .CAMPOS_METRICA_DBI$distintos, distintos)
-    if (distintos$ok) {
+    if (isTRUE(distintos$ok)) {
       candidato <- .conteo_dbi(distintos$valor)
       # Coherencia interna antes de aceptar el numero. No puede haber mas
       # valores distintos que validos; si el motor lo dice, el resultado es
@@ -2832,14 +2899,11 @@
         .numero_dbi(candidato) > limite_distintos
       if (imposible) {
         distintos$ok <- FALSE
-        distintos$valor <- NULL
+        distintos$estado <- NULL
         distintos$motivo <- paste0(
           "El motor informo ", candidato, " valores distintos sobre ",
           limite_distintos,
           " validos, que es imposible; la metrica no se publica."
-        )
-        registros <- registrar(
-          registros, .CAMPOS_METRICA_DBI$distintos, distintos
         )
       } else {
         fila$n_distintos <- candidato
@@ -2854,6 +2918,7 @@
         }
       }
     }
+    registros <- registrar(registros, .CAMPOS_METRICA_DBI$distintos, distintos)
   } else {
     registros <- omitir(registros, "distintos", "no_solicitado", motivo_no_pedida)
   }
@@ -3116,12 +3181,14 @@
         conexion, sql_mediana, "mediana", presupuesto, etapa = "mediana"
       )
       mediana$sql <- sql_mediana
-      mediana$estado <- "estimado"
-      mediana$metadatos <- list(
-        metodo = aproximacion_mediana$nombre,
-        error_esperado = aproximacion_mediana$error_esperado
-      )
-      if (mediana$ok) fila$mediana <- .escalar_finito_dbi(mediana$valor)
+      if (isTRUE(mediana$ok)) {
+        mediana$estado <- "estimado"
+        mediana$metadatos <- list(
+          metodo = aproximacion_mediana$nombre,
+          error_esperado = aproximacion_mediana$error_esperado
+        )
+        fila$mediana <- .escalar_finito_dbi(mediana$valor)
+      }
       registros <- registrar(registros, "mediana", mediana)
     } else if (sin_conteo || (es_muestreado && !exists("validos_observados"))) {
       registros <- c(registros, list(.registro_sql_dbi(
@@ -3165,7 +3232,7 @@
         )
         if (mediana$ok) fila$mediana <- .escalar_finito_dbi(mediana$valor)
         mediana$sql <- sql_mediana
-        if (identical(modo, "aproximado")) {
+        if (identical(modo, "aproximado") && isTRUE(mediana$ok)) {
           mediana$metadatos <- list(metodo = "mediana_exacta")
         }
         registros <- registrar(registros, "mediana", mediana)
@@ -5320,7 +5387,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' "aproximado"` sondea `APPROX_COUNT_DISTINCT`, `approx_count_distinct` y las
 #' formas de cuantiles del motor; cuando ninguna responde usa el respaldo exacto
 #' y lo registra por métrica. Las cotas de error no documentadas quedan como
-#' `"desconocido"`.
+#' `"desconocido"`. Una aproximacion solo se consolida cuando entrega una
+#' expresion que se puede incrustar en el `SELECT`; si solo construye una
+#' consulta completa, se emite por separado. Una consulta no emitida o sin un
+#' valor utilizable queda `no_disponible`.
 #'
 #' @section Dialecto:
 #' Acotar filas no es SQL estándar. En vez de suponer `LIMIT`, la función

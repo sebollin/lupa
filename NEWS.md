@@ -1,5 +1,18 @@
 # lupa 0.1.0
 
+## El estado publicado queda atado a la consulta ejecutada
+
+Los conteos aproximados sólo se consolidan cuando el adaptador entrega una
+expresión que se puede incrustar en el `SELECT`. Una capacidad que sólo
+construye consultas completas conserva los conteos de válidos y distintos por
+separado, sin presentar `COUNT(DISTINCT ...)` como una aproximación. Un resultado
+no emitido no se publica como estimado, y el registro fuerza
+`no_disponible` cuando `ok` es falso.
+
+La cota `n_distintos <= n_validos` se valida antes del único registro. Los
+valores imposibles no se recortan ni se publican; el valor bruto queda en el
+motivo de auditoría.
+
 ## Catalogos de claves sin confundir ausencia con falta de visibilidad
 
 La lectura DBI ya no llama `no_declarada` a cualquier consulta de catalogo que

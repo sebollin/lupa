@@ -172,7 +172,10 @@ Cada registro publica \code{alcance}, \code{universo}, \code{tamano_muestra}, \c
 cardinalidad de la muestra, no como cardinalidad del universo. \code{modo = "aproximado"} sondea \code{APPROX_COUNT_DISTINCT}, \code{approx_count_distinct} y las
 formas de cuantiles del motor; cuando ninguna responde usa el respaldo exacto
 y lo registra por métrica. Las cotas de error no documentadas quedan como
-\code{"desconocido"}.
+\code{"desconocido"}. Una aproximacion solo se consolida cuando entrega una
+expresion que se puede incrustar en el \code{SELECT}; si solo construye una
+consulta completa, se emite por separado. Una consulta no emitida o sin un
+valor utilizable queda \code{no_disponible}.
 }
 
 \section{Dialecto}{
