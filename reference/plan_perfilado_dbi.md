@@ -1,19 +1,13 @@
 # Planificar el costo de `perfilar_dbi()` antes de pagarlo
 
-Emite las consultas-portón —contar filas, leer el esquema y sondear el
-dialecto— y devuelve cuántas consultas emitiría el perfilado completo,
-de qué clase y con qué alcance sobre la tabla. Con
-`politica_costo = "por_cardinalidad"` también hace primero las consultas
-baratas de válidos y distintos para decidir qué columnas pasan a moda y
-mediana. El plan hace visible cuántos lotes de agregados se emitirán
-antes de empezar y evita una sorpresa de costo. El conteo que paga el
-plan es necesario para estimar el trabajo antes de ejecutar los
-agregados; durante una corrida normal, el total exacto viaja en la
-primera consulta de agregados y no se vuelve a contar como una consulta
-separada del perfil. Las fuentes `TABLESAMPLE` que necesitan el total
-para construir un porcentaje lo cuentan antes. Si una consulta de
-agregados no acepta el lote, el perfil conserva un conteo exacto
-independiente y sigue con la bisección.
+Emite sólo consultas de preparación —leer el esquema y sondear
+capacidades— y devuelve cuántas consultas emitiría el perfilado
+completo, de qué clase y con qué alcance sobre la tabla. No escanea
+datos para decidir el costo. Cuando
+`politica_costo = "por_cardinalidad"`, una clave estructural exacta
+puede cerrar la decisión; si no hay una fuente de catálogo utilizable,
+el plan publica el rango entre omitir y ejecutar las métricas caras.
+Nunca lanza `COUNT(DISTINCT ...)` para despejar esa incertidumbre.
 
 ## Usage
 
@@ -28,10 +22,12 @@ plan_perfilado_dbi(
   max_consultas = Inf,
   dialecto = "auto",
   incluir_valores = TRUE,
-  tamano_lote = .TAMANO_LOTE_DBI,
+  tamano_lote = NULL,
+  tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
+  tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
   bloque_muestra = c("con_muestra", "solo_agregados"),
   instrumentar = FALSE,
-  politica_costo = c("todas", "por_cardinalidad", "cardinalidad"),
+  politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI
 )
 ```
@@ -104,9 +100,22 @@ plan_perfilado_dbi(
 
 - tamano_lote:
 
-  Cantidad máxima de columnas por consulta consolidada. Veinte mantiene
-  acotado el número de expresiones y se puede reducir para motores con
-  límites más estrictos.
+  Cantidad máxima de columnas por consulta consolidada. Se conserva por
+  compatibilidad y, si se informa, fija el tamaño de las dos familias.
+  Para control separado, usar `tamano_lote_planos` y
+  `tamano_lote_distintos`.
+
+- tamano_lote_planos:
+
+  Cantidad máxima de columnas por consulta de agregados planos. El valor
+  por omisión es 20.
+
+- tamano_lote_distintos:
+
+  Cantidad máxima de columnas por consulta de cardinalidades exactas. El
+  valor por omisión es 1, deliberadamente conservador hasta contar con
+  mediciones comparables: una sola cardinalidad puede forzar un agregado
+  pesado y derramar mucho más que un lote plano.
 
 - bloque_muestra:
 
@@ -117,20 +126,19 @@ plan_perfilado_dbi(
 
 - instrumentar:
 
-  En el plan, si es `TRUE`, cronometra las consultas-portón y, con
-  `politica_costo = "por_cardinalidad"`, las consultas baratas que el
-  plan necesita leer para conocer el esquema, las capacidades del motor
-  y la cardinalidad. No agrega mediciones al objeto devuelto: sus costos
-  siguen siendo predicciones. Por omisión es `FALSE`.
+  En el plan, si es `TRUE`, cronometra las consultas de preparación. No
+  habilita consultas de datos ni agrega mediciones al objeto devuelto:
+  sus costos siguen siendo predicciones. Por omisión es `FALSE`.
 
 - politica_costo:
 
   Política optativa para las métricas caras. El valor por omisión,
   `"todas"`, conserva moda y mediana para todas las columnas
-  solicitadas. `"por_cardinalidad"` (también `"cardinalidad"`) mide
-  primero valores válidos y distintos y omite, por columna, moda y
-  mediana cuando la proporción de distintos alcanza
-  `umbral_cardinalidad`.
+  solicitadas. `"ninguna"` es un alias de `"todas"`;
+  `"por_cardinalidad"` (también `"cardinalidad"`) mide primero valores
+  válidos y distintos cuando no hay una fuente exacta utilizable y
+  omite, por columna, moda y mediana cuando la proporción de distintos
+  alcanza `umbral_cardinalidad`.
 
 - umbral_cardinalidad:
 
@@ -143,20 +151,22 @@ plan_perfilado_dbi(
 ## Value
 
 Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
-`n_consultas` y `alcance`, y los atributos `total`,
-`total_lotes_rechazados`, `columnas`, `columnas_numericas`, `dialecto`,
-`consultas_emitidas`, `metricas`, `metricas_ejecucion`,
-`politica_costo`, `mediana_consolidada`, `filas` y `tamano_lote`. Cuando
-se pide `bloque_muestra = "solo_agregados"`, también conserva ese valor
-en el atributo `bloque_muestra` y no incluye la fila de la lectura de
-muestra.
+`n_consultas`, `n_consultas_max` y `alcance`, y los atributos `total`,
+`total_minimo`, `total_maximo`, `total_lotes_rechazados`, `columnas`,
+`columnas_numericas`, `dialecto`, `consultas_emitidas`, `metricas`,
+`metricas_ejecucion`, `politica_costo`, `estrategia_distintos`,
+`fuente_cardinalidad_costo`, `mediana_consolidada`, `filas`,
+`tamano_lote_planos` y `tamano_lote_distintos`. Cuando se pide
+`bloque_muestra = "solo_agregados"`, también conserva ese valor en el
+atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
 
 El costo no se declara como un número sino como un rango: `total` es el
-extremo inferior, alcanzado si el motor no rechaza ningún lote, y
-`total_lotes_rechazados` el superior, alcanzado si todos los lotes se
-rechazan y se recorre el árbol completo de bisección. El costo real cae
-entre los dos, y `attr(plan, "supuesto")` dice por qué se mueve en cada
-dirección.
+extremo inferior, que supone que la política omite las métricas caras
+cuya cardinalidad no se conoce, y `total_maximo` el superior, que supone
+que las ejecuta. Ambos incluyen la preparación y el perfilado previsto;
+el rechazo de lotes puede agregar las sondas de bisección declaradas por
+`total_lotes_rechazados`. El costo real cae entre los extremos, y
+`attr(plan, "supuesto")` dice por qué se mueve en cada dirección.
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre
@@ -175,11 +185,12 @@ filas. `supuesto_costo` dice de dónde sale cada cuenta.
 El plan no publica duraciones, CPU, filas ni bytes medidos: sus campos
 de costo siguen siendo predicciones basadas en los supuestos anteriores.
 
-Si se pide `politica_costo = "por_cardinalidad"`, el plan hace primero
-las consultas baratas de válidos y distintos. Después decide por columna
-si emite moda y mediana según `umbral_cardinalidad`. La política por
-omisión es `"todas"`: el paquete no elige por el usuario.
-`attr(plan, "politica_costo")` conserva la decisión y el umbral.
+Si se pide `politica_costo = "por_cardinalidad"`, el plan busca primero
+una garantía estructural o una fuente de catálogo. Si la fuente queda
+desconocida, no emite un agregado para aclararla: `n_consultas` omite
+moda y mediana, y `n_consultas_max` deja abierto el camino que las
+ejecuta. La corrida mide `distintos` sólo si la política lo necesita. La
+política por omisión es `"todas"`: el paquete no elige por el usuario.
 
 Contar sólo el motor daba juicios falsos con números ciertos: una tabla
 de 3.912 filas con una columna de geometría en texto pedía 64.592
@@ -188,6 +199,15 @@ estaba en la comparación de formas, que no es una lectura de fila. El
 método de impresión muestra las dos mitades, avisa cuando la magnitud es
 alta y nombra las palancas para acotarla, que no son las mismas de un
 lado que del otro.
+
+## Details
+
+`estrategia_distintos` separa la métrica que se publica de
+`fuente_cardinalidad_costo`, que dice de dónde sale el número usado para
+decidir. Por eso se puede omitir `n_distintos` del resultado y usar una
+clave declarada o una fuente de catálogo para decidir si conviene la
+moda. La corrida sigue la política explícita y reutiliza la medición de
+distintos una sola vez cuando la necesita.
 
 ## See also
 

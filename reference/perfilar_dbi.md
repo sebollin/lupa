@@ -23,10 +23,12 @@ perfilar_dbi(
   max_consultas = Inf,
   dialecto = "auto",
   incluir_valores = TRUE,
-  tamano_lote = .TAMANO_LOTE_DBI,
+  tamano_lote = NULL,
+  tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
+  tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
   bloque_muestra = c("con_muestra", "solo_agregados"),
   instrumentar = TRUE,
-  politica_costo = c("todas", "por_cardinalidad", "cardinalidad"),
+  politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
   ...
 )
@@ -100,9 +102,22 @@ perfilar_dbi(
 
 - tamano_lote:
 
-  Cantidad máxima de columnas por consulta consolidada. Veinte mantiene
-  acotado el número de expresiones y se puede reducir para motores con
-  límites más estrictos.
+  Cantidad máxima de columnas por consulta consolidada. Se conserva por
+  compatibilidad y, si se informa, fija el tamaño de las dos familias.
+  Para control separado, usar `tamano_lote_planos` y
+  `tamano_lote_distintos`.
+
+- tamano_lote_planos:
+
+  Cantidad máxima de columnas por consulta de agregados planos. El valor
+  por omisión es 20.
+
+- tamano_lote_distintos:
+
+  Cantidad máxima de columnas por consulta de cardinalidades exactas. El
+  valor por omisión es 1, deliberadamente conservador hasta contar con
+  mediciones comparables: una sola cardinalidad puede forzar un agregado
+  pesado y derramar mucho más que un lote plano.
 
 - bloque_muestra:
 
@@ -131,10 +146,11 @@ perfilar_dbi(
 
   Política optativa para las métricas caras. El valor por omisión,
   `"todas"`, conserva moda y mediana para todas las columnas
-  solicitadas. `"por_cardinalidad"` (también `"cardinalidad"`) mide
-  primero valores válidos y distintos y omite, por columna, moda y
-  mediana cuando la proporción de distintos alcanza
-  `umbral_cardinalidad`.
+  solicitadas. `"ninguna"` es un alias de `"todas"`;
+  `"por_cardinalidad"` (también `"cardinalidad"`) mide primero valores
+  válidos y distintos cuando no hay una fuente exacta utilizable y
+  omite, por columna, moda y mediana cuando la proporción de distintos
+  alcanza `umbral_cardinalidad`.
 
 - umbral_cardinalidad:
 
@@ -239,23 +255,26 @@ pliegan a mayúsculas.
 
 Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo
 que se trae a R, no el trabajo del motor. `bloque_muestra` decide si se
-trae esa muestra; `modo`, `metricas`, `tamano_lote` y `max_consultas`
-acotan el trabajo SQL.
+trae esa muestra; `modo`, `metricas`, `tamano_lote_planos`,
+`tamano_lote_distintos` y `max_consultas` acotan el trabajo SQL.
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
-dice cuántas consultas se van a emitir antes de emitirlas. Los agregados
-planos sobre la misma tabla y filtro —`COUNT(col)`, mínimos, máximos,
-medias, ceros, negativos y desvío— comparten una consulta por lote;
-cuando la fuente no necesita el total por adelantado, la primera
-consulta de agregados lleva además el `COUNT(*)` exacto con el alias
-`lupa_n_total`. Si el lote completo es rechazado, se emite un `COUNT(*)`
-solo como repliegue obligatorio y sus mitades se sondean por bisección:
-los grupos aceptados se reutilizan como mediciones y las columnas
-culpables se reintentan por métrica. El denominador de completitud nunca
-se estima a partir de un catálogo ni de un lote parcial. Las fuentes
-`TABLESAMPLE` que necesitan el total para escribir un porcentaje lo
-cuentan antes y no reclaman este ahorro. `COUNT(DISTINCT ...)` queda en
-una clase separada. Lo que no entra en el presupuesto queda en
-`no_disponible` con su motivo, nunca en cero.
+dice cuántas consultas se van a emitir antes de emitirlas. El orden de
+degradación es agregados planos, total exacto fusionado, distintos, moda
+y mediana. Los agregados planos sobre la misma tabla y filtro
+—`COUNT(col)`, mínimos, máximos, medias, ceros, negativos y desvío—
+comparten una consulta por lote; cuando la fuente no necesita el total
+por adelantado, la primera consulta de agregados lleva además el
+`COUNT(*)` exacto con el alias `lupa_n_total`. Si el lote completo es
+rechazado, se emite un `COUNT(*)` solo como repliegue obligatorio y sus
+mitades se sondean por bisección: los grupos aceptados se reutilizan
+como mediciones y las columnas culpables se reintentan por métrica. El
+denominador de completitud nunca se estima a partir de un catálogo ni de
+un lote parcial. Las fuentes `TABLESAMPLE` que necesitan el total para
+escribir un porcentaje lo cuentan antes y no reclaman este ahorro.
+`COUNT(DISTINCT ...)` queda en una clase separada y usa su propio tamaño
+de lote, conservador por omisión porque una cardinalidad puede derramar
+mucho más que veinte agregados planos. Lo que no entra en el presupuesto
+queda en `no_disponible` con su motivo, nunca en cero.
 `meta$tamano_lote_funciono` conserva el mayor lote aceptado durante esa
 corrida; no se guarda estado global asociado a la conexión.
 

@@ -331,15 +331,16 @@ hace el driver. Cero es medido; `NA` significa que no se pudo medir.
 `instrumentar = FALSE` apaga ambos relojes y deja esos campos en `NA`,
 sin alterar la consulta ni su resultado.
 
-El total exacto (`COUNT(*)`) viaja en la primera consulta de agregados y
-se comparte con el recorrido que ya necesitaban los agregados. Si el
-lote completo es rechazado por el motor, se emite un `COUNT(*)` solo y
-se continúa con la bisección: la completitud siempre usa
-`n_total - n_validos`, nunca un total estimado. En la corrida normal eso
-ahorra una consulta y un recorrido separado de la tabla; el plan sigue
-pagando su propio conteo porque necesita conocer las filas antes de
-estimar el trabajo. Una forma `TABLESAMPLE` que necesita el total para
-escribir un porcentaje lo cuenta antes y no reclama este ahorro.
+El total exacto (`COUNT(*)`) viaja en la primera consulta de agregados
+planos y se comparte con el recorrido que ya necesitaban. Si el lote
+completo es rechazado por el motor, se emite un `COUNT(*)` solo y se
+continúa con la bisección: la completitud siempre usa
+`n_total - n_validos`, nunca un total estimado. Una forma `TABLESAMPLE`
+que necesita el total para escribir un porcentaje lo cuenta antes. Los
+tamaños se pueden separar: `tamano_lote_planos` controla los agregados
+planos y `tamano_lote_distintos` las cardinalidades; este último vale 1
+por omisión hasta contar con mediciones, porque una sola cardinalidad
+puede derramar mucho más que un lote plano.
 
 ### Leer un perfil sin conocer su forma
 
@@ -417,30 +418,42 @@ consultas, y 256 de ellas escanean, ordenan o agrupan la tabla entera.
 La cuenta sigue a la composición y no a la cantidad de columnas: esas
 mismas 158 columnas, todas de texto, cuestan 172, porque una mediana
 pide un orden total por columna numérica. `muestra` no acota nada de eso
-—acota lo que se trae a R, no el trabajo del motor, y el plan muestreado
-sobre la misma tabla cuesta 271—. Así que el costo se declara y se elige
-(`benchmark/medir_plan_ancho.R` reproduce los cuatro números):
+—acota lo que se trae a R, no el trabajo del motor—. Así que el costo se
+declara y se elige (`benchmark/medir_plan_ancho.R` reproduce los cuatro
+números):
 
 ``` r
 
-plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # 5 consultas, predice el resto
+plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # prepara y publica un rango
 ```
 
 El plan da un **rango** de cuántas consultas va a emitir el perfilado, y
-lo dice en `attr(plan, "supuesto")`. El extremo inferior es `total`, y
-se alcanza si no se rechaza ningún lote: una columna sin ningún valor no
-emite mediana ni desvío, y el plan no puede saber cuáles están vacías
-sin preguntarlo, cosa que cambiaría su propio costo. El extremo superior
-es `total_lotes_rechazados`, y se alcanza si el motor rechaza todos los
-lotes y se recorre cada árbol de bisección: hasta `2n - 1` sondas
-adicionales para un lote de `n` columnas. El costo real cae entre los
-dos, y el plan lo declara en las dos direcciones en vez de prometer una
-cota que no puede sostener.
+lo dice en `attr(plan, "supuesto")`. No escanea datos para decidir el
+costo: lee el esquema, sondea capacidades y, con
+`politica_costo = "por_cardinalidad"`, puede leer una garantía
+estructural o una fuente de catálogo. Nunca lanza `COUNT(DISTINCT ...)`
+sólo para despejar una duda.
 
-El plan paga un `COUNT(*)` exacto propio antes de los agregados, porque
-necesita el total para estimar el trabajo. Ese recorrido sigue siendo
-parte del costo del plan; la corrida no vuelve a pagar una consulta
-separada cuando puede llevar el conteo en su primer agregado.
+El extremo inferior es `total`: cuando la fuente de cardinalidad es
+desconocida, supone que la política omite las métricas caras. El extremo
+superior es `total_maximo` —también publicado como
+`total_lotes_rechazados` después de sumar la bisección— y deja abierto
+el camino que las ejecuta. Si el motor rechaza lotes, se agregan hasta
+`2n - 1` sondas por lote de `n` columnas. El costo real cae entre los
+dos, y el plan lo declara en las dos direcciones.
+
+La estrategia de distintos y su fuente de costo son independientes:
+`estrategia_distintos` dice si `n_distintos` se publica o sólo se usa
+para decidir, y `fuente_cardinalidad_costo` dice de dónde sale la
+proporción. Así una clave declarada puede cerrar la decisión sin emitir
+un `COUNT(DISTINCT ...)`. Si la fuente es desconocida, la corrida sigue
+la política explícita y mide ese agregado una sola vez cuando lo
+necesita.
+
+La corrida lleva el `COUNT(*)` exacto en el total fusionado con los
+agregados planos; si no hay agregados planos que puedan llevarlo, lo
+emite antes de la familia de distintos. El plan publica ese orden sin
+pagar el escaneo.
 
 Lo que sí es una restricción dura de diseño es que esa predicción **no
 dependa del motor**: cada sonda de capacidad gasta un número fijo de
@@ -448,16 +461,17 @@ consultas aunque acierte en la primera forma, porque un costo que
 variara por motor dejaría al usuario adivinando otra vez.
 
 La moda y la mediana tienen una política de costo explícita. El valor
-por omisión es `politica_costo = "todas"`: el paquete no elige por el
-usuario. Con `politica_costo = "por_cardinalidad"`, primero se miden
-`validos` y `distintos`; después se decide por columna si se emiten moda
-y mediana cuando `n_distintos / n_validos >= umbral_cardinalidad`. El
-umbral por omisión es `0.95` y se puede mover en cada llamada. Cada
-omisión queda en `resumen_tabla$sql` como `omitido_por_costo`, con qué
-se omitió, por qué y cómo pedirlo de nuevo: `politica_costo = "todas"` o
-un umbral diferente. El banco reproducible
-`benchmark/medir_politica_costo.R` mide el ahorro en consultas sobre una
-tabla de 158 columnas.
+por omisión es `politica_costo = "todas"` (`"ninguna"` es un alias): el
+paquete no elige por el usuario. Con
+`politica_costo = "por_cardinalidad"`, la corrida mide `validos` y
+`distintos` cuando no hay una fuente exacta de catálogo; después decide
+por columna si se emiten moda y mediana cuando
+`n_distintos / n_validos >= umbral_cardinalidad`. El umbral por omisión
+es `0.95` y se puede mover en cada llamada. Cada omisión queda en
+`resumen_tabla$sql` como `omitido_por_costo`, con qué se omitió, por qué
+y cómo pedirlo de nuevo: `politica_costo = "todas"` o un umbral
+diferente. El banco reproducible `benchmark/medir_politica_costo.R` mide
+el ahorro en consultas sobre una tabla de 158 columnas.
 
 Pero contar consultas no responde la pregunta que trae quien mira el
 plan: catorce consultas sobre dos millones de filas son mucho más

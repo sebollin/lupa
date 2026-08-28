@@ -310,15 +310,16 @@ Per-column metrics — mode, mode frequency, and median — leave
 `id_muestra = NA`, because they do not share rows with other metrics;
 `NA` declares that there is no guarantee rather than inventing a match.
 
-The exact total (`COUNT(*)`) travels in the first aggregate query and
-shares the scan the aggregates already needed. If the complete batch is
-rejected by the engine, a standalone `COUNT(*)` is issued and bisection
-continues: completeness always uses `n_total - n_validos`, never an
-estimated total. In a normal run this saves one query and one separate
-table scan; the plan still pays its own count because it needs the row
-total before estimating the work. A `TABLESAMPLE` form that needs the
-total to write a percentage counts it first and does not claim this
-saving.
+The exact total (`COUNT(*)`) travels in the first flat aggregate query
+and shares the scan the aggregates already needed. If the complete batch
+is rejected by the engine, a standalone `COUNT(*)` is issued and
+bisection continues: completeness always uses `n_total - n_validos`,
+never an estimated total. A `TABLESAMPLE` form that needs the total to
+write a percentage counts it first. The batch sizes are separate:
+`tamano_lote_planos` controls flat aggregates and
+`tamano_lote_distintos` controls cardinalities. The latter defaults to 1
+until comparable measurements exist, because one cardinality can spill
+far more than a flat batch.
 
 ### Reading a profile without knowing its shape
 
@@ -397,35 +398,55 @@ Profiling a 158-column table in `modo = "exacto"` emits 262 queries, and
 composition, not the column count: the same 158 columns as text only
 cost 172, because a median asks for a full sort per numeric column.
 `muestra` does not bound any of it — it bounds what is brought into R,
-not the work the engine does, and the sampled plan over the same table
-costs 271. So the cost is declared and chosen
+not the work the engine does. So the cost is declared and chosen
 (`benchmark/medir_plan_ancho.R` reproduces the four numbers):
 
 ``` r
 
-plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # 5 queries, predicts the rest
+plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # prepares and publishes a range
 ```
 
 The plan gives a **range** for how many queries the profiling will emit,
-and it says so in `attr(plan, "supuesto")`. The low end is `total`,
-reached when no batch is rejected: a column with no value emits neither
-median nor standard deviation, and the plan cannot know which ones are
-empty without asking — which would change its own cost. The high end is
-`total_lotes_rechazados`, reached when the engine rejects every batch
-and each bisection tree is traversed: up to `2n - 1` additional probes
-for a batch of `n` columns. The real cost falls between the two, and the
-plan says so in both directions rather than promising a bound it cannot
-keep.
+and it says so in `attr(plan, "supuesto")`. It does not scan data to
+decide cost: it reads the schema, probes capabilities and, with
+`politica_costo = "por_cardinalidad"`, may read a structural guarantee
+or a catalogue source. It never launches `COUNT(DISTINCT ...)` just to
+resolve uncertainty.
 
-The plan pays its own exact `COUNT(*)` before the aggregates because it
-needs the total to estimate the work. That scan remains part of the
-plan’s cost; the run does not pay a separate count query when it can
-carry the count in its first aggregate.
+The low end is `total`: when cardinality is unknown, it assumes the
+policy will omit expensive metrics. The high end is `total_maximo` —also
+exposed as `total_lotes_rechazados` after adding bisection— and leaves
+open the path that executes them. If the engine rejects batches, up to
+`2n - 1` probes are added per batch of `n` columns. The real cost falls
+between the two, and the plan says so in both directions.
+
+`estrategia_distintos` and `fuente_cardinalidad_costo` are independent:
+the former says whether `n_distintos` is published or only used for the
+decision, while the latter says where the ratio comes from. A declared
+key can therefore close the decision without issuing
+`COUNT(DISTINCT ...)`. If the source is unknown, the run follows the
+explicit policy and measures that aggregate once when needed.
+
+The run carries the exact `COUNT(*)` in the total fused with flat
+aggregates; if there are no flat aggregates that can carry it, it emits
+it before the distinct family. The plan publishes this order without
+paying the scan.
 
 The part that *is* a hard design constraint is that the prediction does
 not depend on the engine: every capability probe costs a fixed number of
 queries even when it succeeds on the first form, because a cost that
 varied by engine would leave the user guessing again.
+
+The decision to pay mode and median is explicit.
+`politica_costo = "todas"` is the default and preserves all requested
+metrics; `"ninguna"` is an alias. With
+`politica_costo = "por_cardinalidad"`, valid and distinct values are
+measured only when no exact catalogue source is available; then
+expensive metrics are omitted per column when
+`n_distintos / n_validos >= umbral_cardinalidad`. The default threshold
+is `0.95`, it can be changed in the call, and every omission is declared
+in `resumen_tabla$sql` as `omitido_por_costo`, with the reason and how
+to ask for it anyway.
 
 But counting queries does not answer the question the reader actually
 brings: fourteen queries over two million rows are far more work than

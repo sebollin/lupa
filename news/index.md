@@ -2,6 +2,53 @@
 
 ## lupa 0.1.0
 
+### Cambios en desarrollo
+
+- [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  deja de ejecutar agregados de datos para decidir el costo. Con una
+  cardinalidad desconocida publica un rango y conserva separadas
+  `estrategia_distintos` y `fuente_cardinalidad_costo`.
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  ejecuta primero los agregados planos, luego el total exacto, los
+  distintos, la moda y la mediana. `tamano_lote_planos` y
+  `tamano_lote_distintos` son independientes; este último es 1 por
+  omisión hasta contar con mediciones.
+
+### Una clave heredada ya no se declara garantizada sobre otro universo
+
+En PostgreSQL, una consulta sin `ONLY` incluye a las tablas que heredan,
+y la clave primaria del padre **no gobierna las filas de los hijos**. El
+catálogo sigue informando la restricción como válida, así que
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+publicaba `garantia = "garantizada"` sobre un universo donde la unicidad
+puede no cumplirse: medido, una tabla con un hijo que repite un valor da
+6001 valores y 6000 distintos en la consulta que ejecuta el paquete.
+
+Ahora la misma consulta de catálogo trae si la tabla tiene descendientes
+—sin agregar una ida y vuelta— y en ese caso la garantía baja a
+`declarada_no_garantizada`, con el hecho anotado en
+`estado$universo_incluye_descendientes`. La restricción existe y es
+válida; lo que no vale es sobre las filas que se van a perfilar.
+
+El particionado declarativo **no** pierde la garantía. `pg_inherits`
+registra tanto la herencia tradicional como las particiones, y sólo la
+primera deja filas fuera del alcance de la clave: el motor exige que la
+clave de una tabla particionada incluya sus columnas de partición,
+justamente para poder garantizarla sobre el árbol. Medido: una tabla
+regular con un hijo que repite un valor da 6001 válidos y 6000
+distintos; una particionada con dos particiones da 19999 y 19999. Se
+distinguen por `relkind`, en la misma consulta. En PostgreSQL anterior a
+la versión 10 no existe el particionado declarativo, y ahí toda
+descendencia es herencia.
+
+La misma consulta trae también si la restricción es `DEFERRABLE`. Una
+clave diferible puede estar violada mientras una transacción sigue
+abierta, y el catálogo la informa validada igual: medido, dentro de una
+transacción que inserta un duplicado la tabla tiene 3 valores válidos y
+2 distintos. Desde el paquete no se puede saber si hay una transacción
+con violaciones pendientes, así que la garantía no se afirma y queda
+`estado$restriccion_diferible`.
+
 ### El estado publicado queda atado a la consulta ejecutada
 
 Los conteos aproximados sólo se consolidan cuando el adaptador entrega
