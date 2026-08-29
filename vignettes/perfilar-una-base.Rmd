@@ -519,7 +519,10 @@ los comparta puede rehacer la cuenta.
 
 Los agregados planos que comparten lote —`COUNT(col)`, mínimo, máximo, media,
 ceros, negativos y desvío— se piden en una sola consulta. `COUNT(DISTINCT ...)`
-y la moda conservan consultas separadas por sus planes propios. La mediana
+y la moda conservan consultas separadas por sus planes propios. La moda intenta
+traer `SUM(COUNT(*)) OVER () AS n_validos_guard` junto a su frecuencia y sondea
+esa forma antes de emitirla; si el motor la rechaza, conserva la consulta
+anterior y lo declara en `resumen_tabla$meta$moda_guardian`. La mediana
 también conserva ese camino como respaldo; en PostgreSQL 9.3 y SQLite el conteo
 de la mediana queda como subconsulta escalar en la misma sentencia que ordena y
 recorta. Un motor que acepta
@@ -546,11 +549,11 @@ TABLESAMPLE BERNOULLI (20)  1011 1017  981  1050
 
 `SYSTEM` elige bloques enteros, así que el tamaño de la muestra salta de un
 tercio al doble de lo pedido, y sobre una tabla chica puede dar cero. Con
-Con tamaños tan distintos entre consultas, dos métricas del mismo perfil dejan
-de ser comparables entre sí. La guarda de coherencia interna ya no compara, por
-ejemplo, la frecuencia de la moda contra los válidos de otra consulta: si no
-tiene un denominador compañero, deja la cota como no comprobable y conserva la
-medición sin culpar al motor.
+tamaños tan distintos entre consultas, dos métricas del mismo perfil dejan
+de ser comparables entre sí. La guarda de coherencia interna compara la
+frecuencia de la moda con `n_validos_guard` de su propia sentencia; si la sonda
+de la ventana no pasa, deja la cota como no comprobable y conserva la medición
+sin culpar al motor.
 
 Si necesitás que todas las métricas describan exactamente las mismas filas, el
 camino es `perfil_muestra`: trae una muestra a R **una sola vez** y corre sobre

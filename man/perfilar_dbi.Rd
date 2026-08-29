@@ -232,9 +232,12 @@ distintos trae \verb{COUNT(columna) AS n_validos_guard} junto a
 \verb{COUNT(DISTINCT columna)}. Si una capacidad aproximada sólo construye una
 consulta completa y no puede traer ese guardian, la cota no se comprueba y
 el motivo lo declara; no se atribuye un valor imposible al motor.
-La frecuencia de la moda no se compara con \code{n_validos} de otra sentencia:
-como su consulta no trae un guardian compañero, esa cota también queda
-declarada como no comprobable.
+La consulta de la moda intenta traer \verb{SUM(COUNT(*)) OVER () AS
+n_validos_guard} junto a su frecuencia. La forma se sondea antes de usarla;
+si el motor la rechaza, se conserva la consulta anterior y
+\code{meta$moda_guardian} publica el repliegue. Cuando la sonda pasa, la cota
+\code{frecuencia_moda <= n_validos} se comprueba dentro de la misma sentencia y
+el motivo de la métrica lo declara.
 \code{meta$snapshot} queda en \code{FALSE}, siguiendo la declaracion de colecciones: no
 hubo lectura instantanea. La cobertura agrega una entrada concreta solo si
 \code{n_validos} y \code{n_distintos} son exactos, incoherentes y provienen de grupos

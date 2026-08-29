@@ -982,6 +982,98 @@
   )
 }
 
+# La frecuencia de la moda y su denominador pueden salir de la misma
+# agregacion: la ventana se aplica sobre los grupos que ya produjo GROUP BY.
+# La sonda usa una tabla chica para no asumir que todos los motores aceptan
+# una ventana sobre un agregado.
+.candidatos_moda_guardian_dbi <- function(conexion, dialecto) {
+  alias <- function(nombre) {
+    as.character(DBI::dbQuoteIdentifier(conexion, nombre))
+  }
+  construir <- function(columna, tabla) {
+    sin_limite <- paste0(
+      "SELECT ", columna, " AS ", alias("valor"), ", COUNT(*) AS ",
+      alias("frecuencia"), ", SUM(COUNT(*)) OVER () AS ",
+      alias("n_validos_guard"), " FROM ", tabla, " WHERE ", columna,
+      " IS NOT NULL GROUP BY ", columna, " ORDER BY ", alias("frecuencia"),
+      " DESC, ", columna, " ASC"
+    )
+    acotada <- dialecto$limitar(sin_limite, 1L, 0)
+    if (is.null(acotada)) sin_limite else acotada
+  }
+  list(list(
+    nombre = "ventana_agregado",
+    construir = construir,
+    sonda = function() {
+      tabla <- paste0(
+        "(SELECT 1 AS lupa_valor UNION ALL SELECT 2 UNION ALL SELECT 2)",
+        dialecto$alias_tabla("lupa_moda_sonda")
+      )
+      construir(alias("lupa_valor"), tabla)
+    }
+  ))
+}
+
+.sondar_moda_guardian_dbi <- function(conexion, dialecto, presupuesto) {
+  if (!is.null(presupuesto) && !is.null(presupuesto$moda_guardian)) {
+    return(presupuesto$moda_guardian)
+  }
+  candidatos <- .candidatos_moda_guardian_dbi(conexion, dialecto)
+  sondas <- character()
+  elegida <- NULL
+  for (candidato in candidatos) {
+    sql <- candidato$sonda()
+    sondas <- c(sondas, sql)
+    prueba <- .consultar_dbi(
+      conexion, sql, presupuesto, filas = 1L,
+      etapa = "sonda_moda_guardian"
+    )
+    if (!isTRUE(prueba$ok)) next
+    valor <- .valor_campo_dbi(prueba$datos, "valor")
+    frecuencia <- .valor_campo_dbi(prueba$datos, "frecuencia")
+    guardian <- .valor_campo_dbi(prueba$datos, "n_validos_guard")
+    if (!isTRUE(valor$ok) || !isTRUE(frecuencia$ok) ||
+        !isTRUE(guardian$ok)) next
+    if (isTRUE(.numero_dbi(valor$valor) == 2) &&
+        isTRUE(.numero_dbi(frecuencia$valor) == 2) &&
+        isTRUE(.numero_dbi(guardian$valor) == 3)) {
+      elegida <- candidato
+      break
+    }
+  }
+  resultado <- list(
+    disponible = !is.null(elegida), candidato = elegida, sondas = sondas,
+    motivo = if (is.null(elegida)) {
+      if (!length(candidatos)) {
+        "El adaptador no declara una forma de moda con guardian; se conserva la consulta actual sin guardian."
+      } else {
+        paste(
+          "El motor rechazo la forma de moda con guardian o no devolvio el",
+          "resultado esperado; se conserva la consulta actual sin guardian."
+        )
+      }
+    } else {
+      paste(
+        "El motor acepto la forma de moda con guardian; la cota se comprueba",
+        "dentro de la misma sentencia."
+      )
+    }
+  )
+  if (!is.null(presupuesto)) presupuesto$moda_guardian <- resultado
+  resultado
+}
+
+.publicar_moda_guardian_dbi <- function(resolucion) {
+  if (is.null(resolucion)) return(NULL)
+  candidato <- resolucion$candidato
+  list(
+    disponible = isTRUE(resolucion$disponible),
+    metodo = if (is.null(candidato)) NA_character_ else candidato$nombre,
+    sondas = resolucion$sondas,
+    motivo = resolucion$motivo
+  )
+}
+
 # Algunos motores pueden obtener varios percentiles en la misma agregacion.
 # Esta capacidad se sondea por separado porque una sonda que solo prueba una
 # mediana no prueba que el motor acepte varias expresiones en un SELECT.
@@ -2853,7 +2945,7 @@
   resultado
 }
 
-.adjuntar_guardian_distintos_dbi <- function(resultado, consulta, alias) {
+.adjuntar_guardian_dbi <- function(resultado, consulta, alias) {
   guardian <- list(
     n_validos_guard = NA_real_,
     consulta_id_guard = NA_integer_,
@@ -2874,6 +2966,14 @@
     resultado$metadatos, guardian
   )
   resultado
+}
+
+.adjuntar_guardian_distintos_dbi <- function(resultado, consulta, alias) {
+  .adjuntar_guardian_dbi(resultado, consulta, alias)
+}
+
+.adjuntar_guardian_moda_dbi <- function(resultado, consulta, alias) {
+  .adjuntar_guardian_dbi(resultado, consulta, alias)
 }
 
 .conteo_desde_consulta_dbi <- function(consulta, sql, alias) {
@@ -2986,7 +3086,7 @@
   resultado
 }
 
-.guardian_distintos_dbi <- function(resultado) {
+.guardian_dbi <- function(resultado) {
   metadatos <- resultado$metadatos
   guardado <- if (is.null(metadatos)) NA_real_ else {
     .numero_dbi(metadatos$n_validos_guard)
@@ -3001,6 +3101,17 @@
     length(id_guardian) == 1L && !is.na(id_guardian) &&
     identical(id_resultado, id_guardian)
   list(valor = guardado, comprobable = comprobable)
+}
+
+.guardian_distintos_dbi <- function(resultado) .guardian_dbi(resultado)
+
+.guardian_moda_dbi <- function(resultado) .guardian_dbi(resultado)
+
+.motivo_cota_moda_comprobable_dbi <- function() {
+  paste(
+    "La cota simple `frecuencia_moda <= n_validos` se comprobo dentro de la misma",
+    "sentencia mediante `n_validos_guard`."
+  )
 }
 
 .motivo_cota_distintos_no_comprobable_dbi <- function() {
@@ -3848,7 +3959,7 @@
 }
 
 .moda_columna_dbi <- function(conexion, tabla_sql, columna_sql, dialecto,
-                              presupuesto) {
+                              presupuesto, moda_guardian = NULL) {
   alias <- function(nombre) {
     as.character(DBI::dbQuoteIdentifier(conexion, nombre))
   }
@@ -3859,13 +3970,32 @@
     " DESC, ", columna_sql, " ASC"
   )
   acotada <- dialecto$limitar(sin_limite, 1L, 0)
-  sql_moda <- if (is.null(acotada)) sin_limite else acotada
+  sql_moda <- if (is.null(moda_guardian)) {
+    if (is.null(acotada)) sin_limite else acotada
+  } else {
+    moda_guardian$construir(columna_sql, tabla_sql)
+  }
   resultado <- .consultar_dbi(
     conexion, sql_moda, presupuesto,
     filas = if (is.null(acotada)) 1L else -1L,
     etapa = "moda"
   )
   resultado$sql <- sql_moda
+  resultado$metadatos <- list(
+    metodo = if (is.null(moda_guardian)) {
+      "consulta_actual_sin_guardian"
+    } else {
+      moda_guardian$nombre
+    },
+    n_validos_guard = NA_real_,
+    consulta_id_guard = NA_integer_,
+    cota_comprobable = FALSE
+  )
+  if (!is.null(moda_guardian)) {
+    resultado <- .adjuntar_guardian_moda_dbi(
+      resultado, resultado, alias("n_validos_guard")
+    )
+  }
   resultado
 }
 
@@ -3883,6 +4013,7 @@
                                  agregados = NULL,
                                  mediana_consolidada = NULL,
                                  mediana_escalar = NULL,
+                                 moda_guardian = NULL,
                                  moda_precalculada = NULL,
                                  decisiones_costo = NULL,
                                  publica_distintos = TRUE,
@@ -4160,17 +4291,30 @@
           moda$motivo <- conditionMessage(valor_moda)
         } else {
           candidato <- .conteo_dbi(frecuencia$valor)
-          # La frecuencia solo puede compararse con un denominador de la
-          # misma sentencia. La consulta de moda no trae ese guardian, asi
-          # que no se convierte una diferencia entre fotos en una acusacion.
-          fila$moda <- valor_moda
-          fila$frecuencia_moda <- if (es_muestreado) {
-            .conteo_estimado_dbi(candidato, n_total, tamano_muestra)
+          guardian <- .guardian_moda_dbi(moda)
+          motivo_cota <- if (guardian$comprobable) {
+            .motivo_cota_moda_comprobable_dbi()
           } else {
-            candidato
+            .motivo_cota_moda_no_comprobable_dbi()
           }
-          if (!is.na(candidato)) {
-            moda$motivo <- .motivo_cota_moda_no_comprobable_dbi()
+          cota_invalida <- guardian$comprobable && !is.na(candidato) &&
+            .numero_dbi(candidato) > guardian$valor
+          if (cota_invalida) {
+            moda$ok <- FALSE
+            moda$motivo <- paste0(
+              "Se comprobo en la consulta que la frecuencia de la moda (",
+              candidato, ") supera los ", guardian$valor,
+              " valores validos; la metrica no se publica."
+            )
+            motivo_cota <- NA_character_
+          } else {
+            fila$moda <- valor_moda
+            fila$frecuencia_moda <- if (es_muestreado) {
+              .conteo_estimado_dbi(candidato, n_total, tamano_muestra)
+            } else {
+              candidato
+            }
+            if (!is.na(candidato)) moda$motivo <- motivo_cota
           }
         }
       }
@@ -4541,6 +4685,7 @@
                                 tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
                                 conteo = NULL,
                                 tabla_total_sql = tabla_sql,
+                                moda_guardian = NULL,
                                 mediana_consolidada = NULL,
                                 mediana_escalar = NULL,
                                 fuentes_cardinalidad_costo = NULL,
@@ -4672,7 +4817,7 @@
     modas[[campo]] <- .moda_columna_dbi(
       conexion, tabla_metricas_sql,
       as.character(DBI::dbQuoteIdentifier(conexion, campo)),
-      dialecto, presupuesto
+      dialecto, presupuesto, moda_guardian = moda_guardian
     )
   }
   columnas_medianas <- intersect(campos_consolidados, campos)
@@ -4723,6 +4868,7 @@
       aproximacion_mediana = aproximaciones$mediana,
       tamano_muestra = tamano_muestra, fraccion_muestra = fraccion_muestra,
       agregados = agregados,
+      moda_guardian = moda_guardian,
       mediana_consolidada = medianas[[campo]],
       mediana_escalar = mediana_escalar,
       moda_precalculada = modas[[campo]],
@@ -5448,7 +5594,7 @@
 #'   `total_minimo`, `total_maximo`, `total_lotes_rechazados`, `columnas`,
 #'   `columnas_numericas`, `dialecto`, `consultas_emitidas`, `metricas`,
 #'   `metricas_ejecucion`, `politica_costo`, `estrategia_distintos`,
-#'   `fuente_cardinalidad_costo`, `mediana_consolidada`, `filas`,
+#'   `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`, `filas`,
 #'   `mediana_escalar`,
 #'   `tamano_lote_planos` y `tamano_lote_distintos`. Cuando se pide
 #'   `bloque_muestra = "solo_agregados"`, también conserva ese valor en el
@@ -5671,6 +5817,9 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   )
   attr(plan, "fuente_cardinalidad_costo") <-
     preparacion$fuentes_cardinalidad_costo
+  attr(plan, "moda_guardian") <- .publicar_moda_guardian_dbi(
+    preparacion$moda_guardian_resolucion
+  )
   attr(plan, "mediana_consolidada") <- preparacion$mediana_consolidada_resolucion
   attr(plan, "mediana_escalar") <- .publicar_mediana_escalar_dbi(
     preparacion$mediana_escalar_resolucion
@@ -6749,10 +6898,20 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }
   aproximaciones <- list()
   aproximaciones_resolucion <- list()
+  moda_guardian_resolucion <- NULL
+  moda_guardian <- NULL
   mediana_consolidada_resolucion <- NULL
   mediana_consolidada <- NULL
   mediana_escalar_resolucion <- NULL
   mediana_escalar <- NULL
+  if ("moda" %in% metricas && isTRUE(incluir_valores)) {
+    moda_guardian_resolucion <- .sondar_moda_guardian_dbi(
+      conexion, resolucion$dialecto, presupuesto
+    )
+    if (isTRUE(moda_guardian_resolucion$disponible)) {
+      moda_guardian <- moda_guardian_resolucion$candidato
+    }
+  }
   if ("mediana" %in% metricas && isTRUE(incluir_valores) &&
       any(es_numerico)) {
     mediana_consolidada_resolucion <- .sondar_mediana_consolidada_dbi(
@@ -6866,6 +7025,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     es_numerico = es_numerico, muestreo = muestreo,
     aproximaciones = aproximaciones,
     aproximaciones_resolucion = aproximaciones_resolucion,
+    moda_guardian = moda_guardian,
+    moda_guardian_resolucion = moda_guardian_resolucion,
     mediana_consolidada = mediana_consolidada,
     mediana_consolidada_resolucion = mediana_consolidada_resolucion,
     mediana_escalar = mediana_escalar,
@@ -6975,9 +7136,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `COUNT(DISTINCT columna)`. Si una capacidad aproximada sólo construye una
 #' consulta completa y no puede traer ese guardian, la cota no se comprueba y
 #' el motivo lo declara; no se atribuye un valor imposible al motor.
-#' La frecuencia de la moda no se compara con `n_validos` de otra sentencia:
-#' como su consulta no trae un guardian compañero, esa cota también queda
-#' declarada como no comprobable.
+#' La consulta de la moda intenta traer `SUM(COUNT(*)) OVER () AS
+#' n_validos_guard` junto a su frecuencia. La forma se sondea antes de usarla;
+#' si el motor la rechaza, se conserva la consulta anterior y
+#' `meta$moda_guardian` publica el repliegue. Cuando la sonda pasa, la cota
+#' `frecuencia_moda <= n_validos` se comprueba dentro de la misma sentencia y
+#' el motivo de la métrica lo declara.
 #' `meta$snapshot` queda en `FALSE`, siguiendo la declaracion de colecciones: no
 #' hubo lectura instantanea. La cobertura agrega una entrada concreta solo si
 #' `n_validos` y `n_distintos` son exactos, incoherentes y provienen de grupos
@@ -7336,6 +7500,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     tamano_lote_planos = preparacion$tamano_lote_planos,
     tamano_lote_distintos = preparacion$tamano_lote_distintos,
     conteo = preparacion$conteo,
+    moda_guardian = preparacion$moda_guardian,
     mediana_consolidada = preparacion$mediana_consolidada,
     mediana_escalar = preparacion$mediana_escalar,
     fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo,
@@ -7381,6 +7546,9 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   if (!is.null(presupuesto$proyeccion_distintos)) {
     attr(plan, "costo_distintos") <- presupuesto$proyeccion_distintos
   }
+  attr(plan, "moda_guardian") <- .publicar_moda_guardian_dbi(
+    preparacion$moda_guardian_resolucion
+  )
   # En la corrida el conteo sale de la primera consulta de agregados. Desde
   # aca es el total que gobierna el denominador, la muestra y toda la metadata;
   # no se conserva el valor desconocido de la preparacion.
@@ -7427,6 +7595,9 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   )
   resumen$meta$fuente_cardinalidad_costo <-
     preparacion$fuentes_cardinalidad_costo
+  resumen$meta$moda_guardian <- .publicar_moda_guardian_dbi(
+    preparacion$moda_guardian_resolucion
+  )
   resumen$meta$mediana_consolidada <-
     preparacion$mediana_consolidada_resolucion
   resumen$meta$mediana_escalar <-

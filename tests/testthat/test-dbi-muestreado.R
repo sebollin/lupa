@@ -202,6 +202,8 @@ test_that("muestreado usa una forma declarada por el motor y marca cada estimaci
   expect_true(all(
     metricas_sin_distintos$metodo == "random_limit" |
       metricas_sin_distintos$metodo == "tablesample_system" |
+      (metricas_sin_distintos$metrica %in% c("moda", "frecuencia_moda") &
+         metricas_sin_distintos$metodo == "ventana_agregado") |
       (metricas_sin_distintos$metrica == "mediana" &
          metricas_sin_distintos$metodo == "subconsulta_escalar")
   ))

@@ -325,6 +325,11 @@ inconsistencia al motor. Los tamaños se pueden separar:
 `tamano_lote_planos` controla los agregados planos y `tamano_lote_distintos` las
 cardinalidades; este último vale 1 por omisión hasta contar con mediciones,
 porque una sola cardinalidad puede derramar mucho más que un lote plano.
+La consulta de la moda intenta traer `SUM(COUNT(*)) OVER () AS n_validos_guard`
+junto a su frecuencia. La forma se sondea antes de usarla; si el motor la
+rechaza, conserva la consulta anterior y lo declara en
+`resumen_tabla$meta$moda_guardian`. Cuando la acepta, la cota
+`frecuencia_moda <= n_validos` se comprueba dentro de esa misma sentencia.
 
 Las fuentes estructurales que usa la política de costo se resuelven cuando la
 política necesita la cardinalidad, aunque la estrategia solicitada esté omitida

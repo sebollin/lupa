@@ -1,5 +1,19 @@
 # lupa 0.1.0
 
+## La moda conserva su guardian de la misma sentencia
+
+- La consulta de la moda intenta traer `SUM(COUNT(*)) OVER () AS
+  n_validos_guard` junto a la frecuencia y valida `frecuencia_moda <= n_validos`
+  dentro de esa misma sentencia.
+- La forma se sondea antes de usarla. Si el motor la rechaza, se conserva la
+  consulta anterior y `resumen_tabla$meta$moda_guardian` declara el repliegue;
+  el motivo deja de afirmar que la cota no se pudo comprobar cuando el guardian
+  estuvo disponible.
+- En `EXPLAIN (ANALYZE, BUFFERS)` sobre una tabla temporal de 2 millones de
+  filas, PostgreSQL 9.3 pasó de una mediana de 245,7 ms a 271,7 ms y
+  PostgreSQL 16 de 258,5 ms a 277,6 ms. Ambos planes conservaron un solo
+  `Seq Scan` y los mismos buffers; el costo agregado fue la ventana sobre los
+  tres grupos ya calculados.
 
 ## El detector de formatos de fecha trabaja sobre el vocabulario
 

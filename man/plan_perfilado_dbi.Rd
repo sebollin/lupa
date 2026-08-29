@@ -124,7 +124,7 @@ Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
 \code{total_minimo}, \code{total_maximo}, \code{total_lotes_rechazados}, \code{columnas},
 \code{columnas_numericas}, \code{dialecto}, \code{consultas_emitidas}, \code{metricas},
 \code{metricas_ejecucion}, \code{politica_costo}, \code{estrategia_distintos},
-\code{fuente_cardinalidad_costo}, \code{mediana_consolidada}, \code{filas},
+\code{fuente_cardinalidad_costo}, \code{moda_guardian}, \code{mediana_consolidada}, \code{filas},
 \code{tamano_lote_planos} y \code{tamano_lote_distintos}. Cuando se pide
 \code{bloque_muestra = "solo_agregados"}, también conserva ese valor en el
 atributo \code{bloque_muestra} y no incluye la fila de la lectura de muestra.
