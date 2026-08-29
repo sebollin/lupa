@@ -1,5 +1,35 @@
 # lupa 0.1.0
 
+## La regla de vocabulario también mide el largo que compara
+
+- El tope de largo se había corregido en `detectar_duplicados_aproximados()`,
+  que pasó a medir sobre la cadena combinada y normalizada. La **regla hermana**
+  —la proximidad de vocabulario dentro de `perfilar()`— quedó midiendo el valor
+  guardado mientras comparaba el normalizado. Con la normalización `amplio`, que
+  expande ligaduras, una columna de 5.101 caracteres publicaba
+  `largo_excedido = FALSE` y comparaba cadenas de 15.303: un 53 % por encima del
+  tope declarado.
+- El desvío tiene **dos direcciones** y las dos están corregidas: la
+  normalización también acorta —colapsar espacios lleva 12.499 caracteres
+  guardados a 7.501 comparados—, y ahí la regla excluía una columna que se podía
+  comparar sin problema.
+- `alcance$largo_maximo` publica ahora **el mismo número en las dos ramas**: el
+  largo comparado. Antes, la rama que excluía informaba el comparado y la que no
+  excluía informaba el guardado, así que dos informes no eran comparables entre
+  sí.
+
+## La clave primaria contempla los dos esquemas que resuelve SQL Server
+
+- Un nombre sin calificar se resolvía filtrando por `SCHEMA_NAME()`, que es sólo
+  el primer paso: SQL Server busca el esquema por omisión del usuario y, si no
+  está ahí, `dbo`. Una tabla declarada sólo en `dbo`, consultada por un usuario
+  con otro esquema por omisión, se lee del motor pero el catálogo devolvía cero
+  filas y se publicaba `no_declarada`, que era falso.
+- Ahora se piden los dos y decide la red de seguridad: si la tabla existe en uno
+  solo, se publica su clave; si existe en los dos, no se publica ninguna y el
+  motivo lo explica. Se pierde una respuesta en un caso raro y ninguna es falsa.
+
+
 ## Los avisos DBI de costo tienen controles independientes
 
 - `perfilar_dbi()` agrega `avisar_costo_distintos` con
