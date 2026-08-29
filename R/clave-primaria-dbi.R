@@ -88,8 +88,26 @@
         } else {
           ""
         }
+        # Sin esquema, filtrar solo por nombre trae la tabla homonima de TODAS
+        # las bases y sus claves se fusionan. Reproducido contra MySQL 8.4 el
+        # 2026-08-29: con `lupa.choque` (clave `id`) y `otra.choque` (clave
+        # `p,q`), la respuesta era `columnas = id, p, q` con garantia
+        # `garantizada`. Un nombre sin calificar significa "la del esquema por
+        # omision de esta sesion", que es de donde se leen los datos.
+        propio <- if (identical(motor, "mysql")) {
+          " AND t.table_schema = DATABASE() "
+        } else if (identical(motor, "sqlserver")) {
+          " AND t.table_schema = SCHEMA_NAME() "
+        } else {
+          # Un motor que no se conoce no recibe una funcion inventada: se pide
+          # el esquema para poder DECLARAR la ambiguedad si aparece, que es lo
+          # que hace `.clave_ambigua()`.
+          ""
+        }
         paste0(
-          "SELECT k.column_name, k.ordinal_position", estado, " ",
+          "SELECT k.column_name, k.ordinal_position", estado, ", ",
+          "t.table_schema AS constraint_esquema, ",
+          "t.constraint_name AS constraint_nombre ",
           "FROM information_schema.table_constraints t ",
           "JOIN information_schema.key_column_usage k ",
           "ON t.constraint_name = k.constraint_name ",
@@ -100,7 +118,7 @@
           if (!is.na(esquema)) {
             paste0(" AND t.table_schema = ", .texto_sql_clave(esquema))
           } else {
-            ""
+            propio
           },
           " ORDER BY k.ordinal_position"
         )
@@ -238,7 +256,19 @@
           if (!is.na(esquema)) {
             paste0(" AND n.nspname = ", .texto_sql_clave(esquema))
           } else {
-            ""
+            # Sin esquema, filtrar solo por nombre trae TODAS las tablas que se
+            # llamen asi, en todos los esquemas, y sus claves se fusionan en una
+            # sola respuesta. Reproducido el 2026-08-29 contra PostgreSQL 16: con
+            # `public.dup` (clave `id`), `s1.dup` (clave `a,b`) y `s2.dup` (clave
+            # `x`), `perfilar_dbi(con, "dup")` publicaba `columnas = id, a, x, b`
+            # con garantia `garantizada`. Esa clave no existe en ninguna tabla, y
+            # se presentaba como verificada sobre la que se midio.
+            #
+            # `pg_table_is_visible()` devuelve cierto solo para la relacion que
+            # alcanzaria una consulta SIN calificar, resolviendo el `search_path`
+            # igual que lo hace el motor: es la misma tabla de la que se leen los
+            # datos. Existe desde mucho antes de 9.3, asi que no mueve el piso.
+            " AND pg_catalog.pg_table_is_visible(r.oid) "
           },
           " ORDER BY k.ordinal_position"
         )
@@ -324,6 +354,51 @@
     return(FALSE)
   }
   NA
+}
+
+# `%||%` no sirve aca: llego a base recien en R 4.4.0 y el paquete declara
+# `R (>= 4.1.0)`. Usarlo compilaria en esta maquina y fallaria en el piso que
+# DESCRIPTION promete, que es la clase de defecto que ningun check local ve.
+# Devuelve el motivo si las filas no se pueden atribuir a UNA sola relacion, y
+# `NULL` si no hay ambiguedad. Se mira lo que el catalogo mismo publica: el
+# esquema y el nombre de la restriccion. Cuando la via no los trae -`pragma` de
+# SQLite, `SHOW INDEX` de MariaDB- no hay nada que comparar y tampoco hay riesgo:
+# las dos preguntan por una tabla, no por un nombre suelto.
+.clave_ambigua <- function(datos) {
+  campos <- intersect(
+    c("constraint_esquema", "constraint_nombre"), names(datos)
+  )
+  if (!length(campos) || !nrow(datos)) return(NULL)
+  # Se arma un cuadro propio en vez de seleccionar columnas del que llego. No es
+  # estetica: `data.table` cambia la semantica de `[` segun los imports de quien
+  # llama -`cedta`-, asi que `datos[, campos, drop = FALSE]` sobre una tabla de
+  # entrada no significa siempre lo mismo. Una prueba estructural cuenta esos
+  # sitios y no deja que crezcan.
+  partes <- lapply(campos, function(campo) as.character(datos[[campo]]))
+  names(partes) <- campos
+  distintas <- sum(!duplicated(as.data.frame(partes, stringsAsFactors = FALSE)))
+  if (distintas <= 1L) return(NULL)
+  esquemas <- if ("constraint_esquema" %in% campos) {
+    unique(as.character(datos$constraint_esquema))
+  } else {
+    character()
+  }
+  paste0(
+    "El catalogo devolvio la clave primaria de ", distintas,
+    " relaciones distintas para ese nombre",
+    if (length(esquemas) > 1L) {
+      paste0(" -esquemas: ", paste(esquemas, collapse = ", "), "-")
+    } else {
+      ""
+    },
+    ". Fusionarlas daria una clave que no existe en ninguna, asi que no se ",
+    "publica ninguna: calificar el nombre con su esquema resuelve cual es."
+  )
+}
+
+.motivo_garantia <- function(garantia) {
+  motivo <- garantia$motivo
+  if (is.null(motivo) || !length(motivo)) NA_character_ else as.character(motivo)[1L]
 }
 
 .garantia_clave_primaria <- function(datos, via, motor) {
@@ -487,7 +562,27 @@
     }
     return(list(garantia = garantia, estado = estado))
   }
-  list(garantia = "desconocida", estado = estado)
+  # Ultimo recurso: la via leyo la clave pero el motor no expone un estado
+  # comparable. Decir "desconocida" y callar POR QUE deja a quien perfila sin
+  # saber si le falta un privilegio, si el paquete no cubre su motor, o si es un
+  # limite del catalogo. Medido el 2026-08-29 sobre los contenedores: MySQL 8.4
+  # trae `ENFORCED` en `information_schema.TABLE_CONSTRAINTS` y MariaDB 11.8 NO
+  # -sus columnas son CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, CONSTRAINT_NAME,
+  # TABLE_SCHEMA, TABLE_NAME y CONSTRAINT_TYPE-, asi que sobre MariaDB no hay
+  # nada que preguntar y la respuesta honesta es "no se puede saber por aca".
+  faltantes <- names(which(!estado$consultado))
+  list(
+    garantia = "desconocida", estado = estado,
+    motivo = paste0(
+      "La clave esta declarada y sus columnas se leyeron del catalogo, pero ",
+      "el motor no permite confirmar que la restriccion este aplicada: la via ",
+      "`", via, "` sobre `", motor, "` no expone ",
+      if (length(faltantes)) paste0("`", paste(faltantes, collapse = "`, `"), "`")
+      else "un estado comparable",
+      ". No es un privilegio que falte ni un defecto de la tabla: es lo que ",
+      "ese catalogo publica."
+    )
+  )
 }
 
 # Una respuesta vacia solo permite decir "no declarada" cuando la via puede
@@ -651,6 +746,18 @@
     }
     datos <- datos[primarias, , drop = FALSE]
   }
+  # Red de seguridad, por encima de los filtros de cada via: si las filas del
+  # catalogo pertenecen a MAS DE UNA relacion, fusionarlas produce una clave que
+  # no existe en ninguna. Los filtros de arriba resuelven el caso conocido -el
+  # nombre sin calificar-, pero un motor que no se conoce, o un catalogo que
+  # sorprenda, llegarian igual hasta aca. Ante lo que no se puede atribuir a una
+  # sola tabla, la respuesta es no publicar clave y decir por que.
+  ambigua <- .clave_ambigua(datos)
+  if (!is.null(ambigua)) {
+    return(vacio(
+      via$nombre, motivo = ambigua, garantia = "desconocida", visible = TRUE
+    ))
+  }
   columna <- .campo_clave(datos, c("column_name"))
   if (is.null(columna)) columna <- datos[[1L]]
   posicion <- .campo_clave(datos, c("ordinal_position", "seq_in_index"))
@@ -669,7 +776,7 @@
     garantia <- .garantia_clave_primaria(datos, via$nombre, motor)
     return(list(
       columnas = as.character(columna)[orden], fuente = via$nombre,
-      motivo = NA_character_, garantia = garantia$garantia,
+      motivo = .motivo_garantia(garantia), garantia = garantia$garantia,
       estado = garantia$estado
     ))
   }
@@ -678,14 +785,14 @@
     garantia <- .garantia_clave_primaria(datos, via$nombre, motor)
     return(list(
       columnas = as.character(columna)[orden], fuente = via$nombre,
-      motivo = NA_character_, garantia = garantia$garantia,
+      motivo = .motivo_garantia(garantia), garantia = garantia$garantia,
       estado = garantia$estado
     ))
   }
   garantia <- .garantia_clave_primaria(datos, via$nombre, motor)
   list(
     columnas = as.character(columna), fuente = via$nombre,
-    motivo = NA_character_, garantia = garantia$garantia,
+    motivo = .motivo_garantia(garantia), garantia = garantia$garantia,
     estado = garantia$estado
   )
 }

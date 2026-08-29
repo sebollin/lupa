@@ -15,6 +15,36 @@
   la diferencia con el aviso interactivo de tabla ancha queda documentada en
   `perfilar_dbi()`.
 
+## La clave primaria se lee de la tabla que se midió, y de ninguna otra
+
+- Un nombre de tabla **sin calificar** traía del catálogo la clave de todas las
+  tablas homónimas, de todos los esquemas, y las fusionaba en una sola respuesta.
+  Con `public.dup` (clave `id`), `s1.dup` (`a,b`) y `s2.dup` (`x`),
+  `perfilar_dbi(con, "dup")` publicaba `columnas = id, a, x, b` con garantía
+  `garantizada`: una clave que no existe en ninguna tabla. Reproducido también
+  contra MySQL, donde el mismo agujero cruza bases de datos.
+- Ahora cada vía resuelve el nombre **como lo resuelve el motor**:
+  `pg_table_is_visible()` en PostgreSQL —que respeta el `search_path` y devuelve
+  la misma relación de la que se leen los datos—, `DATABASE()` en MySQL y
+  `SCHEMA_NAME()` en SQL Server. Compatible con PostgreSQL 9.3.
+- Y por encima hay una red que no depende del motor: si las filas del catálogo
+  pertenecen a más de una relación, **no se publica ninguna clave** y el motivo
+  dice cuántas eran, en qué esquemas, y que calificar el nombre lo resuelve.
+  Fusionar nunca es una opción.
+- El mismo cambio corrige una tabla **temporal** con clave declarada, que se
+  publicaba como `no_declarada`: «no se pudo preguntar» disfrazado de «no
+  declara».
+
+## Una garantía desconocida dice por qué no se pudo saber
+
+- Sobre MariaDB, la garantía de la clave salía `desconocida` con `motivo` vacío.
+  El diagnóstico era correcto —MariaDB no expone `ENFORCED` en
+  `information_schema.TABLE_CONSTRAINTS`, a diferencia de MySQL—, pero quien
+  perfilaba no podía distinguir entre un privilegio que le falta, un motor no
+  cubierto y un límite del catálogo. El motivo ahora nombra la vía, el motor y
+  los campos que no se pudieron consultar, y descarta las dos lecturas
+  equivocadas.
+
 ## El derrame de `COUNT(DISTINCT)` se avisa antes de pagarlo
 
 - En PostgreSQL, `perfilar_dbi()` consulta `pg_stats.n_distinct`,
