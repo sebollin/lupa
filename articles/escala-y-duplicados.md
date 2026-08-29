@@ -151,6 +151,35 @@ es la eleccion explicita para recuperar el comportamiento anterior; en
 el diagnostico de vocabulario se escribe como
 `max_largo_valor_vocabulario = Inf`.
 
+### Qué largo es el que cuenta
+
+El tope no se mide sobre el valor tal como está guardado, sino sobre
+**la cadena que entra a la comparación**: las columnas ya combinadas y
+ya normalizadas. La diferencia no es teórica y se ve en dos casos que
+parecen inocentes.
+
+Dos columnas de nueve mil caracteres cada una están las dos por debajo
+del tope, y la comparación no las mira por separado: las une con un
+separador y compara los dieciocho mil de la fila entera. Y la
+normalización `amplio` **expande ligaduras** —la tipográfica de f-f-l es
+un solo carácter que se convierte en tres—, de modo que un valor puede
+quedar por debajo del tope guardado y por encima del comparado.
+
+Por eso `alcance$largo_maximo` publica el largo **comparado** y no el
+guardado. Cuando el tope no aplica —`Inf`— no se mide ningún largo, y
+ese campo vale `NA`: un cero ahí sería afirmar una medición que no
+ocurrió.
+
+### Dos topes, dos perillas
+
+`max_largo_valor_vocabulario` gobierna la regla de vocabulario dentro de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+El detector de pares de filas tiene el suyo y **no se hereda**: se
+configura por separado, con
+`duplicados_aproximados = list(max_largo_valor = ...)`. Son dos análisis
+distintos sobre los mismos datos, y ponerle a uno el tope del otro sería
+decidir por quien perfila.
+
 ## Avisar el costo de tablas anchas
 
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
@@ -180,8 +209,8 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 26.348 pares en
-#> 0,051 s.
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.284 pares en
+#> 0,050 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
 )]
@@ -269,7 +298,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/Rtmp7uPK3u/lupa-lotes-236053ed2fa2/lupa-lotes-236063a7b45e"
+#> [1] "/tmp/Rtmp7b5rS1/lupa-lotes-239418e5240e/lupa-lotes-239468981443"
 #> 
 #> $n_parciales
 #> [1] 6

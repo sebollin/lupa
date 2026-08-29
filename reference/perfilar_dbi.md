@@ -31,6 +31,10 @@ perfilar_dbi(
   estrategia_distintos = "exacta",
   politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
+  avisar_costo_distintos = TRUE,
+  umbral_segundos_aviso_distintos = .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI,
+  avisar_derrame_estimado = TRUE,
+  umbral_bytes_aviso_derrame_estimado = .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
   ...
 )
 ```
@@ -179,6 +183,37 @@ perfilar_dbi(
   cada llamada. Para pedir todas las métricas use
   `politica_costo = "todas"`.
 
+- avisar_costo_distintos:
+
+  Si es `TRUE`, avisa cuando la proyección del costo de
+  `COUNT(DISTINCT)` alcanza `umbral_segundos_aviso_distintos`. Por
+  omisión es `TRUE`. Este aviso no depende de
+  [`interactive()`](https://rdrr.io/r/base/interactive.html): también
+  llega en guiones porque el costo se paga en el servidor y puede durar
+  decenas de segundos.
+
+- umbral_segundos_aviso_distintos:
+
+  Segundos estimados a partir de los cuales se emite el aviso del costo
+  de `COUNT(DISTINCT)`. Por omisión es `30`, el umbral histórico; `Inf`
+  lo desactiva explícitamente. El valor no cambia la proyección ni la
+  medición que se publica.
+
+- avisar_derrame_estimado:
+
+  Si es `TRUE`, avisa cuando un lote de `COUNT(DISTINCT)` supera la
+  memoria efectiva y su tamaño estimado alcanza
+  `umbral_bytes_aviso_derrame_estimado`. Por omisión es `TRUE`. Este
+  aviso sólo puede aparecer cuando PostgreSQL permite estimar el hash.
+
+- umbral_bytes_aviso_derrame_estimado:
+
+  Tamaño estimado del hash, en bytes, a partir del cual se avisa un
+  derrame potencial entre los lotes que ya superan la memoria efectiva.
+  Por omisión es `0`, que conserva el aviso para cualquier lote que la
+  supere; `Inf` lo desactiva explícitamente. El valor no cambia la
+  estimación ni la medición posterior del derrame.
+
 - ...:
 
   Argumentos enviados a
@@ -278,10 +313,11 @@ calcula `COUNT(DISTINCT)` sobre las filas de la corrida.
 capacidad aceptada, deja la metrica `no_disponible`; nunca ejecuta el
 conteo exacto como repliegue. `"catalogo"` esta declarada pero queda
 `no_disponible` en esta version porque todavia no implementa una
-estadistica de cardinalidad; en particular, no usa `pg_stats`.
-`"omitida"` no emite la consulta. Cada resultado y el atributo
-`meta$estrategia_distintos` separan `estrategia_solicitada`,
-`estrategia_resuelta` y `estado`.
+estadistica de cardinalidad; `pg_stats` se consulta por separado, cuando
+está disponible, para estimar el costo de memoria y avisar antes del
+conteo, pero nunca sustituye una medicion. `"omitida"` no emite la
+consulta. Cada resultado y el atributo `meta$estrategia_distintos`
+separan `estrategia_solicitada`, `estrategia_resuelta` y `estado`.
 
 Las comparaciones que tienen una cota dura usan solo valores del mismo
 grupo de consistencia. En esta version, el grupo queda probado por el
@@ -320,7 +356,13 @@ y `dbFetch(n)`; en ese caso la mediana exacta se declara no disponible
 en vez de traer media tabla a memoria. El alias de subconsulta se
 escribe con `AS` o sin él según el motor, y los alias de columna van
 comillados y se comparan sin distinguir caja, porque hay motores que los
-pliegan a mayúsculas.
+pliegan a mayúsculas. Para los motores del dialecto `limit`, la mediana
+exacta usa una sola sentencia: el `COUNT` queda como subconsulta escalar
+de la consulta que ordena y recorta. La forma se sondea antes de usarla;
+en SQLite y PostgreSQL se usan `%` y `/` con division entera. Los
+dialectos que no declaran esa forma conservan las dos consultas y lo
+publican en el metodo de `resumen_tabla$sql`; `PERCENTILE_CONT` no
+cambia.
 
 ## Costo
 
@@ -346,13 +388,36 @@ universo para escribir un porcentaje lo cuentan antes.
 de lote, conservador por omisión porque una cardinalidad puede derramar
 mucho más que veinte agregados planos; la consulta exacta trae su
 `n_validos_guard` compañero. Antes de la primera consulta exacta se
-anuncia su costo sólo si hay una proyección temporal fundada en
-agregados planos medidos en esta corrida. La fuente y el valor quedan en
-`meta$costo_distintos`; no se usa una predicción basada en `reltuples`.
-Lo que no entra en el presupuesto queda en `no_disponible` con su
-motivo, nunca en cero. `meta$tamano_lote_funciono` conserva el mayor
-lote aceptado durante esa corrida; no se guarda estado global asociado a
-la conexión.
+estima, cuando PostgreSQL expone `pg_stats`, el tamaño de los hashes con
+`n_distinct`, `avg_width` y `pg_class.reltuples`; `SHOW work_mem` y,
+desde PostgreSQL 13, `SHOW hash_mem_multiplier` dan el límite efectivo.
+`meta$estimacion_derrame` y `attr(meta$plan, "estimacion_derrame")`
+conservan el diagnóstico, siempre rotulado como estimación y nunca como
+derrame medido. Si supera el límite se avisa antes de pagar
+`COUNT(DISTINCT)` y se recomienda subir `work_mem` en la sesión; el
+paquete no lo modifica. Una estadística ausente, un permiso insuficiente
+o una versión sin el parámetro dejan la parte correspondiente como no
+disponible. `n_distinct` es una estimación de muestra y puede quedar
+corta; si luego `pg_stat_statements` mide un derrame, esa medición
+manda.
+
+Los avisos de esta vía son deliberadamente distintos de los de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+`perfilar_dbi()` los emite también en guiones no interactivos porque el
+costo relevante ocurre en el servidor y puede consumir decenas de
+segundos antes de que el llamador pueda hacer algo. En cambio, el aviso
+de tabla ancha de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+estima trabajo local sobre una tabla ya en R y queda limitado a sesiones
+interactivas para no convertir la salida de un guion en ruido. Cada
+aviso DBI tiene su propio interruptor y umbral porque sus unidades no
+son comparables —segundos frente a bytes— y silenciar uno no debe
+ocultar el otro. Apagar un aviso no apaga ninguna medición:
+`meta$costo_distintos`, `meta$derrame` y `meta$estimacion_derrame` se
+publican igual. Lo que no entra en el presupuesto queda en
+`no_disponible` con su motivo, nunca en cero.
+`meta$tamano_lote_funciono` conserva el mayor lote aceptado durante esa
+corrida; no se guarda estado global asociado a la conexión.
 
 ## Instrumentación
 
@@ -380,6 +445,14 @@ extensión no está disponible, la consulta fue concurrente o la
 instrumentación está apagada, el estado queda `no_disponible` o
 `no_medido` con el motivo: el paquete no deduce un derrame del tiempo y
 no modifica `work_mem`.
+
+`resumen_tabla$meta$estimacion_derrame` es un diagnóstico distinto:
+conserva la estimación de memoria y siempre la rotula como no medida.
+Puede quedar parcial o no disponible por permisos, falta de `ANALYZE`,
+particiones sin estadísticas o un motor que no sea PostgreSQL. Si ambos
+diagnósticos existen, `meta$derrame` es la evidencia posterior y
+prevalece sobre la estimación; una estimación que no superó el límite no
+contradice un derrame medido.
 
 `resumen_tabla$tiempos` reúne las etapas grandes del cliente en las
 mismas unidades (`duracion_ms`): `lectura_muestra`, `perfilado_muestra`,

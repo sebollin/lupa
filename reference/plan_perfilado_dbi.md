@@ -11,7 +11,12 @@ Nunca lanza `COUNT(DISTINCT ...)` para despejar esa incertidumbre. Las
 fuentes estructurales se resuelven cuando la política necesita la
 cardinalidad, aunque `estrategia_distintos` no permita medirla. La
 disponibilidad de la estrategia gobierna la medición, no el conocimiento
-que ya da el catálogo.
+que ya da el catálogo. Para el `COUNT(DISTINCT)` exacto, la preparación
+puede consultar además las estadísticas de PostgreSQL (`pg_stats`,
+`pg_class.reltuples`, `SHOW work_mem` y, desde PostgreSQL 13,
+`SHOW hash_mem_multiplier`) para estimar el tamaño del hash y avisar un
+posible derrame. Esa consulta de metadatos no publica cardinalidad
+medida ni reemplaza la medición posterior.
 
 ## Usage
 
@@ -177,7 +182,9 @@ Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
 `columnas_numericas`, `dialecto`, `consultas_emitidas`, `metricas`,
 `metricas_ejecucion`, `politica_costo`, `estrategia_distintos`,
 `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`,
-`filas`, `tamano_lote_planos` y `tamano_lote_distintos`. Cuando se pide
+`filas`, `mediana_escalar`, `tamano_lote_planos`,
+`tamano_lote_distintos` y `estimacion_derrame`. Esta última es una
+estimación de memoria, no una medición. Cuando se pide
 `bloque_muestra = "solo_agregados"`, también conserva ese valor en el
 atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
 
@@ -236,10 +243,10 @@ lado que del otro.
 la corrida y conserva por separado lo pedido, lo resuelto y el estado.
 No hay `auto`: `"exacta"` es el valor por omisión, `"aproximada_motor"`
 queda `no_disponible` si el motor no ofrece una función aceptada,
-`"catalogo"` queda `no_disponible` hasta implementar su estadística y
-`"omitida"` no emite el agregado. `fuente_cardinalidad_costo` sigue
-siendo independiente y sólo describe el número usado por la política de
-costo cuando esa política se pide.
+`"catalogo"` queda `no_disponible` hasta implementar su estadística de
+cardinalidad y `"omitida"` no emite el agregado.
+`fuente_cardinalidad_costo` sigue siendo independiente y sólo describe
+el número usado por la política de costo cuando esa política se pide.
 
 El plan previo no puede publicar segundos medidos porque no lee los
 datos. Durante
@@ -248,10 +255,11 @@ en cambio, los agregados planos se ejecutan antes que los distintos. Si
 se midieron en esta misma corrida, el plan que queda en
 `resumen_tabla$meta$plan` agrega `costo_distintos`: la mediana de esas
 duraciones multiplicada por la cantidad de lotes de distintos. Es una
-estimación rotulada, fundada en la tabla y el servidor actuales, no en
-`reltuples` ni en otra estadística de catálogo. El aviso se emite antes
-de iniciar el primer `COUNT(DISTINCT)` y sólo si supera el umbral de 30
-segundos; no pide confirmación y nunca bloquea un guion no interactivo.
+estimación rotulada, fundada en las consultas medidas de esta corrida,
+no en una estadística de catálogo. El aviso de memoria se emite antes de
+iniciar el primer `COUNT(DISTINCT)` y el aviso temporal sólo si supera
+el umbral de 30 segundos; no pide confirmación y nunca bloquea un guion
+no interactivo.
 
 ## See also
 

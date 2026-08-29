@@ -286,6 +286,37 @@ declara en <code>alcance$columnas_excluidas_largo</code>. En
 observado y el umbral. <code>Inf</code> es la eleccion explicita para
 recuperar el comportamiento anterior; en el diagnostico de vocabulario
 se escribe como <code>max_largo_valor_vocabulario = Inf</code>.</p>
+<div class="section level3">
+<h3 id="qué-largo-es-el-que-cuenta">Qué largo es el que cuenta<a class="anchor" aria-label="anchor" href="#qu%C3%A9-largo-es-el-que-cuenta"></a>
+</h3>
+<p>El tope no se mide sobre el valor tal como está guardado, sino sobre
+<strong>la cadena que entra a la comparación</strong>: las columnas ya
+combinadas y ya normalizadas. La diferencia no es teórica y se ve en dos
+casos que parecen inocentes.</p>
+<p>Dos columnas de nueve mil caracteres cada una están las dos por
+debajo del tope, y la comparación no las mira por separado: las une con
+un separador y compara los dieciocho mil de la fila entera. Y la
+normalización <code>amplio</code> <strong>expande ligaduras</strong> —la
+tipográfica de f-f-l es un solo carácter que se convierte en tres—, de
+modo que un valor puede quedar por debajo del tope guardado y por encima
+del comparado.</p>
+<p>Por eso <code>alcance$largo_maximo</code> publica el largo
+<strong>comparado</strong> y no el guardado. Cuando el tope no aplica
+—<code>Inf</code>— no se mide ningún largo, y ese campo vale
+<code>NA</code>: un cero ahí sería afirmar una medición que no
+ocurrió.</p>
+</div>
+<div class="section level3">
+<h3 id="dos-topes-dos-perillas">Dos topes, dos perillas<a class="anchor" aria-label="anchor" href="#dos-topes-dos-perillas"></a>
+</h3>
+<p><code>max_largo_valor_vocabulario</code> gobierna la regla de
+vocabulario dentro de <code><a href="../reference/perfilar.html">perfilar()</a></code>. El detector de pares de
+filas tiene el suyo y <strong>no se hereda</strong>: se configura por
+separado, con
+<code>duplicados_aproximados = list(max_largo_valor = ...)</code>. Son
+dos análisis distintos sobre los mismos datos, y ponerle a uno el tope
+del otro sería decidir por quien perfila.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="avisar-el-costo-de-tablas-anchas">Avisar el costo de tablas anchas<a class="anchor" aria-label="anchor" href="#avisar-el-costo-de-tablas-anchas"></a>
@@ -318,8 +349,8 @@ colisión.</p>
 <span>  max_resultados <span class="op">=</span> <span class="fl">100</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;</span></span>
-<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 26.348 pares en</span></span>
-<span><span class="co">#&gt; 0,051 s.</span></span>
+<span><span class="co">#&gt; subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 25.284 pares en</span></span>
+<span><span class="co">#&gt; 0,050 s.</span></span>
 <span><span class="va">exacto</span><span class="op">$</span><span class="va">pares</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"fila_1"</span>, <span class="st">"fila_2"</span>, <span class="st">"distancia"</span>, <span class="st">"tipo_par"</span>, <span class="st">"igualo_normalizar"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
@@ -399,7 +430,7 @@ siendo exacta; sólo cambia cuánta memoria se usa a la vez.</p>
 <span>  <span class="st">"directorio"</span>, <span class="st">"n_parciales"</span>, <span class="st">"bytes_totales"</span>, <span class="st">"reanudable"</span>, <span class="st">"perdida"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; $directorio</span></span>
-<span><span class="co">#&gt; [1] "/tmp/Rtmp7uPK3u/lupa-lotes-236053ed2fa2/lupa-lotes-236063a7b45e"</span></span>
+<span><span class="co">#&gt; [1] "/tmp/Rtmp7b5rS1/lupa-lotes-239418e5240e/lupa-lotes-239468981443"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $n_parciales</span></span>
 <span><span class="co">#&gt; [1] 6</span></span>

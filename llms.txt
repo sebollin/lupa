@@ -339,24 +339,35 @@ mode query is retained and the fallback is published in
 `resumen_tabla$meta$moda_guardian`. When accepted, the bound
 `frecuencia_moda <= n_validos` is checked inside that same statement.
 
-### Avisos de costo y derrame
+### Cost and spill are announced before they are paid
 
-Cuando
+When
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
-pide `COUNT(DISTINCT ...)`, los agregados planos se ejecutan primero. Si
-`instrumentar = TRUE`, el paquete mide esas consultas en esta misma
-corrida y, antes de iniciar los distintos, anuncia una proyección del
-costo cuando supera 30 segundos. El número es la mediana de las
-duraciones planas multiplicada por los lotes de distintos; el mensaje
-nombra esa fuente y lo rotula como estimación. No usa `reltuples`, no
-cambia `work_mem` y no espera confirmación, por lo que un guion no
-interactivo continúa sin pausa.
+asks for `COUNT(DISTINCT ...)`, the flat aggregates run first. With
+`instrumentar = TRUE` the package times those queries in this same run
+and, before starting the distinct counts, announces a cost projection
+when it exceeds thirty seconds. The figure is the median of the measured
+flat durations multiplied by the number of distinct batches; the message
+names that source and labels itself an estimate. This time projection
+does not use `reltuples`.
 
-En PostgreSQL, si `pg_stat_statements` permite atribuir exactamente una
-llamada de esta corrida, el informe agrega el derrame real y la cantidad
-de bloques temporales escritos. Si no se puede atribuir, el estado queda
-declarado como no disponible: el tiempo transcurrido no se presenta como
-evidencia de derrame.
+On PostgreSQL, preparation also reads `pg_stats.n_distinct`,
+`pg_stats.avg_width`, `pg_class.reltuples` and the session’s `work_mem`
+— plus `hash_mem_multiplier` from PostgreSQL 13 on — to estimate the
+size of the aggregation hash. If it exceeds the effective limit, the
+package warns before the first `COUNT(DISTINCT)` and says that raising
+`work_mem` for this session can avoid the spill. The diagnosis lands in
+`meta$estimacion_derrame`, always as an estimate and never as a
+measurement; the package changes no setting and waits for no
+confirmation.
+
+Also on PostgreSQL, when `pg_stat_statements` allows attributing exactly
+one call from this run, the report adds the real spill and the number of
+temporary blocks written. When attribution is not possible the state is
+declared unavailable: elapsed time is never presented as evidence of a
+spill. Where the measurement exists, **it prevails over the estimate** —
+even if the estimate stayed below the limit, the report says a spill was
+measured.
 
 ### Reading a profile without knowing its shape
 
@@ -429,6 +440,21 @@ the same decision appears in `cobertura_diagnosticos` with the reason,
 observed length and threshold. `max_largo_valor = Inf` or
 `max_largo_valor_vocabulario = Inf` explicitly restores the previous
 behaviour.
+
+The cap is measured on the string that is actually compared: columns
+already combined and already normalised. Both halves of that sentence
+are load-bearing. Two columns of nine thousand characters each are below
+the cap on their own and reach eighteen thousand once joined; and the
+`amplio` normalisation expands ligatures, so a value can sit below the
+stored cap and above the compared one. `alcance$largo_maximo` reports
+that compared length, and is `NA` — not zero — when the cap does not
+apply and no length was measured.
+
+The two caps are separate knobs on purpose.
+`max_largo_valor_vocabulario` governs the vocabulary rule inside
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md);
+the row-pair detector keeps its own, set through
+`duplicados_aproximados = list(max_largo_valor = ...)`.
 
 ### Wide-table cost is announced first
 

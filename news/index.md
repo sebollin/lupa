@@ -2,6 +2,98 @@
 
 ## lupa 0.1.0
 
+### Los avisos DBI de costo tienen controles independientes
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  agrega `avisar_costo_distintos` con `umbral_segundos_aviso_distintos`,
+  y `avisar_derrame_estimado` con `umbral_bytes_aviso_derrame_estimado`:
+  el costo de `COUNT(DISTINCT)` se controla en segundos y el derrame
+  estimado en bytes. `Inf` desactiva explícitamente el aviso; el umbral
+  histórico de 30 segundos se conserva y el derrame mantiene el
+  comportamiento de avisar cualquier lote estimado por encima de la
+  memoria efectiva.
+- Los controles sólo silencian el cartel: `meta$costo_distintos`,
+  `meta$derrame` y `meta$estimacion_derrame` siguen publicándose. Los
+  avisos DBI continúan sonando en guiones porque el costo se paga en el
+  servidor; la diferencia con el aviso interactivo de tabla ancha queda
+  documentada en
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
+
+### La clave primaria se lee de la tabla que se midió, y de ninguna otra
+
+- Un nombre de tabla **sin calificar** traía del catálogo la clave de
+  todas las tablas homónimas, de todos los esquemas, y las fusionaba en
+  una sola respuesta. Con `public.dup` (clave `id`), `s1.dup` (`a,b`) y
+  `s2.dup` (`x`), `perfilar_dbi(con, "dup")` publicaba
+  `columnas = id, a, x, b` con garantía `garantizada`: una clave que no
+  existe en ninguna tabla. Reproducido también contra MySQL, donde el
+  mismo agujero cruza bases de datos.
+- Ahora cada vía resuelve el nombre **como lo resuelve el motor**:
+  `pg_table_is_visible()` en PostgreSQL —que respeta el `search_path` y
+  devuelve la misma relación de la que se leen los datos—, `DATABASE()`
+  en MySQL y `SCHEMA_NAME()` en SQL Server. Compatible con PostgreSQL
+  9.3.
+- Y por encima hay una red que no depende del motor: si las filas del
+  catálogo pertenecen a más de una relación, **no se publica ninguna
+  clave** y el motivo dice cuántas eran, en qué esquemas, y que
+  calificar el nombre lo resuelve. Fusionar nunca es una opción.
+- El mismo cambio corrige una tabla **temporal** con clave declarada,
+  que se publicaba como `no_declarada`: «no se pudo preguntar»
+  disfrazado de «no declara».
+
+### Una garantía desconocida dice por qué no se pudo saber
+
+- Sobre MariaDB, la garantía de la clave salía `desconocida` con
+  `motivo` vacío. El diagnóstico era correcto —MariaDB no expone
+  `ENFORCED` en `information_schema.TABLE_CONSTRAINTS`, a diferencia de
+  MySQL—, pero quien perfilaba no podía distinguir entre un privilegio
+  que le falta, un motor no cubierto y un límite del catálogo. El motivo
+  ahora nombra la vía, el motor y los campos que no se pudieron
+  consultar, y descarta las dos lecturas equivocadas.
+
+### El tope de largo mide la cadena que se compara
+
+- El tope se evaluaba sobre el valor **guardado** y la comparación
+  corría sobre el **combinado y normalizado**. Dos columnas de 9.000
+  caracteres pasaban el tope de 10.000 y se comparaban unidas en 18.003;
+  y con la normalización `amplio`, que expande ligaduras, un valor de
+  5.101 caracteres se comparaba expandido a 15.303. En los dos casos
+  `alcance$largo_maximo` publicaba el largo guardado, que no era el que
+  se había medido.
+- Ahora el tope se mide sobre la cadena que entra a la comparación y
+  `largo_maximo` publica ese largo. Sin normalización que expanda y con
+  una sola columna, la conducta no cambia.
+- Cuando el tope no aplica —`Inf`— no se mide ningún largo y
+  `largo_maximo` vale `NA` en vez de `0`: un cero ahí afirmaba una
+  medición que no ocurrió.
+
+### Los valores largos se cuentan en valores, y las filas en filas
+
+- La cobertura del vocabulario informaba «100 valores superan el tope»
+  cuando había **un** valor distinto repetido en **100** filas. La regla
+  de proximidad trabaja sobre el vocabulario, así que ésa era la unidad
+  prometida y no la medida. El motivo publica ahora las dos cuentas,
+  cada una en su unidad.
+
+### El derrame de `COUNT(DISTINCT)` se avisa antes de pagarlo
+
+- En PostgreSQL,
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  consulta `pg_stats.n_distinct`, `pg_stats.avg_width`,
+  `pg_class.reltuples` y `work_mem` para estimar el tamaño del hash de
+  agregación antes del primer `COUNT(DISTINCT)`; en PostgreSQL 13 o
+  posterior incorpora `hash_mem_multiplier` al límite efectivo.
+- El aviso dice el tamaño estimado, la memoria vigente y que subir
+  `work_mem` en la sesión puede evitar el derrame. La configuración
+  nunca se modifica. El diagnóstico queda separado de `meta$derrame`,
+  rotulado siempre como estimación; si luego `pg_stat_statements` mide
+  un derrame, esa evidencia posterior prevalece.
+- Permisos insuficientes, tablas sin `ANALYZE`, `reltuples` desconocido,
+  particiones sin estadísticas, PostgreSQL 9.3 y motores que no son
+  PostgreSQL quedan declarados como no estimables, sin presentarlos como
+  ausencia de derrame. Se agregan pruebas unitarias e integración contra
+  PostgreSQL 16 y 9.3.
+
 ### Topes declarados para valores largos y tablas anchas
 
 - [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
@@ -117,8 +209,10 @@ distintos y no a la cantidad de filas.
   anuncia, antes del primer `COUNT(DISTINCT)`, una proyección temporal
   cuando las consultas de agregados planos de esta misma corrida ya
   dieron una referencia suficiente. La estimación publica el costo, la
-  fuente medida y la cantidad de lotes; no usa `reltuples`, no cambia
-  `work_mem` y no espera confirmación en guiones no interactivos.
+  fuente medida y la cantidad de lotes; esa proyección temporal no usa
+  `reltuples`, no cambia `work_mem` y no espera confirmación en guiones
+  no interactivos. La estimación de memoria del derrame se documenta en
+  la sección anterior.
 - La instrumentación de PostgreSQL consulta `pg_stat_statements` antes y
   después de los distintos exactos. Sólo publica derrame real cuando
   puede atribuir exactamente una llamada: `resumen_tabla$sql` agrega los

@@ -189,13 +189,21 @@ estimar_costo(
 - max_largo_valor:
 
   Maximo de caracteres permitido en cada valor de las columnas
-  combinadas. Por defecto es `10000`, umbral elegido porque la distancia
-  normalizada deja de distinguir de forma estable una diferencia local
-  de muchas diferencias en textos largos. Si una columna supera el tope,
-  la combinacion completa se declara fuera de alcance en
-  `alcance$columnas_excluidas_largo`; no se recortan valores en
-  silencio. `Inf` recupera explicitamente el comportamiento anterior sin
-  tope.
+  combinadas, **medido sobre la cadena que de verdad se compara**: las
+  columnas ya unidas y ya normalizadas. Las dos mitades importan. Dos
+  columnas de 9.000 caracteres estan las dos por debajo de un tope de
+  10.000 y llegan a 18.003 una vez unidas; y la normalizacion `amplio`
+  expande ligaduras tipograficas -la de f-f-l es un solo caracter que se
+  convierte en tres-, asi que un valor puede estar por debajo del tope
+  guardado y por encima del comparado. Por defecto es `10000`, umbral
+  elegido porque la distancia normalizada deja de distinguir de forma
+  estable una diferencia local de muchas diferencias en textos largos.
+  Si una columna supera el tope, la combinacion completa se declara
+  fuera de alcance en `alcance$columnas_excluidas_largo`, y
+  `alcance$largo_maximo` publica el largo comparado; no se recortan
+  valores en silencio. Con el tope en `Inf` no se mide ningun largo y
+  `largo_maximo` vale `NA`, no cero. `Inf` recupera explicitamente el
+  comportamiento anterior sin tope.
 
 ## Value
 
