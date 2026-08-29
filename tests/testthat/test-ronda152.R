@@ -64,9 +64,26 @@ test_that("la fusion plana conserva el objeto medido en los cinco modos", {
     referencia <- do.call(
       perfilar_dbi, c(list(unitaria, "tabla_prueba", tamano_lote = 1L), argumentos)
     )
-    expect_identical(
+    # `expect_equal` y no `expect_identical`: la fusion cambia cuantas columnas
+    # entran en un mismo SELECT, y sobre SQLite el desvio se calcula a mano
+    # -`SQRT(SUM((x - AVG(x))^2) / (n-1))`, porque no hay `STDDEV_SAMP`-. Esa
+    # suma no es asociativa en punto flotante, asi que dos agrupamientos pueden
+    # diferir en el ultimo bit. Medido en integracion continua sobre
+    # `aarch64-apple-darwin`: 1,04446593573418700 contra ...722, un ULP, en una
+    # sola columna de las cinco; en x86_64 no aparece.
+    #
+    # El paquete NO promete identidad bit a bit entre agrupamientos -no hay tal
+    # afirmacion en la ayuda ni en el README-, y exigirla era sobreespecificar la
+    # prueba. Lo que si promete es que la fusion conserva la MEDICION.
+    #
+    # La tolerancia es 1e-14: unas cincuenta veces el ruido de representacion, y
+    # doce ordenes de magnitud por debajo de cualquier diferencia con sentido.
+    # Aflojarla mas seria dejar de comprobar; `expect_equal` sigue siendo exacto
+    # para enteros, cadenas, `NA` y estructura.
+    expect_equal(
       .ronda152_sin_auditoria(nuevo),
       .ronda152_sin_auditoria(referencia),
+      tolerance = 1e-14,
       info = paste("modo", modo)
     )
   }
