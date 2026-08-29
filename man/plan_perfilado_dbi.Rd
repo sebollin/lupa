@@ -31,18 +31,18 @@ plan_perfilado_dbi(
 \code{\link[DBI:dbQuoteIdentifier]{DBI::dbQuoteIdentifier()}}.}
 
 \item{muestra}{Cantidad positiva de filas solicitadas para el perfil de
-muestra, o \code{Inf} para traer la tabla entera. Con \code{Inf} la consulta sale sin
-\code{LIMIT} y \code{tabla_completa} queda en \code{TRUE}.
+muestra, o \code{Inf} para traer la tabla entera. El valor por omisión ya es
+\code{Inf}: no representa una elección distinta de \code{Inf}, sino la tabla completa.
+Con \code{Inf} la consulta sale sin \code{LIMIT} y \code{tabla_completa} queda en \code{TRUE}.
 
 El resumen de tabla \strong{no} se muestrea: con \code{modo = "exacto"} se calcula en
 el motor sobre todas las filas. Lo que sale de esta muestra son los
 diagnosticos que necesitan los valores en R -patrones, formatos,
-casi-duplicados-, y sin \code{orden_muestra} no son una muestra aleatoria sino
-las primeras filas que devuelva el motor. Medido sobre una tabla de 200.000
-filas con un defecto plantado al final: con el valor por omision aparecen
-tres hallazgos y con \code{Inf} aparecen cinco, a cambio de 10 segundos en vez
-de 2. Un analisis de calidad no se corre todos los dias; si el tiempo no es
-la restriccion, \code{Inf} es la opcion honesta.}
+casi-duplicados y dependencias funcionales-, y sin \code{orden_muestra} no son
+una muestra aleatoria sino las primeras filas que devuelva el motor. El
+limite también alcanza la muestra común con que se buscan dependencias.
+Use un entero finito para acotar ese trabajo; \code{Inf} es el valor por omisión
+y trae la tabla entera cuando el tiempo no es la restricción.}
 
 \item{orden_muestra}{Columnas para \verb{ORDER BY}. La salida solo declara orden
 reproducible cuando la combinación es única en toda la tabla. Sin este
@@ -127,13 +127,17 @@ Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
 \code{fuente_cardinalidad_costo}, \code{moda_guardian}, \code{mediana_consolidada}, \code{filas},
 \code{mediana_escalar},
 \code{tamano_lote_planos}, \code{tamano_lote_distintos}, \code{estimacion_derrame},
-\code{celdas}, \code{memoria_procesamiento} y,
+\code{celdas}, \code{memoria_procesamiento} y \code{muestreo}, y,
 cuando se pide \code{distintos}, \code{supuesto_costo_distintos}.
 \code{memoria_procesamiento} siempre tiene \code{estado = "no_estimada"}: no es una
 estimación de consumo, sino la declaración de su ausencia, el motivo, la
 magnitud del trabajo y referencias medidas de otras corridas. El atributo
 \code{estimacion_derrame} es independiente: sólo describe la estimación del hash
 en el motor para \code{COUNT(DISTINCT)} y no la memoria del procesamiento en R.
+\code{muestreo} declara si la forma muestreada se pudo construir sin emitir una
+consulta de datos. En \code{modo = "muestreado"}, cuando su \code{estado} es
+\code{"no_disponible"}, el plan excluye las métricas SQL de esa muestra y
+\code{supuesto} conserva el motivo.
 Cuando se pide \code{bloque_muestra = "solo_agregados"}, también conserva ese
 valor en el atributo \code{bloque_muestra} y no incluye la fila de la lectura de
 muestra.
@@ -143,8 +147,12 @@ extremo inferior, que supone que la política omite las métricas caras cuya
 cardinalidad no se conoce, y \code{total_maximo} el superior, que supone que las
 ejecuta. Ambos incluyen la preparación y el perfilado previsto; el rechazo
 de lotes puede agregar las sondas de bisección declaradas por
-\code{total_lotes_rechazados}. El costo real cae entre los extremos, y
-\code{attr(plan, "supuesto")} dice por qué se mueve en cada dirección.
+\code{total_lotes_rechazados}. El costo real cae entre los extremos cuando
+\code{modo} no es \code{"muestreado"} o \code{attr(plan, "muestreo")$estado} es
+\code{"disponible"}; en \code{"no_sondeado"} la forma sólo se construyó localmente
+y el intervalo queda condicionado a que la sonda de la corrida la acepte.
+Si la forma muestreada no se puede construir, el plan declara ese caso,
+excluye sus métricas del rango y \code{attr(plan, "supuesto")} dice por qué.
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre

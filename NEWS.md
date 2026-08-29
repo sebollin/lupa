@@ -1,5 +1,17 @@
 # lupa 0.1.0
 
+## El plan DBI declara el muestreo que no puede construir
+
+- `plan_perfilado_dbi()` comprueba la forma SQL del muestreo sin leer datos,
+  declara el estado en `attr(plan, "muestreo")` y excluye del rango las métricas
+  que no pueden emitirse. La corrida comparte esa decisión y conserva cada
+  ausencia con su motivo.
+- La documentación corrige el resumen de `perfil_muestra` a 109 campos
+  analíticos además del nombre de la columna, y describe que `muestra` también
+  limita la búsqueda de dependencias. El valor por omisión `Inf` ya no se
+  presenta como una elección distinta de `Inf`; también se elimina la referencia
+  a un `max_pares` que no es argumento de `perfilar()`.
+
 ## El plan declara la memoria del procesamiento como no estimada
 
 - `plan_perfilado_dbi()` ahora imprime un bloque que declara la ausencia de una

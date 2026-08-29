@@ -71,8 +71,9 @@ para que el perfil no aparente haber recibido lo que no recibió.}
 \item{fecha}{Fecha y hora de la corrida. Se puede fijar para construir series
 reproducibles; se normaliza a UTC.}
 
-\item{muestra}{Máximo de filas usadas para patrones e inferencia de tipos.
-Use \code{Inf} para analizar todas las filas.}
+\item{muestra}{Máximo de filas usadas para patrones, inferencia de tipos,
+formatos de fecha y dependencias funcionales. Use \code{Inf} para analizar todas
+las filas en esos análisis.}
 
 \item{max_patrones}{Máximo de patrones mostrados por columna.}
 
@@ -340,8 +341,10 @@ orden del producto de sus largos, así que el trabajo es la suma de ese
 producto sobre todos los pares. Contar pares por longitud media subestima
 las cadenas largas: medido, el mismo presupuesto compraba 5,3 millones de
 unidades por segundo con valores de 900 caracteres y 44 millones con
-valores de 40. Se combina con \code{max_pares}, manda el más restrictivo, y el
-recorte declara valores, pares y trabajo sin comparar. \code{Inf} lo desactiva.}
+valores de 40. Se combina con el límite interno de pares del detector y
+manda el más restrictivo; ese límite interno no es un argumento de
+\code{perfilar()}. El recorte declara valores, pares y trabajo sin comparar.
+\code{Inf} lo desactiva.}
 
 \item{max_trabajo_dependencias}{Tope predeterminado de unidades fila-par para
 las dependencias. Se combina con \code{max_comparaciones_dependencias}; el
@@ -478,10 +481,11 @@ política completa, no una lista que se agrega silenciosamente: use
 \code{numeric()} para desactivar todos los sentinelas numéricos, o
 \code{sentinelas_naniar} para solicitar explícitamente la lista de naniar.
 
-\code{muestra} limita sólo el descubrimiento de patrones, la inferencia de tipos y
-la detección de formatos de fecha. Las demás métricas y hallazgos se calculan
-sobre todas las filas. Por eso \code{meta$filas_analizadas} describe el máximo
-usado por los análisis muestreados, no el alcance del perfil completo.
+\code{muestra} limita el descubrimiento de patrones, la inferencia de tipos, la
+detección de formatos de fecha y la búsqueda de dependencias funcionales.
+Las demás métricas y hallazgos se calculan sobre todas las filas. Por eso
+\code{meta$filas_analizadas} describe el máximo usado por los análisis muestreados,
+no el alcance del perfil completo.
 En cada fila de \code{columnas}, \code{n_filas_analizadas_tipo} y
 \code{muestreado_tipo_inferido} declaran el alcance concreto de
 \code{proporcion_tipo_inferido}; no debe interpretarse esa proporción como si

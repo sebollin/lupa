@@ -1756,8 +1756,9 @@
         # del alfabeto, asi que lo que queda afuera son las formas que empiezan
         # mas adelante, no un subconjunto cualquiera.
         paste0(
-          "Aumentar `max_trabajo_vocabulario` o `max_pares` si se necesita ",
-          "cubrir mas valores; tambien se puede dividir el vocabulario en ",
+          "Aumentar `max_trabajo_vocabulario` si se necesita cubrir mas valores; ",
+          "el limite interno de pares no es un argumento de `perfilar()`. Tambien ",
+          "se puede dividir el vocabulario en ",
           "subconjuntos con significado comun. Las formas comparadas son las ",
           "primeras en orden alfabetico, no una muestra: lo que queda afuera es ",
           "el tramo final del alfabeto. El resultado no depende del orden de ",

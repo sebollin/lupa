@@ -118,6 +118,7 @@ test_that("el perfil completo declara el alcance de la muestra", {
   ## cuantas veces aparece- y a 110 al medir la densidad sin ese centinela, que
   ## es lo que decide si la columna es una numeracion con un centinela adentro.
   expect_equal(ncol(perfil$columnas), 110L)
+  expect_equal(ncol(perfil$columnas) - 1L, 109L)
   expect_true(all(perfil$columnas$n == 1000L))
   expect_equal(alcance$filas_solicitadas, 1000)
   expect_equal(alcance$filas_obtenidas, 1000)

@@ -1324,6 +1324,44 @@
   )
 }
 
+.estado_forma_muestreo_dbi <- function(candidato, tabla_sql, campos_sql,
+                                       muestra, dialecto) {
+  if (is.null(candidato)) {
+    return(list(
+      forma_construible = FALSE,
+      motivo = "El adaptador no declara una forma candidata de muestreo."
+    ))
+  }
+  forma <- tryCatch(
+    # `porcentaje = "1"` sólo permite construir la sentencia. No se ejecuta:
+    # el plan usa esta comprobación para detectar, entre otros casos, que
+    # `muestra = Inf` no tiene una forma de subconjunto que escribir.
+    .forma_muestreo_dbi(
+      candidato, tabla_sql, campos_sql, porcentaje = "1", muestra, dialecto
+    ),
+    error = function(e) e
+  )
+  if (inherits(forma, "condition")) {
+    return(list(
+      forma_construible = FALSE,
+      motivo = paste(
+        "La forma muestreada resuelta no pudo construir una consulta de",
+        "subconjunto compatible con el dialecto elegido:", conditionMessage(forma)
+      )
+    ))
+  }
+  if (is.null(forma)) {
+    return(list(
+      forma_construible = FALSE,
+      motivo = paste(
+        "La forma muestreada resuelta no pudo construir una consulta de",
+        "subconjunto compatible con el dialecto elegido."
+      )
+    ))
+  }
+  list(forma_construible = TRUE, motivo = NA_character_)
+}
+
 .sondar_muestreo_dbi <- function(conexion, tabla_sql, dialecto, presupuesto) {
   candidatos <- .candidatos_muestreo_dbi(conexion, dialecto)
   if (!length(candidatos)) {
@@ -1915,6 +1953,34 @@
     sondas = resolucion$sondas,
     motivo = resolucion$motivo,
     sql = if (is.null(forma)) NA_character_ else forma$sql
+  )
+}
+
+.publicar_muestreo_plan_dbi <- function(muestreo, muestra) {
+  if (is.null(muestreo)) {
+    return(list(
+      estado = "no_solicitado", disponible = NA, forma_construible = NA,
+      metodo = NA_character_, filas_solicitadas = muestra,
+      sondas_previstas = 0L,
+      motivo = "El plan no solicita una muestra del motor."
+    ))
+  }
+  candidato <- muestreo$candidato
+  sondas_previstas <- if (is.null(muestreo$sondas_previstas)) {
+    length(muestreo$sondas)
+  } else {
+    muestreo$sondas_previstas
+  }
+  list(
+    estado = if (!isTRUE(muestreo$disponible)) "no_disponible" else if (
+      length(muestreo$sondas)
+    ) "disponible" else "no_sondeado",
+    disponible = isTRUE(muestreo$disponible),
+    forma_construible = isTRUE(muestreo$forma_construible),
+    metodo = if (is.null(candidato)) NA_character_ else candidato$nombre,
+    filas_solicitadas = muestra,
+    sondas_previstas = as.integer(sondas_previstas),
+    motivo = muestreo$motivo
   )
 }
 
@@ -5409,7 +5475,7 @@
       } else {
         motivos_ilegibles[[campo]]
       }
-      "moda" %in% metricas && isTRUE(incluir_valores) &&
+      "moda" %in% metricas_ejecucion && isTRUE(incluir_valores) &&
         (is.null(decision) || isTRUE(decision$moda)) &&
         is.na(motivo)
     }, logical(1L))
@@ -5431,7 +5497,7 @@
   columnas_medianas <- columnas_medianas[
     vapply(columnas_medianas, function(campo) {
       decision <- decisiones_costo[[campo]]
-      "mediana" %in% metricas && isTRUE(incluir_valores) &&
+      "mediana" %in% metricas_ejecucion && isTRUE(incluir_valores) &&
         (is.null(decision) || isTRUE(decision$mediana))
     }, logical(1L))
   ]
@@ -6277,13 +6343,17 @@
 #'   `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`, `filas`,
 #'   `mediana_escalar`,
 #'   `tamano_lote_planos`, `tamano_lote_distintos`, `estimacion_derrame`,
-#'   `celdas`, `memoria_procesamiento` y,
+#'   `celdas`, `memoria_procesamiento` y `muestreo`, y,
 #'   cuando se pide `distintos`, `supuesto_costo_distintos`.
 #'   `memoria_procesamiento` siempre tiene `estado = "no_estimada"`: no es una
 #'   estimación de consumo, sino la declaración de su ausencia, el motivo, la
 #'   magnitud del trabajo y referencias medidas de otras corridas. El atributo
 #'   `estimacion_derrame` es independiente: sólo describe la estimación del hash
 #'   en el motor para `COUNT(DISTINCT)` y no la memoria del procesamiento en R.
+#'   `muestreo` declara si la forma muestreada se pudo construir sin emitir una
+#'   consulta de datos. En `modo = "muestreado"`, cuando su `estado` es
+#'   `"no_disponible"`, el plan excluye las métricas SQL de esa muestra y
+#'   `supuesto` conserva el motivo.
 #'   Cuando se pide `bloque_muestra = "solo_agregados"`, también conserva ese
 #'   valor en el atributo `bloque_muestra` y no incluye la fila de la lectura de
 #'   muestra.
@@ -6293,8 +6363,12 @@
 #'   cardinalidad no se conoce, y `total_maximo` el superior, que supone que las
 #'   ejecuta. Ambos incluyen la preparación y el perfilado previsto; el rechazo
 #'   de lotes puede agregar las sondas de bisección declaradas por
-#'   `total_lotes_rechazados`. El costo real cae entre los extremos, y
-#'   `attr(plan, "supuesto")` dice por qué se mueve en cada dirección.
+#'   `total_lotes_rechazados`. El costo real cae entre los extremos cuando
+#'   `modo` no es `"muestreado"` o `attr(plan, "muestreo")$estado` es
+#'   `"disponible"`; en `"no_sondeado"` la forma sólo se construyó localmente
+#'   y el intervalo queda condicionado a que la sonda de la corrida la acepte.
+#'   Si la forma muestreada no se puede construir, el plan declara ese caso,
+#'   excluye sus métricas del rango y `attr(plan, "supuesto")` dice por qué.
 #'
 #'   Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 #'   sobre dos millones de filas son mucho más trabajo que doscientas sobre
@@ -6484,6 +6558,17 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "total_maximo") <- sum(plan$n_consultas_max) + extra
   attr(plan, "total_lotes_rechazados") <- attr(plan, "total_maximo")
   attr(plan, "extra_si_se_rechazan_lotes") <- NULL
+  muestreo_plan_publico <- .publicar_muestreo_plan_dbi(
+    preparacion$muestreo, preparacion$muestra
+  )
+  motivo_muestreo <- if (identical(
+    muestreo_plan_publico$estado, "no_disponible"
+  )) {
+    paste(
+      "La forma muestreada no se puede construir; el plan no incluye sus",
+      "metricas SQL. Motivo:", muestreo_plan_publico$motivo
+    )
+  } else ""
   # El total es un RANGO, no una prediccion exacta ni un techo. Ademas de las
   # sondas por rechazo de lotes, la cardinalidad desconocida deja abiertas las
   # metricas caras que la politica puede omitir despues de medir.
@@ -6498,7 +6583,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     "Las fuentes estructurales exactas cierran ese intervalo. En cualquiera",
     "de los dos extremos, si el motor rechaza un lote se vuelve a sondear el",
     "arbol de biseccion, hasta 2n - 1 consultas adicionales por lote; las",
-    "respuestas aceptadas se reutilizan."
+    "respuestas aceptadas se reutilizan.", motivo_muestreo
   )
   attr(plan, "columnas") <- length(preparacion$campos)
   attr(plan, "columnas_numericas") <- sum(es_numerico)
@@ -6507,6 +6592,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "consultas_emitidas") <- preparacion$presupuesto$usadas
   attr(plan, "metricas") <- preparacion$metricas
   attr(plan, "metricas_ejecucion") <- preparacion$metricas_ejecucion
+  attr(plan, "muestreo") <- muestreo_plan_publico
   if ("distintos" %in% preparacion$metricas_ejecucion) {
     attr(plan, "supuesto_costo_distintos") <-
       .SUPUESTO_COSTO_DISTINTOS_PLAN_DBI
@@ -6717,7 +6803,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }
   # `muestra = Inf` -lo que viene por omision- trae la tabla entera a R. Es lo
   # correcto para un analisis de calidad: los diagnosticos que miran los valores
-  # -patrones, formatos, casi-duplicados- solo ven lo que se les trae, y sin
+  # -patrones, formatos, dependencias y casi-duplicados- solo ven lo que se les trae, y sin
   # `orden_muestra` una muestra acotada son las PRIMERAS filas del motor, no una
   # al azar. Pero conviene decirlo antes y no despues, porque sobre una tabla
   # grande es lo que manda el reloj.
@@ -7589,6 +7675,29 @@ print.plan_perfilado_dbi <- function(x, ...) {
         motivo = "La capacidad de muestreo queda sin sondear hasta la corrida."
       )
     }
+    estado_forma <- .estado_forma_muestreo_dbi(
+      muestreo$candidato, tabla_sql, esquema$campos_sql, muestra,
+      resolucion$dialecto
+    )
+    muestreo$forma_construible <- estado_forma$forma_construible
+    if (!isTRUE(estado_forma$forma_construible)) {
+      # La corrida y el plan comparten esta decisión estructural: no hay una
+      # consulta de datos que pueda producir métricas sobre una muestra que no
+      # se puede escribir. La lista de métricas solicitadas se conserva para
+      # publicar cada ausencia, pero no se intenta emitirlas.
+      if (!is.null(muestreo$candidato)) {
+        muestreo$disponible <- FALSE
+        if (is.null(muestreo$sondas) || !length(muestreo$sondas) ||
+            grepl("no pudo construir", muestreo$motivo, fixed = TRUE) ||
+            grepl("sin sondear", muestreo$motivo, fixed = TRUE)) {
+          muestreo$motivo <- estado_forma$motivo
+        }
+      }
+      # No tiene sentido sondear moda, mediana ni cardinalidad para una
+      # muestra que ya sabemos que no se puede escribir. `metricas_solicitadas`
+      # conserva el pedido para que el resumen publique sus ausencias.
+      metricas <- character()
+    }
   }
   estrategia_distintos <- .estrategia_distintos_dbi(
     metricas_solicitadas, politica_costo, incluir_valores,
@@ -7613,12 +7722,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
     fuentes_cardinalidad_costo,
     function(x) !isTRUE(x$exacta), logical(1L)
   )
+  muestreo_ejecutable <- !identical(modo, "muestreado") ||
+    isTRUE(muestreo$disponible)
   estrategia_distintos$requiere_medicion <-
     (isTRUE(estrategia_distintos$publica) &&
        isTRUE(estrategia_distintos$disponible) &&
+       isTRUE(muestreo_ejecutable) &&
        (identical(modo, "muestreado") || any(fuentes_no_exactas))) ||
     (isTRUE(estrategia_distintos$para_costo) &&
-       isTRUE(estrategia_distintos$disponible) && any(fuentes_no_exactas))
+       isTRUE(estrategia_distintos$disponible) &&
+       isTRUE(muestreo_ejecutable) && any(fuentes_no_exactas))
   # Una estrategia no disponible no abre una segunda oportunidad para ejecutar
   # el conteo exacto. Se quita de la ejecucion, pero queda en `metricas` para
   # que el resumen publique el motivo de la ausencia.
@@ -7749,9 +7862,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
     exacto = identical(estrategia_distintos$estrategia_resuelta, "COUNT(DISTINCT)"),
     modo = modo, tamano_lote = tamanos_lote$distintos
   )
+  metricas_ejecucion <- metricas
   list(
     modo = modo, metricas = metricas_solicitadas,
-    metricas_ejecucion = metricas, muestra = muestra,
+    metricas_ejecucion = metricas_ejecucion, muestra = muestra,
     bloque_muestra = bloque_muestra,
     max_consultas = max_consultas, presupuesto = presupuesto,
     instrumentar = isTRUE(instrumentar),
@@ -7793,8 +7907,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Calcula en SQL un resumen sobre la tabla completa o sobre una relación
 #' muestreada por el motor, según `modo`, y, por omisión, en un bloque separado
 #' ejecuta [perfilar()] sobre una muestra traída a memoria. El resumen completo
-#' de 105 campos no se presenta como calculado por la base: esos campos
-#' pertenecen exclusivamente a `perfil_muestra` y su universo es la muestra.
+#' de 109 campos analíticos además del nombre de la columna no se presenta como
+#' calculado por la base: esos campos pertenecen exclusivamente a
+#' `perfil_muestra` y su universo es la muestra.
 #' `bloque_muestra = "solo_agregados"` permite omitir esa lectura y pedir sólo
 #' los agregados SQL.
 #'
@@ -8030,18 +8145,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @param tabla Nombre de tabla o un objeto aceptado por
 #'   [DBI::dbQuoteIdentifier()].
 #' @param muestra Cantidad positiva de filas solicitadas para el perfil de
-#'   muestra, o `Inf` para traer la tabla entera. Con `Inf` la consulta sale sin
-#'   `LIMIT` y `tabla_completa` queda en `TRUE`.
+#'   muestra, o `Inf` para traer la tabla entera. El valor por omisión ya es
+#'   `Inf`: no representa una elección distinta de `Inf`, sino la tabla completa.
+#'   Con `Inf` la consulta sale sin `LIMIT` y `tabla_completa` queda en `TRUE`.
 #'
 #'   El resumen de tabla **no** se muestrea: con `modo = "exacto"` se calcula en
 #'   el motor sobre todas las filas. Lo que sale de esta muestra son los
 #'   diagnosticos que necesitan los valores en R -patrones, formatos,
-#'   casi-duplicados-, y sin `orden_muestra` no son una muestra aleatoria sino
-#'   las primeras filas que devuelva el motor. Medido sobre una tabla de 200.000
-#'   filas con un defecto plantado al final: con el valor por omision aparecen
-#'   tres hallazgos y con `Inf` aparecen cinco, a cambio de 10 segundos en vez
-#'   de 2. Un analisis de calidad no se corre todos los dias; si el tiempo no es
-#'   la restriccion, `Inf` es la opcion honesta.
+#'   casi-duplicados y dependencias funcionales-, y sin `orden_muestra` no son
+#'   una muestra aleatoria sino las primeras filas que devuelva el motor. El
+#'   limite también alcanza la muestra común con que se buscan dependencias.
+#'   Use un entero finito para acotar ese trabajo; `Inf` es el valor por omisión
+#'   y trae la tabla entera cuando el tiempo no es la restricción.
 #' @param orden_muestra Columnas para `ORDER BY`. La salida solo declara orden
 #'   reproducible cuando la combinación es única en toda la tabla. Sin este
 #'   argumento, DBI no garantiza el orden ni la pertenencia de una muestra

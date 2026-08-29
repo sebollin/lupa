@@ -36,18 +36,18 @@ perfilar_dbi(
 \code{\link[DBI:dbQuoteIdentifier]{DBI::dbQuoteIdentifier()}}.}
 
 \item{muestra}{Cantidad positiva de filas solicitadas para el perfil de
-muestra, o \code{Inf} para traer la tabla entera. Con \code{Inf} la consulta sale sin
-\code{LIMIT} y \code{tabla_completa} queda en \code{TRUE}.
+muestra, o \code{Inf} para traer la tabla entera. El valor por omisión ya es
+\code{Inf}: no representa una elección distinta de \code{Inf}, sino la tabla completa.
+Con \code{Inf} la consulta sale sin \code{LIMIT} y \code{tabla_completa} queda en \code{TRUE}.
 
 El resumen de tabla \strong{no} se muestrea: con \code{modo = "exacto"} se calcula en
 el motor sobre todas las filas. Lo que sale de esta muestra son los
 diagnosticos que necesitan los valores en R -patrones, formatos,
-casi-duplicados-, y sin \code{orden_muestra} no son una muestra aleatoria sino
-las primeras filas que devuelva el motor. Medido sobre una tabla de 200.000
-filas con un defecto plantado al final: con el valor por omision aparecen
-tres hallazgos y con \code{Inf} aparecen cinco, a cambio de 10 segundos en vez
-de 2. Un analisis de calidad no se corre todos los dias; si el tiempo no es
-la restriccion, \code{Inf} es la opcion honesta.}
+casi-duplicados y dependencias funcionales-, y sin \code{orden_muestra} no son
+una muestra aleatoria sino las primeras filas que devuelva el motor. El
+limite también alcanza la muestra común con que se buscan dependencias.
+Use un entero finito para acotar ese trabajo; \code{Inf} es el valor por omisión
+y trae la tabla entera cuando el tiempo no es la restricción.}
 
 \item{orden_muestra}{Columnas para \verb{ORDER BY}. La salida solo declara orden
 reproducible cuando la combinación es única en toda la tabla. Sin este
@@ -179,8 +179,9 @@ queda diferenciada de una clave no declarada.
 Calcula en SQL un resumen sobre la tabla completa o sobre una relación
 muestreada por el motor, según \code{modo}, y, por omisión, en un bloque separado
 ejecuta \code{\link[=perfilar]{perfilar()}} sobre una muestra traída a memoria. El resumen completo
-de 105 campos no se presenta como calculado por la base: esos campos
-pertenecen exclusivamente a \code{perfil_muestra} y su universo es la muestra.
+de 109 campos analíticos además del nombre de la columna no se presenta como
+calculado por la base: esos campos pertenecen exclusivamente a
+\code{perfil_muestra} y su universo es la muestra.
 \code{bloque_muestra = "solo_agregados"} permite omitir esa lectura y pedir sólo
 los agregados SQL.
 }
