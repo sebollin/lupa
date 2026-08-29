@@ -1007,9 +1007,20 @@
   textos_comparados[presentes] <- .normalizacion_aplicar(
     textos[presentes], perfil_columna
   )
+  largos_comparados <- nchar(
+    textos_comparados[presentes], type = "chars", allowNA = TRUE
+  )
+  largos_comparados <- largos_comparados[is.finite(largos_comparados)]
+  # Un solo numero para las dos ramas. Antes, la que excluia publicaba el largo
+  # comparado y la que no excluia publicaba el crudo: el mismo campo significaba
+  # dos cosas segun el camino, y quien leyera dos informes no podia compararlos.
+  largo_maximo_comparado <- if (length(largos_comparados)) {
+    max(largos_comparados)
+  } else {
+    0
+  }
   if (is.finite(max_largo_valor)) {
-    largos <- nchar(textos_comparados[presentes], type = "chars", allowNA = TRUE)
-    largos <- largos[is.finite(largos)]
+    largos <- largos_comparados
     if (any(largos > max_largo_valor)) {
       return(.alcance_vocabulario_largo(
         textos_comparados, presentes, columna, max_valores, max_pares, metodo, p, umbral,
@@ -1616,7 +1627,7 @@
       largo_excedido = FALSE,
       n_valores_largos = 0L,
       n_filas_largas = 0L,
-      largo_maximo = .largo_maximo_valor_duplicados(presentes_texto),
+      largo_maximo = largo_maximo_comparado,
       motivo_presupuesto = motivo_presupuesto,
       distancia_disponible = disponible,
       motivo_distancia = if (disponible) "" else

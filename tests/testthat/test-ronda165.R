@@ -119,3 +119,35 @@ test_that("y sin expansion la regla de vocabulario no excluye de mas", {
   expect_false(isTRUE(alcance$largo_excedido))
   expect_lt(alcance$largo_maximo, 100L)
 })
+
+# El desvio tiene dos direcciones y las dos importan. La normalizacion tambien
+# ACORTA -colapsar espacios-, asi que una columna podia estar por encima del tope
+# guardada y por debajo comparada: ahi la regla excluia una columna que se podia
+# comparar sin problema. Un tope que mide la variable equivocada se equivoca en
+# los dos sentidos, y el falso negativo es el que no se nota.
+#
+# Y el largo publicado tiene que ser el mismo numero en las dos ramas: antes, la
+# que excluia publicaba el comparado y la que no excluia publicaba el crudo, de
+# modo que dos informes no eran comparables entre si.
+
+test_that("el tope tampoco excluye cuando la normalizacion acorta", {
+  skip_if_not_installed("stringdist")
+  # 2.500 pares unidos por tres espacios: 12.499 crudos, 7.501 al colapsarlos.
+  base <- paste(rep("ab", 2500L), collapse = "   ")
+  valores <- c(base, paste0(base, " x"), base)
+  perfil <- lupa:::.resolver_normalizacion("amplio")
+
+  expect_gt(max(nchar(valores)), 10000L)
+  comparado <- max(nchar(lupa:::.normalizacion_aplicar(
+    valores, lupa:::.normalizacion_para_columna(perfil, "t")
+  )))
+  expect_lt(comparado, 10000L)
+
+  alcance <- lupa:::.grupos_casi_duplicados_vocabulario(
+    valores, perfil, "t", max_valores = 100L, max_pares = Inf,
+    max_trabajo = Inf
+  )$alcance
+  expect_false(isTRUE(alcance$largo_excedido))
+  # Y publica el largo COMPARADO, no el guardado, igual que la otra rama.
+  expect_equal(alcance$largo_maximo, comparado)
+})
