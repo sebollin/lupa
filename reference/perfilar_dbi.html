@@ -326,9 +326,12 @@ distintos trae <code>COUNT(columna) AS n_validos_guard</code> junto a
 <code>COUNT(DISTINCT columna)</code>. Si una capacidad aproximada sólo construye una
 consulta completa y no puede traer ese guardian, la cota no se comprueba y
 el motivo lo declara; no se atribuye un valor imposible al motor.
-La frecuencia de la moda no se compara con <code>n_validos</code> de otra sentencia:
-como su consulta no trae un guardian compañero, esa cota también queda
-declarada como no comprobable.
+La consulta de la moda intenta traer <code>SUM(COUNT(*)) OVER () AS
+n_validos_guard</code> junto a su frecuencia. La forma se sondea antes de usarla;
+si el motor la rechaza, se conserva la consulta anterior y
+<code>meta$moda_guardian</code> publica el repliegue. Cuando la sonda pasa, la cota
+<code>frecuencia_moda &lt;= n_validos</code> se comprueba dentro de la misma sentencia y
+el motivo de la métrica lo declara.
 <code>meta$snapshot</code> queda en <code>FALSE</code>, siguiendo la declaracion de colecciones: no
 hubo lectura instantanea. La cobertura agrega una entrada concreta solo si
 <code>n_validos</code> y <code>n_distintos</code> son exactos, incoherentes y provienen de grupos

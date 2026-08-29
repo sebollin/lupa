@@ -284,13 +284,17 @@ exacta de distintos trae `COUNT(columna) AS n_validos_guard` junto a
 `COUNT(DISTINCT columna)`. Si una capacidad aproximada sólo construye
 una consulta completa y no puede traer ese guardian, la cota no se
 comprueba y el motivo lo declara; no se atribuye un valor imposible al
-motor. La frecuencia de la moda no se compara con `n_validos` de otra
-sentencia: como su consulta no trae un guardian compañero, esa cota
-también queda declarada como no comprobable. `meta$snapshot` queda en
-`FALSE`, siguiendo la declaracion de colecciones: no hubo lectura
-instantanea. La cobertura agrega una entrada concreta solo si
-`n_validos` y `n_distintos` son exactos, incoherentes y provienen de
-grupos distintos; su motivo conserva ambas sentencias.
+motor. La consulta de la moda intenta traer
+`SUM(COUNT(*)) OVER () AS n_validos_guard` junto a su frecuencia. La
+forma se sondea antes de usarla; si el motor la rechaza, se conserva la
+consulta anterior y `meta$moda_guardian` publica el repliegue. Cuando la
+sonda pasa, la cota `frecuencia_moda <= n_validos` se comprueba dentro
+de la misma sentencia y el motivo de la métrica lo declara.
+`meta$snapshot` queda en `FALSE`, siguiendo la declaracion de
+colecciones: no hubo lectura instantanea. La cobertura agrega una
+entrada concreta solo si `n_validos` y `n_distintos` son exactos,
+incoherentes y provienen de grupos distintos; su motivo conserva ambas
+sentencias.
 
 Las cotas de error no documentadas de una aproximacion nativa quedan
 como `"desconocido"`. Una aproximacion solo se consolida cuando entrega

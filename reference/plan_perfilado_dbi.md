@@ -176,8 +176,8 @@ Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
 `total_minimo`, `total_maximo`, `total_lotes_rechazados`, `columnas`,
 `columnas_numericas`, `dialecto`, `consultas_emitidas`, `metricas`,
 `metricas_ejecucion`, `politica_costo`, `estrategia_distintos`,
-`fuente_cardinalidad_costo`, `mediana_consolidada`, `filas`,
-`tamano_lote_planos` y `tamano_lote_distintos`. Cuando se pide
+`fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`,
+`filas`, `tamano_lote_planos` y `tamano_lote_distintos`. Cuando se pide
 `bloque_muestra = "solo_agregados"`, también conserva ese valor en el
 atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
 

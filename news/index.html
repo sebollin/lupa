@@ -42,6 +42,12 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="la-moda-conserva-su-guardian-de-la-misma-sentencia-0-1-0">La moda conserva su guardian de la misma sentencia<a class="anchor" aria-label="anchor" href="#la-moda-conserva-su-guardian-de-la-misma-sentencia-0-1-0"></a></h3>
+<ul><li>La consulta de la moda intenta traer <code>SUM(COUNT(*)) OVER () AS n_validos_guard</code> junto a la frecuencia y valida <code>frecuencia_moda &lt;= n_validos</code> dentro de esa misma sentencia.</li>
+<li>La forma se sondea antes de usarla. Si el motor la rechaza, se conserva la consulta anterior y <code>resumen_tabla$meta$moda_guardian</code> declara el repliegue; el motivo deja de afirmar que la cota no se pudo comprobar cuando el guardian estuvo disponible.</li>
+<li>En <code>EXPLAIN (ANALYZE, BUFFERS)</code> sobre una tabla temporal de 2 millones de filas, PostgreSQL 9.3 pasó de una mediana de 245,7 ms a 271,7 ms y PostgreSQL 16 de 258,5 ms a 277,6 ms. Ambos planes conservaron un solo <code>Seq Scan</code> y los mismos buffers; el costo agregado fue la ventana sobre los tres grupos ya calculados.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="el-detector-de-formatos-de-fecha-trabaja-sobre-el-vocabulario-0-1-0">El detector de formatos de fecha trabaja sobre el vocabulario<a class="anchor" aria-label="anchor" href="#el-detector-de-formatos-de-fecha-trabaja-sobre-el-vocabulario-0-1-0"></a></h3>
 <p>Una columna de fechas suele tener pocas formas distintas repetidas muchas veces, y el detector las evaluaba todas. Ahora clasifica las formas del vocabulario y pondera por su frecuencia, que es el mismo camino que ya usaba la clasificación de tipos.</p>
 <p>Los conteos no cambian: el detector devuelve los mismos formatos, las mismas frecuencias, las mismas ambigüedades y los mismos atributos. Trabajar por vocabulario y ponderar no altera un solo número, y hay pruebas de equivalencia campo por campo y atributo por atributo que lo fijan.</p>

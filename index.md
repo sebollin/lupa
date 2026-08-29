@@ -332,7 +332,12 @@ inconsistency is attributed to the engine. Batch sizes are separate:
 2: the measured shared read was constant between batches on the
 reference PostgreSQL server, so two cardinalities share one pass. The
 measured two-cardinality batch kept nearly the same time per column as
-one and spilled less than wider batches.
+one and spilled less than wider batches. The mode query also tries to
+bring `SUM(COUNT(*)) OVER () AS n_validos_guard` beside its frequency.
+The form is probed before use; if the engine rejects it, the previous
+mode query is retained and the fallback is published in
+`resumen_tabla$meta$moda_guardian`. When accepted, the bound
+`frecuencia_moda <= n_validos` is checked inside that same statement.
 
 ### Avisos de costo y derrame
 
