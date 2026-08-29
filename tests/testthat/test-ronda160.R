@@ -212,13 +212,21 @@ test_that("el contador de duplicados fija los bordes de la semantica de base", {
   )
   for (nombre in names(casos)) {
     datos <- casos[[nombre]]
-    esperado <- c(
-      filas_duplicadas = sum(base::duplicated.data.frame(datos)),
-      filas_en_grupos_duplicados = sum(
-        base::duplicated.data.frame(datos) |
-          base::duplicated.data.frame(datos, fromLast = TRUE)
+    esperado <- if (identical(nombre, "matriz")) {
+      # R 4.1 compara las celdas de una columna matriz y devuelve un vector de
+      # longitud 6; desde R 4.2 `duplicated.data.frame()` la separa por filas
+      # y devuelve longitud 3. El contrato de lupa es una fila por elemento de
+      # la tabla, así que este esperado no puede delegarse a base R.
+      c(filas_duplicadas = 1L, filas_en_grupos_duplicados = 2L)
+    } else {
+      c(
+        filas_duplicadas = sum(base::duplicated.data.frame(datos)),
+        filas_en_grupos_duplicados = sum(
+          base::duplicated.data.frame(datos) |
+            base::duplicated.data.frame(datos, fromLast = TRUE)
+        )
       )
-    )
+    }
     tipos <- if (identical(nombre, "matriz")) {
       c("data.frame", "tibble")
     } else {

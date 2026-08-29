@@ -87,8 +87,26 @@
     confirmada = FALSE,
     evidencia = "Las etiquetas sugieren categorias, pero no declaran orden."
   ))
-  presentes <- x[!is.na(x)]
-  distintos <- length(unique(presentes))
+  presentes <- tryCatch(x[!is.na(x)], error = function(e) NULL)
+  distintos <- if (is.null(presentes)) {
+    NA_integer_
+  } else {
+    tryCatch(length(unique(presentes)), error = function(e) NA_integer_)
+  }
+  # Algunas listas tipadas por controladores DBI -en particular un BLOB que
+  # llega como `blob`/`vctrs_list_of` de `raw`- tienen un metodo `unique()` que
+  # no puede comparar sus elementos en versiones viejas de vctrs. La escala no
+  # se puede inferir sin esa cardinalidad, pero eso no debe abortar el perfil:
+  # `is.na()` ya permitio contar y trazar los faltantes, y el tipo compuesto
+  # queda declarado como desconocido.
+  if (is.na(distintos)) return(list(
+    escala = "desconocida", rol = "desconocido", confianza = NA_real_,
+    confirmada = FALSE,
+    evidencia = paste0(
+      "El tipo de la columna no permite comparar sus valores para inferir una ",
+      "escala de medicion."
+    )
+  ))
   if (tipo_implicito == "identificador") return(list(
     escala = "nominal", rol = "identificador", confianza = 0.9,
     confirmada = FALSE,
