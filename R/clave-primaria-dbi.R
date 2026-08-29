@@ -97,7 +97,24 @@
         propio <- if (identical(motor, "mysql")) {
           " AND t.table_schema = DATABASE() "
         } else if (identical(motor, "sqlserver")) {
-          " AND t.table_schema = SCHEMA_NAME() "
+          # SQL Server resuelve un nombre sin calificar en DOS pasos: primero el
+          # esquema por omision del usuario, y si no esta ahi, `dbo`.
+          # `SCHEMA_NAME()` devuelve solo el primero, asi que filtrar por el
+          # introducia un FALSO NEGATIVO: una tabla declarada solo en `dbo`,
+          # consultada por un usuario con otro esquema por omision, se lee de
+          # `dbo` -el motor la resuelve- pero el catalogo devolvia cero filas y
+          # el paquete publicaba `no_declarada` falsa.
+          #
+          # Se piden los dos y decide `.clave_ambigua()`: si la tabla existe en
+          # uno solo, se publica su clave; si existe en los dos, no se publica
+          # ninguna y el motivo lo explica. Se pierde una respuesta en un caso
+          # raro y NINGUNA es falsa, que es el orden correcto de preferencias.
+          #
+          # No se replica la precedencia completa del motor porque **este equipo
+          # no tiene controladores ODBC** y no habria como medirlo: escribir a
+          # ciegas la regla de resolucion de un motor que no se puede probar es
+          # justo lo que este paquete no hace.
+          " AND t.table_schema IN (SCHEMA_NAME(), 'dbo') "
         } else {
           # Un motor que no se conoce no recibe una funcion inventada: se pide
           # el esquema para poder DECLARAR la ambiguedad si aparece, que es lo

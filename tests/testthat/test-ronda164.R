@@ -136,3 +136,27 @@ test_that("la via estandar restringe al esquema propio de cada motor", {
     fixed = TRUE
   )
 })
+
+# SQL Server resuelve un nombre sin calificar en DOS pasos: el esquema por
+# omision del usuario y, si no esta ahi, `dbo`. Filtrar solo por `SCHEMA_NAME()`
+# introducia un falso negativo -una tabla declarada solo en `dbo`, leida por un
+# usuario con otro esquema por omision, se lee del motor pero el catalogo
+# devolvia cero filas y se publicaba `no_declarada` falsa-.
+#
+# No hay SQL Server en este banco -sin controladores ODBC-, asi que lo unico
+# verificable aca es el SQL que se arma. Se comprueba eso y se dice que es eso.
+
+test_that("la via estandar contempla los dos esquemas que resuelve SQL Server", {
+  est <- Filter(
+    function(x) identical(x$nombre, "information_schema"),
+    lupa:::.consultas_clave_primaria()
+  )[[1L]]
+  sql <- est$sql(NA_character_, "t", "sqlserver")
+  expect_match(sql, "SCHEMA_NAME()", fixed = TRUE)
+  expect_match(sql, "'dbo'", fixed = TRUE)
+  # Y no contamina a los otros motores.
+  expect_false(grepl("dbo", est$sql(NA_character_, "t", "mysql"), fixed = TRUE))
+  expect_false(
+    grepl("SCHEMA_NAME", est$sql(NA_character_, "t", "desconocido"), fixed = TRUE)
+  )
+})
