@@ -42,6 +42,15 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="topes-declarados-para-valores-largos-y-tablas-anchas-0-1-0">Topes declarados para valores largos y tablas anchas<a class="anchor" aria-label="anchor" href="#topes-declarados-para-valores-largos-y-tablas-anchas-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code> y el vocabulario de <code><a href="../reference/perfilar.html">perfilar()</a></code> tienen por defecto un tope de 10.000 caracteres por valor. La distancia normalizada se midio con pares que diferian en un caracter y en 1.000: el segundo par dejo de separarse del umbral 0,10 entre 25.000 y 50.000 caracteres, mientras el primero siguio cerca de cero. El tope se declara en <code>alcance</code> o en <code>cobertura_diagnosticos</code>; <code>Inf</code> recupera explicitamente el comportamiento anterior.</li>
+<li>Una columna con valores por encima del tope queda fuera de la comparacion completa y la cobertura publica la columna, el largo observado, el motivo y el umbral. No se recortan valores en silencio.</li>
+<li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> conserva en <code>meta$costo_tabla_ancha</code> una proyeccion del costo por celdas y avisa en sesiones interactivas desde 100.000 celdas. El mensaje identifica la fuente y aclara que es una estimacion; no aparece en scripts ni por debajo del umbral. <code>avisar_costo_tabla_ancha = FALSE</code> y <code>umbral_celdas_aviso_tabla_ancha = Inf</code> son desactivaciones explicitas.</li>
+<li>Se agrego <code>benchmark/medir_topes_valores_ancho.R</code> para reproducir la medicion de discriminacion y el barrido de tablas anchas.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="el-parseo-de-fechas-también-trabaja-sobre-el-vocabulario-0-1-0">El parseo de fechas también trabaja sobre el vocabulario<a class="anchor" aria-label="anchor" href="#el-parseo-de-fechas-tambi%C3%A9n-trabaja-sobre-el-vocabulario-0-1-0"></a></h3>
 <p>Después de la detección de formatos, el parseo era lo que quedaba recorriendo todos los valores. Ahora deduplica, parsea las formas distintas y mapea de vuelta, que es el mismo camino.</p>
 <p>Sobre una columna de fechas realista —1.096 fechas distintas en tres años, 120.000 filas—, <code><a href="../reference/perfilar.html">perfilar()</a></code> baja de 4,23 s a 3,24 s: <strong>un 23 % menos</strong>. El costo del parseo queda prácticamente plano respecto de la cantidad de filas.</p>

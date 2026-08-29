@@ -57,7 +57,10 @@ perfilar(
   max_asimetria_equifrecuente_vocabulario = 2,
   max_comparaciones_dependencias = 200000L,
   max_trabajo_vocabulario = 2e+10,
-  max_trabajo_dependencias = 1e+08
+  max_trabajo_dependencias = 1e+08,
+  max_largo_valor_vocabulario = .MAX_LARGO_VALOR_CASI_DUPLICADOS,
+  avisar_costo_tabla_ancha = TRUE,
+  umbral_celdas_aviso_tabla_ancha = .UMBRAL_CELDAS_AVISO_TABLA_ANCHA
 )
 ```
 
@@ -460,6 +463,28 @@ perfilar(
   combina con `max_comparaciones_dependencias`; el límite efectivo baja
   cuando hay muchas filas. `Inf` desactiva este tope, pero no el de
   pares.
+
+- max_largo_valor_vocabulario:
+
+  Maximo de caracteres permitido en cada valor que entra en la
+  comparacion de casi duplicados del vocabulario. Por defecto es
+  `10000`, elegido porque la distancia normalizada deja de distinguir de
+  forma estable una diferencia local de muchas diferencias en textos
+  largos. Una columna que supera el tope se declara completa fuera de
+  alcance en `cobertura_diagnosticos`; no se recortan valores en
+  silencio. `Inf` recupera explicitamente el comportamiento anterior sin
+  tope.
+
+- avisar_costo_tabla_ancha:
+
+  Si es `TRUE`, avisa en sesiones interactivas cuando las celdas
+  proyectadas superan `umbral_celdas_aviso_tabla_ancha`. El aviso es una
+  estimacion y queda en silencio en scripts no interactivos.
+
+- umbral_celdas_aviso_tabla_ancha:
+
+  Cantidad de celdas a partir de la cual se emite el aviso de tabla
+  ancha. Por defecto, `100000`; `Inf` lo desactiva explicitamente.
 
 ## Value
 

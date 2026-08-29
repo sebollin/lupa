@@ -33,7 +33,8 @@ estimar_costo(
   lotes = FALSE,
   tamano_lote = 1000L,
   directorio_lotes = NULL,
-  nucleos = getOption("lupa.nucleos", 2L)
+  nucleos = getOption("lupa.nucleos", 2L),
+  max_largo_valor = .MAX_LARGO_VALOR_CASI_DUPLICADOS
 )
 ```
 
@@ -184,6 +185,17 @@ estimar_costo(
   valor mayor que los núcleos disponibles se limita de forma segura. El
   resultado no depende de esta cantidad, pero el tiempo sí. El valor
   efectivo queda declarado en `alcance$nucleos_usados`.
+
+- max_largo_valor:
+
+  Maximo de caracteres permitido en cada valor de las columnas
+  combinadas. Por defecto es `10000`, umbral elegido porque la distancia
+  normalizada deja de distinguir de forma estable una diferencia local
+  de muchas diferencias en textos largos. Si una columna supera el tope,
+  la combinacion completa se declara fuera de alcance en
+  `alcance$columnas_excluidas_largo`; no se recortan valores en
+  silencio. `Inf` recupera explicitamente el comportamiento anterior sin
+  tope.
 
 ## Value
 

@@ -106,7 +106,8 @@ calibracion fina. Ambos argumentos se pueden cambiar.</p>
 <span>  lotes <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  tamano_lote <span class="op">=</span> <span class="fl">1000L</span>,</span>
 <span>  directorio_lotes <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  nucleos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"lupa.nucleos"</span>, <span class="fl">2L</span><span class="op">)</span></span>
+<span>  nucleos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"lupa.nucleos"</span>, <span class="fl">2L</span><span class="op">)</span>,</span>
+<span>  max_largo_valor <span class="op">=</span> <span class="va">.MAX_LARGO_VALOR_CASI_DUPLICADOS</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -262,6 +263,16 @@ defecto es <code>getOption("lupa.nucleos", 2L)</code>; <code>NULL</code> usa esa
 un valor mayor que los núcleos disponibles se limita de forma segura. El
 resultado no depende de esta cantidad, pero el tiempo sí. El valor efectivo
 queda declarado en <code>alcance$nucleos_usados</code>.</p></dd>
+
+
+<dt id="arg-max-largo-valor">max_largo_valor<a class="anchor" aria-label="anchor" href="#arg-max-largo-valor"></a></dt>
+<dd><p>Maximo de caracteres permitido en cada valor de las
+columnas combinadas. Por defecto es <code>10000</code>, umbral elegido porque la
+distancia normalizada deja de distinguir de forma estable una diferencia
+local de muchas diferencias en textos largos. Si una columna supera el
+tope, la combinacion completa se declara fuera de alcance en
+<code>alcance$columnas_excluidas_largo</code>; no se recortan valores en silencio.
+<code>Inf</code> recupera explicitamente el comportamiento anterior sin tope.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -102,7 +102,10 @@ accionables. Todas las proporciones se expresan en <code>[0, 1]</code>.</p>
 <span>  max_asimetria_equifrecuente_vocabulario <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  max_comparaciones_dependencias <span class="op">=</span> <span class="fl">200000L</span>,</span>
 <span>  max_trabajo_vocabulario <span class="op">=</span> <span class="fl">2e+10</span>,</span>
-<span>  max_trabajo_dependencias <span class="op">=</span> <span class="fl">1e+08</span></span>
+<span>  max_trabajo_dependencias <span class="op">=</span> <span class="fl">1e+08</span>,</span>
+<span>  max_largo_valor_vocabulario <span class="op">=</span> <span class="va">.MAX_LARGO_VALOR_CASI_DUPLICADOS</span>,</span>
+<span>  avisar_costo_tabla_ancha <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  umbral_celdas_aviso_tabla_ancha <span class="op">=</span> <span class="va">.UMBRAL_CELDAS_AVISO_TABLA_ANCHA</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -489,6 +492,28 @@ recorte declara valores, pares y trabajo sin comparar. <code>Inf</code> lo desac
 las dependencias. Se combina con <code>max_comparaciones_dependencias</code>; el
 límite efectivo baja cuando hay muchas filas. <code>Inf</code> desactiva este tope,
 pero no el de pares.</p></dd>
+
+
+<dt id="arg-max-largo-valor-vocabulario">max_largo_valor_vocabulario<a class="anchor" aria-label="anchor" href="#arg-max-largo-valor-vocabulario"></a></dt>
+<dd><p>Maximo de caracteres permitido en cada
+valor que entra en la comparacion de casi duplicados del vocabulario. Por
+defecto es <code>10000</code>, elegido porque la distancia normalizada deja de
+distinguir de forma estable una diferencia local de muchas diferencias en
+textos largos. Una columna que supera el tope se declara completa fuera
+de alcance en <code>cobertura_diagnosticos</code>; no se recortan valores en silencio.
+<code>Inf</code> recupera explicitamente el comportamiento anterior sin tope.</p></dd>
+
+
+<dt id="arg-avisar-costo-tabla-ancha">avisar_costo_tabla_ancha<a class="anchor" aria-label="anchor" href="#arg-avisar-costo-tabla-ancha"></a></dt>
+<dd><p>Si es <code>TRUE</code>, avisa en sesiones interactivas
+cuando las celdas proyectadas superan <code>umbral_celdas_aviso_tabla_ancha</code>.
+El aviso es una estimacion y queda en silencio en scripts no interactivos.</p></dd>
+
+
+<dt id="arg-umbral-celdas-aviso-tabla-ancha">umbral_celdas_aviso_tabla_ancha<a class="anchor" aria-label="anchor" href="#arg-umbral-celdas-aviso-tabla-ancha"></a></dt>
+<dd><p>Cantidad de celdas a partir de la cual
+se emite el aviso de tabla ancha. Por defecto, <code>100000</code>; <code>Inf</code> lo desactiva
+explicitamente.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -427,6 +427,46 @@
 </h3>
 <p>A cap that counts units treats a column of ten-character codes and one of thousand-character WKT alike. A table in the PostGIS catalogue — 3,912 rows — took 243 seconds, and the vocabulary detector was 99.6% of it: 800 distinct values are 319,600 pairs, well under the two-million cap, but each comparison was a Jaro-Winkler over 900 characters.</p>
 <p>The budget is now measured in <strong>character comparisons</strong>, the inner loop of the distance. Calibrated against measurement, the pathological column drops from 61.3 s to 4.6 s. An ordinary column of two thousand values is compared in full <strong>as long as its values are under about a hundred characters</strong>: the budget bites when <code>L² · n(n−1)/2</code> exceeds <code>2e10</code>, which for two thousand distinct values means a length of 101. Saying “two thousand values are compared in full” without that qualifier was wrong, and wrong in the worst place — the 900-character WKT column that motivated the budget is exactly the kind that gets trimmed. What does get trimmed is declared: how many normalised forms went uncompared, how much work that was, and which cap did the trimming.</p>
+</div>
+<div class="section level3">
+<h3 id="a-length-cap-protects-the-distance-signal">A length cap protects the distance signal<a class="anchor" aria-label="anchor" href="#a-length-cap-protects-the-distance-signal"></a>
+</h3>
+<p>Normalised edit distance is designed for names, addresses and identifiers, not documents. Five seeds were measured with random text pairs: one pair differed in one character and the other in 1,000. The table shows their median. The many-character pair stopped being distinct at the default <code>0.10</code> threshold before the one-character pair stopped looking close:</p>
+<table class="table">
+<thead><tr>
+<th align="right">length</th>
+<th align="right">distance, 1 character</th>
+<th align="right">distance, 1,000 characters</th>
+</tr></thead>
+<tbody>
+<tr>
+<td align="right">10,000</td>
+<td align="right">0.000400</td>
+<td align="right">0.193195</td>
+</tr>
+<tr>
+<td align="right">20,000</td>
+<td align="right">0.000150</td>
+<td align="right">0.125923</td>
+</tr>
+<tr>
+<td align="right">25,000</td>
+<td align="right">0.000347</td>
+<td align="right">0.104511</td>
+</tr>
+<tr>
+<td align="right">50,000</td>
+<td align="right">0.000053</td>
+<td align="right">0.064559</td>
+</tr>
+</tbody>
+</table>
+<p>The observed crossing is between 25,000 and 50,000 characters. The default <code>10,000</code> cap leaves a five-fold margin before that loss of discrimination. <code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code> publishes it in <code>alcance$max_largo_valor</code>; when a column exceeds it, the complete combination is out of scope and <code>alcance$columnas_excluidas_largo</code> explains why. In <code><a href="reference/perfilar.html">perfilar()</a></code>, the same decision appears in <code>cobertura_diagnosticos</code> with the reason, observed length and threshold. <code>max_largo_valor = Inf</code> or <code>max_largo_valor_vocabulario = Inf</code> explicitly restores the previous behaviour.</p>
+</div>
+<div class="section level3">
+<h3 id="wide-table-cost-is-announced-first">Wide-table cost is announced first<a class="anchor" aria-label="anchor" href="#wide-table-cost-is-announced-first"></a>
+</h3>
+<p><code><a href="reference/perfilar.html">perfilar()</a></code> projects the cell count before expensive work starts. The default warning starts at <code>100,000</code> cells, uses a reference of <code>10,000</code> cells per second and says that it is an estimate together with its source. The reference follows these measurements: 500 rows by 50, 300 and 1,000 columns took 2.41, 14.85 and 50.41 seconds. There is no warning below the threshold or in non-interactive scripts. The projection is stored in <code>meta$costo_tabla_ancha</code>. <code>avisar_costo_tabla_ancha = FALSE</code> disables it per call and <code>umbral_celdas_aviso_tabla_ancha = Inf</code> silences it explicitly.</p>
 <p>And when a budget must trim, the forms it keeps are the <strong>alphabetically first</strong>, not the first to appear. That distinction was a defect, measured on a real column — 45,400 street names from the national open-data catalogue, 8,318 distinct forms. The same rows yielded 26 near-duplicate groups in the order the file arrives, 70–85 shuffled, and 148 sorted. A profiler whose verdict depends on the row order is measuring the physical shape of the table rather than the data. Sorting first, all five orders yield 148 — and sorting also keeps near-duplicates adjacent, so the cut falls between families instead of splitting them.</p>
 <p><strong>The other trim, the one over pairs, follows the same rule, from the same kind of measurement.</strong> <code>max_resultados</code> keeps the closest pairs by ordering on distance, and among <strong>tied</strong> pairs it used to break ties by row position. Measured over 60 groups whose internal pairs share exactly the same distance, with the cut at 30, five different orders each returned 30 groups <strong>sharing none of them</strong>. It now breaks ties by the canonical order of the values, with a symmetric key so the result does not depend on which row came first within a pair either, and all five orders return exactly the same groups.</p>
 <p>What no ordering fixes is that a cut inside a tie leaves out pairs that are equally close. That is not fixed: it is declared. <code>alcance</code> carries <code>distancia_corte</code>, <code>n_en_distancia_corte</code> and <code>corte_en_empate</code>, and that last one is not <code>truncado</code> under another name — it is <code>FALSE</code> when the cut lands on a unique distance.</p>

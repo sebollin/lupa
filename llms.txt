@@ -401,6 +401,48 @@ motivated the budget is exactly the kind that gets trimmed. What does
 get trimmed is declared: how many normalised forms went uncompared, how
 much work that was, and which cap did the trimming.
 
+### A length cap protects the distance signal
+
+Normalised edit distance is designed for names, addresses and
+identifiers, not documents. Five seeds were measured with random text
+pairs: one pair differed in one character and the other in 1,000. The
+table shows their median. The many-character pair stopped being distinct
+at the default `0.10` threshold before the one-character pair stopped
+looking close:
+
+| length | distance, 1 character | distance, 1,000 characters |
+|-------:|----------------------:|---------------------------:|
+| 10,000 |              0.000400 |                   0.193195 |
+| 20,000 |              0.000150 |                   0.125923 |
+| 25,000 |              0.000347 |                   0.104511 |
+| 50,000 |              0.000053 |                   0.064559 |
+
+The observed crossing is between 25,000 and 50,000 characters. The
+default `10,000` cap leaves a five-fold margin before that loss of
+discrimination.
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+publishes it in `alcance$max_largo_valor`; when a column exceeds it, the
+complete combination is out of scope and
+`alcance$columnas_excluidas_largo` explains why. In
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+the same decision appears in `cobertura_diagnosticos` with the reason,
+observed length and threshold. `max_largo_valor = Inf` or
+`max_largo_valor_vocabulario = Inf` explicitly restores the previous
+behaviour.
+
+### Wide-table cost is announced first
+
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+projects the cell count before expensive work starts. The default
+warning starts at `100,000` cells, uses a reference of `10,000` cells
+per second and says that it is an estimate together with its source. The
+reference follows these measurements: 500 rows by 50, 300 and 1,000
+columns took 2.41, 14.85 and 50.41 seconds. There is no warning below
+the threshold or in non-interactive scripts. The projection is stored in
+`meta$costo_tabla_ancha`. `avisar_costo_tabla_ancha = FALSE` disables it
+per call and `umbral_celdas_aviso_tabla_ancha = Inf` silences it
+explicitly.
+
 And when a budget must trim, the forms it keeps are the **alphabetically
 first**, not the first to appear. That distinction was a defect,
 measured on a real column — 45,400 street names from the national

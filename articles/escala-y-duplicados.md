@@ -125,6 +125,43 @@ Si el pronóstico supera el límite elegido, `presupuesto_pares` corta
 antes de comparar. En una sesión interactiva se puede decidir
 explícitamente continuar; en un script no se solicita entrada.
 
+## Un tope de largo para la señal de proximidad
+
+La distancia normalizada sirve para nombres, direcciones e
+identificadores, pero pierde capacidad de distinguir documentos largos.
+En cinco semillas de textos aleatorios, un par con una diferencia y otro
+con 1.000 diferencias dio estas medianas sobre cinco semillas:
+
+|  largo | una diferencia | 1.000 diferencias |
+|-------:|---------------:|------------------:|
+| 10.000 |       0,000400 |          0,193195 |
+| 20.000 |       0,000150 |          0,125923 |
+| 25.000 |       0,000347 |          0,104511 |
+| 50.000 |       0,000053 |          0,064559 |
+
+Con el umbral predeterminado `0,10`, el segundo par cruza hacia un falso
+parecido entre 25.000 y 50.000 caracteres. Por eso el tope
+predeterminado es `max_largo_valor = 10000`: deja margen antes de ese
+cruce y no aplica una distancia sin señal a textos largos. Una columna
+que lo supera queda fuera de la combinacion completa y se declara en
+`alcance$columnas_excluidas_largo`. En
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+la cobertura explica la columna, el largo observado y el umbral. `Inf`
+es la eleccion explicita para recuperar el comportamiento anterior; en
+el diagnostico de vocabulario se escribe como
+`max_largo_valor_vocabulario = Inf`.
+
+## Avisar el costo de tablas anchas
+
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+calcula una proyeccion antes de empezar las etapas costosas. Desde
+`100.000` celdas avisa en una sesion interactiva, con una referencia de
+10.000 celdas por segundo y un texto que dice que es una estimacion y
+cual es su fuente. El aviso queda en silencio en scripts no interactivos
+y se puede desactivar con `avisar_costo_tabla_ancha = FALSE`; usar
+`umbral_celdas_aviso_tabla_ancha = Inf` tambien es una decision
+explicita. La proyeccion completa queda en `meta$costo_tabla_ancha`.
+
 ## Comparación exacta y LSH
 
 Hasta el tope de pares, la estrategia por teselas es exhaustiva y
@@ -143,7 +180,7 @@ lsh <- detectar_duplicados_aproximados(
   max_resultados = 100
 )
 #> LSH: 4 candidatos previstos; referencia de 0,000 s (piso, no incluye firma ni cubetas;
-#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 23.968 pares en
+#> subir nucleos puede acortar esta etapa; hoy usa 2 hilos), medida con 26.348 pares en
 #> 0,051 s.
 exacto$pares[, c(
   "fila_1", "fila_2", "distancia", "tipo_par", "igualo_normalizar"
@@ -232,7 +269,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/RtmpkkF2Bf/lupa-lotes-231c7f19d6bc/lupa-lotes-231c50535835"
+#> [1] "/tmp/Rtmp7uPK3u/lupa-lotes-236053ed2fa2/lupa-lotes-236063a7b45e"
 #> 
 #> $n_parciales
 #> [1] 6

@@ -435,6 +435,48 @@ el presupuesto es justo de las que sí se recortan. Lo que se recorta se
 declara: cuántas formas quedaron sin comparar, cuánto trabajo eran y
 cuál de los topes recortó.
 
+### Un tope de largo protege la señal de la distancia
+
+La distancia de edición normalizada está pensada para nombres,
+direcciones e identificadores, no para documentos. Se midieron cinco
+semillas con pares de textos aleatorios: uno difería en un carácter y el
+otro en 1.000. La tabla muestra la mediana de las cinco semillas. El
+segundo par dejó de parecer distinto al umbral predeterminado `0,10`
+antes de que el primero dejara de ser una variante cercana:
+
+|  largo | distancia, 1 carácter | distancia, 1.000 caracteres |
+|-------:|----------------------:|----------------------------:|
+| 10.000 |              0,000400 |                    0,193195 |
+| 20.000 |              0,000150 |                    0,125923 |
+| 25.000 |              0,000347 |                    0,104511 |
+| 50.000 |              0,000053 |                    0,064559 |
+
+El cruce observado está entre 25.000 y 50.000 caracteres. Se eligió
+`10.000` como tope predeterminado para dejar un margen de cinco veces
+antes de esa perdida de discriminacion.
+[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+lo publica en `alcance$max_largo_valor`; si alguna columna supera el
+tope, la combinacion completa queda fuera de alcance y
+`alcance$columnas_excluidas_largo` explica por que. En
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+la misma decision aparece en `cobertura_diagnosticos` con el motivo, el
+largo observado y el umbral. `max_largo_valor = Inf` o
+`max_largo_valor_vocabulario = Inf` recupera explicitamente el
+comportamiento anterior.
+
+### El costo de una tabla ancha se avisa antes
+
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+proyecta las celdas antes de empezar el trabajo costoso. El aviso
+predeterminado se activa desde `100.000` celdas, usa una referencia de
+`10.000` celdas por segundo y publica que es una estimacion junto con su
+fuente. La referencia reproduce estas mediciones: 500 filas por 50, 300
+y 1.000 columnas tomaron 2,41, 14,85 y 50,41 segundos. No hay aviso por
+debajo del umbral ni en guiones no interactivos. La proyeccion queda en
+`meta$costo_tabla_ancha`. `avisar_costo_tabla_ancha = FALSE` lo
+desactiva por llamada y `umbral_celdas_aviso_tabla_ancha = Inf` lo
+silencia de forma explicita.
+
 Y cuando hay que recortar, las formas que quedan son las **primeras del
 alfabeto**, no las primeras en aparecer. Esa diferencia era un defecto,
 medido sobre una columna real: 45.400 nombres de calle del catálogo
