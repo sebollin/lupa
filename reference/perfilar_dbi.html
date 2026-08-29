@@ -79,6 +79,7 @@ los agregados SQL.</p>
 <span>  tamano_lote_distintos <span class="op">=</span> <span class="va">.TAMANO_LOTE_DISTINTOS_DBI</span>,</span>
 <span>  bloque_muestra <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"con_muestra"</span>, <span class="st">"solo_agregados"</span><span class="op">)</span>,</span>
 <span>  instrumentar <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  estrategia_distintos <span class="op">=</span> <span class="st">"exacta"</span>,</span>
 <span>  politica_costo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"todas"</span>, <span class="st">"ninguna"</span>, <span class="st">"por_cardinalidad"</span>, <span class="st">"cardinalidad"</span><span class="op">)</span>,</span>
 <span>  umbral_cardinalidad <span class="op">=</span> <span class="va">.UMBRAL_CARDINALIDAD_COSTO_DBI</span>,</span>
 <span>  <span class="va">...</span></span>
@@ -126,7 +127,7 @@ limitada, y <code>meta</code> lo declara expresamente. No se usa cuando
 <code>"seguro"</code> evita las que ordenan o agrupan la tabla completa y
 <code>"conteos"</code> deja solo el conteo de valores no nulos, <code>"muestreado"</code>
 calcula estimaciones sobre filas elegidas por el motor y <code>"aproximado"</code>
-usa funciones nativas aproximadas cuando la sonda las acepta.</p></dd>
+usa funciones nativas aproximadas para las métricas que ese modo define.</p></dd>
 
 
 <dt id="arg-metricas">metricas<a class="anchor" aria-label="anchor" href="#arg-metricas"></a></dt>
@@ -192,13 +193,27 @@ proceso no consumió CPU; <code>NA</code> significa que no se pudo medir. Los
 intervalos que el reloj no puede resolver no se publican como cero.</p></dd>
 
 
+<dt id="arg-estrategia-distintos">estrategia_distintos<a class="anchor" aria-label="anchor" href="#arg-estrategia-distintos"></a></dt>
+<dd><p>Procedencia explícita para <code>n_distintos</code>:
+<code>"exacta"</code> (por omisión) emite <code>COUNT(DISTINCT)</code>; <code>"aproximada_motor"</code>
+usa una función nativa aceptada por el motor y deja la métrica en
+<code>no_disponible</code> si no existe; <code>"catalogo"</code> queda declarada pero
+<code>no_disponible</code> hasta implementar la estadística del catálogo; y
+<code>"omitida"</code> no emite ninguna consulta. No hay repliegue automático entre
+estrategias. El resultado publica <code>estrategia_solicitada</code>,
+<code>estrategia_resuelta</code> y <code>estado</code> en <code>meta$estrategia_distintos</code>, y las dos
+primeras también en <code>resumen_tabla$sql</code>.</p></dd>
+
+
 <dt id="arg-politica-costo">politica_costo<a class="anchor" aria-label="anchor" href="#arg-politica-costo"></a></dt>
 <dd><p>Política optativa para las métricas caras. El valor por
 omisión, <code>"todas"</code>, conserva moda y mediana para todas las columnas
 solicitadas. <code>"ninguna"</code> es un alias de <code>"todas"</code>; <code>"por_cardinalidad"</code>
-(también <code>"cardinalidad"</code>) mide primero valores válidos y distintos cuando
-no hay una fuente exacta utilizable y omite, por columna, moda y mediana
-cuando la proporción de distintos alcanza <code>umbral_cardinalidad</code>.</p></dd>
+(también <code>"cardinalidad"</code>) resuelve primero las fuentes estructurales y
+mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
+permite. Luego omite, por columna, moda y mediana cuando la proporción de
+distintos alcanza <code>umbral_cardinalidad</code>. Una estrategia no disponible no
+se convierte en una medición exacta.</p></dd>
 
 
 <dt id="arg-umbral-cardinalidad">umbral_cardinalidad<a class="anchor" aria-label="anchor" href="#arg-umbral-cardinalidad"></a></dt>
@@ -237,7 +252,9 @@ dialecto SQL universal.</p>
 habla de <strong>métricas SQL</strong>: qué pidió esta función al motor y qué pasó, con
 <code>bloque</code>, <code>elemento</code>, <code>estado</code> —<code>no_disponible</code>, <code>no_solicitado</code>,
 <code>degradado</code>, <code>presupuesto_agotado</code>, <code>alcance_distinto</code>— y la consulta en
-<code>sql</code>.
+<code>sql</code>. <code>alcance_distinto</code> declara que dos valores exactos incoherentes
+salieron de grupos de consistencia distintos: es evidencia de que la tabla
+cambio durante la corrida, no una acusacion contra el motor.
 <code>perfil_muestra$cobertura_diagnosticos</code> habla de <strong>diagnósticos</strong>: qué
 comprobación no se corrió sobre la muestra y por qué, con <code>diagnostico</code>,
 <code>columna</code>, <code>motivo</code> y <code>como_resolverlo</code>, el mismo esquema que devuelve
@@ -288,11 +305,32 @@ cuando no hubo muestreo efectivo. El <code>motivo</code> de cada registro explic
 distincion. <code>metodo</code>, <code>tamano_muestra</code> y <code>fraccion</code> conservan las condiciones
 de la corrida; no se publica una cota numerica sin una formula justificada.
 Los distintos de una muestra se publican como cardinalidad de la muestra,
-no como cardinalidad del universo. <code>modo = "aproximado"</code> sondea
-<code>APPROX_COUNT_DISTINCT</code>, <code>approx_count_distinct</code> y las formas de cuantiles del
-motor; cuando ninguna responde usa el respaldo exacto y lo registra por
-metrica. Las cotas de error no documentadas de una aproximacion nativa quedan
-como <code>"desconocido"</code>. Una aproximacion solo se consolida cuando entrega una
+no como cardinalidad del universo. <code>estrategia_distintos</code> es explicita y
+vale <code>"exacta"</code> por omision: calcula <code>COUNT(DISTINCT)</code> sobre las filas de la
+corrida. <code>"aproximada_motor"</code> sondea una funcion nativa y, si no hay una
+capacidad aceptada, deja la metrica <code>no_disponible</code>; nunca ejecuta el conteo
+exacto como repliegue. <code>"catalogo"</code> esta declarada pero queda
+<code>no_disponible</code> en esta version porque todavia no implementa una estadistica
+de cardinalidad; en particular, no usa <code>pg_stats</code>. <code>"omitida"</code> no emite la
+consulta. Cada resultado y el atributo <code>meta$estrategia_distintos</code> separan
+<code>estrategia_solicitada</code>, <code>estrategia_resuelta</code> y <code>estado</code>.</p>
+<p>Las comparaciones que tienen una cota dura usan solo valores del mismo grupo
+de consistencia. En esta version, el grupo queda probado por el
+<code>consulta_id</code> que ya se registra en <code>resumen_tabla$sql</code>: dos metricas con el
+mismo identificador salieron de la misma sentencia. La consulta exacta de
+distintos trae <code>COUNT(columna) AS n_validos_guard</code> junto a
+<code>COUNT(DISTINCT columna)</code>. Si una capacidad aproximada sólo construye una
+consulta completa y no puede traer ese guardian, la cota no se comprueba y
+el motivo lo declara; no se atribuye un valor imposible al motor.
+La frecuencia de la moda no se compara con <code>n_validos</code> de otra sentencia:
+como su consulta no trae un guardian compañero, esa cota también queda
+declarada como no comprobable.
+<code>meta$snapshot</code> queda en <code>FALSE</code>, siguiendo la declaracion de colecciones: no
+hubo lectura instantanea. La cobertura agrega una entrada concreta solo si
+<code>n_validos</code> y <code>n_distintos</code> son exactos, incoherentes y provienen de grupos
+distintos; su motivo conserva ambas sentencias.</p>
+<p>Las cotas de error no documentadas de una aproximacion nativa quedan como
+<code>"desconocido"</code>. Una aproximacion solo se consolida cuando entrega una
 expresion que se puede incrustar en el <code>SELECT</code>; si solo construye una
 consulta completa, se emite por separado. Una consulta no emitida o sin un
 valor utilizable queda <code>no_disponible</code>.</p>
@@ -320,20 +358,22 @@ se trae a R, no el trabajo del motor. <code>bloque_muestra</code> decide si se t
 muestra; <code>modo</code>, <code>metricas</code>, <code>tamano_lote_planos</code>, <code>tamano_lote_distintos</code> y
 <code>max_consultas</code> acotan el trabajo SQL. <code><a href="plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> dice cuántas
 consultas se van a emitir antes de emitirlas. El orden de degradación es
-agregados planos, total exacto fusionado, distintos, moda y mediana. Los
+agregados planos, total del universo cuando hace falta, distintos, moda y
+mediana. Los
 agregados planos sobre la misma tabla y filtro —<code>COUNT(col)</code>,
 mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
-por lote; cuando la fuente no necesita el total por adelantado, la primera
-consulta de agregados lleva además el <code>COUNT(*)</code> exacto con el alias
-<code>lupa_n_total</code>. Si el lote completo es rechazado, se emite un <code>COUNT(*)</code> solo
-como repliegue obligatorio y sus mitades se sondean por bisección: los grupos
+por lote y cada consulta que trae <code>n_validos</code> lleva además
+<code>COUNT(*) AS n_total_consulta</code> en la misma sentencia. La completitud usa ese
+denominador local, no el total de otro lote. El total del universo se conserva
+por separado cuando el perfil se calcula sobre una muestra. Si el lote
+completo es rechazado, sus mitades se sondean por bisección: los grupos
 aceptados se reutilizan como mediciones y las columnas culpables se reintentan
-por métrica. El denominador de completitud nunca se estima a partir de un
-catálogo ni de un lote parcial. Las fuentes <code>TABLESAMPLE</code> que necesitan el
-total para escribir un porcentaje lo cuentan antes y no reclaman este ahorro.
+por métrica, con su denominador local. Las fuentes <code>TABLESAMPLE</code> que necesitan
+el total del universo para escribir un porcentaje lo cuentan antes.
 <code>COUNT(DISTINCT ...)</code> queda en una clase separada y usa su propio tamaño de
 lote, conservador por omisión porque una cardinalidad puede derramar mucho
-más que veinte agregados planos.
+más que veinte agregados planos; la consulta exacta trae su
+<code>n_validos_guard</code> compañero.
 Lo que no entra en el presupuesto queda en <code>no_disponible</code> con su motivo,
 nunca en cero. <code>meta$tamano_lote_funciono</code> conserva el mayor lote aceptado
 durante esa corrida; no se guarda estado global asociado a la conexión.</p>

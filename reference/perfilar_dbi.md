@@ -28,6 +28,7 @@ perfilar_dbi(
   tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
   bloque_muestra = c("con_muestra", "solo_agregados"),
   instrumentar = TRUE,
+  estrategia_distintos = "exacta",
   politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
   ...
@@ -76,8 +77,8 @@ perfilar_dbi(
   `"seguro"` evita las que ordenan o agrupan la tabla completa y
   `"conteos"` deja solo el conteo de valores no nulos, `"muestreado"`
   calcula estimaciones sobre filas elegidas por el motor y
-  `"aproximado"` usa funciones nativas aproximadas cuando la sonda las
-  acepta.
+  `"aproximado"` usa funciones nativas aproximadas para las métricas que
+  ese modo define.
 
 - metricas:
 
@@ -142,15 +143,29 @@ perfilar_dbi(
   no se pudo medir. Los intervalos que el reloj no puede resolver no se
   publican como cero.
 
+- estrategia_distintos:
+
+  Procedencia explícita para `n_distintos`: `"exacta"` (por omisión)
+  emite `COUNT(DISTINCT)`; `"aproximada_motor"` usa una función nativa
+  aceptada por el motor y deja la métrica en `no_disponible` si no
+  existe; `"catalogo"` queda declarada pero `no_disponible` hasta
+  implementar la estadística del catálogo; y `"omitida"` no emite
+  ninguna consulta. No hay repliegue automático entre estrategias. El
+  resultado publica `estrategia_solicitada`, `estrategia_resuelta` y
+  `estado` en `meta$estrategia_distintos`, y las dos primeras también en
+  `resumen_tabla$sql`.
+
 - politica_costo:
 
   Política optativa para las métricas caras. El valor por omisión,
   `"todas"`, conserva moda y mediana para todas las columnas
   solicitadas. `"ninguna"` es un alias de `"todas"`;
-  `"por_cardinalidad"` (también `"cardinalidad"`) mide primero valores
-  válidos y distintos cuando no hay una fuente exacta utilizable y
-  omite, por columna, moda y mediana cuando la proporción de distintos
-  alcanza `umbral_cardinalidad`.
+  `"por_cardinalidad"` (también `"cardinalidad"`) resuelve primero las
+  fuentes estructurales y mide valores válidos y distintos sólo cuando
+  hace falta y la estrategia lo permite. Luego omite, por columna, moda
+  y mediana cuando la proporción de distintos alcanza
+  `umbral_cardinalidad`. Una estrategia no disponible no se convierte en
+  una medición exacta.
 
 - umbral_cardinalidad:
 
@@ -190,10 +205,13 @@ El resultado trae dos, y cubren cosas distintas.
 `resumen_tabla$cobertura` habla de **métricas SQL**: qué pidió esta
 función al motor y qué pasó, con `bloque`, `elemento`, `estado`
 —`no_disponible`, `no_solicitado`, `degradado`, `presupuesto_agotado`,
-`alcance_distinto`— y la consulta en `sql`.
-`perfil_muestra$cobertura_diagnosticos` habla de **diagnósticos**: qué
-comprobación no se corrió sobre la muestra y por qué, con `diagnostico`,
-`columna`, `motivo` y `como_resolverlo`, el mismo esquema que devuelve
+`alcance_distinto`— y la consulta en `sql`. `alcance_distinto` declara
+que dos valores exactos incoherentes salieron de grupos de consistencia
+distintos: es evidencia de que la tabla cambio durante la corrida, no
+una acusacion contra el motor. `perfil_muestra$cobertura_diagnosticos`
+habla de **diagnósticos**: qué comprobación no se corrió sobre la
+muestra y por qué, con `diagnostico`, `columna`, `motivo` y
+`como_resolverlo`, el mismo esquema que devuelve
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 Un motor que rechaza una columna aparece en la primera; una prueba
 estadística que no corresponde a esa columna, en la segunda. Comparten
@@ -243,14 +261,38 @@ registro explica la distincion. `metodo`, `tamano_muestra` y `fraccion`
 conservan las condiciones de la corrida; no se publica una cota numerica
 sin una formula justificada. Los distintos de una muestra se publican
 como cardinalidad de la muestra, no como cardinalidad del universo.
-`modo = "aproximado"` sondea `APPROX_COUNT_DISTINCT`,
-`approx_count_distinct` y las formas de cuantiles del motor; cuando
-ninguna responde usa el respaldo exacto y lo registra por metrica. Las
-cotas de error no documentadas de una aproximacion nativa quedan como
-`"desconocido"`. Una aproximacion solo se consolida cuando entrega una
-expresion que se puede incrustar en el `SELECT`; si solo construye una
-consulta completa, se emite por separado. Una consulta no emitida o sin
-un valor utilizable queda `no_disponible`.
+`estrategia_distintos` es explicita y vale `"exacta"` por omision:
+calcula `COUNT(DISTINCT)` sobre las filas de la corrida.
+`"aproximada_motor"` sondea una funcion nativa y, si no hay una
+capacidad aceptada, deja la metrica `no_disponible`; nunca ejecuta el
+conteo exacto como repliegue. `"catalogo"` esta declarada pero queda
+`no_disponible` en esta version porque todavia no implementa una
+estadistica de cardinalidad; en particular, no usa `pg_stats`.
+`"omitida"` no emite la consulta. Cada resultado y el atributo
+`meta$estrategia_distintos` separan `estrategia_solicitada`,
+`estrategia_resuelta` y `estado`.
+
+Las comparaciones que tienen una cota dura usan solo valores del mismo
+grupo de consistencia. En esta version, el grupo queda probado por el
+`consulta_id` que ya se registra en `resumen_tabla$sql`: dos metricas
+con el mismo identificador salieron de la misma sentencia. La consulta
+exacta de distintos trae `COUNT(columna) AS n_validos_guard` junto a
+`COUNT(DISTINCT columna)`. Si una capacidad aproximada sólo construye
+una consulta completa y no puede traer ese guardian, la cota no se
+comprueba y el motivo lo declara; no se atribuye un valor imposible al
+motor. La frecuencia de la moda no se compara con `n_validos` de otra
+sentencia: como su consulta no trae un guardian compañero, esa cota
+también queda declarada como no comprobable. `meta$snapshot` queda en
+`FALSE`, siguiendo la declaracion de colecciones: no hubo lectura
+instantanea. La cobertura agrega una entrada concreta solo si
+`n_validos` y `n_distintos` son exactos, incoherentes y provienen de
+grupos distintos; su motivo conserva ambas sentencias.
+
+Las cotas de error no documentadas de una aproximacion nativa quedan
+como `"desconocido"`. Una aproximacion solo se consolida cuando entrega
+una expresion que se puede incrustar en el `SELECT`; si solo construye
+una consulta completa, se emite por separado. Una consulta no emitida o
+sin un valor utilizable queda `no_disponible`.
 
 ## Dialecto
 
@@ -273,22 +315,23 @@ trae esa muestra; `modo`, `metricas`, `tamano_lote_planos`,
 `tamano_lote_distintos` y `max_consultas` acotan el trabajo SQL.
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
 dice cuántas consultas se van a emitir antes de emitirlas. El orden de
-degradación es agregados planos, total exacto fusionado, distintos, moda
-y mediana. Los agregados planos sobre la misma tabla y filtro
-—`COUNT(col)`, mínimos, máximos, medias, ceros, negativos y desvío—
-comparten una consulta por lote; cuando la fuente no necesita el total
-por adelantado, la primera consulta de agregados lleva además el
-`COUNT(*)` exacto con el alias `lupa_n_total`. Si el lote completo es
-rechazado, se emite un `COUNT(*)` solo como repliegue obligatorio y sus
-mitades se sondean por bisección: los grupos aceptados se reutilizan
-como mediciones y las columnas culpables se reintentan por métrica. El
-denominador de completitud nunca se estima a partir de un catálogo ni de
-un lote parcial. Las fuentes `TABLESAMPLE` que necesitan el total para
-escribir un porcentaje lo cuentan antes y no reclaman este ahorro.
+degradación es agregados planos, total del universo cuando hace falta,
+distintos, moda y mediana. Los agregados planos sobre la misma tabla y
+filtro —`COUNT(col)`, mínimos, máximos, medias, ceros, negativos y
+desvío— comparten una consulta por lote y cada consulta que trae
+`n_validos` lleva además `COUNT(*) AS n_total_consulta` en la misma
+sentencia. La completitud usa ese denominador local, no el total de otro
+lote. El total del universo se conserva por separado cuando el perfil se
+calcula sobre una muestra. Si el lote completo es rechazado, sus mitades
+se sondean por bisección: los grupos aceptados se reutilizan como
+mediciones y las columnas culpables se reintentan por métrica, con su
+denominador local. Las fuentes `TABLESAMPLE` que necesitan el total del
+universo para escribir un porcentaje lo cuentan antes.
 `COUNT(DISTINCT ...)` queda en una clase separada y usa su propio tamaño
 de lote, conservador por omisión porque una cardinalidad puede derramar
-mucho más que veinte agregados planos. Lo que no entra en el presupuesto
-queda en `no_disponible` con su motivo, nunca en cero.
+mucho más que veinte agregados planos; la consulta exacta trae su
+`n_validos_guard` compañero. Lo que no entra en el presupuesto queda en
+`no_disponible` con su motivo, nunca en cero.
 `meta$tamano_lote_funciono` conserva el mayor lote aceptado durante esa
 corrida; no se guarda estado global asociado a la conexión.
 

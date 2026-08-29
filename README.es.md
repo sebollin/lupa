@@ -288,11 +288,21 @@ respaldo; cuando la sonda del motor acepta
 `PERCENTILE_CONT(...) WITHIN GROUP`, varias medianas viajan en un solo
 `SELECT` por lote.
 
-En el modo aproximado, una cardinalidad sólo se consolida si la
-capacidad proporciona una expresión que se pueda incrustar en ese
-`SELECT`. Si sólo puede construir una consulta completa, válidos y
-distintos se emiten por separado y cada registro conserva el método de
-la consulta que efectivamente se ejecutó.
+La procedencia de la cardinalidad se elige con `estrategia_distintos`,
+cuyo valor por omisión es `"exacta"`. `"exacta"` emite `COUNT(DISTINCT)`
+sobre las filas de la corrida; `"aproximada_motor"` usa una función
+nativa sólo si la sonda la acepta; `"catalogo"` está declarada pero
+queda `no_disponible` hasta implementar una estadística previa del
+catálogo; y `"omitida"` no emite la consulta. No hay repliegue
+silencioso entre estrategias: una aproximación sin capacidad queda
+`no_disponible`, no se convierte en un conteo exacto.
+
+La salida conserva `estrategia_solicitada`, `estrategia_resuelta` y
+`estado` en `resumen_tabla$meta$estrategia_distintos` y en las filas de
+`sql`. En una aproximación nativa, las cotas de error no documentadas
+quedan como `"desconocido"`; si la capacidad sólo construye una consulta
+completa, válidos y distintos se emiten por separado y cada registro
+conserva el método de la consulta que efectivamente se ejecutó.
 
 Medido contra PostgreSQL 16 con **2 millones de filas por 40 columnas**:
 
@@ -316,12 +326,14 @@ tiene sus propios tests.
 
 `resumen_tabla$sql` conserva **una fila por columna y métrica** con
 todos sus campos, y agrega `lote` y `columnas_compartidas` para que se
-vea cuál consulta fue compartida. También agrega `id_muestra`: dos
-métricas con el mismo valor fueron producidas por la misma consulta de
-datos y vieron exactamente las mismas filas. Las métricas por columna
-—moda, frecuencia de la moda y mediana— dejan `id_muestra = NA`, porque
-no comparten filas con otras métricas; `NA` declara que no hay garantía,
-no que se haya inventado una coincidencia.
+vea cuál consulta fue compartida. También agrega `consulta_id`, que
+identifica la sentencia que produjo cada medición y define el grupo de
+consistencia comprobable. `id_muestra` identifica además la consulta de
+datos y conserva la garantía de que dos métricas con el mismo valor
+vieron exactamente las mismas filas. Las métricas por columna —moda,
+frecuencia de la moda y mediana— dejan `id_muestra = NA`, porque no
+comparten filas con otras métricas; `NA` declara que no hay garantía, no
+que se haya inventado una coincidencia.
 
 Con `instrumentar = TRUE`, cada consulta suma `duracion_ms` y `cpu_ms`.
 El primero usa [`Sys.time()`](https://rdrr.io/r/base/Sys.time.html); el
@@ -331,16 +343,37 @@ hace el driver. Cero es medido; `NA` significa que no se pudo medir.
 `instrumentar = FALSE` apaga ambos relojes y deja esos campos en `NA`,
 sin alterar la consulta ni su resultado.
 
-El total exacto (`COUNT(*)`) viaja en la primera consulta de agregados
-planos y se comparte con el recorrido que ya necesitaban. Si el lote
-completo es rechazado por el motor, se emite un `COUNT(*)` solo y se
-continúa con la bisección: la completitud siempre usa
-`n_total - n_validos`, nunca un total estimado. Una forma `TABLESAMPLE`
-que necesita el total para escribir un porcentaje lo cuenta antes. Los
-tamaños se pueden separar: `tamano_lote_planos` controla los agregados
-planos y `tamano_lote_distintos` las cardinalidades; este último vale 1
-por omisión hasta contar con mediciones, porque una sola cardinalidad
-puede derramar mucho más que un lote plano.
+Cada consulta de agregados planos que trae `n_validos` incluye también
+`COUNT(*) AS n_total_consulta` en la misma sentencia. La completitud usa
+ese denominador local, incluso después de una bisección; no cruza el
+total de otro lote. El total del universo se conserva por separado
+cuando el perfil se calcula sobre una muestra o cuando no hay un
+agregado que pueda llevarlo. La consulta exacta de distintos incluye
+`COUNT(columna) AS n_validos_guard` junto a `COUNT(DISTINCT columna)`:
+la cota dura sólo se aplica si ambos valores tienen el mismo
+`consulta_id`. Si una capacidad aproximada no puede traer ese guardián,
+la comprobación queda declarada como no disponible y no se atribuye una
+inconsistencia al motor. Los tamaños se pueden separar:
+`tamano_lote_planos` controla los agregados planos y
+`tamano_lote_distintos` las cardinalidades; este último vale 1 por
+omisión hasta contar con mediciones, porque una sola cardinalidad puede
+derramar mucho más que un lote plano.
+
+Las fuentes estructurales que usa la política de costo se resuelven
+cuando la política necesita la cardinalidad, aunque la estrategia
+solicitada esté omitida o no disponible. La disponibilidad gobierna si
+se puede medir la cardinalidad; no oculta una clave primaria
+garantizada. Si no hay fuente estructural y la estrategia no permite
+medir, la cardinalidad queda desconocida y la política sigue su regla
+explícita para ese caso.
+
+El resumen de tabla publica `meta$snapshot = FALSE`: los agregados son
+sentencias separadas y la tabla puede cambiar entre ellas. Si
+`n_validos` y `n_distintos` exactos son incoherentes, provienen de
+grupos `consulta_id` distintos y se pueden comparar sólo dentro de cada
+sentencia, `cobertura` suma `alcance_distinto` con ambas sentencias en
+el motivo. Eso es evidencia de que la tabla cambió durante la corrida,
+no una acusación contra el motor o el paquete.
 
 ### Leer un perfil sin conocer su forma
 
@@ -442,18 +475,18 @@ el camino que las ejecuta. Si el motor rechaza lotes, se agregan hasta
 `2n - 1` sondas por lote de `n` columnas. El costo real cae entre los
 dos, y el plan lo declara en las dos direcciones.
 
-La estrategia de distintos y su fuente de costo son independientes:
-`estrategia_distintos` dice si `n_distintos` se publica o sólo se usa
-para decidir, y `fuente_cardinalidad_costo` dice de dónde sale la
-proporción. Así una clave declarada puede cerrar la decisión sin emitir
-un `COUNT(DISTINCT ...)`. Si la fuente es desconocida, la corrida sigue
-la política explícita y mide ese agregado una sola vez cuando lo
-necesita.
+La procedencia de distintos y la fuente auxiliar de costo son
+independientes: `estrategia_distintos` dice cómo se obtiene o se omite
+`n_distintos`, mientras `fuente_cardinalidad_costo` dice de dónde sale
+la proporción que usa `politica_costo`. La estrategia se anuncia en el
+plan antes de la corrida y la política no puede convertir una petición
+`aproximada_motor` o `catalogo` en un `COUNT(DISTINCT)` exacto.
 
-La corrida lleva el `COUNT(*)` exacto en el total fusionado con los
-agregados planos; si no hay agregados planos que puedan llevarlo, lo
-emite antes de la familia de distintos. El plan publica ese orden sin
-pagar el escaneo.
+Cada lote plano que calcula válidos lleva su propio
+`COUNT(*) AS n_total_consulta`, sin una consulta adicional; el plan
+publica esa composición. Cuando hace falta un total del universo
+separado —por ejemplo, para una muestra o si no hay agregados planos—
+sigue siendo una consulta explícita.
 
 Lo que sí es una restricción dura de diseño es que esa predicción **no
 dependa del motor**: cada sonda de capacidad gasta un número fijo de
@@ -463,9 +496,10 @@ variara por motor dejaría al usuario adivinando otra vez.
 La moda y la mediana tienen una política de costo explícita. El valor
 por omisión es `politica_costo = "todas"` (`"ninguna"` es un alias): el
 paquete no elige por el usuario. Con
-`politica_costo = "por_cardinalidad"`, la corrida mide `validos` y
-`distintos` cuando no hay una fuente exacta de catálogo; después decide
-por columna si se emiten moda y mediana cuando
+`politica_costo = "por_cardinalidad"`, la corrida resuelve primero las
+fuentes estructurales y mide `validos` y `distintos` sólo cuando no hay
+una fuente exacta y la estrategia lo permite; después decide por columna
+si se emiten moda y mediana cuando
 `n_distintos / n_validos >= umbral_cardinalidad`. El umbral por omisión
 es `0.95` y se puede mover en cada llamada. Cada omisión queda en
 `resumen_tabla$sql` como `omitido_por_costo`, con qué se omitió, por qué
@@ -507,7 +541,7 @@ puede rehacer la cuenta.
 | `seguro` | deja fuera las métricas que ordenan la columna completa |
 | `conteos` | sólo conteos |
 | `muestreado` | métricas sobre filas muestreadas **en el motor**: `TABLESAMPLE` donde existe, un orden pseudoaleatorio con límite donde no |
-| `aproximado` | funciones aproximadas nativas: `APPROX_COUNT_DISTINCT`, `PERCENTILE_CONT`, `approx_quantile` y sus respaldos |
+| `aproximado` | funciones aproximadas nativas para las métricas que define el modo |
 
 Toda métrica muestreada o aproximada viaja diciéndolo. `estado`
 distingue `calculado`, `estimado` y `no_disponible`, y cada fila lleva
@@ -533,9 +567,10 @@ el universo al lado—. Un motor sin capacidad de muestreo no rompe: el
 modo degrada y lo dice en la tabla de cobertura.
 
 Una aproximación no se etiqueta como estimada cuando su consulta no se
-emitió o no devolvió un valor utilizable. Si el motor no ofrece la
-función aproximada, el respaldo exacto conserva `COUNT(DISTINCT ...)`
-como método publicado.
+emitió o no devolvió un valor utilizable. La procedencia de distintos se
+elige aparte con `estrategia_distintos`; si se pide `"aproximada_motor"`
+y el motor no ofrece la función, queda `no_disponible` y no se ejecuta
+`COUNT(DISTINCT ...)`.
 
 ## 🕳️ El vacío por diseño se declara, no se cuenta como defecto
 

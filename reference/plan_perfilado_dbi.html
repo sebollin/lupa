@@ -5,13 +5,21 @@ con qué alcance sobre la tabla. No escanea datos para decidir el costo.
 Cuando politica_costo = "por_cardinalidad", una clave estructural exacta
 puede cerrar la decisión; si no hay una fuente de catálogo utilizable, el
 plan publica el rango entre omitir y ejecutar las métricas caras. Nunca
-lanza COUNT(DISTINCT ...) para despejar esa incertidumbre.'><meta property="og:description" content='Emite sólo consultas de preparación —leer el esquema y sondear capacidades—
+lanza COUNT(DISTINCT ...) para despejar esa incertidumbre.
+Las fuentes estructurales se resuelven cuando la política necesita la
+cardinalidad, aunque estrategia_distintos no permita medirla. La
+disponibilidad de la estrategia gobierna la medición, no el conocimiento que
+ya da el catálogo.'><meta property="og:description" content='Emite sólo consultas de preparación —leer el esquema y sondear capacidades—
 y devuelve cuántas consultas emitiría el perfilado completo, de qué clase y
 con qué alcance sobre la tabla. No escanea datos para decidir el costo.
 Cuando politica_costo = "por_cardinalidad", una clave estructural exacta
 puede cerrar la decisión; si no hay una fuente de catálogo utilizable, el
 plan publica el rango entre omitir y ejecutar las métricas caras. Nunca
-lanza COUNT(DISTINCT ...) para despejar esa incertidumbre.'><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
+lanza COUNT(DISTINCT ...) para despejar esa incertidumbre.
+Las fuentes estructurales se resuelven cuando la política necesita la
+cardinalidad, aunque estrategia_distintos no permita medirla. La
+disponibilidad de la estrategia gobierna la medición, no el conocimiento que
+ya da el catálogo.'><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -59,7 +67,11 @@ con qué alcance sobre la tabla. No escanea datos para decidir el costo.
 Cuando <code>politica_costo = "por_cardinalidad"</code>, una clave estructural exacta
 puede cerrar la decisión; si no hay una fuente de catálogo utilizable, el
 plan publica el rango entre omitir y ejecutar las métricas caras. Nunca
-lanza <code>COUNT(DISTINCT ...)</code> para despejar esa incertidumbre.</p>
+lanza <code>COUNT(DISTINCT ...)</code> para despejar esa incertidumbre.
+Las fuentes estructurales se resuelven cuando la política necesita la
+cardinalidad, aunque <code>estrategia_distintos</code> no permita medirla. La
+disponibilidad de la estrategia gobierna la medición, no el conocimiento que
+ya da el catálogo.</p>
     </div>
 
     <div class="section level2">
@@ -79,6 +91,7 @@ lanza <code>COUNT(DISTINCT ...)</code> para despejar esa incertidumbre.</p>
 <span>  tamano_lote_distintos <span class="op">=</span> <span class="va">.TAMANO_LOTE_DISTINTOS_DBI</span>,</span>
 <span>  bloque_muestra <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"con_muestra"</span>, <span class="st">"solo_agregados"</span><span class="op">)</span>,</span>
 <span>  instrumentar <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  estrategia_distintos <span class="op">=</span> <span class="st">"exacta"</span>,</span>
 <span>  politica_costo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"todas"</span>, <span class="st">"ninguna"</span>, <span class="st">"por_cardinalidad"</span>, <span class="st">"cardinalidad"</span><span class="op">)</span>,</span>
 <span>  umbral_cardinalidad <span class="op">=</span> <span class="va">.UMBRAL_CARDINALIDAD_COSTO_DBI</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -125,7 +138,7 @@ limitada, y <code>meta</code> lo declara expresamente. No se usa cuando
 <code>"seguro"</code> evita las que ordenan o agrupan la tabla completa y
 <code>"conteos"</code> deja solo el conteo de valores no nulos, <code>"muestreado"</code>
 calcula estimaciones sobre filas elegidas por el motor y <code>"aproximado"</code>
-usa funciones nativas aproximadas cuando la sonda las acepta.</p></dd>
+usa funciones nativas aproximadas para las métricas que ese modo define.</p></dd>
 
 
 <dt id="arg-metricas">metricas<a class="anchor" aria-label="anchor" href="#arg-metricas"></a></dt>
@@ -182,13 +195,27 @@ preparación. No habilita consultas de datos ni agrega mediciones al objeto
 devuelto: sus costos siguen siendo predicciones. Por omisión es <code>FALSE</code>.</p></dd>
 
 
+<dt id="arg-estrategia-distintos">estrategia_distintos<a class="anchor" aria-label="anchor" href="#arg-estrategia-distintos"></a></dt>
+<dd><p>Procedencia explícita para <code>n_distintos</code>:
+<code>"exacta"</code> (por omisión) emite <code>COUNT(DISTINCT)</code>; <code>"aproximada_motor"</code>
+usa una función nativa aceptada por el motor y deja la métrica en
+<code>no_disponible</code> si no existe; <code>"catalogo"</code> queda declarada pero
+<code>no_disponible</code> hasta implementar la estadística del catálogo; y
+<code>"omitida"</code> no emite ninguna consulta. No hay repliegue automático entre
+estrategias. El resultado publica <code>estrategia_solicitada</code>,
+<code>estrategia_resuelta</code> y <code>estado</code> en <code>meta$estrategia_distintos</code>, y las dos
+primeras también en <code>resumen_tabla$sql</code>.</p></dd>
+
+
 <dt id="arg-politica-costo">politica_costo<a class="anchor" aria-label="anchor" href="#arg-politica-costo"></a></dt>
 <dd><p>Política optativa para las métricas caras. El valor por
 omisión, <code>"todas"</code>, conserva moda y mediana para todas las columnas
 solicitadas. <code>"ninguna"</code> es un alias de <code>"todas"</code>; <code>"por_cardinalidad"</code>
-(también <code>"cardinalidad"</code>) mide primero valores válidos y distintos cuando
-no hay una fuente exacta utilizable y omite, por columna, moda y mediana
-cuando la proporción de distintos alcanza <code>umbral_cardinalidad</code>.</p></dd>
+(también <code>"cardinalidad"</code>) resuelve primero las fuentes estructurales y
+mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
+permite. Luego omite, por columna, moda y mediana cuando la proporción de
+distintos alcanza <code>umbral_cardinalidad</code>. Una estrategia no disponible no
+se convierte en una medición exacta.</p></dd>
 
 
 <dt id="arg-umbral-cardinalidad">umbral_cardinalidad<a class="anchor" aria-label="anchor" href="#arg-umbral-cardinalidad"></a></dt>
@@ -235,7 +262,9 @@ garantía estructural o una fuente de catálogo. Si la fuente queda
 desconocida, no emite un agregado para aclararla: <code>n_consultas</code> omite moda
 y mediana, y <code>n_consultas_max</code> deja abierto el camino que las ejecuta. La
 corrida mide <code>distintos</code> sólo si la política lo necesita. La política por
-omisión es <code>"todas"</code>: el paquete no elige por el usuario.</p>
+omisión es <code>"todas"</code>: el paquete no elige por el usuario.
+Una fuente estructural se resuelve aunque la estrategia de distintos este
+omitida o no disponible; esta ultima solo gobierna si se puede medir.</p>
 <p>Contar sólo el motor daba juicios falsos con números ciertos: una tabla de
 3.912 filas con una columna de geometría en texto pedía 64.592 lecturas
 —magnitud <code>"baja"</code>— y tardaba 35 segundos, porque el trabajo estaba en la
@@ -246,12 +275,14 @@ del otro.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p><code>estrategia_distintos</code> separa la métrica que se publica de
-<code>fuente_cardinalidad_costo</code>, que dice de dónde sale el número usado para
-decidir. Por eso se puede omitir <code>n_distintos</code> del resultado y usar una clave
-declarada o una fuente de catálogo para decidir si conviene la moda. La
-corrida sigue la política explícita y reutiliza la medición de distintos una
-sola vez cuando la necesita.</p>
+    <p><code>estrategia_distintos</code> declara la procedencia de <code>n_distintos</code> antes de la
+corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
+<code>auto</code>: <code>"exacta"</code> es el valor por omisión, <code>"aproximada_motor"</code> queda
+<code>no_disponible</code> si el motor no ofrece una función aceptada, <code>"catalogo"</code>
+queda <code>no_disponible</code> hasta implementar su estadística y <code>"omitida"</code> no
+emite el agregado. <code>fuente_cardinalidad_costo</code> sigue siendo independiente y
+sólo describe el número usado por la política de costo cuando esa política
+se pide.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

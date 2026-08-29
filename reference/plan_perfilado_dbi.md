@@ -7,7 +7,11 @@ datos para decidir el costo. Cuando
 `politica_costo = "por_cardinalidad"`, una clave estructural exacta
 puede cerrar la decisión; si no hay una fuente de catálogo utilizable,
 el plan publica el rango entre omitir y ejecutar las métricas caras.
-Nunca lanza `COUNT(DISTINCT ...)` para despejar esa incertidumbre.
+Nunca lanza `COUNT(DISTINCT ...)` para despejar esa incertidumbre. Las
+fuentes estructurales se resuelven cuando la política necesita la
+cardinalidad, aunque `estrategia_distintos` no permita medirla. La
+disponibilidad de la estrategia gobierna la medición, no el conocimiento
+que ya da el catálogo.
 
 ## Usage
 
@@ -27,6 +31,7 @@ plan_perfilado_dbi(
   tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
   bloque_muestra = c("con_muestra", "solo_agregados"),
   instrumentar = FALSE,
+  estrategia_distintos = "exacta",
   politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI
 )
@@ -74,8 +79,8 @@ plan_perfilado_dbi(
   `"seguro"` evita las que ordenan o agrupan la tabla completa y
   `"conteos"` deja solo el conteo de valores no nulos, `"muestreado"`
   calcula estimaciones sobre filas elegidas por el motor y
-  `"aproximado"` usa funciones nativas aproximadas cuando la sonda las
-  acepta.
+  `"aproximado"` usa funciones nativas aproximadas para las métricas que
+  ese modo define.
 
 - metricas:
 
@@ -130,15 +135,29 @@ plan_perfilado_dbi(
   habilita consultas de datos ni agrega mediciones al objeto devuelto:
   sus costos siguen siendo predicciones. Por omisión es `FALSE`.
 
+- estrategia_distintos:
+
+  Procedencia explícita para `n_distintos`: `"exacta"` (por omisión)
+  emite `COUNT(DISTINCT)`; `"aproximada_motor"` usa una función nativa
+  aceptada por el motor y deja la métrica en `no_disponible` si no
+  existe; `"catalogo"` queda declarada pero `no_disponible` hasta
+  implementar la estadística del catálogo; y `"omitida"` no emite
+  ninguna consulta. No hay repliegue automático entre estrategias. El
+  resultado publica `estrategia_solicitada`, `estrategia_resuelta` y
+  `estado` en `meta$estrategia_distintos`, y las dos primeras también en
+  `resumen_tabla$sql`.
+
 - politica_costo:
 
   Política optativa para las métricas caras. El valor por omisión,
   `"todas"`, conserva moda y mediana para todas las columnas
   solicitadas. `"ninguna"` es un alias de `"todas"`;
-  `"por_cardinalidad"` (también `"cardinalidad"`) mide primero valores
-  válidos y distintos cuando no hay una fuente exacta utilizable y
-  omite, por columna, moda y mediana cuando la proporción de distintos
-  alcanza `umbral_cardinalidad`.
+  `"por_cardinalidad"` (también `"cardinalidad"`) resuelve primero las
+  fuentes estructurales y mide valores válidos y distintos sólo cuando
+  hace falta y la estrategia lo permite. Luego omite, por columna, moda
+  y mediana cuando la proporción de distintos alcanza
+  `umbral_cardinalidad`. Una estrategia no disponible no se convierte en
+  una medición exacta.
 
 - umbral_cardinalidad:
 
@@ -191,6 +210,9 @@ desconocida, no emite un agregado para aclararla: `n_consultas` omite
 moda y mediana, y `n_consultas_max` deja abierto el camino que las
 ejecuta. La corrida mide `distintos` sólo si la política lo necesita. La
 política por omisión es `"todas"`: el paquete no elige por el usuario.
+Una fuente estructural se resuelve aunque la estrategia de distintos
+este omitida o no disponible; esta ultima solo gobierna si se puede
+medir.
 
 Contar sólo el motor daba juicios falsos con números ciertos: una tabla
 de 3.912 filas con una columna de geometría en texto pedía 64.592
@@ -202,12 +224,14 @@ lado que del otro.
 
 ## Details
 
-`estrategia_distintos` separa la métrica que se publica de
-`fuente_cardinalidad_costo`, que dice de dónde sale el número usado para
-decidir. Por eso se puede omitir `n_distintos` del resultado y usar una
-clave declarada o una fuente de catálogo para decidir si conviene la
-moda. La corrida sigue la política explícita y reutiliza la medición de
-distintos una sola vez cuando la necesita.
+`estrategia_distintos` declara la procedencia de `n_distintos` antes de
+la corrida y conserva por separado lo pedido, lo resuelto y el estado.
+No hay `auto`: `"exacta"` es el valor por omisión, `"aproximada_motor"`
+queda `no_disponible` si el motor no ofrece una función aceptada,
+`"catalogo"` queda `no_disponible` hasta implementar su estadística y
+`"omitida"` no emite el agregado. `fuente_cardinalidad_costo` sigue
+siendo independiente y sólo describe el número usado por la política de
+costo cuando esa política se pide.
 
 ## See also
 

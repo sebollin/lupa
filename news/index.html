@@ -42,6 +42,19 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="la-política-de-costo-no-ciega-las-fuentes-estructurales-0-1-0">La política de costo no ciega las fuentes estructurales<a class="anchor" aria-label="anchor" href="#la-pol%C3%ADtica-de-costo-no-ciega-las-fuentes-estructurales-0-1-0"></a></h3>
+<ul><li>
+<code>politica_costo = "por_cardinalidad"</code> resuelve las fuentes estructurales de cardinalidad aunque <code>estrategia_distintos</code> esté omitida o no disponible. La disponibilidad gobierna la medición, no una garantía de clave que el catálogo ya permite saber. No hay repliegue a <code>COUNT(DISTINCT ...)</code> para una estrategia omitida, de catálogo o aproximada sin capacidad.</li>
+<li>
+<code>resumen_tabla$meta$snapshot</code> declara que no hubo lectura instantánea. Cuando valores exactos incoherentes de <code>n_validos</code> y <code>n_distintos</code> vienen de grupos de consistencia distintos, <code>cobertura</code> suma <code>alcance_distinto</code> y conserva en el motivo las dos sentencias: es evidencia de que la tabla cambió durante la corrida, no una acusación contra el motor o el paquete.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="cada-agregado-queda-ligado-a-la-foto-que-lo-produjo-0-1-0">Cada agregado queda ligado a la foto que lo produjo<a class="anchor" aria-label="anchor" href="#cada-agregado-queda-ligado-a-la-foto-que-lo-produjo-0-1-0"></a></h3>
+<p>Cada lote de agregados planos que calcula <code>n_validos</code> trae también <code>COUNT(*) AS n_total_consulta</code> en la misma sentencia. La completitud usa ese denominador local, incluso cuando la bisección separa un lote; no combina el total de una consulta con válidos de otra. El total del universo se conserva aparte sólo cuando el perfil sobre una muestra lo necesita o cuando no hay un agregado que pueda llevarlo.</p>
+<p>La consulta exacta de distintos trae <code>COUNT(columna) AS n_validos_guard</code> junto a <code>COUNT(DISTINCT columna)</code>. <code>consulta_id</code>, ya publicado en <code>resumen_tabla$sql</code>, identifica la sentencia y el grupo de consistencia: las cotas duras sólo se aplican dentro de ese grupo. Cuando una capacidad aproximada no puede traer su guardián, la comprobación queda declarada como no disponible y el motivo no culpa al motor.</p>
+<p>Se agregaron regresiones con <code>INSERT</code> y <code>DELETE</code> entre consultas, además de rastreo de SQL para comprobar que el denominador viaja en la consulta que ya se emitía y no agrega una ida y vuelta.</p>
+</div>
+<div class="section level3">
 <h3 id="la-garantía-de-una-clave-mira-el-índice-que-la-impone-0-1-0">La garantía de una clave mira el índice que la impone<a class="anchor" aria-label="anchor" href="#la-garant%C3%ADa-de-una-clave-mira-el-%C3%ADndice-que-la-impone-0-1-0"></a></h3>
 <p><code>pg_constraint</code> dice que hay una restricción; el que impone la unicidad es el índice que la respalda. La lectura del catálogo trae ahora <code>indisunique</code> de ese índice, con un <code>LEFT JOIN</code> en la consulta que ya se emitía, y si no es único la garantía baja aunque la restricción figure validada.</p>
 <p>No es un estado alcanzable por DDL normal —al adjuntar una partición el motor crea solo el índice único y válido—, así que es defensa ante un catálogo alterado. Entra igual porque cuesta una columna y porque cambia la garantía de «el catálogo declara una restricción» a «el índice que la impone es único».</p>
@@ -54,6 +67,8 @@
 <div class="section level3">
 <h3 id="cambios-en-desarrollo-0-1-0">Cambios en desarrollo<a class="anchor" aria-label="anchor" href="#cambios-en-desarrollo-0-1-0"></a></h3>
 <ul><li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> y <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> aceptan la estrategia explícita de distintos <code>exacta</code>, <code>aproximada_motor</code>, <code>catalogo</code> u <code>omitida</code>. La estrategia exacta es el valor por omisión; una aproximación o estadística de catálogo ausente queda <code>no_disponible</code> sin repliegue a <code>COUNT(DISTINCT)</code>, y el resultado distingue lo solicitado de lo resuelto.</li>
+<li>
 <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> deja de ejecutar agregados de datos para decidir el costo. Con una cardinalidad desconocida publica un rango y conserva separadas <code>estrategia_distintos</code> y <code>fuente_cardinalidad_costo</code>.</li>
 <li>
 <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> ejecuta primero los agregados planos, luego el total exacto, los distintos, la moda y la mediana. <code>tamano_lote_planos</code> y <code>tamano_lote_distintos</code> son independientes; este último es 1 por omisión hasta contar con mediciones.</li>

@@ -2,6 +2,41 @@
 
 ## lupa 0.1.0
 
+### La política de costo no ciega las fuentes estructurales
+
+- `politica_costo = "por_cardinalidad"` resuelve las fuentes
+  estructurales de cardinalidad aunque `estrategia_distintos` esté
+  omitida o no disponible. La disponibilidad gobierna la medición, no
+  una garantía de clave que el catálogo ya permite saber. No hay
+  repliegue a `COUNT(DISTINCT ...)` para una estrategia omitida, de
+  catálogo o aproximada sin capacidad.
+- `resumen_tabla$meta$snapshot` declara que no hubo lectura instantánea.
+  Cuando valores exactos incoherentes de `n_validos` y `n_distintos`
+  vienen de grupos de consistencia distintos, `cobertura` suma
+  `alcance_distinto` y conserva en el motivo las dos sentencias: es
+  evidencia de que la tabla cambió durante la corrida, no una acusación
+  contra el motor o el paquete.
+
+### Cada agregado queda ligado a la foto que lo produjo
+
+Cada lote de agregados planos que calcula `n_validos` trae también
+`COUNT(*) AS n_total_consulta` en la misma sentencia. La completitud usa
+ese denominador local, incluso cuando la bisección separa un lote; no
+combina el total de una consulta con válidos de otra. El total del
+universo se conserva aparte sólo cuando el perfil sobre una muestra lo
+necesita o cuando no hay un agregado que pueda llevarlo.
+
+La consulta exacta de distintos trae `COUNT(columna) AS n_validos_guard`
+junto a `COUNT(DISTINCT columna)`. `consulta_id`, ya publicado en
+`resumen_tabla$sql`, identifica la sentencia y el grupo de consistencia:
+las cotas duras sólo se aplican dentro de ese grupo. Cuando una
+capacidad aproximada no puede traer su guardián, la comprobación queda
+declarada como no disponible y el motivo no culpa al motor.
+
+Se agregaron regresiones con `INSERT` y `DELETE` entre consultas, además
+de rastreo de SQL para comprobar que el denominador viaja en la consulta
+que ya se emitía y no agrega una ida y vuelta.
+
 ### La garantía de una clave mira el índice que la impone
 
 `pg_constraint` dice que hay una restricción; el que impone la unicidad
@@ -35,6 +70,14 @@ fracción. No se agregan cotas numéricas inventadas.
 
 ### Cambios en desarrollo
 
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  aceptan la estrategia explícita de distintos `exacta`,
+  `aproximada_motor`, `catalogo` u `omitida`. La estrategia exacta es el
+  valor por omisión; una aproximación o estadística de catálogo ausente
+  queda `no_disponible` sin repliegue a `COUNT(DISTINCT)`, y el
+  resultado distingue lo solicitado de lo resuelto.
 - [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
   deja de ejecutar agregados de datos para decidir el costo. Con una
   cardinalidad desconocida publica un rango y conserva separadas
