@@ -271,6 +271,25 @@
   )
 }
 
+.ponderar_meses_texto <- function(meses, indices, pesos, total) {
+  if (!length(indices)) return(meses)
+  expandido <- meses
+  for (campo in c(
+    "formatos", "dias", "meses", "anios", "anio_dos_digitos", "validos"
+  )) {
+    expandido[[campo]] <- meses[[campo]][indices]
+  }
+  if (!is.null(meses$filas)) {
+    n <- vapply(meses$filas$formato, function(formato) {
+      sum(pesos[meses$validos & meses$formatos == formato])
+    }, integer(1L))
+    expandido$filas$n <- n
+    expandido$filas$proporcion <- if (total) n / total else NA_real_
+    expandido$filas$n_inequivocos <- n
+  }
+  expandido
+}
+
 .fila_formato <- function(formato, n, total, estado = "confirmado",
                           n_inequivocos = n, n_ambiguos = 0L,
                           grupo_ambiguo = "", anio_dos_digitos = FALSE,
@@ -330,7 +349,8 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
 
 # El resultado público no lleva el parser intermedio de meses. El recorrido
 # interno lo conserva sólo hasta pasarlo al resumen de la columna.
-.detectar_formatos_fecha_interno <- function(x, muestra = 1e5) {
+.detectar_formatos_fecha_interno <- function(x, muestra = 1e5,
+                                              vocabulario = NULL) {
   if (inherits(x, "data.frame")) {
     stop("`x` debe ser un vector, no un data.frame.", call. = FALSE)
   }
@@ -369,27 +389,40 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   valores <- trimws(valores)
   valores <- valores[!is.na(valores) & nzchar(valores)]
   total <- length(valores)
-  meses_texto <- .detectar_meses_texto(valores)
-  cubiertos <- meses_texto$validos
-  filas <- if (!is.null(meses_texto$filas)) {
+  if (is.null(vocabulario)) {
+    vocabulario <- .vocabulario_texto(valores, .umbral_vocabulario_barato)
+  }
+  formas <- vocabulario$valores
+  pesos <- tabulate(vocabulario$indices, nbins = length(formas))
+  meses_formas <- .detectar_meses_texto(formas)
+  meses_texto <- if (isTRUE(vocabulario$usar)) {
+    .ponderar_meses_texto(meses_formas, vocabulario$indices, pesos, total)
+  } else {
+    meses_formas
+  }
+  cubiertos <- meses_formas$validos
+  filas_meses <- if (!is.null(meses_texto$filas)) {
     split(meses_texto$filas, seq_len(nrow(meses_texto$filas)))
   } else list()
+  filas <- filas_meses
   # Los identificadores numéricos de ocho dígitos son frecuentes y no deben
   # atravesar las decenas de formatos de fecha si ni siquiera contienen un
   # año plausible. La guarda conserva la misma semántica del formato compacto
   # (%Y%m%d), pero evita trabajo costoso antes de llamar a `strptime()`.
-  if (total && !any(cubiertos) && all(grepl("^[0-9]{8}$", valores, perl = TRUE))) {
-    anios <- suppressWarnings(as.integer(substr(valores, 1L, 4L)))
+  if (total && !any(cubiertos) &&
+      all(grepl("^[0-9]{8}$", formas, perl = TRUE))) {
+    anios <- suppressWarnings(as.integer(substr(formas, 1L, 4L)))
     plausibles <- anios >= 1800L & anios <= 2100L
-    convertido <- rep(as.POSIXct(NA, tz = "UTC"), total)
+    convertido <- rep(as.POSIXct(NA, tz = "UTC"), length(formas))
     if (any(plausibles)) {
       convertido[plausibles] <- strptime(
-        valores[plausibles], format = "%Y%m%d", tz = "UTC"
+        formas[plausibles], format = "%Y%m%d", tz = "UTC"
       )
     }
     valido <- !is.na(convertido)
+    n_validos <- sum(pesos[valido])
     resultado <- if (any(valido)) {
-      .fila_formato("%Y%m%d", sum(valido), total)
+      .fila_formato("%Y%m%d", n_validos, total)
     } else {
       .fila_formato("%Y%m%d", 0L, total)
     }
@@ -399,13 +432,13 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     attr(resultado, "total") <- muestra_x$total
     attr(resultado, "analizados") <- muestra_x$analizados
     attr(resultado, "muestreado") <- muestra_x$muestreado
-    attr(resultado, "compatibles") <- sum(valido)
+    attr(resultado, "compatibles") <- n_validos
     attr(resultado, "formatos_mixtos") <- FALSE
     attr(resultado, "meses_texto") <- meses_texto
     return(resultado)
   }
   indices_restantes <- which(!cubiertos)
-  valores_numericos <- valores[indices_restantes]
+  valores_numericos <- formas[indices_restantes]
   base_fecha <- paste0(
     "(?:[0-9]{4}[-/.][0-9]{1,2}[-/.][0-9]{1,2}|",
     "[0-9]{1,2}[-/.][0-9]{1,2}[-/.][0-9]{4}|",
@@ -421,6 +454,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   )
   indices_numericos <- indices_restantes[candidatos_fecha]
   valores <- valores_numericos[candidatos_fecha]
+  pesos_numericos <- pesos[indices_numericos]
   especificaciones <- .especificaciones_fecha()
   mascaras <- lapply(seq_len(nrow(especificaciones)), function(i) {
     .es_fecha_valida(
@@ -438,7 +472,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     if (any(mascara)) {
       k <- k + 1L
       filas[[k]] <- .fila_formato(
-        especificaciones$formato[[i]], sum(mascara), total,
+        especificaciones$formato[[i]], sum(pesos_numericos[mascara]), total,
         estado = if (especificaciones$anio_dos_digitos[[i]]) {
           "candidato"
         } else {
@@ -460,6 +494,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     solo_dmy <- mascara_dmy & !mascara_mdy
     solo_mdy <- mascara_mdy & !mascara_dmy
     ambiguos <- mascara_dmy & mascara_mdy
+    pesos_grupo <- pesos_numericos
     anio_dos <- especificaciones$anio_dos_digitos[[indice_dmy]]
     estado_resuelto <- if (anio_dos) "candidato" else "confirmado"
 
@@ -472,49 +507,53 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     if (!any(solo_dmy) && !any(solo_mdy)) {
       k <- k + 1L
       filas[[k]] <- .fila_formato(
-        especificaciones$formato[[indice_dmy]], sum(ambiguos), total,
+        especificaciones$formato[[indice_dmy]], sum(pesos_grupo[ambiguos]), total,
         estado = "candidato", n_inequivocos = 0L,
-        n_ambiguos = sum(ambiguos), grupo_ambiguo = grupo,
+        n_ambiguos = sum(pesos_grupo[ambiguos]), grupo_ambiguo = grupo,
         anio_dos_digitos = anio_dos
       )
       k <- k + 1L
       filas[[k]] <- .fila_formato(
-        especificaciones$formato[[indice_mdy]], sum(ambiguos), total,
+        especificaciones$formato[[indice_mdy]], sum(pesos_grupo[ambiguos]), total,
         estado = "candidato", n_inequivocos = 0L,
-        n_ambiguos = sum(ambiguos), grupo_ambiguo = grupo,
+        n_ambiguos = sum(pesos_grupo[ambiguos]), grupo_ambiguo = grupo,
         anio_dos_digitos = anio_dos
       )
     } else if (any(solo_dmy) && !any(solo_mdy)) {
       k <- k + 1L
       filas[[k]] <- .fila_formato(
-        especificaciones$formato[[indice_dmy]], sum(mascara_dmy), total,
+        especificaciones$formato[[indice_dmy]], sum(pesos_grupo[mascara_dmy]), total,
         estado = estado_resuelto,
-        n_inequivocos = sum(solo_dmy), n_ambiguos = sum(ambiguos),
+        n_inequivocos = sum(pesos_grupo[solo_dmy]),
+        n_ambiguos = sum(pesos_grupo[ambiguos]),
         grupo_ambiguo = if (anio_dos) grupo else "",
         anio_dos_digitos = anio_dos
       )
     } else if (!any(solo_dmy) && any(solo_mdy)) {
       k <- k + 1L
       filas[[k]] <- .fila_formato(
-        especificaciones$formato[[indice_mdy]], sum(mascara_mdy), total,
+        especificaciones$formato[[indice_mdy]], sum(pesos_grupo[mascara_mdy]), total,
         estado = estado_resuelto,
-        n_inequivocos = sum(solo_mdy), n_ambiguos = sum(ambiguos),
+        n_inequivocos = sum(pesos_grupo[solo_mdy]),
+        n_ambiguos = sum(pesos_grupo[ambiguos]),
         grupo_ambiguo = if (anio_dos) grupo else "",
         anio_dos_digitos = anio_dos
       )
     } else {
       k <- k + 1L
       filas[[k]] <- .fila_formato(
-        especificaciones$formato[[indice_dmy]], sum(solo_dmy), total,
+        especificaciones$formato[[indice_dmy]], sum(pesos_grupo[solo_dmy]), total,
         estado = estado_resuelto,
-        n_inequivocos = sum(solo_dmy), n_ambiguos = sum(ambiguos),
+        n_inequivocos = sum(pesos_grupo[solo_dmy]),
+        n_ambiguos = sum(pesos_grupo[ambiguos]),
         grupo_ambiguo = grupo, anio_dos_digitos = anio_dos
       )
       k <- k + 1L
       filas[[k]] <- .fila_formato(
-        especificaciones$formato[[indice_mdy]], sum(solo_mdy), total,
+        especificaciones$formato[[indice_mdy]], sum(pesos_grupo[solo_mdy]), total,
         estado = estado_resuelto,
-        n_inequivocos = sum(solo_mdy), n_ambiguos = sum(ambiguos),
+        n_inequivocos = sum(pesos_grupo[solo_mdy]),
+        n_ambiguos = sum(pesos_grupo[ambiguos]),
         grupo_ambiguo = grupo, anio_dos_digitos = anio_dos
       )
     }
@@ -551,7 +590,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   attr(resultado, "total") <- muestra_x$total
   attr(resultado, "analizados") <- muestra_x$analizados
   attr(resultado, "muestreado") <- muestra_x$muestreado
-  attr(resultado, "compatibles") <- sum(cubiertos)
+  attr(resultado, "compatibles") <- sum(pesos[cubiertos])
   attr(resultado, "formatos_mixtos") <- mixtos
   attr(resultado, "meses_texto") <- meses_texto
   resultado

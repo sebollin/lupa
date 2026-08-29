@@ -1,5 +1,23 @@
 # lupa 0.1.0
 
+
+## El detector de formatos de fecha trabaja sobre el vocabulario
+
+Una columna de fechas suele tener pocas formas distintas repetidas muchas veces,
+y el detector las evaluaba todas. Ahora clasifica las formas del vocabulario y
+pondera por su frecuencia, que es el mismo camino que ya usaba la clasificación
+de tipos.
+
+Los conteos no cambian: el detector devuelve los mismos formatos, las mismas
+frecuencias, las mismas ambigüedades y los mismos atributos. Trabajar por
+vocabulario y ponderar no altera un solo número, y hay pruebas de equivalencia
+campo por campo y atributo por atributo que lo fijan.
+
+Medido sobre 120.000 filas y cinco columnas, el detector pasa de 1,16 s a
+0,050 s, y `perfilar()` completo baja de 5,30 s a 3,93 s: **un 26 % menos**. La
+ganancia crece con las filas, porque el trabajo pasa a ser proporcional a los
+valores distintos y no a la cantidad de filas.
+
 ## La mediana conserva una sola instantanea
 
 - La mediana exacta de los dialectos que usan `LIMIT` reemplaza el conteo y el

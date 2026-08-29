@@ -105,7 +105,9 @@ inferir_tipo <- function(x, umbral = 0.8, muestra = 1e5) {
     formas, perl = TRUE
   )
 
-  formatos <- .detectar_formatos_fecha_interno(valores, muestra = muestra)
+  formatos <- .detectar_formatos_fecha_interno(
+    valores, muestra = muestra, vocabulario = vocabulario
+  )
   # `valores` ya es la muestra de la columna. Restituir el alcance exterior
   # evita que el resultado del perfil declare como completo un vector
   # intermedio que ya perdió las filas no muestreadas.
