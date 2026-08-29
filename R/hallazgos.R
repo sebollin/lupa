@@ -991,12 +991,28 @@
   n_excluidos_faltantes <- sum(presentes_originales & excluir)
   presentes <- presentes_originales & !excluir
   if (!any(presentes)) return(NULL)
+  # El tope se mide sobre el valor YA NORMALIZADO, que es el que se compara.
+  #
+  # La regla hermana -`detectar_duplicados_aproximados()`- ya se habia corregido,
+  # y esta quedo con el defecto: medía `nchar(textos)` crudo y comparaba sobre
+  # `normalizados`. Con perfil `amplio`, que expande ligaduras, una columna de
+  # 5.101 caracteres publicaba `largo_excedido = FALSE` y `largo_maximo = 5101`
+  # mientras comparaba cadenas de **15.303**, un 53 % por encima del tope
+  # declarado de 10.000. Medido el 2026-08-29.
+  #
+  # Arreglar un consumidor y dejar el otro es peor que no arreglar ninguno: la
+  # nota que anuncia el arreglo pasa a ser cierta a medias.
+  perfil_columna <- .normalizacion_para_columna(perfil, columna)
+  textos_comparados <- textos
+  textos_comparados[presentes] <- .normalizacion_aplicar(
+    textos[presentes], perfil_columna
+  )
   if (is.finite(max_largo_valor)) {
-    largos <- nchar(textos[presentes], type = "chars", allowNA = TRUE)
+    largos <- nchar(textos_comparados[presentes], type = "chars", allowNA = TRUE)
     largos <- largos[is.finite(largos)]
     if (any(largos > max_largo_valor)) {
       return(.alcance_vocabulario_largo(
-        textos, presentes, columna, max_valores, max_pares, metodo, p, umbral,
+        textos_comparados, presentes, columna, max_valores, max_pares, metodo, p, umbral,
         max_proporcion_grupo, umbral_variante_rara, min_asimetria_variante,
         min_asimetria_general, min_participacion_dominante,
         max_asimetria_equifrecuente, max_trabajo, n_excluidos_faltantes,
@@ -1031,7 +1047,6 @@
   crudos <- formas[seq_len(n_evaluados)]
   posicion <- match(presentes_texto, crudos)
   frecuencias <- tabulate(posicion[!is.na(posicion)], nbins = n_evaluados)
-  perfil_columna <- .normalizacion_para_columna(perfil, columna)
   normalizados <- .normalizacion_aplicar(crudos, perfil_columna)
   clases <- match(normalizados, unique(normalizados))
   n_unidades <- max(clases, 0L)

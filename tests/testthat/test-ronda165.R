@@ -77,3 +77,45 @@ test_that("el tope de vocabulario cuenta valores distintos y filas por separado"
   expect_match(motivo, "1 valor(es) distinto(s)", fixed = TRUE)
   expect_match(motivo, "100 fila(s)", fixed = TRUE)
 })
+
+# El mismo desvio vivia en la regla HERMANA y quedo sin arreglar la primera vez:
+# la proximidad de vocabulario media `nchar()` crudo y comparaba sobre los
+# valores normalizados. Con el perfil `amplio`, que expande ligaduras, una
+# columna de 5.101 caracteres publicaba `largo_excedido = FALSE` y
+# `largo_maximo = 5101` mientras comparaba cadenas de 15.303 -un 53 % por encima
+# del tope declarado-.
+#
+# Arreglar un consumidor y dejar el otro es peor que no arreglar ninguno: la nota
+# que anuncia el arreglo pasa a ser cierta a medias y quien la lee deja de
+# buscar. Lo que faltaba era preguntarse quien MAS consume la regla.
+
+test_that("la regla de vocabulario tambien mide el largo que compara", {
+  skip_if_not_installed("stringdist")
+  base <- strrep(.ligadura_ffl(), 5100L)
+  valores <- c(rep(base, 12L), rep(paste0(base, .ligadura_ffl()), 3L))
+  perfil <- lupa:::.resolver_normalizacion("amplio")
+
+  alcance <- lupa:::.grupos_casi_duplicados_vocabulario(
+    valores, perfil, "t", max_valores = 100L, max_pares = Inf,
+    max_trabajo = Inf
+  )$alcance
+
+  expect_lt(max(nchar(valores)), 10000L)   # crudo por debajo del tope
+  expect_true(alcance$largo_excedido)      # normalizado por encima
+  expect_gt(alcance$largo_maximo, 10000L)
+  expect_gt(alcance$n_valores_largos, 0L)
+})
+
+test_that("y sin expansion la regla de vocabulario no excluye de mas", {
+  skip_if_not_installed("stringdist")
+  valores <- c(
+    rep("San Jose", 20L), rep("San Jose ", 5L),
+    rep("Montevideo", 20L), rep("Montevido", 3L)
+  )
+  alcance <- lupa:::.grupos_casi_duplicados_vocabulario(
+    valores, lupa:::.resolver_normalizacion("amplio"), "loc",
+    max_valores = 100L, max_pares = Inf, max_trabajo = Inf
+  )$alcance
+  expect_false(isTRUE(alcance$largo_excedido))
+  expect_lt(alcance$largo_maximo, 100L)
+})
