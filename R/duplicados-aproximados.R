@@ -6,6 +6,46 @@
   if (is.infinite(x)) Inf else as.integer(x)
 }
 
+# Jaro-Winkler y las distancias de edicion fueron concebidas para nombres,
+# direcciones e identificadores, no para documentos.
+#
+# El motivo NO es que la metrica pierda discriminacion: medido, el cociente
+# entre 500 ediciones y 1 edicion se mantiene en unos 480 con largos de 1.000,
+# 10.000 y 25.000 caracteres. Lo que cambia es la ESCALA ABSOLUTA. Con 25.000
+# caracteres, 500 ediciones -un parrafo reescrito- dan una distancia normalizada
+# de 0,019, por debajo de cualquier umbral usable, asi que dos documentos que un
+# lector considera distintos quedan del lado de los casi-duplicados. La metrica
+# es invariante ante diferencias PROPORCIONALES y deja de servir ante diferencias
+# de tamano FIJO, que son las que ocurren en textos largos.
+#
+# Y esta el costo, que es el motivo principal: con valores de 20 KB la matriz de
+# distancias se lleva el 69 % del perfilado, y 2.000 filas de 200 KB tardan
+# 41,8 s frente a 0,42 s con valores de 1.000 caracteres.
+.MAX_LARGO_VALOR_CASI_DUPLICADOS <- 10000L
+
+.validar_largo_valor_duplicados <- function(x, nombre) {
+  .validar_limite_duplicados(x, nombre)
+}
+
+.largo_maximo_valor_duplicados <- function(x) {
+  valores <- suppressWarnings(as.character(.texto_analizable(x)$valores))
+  largos <- nchar(valores, type = "chars", allowNA = TRUE)
+  largos <- largos[is.finite(largos)]
+  if (!length(largos)) 0 else max(largos)
+}
+
+.columnas_largas_duplicados <- function(datos, columnas, max_largo_valor) {
+  if (!length(columnas) || is.infinite(max_largo_valor)) {
+    return(list(columnas = character(), largos = numeric()))
+  }
+  largos <- vapply(
+    columnas,
+    function(columna) .largo_maximo_valor_duplicados(datos[[columna]]),
+    numeric(1L)
+  )
+  list(columnas = names(largos)[largos > max_largo_valor], largos = largos)
+}
+
 .stringdist_disponible <- function() {
   requireNamespace("stringdist", quietly = TRUE)
 }
@@ -40,7 +80,8 @@
     n_filas, columnas, metodo, umbral, muestra, max_pares, max_resultados,
     disponible = TRUE, razon = "", bloque = 1000L, n_bloques = 0L,
     modo_comparacion = "sin_comparacion", nucleos_usados = NA_integer_,
-    p = 0.1) {
+    p = 0.1, max_largo_valor = Inf,
+    columnas_excluidas_largo = character(), largos_columnas = numeric()) {
   pares <- data.frame(
     fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
     tipo_par = character(), igualo_normalizar = logical(), metodo = character(),
@@ -82,6 +123,11 @@
     nucleos_usados = nucleos_usados,
     metodo = metodo,
     p = p,
+    max_largo_valor = max_largo_valor,
+    limite_largo_valor_aplica = is.finite(max_largo_valor),
+    columnas_excluidas_largo = paste(columnas_excluidas_largo, collapse = ", "),
+    n_columnas_excluidas_largo = length(columnas_excluidas_largo),
+    largo_maximo = if (length(largos_columnas)) max(largos_columnas) else 0,
     razon = razon,
     stringsAsFactors = FALSE
   )
@@ -98,6 +144,8 @@
     pares = pares, hallazgos = hallazgos,
     alcance = alcance, columnas = columnas, metodo = metodo, p = p,
     umbral = umbral, disponible = disponible, razon = razon,
+    max_largo_valor = max_largo_valor,
+    columnas_excluidas_largo = columnas_excluidas_largo,
     proteccion_aplicada = FALSE, estimacion = NULL
   )
   class(estructura) <- c("duplicados_aproximados", "list")
@@ -1494,7 +1542,8 @@
     lsh_max_cubeta = 1000L, lsh_muestra_estimacion = 400000L,
     presupuesto_pares = Inf, bloquear_por = NULL, solo_estimacion = FALSE,
     lotes = FALSE, tamano_lote = 1000L, directorio_lotes = NULL,
-    nucleos = getOption("lupa.nucleos", 2L), fusiones_precomputadas = NULL) {
+    nucleos = getOption("lupa.nucleos", 2L), fusiones_precomputadas = NULL,
+    max_largo_valor = .MAX_LARGO_VALOR_CASI_DUPLICADOS) {
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)
   columnas <- .columnas_duplicados_aproximados(datos, columnas)
@@ -1502,6 +1551,9 @@
   muestra <- .validar_limite_duplicados(muestra, "muestra")
   max_pares <- .validar_limite_duplicados(max_pares, "max_pares")
   max_resultados <- .validar_limite_duplicados(max_resultados, "max_resultados")
+  max_largo_valor <- .validar_largo_valor_duplicados(
+    max_largo_valor, "max_largo_valor"
+  )
   nucleos <- .resolver_nucleos_lupa(nucleos)
   bloque <- .validar_bloque_duplicados(bloque)
   bloquear_por <- .validar_bloquear_por(datos, bloquear_por)
@@ -1550,12 +1602,35 @@
     stop("`normalizar` y `proteger_datos_personales` deben ser l\u00f3gicos escalares.",
          call. = FALSE)
   }
+  largos <- .columnas_largas_duplicados(datos, columnas, max_largo_valor)
+  if (length(largos$columnas)) {
+    motivo <- paste0(
+      "Se excluyeron las columnas ",
+      paste0("`", largos$columnas, "`", collapse = ", "),
+      " de la comparacion: al menos un valor supera `max_largo_valor = ",
+      max_largo_valor, "` caracteres. Como las columnas se comparan juntas,",
+      " no se compararon sus filas; no se recortaron valores en silencio."
+    )
+    resultado <- .vacio_duplicados_aproximados(
+      nrow(datos), columnas, metodo, umbral, muestra, max_pares,
+      max_resultados, disponible = .stringdist_disponible(), bloque = bloque,
+      p = p, razon = motivo, nucleos_usados = nucleos,
+      max_largo_valor = max_largo_valor,
+      columnas_excluidas_largo = largos$columnas,
+      largos_columnas = largos$largos
+    )
+    if (!is.null(resumen_bloqueo)) {
+      resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
+    }
+    resultado$normalizacion <- .normalizacion_salida(normalizacion_resuelta)
+    return(resultado)
+  }
   if (!.stringdist_disponible()) {
     resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
       max_resultados, disponible = FALSE, bloque = bloque, p = p,
       razon = "No esta instalado el paquete opcional 'stringdist'.",
-      nucleos_usados = nucleos
+      nucleos_usados = nucleos, max_largo_valor = max_largo_valor
     )
     if (!is.null(resumen_bloqueo)) {
       resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
@@ -1571,7 +1646,8 @@
     resultado <- .vacio_duplicados_aproximados(
       nrow(datos), columnas, metodo, umbral, muestra, max_pares,
       max_resultados, disponible = TRUE, bloque = bloque, p = p,
-      razon = motivo, nucleos_usados = nucleos
+      razon = motivo, nucleos_usados = nucleos,
+      max_largo_valor = max_largo_valor
     )
     if (!is.null(resumen_bloqueo)) {
       resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
@@ -1960,7 +2036,17 @@
     } else NA_integer_,
     corte_en_empate = isTRUE(hubo_truncado) &&
       isTRUE(distancia_minima_descartada == distancia_corte),
-    disponible = TRUE, razon = "", stringsAsFactors = FALSE
+    disponible = TRUE, razon = "",
+    max_largo_valor = max_largo_valor,
+    limite_largo_valor_aplica = is.finite(max_largo_valor),
+    columnas_excluidas_largo = "",
+    n_columnas_excluidas_largo = 0L,
+    largo_maximo = max(vapply(
+      columnas,
+      function(columna) .largo_maximo_valor_duplicados(datos[[columna]]),
+      numeric(1L)
+    )),
+    stringsAsFactors = FALSE
   )
   if (usar_lsh) {
     lsh_alcance_final <- lsh_alcance
@@ -1978,7 +2064,9 @@
     ),
     disponible = TRUE, razon = "",
     proteccion_aplicada = proteger_datos_personales,
-    estimacion = estimacion_resultado
+    estimacion = estimacion_resultado,
+    max_largo_valor = max_largo_valor,
+    columnas_excluidas_largo = character()
   )
   if (!is.null(lotes_metadata)) estructura$lotes <- lotes_metadata
   class(estructura) <- c("duplicados_aproximados", "list")
@@ -2145,6 +2233,13 @@
 #'   filas, de modo que reordenar la tabla no cambia que pares sobreviven. Un
 #'   corte que cae dentro de un empate deja afuera pares igual de cercanos, y eso
 #'   se declara en `alcance$corte_en_empate`.
+#' @param max_largo_valor Maximo de caracteres permitido en cada valor de las
+#'   columnas combinadas. Por defecto es `10000`, umbral elegido porque la
+#'   distancia normalizada deja de distinguir de forma estable una diferencia
+#'   local de muchas diferencias en textos largos. Si una columna supera el
+#'   tope, la combinacion completa se declara fuera de alcance en
+#'   `alcance$columnas_excluidas_largo`; no se recortan valores en silencio.
+#'   `Inf` recupera explicitamente el comportamiento anterior sin tope.
 #' @param bloque Cantidad de filas por tesela de comparación. Por defecto
 #'   `1000`; controla la memoria temporal, no el número de pares comparados.
 #' @param nucleos Cantidad máxima de hilos que `stringdist` puede usar. Por
@@ -2240,7 +2335,8 @@ detectar_duplicados_aproximados <- function(
     lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
     lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
     bloquear_por = NULL, lotes = FALSE, tamano_lote = 1000L,
-    directorio_lotes = NULL, nucleos = getOption("lupa.nucleos", 2L)) {
+    directorio_lotes = NULL, nucleos = getOption("lupa.nucleos", 2L),
+    max_largo_valor = .MAX_LARGO_VALOR_CASI_DUPLICADOS) {
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
   datos <- .tabla_base(datos)
@@ -2261,7 +2357,8 @@ detectar_duplicados_aproximados <- function(
       presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por,
       lotes = lotes, tamano_lote = tamano_lote,
       directorio_lotes = directorio_lotes, nucleos = nucleos,
-      fusiones_precomputadas = fusiones_precomputadas
+      fusiones_precomputadas = fusiones_precomputadas,
+      max_largo_valor = max_largo_valor
     ))
   }
   .detectar_duplicados_aproximados(
@@ -2272,7 +2369,8 @@ detectar_duplicados_aproximados <- function(
     lsh_muestra_estimacion = lsh_muestra_estimacion,
     presupuesto_pares = presupuesto_pares, bloquear_por = bloquear_por,
     lotes = lotes, tamano_lote = tamano_lote,
-    directorio_lotes = directorio_lotes, nucleos = nucleos
+    directorio_lotes = directorio_lotes, nucleos = nucleos,
+    max_largo_valor = max_largo_valor
   )
 }
 
@@ -2327,7 +2425,8 @@ estimar_costo <- function(
     lsh_filas = 3L, lsh_q = 3L, lsh_max_cubeta = 1000L,
     lsh_muestra_estimacion = 400000L, presupuesto_pares = Inf,
     bloquear_por = NULL, lotes = FALSE, tamano_lote = 1000L,
-    directorio_lotes = NULL, nucleos = getOption("lupa.nucleos", 2L)) {
+    directorio_lotes = NULL, nucleos = getOption("lupa.nucleos", 2L),
+    max_largo_valor = .MAX_LARGO_VALOR_CASI_DUPLICADOS) {
   .validar_datos_tabla(datos)
   .validar_perfil_de(perfil, datos)
   datos <- .tabla_base(datos)
@@ -2342,7 +2441,8 @@ estimar_costo <- function(
     lsh_muestra_estimacion = lsh_muestra_estimacion,
     presupuesto_pares = Inf, bloquear_por = bloquear_por,
     solo_estimacion = TRUE, lotes = FALSE, tamano_lote = tamano_lote,
-    directorio_lotes = NULL, nucleos = nucleos
+    directorio_lotes = NULL, nucleos = nucleos,
+    max_largo_valor = max_largo_valor
   ))
   if (inherits(interno, "duplicados_aproximados")) {
     candidatos <- if (nrow(interno$alcance)) {

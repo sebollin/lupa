@@ -70,6 +70,18 @@ uno a uno entre celdas.
 
 ## Bancos adicionales
 
+`medir_topes_valores_ancho.R` mide la discriminacion de Jaro-Winkler en pares
+de textos que difieren en un caracter y en 1.000, y cronometra el perfilado de
+500 filas con 50, 300 y 1.000 columnas. Ejecutarlo despues de instalar la
+version construida desde estas fuentes:
+
+```sh
+Rscript benchmark/medir_topes_valores_ancho.R
+```
+
+El script imprime la mediana de cinco semillas para la tabla de discriminacion
+y deja el aviso de tabla ancha desactivado durante el cronometraje.
+
 Los scripts siguientes son independientes de `verdad_raha.R` y no agregan
 dependencias al paquete:
 

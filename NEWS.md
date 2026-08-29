@@ -1,5 +1,25 @@
 # lupa 0.1.0
 
+## Topes declarados para valores largos y tablas anchas
+
+- `detectar_duplicados_aproximados()` y el vocabulario de `perfilar()` tienen
+  por defecto un tope de 10.000 caracteres por valor. La distancia normalizada
+  se midio con pares que diferian en un caracter y en 1.000: el segundo par
+  dejo de separarse del umbral 0,10 entre 25.000 y 50.000 caracteres, mientras
+  el primero siguio cerca de cero. El tope se declara en `alcance` o en
+  `cobertura_diagnosticos`; `Inf` recupera explicitamente el comportamiento
+  anterior.
+- Una columna con valores por encima del tope queda fuera de la comparacion
+  completa y la cobertura publica la columna, el largo observado, el motivo y
+  el umbral. No se recortan valores en silencio.
+- `perfilar()` conserva en `meta$costo_tabla_ancha` una proyeccion del costo por
+  celdas y avisa en sesiones interactivas desde 100.000 celdas. El mensaje
+  identifica la fuente y aclara que es una estimacion; no aparece en scripts ni
+  por debajo del umbral. `avisar_costo_tabla_ancha = FALSE` y
+  `umbral_celdas_aviso_tabla_ancha = Inf` son desactivaciones explicitas.
+- Se agrego `benchmark/medir_topes_valores_ancho.R` para reproducir la medicion
+  de discriminacion y el barrido de tablas anchas.
+
 
 ## El parseo de fechas también trabaja sobre el vocabulario
 

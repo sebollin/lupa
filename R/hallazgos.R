@@ -867,6 +867,75 @@
   )
 }
 
+.alcance_vocabulario_largo <- function(
+    textos, presentes, columna, max_valores, max_pares, metodo, p, umbral,
+    max_proporcion_grupo, umbral_variante_rara, min_asimetria_variante,
+    min_asimetria_general, min_participacion_dominante,
+    max_asimetria_equifrecuente, max_trabajo, n_excluidos_faltantes,
+    max_largo_valor) {
+  valores <- unique(textos[presentes])
+  largos_valores <- nchar(valores, type = "chars", allowNA = TRUE)
+  largos_valores <- largos_valores[is.finite(largos_valores)]
+  largos_filas <- nchar(textos[presentes], type = "chars", allowNA = TRUE)
+  largos_filas <- largos_filas[is.finite(largos_filas)]
+  suma_largos <- sum(largos_valores)
+  trabajo <- if (length(largos_valores)) {
+    (suma_largos^2 - sum(largos_valores^2)) / 2
+  } else 0
+  n_valores <- length(valores)
+  list(
+    grupos = list(), grupos_equifrecuentes = list(),
+    alcance = list(
+      n_valores_distintos = n_valores,
+      n_excluidos_faltantes_disfrazados = n_excluidos_faltantes,
+      n_valores_evaluados = 0L,
+      n_unidades_normalizadas = NA_integer_,
+      n_unidades_comparadas = 0L,
+      n_unidades_sin_comparar = NA_integer_,
+      n_pares_posibles = if (n_valores) choose(n_valores, 2L) else 0,
+      n_pares_comparados = 0,
+      n_pares_sin_comparar = if (n_valores) choose(n_valores, 2L) else 0,
+      truncado = TRUE,
+      trabajo_estimado = trabajo,
+      trabajo_comparado = 0,
+      trabajo_sin_comparar = trabajo,
+      unidad_trabajo = "comparaciones de caracter",
+      max_trabajo = max_trabajo,
+      motivo_presupuesto = "max_largo_valor",
+      distancia_disponible = .stringdist_disponible(),
+      motivo_distancia = "",
+      metodo = metodo, p = p, umbral = umbral,
+      max_valores = max_valores, max_pares = max_pares,
+      max_proporcion_grupo = max_proporcion_grupo,
+      min_valores_limite = 20L, min_tamano_grupo_limite = 10L,
+      limite_aplicado = FALSE,
+      tamano_grupo_maximo = 0L, proporcion_grupo_maximo = 0,
+      tamano_grupo_maximo_numerico = 0L,
+      proporcion_grupo_maximo_numerico = 0,
+      n_candidatos_distancia = 0L,
+      n_candidatos_edicion_corta = 0L,
+      n_descartados_frecuencia_edicion_corta = 0L,
+      max_largo_edicion_corta = 6L, max_distancia_edicion_corta = 1L,
+      umbral_variante_rara = umbral_variante_rara,
+      min_asimetria_variante = min_asimetria_variante,
+      min_asimetria_general = min_asimetria_general,
+      n_grupos_bajo_piso_asimetria = 0L,
+      n_grupos_sin_variante_rara = 0L,
+      n_pares_equifrecuentes = 0,
+      max_asimetria_equifrecuente = max_asimetria_equifrecuente,
+      min_participacion_dominante = min_participacion_dominante,
+      n_pares_descartados_numeros = 0,
+      n_pares_descartados_formato = 0,
+      motivo_grupos = "", aplicable = TRUE,
+      largo_excedido = TRUE,
+      n_valores_largos = sum(largos_filas > max_largo_valor),
+      largo_maximo = if (length(largos_filas)) max(largos_filas) else 0,
+      max_largo_valor = max_largo_valor,
+      columna = columna
+    )
+  )
+}
+
 .grupos_casi_duplicados_vocabulario <- function(x, perfil, columna,
                                                 max_valores = 5000L,
                                                 max_pares = 2000000L,
@@ -880,7 +949,9 @@
                                                 excluir = NULL,
                                                 detectar_variantes_equifrecuentes = FALSE,
                                                 max_asimetria_equifrecuente = 2,
-                                                max_trabajo = 2e10) {
+                                                max_trabajo = 2e10,
+                                                max_largo_valor =
+                                                  .MAX_LARGO_VALOR_CASI_DUPLICADOS) {
   if (!is.numeric(max_trabajo) || length(max_trabajo) != 1L ||
       is.na(max_trabajo) || max_trabajo <= 0 ||
       (!is.infinite(max_trabajo) && max_trabajo != floor(max_trabajo))) {
@@ -890,6 +961,9 @@
     )
   }
   max_trabajo <- if (is.infinite(max_trabajo)) Inf else as.numeric(max_trabajo)
+  max_largo_valor <- .validar_largo_valor_duplicados(
+    max_largo_valor, "max_largo_valor_vocabulario"
+  )
   if (!(is.character(x) || is.factor(x)) || is.matrix(x) || is.list(x)) {
     return(NULL)
   }
@@ -903,6 +977,19 @@
   n_excluidos_faltantes <- sum(presentes_originales & excluir)
   presentes <- presentes_originales & !excluir
   if (!any(presentes)) return(NULL)
+  if (is.finite(max_largo_valor)) {
+    largos <- nchar(textos[presentes], type = "chars", allowNA = TRUE)
+    largos <- largos[is.finite(largos)]
+    if (any(largos > max_largo_valor)) {
+      return(.alcance_vocabulario_largo(
+        textos, presentes, columna, max_valores, max_pares, metodo, p, umbral,
+        max_proporcion_grupo, umbral_variante_rara, min_asimetria_variante,
+        min_asimetria_general, min_participacion_dominante,
+        max_asimetria_equifrecuente, max_trabajo, n_excluidos_faltantes,
+        max_largo_valor
+      ))
+    }
+  }
   # El vocabulario se ordena antes de recortar, y no se toma en el orden en que
   # las formas aparecen. Ese detalle decide el resultado: sobre la columna
   # `nombre` de "Ejes de vias de circulacion" de Montevideo -45.400 filas, 8.318
@@ -1494,9 +1581,13 @@
        trabajo_comparado = if (disponible) trabajo_comparado else 0,
        trabajo_sin_comparar = if (disponible) trabajo_sin_comparar else
          trabajo_posible,
-       unidad_trabajo = "comparaciones de caracter",
-       max_trabajo = max_trabajo,
-       motivo_presupuesto = motivo_presupuesto,
+      unidad_trabajo = "comparaciones de caracter",
+      max_trabajo = max_trabajo,
+      max_largo_valor = max_largo_valor,
+      largo_excedido = FALSE,
+      n_valores_largos = 0L,
+      largo_maximo = .largo_maximo_valor_duplicados(presentes_texto),
+      motivo_presupuesto = motivo_presupuesto,
       distancia_disponible = disponible,
       motivo_distancia = if (disponible) "" else
         "No se calculo la distancia: falta el paquete opcional 'stringdist'.",
@@ -1540,7 +1631,8 @@
     umbral_variante_rara = 0.05, min_asimetria_variante = 10,
     min_asimetria_general = 2, min_participacion_dominante = 0.5,
     detectar_variantes_equifrecuentes = FALSE,
-    max_asimetria_equifrecuente = 2, max_trabajo = 2e10) {
+    max_asimetria_equifrecuente = 2, max_trabajo = 2e10,
+    max_largo_valor = .MAX_LARGO_VALOR_CASI_DUPLICADOS) {
   max_grupos_mostrados <- 20L
   max_variantes_mostradas <- 20L
   hallazgos <- list()
@@ -1560,6 +1652,7 @@
       detectar_variantes_equifrecuentes = detectar_variantes_equifrecuentes,
       max_asimetria_equifrecuente = max_asimetria_equifrecuente,
       max_trabajo = max_trabajo,
+      max_largo_valor = max_largo_valor,
       excluir = excluir
     )
     if (!is.null(grupos) && !isTRUE(grupos$alcance$distancia_disponible)) {
@@ -1572,6 +1665,26 @@
     }
     if (is.null(grupos)) next
     alcance <- grupos$alcance
+    if (isTRUE(alcance$largo_excedido)) {
+      cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
+        "proximidad_vocabulario", columnas[[i]],
+        paste0(
+          "No se evaluo la proximidad del vocabulario: ",
+          alcance$n_valores_largos,
+          " valores superan `max_largo_valor_vocabulario = ",
+          alcance$max_largo_valor, "` caracteres; el largo maximo observado es ",
+          alcance$largo_maximo,
+          ". La columna completa quedo fuera de la comparacion para no usar",
+          " una distancia de edicion que no discrimina bien textos largos."
+        ),
+        paste0(
+          "Subir `max_largo_valor_vocabulario` si la columna contiene valores",
+          " que deben compararse, o usar `Inf` explicitamente para recuperar",
+          " el comportamiento anterior sin tope."
+        )
+      )
+      next
+    }
     if (isTRUE(alcance$truncado)) {
       cobertura[[length(cobertura) + 1L]] <- .nuevo_diagnostico_no_evaluado(
         "proximidad_vocabulario", columnas[[i]],
@@ -4077,6 +4190,8 @@
                                  detectar_variantes_equifrecuentes = FALSE,
                                  max_asimetria_equifrecuente = 2,
                                  max_trabajo = 2e10,
+                                 max_largo_valor =
+                                   .MAX_LARGO_VALOR_CASI_DUPLICADOS,
                                  clave_declarada = NULL,
                                  trazador_tiempos = NULL) {
   hallazgos_columnas <- .hallazgos_columnas(
@@ -4100,7 +4215,8 @@
         min_participacion_dominante = min_participacion_dominante,
         detectar_variantes_equifrecuentes = detectar_variantes_equifrecuentes,
         max_asimetria_equifrecuente = max_asimetria_equifrecuente,
-        max_trabajo = max_trabajo
+        max_trabajo = max_trabajo,
+        max_largo_valor = max_largo_valor
       )
     )
   } else {

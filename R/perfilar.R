@@ -1,4 +1,44 @@
 .UMBRAL_FILAS_DATA_TABLE_DUPLICADOS <- 25L
+.UMBRAL_CELDAS_AVISO_TABLA_ANCHA <- 100000L
+.VELOCIDAD_REFERENCIA_TABLA_ANCHA <- 10000
+
+.proyectar_costo_tabla_ancha <- function(
+    n_filas, n_columnas, umbral_celdas = .UMBRAL_CELDAS_AVISO_TABLA_ANCHA) {
+  celdas <- as.numeric(n_filas) * as.numeric(n_columnas)
+  list(
+    celdas = celdas,
+    duracion_estimada_segundos = celdas / .VELOCIDAD_REFERENCIA_TABLA_ANCHA,
+    umbral_celdas = umbral_celdas,
+    fuente = paste0(
+      "mediciones de lupa con 500 filas y 50, 300 y 1.000 columnas; ",
+      "referencia conservadora de ", .VELOCIDAD_REFERENCIA_TABLA_ANCHA,
+      " celdas por segundo"
+    )
+  )
+}
+
+.avisar_costo_tabla_ancha <- function(
+    proyeccion, habilitado = TRUE, interactiva = interactive()) {
+  if (!isTRUE(habilitado) || !isTRUE(interactiva) ||
+      is.null(proyeccion) || !is.finite(proyeccion$celdas) ||
+      proyeccion$celdas < proyeccion$umbral_celdas) {
+    return(invisible(NULL))
+  }
+  segundos <- formatC(
+    proyeccion$duracion_estimada_segundos, format = "f", digits = 1,
+    decimal.mark = ","
+  )
+  celdas <- format(
+    round(proyeccion$celdas), big.mark = ".", decimal.mark = ",",
+    scientific = FALSE, trim = TRUE
+  )
+  cli::cli_alert_warning(paste0(
+    "Costo estimado del perfilado de tabla ancha: ~", segundos,
+    " s para ", celdas, " celdas. Fuente: ", proyeccion$fuente,
+    ". Es una estimacion, no una medicion."
+  ))
+  invisible(NULL)
+}
 
 .filas_duplicadas_base <- function(datos) {
   datos_base <- if (inherits(datos, "data.table")) {
@@ -826,6 +866,19 @@
 #'   las dependencias. Se combina con `max_comparaciones_dependencias`; el
 #'   límite efectivo baja cuando hay muchas filas. `Inf` desactiva este tope,
 #'   pero no el de pares.
+#' @param max_largo_valor_vocabulario Maximo de caracteres permitido en cada
+#'   valor que entra en la comparacion de casi duplicados del vocabulario. Por
+#'   defecto es `10000`, elegido porque la distancia normalizada deja de
+#'   distinguir de forma estable una diferencia local de muchas diferencias en
+#'   textos largos. Una columna que supera el tope se declara completa fuera
+#'   de alcance en `cobertura_diagnosticos`; no se recortan valores en silencio.
+#'   `Inf` recupera explicitamente el comportamiento anterior sin tope.
+#' @param avisar_costo_tabla_ancha Si es `TRUE`, avisa en sesiones interactivas
+#'   cuando las celdas proyectadas superan `umbral_celdas_aviso_tabla_ancha`.
+#'   El aviso es una estimacion y queda en silencio en scripts no interactivos.
+#' @param umbral_celdas_aviso_tabla_ancha Cantidad de celdas a partir de la cual
+#'   se emite el aviso de tabla ancha. Por defecto, `100000`; `Inf` lo desactiva
+#'   explicitamente.
 #' @param columnas_sin_ceros Nombres de columnas donde cero no es admisible.
 #' @param columnas_no_negativas Nombres de columnas que deben ser no negativas.
 #' @param sentinelas_numericos Vector completo de valores numéricos que se
@@ -1083,7 +1136,12 @@ perfilar <- function(datos,
                      max_asimetria_equifrecuente_vocabulario = 2,
                       max_comparaciones_dependencias = 200000L,
                      max_trabajo_vocabulario = 2e10,
-                     max_trabajo_dependencias = 100000000) {
+                     max_trabajo_dependencias = 100000000,
+                     max_largo_valor_vocabulario =
+                       .MAX_LARGO_VALOR_CASI_DUPLICADOS,
+                     avisar_costo_tabla_ancha = TRUE,
+                     umbral_celdas_aviso_tabla_ancha =
+                       .UMBRAL_CELDAS_AVISO_TABLA_ANCHA) {
   # Una matriz de dos dimensiones es una tabla, y rechazarla obligaba a escribir
   trazador_tiempos <- attr(
     datos, "lupa_trazador_tiempos_dbi", exact = TRUE
@@ -1305,6 +1363,21 @@ perfilar <- function(datos,
       )
     }
   }
+  max_largo_valor_vocabulario <- .validar_largo_valor_duplicados(
+    max_largo_valor_vocabulario, "max_largo_valor_vocabulario"
+  )
+  if (!is.logical(avisar_costo_tabla_ancha) ||
+      length(avisar_costo_tabla_ancha) != 1L ||
+      is.na(avisar_costo_tabla_ancha)) {
+    stop("`avisar_costo_tabla_ancha` debe ser TRUE o FALSE.", call. = FALSE)
+  }
+  umbral_celdas_aviso_tabla_ancha <- .validar_limite_duplicados(
+    umbral_celdas_aviso_tabla_ancha, "umbral_celdas_aviso_tabla_ancha"
+  )
+  costo_tabla_ancha <- .proyectar_costo_tabla_ancha(
+    nrow(datos), ncol(datos), umbral_celdas_aviso_tabla_ancha
+  )
+  .avisar_costo_tabla_ancha(costo_tabla_ancha, avisar_costo_tabla_ancha)
   columnas_personales <- .normalizar_columnas_personales(
     columnas_personales, names(datos)
   )
@@ -1484,6 +1557,7 @@ perfilar <- function(datos,
     detectar_variantes_equifrecuentes = variantes_equifrecuentes_vocabulario,
     max_asimetria_equifrecuente = max_asimetria_equifrecuente_vocabulario,
     max_trabajo = max_trabajo_vocabulario,
+    max_largo_valor = max_largo_valor_vocabulario,
     trazador_tiempos = trazador_tiempos
   )
   cobertura_diagnosticos <- attr(
@@ -1662,6 +1736,10 @@ perfilar <- function(datos,
       maximo = attr(dependencias, "max_trabajo", exact = TRUE)
     ),
     max_trabajo_vocabulario = max_trabajo_vocabulario,
+    max_largo_valor_vocabulario = max_largo_valor_vocabulario,
+    avisar_costo_tabla_ancha = avisar_costo_tabla_ancha,
+    umbral_celdas_aviso_tabla_ancha = umbral_celdas_aviso_tabla_ancha,
+    costo_tabla_ancha = costo_tabla_ancha,
     sentinelas_numericos = .numeros_na(sentinelas_numericos),
     datos_personales_permitidos = datos_personales_permitidos,
     proteger_datos_personales = proteger_datos_personales,

@@ -28,7 +28,8 @@ detectar_duplicados_aproximados(
   lotes = FALSE,
   tamano_lote = 1000L,
   directorio_lotes = NULL,
-  nucleos = getOption("lupa.nucleos", 2L)
+  nucleos = getOption("lupa.nucleos", 2L),
+  max_largo_valor = .MAX_LARGO_VALOR_CASI_DUPLICADOS
 )
 }
 \arguments{
@@ -133,6 +134,14 @@ defecto es \code{getOption("lupa.nucleos", 2L)}; \code{NULL} usa esa misma opci�
 un valor mayor que los núcleos disponibles se limita de forma segura. El
 resultado no depende de esta cantidad, pero el tiempo sí. El valor efectivo
 queda declarado en \code{alcance$nucleos_usados}.}
+
+\item{max_largo_valor}{Maximo de caracteres permitido en cada valor de las
+columnas combinadas. Por defecto es \code{10000}, umbral elegido porque la
+distancia normalizada deja de distinguir de forma estable una diferencia
+local de muchas diferencias en textos largos. Si una columna supera el
+tope, la combinacion completa se declara fuera de alcance en
+\code{alcance$columnas_excluidas_largo}; no se recortan valores en silencio.
+\code{Inf} recupera explicitamente el comportamiento anterior sin tope.}
 }
 \value{
 Lista de clase \code{duplicados_aproximados} con \code{pares}, \code{hallazgos},

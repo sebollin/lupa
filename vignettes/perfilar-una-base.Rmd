@@ -126,6 +126,15 @@ La conexión y los dos perfiles ya están preparados. Los bloques siguientes
 consultan ese mismo estado: partir la explicación no implica recrear la base ni
 volver a medirla.
 
+Cuando el perfil es de una tabla en memoria, `perfilar()` proyecta el costo de
+las celdas antes de iniciar las etapas caras. Desde 100.000 celdas puede
+mostrar, sólo en una sesion interactiva, un aviso con la duracion estimada y la
+fuente de la referencia; en un guion no interactivo queda en silencio. La
+proyeccion se conserva en `meta$costo_tabla_ancha`. Para la proximidad del
+vocabulario, valores de mas de 10.000 caracteres quedan fuera de la distancia
+normalizada y la cobertura lo declara con el umbral; `Inf` es la forma explicita
+de recuperar el comportamiento anterior.
+
 ## Antes de conectarse: qué hace falta para cada motor
 
 `lupa` tiene dos dependencias obligatorias, `cli` y `data.table`. El paquete del
