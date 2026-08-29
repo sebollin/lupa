@@ -520,7 +520,9 @@ los comparta puede rehacer la cuenta.
 Los agregados planos que comparten lote —`COUNT(col)`, mínimo, máximo, media,
 ceros, negativos y desvío— se piden en una sola consulta. `COUNT(DISTINCT ...)`
 y la moda conservan consultas separadas por sus planes propios. La mediana
-también conserva ese camino como respaldo; un motor que acepta
+también conserva ese camino como respaldo; en PostgreSQL 9.3 y SQLite el conteo
+de la mediana queda como subconsulta escalar en la misma sentencia que ordena y
+recorta. Un motor que acepta
 `PERCENTILE_CONT(...) WITHIN GROUP` puede consolidar varias en un solo
 `SELECT` por lote. En
 `modo = "muestreado"`, una consulta distinta vuelve a resolver el muestreo: la

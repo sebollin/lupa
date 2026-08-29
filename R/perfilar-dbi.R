@@ -528,6 +528,7 @@
         "vertica|greenplum|presto|trino|spark|hive|snowflake|bigquery|athena"
       ),
       alias_tabla = function(nombre) paste0(" AS ", nombre),
+      mediana_escalar = list(resto = "%", division = "/"),
       limitar = function(sql, n, salto = 0) {
         paste0(
           sql, " LIMIT ", .entero_sql_dbi(n),
@@ -543,6 +544,7 @@
       motores = "SQL Server 2012 o posterior, Sybase",
       patron = "sql server|microsoft sql|sqlserver|mssql|tsql|sybase",
       alias_tabla = function(nombre) paste0(" AS ", nombre),
+      mediana_escalar = NULL,
       limitar = function(sql, n, salto = 0) {
         if (salto > 0) {
           return(paste0(
@@ -562,6 +564,7 @@
       motores = "Oracle 12c o posterior, DB2, Derby, H2",
       patron = "oracle|db2|informix|derby|hsqldb|\\bh2\\b",
       alias_tabla = function(nombre) paste0(" ", nombre),
+      mediana_escalar = NULL,
       limitar = function(sql, n, salto = 0) {
         paste0(
           sql,
@@ -579,6 +582,7 @@
       motores = "Oracle anterior a 12c",
       patron = "oracle",
       alias_tabla = function(nombre) paste0(" ", nombre),
+      mediana_escalar = NULL,
       limitar = function(sql, n, salto = 0) {
         if (salto > 0) return(NULL)
         paste0(
@@ -596,6 +600,7 @@
       motores = "cualquier motor con DBI",
       patron = NA_character_,
       alias_tabla = function(nombre) paste0(" AS ", nombre),
+      mediana_escalar = NULL,
       limitar = function(sql, n, salto = 0) NULL,
       muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
                    "tablesample_system", "tablesample_percent", "random_limit")
@@ -868,6 +873,113 @@
   forma$filas_solicitadas <- efectivas
   forma$filas_pedidas <- as.numeric(muestra)
   forma
+}
+
+# La mediana exacta puede conservar el limite y el salto sin llevar el orden
+# completo a R, pero el conteo que los calcula tiene que vivir en la misma
+# sentencia. `%` es el operador que comparten SQLite y PostgreSQL; `/` conserva
+# division entera cuando ambos operandos son los conteos enteros de esos
+# motores. La sonda de abajo impide extender esa suposicion a otro motor.
+.candidatos_mediana_escalar_dbi <- function(conexion, dialecto) {
+  forma <- dialecto$mediana_escalar
+  if (is.null(forma)) return(list())
+  valor <- as.character(DBI::dbQuoteIdentifier(conexion, "valor"))
+  construir <- function(expr, tabla, alias, materializar = FALSE) {
+    if (isTRUE(materializar)) {
+      fuente <- "lupa_mediana_datos"
+      cuenta <- "COUNT(*)"
+      cuerpo <- paste0(
+        "WITH ", fuente, " AS (SELECT ", expr, " AS ", valor,
+        " FROM ", tabla, " WHERE ", expr, " IS NOT NULL) ",
+        "SELECT AVG(", valor, " * 1.0) AS ", alias,
+        " FROM (SELECT ", valor, " FROM ", fuente,
+        " ORDER BY ", valor,
+        " LIMIT 2 - (SELECT ", cuenta, " ", forma$resto, " 2 FROM ",
+        fuente, ")",
+        " OFFSET (SELECT (", cuenta, " - 1) ", forma$division,
+        " 2 FROM ", fuente, "))", dialecto$alias_tabla("lupa_mediana")
+      )
+      return(cuerpo)
+    }
+    cuenta <- paste0("COUNT(", expr, ")")
+    paste0(
+      "SELECT AVG(", valor, " * 1.0) AS ", alias,
+      " FROM (SELECT ", expr, " AS ", valor, " FROM ", tabla,
+      " WHERE ", expr, " IS NOT NULL ORDER BY ", expr,
+      " LIMIT 2 - (SELECT ", cuenta, " ", forma$resto, " 2 FROM ",
+      tabla, ")",
+      " OFFSET (SELECT (", cuenta, " - 1) ", forma$division,
+      " 2 FROM ", tabla, "))", dialecto$alias_tabla("lupa_mediana")
+    )
+  }
+  list(list(
+    nombre = "subconsulta_escalar",
+    construir = construir,
+    sonda = function(alias, materializar = FALSE) {
+      tabla <- paste0(
+        "(SELECT 1 AS lupa_valor UNION ALL SELECT 2 AS lupa_valor",
+        " UNION ALL SELECT 3 AS lupa_valor UNION ALL SELECT 4 AS lupa_valor)",
+        " lupa_mediana_sonda"
+      )
+      construir('"lupa_valor"', tabla, alias, materializar = materializar)
+    },
+    error_esperado = "no_aplica"
+  ))
+}
+
+.sondar_mediana_escalar_dbi <- function(conexion, dialecto, presupuesto,
+                                        materializar = FALSE) {
+  candidatos <- .candidatos_mediana_escalar_dbi(conexion, dialecto)
+  sondas <- character()
+  elegida <- NULL
+  for (candidato in candidatos) {
+    alias <- as.character(DBI::dbQuoteIdentifier(conexion, "mediana"))
+    sql <- candidato$sonda(alias, materializar = materializar)
+    sondas <- c(sondas, sql)
+    prueba <- .consultar_dbi(
+      conexion, sql, presupuesto, etapa = "sonda_mediana_escalar"
+    )
+    if (!isTRUE(prueba$ok)) next
+    celda <- .valor_campo_dbi(prueba$datos, "mediana")
+    if (!isTRUE(celda$ok)) next
+    valor <- .escalar_finito_dbi(celda$valor)
+    if (isTRUE(is.finite(valor)) &&
+        isTRUE(all.equal(valor, 2.5, tolerance = 1e-8))) {
+      elegida <- candidato
+      break
+    }
+  }
+  list(
+    disponible = !is.null(elegida), candidato = elegida, sondas = sondas,
+    motivo = if (is.null(elegida)) {
+      if (!length(candidatos)) {
+        paste0(
+          "El dialecto `", dialecto$nombre,
+          "` no declara una forma de mediana con subconsulta escalar; se",
+          " conserva la via de dos consultas."
+        )
+      } else {
+        paste(
+          "El motor no acepto la mediana con subconsulta escalar o no",
+          "conservo la division entera esperada; se conserva la via de dos",
+          "consultas."
+        )
+      }
+    } else {
+      "El motor acepto la mediana con subconsulta escalar y division entera."
+    }
+  )
+}
+
+.publicar_mediana_escalar_dbi <- function(resolucion) {
+  if (is.null(resolucion)) return(NULL)
+  candidato <- resolucion$candidato
+  list(
+    disponible = isTRUE(resolucion$disponible),
+    metodo = if (is.null(candidato)) NA_character_ else candidato$nombre,
+    sondas = resolucion$sondas,
+    motivo = resolucion$motivo
+  )
 }
 
 # Algunos motores pueden obtener varios percentiles en la misma agregacion.
@@ -3770,6 +3882,7 @@
                                  fraccion_muestra = NA_real_,
                                  agregados = NULL,
                                  mediana_consolidada = NULL,
+                                 mediana_escalar = NULL,
                                  moda_precalculada = NULL,
                                  decisiones_costo = NULL,
                                  publica_distintos = TRUE,
@@ -4259,6 +4372,26 @@
         fila$mediana <- .escalar_finito_dbi(mediana$valor)
       }
       registros <- registrar(registros, "mediana", mediana)
+    } else if (!is.null(mediana_escalar)) {
+      sql_mediana <- mediana_escalar$construir(
+        columna_sql, tabla_sql, alias("mediana"),
+        materializar = es_muestreado
+      )
+      mediana <- .escalar_dbi(
+        conexion, sql_mediana, "mediana", presupuesto, etapa = "mediana"
+      )
+      mediana$sql <- sql_mediana
+      mediana$metadatos <- list(metodo = mediana_escalar$nombre)
+      if (isTRUE(mediana$ok)) {
+        valor <- .escalar_finito_dbi(mediana$valor)
+        if (is.na(valor)) {
+          mediana$estado <- "sin_valores"
+          mediana$motivo <- "La columna no contiene valores no nulos."
+        } else {
+          fila$mediana <- valor
+        }
+      }
+      registros <- registrar(registros, "mediana", mediana)
     } else if (sin_conteo || (es_muestreado && !exists("validos_observados"))) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "mediana", "no_disponible",
@@ -4301,9 +4434,7 @@
         )
         if (mediana$ok) fila$mediana <- .escalar_finito_dbi(mediana$valor)
         mediana$sql <- sql_mediana
-        if (identical(modo, "aproximado") && isTRUE(mediana$ok)) {
-          mediana$metadatos <- list(metodo = "mediana_exacta")
-        }
+        mediana$metadatos <- list(metodo = "dos_consultas")
         registros <- registrar(registros, "mediana", mediana)
       }
     }
@@ -4411,6 +4542,7 @@
                                 conteo = NULL,
                                 tabla_total_sql = tabla_sql,
                                 mediana_consolidada = NULL,
+                                mediana_escalar = NULL,
                                 fuentes_cardinalidad_costo = NULL,
                                 estrategia_distintos = list(
                                   publica = TRUE, disponible = TRUE,
@@ -4592,6 +4724,7 @@
       tamano_muestra = tamano_muestra, fraccion_muestra = fraccion_muestra,
       agregados = agregados,
       mediana_consolidada = medianas[[campo]],
+      mediana_escalar = mediana_escalar,
       moda_precalculada = modas[[campo]],
       decisiones_costo = decisiones_costo[[campo]],
       publica_distintos = isTRUE(estrategia_distintos$publica),
@@ -5316,6 +5449,7 @@
 #'   `columnas_numericas`, `dialecto`, `consultas_emitidas`, `metricas`,
 #'   `metricas_ejecucion`, `politica_costo`, `estrategia_distintos`,
 #'   `fuente_cardinalidad_costo`, `mediana_consolidada`, `filas`,
+#'   `mediana_escalar`,
 #'   `tamano_lote_planos` y `tamano_lote_distintos`. Cuando se pide
 #'   `bloque_muestra = "solo_agregados"`, también conserva ese valor en el
 #'   atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
@@ -5538,6 +5672,9 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "fuente_cardinalidad_costo") <-
     preparacion$fuentes_cardinalidad_costo
   attr(plan, "mediana_consolidada") <- preparacion$mediana_consolidada_resolucion
+  attr(plan, "mediana_escalar") <- .publicar_mediana_escalar_dbi(
+    preparacion$mediana_escalar_resolucion
+  )
   attr(plan, "filas") <- preparacion$n_total
   attr(plan, "muestra") <- if (identical(
     preparacion$bloque_muestra, "con_muestra"
@@ -6614,6 +6751,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   aproximaciones_resolucion <- list()
   mediana_consolidada_resolucion <- NULL
   mediana_consolidada <- NULL
+  mediana_escalar_resolucion <- NULL
+  mediana_escalar <- NULL
   if ("mediana" %in% metricas && isTRUE(incluir_valores) &&
       any(es_numerico)) {
     mediana_consolidada_resolucion <- .sondar_mediana_consolidada_dbi(
@@ -6648,6 +6787,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
       } else {
         aproximaciones$mediana <- resolucion_mediana$candidato
       }
+    }
+  }
+  if ("mediana" %in% metricas && isTRUE(incluir_valores) &&
+      any(es_numerico) && is.null(mediana_consolidada) &&
+      is.null(aproximaciones$mediana)) {
+    mediana_escalar_resolucion <- .sondar_mediana_escalar_dbi(
+      conexion, resolucion$dialecto, presupuesto,
+      materializar = identical(modo, "muestreado")
+    )
+    if (isTRUE(mediana_escalar_resolucion$disponible)) {
+      mediana_escalar <- mediana_escalar_resolucion$candidato
     }
   }
   sql_conteo <- paste0(
@@ -6718,6 +6868,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     aproximaciones_resolucion = aproximaciones_resolucion,
     mediana_consolidada = mediana_consolidada,
     mediana_consolidada_resolucion = mediana_consolidada_resolucion,
+    mediana_escalar = mediana_escalar,
+    mediana_escalar_resolucion = mediana_escalar_resolucion,
     politica_costo = politica_costo,
     estrategia_distintos = estrategia_distintos,
     fuentes_cardinalidad_costo = fuentes_cardinalidad_costo,
@@ -6847,6 +6999,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' a memoria. El alias de subconsulta se escribe con `AS` o sin él según el
 #' motor, y los alias de columna van comillados y se comparan sin distinguir
 #' caja, porque hay motores que los pliegan a mayúsculas.
+#' Para los motores del dialecto `limit`, la mediana exacta usa una sola
+#' sentencia: el `COUNT` queda como subconsulta escalar de la consulta que
+#' ordena y recorta. La forma se sondea antes de usarla; en SQLite y
+#' PostgreSQL se usan `%` y `/` con division entera. Los dialectos que no
+#' declaran esa forma conservan las dos consultas y lo publican en el metodo
+#' de `resumen_tabla$sql`; `PERCENTILE_CONT` no cambia.
 #'
 #' @section Costo:
 #' Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo que
@@ -7179,6 +7337,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     tamano_lote_distintos = preparacion$tamano_lote_distintos,
     conteo = preparacion$conteo,
     mediana_consolidada = preparacion$mediana_consolidada,
+    mediana_escalar = preparacion$mediana_escalar,
     fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo,
     estrategia_distintos = preparacion$estrategia_distintos,
     politica_costo = preparacion$politica_costo
@@ -7270,6 +7429,8 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     preparacion$fuentes_cardinalidad_costo
   resumen$meta$mediana_consolidada <-
     preparacion$mediana_consolidada_resolucion
+  resumen$meta$mediana_escalar <-
+    .publicar_mediana_escalar_dbi(preparacion$mediana_escalar_resolucion)
   resumen$meta$incluir_valores <- incluir_valores
   resumen$meta$tamano_lote <- preparacion$tamano_lote
   resumen$meta$tamano_lote_funciono <- presupuesto$tamano_lote_funciono

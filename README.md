@@ -246,7 +246,11 @@ of tens of millions of rows that is the cost: not the sampling, the number of
 scans. The flat aggregates — `COUNT(col)`, min/max/mean/zeros/negatives, and
 standard deviation — are now asked for **several columns in one query**, in
 batches. `COUNT(DISTINCT ...)` keeps a separate query class; mode and median
-stay one per column, because they group and sort.
+stay one per column, because they group and sort. On PostgreSQL 9.3 and
+SQLite, where that function is unavailable, the per-column median keeps
+`LIMIT` but makes the count a scalar subquery of the same statement. The probe
+also checks integer division (`%` and `/`); if a dialect does not accept that
+form, the result declares that it kept the two-query path.
 
 In approximate mode, a distinct count is consolidated only when the capability
 provides an expression that can be embedded in the `SELECT`. If it only builds

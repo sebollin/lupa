@@ -171,7 +171,10 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
     recorridos_esperados <- if (identical(modo, "muestreado")) {
       length(sql) + 1L
     } else {
-      length(sql)
+      length(sql) + 2L * sum(
+        resultado$resumen_tabla$sql$metodo == "subconsulta_escalar",
+        na.rm = TRUE
+      )
     }
     expect_equal(
       recorridos_fuente, recorridos_esperados,

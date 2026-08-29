@@ -293,3 +293,81 @@ test_that("an unconsultable catalogue keeps state unknown", {
   expect_true(is.na(resultado$estado$validada))
   expect_match(resultado$motivo, "sin permisos")
 })
+
+.ronda155_mediana_argumentos <- list(
+  bloque_muestra = "solo_agregados",
+  instrumentar = FALSE,
+  proteger_datos_personales = FALSE,
+  analizar_dependencias = FALSE,
+  casi_duplicados_vocabulario = FALSE,
+  ausencia_estructural = FALSE,
+  duplicados_aproximados = FALSE
+)
+
+test_that("SQLite usa la subconsulta escalar y la division entera", {
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+
+  candidato <- lupa:::.candidatos_mediana_escalar_dbi(
+    conexion, lupa:::.dialectos_dbi()$limit
+  )[[1L]]
+  sentencia <- candidato$construir(
+    "v", "t", "mediana"
+  )
+  expect_match(sentencia, "COUNT(v) % 2", fixed = TRUE)
+  expect_match(sentencia, "COUNT(v) - 1) / 2", fixed = TRUE)
+  expect_length(
+    lupa:::.candidatos_mediana_escalar_dbi(
+      conexion, lupa:::.dialectos_dbi()$fetch_first
+    ), 0L
+  )
+})
+
+test_that("la mediana coincide en los nueve bordes del repliegue", {
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+
+  casos <- list(
+    impar = list(valores = c(1, 3, 5), esperada = 3),
+    par = list(valores = c(1, 2, 3, 4), esperada = 2.5),
+    nulos = list(valores = c(NA, 1, 3, NA, 5), esperada = 3),
+    un_valor = list(valores = 7, esperada = 7),
+    dos_valores = list(valores = c(2, 10), esperada = 6),
+    tabla_vacia = list(valores = numeric(), esperada = NA_real_),
+    todo_nulo = list(valores = c(NA_real_, NA_real_), esperada = NA_real_),
+    repetidos = list(valores = rep(4, 5), esperada = 4),
+    negativos = list(valores = c(-10, -4, -2, -1), esperada = -3)
+  )
+
+  for (nombre in names(casos)) {
+    DBI::dbWriteTable(
+      conexion, "datos", data.frame(valor = casos[[nombre]]$valores),
+      overwrite = TRUE
+    )
+    resultado <- do.call(
+      perfilar_dbi,
+      c(
+        list(
+          conexion = conexion, tabla = "datos",
+          metricas = c("validos", "mediana")
+        ),
+        .ronda155_mediana_argumentos
+      )
+    )
+    fila <- resultado$resumen_tabla$columnas
+    expect_equal(fila$mediana, casos[[nombre]]$esperada, info = nombre)
+
+    resolucion <- resultado$resumen_tabla$meta$mediana_escalar
+    expect_true(resolucion$disponible, info = nombre)
+    registro <- resultado$resumen_tabla$sql[
+      resultado$resumen_tabla$sql$metrica == "mediana", , drop = FALSE
+    ]
+    expect_equal(nrow(registro), 1L, info = nombre)
+    if (is.finite(casos[[nombre]]$esperada)) {
+      expect_identical(registro$metodo, "subconsulta_escalar", info = nombre)
+      expect_match(registro$sql, "SELECT COUNT", fixed = TRUE, info = nombre)
+      expect_match(registro$sql, "% 2", fixed = TRUE, info = nombre)
+      expect_match(registro$sql, "/ 2", fixed = TRUE, info = nombre)
+    }
+  }
+})

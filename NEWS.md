@@ -1,5 +1,18 @@
 # lupa 0.1.0
 
+## La mediana conserva una sola instantanea
+
+- La mediana exacta de los dialectos que usan `LIMIT` reemplaza el conteo y el
+  recorte en dos consultas por una sola sentencia con subconsultas escalares.
+  La sonda verifica la forma y la division entera de `%` y `/`; en SQLite y
+  PostgreSQL 9.3 se conserva el camino con `LIMIT`.
+- Si el dialecto no acepta esa forma, se conserva la via de dos consultas y el
+  metodo queda declarado en `resumen_tabla$sql`. La ruta de
+  `PERCENTILE_CONT(...) WITHIN GROUP` no cambia.
+- La forma nueva coincide con la via anterior en nueve bordes de la mediana,
+  incluidos nulos, tabla vacia, repetidos y negativos; se verifico en SQLite y
+  contra PostgreSQL 9.3.
+
 ## El costo de distintos se anuncia antes de pagarlo
 
 - `perfilar_dbi()` anuncia, antes del primer `COUNT(DISTINCT)`, una proyección
