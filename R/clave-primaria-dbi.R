@@ -151,7 +151,13 @@
         paste0(
           "SELECT c.column_name, c.position AS ordinal_position, ",
           "t.status AS constraint_status, ",
-          "t.validated AS constraint_validated ",
+          "t.validated AS constraint_validated, ",
+          # Oracle tambien admite restricciones diferibles, con el mismo efecto
+          # que en PostgreSQL: dentro de una transaccion puede haber duplicados
+          # que se rechazaran recien al confirmar. Se mira DEFERRABLE y no
+          # DEFERRED, porque el segundo es el estado inicial y `SET CONSTRAINTS`
+          # puede diferir despues una que empezo inmediata.
+          "t.deferrable AS constraint_diferible ",
           "FROM all_constraints t JOIN all_cons_columns c ",
           "ON t.constraint_name = c.constraint_name ",
           "AND t.owner = c.owner ",
@@ -192,7 +198,23 @@
           # fila de `pg_constraint`. Leerlo es preferir el mecanismo a la
           # declaracion, que es la tesis del paquete, y sale gratis: el `JOIN`
           # va en la misma consulta. `conindid` apunta a ese indice.
+          #
+          # Se exige evidencia POSITIVA de los cinco campos, no la ausencia de un
+          # FALSE. Medido: un `CREATE UNIQUE INDEX CONCURRENTLY` que falla deja
+          # un indice con `indisunique = t` pero `indisvalid = f` e
+          # `indisready = f`, y ese indice NO impone unicidad -la tabla acepta un
+          # duplicado nuevo y queda con 4 validos y 2 distintos-.
+          #
+          # PostgreSQL impide que ese indice respalde una clave primaria
+          # -"index is not valid" al intentarlo-, asi que por DDL soportado no se
+          # llega. Se comprueba igual porque la asimetria manda: un falso
+          # negativo pierde una optimizacion, un falso positivo publica un numero
+          # exacto equivocado.
+          "i.indisprimary AS constraint_indice_primario, ",
           "i.indisunique AS constraint_indice_unico, ",
+          "i.indisvalid AS constraint_indice_valido, ",
+          "i.indisready AS constraint_indice_listo, ",
+          "i.indislive AS constraint_indice_vivo, ",
           # Una restriccion diferible puede estar violada dentro de una
           # transaccion abierta: el catalogo la informa validada igual.
           "c.condeferrable AS constraint_diferible ",
@@ -276,14 +298,25 @@
   datos[[posicion[[1L]]]]
 }
 
-.estado_clave <- function(valor, tipo = c("si_no", "oraculo")) {
+.estado_clave <- function(valor, tipo = c("si_no", "oraculo", "diferible")) {
   tipo <- match.arg(tipo)
   if (is.null(valor) || !length(valor)) return(NA)
   if (is.logical(valor)) return(if (is.na(valor[[1L]])) NA else valor[[1L]])
   texto <- toupper(trimws(as.character(valor[[1L]])))
   if (is.na(texto) || !nzchar(texto)) return(NA)
-  afirmativos <- if (tipo == "oraculo") "ENABLED" else c("YES", "TRUE", "1")
-  negativos <- if (tipo == "oraculo") "DISABLED" else c("NO", "FALSE", "0")
+  # PostgreSQL devuelve `condeferrable` como logico; Oracle publica el texto
+  # DEFERRABLE o NOT DEFERRABLE en `ALL_CONSTRAINTS`. El mismo hecho, dos
+  # representaciones, un solo interprete.
+  afirmativos <- switch(tipo,
+    oraculo = "ENABLED",
+    diferible = c("DEFERRABLE", "YES", "TRUE", "1"),
+    c("YES", "TRUE", "1")
+  )
+  negativos <- switch(tipo,
+    oraculo = "DISABLED",
+    diferible = c("NOT DEFERRABLE", "NOT_DEFERRABLE", "NO", "FALSE", "0"),
+    c("NO", "FALSE", "0")
+  )
   if (texto %in% afirmativos) return(TRUE)
   if (texto %in% negativos) return(FALSE)
   if (tipo == "oraculo" && texto == "VALIDATED") return(TRUE)
@@ -329,15 +362,27 @@
   # transaccion con violaciones pendientes, y el costo de equivocarse es
   # publicar un exacto falso, asi que la garantia no se afirma.
   diferible <- .campo_clave(datos, "constraint_diferible")
-  es_diferible <- !is.null(diferible) && isTRUE(.estado_clave(diferible, "si_no"))
+  es_diferible <- !is.null(diferible) &&
+    isTRUE(.estado_clave(diferible, "diferible"))
   # Si el indice que respalda la clave no es unico, no hay unicidad aunque la
   # restriccion figure validada. Por DDL normal no se llega a ese estado -al
   # adjuntar una particion el motor crea el indice unico solo-, asi que esto es
   # defensa ante un catalogo alterado a mano o un estado anormal. Cuando la
   # columna no viene -otros motores- no cambia nada.
-  indice_unico <- .campo_clave(datos, "constraint_indice_unico")
-  indice_no_unico <- !is.null(indice_unico) &&
-    identical(.estado_clave(indice_unico, "si_no"), FALSE)
+  campos_indice <- c(
+    "constraint_indice_primario", "constraint_indice_unico",
+    "constraint_indice_valido", "constraint_indice_listo",
+    "constraint_indice_vivo"
+  )
+  leidos <- lapply(campos_indice, function(nombre) .campo_clave(datos, nombre))
+  names(leidos) <- campos_indice
+  # Si ninguno vino -otros motores no traen estas columnas- no se exige nada.
+  hay_datos_indice <- any(!vapply(leidos, is.null, logical(1L)))
+  indice_no_unico <- hay_datos_indice && !all(vapply(
+    leidos,
+    function(x) !is.null(x) && isTRUE(.estado_clave(x, "si_no")),
+    logical(1L)
+  ))
   estado <- list(
     visible = TRUE,
     aplicada = aplicada,
@@ -389,7 +434,13 @@
   }
 
   if (identical(via, "all_constraints")) {
-    garantia <- if (isTRUE(aplicada) && isTRUE(validada)) {
+    # Oracle admite restricciones diferibles igual que PostgreSQL, y con el
+    # mismo efecto: dentro de una transaccion puede haber duplicados que se
+    # rechazaran recien al confirmar. Se mira DEFERRABLE y no DEFERRED, porque
+    # `SET CONSTRAINTS` puede diferir despues una que empezo inmediata.
+    garantia <- if (es_diferible) {
+      "declarada_no_garantizada"
+    } else if (isTRUE(aplicada) && isTRUE(validada)) {
       "garantizada"
     } else if (identical(aplicada, FALSE) || identical(validada, FALSE)) {
       "declarada_no_garantizada"
@@ -456,9 +507,12 @@
 # hecho que `lupa` afirmara "no hay clave declarada" sobre una tabla que si la
 # tiene, que es exactamente el defecto que este cambio corrige.
 #
-# SQL Server queda ambiguo por precaucion: sus vistas `INFORMATION_SCHEMA`
-# tambien filtran por permisos y no se midio con un rol restringido. Cuando se
-# mida, se mueve con su numero.
+# SQL Server YA se midio y dejo de ser ambiguo. Con un rol de solo `SELECT`
+# sobre tablas con clave simple, compuesta y sin clave, la vista devuelve 1, 1 y
+# 0. Lo sostienen dos mediciones independientes sobre dos versiones distintas del
+# motor -un contenedor 2022 y un servidor 2016 con la credencial real de un
+# perfilado-, no la documentacion: MariaDB documenta lo mismo que MySQL y
+# midiendo devuelve lo contrario.
 .catalogo_clave_visible <- function(via, motor) {
   if (via %in% c("pg_catalog", "pragma", "duckdb_constraints")) {
     return(TRUE)
@@ -528,8 +582,22 @@
   respuesta <- .consultar_dbi(conexion, sql, presupuesto)
   if (!isTRUE(respuesta$ok)) {
     return(vacio(
-      via$nombre, paste0(via$nombre, ": ", respuesta$motivo),
-      visible = if (.error_permiso_clave(respuesta$motivo)) FALSE else NA
+      via$nombre, paste0(
+        via$nombre, ": ", respuesta$motivo,
+        if (.error_permiso_clave(respuesta$motivo)) {
+          " El mensaje parece relacionado con permisos, pero eso no alcanza para afirmarlo."
+        } else {
+          ""
+        }
+      ),
+      # `visible = FALSE` es una afirmacion positiva de invisibilidad, y
+      # deducirla del TEXTO del mensaje de error es exactamente la inferencia
+      # que este paquete no hace: los textos cambian por motor, por version y
+      # por idioma del servidor. Hasta que haya un codigo comprobado por
+      # adaptador -SQLSTATE o el codigo del motor-, lo unico defendible es que
+      # la visibilidad no se pudo establecer. La pista de texto sigue usandose,
+      # pero solo para redactar el motivo, no para llenar el campo.
+      visible = NA
     ))
   }
   datos <- respuesta$datos

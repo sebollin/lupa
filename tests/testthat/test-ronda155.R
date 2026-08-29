@@ -285,7 +285,10 @@ test_that("an unconsultable catalogue keeps state unknown", {
   resultado <- .ronda155_clave_no_consultable(oracle)
   expect_identical(resultado$fuente, "all_constraints")
   expect_identical(resultado$garantia, "desconocida")
-  expect_false(resultado$estado$visible)
+  # La visibilidad queda SIN establecer, no en FALSE: que el mensaje hable de
+  # permisos es una pista, no una observacion. Afirmar la invisibilidad a partir
+  # del texto seria inferencia, y los textos cambian por motor y por idioma.
+  expect_true(is.na(resultado$estado$visible))
   expect_true(is.na(resultado$estado$aplicada))
   expect_true(is.na(resultado$estado$validada))
   expect_match(resultado$motivo, "sin permisos")

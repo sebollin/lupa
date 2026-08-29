@@ -257,15 +257,24 @@ test_that("la decision de visibilidad distingue ceros y errores", {
   expect_identical(sin_primaria$garantia, "no_declarada")
   expect_true(sin_primaria$estado$visible)
 
+  # Un error de consulta deja la visibilidad SIN establecer, cualquiera sea su
+  # texto. `visible = FALSE` es una afirmacion positiva de invisibilidad, y
+  # deducirla del mensaje seria inferencia: los textos cambian por motor, por
+  # version y por idioma del servidor. Cuando haya un codigo comprobado por
+  # adaptador -SQLSTATE o el del motor- se podra afirmar; hasta entonces, NA.
   permiso <- .ronda159_clave_simulada(
     maria, NULL, ok = FALSE, motivo = "SHOW command denied"
   )$resultado
   expect_identical(permiso$garantia, "desconocida")
-  expect_false(permiso$estado$visible)
+  expect_true(is.na(permiso$estado$visible))
+  # La pista de texto no se pierde: pasa al motivo, que es donde ayuda sin
+  # afirmar de mas.
+  expect_match(permiso$motivo, "permisos")
 
   otro_error <- .ronda159_clave_simulada(
     maria, NULL, ok = FALSE, motivo = "table does not exist"
   )$resultado
   expect_identical(otro_error$garantia, "desconocida")
   expect_true(is.na(otro_error$estado$visible))
+  expect_false(grepl("permisos", otro_error$motivo, fixed = TRUE))
 })

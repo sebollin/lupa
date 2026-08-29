@@ -22,7 +22,13 @@
     datos$constraint_descendientes <- descendientes
     datos$constraint_diferible <- diferible
     datos$constraint_relkind <- relkind
+    # Los cinco campos del indice van juntos: se exige evidencia positiva de
+    # todos, y evidencia parcial no es evidencia.
+    datos$constraint_indice_primario <- TRUE
     datos$constraint_indice_unico <- indice_unico
+    datos$constraint_indice_valido <- TRUE
+    datos$constraint_indice_listo <- TRUE
+    datos$constraint_indice_vivo <- TRUE
   }
   datos
 }
@@ -195,9 +201,16 @@ test_that("un indice unico no altera el resto de las condiciones", {
   expect_false(resultado$estado$indice_no_unico)
 })
 
-test_that("sin la columna del indice no cambia nada, para los otros motores", {
+test_that("sin las columnas del indice no cambia nada, para los otros motores", {
+  # Los motores que no son PostgreSQL no traen NINGUNA de las cinco. La ausencia
+  # completa no exige nada; la ausencia PARCIAL si degrada, porque evidencia
+  # parcial no es evidencia positiva.
   datos <- .ronda162_catalogo()
-  datos$constraint_indice_unico <- NULL
+  for (campo in c("constraint_indice_primario", "constraint_indice_unico",
+                  "constraint_indice_valido", "constraint_indice_listo",
+                  "constraint_indice_vivo")) {
+    datos[[campo]] <- NULL
+  }
 
   resultado <- lupa:::.garantia_clave_primaria(
     datos, "information_schema", "mysql"
@@ -230,4 +243,82 @@ test_that("el SQL de pg_catalog no usa sintaxis posterior a PostgreSQL 9.3", {
   expect_match(sql, "pg_catalog.pg_constraint", fixed = TRUE)
   expect_false(grepl("WITH ORDINALITY", sql, fixed = TRUE))
   expect_match(sql, "generate_subscripts", fixed = TRUE)
+})
+
+test_that("una clave diferible de Oracle tampoco se declara garantizada", {
+  # Oracle admite restricciones diferibles igual que PostgreSQL, y `ALL_CONSTRAINTS`
+  # publica DEFERRABLE como texto. Se mira DEFERRABLE y no DEFERRED: el segundo
+  # es el estado inicial, y `SET CONSTRAINTS` puede diferir despues una que
+  # empezo inmediata.
+  base <- data.frame(
+    column_name = "ID", ordinal_position = 1L,
+    constraint_status = "ENABLED", constraint_validated = "VALIDATED",
+    stringsAsFactors = FALSE
+  )
+
+  diferible <- base
+  diferible$constraint_diferible <- "DEFERRABLE"
+  expect_identical(
+    lupa:::.garantia_clave_primaria(diferible, "all_constraints", "oracle")$garantia,
+    "declarada_no_garantizada"
+  )
+
+  inmediata <- base
+  inmediata$constraint_diferible <- "NOT DEFERRABLE"
+  expect_identical(
+    lupa:::.garantia_clave_primaria(inmediata, "all_constraints", "oracle")$garantia,
+    "garantizada"
+  )
+})
+
+test_that("el interprete de diferible entiende las dos representaciones", {
+  # PostgreSQL devuelve un logico; Oracle, un texto.
+  expect_true(lupa:::.estado_clave(TRUE, "diferible"))
+  expect_false(lupa:::.estado_clave(FALSE, "diferible"))
+  expect_true(lupa:::.estado_clave("DEFERRABLE", "diferible"))
+  expect_false(lupa:::.estado_clave("NOT DEFERRABLE", "diferible"))
+  expect_false(lupa:::.estado_clave("not deferrable", "diferible"))
+  expect_true(is.na(lupa:::.estado_clave(NA, "diferible")))
+})
+
+test_that("un indice sin evidencia positiva completa retira la garantia", {
+  # Se exige evidencia POSITIVA de los cinco campos del indice, no la ausencia
+  # de un FALSE. Medido: un `CREATE UNIQUE INDEX CONCURRENTLY` fallido deja
+  # `indisunique = t` con `indisvalid = f` e `indisready = f`, y ese indice NO
+  # impone unicidad: la tabla acepta un duplicado nuevo.
+  completo <- data.frame(
+    column_name = "id", ordinal_position = 1L,
+    constraint_enforced = TRUE, constraint_validated = TRUE,
+    constraint_descendientes = 0L, constraint_relkind = "r",
+    constraint_diferible = FALSE,
+    constraint_indice_primario = TRUE, constraint_indice_unico = TRUE,
+    constraint_indice_valido = TRUE, constraint_indice_listo = TRUE,
+    constraint_indice_vivo = TRUE, stringsAsFactors = FALSE
+  )
+  expect_identical(
+    lupa:::.garantia_clave_primaria(completo, "pg_catalog", "postgresql")$garantia,
+    "garantizada"
+  )
+
+  for (campo in c("constraint_indice_primario", "constraint_indice_unico",
+                  "constraint_indice_valido", "constraint_indice_listo",
+                  "constraint_indice_vivo")) {
+    roto <- completo
+    roto[[campo]] <- FALSE
+    expect_identical(
+      lupa:::.garantia_clave_primaria(roto, "pg_catalog", "postgresql")$garantia,
+      "declarada_no_garantizada", info = campo
+    )
+  }
+})
+
+test_that("evidencia parcial del indice no alcanza", {
+  # Si vienen algunas columnas del indice y otras no, no se puede afirmar que el
+  # mecanismo este sano. Degradar es lo correcto.
+  datos <- .ronda162_catalogo()
+  datos$constraint_indice_valido <- NULL
+
+  resultado <- lupa:::.garantia_clave_primaria(datos, "pg_catalog", "postgresql")
+
+  expect_identical(resultado$garantia, "declarada_no_garantizada")
 })
