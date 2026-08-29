@@ -323,8 +323,10 @@ el mismo `consulta_id`. Si una capacidad aproximada no puede traer ese guardián
 la comprobación queda declarada como no disponible y no se atribuye una
 inconsistencia al motor. Los tamaños se pueden separar:
 `tamano_lote_planos` controla los agregados planos y `tamano_lote_distintos` las
-cardinalidades; este último vale 1 por omisión hasta contar con mediciones,
-porque una sola cardinalidad puede derramar mucho más que un lote plano.
+cardinalidades; el primero vale 20 y el segundo 2. La asimetría está medida: una
+sola cardinalidad puede derramar mucho más que un lote plano, pero un lote de 1
+resultó peor que uno de 2 —27,6 segundos por columna contra unos 15—, así que el
+valor por omisión salió de la medición y no de la precaución.
 La consulta de la moda intenta traer `SUM(COUNT(*)) OVER () AS n_validos_guard`
 junto a su frecuencia. La forma se sondea antes de usarla; si el motor la
 rechaza, conserva la consulta anterior y lo declara en
@@ -507,10 +509,10 @@ igual de cercanos. Eso no se arregla: se declara. `alcance` trae
 
 ### El costo se planifica antes de pagarlo
 
-Perfilar una tabla de 158 columnas en `modo = "exacto"` emite 262 consultas, y
-256 de ellas escanean, ordenan o agrupan la tabla entera. La cuenta sigue a la
+Perfilar una tabla de 158 columnas en `modo = "exacto"` emite 335 consultas, y
+327 de ellas escanean, ordenan o agrupan la tabla entera. La cuenta sigue a la
 composición y no a la cantidad de columnas: esas mismas 158 columnas, todas de
-texto, cuestan 172, porque una mediana pide un orden total por columna numérica.
+texto, cuestan 252, porque una mediana pide un orden total por columna numérica.
 `muestra` no acota nada de eso —acota lo que se trae a R, no el trabajo del
 motor—. Así que el costo se declara y se elige (`benchmark/medir_plan_ancho.R`
 reproduce los cuatro números):
@@ -950,8 +952,11 @@ el proyecto no declare pesos nombrados completos, y todo índice calculado
 conserva cobertura, pesos, transformaciones y universos heterogéneos. El núcleo
 es universal y los catálogos son enchufables;
 [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
-v1.6 es una implementación de referencia, no un límite nacional. El único
-import obligatorio es [`cli`](https://cran.r-project.org/package=cli). Los
+v1.6 es una implementación de referencia, no un límite nacional. Tiene dos
+dependencias duras, [`cli`](https://cran.r-project.org/package=cli) y
+[`data.table`](https://cran.r-project.org/package=data.table), y **no importa
+ninguna** a su espacio de nombres: a las dos las llama con `::`. Es deliberado:
+`data.table` cambia el significado de `[` en todo paquete que lo importe. Los
 paquetes sugeridos habilitan capacidades acotadas:
 [`sf`](https://cran.r-project.org/package=sf) habilita el perfilado de
 geometrías; [`DBI`](https://cran.r-project.org/package=DBI) aporta la interfaz

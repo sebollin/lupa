@@ -245,8 +245,10 @@ Profiling issued **one query per column** for each block of metrics. On a table
 of tens of millions of rows that is the cost: not the sampling, the number of
 scans. The flat aggregates — `COUNT(col)`, min/max/mean/zeros/negatives, and
 standard deviation — are now asked for **several columns in one query**, in
-batches. `COUNT(DISTINCT ...)` keeps a separate query class; mode and median
-stay one per column, because they group and sort. On PostgreSQL 9.3 and
+batches. `COUNT(DISTINCT ...)` keeps a separate query class; the mode
+stays one per column, because it groups. The median keeps a per-column fallback,
+but where the engine probe accepts `PERCENTILE_CONT(...) WITHIN GROUP` several
+medians travel in a single `SELECT` per batch. On PostgreSQL 9.3 and
 SQLite, where that function is unavailable, the per-column median keeps
 `LIMIT` but makes the count a scalar subquery of the same statement. The probe
 also checks integer division (`%` and `/`); if a dialect does not accept that
@@ -454,9 +456,9 @@ unique distance.
 
 ### Cost is planned before it is paid
 
-Profiling a 158-column table in `modo = "exacto"` emits 262 queries, and 256 of
+Profiling a 158-column table in `modo = "exacto"` emits 335 queries, and 327 of
 them scan, sort or group the whole table. The count follows the composition, not
-the column count: the same 158 columns as text only cost 172, because a median
+the column count: the same 158 columns as text only cost 252, because a median
 asks for a full sort per numeric column. `muestra` does not bound any of it — it
 bounds what is brought into R, not the work the engine does. So the cost is declared and chosen
 (`benchmark/medir_plan_ancho.R` reproduces the four numbers):
@@ -923,8 +925,11 @@ unless a project supplies complete named weights, and a calculated index always
 travels with its coverage, weights, transformations, and heterogeneous
 universes. The core is universal and catalogues are pluggable;
 [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
-v1.6 is a reference implementation, not a country lock. The only required
-import is [`cli`](https://cran.r-project.org/package=cli). Suggested packages
+v1.6 is a reference implementation, not a country lock. It has two hard
+dependencies, [`cli`](https://cran.r-project.org/package=cli) and
+[`data.table`](https://cran.r-project.org/package=data.table), and it imports
+**neither** into its namespace: both are called with `::`. That is deliberate —
+`data.table` changes what `[` means for any package that imports it. Suggested packages
 enable bounded capabilities: [`sf`](https://cran.r-project.org/package=sf)
 enables geometry profiling; [`DBI`](https://cran.r-project.org/package=DBI)
 provides the database interface and
