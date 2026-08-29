@@ -530,6 +530,30 @@ test_that("cada estrategia de distintos declara y emite su SQL", {
   }
 })
 
+test_that("las estrategias sin capacidad nunca emiten COUNT DISTINCT", {
+  bases <- .conexion_juguete()
+  on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
+  estrategias <- c("aproximada_motor", "catalogo", "omitida")
+  modos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
+
+  for (estrategia in estrategias) {
+    for (modo in modos) {
+      .juguete_reiniciar("normal")
+      .perfilar_juguete(
+        bases$juguete, modo = modo, muestra = 5L,
+        metricas = c("validos", "distintos", "moda"),
+        estrategia_distintos = estrategia,
+        politica_costo = "por_cardinalidad",
+        bloque_muestra = "solo_agregados",
+        proteger_datos_personales = FALSE
+      )
+      expect_false(any(grepl(
+        "COUNT(DISTINCT", .juguete_consultas(), fixed = TRUE
+      )), info = paste(estrategia, modo))
+    }
+  }
+})
+
 test_that("pedir el plan y despues perfilar ejecuta cada distinto una vez", {
   bases <- .conexion_juguete()
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)

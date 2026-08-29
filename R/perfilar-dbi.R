@@ -1537,6 +1537,88 @@
   )
 }
 
+# Compara solo mediciones exactas de `n_validos` y `n_distintos`. Si salen de
+# consultas distintas y se contradicen, la explicacion defendible es que la
+# tabla cambio entre ambas sentencias: cada valor puede ser correcto dentro de
+# su propio grupo de consistencia. No se usa esta funcion para aplicar una cota.
+.cobertura_cambio_entre_consultas_dbi <- function(columnas, sql) {
+  vacia <- .cobertura_dbi_vacia()
+  if (!is.data.frame(columnas) || !is.data.frame(sql) ||
+      !all(c("columna", "n_validos", "n_distintos") %in% names(columnas)) ||
+      !all(c("columna", "metrica", "estado", "consulta_id", "sql") %in%
+             names(sql))) {
+    return(vacia)
+  }
+  nombres <- as.character(columnas$columna)
+  exacto <- function(columna, metrica) {
+    indices <- which(
+      as.character(sql$columna) == columna &
+        as.character(sql$metrica) == metrica &
+        as.character(sql$estado) == "calculado" &
+        !is.na(sql$consulta_id)
+    )
+    if (!length(indices)) return(NULL)
+    indice <- indices[[length(indices)]]
+    list(
+      id = sql$consulta_id[[indice]],
+      sentencia = sql$sql[[indice]]
+    )
+  }
+  numero <- function(x) {
+    valor <- .numero_dbi(x)
+    if (length(valor) != 1L || is.na(valor) || !is.finite(valor)) {
+      return(NA_real_)
+    }
+    valor
+  }
+  texto_valor <- function(x) {
+    format(x, scientific = FALSE, trim = TRUE)
+  }
+  texto_sentencia <- function(registro) {
+    sentencia <- as.character(registro$sentencia)
+    if (!length(sentencia) || is.na(sentencia)) sentencia <- "no conservada"
+    paste0("sentencia ", as.character(registro$id), ": ", sentencia)
+  }
+  registros <- lapply(seq_len(nrow(columnas)), function(i) {
+    columna <- nombres[[i]]
+    validos <- exacto(columna, "n_validos")
+    distintos <- exacto(columna, "n_distintos")
+    if (is.null(validos) || is.null(distintos)) return(NULL)
+    id_validos <- as.character(validos$id)
+    id_distintos <- as.character(distintos$id)
+    if (!length(id_validos) || !length(id_distintos) ||
+        is.na(id_validos) || is.na(id_distintos) ||
+        identical(id_validos, id_distintos)) {
+      return(NULL)
+    }
+    n_validos <- numero(columnas$n_validos[[i]])
+    n_distintos <- numero(columnas$n_distintos[[i]])
+    if (is.na(n_validos) || is.na(n_distintos) || n_distintos <= n_validos) {
+      return(NULL)
+    }
+    motivo <- paste0(
+      "No hubo lectura instantanea de la tabla: `n_validos` = ",
+      texto_valor(n_validos), " salio de ", texto_sentencia(validos),
+      " y `n_distintos` = ", texto_valor(n_distintos), " salio de ",
+      texto_sentencia(distintos), ". Ambos valores son exactos dentro de su",
+      " sentencia, pero pertenecen a grupos de consistencia distintos y no se",
+      " pueden comparar como una sola fotografia. La diferencia es evidencia",
+      " de que la tabla cambio durante la corrida; no se atribuye al motor ni",
+      " al paquete."
+    )
+    .registro_cobertura_dbi(
+      "consistencia", columna, "alcance_distinto", motivo,
+      paste(
+        "Repetir el perfil bajo una instantanea o una transaccion con el nivel",
+        "de aislamiento que garantice una lectura consistente."
+      ),
+      NA_character_
+    )
+  })
+  registros <- Filter(Negate(is.null), registros)
+  if (!length(registros)) vacia else do.call(rbind, registros)
+}
+
 # ---- Metricas y modo -----------------------------------------------------
 
 .METRICAS_DBI <- c(
@@ -4287,9 +4369,15 @@
         NA_character_
       },
       solo_lectura = TRUE,
-       objetos_temporales = FALSE,
-       politica_costo = politica_costo,
-       decisiones_costo = decisiones_costo
+      objetos_temporales = FALSE,
+      snapshot = FALSE,
+      nota_snapshot = paste(
+        "No hubo lectura instantanea: cada agregado se midio en su propio",
+        "momento y la tabla pudo cambiar entre consultas. La cobertura declara",
+        "las comparaciones incoherentes entre grupos de consistencia distintos."
+      ),
+      politica_costo = politica_costo,
+      decisiones_costo = decisiones_costo
     )
   )
 }
@@ -4863,6 +4951,10 @@
 #' puede cerrar la decisión; si no hay una fuente de catálogo utilizable, el
 #' plan publica el rango entre omitir y ejecutar las métricas caras. Nunca
 #' lanza `COUNT(DISTINCT ...)` para despejar esa incertidumbre.
+#' Las fuentes estructurales se resuelven cuando la política necesita la
+#' cardinalidad, aunque `estrategia_distintos` no permita medirla. La
+#' disponibilidad de la estrategia gobierna la medición, no el conocimiento que
+#' ya da el catálogo.
 #'
 #' `estrategia_distintos` declara la procedencia de `n_distintos` antes de la
 #' corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
@@ -4919,6 +5011,8 @@
 #'   y mediana, y `n_consultas_max` deja abierto el camino que las ejecuta. La
 #'   corrida mide `distintos` sólo si la política lo necesita. La política por
 #'   omisión es `"todas"`: el paquete no elige por el usuario.
+#'   Una fuente estructural se resuelve aunque la estrategia de distintos este
+#'   omitida o no disponible; esta ultima solo gobierna si se puede medir.
 #'
 #'   Contar sólo el motor daba juicios falsos con números ciertos: una tabla de
 #'   3.912 filas con una columna de geometría en texto pedía 64.592 lecturas
@@ -6139,8 +6233,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
   )
   fuentes_cardinalidad_costo <- .fuentes_cardinalidad_vacias_dbi(campos)
   catalogo_cardinalidad <- NULL
-  if (isTRUE(estrategia_distintos$para_costo) &&
-      isTRUE(estrategia_distintos$disponible)) {
+  # La disponibilidad gobierna la medicion de cardinalidad, no la lectura de
+  # una garantia estructural que no recorre la tabla. Una estrategia omitida o
+  # sin capacidad no puede medir, pero tampoco debe tapar una clave conocida.
+  if (isTRUE(estrategia_distintos$para_costo)) {
     fuentes <- .resolver_fuentes_cardinalidad_dbi(
       conexion, tabla, campos, estrategia_distintos, presupuesto
     )
@@ -6310,7 +6406,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' habla de **métricas SQL**: qué pidió esta función al motor y qué pasó, con
 #' `bloque`, `elemento`, `estado` —`no_disponible`, `no_solicitado`,
 #' `degradado`, `presupuesto_agotado`, `alcance_distinto`— y la consulta en
-#' `sql`.
+#' `sql`. `alcance_distinto` declara que dos valores exactos incoherentes
+#' salieron de grupos de consistencia distintos: es evidencia de que la tabla
+#' cambio durante la corrida, no una acusacion contra el motor.
 #' `perfil_muestra$cobertura_diagnosticos` habla de **diagnósticos**: qué
 #' comprobación no se corrió sobre la muestra y por qué, con `diagnostico`,
 #' `columna`, `motivo` y `como_resolverlo`, el mismo esquema que devuelve
@@ -6377,6 +6475,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' La frecuencia de la moda no se compara con `n_validos` de otra sentencia:
 #' como su consulta no trae un guardian compañero, esa cota también queda
 #' declarada como no comprobable.
+#' `meta$snapshot` queda en `FALSE`, siguiendo la declaracion de colecciones: no
+#' hubo lectura instantanea. La cobertura agrega una entrada concreta solo si
+#' `n_validos` y `n_distintos` son exactos, incoherentes y provienen de grupos
+#' distintos; su motivo conserva ambas sentencias.
 #'
 #' Las cotas de error no documentadas de una aproximacion nativa quedan como
 #' `"desconocido"`. Una aproximacion solo se consolida cuando entrega una
@@ -6528,9 +6630,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @param politica_costo Política optativa para las métricas caras. El valor por
 #'   omisión, `"todas"`, conserva moda y mediana para todas las columnas
 #'   solicitadas. `"ninguna"` es un alias de `"todas"`; `"por_cardinalidad"`
-#'   (también `"cardinalidad"`) mide primero valores válidos y distintos cuando
-#'   no hay una fuente exacta utilizable y omite, por columna, moda y mediana
-#'   cuando la proporción de distintos alcanza `umbral_cardinalidad`.
+#'   (también `"cardinalidad"`) resuelve primero las fuentes estructurales y
+#'   mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
+#'   permite. Luego omite, por columna, moda y mediana cuando la proporción de
+#'   distintos alcanza `umbral_cardinalidad`. Una estrategia no disponible no
+#'   se convierte en una medición exacta.
 #' @param umbral_cardinalidad Proporción entre valores distintos y válidos que
 #'   activa `politica_costo = "por_cardinalidad"`. El valor por omisión es `0.95`
 #'   sólo cuando esa política se pide explícitamente; se puede mover en cada
@@ -6822,6 +6926,12 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     )
   }
   cobertura <- .cobertura_dbi_vacia()
+  cobertura <- rbind(
+    cobertura,
+    .cobertura_cambio_entre_consultas_dbi(
+      resumen$columnas, resumen$sql
+    )
+  )
   if (identical(preparacion$modo, "muestreado")) {
     resumen$meta$muestreo <- muestreo_publico
     if (is.null(fuente_muestreada)) {

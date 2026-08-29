@@ -108,3 +108,37 @@ test_that("la cota de distintos usa el guardian de su misma consulta", {
   expect_true(all(grepl("n_validos_guard", distinto$sql, fixed = TRUE)))
   expect_equal(length(unique(distinto$consulta_id)), 1L)
 })
+
+test_that("una incoherencia entre grupos declara que la tabla cambio", {
+  bases <- .conexion_consistencia_dbi(
+    data.frame(z = c(rep(1, 10), rep(NA, 90))), "insertar"
+  )
+  on.exit(.cerrar_consistencia_dbi(bases), add = TRUE)
+
+  resultado <- perfilar_dbi(
+    bases$conexion, "datos", metricas = c("validos", "distintos"),
+    bloque_muestra = "solo_agregados", proteger_datos_personales = FALSE
+  )
+  cobertura <- resultado$resumen_tabla$cobertura
+  cambio <- cobertura[cobertura$estado == "alcance_distinto", , drop = FALSE]
+  validos <- resultado$resumen_tabla$sql[
+    resultado$resumen_tabla$sql$columna == "z" &
+      resultado$resumen_tabla$sql$metrica == "n_validos", , drop = FALSE
+  ]
+  distintos <- resultado$resumen_tabla$sql[
+    resultado$resumen_tabla$sql$columna == "z" &
+      resultado$resumen_tabla$sql$metrica == "n_distintos", , drop = FALSE
+  ]
+
+  expect_equal(nrow(cambio), 1L)
+  expect_false(resultado$resumen_tabla$meta$snapshot)
+  expect_match(resultado$resumen_tabla$meta$nota_snapshot, "instantanea")
+  expect_match(cambio$motivo, "la tabla cambio", ignore.case = TRUE)
+  expect_match(cambio$motivo, "n_validos", fixed = TRUE)
+  expect_match(cambio$motivo, "n_distintos", fixed = TRUE)
+  expect_match(cambio$motivo, as.character(validos$consulta_id), fixed = TRUE)
+  expect_match(cambio$motivo, as.character(distintos$consulta_id), fixed = TRUE)
+  expect_match(cambio$motivo, validos$sql, fixed = TRUE)
+  expect_match(cambio$motivo, distintos$sql, fixed = TRUE)
+  expect_false(any(grepl("El motor informo", cambio$motivo, fixed = TRUE)))
+})

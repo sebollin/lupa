@@ -105,9 +105,11 @@ primeras también en \code{resumen_tabla$sql}.}
 \item{politica_costo}{Política optativa para las métricas caras. El valor por
 omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
 solicitadas. \code{"ninguna"} es un alias de \code{"todas"}; \code{"por_cardinalidad"}
-(también \code{"cardinalidad"}) mide primero valores válidos y distintos cuando
-no hay una fuente exacta utilizable y omite, por columna, moda y mediana
-cuando la proporción de distintos alcanza \code{umbral_cardinalidad}.}
+(también \code{"cardinalidad"}) resuelve primero las fuentes estructurales y
+mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
+permite. Luego omite, por columna, moda y mediana cuando la proporción de
+distintos alcanza \code{umbral_cardinalidad}. Una estrategia no disponible no
+se convierte en una medición exacta.}
 
 \item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
 activa \code{politica_costo = "por_cardinalidad"}. El valor por omisión es \code{0.95}
@@ -156,6 +158,8 @@ desconocida, no emite un agregado para aclararla: \code{n_consultas} omite moda
 y mediana, y \code{n_consultas_max} deja abierto el camino que las ejecuta. La
 corrida mide \code{distintos} sólo si la política lo necesita. La política por
 omisión es \code{"todas"}: el paquete no elige por el usuario.
+Una fuente estructural se resuelve aunque la estrategia de distintos este
+omitida o no disponible; esta ultima solo gobierna si se puede medir.
 
 Contar sólo el motor daba juicios falsos con números ciertos: una tabla de
 3.912 filas con una columna de geometría en texto pedía 64.592 lecturas
@@ -173,6 +177,10 @@ Cuando \code{politica_costo = "por_cardinalidad"}, una clave estructural exacta
 puede cerrar la decisión; si no hay una fuente de catálogo utilizable, el
 plan publica el rango entre omitir y ejecutar las métricas caras. Nunca
 lanza \verb{COUNT(DISTINCT ...)} para despejar esa incertidumbre.
+Las fuentes estructurales se resuelven cuando la política necesita la
+cardinalidad, aunque \code{estrategia_distintos} no permita medirla. La
+disponibilidad de la estrategia gobierna la medición, no el conocimiento que
+ya da el catálogo.
 }
 \details{
 \code{estrategia_distintos} declara la procedencia de \code{n_distintos} antes de la

@@ -391,6 +391,13 @@ not silently become exact. The result separates the requested strategy, the
 resolved strategy, and its state in `meta$estrategia_distintos` and in the SQL
 rows.
 
+Structural sources used by the cost policy are resolved whenever the policy
+needs cardinality, even if the requested strategy is omitted or unavailable.
+The strategy's availability controls whether cardinality may be measured; it
+does not hide a guaranteed key. If no structural source exists and measuring is
+not allowed, cardinality remains unknown and the policy follows its explicit
+unknown-cardinality rule.
+
 `estrategia_distintos` and `fuente_cardinalidad_costo` are independent: the
 former controls how `n_distintos` is obtained or omitted, while the latter says
 where the ratio used by the cost policy comes from. A cost-policy decision
@@ -409,12 +416,21 @@ the user guessing again.
 
 The decision to pay mode and median is explicit. `politica_costo = "todas"` is
 the default and preserves all requested metrics; `"ninguna"` is an alias. With
-`politica_costo = "por_cardinalidad"`, valid and distinct values are measured
-only when no exact catalogue source is available; then expensive metrics are
-omitted per column when `n_distintos / n_validos >= umbral_cardinalidad`. The
-default threshold is `0.95`, it can be changed in the call, and every omission
-is declared in `resumen_tabla$sql` as `omitido_por_costo`, with the reason and
-how to ask for it anyway.
+`politica_costo = "por_cardinalidad"`, structural sources are resolved first.
+Valid and distinct values are measured only when no exact structural source is
+available and the selected strategy permits measurement; then expensive metrics
+are omitted per column when `n_distintos / n_validos >= umbral_cardinalidad`.
+The default threshold is `0.95`, it can be changed in the call, and every
+omission is declared in `resumen_tabla$sql` as `omitido_por_costo`, with the
+reason and how to ask for it anyway. An omitted, catalogue or unavailable
+approximate strategy never falls back to `COUNT(DISTINCT ...)`.
+
+The table summary declares `meta$snapshot = FALSE`, because its aggregates are
+separate statements and the table may change between them. When exact
+`n_validos` and `n_distintos` from different `consulta_id` groups are
+incoherent, `cobertura` adds `alcance_distinto` with both statements in the
+reason: it is evidence that the table changed during the run, not an error
+attributed to the engine or the package.
 
 But counting queries does not answer the question the reader actually brings:
 fourteen queries over two million rows are far more work than two hundred over a

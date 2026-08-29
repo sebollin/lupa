@@ -115,9 +115,11 @@ primeras también en \code{resumen_tabla$sql}.}
 \item{politica_costo}{Política optativa para las métricas caras. El valor por
 omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
 solicitadas. \code{"ninguna"} es un alias de \code{"todas"}; \code{"por_cardinalidad"}
-(también \code{"cardinalidad"}) mide primero valores válidos y distintos cuando
-no hay una fuente exacta utilizable y omite, por columna, moda y mediana
-cuando la proporción de distintos alcanza \code{umbral_cardinalidad}.}
+(también \code{"cardinalidad"}) resuelve primero las fuentes estructurales y
+mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
+permite. Luego omite, por columna, moda y mediana cuando la proporción de
+distintos alcanza \code{umbral_cardinalidad}. Una estrategia no disponible no
+se convierte en una medición exacta.}
 
 \item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
 activa \code{politica_costo = "por_cardinalidad"}. El valor por omisión es \code{0.95}
@@ -156,7 +158,9 @@ El resultado trae dos, y cubren cosas distintas. \code{resumen_tabla$cobertura}
 habla de \strong{métricas SQL}: qué pidió esta función al motor y qué pasó, con
 \code{bloque}, \code{elemento}, \code{estado} —\code{no_disponible}, \code{no_solicitado},
 \code{degradado}, \code{presupuesto_agotado}, \code{alcance_distinto}— y la consulta en
-\code{sql}.
+\code{sql}. \code{alcance_distinto} declara que dos valores exactos incoherentes
+salieron de grupos de consistencia distintos: es evidencia de que la tabla
+cambio durante la corrida, no una acusacion contra el motor.
 \code{perfil_muestra$cobertura_diagnosticos} habla de \strong{diagnósticos}: qué
 comprobación no se corrió sobre la muestra y por qué, con \code{diagnostico},
 \code{columna}, \code{motivo} y \code{como_resolverlo}, el mismo esquema que devuelve
@@ -227,6 +231,10 @@ el motivo lo declara; no se atribuye un valor imposible al motor.
 La frecuencia de la moda no se compara con \code{n_validos} de otra sentencia:
 como su consulta no trae un guardian compañero, esa cota también queda
 declarada como no comprobable.
+\code{meta$snapshot} queda en \code{FALSE}, siguiendo la declaracion de colecciones: no
+hubo lectura instantanea. La cobertura agrega una entrada concreta solo si
+\code{n_validos} y \code{n_distintos} son exactos, incoherentes y provienen de grupos
+distintos; su motivo conserva ambas sentencias.
 
 Las cotas de error no documentadas de una aproximacion nativa quedan como
 \code{"desconocido"}. Una aproximacion solo se consolida cuando entrega una

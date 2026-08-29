@@ -1,5 +1,18 @@
 # lupa 0.1.0
 
+## La política de costo no ciega las fuentes estructurales
+
+- `politica_costo = "por_cardinalidad"` resuelve las fuentes estructurales de
+  cardinalidad aunque `estrategia_distintos` esté omitida o no disponible. La
+  disponibilidad gobierna la medición, no una garantía de clave que el
+  catálogo ya permite saber. No hay repliegue a `COUNT(DISTINCT ...)` para una
+  estrategia omitida, de catálogo o aproximada sin capacidad.
+- `resumen_tabla$meta$snapshot` declara que no hubo lectura instantánea. Cuando
+  valores exactos incoherentes de `n_validos` y `n_distintos` vienen de grupos
+  de consistencia distintos, `cobertura` suma `alcance_distinto` y conserva en
+  el motivo las dos sentencias: es evidencia de que la tabla cambió durante la
+  corrida, no una acusación contra el motor o el paquete.
+
 
 ## Cada agregado queda ligado a la foto que lo produjo
 

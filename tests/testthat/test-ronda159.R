@@ -181,6 +181,75 @@ test_that("la clave estructural decide sin publicar ni medir distintos", {
   expect_false(resultado$resumen_tabla$meta$estrategia_distintos$publica)
 })
 
+test_that("la fuente estructural no depende de la estrategia publicada", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbExecute(con, paste(
+    "CREATE TABLE tabla_costo (",
+    "id TEXT NOT NULL PRIMARY KEY, grupo TEXT, estado TEXT, tipo TEXT)"
+  ))
+  DBI::dbWriteTable(con, "tabla_costo", data.frame(
+    id = as.character(seq_len(20L)),
+    grupo = rep(c("a", "b"), 10L),
+    estado = rep(c("activo", "inactivo"), 10L),
+    tipo = rep(c("x", "y", "z", "x"), 5L)
+  ), append = TRUE)
+
+  nombres <- c("exacta", "aproximada_motor", "catalogo", "omitida")
+  resultados <- lapply(nombres, function(estrategia) {
+    plan <- plan_perfilado_dbi(
+      con, "tabla_costo", metricas = "moda",
+      politica_costo = "por_cardinalidad",
+      estrategia_distintos = estrategia, bloque_muestra = "solo_agregados"
+    )
+    resultado <- perfilar_dbi(
+      con, "tabla_costo", metricas = "moda",
+      politica_costo = "por_cardinalidad",
+      estrategia_distintos = estrategia,
+      bloque_muestra = "solo_agregados",
+      proteger_datos_personales = FALSE
+    )
+    list(plan = plan, resultado = resultado)
+  })
+  names(resultados) <- nombres
+
+  for (estrategia in nombres) {
+    plan <- resultados[[estrategia]]$plan
+    resultado <- resultados[[estrategia]]$resultado
+    fuente <- attr(plan, "fuente_cardinalidad_costo", exact = TRUE)$id
+    expect_identical(fuente$nombre, "clave_primaria_garantizada")
+    emitidas <- resultado$resumen_tabla$meta$consultas$emitidas
+    expect_true(
+      attr(plan, "total") <= emitidas,
+      info = paste("extremo inferior", estrategia)
+    )
+    expect_true(
+      attr(plan, "total_maximo") >= emitidas,
+      info = paste("extremo superior", estrategia)
+    )
+  }
+  modas <- vapply(resultados, function(x) {
+    sql <- x$resultado$resumen_tabla$sql
+    sum(sql$metrica == "moda" & !is.na(sql$sql))
+  }, integer(1L))
+  expect_equal(modas[["exacta"]], 3L)
+  expect_true(all(modas[nombres != "exacta"] <= modas[["exacta"]]))
+  for (estrategia in nombres) {
+    expect_identical(
+      attr(resultados[[estrategia]]$plan,
+           "fuente_cardinalidad_costo")$id$nombre,
+      "clave_primaria_garantizada"
+    )
+    expect_false(any(grepl(
+      "COUNT(DISTINCT",
+      resultados[[estrategia]]$resultado$resumen_tabla$sql$sql,
+      fixed = TRUE
+    )))
+  }
+})
+
 # Que motores filtran `information_schema` por permisos NO se deduce del
 # parecido entre ellos: se midio contra contenedores reales el 2026-08-27,
 # creando un rol con solo `SELECT` sobre una tabla con clave primaria y

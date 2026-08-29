@@ -60,6 +60,19 @@ identificador. La consulta exacta de distintos trae
 capacidad aproximada no puede traer ese guardián, la cota se declara no
 comprobable y no se atribuye una inconsistencia al motor.
 
+La fuente estructural de cardinalidad se resuelve cuando la política de costo
+la necesita, aunque `estrategia_distintos` esté omitida o no disponible. Esa
+disponibilidad gobierna la medición, no el conocimiento que ya da una clave
+garantizada. Si la fuente estructural no alcanza y la estrategia no permite
+medir, la cardinalidad queda desconocida y se aplica la regla explícita de la
+política.
+
+El resumen declara `meta$snapshot = FALSE`, porque sus agregados son sentencias
+separadas. Cuando `n_validos` y `n_distintos` exactos son incoherentes y vienen
+de grupos `consulta_id` distintos, `cobertura` agrega `alcance_distinto` y el
+motivo conserva ambas sentencias: es evidencia de que la tabla cambió durante
+la corrida, no una acusación contra el motor.
+
 Mezclarlos en una fila, aun con un campo de alcance por resultado, permitiría
 comparar cantidades como si pertenecieran al mismo perfil. Los dos bloques
 impiden esa lectura.
@@ -440,10 +453,12 @@ porque una sola cardinalidad puede derramar mucho más que un lote plano.
 
 La decisión de pagar moda y mediana es explícita. `politica_costo = "todas"`
 es el valor por omisión y conserva todas las métricas solicitadas. Con
-`politica_costo = "por_cardinalidad"`, la corrida mide los valores válidos y
-distintos sólo cuando no hay una fuente exacta de catálogo; luego omite, por
-columna, las métricas caras cuando `n_distintos / n_validos >=
-umbral_cardinalidad`. Cada omisión queda declarada en `resumen_tabla$sql`.
+`politica_costo = "por_cardinalidad"`, la corrida resuelve primero las fuentes
+estructurales y mide los valores válidos y distintos sólo cuando no hay una
+fuente exacta y la estrategia lo permite; luego omite, por columna, las métricas
+caras cuando `n_distintos / n_validos >= umbral_cardinalidad`. Cada omisión
+queda declarada en `resumen_tabla$sql`. Una estrategia omitida, de catálogo o
+aproximada sin capacidad nunca se convierte en `COUNT(DISTINCT ...)`.
 
 Ahora bien, **cuántas consultas se emiten no dice cuánto cuestan**: catorce
 consultas sobre dos millones de filas son mucho más trabajo que doscientas

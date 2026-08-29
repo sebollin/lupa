@@ -322,6 +322,20 @@ inconsistencia al motor. Los tamaños se pueden separar:
 cardinalidades; este último vale 1 por omisión hasta contar con mediciones,
 porque una sola cardinalidad puede derramar mucho más que un lote plano.
 
+Las fuentes estructurales que usa la política de costo se resuelven cuando la
+política necesita la cardinalidad, aunque la estrategia solicitada esté omitida
+o no disponible. La disponibilidad gobierna si se puede medir la cardinalidad;
+no oculta una clave primaria garantizada. Si no hay fuente estructural y la
+estrategia no permite medir, la cardinalidad queda desconocida y la política
+sigue su regla explícita para ese caso.
+
+El resumen de tabla publica `meta$snapshot = FALSE`: los agregados son
+sentencias separadas y la tabla puede cambiar entre ellas. Si `n_validos` y
+`n_distintos` exactos son incoherentes, provienen de grupos `consulta_id`
+distintos y se pueden comparar sólo dentro de cada sentencia, `cobertura` suma
+`alcance_distinto` con ambas sentencias en el motivo. Eso es evidencia de que la
+tabla cambió durante la corrida, no una acusación contra el motor o el paquete.
+
 ### Leer un perfil sin conocer su forma
 
 `perfilar()` devuelve un `perfil` plano; `perfilar_dbi()` devuelve un
@@ -431,8 +445,9 @@ adivinando otra vez.
 
 La moda y la mediana tienen una política de costo explícita. El valor por omisión
 es `politica_costo = "todas"` (`"ninguna"` es un alias): el paquete no elige por el usuario. Con
-`politica_costo = "por_cardinalidad"`, la corrida mide `validos` y `distintos`
-cuando no hay una fuente exacta de catálogo; después decide por columna si se
+`politica_costo = "por_cardinalidad"`, la corrida resuelve primero las
+fuentes estructurales y mide `validos` y `distintos` sólo cuando no hay una
+fuente exacta y la estrategia lo permite; después decide por columna si se
 emiten moda y mediana cuando `n_distintos / n_validos >= umbral_cardinalidad`.
 El umbral por omisión es `0.95` y se puede mover en cada llamada. Cada omisión
 queda en `resumen_tabla$sql` como `omitido_por_costo`, con qué se omitió, por qué
