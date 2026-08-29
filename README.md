@@ -305,31 +305,31 @@ the previous mode query is retained and the fallback is published in
 `resumen_tabla$meta$moda_guardian`. When accepted, the bound
 `frecuencia_moda <= n_validos` is checked inside that same statement.
 
-### Avisos de costo y derrame
+### Cost and spill are announced before they are paid
 
-Cuando `perfilar_dbi()` pide `COUNT(DISTINCT ...)`, los agregados planos se
-ejecutan primero. Si `instrumentar = TRUE`, el paquete mide esas consultas en
-esta misma corrida y, antes de iniciar los distintos, anuncia una proyección
-del costo cuando supera 30 segundos. El número es la mediana de las duraciones
-planas multiplicada por los lotes de distintos; el mensaje nombra esa fuente y
-lo rotula como estimación. Esta proyección temporal no usa `reltuples`.
+When `perfilar_dbi()` asks for `COUNT(DISTINCT ...)`, the flat aggregates run
+first. With `instrumentar = TRUE` the package times those queries in this same
+run and, before starting the distinct counts, announces a cost projection when
+it exceeds thirty seconds. The figure is the median of the measured flat
+durations multiplied by the number of distinct batches; the message names that
+source and labels itself an estimate. This time projection does not use
+`reltuples`.
 
-En PostgreSQL, la preparación consulta además `pg_stats.n_distinct`,
-`pg_stats.avg_width`, `pg_class.reltuples` y la configuración vigente de
-`work_mem` —más `hash_mem_multiplier` desde PostgreSQL 13— para estimar el
-tamaño del hash de agregación. Si supera el límite efectivo, avisa antes del
-primer `COUNT(DISTINCT)` y explica que subir `work_mem` en la sesión puede
-evitar el derrame. El diagnóstico queda en `meta$estimacion_derrame`, siempre
-como estimación y nunca como medición; no cambia la configuración y no espera
-confirmación.
+On PostgreSQL, preparation also reads `pg_stats.n_distinct`,
+`pg_stats.avg_width`, `pg_class.reltuples` and the session's `work_mem` — plus
+`hash_mem_multiplier` from PostgreSQL 13 on — to estimate the size of the
+aggregation hash. If it exceeds the effective limit, the package warns before
+the first `COUNT(DISTINCT)` and says that raising `work_mem` for this session
+can avoid the spill. The diagnosis lands in `meta$estimacion_derrame`, always as
+an estimate and never as a measurement; the package changes no setting and waits
+for no confirmation.
 
-En PostgreSQL, si `pg_stat_statements` permite atribuir exactamente una llamada
-de esta corrida, el informe agrega el derrame real y la cantidad de bloques
-temporales escritos. Si no se puede atribuir, el estado queda declarado como
-no disponible: el tiempo transcurrido no se presenta como evidencia de derrame.
-Cuando existe, esta medición posterior prevalece sobre la estimación: incluso
-si la estimación quedó por debajo del límite, el informe dice que hubo derrame
-medido.
+Also on PostgreSQL, when `pg_stat_statements` allows attributing exactly one
+call from this run, the report adds the real spill and the number of temporary
+blocks written. When attribution is not possible the state is declared
+unavailable: elapsed time is never presented as evidence of a spill. Where the
+measurement exists, **it prevails over the estimate** — even if the estimate
+stayed below the limit, the report says a spill was measured.
 
 ### Reading a profile without knowing its shape
 

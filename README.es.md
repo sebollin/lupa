@@ -415,6 +415,31 @@ por que. En `perfilar()`, la misma decision aparece en
 `max_largo_valor = Inf` o `max_largo_valor_vocabulario = Inf` recupera
 explicitamente el comportamiento anterior.
 
+### Avisos de costo y derrame
+
+Cuando `perfilar_dbi()` pide `COUNT(DISTINCT ...)`, los agregados planos se
+ejecutan primero. Si `instrumentar = TRUE`, el paquete mide esas consultas en
+esta misma corrida y, antes de iniciar los distintos, anuncia una proyeccion
+del costo cuando supera 30 segundos. El numero es la mediana de las duraciones
+planas multiplicada por los lotes de distintos; el mensaje nombra esa fuente y
+lo rotula como estimacion. Esta proyeccion temporal no usa `reltuples`.
+
+En PostgreSQL, la preparacion consulta ademas `pg_stats.n_distinct`,
+`pg_stats.avg_width`, `pg_class.reltuples` y la configuracion vigente de
+`work_mem` —mas `hash_mem_multiplier` desde PostgreSQL 13— para estimar el
+tamano del hash de agregacion. Si supera el limite efectivo, avisa antes del
+primer `COUNT(DISTINCT)` y explica que subir `work_mem` en la sesion puede
+evitar el derrame. El diagnostico queda en `meta$estimacion_derrame`, siempre
+como estimacion y nunca como medicion; no cambia la configuracion y no espera
+confirmacion.
+
+En PostgreSQL, si `pg_stat_statements` permite atribuir exactamente una llamada
+de esta corrida, el informe agrega el derrame real y la cantidad de bloques
+temporales escritos. Si no se puede atribuir, el estado queda declarado como
+no disponible: el tiempo transcurrido no se presenta como evidencia de derrame.
+Cuando existe, esa medicion **manda sobre la estimacion**: aunque la estimacion
+haya quedado por debajo del limite, el informe dice que hubo derrame medido.
+
 ### El costo de una tabla ancha se avisa antes
 
 `perfilar()` proyecta las celdas antes de empezar el trabajo costoso. El aviso
