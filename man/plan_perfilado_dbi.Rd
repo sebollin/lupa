@@ -79,9 +79,11 @@ familias. Para control separado, usar \code{tamano_lote_planos} y
 agregados planos. El valor por omisión es 20.}
 
 \item{tamano_lote_distintos}{Cantidad máxima de columnas por consulta de
-cardinalidades exactas. El valor por omisión es 1, deliberadamente
-conservador hasta contar con mediciones comparables: una sola cardinalidad
-puede forzar un agregado pesado y derramar mucho más que un lote plano.}
+cardinalidades exactas. El valor por omisión es 2, medido sobre el servidor
+de referencia: el \verb{Shared Read} fue constante entre lotes y el costo por
+columna fue casi igual para uno y dos, mientras el lote de dos derramó
+menos que los lotes mayores. Una sola cardinalidad todavía puede forzar un
+agregado pesado y derramar mucho más que un lote plano.}
 
 \item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
 omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
@@ -149,8 +151,10 @@ en R el detector de vocabulario sobre la muestra— y se resume en
 \code{"alta"}, o \code{"desconocida"} si no se conoce el número de filas.
 \code{supuesto_costo} dice de dónde sale cada cuenta.
 
-El plan no publica duraciones, CPU, filas ni bytes medidos: sus campos de
-costo siguen siendo predicciones basadas en los supuestos anteriores.
+El plan previo no publica duraciones, CPU, filas ni bytes medidos. El plan
+de una corrida de \code{perfilar_dbi()} puede agregar \code{costo_distintos} cuando
+ya hay duraciones de agregados planos de esa misma corrida; sus campos
+dicen explícitamente que la proyección sigue siendo una estimación.
 
 Si se pide \code{politica_costo = "por_cardinalidad"}, el plan busca primero una
 garantía estructural o una fuente de catálogo. Si la fuente queda
@@ -191,6 +195,16 @@ queda \code{no_disponible} hasta implementar su estadística y \code{"omitida"} 
 emite el agregado. \code{fuente_cardinalidad_costo} sigue siendo independiente y
 sólo describe el número usado por la política de costo cuando esa política
 se pide.
+
+El plan previo no puede publicar segundos medidos porque no lee los datos.
+Durante \code{perfilar_dbi()}, en cambio, los agregados planos se ejecutan antes
+que los distintos. Si se midieron en esta misma corrida, el plan que queda
+en \code{resumen_tabla$meta$plan} agrega \code{costo_distintos}: la mediana de esas
+duraciones multiplicada por la cantidad de lotes de distintos. Es una
+estimación rotulada, fundada en la tabla y el servidor actuales, no en
+\code{reltuples} ni en otra estadística de catálogo. El aviso se emite antes de
+iniciar el primer \code{COUNT(DISTINCT)} y sólo si supera el umbral de 30
+segundos; no pide confirmación y nunca bloquea un guion no interactivo.
 }
 \examples{
 if (requireNamespace("DBI", quietly = TRUE) &&

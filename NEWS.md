@@ -1,5 +1,20 @@
 # lupa 0.1.0
 
+## El costo de distintos se anuncia antes de pagarlo
+
+- `perfilar_dbi()` anuncia, antes del primer `COUNT(DISTINCT)`, una proyección
+  temporal cuando las consultas de agregados planos de esta misma corrida ya
+  dieron una referencia suficiente. La estimación publica el costo, la fuente
+  medida y la cantidad de lotes; no usa `reltuples`, no cambia `work_mem` y no
+  espera confirmación en guiones no interactivos.
+- La instrumentación de PostgreSQL consulta `pg_stat_statements` antes y
+  después de los distintos exactos. Sólo publica derrame real cuando puede
+  atribuir exactamente una llamada: `resumen_tabla$sql` agrega los bloques
+  temporales y `meta$derrame` conserva el estado, la fuente y el motivo. La
+  falta de evidencia queda `no_disponible`, no se infiere del reloj.
+- `tamano_lote_distintos` conserva el valor medido 2; el cambio no modifica
+  `work_mem`.
+
 ## La política de costo no ciega las fuentes estructurales
 
 - `politica_costo = "por_cardinalidad"` resuelve las fuentes estructurales de

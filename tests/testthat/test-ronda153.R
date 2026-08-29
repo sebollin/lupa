@@ -49,7 +49,8 @@ setMethod(
   campos <- c(
     "sql", "lote", "columnas_compartidas", "id_muestra", "consulta_id",
     "etapa", "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
-    "cpu_ms"
+    "cpu_ms", "derrame", "bloques_temporales_leidos",
+    "bloques_temporales_escritos", "fuente_derrame"
   )
   x$resumen_tabla$sql <- x$resumen_tabla$sql[
     , setdiff(names(x$resumen_tabla$sql), campos), drop = FALSE
@@ -64,6 +65,9 @@ setMethod(
   x$resumen_tabla$meta$tamano_lote_planos_funciono <- NULL
   x$resumen_tabla$meta$tamano_lote_distintos_funciono <- NULL
   x$resumen_tabla$meta$instrumentacion <- NULL
+  x$resumen_tabla$meta$derrame <- NULL
+  x$resumen_tabla$meta$costo_distintos <- NULL
+  attr(x$resumen_tabla$meta$plan, "costo_distintos") <- NULL
   x
 }
 

@@ -80,16 +80,20 @@ familias. Para control separado, usar \code{tamano_lote_planos} y
 agregados planos. El valor por omisión es 20.}
 
 \item{tamano_lote_distintos}{Cantidad máxima de columnas por consulta de
-cardinalidades exactas. El valor por omisión es 1, deliberadamente
-conservador hasta contar con mediciones comparables: una sola cardinalidad
-puede forzar un agregado pesado y derramar mucho más que un lote plano.}
+cardinalidades exactas. El valor por omisión es 2, medido sobre el servidor
+de referencia: el \verb{Shared Read} fue constante entre lotes y el costo por
+columna fue casi igual para uno y dos, mientras el lote de dos derramó
+menos que los lotes mayores. Una sola cardinalidad todavía puede forzar un
+agregado pesado y derramar mucho más que un lote plano.}
 
 \item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
 omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
 lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
 alcance de esos agregados: eso lo decide \code{modo}.}
 
-\item{instrumentar}{Si se cronometra cada consulta y las etapas grandes de R.
+\item{instrumentar}{Si se cronometra cada consulta y las etapas grandes de R
+y, en PostgreSQL, se intenta atribuir el uso de bloques temporales de los
+\code{COUNT(DISTINCT)} exactos mediante \code{pg_stat_statements}.
 Por omisión es \code{TRUE}; agrega \code{duracion_ms}, \code{cpu_ms},
 \code{n_filas_resultado}, \code{bytes_resultado_r}, \code{consulta_id} y \code{etapa} a
 \code{resumen_tabla$sql}, y el resumen \code{resumen_tabla$tiempos}. Con \code{FALSE} se
@@ -279,6 +283,10 @@ el total del universo para escribir un porcentaje lo cuentan antes.
 lote, conservador por omisión porque una cardinalidad puede derramar mucho
 más que veinte agregados planos; la consulta exacta trae su
 \code{n_validos_guard} compañero.
+Antes de la primera consulta exacta se anuncia su costo sólo si hay una
+proyección temporal fundada en agregados planos medidos en esta corrida.
+La fuente y el valor quedan en \code{meta$costo_distintos}; no se usa una
+predicción basada en \code{reltuples}.
 Lo que no entra en el presupuesto queda en \code{no_disponible} con su motivo,
 nunca en cero. \code{meta$tamano_lote_funciono} conserva el mayor lote aceptado
 durante esa corrida; no se guarda estado global asociado a la conexión.
@@ -298,6 +306,18 @@ y mediana— no comparten filas con otras métricas. \code{etapa} permite agrupa
 \code{desvio}, \code{lectura_muestra} y las sondas). Las métricas no solicitadas o que
 no emitieron consulta conservan esos campos y los dejan en \code{NA}; en
 particular, \code{NA} no significa cero.
+
+En PostgreSQL, con \code{instrumentar = TRUE}, se toma una foto de
+\code{pg_stat_statements} antes y después de los \code{COUNT(DISTINCT)} exactos. Sólo
+se publica un derrame cuando una consulta coincide y su contador aumentó en
+exactamente una llamada atribuible a esta corrida. En ese caso,
+\code{resumen_tabla$sql} agrega \code{derrame},
+\code{bloques_temporales_leidos}, \code{bloques_temporales_escritos} y
+\code{fuente_derrame}; \code{resumen_tabla$meta$derrame} conserva el resumen y la
+fuente. Si la extensión no está disponible, la consulta fue concurrente o
+la instrumentación está apagada, el estado queda \code{no_disponible} o
+\code{no_medido} con el motivo: el paquete no deduce un derrame del tiempo y no
+modifica \code{work_mem}.
 
 \code{resumen_tabla$tiempos} reúne las etapas grandes del cliente en las mismas
 unidades (\code{duracion_ms}): \code{lectura_muestra}, \code{perfilado_muestra},

@@ -40,13 +40,18 @@ test_that("cero CPU medido no se confunde con una medicion ausente", {
 .ronda154_sin_instrumentacion <- function(x) {
   campos <- c(
     "sql", "consulta_id", "etapa", "duracion_ms", "cpu_ms",
-    "n_filas_resultado", "bytes_resultado_r"
+    "n_filas_resultado", "bytes_resultado_r", "derrame",
+    "bloques_temporales_leidos", "bloques_temporales_escritos",
+    "fuente_derrame"
   )
   x$resumen_tabla$sql <- x$resumen_tabla$sql[
     , setdiff(names(x$resumen_tabla$sql), campos), drop = FALSE
   ]
   x$resumen_tabla$tiempos <- NULL
   x$resumen_tabla$meta$instrumentacion <- NULL
+  x$resumen_tabla$meta$derrame <- NULL
+  x$resumen_tabla$meta$costo_distintos <- NULL
+  attr(x$resumen_tabla$meta$plan, "costo_distintos") <- NULL
   x
 }
 

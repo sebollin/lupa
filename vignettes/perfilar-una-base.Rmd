@@ -448,8 +448,25 @@ denominador local por lote, incluso después de una bisección, y no cruza el
 total de otra consulta. El total del universo se mantiene separado cuando hace
 falta para una muestra o cuando no hay agregados planos. Después se ejecutan
 distintos, moda y mediana. `tamano_lote_planos` y `tamano_lote_distintos` son
-independientes; este último vale 1 por omisión hasta contar con mediciones,
-porque una sola cardinalidad puede derramar mucho más que un lote plano.
+independientes; este último vale 2 por omisión. La medición contra el servidor
+de referencia mostró un `Shared Read` constante entre lotes: dos cardinalidades
+se amortizan en una pasada de la tabla. El derrame crece con el ancho del lote;
+dos mantuvo casi el mismo tiempo por columna que una y derramó menos que los
+lotes más anchos.
+
+El costo de `COUNT(DISTINCT ...)` se anuncia antes de iniciar su primera
+consulta cuando hay una referencia defendible. Los agregados planos ya se
+ejecutaron, así que con `instrumentar = TRUE` la proyección usa la mediana de
+esas duraciones en esta misma corrida y la multiplica por la cantidad de lotes
+de distintos. El mensaje dice que es una estimación y de dónde sale; no usa
+`reltuples`. Sólo se muestra cuando supera 30 segundos y no pide confirmación,
+por lo que `perfilar_dbi()` no queda esperando en un guion.
+
+El informe conserva el derrame real sólo cuando PostgreSQL permite atribuirlo
+sin ambigüedad mediante `pg_stat_statements`: `resumen_tabla$sql` publica los
+bloques temporales escritos y `meta$derrame` resume las consultas observadas.
+Si esa evidencia no está disponible, el estado lo dice y el paquete no deduce
+un derrame del tiempo transcurrido ni cambia `work_mem`.
 
 La decisión de pagar moda y mediana es explícita. `politica_costo = "todas"`
 es el valor por omisión y conserva todas las métricas solicitadas. Con

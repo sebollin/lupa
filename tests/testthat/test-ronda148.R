@@ -21,13 +21,18 @@ library(DBI)
 .sin_instrumentacion_ronda148 <- function(x) {
   campos_nuevos <- c(
     "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
-    "cpu_ms", "consulta_id", "etapa"
+    "cpu_ms", "consulta_id", "etapa", "derrame",
+    "bloques_temporales_leidos", "bloques_temporales_escritos",
+    "fuente_derrame"
   )
   x$resumen_tabla$sql <- x$resumen_tabla$sql[
     , setdiff(names(x$resumen_tabla$sql), campos_nuevos), drop = FALSE
   ]
   x$resumen_tabla$tiempos <- NULL
   x$resumen_tabla$meta$instrumentacion <- NULL
+  x$resumen_tabla$meta$derrame <- NULL
+  x$resumen_tabla$meta$costo_distintos <- NULL
+  attr(x$resumen_tabla$meta$plan, "costo_distintos") <- NULL
   x
 }
 

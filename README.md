@@ -291,9 +291,25 @@ bound is applied only when both values have the same `consulta_id`. If an
 approximate capability cannot provide that guardian, the check is reported as
 unavailable and no inconsistency is attributed to the engine. Batch sizes are
 separate: `tamano_lote_planos` controls flat aggregates and
-`tamano_lote_distintos` controls cardinalities. The latter defaults to 1 until
-comparable measurements exist, because one cardinality can spill far more than
-a flat batch.
+`tamano_lote_distintos` controls cardinalities. The latter defaults to 2: the
+measured shared read was constant between batches on the reference PostgreSQL
+server, so two cardinalities share one pass. The measured two-cardinality batch
+kept nearly the same time per column as one and spilled less than wider batches.
+
+### Avisos de costo y derrame
+
+Cuando `perfilar_dbi()` pide `COUNT(DISTINCT ...)`, los agregados planos se
+ejecutan primero. Si `instrumentar = TRUE`, el paquete mide esas consultas en
+esta misma corrida y, antes de iniciar los distintos, anuncia una proyección
+del costo cuando supera 30 segundos. El número es la mediana de las duraciones
+planas multiplicada por los lotes de distintos; el mensaje nombra esa fuente y
+lo rotula como estimación. No usa `reltuples`, no cambia `work_mem` y no espera
+confirmación, por lo que un guion no interactivo continúa sin pausa.
+
+En PostgreSQL, si `pg_stat_statements` permite atribuir exactamente una llamada
+de esta corrida, el informe agrega el derrame real y la cantidad de bloques
+temporales escritos. Si no se puede atribuir, el estado queda declarado como
+no disponible: el tiempo transcurrido no se presenta como evidencia de derrame.
 
 ### Reading a profile without knowing its shape
 

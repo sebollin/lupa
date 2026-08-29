@@ -129,12 +129,108 @@
   estado$tamano_lote_funciono <- NULL
   estado$tamano_lote_planos_funciono <- NULL
   estado$tamano_lote_distintos_funciono <- NULL
+  # Las referencias de tiempo se llenan con consultas planas aceptadas. No se
+  # usan estadisticas del catalogo para proyectar el costo de distintos.
+  estado$referencias_planas <- list()
+  estado$proyeccion_distintos <- NULL
+  # La lectura de pg_stat_statements es opcional: si el servidor no la expone,
+  # el informe conserva la incertidumbre y no deduce un derrame del reloj.
+  estado$derrame <- list(
+    estado = "no_solicitado", disponible = FALSE,
+    fuente = NA_character_, motivo = paste(
+      "No se solicito una medicion de derrame porque no se pidio",
+      "COUNT(DISTINCT) exacto."
+    ), consultas = NULL
+  )
   # Cuantas consultas espera emitir la corrida y la barra que lo muestra. Van
   # aca porque el presupuesto es el unico objeto que ve pasar TODAS las
   # consultas: colgarlo de otro lado obligaria a enhebrarlo por cada camino.
   estado$previstas <- NA_real_
   estado$barra <- NULL
   estado
+}
+
+.registrar_referencia_plana_dbi <- function(presupuesto, consulta) {
+  if (is.null(presupuesto) || !isTRUE(consulta$ok) ||
+      is.null(consulta$consulta_id) || length(consulta$consulta_id) != 1L ||
+      is.na(consulta$consulta_id) || is.null(consulta$duracion_ms) ||
+      length(consulta$duracion_ms) != 1L || is.na(consulta$duracion_ms) ||
+      !is.finite(consulta$duracion_ms) || consulta$duracion_ms <= 0) {
+    return(invisible(NULL))
+  }
+  id <- as.character(consulta$consulta_id)
+  referencias <- presupuesto$referencias_planas
+  referencias[[id]] <- list(
+    consulta_id = as.integer(consulta$consulta_id),
+    duracion_ms = as.numeric(consulta$duracion_ms)
+  )
+  presupuesto$referencias_planas <- referencias
+  invisible(NULL)
+}
+
+.proyectar_costo_distintos_dbi <- function(presupuesto, n_lotes) {
+  vacia <- list(
+    disponible = FALSE, duracion_estimada_ms = NA_real_,
+    duracion_referencia_ms = NA_real_, n_lotes = as.integer(n_lotes),
+    n_referencias = 0L, fuente = NA_character_, motivo = paste(
+      "No hay una duracion medida de un agregado plano en esta corrida;",
+      "no se publica una proyeccion temporal."
+    )
+  )
+  if (is.null(presupuesto) || !length(presupuesto$referencias_planas) ||
+      !is.numeric(n_lotes) || length(n_lotes) != 1L || is.na(n_lotes) ||
+      !is.finite(n_lotes) || n_lotes < 1) {
+    return(vacia)
+  }
+  duraciones <- vapply(
+    presupuesto$referencias_planas,
+    function(x) as.numeric(x$duracion_ms), numeric(1L)
+  )
+  duraciones <- duraciones[is.finite(duraciones) & duraciones > 0]
+  if (!length(duraciones)) return(vacia)
+  referencia <- stats::median(duraciones)
+  estimada <- referencia * as.numeric(n_lotes)
+  if (!is.finite(estimada)) return(vacia)
+  list(
+    disponible = TRUE,
+    duracion_estimada_ms = estimada,
+    duracion_referencia_ms = referencia,
+    n_lotes = as.integer(n_lotes),
+    n_referencias = as.integer(length(duraciones)),
+    fuente = paste(
+      "mediana de", length(duraciones),
+      "consulta(s) de agregados planos medidas en esta corrida"
+    ),
+    motivo = paste(
+      "La proyeccion supone una pasada de costo comparable por lote de",
+      "distintos; es una estimacion y no una medicion del agregado exacto."
+    )
+  )
+}
+
+.segundos_dbi <- function(milisegundos) {
+  if (is.null(milisegundos) || length(milisegundos) != 1L ||
+      is.na(milisegundos) || !is.finite(milisegundos)) return("sin dato")
+  formatC(milisegundos / 1000, format = "f", digits = 1,
+          decimal.mark = ",")
+}
+
+.UMBRAL_AVISO_DISTINTOS_DBI <- 30 * 1000
+
+.avisar_costo_distintos_dbi <- function(proyeccion) {
+  if (is.null(proyeccion) || !isTRUE(proyeccion$disponible) ||
+      is.na(proyeccion$duracion_estimada_ms) ||
+      proyeccion$duracion_estimada_ms < .UMBRAL_AVISO_DISTINTOS_DBI) {
+    return(invisible(NULL))
+  }
+  cli::cli_alert_warning(paste0(
+    "Costo estimado de `COUNT(DISTINCT)`: ~",
+    .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
+    proyeccion$n_lotes, " lote(s). Fuente: ", proyeccion$fuente,
+    ". Es una estimacion, no una medicion; el derrame real se informa",
+    " despues si la instrumentacion del servidor lo permite."
+  ))
+  invisible(NULL)
 }
 
 # ---- Reloj e instrumentacion --------------------------------------------
@@ -1220,6 +1316,175 @@
   )
 }
 
+.normalizar_sql_derrame_dbi <- function(sql) {
+  if (is.null(sql) || length(sql) != 1L || is.na(sql)) return(NA_character_)
+  texto <- sub(";+[[:space:]]*$", "", as.character(sql))
+  gsub("[[:space:]]+", " ", trimws(texto))
+}
+
+.estadisticas_derrame_postgresql_dbi <- function(conexion) {
+  sql <- paste(
+    "SELECT query, calls, temp_blks_read, temp_blks_written",
+    "FROM pg_stat_statements",
+    "WHERE query ILIKE '%COUNT(DISTINCT%'"
+  )
+  datos <- tryCatch(
+    DBI::dbGetQuery(conexion, sql),
+    error = function(e) NULL
+  )
+  if (is.null(datos) || !all(c(
+    "query", "calls", "temp_blks_read", "temp_blks_written"
+  ) %in% names(datos))) {
+    return(NULL)
+  }
+  datos$query_normalizada <- vapply(
+    datos$query, .normalizar_sql_derrame_dbi, character(1L)
+  )
+  datos
+}
+
+.iniciar_instrumentacion_derrame_dbi <- function(conexion, presupuesto,
+                                                  exacto = TRUE) {
+  estado <- list(
+    estado = "no_solicitado", disponible = FALSE,
+    fuente = NA_character_, motivo = NA_character_, antes = NULL,
+    despues = NULL, consultas = NULL
+  )
+  if (!isTRUE(exacto)) {
+    estado$motivo <- paste(
+      "La estrategia de distintos no emite `COUNT(DISTINCT)` exacto."
+    )
+  } else if (is.null(presupuesto) || !isTRUE(presupuesto$instrumentar)) {
+    estado$estado <- "no_medido"
+    estado$motivo <- paste(
+      "La instrumentacion esta apagada; DBI no mide bloques temporales."
+    )
+  } else if (!grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
+                    ignore.case = TRUE, perl = TRUE)) {
+    estado$estado <- "no_disponible"
+    estado$motivo <- paste(
+      "El controlador no fue reconocido como PostgreSQL; no se puede",
+      "consultar una estadistica de bloques temporales portable."
+    )
+  } else {
+    antes <- .estadisticas_derrame_postgresql_dbi(conexion)
+    if (is.null(antes)) {
+      estado$estado <- "no_disponible"
+      estado$motivo <- paste(
+        "El servidor no expone `pg_stat_statements` o la credencial no puede",
+        "leer sus bloques temporales."
+      )
+    } else {
+      estado$estado <- "observando"
+      estado$disponible <- TRUE
+      estado$fuente <- "pg_stat_statements"
+      estado$antes <- antes
+    }
+  }
+  if (!is.null(presupuesto)) presupuesto$derrame <- estado
+  estado
+}
+
+.finalizar_instrumentacion_derrame_dbi <- function(conexion, presupuesto) {
+  if (is.null(presupuesto)) return(invisible(NULL))
+  estado <- presupuesto$derrame
+  if (!identical(estado$estado, "observando")) return(invisible(NULL))
+  despues <- .estadisticas_derrame_postgresql_dbi(conexion)
+  if (is.null(despues)) {
+    estado$estado <- "no_disponible"
+    estado$disponible <- FALSE
+    estado$motivo <- paste(
+      "La lectura final de `pg_stat_statements` fallo; no se publica el",
+      "derrame porque no se puede separar esta corrida."
+    )
+    presupuesto$derrame <- estado
+    return(invisible(NULL))
+  }
+  estado$despues <- despues
+  antes <- estado$antes
+  consultas <- list()
+  for (i in seq_len(nrow(despues))) {
+    clave <- despues$query_normalizada[[i]]
+    if (is.na(clave) || !nzchar(clave)) next
+    indices_previos <- which(
+      !is.na(antes$query_normalizada) & antes$query_normalizada == clave
+    )
+    previo <- antes[indices_previos, , drop = FALSE]
+    llamadas_antes <- if (nrow(previo)) .numero_dbi(previo$calls[[1L]]) else 0
+    llamadas_despues <- .numero_dbi(despues$calls[[i]])
+    leidos_antes <- if (nrow(previo)) {
+      .numero_dbi(previo$temp_blks_read[[1L]])
+    } else 0
+    escritos_antes <- if (nrow(previo)) {
+      .numero_dbi(previo$temp_blks_written[[1L]])
+    } else 0
+    delta_llamadas <- llamadas_despues - llamadas_antes
+    delta_leidos <- .numero_dbi(despues$temp_blks_read[[i]]) - leidos_antes
+    delta_escritos <- .numero_dbi(despues$temp_blks_written[[i]]) - escritos_antes
+    # Una llamada exacta permite atribuir los bloques a esta corrida. Si hubo
+    # otra llamada concurrente o se reiniciaron las estadisticas, se declara
+    # desconocido en vez de adjudicarle sus bloques a esta consulta.
+    if (!isTRUE(delta_llamadas == 1) || !is.finite(delta_leidos) ||
+        !is.finite(delta_escritos) || delta_leidos < 0 || delta_escritos < 0) {
+      next
+    }
+    consultas[[length(consultas) + 1L]] <- list(
+      query_normalizada = clave, derrame = delta_leidos > 0 || delta_escritos > 0,
+      bloques_temporales_leidos = delta_leidos,
+      bloques_temporales_escritos = delta_escritos
+    )
+  }
+  if (!length(consultas)) {
+    estado$estado <- "no_disponible"
+    estado$disponible <- FALSE
+    estado$motivo <- paste(
+      "`pg_stat_statements` no permitio atribuir una llamada exacta a esta",
+      "corrida; no se publica el derrame."
+    )
+  } else {
+    estado$estado <- "medido"
+    estado$consultas <- consultas
+    estado$motivo <- paste(
+      "Los bloques temporales se atribuyeron a la consulta exacta de esta",
+      "corrida mediante `pg_stat_statements`."
+    )
+  }
+  presupuesto$derrame <- estado
+  invisible(NULL)
+}
+
+.publicar_derrame_dbi <- function(presupuesto) {
+  estado <- if (is.null(presupuesto)) NULL else presupuesto$derrame
+  if (is.null(estado)) {
+    return(list(
+      disponible = FALSE, estado = "no_disponible", fuente = NA_character_,
+      motivo = "No se pudo iniciar la instrumentacion de derrame.",
+      consultas_observadas = 0L, consultas_con_derrame = 0L,
+      bloques_temporales_leidos = NA_real_,
+      bloques_temporales_escritos = NA_real_
+    ))
+  }
+  consultas <- estado$consultas
+  if (is.null(consultas)) consultas <- list()
+  derrames <- vapply(consultas, function(x) isTRUE(x$derrame), logical(1L))
+  leidos <- if (length(consultas)) sum(vapply(
+    consultas, function(x) x$bloques_temporales_leidos, numeric(1L)
+  )) else NA_real_
+  escritos <- if (length(consultas)) sum(vapply(
+    consultas, function(x) x$bloques_temporales_escritos, numeric(1L)
+  )) else NA_real_
+  list(
+    disponible = identical(estado$estado, "medido"),
+    estado = estado$estado,
+    fuente = estado$fuente,
+    motivo = estado$motivo,
+    consultas_observadas = as.integer(length(consultas)),
+    consultas_con_derrame = as.integer(sum(derrames)),
+    bloques_temporales_leidos = leidos,
+    bloques_temporales_escritos = escritos
+  )
+}
+
 # Oracle, DB2, Firebird y Snowflake pliegan a mayusculas los identificadores.
 # El alias va comillado para que el motor lo respete, y la comparacion se hace
 # sin distinguir caja para que un motor que lo pliegue igual no invente un
@@ -1496,8 +1761,44 @@
       as.integer(medicion_valor("consulta_id", NA_integer_)), length(metricas)
     ),
     etapa = rep_len(as.character(etapa_publicada), length(metricas)),
+    derrame = rep_len(NA, length(metricas)),
+    bloques_temporales_leidos = rep_len(NA_real_, length(metricas)),
+    bloques_temporales_escritos = rep_len(NA_real_, length(metricas)),
+    fuente_derrame = rep_len(NA_character_, length(metricas)),
     stringsAsFactors = FALSE
   )
+}
+
+.adjuntar_derrame_sql_dbi <- function(sql, derrame) {
+  if (!is.data.frame(sql)) return(sql)
+  if (!"derrame" %in% names(sql)) sql$derrame <- NA
+  if (!"bloques_temporales_leidos" %in% names(sql)) {
+    sql$bloques_temporales_leidos <- NA_real_
+  }
+  if (!"bloques_temporales_escritos" %in% names(sql)) {
+    sql$bloques_temporales_escritos <- NA_real_
+  }
+  if (!"fuente_derrame" %in% names(sql)) {
+    sql$fuente_derrame <- NA_character_
+  }
+  if (is.null(derrame) || !identical(derrame$estado, "medido") ||
+      !length(derrame$consultas)) {
+    return(sql)
+  }
+  for (consulta in derrame$consultas) {
+    indices <- which(
+      vapply(sql$sql, .normalizar_sql_derrame_dbi, character(1L)) ==
+        consulta$query_normalizada
+    )
+    if (!length(indices)) next
+    sql$derrame[indices] <- isTRUE(consulta$derrame)
+    sql$bloques_temporales_leidos[indices] <-
+      consulta$bloques_temporales_leidos
+    sql$bloques_temporales_escritos[indices] <-
+      consulta$bloques_temporales_escritos
+    sql$fuente_derrame[indices] <- derrame$fuente
+  }
+  sql
 }
 
 .registrar_resultado_dbi <- function(registros, columna, metricas, resultado,
@@ -2846,6 +3147,9 @@
     consulta <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = etapa
     )
+    if (!isTRUE(con_universo)) {
+      .registrar_referencia_plana_dbi(presupuesto, consulta)
+    }
     cache[[llave]] <<- list(ok = consulta$ok, consulta = consulta, sql = sql)
     isTRUE(consulta$ok)
   }
@@ -3378,6 +3682,29 @@
   # que conserva su propia familia y su lote conservador.
   if ("distintos" %in% metricas) {
     if (is.null(columnas_distintos)) columnas_distintos <- columnas
+    n_lotes_distintos <- length(.lotes_columnas_dbi(
+      columnas_distintos, tamano_lote_distintos
+    ))
+    if (is.null(aproximacion_distintos)) {
+      proyeccion <- .proyectar_costo_distintos_dbi(
+        presupuesto, n_lotes_distintos
+      )
+      presupuesto$proyeccion_distintos <- proyeccion
+      .avisar_costo_distintos_dbi(proyeccion)
+    } else {
+      presupuesto$proyeccion_distintos <- list(
+        disponible = FALSE, duracion_estimada_ms = NA_real_,
+        duracion_referencia_ms = NA_real_, n_lotes = as.integer(n_lotes_distintos),
+        n_referencias = 0L, fuente = NA_character_, motivo = paste(
+          "La estrategia de distintos es aproximada; no se proyecta el costo",
+          "de `COUNT(DISTINCT)` exacto."
+        )
+      )
+    }
+    instrumentacion_derrame <- .iniciar_instrumentacion_derrame_dbi(
+      conexion, presupuesto,
+      exacto = is.null(aproximacion_distintos)
+    )
     lotes <- .lotes_columnas_dbi(
       columnas_distintos, tamano_lote_distintos
     )
@@ -3397,6 +3724,9 @@
           base_conteos, resultados[[campo]]
         )
       }
+    }
+    if (identical(instrumentacion_derrame$estado, "observando")) {
+      .finalizar_instrumentacion_derrame_dbi(conexion, presupuesto)
     }
   }
   agregados$n_total <- n_total
@@ -4965,6 +5295,16 @@
 #' sólo describe el número usado por la política de costo cuando esa política
 #' se pide.
 #'
+#' El plan previo no puede publicar segundos medidos porque no lee los datos.
+#' Durante `perfilar_dbi()`, en cambio, los agregados planos se ejecutan antes
+#' que los distintos. Si se midieron en esta misma corrida, el plan que queda
+#' en `resumen_tabla$meta$plan` agrega `costo_distintos`: la mediana de esas
+#' duraciones multiplicada por la cantidad de lotes de distintos. Es una
+#' estimación rotulada, fundada en la tabla y el servidor actuales, no en
+#' `reltuples` ni en otra estadística de catálogo. El aviso se emite antes de
+#' iniciar el primer `COUNT(DISTINCT)` y sólo si supera el umbral de 30
+#' segundos; no pide confirmación y nunca bloquea un guion no interactivo.
+#'
 #' @inheritParams perfilar_dbi
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
 #'   preparación. No habilita consultas de datos ni agrega mediciones al objeto
@@ -5002,8 +5342,10 @@
 #'   `"alta"`, o `"desconocida"` si no se conoce el número de filas.
 #'   `supuesto_costo` dice de dónde sale cada cuenta.
 #'
-#'   El plan no publica duraciones, CPU, filas ni bytes medidos: sus campos de
-#'   costo siguen siendo predicciones basadas en los supuestos anteriores.
+#'   El plan previo no publica duraciones, CPU, filas ni bytes medidos. El plan
+#'   de una corrida de `perfilar_dbi()` puede agregar `costo_distintos` cuando
+#'   ya hay duraciones de agregados planos de esa misma corrida; sus campos
+#'   dicen explícitamente que la proyección sigue siendo una estimación.
 #'
 #'   Si se pide `politica_costo = "por_cardinalidad"`, el plan busca primero una
 #'   garantía estructural o una fuente de catálogo. Si la fuente queda
@@ -5347,6 +5689,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
     } else {
       cli::cli_alert_success(paste0("Trabajo estimado bajo: ", trabajo))
     }
+  }
+  proyeccion <- attr(x, "costo_distintos", exact = TRUE)
+  if (!is.null(proyeccion) && isTRUE(proyeccion$disponible)) {
+    cli::cli_text(paste0(
+      "Costo de `COUNT(DISTINCT)` proyectado: ~",
+      .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
+      proyeccion$n_lotes, " lote(s). Fuente: ", proyeccion$fuente,
+      ". Es una estimacion, no una medicion."
+    ))
   }
   # `muestra = Inf` -lo que viene por omision- trae la tabla entera a R. Es lo
   # correcto para un analisis de calidad: los diagnosticos que miran los valores
@@ -6519,6 +6870,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' lote, conservador por omisión porque una cardinalidad puede derramar mucho
 #' más que veinte agregados planos; la consulta exacta trae su
 #' `n_validos_guard` compañero.
+#' Antes de la primera consulta exacta se anuncia su costo sólo si hay una
+#' proyección temporal fundada en agregados planos medidos en esta corrida.
+#' La fuente y el valor quedan en `meta$costo_distintos`; no se usa una
+#' predicción basada en `reltuples`.
 #' Lo que no entra en el presupuesto queda en `no_disponible` con su motivo,
 #' nunca en cero. `meta$tamano_lote_funciono` conserva el mayor lote aceptado
 #' durante esa corrida; no se guarda estado global asociado a la conexión.
@@ -6536,6 +6891,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `desvio`, `lectura_muestra` y las sondas). Las métricas no solicitadas o que
 #' no emitieron consulta conservan esos campos y los dejan en `NA`; en
 #' particular, `NA` no significa cero.
+#'
+#' En PostgreSQL, con `instrumentar = TRUE`, se toma una foto de
+#' `pg_stat_statements` antes y después de los `COUNT(DISTINCT)` exactos. Sólo
+#' se publica un derrame cuando una consulta coincide y su contador aumentó en
+#' exactamente una llamada atribuible a esta corrida. En ese caso,
+#' `resumen_tabla$sql` agrega `derrame`,
+#' `bloques_temporales_leidos`, `bloques_temporales_escritos` y
+#' `fuente_derrame`; `resumen_tabla$meta$derrame` conserva el resumen y la
+#' fuente. Si la extensión no está disponible, la consulta fue concurrente o
+#' la instrumentación está apagada, el estado queda `no_disponible` o
+#' `no_medido` con el motivo: el paquete no deduce un derrame del tiempo y no
+#' modifica `work_mem`.
 #'
 #' `resumen_tabla$tiempos` reúne las etapas grandes del cliente en las mismas
 #' unidades (`duracion_ms`): `lectura_muestra`, `perfilado_muestra`,
@@ -6619,9 +6986,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @param tamano_lote_planos Cantidad máxima de columnas por consulta de
 #'   agregados planos. El valor por omisión es 20.
 #' @param tamano_lote_distintos Cantidad máxima de columnas por consulta de
-#'   cardinalidades exactas. El valor por omisión es 1, deliberadamente
-#'   conservador hasta contar con mediciones comparables: una sola cardinalidad
-#'   puede forzar un agregado pesado y derramar mucho más que un lote plano.
+#'   cardinalidades exactas. El valor por omisión es 2, medido sobre el servidor
+#'   de referencia: el `Shared Read` fue constante entre lotes y el costo por
+#'   columna fue casi igual para uno y dos, mientras el lote de dos derramó
+#'   menos que los lotes mayores. Una sola cardinalidad todavía puede forzar un
+#'   agregado pesado y derramar mucho más que un lote plano.
 #' @param dialecto Capacidad de acotar filas: `"auto"` la sondea, y
 #'   `"limit"`, `"top"`, `"fetch_first"`, `"rownum"` o `"portable"` la
 #'   declaran sin sondeo.
@@ -6643,7 +7012,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   omisión) calcula también `perfil_muestra`, o `"solo_agregados"` omite su
 #'   lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
 #'   alcance de esos agregados: eso lo decide `modo`.
-#' @param instrumentar Si se cronometra cada consulta y las etapas grandes de R.
+#' @param instrumentar Si se cronometra cada consulta y las etapas grandes de R
+#'   y, en PostgreSQL, se intenta atribuir el uso de bloques temporales de los
+#'   `COUNT(DISTINCT)` exactos mediante `pg_stat_statements`.
 #'   Por omisión es `TRUE`; agrega `duracion_ms`, `cpu_ms`,
 #'   `n_filas_resultado`, `bytes_resultado_r`, `consulta_id` y `etapa` a
 #'   `resumen_tabla$sql`, y el resumen `resumen_tabla$tiempos`. Con `FALSE` se
@@ -6812,6 +7183,12 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     estrategia_distintos = preparacion$estrategia_distintos,
     politica_costo = preparacion$politica_costo
   )
+  derrame <- .publicar_derrame_dbi(presupuesto)
+  resumen$sql <- .adjuntar_derrame_sql_dbi(
+    resumen$sql, presupuesto$derrame
+  )
+  resumen$meta$derrame <- derrame
+  resumen$meta$costo_distintos <- presupuesto$proyeccion_distintos
   if (identical(preparacion$politica_costo$nombre, "por_cardinalidad")) {
     decisiones <- resumen$meta$decisiones_costo
     columnas_moda <- names(decisiones)[vapply(
@@ -6841,6 +7218,9 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
       columnas_mediana = columnas_mediana,
       columnas_mediana_max = columnas_mediana
     )
+  }
+  if (!is.null(presupuesto$proyeccion_distintos)) {
+    attr(plan, "costo_distintos") <- presupuesto$proyeccion_distintos
   }
   # En la corrida el conteo sale de la primera consulta de agregados. Desde
   # aca es el total que gobierna el denominador, la muestra y toda la metadata;
@@ -7074,6 +7454,17 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     ))
   }
 
+  if (isTRUE(derrame$disponible) && derrame$consultas_con_derrame > 0) {
+    .avisar_dbi("lupa_aviso_derrame_dbi", paste0(
+      "Se observo derrame real en ", derrame$consultas_con_derrame,
+      " consulta(s) de `COUNT(DISTINCT)`: ",
+      derrame$bloques_temporales_leidos, " bloques temporales leidos y ",
+      derrame$bloques_temporales_escritos,
+      " escritos. Fuente: `", derrame$fuente,
+      "`. El detalle queda en `resumen_tabla$sql`."
+    ))
+  }
+
   estructura <- list(resumen_tabla = resumen, perfil_muestra = bloque$perfil)
   class(estructura) <- "perfil_dbi"
   estructura
@@ -7100,6 +7491,20 @@ print.perfil_dbi <- function(x, ...) {
     cli::cli_text(
       "Consultas emitidas: {meta$consultas$emitidas} (dialecto {meta$dialecto$nombre})"
     )
+  }
+  derrame <- meta$derrame
+  if (!is.null(derrame) && !identical(derrame$estado, "no_solicitado")) {
+    if (isTRUE(derrame$disponible)) {
+      cli::cli_text(
+        "Derrame medido: {derrame$consultas_con_derrame} consulta{?/s}, ",
+        "{derrame$bloques_temporales_leidos} bloques temporales leidos, ",
+        "{derrame$bloques_temporales_escritos} escritos."
+      )
+    } else {
+      cli::cli_text(
+        "Derrame: no disponible ({derrame$motivo})."
+      )
+    }
   }
   estado_muestra <- .estado_bloque_muestra_dbi(x)
   if (identical(estado_muestra, "no_solicitado")) {
