@@ -1,5 +1,21 @@
 # lupa 0.1.0
 
+
+## El parseo de fechas también trabaja sobre el vocabulario
+
+Después de la detección de formatos, el parseo era lo que quedaba recorriendo
+todos los valores. Ahora deduplica, parsea las formas distintas y mapea de
+vuelta, que es el mismo camino.
+
+Sobre una columna de fechas realista —1.096 fechas distintas en tres años,
+120.000 filas—, `perfilar()` baja de 4,23 s a 3,24 s: **un 23 % menos**. El costo
+del parseo queda prácticamente plano respecto de la cantidad de filas.
+
+El vector devuelto es idéntico: 257 comparaciones aleatorias contra la
+implementación anterior, con comparación exacta y no de un resumen, incluyendo
+meses en texto, zonas horarias, granularidad de mes, formatos mezclados, valores
+no parseables, columnas ya `Date` y ya `POSIXct`.
+
 ## La clave primaria queda publicada en el perfil DBI
 
 `perfilar_dbi()` consulta siempre el catalogo de la clave primaria y conserva

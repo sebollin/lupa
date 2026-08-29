@@ -596,14 +596,46 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   resultado
 }
 
+.meses_texto_para_formas <- function(meses_texto, textos, formas) {
+  campos <- c(
+    "formatos", "dias", "meses", "anios", "anio_dos_digitos", "validos"
+  )
+  valido <- !is.null(meses_texto) &&
+    all(campos %in% names(meses_texto)) &&
+    length(meses_texto$validos) == length(textos)
+  if (!valido) return(.detectar_meses_texto(formas))
+  indices <- match(formas, textos)
+  if (anyNA(indices)) return(.detectar_meses_texto(formas))
+  salida <- meses_texto
+  for (campo in campos) salida[[campo]] <- meses_texto[[campo]][indices]
+  salida$filas <- NULL
+  salida
+}
+
 .parsear_fechas <- function(x, formatos = detectar_formatos_fecha(x),
-                            meses_texto = NULL) {
-  valores <- .texto_analizable(x)$valores
+                            meses_texto = NULL, vocabulario = NULL,
+                            valores_preparados = NULL) {
+  valores <- if (is.null(valores_preparados)) {
+    .texto_analizable(x)$valores
+  } else {
+    valores_preparados
+  }
   valores <- trimws(valores)
   salida <- rep(as.POSIXct(NA, tz = "UTC"), length(valores))
   if (!nrow(formatos)) {
     return(salida)
   }
+  presentes <- !is.na(valores) & nzchar(valores)
+  textos <- valores[presentes]
+  posiciones <- which(presentes)
+  if (is.null(vocabulario)) {
+    vocabulario <- .vocabulario_texto(
+      textos, .umbral_vocabulario_barato
+    )
+  }
+  formas <- vocabulario$valores
+  indices_vocabulario <- vocabulario$indices
+  convertidas <- rep(as.POSIXct(NA, tz = "UTC"), length(formas))
   granularidades <- if ("granularidad" %in% names(formatos)) {
     formatos$granularidad
   } else {
@@ -615,13 +647,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
       granularidades != "mes" & !mes_sin_dia
   ])
   meses <- if (length(formatos_meses)) {
-    calculados <- meses_texto
-    if (is.null(calculados) ||
-        length(calculados$validos) != length(valores)) {
-      calculados <- .detectar_meses_texto(valores)
-    } else {
-      calculados
-    }
+    .meses_texto_para_formas(meses_texto, textos, formas)
   } else NULL
   for (formato in formatos_meses[formatos$estado[
       match(formatos_meses, formatos$formato)
@@ -632,7 +658,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
       "%04d-%02d-%02d", meses$anios[indices], meses$meses[indices],
       meses$dias[indices]
     ), format = "%Y-%m-%d")
-    salida[indices] <- as.POSIXct(fechas, tz = "UTC")
+    convertidas[indices] <- as.POSIXct(fechas, tz = "UTC")
   }
   confirmados <- formatos$formato[formatos$estado == "confirmado"]
   especificaciones <- .especificaciones_fecha()
@@ -640,16 +666,16 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     indice_especificacion <- match(formato, especificaciones$formato)
     if (is.na(indice_especificacion)) next
     patron <- especificaciones$expresion[[indice_especificacion]]
-    pendientes <- is.na(salida) & !is.na(valores) &
-      grepl(patron, valores, perl = TRUE)
+    pendientes <- is.na(convertidas) & grepl(patron, formas, perl = TRUE)
     if (!any(pendientes)) {
       next
     }
-    preparados <- .preparar_fecha_parseo(valores[pendientes], formato)
+    preparados <- .preparar_fecha_parseo(formas[pendientes], formato)
     convertido <- strptime(preparados, format = formato, tz = "UTC")
     valido <- !is.na(convertido)
     indices <- which(pendientes)[valido]
-    salida[indices] <- as.POSIXct(convertido[valido], tz = "UTC")
+    convertidas[indices] <- as.POSIXct(convertido[valido], tz = "UTC")
   }
+  if (length(posiciones)) salida[posiciones] <- convertidas[indices_vocabulario]
   salida
 }

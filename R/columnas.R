@@ -65,7 +65,8 @@
 }
 
 .valores_cuantitativos <- function(x, inferencia, formatos,
-                                   meses_texto = NULL) {
+                                   meses_texto = NULL, vocabulario = NULL,
+                                   valores_preparados = NULL) {
   if (inherits(x, "POSIXt")) {
     return(list(valores = as.numeric(x), clase = "fecha-hora",
                 n_fechas_resumidas = sum(is.finite(x)),
@@ -109,7 +110,10 @@
           )
         ))
       }
-      fechas <- .parsear_fechas(x, formatos, meses_texto = meses_texto)
+      fechas <- .parsear_fechas(
+        x, formatos, meses_texto = meses_texto, vocabulario = vocabulario,
+        valores_preparados = valores_preparados
+      )
       excluidas <- if (tiene_mes) {
         sum(formatos$n[formatos$estado == "confirmado" &
           formatos$granularidad == "mes"], na.rm = TRUE)
@@ -392,9 +396,12 @@
 
 .resumen_cuantitativo <- function(x, inferencia, formatos,
                                   meses_texto = NULL,
-                                  sentinelas_numericos = NULL) {
+                                  sentinelas_numericos = NULL,
+                                  vocabulario = NULL,
+                                  valores_preparados = NULL) {
   cuantitativos <- .valores_cuantitativos(
-    x, inferencia, formatos, meses_texto = meses_texto
+    x, inferencia, formatos, meses_texto = meses_texto,
+    vocabulario = vocabulario, valores_preparados = valores_preparados
   )
   if (identical(cuantitativos$clase, "fecha_granularidad_incompleta")) {
     salida <- .resumen_vacio_cuantitativo("granularidad_incompleta")
@@ -1427,11 +1434,28 @@
   } else {
     NULL
   }
+  vocabulario_fecha <- if (
+    (is.character(x_analisis) || is.factor(x_analisis)) &&
+      inferencia$tipo %in% c("fecha", "fecha-hora")
+  ) {
+    textos_fecha <- trimws(x_analisis)
+    presentes_fecha <- !is.na(textos_fecha) & nzchar(textos_fecha)
+    valores_fecha <- if (is.null(vocabulario_texto)) NULL else {
+      unicos <- trimws(vocabulario_texto)
+      unique(unicos[!is.na(unicos) & nzchar(unicos)])
+    }
+    .vocabulario_texto(
+      textos_fecha[presentes_fecha], .umbral_vocabulario_barato,
+      valores = valores_fecha
+    )
+  } else NULL
   moda <- .moda_columna(x_identidad)
   longitudes <- .resumen_longitud(x_analisis)
   cuantitativo <- .resumen_cuantitativo(
     x_analisis, inferencia, formatos, meses_texto = meses_texto,
-    sentinelas_numericos = sentinelas_numericos
+    sentinelas_numericos = sentinelas_numericos,
+    vocabulario = vocabulario_fecha,
+    valores_preparados = x_analisis
   )
   diagnostico_texto <- .diagnosticar_texto(x, vocabulario = vocabulario_texto)
   vocabulario_numeros <- if (

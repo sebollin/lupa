@@ -125,7 +125,9 @@ test_that("el parseo de fechas reutiliza los meses ya detectados", {
     .package = "lupa"
   )
   perfilar(
-    data.frame(fecha = c("15 de marzo de 2024", "16 de marzo de 2024")),
+    data.frame(fecha = c(
+      "15 de marzo de 2024", NA_character_, "", "16 de marzo de 2024"
+    )),
     analizar_dependencias = FALSE
   )
   expect_equal(llamadas, 1L)

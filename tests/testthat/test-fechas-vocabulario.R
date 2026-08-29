@@ -68,6 +68,9 @@ test_that("el detector de fechas pondera el vocabulario sin cambiar resultados",
   esperado <- lapply(casos, function(caso) {
     detectar_formatos_fecha(caso$valores, muestra = caso$muestra)
   })
+  esperado_parseo <- lapply(seq_along(casos), function(i) {
+    .parsear_fechas(casos[[i]]$valores, esperado[[i]])
+  })
   casos_inferencia <- casos[c(1:4, seq(5L, length(casos), by = 11L))]
   esperado_inferencias <- lapply(casos_inferencia, function(caso) {
     inferir_tipo(caso$valores, muestra = caso$muestra)
@@ -88,12 +91,17 @@ test_that("el detector de fechas pondera el vocabulario sin cambiar resultados",
   referencia <- lapply(casos, function(caso) {
     detectar_formatos_fecha(caso$valores, muestra = caso$muestra)
   })
+  referencia_parseo <- lapply(seq_along(casos), function(i) {
+    .parsear_fechas(casos[[i]]$valores, referencia[[i]])
+  })
   referencia_inferencias <- lapply(casos_inferencia, function(caso) {
     inferir_tipo(caso$valores, muestra = caso$muestra)
   })
 
   for (i in seq_along(casos)) {
     .comparar_formato_fecha(esperado[[i]], referencia[[i]])
+    expect_identical(esperado_parseo[[i]], referencia_parseo[[i]],
+                     info = paste("parseo caso", i))
   }
   for (i in seq_along(casos_inferencia)) {
     expect_identical(
