@@ -2,6 +2,41 @@
 
 ## lupa 0.1.0
 
+### El parseo de fechas también trabaja sobre el vocabulario
+
+Después de la detección de formatos, el parseo era lo que quedaba
+recorriendo todos los valores. Ahora deduplica, parsea las formas
+distintas y mapea de vuelta, que es el mismo camino.
+
+Sobre una columna de fechas realista —1.096 fechas distintas en tres
+años, 120.000 filas—,
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+baja de 4,23 s a 3,24 s: **un 23 % menos**. El costo del parseo queda
+prácticamente plano respecto de la cantidad de filas.
+
+El vector devuelto es idéntico: 257 comparaciones aleatorias contra la
+implementación anterior, con comparación exacta y no de un resumen,
+incluyendo meses en texto, zonas horarias, granularidad de mes, formatos
+mezclados, valores no parseables, columnas ya `Date` y ya `POSIXct`.
+
+### La clave primaria queda publicada en el perfil DBI
+
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+consulta siempre el catalogo de la clave primaria y conserva la
+respuesta en `resumen_tabla$meta$clave`, junto a sus columnas, fuente,
+motivo, garantia y estado. Una tabla sin clave declarada queda con
+`garantia = "no_declarada"`; una consulta fallida o una visibilidad que
+no se pudo establecer queda con `garantia = "desconocida"` y su motivo.
+Se conservan sin cambios los estados ya definidos para garantia,
+visibilidad, restricciones diferibles, descendientes e indice de
+respaldo.
+
+La lectura agrega una sola consulta de catalogo y ninguna consulta de
+datos. El metodo de impresion muestra la diferencia entre una clave
+garantizada, una tabla sin clave declarada y un catalogo que no se pudo
+consultar. El plan sigue sin recorrer datos: la consulta adicional es de
+metadatos.
+
 ### La moda conserva su guardian de la misma sentencia
 
 - La consulta de la moda intenta traer

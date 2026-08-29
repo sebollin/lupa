@@ -42,6 +42,17 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="el-parseo-de-fechas-también-trabaja-sobre-el-vocabulario-0-1-0">El parseo de fechas también trabaja sobre el vocabulario<a class="anchor" aria-label="anchor" href="#el-parseo-de-fechas-tambi%C3%A9n-trabaja-sobre-el-vocabulario-0-1-0"></a></h3>
+<p>Después de la detección de formatos, el parseo era lo que quedaba recorriendo todos los valores. Ahora deduplica, parsea las formas distintas y mapea de vuelta, que es el mismo camino.</p>
+<p>Sobre una columna de fechas realista —1.096 fechas distintas en tres años, 120.000 filas—, <code><a href="../reference/perfilar.html">perfilar()</a></code> baja de 4,23 s a 3,24 s: <strong>un 23 % menos</strong>. El costo del parseo queda prácticamente plano respecto de la cantidad de filas.</p>
+<p>El vector devuelto es idéntico: 257 comparaciones aleatorias contra la implementación anterior, con comparación exacta y no de un resumen, incluyendo meses en texto, zonas horarias, granularidad de mes, formatos mezclados, valores no parseables, columnas ya <code>Date</code> y ya <code>POSIXct</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="la-clave-primaria-queda-publicada-en-el-perfil-dbi-0-1-0">La clave primaria queda publicada en el perfil DBI<a class="anchor" aria-label="anchor" href="#la-clave-primaria-queda-publicada-en-el-perfil-dbi-0-1-0"></a></h3>
+<p><code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> consulta siempre el catalogo de la clave primaria y conserva la respuesta en <code>resumen_tabla$meta$clave</code>, junto a sus columnas, fuente, motivo, garantia y estado. Una tabla sin clave declarada queda con <code>garantia = "no_declarada"</code>; una consulta fallida o una visibilidad que no se pudo establecer queda con <code>garantia = "desconocida"</code> y su motivo. Se conservan sin cambios los estados ya definidos para garantia, visibilidad, restricciones diferibles, descendientes e indice de respaldo.</p>
+<p>La lectura agrega una sola consulta de catalogo y ninguna consulta de datos. El metodo de impresion muestra la diferencia entre una clave garantizada, una tabla sin clave declarada y un catalogo que no se pudo consultar. El plan sigue sin recorrer datos: la consulta adicional es de metadatos.</p>
+</div>
+<div class="section level3">
 <h3 id="la-moda-conserva-su-guardian-de-la-misma-sentencia-0-1-0">La moda conserva su guardian de la misma sentencia<a class="anchor" aria-label="anchor" href="#la-moda-conserva-su-guardian-de-la-misma-sentencia-0-1-0"></a></h3>
 <ul><li>La consulta de la moda intenta traer <code>SUM(COUNT(*)) OVER () AS n_validos_guard</code> junto a la frecuencia y valida <code>frecuencia_moda &lt;= n_validos</code> dentro de esa misma sentencia.</li>
 <li>La forma se sondea antes de usarla. Si el motor la rechaza, se conserva la consulta anterior y <code>resumen_tabla$meta$moda_guardian</code> declara el repliegue; el motivo deja de afirmar que la cota no se pudo comprobar cuando el guardian estuvo disponible.</li>

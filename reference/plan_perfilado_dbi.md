@@ -218,7 +218,9 @@ ejecuta. La corrida mide `distintos` sólo si la política lo necesita. La
 política por omisión es `"todas"`: el paquete no elige por el usuario.
 Una fuente estructural se resuelve aunque la estrategia de distintos
 este omitida o no disponible; esta ultima solo gobierna si se puede
-medir.
+medir. El catalogo de la clave primaria se consulta siempre para
+conservar esa respuesta en `resumen_tabla$meta$clave`; es una lectura de
+metadatos y no un recorrido de la tabla.
 
 Contar sólo el motor daba juicios falsos con números ciertos: una tabla
 de 3.912 filas con una columna de geometría en texto pedía 64.592

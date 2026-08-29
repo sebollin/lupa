@@ -368,6 +368,15 @@ consulta anterior y lo declara en `resumen_tabla$meta$moda_guardian`.
 Cuando la acepta, la cota `frecuencia_moda <= n_validos` se comprueba
 dentro de esa misma sentencia.
 
+El catálogo de la clave primaria se consulta en todas las corridas,
+aunque la política de costo no necesite la cardinalidad. La respuesta
+queda publicada en `resumen_tabla$meta$clave`, con `columnas`, `fuente`,
+`motivo`, `garantia` y `estado`. La consulta es de metadatos y no
+recorre la tabla. Una clave visible sin garantía suficiente conserva
+`garantia = "desconocida"`; una tabla sin clave declarada conserva
+`"no_declarada"`, y una consulta fallida conserva su motivo sin
+convertirlo en ausencia de clave.
+
 Las fuentes estructurales que usa la política de costo se resuelven
 cuando la política necesita la cardinalidad, aunque la estrategia
 solicitada esté omitida o no disponible. La disponibilidad gobierna si
@@ -471,10 +480,10 @@ plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # prepara y publica un r
 
 El plan da un **rango** de cuántas consultas va a emitir el perfilado, y
 lo dice en `attr(plan, "supuesto")`. No escanea datos para decidir el
-costo: lee el esquema, sondea capacidades y, con
-`politica_costo = "por_cardinalidad"`, puede leer una garantía
-estructural o una fuente de catálogo. Nunca lanza `COUNT(DISTINCT ...)`
-sólo para despejar una duda.
+costo: lee el esquema, sondea capacidades y consulta el catálogo de la
+clave primaria. Con `politica_costo = "por_cardinalidad"` también puede
+usar una garantía estructural o una fuente de catálogo. Nunca lanza
+`COUNT(DISTINCT ...)` sólo para despejar una duda.
 
 El extremo inferior es `total`: cuando la fuente de cardinalidad es
 desconocida, supone que la política omite las métricas caras. El extremo

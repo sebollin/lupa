@@ -238,7 +238,14 @@ alcance completo o muestreado según <code>modo</code>, y <code>perfil_muestra</
 <code>perfil</code> cuyo <code>meta$origen_dbi</code> declara tabla, conexión, SQL y alcance.
 <code>perfil_muestra</code> es <code>NULL</code> si la muestra no se pudo obtener o si se pidió
 <code>bloque_muestra = "solo_agregados"</code>; <code>resumen_tabla$cobertura</code> distingue
-esos casos con <code>no_disponible</code> y <code>no_solicitado</code>, respectivamente.</p>
+esos casos con <code>no_disponible</code> y <code>no_solicitado</code>, respectivamente.
+<code>resumen_tabla$meta$clave</code> conserva siempre la respuesta del catálogo de la
+clave primaria: <code>columnas</code>, <code>fuente</code>, <code>motivo</code>, <code>garantia</code> y <code>estado</code>.
+<code>garantia</code> puede ser <code>garantizada</code>, <code>declarada_no_garantizada</code>,
+<code>desconocida</code> o <code>no_declarada</code>; <code>estado</code> conserva, cuando el motor los
+expone, <code>visible</code>, <code>restriccion_diferible</code>,
+<code>universo_incluye_descendientes</code> e <code>indice_no_unico</code>. Una consulta fallida
+queda diferenciada de una clave no declarada.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

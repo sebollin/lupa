@@ -193,7 +193,14 @@ objeto `perfil` cuyo `meta$origen_dbi` declara tabla, conexión, SQL y
 alcance. `perfil_muestra` es `NULL` si la muestra no se pudo obtener o
 si se pidió `bloque_muestra = "solo_agregados"`;
 `resumen_tabla$cobertura` distingue esos casos con `no_disponible` y
-`no_solicitado`, respectivamente.
+`no_solicitado`, respectivamente. `resumen_tabla$meta$clave` conserva
+siempre la respuesta del catálogo de la clave primaria: `columnas`,
+`fuente`, `motivo`, `garantia` y `estado`. `garantia` puede ser
+`garantizada`, `declarada_no_garantizada`, `desconocida` o
+`no_declarada`; `estado` conserva, cuando el motor los expone,
+`visible`, `restriccion_diferible`, `universo_incluye_descendientes` e
+`indice_no_unico`. Una consulta fallida queda diferenciada de una clave
+no declarada.
 
 ## Details
 
