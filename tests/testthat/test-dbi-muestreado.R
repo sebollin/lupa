@@ -196,12 +196,22 @@ test_that("muestreado usa una forma declarada por el motor y marca cada estimaci
   expect_true(all(metricas$universo == 20))
   expect_true(all(metricas$tamano_muestra == 5))
   expect_true(all(metricas$fraccion == 0.25))
-  expect_true(all(metricas$metodo == "random_limit" | metricas$metodo == "tablesample_system"))
+  metricas_sin_distintos <- metricas[
+    !metricas$metrica %in% c("n_distintos", "tasa_distintos"), , drop = FALSE
+  ]
+  expect_true(all(
+    metricas_sin_distintos$metodo == "random_limit" |
+      metricas_sin_distintos$metodo == "tablesample_system"
+  ))
   expect_true(all(metricas$estado %in% c("estimado", "observado_muestra", "no_aplica")))
   distintos <- metricas[metricas$metrica == "n_distintos", , drop = FALSE]
   expect_true(all(distintos$estado == "observado_muestra"))
   expect_true(all(grepl("cardinalidad observada", distintos$motivo, fixed = TRUE)))
-  expect_true(all(distintos$error_esperado == "no_estimable"))
+  expect_true(all(distintos$error_esperado == "no_aplica"))
+  expect_true(all(distintos$metodo == "COUNT(DISTINCT)"))
+  expect_true(all(distintos$estrategia_solicitada == "exacta"))
+  expect_true(all(distintos$estrategia_resuelta == "COUNT(DISTINCT)"))
+  expect_true(all(distintos$estado_estrategia == "calculado"))
   no_estimados <- metricas[
     metricas$columna %in% c("id", "monto") &
     metricas$metrica %in% c(
@@ -321,41 +331,78 @@ test_that("sin TABLESAMPLE usa limite sobre un orden pseudoaleatorio", {
   expect_true(all(metricas$estado == "estimado"))
 })
 
-test_that("aproximado usa APPROX_COUNT_DISTINCT cuando la sonda responde", {
+test_that("aproximada_motor usa APPROX_COUNT_DISTINCT cuando la sonda responde", {
   con <- .conexion_capacidad_dbi("ConexionAproximadaLupa")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   .reiniciar_capacidad_dbi("aprox_distintos")
 
   resultado <- .perfil_liviano_dbi_muestreado(
-    con, "aproximado", metricas = c("validos", "distintos")
+    con, "exacto", metricas = c("validos", "distintos"),
+    estrategia_distintos = "aproximada_motor"
   )
   registros <- resultado$resumen_tabla$sql
   distintos <- registros[registros$metrica == "n_distintos", , drop = FALSE]
 
   expect_true(any(grepl("APPROX_COUNT_DISTINCT", .capacidad_dbi_prueba$sql)))
-  expect_true(all(distintos$estado == "estimado"))
+  expect_true(all(distintos$estado == "estimado_motor"))
   expect_true(all(distintos$metodo == "APPROX_COUNT_DISTINCT"))
   expect_true(all(grepl("APPROX_COUNT_DISTINCT", distintos$sql)))
   expect_false(any(grepl("COUNT(DISTINCT", distintos$sql, fixed = TRUE)))
   expect_true(all(distintos$universo == 20))
   expect_true(all(distintos$error_esperado == "desconocido"))
+  expect_true(all(distintos$estrategia_solicitada == "aproximada_motor"))
+  expect_true(all(distintos$estrategia_resuelta == "APPROX_COUNT_DISTINCT"))
+  expect_true(all(distintos$estado_estrategia == "estimado_motor"))
 })
 
-test_that("aproximado declara el respaldo COUNT DISTINCT si no hay funcion nativa", {
+test_that("el plan declara la aproximada_motor sin escanear la tabla", {
+  con <- .conexion_capacidad_dbi("ConexionAproximadaLupa")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  .reiniciar_capacidad_dbi("aprox_distintos")
+
+  plan <- lupa:::plan_perfilado_dbi(
+    con, "datos", bloque_muestra = "solo_agregados",
+    metricas = c("validos", "distintos"),
+    estrategia_distintos = "aproximada_motor"
+  )
+  estrategia <- attr(plan, "estrategia_distintos", exact = TRUE)
+  expect_identical(estrategia$estrategia_solicitada, "aproximada_motor")
+  expect_identical(estrategia$estrategia_resuelta, "APPROX_COUNT_DISTINCT")
+  expect_identical(estrategia$estado, "estimado_motor")
+  expect_true(any(grepl("APPROX_COUNT_DISTINCT", .capacidad_dbi_prueba$sql)))
+  datos <- grepl("FROM `datos`", .capacidad_dbi_prueba$sql, fixed = TRUE) &
+    !grepl("WHERE[[:space:]]+1[[:space:]]*=[[:space:]]*0",
+           .capacidad_dbi_prueba$sql, ignore.case = TRUE) &
+    !grepl("LIMIT[[:space:]]+0[[:space:]]*$", .capacidad_dbi_prueba$sql,
+           ignore.case = TRUE)
+  expect_false(any(datos))
+  expect_false(any(grepl("COUNT(DISTINCT", .capacidad_dbi_prueba$sql,
+                         fixed = TRUE)))
+})
+
+test_that("aproximada_motor no repliega a exacto si falta la funcion nativa", {
   con <- .conexion_capacidad_dbi("ConexionCapacidadLupa")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   .reiniciar_capacidad_dbi("normal")
 
   resultado <- .perfil_liviano_dbi_muestreado(
-    con, "aproximado", metricas = c("validos", "distintos")
+    con, "exacto", metricas = c("validos", "distintos"),
+    estrategia_distintos = "aproximada_motor"
   )
   registros <- resultado$resumen_tabla$sql
   distintos <- registros[registros$metrica == "n_distintos", , drop = FALSE]
 
   expect_false(any(grepl("APPROX_COUNT_DISTINCT", distintos$sql)))
-  expect_true(all(grepl("COUNT(DISTINCT", distintos$sql, fixed = TRUE)))
-  expect_true(all(distintos$estado == "calculado"))
-  expect_true(all(distintos$metodo == "COUNT(DISTINCT)"))
+  expect_false(any(grepl("COUNT(DISTINCT", distintos$sql, fixed = TRUE)))
+  expect_true(all(distintos$estado == "no_disponible"))
+  expect_true(all(is.na(distintos$sql)))
+  expect_true(all(distintos$estrategia_solicitada == "aproximada_motor"))
+  expect_true(all(is.na(distintos$estrategia_resuelta)))
+  expect_true(all(distintos$estado_estrategia == "no_disponible"))
+  expect_identical(
+    resultado$resumen_tabla$meta$estrategia_distintos$estado,
+    "no_disponible"
+  )
 })
 
 test_that("aproximado usa la funcion nativa de cuantiles cuando responde", {

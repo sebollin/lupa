@@ -19,6 +19,7 @@ plan_perfilado_dbi(
   tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
   bloque_muestra = c("con_muestra", "solo_agregados"),
   instrumentar = FALSE,
+  estrategia_distintos = "exacta",
   politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI
 )
@@ -53,7 +54,7 @@ limitada, y \code{meta} lo declara expresamente. No se usa cuando
 \code{"seguro"} evita las que ordenan o agrupan la tabla completa y
 \code{"conteos"} deja solo el conteo de valores no nulos, \code{"muestreado"}
 calcula estimaciones sobre filas elegidas por el motor y \code{"aproximado"}
-usa funciones nativas aproximadas cuando la sonda las acepta.}
+usa funciones nativas aproximadas para las métricas que ese modo define.}
 
 \item{metricas}{Selección explícita de grupos de métricas, que tiene
 prioridad sobre \code{modo}: \code{"validos"}, \code{"distintos"}, \code{"moda"},
@@ -90,6 +91,16 @@ alcance de esos agregados: eso lo decide \code{modo}.}
 \item{instrumentar}{En el plan, si es \code{TRUE}, cronometra las consultas de
 preparación. No habilita consultas de datos ni agrega mediciones al objeto
 devuelto: sus costos siguen siendo predicciones. Por omisión es \code{FALSE}.}
+
+\item{estrategia_distintos}{Procedencia explícita para \code{n_distintos}:
+\code{"exacta"} (por omisión) emite \code{COUNT(DISTINCT)}; \code{"aproximada_motor"}
+usa una función nativa aceptada por el motor y deja la métrica en
+\code{no_disponible} si no existe; \code{"catalogo"} queda declarada pero
+\code{no_disponible} hasta implementar la estadística del catálogo; y
+\code{"omitida"} no emite ninguna consulta. No hay repliegue automático entre
+estrategias. El resultado publica \code{estrategia_solicitada},
+\code{estrategia_resuelta} y \code{estado} en \code{meta$estrategia_distintos}, y las dos
+primeras también en \code{resumen_tabla$sql}.}
 
 \item{politica_costo}{Política optativa para las métricas caras. El valor por
 omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
@@ -164,12 +175,14 @@ plan publica el rango entre omitir y ejecutar las métricas caras. Nunca
 lanza \verb{COUNT(DISTINCT ...)} para despejar esa incertidumbre.
 }
 \details{
-\code{estrategia_distintos} separa la métrica que se publica de
-\code{fuente_cardinalidad_costo}, que dice de dónde sale el número usado para
-decidir. Por eso se puede omitir \code{n_distintos} del resultado y usar una clave
-declarada o una fuente de catálogo para decidir si conviene la moda. La
-corrida sigue la política explícita y reutiliza la medición de distintos una
-sola vez cuando la necesita.
+\code{estrategia_distintos} declara la procedencia de \code{n_distintos} antes de la
+corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
+\code{auto}: \code{"exacta"} es el valor por omisión, \code{"aproximada_motor"} queda
+\code{no_disponible} si el motor no ofrece una función aceptada, \code{"catalogo"}
+queda \code{no_disponible} hasta implementar su estadística y \code{"omitida"} no
+emite el agregado. \code{fuente_cardinalidad_costo} sigue siendo independiente y
+sólo describe el número usado por la política de costo cuando esa política
+se pide.
 }
 \examples{
 if (requireNamespace("DBI", quietly = TRUE) &&

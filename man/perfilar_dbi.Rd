@@ -19,6 +19,7 @@ perfilar_dbi(
   tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
   bloque_muestra = c("con_muestra", "solo_agregados"),
   instrumentar = TRUE,
+  estrategia_distintos = "exacta",
   politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
   ...
@@ -54,7 +55,7 @@ limitada, y \code{meta} lo declara expresamente. No se usa cuando
 \code{"seguro"} evita las que ordenan o agrupan la tabla completa y
 \code{"conteos"} deja solo el conteo de valores no nulos, \code{"muestreado"}
 calcula estimaciones sobre filas elegidas por el motor y \code{"aproximado"}
-usa funciones nativas aproximadas cuando la sonda las acepta.}
+usa funciones nativas aproximadas para las métricas que ese modo define.}
 
 \item{metricas}{Selección explícita de grupos de métricas, que tiene
 prioridad sobre \code{modo}: \code{"validos"}, \code{"distintos"}, \code{"moda"},
@@ -100,6 +101,16 @@ duraciones usan \code{Sys.time()} y el CPU del cliente usa la suma de
 \code{proc.time()[c("user.self", "sys.self")]}. \code{cpu_ms} es cero cuando el
 proceso no consumió CPU; \code{NA} significa que no se pudo medir. Los
 intervalos que el reloj no puede resolver no se publican como cero.}
+
+\item{estrategia_distintos}{Procedencia explícita para \code{n_distintos}:
+\code{"exacta"} (por omisión) emite \code{COUNT(DISTINCT)}; \code{"aproximada_motor"}
+usa una función nativa aceptada por el motor y deja la métrica en
+\code{no_disponible} si no existe; \code{"catalogo"} queda declarada pero
+\code{no_disponible} hasta implementar la estadística del catálogo; y
+\code{"omitida"} no emite ninguna consulta. No hay repliegue automático entre
+estrategias. El resultado publica \code{estrategia_solicitada},
+\code{estrategia_resuelta} y \code{estado} en \code{meta$estrategia_distintos}, y las dos
+primeras también en \code{resumen_tabla$sql}.}
 
 \item{politica_costo}{Política optativa para las métricas caras. El valor por
 omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
@@ -195,11 +206,30 @@ cuando no hubo muestreo efectivo. El \code{motivo} de cada registro explica la
 distincion. \code{metodo}, \code{tamano_muestra} y \code{fraccion} conservan las condiciones
 de la corrida; no se publica una cota numerica sin una formula justificada.
 Los distintos de una muestra se publican como cardinalidad de la muestra,
-no como cardinalidad del universo. \code{modo = "aproximado"} sondea
-\code{APPROX_COUNT_DISTINCT}, \code{approx_count_distinct} y las formas de cuantiles del
-motor; cuando ninguna responde usa el respaldo exacto y lo registra por
-metrica. Las cotas de error no documentadas de una aproximacion nativa quedan
-como \code{"desconocido"}. Una aproximacion solo se consolida cuando entrega una
+no como cardinalidad del universo. \code{estrategia_distintos} es explicita y
+vale \code{"exacta"} por omision: calcula \code{COUNT(DISTINCT)} sobre las filas de la
+corrida. \code{"aproximada_motor"} sondea una funcion nativa y, si no hay una
+capacidad aceptada, deja la metrica \code{no_disponible}; nunca ejecuta el conteo
+exacto como repliegue. \code{"catalogo"} esta declarada pero queda
+\code{no_disponible} en esta version porque todavia no implementa una estadistica
+de cardinalidad; en particular, no usa \code{pg_stats}. \code{"omitida"} no emite la
+consulta. Cada resultado y el atributo \code{meta$estrategia_distintos} separan
+\code{estrategia_solicitada}, \code{estrategia_resuelta} y \code{estado}.
+
+Las comparaciones que tienen una cota dura usan solo valores del mismo grupo
+de consistencia. En esta version, el grupo queda probado por el
+\code{consulta_id} que ya se registra en \code{resumen_tabla$sql}: dos metricas con el
+mismo identificador salieron de la misma sentencia. La consulta exacta de
+distintos trae \verb{COUNT(columna) AS n_validos_guard} junto a
+\verb{COUNT(DISTINCT columna)}. Si una capacidad aproximada sólo construye una
+consulta completa y no puede traer ese guardian, la cota no se comprueba y
+el motivo lo declara; no se atribuye un valor imposible al motor.
+La frecuencia de la moda no se compara con \code{n_validos} de otra sentencia:
+como su consulta no trae un guardian compañero, esa cota también queda
+declarada como no comprobable.
+
+Las cotas de error no documentadas de una aproximacion nativa quedan como
+\code{"desconocido"}. Una aproximacion solo se consolida cuando entrega una
 expresion que se puede incrustar en el \code{SELECT}; si solo construye una
 consulta completa, se emite por separado. Una consulta no emitida o sin un
 valor utilizable queda \code{no_disponible}.
@@ -225,20 +255,22 @@ se trae a R, no el trabajo del motor. \code{bloque_muestra} decide si se trae es
 muestra; \code{modo}, \code{metricas}, \code{tamano_lote_planos}, \code{tamano_lote_distintos} y
 \code{max_consultas} acotan el trabajo SQL. \code{\link[=plan_perfilado_dbi]{plan_perfilado_dbi()}} dice cuántas
 consultas se van a emitir antes de emitirlas. El orden de degradación es
-agregados planos, total exacto fusionado, distintos, moda y mediana. Los
+agregados planos, total del universo cuando hace falta, distintos, moda y
+mediana. Los
 agregados planos sobre la misma tabla y filtro —\code{COUNT(col)},
 mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
-por lote; cuando la fuente no necesita el total por adelantado, la primera
-consulta de agregados lleva además el \verb{COUNT(*)} exacto con el alias
-\code{lupa_n_total}. Si el lote completo es rechazado, se emite un \verb{COUNT(*)} solo
-como repliegue obligatorio y sus mitades se sondean por bisección: los grupos
+por lote y cada consulta que trae \code{n_validos} lleva además
+\verb{COUNT(*) AS n_total_consulta} en la misma sentencia. La completitud usa ese
+denominador local, no el total de otro lote. El total del universo se conserva
+por separado cuando el perfil se calcula sobre una muestra. Si el lote
+completo es rechazado, sus mitades se sondean por bisección: los grupos
 aceptados se reutilizan como mediciones y las columnas culpables se reintentan
-por métrica. El denominador de completitud nunca se estima a partir de un
-catálogo ni de un lote parcial. Las fuentes \code{TABLESAMPLE} que necesitan el
-total para escribir un porcentaje lo cuentan antes y no reclaman este ahorro.
+por métrica, con su denominador local. Las fuentes \code{TABLESAMPLE} que necesitan
+el total del universo para escribir un porcentaje lo cuentan antes.
 \verb{COUNT(DISTINCT ...)} queda en una clase separada y usa su propio tamaño de
 lote, conservador por omisión porque una cardinalidad puede derramar mucho
-más que veinte agregados planos.
+más que veinte agregados planos; la consulta exacta trae su
+\code{n_validos_guard} compañero.
 Lo que no entra en el presupuesto queda en \code{no_disponible} con su motivo,
 nunca en cero. \code{meta$tamano_lote_funciono} conserva el mayor lote aceptado
 durante esa corrida; no se guarda estado global asociado a la conexión.

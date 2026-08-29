@@ -466,6 +466,70 @@ test_that("el plan no ejecuta datos ni duplica el conteo de DBI", {
   }
 })
 
+test_that("cada estrategia de distintos declara y emite su SQL", {
+  bases <- .conexion_juguete()
+  on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
+
+  estrategias <- c("exacta", "aproximada_motor", "catalogo", "omitida")
+  for (estrategia in estrategias) {
+    .juguete_reiniciar("normal")
+    plan <- lupa:::plan_perfilado_dbi(
+      bases$juguete, "juguete", metricas = c("validos", "distintos"),
+      bloque_muestra = "solo_agregados",
+      estrategia_distintos = estrategia
+    )
+    consultas_plan <- .juguete_consultas()
+    declarada <- attr(plan, "estrategia_distintos", exact = TRUE)
+    expect_identical(declarada$estrategia_solicitada, estrategia)
+    expect_false(any(
+      grepl("FROM `juguete`", consultas_plan, fixed = TRUE) &
+        !grepl("WHERE[[:space:]]+1[[:space:]]*=[[:space:]]*0", consultas_plan,
+               ignore.case = TRUE) &
+        !grepl("LIMIT[[:space:]]+0[[:space:]]*$", consultas_plan,
+               ignore.case = TRUE)
+    ), info = estrategia)
+    expect_false(
+      any(grepl("COUNT(DISTINCT", consultas_plan, fixed = TRUE)),
+      info = estrategia
+    )
+
+    .juguete_reiniciar("normal")
+    resultado <- .perfilar_juguete(
+      bases$juguete, metricas = c("validos", "distintos"),
+      bloque_muestra = "solo_agregados",
+      estrategia_distintos = estrategia
+    )
+    meta <- resultado$resumen_tabla$meta$estrategia_distintos
+    distintos <- resultado$resumen_tabla$sql[
+      resultado$resumen_tabla$sql$metrica == "n_distintos", , drop = FALSE
+    ]
+    expect_true(nrow(distintos) > 0L)
+    expect_true(all(distintos$estrategia_solicitada == estrategia))
+
+    if (identical(estrategia, "exacta")) {
+      expect_true(any(grepl("COUNT(DISTINCT", distintos$sql, fixed = TRUE)))
+      expect_identical(meta$estrategia_resuelta, "COUNT(DISTINCT)")
+      expect_true(all(distintos$estado == "calculado"))
+    } else if (identical(estrategia, "aproximada_motor")) {
+      expect_false(any(grepl("COUNT(DISTINCT", distintos$sql, fixed = TRUE)))
+      expect_true(all(is.na(distintos$sql)))
+      expect_true(all(distintos$estado == "no_disponible"))
+      expect_identical(meta$estado, "no_disponible")
+    } else if (identical(estrategia, "catalogo")) {
+      expect_false(any(grepl("COUNT(DISTINCT", distintos$sql, fixed = TRUE)))
+      expect_true(all(is.na(distintos$sql)))
+      expect_true(all(distintos$estado == "no_disponible"))
+      expect_identical(meta$estado, "no_disponible")
+      expect_match(meta$motivo, "pg_stats", fixed = TRUE)
+    } else {
+      expect_false(any(grepl("COUNT(DISTINCT", distintos$sql, fixed = TRUE)))
+      expect_true(all(is.na(distintos$sql)))
+      expect_true(all(distintos$estado == "omitida"))
+      expect_identical(meta$estado, "omitida")
+    }
+  }
+})
+
 test_that("pedir el plan y despues perfilar ejecuta cada distinto una vez", {
   bases <- .conexion_juguete()
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
@@ -483,8 +547,17 @@ test_that("pedir el plan y despues perfilar ejecuta cada distinto una vez", {
     politica_costo = "por_cardinalidad"
   )
   consultas <- .juguete_consultas()
-  distintos <- grepl("COUNT(DISTINCT", consultas, fixed = TRUE)
-  expect_equal(sum(distintos), 3L)
+  # Se cuentan las APARICIONES del agregado, no las sentencias que lo contienen.
+  # El invariante es que cada columna se cuente una sola vez; cuantas sentencias
+  # hagan falta depende de `tamano_lote_distintos`, que es una decision de costo
+  # medida aparte y puede cambiar sin que este invariante cambie.
+  ocurrencias <- gregexpr("COUNT(DISTINCT", consultas, fixed = TRUE)
+  distintos <- sum(vapply(
+    ocurrencias,
+    function(m) if (identical(m[[1L]], -1L)) 0L else length(m),
+    integer(1L)
+  ))
+  expect_equal(distintos, 3L)
   expect_equal(
     length(consultas), .juguete$get_query + .juguete$send_query +
       .juguete$metadata_query

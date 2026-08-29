@@ -143,15 +143,15 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
       "SELECT COUNT\\(\\*\\) AS.*lupa_n_total.*FROM `tabla_prueba`$",
       sql, perl = TRUE
     ) & cantidad_count == 1L
-    fused <- grepl("lupa_n_total", sql, fixed = TRUE)
+    fused <- grepl("n_total_consulta", sql, fixed = TRUE)
     expect_equal(
       resultado$resumen_tabla$meta$consultas$emitidas,
       attr(plan, "total"), info = paste("plan", modo)
     )
     expect_equal(sum(solo_conteos), 0L, info = paste("conteo separado", modo))
     expect_equal(sum(fused), 1L, info = paste("consulta fusionada", modo))
-    # La implementación anterior habría añadido el COUNT(*) autónomo al mismo
-    # conjunto de consultas y al mismo número de recorridos sobre la tabla.
+    # Los denominadores locales viajan en las consultas que ya necesitaban los
+    # agregados; agregar la expresion no abre una consulta nueva.
     expect_equal(
       as.integer(attr(plan, "total")) + 1L - length(sql),
       1L, info = paste("ahorro", modo)
@@ -160,10 +160,9 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
       gregexpr("FROM `tabla_prueba`", sql, fixed = TRUE),
       function(x) if (identical(x, -1L)) 0L else length(x), integer(1L)
     ))
-    # En la tabla completa, el COUNT(*) autónomo anterior añadía un recorrido.
-    # El muestreo aleatorio conserva un conteo exacto como subconsulta sobre la
-    # tabla original: ahí se evita la consulta, pero no se inventa un ahorro de
-    # recorrido físico.
+    # En la tabla completa, el denominador local comparte el recorrido. El
+    # muestreo aleatorio conserva un conteo exacto como subconsulta sobre la
+    # tabla original: no abre una consulta, pero si agrega ese recorrido.
     ahorro_recorridos <- if (identical(modo, "muestreado")) 0L else 1L
     recorridos_esperados <- if (identical(modo, "muestreado")) {
       length(sql) + 1L
@@ -187,7 +186,7 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
       expect_true(any(grepl("(SELECT COUNT(*) FROM", sql, fixed = TRUE)))
     } else {
       expect_true(any(grepl(
-        "COUNT(*) AS `lupa_n_total`", sql, fixed = TRUE
+        "COUNT(*) AS `n_total_consulta`", sql, fixed = TRUE
       )))
     }
     mediciones[[modo]] <- c(

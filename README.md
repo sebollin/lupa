@@ -273,17 +273,24 @@ its own tests.
 
 `resumen_tabla$sql` keeps **one row per column and metric** with every field it
 had, and adds `lote` and `columnas_compartidas` so a shared query is visible. It
-also adds `id_muestra`: two metrics with the same value came from the same data
-query and saw exactly the same rows. Per-column metrics — mode, mode frequency,
-and median — leave `id_muestra = NA`, because they do not share rows with other
-metrics; `NA` declares that there is no guarantee rather than inventing a match.
+also adds `consulta_id`, which identifies the statement that produced each
+measurement and defines the verifiable consistency group. `id_muestra` also
+identifies the data query and preserves the guarantee that two metrics with the
+same value saw exactly the same rows. Per-column metrics — mode, mode
+frequency, and median — leave `id_muestra = NA`, because they do not share rows
+with other metrics; `NA` declares that there is no guarantee rather than
+inventing a match.
 
-The exact total (`COUNT(*)`) travels in the first flat aggregate query and shares
-the scan the aggregates already needed. If the complete batch is rejected by
-the engine, a standalone `COUNT(*)` is issued and bisection continues:
-completeness always uses `n_total - n_validos`, never an estimated total. A
-`TABLESAMPLE` form that needs the total to write a percentage counts it first.
-The batch sizes are separate: `tamano_lote_planos` controls flat aggregates and
+Every flat aggregate query that carries `n_validos` also carries
+`COUNT(*) AS n_total_consulta` in the same statement. Completeness uses that
+local denominator, including after bisection; it does not combine a total from
+another batch. The universe total is kept separately when profiling a sample or
+when no aggregate can carry it. The exact distinct query includes
+`COUNT(column) AS n_validos_guard` beside `COUNT(DISTINCT column)`: the hard
+bound is applied only when both values have the same `consulta_id`. If an
+approximate capability cannot provide that guardian, the check is reported as
+unavailable and no inconsistency is attributed to the engine. Batch sizes are
+separate: `tamano_lote_planos` controls flat aggregates and
 `tamano_lote_distintos` controls cardinalities. The latter defaults to 1 until
 comparable measurements exist, because one cardinality can spill far more than
 a flat batch.
@@ -375,16 +382,25 @@ executes them. If the engine rejects batches, up to `2n - 1` probes are added pe
 batch of `n` columns. The real cost falls between the two, and the plan says so
 in both directions.
 
-`estrategia_distintos` and `fuente_cardinalidad_costo` are independent: the
-former says whether `n_distintos` is published or only used for the decision,
-while the latter says where the ratio comes from. A declared key can therefore
-close the decision without issuing `COUNT(DISTINCT ...)`. If the source is
-unknown, the run follows the explicit policy and measures that aggregate once
-when needed.
+Distinct-count provenance is selected explicitly with `estrategia_distintos`.
+`"exacta"` is the default and emits `COUNT(DISTINCT)`; `"aproximada_motor"`
+uses a native function only when the engine accepts its probe; `"catalogo"` is
+declared but remains `no_disponible` until a catalogue statistic is implemented;
+and `"omitida"` emits no distinct-count query. An unavailable approximation does
+not silently become exact. The result separates the requested strategy, the
+resolved strategy, and its state in `meta$estrategia_distintos` and in the SQL
+rows.
 
-The run carries the exact `COUNT(*)` in the total fused with flat aggregates; if
-there are no flat aggregates that can carry it, it emits it before the distinct
-family. The plan publishes this order without paying the scan.
+`estrategia_distintos` and `fuente_cardinalidad_costo` are independent: the
+former controls how `n_distintos` is obtained or omitted, while the latter says
+where the ratio used by the cost policy comes from. A cost-policy decision
+cannot turn a requested approximate or catalogue strategy into
+`COUNT(DISTINCT ...)`.
+
+Each flat batch that computes valid counts carries its own
+`COUNT(*) AS n_total_consulta`, with no additional query; the plan publishes
+that composition. When a separate universe total is needed — for example, for a
+sample or when there are no flat aggregates — it remains an explicit query.
 
 The part that *is* a hard design constraint is that the prediction does not depend
 on the engine: every capability probe costs a fixed number of queries even when
@@ -431,7 +447,7 @@ redo the arithmetic.
 | `seguro` | drops the metrics that sort the whole column |
 | `conteos` | counts only |
 | `muestreado` | metrics over rows sampled **in the engine**: `TABLESAMPLE` where it exists, a pseudo-random order with a limit where it does not |
-| `aproximado` | native approximate functions: `APPROX_COUNT_DISTINCT`, `PERCENTILE_CONT`, `approx_quantile` and their fallbacks |
+| `aproximado` | native approximate functions for the metrics defined by that mode |
 
 Every sampled or approximated metric travels saying so. `estado` distinguishes
 `calculado`, `estimado` and `no_disponible`, and each row carries `universo`,
@@ -456,8 +472,10 @@ An engine with no sampling capability does not break: the mode degrades and says
 so in the coverage table.
 
 An approximation is not marked as estimated when its query was not issued or
-did not return a usable value. If the engine lacks the approximate function,
-the exact fallback keeps `COUNT(DISTINCT ...)` as the published method.
+did not return a usable value. Distinct-count provenance is selected separately
+with `estrategia_distintos`; if `"aproximada_motor"` is requested and the engine
+lacks the function, the metric is `no_disponible` and `COUNT(DISTINCT ...)` is
+not executed.
 
 ## 🕳️ Emptiness by design is declared, not counted as a defect
 

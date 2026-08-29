@@ -124,7 +124,12 @@ test_that("la cota de distintos se rechaza antes del unico registro", {
   distintos <- list(
     ok = TRUE, valor = 4, estado = "estimado",
     sql = "SELECT APPROX_COUNT_DISTINCT(x)",
-    metadatos = list(metodo = "aprox_con_expresion", error_esperado = "desconocido")
+    consulta_id = 2L,
+    metadatos = list(
+      metodo = "aprox_con_expresion", error_esperado = "desconocido",
+      n_validos_guard = 3, consulta_id_guard = 2L,
+      cota_comprobable = TRUE
+    )
   )
   agregados <- list(
     conteos = list(x = list(validos = validos, distintos = distintos)),

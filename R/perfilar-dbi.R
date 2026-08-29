@@ -60,10 +60,26 @@
 # tres consultas sobre una tabla de sesenta columnas.
 .TAMANO_LOTE_PLANOS_DBI <- 20L
 # Una cardinalidad exacta puede derramar mucho mas que un bloque de agregados
-# planos. Hasta tener mediciones comparables entre motores, una columna por
-# consulta es la opcion conservadora: limita el radio de un derrame y permite
-# bajar el lote sin cambiar el tamano de los planos.
-.TAMANO_LOTE_DISTINTOS_DBI <- 1L
+# planos, y por eso tiene su propio lote. Cuanto conviene agrupar se midio sobre
+# un PostgreSQL real, con una tabla de 4,5 M filas y `work_mem` de 32 MB:
+#
+#   lote  exec total  exec/columna  Temp Written  Shared Read
+#      1      27,6 s        27,6 s         7.200       90.384
+#      2      30,4 s        15,2 s        13.764       90.320
+#      4      60,2 s        15,0 s        18.291       90.256
+#      8       194 s        24,3 s        43.694       90.192
+#
+# El `Shared Read` es CONSTANTE entre 1 y 8: el motor hace una sola pasada por la
+# tabla y la amortiza entre todos los agregados del mismo SELECT. Lo que crece es
+# el derrame, porque los hashes compiten por `work_mem`. Por eso el optimo esta
+# en el medio y no en ningun extremo: para ocho conteos, el lote 1 cuesta ~221 s
+# y el lote 4 cuesta ~120 s.
+#
+# Va 2 y no 4 porque dan el mismo tiempo por columna -15,2 contra 15,0- pero el 2
+# derrama un 25 % menos, y el optimo depende de `work_mem`, que cambia por
+# servidor: el 2 se degrada mejor donde hay poca memoria y rinde casi igual donde
+# hay mucha. No lo cambies por una corazonada; si lo cambias, medi de nuevo.
+.TAMANO_LOTE_DISTINTOS_DBI <- 2L
 # Alias interno y de compatibilidad para codigo que aun menciona el nombre
 # anterior. Las dos familias no usan este valor como tamano comun.
 .TAMANO_LOTE_DBI <- .TAMANO_LOTE_PLANOS_DBI
@@ -1375,7 +1391,10 @@
                                metodo = NA_character_,
                                error_esperado = NA_character_, lote = NA_integer_,
                                columnas_compartidas = NA_integer_,
-                               id_muestra = NA_integer_) {
+                               id_muestra = NA_integer_,
+                               estrategia_solicitada = NA_character_,
+                               estrategia_resuelta = NA_character_,
+                               estado_estrategia = NA_character_) {
   list(
     alcance = alcance,
     universo = universo,
@@ -1385,8 +1404,20 @@
     error_esperado = error_esperado,
     lote = lote,
     columnas_compartidas = columnas_compartidas,
-    id_muestra = id_muestra
+    id_muestra = id_muestra,
+    estrategia_solicitada = estrategia_solicitada,
+    estrategia_resuelta = estrategia_resuelta,
+    estado_estrategia = estado_estrategia
   )
+}
+
+.agregar_metadatos_estrategia_distintos_dbi <- function(metadatos,
+                                                        estrategia) {
+  if (is.null(estrategia)) return(metadatos)
+  metadatos$estrategia_solicitada <- estrategia$estrategia_solicitada
+  metadatos$estrategia_resuelta <- estrategia$estrategia_resuelta
+  metadatos$estado_estrategia <- estrategia$estado
+  metadatos
 }
 
 .mezclar_metadatos_dbi <- function(base, extra = NULL) {
@@ -1439,6 +1470,15 @@
     ),
     id_muestra = rep_len(
       as.integer(metadatos$id_muestra), length(metricas)
+    ),
+    estrategia_solicitada = rep_len(
+      as.character(metadatos$estrategia_solicitada), length(metricas)
+    ),
+    estrategia_resuelta = rep_len(
+      as.character(metadatos$estrategia_resuelta), length(metricas)
+    ),
+    estado_estrategia = rep_len(
+      as.character(metadatos$estado_estrategia), length(metricas)
     ),
     duracion_ms = rep_len(
       as.numeric(medicion_valor("duracion_ms", NA_real_)), length(metricas)
@@ -1513,6 +1553,12 @@
 )
 
 .METRICAS_NUMERICAS_DBI <- c("basicos", "mediana", "desvio")
+
+# La estrategia de `distintos` se elige de forma explicita. El orden es parte
+# del contrato: el primer valor es el valor por omision de la API.
+.ESTRATEGIAS_DISTINTOS_DBI <- c(
+  "exacta", "aproximada_motor", "catalogo", "omitida"
+)
 
 # Moda y mediana son las metricas que pueden pagar un agrupamiento u ordenacion
 # por columna. No se omiten nunca por sorpresa: la politica por cardinalidad es
@@ -1598,8 +1644,13 @@
   unique(c(metricas, "validos", "distintos"))
 }
 
+.validar_estrategia_distintos_dbi <- function(estrategia_distintos) {
+  match.arg(estrategia_distintos, .ESTRATEGIAS_DISTINTOS_DBI)
+}
+
 .estrategia_distintos_dbi <- function(metricas_solicitadas, politica,
-                                      incluir_valores) {
+                                      incluir_valores,
+                                      estrategia_solicitada) {
   publica <- "distintos" %in% metricas_solicitadas
   para_costo <- identical(politica$nombre, "por_cardinalidad") &&
     isTRUE(incluir_valores) &&
@@ -1607,7 +1658,84 @@
   list(
     publica = publica,
     para_costo = para_costo,
-    requiere_medicion = publica || para_costo
+    requiere_medicion = publica || para_costo,
+    estrategia_solicitada = estrategia_solicitada,
+    estrategia_resuelta = NA_character_,
+    estado = if (publica || para_costo) "no_disponible" else "no_solicitado",
+    disponible = FALSE,
+    motivo = NA_character_,
+    error_esperado = NA_character_,
+    candidato = NULL,
+    sondas = character()
+  )
+}
+
+.resolver_estrategia_distintos_dbi <- function(conexion, estrategia,
+                                               presupuesto, hay_metrica) {
+  if (!isTRUE(hay_metrica)) {
+    estrategia$estado <- "no_solicitado"
+    estrategia$motivo <- paste(
+      "La metrica `distintos` no se pidio en esta corrida."
+    )
+    return(estrategia)
+  }
+  switch(
+    estrategia$estrategia_solicitada,
+    exacta = {
+      estrategia$estrategia_resuelta <- "COUNT(DISTINCT)"
+      estrategia$estado <- "calculado"
+      estrategia$disponible <- TRUE
+      estrategia$motivo <- paste(
+        "Se calculara la cardinalidad exacta sobre las filas de la corrida."
+      )
+      estrategia$error_esperado <- "no_aplica"
+    },
+    aproximada_motor = {
+      resolucion <- .sondar_aproximacion_dbi(
+        conexion, "distintos", presupuesto
+      )
+      estrategia$disponible <- isTRUE(resolucion$disponible)
+      estrategia$candidato <- resolucion$candidato
+      estrategia$sondas <- resolucion$sondas
+      estrategia$motivo <- resolucion$motivo
+      if (isTRUE(resolucion$disponible)) {
+        estrategia$estrategia_resuelta <- resolucion$candidato$nombre
+        estrategia$estado <- "estimado_motor"
+        estrategia$error_esperado <- resolucion$candidato$error_esperado
+      } else {
+        estrategia$estado <- "no_disponible"
+      }
+    },
+    catalogo = {
+      estrategia$estado <- "no_disponible"
+      estrategia$motivo <- paste(
+        "La procedencia `catalogo` esta declarada, pero la estadistica de",
+        "cardinalidad del catalogo aun no esta implementada; `pg_stats` no",
+        "se usa en esta version."
+      )
+    },
+    omitida = {
+      estrategia$estado <- "omitida"
+      estrategia$motivo <- paste(
+        "La estrategia `omitida` no emite una consulta para `distintos`."
+      )
+    }
+  )
+  estrategia
+}
+
+.publicar_estrategia_distintos_dbi <- function(estrategia) {
+  list(
+    estrategia_solicitada = estrategia$estrategia_solicitada,
+    estrategia_resuelta = estrategia$estrategia_resuelta,
+    estado = estrategia$estado,
+    motivo = estrategia$motivo,
+    error_esperado = estrategia$error_esperado,
+    disponible = isTRUE(estrategia$disponible),
+    publica = isTRUE(estrategia$publica),
+    para_costo = isTRUE(estrategia$para_costo),
+    requiere_medicion = isTRUE(estrategia$requiere_medicion),
+    sondas = estrategia$sondas
   )
 }
 
@@ -2016,40 +2144,62 @@
 .conteos_columna_dbi <- function(conexion, tabla_sql, columna_sql, alias,
                                  pide_validos, pide_distintos,
                                  presupuesto = NULL,
-                                 aproximacion_distintos = NULL) {
+                                 aproximacion_distintos = NULL,
+                                 incluir_total = FALSE) {
+  total_alias <- alias("n_total_consulta")
   sql_validos <- paste0(
-    "SELECT COUNT(", columna_sql, ") AS ", alias("n_validos"),
+    "SELECT ", if (isTRUE(incluir_total)) {
+      paste0("COUNT(*) AS ", total_alias, ", ")
+    } else "",
+    "COUNT(", columna_sql, ") AS ", alias("n_validos"),
     " FROM ", tabla_sql
   )
-  sql_distintos <- if (!is.null(aproximacion_distintos)) {
-    aproximacion_distintos$construir(
-      columna_sql, tabla_sql, alias("n_distintos")
-    )
-  } else {
-    paste0(
-      "SELECT COUNT(DISTINCT ", columna_sql, ") AS ", alias("n_distintos"),
-      " FROM ", tabla_sql
-    )
-  }
   expresion_distintos <- if (is.null(aproximacion_distintos)) {
-    paste0(
-      "COUNT(DISTINCT ", columna_sql, ") AS ", alias("n_distintos")
+    c(
+      paste0("COUNT(", columna_sql, ") AS ", alias("n_validos_guard")),
+      paste0(
+        "COUNT(DISTINCT ", columna_sql, ") AS ", alias("n_distintos")
+      )
     )
   } else if (is.function(aproximacion_distintos$expresion)) {
-    aproximacion_distintos$expresion(
-      columna_sql, alias("n_distintos")
+    c(
+      paste0("COUNT(", columna_sql, ") AS ", alias("n_validos_guard")),
+      aproximacion_distintos$expresion(
+        columna_sql, alias("n_distintos")
+      )
     )
   } else {
     NULL
   }
+  sql_distintos <- if (!is.null(aproximacion_distintos)) {
+    if (is.function(aproximacion_distintos$expresion)) {
+      paste0(
+        "SELECT ", paste(expresion_distintos, collapse = ", "),
+        " FROM ", tabla_sql
+      )
+    } else {
+      aproximacion_distintos$construir(
+        columna_sql, tabla_sql, alias("n_distintos")
+      )
+    }
+  } else {
+    paste0(
+      "SELECT ", paste(expresion_distintos, collapse = ", "),
+      " FROM ", tabla_sql
+    )
+  }
   puede_consolidar <- is.character(expresion_distintos) &&
-    length(expresion_distintos) == 1L &&
-    !is.na(expresion_distintos) && nzchar(trimws(expresion_distintos))
+    length(expresion_distintos) > 0L &&
+    all(!is.na(expresion_distintos) & nzchar(trimws(expresion_distintos)))
   if (pide_validos && pide_distintos) {
     if (puede_consolidar) {
       sql <- paste0(
-        "SELECT COUNT(", columna_sql, ") AS ", alias("n_validos"),
-        ", ", expresion_distintos, " FROM ", tabla_sql
+        "SELECT ", if (isTRUE(incluir_total)) {
+          paste0("COUNT(*) AS ", total_alias, ", ")
+        } else "",
+        "COUNT(", columna_sql, ") AS ", alias("n_validos"),
+        ", ", paste(expresion_distintos, collapse = ", "),
+        " FROM ", tabla_sql
       )
       consulta <- .consultar_dbi(
         conexion, sql, presupuesto, etapa = "conteos"
@@ -2062,38 +2212,79 @@
           distintos$sql <- sql
           validos <- .adjuntar_medicion_dbi(validos, consulta)
           distintos <- .adjuntar_medicion_dbi(distintos, consulta)
+          validos <- .adjuntar_denominador_consulta_dbi(
+            validos, consulta, if (isTRUE(incluir_total)) total_alias else NULL
+          )
+          distintos <- .adjuntar_guardian_distintos_dbi(
+            distintos, consulta, alias("n_validos_guard")
+          )
           if (!is.null(aproximacion_distintos)) {
-            distintos$metadatos <- list(
+            distintos$metadatos <- .mezclar_metadatos_dbi(
+              distintos$metadatos, list(
               metodo = aproximacion_distintos$nombre,
               error_esperado = aproximacion_distintos$error_esperado
+              )
             )
             distintos$estado <- "estimado"
           }
-          return(list(
+          salida <- list(
             validos = validos, distintos = distintos, consolidada = TRUE
-          ))
+          )
+          if (isTRUE(incluir_total)) {
+            salida$conteo <- .valor_campo_dbi(
+              consulta$datos, .nombre_alias_dbi(total_alias)
+            )
+            salida$conteo$sql <- sql
+            salida$conteo$metadatos <- list(
+              id_muestra = as.integer(consulta$consulta_id)
+            )
+            salida$conteo <- .adjuntar_medicion_dbi(
+              salida$conteo, consulta
+            )
+          }
+          return(salida)
         }
       }
     }
   }
   resultado <- list(consolidada = FALSE)
   if (pide_validos) {
-    validos <- .escalar_dbi(
-      conexion, sql_validos, "n_validos", presupuesto, etapa = "conteos"
+    consulta_validos <- .consultar_dbi(
+      conexion, sql_validos, presupuesto, etapa = "conteos"
     )
-    validos$sql <- sql_validos
+    validos <- .resultado_lote_dbi(
+      consulta_validos, sql_validos, alias("n_validos"), list()
+    )
+    validos <- .adjuntar_denominador_consulta_dbi(
+      validos, consulta_validos,
+      if (isTRUE(incluir_total)) total_alias else NULL
+    )
     resultado$validos <- validos
+    if (isTRUE(incluir_total) && isTRUE(validos$ok)) {
+      resultado$conteo <- .resultado_lote_dbi(
+        consulta_validos, sql_validos, total_alias, list(
+          id_muestra = as.integer(consulta_validos$consulta_id)
+        )
+      )
+    }
   }
   if (pide_distintos) {
-    distintos <- .escalar_dbi(
-      conexion, sql_distintos, "n_distintos", presupuesto,
-      etapa = "conteos"
+    consulta_distintos <- .consultar_dbi(
+      conexion, sql_distintos, presupuesto, etapa = "conteos"
     )
-    distintos$sql <- sql_distintos
+    distintos <- .resultado_lote_dbi(
+      consulta_distintos, sql_distintos, alias("n_distintos"), list()
+    )
+    distintos <- .adjuntar_guardian_distintos_dbi(
+      distintos, consulta_distintos,
+      if (isTRUE(puede_consolidar)) alias("n_validos_guard") else NULL
+    )
     if (!is.null(aproximacion_distintos) && isTRUE(distintos$ok)) {
-      distintos$metadatos <- list(
-        metodo = aproximacion_distintos$nombre,
-        error_esperado = aproximacion_distintos$error_esperado
+      distintos$metadatos <- .mezclar_metadatos_dbi(
+        distintos$metadatos, list(
+          metodo = aproximacion_distintos$nombre,
+          error_esperado = aproximacion_distintos$error_esperado
+        )
       )
       distintos$estado <- "estimado"
     }
@@ -2140,6 +2331,68 @@
       length(consulta$consulta_id) == 1L && !is.na(consulta$consulta_id)) {
     resultado$metadatos$id_muestra <- as.integer(consulta$consulta_id)
   }
+  .adjuntar_medicion_dbi(resultado, consulta)
+}
+
+.valor_denominador_consulta_dbi <- function(consulta, alias) {
+  vacio <- list(
+    n_total_consulta = NA_real_,
+    consulta_id_denominador = NA_integer_
+  )
+  if (is.null(alias) || !isTRUE(consulta$ok)) return(vacio)
+  celda <- .valor_campo_dbi(consulta$datos, .nombre_alias_dbi(alias))
+  if (!isTRUE(celda$ok)) return(vacio)
+  valor <- .conteo_dbi(celda$valor)
+  if (is.na(valor)) return(vacio)
+  list(
+    n_total_consulta = valor,
+    consulta_id_denominador = as.integer(consulta$consulta_id)
+  )
+}
+
+.adjuntar_denominador_consulta_dbi <- function(resultado, consulta, alias) {
+  resultado$metadatos <- .mezclar_metadatos_dbi(
+    resultado$metadatos,
+    .valor_denominador_consulta_dbi(consulta, alias)
+  )
+  resultado
+}
+
+.adjuntar_guardian_distintos_dbi <- function(resultado, consulta, alias) {
+  guardian <- list(
+    n_validos_guard = NA_real_,
+    consulta_id_guard = NA_integer_,
+    cota_comprobable = FALSE
+  )
+  if (!is.null(alias) && isTRUE(consulta$ok)) {
+    celda <- .valor_campo_dbi(consulta$datos, .nombre_alias_dbi(alias))
+    if (isTRUE(celda$ok)) {
+      valor <- .conteo_dbi(celda$valor)
+      if (!is.na(valor)) {
+        guardian$n_validos_guard <- valor
+        guardian$consulta_id_guard <- as.integer(consulta$consulta_id)
+        guardian$cota_comprobable <- !is.na(consulta$consulta_id)
+      }
+    }
+  }
+  resultado$metadatos <- .mezclar_metadatos_dbi(
+    resultado$metadatos, guardian
+  )
+  resultado
+}
+
+.conteo_desde_consulta_dbi <- function(consulta, sql, alias) {
+  if (!isTRUE(consulta$ok)) return(NULL)
+  resultado <- .valor_campo_dbi(
+    consulta$datos, .nombre_alias_dbi(alias)
+  )
+  if (!isTRUE(resultado$ok) || is.na(.conteo_dbi(resultado$valor))) {
+    return(NULL)
+  }
+  resultado$sql <- sql
+  resultado$metadatos <- list(
+    id_muestra = as.integer(consulta$consulta_id)
+  )
   .adjuntar_medicion_dbi(resultado, consulta)
 }
 
@@ -2238,6 +2491,40 @@
   resultado
 }
 
+.guardian_distintos_dbi <- function(resultado) {
+  metadatos <- resultado$metadatos
+  guardado <- if (is.null(metadatos)) NA_real_ else {
+    .numero_dbi(metadatos$n_validos_guard)
+  }
+  id_resultado <- suppressWarnings(as.integer(resultado$consulta_id))
+  id_guardian <- if (is.null(metadatos)) NA_integer_ else {
+    suppressWarnings(as.integer(metadatos$consulta_id_guard))
+  }
+  comprobable <- isTRUE(metadatos$cota_comprobable) &&
+    length(guardado) == 1L && !is.na(guardado) && is.finite(guardado) &&
+    length(id_resultado) == 1L && !is.na(id_resultado) &&
+    length(id_guardian) == 1L && !is.na(id_guardian) &&
+    identical(id_resultado, id_guardian)
+  list(valor = guardado, comprobable = comprobable)
+}
+
+.motivo_cota_distintos_no_comprobable_dbi <- function() {
+  paste(
+    "No se pudo comprobar la cota `n_distintos <= n_validos`: los valores",
+    "no tienen un guardian en la misma sentencia y pueden provenir de",
+    "consultas distintas. No se atribuye una inconsistencia al motor."
+  )
+}
+
+.motivo_cota_moda_no_comprobable_dbi <- function() {
+  paste(
+    "No se pudo comprobar una cota simple de frecuencia de la moda: la frecuencia",
+    "y el numero de valores validos no tienen un guardian en la misma",
+    "sentencia y pueden provenir de consultas distintas. No se atribuye una",
+    "inconsistencia al motor."
+  )
+}
+
 .medianas_lote_consolidadas_dbi <- function(
     conexion, tabla_sql, lote, nombres_sql, alias, numero, candidato,
     presupuesto, estado = NULL) {
@@ -2330,6 +2617,9 @@
       resultado$validos <- .resultado_lote_dbi(
         consulta, sql, aliases$validos, metadatos
       )
+      resultado$validos <- .adjuntar_denominador_consulta_dbi(
+        resultado$validos, consulta, aliases$total
+      )
     }
     if ("basicos" %in% metricas && !is.null(aliases$basicos)) {
       resultado$basicos <- .resultado_lote_campos_dbi(
@@ -2390,6 +2680,7 @@
   names(alias_por_columna) <- lote
   for (i in seq_along(lote)) {
     alias_por_columna[[i]] <- list(
+      total = if (isTRUE(incluir_total)) alias("n_total_consulta"),
       validos = if ("validos" %in% metricas) {
         .alias_agregado_dbi(alias, numero, i, "n_validos")
       },
@@ -2442,15 +2733,16 @@
       }
     )
   }
-  total_alias <- alias("lupa_n_total")
-  expresion_total <- if (identical(tabla_total_sql, tabla_sql)) {
-    paste0("COUNT(*) AS ", total_alias)
-  } else {
-    paste0("(SELECT COUNT(*) FROM ", tabla_total_sql, ") AS ", total_alias)
-  }
-  construir <- function(indices, con_total = FALSE) {
+  total_alias <- alias("n_total_consulta")
+  expresion_total <- paste0("COUNT(*) AS ", total_alias)
+  universo_alias <- alias("lupa_n_total")
+  expresion_universo <- paste0(
+    "(SELECT COUNT(*) FROM ", tabla_total_sql, ") AS ", universo_alias
+  )
+  construir <- function(indices, con_total = FALSE, con_universo = FALSE) {
     expresiones <- c(
       if (isTRUE(con_total)) expresion_total,
+      if (isTRUE(con_universo)) expresion_universo,
       unlist(lapply(indices, expresiones_columna), use.names = FALSE)
     )
     paste0(
@@ -2460,10 +2752,15 @@
 
   cache <- list()
   clave <- function(indices) paste(indices, collapse = ",")
-  sondear <- function(indices, con_total = FALSE) {
-    llave <- clave(indices)
+  sondear <- function(indices, con_total = incluir_total,
+                      con_universo = FALSE) {
+    llave <- paste(
+      clave(indices), isTRUE(con_total), isTRUE(con_universo), sep = "|"
+    )
     if (!is.null(cache[[llave]])) return(isTRUE(cache[[llave]]$ok))
-    sql <- construir(indices, con_total = con_total)
+    sql <- construir(
+      indices, con_total = con_total, con_universo = con_universo
+    )
     consulta <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = etapa
     )
@@ -2472,30 +2769,29 @@
   }
 
   completo <- seq_along(lote)
-  inicial <- sondear(completo, con_total = incluir_total)
+  universo_separado <- !identical(tabla_total_sql, tabla_sql)
+  inicial <- sondear(
+    completo, con_total = incluir_total,
+    con_universo = incluir_total && universo_separado
+  )
   conteo <- NULL
   if (isTRUE(incluir_total)) {
-    entrada_total <- cache[[clave(completo)]]
+    entrada_total <- cache[[paste(
+      clave(completo), isTRUE(incluir_total),
+      isTRUE(incluir_total && universo_separado), sep = "|"
+    )]]
     if (isTRUE(inicial)) {
-      valor_total <- .valor_campo_dbi(
-        entrada_total$consulta$datos, .nombre_alias_dbi(total_alias)
+      conteo <- .conteo_desde_consulta_dbi(
+        entrada_total$consulta, entrada_total$sql,
+        if (isTRUE(universo_separado)) universo_alias else total_alias
       )
-      if (isTRUE(valor_total$ok) &&
-          !is.na(.conteo_dbi(valor_total$valor))) {
-        conteo <- valor_total
-        conteo$sql <- entrada_total$sql
-        conteo$metadatos <- list(
-          id_muestra = as.integer(entrada_total$consulta$consulta_id)
-        )
-        conteo <- .adjuntar_medicion_dbi(conteo, entrada_total$consulta)
-      }
     }
     if (is.null(conteo)) {
       sql_total <- paste0(
-        "SELECT COUNT(*) AS ", total_alias, " FROM ", tabla_total_sql
+        "SELECT COUNT(*) AS ", universo_alias, " FROM ", tabla_total_sql
       )
       conteo <- .escalar_dbi(
-        conexion, sql_total, .nombre_alias_dbi(total_alias), presupuesto,
+        conexion, sql_total, .nombre_alias_dbi(universo_alias), presupuesto,
         etapa = "conteo_filas"
       )
       conteo$sql <- sql_total
@@ -2535,8 +2831,16 @@
   resultado <- vector("list", length(lote))
   names(resultado) <- lote
   for (grupo in grupos) {
-    llave <- clave(grupo)
+    llave <- paste(
+      clave(grupo), isTRUE(incluir_total),
+      isTRUE(universo_separado && identical(grupo, completo)), sep = "|"
+    )
     entrada <- cache[[llave]]
+    if (is.null(conteo) && isTRUE(incluir_total) && !isTRUE(universo_separado)) {
+      conteo <- .conteo_desde_consulta_dbi(
+        entrada$consulta, entrada$sql, total_alias
+      )
+    }
     metadatos <- .metadatos_lote_dbi(numero, lote[grupo])
     valores <- .resultados_lote_agregados_dbi(
       entrada$consulta, entrada$sql, alias_por_columna[grupo], metricas,
@@ -2556,10 +2860,11 @@
     metadatos <- .metadatos_lote_dbi(numero, campo)
     individual <- list(consolidada = FALSE)
     if ("validos" %in% metricas) {
-      individual$validos <- .conteos_columna_dbi(
+      conteos_columna <- .conteos_columna_dbi(
         conexion, tabla_sql, nombres_sql[[campo]], alias,
-        TRUE, FALSE, presupuesto
-      )$validos
+        TRUE, FALSE, presupuesto, incluir_total = TRUE
+      )
+      individual$validos <- conteos_columna$validos
     }
     if ("basicos" %in% metricas && es_numerico[[i]]) {
       individual$basicos <- .basicos_columna_dbi(
@@ -2574,7 +2879,9 @@
       )
     }
     for (metrica in intersect(names(individual), c("validos", "basicos", "desvio"))) {
-      individual[[metrica]]$metadatos <- metadatos
+      individual[[metrica]]$metadatos <- .mezclar_metadatos_dbi(
+        metadatos, individual[[metrica]]$metadatos
+      )
     }
     resultado[[campo]] <- individual
   }
@@ -2624,6 +2931,9 @@
   alias_por_columna <- vapply(seq_along(lote), function(i) {
     .alias_agregado_dbi(alias, numero, i, "n_distintos")
   }, character(1L), USE.NAMES = FALSE)
+  guardian_por_columna <- vapply(seq_along(lote), function(i) {
+    .alias_agregado_dbi(alias, numero, i, "n_validos_guard")
+  }, character(1L), USE.NAMES = FALSE)
   if (!is.null(aproximacion_distintos) &&
       !is.function(aproximacion_distintos$expresion)) {
     salida <- vector("list", length(lote))
@@ -2650,11 +2960,21 @@
       )
       resultado$sql <- sql
       resultado$metadatos <- .metadatos_lote_dbi(numero, lote[[i]])
+      resultado$metadatos <- .mezclar_metadatos_dbi(
+        resultado$metadatos,
+        list(
+          n_validos_guard = NA_real_,
+          consulta_id_guard = NA_integer_,
+          cota_comprobable = FALSE
+        )
+      )
       if (isTRUE(resultado$ok)) {
-        resultado$metadatos <- c(
+        resultado$metadatos <- .mezclar_metadatos_dbi(
           resultado$metadatos,
-          list(metodo = aproximacion_distintos$nombre,
-               error_esperado = aproximacion_distintos$error_esperado)
+          list(
+            metodo = aproximacion_distintos$nombre,
+            error_esperado = aproximacion_distintos$error_esperado
+          )
         )
         resultado$estado <- "estimado"
       }
@@ -2669,14 +2989,26 @@
   }
   expresion <- function(i) {
     if (is.null(aproximacion_distintos)) {
-      return(paste0(
-        "COUNT(DISTINCT ", nombres_sql[[lote[[i]]]], ") AS ",
-        alias_por_columna[[i]]
+      return(c(
+        paste0(
+          "COUNT(", nombres_sql[[lote[[i]]]], ") AS ",
+          guardian_por_columna[[i]]
+        ),
+        paste0(
+          "COUNT(DISTINCT ", nombres_sql[[lote[[i]]]], ") AS ",
+          alias_por_columna[[i]]
+        )
       ))
     }
     if (is.null(aproximacion_distintos$expresion)) return(NULL)
-    aproximacion_distintos$expresion(
-      nombres_sql[[lote[[i]]]], alias_por_columna[[i]]
+    c(
+      paste0(
+        "COUNT(", nombres_sql[[lote[[i]]]], ") AS ",
+        guardian_por_columna[[i]]
+      ),
+      aproximacion_distintos$expresion(
+        nombres_sql[[lote[[i]]]], alias_por_columna[[i]]
+      )
     )
   }
   total_alias <- alias("lupa_n_total")
@@ -2772,10 +3104,12 @@
     if (is.null(aproximacion_distintos) || !isTRUE(resultado$ok)) {
       return(resultado)
     }
-    resultado$metadatos <- c(
+    resultado$metadatos <- .mezclar_metadatos_dbi(
       resultado$metadatos,
-      list(metodo = aproximacion_distintos$nombre,
-           error_esperado = aproximacion_distintos$error_esperado)
+      list(
+        metodo = aproximacion_distintos$nombre,
+        error_esperado = aproximacion_distintos$error_esperado
+      )
     )
     resultado$estado <- "estimado"
     resultado
@@ -2789,6 +3123,10 @@
         entrada$consulta, entrada$sql, alias_por_columna[[grupo[[i]]]],
         metadatos
       )
+      resultado <- .adjuntar_guardian_distintos_dbi(
+        resultado, entrada$consulta,
+        guardian_por_columna[[grupo[[i]]]]
+      )
       salida[[lote[[grupo[[i]]]]]] <- list(
         consolidada = TRUE, distintos = estimar(resultado)
       )
@@ -2801,7 +3139,9 @@
       conexion, tabla_sql, nombres_sql[[campo]], alias,
       FALSE, TRUE, presupuesto, aproximacion_distintos
     )$distintos
-    resultado$metadatos <- metadatos
+    resultado$metadatos <- .mezclar_metadatos_dbi(
+      metadatos, resultado$metadatos
+    )
     salida[[campo]] <- list(
       consolidada = FALSE, distintos = estimar(resultado)
     )
@@ -2887,7 +3227,8 @@
         conexion, tabla_sql, lote, nombres_sql, es_numerico_lote,
         metricas_planas, incluir_valores, presupuesto, tamano_lote_planos, numero,
         alias, forma, etapa,
-        incluir_total = is.null(conteo), tabla_total_sql = tabla_total_sql
+        incluir_total = "validos" %in% metricas_planas,
+        tabla_total_sql = tabla_total_sql
       )
       tomar_conteo(resultado_lote)
       resultado_lote <- resultado_lote$resultados
@@ -2901,7 +3242,7 @@
             isTRUE(resultado$consolidada)) {
           resultado$validos <- .conteos_columna_dbi(
             conexion, tabla_sql, nombres_sql[[campo]], alias,
-            TRUE, FALSE, presupuesto
+            TRUE, FALSE, presupuesto, incluir_total = TRUE
           )$validos
         }
         if ("basicos" %in% metricas_planas &&
@@ -2968,8 +3309,10 @@
       tomar_conteo(resultado_lote)
       resultados <- resultado_lote$resultados
       for (campo in lote) {
+        base_conteos <- agregados$conteos[[campo]]
+        if (is.null(base_conteos)) base_conteos <- list()
         agregados$conteos[[campo]] <- utils::modifyList(
-          agregados$conteos[[campo]], resultados[[campo]]
+          base_conteos, resultados[[campo]]
         )
       }
     }
@@ -3017,8 +3360,19 @@
                                  mediana_consolidada = NULL,
                                  moda_precalculada = NULL,
                                  decisiones_costo = NULL,
-                                 publica_distintos = TRUE) {
+                                 publica_distintos = TRUE,
+                                 estrategia_distintos = NULL) {
   if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
+  if (is.null(estrategia_distintos)) {
+    estrategia_distintos <- list(
+      estrategia_solicitada = "exacta",
+      estrategia_resuelta = "COUNT(DISTINCT)",
+      estado = "calculado", disponible = TRUE,
+      motivo = NA_character_, error_esperado = "no_aplica",
+      publica = isTRUE(publica_distintos), para_costo = FALSE,
+      requiere_medicion = isTRUE(publica_distintos), sondas = character()
+    )
+  }
   fila <- .fila_resumen_dbi(columna, n_total)
   literales <- character()
   es_muestreado <- identical(modo, "muestreado")
@@ -3046,12 +3400,13 @@
   } else {
     .metadatos_sql_dbi(
       alcance = "tabla_completa", universo = n_total, tamano_muestra = NA,
-      fraccion = 1,
-      metodo = if (identical(modo, "aproximado")) "respaldo_exacto" else
-        "tabla_completa",
+      fraccion = 1, metodo = "tabla_completa",
       error_esperado = "no_aplica"
     )
   }
+  metadatos <- .agregar_metadatos_estrategia_distintos_dbi(
+    metadatos, estrategia_distintos
+  )
   registrar <- function(registros, metrica, resultado, motivo_exito = NA_character_) {
     if (es_muestreado && isTRUE(resultado$ok) && is.null(resultado$estado)) {
       resultado$estado <- if (any(metrica %in% c("n_distintos", "tasa_distintos"))) {
@@ -3121,9 +3476,11 @@
                  !is.null(agregados$conteos[[columna]])) {
     agregados$conteos[[columna]]
   } else {
+    pide_distintos <- "distintos" %in% metricas &&
+      isTRUE(estrategia_distintos$disponible)
     .conteos_columna_dbi(
       conexion, tabla_sql, columna_sql, alias,
-      "validos" %in% metricas, "distintos" %in% metricas, presupuesto,
+      "validos" %in% metricas, pide_distintos, presupuesto,
       aproximacion_distintos = aproximacion_distintos
     )
   }
@@ -3133,16 +3490,26 @@
     registros <- registrar(registros, .CAMPOS_METRICA_DBI$validos, validos)
     if (validos$ok) {
       validos_observados <- .conteo_dbi(validos$valor)
+      n_total_consulta <- if (is.null(validos$metadatos)) NA_real_ else {
+        .numero_dbi(validos$metadatos$n_total_consulta)
+      }
       fila$n_validos <- if (es_muestreado) {
-        .conteo_estimado_dbi(validos_observados, n_total, tamano_muestra)
+        .conteo_estimado_dbi(
+          validos_observados, n_total, n_total_consulta
+        )
       } else {
         validos_observados
       }
-      if (!is.na(fila$n_validos)) {
-        fila$n_faltantes <- n_total - fila$n_validos
+      if (!is.na(fila$n_validos) && !is.na(n_total_consulta)) {
+        fila$n_faltantes <- if (es_muestreado) {
+          n_total - fila$n_validos
+        } else {
+          n_total_consulta - validos_observados
+        }
         if (es_muestreado) {
-          muestra_numero <- .numero_dbi(tamano_muestra)
-          fila$prop_faltantes <- if (is.finite(muestra_numero) && muestra_numero > 0) {
+          muestra_numero <- n_total_consulta
+          fila$prop_faltantes <- if (is.finite(muestra_numero) &&
+                                     muestra_numero > 0) {
             (muestra_numero - .numero_dbi(validos_observados)) / muestra_numero
           } else if (.numero_dbi(n_total) == 0) {
             NA_real_
@@ -3150,8 +3517,8 @@
             NA_real_
           }
         } else {
-          fila$prop_faltantes <- if (.numero_dbi(n_total) > 0) {
-            .numero_dbi(fila$n_faltantes) / .numero_dbi(n_total)
+          fila$prop_faltantes <- if (.numero_dbi(n_total_consulta) > 0) {
+            .numero_dbi(fila$n_faltantes) / .numero_dbi(n_total_consulta)
           } else {
             NA_real_
           }
@@ -3163,47 +3530,69 @@
   }
 
   if ("distintos" %in% metricas) {
-    distintos <- conteos$distintos
-    if (identical(modo, "aproximado") && is.null(aproximacion_distintos) &&
-        isTRUE(distintos$ok)) {
-      distintos$metadatos <- list(metodo = "COUNT(DISTINCT)")
-    }
-    if (isTRUE(distintos$ok)) {
-      candidato <- .conteo_dbi(distintos$valor)
-      # Coherencia interna antes de aceptar el numero. No puede haber mas
-      # valores distintos que validos; si el motor lo dice, el resultado es
-      # imposible y corresponde declararlo no disponible en vez de publicarlo
-      # como calculado. Una tasa mayor que 1 no es un dato: es un sintoma.
-      limite_distintos <- if (es_muestreado && exists("validos_observados")) {
-        .numero_dbi(validos_observados)
+    if (!isTRUE(estrategia_distintos$disponible)) {
+      estado <- if (identical(estrategia_distintos$estado, "omitida")) {
+        "omitida"
       } else {
-        .numero_dbi(fila$n_validos)
+        "no_disponible"
       }
-      imposible <- !is.na(candidato) && is.finite(limite_distintos) &&
-        .numero_dbi(candidato) > limite_distintos
-      if (imposible) {
-        distintos$ok <- FALSE
-        distintos$estado <- NULL
-        distintos$motivo <- paste0(
-          "El motor informo ", candidato, " valores distintos sobre ",
-          limite_distintos,
-          " validos, que es imposible; la metrica no se publica."
+      registros <- .metricas_omitidas_dbi(
+        registros, columna, "distintos", estado,
+        estrategia_distintos$motivo, metadatos = metadatos
+      )
+    } else {
+      distintos <- conteos$distintos
+      if (is.null(distintos)) {
+        distintos <- list(
+          ok = FALSE, valor = NULL,
+          motivo = "La estrategia resolvio una medicion pero no se obtuvo su resultado.",
+          sql = NA_character_
         )
-      } else if (isTRUE(publica_distintos)) {
-        fila$n_distintos <- candidato
-        if (!is.na(fila$n_distintos) && !is.na(fila$n_validos) &&
-            .numero_dbi(fila$n_validos) > 0) {
-          denominador <- if (es_muestreado && exists("validos_observados")) {
-            .numero_dbi(validos_observados)
-          } else {
-            .numero_dbi(fila$n_validos)
+      }
+      motivo_cota <- NA_character_
+      if (isTRUE(distintos$ok)) {
+        distintos$metadatos <- .mezclar_metadatos_dbi(
+          distintos$metadatos, list(
+            metodo = estrategia_distintos$estrategia_resuelta,
+            error_esperado = estrategia_distintos$error_esperado
+          )
+        )
+        if (identical(estrategia_distintos$estado, "estimado_motor")) {
+          distintos$estado <- "estimado_motor"
+        }
+        candidato <- .conteo_dbi(distintos$valor)
+        guardian <- .guardian_distintos_dbi(distintos)
+        motivo_cota <- if (!guardian$comprobable &&
+                           is.null(distintos$metadatos$fuente)) {
+          .motivo_cota_distintos_no_comprobable_dbi()
+        } else {
+          NA_character_
+        }
+        if (guardian$comprobable && !is.na(candidato) &&
+            .numero_dbi(candidato) > guardian$valor) {
+          distintos$ok <- FALSE
+          distintos$estado <- NULL
+          distintos$motivo <- paste0(
+            "Se comprobo en la consulta que el motor informo ", candidato,
+            " valores distintos sobre ", guardian$valor,
+            " validos, que es imposible; la metrica no se publica."
+          )
+          motivo_cota <- NA_character_
+        } else if (isTRUE(publica_distintos)) {
+          fila$n_distintos <- candidato
+          if (!is.na(fila$n_distintos) && guardian$comprobable &&
+              guardian$valor > 0) {
+            denominador <- guardian$valor
+            fila$tasa_distintos <- .numero_dbi(fila$n_distintos) / denominador
           }
-          fila$tasa_distintos <- .numero_dbi(fila$n_distintos) / denominador
         }
       }
-    }
-    if (isTRUE(publica_distintos)) {
-      registros <- registrar(registros, .CAMPOS_METRICA_DBI$distintos, distintos)
+      if (isTRUE(publica_distintos)) {
+        registros <- registrar(
+          registros, .CAMPOS_METRICA_DBI$distintos, distintos,
+          motivo_exito = motivo_cota
+        )
+      }
     }
   } else {
     registros <- omitir(registros, "distintos", "no_solicitado", motivo_no_pedida)
@@ -3246,28 +3635,17 @@
           moda$motivo <- conditionMessage(valor_moda)
         } else {
           candidato <- .conteo_dbi(frecuencia$valor)
-          # Un valor no puede repetirse mas veces que la cantidad de filas
-          # validas. Si el motor lo dice, la metrica es imposible y se declara,
-          # no se publica.
-          limite_moda <- if (es_muestreado && exists("validos_observados")) {
-            .numero_dbi(validos_observados)
+          # La frecuencia solo puede compararse con un denominador de la
+          # misma sentencia. La consulta de moda no trae ese guardian, asi
+          # que no se convierte una diferencia entre fotos en una acusacion.
+          fila$moda <- valor_moda
+          fila$frecuencia_moda <- if (es_muestreado) {
+            .conteo_estimado_dbi(candidato, n_total, tamano_muestra)
           } else {
-            .numero_dbi(fila$n_validos)
+            candidato
           }
-          if (!is.na(candidato) && is.finite(limite_moda) &&
-              .numero_dbi(candidato) > limite_moda) {
-            moda$ok <- FALSE
-            moda$motivo <- paste0(
-              "El motor informo una frecuencia de ", candidato, " sobre ",
-              limite_moda, " valores validos, que es imposible."
-            )
-          } else {
-            fila$moda <- valor_moda
-            fila$frecuencia_moda <- if (es_muestreado) {
-              .conteo_estimado_dbi(candidato, n_total, tamano_muestra)
-            } else {
-              candidato
-            }
+          if (!is.na(candidato)) {
+            moda$motivo <- .motivo_cota_moda_no_comprobable_dbi()
           }
         }
       }
@@ -3622,7 +4000,14 @@
                                 tabla_total_sql = tabla_sql,
                                 mediana_consolidada = NULL,
                                 fuentes_cardinalidad_costo = NULL,
-                                estrategia_distintos = list(publica = TRUE),
+                                estrategia_distintos = list(
+                                  publica = TRUE, disponible = TRUE,
+                                  estrategia_solicitada = "exacta",
+                                  estrategia_resuelta = "COUNT(DISTINCT)",
+                                  estado = "calculado",
+                                  motivo = NA_character_,
+                                  error_esperado = "no_aplica"
+                                ),
                                 politica_costo = list(
                                   nombre = "todas",
                                   umbral = .UMBRAL_CARDINALIDAD_COSTO_DBI
@@ -3797,7 +4182,8 @@
       mediana_consolidada = medianas[[campo]],
       moda_precalculada = modas[[campo]],
       decisiones_costo = decisiones_costo[[campo]],
-      publica_distintos = isTRUE(estrategia_distintos$publica)
+      publica_distintos = isTRUE(estrategia_distintos$publica),
+      estrategia_distintos = estrategia_distintos
     )
   })
   columnas <- if (length(resultados)) {
@@ -4478,12 +4864,14 @@
 #' plan publica el rango entre omitir y ejecutar las métricas caras. Nunca
 #' lanza `COUNT(DISTINCT ...)` para despejar esa incertidumbre.
 #'
-#' `estrategia_distintos` separa la métrica que se publica de
-#' `fuente_cardinalidad_costo`, que dice de dónde sale el número usado para
-#' decidir. Por eso se puede omitir `n_distintos` del resultado y usar una clave
-#' declarada o una fuente de catálogo para decidir si conviene la moda. La
-#' corrida sigue la política explícita y reutiliza la medición de distintos una
-#' sola vez cuando la necesita.
+#' `estrategia_distintos` declara la procedencia de `n_distintos` antes de la
+#' corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
+#' `auto`: `"exacta"` es el valor por omisión, `"aproximada_motor"` queda
+#' `no_disponible` si el motor no ofrece una función aceptada, `"catalogo"`
+#' queda `no_disponible` hasta implementar su estadística y `"omitida"` no
+#' emite el agregado. `fuente_cardinalidad_costo` sigue siendo independiente y
+#' sólo describe el número usado por la política de costo cuando esa política
+#' se pide.
 #'
 #' @inheritParams perfilar_dbi
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
@@ -4561,6 +4949,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
                                tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
                                bloque_muestra = c("con_muestra", "solo_agregados"),
                                instrumentar = FALSE,
+                               estrategia_distintos = "exacta",
                                politica_costo = c("todas", "ninguna",
                                                    "por_cardinalidad", "cardinalidad"),
                                umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI) {
@@ -4574,7 +4963,9 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     bloque_muestra = bloque_muestra, instrumentar = instrumentar,
     contar = FALSE, contar_muestreo = FALSE,
     sondar_muestreo = FALSE,
-    incluir_valores = incluir_valores, politica_costo = politica_costo,
+    incluir_valores = incluir_valores,
+    estrategia_distintos = estrategia_distintos,
+    politica_costo = politica_costo,
     umbral_cardinalidad = umbral_cardinalidad
   )
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
@@ -4705,7 +5096,9 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "metricas") <- preparacion$metricas
   attr(plan, "metricas_ejecucion") <- preparacion$metricas_ejecucion
   attr(plan, "politica_costo") <- preparacion$politica_costo
-  attr(plan, "estrategia_distintos") <- preparacion$estrategia_distintos
+  attr(plan, "estrategia_distintos") <- .publicar_estrategia_distintos_dbi(
+    preparacion$estrategia_distintos
+  )
   attr(plan, "fuente_cardinalidad_costo") <-
     preparacion$fuentes_cardinalidad_costo
   attr(plan, "mediana_consolidada") <- preparacion$mediana_consolidada_resolucion
@@ -5556,6 +5949,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
                           tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
                           bloque_muestra, instrumentar = TRUE,
                           contar = TRUE, incluir_valores = TRUE,
+                          estrategia_distintos = "exacta",
                           politica_costo = "todas",
                           umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
                           contar_muestreo = TRUE,
@@ -5577,6 +5971,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
   metricas_solicitadas <- .validar_metricas_dbi(metricas, modo)
   politica_costo <- .validar_politica_costo_dbi(
     politica_costo, umbral_cardinalidad
+  )
+  estrategia_distintos <- .validar_estrategia_distintos_dbi(
+    estrategia_distintos
   )
   metricas <- .metricas_para_politica_costo_dbi(
     metricas_solicitadas, politica_costo, incluir_valores
@@ -5733,11 +6130,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }
   }
   estrategia_distintos <- .estrategia_distintos_dbi(
-    metricas_solicitadas, politica_costo, incluir_valores
+    metricas_solicitadas, politica_costo, incluir_valores,
+    estrategia_distintos
+  )
+  estrategia_distintos <- .resolver_estrategia_distintos_dbi(
+    conexion, estrategia_distintos,
+    presupuesto, "distintos" %in% metricas
   )
   fuentes_cardinalidad_costo <- .fuentes_cardinalidad_vacias_dbi(campos)
   catalogo_cardinalidad <- NULL
-  if (isTRUE(estrategia_distintos$para_costo)) {
+  if (isTRUE(estrategia_distintos$para_costo) &&
+      isTRUE(estrategia_distintos$disponible)) {
     fuentes <- .resolver_fuentes_cardinalidad_dbi(
       conexion, tabla, campos, estrategia_distintos, presupuesto
     )
@@ -5750,8 +6153,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
   )
   estrategia_distintos$requiere_medicion <-
     (isTRUE(estrategia_distintos$publica) &&
+       isTRUE(estrategia_distintos$disponible) &&
        (identical(modo, "muestreado") || any(fuentes_no_exactas))) ||
-    (isTRUE(estrategia_distintos$para_costo) && any(fuentes_no_exactas))
+    (isTRUE(estrategia_distintos$para_costo) &&
+       isTRUE(estrategia_distintos$disponible) && any(fuentes_no_exactas))
+  # Una estrategia no disponible no abre una segunda oportunidad para ejecutar
+  # el conteo exacto. Se quita de la ejecucion, pero queda en `metricas` para
+  # que el resumen publique el motivo de la ausencia.
+  if (!isTRUE(estrategia_distintos$disponible)) {
+    metricas <- setdiff(metricas, "distintos")
+  }
   aproximaciones <- list()
   aproximaciones_resolucion <- list()
   mediana_consolidada_resolucion <- NULL
@@ -5765,18 +6176,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
       mediana_consolidada <- mediana_consolidada_resolucion$candidato
     }
   }
+  if (identical(estrategia_distintos$estrategia_solicitada,
+                "aproximada_motor") &&
+      isTRUE(estrategia_distintos$disponible)) {
+    resolucion_distintos <- list(
+      disponible = TRUE, candidato = estrategia_distintos$candidato,
+      sondas = estrategia_distintos$sondas,
+      motivo = estrategia_distintos$motivo
+    )
+    aproximaciones_resolucion$distintos <- resolucion_distintos
+    aproximaciones$distintos <- estrategia_distintos$candidato
+  }
   if (identical(modo, "aproximado")) {
-    if ("distintos" %in% metricas) {
-      resolucion_distintos <- .sondar_aproximacion_dbi(
-        conexion, "distintos", presupuesto
-      )
-      aproximaciones_resolucion$distintos <- resolucion_distintos
-      if (!isTRUE(resolucion_distintos$disponible)) {
-        aproximaciones$distintos <- NULL
-      } else {
-        aproximaciones$distintos <- resolucion_distintos$candidato
-      }
-    }
     if ("mediana" %in% metricas && any(es_numerico)) {
       resolucion_mediana <- if (!is.null(mediana_consolidada_resolucion) &&
                                 isTRUE(mediana_consolidada_resolucion$disponible)) {
@@ -5945,11 +6356,30 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' distincion. `metodo`, `tamano_muestra` y `fraccion` conservan las condiciones
 #' de la corrida; no se publica una cota numerica sin una formula justificada.
 #' Los distintos de una muestra se publican como cardinalidad de la muestra,
-#' no como cardinalidad del universo. `modo = "aproximado"` sondea
-#' `APPROX_COUNT_DISTINCT`, `approx_count_distinct` y las formas de cuantiles del
-#' motor; cuando ninguna responde usa el respaldo exacto y lo registra por
-#' metrica. Las cotas de error no documentadas de una aproximacion nativa quedan
-#' como `"desconocido"`. Una aproximacion solo se consolida cuando entrega una
+#' no como cardinalidad del universo. `estrategia_distintos` es explicita y
+#' vale `"exacta"` por omision: calcula `COUNT(DISTINCT)` sobre las filas de la
+#' corrida. `"aproximada_motor"` sondea una funcion nativa y, si no hay una
+#' capacidad aceptada, deja la metrica `no_disponible`; nunca ejecuta el conteo
+#' exacto como repliegue. `"catalogo"` esta declarada pero queda
+#' `no_disponible` en esta version porque todavia no implementa una estadistica
+#' de cardinalidad; en particular, no usa `pg_stats`. `"omitida"` no emite la
+#' consulta. Cada resultado y el atributo `meta$estrategia_distintos` separan
+#' `estrategia_solicitada`, `estrategia_resuelta` y `estado`.
+#'
+#' Las comparaciones que tienen una cota dura usan solo valores del mismo grupo
+#' de consistencia. En esta version, el grupo queda probado por el
+#' `consulta_id` que ya se registra en `resumen_tabla$sql`: dos metricas con el
+#' mismo identificador salieron de la misma sentencia. La consulta exacta de
+#' distintos trae `COUNT(columna) AS n_validos_guard` junto a
+#' `COUNT(DISTINCT columna)`. Si una capacidad aproximada sólo construye una
+#' consulta completa y no puede traer ese guardian, la cota no se comprueba y
+#' el motivo lo declara; no se atribuye un valor imposible al motor.
+#' La frecuencia de la moda no se compara con `n_validos` de otra sentencia:
+#' como su consulta no trae un guardian compañero, esa cota también queda
+#' declarada como no comprobable.
+#'
+#' Las cotas de error no documentadas de una aproximacion nativa quedan como
+#' `"desconocido"`. Una aproximacion solo se consolida cuando entrega una
 #' expresion que se puede incrustar en el `SELECT`; si solo construye una
 #' consulta completa, se emite por separado. Una consulta no emitida o sin un
 #' valor utilizable queda `no_disponible`.
@@ -5971,20 +6401,22 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' muestra; `modo`, `metricas`, `tamano_lote_planos`, `tamano_lote_distintos` y
 #' `max_consultas` acotan el trabajo SQL. [plan_perfilado_dbi()] dice cuántas
 #' consultas se van a emitir antes de emitirlas. El orden de degradación es
-#' agregados planos, total exacto fusionado, distintos, moda y mediana. Los
+#' agregados planos, total del universo cuando hace falta, distintos, moda y
+#' mediana. Los
 #' agregados planos sobre la misma tabla y filtro —`COUNT(col)`,
 #' mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
-#' por lote; cuando la fuente no necesita el total por adelantado, la primera
-#' consulta de agregados lleva además el `COUNT(*)` exacto con el alias
-#' `lupa_n_total`. Si el lote completo es rechazado, se emite un `COUNT(*)` solo
-#' como repliegue obligatorio y sus mitades se sondean por bisección: los grupos
+#' por lote y cada consulta que trae `n_validos` lleva además
+#' `COUNT(*) AS n_total_consulta` en la misma sentencia. La completitud usa ese
+#' denominador local, no el total de otro lote. El total del universo se conserva
+#' por separado cuando el perfil se calcula sobre una muestra. Si el lote
+#' completo es rechazado, sus mitades se sondean por bisección: los grupos
 #' aceptados se reutilizan como mediciones y las columnas culpables se reintentan
-#' por métrica. El denominador de completitud nunca se estima a partir de un
-#' catálogo ni de un lote parcial. Las fuentes `TABLESAMPLE` que necesitan el
-#' total para escribir un porcentaje lo cuentan antes y no reclaman este ahorro.
+#' por métrica, con su denominador local. Las fuentes `TABLESAMPLE` que necesitan
+#' el total del universo para escribir un porcentaje lo cuentan antes.
 #' `COUNT(DISTINCT ...)` queda en una clase separada y usa su propio tamaño de
 #' lote, conservador por omisión porque una cardinalidad puede derramar mucho
-#' más que veinte agregados planos.
+#' más que veinte agregados planos; la consulta exacta trae su
+#' `n_validos_guard` compañero.
 #' Lo que no entra en el presupuesto queda en `no_disponible` con su motivo,
 #' nunca en cero. `meta$tamano_lote_funciono` conserva el mayor lote aceptado
 #' durante esa corrida; no se guarda estado global asociado a la conexión.
@@ -6063,10 +6495,19 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `"seguro"` evita las que ordenan o agrupan la tabla completa y
 #'   `"conteos"` deja solo el conteo de valores no nulos, `"muestreado"`
 #'   calcula estimaciones sobre filas elegidas por el motor y `"aproximado"`
-#'   usa funciones nativas aproximadas cuando la sonda las acepta.
+#'   usa funciones nativas aproximadas para las métricas que ese modo define.
 #' @param metricas Selección explícita de grupos de métricas, que tiene
 #'   prioridad sobre `modo`: `"validos"`, `"distintos"`, `"moda"`,
 #'   `"basicos"`, `"mediana"` y `"desvio"`.
+#' @param estrategia_distintos Procedencia explícita para `n_distintos`:
+#'   `"exacta"` (por omisión) emite `COUNT(DISTINCT)`; `"aproximada_motor"`
+#'   usa una función nativa aceptada por el motor y deja la métrica en
+#'   `no_disponible` si no existe; `"catalogo"` queda declarada pero
+#'   `no_disponible` hasta implementar la estadística del catálogo; y
+#'   `"omitida"` no emite ninguna consulta. No hay repliegue automático entre
+#'   estrategias. El resultado publica `estrategia_solicitada`,
+#'   `estrategia_resuelta` y `estado` en `meta$estrategia_distintos`, y las dos
+#'   primeras también en `resumen_tabla$sql`.
 #' @param max_consultas Presupuesto declarado de consultas. Al agotarse, las
 #'   métricas restantes quedan en `no_disponible` con ese motivo.
 #' @param tamano_lote Cantidad máxima de columnas por consulta consolidada.
@@ -6140,6 +6581,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                          tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
                          bloque_muestra = c("con_muestra", "solo_agregados"),
                          instrumentar = TRUE,
+                         estrategia_distintos = "exacta",
                          politica_costo = c("todas", "ninguna",
                                              "por_cardinalidad", "cardinalidad"),
                          umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
@@ -6153,7 +6595,9 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     tamano_lote_distintos = tamano_lote_distintos,
     bloque_muestra = bloque_muestra, instrumentar = instrumentar, contar = FALSE,
     contar_muestreo = TRUE,
-    incluir_valores = incluir_valores, politica_costo = politica_costo,
+    incluir_valores = incluir_valores,
+    estrategia_distintos = estrategia_distintos,
+    politica_costo = politica_costo,
     umbral_cardinalidad = umbral_cardinalidad
   )
   presupuesto <- preparacion$presupuesto
@@ -6335,7 +6779,9 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   resumen$meta$metricas <- preparacion$metricas
   resumen$meta$metricas_ejecucion <- preparacion$metricas_ejecucion
   resumen$meta$politica_costo <- preparacion$politica_costo
-  resumen$meta$estrategia_distintos <- preparacion$estrategia_distintos
+  resumen$meta$estrategia_distintos <- .publicar_estrategia_distintos_dbi(
+    preparacion$estrategia_distintos
+  )
   resumen$meta$fuente_cardinalidad_costo <-
     preparacion$fuentes_cardinalidad_costo
   resumen$meta$mediana_consolidada <-

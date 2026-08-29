@@ -1,6 +1,27 @@
 # lupa 0.1.0
 
 
+## Cada agregado queda ligado a la foto que lo produjo
+
+Cada lote de agregados planos que calcula `n_validos` trae también
+`COUNT(*) AS n_total_consulta` en la misma sentencia. La completitud usa ese
+denominador local, incluso cuando la bisección separa un lote; no combina el
+total de una consulta con válidos de otra. El total del universo se conserva
+aparte sólo cuando el perfil sobre una muestra lo necesita o cuando no hay un
+agregado que pueda llevarlo.
+
+La consulta exacta de distintos trae `COUNT(columna) AS n_validos_guard` junto
+a `COUNT(DISTINCT columna)`. `consulta_id`, ya publicado en
+`resumen_tabla$sql`, identifica la sentencia y el grupo de consistencia: las
+cotas duras sólo se aplican dentro de ese grupo. Cuando una capacidad
+aproximada no puede traer su guardián, la comprobación queda declarada como no
+disponible y el motivo no culpa al motor.
+
+Se agregaron regresiones con `INSERT` y `DELETE` entre consultas, además de
+rastreo de SQL para comprobar que el denominador viaja en la consulta que ya se
+emitía y no agrega una ida y vuelta.
+
+
 ## La garantía de una clave mira el índice que la impone
 
 `pg_constraint` dice que hay una restricción; el que impone la unicidad es el
@@ -31,6 +52,11 @@ el método, el tamaño y la fracción. No se agregan cotas numéricas inventadas
 
 ## Cambios en desarrollo
 
+- `perfilar_dbi()` y `plan_perfilado_dbi()` aceptan la estrategia explícita de
+  distintos `exacta`, `aproximada_motor`, `catalogo` u `omitida`. La estrategia
+  exacta es el valor por omisión; una aproximación o estadística de catálogo
+  ausente queda `no_disponible` sin repliegue a `COUNT(DISTINCT)`, y el resultado
+  distingue lo solicitado de lo resuelto.
 - `plan_perfilado_dbi()` deja de ejecutar agregados de datos para decidir el
   costo. Con una cardinalidad desconocida publica un rango y conserva separadas
   `estrategia_distintos` y `fuente_cardinalidad_costo`.

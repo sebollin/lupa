@@ -41,14 +41,24 @@ compatibilidad como tamaño efectivo solicitado a la consulta. Además publica
 `filas_solicitadas`, el pedido original, y `filas_obtenidas`, las filas que
 devolvió la lectura de `perfil_muestra`; esta última puede ser `NA` cuando el
 bloque no se solicitó o falló antes de leer.
-`modo = "aproximado"` sondea las funciones nativas de cardinalidad y cuantiles;
-si una no existe, se usa el respaldo exacto y el método queda registrado.
+`estrategia_distintos` es explícita: `"exacta"` es el valor por omisión y emite
+`COUNT(DISTINCT)`; `"aproximada_motor"` usa una función nativa sólo si el motor
+la acepta; `"catalogo"` queda `no_disponible` hasta implementar la estadística
+del catálogo; y `"omitida"` no emite la consulta. Una estrategia aproximada sin
+capacidad no se convierte en exacta. El resultado distingue la estrategia
+solicitada, la resuelta y su estado.
 
 Además, `id_muestra` identifica la consulta de datos que produjo cada métrica.
 Dos métricas con el mismo valor vieron exactamente las mismas filas y se pueden
 comparar directamente, sin cruzar `lote` ni `columnas_compartidas`. Un `NA`
 declara que esa garantía no se puede hacer; en particular, moda, frecuencia de
 la moda y mediana son métricas por columna y no comparten filas con otras.
+`consulta_id` identifica la sentencia que produjo cada medición y permite formar
+el grupo de consistencia: las cotas duras sólo comparan valores con el mismo
+identificador. La consulta exacta de distintos trae
+`COUNT(columna) AS n_validos_guard` junto a `COUNT(DISTINCT columna)`; si una
+capacidad aproximada no puede traer ese guardián, la cota se declara no
+comprobable y no se atribuye una inconsistencia al motor.
 
 Mezclarlos en una fila, aun con un campo de alcance por resultado, permitiría
 comparar cantidades como si pertenecieran al mismo perfil. Los dos bloques
@@ -384,16 +394,20 @@ estimado$resumen_tabla$sql[
 ]
 
 aproximado <- perfilar_dbi(
-  conexion, "entregas", muestra = 5000, modo = "aproximado"
+  conexion, "entregas", muestra = 5000, modo = "aproximado",
+  estrategia_distintos = "aproximada_motor"
 )
 aproximado$resumen_tabla$meta$aproximaciones
 ```
 
-El modo aproximado sólo consolida un conteo de distintos cuando la capacidad
-del motor entrega una expresión incrustable. Si la capacidad sólo construye una
-consulta completa, el conteo de válidos y el de distintos se emiten por
-separado. El método publicado sigue al SQL que efectivamente se ejecutó; una
-consulta no emitida o sin un valor utilizable queda `no_disponible`.
+El modo aproximado gobierna las métricas aproximadas que define el modo, pero no
+elige la procedencia de distintos. Para pedir una función nativa de cardinalidad
+hay que usar `estrategia_distintos = "aproximada_motor"`. Sólo se consolida un
+conteo cuando la capacidad entrega una expresión incrustable. Si la capacidad
+sólo construye una consulta completa, el conteo de válidos y el de distintos se
+emiten por separado. El método publicado sigue al SQL que efectivamente se
+ejecutó; una consulta no emitida o sin un valor utilizable queda
+`no_disponible`.
 
 `plan_perfilado_dbi()` emite las sondas de capacidad y publica un **rango** de
 consultas en `attr(plan, "supuesto")`. No escanea datos para decidir el costo:
@@ -409,16 +423,18 @@ bisección— y deja abierto el camino que las ejecuta. Si un lote es rechazado,
 se agregan hasta `2n - 1` sondas por lote de `n` columnas. El costo real cae
 entre los dos, y el plan lo declara en las dos direcciones.
 
-`estrategia_distintos` dice si `n_distintos` se publica o sólo se usa para
-decidir; `fuente_cardinalidad_costo` dice de dónde sale la proporción. Son
-independientes: una clave declarada puede cerrar la decisión sin emitir un
-agregado de distintos. Si la fuente es desconocida, la corrida sigue la
-política explícita y mide el agregado una sola vez cuando lo necesita.
+`estrategia_distintos` dice cómo se obtiene o se omite `n_distintos`, y publica
+la estrategia solicitada, la resuelta y el estado antes y después de la
+corrida. `fuente_cardinalidad_costo` dice de dónde sale la proporción usada por
+la política de costo; es independiente y no puede convertir una petición
+`"aproximada_motor"` o `"catalogo"` en un agregado exacto.
 
-La corrida ejecuta primero los agregados planos, fusiona allí el `COUNT(*)`
-exacto cuando puede, y después ejecuta distintos, moda y mediana. Si no hay
-agregados planos que puedan llevar el total, el conteo exacto se emite antes de
-la familia de distintos. `tamano_lote_planos` y `tamano_lote_distintos` son
+Cada consulta de agregados planos que trae `n_validos` incluye
+`COUNT(*) AS n_total_consulta` en la misma sentencia. La completitud usa ese
+denominador local por lote, incluso después de una bisección, y no cruza el
+total de otra consulta. El total del universo se mantiene separado cuando hace
+falta para una muestra o cuando no hay agregados planos. Después se ejecutan
+distintos, moda y mediana. `tamano_lote_planos` y `tamano_lote_distintos` son
 independientes; este último vale 1 por omisión hasta contar con mediciones,
 porque una sola cardinalidad puede derramar mucho más que un lote plano.
 
@@ -496,10 +512,11 @@ TABLESAMPLE BERNOULLI (20)  1011 1017  981  1050
 
 `SYSTEM` elige bloques enteros, así que el tamaño de la muestra salta de un
 tercio al doble de lo pedido, y sobre una tabla chica puede dar cero. Con
-tamaños tan distintos entre consultas, dos métricas del mismo perfil dejan de
-ser comparables entre sí, y la guarda de coherencia interna —que compara, por
-ejemplo, la frecuencia de la moda contra los válidos— empieza a declarar no
-disponible lo que en realidad es incomparable.
+Con tamaños tan distintos entre consultas, dos métricas del mismo perfil dejan
+de ser comparables entre sí. La guarda de coherencia interna ya no compara, por
+ejemplo, la frecuencia de la moda contra los válidos de otra consulta: si no
+tiene un denominador compañero, deja la cota como no comprobable y conserva la
+medición sin culpar al motor.
 
 Si necesitás que todas las métricas describan exactamente las mismas filas, el
 camino es `perfil_muestra`: trae una muestra a R **una sola vez** y corre sobre
