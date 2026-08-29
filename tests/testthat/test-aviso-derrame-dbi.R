@@ -33,6 +33,50 @@ test_that("el aviso de costo incluye el valor y su fuente", {
   )
 })
 
+test_that("el aviso de costo tiene interruptor y umbral en segundos", {
+  proyeccion <- list(
+    disponible = TRUE, duracion_estimada_ms = 30000, n_lotes = 2L,
+    fuente = "mediana de consultas planas"
+  )
+
+  expect_message(
+    lupa:::.avisar_costo_distintos_dbi(
+      proyeccion, habilitado = TRUE, umbral_segundos = 0
+    ),
+    "Costo estimado"
+  )
+  expect_silent(lupa:::.avisar_costo_distintos_dbi(
+    proyeccion, habilitado = FALSE, umbral_segundos = 0
+  ))
+  expect_silent(lupa:::.avisar_costo_distintos_dbi(
+    proyeccion, habilitado = TRUE, umbral_segundos = Inf
+  ))
+  expect_silent(lupa:::.avisar_costo_distintos_dbi(
+    proyeccion, habilitado = TRUE, umbral_segundos = 30.1
+  ))
+  expect_error(
+    lupa:::.avisar_costo_distintos_dbi(
+      proyeccion, umbral_segundos = NA_real_
+    ),
+    "umbral_segundos"
+  )
+})
+
+test_that("perfilar_dbi rechaza umbrales NA antes de iniciar la corrida", {
+  expect_error(
+    perfilar_dbi(
+      NULL, "tabla", umbral_segundos_aviso_distintos = NA_real_
+    ),
+    "umbral_segundos_aviso_distintos"
+  )
+  expect_error(
+    perfilar_dbi(
+      NULL, "tabla", umbral_bytes_aviso_derrame_estimado = NA_real_
+    ),
+    "umbral_bytes_aviso_derrame_estimado"
+  )
+})
+
 test_that("el aviso llega antes de ejecutar el lote de distintos", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
@@ -52,10 +96,13 @@ test_that("el aviso llega antes de ejecutar el lote de distintos", {
       )
       invisible(NULL)
     },
-    .avisar_costo_distintos_dbi = function(proyeccion) {
+    .avisar_costo_distintos_dbi = function(
+        proyeccion, habilitado, umbral_segundos) {
       eventos <<- c(eventos, "aviso")
       expect_true(proyeccion$disponible)
       expect_identical(proyeccion$duracion_estimada_ms, 30000)
+      expect_false(habilitado)
+      expect_identical(umbral_segundos, 0)
     },
     .estimar_derrame_postgresql_dbi = function(...) {
       list(
@@ -69,8 +116,11 @@ test_that("el aviso llega antes de ejecutar el lote de distintos", {
         fuente = "pg_stats", motivo = "estimacion"
       )
     },
-    .avisar_derrame_estimado_postgresql_dbi = function(estimacion) {
+    .avisar_derrame_estimado_postgresql_dbi = function(
+        estimacion, habilitado, umbral_bytes) {
       eventos <<- c(eventos, "aviso_memoria")
+      expect_false(habilitado)
+      expect_identical(umbral_bytes, 0)
     },
     .conteos_distintos_lote_dbi = function(...) {
       eventos <<- c(eventos, "distintos")
@@ -79,9 +129,11 @@ test_that("el aviso llega antes de ejecutar el lote de distintos", {
     .package = "lupa"
   )
 
-  perfilar_dbi(
+  resultado <- perfilar_dbi(
     conexion, "tabla_aviso", metricas = c("validos", "distintos"),
     bloque_muestra = "solo_agregados", instrumentar = TRUE,
+    avisar_costo_distintos = FALSE, umbral_segundos_aviso_distintos = 0,
+    avisar_derrame_estimado = FALSE, umbral_bytes_aviso_derrame_estimado = 0,
     proteger_datos_personales = FALSE, analizar_dependencias = FALSE,
     casi_duplicados_vocabulario = FALSE, ausencia_estructural = FALSE,
     duplicados_aproximados = FALSE
@@ -89,6 +141,10 @@ test_that("el aviso llega antes de ejecutar el lote de distintos", {
 
   expect_lt(match("aviso_memoria", eventos), match("distintos", eventos))
   expect_lt(match("aviso", eventos), match("distintos", eventos))
+  expect_true(is.list(resultado$resumen_tabla$meta$costo_distintos))
+  expect_true(is.list(resultado$resumen_tabla$meta$derrame))
+  expect_true(is.list(resultado$resumen_tabla$meta$estimacion_derrame))
+  expect_identical(resultado$resumen_tabla$columnas$n_distintos, c(2, 3))
 })
 
 .estadisticas_derrame_prueba <- function(escrito = 7, llamadas = 11) {

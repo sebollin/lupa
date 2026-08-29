@@ -133,6 +133,15 @@
   # usan estadisticas del catalogo para proyectar el costo temporal de distintos.
   estado$referencias_planas <- list()
   estado$proyeccion_distintos <- NULL
+  # Los dos avisos se controlan por separado porque hablan de magnitudes
+  # incompatibles: segundos de servidor y bytes de memoria. No hay un porton
+  # comun que permita silenciar uno sin ocultar el otro; la interfaz publica
+  # conserva ese control selectivo sin introducir mas estados de medicion.
+  estado$avisar_costo_distintos <- TRUE
+  estado$umbral_segundos_aviso_distintos <- .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI
+  estado$avisar_derrame_estimado <- TRUE
+  estado$umbral_bytes_aviso_derrame_estimado <-
+    .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI
   # La memoria del hash se estima con estadisticas del catalogo, pero nunca se
   # guarda como si fuera una medicion del derrame. Vive en el presupuesto para
   # que el plan y la corrida conserven el mismo diagnostico sin consultar dos
@@ -230,12 +239,44 @@
           decimal.mark = ",")
 }
 
-.UMBRAL_AVISO_DISTINTOS_DBI <- 30 * 1000
+.UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI <- 30
+.UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI <- 0
+# Nombre interno histórico, expresado en milisegundos como lo estaba antes de
+# que el umbral público pasara a declarar su unidad en segundos.
+.UMBRAL_AVISO_DISTINTOS_DBI <- .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI * 1000
 
-.avisar_costo_distintos_dbi <- function(proyeccion) {
+.validar_interruptor_aviso_dbi <- function(valor, nombre) {
+  if (!is.logical(valor) || length(valor) != 1L || is.na(valor)) {
+    .detener_dbi(
+      "lupa_error_argumento_dbi",
+      paste0("`", nombre, "` debe ser TRUE o FALSE.")
+    )
+  }
+  valor
+}
+
+.validar_umbral_aviso_dbi <- function(valor, nombre) {
+  if (!is.numeric(valor) || length(valor) != 1L || is.na(valor) || valor < 0 ||
+      (!is.infinite(valor) && !is.finite(valor))) {
+    .detener_dbi(
+      "lupa_error_argumento_dbi",
+      paste0("`", nombre, "` debe ser un numero no negativo o Inf.")
+    )
+  }
+  as.numeric(valor)
+}
+
+.avisar_costo_distintos_dbi <- function(
+    proyeccion, habilitado = TRUE,
+    umbral_segundos = .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI) {
+  habilitado <- .validar_interruptor_aviso_dbi(habilitado, "habilitado")
+  umbral_segundos <- .validar_umbral_aviso_dbi(
+    umbral_segundos, "umbral_segundos"
+  )
   if (is.null(proyeccion) || !isTRUE(proyeccion$disponible) ||
+      !isTRUE(habilitado) || !is.finite(umbral_segundos) ||
       is.na(proyeccion$duracion_estimada_ms) ||
-      proyeccion$duracion_estimada_ms < .UMBRAL_AVISO_DISTINTOS_DBI) {
+      proyeccion$duracion_estimada_ms < umbral_segundos * 1000) {
     return(invisible(NULL))
   }
   cli::cli_alert_warning(paste0(
@@ -693,11 +734,23 @@
   )
 }
 
-.avisar_derrame_estimado_postgresql_dbi <- function(estimacion) {
+.avisar_derrame_estimado_postgresql_dbi <- function(
+    estimacion, habilitado = TRUE,
+    umbral_bytes = .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI) {
+  habilitado <- .validar_interruptor_aviso_dbi(habilitado, "habilitado")
+  umbral_bytes <- .validar_umbral_aviso_dbi(umbral_bytes, "umbral_bytes")
   if (is.null(estimacion) || !isTRUE(estimacion$es_estimacion) ||
+      !isTRUE(habilitado) || !is.finite(umbral_bytes) ||
       !length(estimacion$lotes_sobre_memoria)) return(invisible(NULL))
   lotes <- estimacion$lotes
   indices <- estimacion$lotes_sobre_memoria
+  indices <- indices[is.finite(indices) & indices >= 1L &
+    indices <= nrow(lotes)]
+  indices <- indices[vapply(
+    indices, function(i) is.finite(lotes$tamano_estimado_bytes[[i]]) &&
+      lotes$tamano_estimado_bytes[[i]] >= umbral_bytes, logical(1L)
+  )]
+  if (!length(indices)) return(invisible(NULL))
   detalle <- paste(vapply(indices, function(i) paste0(
     "lote de ", lotes$columnas[[i]], ": ~",
     .memoria_dbi(lotes$tamano_estimado_bytes[[i]])
@@ -4278,6 +4331,10 @@
   agregados <- list(
     conteos = por_columna(), basicos = por_columna(), desvio = por_columna()
   )
+  configuracion_aviso <- function(nombre, defecto) {
+    valor <- if (is.null(presupuesto)) NULL else presupuesto[[nombre]]
+    if (is.null(valor)) defecto else valor
+  }
   nombres_sql <- stats::setNames(columnas_sql, columnas)
   conteo <- conteo_inicial
   n_total <- if (is.null(conteo)) NA_real_ else .conteo_dbi(conteo$valor)
@@ -4394,7 +4451,14 @@
         presupuesto, n_lotes_distintos
       )
       presupuesto$proyeccion_distintos <- proyeccion
-      .avisar_costo_distintos_dbi(proyeccion)
+      .avisar_costo_distintos_dbi(
+        proyeccion,
+        habilitado = configuracion_aviso("avisar_costo_distintos", TRUE),
+        umbral_segundos = configuracion_aviso(
+          "umbral_segundos_aviso_distintos",
+          .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI
+        )
+      )
     } else {
       presupuesto$proyeccion_distintos <- list(
         disponible = FALSE, duracion_estimada_ms = NA_real_,
@@ -4406,7 +4470,12 @@
       )
     }
     .avisar_derrame_estimado_postgresql_dbi(
-      if (is.null(presupuesto)) NULL else presupuesto$estimacion_derrame
+      if (is.null(presupuesto)) NULL else presupuesto$estimacion_derrame,
+      habilitado = configuracion_aviso("avisar_derrame_estimado", TRUE),
+      umbral_bytes = configuracion_aviso(
+        "umbral_bytes_aviso_derrame_estimado",
+        .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI
+      )
     )
     instrumentacion_derrame <- .iniciar_instrumentacion_derrame_dbi(
       conexion, presupuesto,
@@ -7719,6 +7788,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' insuficiente o una versión sin el parámetro dejan la parte correspondiente
 #' como no disponible. `n_distinct` es una estimación de muestra y puede quedar
 #' corta; si luego `pg_stat_statements` mide un derrame, esa medición manda.
+#'
+#' Los avisos de esta vía son deliberadamente distintos de los de [perfilar()]:
+#' `perfilar_dbi()` los emite también en guiones no interactivos porque el costo
+#' relevante ocurre en el servidor y puede consumir decenas de segundos antes
+#' de que el llamador pueda hacer algo. En cambio, el aviso de tabla ancha de
+#' [perfilar()] estima trabajo local sobre una tabla ya en R y queda limitado a
+#' sesiones interactivas para no convertir la salida de un guion en ruido.
+#' Cada aviso DBI tiene su propio interruptor y umbral porque sus unidades no
+#' son comparables —segundos frente a bytes— y silenciar uno no debe ocultar el
+#' otro. Apagar un aviso no apaga ninguna medición: `meta$costo_distintos`,
+#' `meta$derrame` y `meta$estimacion_derrame` se publican igual.
 #' Lo que no entra en el presupuesto queda en `no_disponible` con su motivo,
 #' nunca en cero. `meta$tamano_lote_funciono` conserva el mayor lote aceptado
 #' durante esa corrida; no se guarda estado global asociado a la conexión.
@@ -7860,6 +7940,24 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   activa `politica_costo = "por_cardinalidad"`. El valor por omisión es `0.95`
 #'   sólo cuando esa política se pide explícitamente; se puede mover en cada
 #'   llamada. Para pedir todas las métricas use `politica_costo = "todas"`.
+#' @param avisar_costo_distintos Si es `TRUE`, avisa cuando la proyección del
+#'   costo de `COUNT(DISTINCT)` alcanza `umbral_segundos_aviso_distintos`.
+#'   Por omisión es `TRUE`. Este aviso no depende de `interactive()`: también
+#'   llega en guiones porque el costo se paga en el servidor y puede durar
+#'   decenas de segundos.
+#' @param umbral_segundos_aviso_distintos Segundos estimados a partir de los
+#'   cuales se emite el aviso del costo de `COUNT(DISTINCT)`. Por omisión es
+#'   `30`, el umbral histórico; `Inf` lo desactiva explícitamente. El valor no
+#'   cambia la proyección ni la medición que se publica.
+#' @param avisar_derrame_estimado Si es `TRUE`, avisa cuando un lote de
+#'   `COUNT(DISTINCT)` supera la memoria efectiva y su tamaño estimado alcanza
+#'   `umbral_bytes_aviso_derrame_estimado`. Por omisión es `TRUE`. Este aviso
+#'   sólo puede aparecer cuando PostgreSQL permite estimar el hash.
+#' @param umbral_bytes_aviso_derrame_estimado Tamaño estimado del hash, en
+#'   bytes, a partir del cual se avisa un derrame potencial entre los lotes que
+#'   ya superan la memoria efectiva. Por omisión es `0`, que conserva el aviso
+#'   para cualquier lote que la supere; `Inf` lo desactiva explícitamente. El
+#'   valor no cambia la estimación ni la medición posterior del derrame.
 #' @param bloque_muestra Qué bloques se solicitan: `"con_muestra"` (por
 #'   omisión) calcula también `perfil_muestra`, o `"solo_agregados"` omite su
 #'   lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
@@ -7919,7 +8017,26 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                          politica_costo = c("todas", "ninguna",
                                              "por_cardinalidad", "cardinalidad"),
                          umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
+                         avisar_costo_distintos = TRUE,
+                         umbral_segundos_aviso_distintos =
+                           .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI,
+                         avisar_derrame_estimado = TRUE,
+                         umbral_bytes_aviso_derrame_estimado =
+                           .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
                          ...) {
+  avisar_costo_distintos <- .validar_interruptor_aviso_dbi(
+    avisar_costo_distintos, "avisar_costo_distintos"
+  )
+  umbral_segundos_aviso_distintos <- .validar_umbral_aviso_dbi(
+    umbral_segundos_aviso_distintos, "umbral_segundos_aviso_distintos"
+  )
+  avisar_derrame_estimado <- .validar_interruptor_aviso_dbi(
+    avisar_derrame_estimado, "avisar_derrame_estimado"
+  )
+  umbral_bytes_aviso_derrame_estimado <- .validar_umbral_aviso_dbi(
+    umbral_bytes_aviso_derrame_estimado,
+    "umbral_bytes_aviso_derrame_estimado"
+  )
   preparacion <- .preparar_dbi(
     conexion = conexion, tabla = tabla, muestra = muestra,
     orden_muestra = orden_muestra, modo = modo, metricas = metricas,
@@ -7935,6 +8052,12 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     umbral_cardinalidad = umbral_cardinalidad
   )
   presupuesto <- preparacion$presupuesto
+  presupuesto$avisar_costo_distintos <- avisar_costo_distintos
+  presupuesto$umbral_segundos_aviso_distintos <-
+    umbral_segundos_aviso_distintos
+  presupuesto$avisar_derrame_estimado <- avisar_derrame_estimado
+  presupuesto$umbral_bytes_aviso_derrame_estimado <-
+    umbral_bytes_aviso_derrame_estimado
   info_conexion <- .info_conexion_dbi(conexion)
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
     .es_numerico_dbi(

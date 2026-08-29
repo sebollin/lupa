@@ -165,6 +165,34 @@ test_that("el aviso identifica estimacion, memoria vigente y accion de sesion", 
   )
 })
 
+test_that("el aviso de derrame tiene interruptor y umbral en bytes", {
+  estimacion <- .estimar_hash_falso(
+    .estadisticas_hash_falsas(n_distinct = 100000), work = "1MB"
+  )
+
+  expect_message(
+    lupa:::.avisar_derrame_estimado_postgresql_dbi(
+      estimacion, habilitado = TRUE, umbral_bytes = 0
+    ),
+    "Derrame potencial estimado"
+  )
+  expect_silent(lupa:::.avisar_derrame_estimado_postgresql_dbi(
+    estimacion, habilitado = FALSE, umbral_bytes = 0
+  ))
+  expect_silent(lupa:::.avisar_derrame_estimado_postgresql_dbi(
+    estimacion, habilitado = TRUE, umbral_bytes = Inf
+  ))
+  expect_silent(lupa:::.avisar_derrame_estimado_postgresql_dbi(
+    estimacion, habilitado = TRUE, umbral_bytes = 10000001
+  ))
+  expect_error(
+    lupa:::.avisar_derrame_estimado_postgresql_dbi(
+      estimacion, umbral_bytes = NA_real_
+    ),
+    "umbral_bytes"
+  )
+})
+
 test_that("SQLite publica que no pudo estimar, no que no derrama", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")

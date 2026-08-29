@@ -22,6 +22,10 @@ perfilar_dbi(
   estrategia_distintos = "exacta",
   politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
+  avisar_costo_distintos = TRUE,
+  umbral_segundos_aviso_distintos = .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI,
+  avisar_derrame_estimado = TRUE,
+  umbral_bytes_aviso_derrame_estimado = .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
   ...
 )
 }
@@ -129,6 +133,28 @@ se convierte en una medición exacta.}
 activa \code{politica_costo = "por_cardinalidad"}. El valor por omisión es \code{0.95}
 sólo cuando esa política se pide explícitamente; se puede mover en cada
 llamada. Para pedir todas las métricas use \code{politica_costo = "todas"}.}
+
+\item{avisar_costo_distintos}{Si es \code{TRUE}, avisa cuando la proyección del
+costo de \code{COUNT(DISTINCT)} alcanza \code{umbral_segundos_aviso_distintos}.
+Por omisión es \code{TRUE}. Este aviso no depende de \code{interactive()}: también
+llega en guiones porque el costo se paga en el servidor y puede durar
+decenas de segundos.}
+
+\item{umbral_segundos_aviso_distintos}{Segundos estimados a partir de los
+cuales se emite el aviso del costo de \code{COUNT(DISTINCT)}. Por omisión es
+\code{30}, el umbral histórico; \code{Inf} lo desactiva explícitamente. El valor no
+cambia la proyección ni la medición que se publica.}
+
+\item{avisar_derrame_estimado}{Si es \code{TRUE}, avisa cuando un lote de
+\code{COUNT(DISTINCT)} supera la memoria efectiva y su tamaño estimado alcanza
+\code{umbral_bytes_aviso_derrame_estimado}. Por omisión es \code{TRUE}. Este aviso
+sólo puede aparecer cuando PostgreSQL permite estimar el hash.}
+
+\item{umbral_bytes_aviso_derrame_estimado}{Tamaño estimado del hash, en
+bytes, a partir del cual se avisa un derrame potencial entre los lotes que
+ya superan la memoria efectiva. Por omisión es \code{0}, que conserva el aviso
+para cualquier lote que la supere; \code{Inf} lo desactiva explícitamente. El
+valor no cambia la estimación ni la medición posterior del derrame.}
 
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
 }
@@ -311,6 +337,17 @@ sesión; el paquete no lo modifica. Una estadística ausente, un permiso
 insuficiente o una versión sin el parámetro dejan la parte correspondiente
 como no disponible. \code{n_distinct} es una estimación de muestra y puede quedar
 corta; si luego \code{pg_stat_statements} mide un derrame, esa medición manda.
+
+Los avisos de esta vía son deliberadamente distintos de los de \code{\link[=perfilar]{perfilar()}}:
+\code{perfilar_dbi()} los emite también en guiones no interactivos porque el costo
+relevante ocurre en el servidor y puede consumir decenas de segundos antes
+de que el llamador pueda hacer algo. En cambio, el aviso de tabla ancha de
+\code{\link[=perfilar]{perfilar()}} estima trabajo local sobre una tabla ya en R y queda limitado a
+sesiones interactivas para no convertir la salida de un guion en ruido.
+Cada aviso DBI tiene su propio interruptor y umbral porque sus unidades no
+son comparables —segundos frente a bytes— y silenciar uno no debe ocultar el
+otro. Apagar un aviso no apaga ninguna medición: \code{meta$costo_distintos},
+\code{meta$derrame} y \code{meta$estimacion_derrame} se publican igual.
 Lo que no entra en el presupuesto queda en \code{no_disponible} con su motivo,
 nunca en cero. \code{meta$tamano_lote_funciono} conserva el mayor lote aceptado
 durante esa corrida; no se guarda estado global asociado a la conexión.

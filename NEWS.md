@@ -1,5 +1,20 @@
 # lupa 0.1.0
 
+## Los avisos DBI de costo tienen controles independientes
+
+- `perfilar_dbi()` agrega `avisar_costo_distintos` con
+  `umbral_segundos_aviso_distintos`, y `avisar_derrame_estimado` con
+  `umbral_bytes_aviso_derrame_estimado`: el costo de `COUNT(DISTINCT)` se
+  controla en segundos y el derrame estimado en bytes.
+  `Inf` desactiva explícitamente el aviso; el umbral histórico de 30 segundos
+  se conserva y el derrame mantiene el comportamiento de avisar cualquier lote
+  estimado por encima de la memoria efectiva.
+- Los controles sólo silencian el cartel: `meta$costo_distintos`,
+  `meta$derrame` y `meta$estimacion_derrame` siguen publicándose. Los avisos
+  DBI continúan sonando en guiones porque el costo se paga en el servidor;
+  la diferencia con el aviso interactivo de tabla ancha queda documentada en
+  `perfilar_dbi()`.
+
 ## El derrame de `COUNT(DISTINCT)` se avisa antes de pagarlo
 
 - En PostgreSQL, `perfilar_dbi()` consulta `pg_stats.n_distinct`,
