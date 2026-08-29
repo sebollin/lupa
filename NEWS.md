@@ -45,6 +45,28 @@
   los campos que no se pudieron consultar, y descarta las dos lecturas
   equivocadas.
 
+## El tope de largo mide la cadena que se compara
+
+- El tope se evaluaba sobre el valor **guardado** y la comparación corría sobre
+  el **combinado y normalizado**. Dos columnas de 9.000 caracteres pasaban el
+  tope de 10.000 y se comparaban unidas en 18.003; y con la normalización
+  `amplio`, que expande ligaduras, un valor de 5.101 caracteres se comparaba
+  expandido a 15.303. En los dos casos `alcance$largo_maximo` publicaba el largo
+  guardado, que no era el que se había medido.
+- Ahora el tope se mide sobre la cadena que entra a la comparación y
+  `largo_maximo` publica ese largo. Sin normalización que expanda y con una sola
+  columna, la conducta no cambia.
+- Cuando el tope no aplica —`Inf`— no se mide ningún largo y `largo_maximo` vale
+  `NA` en vez de `0`: un cero ahí afirmaba una medición que no ocurrió.
+
+## Los valores largos se cuentan en valores, y las filas en filas
+
+- La cobertura del vocabulario informaba «100 valores superan el tope» cuando
+  había **un** valor distinto repetido en **100** filas. La regla de proximidad
+  trabaja sobre el vocabulario, así que ésa era la unidad prometida y no la
+  medida. El motivo publica ahora las dos cuentas, cada una en su unidad.
+
+
 ## El derrame de `COUNT(DISTINCT)` se avisa antes de pagarlo
 
 - En PostgreSQL, `perfilar_dbi()` consulta `pg_stats.n_distinct`,

@@ -878,6 +878,13 @@
   largos_valores <- largos_valores[is.finite(largos_valores)]
   largos_filas <- nchar(textos[presentes], type = "chars", allowNA = TRUE)
   largos_filas <- largos_filas[is.finite(largos_filas)]
+  # La regla de proximidad trabaja sobre el VOCABULARIO -los valores distintos-,
+  # asi que esa es la unidad en la que promete, y hay que medirla aparte: un
+  # unico valor largo repetido en cien filas no son cien valores largos.
+  largos_valores <- nchar(
+    unique(textos[presentes]), type = "chars", allowNA = TRUE
+  )
+  largos_valores <- largos_valores[is.finite(largos_valores)]
   suma_largos <- sum(largos_valores)
   trabajo <- if (length(largos_valores)) {
     (suma_largos^2 - sum(largos_valores^2)) / 2
@@ -928,7 +935,14 @@
       n_pares_descartados_formato = 0,
       motivo_grupos = "", aplicable = TRUE,
       largo_excedido = TRUE,
-      n_valores_largos = sum(largos_filas > max_largo_valor),
+      # `n_valores_largos` contaba FILAS y decia "valores". La regla de
+      # proximidad trabaja sobre el vocabulario -los valores distintos-, asi que
+      # esa era la unidad prometida y no la medida: con un unico valor largo
+      # repetido en cien filas el motivo publicaba "100 valores superan".
+      # El fixture que lo tapaba tenia una fila por valor, donde las dos cuentas
+      # coinciden y ninguna prueba podia separarlas.
+      n_valores_largos = sum(largos_valores > max_largo_valor),
+      n_filas_largas = sum(largos_filas > max_largo_valor),
       largo_maximo = if (length(largos_filas)) max(largos_filas) else 0,
       max_largo_valor = max_largo_valor,
       columna = columna
@@ -1586,6 +1600,7 @@
       max_largo_valor = max_largo_valor,
       largo_excedido = FALSE,
       n_valores_largos = 0L,
+      n_filas_largas = 0L,
       largo_maximo = .largo_maximo_valor_duplicados(presentes_texto),
       motivo_presupuesto = motivo_presupuesto,
       distancia_disponible = disponible,
@@ -1670,8 +1685,9 @@
         "proximidad_vocabulario", columnas[[i]],
         paste0(
           "No se evaluo la proximidad del vocabulario: ",
-          alcance$n_valores_largos,
-          " valores superan `max_largo_valor_vocabulario = ",
+          alcance$n_valores_largos, " valor(es) distinto(s) en ",
+          alcance$n_filas_largas,
+          " fila(s) superan `max_largo_valor_vocabulario = ",
           alcance$max_largo_valor, "` caracteres; el largo maximo observado es ",
           alcance$largo_maximo,
           ". La columna completa quedo fuera de la comparacion para no usar",

@@ -392,6 +392,18 @@ is out of scope and `alcance$columnas_excluidas_largo` explains why. In
 reason, observed length and threshold. `max_largo_valor = Inf` or
 `max_largo_valor_vocabulario = Inf` explicitly restores the previous behaviour.
 
+The cap is measured on the string that is actually compared: columns already
+combined and already normalised. Both halves of that sentence are load-bearing.
+Two columns of nine thousand characters each are below the cap on their own and
+reach eighteen thousand once joined; and the `amplio` normalisation expands
+ligatures, so a value can sit below the stored cap and above the compared one.
+`alcance$largo_maximo` reports that compared length, and is `NA` — not zero —
+when the cap does not apply and no length was measured.
+
+The two caps are separate knobs on purpose. `max_largo_valor_vocabulario`
+governs the vocabulary rule inside `perfilar()`; the row-pair detector keeps its
+own, set through `duplicados_aproximados = list(max_largo_valor = ...)`.
+
 ### Wide-table cost is announced first
 
 `perfilar()` projects the cell count before expensive work starts. The default

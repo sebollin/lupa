@@ -27,23 +27,89 @@
   .validar_limite_duplicados(x, nombre)
 }
 
-.largo_maximo_valor_duplicados <- function(x) {
+# El largo se mide sobre el valor YA NORMALIZADO, que es el que se compara.
+#
+# Medirlo sobre el crudo dejaba un desvio real, no teorico: la normalizacion
+# `amplio` expande ligaduras -"ffl" es UN caracter que se convierte en TRES-, asi
+# que una columna de 5.101 caracteres crudos pasaba el tope de 10.000, se
+# comparaba con 15.303, y `largo_maximo` publicaba 5.101. El tope existe por lo
+# que cuesta y por como se degrada la distancia normalizada; las dos cosas
+# dependen de la cadena que entra a `stringdist`, no de la que estaba guardada.
+.largo_maximo_valor_duplicados <- function(x, normalizacion = NULL) {
   valores <- suppressWarnings(as.character(.texto_analizable(x)$valores))
+  if (!is.null(normalizacion)) {
+    # Mismo tratamiento del ausente que `.texto_fila_aproximada`: se compara ""
+    # y no `NA`, y medir otra cosa que la que se compara es el defecto que esto
+    # viene a cerrar.
+    valores[is.na(valores)] <- ""
+    valores <- .normalizacion_aplicar(valores, normalizacion)
+  }
   largos <- nchar(valores, type = "chars", allowNA = TRUE)
   largos <- largos[is.finite(largos)]
   if (!length(largos)) 0 else max(largos)
 }
 
-.columnas_largas_duplicados <- function(datos, columnas, max_largo_valor) {
-  if (!length(columnas) || is.infinite(max_largo_valor)) {
-    return(list(columnas = character(), largos = numeric()))
+# Los largos de una columna, ya normalizados, fila por fila. `NA` cuenta como
+# "" porque asi entra a la comparacion, y un largo no finito cuenta 0 en vez de
+# envenenar la suma.
+.largos_columna_duplicados <- function(x, normalizacion = NULL) {
+  valores <- suppressWarnings(as.character(.texto_analizable(x)$valores))
+  valores[is.na(valores)] <- ""
+  if (!is.null(normalizacion)) {
+    valores <- .normalizacion_aplicar(valores, normalizacion)
   }
-  largos <- vapply(
-    columnas,
-    function(columna) .largo_maximo_valor_duplicados(datos[[columna]]),
-    numeric(1L)
-  )
-  list(columnas = names(largos)[largos > max_largo_valor], largos = largos)
+  largos <- nchar(valores, type = "chars", allowNA = TRUE)
+  largos[!is.finite(largos)] <- 0
+  largos
+}
+
+# El tope se compara contra la cadena COMBINADA, que es la que entra a
+# `stringdist`, y no contra cada columna por separado.
+#
+# La documentacion del parametro ya decia "cada valor de las columnas
+# combinadas"; la implementacion media columna por columna, asi que se
+# contradecian. Reproducido el 2026-08-29: dos columnas de 9.000 caracteres,
+# las dos por debajo del tope de 10.000, se comparaban concatenadas en 18.003 y
+# el alcance publicaba `largo_maximo = 9000`.
+#
+# Se suma por fila y no maximo contra maximo: los dos maximos pueden estar en
+# filas distintas y esa suma no existiria en ninguna comparacion real.
+.SEPARADOR_FILA_DUPLICADOS <- 3L   # " | " entre columnas
+
+.columnas_largas_duplicados <- function(datos, columnas, max_largo_valor,
+                                        normalizacion = NULL) {
+  if (!length(columnas) || is.infinite(max_largo_valor)) {
+    # Con el tope en `Inf` no se miden largos: seria pagar un recorrido para no
+    # decidir nada. Pero entonces `largo_maximo` no puede publicar 0, que es una
+    # medicion y ademas falsa -habia valores de 12.000 caracteres-. Se publica
+    # `NA`, que es lo que ocurrio: no se midio. `limite_largo_valor_aplica`
+    # queda en FALSE y dice por que.
+    return(list(
+      columnas = character(), largos = numeric(), combinado = NA_real_
+    ))
+  }
+  por_fila <- lapply(columnas, function(columna) {
+    .largos_columna_duplicados(
+      datos[[columna]],
+      if (is.null(normalizacion)) NULL
+      else .normalizacion_para_columna(normalizacion, columna)
+    )
+  })
+  names(por_fila) <- columnas
+  largos <- vapply(por_fila, function(v) if (!length(v)) 0 else max(v), numeric(1L))
+  combinado <- if (!length(por_fila[[1L]])) {
+    0
+  } else {
+    max(Reduce(`+`, por_fila)) +
+      .SEPARADOR_FILA_DUPLICADOS * (length(columnas) - 1L)
+  }
+  propias <- names(largos)[largos > max_largo_valor]
+  # Si ninguna columna sola excede pero la combinacion si, quedan fuera todas:
+  # se comparan juntas, asi que no hay manera de excluir "una parte" de la fila.
+  excluidas <- if (length(propias)) propias
+               else if (combinado > max_largo_valor) as.character(columnas)
+               else character()
+  list(columnas = excluidas, largos = largos, combinado = combinado)
 }
 
 .stringdist_disponible <- function() {
@@ -81,7 +147,8 @@
     disponible = TRUE, razon = "", bloque = 1000L, n_bloques = 0L,
     modo_comparacion = "sin_comparacion", nucleos_usados = NA_integer_,
     p = 0.1, max_largo_valor = Inf,
-    columnas_excluidas_largo = character(), largos_columnas = numeric()) {
+    columnas_excluidas_largo = character(), largos_columnas = numeric(),
+    largo_combinado = NULL) {
   pares <- data.frame(
     fila_1 = integer(), fila_2 = integer(), distancia = numeric(),
     tipo_par = character(), igualo_normalizar = logical(), metodo = character(),
@@ -127,7 +194,8 @@
     limite_largo_valor_aplica = is.finite(max_largo_valor),
     columnas_excluidas_largo = paste(columnas_excluidas_largo, collapse = ", "),
     n_columnas_excluidas_largo = length(columnas_excluidas_largo),
-    largo_maximo = if (length(largos_columnas)) max(largos_columnas) else 0,
+    largo_maximo = if (!is.null(largo_combinado)) largo_combinado
+                   else if (length(largos_columnas)) max(largos_columnas) else 0,
     razon = razon,
     stringsAsFactors = FALSE
   )
@@ -1602,7 +1670,9 @@
     stop("`normalizar` y `proteger_datos_personales` deben ser l\u00f3gicos escalares.",
          call. = FALSE)
   }
-  largos <- .columnas_largas_duplicados(datos, columnas, max_largo_valor)
+  largos <- .columnas_largas_duplicados(
+    datos, columnas, max_largo_valor, normalizacion_resuelta
+  )
   if (length(largos$columnas)) {
     motivo <- paste0(
       "Se excluyeron las columnas ",
@@ -1617,7 +1687,8 @@
       p = p, razon = motivo, nucleos_usados = nucleos,
       max_largo_valor = max_largo_valor,
       columnas_excluidas_largo = largos$columnas,
-      largos_columnas = largos$largos
+      largos_columnas = largos$largos,
+      largo_combinado = largos$combinado
     )
     if (!is.null(resumen_bloqueo)) {
       resultado$alcance <- cbind(resultado$alcance, resumen_bloqueo$alcance)
@@ -2041,11 +2112,10 @@
     limite_largo_valor_aplica = is.finite(max_largo_valor),
     columnas_excluidas_largo = "",
     n_columnas_excluidas_largo = 0L,
-    largo_maximo = max(vapply(
-      columnas,
-      function(columna) .largo_maximo_valor_duplicados(datos[[columna]]),
-      numeric(1L)
-    )),
+    # El combinado y normalizado, que es la cadena que entra a `stringdist`.
+    # Antes se recalculaba aca sobre el valor crudo y columna por columna, o sea
+    # que publicaba un largo distinto del que se habia comparado.
+    largo_maximo = largos$combinado,
     stringsAsFactors = FALSE
   )
   if (usar_lsh) {
@@ -2234,11 +2304,19 @@
 #'   corte que cae dentro de un empate deja afuera pares igual de cercanos, y eso
 #'   se declara en `alcance$corte_en_empate`.
 #' @param max_largo_valor Maximo de caracteres permitido en cada valor de las
-#'   columnas combinadas. Por defecto es `10000`, umbral elegido porque la
-#'   distancia normalizada deja de distinguir de forma estable una diferencia
-#'   local de muchas diferencias en textos largos. Si una columna supera el
-#'   tope, la combinacion completa se declara fuera de alcance en
-#'   `alcance$columnas_excluidas_largo`; no se recortan valores en silencio.
+#'   columnas combinadas, **medido sobre la cadena que de verdad se compara**:
+#'   las columnas ya unidas y ya normalizadas. Las dos mitades importan. Dos
+#'   columnas de 9.000 caracteres estan las dos por debajo de un tope de 10.000 y
+#'   llegan a 18.003 una vez unidas; y la normalizacion `amplio` expande
+#'   ligaduras tipograficas -la de f-f-l es un solo caracter que se convierte en
+#'   tres-, asi que un valor puede estar por debajo del tope guardado y por
+#'   encima del comparado. Por defecto es `10000`, umbral elegido porque la distancia
+#'   normalizada deja de distinguir de forma estable una diferencia local de
+#'   muchas diferencias en textos largos. Si una columna supera el tope, la
+#'   combinacion completa se declara fuera de alcance en
+#'   `alcance$columnas_excluidas_largo`, y `alcance$largo_maximo` publica el
+#'   largo comparado; no se recortan valores en silencio. Con el tope en `Inf` no
+#'   se mide ningun largo y `largo_maximo` vale `NA`, no cero.
 #'   `Inf` recupera explicitamente el comportamiento anterior sin tope.
 #' @param bloque Cantidad de filas por tesela de comparación. Por defecto
 #'   `1000`; controla la memoria temporal, no el número de pares comparados.

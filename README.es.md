@@ -415,6 +415,20 @@ por que. En `perfilar()`, la misma decision aparece en
 `max_largo_valor = Inf` o `max_largo_valor_vocabulario = Inf` recupera
 explicitamente el comportamiento anterior.
 
+El tope se mide sobre la cadena que **de verdad se compara**: las columnas ya
+combinadas y ya normalizadas. Las dos mitades de esa frase importan. Dos columnas
+de nueve mil caracteres cada una están por debajo del tope por separado y llegan
+a dieciocho mil una vez unidas; y la normalización `amplio` expande ligaduras
+—la de f-f-l es un solo carácter que se convierte en tres—, así que un valor puede
+quedar por debajo del tope guardado y por encima del comparado.
+`alcance$largo_maximo` publica ese largo comparado, y vale `NA` —no cero— cuando
+el tope no aplica y no se midió ningún largo.
+
+Los dos topes son perillas separadas a propósito. `max_largo_valor_vocabulario`
+gobierna la regla de vocabulario dentro de `perfilar()`; el detector de pares de
+filas conserva el suyo, que se configura con
+`duplicados_aproximados = list(max_largo_valor = ...)`.
+
 ### Avisos de costo y derrame
 
 Cuando `perfilar_dbi()` pide `COUNT(DISTINCT ...)`, los agregados planos se
