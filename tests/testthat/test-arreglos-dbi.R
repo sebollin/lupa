@@ -491,6 +491,9 @@ test_that("el plan previo dice cuantas consultas se van a emitir", {
   expect_s3_class(plan, "data.frame")
   expect_true(all(c("clase_consulta", "n_consultas", "alcance") %in% names(plan)))
   expect_equal(attr(plan, "columnas"), 3L)
+  # El bloque de memoria se arma con datos ya disponibles: no puede agregar un
+  # viaje después de que el plan registró sus consultas de preparación.
+  expect_equal(emitidas_al_planificar, attr(plan, "consultas_emitidas"))
   expect_gt(attr(plan, "total"), emitidas_al_planificar)
 
   .juguete_reiniciar("normal")

@@ -592,6 +592,26 @@ sugiere la referencia—. Los números
 publicados no dependen de esos supuestos, así que quien no los comparta puede
 rehacer la cuenta.
 
+### La memoria del procesamiento no se estima
+
+`plan_perfilado_dbi()` declara explícitamente que la memoria del procesamiento
+**no se estima**: no escala de forma predecible con las filas ni con las celdas,
+según lo medido. El plan conserva la **magnitud del trabajo** que se conoce
+—filas, celdas y pares de texto—, rotulada como magnitud y no como consumo de
+memoria.
+
+Son datos de referencia medidos, **no una predicción para la tabla del plan**:
+traer la tabla costó aproximadamente 0,13 GB por millón de filas y procesar en R
+aproximadamente 1,0-1,5 MB por cada mil filas. La segunda cifra varió por 1,62x
+entre tablas de la misma magnitud; esa variación es justamente el motivo por el
+que no se usa para estimar.
+
+Ver todas las filas y tener todas las filas en memoria no son lo mismo. En
+corridas de referencia, 4,5 millones de filas entraron en 0,6 GB y tardaron 25
+segundos en llegar, mientras que procesar 4,5 millones ocupó aproximadamente 7
+GB y procesar 12,8 millones aproximadamente 19 GB. El problema observado está
+en el procesamiento en R, no en la red ni en el motor.
+
 | modo | qué hace |
 | --- | --- |
 | `exacto` | todas las métricas sobre la tabla entera |

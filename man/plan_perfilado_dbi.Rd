@@ -126,11 +126,17 @@ Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
 \code{metricas_ejecucion}, \code{politica_costo}, \code{estrategia_distintos},
 \code{fuente_cardinalidad_costo}, \code{moda_guardian}, \code{mediana_consolidada}, \code{filas},
 \code{mediana_escalar},
-\code{tamano_lote_planos}, \code{tamano_lote_distintos}, \code{estimacion_derrame} y,
+\code{tamano_lote_planos}, \code{tamano_lote_distintos}, \code{estimacion_derrame},
+\code{celdas}, \code{memoria_procesamiento} y,
 cuando se pide \code{distintos}, \code{supuesto_costo_distintos}.
-Esta última es una estimación de memoria, no una medición. Cuando se pide
-\code{bloque_muestra = "solo_agregados"}, también conserva ese valor en el
-atributo \code{bloque_muestra} y no incluye la fila de la lectura de muestra.
+\code{memoria_procesamiento} siempre tiene \code{estado = "no_estimada"}: no es una
+estimación de consumo, sino la declaración de su ausencia, el motivo, la
+magnitud del trabajo y referencias medidas de otras corridas. El atributo
+\code{estimacion_derrame} es independiente: sólo describe la estimación del hash
+en el motor para \code{COUNT(DISTINCT)} y no la memoria del procesamiento en R.
+Cuando se pide \code{bloque_muestra = "solo_agregados"}, también conserva ese
+valor en el atributo \code{bloque_muestra} y no incluye la fila de la lectura de
+muestra.
 
 El costo no se declara como un número sino como un rango: \code{total} es el
 extremo inferior, que supone que la política omite las métricas caras cuya
@@ -219,6 +225,21 @@ multiplica por la cantidad de lotes y se publica en
 \code{resumen_tabla$meta$costo_distintos}. El aviso temporal llega después del
 primer lote y antes del segundo; con un solo lote se declara que no hay nada
 que proyectar.
+
+La memoria del procesamiento no se estima: no escala de forma predecible con
+las filas ni con las celdas, y eso se midió. El atributo
+\code{memoria_procesamiento} conserva esa declaración, la magnitud conocida del
+trabajo (\code{filas}, \code{celdas} y \code{pares_texto}) y referencias medidas de otras
+corridas. Esas referencias no son una predicción para la tabla del plan:
+traer costó aproximadamente 0,13 GB por millón de filas y procesar en R
+aproximadamente 1,0-1,5 MB por cada mil filas, pero esta segunda cifra varió
+1,62x entre tablas de la misma magnitud.
+
+Ver todas las filas y tener todas las filas en memoria no son lo mismo. En
+corridas de referencia, 4,5 millones de filas entraron en 0,6 GB y tardaron
+25 segundos, mientras que procesar 4,5 millones ocupó aproximadamente 7 GB
+y procesar 12,8 millones aproximadamente 19 GB. El problema observado está
+en el procesamiento en R, no en la red ni en el motor.
 }
 \examples{
 if (requireNamespace("DBI", quietly = TRUE) &&

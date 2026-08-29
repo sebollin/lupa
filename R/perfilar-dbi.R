@@ -6164,6 +6164,51 @@
   "en esta corrida, y el plan no emite consultas de datos."
 )
 
+.MOTIVO_MEMORIA_PROCESAMIENTO_DBI <- paste(
+  "no escala de forma predecible con las filas ni con las celdas; se midio."
+)
+
+.REFERENCIAS_MEMORIA_PROCESAMIENTO_DBI <- list(
+  traer = "~0,13 GB por millon de filas",
+  procesar = "~1,0-1,5 MB por cada mil filas",
+  variacion = "1,62x entre tablas de la misma magnitud"
+)
+
+.celdas_plan_dbi <- function(filas, columnas) {
+  valores <- vapply(list(filas, columnas), function(x) {
+    if (is.null(x) || length(x) != 1L || is.na(x)) return(NA_real_)
+    suppressWarnings(as.numeric(x))
+  }, numeric(1L))
+  if (anyNA(valores) || any(!is.finite(valores)) || any(valores < 0)) {
+    return(NA_real_)
+  }
+  celdas <- valores[[1L]] * valores[[2L]]
+  if (!is.finite(celdas)) NA_real_ else celdas
+}
+
+.memoria_procesamiento_plan_dbi <- function(filas, celdas, pares_texto) {
+  list(
+    estado = "no_estimada",
+    estimada = FALSE,
+    motivo = .MOTIVO_MEMORIA_PROCESAMIENTO_DBI,
+    magnitud = list(
+      filas = filas,
+      celdas = celdas,
+      pares_texto = pares_texto
+    ),
+    referencias = .REFERENCIAS_MEMORIA_PROCESAMIENTO_DBI,
+    distincion = paste(
+      "Ver todas las filas y tener todas las filas en memoria no son lo mismo."
+    ),
+    reparto_observado = paste(
+      "En corridas de referencia, 4,5 M de filas entraron en 0,6 GB y tardaron",
+      "25 s; procesar 4,5 M requirio aproximadamente 7 GB y 12,8 M",
+      "aproximadamente 19 GB. El problema observado esta en el procesamiento",
+      "en R, no en la red ni en el motor."
+    )
+  )
+}
+
 
 #' Planificar el costo de `perfilar_dbi()` antes de pagarlo
 #'
@@ -6204,6 +6249,21 @@
 #' primer lote y antes del segundo; con un solo lote se declara que no hay nada
 #' que proyectar.
 #'
+#' La memoria del procesamiento no se estima: no escala de forma predecible con
+#' las filas ni con las celdas, y eso se midió. El atributo
+#' `memoria_procesamiento` conserva esa declaración, la magnitud conocida del
+#' trabajo (`filas`, `celdas` y `pares_texto`) y referencias medidas de otras
+#' corridas. Esas referencias no son una predicción para la tabla del plan:
+#' traer costó aproximadamente 0,13 GB por millón de filas y procesar en R
+#' aproximadamente 1,0-1,5 MB por cada mil filas, pero esta segunda cifra varió
+#' 1,62x entre tablas de la misma magnitud.
+#'
+#' Ver todas las filas y tener todas las filas en memoria no son lo mismo. En
+#' corridas de referencia, 4,5 millones de filas entraron en 0,6 GB y tardaron
+#' 25 segundos, mientras que procesar 4,5 millones ocupó aproximadamente 7 GB
+#' y procesar 12,8 millones aproximadamente 19 GB. El problema observado está
+#' en el procesamiento en R, no en la red ni en el motor.
+#'
 #' @inheritParams perfilar_dbi
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
 #'   preparación. No habilita consultas de datos ni agrega mediciones al objeto
@@ -6216,11 +6276,17 @@
 #'   `metricas_ejecucion`, `politica_costo`, `estrategia_distintos`,
 #'   `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`, `filas`,
 #'   `mediana_escalar`,
-#'   `tamano_lote_planos`, `tamano_lote_distintos`, `estimacion_derrame` y,
+#'   `tamano_lote_planos`, `tamano_lote_distintos`, `estimacion_derrame`,
+#'   `celdas`, `memoria_procesamiento` y,
 #'   cuando se pide `distintos`, `supuesto_costo_distintos`.
-#'   Esta última es una estimación de memoria, no una medición. Cuando se pide
-#'   `bloque_muestra = "solo_agregados"`, también conserva ese valor en el
-#'   atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
+#'   `memoria_procesamiento` siempre tiene `estado = "no_estimada"`: no es una
+#'   estimación de consumo, sino la declaración de su ausencia, el motivo, la
+#'   magnitud del trabajo y referencias medidas de otras corridas. El atributo
+#'   `estimacion_derrame` es independiente: sólo describe la estimación del hash
+#'   en el motor para `COUNT(DISTINCT)` y no la memoria del procesamiento en R.
+#'   Cuando se pide `bloque_muestra = "solo_agregados"`, también conserva ese
+#'   valor en el atributo `bloque_muestra` y no incluye la fila de la lectura de
+#'   muestra.
 #'
 #'   El costo no se declara como un número sino como un rango: `total` es el
 #'   extremo inferior, que supone que la política omite las métricas caras cuya
@@ -6492,6 +6558,14 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "magnitud_texto") <- trabajo$magnitud_texto
   attr(plan, "magnitud") <- trabajo$magnitud
   attr(plan, "supuesto_costo") <- .SUPUESTO_TRABAJO_DBI
+  attr(plan, "celdas") <- .celdas_plan_dbi(
+    preparacion$n_total, length(preparacion$campos)
+  )
+  attr(plan, "memoria_procesamiento") <- .memoria_procesamiento_plan_dbi(
+    filas = attr(plan, "filas", exact = TRUE),
+    celdas = attr(plan, "celdas", exact = TRUE),
+    pares_texto = attr(plan, "pares_texto", exact = TRUE)
+  )
   class(plan) <- c("plan_perfilado_dbi", class(plan))
   plan
 }
@@ -6541,6 +6615,32 @@ print.plan_perfilado_dbi <- function(x, ...) {
     cli::cli_text(
       "Perfil de muestra: no solicitado; el plan incluye solo agregados SQL."
     )
+  }
+  memoria <- attr(x, "memoria_procesamiento", exact = TRUE)
+  if (!is.null(memoria)) {
+    cli::cli_h2("Memoria del procesamiento")
+    cli::cli_text(
+      "Memoria del procesamiento: no estimada. Motivo: ", memoria$motivo
+    )
+    magnitud_memoria <- memoria$magnitud
+    cli::cli_text(
+      "Magnitud del trabajo (no consumo de memoria): ",
+      .miles_dbi(magnitud_memoria$filas), " filas; ",
+      .miles_dbi(magnitud_memoria$celdas), " celdas; ",
+      .miles_dbi(magnitud_memoria$pares_texto), " pares de texto."
+    )
+    cli::cli_text(
+      "Datos de referencia medidos, no predicci\u00f3n: traer la tabla cost\u00f3 ",
+      memoria$referencias$traer, "; procesar en R cost\u00f3 ",
+      memoria$referencias$procesar, "."
+    )
+    cli::cli_text(
+      "La referencia de procesamiento vari\u00f3 por ",
+      memoria$referencias$variacion,
+      "; esa variaci\u00f3n es justamente el motivo por el que no se estima."
+    )
+    cli::cli_text(memoria$distincion)
+    cli::cli_text(memoria$reparto_observado)
   }
   magnitud <- attr(x, "magnitud", exact = TRUE)
   if (is.null(magnitud)) magnitud <- "desconocida"

@@ -1,5 +1,15 @@
 # lupa 0.1.0
 
+## El plan declara la memoria del procesamiento como no estimada
+
+- `plan_perfilado_dbi()` ahora imprime un bloque que declara la ausencia de una
+  estimación honesta de la memoria del procesamiento, conserva la magnitud del
+  trabajo (filas, celdas y pares de texto) y separa esos datos de referencias
+  medidas de otras corridas.
+- La documentación deja explícito que ver todas las filas no equivale a tenerlas
+  todas en memoria: el costo observado está en procesar en R, no en traer los
+  datos ni en el motor. El plan no emite consultas adicionales.
+
 ## La regla de vocabulario también mide el largo que compara
 
 - El tope de largo se había corregido en `detectar_duplicados_aproximados()`,

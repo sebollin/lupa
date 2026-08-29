@@ -158,6 +158,42 @@ test_that("declarar la magnitud no cambia el conteo de consultas", {
   expect_true(all(c("clase_consulta", "n_consultas", "alcance") %in% names(plan)))
 })
 
+test_that("el bloque de memoria declara la ausencia y separa magnitud de consumo", {
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbWriteTable(con, "t", data.frame(
+    id = 1:300, texto = paste0("valor ", 1:300), stringsAsFactors = FALSE
+  ))
+  plan <- plan_perfilado_dbi(con, "t", muestra = 300)
+  memoria <- attr(plan, "memoria_procesamiento", exact = TRUE)
+
+  expect_identical(memoria$estado, "no_estimada")
+  expect_false(memoria$estimada)
+  expect_match(memoria$motivo, "no escala de forma predecible")
+  expect_equal(memoria$magnitud$filas, attr(plan, "filas", exact = TRUE))
+  expect_true(is.na(memoria$magnitud$celdas))
+  expect_equal(memoria$magnitud$pares_texto, 300 * 299 / 2)
+  expect_false(any(grepl(
+    "memoria.*(bytes|MB|GB)", names(memoria), ignore.case = TRUE
+  )))
+
+  salida <- paste(
+    capture.output(print(plan), type = "message"), collapse = " "
+  )
+  expect_match(salida, "Memoria del procesamiento")
+  expect_match(salida, "no estimada")
+  expect_match(salida, "Magnitud del trabajo \\(no consumo de memoria\\)")
+  expect_match(salida, "pares de texto")
+  expect_match(salida, "Datos de referencia medidos, no predicción")
+  expect_match(salida, "0,13 GB por millon de filas")
+  expect_match(salida, "1,0-1,5 MB por cada mil filas")
+  expect_match(salida, "1,62x")
+  expect_match(salida, "Ver todas las filas y tener todas las filas en memoria")
+  expect_match(salida, "4,5 M")
+  expect_match(salida, "12,8 M")
+  expect_match(salida, "no en la red ni en el motor")
+})
+
 # ---- La mitad que se hacia en R y no se contaba --------------------------
 
 .plan_con_muestra <- function(alcance_muestra = "lee las filas pedidas") {

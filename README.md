@@ -564,6 +564,24 @@ the reference suggests. The published
 numbers do not depend on those assumptions, so anyone who disagrees with them can
 redo the arithmetic.
 
+### Processing memory is not estimated
+
+`plan_perfilado_dbi()` explicitly says that processing memory is **not estimated**:
+it does not scale predictably with rows or cells, as measured. The plan still
+publishes the known **work magnitude**—rows, cells and text pairs—clearly labeled
+as magnitude, not memory consumption.
+
+Measured reference data, **not a prediction for the table in the plan**, put
+bringing the table at about 0.13 GB per million rows and processing in R at about
+1.0–1.5 MB per thousand rows. The second figure varied by 1.62x between tables
+of the same magnitude; that variation is precisely why it is not used as an
+estimate.
+
+Seeing all rows and having all rows in memory are not the same. In reference runs,
+4.5 million rows fit in 0.6 GB and took 25 seconds to bring, while processing
+4.5 million took about 7 GB and 12.8 million about 19 GB. The observed problem is
+processing in R, not the network or the database engine.
+
 | mode | what it does |
 | --- | --- |
 | `exacto` | every metric over the whole table |
