@@ -177,9 +177,11 @@ agregados planos. El valor por omisión es 20.</p></dd>
 
 <dt id="arg-tamano-lote-distintos">tamano_lote_distintos<a class="anchor" aria-label="anchor" href="#arg-tamano-lote-distintos"></a></dt>
 <dd><p>Cantidad máxima de columnas por consulta de
-cardinalidades exactas. El valor por omisión es 1, deliberadamente
-conservador hasta contar con mediciones comparables: una sola cardinalidad
-puede forzar un agregado pesado y derramar mucho más que un lote plano.</p></dd>
+cardinalidades exactas. El valor por omisión es 2, medido sobre el servidor
+de referencia: el <code>Shared Read</code> fue constante entre lotes y el costo por
+columna fue casi igual para uno y dos, mientras el lote de dos derramó
+menos que los lotes mayores. Una sola cardinalidad todavía puede forzar un
+agregado pesado y derramar mucho más que un lote plano.</p></dd>
 
 
 <dt id="arg-bloque-muestra">bloque_muestra<a class="anchor" aria-label="anchor" href="#arg-bloque-muestra"></a></dt>
@@ -255,8 +257,10 @@ en R el detector de vocabulario sobre la muestra— y se resume en
 <code>magnitud_texto</code>. <code>magnitud</code> es la mayor de las dos: <code>"baja"</code>, <code>"media"</code>,
 <code>"alta"</code>, o <code>"desconocida"</code> si no se conoce el número de filas.
 <code>supuesto_costo</code> dice de dónde sale cada cuenta.</p>
-<p>El plan no publica duraciones, CPU, filas ni bytes medidos: sus campos de
-costo siguen siendo predicciones basadas en los supuestos anteriores.</p>
+<p>El plan previo no publica duraciones, CPU, filas ni bytes medidos. El plan
+de una corrida de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> puede agregar <code>costo_distintos</code> cuando
+ya hay duraciones de agregados planos de esa misma corrida; sus campos
+dicen explícitamente que la proyección sigue siendo una estimación.</p>
 <p>Si se pide <code>politica_costo = "por_cardinalidad"</code>, el plan busca primero una
 garantía estructural o una fuente de catálogo. Si la fuente queda
 desconocida, no emite un agregado para aclararla: <code>n_consultas</code> omite moda
@@ -283,6 +287,15 @@ queda <code>no_disponible</code> hasta implementar su estadística y <code>"omit
 emite el agregado. <code>fuente_cardinalidad_costo</code> sigue siendo independiente y
 sólo describe el número usado por la política de costo cuando esa política
 se pide.</p>
+<p>El plan previo no puede publicar segundos medidos porque no lee los datos.
+Durante <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>, en cambio, los agregados planos se ejecutan antes
+que los distintos. Si se midieron en esta misma corrida, el plan que queda
+en <code>resumen_tabla$meta$plan</code> agrega <code>costo_distintos</code>: la mediana de esas
+duraciones multiplicada por la cantidad de lotes de distintos. Es una
+estimación rotulada, fundada en la tabla y el servidor actuales, no en
+<code>reltuples</code> ni en otra estadística de catálogo. El aviso se emite antes de
+iniciar el primer <code>COUNT(DISTINCT)</code> y sólo si supera el umbral de 30
+segundos; no pide confirmación y nunca bloquea un guion no interactivo.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

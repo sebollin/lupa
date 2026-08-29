@@ -118,9 +118,11 @@ plan_perfilado_dbi(
 - tamano_lote_distintos:
 
   Cantidad máxima de columnas por consulta de cardinalidades exactas. El
-  valor por omisión es 1, deliberadamente conservador hasta contar con
-  mediciones comparables: una sola cardinalidad puede forzar un agregado
-  pesado y derramar mucho más que un lote plano.
+  valor por omisión es 2, medido sobre el servidor de referencia: el
+  `Shared Read` fue constante entre lotes y el costo por columna fue
+  casi igual para uno y dos, mientras el lote de dos derramó menos que
+  los lotes mayores. Una sola cardinalidad todavía puede forzar un
+  agregado pesado y derramar mucho más que un lote plano.
 
 - bloque_muestra:
 
@@ -201,8 +203,12 @@ en `magnitud_texto`. `magnitud` es la mayor de las dos: `"baja"`,
 `"media"`, `"alta"`, o `"desconocida"` si no se conoce el número de
 filas. `supuesto_costo` dice de dónde sale cada cuenta.
 
-El plan no publica duraciones, CPU, filas ni bytes medidos: sus campos
-de costo siguen siendo predicciones basadas en los supuestos anteriores.
+El plan previo no publica duraciones, CPU, filas ni bytes medidos. El
+plan de una corrida de
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+puede agregar `costo_distintos` cuando ya hay duraciones de agregados
+planos de esa misma corrida; sus campos dicen explícitamente que la
+proyección sigue siendo una estimación.
 
 Si se pide `politica_costo = "por_cardinalidad"`, el plan busca primero
 una garantía estructural o una fuente de catálogo. Si la fuente queda
@@ -232,6 +238,18 @@ queda `no_disponible` si el motor no ofrece una función aceptada,
 `"omitida"` no emite el agregado. `fuente_cardinalidad_costo` sigue
 siendo independiente y sólo describe el número usado por la política de
 costo cuando esa política se pide.
+
+El plan previo no puede publicar segundos medidos porque no lee los
+datos. Durante
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
+en cambio, los agregados planos se ejecutan antes que los distintos. Si
+se midieron en esta misma corrida, el plan que queda en
+`resumen_tabla$meta$plan` agrega `costo_distintos`: la mediana de esas
+duraciones multiplicada por la cantidad de lotes de distintos. Es una
+estimación rotulada, fundada en la tabla y el servidor actuales, no en
+`reltuples` ni en otra estadística de catálogo. El aviso se emite antes
+de iniciar el primer `COUNT(DISTINCT)` y sólo si supera el umbral de 30
+segundos; no pide confirmación y nunca bloquea un guion no interactivo.
 
 ## See also
 

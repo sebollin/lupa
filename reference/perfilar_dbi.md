@@ -116,9 +116,11 @@ perfilar_dbi(
 - tamano_lote_distintos:
 
   Cantidad máxima de columnas por consulta de cardinalidades exactas. El
-  valor por omisión es 1, deliberadamente conservador hasta contar con
-  mediciones comparables: una sola cardinalidad puede forzar un agregado
-  pesado y derramar mucho más que un lote plano.
+  valor por omisión es 2, medido sobre el servidor de referencia: el
+  `Shared Read` fue constante entre lotes y el costo por columna fue
+  casi igual para uno y dos, mientras el lote de dos derramó menos que
+  los lotes mayores. Una sola cardinalidad todavía puede forzar un
+  agregado pesado y derramar mucho más que un lote plano.
 
 - bloque_muestra:
 
@@ -129,7 +131,9 @@ perfilar_dbi(
 
 - instrumentar:
 
-  Si se cronometra cada consulta y las etapas grandes de R. Por omisión
+  Si se cronometra cada consulta y las etapas grandes de R y, en
+  PostgreSQL, se intenta atribuir el uso de bloques temporales de los
+  `COUNT(DISTINCT)` exactos mediante `pg_stat_statements`. Por omisión
   es `TRUE`; agrega `duracion_ms`, `cpu_ms`, `n_filas_resultado`,
   `bytes_resultado_r`, `consulta_id` y `etapa` a `resumen_tabla$sql`, y
   el resumen `resumen_tabla$tiempos`. Con `FALSE` se conserva el mismo
@@ -330,10 +334,14 @@ universo para escribir un porcentaje lo cuentan antes.
 `COUNT(DISTINCT ...)` queda en una clase separada y usa su propio tamaño
 de lote, conservador por omisión porque una cardinalidad puede derramar
 mucho más que veinte agregados planos; la consulta exacta trae su
-`n_validos_guard` compañero. Lo que no entra en el presupuesto queda en
-`no_disponible` con su motivo, nunca en cero.
-`meta$tamano_lote_funciono` conserva el mayor lote aceptado durante esa
-corrida; no se guarda estado global asociado a la conexión.
+`n_validos_guard` compañero. Antes de la primera consulta exacta se
+anuncia su costo sólo si hay una proyección temporal fundada en
+agregados planos medidos en esta corrida. La fuente y el valor quedan en
+`meta$costo_distintos`; no se usa una predicción basada en `reltuples`.
+Lo que no entra en el presupuesto queda en `no_disponible` con su
+motivo, nunca en cero. `meta$tamano_lote_funciono` conserva el mayor
+lote aceptado durante esa corrida; no se guarda estado global asociado a
+la conexión.
 
 ## Instrumentación
 
@@ -349,6 +357,18 @@ métricas. `etapa` permite agruparlo (`conteos`, `moda`, `basicos`,
 `mediana`, `desvio`, `lectura_muestra` y las sondas). Las métricas no
 solicitadas o que no emitieron consulta conservan esos campos y los
 dejan en `NA`; en particular, `NA` no significa cero.
+
+En PostgreSQL, con `instrumentar = TRUE`, se toma una foto de
+`pg_stat_statements` antes y después de los `COUNT(DISTINCT)` exactos.
+Sólo se publica un derrame cuando una consulta coincide y su contador
+aumentó en exactamente una llamada atribuible a esta corrida. En ese
+caso, `resumen_tabla$sql` agrega `derrame`, `bloques_temporales_leidos`,
+`bloques_temporales_escritos` y `fuente_derrame`;
+`resumen_tabla$meta$derrame` conserva el resumen y la fuente. Si la
+extensión no está disponible, la consulta fue concurrente o la
+instrumentación está apagada, el estado queda `no_disponible` o
+`no_medido` con el motivo: el paquete no deduce un derrame del tiempo y
+no modifica `work_mem`.
 
 `resumen_tabla$tiempos` reúne las etapas grandes del cliente en las
 mismas unidades (`duracion_ms`): `lectura_muestra`, `perfilado_muestra`,

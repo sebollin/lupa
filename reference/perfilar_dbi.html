@@ -166,9 +166,11 @@ agregados planos. El valor por omisión es 20.</p></dd>
 
 <dt id="arg-tamano-lote-distintos">tamano_lote_distintos<a class="anchor" aria-label="anchor" href="#arg-tamano-lote-distintos"></a></dt>
 <dd><p>Cantidad máxima de columnas por consulta de
-cardinalidades exactas. El valor por omisión es 1, deliberadamente
-conservador hasta contar con mediciones comparables: una sola cardinalidad
-puede forzar un agregado pesado y derramar mucho más que un lote plano.</p></dd>
+cardinalidades exactas. El valor por omisión es 2, medido sobre el servidor
+de referencia: el <code>Shared Read</code> fue constante entre lotes y el costo por
+columna fue casi igual para uno y dos, mientras el lote de dos derramó
+menos que los lotes mayores. Una sola cardinalidad todavía puede forzar un
+agregado pesado y derramar mucho más que un lote plano.</p></dd>
 
 
 <dt id="arg-bloque-muestra">bloque_muestra<a class="anchor" aria-label="anchor" href="#arg-bloque-muestra"></a></dt>
@@ -179,7 +181,9 @@ alcance de esos agregados: eso lo decide <code>modo</code>.</p></dd>
 
 
 <dt id="arg-instrumentar">instrumentar<a class="anchor" aria-label="anchor" href="#arg-instrumentar"></a></dt>
-<dd><p>Si se cronometra cada consulta y las etapas grandes de R.
+<dd><p>Si se cronometra cada consulta y las etapas grandes de R
+y, en PostgreSQL, se intenta atribuir el uso de bloques temporales de los
+<code>COUNT(DISTINCT)</code> exactos mediante <code>pg_stat_statements</code>.
 Por omisión es <code>TRUE</code>; agrega <code>duracion_ms</code>, <code>cpu_ms</code>,
 <code>n_filas_resultado</code>, <code>bytes_resultado_r</code>, <code>consulta_id</code> y <code>etapa</code> a
 <code>resumen_tabla$sql</code>, y el resumen <code>resumen_tabla$tiempos</code>. Con <code>FALSE</code> se
@@ -374,6 +378,10 @@ el total del universo para escribir un porcentaje lo cuentan antes.
 lote, conservador por omisión porque una cardinalidad puede derramar mucho
 más que veinte agregados planos; la consulta exacta trae su
 <code>n_validos_guard</code> compañero.
+Antes de la primera consulta exacta se anuncia su costo sólo si hay una
+proyección temporal fundada en agregados planos medidos en esta corrida.
+La fuente y el valor quedan en <code>meta$costo_distintos</code>; no se usa una
+predicción basada en <code>reltuples</code>.
 Lo que no entra en el presupuesto queda en <code>no_disponible</code> con su motivo,
 nunca en cero. <code>meta$tamano_lote_funciono</code> conserva el mayor lote aceptado
 durante esa corrida; no se guarda estado global asociado a la conexión.</p>
@@ -394,6 +402,17 @@ y mediana— no comparten filas con otras métricas. <code>etapa</code> permite 
 <code>desvio</code>, <code>lectura_muestra</code> y las sondas). Las métricas no solicitadas o que
 no emitieron consulta conservan esos campos y los dejan en <code>NA</code>; en
 particular, <code>NA</code> no significa cero.</p>
+<p>En PostgreSQL, con <code>instrumentar = TRUE</code>, se toma una foto de
+<code>pg_stat_statements</code> antes y después de los <code>COUNT(DISTINCT)</code> exactos. Sólo
+se publica un derrame cuando una consulta coincide y su contador aumentó en
+exactamente una llamada atribuible a esta corrida. En ese caso,
+<code>resumen_tabla$sql</code> agrega <code>derrame</code>,
+<code>bloques_temporales_leidos</code>, <code>bloques_temporales_escritos</code> y
+<code>fuente_derrame</code>; <code>resumen_tabla$meta$derrame</code> conserva el resumen y la
+fuente. Si la extensión no está disponible, la consulta fue concurrente o
+la instrumentación está apagada, el estado queda <code>no_disponible</code> o
+<code>no_medido</code> con el motivo: el paquete no deduce un derrame del tiempo y no
+modifica <code>work_mem</code>.</p>
 <p><code>resumen_tabla$tiempos</code> reúne las etapas grandes del cliente en las mismas
 unidades (<code>duracion_ms</code>): <code>lectura_muestra</code>, <code>perfilado_muestra</code>,
 <code>perfilado_columnas</code>, y los análisis opcionales cuando se solicitan. Una

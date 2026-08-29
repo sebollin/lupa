@@ -42,6 +42,14 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="el-costo-de-distintos-se-anuncia-antes-de-pagarlo-0-1-0">El costo de distintos se anuncia antes de pagarlo<a class="anchor" aria-label="anchor" href="#el-costo-de-distintos-se-anuncia-antes-de-pagarlo-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> anuncia, antes del primer <code>COUNT(DISTINCT)</code>, una proyección temporal cuando las consultas de agregados planos de esta misma corrida ya dieron una referencia suficiente. La estimación publica el costo, la fuente medida y la cantidad de lotes; no usa <code>reltuples</code>, no cambia <code>work_mem</code> y no espera confirmación en guiones no interactivos.</li>
+<li>La instrumentación de PostgreSQL consulta <code>pg_stat_statements</code> antes y después de los distintos exactos. Sólo publica derrame real cuando puede atribuir exactamente una llamada: <code>resumen_tabla$sql</code> agrega los bloques temporales y <code>meta$derrame</code> conserva el estado, la fuente y el motivo. La falta de evidencia queda <code>no_disponible</code>, no se infiere del reloj.</li>
+<li>
+<code>tamano_lote_distintos</code> conserva el valor medido 2; el cambio no modifica <code>work_mem</code>.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="la-política-de-costo-no-ciega-las-fuentes-estructurales-0-1-0">La política de costo no ciega las fuentes estructurales<a class="anchor" aria-label="anchor" href="#la-pol%C3%ADtica-de-costo-no-ciega-las-fuentes-estructurales-0-1-0"></a></h3>
 <ul><li>
 <code>politica_costo = "por_cardinalidad"</code> resuelve las fuentes estructurales de cardinalidad aunque <code>estrategia_distintos</code> esté omitida o no disponible. La disponibilidad gobierna la medición, no una garantía de clave que el catálogo ya permite saber. No hay repliegue a <code>COUNT(DISTINCT ...)</code> para una estrategia omitida, de catálogo o aproximada sin capacidad.</li>
