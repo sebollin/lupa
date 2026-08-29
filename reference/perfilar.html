@@ -130,8 +130,9 @@ reproducibles; se normaliza a UTC.</p></dd>
 
 
 <dt id="arg-muestra">muestra<a class="anchor" aria-label="anchor" href="#arg-muestra"></a></dt>
-<dd><p>Máximo de filas usadas para patrones e inferencia de tipos.
-Use <code>Inf</code> para analizar todas las filas.</p></dd>
+<dd><p>Máximo de filas usadas para patrones, inferencia de tipos,
+formatos de fecha y dependencias funcionales. Use <code>Inf</code> para analizar todas
+las filas en esos análisis.</p></dd>
 
 
 <dt id="arg-max-patrones">max_patrones<a class="anchor" aria-label="anchor" href="#arg-max-patrones"></a></dt>
@@ -483,8 +484,10 @@ orden del producto de sus largos, así que el trabajo es la suma de ese
 producto sobre todos los pares. Contar pares por longitud media subestima
 las cadenas largas: medido, el mismo presupuesto compraba 5,3 millones de
 unidades por segundo con valores de 900 caracteres y 44 millones con
-valores de 40. Se combina con <code>max_pares</code>, manda el más restrictivo, y el
-recorte declara valores, pares y trabajo sin comparar. <code>Inf</code> lo desactiva.</p></dd>
+valores de 40. Se combina con el límite interno de pares del detector y
+manda el más restrictivo; ese límite interno no es un argumento de
+<code>perfilar()</code>. El recorte declara valores, pares y trabajo sin comparar.
+<code>Inf</code> lo desactiva.</p></dd>
 
 
 <dt id="arg-max-trabajo-dependencias">max_trabajo_dependencias<a class="anchor" aria-label="anchor" href="#arg-max-trabajo-dependencias"></a></dt>
@@ -623,10 +626,11 @@ ser edades, códigos o años legítimos. <code>sentinelas_numericos</code> repre
 política completa, no una lista que se agrega silenciosamente: use
 <code><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric()</a></code> para desactivar todos los sentinelas numéricos, o
 <code>sentinelas_naniar</code> para solicitar explícitamente la lista de naniar.</p>
-<p><code>muestra</code> limita sólo el descubrimiento de patrones, la inferencia de tipos y
-la detección de formatos de fecha. Las demás métricas y hallazgos se calculan
-sobre todas las filas. Por eso <code>meta$filas_analizadas</code> describe el máximo
-usado por los análisis muestreados, no el alcance del perfil completo.
+<p><code>muestra</code> limita el descubrimiento de patrones, la inferencia de tipos, la
+detección de formatos de fecha y la búsqueda de dependencias funcionales.
+Las demás métricas y hallazgos se calculan sobre todas las filas. Por eso
+<code>meta$filas_analizadas</code> describe el máximo usado por los análisis muestreados,
+no el alcance del perfil completo.
 En cada fila de <code>columnas</code>, <code>n_filas_analizadas_tipo</code> y
 <code>muestreado_tipo_inferido</code> declaran el alcance concreto de
 <code>proporcion_tipo_inferido</code>; no debe interpretarse esa proporción como si

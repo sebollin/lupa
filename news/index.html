@@ -42,6 +42,12 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="el-plan-dbi-declara-el-muestreo-que-no-puede-construir-0-1-0">El plan DBI declara el muestreo que no puede construir<a class="anchor" aria-label="anchor" href="#el-plan-dbi-declara-el-muestreo-que-no-puede-construir-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> comprueba la forma SQL del muestreo sin leer datos, declara el estado en <code>attr(plan, "muestreo")</code> y excluye del rango las métricas que no pueden emitirse. La corrida comparte esa decisión y conserva cada ausencia con su motivo.</li>
+<li>La documentación corrige el resumen de <code>perfil_muestra</code> a 109 campos analíticos además del nombre de la columna, y describe que <code>muestra</code> también limita la búsqueda de dependencias. El valor por omisión <code>Inf</code> ya no se presenta como una elección distinta de <code>Inf</code>; también se elimina la referencia a un <code>max_pares</code> que no es argumento de <code><a href="../reference/perfilar.html">perfilar()</a></code>.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="el-plan-declara-la-memoria-del-procesamiento-como-no-estimada-0-1-0">El plan declara la memoria del procesamiento como no estimada<a class="anchor" aria-label="anchor" href="#el-plan-declara-la-memoria-del-procesamiento-como-no-estimada-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> ahora imprime un bloque que declara la ausencia de una estimación honesta de la memoria del procesamiento, conserva la magnitud del trabajo (filas, celdas y pares de texto) y separa esos datos de referencias medidas de otras corridas.</li>

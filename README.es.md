@@ -599,7 +599,11 @@ superior es `total_maximo` —también publicado como
 `total_lotes_rechazados` después de sumar la bisección— y deja abierto
 el camino que las ejecuta. Si el motor rechaza lotes, se agregan hasta
 `2n - 1` sondas por lote de `n` columnas. El costo real cae entre los
-dos, y el plan lo declara en las dos direcciones.
+dos **cuando el muestreo se puede construir**: si `modo = "muestreado"`
+y el motor no admite la forma resuelta, el plan lo declara en
+`attr(plan, "muestreo")` y excluye del rango las métricas que dependían
+de ella. La corrida, por su parte, publica cada una como `no_disponible`
+con su motivo: no se informa como medido lo que no se midió.
 
 La procedencia de distintos y la fuente auxiliar de costo son
 independientes: `estrategia_distintos` dice cómo se obtiene o se omite
@@ -1112,8 +1116,10 @@ congelados de [`ftfy`](https://github.com/rspeer/python-ftfy) 6.3.1, de
 [Robyn Speer](https://github.com/rspeer). Incluye once tablas de bytes,
 CESU-8, el caso Java `C0 80` y cinco extensiones deliberadas
 documentadas en [NEWS](https://sebollin.github.io/lupa/NEWS.md).
-Reproduce 159 de los 161 casos del corpus distribuido y deja intactos
-los 31 casos negativos. Deliberadamente no ofrece los pasos de estilo de
+Reproduce 159 de los 161 casos del corpus distribuido y deja intactos 30
+de los 31 casos negativos. El restante está etiquetado como *mostly*
+negative y el corpus mismo espera la reparación: se le arreglan sólo los
+controles C1. Deliberadamente no ofrece los pasos de estilo de
 `fix_text` de `ftfy`, como deshacer HTML, curvar comillas, normalizar
 ancho o normalizar Unicode: cambiar datos legítimos en silencio no es
 reparar.

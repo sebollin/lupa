@@ -85,8 +85,9 @@ perfilar(
 
 - muestra:
 
-  Máximo de filas usadas para patrones e inferencia de tipos. Use `Inf`
-  para analizar todas las filas.
+  Máximo de filas usadas para patrones, inferencia de tipos, formatos de
+  fecha y dependencias funcionales. Use `Inf` para analizar todas las
+  filas en esos análisis.
 
 - max_patrones:
 
@@ -453,9 +454,10 @@ perfilar(
   los pares. Contar pares por longitud media subestima las cadenas
   largas: medido, el mismo presupuesto compraba 5,3 millones de unidades
   por segundo con valores de 900 caracteres y 44 millones con valores
-  de 40. Se combina con `max_pares`, manda el más restrictivo, y el
-  recorte declara valores, pares y trabajo sin comparar. `Inf` lo
-  desactiva.
+  de 40. Se combina con el límite interno de pares del detector y manda
+  el más restrictivo; ese límite interno no es un argumento de
+  `perfilar()`. El recorte declara valores, pares y trabajo sin
+  comparar. `Inf` lo desactiva.
 
 - max_trabajo_dependencias:
 
@@ -598,11 +600,11 @@ una lista que se agrega silenciosamente: use
 los sentinelas numéricos, o `sentinelas_naniar` para solicitar
 explícitamente la lista de naniar.
 
-`muestra` limita sólo el descubrimiento de patrones, la inferencia de
-tipos y la detección de formatos de fecha. Las demás métricas y
-hallazgos se calculan sobre todas las filas. Por eso
-`meta$filas_analizadas` describe el máximo usado por los análisis
-muestreados, no el alcance del perfil completo. En cada fila de
+`muestra` limita el descubrimiento de patrones, la inferencia de tipos,
+la detección de formatos de fecha y la búsqueda de dependencias
+funcionales. Las demás métricas y hallazgos se calculan sobre todas las
+filas. Por eso `meta$filas_analizadas` describe el máximo usado por los
+análisis muestreados, no el alcance del perfil completo. En cada fila de
 `columnas`, `n_filas_analizadas_tipo` y `muestreado_tipo_inferido`
 declaran el alcance concreto de `proporcion_tipo_inferido`; no debe
 interpretarse esa proporción como si hubiera usado necesariamente toda

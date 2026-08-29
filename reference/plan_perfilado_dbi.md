@@ -56,19 +56,19 @@ plan_perfilado_dbi(
 - muestra:
 
   Cantidad positiva de filas solicitadas para el perfil de muestra, o
-  `Inf` para traer la tabla entera. Con `Inf` la consulta sale sin
-  `LIMIT` y `tabla_completa` queda en `TRUE`.
+  `Inf` para traer la tabla entera. El valor por omisión ya es `Inf`: no
+  representa una elección distinta de `Inf`, sino la tabla completa. Con
+  `Inf` la consulta sale sin `LIMIT` y `tabla_completa` queda en `TRUE`.
 
   El resumen de tabla **no** se muestrea: con `modo = "exacto"` se
   calcula en el motor sobre todas las filas. Lo que sale de esta muestra
   son los diagnosticos que necesitan los valores en R -patrones,
-  formatos, casi-duplicados-, y sin `orden_muestra` no son una muestra
-  aleatoria sino las primeras filas que devuelva el motor. Medido sobre
-  una tabla de 200.000 filas con un defecto plantado al final: con el
-  valor por omision aparecen tres hallazgos y con `Inf` aparecen cinco,
-  a cambio de 10 segundos en vez de 2. Un analisis de calidad no se
-  corre todos los dias; si el tiempo no es la restriccion, `Inf` es la
-  opcion honesta.
+  formatos, casi-duplicados y dependencias funcionales-, y sin
+  `orden_muestra` no son una muestra aleatoria sino las primeras filas
+  que devuelva el motor. El limite también alcanza la muestra común con
+  que se buscan dependencias. Use un entero finito para acotar ese
+  trabajo; `Inf` es el valor por omisión y trae la tabla entera cuando
+  el tiempo no es la restricción.
 
 - orden_muestra:
 
@@ -184,13 +184,17 @@ Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
 `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`,
 `filas`, `mediana_escalar`, `tamano_lote_planos`,
 `tamano_lote_distintos`, `estimacion_derrame`, `celdas`,
-`memoria_procesamiento` y, cuando se pide `distintos`,
+`memoria_procesamiento` y `muestreo`, y, cuando se pide `distintos`,
 `supuesto_costo_distintos`. `memoria_procesamiento` siempre tiene
 `estado = "no_estimada"`: no es una estimación de consumo, sino la
 declaración de su ausencia, el motivo, la magnitud del trabajo y
 referencias medidas de otras corridas. El atributo `estimacion_derrame`
 es independiente: sólo describe la estimación del hash en el motor para
-`COUNT(DISTINCT)` y no la memoria del procesamiento en R. Cuando se pide
+`COUNT(DISTINCT)` y no la memoria del procesamiento en R. `muestreo`
+declara si la forma muestreada se pudo construir sin emitir una consulta
+de datos. En `modo = "muestreado"`, cuando su `estado` es
+`"no_disponible"`, el plan excluye las métricas SQL de esa muestra y
+`supuesto` conserva el motivo. Cuando se pide
 `bloque_muestra = "solo_agregados"`, también conserva ese valor en el
 atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
 
@@ -199,8 +203,13 @@ extremo inferior, que supone que la política omite las métricas caras
 cuya cardinalidad no se conoce, y `total_maximo` el superior, que supone
 que las ejecuta. Ambos incluyen la preparación y el perfilado previsto;
 el rechazo de lotes puede agregar las sondas de bisección declaradas por
-`total_lotes_rechazados`. El costo real cae entre los extremos, y
-`attr(plan, "supuesto")` dice por qué se mueve en cada dirección.
+`total_lotes_rechazados`. El costo real cae entre los extremos cuando
+`modo` no es `"muestreado"` o `attr(plan, "muestreo")$estado` es
+`"disponible"`; en `"no_sondeado"` la forma sólo se construyó localmente
+y el intervalo queda condicionado a que la sonda de la corrida la
+acepte. Si la forma muestreada no se puede construir, el plan declara
+ese caso, excluye sus métricas del rango y `attr(plan, "supuesto")` dice
+por qué.
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre

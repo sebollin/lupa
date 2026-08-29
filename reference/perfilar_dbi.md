@@ -4,11 +4,11 @@ Calcula en SQL un resumen sobre la tabla completa o sobre una relación
 muestreada por el motor, según `modo`, y, por omisión, en un bloque
 separado ejecuta
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-sobre una muestra traída a memoria. El resumen completo de 105 campos no
-se presenta como calculado por la base: esos campos pertenecen
-exclusivamente a `perfil_muestra` y su universo es la muestra.
-`bloque_muestra = "solo_agregados"` permite omitir esa lectura y pedir
-sólo los agregados SQL.
+sobre una muestra traída a memoria. El resumen completo de 109 campos
+analíticos además del nombre de la columna no se presenta como calculado
+por la base: esos campos pertenecen exclusivamente a `perfil_muestra` y
+su universo es la muestra. `bloque_muestra = "solo_agregados"` permite
+omitir esa lectura y pedir sólo los agregados SQL.
 
 ## Usage
 
@@ -53,19 +53,19 @@ perfilar_dbi(
 - muestra:
 
   Cantidad positiva de filas solicitadas para el perfil de muestra, o
-  `Inf` para traer la tabla entera. Con `Inf` la consulta sale sin
-  `LIMIT` y `tabla_completa` queda en `TRUE`.
+  `Inf` para traer la tabla entera. El valor por omisión ya es `Inf`: no
+  representa una elección distinta de `Inf`, sino la tabla completa. Con
+  `Inf` la consulta sale sin `LIMIT` y `tabla_completa` queda en `TRUE`.
 
   El resumen de tabla **no** se muestrea: con `modo = "exacto"` se
   calcula en el motor sobre todas las filas. Lo que sale de esta muestra
   son los diagnosticos que necesitan los valores en R -patrones,
-  formatos, casi-duplicados-, y sin `orden_muestra` no son una muestra
-  aleatoria sino las primeras filas que devuelva el motor. Medido sobre
-  una tabla de 200.000 filas con un defecto plantado al final: con el
-  valor por omision aparecen tres hallazgos y con `Inf` aparecen cinco,
-  a cambio de 10 segundos en vez de 2. Un analisis de calidad no se
-  corre todos los dias; si el tiempo no es la restriccion, `Inf` es la
-  opcion honesta.
+  formatos, casi-duplicados y dependencias funcionales-, y sin
+  `orden_muestra` no son una muestra aleatoria sino las primeras filas
+  que devuelva el motor. El limite también alcanza la muestra común con
+  que se buscan dependencias. Use un entero finito para acotar ese
+  trabajo; `Inf` es el valor por omisión y trae la tabla entera cuando
+  el tiempo no es la restricción.
 
 - orden_muestra:
 
