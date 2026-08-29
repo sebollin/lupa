@@ -253,17 +253,20 @@ para que también se vea qué aceptó o rechazó el motor.
 La instrumentación queda activa por omisión y sólo agrega metadatos. Cada fila
 de `resumen_tabla$sql` conserva la métrica que ya representaba y suma
 `duracion_ms`, `cpu_ms`, `n_filas_resultado`, `bytes_resultado_r`, `consulta_id` e
-`id_muestra`, además de `etapa`. La duración incluye la ejecución y la lectura del resultado que DBI
+`id_muestra`, además de `etapa` y `nivel`. La duración incluye la ejecución y la lectura del resultado que DBI
 entregó a R; el tamaño es `object.size()` de ese resultado. `cpu_ms` es la
 suma de `user.self` y `sys.self` de `proc.time()`: cerca de cero indica
 espera y cerca de uno al dividirlo por `duracion_ms` indica trabajo del
 cliente. Las filas que no emitieron consulta dejan esos campos en `NA`, que
-significa «no medido», no `0`.
+significa «no medido», no `0`. Como una consulta puede producir varias filas
+(una por columna y métrica), su duración se repite en ellas: `nivel = 1` marca
+la primera fila de cada `consulta_id` y `nivel = 2` las repeticiones. Para sumar
+tiempos SQL se deben usar sólo las filas de `nivel = 1`.
 
 ```{r tiempos-sql, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}
 perfil$resumen_tabla$sql[, c(
   "metrica", "estado", "duracion_ms", "cpu_ms", "n_filas_resultado",
-  "bytes_resultado_r", "consulta_id", "id_muestra", "etapa"
+  "bytes_resultado_r", "consulta_id", "id_muestra", "etapa", "nivel"
 )]
 
 perfil$resumen_tabla$tiempos
@@ -446,7 +449,9 @@ consultas en `attr(plan, "supuesto")`. No escanea datos para decidir el costo:
 lee el esquema, sondea capacidades y, con
 `politica_costo = "por_cardinalidad"`, puede usar una garantía estructural o una
 fuente de catálogo. Nunca lanza `COUNT(DISTINCT ...)` sólo para despejar una
-duda.
+duda. Por eso el plan no proyecta el costo temporal de `COUNT(DISTINCT)` antes
+de correr: la referencia honesta es el primer lote de distintos medido durante
+la ejecución, y el plan no emite consultas de datos.
 
 El extremo inferior es `total`: si la fuente de cardinalidad queda desconocida,
 supone que la política omite las métricas caras. El extremo superior es
@@ -473,13 +478,21 @@ se amortizan en una pasada de la tabla. El derrame crece con el ancho del lote;
 dos mantuvo casi el mismo tiempo por columna que una y derramó menos que los
 lotes más anchos.
 
-El costo de `COUNT(DISTINCT ...)` se anuncia antes de iniciar su primera
-consulta cuando hay una referencia defendible. Los agregados planos ya se
-ejecutaron, así que con `instrumentar = TRUE` la proyección usa la mediana de
-esas duraciones en esta misma corrida y la multiplica por la cantidad de lotes
-de distintos. El mensaje dice que es una estimación y de dónde sale; no usa
-`reltuples`. Sólo se muestra cuando supera 30 segundos y no pide confirmación,
-por lo que `perfilar_dbi()` no queda esperando en un guion.
+El costo de `COUNT(DISTINCT ...)` se anuncia después de completar el primer lote
+de distintos y antes de iniciar el segundo, cuando hay una referencia medida.
+Con `instrumentar = TRUE`, la proyección usa la mediana de las duraciones de
+las consultas de ese primer lote en esta misma corrida y la multiplica por la
+cantidad total de lotes de distintos. El mensaje dice que es una estimación y
+de dónde sale; no usa `reltuples`. Con un solo lote no hay nada que proyectar ni
+que evitar, así que no se publica una proyección. La misma regla funciona si se
+pide sólo `metricas = "distintos"`. Sólo se muestra cuando supera 30 segundos y
+no pide confirmación, por lo que `perfilar_dbi()` no queda esperando en un
+guion.
+
+`plan_perfilado_dbi()` no publica esa proyección temporal: no emite consultas de
+datos y, por lo tanto, no puede medir el primer lote. El plan lo declara
+explícitamente; la medición y la proyección quedan en
+`resumen_tabla$meta$costo_distintos` después de ejecutar.
 
 En PostgreSQL, la preparación puede consultar `pg_stats.n_distinct`,
 `pg_stats.avg_width`, `pg_class.reltuples`, `SHOW work_mem` y, desde la versión

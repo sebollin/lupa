@@ -308,12 +308,15 @@ the previous mode query is retained and the fallback is published in
 ### Cost and spill are announced before they are paid
 
 When `perfilar_dbi()` asks for `COUNT(DISTINCT ...)`, the flat aggregates run
-first. With `instrumentar = TRUE` the package times those queries in this same
-run and, before starting the distinct counts, announces a cost projection when
-it exceeds thirty seconds. The figure is the median of the measured flat
-durations multiplied by the number of distinct batches; the message names that
-source and labels itself an estimate. This time projection does not use
-`reltuples`.
+first when they were requested, but they are not a time reference for distinct
+counts. With `instrumentar = TRUE` the package measures the first distinct
+batch in the same run and, if another batch remains, announces a projection
+after that batch and before the second. The figure is the median duration of
+the queries in the first distinct batch multiplied by the number of distinct
+batches; the message names that source and labels itself an estimate. With one
+batch there is nothing left to avoid, so no projection is published. A request
+with `metricas = "distintos"` therefore still receives the warning when there
+are multiple batches. This time projection does not use `reltuples`.
 
 On PostgreSQL, preparation also reads `pg_stats.n_distinct`,
 `pg_stats.avg_width`, `pg_class.reltuples` and the session's `work_mem` — plus
@@ -330,6 +333,16 @@ blocks written. When attribution is not possible the state is declared
 unavailable: elapsed time is never presented as evidence of a spill. Where the
 measurement exists, **it prevails over the estimate** — even if the estimate
 stayed below the limit, the report says a spill was measured.
+
+### SQL durations have a sum-safe unit
+
+`resumen_tabla$sql` has one row per column and metric, but `duracion_ms` is the
+duration of the query and is repeated on every row produced by that query. The
+table now includes `nivel`, following `resumen_tabla$tiempos`: the first row of
+each `consulta_id` is `nivel = 1` and the repeated rows are `nivel = 2`. Sum
+`duracion_ms` only for `nivel = 1` (and use `na.rm = TRUE` when needed); summing
+the whole column counts shared queries more than once. Rows without a query
+keep `NA` in their duration and do not claim a measurement.
 
 ### Reading a profile without knowing its shape
 
@@ -457,7 +470,9 @@ says so in `attr(plan, "supuesto")`. It does not scan data to decide cost: it
 reads the schema, probes capabilities and, with
 `politica_costo = "por_cardinalidad"`, may read a structural guarantee or a
 catalogue source. It never launches `COUNT(DISTINCT ...)` just to resolve
-uncertainty.
+uncertainty. Consequently, the plan does not publish a temporal projection for
+`COUNT(DISTINCT)`: the honest reference is the first distinct batch measured
+during execution, and the plan emits no data queries.
 
 The low end is `total`: when cardinality is unknown, it assumes the policy will
 omit expensive metrics. The high end is `total_maximo` —also exposed as

@@ -1,6 +1,6 @@
-test_that("la proyeccion de distintos usa mediciones planas de esta corrida", {
+test_that("la proyeccion de distintos usa el primer lote de esta corrida", {
   presupuesto <- lupa:::.presupuesto_dbi(Inf, instrumentar = TRUE)
-  presupuesto$referencias_planas <- list(
+  presupuesto$referencias_distintos <- list(
     primera = list(duracion_ms = 15000),
     segunda = list(duracion_ms = 17000)
   )
@@ -11,25 +11,39 @@ test_that("la proyeccion de distintos usa mediciones planas de esta corrida", {
   expect_identical(proyeccion$duracion_referencia_ms, 16000)
   expect_identical(proyeccion$duracion_estimada_ms, 32000)
   expect_identical(proyeccion$n_referencias, 2L)
-  expect_match(proyeccion$fuente, "medidas en esta corrida")
+  expect_match(proyeccion$fuente, "primer lote de distintos")
+  expect_false(grepl("agregados planos", proyeccion$fuente, fixed = TRUE))
   expect_match(proyeccion$motivo, "estimacion")
 
-  presupuesto$referencias_planas <- list()
+  presupuesto$referencias_distintos <- list()
   sin_referencia <- lupa:::.proyectar_costo_distintos_dbi(presupuesto, 2L)
   expect_false(sin_referencia$disponible)
   expect_true(is.na(sin_referencia$duracion_estimada_ms))
-  expect_match(sin_referencia$motivo, "No hay una duracion medida")
+  expect_match(sin_referencia$motivo, "primer lote")
+})
+
+test_that("un solo lote no se presenta como una proyeccion", {
+  presupuesto <- lupa:::.presupuesto_dbi(Inf, instrumentar = TRUE)
+  presupuesto$referencias_distintos <- list(
+    primera = list(duracion_ms = 15000)
+  )
+
+  proyeccion <- lupa:::.proyectar_costo_distintos_dbi(presupuesto, 1L)
+
+  expect_false(proyeccion$disponible)
+  expect_true(is.na(proyeccion$duracion_estimada_ms))
+  expect_match(proyeccion$motivo, "un solo lote")
 })
 
 test_that("el aviso de costo incluye el valor y su fuente", {
   proyeccion <- list(
     disponible = TRUE, duracion_estimada_ms = 30000, n_lotes = 2L,
-    fuente = "mediana de 2 consultas planas medidas en esta corrida"
+    fuente = "mediana de 1 consulta del primer lote de distintos medida en esta corrida"
   )
 
   expect_message(
     lupa:::.avisar_costo_distintos_dbi(proyeccion),
-    "Costo estimado.*30,0 s.*Fuente:.*medidas en esta corrida"
+    "Costo estimado.*30,0 s.*Fuente:.*primer lote de distintos"
   )
 })
 
@@ -77,30 +91,26 @@ test_that("perfilar_dbi rechaza umbrales NA antes de iniciar la corrida", {
   )
 })
 
-test_that("el aviso llega antes de ejecutar el lote de distintos", {
+test_that("el aviso llega entre el primer y el segundo lote de distintos", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbWriteTable(conexion, "tabla_aviso", data.frame(
-    codigo = c("a", "b", "a"), valor = c(1, 2, 3),
+    codigo = c("a", "b", "a"), valor = c(1, 2, 3), tercero = c(3, 4, 5),
     stringsAsFactors = FALSE
   ))
 
   eventos <- character()
+  numero_distintos <- 0L
   original_distintos <- lupa:::.conteos_distintos_lote_dbi
   testthat::local_mocked_bindings(
-    .registrar_referencia_plana_dbi = function(presupuesto, consulta) {
-      presupuesto$referencias_planas <- list(
-        referencia = list(duracion_ms = 30000)
-      )
-      invisible(NULL)
-    },
     .avisar_costo_distintos_dbi = function(
         proyeccion, habilitado, umbral_segundos) {
       eventos <<- c(eventos, "aviso")
       expect_true(proyeccion$disponible)
-      expect_identical(proyeccion$duracion_estimada_ms, 30000)
+      expect_identical(proyeccion$duracion_estimada_ms, 60000)
+      expect_match(proyeccion$fuente, "primer lote de distintos")
       expect_false(habilitado)
       expect_identical(umbral_segundos, 0)
     },
@@ -123,8 +133,13 @@ test_that("el aviso llega antes de ejecutar el lote de distintos", {
       expect_identical(umbral_bytes, 0)
     },
     .conteos_distintos_lote_dbi = function(...) {
-      eventos <<- c(eventos, "distintos")
-      original_distintos(...)
+      numero_distintos <<- numero_distintos + 1L
+      eventos <<- c(eventos, paste0("distintos_", numero_distintos))
+      resultado <- original_distintos(...)
+      for (campo in names(resultado$resultados)) {
+        resultado$resultados[[campo]]$distintos$duracion_ms <- 30000
+      }
+      resultado
     },
     .package = "lupa"
   )
@@ -139,12 +154,80 @@ test_that("el aviso llega antes de ejecutar el lote de distintos", {
     duplicados_aproximados = FALSE
   )
 
-  expect_lt(match("aviso_memoria", eventos), match("distintos", eventos))
-  expect_lt(match("aviso", eventos), match("distintos", eventos))
+  expect_lt(match("aviso_memoria", eventos), match("distintos_1", eventos))
+  expect_lt(match("distintos_1", eventos), match("aviso", eventos))
+  expect_lt(match("aviso", eventos), match("distintos_2", eventos))
   expect_true(is.list(resultado$resumen_tabla$meta$costo_distintos))
   expect_true(is.list(resultado$resumen_tabla$meta$derrame))
   expect_true(is.list(resultado$resumen_tabla$meta$estimacion_derrame))
-  expect_identical(resultado$resumen_tabla$columnas$n_distintos, c(2, 3))
+  expect_identical(resultado$resumen_tabla$columnas$n_distintos, c(2, 3, 3))
+})
+
+test_that("metricas solo distintos tambien avisa despues del primer lote", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(conexion, "solo_distintos", data.frame(
+    a = c("a", "b", "a"), b = c("b", "c", "b"), c = c("c", "d", "c"),
+    stringsAsFactors = FALSE
+  ))
+
+  original_distintos <- lupa:::.conteos_distintos_lote_dbi
+  numero_distintos <- 0L
+  testthat::local_mocked_bindings(
+    .conteos_distintos_lote_dbi = function(...) {
+      numero_distintos <<- numero_distintos + 1L
+      resultado <- original_distintos(...)
+      for (campo in names(resultado$resultados)) {
+        resultado$resultados[[campo]]$distintos$duracion_ms <- 30000
+      }
+      resultado
+    },
+    .package = "lupa"
+  )
+
+  expect_message(
+    resultado <- perfilar_dbi(
+      conexion, "solo_distintos", metricas = "distintos",
+      tamano_lote_distintos = 2L, umbral_segundos_aviso_distintos = 0,
+      bloque_muestra = "solo_agregados", proteger_datos_personales = FALSE,
+      analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
+      ausencia_estructural = FALSE, duplicados_aproximados = FALSE
+    ),
+    "Costo estimado"
+  )
+
+  expect_identical(numero_distintos, 2L)
+  proyeccion <- resultado$resumen_tabla$meta$costo_distintos
+  expect_true(proyeccion$disponible)
+  expect_identical(proyeccion$duracion_estimada_ms, 60000)
+  expect_match(proyeccion$fuente, "primer lote de distintos")
+  sql <- resultado$resumen_tabla$sql
+  expect_false(any(sql$estado != "no_solicitado" & sql$metrica %in%
+    c("n_validos", "n_faltantes", "prop_faltantes")))
+})
+
+test_that("un perfil con un solo lote declara que no proyecta", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(conexion, "un_lote", data.frame(
+    a = c("a", "b", "a"), b = c("b", "c", "b"), stringsAsFactors = FALSE
+  ))
+
+  resultado <- expect_silent(perfilar_dbi(
+    conexion, "un_lote", metricas = "distintos",
+    tamano_lote_distintos = 2L, umbral_segundos_aviso_distintos = 0,
+    bloque_muestra = "solo_agregados", proteger_datos_personales = FALSE,
+    analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
+    ausencia_estructural = FALSE, duplicados_aproximados = FALSE
+  ))
+
+  proyeccion <- resultado$resumen_tabla$meta$costo_distintos
+  expect_false(proyeccion$disponible)
+  expect_match(proyeccion$motivo, "un solo lote")
 })
 
 .estadisticas_derrame_prueba <- function(escrito = 7, llamadas = 11) {

@@ -48,7 +48,7 @@ setMethod(
 .ronda153_sin_instrumentacion <- function(x) {
   campos <- c(
     "sql", "lote", "columnas_compartidas", "id_muestra", "consulta_id",
-    "etapa", "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
+    "etapa", "nivel", "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
     "cpu_ms", "derrame", "bloques_temporales_leidos",
     "bloques_temporales_escritos", "fuente_derrame"
   )
@@ -67,7 +67,6 @@ setMethod(
   x$resumen_tabla$meta$instrumentacion <- NULL
   x$resumen_tabla$meta$derrame <- NULL
   x$resumen_tabla$meta$costo_distintos <- NULL
-  attr(x$resumen_tabla$meta$plan, "costo_distintos") <- NULL
   x
 }
 

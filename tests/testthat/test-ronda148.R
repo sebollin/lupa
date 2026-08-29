@@ -21,7 +21,7 @@ library(DBI)
 .sin_instrumentacion_ronda148 <- function(x) {
   campos_nuevos <- c(
     "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
-    "cpu_ms", "consulta_id", "etapa", "derrame",
+    "cpu_ms", "consulta_id", "etapa", "nivel", "derrame",
     "bloques_temporales_leidos", "bloques_temporales_escritos",
     "fuente_derrame"
   )
@@ -32,7 +32,6 @@ library(DBI)
   x$resumen_tabla$meta$instrumentacion <- NULL
   x$resumen_tabla$meta$derrame <- NULL
   x$resumen_tabla$meta$costo_distintos <- NULL
-  attr(x$resumen_tabla$meta$plan, "costo_distintos") <- NULL
   x
 }
 
@@ -86,6 +85,31 @@ test_that("sql publica medicion real, identificador y etapa", {
   expect_true(any(!is.na(emitidas$duracion_ms)))
   expect_true(any(!is.na(emitidas$cpu_ms)))
   expect_true(all(emitidas$cpu_ms >= 0))
+})
+
+test_that("sql marca una sola duracion sumable por consulta", {
+  con <- .conexion_ronda148()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  resultado <- .perfil_base_ronda148(
+    con, "conteos", metricas = "distintos", bloque_muestra = "solo_agregados"
+  )
+  sql <- resultado$resumen_tabla$sql
+  emitidas <- sql[!is.na(sql$consulta_id), , drop = FALSE]
+
+  expect_true("nivel" %in% names(sql))
+  expect_true(is.integer(sql$nivel))
+  expect_true(all(sql$nivel >= 1L))
+  expect_true(any(emitidas$nivel == 2L))
+
+  suma_ingenua <- sum(emitidas$duracion_ms)
+  suma_por_consulta <- sum(emitidas$duracion_ms[emitidas$nivel == 1L])
+  suma_por_id <- sum(vapply(
+    split(emitidas$duracion_ms, emitidas$consulta_id),
+    function(duraciones) duraciones[[1L]], numeric(1L)
+  ))
+
+  expect_gt(suma_ingenua, suma_por_consulta)
+  expect_equal(suma_por_consulta, suma_por_id)
 })
 
 test_that("no solicitado y sin consulta no se publican como cero", {

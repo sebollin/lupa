@@ -115,6 +115,10 @@ test_that("el plan real conserva la magnitud desconocida sin escanear", {
   expect_equal(attr(plan, "magnitud"), "desconocida")
   expect_true(is.na(attr(plan, "filas_leidas")))
   expect_match(attr(plan, "supuesto_costo"), "estimaci")
+  expect_null(attr(plan, "costo_distintos", exact = TRUE))
+  expect_match(attr(plan, "supuesto_costo_distintos", exact = TRUE),
+               "no proyecta")
+  expect_match(attr(plan, "supuesto", exact = TRUE), "no proyecta")
 })
 
 test_that("la impresion declara la incertidumbre del trabajo", {
@@ -132,6 +136,7 @@ test_that("la impresion declara la incertidumbre del trabajo", {
   expect_false(any(grepl("techo", bajo)))
   expect_true(any(grepl("entre [0-9]", bajo)))
   expect_true(any(grepl("El trabajo es una estimación", bajo)))
+  expect_true(any(grepl("no proyecta.*COUNT", bajo)))
 
   attr(plan, "magnitud") <- "alta"
   attr(plan, "filas_leidas") <- 5e9

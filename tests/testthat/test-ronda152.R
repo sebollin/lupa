@@ -21,7 +21,7 @@ skip_if_not_installed("RSQLite")
 
 .ronda152_sin_auditoria <- function(x) {
   campos_auditoria <- c(
-    "sql", "lote", "columnas_compartidas", "consulta_id", "etapa",
+    "sql", "lote", "columnas_compartidas", "consulta_id", "etapa", "nivel",
     "duracion_ms", "n_filas_resultado", "bytes_resultado_r", "cpu_ms",
     "id_muestra", "derrame", "bloques_temporales_leidos",
     "bloques_temporales_escritos", "fuente_derrame"
@@ -41,7 +41,6 @@ skip_if_not_installed("RSQLite")
   x$resumen_tabla$meta$instrumentacion <- NULL
   x$resumen_tabla$meta$derrame <- NULL
   x$resumen_tabla$meta$costo_distintos <- NULL
-  attr(x$resumen_tabla$meta$plan, "costo_distintos") <- NULL
   x
 }
 

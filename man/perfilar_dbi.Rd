@@ -99,8 +99,8 @@ alcance de esos agregados: eso lo decide \code{modo}.}
 y, en PostgreSQL, se intenta atribuir el uso de bloques temporales de los
 \code{COUNT(DISTINCT)} exactos mediante \code{pg_stat_statements}.
 Por omisión es \code{TRUE}; agrega \code{duracion_ms}, \code{cpu_ms},
-\code{n_filas_resultado}, \code{bytes_resultado_r}, \code{consulta_id} y \code{etapa} a
-\code{resumen_tabla$sql}, y el resumen \code{resumen_tabla$tiempos}. Con \code{FALSE} se
+\code{n_filas_resultado}, \code{bytes_resultado_r}, \code{consulta_id}, \code{etapa} y \code{nivel}
+a \code{resumen_tabla$sql}, y el resumen \code{resumen_tabla$tiempos}. Con \code{FALSE} se
 conserva el mismo plan, la misma cantidad y el mismo orden de consultas,
 pero los campos medibles quedan en \code{NA}. \code{id_muestra} \strong{no} depende de
 esta opcion: no es una medicion sino un hecho estructural sobre que
@@ -134,16 +134,18 @@ activa \code{politica_costo = "por_cardinalidad"}. El valor por omisión es \cod
 sólo cuando esa política se pide explícitamente; se puede mover en cada
 llamada. Para pedir todas las métricas use \code{politica_costo = "todas"}.}
 
-\item{avisar_costo_distintos}{Si es \code{TRUE}, avisa cuando la proyección del
-costo de \code{COUNT(DISTINCT)} alcanza \code{umbral_segundos_aviso_distintos}.
-Por omisión es \code{TRUE}. Este aviso no depende de \code{interactive()}: también
-llega en guiones porque el costo se paga en el servidor y puede durar
-decenas de segundos.}
+\item{avisar_costo_distintos}{Si es \code{TRUE}, avisa, después de medir el primer
+lote y antes del segundo, cuando la proyección del costo de
+\code{COUNT(DISTINCT)} alcanza \code{umbral_segundos_aviso_distintos}. Por omisión es
+\code{TRUE}. Este aviso no depende de \code{interactive()}: también llega en guiones
+porque el costo se paga en el servidor y puede durar decenas de segundos.}
 
 \item{umbral_segundos_aviso_distintos}{Segundos estimados a partir de los
-cuales se emite el aviso del costo de \code{COUNT(DISTINCT)}. Por omisión es
-\code{30}, el umbral histórico; \code{Inf} lo desactiva explícitamente. El valor no
-cambia la proyección ni la medición que se publica.}
+cuales se emite el aviso del costo de \code{COUNT(DISTINCT)}, después del primer
+lote. Por omisión es \code{30}, el umbral histórico; \code{Inf} lo desactiva
+explícitamente. Con un solo lote no se publica una proyección porque el
+costo ya se pagó. El valor no cambia la proyección ni la medición que se
+publica.}
 
 \item{avisar_derrame_estimado}{Si es \code{TRUE}, avisa cuando un lote de
 \code{COUNT(DISTINCT)} supera la memoria efectiva y su tamaño estimado alcanza
@@ -326,6 +328,12 @@ el total del universo para escribir un porcentaje lo cuentan antes.
 lote, conservador por omisión porque una cardinalidad puede derramar mucho
 más que veinte agregados planos; la consulta exacta trae su
 \code{n_validos_guard} compañero.
+La proyección temporal no usa esos agregados planos: si hay más de un lote y
+\code{instrumentar = TRUE}, se mide el primer lote de distintos y, después de
+ejecutarlo, se multiplica su mediana por la cantidad total de lotes. El aviso
+llega antes del segundo lote, en la unidad que se va a evitar; con un solo
+lote no hay nada que proyectar. Si la duración no se pudo medir, el resultado
+declara la proyección como no disponible.
 Antes de la primera consulta exacta se estima, cuando PostgreSQL expone
 \code{pg_stats}, el tamaño de los hashes con \code{n_distinct}, \code{avg_width} y
 \code{pg_class.reltuples}; \verb{SHOW work_mem} y, desde PostgreSQL 13,
@@ -358,6 +366,12 @@ durante esa corrida; no se guarda estado global asociado a la conexión.
 \code{resumen_tabla$sql} conserva una fila por métrica y agrega la duración de la
 consulta que la respalda, las filas devueltas y los bytes que ese resultado
 ocupa en R. \code{consulta_id} identifica el intento dentro de la corrida y
+\code{duracion_ms} es la duración de la consulta, repetida en cada fila que esa
+consulta produjo; no es una duración por métrica. La columna \code{nivel} marca
+qué filas se pueden sumar: la primera fila de cada \code{consulta_id} queda en
+\code{nivel = 1} y sus repeticiones en \code{nivel = 2}. Por eso una suma segura usa
+sólo \code{duracion_ms[nivel == 1]} (con \code{na.rm = TRUE} si corresponde), no la
+columna completa.
 \code{id_muestra} identifica la consulta de datos que produjo la medición: dos
 métricas con el mismo identificador vieron exactamente las mismas filas y se
 pueden comparar directamente. \code{NA} declara que esa garantía no se puede

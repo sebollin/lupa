@@ -77,7 +77,7 @@ test_that("el valor por omision conserva el perfil anterior", {
   quitar_tiempos <- function(x) {
     campos_nuevos <- c(
       "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
-      "cpu_ms", "consulta_id", "etapa", "derrame",
+      "cpu_ms", "consulta_id", "etapa", "nivel", "derrame",
       "bloques_temporales_leidos", "bloques_temporales_escritos",
       "fuente_derrame"
     )
@@ -88,7 +88,6 @@ test_that("el valor por omision conserva el perfil anterior", {
     x$resumen_tabla$meta$instrumentacion <- NULL
     x$resumen_tabla$meta$derrame <- NULL
     x$resumen_tabla$meta$costo_distintos <- NULL
-    attr(x$resumen_tabla$meta$plan, "costo_distintos") <- NULL
     x
   }
   expect_identical(quitar_tiempos(por_omision), quitar_tiempos(explicito))

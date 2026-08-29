@@ -180,14 +180,18 @@ valores distintos y no a la cantidad de filas.
   incluidos nulos, tabla vacia, repetidos y negativos; se verifico en SQLite y
   contra PostgreSQL 9.3.
 
-## El costo de distintos se anuncia antes de pagarlo
+## La proyección temporal de distintos usa su propia unidad
 
-- `perfilar_dbi()` anuncia, antes del primer `COUNT(DISTINCT)`, una proyección
-  temporal cuando las consultas de agregados planos de esta misma corrida ya
-  dieron una referencia suficiente. La estimación publica el costo, la fuente
-  medida y la cantidad de lotes; esa proyección temporal no usa `reltuples`, no
-  cambia `work_mem` y no espera confirmación en guiones no interactivos. La
-  estimación de memoria del derrame se documenta en la sección anterior.
+- `perfilar_dbi()` mide el primer lote de `COUNT(DISTINCT)` y, si queda otro,
+  anuncia después de ese lote y antes del siguiente una proyección basada en la
+  mediana de sus consultas, multiplicada por la cantidad total de lotes. La
+  estimación publica el costo, la fuente medida y la cantidad de lotes; no usa
+  `reltuples`, no cambia `work_mem` y no espera confirmación en guiones no
+  interactivos. Con un solo lote no publica una proyección. La misma regla
+  funciona cuando se pide sólo `metricas = "distintos"`.
+- `plan_perfilado_dbi()` conserva su promesa de no emitir consultas de datos y
+  declara que no proyecta el costo temporal antes de correr: sólo una ejecución
+  puede medir la referencia honesta, en la unidad de los distintos.
 - La instrumentación de PostgreSQL consulta `pg_stat_statements` antes y
   después de los distintos exactos. Sólo publica derrame real cuando puede
   atribuir exactamente una llamada: `resumen_tabla$sql` agrega los bloques
@@ -195,6 +199,17 @@ valores distintos y no a la cantidad de filas.
   falta de evidencia queda `no_disponible`, no se infiere del reloj.
 - `tamano_lote_distintos` conserva el valor medido 2; el cambio no modifica
   `work_mem`.
+
+## `resumen_tabla$sql` declara su unidad sumable
+
+- `resumen_tabla$sql` conserva una fila por columna y métrica, pero
+  `duracion_ms` pertenece a la consulta y puede repetirse en varias filas. La
+  nueva columna `nivel` sigue la semántica de `resumen_tabla$tiempos`: `nivel =
+  1` identifica la primera fila de cada `consulta_id` y `nivel = 2` las filas
+  repetidas.
+- La suma segura de `duracion_ms` usa sólo `nivel = 1`; las filas sin consulta
+  siguen teniendo `NA`. Así la tabla hace visible la unidad que evita contar
+  una consulta más de una vez.
 
 ## La política de costo no ciega las fuentes estructurales
 

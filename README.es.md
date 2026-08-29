@@ -432,11 +432,15 @@ filas conserva el suyo, que se configura con
 ### Avisos de costo y derrame
 
 Cuando `perfilar_dbi()` pide `COUNT(DISTINCT ...)`, los agregados planos se
-ejecutan primero. Si `instrumentar = TRUE`, el paquete mide esas consultas en
-esta misma corrida y, antes de iniciar los distintos, anuncia una proyeccion
-del costo cuando supera 30 segundos. El numero es la mediana de las duraciones
-planas multiplicada por los lotes de distintos; el mensaje nombra esa fuente y
-lo rotula como estimacion. Esta proyeccion temporal no usa `reltuples`.
+ejecutan primero cuando fueron solicitados, pero no son una referencia temporal
+para los distintos. Con `instrumentar = TRUE`, el paquete mide el primer lote
+de distintos en esta misma corrida y, si queda otro lote, anuncia la
+proyeccion despues del primero y antes del segundo. El numero es la mediana de
+las duraciones de las consultas del primer lote de distintos multiplicada por
+la cantidad de lotes; el mensaje nombra esa fuente y lo rotula como estimacion.
+Con un solo lote no queda trabajo que evitar, asi que no se publica una
+proyeccion. Por eso una peticion con `metricas = "distintos"` tambien recibe el
+aviso cuando hay varios lotes. Esta proyeccion temporal no usa `reltuples`.
 
 En PostgreSQL, la preparacion consulta ademas `pg_stats.n_distinct`,
 `pg_stats.avg_width`, `pg_class.reltuples` y la configuracion vigente de
@@ -453,6 +457,17 @@ temporales escritos. Si no se puede atribuir, el estado queda declarado como
 no disponible: el tiempo transcurrido no se presenta como evidencia de derrame.
 Cuando existe, esa medicion **manda sobre la estimacion**: aunque la estimacion
 haya quedado por debajo del limite, el informe dice que hubo derrame medido.
+
+### Duraciones SQL con una unidad que se puede sumar
+
+`resumen_tabla$sql` tiene una fila por columna y metrica, pero `duracion_ms` es
+la duracion de la consulta y se repite en cada fila que produjo esa consulta.
+La tabla ahora incluye `nivel`, siguiendo a `resumen_tabla$tiempos`: la primera
+fila de cada `consulta_id` queda en `nivel = 1` y las repetidas en `nivel = 2`.
+Sumá `duracion_ms` sólo para `nivel = 1` (y usá `na.rm = TRUE` cuando
+corresponda); sumar la columna entera cuenta más de una vez las consultas
+compartidas. Las filas sin consulta conservan la duración en `NA` y no afirman
+una medición.
 
 ### El costo de una tabla ancha se avisa antes
 
@@ -509,7 +524,9 @@ en `attr(plan, "supuesto")`. No escanea datos para decidir el costo: lee el
 esquema, sondea capacidades y consulta el catálogo de la clave primaria. Con
 `politica_costo = "por_cardinalidad"` también puede usar una garantía
 estructural o una fuente de catálogo. Nunca lanza `COUNT(DISTINCT ...)` sólo
-para despejar una duda.
+para despejar una duda. Por eso el plan no publica una proyección temporal de
+`COUNT(DISTINCT)`: la referencia honesta es el primer lote de distintos medido
+durante la ejecución, y el plan no emite consultas de datos.
 
 El extremo inferior es `total`: cuando la fuente de cardinalidad es
 desconocida, supone que la política omite las métricas caras. El extremo

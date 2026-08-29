@@ -126,7 +126,8 @@ Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
 \code{metricas_ejecucion}, \code{politica_costo}, \code{estrategia_distintos},
 \code{fuente_cardinalidad_costo}, \code{moda_guardian}, \code{mediana_consolidada}, \code{filas},
 \code{mediana_escalar},
-\code{tamano_lote_planos}, \code{tamano_lote_distintos} y \code{estimacion_derrame}.
+\code{tamano_lote_planos}, \code{tamano_lote_distintos}, \code{estimacion_derrame} y,
+cuando se pide \code{distintos}, \code{supuesto_costo_distintos}.
 Esta última es una estimación de memoria, no una medición. Cuando se pide
 \code{bloque_muestra = "solo_agregados"}, también conserva ese valor en el
 atributo \code{bloque_muestra} y no incluye la fila de la lectura de muestra.
@@ -153,10 +154,12 @@ en R el detector de vocabulario sobre la muestra— y se resume en
 \code{"alta"}, o \code{"desconocida"} si no se conoce el número de filas.
 \code{supuesto_costo} dice de dónde sale cada cuenta.
 
-El plan previo no publica duraciones, CPU, filas ni bytes medidos. El plan
-de una corrida de \code{perfilar_dbi()} puede agregar \code{costo_distintos} cuando
-ya hay duraciones de agregados planos de esa misma corrida; sus campos
-dicen explícitamente que la proyección sigue siendo una estimación.
+El plan previo no publica duraciones, CPU, filas ni bytes medidos, ni agrega
+una proyección temporal de \code{COUNT(DISTINCT)}. Aunque el plan de una corrida
+conserve el atributo \code{supuesto_costo_distintos}, la medición y la proyección
+sólo aparecen en \code{resumen_tabla$meta$costo_distintos}, después de ejecutar
+el primer lote. El atributo sólo declara por qué esa proyección no existe
+antes de correr; no es una duración ni una estimación temporal.
 
 Si se pide \code{politica_costo = "por_cardinalidad"}, el plan busca primero una
 garantía estructural o una fuente de catálogo. Si la fuente queda
@@ -207,16 +210,15 @@ emite el agregado. \code{fuente_cardinalidad_costo} sigue siendo independiente y
 sólo describe el número usado por la política de costo cuando esa política
 se pide.
 
-El plan previo no puede publicar segundos medidos porque no lee los datos.
-Durante \code{perfilar_dbi()}, en cambio, los agregados planos se ejecutan antes
-que los distintos. Si se midieron en esta misma corrida, el plan que queda
-en \code{resumen_tabla$meta$plan} agrega \code{costo_distintos}: la mediana de esas
-duraciones multiplicada por la cantidad de lotes de distintos. Es una
-estimación rotulada, fundada en las consultas medidas de esta corrida, no en
-una estadística de catálogo. El aviso de memoria se emite antes de iniciar
-el primer \code{COUNT(DISTINCT)} y el aviso temporal sólo si supera el umbral de
-30 segundos; no pide
-confirmación y nunca bloquea un guion no interactivo.
+El plan previo no proyecta segundos para \code{COUNT(DISTINCT)}: no lee los datos
+y, por tanto, no tiene una referencia medida. La única referencia honesta es
+el primer lote de distintos de la corrida, pero obtenerla cuesta una
+consulta que este planificador no emite. Durante \code{perfilar_dbi()}, cuando hay
+más de un lote y la instrumentación está activa, esa primera medición se
+multiplica por la cantidad de lotes y se publica en
+\code{resumen_tabla$meta$costo_distintos}. El aviso temporal llega después del
+primer lote y antes del segundo; con un solo lote se declara que no hay nada
+que proyectar.
 }
 \examples{
 if (requireNamespace("DBI", quietly = TRUE) &&

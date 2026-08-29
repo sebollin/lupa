@@ -129,9 +129,10 @@
   estado$tamano_lote_funciono <- NULL
   estado$tamano_lote_planos_funciono <- NULL
   estado$tamano_lote_distintos_funciono <- NULL
-  # Las referencias de tiempo se llenan con consultas planas aceptadas. No se
-  # usan estadisticas del catalogo para proyectar el costo temporal de distintos.
-  estado$referencias_planas <- list()
+  # La referencia temporal de distintos se llena con el primer lote distinto.
+  # No se usan estadisticas del catalogo ni agregados planos para proyectar ese
+  # costo: son unidades diferentes.
+  estado$referencias_distintos <- list()
   estado$proyeccion_distintos <- NULL
   # Los dos avisos se controlan por separado porque hablan de magnitudes
   # incompatibles: segundos de servidor y bytes de memoria. No hay un porton
@@ -174,7 +175,7 @@
   estado
 }
 
-.registrar_referencia_plana_dbi <- function(presupuesto, consulta) {
+.registrar_referencia_distintos_dbi <- function(presupuesto, consulta) {
   if (is.null(presupuesto) || !isTRUE(consulta$ok) ||
       is.null(consulta$consulta_id) || length(consulta$consulta_id) != 1L ||
       is.na(consulta$consulta_id) || is.null(consulta$duracion_ms) ||
@@ -183,31 +184,46 @@
     return(invisible(NULL))
   }
   id <- as.character(consulta$consulta_id)
-  referencias <- presupuesto$referencias_planas
+  referencias <- presupuesto$referencias_distintos
   referencias[[id]] <- list(
     consulta_id = as.integer(consulta$consulta_id),
     duracion_ms = as.numeric(consulta$duracion_ms)
   )
-  presupuesto$referencias_planas <- referencias
+  presupuesto$referencias_distintos <- referencias
   invisible(NULL)
 }
 
-.proyectar_costo_distintos_dbi <- function(presupuesto, n_lotes) {
-  vacia <- list(
+.proyeccion_distintos_vacia_dbi <- function(n_lotes, motivo = paste(
+    "No hay una duracion medida del primer lote de distintos en esta corrida;",
+    "no se publica una proyeccion temporal."
+  )) {
+  list(
     disponible = FALSE, duracion_estimada_ms = NA_real_,
     duracion_referencia_ms = NA_real_, n_lotes = as.integer(n_lotes),
-    n_referencias = 0L, fuente = NA_character_, motivo = paste(
-      "No hay una duracion medida de un agregado plano en esta corrida;",
-      "no se publica una proyeccion temporal."
-    )
+    n_referencias = 0L, fuente = NA_character_, motivo = motivo
   )
-  if (is.null(presupuesto) || !length(presupuesto$referencias_planas) ||
-      !is.numeric(n_lotes) || length(n_lotes) != 1L || is.na(n_lotes) ||
+}
+
+.proyectar_costo_distintos_dbi <- function(presupuesto, n_lotes) {
+  vacia <- .proyeccion_distintos_vacia_dbi(n_lotes)
+  if (!is.numeric(n_lotes) || length(n_lotes) != 1L || is.na(n_lotes) ||
       !is.finite(n_lotes) || n_lotes < 1) {
     return(vacia)
   }
+  if (n_lotes == 1) {
+    return(.proyeccion_distintos_vacia_dbi(
+      n_lotes,
+      paste(
+        "Hay un solo lote de distintos: el costo ya se pago y no hay nada",
+        "que proyectar ni que evitar."
+      )
+    ))
+  }
+  if (is.null(presupuesto) || !length(presupuesto$referencias_distintos)) {
+    return(vacia)
+  }
   duraciones <- vapply(
-    presupuesto$referencias_planas,
+    presupuesto$referencias_distintos,
     function(x) as.numeric(x$duracion_ms), numeric(1L)
   )
   duraciones <- duraciones[is.finite(duraciones) & duraciones > 0]
@@ -223,11 +239,12 @@
     n_referencias = as.integer(length(duraciones)),
     fuente = paste(
       "mediana de", length(duraciones),
-      "consulta(s) de agregados planos medidas en esta corrida"
+      "consulta(s) del primer lote de distintos medidas en esta corrida"
     ),
     motivo = paste(
-      "La proyeccion supone una pasada de costo comparable por lote de",
-      "distintos; es una estimacion y no una medicion del agregado exacto."
+      "La proyeccion usa la mediana del primer lote de `COUNT(DISTINCT)`",
+      "medido en esta corrida y la multiplica por la cantidad de lotes; es",
+      "una estimacion, no una medicion del agregado exacto total."
     )
   )
 }
@@ -2557,6 +2574,20 @@
   )))
 }
 
+.marcar_nivel_sql_dbi <- function(sql) {
+  if (!is.data.frame(sql) || !"consulta_id" %in% names(sql)) return(sql)
+  nivel <- rep.int(1L, nrow(sql))
+  medidos <- which(!is.na(sql$consulta_id))
+  if (length(medidos)) {
+    grupos <- split(medidos, as.character(sql$consulta_id[medidos]))
+    for (indices in grupos) {
+      if (length(indices) > 1L) nivel[indices[-1L]] <- 2L
+    }
+  }
+  sql$nivel <- as.integer(nivel)
+  sql
+}
+
 .cobertura_dbi_vacia <- function() {
   data.frame(
     bloque = character(), elemento = character(), estado = character(),
@@ -3904,9 +3935,6 @@
     consulta <- .consultar_dbi(
       conexion, sql, presupuesto, etapa = etapa
     )
-    if (!isTRUE(con_universo)) {
-      .registrar_referencia_plana_dbi(presupuesto, consulta)
-    }
     cache[[llave]] <<- list(ok = consulta$ok, consulta = consulta, sql = sql)
     isTRUE(consulta$ok)
   }
@@ -4446,24 +4474,10 @@
     n_lotes_distintos <- length(.lotes_columnas_dbi(
       columnas_distintos, tamano_lote_distintos
     ))
-    if (is.null(aproximacion_distintos)) {
-      proyeccion <- .proyectar_costo_distintos_dbi(
-        presupuesto, n_lotes_distintos
-      )
-      presupuesto$proyeccion_distintos <- proyeccion
-      .avisar_costo_distintos_dbi(
-        proyeccion,
-        habilitado = configuracion_aviso("avisar_costo_distintos", TRUE),
-        umbral_segundos = configuracion_aviso(
-          "umbral_segundos_aviso_distintos",
-          .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI
-        )
-      )
-    } else {
-      presupuesto$proyeccion_distintos <- list(
-        disponible = FALSE, duracion_estimada_ms = NA_real_,
-        duracion_referencia_ms = NA_real_, n_lotes = as.integer(n_lotes_distintos),
-        n_referencias = 0L, fuente = NA_character_, motivo = paste(
+    if (!is.null(aproximacion_distintos)) {
+      presupuesto$proyeccion_distintos <- .proyeccion_distintos_vacia_dbi(
+        n_lotes_distintos,
+        paste(
           "La estrategia de distintos es aproximada; no se proyecta el costo",
           "de `COUNT(DISTINCT)` exacto."
         )
@@ -4492,6 +4506,37 @@
         incluir_total = FALSE, tabla_total_sql = tabla_total_sql
       )
       tomar_conteo(resultado_lote)
+      if (is.null(aproximacion_distintos) && numero == 1L &&
+          is.null(presupuesto$proyeccion_distintos)) {
+        resultados_referencia <- resultado_lote$resultados
+        if (is.list(resultados_referencia)) {
+          for (resultado_columna in resultados_referencia) {
+            if (is.list(resultado_columna) &&
+                !is.null(resultado_columna$distintos)) {
+              .registrar_referencia_distintos_dbi(
+                presupuesto, resultado_columna$distintos
+              )
+            }
+          }
+        }
+        proyeccion <- .proyectar_costo_distintos_dbi(
+          presupuesto, n_lotes_distintos
+        )
+        presupuesto$proyeccion_distintos <- proyeccion
+        # El aviso temporal llega despues de pagar el primer lote, que es la
+        # referencia honesta, y antes de iniciar el segundo. Con un solo lote
+        # no hay trabajo futuro que evitar y la proyeccion se declara ausente.
+        if (n_lotes_distintos > 1L) {
+          .avisar_costo_distintos_dbi(
+            proyeccion,
+            habilitado = configuracion_aviso("avisar_costo_distintos", TRUE),
+            umbral_segundos = configuracion_aviso(
+              "umbral_segundos_aviso_distintos",
+              .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI
+            )
+          )
+        }
+      }
       resultados <- resultado_lote$resultados
       for (campo in lote) {
         base_conteos <- agregados$conteos[[campo]]
@@ -5471,6 +5516,7 @@
   } else {
     .registro_sql_dbi(character(), character(), character(), character(), character())
   }
+  sql <- .marcar_nivel_sql_dbi(sql)
   rownames(columnas) <- NULL
   rownames(sql) <- NULL
   list(
@@ -6112,6 +6158,12 @@
   "inflaba la cifra cuatro veces."
 )
 
+.SUPUESTO_COSTO_DISTINTOS_PLAN_DBI <- paste(
+  "El plan no proyecta el costo temporal de `COUNT(DISTINCT)` antes de",
+  "correr: la unica referencia honesta es el primer lote de distintos medido",
+  "en esta corrida, y el plan no emite consultas de datos."
+)
+
 
 #' Planificar el costo de `perfilar_dbi()` antes de pagarlo
 #'
@@ -6142,16 +6194,15 @@
 #' sólo describe el número usado por la política de costo cuando esa política
 #' se pide.
 #'
-#' El plan previo no puede publicar segundos medidos porque no lee los datos.
-#' Durante `perfilar_dbi()`, en cambio, los agregados planos se ejecutan antes
-#' que los distintos. Si se midieron en esta misma corrida, el plan que queda
-#' en `resumen_tabla$meta$plan` agrega `costo_distintos`: la mediana de esas
-#' duraciones multiplicada por la cantidad de lotes de distintos. Es una
-#' estimación rotulada, fundada en las consultas medidas de esta corrida, no en
-#' una estadística de catálogo. El aviso de memoria se emite antes de iniciar
-#' el primer `COUNT(DISTINCT)` y el aviso temporal sólo si supera el umbral de
-#' 30 segundos; no pide
-#' confirmación y nunca bloquea un guion no interactivo.
+#' El plan previo no proyecta segundos para `COUNT(DISTINCT)`: no lee los datos
+#' y, por tanto, no tiene una referencia medida. La única referencia honesta es
+#' el primer lote de distintos de la corrida, pero obtenerla cuesta una
+#' consulta que este planificador no emite. Durante `perfilar_dbi()`, cuando hay
+#' más de un lote y la instrumentación está activa, esa primera medición se
+#' multiplica por la cantidad de lotes y se publica en
+#' `resumen_tabla$meta$costo_distintos`. El aviso temporal llega después del
+#' primer lote y antes del segundo; con un solo lote se declara que no hay nada
+#' que proyectar.
 #'
 #' @inheritParams perfilar_dbi
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
@@ -6165,7 +6216,8 @@
 #'   `metricas_ejecucion`, `politica_costo`, `estrategia_distintos`,
 #'   `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`, `filas`,
 #'   `mediana_escalar`,
-#'   `tamano_lote_planos`, `tamano_lote_distintos` y `estimacion_derrame`.
+#'   `tamano_lote_planos`, `tamano_lote_distintos`, `estimacion_derrame` y,
+#'   cuando se pide `distintos`, `supuesto_costo_distintos`.
 #'   Esta última es una estimación de memoria, no una medición. Cuando se pide
 #'   `bloque_muestra = "solo_agregados"`, también conserva ese valor en el
 #'   atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
@@ -6192,10 +6244,12 @@
 #'   `"alta"`, o `"desconocida"` si no se conoce el número de filas.
 #'   `supuesto_costo` dice de dónde sale cada cuenta.
 #'
-#'   El plan previo no publica duraciones, CPU, filas ni bytes medidos. El plan
-#'   de una corrida de `perfilar_dbi()` puede agregar `costo_distintos` cuando
-#'   ya hay duraciones de agregados planos de esa misma corrida; sus campos
-#'   dicen explícitamente que la proyección sigue siendo una estimación.
+#'   El plan previo no publica duraciones, CPU, filas ni bytes medidos, ni agrega
+#'   una proyección temporal de `COUNT(DISTINCT)`. Aunque el plan de una corrida
+#'   conserve el atributo `supuesto_costo_distintos`, la medición y la proyección
+#'   sólo aparecen en `resumen_tabla$meta$costo_distintos`, después de ejecutar
+#'   el primer lote. El atributo sólo declara por qué esa proyección no existe
+#'   antes de correr; no es una duración ni una estimación temporal.
 #'
 #'   Si se pide `politica_costo = "por_cardinalidad"`, el plan busca primero una
 #'   garantía estructural o una fuente de catálogo. Si la fuente queda
@@ -6372,6 +6426,9 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     "cardinalidad es desconocida, `total` supone que la politica omite las",
     "metricas caras y `total_maximo` que las ejecuta; la corrida mide",
     "`distintos` si la politica lo necesita y sigue esa decision.",
+    if ("distintos" %in% preparacion$metricas_ejecucion) {
+      .SUPUESTO_COSTO_DISTINTOS_PLAN_DBI
+    } else "",
     "Las fuentes estructurales exactas cierran ese intervalo. En cualquiera",
     "de los dos extremos, si el motor rechaza un lote se vuelve a sondear el",
     "arbol de biseccion, hasta 2n - 1 consultas adicionales por lote; las",
@@ -6384,6 +6441,10 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "consultas_emitidas") <- preparacion$presupuesto$usadas
   attr(plan, "metricas") <- preparacion$metricas
   attr(plan, "metricas_ejecucion") <- preparacion$metricas_ejecucion
+  if ("distintos" %in% preparacion$metricas_ejecucion) {
+    attr(plan, "supuesto_costo_distintos") <-
+      .SUPUESTO_COSTO_DISTINTOS_PLAN_DBI
+  }
   attr(plan, "politica_costo") <- preparacion$politica_costo
   attr(plan, "estrategia_distintos") <- .publicar_estrategia_distintos_dbi(
     preparacion$estrategia_distintos
@@ -6550,14 +6611,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
       cli::cli_alert_success(paste0("Trabajo estimado bajo: ", trabajo))
     }
   }
-  proyeccion <- attr(x, "costo_distintos", exact = TRUE)
-  if (!is.null(proyeccion) && isTRUE(proyeccion$disponible)) {
-    cli::cli_text(paste0(
-      "Costo de `COUNT(DISTINCT)` proyectado: ~",
-      .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
-      proyeccion$n_lotes, " lote(s). Fuente: ", proyeccion$fuente,
-      ". Es una estimacion, no una medicion."
-    ))
+  supuesto_distintos <- attr(x, "supuesto_costo_distintos", exact = TRUE)
+  if (!is.null(supuesto_distintos)) {
+    cli::cli_text(supuesto_distintos)
   }
   # `muestra = Inf` -lo que viene por omision- trae la tabla entera a R. Es lo
   # correcto para un analisis de calidad: los diagnosticos que miran los valores
@@ -7777,6 +7833,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' lote, conservador por omisión porque una cardinalidad puede derramar mucho
 #' más que veinte agregados planos; la consulta exacta trae su
 #' `n_validos_guard` compañero.
+#' La proyección temporal no usa esos agregados planos: si hay más de un lote y
+#' `instrumentar = TRUE`, se mide el primer lote de distintos y, después de
+#' ejecutarlo, se multiplica su mediana por la cantidad total de lotes. El aviso
+#' llega antes del segundo lote, en la unidad que se va a evitar; con un solo
+#' lote no hay nada que proyectar. Si la duración no se pudo medir, el resultado
+#' declara la proyección como no disponible.
 #' Antes de la primera consulta exacta se estima, cuando PostgreSQL expone
 #' `pg_stats`, el tamaño de los hashes con `n_distinct`, `avg_width` y
 #' `pg_class.reltuples`; `SHOW work_mem` y, desde PostgreSQL 13,
@@ -7807,6 +7869,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `resumen_tabla$sql` conserva una fila por métrica y agrega la duración de la
 #' consulta que la respalda, las filas devueltas y los bytes que ese resultado
 #' ocupa en R. `consulta_id` identifica el intento dentro de la corrida y
+#' `duracion_ms` es la duración de la consulta, repetida en cada fila que esa
+#' consulta produjo; no es una duración por métrica. La columna `nivel` marca
+#' qué filas se pueden sumar: la primera fila de cada `consulta_id` queda en
+#' `nivel = 1` y sus repeticiones en `nivel = 2`. Por eso una suma segura usa
+#' sólo `duracion_ms[nivel == 1]` (con `na.rm = TRUE` si corresponde), no la
+#' columna completa.
 #' `id_muestra` identifica la consulta de datos que produjo la medición: dos
 #' métricas con el mismo identificador vieron exactamente las mismas filas y se
 #' pueden comparar directamente. `NA` declara que esa garantía no se puede
@@ -7940,15 +8008,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   activa `politica_costo = "por_cardinalidad"`. El valor por omisión es `0.95`
 #'   sólo cuando esa política se pide explícitamente; se puede mover en cada
 #'   llamada. Para pedir todas las métricas use `politica_costo = "todas"`.
-#' @param avisar_costo_distintos Si es `TRUE`, avisa cuando la proyección del
-#'   costo de `COUNT(DISTINCT)` alcanza `umbral_segundos_aviso_distintos`.
-#'   Por omisión es `TRUE`. Este aviso no depende de `interactive()`: también
-#'   llega en guiones porque el costo se paga en el servidor y puede durar
-#'   decenas de segundos.
+#' @param avisar_costo_distintos Si es `TRUE`, avisa, después de medir el primer
+#'   lote y antes del segundo, cuando la proyección del costo de
+#'   `COUNT(DISTINCT)` alcanza `umbral_segundos_aviso_distintos`. Por omisión es
+#'   `TRUE`. Este aviso no depende de `interactive()`: también llega en guiones
+#'   porque el costo se paga en el servidor y puede durar decenas de segundos.
 #' @param umbral_segundos_aviso_distintos Segundos estimados a partir de los
-#'   cuales se emite el aviso del costo de `COUNT(DISTINCT)`. Por omisión es
-#'   `30`, el umbral histórico; `Inf` lo desactiva explícitamente. El valor no
-#'   cambia la proyección ni la medición que se publica.
+#'   cuales se emite el aviso del costo de `COUNT(DISTINCT)`, después del primer
+#'   lote. Por omisión es `30`, el umbral histórico; `Inf` lo desactiva
+#'   explícitamente. Con un solo lote no se publica una proyección porque el
+#'   costo ya se pagó. El valor no cambia la proyección ni la medición que se
+#'   publica.
 #' @param avisar_derrame_estimado Si es `TRUE`, avisa cuando un lote de
 #'   `COUNT(DISTINCT)` supera la memoria efectiva y su tamaño estimado alcanza
 #'   `umbral_bytes_aviso_derrame_estimado`. Por omisión es `TRUE`. Este aviso
@@ -7966,8 +8036,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   y, en PostgreSQL, se intenta atribuir el uso de bloques temporales de los
 #'   `COUNT(DISTINCT)` exactos mediante `pg_stat_statements`.
 #'   Por omisión es `TRUE`; agrega `duracion_ms`, `cpu_ms`,
-#'   `n_filas_resultado`, `bytes_resultado_r`, `consulta_id` y `etapa` a
-#'   `resumen_tabla$sql`, y el resumen `resumen_tabla$tiempos`. Con `FALSE` se
+#'   `n_filas_resultado`, `bytes_resultado_r`, `consulta_id`, `etapa` y `nivel`
+#'   a `resumen_tabla$sql`, y el resumen `resumen_tabla$tiempos`. Con `FALSE` se
 #'   conserva el mismo plan, la misma cantidad y el mismo orden de consultas,
 #'   pero los campos medibles quedan en `NA`. `id_muestra` **no** depende de
 #'   esta opcion: no es una medicion sino un hecho estructural sobre que
@@ -8202,9 +8272,6 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
       columnas_mediana = columnas_mediana,
       columnas_mediana_max = columnas_mediana
     )
-  }
-  if (!is.null(presupuesto$proyeccion_distintos)) {
-    attr(plan, "costo_distintos") <- presupuesto$proyeccion_distintos
   }
   attr(plan, "moda_guardian") <- .publicar_moda_guardian_dbi(
     preparacion$moda_guardian_resolucion
