@@ -125,7 +125,9 @@ Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
 \code{columnas_numericas}, \code{dialecto}, \code{consultas_emitidas}, \code{metricas},
 \code{metricas_ejecucion}, \code{politica_costo}, \code{estrategia_distintos},
 \code{fuente_cardinalidad_costo}, \code{moda_guardian}, \code{mediana_consolidada}, \code{filas},
-\code{tamano_lote_planos} y \code{tamano_lote_distintos}. Cuando se pide
+\code{mediana_escalar},
+\code{tamano_lote_planos}, \code{tamano_lote_distintos} y \code{estimacion_derrame}.
+Esta última es una estimación de memoria, no una medición. Cuando se pide
 \code{bloque_muestra = "solo_agregados"}, también conserva ese valor en el
 atributo \code{bloque_muestra} y no incluye la fila de la lectura de muestra.
 
@@ -188,13 +190,19 @@ Las fuentes estructurales se resuelven cuando la política necesita la
 cardinalidad, aunque \code{estrategia_distintos} no permita medirla. La
 disponibilidad de la estrategia gobierna la medición, no el conocimiento que
 ya da el catálogo.
+Para el \code{COUNT(DISTINCT)} exacto, la preparación puede consultar además las
+estadísticas de PostgreSQL (\code{pg_stats}, \code{pg_class.reltuples}, \verb{SHOW work_mem}
+y, desde PostgreSQL 13, \verb{SHOW hash_mem_multiplier}) para estimar el tamaño
+del hash y avisar un posible derrame. Esa consulta de metadatos no publica
+cardinalidad medida ni reemplaza la medición posterior.
 }
 \details{
 \code{estrategia_distintos} declara la procedencia de \code{n_distintos} antes de la
 corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
 \code{auto}: \code{"exacta"} es el valor por omisión, \code{"aproximada_motor"} queda
 \code{no_disponible} si el motor no ofrece una función aceptada, \code{"catalogo"}
-queda \code{no_disponible} hasta implementar su estadística y \code{"omitida"} no
+queda \code{no_disponible} hasta implementar su estadística de cardinalidad y
+\code{"omitida"} no
 emite el agregado. \code{fuente_cardinalidad_costo} sigue siendo independiente y
 sólo describe el número usado por la política de costo cuando esa política
 se pide.
@@ -204,10 +212,11 @@ Durante \code{perfilar_dbi()}, en cambio, los agregados planos se ejecutan antes
 que los distintos. Si se midieron en esta misma corrida, el plan que queda
 en \code{resumen_tabla$meta$plan} agrega \code{costo_distintos}: la mediana de esas
 duraciones multiplicada por la cantidad de lotes de distintos. Es una
-estimación rotulada, fundada en la tabla y el servidor actuales, no en
-\code{reltuples} ni en otra estadística de catálogo. El aviso se emite antes de
-iniciar el primer \code{COUNT(DISTINCT)} y sólo si supera el umbral de 30
-segundos; no pide confirmación y nunca bloquea un guion no interactivo.
+estimación rotulada, fundada en las consultas medidas de esta corrida, no en
+una estadística de catálogo. El aviso de memoria se emite antes de iniciar
+el primer \code{COUNT(DISTINCT)} y el aviso temporal sólo si supera el umbral de
+30 segundos; no pide
+confirmación y nunca bloquea un guion no interactivo.
 }
 \examples{
 if (requireNamespace("DBI", quietly = TRUE) &&

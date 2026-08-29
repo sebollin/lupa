@@ -481,11 +481,22 @@ de distintos. El mensaje dice que es una estimación y de dónde sale; no usa
 `reltuples`. Sólo se muestra cuando supera 30 segundos y no pide confirmación,
 por lo que `perfilar_dbi()` no queda esperando en un guion.
 
+En PostgreSQL, la preparación puede consultar `pg_stats.n_distinct`,
+`pg_stats.avg_width`, `pg_class.reltuples`, `SHOW work_mem` y, desde la versión
+13, `SHOW hash_mem_multiplier`. Con esos metadatos estima el tamaño del hash de
+agregación y avisa antes del primer `COUNT(DISTINCT)` si supera el límite
+efectivo. `meta$estimacion_derrame` conserva ese diagnóstico como estimación,
+no como medición; subir `work_mem` en la sesión puede evitar el derrame y el
+paquete nunca modifica ese parámetro. Si faltan estadísticas, permisos o el
+motor no es PostgreSQL, declara que no pudo estimar.
+
 El informe conserva el derrame real sólo cuando PostgreSQL permite atribuirlo
 sin ambigüedad mediante `pg_stat_statements`: `resumen_tabla$sql` publica los
 bloques temporales escritos y `meta$derrame` resume las consultas observadas.
 Si esa evidencia no está disponible, el estado lo dice y el paquete no deduce
-un derrame del tiempo transcurrido ni cambia `work_mem`.
+un derrame del tiempo transcurrido ni cambia `work_mem`. La medición real manda
+sobre `meta$estimacion_derrame`: un derrame medido se informa aunque la
+estimación previa no hubiera superado el límite.
 
 La decisión de pagar moda y mediana es explícita. `politica_costo = "todas"`
 es el valor por omisión y conserva todas las métricas solicitadas. Con

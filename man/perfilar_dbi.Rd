@@ -227,7 +227,9 @@ corrida. \code{"aproximada_motor"} sondea una funcion nativa y, si no hay una
 capacidad aceptada, deja la metrica \code{no_disponible}; nunca ejecuta el conteo
 exacto como repliegue. \code{"catalogo"} esta declarada pero queda
 \code{no_disponible} en esta version porque todavia no implementa una estadistica
-de cardinalidad; en particular, no usa \code{pg_stats}. \code{"omitida"} no emite la
+de cardinalidad; \code{pg_stats} se consulta por separado, cuando está disponible,
+para estimar el costo de memoria y avisar antes del conteo, pero nunca
+sustituye una medicion. \code{"omitida"} no emite la
 consulta. Cada resultado y el atributo \code{meta$estrategia_distintos} separan
 \code{estrategia_solicitada}, \code{estrategia_resuelta} y \code{estado}.
 
@@ -239,8 +241,7 @@ distintos trae \verb{COUNT(columna) AS n_validos_guard} junto a
 \verb{COUNT(DISTINCT columna)}. Si una capacidad aproximada sólo construye una
 consulta completa y no puede traer ese guardian, la cota no se comprueba y
 el motivo lo declara; no se atribuye un valor imposible al motor.
-La consulta de la moda intenta traer \verb{SUM(COUNT(*)) OVER () AS
-n_validos_guard} junto a su frecuencia. La forma se sondea antes de usarla;
+La consulta de la moda intenta traer \verb{SUM(COUNT(*)) OVER () AS n_validos_guard} junto a su frecuencia. La forma se sondea antes de usarla;
 si el motor la rechaza, se conserva la consulta anterior y
 \code{meta$moda_guardian} publica el repliegue. Cuando la sonda pasa, la cota
 \code{frecuencia_moda <= n_validos} se comprueba dentro de la misma sentencia y
@@ -268,6 +269,12 @@ caso la mediana exacta se declara no disponible en vez de traer media tabla
 a memoria. El alias de subconsulta se escribe con \code{AS} o sin él según el
 motor, y los alias de columna van comillados y se comparan sin distinguir
 caja, porque hay motores que los pliegan a mayúsculas.
+Para los motores del dialecto \code{limit}, la mediana exacta usa una sola
+sentencia: el \code{COUNT} queda como subconsulta escalar de la consulta que
+ordena y recorta. La forma se sondea antes de usarla; en SQLite y
+PostgreSQL se usan \verb{\%} y \code{/} con division entera. Los dialectos que no
+declaran esa forma conservan las dos consultas y lo publican en el metodo
+de \code{resumen_tabla$sql}; \code{PERCENTILE_CONT} no cambia.
 }
 
 \section{Costo}{
@@ -293,10 +300,17 @@ el total del universo para escribir un porcentaje lo cuentan antes.
 lote, conservador por omisión porque una cardinalidad puede derramar mucho
 más que veinte agregados planos; la consulta exacta trae su
 \code{n_validos_guard} compañero.
-Antes de la primera consulta exacta se anuncia su costo sólo si hay una
-proyección temporal fundada en agregados planos medidos en esta corrida.
-La fuente y el valor quedan en \code{meta$costo_distintos}; no se usa una
-predicción basada en \code{reltuples}.
+Antes de la primera consulta exacta se estima, cuando PostgreSQL expone
+\code{pg_stats}, el tamaño de los hashes con \code{n_distinct}, \code{avg_width} y
+\code{pg_class.reltuples}; \verb{SHOW work_mem} y, desde PostgreSQL 13,
+\verb{SHOW hash_mem_multiplier} dan el límite efectivo. \code{meta$estimacion_derrame}
+y \code{attr(meta$plan, "estimacion_derrame")} conservan el diagnóstico, siempre
+rotulado como estimación y nunca como derrame medido. Si supera el límite se
+avisa antes de pagar \code{COUNT(DISTINCT)} y se recomienda subir \code{work_mem} en la
+sesión; el paquete no lo modifica. Una estadística ausente, un permiso
+insuficiente o una versión sin el parámetro dejan la parte correspondiente
+como no disponible. \code{n_distinct} es una estimación de muestra y puede quedar
+corta; si luego \code{pg_stat_statements} mide un derrame, esa medición manda.
 Lo que no entra en el presupuesto queda en \code{no_disponible} con su motivo,
 nunca en cero. \code{meta$tamano_lote_funciono} conserva el mayor lote aceptado
 durante esa corrida; no se guarda estado global asociado a la conexión.
@@ -328,6 +342,13 @@ fuente. Si la extensión no está disponible, la consulta fue concurrente o
 la instrumentación está apagada, el estado queda \code{no_disponible} o
 \code{no_medido} con el motivo: el paquete no deduce un derrame del tiempo y no
 modifica \code{work_mem}.
+
+\code{resumen_tabla$meta$estimacion_derrame} es un diagnóstico distinto: conserva
+la estimación de memoria y siempre la rotula como no medida. Puede quedar
+parcial o no disponible por permisos, falta de \code{ANALYZE}, particiones sin
+estadísticas o un motor que no sea PostgreSQL. Si ambos diagnósticos existen,
+\code{meta$derrame} es la evidencia posterior y prevalece sobre la estimación;
+una estimación que no superó el límite no contradice un derrame medido.
 
 \code{resumen_tabla$tiempos} reúne las etapas grandes del cliente en las mismas
 unidades (\code{duracion_ms}): \code{lectura_muestra}, \code{perfilado_muestra},

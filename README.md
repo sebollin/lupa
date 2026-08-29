@@ -312,13 +312,24 @@ ejecutan primero. Si `instrumentar = TRUE`, el paquete mide esas consultas en
 esta misma corrida y, antes de iniciar los distintos, anuncia una proyección
 del costo cuando supera 30 segundos. El número es la mediana de las duraciones
 planas multiplicada por los lotes de distintos; el mensaje nombra esa fuente y
-lo rotula como estimación. No usa `reltuples`, no cambia `work_mem` y no espera
-confirmación, por lo que un guion no interactivo continúa sin pausa.
+lo rotula como estimación. Esta proyección temporal no usa `reltuples`.
+
+En PostgreSQL, la preparación consulta además `pg_stats.n_distinct`,
+`pg_stats.avg_width`, `pg_class.reltuples` y la configuración vigente de
+`work_mem` —más `hash_mem_multiplier` desde PostgreSQL 13— para estimar el
+tamaño del hash de agregación. Si supera el límite efectivo, avisa antes del
+primer `COUNT(DISTINCT)` y explica que subir `work_mem` en la sesión puede
+evitar el derrame. El diagnóstico queda en `meta$estimacion_derrame`, siempre
+como estimación y nunca como medición; no cambia la configuración y no espera
+confirmación.
 
 En PostgreSQL, si `pg_stat_statements` permite atribuir exactamente una llamada
 de esta corrida, el informe agrega el derrame real y la cantidad de bloques
 temporales escritos. Si no se puede atribuir, el estado queda declarado como
 no disponible: el tiempo transcurrido no se presenta como evidencia de derrame.
+Cuando existe, esta medición posterior prevalece sobre la estimación: incluso
+si la estimación quedó por debajo del límite, el informe dice que hubo derrame
+medido.
 
 ### Reading a profile without knowing its shape
 

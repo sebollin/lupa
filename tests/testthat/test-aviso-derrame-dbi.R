@@ -57,6 +57,21 @@ test_that("el aviso llega antes de ejecutar el lote de distintos", {
       expect_true(proyeccion$disponible)
       expect_identical(proyeccion$duracion_estimada_ms, 30000)
     },
+    .estimar_derrame_postgresql_dbi = function(...) {
+      list(
+        estado = "estimado", disponible = TRUE, es_estimacion = TRUE,
+        supera_memoria = TRUE, lotes_sobre_memoria = 1L,
+        lotes = data.frame(
+          lote = 1L, columnas = "codigo", n_distintos_estimados = 1000,
+          tamano_estimado_bytes = 10000000, supera_memoria = TRUE,
+          stringsAsFactors = FALSE
+        ), work_mem = "1MB", memoria_efectiva = "2MB",
+        fuente = "pg_stats", motivo = "estimacion"
+      )
+    },
+    .avisar_derrame_estimado_postgresql_dbi = function(estimacion) {
+      eventos <<- c(eventos, "aviso_memoria")
+    },
     .conteos_distintos_lote_dbi = function(...) {
       eventos <<- c(eventos, "distintos")
       original_distintos(...)
@@ -72,6 +87,7 @@ test_that("el aviso llega antes de ejecutar el lote de distintos", {
     duplicados_aproximados = FALSE
   )
 
+  expect_lt(match("aviso_memoria", eventos), match("distintos", eventos))
   expect_lt(match("aviso", eventos), match("distintos", eventos))
 })
 

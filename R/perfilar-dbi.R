@@ -130,9 +130,24 @@
   estado$tamano_lote_planos_funciono <- NULL
   estado$tamano_lote_distintos_funciono <- NULL
   # Las referencias de tiempo se llenan con consultas planas aceptadas. No se
-  # usan estadisticas del catalogo para proyectar el costo de distintos.
+  # usan estadisticas del catalogo para proyectar el costo temporal de distintos.
   estado$referencias_planas <- list()
   estado$proyeccion_distintos <- NULL
+  # La memoria del hash se estima con estadisticas del catalogo, pero nunca se
+  # guarda como si fuera una medicion del derrame. Vive en el presupuesto para
+  # que el plan y la corrida conserven el mismo diagnostico sin consultar dos
+  # veces el catalogo.
+  estado$estimacion_derrame <- list(
+    estado = "no_solicitado", disponible = FALSE, es_estimacion = TRUE,
+    fuente = NA_character_, motivo = paste(
+      "No se solicito una estimacion de derrame porque no se pidio",
+      "COUNT(DISTINCT) exacto."
+    ), work_mem = NA_character_, work_mem_bytes = NA_real_,
+    hash_mem_multiplier = NA_real_, hash_mem_multiplier_disponible = FALSE,
+    memoria_efectiva_bytes = NA_real_, memoria_efectiva = NA_character_,
+    columnas = data.frame(), lotes = data.frame(),
+    lotes_sobre_memoria = integer()
+  )
   # La lectura de pg_stat_statements es opcional: si el servidor no la expone,
   # el informe conserva la incertidumbre y no deduce un derrame del reloj.
   estado$derrame <- list(
@@ -229,6 +244,471 @@
     proyeccion$n_lotes, " lote(s). Fuente: ", proyeccion$fuente,
     ". Es una estimacion, no una medicion; el derrame real se informa",
     " despues si la instrumentacion del servidor lo permite."
+  ))
+  invisible(NULL)
+}
+
+# PostgreSQL cuenta la memoria de las operaciones hash en unidades de 1024.
+# `avg_width` esta expresado en bytes, asi que la cifra que sigue es una
+# aproximacion deliberadamente simple: el ancho medio de la clave mas un
+# margen fijo para la entrada y el enlace de la tabla hash. No pretende
+# reproducir el planificador ni afirmar que hubo derrame.
+.TAMANO_BASE_ENTRADA_HASH_POSTGRESQL_DBI <- 64
+
+.memoria_dbi <- function(bytes) {
+  if (is.null(bytes) || length(bytes) != 1L || is.na(bytes) ||
+      !is.finite(bytes) || bytes < 0) return("sin dato")
+  unidades <- c("B", "KB", "MB", "GB", "TB")
+  indice <- if (bytes == 0) 1L else min(
+    floor(log(bytes, base = 1024)) + 1L, length(unidades)
+  )
+  valor <- bytes / 1024^(indice - 1L)
+  paste0(formatC(valor, format = "f", digits = 1L, decimal.mark = ","),
+         " ", unidades[[indice]])
+}
+
+.parsear_memoria_postgresql_dbi <- function(valor) {
+  if (is.null(valor) || length(valor) != 1L || is.na(valor)) {
+    return(NA_real_)
+  }
+  texto <- tolower(trimws(as.character(valor)))
+  partes <- regexec(
+    "^([0-9]+(?:\\.[0-9]+)?)\\s*(b|kb|kib|mb|mib|gb|gib|tb|tib)?$",
+    texto, perl = TRUE
+  )[[1L]]
+  if (identical(partes[[1L]], -1L)) return(NA_real_)
+  capturas <- regmatches(texto, list(partes))[[1L]]
+  numero <- suppressWarnings(as.numeric(capturas[[2L]]))
+  unidad <- if (length(capturas) < 3L || is.na(capturas[[3L]])) {
+    ""
+  } else capturas[[3L]]
+  multiplicador <- c(
+    b = 1, kb = 1024, kib = 1024, mb = 1024^2, mib = 1024^2,
+    gb = 1024^3, gib = 1024^3, tb = 1024^4, tib = 1024^4
+  )
+  if (!length(unidad) || is.na(unidad) || !nzchar(unidad)) unidad <- "b"
+  resultado <- numero * unname(multiplicador[[unidad]])
+  if (!is.finite(resultado) || resultado < 0) NA_real_ else resultado
+}
+
+.estimacion_derrame_vacia_postgresql_dbi <- function(
+    estado = "no_disponible", motivo = "No se pudo estimar el derrame.",
+    memoria = NULL) {
+  if (is.null(memoria)) memoria <- list()
+  list(
+    estado = estado, disponible = FALSE, es_estimacion = TRUE,
+    fuente = NA_character_, motivo = motivo,
+    work_mem = if (is.null(memoria$work_mem)) NA_character_ else memoria$work_mem,
+    work_mem_bytes = if (is.null(memoria$work_mem_bytes)) NA_real_ else {
+      memoria$work_mem_bytes
+    },
+    hash_mem_multiplier = if (is.null(memoria$hash_mem_multiplier)) NA_real_ else {
+      memoria$hash_mem_multiplier
+    },
+    hash_mem_multiplier_disponible = isTRUE(memoria$hash_mem_multiplier_disponible),
+    memoria_efectiva_bytes = if (is.null(memoria$memoria_efectiva_bytes)) {
+      NA_real_
+    } else memoria$memoria_efectiva_bytes,
+    memoria_efectiva = if (is.null(memoria$memoria_efectiva)) {
+      NA_character_
+    } else memoria$memoria_efectiva,
+    columnas = data.frame(
+      columna = character(), n_distintos_estimados = numeric(),
+      avg_width = numeric(), tamano_estimado_bytes = numeric(),
+      n_relaciones = integer(), stringsAsFactors = FALSE
+    ),
+    columnas_no_estimadas = data.frame(
+      columna = character(), motivo = character(), stringsAsFactors = FALSE
+    ),
+    lotes = data.frame(
+      lote = integer(), columnas = character(),
+      n_distintos_estimados = numeric(), tamano_estimado_bytes = numeric(),
+      supera_memoria = logical(), stringsAsFactors = FALSE
+    ),
+    lotes_sobre_memoria = integer()
+  )
+}
+
+.leer_memoria_postgresql_dbi <- function(conexion, presupuesto) {
+  work <- .escalar_dbi(
+    conexion, "SHOW work_mem", "work_mem", presupuesto,
+    etapa = "estimacion_derrame"
+  )
+  if (!isTRUE(work$ok)) {
+    return(list(
+      ok = FALSE, motivo = paste(
+        "No se pudo estimar el derrame: no se pudo leer `SHOW work_mem`.",
+        work$motivo
+      )
+    ))
+  }
+  work_texto <- as.character(work$valor[[1L]])
+  work_bytes <- .parsear_memoria_postgresql_dbi(work_texto)
+  if (!is.finite(work_bytes)) {
+    return(list(
+      ok = FALSE, motivo = paste0(
+        "No se pudo estimar el derrame: `SHOW work_mem` devolvio un valor",
+        " no interpretable (", work_texto, ")."
+      )
+    ))
+  }
+
+  # `hash_mem_multiplier` fue agregado en PostgreSQL 13. Se intenta leerlo y
+  # se usa 1 cuando el servidor antiguo responde que el parametro no existe;
+  # no se convierte ese error esperado en un fallo de la corrida.
+  hash <- .escalar_dbi(
+    conexion, "SHOW hash_mem_multiplier", "hash_mem_multiplier", presupuesto,
+    etapa = "estimacion_derrame"
+  )
+  hash_disponible <- FALSE
+  multiplicador <- 1
+  motivo_hash <- character()
+  if (isTRUE(hash$ok)) {
+    multiplicador <- suppressWarnings(as.numeric(hash$valor[[1L]]))
+    hash_disponible <- is.finite(multiplicador) && multiplicador > 0
+    if (!hash_disponible) {
+      multiplicador <- 1
+      motivo_hash <- "`SHOW hash_mem_multiplier` devolvio un valor no utilizable."
+    }
+  } else {
+    motivo_hash <- paste(
+      "El servidor no expone `hash_mem_multiplier`; se usa 1, como en",
+      "PostgreSQL anterior a 13."
+    )
+  }
+  efectiva <- work_bytes * multiplicador
+  list(
+    ok = is.finite(efectiva) && efectiva >= 0,
+    motivo = motivo_hash, work_mem = work_texto,
+    work_mem_bytes = work_bytes, hash_mem_multiplier = multiplicador,
+    hash_mem_multiplier_disponible = hash_disponible,
+    memoria_efectiva_bytes = efectiva, memoria_efectiva = .memoria_dbi(efectiva)
+  )
+}
+
+.estadisticas_hash_postgresql_dbi <- function(conexion, tabla, columnas,
+                                              presupuesto) {
+  piezas <- .piezas_tabla_cardinalidad_dbi(tabla)
+  if (is.null(piezas$tabla) || length(piezas$tabla) != 1L ||
+      is.na(piezas$tabla) || !nzchar(piezas$tabla)) {
+    return(list(
+      ok = FALSE, motivo = "No se pudo identificar la relacion para consultar `pg_stats`."
+    ))
+  }
+  citar <- function(valor) as.character(DBI::dbQuoteString(conexion, valor))
+  tabla_literal <- citar(piezas$tabla)
+  esquema <- piezas$esquema
+  filtro_esquema <- if (!is.null(esquema) && length(esquema) == 1L &&
+                        !is.na(esquema) && nzchar(esquema)) {
+    paste0("n.nspname = ", citar(esquema))
+  } else {
+    # `pg_table_is_visible()` existe en las versiones antiguas y evita tomar
+    # una tabla homonima que no seria la que resolvio el search_path.
+    "pg_catalog.pg_table_is_visible(c.oid)"
+  }
+  columnas_literal <- paste(vapply(columnas, citar, character(1L)), collapse = ", ")
+  sql <- paste(
+    "WITH RECURSIVE relaciones AS (",
+    "SELECT c.oid, n.nspname AS schemaname, c.relname AS tablename,",
+    "c.reltuples, TRUE AS es_raiz,",
+    "NOT EXISTS (SELECT 1 FROM pg_catalog.pg_inherits h",
+    "WHERE h.inhparent = c.oid) AS hoja",
+    "FROM pg_catalog.pg_class c",
+    "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace",
+    "WHERE c.relname =", tabla_literal, "AND", filtro_esquema,
+    "UNION ALL",
+    "SELECT hija.oid, ns.nspname AS schemaname, hija.relname AS tablename,",
+    "hija.reltuples, FALSE AS es_raiz,",
+    "NOT EXISTS (SELECT 1 FROM pg_catalog.pg_inherits h2",
+    "WHERE h2.inhparent = hija.oid) AS hoja",
+    "FROM pg_catalog.pg_inherits herencia",
+    "JOIN relaciones padre ON padre.oid = herencia.inhparent",
+    "JOIN pg_catalog.pg_class hija ON hija.oid = herencia.inhrelid",
+    "JOIN pg_catalog.pg_namespace ns ON ns.oid = hija.relnamespace",
+    ")",
+    "SELECT r.oid::text AS relacion_oid, r.schemaname, r.tablename,",
+    "r.reltuples, r.es_raiz, r.hoja, s.attname, s.n_distinct, s.avg_width",
+    "FROM relaciones r",
+    "LEFT JOIN pg_catalog.pg_stats s ON",
+    "s.schemaname = r.schemaname AND s.tablename = r.tablename",
+    "AND s.attname IN (", columnas_literal, ")",
+    "WHERE r.hoja",
+    "ORDER BY r.oid, s.attname"
+  )
+  consulta <- .consultar_dbi(
+    conexion, sql, presupuesto, etapa = "estimacion_derrame"
+  )
+  if (!isTRUE(consulta$ok)) {
+    return(list(
+      ok = FALSE, sql = sql, motivo = paste(
+        "No se pudo estimar el derrame: no se pudo leer `pg_stats` y",
+        "`pg_class`.", consulta$motivo
+      )
+    ))
+  }
+  esperadas <- c(
+    "relacion_oid", "schemaname", "tablename", "reltuples", "es_raiz",
+    "hoja", "attname", "n_distinct", "avg_width"
+  )
+  if (!all(esperadas %in% names(consulta$datos))) {
+    return(list(
+      ok = FALSE, sql = sql, motivo = paste(
+        "No se pudo estimar el derrame: la respuesta de `pg_stats` no",
+        "contiene las columnas esperadas."
+      )
+    ))
+  }
+  list(ok = TRUE, sql = sql, datos = consulta$datos)
+}
+
+.estimar_derrame_postgresql_dbi <- function(conexion, tabla, columnas,
+                                            presupuesto,
+                                            exacto = TRUE,
+                                            modo = "exacto",
+                                            tamano_lote = .TAMANO_LOTE_DISTINTOS_DBI) {
+  if (!isTRUE(exacto)) {
+    return(.estimacion_derrame_vacia_postgresql_dbi(
+      "no_solicitado", paste(
+        "No se solicito una estimacion de derrame porque la estrategia de",
+        "distintos no emite `COUNT(DISTINCT)` exacto."
+      )
+    ))
+  }
+  if (identical(modo, "muestreado")) {
+    return(.estimacion_derrame_vacia_postgresql_dbi(
+      motivo = paste(
+        "No se pudo estimar el derrame de una muestra con las estadisticas",
+        "de la tabla completa; no se inventa una equivalencia."
+      )
+    ))
+  }
+  if (!length(columnas)) {
+    return(.estimacion_derrame_vacia_postgresql_dbi(
+      "no_solicitado", paste(
+        "No se solicito una estimacion de derrame porque no hay columnas",
+        "que vayan a pasar por `COUNT(DISTINCT)`."
+      )
+    ))
+  }
+  if (!grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
+             ignore.case = TRUE, perl = TRUE)) {
+    return(.estimacion_derrame_vacia_postgresql_dbi(
+      motivo = paste(
+        "No se pudo estimar el derrame: la conexion no fue reconocida como",
+        "PostgreSQL y no hay un `pg_stats` portable."
+      )
+    ))
+  }
+  memoria <- .leer_memoria_postgresql_dbi(conexion, presupuesto)
+  if (!isTRUE(memoria$ok)) {
+    return(.estimacion_derrame_vacia_postgresql_dbi(
+      motivo = memoria$motivo, memoria = memoria
+    ))
+  }
+  estadisticas <- .estadisticas_hash_postgresql_dbi(
+    conexion, tabla, columnas, presupuesto
+  )
+  if (!isTRUE(estadisticas$ok)) {
+    return(.estimacion_derrame_vacia_postgresql_dbi(
+      motivo = estadisticas$motivo, memoria = memoria
+    ))
+  }
+  datos <- estadisticas$datos
+  relaciones <- unique(datos[c(
+    "relacion_oid", "schemaname", "tablename", "reltuples", "es_raiz", "hoja"
+  )])
+  relaciones <- relaciones[!is.na(relaciones$relacion_oid) &
+                             relaciones$hoja %in% TRUE, , drop = FALSE]
+  nombres_stats <- as.character(datos$attname)
+  columnas_estimadas <- list()
+  columnas_no_estimadas <- list()
+  for (columna in columnas) {
+    filas <- datos[!is.na(datos$attname) & nombres_stats == columna, , drop = FALSE]
+    ids_relaciones <- as.character(relaciones$relacion_oid)
+    ids_stats <- if (nrow(filas)) unique(as.character(filas$relacion_oid)) else {
+      character()
+    }
+    faltantes <- setdiff(ids_relaciones, ids_stats)
+    motivo <- NULL
+    if (!nrow(relaciones)) {
+      motivo <- paste(
+        "`pg_stats` no devolvio ninguna relacion visible; la tabla puede no",
+        "haber sido `ANALYZE` o la credencial puede no tener privilegios sobre",
+        "sus columnas."
+      )
+    } else if (!length(filas)) {
+      motivo <- paste(
+        "`pg_stats` no devolvio una fila para esta columna; puede no haber",
+        "`ANALYZE` o la credencial puede no tener privilegio sobre la columna."
+      )
+    } else if (length(faltantes)) {
+      motivo <- paste(
+        "No hay una estadistica visible para todas las relaciones que se",
+        "leen; faltan particiones o columnas sin `ANALYZE`/permiso."
+      )
+    }
+    if (!is.null(motivo)) {
+      columnas_no_estimadas[[length(columnas_no_estimadas) + 1L]] <- data.frame(
+        columna = columna, motivo = motivo, stringsAsFactors = FALSE
+      )
+      next
+    }
+    filas <- filas[!duplicated(as.character(filas$relacion_oid)), , drop = FALSE]
+    n_distintos <- numeric(nrow(filas))
+    tamanos <- numeric(nrow(filas))
+    anchos <- numeric(nrow(filas))
+    invalidos <- character()
+    for (i in seq_len(nrow(filas))) {
+      nd <- suppressWarnings(as.numeric(filas$n_distinct[[i]]))
+      ancho <- suppressWarnings(as.numeric(filas$avg_width[[i]]))
+      reltuples <- suppressWarnings(as.numeric(filas$reltuples[[i]]))
+      if (!is.finite(nd) || !is.finite(ancho) || ancho < 0) {
+        invalidos <- c(invalidos, "`n_distinct` o `avg_width` no utilizable")
+        next
+      }
+      if (nd < 0) {
+        # Un `n_distinct` negativo es una proporcion del universo. `-1` es
+        # unico por fila; `reltuples = -1` significa desconocido, no cero.
+        if (!is.finite(reltuples) || reltuples < 0) {
+          invalidos <- c(
+            invalidos,
+            "`n_distinct` negativo requiere `pg_class.reltuples`; `reltuples = -1` es desconocido"
+          )
+          next
+        }
+        nd <- ceiling(abs(nd) * reltuples)
+      } else {
+        nd <- ceiling(nd)
+      }
+      n_distintos[[i]] <- nd
+      anchos[[i]] <- ancho
+      tamanos[[i]] <- nd * (ancho + .TAMANO_BASE_ENTRADA_HASH_POSTGRESQL_DBI)
+    }
+    if (length(invalidos) || any(!is.finite(n_distintos)) ||
+        any(!is.finite(tamanos))) {
+      columnas_no_estimadas[[length(columnas_no_estimadas) + 1L]] <- data.frame(
+        columna = columna,
+        motivo = paste(unique(invalidos), collapse = "; "),
+        stringsAsFactors = FALSE
+      )
+      next
+    }
+    total_distintos <- sum(n_distintos)
+    columnas_estimadas[[length(columnas_estimadas) + 1L]] <- data.frame(
+      columna = columna,
+      n_distintos_estimados = total_distintos,
+      avg_width = if (total_distintos > 0) {
+        sum(n_distintos * anchos) / total_distintos
+      } else mean(anchos),
+      tamano_estimado_bytes = sum(tamanos),
+      n_relaciones = as.integer(nrow(filas)),
+      stringsAsFactors = FALSE
+    )
+  }
+  columnas_df <- if (length(columnas_estimadas)) {
+    do.call(rbind, columnas_estimadas)
+  } else {
+    .estimacion_derrame_vacia_postgresql_dbi(memoria = memoria)$columnas
+  }
+  no_estimadas_df <- if (length(columnas_no_estimadas)) {
+    do.call(rbind, columnas_no_estimadas)
+  } else {
+    .estimacion_derrame_vacia_postgresql_dbi(memoria = memoria)$columnas_no_estimadas
+  }
+  lotes_indices <- split(
+    seq_along(columnas), ceiling(seq_along(columnas) / tamano_lote)
+  )
+  lotes <- lapply(seq_along(lotes_indices), function(numero) {
+    indices <- lotes_indices[[numero]]
+    nombres <- columnas[indices]
+    conocidos <- nombres %in% columnas_df$columna
+    tamano <- if (all(conocidos)) {
+      sum(columnas_df$tamano_estimado_bytes[match(nombres, columnas_df$columna)])
+    } else NA_real_
+    cantidad <- if (all(conocidos)) {
+      sum(columnas_df$n_distintos_estimados[match(nombres, columnas_df$columna)])
+    } else NA_real_
+    data.frame(
+      lote = as.integer(numero), columnas = paste(nombres, collapse = ", "),
+      n_distintos_estimados = cantidad, tamano_estimado_bytes = tamano,
+      supera_memoria = if (is.finite(tamano)) {
+        tamano > memoria$memoria_efectiva_bytes
+      } else NA,
+      stringsAsFactors = FALSE
+    )
+  })
+  lotes_df <- do.call(rbind, lotes)
+  sobre <- which(!is.na(lotes_df$supera_memoria) & lotes_df$supera_memoria)
+  n_estimadas <- nrow(columnas_df)
+  if (!n_estimadas) {
+    estado <- "no_disponible"
+    motivo <- paste(
+      "No se pudo estimar el derrame: `pg_stats` no devolvio estadisticas",
+      "utilizables para las columnas de `COUNT(DISTINCT)`."
+    )
+  } else if (n_estimadas < length(columnas)) {
+    estado <- "parcial"
+    motivo <- paste(
+      "La estimacion de derrame es parcial: no se pudo estimar al menos una",
+      "columna. No se afirma que el hash quede dentro o fuera del limite para",
+      "los lotes incompletos."
+    )
+  } else {
+    estado <- "estimado"
+    motivo <- paste(
+      "El tama\u00f1o del hash se estima con `pg_stats.n_distinct`,",
+      "`pg_stats.avg_width` y `pg_class.reltuples`. `n_distinct` viene de una",
+      "muestra y puede quedar corto: esto es una estimacion, no una medicion.",
+      "Que el tama\u00f1o estimado quede dentro del limite no demuestra que no haya",
+      "derrame; si se mide despues, manda `pg_stat_statements`."
+    )
+  }
+  if (length(no_estimadas_df)) {
+    motivo <- paste(
+      motivo, paste(no_estimadas_df$columna, no_estimadas_df$motivo,
+                    sep = ": ", collapse = " ")
+    )
+  }
+  fuente <- paste(
+    "pg_stats.n_distinct + pg_stats.avg_width + pg_class.reltuples + SHOW work_mem"
+  )
+  if (isTRUE(memoria$hash_mem_multiplier_disponible)) {
+    fuente <- paste0(fuente, " + SHOW hash_mem_multiplier")
+  }
+  list(
+    estado = estado, disponible = n_estimadas > 0L, es_estimacion = TRUE,
+    fuente = fuente, motivo = motivo,
+    work_mem = memoria$work_mem, work_mem_bytes = memoria$work_mem_bytes,
+    hash_mem_multiplier = memoria$hash_mem_multiplier,
+    hash_mem_multiplier_disponible = memoria$hash_mem_multiplier_disponible,
+    memoria_efectiva_bytes = memoria$memoria_efectiva_bytes,
+    memoria_efectiva = memoria$memoria_efectiva,
+    columnas = columnas_df, columnas_no_estimadas = no_estimadas_df,
+    lotes = lotes_df, lotes_sobre_memoria = as.integer(sobre),
+    n_columnas_solicitadas = as.integer(length(columnas)),
+    n_columnas_estimadas = as.integer(n_estimadas),
+    supera_memoria = if (length(sobre)) TRUE else if (all(
+      !is.na(lotes_df$supera_memoria)
+    )) FALSE else NA
+  )
+}
+
+.avisar_derrame_estimado_postgresql_dbi <- function(estimacion) {
+  if (is.null(estimacion) || !isTRUE(estimacion$es_estimacion) ||
+      !length(estimacion$lotes_sobre_memoria)) return(invisible(NULL))
+  lotes <- estimacion$lotes
+  indices <- estimacion$lotes_sobre_memoria
+  detalle <- paste(vapply(indices, function(i) paste0(
+    "lote de ", lotes$columnas[[i]], ": ~",
+    .memoria_dbi(lotes$tamano_estimado_bytes[[i]])
+  ), character(1L)), collapse = "; ")
+  cli::cli_alert_warning(paste0(
+    "Derrame potencial estimado (es una estimacion, no una medicion): ",
+    detalle, " supera el `work_mem` vigente de ", estimacion$work_mem,
+    " (limite efectivo para hash: ", estimacion$memoria_efectiva, "). ",
+    "Subir `work_mem` en esta sesion por encima de ese tama\u00f1o puede evitar el",
+    " derrame; lupa no modifica la configuracion. El derrame real, si ocurre,",
+    " se informa despues mediante `pg_stat_statements`."
   ))
   invisible(NULL)
 }
@@ -2297,8 +2777,9 @@
       estrategia$estado <- "no_disponible"
       estrategia$motivo <- paste(
         "La procedencia `catalogo` esta declarada, pero la estadistica de",
-        "cardinalidad del catalogo aun no esta implementada; `pg_stats` no",
-        "se usa en esta version."
+        "cardinalidad del catalogo aun no esta implementada. `pg_stats` puede",
+        "consultarse para estimar memoria y avisar un derrame, pero no para",
+        "medir ni publicar `n_distintos`."
       )
     },
     omitida = {
@@ -3924,6 +4405,9 @@
         )
       )
     }
+    .avisar_derrame_estimado_postgresql_dbi(
+      if (is.null(presupuesto)) NULL else presupuesto$estimacion_derrame
+    )
     instrumentacion_derrame <- .iniciar_instrumentacion_derrame_dbi(
       conexion, presupuesto,
       exacto = is.null(aproximacion_distintos)
@@ -3955,6 +4439,11 @@
   agregados$n_total <- n_total
   agregados$conteo <- conteo
   agregados$sql_conteo <- if (is.null(conteo$sql)) NA_character_ else conteo$sql
+  agregados$estimacion_derrame <- if (is.null(presupuesto)) {
+    .estimacion_derrame_vacia_postgresql_dbi(
+      "no_solicitado", "No se solicito una estimacion de derrame."
+    )
+  } else presupuesto$estimacion_derrame
   agregados
 }
 
@@ -4986,7 +5475,11 @@
         "las comparaciones incoherentes entre grupos de consistencia distintos."
       ),
       politica_costo = politica_costo,
-      decisiones_costo = decisiones_costo
+      decisiones_costo = decisiones_costo,
+      # Este objeto usa el catalogo solo para anticipar el costo de memoria.
+      # Nunca reemplaza a `meta$derrame`, que solo puede salir de una medicion
+      # posterior por `pg_stat_statements`.
+      estimacion_derrame = agregados$estimacion_derrame
     )
   )
 }
@@ -5564,12 +6057,18 @@
 #' cardinalidad, aunque `estrategia_distintos` no permita medirla. La
 #' disponibilidad de la estrategia gobierna la medición, no el conocimiento que
 #' ya da el catálogo.
+#' Para el `COUNT(DISTINCT)` exacto, la preparación puede consultar además las
+#' estadísticas de PostgreSQL (`pg_stats`, `pg_class.reltuples`, `SHOW work_mem`
+#' y, desde PostgreSQL 13, `SHOW hash_mem_multiplier`) para estimar el tamaño
+#' del hash y avisar un posible derrame. Esa consulta de metadatos no publica
+#' cardinalidad medida ni reemplaza la medición posterior.
 #'
 #' `estrategia_distintos` declara la procedencia de `n_distintos` antes de la
 #' corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
 #' `auto`: `"exacta"` es el valor por omisión, `"aproximada_motor"` queda
 #' `no_disponible` si el motor no ofrece una función aceptada, `"catalogo"`
-#' queda `no_disponible` hasta implementar su estadística y `"omitida"` no
+#' queda `no_disponible` hasta implementar su estadística de cardinalidad y
+#' `"omitida"` no
 #' emite el agregado. `fuente_cardinalidad_costo` sigue siendo independiente y
 #' sólo describe el número usado por la política de costo cuando esa política
 #' se pide.
@@ -5579,10 +6078,11 @@
 #' que los distintos. Si se midieron en esta misma corrida, el plan que queda
 #' en `resumen_tabla$meta$plan` agrega `costo_distintos`: la mediana de esas
 #' duraciones multiplicada por la cantidad de lotes de distintos. Es una
-#' estimación rotulada, fundada en la tabla y el servidor actuales, no en
-#' `reltuples` ni en otra estadística de catálogo. El aviso se emite antes de
-#' iniciar el primer `COUNT(DISTINCT)` y sólo si supera el umbral de 30
-#' segundos; no pide confirmación y nunca bloquea un guion no interactivo.
+#' estimación rotulada, fundada en las consultas medidas de esta corrida, no en
+#' una estadística de catálogo. El aviso de memoria se emite antes de iniciar
+#' el primer `COUNT(DISTINCT)` y el aviso temporal sólo si supera el umbral de
+#' 30 segundos; no pide
+#' confirmación y nunca bloquea un guion no interactivo.
 #'
 #' @inheritParams perfilar_dbi
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
@@ -5596,7 +6096,8 @@
 #'   `metricas_ejecucion`, `politica_costo`, `estrategia_distintos`,
 #'   `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`, `filas`,
 #'   `mediana_escalar`,
-#'   `tamano_lote_planos` y `tamano_lote_distintos`. Cuando se pide
+#'   `tamano_lote_planos`, `tamano_lote_distintos` y `estimacion_derrame`.
+#'   Esta última es una estimación de memoria, no una medición. Cuando se pide
 #'   `bloque_muestra = "solo_agregados"`, también conserva ese valor en el
 #'   atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
 #'
@@ -5820,6 +6321,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   )
   attr(plan, "fuente_cardinalidad_costo") <-
     preparacion$fuentes_cardinalidad_costo
+  attr(plan, "estimacion_derrame") <- preparacion$estimacion_derrame
   attr(plan, "moda_guardian") <- .publicar_moda_guardian_dbi(
     preparacion$moda_guardian_resolucion
   )
@@ -7013,6 +7515,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
   } else {
     character()
   }
+  # Se consulta el catalogo una sola vez por corrida. En la corrida real el
+  # aviso se emite mas tarde, cuando los agregados planos ya terminaron, pero
+  # los datos de la estimacion quedan listos antes del primer distinto. En el
+  # plan esto sigue siendo solo lectura de metadatos, nunca una medicion.
+  presupuesto$estimacion_derrame <- .estimar_derrame_postgresql_dbi(
+    conexion, tabla, columnas_distintos_ejecucion, presupuesto,
+    exacto = identical(estrategia_distintos$estrategia_resuelta, "COUNT(DISTINCT)"),
+    modo = modo, tamano_lote = tamanos_lote$distintos
+  )
   list(
     modo = modo, metricas = metricas_solicitadas,
     metricas_ejecucion = metricas, muestra = muestra,
@@ -7038,6 +7549,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     fuentes_cardinalidad_costo = fuentes_cardinalidad_costo,
     catalogo_cardinalidad = catalogo_cardinalidad,
     columnas_distintos_ejecucion = columnas_distintos_ejecucion,
+    estimacion_derrame = presupuesto$estimacion_derrame,
     n_total = n_total, conteo = conteo, sql_conteo = sql_conteo,
     conteo_fusionable = hay_agregados_fusionables && !(
       identical(modo, "muestreado") && !is.null(muestreo) &&
@@ -7126,7 +7638,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' capacidad aceptada, deja la metrica `no_disponible`; nunca ejecuta el conteo
 #' exacto como repliegue. `"catalogo"` esta declarada pero queda
 #' `no_disponible` en esta version porque todavia no implementa una estadistica
-#' de cardinalidad; en particular, no usa `pg_stats`. `"omitida"` no emite la
+#' de cardinalidad; `pg_stats` se consulta por separado, cuando está disponible,
+#' para estimar el costo de memoria y avisar antes del conteo, pero nunca
+#' sustituye una medicion. `"omitida"` no emite la
 #' consulta. Cada resultado y el atributo `meta$estrategia_distintos` separan
 #' `estrategia_solicitada`, `estrategia_resuelta` y `estado`.
 #'
@@ -7194,10 +7708,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' lote, conservador por omisión porque una cardinalidad puede derramar mucho
 #' más que veinte agregados planos; la consulta exacta trae su
 #' `n_validos_guard` compañero.
-#' Antes de la primera consulta exacta se anuncia su costo sólo si hay una
-#' proyección temporal fundada en agregados planos medidos en esta corrida.
-#' La fuente y el valor quedan en `meta$costo_distintos`; no se usa una
-#' predicción basada en `reltuples`.
+#' Antes de la primera consulta exacta se estima, cuando PostgreSQL expone
+#' `pg_stats`, el tamaño de los hashes con `n_distinct`, `avg_width` y
+#' `pg_class.reltuples`; `SHOW work_mem` y, desde PostgreSQL 13,
+#' `SHOW hash_mem_multiplier` dan el límite efectivo. `meta$estimacion_derrame`
+#' y `attr(meta$plan, "estimacion_derrame")` conservan el diagnóstico, siempre
+#' rotulado como estimación y nunca como derrame medido. Si supera el límite se
+#' avisa antes de pagar `COUNT(DISTINCT)` y se recomienda subir `work_mem` en la
+#' sesión; el paquete no lo modifica. Una estadística ausente, un permiso
+#' insuficiente o una versión sin el parámetro dejan la parte correspondiente
+#' como no disponible. `n_distinct` es una estimación de muestra y puede quedar
+#' corta; si luego `pg_stat_statements` mide un derrame, esa medición manda.
 #' Lo que no entra en el presupuesto queda en `no_disponible` con su motivo,
 #' nunca en cero. `meta$tamano_lote_funciono` conserva el mayor lote aceptado
 #' durante esa corrida; no se guarda estado global asociado a la conexión.
@@ -7227,6 +7748,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' la instrumentación está apagada, el estado queda `no_disponible` o
 #' `no_medido` con el motivo: el paquete no deduce un derrame del tiempo y no
 #' modifica `work_mem`.
+#'
+#' `resumen_tabla$meta$estimacion_derrame` es un diagnóstico distinto: conserva
+#' la estimación de memoria y siempre la rotula como no medida. Puede quedar
+#' parcial o no disponible por permisos, falta de `ANALYZE`, particiones sin
+#' estadísticas o un motor que no sea PostgreSQL. Si ambos diagnósticos existen,
+#' `meta$derrame` es la evidencia posterior y prevalece sobre la estimación;
+#' una estimación que no superó el límite no contradice un derrame medido.
 #'
 #' `resumen_tabla$tiempos` reúne las etapas grandes del cliente en las mismas
 #' unidades (`duracion_ms`): `lectura_muestra`, `perfilado_muestra`,
@@ -7886,6 +8414,34 @@ print.perfil_dbi <- function(x, ...) {
     cli::cli_text(
       "Consultas emitidas: {meta$consultas$emitidas} (dialecto {meta$dialecto$nombre})"
     )
+  }
+  estimacion <- meta$estimacion_derrame
+  if (!is.null(estimacion) && !identical(estimacion$estado, "no_solicitado")) {
+    if (identical(estimacion$estado, "estimado") ||
+        identical(estimacion$estado, "parcial")) {
+      detalle_estimacion <- if (identical(estimacion$estado, "parcial")) {
+        paste("parcial;", estimacion$motivo)
+      } else if (isTRUE(estimacion$supera_memoria)) {
+        paste(
+          "el tama\u00f1o estimado supera el limite efectivo para hash de",
+          estimacion$memoria_efectiva
+        )
+      } else {
+        paste(
+          "el tama\u00f1o estimado no supera el limite efectivo para hash de",
+          estimacion$memoria_efectiva,
+          "; esto no demuestra que no haya derrame"
+        )
+      }
+      cli::cli_text(paste0(
+        "Derrame estimado (no medido): ", detalle_estimacion,
+        ". Fuente: `", estimacion$fuente, "`."
+      ))
+    } else {
+      cli::cli_text(paste0(
+        "Derrame estimado: no se pudo estimar (", estimacion$motivo, ")."
+      ))
+    }
   }
   derrame <- meta$derrame
   if (!is.null(derrame) && !identical(derrame$estado, "no_solicitado")) {

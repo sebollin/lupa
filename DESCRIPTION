@@ -16,6 +16,8 @@ Authors@R:
       person("Colin", "Fay", role = "cph",
              comment = "missing-value sentinel vectors, from naniar 1.1.0")
     )
+Author: Sebastián Lucas [aut, cre] (ORCID: <https://orcid.org/0009-0009-9068-0276>), Robyn Speer [cph] (encoding-repair design and character tables, from ftfy 6.3.1), Nicholas Tierney [cph] (missing-value sentinel vectors, from naniar 1.1.0), Di Cook [cph] (missing-value sentinel vectors, from naniar 1.1.0), Miles McBain [cph] (missing-value sentinel vectors, from naniar 1.1.0), Colin Fay [cph] (missing-value sentinel vectors, from naniar 1.1.0)
+Maintainer: Sebastián Lucas <sebalucas@gmail.com>
 Description: Provides general-purpose data profiling and quality analysis for
     tabular data. Discovers structural patterns, implicit types, mixed date
     formats and reusable findings about potential data issues. Defines quality
@@ -58,6 +60,7 @@ Suggests:
     jsonlite,
     knitr,
     rmarkdown,
+    RPostgres,
     RSQLite,
     sf,
     stringdist,

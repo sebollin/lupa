@@ -1,5 +1,22 @@
 # lupa 0.1.0
 
+## El derrame de `COUNT(DISTINCT)` se avisa antes de pagarlo
+
+- En PostgreSQL, `perfilar_dbi()` consulta `pg_stats.n_distinct`,
+  `pg_stats.avg_width`, `pg_class.reltuples` y `work_mem` para estimar el
+  tamaño del hash de agregación antes del primer `COUNT(DISTINCT)`; en
+  PostgreSQL 13 o posterior incorpora `hash_mem_multiplier` al límite efectivo.
+- El aviso dice el tamaño estimado, la memoria vigente y que subir
+  `work_mem` en la sesión puede evitar el derrame. La configuración nunca se
+  modifica. El diagnóstico queda separado de `meta$derrame`, rotulado siempre
+  como estimación; si luego `pg_stat_statements` mide un derrame, esa evidencia
+  posterior prevalece.
+- Permisos insuficientes, tablas sin `ANALYZE`, `reltuples` desconocido,
+  particiones sin estadísticas, PostgreSQL 9.3 y motores que no son PostgreSQL
+  quedan declarados como no estimables, sin presentarlos como ausencia de
+  derrame. Se agregan pruebas unitarias e integración contra PostgreSQL 16 y
+  9.3.
+
 ## Topes declarados para valores largos y tablas anchas
 
 - `detectar_duplicados_aproximados()` y el vocabulario de `perfilar()` tienen
@@ -101,8 +118,9 @@ valores distintos y no a la cantidad de filas.
 - `perfilar_dbi()` anuncia, antes del primer `COUNT(DISTINCT)`, una proyección
   temporal cuando las consultas de agregados planos de esta misma corrida ya
   dieron una referencia suficiente. La estimación publica el costo, la fuente
-  medida y la cantidad de lotes; no usa `reltuples`, no cambia `work_mem` y no
-  espera confirmación en guiones no interactivos.
+  medida y la cantidad de lotes; esa proyección temporal no usa `reltuples`, no
+  cambia `work_mem` y no espera confirmación en guiones no interactivos. La
+  estimación de memoria del derrame se documenta en la sección anterior.
 - La instrumentación de PostgreSQL consulta `pg_stat_statements` antes y
   después de los distintos exactos. Sólo publica derrame real cuando puede
   atribuir exactamente una llamada: `resumen_tabla$sql` agrega los bloques
