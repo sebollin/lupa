@@ -435,11 +435,23 @@ redo the arithmetic.
 
 Every sampled or approximated metric travels saying so. `estado` distinguishes
 `calculado`, `estimado` and `no_disponible`, and each row carries `universo`,
-`tamano_muestra`, `fraccion`, `metodo` and `error_esperado` — `desconocido` when
-the engine documents no bound, never an invented one. Distinct counts get their
-own state, `observado_muestra`: the cardinality of a sample does not estimate
-the cardinality of the universe without a declared estimator, so it is reported
-as what it is — what was seen in the sample, with the universe stated beside it.
+`tamano_muestra`, `fraccion`, `metodo` and `error_esperado`. For sampled SQL
+metrics, `error_esperado` is `no_estimado` when an error could be calculated
+under a probabilistic sampling plan but was not, `no_estimable` for the mode,
+median and observed cardinality, which have no simple bound without additional
+assumptions or a declared estimator, and `no_aplica` when no sampling took
+place. The `motivo` column gives the reason; `metodo`, `tamano_muestra` and
+`fraccion` retain the conditions of the run. No numeric bound is published
+without a justified formula.
+
+In `resumen_tabla$meta$muestreo`, `tamano_muestra` is retained for compatibility
+and records the effective size requested from the query, `filas_solicitadas`
+records the original request, and `filas_obtenidas` records the rows returned
+by the `perfil_muestra` read. The latter is `NA` when that block was not
+requested or failed before reading. Distinct counts get their own state,
+`observado_muestra`: the cardinality of a sample does not estimate the
+cardinality of the universe without a declared estimator, so it is reported as
+what it is — what was seen in the sample, with the universe stated beside it.
 An engine with no sampling capability does not break: the mode degrades and says
 so in the coverage table.
 

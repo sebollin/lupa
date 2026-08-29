@@ -1010,8 +1010,16 @@
   )
 }
 
-.publicar_muestreo_dbi <- function(resolucion, forma = NULL, n_total = NA) {
+.publicar_muestreo_dbi <- function(resolucion, forma = NULL, n_total = NA,
+                                   muestreo_meta = NULL) {
   candidato <- resolucion$candidato
+  numero <- function(objeto, nombre) {
+    if (is.null(objeto) || is.null(objeto[[nombre]]) ||
+        !length(objeto[[nombre]])) {
+      return(NA_real_)
+    }
+    suppressWarnings(as.numeric(objeto[[nombre]][[1L]]))
+  }
   list(
     disponible = isTRUE(resolucion$disponible),
     metodo = if (is.null(forma)) {
@@ -1021,7 +1029,22 @@
       if (is.null(candidato)) NA_character_ else candidato$descripcion
     } else forma$descripcion,
     fraccion = if (is.null(forma)) NA_real_ else forma$fraccion,
-    tamano_muestra = if (is.null(forma)) NA_real_ else forma$filas_solicitadas,
+    # `tamano_muestra` es parte del contrato anterior: conserva el tamano
+    # efectivo solicitado a la consulta, que puede estar acotado por el
+    # universo. Los nombres explicitos de abajo evitan confundirlo con lo que
+    # realmente devolvio la lectura.
+    tamano_muestra = if (is.null(forma)) {
+      numero(muestreo_meta, "tamano_muestra")
+    } else {
+      numero(forma, "filas_solicitadas")
+    },
+    filas_solicitadas = if (!is.null(forma) &&
+                            !is.null(forma$filas_pedidas)) {
+      numero(forma, "filas_pedidas")
+    } else {
+      numero(muestreo_meta, "filas_solicitadas")
+    },
+    filas_obtenidas = numero(muestreo_meta, "filas_obtenidas"),
     universo = n_total,
     sondas = resolucion$sondas,
     motivo = resolucion$motivo,
@@ -1496,6 +1519,51 @@
 # opt-in y su umbral queda en la llamada, en la metadata y en los motivos.
 .METRICAS_COSTOSAS_DBI <- c("moda", "mediana")
 .UMBRAL_CARDINALIDAD_COSTO_DBI <- 0.95
+
+# Estas metricas no tienen una cota simple sobre una muestra sin supuestos
+# adicionales. Las demas pueden tener un error muestral estimable bajo un plan
+# probabilistico, pero esta corrida no lo calcula.
+.METRICAS_ERROR_NO_ESTIMABLE_DBI <- c(
+  "n_distintos", "tasa_distintos", "moda", "frecuencia_moda", "mediana"
+)
+
+.error_esperado_muestreo_dbi <- function(metricas, muestreo, fraccion) {
+  fraccion_numero <- suppressWarnings(as.numeric(fraccion))
+  sin_muestreo <- is.null(muestreo) || !isTRUE(muestreo$disponible) ||
+    (length(fraccion_numero) == 1L && is.finite(fraccion_numero) &&
+       fraccion_numero >= 1)
+  if (sin_muestreo) return("no_aplica")
+  if (any(metricas %in% .METRICAS_ERROR_NO_ESTIMABLE_DBI)) {
+    return("no_estimable")
+  }
+  "no_estimado"
+}
+
+.motivo_error_esperado_muestreo_dbi <- function(metricas, estado) {
+  if (identical(estado, "no_aplica")) return(NA_character_)
+  if (identical(estado, "no_estimable")) {
+    if (any(metricas %in% c("moda", "frecuencia_moda"))) {
+      return(paste(
+        "La moda de una muestra no tiene una cota simple de error sin",
+        "supuestos adicionales sobre la distribucion."
+      ))
+    }
+    if (any(metricas %in% "mediana")) {
+      return(paste(
+        "La mediana de una muestra no tiene una cota simple de error sin",
+        "supuestos adicionales sobre la distribucion."
+      ))
+    }
+    return(paste(
+      "La cardinalidad observada en una muestra no estima la del universo",
+      "sin un estimador declarado."
+    ))
+  }
+  paste(
+    "El error muestral podria estimarse bajo un plan probabilistico, pero no",
+    "se calculo en esta corrida."
+  )
+}
 
 .validar_politica_costo_dbi <- function(politica_costo,
                                        umbral_cardinalidad) {
@@ -2954,6 +3022,16 @@
   fila <- .fila_resumen_dbi(columna, n_total)
   literales <- character()
   es_muestreado <- identical(modo, "muestreado")
+  metricas_de_error <- unlist(
+    .CAMPOS_METRICA_DBI[metricas], use.names = FALSE
+  )
+  error_esperado <- if (es_muestreado) {
+    .error_esperado_muestreo_dbi(
+      metricas_de_error, muestreo, fraccion_muestra
+    )
+  } else {
+    "no_aplica"
+  }
   metadatos <- if (es_muestreado) {
     .metadatos_sql_dbi(
       alcance = "muestra", universo = n_total,
@@ -2963,7 +3041,7 @@
       } else {
         muestreo$metodo
       },
-      error_esperado = "desconocido"
+      error_esperado = error_esperado
     )
   } else {
     .metadatos_sql_dbi(
@@ -2971,7 +3049,7 @@
       fraccion = 1,
       metodo = if (identical(modo, "aproximado")) "respaldo_exacto" else
         "tabla_completa",
-      error_esperado = NA_character_
+      error_esperado = "no_aplica"
     )
   }
   registrar <- function(registros, metrica, resultado, motivo_exito = NA_character_) {
@@ -2982,9 +3060,23 @@
         "estimado"
       }
     }
+    metadatos_registro <- metadatos
+    if (es_muestreado) {
+      error_esperado_registro <- .error_esperado_muestreo_dbi(
+        metrica, muestreo, fraccion_muestra
+      )
+      metadatos_registro$error_esperado <- error_esperado_registro
+      motivo_error_esperado <- .motivo_error_esperado_muestreo_dbi(
+        metrica, error_esperado_registro
+      )
+      if (isTRUE(resultado$ok) && all(is.na(motivo_exito)) &&
+          !is.na(motivo_error_esperado)) {
+        motivo_exito <- motivo_error_esperado
+      }
+    }
     .registrar_resultado_dbi(
       registros, columna, metrica, resultado, motivo_exito,
-      metadatos = metadatos
+      metadatos = metadatos_registro
     )
   }
   omitir <- function(registros, metrica, estado, motivo) {
@@ -3733,7 +3825,8 @@
           } else NA_real_,
           fraccion = if (identical(modo, "muestreado")) fraccion_muestra else 1,
           metodo = if (identical(modo, "muestreado")) "conteo_universo" else
-            "conteo_universo"
+            "conteo_universo",
+          error_esperado = "no_aplica"
         ), conteo$metadatos),
         medicion = conteo,
         etapa = "conteo_filas"
@@ -5837,12 +5930,26 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' límite del dialecto. Si ninguna forma es compatible, las métricas SQL quedan
 #' en `no_disponible`: no se sustituyen por resultados de la tabla completa.
 #' Cada registro publica `alcance`, `universo`, `tamano_muestra`, `fraccion`,
-#' `metodo` y `error_esperado`. Los distintos de una muestra se publican como
-#' cardinalidad de la muestra, no como cardinalidad del universo. `modo =
-#' "aproximado"` sondea `APPROX_COUNT_DISTINCT`, `approx_count_distinct` y las
-#' formas de cuantiles del motor; cuando ninguna responde usa el respaldo exacto
-#' y lo registra por métrica. Las cotas de error no documentadas quedan como
-#' `"desconocido"`. Una aproximacion solo se consolida cuando entrega una
+#' `metodo` y `error_esperado`. En `resumen_tabla$meta$muestreo`,
+#' `tamano_muestra` conserva el nombre historico y declara el tamano efectivo
+#' solicitado a la consulta; `filas_solicitadas` declara el pedido original y
+#' `filas_obtenidas` las filas que devolvio la lectura del bloque
+#' `perfil_muestra`. Esta ultima puede ser `NA` si el bloque no se solicito o
+#' fallo antes de leer.
+#'
+#' En una muestra, `error_esperado` vale `no_estimado` para metricas cuyo error
+#' podria calcularse bajo un plan probabilistico pero no se calculo,
+#' `no_estimable` para la moda, la mediana y la cardinalidad observada, que no
+#' tienen una cota simple sin supuestos o un estimador declarado, y `no_aplica`
+#' cuando no hubo muestreo efectivo. El `motivo` de cada registro explica la
+#' distincion. `metodo`, `tamano_muestra` y `fraccion` conservan las condiciones
+#' de la corrida; no se publica una cota numerica sin una formula justificada.
+#' Los distintos de una muestra se publican como cardinalidad de la muestra,
+#' no como cardinalidad del universo. `modo = "aproximado"` sondea
+#' `APPROX_COUNT_DISTINCT`, `approx_count_distinct` y las formas de cuantiles del
+#' motor; cuando ninguna responde usa el respaldo exacto y lo registra por
+#' metrica. Las cotas de error no documentadas de una aproximacion nativa quedan
+#' como `"desconocido"`. Una aproximacion solo se consolida cuando entrega una
 #' expresion que se puede incrustar en el `SELECT`; si solo construye una
 #' consulta completa, se emite por separado. Una consulta no emitida o sin un
 #' valor utilizable queda `no_disponible`.
@@ -6344,6 +6451,15 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
       ),
       muestreo = NULL
     )
+  }
+  if (!is.null(muestreo_publico) && !is.null(bloque$muestreo)) {
+    muestreo_publico <- .publicar_muestreo_dbi(
+      preparacion$muestreo, fuente_muestreada, preparacion$n_total,
+      muestreo_meta = bloque$muestreo
+    )
+  }
+  if (identical(preparacion$modo, "muestreado")) {
+    resumen$meta$muestreo <- muestreo_publico
   }
   cobertura <- rbind(cobertura, bloque$cobertura)
   resumen$tiempos <- .resumen_tiempos_dbi(trazador)

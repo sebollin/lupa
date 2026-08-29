@@ -28,8 +28,19 @@ ninguna forma es aceptada, las métricas quedan en `NA` y
 
 Cada registro de `resumen_tabla$sql` declara `alcance`, `universo`,
 `tamano_muestra`, `fraccion`, `metodo` y `error_esperado`. En el modo
-muestreado, `n_distintos` se conserva como cardinalidad observada en la
-muestra, no como una estimación de la cardinalidad de la tabla completa.
+muestreado, `error_esperado` distingue `no_estimado` —el error podría
+calcularse bajo un plan probabilístico, pero no se calculó— de `no_estimable`
+—moda, mediana y cardinalidad observada no tienen una cota simple sin supuestos
+adicionales—. `no_aplica` indica que no hubo muestreo efectivo. El motivo queda
+en `resumen_tabla$sql$motivo`, junto con el método, el tamaño y la fracción.
+`n_distintos` se conserva como cardinalidad observada en la muestra, no como
+una estimación de la cardinalidad de la tabla completa.
+
+El metadato `resumen_tabla$meta$muestreo` conserva `tamano_muestra` por
+compatibilidad como tamaño efectivo solicitado a la consulta. Además publica
+`filas_solicitadas`, el pedido original, y `filas_obtenidas`, las filas que
+devolvió la lectura de `perfil_muestra`; esta última puede ser `NA` cuando el
+bloque no se solicitó o falló antes de leer.
 `modo = "aproximado"` sondea las funciones nativas de cardinalidad y cuantiles;
 si una no existe, se usa el respaldo exacto y el método queda registrado.
 

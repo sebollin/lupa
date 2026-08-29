@@ -180,11 +180,26 @@ Los \code{stop()} de esta vía llevan clase de condición propia —todas hereda
 límite del dialecto. Si ninguna forma es compatible, las métricas SQL quedan
 en \code{no_disponible}: no se sustituyen por resultados de la tabla completa.
 Cada registro publica \code{alcance}, \code{universo}, \code{tamano_muestra}, \code{fraccion},
-\code{metodo} y \code{error_esperado}. Los distintos de una muestra se publican como
-cardinalidad de la muestra, no como cardinalidad del universo. \code{modo = "aproximado"} sondea \code{APPROX_COUNT_DISTINCT}, \code{approx_count_distinct} y las
-formas de cuantiles del motor; cuando ninguna responde usa el respaldo exacto
-y lo registra por métrica. Las cotas de error no documentadas quedan como
-\code{"desconocido"}. Una aproximacion solo se consolida cuando entrega una
+\code{metodo} y \code{error_esperado}. En \code{resumen_tabla$meta$muestreo},
+\code{tamano_muestra} conserva el nombre historico y declara el tamano efectivo
+solicitado a la consulta; \code{filas_solicitadas} declara el pedido original y
+\code{filas_obtenidas} las filas que devolvio la lectura del bloque
+\code{perfil_muestra}. Esta ultima puede ser \code{NA} si el bloque no se solicito o
+fallo antes de leer.
+
+En una muestra, \code{error_esperado} vale \code{no_estimado} para metricas cuyo error
+podria calcularse bajo un plan probabilistico pero no se calculo,
+\code{no_estimable} para la moda, la mediana y la cardinalidad observada, que no
+tienen una cota simple sin supuestos o un estimador declarado, y \code{no_aplica}
+cuando no hubo muestreo efectivo. El \code{motivo} de cada registro explica la
+distincion. \code{metodo}, \code{tamano_muestra} y \code{fraccion} conservan las condiciones
+de la corrida; no se publica una cota numerica sin una formula justificada.
+Los distintos de una muestra se publican como cardinalidad de la muestra,
+no como cardinalidad del universo. \code{modo = "aproximado"} sondea
+\code{APPROX_COUNT_DISTINCT}, \code{approx_count_distinct} y las formas de cuantiles del
+motor; cuando ninguna responde usa el respaldo exacto y lo registra por
+metrica. Las cotas de error no documentadas de una aproximacion nativa quedan
+como \code{"desconocido"}. Una aproximacion solo se consolida cuando entrega una
 expresion que se puede incrustar en el \code{SELECT}; si solo construye una
 consulta completa, se emite por separado. Una consulta no emitida o sin un
 valor utilizable queda \code{no_disponible}.

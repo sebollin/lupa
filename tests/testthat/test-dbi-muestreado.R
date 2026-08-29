@@ -14,6 +14,9 @@ if (!methods::isClass("ConexionCapacidadLupa")) {
 if (!methods::isClass("ConexionAproximadaLupa")) {
   setClass("ConexionAproximadaLupa", contains = "SQLiteConnection")
 }
+if (!methods::isClass("ConexionMuestraCortaLupa")) {
+  setClass("ConexionMuestraCortaLupa", contains = "SQLiteConnection")
+}
 
 .envolver_conexion_capacidad <- function(con, clase) {
   salida <- methods::new(clase)
@@ -143,6 +146,17 @@ setMethod(
     callNextMethod(conn, .traducir_capacidad_dbi(statement), ...)
   }
 )
+setMethod(
+  "dbGetQuery", c("ConexionMuestraCortaLupa", "character"),
+  function(conn, statement, ...) {
+    salida <- callNextMethod(conn, statement, ...)
+    if (grepl("FROM `datos_corta` ORDER BY RANDOM\\(\\) LIMIT 5$", statement) &&
+        nrow(salida) > 0L) {
+      salida <- salida[seq_len(nrow(salida) - 1L), , drop = FALSE]
+    }
+    salida
+  }
+)
 
 .conexion_capacidad_dbi <- function(clase, tabla = "datos") {
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
@@ -186,8 +200,90 @@ test_that("muestreado usa una forma declarada por el motor y marca cada estimaci
   expect_true(all(metricas$estado %in% c("estimado", "observado_muestra", "no_aplica")))
   distintos <- metricas[metricas$metrica == "n_distintos", , drop = FALSE]
   expect_true(all(distintos$estado == "observado_muestra"))
-  expect_true(all(is.na(distintos$motivo)))
+  expect_true(all(grepl("cardinalidad observada", distintos$motivo, fixed = TRUE)))
+  expect_true(all(distintos$error_esperado == "no_estimable"))
+  no_estimados <- metricas[
+    metricas$columna %in% c("id", "monto") &
+    metricas$metrica %in% c(
+      "n_validos", "n_faltantes", "prop_faltantes", "minimo", "maximo",
+      "media", "n_ceros", "n_negativos", "desvio"
+    ), , drop = FALSE
+  ]
+  expect_true(all(no_estimados$error_esperado == "no_estimado"))
+  expect_true(all(grepl("no se calculo", no_estimados$motivo, fixed = TRUE)))
+  no_estimables <- metricas[
+    metricas$columna %in% c("id", "monto") &
+    metricas$metrica %in% c("moda", "frecuencia_moda", "mediana"),
+    , drop = FALSE
+  ]
+  expect_true(all(no_estimables$error_esperado == "no_estimable"))
+  expect_true(all(grepl("cota simple", no_estimables$motivo, fixed = TRUE)))
   expect_identical(resultado$resumen_tabla$meta$alcance, "tabla_muestreada")
+})
+
+test_that("el metadato publico distingue pedido y obtenido", {
+  con <- .conexion_capacidad_dbi("ConexionCapacidadLupa")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  .reiniciar_capacidad_dbi("normal")
+
+  resultado <- .perfil_liviano_dbi_muestreado(con, "muestreado")
+  muestreo <- resultado$resumen_tabla$meta$muestreo
+
+  expect_equal(muestreo$tamano_muestra, 5)
+  expect_equal(muestreo$filas_solicitadas, 5)
+  expect_equal(muestreo$filas_obtenidas, 5)
+  expect_true(muestreo$metodo %in% c("random_limit", "tablesample_system"))
+  expect_equal(muestreo$fraccion, 0.25)
+})
+
+test_that("el metadato publico conserva una muestra menor que el pedido", {
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbWriteTable(con, "datos", data.frame(valor = seq_len(75L)))
+
+  resultado <- perfilar_dbi(
+    con, "datos", muestra = 100L, modo = "muestreado",
+    orden_muestra = "valor", proteger_datos_personales = FALSE
+  )
+  muestreo <- resultado$resumen_tabla$meta$muestreo
+
+  expect_equal(muestreo$tamano_muestra, 75)
+  expect_equal(muestreo$filas_solicitadas, 100)
+  expect_equal(muestreo$filas_obtenidas, 75)
+  expect_equal(muestreo$universo, 75)
+})
+
+test_that("la discrepancia de filas conserva su cobertura", {
+  cruda <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  DBI::dbWriteTable(cruda, "datos_corta", data.frame(valor = seq_len(20L)))
+  con <- .envolver_conexion_capacidad(cruda, "ConexionMuestraCortaLupa")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+
+  resultado <- perfilar_dbi(
+    con, "datos_corta", muestra = 5L, modo = "muestreado",
+    orden_muestra = "valor", proteger_datos_personales = FALSE
+  )
+  muestreo <- resultado$perfil_muestra$meta$origen_dbi$muestreo
+  cobertura <- resultado$resumen_tabla$cobertura
+  discrepancia <- cobertura[cobertura$estado == "alcance_distinto", , drop = FALSE]
+
+  expect_equal(muestreo$filas_obtenidas, 4)
+  expect_equal(resultado$resumen_tabla$meta$muestreo$filas_obtenidas, 4)
+  expect_false(muestreo$coincide_con_lo_pedido)
+  expect_equal(nrow(discrepancia), 1L)
+  expect_match(discrepancia$motivo, "devolvio 4 filas", fixed = TRUE)
+})
+
+test_that("sin muestreo el error esperado no aplica", {
+  con <- .conexion_capacidad_dbi("ConexionCapacidadLupa")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  .reiniciar_capacidad_dbi("normal")
+
+  resultado <- .perfil_liviano_dbi_muestreado(
+    con, "exacto", metricas = c("validos", "moda", "mediana")
+  )
+  registros <- resultado$resumen_tabla$sql
+  expect_true(all(registros$error_esperado == "no_aplica"))
 })
 
 test_that("sin capacidad de muestreo se degrada con diagnostico y no usa la tabla completa", {
