@@ -9,7 +9,8 @@
 # El catalogo decia `garantizada` en los dos casos.
 
 .ronda162_catalogo <- function(descendientes = 0L, validated = TRUE,
-                               diferible = FALSE, relkind = "r") {
+                               diferible = FALSE, relkind = "r",
+                               indice_unico = TRUE) {
   datos <- data.frame(
     column_name = "id",
     ordinal_position = 1L,
@@ -21,6 +22,7 @@
     datos$constraint_descendientes <- descendientes
     datos$constraint_diferible <- diferible
     datos$constraint_relkind <- relkind
+    datos$constraint_indice_unico <- indice_unico
   }
   datos
 }
@@ -155,4 +157,52 @@ test_that("sin la columna relkind se trata como herencia, que es lo seguro", {
   )
 
   expect_identical(resultado$garantia, "declarada_no_garantizada")
+})
+
+test_that("un indice de respaldo no unico retira la garantia", {
+  # La unicidad la impone el indice que respalda la restriccion, no la fila de
+  # `pg_constraint`. Por DDL normal no se llega a un indice de PK no unico -al
+  # adjuntar una particion el motor crea el indice unico solo-, asi que esto es
+  # defensa ante un catalogo alterado o un estado anormal. Verificado contra
+  # PostgreSQL 16 forzando el estado: la tabla acepta un duplicado y queda con
+  # 4 validos y 3 distintos mientras la restriccion sigue figurando validada.
+  resultado <- lupa:::.garantia_clave_primaria(
+    .ronda162_catalogo(indice_unico = FALSE), "pg_catalog", "postgresql"
+  )
+
+  expect_identical(resultado$garantia, "declarada_no_garantizada")
+  expect_true(resultado$estado$indice_no_unico)
+})
+
+test_that("el indice no unico tambien pesa sobre una tabla particionada", {
+  # La excepcion por `relkind = 'p'` no puede saltearse esta comprobacion: una
+  # particion cuyo indice dejo de ser unico admite duplicados igual.
+  resultado <- lupa:::.garantia_clave_primaria(
+    .ronda162_catalogo(descendientes = 2L, relkind = "p", indice_unico = FALSE),
+    "pg_catalog", "postgresql"
+  )
+
+  expect_identical(resultado$garantia, "declarada_no_garantizada")
+  expect_true(resultado$estado$indice_no_unico)
+})
+
+test_that("un indice unico no altera el resto de las condiciones", {
+  resultado <- lupa:::.garantia_clave_primaria(
+    .ronda162_catalogo(indice_unico = TRUE), "pg_catalog", "postgresql"
+  )
+
+  expect_identical(resultado$garantia, "garantizada")
+  expect_false(resultado$estado$indice_no_unico)
+})
+
+test_that("sin la columna del indice no cambia nada, para los otros motores", {
+  datos <- .ronda162_catalogo()
+  datos$constraint_indice_unico <- NULL
+
+  resultado <- lupa:::.garantia_clave_primaria(
+    datos, "information_schema", "mysql"
+  )
+
+  expect_identical(resultado$garantia, "garantizada")
+  expect_false(resultado$estado$indice_no_unico)
 })

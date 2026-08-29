@@ -188,12 +188,18 @@
           "(SELECT count(*) FROM pg_catalog.pg_inherits i ",
           "WHERE i.inhparent = r.oid) AS constraint_descendientes, ",
           "r.relkind AS constraint_relkind, ",
+          # La unicidad la impone el indice que respalda la restriccion, no la
+          # fila de `pg_constraint`. Leerlo es preferir el mecanismo a la
+          # declaracion, que es la tesis del paquete, y sale gratis: el `JOIN`
+          # va en la misma consulta. `conindid` apunta a ese indice.
+          "i.indisunique AS constraint_indice_unico, ",
           # Una restriccion diferible puede estar violada dentro de una
           # transaccion abierta: el catalogo la informa validada igual.
           "c.condeferrable AS constraint_diferible ",
           "FROM pg_catalog.pg_constraint c ",
           "JOIN pg_catalog.pg_class r ON r.oid = c.conrelid ",
           "JOIN pg_catalog.pg_namespace n ON n.oid = r.relnamespace ",
+          "LEFT JOIN pg_catalog.pg_index i ON i.indexrelid = c.conindid ",
           "CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY ",
           "AS k(attnum, ordinal_position) ",
           "JOIN pg_catalog.pg_attribute a ON a.attrelid = r.oid ",
@@ -317,6 +323,14 @@
   # publicar un exacto falso, asi que la garantia no se afirma.
   diferible <- .campo_clave(datos, "constraint_diferible")
   es_diferible <- !is.null(diferible) && isTRUE(.estado_clave(diferible, "si_no"))
+  # Si el indice que respalda la clave no es unico, no hay unicidad aunque la
+  # restriccion figure validada. Por DDL normal no se llega a ese estado -al
+  # adjuntar una particion el motor crea el indice unico solo-, asi que esto es
+  # defensa ante un catalogo alterado a mano o un estado anormal. Cuando la
+  # columna no viene -otros motores- no cambia nada.
+  indice_unico <- .campo_clave(datos, "constraint_indice_unico")
+  indice_no_unico <- !is.null(indice_unico) &&
+    identical(.estado_clave(indice_unico, "si_no"), FALSE)
   estado <- list(
     visible = TRUE,
     aplicada = aplicada,
@@ -324,6 +338,7 @@
     universo_incluye_descendientes = hay_descendientes,
     relacion_particionada = es_particionada,
     restriccion_diferible = es_diferible,
+    indice_no_unico = indice_no_unico,
     unicidad = NA_character_,
     unicidad_aplica_a = NA_character_,
     ausencia_de_nulos = NA_character_,
@@ -390,7 +405,7 @@
   # tipos de restriccion, pero una clave primaria no puede llegar a `FALSE` por
   # DDL normal: se comprueba por si aparece un estado transitorio o anormal.
   if (identical(via, "pg_catalog") && identical(motor, "postgresql")) {
-    garantia <- if (hay_descendientes || es_diferible) {
+    garantia <- if (hay_descendientes || es_diferible || indice_no_unico) {
       # La restriccion existe y es valida, pero no gobierna lo que se va a
       # medir: o el universo es otro -descendientes-, o puede estar violada en
       # este instante -diferible-. Declarada, no garantizada aca.
