@@ -139,6 +139,13 @@ alcance completo o muestreado según \code{modo}, y \code{perfil_muestra}, un ob
 \code{perfil_muestra} es \code{NULL} si la muestra no se pudo obtener o si se pidió
 \code{bloque_muestra = "solo_agregados"}; \code{resumen_tabla$cobertura} distingue
 esos casos con \code{no_disponible} y \code{no_solicitado}, respectivamente.
+\code{resumen_tabla$meta$clave} conserva siempre la respuesta del catálogo de la
+clave primaria: \code{columnas}, \code{fuente}, \code{motivo}, \code{garantia} y \code{estado}.
+\code{garantia} puede ser \code{garantizada}, \code{declarada_no_garantizada},
+\code{desconocida} o \code{no_declarada}; \code{estado} conserva, cuando el motor los
+expone, \code{visible}, \code{restriccion_diferible},
+\code{universo_incluye_descendientes} e \code{indice_no_unico}. Una consulta fallida
+queda diferenciada de una clave no declarada.
 }
 \description{
 Calcula en SQL un resumen sobre la tabla completa o sobre una relación

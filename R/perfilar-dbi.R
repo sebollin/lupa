@@ -2696,9 +2696,8 @@
 .resolver_fuentes_cardinalidad_dbi <- function(conexion, tabla, columnas,
                                                estrategia, presupuesto) {
   fuentes <- .fuentes_cardinalidad_vacias_dbi(columnas)
-  if (!isTRUE(estrategia$para_costo)) {
-    return(list(fuentes = fuentes, catalogo = NULL))
-  }
+  # La clave se lee siempre para publicarla en `meta$clave`. Su resultado solo
+  # gobierna la politica de costo cuando esa politica lo necesita.
   piezas <- .piezas_tabla_cardinalidad_dbi(tabla)
   catalogo <- .clave_primaria_dbi(
     conexion, piezas$tabla, piezas$esquema, presupuesto = presupuesto
@@ -2706,7 +2705,8 @@
   # Una clave compuesta no vuelve unica cada columna por separado. Solo una
   # clave primaria simple, aplicada y validada, permite afirmar que su columna
   # tiene tantos distintos como valores validos, sin contarla.
-  if (length(catalogo$columnas) == 1L &&
+  if (isTRUE(estrategia$para_costo) &&
+      length(catalogo$columnas) == 1L &&
       identical(catalogo$garantia, "garantizada")) {
     posicion <- .resolver_columnas_dbi(catalogo$columnas, columnas)
     if (length(posicion) == 1L && !is.na(posicion)) {
@@ -5635,6 +5635,9 @@
 #'   omisión es `"todas"`: el paquete no elige por el usuario.
 #'   Una fuente estructural se resuelve aunque la estrategia de distintos este
 #'   omitida o no disponible; esta ultima solo gobierna si se puede medir.
+#'   El catalogo de la clave primaria se consulta siempre para conservar esa
+#'   respuesta en `resumen_tabla$meta$clave`; es una lectura de metadatos y no
+#'   un recorrido de la tabla.
 #'
 #'   Contar sólo el motor daba juicios falsos con números ciertos: una tabla de
 #'   3.912 filas con una columna de geometría en texto pedía 64.592 lecturas
@@ -6871,15 +6874,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
   fuentes_cardinalidad_costo <- .fuentes_cardinalidad_vacias_dbi(campos)
   catalogo_cardinalidad <- NULL
   # La disponibilidad gobierna la medicion de cardinalidad, no la lectura de
-  # una garantia estructural que no recorre la tabla. Una estrategia omitida o
-  # sin capacidad no puede medir, pero tampoco debe tapar una clave conocida.
-  if (isTRUE(estrategia_distintos$para_costo)) {
-    fuentes <- .resolver_fuentes_cardinalidad_dbi(
-      conexion, tabla, campos, estrategia_distintos, presupuesto
-    )
-    fuentes_cardinalidad_costo <- fuentes$fuentes
-    catalogo_cardinalidad <- fuentes$catalogo
-  }
+  # una garantia estructural que no recorre la tabla. La consulta de catalogo
+  # tampoco recorre la tabla y se hace en todas las corridas para publicar la
+  # misma informacion en `meta$clave`.
+  fuentes <- .resolver_fuentes_cardinalidad_dbi(
+    conexion, tabla, campos, estrategia_distintos, presupuesto
+  )
+  fuentes_cardinalidad_costo <- fuentes$fuentes
+  catalogo_cardinalidad <- fuentes$catalogo
   fuentes_no_exactas <- vapply(
     fuentes_cardinalidad_costo,
     function(x) !isTRUE(x$exacta), logical(1L)
@@ -7356,6 +7358,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `perfil_muestra` es `NULL` si la muestra no se pudo obtener o si se pidió
 #'   `bloque_muestra = "solo_agregados"`; `resumen_tabla$cobertura` distingue
 #'   esos casos con `no_disponible` y `no_solicitado`, respectivamente.
+#'   `resumen_tabla$meta$clave` conserva siempre la respuesta del catálogo de la
+#'   clave primaria: `columnas`, `fuente`, `motivo`, `garantia` y `estado`.
+#'   `garantia` puede ser `garantizada`, `declarada_no_garantizada`,
+#'   `desconocida` o `no_declarada`; `estado` conserva, cuando el motor los
+#'   expone, `visible`, `restriccion_diferible`,
+#'   `universo_incluye_descendientes` e `indice_no_unico`. Una consulta fallida
+#'   queda diferenciada de una clave no declarada.
 #' @export
 #' @seealso [plan_perfilado_dbi()], [perfilar()]
 #'
@@ -7602,6 +7611,9 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     preparacion$mediana_consolidada_resolucion
   resumen$meta$mediana_escalar <-
     .publicar_mediana_escalar_dbi(preparacion$mediana_escalar_resolucion)
+  # La salida del catalogo sigue la misma ruta `meta$clave` que la salida en
+  # memoria. Se conserva completa para no perder fuente, motivo ni estados.
+  resumen$meta$clave <- preparacion$catalogo_cardinalidad
   resumen$meta$incluir_valores <- incluir_valores
   resumen$meta$tamano_lote <- preparacion$tamano_lote
   resumen$meta$tamano_lote_funciono <- presupuesto$tamano_lote_funciono
@@ -7802,6 +7814,55 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   estructura
 }
 
+.texto_clave_dbi <- function(clave) {
+  if (!is.list(clave) || is.null(clave$garantia)) return(NULL)
+  columnas <- if (length(clave$columnas)) {
+    paste0("`", paste(as.character(clave$columnas), collapse = "`, `"), "`")
+  } else {
+    "ninguna"
+  }
+  fuente <- if (length(clave$fuente) && !is.na(clave$fuente[[1L]])) {
+    paste0(" (fuente `", as.character(clave$fuente[[1L]]), "`)")
+  } else {
+    ""
+  }
+  estado <- clave$estado
+  visible <- if (is.list(estado) && length(estado$visible)) {
+    estado$visible[[1L]]
+  } else {
+    NA
+  }
+  motivo <- if (length(clave$motivo) && !all(is.na(clave$motivo))) {
+    paste(as.character(clave$motivo), collapse = " ")
+  } else {
+    ""
+  }
+  if (is.na(visible)) {
+    texto <- "no se pudo preguntar al catalogo"
+    if (nzchar(motivo)) texto <- paste0(texto, ": ", motivo)
+  } else if (identical(visible, FALSE)) {
+    texto <- "el catalogo no deja ver la clave"
+  } else if (identical(clave$garantia, "no_declarada")) {
+    texto <- "no declara clave"
+  } else {
+    texto <- paste0("garantia `", as.character(clave$garantia), "` en ", columnas)
+  }
+  detalles <- character()
+  if (is.list(estado) && isTRUE(estado$restriccion_diferible)) {
+    detalles <- c(detalles, "restriccion diferible")
+  }
+  if (is.list(estado) && isTRUE(estado$universo_incluye_descendientes)) {
+    detalles <- c(detalles, "universo con descendientes")
+  }
+  if (is.list(estado) && isTRUE(estado$indice_no_unico)) {
+    detalles <- c(detalles, "indice no unico")
+  }
+  if (length(detalles)) {
+    texto <- paste0(texto, " (", paste(detalles, collapse = "; "), ")")
+  }
+  paste0("Clave primaria: ", texto, fuente, ".")
+}
+
 #' @export
 print.perfil_dbi <- function(x, ...) {
   meta <- x$resumen_tabla$meta
@@ -7814,6 +7875,8 @@ print.perfil_dbi <- function(x, ...) {
   cli::cli_text(
     "Resumen de {alcance}: {nrow(x$resumen_tabla$columnas)} columnas sobre {meta$filas} filas"
   )
+  texto_clave <- .texto_clave_dbi(meta$clave)
+  if (!is.null(texto_clave)) cli::cli_text(texto_clave)
   estados <- table(x$resumen_tabla$sql$estado)
   if (length(estados)) {
     detalle <- paste0(names(estados), " ", as.integer(estados), collapse = ", ")

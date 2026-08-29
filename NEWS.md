@@ -1,5 +1,20 @@
 # lupa 0.1.0
 
+## La clave primaria queda publicada en el perfil DBI
+
+`perfilar_dbi()` consulta siempre el catalogo de la clave primaria y conserva
+la respuesta en `resumen_tabla$meta$clave`, junto a sus columnas, fuente, motivo,
+garantia y estado. Una tabla sin clave declarada queda con
+`garantia = "no_declarada"`; una consulta fallida o una visibilidad que no se
+pudo establecer queda con `garantia = "desconocida"` y su motivo. Se conservan
+sin cambios los estados ya definidos para garantia, visibilidad, restricciones
+diferibles, descendientes e indice de respaldo.
+
+La lectura agrega una sola consulta de catalogo y ninguna consulta de datos.
+El metodo de impresion muestra la diferencia entre una clave garantizada, una
+tabla sin clave declarada y un catalogo que no se pudo consultar. El plan sigue
+sin recorrer datos: la consulta adicional es de metadatos.
+
 ## La moda conserva su guardian de la misma sentencia
 
 - La consulta de la moda intenta traer `SUM(COUNT(*)) OVER () AS

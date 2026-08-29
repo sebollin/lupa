@@ -123,7 +123,7 @@ test_that("la politica de cardinalidad declara omisiones y ahorra consultas", {
   expect_equal(
     todas$resumen_tabla$meta$consultas$emitidas -
       selectiva$resumen_tabla$meta$consultas$emitidas,
-    1
+    2
   )
   expect_true(is.na(selectiva$resumen_tabla$columnas$moda[1L]))
   expect_true(is.na(selectiva$resumen_tabla$columnas$mediana[1L]))

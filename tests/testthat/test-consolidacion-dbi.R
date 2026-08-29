@@ -250,7 +250,9 @@ test_that("la biseccion reduce el descarte de agregados y publica su lote", {
     replicate(20L, seq_len(100L), simplify = FALSE),
     paste0("c", seq_len(20L))
   ))
-  esperadas <- c(`1` = 19L, `2` = 22L, `5` = 35L)
+  # Cada perfil consulta ademas el catalogo de la clave primaria, aunque la
+  # politica no necesite usarlo para decidir cardinalidad.
+  esperadas <- c(`1` = 20L, `2` = 23L, `5` = 36L)
   for (cantidad in c(1L, 2L, 5L)) {
     datos <- base
     nombres <- c(

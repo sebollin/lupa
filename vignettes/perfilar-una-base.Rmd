@@ -60,12 +60,15 @@ identificador. La consulta exacta de distintos trae
 capacidad aproximada no puede traer ese guardián, la cota se declara no
 comprobable y no se atribuye una inconsistencia al motor.
 
-La fuente estructural de cardinalidad se resuelve cuando la política de costo
-la necesita, aunque `estrategia_distintos` esté omitida o no disponible. Esa
-disponibilidad gobierna la medición, no el conocimiento que ya da una clave
-garantizada. Si la fuente estructural no alcanza y la estrategia no permite
-medir, la cardinalidad queda desconocida y se aplica la regla explícita de la
-política.
+El catálogo de la clave primaria se consulta siempre, aunque la política de
+costo no necesite cardinalidad. La respuesta queda en
+`resumen_tabla$meta$clave`, con sus `columnas`, `fuente`, `motivo`, `garantia` y
+`estado`. La consulta es de metadatos y no recorre la tabla. La fuente
+estructural sólo gobierna la medición de cardinalidad cuando la política lo
+necesita; no se pierde el conocimiento de una clave garantizada si
+`estrategia_distintos` está omitida o no disponible. Si la fuente estructural
+no alcanza y la estrategia no permite medir, la cardinalidad queda desconocida
+y se aplica la regla explícita de la política.
 
 El resumen declara `meta$snapshot = FALSE`, porque sus agregados son sentencias
 separadas. Cuando `n_validos` y `n_distintos` exactos son incoherentes y vienen
@@ -152,7 +155,14 @@ consultado alcanza para confiar en el motor. Oracle sólo queda garantizado con
 validación, y MySQL `enforced`. MariaDB, SQL Server, SQLite y DuckDB no ofrecen
 en esta lectura un estado comparable, así que allí una clave visible queda con
 garantía desconocida. No hay que leer una entrada del catálogo como prueba de
-los datos existentes cuando el estado no fue consultable.
+los datos existentes cuando el estado no fue consultable. Una tabla sin clave
+declarada queda con `garantia = "no_declarada"`; una consulta fallida o un
+catálogo cuya visibilidad no se puede establecer queda con `garantia =
+"desconocida"` y su motivo.
+
+El método de impresión muestra esta línea de metadatos junto al resumen. Por
+ejemplo, una tabla sin clave dice «Clave primaria: no declara clave», mientras
+que una consulta fallida dice que no se pudo preguntar al catálogo.
 
 ## Leer el resultado sin memorizar su forma
 

@@ -416,6 +416,14 @@ not silently become exact. The result separates the requested strategy, the
 resolved strategy, and its state in `meta$estrategia_distintos` and in the SQL
 rows.
 
+The primary-key catalogue is queried on every run, even when the cost policy
+does not need cardinality. The response is published in
+`resumen_tabla$meta$clave`, with `columnas`, `fuente`, `motivo`, `garantia`, and
+`estado`. This is a metadata query and does not scan the table. A visible key
+without enough evidence keeps `garantia = "desconocida"`; a table without a
+declared key keeps `"no_declarada"`, and a failed query keeps its reason instead
+of turning it into an absence of a key.
+
 Structural sources used by the cost policy are resolved whenever the policy
 needs cardinality, even if the requested strategy is omitted or unavailable.
 The strategy's availability controls whether cardinality may be measured; it

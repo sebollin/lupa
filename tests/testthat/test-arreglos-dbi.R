@@ -76,6 +76,7 @@ if (.dbi_de_prueba) {
   }
 
   setClass("ConexionJugueteLupa", contains = "SQLiteConnection")
+  setClass("SQLiteConexionJugueteLupa", contains = "ConexionJugueteLupa")
   setClass("ResultadoJugueteLupa", contains = "SQLiteResult")
 
   .juguete_envolver <- function(con) {
@@ -182,6 +183,67 @@ if (.dbi_de_prueba) {
 }
 
 # ---- 2.39: las cuatro consultas-porton -----------------------------------
+
+test_that("perfilar_dbi publica la clave y lee un solo catalogo", {
+  skip_if_not(.dbi_de_prueba, "Falta el backend simulado de DBI.")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbExecute(con, paste(
+    "CREATE TABLE con_clave (",
+    "id INTEGER NOT NULL PRIMARY KEY, valor TEXT)"
+  ))
+  DBI::dbExecute(con, "CREATE TABLE sin_clave (valor TEXT)")
+  DBI::dbExecute(con, "INSERT INTO con_clave VALUES (1, 'a'), (2, 'b')")
+  DBI::dbExecute(con, "INSERT INTO sin_clave VALUES ('a'), ('b')")
+  juguete <- methods::as(
+    .juguete_envolver(con), "SQLiteConexionJugueteLupa"
+  )
+
+  .juguete_reiniciar("normal")
+  con_clave <- .perfilar_juguete(
+    juguete, "con_clave", modo = "conteos",
+    bloque_muestra = "solo_agregados", proteger_datos_personales = FALSE
+  )
+  catalogos <- .juguete_consultas()[grepl(
+    "pragma_table_info", .juguete_consultas(), fixed = TRUE
+  )]
+  expect_length(catalogos, 1L)
+  expect_false(grepl("FROM `con_clave`", catalogos, fixed = TRUE))
+  clave <- con_clave$resumen_tabla$meta$clave
+  expect_identical(clave$columnas, "id")
+  expect_identical(clave$fuente, "pragma")
+  expect_identical(clave$garantia, "garantizada")
+  expect_identical(clave$estado$unicidad, "garantizada")
+  expect_identical(clave$estado$ausencia_de_nulos, "garantizada")
+  salida <- c(
+    capture.output(lupa:::print.perfil_dbi(con_clave)),
+    capture.output(lupa:::print.perfil_dbi(con_clave), type = "message")
+  )
+  expect_true(any(grepl("garantizada", salida, fixed = TRUE)))
+
+  .juguete_reiniciar("normal")
+  sin_clave <- .perfilar_juguete(
+    juguete, "sin_clave", modo = "conteos",
+    bloque_muestra = "solo_agregados", proteger_datos_personales = FALSE
+  )
+  clave <- sin_clave$resumen_tabla$meta$clave
+  expect_identical(clave$columnas, character())
+  expect_identical(clave$fuente, "pragma")
+  expect_identical(clave$garantia, "no_declarada")
+  expect_true(clave$estado$visible)
+  expect_true(is.na(clave$motivo))
+  salida <- c(
+    capture.output(lupa:::print.perfil_dbi(sin_clave)),
+    capture.output(lupa:::print.perfil_dbi(sin_clave), type = "message")
+  )
+  expect_true(any(grepl("no declara clave", salida, fixed = TRUE)))
+
+  oculta <- list(
+    columnas = "id", fuente = "catalogo", motivo = NA_character_,
+    garantia = "desconocida", estado = list(visible = FALSE)
+  )
+  expect_match(lupa:::.texto_clave_dbi(oculta), "catalogo no deja ver la clave")
+})
 
 test_that("un motor que rechaza LIMIT en la muestra no se lleva el resumen", {
   bases <- .conexion_juguete(modo = "sin_limite_final")
