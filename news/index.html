@@ -42,6 +42,16 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="la-garantía-de-una-clave-mira-el-índice-que-la-impone-0-1-0">La garantía de una clave mira el índice que la impone<a class="anchor" aria-label="anchor" href="#la-garant%C3%ADa-de-una-clave-mira-el-%C3%ADndice-que-la-impone-0-1-0"></a></h3>
+<p><code>pg_constraint</code> dice que hay una restricción; el que impone la unicidad es el índice que la respalda. La lectura del catálogo trae ahora <code>indisunique</code> de ese índice, con un <code>LEFT JOIN</code> en la consulta que ya se emitía, y si no es único la garantía baja aunque la restricción figure validada.</p>
+<p>No es un estado alcanzable por DDL normal —al adjuntar una partición el motor crea solo el índice único y válido—, así que es defensa ante un catálogo alterado. Entra igual porque cuesta una columna y porque cambia la garantía de «el catálogo declara una restricción» a «el índice que la impone es único».</p>
+</div>
+<div class="section level3">
+<h3 id="ronda-el-muestreo-publica-lo-que-se-obtuvo-y-distingue-su-incertidumbre-0-1-0">Ronda 154: el muestreo publica lo que se obtuvo y distingue su incertidumbre<a class="anchor" aria-label="anchor" href="#ronda-el-muestreo-publica-lo-que-se-obtuvo-y-distingue-su-incertidumbre-0-1-0"></a></h3>
+<p><code>resumen_tabla$meta$muestreo</code> ahora publica juntas las filas solicitadas y las filas obtenidas por la lectura de <code>perfil_muestra</code>. <code>tamano_muestra</code> se conserva por compatibilidad como el tamaño efectivo solicitado a la consulta; <code>filas_solicitadas</code> identifica el pedido original y <code>filas_obtenidas</code> el hecho observado. Si la lectura no se hizo o falló antes de devolver filas, el último campo queda en <code>NA</code>.</p>
+<p>En las métricas SQL muestreadas, <code>error_esperado</code> deja de ser uniforme: <code>no_estimado</code> indica que el error podría calcularse bajo un plan probabilístico pero no se calculó; <code>no_estimable</code> cubre la moda, la mediana y la cardinalidad observada, sin una cota simple o un estimador declarado; y <code>no_aplica</code> indica que no hubo muestreo efectivo. El motivo se conserva en cada registro junto con el método, el tamaño y la fracción. No se agregan cotas numéricas inventadas.</p>
+</div>
+<div class="section level3">
 <h3 id="cambios-en-desarrollo-0-1-0">Cambios en desarrollo<a class="anchor" aria-label="anchor" href="#cambios-en-desarrollo-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> deja de ejecutar agregados de datos para decidir el costo. Con una cardinalidad desconocida publica un rango y conserva separadas <code>estrategia_distintos</code> y <code>fuente_cardinalidad_costo</code>.</li>

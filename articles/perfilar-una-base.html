@@ -95,9 +95,22 @@ motivo.</p>
 <code>alcance</code>, <code>universo</code>,
 <code>tamano_muestra</code>, <code>fraccion</code>, <code>metodo</code>
 y <code>error_esperado</code>. En el modo muestreado,
-<code>n_distintos</code> se conserva como cardinalidad observada en la
-muestra, no como una estimación de la cardinalidad de la tabla completa.
-<code>modo = "aproximado"</code> sondea las funciones nativas de
+<code>error_esperado</code> distingue <code>no_estimado</code> —el error
+podría calcularse bajo un plan probabilístico, pero no se calculó— de
+<code>no_estimable</code> —moda, mediana y cardinalidad observada no
+tienen una cota simple sin supuestos adicionales—.
+<code>no_aplica</code> indica que no hubo muestreo efectivo. El motivo
+queda en <code>resumen_tabla$sql$motivo</code>, junto con el método, el
+tamaño y la fracción. <code>n_distintos</code> se conserva como
+cardinalidad observada en la muestra, no como una estimación de la
+cardinalidad de la tabla completa.</p>
+<p>El metadato <code>resumen_tabla$meta$muestreo</code> conserva
+<code>tamano_muestra</code> por compatibilidad como tamaño efectivo
+solicitado a la consulta. Además publica <code>filas_solicitadas</code>,
+el pedido original, y <code>filas_obtenidas</code>, las filas que
+devolvió la lectura de <code>perfil_muestra</code>; esta última puede
+ser <code>NA</code> cuando el bloque no se solicitó o falló antes de
+leer. <code>modo = "aproximado"</code> sondea las funciones nativas de
 cardinalidad y cuantiles; si una no existe, se usa el respaldo exacto y
 el método queda registrado.</p>
 <p>Además, <code>id_muestra</code> identifica la consulta de datos que
@@ -319,31 +332,31 @@ que significa «no medido», no <code>0</code>.</p>
 <span>  <span class="st">"bytes_resultado_r"</span>, <span class="st">"consulta_id"</span>, <span class="st">"id_muestra"</span>, <span class="st">"etapa"</span></span>
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;            metrica    estado duracion_ms cpu_ms n_filas_resultado bytes_resultado_r</span></span>
-<span><span class="co">#&gt; 1                n calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 2                n calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 3                n calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 4                n calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 5        n_validos calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 6      n_faltantes calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 7   prop_faltantes calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 8      n_distintos calculado   0.4675388      1                 1               760</span></span>
-<span><span class="co">#&gt; 9   tasa_distintos calculado   0.4675388      1                 1               760</span></span>
-<span><span class="co">#&gt; 10            moda calculado   0.5681515      1                 1               872</span></span>
-<span><span class="co">#&gt; 11 frecuencia_moda calculado   0.5681515      1                 1               872</span></span>
-<span><span class="co">#&gt; 12          minimo calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 13          maximo calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 14           media calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 15         n_ceros calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 16     n_negativos calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 17         mediana calculado   0.4713535      0                 1               736</span></span>
-<span><span class="co">#&gt; 18          desvio calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 19       n_validos calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 20     n_faltantes calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 21  prop_faltantes calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 22     n_distintos calculado   0.4129410      0                 1               760</span></span>
-<span><span class="co">#&gt; 23  tasa_distintos calculado   0.4129410      0                 1               760</span></span>
-<span><span class="co">#&gt; 24            moda calculado   0.5645752      1                 1               928</span></span>
-<span><span class="co">#&gt; 25 frecuencia_moda calculado   0.5645752      1                 1               928</span></span>
+<span><span class="co">#&gt; 1                n calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 2                n calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 3                n calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 4                n calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 5        n_validos calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 6      n_faltantes calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 7   prop_faltantes calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 8      n_distintos calculado   0.3523827      1                 1               760</span></span>
+<span><span class="co">#&gt; 9   tasa_distintos calculado   0.3523827      1                 1               760</span></span>
+<span><span class="co">#&gt; 10            moda calculado   0.4007816      1                 1               872</span></span>
+<span><span class="co">#&gt; 11 frecuencia_moda calculado   0.4007816      1                 1               872</span></span>
+<span><span class="co">#&gt; 12          minimo calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 13          maximo calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 14           media calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 15         n_ceros calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 16     n_negativos calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 17         mediana calculado   0.4765987      0                 1               736</span></span>
+<span><span class="co">#&gt; 18          desvio calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 19       n_validos calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 20     n_faltantes calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 21  prop_faltantes calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 22     n_distintos calculado   0.3557205      1                 1               760</span></span>
+<span><span class="co">#&gt; 23  tasa_distintos calculado   0.3557205      1                 1               760</span></span>
+<span><span class="co">#&gt; 24            moda calculado   0.3871918      0                 1               928</span></span>
+<span><span class="co">#&gt; 25 frecuencia_moda calculado   0.3871918      0                 1               928</span></span>
 <span><span class="co">#&gt; 26          minimo no_aplica          NA     NA                NA                NA</span></span>
 <span><span class="co">#&gt; 27          maximo no_aplica          NA     NA                NA                NA</span></span>
 <span><span class="co">#&gt; 28           media no_aplica          NA     NA                NA                NA</span></span>
@@ -351,27 +364,27 @@ que significa «no medido», no <code>0</code>.</p>
 <span><span class="co">#&gt; 30     n_negativos no_aplica          NA     NA                NA                NA</span></span>
 <span><span class="co">#&gt; 31         mediana no_aplica          NA     NA                NA                NA</span></span>
 <span><span class="co">#&gt; 32          desvio no_aplica          NA     NA                NA                NA</span></span>
-<span><span class="co">#&gt; 33       n_validos calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 34     n_faltantes calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 35  prop_faltantes calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 36     n_distintos calculado   0.3755093      0                 1               760</span></span>
-<span><span class="co">#&gt; 37  tasa_distintos calculado   0.3755093      0                 1               760</span></span>
-<span><span class="co">#&gt; 38            moda calculado   0.4384518      0                 1               872</span></span>
-<span><span class="co">#&gt; 39 frecuencia_moda calculado   0.4384518      0                 1               872</span></span>
-<span><span class="co">#&gt; 40          minimo calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 41          maximo calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 42           media calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 43         n_ceros calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 44     n_negativos calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 45         mediana calculado   0.5557537      1                 1               736</span></span>
-<span><span class="co">#&gt; 46          desvio calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 47       n_validos calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 48     n_faltantes calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 49  prop_faltantes calculado   0.5381107      1                 1              3176</span></span>
-<span><span class="co">#&gt; 50     n_distintos calculado   0.3676414      1                 1               760</span></span>
-<span><span class="co">#&gt; 51  tasa_distintos calculado   0.3676414      1                 1               760</span></span>
-<span><span class="co">#&gt; 52            moda calculado   0.4141331      1                 1               936</span></span>
-<span><span class="co">#&gt; 53 frecuencia_moda calculado   0.4141331      1                 1               936</span></span>
+<span><span class="co">#&gt; 33       n_validos calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 34     n_faltantes calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 35  prop_faltantes calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 36     n_distintos calculado   0.3433228      0                 1               760</span></span>
+<span><span class="co">#&gt; 37  tasa_distintos calculado   0.3433228      0                 1               760</span></span>
+<span><span class="co">#&gt; 38            moda calculado   0.3597736      1                 1               872</span></span>
+<span><span class="co">#&gt; 39 frecuencia_moda calculado   0.3597736      1                 1               872</span></span>
+<span><span class="co">#&gt; 40          minimo calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 41          maximo calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 42           media calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 43         n_ceros calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 44     n_negativos calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 45         mediana calculado   0.4196167      0                 1               736</span></span>
+<span><span class="co">#&gt; 46          desvio calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 47       n_validos calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 48     n_faltantes calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 49  prop_faltantes calculado   0.4267693      1                 1              3176</span></span>
+<span><span class="co">#&gt; 50     n_distintos calculado   0.3654957      0                 1               760</span></span>
+<span><span class="co">#&gt; 51  tasa_distintos calculado   0.3654957      0                 1               760</span></span>
+<span><span class="co">#&gt; 52            moda calculado   0.3597736      0                 1               936</span></span>
+<span><span class="co">#&gt; 53 frecuencia_moda calculado   0.3597736      0                 1               936</span></span>
 <span><span class="co">#&gt; 54          minimo no_aplica          NA     NA                NA                NA</span></span>
 <span><span class="co">#&gt; 55          maximo no_aplica          NA     NA                NA                NA</span></span>
 <span><span class="co">#&gt; 56           media no_aplica          NA     NA                NA                NA</span></span>
@@ -443,13 +456,13 @@ que significa «no medido», no <code>0</code>.</p>
 <span></span>
 <span><span class="va">perfil</span><span class="op">$</span><span class="va">resumen_tabla</span><span class="op">$</span><span class="va">tiempos</span></span>
 <span><span class="co">#&gt;                         etapa duracion_ms cpu_ms        estado nivel n_ejecuciones</span></span>
-<span><span class="co">#&gt; 1        ausencia_estructural   0.7750988      2        medido     2             1</span></span>
-<span><span class="co">#&gt; 2 casi_duplicados_vocabulario  13.7050152     24        medido     2             1</span></span>
-<span><span class="co">#&gt; 3                dependencias   1.2357235      1        medido     2             1</span></span>
+<span><span class="co">#&gt; 1        ausencia_estructural   0.6997585      2        medido     2             1</span></span>
+<span><span class="co">#&gt; 2 casi_duplicados_vocabulario   8.2213879     13        medido     2             1</span></span>
+<span><span class="co">#&gt; 3                dependencias   1.0728836      1        medido     2             1</span></span>
 <span><span class="co">#&gt; 4      duplicados_aproximados          NA     NA no_solicitado     2             1</span></span>
-<span><span class="co">#&gt; 5             lectura_muestra   0.7138252      0        medido     1             1</span></span>
-<span><span class="co">#&gt; 6          perfilado_columnas 340.7299519    341        medido     2             1</span></span>
-<span><span class="co">#&gt; 7           perfilado_muestra 444.5676804    461        medido     1             1</span></span></code></pre></div>
+<span><span class="co">#&gt; 5             lectura_muestra   0.5648136      0        medido     1             1</span></span>
+<span><span class="co">#&gt; 6          perfilado_columnas 317.1391487    317        medido     2             1</span></span>
+<span><span class="co">#&gt; 7           perfilado_muestra 414.7865772    427        medido     1             1</span></span></code></pre></div>
 <p><code>resumen_tabla$tiempos</code> reúne en milisegundos las etapas
 grandes del lado R, incluidas la lectura y el perfilado de la muestra,
 el perfilado por columna y los análisis opcionales. La columna

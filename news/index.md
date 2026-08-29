@@ -2,6 +2,37 @@
 
 ## lupa 0.1.0
 
+### La garantía de una clave mira el índice que la impone
+
+`pg_constraint` dice que hay una restricción; el que impone la unicidad
+es el índice que la respalda. La lectura del catálogo trae ahora
+`indisunique` de ese índice, con un `LEFT JOIN` en la consulta que ya se
+emitía, y si no es único la garantía baja aunque la restricción figure
+validada.
+
+No es un estado alcanzable por DDL normal —al adjuntar una partición el
+motor crea solo el índice único y válido—, así que es defensa ante un
+catálogo alterado. Entra igual porque cuesta una columna y porque cambia
+la garantía de «el catálogo declara una restricción» a «el índice que la
+impone es único».
+
+### Ronda 154: el muestreo publica lo que se obtuvo y distingue su incertidumbre
+
+`resumen_tabla$meta$muestreo` ahora publica juntas las filas solicitadas
+y las filas obtenidas por la lectura de `perfil_muestra`.
+`tamano_muestra` se conserva por compatibilidad como el tamaño efectivo
+solicitado a la consulta; `filas_solicitadas` identifica el pedido
+original y `filas_obtenidas` el hecho observado. Si la lectura no se
+hizo o falló antes de devolver filas, el último campo queda en `NA`.
+
+En las métricas SQL muestreadas, `error_esperado` deja de ser uniforme:
+`no_estimado` indica que el error podría calcularse bajo un plan
+probabilístico pero no se calculó; `no_estimable` cubre la moda, la
+mediana y la cardinalidad observada, sin una cota simple o un estimador
+declarado; y `no_aplica` indica que no hubo muestreo efectivo. El motivo
+se conserva en cada registro junto con el método, el tamaño y la
+fracción. No se agregan cotas numéricas inventadas.
+
 ### Cambios en desarrollo
 
 - [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)

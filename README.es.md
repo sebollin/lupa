@@ -511,14 +511,26 @@ puede rehacer la cuenta.
 
 Toda métrica muestreada o aproximada viaja diciéndolo. `estado`
 distingue `calculado`, `estimado` y `no_disponible`, y cada fila lleva
-`universo`, `tamano_muestra`, `fraccion`, `metodo` y `error_esperado`
-—`desconocido` cuando el motor no documenta una cota, nunca una
-inventada—. El conteo de distintos tiene su propio estado,
-`observado_muestra`: la cardinalidad de una muestra no estima la
-cardinalidad del universo sin un estimador declarado, así que se informa
-por lo que es —lo visto en la muestra, con el universo al lado—. Un
-motor sin capacidad de muestreo no rompe: el modo degrada y lo dice en
-la tabla de cobertura.
+`universo`, `tamano_muestra`, `fraccion`, `metodo` y `error_esperado`.
+En las métricas SQL muestreadas, `error_esperado` vale `no_estimado`
+cuando el error podría calcularse bajo un plan probabilístico pero no se
+calculó, `no_estimable` para la moda, la mediana y la cardinalidad
+observada, que no tienen una cota simple sin supuestos adicionales o un
+estimador declarado, y `no_aplica` cuando no hubo muestreo efectivo. La
+columna `motivo` explica la distinción; `metodo`, `tamano_muestra` y
+`fraccion` conservan las condiciones de la corrida. No se publica una
+cota numérica sin una fórmula justificada.
+
+En `resumen_tabla$meta$muestreo`, `tamano_muestra` se conserva por
+compatibilidad y registra el tamaño efectivo solicitado a la consulta,
+`filas_solicitadas` registra el pedido original y `filas_obtenidas`
+registra las filas que devolvió la lectura de `perfil_muestra`. Esta
+última queda en `NA` si ese bloque no se solicitó o falló antes de leer.
+El conteo de distintos tiene su propio estado, `observado_muestra`: la
+cardinalidad de una muestra no estima la del universo sin un estimador
+declarado, así que se informa por lo que es —lo visto en la muestra, con
+el universo al lado—. Un motor sin capacidad de muestreo no rompe: el
+modo degrada y lo dice en la tabla de cobertura.
 
 Una aproximación no se etiqueta como estimada cuando su consulta no se
 emitió o no devolvió un valor utilizable. Si el motor no ofrece la

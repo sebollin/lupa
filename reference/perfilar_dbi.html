@@ -274,11 +274,25 @@ Los <code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop(
 límite del dialecto. Si ninguna forma es compatible, las métricas SQL quedan
 en <code>no_disponible</code>: no se sustituyen por resultados de la tabla completa.
 Cada registro publica <code>alcance</code>, <code>universo</code>, <code>tamano_muestra</code>, <code>fraccion</code>,
-<code>metodo</code> y <code>error_esperado</code>. Los distintos de una muestra se publican como
-cardinalidad de la muestra, no como cardinalidad del universo. <code>modo = "aproximado"</code> sondea <code>APPROX_COUNT_DISTINCT</code>, <code>approx_count_distinct</code> y las
-formas de cuantiles del motor; cuando ninguna responde usa el respaldo exacto
-y lo registra por métrica. Las cotas de error no documentadas quedan como
-<code>"desconocido"</code>. Una aproximacion solo se consolida cuando entrega una
+<code>metodo</code> y <code>error_esperado</code>. En <code>resumen_tabla$meta$muestreo</code>,
+<code>tamano_muestra</code> conserva el nombre historico y declara el tamano efectivo
+solicitado a la consulta; <code>filas_solicitadas</code> declara el pedido original y
+<code>filas_obtenidas</code> las filas que devolvio la lectura del bloque
+<code>perfil_muestra</code>. Esta ultima puede ser <code>NA</code> si el bloque no se solicito o
+fallo antes de leer.</p>
+<p>En una muestra, <code>error_esperado</code> vale <code>no_estimado</code> para metricas cuyo error
+podria calcularse bajo un plan probabilistico pero no se calculo,
+<code>no_estimable</code> para la moda, la mediana y la cardinalidad observada, que no
+tienen una cota simple sin supuestos o un estimador declarado, y <code>no_aplica</code>
+cuando no hubo muestreo efectivo. El <code>motivo</code> de cada registro explica la
+distincion. <code>metodo</code>, <code>tamano_muestra</code> y <code>fraccion</code> conservan las condiciones
+de la corrida; no se publica una cota numerica sin una formula justificada.
+Los distintos de una muestra se publican como cardinalidad de la muestra,
+no como cardinalidad del universo. <code>modo = "aproximado"</code> sondea
+<code>APPROX_COUNT_DISTINCT</code>, <code>approx_count_distinct</code> y las formas de cuantiles del
+motor; cuando ninguna responde usa el respaldo exacto y lo registra por
+metrica. Las cotas de error no documentadas de una aproximacion nativa quedan
+como <code>"desconocido"</code>. Una aproximacion solo se consolida cuando entrega una
 expresion que se puede incrustar en el <code>SELECT</code>; si solo construye una
 consulta completa, se emite por separado. Una consulta no emitida o sin un
 valor utilizable queda <code>no_disponible</code>.</p>

@@ -228,11 +228,25 @@ pseudoaleatoria con el límite del dialecto. Si ninguna forma es
 compatible, las métricas SQL quedan en `no_disponible`: no se sustituyen
 por resultados de la tabla completa. Cada registro publica `alcance`,
 `universo`, `tamano_muestra`, `fraccion`, `metodo` y `error_esperado`.
-Los distintos de una muestra se publican como cardinalidad de la
-muestra, no como cardinalidad del universo. `modo = "aproximado"` sondea
-`APPROX_COUNT_DISTINCT`, `approx_count_distinct` y las formas de
-cuantiles del motor; cuando ninguna responde usa el respaldo exacto y lo
-registra por métrica. Las cotas de error no documentadas quedan como
+En `resumen_tabla$meta$muestreo`, `tamano_muestra` conserva el nombre
+historico y declara el tamano efectivo solicitado a la consulta;
+`filas_solicitadas` declara el pedido original y `filas_obtenidas` las
+filas que devolvio la lectura del bloque `perfil_muestra`. Esta ultima
+puede ser `NA` si el bloque no se solicito o fallo antes de leer.
+
+En una muestra, `error_esperado` vale `no_estimado` para metricas cuyo
+error podria calcularse bajo un plan probabilistico pero no se calculo,
+`no_estimable` para la moda, la mediana y la cardinalidad observada, que
+no tienen una cota simple sin supuestos o un estimador declarado, y
+`no_aplica` cuando no hubo muestreo efectivo. El `motivo` de cada
+registro explica la distincion. `metodo`, `tamano_muestra` y `fraccion`
+conservan las condiciones de la corrida; no se publica una cota numerica
+sin una formula justificada. Los distintos de una muestra se publican
+como cardinalidad de la muestra, no como cardinalidad del universo.
+`modo = "aproximado"` sondea `APPROX_COUNT_DISTINCT`,
+`approx_count_distinct` y las formas de cuantiles del motor; cuando
+ninguna responde usa el respaldo exacto y lo registra por metrica. Las
+cotas de error no documentadas de una aproximacion nativa quedan como
 `"desconocido"`. Una aproximacion solo se consolida cuando entrega una
 expresion que se puede incrustar en el `SELECT`; si solo construye una
 consulta completa, se emite por separado. Una consulta no emitida o sin
