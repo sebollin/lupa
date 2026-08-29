@@ -480,8 +480,12 @@ The low end is `total`: when cardinality is unknown, it assumes the policy will
 omit expensive metrics. The high end is `total_maximo` —also exposed as
 `total_lotes_rechazados` after adding bisection— and leaves open the path that
 executes them. If the engine rejects batches, up to `2n - 1` probes are added per
-batch of `n` columns. The real cost falls between the two, and the plan says so
-in both directions.
+batch of `n` columns. The real cost falls between the two **when the sample can be
+built**: if `modo = "muestreado"` and the engine does not accept the resolved
+form, the plan declares it in `attr(plan, "muestreo")` and drops the metrics that
+depended on it from the range. The run, in turn, publishes each of them as
+`no_disponible` with its reason: nothing that was not measured is reported as
+measured.
 
 Distinct-count provenance is selected explicitly with `estrategia_distintos`.
 `"exacta"` is the default and emits `COUNT(DISTINCT)`; `"aproximada_motor"`
@@ -963,7 +967,9 @@ Encoding repair follows the approach and frozen data of
 [Robyn Speer](https://github.com/rspeer), in R. It includes eleven byte tables,
 CESU-8 and Java `C0 80` handling, and five deliberate extensions documented in
 the [NEWS](NEWS.md). It reproduces 159 of the 161 distributed corpus cases and
-leaves all 31 negative cases untouched. It deliberately does not provide
+leaves 30 of the 31 negative cases untouched. The remaining one is labelled
+*mostly* negative and the corpus itself expects the repair: only its C1 control
+characters are fixed. It deliberately does not provide
 `ftfy`'s style-oriented `fix_text` steps such as HTML unescaping, quote curling,
 width normalization, or Unicode normalization: changing legitimate data
 silently is not repair.
