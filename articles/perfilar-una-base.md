@@ -300,31 +300,31 @@ perfil$resumen_tabla$sql[, c(
   "bytes_resultado_r", "consulta_id", "id_muestra", "etapa"
 )]
 #>            metrica    estado duracion_ms cpu_ms n_filas_resultado bytes_resultado_r
-#> 1                n calculado   0.4515648      1                 1              3192
-#> 2                n calculado   0.4515648      1                 1              3192
-#> 3                n calculado   0.4515648      1                 1              3192
-#> 4                n calculado   0.4515648      1                 1              3192
-#> 5        n_validos calculado   0.4515648      1                 1              3192
-#> 6      n_faltantes calculado   0.4515648      1                 1              3192
-#> 7   prop_faltantes calculado   0.4515648      1                 1              3192
-#> 8      n_distintos calculado   0.3938675      1                 1              1216
-#> 9   tasa_distintos calculado   0.3938675      1                 1              1216
-#> 10            moda calculado   0.4081726      1                 1               872
-#> 11 frecuencia_moda calculado   0.4081726      1                 1               872
-#> 12          minimo calculado   0.4515648      1                 1              3192
-#> 13          maximo calculado   0.4515648      1                 1              3192
-#> 14           media calculado   0.4515648      1                 1              3192
-#> 15         n_ceros calculado   0.4515648      1                 1              3192
-#> 16     n_negativos calculado   0.4515648      1                 1              3192
-#> 17         mediana calculado   0.3716946      1                 1               736
-#> 18          desvio calculado   0.4515648      1                 1              3192
-#> 19       n_validos calculado   0.4515648      1                 1              3192
-#> 20     n_faltantes calculado   0.4515648      1                 1              3192
-#> 21  prop_faltantes calculado   0.4515648      1                 1              3192
-#> 22     n_distintos calculado   0.3938675      1                 1              1216
-#> 23  tasa_distintos calculado   0.3938675      1                 1              1216
-#> 24            moda calculado   0.3583431      0                 1               928
-#> 25 frecuencia_moda calculado   0.3583431      0                 1               928
+#> 1                n calculado   0.4234314      0                 1              3192
+#> 2                n calculado   0.4234314      0                 1              3192
+#> 3                n calculado   0.4234314      0                 1              3192
+#> 4                n calculado   0.4234314      0                 1              3192
+#> 5        n_validos calculado   0.4234314      0                 1              3192
+#> 6      n_faltantes calculado   0.4234314      0                 1              3192
+#> 7   prop_faltantes calculado   0.4234314      0                 1              3192
+#> 8      n_distintos calculado   0.3623962      0                 1              1216
+#> 9   tasa_distintos calculado   0.3623962      0                 1              1216
+#> 10            moda calculado   0.3576279      1                 1               872
+#> 11 frecuencia_moda calculado   0.3576279      1                 1               872
+#> 12          minimo calculado   0.4234314      0                 1              3192
+#> 13          maximo calculado   0.4234314      0                 1              3192
+#> 14           media calculado   0.4234314      0                 1              3192
+#> 15         n_ceros calculado   0.4234314      0                 1              3192
+#> 16     n_negativos calculado   0.4234314      0                 1              3192
+#> 17         mediana calculado   0.4100800      0                 1               736
+#> 18          desvio calculado   0.4234314      0                 1              3192
+#> 19       n_validos calculado   0.4234314      0                 1              3192
+#> 20     n_faltantes calculado   0.4234314      0                 1              3192
+#> 21  prop_faltantes calculado   0.4234314      0                 1              3192
+#> 22     n_distintos calculado   0.3623962      0                 1              1216
+#> 23  tasa_distintos calculado   0.3623962      0                 1              1216
+#> 24            moda calculado   0.3302097      1                 1               928
+#> 25 frecuencia_moda calculado   0.3302097      1                 1               928
 #> 26          minimo no_aplica          NA     NA                NA                NA
 #> 27          maximo no_aplica          NA     NA                NA                NA
 #> 28           media no_aplica          NA     NA                NA                NA
@@ -332,27 +332,27 @@ perfil$resumen_tabla$sql[, c(
 #> 30     n_negativos no_aplica          NA     NA                NA                NA
 #> 31         mediana no_aplica          NA     NA                NA                NA
 #> 32          desvio no_aplica          NA     NA                NA                NA
-#> 33       n_validos calculado   0.4515648      1                 1              3192
-#> 34     n_faltantes calculado   0.4515648      1                 1              3192
-#> 35  prop_faltantes calculado   0.4515648      1                 1              3192
-#> 36     n_distintos calculado   0.3867149      1                 1              1216
-#> 37  tasa_distintos calculado   0.3867149      1                 1              1216
-#> 38            moda calculado   0.3604889      0                 1               872
-#> 39 frecuencia_moda calculado   0.3604889      0                 1               872
-#> 40          minimo calculado   0.4515648      1                 1              3192
-#> 41          maximo calculado   0.4515648      1                 1              3192
-#> 42           media calculado   0.4515648      1                 1              3192
-#> 43         n_ceros calculado   0.4515648      1                 1              3192
-#> 44     n_negativos calculado   0.4515648      1                 1              3192
-#> 45         mediana calculado   0.3607273      0                 1               736
-#> 46          desvio calculado   0.4515648      1                 1              3192
-#> 47       n_validos calculado   0.4515648      1                 1              3192
-#> 48     n_faltantes calculado   0.4515648      1                 1              3192
-#> 49  prop_faltantes calculado   0.4515648      1                 1              3192
-#> 50     n_distintos calculado   0.3867149      1                 1              1216
-#> 51  tasa_distintos calculado   0.3867149      1                 1              1216
-#> 52            moda calculado   0.3888607      1                 1               936
-#> 53 frecuencia_moda calculado   0.3888607      1                 1               936
+#> 33       n_validos calculado   0.4234314      0                 1              3192
+#> 34     n_faltantes calculado   0.4234314      0                 1              3192
+#> 35  prop_faltantes calculado   0.4234314      0                 1              3192
+#> 36     n_distintos calculado   0.3364086      1                 1              1216
+#> 37  tasa_distintos calculado   0.3364086      1                 1              1216
+#> 38            moda calculado   0.3383160      0                 1               872
+#> 39 frecuencia_moda calculado   0.3383160      0                 1               872
+#> 40          minimo calculado   0.4234314      0                 1              3192
+#> 41          maximo calculado   0.4234314      0                 1              3192
+#> 42           media calculado   0.4234314      0                 1              3192
+#> 43         n_ceros calculado   0.4234314      0                 1              3192
+#> 44     n_negativos calculado   0.4234314      0                 1              3192
+#> 45         mediana calculado   0.4765987      0                 1               736
+#> 46          desvio calculado   0.4234314      0                 1              3192
+#> 47       n_validos calculado   0.4234314      0                 1              3192
+#> 48     n_faltantes calculado   0.4234314      0                 1              3192
+#> 49  prop_faltantes calculado   0.4234314      0                 1              3192
+#> 50     n_distintos calculado   0.3364086      1                 1              1216
+#> 51  tasa_distintos calculado   0.3364086      1                 1              1216
+#> 52            moda calculado   0.3232956      0                 1               936
+#> 53 frecuencia_moda calculado   0.3232956      0                 1               936
 #> 54          minimo no_aplica          NA     NA                NA                NA
 #> 55          maximo no_aplica          NA     NA                NA                NA
 #> 56           media no_aplica          NA     NA                NA                NA
@@ -361,31 +361,31 @@ perfil$resumen_tabla$sql[, c(
 #> 59         mediana no_aplica          NA     NA                NA                NA
 #> 60          desvio no_aplica          NA     NA                NA                NA
 #>    consulta_id id_muestra       etapa
-#> 1            5          5     basicos
-#> 2            5          5     basicos
-#> 3            5          5     basicos
-#> 4            5          5     basicos
-#> 5            5          5     basicos
-#> 6            5          5     basicos
-#> 7            5          5     basicos
-#> 8            6          6     conteos
-#> 9            6          6     conteos
-#> 10           8         NA        moda
-#> 11           8         NA        moda
-#> 12           5          5     basicos
-#> 13           5          5     basicos
-#> 14           5          5     basicos
-#> 15           5          5     basicos
-#> 16           5          5     basicos
-#> 17          12         NA     mediana
-#> 18           5          5     basicos
-#> 19           5          5     basicos
-#> 20           5          5     basicos
-#> 21           5          5     basicos
-#> 22           6          6     conteos
-#> 23           6          6     conteos
-#> 24           9         NA        moda
-#> 25           9         NA        moda
+#> 1            6          6     basicos
+#> 2            6          6     basicos
+#> 3            6          6     basicos
+#> 4            6          6     basicos
+#> 5            6          6     basicos
+#> 6            6          6     basicos
+#> 7            6          6     basicos
+#> 8            7          7     conteos
+#> 9            7          7     conteos
+#> 10           9         NA        moda
+#> 11           9         NA        moda
+#> 12           6          6     basicos
+#> 13           6          6     basicos
+#> 14           6          6     basicos
+#> 15           6          6     basicos
+#> 16           6          6     basicos
+#> 17          13         NA     mediana
+#> 18           6          6     basicos
+#> 19           6          6     basicos
+#> 20           6          6     basicos
+#> 21           6          6     basicos
+#> 22           7          7     conteos
+#> 23           7          7     conteos
+#> 24          10         NA        moda
+#> 25          10         NA        moda
 #> 26          NA         NA resumen_sql
 #> 27          NA         NA resumen_sql
 #> 28          NA         NA resumen_sql
@@ -393,27 +393,27 @@ perfil$resumen_tabla$sql[, c(
 #> 30          NA         NA resumen_sql
 #> 31          NA         NA resumen_sql
 #> 32          NA         NA resumen_sql
-#> 33           5          5     basicos
-#> 34           5          5     basicos
-#> 35           5          5     basicos
-#> 36           7          7     conteos
-#> 37           7          7     conteos
-#> 38          10         NA        moda
-#> 39          10         NA        moda
-#> 40           5          5     basicos
-#> 41           5          5     basicos
-#> 42           5          5     basicos
-#> 43           5          5     basicos
-#> 44           5          5     basicos
-#> 45          13         NA     mediana
-#> 46           5          5     basicos
-#> 47           5          5     basicos
-#> 48           5          5     basicos
-#> 49           5          5     basicos
-#> 50           7          7     conteos
-#> 51           7          7     conteos
-#> 52          11         NA        moda
-#> 53          11         NA        moda
+#> 33           6          6     basicos
+#> 34           6          6     basicos
+#> 35           6          6     basicos
+#> 36           8          8     conteos
+#> 37           8          8     conteos
+#> 38          11         NA        moda
+#> 39          11         NA        moda
+#> 40           6          6     basicos
+#> 41           6          6     basicos
+#> 42           6          6     basicos
+#> 43           6          6     basicos
+#> 44           6          6     basicos
+#> 45          14         NA     mediana
+#> 46           6          6     basicos
+#> 47           6          6     basicos
+#> 48           6          6     basicos
+#> 49           6          6     basicos
+#> 50           8          8     conteos
+#> 51           8          8     conteos
+#> 52          12         NA        moda
+#> 53          12         NA        moda
 #> 54          NA         NA resumen_sql
 #> 55          NA         NA resumen_sql
 #> 56          NA         NA resumen_sql
@@ -424,13 +424,13 @@ perfil$resumen_tabla$sql[, c(
 
 perfil$resumen_tabla$tiempos
 #>                         etapa duracion_ms cpu_ms        estado nivel n_ejecuciones
-#> 1        ausencia_estructural   0.8594990      2        medido     2             1
-#> 2 casi_duplicados_vocabulario  10.1997852     18        medido     2             1
-#> 3                dependencias   1.2757778      1        medido     2             1
+#> 1        ausencia_estructural   0.5996227      2        medido     2             1
+#> 2 casi_duplicados_vocabulario   7.5337887     13        medido     2             1
+#> 3                dependencias   0.9784698      1        medido     2             1
 #> 4      duplicados_aproximados          NA     NA no_solicitado     2             1
-#> 5             lectura_muestra   0.5395412      0        medido     1             1
-#> 6          perfilado_columnas 364.5148277    364        medido     2             1
-#> 7           perfilado_muestra 471.0938931    483        medido     1             1
+#> 5             lectura_muestra   0.4985332      0        medido     1             1
+#> 6          perfilado_columnas 377.7141571    378        medido     2             1
+#> 7           perfilado_muestra 455.4548264    466        medido     1             1
 ```
 
 `resumen_tabla$tiempos` reúne en milisegundos las etapas grandes del
@@ -743,16 +743,18 @@ supuestos, así que quien no los comparta puede rehacer la cuenta.
 Los agregados planos que comparten lote —`COUNT(col)`, mínimo, máximo,
 media, ceros, negativos y desvío— se piden en una sola consulta.
 `COUNT(DISTINCT ...)` y la moda conservan consultas separadas por sus
-planes propios. La mediana también conserva ese camino como respaldo; un
-motor que acepta `PERCENTILE_CONT(...) WITHIN GROUP` puede consolidar
-varias en un solo `SELECT` por lote. En `modo = "muestreado"`, una
-consulta distinta vuelve a resolver el muestreo: la media y la mediana
-de una misma columna describen conjuntos de filas distintos, del mismo
-tamaño pero no necesariamente los mismos. Las métricas planas del mismo
-lote sí comparten las filas de esa consulta, y `id_muestra` lo deja
-comprobable directamente. Un `id_muestra` ausente declara que no se
-puede garantizar esa coincidencia; queda ausente para moda, frecuencia
-de la moda y mediana, que son métricas por columna.
+planes propios. La mediana también conserva ese camino como respaldo; en
+PostgreSQL 9.3 y SQLite el conteo de la mediana queda como subconsulta
+escalar en la misma sentencia que ordena y recorta. Un motor que acepta
+`PERCENTILE_CONT(...) WITHIN GROUP` puede consolidar varias en un solo
+`SELECT` por lote. En `modo = "muestreado"`, una consulta distinta
+vuelve a resolver el muestreo: la media y la mediana de una misma
+columna describen conjuntos de filas distintos, del mismo tamaño pero no
+necesariamente los mismos. Las métricas planas del mismo lote sí
+comparten las filas de esa consulta, y `id_muestra` lo deja comprobable
+directamente. Un `id_muestra` ausente declara que no se puede garantizar
+esa coincidencia; queda ausente para moda, frecuencia de la moda y
+mediana, que son métricas por columna.
 
 Por eso las formas candidatas están ordenadas por **previsibilidad del
 tamaño** y no por costo. Primero la de cantidad fija,

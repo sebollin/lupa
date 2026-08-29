@@ -286,7 +286,11 @@ ahora para **varias columnas en una sola consulta**, por lotes.
 una por columna porque agrupa. La mediana conserva una por columna como
 respaldo; cuando la sonda del motor acepta
 `PERCENTILE_CONT(...) WITHIN GROUP`, varias medianas viajan en un solo
-`SELECT` por lote.
+`SELECT` por lote. En PostgreSQL 9.3 y SQLite, donde esa funcion no esta
+disponible, la mediana por columna conserva `LIMIT` pero calcula el
+conteo como subconsulta escalar de la misma sentencia. La sonda
+comprueba tambien la division entera (`%` y `/`); si el dialecto no
+admite esa forma, la salida declara que conserva las dos consultas.
 
 La procedencia de la cardinalidad se elige con `estrategia_distintos`,
 cuyo valor por omisión es `"exacta"`. `"exacta"` emite `COUNT(DISTINCT)`
