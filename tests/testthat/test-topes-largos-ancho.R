@@ -13,6 +13,10 @@ test_that("el tope de largo declara una columna completa fuera de alcance", {
 })
 
 test_that("la cobertura explica el largo y el umbral elegido", {
+  # Sin `stringdist` el diagnostico de vocabulario no corre, y la cobertura
+  # publica "falta el paquete opcional" en vez del motivo del tope: otra fila,
+  # con otro texto. Lo que se comprueba aca es el mensaje del TOPE.
+  skip_if_not_installed("stringdist")
   datos <- data.frame(
     texto = c(paste(rep("a", 10001L), collapse = ""), "corto", "otro"),
     stringsAsFactors = FALSE
@@ -32,6 +36,7 @@ test_that("la cobertura explica el largo y el umbral elegido", {
 })
 
 test_that("Inf recupera explicitamente la comparacion de valores largos", {
+  skip_if_not_installed("stringdist")
   base <- paste0("a", paste(rep("x", 10000L), collapse = ""))
   vecino <- paste0("a", paste(rep("x", 9999L), collapse = ""), "y")
   datos <- data.frame(texto = c(base, vecino), stringsAsFactors = FALSE)
