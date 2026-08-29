@@ -274,8 +274,10 @@ a table of tens of millions of rows that is the cost: not the sampling,
 the number of scans. The flat aggregates — `COUNT(col)`,
 min/max/mean/zeros/negatives, and standard deviation — are now asked for
 **several columns in one query**, in batches. `COUNT(DISTINCT ...)`
-keeps a separate query class; mode and median stay one per column,
-because they group and sort. On PostgreSQL 9.3 and SQLite, where that
+keeps a separate query class; the mode stays one per column, because it
+groups. The median keeps a per-column fallback, but where the engine
+probe accepts `PERCENTILE_CONT(...) WITHIN GROUP` several medians travel
+in a single `SELECT` per batch. On PostgreSQL 9.3 and SQLite, where that
 function is unavailable, the per-column median keeps `LIMIT` but makes
 the count a scalar subquery of the same statement. The probe also checks
 integer division (`%` and `/`); if a dialect does not accept that form,
@@ -343,13 +345,17 @@ mode query is retained and the fallback is published in
 
 When
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
-asks for `COUNT(DISTINCT ...)`, the flat aggregates run first. With
-`instrumentar = TRUE` the package times those queries in this same run
-and, before starting the distinct counts, announces a cost projection
-when it exceeds thirty seconds. The figure is the median of the measured
-flat durations multiplied by the number of distinct batches; the message
-names that source and labels itself an estimate. This time projection
-does not use `reltuples`.
+asks for `COUNT(DISTINCT ...)`, the flat aggregates run first when they
+were requested, but they are not a time reference for distinct counts.
+With `instrumentar = TRUE` the package measures the first distinct batch
+in the same run and, if another batch remains, announces a projection
+after that batch and before the second. The figure is the median
+duration of the queries in the first distinct batch multiplied by the
+number of distinct batches; the message names that source and labels
+itself an estimate. With one batch there is nothing left to avoid, so no
+projection is published. A request with `metricas = "distintos"`
+therefore still receives the warning when there are multiple batches.
+This time projection does not use `reltuples`.
 
 On PostgreSQL, preparation also reads `pg_stats.n_distinct`,
 `pg_stats.avg_width`, `pg_class.reltuples` and the session’s `work_mem`
@@ -368,6 +374,17 @@ declared unavailable: elapsed time is never presented as evidence of a
 spill. Where the measurement exists, **it prevails over the estimate** —
 even if the estimate stayed below the limit, the report says a spill was
 measured.
+
+### SQL durations have a sum-safe unit
+
+`resumen_tabla$sql` has one row per column and metric, but `duracion_ms`
+is the duration of the query and is repeated on every row produced by
+that query. The table now includes `nivel`, following
+`resumen_tabla$tiempos`: the first row of each `consulta_id` is
+`nivel = 1` and the repeated rows are `nivel = 2`. Sum `duracion_ms`
+only for `nivel = 1` (and use `na.rm = TRUE` when needed); summing the
+whole column counts shared queries more than once. Rows without a query
+keep `NA` in their duration and do not claim a measurement.
 
 ### Reading a profile without knowing its shape
 
@@ -498,10 +515,10 @@ the cut lands on a unique distance.
 
 ### Cost is planned before it is paid
 
-Profiling a 158-column table in `modo = "exacto"` emits 262 queries, and
-256 of them scan, sort or group the whole table. The count follows the
+Profiling a 158-column table in `modo = "exacto"` emits 335 queries, and
+327 of them scan, sort or group the whole table. The count follows the
 composition, not the column count: the same 158 columns as text only
-cost 172, because a median asks for a full sort per numeric column.
+cost 252, because a median asks for a full sort per numeric column.
 `muestra` does not bound any of it — it bounds what is brought into R,
 not the work the engine does. So the cost is declared and chosen
 (`benchmark/medir_plan_ancho.R` reproduces the four numbers):
@@ -516,7 +533,10 @@ and it says so in `attr(plan, "supuesto")`. It does not scan data to
 decide cost: it reads the schema, probes capabilities and, with
 `politica_costo = "por_cardinalidad"`, may read a structural guarantee
 or a catalogue source. It never launches `COUNT(DISTINCT ...)` just to
-resolve uncertainty.
+resolve uncertainty. Consequently, the plan does not publish a temporal
+projection for `COUNT(DISTINCT)`: the honest reference is the first
+distinct batch measured during execution, and the plan emits no data
+queries.
 
 The low end is `total`: when cardinality is unknown, it assumes the
 policy will omit expensive metrics. The high end is `total_maximo` —also
@@ -615,6 +635,26 @@ plan cannot know without reading them, so for very long text the real
 time is several times what the reference suggests. The published numbers
 do not depend on those assumptions, so anyone who disagrees with them
 can redo the arithmetic.
+
+### Processing memory is not estimated
+
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+explicitly says that processing memory is **not estimated**: it does not
+scale predictably with rows or cells, as measured. The plan still
+publishes the known **work magnitude**—rows, cells and text
+pairs—clearly labeled as magnitude, not memory consumption.
+
+Measured reference data, **not a prediction for the table in the plan**,
+put bringing the table at about 0.13 GB per million rows and processing
+in R at about 1.0–1.5 MB per thousand rows. The second figure varied by
+1.62x between tables of the same magnitude; that variation is precisely
+why it is not used as an estimate.
+
+Seeing all rows and having all rows in memory are not the same. In
+reference runs, 4.5 million rows fit in 0.6 GB and took 25 seconds to
+bring, while processing 4.5 million took about 7 GB and 12.8 million
+about 19 GB. The observed problem is processing in R, not the network or
+the database engine.
 
 | mode | what it does |
 |----|----|
@@ -999,9 +1039,12 @@ and a calculated index always travels with its coverage, weights,
 transformations, and heterogeneous universes. The core is universal and
 catalogues are pluggable;
 [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
-v1.6 is a reference implementation, not a country lock. The only
-required import is [`cli`](https://cran.r-project.org/package=cli).
-Suggested packages enable bounded capabilities:
+v1.6 is a reference implementation, not a country lock. It has two hard
+dependencies, [`cli`](https://cran.r-project.org/package=cli) and
+[`data.table`](https://cran.r-project.org/package=data.table), and it
+imports **neither** into its namespace: both are called with `::`. That
+is deliberate — `data.table` changes what `[` means for any package that
+imports it. Suggested packages enable bounded capabilities:
 [`sf`](https://cran.r-project.org/package=sf) enables geometry
 profiling; [`DBI`](https://cran.r-project.org/package=DBI) provides the
 database interface and

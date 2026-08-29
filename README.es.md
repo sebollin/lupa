@@ -359,14 +359,17 @@ la cota dura sólo se aplica si ambos valores tienen el mismo
 la comprobación queda declarada como no disponible y no se atribuye una
 inconsistencia al motor. Los tamaños se pueden separar:
 `tamano_lote_planos` controla los agregados planos y
-`tamano_lote_distintos` las cardinalidades; este último vale 1 por
-omisión hasta contar con mediciones, porque una sola cardinalidad puede
-derramar mucho más que un lote plano. La consulta de la moda intenta
-traer `SUM(COUNT(*)) OVER () AS n_validos_guard` junto a su frecuencia.
-La forma se sondea antes de usarla; si el motor la rechaza, conserva la
-consulta anterior y lo declara en `resumen_tabla$meta$moda_guardian`.
-Cuando la acepta, la cota `frecuencia_moda <= n_validos` se comprueba
-dentro de esa misma sentencia.
+`tamano_lote_distintos` las cardinalidades; el primero vale 20 y el
+segundo 2. La asimetría está medida: una sola cardinalidad puede
+derramar mucho más que un lote plano, pero un lote de 1 resultó peor que
+uno de 2 —27,6 segundos por columna contra unos 15—, así que el valor
+por omisión salió de la medición y no de la precaución. La consulta de
+la moda intenta traer `SUM(COUNT(*)) OVER () AS n_validos_guard` junto a
+su frecuencia. La forma se sondea antes de usarla; si el motor la
+rechaza, conserva la consulta anterior y lo declara en
+`resumen_tabla$meta$moda_guardian`. Cuando la acepta, la cota
+`frecuencia_moda <= n_validos` se comprueba dentro de esa misma
+sentencia.
 
 El catálogo de la clave primaria se consulta en todas las corridas,
 aunque la política de costo no necesite la cardinalidad. La respuesta
@@ -484,13 +487,17 @@ el detector de pares de filas conserva el suyo, que se configura con
 
 Cuando
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
-pide `COUNT(DISTINCT ...)`, los agregados planos se ejecutan primero. Si
-`instrumentar = TRUE`, el paquete mide esas consultas en esta misma
-corrida y, antes de iniciar los distintos, anuncia una proyeccion del
-costo cuando supera 30 segundos. El numero es la mediana de las
-duraciones planas multiplicada por los lotes de distintos; el mensaje
-nombra esa fuente y lo rotula como estimacion. Esta proyeccion temporal
-no usa `reltuples`.
+pide `COUNT(DISTINCT ...)`, los agregados planos se ejecutan primero
+cuando fueron solicitados, pero no son una referencia temporal para los
+distintos. Con `instrumentar = TRUE`, el paquete mide el primer lote de
+distintos en esta misma corrida y, si queda otro lote, anuncia la
+proyeccion despues del primero y antes del segundo. El numero es la
+mediana de las duraciones de las consultas del primer lote de distintos
+multiplicada por la cantidad de lotes; el mensaje nombra esa fuente y lo
+rotula como estimacion. Con un solo lote no queda trabajo que evitar,
+asi que no se publica una proyeccion. Por eso una peticion con
+`metricas = "distintos"` tambien recibe el aviso cuando hay varios
+lotes. Esta proyeccion temporal no usa `reltuples`.
 
 En PostgreSQL, la preparacion consulta ademas `pg_stats.n_distinct`,
 `pg_stats.avg_width`, `pg_class.reltuples` y la configuracion vigente de
@@ -508,6 +515,17 @@ declarado como no disponible: el tiempo transcurrido no se presenta como
 evidencia de derrame. Cuando existe, esa medicion **manda sobre la
 estimacion**: aunque la estimacion haya quedado por debajo del limite,
 el informe dice que hubo derrame medido.
+
+### Duraciones SQL con una unidad que se puede sumar
+
+`resumen_tabla$sql` tiene una fila por columna y metrica, pero
+`duracion_ms` es la duracion de la consulta y se repite en cada fila que
+produjo esa consulta. La tabla ahora incluye `nivel`, siguiendo a
+`resumen_tabla$tiempos`: la primera fila de cada `consulta_id` queda en
+`nivel = 1` y las repetidas en `nivel = 2`. Sumá `duracion_ms` sólo para
+`nivel = 1` (y usá `na.rm = TRUE` cuando corresponda); sumar la columna
+entera cuenta más de una vez las consultas compartidas. Las filas sin
+consulta conservan la duración en `NA` y no afirman una medición.
 
 ### El costo de una tabla ancha se avisa antes
 
@@ -551,10 +569,10 @@ cae en una distancia única—.
 
 ### El costo se planifica antes de pagarlo
 
-Perfilar una tabla de 158 columnas en `modo = "exacto"` emite 262
-consultas, y 256 de ellas escanean, ordenan o agrupan la tabla entera.
+Perfilar una tabla de 158 columnas en `modo = "exacto"` emite 335
+consultas, y 327 de ellas escanean, ordenan o agrupan la tabla entera.
 La cuenta sigue a la composición y no a la cantidad de columnas: esas
-mismas 158 columnas, todas de texto, cuestan 172, porque una mediana
+mismas 158 columnas, todas de texto, cuestan 252, porque una mediana
 pide un orden total por columna numérica. `muestra` no acota nada de eso
 —acota lo que se trae a R, no el trabajo del motor—. Así que el costo se
 declara y se elige (`benchmark/medir_plan_ancho.R` reproduce los cuatro
@@ -570,7 +588,10 @@ lo dice en `attr(plan, "supuesto")`. No escanea datos para decidir el
 costo: lee el esquema, sondea capacidades y consulta el catálogo de la
 clave primaria. Con `politica_costo = "por_cardinalidad"` también puede
 usar una garantía estructural o una fuente de catálogo. Nunca lanza
-`COUNT(DISTINCT ...)` sólo para despejar una duda.
+`COUNT(DISTINCT ...)` sólo para despejar una duda. Por eso el plan no
+publica una proyección temporal de `COUNT(DISTINCT)`: la referencia
+honesta es el primer lote de distintos medido durante la ejecución, y el
+plan no emite consultas de datos.
 
 El extremo inferior es `total`: cuando la fuente de cardinalidad es
 desconocida, supone que la política omite las métricas caras. El extremo
@@ -639,6 +660,28 @@ el plan no conoce sin leerlos, así que con textos muy largos el tiempo
 real es varias veces el que sugiere la referencia—. Los números
 publicados no dependen de esos supuestos, así que quien no los comparta
 puede rehacer la cuenta.
+
+### La memoria del procesamiento no se estima
+
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+declara explícitamente que la memoria del procesamiento **no se
+estima**: no escala de forma predecible con las filas ni con las celdas,
+según lo medido. El plan conserva la **magnitud del trabajo** que se
+conoce —filas, celdas y pares de texto—, rotulada como magnitud y no
+como consumo de memoria.
+
+Son datos de referencia medidos, **no una predicción para la tabla del
+plan**: traer la tabla costó aproximadamente 0,13 GB por millón de filas
+y procesar en R aproximadamente 1,0-1,5 MB por cada mil filas. La
+segunda cifra varió por 1,62x entre tablas de la misma magnitud; esa
+variación es justamente el motivo por el que no se usa para estimar.
+
+Ver todas las filas y tener todas las filas en memoria no son lo mismo.
+En corridas de referencia, 4,5 millones de filas entraron en 0,6 GB y
+tardaron 25 segundos en llegar, mientras que procesar 4,5 millones ocupó
+aproximadamente 7 GB y procesar 12,8 millones aproximadamente 19 GB. El
+problema observado está en el procesamiento en R, no en la red ni en el
+motor.
 
 | modo | qué hace |
 |----|----|
@@ -1027,10 +1070,12 @@ completos, y todo índice calculado conserva cobertura, pesos,
 transformaciones y universos heterogéneos. El núcleo es universal y los
 catálogos son enchufables;
 [AGESIC](https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/)
-v1.6 es una implementación de referencia, no un límite nacional. El
-único import obligatorio es
-[`cli`](https://cran.r-project.org/package=cli). Los paquetes sugeridos
-habilitan capacidades acotadas:
+v1.6 es una implementación de referencia, no un límite nacional. Tiene
+dos dependencias duras, [`cli`](https://cran.r-project.org/package=cli)
+y [`data.table`](https://cran.r-project.org/package=data.table), y **no
+importa ninguna** a su espacio de nombres: a las dos las llama con `::`.
+Es deliberado: `data.table` cambia el significado de `[` en todo paquete
+que lo importe. Los paquetes sugeridos habilitan capacidades acotadas:
 [`sf`](https://cran.r-project.org/package=sf) habilita el perfilado de
 geometrías; [`DBI`](https://cran.r-project.org/package=DBI) aporta la
 interfaz de bases y

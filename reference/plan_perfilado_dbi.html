@@ -251,10 +251,17 @@ llamada. Para pedir todas las métricas use <code>politica_costo = "todas"</code
 <code>metricas_ejecucion</code>, <code>politica_costo</code>, <code>estrategia_distintos</code>,
 <code>fuente_cardinalidad_costo</code>, <code>moda_guardian</code>, <code>mediana_consolidada</code>, <code>filas</code>,
 <code>mediana_escalar</code>,
-<code>tamano_lote_planos</code>, <code>tamano_lote_distintos</code> y <code>estimacion_derrame</code>.
-Esta última es una estimación de memoria, no una medición. Cuando se pide
-<code>bloque_muestra = "solo_agregados"</code>, también conserva ese valor en el
-atributo <code>bloque_muestra</code> y no incluye la fila de la lectura de muestra.</p>
+<code>tamano_lote_planos</code>, <code>tamano_lote_distintos</code>, <code>estimacion_derrame</code>,
+<code>celdas</code>, <code>memoria_procesamiento</code> y,
+cuando se pide <code>distintos</code>, <code>supuesto_costo_distintos</code>.
+<code>memoria_procesamiento</code> siempre tiene <code>estado = "no_estimada"</code>: no es una
+estimación de consumo, sino la declaración de su ausencia, el motivo, la
+magnitud del trabajo y referencias medidas de otras corridas. El atributo
+<code>estimacion_derrame</code> es independiente: sólo describe la estimación del hash
+en el motor para <code>COUNT(DISTINCT)</code> y no la memoria del procesamiento en R.
+Cuando se pide <code>bloque_muestra = "solo_agregados"</code>, también conserva ese
+valor en el atributo <code>bloque_muestra</code> y no incluye la fila de la lectura de
+muestra.</p>
 <p>El costo no se declara como un número sino como un rango: <code>total</code> es el
 extremo inferior, que supone que la política omite las métricas caras cuya
 cardinalidad no se conoce, y <code>total_maximo</code> el superior, que supone que las
@@ -274,10 +281,12 @@ en R el detector de vocabulario sobre la muestra— y se resume en
 <code>magnitud_texto</code>. <code>magnitud</code> es la mayor de las dos: <code>"baja"</code>, <code>"media"</code>,
 <code>"alta"</code>, o <code>"desconocida"</code> si no se conoce el número de filas.
 <code>supuesto_costo</code> dice de dónde sale cada cuenta.</p>
-<p>El plan previo no publica duraciones, CPU, filas ni bytes medidos. El plan
-de una corrida de <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code> puede agregar <code>costo_distintos</code> cuando
-ya hay duraciones de agregados planos de esa misma corrida; sus campos
-dicen explícitamente que la proyección sigue siendo una estimación.</p>
+<p>El plan previo no publica duraciones, CPU, filas ni bytes medidos, ni agrega
+una proyección temporal de <code>COUNT(DISTINCT)</code>. Aunque el plan de una corrida
+conserve el atributo <code>supuesto_costo_distintos</code>, la medición y la proyección
+sólo aparecen en <code>resumen_tabla$meta$costo_distintos</code>, después de ejecutar
+el primer lote. El atributo sólo declara por qué esa proyección no existe
+antes de correr; no es una duración ni una estimación temporal.</p>
 <p>Si se pide <code>politica_costo = "por_cardinalidad"</code>, el plan busca primero una
 garantía estructural o una fuente de catálogo. Si la fuente queda
 desconocida, no emite un agregado para aclararla: <code>n_consultas</code> omite moda
@@ -308,16 +317,28 @@ queda <code>no_disponible</code> hasta implementar su estadística de cardinalid
 emite el agregado. <code>fuente_cardinalidad_costo</code> sigue siendo independiente y
 sólo describe el número usado por la política de costo cuando esa política
 se pide.</p>
-<p>El plan previo no puede publicar segundos medidos porque no lee los datos.
-Durante <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>, en cambio, los agregados planos se ejecutan antes
-que los distintos. Si se midieron en esta misma corrida, el plan que queda
-en <code>resumen_tabla$meta$plan</code> agrega <code>costo_distintos</code>: la mediana de esas
-duraciones multiplicada por la cantidad de lotes de distintos. Es una
-estimación rotulada, fundada en las consultas medidas de esta corrida, no en
-una estadística de catálogo. El aviso de memoria se emite antes de iniciar
-el primer <code>COUNT(DISTINCT)</code> y el aviso temporal sólo si supera el umbral de
-30 segundos; no pide
-confirmación y nunca bloquea un guion no interactivo.</p>
+<p>El plan previo no proyecta segundos para <code>COUNT(DISTINCT)</code>: no lee los datos
+y, por tanto, no tiene una referencia medida. La única referencia honesta es
+el primer lote de distintos de la corrida, pero obtenerla cuesta una
+consulta que este planificador no emite. Durante <code><a href="perfilar_dbi.html">perfilar_dbi()</a></code>, cuando hay
+más de un lote y la instrumentación está activa, esa primera medición se
+multiplica por la cantidad de lotes y se publica en
+<code>resumen_tabla$meta$costo_distintos</code>. El aviso temporal llega después del
+primer lote y antes del segundo; con un solo lote se declara que no hay nada
+que proyectar.</p>
+<p>La memoria del procesamiento no se estima: no escala de forma predecible con
+las filas ni con las celdas, y eso se midió. El atributo
+<code>memoria_procesamiento</code> conserva esa declaración, la magnitud conocida del
+trabajo (<code>filas</code>, <code>celdas</code> y <code>pares_texto</code>) y referencias medidas de otras
+corridas. Esas referencias no son una predicción para la tabla del plan:
+traer costó aproximadamente 0,13 GB por millón de filas y procesar en R
+aproximadamente 1,0-1,5 MB por cada mil filas, pero esta segunda cifra varió
+1,62x entre tablas de la misma magnitud.</p>
+<p>Ver todas las filas y tener todas las filas en memoria no son lo mismo. En
+corridas de referencia, 4,5 millones de filas entraron en 0,6 GB y tardaron
+25 segundos, mientras que procesar 4,5 millones ocupó aproximadamente 7 GB
+y procesar 12,8 millones aproximadamente 19 GB. El problema observado está
+en el procesamiento en R, no en la red ni en el motor.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

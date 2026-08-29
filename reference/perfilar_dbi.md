@@ -139,13 +139,14 @@ perfilar_dbi(
   PostgreSQL, se intenta atribuir el uso de bloques temporales de los
   `COUNT(DISTINCT)` exactos mediante `pg_stat_statements`. Por omisión
   es `TRUE`; agrega `duracion_ms`, `cpu_ms`, `n_filas_resultado`,
-  `bytes_resultado_r`, `consulta_id` y `etapa` a `resumen_tabla$sql`, y
-  el resumen `resumen_tabla$tiempos`. Con `FALSE` se conserva el mismo
-  plan, la misma cantidad y el mismo orden de consultas, pero los campos
-  medibles quedan en `NA`. `id_muestra` **no** depende de esta opcion:
-  no es una medicion sino un hecho estructural sobre que consulta
-  produjo cada metrica, y se publica igual con `FALSE`. Las duraciones
-  usan [`Sys.time()`](https://rdrr.io/r/base/Sys.time.html) y el CPU del
+  `bytes_resultado_r`, `consulta_id`, `etapa` y `nivel` a
+  `resumen_tabla$sql`, y el resumen `resumen_tabla$tiempos`. Con `FALSE`
+  se conserva el mismo plan, la misma cantidad y el mismo orden de
+  consultas, pero los campos medibles quedan en `NA`. `id_muestra`
+  **no** depende de esta opcion: no es una medicion sino un hecho
+  estructural sobre que consulta produjo cada metrica, y se publica
+  igual con `FALSE`. Las duraciones usan
+  [`Sys.time()`](https://rdrr.io/r/base/Sys.time.html) y el CPU del
   cliente usa la suma de `proc.time()[c("user.self", "sys.self")]`.
   `cpu_ms` es cero cuando el proceso no consumió CPU; `NA` significa que
   no se pudo medir. Los intervalos que el reloj no puede resolver no se
@@ -185,9 +186,10 @@ perfilar_dbi(
 
 - avisar_costo_distintos:
 
-  Si es `TRUE`, avisa cuando la proyección del costo de
-  `COUNT(DISTINCT)` alcanza `umbral_segundos_aviso_distintos`. Por
-  omisión es `TRUE`. Este aviso no depende de
+  Si es `TRUE`, avisa, después de medir el primer lote y antes del
+  segundo, cuando la proyección del costo de `COUNT(DISTINCT)` alcanza
+  `umbral_segundos_aviso_distintos`. Por omisión es `TRUE`. Este aviso
+  no depende de
   [`interactive()`](https://rdrr.io/r/base/interactive.html): también
   llega en guiones porque el costo se paga en el servidor y puede durar
   decenas de segundos.
@@ -195,9 +197,10 @@ perfilar_dbi(
 - umbral_segundos_aviso_distintos:
 
   Segundos estimados a partir de los cuales se emite el aviso del costo
-  de `COUNT(DISTINCT)`. Por omisión es `30`, el umbral histórico; `Inf`
-  lo desactiva explícitamente. El valor no cambia la proyección ni la
-  medición que se publica.
+  de `COUNT(DISTINCT)`, después del primer lote. Por omisión es `30`, el
+  umbral histórico; `Inf` lo desactiva explícitamente. Con un solo lote
+  no se publica una proyección porque el costo ya se pagó. El valor no
+  cambia la proyección ni la medición que se publica.
 
 - avisar_derrame_estimado:
 
@@ -387,7 +390,13 @@ universo para escribir un porcentaje lo cuentan antes.
 `COUNT(DISTINCT ...)` queda en una clase separada y usa su propio tamaño
 de lote, conservador por omisión porque una cardinalidad puede derramar
 mucho más que veinte agregados planos; la consulta exacta trae su
-`n_validos_guard` compañero. Antes de la primera consulta exacta se
+`n_validos_guard` compañero. La proyección temporal no usa esos
+agregados planos: si hay más de un lote y `instrumentar = TRUE`, se mide
+el primer lote de distintos y, después de ejecutarlo, se multiplica su
+mediana por la cantidad total de lotes. El aviso llega antes del segundo
+lote, en la unidad que se va a evitar; con un solo lote no hay nada que
+proyectar. Si la duración no se pudo medir, el resultado declara la
+proyección como no disponible. Antes de la primera consulta exacta se
 estima, cuando PostgreSQL expone `pg_stats`, el tamaño de los hashes con
 `n_distinct`, `avg_width` y `pg_class.reltuples`; `SHOW work_mem` y,
 desde PostgreSQL 13, `SHOW hash_mem_multiplier` dan el límite efectivo.
@@ -424,15 +433,21 @@ corrida; no se guarda estado global asociado a la conexión.
 `resumen_tabla$sql` conserva una fila por métrica y agrega la duración
 de la consulta que la respalda, las filas devueltas y los bytes que ese
 resultado ocupa en R. `consulta_id` identifica el intento dentro de la
-corrida y `id_muestra` identifica la consulta de datos que produjo la
-medición: dos métricas con el mismo identificador vieron exactamente las
-mismas filas y se pueden comparar directamente. `NA` declara que esa
-garantía no se puede hacer; en particular, las métricas por columna
-—moda, frecuencia de la moda y mediana— no comparten filas con otras
-métricas. `etapa` permite agruparlo (`conteos`, `moda`, `basicos`,
-`mediana`, `desvio`, `lectura_muestra` y las sondas). Las métricas no
-solicitadas o que no emitieron consulta conservan esos campos y los
-dejan en `NA`; en particular, `NA` no significa cero.
+corrida y `duracion_ms` es la duración de la consulta, repetida en cada
+fila que esa consulta produjo; no es una duración por métrica. La
+columna `nivel` marca qué filas se pueden sumar: la primera fila de cada
+`consulta_id` queda en `nivel = 1` y sus repeticiones en `nivel = 2`.
+Por eso una suma segura usa sólo `duracion_ms[nivel == 1]` (con
+`na.rm = TRUE` si corresponde), no la columna completa. `id_muestra`
+identifica la consulta de datos que produjo la medición: dos métricas
+con el mismo identificador vieron exactamente las mismas filas y se
+pueden comparar directamente. `NA` declara que esa garantía no se puede
+hacer; en particular, las métricas por columna —moda, frecuencia de la
+moda y mediana— no comparten filas con otras métricas. `etapa` permite
+agruparlo (`conteos`, `moda`, `basicos`, `mediana`, `desvio`,
+`lectura_muestra` y las sondas). Las métricas no solicitadas o que no
+emitieron consulta conservan esos campos y los dejan en `NA`; en
+particular, `NA` no significa cero.
 
 En PostgreSQL, con `instrumentar = TRUE`, se toma una foto de
 `pg_stat_statements` antes y después de los `COUNT(DISTINCT)` exactos.

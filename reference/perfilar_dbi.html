@@ -189,8 +189,8 @@ alcance de esos agregados: eso lo decide <code>modo</code>.</p></dd>
 y, en PostgreSQL, se intenta atribuir el uso de bloques temporales de los
 <code>COUNT(DISTINCT)</code> exactos mediante <code>pg_stat_statements</code>.
 Por omisión es <code>TRUE</code>; agrega <code>duracion_ms</code>, <code>cpu_ms</code>,
-<code>n_filas_resultado</code>, <code>bytes_resultado_r</code>, <code>consulta_id</code> y <code>etapa</code> a
-<code>resumen_tabla$sql</code>, y el resumen <code>resumen_tabla$tiempos</code>. Con <code>FALSE</code> se
+<code>n_filas_resultado</code>, <code>bytes_resultado_r</code>, <code>consulta_id</code>, <code>etapa</code> y <code>nivel</code>
+a <code>resumen_tabla$sql</code>, y el resumen <code>resumen_tabla$tiempos</code>. Con <code>FALSE</code> se
 conserva el mismo plan, la misma cantidad y el mismo orden de consultas,
 pero los campos medibles quedan en <code>NA</code>. <code>id_muestra</code> <strong>no</strong> depende de
 esta opcion: no es una medicion sino un hecho estructural sobre que
@@ -232,18 +232,20 @@ llamada. Para pedir todas las métricas use <code>politica_costo = "todas"</code
 
 
 <dt id="arg-avisar-costo-distintos">avisar_costo_distintos<a class="anchor" aria-label="anchor" href="#arg-avisar-costo-distintos"></a></dt>
-<dd><p>Si es <code>TRUE</code>, avisa cuando la proyección del
-costo de <code>COUNT(DISTINCT)</code> alcanza <code>umbral_segundos_aviso_distintos</code>.
-Por omisión es <code>TRUE</code>. Este aviso no depende de <code><a href="https://rdrr.io/r/base/interactive.html" class="external-link">interactive()</a></code>: también
-llega en guiones porque el costo se paga en el servidor y puede durar
-decenas de segundos.</p></dd>
+<dd><p>Si es <code>TRUE</code>, avisa, después de medir el primer
+lote y antes del segundo, cuando la proyección del costo de
+<code>COUNT(DISTINCT)</code> alcanza <code>umbral_segundos_aviso_distintos</code>. Por omisión es
+<code>TRUE</code>. Este aviso no depende de <code><a href="https://rdrr.io/r/base/interactive.html" class="external-link">interactive()</a></code>: también llega en guiones
+porque el costo se paga en el servidor y puede durar decenas de segundos.</p></dd>
 
 
 <dt id="arg-umbral-segundos-aviso-distintos">umbral_segundos_aviso_distintos<a class="anchor" aria-label="anchor" href="#arg-umbral-segundos-aviso-distintos"></a></dt>
 <dd><p>Segundos estimados a partir de los
-cuales se emite el aviso del costo de <code>COUNT(DISTINCT)</code>. Por omisión es
-<code>30</code>, el umbral histórico; <code>Inf</code> lo desactiva explícitamente. El valor no
-cambia la proyección ni la medición que se publica.</p></dd>
+cuales se emite el aviso del costo de <code>COUNT(DISTINCT)</code>, después del primer
+lote. Por omisión es <code>30</code>, el umbral histórico; <code>Inf</code> lo desactiva
+explícitamente. Con un solo lote no se publica una proyección porque el
+costo ya se pagó. El valor no cambia la proyección ni la medición que se
+publica.</p></dd>
 
 
 <dt id="arg-avisar-derrame-estimado">avisar_derrame_estimado<a class="anchor" aria-label="anchor" href="#arg-avisar-derrame-estimado"></a></dt>
@@ -429,6 +431,12 @@ el total del universo para escribir un porcentaje lo cuentan antes.
 lote, conservador por omisión porque una cardinalidad puede derramar mucho
 más que veinte agregados planos; la consulta exacta trae su
 <code>n_validos_guard</code> compañero.
+La proyección temporal no usa esos agregados planos: si hay más de un lote y
+<code>instrumentar = TRUE</code>, se mide el primer lote de distintos y, después de
+ejecutarlo, se multiplica su mediana por la cantidad total de lotes. El aviso
+llega antes del segundo lote, en la unidad que se va a evitar; con un solo
+lote no hay nada que proyectar. Si la duración no se pudo medir, el resultado
+declara la proyección como no disponible.
 Antes de la primera consulta exacta se estima, cuando PostgreSQL expone
 <code>pg_stats</code>, el tamaño de los hashes con <code>n_distinct</code>, <code>avg_width</code> y
 <code>pg_class.reltuples</code>; <code>SHOW work_mem</code> y, desde PostgreSQL 13,
@@ -461,6 +469,12 @@ durante esa corrida; no se guarda estado global asociado a la conexión.</p>
 <p><code>resumen_tabla$sql</code> conserva una fila por métrica y agrega la duración de la
 consulta que la respalda, las filas devueltas y los bytes que ese resultado
 ocupa en R. <code>consulta_id</code> identifica el intento dentro de la corrida y
+<code>duracion_ms</code> es la duración de la consulta, repetida en cada fila que esa
+consulta produjo; no es una duración por métrica. La columna <code>nivel</code> marca
+qué filas se pueden sumar: la primera fila de cada <code>consulta_id</code> queda en
+<code>nivel = 1</code> y sus repeticiones en <code>nivel = 2</code>. Por eso una suma segura usa
+sólo <code>duracion_ms[nivel == 1]</code> (con <code>na.rm = TRUE</code> si corresponde), no la
+columna completa.
 <code>id_muestra</code> identifica la consulta de datos que produjo la medición: dos
 métricas con el mismo identificador vieron exactamente las mismas filas y se
 pueden comparar directamente. <code>NA</code> declara que esa garantía no se puede

@@ -42,6 +42,24 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="el-plan-declara-la-memoria-del-procesamiento-como-no-estimada-0-1-0">El plan declara la memoria del procesamiento como no estimada<a class="anchor" aria-label="anchor" href="#el-plan-declara-la-memoria-del-procesamiento-como-no-estimada-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> ahora imprime un bloque que declara la ausencia de una estimación honesta de la memoria del procesamiento, conserva la magnitud del trabajo (filas, celdas y pares de texto) y separa esos datos de referencias medidas de otras corridas.</li>
+<li>La documentación deja explícito que ver todas las filas no equivale a tenerlas todas en memoria: el costo observado está en procesar en R, no en traer los datos ni en el motor. El plan no emite consultas adicionales.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-regla-de-vocabulario-también-mide-el-largo-que-compara-0-1-0">La regla de vocabulario también mide el largo que compara<a class="anchor" aria-label="anchor" href="#la-regla-de-vocabulario-tambi%C3%A9n-mide-el-largo-que-compara-0-1-0"></a></h3>
+<ul><li>El tope de largo se había corregido en <code><a href="../reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>, que pasó a medir sobre la cadena combinada y normalizada. La <strong>regla hermana</strong> —la proximidad de vocabulario dentro de <code><a href="../reference/perfilar.html">perfilar()</a></code>— quedó midiendo el valor guardado mientras comparaba el normalizado. Con la normalización <code>amplio</code>, que expande ligaduras, una columna de 5.101 caracteres publicaba <code>largo_excedido = FALSE</code> y comparaba cadenas de 15.303: un 53 % por encima del tope declarado.</li>
+<li>El desvío tiene <strong>dos direcciones</strong> y las dos están corregidas: la normalización también acorta —colapsar espacios lleva 12.499 caracteres guardados a 7.501 comparados—, y ahí la regla excluía una columna que se podía comparar sin problema.</li>
+<li>
+<code>alcance$largo_maximo</code> publica ahora <strong>el mismo número en las dos ramas</strong>: el largo comparado. Antes, la rama que excluía informaba el comparado y la que no excluía informaba el guardado, así que dos informes no eran comparables entre sí.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-clave-primaria-contempla-los-dos-esquemas-que-resuelve-sql-server-0-1-0">La clave primaria contempla los dos esquemas que resuelve SQL Server<a class="anchor" aria-label="anchor" href="#la-clave-primaria-contempla-los-dos-esquemas-que-resuelve-sql-server-0-1-0"></a></h3>
+<ul><li>Un nombre sin calificar se resolvía filtrando por <code>SCHEMA_NAME()</code>, que es sólo el primer paso: SQL Server busca el esquema por omisión del usuario y, si no está ahí, <code>dbo</code>. Una tabla declarada sólo en <code>dbo</code>, consultada por un usuario con otro esquema por omisión, se lee del motor pero el catálogo devolvía cero filas y se publicaba <code>no_declarada</code>, que era falso.</li>
+<li>Ahora se piden los dos y decide la red de seguridad: si la tabla existe en uno solo, se publica su clave; si existe en los dos, no se publica ninguna y el motivo lo explica. Se pierde una respuesta en un caso raro y ninguna es falsa.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="los-avisos-dbi-de-costo-tienen-controles-independientes-0-1-0">Los avisos DBI de costo tienen controles independientes<a class="anchor" aria-label="anchor" href="#los-avisos-dbi-de-costo-tienen-controles-independientes-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> agrega <code>avisar_costo_distintos</code> con <code>umbral_segundos_aviso_distintos</code>, y <code>avisar_derrame_estimado</code> con <code>umbral_bytes_aviso_derrame_estimado</code>: el costo de <code>COUNT(DISTINCT)</code> se controla en segundos y el derrame estimado en bytes. <code>Inf</code> desactiva explícitamente el aviso; el umbral histórico de 30 segundos se conserva y el derrame mantiene el comportamiento de avisar cualquier lote estimado por encima de la memoria efectiva.</li>
@@ -113,12 +131,21 @@
 <li>La forma nueva coincide con la via anterior en nueve bordes de la mediana, incluidos nulos, tabla vacia, repetidos y negativos; se verifico en SQLite y contra PostgreSQL 9.3.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="el-costo-de-distintos-se-anuncia-antes-de-pagarlo-0-1-0">El costo de distintos se anuncia antes de pagarlo<a class="anchor" aria-label="anchor" href="#el-costo-de-distintos-se-anuncia-antes-de-pagarlo-0-1-0"></a></h3>
+<h3 id="la-proyección-temporal-de-distintos-usa-su-propia-unidad-0-1-0">La proyección temporal de distintos usa su propia unidad<a class="anchor" aria-label="anchor" href="#la-proyecci%C3%B3n-temporal-de-distintos-usa-su-propia-unidad-0-1-0"></a></h3>
 <ul><li>
-<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> anuncia, antes del primer <code>COUNT(DISTINCT)</code>, una proyección temporal cuando las consultas de agregados planos de esta misma corrida ya dieron una referencia suficiente. La estimación publica el costo, la fuente medida y la cantidad de lotes; esa proyección temporal no usa <code>reltuples</code>, no cambia <code>work_mem</code> y no espera confirmación en guiones no interactivos. La estimación de memoria del derrame se documenta en la sección anterior.</li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> mide el primer lote de <code>COUNT(DISTINCT)</code> y, si queda otro, anuncia después de ese lote y antes del siguiente una proyección basada en la mediana de sus consultas, multiplicada por la cantidad total de lotes. La estimación publica el costo, la fuente medida y la cantidad de lotes; no usa <code>reltuples</code>, no cambia <code>work_mem</code> y no espera confirmación en guiones no interactivos. Con un solo lote no publica una proyección. La misma regla funciona cuando se pide sólo <code>metricas = "distintos"</code>.</li>
+<li>
+<code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> conserva su promesa de no emitir consultas de datos y declara que no proyecta el costo temporal antes de correr: sólo una ejecución puede medir la referencia honesta, en la unidad de los distintos.</li>
 <li>La instrumentación de PostgreSQL consulta <code>pg_stat_statements</code> antes y después de los distintos exactos. Sólo publica derrame real cuando puede atribuir exactamente una llamada: <code>resumen_tabla$sql</code> agrega los bloques temporales y <code>meta$derrame</code> conserva el estado, la fuente y el motivo. La falta de evidencia queda <code>no_disponible</code>, no se infiere del reloj.</li>
 <li>
 <code>tamano_lote_distintos</code> conserva el valor medido 2; el cambio no modifica <code>work_mem</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="resumen_tablasql-declara-su-unidad-sumable-0-1-0">
+<code>resumen_tabla$sql</code> declara su unidad sumable<a class="anchor" aria-label="anchor" href="#resumen_tablasql-declara-su-unidad-sumable-0-1-0"></a></h3>
+<ul><li>
+<code>resumen_tabla$sql</code> conserva una fila por columna y métrica, pero <code>duracion_ms</code> pertenece a la consulta y puede repetirse en varias filas. La nueva columna <code>nivel</code> sigue la semántica de <code>resumen_tabla$tiempos</code>: <code>nivel = 1</code> identifica la primera fila de cada <code>consulta_id</code> y <code>nivel = 2</code> las filas repetidas.</li>
+<li>La suma segura de <code>duracion_ms</code> usa sólo <code>nivel = 1</code>; las filas sin consulta siguen teniendo <code>NA</code>. Así la tabla hace visible la unidad que evita contar una consulta más de una vez.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="la-política-de-costo-no-ciega-las-fuentes-estructurales-0-1-0">La política de costo no ciega las fuentes estructurales<a class="anchor" aria-label="anchor" href="#la-pol%C3%ADtica-de-costo-no-ciega-las-fuentes-estructurales-0-1-0"></a></h3>

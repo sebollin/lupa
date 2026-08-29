@@ -183,8 +183,14 @@ Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
 `metricas_ejecucion`, `politica_costo`, `estrategia_distintos`,
 `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`,
 `filas`, `mediana_escalar`, `tamano_lote_planos`,
-`tamano_lote_distintos` y `estimacion_derrame`. Esta última es una
-estimación de memoria, no una medición. Cuando se pide
+`tamano_lote_distintos`, `estimacion_derrame`, `celdas`,
+`memoria_procesamiento` y, cuando se pide `distintos`,
+`supuesto_costo_distintos`. `memoria_procesamiento` siempre tiene
+`estado = "no_estimada"`: no es una estimación de consumo, sino la
+declaración de su ausencia, el motivo, la magnitud del trabajo y
+referencias medidas de otras corridas. El atributo `estimacion_derrame`
+es independiente: sólo describe la estimación del hash en el motor para
+`COUNT(DISTINCT)` y no la memoria del procesamiento en R. Cuando se pide
 `bloque_muestra = "solo_agregados"`, también conserva ese valor en el
 atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
 
@@ -210,12 +216,13 @@ en `magnitud_texto`. `magnitud` es la mayor de las dos: `"baja"`,
 `"media"`, `"alta"`, o `"desconocida"` si no se conoce el número de
 filas. `supuesto_costo` dice de dónde sale cada cuenta.
 
-El plan previo no publica duraciones, CPU, filas ni bytes medidos. El
-plan de una corrida de
-[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
-puede agregar `costo_distintos` cuando ya hay duraciones de agregados
-planos de esa misma corrida; sus campos dicen explícitamente que la
-proyección sigue siendo una estimación.
+El plan previo no publica duraciones, CPU, filas ni bytes medidos, ni
+agrega una proyección temporal de `COUNT(DISTINCT)`. Aunque el plan de
+una corrida conserve el atributo `supuesto_costo_distintos`, la medición
+y la proyección sólo aparecen en `resumen_tabla$meta$costo_distintos`,
+después de ejecutar el primer lote. El atributo sólo declara por qué esa
+proyección no existe antes de correr; no es una duración ni una
+estimación temporal.
 
 Si se pide `politica_costo = "por_cardinalidad"`, el plan busca primero
 una garantía estructural o una fuente de catálogo. Si la fuente queda
@@ -248,18 +255,32 @@ cardinalidad y `"omitida"` no emite el agregado.
 `fuente_cardinalidad_costo` sigue siendo independiente y sólo describe
 el número usado por la política de costo cuando esa política se pide.
 
-El plan previo no puede publicar segundos medidos porque no lee los
-datos. Durante
+El plan previo no proyecta segundos para `COUNT(DISTINCT)`: no lee los
+datos y, por tanto, no tiene una referencia medida. La única referencia
+honesta es el primer lote de distintos de la corrida, pero obtenerla
+cuesta una consulta que este planificador no emite. Durante
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md),
-en cambio, los agregados planos se ejecutan antes que los distintos. Si
-se midieron en esta misma corrida, el plan que queda en
-`resumen_tabla$meta$plan` agrega `costo_distintos`: la mediana de esas
-duraciones multiplicada por la cantidad de lotes de distintos. Es una
-estimación rotulada, fundada en las consultas medidas de esta corrida,
-no en una estadística de catálogo. El aviso de memoria se emite antes de
-iniciar el primer `COUNT(DISTINCT)` y el aviso temporal sólo si supera
-el umbral de 30 segundos; no pide confirmación y nunca bloquea un guion
-no interactivo.
+cuando hay más de un lote y la instrumentación está activa, esa primera
+medición se multiplica por la cantidad de lotes y se publica en
+`resumen_tabla$meta$costo_distintos`. El aviso temporal llega después
+del primer lote y antes del segundo; con un solo lote se declara que no
+hay nada que proyectar.
+
+La memoria del procesamiento no se estima: no escala de forma predecible
+con las filas ni con las celdas, y eso se midió. El atributo
+`memoria_procesamiento` conserva esa declaración, la magnitud conocida
+del trabajo (`filas`, `celdas` y `pares_texto`) y referencias medidas de
+otras corridas. Esas referencias no son una predicción para la tabla del
+plan: traer costó aproximadamente 0,13 GB por millón de filas y procesar
+en R aproximadamente 1,0-1,5 MB por cada mil filas, pero esta segunda
+cifra varió 1,62x entre tablas de la misma magnitud.
+
+Ver todas las filas y tener todas las filas en memoria no son lo mismo.
+En corridas de referencia, 4,5 millones de filas entraron en 0,6 GB y
+tardaron 25 segundos, mientras que procesar 4,5 millones ocupó
+aproximadamente 7 GB y procesar 12,8 millones aproximadamente 19 GB. El
+problema observado está en el procesamiento en R, no en la red ni en el
+motor.
 
 ## See also
 

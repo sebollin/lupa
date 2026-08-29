@@ -2,6 +2,51 @@
 
 ## lupa 0.1.0
 
+### El plan declara la memoria del procesamiento como no estimada
+
+- [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  ahora imprime un bloque que declara la ausencia de una estimación
+  honesta de la memoria del procesamiento, conserva la magnitud del
+  trabajo (filas, celdas y pares de texto) y separa esos datos de
+  referencias medidas de otras corridas.
+- La documentación deja explícito que ver todas las filas no equivale a
+  tenerlas todas en memoria: el costo observado está en procesar en R,
+  no en traer los datos ni en el motor. El plan no emite consultas
+  adicionales.
+
+### La regla de vocabulario también mide el largo que compara
+
+- El tope de largo se había corregido en
+  [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md),
+  que pasó a medir sobre la cadena combinada y normalizada. La **regla
+  hermana** —la proximidad de vocabulario dentro de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)—
+  quedó midiendo el valor guardado mientras comparaba el normalizado.
+  Con la normalización `amplio`, que expande ligaduras, una columna de
+  5.101 caracteres publicaba `largo_excedido = FALSE` y comparaba
+  cadenas de 15.303: un 53 % por encima del tope declarado.
+- El desvío tiene **dos direcciones** y las dos están corregidas: la
+  normalización también acorta —colapsar espacios lleva 12.499
+  caracteres guardados a 7.501 comparados—, y ahí la regla excluía una
+  columna que se podía comparar sin problema.
+- `alcance$largo_maximo` publica ahora **el mismo número en las dos
+  ramas**: el largo comparado. Antes, la rama que excluía informaba el
+  comparado y la que no excluía informaba el guardado, así que dos
+  informes no eran comparables entre sí.
+
+### La clave primaria contempla los dos esquemas que resuelve SQL Server
+
+- Un nombre sin calificar se resolvía filtrando por `SCHEMA_NAME()`, que
+  es sólo el primer paso: SQL Server busca el esquema por omisión del
+  usuario y, si no está ahí, `dbo`. Una tabla declarada sólo en `dbo`,
+  consultada por un usuario con otro esquema por omisión, se lee del
+  motor pero el catálogo devolvía cero filas y se publicaba
+  `no_declarada`, que era falso.
+- Ahora se piden los dos y decide la red de seguridad: si la tabla
+  existe en uno solo, se publica su clave; si existe en los dos, no se
+  publica ninguna y el motivo lo explica. Se pierde una respuesta en un
+  caso raro y ninguna es falsa.
+
 ### Los avisos DBI de costo tienen controles independientes
 
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
@@ -203,16 +248,21 @@ distintos y no a la cantidad de filas.
   mediana, incluidos nulos, tabla vacia, repetidos y negativos; se
   verifico en SQLite y contra PostgreSQL 9.3.
 
-### El costo de distintos se anuncia antes de pagarlo
+### La proyección temporal de distintos usa su propia unidad
 
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
-  anuncia, antes del primer `COUNT(DISTINCT)`, una proyección temporal
-  cuando las consultas de agregados planos de esta misma corrida ya
-  dieron una referencia suficiente. La estimación publica el costo, la
-  fuente medida y la cantidad de lotes; esa proyección temporal no usa
-  `reltuples`, no cambia `work_mem` y no espera confirmación en guiones
-  no interactivos. La estimación de memoria del derrame se documenta en
-  la sección anterior.
+  mide el primer lote de `COUNT(DISTINCT)` y, si queda otro, anuncia
+  después de ese lote y antes del siguiente una proyección basada en la
+  mediana de sus consultas, multiplicada por la cantidad total de lotes.
+  La estimación publica el costo, la fuente medida y la cantidad de
+  lotes; no usa `reltuples`, no cambia `work_mem` y no espera
+  confirmación en guiones no interactivos. Con un solo lote no publica
+  una proyección. La misma regla funciona cuando se pide sólo
+  `metricas = "distintos"`.
+- [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  conserva su promesa de no emitir consultas de datos y declara que no
+  proyecta el costo temporal antes de correr: sólo una ejecución puede
+  medir la referencia honesta, en la unidad de los distintos.
 - La instrumentación de PostgreSQL consulta `pg_stat_statements` antes y
   después de los distintos exactos. Sólo publica derrame real cuando
   puede atribuir exactamente una llamada: `resumen_tabla$sql` agrega los
@@ -221,6 +271,17 @@ distintos y no a la cantidad de filas.
   reloj.
 - `tamano_lote_distintos` conserva el valor medido 2; el cambio no
   modifica `work_mem`.
+
+### `resumen_tabla$sql` declara su unidad sumable
+
+- `resumen_tabla$sql` conserva una fila por columna y métrica, pero
+  `duracion_ms` pertenece a la consulta y puede repetirse en varias
+  filas. La nueva columna `nivel` sigue la semántica de
+  `resumen_tabla$tiempos`: `nivel = 1` identifica la primera fila de
+  cada `consulta_id` y `nivel = 2` las filas repetidas.
+- La suma segura de `duracion_ms` usa sólo `nivel = 1`; las filas sin
+  consulta siguen teniendo `NA`. Así la tabla hace visible la unidad que
+  evita contar una consulta más de una vez.
 
 ### La política de costo no ciega las fuentes estructurales
 
