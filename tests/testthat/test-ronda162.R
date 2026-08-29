@@ -206,3 +206,28 @@ test_that("sin la columna del indice no cambia nada, para los otros motores", {
   expect_identical(resultado$garantia, "garantizada")
   expect_false(resultado$estado$indice_no_unico)
 })
+
+test_that("el SQL de pg_catalog no usa sintaxis posterior a PostgreSQL 9.3", {
+  # `unnest(...) WITH ORDINALITY` se incorporo en PostgreSQL 9.4. Contra 9.3 la
+  # consulta entera falla con "syntax error at or near WITH ORDINALITY", y el
+  # paquete no avisaba: devolvia `columnas = character(0)` y garantia
+  # `desconocida` sobre tablas que SI tienen clave primaria. Medido contra un
+  # servidor 9.3.25 real, antes y despues del arreglo:
+  #
+  #   antes   t93 (PK simple)    -> columnas = ()      garantia = desconocida
+  #   despues t93 (PK simple)    -> columnas = (id)    garantia = garantizada
+  #   despues t93c (PK compuesta)-> columnas = (b, a)  garantia = garantizada
+  #
+  # Hay servidores 9.3 en produccion, asi que esto no es una precaucion teorica.
+  vias <- lupa:::.consultas_clave_primaria()
+  nombres <- vapply(vias, function(v) v$nombre, character(1L))
+  via <- vias[[which(nombres == "pg_catalog")[[1L]]]]
+
+  sql <- via$sql(NA_character_, "tabla_de_prueba")
+
+  # Control positivo: si esto falla, se leyo una via que no es la de PostgreSQL
+  # y la comprobacion de abajo estaria pasando en vacio.
+  expect_match(sql, "pg_catalog.pg_constraint", fixed = TRUE)
+  expect_false(grepl("WITH ORDINALITY", sql, fixed = TRUE))
+  expect_match(sql, "generate_subscripts", fixed = TRUE)
+})

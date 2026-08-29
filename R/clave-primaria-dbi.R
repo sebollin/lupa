@@ -200,10 +200,17 @@
           "JOIN pg_catalog.pg_class r ON r.oid = c.conrelid ",
           "JOIN pg_catalog.pg_namespace n ON n.oid = r.relnamespace ",
           "LEFT JOIN pg_catalog.pg_index i ON i.indexrelid = c.conindid ",
-          "CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY ",
-          "AS k(attnum, ordinal_position) ",
+          # `generate_subscripts` y no `unnest(...) WITH ORDINALITY`: la segunda
+          # se incorporo en PostgreSQL 9.4 y contra 9.3 la consulta entera falla
+          # con "syntax error at or near WITH ORDINALITY". Medido contra un
+          # servidor 9.3.25: con la sintaxis vieja el paquete devolvia
+          # `columnas = ()` y garantia `desconocida` sobre tablas que SI tienen
+          # clave primaria, o sea que no avisaba, callaba. `generate_subscripts`
+          # existe desde antes y conserva el orden de una clave compuesta.
+          "JOIN LATERAL generate_subscripts(c.conkey, 1) ",
+          "AS k(ordinal_position) ON TRUE ",
           "JOIN pg_catalog.pg_attribute a ON a.attrelid = r.oid ",
-          "AND a.attnum = k.attnum ",
+          "AND a.attnum = c.conkey[k.ordinal_position] ",
           "WHERE c.contype = 'p' ",
           "AND r.relname = ", .texto_sql_clave(tabla),
           if (!is.na(esquema)) {
