@@ -34,14 +34,20 @@ El metadato `resumen_tabla$meta$muestreo` conserva `tamano_muestra` por
 compatibilidad como tamaño efectivo solicitado a la consulta. Además
 publica `filas_solicitadas`, el pedido original, y `filas_obtenidas`,
 las filas que devolvió la lectura de `perfil_muestra`; esta última puede
-ser `NA` cuando el bloque no se solicitó o falló antes de leer.
+ser `NA` cuando el bloque no se solicitó o falló antes de leer. Si la
+consulta de la muestra devuelve cero filas, no hay base para medir las
+métricas de alcance `muestra`: quedan en `NA`, con estado
+`no_disponible` y un motivo que nombra la muestra vacía. Esto no permite
+concluir que la columna esté vacía, por lo que no se publica cero ni se
+dispara `sin_valores`; `n` conserva el conteo de la tabla completa.
 `estrategia_distintos` es explícita: `"exacta"` es el valor por omisión
 y emite `COUNT(DISTINCT)`; `"aproximada_motor"` usa una función nativa
-sólo si el motor la acepta; `"catalogo"` queda `no_disponible` hasta
-implementar la estadística del catálogo; y `"omitida"` no emite la
-consulta. Una estrategia aproximada sin capacidad no se convierte en
-exacta. El resultado distingue la estrategia solicitada, la resuelta y
-su estado.
+sólo si el motor la acepta; `"catalogo"` lee `pg_stats.n_distinct` en
+PostgreSQL y lo publica como estimación, con guardas de herencia y de
+modos muestreados; en otros motores queda `no_disponible` con su motivo;
+y `"omitida"` no emite la consulta. Una estrategia aproximada sin
+capacidad no se convierte en exacta. El resultado distingue la
+estrategia solicitada, la resuelta y su estado.
 
 Además, `id_muestra` identifica la consulta de datos que produjo cada
 métrica. Dos métricas con el mismo valor vieron exactamente las mismas
@@ -83,6 +89,12 @@ Si sólo se necesitan los agregados del motor,
 `perfil_muestra = NULL`. La cobertura lo declara como `no_solicitado`,
 que no es un fallo. La lectura habitual se conserva con
 `bloque_muestra = "con_muestra"`, que es el valor por omisión.
+
+`max_celdas_muestra` y `max_bytes_muestra` acotan sólo el bloque
+`perfil_muestra`: el primero se resuelve con las columnas del esquema y
+el segundo con una sonda de hasta 100 filas, antes de leer el resto. Los
+agregados SQL conservan su alcance y la cobertura declara cuál tope
+redujo la muestra.
 
 ## Un ejemplo en memoria
 
@@ -327,31 +339,31 @@ perfil$resumen_tabla$sql[, c(
   "bytes_resultado_r", "consulta_id", "id_muestra", "etapa", "nivel"
 )]
 #>            metrica    estado duracion_ms cpu_ms n_filas_resultado bytes_resultado_r
-#> 1                n calculado   0.4308224      0                 1              3192
-#> 2                n calculado   0.4308224      0                 1              3192
-#> 3                n calculado   0.4308224      0                 1              3192
-#> 4                n calculado   0.4308224      0                 1              3192
-#> 5        n_validos calculado   0.4308224      0                 1              3192
-#> 6      n_faltantes calculado   0.4308224      0                 1              3192
-#> 7   prop_faltantes calculado   0.4308224      0                 1              3192
-#> 8      n_distintos calculado   0.3721714      0                 1              1216
-#> 9   tasa_distintos calculado   0.3721714      0                 1              1216
-#> 10            moda calculado   0.3938675      0                 1              1024
-#> 11 frecuencia_moda calculado   0.3938675      0                 1              1024
-#> 12          minimo calculado   0.4308224      0                 1              3192
-#> 13          maximo calculado   0.4308224      0                 1              3192
-#> 14           media calculado   0.4308224      0                 1              3192
-#> 15         n_ceros calculado   0.4308224      0                 1              3192
-#> 16     n_negativos calculado   0.4308224      0                 1              3192
-#> 17         mediana calculado   0.4937649      1                 1               736
-#> 18          desvio calculado   0.4308224      0                 1              3192
-#> 19       n_validos calculado   0.4308224      0                 1              3192
-#> 20     n_faltantes calculado   0.4308224      0                 1              3192
-#> 21  prop_faltantes calculado   0.4308224      0                 1              3192
-#> 22     n_distintos calculado   0.3721714      0                 1              1216
-#> 23  tasa_distintos calculado   0.3721714      0                 1              1216
-#> 24            moda calculado   0.3659725      1                 1              1080
-#> 25 frecuencia_moda calculado   0.3659725      1                 1              1080
+#> 1                n calculado   0.4792213      0                 1              3192
+#> 2                n calculado   0.4792213      0                 1              3192
+#> 3                n calculado   0.4792213      0                 1              3192
+#> 4                n calculado   0.4792213      0                 1              3192
+#> 5        n_validos calculado   0.4792213      0                 1              3192
+#> 6      n_faltantes calculado   0.4792213      0                 1              3192
+#> 7   prop_faltantes calculado   0.4792213      0                 1              3192
+#> 8      n_distintos calculado   0.3890991      0                 1              1216
+#> 9   tasa_distintos calculado   0.3890991      0                 1              1216
+#> 10            moda calculado   0.4141331      1                 1              1024
+#> 11 frecuencia_moda calculado   0.4141331      1                 1              1024
+#> 12          minimo calculado   0.4792213      0                 1              3192
+#> 13          maximo calculado   0.4792213      0                 1              3192
+#> 14           media calculado   0.4792213      0                 1              3192
+#> 15         n_ceros calculado   0.4792213      0                 1              3192
+#> 16     n_negativos calculado   0.4792213      0                 1              3192
+#> 17         mediana calculado   0.4217625      0                 1               736
+#> 18          desvio calculado   0.4792213      0                 1              3192
+#> 19       n_validos calculado   0.4792213      0                 1              3192
+#> 20     n_faltantes calculado   0.4792213      0                 1              3192
+#> 21  prop_faltantes calculado   0.4792213      0                 1              3192
+#> 22     n_distintos calculado   0.3890991      0                 1              1216
+#> 23  tasa_distintos calculado   0.3890991      0                 1              1216
+#> 24            moda calculado   0.5502701      0                 1              1080
+#> 25 frecuencia_moda calculado   0.5502701      0                 1              1080
 #> 26          minimo no_aplica          NA     NA                NA                NA
 #> 27          maximo no_aplica          NA     NA                NA                NA
 #> 28           media no_aplica          NA     NA                NA                NA
@@ -359,27 +371,27 @@ perfil$resumen_tabla$sql[, c(
 #> 30     n_negativos no_aplica          NA     NA                NA                NA
 #> 31         mediana no_aplica          NA     NA                NA                NA
 #> 32          desvio no_aplica          NA     NA                NA                NA
-#> 33       n_validos calculado   0.4308224      0                 1              3192
-#> 34     n_faltantes calculado   0.4308224      0                 1              3192
-#> 35  prop_faltantes calculado   0.4308224      0                 1              3192
-#> 36     n_distintos calculado   0.3538132      0                 1              1216
-#> 37  tasa_distintos calculado   0.3538132      0                 1              1216
-#> 38            moda calculado   0.3855228      1                 1              1024
-#> 39 frecuencia_moda calculado   0.3855228      1                 1              1024
-#> 40          minimo calculado   0.4308224      0                 1              3192
-#> 41          maximo calculado   0.4308224      0                 1              3192
-#> 42           media calculado   0.4308224      0                 1              3192
-#> 43         n_ceros calculado   0.4308224      0                 1              3192
-#> 44     n_negativos calculado   0.4308224      0                 1              3192
-#> 45         mediana calculado   0.4994869      1                 1               736
-#> 46          desvio calculado   0.4308224      0                 1              3192
-#> 47       n_validos calculado   0.4308224      0                 1              3192
-#> 48     n_faltantes calculado   0.4308224      0                 1              3192
-#> 49  prop_faltantes calculado   0.4308224      0                 1              3192
-#> 50     n_distintos calculado   0.3538132      0                 1              1216
-#> 51  tasa_distintos calculado   0.3538132      0                 1              1216
-#> 52            moda calculado   0.3983974      1                 1              1088
-#> 53 frecuencia_moda calculado   0.3983974      1                 1              1088
+#> 33       n_validos calculado   0.4792213      0                 1              3192
+#> 34     n_faltantes calculado   0.4792213      0                 1              3192
+#> 35  prop_faltantes calculado   0.4792213      0                 1              3192
+#> 36     n_distintos calculado   0.3533363      0                 1              1216
+#> 37  tasa_distintos calculado   0.3533363      0                 1              1216
+#> 38            moda calculado   0.4491806      0                 1              1024
+#> 39 frecuencia_moda calculado   0.4491806      0                 1              1024
+#> 40          minimo calculado   0.4792213      0                 1              3192
+#> 41          maximo calculado   0.4792213      0                 1              3192
+#> 42           media calculado   0.4792213      0                 1              3192
+#> 43         n_ceros calculado   0.4792213      0                 1              3192
+#> 44     n_negativos calculado   0.4792213      0                 1              3192
+#> 45         mediana calculado 100.5315781    100                 1               736
+#> 46          desvio calculado   0.4792213      0                 1              3192
+#> 47       n_validos calculado   0.4792213      0                 1              3192
+#> 48     n_faltantes calculado   0.4792213      0                 1              3192
+#> 49  prop_faltantes calculado   0.4792213      0                 1              3192
+#> 50     n_distintos calculado   0.3533363      0                 1              1216
+#> 51  tasa_distintos calculado   0.3533363      0                 1              1216
+#> 52            moda calculado   0.4134178      1                 1              1088
+#> 53 frecuencia_moda calculado   0.4134178      1                 1              1088
 #> 54          minimo no_aplica          NA     NA                NA                NA
 #> 55          maximo no_aplica          NA     NA                NA                NA
 #> 56           media no_aplica          NA     NA                NA                NA
@@ -451,13 +463,13 @@ perfil$resumen_tabla$sql[, c(
 
 perfil$resumen_tabla$tiempos
 #>                         etapa duracion_ms cpu_ms        estado nivel n_ejecuciones
-#> 1        ausencia_estructural   0.5779266      2        medido     2             1
-#> 2 casi_duplicados_vocabulario   8.6207390     15        medido     2             1
-#> 3                dependencias   0.9539127      1        medido     2             1
+#> 1        ausencia_estructural   0.6380081      2        medido     2             1
+#> 2 casi_duplicados_vocabulario   9.0384483     15        medido     2             1
+#> 3                dependencias   1.0190010      1        medido     2             1
 #> 4      duplicados_aproximados          NA     NA no_solicitado     2             1
-#> 5             lectura_muestra   0.5364418      0        medido     1             1
-#> 6          perfilado_columnas 268.4454918    269        medido     2             1
-#> 7           perfilado_muestra 343.5235023    355        medido     1             1
+#> 5             lectura_muestra   1.3313293      1        medido     1             1
+#> 6          perfilado_columnas 274.3465900    275        medido     2             1
+#> 7           perfilado_muestra 352.4067402    365        medido     1             1
 ```
 
 `resumen_tabla$tiempos` reúne en milisegundos las etapas grandes del
@@ -680,7 +692,8 @@ según lo medido. Conserva la **magnitud del trabajo** que se conoce
 consumo de memoria.
 
 Las cifras que ayudan a decidir son datos de referencia medidos, **no
-una predicción para la tabla del plan**: traer la tabla costó
+una predicción para la tabla del plan, sino una corrida única y fechada
+(2026-08-28) contra un motor remoto**: traer la tabla costó
 aproximadamente 0,13 GB por millón de filas y procesar en R
 aproximadamente 1,0-1,5 MB por cada mil filas. La segunda cifra varió
 por 1,62x entre tablas de la misma magnitud; esa variación es justamente
@@ -694,12 +707,12 @@ problema observado está en el procesamiento en R, no en la red ni en el
 motor.
 
 El extremo inferior es `total`: si la fuente de cardinalidad queda
-desconocida, supone que la política omite las métricas caras. El extremo
-superior es `total_maximo` —también reflejado en
-`total_lotes_rechazados` tras sumar la bisección— y deja abierto el
-camino que las ejecuta. Si un lote es rechazado, se agregan hasta
-`2n - 1` sondas por lote de `n` columnas. El costo real cae entre los
-dos, y el plan lo declara en las dos direcciones.
+desconocida, supone que la política omite la moda. El extremo superior
+es `total_maximo` —también reflejado en `total_lotes_rechazados` tras
+sumar la bisección— y deja abierto el camino que las ejecuta. Si un lote
+es rechazado, se agregan hasta `2n - 1` sondas por lote de `n` columnas.
+El costo real cae entre los dos, y el plan lo declara en las dos
+direcciones.
 
 `estrategia_distintos` dice cómo se obtiene o se omite `n_distintos`, y
 publica la estrategia solicitada, la resuelta y el estado antes y
@@ -734,6 +747,14 @@ y no pide confirmación, por lo que
 [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
 no queda esperando en un guion.
 
+Los avisos de `moda` y `mediana` tienen interruptores y umbrales
+propios: `avisar_costo_moda`/`umbral_segundos_aviso_moda` proyectan por
+cardinalidad y `avisar_costo_mediana`/`umbral_segundos_aviso_mediana`
+proyectan por filas. Cada aviso llega antes de pagar la consulta y su
+proyección queda separada en `meta$costo_moda` o `meta$costo_mediana`;
+la fuente de cada cardinalidad se publica, incluso cuando proviene de
+una estimación de catálogo.
+
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
 no publica esa proyección temporal: no emite consultas de datos y, por
 lo tanto, no puede medir el primer lote. El plan lo declara
@@ -764,10 +785,14 @@ La decisión de pagar moda y mediana es explícita.
 métricas solicitadas. Con `politica_costo = "por_cardinalidad"`, la
 corrida resuelve primero las fuentes estructurales y mide los valores
 válidos y distintos sólo cuando no hay una fuente exacta y la estrategia
-lo permite; luego omite, por columna, las métricas caras cuando
-`n_distintos / n_validos >= umbral_cardinalidad`. Cada omisión queda
-declarada en `resumen_tabla$sql`. Una estrategia omitida, de catálogo o
-aproximada sin capacidad nunca se convierte en `COUNT(DISTINCT ...)`.
+lo permite; luego omite, por columna, sólo la moda cuando
+`n_distintos / n_validos >= umbral_cardinalidad`. El umbral por omisión
+es `0.5` y gobierna sólo la moda. La mediana se conserva: el barrido
+medido queda plano frente a la cardinalidad y su costo lo gobierna el
+número de filas. Cada omisión queda declarada en `resumen_tabla$sql` y
+`meta$decisiones_costo` explica por separado cada decisión. Una
+estrategia omitida, de catálogo o aproximada sin capacidad nunca se
+convierte en `COUNT(DISTINCT ...)`.
 
 Ahora bien, **cuántas consultas se emiten no dice cuánto cuestan**:
 catorce consultas sobre dos millones de filas son mucho más trabajo que

@@ -20,13 +20,19 @@ medir(
 
 - modelo:
 
-  Objeto creado por
-  [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md).
+  **Primer argumento.** Objeto operativo creado por
+  [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md);
+  reúne las métricas instanciadas que se van a ejecutar. No es el objeto
+  `perfil` que devuelve
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  ni el marco conceptual de
+  [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md).
 
 - datos:
 
-  Data frame para una sola entidad o lista con nombre de data frames
-  para varias entidades.
+  **Segundo argumento.** Data frame para una sola entidad o lista con
+  nombre de data frames para varias entidades. Es la tabla que se mide,
+  no un perfil ni un modelo.
 
   Con una lista, tienen que estar las tablas de **todas** las entidades
   que el modelo mide; si falta alguna se rechaza antes de medir,
@@ -76,13 +82,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260830T002603.084546-7697-000001
-#> 2 medicion-20260830T002603.084546-7697-000002
-#> 3 medicion-20260830T002603.084546-7697-000003
+#> 1 medicion-20260830T174640.364400-7712-000001
+#> 2 medicion-20260830T174640.364400-7712-000002
+#> 3 medicion-20260830T174640.364400-7712-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260830T002603.084546-7697 2026-08-30 00:26:03  NoNulo
-#> 2 medicion-20260830T002603.084546-7697 2026-08-30 00:26:03  NoNulo
-#> 3 medicion-20260830T002603.084546-7697 2026-08-30 00:26:03  NoNulo
+#> 1 medicion-20260830T174640.364400-7712 2026-08-30 17:46:40  NoNulo
+#> 2 medicion-20260830T174640.364400-7712 2026-08-30 17:46:40  NoNulo
+#> 3 medicion-20260830T174640.364400-7712 2026-08-30 17:46:40  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

@@ -20,6 +20,7 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
+    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
     <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
     <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
     <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
@@ -41,6 +42,73 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
+<div class="section level3">
+<h3 id="avisos-dbi-para-moda-y-mediana-0-1-0">Avisos DBI para moda y mediana<a class="anchor" aria-label="anchor" href="#avisos-dbi-para-moda-y-mediana-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> agrega <code>avisar_costo_moda</code> con <code>umbral_segundos_aviso_moda</code> y <code>avisar_costo_mediana</code> con <code>umbral_segundos_aviso_mediana</code>, encendidos por omision y con umbral de 30 segundos. Los avisos se emiten antes de pagar la consulta proyectada.</li>
+<li>La moda se proyecta por cardinalidad y la mediana por filas. Las referencias locales se miden durante la corrida; cuando no hay una medicion local de mediana se usa, declarada como referencia de otra corrida, la tasa de 68 ms por millon de filas. La cardinalidad faltante para moda queda declarada y no se inventa.</li>
+<li>Si la consulta inicial que obtuvo las filas fue medida y da una cota mayor que la referencia bancaria, se publica como cota de lectura observada y se usa para no subestimar una mediana grande; no se presenta como medicion de mediana.</li>
+<li>Las proyecciones quedan separadas en <code>meta$costo_moda</code> y <code>meta$costo_mediana</code>, junto con el ya existente <code>meta$costo_distintos</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="una-muestra-vacía-no-publica-métricas-no-medidas-0-1-0">Una muestra vacía no publica métricas no medidas<a class="anchor" aria-label="anchor" href="#una-muestra-vac%C3%ADa-no-publica-m%C3%A9tricas-no-medidas-0-1-0"></a></h3>
+<ul><li>Cuando la consulta de <code>modo = "muestreado"</code> devuelve cero filas, las métricas de alcance <code>muestra</code> quedan en <code>NA</code> y con estado <code>no_disponible</code>; el motivo nombra la muestra vacía. <code>n</code> conserva el conteo de la tabla completa y <code>cobertura</code> mantiene el aviso de que la consulta de muestra devolvió cero filas.</li>
+<li>No se publica <code>0</code> en <code>n_validos</code> o <code>n_distintos</code>, ni se dispara la cascada <code>sin_valores</code>: una muestra vacía no permite concluir que la columna esté vacía. Una muestra no vacía con todos sus valores nulos conserva el estado medido/estimado que corresponde.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-política-de-costo-separa-moda-y-mediana-0-1-0">La política de costo separa moda y mediana<a class="anchor" aria-label="anchor" href="#la-pol%C3%ADtica-de-costo-separa-moda-y-mediana-0-1-0"></a></h3>
+<ul><li>
+<code>politica_costo = "por_cardinalidad"</code> ahora aplica <code>umbral_cardinalidad</code> únicamente a la moda. El valor por omisión baja de <code>0.95</code> a <code>0.5</code>, el primer punto medido donde la moda se aleja de su piso de costo; la mediana se conserva porque su costo queda plano frente a la cardinalidad y depende del número de filas.</li>
+<li>Esto cambia el comportamiento de quien ya pasaba <code>umbral_cardinalidad</code> para omitir ambas métricas: esas llamadas ahora conservan la mediana bajo <code>por_cardinalidad</code>. No se agrega un segundo umbral porque no hay evidencia para omitir la mediana por proporción. <code>meta$decisiones_costo</code> declara la razón de conservar u omitir moda y mediana por separado, y ambos README y la documentación de la API describen el alcance del argumento.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="topes-de-la-muestra-en-memoria-y-dbi-0-1-0">Topes de la muestra en memoria y DBI<a class="anchor" aria-label="anchor" href="#topes-de-la-muestra-en-memoria-y-dbi-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> y <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> aceptan <code>max_celdas_muestra</code> y <code>max_bytes_muestra</code>, con los mismos valores por omisión: <code>1.000.000</code> celdas y <code>512 MiB</code>. En DBI sólo limitan el bloque <code>perfil_muestra</code>; los agregados SQL conservan su alcance.</li>
+<li>En DBI el tope de celdas se resuelve antes de leer con el conteo de filas y el ancho del esquema. El de bytes hace una sonda de hasta 100 filas y fija el límite final en SQL o <code>dbFetch(n)</code>, sin traer todo para recortarlo en R. <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> anticipa el recorte de celdas y la sonda de bytes.</li>
+<li>La reducción se declara en <code>cobertura_diagnosticos</code> con celdas o bytes observados, umbral, motivo y cuál tope mandó. Con ambos topes en <code>Inf</code> no se declara un recorte.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="estrategia_distintos--catalogo-en-postgresql-0-1-0">
+<code>estrategia_distintos = "catalogo"</code> en PostgreSQL<a class="anchor" aria-label="anchor" href="#estrategia_distintos--catalogo-en-postgresql-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> y <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> leen <code>pg_stats.n_distinct</code> y publican sus resultados como estimaciones de catálogo en los modos que miden la relación entera (<code>exacto</code>, <code>seguro</code> y <code>conteos</code>). Los valores negativos se convierten con la suma de <code>pg_class.reltuples</code> de la jerarquía que lee una consulta sin <code>ONLY</code>; si la relación tiene descendientes se elige <code>inherited = TRUE</code> y, sin hijas, la única fila <code>FALSE</code>. En <code>muestreado</code> y <code>aproximado</code>, la estrategia queda <code>no_disponible</code>: el catálogo describe la relación entera y la corrida mide un subconjunto, así que no se publica la cardinalidad de un universo como si fuera la del otro. Si falta <code>ANALYZE</code>, el denominador de la jerarquía no es utilizable o hay ambigüedad, el resultado queda <code>no_disponible</code> y no se reemplaza por cero.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="validación-de-claves-0-1-0">Validación de claves<a class="anchor" aria-label="anchor" href="#validaci%C3%B3n-de-claves-0-1-0"></a></h3>
+<ul><li>Se cierra el pendiente de una política separada con <code>catalogo</code>, <code>reutilizar_recorrido</code> y <code>exacta</code>: la API vigente ya separa la procedencia de cardinalidad (<code>estrategia_distintos</code>) de la política de costo (<code>politica_costo</code>), por lo que no se agrega un selector de clave duplicado.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="el-plan-no-repite-sus-supuestos-0-1-0">El plan no repite sus supuestos<a class="anchor" aria-label="anchor" href="#el-plan-no-repite-sus-supuestos-0-1-0"></a></h3>
+<ul><li>Con la magnitud del trabajo desconocida, <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> del plan mostraba dos veces los mismos dos párrafos —el supuesto del trabajo y las referencias medidas—, porque dos ramas los imprimían y con esa magnitud corrían las dos. Quedó una sola, la que corre para toda magnitud, y una prueba cuenta las apariciones.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-clave-que-se-publica-es-la-de-la-tabla-que-se-midió-0-1-0">La clave que se publica es la de la tabla que se midió<a class="anchor" aria-label="anchor" href="#la-clave-que-se-publica-es-la-de-la-tabla-que-se-midi%C3%B3-0-1-0"></a></h3>
+<ul><li>Con un nombre sin calificar, <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> publicaba la clave primaria de una tabla homónima de otro esquema cuando la medida no declaraba ninguna. En SQL Server, sobre una tabla de columnas <code>y, dato</code>, llegaba a publicar clave primaria en una columna <code>x</code> inexistente ahí. El esquema se le pregunta ahora al motor con sus mismas reglas de resolución, así que el catálogo contesta por la relación que se lee.</li>
+<li>Y por encima del filtro de cada motor, una clave cuyas columnas no están entre las que se midieron se descarta entera —en cualquier motor, incluidos los que no se probaron— con un motivo que lo explica. No se recortan las columnas ajenas para publicar el resto: eso daría una clave que ningún catálogo declara.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-mediana-consolidada-se-activa-donde-el-motor-la-acepta-0-1-0">La mediana consolidada se activa donde el motor la acepta<a class="anchor" aria-label="anchor" href="#la-mediana-consolidada-se-activa-donde-el-motor-la-acepta-0-1-0"></a></h3>
+<ul><li>Las sondas que habilitan la mediana en una sola consulta ordenaban por una constante. SQL Server rechaza constantes en el <code>ORDER BY</code> de una función de ventana, así que su camino nunca se activaba; MariaDB implementa <code>PERCENTILE_CONT</code> sólo como función de ventana y estaba clasificada con la forma sin <code>OVER</code>. Las dos quedaban degradadas a una consulta por columna sin aviso, porque los valores publicados eran correctos.</li>
+<li>DuckDB acepta la forma consolidada y no se le ofrecía. Con esto, cuatro de los siete motores medidos resuelven la mediana en una sola consulta en vez de una por columna.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="readme-api-y-recorrido-guiado-0-1-0">README, API y recorrido guiado<a class="anchor" aria-label="anchor" href="#readme-api-y-recorrido-guiado-0-1-0"></a></h3>
+<ul><li>Los dos README ahora empiezan por el problema que resuelve <code>lupa</code>, los tipos de hallazgo que permiten ver más que un <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, la cobertura medida de AGESIC, CEPAL e ISO 25012, los siete motores comprobados contra un motor real y el recorrido mínimo para empezar. La documentación enumera los 56 nombres canónicos de <code>tipo_hallazgo</code>.</li>
+<li>Los argumentos de <code><a href="../reference/medir.html">medir()</a></code>, <code><a href="../reference/evaluar.html">evaluar()</a></code> y <code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> indican en qué posición se recibe cada objeto y distinguen el perfil descriptivo de <code><a href="../reference/perfilar.html">perfilar()</a></code> del perfil de evaluación de <code><a href="../reference/reglas_evaluacion.html">perfil_evaluacion()</a></code>. Los errores de tipo equivocado ahora nombran el argumento y el constructor esperado.</li>
+<li>El catálogo de motores ya no presenta Oracle como medido: las dos variantes quedan documentadas como dialectos esperados sin comprobación contra un motor real, en línea con la cobertura publicada.</li>
+<li>Se añade la viñeta <code>flujo-guiado</code>, que recorre una propuesta editable desde <code><a href="../reference/perfilar.html">perfilar()</a></code> hasta <code><a href="../reference/evaluar.html">evaluar()</a></code> y muestra el orden de la API.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-clave-declarada-separa-ausencias-y-repeticiones-0-1-0">La clave declarada separa ausencias y repeticiones<a class="anchor" aria-label="anchor" href="#la-clave-declarada-separa-ausencias-y-repeticiones-0-1-0"></a></h3>
+<ul><li>
+<code>perfilar(clave = ...)</code> publica <code>clave_con_ausentes</code> para las filas que impiden garantizar <code>NOT NULL</code>, y reserva <code>clave_no_unica</code> para valores repetidos entre filas con la clave completa. La descripción, la evidencia, los conteos y las trazas comparten ahora el universo de <code>meta$clave$unicidad</code>, por lo que una colisión entre ausentes no se presenta como una refutación de la unicidad.</li>
+<li>La documentación de <code><a href="../reference/perfilar.html">perfilar()</a></code> y ambos README explican la separación y los conteos de cada hallazgo.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-trazabilidad-de-filas-duplicadas-conserva-todos-los-participantes-0-1-0">La trazabilidad de filas duplicadas conserva todos los participantes<a class="anchor" aria-label="anchor" href="#la-trazabilidad-de-filas-duplicadas-conserva-todos-los-participantes-0-1-0"></a></h3>
+<ul><li>La traza de <code>filas_duplicadas</code> usa la misma comparación en ambas direcciones que el conteo. Esto corrige las columnas <code>integer64</code>, cuyos métodos pueden ignorar <code>fromLast</code>, y mantiene alineados <code>n_afectados</code> y <code>trazabilidad$total</code>.</li>
+</ul></div>
 <div class="section level3">
 <h3 id="el-minimo-de-r-conserva-la-conducta-en-blob-y-duplicados-matriciales-0-1-0">El minimo de R conserva la conducta en BLOB y duplicados matriciales<a class="anchor" aria-label="anchor" href="#el-minimo-de-r-conserva-la-conducta-en-blob-y-duplicados-matriciales-0-1-0"></a></h3>
 <ul><li>Se conserva <code>R (&gt;= 4.1.0)</code>. En el conjunto minimo reproducido, un BLOB de SQLite puede llegar como <code>blob</code>/<code>vctrs_list_of</code> de valores <code>raw</code>, cuyo <code><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique()</a></code> no funciona con versiones antiguas de <code>vctrs</code>. La columna ya no aborta el perfil: <code><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na()</a></code> produce el hallazgo de faltantes y su trazabilidad, mientras la escala y los agregados cuantitativos quedan como desconocidos o <code>no_aplica</code>.</li>
@@ -188,7 +256,7 @@
 <li>
 <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> deja de ejecutar agregados de datos para decidir el costo. Con una cardinalidad desconocida publica un rango y conserva separadas <code>estrategia_distintos</code> y <code>fuente_cardinalidad_costo</code>.</li>
 <li>
-<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> ejecuta primero los agregados planos, luego el total exacto, los distintos, la moda y la mediana. <code>tamano_lote_planos</code> y <code>tamano_lote_distintos</code> son independientes; este último es 1 por omisión hasta contar con mediciones.</li>
+<code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> ejecuta primero los agregados planos, luego el total exacto, los distintos, la moda y la mediana. <code>tamano_lote_planos</code> y <code>tamano_lote_distintos</code> son independientes; este último es 2 por omisión, valor medido en el servidor de referencia. La mención anterior a 1 queda corregida aquí.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="una-clave-heredada-ya-no-se-declara-garantizada-sobre-otro-universo-0-1-0">Una clave heredada ya no se declara garantizada sobre otro universo<a class="anchor" aria-label="anchor" href="#una-clave-heredada-ya-no-se-declara-garantizada-sobre-otro-universo-0-1-0"></a></h3>
@@ -254,7 +322,10 @@
 <div class="section level3">
 <h3 id="cpu-del-cliente-y-política-explícita-para-métricas-caras-0-1-0">CPU del cliente y política explícita para métricas caras<a class="anchor" aria-label="anchor" href="#cpu-del-cliente-y-pol%C3%ADtica-expl%C3%ADcita-para-m%C3%A9tricas-caras-0-1-0"></a></h3>
 <p>La instrumentación de DBI publica ahora <code>cpu_ms</code> junto a <code>duracion_ms</code> en <code>resumen_tabla$sql</code> y en <code>resumen_tabla$tiempos</code>. Se calcula con <code><a href="https://rdrr.io/r/base/proc.time.html" class="external-link">proc.time()</a></code> como <code>user.self + sys.self</code>: cerca de cero distingue espera del trabajo del proceso cliente, y cerca de uno al dividir CPU por tiempo transcurrido indica que el cliente está trabajando. Cero es una medición válida; <code>NA</code> queda reservado para lo que no se pudo medir, y <code>instrumentar = FALSE</code> deja el campo en <code>NA</code> como los demás. En un microbenchmark de un millón de consultas simuladas, dos lecturas de <code><a href="https://rdrr.io/r/base/proc.time.html" class="external-link">proc.time()</a></code> costaron 1,122 microsegundos por consulta; dos de <code><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time()</a></code> costaron 1,778 microsegundos. En la tabla ancha de 158 columnas, el agregado no duplicó el costo de instrumentar: cinco corridas con reloj solamente tuvieron mediana de 1,093 s y cinco con reloj más CPU de 0,962 s, una diferencia dominada por la variación de SQLite. El número reproducible que se publica es el costo directo de 1,122 microsegundos por consulta.</p>
-<p>Moda y mediana se pueden controlar con <code>politica_costo</code>. El valor por omisión es <code>"todas"</code>, que conserva el perfil anterior; <code>"por_cardinalidad"</code> hace primero los conteos baratos de valores válidos y distintos y decide luego por columna. Si <code>n_distintos / n_validos</code> alcanza <code>umbral_cardinalidad</code> (por omisión <code>0.95</code>), omite moda y mediana de esa columna. La omisión no desaparece ni se vuelve <code>NA</code> silencioso: queda <code>omitido_por_costo</code> con el motivo, la proporción observada y la forma de pedirla igual (<code>politica_costo = "todas"</code>) o mover el umbral.</p>
+<p>Moda y mediana se pueden controlar con <code>politica_costo</code>. El valor por omisión es <code>"todas"</code>, que conserva el perfil anterior; <code>"por_cardinalidad"</code> hace primero los conteos baratos de valores válidos y distintos y decide luego por columna. Si <code>n_distintos / n_validos</code> alcanza <code>umbral_cardinalidad</code>, omite la moda de esa columna. La omisión no desaparece ni se vuelve <code>NA</code> silencioso: queda <code>omitido_por_costo</code> con el motivo, la proporción observada y la forma de pedirla igual (<code>politica_costo = "todas"</code>) o mover el umbral.</p>
+<blockquote>
+<p>Cuando se escribió esta entrada el umbral valía <code>0.95</code> y omitía <strong>moda y mediana</strong>. Las dos cosas cambiaron al medirlas —el umbral es <code>0.5</code> y la mediana ya no se omite por proporción, ver la entrada de arriba—, y el texto se corrigió acá para que no queden dos descripciones del mismo argumento diciendo cosas distintas en el mismo archivo.</p>
+</blockquote>
 <p>La política hace explícito el plan en dos etapas. En una tabla reproducible de 158 columnas, 80 numéricas, 200 filas y 60 columnas con cardinalidad al menos 0,95, <code>politica_costo = "todas"</code> emitió 260 consultas y la política selectiva 140: se ahorraron <strong>120 consultas</strong>, no tiempo. Se omitieron 60 modas y 60 medianas. El valor por omisión no cambia: esos 60 casos muestran el ahorro posible, pero no autorizan al paquete a elegir qué métrica sacrificar.</p>
 <p>Cuando la sonda reconoce un motor con <code>PERCENTILE_CONT(...) WITHIN GROUP</code>, las medianas numéricas se consolidan en un <code>SELECT</code> por lote; el camino actual, una mediana por columna, queda como respaldo si la capacidad no está disponible o falla la consulta consolidada.</p>
 </div>
@@ -506,9 +577,9 @@
 </div>
 <div class="section level3">
 <h3 id="en-oracle-la-cadena-vacia-es-el-nulo-y-eso-se-declara-0-1-0">En Oracle la cadena vacia es el nulo, y eso se declara<a class="anchor" aria-label="anchor" href="#en-oracle-la-cadena-vacia-es-el-nulo-y-eso-se-declara-0-1-0"></a></h3>
-<p>Medido contra Oracle Free 23 real: las mismas tres filas -<code>""</code>, <code>NA</code>, <code>"x"</code>- dan <code>n_faltantes = 2</code> por Oracle y <code>1</code> por un motor que las distingue. La misma columna tiene una completitud distinta segun el motor, y no porque el dato cambie.</p>
+<p>Las mismas tres filas -<code>""</code>, <code>NA</code>, <code>"x"</code>- dan <code>n_faltantes = 2</code> por Oracle y <code>1</code> por un motor que las distingue. La misma columna tiene una completitud distinta segun el motor, y no porque el dato cambie.</p>
+<p>Es la semantica documentada de Oracle, y <code>lupa</code> la declara. Lo que <strong>no</strong> hay es una corrida contra un servidor Oracle real que la respalde: el catalogo de motores da las dos variantes de Oracle como <code>esperado</code>, y esta nota decia antes “medido contra Oracle Free 23 real” sin un log que lo sostuviera.</p>
 <p>No es un defecto que se pueda arreglar -es la semantica del motor- pero callarlo si lo seria: quien compare completitud entre entregas de motores distintos leeria una diferencia que no esta en los datos. Queda en la cobertura del resumen, y solo en los motores donde corresponde.</p>
-<p>En la misma corrida se verifico contra el motor real que el dialecto se resuelve solo en <code>fetch_first</code>, que las 54 metricas se calculan sin ninguna no disponible, y que la media, la mediana y el desvio calculados por Oracle coinciden con los de R sobre la tabla entera.</p>
 </div>
 <div class="section level3">
 <h3 id="la-clave-primaria-se-lee-del-catalogo-cuando-esta-declarada-0-1-0">La clave primaria se lee del catalogo cuando esta declarada<a class="anchor" aria-label="anchor" href="#la-clave-primaria-se-lee-del-catalogo-cuando-esta-declarada-0-1-0"></a></h3>
@@ -926,9 +997,10 @@ perfilar_dbi()  media = NA           detalle: [estadisticos de orden y momentos 
 <li>Un controlador que no implementa <code>dbIsValid()</code> ya no se toma por conexion rota: se prueba <code>dbGetInfo()</code> antes de rendirse. El <code>ROracle</code> archivado es el caso, y por eso Oracle quedaba fuera de <code><a href="../reference/coleccion.html">coleccion()</a></code> aunque el SQL funcionara.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="oracle-contra-motor-real-0-1-0">Oracle contra motor real<a class="anchor" aria-label="anchor" href="#oracle-contra-motor-real-0-1-0"></a></h3>
-<ul><li>Verificado contra Oracle Free 23. Importa aparte porque <strong>sus dos dialectos -<code>fetch_first</code> y <code>rownum</code>- nunca habian corrido contra un motor real</strong>; los otros seis usan <code>limit</code> o <code>top</code>. Encontro cuatro cosas: la sonda del desvio necesitaba <code>FROM DUAL</code>; Oracle rechaza <code>TABLESAMPLE</code> y usa <code>SAMPLE (p)</code>, que se agrego como forma candidata con su sonda; <code>dbExistsTable()</code> del <code>ROracle</code> archivado devuelve falso para nombres calificados aunque el SQL funcione; y una columna <code>CLOB</code> no se puede agrupar ni ordenar, cosa que el paquete ya declaraba como no disponible sin haberlo previsto.</li>
-<li>Con esto son <strong>siete motores probados contra motor real</strong>, y los siete encontraron algo que ningun motor simulado habia encontrado.</li>
+<h3 id="el-camino-de-oracle-contemplado-y-sin-corrida-que-lo-respalde-0-1-0">El camino de Oracle, contemplado y sin corrida que lo respalde<a class="anchor" aria-label="anchor" href="#el-camino-de-oracle-contemplado-y-sin-corrida-que-lo-respalde-0-1-0"></a></h3>
+<ul><li>Se contemplan los dos dialectos de Oracle -<code>fetch_first</code> y <code>rownum</code>-, que son los unicos que no comparten forma con los demas motores: los otros usan <code>limit</code> o <code>top</code>. El camino cubre cuatro particularidades del motor: la sonda del desvio necesita <code>FROM DUAL</code>; Oracle rechaza <code>TABLESAMPLE</code> y usa <code>SAMPLE (p)</code>, que se agrego como forma candidata con su sonda; <code>dbExistsTable()</code> del <code>ROracle</code> archivado devuelve falso para nombres calificados aunque el SQL funcione; y una columna <code>CLOB</code> no se puede agrupar ni ordenar, cosa que el paquete ya declaraba como no disponible.</li>
+<li>
+<strong>Esta entrada decia antes «Verificado contra Oracle Free 23» y «siete motores probados contra motor real».</strong> No hay con que sostenerlo: no se conserva ningun log de una corrida contra un servidor Oracle, y el unico informe que existe -del 2026-08-24- cierra diciendo que la medicion no se pudo ejecutar. El catalogo de motores da las dos variantes de Oracle como <code>esperado</code>, y las pruebas de este camino corren con respuestas DBI simuladas, que es lo que se declara.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="lo-que-encontro-una-refutacion-adversarial-0-1-0">Lo que encontro una refutacion adversarial<a class="anchor" aria-label="anchor" href="#lo-que-encontro-una-refutacion-adversarial-0-1-0"></a></h3>

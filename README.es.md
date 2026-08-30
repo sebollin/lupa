@@ -11,7 +11,175 @@ activo](https://www.repostatus.org/badges/latest/active.svg)](https://www.repost
 [![README in
 English](https://img.shields.io/badge/README-English-1f6feb.svg)](https://sebollin.github.io/lupa/README.md)
 
-## 🔎 Qué es y en qué se distingue
+## Qué problema resuelve `lupa`
+
+`lupa` ayuda a un analista a examinar una tabla o una base antes de
+confiar en ella: vuelve visibles las representaciones inconsistentes,
+los faltantes, las filas duplicadas o sospechosas, la estructura
+implícita y los valores que merecen revisión; después permite convertir
+reglas confirmadas en mediciones explícitas, evaluarlas, planificar una
+limpieza sobre una copia y seguir los cambios en el tiempo. Es útil
+cuando un [`summary()`](https://rdrr.io/r/base/summary.html) no alcanza
+para saber si un mismo hecho fue codificado de varias maneras, si un
+faltante se esconde detrás de un código o qué filas hay que revisar en
+el sistema de origen.
+
+## Qué te dice de tus datos que `summary()` no
+
+[`summary()`](https://rdrr.io/r/base/summary.html) describe las columnas
+una por una. `lupa` compara representaciones, cruza columnas y filas, y
+devuelve `perfil$hallazgos`: una tabla inspeccionable con tipo de
+hallazgo, severidad, evidencia, conteos, una sugerencia y trazabilidad
+acotada por fila. Un hallazgo en cero significa que el diagnóstico se
+ejecutó y no encontró nada; un diagnóstico que no pudo ejecutarse queda
+separado en `perfil$cobertura_diagnosticos`, en vez de informarse en
+silencio como si los datos estuvieran limpios.
+
+Este es un recorte real de la salida con los datos incluidos:
+
+``` r
+
+data(datos_operativos)
+perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
+perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad", "evidencia")]
+```
+
+Entre las salidas de esa corrida aparecen:
+
+| Qué deja visible | `tipo_hallazgo` | Ejemplo en `evidencia` |
+|----|----|----|
+| Faltantes escondidos detrás de códigos | `faltantes_disfrazados` | `-99 (1)` |
+| Fechas en representaciones mixtas | `formatos_fecha_mixtos` | `%d/%m/%Y (4); %Y-%m-%d (4); ...` |
+| Espacios sobrantes | `espacios_sobrantes` | `1 valores; ejemplos: "web "` |
+| Mayúsculas inconsistentes | `mayusculas_inconsistentes` | `"web"; "Web"` |
+| El tipo declarado y el inferido no coinciden | `tipo_declarado_distinto` | `Declarado: texto; inferido: fecha` |
+| Una columna constante | `constante` | `Valor: principal; frecuencia: 13` |
+| Filas duplicadas exactas | `filas_duplicadas` | `2 filas en grupos duplicados (1 excedentes)` |
+| Columnas repetidas | `columnas_duplicadas` | `id_registro = id_copia` |
+
+En una tabla armada a propósito, el perfil emitió 15 tipos de hallazgo,
+incluidas monedas y unidades mezcladas, fechas en formatos mixtos,
+faltantes disfrazados, espacios sobrantes, mayúsculas inconsistentes,
+variantes de escritura, números guardados como texto, casi-claves,
+constantes y ausencia estructural. Sobre un banco de referencia con
+defectos conocidos recuperó 9 de 9 defectos plantados; sobre 43 tablas
+limpias produjo 0 hallazgos de severidad error.
+
+El vocabulario canónico actual contiene 56 nombres de `tipo_hallazgo`.
+Los nombres están en español porque forman parte de la API pública:
+
+``` text
+alta_cardinalidad                 anio_de_dos_digitos
+bloqueo_por_con_perdida          casi_clave
+casi_duplicados_vocabulario      celdas_multivaluadas
+ceros_no_permitidos              clave_con_ausentes
+clave_no_unica                   codificacion_invalida
+codificacion_rota                columnas_duplicadas
+constante                        controles_invisibles
+coordenada_fuera_dominio         crs_no_declarado
+dato_personal_posible            desviacion_benford
+duplicados_aproximados           duplicados_exactos_columnas
+duplicados_exactos_normalizados  entidades_html
+espacios_sobrantes               faltantes
+faltantes_disfrazados            fecha_nacimiento_fuera_rango
+fecha_partida_columnas           filas_duplicadas
+formato_fecha_ambiguo            formatos_fecha_mixtos
+geometria_invalida               geometria_vacia
+integer64_fuera_precision_double mayusculas_inconsistentes
+monedas_mixtas                   negativos_no_permitidos
+nombres_columnas_problematicos   normalizacion_unicode
+numero_como_texto                outliers
+patron_raro                      posible_ausencia_estructural
+posible_centinela_numerico       posible_identificador
+regla_silencia_ausencia          relacion_aritmetica_columnas
+relacion_orden_columnas          separadores_en_campo
+tipo_compuesto_no_analizado      tipo_declarado_distinto
+tipos_geometria_mixtos           unidades_mixtas
+valor_fuera_de_aplicabilidad     valores_no_finitos
+variantes_equifrecuentes_vocabulario
+zona_horaria_fecha_hora
+```
+
+## Qué NO hace `lupa`
+
+`lupa` no convierte el nombre de un marco de calidad en una medición. Un
+marco es una taxonomía; un factor se mide sólo cuando los datos aportan
+evidencia o cuando quien usa el paquete declara el requisito y la
+métrica que lo medirá. Esta es la cobertura medida de los marcos
+incluidos:
+
+| marco | factores | alcanzable declarando | fuera de alcance | mide [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) solo |
+|----|---:|---:|---:|---:|
+| AGESIC | 17 | 12 | 5 | 2 |
+| CEPAL | 19 | 6 | 13 | 0 |
+| ISO 25012 | 15 | 15 | 0 | 0 |
+
+Los 13 principios de CEPAL fuera de alcance no son una limitación del
+motor: hablan del sistema estadístico y de su proceso institucional o
+productivo, no de los valores de una tabla. ISO 25012 se cubre entero
+cuando se declaran sus requisitos y métricas.
+[`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
+conserva estas diferencias; que no haya un hallazgo no afirma que los
+datos sean buenos.
+
+`lupa` tampoco certifica un conjunto de datos, inventa un puntaje global
+ni modifica la entrada como efecto secundario del perfilado. El puntaje
+sólo aparece cuando quien usa el paquete declara pesos y un modelo de
+medición; la limpieza devuelve una copia y conserva intactos los datos
+originales.
+
+## Sobre qué bases corre
+
+Hoy se midieron siete combinaciones de motor y versión contra motores
+reales. Cada una produjo las 38 métricas solicitadas, declaró 7 como
+`no_aplica` y detectó la clave `id` en la tabla de prueba.
+
+| motor      | versión | estado                          |
+|------------|---------|---------------------------------|
+| PostgreSQL | 16      | **medido contra el motor real** |
+| PostgreSQL | 9.3.25  | **medido contra el motor real** |
+| MariaDB    | 11.8    | **medido contra el motor real** |
+| MySQL      | 8.4     | **medido contra el motor real** |
+| SQLite     | —       | **medido contra el motor real** |
+| DuckDB     | —       | **medido contra el motor real** |
+| SQL Server | 2022    | **medido contra el motor real** |
+| Oracle     | —       | no medido en esta matriz        |
+| BigQuery   | —       | no medido en esta matriz        |
+
+[`requisitos_motor()`](https://sebollin.github.io/lupa/reference/requisitos_motor.md)
+tiene 12 entradas. Nueve son entradas de motores con nombre si se
+cuentan por separado las dos filas de versión de Oracle; `dbi`, `odbc` y
+`otro_dbi` son entradas genéricas de compatibilidad, no tres motores
+medidos adicionales.
+
+## Cómo se empieza
+
+Hasta la primera publicación en CRAN, instalá la versión de desarrollo
+desde GitHub:
+
+``` r
+
+pak::pak("sebollin/lupa")
+```
+
+Después, estas cinco líneas permiten mirar una tabla y su cobertura
+declarada:
+
+``` r
+
+library(lupa)
+data(datos_operativos)
+perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
+head(perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")], 5)
+cobertura_analisis(perfil)
+```
+
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+sólo lee. El paso siguiente, cuando un hallazgo se confirma como
+requisito, está recorrido en la viñeta
+[`flujo-guiado`](https://sebollin.github.io/lupa/articles/flujo-guiado.html).
+
+## 🔎 Cómo trabaja lupa en la práctica
 
 `lupa` es un conjunto de herramientas auditables para conectar el primer
 perfilado con un modelo de calidad declarado para un uso concreto,
@@ -82,7 +250,7 @@ El [README en inglés](https://sebollin.github.io/lupa/README.md) cuenta
 lo mismo. Quienes contribuyan deben mantener el contrato público en
 español; la guía que lo rodea sí se puede internacionalizar.
 
-## ⚡ Inicio en cinco minutos
+## ⚡ Un análisis completo y un informe
 
 Hasta la primera publicación en CRAN, instalá la versión de desarrollo
 desde GitHub:
@@ -185,26 +353,25 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 
 | motor | dialecto | estado |
 |----|----|----|
-| SQLite | `limit` | **probado** contra el motor real, en la suite |
+| **SQLite** | `limit` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
 | motor que rechaza `LIMIT` | `top` / `portable` | **probado** con un motor simulado en la suite |
 | motor que pliega los alias a mayúsculas | cualquiera | **probado** con un motor simulado |
 | motor que rechaza `SELECT *` por una columna | cualquiera | **probado** con un motor simulado |
-| **PostgreSQL 16** | `limit` | **probado** contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, medianas múltiples consolidadas con `PERCENTILE_CONT`, esquemas, colecciones y permisos parciales; vuelto a probar en los cinco modos, donde la sonda elige `BERNOULLI` a nivel de fila antes que `SYSTEM` a nivel de bloque |
-| **MySQL 8** | `limit` | **probado** contra el motor real: mismos tres estadísticos verificados contra R |
-| **SQL Server 2022** | `top` | **probado** contra el motor real: la sonda resuelve `top` sola, las medianas múltiples usan `PERCENTILE_CONT ... OVER`, y los tres estadísticos coinciden con R |
-| **DuckDB 1.5** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, y los tres estadísticos verificados contra R |
-| **MariaDB 11** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, y el extremo inferior del plan coincidiendo con las consultas emitidas en los cinco |
-| **Oracle Free 23 (23c)** | `fetch_first` | **probado** contra el motor real: dialecto resuelto por sonda, los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, el extremo inferior del plan coincidiendo con las consultas emitidas, nombres calificados por texto y por [`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html), y muestreo `SAMPLE (p)`, y verificado de nuevo el 2026-08-24 contra el motor real: dialecto por sonda, las 54 métricas sin ninguna no disponible, los tres estadísticos contra R, la clave primaria leída del catálogo, y la cadena vacía declarada como nulo |
-| Oracle 11 y anterior | `rownum` | esperado, no comprobado contra el motor |
+| **PostgreSQL 16** | `limit` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
+| **PostgreSQL 9.3.25** | `limit` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
+| **MySQL 8.4** | `limit` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
+| **SQL Server 2022** | `top` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
+| **DuckDB** | `limit` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
+| **MariaDB 11.8** | `limit` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
+| **Oracle** | `fetch_first` / `rownum` | no medido en la matriz actual |
+| **BigQuery** | `portable` | no medido en la matriz actual |
 | cualquier otro compatible con DBI | `portable` | reserva: `dbSendQuery()` + `dbFetch(n)` |
 
 La afirmación es reproducible: `benchmark/verificar_motor.R` toma
-cualquier conexión DBI y comprueba las seis cosas que la tabla promete —
-dialecto resuelto por sonda, ninguna métrica no disponible en los cinco
-modos, los tres estadísticos contra R, el plan contra las consultas
-realmente emitidas, el nombre calificado con esquema por texto y por
-[`DBI::Id`](https://dbi.r-dbi.org/reference/Id.html), y una colección de
-dos tablas.
+cualquier conexión DBI y comprueba cinco cosas — que el perfil tenga
+cinco columnas, que el dialecto se resuelva por sonda, que la media del
+motor coincida con R, que la clave primaria se lea del catálogo y que la
+cobertura sea una tabla.
 
 Lo que ese script comprueba es el **comportamiento**, y se puede rehacer
 contra cualquier conexión. Los **cronometrajes** de esas corridas —los
@@ -295,11 +462,12 @@ admite esa forma, la salida declara que conserva las dos consultas.
 La procedencia de la cardinalidad se elige con `estrategia_distintos`,
 cuyo valor por omisión es `"exacta"`. `"exacta"` emite `COUNT(DISTINCT)`
 sobre las filas de la corrida; `"aproximada_motor"` usa una función
-nativa sólo si la sonda la acepta; `"catalogo"` está declarada pero
-queda `no_disponible` hasta implementar una estadística previa del
-catálogo; y `"omitida"` no emite la consulta. No hay repliegue
-silencioso entre estrategias: una aproximación sin capacidad queda
-`no_disponible`, no se convierte en un conteo exacto.
+nativa sólo si la sonda la acepta; `"catalogo"` lee
+`pg_stats.n_distinct` en PostgreSQL, lo publica como estimación y aplica
+guardas de herencia y de modos muestreados; en otros motores queda
+`no_disponible` con su motivo; y `"omitida"` no emite la consulta. No
+hay repliegue silencioso entre estrategias: una aproximación sin
+capacidad queda `no_disponible`, no se convierte en un conteo exacto.
 
 La salida conserva `estrategia_solicitada`, `estrategia_resuelta` y
 `estado` en `resumen_tabla$meta$estrategia_distintos` y en las filas de
@@ -499,6 +667,29 @@ asi que no se publica una proyeccion. Por eso una peticion con
 `metricas = "distintos"` tambien recibe el aviso cuando hay varios
 lotes. Esta proyeccion temporal no usa `reltuples`.
 
+El mismo canal avisa ahora el costo de las dos metricas caras que
+faltaban: `moda` se proyecta por la suma de las cardinalidades de las
+columnas y `mediana` por la cantidad de filas. Cada una tiene su
+interruptor y su umbral en segundos, encendidos por omision a partir de
+30 segundos: `avisar_costo_moda`/`umbral_segundos_aviso_moda` y
+`avisar_costo_mediana`/`umbral_segundos_aviso_mediana`. El aviso se
+emite antes de la consulta que se proyecta y queda en `meta$costo_moda`
+o `meta$costo_mediana`, separados de `meta$costo_distintos` porque cada
+proyeccion usa una unidad distinta.
+
+Cuando puede, la moda mide en esta corrida la primera consulta y usa sus
+ms por distinto para las columnas restantes. Si no hay cardinalidad
+exacta, usa la fuente disponible (por ejemplo, catalogo) y la declara;
+si no hay ninguna, la proyeccion queda no disponible. La mediana conoce
+las filas despues del primer conteo. La primera mediana medida sirve
+como referencia local para las restantes; si una sola mediana total no
+deja medicion local, usa la referencia de banco declarada de 68 ms por
+millon de filas, tomada de otra corrida. Esa referencia no se presenta
+como medicion de la corrida actual. Si la consulta inicial que obtuvo
+las filas fue medida y da una cota mayor, esa cota se publica aparte
+como lectura observada —no como medicion de mediana— para evitar el
+falso silencio de una tabla grande recién cargada.
+
 En PostgreSQL, la preparacion consulta ademas `pg_stats.n_distinct`,
 `pg_stats.avg_width`, `pg_class.reltuples` y la configuracion vigente de
 `work_mem` —mas `hash_mem_multiplier` desde PostgreSQL 13— para estimar
@@ -533,10 +724,12 @@ consulta conservan la duración en `NA` y no afirman una medición.
 proyecta las celdas antes de empezar el trabajo costoso. El aviso
 predeterminado se activa desde `100.000` celdas, usa una referencia de
 `10.000` celdas por segundo y publica que es una estimacion junto con su
-fuente. La referencia reproduce estas mediciones: 500 filas por 50, 300
-y 1.000 columnas tomaron 2,41, 14,85 y 50,41 segundos. No hay aviso por
-debajo del umbral ni en guiones no interactivos. La proyeccion queda en
-`meta$costo_tabla_ancha`. `avisar_costo_tabla_ancha = FALSE` lo
+fuente. La referencia reproduce estas mediciones (corrida del
+2026-08-30, reproducible con `benchmark/medir_referencias.R`): 500 filas
+por 50, 300 y 1.000 columnas tomaron 3,34, 13,63 y 43,85 segundos — unas
+11.000 celdas por segundo, y por eso la referencia usa 10.000. No hay
+aviso por debajo del umbral ni en guiones no interactivos. La proyeccion
+queda en `meta$costo_tabla_ancha`. `avisar_costo_tabla_ancha = FALSE` lo
 desactiva por llamada y `umbral_celdas_aviso_tabla_ancha = Inf` lo
 silencia de forma explicita.
 
@@ -567,6 +760,27 @@ trae `distancia_corte`, `n_en_distancia_corte` y `corte_en_empate`, y
 ese último no es `truncado` con otro nombre —da `FALSE` cuando el corte
 cae en una distancia única—.
 
+### Los topes de tamaño protegen las lecturas remotas
+
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+usan los mismos topes predeterminados de la muestra:
+`max_celdas_muestra = 1.000.000` celdas y `max_bytes_muestra = 512 MiB`.
+En los perfiles DBI sólo alcanzan a `perfil_muestra`; los agregados SQL
+conservan el alcance que les corresponde. El tope de celdas se resuelve
+con el conteo de filas y el ancho del esquema, antes de leer. El de
+bytes hace primero una sonda de hasta 100 filas y luego pone el límite
+resultante en el SQL final o en `dbFetch(n)`: la muestra completa no se
+trae para recortarla después en R.
+
+Si `muestra = n` y un tope es más estricto, manda el menor. La cobertura
+del perfil declara las celdas o bytes observados, el umbral y el motivo,
+incluido cuál tope ganó. Con `Inf` en ambos topes no se declara ningún
+recorte.
+[`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+expone los mismos límites y anticipa cuándo el tope de celdas reducirá
+la muestra o cuándo hará falta la sonda de bytes.
+
 ### El costo se planifica antes de pagarlo
 
 Perfilar una tabla de 158 columnas en `modo = "exacto"` emite 335
@@ -594,16 +808,16 @@ honesta es el primer lote de distintos medido durante la ejecución, y el
 plan no emite consultas de datos.
 
 El extremo inferior es `total`: cuando la fuente de cardinalidad es
-desconocida, supone que la política omite las métricas caras. El extremo
-superior es `total_maximo` —también publicado como
-`total_lotes_rechazados` después de sumar la bisección— y deja abierto
-el camino que las ejecuta. Si el motor rechaza lotes, se agregan hasta
-`2n - 1` sondas por lote de `n` columnas. El costo real cae entre los
-dos **cuando el muestreo se puede construir**: si `modo = "muestreado"`
-y el motor no admite la forma resuelta, el plan lo declara en
-`attr(plan, "muestreo")` y excluye del rango las métricas que dependían
-de ella. La corrida, por su parte, publica cada una como `no_disponible`
-con su motivo: no se informa como medido lo que no se midió.
+desconocida, supone que la política omite la moda. El extremo superior
+es `total_maximo` —también publicado como `total_lotes_rechazados`
+después de sumar la bisección— y deja abierto el camino que las ejecuta.
+Si el motor rechaza lotes, se agregan hasta `2n - 1` sondas por lote de
+`n` columnas. El costo real cae entre los dos **cuando el muestreo se
+puede construir**: si `modo = "muestreado"` y el motor no admite la
+forma resuelta, el plan lo declara en `attr(plan, "muestreo")` y excluye
+del rango las métricas que dependían de ella. La corrida, por su parte,
+publica cada una como `no_disponible` con su motivo: no se informa como
+medido lo que no se midió.
 
 La procedencia de distintos y la fuente auxiliar de costo son
 independientes: `estrategia_distintos` dice cómo se obtiene o se omite
@@ -628,14 +842,17 @@ por omisión es `politica_costo = "todas"` (`"ninguna"` es un alias): el
 paquete no elige por el usuario. Con
 `politica_costo = "por_cardinalidad"`, la corrida resuelve primero las
 fuentes estructurales y mide `validos` y `distintos` sólo cuando no hay
-una fuente exacta y la estrategia lo permite; después decide por columna
-si se emiten moda y mediana cuando
-`n_distintos / n_validos >= umbral_cardinalidad`. El umbral por omisión
-es `0.95` y se puede mover en cada llamada. Cada omisión queda en
-`resumen_tabla$sql` como `omitido_por_costo`, con qué se omitió, por qué
-y cómo pedirlo de nuevo: `politica_costo = "todas"` o un umbral
-diferente. El banco reproducible `benchmark/medir_politica_costo.R` mide
-el ahorro en consultas sobre una tabla de 158 columnas.
+una fuente exacta y la estrategia lo permite; después omite por columna
+sólo la moda cuando `n_distintos / n_validos >= umbral_cardinalidad`. El
+umbral por omisión es `0.5` y se puede mover en cada llamada; gobierna
+sólo la moda. La mediana no se omite por cardinalidad: el barrido medido
+queda plano frente a la cantidad de valores distintos y su costo lo
+gobierna el número de filas. Cada omisión queda en `resumen_tabla$sql`
+como `omitido_por_costo`, con qué se omitió, por qué y cómo pedirlo de
+nuevo: `politica_costo = "todas"` o un umbral diferente.
+`meta$decisiones_costo` explica por separado por qué se conserva u omite
+cada métrica. El banco reproducible `benchmark/medir_politica_costo.R`
+mide el ahorro en consultas sobre una tabla de 158 columnas.
 
 Pero contar consultas no responde la pregunta que trae quien mira el
 plan: catorce consultas sobre dos millones de filas son mucho más
@@ -675,10 +892,12 @@ conoce —filas, celdas y pares de texto—, rotulada como magnitud y no
 como consumo de memoria.
 
 Son datos de referencia medidos, **no una predicción para la tabla del
-plan**: traer la tabla costó aproximadamente 0,13 GB por millón de filas
-y procesar en R aproximadamente 1,0-1,5 MB por cada mil filas. La
-segunda cifra varió por 1,62x entre tablas de la misma magnitud; esa
-variación es justamente el motivo por el que no se usa para estimar.
+plan** —una corrida única y fechada (2026-08-28) contra un motor de
+producción remoto que este repositorio no puede rehacer—: traer la tabla
+costó aproximadamente 0,13 GB por millón de filas y procesar en R
+aproximadamente 1,0-1,5 MB por cada mil filas. La segunda cifra varió
+por 1,62x entre tablas de la misma magnitud; esa variación es justamente
+el motivo por el que no se usa para estimar.
 
 Ver todas las filas y tener todas las filas en memoria no son lo mismo.
 En corridas de referencia, 4,5 millones de filas entraron en 0,6 GB y
@@ -717,6 +936,13 @@ cardinalidad de una muestra no estima la del universo sin un estimador
 declarado, así que se informa por lo que es —lo visto en la muestra, con
 el universo al lado—. Un motor sin capacidad de muestreo no rompe: el
 modo degrada y lo dice en la tabla de cobertura.
+
+Si la consulta de la muestra devuelve cero filas, no hay base para medir
+las métricas de alcance `muestra`. Se publican como `NA`, con estado
+`no_disponible` y un motivo que nombra la muestra vacía; `n` conserva el
+conteo de la tabla completa. Esto no permite concluir que la columna
+esté vacía, así que `lupa` no publica cero ni dispara la cascada
+`sin_valores`.
 
 Una aproximación no se etiqueta como estimada cuando su consulta no se
 emitió o no devolvió un valor utilizable. La procedencia de distintos se
@@ -801,6 +1027,13 @@ el catálogo del motor**, así que no se sugiere nada: se lee, en una sola
 consulta elegida por el controlador. Y se distingue «esta tabla no
 declara clave» de «no se pudo preguntar», que no son lo mismo.
 
+Con un nombre sin calificar, la clave que se publica es la de **la
+relación que el motor resuelve**, no la de una homónima de otro esquema:
+el esquema se le pregunta al motor con sus mismas reglas. Y por encima
+de eso, una clave cuyas columnas no están entre las que se acaban de
+medir se descarta entera, en cualquier motor, diciendo por qué. Una
+clave que no es de la tabla medida es peor que ninguna.
+
 **La unicidad no se adivina: se pregunta.** Si se declara la clave con
 `perfilar(clave = ...)`, que se repita entre las filas con la clave
 completa es un hallazgo de severidad `error` con las filas que repiten.
@@ -808,10 +1041,14 @@ Si ninguna fila tiene la clave completa, el estado es
 `sin_casos_evaluables` y no `verificada`: cierto sobre un conjunto vacío
 es cierto y engañoso a la vez. La advertencia y `meta$clave` separan esa
 comprobación de la ausencia de nulos: una clave puede no tener
-colisiones distintas de los ausentes y aun así no cumplir `NOT NULL`; si
-la trazabilidad agrupa esos ausentes con la semántica de R, ambas cosas
-quedan declaradas. Y para no dejar al usuario ante una casilla en
-blanco,
+colisiones distintas de los ausentes y aun así no cumplir `NOT NULL`.
+Por eso `hallazgos` separa ambos hechos: `clave_con_ausentes` enumera
+las filas que impiden esa garantía, y `clave_no_unica` sólo informa
+valores repetidos entre filas con la clave completa; una colisión entre
+ausentes queda en la primera categoría y no refuta la unicidad de
+`meta$clave$unicidad`. Si la trazabilidad agrupa esos ausentes con la
+semántica de R, la diferencia queda declarada. Y para no dejar al
+usuario ante una casilla en blanco,
 [`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md)
 ordena las columnas candidatas por tres señales que publica por separado
 —si identifica cada fila, si no tiene ausentes, y cuánto se parece su
@@ -856,10 +1093,12 @@ habría que escribir:
 Sugiere; no decide, y nunca reescribe el universo por su cuenta. Las
 columnas ya declaradas quedan fuera del examen. Sobre veinte conjuntos
 reales que vienen con R y sesenta tablas al azar con ausencia
-independiente no produce ninguna señal; dispara en el modelo
-entidad-atributo-valor, en el salto de patrón de una encuesta y en las
-columnas excluyentes, y se calla cuando el diez por ciento de las filas
-rompe la regla, porque entonces la relación existe y no es una regla.
+independiente no produce ninguna señal (corrida rehecha el 2026-08-30,
+reproducible con `benchmark/banco_ausencia_estructural.R`); dispara en
+el modelo entidad-atributo-valor, en el salto de patrón de una encuesta
+y en las columnas excluyentes, y se calla cuando el diez por ciento de
+las filas rompe la regla, porque entonces la relación existe y no es una
+regla.
 
 La otra cara es `regla_silencia_ausencia`, también `ok`: una columna
 declarada opcional o con universo propio que sigue casi vacía *dentro*
@@ -913,6 +1152,12 @@ que se midió que no había unidades afectadas; `NA` significa que el
 conteo no se midió. La misma distinción vale para la cobertura: un
 diagnóstico que no pudo ejecutarse queda en `cobertura_diagnosticos`,
 nunca convertido en cero en silencio.
+
+La traza usa la misma comparación en ambas direcciones que el conteo,
+incluso cuando una columna `integer64` no respeta el argumento
+`fromLast` de [`duplicated()`](https://rdrr.io/r/base/duplicated.html).
+Así, `n_afectados` y `trazabilidad$total` siempre describen el mismo
+conjunto de filas.
 
 Cuando un hallazgo y su traza no coinciden,
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)

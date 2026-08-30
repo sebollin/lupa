@@ -6,13 +6,14 @@ completo, de qué clase y con qué alcance sobre la tabla. No escanea
 datos para decidir el costo. Cuando
 `politica_costo = "por_cardinalidad"`, una clave estructural exacta
 puede cerrar la decisión; si no hay una fuente de catálogo utilizable,
-el plan publica el rango entre omitir y ejecutar las métricas caras.
-Nunca lanza `COUNT(DISTINCT ...)` para despejar esa incertidumbre. Las
-fuentes estructurales se resuelven cuando la política necesita la
-cardinalidad, aunque `estrategia_distintos` no permita medirla. La
-disponibilidad de la estrategia gobierna la medición, no el conocimiento
-que ya da el catálogo. Para el `COUNT(DISTINCT)` exacto, la preparación
-puede consultar además las estadísticas de PostgreSQL (`pg_stats`,
+el plan publica el rango entre omitir y ejecutar la moda; la mediana no
+entra en ese criterio proporcional. Nunca lanza `COUNT(DISTINCT ...)`
+para despejar esa incertidumbre. Las fuentes estructurales se resuelven
+cuando la política necesita la cardinalidad, aunque
+`estrategia_distintos` no permita medirla. La disponibilidad de la
+estrategia gobierna la medición, no el conocimiento que ya da el
+catálogo. Para el `COUNT(DISTINCT)` exacto, la preparación puede
+consultar además las estadísticas de PostgreSQL (`pg_stats`,
 `pg_class.reltuples`, `SHOW work_mem` y, desde PostgreSQL 13,
 `SHOW hash_mem_multiplier`) para estimar el tamaño del hash y avisar un
 posible derrame. Esa consulta de metadatos no publica cardinalidad
@@ -38,7 +39,9 @@ plan_perfilado_dbi(
   instrumentar = FALSE,
   estrategia_distintos = "exacta",
   politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
-  umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI
+  umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
+  max_celdas_muestra = .MAX_CELDAS_MUESTRA,
+  max_bytes_muestra = .MAX_BYTES_MUESTRA
 )
 ```
 
@@ -147,12 +150,23 @@ plan_perfilado_dbi(
   Procedencia explícita para `n_distintos`: `"exacta"` (por omisión)
   emite `COUNT(DISTINCT)`; `"aproximada_motor"` usa una función nativa
   aceptada por el motor y deja la métrica en `no_disponible` si no
-  existe; `"catalogo"` queda declarada pero `no_disponible` hasta
-  implementar la estadística del catálogo; y `"omitida"` no emite
-  ninguna consulta. No hay repliegue automático entre estrategias. El
-  resultado publica `estrategia_solicitada`, `estrategia_resuelta` y
-  `estado` en `meta$estrategia_distintos`, y las dos primeras también en
-  `resumen_tabla$sql`.
+  existe; `"catalogo"` lee `pg_stats.n_distinct` en PostgreSQL y publica
+  el resultado como `estimado_catalogo`, nunca como medición, cuando el
+  modo mide la relación entera (`exacto`, `seguro` o `conteos`). En
+  `muestreado` y `aproximado` queda `no_disponible`, porque el catálogo
+  describe la relación entera y la corrida mide un subconjunto; y
+  `"omitida"` no emite ninguna consulta. No hay repliegue automático
+  entre estrategias. El resultado publica `estrategia_solicitada`,
+  `estrategia_resuelta` y `estado` en `meta$estrategia_distintos`, y las
+  dos primeras también en `resumen_tabla$sql`. En `pg_stats`, un valor
+  positivo es el conteo estimado y uno negativo es una fracción de las
+  filas. Cuando la relación tiene descendientes se elige
+  `inherited = TRUE`, porque esa fila describe lo que lee una consulta
+  sin `ONLY`; una relación sin hijas usa su única fila propia. Las
+  fracciones se convierten con la suma de `pg_class.reltuples` de la
+  jerarquía. Si no hay una fila utilizable —por ejemplo, antes de
+  `ANALYZE`— o hay ambigüedad, la métrica queda `no_disponible`, no en
+  cero.
 
 - politica_costo:
 
@@ -161,18 +175,42 @@ plan_perfilado_dbi(
   solicitadas. `"ninguna"` es un alias de `"todas"`;
   `"por_cardinalidad"` (también `"cardinalidad"`) resuelve primero las
   fuentes estructurales y mide valores válidos y distintos sólo cuando
-  hace falta y la estrategia lo permite. Luego omite, por columna, moda
-  y mediana cuando la proporción de distintos alcanza
-  `umbral_cardinalidad`. Una estrategia no disponible no se convierte en
-  una medición exacta.
+  hace falta y la estrategia lo permite. Luego omite, por columna, sólo
+  la moda cuando la proporción de distintos alcanza
+  `umbral_cardinalidad`; la mediana se conserva porque las mediciones
+  disponibles muestran que su costo depende de las filas y no de la
+  cardinalidad. Una estrategia no disponible no se convierte en una
+  medición exacta.
 
 - umbral_cardinalidad:
 
-  Proporción entre valores distintos y válidos que activa
-  `politica_costo = "por_cardinalidad"`. El valor por omisión es `0.95`
-  sólo cuando esa política se pide explícitamente; se puede mover en
-  cada llamada. Para pedir todas las métricas use
+  Proporción entre valores distintos y válidos que activa la omisión de
+  la moda con `politica_costo = "por_cardinalidad"`. El valor por
+  omisión es `0.5` sólo cuando esa política se pide explícitamente; se
+  puede mover en cada llamada. Este argumento no gobierna la mediana:
+  `meta$decisiones_costo` explica la decisión de cada métrica por
+  separado. Para pedir todas las métricas use
   `politica_costo = "todas"`.
+
+- max_celdas_muestra:
+
+  Máximo de celdas que puede contener el bloque `perfil_muestra`. Por
+  defecto es `1000000`; se calcula antes de leer como filas por columnas
+  del esquema. Si reduce la muestra,
+  `perfil_muestra$cobertura_diagnosticos` usa la misma declaración que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  con las celdas solicitadas, el umbral y el tope que mandó. `Inf`
+  desactiva este tope. No modifica los agregados SQL.
+
+- max_bytes_muestra:
+
+  Máximo de bytes de la muestra materializada que alimenta
+  `perfil_muestra`. Por defecto es `512 MiB`. Como el tamaño no se
+  conoce desde el esquema, primero se lee una sonda de hasta cien filas
+  y con ella se fija el límite final en SQL o en `dbFetch(n)`, antes de
+  leer el resto. Si reduce la muestra, `cobertura_diagnosticos` informa
+  los bytes observados, el umbral y cuál tope mandó. `Inf` desactiva
+  este tope. No modifica los agregados SQL.
 
 ## Value
 
@@ -184,7 +222,8 @@ Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
 `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`,
 `filas`, `mediana_escalar`, `tamano_lote_planos`,
 `tamano_lote_distintos`, `estimacion_derrame`, `celdas`,
-`memoria_procesamiento` y `muestreo`, y, cuando se pide `distintos`,
+`memoria_procesamiento`, `max_celdas_muestra`, `max_bytes_muestra`,
+`tope_muestra` y `muestreo`, y, cuando se pide `distintos`,
 `supuesto_costo_distintos`. `memoria_procesamiento` siempre tiene
 `estado = "no_estimada"`: no es una estimación de consumo, sino la
 declaración de su ausencia, el motivo, la magnitud del trabajo y
@@ -198,18 +237,28 @@ de datos. En `modo = "muestreado"`, cuando su `estado` es
 `bloque_muestra = "solo_agregados"`, también conserva ese valor en el
 atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
 
+Los atributos `max_celdas_muestra`, `max_bytes_muestra` y `tope_muestra`
+declaran la cota que se aplicará al bloque `perfil_muestra`. El plan no
+lee datos: resuelve la cota de celdas con el ancho del esquema y declara
+que la cota de bytes requiere una sonda de hasta cien filas durante la
+corrida. Si la muestra pedida supera la cota de celdas, `tope_muestra` y
+[`print()`](https://rdrr.io/r/base/print.html) lo dicen antes de correr.
+La fila de consulta de muestra conserva su conteo separado de los
+agregados; los topes no cambian ninguna consulta SQL de resumen.
+
 El costo no se declara como un número sino como un rango: `total` es el
-extremo inferior, que supone que la política omite las métricas caras
-cuya cardinalidad no se conoce, y `total_maximo` el superior, que supone
-que las ejecuta. Ambos incluyen la preparación y el perfilado previsto;
-el rechazo de lotes puede agregar las sondas de bisección declaradas por
-`total_lotes_rechazados`. El costo real cae entre los extremos cuando
-`modo` no es `"muestreado"` o `attr(plan, "muestreo")$estado` es
-`"disponible"`; en `"no_sondeado"` la forma sólo se construyó localmente
-y el intervalo queda condicionado a que la sonda de la corrida la
-acepte. Si la forma muestreada no se puede construir, el plan declara
-ese caso, excluye sus métricas del rango y `attr(plan, "supuesto")` dice
-por qué.
+extremo inferior, que supone que la política omite la moda cuya
+cardinalidad no se conoce, y `total_maximo` el superior, que supone que
+la ejecuta. La mediana queda fuera de ese supuesto proporcional y se
+cuenta según las columnas numéricas solicitadas. Ambos incluyen la
+preparación y el perfilado; el rechazo de lotes puede agregar las sondas
+de bisección declaradas por `total_lotes_rechazados`. El costo real cae
+entre los extremos cuando `modo` no es `"muestreado"` o
+`attr(plan, "muestreo")$estado` es `"disponible"`; en `"no_sondeado"` la
+forma sólo se construyó localmente y el intervalo queda condicionado a
+que la sonda de la corrida la acepte. Si la forma muestreada no se puede
+construir, el plan declara ese caso, excluye sus métricas del rango y
+`attr(plan, "supuesto")` dice por qué.
 
 Cuántas consultas se emiten no dice cuánto cuestan: catorce consultas
 sobre dos millones de filas son mucho más trabajo que doscientas sobre
@@ -235,15 +284,17 @@ estimación temporal.
 
 Si se pide `politica_costo = "por_cardinalidad"`, el plan busca primero
 una garantía estructural o una fuente de catálogo. Si la fuente queda
-desconocida, no emite un agregado para aclararla: `n_consultas` omite
-moda y mediana, y `n_consultas_max` deja abierto el camino que las
-ejecuta. La corrida mide `distintos` sólo si la política lo necesita. La
-política por omisión es `"todas"`: el paquete no elige por el usuario.
-Una fuente estructural se resuelve aunque la estrategia de distintos
-este omitida o no disponible; esta ultima solo gobierna si se puede
-medir. El catalogo de la clave primaria se consulta siempre para
-conservar esa respuesta en `resumen_tabla$meta$clave`; es una lectura de
-metadatos y no un recorrido de la tabla.
+desconocida, no emite un agregado para aclararla: `n_consultas` omite la
+moda y `n_consultas_max` deja abierto el camino que la ejecuta. La
+mediana se conserva porque su costo medido es plano frente a la
+cardinalidad y está gobernado por las filas. La corrida mide `distintos`
+sólo si la política lo necesita. La política por omisión es `"todas"`:
+el paquete no elige por el usuario. Una fuente estructural se resuelve
+aunque la estrategia de distintos este omitida o no disponible; esta
+ultima solo gobierna si se puede medir. El catalogo de la clave primaria
+se consulta siempre para conservar esa respuesta en
+`resumen_tabla$meta$clave`; es una lectura de metadatos y no un
+recorrido de la tabla.
 
 Contar sólo el motor daba juicios falsos con números ciertos: una tabla
 de 3.912 filas con una columna de geometría en texto pedía 64.592
@@ -259,8 +310,18 @@ lado que del otro.
 la corrida y conserva por separado lo pedido, lo resuelto y el estado.
 No hay `auto`: `"exacta"` es el valor por omisión, `"aproximada_motor"`
 queda `no_disponible` si el motor no ofrece una función aceptada,
-`"catalogo"` queda `no_disponible` hasta implementar su estadística de
-cardinalidad y `"omitida"` no emite el agregado.
+`"catalogo"` lee `pg_stats.n_distinct` en PostgreSQL y publica una
+estimación con estado `estimado_catalogo` cuando el modo mide la
+relación entera (`exacto`, `seguro` o `conteos`), y `"omitida"` no emite
+el agregado. En `muestreado` y `aproximado`, `catalogo` queda
+`no_disponible`: sus estadísticas describen la relación entera y no el
+subconjunto de la corrida. Un `n_distinct` positivo es un conteo y uno
+negativo una fracción de las filas. Si la relación tiene descendientes
+se usa la fila `inherited = TRUE`, que describe la consulta sin `ONLY`;
+si no tiene hijas se usa la única fila propia. La fracción se convierte
+con la suma de `pg_class.reltuples` de la jerarquía. Si falta una
+estimación utilizable —por ejemplo, antes de `ANALYZE`— o hay filas
+ambiguas, se conserva `no_disponible`, nunca cero.
 `fuente_cardinalidad_costo` sigue siendo independiente y sólo describe
 el número usado por la política de costo cuando esa política se pide.
 

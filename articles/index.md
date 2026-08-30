@@ -15,6 +15,8 @@ Descubrir estructura y perfilar tablas remotas con alcance declarado.
 
 - [Empezar con
   lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.md):
+- [Flujo guiado: del perfil a la
+  evaluación](https://sebollin.github.io/lupa/articles/flujo-guiado.md):
 - [Definir la
   calidad](https://sebollin.github.io/lupa/articles/definir-la-calidad.md):
 - [Medir y

@@ -19,21 +19,27 @@ cobertura_analisis(perfil, medicion = NULL, modelo = marco_agesic())
 
 - perfil:
 
-  Objeto creado por
-  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  **Primer argumento.** Objeto creado por
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md);
+  es el perfil descriptivo sobre cuyos factores se informa cobertura.
 
 - medicion:
 
-  Objeto opcional creado por
-  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md).
+  **Segundo argumento, opcional.** Objeto creado por
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), con
+  métricas ejecutadas que pueden completar esa cobertura. No es un
+  perfil creado por
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 
 - modelo:
 
-  Objeto creado por
-  [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md).
-  El nombre enfatiza que es el modelo conceptual de referencia, no el
-  objeto operativo de
-  [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md).
+  **Tercer argumento.** Objeto creado por
+  [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md)
+  que actúa como referencia conceptual. El nombre enfatiza que no es el
+  modelo operativo creado por
+  [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  que recibe
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md).
 
 ## Value
 

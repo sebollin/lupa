@@ -30,6 +30,7 @@ la ausencia de un hallazgo se interprete como evidencia de calidad."><meta prope
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
+    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
     <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
     <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
     <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
@@ -69,16 +70,20 @@ la ausencia de un hallazgo se interprete como evidencia de calidad.</p>
 
 
 <dl><dt id="arg-perfil">perfil<a class="anchor" aria-label="anchor" href="#arg-perfil"></a></dt>
-<dd><p>Objeto creado por <code><a href="perfilar.html">perfilar()</a></code>.</p></dd>
+<dd><p><strong>Primer argumento.</strong> Objeto creado por <code><a href="perfilar.html">perfilar()</a></code>; es el
+perfil descriptivo sobre cuyos factores se informa cobertura.</p></dd>
 
 
 <dt id="arg-medicion">medicion<a class="anchor" aria-label="anchor" href="#arg-medicion"></a></dt>
-<dd><p>Objeto opcional creado por <code><a href="medir.html">medir()</a></code>.</p></dd>
+<dd><p><strong>Segundo argumento, opcional.</strong> Objeto creado por
+<code><a href="medir.html">medir()</a></code>, con métricas ejecutadas que pueden completar esa cobertura.
+No es un perfil creado por <code><a href="perfilar.html">perfilar()</a></code>.</p></dd>
 
 
 <dt id="arg-modelo">modelo<a class="anchor" aria-label="anchor" href="#arg-modelo"></a></dt>
-<dd><p>Objeto creado por <code><a href="marco_calidad.html">marco_calidad()</a></code>. El nombre enfatiza que es
-el modelo conceptual de referencia, no el objeto operativo de <code><a href="modelo_calidad.html">modelo()</a></code>.</p></dd>
+<dd><p><strong>Tercer argumento.</strong> Objeto creado por <code><a href="marco_calidad.html">marco_calidad()</a></code> que
+actúa como referencia conceptual. El nombre enfatiza que no es el modelo
+operativo creado por <code><a href="modelo_calidad.html">modelo()</a></code> que recibe <code><a href="medir.html">medir()</a></code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

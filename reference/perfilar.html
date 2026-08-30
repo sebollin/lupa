@@ -24,6 +24,7 @@ accionables. Todas las proporciones se expresan en [0, 1]."><meta property="og:i
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
+    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
     <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
     <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
     <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
@@ -104,6 +105,8 @@ accionables. Todas las proporciones se expresan en <code>[0, 1]</code>.</p>
 <span>  max_trabajo_vocabulario <span class="op">=</span> <span class="fl">2e+10</span>,</span>
 <span>  max_trabajo_dependencias <span class="op">=</span> <span class="fl">1e+08</span>,</span>
 <span>  max_largo_valor_vocabulario <span class="op">=</span> <span class="va">.MAX_LARGO_VALOR_CASI_DUPLICADOS</span>,</span>
+<span>  max_celdas_muestra <span class="op">=</span> <span class="va">.MAX_CELDAS_MUESTRA</span>,</span>
+<span>  max_bytes_muestra <span class="op">=</span> <span class="va">.MAX_BYTES_MUESTRA</span>,</span>
 <span>  avisar_costo_tabla_ancha <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  umbral_celdas_aviso_tabla_ancha <span class="op">=</span> <span class="va">.UMBRAL_CELDAS_AVISO_TABLA_ANCHA</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -178,8 +181,10 @@ valores ausentes. Cada eje declara <code>verificada</code>, <code>refutada</code
 el objeto histórico y no agrega metadatos. Cuando un eje falla o no se
 puede comprobar, <code>meta$clave$trazabilidad</code> explica que la localización
 agrupa con la semántica de R, incluso si el motor SQL trata dos <code>NULL</code> como
-distintos. Por eso una clave puede tener a la vez una colisión para la
-trazabilidad y una ausencia que impide la garantía <code>NOT NULL</code>.</p></dd>
+distintos. <code>hallazgos</code> separa esos ejes: <code>clave_con_ausentes</code> enumera las
+filas que impiden la garantía <code>NOT NULL</code>, mientras <code>clave_no_unica</code> sólo
+informa repeticiones entre filas con la clave completa, el mismo universo
+que <code>meta$clave$unicidad</code>.</p></dd>
 
 
 <dt id="arg-umbral-faltantes-error">umbral_faltantes_error<a class="anchor" aria-label="anchor" href="#arg-umbral-faltantes-error"></a></dt>
@@ -507,6 +512,23 @@ de alcance en <code>cobertura_diagnosticos</code>; no se recortan valores en sil
 <code>Inf</code> recupera explicitamente el comportamiento anterior sin tope.</p></dd>
 
 
+<dt id="arg-max-celdas-muestra">max_celdas_muestra<a class="anchor" aria-label="anchor" href="#arg-max-celdas-muestra"></a></dt>
+<dd><p>Maximo de celdas que puede contener la muestra
+comun de los diagnosticos que muestrean filas. Por defecto es <code>1000000</code>;
+se calcula como filas efectivas por columnas de la tabla. Si reduce la
+muestra, <code>cobertura_diagnosticos</code> informa las filas y celdas solicitadas,
+el umbral y el nuevo alcance. <code>Inf</code> desactiva este tope.</p></dd>
+
+
+<dt id="arg-max-bytes-muestra">max_bytes_muestra<a class="anchor" aria-label="anchor" href="#arg-max-bytes-muestra"></a></dt>
+<dd><p>Maximo de bytes de la muestra materializada que
+alimenta los diagnosticos que muestrean filas. Por defecto es <code>512 MiB</code>.
+El tamaño se estima sobre una sonda de hasta cien filas y se comprueba
+sobre la muestra efectiva; si la cota reduce el alcance,
+<code>cobertura_diagnosticos</code> informa los bytes observados y el umbral. <code>Inf</code>
+desactiva este tope.</p></dd>
+
+
 <dt id="arg-avisar-costo-tabla-ancha">avisar_costo_tabla_ancha<a class="anchor" aria-label="anchor" href="#arg-avisar-costo-tabla-ancha"></a></dt>
 <dd><p>Si es <code>TRUE</code>, avisa en sesiones interactivas
 cuando las celdas proyectadas superan <code>umbral_celdas_aviso_tabla_ancha</code>.
@@ -543,6 +565,11 @@ no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 <code>trazabilidad</code> distingue <code>disponible</code>, <code>truncada</code>, <code>no_aplica</code> y
 <code>no_disponible</code>; cuando corresponde conserva índices de fila acotados por
 <code>max_filas_hallazgo</code>, el total conocido y el alcance. En
+<code>clave_con_ausentes</code>, cuenta las filas con al menos un componente ausente
+y su traza enumera esas filas. En <code>clave_no_unica</code>, cuenta las filas que
+participan en colisiones entre claves completas y su traza excluye las
+filas incompletas; ambas unidades son <code>fila</code>. Así, una colisión entre
+ausentes no aparece como una repetición que refute la unicidad.
 <code>casi_duplicados_vocabulario</code>, donde la traza mezcla filas de formas
 variantes con filas de la forma dominante, conserva además
 <code>n_filas_formas_variantes</code> y <code>n_filas_formas_dominantes</code> con el reparto
@@ -603,7 +630,12 @@ estado es <code>"verificada"</code>, <code>"refutada"</code>, <code>"no_verifica
 pudo comparar, o <code>"sin_casos_evaluables"</code> cuando <strong>ninguna</strong> fila tiene la
 clave completa: ahí la unicidad sería cierta sobre un conjunto vacío, que
 es cierto y engañoso a la vez, y por eso tiene estado propio.</p></li>
-<li><p><code>ausencia_nulos</code> responde si todos los componentes están presentes.</p></li>
+<li><p><code>ausencia_nulos</code> responde si todos los componentes están presentes.
+Su hallazgo asociado, <code>clave_con_ausentes</code>, cuenta las filas con al menos
+un componente ausente y conserva sus índices.</p></li>
+<li><p><code>clave_no_unica</code> sólo se emite cuando hay valores repetidos entre las
+filas completas y usa <code>filas_evaluadas</code> como <code>n_evaluados</code>; no convierte
+una colisión entre ausentes en una violación de unicidad.</p></li>
 <li><p><code>trazabilidad</code> conserva la semántica de R, que es la que localiza las
 filas, e informa en <code>colisiona_con_ausentes</code> si el localizador queda
 ambiguo porque dos filas con ausentes comparten representación.</p></li>

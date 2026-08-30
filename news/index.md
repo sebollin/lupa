@@ -2,6 +2,185 @@
 
 ## lupa 0.1.0
 
+### Avisos DBI para moda y mediana
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  agrega `avisar_costo_moda` con `umbral_segundos_aviso_moda` y
+  `avisar_costo_mediana` con `umbral_segundos_aviso_mediana`, encendidos
+  por omision y con umbral de 30 segundos. Los avisos se emiten antes de
+  pagar la consulta proyectada.
+- La moda se proyecta por cardinalidad y la mediana por filas. Las
+  referencias locales se miden durante la corrida; cuando no hay una
+  medicion local de mediana se usa, declarada como referencia de otra
+  corrida, la tasa de 68 ms por millon de filas. La cardinalidad
+  faltante para moda queda declarada y no se inventa.
+- Si la consulta inicial que obtuvo las filas fue medida y da una cota
+  mayor que la referencia bancaria, se publica como cota de lectura
+  observada y se usa para no subestimar una mediana grande; no se
+  presenta como medicion de mediana.
+- Las proyecciones quedan separadas en `meta$costo_moda` y
+  `meta$costo_mediana`, junto con el ya existente
+  `meta$costo_distintos`.
+
+### Una muestra vacía no publica métricas no medidas
+
+- Cuando la consulta de `modo = "muestreado"` devuelve cero filas, las
+  métricas de alcance `muestra` quedan en `NA` y con estado
+  `no_disponible`; el motivo nombra la muestra vacía. `n` conserva el
+  conteo de la tabla completa y `cobertura` mantiene el aviso de que la
+  consulta de muestra devolvió cero filas.
+- No se publica `0` en `n_validos` o `n_distintos`, ni se dispara la
+  cascada `sin_valores`: una muestra vacía no permite concluir que la
+  columna esté vacía. Una muestra no vacía con todos sus valores nulos
+  conserva el estado medido/estimado que corresponde.
+
+### La política de costo separa moda y mediana
+
+- `politica_costo = "por_cardinalidad"` ahora aplica
+  `umbral_cardinalidad` únicamente a la moda. El valor por omisión baja
+  de `0.95` a `0.5`, el primer punto medido donde la moda se aleja de su
+  piso de costo; la mediana se conserva porque su costo queda plano
+  frente a la cardinalidad y depende del número de filas.
+- Esto cambia el comportamiento de quien ya pasaba `umbral_cardinalidad`
+  para omitir ambas métricas: esas llamadas ahora conservan la mediana
+  bajo `por_cardinalidad`. No se agrega un segundo umbral porque no hay
+  evidencia para omitir la mediana por proporción.
+  `meta$decisiones_costo` declara la razón de conservar u omitir moda y
+  mediana por separado, y ambos README y la documentación de la API
+  describen el alcance del argumento.
+
+### Topes de la muestra en memoria y DBI
+
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  aceptan `max_celdas_muestra` y `max_bytes_muestra`, con los mismos
+  valores por omisión: `1.000.000` celdas y `512 MiB`. En DBI sólo
+  limitan el bloque `perfil_muestra`; los agregados SQL conservan su
+  alcance.
+- En DBI el tope de celdas se resuelve antes de leer con el conteo de
+  filas y el ancho del esquema. El de bytes hace una sonda de hasta 100
+  filas y fija el límite final en SQL o `dbFetch(n)`, sin traer todo
+  para recortarlo en R.
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  anticipa el recorte de celdas y la sonda de bytes.
+- La reducción se declara en `cobertura_diagnosticos` con celdas o bytes
+  observados, umbral, motivo y cuál tope mandó. Con ambos topes en `Inf`
+  no se declara un recorte.
+
+### `estrategia_distintos = "catalogo"` en PostgreSQL
+
+- [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  leen `pg_stats.n_distinct` y publican sus resultados como estimaciones
+  de catálogo en los modos que miden la relación entera (`exacto`,
+  `seguro` y `conteos`). Los valores negativos se convierten con la suma
+  de `pg_class.reltuples` de la jerarquía que lee una consulta sin
+  `ONLY`; si la relación tiene descendientes se elige `inherited = TRUE`
+  y, sin hijas, la única fila `FALSE`. En `muestreado` y `aproximado`,
+  la estrategia queda `no_disponible`: el catálogo describe la relación
+  entera y la corrida mide un subconjunto, así que no se publica la
+  cardinalidad de un universo como si fuera la del otro. Si falta
+  `ANALYZE`, el denominador de la jerarquía no es utilizable o hay
+  ambigüedad, el resultado queda `no_disponible` y no se reemplaza por
+  cero.
+
+### Validación de claves
+
+- Se cierra el pendiente de una política separada con `catalogo`,
+  `reutilizar_recorrido` y `exacta`: la API vigente ya separa la
+  procedencia de cardinalidad (`estrategia_distintos`) de la política de
+  costo (`politica_costo`), por lo que no se agrega un selector de clave
+  duplicado.
+
+### El plan no repite sus supuestos
+
+- Con la magnitud del trabajo desconocida,
+  [`print()`](https://rdrr.io/r/base/print.html) del plan mostraba dos
+  veces los mismos dos párrafos —el supuesto del trabajo y las
+  referencias medidas—, porque dos ramas los imprimían y con esa
+  magnitud corrían las dos. Quedó una sola, la que corre para toda
+  magnitud, y una prueba cuenta las apariciones.
+
+### La clave que se publica es la de la tabla que se midió
+
+- Con un nombre sin calificar,
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  publicaba la clave primaria de una tabla homónima de otro esquema
+  cuando la medida no declaraba ninguna. En SQL Server, sobre una tabla
+  de columnas `y, dato`, llegaba a publicar clave primaria en una
+  columna `x` inexistente ahí. El esquema se le pregunta ahora al motor
+  con sus mismas reglas de resolución, así que el catálogo contesta por
+  la relación que se lee.
+- Y por encima del filtro de cada motor, una clave cuyas columnas no
+  están entre las que se midieron se descarta entera —en cualquier
+  motor, incluidos los que no se probaron— con un motivo que lo explica.
+  No se recortan las columnas ajenas para publicar el resto: eso daría
+  una clave que ningún catálogo declara.
+
+### La mediana consolidada se activa donde el motor la acepta
+
+- Las sondas que habilitan la mediana en una sola consulta ordenaban por
+  una constante. SQL Server rechaza constantes en el `ORDER BY` de una
+  función de ventana, así que su camino nunca se activaba; MariaDB
+  implementa `PERCENTILE_CONT` sólo como función de ventana y estaba
+  clasificada con la forma sin `OVER`. Las dos quedaban degradadas a una
+  consulta por columna sin aviso, porque los valores publicados eran
+  correctos.
+- DuckDB acepta la forma consolidada y no se le ofrecía. Con esto,
+  cuatro de los siete motores medidos resuelven la mediana en una sola
+  consulta en vez de una por columna.
+
+### README, API y recorrido guiado
+
+- Los dos README ahora empiezan por el problema que resuelve `lupa`, los
+  tipos de hallazgo que permiten ver más que un
+  [`summary()`](https://rdrr.io/r/base/summary.html), la cobertura
+  medida de AGESIC, CEPAL e ISO 25012, los siete motores comprobados
+  contra un motor real y el recorrido mínimo para empezar. La
+  documentación enumera los 56 nombres canónicos de `tipo_hallazgo`.
+- Los argumentos de
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md),
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) y
+  [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md)
+  indican en qué posición se recibe cada objeto y distinguen el perfil
+  descriptivo de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  del perfil de evaluación de
+  [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md).
+  Los errores de tipo equivocado ahora nombran el argumento y el
+  constructor esperado.
+- El catálogo de motores ya no presenta Oracle como medido: las dos
+  variantes quedan documentadas como dialectos esperados sin
+  comprobación contra un motor real, en línea con la cobertura
+  publicada.
+- Se añade la viñeta `flujo-guiado`, que recorre una propuesta editable
+  desde
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  hasta
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) y
+  muestra el orden de la API.
+
+### La clave declarada separa ausencias y repeticiones
+
+- `perfilar(clave = ...)` publica `clave_con_ausentes` para las filas
+  que impiden garantizar `NOT NULL`, y reserva `clave_no_unica` para
+  valores repetidos entre filas con la clave completa. La descripción,
+  la evidencia, los conteos y las trazas comparten ahora el universo de
+  `meta$clave$unicidad`, por lo que una colisión entre ausentes no se
+  presenta como una refutación de la unicidad.
+- La documentación de
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y ambos README explican la separación y los conteos de cada hallazgo.
+
+### La trazabilidad de filas duplicadas conserva todos los participantes
+
+- La traza de `filas_duplicadas` usa la misma comparación en ambas
+  direcciones que el conteo. Esto corrige las columnas `integer64`,
+  cuyos métodos pueden ignorar `fromLast`, y mantiene alineados
+  `n_afectados` y `trazabilidad$total`.
+
 ### El minimo de R conserva la conducta en BLOB y duplicados matriciales
 
 - Se conserva `R (>= 4.1.0)`. En el conjunto minimo reproducido, un BLOB
@@ -398,8 +577,9 @@ fracción. No se agregan cotas numéricas inventadas.
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
   ejecuta primero los agregados planos, luego el total exacto, los
   distintos, la moda y la mediana. `tamano_lote_planos` y
-  `tamano_lote_distintos` son independientes; este último es 1 por
-  omisión hasta contar con mediciones.
+  `tamano_lote_distintos` son independientes; este último es 2 por
+  omisión, valor medido en el servidor de referencia. La mención
+  anterior a 1 queda corregida aquí.
 
 ### Una clave heredada ya no se declara garantizada sobre otro universo
 
@@ -647,10 +827,16 @@ Moda y mediana se pueden controlar con `politica_costo`. El valor por
 omisión es `"todas"`, que conserva el perfil anterior;
 `"por_cardinalidad"` hace primero los conteos baratos de valores válidos
 y distintos y decide luego por columna. Si `n_distintos / n_validos`
-alcanza `umbral_cardinalidad` (por omisión `0.95`), omite moda y mediana
-de esa columna. La omisión no desaparece ni se vuelve `NA` silencioso:
-queda `omitido_por_costo` con el motivo, la proporción observada y la
-forma de pedirla igual (`politica_costo = "todas"`) o mover el umbral.
+alcanza `umbral_cardinalidad`, omite la moda de esa columna. La omisión
+no desaparece ni se vuelve `NA` silencioso: queda `omitido_por_costo`
+con el motivo, la proporción observada y la forma de pedirla igual
+(`politica_costo = "todas"`) o mover el umbral.
+
+> Cuando se escribió esta entrada el umbral valía `0.95` y omitía **moda
+> y mediana**. Las dos cosas cambiaron al medirlas —el umbral es `0.5` y
+> la mediana ya no se omite por proporción, ver la entrada de arriba—, y
+> el texto se corrigió acá para que no queden dos descripciones del
+> mismo argumento diciendo cosas distintas en el mismo archivo.
 
 La política hace explícito el plan en dos etapas. En una tabla
 reproducible de 158 columnas, 80 numéricas, 200 filas y 60 columnas con
@@ -1293,20 +1479,20 @@ patrones.
 
 ### En Oracle la cadena vacia es el nulo, y eso se declara
 
-Medido contra Oracle Free 23 real: las mismas tres filas -`""`, `NA`,
-`"x"`- dan `n_faltantes = 2` por Oracle y `1` por un motor que las
-distingue. La misma columna tiene una completitud distinta segun el
-motor, y no porque el dato cambie.
+Las mismas tres filas -`""`, `NA`, `"x"`- dan `n_faltantes = 2` por
+Oracle y `1` por un motor que las distingue. La misma columna tiene una
+completitud distinta segun el motor, y no porque el dato cambie.
+
+Es la semantica documentada de Oracle, y `lupa` la declara. Lo que
+**no** hay es una corrida contra un servidor Oracle real que la
+respalde: el catalogo de motores da las dos variantes de Oracle como
+`esperado`, y esta nota decia antes “medido contra Oracle Free 23 real”
+sin un log que lo sostuviera.
 
 No es un defecto que se pueda arreglar -es la semantica del motor- pero
 callarlo si lo seria: quien compare completitud entre entregas de
 motores distintos leeria una diferencia que no esta en los datos. Queda
 en la cobertura del resumen, y solo en los motores donde corresponde.
-
-En la misma corrida se verifico contra el motor real que el dialecto se
-resuelve solo en `fetch_first`, que las 54 metricas se calculan sin
-ninguna no disponible, y que la media, la mediana y el desvio calculados
-por Oracle coinciden con los de R sobre la tabla entera.
 
 ### La clave primaria se lee del catalogo cuando esta declarada
 
@@ -2443,19 +2629,24 @@ de ellas de reproducir lo que el informe atribuia a otra causa.
   [`coleccion()`](https://sebollin.github.io/lupa/reference/coleccion.md)
   aunque el SQL funcionara.
 
-### Oracle contra motor real
+### El camino de Oracle, contemplado y sin corrida que lo respalde
 
-- Verificado contra Oracle Free 23. Importa aparte porque **sus dos
-  dialectos -`fetch_first` y `rownum`- nunca habian corrido contra un
-  motor real**; los otros seis usan `limit` o `top`. Encontro cuatro
-  cosas: la sonda del desvio necesitaba `FROM DUAL`; Oracle rechaza
+- Se contemplan los dos dialectos de Oracle -`fetch_first` y `rownum`-,
+  que son los unicos que no comparten forma con los demas motores: los
+  otros usan `limit` o `top`. El camino cubre cuatro particularidades
+  del motor: la sonda del desvio necesita `FROM DUAL`; Oracle rechaza
   `TABLESAMPLE` y usa `SAMPLE (p)`, que se agrego como forma candidata
   con su sonda; `dbExistsTable()` del `ROracle` archivado devuelve falso
   para nombres calificados aunque el SQL funcione; y una columna `CLOB`
   no se puede agrupar ni ordenar, cosa que el paquete ya declaraba como
-  no disponible sin haberlo previsto.
-- Con esto son **siete motores probados contra motor real**, y los siete
-  encontraron algo que ningun motor simulado habia encontrado.
+  no disponible.
+- **Esta entrada decia antes «Verificado contra Oracle Free 23» y «siete
+  motores probados contra motor real».** No hay con que sostenerlo: no
+  se conserva ningun log de una corrida contra un servidor Oracle, y el
+  unico informe que existe -del 2026-08-24- cierra diciendo que la
+  medicion no se pudo ejecutar. El catalogo de motores da las dos
+  variantes de Oracle como `esperado`, y las pruebas de este camino
+  corren con respuestas DBI simuladas, que es lo que se declara.
 
 ### Lo que encontro una refutacion adversarial
 

@@ -6,12 +6,13 @@ articles:
   empezar-con-lupa: empezar-con-lupa.html
   escala-y-duplicados: escala-y-duplicados.html
   estructura-no-declarada: estructura-no-declarada.html
+  flujo-guiado: flujo-guiado.html
   historico-y-deriva: historico-y-deriva.html
   limpiar-con-un-plan: limpiar-con-un-plan.html
   medir-y-evaluar: medir-y-evaluar.html
   perfilar-una-base: perfilar-una-base.html
   vacio-por-diseno: vacio-por-diseno.html
-last_built: 2026-08-30T00:25Z
+last_built: 2026-08-30T17:46Z
 urls:
   reference: https://sebollin.github.io/lupa/reference
   article: https://sebollin.github.io/lupa/articles

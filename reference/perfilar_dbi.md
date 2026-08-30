@@ -33,8 +33,14 @@ perfilar_dbi(
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
   avisar_costo_distintos = TRUE,
   umbral_segundos_aviso_distintos = .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI,
+  avisar_costo_moda = TRUE,
+  umbral_segundos_aviso_moda = .UMBRAL_SEGUNDOS_AVISO_MODA_DBI,
+  avisar_costo_mediana = TRUE,
+  umbral_segundos_aviso_mediana = .UMBRAL_SEGUNDOS_AVISO_MEDIANA_DBI,
   avisar_derrame_estimado = TRUE,
   umbral_bytes_aviso_derrame_estimado = .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
+  max_celdas_muestra = .MAX_CELDAS_MUESTRA,
+  max_bytes_muestra = .MAX_BYTES_MUESTRA,
   ...
 )
 ```
@@ -157,12 +163,23 @@ perfilar_dbi(
   Procedencia explícita para `n_distintos`: `"exacta"` (por omisión)
   emite `COUNT(DISTINCT)`; `"aproximada_motor"` usa una función nativa
   aceptada por el motor y deja la métrica en `no_disponible` si no
-  existe; `"catalogo"` queda declarada pero `no_disponible` hasta
-  implementar la estadística del catálogo; y `"omitida"` no emite
-  ninguna consulta. No hay repliegue automático entre estrategias. El
-  resultado publica `estrategia_solicitada`, `estrategia_resuelta` y
-  `estado` en `meta$estrategia_distintos`, y las dos primeras también en
-  `resumen_tabla$sql`.
+  existe; `"catalogo"` lee `pg_stats.n_distinct` en PostgreSQL y publica
+  el resultado como `estimado_catalogo`, nunca como medición, cuando el
+  modo mide la relación entera (`exacto`, `seguro` o `conteos`). En
+  `muestreado` y `aproximado` queda `no_disponible`, porque el catálogo
+  describe la relación entera y la corrida mide un subconjunto; y
+  `"omitida"` no emite ninguna consulta. No hay repliegue automático
+  entre estrategias. El resultado publica `estrategia_solicitada`,
+  `estrategia_resuelta` y `estado` en `meta$estrategia_distintos`, y las
+  dos primeras también en `resumen_tabla$sql`. En `pg_stats`, un valor
+  positivo es el conteo estimado y uno negativo es una fracción de las
+  filas. Cuando la relación tiene descendientes se elige
+  `inherited = TRUE`, porque esa fila describe lo que lee una consulta
+  sin `ONLY`; una relación sin hijas usa su única fila propia. Las
+  fracciones se convierten con la suma de `pg_class.reltuples` de la
+  jerarquía. Si no hay una fila utilizable —por ejemplo, antes de
+  `ANALYZE`— o hay ambigüedad, la métrica queda `no_disponible`, no en
+  cero.
 
 - politica_costo:
 
@@ -171,17 +188,21 @@ perfilar_dbi(
   solicitadas. `"ninguna"` es un alias de `"todas"`;
   `"por_cardinalidad"` (también `"cardinalidad"`) resuelve primero las
   fuentes estructurales y mide valores válidos y distintos sólo cuando
-  hace falta y la estrategia lo permite. Luego omite, por columna, moda
-  y mediana cuando la proporción de distintos alcanza
-  `umbral_cardinalidad`. Una estrategia no disponible no se convierte en
-  una medición exacta.
+  hace falta y la estrategia lo permite. Luego omite, por columna, sólo
+  la moda cuando la proporción de distintos alcanza
+  `umbral_cardinalidad`; la mediana se conserva porque las mediciones
+  disponibles muestran que su costo depende de las filas y no de la
+  cardinalidad. Una estrategia no disponible no se convierte en una
+  medición exacta.
 
 - umbral_cardinalidad:
 
-  Proporción entre valores distintos y válidos que activa
-  `politica_costo = "por_cardinalidad"`. El valor por omisión es `0.95`
-  sólo cuando esa política se pide explícitamente; se puede mover en
-  cada llamada. Para pedir todas las métricas use
+  Proporción entre valores distintos y válidos que activa la omisión de
+  la moda con `politica_costo = "por_cardinalidad"`. El valor por
+  omisión es `0.5` sólo cuando esa política se pide explícitamente; se
+  puede mover en cada llamada. Este argumento no gobierna la mediana:
+  `meta$decisiones_costo` explica la decisión de cada métrica por
+  separado. Para pedir todas las métricas use
   `politica_costo = "todas"`.
 
 - avisar_costo_distintos:
@@ -202,6 +223,35 @@ perfilar_dbi(
   no se publica una proyección porque el costo ya se pagó. El valor no
   cambia la proyección ni la medición que se publica.
 
+- avisar_costo_moda:
+
+  Si es `TRUE`, avisa antes de ejecutar las modas pendientes cuando su
+  proyección alcanza `umbral_segundos_aviso_moda`. Por omisión es
+  `TRUE`. La tasa se mide con modas anteriores de esta corrida; si falta
+  cardinalidad, se declara en la proyección y no se supone.
+
+- umbral_segundos_aviso_moda:
+
+  Segundos estimados a partir de los cuales se emite el aviso de la
+  moda. Por omisión es `30`; `Inf` lo desactiva explícitamente. El valor
+  no cambia la medición ni la proyección publicada.
+
+- avisar_costo_mediana:
+
+  Si es `TRUE`, avisa antes de ejecutar las medianas pendientes cuando
+  su proyección alcanza `umbral_segundos_aviso_mediana`. Por omisión es
+  `TRUE`. La proyección sigue las filas, no la cardinalidad.
+
+- umbral_segundos_aviso_mediana:
+
+  Segundos estimados a partir de los cuales se emite el aviso de la
+  mediana. Por omisión es `30`; `Inf` lo desactiva explícitamente.
+  Cuando no existe una primera medición local, una sola mediana total
+  usa la referencia de banco declarada de 68 ms por millón de filas de
+  otra corrida. Si la consulta inicial que obtuvo las filas fue medida y
+  da una cota mayor, se publica como cota de lectura, no como medición
+  de mediana.
+
 - avisar_derrame_estimado:
 
   Si es `TRUE`, avisa cuando un lote de `COUNT(DISTINCT)` supera la
@@ -216,6 +266,26 @@ perfilar_dbi(
   Por omisión es `0`, que conserva el aviso para cualquier lote que la
   supere; `Inf` lo desactiva explícitamente. El valor no cambia la
   estimación ni la medición posterior del derrame.
+
+- max_celdas_muestra:
+
+  Máximo de celdas que puede contener el bloque `perfil_muestra`. Por
+  defecto es `1000000`; se calcula antes de leer como filas por columnas
+  del esquema. Si reduce la muestra,
+  `perfil_muestra$cobertura_diagnosticos` usa la misma declaración que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  con las celdas solicitadas, el umbral y el tope que mandó. `Inf`
+  desactiva este tope. No modifica los agregados SQL.
+
+- max_bytes_muestra:
+
+  Máximo de bytes de la muestra materializada que alimenta
+  `perfil_muestra`. Por defecto es `512 MiB`. Como el tamaño no se
+  conoce desde el esquema, primero se lee una sonda de hasta cien filas
+  y con ella se fija el límite final en SQL o en `dbFetch(n)`, antes de
+  leer el resto. Si reduce la muestra, `cobertura_diagnosticos` informa
+  los bytes observados, el umbral y cuál tope mandó. `Inf` desactiva
+  este tope. No modifica los agregados SQL.
 
 - ...:
 
@@ -299,7 +369,13 @@ En `resumen_tabla$meta$muestreo`, `tamano_muestra` conserva el nombre
 historico y declara el tamano efectivo solicitado a la consulta;
 `filas_solicitadas` declara el pedido original y `filas_obtenidas` las
 filas que devolvio la lectura del bloque `perfil_muestra`. Esta ultima
-puede ser `NA` si el bloque no se solicito o fallo antes de leer.
+puede ser `NA` si el bloque no se solicito o fallo antes de leer. Si la
+consulta de la muestra devuelve cero filas, no hay base para medir las
+metricas de alcance `muestra`: se publican con valor `NA`, estado
+`no_disponible` y un motivo que nombra la muestra vacia. Esto no permite
+concluir que la columna este vacia, por lo que no se publica cero ni se
+dispara la cascada `sin_valores`. `n` conserva el conteo de la tabla
+completa.
 
 En una muestra, `error_esperado` vale `no_estimado` para metricas cuyo
 error podria calcularse bajo un plan probabilistico pero no se calculo,
@@ -314,13 +390,14 @@ como cardinalidad de la muestra, no como cardinalidad del universo.
 calcula `COUNT(DISTINCT)` sobre las filas de la corrida.
 `"aproximada_motor"` sondea una funcion nativa y, si no hay una
 capacidad aceptada, deja la metrica `no_disponible`; nunca ejecuta el
-conteo exacto como repliegue. `"catalogo"` esta declarada pero queda
-`no_disponible` en esta version porque todavia no implementa una
-estadistica de cardinalidad; `pg_stats` se consulta por separado, cuando
-está disponible, para estimar el costo de memoria y avisar antes del
-conteo, pero nunca sustituye una medicion. `"omitida"` no emite la
-consulta. Cada resultado y el atributo `meta$estrategia_distintos`
-separan `estrategia_solicitada`, `estrategia_resuelta` y `estado`.
+conteo exacto como repliegue. `"catalogo"` lee `pg_stats.n_distinct` y
+publica `estimado_catalogo` sólo cuando el modo mide la relación entera
+(`exacto`, `seguro` o `conteos`). En `muestreado` y `aproximado` queda
+`no_disponible`, porque el catálogo describe la relación entera y la
+corrida mide un subconjunto; no se inventa una equivalencia entre
+universos. `"omitida"` no emite la consulta. Cada resultado y el
+atributo `meta$estrategia_distintos` separan `estrategia_solicitada`,
+`estrategia_resuelta` y `estado`.
 
 Las comparaciones que tienen una cota dura usan solo valores del mismo
 grupo de consistencia. En esta version, el grupo queda probado por el
@@ -381,7 +458,12 @@ filtro —`COUNT(col)`, mínimos, máximos, medias, ceros, negativos y
 desvío— comparten una consulta por lote y cada consulta que trae
 `n_validos` lleva además `COUNT(*) AS n_total_consulta` en la misma
 sentencia. La completitud usa ese denominador local, no el total de otro
-lote. El total del universo se conserva por separado cuando el perfil se
+lote. La fusión conserva la medición, no una identidad bit a bit entre
+agrupamientos: la media y el desvío pueden diferir en el último bit
+según cómo se agrupen las sumas, porque la suma en punto flotante no es
+asociativa.
+
+El total del universo se conserva por separado cuando el perfil se
 calcula sobre una muestra. Si el lote completo es rechazado, sus mitades
 se sondean por bisección: los grupos aceptados se reutilizan como
 mediciones y las columnas culpables se reintentan por métrica, con su
@@ -396,10 +478,25 @@ el primer lote de distintos y, después de ejecutarlo, se multiplica su
 mediana por la cantidad total de lotes. El aviso llega antes del segundo
 lote, en la unidad que se va a evitar; con un solo lote no hay nada que
 proyectar. Si la duración no se pudo medir, el resultado declara la
-proyección como no disponible. Antes de la primera consulta exacta se
-estima, cuando PostgreSQL expone `pg_stats`, el tamaño de los hashes con
-`n_distinct`, `avg_width` y `pg_class.reltuples`; `SHOW work_mem` y,
-desde PostgreSQL 13, `SHOW hash_mem_multiplier` dan el límite efectivo.
+proyección como no disponible. La moda tiene otro canal: después de cada
+moda medida se obtiene una tasa en ms por distinto y se usa para
+proyectar las modas pendientes. La cardinalidad se toma del agregado de
+la corrida, de una clave garantizada o de la estimación de catálogo que
+esté disponible; si falta, `meta$costo_moda` lo declara y no inventa un
+número. El aviso llega antes de la siguiente moda. La mediana se
+proyecta en ms por fila. La primera mediana medida en esta corrida sirve
+para proyectar las restantes y el aviso precede a ese trabajo. Si no
+existe una primera medición local para una mediana total, usa la
+referencia declarada de otra corrida de 68 ms por millón de filas. Si la
+consulta inicial que obtuvo las filas fue medida y resulta una cota
+mayor, se publica también esa cota de lectura —no como medición de
+mediana— para no subestimar una tabla grande recién cargada. Las dos
+proyecciones quedan separadas en `meta$costo_moda` y
+`meta$costo_mediana`; apagar el aviso no apaga su medición ni su
+metadata. Antes de la primera consulta exacta se estima, cuando
+PostgreSQL expone `pg_stats`, el tamaño de los hashes con `n_distinct`,
+`avg_width` y `pg_class.reltuples`; `SHOW work_mem` y, desde PostgreSQL
+13, `SHOW hash_mem_multiplier` dan el límite efectivo.
 `meta$estimacion_derrame` y `attr(meta$plan, "estimacion_derrame")`
 conservan el diagnóstico, siempre rotulado como estimación y nunca como
 derrame medido. Si supera el límite se avisa antes de pagar
@@ -422,11 +519,11 @@ interactivas para no convertir la salida de un guion en ruido. Cada
 aviso DBI tiene su propio interruptor y umbral porque sus unidades no
 son comparables —segundos frente a bytes— y silenciar uno no debe
 ocultar el otro. Apagar un aviso no apaga ninguna medición:
-`meta$costo_distintos`, `meta$derrame` y `meta$estimacion_derrame` se
-publican igual. Lo que no entra en el presupuesto queda en
-`no_disponible` con su motivo, nunca en cero.
-`meta$tamano_lote_funciono` conserva el mayor lote aceptado durante esa
-corrida; no se guarda estado global asociado a la conexión.
+`meta$costo_distintos`, `meta$costo_moda`, `meta$costo_mediana`,
+`meta$derrame` y `meta$estimacion_derrame` se publican igual. Lo que no
+entra en el presupuesto queda en `no_disponible` con su motivo, nunca en
+cero. `meta$tamano_lote_funciono` conserva el mayor lote aceptado
+durante esa corrida; no se guarda estado global asociado a la conexión.
 
 ## Instrumentación
 

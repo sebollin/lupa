@@ -59,6 +59,8 @@ perfilar(
   max_trabajo_vocabulario = 2e+10,
   max_trabajo_dependencias = 1e+08,
   max_largo_valor_vocabulario = .MAX_LARGO_VALOR_CASI_DUPLICADOS,
+  max_celdas_muestra = .MAX_CELDAS_MUESTRA,
+  max_bytes_muestra = .MAX_BYTES_MUESTRA,
   avisar_costo_tabla_ancha = TRUE,
   umbral_celdas_aviso_tabla_ancha = .UMBRAL_CELDAS_AVISO_TABLA_ANCHA
 )
@@ -132,9 +134,11 @@ perfilar(
   conserva exactamente el objeto histórico y no agrega metadatos. Cuando
   un eje falla o no se puede comprobar, `meta$clave$trazabilidad`
   explica que la localización agrupa con la semántica de R, incluso si
-  el motor SQL trata dos `NULL` como distintos. Por eso una clave puede
-  tener a la vez una colisión para la trazabilidad y una ausencia que
-  impide la garantía `NOT NULL`.
+  el motor SQL trata dos `NULL` como distintos. `hallazgos` separa esos
+  ejes: `clave_con_ausentes` enumera las filas que impiden la garantía
+  `NOT NULL`, mientras `clave_no_unica` sólo informa repeticiones entre
+  filas con la clave completa, el mismo universo que
+  `meta$clave$unicidad`.
 
 - umbral_faltantes_error:
 
@@ -477,6 +481,23 @@ perfilar(
   silencio. `Inf` recupera explicitamente el comportamiento anterior sin
   tope.
 
+- max_celdas_muestra:
+
+  Maximo de celdas que puede contener la muestra comun de los
+  diagnosticos que muestrean filas. Por defecto es `1000000`; se calcula
+  como filas efectivas por columnas de la tabla. Si reduce la muestra,
+  `cobertura_diagnosticos` informa las filas y celdas solicitadas, el
+  umbral y el nuevo alcance. `Inf` desactiva este tope.
+
+- max_bytes_muestra:
+
+  Maximo de bytes de la muestra materializada que alimenta los
+  diagnosticos que muestrean filas. Por defecto es `512 MiB`. El tamaño
+  se estima sobre una sonda de hasta cien filas y se comprueba sobre la
+  muestra efectiva; si la cota reduce el alcance,
+  `cobertura_diagnosticos` informa los bytes observados y el umbral.
+  `Inf` desactiva este tope.
+
 - avisar_costo_tabla_ancha:
 
   Si es `TRUE`, avisa en sesiones interactivas cuando las celdas
@@ -510,8 +531,13 @@ conteo, informa NA, nunca cero. La columna de lista `trazabilidad`
 distingue `disponible`, `truncada`, `no_aplica` y `no_disponible`;
 cuando corresponde conserva índices de fila acotados por
 `max_filas_hallazgo`, el total conocido y el alcance. En
-`casi_duplicados_vocabulario`, donde la traza mezcla filas de formas
-variantes con filas de la forma dominante, conserva además
+`clave_con_ausentes`, cuenta las filas con al menos un componente
+ausente y su traza enumera esas filas. En `clave_no_unica`, cuenta las
+filas que participan en colisiones entre claves completas y su traza
+excluye las filas incompletas; ambas unidades son `fila`. Así, una
+colisión entre ausentes no aparece como una repetición que refute la
+unicidad. `casi_duplicados_vocabulario`, donde la traza mezcla filas de
+formas variantes con filas de la forma dominante, conserva además
 `n_filas_formas_variantes` y `n_filas_formas_dominantes` con el reparto
 completo, y `mostrados_formas_variantes` y `mostrados_formas_dominantes`
 con el reparto de lo que sobrevivió al truncado. Las variantes se
@@ -572,7 +598,13 @@ preguntas distintas y no comparten universo:
   conjunto vacío, que es cierto y engañoso a la vez, y por eso tiene
   estado propio.
 
-- `ausencia_nulos` responde si todos los componentes están presentes.
+- `ausencia_nulos` responde si todos los componentes están presentes. Su
+  hallazgo asociado, `clave_con_ausentes`, cuenta las filas con al menos
+  un componente ausente y conserva sus índices.
+
+- `clave_no_unica` sólo se emite cuando hay valores repetidos entre las
+  filas completas y usa `filas_evaluadas` como `n_evaluados`; no
+  convierte una colisión entre ausentes en una violación de unicidad.
 
 - `trazabilidad` conserva la semántica de R, que es la que localiza las
   filas, e informa en `colisiona_con_ausentes` si el localizador queda

@@ -34,6 +34,7 @@ los agregados SQL.'><meta property="og:image" content="https://sebollin.github.i
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/empezar-con-lupa.html">Empezar con lupa</a></li>
+    <li><a class="dropdown-item" href="../articles/flujo-guiado.html">Flujo guiado: del perfil a la evaluación</a></li>
     <li><a class="dropdown-item" href="../articles/definir-la-calidad.html">Definir la calidad</a></li>
     <li><a class="dropdown-item" href="../articles/medir-y-evaluar.html">Medir y evaluar</a></li>
     <li><a class="dropdown-item" href="../articles/limpiar-con-un-plan.html">Limpiar con un plan auditable</a></li>
@@ -87,8 +88,14 @@ los agregados SQL.</p>
 <span>  umbral_cardinalidad <span class="op">=</span> <span class="va">.UMBRAL_CARDINALIDAD_COSTO_DBI</span>,</span>
 <span>  avisar_costo_distintos <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  umbral_segundos_aviso_distintos <span class="op">=</span> <span class="va">.UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI</span>,</span>
+<span>  avisar_costo_moda <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  umbral_segundos_aviso_moda <span class="op">=</span> <span class="va">.UMBRAL_SEGUNDOS_AVISO_MODA_DBI</span>,</span>
+<span>  avisar_costo_mediana <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  umbral_segundos_aviso_mediana <span class="op">=</span> <span class="va">.UMBRAL_SEGUNDOS_AVISO_MEDIANA_DBI</span>,</span>
 <span>  avisar_derrame_estimado <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  umbral_bytes_aviso_derrame_estimado <span class="op">=</span> <span class="va">.UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI</span>,</span>
+<span>  max_celdas_muestra <span class="op">=</span> <span class="va">.MAX_CELDAS_MUESTRA</span>,</span>
+<span>  max_bytes_muestra <span class="op">=</span> <span class="va">.MAX_BYTES_MUESTRA</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -208,12 +215,23 @@ intervalos que el reloj no puede resolver no se publican como cero.</p></dd>
 <dd><p>Procedencia explícita para <code>n_distintos</code>:
 <code>"exacta"</code> (por omisión) emite <code>COUNT(DISTINCT)</code>; <code>"aproximada_motor"</code>
 usa una función nativa aceptada por el motor y deja la métrica en
-<code>no_disponible</code> si no existe; <code>"catalogo"</code> queda declarada pero
-<code>no_disponible</code> hasta implementar la estadística del catálogo; y
+<code>no_disponible</code> si no existe; <code>"catalogo"</code> lee
+<code>pg_stats.n_distinct</code> en PostgreSQL y publica el resultado como
+<code>estimado_catalogo</code>, nunca como medición, cuando el modo mide la relación
+entera (<code>exacto</code>, <code>seguro</code> o <code>conteos</code>). En <code>muestreado</code> y <code>aproximado</code>
+queda <code>no_disponible</code>, porque el catálogo describe la relación entera y la
+corrida mide un subconjunto; y
 <code>"omitida"</code> no emite ninguna consulta. No hay repliegue automático entre
 estrategias. El resultado publica <code>estrategia_solicitada</code>,
 <code>estrategia_resuelta</code> y <code>estado</code> en <code>meta$estrategia_distintos</code>, y las dos
-primeras también en <code>resumen_tabla$sql</code>.</p></dd>
+primeras también en <code>resumen_tabla$sql</code>. En <code>pg_stats</code>, un valor positivo
+es el conteo estimado y uno negativo es una fracción de las filas. Cuando la
+relación tiene descendientes se elige <code>inherited = TRUE</code>, porque esa fila
+describe lo que lee una consulta sin <code>ONLY</code>; una relación sin hijas usa su
+única fila propia. Las fracciones se convierten con la suma de
+<code>pg_class.reltuples</code> de la jerarquía. Si no hay una fila utilizable —por
+ejemplo, antes de <code>ANALYZE</code>— o hay ambigüedad, la métrica queda
+<code>no_disponible</code>, no en cero.</p></dd>
 
 
 <dt id="arg-politica-costo">politica_costo<a class="anchor" aria-label="anchor" href="#arg-politica-costo"></a></dt>
@@ -222,16 +240,20 @@ omisión, <code>"todas"</code>, conserva moda y mediana para todas las columnas
 solicitadas. <code>"ninguna"</code> es un alias de <code>"todas"</code>; <code>"por_cardinalidad"</code>
 (también <code>"cardinalidad"</code>) resuelve primero las fuentes estructurales y
 mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
-permite. Luego omite, por columna, moda y mediana cuando la proporción de
-distintos alcanza <code>umbral_cardinalidad</code>. Una estrategia no disponible no
-se convierte en una medición exacta.</p></dd>
+permite. Luego omite, por columna, sólo la moda cuando la proporción de
+distintos alcanza <code>umbral_cardinalidad</code>; la mediana se conserva porque las
+mediciones disponibles muestran que su costo depende de las filas y no de
+la cardinalidad. Una estrategia no disponible no se convierte en una
+medición exacta.</p></dd>
 
 
 <dt id="arg-umbral-cardinalidad">umbral_cardinalidad<a class="anchor" aria-label="anchor" href="#arg-umbral-cardinalidad"></a></dt>
 <dd><p>Proporción entre valores distintos y válidos que
-activa <code>politica_costo = "por_cardinalidad"</code>. El valor por omisión es <code>0.95</code>
-sólo cuando esa política se pide explícitamente; se puede mover en cada
-llamada. Para pedir todas las métricas use <code>politica_costo = "todas"</code>.</p></dd>
+activa la omisión de la moda con <code>politica_costo = "por_cardinalidad"</code>. El
+valor por omisión es <code>0.5</code> sólo cuando esa política se pide explícitamente;
+se puede mover en cada llamada. Este argumento no gobierna la mediana:
+<code>meta$decisiones_costo</code> explica la decisión de cada métrica por separado.
+Para pedir todas las métricas use <code>politica_costo = "todas"</code>.</p></dd>
 
 
 <dt id="arg-avisar-costo-distintos">avisar_costo_distintos<a class="anchor" aria-label="anchor" href="#arg-avisar-costo-distintos"></a></dt>
@@ -251,6 +273,36 @@ costo ya se pagó. El valor no cambia la proyección ni la medición que se
 publica.</p></dd>
 
 
+<dt id="arg-avisar-costo-moda">avisar_costo_moda<a class="anchor" aria-label="anchor" href="#arg-avisar-costo-moda"></a></dt>
+<dd><p>Si es <code>TRUE</code>, avisa antes de ejecutar las modas
+pendientes cuando su proyección alcanza <code>umbral_segundos_aviso_moda</code>. Por
+omisión es <code>TRUE</code>. La tasa se mide con modas anteriores de esta corrida;
+si falta cardinalidad, se declara en la proyección y no se supone.</p></dd>
+
+
+<dt id="arg-umbral-segundos-aviso-moda">umbral_segundos_aviso_moda<a class="anchor" aria-label="anchor" href="#arg-umbral-segundos-aviso-moda"></a></dt>
+<dd><p>Segundos estimados a partir de los cuales
+se emite el aviso de la moda. Por omisión es <code>30</code>; <code>Inf</code> lo desactiva
+explícitamente. El valor no cambia la medición ni la proyección publicada.</p></dd>
+
+
+<dt id="arg-avisar-costo-mediana">avisar_costo_mediana<a class="anchor" aria-label="anchor" href="#arg-avisar-costo-mediana"></a></dt>
+<dd><p>Si es <code>TRUE</code>, avisa antes de ejecutar las
+medianas pendientes cuando su proyección alcanza
+<code>umbral_segundos_aviso_mediana</code>. Por omisión es <code>TRUE</code>. La proyección sigue
+las filas, no la cardinalidad.</p></dd>
+
+
+<dt id="arg-umbral-segundos-aviso-mediana">umbral_segundos_aviso_mediana<a class="anchor" aria-label="anchor" href="#arg-umbral-segundos-aviso-mediana"></a></dt>
+<dd><p>Segundos estimados a partir de los cuales
+se emite el aviso de la mediana. Por omisión es <code>30</code>; <code>Inf</code> lo desactiva
+explícitamente. Cuando no existe una primera medición local, una sola
+mediana total usa la referencia de banco declarada de 68 ms por millón de
+filas de otra corrida. Si la consulta inicial que obtuvo las filas fue
+medida y da una cota mayor, se publica como cota de lectura, no como
+medición de mediana.</p></dd>
+
+
 <dt id="arg-avisar-derrame-estimado">avisar_derrame_estimado<a class="anchor" aria-label="anchor" href="#arg-avisar-derrame-estimado"></a></dt>
 <dd><p>Si es <code>TRUE</code>, avisa cuando un lote de
 <code>COUNT(DISTINCT)</code> supera la memoria efectiva y su tamaño estimado alcanza
@@ -264,6 +316,25 @@ bytes, a partir del cual se avisa un derrame potencial entre los lotes que
 ya superan la memoria efectiva. Por omisión es <code>0</code>, que conserva el aviso
 para cualquier lote que la supere; <code>Inf</code> lo desactiva explícitamente. El
 valor no cambia la estimación ni la medición posterior del derrame.</p></dd>
+
+
+<dt id="arg-max-celdas-muestra">max_celdas_muestra<a class="anchor" aria-label="anchor" href="#arg-max-celdas-muestra"></a></dt>
+<dd><p>Máximo de celdas que puede contener el bloque
+<code>perfil_muestra</code>. Por defecto es <code>1000000</code>; se calcula antes de leer como
+filas por columnas del esquema. Si reduce la muestra,
+<code>perfil_muestra$cobertura_diagnosticos</code> usa la misma declaración que
+<code><a href="perfilar.html">perfilar()</a></code>, con las celdas solicitadas, el umbral y el tope que mandó.
+<code>Inf</code> desactiva este tope. No modifica los agregados SQL.</p></dd>
+
+
+<dt id="arg-max-bytes-muestra">max_bytes_muestra<a class="anchor" aria-label="anchor" href="#arg-max-bytes-muestra"></a></dt>
+<dd><p>Máximo de bytes de la muestra materializada que
+alimenta <code>perfil_muestra</code>. Por defecto es <code>512 MiB</code>. Como el tamaño no se
+conoce desde el esquema, primero se lee una sonda de hasta cien filas y con
+ella se fija el límite final en SQL o en <code>dbFetch(n)</code>, antes de leer el
+resto. Si reduce la muestra, <code>cobertura_diagnosticos</code> informa los bytes
+observados, el umbral y cuál tope mandó. <code>Inf</code> desactiva este tope. No
+modifica los agregados SQL.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -346,7 +417,12 @@ Cada registro publica <code>alcance</code>, <code>universo</code>, <code>tamano_
 solicitado a la consulta; <code>filas_solicitadas</code> declara el pedido original y
 <code>filas_obtenidas</code> las filas que devolvio la lectura del bloque
 <code>perfil_muestra</code>. Esta ultima puede ser <code>NA</code> si el bloque no se solicito o
-fallo antes de leer.</p>
+fallo antes de leer.
+Si la consulta de la muestra devuelve cero filas, no hay base para medir las
+metricas de alcance <code>muestra</code>: se publican con valor <code>NA</code>, estado
+<code>no_disponible</code> y un motivo que nombra la muestra vacia. Esto no permite
+concluir que la columna este vacia, por lo que no se publica cero ni se
+dispara la cascada <code>sin_valores</code>. <code>n</code> conserva el conteo de la tabla completa.</p>
 <p>En una muestra, <code>error_esperado</code> vale <code>no_estimado</code> para metricas cuyo error
 podria calcularse bajo un plan probabilistico pero no se calculo,
 <code>no_estimable</code> para la moda, la mediana y la cardinalidad observada, que no
@@ -359,11 +435,12 @@ no como cardinalidad del universo. <code>estrategia_distintos</code> es explicit
 vale <code>"exacta"</code> por omision: calcula <code>COUNT(DISTINCT)</code> sobre las filas de la
 corrida. <code>"aproximada_motor"</code> sondea una funcion nativa y, si no hay una
 capacidad aceptada, deja la metrica <code>no_disponible</code>; nunca ejecuta el conteo
-exacto como repliegue. <code>"catalogo"</code> esta declarada pero queda
-<code>no_disponible</code> en esta version porque todavia no implementa una estadistica
-de cardinalidad; <code>pg_stats</code> se consulta por separado, cuando está disponible,
-para estimar el costo de memoria y avisar antes del conteo, pero nunca
-sustituye una medicion. <code>"omitida"</code> no emite la
+exacto como repliegue. <code>"catalogo"</code> lee <code>pg_stats.n_distinct</code> y publica
+<code>estimado_catalogo</code> sólo cuando el modo mide la relación entera (<code>exacto</code>,
+<code>seguro</code> o <code>conteos</code>). En <code>muestreado</code> y <code>aproximado</code> queda
+<code>no_disponible</code>, porque el catálogo describe la relación entera y la corrida
+mide un subconjunto; no se inventa una equivalencia entre universos.
+<code>"omitida"</code> no emite la
 consulta. Cada resultado y el atributo <code>meta$estrategia_distintos</code> separan
 <code>estrategia_solicitada</code>, <code>estrategia_resuelta</code> y <code>estado</code>.</p>
 <p>Las comparaciones que tienen una cota dura usan solo valores del mismo grupo
@@ -424,9 +501,13 @@ agregados planos sobre la misma tabla y filtro —<code>COUNT(col)</code>,
 mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
 por lote y cada consulta que trae <code>n_validos</code> lleva además
 <code>COUNT(*) AS n_total_consulta</code> en la misma sentencia. La completitud usa ese
-denominador local, no el total de otro lote. El total del universo se conserva
-por separado cuando el perfil se calcula sobre una muestra. Si el lote
-completo es rechazado, sus mitades se sondean por bisección: los grupos
+denominador local, no el total de otro lote.
+La fusión conserva la medición, no una identidad bit a bit entre
+agrupamientos: la media y el desvío pueden diferir en el último bit según
+cómo se agrupen las sumas, porque la suma en punto flotante no es asociativa.</p>
+<p>El total del universo se conserva por separado cuando el perfil se calcula
+sobre una muestra. Si el lote completo es rechazado, sus mitades se sondean
+por bisección: los grupos
 aceptados se reutilizan como mediciones y las columnas culpables se reintentan
 por métrica, con su denominador local. Las fuentes <code>TABLESAMPLE</code> que necesitan
 el total del universo para escribir un porcentaje lo cuentan antes.
@@ -440,6 +521,20 @@ ejecutarlo, se multiplica su mediana por la cantidad total de lotes. El aviso
 llega antes del segundo lote, en la unidad que se va a evitar; con un solo
 lote no hay nada que proyectar. Si la duración no se pudo medir, el resultado
 declara la proyección como no disponible.
+La moda tiene otro canal: después de cada moda medida se obtiene una tasa en
+ms por distinto y se usa para proyectar las modas pendientes. La cardinalidad
+se toma del agregado de la corrida, de una clave garantizada o de la
+estimación de catálogo que esté disponible; si falta, <code>meta$costo_moda</code> lo
+declara y no inventa un número. El aviso llega antes de la siguiente moda.
+La mediana se proyecta en ms por fila. La primera mediana medida en esta
+corrida sirve para proyectar las restantes y el aviso precede a ese trabajo.
+Si no existe una primera medición local para una mediana total, usa la
+referencia declarada de otra corrida de 68 ms por millón de filas.
+Si la consulta inicial que obtuvo las filas fue medida y resulta una cota
+mayor, se publica también esa cota de lectura —no como medición de mediana—
+para no subestimar una tabla grande recién cargada.
+Las dos proyecciones quedan separadas en <code>meta$costo_moda</code> y
+<code>meta$costo_mediana</code>; apagar el aviso no apaga su medición ni su metadata.
 Antes de la primera consulta exacta se estima, cuando PostgreSQL expone
 <code>pg_stats</code>, el tamaño de los hashes con <code>n_distinct</code>, <code>avg_width</code> y
 <code>pg_class.reltuples</code>; <code>SHOW work_mem</code> y, desde PostgreSQL 13,
@@ -460,7 +555,8 @@ sesiones interactivas para no convertir la salida de un guion en ruido.
 Cada aviso DBI tiene su propio interruptor y umbral porque sus unidades no
 son comparables —segundos frente a bytes— y silenciar uno no debe ocultar el
 otro. Apagar un aviso no apaga ninguna medición: <code>meta$costo_distintos</code>,
-<code>meta$derrame</code> y <code>meta$estimacion_derrame</code> se publican igual.
+<code>meta$costo_moda</code>, <code>meta$costo_mediana</code>, <code>meta$derrame</code> y
+<code>meta$estimacion_derrame</code> se publican igual.
 Lo que no entra en el presupuesto queda en <code>no_disponible</code> con su motivo,
 nunca en cero. <code>meta$tamano_lote_funciono</code> conserva el mayor lote aceptado
 durante esa corrida; no se guarda estado global asociado a la conexión.</p>
