@@ -114,11 +114,16 @@ intervalos que el reloj no puede resolver no se publican como cero.}
 \code{"exacta"} (por omisión) emite \code{COUNT(DISTINCT)}; \code{"aproximada_motor"}
 usa una función nativa aceptada por el motor y deja la métrica en
 \code{no_disponible} si no existe; \code{"catalogo"} queda declarada pero
-\code{no_disponible} hasta implementar la estadística del catálogo; y
+lee \code{pg_stats.n_distinct} en PostgreSQL y publica el resultado como
+\code{estimado_catalogo}, nunca como medición; y
 \code{"omitida"} no emite ninguna consulta. No hay repliegue automático entre
 estrategias. El resultado publica \code{estrategia_solicitada},
 \code{estrategia_resuelta} y \code{estado} en \code{meta$estrategia_distintos}, y las dos
-primeras también en \code{resumen_tabla$sql}.}
+primeras también en \code{resumen_tabla$sql}. En \code{pg_stats}, un valor
+positivo es el conteo estimado y uno negativo es una fracción de las filas;
+\code{-1} se combina con \code{pg_class.reltuples} y nunca se publica como
+cardinalidad negativa. Si no hay una fila utilizable —por ejemplo, antes de
+\code{ANALYZE}— la métrica queda \code{no_disponible}, no en cero.}
 
 \item{politica_costo}{Política optativa para las métricas caras. El valor por
 omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
@@ -255,10 +260,11 @@ vale \code{"exacta"} por omision: calcula \code{COUNT(DISTINCT)} sobre las filas
 corrida. \code{"aproximada_motor"} sondea una funcion nativa y, si no hay una
 capacidad aceptada, deja la metrica \code{no_disponible}; nunca ejecuta el conteo
 exacto como repliegue. \code{"catalogo"} esta declarada pero queda
-\code{no_disponible} en esta version porque todavia no implementa una estadistica
-de cardinalidad; \code{pg_stats} se consulta por separado, cuando está disponible,
-para estimar el costo de memoria y avisar antes del conteo, pero nunca
-sustituye una medicion. \code{"omitida"} no emite la
+\code{estimado_catalogo} en PostgreSQL: lee \code{pg_stats.n_distinct}, convierte
+los valores negativos con \code{pg_class.reltuples} y declara que es una
+estimación de catálogo, no una medición. Si no hay una estadística utilizable —por
+ejemplo, antes de \code{ANALYZE}— queda \code{no_disponible}, no en cero. En otros
+motores queda no disponible porque no hay una fuente portable. \code{"omitida"} no emite la
 consulta. Cada resultado y el atributo \code{meta$estrategia_distintos} separan
 \code{estrategia_solicitada}, \code{estrategia_resuelta} y \code{estado}.
 

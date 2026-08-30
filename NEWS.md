@@ -6,6 +6,13 @@
   común de los diagnósticos queda acotada por ambos topes, y cada reducción se
   declara en `cobertura_diagnosticos` con el alcance observado y los umbrales.
 
+## `estrategia_distintos = "catalogo"` en PostgreSQL
+
+- `perfilar_dbi()` y `plan_perfilado_dbi()` leen `pg_stats.n_distinct` y
+  publican sus resultados como estimaciones de catálogo. Los valores negativos
+  se convierten con `pg_class.reltuples`; si falta `ANALYZE`, el resultado queda
+  `no_disponible` y no se reemplaza por cero.
+
 ## La clave que se publica es la de la tabla que se midió
 
 - Con un nombre sin calificar, `perfilar_dbi()` publicaba la clave primaria de

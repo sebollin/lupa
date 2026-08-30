@@ -98,11 +98,15 @@ devuelto: sus costos siguen siendo predicciones. Por omisión es \code{FALSE}.}
 \code{"exacta"} (por omisión) emite \code{COUNT(DISTINCT)}; \code{"aproximada_motor"}
 usa una función nativa aceptada por el motor y deja la métrica en
 \code{no_disponible} si no existe; \code{"catalogo"} queda declarada pero
-\code{no_disponible} hasta implementar la estadística del catálogo; y
+lee \code{pg_stats.n_distinct} en PostgreSQL y publica el resultado como
+\code{estimado_catalogo}, nunca como medición; y
 \code{"omitida"} no emite ninguna consulta. No hay repliegue automático entre
 estrategias. El resultado publica \code{estrategia_solicitada},
 \code{estrategia_resuelta} y \code{estado} en \code{meta$estrategia_distintos}, y las dos
-primeras también en \code{resumen_tabla$sql}.}
+primeras también en \code{resumen_tabla$sql}. En \code{pg_stats}, los valores
+positivos son conteos y los negativos fracciones de las filas; \code{-1} se
+convierte con \code{pg_class.reltuples}. Si no hay una estimación utilizable —por
+ejemplo, antes de \code{ANALYZE}— queda \code{no_disponible}, no en cero.}
 
 \item{politica_costo}{Política optativa para las métricas caras. El valor por
 omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
@@ -218,9 +222,12 @@ cardinalidad medida ni reemplaza la medición posterior.
 corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
 \code{auto}: \code{"exacta"} es el valor por omisión, \code{"aproximada_motor"} queda
 \code{no_disponible} si el motor no ofrece una función aceptada, \code{"catalogo"}
-queda \code{no_disponible} hasta implementar su estadística de cardinalidad y
-\code{"omitida"} no
-emite el agregado. \code{fuente_cardinalidad_costo} sigue siendo independiente y
+lee \code{pg_stats.n_distinct} en PostgreSQL, convierte los valores negativos
+con \code{pg_class.reltuples} y publica una estimación con estado
+\code{estimado_catalogo}; si falta una estadística utilizable queda
+\code{no_disponible}, nunca cero. En otros motores queda no disponible porque
+no hay una fuente portable. \code{"omitida"} no emite el agregado.
+\code{fuente_cardinalidad_costo} sigue siendo independiente y
 sólo describe el número usado por la política de costo cuando esa política
 se pide.
 

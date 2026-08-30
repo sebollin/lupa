@@ -2900,12 +2900,184 @@
     motivo = NA_character_,
     error_esperado = NA_character_,
     candidato = NULL,
-    sondas = character()
+    sondas = character(), estimaciones = NULL, fuentes = NULL,
+    sql_catalogo = NA_character_
+  )
+}
+
+.interpretar_n_distintos_catalogo_dbi <- function(raw, filas_catalogo,
+                                                   columna) {
+  motivo <- NA_character_
+  estimado <- NA_real_
+  if (!is.finite(raw)) {
+    motivo <- paste0(
+      "`pg_stats.n_distinct` no tiene una estimacion utilizable para `",
+      columna, "`; puede no haberse ejecutado ANALYZE. No se supone cero."
+    )
+  } else if (raw >= 0) {
+    estimado <- raw
+    motivo <- paste0(
+      "Estimacion de catalogo `pg_stats.n_distinct = ", raw,
+      "`; el valor no fue medido recorriendo la tabla."
+    )
+  } else if (is.finite(filas_catalogo) && filas_catalogo >= 0) {
+    estimado <- round(abs(raw) * filas_catalogo)
+    motivo <- paste0(
+      "Estimacion de catalogo: `pg_stats.n_distinct = ", raw,
+      "` es una fraccion de las filas y `pg_class.reltuples = ",
+      filas_catalogo, "; se estima n_distintos = ", estimado,
+      ". No fue medido recorriendo la tabla."
+    )
+  } else {
+    motivo <- paste0(
+      "`pg_stats.n_distinct = ", raw,
+      "` es una fraccion, pero `pg_class.reltuples` no tiene un valor utilizable;",
+      " puede no haberse ejecutado ANALYZE. No se supone cero."
+    )
+  }
+  disponible <- is.finite(estimado) && estimado >= 0
+  proporcion <- if (disponible && is.finite(filas_catalogo) &&
+                    filas_catalogo > 0) {
+    min(1, max(0, estimado / filas_catalogo))
+  } else {
+    NA_real_
+  }
+  list(
+    disponible = disponible,
+    n_distintos = if (disponible) estimado else NA_real_,
+    n_filas = filas_catalogo, n_distintos_catalogo = raw,
+    proporcion_distintos = proporcion, motivo = motivo
+  )
+}
+
+.estimar_distintos_catalogo_dbi <- function(conexion, tabla, columnas,
+                                            presupuesto) {
+  senas <- .senas_conexion_dbi(conexion)
+  if (!grepl("postgres|pqconnection", senas)) {
+    vacias <- .fuentes_cardinalidad_vacias_dbi(columnas)
+    return(list(
+      disponible = FALSE, estimaciones = vacias, fuentes = vacias,
+      sql = NA_character_, motivo = paste(
+        "`catalogo` requiere PostgreSQL y su `pg_stats`: no hay una estadistica",
+        "portable de cardinalidad para este motor."
+      )
+    ))
+  }
+  piezas <- .piezas_tabla_cardinalidad_dbi(tabla)
+  vacias <- .fuentes_cardinalidad_vacias_dbi(columnas)
+  if (is.na(piezas$tabla) || !nzchar(piezas$tabla) || !length(columnas)) {
+    return(list(
+      disponible = FALSE, estimaciones = vacias, fuentes = vacias,
+      sql = NA_character_,
+      motivo = "No se pudo resolver la relacion o sus columnas para leer `pg_stats`."
+    ))
+  }
+  literal <- function(x) as.character(DBI::dbQuoteString(conexion, x))
+  condicion_esquema <- if (is.na(piezas$esquema) || !nzchar(piezas$esquema)) {
+    "pg_catalog.pg_table_is_visible(c.oid)"
+  } else {
+    paste0("n.nspname = ", literal(piezas$esquema))
+  }
+  condicion_columnas <- paste(
+    vapply(columnas, literal, character(1L), USE.NAMES = FALSE),
+    collapse = ", "
+  )
+  sql <- paste0(
+    "SELECT s.attname AS lupa_columna, ",
+    "s.n_distinct AS lupa_n_distinct, c.reltuples AS lupa_n_filas ",
+    "FROM pg_catalog.pg_stats AS s ",
+    "JOIN pg_catalog.pg_class AS c ON c.relname = s.tablename ",
+    "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace ",
+    "AND n.nspname = s.schemaname ",
+    "WHERE s.tablename = ", literal(piezas$tabla),
+    " AND ", condicion_esquema,
+    " AND s.attname IN (", condicion_columnas, ")"
+  )
+  consulta <- .consultar_dbi(
+    conexion, sql, presupuesto, etapa = "cardinalidad_catalogo"
+  )
+  if (!isTRUE(consulta$ok) || is.null(consulta$datos)) {
+    motivo <- paste(
+      "No se pudo leer `pg_stats.n_distinct`:",
+      if (isTRUE(consulta$ok)) "la consulta no devolvio una tabla." else
+        consulta$motivo
+    )
+    return(list(
+      disponible = FALSE, estimaciones = vacias, fuentes = vacias,
+      sql = sql, motivo = motivo
+    ))
+  }
+  datos <- consulta$datos
+  nombre_columna <- .campo_resultado_dbi(datos, "lupa_columna")
+  nombre_distintos <- .campo_resultado_dbi(datos, "lupa_n_distinct")
+  nombre_filas <- .campo_resultado_dbi(datos, "lupa_n_filas")
+  estimaciones <- vector("list", length(columnas))
+  fuentes <- vector("list", length(columnas))
+  names(estimaciones) <- columnas
+  names(fuentes) <- columnas
+  for (columna in columnas) {
+    fila <- if (is.na(nombre_columna) || !nrow(datos)) {
+      integer()
+    } else {
+      which(tolower(as.character(datos[[nombre_columna]])) == tolower(columna))
+    }
+    fila <- if (length(fila)) fila[[1L]] else NA_integer_
+    raw <- if (!is.na(fila) && !is.na(nombre_distintos)) {
+      .numero_dbi(datos[[nombre_distintos]][fila])
+    } else {
+      NA_real_
+    }
+    filas_catalogo <- if (!is.na(fila) && !is.na(nombre_filas)) {
+      .numero_dbi(datos[[nombre_filas]][fila])
+    } else {
+      NA_real_
+    }
+    interpretacion <- if (is.na(fila)) {
+      .interpretar_n_distintos_catalogo_dbi(NA_real_, NA_real_, columna)
+    } else {
+      .interpretar_n_distintos_catalogo_dbi(raw, filas_catalogo, columna)
+    }
+    estimaciones[[columna]] <- list(
+      disponible = interpretacion$disponible,
+      n_distintos = interpretacion$n_distintos,
+      n_filas = interpretacion$n_filas,
+      n_distintos_catalogo = interpretacion$n_distintos_catalogo,
+      proporcion_distintos = interpretacion$proporcion_distintos,
+      motivo = interpretacion$motivo, sql = sql,
+      fuente = "pg_stats.n_distinct"
+    )
+    fuentes[[columna]] <- if (isTRUE(interpretacion$disponible)) {
+      list(
+        nombre = "estimacion_catalogo", exacta = FALSE,
+        n_distintos = interpretacion$n_distintos,
+        n_filas = interpretacion$n_filas,
+        proporcion_distintos = interpretacion$proporcion_distintos,
+        motivo = interpretacion$motivo,
+        fuente = "pg_stats.n_distinct"
+      )
+    } else {
+      .fuente_cardinalidad_desconocida_dbi()
+    }
+  }
+  disponibles <- vapply(
+    estimaciones, function(x) isTRUE(x$disponible), logical(1L)
+  )
+  list(
+    disponible = any(disponibles), estimaciones = estimaciones,
+    fuentes = fuentes, sql = sql,
+    motivo = if (any(disponibles)) paste(
+      "Se leyo `pg_stats.n_distinct` como estimacion de catalogo;",
+      "no es una medicion del universo de la tabla y puede faltar sin ANALYZE."
+    ) else paste(
+      "No hay estimaciones utilizables de `pg_stats.n_distinct`; puede no",
+      "haberse ejecutado ANALYZE. No se supone cero."
+    )
   )
 }
 
 .resolver_estrategia_distintos_dbi <- function(conexion, estrategia,
-                                               presupuesto, hay_metrica) {
+                                               presupuesto, hay_metrica,
+                                               tabla = NULL, columnas = NULL) {
   if (!isTRUE(hay_metrica)) {
     estrategia$estado <- "no_solicitado"
     estrategia$motivo <- paste(
@@ -2941,13 +3113,21 @@
       }
     },
     catalogo = {
-      estrategia$estado <- "no_disponible"
-      estrategia$motivo <- paste(
-        "La procedencia `catalogo` esta declarada, pero la estadistica de",
-        "cardinalidad del catalogo aun no esta implementada. `pg_stats` puede",
-        "consultarse para estimar memoria y avisar un derrame, pero no para",
-        "medir ni publicar `n_distintos`."
+      catalogo <- .estimar_distintos_catalogo_dbi(
+        conexion, tabla, columnas, presupuesto
       )
+      estrategia$estimaciones <- catalogo$estimaciones
+      estrategia$fuentes <- catalogo$fuentes
+      estrategia$sql_catalogo <- catalogo$sql
+      estrategia$disponible <- isTRUE(catalogo$disponible)
+      estrategia$motivo <- catalogo$motivo
+      if (isTRUE(catalogo$disponible)) {
+        estrategia$estrategia_resuelta <- "pg_stats.n_distinct"
+        estrategia$estado <- "estimado_catalogo"
+        estrategia$error_esperado <- "desconocido"
+      } else {
+        estrategia$estado <- "no_disponible"
+      }
     },
     omitida = {
       estrategia$estado <- "omitida"
@@ -2970,7 +3150,13 @@
     publica = isTRUE(estrategia$publica),
     para_costo = isTRUE(estrategia$para_costo),
     requiere_medicion = isTRUE(estrategia$requiere_medicion),
-    sondas = estrategia$sondas
+    sondas = estrategia$sondas,
+    fuente = if (identical(estrategia$estado, "estimado_catalogo")) {
+      "pg_stats.n_distinct"
+    } else {
+      NA_character_
+    },
+    sql_catalogo = estrategia$sql_catalogo
   )
 }
 
@@ -3260,7 +3446,16 @@
   } else {
     NA_real_
   }
-  if (!is.null(fuente$proporcion_distintos) &&
+  distintos_fuente <- .numero_dbi(fuente$n_distintos)
+  if (is.finite(distintos_fuente) && distintos_fuente >= 0) {
+    distintos <- distintos_fuente
+    if (is.finite(fuente$proporcion_distintos)) {
+      proporcion <- as.numeric(fuente$proporcion_distintos)
+    } else if (is.finite(validos) && validos > 0) {
+      proporcion <- distintos / validos
+    }
+    detalle$fuente_cardinalidad_costo <- fuente$nombre
+  } else if (!is.null(fuente$proporcion_distintos) &&
       is.finite(fuente$proporcion_distintos)) {
     proporcion <- as.numeric(fuente$proporcion_distintos)
     if (!is.finite(validos) && proporcion == 1) validos <- NA_real_
@@ -3344,6 +3539,12 @@
 .resolver_fuentes_cardinalidad_dbi <- function(conexion, tabla, columnas,
                                                estrategia, presupuesto) {
   fuentes <- .fuentes_cardinalidad_vacias_dbi(columnas)
+  if (identical(estrategia$estrategia_solicitada, "catalogo") &&
+      is.list(estrategia$fuentes)) {
+    for (columna in intersect(names(fuentes), names(estrategia$fuentes))) {
+      fuentes[[columna]] <- estrategia$fuentes[[columna]]
+    }
+  }
   # La clave se lee siempre para publicarla en `meta$clave`. Su resultado solo
   # gobierna la politica de costo cuando esa politica lo necesita.
   piezas <- .piezas_tabla_cardinalidad_dbi(tabla)
@@ -4839,7 +5040,8 @@
     agregados$conteos[[columna]]
   } else {
     pide_distintos <- "distintos" %in% metricas &&
-      isTRUE(estrategia_distintos$disponible)
+      isTRUE(estrategia_distintos$disponible) &&
+      !identical(estrategia_distintos$estado, "estimado_catalogo")
     .conteos_columna_dbi(
       conexion, tabla_sql, columna_sql, alias,
       "validos" %in% metricas, pide_distintos, presupuesto,
@@ -4903,7 +5105,35 @@
         estrategia_distintos$motivo, metadatos = metadatos
       )
     } else {
-      distintos <- conteos$distintos
+      distintos <- if (identical(
+        estrategia_distintos$estado, "estimado_catalogo"
+      )) {
+        estimacion <- estrategia_distintos$estimaciones[[columna]]
+        if (is.null(estimacion) || !isTRUE(estimacion$disponible)) {
+          list(
+            ok = FALSE, valor = NULL,
+            motivo = if (is.null(estimacion)) paste0(
+              "No se obtuvo una estimacion de `pg_stats.n_distinct` para `",
+              columna, "`."
+            ) else estimacion$motivo,
+            sql = NA_character_, estado = NULL,
+            metadatos = list(fuente = "pg_stats.n_distinct")
+          )
+        } else {
+          list(
+            ok = TRUE, valor = estimacion$n_distintos,
+            motivo = estimacion$motivo, sql = NA_character_,
+            estado = "estimado_catalogo",
+            metadatos = list(
+              fuente = "pg_stats.n_distinct",
+              n_distintos_catalogo = estimacion$n_distintos_catalogo,
+              n_filas_catalogo = estimacion$n_filas
+            )
+          )
+        }
+      } else {
+        conteos$distintos
+      }
       if (is.null(distintos)) {
         distintos <- list(
           ok = FALSE, valor = NULL,
@@ -4921,6 +5151,10 @@
         )
         if (identical(estrategia_distintos$estado, "estimado_motor")) {
           distintos$estado <- "estimado_motor"
+        } else if (identical(
+          estrategia_distintos$estado, "estimado_catalogo"
+        )) {
+          distintos$estado <- "estimado_catalogo"
         }
         candidato <- .conteo_dbi(distintos$valor)
         guardian <- .guardian_distintos_dbi(distintos)
@@ -4942,9 +5176,11 @@
           motivo_cota <- NA_character_
         } else if (isTRUE(publica_distintos)) {
           fila$n_distintos <- candidato
-          if (!is.na(fila$n_distintos) && guardian$comprobable &&
-              guardian$valor > 0) {
-            denominador <- guardian$valor
+          denominador <- if (guardian$comprobable) guardian$valor else {
+            .numero_dbi(fila$n_validos)
+          }
+          if (!is.na(fila$n_distintos) && is.finite(denominador) &&
+              denominador > 0) {
             fila$tasa_distintos <- .numero_dbi(fila$n_distintos) / denominador
           }
         }
@@ -6336,11 +6572,13 @@
 #' corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
 #' `auto`: `"exacta"` es el valor por omisión, `"aproximada_motor"` queda
 #' `no_disponible` si el motor no ofrece una función aceptada, `"catalogo"`
-#' queda `no_disponible` hasta implementar su estadística de cardinalidad y
-#' `"omitida"` no
-#' emite el agregado. `fuente_cardinalidad_costo` sigue siendo independiente y
-#' sólo describe el número usado por la política de costo cuando esa política
-#' se pide.
+#' lee `pg_stats.n_distinct` en PostgreSQL y publica una estimación con estado
+#' `estimado_catalogo`, y `"omitida"` no emite el agregado. Un `n_distinct`
+#' positivo es un conteo y uno negativo una fracción de las filas; `-1` se
+#' convierte con `pg_class.reltuples`. Si falta una estimación utilizable —por
+#' ejemplo, antes de `ANALYZE`— se conserva `no_disponible`, nunca cero.
+#' `fuente_cardinalidad_costo` sigue siendo independiente y sólo describe el
+#' número usado por la política de costo cuando esa política se pide.
 #'
 #' El plan previo no proyecta segundos para `COUNT(DISTINCT)`: no lee los datos
 #' y, por tanto, no tiene una referencia medida. La única referencia honesta es
@@ -7742,7 +7980,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   )
   estrategia_distintos <- .resolver_estrategia_distintos_dbi(
     conexion, estrategia_distintos,
-    presupuesto, "distintos" %in% metricas
+    presupuesto, "distintos" %in% metricas,
+    tabla = tabla, columnas = campos
   )
   fuentes_cardinalidad_costo <- .fuentes_cardinalidad_vacias_dbi(campos)
   catalogo_cardinalidad <- NULL
@@ -7761,14 +8000,19 @@ print.plan_perfilado_dbi <- function(x, ...) {
   )
   muestreo_ejecutable <- !identical(modo, "muestreado") ||
     isTRUE(muestreo$disponible)
-  estrategia_distintos$requiere_medicion <-
+  estrategia_distintos$requiere_medicion <- if (identical(
+    estrategia_distintos$estado, "estimado_catalogo"
+  )) {
+    FALSE
+  } else {
     (isTRUE(estrategia_distintos$publica) &&
        isTRUE(estrategia_distintos$disponible) &&
        isTRUE(muestreo_ejecutable) &&
        (identical(modo, "muestreado") || any(fuentes_no_exactas))) ||
-    (isTRUE(estrategia_distintos$para_costo) &&
+      (isTRUE(estrategia_distintos$para_costo) &&
        isTRUE(estrategia_distintos$disponible) &&
        isTRUE(muestreo_ejecutable) && any(fuentes_no_exactas))
+  }
   # Una estrategia no disponible no abre una segunda oportunidad para ejecutar
   # el conteo exacto. Se quita de la ejecucion, pero queda en `metricas` para
   # que el resumen publique el motivo de la ausencia.
@@ -7879,7 +8123,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
       any(es_numerico) && any(metricas %in% c("basicos", "desvio"))
   )
   columnas_distintos_ejecucion <- if ("distintos" %in% metricas) {
-    if (isTRUE(estrategia_distintos$publica)) {
+    if (identical(estrategia_distintos$estado, "estimado_catalogo")) {
+      character()
+    } else if (isTRUE(estrategia_distintos$publica)) {
       campos
     } else {
       campos[vapply(
@@ -8223,12 +8469,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @param estrategia_distintos Procedencia explícita para `n_distintos`:
 #'   `"exacta"` (por omisión) emite `COUNT(DISTINCT)`; `"aproximada_motor"`
 #'   usa una función nativa aceptada por el motor y deja la métrica en
-#'   `no_disponible` si no existe; `"catalogo"` queda declarada pero
-#'   `no_disponible` hasta implementar la estadística del catálogo; y
+#'   `no_disponible` si no existe; `"catalogo"` lee
+#'   `pg_stats.n_distinct` en PostgreSQL y publica el resultado como
+#'   `estimado_catalogo`, nunca como medición; y
 #'   `"omitida"` no emite ninguna consulta. No hay repliegue automático entre
 #'   estrategias. El resultado publica `estrategia_solicitada`,
 #'   `estrategia_resuelta` y `estado` en `meta$estrategia_distintos`, y las dos
-#'   primeras también en `resumen_tabla$sql`.
+#'   primeras también en `resumen_tabla$sql`. En `pg_stats`, un valor positivo
+#'   es el conteo estimado y uno negativo es una fracción de las filas; por eso
+#'   `-1` se combina con `pg_class.reltuples` y nunca se publica como cardinalidad
+#'   negativa. Si no hay una fila utilizable —por ejemplo, antes de `ANALYZE`—
+#'   la métrica queda `no_disponible`, no en cero.
 #' @param max_consultas Presupuesto declarado de consultas. Al agotarse, las
 #'   métricas restantes quedan en `no_disponible` con ese motivo.
 #' @param tamano_lote Cantidad máxima de columnas por consulta consolidada.
