@@ -45,6 +45,8 @@
 .muestra_tabla_datos <- function(datos, filas) {
   indices <- if (!length(filas) || !is.finite(filas) || filas >= nrow(datos)) {
     seq_len(nrow(datos))
+  } else if (filas == 0) {
+    integer()
   } else {
     .muestrear_vector(seq_len(nrow(datos)), filas)$valores
   }
@@ -184,12 +186,24 @@
   if (!isTRUE(alcance$recortada)) {
     return(.cobertura_diagnosticos_vacia())
   }
-  motivo <- paste0(
+  detalles <- paste0(
     "La muestra se redujo de ", alcance$filas_solicitadas, " a ",
-    alcance$filas_efectivas, " filas; celdas observadas: ",
-    alcance$celdas_solicitadas, " (umbral ", alcance$max_celdas_muestra,
-    "); bytes observados en la muestra efectiva: ", alcance$bytes_muestra,
-    " (umbral ", alcance$max_bytes_muestra, "). Motivos: ",
+    alcance$filas_efectivas, " filas"
+  )
+  if (is.finite(alcance$max_celdas_muestra)) {
+    detalles <- paste0(
+      detalles, "; celdas observadas: ", alcance$celdas_solicitadas,
+      " (umbral ", alcance$max_celdas_muestra, ")"
+    )
+  }
+  if (is.finite(alcance$max_bytes_muestra)) {
+    detalles <- paste0(
+      detalles, "; bytes observados en la muestra efectiva: ",
+      alcance$bytes_muestra, " (umbral ", alcance$max_bytes_muestra, ")"
+    )
+  }
+  motivo <- paste0(
+    detalles, ". Motivos: ",
     if (length(alcance$motivos)) paste(alcance$motivos, collapse = "; ") else
       "el tope efectivo de la muestra"
   )

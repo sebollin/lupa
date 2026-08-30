@@ -56,6 +56,8 @@ perfilar(
   max_trabajo_vocabulario = 2e+10,
   max_trabajo_dependencias = 1e+08,
   max_largo_valor_vocabulario = .MAX_LARGO_VALOR_CASI_DUPLICADOS,
+  max_celdas_muestra = .MAX_CELDAS_MUESTRA,
+  max_bytes_muestra = .MAX_BYTES_MUESTRA,
   avisar_costo_tabla_ancha = TRUE,
   umbral_celdas_aviso_tabla_ancha = .UMBRAL_CELDAS_AVISO_TABLA_ANCHA
 )
@@ -360,6 +362,18 @@ distinguir de forma estable una diferencia local de muchas diferencias en
 textos largos. Una columna que supera el tope se declara completa fuera
 de alcance en \code{cobertura_diagnosticos}; no se recortan valores en silencio.
 \code{Inf} recupera explicitamente el comportamiento anterior sin tope.}
+
+\item{max_celdas_muestra}{Maximo de celdas que puede contener la muestra común
+de los diagnósticos que muestrean filas. Por defecto es \code{1000000}; se
+calcula como filas efectivas por columnas de la tabla. Si reduce la muestra,
+\code{cobertura_diagnosticos} informa las filas y celdas solicitadas, el umbral
+y el nuevo alcance. \code{Inf} desactiva este tope.}
+
+\item{max_bytes_muestra}{Maximo de bytes de la muestra materializada que
+alimenta los diagnósticos que muestrean filas. Por defecto es \code{512 MiB}.
+El tamaño se estima sobre una sonda de hasta cien filas y se comprueba sobre la
+muestra efectiva; si la cota reduce el alcance, \code{cobertura_diagnosticos}
+informa los bytes observados y el umbral. \code{Inf} desactiva este tope.}
 
 \item{avisar_costo_tabla_ancha}{Si es \code{TRUE}, avisa en sesiones interactivas
 cuando las celdas proyectadas superan \code{umbral_celdas_aviso_tabla_ancha}.

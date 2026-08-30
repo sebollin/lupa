@@ -1,5 +1,11 @@
 # lupa 0.1.0
 
+## Topes de la muestra en `perfilar()`
+
+- `perfilar()` acepta `max_celdas_muestra` y `max_bytes_muestra`. La muestra
+  común de los diagnósticos queda acotada por ambos topes, y cada reducción se
+  declara en `cobertura_diagnosticos` con el alcance observado y los umbrales.
+
 ## La clave que se publica es la de la tabla que se midió
 
 - Con un nombre sin calificar, `perfilar_dbi()` publicaba la clave primaria de
