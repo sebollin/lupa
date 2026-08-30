@@ -128,11 +128,11 @@ corrida mide un subconjunto; y
 \code{"omitida"} no emite ninguna consulta. No hay repliegue automático entre
 estrategias. El resultado publica \code{estrategia_solicitada},
 \code{estrategia_resuelta} y \code{estado} en \code{meta$estrategia_distintos}, y las dos
-primeras también en \code{resumen_tabla$sql}. En \code{pg_stats}, un valor
-positivo es el conteo estimado y uno negativo es una fracción de las filas.
-Cuando la relación tiene descendientes se elige \code{inherited = TRUE},
-porque esa fila describe lo que lee una consulta sin \code{ONLY}; una relación
-sin hijas usa su única fila propia. Las fracciones se convierten con la suma de
+primeras también en \code{resumen_tabla$sql}. En \code{pg_stats}, un valor positivo
+es el conteo estimado y uno negativo es una fracción de las filas. Cuando la
+relación tiene descendientes se elige \code{inherited = TRUE}, porque esa fila
+describe lo que lee una consulta sin \code{ONLY}; una relación sin hijas usa su
+única fila propia. Las fracciones se convierten con la suma de
 \code{pg_class.reltuples} de la jerarquía. Si no hay una fila utilizable —por
 ejemplo, antes de \code{ANALYZE}— o hay ambigüedad, la métrica queda
 \code{no_disponible}, no en cero.}
@@ -186,9 +186,9 @@ las filas, no la cardinalidad.}
 se emite el aviso de la mediana. Por omisión es \code{30}; \code{Inf} lo desactiva
 explícitamente. Cuando no existe una primera medición local, una sola
 mediana total usa la referencia de banco declarada de 68 ms por millón de
-filas de otra corrida. Si la consulta inicial que obtuvo las filas fue medida
-y da una cota mayor, se publica como cota de lectura, no como medición de
-mediana.}
+filas de otra corrida. Si la consulta inicial que obtuvo las filas fue
+medida y da una cota mayor, se publica como cota de lectura, no como
+medición de mediana.}
 
 \item{avisar_derrame_estimado}{Si es \code{TRUE}, avisa cuando un lote de
 \code{COUNT(DISTINCT)} supera la memoria efectiva y su tamaño estimado alcanza
@@ -383,9 +383,14 @@ agregados planos sobre la misma tabla y filtro —\code{COUNT(col)},
 mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
 por lote y cada consulta que trae \code{n_validos} lleva además
 \verb{COUNT(*) AS n_total_consulta} en la misma sentencia. La completitud usa ese
-denominador local, no el total de otro lote. El total del universo se conserva
-por separado cuando el perfil se calcula sobre una muestra. Si el lote
-completo es rechazado, sus mitades se sondean por bisección: los grupos
+denominador local, no el total de otro lote.
+La fusión conserva la medición, no una identidad bit a bit entre
+agrupamientos: la media y el desvío pueden diferir en el último bit según
+cómo se agrupen las sumas, porque la suma en punto flotante no es asociativa.
+
+El total del universo se conserva por separado cuando el perfil se calcula
+sobre una muestra. Si el lote completo es rechazado, sus mitades se sondean
+por bisección: los grupos
 aceptados se reutilizan como mediciones y las columnas culpables se reintentan
 por métrica, con su denominador local. Las fuentes \code{TABLESAMPLE} que necesitan
 el total del universo para escribir un porcentaje lo cuentan antes.

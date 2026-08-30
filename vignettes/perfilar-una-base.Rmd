@@ -48,10 +48,11 @@ vacía, por lo que no se publica cero ni se dispara `sin_valores`; `n` conserva
 el conteo de la tabla completa.
 `estrategia_distintos` es explícita: `"exacta"` es el valor por omisión y emite
 `COUNT(DISTINCT)`; `"aproximada_motor"` usa una función nativa sólo si el motor
-la acepta; `"catalogo"` queda `no_disponible` hasta implementar la estadística
-del catálogo; y `"omitida"` no emite la consulta. Una estrategia aproximada sin
-capacidad no se convierte en exacta. El resultado distingue la estrategia
-solicitada, la resuelta y su estado.
+la acepta; `"catalogo"` lee `pg_stats.n_distinct` en PostgreSQL y lo publica
+como estimación, con guardas de herencia y de modos muestreados; en otros
+motores queda `no_disponible` con su motivo; y `"omitida"` no emite la
+consulta. Una estrategia aproximada sin capacidad no se convierte en exacta.
+El resultado distingue la estrategia solicitada, la resuelta y su estado.
 
 Además, `id_muestra` identifica la consulta de datos que produjo cada métrica.
 Dos métricas con el mismo valor vieron exactamente las mismas filas y se pueden
@@ -90,6 +91,11 @@ Si sólo se necesitan los agregados del motor, `bloque_muestra =
 cobertura lo declara como `no_solicitado`, que no es un fallo. La lectura
 habitual se conserva con `bloque_muestra = "con_muestra"`, que es el valor por
 omisión.
+
+`max_celdas_muestra` y `max_bytes_muestra` acotan sólo el bloque
+`perfil_muestra`: el primero se resuelve con las columnas del esquema y el
+segundo con una sonda de hasta 100 filas, antes de leer el resto. Los agregados
+SQL conservan su alcance y la cobertura declara cuál tope redujo la muestra.
 
 ## Un ejemplo en memoria
 
@@ -513,6 +519,13 @@ que evitar, así que no se publica una proyección. La misma regla funciona si s
 pide sólo `metricas = "distintos"`. Sólo se muestra cuando supera 30 segundos y
 no pide confirmación, por lo que `perfilar_dbi()` no queda esperando en un
 guion.
+
+Los avisos de `moda` y `mediana` tienen interruptores y umbrales propios:
+`avisar_costo_moda`/`umbral_segundos_aviso_moda` proyectan por cardinalidad y
+`avisar_costo_mediana`/`umbral_segundos_aviso_mediana` proyectan por filas. Cada
+aviso llega antes de pagar la consulta y su proyección queda separada en
+`meta$costo_moda` o `meta$costo_mediana`; la fuente de cada cardinalidad se
+publica, incluso cuando proviene de una estimación de catálogo.
 
 `plan_perfilado_dbi()` no publica esa proyección temporal: no emite consultas de
 datos y, por lo tanto, no puede medir el primer lote. El plan lo declara

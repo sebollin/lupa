@@ -9358,9 +9358,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' mínimos, máximos, medias, ceros, negativos y desvío— comparten una consulta
 #' por lote y cada consulta que trae `n_validos` lleva además
 #' `COUNT(*) AS n_total_consulta` en la misma sentencia. La completitud usa ese
-#' denominador local, no el total de otro lote. El total del universo se conserva
-#' por separado cuando el perfil se calcula sobre una muestra. Si el lote
-#' completo es rechazado, sus mitades se sondean por bisección: los grupos
+#' denominador local, no el total de otro lote.
+#' La fusión conserva la medición, no una identidad bit a bit entre
+#' agrupamientos: la media y el desvío pueden diferir en el último bit según
+#' cómo se agrupen las sumas, porque la suma en punto flotante no es asociativa.
+#'
+#' El total del universo se conserva por separado cuando el perfil se calcula
+#' sobre una muestra. Si el lote completo es rechazado, sus mitades se sondean
+#' por bisección: los grupos
 #' aceptados se reutilizan como mediciones y las columnas culpables se reintentan
 #' por métrica, con su denominador local. Las fuentes `TABLESAMPLE` que necesitan
 #' el total del universo para escribir un porcentaje lo cuentan antes.

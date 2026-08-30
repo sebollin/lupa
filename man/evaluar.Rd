@@ -7,10 +7,9 @@
 evaluar(medicion, perfil)
 }
 \arguments{
-\item{medicion}{\strong{Primer argumento.} Data frame producido por
-\code{medir()}; puede reunir varias corridas si conserva sus
-\code{id_medicion}. No es el \code{perfil} descriptivo que devuelve
-\code{\link[=perfilar]{perfilar()}}.}
+\item{medicion}{\strong{Primer argumento.} Data frame producido por \code{medir()};
+puede reunir varias corridas si conserva sus \code{id_medicion}. No es el
+\code{perfil} descriptivo que devuelve \code{\link[=perfilar]{perfilar()}}.}
 
 \item{perfil}{\strong{Segundo argumento.} Objeto creado por
 \code{perfil_evaluacion()}, que reúne las reglas que se aplican a la medición.

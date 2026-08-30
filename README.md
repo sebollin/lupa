@@ -58,7 +58,7 @@ text, near-keys, constants and structural absence. On a reference bank with
 known defects it recovered 9 of 9 planted defects; on 43 clean tables it
 produced 0 error-severity findings.
 
-The current canonical vocabulary has 57 `tipo_hallazgo` names. The names are
+The current canonical vocabulary has 56 `tipo_hallazgo` names. The names are
 Spanish because they are part of the public API:
 
 ```text
@@ -326,10 +326,9 @@ engine rejects is recorded as unavailable with its reason — never as zero.
 | any other DBI-compatible engine | `portable` | fallback: `dbSendQuery()` + `dbFetch(n)` |
 
 The claim is reproducible: `benchmark/verificar_motor.R` takes any DBI
-connection and checks the six things the table promises — dialect resolved by
-probe, no unavailable metric in the five modes, the three statistics against R,
-the plan against the queries actually emitted, schema-qualified names by text and
-by `DBI::Id`, and a two-table collection.
+connection and checks five things — that the profile has five columns, the
+dialect is resolved by probe, the engine's mean agrees with R, the primary key
+is read from the catalogue, and coverage is returned as a table.
 
 What that script checks is **behaviour**, and it can be redone against any
 connection. The **timings** of those runs — the seconds and row reads that appear
@@ -683,12 +682,13 @@ measured.
 
 Distinct-count provenance is selected explicitly with `estrategia_distintos`.
 `"exacta"` is the default and emits `COUNT(DISTINCT)`; `"aproximada_motor"`
-uses a native function only when the engine accepts its probe; `"catalogo"` is
-declared but remains `no_disponible` until a catalogue statistic is implemented;
-and `"omitida"` emits no distinct-count query. An unavailable approximation does
-not silently become exact. The result separates the requested strategy, the
-resolved strategy, and its state in `meta$estrategia_distintos` and in the SQL
-rows.
+uses a native function only when the engine accepts its probe; `"catalogo"`
+reads PostgreSQL's `pg_stats.n_distinct` and publishes it as an estimate, with
+guards for inheritance and sampled modes; on other engines it is
+`no_disponible` with its reason; and `"omitida"` emits no distinct-count query.
+An unavailable approximation does not silently become exact. The result
+separates the requested strategy, the resolved strategy, and its state in
+`meta$estrategia_distintos` and in the SQL rows.
 
 The primary-key catalogue is queried on every run, even when the cost policy
 does not need cardinality. The response is published in

@@ -363,17 +363,18 @@ textos largos. Una columna que supera el tope se declara completa fuera
 de alcance en \code{cobertura_diagnosticos}; no se recortan valores en silencio.
 \code{Inf} recupera explicitamente el comportamiento anterior sin tope.}
 
-\item{max_celdas_muestra}{Maximo de celdas que puede contener la muestra común
-de los diagnósticos que muestrean filas. Por defecto es \code{1000000}; se
-calcula como filas efectivas por columnas de la tabla. Si reduce la muestra,
-\code{cobertura_diagnosticos} informa las filas y celdas solicitadas, el umbral
-y el nuevo alcance. \code{Inf} desactiva este tope.}
+\item{max_celdas_muestra}{Maximo de celdas que puede contener la muestra
+comun de los diagnosticos que muestrean filas. Por defecto es \code{1000000};
+se calcula como filas efectivas por columnas de la tabla. Si reduce la
+muestra, \code{cobertura_diagnosticos} informa las filas y celdas solicitadas,
+el umbral y el nuevo alcance. \code{Inf} desactiva este tope.}
 
 \item{max_bytes_muestra}{Maximo de bytes de la muestra materializada que
-alimenta los diagnósticos que muestrean filas. Por defecto es \code{512 MiB}.
-El tamaño se estima sobre una sonda de hasta cien filas y se comprueba sobre la
-muestra efectiva; si la cota reduce el alcance, \code{cobertura_diagnosticos}
-informa los bytes observados y el umbral. \code{Inf} desactiva este tope.}
+alimenta los diagnosticos que muestrean filas. Por defecto es \verb{512 MiB}.
+El tamaño se estima sobre una sonda de hasta cien filas y se comprueba
+sobre la muestra efectiva; si la cota reduce el alcance,
+\code{cobertura_diagnosticos} informa los bytes observados y el umbral. \code{Inf}
+desactiva este tope.}
 
 \item{avisar_costo_tabla_ancha}{Si es \code{TRUE}, avisa en sesiones interactivas
 cuando las celdas proyectadas superan \code{umbral_celdas_aviso_tabla_ancha}.

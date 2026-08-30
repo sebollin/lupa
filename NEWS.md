@@ -116,7 +116,7 @@
 - Los dos README ahora empiezan por el problema que resuelve `lupa`, los tipos
   de hallazgo que permiten ver más que un `summary()`, la cobertura medida de
   AGESIC, CEPAL e ISO 25012, los siete motores comprobados contra un motor real
-  y el recorrido mínimo para empezar. La documentación enumera los 57 nombres
+  y el recorrido mínimo para empezar. La documentación enumera los 56 nombres
   canónicos de `tipo_hallazgo`.
 - Los argumentos de `medir()`, `evaluar()` y `cobertura_analisis()` indican en
   qué posición se recibe cada objeto y distinguen el perfil descriptivo de
@@ -499,8 +499,9 @@ el método, el tamaño y la fracción. No se agregan cotas numéricas inventadas
   `estrategia_distintos` y `fuente_cardinalidad_costo`.
 - `perfilar_dbi()` ejecuta primero los agregados planos, luego el total exacto,
   los distintos, la moda y la mediana. `tamano_lote_planos` y
-  `tamano_lote_distintos` son independientes; este último es 1 por omisión
-  hasta contar con mediciones.
+  `tamano_lote_distintos` son independientes; este último es 2 por omisión,
+  valor medido en el servidor de referencia. La mención anterior a 1 queda
+  corregida aquí.
 
 ## Una clave heredada ya no se declara garantizada sobre otro universo
 

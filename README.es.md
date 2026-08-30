@@ -60,7 +60,7 @@ estructural. Sobre un banco de referencia con defectos conocidos recuperó 9 de
 9 defectos plantados; sobre 43 tablas limpias produjo 0 hallazgos de severidad
 error.
 
-El vocabulario canónico actual contiene 57 nombres de `tipo_hallazgo`. Los
+El vocabulario canónico actual contiene 56 nombres de `tipo_hallazgo`. Los
 nombres están en español porque forman parte de la API pública:
 
 ```text
@@ -334,11 +334,9 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 | cualquier otro compatible con DBI | `portable` | reserva: `dbSendQuery()` + `dbFetch(n)` |
 
 La afirmación es reproducible: `benchmark/verificar_motor.R` toma cualquier
-conexión DBI y comprueba las seis cosas que la tabla promete — dialecto resuelto
-por sonda, ninguna métrica no disponible en los cinco modos, los tres
-estadísticos contra R, el plan contra las consultas realmente emitidas, el
-nombre calificado con esquema por texto y por `DBI::Id`, y una colección de dos
-tablas.
+conexión DBI y comprueba cinco cosas — que el perfil tenga cinco columnas, que
+el dialecto se resuelva por sonda, que la media del motor coincida con R, que la
+clave primaria se lea del catálogo y que la cobertura sea una tabla.
 
 Lo que ese script comprueba es el **comportamiento**, y se puede rehacer contra
 cualquier conexión. Los **cronometrajes** de esas corridas —los segundos y las
@@ -420,8 +418,9 @@ declara que conserva las dos consultas.
 La procedencia de la cardinalidad se elige con `estrategia_distintos`, cuyo
 valor por omisión es `"exacta"`. `"exacta"` emite `COUNT(DISTINCT)` sobre las
 filas de la corrida; `"aproximada_motor"` usa una función nativa sólo si la
-sonda la acepta; `"catalogo"` está declarada pero queda `no_disponible` hasta
-implementar una estadística previa del catálogo; y `"omitida"` no emite la
+sonda la acepta; `"catalogo"` lee `pg_stats.n_distinct` en PostgreSQL, lo
+publica como estimación y aplica guardas de herencia y de modos muestreados; en
+otros motores queda `no_disponible` con su motivo; y `"omitida"` no emite la
 consulta. No hay repliegue silencioso entre estrategias: una aproximación sin
 capacidad queda `no_disponible`, no se convierte en un conteo exacto.
 

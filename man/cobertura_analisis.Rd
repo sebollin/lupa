@@ -7,18 +7,16 @@
 cobertura_analisis(perfil, medicion = NULL, modelo = marco_agesic())
 }
 \arguments{
-\item{perfil}{\strong{Primer argumento.} Objeto creado por
-\code{\link[=perfilar]{perfilar()}}; es el perfil descriptivo sobre cuyos
-factores se informa cobertura.}
+\item{perfil}{\strong{Primer argumento.} Objeto creado por \code{\link[=perfilar]{perfilar()}}; es el
+perfil descriptivo sobre cuyos factores se informa cobertura.}
 
 \item{medicion}{\strong{Segundo argumento, opcional.} Objeto creado por
-\code{\link[=medir]{medir()}}, con métricas ejecutadas que pueden completar esa
-cobertura. No es un perfil creado por \code{\link[=perfilar]{perfilar()}}.}
+\code{\link[=medir]{medir()}}, con métricas ejecutadas que pueden completar esa cobertura.
+No es un perfil creado por \code{\link[=perfilar]{perfilar()}}.}
 
-\item{modelo}{\strong{Tercer argumento.} Objeto creado por
-\code{\link[=marco_calidad]{marco_calidad()}} que actúa como referencia
-conceptual. El nombre enfatiza que no es el modelo operativo creado por
-\code{\link[=modelo]{modelo()}} que recibe \code{\link[=medir]{medir()}}.}
+\item{modelo}{\strong{Tercer argumento.} Objeto creado por \code{\link[=marco_calidad]{marco_calidad()}} que
+actúa como referencia conceptual. El nombre enfatiza que no es el modelo
+operativo creado por \code{\link[=modelo]{modelo()}} que recibe \code{\link[=medir]{medir()}}.}
 }
 \value{
 Data frame con \code{marco}, \code{dimension}, \code{factor}, \code{estado}, \code{motivo} y
