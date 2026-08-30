@@ -88,6 +88,8 @@ test_that("el valor por omision conserva el perfil anterior", {
     x$resumen_tabla$meta$instrumentacion <- NULL
     x$resumen_tabla$meta$derrame <- NULL
     x$resumen_tabla$meta$costo_distintos <- NULL
+    x$resumen_tabla$meta$costo_moda <- NULL
+    x$resumen_tabla$meta$costo_mediana <- NULL
     x
   }
   expect_identical(quitar_tiempos(por_omision), quitar_tiempos(explicito))

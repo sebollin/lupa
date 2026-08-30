@@ -600,6 +600,28 @@ Con un solo lote no queda trabajo que evitar, asi que no se publica una
 proyeccion. Por eso una peticion con `metricas = "distintos"` tambien recibe el
 aviso cuando hay varios lotes. Esta proyeccion temporal no usa `reltuples`.
 
+El mismo canal avisa ahora el costo de las dos metricas caras que faltaban:
+`moda` se proyecta por la suma de las cardinalidades de las columnas y
+`mediana` por la cantidad de filas. Cada una tiene su interruptor y su umbral
+en segundos, encendidos por omision a partir de 30 segundos:
+`avisar_costo_moda`/`umbral_segundos_aviso_moda` y
+`avisar_costo_mediana`/`umbral_segundos_aviso_mediana`. El aviso se emite antes
+de la consulta que se proyecta y queda en `meta$costo_moda` o
+`meta$costo_mediana`, separados de `meta$costo_distintos` porque cada
+proyeccion usa una unidad distinta.
+
+Cuando puede, la moda mide en esta corrida la primera consulta y usa sus ms
+por distinto para las columnas restantes. Si no hay cardinalidad exacta, usa
+la fuente disponible (por ejemplo, catalogo) y la declara; si no hay ninguna,
+la proyeccion queda no disponible. La mediana conoce las filas despues del
+primer conteo. La primera mediana medida sirve como referencia local para las
+restantes; si una sola mediana total no deja medicion local, usa la referencia
+de banco declarada de 68 ms por millon de filas, tomada de otra corrida. Esa
+referencia no se presenta como medicion de la corrida actual.
+Si la consulta inicial que obtuvo las filas fue medida y da una cota mayor,
+esa cota se publica aparte como lectura observada —no como medicion de mediana—
+para evitar el falso silencio de una tabla grande recién cargada.
+
 En PostgreSQL, la preparacion consulta ademas `pg_stats.n_distinct`,
 `pg_stats.avg_width`, `pg_class.reltuples` y la configuracion vigente de
 `work_mem` —mas `hash_mem_multiplier` desde PostgreSQL 13— para estimar el

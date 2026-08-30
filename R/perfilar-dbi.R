@@ -134,10 +134,25 @@
   # costo: son unidades diferentes.
   estado$referencias_distintos <- list()
   estado$proyeccion_distintos <- NULL
-  # Los dos avisos se controlan por separado porque hablan de magnitudes
-  # incompatibles: segundos de servidor y bytes de memoria. No hay un porton
-  # comun que permita silenciar uno sin ocultar el otro; la interfaz publica
-  # conserva ese control selectivo sin introducir mas estados de medicion.
+  # La moda y la mediana tienen sus propios relojes de referencia: agrupar se
+  # proyecta por distinto y ordenar por fila. Las referencias mueren con esta
+  # corrida, igual que la de `COUNT(DISTINCT)`.
+  estado$referencias_moda <- list()
+  estado$proyeccion_moda <- NULL
+  estado$referencias_mediana <- list()
+  estado$proyeccion_mediana <- NULL
+  estado$medianas_pendientes <- NULL
+  # La consulta que deja disponible el conteo puede servir como cota de la
+  # lectura de cada mediana. No es una tasa de mediana y nunca reemplaza la
+  # referencia local o bancaria; solo evita que una referencia bancaria corta
+  # deje silencioso un ordenamiento que ya sabemos que debe recorrer las filas.
+  estado$duracion_lectura_mediana <- NA_real_
+  estado$aviso_moda_emitido <- FALSE
+  estado$aviso_mediana_emitido <- FALSE
+  # Los avisos se controlan por separado porque hablan de magnitudes y de
+  # familias de trabajo incompatibles: segundos de servidor para distintos,
+  # moda y mediana, y bytes para memoria. No hay un porton comun que permita
+  # silenciar uno sin ocultar el otro.
   estado$avisar_costo_distintos <- TRUE
   estado$umbral_segundos_aviso_distintos <- .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI
   estado$avisar_derrame_estimado <- TRUE
@@ -249,6 +264,412 @@
   )
 }
 
+.registrar_referencia_moda_dbi <- function(
+    presupuesto, consulta, n_distintos, columna = NA_character_) {
+  if (is.null(presupuesto) || !isTRUE(consulta$ok) ||
+      is.null(consulta$consulta_id) || length(consulta$consulta_id) != 1L ||
+      is.na(consulta$consulta_id) || is.null(consulta$duracion_ms) ||
+      length(consulta$duracion_ms) != 1L || is.na(consulta$duracion_ms) ||
+      !is.finite(consulta$duracion_ms) || consulta$duracion_ms <= 0) {
+    return(invisible(NULL))
+  }
+  distintos <- .numero_dbi(n_distintos)
+  if (length(distintos) != 1L || is.na(distintos) || !is.finite(distintos) ||
+      distintos <= 0) {
+    return(invisible(NULL))
+  }
+  id <- as.character(consulta$consulta_id)
+  referencias <- presupuesto$referencias_moda
+  referencias[[id]] <- list(
+    consulta_id = as.integer(consulta$consulta_id),
+    columna = as.character(columna),
+    duracion_ms = as.numeric(consulta$duracion_ms),
+    n_distintos = distintos,
+    ms_por_distinto = as.numeric(consulta$duracion_ms) / distintos
+  )
+  presupuesto$referencias_moda <- referencias
+  invisible(NULL)
+}
+
+.proyeccion_moda_vacia_dbi <- function(
+    motivo = paste(
+      "No hay una duracion medida de una moda y una cardinalidad utilizable",
+      "en esta corrida; no se publica una proyeccion temporal."
+    ), columnas_sin_cardinalidad = character()) {
+  list(
+    disponible = FALSE, duracion_estimada_ms = NA_real_,
+    duracion_referencia_ms = NA_real_, n_distintos_proyectados = NA_real_,
+    n_columnas = 0L, n_referencias = 0L, fuente = NA_character_,
+    columnas_sin_cardinalidad = as.character(columnas_sin_cardinalidad),
+    fuentes_cardinalidad = character(),
+    motivo = motivo
+  )
+}
+
+.proyectar_costo_moda_dbi <- function(presupuesto, cardinalidades) {
+  if (is.null(cardinalidades)) {
+    return(.proyeccion_moda_vacia_dbi(
+      "No se recibio la cardinalidad de las columnas pendientes; no se puede proyectar la moda."
+    ))
+  }
+  if (is.numeric(cardinalidades)) {
+    cardinalidades <- lapply(cardinalidades, function(valor) list(
+      disponible = is.finite(valor) && valor >= 0,
+      n_distintos = as.numeric(valor), fuente = "medicion"
+    ))
+  }
+  if (!is.list(cardinalidades) || !length(cardinalidades)) {
+    return(.proyeccion_moda_vacia_dbi(
+      "No hay modas pendientes con cardinalidad; no se publica una proyeccion."
+    ))
+  }
+  nombres <- names(cardinalidades)
+  if (is.null(nombres)) nombres <- rep(NA_character_, length(cardinalidades))
+  cardinalidad <- vapply(cardinalidades, function(x) {
+    if (!is.list(x)) return(NA_real_)
+    if (!is.null(x$disponible) && !isTRUE(x$disponible)) return(NA_real_)
+    valor <- .numero_dbi(x$n_distintos)
+    if (length(valor) != 1L || is.na(valor) || !is.finite(valor) || valor < 0) {
+      NA_real_
+    } else valor
+  }, numeric(1L))
+  disponibles <- is.finite(cardinalidad) & cardinalidad >= 0
+  sin_cardinalidad <- nombres[!disponibles]
+  if (!any(disponibles)) {
+    return(.proyeccion_moda_vacia_dbi(
+      paste(
+        "No se puede proyectar el costo de la moda porque falta la cardinalidad",
+        "de todas las columnas pendientes.",
+        if (length(sin_cardinalidad)) paste(
+          "Columnas:", paste(sin_cardinalidad, collapse = ", ")
+        ) else ""
+      ),
+      columnas_sin_cardinalidad = sin_cardinalidad
+    ))
+  }
+  referencias <- if (is.null(presupuesto)) list() else presupuesto$referencias_moda
+  if (is.null(referencias) || !length(referencias)) {
+    return(.proyeccion_moda_vacia_dbi(
+      paste(
+        "No hay una primera moda medida en esta corrida para convertir la",
+        "cardinalidad en tiempo; no se puede proyectar la moda.",
+        if (length(sin_cardinalidad)) paste(
+          "Tambien falta cardinalidad para:", paste(sin_cardinalidad, collapse = ", ")
+        ) else ""
+      ),
+      columnas_sin_cardinalidad = sin_cardinalidad
+    ))
+  }
+  tasas <- vapply(referencias, function(x) {
+    valor <- .numero_dbi(x$ms_por_distinto)
+    if (length(valor) != 1L || is.na(valor) || !is.finite(valor) || valor <= 0) {
+      duracion <- .numero_dbi(x$duracion_ms)
+      distintos <- .numero_dbi(x$n_distintos)
+      if (length(duracion) == 1L && is.finite(duracion) &&
+          length(distintos) == 1L && is.finite(distintos) && distintos > 0) {
+        valor <- duracion / distintos
+      }
+    }
+    if (length(valor) != 1L || is.na(valor) || !is.finite(valor) || valor <= 0) {
+      NA_real_
+    } else valor
+  }, numeric(1L))
+  tasas <- tasas[is.finite(tasas) & tasas > 0]
+  if (!length(tasas)) {
+    return(.proyeccion_moda_vacia_dbi(
+      "Las modas ya medidas no tienen una duracion utilizable para convertir la cardinalidad.",
+      columnas_sin_cardinalidad = sin_cardinalidad
+    ))
+  }
+  referencia <- stats::median(tasas)
+  unidades <- sum(cardinalidad[disponibles])
+  estimada <- referencia * unidades
+  if (!is.finite(estimada)) {
+    return(.proyeccion_moda_vacia_dbi(
+      "La proyeccion de la moda no es finita; no se publica un numero.",
+      columnas_sin_cardinalidad = sin_cardinalidad
+    ))
+  }
+  fuentes_disponibles <- vapply(cardinalidades[disponibles], function(x) {
+    if (is.list(x) && !is.null(x$fuente) && length(x$fuente) &&
+        !is.na(x$fuente[[1L]])) {
+      as.character(x$fuente[[1L]])
+    } else {
+      "fuente no declarada"
+    }
+  }, character(1L))
+  motivo <- paste(
+    "La proyeccion usa la mediana de las tasas ms por distinto de las modas",
+    "medidas en esta corrida y la multiplica por la cardinalidad disponible",
+    "de las columnas pendientes. Fuentes de cardinalidad:",
+    paste(unique(fuentes_disponibles), collapse = ", "), ".",
+    if (length(sin_cardinalidad)) paste(
+      "No incluye las columnas sin cardinalidad:", paste(sin_cardinalidad, collapse = ", "),
+      "por lo que es parcial."
+    ) else ""
+  )
+  list(
+    disponible = TRUE, duracion_estimada_ms = estimada,
+    duracion_referencia_ms = referencia,
+    n_distintos_proyectados = unidades,
+    n_columnas = as.integer(sum(disponibles)),
+    n_referencias = as.integer(length(tasas)),
+    fuente = paste(
+      "mediana de", length(tasas),
+      "moda(s) medida(s) en esta corrida (ms por distinto)"
+    ),
+    columnas_sin_cardinalidad = as.character(sin_cardinalidad),
+    fuentes_cardinalidad = unique(fuentes_disponibles),
+    motivo = motivo
+  )
+}
+
+.avisar_costo_moda_dbi <- function(
+    proyeccion, habilitado = TRUE,
+    umbral_segundos = .UMBRAL_SEGUNDOS_AVISO_MODA_DBI) {
+  habilitado <- .validar_interruptor_aviso_dbi(habilitado, "habilitado")
+  umbral_segundos <- .validar_umbral_aviso_dbi(
+    umbral_segundos, "umbral_segundos"
+  )
+  if (is.null(proyeccion) || !isTRUE(proyeccion$disponible) ||
+      !isTRUE(habilitado) || !is.finite(umbral_segundos) ||
+      is.na(proyeccion$duracion_estimada_ms) ||
+      proyeccion$duracion_estimada_ms < umbral_segundos * 1000) {
+    return(invisible(FALSE))
+  }
+  detalle <- if (length(proyeccion$columnas_sin_cardinalidad)) paste(
+    " La proyeccion es parcial porque no hay cardinalidad para:",
+    paste(proyeccion$columnas_sin_cardinalidad, collapse = ", "), "."
+  ) else ""
+  detalle_fuente <- if (length(proyeccion$fuentes_cardinalidad)) paste(
+    " Fuentes de cardinalidad:",
+    paste(proyeccion$fuentes_cardinalidad, collapse = ", "), "."
+  ) else ""
+  cli::cli_alert_warning(paste0(
+    "Costo estimado de la moda: ~",
+    .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
+    proyeccion$n_columnas, " columna(s). Fuente: ", proyeccion$fuente,
+    ". Es una estimacion, no una medicion.", detalle_fuente, detalle
+  ))
+  invisible(TRUE)
+}
+
+.cardinalidad_aviso_moda_dbi <- function(
+    columna, agregados, fuentes = NULL, n_total = NA_real_) {
+  conteo <- if (!is.null(agregados) && !is.null(agregados$conteos)) {
+    agregados$conteos[[columna]]
+  } else NULL
+  valor <- if (!is.null(conteo) && !is.null(conteo$distintos)) {
+    .numero_dbi(conteo$distintos$valor)
+  } else NA_real_
+  if (length(valor) == 1L && is.finite(valor) && !is.na(valor) && valor >= 0) {
+    return(list(
+      disponible = TRUE, n_distintos = valor, fuente = "medicion de la corrida",
+      motivo = "La cardinalidad sale del agregado disponible antes de la moda."
+    ))
+  }
+  fuente <- if (is.null(fuentes)) NULL else fuentes[[columna]]
+  valor <- if (is.null(fuente)) NA_real_ else .numero_dbi(fuente$n_distintos)
+  if (length(valor) != 1L || is.na(valor) || !is.finite(valor) || valor < 0) {
+    proporcion <- if (is.null(fuente)) NA_real_ else
+      .numero_dbi(fuente$proporcion_distintos)
+    total <- .numero_dbi(n_total)
+    if (!is.null(fuente) && isTRUE(fuente$exacta) &&
+        is.finite(proporcion) && proporcion == 1 &&
+        length(total) == 1L && is.finite(total) && !is.na(total)) {
+      valor <- total
+    }
+  }
+  if (length(valor) == 1L && is.finite(valor) && !is.na(valor) && valor >= 0) {
+    return(list(
+      disponible = TRUE, n_distintos = valor,
+      fuente = if (is.null(fuente$nombre)) "fuente estructural" else fuente$nombre,
+      motivo = if (is.null(fuente$motivo)) NA_character_ else fuente$motivo
+    ))
+  }
+  motivo <- if (is.null(fuente) || is.null(fuente$motivo)) {
+    "No hay cardinalidad medida, estructural ni de catalogo para esta columna."
+  } else {
+    as.character(fuente$motivo)
+  }
+  list(
+    disponible = FALSE, n_distintos = NA_real_,
+    fuente = if (is.null(fuente) || is.null(fuente$nombre)) {
+      "desconocida"
+    } else fuente$nombre,
+    motivo = paste(
+      "No se puede proyectar el costo de la moda porque falta la cardinalidad;",
+      motivo
+    )
+  )
+}
+
+.registrar_referencia_mediana_dbi <- function(
+    presupuesto, consulta, n_filas, n_medianas = 1L) {
+  if (is.null(presupuesto) || !isTRUE(consulta$ok) ||
+      is.null(consulta$consulta_id) || length(consulta$consulta_id) != 1L ||
+      is.na(consulta$consulta_id) || is.null(consulta$duracion_ms) ||
+      length(consulta$duracion_ms) != 1L || is.na(consulta$duracion_ms) ||
+      !is.finite(consulta$duracion_ms) || consulta$duracion_ms <= 0) {
+    return(invisible(NULL))
+  }
+  filas <- .numero_dbi(n_filas)
+  medianas <- .numero_dbi(n_medianas)
+  if (length(filas) != 1L || is.na(filas) || !is.finite(filas) || filas <= 0 ||
+      length(medianas) != 1L || is.na(medianas) || !is.finite(medianas) ||
+      medianas <= 0) {
+    return(invisible(NULL))
+  }
+  id <- as.character(consulta$consulta_id)
+  referencias <- presupuesto$referencias_mediana
+  referencias[[id]] <- list(
+    consulta_id = as.integer(consulta$consulta_id),
+    n_filas = filas, n_medianas = as.integer(medianas),
+    duracion_ms = as.numeric(consulta$duracion_ms),
+    ms_por_fila = as.numeric(consulta$duracion_ms) / (filas * medianas)
+  )
+  presupuesto$referencias_mediana <- referencias
+  invisible(NULL)
+}
+
+.proyeccion_mediana_vacia_dbi <- function(
+    motivo = paste(
+      "No hay una duracion medida de mediana en esta corrida y no se",
+      "publica una proyeccion temporal."
+    )) {
+  list(
+    disponible = FALSE, duracion_estimada_ms = NA_real_,
+    duracion_referencia_ms = NA_real_, ms_por_fila = NA_real_,
+    n_filas = NA_real_, n_medianas = 0L, n_referencias = 0L,
+    fuente = NA_character_, referencia_declarada = FALSE,
+    cota_lectura_ms = NA_real_, motivo = motivo
+  )
+}
+
+.proyectar_costo_mediana_dbi <- function(
+    presupuesto, n_filas, n_medianas, usar_referencia_banco = FALSE) {
+  filas <- .numero_dbi(n_filas)
+  medianas <- .numero_dbi(n_medianas)
+  vacia <- .proyeccion_mediana_vacia_dbi()
+  if (length(filas) != 1L || is.na(filas) || !is.finite(filas) || filas <= 0 ||
+      length(medianas) != 1L || is.na(medianas) || !is.finite(medianas) ||
+      medianas < 1) {
+    vacia$motivo <- "No hay un numero utilizable de filas o medianas pendientes; no se puede proyectar la mediana."
+    return(vacia)
+  }
+  referencias <- if (is.null(presupuesto)) list() else presupuesto$referencias_mediana
+  tasas <- if (length(referencias)) vapply(referencias, function(x) {
+    valor <- .numero_dbi(x$ms_por_fila)
+    if (length(valor) != 1L || is.na(valor) || !is.finite(valor) || valor <= 0) {
+      duracion <- .numero_dbi(x$duracion_ms)
+      filas_referencia <- .numero_dbi(x$n_filas)
+      medianas_referencia <- .numero_dbi(x$n_medianas)
+      if (length(duracion) == 1L && is.finite(duracion) &&
+          length(filas_referencia) == 1L && is.finite(filas_referencia) &&
+          filas_referencia > 0 && length(medianas_referencia) == 1L &&
+          is.finite(medianas_referencia) && medianas_referencia > 0) {
+        valor <- duracion / (filas_referencia * medianas_referencia)
+      }
+    }
+    if (length(valor) != 1L || is.na(valor) || !is.finite(valor) || valor <= 0) {
+      NA_real_
+    } else valor
+  }, numeric(1L)) else numeric()
+  tasas <- tasas[is.finite(tasas) & tasas > 0]
+  declarada <- FALSE
+  if (length(tasas)) {
+    referencia <- stats::median(tasas)
+    fuente <- paste(
+      "mediana de", length(tasas),
+      "consulta(s) de mediana medida(s) en esta corrida (ms por fila)"
+    )
+    motivo <- paste(
+      "La proyeccion usa la mediana de las tasas ms por fila de las",
+      "medianas medidas en esta corrida y la multiplica por las filas y",
+      "medianas pendientes."
+    )
+  } else if (isTRUE(usar_referencia_banco)) {
+    referencia <- .REFERENCIA_BANCO_MEDIANA_MS_POR_MILLON_FILAS_DBI / 1e6
+    fuente <- paste(
+      "referencia de banco de otra corrida:",
+      .REFERENCIA_BANCO_MEDIANA_MS_POR_MILLON_FILAS_DBI,
+      "ms por millon de filas"
+    )
+    motivo <- paste(
+      "No hubo una primera medicion local de mediana en esta corrida; se",
+      "usa la referencia de banco declarada de otra corrida, no como una",
+      "medicion local."
+    )
+    declarada <- TRUE
+  } else {
+    vacia$motivo <- paste(
+      "Todavia no hay una primera medicion local de mediana para convertir",
+      "las filas en tiempo; la referencia de banco solo se usa cuando no hay",
+      "una mediana total local que pueda proyectarse."
+    )
+    return(vacia)
+  }
+  estimada <- referencia * filas * medianas
+  cota_lectura <- NA_real_
+  if (isTRUE(declarada) && !is.null(presupuesto)) {
+    lectura <- .numero_dbi(presupuesto$duracion_lectura_mediana)
+    if (length(lectura) == 1L && is.finite(lectura) && lectura > 0) {
+      cota_lectura <- lectura * medianas
+      if (is.finite(cota_lectura) && cota_lectura > estimada) {
+        estimada <- cota_lectura
+        fuente <- paste(
+          fuente,
+          paste0(
+            "cota de lectura observada en la consulta inicial (",
+            .segundos_dbi(lectura), " s)"
+          ),
+          sep = "; "
+        )
+        motivo <- paste(
+          motivo,
+          "La proyeccion no baja de la cota observada de lectura de la consulta que obtuvo las filas; esa cota no es una medicion de mediana.",
+          sep = " "
+        )
+      }
+    }
+  }
+  if (!is.finite(estimada)) {
+    vacia$motivo <- "La proyeccion de la mediana no es finita; no se publica un numero."
+    return(vacia)
+  }
+  list(
+    disponible = TRUE, duracion_estimada_ms = estimada,
+    duracion_referencia_ms = referencia * filas * medianas,
+    ms_por_fila = referencia, n_filas = filas,
+    n_medianas = as.integer(medianas), n_referencias = as.integer(length(tasas)),
+    fuente = fuente, referencia_declarada = declarada,
+    cota_lectura_ms = cota_lectura, motivo = motivo
+  )
+}
+
+.avisar_costo_mediana_dbi <- function(
+    proyeccion, habilitado = TRUE,
+    umbral_segundos = .UMBRAL_SEGUNDOS_AVISO_MEDIANA_DBI) {
+  habilitado <- .validar_interruptor_aviso_dbi(habilitado, "habilitado")
+  umbral_segundos <- .validar_umbral_aviso_dbi(
+    umbral_segundos, "umbral_segundos"
+  )
+  if (is.null(proyeccion) || !isTRUE(proyeccion$disponible) ||
+      !isTRUE(habilitado) || !is.finite(umbral_segundos) ||
+      is.na(proyeccion$duracion_estimada_ms) ||
+      proyeccion$duracion_estimada_ms < umbral_segundos * 1000) {
+    return(invisible(FALSE))
+  }
+  cli::cli_alert_warning(paste0(
+    "Costo estimado de la mediana: ~",
+    .segundos_dbi(proyeccion$duracion_estimada_ms), " s para ",
+    proyeccion$n_medianas, " mediana(s) sobre ",
+    .entero_sql_dbi(proyeccion$n_filas), " filas. Fuente: ",
+    proyeccion$fuente, ". ", proyeccion$motivo
+  ))
+  invisible(TRUE)
+}
+
 .segundos_dbi <- function(milisegundos) {
   if (is.null(milisegundos) || length(milisegundos) != 1L ||
       is.na(milisegundos) || !is.finite(milisegundos)) return("sin dato")
@@ -257,6 +678,9 @@
 }
 
 .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI <- 30
+.UMBRAL_SEGUNDOS_AVISO_MODA_DBI <- 30
+.UMBRAL_SEGUNDOS_AVISO_MEDIANA_DBI <- 30
+.REFERENCIA_BANCO_MEDIANA_MS_POR_MILLON_FILAS_DBI <- 68
 .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI <- 0
 # Nombre interno histórico, expresado en milisegundos como lo estaba antes de
 # que el umbral público pasara a declarar su unidad en segundos.
@@ -4254,7 +4678,9 @@
 
 .medianas_lote_consolidadas_dbi <- function(
     conexion, tabla_sql, lote, nombres_sql, alias, numero, candidato,
-    presupuesto, estado = NULL) {
+    presupuesto, estado = NULL, n_filas = NA_real_,
+    n_medianas_pendientes = length(lote),
+    usar_referencia_banco = FALSE) {
   aliases <- vapply(seq_along(lote), function(i) {
     .alias_agregado_dbi(alias, "mediana", numero, i)
   }, character(1L), USE.NAMES = FALSE)
@@ -4262,8 +4688,31 @@
     candidato$expresion(nombres_sql[[lote[[i]]]], aliases[[i]])
   }, character(1L), USE.NAMES = FALSE)
   sql <- candidato$construir_multiple(expresiones, tabla_sql)
+  if (!is.null(presupuesto)) {
+    proyeccion <- .proyectar_costo_mediana_dbi(
+      presupuesto, n_filas, n_medianas_pendientes,
+      usar_referencia_banco = usar_referencia_banco
+    )
+    if (isTRUE(proyeccion$disponible)) {
+      presupuesto$proyeccion_mediana <- proyeccion
+      if (!isTRUE(presupuesto$aviso_mediana_emitido)) {
+        avisado <- .avisar_costo_mediana_dbi(
+          proyeccion,
+          habilitado = if (is.null(presupuesto$avisar_costo_mediana)) TRUE else
+            presupuesto$avisar_costo_mediana,
+          umbral_segundos = if (is.null(presupuesto$umbral_segundos_aviso_mediana)) {
+            .UMBRAL_SEGUNDOS_AVISO_MEDIANA_DBI
+          } else presupuesto$umbral_segundos_aviso_mediana
+        )
+        if (isTRUE(avisado)) presupuesto$aviso_mediana_emitido <- TRUE
+      }
+    }
+  }
   consulta <- .consultar_dbi(
     conexion, sql, presupuesto, etapa = "medianas_consolidadas"
+  )
+  .registrar_referencia_mediana_dbi(
+    presupuesto, consulta, n_filas = n_filas, n_medianas = length(lote)
   )
   salida <- vector("list", length(lote))
   names(salida) <- lote
@@ -4305,9 +4754,16 @@
   lotes <- .lotes_columnas_dbi(columnas, tamano_lote)
   for (numero in seq_along(lotes)) {
     lote <- lotes[[numero]]
+    pendientes <- sum(vapply(lotes[numero:length(lotes)], length, integer(1L)))
     resultado <- .medianas_lote_consolidadas_dbi(
       conexion, tabla_sql, lote, nombres_sql, alias, numero, candidato,
-      presupuesto, estado = estado
+      presupuesto, estado = estado,
+      n_filas = if (is.null(presupuesto)) NA_real_ else {
+        if (is.null(presupuesto$filas_mediana)) NA_real_ else
+          presupuesto$filas_mediana
+      },
+      n_medianas_pendientes = pendientes,
+      usar_referencia_banco = length(lotes) == 1L
     )
     # Si la forma consolidada falla sobre la consulta real, no se transforma
     # ese fallo en una `NA` calculada: el llamador deja el resultado ausente y
@@ -4316,6 +4772,21 @@
       if (!is.null(resultado$resultados[[columna]])) {
         salida[[columna]] <- resultado$resultados[[columna]]
       }
+    }
+    pendientes_estado <- if (is.null(presupuesto)) NA_real_ else
+      .numero_dbi(presupuesto$medianas_pendientes)
+    if (!is.null(presupuesto) && isTRUE(resultado$ok) &&
+        length(pendientes_estado) == 1L && is.finite(pendientes_estado)) {
+      presupuesto$medianas_pendientes <- max(
+        0, pendientes_estado - length(lote)
+      )
+    }
+    if (!is.null(presupuesto) && isTRUE(resultado$ok) &&
+        pendientes > length(lote)) {
+      proyeccion <- .proyectar_costo_mediana_dbi(
+        presupuesto, presupuesto$filas_mediana, pendientes - length(lote)
+      )
+      presupuesto$proyeccion_mediana <- proyeccion
     }
   }
   salida
@@ -5022,6 +5493,13 @@
     conteo$sql <- sql_total
     n_total <- .conteo_dbi(conteo$valor)
   }
+  if (!is.null(presupuesto) && !is.null(conteo) && isTRUE(conteo$ok)) {
+    duracion_lectura <- .numero_dbi(conteo$duracion_ms)
+    if (length(duracion_lectura) == 1L && is.finite(duracion_lectura) &&
+        duracion_lectura > 0) {
+      presupuesto$duracion_lectura_mediana <- duracion_lectura
+    }
+  }
   # Primero quedan disponibles los agregados planos y el total exacto que se
   # fusiona con su primera consulta. Despues se paga COUNT(DISTINCT),
   # que conserva su propia familia y su lote conservador.
@@ -5286,6 +5764,51 @@
     "El valor no se informa por `incluir_valores = FALSE`;",
     "la consulta no se emitio."
   )
+  filas_mediana <- if (es_muestreado) .numero_dbi(tamano_muestra) else
+    .numero_dbi(n_total)
+  preparar_aviso_mediana <- function() {
+    if (is.null(presupuesto)) return(invisible(NULL))
+    pendientes <- .numero_dbi(presupuesto$medianas_pendientes)
+    if (length(pendientes) != 1L || is.na(pendientes) ||
+        !is.finite(pendientes) || pendientes < 1) pendientes <- 1
+    proyeccion <- .proyectar_costo_mediana_dbi(
+      presupuesto, filas_mediana, pendientes,
+      usar_referencia_banco = pendientes == 1L
+    )
+    if (isTRUE(proyeccion$disponible)) {
+      presupuesto$proyeccion_mediana <- proyeccion
+      if (!isTRUE(presupuesto$aviso_mediana_emitido)) {
+        avisado <- .avisar_costo_mediana_dbi(
+          proyeccion,
+          habilitado = if (is.null(presupuesto$avisar_costo_mediana)) TRUE else
+            presupuesto$avisar_costo_mediana,
+          umbral_segundos = if (is.null(presupuesto$umbral_segundos_aviso_mediana)) {
+            .UMBRAL_SEGUNDOS_AVISO_MEDIANA_DBI
+          } else presupuesto$umbral_segundos_aviso_mediana
+        )
+        if (isTRUE(avisado)) presupuesto$aviso_mediana_emitido <- TRUE
+      }
+    }
+    invisible(NULL)
+  }
+  finalizar_mediana <- function(resultado) {
+    .registrar_referencia_mediana_dbi(
+      presupuesto, resultado, filas_mediana, n_medianas = 1L
+    )
+    if (!is.null(presupuesto)) {
+      pendientes <- .numero_dbi(presupuesto$medianas_pendientes)
+      if (isTRUE(resultado$ok) && length(pendientes) == 1L &&
+          is.finite(pendientes)) {
+        presupuesto$medianas_pendientes <- max(0, pendientes - 1L)
+      }
+      if (isTRUE(resultado$ok) && isTRUE(presupuesto$medianas_pendientes > 0)) {
+        presupuesto$proyeccion_mediana <- .proyectar_costo_mediana_dbi(
+          presupuesto, filas_mediana, presupuesto$medianas_pendientes
+        )
+      }
+    }
+    invisible(NULL)
+  }
 
   conteos <- if (!is.null(agregados) &&
                  !is.null(agregados$conteos[[columna]])) {
@@ -5724,9 +6247,11 @@
       sql_mediana <- aproximacion_mediana$construir(
         columna_sql, tabla_sql, alias("mediana")
       )
+      preparar_aviso_mediana()
       mediana <- .escalar_dbi(
         conexion, sql_mediana, "mediana", presupuesto, etapa = "mediana"
       )
+      finalizar_mediana(mediana)
       mediana$sql <- sql_mediana
       if (isTRUE(mediana$ok)) {
         mediana$estado <- "estimado"
@@ -5742,9 +6267,11 @@
         columna_sql, tabla_sql, alias("mediana"),
         materializar = es_muestreado
       )
+      preparar_aviso_mediana()
       mediana <- .escalar_dbi(
         conexion, sql_mediana, "mediana", presupuesto, etapa = "mediana"
       )
+      finalizar_mediana(mediana)
       mediana$sql <- sql_mediana
       mediana$metadatos <- list(metodo = mediana_escalar$nombre)
       if (isTRUE(mediana$ok)) {
@@ -5794,9 +6321,11 @@
           "SELECT AVG(", alias("valor"), " * 1.0) AS ", alias("mediana"),
           " FROM (", acotada, ")", dialecto$alias_tabla("lupa_mediana")
         )
+        preparar_aviso_mediana()
         mediana <- .escalar_dbi(
           conexion, sql_mediana, "mediana", presupuesto, etapa = "mediana"
         )
+        finalizar_mediana(mediana)
         if (mediana$ok) fila$mediana <- .escalar_finito_dbi(mediana$valor)
         mediana$sql <- sql_mediana
         mediana$metadatos <- list(metodo = "dos_consultas")
@@ -6034,12 +6563,42 @@
   ]
   modas <- vector("list", length(columnas_modas))
   names(modas) <- columnas_modas
-  for (campo in columnas_modas) {
+  for (posicion in seq_along(columnas_modas)) {
+    campo <- columnas_modas[[posicion]]
+    pendientes <- columnas_modas[posicion:length(columnas_modas)]
+    cardinalidades <- stats::setNames(lapply(pendientes, function(nombre) {
+      .cardinalidad_aviso_moda_dbi(
+        nombre, agregados, fuentes_cardinalidad_costo, n_total
+      )
+    }), pendientes)
+    if (!is.null(presupuesto)) {
+      proyeccion <- .proyectar_costo_moda_dbi(presupuesto, cardinalidades)
+      presupuesto$proyeccion_moda <- proyeccion
+      if (!isTRUE(presupuesto$aviso_moda_emitido)) {
+        avisado <- .avisar_costo_moda_dbi(
+          proyeccion,
+          habilitado = if (is.null(presupuesto$avisar_costo_moda)) TRUE else
+            presupuesto$avisar_costo_moda,
+          umbral_segundos = if (is.null(presupuesto$umbral_segundos_aviso_moda)) {
+            .UMBRAL_SEGUNDOS_AVISO_MODA_DBI
+          } else presupuesto$umbral_segundos_aviso_moda
+        )
+        if (isTRUE(avisado)) presupuesto$aviso_moda_emitido <- TRUE
+      }
+    }
     modas[[campo]] <- .moda_columna_dbi(
       conexion, tabla_metricas_sql,
       as.character(DBI::dbQuoteIdentifier(conexion, campo)),
       dialecto, presupuesto, moda_guardian = moda_guardian
     )
+    if (!is.null(presupuesto)) {
+      cardinalidad <- .cardinalidad_aviso_moda_dbi(
+        campo, agregados, fuentes_cardinalidad_costo, n_total
+      )
+      .registrar_referencia_moda_dbi(
+        presupuesto, modas[[campo]], cardinalidad$n_distintos, campo
+      )
+    }
   }
   columnas_medianas <- intersect(campos_consolidados, campos)
   columnas_medianas <- columnas_medianas[
@@ -6055,6 +6614,14 @@
   ]
   medianas <- vector("list", length(columnas_medianas))
   names(medianas) <- columnas_medianas
+  if (length(columnas_medianas) && !is.null(presupuesto)) {
+    presupuesto$filas_mediana <- if (identical(modo, "muestreado")) {
+      .numero_dbi(tamano_muestra)
+    } else {
+      .numero_dbi(n_total)
+    }
+    presupuesto$medianas_pendientes <- length(columnas_medianas)
+  }
   if (length(columnas_medianas) && !is.null(mediana_consolidada)) {
     medianas <- .medianas_consolidadas_dbi(
       conexion, tabla_metricas_sql, columnas_medianas,
@@ -8784,6 +9351,20 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' llega antes del segundo lote, en la unidad que se va a evitar; con un solo
 #' lote no hay nada que proyectar. Si la duración no se pudo medir, el resultado
 #' declara la proyección como no disponible.
+#' La moda tiene otro canal: después de cada moda medida se obtiene una tasa en
+#' ms por distinto y se usa para proyectar las modas pendientes. La cardinalidad
+#' se toma del agregado de la corrida, de una clave garantizada o de la
+#' estimación de catálogo que esté disponible; si falta, `meta$costo_moda` lo
+#' declara y no inventa un número. El aviso llega antes de la siguiente moda.
+#' La mediana se proyecta en ms por fila. La primera mediana medida en esta
+#' corrida sirve para proyectar las restantes y el aviso precede a ese trabajo.
+#' Si no existe una primera medición local para una mediana total, usa la
+#' referencia declarada de otra corrida de 68 ms por millón de filas.
+#' Si la consulta inicial que obtuvo las filas fue medida y resulta una cota
+#' mayor, se publica también esa cota de lectura —no como medición de mediana—
+#' para no subestimar una tabla grande recién cargada.
+#' Las dos proyecciones quedan separadas en `meta$costo_moda` y
+#' `meta$costo_mediana`; apagar el aviso no apaga su medición ni su metadata.
 #' Antes de la primera consulta exacta se estima, cuando PostgreSQL expone
 #' `pg_stats`, el tamaño de los hashes con `n_distinct`, `avg_width` y
 #' `pg_class.reltuples`; `SHOW work_mem` y, desde PostgreSQL 13,
@@ -8805,7 +9386,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Cada aviso DBI tiene su propio interruptor y umbral porque sus unidades no
 #' son comparables —segundos frente a bytes— y silenciar uno no debe ocultar el
 #' otro. Apagar un aviso no apaga ninguna medición: `meta$costo_distintos`,
-#' `meta$derrame` y `meta$estimacion_derrame` se publican igual.
+#' `meta$costo_moda`, `meta$costo_mediana`, `meta$derrame` y
+#' `meta$estimacion_derrame` se publican igual.
 #' Lo que no entra en el presupuesto queda en `no_disponible` con su motivo,
 #' nunca en cero. `meta$tamano_lote_funciono` conserva el mayor lote aceptado
 #' durante esa corrida; no se guarda estado global asociado a la conexión.
@@ -8992,6 +9574,24 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   explícitamente. Con un solo lote no se publica una proyección porque el
 #'   costo ya se pagó. El valor no cambia la proyección ni la medición que se
 #'   publica.
+#' @param avisar_costo_moda Si es `TRUE`, avisa antes de ejecutar las modas
+#'   pendientes cuando su proyección alcanza `umbral_segundos_aviso_moda`. Por
+#'   omisión es `TRUE`. La tasa se mide con modas anteriores de esta corrida;
+#'   si falta cardinalidad, se declara en la proyección y no se supone.
+#' @param umbral_segundos_aviso_moda Segundos estimados a partir de los cuales
+#'   se emite el aviso de la moda. Por omisión es `30`; `Inf` lo desactiva
+#'   explícitamente. El valor no cambia la medición ni la proyección publicada.
+#' @param avisar_costo_mediana Si es `TRUE`, avisa antes de ejecutar las
+#'   medianas pendientes cuando su proyección alcanza
+#'   `umbral_segundos_aviso_mediana`. Por omisión es `TRUE`. La proyección sigue
+#'   las filas, no la cardinalidad.
+#' @param umbral_segundos_aviso_mediana Segundos estimados a partir de los cuales
+#'   se emite el aviso de la mediana. Por omisión es `30`; `Inf` lo desactiva
+#'   explícitamente. Cuando no existe una primera medición local, una sola
+#'   mediana total usa la referencia de banco declarada de 68 ms por millón de
+#'   filas de otra corrida. Si la consulta inicial que obtuvo las filas fue
+#'   medida y da una cota mayor, se publica como cota de lectura, no como
+#'   medición de mediana.
 #' @param avisar_derrame_estimado Si es `TRUE`, avisa cuando un lote de
 #'   `COUNT(DISTINCT)` supera la memoria efectiva y su tamaño estimado alcanza
 #'   `umbral_bytes_aviso_derrame_estimado`. Por omisión es `TRUE`. Este aviso
@@ -9063,6 +9663,12 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                          avisar_costo_distintos = TRUE,
                          umbral_segundos_aviso_distintos =
                            .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI,
+                         avisar_costo_moda = TRUE,
+                         umbral_segundos_aviso_moda =
+                           .UMBRAL_SEGUNDOS_AVISO_MODA_DBI,
+                         avisar_costo_mediana = TRUE,
+                         umbral_segundos_aviso_mediana =
+                           .UMBRAL_SEGUNDOS_AVISO_MEDIANA_DBI,
                          avisar_derrame_estimado = TRUE,
                          umbral_bytes_aviso_derrame_estimado =
                            .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
@@ -9080,6 +9686,18 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   )
   umbral_segundos_aviso_distintos <- .validar_umbral_aviso_dbi(
     umbral_segundos_aviso_distintos, "umbral_segundos_aviso_distintos"
+  )
+  avisar_costo_moda <- .validar_interruptor_aviso_dbi(
+    avisar_costo_moda, "avisar_costo_moda"
+  )
+  umbral_segundos_aviso_moda <- .validar_umbral_aviso_dbi(
+    umbral_segundos_aviso_moda, "umbral_segundos_aviso_moda"
+  )
+  avisar_costo_mediana <- .validar_interruptor_aviso_dbi(
+    avisar_costo_mediana, "avisar_costo_mediana"
+  )
+  umbral_segundos_aviso_mediana <- .validar_umbral_aviso_dbi(
+    umbral_segundos_aviso_mediana, "umbral_segundos_aviso_mediana"
   )
   avisar_derrame_estimado <- .validar_interruptor_aviso_dbi(
     avisar_derrame_estimado, "avisar_derrame_estimado"
@@ -9106,6 +9724,10 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   presupuesto$avisar_costo_distintos <- avisar_costo_distintos
   presupuesto$umbral_segundos_aviso_distintos <-
     umbral_segundos_aviso_distintos
+  presupuesto$avisar_costo_moda <- avisar_costo_moda
+  presupuesto$umbral_segundos_aviso_moda <- umbral_segundos_aviso_moda
+  presupuesto$avisar_costo_mediana <- avisar_costo_mediana
+  presupuesto$umbral_segundos_aviso_mediana <- umbral_segundos_aviso_mediana
   presupuesto$avisar_derrame_estimado <- avisar_derrame_estimado
   presupuesto$umbral_bytes_aviso_derrame_estimado <-
     umbral_bytes_aviso_derrame_estimado
@@ -9232,6 +9854,8 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   )
   resumen$meta$derrame <- derrame
   resumen$meta$costo_distintos <- presupuesto$proyeccion_distintos
+  resumen$meta$costo_moda <- presupuesto$proyeccion_moda
+  resumen$meta$costo_mediana <- presupuesto$proyeccion_mediana
   if (identical(preparacion$politica_costo$nombre, "por_cardinalidad")) {
     decisiones <- resumen$meta$decisiones_costo
     columnas_moda <- names(decisiones)[vapply(

@@ -24,6 +24,10 @@ perfilar_dbi(
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
   avisar_costo_distintos = TRUE,
   umbral_segundos_aviso_distintos = .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI,
+  avisar_costo_moda = TRUE,
+  umbral_segundos_aviso_moda = .UMBRAL_SEGUNDOS_AVISO_MODA_DBI,
+  avisar_costo_mediana = TRUE,
+  umbral_segundos_aviso_mediana = .UMBRAL_SEGUNDOS_AVISO_MEDIANA_DBI,
   avisar_derrame_estimado = TRUE,
   umbral_bytes_aviso_derrame_estimado = .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
   max_celdas_muestra = .MAX_CELDAS_MUESTRA,
@@ -163,6 +167,28 @@ lote. Por omisión es \code{30}, el umbral histórico; \code{Inf} lo desactiva
 explícitamente. Con un solo lote no se publica una proyección porque el
 costo ya se pagó. El valor no cambia la proyección ni la medición que se
 publica.}
+
+\item{avisar_costo_moda}{Si es \code{TRUE}, avisa antes de ejecutar las modas
+pendientes cuando su proyección alcanza \code{umbral_segundos_aviso_moda}. Por
+omisión es \code{TRUE}. La tasa se mide con modas anteriores de esta corrida;
+si falta cardinalidad, se declara en la proyección y no se supone.}
+
+\item{umbral_segundos_aviso_moda}{Segundos estimados a partir de los cuales
+se emite el aviso de la moda. Por omisión es \code{30}; \code{Inf} lo desactiva
+explícitamente. El valor no cambia la medición ni la proyección publicada.}
+
+\item{avisar_costo_mediana}{Si es \code{TRUE}, avisa antes de ejecutar las
+medianas pendientes cuando su proyección alcanza
+\code{umbral_segundos_aviso_mediana}. Por omisión es \code{TRUE}. La proyección sigue
+las filas, no la cardinalidad.}
+
+\item{umbral_segundos_aviso_mediana}{Segundos estimados a partir de los cuales
+se emite el aviso de la mediana. Por omisión es \code{30}; \code{Inf} lo desactiva
+explícitamente. Cuando no existe una primera medición local, una sola
+mediana total usa la referencia de banco declarada de 68 ms por millón de
+filas de otra corrida. Si la consulta inicial que obtuvo las filas fue medida
+y da una cota mayor, se publica como cota de lectura, no como medición de
+mediana.}
 
 \item{avisar_derrame_estimado}{Si es \code{TRUE}, avisa cuando un lote de
 \code{COUNT(DISTINCT)} supera la memoria efectiva y su tamaño estimado alcanza
@@ -373,6 +399,20 @@ ejecutarlo, se multiplica su mediana por la cantidad total de lotes. El aviso
 llega antes del segundo lote, en la unidad que se va a evitar; con un solo
 lote no hay nada que proyectar. Si la duración no se pudo medir, el resultado
 declara la proyección como no disponible.
+La moda tiene otro canal: después de cada moda medida se obtiene una tasa en
+ms por distinto y se usa para proyectar las modas pendientes. La cardinalidad
+se toma del agregado de la corrida, de una clave garantizada o de la
+estimación de catálogo que esté disponible; si falta, \code{meta$costo_moda} lo
+declara y no inventa un número. El aviso llega antes de la siguiente moda.
+La mediana se proyecta en ms por fila. La primera mediana medida en esta
+corrida sirve para proyectar las restantes y el aviso precede a ese trabajo.
+Si no existe una primera medición local para una mediana total, usa la
+referencia declarada de otra corrida de 68 ms por millón de filas.
+Si la consulta inicial que obtuvo las filas fue medida y resulta una cota
+mayor, se publica también esa cota de lectura —no como medición de mediana—
+para no subestimar una tabla grande recién cargada.
+Las dos proyecciones quedan separadas en \code{meta$costo_moda} y
+\code{meta$costo_mediana}; apagar el aviso no apaga su medición ni su metadata.
 Antes de la primera consulta exacta se estima, cuando PostgreSQL expone
 \code{pg_stats}, el tamaño de los hashes con \code{n_distinct}, \code{avg_width} y
 \code{pg_class.reltuples}; \verb{SHOW work_mem} y, desde PostgreSQL 13,
@@ -394,7 +434,8 @@ sesiones interactivas para no convertir la salida de un guion en ruido.
 Cada aviso DBI tiene su propio interruptor y umbral porque sus unidades no
 son comparables —segundos frente a bytes— y silenciar uno no debe ocultar el
 otro. Apagar un aviso no apaga ninguna medición: \code{meta$costo_distintos},
-\code{meta$derrame} y \code{meta$estimacion_derrame} se publican igual.
+\code{meta$costo_moda}, \code{meta$costo_mediana}, \code{meta$derrame} y
+\code{meta$estimacion_derrame} se publican igual.
 Lo que no entra en el presupuesto queda en \code{no_disponible} con su motivo,
 nunca en cero. \code{meta$tamano_lote_funciono} conserva el mayor lote aceptado
 durante esa corrida; no se guarda estado global asociado a la conexión.

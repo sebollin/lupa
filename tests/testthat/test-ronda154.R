@@ -51,6 +51,8 @@ test_that("cero CPU medido no se confunde con una medicion ausente", {
   x$resumen_tabla$meta$instrumentacion <- NULL
   x$resumen_tabla$meta$derrame <- NULL
   x$resumen_tabla$meta$costo_distintos <- NULL
+  x$resumen_tabla$meta$costo_moda <- NULL
+  x$resumen_tabla$meta$costo_mediana <- NULL
   x
 }
 

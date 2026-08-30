@@ -472,6 +472,29 @@ batch there is nothing left to avoid, so no projection is published. A request
 with `metricas = "distintos"` therefore still receives the warning when there
 are multiple batches. This time projection does not use `reltuples`.
 
+The same channel now announces the cost of the two expensive metrics that were
+missing: `mode` is projected from the sum of the columns' cardinalities, and
+`median` from the row count. Each has its own switch and seconds threshold,
+enabled by default from 30 seconds:
+`avisar_costo_moda`/`umbral_segundos_aviso_moda` and
+`avisar_costo_mediana`/`umbral_segundos_aviso_mediana`. The warning is emitted
+before the projected query runs and remains in `meta$costo_moda` or
+`meta$costo_mediana`, separate from `meta$costo_distintos` because each
+projection follows a different cost dimension.
+
+When possible, mode measures the first query in the current run and uses its
+milliseconds per distinct value for the remaining columns. If exact
+cardinality is unavailable, it uses whatever source exists (for example, the
+catalog) and says so; with no source, the projection is unavailable. Median
+knows the row count after the first count. The first measured median becomes
+the local reference for the remaining ones; if a single total median leaves no
+local measurement, it uses the declared bank reference of 68 ms per million
+rows, taken from another run. That reference is never presented as a
+measurement of the current run.
+If the initial query that obtained the row count was measured and gives a
+higher bound, that bound is also published as observed reading time —not as a
+median measurement—so a freshly loaded large table does not stay falsely quiet.
+
 On PostgreSQL, preparation also reads `pg_stats.n_distinct`,
 `pg_stats.avg_width`, `pg_class.reltuples` and the session's `work_mem` — plus
 `hash_mem_multiplier` from PostgreSQL 13 on — to estimate the size of the

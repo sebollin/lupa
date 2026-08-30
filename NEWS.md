@@ -1,5 +1,23 @@
 # lupa 0.1.0
 
+## Avisos DBI para moda y mediana
+
+- `perfilar_dbi()` agrega `avisar_costo_moda` con
+  `umbral_segundos_aviso_moda` y `avisar_costo_mediana` con
+  `umbral_segundos_aviso_mediana`, encendidos por omision y con umbral de 30
+  segundos. Los avisos se emiten antes de pagar la consulta proyectada.
+- La moda se proyecta por cardinalidad y la mediana por filas. Las referencias
+  locales se miden durante la corrida; cuando no hay una medicion local de
+  mediana se usa, declarada como referencia de otra corrida, la tasa de 68 ms
+  por millon de filas. La cardinalidad faltante para moda queda declarada y no
+  se inventa.
+- Si la consulta inicial que obtuvo las filas fue medida y da una cota mayor
+  que la referencia bancaria, se publica como cota de lectura observada y se
+  usa para no subestimar una mediana grande; no se presenta como medicion de
+  mediana.
+- Las proyecciones quedan separadas en `meta$costo_moda` y
+  `meta$costo_mediana`, junto con el ya existente `meta$costo_distintos`.
+
 ## Una muestra vacía no publica métricas no medidas
 
 - Cuando la consulta de `modo = "muestreado"` devuelve cero filas, las métricas
