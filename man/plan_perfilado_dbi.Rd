@@ -97,9 +97,12 @@ devuelto: sus costos siguen siendo predicciones. Por omisión es \code{FALSE}.}
 \item{estrategia_distintos}{Procedencia explícita para \code{n_distintos}:
 \code{"exacta"} (por omisión) emite \code{COUNT(DISTINCT)}; \code{"aproximada_motor"}
 usa una función nativa aceptada por el motor y deja la métrica en
-\code{no_disponible} si no existe; \code{"catalogo"} queda declarada pero
-lee \code{pg_stats.n_distinct} en PostgreSQL y publica el resultado como
-\code{estimado_catalogo}, nunca como medición; y
+\code{no_disponible} si no existe; \code{"catalogo"} lee
+\code{pg_stats.n_distinct} en PostgreSQL y publica el resultado como
+\code{estimado_catalogo}, nunca como medición, cuando el modo mide la relación
+entera (\code{exacto}, \code{seguro} o \code{conteos}). En \code{muestreado} y \code{aproximado}
+queda \code{no_disponible}, porque el catálogo describe la relación entera y la
+corrida mide un subconjunto; y
 \code{"omitida"} no emite ninguna consulta. No hay repliegue automático entre
 estrategias. El resultado publica \code{estrategia_solicitada},
 \code{estrategia_resuelta} y \code{estado} en \code{meta$estrategia_distintos}, y las dos
@@ -108,8 +111,8 @@ positivos son conteos y los negativos fracciones de las filas. Cuando la
 relación tiene descendientes se elige \code{inherited = TRUE}, porque esa fila
 describe lo que lee una consulta sin \code{ONLY}; una relación sin hijas usa su
 única fila propia. Las fracciones se convierten con la suma de
-\code{pg_class.reltuples} de la jerarquía. Si no hay una estimación utilizable
-—por ejemplo, antes de \code{ANALYZE}— o hay ambigüedad, queda
+\code{pg_class.reltuples} de la jerarquía. Si no hay una fila utilizable —por
+ejemplo, antes de \code{ANALYZE}— o hay ambigüedad, la métrica queda
 \code{no_disponible}, no en cero.}
 
 \item{politica_costo}{Política optativa para las métricas caras. El valor por
@@ -232,14 +235,20 @@ cardinalidad medida ni reemplaza la medición posterior.
 corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
 \code{auto}: \code{"exacta"} es el valor por omisión, \code{"aproximada_motor"} queda
 \code{no_disponible} si el motor no ofrece una función aceptada, \code{"catalogo"}
-lee \code{pg_stats.n_distinct} en PostgreSQL, convierte los valores negativos
-con \code{pg_class.reltuples} y publica una estimación con estado
-\code{estimado_catalogo}; si falta una estadística utilizable queda
-\code{no_disponible}, nunca cero. En otros motores queda no disponible porque
-no hay una fuente portable. \code{"omitida"} no emite el agregado.
-\code{fuente_cardinalidad_costo} sigue siendo independiente y
-sólo describe el número usado por la política de costo cuando esa política
-se pide.
+lee \code{pg_stats.n_distinct} en PostgreSQL y publica una estimación con estado
+\code{estimado_catalogo} cuando el modo mide la relación entera (\code{exacto},
+\code{seguro} o \code{conteos}), y \code{"omitida"} no emite el agregado. En
+\code{muestreado} y \code{aproximado}, \code{catalogo} queda
+\code{no_disponible}: sus estadísticas describen la relación entera y no el
+subconjunto de la corrida. Un \code{n_distinct} positivo es un conteo y uno
+negativo una fracción de las filas. Si la
+relación tiene descendientes se usa la fila \code{inherited = TRUE}, que describe
+la consulta sin \code{ONLY}; si no tiene hijas se usa la única fila propia. La
+fracción se convierte con la suma de \code{pg_class.reltuples} de la jerarquía.
+Si falta una estimación utilizable —por ejemplo, antes de \code{ANALYZE}— o hay
+filas ambiguas, se conserva \code{no_disponible}, nunca cero.
+\code{fuente_cardinalidad_costo} sigue siendo independiente y sólo describe el
+número usado por la política de costo cuando esa política se pide.
 
 El plan previo no proyecta segundos para \code{COUNT(DISTINCT)}: no lee los datos
 y, por tanto, no tiene una referencia medida. La única referencia honesta es

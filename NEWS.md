@@ -35,11 +35,15 @@
 ## `estrategia_distintos = "catalogo"` en PostgreSQL
 
 - `perfilar_dbi()` y `plan_perfilado_dbi()` leen `pg_stats.n_distinct` y
-  publican sus resultados como estimaciones de catálogo. Los valores negativos
-  se convierten con la suma de `pg_class.reltuples` de la jerarquía que lee una
+  publican sus resultados como estimaciones de catálogo en los modos que miden
+  la relación entera (`exacto`, `seguro` y `conteos`). Los valores negativos se
+  convierten con la suma de `pg_class.reltuples` de la jerarquía que lee una
   consulta sin `ONLY`; si la relación tiene descendientes se elige
-  `inherited = TRUE` y, sin hijas, la única fila `FALSE`. Si falta `ANALYZE`,
-  el denominador de la jerarquía no es utilizable o hay ambigüedad, el resultado
+  `inherited = TRUE` y, sin hijas, la única fila `FALSE`. En `muestreado` y
+  `aproximado`, la estrategia queda `no_disponible`: el catálogo describe la
+  relación entera y la corrida mide un subconjunto, así que no se publica la
+  cardinalidad de un universo como si fuera la del otro. Si falta `ANALYZE`, el
+  denominador de la jerarquía no es utilizable o hay ambigüedad, el resultado
   queda `no_disponible` y no se reemplaza por cero.
 
 ## Validación de claves

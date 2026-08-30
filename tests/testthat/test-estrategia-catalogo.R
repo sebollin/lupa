@@ -28,6 +28,71 @@ test_that("catalogo no esconde un valor negativo no interpretable", {
   expect_match(sin_estadistica$motivo, "ANALYZE")
 })
 
+test_that("catalogo se degrada fuera del universo completo", {
+  for (modo in c("muestreado", "aproximado")) {
+    estrategia <- lupa:::.estrategia_distintos_dbi(
+      "distintos", list(nombre = "todas"), TRUE, "catalogo"
+    )
+    salida <- lupa:::.resolver_estrategia_distintos_dbi(
+      conexion = NULL, estrategia = estrategia, presupuesto = NULL,
+      hay_metrica = TRUE, tabla = "tabla", columnas = "valor", modo = modo
+    )
+
+    expect_identical(salida$estado, "no_disponible")
+    expect_false(salida$disponible)
+    expect_true(is.na(salida$estrategia_resuelta))
+    expect_match(salida$motivo, "relacion entera")
+    expect_match(salida$motivo, "subconjunto")
+    expect_match(salida$motivo, "universo")
+  }
+})
+
+test_that("el plan publica la degradacion de catalogo antes de correr", {
+  testthat::skip_if_not_installed("DBI")
+  testthat::skip_if_not_installed("RSQLite")
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(conexion, "tabla_plan_catalogo", data.frame(
+    id = 1:20, valor = letters[1:20]
+  ))
+
+  plan <- lupa::plan_perfilado_dbi(
+    conexion, "tabla_plan_catalogo", modo = "muestreado", muestra = 5,
+    metricas = "distintos", estrategia_distintos = "catalogo",
+    bloque_muestra = "solo_agregados"
+  )
+  estrategia <- attr(plan, "estrategia_distintos", exact = TRUE)
+
+  expect_identical(estrategia$estado, "no_disponible")
+  expect_match(estrategia$motivo, "subconjunto")
+  expect_identical(attr(plan, "metricas_ejecucion", exact = TRUE), character())
+})
+
+test_that("catalogo sigue publicando una estimacion en modo exacto", {
+  estrategia <- lupa:::.estrategia_distintos_dbi(
+    "distintos", list(nombre = "todas"), TRUE, "catalogo"
+  )
+  testthat::local_mocked_bindings(
+    .estimar_distintos_catalogo_dbi = function(...) list(
+      disponible = TRUE, estimaciones = list(), fuentes = list(),
+      sql = "SELECT pg_stats", motivo = "estimacion disponible"
+    ),
+    .package = "lupa"
+  )
+
+  salida <- lupa:::.resolver_estrategia_distintos_dbi(
+    conexion = NULL, estrategia = estrategia, presupuesto = NULL,
+    hay_metrica = TRUE, tabla = "tabla", columnas = "valor", modo = "exacto"
+  )
+  publicada <- lupa:::.publicar_estrategia_distintos_dbi(salida)
+
+  expect_true(salida$disponible)
+  expect_identical(salida$estado, "estimado_catalogo")
+  expect_identical(salida$estrategia_resuelta, "pg_stats.n_distinct")
+  expect_identical(publicada$estado, "estimado_catalogo")
+  expect_identical(publicada$fuente, "pg_stats.n_distinct")
+})
+
 .estimar_catalogo_falso <- function(datos) {
   testthat::skip_if_not_installed("DBI")
   testthat::skip_if_not_installed("RSQLite")

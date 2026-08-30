@@ -3187,7 +3187,8 @@
 
 .resolver_estrategia_distintos_dbi <- function(conexion, estrategia,
                                                presupuesto, hay_metrica,
-                                               tabla = NULL, columnas = NULL) {
+                                               tabla = NULL, columnas = NULL,
+                                               modo = "exacto") {
   if (!isTRUE(hay_metrica)) {
     estrategia$estado <- "no_solicitado"
     estrategia$motivo <- paste(
@@ -3223,20 +3224,34 @@
       }
     },
     catalogo = {
-      catalogo <- .estimar_distintos_catalogo_dbi(
-        conexion, tabla, columnas, presupuesto
-      )
-      estrategia$estimaciones <- catalogo$estimaciones
-      estrategia$fuentes <- catalogo$fuentes
-      estrategia$sql_catalogo <- catalogo$sql
-      estrategia$disponible <- isTRUE(catalogo$disponible)
-      estrategia$motivo <- catalogo$motivo
-      if (isTRUE(catalogo$disponible)) {
-        estrategia$estrategia_resuelta <- "pg_stats.n_distinct"
-        estrategia$estado <- "estimado_catalogo"
-        estrategia$error_esperado <- "desconocido"
-      } else {
+      if (modo %in% c("muestreado", "aproximado")) {
+        # Es el mismo principio que aplica `.estimar_derrame_postgresql_dbi()`:
+        # se niega a estimar el derrame de una muestra con estadisticas de la
+        # tabla completa y no se inventa una equivalencia entre universos.
+        estrategia$disponible <- FALSE
         estrategia$estado <- "no_disponible"
+        estrategia$motivo <- paste0(
+          "La estrategia `catalogo` no esta disponible en `modo = ", modo,
+          "`: el catalogo describe la relacion entera y la corrida mide un",
+          " subconjunto; usarlo publicaria la cardinalidad de un universo como",
+          " si fuera de otro."
+        )
+      } else {
+        catalogo <- .estimar_distintos_catalogo_dbi(
+          conexion, tabla, columnas, presupuesto
+        )
+        estrategia$estimaciones <- catalogo$estimaciones
+        estrategia$fuentes <- catalogo$fuentes
+        estrategia$sql_catalogo <- catalogo$sql
+        estrategia$disponible <- isTRUE(catalogo$disponible)
+        estrategia$motivo <- catalogo$motivo
+        if (isTRUE(catalogo$disponible)) {
+          estrategia$estrategia_resuelta <- "pg_stats.n_distinct"
+          estrategia$estado <- "estimado_catalogo"
+          estrategia$error_esperado <- "desconocido"
+        } else {
+          estrategia$estado <- "no_disponible"
+        }
       }
     },
     omitida = {
@@ -6753,7 +6768,11 @@
 #' `auto`: `"exacta"` es el valor por omisión, `"aproximada_motor"` queda
 #' `no_disponible` si el motor no ofrece una función aceptada, `"catalogo"`
 #' lee `pg_stats.n_distinct` en PostgreSQL y publica una estimación con estado
-#' `estimado_catalogo`, y `"omitida"` no emite el agregado. Un `n_distinct`
+#' `estimado_catalogo` cuando el modo mide la relación entera (`exacto`,
+#' `seguro` o `conteos`), y `"omitida"` no emite el agregado. En
+#' `muestreado` y `aproximado`, `catalogo` queda `no_disponible`: sus
+#' estadísticas describen la relación entera y no el subconjunto de la corrida.
+#' Un `n_distinct`
 #' positivo es un conteo y uno negativo una fracción de las filas. Si la
 #' relación tiene descendientes se usa la fila `inherited = TRUE`, que describe
 #' la consulta sin `ONLY`; si no tiene hijas se usa la única fila propia. La
@@ -8168,7 +8187,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   estrategia_distintos <- .resolver_estrategia_distintos_dbi(
     conexion, estrategia_distintos,
     presupuesto, "distintos" %in% metricas,
-    tabla = tabla, columnas = campos
+    tabla = tabla, columnas = campos, modo = modo
   )
   fuentes_cardinalidad_costo <- .fuentes_cardinalidad_vacias_dbi(campos)
   catalogo_cardinalidad <- NULL
@@ -8451,11 +8470,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' vale `"exacta"` por omision: calcula `COUNT(DISTINCT)` sobre las filas de la
 #' corrida. `"aproximada_motor"` sondea una funcion nativa y, si no hay una
 #' capacidad aceptada, deja la metrica `no_disponible`; nunca ejecuta el conteo
-#' exacto como repliegue. `"catalogo"` esta declarada pero queda
-#' `no_disponible` en esta version porque todavia no implementa una estadistica
-#' de cardinalidad; `pg_stats` se consulta por separado, cuando está disponible,
-#' para estimar el costo de memoria y avisar antes del conteo, pero nunca
-#' sustituye una medicion. `"omitida"` no emite la
+#' exacto como repliegue. `"catalogo"` lee `pg_stats.n_distinct` y publica
+#' `estimado_catalogo` sólo cuando el modo mide la relación entera (`exacto`,
+#' `seguro` o `conteos`). En `muestreado` y `aproximado` queda
+#' `no_disponible`, porque el catálogo describe la relación entera y la corrida
+#' mide un subconjunto; no se inventa una equivalencia entre universos.
+#' `"omitida"` no emite la
 #' consulta. Cada resultado y el atributo `meta$estrategia_distintos` separan
 #' `estrategia_solicitada`, `estrategia_resuelta` y `estado`.
 #'
@@ -8663,7 +8683,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   usa una función nativa aceptada por el motor y deja la métrica en
 #'   `no_disponible` si no existe; `"catalogo"` lee
 #'   `pg_stats.n_distinct` en PostgreSQL y publica el resultado como
-#'   `estimado_catalogo`, nunca como medición; y
+#'   `estimado_catalogo`, nunca como medición, cuando el modo mide la relación
+#'   entera (`exacto`, `seguro` o `conteos`). En `muestreado` y `aproximado`
+#'   queda `no_disponible`, porque el catálogo describe la relación entera y la
+#'   corrida mide un subconjunto; y
 #'   `"omitida"` no emite ninguna consulta. No hay repliegue automático entre
 #'   estrategias. El resultado publica `estrategia_solicitada`,
 #'   `estrategia_resuelta` y `estado` en `meta$estrategia_distintos`, y las dos

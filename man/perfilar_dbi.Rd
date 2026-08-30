@@ -113,9 +113,12 @@ intervalos que el reloj no puede resolver no se publican como cero.}
 \item{estrategia_distintos}{Procedencia explícita para \code{n_distintos}:
 \code{"exacta"} (por omisión) emite \code{COUNT(DISTINCT)}; \code{"aproximada_motor"}
 usa una función nativa aceptada por el motor y deja la métrica en
-\code{no_disponible} si no existe; \code{"catalogo"} queda declarada pero
-lee \code{pg_stats.n_distinct} en PostgreSQL y publica el resultado como
-\code{estimado_catalogo}, nunca como medición; y
+\code{no_disponible} si no existe; \code{"catalogo"} lee
+\code{pg_stats.n_distinct} en PostgreSQL y publica el resultado como
+\code{estimado_catalogo}, nunca como medición, cuando el modo mide la relación
+entera (\code{exacto}, \code{seguro} o \code{conteos}). En \code{muestreado} y \code{aproximado}
+queda \code{no_disponible}, porque el catálogo describe la relación entera y la
+corrida mide un subconjunto; y
 \code{"omitida"} no emite ninguna consulta. No hay repliegue automático entre
 estrategias. El resultado publica \code{estrategia_solicitada},
 \code{estrategia_resuelta} y \code{estado} en \code{meta$estrategia_distintos}, y las dos
@@ -272,12 +275,13 @@ no como cardinalidad del universo. \code{estrategia_distintos} es explicita y
 vale \code{"exacta"} por omision: calcula \code{COUNT(DISTINCT)} sobre las filas de la
 corrida. \code{"aproximada_motor"} sondea una funcion nativa y, si no hay una
 capacidad aceptada, deja la metrica \code{no_disponible}; nunca ejecuta el conteo
-exacto como repliegue. \code{"catalogo"} esta declarada pero queda
-\code{estimado_catalogo} en PostgreSQL: lee \code{pg_stats.n_distinct}, convierte
-los valores negativos con \code{pg_class.reltuples} y declara que es una
-estimación de catálogo, no una medición. Si no hay una estadística utilizable —por
-ejemplo, antes de \code{ANALYZE}— queda \code{no_disponible}, no en cero. En otros
-motores queda no disponible porque no hay una fuente portable. \code{"omitida"} no emite la
+exacto como repliegue. \code{"catalogo"} lee \code{pg_stats.n_distinct} y publica
+\code{estimado_catalogo} sólo cuando el modo mide la relación entera
+(\code{exacto}, \code{seguro} o \code{conteos}). En \code{muestreado} y
+\code{aproximado} queda
+\code{no_disponible}, porque el catálogo describe la relación entera y la corrida
+mide un subconjunto; no se inventa una equivalencia entre universos.
+\code{"omitida"} no emite la
 consulta. Cada resultado y el atributo \code{meta$estrategia_distintos} separan
 \code{estrategia_solicitada}, \code{estrategia_resuelta} y \code{estado}.
 
