@@ -417,6 +417,123 @@ test_that("una columna WKB cruda y una hexadecimal se reconocen igual", {
   expect_identical(metricas_hex$tipo_geometria, "POLYGON")
 })
 
+test_that("los bytes raw que no son WKB nunca llegan a sf", {
+  skip_if_not_installed("sf")
+  llamadas <- 0L
+  local_mocked_bindings(
+    st_as_sfc = function(...) {
+      llamadas <<- llamadas + 1L
+      stop("st_as_sfc no debe recibir bytes raw basura")
+    },
+    .package = "sf"
+  )
+  columna <- list(
+    as.raw(c(2, 3, 4, 5, 6)), as.raw(c(2, 9, 9, 9, 9))
+  )
+
+  metricas <- expect_no_error(lupa:::.perfilar_geometria(columna))
+
+  expect_identical(llamadas, 0L)
+  expect_false(metricas$aplica)
+  expect_true(is.na(metricas$representacion_geometria))
+})
+
+test_that("la rama raw adivinada solo pasa WKB plausibles a sf", {
+  skip_if_not_installed("sf")
+  valido <- sf::st_as_binary(
+    sf::st_sfc(sf::st_point(c(1, 2)))
+  )[[1L]]
+  invalido <- as.raw(c(2, 3, 4, 5, 6))
+  recibidos <- list()
+  original <- sf::st_as_sfc
+  local_mocked_bindings(
+    st_as_sfc = function(x, ...) {
+      recibidos <<- c(recibidos, list(x))
+      original(x, ...)
+    },
+    .package = "sf"
+  )
+
+  metricas <- lupa:::.perfilar_geometria(list(valido, invalido))
+
+  expect_true(metricas$geometria_convertida)
+  expect_length(recibidos, 1L)
+  expect_length(recibidos[[1L]], 1L)
+  expect_identical(recibidos[[1L]][[1L]], valido)
+})
+
+test_that("la plausibilidad WKB respeta los bordes del encabezado", {
+  expect_false(lupa:::.wkb_plausible(as.raw(1:4)))
+  ## Cinco bytes alcanzan para decidir sobre el encabezado, aunque un punto
+  ## completo necesite 21: no se inspecciona el cuerpo en esta guarda.
+  expect_true(lupa:::.wkb_plausible(as.raw(c(1, 1, 0, 0, 0))))
+  expect_true(lupa:::.wkb_plausible(as.raw(c(0, 0, 0, 0, 1))))
+  expect_false(lupa:::.wkb_plausible(as.raw(c(2, 1, 0, 0, 0))))
+  expect_false(lupa:::.wkb_plausible(as.raw(c(1, 8, 0, 0, 0))))
+  ## ISO 1001 y las banderas EWKB Z/M conservan el tipo base POINT.
+  expect_true(lupa:::.wkb_plausible(as.raw(c(1, 233, 3, 0, 0))))
+  expect_true(lupa:::.wkb_plausible(as.raw(c(1, 1, 0, 0, 128))))
+  expect_true(lupa:::.wkb_plausible(as.raw(c(1, 1, 0, 0, 64))))
+  ## EWKB SRID agrega cuatro bytes obligatorios al encabezado.
+  ewkb_srid_corto <- as.raw(c(1, 1, 0, 0, 32, 230, 16, 0))
+  ewkb_srid <- c(ewkb_srid_corto, as.raw(0))
+  expect_false(lupa:::.wkb_plausible(ewkb_srid_corto))
+  expect_true(lupa:::.wkb_plausible(ewkb_srid))
+})
+
+test_that("un punto WKB real y un EWKB con SRID siguen parseandose", {
+  skip_if_not_installed("sf")
+  geometria <- sf::st_sfc(sf::st_point(c(1, 2)), crs = 4326)
+  wkb <- sf::st_as_binary(geometria)[[1L]]
+  ewkb <- sf::st_as_binary(geometria, EWKB = TRUE)[[1L]]
+
+  expect_identical(length(wkb), 21L)
+  expect_identical(length(ewkb), 25L)
+  expect_identical(as.integer(wkb[[1L]]), 1L)
+  expect_identical(as.integer(ewkb[[1L]]), 1L)
+  expect_true(lupa:::.wkb_plausible(wkb))
+  expect_true(lupa:::.wkb_plausible(ewkb))
+
+  metricas_wkb <- lupa:::.perfilar_geometria(structure(list(wkb), class = "WKB"))
+  metricas_ewkb <- lupa:::.perfilar_geometria(structure(list(ewkb), class = "WKB"))
+
+  expect_true(metricas_wkb$geometria_convertida)
+  expect_true(metricas_ewkb$geometria_convertida)
+  expect_identical(metricas_wkb$tipo_geometria, "POINT")
+  expect_identical(metricas_ewkb$tipo_geometria, "POINT")
+  expect_identical(metricas_ewkb$crs_declarado, "4326")
+})
+
+test_that("un WKB declarado con un valor invalido declara la perdida sin sf", {
+  skip_if_not_installed("sf")
+  valido <- sf::st_as_binary(
+    sf::st_sfc(sf::st_point(c(1, 2)))
+  )[[1L]]
+  invalido <- as.raw(c(2, 3, 4, 5, 6))
+  columna <- structure(list(valido, invalido), class = "WKB")
+  llamadas <- 0L
+  local_mocked_bindings(
+    st_as_sfc = function(...) {
+      llamadas <<- llamadas + 1L
+      stop("st_as_sfc no debe recibir un WKB estructuralmente invalido")
+    },
+    .package = "sf"
+  )
+
+  metricas <- lupa:::.perfilar_geometria(columna)
+
+  expect_identical(llamadas, 0L)
+  expect_true(metricas$aplica)
+  expect_identical(metricas$representacion_geometria, "WKB")
+  expect_true(metricas$sf_evaluado)
+  expect_false(metricas$geometria_convertida)
+  expect_false(metricas$validez_evaluada)
+  expect_false(metricas$dominio_evaluado)
+  expect_match(metricas$motivo_representacion, "estructuralmente invalidos")
+  expect_match(metricas$motivo_validez, "estructuralmente invalidos")
+  expect_match(metricas$motivo_dominio, "estructuralmente invalidos")
+})
+
 test_that("el perfil publica las metricas espaciales de una columna WKT", {
   skip_if_not_installed("sf")
   columna <- sf::st_as_text(geometria_de_prueba(5L))

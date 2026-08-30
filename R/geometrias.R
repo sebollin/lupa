@@ -475,14 +475,38 @@
     all(substr(muestra, 1L, 2L) %in% c("00", "01"))
 }
 
+# Esta guarda lee solo el encabezado, no intenta validar el cuerpo recursivo de
+# la geometria. Un encabezado plausible con un cuerpo corrupto todavia puede
+# llegar a GDAL y fallar alli. No se duplica el parser completo de sf: ademas de
+# ser mas costoso, dejaria dos implementaciones de la gramatica WKB que podrian
+# divergir; esta guarda solo evita entregar bytes que ni siquiera pueden ser WKB.
+.wkb_plausible <- function(valor) {
+  if (!is.raw(valor) || length(valor) < 5L) return(FALSE)
+
+  orden <- as.integer(valor[[1L]])
+  if (!orden %in% c(0L, 1L)) return(FALSE)
+
+  bytes_tipo <- as.integer(valor[2L:5L])
+  potencias <- if (orden == 1L) 0:3 else 3:0
+  tipo <- sum(bytes_tipo * 256 ^ potencias)
+
+  banderas_ewkb <- c(srid = 2 ^ 29, m = 2 ^ 30, z = 2 ^ 31)
+  presentes <- vapply(banderas_ewkb, function(bandera) {
+    floor(tipo / bandera) %% 2 == 1
+  }, logical(1L))
+  tipo_sin_banderas <- tipo - sum(banderas_ewkb[presentes])
+  tipo_base_valido <- tipo_sin_banderas %% 1000 %in% 1:7
+  if (!tipo_base_valido) return(FALSE)
+
+  !presentes[["srid"]] || length(valor) >= 9L
+}
+
 .parece_wkb_crudo <- function(x) {
   if (!is.list(x) || inherits(x, "sfc")) return(FALSE)
   if (inherits(x, "WKB")) return(TRUE)
   muestra <- unclass(x)[.muestra_para_reconocer(x)]
   muestra <- muestra[!vapply(muestra, is.null, logical(1L))]
-  length(muestra) > 0L && all(vapply(muestra, function(y) {
-    is.raw(y) && length(y) >= 5L && as.integer(y[[1L]]) %in% c(0L, 1L)
-  }, logical(1L)))
+  length(muestra) > 0L && any(vapply(muestra, .wkb_plausible, logical(1L)))
 }
 
 .representacion_geometrica <- function(x) {
@@ -494,7 +518,7 @@
 
 .posiciones_convertibles <- function(x, representacion) {
   if (identical(representacion, "WKB")) {
-    return(which(vapply(unclass(x), is.raw, logical(1L))))
+    return(which(vapply(unclass(x), .wkb_plausible, logical(1L))))
   }
   which(!is.na(x))
 }
@@ -522,6 +546,22 @@
   representacion <- .representacion_geometrica(x)
   if (is.na(representacion)) return(NULL)
   autodeclarada <- identical(representacion, "WKT") || inherits(x, "WKB")
+
+  if (identical(representacion, "WKB") && inherits(x, "WKB")) {
+    plausibles <- vapply(unclass(x), .wkb_plausible, logical(1L))
+    if (any(!plausibles)) {
+      return(list(
+        representacion = representacion, sf_evaluado = TRUE, geometria = NULL,
+        indices = integer(), n_total = length(x),
+        motivo = paste0(
+          "La columna llega como WKB y contiene valores estructuralmente ",
+          "invalidos; no se pudo convertir a geometria. Las metricas ",
+          "espaciales quedan sin medir."
+        )
+      ))
+    }
+  }
+
   if (!.sf_disponible()) {
     if (!autodeclarada) return(NULL)
     return(list(
