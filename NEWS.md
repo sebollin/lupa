@@ -1237,10 +1237,6 @@ si lo seria: quien compare completitud entre entregas de motores distintos
 leeria una diferencia que no esta en los datos. Queda en la cobertura del
 resumen, y solo en los motores donde corresponde.
 
-En la misma corrida se verifico contra el motor real que el dialecto se resuelve
-solo en `fetch_first`, que las 54 metricas se calculan sin ninguna no
-disponible, y que la media, la mediana y el desvio calculados por Oracle
-coinciden con los de R sobre la tabla entera.
 
 ## La clave primaria se lee del catalogo cuando esta declarada
 
@@ -2248,18 +2244,23 @@ ellas de reproducir lo que el informe atribuia a otra causa.
   caso, y por eso Oracle quedaba fuera de `coleccion()` aunque el SQL
   funcionara.
 
-## Oracle contra motor real
+## El camino de Oracle, contemplado y sin corrida que lo respalde
 
-- Verificado contra Oracle Free 23. Importa aparte porque **sus dos dialectos
-  -`fetch_first` y `rownum`- nunca habian corrido contra un motor real**; los
-  otros seis usan `limit` o `top`. Encontro cuatro cosas: la sonda del desvio
-  necesitaba `FROM DUAL`; Oracle rechaza `TABLESAMPLE` y usa `SAMPLE (p)`, que
-  se agrego como forma candidata con su sonda; `dbExistsTable()` del `ROracle`
-  archivado devuelve falso para nombres calificados aunque el SQL funcione; y
-  una columna `CLOB` no se puede agrupar ni ordenar, cosa que el paquete ya
-  declaraba como no disponible sin haberlo previsto.
-- Con esto son **siete motores probados contra motor real**, y los siete
-  encontraron algo que ningun motor simulado habia encontrado.
+- Se contemplan los dos dialectos de Oracle -`fetch_first` y `rownum`-, que son
+  los unicos que no comparten forma con los demas motores: los otros usan `limit`
+  o `top`. El camino cubre cuatro particularidades del motor: la sonda del desvio
+  necesita `FROM DUAL`; Oracle rechaza `TABLESAMPLE` y usa `SAMPLE (p)`, que se
+  agrego como forma candidata con su sonda; `dbExistsTable()` del `ROracle`
+  archivado devuelve falso para nombres calificados aunque el SQL funcione; y una
+  columna `CLOB` no se puede agrupar ni ordenar, cosa que el paquete ya declaraba
+  como no disponible.
+- **Esta entrada decia antes «Verificado contra Oracle Free 23» y «siete motores
+  probados contra motor real».** No hay con que sostenerlo: no se conserva ningun
+  log de una corrida contra un servidor Oracle, y el unico informe que existe
+  -del 2026-08-24- cierra diciendo que la medicion no se pudo ejecutar. El
+  catalogo de motores da las dos variantes de Oracle como `esperado`, y las
+  pruebas de este camino corren con respuestas DBI simuladas, que es lo que se
+  declara.
 
 ## Lo que encontro una refutacion adversarial
 
