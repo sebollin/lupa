@@ -466,7 +466,8 @@ Conserva la **magnitud del trabajo** que se conoce —filas, celdas y pares de
 texto—, rotulada como magnitud y no como consumo de memoria.
 
 Las cifras que ayudan a decidir son datos de referencia medidos, **no una
-predicción para la tabla del plan**: traer la tabla costó aproximadamente 0,13 GB
+predicción para la tabla del plan, sino una corrida única y fechada
+(2026-08-28) contra un motor remoto**: traer la tabla costó aproximadamente 0,13 GB
 por millón de filas y procesar en R aproximadamente 1,0-1,5 MB por cada mil
 filas. La segunda cifra varió por 1,62x entre tablas de la misma magnitud; esa
 variación es justamente el motivo por el que no se usa para estimar.

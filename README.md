@@ -576,8 +576,10 @@ own, set through `duplicados_aproximados = list(max_largo_valor = ...)`.
 `perfilar()` projects the cell count before expensive work starts. The default
 warning starts at `100,000` cells, uses a reference of `10,000` cells per second
 and says that it is an estimate together with its source. The reference follows
-these measurements: 500 rows by 50, 300 and 1,000 columns took 2.41, 14.85 and
-50.41 seconds. There is no warning below the threshold or in non-interactive
+these measurements (run of 2026-08-30, reproducible with
+`benchmark/medir_referencias.R`): 500 rows by 50, 300 and 1,000 columns took
+3.34, 13.63 and 43.85 seconds — about 11,000 cells per second, which is why the
+reference uses 10,000. There is no warning below the threshold or in non-interactive
 scripts. The projection is stored in `meta$costo_tabla_ancha`.
 `avisar_costo_tabla_ancha = FALSE` disables it per call and
 `umbral_celdas_aviso_tabla_ancha = Inf` silences it explicitly.
@@ -732,8 +734,9 @@ it does not scale predictably with rows or cells, as measured. The plan still
 publishes the known **work magnitude**—rows, cells and text pairs—clearly labeled
 as magnitude, not memory consumption.
 
-Measured reference data, **not a prediction for the table in the plan**, put
-bringing the table at about 0.13 GB per million rows and processing in R at about
+Measured reference data, **not a prediction for the table in the plan** — a
+single dated run (2026-08-28) against a remote production engine that this
+repository cannot re-run — put bringing the table at about 0.13 GB per million rows and processing in R at about
 1.0–1.5 MB per thousand rows. The second figure varied by 1.62x between tables
 of the same magnitude; that variation is precisely why it is not used as an
 estimate.

@@ -632,8 +632,10 @@ una medición.
 `perfilar()` proyecta las celdas antes de empezar el trabajo costoso. El aviso
 predeterminado se activa desde `100.000` celdas, usa una referencia de `10.000`
 celdas por segundo y publica que es una estimacion junto con su fuente. La
-referencia reproduce estas mediciones: 500 filas por 50, 300 y 1.000 columnas
-tomaron 2,41, 14,85 y 50,41 segundos. No hay aviso por debajo del umbral ni en
+referencia reproduce estas mediciones (corrida del 2026-08-30, reproducible con
+`benchmark/medir_referencias.R`): 500 filas por 50, 300 y 1.000 columnas tomaron
+3,34, 13,63 y 43,85 segundos — unas 11.000 celdas por segundo, y por eso la
+referencia usa 10.000. No hay aviso por debajo del umbral ni en
 guiones no interactivos. La proyeccion queda en `meta$costo_tabla_ancha`.
 `avisar_costo_tabla_ancha = FALSE` lo desactiva por llamada y
 `umbral_celdas_aviso_tabla_ancha = Inf` lo silencia de forma explicita.
@@ -765,8 +767,9 @@ según lo medido. El plan conserva la **magnitud del trabajo** que se conoce
 —filas, celdas y pares de texto—, rotulada como magnitud y no como consumo de
 memoria.
 
-Son datos de referencia medidos, **no una predicción para la tabla del plan**:
-traer la tabla costó aproximadamente 0,13 GB por millón de filas y procesar en R
+Son datos de referencia medidos, **no una predicción para la tabla del plan**
+—una corrida única y fechada (2026-08-28) contra un motor de producción remoto
+que este repositorio no puede rehacer—: traer la tabla costó aproximadamente 0,13 GB por millón de filas y procesar en R
 aproximadamente 1,0-1,5 MB por cada mil filas. La segunda cifra varió por 1,62x
 entre tablas de la misma magnitud; esa variación es justamente el motivo por el
 que no se usa para estimar.
