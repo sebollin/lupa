@@ -2,6 +2,24 @@
 
 ## lupa 0.1.0
 
+### El minimo de R conserva la conducta en BLOB y duplicados matriciales
+
+- Se conserva `R (>= 4.1.0)`. En el conjunto minimo reproducido, un BLOB
+  de SQLite puede llegar como `blob`/`vctrs_list_of` de valores `raw`,
+  cuyo [`unique()`](https://rdrr.io/r/base/unique.html) no funciona con
+  versiones antiguas de `vctrs`. La columna ya no aborta el perfil:
+  [`is.na()`](https://rdrr.io/r/base/NA.html) produce el hallazgo de
+  faltantes y su trazabilidad, mientras la escala y los agregados
+  cuantitativos quedan como desconocidos o `no_aplica`.
+- Las versiones de R hasta 4.1 y desde 4.2 no tienen la misma semantica
+  en
+  [`base::duplicated.data.frame()`](https://rdrr.io/r/base/duplicated.html)
+  para columnas matriz: la primera compara sus celdas y la segunda las
+  separa por filas. `lupa` ya normalizaba esas columnas antes de contar;
+  el test fija ahora esa conducta estable en `1` fila duplicada y `2`
+  filas participantes, sin usar como esperado una semantica de base que
+  cambia con R.
+
 ### El plan DBI declara el muestreo que no puede construir
 
 - [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)

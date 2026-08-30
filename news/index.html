@@ -42,6 +42,11 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="el-minimo-de-r-conserva-la-conducta-en-blob-y-duplicados-matriciales-0-1-0">El minimo de R conserva la conducta en BLOB y duplicados matriciales<a class="anchor" aria-label="anchor" href="#el-minimo-de-r-conserva-la-conducta-en-blob-y-duplicados-matriciales-0-1-0"></a></h3>
+<ul><li>Se conserva <code>R (&gt;= 4.1.0)</code>. En el conjunto minimo reproducido, un BLOB de SQLite puede llegar como <code>blob</code>/<code>vctrs_list_of</code> de valores <code>raw</code>, cuyo <code><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique()</a></code> no funciona con versiones antiguas de <code>vctrs</code>. La columna ya no aborta el perfil: <code><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na()</a></code> produce el hallazgo de faltantes y su trazabilidad, mientras la escala y los agregados cuantitativos quedan como desconocidos o <code>no_aplica</code>.</li>
+<li>Las versiones de R hasta 4.1 y desde 4.2 no tienen la misma semantica en <code><a href="https://rdrr.io/r/base/duplicated.html" class="external-link">base::duplicated.data.frame()</a></code> para columnas matriz: la primera compara sus celdas y la segunda las separa por filas. <code>lupa</code> ya normalizaba esas columnas antes de contar; el test fija ahora esa conducta estable en <code>1</code> fila duplicada y <code>2</code> filas participantes, sin usar como esperado una semantica de base que cambia con R.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="el-plan-dbi-declara-el-muestreo-que-no-puede-construir-0-1-0">El plan DBI declara el muestreo que no puede construir<a class="anchor" aria-label="anchor" href="#el-plan-dbi-declara-el-muestreo-que-no-puede-construir-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> comprueba la forma SQL del muestreo sin leer datos, declara el estado en <code>attr(plan, "muestreo")</code> y excluye del rango las métricas que no pueden emitirse. La corrida comparte esa decisión y conserva cada ausencia con su motivo.</li>
