@@ -13,3 +13,4 @@
 ^\.lintr$
 ^tests/testthat/_problems$
 ^docs$
+^notas-desarrollo$
