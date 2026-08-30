@@ -81,6 +81,45 @@ test_that("la moda usa cardinalidades disponibles y declara las que faltan", {
   expect_match(proyeccion$motivo, "Fuentes de cardinalidad")
 })
 
+test_that("el costo de moda conserva la fuente real de cada cardinalidad", {
+  agregados <- list(conteos = list(
+    catalogo = list(distintos = list(valor = 99)),
+    clave = list(distintos = list(valor = 100)),
+    corrida = list(distintos = list(valor = 7))
+  ))
+  fuentes <- list(
+    catalogo = list(
+      nombre = "estimacion_catalogo", exacta = FALSE, n_distintos = 12,
+      motivo = "estimacion"
+    ),
+    clave = list(
+      nombre = "clave_primaria_garantizada", exacta = TRUE,
+      proporcion_distintos = 1, motivo = "clave"
+    ),
+    corrida = list(
+      nombre = "desconocida", exacta = FALSE,
+      motivo = "se midio en la corrida"
+    )
+  )
+
+  catalogo <- lupa:::.cardinalidad_aviso_moda_dbi(
+    "catalogo", agregados, fuentes, n_total = 100
+  )
+  clave <- lupa:::.cardinalidad_aviso_moda_dbi(
+    "clave", agregados, fuentes, n_total = 100
+  )
+  corrida <- lupa:::.cardinalidad_aviso_moda_dbi(
+    "corrida", agregados, fuentes, n_total = 100
+  )
+
+  expect_equal(catalogo$n_distintos, 12)
+  expect_identical(catalogo$fuente, "estimacion_catalogo")
+  expect_equal(clave$n_distintos, 100)
+  expect_identical(clave$fuente, "clave_primaria_garantizada")
+  expect_equal(corrida$n_distintos, 7)
+  expect_identical(corrida$fuente, "medicion de la corrida")
+})
+
 test_that("la moda no inventa una proyeccion sin cardinalidad", {
   presupuesto <- lupa:::.presupuesto_dbi(Inf, instrumentar = TRUE)
   presupuesto$referencias_moda <- list(

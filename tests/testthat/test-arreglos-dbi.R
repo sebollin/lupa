@@ -603,6 +603,100 @@ test_that("cada estrategia de distintos declara y emite su SQL", {
   }
 })
 
+test_that("catalogo alinea el plan y la corrida y publica su fuente de moda", {
+  bases <- .conexion_juguete()
+  on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
+  catalogo <- function(conexion, tabla, columnas, presupuesto) {
+    estimaciones <- stats::setNames(lapply(columnas, function(columna) list(
+      disponible = TRUE, n_distintos = 2, n_distintos_catalogo = 2,
+      n_filas = 12, proporcion_distintos = 2 / 12, inherited = FALSE,
+      motivo = "estimacion simulada"
+    )), columnas)
+    fuentes <- stats::setNames(lapply(columnas, function(columna) list(
+      nombre = "estimacion_catalogo", exacta = FALSE, n_distintos = 2,
+      n_filas = 12, proporcion_distintos = 2 / 12,
+      motivo = "estimacion simulada", fuente = "pg_stats.n_distinct"
+    )), columnas)
+    list(
+      disponible = TRUE, estimaciones = estimaciones, fuentes = fuentes,
+      sql = "SELECT pg_stats", motivo = "estimacion simulada"
+    )
+  }
+  testthat::local_mocked_bindings(
+    .estimar_distintos_catalogo_dbi = catalogo,
+    .package = "lupa"
+  )
+  contar_distintos <- function(sql) {
+    sum(grepl("COUNT(DISTINCT", sql, fixed = TRUE))
+  }
+  perfil_liviano <- list(
+    metricas = c("validos", "distintos", "moda"),
+    politica_costo = "por_cardinalidad", bloque_muestra = "solo_agregados",
+    estrategia_distintos = "catalogo", instrumentar = TRUE,
+    avisar_costo_distintos = FALSE, avisar_costo_moda = FALSE,
+    avisar_derrame_estimado = FALSE, proteger_datos_personales = FALSE,
+    analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
+    ausencia_estructural = FALSE, duplicados_aproximados = FALSE
+  )
+  plan_liviano <- perfil_liviano[c(
+    "metricas", "politica_costo", "bloque_muestra", "estrategia_distintos"
+  )]
+
+  .juguete_reiniciar("normal")
+  plan_catalogo <- do.call(
+    lupa:::plan_perfilado_dbi,
+    c(list(bases$juguete, "juguete"), plan_liviano)
+  )
+  esperado_catalogo <- plan_catalogo$n_consultas[
+    grepl("distintos por lotes", plan_catalogo$clase_consulta, fixed = TRUE)
+  ]
+  esperado_catalogo <- if (length(esperado_catalogo)) esperado_catalogo else 0
+  expect_equal(esperado_catalogo, 0)
+
+  .juguete_reiniciar("normal")
+  resultado_catalogo <- do.call(
+    perfilar_dbi, c(list(bases$juguete, "juguete"), perfil_liviano)
+  )
+  expect_equal(contar_distintos(.juguete_consultas()), esperado_catalogo)
+  distintos_catalogo <- resultado_catalogo$resumen_tabla$sql[
+    resultado_catalogo$resumen_tabla$sql$metrica == "n_distintos", , drop = FALSE
+  ]
+  expect_true(all(is.na(distintos_catalogo$sql)))
+  expect_true(all(distintos_catalogo$estado == "estimado_catalogo"))
+  expect_identical(
+    resultado_catalogo$resumen_tabla$meta$costo_moda$fuentes_cardinalidad,
+    "estimacion_catalogo"
+  )
+
+  perfil_liviano$estrategia_distintos <- "exacta"
+  plan_liviano$estrategia_distintos <- "exacta"
+  .juguete_reiniciar("normal")
+  plan_exacta <- do.call(
+    lupa:::plan_perfilado_dbi,
+    c(list(bases$juguete, "juguete"), plan_liviano)
+  )
+  esperado_exacta <- plan_exacta$n_consultas[
+    grepl("distintos por lotes", plan_exacta$clase_consulta, fixed = TRUE)
+  ]
+  expect_length(esperado_exacta, 1L)
+  expect_gt(esperado_exacta, 0)
+
+  .juguete_reiniciar("normal")
+  resultado_exacta <- do.call(
+    perfilar_dbi, c(list(bases$juguete, "juguete"), perfil_liviano)
+  )
+  expect_equal(contar_distintos(.juguete_consultas()), esperado_exacta)
+  distintos_exacta <- resultado_exacta$resumen_tabla$sql[
+    resultado_exacta$resumen_tabla$sql$metrica == "n_distintos", , drop = FALSE
+  ]
+  expect_equal(sum(!is.na(distintos_exacta$sql)), 3L)
+  expect_true(all(distintos_exacta$estado == "calculado"))
+  expect_identical(
+    resultado_exacta$resumen_tabla$meta$costo_moda$fuentes_cardinalidad,
+    "medicion de la corrida"
+  )
+})
+
 test_that("las estrategias sin capacidad nunca emiten COUNT DISTINCT", {
   bases <- .conexion_juguete()
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)

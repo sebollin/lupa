@@ -456,6 +456,33 @@
 
 .cardinalidad_aviso_moda_dbi <- function(
     columna, agregados, fuentes = NULL, n_total = NA_real_) {
+  fuente <- if (is.null(fuentes)) NULL else fuentes[[columna]]
+  valor_fuente <- if (is.null(fuente)) NA_real_ else {
+    .numero_dbi(fuente$n_distintos)
+  }
+  total <- .numero_dbi(n_total)
+  if (length(valor_fuente) != 1L || is.na(valor_fuente) ||
+      !is.finite(valor_fuente) || valor_fuente < 0) {
+    proporcion <- if (is.null(fuente)) NA_real_ else
+      .numero_dbi(fuente$proporcion_distintos)
+    if (!is.null(fuente) && isTRUE(fuente$exacta) &&
+        is.finite(proporcion) && proporcion == 1 &&
+        length(total) == 1L && is.finite(total) && !is.na(total)) {
+      valor_fuente <- total
+    }
+  }
+  if (length(valor_fuente) == 1L && is.finite(valor_fuente) &&
+      !is.na(valor_fuente) && valor_fuente >= 0) {
+    return(list(
+      disponible = TRUE, n_distintos = valor_fuente,
+      fuente = if (is.null(fuente) || is.null(fuente$nombre)) {
+        "fuente estructural"
+      } else fuente$nombre,
+      motivo = if (is.null(fuente) || is.null(fuente$motivo)) {
+        NA_character_
+      } else fuente$motivo
+    ))
+  }
   conteo <- if (!is.null(agregados) && !is.null(agregados$conteos)) {
     agregados$conteos[[columna]]
   } else NULL
@@ -468,12 +495,10 @@
       motivo = "La cardinalidad sale del agregado disponible antes de la moda."
     ))
   }
-  fuente <- if (is.null(fuentes)) NULL else fuentes[[columna]]
   valor <- if (is.null(fuente)) NA_real_ else .numero_dbi(fuente$n_distintos)
   if (length(valor) != 1L || is.na(valor) || !is.finite(valor) || valor < 0) {
     proporcion <- if (is.null(fuente)) NA_real_ else
       .numero_dbi(fuente$proporcion_distintos)
-    total <- .numero_dbi(n_total)
     if (!is.null(fuente) && isTRUE(fuente$exacta) &&
         is.finite(proporcion) && proporcion == 1 &&
         length(total) == 1L && is.finite(total) && !is.na(total)) {
@@ -4268,6 +4293,25 @@
   list(fuentes = fuentes, catalogo = catalogo)
 }
 
+.columnas_distintos_ejecucion_dbi <- function(
+    metricas, estrategia_distintos, campos,
+    fuentes_cardinalidad_costo = NULL, politica_costo = NULL) {
+  if (!"distintos" %in% metricas) return(character())
+  if (identical(estrategia_distintos$estado, "estimado_catalogo")) {
+    return(character())
+  }
+  if (isTRUE(estrategia_distintos$publica)) return(campos)
+  if (is.null(fuentes_cardinalidad_costo)) return(NULL)
+  if (!is.null(politica_costo) &&
+      identical(politica_costo$nombre, "por_cardinalidad")) {
+    return(campos[vapply(
+      fuentes_cardinalidad_costo,
+      function(x) !isTRUE(x$exacta), logical(1L)
+    )])
+  }
+  character()
+}
+
 # Los dos conteos recorren la misma tabla, asi que se piden juntos: una
 # consulta por columna en vez de dos. `COUNT(DISTINCT ...)` no es universal, y
 # consolidar acopla fallos, asi que si la consulta combinada se rechaza los dos
@@ -5503,7 +5547,8 @@
   # Primero quedan disponibles los agregados planos y el total exacto que se
   # fusiona con su primera consulta. Despues se paga COUNT(DISTINCT),
   # que conserva su propia familia y su lote conservador.
-  if ("distintos" %in% metricas) {
+  if ("distintos" %in% metricas &&
+      (is.null(columnas_distintos) || length(columnas_distintos))) {
     if (is.null(columnas_distintos)) columnas_distintos <- columnas
     n_lotes_distintos <- length(.lotes_columnas_dbi(
       columnas_distintos, tamano_lote_distintos
@@ -6472,22 +6517,10 @@
     incluir_valores, presupuesto, tamano_lote_planos, tamano_lote_distintos,
     aproximacion_distintos = aproximaciones$distintos,
     tabla_total_sql = tabla_total_sql, conteo_inicial = conteo,
-    columnas_distintos = if (is.null(fuentes_cardinalidad_costo)) NULL else {
-      # Una fuente exacta solo evita medir cuando `distintos` es interno para
-      # decidir el costo. Si quien llama pidio la metrica, hay que publicarla;
-      # en una muestra o con una aproximacion tambien hay que medir el universo
-      # que corresponde a esa estrategia.
-      if (isTRUE(estrategia_distintos$publica)) {
-        campos_consolidados
-      } else if (identical(politica_costo$nombre, "por_cardinalidad")) {
-        campos_consolidados[vapply(
-          fuentes_cardinalidad_costo,
-          function(x) !isTRUE(x$exacta), logical(1L)
-        )]
-      } else {
-        character()
-      }
-    }
+    columnas_distintos = .columnas_distintos_ejecucion_dbi(
+      metricas_ejecucion, estrategia_distintos, campos_consolidados,
+      fuentes_cardinalidad_costo, politica_costo
+    )
   )
   conteo <- agregados$conteo
   n_total <- agregados$n_total
@@ -9130,20 +9163,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
     any(metricas %in% c("validos", "distintos")) ||
       any(es_numerico) && any(metricas %in% c("basicos", "desvio"))
   )
-  columnas_distintos_ejecucion <- if ("distintos" %in% metricas) {
-    if (identical(estrategia_distintos$estado, "estimado_catalogo")) {
-      character()
-    } else if (isTRUE(estrategia_distintos$publica)) {
-      campos
-    } else {
-      campos[vapply(
-        fuentes_cardinalidad_costo,
-        function(x) !isTRUE(x$exacta), logical(1L)
-      )]
-    }
-  } else {
-    character()
-  }
+  columnas_distintos_ejecucion <- .columnas_distintos_ejecucion_dbi(
+    metricas, estrategia_distintos, campos,
+    fuentes_cardinalidad_costo, politica_costo
+  )
   # Se consulta el catalogo una sola vez por corrida. En la corrida real el
   # aviso se emite mas tarde, cuando los agregados planos ya terminaron, pero
   # los datos de la estimacion quedan listos antes del primer distinto. En el
