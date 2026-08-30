@@ -90,8 +90,8 @@
     if (bytes_vacios > max_bytes_muestra) {
       stop(
         paste0(
-          "`max_bytes_muestra` es menor que el tamaño mínimo de la muestra ",
-          "vacía (", bytes_vacios, " bytes)."
+          "`max_bytes_muestra` es menor que el tamano minimo de la muestra ",
+          "vacia (", bytes_vacios, " bytes)."
         ),
         call. = FALSE
       )

@@ -13,6 +13,13 @@
   se convierten con `pg_class.reltuples`; si falta `ANALYZE`, el resultado queda
   `no_disponible` y no se reemplaza por cero.
 
+## Validación de claves
+
+- Se cierra el pendiente de una política separada con `catalogo`,
+  `reutilizar_recorrido` y `exacta`: la API vigente ya separa la procedencia de
+  cardinalidad (`estrategia_distintos`) de la política de costo
+  (`politica_costo`), por lo que no se agrega un selector de clave duplicado.
+
 ## La clave que se publica es la de la tabla que se midió
 
 - Con un nombre sin calificar, `perfilar_dbi()` publicaba la clave primaria de
