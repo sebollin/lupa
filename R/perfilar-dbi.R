@@ -7086,10 +7086,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
       "No se pudo estimar el trabajo: falta el n\u00famero de filas.",
       "El conteo de consultas sigue siendo v\u00e1lido."
     ))
-    supuesto_costo <- attr(x, "supuesto_costo", exact = TRUE)
-    if (!is.null(supuesto_costo)) cli::cli_text(supuesto_costo)
-    techo <- attr(x, "supuesto", exact = TRUE)
-    if (!is.null(techo)) cli::cli_text(techo)
+    # Los supuestos NO se imprimen aca: el bloque final ya los imprime para
+    # toda magnitud distinta de "baja", y "desconocida" lo es. Este sitio los
+    # duplicaba: el plan mostraba dos veces los mismos dos parrafos, y un texto
+    # repetido se lee como un error del que lo escribio, no como enfasis.
   } else {
     trabajo <- paste0(
       .miles_dbi(attr(x, "filas_leidas", exact = TRUE)), " lecturas de fila y ",

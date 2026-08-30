@@ -126,3 +126,29 @@ test_that("los motores sin la funcion no reciben candidato", {
   expect_length(.candidatos_ronda167("SQLite"), 0L)
   expect_length(.candidatos_ronda167("MySQL"), 0L)
 })
+
+test_that("el plan no imprime dos veces sus supuestos", {
+  # Con magnitud desconocida, la rama del aviso imprimia los supuestos y el
+  # bloque final -que corre para toda magnitud distinta de "baja"- los volvia a
+  # imprimir: el plan mostraba dos veces los mismos dos parrafos. Un texto
+  # repetido se lee como un error de quien lo escribio, y ademas empuja la
+  # tabla de consultas -que es el dato- fuera de la pantalla.
+  skip_if_not_installed("RSQLite")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbExecute(con, "CREATE TABLE d (a INTEGER, b TEXT)")
+  DBI::dbExecute(con, "INSERT INTO d VALUES (1, 'x'), (2, 'y')")
+  plan <- plan_perfilado_dbi(con, "d")
+  # El texto de cli sale por el flujo de mensajes, no por stdout.
+  texto <- paste(
+    utils::capture.output(print(plan), type = "message"),
+    collapse = "\n"
+  )
+  contar <- function(frase) {
+    length(gregexpr(frase, texto, fixed = TRUE)[[1L]][
+      gregexpr(frase, texto, fixed = TRUE)[[1L]] > 0
+    ])
+  }
+  expect_identical(contar("El trabajo es una estimaci"), 1L)
+  expect_identical(contar("Referencias: unos cinco millones"), 1L)
+})

@@ -46,6 +46,13 @@
   cardinalidad (`estrategia_distintos`) de la política de costo
   (`politica_costo`), por lo que no se agrega un selector de clave duplicado.
 
+## El plan no repite sus supuestos
+
+- Con la magnitud del trabajo desconocida, `print()` del plan mostraba dos veces
+  los mismos dos párrafos —el supuesto del trabajo y las referencias medidas—,
+  porque dos ramas los imprimían y con esa magnitud corrían las dos. Quedó una
+  sola, la que corre para toda magnitud, y una prueba cuenta las apariciones.
+
 ## La clave que se publica es la de la tabla que se midió
 
 - Con un nombre sin calificar, `perfilar_dbi()` publicaba la clave primaria de
