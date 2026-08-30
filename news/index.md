@@ -2,6 +2,12 @@
 
 ## lupa 0.1.0
 
+### Los bytes WKB basura no llegan a GDAL
+
+- Las columnas `raw` que no tienen un encabezado WKB plausible ya no se
+  envían a `sf`; esto evita el crash de GDAL observado en win-builder
+  release (R 4.6.1, Windows) y declara la pérdida para WKB declarado.
+
 ### Avisos DBI para moda y mediana
 
 - [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)

@@ -43,6 +43,10 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="los-bytes-wkb-basura-no-llegan-a-gdal-0-1-0">Los bytes WKB basura no llegan a GDAL<a class="anchor" aria-label="anchor" href="#los-bytes-wkb-basura-no-llegan-a-gdal-0-1-0"></a></h3>
+<ul><li>Las columnas <code>raw</code> que no tienen un encabezado WKB plausible ya no se envían a <code>sf</code>; esto evita el crash de GDAL observado en win-builder release (R 4.6.1, Windows) y declara la pérdida para WKB declarado.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="avisos-dbi-para-moda-y-mediana-0-1-0">Avisos DBI para moda y mediana<a class="anchor" aria-label="anchor" href="#avisos-dbi-para-moda-y-mediana-0-1-0"></a></h3>
 <ul><li>
 <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> agrega <code>avisar_costo_moda</code> con <code>umbral_segundos_aviso_moda</code> y <code>avisar_costo_mediana</code> con <code>umbral_segundos_aviso_mediana</code>, encendidos por omision y con umbral de 30 segundos. Los avisos se emiten antes de pagar la consulta proyectada.</li>
