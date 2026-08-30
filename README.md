@@ -10,7 +10,158 @@ scope and its evidence.
 [![README en español](https://img.shields.io/badge/README-espa%C3%B1ol-2e7d32.svg)](https://github.com/sebollin/lupa/blob/main/README.es.md)
 <!-- badges: end -->
 
-## 🔎 What it is and how it differs
+## What problem does `lupa` solve?
+
+`lupa` helps an analyst inspect a table or database before trusting it: it makes
+visible inconsistent representations, missingness, duplicated or suspicious
+rows, implicit structure and values that deserve review; then it lets the
+analyst turn confirmed rules into explicit measurements, evaluate them, plan
+cleanup on a copy, and follow changes over time. It is useful when a
+`summary()` is too shallow to answer whether the same fact was encoded in more
+than one way, whether a missing value is hiding behind a code, or which rows
+need to be checked in the source system.
+
+## What does it tell me that `summary()` does not?
+
+`summary()` describes columns one at a time. `lupa` compares representations,
+crosses columns and rows, and returns `perfil$hallazgos`: an inspectable table
+with a finding type, severity, evidence, counts, a suggestion and bounded row
+traceability. A zero finding means that a diagnostic ran and found nothing; a
+diagnostic that could not run is kept separately in
+`perfil$cobertura_diagnosticos`, rather than being silently reported as clean.
+
+This is a real slice of the output from the included data:
+
+```r
+data(datos_operativos)
+perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
+perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad", "evidencia")]
+```
+
+Among the outputs of that run are:
+
+| What it exposes | `tipo_hallazgo` | Example in `evidencia` |
+| --- | --- | --- |
+| Missing values hidden behind codes | `faltantes_disfrazados` | `-99 (1)` |
+| Mixed date representations | `formatos_fecha_mixtos` | `%d/%m/%Y (4); %Y-%m-%d (4); ...` |
+| Trailing whitespace | `espacios_sobrantes` | `1 valores; ejemplos: "web "` |
+| Inconsistent capitalization | `mayusculas_inconsistentes` | `"web"; "Web"` |
+| Declared and inferred types disagree | `tipo_declarado_distinto` | `Declarado: texto; inferido: fecha` |
+| A constant column | `constante` | `Valor: principal; frecuencia: 13` |
+| Exact duplicate rows | `filas_duplicadas` | `2 filas en grupos duplicados (1 excedentes)` |
+| Repeated columns | `columnas_duplicadas` | `id_registro = id_copia` |
+
+In a purpose-built table, the profile emitted 15 kinds of finding, including
+mixed currencies and units, mixed date formats, disguised missingness, extra
+spaces, inconsistent capitalization, spelling variants, numbers stored as
+text, near-keys, constants and structural absence. On a reference bank with
+known defects it recovered 9 of 9 planted defects; on 43 clean tables it
+produced 0 error-severity findings.
+
+The current canonical vocabulary has 57 `tipo_hallazgo` names. The names are
+Spanish because they are part of the public API:
+
+```text
+alta_cardinalidad                 anio_de_dos_digitos
+bloqueo_por_con_perdida          casi_clave
+casi_duplicados_vocabulario      celdas_multivaluadas
+ceros_no_permitidos              clave_con_ausentes
+clave_no_unica                   codificacion_invalida
+codificacion_rota                columnas_duplicadas
+constante                        controles_invisibles
+coordenada_fuera_dominio         crs_no_declarado
+dato_personal_posible            desviacion_benford
+duplicados_aproximados           duplicados_exactos_columnas
+duplicados_exactos_normalizados  entidades_html
+espacios_sobrantes               faltantes
+faltantes_disfrazados            fecha_nacimiento_fuera_rango
+fecha_partida_columnas           filas_duplicadas
+formato_fecha_ambiguo            formatos_fecha_mixtos
+geometria_invalida               geometria_vacia
+integer64_fuera_precision_double mayusculas_inconsistentes
+monedas_mixtas                   negativos_no_permitidos
+nombres_columnas_problematicos   normalizacion_unicode
+numero_como_texto                outliers
+patron_raro                      posible_ausencia_estructural
+posible_centinela_numerico       posible_identificador
+regla_silencia_ausencia          relacion_aritmetica_columnas
+relacion_orden_columnas          separadores_en_campo
+tipo_compuesto_no_analizado      tipo_declarado_distinto
+tipos_geometria_mixtos           unidades_mixtas
+valor_fuera_de_aplicabilidad     valores_no_finitos
+variantes_equifrecuentes_vocabulario
+zona_horaria_fecha_hora
+```
+
+## What it does not do
+
+`lupa` does not turn the name of a quality framework into a measurement. A
+framework is a taxonomy; a factor is measured only when the data provide
+evidence or the user declares the requirement and metric that will measure it.
+The following is the measured coverage of the included frameworks:
+
+| framework | factors | reachable by declaring requirements | out of scope | measured by `perfilar()` alone |
+| --- | ---: | ---: | ---: | ---: |
+| AGESIC | 17 | 12 | 5 | 2 |
+| CEPAL | 19 | 6 | 13 | 0 |
+| ISO 25012 | 15 | 15 | 0 | 0 |
+
+The 13 CEPAL principles outside scope are not an engine limitation: they speak
+about the statistical system and its institutional or production process, not
+about values in a table. ISO 25012 is fully coverable when its requirements and
+metrics are declared. `cobertura_analisis()` keeps these distinctions visible;
+an absent finding is not a claim that the data are good.
+
+`lupa` also does not certify a dataset, invent a global score, or modify the
+input as a side effect of profiling. A score is available only when the user
+declares weights and a measurement model; cleanup returns a copy and keeps the
+original data intact.
+
+## Which databases does it run on?
+
+Seven engine/version combinations were measured against real engines today.
+Each produced the 38 requested metrics, declared 7 as `no_aplica`, and
+detected the `id` key in the test table.
+
+| engine | version | status |
+| --- | --- | --- |
+| PostgreSQL | 16 | **measured against the real engine** |
+| PostgreSQL | 9.3.25 | **measured against the real engine** |
+| MariaDB | 11.8 | **measured against the real engine** |
+| MySQL | 8.4 | **measured against the real engine** |
+| SQLite | — | **measured against the real engine** |
+| DuckDB | — | **measured against the real engine** |
+| SQL Server | 2022 | **measured against the real engine** |
+| Oracle | — | not measured in this matrix |
+| BigQuery | — | not measured in this matrix |
+
+`requisitos_motor()` contains 12 entries. Nine are named engine entries when
+the two Oracle version rows are counted separately; `dbi`, `odbc` and
+`otro_dbi` are generic compatibility entries, not additional measured engines.
+
+## How to start
+
+Until the first CRAN release, install the development version from GitHub:
+
+```r
+pak::pak("sebollin/lupa")
+```
+
+Then these five lines take a first look at a table and its declared coverage:
+
+```r
+library(lupa)
+data(datos_operativos)
+perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
+head(perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")], 5)
+cobertura_analisis(perfil)
+```
+
+`perfilar()` is read-only. The next step, when a finding is confirmed as a
+requirement, is the guided route described in
+[`flujo-guiado`](https://sebollin.github.io/lupa/articles/flujo-guiado.html).
+
+## 🔎 How lupa works in practice
 
 `lupa` is an auditable R toolkit that connects first-pass profiling with a
 quality model declared for a particular use, explicit measurement, controlled
@@ -72,7 +223,7 @@ The [Spanish README](https://github.com/sebollin/lupa/blob/main/README.es.md)
 tells the same story. Contributors should keep the public contract in Spanish;
 the surrounding guidance can be internationalised.
 
-## ⚡ A five-minute start
+## ⚡ A complete analysis and report
 
 Until the first CRAN release, install the development version from GitHub:
 
@@ -164,13 +315,14 @@ engine rejects is recorded as unavailable with its reason — never as zero.
 | engine that rejects `LIMIT` | `top` / `portable` | **tested** with a simulated engine in the suite |
 | engine that folds aliases to upper case | any | **tested** with a simulated engine |
 | engine that rejects `SELECT *` over one column | any | **tested** with a simulated engine |
-| **PostgreSQL 16** | `limit` | **tested** against the real engine: dialect resolved by probe, mean, median and standard deviation verified against R, schemas, collections and partial permissions; re-tested for the five modes, where the probe picks row-level `BERNOULLI` over block-level `SYSTEM` |
-| **MySQL 8** | `limit` | **tested** against the real engine: same three statistics verified against R |
-| **SQL Server 2022** | `top` | **tested** against the real engine: the probe resolves `top` on its own, and the three statistics match R |
-| **DuckDB 1.5** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, and the three statistics verified against R |
-| **MariaDB 11** | `limit` | **tested** against the real engine: all five modes with no unavailable metric, the three statistics against R, and the plan's lower bound matching the queries actually emitted in the five |
-| **Oracle Free 23 (23c)** | `fetch_first` | **tested** against the real engine: dialect resolved by probe, five modes with no unavailable metric, the three statistics against R, the plan's lower bound matching the queries actually emitted, qualified names by text and by `DBI::Id`, and `SAMPLE (p)` sampling, and verified again on 2026-08-24 against the real engine: dialect by probe, all 54 metrics with none unavailable, the three statistics against R, the primary key read from the catalogue, and the empty string declared as null |
-| Oracle 11 and earlier | `rownum` | expected, not checked against the engine |
+| **PostgreSQL 16** | `limit` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
+| **PostgreSQL 9.3.25** | `limit` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
+| **MySQL 8.4** | `limit` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
+| **SQL Server 2022** | `top` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
+| **DuckDB** | `limit` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
+| **MariaDB 11.8** | `limit` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
+| **Oracle** | `fetch_first` / `rownum` | not measured in the current matrix |
+| **BigQuery** | `portable` | not measured in the current matrix |
 | any other DBI-compatible engine | `portable` | fallback: `dbSendQuery()` + `dbFetch(n)` |
 
 The claim is reproducible: `benchmark/verificar_motor.R` takes any DBI

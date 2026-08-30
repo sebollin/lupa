@@ -13,10 +13,14 @@ medir(
 )
 }
 \arguments{
-\item{modelo}{Objeto creado por \code{modelo()}.}
+\item{modelo}{\strong{Primer argumento.} Objeto operativo creado por
+\code{modelo()}; reúne las métricas instanciadas que se van a ejecutar. No es
+el objeto \code{perfil} que devuelve \code{\link[=perfilar]{perfilar()}} ni el
+marco conceptual de \code{\link[=marco_calidad]{marco_calidad()}}.}
 
-\item{datos}{Data frame para una sola entidad o lista con nombre de data
-frames para varias entidades.
+\item{datos}{\strong{Segundo argumento.} Data frame para una sola entidad o
+lista con nombre de data frames para varias entidades. Es la tabla que se mide,
+no un perfil ni un modelo.
 
 Con una lista, tienen que estar las tablas de \strong{todas} las entidades que el
 modelo mide; si falta alguna se rechaza antes de medir, nombrando todas las

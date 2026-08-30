@@ -15,15 +15,15 @@ test_that("el catalogo conserva los motores y estados de los README", {
     catalogo$estado_prueba[catalogo$motor == "PostgreSQL" & catalogo$version == "16"],
     "probado"
   )
-  # MariaDB 11 y Oracle Free 23 se verificaron contra motor real. Oracle 11 y
-  # anteriores sigue esperado: el dialecto `rownum` no corrio contra ninguno.
+  # MariaDB 11 se verifico contra motor real; Oracle no se midio contra un
+  # motor real y sus dos variantes siguen en estado esperado.
   expect_equal(
     catalogo$estado_prueba[catalogo$motor == "MariaDB"],
     "probado"
   )
   expect_equal(
     catalogo$estado_prueba[catalogo$motor == "Oracle"],
-    c("probado", "esperado")
+    c("esperado", "esperado")
   )
   expect_equal(sum(catalogo$estado_biblioteca_sistema == "no_requerida"), 3L)
   expect_true(all(catalogo$estado_biblioteca_sistema %in% c(

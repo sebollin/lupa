@@ -1,5 +1,22 @@
 # lupa 0.1.0
 
+## README, API y recorrido guiado
+
+- Los dos README ahora empiezan por el problema que resuelve `lupa`, los tipos
+  de hallazgo que permiten ver más que un `summary()`, la cobertura medida de
+  AGESIC, CEPAL e ISO 25012, los siete motores comprobados contra un motor real
+  y el recorrido mínimo para empezar. La documentación enumera los 57 nombres
+  canónicos de `tipo_hallazgo`.
+- Los argumentos de `medir()`, `evaluar()` y `cobertura_analisis()` indican en
+  qué posición se recibe cada objeto y distinguen el perfil descriptivo de
+  `perfilar()` del perfil de evaluación de `perfil_evaluacion()`. Los errores
+  de tipo equivocado ahora nombran el argumento y el constructor esperado.
+- El catálogo de motores ya no presenta Oracle como medido: las dos variantes
+  quedan documentadas como dialectos esperados sin comprobación contra un
+  motor real, en línea con la cobertura publicada.
+- Se añade la viñeta `flujo-guiado`, que recorre una propuesta editable desde
+  `perfilar()` hasta `evaluar()` y muestra el orden de la API.
+
 ## La clave declarada separa ausencias y repeticiones
 
 - `perfilar(clave = ...)` publica `clave_con_ausentes` para las filas que

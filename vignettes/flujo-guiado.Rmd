@@ -1,0 +1,103 @@
+---
+title: "Flujo guiado: del perfil a la evaluación"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Flujo guiado: del perfil a la evaluación}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+options(width = 90)
+```
+
+Esta es la ruta cuando ya se tiene una tabla y se quiere decidir qué medir.
+El perfil descriptivo y el perfil de evaluación son objetos distintos: el
+primero sale de `perfilar()` y el segundo se construye con
+`perfil_evaluacion()`.
+
+## 1. Perfilar
+
+```{r}
+library(lupa)
+
+datos <- data.frame(
+  id = 1:4,
+  edad = c(20, NA, 35, 40),
+  zona = c("Norte", "Norte", "Sur", "Sur"),
+  stringsAsFactors = FALSE
+)
+
+perfil <- perfilar(datos, analizar_dependencias = FALSE)
+perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")]
+```
+
+El perfil responde qué señales aparecen, pero no decide por sí solo qué
+requisito debe quedar vigente.
+
+## 2. Proponer y editar
+
+`proponer_modelo()` convierte señales del perfil en una tabla editable. La
+columna `incluir` es la decisión que se confirma o se rechaza antes de medir.
+
+```{r}
+propuesta <- proponer_modelo(perfil, datos)
+propuesta[, c("metrica", "origen", "incluir", "estado")]
+```
+
+En este ejemplo se confirma sólo la métrica de no nulidad; las demás
+propuestas, si aparecen, quedan fuera explícitamente.
+
+```{r}
+propuesta$incluir <- propuesta$metrica == "NoNulo"
+stopifnot(any(propuesta$incluir))
+```
+
+## 3. Materializar y medir
+
+`modelo_desde_propuesta()` no vuelve a perfilar ni mide: materializa las filas
+activas en un modelo operativo. Ese modelo va primero en `medir()` y los datos
+van segundos.
+
+```{r}
+modelo_operativo <- modelo_desde_propuesta(propuesta)
+medicion <- medir(
+  modelo_operativo, datos,
+  id_medicion = "ejemplo-guiado"
+)
+medicion[, c("metrica", "metrica_instanciada", "resultado")]
+```
+
+## 4. Evaluar
+
+Se declara una regla y se la reúne en un perfil de evaluación. Ese perfil no es
+el objeto que devuelve `perfilar()`: es el segundo argumento de `evaluar()`.
+
+```{r}
+regla <- regla_evaluacion(
+  "Completitud minima",
+  function(x) x >= 0.75
+)
+perfil_para_evaluar <- perfil_evaluacion("Publicable", regla)
+evaluacion <- evaluar(medicion, perfil_para_evaluar)
+evaluacion$perfiles
+```
+
+La evaluación aplica una condición a las medidas existentes. No vuelve a
+leer `datos` ni reemplaza la medición.
+
+## 5. Consultar la cobertura
+
+Si además se quiere ver cómo queda el recorrido frente a una taxonomía, el
+orden de `cobertura_analisis()` es `perfil`, `medicion`, `modelo`, donde el
+tercer objeto es el marco conceptual creado por `marco_calidad()`.
+
+```{r}
+cobertura <- cobertura_analisis(perfil, medicion, marco_agesic())
+cobertura[, c("marco", "dimension", "factor", "estado")]
+```
+
+La tabla permite distinguir una medición ejecutada, un factor no declarado y
+un factor fuera de alcance. La ausencia de un hallazgo no se interpreta como
+una certificación de calidad.

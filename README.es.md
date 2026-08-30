@@ -10,7 +10,162 @@ su alcance y su evidencia.
 [![README in English](https://img.shields.io/badge/README-English-1f6feb.svg)](README.md)
 <!-- badges: end -->
 
-## 🔎 Qué es y en qué se distingue
+## Qué problema resuelve `lupa`
+
+`lupa` ayuda a un analista a examinar una tabla o una base antes de confiar en
+ella: vuelve visibles las representaciones inconsistentes, los faltantes, las
+filas duplicadas o sospechosas, la estructura implícita y los valores que
+merecen revisión; después permite convertir reglas confirmadas en mediciones
+explícitas, evaluarlas, planificar una limpieza sobre una copia y seguir los
+cambios en el tiempo. Es útil cuando un `summary()` no alcanza para saber si
+un mismo hecho fue codificado de varias maneras, si un faltante se esconde
+detrás de un código o qué filas hay que revisar en el sistema de origen.
+
+## Qué te dice de tus datos que `summary()` no
+
+`summary()` describe las columnas una por una. `lupa` compara
+representaciones, cruza columnas y filas, y devuelve `perfil$hallazgos`: una
+tabla inspeccionable con tipo de hallazgo, severidad, evidencia, conteos, una
+sugerencia y trazabilidad acotada por fila. Un hallazgo en cero significa que
+el diagnóstico se ejecutó y no encontró nada; un diagnóstico que no pudo
+ejecutarse queda separado en `perfil$cobertura_diagnosticos`, en vez de
+informarse en silencio como si los datos estuvieran limpios.
+
+Este es un recorte real de la salida con los datos incluidos:
+
+```r
+data(datos_operativos)
+perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
+perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad", "evidencia")]
+```
+
+Entre las salidas de esa corrida aparecen:
+
+| Qué deja visible | `tipo_hallazgo` | Ejemplo en `evidencia` |
+| --- | --- | --- |
+| Faltantes escondidos detrás de códigos | `faltantes_disfrazados` | `-99 (1)` |
+| Fechas en representaciones mixtas | `formatos_fecha_mixtos` | `%d/%m/%Y (4); %Y-%m-%d (4); ...` |
+| Espacios sobrantes | `espacios_sobrantes` | `1 valores; ejemplos: "web "` |
+| Mayúsculas inconsistentes | `mayusculas_inconsistentes` | `"web"; "Web"` |
+| El tipo declarado y el inferido no coinciden | `tipo_declarado_distinto` | `Declarado: texto; inferido: fecha` |
+| Una columna constante | `constante` | `Valor: principal; frecuencia: 13` |
+| Filas duplicadas exactas | `filas_duplicadas` | `2 filas en grupos duplicados (1 excedentes)` |
+| Columnas repetidas | `columnas_duplicadas` | `id_registro = id_copia` |
+
+En una tabla armada a propósito, el perfil emitió 15 tipos de hallazgo,
+incluidas monedas y unidades mezcladas, fechas en formatos mixtos, faltantes
+disfrazados, espacios sobrantes, mayúsculas inconsistentes, variantes de
+escritura, números guardados como texto, casi-claves, constantes y ausencia
+estructural. Sobre un banco de referencia con defectos conocidos recuperó 9 de
+9 defectos plantados; sobre 43 tablas limpias produjo 0 hallazgos de severidad
+error.
+
+El vocabulario canónico actual contiene 57 nombres de `tipo_hallazgo`. Los
+nombres están en español porque forman parte de la API pública:
+
+```text
+alta_cardinalidad                 anio_de_dos_digitos
+bloqueo_por_con_perdida          casi_clave
+casi_duplicados_vocabulario      celdas_multivaluadas
+ceros_no_permitidos              clave_con_ausentes
+clave_no_unica                   codificacion_invalida
+codificacion_rota                columnas_duplicadas
+constante                        controles_invisibles
+coordenada_fuera_dominio         crs_no_declarado
+dato_personal_posible            desviacion_benford
+duplicados_aproximados           duplicados_exactos_columnas
+duplicados_exactos_normalizados  entidades_html
+espacios_sobrantes               faltantes
+faltantes_disfrazados            fecha_nacimiento_fuera_rango
+fecha_partida_columnas           filas_duplicadas
+formato_fecha_ambiguo            formatos_fecha_mixtos
+geometria_invalida               geometria_vacia
+integer64_fuera_precision_double mayusculas_inconsistentes
+monedas_mixtas                   negativos_no_permitidos
+nombres_columnas_problematicos   normalizacion_unicode
+numero_como_texto                outliers
+patron_raro                      posible_ausencia_estructural
+posible_centinela_numerico       posible_identificador
+regla_silencia_ausencia          relacion_aritmetica_columnas
+relacion_orden_columnas          separadores_en_campo
+tipo_compuesto_no_analizado      tipo_declarado_distinto
+tipos_geometria_mixtos           unidades_mixtas
+valor_fuera_de_aplicabilidad     valores_no_finitos
+variantes_equifrecuentes_vocabulario
+zona_horaria_fecha_hora
+```
+
+## Qué NO hace `lupa`
+
+`lupa` no convierte el nombre de un marco de calidad en una medición. Un marco
+es una taxonomía; un factor se mide sólo cuando los datos aportan evidencia o
+cuando quien usa el paquete declara el requisito y la métrica que lo medirá.
+Esta es la cobertura medida de los marcos incluidos:
+
+| marco | factores | alcanzable declarando | fuera de alcance | mide `perfilar()` solo |
+| --- | ---: | ---: | ---: | ---: |
+| AGESIC | 17 | 12 | 5 | 2 |
+| CEPAL | 19 | 6 | 13 | 0 |
+| ISO 25012 | 15 | 15 | 0 | 0 |
+
+Los 13 principios de CEPAL fuera de alcance no son una limitación del motor:
+hablan del sistema estadístico y de su proceso institucional o productivo, no
+de los valores de una tabla. ISO 25012 se cubre entero cuando se declaran sus
+requisitos y métricas. `cobertura_analisis()` conserva estas diferencias; que
+no haya un hallazgo no afirma que los datos sean buenos.
+
+`lupa` tampoco certifica un conjunto de datos, inventa un puntaje global ni
+modifica la entrada como efecto secundario del perfilado. El puntaje sólo
+aparece cuando quien usa el paquete declara pesos y un modelo de medición; la
+limpieza devuelve una copia y conserva intactos los datos originales.
+
+## Sobre qué bases corre
+
+Hoy se midieron siete combinaciones de motor y versión contra motores reales.
+Cada una produjo las 38 métricas solicitadas, declaró 7 como `no_aplica` y
+detectó la clave `id` en la tabla de prueba.
+
+| motor | versión | estado |
+| --- | --- | --- |
+| PostgreSQL | 16 | **medido contra el motor real** |
+| PostgreSQL | 9.3.25 | **medido contra el motor real** |
+| MariaDB | 11.8 | **medido contra el motor real** |
+| MySQL | 8.4 | **medido contra el motor real** |
+| SQLite | — | **medido contra el motor real** |
+| DuckDB | — | **medido contra el motor real** |
+| SQL Server | 2022 | **medido contra el motor real** |
+| Oracle | — | no medido en esta matriz |
+| BigQuery | — | no medido en esta matriz |
+
+`requisitos_motor()` tiene 12 entradas. Nueve son entradas de motores con
+nombre si se cuentan por separado las dos filas de versión de Oracle;
+`dbi`, `odbc` y `otro_dbi` son entradas genéricas de compatibilidad, no tres
+motores medidos adicionales.
+
+## Cómo se empieza
+
+Hasta la primera publicación en CRAN, instalá la versión de desarrollo desde
+GitHub:
+
+```r
+pak::pak("sebollin/lupa")
+```
+
+Después, estas cinco líneas permiten mirar una tabla y su cobertura declarada:
+
+```r
+library(lupa)
+data(datos_operativos)
+perfil <- perfilar(datos_operativos, analizar_dependencias = FALSE)
+head(perfil$hallazgos[, c("columna", "tipo_hallazgo", "severidad")], 5)
+cobertura_analisis(perfil)
+```
+
+`perfilar()` sólo lee. El paso siguiente, cuando un hallazgo se confirma como
+requisito, está recorrido en la viñeta
+[`flujo-guiado`](https://sebollin.github.io/lupa/articles/flujo-guiado.html).
+
+## 🔎 Cómo trabaja lupa en la práctica
 
 `lupa` es un conjunto de herramientas auditables para conectar el primer
 perfilado con un modelo de calidad declarado para un uso concreto, mediciones
@@ -73,7 +228,7 @@ El [README en inglés](README.md) cuenta lo mismo. Quienes contribuyan deben
 mantener el contrato público en español; la guía que lo rodea sí se puede
 internacionalizar.
 
-## ⚡ Inicio en cinco minutos
+## ⚡ Un análisis completo y un informe
 
 Hasta la primera publicación en CRAN, instalá la versión de desarrollo desde
 GitHub:
@@ -168,13 +323,14 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 | motor que rechaza `LIMIT` | `top` / `portable` | **probado** con un motor simulado en la suite |
 | motor que pliega los alias a mayúsculas | cualquiera | **probado** con un motor simulado |
 | motor que rechaza `SELECT *` por una columna | cualquiera | **probado** con un motor simulado |
-| **PostgreSQL 16** | `limit` | **probado** contra el motor real: dialecto resuelto por sonda, media, mediana y desvío verificados contra R, medianas múltiples consolidadas con `PERCENTILE_CONT`, esquemas, colecciones y permisos parciales; vuelto a probar en los cinco modos, donde la sonda elige `BERNOULLI` a nivel de fila antes que `SYSTEM` a nivel de bloque |
-| **MySQL 8** | `limit` | **probado** contra el motor real: mismos tres estadísticos verificados contra R |
-| **SQL Server 2022** | `top` | **probado** contra el motor real: la sonda resuelve `top` sola, las medianas múltiples usan `PERCENTILE_CONT ... OVER`, y los tres estadísticos coinciden con R |
-| **DuckDB 1.5** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, y los tres estadísticos verificados contra R |
-| **MariaDB 11** | `limit` | **probado** contra el motor real: los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, y el extremo inferior del plan coincidiendo con las consultas emitidas en los cinco |
-| **Oracle Free 23 (23c)** | `fetch_first` | **probado** contra el motor real: dialecto resuelto por sonda, los cinco modos sin ninguna métrica no disponible, los tres estadísticos contra R, el extremo inferior del plan coincidiendo con las consultas emitidas, nombres calificados por texto y por `DBI::Id`, y muestreo `SAMPLE (p)`, y verificado de nuevo el 2026-08-24 contra el motor real: dialecto por sonda, las 54 métricas sin ninguna no disponible, los tres estadísticos contra R, la clave primaria leída del catálogo, y la cadena vacía declarada como nulo |
-| Oracle 11 y anterior | `rownum` | esperado, no comprobado contra el motor |
+| **PostgreSQL 16** | `limit` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
+| **PostgreSQL 9.3.25** | `limit` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
+| **MySQL 8.4** | `limit` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
+| **SQL Server 2022** | `top` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
+| **DuckDB** | `limit` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
+| **MariaDB 11.8** | `limit` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
+| **Oracle** | `fetch_first` / `rownum` | no medido en la matriz actual |
+| **BigQuery** | `portable` | no medido en la matriz actual |
 | cualquier otro compatible con DBI | `portable` | reserva: `dbSendQuery()` + `dbFetch(n)` |
 
 La afirmación es reproducible: `benchmark/verificar_motor.R` toma cualquier

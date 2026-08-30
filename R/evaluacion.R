@@ -515,9 +515,13 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 #' Ejecuta la cadena formal: condición por medida, proporción de medidas que
 #' cumplen cada regla y media aritmética simple de las reglas del perfil.
 #'
-#' @param medicion Data frame producido por `medir()`. Puede reunir varias
-#'   corridas si conserva sus `id_medicion`.
-#' @param perfil Objeto creado por `perfil_evaluacion()`.
+#' @param medicion **Primer argumento.** Data frame producido por `medir()`;
+#'   puede reunir varias corridas si conserva sus `id_medicion`. No es el
+#'   `perfil` descriptivo que devuelve [perfilar()].
+#' @param perfil **Segundo argumento.** Objeto creado por
+#'   `perfil_evaluacion()`, que reúne las reglas que se aplican a la medición.
+#'   Es un perfil de evaluación, distinto del objeto `perfil` creado por
+#'   [perfilar()].
 #'
 #' @return Objeto `evaluacion_calidad` con tres data frames filtrables:
 #'   `medidas`, `reglas` y `perfiles`. Si alguna regla declara un desenlace,
@@ -536,7 +540,16 @@ evaluar <- function(medicion, perfil) {
   if (inherits(medicion, "data.frame")) medicion <- .tabla_base(medicion)
   medicion <- .validar_medicion_evaluacion(medicion)
   if (!inherits(perfil, "perfil_evaluacion")) {
-    stop("`perfil` debe provenir de perfil_evaluacion().", call. = FALSE)
+    recibido <- if (inherits(perfil, "perfil")) {
+      "un perfil creado por perfilar()"
+    } else {
+      paste0("un objeto de clase ", paste(class(perfil), collapse = "/"))
+    }
+    stop(
+      "El segundo argumento `perfil` debe ser un perfil creado por ",
+      "perfil_evaluacion(); se recibio ", recibido, ".",
+      call. = FALSE
+    )
   }
   evaluaciones_medidas <- do.call(rbind, lapply(perfil$reglas, function(regla) {
     .evaluar_regla_medidas(medicion, perfil, regla)

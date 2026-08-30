@@ -73,12 +73,13 @@
       NA_character_, "limit", "limit", "limit", "top", "limit", "limit",
       "fetch_first", "rownum", "portable", "portable", "portable"
     ),
-    # MariaDB 11 y Oracle Free 23 se verificaron contra motor real despues de
-    # escribirse este catalogo. Oracle 11 y anteriores sigue esperado: el
-    # dialecto `rownum` no corrio contra ningun motor.
+    # MariaDB 11 se verifico contra motor real despues de escribirse este
+    # catalogo. Oracle no se midio: sus dos variantes conservan estados
+    # esperados para indicar que el dialecto esta contemplado pero no fue
+    # comprobado contra un motor real.
     estado_prueba = c(
       "no_aplica", "probado", "probado", "probado", "probado", "probado",
-      "probado", "probado", "esperado", "no_documentado", "no_documentado",
+      "probado", "esperado", "esperado", "no_documentado", "no_documentado",
       "reserva"
     ),
     fuente_estado = c(

@@ -79,11 +79,9 @@ test_that("el nombre de tabla con comilla no rompe la consulta", {
 })
 
 test_that("en Oracle se declara que la cadena vacia y el nulo no se distinguen", {
-  # Medido contra Oracle Free 23 real: las mismas tres filas -`""`, `NA`, `"x"`-
-  # dan `n_faltantes = 2` por Oracle y `1` por SQLite, porque en Oracle la
-  # cadena vacia ES el nulo. No es un defecto que se pueda arreglar; es la
-  # semantica del motor. Callarlo si lo seria: quien compare completitud entre
-  # entregas de motores distintos leeria una diferencia que no esta en el dato.
+  # Oracle trata la cadena vacia como nulo. Esta prueba conserva esa semantica
+  # en la ruta declarada para Oracle mediante una conexion simulada; no afirma
+  # una medicion contra un motor Oracle real.
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
   if (!methods::isClass("ConexionOracleLupa")) {

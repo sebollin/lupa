@@ -7,10 +7,15 @@
 evaluar(medicion, perfil)
 }
 \arguments{
-\item{medicion}{Data frame producido por \code{medir()}. Puede reunir varias
-corridas si conserva sus \code{id_medicion}.}
+\item{medicion}{\strong{Primer argumento.} Data frame producido por
+\code{medir()}; puede reunir varias corridas si conserva sus
+\code{id_medicion}. No es el \code{perfil} descriptivo que devuelve
+\code{\link[=perfilar]{perfilar()}}.}
 
-\item{perfil}{Objeto creado por \code{perfil_evaluacion()}.}
+\item{perfil}{\strong{Segundo argumento.} Objeto creado por
+\code{perfil_evaluacion()}, que reúne las reglas que se aplican a la medición.
+Es un perfil de evaluación, distinto del objeto \code{perfil} creado por
+\code{\link[=perfilar]{perfilar()}}.}
 }
 \value{
 Objeto \code{evaluacion_calidad} con tres data frames filtrables:

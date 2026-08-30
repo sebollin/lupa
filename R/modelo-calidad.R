@@ -1132,9 +1132,13 @@ metricas_nucleo <- function() {
 #' Ejecuta todas las métricas instanciadas de un `modelo_calidad`. Cada fila es
 #' una medida reutilizable y conserva el identificador y la fecha de la corrida.
 #'
-#' @param modelo Objeto creado por `modelo()`.
-#' @param datos Data frame para una sola entidad o lista con nombre de data
-#'   frames para varias entidades.
+#' @param modelo **Primer argumento.** Objeto operativo creado por `modelo()`;
+#'   reúne las métricas instanciadas que se van a ejecutar. No es el objeto
+#'   `perfil` que devuelve [perfilar()] ni el marco conceptual de
+#'   [marco_calidad()].
+#' @param datos **Segundo argumento.** Data frame para una sola entidad o lista
+#'   con nombre de data frames para varias entidades. Es la tabla que se mide,
+#'   no un perfil ni un modelo.
 #'
 #'   Con una lista, tienen que estar las tablas de **todas** las entidades que el
 #'   modelo mide; si falta alguna se rechaza antes de medir, nombrando todas las

@@ -360,7 +360,11 @@ compares the pre-truncation total, works in both directions, and respects the
 declared unit. The finding is kept: warning is not a reason to hide the evidence.
 The test suite checks identities and not only counts — fixtures build tables whose
 corrupted row indices are known in advance and assert hits, false positives and
-misses for each of the thirty-seven profiling finding types.
+misses across the canonical finding vocabulary. The current count is **57
+`tipo_hallazgo` names**: 54 types constructed by `.nuevo_hallazgo()` and three
+additional duplicate-finding names constructed by the approximate-duplicate
+detector (`duplicados_aproximados`, `duplicados_exactos_columnas` and
+`duplicados_exactos_normalizados`).
 
 Aggregated measurements carry an explicit orientation — `conformidad`, `defecto`
 or `no_aplica` — because a `0.006` proportion of duplicated entities and a

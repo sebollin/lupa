@@ -67,10 +67,14 @@
 #' una métrica del factor; descubrir un patrón o una dependencia no los
 #' convierte por sí solo en un requisito confirmado.
 #'
-#' @param perfil Objeto creado por [perfilar()].
-#' @param medicion Objeto opcional creado por [medir()].
-#' @param modelo Objeto creado por [marco_calidad()]. El nombre enfatiza que es
-#'   el modelo conceptual de referencia, no el objeto operativo de [modelo()].
+#' @param perfil **Primer argumento.** Objeto creado por [perfilar()]; es el
+#'   perfil descriptivo sobre cuyos factores se informa cobertura.
+#' @param medicion **Segundo argumento, opcional.** Objeto creado por
+#'   [medir()], con métricas ejecutadas que pueden completar esa cobertura.
+#'   No es un perfil creado por [perfilar()].
+#' @param modelo **Tercer argumento.** Objeto creado por [marco_calidad()] que
+#'   actúa como referencia conceptual. El nombre enfatiza que no es el modelo
+#'   operativo creado por [modelo()] que recibe [medir()].
 #'
 #' @return Data frame con `marco`, `dimension`, `factor`, `estado`, `motivo` y
 #'   `como_resolverlo`. `marco` identifica explícitamente la taxonomía contra la
@@ -86,13 +90,22 @@
 cobertura_analisis <- function(perfil, medicion = NULL,
                                modelo = marco_agesic()) {
   if (!inherits(perfil, "perfil")) {
-    stop("`perfil` debe ser un objeto creado por perfilar().", call. = FALSE)
+    stop(
+      "El primer argumento `perfil` debe ser un objeto creado por perfilar(); ",
+      "no es un perfil de evaluacion.", call. = FALSE
+    )
   }
   if (!is.null(medicion) && !inherits(medicion, "medicion")) {
-    stop("`medicion` debe ser NULL o un objeto creado por medir().", call. = FALSE)
+    stop(
+      "El segundo argumento `medicion` debe ser NULL o un objeto creado por ",
+      "medir().", call. = FALSE
+    )
   }
   if (!inherits(modelo, "marco_calidad")) {
-    stop("`modelo` debe provenir de marco_calidad().", call. = FALSE)
+    stop(
+      "El tercer argumento `modelo` debe provenir de marco_calidad(); ",
+      "no es el modelo operativo creado por modelo().", call. = FALSE
+    )
   }
   factores <- modelo$factores
   factores$estado <- "no_declarada"

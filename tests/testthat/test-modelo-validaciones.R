@@ -266,7 +266,14 @@ test_that("se validan reglas, perfiles y evaluaciones", {
   medidas <- medir(modelo(instancia), data.frame(x = c(1, NA)))
   perfil <- perfil_evaluacion("p", regla)
   expect_error(evaluar(data.frame(), perfil), "no vacío")
-  expect_error(evaluar(medidas, regla), "perfil")
+  expect_error(evaluar(medidas, regla), "segundo argumento")
+  perfil_descriptivo <- perfilar(
+    data.frame(x = c(1, NA)), analizar_dependencias = FALSE
+  )
+  expect_error(
+    evaluar(medidas, perfil_descriptivo),
+    "perfil creado por perfil_evaluacion"
+  )
   mala <- perfil_evaluacion(
     "mala", regla_evaluacion("mala", function(x) rep(NA, length(x)))
   )
