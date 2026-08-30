@@ -629,7 +629,7 @@ uncertainty. Consequently, the plan does not publish a temporal projection for
 during execution, and the plan emits no data queries.
 
 The low end is `total`: when cardinality is unknown, it assumes the policy will
-omit expensive metrics. The high end is `total_maximo` —also exposed as
+omit mode. The high end is `total_maximo` —also exposed as
 `total_lotes_rechazados` after adding bisection— and leaves open the path that
 executes them. If the engine rejects batches, up to `2n - 1` probes are added per
 batch of `n` columns. The real cost falls between the two **when the sample can be
@@ -683,12 +683,15 @@ The decision to pay mode and median is explicit. `politica_costo = "todas"` is
 the default and preserves all requested metrics; `"ninguna"` is an alias. With
 `politica_costo = "por_cardinalidad"`, structural sources are resolved first.
 Valid and distinct values are measured only when no exact structural source is
-available and the selected strategy permits measurement; then expensive metrics
-are omitted per column when `n_distintos / n_validos >= umbral_cardinalidad`.
-The default threshold is `0.95`, it can be changed in the call, and every
+available and the selected strategy permits measurement; then only mode is
+omitted per column when `n_distintos / n_validos >= umbral_cardinalidad`.
+The default threshold is `0.5`, it can be changed in the call, and it governs
+mode only. Median is not omitted by cardinality: the measured sweep is flat
+against the number of distinct values and is governed by row count. Every
 omission is declared in `resumen_tabla$sql` as `omitido_por_costo`, with the
-reason and how to ask for it anyway. An omitted, catalogue or unavailable
-approximate strategy never falls back to `COUNT(DISTINCT ...)`.
+reason and how to ask for it anyway. `meta$decisiones_costo` records the reason
+for keeping or omitting each metric separately. An omitted, catalogue or
+unavailable approximate strategy never falls back to `COUNT(DISTINCT ...)`.
 
 The table summary declares `meta$snapshot = FALSE`, because its aggregates are
 separate statements and the table may change between them. When exact

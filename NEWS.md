@@ -1,5 +1,19 @@
 # lupa 0.1.0
 
+## La política de costo separa moda y mediana
+
+- `politica_costo = "por_cardinalidad"` ahora aplica `umbral_cardinalidad`
+  únicamente a la moda. El valor por omisión baja de `0.95` a `0.5`, el primer
+  punto medido donde la moda se aleja de su piso de costo; la mediana se
+  conserva porque su costo queda plano frente a la cardinalidad y depende del
+  número de filas.
+- Esto cambia el comportamiento de quien ya pasaba `umbral_cardinalidad` para
+  omitir ambas métricas: esas llamadas ahora conservan la mediana bajo
+  `por_cardinalidad`. No se agrega un segundo umbral porque no hay evidencia
+  para omitir la mediana por proporción. `meta$decisiones_costo` declara la
+  razón de conservar u omitir moda y mediana por separado, y ambos README y la
+  documentación de la API describen el alcance del argumento.
+
 ## Topes de la muestra en `perfilar()`
 
 - `perfilar()` acepta `max_celdas_muestra` y `max_bytes_muestra`. La muestra

@@ -687,7 +687,7 @@ para despejar una duda. Por eso el plan no publica una proyección temporal de
 durante la ejecución, y el plan no emite consultas de datos.
 
 El extremo inferior es `total`: cuando la fuente de cardinalidad es
-desconocida, supone que la política omite las métricas caras. El extremo
+desconocida, supone que la política omite la moda. El extremo
 superior es `total_maximo` —también publicado como
 `total_lotes_rechazados` después de sumar la bisección— y deja abierto el camino
 que las ejecuta. Si el motor rechaza lotes, se agregan hasta `2n - 1` sondas por
@@ -719,11 +719,15 @@ La moda y la mediana tienen una política de costo explícita. El valor por omis
 es `politica_costo = "todas"` (`"ninguna"` es un alias): el paquete no elige por el usuario. Con
 `politica_costo = "por_cardinalidad"`, la corrida resuelve primero las
 fuentes estructurales y mide `validos` y `distintos` sólo cuando no hay una
-fuente exacta y la estrategia lo permite; después decide por columna si se
-emiten moda y mediana cuando `n_distintos / n_validos >= umbral_cardinalidad`.
-El umbral por omisión es `0.95` y se puede mover en cada llamada. Cada omisión
-queda en `resumen_tabla$sql` como `omitido_por_costo`, con qué se omitió, por qué
-y cómo pedirlo de nuevo: `politica_costo = "todas"` o un umbral diferente.
+fuente exacta y la estrategia lo permite; después omite por columna sólo la
+moda cuando `n_distintos / n_validos >= umbral_cardinalidad`. El umbral por
+omisión es `0.5` y se puede mover en cada llamada; gobierna sólo la moda. La
+mediana no se omite por cardinalidad: el barrido medido queda plano frente a la
+cantidad de valores distintos y su costo lo gobierna el número de filas.
+Cada omisión queda en `resumen_tabla$sql` como `omitido_por_costo`, con qué se
+omitió, por qué y cómo pedirlo de nuevo: `politica_costo = "todas"` o un umbral
+diferente. `meta$decisiones_costo` explica por separado por qué se conserva u
+omite cada métrica.
 El banco reproducible `benchmark/medir_politica_costo.R` mide el ahorro en
 consultas sobre una tabla de 158 columnas.
 

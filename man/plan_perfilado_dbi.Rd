@@ -113,14 +113,18 @@ omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
 solicitadas. \code{"ninguna"} es un alias de \code{"todas"}; \code{"por_cardinalidad"}
 (también \code{"cardinalidad"}) resuelve primero las fuentes estructurales y
 mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
-permite. Luego omite, por columna, moda y mediana cuando la proporción de
-distintos alcanza \code{umbral_cardinalidad}. Una estrategia no disponible no
-se convierte en una medición exacta.}
+permite. Luego omite, por columna, sólo la moda cuando la proporción de
+distintos alcanza \code{umbral_cardinalidad}; la mediana se conserva porque las
+mediciones disponibles muestran que su costo depende de las filas y no de la
+cardinalidad. Una estrategia no disponible no se convierte en una medición
+exacta.}
 
 \item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
-activa \code{politica_costo = "por_cardinalidad"}. El valor por omisión es \code{0.95}
-sólo cuando esa política se pide explícitamente; se puede mover en cada
-llamada. Para pedir todas las métricas use \code{politica_costo = "todas"}.}
+activa la omisión de la moda con \code{politica_costo = "por_cardinalidad"}. El
+valor por omisión es \code{0.5} sólo cuando esa política se pide explícitamente;
+se puede mover en cada llamada. Este argumento no gobierna la mediana:
+\code{meta$decisiones_costo} explica la decisión de cada métrica por separado.
+Para pedir todas las métricas use \code{politica_costo = "todas"}.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
@@ -147,9 +151,10 @@ valor en el atributo \code{bloque_muestra} y no incluye la fila de la lectura de
 muestra.
 
 El costo no se declara como un número sino como un rango: \code{total} es el
-extremo inferior, que supone que la política omite las métricas caras cuya
-cardinalidad no se conoce, y \code{total_maximo} el superior, que supone que las
-ejecuta. Ambos incluyen la preparación y el perfilado previsto; el rechazo
+extremo inferior, que supone que la política omite la moda cuya cardinalidad no
+se conoce, y \code{total_maximo} el superior, que supone que la ejecuta. La
+mediana queda fuera de ese supuesto proporcional y se cuenta según las columnas
+numéricas solicitadas. Ambos incluyen la preparación y el perfilado previsto; el rechazo
 de lotes puede agregar las sondas de bisección declaradas por
 \code{total_lotes_rechazados}. El costo real cae entre los extremos cuando
 \code{modo} no es \code{"muestreado"} o \code{attr(plan, "muestreo")$estado} es
@@ -205,8 +210,9 @@ y devuelve cuántas consultas emitiría el perfilado completo, de qué clase y
 con qué alcance sobre la tabla. No escanea datos para decidir el costo.
 Cuando \code{politica_costo = "por_cardinalidad"}, una clave estructural exacta
 puede cerrar la decisión; si no hay una fuente de catálogo utilizable, el
-plan publica el rango entre omitir y ejecutar las métricas caras. Nunca
-lanza \verb{COUNT(DISTINCT ...)} para despejar esa incertidumbre.
+plan publica el rango entre omitir y ejecutar la moda; la mediana no entra en
+ese criterio proporcional. Nunca lanza \verb{COUNT(DISTINCT ...)} para despejar
+esa incertidumbre.
 Las fuentes estructurales se resuelven cuando la política necesita la
 cardinalidad, aunque \code{estrategia_distintos} no permita medirla. La
 disponibilidad de la estrategia gobierna la medición, no el conocimiento que

@@ -2794,11 +2794,14 @@
   "exacta", "aproximada_motor", "catalogo", "omitida"
 )
 
-# Moda y mediana son las metricas que pueden pagar un agrupamiento u ordenacion
-# por columna. No se omiten nunca por sorpresa: la politica por cardinalidad es
-# opt-in y su umbral queda en la llamada, en la metadata y en los motivos.
+# La moda puede pagar un agrupamiento que crece con la cardinalidad. La mediana
+# no sigue ese regimen: su costo queda gobernado por las filas, asi que no entra
+# en la politica proporcional. Se conserva el conjunto historico para que las
+# decisiones y el plan sigan describiendo ambas metricas, pero solo la primera
+# usa el umbral.
 .METRICAS_COSTOSAS_DBI <- c("moda", "mediana")
-.UMBRAL_CARDINALIDAD_COSTO_DBI <- 0.95
+.METRICA_CARDINALIDAD_COSTO_DBI <- "moda"
+.UMBRAL_CARDINALIDAD_COSTO_DBI <- 0.5
 
 # Estas metricas no tienen una cota simple sobre una muestra sin supuestos
 # adicionales. Las demas pueden tener un error muestral estimable bajo un plan
@@ -2872,7 +2875,7 @@
                                               incluir_valores) {
   if (!identical(politica$nombre, "por_cardinalidad") ||
       !isTRUE(incluir_valores) ||
-      !any(.METRICAS_COSTOSAS_DBI %in% metricas)) {
+      !(.METRICA_CARDINALIDAD_COSTO_DBI %in% metricas)) {
     return(metricas)
   }
   unique(c(metricas, "validos", "distintos"))
@@ -2888,7 +2891,7 @@
   publica <- "distintos" %in% metricas_solicitadas
   para_costo <- identical(politica$nombre, "por_cardinalidad") &&
     isTRUE(incluir_valores) &&
-    any(.METRICAS_COSTOSAS_DBI %in% metricas_solicitadas)
+    .METRICA_CARDINALIDAD_COSTO_DBI %in% metricas_solicitadas
   list(
     publica = publica,
     para_costo = para_costo,
@@ -3423,6 +3426,17 @@
   ))
 }
 
+.motivo_decision_costo_dbi <- function(decision, metrica) {
+  if (is.null(decision) || is.null(decision$detalle)) return(NA_character_)
+  especifica <- decision$detalle[[metrica]]
+  if (is.list(especifica) && length(especifica$motivo)) {
+    return(as.character(especifica$motivo))
+  }
+  # Alias de compatibilidad para decisiones creadas por extensiones que aun no
+  # publican el detalle separado.
+  decision$detalle$motivo
+}
+
 .decision_costo_dbi <- function(columna, conteos, politica,
                                 n_validos = NA_real_, n_distintos = NA_real_,
                                 alcance = "la tabla",
@@ -3430,12 +3444,31 @@
   conservar <- list(moda = TRUE, mediana = TRUE)
   fuente <- fuente_cardinalidad_costo
   if (is.null(fuente)) fuente <- .fuente_cardinalidad_desconocida_dbi()
+  motivo_mediana <- paste(
+    "La mediana se conserva: no se aplica un umbral de proporcion porque su",
+    "costo medido permanece plano frente a la cardinalidad y lo gobierna el",
+    "numero de filas. `umbral_cardinalidad` gobierna solo la moda."
+  )
   detalle <- list(
     n_validos = n_validos, n_distintos = n_distintos,
     proporcion_distintos = NA_real_, motivo = NA_character_,
-    fuente_cardinalidad_costo = fuente$nombre
+    fuente_cardinalidad_costo = fuente$nombre,
+    umbral_cardinalidad = politica$umbral,
+    moda = list(
+      estado = "conservada", motivo = NA_character_,
+      criterio = "proporcion_distintos", umbral = politica$umbral
+    ),
+    mediana = list(
+      estado = "conservada", motivo = motivo_mediana,
+      criterio = "filas", umbral = NA_real_
+    )
   )
   if (!identical(politica$nombre, "por_cardinalidad")) {
+    detalle$moda$motivo <- paste0(
+      "La moda se conserva porque `politica_costo = \"", politica$nombre,
+      "\"` no aplica el criterio de cardinalidad."
+    )
+    detalle$motivo <- detalle$moda$motivo
     return(c(conservar, detalle = list(detalle)))
   }
   validos <- .numero_dbi(n_validos)
@@ -3471,18 +3504,30 @@
   detalle$proporcion_distintos <- proporcion
   if (is.finite(proporcion) && proporcion >= politica$umbral) {
     conservar$moda <- FALSE
-    conservar$mediana <- FALSE
-    detalle$motivo <- paste0(
-      "Se omitieron las metricas caras solicitadas (moda y/o mediana) de la ",
-      "columna `", columna, "`: tiene ", distintos,
+    detalle$moda$estado <- "omitida_por_costo"
+    detalle$moda$motivo <- paste0(
+      "Se omitio la moda de la columna `", columna, "`: tiene ", distintos,
       " valores distintos de ",
       validos, " validos (", formatC(proporcion, format = "f", digits = 3),
       ") sobre ", alcance, "; la politica optativa considera que agrupar u",
-      " ordenar toda la columna no justifica el costo. Para pedirla igual,",
-      " use `politica_costo = \"todas\"`; para mover el criterio, cambie",
+      " ordenar toda la columna no justifica el costo. Para pedirla igual, use",
+      " `politica_costo = \"todas\"`; para mover el criterio, cambie",
       " `umbral_cardinalidad`."
     )
+  } else if (is.finite(proporcion)) {
+    detalle$moda$motivo <- paste0(
+      "La moda se conserva: la proporcion de distintos (",
+      formatC(proporcion, format = "f", digits = 3), ") queda por debajo de ",
+      "`umbral_cardinalidad` (",
+      formatC(politica$umbral, format = "f", digits = 3), ")."
+    )
+  } else {
+    detalle$moda$motivo <- paste(
+      "La moda se conserva porque no se pudo determinar una proporcion de",
+      "distintos utilizable para aplicar `umbral_cardinalidad`."
+    )
   }
+  detalle$motivo <- detalle$moda$motivo
   c(conservar, detalle = list(detalle))
 }
 
@@ -5203,7 +5248,8 @@
   } else if (!is.null(decisiones_costo) &&
              identical(decisiones_costo$moda, FALSE)) {
     registros <- omitir(
-      registros, "moda", "omitido_por_costo", decisiones_costo$detalle$motivo
+      registros, "moda", "omitido_por_costo",
+      .motivo_decision_costo_dbi(decisiones_costo, "moda")
     )
   } else {
     moda <- if (is.null(moda_precalculada)) {
@@ -5435,7 +5481,7 @@
                identical(decisiones_costo$mediana, FALSE)) {
       registros <- omitir(
         registros, "mediana", "omitido_por_costo",
-        decisiones_costo$detalle$motivo
+        .motivo_decision_costo_dbi(decisiones_costo, "mediana")
       )
     } else if (!is.null(mediana_consolidada)) {
       mediana <- mediana_consolidada
@@ -6556,8 +6602,9 @@
 #' con qué alcance sobre la tabla. No escanea datos para decidir el costo.
 #' Cuando `politica_costo = "por_cardinalidad"`, una clave estructural exacta
 #' puede cerrar la decisión; si no hay una fuente de catálogo utilizable, el
-#' plan publica el rango entre omitir y ejecutar las métricas caras. Nunca
-#' lanza `COUNT(DISTINCT ...)` para despejar esa incertidumbre.
+#' plan publica el rango entre omitir y ejecutar la moda; la mediana no entra en
+#' ese criterio proporcional. Nunca lanza `COUNT(DISTINCT ...)` para despejar
+#' esa incertidumbre.
 #' Las fuentes estructurales se resuelven cuando la política necesita la
 #' cardinalidad, aunque `estrategia_distintos` no permita medirla. La
 #' disponibilidad de la estrategia gobierna la medición, no el conocimiento que
@@ -6634,9 +6681,10 @@
 #'   muestra.
 #'
 #'   El costo no se declara como un número sino como un rango: `total` es el
-#'   extremo inferior, que supone que la política omite las métricas caras cuya
-#'   cardinalidad no se conoce, y `total_maximo` el superior, que supone que las
-#'   ejecuta. Ambos incluyen la preparación y el perfilado previsto; el rechazo
+#'   extremo inferior, que supone que la política omite la moda cuya cardinalidad
+#'   no se conoce, y `total_maximo` el superior, que supone que la ejecuta. La
+#'   mediana queda fuera de ese supuesto proporcional y se cuenta según las
+#'   columnas numéricas solicitadas. Ambos incluyen la preparación y el perfilado; el rechazo
 #'   de lotes puede agregar las sondas de bisección declaradas por
 #'   `total_lotes_rechazados`. El costo real cae entre los extremos cuando
 #'   `modo` no es `"muestreado"` o `attr(plan, "muestreo")$estado` es
@@ -6668,10 +6716,12 @@
 #'
 #'   Si se pide `politica_costo = "por_cardinalidad"`, el plan busca primero una
 #'   garantía estructural o una fuente de catálogo. Si la fuente queda
-#'   desconocida, no emite un agregado para aclararla: `n_consultas` omite moda
-#'   y mediana, y `n_consultas_max` deja abierto el camino que las ejecuta. La
-#'   corrida mide `distintos` sólo si la política lo necesita. La política por
-#'   omisión es `"todas"`: el paquete no elige por el usuario.
+#'   desconocida, no emite un agregado para aclararla: `n_consultas` omite la
+#'   moda y `n_consultas_max` deja abierto el camino que la ejecuta. La mediana
+#'   se conserva porque su costo medido es plano frente a la cardinalidad y está
+#'   gobernado por las filas. La corrida mide `distintos` sólo si la política lo
+#'   necesita. La política por omisión es `"todas"`: el paquete no elige por el
+#'   usuario.
 #'   Una fuente estructural se resuelve aunque la estrategia de distintos este
 #'   omitida o no disponible; esta ultima solo gobierna si se puede medir.
 #'   El catalogo de la clave primaria se consulta siempre para conservar esa
@@ -6755,8 +6805,8 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     }
   # El plan no consulta la tabla para despejar la cardinalidad. Un catalogo
   # estructural ya leido puede fijar la decision; lo demas abre un rango entre
-  # omitir y ejecutar las metricas caras. La corrida medira lo que la politica
-  # explicita necesite, una sola vez.
+  # omitir y ejecutar la moda. La mediana queda fuera de ese criterio y la
+  # corrida medira lo que la politica explicita necesite, una sola vez.
   decisiones_costo <- .decisiones_costo_dbi(
     conexion, preparacion$campos,
     list(conteos = stats::setNames(
@@ -6771,7 +6821,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   columnas_mediana_max <- NULL
   if (identical(preparacion$politica_costo$nombre, "por_cardinalidad") &&
       isTRUE(incluir_valores) &&
-      any(.METRICAS_COSTOSAS_DBI %in% preparacion$metricas)) {
+      .METRICA_CARDINALIDAD_COSTO_DBI %in% preparacion$metricas) {
     desconocidas <- vapply(
       preparacion$fuentes_cardinalidad_costo,
       function(x) identical(x$nombre, "desconocida"), logical(1L)
@@ -6846,12 +6896,13 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   } else ""
   # El total es un RANGO, no una prediccion exacta ni un techo. Ademas de las
   # sondas por rechazo de lotes, la cardinalidad desconocida deja abiertas las
-  # metricas caras que la politica puede omitir despues de medir.
+  # moda que la politica puede omitir despues de medir.
   attr(plan, "supuesto") <- paste(
     "El plan no escanea datos para decidir el costo. Cuando la fuente de",
-    "cardinalidad es desconocida, `total` supone que la politica omite las",
-    "metricas caras y `total_maximo` que las ejecuta; la corrida mide",
-    "`distintos` si la politica lo necesita y sigue esa decision.",
+    "cardinalidad es desconocida, `total` supone que la politica omite la",
+    "moda y `total_maximo` que la ejecuta; la mediana se conserva porque su",
+    "costo medido es plano frente a la cardinalidad; la corrida mide `distintos`",
+    "si la politica lo necesita y sigue esa decision.",
     if ("distintos" %in% preparacion$metricas_ejecucion) {
       .SUPUESTO_COSTO_DISTINTOS_PLAN_DBI
     } else "",
@@ -8504,13 +8555,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   solicitadas. `"ninguna"` es un alias de `"todas"`; `"por_cardinalidad"`
 #'   (también `"cardinalidad"`) resuelve primero las fuentes estructurales y
 #'   mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
-#'   permite. Luego omite, por columna, moda y mediana cuando la proporción de
-#'   distintos alcanza `umbral_cardinalidad`. Una estrategia no disponible no
-#'   se convierte en una medición exacta.
+#'   permite. Luego omite, por columna, sólo la moda cuando la proporción de
+#'   distintos alcanza `umbral_cardinalidad`; la mediana se conserva porque las
+#'   mediciones disponibles muestran que su costo depende de las filas y no de
+#'   la cardinalidad. Una estrategia no disponible no se convierte en una
+#'   medición exacta.
 #' @param umbral_cardinalidad Proporción entre valores distintos y válidos que
-#'   activa `politica_costo = "por_cardinalidad"`. El valor por omisión es `0.95`
-#'   sólo cuando esa política se pide explícitamente; se puede mover en cada
-#'   llamada. Para pedir todas las métricas use `politica_costo = "todas"`.
+#'   activa la omisión de la moda con `politica_costo = "por_cardinalidad"`. El
+#'   valor por omisión es `0.5` sólo cuando esa política se pide explícitamente;
+#'   se puede mover en cada llamada. Este argumento no gobierna la mediana:
+#'   `meta$decisiones_costo` explica la decisión de cada métrica por separado.
+#'   Para pedir todas las métricas use `politica_costo = "todas"`.
 #' @param avisar_costo_distintos Si es `TRUE`, avisa, después de medir el primer
 #'   lote y antes del segundo, cuando la proyección del costo de
 #'   `COUNT(DISTINCT)` alcanza `umbral_segundos_aviso_distintos`. Por omisión es

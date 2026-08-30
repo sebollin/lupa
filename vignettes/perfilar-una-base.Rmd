@@ -473,7 +473,7 @@ GB y procesar 12,8 millones aproximadamente 19 GB. El problema observado está
 en el procesamiento en R, no en la red ni en el motor.
 
 El extremo inferior es `total`: si la fuente de cardinalidad queda desconocida,
-supone que la política omite las métricas caras. El extremo superior es
+supone que la política omite la moda. El extremo superior es
 `total_maximo` —también reflejado en `total_lotes_rechazados` tras sumar la
 bisección— y deja abierto el camino que las ejecuta. Si un lote es rechazado,
 se agregan hasta `2n - 1` sondas por lote de `n` columnas. El costo real cae
@@ -534,10 +534,14 @@ La decisión de pagar moda y mediana es explícita. `politica_costo = "todas"`
 es el valor por omisión y conserva todas las métricas solicitadas. Con
 `politica_costo = "por_cardinalidad"`, la corrida resuelve primero las fuentes
 estructurales y mide los valores válidos y distintos sólo cuando no hay una
-fuente exacta y la estrategia lo permite; luego omite, por columna, las métricas
-caras cuando `n_distintos / n_validos >= umbral_cardinalidad`. Cada omisión
-queda declarada en `resumen_tabla$sql`. Una estrategia omitida, de catálogo o
-aproximada sin capacidad nunca se convierte en `COUNT(DISTINCT ...)`.
+fuente exacta y la estrategia lo permite; luego omite, por columna, sólo la
+moda cuando `n_distintos / n_validos >= umbral_cardinalidad`. El umbral por
+omisión es `0.5` y gobierna sólo la moda. La mediana se conserva: el barrido
+medido queda plano frente a la cardinalidad y su costo lo gobierna el número de
+filas. Cada omisión queda declarada en `resumen_tabla$sql` y
+`meta$decisiones_costo` explica por separado cada decisión. Una estrategia
+omitida, de catálogo o aproximada sin capacidad nunca se convierte en
+`COUNT(DISTINCT ...)`.
 
 Ahora bien, **cuántas consultas se emiten no dice cuánto cuestan**: catorce
 consultas sobre dos millones de filas son mucho más trabajo que doscientas

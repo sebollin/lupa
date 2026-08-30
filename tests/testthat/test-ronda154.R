@@ -122,10 +122,10 @@ test_that("la politica de cardinalidad declara omisiones y ahorra consultas", {
   expect_equal(
     todas$resumen_tabla$meta$consultas$emitidas -
       selectiva$resumen_tabla$meta$consultas$emitidas,
-    2
+    1
   )
   expect_true(is.na(selectiva$resumen_tabla$columnas$moda[1L]))
-  expect_true(is.na(selectiva$resumen_tabla$columnas$mediana[1L]))
+  expect_equal(selectiva$resumen_tabla$columnas$mediana[1L], 6.5)
   expect_equal(selectiva$resumen_tabla$columnas$moda[2L], "a")
   expect_equal(selectiva$resumen_tabla$columnas$mediana[3L], 1.5)
 
@@ -133,7 +133,7 @@ test_that("la politica de cardinalidad declara omisiones y ahorra consultas", {
     selectiva$resumen_tabla$sql$columna == "id" &
       selectiva$resumen_tabla$sql$estado == "omitido_por_costo", , drop = FALSE
   ]
-  expect_setequal(omitidas$metrica, c("moda", "frecuencia_moda", "mediana"))
+  expect_setequal(omitidas$metrica, c("moda", "frecuencia_moda"))
   expect_true(all(!is.na(omitidas$motivo)))
   expect_true(all(grepl("politica_costo", omitidas$motivo, fixed = TRUE)))
   expect_true(all(is.na(omitidas$sql)))
@@ -142,9 +142,16 @@ test_that("la politica de cardinalidad declara omisiones y ahorra consultas", {
 
   decisiones <- selectiva$resumen_tabla$meta$decisiones_costo
   expect_false(decisiones$id$moda)
-  expect_false(decisiones$id$mediana)
+  expect_true(decisiones$id$mediana)
   expect_true(decisiones$grupo$moda)
   expect_equal(decisiones$id$detalle$proporcion_distintos, 1)
+  expect_equal(decisiones$id$detalle$moda$estado, "omitida_por_costo")
+  expect_match(decisiones$id$detalle$moda$motivo, "umbral_cardinalidad")
+  expect_equal(decisiones$id$detalle$mediana$estado, "conservada")
+  expect_match(
+    decisiones$id$detalle$mediana$motivo,
+    "no se aplica un umbral de proporcion"
+  )
 
   plan <- plan_perfilado_dbi(
     conexion, "tabla154", modo = "exacto",
@@ -174,20 +181,62 @@ test_that("el umbral es una politica explicita y se puede mover", {
   resultado <- do.call(
     perfilar_dbi, c(list(conexion, "tabla154"), argumentos)
   )
-  estados_id <- resultado$resumen_tabla$sql$estado[
+  registros_id <- resultado$resumen_tabla$sql[
     resultado$resumen_tabla$sql$columna == "id" &
-      resultado$resumen_tabla$sql$metrica %in% c("moda", "mediana")
+      resultado$resumen_tabla$sql$metrica %in% c("moda", "mediana"),
+    , drop = FALSE
   ]
   estados_grupo <- resultado$resumen_tabla$sql$estado[
     resultado$resumen_tabla$sql$columna == "grupo" &
       resultado$resumen_tabla$sql$metrica == "moda"
   ]
-  expect_true(all(estados_id == "omitido_por_costo"))
+  expect_equal(
+    registros_id$estado[registros_id$metrica == "moda"],
+    "omitido_por_costo"
+  )
+  expect_equal(
+    registros_id$estado[registros_id$metrica == "mediana"],
+    "calculado"
+  )
   expect_true(all(estados_grupo == "omitido_por_costo"))
   expect_match(
     resultado$resumen_tabla$meta$decisiones_costo$grupo$detalle$motivo,
     "umbral_cardinalidad"
   )
+})
+
+test_that("el umbral de cardinalidad conserva la mediana y baja para la moda", {
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(
+    conexion, "tabla154_umbral",
+    data.frame(valor = c(1:6, 1, 1, 1, 1))
+  )
+
+  resultado <- perfilar_dbi(
+    conexion, "tabla154_umbral",
+    metricas = c("validos", "distintos", "moda", "mediana"),
+    modo = "exacto", bloque_muestra = "solo_agregados",
+    politica_costo = "por_cardinalidad", instrumentar = FALSE,
+    proteger_datos_personales = FALSE
+  )
+  decisiones <- resultado$resumen_tabla$meta$decisiones_costo$valor
+  registros <- resultado$resumen_tabla$sql
+  costo <- registros[
+    registros$columna == "valor" &
+      registros$metrica %in% c("moda", "frecuencia_moda", "mediana"),
+    , drop = FALSE
+  ]
+
+  expect_equal(decisiones$detalle$proporcion_distintos, 0.6)
+  expect_false(decisiones$moda)
+  expect_true(decisiones$mediana)
+  expect_setequal(
+    costo$metrica[costo$estado == "omitido_por_costo"],
+    c("moda", "frecuencia_moda")
+  )
+  expect_equal(costo$estado[costo$metrica == "mediana"], "calculado")
+  expect_equal(resultado$resumen_tabla$columnas$mediana, 1.5)
 })
 
 test_that("la capacidad consolidada usa un SELECT de PERCENTILE_CONT y SQLite cae atras", {

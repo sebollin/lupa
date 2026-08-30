@@ -130,14 +130,18 @@ omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
 solicitadas. \code{"ninguna"} es un alias de \code{"todas"}; \code{"por_cardinalidad"}
 (también \code{"cardinalidad"}) resuelve primero las fuentes estructurales y
 mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
-permite. Luego omite, por columna, moda y mediana cuando la proporción de
-distintos alcanza \code{umbral_cardinalidad}. Una estrategia no disponible no
-se convierte en una medición exacta.}
+permite. Luego omite, por columna, sólo la moda cuando la proporción de
+distintos alcanza \code{umbral_cardinalidad}; la mediana se conserva porque las
+mediciones disponibles muestran que su costo depende de las filas y no de la
+cardinalidad. Una estrategia no disponible no se convierte en una medición
+exacta.}
 
 \item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
-activa \code{politica_costo = "por_cardinalidad"}. El valor por omisión es \code{0.95}
-sólo cuando esa política se pide explícitamente; se puede mover en cada
-llamada. Para pedir todas las métricas use \code{politica_costo = "todas"}.}
+activa la omisión de la moda con \code{politica_costo = "por_cardinalidad"}. El
+valor por omisión es \code{0.5} sólo cuando esa política se pide explícitamente;
+se puede mover en cada llamada. Este argumento no gobierna la mediana:
+\code{meta$decisiones_costo} explica la decisión de cada métrica por separado.
+Para pedir todas las métricas use \code{politica_costo = "todas"}.}
 
 \item{avisar_costo_distintos}{Si es \code{TRUE}, avisa, después de medir el primer
 lote y antes del segundo, cuando la proyección del costo de
