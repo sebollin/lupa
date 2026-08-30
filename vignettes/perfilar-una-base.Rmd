@@ -41,6 +41,11 @@ compatibilidad como tamaño efectivo solicitado a la consulta. Además publica
 `filas_solicitadas`, el pedido original, y `filas_obtenidas`, las filas que
 devolvió la lectura de `perfil_muestra`; esta última puede ser `NA` cuando el
 bloque no se solicitó o falló antes de leer.
+Si la consulta de la muestra devuelve cero filas, no hay base para medir las
+métricas de alcance `muestra`: quedan en `NA`, con estado `no_disponible` y un
+motivo que nombra la muestra vacía. Esto no permite concluir que la columna esté
+vacía, por lo que no se publica cero ni se dispara `sin_valores`; `n` conserva
+el conteo de la tabla completa.
 `estrategia_distintos` es explícita: `"exacta"` es el valor por omisión y emite
 `COUNT(DISTINCT)`; `"aproximada_motor"` usa una función nativa sólo si el motor
 la acepta; `"catalogo"` queda `no_disponible` hasta implementar la estadística

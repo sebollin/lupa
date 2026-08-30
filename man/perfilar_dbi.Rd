@@ -251,6 +251,12 @@ solicitado a la consulta; \code{filas_solicitadas} declara el pedido original y
 \code{perfil_muestra}. Esta ultima puede ser \code{NA} si el bloque no se solicito o
 fallo antes de leer.
 
+Si la consulta de la muestra devuelve cero filas, no hay base para medir las
+metricas de alcance \code{muestra}: se publican con valor \code{NA}, estado
+\code{no_disponible} y un motivo que nombra la muestra vacia. Esto no permite
+concluir que la columna este vacia, por lo que no se publica cero ni se
+dispara la cascada \code{sin_valores}. \code{n} conserva el conteo de la tabla completa.
+
 En una muestra, \code{error_esperado} vale \code{no_estimado} para metricas cuyo error
 podria calcularse bajo un plan probabilistico pero no se calculo,
 \code{no_estimable} para la moda, la mediana y la cardinalidad observada, que no

@@ -7,6 +7,7 @@ library(DBI)
 .capacidad_dbi_prueba$modo <- "normal"
 .capacidad_dbi_prueba$sql <- character()
 .capacidad_dbi_prueba$dentro <- FALSE
+.capacidad_dbi_prueba$muestra_vacia <- FALSE
 
 if (!methods::isClass("ConexionCapacidadLupa")) {
   setClass("ConexionCapacidadLupa", contains = "SQLiteConnection")
@@ -149,9 +150,25 @@ setMethod(
 setMethod(
   "dbGetQuery", c("ConexionMuestraCortaLupa", "character"),
   function(conn, statement, ...) {
-    salida <- callNextMethod(conn, statement, ...)
-    if (grepl("FROM `datos_corta` ORDER BY RANDOM\\(\\) LIMIT 5$", statement) &&
-        nrow(salida) > 0L) {
+    es_muestra <- grepl(
+      "FROM `datos_corta` ORDER BY RANDOM\\(\\) LIMIT 5$", statement
+    )
+    es_consulta_muestra <- grepl(
+      "ORDER BY RANDOM\\(\\) LIMIT 5", statement, ignore.case = TRUE
+    )
+    statement_ejecutable <- if (
+      isTRUE(.capacidad_dbi_prueba$muestra_vacia) && es_consulta_muestra
+    ) {
+      gsub(
+        " ORDER BY RANDOM\\(\\) LIMIT 5", " WHERE 1 = 0", statement,
+        ignore.case = TRUE, perl = TRUE
+      )
+    } else {
+      statement
+    }
+    salida <- callNextMethod(conn, statement_ejecutable, ...)
+    if (!isTRUE(.capacidad_dbi_prueba$muestra_vacia) &&
+        es_muestra && nrow(salida) > 0L) {
       salida <- salida[seq_len(nrow(salida) - 1L), , drop = FALSE]
     }
     salida
@@ -248,6 +265,72 @@ test_that("el metadato publico distingue pedido y obtenido", {
   expect_equal(muestreo$filas_obtenidas, 5)
   expect_true(muestreo$metodo %in% c("random_limit", "tablesample_system"))
   expect_equal(muestreo$fraccion, 0.25)
+})
+
+test_that("una muestra vacia no publica ceros ni estados de muestra observada", {
+  cruda <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  DBI::dbWriteTable(
+    cruda, "datos_corta",
+    data.frame(valor = seq_len(20L))
+  )
+  con <- .envolver_conexion_capacidad(cruda, "ConexionMuestraCortaLupa")
+  on.exit({
+    .capacidad_dbi_prueba$muestra_vacia <- FALSE
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+  .capacidad_dbi_prueba$muestra_vacia <- TRUE
+
+  resultado <- perfilar_dbi(
+    con, "datos_corta", muestra = 5L, modo = "muestreado",
+    proteger_datos_personales = FALSE
+  )
+  columnas <- resultado$resumen_tabla$columnas
+  registros <- resultado$resumen_tabla$sql
+  alcance <- registros[registros$metrica != "n", , drop = FALSE]
+
+  expect_equal(columnas$n, 20)
+  campos_sin_n <- setdiff(names(columnas), c("columna", "n"))
+  expect_true(all(is.na(columnas[campos_sin_n])))
+  expect_true(all(alcance$estado == "no_disponible"))
+  expect_true(all(is.na(alcance$motivo) == FALSE))
+  expect_true(all(grepl("muestra vacia", alcance$motivo, fixed = TRUE)))
+  expect_equal(resultado$resumen_tabla$meta$muestreo$filas_obtenidas, 0)
+  expect_true(any(grepl(
+    "consulta de muestra devolvio 0 filas",
+    resultado$resumen_tabla$cobertura$motivo,
+    fixed = TRUE
+  )))
+})
+
+test_that("una muestra no vacia con todos los valores nulos conserva sus estados", {
+  cruda <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  DBI::dbWriteTable(
+    cruda, "datos_corta",
+    data.frame(valor = rep(NA_integer_, 20L))
+  )
+  con <- .envolver_conexion_capacidad(cruda, "ConexionMuestraCortaLupa")
+  on.exit({
+    .capacidad_dbi_prueba$muestra_vacia <- FALSE
+    DBI::dbDisconnect(con)
+  }, add = TRUE)
+
+  resultado <- perfilar_dbi(
+    con, "datos_corta", muestra = 5L, modo = "muestreado",
+    proteger_datos_personales = FALSE
+  )
+  registros <- resultado$resumen_tabla$sql
+  alcance <- registros[
+    registros$columna == "valor" & registros$metrica != "n", , drop = FALSE
+  ]
+
+  expect_equal(resultado$perfil_muestra$meta$origen_dbi$muestreo$filas_obtenidas, 4)
+  expect_equal(resultado$resumen_tabla$columnas$n_validos, 0)
+  expect_equal(resultado$resumen_tabla$columnas$n_faltantes, 20)
+  expect_true(all(
+    alcance$estado[alcance$metrica %in% c("n_validos", "n_faltantes")] ==
+      "estimado"
+  ))
+  expect_false(any(alcance$estado == "no_disponible"))
 })
 
 test_that("el metadato publico conserva una muestra menor que el pedido", {

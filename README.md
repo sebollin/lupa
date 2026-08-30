@@ -773,6 +773,12 @@ what it is — what was seen in the sample, with the universe stated beside it.
 An engine with no sampling capability does not break: the mode degrades and says
 so in the coverage table.
 
+If the sample query returns zero rows, there is no basis for measuring
+sample-scope metrics. They are published as `NA` with state `no_disponible` and
+a reason naming the empty sample; `n` remains the count from the full table.
+This does not imply that the column is empty, so `lupa` does not publish zero or
+start the `sin_valores` cascade.
+
 An approximation is not marked as estimated when its query was not issued or
 did not return a usable value. Distinct-count provenance is selected separately
 with `estrategia_distintos`; if `"aproximada_motor"` is requested and the engine

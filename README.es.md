@@ -806,6 +806,12 @@ sin un estimador declarado, así que se informa por lo que es —lo visto en la
 muestra, con el universo al lado—. Un motor sin capacidad de muestreo no rompe:
 el modo degrada y lo dice en la tabla de cobertura.
 
+Si la consulta de la muestra devuelve cero filas, no hay base para medir las
+métricas de alcance `muestra`. Se publican como `NA`, con estado
+`no_disponible` y un motivo que nombra la muestra vacía; `n` conserva el conteo
+de la tabla completa. Esto no permite concluir que la columna esté vacía, así
+que `lupa` no publica cero ni dispara la cascada `sin_valores`.
+
 Una aproximación no se etiqueta como estimada cuando su consulta no se emitió o
 no devolvió un valor utilizable. La procedencia de distintos se elige aparte
 con `estrategia_distintos`; si se pide `"aproximada_motor"` y el motor no ofrece

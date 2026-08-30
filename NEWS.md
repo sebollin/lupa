@@ -1,5 +1,17 @@
 # lupa 0.1.0
 
+## Una muestra vacía no publica métricas no medidas
+
+- Cuando la consulta de `modo = "muestreado"` devuelve cero filas, las métricas
+  de alcance `muestra` quedan en `NA` y con estado `no_disponible`; el motivo
+  nombra la muestra vacía. `n` conserva el conteo de la tabla completa y
+  `cobertura` mantiene el aviso de que la consulta de muestra devolvió cero
+  filas.
+- No se publica `0` en `n_validos` o `n_distintos`, ni se dispara la cascada
+  `sin_valores`: una muestra vacía no permite concluir que la columna esté
+  vacía. Una muestra no vacía con todos sus valores nulos conserva el estado
+  medido/estimado que corresponde.
+
 ## La política de costo separa moda y mediana
 
 - `politica_costo = "por_cardinalidad"` ahora aplica `umbral_cardinalidad`

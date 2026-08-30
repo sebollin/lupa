@@ -5094,14 +5094,39 @@
     )
   }
 
+  n_total_consulta <- if (!is.null(conteos$validos) &&
+                          !is.null(conteos$validos$metadatos)) {
+    .numero_dbi(conteos$validos$metadatos$n_total_consulta)
+  } else {
+    NA_real_
+  }
+  # Un agregado sobre una muestra vacia devuelve ceros y una fila valida para
+  # SQL, pero eso no significa que se hayan observado cero valores: no se
+  # observo ninguna fila. `n_validos` y `n_distintos` no alcanzan para hacer la
+  # distincion, porque una muestra no vacia puede tener todos sus valores nulos.
+  # Cuando el denominador local esta disponible y vale cero, ninguna metrica de
+  # alcance muestral tiene base para publicarse. `n` queda intacto porque sale
+  # del conteo de la tabla completa.
+  muestra_vacia <- es_muestreado && isTRUE(n_total_consulta == 0)
+  if (muestra_vacia) {
+    motivo <- paste(
+      "La muestra vacia no tiene base para medir esta metrica: la consulta de",
+      "muestra devolvio 0 filas. No se supone que la columna este vacia."
+    )
+    registros <- .metricas_omitidas_dbi(
+      list(), columna, metricas, "no_disponible", motivo,
+      metadatos = metadatos
+    )
+    return(list(
+      fila = fila, sql = do.call(rbind, registros), literales = literales
+    ))
+  }
+
   if ("validos" %in% metricas) {
     validos <- conteos$validos
     registros <- registrar(registros, .CAMPOS_METRICA_DBI$validos, validos)
     if (validos$ok) {
       validos_observados <- .conteo_dbi(validos$valor)
-      n_total_consulta <- if (is.null(validos$metadatos)) NA_real_ else {
-        .numero_dbi(validos$metadatos$n_total_consulta)
-      }
       fila$n_validos <- if (es_muestreado) {
         .conteo_estimado_dbi(
           validos_observados, n_total, n_total_consulta
@@ -8297,6 +8322,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `filas_obtenidas` las filas que devolvio la lectura del bloque
 #' `perfil_muestra`. Esta ultima puede ser `NA` si el bloque no se solicito o
 #' fallo antes de leer.
+#' Si la consulta de la muestra devuelve cero filas, no hay base para medir las
+#' metricas de alcance `muestra`: se publican con valor `NA`, estado
+#' `no_disponible` y un motivo que nombra la muestra vacia. Esto no permite
+#' concluir que la columna este vacia, por lo que no se publica cero ni se
+#' dispara la cascada `sin_valores`. `n` conserva el conteo de la tabla completa.
 #'
 #' En una muestra, `error_esperado` vale `no_estimado` para metricas cuyo error
 #' podria calcularse bajo un plan probabilistico pero no se calculo,
