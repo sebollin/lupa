@@ -918,7 +918,8 @@ valor_a  posible_ausencia_estructural  ok
 It suggests; it does not decide, and it never rewrites the universe on its own.
 Columns already declared are left out of the examination. On twenty real
 datasets shipped with R and sixty random tables with independent missingness it
-produces zero signals; it fires on the entity-attribute-value model, the survey
+produces zero signals (rerun of 2026-08-30, reproducible with
+`benchmark/banco_ausencia_estructural.R`); it fires on the entity-attribute-value model, the survey
 skip pattern and the mutually exclusive columns, and stays quiet when ten per
 cent of the rows break the rule, because then the relation exists and is not a
 rule.

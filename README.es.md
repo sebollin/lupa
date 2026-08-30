@@ -951,7 +951,7 @@ valor_a  posible_ausencia_estructural  ok
 
 Sugiere; no decide, y nunca reescribe el universo por su cuenta. Las columnas ya
 declaradas quedan fuera del examen. Sobre veinte conjuntos reales que vienen con
-R y sesenta tablas al azar con ausencia independiente no produce ninguna señal;
+R y sesenta tablas al azar con ausencia independiente no produce ninguna señal (corrida rehecha el 2026-08-30, reproducible con `benchmark/banco_ausencia_estructural.R`);
 dispara en el modelo entidad-atributo-valor, en el salto de patrón de una
 encuesta y en las columnas excluyentes, y se calla cuando el diez por ciento de
 las filas rompe la regla, porque entonces la relación existe y no es una regla.
