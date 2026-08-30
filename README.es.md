@@ -878,6 +878,13 @@ motor**, así que no se sugiere nada: se lee, en una sola consulta elegida por e
 controlador. Y se distingue «esta tabla no declara clave» de «no se pudo
 preguntar», que no son lo mismo.
 
+Con un nombre sin calificar, la clave que se publica es la de **la relación que
+el motor resuelve**, no la de una homónima de otro esquema: el esquema se le
+pregunta al motor con sus mismas reglas. Y por encima de eso, una clave cuyas
+columnas no están entre las que se acaban de medir se descarta entera, en
+cualquier motor, diciendo por qué. Una clave que no es de la tabla medida es
+peor que ninguna.
+
 **La unicidad no se adivina: se pregunta.** Si se declara la clave con
 `perfilar(clave = ...)`, que se repita entre las filas con la clave completa es
 un hallazgo de severidad `error` con las filas que repiten. Si ninguna fila tiene

@@ -1,6 +1,8 @@
 .UMBRAL_FILAS_DATA_TABLE_DUPLICADOS <- 25L
 .UMBRAL_CELDAS_AVISO_TABLA_ANCHA <- 100000L
 .VELOCIDAD_REFERENCIA_TABLA_ANCHA <- 10000
+.MAX_CELDAS_MUESTRA <- 1000000L
+.MAX_BYTES_MUESTRA <- 512 * 1024^2
 
 .proyectar_costo_tabla_ancha <- function(
     n_filas, n_columnas, umbral_celdas = .UMBRAL_CELDAS_AVISO_TABLA_ANCHA) {
@@ -38,6 +40,167 @@
     ". Es una estimacion, no una medicion."
   ))
   invisible(NULL)
+}
+
+.muestra_tabla_datos <- function(datos, filas) {
+  indices <- if (!length(filas) || !is.finite(filas) || filas >= nrow(datos)) {
+    seq_len(nrow(datos))
+  } else {
+    .muestrear_vector(seq_len(nrow(datos)), filas)$valores
+  }
+  .seleccionar_columnas(datos, seq_len(ncol(datos)), filas = indices)
+}
+
+.resolver_muestra_perfilado <- function(datos, muestra,
+                                        max_celdas_muestra,
+                                        max_bytes_muestra) {
+  muestra <- .validar_muestra(muestra)
+  max_celdas_muestra <- .validar_limite_duplicados(
+    max_celdas_muestra, "max_celdas_muestra"
+  )
+  max_bytes_muestra <- .validar_limite_duplicados(
+    max_bytes_muestra, "max_bytes_muestra"
+  )
+
+  filas_totales <- as.numeric(nrow(datos))
+  columnas_totales <- as.numeric(ncol(datos))
+  filas_solicitadas <- min(filas_totales, as.numeric(muestra))
+  celdas_solicitadas <- filas_solicitadas * columnas_totales
+  filas_por_celdas <- if (!columnas_totales) {
+    Inf
+  } else {
+    floor(as.numeric(max_celdas_muestra) / columnas_totales)
+  }
+  if (filas_totales > 0 && filas_por_celdas < 1) {
+    stop(
+      "`max_celdas_muestra` debe permitir al menos una fila para todas las columnas.",
+      call. = FALSE
+    )
+  }
+  filas_candidatas <- min(filas_solicitadas, filas_por_celdas)
+
+  bytes_sonda <- NA_real_
+  bytes_vacios <- NA_real_
+  filas_por_bytes <- Inf
+  if (is.finite(max_bytes_muestra) && filas_solicitadas > 0) {
+    datos_vacios <- .muestra_tabla_datos(datos, 0L)
+    bytes_vacios <- as.numeric(utils::object.size(datos_vacios))
+    if (bytes_vacios > max_bytes_muestra) {
+      stop(
+        paste0(
+          "`max_bytes_muestra` es menor que el tamaño mínimo de la muestra ",
+          "vacía (", bytes_vacios, " bytes)."
+        ),
+        call. = FALSE
+      )
+    }
+    filas_sonda <- min(filas_solicitadas, 100)
+    datos_sonda <- .muestra_tabla_datos(datos, filas_sonda)
+    bytes_sonda <- as.numeric(utils::object.size(datos_sonda))
+    bytes_por_fila <- max(
+      (bytes_sonda - bytes_vacios) / filas_sonda,
+      bytes_sonda / filas_sonda,
+      1
+    )
+    filas_por_bytes <- floor(
+      max(0, as.numeric(max_bytes_muestra) - bytes_vacios) / bytes_por_fila
+    )
+    filas_candidatas <- min(filas_candidatas, filas_por_bytes)
+  }
+
+  if (filas_totales > 0 && filas_candidatas < 1) {
+    stop(
+      "`max_bytes_muestra` no permite materializar una fila de la muestra.",
+      call. = FALSE
+    )
+  }
+
+  # La estimación de bytes sólo elige el rango; esta búsqueda comprueba el
+  # objeto materializado y evita que el redondeo de la sonda viole el tope.
+  bytes_muestra <- if (!filas_totales) {
+    as.numeric(utils::object.size(.muestra_tabla_datos(datos, 0L)))
+  } else if (is.infinite(max_bytes_muestra)) {
+    NA_real_
+  } else {
+    lo <- 0
+    hi <- as.integer(floor(filas_candidatas))
+    valido <- 0L
+    while (lo <= hi) {
+      medio <- floor((lo + hi) / 2)
+      bytes_medio <- as.numeric(utils::object.size(
+        .muestra_tabla_datos(datos, medio)
+      ))
+      if (is.infinite(max_bytes_muestra) || bytes_medio <= max_bytes_muestra) {
+        valido <- medio
+        lo <- medio + 1L
+      } else {
+        hi <- medio - 1L
+      }
+    }
+    filas_candidatas <- valido
+    as.numeric(utils::object.size(.muestra_tabla_datos(datos, filas_candidatas)))
+  }
+  if (filas_totales > 0 && filas_candidatas < 1) {
+    stop(
+      "`max_bytes_muestra` no permite materializar una fila de la muestra.",
+      call. = FALSE
+    )
+  }
+
+  filas_efectivas <- as.numeric(filas_candidatas)
+  celdas_efectivas <- filas_efectivas * columnas_totales
+  recortada <- filas_efectivas < filas_solicitadas
+  motivos <- character()
+  if (is.finite(max_celdas_muestra) &&
+      filas_efectivas < filas_solicitadas) {
+    motivos <- c(motivos, paste0(
+      "celdas solicitadas = ", celdas_solicitadas,
+      "; umbral = ", max_celdas_muestra
+    ))
+  }
+  if (is.finite(max_bytes_muestra) &&
+      filas_efectivas < filas_solicitadas) {
+    motivos <- c(motivos, paste0(
+      "bytes observados = ", bytes_muestra,
+      "; umbral = ", max_bytes_muestra,
+      if (is.finite(bytes_sonda)) paste0("; bytes de sonda = ", bytes_sonda) else ""
+    ))
+  }
+  list(
+    filas_solicitadas = filas_solicitadas,
+    filas_efectivas = filas_efectivas,
+    celdas_solicitadas = celdas_solicitadas,
+    celdas_efectivas = celdas_efectivas,
+    bytes_muestra = bytes_muestra,
+    bytes_sonda = bytes_sonda,
+    max_celdas_muestra = max_celdas_muestra,
+    max_bytes_muestra = max_bytes_muestra,
+    recortada = recortada,
+    motivos = motivos
+  )
+}
+
+.cobertura_muestra_perfilado <- function(alcance) {
+  if (!isTRUE(alcance$recortada)) {
+    return(.cobertura_diagnosticos_vacia())
+  }
+  motivo <- paste0(
+    "La muestra se redujo de ", alcance$filas_solicitadas, " a ",
+    alcance$filas_efectivas, " filas; celdas observadas: ",
+    alcance$celdas_solicitadas, " (umbral ", alcance$max_celdas_muestra,
+    "); bytes observados en la muestra efectiva: ", alcance$bytes_muestra,
+    " (umbral ", alcance$max_bytes_muestra, "). Motivos: ",
+    if (length(alcance$motivos)) paste(alcance$motivos, collapse = "; ") else
+      "el tope efectivo de la muestra"
+  )
+  data.frame(
+    diagnostico = "muestra_perfilado", columna = "", motivo = motivo,
+    como_resolverlo = paste0(
+      "Aumente `max_celdas_muestra` o `max_bytes_muestra`, o use `Inf` ",
+      "si acepta analizar la muestra solicitada completa."
+    ),
+    dependencia = NA_character_, stringsAsFactors = FALSE
+  )
 }
 
 .filas_duplicadas_base <- function(datos) {
@@ -873,6 +1036,17 @@
 #'   textos largos. Una columna que supera el tope se declara completa fuera
 #'   de alcance en `cobertura_diagnosticos`; no se recortan valores en silencio.
 #'   `Inf` recupera explicitamente el comportamiento anterior sin tope.
+#' @param max_celdas_muestra Maximo de celdas que puede contener la muestra
+#'   comun de los diagnosticos que muestrean filas. Por defecto es `1000000`;
+#'   se calcula como filas efectivas por columnas de la tabla. Si reduce la
+#'   muestra, `cobertura_diagnosticos` informa las filas y celdas solicitadas,
+#'   el umbral y el nuevo alcance. `Inf` desactiva este tope.
+#' @param max_bytes_muestra Maximo de bytes de la muestra materializada que
+#'   alimenta los diagnosticos que muestrean filas. Por defecto es `512 MiB`.
+#'   El tamaño se estima sobre una sonda de hasta cien filas y se comprueba
+#'   sobre la muestra efectiva; si la cota reduce el alcance,
+#'   `cobertura_diagnosticos` informa los bytes observados y el umbral. `Inf`
+#'   desactiva este tope.
 #' @param avisar_costo_tabla_ancha Si es `TRUE`, avisa en sesiones interactivas
 #'   cuando las celdas proyectadas superan `umbral_celdas_aviso_tabla_ancha`.
 #'   El aviso es una estimacion y queda en silencio en scripts no interactivos.
@@ -1151,6 +1325,8 @@ perfilar <- function(datos,
                      max_trabajo_dependencias = 100000000,
                      max_largo_valor_vocabulario =
                        .MAX_LARGO_VALOR_CASI_DUPLICADOS,
+                     max_celdas_muestra = .MAX_CELDAS_MUESTRA,
+                     max_bytes_muestra = .MAX_BYTES_MUESTRA,
                      avisar_costo_tabla_ancha = TRUE,
                      umbral_celdas_aviso_tabla_ancha =
                        .UMBRAL_CELDAS_AVISO_TABLA_ANCHA) {
@@ -1199,6 +1375,15 @@ perfilar <- function(datos,
       " convertida con as.data.frame()"
     )
     datos <- as.data.frame(datos, stringsAsFactors = FALSE)
+  }
+  muestra <- .validar_muestra(muestra)
+  alcance_muestra <- .resolver_muestra_perfilado(
+    datos, muestra, max_celdas_muestra, max_bytes_muestra
+  )
+  muestra_diagnosticos <- if (nrow(datos)) {
+    alcance_muestra$filas_efectivas
+  } else {
+    1
   }
   normalizacion_resuelta <- .resolver_normalizacion(normalizar)
   fecha_hora <- tryCatch(.fecha_utc(fecha), error = function(e) NA)
@@ -1460,7 +1645,7 @@ perfilar <- function(datos,
     trazador_tiempos, "perfilado_columnas",
     lapply(seq_len(ncol(datos)), function(i) {
       .perfilar_columna(
-        datos[[i]], nombres[[i]], muestra, max_patrones,
+        datos[[i]], nombres[[i]], muestra_diagnosticos, max_patrones,
         distinguir_mayusculas, expandir, umbral_patron_raro,
         sentinelas_numericos,
         aplicable = aplicabilidad_resuelta$mascaras[[i]]
@@ -1471,8 +1656,8 @@ perfilar <- function(datos,
   columnas <- if (length(resultados)) {
     do.call(rbind, lapply(resultados, `[[`, "fila"))
   } else {
-    .perfilar_columna(
-      character(), "", muestra, max_patrones,
+      .perfilar_columna(
+      character(), "", muestra_diagnosticos, max_patrones,
       distinguir_mayusculas, expandir, umbral_patron_raro,
       sentinelas_numericos
     )$fila[0, , drop = FALSE]
@@ -1486,7 +1671,7 @@ perfilar <- function(datos,
     trazador_tiempos, "dependencias",
     if (analizar_dependencias) {
       detectar_dependencias(
-        datos, umbral = umbral_dependencia, muestra = muestra,
+        datos, umbral = umbral_dependencia, muestra = muestra_diagnosticos,
         max_columnas = max_columnas_dependencias,
         umbral_casi_clave = umbral_casi_clave_dependencia,
         max_comparaciones = max_comparaciones_dependencias,
@@ -1578,6 +1763,12 @@ perfilar <- function(datos,
   )
   if (is.null(cobertura_diagnosticos)) {
     cobertura_diagnosticos <- .cobertura_diagnosticos_vacia()
+  }
+  cobertura_muestra <- .cobertura_muestra_perfilado(alcance_muestra)
+  if (nrow(cobertura_muestra)) {
+    cobertura_diagnosticos <- rbind(
+      cobertura_diagnosticos, cobertura_muestra
+    )
   }
   if (nrow(relaciones_aritmeticas$cobertura)) {
     cobertura_diagnosticos <- rbind(
@@ -1728,9 +1919,13 @@ perfilar <- function(datos,
     columnas_personales_declaradas = names(columnas_personales),
     ausencia_estructural = ausencia_estructural,
     filas_totales = nrow(datos),
-    filas_analizadas = min(nrow(datos), floor(muestra)),
-    muestreo = nrow(datos) > muestra,
+    filas_analizadas = alcance_muestra$filas_efectivas,
+    muestreo = nrow(datos) > alcance_muestra$filas_efectivas,
     muestra = muestra,
+    muestra_efectiva = alcance_muestra$filas_efectivas,
+    max_celdas_muestra = max_celdas_muestra,
+    max_bytes_muestra = max_bytes_muestra,
+    bytes_muestra = alcance_muestra$bytes_muestra,
     max_patrones = max_patrones,
     distinguir_mayusculas = distinguir_mayusculas,
     expandir = expandir,

@@ -1,5 +1,30 @@
 # lupa 0.1.0
 
+## La clave que se publica es la de la tabla que se midió
+
+- Con un nombre sin calificar, `perfilar_dbi()` publicaba la clave primaria de
+  una tabla homónima de otro esquema cuando la medida no declaraba ninguna. En
+  SQL Server, sobre una tabla de columnas `y, dato`, llegaba a publicar clave
+  primaria en una columna `x` inexistente ahí. El esquema se le pregunta ahora
+  al motor con sus mismas reglas de resolución, así que el catálogo contesta por
+  la relación que se lee.
+- Y por encima del filtro de cada motor, una clave cuyas columnas no están entre
+  las que se midieron se descarta entera —en cualquier motor, incluidos los que
+  no se probaron— con un motivo que lo explica. No se recortan las columnas
+  ajenas para publicar el resto: eso daría una clave que ningún catálogo declara.
+
+## La mediana consolidada se activa donde el motor la acepta
+
+- Las sondas que habilitan la mediana en una sola consulta ordenaban por una
+  constante. SQL Server rechaza constantes en el `ORDER BY` de una función de
+  ventana, así que su camino nunca se activaba; MariaDB implementa
+  `PERCENTILE_CONT` sólo como función de ventana y estaba clasificada con la
+  forma sin `OVER`. Las dos quedaban degradadas a una consulta por columna sin
+  aviso, porque los valores publicados eran correctos.
+- DuckDB acepta la forma consolidada y no se le ofrecía. Con esto, cuatro de los
+  siete motores medidos resuelven la mediana en una sola consulta en vez de una
+  por columna.
+
 ## README, API y recorrido guiado
 
 - Los dos README ahora empiezan por el problema que resuelve `lupa`, los tipos
@@ -1178,10 +1203,14 @@ tres copias de la generalizacion de patrones.
 
 ## En Oracle la cadena vacia es el nulo, y eso se declara
 
-Medido contra Oracle Free 23 real: las mismas tres filas -`""`, `NA`, `"x"`- dan
-`n_faltantes = 2` por Oracle y `1` por un motor que las distingue. La misma
-columna tiene una completitud distinta segun el motor, y no porque el dato
-cambie.
+Las mismas tres filas -`""`, `NA`, `"x"`- dan `n_faltantes = 2` por Oracle y `1`
+por un motor que las distingue. La misma columna tiene una completitud distinta
+segun el motor, y no porque el dato cambie.
+
+Es la semantica documentada de Oracle, y `lupa` la declara. Lo que **no** hay es
+una corrida contra un servidor Oracle real que la respalde: el catalogo de
+motores da las dos variantes de Oracle como `esperado`, y esta nota decia antes
+"medido contra Oracle Free 23 real" sin un log que lo sostuviera.
 
 No es un defecto que se pueda arreglar -es la semantica del motor- pero callarlo
 si lo seria: quien compare completitud entre entregas de motores distintos

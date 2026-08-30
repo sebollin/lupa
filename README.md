@@ -847,6 +847,12 @@ so nothing is suggested: it is read, in a single query chosen by the driver. And
 «this table declares no key» is kept apart from «the key could not be read»,
 which are not the same thing.
 
+For an unqualified name, the key published is the one of **the relation the
+engine resolves**, not that of a same-named table in another schema: the schema
+is asked of the engine, under its own rules. On top of that, a key whose columns
+are not among those just measured is discarded whole, on any engine, stating
+why. A key that does not belong to the measured table is worse than none.
+
 **Uniqueness is not guessed: it is asked.** Declare the key with
 `perfilar(clave = ...)` and a key that repeats among the rows whose key is
 complete is a finding of severity `error` carrying the offending rows. When no

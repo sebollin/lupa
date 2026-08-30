@@ -128,7 +128,8 @@ test_that("la via estandar restringe al esquema propio de cada motor", {
   est <- Filter(function(x) identical(x$nombre, "information_schema"), sql)[[1L]]
   expect_match(est$sql(NA_character_, "t", "mysql"), "DATABASE()", fixed = TRUE)
   expect_match(
-    est$sql(NA_character_, "t", "sqlserver"), "SCHEMA_NAME()", fixed = TRUE
+    est$sql(NA_character_, "t", "sqlserver"), "OBJECT_SCHEMA_NAME(OBJECT_ID(",
+    fixed = TRUE
   )
   # Y siempre pide el discriminador, que es lo que alimenta la red de seguridad.
   expect_match(
@@ -138,25 +139,39 @@ test_that("la via estandar restringe al esquema propio de cada motor", {
 })
 
 # SQL Server resuelve un nombre sin calificar en DOS pasos: el esquema por
-# omision del usuario y, si no esta ahi, `dbo`. Filtrar solo por `SCHEMA_NAME()`
-# introducia un falso negativo -una tabla declarada solo en `dbo`, leida por un
-# usuario con otro esquema por omision, se lee del motor pero el catalogo
-# devolvia cero filas y se publicaba `no_declarada` falsa-.
+# omision del usuario y, si no esta ahi, `dbo`. Este bloque afirmaba que el SQL
+# pedia los DOS -`IN (SCHEMA_NAME(), 'dbo')`- y lo daba por correcto. No lo era,
+# y la prueba sostenia el defecto: medido contra SQL Server 2022 el 2026-08-30,
+# con homonimas en los dos esquemas y la clave declarada SOLO en `dbo`, el
+# catalogo devuelve una unica fila, `.clave_ambigua()` no se dispara porque no
+# hay dos que comparar, y se publicaba la clave de la tabla que NO se leyo.
 #
-# No hay SQL Server en este banco -sin controladores ODBC-, asi que lo unico
-# verificable aca es el SQL que se arma. Se comprueba eso y se dice que es eso.
+# La resolucion ya no se replica: se le PREGUNTA al motor. Y ahora si hay banco
+# donde medirlo -el driver ODBC esta instalado-, asi que ademas del SQL que se
+# arma, esto esta verificado contra el motor real en los cinco casos
+# -clave solo en dbo, solo en el propio, en los dos, ninguna, y el asimetrico-.
 
-test_that("la via estandar contempla los dos esquemas que resuelve SQL Server", {
+test_that("la via estandar le pregunta al motor que esquema resuelve", {
   est <- Filter(
     function(x) identical(x$nombre, "information_schema"),
     lupa:::.consultas_clave_primaria()
   )[[1L]]
   sql <- est$sql(NA_character_, "t", "sqlserver")
-  expect_match(sql, "SCHEMA_NAME()", fixed = TRUE)
-  expect_match(sql, "'dbo'", fixed = TRUE)
-  # Y no contamina a los otros motores.
+  # El filtro apunta a la relacion que el motor resuelve, no a un conjunto de
+  # esquemas candidatos entre los que despues haya que adivinar.
+  expect_match(sql, "OBJECT_SCHEMA_NAME(OBJECT_ID(", fixed = TRUE)
+  expect_match(sql, "'t'", fixed = TRUE)
+  # Y ya no enumera esquemas: enumerar era la forma que dejaba pasar el caso
+  # asimetrico, asi que su ausencia es parte de lo que se afirma.
+  expect_false(grepl("IN (SCHEMA_NAME()", sql, fixed = TRUE))
+  # No contamina a los otros motores.
   expect_false(grepl("dbo", est$sql(NA_character_, "t", "mysql"), fixed = TRUE))
   expect_false(
-    grepl("SCHEMA_NAME", est$sql(NA_character_, "t", "desconocido"), fixed = TRUE)
+    grepl("OBJECT_SCHEMA_NAME", est$sql(NA_character_, "t", "desconocido"),
+          fixed = TRUE)
+  )
+  # Con esquema explicito manda el esquema pedido y no se consulta al motor.
+  expect_false(
+    grepl("OBJECT_SCHEMA_NAME", est$sql("s1", "t", "sqlserver"), fixed = TRUE)
   )
 })

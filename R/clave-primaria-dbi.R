@@ -99,22 +99,30 @@
         } else if (identical(motor, "sqlserver")) {
           # SQL Server resuelve un nombre sin calificar en DOS pasos: primero el
           # esquema por omision del usuario, y si no esta ahi, `dbo`.
-          # `SCHEMA_NAME()` devuelve solo el primero, asi que filtrar por el
-          # introducia un FALSO NEGATIVO: una tabla declarada solo en `dbo`,
-          # consultada por un usuario con otro esquema por omision, se lee de
-          # `dbo` -el motor la resuelve- pero el catalogo devolvia cero filas y
-          # el paquete publicaba `no_declarada` falsa.
           #
-          # Se piden los dos y decide `.clave_ambigua()`: si la tabla existe en
-          # uno solo, se publica su clave; si existe en los dos, no se publica
-          # ninguna y el motivo lo explica. Se pierde una respuesta en un caso
-          # raro y NINGUNA es falsa, que es el orden correcto de preferencias.
+          # Filtrar por `SCHEMA_NAME()` daba un FALSO NEGATIVO -una tabla que
+          # vive solo en `dbo` se lee, pero el catalogo devolvia cero filas-. La
+          # correccion de eso, `IN (SCHEMA_NAME(), 'dbo')`, resolvia ese caso e
+          # introducia uno PEOR: con homonimas en los dos esquemas y la clave
+          # declarada SOLO en `dbo`, el catalogo devuelve UNA fila -la de `dbo`-,
+          # `.clave_ambigua()` no se dispara porque no hay dos que comparar, y el
+          # paquete publicaba la clave de una tabla que no es la que lee. Medido
+          # contra SQL Server 2022 el 2026-08-30: sobre una tabla cuyas columnas
+          # son `y, dato` publicaba clave primaria en la columna `x`, que ahi ni
+          # existe, y con filas repetidas. Es el invariante roto: informa como
+          # medido lo que no midio.
           #
-          # No se replica la precedencia completa del motor porque **este equipo
-          # no tiene controladores ODBC** y no habria como medirlo: escribir a
-          # ciegas la regla de resolucion de un motor que no se puede probar es
-          # justo lo que este paquete no hace.
-          " AND t.table_schema IN (SCHEMA_NAME(), 'dbo') "
+          # La forma honesta no es replicar la precedencia sino PREGUNTARLA.
+          # `OBJECT_ID` resuelve el nombre con las mismas reglas que usa la
+          # consulta de datos y `OBJECT_SCHEMA_NAME` dice en que esquema cayo,
+          # asi que el filtro apunta exactamente a la relacion que se mide. El
+          # comentario anterior decia que esto no se escribia porque el equipo no
+          # tenia controladores ODBC con que medirlo; ya los tiene, y esta
+          # verificado contra el motor real, que era la condicion.
+          paste0(
+            " AND t.table_schema = OBJECT_SCHEMA_NAME(OBJECT_ID(",
+            .texto_sql_clave(tabla), ")) "
+          )
         } else {
           # Un motor que no se conoce no recibe una funcion inventada: se pide
           # el esquema para poder DECLARAR la ambiguedad si aparece, que es lo
@@ -662,6 +670,38 @@
 # no se pudo resolver la visibilidad; `motivo` distingue ambos casos y los
 # errores de consulta. `garantia` nunca convierte la mera visibilidad en una
 # validacion.
+# El estado de una clave que NO se publica. Vive aparte porque lo usan dos
+# sitios -la salida vacia de cada via y la red que descarta una clave ajena- y
+# dos copias de la misma lista de doce campos se desincronizan solas.
+.estado_clave_vacio <- function(visible = NA) {
+  list(
+    visible = visible, aplicada = NA, validada = NA,
+    unicidad = NA_character_, unicidad_aplica_a = NA_character_,
+    ausencia_de_nulos = NA_character_,
+    consultado = c(enforced = FALSE, status = FALSE, validated = FALSE),
+    valores = list(enforced = NA_character_, status = NA_character_,
+                   validated = NA_character_)
+  )
+}
+
+# Descarta ENTERA una clave cuyas columnas no estan en la tabla medida. No se
+# recortan las columnas ajenas para publicar el resto: eso daria una clave que
+# ningun catalogo declara, que es peor que no publicar ninguna.
+.clave_de_otra_relacion <- function(catalogo, ajenas) {
+  catalogo$columnas <- character()
+  catalogo$garantia <- "desconocida"
+  catalogo$motivo <- paste0(
+    "El catalogo declaro una clave primaria sobre ",
+    paste(ajenas, collapse = ", "),
+    if (length(ajenas) > 1L) ", que no estan " else ", que no esta ",
+    "entre las columnas de la tabla medida: la respuesta pertenece a otra ",
+    "relacion con el mismo nombre en otro esquema. No se publica clave; ",
+    "calificar el nombre con su esquema resuelve cual es."
+  )
+  catalogo$estado <- .estado_clave_vacio(visible = TRUE)
+  catalogo
+}
+
 .clave_primaria_dbi <- function(conexion, tabla, esquema = NA_character_,
                                 presupuesto = NULL) {
   vacio <- function(fuente, motivo, garantia = "desconocida",
@@ -669,14 +709,7 @@
     list(
       columnas = character(), fuente = fuente, motivo = motivo,
       garantia = garantia,
-      estado = list(
-        visible = visible, aplicada = NA, validada = NA,
-        unicidad = NA_character_, unicidad_aplica_a = NA_character_,
-        ausencia_de_nulos = NA_character_,
-        consultado = c(enforced = FALSE, status = FALSE, validated = FALSE),
-        valores = list(enforced = NA_character_, status = NA_character_,
-                        validated = NA_character_)
-      )
+      estado = .estado_clave_vacio(visible = visible)
     )
   }
   if (!length(tabla) || is.na(tabla) || !nzchar(tabla)) {

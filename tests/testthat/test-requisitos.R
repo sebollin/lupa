@@ -15,8 +15,9 @@ test_that("el catalogo conserva los motores y estados de los README", {
     catalogo$estado_prueba[catalogo$motor == "PostgreSQL" & catalogo$version == "16"],
     "probado"
   )
-  # MariaDB 11 se verifico contra motor real; Oracle no se midio contra un
-  # motor real y sus dos variantes siguen en estado esperado.
+  # MariaDB 11 se verifico contra motor real. Oracle no: sus dos variantes estan
+  # en `esperado` porque no se conserva ningun log de una corrida contra un
+  # servidor Oracle, y el unico informe que existe declara que no pudo medir.
   expect_equal(
     catalogo$estado_prueba[catalogo$motor == "MariaDB"],
     "probado"

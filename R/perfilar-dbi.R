@@ -1662,6 +1662,23 @@
   )
 }
 
+# Las sondas ordenan por la COLUMNA de la subconsulta y no por una constante.
+# Ordenar por `1.0` parecia lo mas neutral y hacia que dos caminos declarados no
+# se ejercitaran NUNCA, cada uno por su motivo, y sin que se notara: la sonda
+# fallaba, el paquete degradaba a la via por columna y publicaba valores
+# correctos. Medido el 2026-08-30 contra los motores reales:
+#
+#   - SQL Server rechaza una constante en el `ORDER BY` de una funcion de
+#     ventana -"Windowed functions... do not support constants as ORDER BY
+#     clause expressions"-, asi que `PERCENTILE_CONT_OVER` no se activaba jamas.
+#   - MariaDB 11.8 implementa `PERCENTILE_CONT` SOLO como funcion de ventana,
+#     y estaba clasificada con el candidato que no lleva `OVER`: su sonda
+#     fallaba por la sintaxis, no por la constante. Pasa al candidato con
+#     ventana, donde acepta la consolidada y varias expresiones a la vez.
+#
+# Una sonda tiene que parecerse a la consulta que habilita. La que ordenaba por
+# una constante probaba una forma que el paquete no emite nunca.
+#
 # Algunos motores pueden obtener varios percentiles en la misma agregacion.
 # Esta capacidad se sondea por separado porque una sonda que solo prueba una
 # mediana no prueba que el motor acepte varias expresiones en un SELECT.
@@ -1670,7 +1687,7 @@
   candidatos <- list(
     list(
       nombre = "PERCENTILE_CONT",
-      patron = "postgres|redshift|oracle|snowflake|mariadb",
+      patron = "postgres|redshift|oracle|snowflake|duckdb",
       error_esperado = "desconocido",
       construir = function(expr, tabla, alias) paste0(
         "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
@@ -1684,13 +1701,13 @@
         ") AS ", alias
       ),
       sonda = function(alias) paste0(
-        "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY 1.0) AS ",
+        "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lupa_valor) AS ",
         alias, " FROM (SELECT 1.0 AS lupa_valor) lupa_sonda"
       )
     ),
     list(
       nombre = "PERCENTILE_CONT_OVER",
-      patron = "sql server|microsoft sql|sqlserver|mssql",
+      patron = "sql server|microsoft sql|sqlserver|mssql|mariadb",
       error_esperado = "desconocido",
       construir = function(expr, tabla, alias) paste0(
         "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
@@ -1705,7 +1722,7 @@
         ") OVER () AS ", alias
       ),
       sonda = function(alias) paste0(
-        "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY 1.0) OVER () AS ",
+        "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lupa_valor) OVER () AS ",
         alias, " FROM (SELECT 1.0 AS lupa_valor) lupa_sonda"
       )
     )
@@ -1807,27 +1824,27 @@
     candidatos <- list(
       list(
         nombre = "PERCENTILE_CONT",
-        patron = "postgres|redshift|sql server|microsoft sql|sqlserver|mssql",
+        patron = "postgres|redshift|duckdb|sql server|microsoft sql|sqlserver|mssql",
         error_esperado = "desconocido",
         construir = function(expr, tabla, alias) paste0(
           "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
           ") AS ", alias, " FROM ", tabla
         ),
         sonda = function(alias) paste0(
-          "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY 1.0) AS ",
+          "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lupa_valor) AS ",
           alias, " FROM (SELECT 1.0 AS lupa_valor) lupa_sonda"
         )
       ),
       list(
         nombre = "PERCENTILE_CONT_OVER",
-        patron = "sql server|microsoft sql|sqlserver|mssql",
+        patron = "sql server|microsoft sql|sqlserver|mssql|mariadb",
         error_esperado = "desconocido",
         construir = function(expr, tabla, alias) paste0(
           "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
           ") OVER () AS ", alias, " FROM ", tabla
         ),
         sonda = function(alias) paste0(
-          "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY 1.0) OVER () AS ",
+          "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lupa_valor) OVER () AS ",
           alias, " FROM (SELECT 1.0 AS lupa_valor) lupa_sonda"
         )
       ),
@@ -3333,6 +3350,26 @@
   catalogo <- .clave_primaria_dbi(
     conexion, piezas$tabla, piezas$esquema, presupuesto = presupuesto
   )
+  # Red universal, por encima del filtro de cada motor: una clave cuyas columnas
+  # no estan entre las que se acaban de medir no puede ser de la tabla medida.
+  #
+  # Existe porque el filtro por esquema resuelve el caso de CADA motor conocido,
+  # y esta clase de fallo aparece justamente en los que no se conocen: el
+  # catalogo contesta por una homonima y la respuesta llega con la forma de una
+  # respuesta buena. Esta comprobacion no necesita saber la precedencia de nadie
+  # -compara contra las columnas que el propio perfilado leyo-, asi que cubre
+  # tambien al motor que todavia no se probo. Se descubrio sobre SQL Server el
+  # 2026-08-30: publicaba clave en `x` para una tabla de columnas `y, dato`.
+  # `length(columnas)` no es defensa de rutina: si el esquema de la tabla no se
+  # pudo leer, la lista llega vacia y TODA columna de la clave pareceria ajena.
+  # Descartar una clave buena porque no se sabe contra que compararla seria
+  # silenciar por ignorancia, que es el error opuesto y del mismo tamano.
+  if (length(catalogo$columnas) && length(columnas)) {
+    ajenas <- catalogo$columnas[
+      is.na(.resolver_columnas_dbi(catalogo$columnas, columnas))
+    ]
+    if (length(ajenas)) catalogo <- .clave_de_otra_relacion(catalogo, ajenas)
+  }
   # Una clave compuesta no vuelve unica cada columna por separado. Solo una
   # clave primaria simple, aplicada y validada, permite afirmar que su columna
   # tiene tantos distintos como valores validos, sin contarla.

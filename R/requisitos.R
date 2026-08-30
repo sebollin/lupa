@@ -74,9 +74,17 @@
       "fetch_first", "rownum", "portable", "portable", "portable"
     ),
     # MariaDB 11 se verifico contra motor real despues de escribirse este
-    # catalogo. Oracle no se midio: sus dos variantes conservan estados
-    # esperados para indicar que el dialecto esta contemplado pero no fue
-    # comprobado contra un motor real.
+    # catalogo. Oracle figuraba como `probado` y no hay con que sostenerlo: el
+    # unico informe de una corrida contra Oracle -2026-08-24- termina diciendo
+    # que la medicion no se pudo ejecutar porque el entorno rechazo el acceso al
+    # demonio de Docker, y que todos los puntos "permanecen no medidos". Sus dos
+    # variantes quedan en `esperado`: el dialecto esta contemplado y la prueba
+    # contra un servidor real esta pendiente.
+    #
+    # La regla que esto hace cumplir es la del proyecto: una fila vale por su log
+    # y por su commit, no por el recuerdo de quien la escribio. `probado` sin log
+    # no se distingue de `esperado`, y la diferencia entre esas dos palabras es
+    # justamente lo unico que esta columna aporta.
     estado_prueba = c(
       "no_aplica", "probado", "probado", "probado", "probado", "probado",
       "probado", "esperado", "esperado", "no_documentado", "no_documentado",

@@ -79,9 +79,13 @@ test_that("el nombre de tabla con comilla no rompe la consulta", {
 })
 
 test_that("en Oracle se declara que la cadena vacia y el nulo no se distinguen", {
-  # Oracle trata la cadena vacia como nulo. Esta prueba conserva esa semantica
-  # en la ruta declarada para Oracle mediante una conexion simulada; no afirma
-  # una medicion contra un motor Oracle real.
+  # Oracle trata la cadena vacia como nulo, y `lupa` lo declara. Esta prueba fija
+  # esa semantica sobre una conexion SIMULADA: no afirma una medicion contra un
+  # servidor Oracle real, y no la habia -el comentario anterior decia "medido
+  # contra Oracle Free 23 real" y el unico informe de esa corrida dice que no se
+  # pudo ejecutar-. Que la prueba sea simulada no la vuelve inutil: fija el
+  # camino que el paquete toma cuando reconoce Oracle, que es lo que esta a
+  # mano. Lo que no puede hacer es pasar por una medicion del motor.
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
   if (!methods::isClass("ConexionOracleLupa")) {
