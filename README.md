@@ -311,7 +311,7 @@ engine rejects is recorded as unavailable with its reason — never as zero.
 
 | engine | dialect | status |
 | --- | --- | --- |
-| SQLite | `limit` | **tested** against the real engine, in the suite |
+| **SQLite** | `limit` | **tested** against the real engine: 38 metrics, 7 `no_aplica`, and key `id` detected |
 | engine that rejects `LIMIT` | `top` / `portable` | **tested** with a simulated engine in the suite |
 | engine that folds aliases to upper case | any | **tested** with a simulated engine |
 | engine that rejects `SELECT *` over one column | any | **tested** with a simulated engine |

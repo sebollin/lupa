@@ -678,11 +678,16 @@ directo de 1,122 microsegundos por consulta.
 Moda y mediana se pueden controlar con `politica_costo`. El valor por omisión
 es `"todas"`, que conserva el perfil anterior; `"por_cardinalidad"`
 hace primero los conteos baratos de valores válidos y distintos y decide luego
-por columna. Si `n_distintos / n_validos` alcanza
-`umbral_cardinalidad` (por omisión `0.95`), omite moda y mediana de esa
-columna. La omisión no desaparece ni se vuelve `NA` silencioso: queda
-`omitido_por_costo` con el motivo, la proporción observada y la forma de
+por columna. Si `n_distintos / n_validos` alcanza `umbral_cardinalidad`, omite
+la moda de esa columna. La omisión no desaparece ni se vuelve `NA` silencioso:
+queda `omitido_por_costo` con el motivo, la proporción observada y la forma de
 pedirla igual (`politica_costo = "todas"`) o mover el umbral.
+
+> Cuando se escribió esta entrada el umbral valía `0.95` y omitía **moda y
+> mediana**. Las dos cosas cambiaron al medirlas —el umbral es `0.5` y la
+> mediana ya no se omite por proporción, ver la entrada de arriba—, y el texto
+> se corrigió acá para que no queden dos descripciones del mismo argumento
+> diciendo cosas distintas en el mismo archivo.
 
 La política hace explícito el plan en dos etapas. En una tabla reproducible de
 158 columnas, 80 numéricas, 200 filas y 60 columnas con cardinalidad al menos

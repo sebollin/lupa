@@ -319,7 +319,7 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 
 | motor | dialecto | estado |
 | --- | --- | --- |
-| SQLite | `limit` | **probado** contra el motor real, en la suite |
+| **SQLite** | `limit` | **probado** contra el motor real: 38 métricas, 7 `no_aplica` y clave `id` detectada |
 | motor que rechaza `LIMIT` | `top` / `portable` | **probado** con un motor simulado en la suite |
 | motor que pliega los alias a mayúsculas | cualquiera | **probado** con un motor simulado |
 | motor que rechaza `SELECT *` por una columna | cualquiera | **probado** con un motor simulado |
