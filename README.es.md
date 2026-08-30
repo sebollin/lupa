@@ -728,8 +728,12 @@ un hallazgo de severidad `error` con las filas que repiten. Si ninguna fila tien
 la clave completa, el estado es `sin_casos_evaluables` y no `verificada`: cierto
 sobre un conjunto vacío es cierto y engañoso a la vez. La advertencia y `meta$clave` separan esa comprobación de
 la ausencia de nulos: una clave puede no tener colisiones distintas de los
-ausentes y aun así no cumplir `NOT NULL`; si la trazabilidad agrupa esos ausentes
-con la semántica de R, ambas cosas quedan declaradas. Y para no dejar al usuario
+ausentes y aun así no cumplir `NOT NULL`. Por eso `hallazgos` separa ambos hechos:
+`clave_con_ausentes` enumera las filas que impiden esa garantía, y
+`clave_no_unica` sólo informa valores repetidos entre filas con la clave completa;
+una colisión entre ausentes queda en la primera categoría y no refuta la
+unicidad de `meta$clave$unicidad`. Si la trazabilidad agrupa esos ausentes con la
+semántica de R, la diferencia queda declarada. Y para no dejar al usuario
 ante una casilla en blanco, `sugerir_clave()` ordena las columnas candidatas por
 tres señales que publica por separado —si identifica cada fila, si no tiene
 ausentes, y cuánto se parece su nombre al de una clave— y `elegir_clave()` las
@@ -824,6 +828,11 @@ de excedentes queda en la evidencia. `0` significa que se midió que no había
 unidades afectadas; `NA` significa que el conteo no se midió. La misma
 distinción vale para la cobertura: un diagnóstico que no pudo ejecutarse queda
 en `cobertura_diagnosticos`, nunca convertido en cero en silencio.
+
+La traza usa la misma comparación en ambas direcciones que el conteo, incluso
+cuando una columna `integer64` no respeta el argumento `fromLast` de
+`duplicated()`. Así, `n_afectados` y `trazabilidad$total` siempre describen el
+mismo conjunto de filas.
 
 Cuando un hallazgo y su traza no coinciden, `perfilar()` conserva el hallazgo y
 emite una advertencia de clase `lupa_trazabilidad_incoherente`. La guarda

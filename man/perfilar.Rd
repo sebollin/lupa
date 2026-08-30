@@ -107,8 +107,10 @@ valores ausentes. Cada eje declara \code{verificada}, \code{refutada} o
 el objeto histórico y no agrega metadatos. Cuando un eje falla o no se
 puede comprobar, \code{meta$clave$trazabilidad} explica que la localización
 agrupa con la semántica de R, incluso si el motor SQL trata dos \code{NULL} como
-distintos. Por eso una clave puede tener a la vez una colisión para la
-trazabilidad y una ausencia que impide la garantía \verb{NOT NULL}.}
+distintos. \code{hallazgos} separa esos ejes: \code{clave_con_ausentes} enumera las
+filas que impiden la garantía \verb{NOT NULL}, mientras \code{clave_no_unica} sólo
+informa repeticiones entre filas con la clave completa, el mismo universo
+que \code{meta$clave$unicidad}.}
 
 \item{umbral_faltantes_error}{Umbral por encima del cual los faltantes son
 un error; la igualdad conserva la severidad sospechosa.}
@@ -390,6 +392,11 @@ no puede conocer un conteo, informa NA, nunca cero. La columna de lista
 \code{trazabilidad} distingue \code{disponible}, \code{truncada}, \code{no_aplica} y
 \code{no_disponible}; cuando corresponde conserva índices de fila acotados por
 \code{max_filas_hallazgo}, el total conocido y el alcance. En
+\code{clave_con_ausentes}, cuenta las filas con al menos un componente ausente
+y su traza enumera esas filas. En \code{clave_no_unica}, cuenta las filas que
+participan en colisiones entre claves completas y su traza excluye las
+filas incompletas; ambas unidades son \code{fila}. Así, una colisión entre
+ausentes no aparece como una repetición que refute la unicidad.
 \code{casi_duplicados_vocabulario}, donde la traza mezcla filas de formas
 variantes con filas de la forma dominante, conserva además
 \code{n_filas_formas_variantes} y \code{n_filas_formas_dominantes} con el reparto
@@ -453,6 +460,11 @@ pudo comparar, o \code{"sin_casos_evaluables"} cuando \strong{ninguna} fila tien
 clave completa: ahí la unicidad sería cierta sobre un conjunto vacío, que
 es cierto y engañoso a la vez, y por eso tiene estado propio.
 \item \code{ausencia_nulos} responde si todos los componentes están presentes.
+Su hallazgo asociado, \code{clave_con_ausentes}, cuenta las filas con al menos
+un componente ausente y conserva sus índices.
+\item \code{clave_no_unica} sólo se emite cuando hay valores repetidos entre las
+filas completas y usa \code{filas_evaluadas} como \code{n_evaluados}; no convierte
+una colisión entre ausentes en una violación de unicidad.
 \item \code{trazabilidad} conserva la semántica de R, que es la que localiza las
 filas, e informa en \code{colisiona_con_ausentes} si el localizador queda
 ambiguo porque dos filas con ausentes comparten representación.

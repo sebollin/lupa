@@ -701,8 +701,12 @@ complete is a finding of severity `error` carrying the offending rows. When no
 row has a complete key the state is `sin_casos_evaluables`, not `verificada`:
 true over an empty set is true and misleading at once. The warning and `meta$clave` keep that check apart
 from missing values: a key may have no non-missing collision and still violate
-`NOT NULL`; if traceability groups those missing values with R semantics, both
-facts remain visible. So that the user is not left facing a blank field,
+`NOT NULL`. The findings separate both facts: `clave_con_ausentes` enumerates
+rows that prevent that guarantee, while `clave_no_unica` reports repeated values
+only among rows with a complete key. A collision between missing values belongs
+to the first category and does not refute `meta$clave$unicidad`; if traceability
+groups those missing values with R semantics, the difference remains explicit.
+So that the user is not left facing a blank field,
 `sugerir_clave()` ranks the candidate columns by three signals it publishes
 separately — whether it identifies every row, whether it has no missing values,
 and how closely its name resembles a key's — and `elegir_clave()` offers them
@@ -795,6 +799,10 @@ duplicates remains in the evidence. `0` means the check measured no affected
 units; `NA` means the count was not measured. The same distinction applies to
 diagnostic coverage: a check that could not run is listed in
 `cobertura_diagnosticos`, never silently converted to zero.
+
+Traceability uses the same comparison in both directions as the count, including
+when an `integer64` column does not honor `duplicated()`'s `fromLast` argument.
+Therefore `n_afectados` and `trazabilidad$total` always describe the same rows.
 
 When a finding and its trace disagree, `perfilar()` preserves the finding and
 emits a warning with class `lupa_trazabilidad_incoherente`. The guard compares

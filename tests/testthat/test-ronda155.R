@@ -74,7 +74,7 @@ test_that("the five key cases publish separate states", {
     # Las unicas repeticiones son los dos ausentes. Entre las claves COMPLETAS
     # -"a" y "d"- no hay ninguna, asi que la unicidad esta verificada. Llamarla
     # "refutada" era afirmar una violacion que en SQL no existe: dos NULL no son
-    # iguales. La colision se informa en `trazabilidad`, que es su eje.
+    # iguales. La ausencia y la colision de la traza se informan por separado.
     duplicada_con_ausencias = list(
       datos = data.frame(k = c("a", NA_character_, NA_character_, "d")),
       unicidad = "verificada", ausencia = "refutada",
@@ -119,7 +119,7 @@ test_that("the five key cases publish separate states", {
   }
 })
 
-test_that("a key whose only repetitions are missing values is not called non-unique", {
+test_that("a key whose only repetitions are missing values gets its own finding", {
   datos <- data.frame(k = c("a", NA_character_, NA_character_, "d"))
   capturado <- .ronda155_capturar_warning(
     .ronda155_perfilar(datos, "k")
@@ -140,11 +140,19 @@ test_that("a key whose only repetitions are missing values is not called non-uni
   expect_equal(meta$trazabilidad$filas_colision_con_ausentes, 2)
 
   hallazgo <- perfil$hallazgos[
-    as.character(perfil$hallazgos$tipo_hallazgo) == "clave_no_unica", ,
+    as.character(perfil$hallazgos$tipo_hallazgo) == "clave_con_ausentes", ,
     drop = FALSE
   ]
   expect_equal(nrow(hallazgo), 1L)
+  expect_equal(hallazgo$n_evaluados, 4)
+  expect_equal(hallazgo$n_afectados, 2)
+  expect_equal(hallazgo$unidad_conteo, "fila")
+  expect_match(hallazgo$descripcion, "NOT NULL", fixed = TRUE)
+  expect_match(hallazgo$evidencia, "2 valores ausentes", fixed = TRUE)
   expect_equal(hallazgo$trazabilidad[[1L]]$indices_fila, 2:3)
+  expect_false(any(
+    as.character(perfil$hallazgos$tipo_hallazgo) == "clave_no_unica"
+  ))
 })
 
 test_that("a missing value is not blamed for another collision", {
@@ -157,6 +165,17 @@ test_that("a missing value is not blamed for another collision", {
   expect_equal(meta$trazabilidad$filas_colision_con_ausentes, 0)
   expect_match(capturado$mensaje, "no es unica")
   expect_match(capturado$mensaje, "ausencia de nulos")
+
+  duplicada <- capturado$valor$hallazgos[
+    capturado$valor$hallazgos$tipo_hallazgo == "clave_no_unica", ,
+    drop = FALSE
+  ]
+  expect_equal(duplicada$trazabilidad[[1L]]$indices_fila, 1:2)
+  ausentes <- capturado$valor$hallazgos[
+    capturado$valor$hallazgos$tipo_hallazgo == "clave_con_ausentes", ,
+    drop = FALSE
+  ]
+  expect_equal(ausentes$trazabilidad[[1L]]$indices_fila, 3L)
 })
 
 .ronda155_clave_simulada <- function(conexion, datos) {

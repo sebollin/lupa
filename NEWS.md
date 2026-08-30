@@ -1,5 +1,23 @@
 # lupa 0.1.0
 
+## La clave declarada separa ausencias y repeticiones
+
+- `perfilar(clave = ...)` publica `clave_con_ausentes` para las filas que
+  impiden garantizar `NOT NULL`, y reserva `clave_no_unica` para valores
+  repetidos entre filas con la clave completa. La descripción, la evidencia,
+  los conteos y las trazas comparten ahora el universo de
+  `meta$clave$unicidad`, por lo que una colisión entre ausentes no se presenta
+  como una refutación de la unicidad.
+- La documentación de `perfilar()` y ambos README explican la separación y
+  los conteos de cada hallazgo.
+
+## La trazabilidad de filas duplicadas conserva todos los participantes
+
+- La traza de `filas_duplicadas` usa la misma comparación en ambas direcciones
+  que el conteo. Esto corrige las columnas `integer64`, cuyos métodos pueden
+  ignorar `fromLast`, y mantiene alineados `n_afectados` y
+  `trazabilidad$total`.
+
 ## El minimo de R conserva la conducta en BLOB y duplicados matriciales
 
 - Se conserva `R (>= 4.1.0)`. En el conjunto minimo reproducido, un BLOB de

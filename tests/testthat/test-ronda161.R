@@ -93,3 +93,38 @@ test_that("la trazabilidad conserva la semantica de R y la unicidad no", {
   expect_identical(clave$unicidad$semantica, "claves_completas")
   expect_identical(clave$trazabilidad$semantica, "R")
 })
+
+test_that("las colisiones entre ausentes se informan como ausencia de clave", {
+  datos <- data.frame(
+    a = c("p", "q", NA_character_, NA_character_),
+    b = c("x", "y", "z", "z"),
+    stringsAsFactors = FALSE
+  )
+
+  perfil <- suppressWarnings(perfilar(
+    datos, clave = c("a", "b"), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE, casi_duplicados_vocabulario = FALSE
+  ))
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "clave_con_ausentes", , drop = FALSE
+  ]
+
+  expect_equal(nrow(hallazgo), 1L)
+  expect_equal(hallazgo$n_evaluados, 4)
+  expect_equal(hallazgo$n_afectados, 2)
+  expect_identical(as.character(hallazgo$unidad_conteo), "fila")
+  expect_match(
+    as.character(hallazgo$descripcion),
+    "valores ausentes.*NOT NULL"
+  )
+  expect_match(
+    as.character(hallazgo$evidencia),
+    "2 filas.*2 valores ausentes"
+  )
+  expect_equal(hallazgo$trazabilidad[[1L]]$indices_fila, 3:4)
+  expect_false(any(
+    perfil$hallazgos$tipo_hallazgo == "clave_no_unica"
+  ))
+  expect_identical(perfil$meta$clave$unicidad$estado, "verificada")
+  expect_identical(perfil$meta$clave$ausencia_nulos$estado, "refutada")
+})

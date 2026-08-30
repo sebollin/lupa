@@ -302,3 +302,26 @@ test_that("un metodo de duplicated que ignora fromLast no cambia el conteo", {
   expect_identical(base$adelante, rapida$adelante)
   expect_identical(base$atras, rapida$atras)
 })
+
+test_that("la traza de filas duplicadas incluye todos los participantes integer64", {
+  skip_if_not_installed("bit64")
+  esperado <- 2:5
+  datos_doble <- data.frame(id = c(1, 2, 2, 3, 3))
+  datos_integer64 <- data.frame(
+    id = bit64::as.integer64(c(1, 2, 2, 3, 3))
+  )
+
+  for (datos in list(datos_doble, datos_integer64)) {
+    perfil <- perfilar(
+      datos, analizar_dependencias = FALSE,
+      proteger_datos_personales = FALSE, casi_duplicados_vocabulario = FALSE,
+      max_filas_hallazgo = Inf
+    )
+    hallazgo <- perfil$hallazgos[
+      perfil$hallazgos$tipo_hallazgo == "filas_duplicadas", , drop = FALSE
+    ]
+    expect_equal(hallazgo$n_afectados, 4)
+    expect_equal(hallazgo$trazabilidad[[1L]]$indices_fila, esperado)
+    expect_equal(hallazgo$trazabilidad[[1L]]$total, 4)
+  }
+})

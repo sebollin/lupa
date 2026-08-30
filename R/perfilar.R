@@ -233,6 +233,12 @@
 # la unicidad con la semantica de R, donde dos `NA` de una misma posicion
 # colisionan; `is.na()` resuelve si todos los componentes estan presentes. No
 # mezclar las dos respuestas evita atribuir una colision de la traza a SQL.
+.filas_clave_con_ausentes <- function(valores) {
+  ausentes <- tryCatch(is.na(valores), error = function(e) NULL)
+  if (is.null(ausentes) || length(dim(ausentes)) != 2L) return(NULL)
+  if (nrow(valores)) rowSums(ausentes) > 0L else logical()
+}
+
 .evaluar_clave_declarada <- function(datos, clave) {
   if (is.null(clave) || !length(clave)) return(NULL)
 
@@ -240,9 +246,7 @@
   n <- nrow(datos)
   # La clave se evalua con la semantica de un data.frame de R, aunque otro
   # objeto haya registrado un metodo `duplicated()` durante la sesion.
-  duplicadas <- tryCatch(
-    base::duplicated.data.frame(valores), error = function(e) NULL
-  )
+  duplicadas <- .filas_duplicadas_base(valores)
   ausentes <- tryCatch(is.na(valores), error = function(e) NULL)
   pudo_contar_ausentes <- !is.null(ausentes) &&
     length(dim(ausentes)) == 2L
@@ -260,19 +264,16 @@
   }
   pudo_comprobar_unicidad <- !is.null(duplicadas)
   colisionan <- if (pudo_comprobar_unicidad) {
-    tryCatch(
-      duplicadas | base::duplicated.data.frame(valores, fromLast = TRUE),
-      error = function(e) NULL
-    )
+    duplicadas$adelante | duplicadas$atras
   } else {
     logical()
   }
-  filas_con_ausentes_logica <- if (pudo_contar_ausentes && n) {
-    rowSums(ausentes) > 0L
+  filas_con_ausentes_logica <- .filas_clave_con_ausentes(valores)
+  n_repeticiones <- if (pudo_comprobar_unicidad) {
+    sum(duplicadas$adelante)
   } else {
-    logical()
+    NA_integer_
   }
-  n_repeticiones <- if (pudo_comprobar_unicidad) sum(duplicadas) else NA_integer_
   n_filas_colision <- if (!is.null(colisionan)) sum(colisionan) else NA_integer_
   n_filas_colision_con_ausentes <- if (length(colisionan) &&
       length(filas_con_ausentes_logica) == length(colisionan)) {
@@ -300,25 +301,20 @@
   }
   duplicadas_completas <- if (pudo_comprobar_unicidad &&
       !is.null(completas_logica)) {
-    tryCatch(
-      base::duplicated.data.frame(valores[completas_logica, , drop = FALSE]),
-      error = function(e) NULL
-    )
+    .filas_duplicadas_base(valores[completas_logica, , drop = FALSE])
   } else {
     NULL
   }
   n_repeticiones_completas <- if (is.null(duplicadas_completas)) {
     NA_integer_
   } else {
-    sum(duplicadas_completas)
+    sum(duplicadas_completas$adelante)
   }
   n_colision_completas <- if (is.null(duplicadas_completas)) {
     NA_integer_
   } else {
     tryCatch(
-      sum(duplicadas_completas | base::duplicated.data.frame(
-        valores[completas_logica, , drop = FALSE], fromLast = TRUE
-      )),
+      sum(duplicadas_completas$adelante | duplicadas_completas$atras),
       error = function(e) NA_integer_
     )
   }
@@ -770,8 +766,10 @@
 #'   el objeto histórico y no agrega metadatos. Cuando un eje falla o no se
 #'   puede comprobar, `meta$clave$trazabilidad` explica que la localización
 #'   agrupa con la semántica de R, incluso si el motor SQL trata dos `NULL` como
-#'   distintos. Por eso una clave puede tener a la vez una colisión para la
-#'   trazabilidad y una ausencia que impide la garantía `NOT NULL`.
+#'   distintos. `hallazgos` separa esos ejes: `clave_con_ausentes` enumera las
+#'   filas que impiden la garantía `NOT NULL`, mientras `clave_no_unica` sólo
+#'   informa repeticiones entre filas con la clave completa, el mismo universo
+#'   que `meta$clave$unicidad`.
 #' @param umbral_alta_cardinalidad Umbral sobre la tasa de valores distintos
 #'   de una columna categórica. No alcanza por sí solo: el hallazgo exige
 #'   además al menos diez valores distintos, porque con pocos la tasa está
@@ -1017,6 +1015,11 @@
 #'   `trazabilidad` distingue `disponible`, `truncada`, `no_aplica` y
 #'   `no_disponible`; cuando corresponde conserva índices de fila acotados por
 #'   `max_filas_hallazgo`, el total conocido y el alcance. En
+#'   `clave_con_ausentes`, cuenta las filas con al menos un componente ausente
+#'   y su traza enumera esas filas. En `clave_no_unica`, cuenta las filas que
+#'   participan en colisiones entre claves completas y su traza excluye las
+#'   filas incompletas; ambas unidades son `fila`. Así, una colisión entre
+#'   ausentes no aparece como una repetición que refute la unicidad.
 #'   `casi_duplicados_vocabulario`, donde la traza mezcla filas de formas
 #'   variantes con filas de la forma dominante, conserva además
 #'   `n_filas_formas_variantes` y `n_filas_formas_dominantes` con el reparto
@@ -1080,6 +1083,11 @@
 #'     clave completa: ahí la unicidad sería cierta sobre un conjunto vacío, que
 #'     es cierto y engañoso a la vez, y por eso tiene estado propio.
 #'   - `ausencia_nulos` responde si todos los componentes están presentes.
+#'     Su hallazgo asociado, `clave_con_ausentes`, cuenta las filas con al menos
+#'     un componente ausente y conserva sus índices.
+#'   - `clave_no_unica` sólo se emite cuando hay valores repetidos entre las
+#'     filas completas y usa `filas_evaluadas` como `n_evaluados`; no convierte
+#'     una colisión entre ausentes en una violación de unicidad.
 #'   - `trazabilidad` conserva la semántica de R, que es la que localiza las
 #'     filas, e informa en `colisiona_con_ausentes` si el localizador queda
 #'     ambiguo porque dos filas con ausentes comparten representación.
@@ -1548,6 +1556,7 @@ perfilar <- function(datos,
     if (is.na(n_filas_en_grupos_duplicados)) 0L else
       n_filas_en_grupos_duplicados,
     clave_declarada = clave,
+    evaluacion_clave = evaluacion_clave,
     relaciones_orden = relaciones_orden$hallazgos,
     relaciones_aritmeticas = relaciones_aritmeticas$hallazgos,
     normalizacion = normalizacion_resuelta,

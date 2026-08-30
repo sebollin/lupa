@@ -2672,25 +2672,41 @@
     ))
   }
   if (tipo == "filas_duplicadas") {
-    indices <- which(
-      base::duplicated.data.frame(datos) |
-        base::duplicated.data.frame(datos, fromLast = TRUE)
-    )
+    duplicadas <- .filas_duplicadas_base(datos)
+    indices <- if (is.null(duplicadas)) {
+      integer()
+    } else {
+      which(duplicadas$adelante | duplicadas$atras)
+    }
     return(.trazabilidad_indices(
       indices, "completo", limite, clave = clave, datos = datos
     ))
   }
-  # Un hallazgo sobre la clave sin las filas que repiten obliga a buscarlas a
-  # mano, que es justo lo que la trazabilidad existe para evitar.
-  if (tipo == "clave_no_unica") {
+  # La unicidad de la clave se evalua entre filas completas. Las filas con
+  # ausentes tienen su hallazgo propio y no se mezclan con esta traza.
+  if (tipo %in% c("clave_no_unica", "clave_con_ausentes")) {
     if (is.null(clave) || !length(clave) || !all(clave %in% names(datos))) {
       return(.trazabilidad_vacia(limite = limite))
     }
     valores <- .seleccionar_columnas(datos, clave)
-    indices <- which(
-      base::duplicated.data.frame(valores) |
-        base::duplicated.data.frame(valores, fromLast = TRUE)
-    )
+    filas_con_ausentes <- .filas_clave_con_ausentes(valores)
+    if (is.null(filas_con_ausentes)) {
+      return(.trazabilidad_vacia(limite = limite))
+    }
+    if (tipo == "clave_con_ausentes") {
+      indices <- which(filas_con_ausentes)
+    } else {
+      indices_completas <- which(!filas_con_ausentes)
+      duplicadas <- .filas_duplicadas_base(
+        valores[indices_completas, , drop = FALSE]
+      )
+      if (is.null(duplicadas)) {
+        return(.trazabilidad_vacia(limite = limite))
+      }
+      indices <- indices_completas[which(
+        duplicadas$adelante | duplicadas$atras
+      )]
+    }
     return(.trazabilidad_indices(
       indices, "completo", limite, clave = clave, datos = datos
     ))
@@ -4236,6 +4252,7 @@
                                  max_largo_valor =
                                    .MAX_LARGO_VALOR_CASI_DUPLICADOS,
                                  clave_declarada = NULL,
+                                 evaluacion_clave = NULL,
                                  trazador_tiempos = NULL) {
   hallazgos_columnas <- .hallazgos_columnas(
     resultados, columnas, umbral_alta_cardinalidad,
@@ -4278,42 +4295,94 @@
   if (length(hallazgos_vocabulario)) {
     hallazgos <- c(hallazgos, hallazgos_vocabulario)
   }
-  # Una clave declarada que se repite es la comprobacion mas directa que hay de
-  # unicidad, y se informaba con `cli_warn` -un aviso que se lo lleva la
-  # consola-. No entraba en la tabla de hallazgos, asi que no tenia severidad, no
-  # viajaba al informe ni al plan de limpieza, y no decia que filas repiten.
-  # Que el usuario declare la clave es justamente el caso en que el paquete
-  # **sabe** cual es: ahi no hay nada que inferir, solo que contar.
-  if (!is.null(clave_declarada) && length(clave_declarada) &&
-        all(clave_declarada %in% names(datos)) && nrow(datos)) {
+  # Una clave declarada responde dos preguntas distintas. Se publican por
+  # separado para que el hallazgo y `meta$clave` compartan universo: los
+  # ausentes impiden garantizar NOT NULL y las repeticiones se buscan solo
+  # entre las filas con la clave completa.
+  if (!is.null(evaluacion_clave) && !is.null(clave_declarada) &&
+      length(clave_declarada) && all(clave_declarada %in% names(datos)) &&
+      nrow(datos)) {
     valores_clave <- .seleccionar_columnas(datos, clave_declarada)
-    repetidas <- base::duplicated.data.frame(valores_clave) |
-      base::duplicated.data.frame(valores_clave, fromLast = TRUE)
-    n_repetidas <- sum(repetidas)
-    if (n_repetidas > 0L) {
+    filas_con_ausentes <- .filas_clave_con_ausentes(valores_clave)
+    nombre_clave <- if (length(clave_declarada) == 1L) {
+      paste0("la columna `", clave_declarada, "`")
+    } else {
+      paste0(
+        "las columnas ",
+        paste0("`", clave_declarada, "`", collapse = ", ")
+      )
+    }
+    if (identical(evaluacion_clave$ausencia_nulos$estado, "refutada") &&
+        !is.null(filas_con_ausentes)) {
+      indices_ausentes <- which(filas_con_ausentes)
+      n_ausentes <- evaluacion_clave$ausencia_nulos$valores_ausentes
+      n_filas_ausentes <- length(indices_ausentes)
       hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
-        NA_character_, "clave_no_unica", "error",
+        NA_character_, "clave_con_ausentes", "error",
         paste0(
-          "La clave declarada no identifica una fila: ",
+          "La clave declarada contiene valores ausentes: ", nombre_clave,
           if (length(clave_declarada) == 1L) {
-            paste0("la columna `", clave_declarada, "`")
+            " no garantiza la restriccion NOT NULL."
           } else {
-            paste0("las columnas ", paste0("`", clave_declarada, "`", collapse = ", "))
-          },
-          " repite valores."
+            " no garantizan la restriccion NOT NULL."
+          }
         ),
         paste0(
-          n_repetidas, " filas en ",
-          nrow(unique(valores_clave[repetidas, , drop = FALSE])),
-          " valores repetidos"
+          n_filas_ausentes, if (n_filas_ausentes == 1L) " fila" else " filas",
+          " con al menos un valor ausente en la clave (", n_ausentes,
+          if (n_ausentes == 1L) " valor ausente)" else " valores ausentes)"
         ),
         paste(
-          "Revisar si sobra una columna en la clave, si hay duplicados de carga",
-          "o si la clave real es otra. La trazabilidad sigue localizando por",
-          "ella, pero un valor puede senalar mas de una fila."
+          "Completar los valores ausentes o revisar si la clave declarada",
+          "es la adecuada."
         ),
-        nrow(datos), n_repetidas, "fila"
+        nrow(datos), n_filas_ausentes, "fila"
       )
+    }
+    if (identical(evaluacion_clave$unicidad$estado, "refutada") &&
+        !is.null(filas_con_ausentes)) {
+      indices_completas <- which(!filas_con_ausentes)
+      duplicadas_completas <- .filas_duplicadas_base(
+        valores_clave[indices_completas, , drop = FALSE]
+      )
+      if (!is.null(duplicadas_completas)) {
+        colisionan <- duplicadas_completas$adelante |
+          duplicadas_completas$atras
+        indices_colision <- indices_completas[which(colisionan)]
+        if (length(indices_colision)) {
+          n_valores_repetidos <- nrow(unique(
+            valores_clave[indices_colision, , drop = FALSE]
+          ))
+          hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
+            NA_character_, "clave_no_unica", "error",
+            paste0(
+              "La clave declarada no identifica filas unicas entre las ",
+              "filas con la clave completa: ", nombre_clave,
+              if (length(clave_declarada) == 1L) {
+                " repite valores."
+              } else {
+                " repiten valores."
+              }
+            ),
+            paste0(
+              length(indices_colision), " filas con la clave completa en ",
+              n_valores_repetidos,
+              if (n_valores_repetidos == 1L) {
+                " valor repetido"
+              } else {
+                " valores repetidos"
+              }
+            ),
+            paste(
+              "Revisar si sobra una columna en la clave, si hay duplicados",
+              "de carga o si la clave real es otra. La trazabilidad sigue",
+              "localizando por ella, pero un valor puede senalar mas de una",
+              "fila."
+            ),
+            length(indices_completas), length(indices_colision), "fila"
+          )
+        }
+      }
     }
   }
   if (n_filas_duplicadas > 0L) {
