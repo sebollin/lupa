@@ -1,6 +1,6 @@
 # `muestra = Inf` es el valor por omision y significa "la tabla entera". Un plan
 # ya no cuenta filas para decidir el costo, asi que la mitad del motor queda
-# desconocida hasta que la corrida la mida. La muestra finita sigue acotando el
+# desconocida hasta que la corrida la mida. Los topes de la muestra acotan el
 # trabajo que se hara en R, sin convertir esa cota en un conteo de la tabla.
 
 .tabla_plan_137 <- function() {
@@ -26,7 +26,8 @@ test_that("una muestra sin conteo declara desconocida la mitad del motor", {
   explicita <- plan_perfilado_dbi(conexion, "t", muestra = nrow(datos))
 
   expect_true(is.na(attr(entera, "filas_leidas", exact = TRUE)))
-  expect_true(is.na(attr(entera, "pares_texto", exact = TRUE)))
+  expect_equal(attr(entera, "pares_texto", exact = TRUE),
+               2 * lupa:::.max_pares_vocabulario_dbi())
   expect_equal(attr(entera, "magnitud_motor", exact = TRUE), "desconocida")
   expect_equal(attr(entera, "magnitud", exact = TRUE), "desconocida")
   expect_true(is.na(attr(explicita, "filas_leidas", exact = TRUE)))
@@ -44,10 +45,11 @@ test_that("el bloque de muestra conserva la incertidumbre del motor", {
   entera <- plan_perfilado_dbi(conexion, "t", modo = "conteos", muestra = Inf)
   acotada <- plan_perfilado_dbi(conexion, "t", modo = "conteos", muestra = 100)
 
-  # Traer 5.000 filas deja la mitad del motor desconocida, mientras que el
-  # cliente puede acotar los pares de formas cuando se pide una muestra finita.
+  # Traer la tabla entera deja la mitad del motor desconocida, mientras que el
+  # tope predeterminado de celdas acota los pares de formas del cliente.
   expect_true(is.na(attr(entera, "filas_leidas", exact = TRUE)))
-  expect_true(is.na(attr(entera, "pares_texto", exact = TRUE)))
+  expect_equal(attr(entera, "pares_texto", exact = TRUE),
+               2 * lupa:::.max_pares_vocabulario_dbi())
   expect_true(is.na(attr(acotada, "filas_leidas", exact = TRUE)))
   expect_equal(attr(acotada, "pares_texto", exact = TRUE), 9900)
 })
@@ -108,7 +110,8 @@ test_that("la equivalencia vale tambien cuando el motor muestrea", {
     explicita <- plan_perfilado_dbi(conexion, "t", modo = modo,
                                     muestra = nrow(datos))
     expect_true(is.na(attr(entera, "filas_leidas", exact = TRUE)), info = modo)
-    expect_true(is.na(attr(entera, "pares_texto", exact = TRUE)), info = modo)
+    expect_equal(attr(entera, "pares_texto", exact = TRUE),
+                 2 * lupa:::.max_pares_vocabulario_dbi(), info = modo)
     expect_true(is.na(attr(explicita, "filas_leidas", exact = TRUE)), info = modo)
     expect_equal(attr(explicita, "pares_texto", exact = TRUE),
                  2 * lupa:::.max_pares_vocabulario_dbi(), info = modo)

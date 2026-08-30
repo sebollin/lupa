@@ -21,7 +21,9 @@ plan_perfilado_dbi(
   instrumentar = FALSE,
   estrategia_distintos = "exacta",
   politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
-  umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI
+  umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
+  max_celdas_muestra = .MAX_CELDAS_MUESTRA,
+  max_bytes_muestra = .MAX_BYTES_MUESTRA
 )
 }
 \arguments{
@@ -106,8 +108,8 @@ corrida mide un subconjunto; y
 \code{"omitida"} no emite ninguna consulta. No hay repliegue automático entre
 estrategias. El resultado publica \code{estrategia_solicitada},
 \code{estrategia_resuelta} y \code{estado} en \code{meta$estrategia_distintos}, y las dos
-primeras también en \code{resumen_tabla$sql}. En \code{pg_stats}, los valores
-positivos son conteos y los negativos fracciones de las filas. Cuando la
+primeras también en \code{resumen_tabla$sql}. En \code{pg_stats}, un valor positivo
+es el conteo estimado y uno negativo es una fracción de las filas. Cuando la
 relación tiene descendientes se elige \code{inherited = TRUE}, porque esa fila
 describe lo que lee una consulta sin \code{ONLY}; una relación sin hijas usa su
 única fila propia. Las fracciones se convierten con la suma de
@@ -122,9 +124,9 @@ solicitadas. \code{"ninguna"} es un alias de \code{"todas"}; \code{"por_cardinal
 mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
 permite. Luego omite, por columna, sólo la moda cuando la proporción de
 distintos alcanza \code{umbral_cardinalidad}; la mediana se conserva porque las
-mediciones disponibles muestran que su costo depende de las filas y no de la
-cardinalidad. Una estrategia no disponible no se convierte en una medición
-exacta.}
+mediciones disponibles muestran que su costo depende de las filas y no de
+la cardinalidad. Una estrategia no disponible no se convierte en una
+medición exacta.}
 
 \item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
 activa la omisión de la moda con \code{politica_costo = "por_cardinalidad"}. El
@@ -132,6 +134,21 @@ valor por omisión es \code{0.5} sólo cuando esa política se pide explícitame
 se puede mover en cada llamada. Este argumento no gobierna la mediana:
 \code{meta$decisiones_costo} explica la decisión de cada métrica por separado.
 Para pedir todas las métricas use \code{politica_costo = "todas"}.}
+
+\item{max_celdas_muestra}{Máximo de celdas que puede contener el bloque
+\code{perfil_muestra}. Por defecto es \code{1000000}; se calcula antes de leer como
+filas por columnas del esquema. Si reduce la muestra,
+\code{perfil_muestra$cobertura_diagnosticos} usa la misma declaración que
+\code{perfilar()}, con las celdas solicitadas, el umbral y el tope que mandó.
+\code{Inf} desactiva este tope. No modifica los agregados SQL.}
+
+\item{max_bytes_muestra}{Máximo de bytes de la muestra materializada que
+alimenta \code{perfil_muestra}. Por defecto es \verb{512 MiB}. Como el tamaño no se
+conoce desde el esquema, primero se lee una sonda de hasta cien filas y con
+ella se fija el límite final en SQL o en \code{dbFetch(n)}, antes de leer el
+resto. Si reduce la muestra, \code{cobertura_diagnosticos} informa los bytes
+observados, el umbral y cuál tope mandó. \code{Inf} desactiva este tope. No
+modifica los agregados SQL.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
@@ -142,7 +159,8 @@ Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
 \code{fuente_cardinalidad_costo}, \code{moda_guardian}, \code{mediana_consolidada}, \code{filas},
 \code{mediana_escalar},
 \code{tamano_lote_planos}, \code{tamano_lote_distintos}, \code{estimacion_derrame},
-\code{celdas}, \code{memoria_procesamiento} y \code{muestreo}, y,
+\code{celdas}, \code{memoria_procesamiento}, \code{max_celdas_muestra},
+\code{max_bytes_muestra}, \code{tope_muestra} y \code{muestreo}, y,
 cuando se pide \code{distintos}, \code{supuesto_costo_distintos}.
 \code{memoria_procesamiento} siempre tiene \code{estado = "no_estimada"}: no es una
 estimación de consumo, sino la declaración de su ausencia, el motivo, la
@@ -157,11 +175,20 @@ Cuando se pide \code{bloque_muestra = "solo_agregados"}, también conserva ese
 valor en el atributo \code{bloque_muestra} y no incluye la fila de la lectura de
 muestra.
 
+Los atributos \code{max_celdas_muestra}, \code{max_bytes_muestra} y \code{tope_muestra}
+declaran la cota que se aplicará al bloque \code{perfil_muestra}. El plan no lee
+datos: resuelve la cota de celdas con el ancho del esquema y declara que la
+cota de bytes requiere una sonda de hasta cien filas durante la corrida.
+Si la muestra pedida supera la cota de celdas, \code{tope_muestra} y \code{print()}
+lo dicen antes de correr. La fila de consulta de muestra conserva su
+conteo separado de los agregados; los topes no cambian ninguna consulta
+SQL de resumen.
+
 El costo no se declara como un número sino como un rango: \code{total} es el
-extremo inferior, que supone que la política omite la moda cuya cardinalidad no
-se conoce, y \code{total_maximo} el superior, que supone que la ejecuta. La
-mediana queda fuera de ese supuesto proporcional y se cuenta según las columnas
-numéricas solicitadas. Ambos incluyen la preparación y el perfilado previsto; el rechazo
+extremo inferior, que supone que la política omite la moda cuya cardinalidad
+no se conoce, y \code{total_maximo} el superior, que supone que la ejecuta. La
+mediana queda fuera de ese supuesto proporcional y se cuenta según las
+columnas numéricas solicitadas. Ambos incluyen la preparación y el perfilado; el rechazo
 de lotes puede agregar las sondas de bisección declaradas por
 \code{total_lotes_rechazados}. El costo real cae entre los extremos cuando
 \code{modo} no es \code{"muestreado"} o \code{attr(plan, "muestreo")$estado} es
@@ -193,10 +220,12 @@ antes de correr; no es una duración ni una estimación temporal.
 
 Si se pide \code{politica_costo = "por_cardinalidad"}, el plan busca primero una
 garantía estructural o una fuente de catálogo. Si la fuente queda
-desconocida, no emite un agregado para aclararla: \code{n_consultas} omite moda
-y mediana, y \code{n_consultas_max} deja abierto el camino que las ejecuta. La
-corrida mide \code{distintos} sólo si la política lo necesita. La política por
-omisión es \code{"todas"}: el paquete no elige por el usuario.
+desconocida, no emite un agregado para aclararla: \code{n_consultas} omite la
+moda y \code{n_consultas_max} deja abierto el camino que la ejecuta. La mediana
+se conserva porque su costo medido es plano frente a la cardinalidad y está
+gobernado por las filas. La corrida mide \code{distintos} sólo si la política lo
+necesita. La política por omisión es \code{"todas"}: el paquete no elige por el
+usuario.
 Una fuente estructural se resuelve aunque la estrategia de distintos este
 omitida o no disponible; esta ultima solo gobierna si se puede medir.
 El catalogo de la clave primaria se consulta siempre para conservar esa
@@ -238,10 +267,10 @@ corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
 lee \code{pg_stats.n_distinct} en PostgreSQL y publica una estimación con estado
 \code{estimado_catalogo} cuando el modo mide la relación entera (\code{exacto},
 \code{seguro} o \code{conteos}), y \code{"omitida"} no emite el agregado. En
-\code{muestreado} y \code{aproximado}, \code{catalogo} queda
-\code{no_disponible}: sus estadísticas describen la relación entera y no el
-subconjunto de la corrida. Un \code{n_distinct} positivo es un conteo y uno
-negativo una fracción de las filas. Si la
+\code{muestreado} y \code{aproximado}, \code{catalogo} queda \code{no_disponible}: sus
+estadísticas describen la relación entera y no el subconjunto de la corrida.
+Un \code{n_distinct}
+positivo es un conteo y uno negativo una fracción de las filas. Si la
 relación tiene descendientes se usa la fila \code{inherited = TRUE}, que describe
 la consulta sin \code{ONLY}; si no tiene hijas se usa la única fila propia. La
 fracción se convierte con la suma de \code{pg_class.reltuples} de la jerarquía.

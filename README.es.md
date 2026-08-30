@@ -665,6 +665,23 @@ igual de cercanos. Eso no se arregla: se declara. `alcance` trae
 `truncado` con otro nombre —da `FALSE` cuando el corte cae en una distancia
 única—.
 
+### Los topes de tamaño protegen las lecturas remotas
+
+`perfilar()` y `perfilar_dbi()` usan los mismos topes predeterminados de la
+muestra: `max_celdas_muestra = 1.000.000` celdas y
+`max_bytes_muestra = 512 MiB`. En los perfiles DBI sólo alcanzan a
+`perfil_muestra`; los agregados SQL conservan el alcance que les corresponde.
+El tope de celdas se resuelve con el conteo de filas y el ancho del esquema,
+antes de leer. El de bytes hace primero una sonda de hasta 100 filas y luego
+pone el límite resultante en el SQL final o en `dbFetch(n)`: la muestra completa
+no se trae para recortarla después en R.
+
+Si `muestra = n` y un tope es más estricto, manda el menor. La cobertura del
+perfil declara las celdas o bytes observados, el umbral y el motivo, incluido
+cuál tope ganó. Con `Inf` en ambos topes no se declara ningún recorte.
+`plan_perfilado_dbi()` expone los mismos límites y anticipa cuándo el tope de
+celdas reducirá la muestra o cuándo hará falta la sonda de bytes.
+
 ### El costo se planifica antes de pagarlo
 
 Perfilar una tabla de 158 columnas en `modo = "exacto"` emite 335 consultas, y

@@ -26,11 +26,19 @@
   razón de conservar u omitir moda y mediana por separado, y ambos README y la
   documentación de la API describen el alcance del argumento.
 
-## Topes de la muestra en `perfilar()`
+## Topes de la muestra en memoria y DBI
 
-- `perfilar()` acepta `max_celdas_muestra` y `max_bytes_muestra`. La muestra
-  común de los diagnósticos queda acotada por ambos topes, y cada reducción se
-  declara en `cobertura_diagnosticos` con el alcance observado y los umbrales.
+- `perfilar()` y `perfilar_dbi()` aceptan `max_celdas_muestra` y
+  `max_bytes_muestra`, con los mismos valores por omisión: `1.000.000` celdas
+  y `512 MiB`. En DBI sólo limitan el bloque `perfil_muestra`; los agregados
+  SQL conservan su alcance.
+- En DBI el tope de celdas se resuelve antes de leer con el conteo de filas y
+  el ancho del esquema. El de bytes hace una sonda de hasta 100 filas y fija el
+  límite final en SQL o `dbFetch(n)`, sin traer todo para recortarlo en R.
+  `plan_perfilado_dbi()` anticipa el recorte de celdas y la sonda de bytes.
+- La reducción se declara en `cobertura_diagnosticos` con celdas o bytes
+  observados, umbral, motivo y cuál tope mandó. Con ambos topes en `Inf` no se
+  declara un recorte.
 
 ## `estrategia_distintos = "catalogo"` en PostgreSQL
 

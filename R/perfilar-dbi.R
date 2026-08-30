@@ -3391,6 +3391,91 @@
   as.numeric(muestra)
 }
 
+# Los topes de la muestra tienen que decidirse antes de la lectura que se
+# entrega a `perfilar()`. Las celdas se pueden resolver con el esquema y el
+# conteo que ya acompana a la corrida; los bytes quedan abiertos hasta la
+# sonda chica que hace el bloque DBI. El plan usa la misma funcion con un
+# `n_total` desconocido y publica entonces una cota, no una falsa exactitud.
+.tope_muestra_dbi <- function(muestra, n_total, n_columnas,
+                             max_celdas_muestra, max_bytes_muestra) {
+  max_celdas_muestra <- .validar_limite_duplicados(
+    max_celdas_muestra, "max_celdas_muestra"
+  )
+  max_bytes_muestra <- .validar_limite_duplicados(
+    max_bytes_muestra, "max_bytes_muestra"
+  )
+  total <- .numero_dbi(n_total)
+  total_conocido <- length(total) == 1L && !is.na(total) &&
+    is.finite(total) && total >= 0
+  solicitado <- if (total_conocido) min(total, muestra) else muestra
+  por_celdas <- if (n_columnas > 0 && is.finite(max_celdas_muestra)) {
+    floor(as.numeric(max_celdas_muestra) / n_columnas)
+  } else {
+    Inf
+  }
+  if (total_conocido && total > 0 && por_celdas < 1) {
+    stop(
+      "`max_celdas_muestra` debe permitir al menos una fila para todas las columnas.",
+      call. = FALSE
+    )
+  }
+  filas <- min(solicitado, por_celdas)
+  if (total_conocido && total > 0 && filas < 1) {
+    stop(
+      "`max_celdas_muestra` debe permitir al menos una fila para todas las columnas.",
+      call. = FALSE
+    )
+  }
+  list(
+    filas_solicitadas = solicitado,
+    filas_por_celdas = por_celdas,
+    filas_por_bytes = Inf,
+    filas_efectivas = filas,
+    celdas_solicitadas = solicitado * n_columnas,
+    celdas_efectivas = filas * n_columnas,
+    bytes_sonda = NA_real_, bytes_muestra = NA_real_,
+    max_celdas_muestra = max_celdas_muestra,
+    max_bytes_muestra = max_bytes_muestra,
+    recortada = filas < solicitado,
+    motivos = character()
+  )
+}
+
+.tope_muestra_plan_dbi <- function(muestra, n_columnas,
+                                  max_celdas_muestra, max_bytes_muestra) {
+  max_celdas_muestra <- .validar_limite_duplicados(
+    max_celdas_muestra, "max_celdas_muestra"
+  )
+  max_bytes_muestra <- .validar_limite_duplicados(
+    max_bytes_muestra, "max_bytes_muestra"
+  )
+  por_celdas <- if (n_columnas > 0 && is.finite(max_celdas_muestra)) {
+    floor(as.numeric(max_celdas_muestra) / n_columnas)
+  } else {
+    Inf
+  }
+  filas_maximas <- min(as.numeric(muestra), por_celdas)
+  list(
+    filas_solicitadas = as.numeric(muestra),
+    filas_por_celdas = por_celdas,
+    filas_maximas = filas_maximas,
+    celdas_solicitadas = as.numeric(muestra) * n_columnas,
+    celdas_maximas = filas_maximas * n_columnas,
+    max_celdas_muestra = max_celdas_muestra,
+    max_bytes_muestra = max_bytes_muestra,
+    recortada_por_celdas = filas_maximas < as.numeric(muestra),
+    requiere_sonda_bytes = is.finite(max_bytes_muestra),
+    motivo = paste(
+      "El tope de celdas se resuelve antes de leer con el ancho del esquema;",
+      if (is.finite(max_bytes_muestra)) {
+        "el tope de bytes requiere una sonda de hasta 100 filas antes de fijar el limite final."
+      } else {
+        "el tope de bytes esta desactivado con `Inf`."
+      }
+    )
+  )
+}
+
 # ---- Tipos ---------------------------------------------------------------
 #
 # Que una columna admita agregados cuantitativos lo decide el motor, no el
@@ -6312,7 +6397,8 @@
                                   columnas_moda = NULL,
                                   columnas_moda_max = NULL,
                                   columnas_mediana = NULL,
-                                  columnas_mediana_max = NULL) {
+                                  columnas_mediana_max = NULL,
+                                  consultas_muestra = 1L) {
   n_columnas <- length(campos)
   n_numericas <- sum(es_numerico)
   con_valores <- isTRUE(incluir_valores)
@@ -6414,7 +6500,7 @@
   )
   if (isTRUE(incluir_muestra)) {
     clases[[length(clases) + 1L]] <- c(
-      "muestra", 1, "lee las filas pedidas"
+      "muestra", consultas_muestra, "lee las filas pedidas"
     )
   }
   plan <- data.frame(
@@ -6820,7 +6906,8 @@
 #'   `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`, `filas`,
 #'   `mediana_escalar`,
 #'   `tamano_lote_planos`, `tamano_lote_distintos`, `estimacion_derrame`,
-#'   `celdas`, `memoria_procesamiento` y `muestreo`, y,
+#'   `celdas`, `memoria_procesamiento`, `max_celdas_muestra`,
+#'   `max_bytes_muestra`, `tope_muestra` y `muestreo`, y,
 #'   cuando se pide `distintos`, `supuesto_costo_distintos`.
 #'   `memoria_procesamiento` siempre tiene `estado = "no_estimada"`: no es una
 #'   estimación de consumo, sino la declaración de su ausencia, el motivo, la
@@ -6834,6 +6921,15 @@
 #'   Cuando se pide `bloque_muestra = "solo_agregados"`, también conserva ese
 #'   valor en el atributo `bloque_muestra` y no incluye la fila de la lectura de
 #'   muestra.
+#'
+#'   Los atributos `max_celdas_muestra`, `max_bytes_muestra` y `tope_muestra`
+#'   declaran la cota que se aplicará al bloque `perfil_muestra`. El plan no lee
+#'   datos: resuelve la cota de celdas con el ancho del esquema y declara que la
+#'   cota de bytes requiere una sonda de hasta cien filas durante la corrida.
+#'   Si la muestra pedida supera la cota de celdas, `tope_muestra` y `print()`
+#'   lo dicen antes de correr. La fila de consulta de muestra conserva su
+#'   conteo separado de los agregados; los topes no cambian ninguna consulta
+#'   SQL de resumen.
 #'
 #'   El costo no se declara como un número sino como un rango: `total` es el
 #'   extremo inferior, que supone que la política omite la moda cuya cardinalidad
@@ -6915,7 +7011,15 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
                                estrategia_distintos = "exacta",
                                politica_costo = c("todas", "ninguna",
                                                    "por_cardinalidad", "cardinalidad"),
-                               umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI) {
+                               umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
+                               max_celdas_muestra = .MAX_CELDAS_MUESTRA,
+                               max_bytes_muestra = .MAX_BYTES_MUESTRA) {
+  max_celdas_muestra <- .validar_limite_duplicados(
+    max_celdas_muestra, "max_celdas_muestra"
+  )
+  max_bytes_muestra <- .validar_limite_duplicados(
+    max_bytes_muestra, "max_bytes_muestra"
+  )
   preparacion <- .preparar_dbi(
     conexion = conexion, tabla = tabla, muestra = muestra,
     orden_muestra = orden_muestra, modo = modo, metricas = metricas,
@@ -6937,6 +7041,10 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
       if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else NA_character_
     )
   }, logical(1L))
+  tope_muestra <- .tope_muestra_plan_dbi(
+    preparacion$muestra, length(preparacion$campos),
+    max_celdas_muestra, max_bytes_muestra
+  )
   consultas_antes_agregados <- preparacion$presupuesto$usadas
   # La corrida real cuenta el universo antes de construir un porcentaje para
   # TABLESAMPLE. El plan no ejecuta ese COUNT(*), pero si debe publicarlo en la
@@ -7029,7 +7137,10 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     columnas_moda = columnas_moda_plan,
     columnas_moda_max = columnas_moda_max,
     columnas_mediana = columnas_mediana_plan,
-    columnas_mediana_max = columnas_mediana_max
+    columnas_mediana_max = columnas_mediana_max,
+    consultas_muestra = if (identical(
+      preparacion$bloque_muestra, "con_muestra"
+    ) && isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L
   )
   attr(plan, "total") <- sum(plan$n_consultas)
   extra <- attr(plan, "extra_si_se_rechazan_lotes", exact = TRUE)
@@ -7099,6 +7210,9 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "tamano_lote") <- preparacion$tamano_lote_planos
   attr(plan, "tamano_lote_planos") <- preparacion$tamano_lote_planos
   attr(plan, "tamano_lote_distintos") <- preparacion$tamano_lote_distintos
+  attr(plan, "max_celdas_muestra") <- max_celdas_muestra
+  attr(plan, "max_bytes_muestra") <- max_bytes_muestra
+  attr(plan, "tope_muestra") <- tope_muestra
   if (identical(preparacion$bloque_muestra, "solo_agregados")) {
     attr(plan, "bloque_muestra") <- preparacion$bloque_muestra
   }
@@ -7115,7 +7229,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     )
   }
   trabajo <- .trabajo_plan_dbi(
-    plan, preparacion$n_total, preparacion$muestra, sum(es_texto)
+    plan, preparacion$n_total, tope_muestra$filas_maximas, sum(es_texto)
   )
   attr(plan, "filas_leidas") <- trabajo$filas_leidas
   attr(plan, "ordenaciones_completas") <- trabajo$ordenaciones
@@ -7182,6 +7296,28 @@ print.plan_perfilado_dbi <- function(x, ...) {
     cli::cli_text(
       "Perfil de muestra: no solicitado; el plan incluye solo agregados SQL."
     )
+  } else {
+    tope <- attr(x, "tope_muestra", exact = TRUE)
+    if (!is.null(tope)) {
+      if (isTRUE(tope$recortada_por_celdas)) {
+        cli::cli_text(
+          "Perfil de muestra: el tope de celdas lo limita a como m\u00e1ximo ",
+          .miles_dbi(tope$filas_maximas), " filas antes de leer."
+        )
+      } else {
+        cli::cli_text(
+          "Perfil de muestra: se solicitan ",
+          .miles_dbi(tope$filas_solicitadas),
+          " filas; el tope de celdas no reduce ese pedido conocido."
+        )
+      }
+      if (isTRUE(tope$requiere_sonda_bytes)) {
+        cli::cli_text(
+          "El tope de bytes requiere una sonda previa de hasta 100 filas;",
+          " el l\u00edmite final se fija despu\u00e9s de medirla."
+        )
+      }
+    }
   }
   memoria <- attr(x, "memoria_procesamiento", exact = TRUE)
   if (!is.null(memoria)) {
@@ -7573,7 +7709,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
                                 n_total, presupuesto, info_conexion,
                                 argumentos, muestreo = NULL,
                                 tipos_declarados = NULL,
-                                trazador = NULL) {
+                                trazador = NULL,
+                                max_celdas_muestra = .MAX_CELDAS_MUESTRA,
+                                max_bytes_muestra = .MAX_BYTES_MUESTRA) {
   cobertura <- .cobertura_dbi_vacia()
   # En Oracle la cadena vacia **es** NULL: no hay forma de distinguirlas, ni
   # desde SQL ni desde el controlador. Eso cambia una medida que el paquete
@@ -7611,18 +7749,22 @@ print.plan_perfilado_dbi <- function(x, ...) {
   total_numero <- .numero_dbi(n_total)
   total_conocido <- length(total_numero) == 1L &&
     !is.na(total_numero) && is.finite(total_numero)
-  n_obtener <- if (total_conocido) min(total_numero, muestra) else muestra
+  alcance <- .tope_muestra_dbi(
+    muestra, n_total, length(campos_sql),
+    max_celdas_muestra, max_bytes_muestra
+  )
+  n_obtener <- alcance$filas_efectivas
   usa_muestreo <- !is.null(muestreo) && isTRUE(muestreo$disponible)
   # La receta de la lectura estaba escrita una sola vez y el reintento la
   # rehacia a mano, asi que perdia por el camino el muestreo del motor: volvia a
   # una lectura de primeras filas mientras `metodo` seguia declarando
   # `TABLESAMPLE`. Ahora la arma la misma funcion para cualquier subconjunto de
   # columnas, y lo que se declara sale de lo que se emitio.
-  armar_muestra_dbi <- function(indices) {
+  armar_muestra_dbi <- function(indices, filas_solicitadas = n_obtener) {
     sub_sql <- campos_sql[indices]
     origen <- if (usa_muestreo) {
       .fuente_muestreada_dbi(
-        tabla_sql, sub_sql, muestra, n_total, dialecto,
+        tabla_sql, sub_sql, filas_solicitadas, n_total, dialecto,
         list(candidato = muestreo$candidato)
       )
     } else {
@@ -7640,8 +7782,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     }
     recorte <- if (!is.null(origen)) {
       NULL
-    } else if (!total_conocido || muestra < total_numero) {
-      dialecto$limitar(base, muestra, 0)
+    } else if (!total_conocido || filas_solicitadas < total_numero) {
+      dialecto$limitar(base, filas_solicitadas, 0)
     } else {
       NULL
     }
@@ -7650,8 +7792,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
       sql = if (is.null(recorte)) base else recorte,
       filas = if (!is.null(origen)) {
         origen$filas
-      } else if (is.null(recorte) && (!total_conocido || muestra < total_numero)) {
-        muestra
+      } else if (is.null(recorte) && (!total_conocido || filas_solicitadas < total_numero)) {
+        filas_solicitadas
       } else {
         -1L
       },
@@ -7659,7 +7801,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
         "motor_muestreo"
       } else if (!is.null(recorte)) {
         "motor"
-      } else if (!total_conocido || muestra < total_numero) {
+      } else if (!total_conocido || filas_solicitadas < total_numero) {
         "cliente"
       } else {
         "sin recorte"
@@ -7693,13 +7835,75 @@ print.plan_perfilado_dbi <- function(x, ...) {
   hay_saldo_dbi <- function() {
     is.null(presupuesto) || .saldo_dbi(presupuesto) >= 1
   }
-  armado <- armar_muestra_dbi(seq_along(campos_sql))
+  lectura_inicio <- if (isTRUE(presupuesto$instrumentar)) .ahora_dbi() else NULL
+  lectura_cpu_inicio <- if (isTRUE(presupuesto$instrumentar)) {
+    .ahora_cpu_dbi()
+  } else NULL
+  if (is.finite(max_bytes_muestra)) {
+    filas_sonda <- min(n_obtener, 100)
+    sonda <- armar_muestra_dbi(seq_along(campos_sql), filas_sonda)
+    consulta_sonda <- .consultar_dbi(
+      conexion, sonda$sql, presupuesto, filas = sonda$filas,
+      etapa = "sonda_bytes_muestra"
+    )
+    if (isTRUE(consulta_sonda$ok)) {
+      alcance$bytes_sonda <- as.numeric(utils::object.size(consulta_sonda$datos))
+      filas_sonda_obtenidas <- nrow(consulta_sonda$datos)
+      if (filas_sonda_obtenidas > 0) {
+        bytes_vacios <- as.numeric(utils::object.size(
+          consulta_sonda$datos[0, , drop = FALSE]
+        ))
+        if (bytes_vacios > max_bytes_muestra) {
+          .detener_dbi(
+            "lupa_error_argumento_dbi",
+            paste0(
+              "`max_bytes_muestra` es menor que el tamano minimo de la",
+              " muestra vacia (", bytes_vacios, " bytes)."
+            )
+          )
+        }
+        bytes_por_fila <- max(
+          (alcance$bytes_sonda - bytes_vacios) / filas_sonda_obtenidas,
+          alcance$bytes_sonda / filas_sonda_obtenidas, 1
+        )
+        alcance$filas_por_bytes <- floor(
+          max(0, as.numeric(max_bytes_muestra) - bytes_vacios) /
+            bytes_por_fila
+        )
+        if (alcance$filas_por_bytes < 1) {
+          .detener_dbi(
+            "lupa_error_argumento_dbi",
+            "`max_bytes_muestra` no permite materializar una fila de la muestra."
+          )
+        }
+        alcance$filas_efectivas <- min(
+          alcance$filas_efectivas, alcance$filas_por_bytes
+        )
+        alcance$celdas_efectivas <-
+          alcance$filas_efectivas * length(campos_sql)
+      }
+    }
+  }
+  n_obtener <- alcance$filas_efectivas
+  # La consulta final siempre se arma con el límite resuelto. La sonda es sólo
+  # una medida previa para decidir ese límite; nunca se recorta en R lo que ya
+  # vino del motor.
+  armado <- armar_muestra_dbi(seq_along(campos_sql), alcance$filas_efectivas)
   fuente <- armado$fuente
   sql_muestra <- armado$sql
   filas <- armado$filas
   acotado_en <- armado$acotado_en
   muestreo_meta <- list(
     filas_solicitadas = as.numeric(muestra),
+    filas_solicitadas_sin_topes = alcance$filas_solicitadas,
+    filas_maximas_por_celdas = alcance$filas_por_celdas,
+    filas_maximas_por_bytes = alcance$filas_por_bytes,
+    max_celdas_muestra = max_celdas_muestra,
+    max_bytes_muestra = max_bytes_muestra,
+    celdas_solicitadas = alcance$celdas_solicitadas,
+    celdas_efectivas = alcance$celdas_efectivas,
+    bytes_sonda = alcance$bytes_sonda,
+    bytes_muestra = alcance$bytes_muestra,
     filas_obtenidas = NA_real_,
     filas_totales_fuente = n_total,
     tabla_completa = FALSE,
@@ -7726,10 +7930,6 @@ print.plan_perfilado_dbi <- function(x, ...) {
     muestreo_meta$universo <- n_total
     muestreo_meta$capacidad <- muestreo$candidato$nombre
   }
-  lectura_inicio <- if (isTRUE(presupuesto$instrumentar)) .ahora_dbi() else NULL
-  lectura_cpu_inicio <- if (isTRUE(presupuesto$instrumentar)) {
-    .ahora_cpu_dbi()
-  } else NULL
   consulta <- .consultar_dbi(
     conexion, sql_muestra, presupuesto, filas = filas,
     etapa = "lectura_muestra"
@@ -7905,11 +8105,23 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }
   datos_muestra <- consulta$datos
   n_obtenidas <- nrow(datos_muestra)
+  alcance$filas_efectivas <- as.numeric(n_obtenidas)
+  alcance$celdas_efectivas <- alcance$filas_efectivas * length(campos_sql)
+  alcance$bytes_muestra <- if (is.finite(max_bytes_muestra)) {
+    as.numeric(utils::object.size(datos_muestra))
+  } else {
+    NA_real_
+  }
+  alcance$recortada <- alcance$filas_efectivas < alcance$filas_solicitadas
+  alcance$motivos <- .motivos_muestra_perfilado(alcance)
   .registrar_etapa_dbi(
     trazador, "lectura_muestra", lectura_inicio, .ahora_dbi(),
     cpu_inicio = lectura_cpu_inicio, cpu_fin = .ahora_cpu_dbi()
   )
   muestreo_meta$filas_obtenidas <- as.numeric(n_obtenidas)
+  muestreo_meta$celdas_efectivas <- alcance$celdas_efectivas
+  muestreo_meta$bytes_sonda <- alcance$bytes_sonda
+  muestreo_meta$bytes_muestra <- alcance$bytes_muestra
   muestreo_meta$tabla_completa <- n_obtenidas == .numero_dbi(n_total)
   if (!identical(as.numeric(n_obtenidas), as.numeric(n_obtener))) {
     cobertura <- rbind(cobertura, .registro_cobertura_dbi(
@@ -7932,6 +8144,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
     argumentos$nombre <- paste0("muestra DBI de ", .texto_tabla_dbi(tabla))
   }
   argumentos$muestra <- Inf
+  # Los topes ya se resolvieron sobre la relación remota. Pasar `Inf` acá
+  # evita una segunda decisión local que podría volver a recortar en R lo que
+  # el bloque acaba de traer y, además, deja la cobertura con una sola fuente
+  # de verdad: el alcance calculado antes de la lectura.
+  argumentos$max_celdas_muestra <- Inf
+  argumentos$max_bytes_muestra <- Inf
   if (!is.null(trazador)) {
     attr(datos_muestra, "lupa_trazador_tiempos_dbi") <- trazador
   }
@@ -7956,6 +8174,23 @@ print.plan_perfilado_dbi <- function(x, ...) {
       sql_muestra
     ))
     return(list(perfil = NULL, cobertura = cobertura, muestreo = muestreo_meta))
+  }
+  perfil$meta$filas_analizadas <- alcance$filas_efectivas
+  perfil$meta$muestreo <- n_obtenidas < .numero_dbi(n_total)
+  perfil$meta$muestra <- as.numeric(muestra)
+  perfil$meta$muestra_efectiva <- alcance$filas_efectivas
+  perfil$meta$celdas_solicitadas <- alcance$celdas_solicitadas
+  perfil$meta$celdas_efectivas <- alcance$celdas_efectivas
+  perfil$meta$max_celdas_muestra <- max_celdas_muestra
+  perfil$meta$max_bytes_muestra <- max_bytes_muestra
+  perfil$meta$bytes_sonda <- alcance$bytes_sonda
+  perfil$meta$bytes_muestra <- alcance$bytes_muestra
+  cobertura_topes <- .cobertura_muestra_perfilado(alcance)
+  if (nrow(cobertura_topes)) {
+    perfil$cobertura_diagnosticos <- rbind(
+      perfil$cobertura_diagnosticos, cobertura_topes
+    )
+    rownames(perfil$cobertura_diagnosticos) <- NULL
   }
   perfil <- .constante_no_medible_en_muestra_dbi(perfil, muestreo_meta)
   perfil$meta$origen_dbi <- list(
@@ -8652,6 +8887,19 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   limite también alcanza la muestra común con que se buscan dependencias.
 #'   Use un entero finito para acotar ese trabajo; `Inf` es el valor por omisión
 #'   y trae la tabla entera cuando el tiempo no es la restricción.
+#' @param max_celdas_muestra Máximo de celdas que puede contener el bloque
+#'   `perfil_muestra`. Por defecto es `1000000`; se calcula antes de leer como
+#'   filas por columnas del esquema. Si reduce la muestra,
+#'   `perfil_muestra$cobertura_diagnosticos` usa la misma declaración que
+#'   `perfilar()`, con las celdas solicitadas, el umbral y el tope que mandó.
+#'   `Inf` desactiva este tope. No modifica los agregados SQL.
+#' @param max_bytes_muestra Máximo de bytes de la muestra materializada que
+#'   alimenta `perfil_muestra`. Por defecto es `512 MiB`. Como el tamaño no se
+#'   conoce desde el esquema, primero se lee una sonda de hasta cien filas y con
+#'   ella se fija el límite final en SQL o en `dbFetch(n)`, antes de leer el
+#'   resto. Si reduce la muestra, `cobertura_diagnosticos` informa los bytes
+#'   observados, el umbral y cuál tope mandó. `Inf` desactiva este tope. No
+#'   modifica los agregados SQL.
 #' @param orden_muestra Columnas para `ORDER BY`. La salida solo declara orden
 #'   reproducible cuando la combinación es única en toda la tabla. Sin este
 #'   argumento, DBI no garantiza el orden ni la pertenencia de una muestra
@@ -8818,7 +9066,15 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                          avisar_derrame_estimado = TRUE,
                          umbral_bytes_aviso_derrame_estimado =
                            .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
+                         max_celdas_muestra = .MAX_CELDAS_MUESTRA,
+                         max_bytes_muestra = .MAX_BYTES_MUESTRA,
                          ...) {
+  max_celdas_muestra <- .validar_limite_duplicados(
+    max_celdas_muestra, "max_celdas_muestra"
+  )
+  max_bytes_muestra <- .validar_limite_duplicados(
+    max_bytes_muestra, "max_bytes_muestra"
+  )
   avisar_costo_distintos <- .validar_interruptor_aviso_dbi(
     avisar_costo_distintos, "avisar_costo_distintos"
   )
@@ -8860,6 +9116,10 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
       if (i <= length(preparacion$tipos)) preparacion$tipos[[i]] else NA_character_
     )
   }, logical(1L))
+  tope_muestra <- .tope_muestra_plan_dbi(
+    preparacion$muestra, length(preparacion$campos),
+    max_celdas_muestra, max_bytes_muestra
+  )
   plan <- .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
     length(preparacion$orden_sql) > 0 &&
@@ -8871,12 +9131,16 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     tamano_lote_distintos = preparacion$tamano_lote_distintos,
     columnas_distintos = preparacion$columnas_distintos_ejecucion,
     incluir_muestra = identical(preparacion$bloque_muestra, "con_muestra"),
-    mediana_consolidada = !is.null(preparacion$mediana_consolidada)
+    mediana_consolidada = !is.null(preparacion$mediana_consolidada),
+    consultas_muestra = if (identical(
+      preparacion$bloque_muestra, "con_muestra"
+    ) && isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L
   )
   # Las consultas obligatorias que faltan -verificacion de orden y, cuando se
   # pidio, muestra- se reservan para que el presupuesto no se las coma.
   presupuesto$reserva <- if (identical(preparacion$bloque_muestra, "con_muestra")) {
-    if (length(preparacion$orden_sql)) 2 else 1
+    (if (length(preparacion$orden_sql)) 2 else 1) +
+      if (isTRUE(tope_muestra$requiere_sonda_bytes)) 1 else 0
   } else {
     0
   }
@@ -8995,7 +9259,10 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
       mediana_consolidada = !is.null(preparacion$mediana_consolidada),
       columnas_moda = columnas_moda, columnas_moda_max = columnas_moda,
       columnas_mediana = columnas_mediana,
-      columnas_mediana_max = columnas_mediana
+      columnas_mediana_max = columnas_mediana,
+      consultas_muestra = if (identical(
+        preparacion$bloque_muestra, "con_muestra"
+      ) && isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L
     )
   }
   attr(plan, "moda_guardian") <- .publicar_moda_guardian_dbi(
@@ -9058,6 +9325,8 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   # memoria. Se conserva completa para no perder fuente, motivo ni estados.
   resumen$meta$clave <- preparacion$catalogo_cardinalidad
   resumen$meta$incluir_valores <- incluir_valores
+  resumen$meta$max_celdas_muestra <- max_celdas_muestra
+  resumen$meta$max_bytes_muestra <- max_bytes_muestra
   resumen$meta$tamano_lote <- preparacion$tamano_lote
   resumen$meta$tamano_lote_funciono <- presupuesto$tamano_lote_funciono
   resumen$meta$tamano_lote_planos <- preparacion$tamano_lote_planos
@@ -9150,7 +9419,9 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
       preparacion$campos_sql, preparacion$muestra, preparacion$orden_muestra,
       preparacion$orden_sql, preparacion$dialecto, preparacion$n_total,
       presupuesto, info_conexion, list(...), muestreo = muestreo_meta,
-      tipos_declarados = preparacion$tipos, trazador = trazador
+      tipos_declarados = preparacion$tipos, trazador = trazador,
+      max_celdas_muestra = max_celdas_muestra,
+      max_bytes_muestra = max_bytes_muestra
     )
   } else {
     .registrar_etapa_dbi(

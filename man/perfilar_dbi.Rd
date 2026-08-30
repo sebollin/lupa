@@ -26,6 +26,8 @@ perfilar_dbi(
   umbral_segundos_aviso_distintos = .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI,
   avisar_derrame_estimado = TRUE,
   umbral_bytes_aviso_derrame_estimado = .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
+  max_celdas_muestra = .MAX_CELDAS_MUESTRA,
+  max_bytes_muestra = .MAX_BYTES_MUESTRA,
   ...
 )
 }
@@ -138,9 +140,9 @@ solicitadas. \code{"ninguna"} es un alias de \code{"todas"}; \code{"por_cardinal
 mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
 permite. Luego omite, por columna, sólo la moda cuando la proporción de
 distintos alcanza \code{umbral_cardinalidad}; la mediana se conserva porque las
-mediciones disponibles muestran que su costo depende de las filas y no de la
-cardinalidad. Una estrategia no disponible no se convierte en una medición
-exacta.}
+mediciones disponibles muestran que su costo depende de las filas y no de
+la cardinalidad. Una estrategia no disponible no se convierte en una
+medición exacta.}
 
 \item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
 activa la omisión de la moda con \code{politica_costo = "por_cardinalidad"}. El
@@ -172,6 +174,21 @@ bytes, a partir del cual se avisa un derrame potencial entre los lotes que
 ya superan la memoria efectiva. Por omisión es \code{0}, que conserva el aviso
 para cualquier lote que la supere; \code{Inf} lo desactiva explícitamente. El
 valor no cambia la estimación ni la medición posterior del derrame.}
+
+\item{max_celdas_muestra}{Máximo de celdas que puede contener el bloque
+\code{perfil_muestra}. Por defecto es \code{1000000}; se calcula antes de leer como
+filas por columnas del esquema. Si reduce la muestra,
+\code{perfil_muestra$cobertura_diagnosticos} usa la misma declaración que
+\code{perfilar()}, con las celdas solicitadas, el umbral y el tope que mandó.
+\code{Inf} desactiva este tope. No modifica los agregados SQL.}
+
+\item{max_bytes_muestra}{Máximo de bytes de la muestra materializada que
+alimenta \code{perfil_muestra}. Por defecto es \verb{512 MiB}. Como el tamaño no se
+conoce desde el esquema, primero se lee una sonda de hasta cien filas y con
+ella se fija el límite final en SQL o en \code{dbFetch(n)}, antes de leer el
+resto. Si reduce la muestra, \code{cobertura_diagnosticos} informa los bytes
+observados, el umbral y cuál tope mandó. \code{Inf} desactiva este tope. No
+modifica los agregados SQL.}
 
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
 }
@@ -256,7 +273,6 @@ solicitado a la consulta; \code{filas_solicitadas} declara el pedido original y
 \code{filas_obtenidas} las filas que devolvio la lectura del bloque
 \code{perfil_muestra}. Esta ultima puede ser \code{NA} si el bloque no se solicito o
 fallo antes de leer.
-
 Si la consulta de la muestra devuelve cero filas, no hay base para medir las
 metricas de alcance \code{muestra}: se publican con valor \code{NA}, estado
 \code{no_disponible} y un motivo que nombra la muestra vacia. Esto no permite
@@ -276,9 +292,8 @@ vale \code{"exacta"} por omision: calcula \code{COUNT(DISTINCT)} sobre las filas
 corrida. \code{"aproximada_motor"} sondea una funcion nativa y, si no hay una
 capacidad aceptada, deja la metrica \code{no_disponible}; nunca ejecuta el conteo
 exacto como repliegue. \code{"catalogo"} lee \code{pg_stats.n_distinct} y publica
-\code{estimado_catalogo} sólo cuando el modo mide la relación entera
-(\code{exacto}, \code{seguro} o \code{conteos}). En \code{muestreado} y
-\code{aproximado} queda
+\code{estimado_catalogo} sólo cuando el modo mide la relación entera (\code{exacto},
+\code{seguro} o \code{conteos}). En \code{muestreado} y \code{aproximado} queda
 \code{no_disponible}, porque el catálogo describe la relación entera y la corrida
 mide un subconjunto; no se inventa una equivalencia entre universos.
 \code{"omitida"} no emite la

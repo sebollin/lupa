@@ -608,6 +608,23 @@ equally close. That is not fixed: it is declared. `alcance` carries
 one is not `truncado` under another name — it is `FALSE` when the cut lands on a
 unique distance.
 
+### Sample-size caps protect remote reads
+
+`perfilar()` and `perfilar_dbi()` use the same sample-cap defaults:
+`max_celdas_muestra = 1,000,000` cells and
+`max_bytes_muestra = 512 MiB`. In DBI profiles these caps apply only to
+`perfil_muestra`; the SQL aggregates still run over their declared scope. The
+cell cap is resolved from the row count and schema width before reading. The
+byte cap first reads a probe of up to 100 rows, then puts the resulting limit in
+the final SQL or `dbFetch(n)` call, so the full sample is not fetched and
+trimmed later in R.
+
+When `muestra = n` and a cap is stricter, the smaller limit wins. The profile
+coverage declares the observed cells or bytes, threshold and reason, including
+which cap won. Passing `Inf` for both caps produces no crop declaration.
+`plan_perfilado_dbi()` exposes the same limits and says in advance when the
+cell cap will reduce the sample or when a byte probe will be needed.
+
 ### Cost is planned before it is paid
 
 Profiling a 158-column table in `modo = "exacto"` emits 335 queries, and 327 of

@@ -152,22 +152,6 @@
   filas_efectivas <- as.numeric(filas_candidatas)
   celdas_efectivas <- filas_efectivas * columnas_totales
   recortada <- filas_efectivas < filas_solicitadas
-  motivos <- character()
-  if (is.finite(max_celdas_muestra) &&
-      filas_efectivas < filas_solicitadas) {
-    motivos <- c(motivos, paste0(
-      "celdas solicitadas = ", celdas_solicitadas,
-      "; umbral = ", max_celdas_muestra
-    ))
-  }
-  if (is.finite(max_bytes_muestra) &&
-      filas_efectivas < filas_solicitadas) {
-    motivos <- c(motivos, paste0(
-      "bytes observados = ", bytes_muestra,
-      "; umbral = ", max_bytes_muestra,
-      if (is.finite(bytes_sonda)) paste0("; bytes de sonda = ", bytes_sonda) else ""
-    ))
-  }
   list(
     filas_solicitadas = filas_solicitadas,
     filas_efectivas = filas_efectivas,
@@ -175,11 +159,64 @@
     celdas_efectivas = celdas_efectivas,
     bytes_muestra = bytes_muestra,
     bytes_sonda = bytes_sonda,
+    filas_por_celdas = filas_por_celdas,
+    filas_por_bytes = filas_por_bytes,
     max_celdas_muestra = max_celdas_muestra,
     max_bytes_muestra = max_bytes_muestra,
     recortada = recortada,
-    motivos = motivos
+    motivos = .motivos_muestra_perfilado(list(
+      filas_solicitadas = filas_solicitadas,
+      filas_efectivas = filas_efectivas,
+      celdas_solicitadas = celdas_solicitadas,
+      bytes_muestra = bytes_muestra,
+      bytes_sonda = bytes_sonda,
+      filas_por_celdas = filas_por_celdas,
+      filas_por_bytes = filas_por_bytes,
+      max_celdas_muestra = max_celdas_muestra,
+      max_bytes_muestra = max_bytes_muestra
+    ))
   )
+}
+
+.motivos_muestra_perfilado <- function(alcance) {
+  topes_filas <- c(
+    celdas = if (is.finite(alcance$max_celdas_muestra)) {
+      alcance$filas_por_celdas
+    } else Inf,
+    bytes = if (is.finite(alcance$max_bytes_muestra)) {
+      alcance$filas_por_bytes
+    } else Inf
+  )
+  topes_filas <- topes_filas[is.finite(topes_filas)]
+  minimo_tope <- if (length(topes_filas)) {
+    min(topes_filas, alcance$filas_solicitadas)
+  } else {
+    alcance$filas_solicitadas
+  }
+  topes_mandaron <- names(topes_filas)[
+    topes_filas == minimo_tope & minimo_tope < alcance$filas_solicitadas
+  ]
+  motivos <- character()
+  if (is.finite(alcance$max_celdas_muestra) &&
+      alcance$filas_efectivas < alcance$filas_solicitadas) {
+    motivos <- c(motivos, paste0(
+      "celdas solicitadas = ", alcance$celdas_solicitadas,
+      "; umbral = ", alcance$max_celdas_muestra,
+      if ("celdas" %in% topes_mandaron) "; manda el tope de celdas" else ""
+    ))
+  }
+  if (is.finite(alcance$max_bytes_muestra) &&
+      alcance$filas_efectivas < alcance$filas_solicitadas) {
+    motivos <- c(motivos, paste0(
+      "bytes observados = ", alcance$bytes_muestra,
+      "; umbral = ", alcance$max_bytes_muestra,
+      if (is.finite(alcance$bytes_sonda)) {
+        paste0("; bytes de sonda = ", alcance$bytes_sonda)
+      } else "",
+      if ("bytes" %in% topes_mandaron) "; manda el tope de bytes" else ""
+    ))
+  }
+  motivos
 }
 
 .cobertura_muestra_perfilado <- function(alcance) {
@@ -1937,8 +1974,11 @@ perfilar <- function(datos,
     muestreo = nrow(datos) > alcance_muestra$filas_efectivas,
     muestra = muestra,
     muestra_efectiva = alcance_muestra$filas_efectivas,
+    celdas_solicitadas = alcance_muestra$celdas_solicitadas,
+    celdas_efectivas = alcance_muestra$celdas_efectivas,
     max_celdas_muestra = max_celdas_muestra,
     max_bytes_muestra = max_bytes_muestra,
+    bytes_sonda = alcance_muestra$bytes_sonda,
     bytes_muestra = alcance_muestra$bytes_muestra,
     max_patrones = max_patrones,
     distinguir_mayusculas = distinguir_mayusculas,
