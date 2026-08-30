@@ -2953,10 +2953,76 @@
   )
 }
 
+.logico_catalogo_dbi <- function(valor) {
+  if (is.logical(valor)) return(valor)
+  texto <- tolower(trimws(as.character(valor)))
+  ifelse(
+    texto %in% c("true", "t", "1"), TRUE,
+    ifelse(texto %in% c("false", "f", "0"), FALSE, NA)
+  )
+}
+
+.seleccionar_fila_catalogo_dbi <- function(datos, columna,
+                                            nombre_columna,
+                                            nombre_inherited,
+                                            nombre_sin_hijas) {
+  sin_decision <- function(motivo = NULL) {
+    list(fila = NA_integer_, inherited = NA, motivo = motivo)
+  }
+  if (is.na(nombre_columna) || is.na(nombre_inherited) ||
+      is.na(nombre_sin_hijas)) {
+    return(sin_decision(paste(
+      "La respuesta de `pg_stats` no informa `inherited` y si la relacion",
+      "tiene hijas; no se puede decidir que fila describe lo que se lee."
+    )))
+  }
+  filas <- which(
+    tolower(as.character(datos[[nombre_columna]])) == tolower(columna)
+  )
+  if (!length(filas)) return(sin_decision())
+  inherited <- .logico_catalogo_dbi(datos[[nombre_inherited]][filas])
+  sin_hijas <- .logico_catalogo_dbi(datos[[nombre_sin_hijas]][filas])
+  if (anyNA(inherited) || anyNA(sin_hijas) ||
+      length(unique(sin_hijas)) != 1L) {
+    return(sin_decision(paste0(
+      "Hay filas de `pg_stats` para `", columna,
+      "` cuyo `inherited` o relacion de hijas no se puede interpretar;",
+      " no hay estimacion utilizable."
+    )))
+  }
+  heredadas <- filas[which(inherited)]
+  propias <- filas[which(!inherited)]
+  if (length(heredadas) > 1L) {
+    return(sin_decision(paste0(
+      "Hay ", length(heredadas), " filas de `pg_stats` con `inherited = TRUE`",
+      " para `", columna, "`; no se puede decidir cual describe lo que se lee."
+    )))
+  }
+  if (length(heredadas) == 1L) {
+    return(list(fila = heredadas[[1L]], inherited = TRUE, motivo = NULL))
+  }
+  if (length(propias) == 1L && isTRUE(sin_hijas[[1L]])) {
+    return(list(fila = propias[[1L]], inherited = FALSE, motivo = NULL))
+  }
+  if (length(propias) == 1L) {
+    return(sin_decision(paste0(
+      "La relacion tiene hijas pero `pg_stats` no devolvio una fila con",
+      " `inherited = TRUE` para `", columna,
+      "`; la fila propia describe otro universo y no hay estimacion utilizable."
+    )))
+  }
+  sin_decision(paste0(
+    "Hay ", length(propias), " filas de `pg_stats` con `inherited = FALSE`",
+    " para `", columna,
+    "` y no se puede decidir cual describe lo que se lee; no hay estimacion",
+    " utilizable."
+  ))
+}
+
 .estimar_distintos_catalogo_dbi <- function(conexion, tabla, columnas,
                                             presupuesto) {
   senas <- .senas_conexion_dbi(conexion)
-  if (!grepl("postgres|pqconnection", senas)) {
+  if (!grepl("postgres|pqconnection", senas, ignore.case = TRUE)) {
     vacias <- .fuentes_cardinalidad_vacias_dbi(columnas)
     return(list(
       disponible = FALSE, estimaciones = vacias, fuentes = vacias,
@@ -2976,6 +3042,10 @@
     ))
   }
   literal <- function(x) as.character(DBI::dbQuoteString(conexion, x))
+  # `pg_stats` tiene un guardian de RLS del motor: con RLS activo para quien
+  # consulta, la vista devuelve cero filas. Esto se verifico ejecutando
+  # PostgreSQL 16 con un rol con politica. No agregar una guarda redundante ni
+  # tratarlo como un defecto pendiente: lupa ya cae en "no disponible".
   condicion_esquema <- if (is.na(piezas$esquema) || !nzchar(piezas$esquema)) {
     "pg_catalog.pg_table_is_visible(c.oid)"
   } else {
@@ -2985,13 +3055,46 @@
     vapply(columnas, literal, character(1L), USE.NAMES = FALSE),
     collapse = ", "
   )
-  sql <- paste0(
-    "SELECT s.attname AS lupa_columna, ",
-    "s.n_distinct AS lupa_n_distinct, c.reltuples AS lupa_n_filas ",
+  # Una tabla particionada (`relkind = 'p'`) no tiene filas propias y
+  # PostgreSQL puede guardar alli el total de sus particiones. Se excluye del
+  # sumatorio para no contar ese total dos veces; las relaciones regulares si
+  # aportan sus `reltuples` propios.
+  sql <- paste(
+    "WITH RECURSIVE relaciones AS (",
+    "SELECT c.oid, n.nspname AS schemaname, c.relname AS tablename,",
+    "c.reltuples, c.relkind, TRUE AS es_raiz,",
+    "NOT EXISTS (SELECT 1 FROM pg_catalog.pg_inherits h",
+    "WHERE h.inhparent = c.oid) AS sin_hijas",
+    "FROM pg_catalog.pg_class AS c",
+    "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace",
+    "WHERE c.relname = ", literal(piezas$tabla), " AND ",
+    condicion_esquema,
+    " UNION ",
+    "SELECT hija.oid, ns.nspname AS schemaname, hija.relname AS tablename,",
+    "hija.reltuples, hija.relkind, FALSE AS es_raiz,",
+    "NOT EXISTS (SELECT 1 FROM pg_catalog.pg_inherits h2",
+    "WHERE h2.inhparent = hija.oid) AS sin_hijas",
+    "FROM pg_catalog.pg_inherits AS herencia",
+    "JOIN relaciones AS padre ON padre.oid = herencia.inhparent",
+    "JOIN pg_catalog.pg_class AS hija ON hija.oid = herencia.inhrelid",
+    "JOIN pg_catalog.pg_namespace AS ns ON ns.oid = hija.relnamespace",
+    "), filas_jerarquia AS (",
+    "SELECT CASE WHEN SUM(CASE WHEN r.relkind <> 'p' AND r.reltuples < 0",
+    "THEN 1 ELSE 0 END) = 0 THEN SUM(CASE WHEN r.relkind <> 'p'",
+    "THEN r.reltuples ELSE 0 END) ELSE NULL END AS reltuples",
+    "FROM relaciones AS r",
+    ")",
+    "SELECT s.attname AS lupa_columna,",
+    "s.n_distinct AS lupa_n_distinct,",
+    "j.reltuples AS lupa_n_filas,",
+    "s.inherited AS lupa_inherited,",
+    "raiz.sin_hijas AS lupa_sin_hijas ",
     "FROM pg_catalog.pg_stats AS s ",
     "JOIN pg_catalog.pg_class AS c ON c.relname = s.tablename ",
     "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace ",
     "AND n.nspname = s.schemaname ",
+    "JOIN relaciones AS raiz ON raiz.oid = c.oid AND raiz.es_raiz ",
+    "CROSS JOIN filas_jerarquia AS j ",
     "WHERE s.tablename = ", literal(piezas$tabla),
     " AND ", condicion_esquema,
     " AND s.attname IN (", condicion_columnas, ")"
@@ -3014,17 +3117,17 @@
   nombre_columna <- .campo_resultado_dbi(datos, "lupa_columna")
   nombre_distintos <- .campo_resultado_dbi(datos, "lupa_n_distinct")
   nombre_filas <- .campo_resultado_dbi(datos, "lupa_n_filas")
+  nombre_inherited <- .campo_resultado_dbi(datos, "lupa_inherited")
+  nombre_sin_hijas <- .campo_resultado_dbi(datos, "lupa_sin_hijas")
   estimaciones <- vector("list", length(columnas))
   fuentes <- vector("list", length(columnas))
   names(estimaciones) <- columnas
   names(fuentes) <- columnas
   for (columna in columnas) {
-    fila <- if (is.na(nombre_columna) || !nrow(datos)) {
-      integer()
-    } else {
-      which(tolower(as.character(datos[[nombre_columna]])) == tolower(columna))
-    }
-    fila <- if (length(fila)) fila[[1L]] else NA_integer_
+    seleccion <- .seleccionar_fila_catalogo_dbi(
+      datos, columna, nombre_columna, nombre_inherited, nombre_sin_hijas
+    )
+    fila <- seleccion$fila
     raw <- if (!is.na(fila) && !is.na(nombre_distintos)) {
       .numero_dbi(datos[[nombre_distintos]][fila])
     } else {
@@ -3040,12 +3143,15 @@
     } else {
       .interpretar_n_distintos_catalogo_dbi(raw, filas_catalogo, columna)
     }
+    if (!is.null(seleccion$motivo)) interpretacion$motivo <- seleccion$motivo
+    interpretacion$inherited <- seleccion$inherited
     estimaciones[[columna]] <- list(
       disponible = interpretacion$disponible,
       n_distintos = interpretacion$n_distintos,
       n_filas = interpretacion$n_filas,
       n_distintos_catalogo = interpretacion$n_distintos_catalogo,
       proporcion_distintos = interpretacion$proporcion_distintos,
+      inherited = interpretacion$inherited,
       motivo = interpretacion$motivo, sql = sql,
       fuente = "pg_stats.n_distinct"
     )
@@ -3055,6 +3161,7 @@
         n_distintos = interpretacion$n_distintos,
         n_filas = interpretacion$n_filas,
         proporcion_distintos = interpretacion$proporcion_distintos,
+        inherited = interpretacion$inherited,
         motivo = interpretacion$motivo,
         fuente = "pg_stats.n_distinct"
       )
@@ -5197,7 +5304,8 @@
             metadatos = list(
               fuente = "pg_stats.n_distinct",
               n_distintos_catalogo = estimacion$n_distintos_catalogo,
-              n_filas_catalogo = estimacion$n_filas
+              n_filas_catalogo = estimacion$n_filas,
+              inherited_catalogo = estimacion$inherited
             )
           )
         }
@@ -6646,9 +6754,12 @@
 #' `no_disponible` si el motor no ofrece una función aceptada, `"catalogo"`
 #' lee `pg_stats.n_distinct` en PostgreSQL y publica una estimación con estado
 #' `estimado_catalogo`, y `"omitida"` no emite el agregado. Un `n_distinct`
-#' positivo es un conteo y uno negativo una fracción de las filas; `-1` se
-#' convierte con `pg_class.reltuples`. Si falta una estimación utilizable —por
-#' ejemplo, antes de `ANALYZE`— se conserva `no_disponible`, nunca cero.
+#' positivo es un conteo y uno negativo una fracción de las filas. Si la
+#' relación tiene descendientes se usa la fila `inherited = TRUE`, que describe
+#' la consulta sin `ONLY`; si no tiene hijas se usa la única fila propia. La
+#' fracción se convierte con la suma de `pg_class.reltuples` de la jerarquía.
+#' Si falta una estimación utilizable —por ejemplo, antes de `ANALYZE`— o hay
+#' filas ambiguas, se conserva `no_disponible`, nunca cero.
 #' `fuente_cardinalidad_costo` sigue siendo independiente y sólo describe el
 #' número usado por la política de costo cuando esa política se pide.
 #'
@@ -8557,10 +8668,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   estrategias. El resultado publica `estrategia_solicitada`,
 #'   `estrategia_resuelta` y `estado` en `meta$estrategia_distintos`, y las dos
 #'   primeras también en `resumen_tabla$sql`. En `pg_stats`, un valor positivo
-#'   es el conteo estimado y uno negativo es una fracción de las filas; por eso
-#'   `-1` se combina con `pg_class.reltuples` y nunca se publica como cardinalidad
-#'   negativa. Si no hay una fila utilizable —por ejemplo, antes de `ANALYZE`—
-#'   la métrica queda `no_disponible`, no en cero.
+#'   es el conteo estimado y uno negativo es una fracción de las filas. Cuando la
+#'   relación tiene descendientes se elige `inherited = TRUE`, porque esa fila
+#'   describe lo que lee una consulta sin `ONLY`; una relación sin hijas usa su
+#'   única fila propia. Las fracciones se convierten con la suma de
+#'   `pg_class.reltuples` de la jerarquía. Si no hay una fila utilizable —por
+#'   ejemplo, antes de `ANALYZE`— o hay ambigüedad, la métrica queda
+#'   `no_disponible`, no en cero.
 #' @param max_consultas Presupuesto declarado de consultas. Al agotarse, las
 #'   métricas restantes quedan en `no_disponible` con ese motivo.
 #' @param tamano_lote Cantidad máxima de columnas por consulta consolidada.

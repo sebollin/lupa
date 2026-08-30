@@ -36,8 +36,11 @@
 
 - `perfilar_dbi()` y `plan_perfilado_dbi()` leen `pg_stats.n_distinct` y
   publican sus resultados como estimaciones de catálogo. Los valores negativos
-  se convierten con `pg_class.reltuples`; si falta `ANALYZE`, el resultado queda
-  `no_disponible` y no se reemplaza por cero.
+  se convierten con la suma de `pg_class.reltuples` de la jerarquía que lee una
+  consulta sin `ONLY`; si la relación tiene descendientes se elige
+  `inherited = TRUE` y, sin hijas, la única fila `FALSE`. Si falta `ANALYZE`,
+  el denominador de la jerarquía no es utilizable o hay ambigüedad, el resultado
+  queda `no_disponible` y no se reemplaza por cero.
 
 ## Validación de claves
 

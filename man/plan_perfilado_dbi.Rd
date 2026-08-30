@@ -104,9 +104,13 @@ lee \code{pg_stats.n_distinct} en PostgreSQL y publica el resultado como
 estrategias. El resultado publica \code{estrategia_solicitada},
 \code{estrategia_resuelta} y \code{estado} en \code{meta$estrategia_distintos}, y las dos
 primeras también en \code{resumen_tabla$sql}. En \code{pg_stats}, los valores
-positivos son conteos y los negativos fracciones de las filas; \code{-1} se
-convierte con \code{pg_class.reltuples}. Si no hay una estimación utilizable —por
-ejemplo, antes de \code{ANALYZE}— queda \code{no_disponible}, no en cero.}
+positivos son conteos y los negativos fracciones de las filas. Cuando la
+relación tiene descendientes se elige \code{inherited = TRUE}, porque esa fila
+describe lo que lee una consulta sin \code{ONLY}; una relación sin hijas usa su
+única fila propia. Las fracciones se convierten con la suma de
+\code{pg_class.reltuples} de la jerarquía. Si no hay una estimación utilizable
+—por ejemplo, antes de \code{ANALYZE}— o hay ambigüedad, queda
+\code{no_disponible}, no en cero.}
 
 \item{politica_costo}{Política optativa para las métricas caras. El valor por
 omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
