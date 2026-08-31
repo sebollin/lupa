@@ -443,7 +443,7 @@ La procedencia de la cardinalidad se elige con `estrategia_distintos`, cuyo
 valor por omisión es `"exacta"`. `"exacta"` emite `COUNT(DISTINCT)` sobre las
 filas de la corrida; `"aproximada_motor"` usa una función nativa sólo si la
 sonda la acepta; `"catalogo"` lee `pg_stats.n_distinct` en PostgreSQL, lo
-publica como estimación y aplica guardas de herencia y de modos muestreados; en
+publica como estimación y aplica guardas de herencia y del universo muestreado; en
 otros motores queda `no_disponible` con su motivo; y `"omitida"` no emite la
 consulta. No hay repliegue silencioso entre estrategias: una aproximación sin
 capacidad queda `no_disponible`, no se convierte en un conteo exacto.
@@ -457,10 +457,10 @@ consulta que efectivamente se ejecutó.
 
 Medido contra PostgreSQL 16 con **2 millones de filas por 40 columnas**:
 
-| modo | antes | después |
+| configuración | antes | después |
 | --- | --- | --- |
-| `conteos` | 46 consultas, 5,4 s | **8 consultas, 2,4 s** |
-| `seguro` | 128 consultas, 15,2 s | 14 consultas, 5,3 s; **10 consultas** con la fusión plana |
+| `metricas = "validos"` | 46 consultas, 5,4 s | **8 consultas, 2,4 s** |
+| `metricas = c("validos", "basicos", "desvio")` | 128 consultas, 15,2 s | 14 consultas, 5,3 s; **10 consultas** con la fusión plana |
 
 Con las mismas 160 y 400 métricas calculadas, y con los mismos números: sobre
 una tabla sembrada una sola vez, el perfil consolidado y el anterior coinciden
@@ -729,7 +729,8 @@ celdas reducirá la muestra o cuándo hará falta la sonda de bytes.
 
 ### El costo se planifica antes de pagarlo
 
-Perfilar una tabla de 158 columnas en `modo = "exacto"` emite 335 consultas, y
+Perfilar una tabla de 158 columnas con el `universo = "tabla_completa"` por
+omisión emite 335 consultas, y
 327 de ellas escanean, ordenan o agrupan la tabla entera. La cuenta sigue a la
 composición y no a la cantidad de columnas: esas mismas 158 columnas, todas de
 texto, cuestan 252, porque una mediana pide un orden total por columna numérica.
@@ -738,7 +739,9 @@ motor—. Así que el costo se declara y se elige (`benchmark/medir_plan_ancho.R
 reproduce los cuatro números):
 
 ```r
-plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # prepara y publica un rango
+plan_perfilado_dbi(
+  con, "tabla", universo = "muestra_motor", muestra_motor = 5000
+)   # prepara y publica un rango
 ```
 
 El plan da un **rango** de cuántas consultas va a emitir el perfilado, y lo dice
@@ -756,7 +759,7 @@ superior es `total_maximo` —también publicado como
 `total_lotes_rechazados` después de sumar la bisección— y deja abierto el camino
 que las ejecuta. Si el motor rechaza lotes, se agregan hasta `2n - 1` sondas por
 lote de `n` columnas. El costo real cae entre los dos **cuando el muestreo se puede
-construir**: si `modo = "muestreado"` y el motor no admite la forma resuelta, el
+construir**: si `universo = "muestra_motor"` y el motor no admite la forma resuelta, el
 plan lo declara en `attr(plan, "muestreo")` y excluye del rango las métricas que
 dependían de ella. La corrida, por su parte, publica cada una como
 `no_disponible` con su motivo: no se informa como medido lo que no se midió.
@@ -850,13 +853,13 @@ segundos en llegar, mientras que procesar 4,5 millones ocupó aproximadamente 7
 GB y procesar 12,8 millones aproximadamente 19 GB. El problema observado está
 en el procesamiento en R, no en la red ni en el motor.
 
-| modo | qué hace |
+| dimensión | qué hace |
 | --- | --- |
-| `exacto` | todas las métricas sobre la tabla entera |
-| `seguro` | deja fuera las métricas que ordenan la columna completa |
-| `conteos` | sólo conteos |
-| `muestreado` | métricas sobre filas muestreadas **en el motor**: `TABLESAMPLE` donde existe, un orden pseudoaleatorio con límite donde no |
-| `aproximado` | funciones aproximadas nativas para las métricas que define el modo |
+| valores por omisión | todas las métricas exactas sobre la tabla entera |
+| `metricas = c("validos", "basicos", "desvio")` | el preset histórico `seguro` |
+| `metricas = "validos"` | el preset histórico `conteos` |
+| `universo = "muestra_motor"` | métricas sobre filas muestreadas **en el motor**: `TABLESAMPLE` donde existe, un orden pseudoaleatorio con límite donde no |
+| `estrategia_mediana = "aproximada_motor"` | prueba exacto nativo primero y aproximado sólo al final; sólo publica `estimado` si ejecutó una aproximación |
 
 Toda métrica muestreada o aproximada viaja diciéndolo. `estado` distingue
 `calculado`, `estimado` y `no_disponible`, y cada fila lleva `universo`,
@@ -877,7 +880,7 @@ solicitó o falló antes de leer. El conteo de distintos tiene su propio estado,
 `observado_muestra`: la cardinalidad de una muestra no estima la del universo
 sin un estimador declarado, así que se informa por lo que es —lo visto en la
 muestra, con el universo al lado—. Un motor sin capacidad de muestreo no rompe:
-el modo degrada y lo dice en la tabla de cobertura.
+el muestreo del motor degrada y lo dice en la tabla de cobertura.
 
 Si la consulta de la muestra devuelve cero filas, no hay base para medir las
 métricas de alcance `muestra`. Se publican como `NA`, con estado

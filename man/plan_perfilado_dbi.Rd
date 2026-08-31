@@ -7,20 +7,22 @@
 plan_perfilado_dbi(
   conexion,
   tabla,
+  universo = c("tabla_completa", "muestra_motor"),
+  muestra_motor = NULL,
   muestra = Inf,
   orden_muestra = NULL,
-  modo = c("exacto", "seguro", "conteos", "muestreado", "aproximado"),
-  metricas = NULL,
+  metricas = .METRICAS_DBI,
+  estrategia_distintos = "exacta",
+  estrategia_mediana = c("exacta", "aproximada_motor"),
+  politica_costo = c("todas", "por_cardinalidad"),
+  bloque_muestra = c("con_muestra", "solo_agregados"),
   max_consultas = Inf,
   dialecto = "auto",
   incluir_valores = TRUE,
   tamano_lote = NULL,
   tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
   tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
-  bloque_muestra = c("con_muestra", "solo_agregados"),
   instrumentar = FALSE,
-  estrategia_distintos = "exacta",
-  politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
   max_celdas_muestra = .MAX_CELDAS_MUESTRA,
   max_bytes_muestra = .MAX_BYTES_MUESTRA
@@ -32,19 +34,26 @@ plan_perfilado_dbi(
 \item{tabla}{Nombre de tabla o un objeto aceptado por
 \code{\link[DBI:dbQuoteIdentifier]{DBI::dbQuoteIdentifier()}}.}
 
-\item{muestra}{Cantidad positiva de filas solicitadas para el perfil de
-muestra, o \code{Inf} para traer la tabla entera. El valor por omisión ya es
-\code{Inf}: no representa una elección distinta de \code{Inf}, sino la tabla completa.
-Con \code{Inf} la consulta sale sin \code{LIMIT} y \code{tabla_completa} queda en \code{TRUE}.
+\item{universo}{Universo sobre el que se calculan los agregados SQL:
+\code{"tabla_completa"} (por omisión) o \code{"muestra_motor"}. En el segundo caso,
+todas las métricas SQL usan la relación muestreada por el motor y no se
+reemplazan silenciosamente por resultados de la tabla completa.}
 
-El resumen de tabla \strong{no} se muestrea: con \code{modo = "exacto"} se calcula en
-el motor sobre todas las filas. Lo que sale de esta muestra son los
-diagnosticos que necesitan los valores en R -patrones, formatos,
-casi-duplicados y dependencias funcionales-, y sin \code{orden_muestra} no son
-una muestra aleatoria sino las primeras filas que devuelva el motor. El
-limite también alcanza la muestra común con que se buscan dependencias.
-Use un entero finito para acotar ese trabajo; \code{Inf} es el valor por omisión
-y trae la tabla entera cuando el tiempo no es la restricción.}
+\item{muestra_motor}{Cantidad positiva y finita de filas que el motor debe
+tomar cuando \code{universo = "muestra_motor"}. Es obligatorio en ese universo y
+debe quedar \code{NULL} para \code{"tabla_completa"}; la función rechaza temprano
+valores no enteros, no positivos o \code{Inf}.}
+
+\item{muestra}{Cantidad positiva de filas solicitadas para el perfil de
+muestra que se trae a R, o \code{Inf} para traer la tabla entera. Este límite es
+independiente de \code{universo}: en \code{muestra_motor}, \code{muestra_motor} decide las
+filas del resumen SQL y \code{muestra} decide las filas del bloque
+\code{perfil_muestra}. En \code{tabla_completa}, \code{muestra} no cambia los agregados.
+
+Sin \code{orden_muestra}, las filas del bloque en R no son una muestra aleatoria
+garantizada sino las primeras que devuelva el motor. El límite también
+alcanza la muestra común con que se buscan dependencias. Use un entero
+finito para acotar ese trabajo cuando el tiempo no sea la restricción.}
 
 \item{orden_muestra}{Columnas para \verb{ORDER BY}. La salida solo declara orden
 reproducible cuando la combinación es única en toda la tabla. Sin este
@@ -52,15 +61,60 @@ argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y \code{meta} lo declara expresamente. No se usa cuando
 \code{bloque_muestra = "solo_agregados"}.}
 
-\item{modo}{Conjunto de métricas del resumen: \code{"exacto"} las calcula todas,
-\code{"seguro"} evita las que ordenan o agrupan la tabla completa y
-\code{"conteos"} deja solo el conteo de valores no nulos, \code{"muestreado"}
-calcula estimaciones sobre filas elegidas por el motor y \code{"aproximado"}
-usa funciones nativas aproximadas para las métricas que ese modo define.}
+\item{metricas}{Selección explícita de grupos de métricas: \code{"validos"},
+\code{"distintos"}, \code{"moda"}, \code{"basicos"}, \code{"mediana"} y \code{"desvio"}. El
+valor por omisión solicita las seis. Para traducir presets de versiones
+anteriores: \code{seguro} equivale a
+\code{c("validos", "basicos", "desvio")} y \code{conteos} equivale a
+\code{"validos"}; \code{exacto} equivale a los valores por omisión de esta firma.}
 
-\item{metricas}{Selección explícita de grupos de métricas, que tiene
-prioridad sobre \code{modo}: \code{"validos"}, \code{"distintos"}, \code{"moda"},
-\code{"basicos"}, \code{"mediana"} y \code{"desvio"}.}
+\item{estrategia_distintos}{Procedencia explícita para \code{n_distintos}:
+\code{"exacta"} (por omisión) emite \code{COUNT(DISTINCT)}; \code{"aproximada_motor"}
+usa una función nativa aceptada por el motor y deja la métrica en
+\code{no_disponible} si no existe; \code{"catalogo"} lee
+\code{pg_stats.n_distinct} en PostgreSQL y publica el resultado como
+\code{estimado_catalogo}, nunca como medición, cuando
+\code{universo = "tabla_completa"}. En \code{muestra_motor} queda \code{no_disponible},
+porque el catálogo describe la relación entera y la corrida mide un
+subconjunto; y
+\code{"omitida"} no emite ninguna consulta. No hay repliegue automático entre
+estrategias. El resultado publica \code{estrategia_solicitada},
+\code{estrategia_resuelta} y \code{estado} en \code{meta$estrategia_distintos}, y las dos
+primeras también en \code{resumen_tabla$sql}. En \code{pg_stats}, un valor positivo
+es el conteo estimado y uno negativo es una fracción de las filas. Cuando la
+relación tiene descendientes se elige \code{inherited = TRUE}, porque esa fila
+describe lo que lee una consulta sin \code{ONLY}; una relación sin hijas usa su
+única fila propia. Las fracciones se convierten con la suma de
+\code{pg_class.reltuples} de la jerarquía. Si no hay una fila utilizable —por
+ejemplo, antes de \code{ANALYZE}— o hay ambigüedad, la métrica queda
+\code{no_disponible}, no en cero.}
+
+\item{estrategia_mediana}{Preferencia para resolver \code{mediana}: \code{"exacta"}
+(por omisión) o \code{"aproximada_motor"}. La sonda prueba siempre primero una
+forma nativa exacta consolidada, luego una forma exacta por columna y deja
+las funciones nativas aproximadas para el final. Por eso esta opción
+describe la estrategia habilitada, no garantiza el método ejecutado:
+\code{meta$estrategia_mediana} y \code{resumen_tabla$sql$metodo} publican el método
+que efectivamente corrió. Una mediana resuelta por una forma exacta queda
+\code{estado = "calculado"} y \code{error_esperado = "no_aplica"}, aunque se haya
+pedido \code{"aproximada_motor"}; sólo una aproximación ejecutada queda
+\code{estado = "estimado"}. \code{universo = "muestra_motor"} combinado con
+\code{"aproximada_motor"} se rechaza temprano.}
+
+\item{politica_costo}{Política optativa para las métricas caras. El valor por
+omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
+solicitadas. \code{"por_cardinalidad"} resuelve primero las fuentes
+estructurales y mide valores válidos y distintos sólo cuando hace falta y
+la estrategia lo permite. Luego omite, por columna, sólo la moda cuando la
+proporción de distintos alcanza \code{umbral_cardinalidad}; la mediana se
+conserva porque las mediciones disponibles muestran que su costo depende de
+las filas y no de la cardinalidad. Los únicos valores aceptados son
+\code{"todas"} y \code{"por_cardinalidad"}; no hay alias históricos.}
+
+\item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
+omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
+lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
+alcance de esos agregados: eso lo decide \code{universo}.}
 
 \item{max_consultas}{Presupuesto declarado de consultas. Al agotarse, las
 métricas restantes quedan en \code{no_disponible} con ese motivo.}
@@ -87,46 +141,9 @@ columna fue casi igual para uno y dos, mientras el lote de dos derramó
 menos que los lotes mayores. Una sola cardinalidad todavía puede forzar un
 agregado pesado y derramar mucho más que un lote plano.}
 
-\item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
-omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
-lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
-alcance de esos agregados: eso lo decide \code{modo}.}
-
 \item{instrumentar}{En el plan, si es \code{TRUE}, cronometra las consultas de
 preparación. No habilita consultas de datos ni agrega mediciones al objeto
 devuelto: sus costos siguen siendo predicciones. Por omisión es \code{FALSE}.}
-
-\item{estrategia_distintos}{Procedencia explícita para \code{n_distintos}:
-\code{"exacta"} (por omisión) emite \code{COUNT(DISTINCT)}; \code{"aproximada_motor"}
-usa una función nativa aceptada por el motor y deja la métrica en
-\code{no_disponible} si no existe; \code{"catalogo"} lee
-\code{pg_stats.n_distinct} en PostgreSQL y publica el resultado como
-\code{estimado_catalogo}, nunca como medición, cuando el modo mide la relación
-entera (\code{exacto}, \code{seguro} o \code{conteos}). En \code{muestreado} y \code{aproximado}
-queda \code{no_disponible}, porque el catálogo describe la relación entera y la
-corrida mide un subconjunto; y
-\code{"omitida"} no emite ninguna consulta. No hay repliegue automático entre
-estrategias. El resultado publica \code{estrategia_solicitada},
-\code{estrategia_resuelta} y \code{estado} en \code{meta$estrategia_distintos}, y las dos
-primeras también en \code{resumen_tabla$sql}. En \code{pg_stats}, un valor positivo
-es el conteo estimado y uno negativo es una fracción de las filas. Cuando la
-relación tiene descendientes se elige \code{inherited = TRUE}, porque esa fila
-describe lo que lee una consulta sin \code{ONLY}; una relación sin hijas usa su
-única fila propia. Las fracciones se convierten con la suma de
-\code{pg_class.reltuples} de la jerarquía. Si no hay una fila utilizable —por
-ejemplo, antes de \code{ANALYZE}— o hay ambigüedad, la métrica queda
-\code{no_disponible}, no en cero.}
-
-\item{politica_costo}{Política optativa para las métricas caras. El valor por
-omisión, \code{"todas"}, conserva moda y mediana para todas las columnas
-solicitadas. \code{"ninguna"} es un alias de \code{"todas"}; \code{"por_cardinalidad"}
-(también \code{"cardinalidad"}) resuelve primero las fuentes estructurales y
-mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
-permite. Luego omite, por columna, sólo la moda cuando la proporción de
-distintos alcanza \code{umbral_cardinalidad}; la mediana se conserva porque las
-mediciones disponibles muestran que su costo depende de las filas y no de
-la cardinalidad. Una estrategia no disponible no se convierte en una
-medición exacta.}
 
 \item{umbral_cardinalidad}{Proporción entre valores distintos y válidos que
 activa la omisión de la moda con \code{politica_costo = "por_cardinalidad"}. El
@@ -168,7 +185,7 @@ magnitud del trabajo y referencias medidas de otras corridas. El atributo
 \code{estimacion_derrame} es independiente: sólo describe la estimación del hash
 en el motor para \code{COUNT(DISTINCT)} y no la memoria del procesamiento en R.
 \code{muestreo} declara si la forma muestreada se pudo construir sin emitir una
-consulta de datos. En \code{modo = "muestreado"}, cuando su \code{estado} es
+consulta de datos. En \code{universo = "muestra_motor"}, cuando su \code{estado} es
 \code{"no_disponible"}, el plan excluye las métricas SQL de esa muestra y
 \code{supuesto} conserva el motivo.
 Cuando se pide \code{bloque_muestra = "solo_agregados"}, también conserva ese
@@ -191,7 +208,7 @@ mediana queda fuera de ese supuesto proporcional y se cuenta según las
 columnas numéricas solicitadas. Ambos incluyen la preparación y el perfilado; el rechazo
 de lotes puede agregar las sondas de bisección declaradas por
 \code{total_lotes_rechazados}. El costo real cae entre los extremos cuando
-\code{modo} no es \code{"muestreado"} o \code{attr(plan, "muestreo")$estado} es
+\code{universo} es \code{"tabla_completa"} o \code{attr(plan, "muestreo")$estado} es
 \code{"disponible"}; en \code{"no_sondeado"} la forma sólo se construyó localmente
 y el intervalo queda condicionado a que la sonda de la corrida la acepte.
 Si la forma muestreada no se puede construir, el plan declara ese caso,
@@ -274,10 +291,10 @@ corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
 \code{auto}: \code{"exacta"} es el valor por omisión, \code{"aproximada_motor"} queda
 \code{no_disponible} si el motor no ofrece una función aceptada, \code{"catalogo"}
 lee \code{pg_stats.n_distinct} en PostgreSQL y publica una estimación con estado
-\code{estimado_catalogo} cuando el modo mide la relación entera (\code{exacto},
-\code{seguro} o \code{conteos}), y \code{"omitida"} no emite el agregado. En
-\code{muestreado} y \code{aproximado}, \code{catalogo} queda \code{no_disponible}: sus
-estadísticas describen la relación entera y no el subconjunto de la corrida.
+\code{estimado_catalogo} cuando \code{universo = "tabla_completa"}, y \code{"omitida"} no
+emite el agregado. Con \code{universo = "muestra_motor"}, \code{catalogo} queda
+\code{no_disponible}: sus estadísticas describen la relación entera y no el
+subconjunto de la corrida.
 Un \code{n_distinct}
 positivo es un conteo y uno negativo una fracción de las filas. Si la
 relación tiene descendientes se usa la fila \code{inherited = TRUE}, que describe

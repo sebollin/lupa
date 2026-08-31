@@ -1,5 +1,34 @@
 # lupa 0.1.0
 
+## `perfilar_dbi()` separa universo, métricas y estrategias
+
+- Se retira el argumento `modo` de `perfilar_dbi()` y
+  `plan_perfilado_dbi()`, junto con `meta$modo`. La firma ahora separa el
+  alcance (`universo`), las métricas (`metricas`) y las estrategias de cada
+  agregado; el plan y el perfilado comparten el mismo contrato.
+- Traducción de los presets anteriores: `exacto` son los valores por omisión
+  (`universo = "tabla_completa"`, todas las métricas y estrategias exactas);
+  `seguro` equivale a `metricas = c("validos", "basicos", "desvio")`;
+  `conteos` equivale a `metricas = "validos"`; `muestreado` equivale a
+  `universo = "muestra_motor"`, `muestra_motor = n` y `muestra = n`; y
+  `aproximado` se traduce como
+  `estrategia_mediana = "aproximada_motor"`, sin forzar el catálogo ni apagar
+  el atajo estructural de otros ejes. La procedencia aproximada de distintos
+  se pide aparte con `estrategia_distintos = "aproximada_motor"`.
+- `estrategia_mediana` describe ahora el orden de la sonda: primero intenta una
+  forma nativa exacta consolidada, después una exacta por columna y sólo al
+  final una función aproximada nativa. El método y el estado publicados son los
+  que efectivamente corrieron: una mediana exacta queda `calculado`, con
+  `error_esperado = "no_aplica"`, aunque se haya solicitado la estrategia
+  aproximada; sólo una aproximación ejecutada queda `estimado`.
+- `universo = "muestra_motor"` desactiva la inferencia estructural de
+  cardinalidad por clave primaria: el atajo no puede convertir una muestra en
+  una medición del universo completo. Además, esa combinación rechaza temprano
+  `estrategia_mediana = "aproximada_motor"`, porque la muestra ya es una
+  aproximación del universo.
+- `politica_costo` acepta sólo `"todas"` y `"por_cardinalidad"`; desaparecen
+  los alias `"ninguna"` y `"cardinalidad"`.
+
 ## La sonda de mediana consolidada conserva el error del motor
 
 - La razón de no activar la mediana consolidada incluye el mensaje de la sonda
@@ -64,7 +93,7 @@
 
 ## Una muestra vacía no publica métricas no medidas
 
-- Cuando la consulta de `modo = "muestreado"` devuelve cero filas, las métricas
+- Cuando la consulta de `universo = "muestra_motor"` devuelve cero filas, las métricas
   de alcance `muestra` quedan en `NA` y con estado `no_disponible`; el motivo
   nombra la muestra vacía. `n` conserva el conteo de la tabla completa y
   `cobertura` mantiene el aviso de que la consulta de muestra devolvió cero

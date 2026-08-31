@@ -18,16 +18,17 @@ provienen de universos distintos:
 - `resumen_tabla` calcula agregados SQL sobre la tabla completa;
 - `perfil_muestra` ejecuta `perfilar()` sobre las filas traídas a memoria.
 
-El resumen SQL usa `modo = "exacto"` por omisión. Para tablas grandes se puede
-pedir `modo = "muestreado"`: las métricas se calculan sobre una relación
-muestreada por el motor, no sobre una tabla traída a R. La capacidad se sondea
+El resumen SQL usa `universo = "tabla_completa"` por omisión. Para tablas grandes
+se puede pedir `universo = "muestra_motor"` junto con `muestra_motor = n`: las
+métricas se calculan sobre una relación muestreada por el motor, no sobre una
+tabla traída a R. La capacidad se sondea
 antes de medir; PostgreSQL y SQL Server pueden resolverla con `TABLESAMPLE`, y
 otros motores con una función pseudoaleatoria y el límite de su dialecto. Si
 ninguna forma es aceptada, las métricas quedan en `NA` y
 `resumen_tabla$cobertura` conserva el motivo.
 
 Cada registro de `resumen_tabla$sql` declara `alcance`, `universo`,
-`tamano_muestra`, `fraccion`, `metodo` y `error_esperado`. En el modo
+`tamano_muestra`, `fraccion`, `metodo` y `error_esperado`. En el universo
 muestreado, `error_esperado` distingue `no_estimado` —el error podría
 calcularse bajo un plan probabilístico, pero no se calculó— de `no_estimable`
 —moda, mediana y cardinalidad observada no tienen una cota simple sin supuestos
@@ -129,7 +130,8 @@ perfil <- perfilar_dbi(
   conexion, "entregas", muestra = 5, orden_muestra = "id"
 )
 solo_agregados <- perfilar_dbi(
-  conexion, "entregas", modo = "conteos", bloque_muestra = "solo_agregados"
+  conexion, "entregas", metricas = "validos",
+  bloque_muestra = "solo_agregados"
 )
 ```
 
@@ -420,15 +422,15 @@ consume el resultado compare cada bloque dentro de su propio alcance.
 ## Muestras y aproximaciones para tablas grandes
 
 La muestra usada por `perfil_muestra` y la relación usada por
-`modo = "muestreado"` son declaradas por separado. La primera se trae a R para
+`universo = "muestra_motor"` son declaradas por separado. La primera se trae a R para
 ejecutar el perfil completo; la segunda permanece en SQL para que los
 agregados no recorran la tabla completa. La metadata de ambos bloques publica
 el universo y el método efectivo.
 
 ```{r modos-grandes, eval=FALSE}
 estimado <- perfilar_dbi(
-  conexion, "entregas", muestra = 5000,
-  modo = "muestreado", metricas = c(
+  conexion, "entregas", universo = "muestra_motor", muestra_motor = 5000,
+  muestra = 5000, metricas = c(
     "validos", "distintos", "moda", "basicos", "mediana", "desvio"
   )
 )
@@ -440,20 +442,22 @@ estimado$resumen_tabla$sql[
 ]
 
 aproximado <- perfilar_dbi(
-  conexion, "entregas", muestra = 5000, modo = "aproximado",
+  conexion, "entregas", muestra = 5000,
+  estrategia_mediana = "aproximada_motor",
   estrategia_distintos = "aproximada_motor"
 )
 aproximado$resumen_tabla$meta$aproximaciones
 ```
 
-El modo aproximado gobierna las métricas aproximadas que define el modo, pero no
-elige la procedencia de distintos. Para pedir una función nativa de cardinalidad
-hay que usar `estrategia_distintos = "aproximada_motor"`. Sólo se consolida un
-conteo cuando la capacidad entrega una expresión incrustable. Si la capacidad
-sólo construye una consulta completa, el conteo de válidos y el de distintos se
-emiten por separado. El método publicado sigue al SQL que efectivamente se
-ejecutó; una consulta no emitida o sin un valor utilizable queda
-`no_disponible`.
+Las estrategias de mediana y de distintos son independientes. Para pedir una
+función nativa de cardinalidad hay que usar `estrategia_distintos =
+"aproximada_motor"`; para habilitar la aproximación de mediana se usa
+`estrategia_mediana = "aproximada_motor"`. La sonda de mediana prueba primero
+una forma nativa exacta consolidada, luego la forma exacta por columna y deja
+la aproximada para el final. Por eso una mediana exacta queda `calculado`, aunque
+se haya pedido la estrategia aproximada; sólo queda `estimado` cuando esa forma
+aproximada efectivamente corrió. Una consulta no emitida o sin un valor
+utilizable queda `no_disponible`.
 
 `plan_perfilado_dbi()` emite las sondas de capacidad y publica un **rango** de
 consultas en `attr(plan, "supuesto")`. No escanea datos para decidir el costo:
@@ -585,7 +589,7 @@ tabla tardaba 243 segundos antes, y esa medición es la que aparece en
 `vignette("escala-y-duplicados")`—. El trabajo que quedaba estaba del otro lado,
 comparando formas, que no es una lectura de fila. Al imprimir el plan se ven las dos mitades, y el aviso
 de magnitud alta viene con las palancas concretas para acotarla —que no son las
-mismas de un lado que del otro—: `modo = "muestreado"`, recortar `metricas`,
+mismas de un lado que del otro—: `universo = "muestra_motor"`, recortar `metricas`,
 bajar `muestra` o poner `max_consultas` para el motor, y
 `max_trabajo_vocabulario` para lo que se hace en R.
 
@@ -613,7 +617,7 @@ de la mediana queda como subconsulta escalar en la misma sentencia que ordena y
 recorta. Un motor que acepta
 `PERCENTILE_CONT(...) WITHIN GROUP` puede consolidar varias en un solo
 `SELECT` por lote. En
-`modo = "muestreado"`, una consulta distinta vuelve a resolver el muestreo: la
+Con `universo = "muestra_motor"`, una consulta distinta vuelve a resolver el muestreo: la
 media y la mediana de una misma columna describen conjuntos de filas distintos,
 del mismo tamaño pero no necesariamente los mismos. Las métricas planas del
 mismo lote sí comparten las filas de esa consulta, y `id_muestra` lo deja

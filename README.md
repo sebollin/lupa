@@ -422,10 +422,17 @@ SQLite, where that function is unavailable, the per-column median keeps
 also checks integer division (`%` and `/`); if a dialect does not accept that
 form, the result declares that it kept the two-query path.
 
-In approximate mode, a distinct count is consolidated only when the capability
-provides an expression that can be embedded in the `SELECT`. If it only builds
-a complete query, valid counts and distinct counts are issued separately, and
-each record keeps the method of the query that was actually run.
+With `estrategia_distintos = "aproximada_motor"`, a distinct count is
+consolidated only when the capability provides an expression that can be
+embedded in the `SELECT`. If it only builds a complete query, valid counts and
+distinct counts are issued separately, and each record keeps the method of the
+query that was actually run.
+
+Median strategy is independent. `estrategia_mediana = "aproximada_motor"`
+probes an exact native form first, then the exact per-column form, and only then
+an approximate native function. An exact median therefore remains
+`calculado`, with `error_esperado = "no_aplica"`; only an approximation that
+actually ran is `estimado`.
 
 Consolidated medians are probed before use; on SQL Server they require
 compatibility level >= 110. The probe is not a promise of activation: known
@@ -435,10 +442,10 @@ engine rejects the probe. The engine message is kept in
 
 Measured against PostgreSQL 16 with **2 million rows by 40 columns**:
 
-| mode | before | after |
+| configuration | before | after |
 | --- | --- | --- |
-| `conteos` | 46 queries, 5.4 s | **8 queries, 2.4 s** |
-| `seguro` | 128 queries, 15.2 s | 14 queries, 5.3 s; **10 queries** with flat fusion |
+| `metricas = "validos"` | 46 queries, 5.4 s | **8 queries, 2.4 s** |
+| `metricas = c("validos", "basicos", "desvio")` | 128 queries, 15.2 s | 14 queries, 5.3 s; **10 queries** with flat fusion |
 
 Same 160 and 400 metrics computed, and the same numbers: on one table seeded
 once, the consolidated profile and the previous one agree on all sixteen summary
@@ -456,7 +463,7 @@ had, and adds `lote` and `columnas_compartidas` so a shared query is visible. It
 also adds `consulta_id`, which identifies the statement that produced each
 measurement and defines the verifiable consistency group. `id_muestra` also
 identifies the data query and preserves the guarantee that two metrics with the
-same value saw exactly the same rows. Per-column metrics — mode, mode
+same value saw exactly the same rows. Per-column metrics — moda, mode
 frequency, and median — leave `id_muestra = NA`, because they do not share rows
 with other metrics; `NA` declares that there is no guarantee rather than
 inventing a match.
@@ -475,9 +482,9 @@ separate: `tamano_lote_planos` controls flat aggregates and
 measured shared read was constant between batches on the reference PostgreSQL
 server, so two cardinalities share one pass. The measured two-cardinality batch
 kept nearly the same time per column as one and spilled less than wider batches.
-The mode query also tries to bring `SUM(COUNT(*)) OVER () AS n_validos_guard`
+The moda query also tries to bring `SUM(COUNT(*)) OVER () AS n_validos_guard`
 beside its frequency. The form is probed before use; if the engine rejects it,
-the previous mode query is retained and the fallback is published in
+the previous moda query is retained and the fallback is published in
 `resumen_tabla$meta$moda_guardian`. When accepted, the bound
 `frecuencia_moda <= n_validos` is checked inside that same statement.
 
@@ -672,7 +679,7 @@ cell cap will reduce the sample or when a byte probe will be needed.
 
 ### Cost is planned before it is paid
 
-Profiling a 158-column table in `modo = "exacto"` emits 335 queries, and 327 of
+Profiling a 158-column table with the default `universo = "tabla_completa"` emits 335 queries, and 327 of
 them scan, sort or group the whole table. The count follows the composition, not
 the column count: the same 158 columns as text only cost 252, because a median
 asks for a full sort per numeric column. `muestra` does not bound any of it — it
@@ -680,7 +687,9 @@ bounds what is brought into R, not the work the engine does. So the cost is decl
 (`benchmark/medir_plan_ancho.R` reproduces the four numbers):
 
 ```r
-plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # prepares and publishes a range
+plan_perfilado_dbi(
+  con, "tabla", universo = "muestra_motor", muestra_motor = 5000
+)   # prepares and publishes a range
 ```
 
 The plan gives a **range** for how many queries the profiling will emit, and it
@@ -693,11 +702,11 @@ uncertainty. Consequently, the plan does not publish a temporal projection for
 during execution, and the plan emits no data queries.
 
 The low end is `total`: when cardinality is unknown, it assumes the policy will
-omit mode. The high end is `total_maximo` —also exposed as
+omit `moda`. The high end is `total_maximo` —also exposed as
 `total_lotes_rechazados` after adding bisection— and leaves open the path that
 executes them. If the engine rejects batches, up to `2n - 1` probes are added per
 batch of `n` columns. The real cost falls between the two **when the sample can be
-built**: if `modo = "muestreado"` and the engine does not accept the resolved
+built**: if `universo = "muestra_motor"` and the engine does not accept the resolved
 form, the plan declares it in `attr(plan, "muestreo")` and drops the metrics that
 depended on it from the range. The run, in turn, publishes each of them as
 `no_disponible` with its reason: nothing that was not measured is reported as
@@ -744,14 +753,14 @@ on the engine: every capability probe costs a fixed number of queries even when
 it succeeds on the first form, because a cost that varied by engine would leave
 the user guessing again.
 
-The decision to pay mode and median is explicit. `politica_costo = "todas"` is
-the default and preserves all requested metrics; `"ninguna"` is an alias. With
+The decision to pay moda and median is explicit. `politica_costo = "todas"` is
+the default and preserves all requested metrics. With
 `politica_costo = "por_cardinalidad"`, structural sources are resolved first.
 Valid and distinct values are measured only when no exact structural source is
-available and the selected strategy permits measurement; then only mode is
+available and the selected strategy permits measurement; then only moda is
 omitted per column when `n_distintos / n_validos >= umbral_cardinalidad`.
 The default threshold is `0.5`, it can be changed in the call, and it governs
-mode only. Median is not omitted by cardinality: the measured sweep is flat
+moda only. Median is not omitted by cardinality: the measured sweep is flat
 against the number of distinct values and is governed by row count. Every
 omission is declared in `resumen_tabla$sql` as `omitido_por_costo`, with the
 reason and how to ask for it anyway. `meta$decisiones_costo` records the reason
@@ -817,13 +826,13 @@ Seeing all rows and having all rows in memory are not the same. In reference run
 4.5 million took about 7 GB and 12.8 million about 19 GB. The observed problem is
 processing in R, not the network or the database engine.
 
-| mode | what it does |
+| dimension | what it does |
 | --- | --- |
-| `exacto` | every metric over the whole table |
-| `seguro` | drops the metrics that sort the whole column |
-| `conteos` | counts only |
-| `muestreado` | metrics over rows sampled **in the engine**: `TABLESAMPLE` where it exists, a pseudo-random order with a limit where it does not |
-| `aproximado` | native approximate functions for the metrics defined by that mode |
+| defaults | every metric over the whole table |
+| `metricas = c("validos", "basicos", "desvio")` | the historical `seguro` preset |
+| `metricas = "validos"` | the historical `conteos` preset |
+| `universo = "muestra_motor"` | metrics over rows sampled **in the engine**: `TABLESAMPLE` where it exists, a pseudo-random order with a limit where it does not |
+| `estrategia_mediana = "aproximada_motor"` | exact native first, approximate only at the end; only an executed approximation is `estimado` |
 
 Every sampled or approximated metric travels saying so. `estado` distinguishes
 `calculado`, `estimado` and `no_disponible`, and each row carries `universo`,
@@ -844,7 +853,7 @@ requested or failed before reading. Distinct counts get their own state,
 `observado_muestra`: the cardinality of a sample does not estimate the
 cardinality of the universe without a declared estimator, so it is reported as
 what it is — what was seen in the sample, with the universe stated beside it.
-An engine with no sampling capability does not break: the mode degrades and says
+An engine with no sampling capability does not break: the engine sample degrades and says
 so in the coverage table.
 
 If the sample query returns zero rows, there is no basis for measuring

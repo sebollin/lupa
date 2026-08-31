@@ -7778,10 +7778,10 @@
 #' `auto`: `"exacta"` es el valor por omisión, `"aproximada_motor"` queda
 #' `no_disponible` si el motor no ofrece una función aceptada, `"catalogo"`
 #' lee `pg_stats.n_distinct` en PostgreSQL y publica una estimación con estado
-#' `estimado_catalogo` cuando el modo mide la relación entera (`exacto`,
-#' `seguro` o `conteos`), y `"omitida"` no emite el agregado. En
-#' `muestreado` y `aproximado`, `catalogo` queda `no_disponible`: sus
-#' estadísticas describen la relación entera y no el subconjunto de la corrida.
+#' `estimado_catalogo` cuando `universo = "tabla_completa"`, y `"omitida"` no
+#' emite el agregado. Con `universo = "muestra_motor"`, `catalogo` queda
+#' `no_disponible`: sus estadísticas describen la relación entera y no el
+#' subconjunto de la corrida.
 #' Un `n_distinct`
 #' positivo es un conteo y uno negativo una fracción de las filas. Si la
 #' relación tiene descendientes se usa la fila `inherited = TRUE`, que describe
@@ -7839,7 +7839,7 @@
 #'   `estimacion_derrame` es independiente: sólo describe la estimación del hash
 #'   en el motor para `COUNT(DISTINCT)` y no la memoria del procesamiento en R.
 #'   `muestreo` declara si la forma muestreada se pudo construir sin emitir una
-#'   consulta de datos. En `modo = "muestreado"`, cuando su `estado` es
+#'   consulta de datos. En `universo = "muestra_motor"`, cuando su `estado` es
 #'   `"no_disponible"`, el plan excluye las métricas SQL de esa muestra y
 #'   `supuesto` conserva el motivo.
 #'   Cuando se pide `bloque_muestra = "solo_agregados"`, también conserva ese
@@ -7862,7 +7862,7 @@
 #'   columnas numéricas solicitadas. Ambos incluyen la preparación y el perfilado; el rechazo
 #'   de lotes puede agregar las sondas de bisección declaradas por
 #'   `total_lotes_rechazados`. El costo real cae entre los extremos cuando
-#'   `modo` no es `"muestreado"` o `attr(plan, "muestreo")$estado` es
+#'   `universo` es `"tabla_completa"` o `attr(plan, "muestreo")$estado` es
 #'   `"disponible"`; en `"no_sondeado"` la forma sólo se construyó localmente
 #'   y el intervalo queda condicionado a que la sonda de la corrida la acepte.
 #'   Si la forma muestreada no se puede construir, el plan declara ese caso,
@@ -9621,7 +9621,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Perfilar una muestra leída mediante DBI
 #'
 #' Calcula en SQL un resumen sobre la tabla completa o sobre una relación
-#' muestreada por el motor, según `modo`, y, por omisión, en un bloque separado
+#' muestreada por el motor, según `universo`, y, por omisión, en un bloque separado
 #' ejecuta [perfilar()] sobre una muestra traída a memoria. El resumen completo
 #' de 109 campos analíticos además del nombre de la columna no se presenta como
 #' calculado por la base: esos campos pertenecen exclusivamente a
@@ -9668,10 +9668,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `lupa_error_argumento_dbi`.
 #'
 #' @section Muestra y aproximaciones:
-#' `modo = "muestreado"` sondea las formas declaradas por el adaptador y usa
-#' `TABLESAMPLE` cuando el motor lo acepta, o una función pseudoaleatoria con el
-#' límite del dialecto. Si ninguna forma es compatible, las métricas SQL quedan
-#' en `no_disponible`: no se sustituyen por resultados de la tabla completa.
+#' `universo = "muestra_motor"` sondea las formas declaradas por el adaptador y
+#' usa `TABLESAMPLE` cuando el motor lo acepta, o una función pseudoaleatoria con
+#' el límite del dialecto. Si ninguna forma es compatible, las métricas SQL
+#' quedan en `no_disponible`: no se sustituyen por resultados de la tabla completa.
 #' Cada registro publica `alcance`, `universo`, `tamano_muestra`, `fraccion`,
 #' `metodo` y `error_esperado`. En `resumen_tabla$meta$muestreo`,
 #' `tamano_muestra` conserva el nombre historico y declara el tamano efectivo
@@ -9698,10 +9698,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' corrida. `"aproximada_motor"` sondea una funcion nativa y, si no hay una
 #' capacidad aceptada, deja la metrica `no_disponible`; nunca ejecuta el conteo
 #' exacto como repliegue. `"catalogo"` lee `pg_stats.n_distinct` y publica
-#' `estimado_catalogo` sólo cuando el modo mide la relación entera (`exacto`,
-#' `seguro` o `conteos`). En `muestreado` y `aproximado` queda
-#' `no_disponible`, porque el catálogo describe la relación entera y la corrida
-#' mide un subconjunto; no se inventa una equivalencia entre universos.
+#' `estimado_catalogo` sólo cuando `universo = "tabla_completa"`. Con
+#' `universo = "muestra_motor"` queda `no_disponible`, porque el catálogo
+#' describe la relación entera y la corrida mide un subconjunto; no se inventa
+#' una equivalencia entre universos.
 #' `"omitida"` no emite la
 #' consulta. Cada resultado y el atributo `meta$estrategia_distintos` separan
 #' `estrategia_solicitada`, `estrategia_resuelta` y `estado`.
@@ -9756,7 +9756,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @section Costo:
 #' Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo que
 #' se trae a R, no el trabajo del motor. `bloque_muestra` decide si se trae esa
-#' muestra; `modo`, `metricas`, `tamano_lote_planos`, `tamano_lote_distintos` y
+#' muestra; `universo`, `metricas`, `tamano_lote_planos`, `tamano_lote_distintos` y
 #' `max_consultas` acotan el trabajo SQL. [plan_perfilado_dbi()] dice cuántas
 #' consultas se van a emitir antes de emitirlas. El orden de degradación es
 #' agregados planos, total del universo cuando hace falta, distintos, moda y
@@ -9891,19 +9891,24 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @param conexion Conexión abierta compatible con DBI.
 #' @param tabla Nombre de tabla o un objeto aceptado por
 #'   [DBI::dbQuoteIdentifier()].
+#' @param universo Universo sobre el que se calculan los agregados SQL:
+#'   `"tabla_completa"` (por omisión) o `"muestra_motor"`. En el segundo caso,
+#'   todas las métricas SQL usan la relación muestreada por el motor y no se
+#'   reemplazan silenciosamente por resultados de la tabla completa.
+#' @param muestra_motor Cantidad positiva y finita de filas que el motor debe
+#'   tomar cuando `universo = "muestra_motor"`. Es obligatorio en ese universo y
+#'   debe quedar `NULL` para `"tabla_completa"`; la función rechaza temprano
+#'   valores no enteros, no positivos o `Inf`.
 #' @param muestra Cantidad positiva de filas solicitadas para el perfil de
-#'   muestra, o `Inf` para traer la tabla entera. El valor por omisión ya es
-#'   `Inf`: no representa una elección distinta de `Inf`, sino la tabla completa.
-#'   Con `Inf` la consulta sale sin `LIMIT` y `tabla_completa` queda en `TRUE`.
+#'   muestra que se trae a R, o `Inf` para traer la tabla entera. Este límite es
+#'   independiente de `universo`: en `muestra_motor`, `muestra_motor` decide las
+#'   filas del resumen SQL y `muestra` decide las filas del bloque
+#'   `perfil_muestra`. En `tabla_completa`, `muestra` no cambia los agregados.
 #'
-#'   El resumen de tabla **no** se muestrea: con `modo = "exacto"` se calcula en
-#'   el motor sobre todas las filas. Lo que sale de esta muestra son los
-#'   diagnosticos que necesitan los valores en R -patrones, formatos,
-#'   casi-duplicados y dependencias funcionales-, y sin `orden_muestra` no son
-#'   una muestra aleatoria sino las primeras filas que devuelva el motor. El
-#'   limite también alcanza la muestra común con que se buscan dependencias.
-#'   Use un entero finito para acotar ese trabajo; `Inf` es el valor por omisión
-#'   y trae la tabla entera cuando el tiempo no es la restricción.
+#'   Sin `orden_muestra`, las filas del bloque en R no son una muestra aleatoria
+#'   garantizada sino las primeras que devuelva el motor. El límite también
+#'   alcanza la muestra común con que se buscan dependencias. Use un entero
+#'   finito para acotar ese trabajo cuando el tiempo no sea la restricción.
 #' @param max_celdas_muestra Máximo de celdas que puede contener el bloque
 #'   `perfil_muestra`. Por defecto es `1000000`; se calcula antes de leer como
 #'   filas por columnas del esquema. Si reduce la muestra,
@@ -9935,23 +9940,32 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' ruido que despues haya que filtrar. No cambia ningún valor de lo que se mide:
 #' hay una prueba que compara el perfil con la barra y sin ella.
 #'
-#' @param modo Conjunto de métricas del resumen: `"exacto"` las calcula todas,
-#'   `"seguro"` evita las que ordenan o agrupan la tabla completa y
-#'   `"conteos"` deja solo el conteo de valores no nulos, `"muestreado"`
-#'   calcula estimaciones sobre filas elegidas por el motor y `"aproximado"`
-#'   usa funciones nativas aproximadas para las métricas que ese modo define.
-#' @param metricas Selección explícita de grupos de métricas, que tiene
-#'   prioridad sobre `modo`: `"validos"`, `"distintos"`, `"moda"`,
-#'   `"basicos"`, `"mediana"` y `"desvio"`.
+#' @param estrategia_mediana Preferencia para resolver `mediana`: `"exacta"`
+#'   (por omisión) o `"aproximada_motor"`. La sonda prueba siempre primero una
+#'   forma nativa exacta consolidada, luego una forma exacta por columna y deja
+#'   las funciones nativas aproximadas para el final. Por eso esta opción
+#'   describe la estrategia habilitada, no garantiza el método ejecutado:
+#'   `meta$estrategia_mediana` y `resumen_tabla$sql$metodo` publican el método
+#'   que efectivamente corrió. Una mediana resuelta por una forma exacta queda
+#'   `estado = "calculado"` y `error_esperado = "no_aplica"`, aunque se haya
+#'   pedido `"aproximada_motor"`; sólo una aproximación ejecutada queda
+#'   `estado = "estimado"`. `universo = "muestra_motor"` combinado con
+#'   `"aproximada_motor"` se rechaza temprano.
+#' @param metricas Selección explícita de grupos de métricas: `"validos"`,
+#'   `"distintos"`, `"moda"`, `"basicos"`, `"mediana"` y `"desvio"`. El
+#'   valor por omisión solicita las seis. Para traducir presets de versiones
+#'   anteriores: `seguro` equivale a
+#'   `c("validos", "basicos", "desvio")` y `conteos` equivale a
+#'   `"validos"`; `exacto` equivale a los valores por omisión de esta firma.
 #' @param estrategia_distintos Procedencia explícita para `n_distintos`:
 #'   `"exacta"` (por omisión) emite `COUNT(DISTINCT)`; `"aproximada_motor"`
 #'   usa una función nativa aceptada por el motor y deja la métrica en
 #'   `no_disponible` si no existe; `"catalogo"` lee
 #'   `pg_stats.n_distinct` en PostgreSQL y publica el resultado como
-#'   `estimado_catalogo`, nunca como medición, cuando el modo mide la relación
-#'   entera (`exacto`, `seguro` o `conteos`). En `muestreado` y `aproximado`
-#'   queda `no_disponible`, porque el catálogo describe la relación entera y la
-#'   corrida mide un subconjunto; y
+#'   `estimado_catalogo`, nunca como medición, cuando
+#'   `universo = "tabla_completa"`. En `muestra_motor` queda `no_disponible`,
+#'   porque el catálogo describe la relación entera y la corrida mide un
+#'   subconjunto; y
 #'   `"omitida"` no emite ninguna consulta. No hay repliegue automático entre
 #'   estrategias. El resultado publica `estrategia_solicitada`,
 #'   `estrategia_resuelta` y `estado` en `meta$estrategia_distintos`, y las dos
@@ -9984,14 +9998,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   máximo y mediana. Con `FALSE` esas consultas no se emiten.
 #' @param politica_costo Política optativa para las métricas caras. El valor por
 #'   omisión, `"todas"`, conserva moda y mediana para todas las columnas
-#'   solicitadas. `"ninguna"` es un alias de `"todas"`; `"por_cardinalidad"`
-#'   (también `"cardinalidad"`) resuelve primero las fuentes estructurales y
-#'   mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
-#'   permite. Luego omite, por columna, sólo la moda cuando la proporción de
-#'   distintos alcanza `umbral_cardinalidad`; la mediana se conserva porque las
-#'   mediciones disponibles muestran que su costo depende de las filas y no de
-#'   la cardinalidad. Una estrategia no disponible no se convierte en una
-#'   medición exacta.
+#'   solicitadas. `"por_cardinalidad"` resuelve primero las fuentes
+#'   estructurales y mide valores válidos y distintos sólo cuando hace falta y
+#'   la estrategia lo permite. Luego omite, por columna, sólo la moda cuando la
+#'   proporción de distintos alcanza `umbral_cardinalidad`; la mediana se
+#'   conserva porque las mediciones disponibles muestran que su costo depende de
+#'   las filas y no de la cardinalidad. Los únicos valores aceptados son
+#'   `"todas"` y `"por_cardinalidad"`; no hay alias históricos.
 #' @param umbral_cardinalidad Proporción entre valores distintos y válidos que
 #'   activa la omisión de la moda con `politica_costo = "por_cardinalidad"`. El
 #'   valor por omisión es `0.5` sólo cuando esa política se pide explícitamente;
@@ -10039,7 +10052,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @param bloque_muestra Qué bloques se solicitan: `"con_muestra"` (por
 #'   omisión) calcula también `perfil_muestra`, o `"solo_agregados"` omite su
 #'   lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
-#'   alcance de esos agregados: eso lo decide `modo`.
+#'   alcance de esos agregados: eso lo decide `universo`.
 #' @param instrumentar Si se cronometra cada consulta y las etapas grandes de R
 #'   y, en PostgreSQL, se intenta atribuir el uso de bloques temporales de los
 #'   `COUNT(DISTINCT)` exactos mediante `pg_stat_statements`.
@@ -10057,7 +10070,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' @param ... Argumentos enviados a [perfilar()] para analizar la muestra.
 #'
 #' @return Objeto de clase `perfil_dbi` con dos componentes: `resumen_tabla`, de
-#'   alcance completo o muestreado según `modo`, y `perfil_muestra`, un objeto
+#'   alcance completo o muestreado según `universo`, y `perfil_muestra`, un objeto
 #'   `perfil` cuyo `meta$origen_dbi` declara tabla, conexión, SQL y alcance.
 #'   `perfil_muestra` es `NULL` si la muestra no se pudo obtener o si se pidió
 #'   `bloque_muestra = "solo_agregados"`; `resumen_tabla$cobertura` distingue
