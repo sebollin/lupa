@@ -27,6 +27,19 @@
   paste(deparse(f), collapse = " ")
 }
 
+.funciones_aplicabilidad_no_fila <- c(
+  "all", "any", "length", "max", "mean", "median", "min", "nrow",
+  "quantile", "range", "sd", "sort", "sum", "table", "unique", "var"
+)
+
+.aplicabilidad_es_predicado_fila <- function(expr) {
+  nombres <- tryCatch(
+    all.names(expr, functions = TRUE),
+    error = function(e) character()
+  )
+  !any(nombres %in% .funciones_aplicabilidad_no_fila)
+}
+
 .validar_aplicabilidad <- function(nombres, columnas_opcionales, aplicabilidad) {
   if (!is.character(columnas_opcionales)) {
     stop("`columnas_opcionales` debe ser un vector de nombres de columnas.",
@@ -72,6 +85,13 @@
 
 .evaluar_predicado_aplicabilidad <- function(datos, columna, f) {
   n <- nrow(datos)
+  if (!.aplicabilidad_es_predicado_fila(f[[2L]])) {
+    stop(
+      "aplicabilidad_no_fila:", .formula_a_texto(f),
+      ". La regla debe evaluar una condicion por fila; no puede calcular un ",
+      "estadistico global.", call. = FALSE
+    )
+  }
   valor <- tryCatch(
     eval(f[[2L]], envir = datos, enclos = environment(f)),
     error = function(e) e

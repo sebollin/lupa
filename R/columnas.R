@@ -10,6 +10,8 @@
   if (is.list(x)) {
     return(list(valor = NA_character_, frecuencia = NA_integer_))
   }
+  por_bloques <- .moda_mapa_distintos(.mapa_distintos_bloques(x))
+  if (!is.null(por_bloques)) return(por_bloques)
   valores <- x[validos]
   unicos <- unique(valores)
   # `unique()` devuelve en orden de aparicion y `which.max()` toma el primer
@@ -52,16 +54,7 @@
   if (!is.character(x) && !is.factor(x)) {
     return(c(minimo = NA_real_, maximo = NA_real_, media = NA_real_))
   }
-  longitudes <- nchar(as.character(x), type = "chars", allowNA = TRUE)
-  longitudes <- longitudes[!is.na(longitudes)]
-  if (!length(longitudes)) {
-    return(c(minimo = NA_real_, maximo = NA_real_, media = NA_real_))
-  }
-  c(
-    minimo = min(longitudes),
-    maximo = max(longitudes),
-    media = mean(longitudes)
-  )
+  .resumen_longitudes_bloques(x)
 }
 
 .valores_cuantitativos <- function(x, inferencia, formatos,
@@ -432,9 +425,12 @@
     return(vacio)
   }
 
-  minimo <- min(valores)
-  maximo <- max(valores)
-  media <- mean(valores)
+  basicos <- .resumen_cuantitativo_bloques(
+    valores, contar_signos = identical(cuantitativos$clase, "numero")
+  )
+  minimo <- basicos$minimo
+  maximo <- basicos$maximo
+  media <- basicos$media
   cuartiles <- stats::quantile(
     valores, probs = c(0.25, 0.75), na.rm = TRUE, names = FALSE, type = 7
   )
@@ -446,7 +442,7 @@
   # 0,12505550000000001, y la diferencia llegaba a la mediana informada.
   # Ahorrar un recorrido no vale cambiar un numero que se publica.
   mediana <- stats::median(valores)
-  desvio <- if (length(valores) > 1L) stats::sd(valores) else NA_real_
+  desvio <- basicos$desvio
   # `valores` ya fue filtrado con `is.finite()`: `na.rm = TRUE` conserva la
   # semántica del IQR anterior y también deja la llamada segura si este bloque
   # vuelve a recibir valores ausentes en el futuro.
@@ -468,7 +464,7 @@
       desvio = desvio, minimo_exacto = NA_character_, maximo_exacto = NA_character_,
       minimo_fecha = NA_character_, maximo_fecha = NA_character_,
       media_fecha = NA_character_, mediana_fecha = NA_character_,
-      n_ceros = sum(valores == 0), n_negativos = sum(valores < 0),
+      n_ceros = basicos$n_ceros, n_negativos = basicos$n_negativos,
       n_outliers = n_outliers, centinela_valor = centinela$valor,
       centinela_repeticiones = centinela$n,
       densidad_sin_centinela = centinela$densidad_sin_centinela,
@@ -1288,10 +1284,12 @@
   validos <- tryCatch(!is.na(x), error = function(e) NULL)
   if (is.null(validos) || length(validos) != length(x)) return(NA_integer_)
   if (!any(validos)) return(0L)
-  tryCatch(
-    as.integer(length(unique(x[validos]))),
-    error = function(e) NA_integer_
-  )
+  sobre <- .mapa_distintos_bloques(x)
+  if (!is.null(sobre) && identical(sobre$estado, "calculado")) {
+    return(as.integer(nrow(sobre$resultado)))
+  }
+  tryCatch(as.integer(length(unique(x[validos]))),
+           error = function(e) NA_integer_)
 }
 
 # Recorta un resultado de faltantes disfrazados al universo aplicable. La
