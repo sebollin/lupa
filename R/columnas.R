@@ -1372,6 +1372,13 @@
   if (is.null(formatos)) {
     formatos <- detectar_formatos_fecha(x_analisis, muestra = muestra)
   }
+  # El tipo y su estado deben salir de la misma tabla de formatos. En texto,
+  # esta es la tabla que ya uso `.inferir_tipo_interno` para calcular
+  # `compatibles`; para fechas nativas es la deteccion que acaba de completar
+  # el mismo canal por columna.
+  inferencia$estado_tipo_inferido <- .estado_tipo_inferido_desde_formatos(
+    inferencia$tipo, formatos
+  )
   meses_texto <- attr(formatos, "meses_texto", exact = TRUE)
   zona_horaria_origen <- .zona_horaria_origen(x)
   n_filas_fecha_civil_distinta_utc <- .fechas_civiles_distintas_utc(x)
@@ -1488,6 +1495,7 @@
     columna = nombre,
     tipo_declarado = .tipo_declarado(x),
     tipo_inferido = inferencia$tipo,
+    estado_tipo_inferido = inferencia$estado_tipo_inferido,
     proporcion_tipo_inferido = inferencia$proporcion,
     n_filas_analizadas_tipo = inferencia$n_analizados,
     muestreado_tipo_inferido = inferencia$muestreado,
@@ -1654,6 +1662,7 @@
   fila <- resultado$fila
   fila$tipo_declarado <- "matriz"
   fila$tipo_inferido <- "desconocido"
+  fila$estado_tipo_inferido <- NA_character_
   fila$proporcion_tipo_inferido <- NA_real_
   fila$n_filas_analizadas_tipo <- NA_integer_
   fila$muestreado_tipo_inferido <- NA
@@ -1704,6 +1713,7 @@
   resultado$fila <- fila
   resultado$inferencia$tipo <- "desconocido"
   resultado$inferencia$proporcion <- NA_real_
+  resultado$inferencia$estado_tipo_inferido <- NA_character_
   resultado$inferencia$compatibles <- 0L
   resultado$inferencia$n_analizados <- 0L
   resultado$estructura_no_analizada <- list(

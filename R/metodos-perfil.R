@@ -31,9 +31,21 @@ print.perfil <- function(x, ...) {
 
   cli::cli_h2("Resumen por columna")
   vista <- x$columnas[c(
-    "columna", "tipo_declarado", "tipo_inferido", "prop_faltantes_totales",
-    "n_distintos", "n_outliers"
+    "columna", "tipo_inferido", "prop_faltantes_totales", "n_distintos",
+    "n_outliers"
   )]
+  if ("estado_tipo_inferido" %in% names(x$columnas)) {
+    candidatos <- which(
+      !is.na(x$columnas$estado_tipo_inferido) &
+        x$columnas$estado_tipo_inferido == "candidato"
+    )
+    declarados <- as.character(x$columnas$tipo_declarado)
+    inferidos <- as.character(x$columnas$tipo_inferido)
+    vista$tipo_inferido[candidatos] <- paste0(
+      declarados[candidatos], " ", intToUtf8(8594L), " ",
+      inferidos[candidatos], " (candidato)"
+    )
+  }
   print(vista, row.names = FALSE)
   invisible(x)
 }

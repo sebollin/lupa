@@ -1,5 +1,13 @@
 # lupa 0.1.0
 
+## Comparación de perfiles y estado del tipo inferido
+
+- `comparar_equivalencia()` compara campos compartidos con un registro fijo de
+  ejes y una tolerancia explícita del llamador, sin convertir sus resultados en
+  decisiones del paquete.
+- El perfil por columna publica `estado_tipo_inferido` como `confirmado`,
+  `candidato` o `NA`; el resumen impreso anota sólo los tipos candidatos.
+
 ## Ejecutor interno por bloques — Etapa 4: LSH externo
 
 - Se incorpora el ejecutor LSH en dos fases con runs ordenados, diccionario

@@ -1,3 +1,22 @@
+.estado_tipo_inferido_desde_formatos <- function(tipo, formatos) {
+  if (!tipo %in% c("fecha", "fecha-hora") ||
+      !is.data.frame(formatos) ||
+      !all(c("n", "estado") %in% names(formatos))) {
+    return(NA_character_)
+  }
+  con_valores <- !is.na(formatos$n) & formatos$n > 0
+  if (!any(con_valores)) return(NA_character_)
+  estados <- as.character(formatos$estado[con_valores])
+  if (any(estados == "candidato", na.rm = TRUE)) {
+    return("candidato")
+  }
+  if (!anyNA(estados) && all(estados == "confirmado")) {
+    "confirmado"
+  } else {
+    NA_character_
+  }
+}
+
 .inferencia <- function(tipo, compatibles, n, muestreo, candidatos,
                         formatos_fecha = NULL) {
   estructura <- list(
@@ -7,7 +26,10 @@
     n_analizados = as.integer(n),
     muestreado = muestreo$muestreado,
     candidatos = candidatos,
-    formatos_fecha = formatos_fecha
+    formatos_fecha = formatos_fecha,
+    estado_tipo_inferido = .estado_tipo_inferido_desde_formatos(
+      tipo, formatos_fecha
+    )
   )
   class(estructura) <- "inferencia_tipo"
   estructura

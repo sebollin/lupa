@@ -287,7 +287,7 @@ linked vignettes are the detailed manual. This table is the short map:
 | Clean safely | `planificar_limpieza()`, `guiar_limpieza()`, `aplicar()` | [Cleaning plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
 | Find approximate duplicates | `detectar_duplicados_aproximados()`, `estimar_costo()` | [Scale and duplicates](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
 | Repair encoding damage | `reparar_codificacion` through `planificar_limpieza()` and `aplicar()` | [Cleanup reference](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
-| Follow quality over time | `historico_calidad()`, `acumular_historico()`, `guardar_historico()`, `leer_historico()`, `detectar_deriva_calidad()`, `comparar_perfiles()`, `comparar_evaluaciones()` | [History and drift](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
+| Follow quality over time | `historico_calidad()`, `acumular_historico()`, `guardar_historico()`, `leer_historico()`, `detectar_deriva_calidad()`, `comparar_perfiles()`, `comparar_equivalencia()`, `comparar_evaluaciones()` | [History and drift](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
 | Share results | `reportar()`, `guardar_analisis()`, `leer_analisis()` | [Reporting reference](https://sebollin.github.io/lupa/reference/reportar.html) |
 | Validate and extend | `validadores_internacionales()`, `validadores_uruguay()`, `pack_validadores()`, `validar_ci_uy()`, `validar_rut_uy()`, `validar_luhn()`, `validar_mod97()`, `validar_iso3166()`, `validar_iso4217()`, `validar_correo()`, `validar_url()` | [Reference](https://sebollin.github.io/lupa/reference/) |
 

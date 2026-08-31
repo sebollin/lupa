@@ -183,7 +183,8 @@
 #' mirar no es lo mismo que arreglar.
 #'
 #' @export
-#' @seealso [perfilar()], [detectar_deriva_calidad()], [reportar()]
+#' @seealso [perfilar()], [detectar_deriva_calidad()], [reportar()],
+#'   [comparar_equivalencia()]
 #'
 #' @examples
 #' anterior <- perfilar(data.frame(codigo = c("AA1", "AA2")),
@@ -430,5 +431,287 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   )
   rownames(resultado) <- NULL
   class(resultado) <- c("deriva_perfil", "data.frame")
+  resultado
+}
+
+# Registro fijo de los campos que el comparador puede interpretar. La clase
+# almacenada de una columna no decide el eje: memoria y DBI publican algunos
+# conteos con clases distintas, y el mismo campo debe conservar la misma regla.
+# Si aparece una métrica nueva, se agrega explícitamente acá antes de compararla.
+.registro_campos_equivalencia <- function() {
+  list(
+    flotante = c("media", "mediana", "desvio", "longitud_media"),
+    exacto = c(
+      "proporcion_tipo_inferido", "n_filas_analizadas_tipo", "n",
+      "n_validos",
+      "n_aplicables", "n_no_aplica", "n_aplicabilidad_indeterminada",
+      "n_presentes_fuera_de_aplicabilidad", "n_faltantes",
+      "prop_faltantes", "n_faltantes_disfrazados",
+      "n_faltantes_disfrazados_textuales", "n_faltantes_disfrazados_numericos",
+      "prop_faltantes_disfrazados", "n_faltantes_totales",
+      "prop_faltantes_totales", "n_distintos", "tasa_distintos",
+      "secuencia_entera_densa", "densidad_secuencia_entera",
+      "n_posiciones_secuencia_entera", "n_huecos_secuencia_entera",
+      "hueco_maximo_secuencia_entera", "salto_de_escala_secuencia_entera",
+      "umbral_densidad_secuencia_entera", "min_distintos_secuencia_entera",
+      "frecuencia_moda", "longitud_minima", "longitud_maxima",
+      "minimo", "maximo", "minimo_exacto", "maximo_exacto",
+      "n_fechas_resumidas", "n_fechas_excluidas_granularidad", "n_ceros",
+      "n_negativos", "n_outliers", "centinela_repeticiones",
+      "densidad_sin_centinela", "n_nan", "n_infinito_positivo",
+      "n_infinito_negativo", "n_filas_fecha_civil_distinta_utc", "n_blancos",
+      "n_espacios_borde", "n_variantes_mayusculas", "n_variantes_unicode",
+      "n_codificacion_rota", "n_codificacion_reparable",
+      "n_codificacion_reparable_parcialmente", "n_codificacion_irreparable",
+      "n_codificacion_no_se_pudo", "n_codificacion_invalida",
+      "n_controles_invisibles", "n_invisibles_eliminables",
+      "n_espacios_invisibles", "n_invisibles_significativos",
+      "n_entidades_html", "n_separadores_en_campo", "n_numeros_texto",
+      "proporcion_numeros_texto"
+    ),
+    fecha = c(
+      "minimo_fecha", "maximo_fecha", "media_fecha", "mediana_fecha"
+    ),
+    valor = c("moda", "centinela_valor")
+  )
+}
+
+.columnas_equivalencia <- function(x, nombre) {
+  if (inherits(x, "perfil")) {
+    columnas <- x$columnas
+  } else if (inherits(x, "perfil_dbi")) {
+    columnas <- x$resumen_tabla$columnas
+  } else if (is.data.frame(x)) {
+    columnas <- x
+  } else {
+    stop(
+      "`", nombre, "` debe ser un `perfil`, un `perfil_dbi` o un frame `columnas`.",
+      call. = FALSE
+    )
+  }
+  if (!is.data.frame(columnas) || !"columna" %in% names(columnas)) {
+    stop(
+      "`", nombre, "` no contiene un frame `columnas` con el campo `columna`.",
+      call. = FALSE
+    )
+  }
+  nombres <- as.character(columnas$columna)
+  if (anyNA(nombres) || anyDuplicated(nombres)) {
+    stop(
+      "El frame `columnas` de `", nombre,
+      "` debe tener nombres de columna presentes y sin duplicados.", call. = FALSE
+    )
+  }
+  columnas
+}
+
+.valor_equivalencia <- function(columnas, campo, indice) {
+  columnas[[campo]][[indice]]
+}
+
+.igualdad_equivalencia <- function(a, b) {
+  resultado <- tryCatch(a == b, error = function(e) FALSE)
+  isTRUE(resultado)
+}
+
+.faltante_equivalencia <- function(x) {
+  resultado <- tryCatch(is.na(x), error = function(e) FALSE)
+  isTRUE(resultado)
+}
+
+.infinito_equivalencia <- function(x) {
+  if (length(x) != 1L || !is.numeric(x)) return(FALSE)
+  isTRUE(is.infinite(x))
+}
+
+.comparar_valor_equivalencia <- function(a, b, tipo_eje, tolerancia) {
+  if (length(a) != 1L || length(b) != 1L) {
+    stop(
+      "Cada valor de un campo comparable debe ser escalar.", call. = FALSE
+    )
+  }
+  faltante_a <- .faltante_equivalencia(a)
+  faltante_b <- .faltante_equivalencia(b)
+  if (faltante_a && faltante_b) {
+    return(list(
+      veredicto = if (identical(a, b)) "identico" else "equivalente",
+      motivo = if (identical(a, b)) "igualdad_exacta" else
+        "faltante_misma_clase",
+      diferencia_relativa = NA_real_
+    ))
+  }
+  if (xor(faltante_a, faltante_b)) {
+    return(list(
+      veredicto = "materialmente_distinto", motivo = "faltante_un_lado",
+      diferencia_relativa = NA_real_
+    ))
+  }
+  if (.infinito_equivalencia(a) || .infinito_equivalencia(b)) {
+    igual <- .igualdad_equivalencia(a, b)
+    return(list(
+      veredicto = if (igual) "identico" else "materialmente_distinto",
+      motivo = if (igual) "igualdad_exacta" else "infinito",
+      diferencia_relativa = NA_real_
+    ))
+  }
+
+  igual <- .igualdad_equivalencia(a, b)
+  if (tipo_eje != "flotante") {
+    return(list(
+      veredicto = if (igual) "identico" else "materialmente_distinto",
+      motivo = if (igual) "igualdad_exacta" else paste0("eje_", tipo_eje),
+      diferencia_relativa = NA_real_
+    ))
+  }
+  if (!is.numeric(a) || !is.numeric(b) ||
+      !isTRUE(is.finite(a)) || !isTRUE(is.finite(b))) {
+    stop(
+      "Los campos del eje `flotante` deben contener numeros finitos o faltantes.",
+      call. = FALSE
+    )
+  }
+  diferencia_relativa <- suppressWarnings(
+    abs(a - b) / pmax(1, abs(a), abs(b))
+  )
+  if (igual) {
+    return(list(
+      veredicto = "identico", motivo = "igualdad_exacta",
+      diferencia_relativa = as.numeric(diferencia_relativa)
+    ))
+  }
+  dentro <- .dentro_tolerancia_aritmetica(a, b, tolerancia)
+  list(
+    veredicto = if (isTRUE(dentro)) "equivalente" else
+      "materialmente_distinto",
+    motivo = if (isTRUE(dentro)) "dentro_de_tolerancia" else
+      "fuera_de_tolerancia",
+    diferencia_relativa = as.numeric(diferencia_relativa)
+  )
+}
+
+#' Comparar la equivalencia de dos resúmenes de perfiles
+#'
+#' Compara por intersección los campos registrados de dos perfiles y devuelve
+#' una fila por cada par de columna y campo. Los campos que no tienen un eje
+#' registrado no se comparan y quedan declarados en `campos_no_comparables`.
+#'
+#' @param anterior,actual Un objeto `perfil` de [perfilar()], un objeto
+#'   `perfil_dbi` de [perfilar_dbi()] o directamente un frame `columnas`.
+#' @param tolerancia Número escalar no negativo y finito, declarado por quien
+#'   llama. No tiene valor por omisión y se publica en cada fila.
+#'
+#' @return Un frame de clase `equivalencia_perfiles` con `columna`, `campo`,
+#'   `valor_anterior`, `valor_actual`, `diferencia_relativa`, `veredicto`,
+#'   `motivo`, `tipo_eje` y `tolerancia`. `veredicto` es un factor ordenado con
+#'   niveles `identico < equivalente < materialmente_distinto`. Los atributos
+#'   `campos_no_comparables` y `resumen` declaran, respectivamente, los campos
+#'   omitidos y el conteo de cada veredicto.
+#'
+#' @details
+#' El registro fijo asigna tolerancia sólo a `media`, `mediana`, `desvio` y
+#' `longitud_media`. Los conteos, proporciones de conteos y extremos por
+#' selección se comparan en el eje `exacto`; las fechas canónicas en `fecha` y
+#' `moda` y `centinela_valor` en `valor`. Los ejes `exacto`, `fecha` y `valor`
+#' son binarios por construcción.
+#'
+#' El comparador devuelve datos, no decisiones: no alimenta hallazgos,
+#' severidades ni puntajes. La tolerancia es del llamador y jamás entra en una
+#' regla del paquete; sólo se aplica al eje flotante finito y queda publicada
+#' para que el llamador decida cómo usarla.
+#'
+#' @export
+#' @seealso [comparar_perfiles()], [perfilar()], [perfilar_dbi()]
+#'
+#' @examples
+#' anterior <- data.frame(
+#'   columna = "monto", media = 10, minimo = 1, moda = "a",
+#'   stringsAsFactors = FALSE
+#' )
+#' actual <- data.frame(
+#'   columna = "monto", media = 10.00000000001, minimo = 2, moda = "b",
+#'   stringsAsFactors = FALSE
+#' )
+#' comparar_equivalencia(anterior, actual, tolerancia = 1e-9)
+comparar_equivalencia <- function(anterior, actual, tolerancia) {
+  if (!is.numeric(tolerancia) || length(tolerancia) != 1L ||
+      is.na(tolerancia) || !is.finite(tolerancia) || tolerancia < 0) {
+    stop(
+      "`tolerancia` debe ser un escalar numerico finito, sin NA y mayor o igual a 0.",
+      call. = FALSE
+    )
+  }
+  tolerancia <- as.numeric(tolerancia)
+  anterior <- .columnas_equivalencia(anterior, "anterior")
+  actual <- .columnas_equivalencia(actual, "actual")
+  registro <- .registro_campos_equivalencia()
+  campos_registrados <- unlist(registro, use.names = FALSE)
+  campos_presentes <- unique(c(names(anterior), names(actual)))
+  campos_no_comparables <- setdiff(
+    setdiff(campos_presentes, "columna"), campos_registrados
+  )
+  campos <- intersect(
+    setdiff(names(anterior), "columna"), setdiff(names(actual), "columna")
+  )
+  campos <- campos[campos %in% campos_registrados]
+  columnas <- intersect(as.character(anterior$columna), as.character(actual$columna))
+  niveles <- c("identico", "equivalente", "materialmente_distinto")
+  salida <- list()
+  k <- 0L
+  for (columna in columnas) {
+    indice_a <- match(columna, as.character(anterior$columna))
+    indice_b <- match(columna, as.character(actual$columna))
+    for (campo in campos) {
+      tipo_eje <- names(registro)[vapply(
+        registro, function(campos_eje) campo %in% campos_eje, logical(1L)
+      )]
+      a <- .valor_equivalencia(anterior, campo, indice_a)
+      b <- .valor_equivalencia(actual, campo, indice_b)
+      comparacion <- .comparar_valor_equivalencia(
+        a, b, tipo_eje[[1L]], tolerancia
+      )
+      k <- k + 1L
+      salida[[k]] <- list(
+        columna = columna, campo = campo,
+        valor_anterior = a, valor_actual = b,
+        diferencia_relativa = comparacion$diferencia_relativa,
+        veredicto = comparacion$veredicto, motivo = comparacion$motivo,
+        tipo_eje = tipo_eje[[1L]], tolerancia = tolerancia
+      )
+    }
+  }
+  if (length(salida)) {
+    resultado <- data.frame(
+      columna = vapply(salida, `[[`, character(1L), "columna"),
+      campo = vapply(salida, `[[`, character(1L), "campo"),
+      valor_anterior = I(lapply(salida, `[[`, "valor_anterior")),
+      valor_actual = I(lapply(salida, `[[`, "valor_actual")),
+      diferencia_relativa = vapply(
+        salida, `[[`, numeric(1L), "diferencia_relativa"
+      ),
+      veredicto = vapply(salida, `[[`, character(1L), "veredicto"),
+      motivo = vapply(salida, `[[`, character(1L), "motivo"),
+      tipo_eje = vapply(salida, `[[`, character(1L), "tipo_eje"),
+      tolerancia = vapply(salida, `[[`, numeric(1L), "tolerancia"),
+      stringsAsFactors = FALSE
+    )
+  } else {
+    resultado <- data.frame(
+      columna = character(), campo = character(),
+      valor_anterior = I(list()), valor_actual = I(list()),
+      diferencia_relativa = numeric(), veredicto = character(),
+      motivo = character(), tipo_eje = character(), tolerancia = numeric(),
+      stringsAsFactors = FALSE
+    )
+  }
+  resultado$veredicto <- factor(
+    resultado$veredicto, levels = niveles, ordered = TRUE
+  )
+  resumen <- stats::setNames(
+    as.integer(table(factor(resultado$veredicto, levels = niveles))), niveles
+  )
+  attr(resultado, "campos_no_comparables") <- campos_no_comparables
+  attr(resultado, "resumen") <- resumen
+  rownames(resultado) <- NULL
+  class(resultado) <- c("equivalencia_perfiles", "data.frame")
   resultado
 }

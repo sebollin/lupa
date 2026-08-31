@@ -295,7 +295,7 @@ viñetas enlazadas son el manual detallado. Esta tabla es el mapa breve:
 | Limpiar sin romper nada | `planificar_limpieza()`, `guiar_limpieza()`, `aplicar()` | [Plan de limpieza](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
 | Encontrar duplicados aproximados | `detectar_duplicados_aproximados()`, `estimar_costo()` | [Escala y duplicados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
 | Reparar codificación dañada | `reparar_codificacion` mediante `planificar_limpieza()` y `aplicar()` | [Referencia de limpieza](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
-| Seguir la calidad en el tiempo | `historico_calidad()`, `acumular_historico()`, `guardar_historico()`, `leer_historico()`, `detectar_deriva_calidad()`, `comparar_perfiles()`, `comparar_evaluaciones()` | [Histórico y deriva](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
+| Seguir la calidad en el tiempo | `historico_calidad()`, `acumular_historico()`, `guardar_historico()`, `leer_historico()`, `detectar_deriva_calidad()`, `comparar_perfiles()`, `comparar_equivalencia()`, `comparar_evaluaciones()` | [Histórico y deriva](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
 | Compartir resultados | `reportar()`, `guardar_analisis()`, `leer_analisis()` | [Referencia de informes](https://sebollin.github.io/lupa/reference/reportar.html) |
 | Validar y extender | `validadores_internacionales()`, `validadores_uruguay()`, `pack_validadores()`, `validar_ci_uy()`, `validar_rut_uy()`, `validar_luhn()`, `validar_mod97()`, `validar_iso3166()`, `validar_iso4217()`, `validar_correo()`, `validar_url()` | [Referencia](https://sebollin.github.io/lupa/reference/) |
 
