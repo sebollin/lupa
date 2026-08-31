@@ -647,12 +647,22 @@ también conserva ese camino como respaldo; en PostgreSQL 9.3 y SQLite el conteo
 de la mediana queda como subconsulta escalar en la misma sentencia que ordena y
 recorta. Un motor que acepta
 `PERCENTILE_CONT(...) WITHIN GROUP` puede consolidar varias en un solo
-`SELECT` por lote. En
-Con `universo = "muestra_motor"`, una consulta distinta vuelve a resolver el muestreo: la
-media y la mediana de una misma columna describen conjuntos de filas distintos,
-del mismo tamaño pero no necesariamente los mismos. Las métricas planas del
-mismo lote sí comparten las filas de esa consulta, y `id_muestra` lo deja
-comprobable directamente. Un `id_muestra` ausente declara que no se puede
+`SELECT` por lote.
+
+Con `universo = "muestra_motor"`, el muestreo se resuelve por consulta, no por
+perfilado. Las métricas que comparten una consulta consolidada —ver
+`id_muestra`, `lote` y `columnas_compartidas` en `sql`— se calculan sobre las
+mismas filas y son comparables dentro de ese lote. Dos consultas distintas
+—otro `id_muestra`, o una clase distinta como moda o mediana— toman muestras
+independientes: no se garantiza que tengan el mismo número de filas ni que
+coincidan sus filas o su distribución. `TABLESAMPLE SYSTEM` selecciona bloques
+o páginas y puede devolver un tamaño variable, como los 15.708 a 20.000
+medidos; `random_limit`/`NEWID()` decide por fila, ordena la tabla y puede
+devolver el tamaño pedido a un costo mucho mayor. Por eso los resultados de
+consultas distintas no deben compararse como si fueran réplicas del mismo
+muestreo. Para hablar de las mismas filas, se debe usar la misma consulta
+consolidada o `perfil_muestra`; el perfilado es sólo lectura y no materializa
+una tabla intermedia. Un `id_muestra` ausente declara que no se puede
 garantizar esa coincidencia; queda ausente para moda, frecuencia de la moda y
 mediana, que son métricas por columna.
 

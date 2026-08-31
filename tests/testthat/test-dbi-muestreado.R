@@ -247,14 +247,36 @@ test_that("muestreado usa una forma declarada por el motor y marca cada estimaci
     ), , drop = FALSE
   ]
   expect_true(all(no_estimados$error_esperado == "no_estimado"))
-  expect_true(all(grepl("no se calculo", no_estimados$motivo, fixed = TRUE)))
+  conteos_observados <- no_estimados[
+    no_estimados$metrica %in% c(
+      "n_validos", "n_faltantes", "prop_faltantes", "n_ceros", "n_negativos"
+    ), , drop = FALSE
+  ]
+  estadisticos <- no_estimados[
+    no_estimados$metrica %in% c("minimo", "maximo", "media", "desvio"),
+    , drop = FALSE
+  ]
+  expect_true(all(grepl(
+    "conteo exacto en la muestra; no estima la tabla completa",
+    conteos_observados$motivo, fixed = TRUE
+  )))
+  expect_true(all(grepl("no se calculo", estadisticos$motivo, fixed = TRUE)))
   no_estimables <- metricas[
     metricas$columna %in% c("id", "monto") &
     metricas$metrica %in% c("moda", "frecuencia_moda", "mediana"),
     , drop = FALSE
   ]
   expect_true(all(no_estimables$error_esperado == "no_estimable"))
-  expect_true(all(grepl("cota simple", no_estimables$motivo, fixed = TRUE)))
+  expect_true(all(grepl(
+    "cota simple",
+    no_estimables$motivo[no_estimables$metrica %in% c("moda", "mediana")],
+    fixed = TRUE
+  )))
+  expect_true(all(grepl(
+    "conteo exacto en la muestra; no estima la tabla completa",
+    no_estimables$motivo[no_estimables$metrica == "frecuencia_moda"],
+    fixed = TRUE
+  )))
   expect_identical(resultado$resumen_tabla$meta$alcance, "tabla_muestreada")
 })
 
@@ -268,6 +290,7 @@ test_that("el metadato publico distingue pedido y obtenido", {
 
   expect_equal(muestreo$tamano_muestra, 5)
   expect_equal(muestreo$filas_solicitadas, 5)
+  expect_equal(muestreo$filas_pedidas, 5)
   expect_equal(muestreo$filas_obtenidas, 5)
   expect_true(muestreo$metodo %in% c("random_limit", "tablesample_system"))
   expect_equal(muestreo$fraccion, 0.25)
@@ -300,7 +323,9 @@ test_that("una muestra vacia no publica ceros ni estados de muestra observada", 
   expect_true(all(is.na(columnas[campos_sin_n])))
   expect_true(all(alcance$estado == "no_disponible"))
   expect_true(all(is.na(alcance$motivo) == FALSE))
-  expect_true(all(grepl("muestra vacia", alcance$motivo, fixed = TRUE)))
+  expect_true(all(
+    alcance$motivo == "muestra_vacia:tablesample_system_sin_filas"
+  ))
   expect_equal(resultado$resumen_tabla$meta$muestreo$filas_obtenidas, 0)
   expect_true(any(grepl(
     "consulta de muestra devolvio 0 filas",
@@ -333,12 +358,12 @@ test_that("una muestra no vacia con todos los valores nulos conserva sus estados
 
   expect_equal(resultado$perfil_muestra$meta$origen_dbi$muestreo$filas_obtenidas, 4)
   expect_equal(resultado$resumen_tabla$columnas$n_validos, 0)
-  expect_equal(resultado$resumen_tabla$columnas$n_faltantes, 20)
+  expect_equal(resultado$resumen_tabla$columnas$n_faltantes, 5)
   expect_true(all(
     alcance$estado[alcance$metrica %in% c("n_validos", "n_faltantes")] ==
-      "estimado"
+      "observado_muestra"
   ))
-  expect_false(any(alcance$estado == "no_disponible"))
+  expect_true(any(alcance$estado == "no_disponible"))
 })
 
 test_that("el metadato publico conserva una muestra menor que el pedido", {
@@ -578,4 +603,61 @@ test_that("la sonda de muestreo ejercita la forma que despues se emite", {
   expect_false(any(metricas$estado == "no_disponible"))
   expect_true(any(metricas$estado %in% c("estimado", "observado_muestra")))
   expect_false(any(grepl("TABLESAMPLE SYSTEM", metricas$sql, ignore.case = TRUE)))
+})
+
+test_that("la sonda CTE de ventanas es barata y prueba la construccion impresa", {
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  candidato <- lupa:::.candidatos_mediana_cte_ventana_dbi(con)[[1L]]
+  sql <- unname(candidato$sonda('"mediana"'))
+
+  expect_true(startsWith(sql, "WITH lupa_mediana_datos AS"))
+  expect_match(sql, "COUNT(*) OVER ()", fixed = TRUE)
+  expect_match(sql, "ROW_NUMBER() OVER", fixed = TRUE)
+  expect_match(sql, "VALUES (1.0), (2.0), (3.0), (4.0)", fixed = TRUE)
+  expect_match(sql, "AVG\\([^)]* \\* 1\\.0\\)")
+  expect_false(grepl("FROM datos", sql, fixed = TRUE))
+
+  control_negativo <- sub(
+    "AVG\\(", "FUNCION_INVALIDA_LUPA(", sql, fixed = FALSE
+  )
+  expect_match(control_negativo, "FUNCION_INVALIDA_LUPA", fixed = TRUE)
+  expect_false(grepl("AVG\\([^)]* \\* 1\\.0\\)", control_negativo))
+})
+
+test_that("la guarda de costo de NEWID usa el universo y publica la decision", {
+  rechazado <- lupa:::.evaluar_guardia_newid_dbi(10000000, 20000, 1L)
+  expect_false(rechazado$aceptado)
+  expect_identical(
+    rechazado$motivo,
+    "capacidad_no_aceptada:newid_costo_excede_presupuesto"
+  )
+  expect_equal(rechazado$proyeccion_newid_ms, 6500)
+  expect_equal(rechazado$n_total, 10000000)
+  expect_equal(rechazado$umbral_n_total, 100000)
+
+  aceptado <- lupa:::.evaluar_guardia_newid_dbi(100000, 20000, 1L)
+  expect_true(aceptado$aceptado)
+  expect_identical(
+    aceptado$motivo, "sesgo_muestreo:random_limit_newid_por_fila"
+  )
+
+  publicado <- lupa:::.publicar_muestreo_dbi(
+    list(
+      disponible = TRUE, candidato = list(nombre = "random_limit"),
+      sondas = character(), motivo = NA_character_
+    ),
+    forma = list(
+      metodo = "random_limit", funcion = "newid", descripcion = "NEWID",
+      fraccion = 0.2, filas_solicitadas = 20000, filas_pedidas = 20000,
+      sql = "SELECT TOP (20000) ..."
+    ),
+    n_total = 100000
+  )
+  expect_identical(publicado$metodo_muestreo, "random_limit")
+  expect_identical(publicado$funcion_muestreo, "newid")
+  expect_identical(publicado$sesgo_muestreo, "por_fila")
+  expect_identical(publicado$motivo, "sesgo_muestreo:random_limit_newid_por_fila")
+  expect_identical(publicado$motivo_exito,
+                   "sesgo_muestreo:random_limit_newid_por_fila")
 })

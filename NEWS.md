@@ -1,5 +1,14 @@
 # lupa 0.1.0
 
+## Mediana y conteos bajo muestreo DBI
+
+- `perfilar_dbi(universo = "muestra_motor")` calcula la mediana sin
+  `dos_consultas` cuando el dialecto requiere la CTE de ventanas, y publica
+  los conteos de la muestra con sus denominadores locales. `TABLESAMPLE
+  SYSTEM` declara su sesgo por bloques; el fallback `NEWID()` queda gobernado
+  por una politica de costo y se rechaza con un motivo estable cuando excede
+  el presupuesto.
+
 ## Memoria de trabajo en la auditoría DBI
 
 - `resumen_tabla$sql` agrega `memoria_trabajo`, derivada del estado de medición,

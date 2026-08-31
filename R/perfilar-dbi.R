@@ -95,6 +95,14 @@
   "ventana_agregado" = "creciente",
   "consulta_actual_sin_guardian" = "creciente",
   "subconsulta_escalar" = "creciente",
+  # La CTE de ventanas ordena las filas no nulas. Con un tope real el
+  # clasificador de muestras la reduce a R2; cuando la muestra satura el
+  # universo, el sort vuelve a crecer con las filas y cae a R3. Las dos
+  # etiquetas de fuente son aliases deliberados para que una futura variante
+  # pueda publicar el origen sin quedar sin clasificar.
+  "cte_ventana" = "creciente",
+  "cte_ventana_tablesample_system" = "creciente",
+  "cte_ventana_newid" = "creciente",
   "dos_consultas" = "creciente",
   "PERCENTILE_CONT" = "creciente",
   "PERCENTILE_CONT_OVER" = "creciente",
@@ -729,10 +737,72 @@
 .UMBRAL_SEGUNDOS_AVISO_MODA_DBI <- 30
 .UMBRAL_SEGUNDOS_AVISO_MEDIANA_DBI <- 30
 .REFERENCIA_BANCO_MEDIANA_MS_POR_MILLON_FILAS_DBI <- 68
+.TASA_NEWID_MS_POR_MILLON_DBI <- 650
+.MAX_FILAS_NEWID_DBI <- 100000
+.MIN_FRACCION_NEWID_DBI <- 0.20
+.MAX_PROYECCION_NEWID_MS_DBI <- 1000
 .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI <- 0
 # Nombre interno histórico, expresado en milisegundos como lo estaba antes de
 # que el umbral público pasara a declarar su unidad en segundos.
 .UMBRAL_AVISO_DISTINTOS_DBI <- .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI * 1000
+
+.evaluar_guardia_newid_dbi <- function(n_total, tamano_muestra,
+                                       medianas_pendientes = 1L) {
+  total <- .numero_dbi(n_total)
+  muestra <- .numero_dbi(tamano_muestra)
+  pendientes <- .numero_dbi(medianas_pendientes)
+  fraccion <- if (length(total) == 1L && is.finite(total) && total > 0 &&
+                  length(muestra) == 1L && is.finite(muestra)) {
+    muestra / total
+  } else {
+    NA_real_
+  }
+  proyeccion <- if (length(total) == 1L && is.finite(total) && total >= 0 &&
+                    length(pendientes) == 1L && is.finite(pendientes) &&
+                    pendientes >= 1) {
+    .TASA_NEWID_MS_POR_MILLON_DBI / 1e6 * total * pendientes
+  } else {
+    NA_real_
+  }
+  condiciones <- c(
+    total_valido = length(total) == 1L && is.finite(total) && total >= 0,
+    limite_filas = length(total) == 1L && is.finite(total) &&
+      total <= .MAX_FILAS_NEWID_DBI,
+    fraccion_valida = length(fraccion) == 1L && is.finite(fraccion),
+    fraccion_minima = length(fraccion) == 1L && is.finite(fraccion) &&
+      fraccion >= .MIN_FRACCION_NEWID_DBI,
+    proyeccion_valida = length(proyeccion) == 1L && is.finite(proyeccion),
+    proyeccion_maxima = length(proyeccion) == 1L && is.finite(proyeccion) &&
+      proyeccion <= .MAX_PROYECCION_NEWID_MS_DBI
+  )
+  aceptado <- all(condiciones)
+  list(
+    aceptado = aceptado,
+    motivo = if (aceptado) {
+      "sesgo_muestreo:random_limit_newid_por_fila"
+    } else {
+      "capacidad_no_aceptada:newid_costo_excede_presupuesto"
+    },
+    n_total = total,
+    tamano_muestra = muestra,
+    fraccion = fraccion,
+    medianas_pendientes = as.integer(pendientes),
+    proyeccion_newid_ms = proyeccion,
+    tasa_ms_por_millon = .TASA_NEWID_MS_POR_MILLON_DBI,
+    umbral_n_total = .MAX_FILAS_NEWID_DBI,
+    umbral_fraccion = .MIN_FRACCION_NEWID_DBI,
+    umbral_proyeccion_ms = .MAX_PROYECCION_NEWID_MS_DBI,
+    condiciones = condiciones,
+    razon = if (aceptado) {
+      "NEWID fue aceptado dentro de los tres limites de la politica de costo."
+    } else {
+      paste(
+        "NEWID no se ejecuta: la proyeccion conservadora o el tamano y la",
+        "fraccion de la muestra quedan fuera de la politica."
+      )
+    }
+  )
+}
 
 .validar_interruptor_aviso_dbi <- function(valor, nombre) {
   if (!is.logical(valor) || length(valor) != 1L || is.na(valor)) {
@@ -1624,8 +1694,8 @@
           if (salto > 0) paste0(" OFFSET ", .entero_sql_dbi(salto)) else ""
         )
       },
-      muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
-                   "tablesample_system", "tablesample_percent", "random_limit")
+      muestreo = c("tablesample_reservoir", "tablesample_system",
+                   "tablesample_bernoulli", "tablesample_percent", "random_limit")
     ),
     top = list(
       nombre = "top",
@@ -1644,8 +1714,8 @@
         if (!grepl("^SELECT ", sql)) return(NULL)
         sub("^SELECT ", paste0("SELECT TOP (", .entero_sql_dbi(n), ") "), sql)
       },
-      muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
-                   "tablesample_system", "tablesample_percent", "random_limit")
+      muestreo = c("tablesample_reservoir", "tablesample_system",
+                   "tablesample_bernoulli", "tablesample_percent", "random_limit")
     ),
     fetch_first = list(
       nombre = "fetch_first",
@@ -1661,8 +1731,8 @@
           " FETCH FIRST ", .entero_sql_dbi(n), " ROWS ONLY"
         )
       },
-      muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
-                   "tablesample_system", "tablesample_percent", "oracle_sample",
+      muestreo = c("tablesample_reservoir", "tablesample_system",
+                   "tablesample_bernoulli", "tablesample_percent", "oracle_sample",
                    "random_limit")
     ),
     rownum = list(
@@ -1679,8 +1749,8 @@
           .entero_sql_dbi(n)
         )
       },
-      muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
-                   "tablesample_system", "tablesample_percent", "oracle_sample",
+      muestreo = c("tablesample_reservoir", "tablesample_system",
+                   "tablesample_bernoulli", "tablesample_percent", "oracle_sample",
                    "random_limit")
     ),
     portable = list(
@@ -1691,8 +1761,8 @@
       alias_tabla = function(nombre) paste0(" AS ", nombre),
       mediana_escalar = NULL,
       limitar = function(sql, n, salto = 0) NULL,
-      muestreo = c("tablesample_reservoir", "tablesample_bernoulli",
-                   "tablesample_system", "tablesample_percent", "random_limit")
+      muestreo = c("tablesample_reservoir", "tablesample_system",
+                   "tablesample_bernoulli", "tablesample_percent", "random_limit")
     )
   )
 }
@@ -1705,8 +1775,8 @@
     # o 2.048 sobre una tabla de 5.000, asi que dos consultas del mismo perfil
     # ven muestras de tamano distinto -o una ve cero- y las metricas dejan de
     # ser comparables entre si. Una forma que devuelve exactamente `n` filas no
-    # arregla que cada consulta saque su propia muestra, pero al menos las saca
-    # todas del mismo tamano.
+    # arregla que cada consulta saque su propia muestra, pero al menos respeta
+    # el tamano solicitado.
     tablesample_reservoir = list(
       nombre = "tablesample_reservoir",
       descripcion = "TABLESAMPLE RESERVOIR (n ROWS)",
@@ -1716,17 +1786,17 @@
         tabla, " TABLESAMPLE RESERVOIR (", .entero_sql_dbi(filas), " ROWS)"
       )
     ),
-    # Y antes de las de bloque, la de fila. Medido contra PostgreSQL 16 sobre una
-    # tabla de 5.000 filas, pidiendo el 20 %:
+    # La fuente por bloques se intenta antes que las formas fila a fila. Se
+    # prefiere `SYSTEM` cuando el adaptador la declara porque su costo favorece
+    # tablas grandes; su variacion de paginas se publica en la metadata.
     #
     #   TABLESAMPLE SYSTEM (20)      678  904  452  1384
     #   TABLESAMPLE BERNOULLI (20)  1011 1017  981  1050
     #
     # `SYSTEM` elige bloques enteros, asi que sobre una tabla chica el tamano de
     # la muestra salta de un tercio al doble de lo pedido, y puede dar cero.
-    # `BERNOULLI` decide fila por fila y se queda donde se le pidio. Cuesta mas
-    # en el motor -recorre la tabla- pero un tamano que no se puede anticipar
-    # hace que dos metricas del mismo perfil no sean comparables.
+    # `BERNOULLI` decide fila por fila y se conserva como alternativa declarada;
+    # cuesta mas en el motor -recorre la tabla- pero evita el sesgo de paginas.
     tablesample_bernoulli = list(
       nombre = "tablesample_bernoulli",
       descripcion = "TABLESAMPLE BERNOULLI (p)",
@@ -1868,7 +1938,7 @@
   if (is.null(candidato)) {
     return(list(
       forma_construible = FALSE,
-      motivo = "El adaptador no declara una forma candidata de muestreo."
+      motivo = "capacidad_no_aceptada:sin_forma_muestreo"
     ))
   }
   forma <- tryCatch(
@@ -1883,19 +1953,13 @@
   if (inherits(forma, "condition")) {
     return(list(
       forma_construible = FALSE,
-      motivo = paste(
-        "La forma muestreada resuelta no pudo construir una consulta de",
-        "subconjunto compatible con el dialecto elegido:", conditionMessage(forma)
-      )
+      motivo = "capacidad_no_aceptada:sonda_muestreo"
     ))
   }
   if (is.null(forma)) {
     return(list(
       forma_construible = FALSE,
-      motivo = paste(
-        "La forma muestreada resuelta no pudo construir una consulta de",
-        "subconjunto compatible con el dialecto elegido."
-      )
+      motivo = "capacidad_no_aceptada:sonda_muestreo"
     ))
   }
   list(forma_construible = TRUE, motivo = NA_character_)
@@ -1906,7 +1970,7 @@
   if (!length(candidatos)) {
     return(list(
       disponible = FALSE, candidato = NULL, sondas = character(),
-      motivo = "El adaptador no declara formas candidatas de muestreo."
+      motivo = "capacidad_no_aceptada:sin_forma_muestreo"
     ))
   }
   alias <- as.character(DBI::dbQuoteIdentifier(conexion, "lupa_sonda"))
@@ -1958,17 +2022,12 @@
   if (is.null(aceptada)) {
     return(list(
       disponible = FALSE, candidato = NULL, sondas = sondas,
-      motivo = paste(
-        "El motor rechazo todas las formas candidatas de muestreo; no se",
-        "calcularon metricas parciales sobre la tabla completa."
-      )
+      motivo = "capacidad_no_aceptada:sonda_muestreo"
     ))
   }
   list(
     disponible = TRUE, candidato = aceptada, sondas = sondas,
-    motivo = paste0(
-      "El motor acepto la sonda de muestreo `", aceptada$nombre, "`."
-    )
+    motivo = NA_character_
   )
 }
 
@@ -2000,6 +2059,21 @@
   forma$filas_solicitadas <- efectivas
   forma$filas_pedidas <- as.numeric(muestra)
   forma
+}
+
+.motivo_exito_muestreo_dbi <- function(forma) {
+  if (is.null(forma) || is.null(forma$metodo)) return(NA_character_)
+  if (identical(forma$metodo, "tablesample_system")) {
+    return("sesgo_muestreo:tablesample_system_por_bloques")
+  }
+  if (identical(forma$metodo, "random_limit") &&
+      identical(forma$funcion, "newid")) {
+    return("sesgo_muestreo:random_limit_newid_por_fila")
+  }
+  if (identical(forma$metodo, "random_limit")) {
+    return("sesgo_muestreo:random_limit_por_fila")
+  }
+  paste0("muestreo_aceptado:", forma$metodo)
 }
 
 # La mediana exacta puede conservar el limite y el salto sin llevar el orden
@@ -2107,6 +2181,111 @@
     sondas = resolucion$sondas,
     motivo = resolucion$motivo
   )
+}
+
+# La forma de ventanas mantiene la relacion muestreada en una sola referencia:
+# el conteo y las posiciones se calculan sobre la misma CTE que luego agrega las
+# dos posiciones centrales. Se reserva para los dialectos que no aceptan la
+# forma escalar ni una consolidada; en particular es la salida de
+# `muestra_motor` en SQL Server con compatibilidad antigua.
+.candidatos_mediana_cte_ventana_dbi <- function(conexion) {
+  alias <- function(nombre) {
+    as.character(DBI::dbQuoteIdentifier(conexion, nombre))
+  }
+  construir <- function(expr, tabla, alias_salida) {
+    valor <- alias("valor")
+    paste0(
+      "WITH lupa_mediana_datos AS (",
+      "SELECT ", expr, " AS ", valor, " FROM ", tabla,
+      " WHERE ", expr, " IS NOT NULL), ",
+      "ordenada AS (SELECT ", valor, ", COUNT(*) OVER () AS ",
+      alias("n_validos"), ", ROW_NUMBER() OVER (ORDER BY ", valor,
+      ") AS ", alias("posicion"), " FROM lupa_mediana_datos) ",
+      "SELECT AVG(", valor, " * 1.0) AS ", alias_salida,
+      " FROM ordenada WHERE ", alias("posicion"),
+      " IN ((", alias("n_validos"), " + 1) / 2, (", alias("n_validos"),
+      " + 2) / 2)"
+    )
+  }
+  list(list(
+    nombre = "cte_ventana",
+    construir = construir,
+    sonda = function(alias_salida) {
+      construir(
+        "v", paste0(
+          "(VALUES (1.0), (2.0), (3.0), (4.0)) AS lupa_sonda(v)"
+        ), alias_salida
+      )
+    },
+    error_esperado = "no_aplica"
+  ))
+}
+
+.nombre_mediana_cte_muestra_dbi <- function(muestreo) {
+  if (is.null(muestreo)) return("cte_ventana")
+  metodo <- if (!is.null(muestreo$metodo)) muestreo$metodo else
+    if (!is.null(muestreo$candidato)) muestreo$candidato$nombre else NA_character_
+  funcion <- if (!is.null(muestreo$funcion)) muestreo$funcion else {
+    funciones <- if (is.null(muestreo$candidato)) NULL else
+      muestreo$candidato$funciones
+    if (length(funciones)) funciones[[1L]]$nombre else NA_character_
+  }
+  if (identical(metodo, "tablesample_system")) {
+    return("cte_ventana_tablesample_system")
+  }
+  if (identical(metodo, "random_limit") && identical(funcion, "newid")) {
+    return("cte_ventana_newid")
+  }
+  "cte_ventana"
+}
+
+.sondar_mediana_cte_ventana_dbi <- function(conexion, presupuesto) {
+  if (!is.null(presupuesto) && !is.null(presupuesto$mediana_cte_ventana)) {
+    return(presupuesto$mediana_cte_ventana)
+  }
+  candidatos <- .candidatos_mediana_cte_ventana_dbi(conexion)
+  alias <- as.character(DBI::dbQuoteIdentifier(conexion, "mediana"))
+  sondas <- character()
+  elegida <- NULL
+  control_negativo_ok <- FALSE
+  for (candidato in candidatos) {
+    sql <- candidato$sonda(alias)
+    sondas <- c(sondas, sql)
+    positiva <- .consultar_dbi(
+      conexion, sql, presupuesto, etapa = "sonda_mediana_cte_ventana"
+    )
+    celda <- if (isTRUE(positiva$ok)) {
+      .valor_campo_dbi(positiva$datos, "mediana")
+    } else {
+      list(ok = FALSE, valor = NA_real_)
+    }
+    valor <- if (isTRUE(celda$ok)) .escalar_finito_dbi(celda$valor) else NA_real_
+    valor_ok <- isTRUE(is.finite(valor)) &&
+      isTRUE(all.equal(valor, 2.5, tolerance = 1e-8))
+    sql_negativa <- sub(
+      "AVG\\(", "FUNCION_INVALIDA_LUPA(", sql, fixed = FALSE
+    )
+    sondas <- c(sondas, sql_negativa)
+    negativa <- .consultar_dbi(
+      conexion, sql_negativa, presupuesto,
+      etapa = "sonda_mediana_cte_ventana_control_negativo"
+    )
+    control_negativo_ok <- !isTRUE(negativa$ok)
+    if (is.null(elegida) && valor_ok && control_negativo_ok) {
+      elegida <- candidato
+    }
+  }
+  resultado <- list(
+    disponible = !is.null(elegida), candidato = elegida, sondas = sondas,
+    control_negativo = control_negativo_ok,
+    motivo = if (is.null(elegida)) {
+      "capacidad_no_aceptada:sonda_mediana_cte_ventana"
+    } else {
+      "La sonda de la CTE de ventanas devolvio 2,5 y su control negativo fallo."
+    }
+  )
+  if (!is.null(presupuesto)) presupuesto$mediana_cte_ventana <- resultado
+  resultado
 }
 
 # La frecuencia de la moda y su denominador pueden salir de la misma
@@ -2504,6 +2683,7 @@
 .publicar_muestreo_dbi <- function(resolucion, forma = NULL, n_total = NA,
                                    muestreo_meta = NULL) {
   candidato <- resolucion$candidato
+  motivo_exito <- .motivo_exito_muestreo_dbi(forma)
   numero <- function(objeto, nombre) {
     if (is.null(objeto) || is.null(objeto[[nombre]]) ||
         !length(objeto[[nombre]])) {
@@ -2516,6 +2696,25 @@
     metodo = if (is.null(forma)) {
       if (is.null(candidato)) NA_character_ else candidato$nombre
     } else forma$metodo,
+    # `metodo` conserva el nombre historico de la capacidad. Estos campos
+    # explicitos hacen auditable la distincion entre TABLESAMPLE y el fallback
+    # fila a fila; en particular, un NEWID aceptado no queda como un random
+    # anonimo ni pierde el motivo de su aceptacion.
+    metodo_muestreo = if (is.null(forma)) {
+      if (is.null(candidato)) NA_character_ else candidato$nombre
+    } else forma$metodo,
+    funcion_muestreo = if (is.null(forma)) {
+      funciones <- if (is.null(candidato)) NULL else candidato$funciones
+      if (length(funciones)) funciones[[1L]]$nombre else NA_character_
+    } else forma$funcion,
+    sesgo_muestreo = if (identical(motivo_exito,
+                                   "sesgo_muestreo:tablesample_system_por_bloques")) {
+      "por_bloques"
+    } else if (grepl("random_limit", as.character(if (is.null(forma)) {
+      NA_character_
+    } else forma$metodo), fixed = TRUE)) {
+      "por_fila"
+    } else NA_character_,
     descripcion = if (is.null(forma)) {
       if (is.null(candidato)) NA_character_ else candidato$descripcion
     } else forma$descripcion,
@@ -2535,10 +2734,22 @@
     } else {
       numero(muestreo_meta, "filas_solicitadas")
     },
+    filas_pedidas = if (!is.null(forma) &&
+                        !is.null(forma$filas_pedidas)) {
+      numero(forma, "filas_pedidas")
+    } else {
+      numero(muestreo_meta, "filas_pedidas")
+    },
     filas_obtenidas = numero(muestreo_meta, "filas_obtenidas"),
     universo = n_total,
     sondas = resolucion$sondas,
-    motivo = resolucion$motivo,
+    motivo = if (is.null(forma) || is.na(motivo_exito)) {
+      resolucion$motivo
+    } else motivo_exito,
+    motivo_exito = if (is.null(forma) || is.na(motivo_exito)) {
+      NA_character_
+    } else motivo_exito,
+    motivo_sonda = resolucion$motivo,
     sql = if (is.null(forma)) NA_character_ else forma$sql
   )
 }
@@ -3420,6 +3631,11 @@
   desvio = "desvio"
 )
 
+.METRICAS_OBSERVADAS_MUESTRA_DBI <- c(
+  "n_validos", "n_faltantes", "prop_faltantes", "n_distintos",
+  "tasa_distintos", "n_ceros", "n_negativos", "frecuencia_moda"
+)
+
 .METRICAS_NUMERICAS_DBI <- c("basicos", "mediana", "desvio")
 
 # La estrategia de `distintos` se elige de forma explicita. El orden es parte
@@ -3480,6 +3696,22 @@
     "El error muestral podria estimarse bajo un plan probabilistico, pero no",
     "se calculo en esta corrida."
   )
+}
+
+.motivo_conteo_observado_muestra_dbi <- function(metricas) {
+  if (any(metricas %in% c("n_validos", "n_faltantes", "prop_faltantes"))) {
+    return(paste(
+      "conteo exacto en la muestra; no estima la tabla completa.",
+      "El denominador es `n_total_consulta` de esa misma sentencia."
+    ))
+  }
+  if (any(metricas %in% c("n_ceros", "n_negativos", "frecuencia_moda"))) {
+    return(paste(
+      "conteo exacto en la muestra; no estima la tabla completa.",
+      "La escala es la de las filas observadas por esa consulta."
+    ))
+  }
+  NA_character_
 }
 
 .validar_politica_costo_dbi <- function(politica_costo,
@@ -3938,11 +4170,63 @@
 .publicar_estrategia_mediana_dbi <- function(preparacion) {
   solicitada <- preparacion$estrategia_mediana
   if (!"mediana" %in% preparacion$metricas_ejecucion) {
+    if (identical(preparacion$universo, "muestra_motor") &&
+        !is.null(preparacion$muestreo) &&
+        !isTRUE(preparacion$muestreo$disponible)) {
+      motivo <- preparacion$muestreo$motivo
+      if (length(motivo) != 1L || is.na(motivo) ||
+          !grepl("^[a-z_]+:[a-z_]+", motivo)) {
+        motivo <- "capacidad_no_aceptada:sonda_muestreo"
+      }
+      return(list(
+        estrategia_solicitada = solicitada,
+        estrategia_resuelta = "no_disponible", estado = "no_disponible",
+        motivo = motivo
+      ))
+    }
     return(list(
       estrategia_solicitada = solicitada,
       estrategia_resuelta = NA_character_, estado = "no_solicitado",
       motivo = "La metrica `mediana` no se pidio en esta corrida."
     ))
+  }
+  guardia_newid <- if (is.null(preparacion$presupuesto)) NULL else
+    preparacion$presupuesto$guardia_newid
+  if (identical(preparacion$universo, "muestra_motor") &&
+      is.list(guardia_newid) && !isTRUE(guardia_newid$aceptado)) {
+    return(list(
+      estrategia_solicitada = solicitada,
+      estrategia_resuelta = "no_disponible", estado = "no_disponible",
+      motivo = guardia_newid$motivo,
+      metadata_costo = guardia_newid
+    ))
+  }
+  if (identical(preparacion$universo, "muestra_motor")) {
+    cte <- preparacion$mediana_cte_ventana_resolucion
+    if (is.list(cte) && isTRUE(cte$disponible)) {
+      metodo <- if (!is.null(preparacion$mediana_cte_ventana)) {
+        preparacion$mediana_cte_ventana$nombre
+      } else {
+        cte$candidato$nombre
+      }
+      return(list(
+        estrategia_solicitada = solicitada,
+        estrategia_resuelta = metodo,
+        estado = "calculado",
+        motivo = "Se uso la CTE de ventanas sobre una sola relacion muestreada.",
+        sondas = cte$sondas
+      ))
+    }
+    # La mediana muestreada no puede degradarse a `dos_consultas`, aunque el
+    # dialecto conserve esa vía para `tabla_completa`.
+    if (is.list(cte)) {
+      return(list(
+        estrategia_solicitada = solicitada,
+        estrategia_resuelta = "no_disponible", estado = "no_disponible",
+        motivo = "capacidad_no_aceptada:sonda_mediana_cte_ventana",
+        sondas = cte$sondas
+      ))
+    }
   }
   consolidada <- preparacion$mediana_consolidada_resolucion
   if (is.list(consolidada) && isTRUE(consolidada$disponible)) {
@@ -4498,7 +4782,7 @@
   # `length(columnas)` no es defensa de rutina: si el esquema de la tabla no se
   # pudo leer, la lista llega vacia y TODA columna de la clave pareceria ajena.
   # Descartar una clave buena porque no se sabe contra que compararla seria
-  # silenciar por ignorancia, que es el error opuesto y del mismo tamano.
+  # silenciar por ignorancia, que es el error opuesto y de igual importancia.
   if (length(catalogo$columnas) && length(columnas)) {
     ajenas <- catalogo$columnas[
       is.na(.resolver_columnas_dbi(catalogo$columnas, columnas))
@@ -5092,6 +5376,11 @@
   for (i in seq_along(nombres)) {
     aliases <- alias_por_columna[[i]]
     resultado <- list(consolidada = TRUE)
+    if (!is.null(aliases$total)) {
+      resultado$conteo <- .resultado_lote_dbi(
+        consulta, sql, aliases$total, metadatos
+      )
+    }
     if ("validos" %in% metricas) {
       resultado$validos <- .resultado_lote_dbi(
         consulta, sql, aliases$validos, metadatos
@@ -5104,10 +5393,16 @@
       resultado$basicos <- .resultado_lote_campos_dbi(
         consulta, sql, aliases$basicos, metricas_basicos, metadatos
       )
+      resultado$basicos <- .adjuntar_denominador_consulta_dbi(
+        resultado$basicos, consulta, aliases$total
+      )
     }
     if ("desvio" %in% metricas && !is.null(aliases$desvio)) {
       resultado$desvio <- .resultado_lote_dbi(
         consulta, sql, aliases$desvio, metadatos
+      )
+      resultado$desvio <- .adjuntar_denominador_consulta_dbi(
+        resultado$desvio, consulta, aliases$total
       )
     }
     salida[[i]] <- resultado
@@ -5683,6 +5978,7 @@
   }
 
   metricas_planas <- intersect(c("validos", "basicos", "desvio"), metricas)
+  incluir_total_muestra <- !identical(tabla_total_sql, tabla_sql)
   numericas <- columnas[es_numerico]
   columnas_planas <- if ("validos" %in% metricas_planas) {
     columnas
@@ -5710,7 +6006,7 @@
         conexion, tabla_sql, lote, nombres_sql, es_numerico_lote,
         metricas_planas, incluir_valores, presupuesto, tamano_lote_planos, numero,
         alias, forma, etapa,
-        incluir_total = "validos" %in% metricas_planas,
+        incluir_total = "validos" %in% metricas_planas || incluir_total_muestra,
         tabla_total_sql = tabla_total_sql
       )
       tomar_conteo(resultado_lote)
@@ -5932,6 +6228,8 @@
                                  agregados = NULL,
                                  mediana_consolidada = NULL,
                                  mediana_escalar = NULL,
+                                 mediana_cte_ventana = NULL,
+                                 mediana_cte_ventana_motivo = NA_character_,
                                  moda_guardian = NULL,
                                  moda_precalculada = NULL,
                                  decisiones_costo = NULL,
@@ -5982,13 +6280,38 @@
   metadatos <- .agregar_metadatos_estrategia_distintos_dbi(
     metadatos, estrategia_distintos
   )
+  if (es_muestreado && !is.null(muestreo) &&
+      !isTRUE(muestreo$disponible)) {
+    # La incapacidad de construir o gobernar la fuente afecta a todas las
+    # metricas de este alcance. El total `n` se registra fuera de esta funcion;
+    # aqui no se permite que la ruta de respaldo lea `tabla_sql` completa.
+    motivo_muestreo <- if (length(muestreo$motivo) == 1L &&
+                           !is.na(muestreo$motivo)) {
+      as.character(muestreo$motivo)
+    } else {
+      "capacidad_no_aceptada:sonda_muestreo"
+    }
+    registros <- .metricas_omitidas_dbi(
+      list(), columna, metricas, "no_disponible", motivo_muestreo,
+      metadatos = metadatos
+    )
+    return(list(
+      fila = fila, sql = do.call(rbind, registros), literales = literales
+    ))
+  }
   registrar <- function(registros, metrica, resultado, motivo_exito = NA_character_) {
     if (es_muestreado && isTRUE(resultado$ok) && is.null(resultado$estado)) {
-      resultado$estado <- if (any(metrica %in% c("n_distintos", "tasa_distintos"))) {
+      resultado$estado <- if (any(metrica %in% .METRICAS_OBSERVADAS_MUESTRA_DBI)) {
         "observado_muestra"
-      } else {
-        "estimado"
-      }
+      } else "estimado"
+    }
+    if (es_muestreado && isTRUE(resultado$ok) &&
+        any(metrica %in% "mediana")) {
+      # Una mediana consolidada puede llegar con estado `calculado` porque la
+      # misma forma tambien sirve sobre la tabla completa. Bajo muestreo sigue
+      # siendo un estadistico de las filas observadas, no una medicion del
+      # universo.
+      resultado$estado <- "estimado"
     }
     metadatos_registro <- metadatos
     if (es_muestreado) {
@@ -5999,9 +6322,19 @@
       motivo_error_esperado <- .motivo_error_esperado_muestreo_dbi(
         metrica, error_esperado_registro
       )
+      motivo_conteo <- .motivo_conteo_observado_muestra_dbi(metrica)
+      if (is.na(motivo_exito) && !is.na(motivo_conteo)) {
+        motivo_exito <- motivo_conteo
+      }
       if (isTRUE(resultado$ok) && all(is.na(motivo_exito)) &&
           !is.na(motivo_error_esperado)) {
         motivo_exito <- motivo_error_esperado
+      }
+      if (isTRUE(resultado$ok) && any(metrica %in% "mediana") &&
+          !is.null(muestreo) &&
+          length(muestreo$motivo) == 1L && !is.na(muestreo$motivo) &&
+          grepl("^sesgo_muestreo:", as.character(muestreo$motivo))) {
+        motivo_exito <- paste(muestreo$motivo, motivo_exito, sep = "; ")
       }
     }
     .registrar_resultado_dbi(
@@ -6106,9 +6439,25 @@
     )
   }
 
-  n_total_consulta <- if (!is.null(conteos$validos) &&
-                          !is.null(conteos$validos$metadatos)) {
-    .numero_dbi(conteos$validos$metadatos$n_total_consulta)
+  fuentes_denominador <- Filter(Negate(is.null), list(
+    conteos$validos, conteos$basicos, conteos$desvio,
+    conteos$distintos
+  ))
+  if (!is.null(agregados)) {
+    fuentes_denominador <- c(
+      fuentes_denominador,
+      Filter(Negate(is.null), list(
+        agregados$basicos[[columna]], agregados$desvio[[columna]]
+      ))
+    )
+  }
+  n_total_consulta <- if (length(fuentes_denominador)) {
+    candidatos <- vapply(fuentes_denominador, function(resultado) {
+      if (is.null(resultado$metadatos)) return(NA_real_)
+      .numero_dbi(resultado$metadatos$n_total_consulta)
+    }, numeric(1L))
+    candidatos <- candidatos[is.finite(candidatos)]
+    if (length(candidatos)) candidatos[[1L]] else NA_real_
   } else {
     NA_real_
   }
@@ -6121,10 +6470,7 @@
   # del conteo de la tabla completa.
   muestra_vacia <- es_muestreado && isTRUE(n_total_consulta == 0)
   if (muestra_vacia) {
-    motivo <- paste(
-      "La muestra vacia no tiene base para medir esta metrica: la consulta de",
-      "muestra devolvio 0 filas. No se supone que la columna este vacia."
-    )
+    motivo <- "muestra_vacia:tablesample_system_sin_filas"
     registros <- .metricas_omitidas_dbi(
       list(), columna, metricas, "no_disponible", motivo,
       metadatos = metadatos
@@ -6133,25 +6479,39 @@
       fila = fila, sql = do.call(rbind, registros), literales = literales
     ))
   }
+  tamano_pedido_muestra <- if (is.null(muestreo)) NA_real_ else {
+    .numero_dbi(muestreo$tamano_muestra)
+  }
+  muestra_insuficiente <- es_muestreado &&
+    !is.null(muestreo) &&
+    identical(muestreo$metodo, "tablesample_system") &&
+    length(tamano_pedido_muestra) == 1L &&
+    is.finite(tamano_pedido_muestra) && tamano_pedido_muestra > 0 &&
+    is.finite(n_total_consulta) &&
+    n_total_consulta < tamano_pedido_muestra / 2
+  if (muestra_insuficiente) {
+    registros <- .metricas_omitidas_dbi(
+      list(), columna, metricas, "no_disponible",
+      "muestra_inestable:tablesample_system_tamano_insuficiente",
+      metadatos = metadatos
+    )
+    return(list(
+      fila = fila, sql = do.call(rbind, registros), literales = literales
+    ))
+  }
+
+  sin_valores_validos_muestra <- FALSE
 
   if ("validos" %in% metricas) {
     validos <- conteos$validos
     registros <- registrar(registros, .CAMPOS_METRICA_DBI$validos, validos)
     if (validos$ok) {
       validos_observados <- .conteo_dbi(validos$valor)
-      fila$n_validos <- if (es_muestreado) {
-        .conteo_estimado_dbi(
-          validos_observados, n_total, n_total_consulta
-        )
-      } else {
-        validos_observados
-      }
+      fila$n_validos <- validos_observados
+      sin_valores_validos_muestra <- es_muestreado &&
+        !is.na(validos_observados) && .numero_dbi(validos_observados) == 0
       if (!is.na(fila$n_validos) && !is.na(n_total_consulta)) {
-        fila$n_faltantes <- if (es_muestreado) {
-          n_total - fila$n_validos
-        } else {
-          n_total_consulta - validos_observados
-        }
+        fila$n_faltantes <- n_total_consulta - validos_observados
         if (es_muestreado) {
           muestra_numero <- n_total_consulta
           fila$prop_faltantes <- if (is.finite(muestra_numero) &&
@@ -6225,6 +6585,11 @@
         )
       }
       motivo_cota <- NA_character_
+      if (isTRUE(distintos$ok) && isTRUE(sin_valores_validos_muestra)) {
+        distintos$ok <- FALSE
+        distintos$estado <- NULL
+        distintos$motivo <- "muestra_inestable:sin_valores_validos"
+      }
       if (isTRUE(distintos$ok)) {
         distintos$metadatos <- .mezclar_metadatos_dbi(
           distintos$metadatos, list(
@@ -6335,18 +6700,19 @@
             motivo_cota <- NA_character_
           } else {
             fila$moda <- valor_moda
-            fila$frecuencia_moda <- if (es_muestreado) {
-              .conteo_estimado_dbi(candidato, n_total, tamano_muestra)
-            } else {
-              candidato
-            }
+            fila$frecuencia_moda <- candidato
             if (!is.na(candidato)) moda$motivo <- motivo_cota
           }
         }
       }
     } else if (moda$ok) {
-      moda$motivo <- "La columna no contiene valores no nulos."
-      moda$estado <- "sin_valores"
+      if (es_muestreado) {
+        moda$ok <- FALSE
+        moda$motivo <- "muestra_inestable:sin_valores_validos"
+      } else {
+        moda$motivo <- "La columna no contiene valores no nulos."
+        moda$estado <- "sin_valores"
+      }
       # `frecuencia_moda` quedaba en NA, y NA dice "no se midio". Aca si se
       # midio: el motor conto los valores no nulos y no hay ninguno. Es la
       # distincion que el paquete sostiene en todas partes -cero es medido y
@@ -6358,9 +6724,18 @@
       # vacia, y ahi NA con su motivo es lo correcto.
       if (!es_muestreado) fila$frecuencia_moda <- 0
     }
-    registros <- registrar(
-      registros, .CAMPOS_METRICA_DBI$moda, moda, motivo_exito = moda$motivo
-    )
+    if (es_muestreado) {
+      registros <- registrar(
+        registros, "moda", moda, motivo_exito = moda$motivo
+      )
+      registros <- registrar(
+        registros, "frecuencia_moda", moda
+      )
+    } else {
+      registros <- registrar(
+        registros, .CAMPOS_METRICA_DBI$moda, moda, motivo_exito = moda$motivo
+      )
+    }
   }
 
   metricas_numericas <- unlist(
@@ -6403,6 +6778,16 @@
   # no se haya podido contar no es motivo para no calcular un minimo.
   sin_conteo <- is.na(fila$n_validos)
   if (!sin_conteo && .numero_dbi(fila$n_validos) == 0) {
+    if (es_muestreado) {
+      registros <- c(registros, list(.registro_sql_dbi(
+        columna, campos_pedidos, "no_disponible",
+        "muestra_inestable:sin_valores_validos", NA_character_,
+        metadatos = metadatos
+      )))
+      return(list(
+        fila = fila, sql = do.call(rbind, registros), literales = literales
+      ))
+    }
     registros <- c(registros, list(.registro_sql_dbi(
       columna, campos_pedidos, "sin_valores",
       "La columna no contiene valores no nulos.", NA_character_,
@@ -6486,21 +6871,19 @@
         leidos <- list()
       }
       for (metrica in names(leidos)) fila[[metrica]] <- leidos[[metrica]]
-      if (es_muestreado) {
-        for (metrica in c("n_ceros", "n_negativos")) {
-          if (!is.null(leidos[[metrica]])) {
-            fila[[metrica]] <- .conteo_estimado_dbi(
-              leidos[[metrica]], n_total, tamano_muestra
-            )
-          }
-        }
-      }
     } else if (basicos$ok) {
       basicos$ok <- FALSE
       basicos$motivo <- "La consulta de agregados no devolvio ninguna fila."
     }
     if (is.null(basicos$sql)) basicos$sql <- NA_character_
-    registros <- registrar(registros, calculados, basicos)
+    if (es_muestreado && isTRUE(basicos$ok)) {
+      for (metrica in calculados) {
+        resultado_metrica <- basicos
+        registros <- registrar(registros, metrica, resultado_metrica)
+      }
+    } else {
+      registros <- registrar(registros, calculados, basicos)
+    }
     if (!incluir_valores) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, c("minimo", "maximo"), "omitido_por_privacidad",
@@ -6521,6 +6904,16 @@
         registros, "mediana", "omitido_por_costo",
         .motivo_decision_costo_dbi(decisiones_costo, "mediana")
       )
+    } else if (es_muestreado && !is.null(presupuesto) &&
+               is.list(presupuesto$guardia_newid) &&
+               !isTRUE(presupuesto$guardia_newid$aceptado)) {
+      registros <- c(registros, list(.registro_sql_dbi(
+        columna, "mediana", "no_disponible",
+        presupuesto$guardia_newid$motivo, NA_character_,
+        metadatos = .mezclar_metadatos_dbi(
+          metadatos, list(metodo = NA_character_)
+        )
+      )))
     } else if (!is.null(mediana_consolidada)) {
       mediana <- mediana_consolidada
       if (isTRUE(mediana$ok)) fila$mediana <- .escalar_finito_dbi(mediana$valor)
@@ -6542,6 +6935,27 @@
           error_esperado = aproximacion_mediana$error_esperado
         )
         fila$mediana <- .escalar_finito_dbi(mediana$valor)
+      }
+      registros <- registrar(registros, "mediana", mediana)
+    } else if (!is.null(mediana_cte_ventana)) {
+      sql_mediana <- mediana_cte_ventana$construir(
+        columna_sql, tabla_sql, alias("mediana")
+      )
+      preparar_aviso_mediana()
+      mediana <- .escalar_dbi(
+        conexion, sql_mediana, "mediana", presupuesto, etapa = "mediana"
+      )
+      finalizar_mediana(mediana)
+      mediana$sql <- sql_mediana
+      mediana$metadatos <- list(metodo = mediana_cte_ventana$nombre)
+      if (isTRUE(mediana$ok)) {
+        valor <- .escalar_finito_dbi(mediana$valor)
+        if (is.na(valor)) {
+          mediana$ok <- FALSE
+          mediana$motivo <- "muestra_inestable:sin_valores_validos"
+        } else {
+          fila$mediana <- valor
+        }
       }
       registros <- registrar(registros, "mediana", mediana)
     } else if (!is.null(mediana_escalar)) {
@@ -6566,6 +6980,17 @@
         }
       }
       registros <- registrar(registros, "mediana", mediana)
+    } else if (es_muestreado) {
+      motivo <- if (length(mediana_cte_ventana_motivo) == 1L &&
+                    !is.na(mediana_cte_ventana_motivo)) {
+        mediana_cte_ventana_motivo
+      } else {
+        "capacidad_no_aceptada:sonda_mediana_cte_ventana"
+      }
+      registros <- c(registros, list(.registro_sql_dbi(
+        columna, "mediana", "no_disponible", motivo, NA_character_,
+        metadatos = metadatos
+      )))
     } else if (sin_conteo || (es_muestreado && !exists("validos_observados"))) {
       registros <- c(registros, list(.registro_sql_dbi(
         columna, "mediana", "no_disponible",
@@ -6721,6 +7146,8 @@
                                 moda_guardian = NULL,
                                 mediana_consolidada = NULL,
                                 mediana_escalar = NULL,
+                                mediana_cte_ventana = NULL,
+                                mediana_cte_ventana_motivo = NA_character_,
                                 fuentes_cardinalidad_costo = NULL,
                                 estrategia_distintos = list(
                                   publica = TRUE, disponible = TRUE,
@@ -6880,9 +7307,32 @@
     vapply(columnas_medianas, function(campo) {
       decision <- decisiones_costo[[campo]]
       "mediana" %in% metricas_ejecucion && isTRUE(incluir_valores) &&
-        (is.null(decision) || isTRUE(decision$mediana))
+      (is.null(decision) || isTRUE(decision$mediana))
     }, logical(1L))
   ]
+  if (length(columnas_medianas) && identical(universo, "muestra_motor") &&
+      !is.null(muestreo) && identical(muestreo$metodo, "random_limit") &&
+      identical(muestreo$funcion_muestreo, "newid") &&
+      !is.null(presupuesto) && is.null(presupuesto$guardia_newid)) {
+    guardia_newid <- .evaluar_guardia_newid_dbi(
+      n_total, tamano_muestra, length(columnas_medianas)
+    )
+    presupuesto$guardia_newid <- guardia_newid
+    if (!isTRUE(guardia_newid$aceptado) &&
+        (is.null(presupuesto$avisar_costo_mediana) ||
+         isTRUE(presupuesto$avisar_costo_mediana))) {
+      cli::cli_alert_warning(paste0(
+        "Mediana muestreada no disponible: ", guardia_newid$motivo,
+        ". Proyeccion NEWID: ",
+        if (is.finite(guardia_newid$proyeccion_newid_ms)) {
+          formatC(guardia_newid$proyeccion_newid_ms, format = "f", digits = 1)
+        } else "sin dato",
+        " ms; n_total = ", .entero_sql_dbi(guardia_newid$n_total),
+        ", fraccion = ", formatC(guardia_newid$fraccion,
+                                  format = "f", digits = 3), "."
+      ))
+    }
+  }
   medianas <- vector("list", length(columnas_medianas))
   names(medianas) <- columnas_medianas
   if (length(columnas_medianas) && !is.null(presupuesto)) {
@@ -6929,6 +7379,8 @@
       moda_guardian = moda_guardian,
       mediana_consolidada = medianas[[campo]],
       mediana_escalar = mediana_escalar,
+      mediana_cte_ventana = mediana_cte_ventana,
+      mediana_cte_ventana_motivo = mediana_cte_ventana_motivo,
       moda_precalculada = modas[[campo]],
       decisiones_costo = decisiones_costo[[campo]],
       publica_distintos = isTRUE(estrategia_distintos$publica),
@@ -6953,8 +7405,9 @@
         campos, rep("n", length(campos)), "calculado", NA_character_,
         sql_conteo_registro,
         metadatos = .mezclar_metadatos_dbi(.metadatos_sql_dbi(
-          alcance = if (identical(universo, "muestra_motor")) "tabla_muestreada" else
-            "tabla_completa",
+          # `n` is the declared exception: it counts the complete universe even
+          # when every other SQL metric describes a motor sample.
+          alcance = "tabla_completa",
           universo = n_total, tamano_muestra = if (identical(universo, "muestra_motor")) {
             tamano_muestra
           } else NA_real_,
@@ -6973,14 +7426,37 @@
   sql <- .marcar_nivel_sql_dbi(sql)
   rownames(columnas) <- NULL
   rownames(sql) <- NULL
-  list(
-    columnas = columnas,
-    sql = sql,
-    cobertura = .cobertura_dbi_vacia(),
-    literales = unlist(lapply(resultados, `[[`, "literales"), use.names = TRUE),
-    meta = list(
+  filas_obtenidas_muestra <- NA_real_
+  if (identical(universo, "muestra_motor")) {
+    resultados_denominador <- list()
+    for (familia_nombre in c("conteos", "basicos", "desvio")) {
+      familia <- agregados[[familia_nombre]]
+      if (is.list(familia)) {
+        resultados_denominador <- c(
+          resultados_denominador, unname(familia)
+        )
+      }
+    }
+    denominadores <- unlist(lapply(resultados_denominador, function(resultado) {
+      medidos <- if (!is.null(resultado$metadatos)) {
+        list(resultado)
+      } else {
+        Filter(Negate(is.null), resultado[c(
+          "validos", "basicos", "desvio"
+        )])
+      }
+      vapply(medidos, function(medido) {
+        if (is.null(medido$metadatos)) return(NA_real_)
+        .numero_dbi(medido$metadatos$n_total_consulta)
+      }, numeric(1L))
+    }), use.names = FALSE)
+    denominadores <- denominadores[is.finite(denominadores)]
+    if (length(denominadores)) filas_obtenidas_muestra <- denominadores[[1L]]
+  }
+  meta <- list(
        universo = universo,
        estrategia_mediana = estrategia_mediana,
+       filas_obtenidas_muestra = filas_obtenidas_muestra,
        alcance = if (identical(universo, "muestra_motor")) {
          "tabla_muestreada"
        } else {
@@ -7008,11 +7484,8 @@
       ),
       # Un consumidor automatico lee el objeto, no la vineta. Que cada metrica
       # muestreada saque su propia muestra estaba documentado en prosa, y por
-      # coherencia con el invariante tiene que estar donde se lee: dos metricas
-      # de la misma columna en un universo muestreado describen conjuntos de
-      # filas del mismo tamano y no los mismos. Solo aparece cuando corresponde;
-      # en los universos que miden sobre la tabla entera no hay nada que advertir.
-      # La primera version de este campo decia que cada metrica saca su propia
+      # coherencia con el invariante tiene que estar donde se lee. La primera
+      # version de este campo decia que cada metrica saca su propia
       # muestra, y con los agregados consolidados eso dejo de ser cierto: las
       # columnas que comparten una consulta comparten tambien las filas
       # muestreadas. La consolidacion mejora la coherencia dentro del lote -las
@@ -7027,12 +7500,18 @@
           "que comparten una consulta consolidada -ver `id_muestra`, `lote` y",
           "`columnas_compartidas` en `sql`- se miden sobre las MISMAS filas, asi",
           "que sus metricas son comparables entre si. Dos consultas distintas",
-          "-otro `id_muestra`, u otra clase como moda o mediana- sacan muestras",
-          "distintas del mismo tamano, asi que comparar entre ellas es comparar",
-          "conjuntos de filas que no coinciden. Es inherente a muestrear en el",
-          "motor sin materializar una tabla intermedia, y perfilar es solo",
-          "lectura. Para que todo el perfil hable de las mismas filas, el camino",
-          "es `perfil_muestra`"
+          "-otro `id_muestra`, u otra clase como moda o mediana- toman muestras",
+          "distintas e independientes: no se garantiza que tengan el mismo",
+          "numero de filas",
+          "ni que coincidan sus filas o su distribucion. `TABLESAMPLE SYSTEM`",
+          "selecciona bloques o paginas y puede devolver un tamano variable,",
+          "como los 15.708 a 20.000 medidos; `random_limit`/`NEWID()` decide",
+          "por fila, ordena la tabla y puede devolver el tamano pedido a un costo",
+          "mucho mayor. Por eso los resultados de consultas distintas no deben",
+          "compararse como si fueran replicas del mismo muestreo. Para hablar de",
+          "las mismas filas, se debe usar la misma consulta consolidada o",
+          "`perfil_muestra`; el perfilado es solo lectura y no materializa una",
+          "tabla intermedia."
         )
       } else {
         NA_character_
@@ -7052,6 +7531,15 @@
       # posterior por `pg_stat_statements`.
       estimacion_derrame = agregados$estimacion_derrame
     )
+  if (!identical(universo, "muestra_motor")) {
+    meta$filas_obtenidas_muestra <- NULL
+  }
+  list(
+    columnas = columnas,
+    sql = sql,
+    cobertura = .cobertura_dbi_vacia(),
+    literales = unlist(lapply(resultados, `[[`, "literales"), use.names = TRUE),
+    meta = meta
   )
 }
 
@@ -8078,6 +8566,13 @@ plan_perfilado_dbi <- function(conexion, tabla,
       }
       conteo_muestreo <- identical(
         preparacion$muestreo$candidato$tipo, "tablesample"
+      ) || (
+        identical(preparacion$muestreo$candidato$tipo, "aleatorio") &&
+          any(vapply(
+            preparacion$muestreo$candidato$funciones,
+            function(funcion) identical(funcion$nombre, "newid"),
+            logical(1L)
+          ))
       )
       as.integer(sondas_muestreo) + as.integer(conteo_muestreo)
     } else {
@@ -9560,6 +10055,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
   mediana_consolidada <- NULL
   mediana_escalar_resolucion <- NULL
   mediana_escalar <- NULL
+  mediana_cte_ventana_resolucion <- NULL
+  mediana_cte_ventana <- NULL
+  mediana_cte_ventana_motivo <- NA_character_
   if ("moda" %in% metricas && isTRUE(incluir_valores)) {
     moda_guardian_resolucion <- .sondar_moda_guardian_dbi(
       conexion, resolucion$dialecto, presupuesto
@@ -9599,6 +10097,20 @@ print.plan_perfilado_dbi <- function(x, ...) {
       mediana_escalar <- mediana_escalar_resolucion$candidato
     }
   }
+  if (identical(universo, "muestra_motor") && "mediana" %in% metricas &&
+      isTRUE(incluir_valores) && any(es_numerico) &&
+      is.null(mediana_consolidada) && is.null(mediana_escalar)) {
+    mediana_cte_ventana_resolucion <- .sondar_mediana_cte_ventana_dbi(
+      conexion, presupuesto
+    )
+    mediana_cte_ventana_motivo <- mediana_cte_ventana_resolucion$motivo
+    if (isTRUE(mediana_cte_ventana_resolucion$disponible)) {
+      mediana_cte_ventana <- mediana_cte_ventana_resolucion$candidato
+      mediana_cte_ventana$nombre <- .nombre_mediana_cte_muestra_dbi(
+        muestreo
+      )
+    }
+  }
   if ("mediana" %in% metricas && isTRUE(incluir_valores) &&
       any(es_numerico) && identical(estrategia_mediana, "aproximada_motor") &&
       is.null(mediana_consolidada) && is.null(mediana_escalar)) {
@@ -9624,7 +10136,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
     isTRUE(contar_muestreo) && identical(universo, "muestra_motor") &&
       !is.null(muestreo) &&
       !is.null(muestreo$candidato) &&
-      identical(muestreo$candidato$tipo, "tablesample")
+      (identical(muestreo$candidato$tipo, "tablesample") ||
+       (identical(muestreo$candidato$tipo, "aleatorio") &&
+        length(muestreo$candidato$funciones) == 1L &&
+        identical(muestreo$candidato$funciones[[1L]]$nombre, "newid")))
   )
   conteo <- NULL
   n_total <- NA_real_
@@ -9686,6 +10201,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
     mediana_consolidada_resolucion = mediana_consolidada_resolucion,
     mediana_escalar = mediana_escalar,
     mediana_escalar_resolucion = mediana_escalar_resolucion,
+    mediana_cte_ventana = mediana_cte_ventana,
+    mediana_cte_ventana_resolucion = mediana_cte_ventana_resolucion,
+    mediana_cte_ventana_motivo = mediana_cte_ventana_motivo,
     politica_costo = politica_costo,
     estrategia_distintos = estrategia_distintos,
     fuentes_cardinalidad_costo = fuentes_cardinalidad_costo,
@@ -9762,15 +10280,38 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Cada registro publica `alcance`, `universo`, `tamano_muestra`, `fraccion`,
 #' `metodo` y `error_esperado`. En `resumen_tabla$meta$muestreo`,
 #' `tamano_muestra` conserva el nombre historico y declara el tamano efectivo
-#' solicitado a la consulta; `filas_solicitadas` declara el pedido original y
-#' `filas_obtenidas` las filas que devolvio la lectura del bloque
+#' solicitado a la consulta; `filas_solicitadas` y `filas_pedidas` declaran el
+#' pedido original y `filas_obtenidas` las filas que devolvio la lectura del bloque
 #' `perfil_muestra`. Esta ultima puede ser `NA` si el bloque no se solicito o
 #' fallo antes de leer.
+#' En `muestra_motor`, todas las metricas SQL salvo `n` describen la relacion
+#' muestreada; `n` es el total de la tabla completa y esta marcado con
+#' `alcance = "tabla_completa"`, `metodo = "conteo_universo"` y
+#' `error_esperado = "no_aplica"`. Los conteos `n_validos`, `n_faltantes`,
+#' `prop_faltantes`, `n_distintos`, `tasa_distintos`, `n_ceros`,
+#' `n_negativos` y `frecuencia_moda` son observaciones de esa muestra, no
+#' extrapolaciones al universo. Sus motivos declaran la escala local y el
+#' denominador `n_total_consulta` cuando corresponde.
+#' `TABLESAMPLE SYSTEM` es la fuente preferida cuando el adaptador la declara y
+#' la sonda la acepta; publica `metodo_muestreo = "tablesample_system"`,
+#' `sesgo_muestreo = "por_bloques"` y el motivo estable
+#' `sesgo_muestreo:tablesample_system_por_bloques`. Si se usa el fallback
+#' `random_limit` con `NEWID()`, la metadata publica
+#' `metodo_muestreo = "random_limit"`, `funcion_muestreo = "newid"`,
+#' `sesgo_muestreo = "por_fila"` y
+#' `sesgo_muestreo:random_limit_newid_por_fila`. Ese fallback se acepta solo
+#' si la politica de costo conserva `n_total`, la proyeccion, la tasa y sus
+#' tres umbrales; si no, la mediana queda `no_disponible` con
+#' `capacidad_no_aceptada:newid_costo_excede_presupuesto` aunque se silencien
+#' los avisos.
 #' Si la consulta de la muestra devuelve cero filas, no hay base para medir las
 #' metricas de alcance `muestra`: se publican con valor `NA`, estado
-#' `no_disponible` y un motivo que nombra la muestra vacia. Esto no permite
-#' concluir que la columna este vacia, por lo que no se publica cero ni se
-#' dispara la cascada `sin_valores`. `n` conserva el conteo de la tabla completa.
+#' `no_disponible` y el motivo estable
+#' `muestra_vacia:tablesample_system_sin_filas`. Esto no permite concluir que
+#' la columna este vacia, por lo que no se publica cero ni se dispara la
+#' cascada `sin_valores`. Una muestra no vacia sin valores validos usa
+#' `muestra_inestable:sin_valores_validos`; una capacidad no aceptada usa
+#' `capacidad_no_aceptada:...`. `n` conserva el conteo de la tabla completa.
 #'
 #' En una muestra, `error_esperado` vale `no_estimado` para metricas cuyo error
 #' podria calcularse bajo un plan probabilistico pero no se calculo,
@@ -9811,6 +10352,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' hubo lectura instantanea. La cobertura agrega una entrada concreta solo si
 #' `n_validos` y `n_distintos` son exactos, incoherentes y provienen de grupos
 #' distintos; su motivo conserva ambas sentencias.
+#' La mediana muestral que no tiene una forma consolidada o escalar usa una
+#' sola CTE con `COUNT(*) OVER ()`, `ROW_NUMBER() OVER` y el promedio de las
+#' posiciones centrales. La sonda barata repite esa construccion sobre
+#' `VALUES (1.0), (2.0), (3.0), (4.0)`, exige `2.5` y un control negativo que
+#' falle; no se sondea la tabla de produccion. Si esa capacidad falla, la
+#' mediana se publica como `no_disponible` con
+#' `capacidad_no_aceptada:sonda_mediana_cte_ventana`, nunca como
+#' `dos_consultas` bajo `muestra_motor`.
 #'
 #' Las cotas de error no documentadas de una aproximacion nativa quedan como
 #' `"desconocido"`. Una aproximacion solo se consolida cuando entrega una
@@ -9831,9 +10380,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Para los motores del dialecto `limit`, la mediana exacta usa una sola
 #' sentencia: el `COUNT` queda como subconsulta escalar de la consulta que
 #' ordena y recorta. La forma se sondea antes de usarla; en SQLite y
-#' PostgreSQL se usan `%` y `/` con division entera. Los dialectos que no
-#' declaran esa forma conservan las dos consultas y lo publican en el metodo
-#' de `resumen_tabla$sql`; `PERCENTILE_CONT` no cambia.
+#' PostgreSQL se usan `%` y `/` con division entera. Bajo
+#' `muestra_motor`, los dialectos sin una forma escalar ni consolidada usan la
+#' CTE de ventanas descrita arriba y no degradan a `dos_consultas`. En
+#' `tabla_completa` se conserva el camino previo, incluido `dos_consultas` si
+#' es el que resuelve ese dialecto; `PERCENTILE_CONT` no cambia.
 #' La mediana consolidada tambien se sondea antes de usarla; en SQL Server
 #' requiere nivel de compatibilidad >= 110. Se sondea; estos son los motivos
 #' conocidos de que no se active: la funcion no esta disponible o el motor
@@ -10325,6 +10876,44 @@ perfilar_dbi <- function(conexion, tabla,
   } else {
     .publicar_muestreo_dbi(preparacion$muestreo, n_total = preparacion$n_total)
   }
+  # `NEWID()` es un respaldo de la fuente muestreada, no una puerta para
+  # ejecutar primero un ordenamiento completo y decidir despues si costaba
+  # demasiado. `n_total` se conto arriba para los caminos aleatorios; la
+  # politica queda en el presupuesto para que estrategia, fila y metadata
+  # compartan exactamente la misma decision.
+  if (identical(preparacion$universo, "muestra_motor") &&
+      !is.null(preparacion$muestreo) &&
+      identical(preparacion$muestreo$candidato$nombre, "random_limit") &&
+      length(preparacion$muestreo$candidato$funciones) == 1L &&
+      identical(preparacion$muestreo$candidato$funciones[[1L]]$nombre, "newid") &&
+      "mediana" %in% preparacion$metricas_ejecucion &&
+      isTRUE(incluir_valores) && any(preparacion$es_numerico)) {
+    pendientes_newid <- sum(preparacion$es_numerico)
+    guardia_newid <- .evaluar_guardia_newid_dbi(
+      preparacion$n_total, preparacion$muestra_motor, pendientes_newid
+    )
+    presupuesto$guardia_newid <- guardia_newid
+    if (!isTRUE(guardia_newid$aceptado)) {
+      if (isTRUE(avisar_costo_mediana)) {
+        cli::cli_alert_warning(paste0(
+          "Mediana muestreada no disponible: ", guardia_newid$motivo,
+          ". Proyeccion NEWID: ",
+          if (is.finite(guardia_newid$proyeccion_newid_ms)) {
+            formatC(guardia_newid$proyeccion_newid_ms,
+                    format = "f", digits = 1)
+          } else "sin dato",
+          " ms; n_total = ", .entero_sql_dbi(guardia_newid$n_total),
+          ", fraccion = ", formatC(guardia_newid$fraccion,
+                                    format = "f", digits = 3), "."
+        ))
+      }
+      preparacion$muestreo$disponible <- FALSE
+      preparacion$muestreo$motivo <- guardia_newid$motivo
+      muestreo_publico <- .publicar_muestreo_dbi(
+        preparacion$muestreo, n_total = preparacion$n_total
+      )
+    }
+  }
   tabla_metricas_sql <- preparacion$tabla_sql
   if (identical(preparacion$universo, "muestra_motor") &&
       !is.null(preparacion$muestreo) &&
@@ -10362,6 +10951,18 @@ perfilar_dbi <- function(conexion, tabla,
       )
     }
   }
+  if (identical(preparacion$universo, "muestra_motor") &&
+      !is.null(preparacion$muestreo) &&
+      !isTRUE(preparacion$muestreo$disponible)) {
+    # Mantener una relacion vacia permite que el resumen conserve su forma y
+    # el conteo del universo, pero evita que un rechazo de capacidad vuelva a
+    # caer accidentalmente sobre `tabla_sql` completa.
+    tabla_metricas_sql <- paste0(
+      "(SELECT ", paste(preparacion$campos_sql, collapse = ", "),
+      " FROM ", preparacion$tabla_sql, " WHERE 1 = 0)",
+      preparacion$dialecto$alias_tabla("lupa_muestra")
+    )
+  }
 
   campos_todos <- unique(c(preparacion$campos, preparacion$esquema$ilegibles))
   trazador <- .trazador_tiempos_dbi(preparacion$instrumentar)
@@ -10391,6 +10992,8 @@ perfilar_dbi <- function(conexion, tabla,
     moda_guardian = preparacion$moda_guardian,
     mediana_consolidada = preparacion$mediana_consolidada,
     mediana_escalar = preparacion$mediana_escalar,
+    mediana_cte_ventana = preparacion$mediana_cte_ventana,
+    mediana_cte_ventana_motivo = preparacion$mediana_cte_ventana_motivo,
     fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo,
     estrategia_distintos = preparacion$estrategia_distintos,
     politica_costo = preparacion$politica_costo
@@ -10543,7 +11146,19 @@ perfilar_dbi <- function(conexion, tabla,
     )
   )
   if (identical(preparacion$universo, "muestra_motor")) {
+    if (!is.null(muestreo_publico) &&
+        length(resumen$meta$filas_obtenidas_muestra) == 1L &&
+        is.finite(resumen$meta$filas_obtenidas_muestra) &&
+        (is.null(muestreo_publico$filas_obtenidas) ||
+         is.na(muestreo_publico$filas_obtenidas))) {
+      muestreo_publico$filas_obtenidas <-
+        resumen$meta$filas_obtenidas_muestra
+    }
     resumen$meta$muestreo <- muestreo_publico
+    if (!is.null(presupuesto$guardia_newid) &&
+        !is.null(resumen$meta$muestreo)) {
+      resumen$meta$muestreo$politica_newid <- presupuesto$guardia_newid
+    }
     if (is.null(fuente_muestreada)) {
       cobertura <- rbind(cobertura, .registro_cobertura_dbi(
         "resumen_tabla", .texto_tabla_dbi(tabla), "no_disponible",
@@ -10634,7 +11249,19 @@ perfilar_dbi <- function(conexion, tabla,
     )
   }
   if (identical(preparacion$universo, "muestra_motor")) {
+    if (!is.null(muestreo_publico) &&
+        length(resumen$meta$filas_obtenidas_muestra) == 1L &&
+        is.finite(resumen$meta$filas_obtenidas_muestra) &&
+        (is.null(muestreo_publico$filas_obtenidas) ||
+         is.na(muestreo_publico$filas_obtenidas))) {
+      muestreo_publico$filas_obtenidas <-
+        resumen$meta$filas_obtenidas_muestra
+    }
     resumen$meta$muestreo <- muestreo_publico
+    if (!is.null(presupuesto$guardia_newid) &&
+        !is.null(resumen$meta$muestreo)) {
+      resumen$meta$muestreo$politica_newid <- presupuesto$guardia_newid
+    }
   }
   cobertura <- rbind(cobertura, bloque$cobertura)
   resumen$tiempos <- .resumen_tiempos_dbi(trazador)

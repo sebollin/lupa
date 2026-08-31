@@ -312,15 +312,38 @@ quedan en \code{no_disponible}: no se sustituyen por resultados de la tabla comp
 Cada registro publica \code{alcance}, \code{universo}, \code{tamano_muestra}, \code{fraccion},
 \code{metodo} y \code{error_esperado}. En \code{resumen_tabla$meta$muestreo},
 \code{tamano_muestra} conserva el nombre historico y declara el tamano efectivo
-solicitado a la consulta; \code{filas_solicitadas} declara el pedido original y
-\code{filas_obtenidas} las filas que devolvio la lectura del bloque
+solicitado a la consulta; \code{filas_solicitadas} y \code{filas_pedidas} declaran el
+pedido original y \code{filas_obtenidas} las filas que devolvio la lectura del bloque
 \code{perfil_muestra}. Esta ultima puede ser \code{NA} si el bloque no se solicito o
 fallo antes de leer.
+En \code{muestra_motor}, todas las metricas SQL salvo \code{n} describen la relacion
+muestreada; \code{n} es el total de la tabla completa y esta marcado con
+\code{alcance = "tabla_completa"}, \code{metodo = "conteo_universo"} y
+\code{error_esperado = "no_aplica"}. Los conteos \code{n_validos}, \code{n_faltantes},
+\code{prop_faltantes}, \code{n_distintos}, \code{tasa_distintos}, \code{n_ceros},
+\code{n_negativos} y \code{frecuencia_moda} son observaciones de esa muestra, no
+extrapolaciones al universo. Sus motivos declaran la escala local y el
+denominador \code{n_total_consulta} cuando corresponde.
+\verb{TABLESAMPLE SYSTEM} es la fuente preferida cuando el adaptador la declara y
+la sonda la acepta; publica \code{metodo_muestreo = "tablesample_system"},
+\code{sesgo_muestreo = "por_bloques"} y el motivo estable
+\code{sesgo_muestreo:tablesample_system_por_bloques}. Si se usa el fallback
+\code{random_limit} con \code{NEWID()}, la metadata publica
+\code{metodo_muestreo = "random_limit"}, \code{funcion_muestreo = "newid"},
+\code{sesgo_muestreo = "por_fila"} y
+\code{sesgo_muestreo:random_limit_newid_por_fila}. Ese fallback se acepta solo
+si la politica de costo conserva \code{n_total}, la proyeccion, la tasa y sus
+tres umbrales; si no, la mediana queda \code{no_disponible} con
+\code{capacidad_no_aceptada:newid_costo_excede_presupuesto} aunque se silencien
+los avisos.
 Si la consulta de la muestra devuelve cero filas, no hay base para medir las
 metricas de alcance \code{muestra}: se publican con valor \code{NA}, estado
-\code{no_disponible} y un motivo que nombra la muestra vacia. Esto no permite
-concluir que la columna este vacia, por lo que no se publica cero ni se
-dispara la cascada \code{sin_valores}. \code{n} conserva el conteo de la tabla completa.
+\code{no_disponible} y el motivo estable
+\code{muestra_vacia:tablesample_system_sin_filas}. Esto no permite concluir que
+la columna este vacia, por lo que no se publica cero ni se dispara la
+cascada \code{sin_valores}. Una muestra no vacia sin valores validos usa
+\code{muestra_inestable:sin_valores_validos}; una capacidad no aceptada usa
+\code{capacidad_no_aceptada:...}. \code{n} conserva el conteo de la tabla completa.
 
 En una muestra, \code{error_esperado} vale \code{no_estimado} para metricas cuyo error
 podria calcularse bajo un plan probabilistico pero no se calculo,
@@ -360,6 +383,14 @@ el motivo de la métrica lo declara.
 hubo lectura instantanea. La cobertura agrega una entrada concreta solo si
 \code{n_validos} y \code{n_distintos} son exactos, incoherentes y provienen de grupos
 distintos; su motivo conserva ambas sentencias.
+La mediana muestral que no tiene una forma consolidada o escalar usa una
+sola CTE con \verb{COUNT(*) OVER ()}, \verb{ROW_NUMBER() OVER} y el promedio de las
+posiciones centrales. La sonda barata repite esa construccion sobre
+\verb{VALUES (1.0), (2.0), (3.0), (4.0)}, exige \code{2.5} y un control negativo que
+falle; no se sondea la tabla de produccion. Si esa capacidad falla, la
+mediana se publica como \code{no_disponible} con
+\code{capacidad_no_aceptada:sonda_mediana_cte_ventana}, nunca como
+\code{dos_consultas} bajo \code{muestra_motor}.
 
 Las cotas de error no documentadas de una aproximacion nativa quedan como
 \code{"desconocido"}. Una aproximacion solo se consolida cuando entrega una
@@ -382,9 +413,11 @@ caja, porque hay motores que los pliegan a mayúsculas.
 Para los motores del dialecto \code{limit}, la mediana exacta usa una sola
 sentencia: el \code{COUNT} queda como subconsulta escalar de la consulta que
 ordena y recorta. La forma se sondea antes de usarla; en SQLite y
-PostgreSQL se usan \verb{\%} y \code{/} con division entera. Los dialectos que no
-declaran esa forma conservan las dos consultas y lo publican en el metodo
-de \code{resumen_tabla$sql}; \code{PERCENTILE_CONT} no cambia.
+PostgreSQL se usan \verb{\%} y \code{/} con division entera. Bajo
+\code{muestra_motor}, los dialectos sin una forma escalar ni consolidada usan la
+CTE de ventanas descrita arriba y no degradan a \code{dos_consultas}. En
+\code{tabla_completa} se conserva el camino previo, incluido \code{dos_consultas} si
+es el que resuelve ese dialecto; \code{PERCENTILE_CONT} no cambia.
 La mediana consolidada tambien se sondea antes de usarla; en SQL Server
 requiere nivel de compatibilidad >= 110. Se sondea; estos son los motivos
 conocidos de que no se active: la funcion no esta disponible o el motor

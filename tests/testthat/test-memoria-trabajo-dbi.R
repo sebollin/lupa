@@ -155,6 +155,9 @@ test_that("el registro coincide con los metodos publicados, sin clasificar por m
     "ventana_agregado" = "creciente",
     "consulta_actual_sin_guardian" = "creciente",
     "subconsulta_escalar" = "creciente",
+    "cte_ventana" = "creciente",
+    "cte_ventana_tablesample_system" = "creciente",
+    "cte_ventana_newid" = "creciente",
     "dos_consultas" = "creciente",
     "PERCENTILE_CONT" = "creciente",
     "PERCENTILE_CONT_OVER" = "creciente",
@@ -197,6 +200,25 @@ test_that("el registro coincide con los metodos publicados, sin clasificar por m
   )
   expect_identical(muestra$memoria_trabajo, "acotado")
   expect_identical(saturada$memoria_trabajo, "creciente")
+
+  for (metodo in c(
+    "cte_ventana", "cte_ventana_tablesample_system", "cte_ventana_newid"
+  )) {
+    muestra_cte <- lupa:::.registro_sql_dbi(
+      "x", "metrica", "calculado", NA_character_, NA_character_,
+      metadatos = lupa:::.metadatos_sql_dbi(
+        alcance = "muestra", fraccion = 0.2, metodo = metodo
+      )
+    )
+    saturada_cte <- lupa:::.registro_sql_dbi(
+      "x", "metrica", "calculado", NA_character_, NA_character_,
+      metadatos = lupa:::.metadatos_sql_dbi(
+        alcance = "muestra", fraccion = 1, metodo = metodo
+      )
+    )
+    expect_identical(muestra_cte$memoria_trabajo, "acotado")
+    expect_identical(saturada_cte$memoria_trabajo, "creciente")
+  }
 })
 
 test_that("la columna nueva es unica, queda al final y no entra al plan", {
