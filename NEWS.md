@@ -1,5 +1,19 @@
 # lupa 0.1.0
 
+## Señal de concentración modal
+
+- `perfilar()` agrega `valor_concentrado`, la señal M2 seleccionada por la
+  medición de concentración. Sólo considera columnas numéricas con al menos
+  20 valores válidos y 10 valores distintos; emite severidad `sospechoso`
+  cuando la moda tiene una frecuencia al menos cinco veces mayor que la del
+  segundo valor más frecuente y representa al menos 0,15 de los válidos.
+  La evidencia publica el valor, las dos frecuencias, el cociente y la
+  fracción.
+- La elegibilidad no agrega ruido a `cobertura_diagnosticos`: una columna no
+  elegible simplemente queda fuera de esta señal. La documentación declara
+  sus puntos ciegos medidos: no detecta concentraciones menores al 15 % y los
+  empates naturales en enteros pequeños pueden dejar corto el cociente.
+
 ## Los bytes WKB basura no llegan a GDAL
 
 - Las columnas `raw` que no tienen un encabezado WKB plausible ya no se envían
@@ -122,7 +136,7 @@
 - Los dos README ahora empiezan por el problema que resuelve `lupa`, los tipos
   de hallazgo que permiten ver más que un `summary()`, la cobertura medida de
   AGESIC, CEPAL e ISO 25012, los siete motores comprobados contra un motor real
-  y el recorrido mínimo para empezar. La documentación enumera los 56 nombres
+  y el recorrido mínimo para empezar. La documentación enumera los 57 nombres
   canónicos de `tipo_hallazgo`.
 - Los argumentos de `medir()`, `evaluar()` y `cobertura_analisis()` indican en
   qué posición se recibe cada objeto y distinguen el perfil descriptivo de

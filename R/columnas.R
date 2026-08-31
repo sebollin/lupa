@@ -1425,6 +1425,7 @@
   n_codificacion_invalida <- length(preparacion_texto$posiciones)
   n_validos <- n_aplicables - n_faltantes - n_codificacion_invalida
   n_distintos <- .n_distintos_columna(x_identidad)
+  valor_concentrado <- .estadisticos_valor_concentrado(x_identidad)
   vocabulario_texto <- if (
     (is.character(x_analisis) || is.factor(x_analisis)) &&
       n > 1L && is.finite(n_distintos) &&
@@ -1626,6 +1627,7 @@
     diagnostico_texto = diagnostico_texto,
     numeros_texto = numeros_texto,
     multivaluados = multivaluados,
+    valor_concentrado = valor_concentrado,
     geometria = geometria,
     # La mascara viaja con el resultado para que la trazabilidad pueda nombrar
     # las filas del hallazgo de valor fuera de aplicabilidad.

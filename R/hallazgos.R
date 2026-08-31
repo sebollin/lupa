@@ -2176,6 +2176,9 @@
     casi_clave = if (!is.null(resultado$casi_clave)) {
       as.numeric(resultado$casi_clave$n_filas_en_colision)
     } else NA_real_,
+    valor_concentrado = if (!is.null(resultado$valor_concentrado)) {
+      as.numeric(resultado$valor_concentrado$frecuencia_moda)
+    } else NA_real_,
     faltantes = as.numeric(fila$n_faltantes + fila$n_faltantes_disfrazados),
     valor_fuera_de_aplicabilidad =
       as.numeric(fila$n_presentes_fuera_de_aplicabilidad),
@@ -2481,6 +2484,17 @@
       which(!is.na(x) & as.character(x) == as.character(fila$moda[[1L]])),
       error = function(e) NULL
     ),
+    valor_concentrado = {
+      concentracion <- resultado$valor_concentrado
+      if (!is.list(concentracion)) {
+        NULL
+      } else {
+        tryCatch(
+          which(!is.na(x) & x == concentracion$valor),
+          error = function(e) NULL
+        )
+      }
+    },
     casi_clave = if (!is.null(resultado$casi_clave)) {
       resultado$casi_clave$indices
     } else NULL,
@@ -3310,6 +3324,33 @@
           "Separar los componentes de la columna o declarar una representaci\u00f3n textual antes de informar el valor."
         )
       }
+    }
+
+    concentracion <- resultado$valor_concentrado
+    if (is.list(concentracion) && isTRUE(concentracion$dispara)) {
+      agregar(.nuevo_hallazgo(
+        nombre, "valor_concentrado", "sospechoso",
+        paste(
+          "Un valor modal concentra una fraccion inusualmente alta de la",
+          "columna. Es una sospecha para revisar, no una acusacion de que el",
+          "valor sea incorrecto."
+        ),
+        paste0(
+          "Valor modal: ", .texto_valor(concentracion$valor),
+          "; frecuencia de la moda: ", concentracion$frecuencia_moda,
+          "; frecuencia del segundo valor: ",
+          concentracion$frecuencia_segundo,
+          "; cociente moda/segundo: ",
+          sprintf("%.3f", concentracion$cociente),
+          "; fraccion de la moda sobre validos: ",
+          sprintf("%.3f", concentracion$fraccion)
+        ),
+        paste(
+          "Revisar el valor modal y el proceso que origina la columna;",
+          "confirmar si la concentracion es esperable o si hay un relleno o",
+          "una codificacion repetida."
+        )
+      ))
     }
 
     casi_clave <- resultado$casi_clave

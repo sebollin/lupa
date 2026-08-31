@@ -49,6 +49,7 @@ Entre las salidas de esa corrida aparecen:
 | Mayúsculas inconsistentes | `mayusculas_inconsistentes` | `"web"; "Web"` |
 | El tipo declarado y el inferido no coinciden | `tipo_declarado_distinto` | `Declarado: texto; inferido: fecha` |
 | Una columna constante | `constante` | `Valor: principal; frecuencia: 13` |
+| Un valor modal concentrado | `valor_concentrado` | `Valor modal: 1000; frecuencia de la moda: 25; frecuencia del segundo valor: 1; cociente moda/segundo: 25.000; fraccion de la moda sobre validos: 0.250` |
 | Filas duplicadas exactas | `filas_duplicadas` | `2 filas en grupos duplicados (1 excedentes)` |
 | Columnas repetidas | `columnas_duplicadas` | `id_registro = id_copia` |
 
@@ -60,7 +61,7 @@ estructural. Sobre un banco de referencia con defectos conocidos recuperó 9 de
 9 defectos plantados; sobre 43 tablas limpias produjo 0 hallazgos de severidad
 error.
 
-El vocabulario canónico actual contiene 56 nombres de `tipo_hallazgo`. Los
+El vocabulario canónico actual contiene 57 nombres de `tipo_hallazgo`. Los
 nombres están en español porque forman parte de la API pública:
 
 ```text
@@ -90,10 +91,27 @@ regla_silencia_ausencia          relacion_aritmetica_columnas
 relacion_orden_columnas          separadores_en_campo
 tipo_compuesto_no_analizado      tipo_declarado_distinto
 tipos_geometria_mixtos           unidades_mixtas
-valor_fuera_de_aplicabilidad     valores_no_finitos
+valor_concentrado                valor_fuera_de_aplicabilidad
+valores_no_finitos
 variantes_equifrecuentes_vocabulario
 zona_horaria_fecha_hora
 ```
+
+La señal `valor_concentrado` implementa la regla M2 medida. Considera sólo
+columnas numéricas con al menos 20 valores válidos no faltantes y al menos 10
+valores distintos. Emite un hallazgo `sospechoso` cuando la frecuencia de la
+moda es al menos cinco veces la del segundo valor más frecuente y el valor
+modal representa al menos 0,15 de los valores válidos. La evidencia publica el
+valor modal, ambas frecuencias, el cociente y la fracción. Un valor legítimo
+puede dominar, por eso nunca es un `error`. Las columnas no elegibles no
+reciben una fila de `cobertura_diagnosticos`: las distribuciones categóricas
+quedan fuera del alcance previsto de la señal.
+
+Los puntos ciegos medidos son parte de este contrato: no detecta
+concentraciones menores al 15 %, y en columnas enteras pequeñas los empates
+naturales pueden dejar el cociente por debajo de cinco. La medición encontró
+cero falsos positivos en 114 columnas elegibles limpias, con un margen de 2,2
+veces.
 
 ## Qué NO hace `lupa`
 

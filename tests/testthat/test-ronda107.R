@@ -129,6 +129,9 @@ test_that("31 tablas limpias tienen solo afirmaciones verdaderas", {
   hallazgos$tabla <- nombres
 
   expect_false(any(as.character(hallazgos$severidad) == "error"))
+  expect_false(any(
+    as.character(hallazgos$tipo_hallazgo) == "valor_concentrado"
+  ))
   observados <- hallazgos[as.character(hallazgos$severidad) != "ok", ]
   # Las "senales para revisar" del README son exactamente estas.
   expect_equal(nrow(observados), 8L)

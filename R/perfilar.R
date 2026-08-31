@@ -722,6 +722,21 @@
 #' las filas de la tabla, pero los estadísticos por valor quedan en `NA` y un
 #' hallazgo explica que deben separarse en columnas con semántica explícita.
 #'
+#' Una columna numérica emite `valor_concentrado` como señal `sospechoso` cuando
+#' tiene al menos 20 valores válidos y 10 valores distintos, y su moda tiene
+#' una frecuencia al menos cinco veces mayor que la del segundo valor más
+#' frecuente y representa al menos 0,15 de los valores válidos. La elegibilidad
+#' es parte de la señal: una columna con menos categorías no recibe una fila de
+#' `cobertura_diagnosticos`, porque allí la moda es la distribución. La
+#' evidencia publica el valor modal, ambas frecuencias, el cociente y la
+#' fracción. M2 fue la regla seleccionada en
+#' `.trabajo-agente/medicion-concentracion.md`: produjo cero falsos positivos en
+#' 114 columnas limpias, con un margen medido de 2,2 veces. Es una sospecha, no
+#' una acusación: un valor legítimo puede dominar. Sus puntos ciegos medidos
+#' son las concentraciones por debajo de 15 % y los empates naturales en
+#' columnas enteras pequeñas, donde el cociente puede quedar por debajo de
+#' cinco.
+#'
 #' La ley de Benford se evalúa sólo en columnas numéricas con al menos 50
 #' valores finitos, para no agregar cobertura a columnas que ni siquiera son
 #' candidatas. Antes de comparar exige variación, que la columna no parezca un

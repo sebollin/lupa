@@ -48,6 +48,7 @@ Among the outputs of that run are:
 | Inconsistent capitalization | `mayusculas_inconsistentes` | `"web"; "Web"` |
 | Declared and inferred types disagree | `tipo_declarado_distinto` | `Declarado: texto; inferido: fecha` |
 | A constant column | `constante` | `Valor: principal; frecuencia: 13` |
+| A concentrated modal value | `valor_concentrado` | `Valor modal: 1000; frecuencia de la moda: 25; frecuencia del segundo valor: 1; cociente moda/segundo: 25.000; fraccion de la moda sobre validos: 0.250` |
 | Exact duplicate rows | `filas_duplicadas` | `2 filas en grupos duplicados (1 excedentes)` |
 | Repeated columns | `columnas_duplicadas` | `id_registro = id_copia` |
 
@@ -58,7 +59,7 @@ text, near-keys, constants and structural absence. On a reference bank with
 known defects it recovered 9 of 9 planted defects; on 43 clean tables it
 produced 0 error-severity findings.
 
-The current canonical vocabulary has 56 `tipo_hallazgo` names. The names are
+The current canonical vocabulary has 57 `tipo_hallazgo` names. The names are
 Spanish because they are part of the public API:
 
 ```text
@@ -88,10 +89,26 @@ regla_silencia_ausencia          relacion_aritmetica_columnas
 relacion_orden_columnas          separadores_en_campo
 tipo_compuesto_no_analizado      tipo_declarado_distinto
 tipos_geometria_mixtos           unidades_mixtas
-valor_fuera_de_aplicabilidad     valores_no_finitos
+valor_concentrado                valor_fuera_de_aplicabilidad
+valores_no_finitos
 variantes_equifrecuentes_vocabulario
 zona_horaria_fecha_hora
 ```
+
+The `valor_concentrado` signal implements the measured M2 rule. It considers
+only numeric columns with at least 20 non-missing valid values and at least 10
+distinct values. It emits a `sospechoso` finding when the modal frequency is
+at least five times the second-highest frequency and the modal value accounts
+for at least 0.15 of valid values. Its evidence reports the modal value, both
+frequencies, the ratio, and the fraction. A legitimate value can dominate, so
+this is never an `error`. Non-eligible columns do not receive a
+`cobertura_diagnosticos` row: categorical distributions are outside the
+signal's intended scope.
+
+The measured blind spots are part of this contract: concentrations below 15%
+are not detected, and natural ties in small integer columns can keep the ratio
+below five. The measurement found zero false positives in 114 clean eligible
+columns, with a 2.2x margin.
 
 ## What it does not do
 
