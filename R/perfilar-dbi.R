@@ -832,7 +832,69 @@
       n_distintos_estimados = numeric(), tamano_estimado_bytes = numeric(),
       supera_memoria = logical(), stringsAsFactors = FALSE
     ),
-    lotes_sobre_memoria = integer()
+    lotes_sobre_memoria = integer(),
+    filas_catalogo = .denominador_catalogo_vacio_dbi(motivo)
+  )
+}
+
+.denominador_catalogo_vacio_dbi <- function(
+    motivo = "No hay una estimacion utilizable de `pg_class.reltuples`.") {
+  list(
+    disponible = FALSE, estado = "no_disponible", filas = NA_real_,
+    fuente = NA_character_, n_relaciones = 0L, motivo = motivo
+  )
+}
+
+# La consulta de estadisticas ya recorre la jerarquia y devuelve solo las hojas;
+# aca se aplica el mismo denominador que usa `catalogo`, sin inventar otra
+# consulta ni volver a sumar una relacion padre particionada.
+.denominador_catalogo_dbi <- function(datos) {
+  vacio <- .denominador_catalogo_vacio_dbi()
+  if (!is.data.frame(datos) || !all(c(
+    "relacion_oid", "reltuples", "hoja"
+  ) %in% names(datos))) {
+    vacio$motivo <- paste(
+      "La respuesta del catalogo no trae la jerarquia y `reltuples` necesarios;",
+      "se conserva `sin dato filas`."
+    )
+    return(vacio)
+  }
+  relaciones <- unique(datos[c("relacion_oid", "reltuples", "hoja")])
+  hojas <- .logico_catalogo_dbi(relaciones$hoja)
+  relaciones <- relaciones[!is.na(relaciones$relacion_oid) & hojas %in% TRUE,
+                            , drop = FALSE]
+  if (!nrow(relaciones)) {
+    vacio$motivo <- paste(
+      "El catalogo no devolvio relaciones hoja visibles; no hay una",
+      "estimacion utilizable de `pg_class.reltuples`."
+    )
+    return(vacio)
+  }
+  reltuples <- suppressWarnings(as.numeric(relaciones$reltuples))
+  if (any(!is.finite(reltuples) | reltuples <= 0)) {
+    vacio$motivo <- paste(
+      "`pg_class.reltuples` tiene al menos un valor cero, negativo o no",
+      "utilizable; puede no haberse ejecutado ANALYZE. Se conserva `sin dato",
+      "filas` y no se supone cero."
+    )
+    return(vacio)
+  }
+  filas <- sum(reltuples)
+  if (!is.finite(filas) || filas <= 0) {
+    vacio$motivo <- paste(
+      "La suma de `pg_class.reltuples` no es utilizable; se conserva `sin",
+      "dato filas` y no se supone cero."
+    )
+    return(vacio)
+  }
+  list(
+    disponible = TRUE, estado = "estimado_catalogo", filas = filas,
+    fuente = "pg_class.reltuples", n_relaciones = as.integer(nrow(relaciones)),
+    motivo = paste(
+      "Las filas se estiman como la suma de `pg_class.reltuples` de las",
+      "relaciones hoja de la jerarquia ya leida. Es una estimacion de catalogo,",
+      "no una medicion del universo de la tabla."
+    )
   )
 }
 
@@ -965,7 +1027,10 @@
       )
     ))
   }
-  list(ok = TRUE, sql = sql, datos = consulta$datos)
+  list(
+    ok = TRUE, sql = sql, datos = consulta$datos,
+    filas_catalogo = .denominador_catalogo_dbi(consulta$datos)
+  )
 }
 
 .estimar_derrame_postgresql_dbi <- function(conexion, tabla, columnas,
@@ -1021,6 +1086,7 @@
     ))
   }
   datos <- estadisticas$datos
+  filas_catalogo <- estadisticas$filas_catalogo
   relaciones <- unique(datos[c(
     "relacion_oid", "schemaname", "tablename", "reltuples", "es_raiz", "hoja"
   )])
@@ -1194,6 +1260,7 @@
     lotes = lotes_df, lotes_sobre_memoria = as.integer(sobre),
     n_columnas_solicitadas = as.integer(length(columnas)),
     n_columnas_estimadas = as.integer(n_estimadas),
+    filas_catalogo = filas_catalogo,
     supera_memoria = if (length(sobre)) TRUE else if (all(
       !is.na(lotes_df$supera_memoria)
     )) FALSE else NA
@@ -7365,7 +7432,9 @@
   "sugiere la referencia. Referencias: unos cinco millones de lecturas de fila",
   "por segundo sobre PostgreSQL 16 local (2.000.000 de filas por 40 columnas en",
   "modo seguro: 14 consultas, 5,3 segundos). Ese cociente est\u00e1 en las",
-  "unidades que cuenta este plan, no en filas que el motor haya le\u00eddo: la",
+  "unidades que cuenta este plan y proviene de otras corridas, no es el tiempo",
+  "de esta tabla.",
+  "No representa filas que el motor haya le\u00eddo: la",
   "cuenta supone que ning\u00fan \u00edndice ayuda y cobra el desv\u00edo como",
   "dos pasadas, aunque un motor con desv\u00edo nativo lo resuelva en una. Sirve",
   "para convertir `filas_leidas` en segundos, que es para lo que est\u00e1, y no",
@@ -7428,6 +7497,167 @@
   )
 }
 
+.filas_plan_dbi <- function(preparacion) {
+  vacio <- .denominador_catalogo_vacio_dbi(paste(
+    "No hay una estimacion utilizable de filas en el catalogo ya leido;",
+    "se conserva `sin dato filas`."
+  ))
+  estimacion <- preparacion$estimacion_derrame
+  filas_catalogo <- if (is.null(estimacion)) NULL else {
+    estimacion$filas_catalogo
+  }
+  if (is.list(filas_catalogo) && isTRUE(filas_catalogo$disponible)) {
+    return(filas_catalogo)
+  }
+  if (is.list(filas_catalogo) && !is.null(filas_catalogo$motivo) &&
+      length(filas_catalogo$motivo) == 1L &&
+      !is.na(filas_catalogo$motivo) && nzchar(filas_catalogo$motivo)) {
+    vacio$motivo <- if (grepl("sin dato filas", filas_catalogo$motivo,
+                              fixed = TRUE)) {
+      filas_catalogo$motivo
+    } else {
+      paste(filas_catalogo$motivo, "Se conserva `sin dato filas`.")
+    }
+  }
+  # `estrategia = "catalogo"` ya trae el mismo denominador en cada estimacion
+  # de columna. Se reutiliza ese valor y se exige que no haya dos universos en
+  # la misma respuesta, igual que en `.seleccionar_fila_catalogo_dbi()`.
+  estrategia <- preparacion$estrategia_distintos
+  estimaciones <- if (is.null(estrategia)) NULL else estrategia$estimaciones
+  if (identical(estrategia$estado, "estimado_catalogo") &&
+      is.list(estimaciones) && length(estimaciones)) {
+    filas <- vapply(estimaciones, function(x) {
+      if (!is.list(x)) return(NA_real_)
+      .numero_dbi(x$n_filas)
+    }, numeric(1L))
+    filas <- filas[is.finite(filas) & filas > 0]
+    if (length(filas) && length(unique(filas)) == 1L) {
+      return(list(
+        disponible = TRUE, estado = "estimado_catalogo", filas = filas[[1L]],
+        fuente = "pg_class.reltuples", n_relaciones = NA_integer_,
+        motivo = paste(
+          "Las filas se toman de `pg_class.reltuples` a traves de la",
+          "jerarquia que ya leyo la estrategia `catalogo`. Es una estimacion",
+          "de catalogo, no una medicion del universo de la tabla."
+        )
+      ))
+    }
+  }
+  vacio
+}
+
+.proyeccion_plan_vacia_dbi <- function(motivo, unidad) {
+  list(
+    disponible = FALSE, estado = "no_disponible", unidad = unidad,
+    magnitud = NA_real_, filas = NA_real_, n_columnas = 0L,
+    n_medianas = 0L, n_distintos_proyectados = NA_real_,
+    fuente = NA_character_, motivo = motivo
+  )
+}
+
+.proyecciones_plan_catalogo_dbi <- function(
+    preparacion, filas_plan, incluir_valores = TRUE) {
+  motivo_filas <- filas_plan$motivo
+  vacia_moda <- .proyeccion_plan_vacia_dbi(
+    motivo_filas, "n_distintos_estimados"
+  )
+  vacia_mediana <- .proyeccion_plan_vacia_dbi(motivo_filas, "filas_estimadas")
+  if (!isTRUE(filas_plan$disponible)) {
+    return(list(moda = vacia_moda, mediana = vacia_mediana))
+  }
+  fuente <- "estimacion de catalogo: pg_class.reltuples"
+  if ("moda" %in% preparacion$metricas_ejecucion &&
+      isTRUE(incluir_valores)) {
+    datos <- preparacion$estimacion_derrame$columnas
+    if ((!is.data.frame(datos) || !nrow(datos)) &&
+        is.list(preparacion$fuentes_cardinalidad_costo)) {
+      fuentes <- preparacion$fuentes_cardinalidad_costo
+      datos <- data.frame(
+        columna = names(fuentes),
+        n_distintos_estimados = vapply(
+          fuentes,
+          function(fuente) {
+            if (!is.list(fuente)) {
+              return(NA_real_)
+            }
+            .numero_dbi(fuente$n_distintos)
+          },
+          numeric(1L)
+        ),
+        stringsAsFactors = FALSE
+      )
+    }
+    if (is.data.frame(datos) && all(c(
+      "columna", "n_distintos_estimados"
+    ) %in% names(datos))) {
+      columnas <- preparacion$campos
+      datos <- datos[match(columnas, datos$columna), , drop = FALSE]
+      conocidos <- is.finite(datos$n_distintos_estimados) &
+        datos$n_distintos_estimados >= 0
+      if (any(conocidos)) {
+        n_distintos <- sum(datos$n_distintos_estimados[conocidos])
+        if (is.finite(n_distintos)) {
+          vacia_moda <- list(
+            disponible = TRUE, estado = "estimado_catalogo",
+            unidad = "n_distintos_estimados", magnitud = n_distintos,
+            filas = filas_plan$filas,
+            n_columnas = as.integer(sum(conocidos)), n_medianas = 0L,
+            n_distintos_proyectados = n_distintos,
+            fuente = paste(
+              "estimacion de catalogo:",
+              "pg_stats.n_distinct + pg_class.reltuples"
+            ),
+            motivo = paste(
+              "La magnitud de moda usa la suma de `n_distintos` estimados",
+              "por el catalogo; no es una duracion ni una medicion. Las",
+              "columnas sin estadistica quedan fuera de esta proyeccion."
+            )
+          )
+        }
+      }
+    }
+  } else {
+    vacia_moda$estado <- "no_solicitado"
+    vacia_moda$motivo <- "La moda no se solicito en este plan."
+  }
+  if ("mediana" %in% preparacion$metricas_ejecucion &&
+      isTRUE(incluir_valores)) {
+    n_medianas <- sum(preparacion$es_numerico)
+    magnitud <- filas_plan$filas * n_medianas
+    if (n_medianas > 0 && is.finite(magnitud)) {
+      vacia_mediana <- list(
+        disponible = TRUE, estado = "estimado_catalogo",
+        unidad = "filas_estimadas", magnitud = magnitud,
+        filas = filas_plan$filas, n_columnas = 0L,
+        n_medianas = as.integer(n_medianas),
+        n_distintos_proyectados = NA_real_, fuente = fuente,
+        motivo = paste(
+          "La magnitud de mediana usa las filas estimadas por",
+          "`pg_class.reltuples`; no es una duracion ni una medicion."
+        )
+      )
+    }
+  } else {
+    vacia_mediana$estado <- "no_solicitado"
+    vacia_mediana$motivo <- "La mediana no se solicito en este plan."
+  }
+  list(moda = vacia_moda, mediana = vacia_mediana)
+}
+
+.texto_filas_plan_dbi <- function(filas, fuente = NULL) {
+  numero <- .numero_dbi(filas)
+  if (length(numero) != 1L || is.na(numero) || !is.finite(numero)) {
+    return("sin dato filas")
+  }
+  texto <- .miles_dbi(numero)
+  if (!is.null(fuente) && length(fuente) && !is.na(fuente) &&
+      grepl("pg_class\\.reltuples", fuente, fixed = FALSE)) {
+    paste0("~", texto, " filas (estimacion de catalogo)")
+  } else {
+    paste0(texto, " filas")
+  }
+}
+
 
 #' Planificar el costo de `perfilar_dbi()` antes de pagarlo
 #'
@@ -7448,6 +7678,13 @@
 #' y, desde PostgreSQL 13, `SHOW hash_mem_multiplier`) para estimar el tamaño
 #' del hash y avisar un posible derrame. Esa consulta de metadatos no publica
 #' cardinalidad medida ni reemplaza la medición posterior.
+#' Cuando esa lectura de catálogo trae `pg_class.reltuples` positivo, el plan lo
+#' reutiliza como una estimación declarada del número de filas. La magnitud y las
+#' proyecciones de trabajo de moda y mediana quedan entonces disponibles y dicen
+#' explícitamente `estimado_catalogo`; no son duraciones ni mediciones. Un valor
+#' cero o negativo —típico de una relación sin `ANALYZE`— conserva el estado
+#' `sin dato filas`. Los demás motores conservan ese estado si no tienen una
+#' lectura de catálogo ya disponible.
 #'
 #' `estrategia_distintos` declara la procedencia de `n_distintos` antes de la
 #' corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
@@ -7504,7 +7741,7 @@
 #'   `columnas_numericas`, `dialecto`, `consultas_emitidas`, `metricas`,
 #'   `metricas_ejecucion`, `politica_costo`, `estrategia_distintos`,
 #'   `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`, `filas`,
-#'   `mediana_escalar`,
+#'   `filas_fuente`, `estimacion_filas`, `proyecciones`, `mediana_escalar`,
 #'   `tamano_lote_planos`, `tamano_lote_distintos`, `estimacion_derrame`,
 #'   `celdas`, `memoria_procesamiento`, `max_celdas_muestra`,
 #'   `max_bytes_muestra`, `tope_muestra` y `muestreo`, y,
@@ -7558,8 +7795,10 @@
 #'   `"alta"`, o `"desconocida"` si no se conoce el número de filas.
 #'   `supuesto_costo` dice de dónde sale cada cuenta.
 #'
-#'   El plan previo no publica duraciones, CPU, filas ni bytes medidos, ni agrega
-#'   una proyección temporal de `COUNT(DISTINCT)`. Aunque el plan de una corrida
+#'   El plan previo no publica duraciones, CPU, ni filas o bytes medidos, ni agrega
+#'   una proyección temporal de `COUNT(DISTINCT)`. Puede publicar filas estimadas
+#'   por `pg_class.reltuples` y proyecciones de trabajo de moda/mediana, siempre
+#'   rotuladas como estimación de catálogo y no como medición. Aunque el plan de una corrida
 #'   conserve el atributo `supuesto_costo_distintos`, la medición y la proyección
 #'   sólo aparecen en `resumen_tabla$meta$costo_distintos`, después de ejecutar
 #'   el primer lote. El atributo sólo declara por qué esa proyección no existe
@@ -7635,6 +7874,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     politica_costo = politica_costo,
     umbral_cardinalidad = umbral_cardinalidad
   )
+  filas_plan <- .filas_plan_dbi(preparacion)
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
     .es_numerico_dbi(
       preparacion$prototipo[[i]],
@@ -7803,7 +8043,12 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "mediana_escalar") <- .publicar_mediana_escalar_dbi(
     preparacion$mediana_escalar_resolucion
   )
-  attr(plan, "filas") <- preparacion$n_total
+  attr(plan, "filas") <- filas_plan$filas
+  attr(plan, "filas_fuente") <- filas_plan$fuente
+  attr(plan, "estimacion_filas") <- filas_plan
+  attr(plan, "proyecciones") <- .proyecciones_plan_catalogo_dbi(
+    preparacion, filas_plan, incluir_valores = incluir_valores
+  )
   attr(plan, "muestra") <- if (identical(
     preparacion$bloque_muestra, "con_muestra"
   )) preparacion$muestra else NA_real_
@@ -7829,7 +8074,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     )
   }
   trabajo <- .trabajo_plan_dbi(
-    plan, preparacion$n_total, tope_muestra$filas_maximas, sum(es_texto)
+    plan, filas_plan$filas, tope_muestra$filas_maximas, sum(es_texto)
   )
   attr(plan, "filas_leidas") <- trabajo$filas_leidas
   attr(plan, "ordenaciones_completas") <- trabajo$ordenaciones
@@ -7840,7 +8085,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "magnitud") <- trabajo$magnitud
   attr(plan, "supuesto_costo") <- .SUPUESTO_TRABAJO_DBI
   attr(plan, "celdas") <- .celdas_plan_dbi(
-    preparacion$n_total, length(preparacion$campos)
+    filas_plan$filas, length(preparacion$campos)
   )
   attr(plan, "memoria_procesamiento") <- .memoria_procesamiento_plan_dbi(
     filas = attr(plan, "filas", exact = TRUE),
@@ -7878,6 +8123,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }
   cli::cli_h1("Plan de perfilado")
   filas <- attr(x, "filas", exact = TRUE)
+  filas_fuente <- attr(x, "filas_fuente", exact = TRUE)
+  texto_filas <- .texto_filas_plan_dbi(filas, filas_fuente)
   techo <- attr(x, "total_lotes_rechazados", exact = TRUE)
   # El rango se imprime como rango. Decir "techo" era exactamente lo que el
   # atributo `supuesto` desmiente dos lineas mas abajo.
@@ -7888,10 +8135,30 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }
   cli::cli_alert_info(paste0(
     cuenta, " sobre ",
-    .miles_dbi(filas), " filas y ",
+    texto_filas, " y ",
     .miles_dbi(attr(x, "columnas", exact = TRUE)), " columnas (dialecto ",
     attr(x, "dialecto", exact = TRUE), ")"
   ))
+  proyecciones <- attr(x, "proyecciones", exact = TRUE)
+  if (is.list(proyecciones)) {
+    if (isTRUE(proyecciones$moda$disponible)) {
+      cli::cli_text(
+        "Proyecci\u00f3n de moda: ~",
+        .miles_dbi(proyecciones$moda$magnitud),
+        " distintos acumulados en ", proyecciones$moda$n_columnas,
+        " columna(s); estimaci\u00f3n de cat\u00e1logo, no duraci\u00f3n. Fuente: ",
+        proyecciones$moda$fuente, "."
+      )
+    }
+    if (isTRUE(proyecciones$mediana$disponible)) {
+      cli::cli_text(
+        "Proyecci\u00f3n de mediana: ~",
+        .miles_dbi(proyecciones$mediana$magnitud),
+        " filas-mediana; estimaci\u00f3n de cat\u00e1logo, no duraci\u00f3n. Fuente: ",
+        proyecciones$mediana$fuente, "."
+      )
+    }
+  }
   if (identical(attr(x, "bloque_muestra", exact = TRUE), "solo_agregados")) {
     cli::cli_text(
       "Perfil de muestra: no solicitado; el plan incluye solo agregados SQL."
@@ -8031,7 +8298,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     cli::cli_text(
       "El perfil de muestra trae la tabla entera",
       if (!is.null(filas_plan) && !is.na(filas_plan)) {
-        paste0(" -", .miles_dbi(filas_plan), " filas-")
+        paste0(" -", .texto_filas_plan_dbi(filas_plan, filas_fuente), "-")
       } else "",
       ": es el valor por omisi\u00f3n y sobre una tabla grande puede demorar. ",
       "`muestra = n` acota cuantas filas se traen, a cambio de mirar menos."

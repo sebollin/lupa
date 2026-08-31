@@ -769,6 +769,14 @@ always set by the engine. The engine half is `filas_leidas` and
 detector could compare in R over the sample — summarised in `magnitud_texto`.
 `magnitud` is the larger of the two.
 
+On PostgreSQL, when preparation has already read the catalog hierarchy, a
+positive `pg_class.reltuples` also supplies the row magnitude. The plan prints
+it as an estimate of catalog, not a measurement, and exposes the source in
+`filas_fuente`/`estimacion_filas`; the work projections for mode and median are
+published in `proyecciones` with the same label. A zero or negative
+`reltuples` (the usual pre-`ANALYZE` state) leaves rows and those projections
+unknown. Other engines keep the current unknown state.
+
 Counting only the engine gave false verdicts out of true numbers: a 3,912-row
 PostGIS catalogue table with one geometry column stored as text asked for 64,592
 row reads and no sorts — magnitude `"baja"` — and took 35 seconds **with the

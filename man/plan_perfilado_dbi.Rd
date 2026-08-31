@@ -157,7 +157,7 @@ Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
 \code{columnas_numericas}, \code{dialecto}, \code{consultas_emitidas}, \code{metricas},
 \code{metricas_ejecucion}, \code{politica_costo}, \code{estrategia_distintos},
 \code{fuente_cardinalidad_costo}, \code{moda_guardian}, \code{mediana_consolidada}, \code{filas},
-\code{mediana_escalar},
+\code{filas_fuente}, \code{estimacion_filas}, \code{proyecciones}, \code{mediana_escalar},
 \code{tamano_lote_planos}, \code{tamano_lote_distintos}, \code{estimacion_derrame},
 \code{celdas}, \code{memoria_procesamiento}, \code{max_celdas_muestra},
 \code{max_bytes_muestra}, \code{tope_muestra} y \code{muestreo}, y,
@@ -211,8 +211,10 @@ en R el detector de vocabulario sobre la muestra— y se resume en
 \code{"alta"}, o \code{"desconocida"} si no se conoce el número de filas.
 \code{supuesto_costo} dice de dónde sale cada cuenta.
 
-El plan previo no publica duraciones, CPU, filas ni bytes medidos, ni agrega
-una proyección temporal de \code{COUNT(DISTINCT)}. Aunque el plan de una corrida
+El plan previo no publica duraciones, CPU, ni filas o bytes medidos, ni agrega
+una proyección temporal de \code{COUNT(DISTINCT)}. Puede publicar filas estimadas
+por \code{pg_class.reltuples} y proyecciones de trabajo de moda/mediana, siempre
+rotuladas como estimación de catálogo y no como medición. Aunque el plan de una corrida
 conserve el atributo \code{supuesto_costo_distintos}, la medición y la proyección
 sólo aparecen en \code{resumen_tabla$meta$costo_distintos}, después de ejecutar
 el primer lote. El atributo sólo declara por qué esa proyección no existe
@@ -258,6 +260,13 @@ estadísticas de PostgreSQL (\code{pg_stats}, \code{pg_class.reltuples}, \verb{S
 y, desde PostgreSQL 13, \verb{SHOW hash_mem_multiplier}) para estimar el tamaño
 del hash y avisar un posible derrame. Esa consulta de metadatos no publica
 cardinalidad medida ni reemplaza la medición posterior.
+Cuando esa lectura de catálogo trae \code{pg_class.reltuples} positivo, el plan lo
+reutiliza como una estimación declarada del número de filas. La magnitud y las
+proyecciones de trabajo de moda y mediana quedan entonces disponibles y dicen
+explícitamente \code{estimado_catalogo}; no son duraciones ni mediciones. Un valor
+cero o negativo —típico de una relación sin \code{ANALYZE}— conserva el estado
+\verb{sin dato filas}. Los demás motores conservan ese estado si no tienen una
+lectura de catálogo ya disponible.
 }
 \details{
 \code{estrategia_distintos} declara la procedencia de \code{n_distintos} antes de la

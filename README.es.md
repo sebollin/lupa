@@ -799,6 +799,14 @@ reloj no lo pone siempre el motor. La del motor son `filas_leidas` y
 el detector de vocabulario sobre la muestra—, resumidas en `magnitud_texto`.
 `magnitud` es la mayor de las dos.
 
+En PostgreSQL, cuando la preparacion ya leyo la jerarquia del catalogo, un
+`pg_class.reltuples` positivo tambien aporta la magnitud de filas. El plan lo
+imprime como estimacion de catalogo, no como medicion, y publica la fuente en
+`filas_fuente`/`estimacion_filas`; las proyecciones de trabajo de moda y mediana
+quedan en `proyecciones` con el mismo rotulo. Un `reltuples` cero o negativo —el
+estado habitual antes de `ANALYZE`— deja desconocidos las filas y esas
+proyecciones. Los demas motores conservan el estado desconocido actual.
+
 Contar sólo el motor daba juicios falsos con números ciertos: una tabla del
 catálogo de PostGIS de 3.912 filas, con una columna de geometría guardada como
 texto, pedía 64.592 lecturas de fila y cero ordenaciones —magnitud `"baja"`— y

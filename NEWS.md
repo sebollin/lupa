@@ -8,6 +8,16 @@
   mandaron `celdas`, `bytes` o la propia `muestra`, y el texto queda junto a esa
   declaración.
 
+## El plan DBI aprovecha `reltuples` como estimación
+
+- En PostgreSQL, cuando la preparación ya leyó la jerarquía del catálogo, el
+  plan reutiliza `pg_class.reltuples` positivo para publicar filas, magnitud y
+  proyecciones de trabajo de moda/mediana. Todo queda rotulado como estimación
+  de catálogo y no como medición; `reltuples` cero o negativo conserva `sin dato`.
+- La referencia temporal incluida en los supuestos del plan queda explícitamente
+  identificada como proveniente de otras corridas, no como el tiempo de la tabla
+  planificada.
+
 ## Señal de concentración modal
 
 - `perfilar()` agrega `valor_concentrado`, la señal M2 seleccionada por la
