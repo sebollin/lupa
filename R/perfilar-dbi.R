@@ -3327,6 +3327,63 @@
 
 .METRICAS_NUMERICAS_DBI <- c("basicos", "mediana", "desvio")
 
+# Durante la migracion de la API se conserva una traduccion local para que la
+# suite pueda pasar mientras las familias internas dejan de recibir `modo`.
+# Este puente no forma parte del contrato: se elimina junto con el argumento
+# historico cuando la logica interna ya use las dimensiones nuevas.
+.normalizar_api_dbi <- function(universo, muestra_motor, estrategia_mediana,
+                                modo, metricas, muestra) {
+  if (!is.null(modo)) {
+    modo <- match.arg(
+      modo, c("exacto", "seguro", "conteos", "muestreado", "aproximado")
+    )
+    return(list(
+      universo = if (identical(modo, "muestreado")) "muestra_motor" else
+        "tabla_completa",
+      muestra_motor = if (identical(modo, "muestreado")) muestra else NULL,
+      estrategia_mediana = if (identical(modo, "aproximado")) {
+        "aproximada_motor"
+      } else "exacta",
+      modo = modo, metricas = metricas, muestra = muestra
+    ))
+  }
+  universo <- match.arg(universo, c("tabla_completa", "muestra_motor"))
+  estrategia_mediana <- match.arg(
+    estrategia_mediana, c("exacta", "aproximada_motor")
+  )
+  if (identical(universo, "muestra_motor")) {
+    if (!is.numeric(muestra_motor) || length(muestra_motor) != 1L ||
+        is.na(muestra_motor) || !is.finite(muestra_motor) || muestra_motor < 1 ||
+        muestra_motor != floor(muestra_motor)) {
+      .detener_dbi(
+        "lupa_error_argumento_dbi",
+        "`muestra_motor` debe ser un entero positivo finito cuando `universo = \"muestra_motor\"`."
+      )
+    }
+    if (identical(estrategia_mediana, "aproximada_motor")) {
+      .detener_dbi(
+        "lupa_error_argumento_dbi",
+        "`universo = \"muestra_motor\"` no se puede combinar con `estrategia_mediana = \"aproximada_motor\"`: la muestra ya es una aproximacion del universo."
+      )
+    }
+  } else if (!is.null(muestra_motor)) {
+    .detener_dbi(
+      "lupa_error_argumento_dbi",
+        "`muestra_motor` solo se puede usar con `universo = \"muestra_motor\"`."
+    )
+  }
+  list(
+    universo = universo, muestra_motor = if (is.null(muestra_motor)) NULL else
+      as.numeric(muestra_motor), estrategia_mediana = estrategia_mediana,
+    modo = if (identical(universo, "muestra_motor")) "muestreado" else
+      if (identical(estrategia_mediana, "aproximada_motor")) "aproximado" else
+        "exacto",
+    metricas = metricas, muestra = if (identical(universo, "muestra_motor")) {
+      as.numeric(muestra_motor)
+    } else muestra
+  )
+}
+
 # La estrategia de `distintos` se elige de forma explicita. El orden es parte
 # del contrato: el primer valor es el valor por omision de la API.
 .ESTRATEGIAS_DISTINTOS_DBI <- c(
@@ -7861,8 +7918,8 @@
 #' }
 plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
                                orden_muestra = NULL,
-                               modo = c("exacto", "seguro", "conteos",
-                                         "muestreado", "aproximado"),
+                               universo = c("tabla_completa", "muestra_motor"),
+                               muestra_motor = NULL,
                                metricas = NULL, max_consultas = Inf,
                                dialecto = "auto", incluir_valores = TRUE,
                                tamano_lote = NULL,
@@ -7871,17 +7928,25 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
                                bloque_muestra = c("con_muestra", "solo_agregados"),
                                instrumentar = FALSE,
                                estrategia_distintos = "exacta",
+                               estrategia_mediana = c("exacta", "aproximada_motor"),
                                politica_costo = c("todas", "ninguna",
                                                    "por_cardinalidad", "cardinalidad"),
                                umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
                                max_celdas_muestra = .MAX_CELDAS_MUESTRA,
-                               max_bytes_muestra = .MAX_BYTES_MUESTRA) {
+                               max_bytes_muestra = .MAX_BYTES_MUESTRA,
+                               modo = NULL) {
   max_celdas_muestra <- .validar_limite_duplicados(
     max_celdas_muestra, "max_celdas_muestra"
   )
   max_bytes_muestra <- .validar_limite_duplicados(
     max_bytes_muestra, "max_bytes_muestra"
   )
+  api <- .normalizar_api_dbi(
+    universo, muestra_motor, estrategia_mediana, modo, metricas, muestra
+  )
+  modo <- api$modo
+  muestra <- api$muestra
+  metricas <- api$metricas
   preparacion <- .preparar_dbi(
     conexion = conexion, tabla = tabla, muestra = muestra,
     orden_muestra = orden_muestra, modo = modo, metricas = metricas,
@@ -9984,8 +10049,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' }
 perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                          orden_muestra = NULL,
-                         modo = c("exacto", "seguro", "conteos", "muestreado",
-                                   "aproximado"),
+                         universo = c("tabla_completa", "muestra_motor"),
+                         muestra_motor = NULL,
                          metricas = NULL, max_consultas = Inf,
                          dialecto = "auto", incluir_valores = TRUE,
                          tamano_lote = NULL,
@@ -9994,6 +10059,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                          bloque_muestra = c("con_muestra", "solo_agregados"),
                          instrumentar = TRUE,
                          estrategia_distintos = "exacta",
+                         estrategia_mediana = c("exacta", "aproximada_motor"),
                          politica_costo = c("todas", "ninguna",
                                              "por_cardinalidad", "cardinalidad"),
                          umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
@@ -10011,6 +10077,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                            .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
                          max_celdas_muestra = .MAX_CELDAS_MUESTRA,
                          max_bytes_muestra = .MAX_BYTES_MUESTRA,
+                         modo = NULL,
                          ...) {
   max_celdas_muestra <- .validar_limite_duplicados(
     max_celdas_muestra, "max_celdas_muestra"
@@ -10043,6 +10110,12 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     umbral_bytes_aviso_derrame_estimado,
     "umbral_bytes_aviso_derrame_estimado"
   )
+  api <- .normalizar_api_dbi(
+    universo, muestra_motor, estrategia_mediana, modo, metricas, muestra
+  )
+  modo <- api$modo
+  muestra <- api$muestra
+  metricas <- api$metricas
   preparacion <- .preparar_dbi(
     conexion = conexion, tabla = tabla, muestra = muestra,
     orden_muestra = orden_muestra, modo = modo, metricas = metricas,
