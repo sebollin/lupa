@@ -1,112 +1,16 @@
-> **Este bloque en espanol se saca antes de enviar.** Esta en otro idioma que
-> el resto de la carta justamente para que no se pueda enviar sin verlo.
->
-> **Las fuentes se identifican por commit, no por el sello `Packaged:`.** La
-> version anterior de esta carta citaba `Packaged: 2026-08-21 19:03:52 UTC` como
-> identidad de lo chequeado, y al ir a verificarlo resulto que **ninguna de las
-> cuatro corridas de win-builder uso ese tarball**: `R CMD build` sella el
-> momento de armar, asi que cada subida tiene su propio sello y el sello no
-> identifica fuentes. Lo que identifica fuentes es el commit.
->
-> **Y el estado de cada fila sale del log de esa corrida.** No de su conclusion
-> -una corrida puede concluir con exito y traer notas- ni de la hora en que
-> llego el aviso. Los logs de las corridas locales quedan en
-> `../verificacion/2026-08-21/`, al lado del repositorio y no adentro, porque la matriz anterior
-> declaraba `Status: OK` en dos filas locales de las que **no quedo ningun log**.
->
-> **Estado de la matriz sobre `375d7c3`:**
->
-> | entorno | estado | de donde sale |
-> | --- | --- | --- |
-> | local, R 4.6.1, `--as-cran` | **`Status: 1 NOTE`**, y la nota es `New submission` | `../verificacion/2026-08-24f/normal/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_DEPENDS_ONLY_=true` | **`Status: 1 NOTE`**, la misma | `../verificacion/2026-08-24f/depends-only/lupa.Rcheck/00check.log` |
-> | local, `_R_CHECK_CRAN_INCOMING_=false` | **`Status: OK`**, cero notas | `../verificacion/2026-08-24f/sin-incoming/lupa.Rcheck/00check.log` |
-> | local, `--as-cran` **construyendo vinietas** | **`Status: 1 NOTE`**, la misma. Las nueve construyen sin aviso | `../verificacion/2026-08-24f/con-vinietas/lupa.Rcheck/00check.log` |
-> | contenedor R 4.1.3 (el minimo declarado) | **2 NOTEs del entorno**: paquetes sugeridos sin build ahi, y una cadena UTF-8 marcada | `../verificacion/2026-08-24f/r41/lupa.Rcheck/00check.log` |
-> | suite completa | **16.034 comprobaciones, 0 fallos, 0 errores, 0 avisos** | leido de `sum(r$failed)`, no del texto |
-> | GitHub Actions (5 plataformas) | verde | log de la corrida |
-> | R-hub v2 R-devel (3 plataformas) | PENDIENTE sobre estas fuentes | log de la corrida |
-> | win-builder release y devel | PENDIENTE sobre estas fuentes | log de cada corrida |
->
-> **Que la corrida sin comprobaciones de entrada de `OK` sin ninguna nota ubica
-> esa nota entera fuera del paquete**: es la de primera entrega.
->
-> **La cadena UTF-8 marcada es un nombre de departamento con acento** en los
-> datos de ejemplo. Esta correctamente marcada, R 4.6.1 da `OK` en esa misma
-> comprobacion, y solo R 4.1.3 la nota.
->
-> **Dos WARNINGs que la suite no podia ver.** La matriz anterior, sobre
-> `9956c6c`, dio `2 WARNINGs` donde la de `031fa59` habia dado `1 NOTE`. Los dos
-> los introdujo esa misma tanda y ninguno aparecia con 15.887 comprobaciones en
-> verde:
->
-> - **`non-ASCII characters in R code`**: un mensaje nuevo tenia la palabra
->   "espanol" escrita con enie dentro de una cadena. Los acentos de los
->   comentarios estan permitidos -y hay archivos con 76 lineas asi que nunca
->   dispararon nada-; el que cuenta es el de codigo. Comprobar esa diferencia
->   antes de tocar evito "limpiar" medio paquete sin motivo.
-> - **`'::' import not declared from 'withr'`**: una prueba usaba
->   `withr::local_tempfile()` y `withr` no esta en `Suggests`. Se reemplazo por
->   `tempfile()` con su `on.exit(unlink())`.
->
-> Es la razon por la que la matriz se rehace entera y no se confia en la suite:
-> **`R CMD check` ve clases de defecto que ninguna comprobacion de la suite
-> alcanza.**
->
-> **El `WARN 1` que traia la fila del contenedor ya no esta.** Venia de una
-> prueba que se tragaba el fallo de `Sys.setlocale` con un `try` y, en una
-> imagen sin esos locales generados, comparaba el resultado contra si mismo:
-> pasaba sin probar su propia afirmacion. Ahora comprueba que el locale quedo
-> puesto y, si no se puede poner, se saltea diciendo por que. De ahi que los
-> `SKIP` pasen de 165 a 169.
->
-> **El `WARN 1` de la fila del contenedor no es nuevo y la carta anterior no lo
-> decia.** Estaba igual en la corrida del 2026-08-22 -`[ FAIL 0 | WARN 1 | SKIP
-> 165 | PASS 14660 ]`- y se transcribio como `[ FAIL 0 | PASS 14660 ]`. Copiar
-> la mitad buena de un resumen es la misma falta que el paquete persigue en los
-> demas. Las dos NOTEs son del entorno: siete paquetes de `Suggests` que no estan
-> en la imagen, y una cadena UTF-8 en los datos.
->
-> **Un fallo intermitente que no es del paquete.** Una corrida de la suite dio
-> un error en `test-ronda90.R` dentro de un `data.frame()` de constantes que no
-> depende de los datos de entrada; el archivo pasa entero corrido aparte y la
-> corrida siguiente dio cero fallos. Es el estado corrupto que deja
-> `pkgload::load_all()` de vez en cuando, y por eso la fila de la suite sale de
-> una corrida completa y no de la primera que se mire. `R CMD check`, que corre
-> los tests contra el paquete instalado, da `checking tests ... OK`.
->
-> **El minimo declarado se midio antes de declararlo**, que es justamente lo que
-> no se habia hecho con `R (>= 3.6.0)`: ahi la carta afirmaba que la suite no
-> podia correr, y contra el snapshot de la epoca corre y da 18 fallos. Ver la
-> seccion del contenedor mas abajo.
->
-> **win-builder del 2026-08-21, para el archivo:** las cuatro corridas de ese dia
-> dan `Status: 1 NOTE`, siempre la misma -`New submission` mas
-> `https://www.gnu.org/licenses/gpl-3.0.html` con `Timeout was reached`, que es
-> la maquina de win-builder sin poder conectar, no una URL rota-. Dos de esas
-> cuatro chequearon fuentes anteriores a las que se queria probar: se supo
-> leyendo el `Packaged:` del binario de cada corrida, no la hora del aviso. Dato
-> util: ahi si corre `checking HTML version of manual` y da **OK**, que aca no se
-> puede medir por falta de `tidy`.
->
-> Los commits posteriores que tocan **solo este archivo** no mueven las fuentes,
-> porque `cran-comments.md` esta en `.Rbuildignore` y no entra al tarball. Si se
-> toca cualquier otra cosa, la matriz se rehace entera.
-
 ## R CMD check results
 
-0 errors | 0 warnings | 1 note
+0 errors | 0 warnings | 2 notes
 
-* This is a new submission. That note comes from the CRAN incoming checks and
-  cannot be avoided.
-
-Run locally with `_R_CHECK_CRAN_INCOMING_=false` and `--no-manual`, the check on
-these sources reports **`Status: OK`** with no notes at all. The `tidy` note that
-earlier revisions reported is not absent because the environment gained `tidy` —
-it has none — but because `--no-manual` skips HTML manual validation altogether.
-The services above build the manual and report no such note. Examples, tests,
-vignettes, the PDF manual and the self-contained HTML produced by the package are
-checked in every environment that can run them.
+Both notes are located outside the package. The first is `New submission`, from
+the CRAN incoming checks, and cannot be avoided. The second is
+`Skipping checking HTML validation: no command 'tidy' found`, a property of this
+machine — it has no `tidy` — and not of the manual: the win-builder runs, on
+machines that do have `tidy`, have reported `checking HTML version of
+manual ... OK` on every earlier upload. A rerun with
+`_R_CHECK_CRAN_INCOMING_=false --no-manual` is kept alongside the other logs to
+show that removing the incoming checks and the manual validation removes both
+notes and nothing else appears.
 
 ## A check that CRAN runs, and that this package now runs first
 
@@ -182,7 +86,7 @@ stamps and the stamp identifies a build, not a revision. Each result was read
 from that run's own check log. Where a run has not yet been repeated on the
 current sources, the line says so rather than carrying the older result forward.
 
-The package sources submitted are those of `ee5f6ac`.
+The package sources submitted are those of `d837225`.
 
 **This paragraph was wrong until it was re-run.** It claimed the sources were
 those of `375d7c3` and that everything committed after it touched only this
@@ -203,120 +107,61 @@ The command is now run for each revision and its output pasted, not summarised.
   with `_R_CHECK_DEPENDS_ONLY_=true`. With `_R_CHECK_CRAN_INCOMING_=false` the
   result is **`Status: OK`**, no notes at all, which locates that note in the
   incoming checks rather than in the package.
-* Local, `--as-cran` **building the vignettes** — **`Status: 1 NOTE`**, the same
-  one, with `checking package vignettes ... OK` and `checking re-building of
-  vignette outputs ... OK`. The other local runs pass `--ignore-vignettes`
-  because the R 4.1.3 container has no `pandoc`, and carrying that flag over to
-  the local runs left unchecked something CRAN does do. All nine vignettes build
-  without a warning.
-* Continuous integration (GitHub Actions, `R-CMD-check`, run 32800861652) on
-  `ee5f6ac`, 5 of 5 with **`Status: OK`** and no notes: Ubuntu with R release, R-devel and R oldrel-1;
-  Windows with R release; and macOS with R release on
-  **`aarch64-apple-darwin23`**. The platforms exercised are
-  `x86_64-pc-linux-gnu`, `x86_64-w64-mingw32` and `aarch64-apple-darwin23`. The
-  five `Status: OK` lines and the absence of notes are read from the run's own
-  log rather than inferred from the green tick, because a run can conclude
-  successfully and still carry notes.
-* R-hub v2, R-devel (run 32800095271) on **`7244ee1`, one commit before the
-  submitted sources**: Linux, Windows and macOS — all three **`Status: OK`**, no
-  notes. The gap is one commit that adds a progress bar to collection profiling;
-  it is named here rather than glossed, because a result that measured other
-  sources is not a result for these. Re-dispatching R-hub on `ee5f6ac` costs
-  time and no work, and should precede the actual submission.
-  The macOS result was read from that job's own log rather than from the
-  combined run log, which the API returned truncated before the check summary —
-  a green tick with no readable `Status:` line is not a result.
-* win-builder, R release (4.6.1) and R-devel (r90445), from `ee5f6ac`, uploaded
-  on 2026-08-25: **`Status: 1 NOTE` on both**, and the note is `New submission`
-  and nothing else. Read from each run's own `00check.log`
-  (`uFmJuRmKB3GQ` and `8PUkKn3a9w9D`) rather than from the notification e-mail,
-  which reports the count but not which note it is. `checking tests ... OK` at
-  108 and 105 minutes respectively, `checking re-building of vignette
-  outputs ... OK`, `checking PDF version of manual ... OK`.
+* Local, `_R_CHECK_DEPENDS_ONLY_=true R CMD check --as-cran` on the tarball
+  built from the submission tree — **`Status: 2 NOTEs`**, the two described
+  above and nothing else. (`cran-comments.md` is build-ignored, so a commit
+  that touches only this letter does not change the sources; the run is
+  repeated by the release script on the final commit and its log replaces the
+  one cited here.) This is the check that CRAN's environment variable runs, the one
+  that has caught what twenty-two thousand green tests structurally cannot see;
+  its log is kept with the other runs of this revision. The tarball build
+  rebuilds all nine vignettes without a warning.
+* Continuous integration (GitHub Actions, `R-CMD-check`, run 33342198219) **on
+  `d837225`, the submitted sources**: 5 of 5 with **`Status: OK`** and test
+  summaries of `FAIL 0` with 22 124–22 128 passing checks — Ubuntu with R
+  release, R-devel and R oldrel-1; Windows with R release; macOS with R release
+  on `aarch64-apple-darwin23`. Each `Status:` line and each test summary was
+  read from that run's own log rather than inferred from the green tick.
+* R-hub v2, R-devel (run 33342198329) **on `d837225`, the submitted sources**:
+  Linux, Windows and macOS — all three **`Status: OK`**. Each result was read
+  from that job's own log. Earlier revisions of this letter carried an R-hub
+  result measured one commit behind the submission and said so; this one is
+  measured on what is submitted.
+* win-builder, R release (4.6.1) and R-devel (r90452), uploaded from `d837225`
+  on 2026-08-31: **`Status: 1 NOTE` on both**, and the note is `New submission`
+  and nothing else. Read from each run's own `00check.log` (`TeCC2H9YPP1c` and
+  `7WGhSWm53Zru`), not from the notification e-mail. `checking tests ... OK` at
+  109 and 111 minutes respectively, and `checking HTML version of manual ... OK`
+  on both.
 
-  **The URL note recorded below did not recur.** An earlier revision reported
-  `https://www.gnu.org/licenses/gpl-3.0.html` as unreachable on every win-builder
-  run of that day, and the paragraph concluded it was that machine's network.
-  These two runs report no URL note at all, which is what a transient network
-  failure looks like once it stops — and is the reason that paragraph said what
-  it could support rather than declaring the link fine.
+  **An earlier upload of this same revision cycle failed here, and only here.**
+  The release machine's check died 29 minutes in with no test summary; nine
+  other environments were green. The cause was in the package: to decide
+  whether a raw column is WKB, bytes were handed to GDAL through `sf`, and a
+  `tryCatch` cannot catch a segfault in C. That build of GDAL crashed where
+  every other one raised an error. The fix validates the WKB header
+  arithmetically before `sf` is ever called, so garbage bytes never reach GDAL;
+  the test that used to feed them now asserts that `st_as_sfc` is not called.
+  The rerun above — full suite, 109 minutes, `1 NOTE` — is the measurement that
+  the crash is gone. It is recorded here because a result that failed and was
+  fixed is part of what was measured, and because win-builder release was the
+  only environment of ten able to see it.
 * Container: R 4.1.3 (`rocker/r-ver:4.1.3`) for the declared minimum, with the
-  suggested packages installed and the test suite running. Result:
-  **0 errors, 0 warnings**, `checking tests ... OK`, and two notes that are
-  properties of that container rather than of the package. The first is that
-  `bit64`, `covr`, `knitr`, `rmarkdown`, `RSQLite` and `sf` have no build there.
-  The second says `found 1 marked UTF-8 string`, and that string is
-  **`Paysandú`** in the department column of the example data: it is correctly
-  marked, R 4.6.1 reports `OK` for that same check, and only R 4.1.3 notes it. A
-  package about the quality of Uruguayan data has to be able to write that name
-  the way it is written.
-
-  **`DESCRIPTION` used to declare `R (>= 3.6.0)`, and that was a claim this
-  package did not keep.** An earlier revision stated that the suite could not be
-  run under R 3.6 because `testthat` declares `R (>= 4.1.0)`. That is true
-  against current CRAN and false against a period-appropriate snapshot, where
-  `testthat 3.1.7` installs without trouble. Run there, the suite reports
-  `[ FAIL 18 | PASS 15356 ]`.
-
-  Six of those eighteen came from one cause: under R < 4.0 `data.frame()`
-  defaults to `stringsAsFactors = TRUE`, and at the time of that run the package
-  had 275 `data.frame()` calls that did not say otherwise, so text columns were
-  born as factors. The consequence is not cosmetic — writing the personal-data
-  marker `"[valor protegido]"` into a factor column yields `NA` instead, so a
-  promise the package makes about that cell silently goes unkept. Under R 4.0.5
-  with the same period packages those six disappeared.
-
-  **That count is no longer 275, and this line said it was until it was
-  measured.** Parsing `R/` rather than grepping it — `grep` counts
-  `as.data.frame(` and `is.data.frame(` as well, and returns 297 where the
-  constructor is called 195 times — there is exactly **one** call without the
-  argument, and it constructs an empty frame, where there is no column to
-  coerce. The sentence is left in the past tense with the current figure beside
-  it rather than deleted: what it describes is why the floor was raised, and a
-  letter that erases the state it was written about stops being evidence of
-  anything.
-
-  The minimum is now `R (>= 4.1.0)`, which is both what current `testthat`
-  requires — so the suite runs at the declared floor with today's tools — and a
-  floor that was measured in a container before being declared, rather than
-  asserted. The only import, `cli`, declares `R (>= 3.4)`, so nothing forced the
-  older number.
-
-  The remaining twelve failures under old suggested-package versions are not
-  about the R version: with `RSQLite 2.3.1` and `bit64 4.0.5`, counts come back
-  as `integer64` and travel into the profile that way, so fields change class
-  with the user's installed optional packages. CRAN does not check against old
-  `Suggests` versions and none of this affects the checks above; it is recorded
-  as open work rather than presented as solved.
-
-* win-builder on an **earlier revision** (R-release 4.6.1 and R-devel r90440),
-  kept because of what it records about reading results rather than for its
-  status: **1 NOTE on each**. The
-  note is the new-submission one plus a URL the checker could not reach —
-  `https://www.gnu.org/licenses/gpl-3.0.html`, reported as
-  `Timeout was reached ... Failed to connect to www.gnu.org port 443`. The link
-  is the GPL-3 text and resolves; the timeout is that machine's network, and it
-  appeared on every run of the day. Both queues report `checking tests ... OK`
-  and both manual formats OK, including the HTML manual that cannot be checked
-  locally for want of `tidy`.
-
-  Results were matched to this build by reading each check log rather than by the
-  arrival time of the notification. That distinction mattered here: an earlier
-  build of the same sources sat in the R-release queue for over three hours, and
-  its result arrived after the corrected build had already been submitted. It was
-  identified as stale because it reported a note that these sources cannot
-  produce.
-
-The macOS builder at <https://mac.r-project.org/macbuilder/> returned HTTP 502 for
-every submission attempt, as it did while the previous revision was being prepared.
-Apple silicon is covered instead by the GitHub Actions `macos-latest` runner, which
-reports `using platform: aarch64-apple-darwin23`.
-
-The arm64 run matters for this package: an earlier revision classified duplicate
-pairs by testing a floating-point distance for equality, which held on x86_64 and
-failed on Apple silicon. The classification now compares the normalised strings
-directly, so the result no longer depends on the architecture, and a regression
-test forces a non-zero distance of 1e-16 to keep it that way.
+  suggested packages installed from a period-appropriate CRAN snapshot and the
+  full test suite running: **`FAIL 0 | WARN 0 | SKIP 21 | PASS 22086`** on
+  `d837225`, the submitted sources. The check reports one ERROR and one WARNING, both from
+  `checking PDF version of manual`: the image has no `pdflatex`. They are
+  properties of the container — every external service above builds the manual
+  and reports OK. Of its three NOTEs, one is `New submission`, one is the
+  future-timestamp note from the container clock, and one says
+  `found 1 marked UTF-8 string`: that string is **`Paysandú`** in the department
+  column of the example data. It is correctly marked, R 4.6.1 reports `OK` for
+  that same check, and a package about the quality of Uruguayan data has to be
+  able to write that name the way it is written.
+* The engine matrix — the full profile against PostgreSQL 16 and 9.3.25,
+  MariaDB 11.8, MySQL 8.4, SQLite, DuckDB and SQL Server 2022, all real engines
+  — reports **7 of 7 measured** on `d837225`, regenerated by the script that
+  refuses to print a row without a log.
 
 ## Implementation notes
 
@@ -360,8 +205,8 @@ compares the pre-truncation total, works in both directions, and respects the
 declared unit. The finding is kept: warning is not a reason to hide the evidence.
 The test suite checks identities and not only counts — fixtures build tables whose
 corrupted row indices are known in advance and assert hits, false positives and
-misses across the canonical finding vocabulary. The current count is **57
-`tipo_hallazgo` names**: 54 types constructed by `.nuevo_hallazgo()` and three
+misses across the canonical finding vocabulary. The current count is **56
+`tipo_hallazgo` names**: 53 types constructed by `.nuevo_hallazgo()` and three
 additional duplicate-finding names constructed by the approximate-duplicate
 detector (`duplicados_aproximados`, `duplicados_exactos_columnas` and
 `duplicados_exactos_normalizados`).
