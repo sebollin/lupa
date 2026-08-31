@@ -84,6 +84,29 @@
 # anterior. Las dos familias no usan este valor como tamano comun.
 .TAMANO_LOTE_DBI <- .TAMANO_LOTE_PLANOS_DBI
 
+# Registro cerrado de los metodos que publican las filas SQL. Las claves tienen
+# que coincidir textualmente con `metodo`: no se infiere la clase por la
+# metrica, porque una misma metrica puede tener metodos con memoria distinta.
+.REGISTRO_MEMORIA_TRABAJO_DBI <- c(
+  "COUNT(DISTINCT)" = "creciente",
+  "APPROX_COUNT_DISTINCT" = "acotado",
+  "approx_count_distinct" = "acotado",
+  "approx_count_distinct_generico" = "acotado",
+  "ventana_agregado" = "creciente",
+  "consulta_actual_sin_guardian" = "creciente",
+  "subconsulta_escalar" = "creciente",
+  "dos_consultas" = "creciente",
+  "PERCENTILE_CONT" = "creciente",
+  "PERCENTILE_CONT_OVER" = "creciente",
+  "approx_percentile" = "acotado",
+  "approx_quantile" = "acotado",
+  "percentile_approx" = "acotado",
+  "quantile" = "acotado",
+  "tabla_completa" = "acotado",
+  "conteo_universo" = "acotado",
+  "pg_stats.n_distinct" = "acotado"
+)
+
 # Las capacidades nuevas se sondean una vez por corrida. Todas sus formas
 # candidatas se prueban aunque una ya haya acertado: el costo no puede depender
 # de que el primer candidato sea aceptado por el motor.
@@ -3079,6 +3102,64 @@
 
 # ---- Registro de auditoria ----------------------------------------------
 
+.memoria_trabajo_sql_dbi <- function(estado, metadatos) {
+  if (length(estado) != 1L || is.na(estado)) return(NA_character_)
+  estado <- as.character(estado)
+  if (estado %in% c(
+    "no_solicitado", "omitida", "omitido_por_costo",
+    "omitido_por_privacidad", "no_disponible", "no_aplica",
+    "sin_valores", "no_medido"
+  )) {
+    return(NA_character_)
+  }
+
+  alcance <- if (is.null(metadatos$alcance)) {
+    NA_character_
+  } else {
+    as.character(metadatos$alcance)
+  }
+  fraccion <- if (is.null(metadatos$fraccion)) {
+    NA_real_
+  } else {
+    suppressWarnings(as.numeric(metadatos$fraccion))
+  }
+  if (length(alcance) == 1L && identical(alcance, "muestra") &&
+      length(fraccion) == 1L && isTRUE(is.finite(fraccion)) &&
+      fraccion < 1) {
+    return("acotado")
+  }
+
+  # Una muestra saturada tiene alcance `muestra`, pero fraccion = 1: su cap no
+  # acota el universo y por eso continua en R3 junto a las tablas completas.
+  alcance_tabla <- length(alcance) == 1L && (
+    alcance %in% c("tabla_completa", "tabla_muestreada") ||
+      (identical(alcance, "muestra") &&
+         length(fraccion) == 1L && isTRUE(fraccion == 1))
+  )
+  if (!alcance_tabla) return(NA_character_)
+
+  metodo <- if (is.null(metadatos$metodo)) {
+    NA_character_
+  } else {
+    as.character(metadatos$metodo)
+  }
+  if (length(metodo) != 1L || is.na(metodo)) {
+    return(NA_character_)
+  }
+  if (!metodo %in% names(.REGISTRO_MEMORIA_TRABAJO_DBI)) {
+    # En la muestra saturada `random_limit` ya no limita filas: el agregado
+    # plano recorre la tabla completa y conserva su estado acotado de una
+    # pasada. No se agrega al registro general de metodos de muestra; fuera de
+    # este caso, un metodo no registrado sigue publicando `NA`.
+    if (identical(alcance, "muestra") && isTRUE(fraccion == 1) &&
+        identical(metodo, "random_limit")) {
+      return("acotado")
+    }
+    return(NA_character_)
+  }
+  unname(.REGISTRO_MEMORIA_TRABAJO_DBI[[metodo]])
+}
+
 .registro_sql_dbi <- function(columna, metricas, estado, motivo, sql,
                               metadatos = NULL, medicion = NULL,
                               etapa = NULL) {
@@ -3149,6 +3230,9 @@
     bloques_temporales_leidos = rep_len(NA_real_, length(metricas)),
     bloques_temporales_escritos = rep_len(NA_real_, length(metricas)),
     fuente_derrame = rep_len(NA_character_, length(metricas)),
+    memoria_trabajo = rep_len(
+      .memoria_trabajo_sql_dbi(estado, metadatos), length(metricas)
+    ),
     stringsAsFactors = FALSE
   )
 }
@@ -3215,6 +3299,9 @@
     }
   }
   sql$nivel <- as.integer(nivel)
+  if ("memoria_trabajo" %in% names(sql)) {
+    sql <- sql[c(setdiff(names(sql), "memoria_trabajo"), "memoria_trabajo")]
+  }
   sql
 }
 
@@ -9846,6 +9933,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `desvio`, `lectura_muestra` y las sondas). Las métricas no solicitadas o que
 #' no emitieron consulta conservan esos campos y los dejan en `NA`; en
 #' particular, `NA` no significa cero.
+#'
+#' `resumen_tabla$sql$memoria_trabajo` agrega el eje del estado de trabajo del
+#' motor: se deriva en orden como `NA` para una fila sin medición, `acotado`
+#' para una muestra con `fraccion < 1` y, en los demás alcances efectivos,
+#' según el método resuelto del registro; una muestra saturada (`fraccion = 1`)
+#' cae a este último caso porque su tope es vacuo. Sus únicos valores son
+#' `"creciente"`, `"acotado"` y `NA`.
 #'
 #' En PostgreSQL, con `instrumentar = TRUE`, se toma una foto de
 #' `pg_stat_statements` antes y después de los `COUNT(DISTINCT)` exactos. Sólo

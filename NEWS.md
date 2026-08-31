@@ -1,5 +1,12 @@
 # lupa 0.1.0
 
+## Memoria de trabajo en la auditoría DBI
+
+- `resumen_tabla$sql` agrega `memoria_trabajo`, derivada del estado de medición,
+  del alcance efectivo y del método resuelto. Distingue trabajo `creciente`,
+  `acotado` y filas sin medición (`NA`), incluida la muestra saturada, cuyo
+  tope vacuo se clasifica por método.
+
 ## Comparación de perfiles y estado del tipo inferido
 
 - `comparar_equivalencia()` compara campos compartidos con un registro fijo de

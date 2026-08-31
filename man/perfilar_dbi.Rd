@@ -489,6 +489,13 @@ y mediana— no comparten filas con otras métricas. \code{etapa} permite agrupa
 no emitieron consulta conservan esos campos y los dejan en \code{NA}; en
 particular, \code{NA} no significa cero.
 
+\code{resumen_tabla$sql$memoria_trabajo} agrega el eje del estado de trabajo del
+motor: se deriva en orden como \code{NA} para una fila sin medición, \code{acotado}
+para una muestra con \code{fraccion < 1} y, en los demás alcances efectivos,
+según el método resuelto del registro; una muestra saturada (\code{fraccion = 1})
+cae a este último caso porque su tope es vacuo. Sus únicos valores son
+\code{"creciente"}, \code{"acotado"} y \code{NA}.
+
 En PostgreSQL, con \code{instrumentar = TRUE}, se toma una foto de
 \code{pg_stat_statements} antes y después de los \code{COUNT(DISTINCT)} exactos. Sólo
 se publica un derrame cuando una consulta coincide y su contador aumentó en
