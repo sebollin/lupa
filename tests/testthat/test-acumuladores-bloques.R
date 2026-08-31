@@ -385,3 +385,137 @@ test_that("las familias de valor declaran el truncamiento y el vigilante final",
   expect_true(all(eventos$tipo_evento == "presion_memoria_proceso"))
   expect_identical(ejecucion$centinela$resultado$valor, 9999)
 })
+
+test_that("la trazabilidad acumula ordinales globales y recorta al final", {
+  valores <- seq_len(97L)
+  mascara <- valores %% 3L == 0L
+  referencia <- lupa:::.trazabilidad_bloques(
+    valores, mascara = mascara, k = 1L, max_filas_hallazgo = Inf
+  )
+  for (k in c(1L, 2L, 7L, 31L)) {
+    actual <- lupa:::.trazabilidad_bloques(
+      valores, mascara = mascara, k = k, max_filas_hallazgo = Inf
+    )
+    expect_identical(actual$estado, "calculado")
+    expect_identical(actual$resultado$indices_fila,
+                     referencia$resultado$indices_fila)
+    expect_identical(actual$resultado$total, referencia$resultado$total)
+  }
+
+  recortada <- lupa:::.trazabilidad_bloques(
+    valores, mascara = mascara, k = 7L, max_filas_hallazgo = 5L
+  )
+  expect_identical(recortada$estado, "calculado")
+  expect_identical(recortada$resultado$indices_fila, c(3L, 6L, 9L, 12L, 15L))
+  expect_identical(recortada$resultado$total, 32)
+  expect_true(recortada$resultado$truncado)
+  expect_identical(recortada$alcance$orden, "orden_entrada")
+
+  generica <- lupa:::.ejecutar_vector_bloques(
+    valores, "trazabilidad", k = 7L, aplicable = mascara,
+    max_entradas = Inf
+  )$resultado
+  expect_identical(generica$resultado$indices_fila,
+                   referencia$resultado$indices_fila)
+})
+
+test_that("los ejemplos de claves se eligen por ordinal global y valor unico", {
+  claves <- c("x", "x", "y", "x", "y", "x", "y")
+  valores <- c("primero", "primero", "y-uno", "segundo", "y-uno",
+               "tercero", "y-dos")
+  referencia <- lupa:::.ejecutar_ejemplos_bloques(
+    valores, claves = claves, ejemplos = valores,
+    k = 1L, max_ejemplos = 3L
+  )
+  for (k in c(1L, 2L, 7L, 31L)) {
+    actual <- lupa:::.ejecutar_ejemplos_bloques(
+      valores, claves = claves, ejemplos = valores,
+      k = k, max_ejemplos = 3L
+    )
+    expect_identical(actual$estado, "calculado")
+    expect_identical(actual$resultado, referencia$resultado)
+  }
+  expect_identical(referencia$resultado$ejemplos[[1L]], "primero | segundo | tercero")
+  expect_identical(referencia$resultado$ejemplos[[2L]], "y-uno | y-dos")
+  expect_identical(referencia$resultado$primer_ordinal, c(1, 3))
+})
+
+test_that("la fusion conserva el orden global de los ejemplos", {
+  primero <- lupa:::.iniciar_acumulador(
+    "x", "character", familia = "ejemplos", max_entradas = 10L
+  )
+  segundo <- lupa:::.iniciar_acumulador(
+    "x", "character", familia = "ejemplos", max_entradas = 10L
+  )
+  primero <- lupa:::.absorber_acumulador(primero, list(
+    valores = c("later", "first"), ordinales = 3:4,
+    claves = c("k", "k"), ejemplos = c("later", "first"),
+    ordinal_inicio = 3, ordinal_fin = 4
+  ))
+  segundo <- lupa:::.absorber_acumulador(segundo, list(
+    valores = c("k", "later"), ordinales = 1:2,
+    claves = c("k", "k"), ejemplos = c("k", "later"),
+    ordinal_inicio = 1, ordinal_fin = 2
+  ))
+  fusionado <- lupa:::.fusionar_acumuladores(primero, segundo)
+  resultado <- lupa:::.resultado_acumulador(fusionado)
+  expect_identical(resultado$ejemplos[[1L]], "k | later | first")
+
+  vacia <- lupa:::.trazabilidad_bloques(
+    seq_len(4L), indices = integer(), k = 2L
+  )
+  expect_identical(vacia$resultado$total, 0)
+  expect_identical(vacia$resultado$indices_fila, integer())
+})
+
+test_that("los patrones por bloques son identicos a la pasada unica", {
+  valores <- c("AA01", "x", "AA02", "bbb", "AA03", "bbb",
+               NA_character_, "CC04")
+  referencia <- descubrir_patrones(
+    valores, expandir = TRUE, na.rm = FALSE, muestra = Inf
+  )
+  for (k in c(1L, 2L, 7L, 31L)) {
+    actual <- lupa:::.descubrir_patrones_bloques(
+      valores, expandir = TRUE, na.rm = FALSE, muestra = Inf, k = k
+    )
+    expect_identical(actual, referencia)
+  }
+})
+
+test_that("la muestra sistematica usa indices globales en todos los bloques", {
+  n <- 150000L
+  indices <- lupa:::.indices_muestra_globales(n, 100000L)
+  expect_identical(length(indices), 100000L)
+  for (k in c(1L, 2L, 7L, 31L)) {
+    actual <- lupa:::.muestrear_vector_bloques(
+      seq_len(n), 100000L, k = k
+    )
+    referencia <- lupa:::.muestrear_vector(seq_len(n), 100000L)
+    expect_identical(actual, referencia)
+    bloques <- lupa:::.bloques_de_vector_muestreados(
+      seq_len(n), 100000L, k = k
+    )
+    aplicados <- unlist(lapply(bloques, function(bloque) bloque$ordinales),
+                        use.names = FALSE)
+    expect_identical(as.integer(aplicados), indices)
+  }
+})
+
+test_that("las familias de indice publican orden y el vigilante las cuenta", {
+  vigilante <- lupa:::.iniciar_vigilante("indice-stage3", tope_bytes = 1)
+  traza <- lupa:::.trazabilidad_bloques(
+    seq_len(20L), mascara = seq_len(20L) %% 2L == 0L,
+    k = 2L, max_filas_hallazgo = 4L, vigilante = vigilante
+  )
+  eventos <- lupa:::.eventos_vigilante(vigilante)
+  expect_true(any(eventos$familia == "trazabilidad"))
+  expect_true(all(is.finite(eventos$bytes_retenidos)))
+  expect_true(all(eventos$bytes_retenidos >= 0))
+  expect_identical(traza$alcance$orden, "orden_entrada")
+
+  invalida <- lupa:::.iniciar_acumulador(
+    "x", "integer", familia = "trazabilidad", orden_id = NA_character_
+  )
+  expect_identical(invalida$estado, "no_disponible")
+  expect_match(invalida$fallo, "orden_estable_no_disponible")
+})

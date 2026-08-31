@@ -1,5 +1,16 @@
 # lupa 0.1.0
 
+## Ejecutor interno por bloques — Etapa 3: índice
+
+- Las familias de trazabilidad y ejemplos conservan ordinales globales: los
+  índices se recortan al finalizar y los primeros valores únicos se resuelven
+  sobre el orden de la fuente, no por bloque.
+- La muestra sistemática por bloques calcula una sola vez sus índices globales
+  y aplica la intersección con cada intervalo; reproduce `.muestrear_vector()`
+  para 1, 2, 7 y 31 bloques.
+- Los sobres de índice publican `orden`, `snapshot`, topes y truncamiento; la
+  integración DBI y su `ORDER BY` queda reservada para la Etapa 4.
+
 ## Ejecutor interno por bloques — Etapa 2: valor
 
 - Las medianas y cuartiles se reconstruyen desde el mapa central ponderado,

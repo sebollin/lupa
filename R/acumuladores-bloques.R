@@ -5,6 +5,8 @@
 .VERSION_CANONICALIZACION_R <- "igualdad-R-1"
 .MAX_ENTRADAS_DISTINTOS <- 5000L
 .MAX_BYTES_ESTADO_BLOQUES <- 512 * 1024^2
+.MAX_FILAS_TRAZABILIDAD_BLOQUES <- 1000L
+.MAX_EJEMPLOS_BLOQUES <- 3L
 .EVENTO_PRESION_MEMORIA <- "presion_memoria_proceso"
 
 .validar_tope_bloques <- function(x, nombre, permitir_inf = TRUE) {
@@ -53,6 +55,9 @@
   acumulador$max_entradas <- max_entradas
   acumulador$max_bytes <- max_bytes
   acumulador$requiere_orden <- isTRUE(requiere_orden)
+  if (familia %in% c("trazabilidad", "ejemplos", "muestra")) {
+    acumulador$requiere_orden <- TRUE
+  }
   acumulador$incluir_ausentes <- isTRUE(incluir_ausentes)
   acumulador$estado <- "iniciado"
   acumulador$fallo <- NULL
@@ -82,6 +87,9 @@
   if (identical(familia, "centinela") && is.infinite(max_entradas)) {
     max_entradas <- .MAX_ENTRADAS_DISTINTOS
   }
+  if (identical(familia, "ejemplos") && is.infinite(max_entradas)) {
+    max_entradas <- .MAX_ENTRADAS_DISTINTOS
+  }
   if (is.infinite(max_bytes)) max_bytes <- .MAX_BYTES_ESTADO_BLOQUES
   max_entradas <- .validar_tope_bloques(max_entradas, "max_entradas")
   max_bytes <- .validar_tope_bloques(max_bytes, "max_bytes")
@@ -93,6 +101,21 @@
     familia, columna, tipo, configuracion, max_entradas, max_bytes,
     requiere_orden, incluir_ausentes
   )
+  es_indice <- familia %in% c("trazabilidad", "ejemplos", "muestra")
+  orden_valido <- length(configuracion$orden_id) == 1L &&
+    !is.na(configuracion$orden_id) && nzchar(configuracion$orden_id)
+  snapshot_valido <- length(configuracion$snapshot_id) == 1L &&
+    !is.na(configuracion$snapshot_id) && nzchar(configuracion$snapshot_id)
+  if (es_indice && (!orden_valido || !snapshot_valido)) {
+    acumulador <- .marcar_fallo_acumulador(
+      acumulador,
+      if (!orden_valido) {
+        "orden_estable_no_disponible:orden_id_ausente"
+      } else {
+        "snapshot_inestable:snapshot_id_ausente"
+      }
+    )
+  }
   acumulador$estado_familia <- switch(
     familia,
     conteos = list(
@@ -130,6 +153,20 @@
       truncado = FALSE, causa_tope = NULL,
       limite_inferior = NA_real_, limite_superior = NA_real_
     ),
+    trazabilidad = list(
+      indices = integer(), total = 0L, truncado = FALSE,
+      indices_omitidos = 0L, causa_tope = NULL
+    ),
+    ejemplos = list(
+      representantes = NULL, frecuencias = integer(), primeros = numeric(),
+      valores = list(), ordinales = list(), n = 0L, n_filas = 0L,
+      n_claves_omitidas = 0L,
+      truncado = FALSE, causa_tope = NULL
+    ),
+    muestra = list(
+      indices = integer(), n = 0L, n_total = NA_real_,
+      limite = NA_real_
+    ),
     aritmetica = list(
       n = 0L, n_cumplen = 0L, n_incumplen = 0L,
       limite_inferior = NA_real_, limite_superior = NA_real_,
@@ -150,6 +187,14 @@
     acumulador$estado_familia$tolerancia <-
       as.numeric(configuracion$configuracion$tolerancia %||% NA_real_)
   }
+  if (identical(familia, "muestra")) {
+    acumulador$estado_familia$n_total <- as.numeric(
+      configuracion$configuracion$n_total %||% NA_real_
+    )
+    acumulador$estado_familia$limite <- as.numeric(
+      configuracion$configuracion$limite %||% NA_real_
+    )
+  }
   acumulador
 }
 
@@ -159,6 +204,12 @@
     inicio <- NA_real_
     fin <- NA_real_
     aplicable <- NULL
+    aplicable_declarada <- FALSE
+    ordinales <- NULL
+    claves <- NULL
+    ejemplos <- NULL
+    seleccion <- NULL
+    indices_fila <- NULL
   } else if (is.list(bloque) && !is.null(names(bloque)) &&
       "valores" %in% names(bloque)) {
     valores <- bloque$valores
@@ -167,11 +218,23 @@
     if (is.null(inicio)) inicio <- NA_real_
     if (is.null(fin)) fin <- NA_real_
     aplicable <- bloque$aplicable
+    aplicable_declarada <- !is.null(aplicable)
+    ordinales <- bloque$ordinales
+    claves <- bloque$claves
+    ejemplos <- bloque$ejemplos
+    seleccion <- bloque$seleccion
+    indices_fila <- bloque$indices_fila
   } else {
     valores <- bloque
     inicio <- NA_real_
     fin <- NA_real_
     aplicable <- NULL
+    aplicable_declarada <- FALSE
+    ordinales <- NULL
+    claves <- NULL
+    ejemplos <- NULL
+    seleccion <- NULL
+    indices_fila <- NULL
   }
   n_filas <- if (inherits(valores, "data.frame")) nrow(valores) else {
     length(valores)
@@ -181,8 +244,28 @@
     stop("La mascara `aplicable` debe ser logica y tener el largo del bloque.",
          call. = FALSE)
   }
+  if (!is.null(ordinales) && length(ordinales) != n_filas) {
+    stop("`ordinales` debe tener el largo del bloque.", call. = FALSE)
+  }
+  if (!is.null(claves) && length(claves) != n_filas) {
+    stop("`claves` debe tener el largo del bloque.", call. = FALSE)
+  }
+  if (!is.null(ejemplos) && length(ejemplos) != n_filas) {
+    stop("`ejemplos` debe tener el largo del bloque.", call. = FALSE)
+  }
   list(valores = valores, ordinal_inicio = inicio, ordinal_fin = fin,
-       aplicable = aplicable)
+       ordinales = ordinales, claves = claves, ejemplos = ejemplos,
+       seleccion = seleccion, indices_fila = indices_fila,
+       aplicable = aplicable, aplicable_declarada = aplicable_declarada)
+}
+
+.ordinales_bloque <- function(bloque) {
+  n <- if (inherits(bloque$valores, "data.frame")) nrow(bloque$valores) else {
+    length(bloque$valores)
+  }
+  if (!is.null(bloque$ordinales)) return(as.numeric(bloque$ordinales))
+  if (!n) return(numeric())
+  seq.int(bloque$ordinal_inicio, length.out = n)
 }
 
 .registrar_intervalo_bloque <- function(acumulador, bloque) {
@@ -191,6 +274,12 @@
   }
   inicio <- bloque$ordinal_inicio
   fin <- bloque$ordinal_fin
+  ordinales <- bloque$ordinales
+  if (!is.null(ordinales) && length(ordinales) &&
+      all(is.finite(ordinales)) && all(ordinales == floor(ordinales))) {
+    if (is.na(inicio)) inicio <- min(ordinales)
+    if (is.na(fin)) fin <- max(ordinales)
+  }
   if (is.na(inicio)) inicio <- acumulador$ultimo_ordinal + 1
   if (is.na(fin)) fin <- inicio + n - 1
   if (n == 0L) {
@@ -198,8 +287,16 @@
   }
   if (length(inicio) != 1L || length(fin) != 1L || is.na(inicio) ||
       is.na(fin) || inicio < 1 || fin < inicio - 1 ||
-      (n && fin - inicio + 1 != n)) {
+      (n && is.null(ordinales) && fin - inicio + 1 != n)) {
     stop("El bloque no tiene ordinales globales validos.", call. = FALSE)
+  }
+  if (!is.null(ordinales) && length(ordinales)) {
+    if (any(!is.finite(ordinales)) || any(ordinales != floor(ordinales)) ||
+        any(ordinales < 1) || anyDuplicated(ordinales) ||
+        any(diff(ordinales) <= 0) || min(ordinales) < inicio ||
+        max(ordinales) > fin) {
+      stop("El bloque no tiene ordinales globales validos.", call. = FALSE)
+    }
   }
   if (acumulador$requiere_orden && length(acumulador$intervalos)) {
     anterior <- acumulador$intervalos[[length(acumulador$intervalos)]]
@@ -506,6 +603,256 @@
   acumulador
 }
 
+# Las familias de índice no pueden usar la posición local del bloque como
+# evidencia. Un bloque muestreado, por ejemplo, puede contener las filas 10 y
+# 1001 y aun así representar un intervalo continuo de la fuente. La máscara se
+# resuelve sobre las filas que llegaron y los ordinales se llevan aparte.
+.seleccion_indices_bloque <- function(acumulador, bloque) {
+  n <- length(.ordinales_bloque(bloque))
+  seleccion <- bloque$seleccion
+  if (is.null(seleccion) && !is.null(bloque$indices_fila)) {
+    candidatos <- bloque$indices_fila
+    if (is.logical(candidatos)) {
+      seleccion <- candidatos
+    } else {
+      candidatos <- as.numeric(candidatos)
+      ordinales <- .ordinales_bloque(bloque)
+      if (!length(candidatos)) {
+        seleccion <- rep(FALSE, n)
+      } else if (all(candidatos %in% ordinales)) {
+        seleccion <- ordinales %in% candidatos
+      } else if (all(candidatos == floor(candidatos)) &&
+                 all(candidatos >= 1L & candidatos <= n)) {
+        seleccion <- seq_len(n) %in% candidatos
+      } else {
+        return(NULL)
+      }
+    }
+  }
+  if (is.null(seleccion) && isTRUE(bloque$aplicable_declarada)) {
+    seleccion <- bloque$aplicable
+  }
+  if (is.null(seleccion)) {
+    funcion <- acumulador$configuracion$configuracion$predicado
+    if (is.function(funcion)) {
+      n <- length(.ordinales_bloque(bloque))
+      respuestas <- lapply(seq_len(n), function(i) {
+        fila <- if (inherits(bloque$valores, "data.frame")) {
+          bloque$valores[i, , drop = FALSE]
+        } else {
+          bloque$valores[[i]]
+        }
+        tryCatch(funcion(fila), error = function(e) e)
+      })
+      if (any(vapply(respuestas, inherits, logical(1L),
+                     what = "condition")) ||
+          any(!vapply(respuestas, is.logical, logical(1L)) ||
+              vapply(respuestas, length, integer(1L)) != 1L)) {
+        return(NULL)
+      }
+      seleccion <- vapply(respuestas, function(respuesta) respuesta[[1L]],
+                          logical(1L))
+    }
+  }
+  if (is.null(seleccion)) seleccion <- rep(TRUE, n)
+  if (!is.logical(seleccion) || length(seleccion) != n) return(NULL)
+  !is.na(seleccion) & seleccion
+}
+
+.absorber_trazabilidad <- function(acumulador, bloque) {
+  seleccion <- .seleccion_indices_bloque(acumulador, bloque)
+  if (is.null(seleccion)) {
+    return(.marcar_fallo_acumulador(
+      acumulador, "trazabilidad_predicado_no_logico"
+    ))
+  }
+  ordinales <- .ordinales_bloque(bloque)[seleccion]
+  estado <- acumulador$estado_familia
+  estado$total <- estado$total + length(ordinales)
+  if (!length(ordinales)) {
+    acumulador$estado_familia <- estado
+    return(acumulador)
+  }
+  if (isTRUE(estado$truncado)) {
+    estado$indices_omitidos <- estado$indices_omitidos + length(ordinales)
+    acumulador$estado_familia <- estado
+    return(acumulador)
+  }
+  disponibles <- acumulador$max_entradas - length(estado$indices)
+  if (is.finite(disponibles) && disponibles < length(ordinales)) {
+    conservar <- max(0L, as.integer(disponibles))
+    if (conservar) {
+      estado$indices <- c(estado$indices, utils::head(ordinales, conservar))
+    }
+    estado$indices_omitidos <- estado$indices_omitidos +
+      length(ordinales) - conservar
+    estado$truncado <- TRUE
+    estado$causa_tope <- "entradas"
+    acumulador$estado_familia <- estado
+    return(acumulador)
+  }
+  estado$indices <- c(estado$indices, ordinales)
+  acumulador$estado_familia <- estado
+  if (.bytes_estado_acumulador(acumulador) > acumulador$max_bytes) {
+    # El índice que cruza el tope no forma parte de la evidencia retenida. El
+    # total sigue siendo exacto y el sobre publica que los índices quedaron
+    # truncados, en vez de presentar el prefijo como si fuera completo.
+    estado$indices <- utils::head(estado$indices, -1L)
+    estado$indices_omitidos <- estado$indices_omitidos + 1L
+    estado$truncado <- TRUE
+    estado$causa_tope <- "bytes"
+    acumulador$estado_familia <- estado
+  }
+  acumulador
+}
+
+.valor_ejemplo_igual <- function(x, y) {
+  igual <- .iguales_R(x, y)
+  isTRUE(igual)
+}
+
+.primeros_ejemplos_ordinales <- function(valores, ordinales, limite) {
+  if (!length(valores)) {
+    return(list(valores = list(), ordinales = numeric()))
+  }
+  orden <- order(ordinales)
+  valores <- valores[orden]
+  ordinales <- ordinales[orden]
+  retenidos <- list()
+  ordinales_retenidos <- numeric()
+  for (i in seq_along(valores)) {
+    if (any(vapply(retenidos, .valor_ejemplo_igual, logical(1L),
+                   y = valores[[i]]))) next
+    retenidos[[length(retenidos) + 1L]] <- valores[[i]]
+    ordinales_retenidos <- c(ordinales_retenidos, ordinales[[i]])
+    if (length(retenidos) >= limite) break
+  }
+  list(valores = retenidos, ordinales = ordinales_retenidos)
+}
+
+.absorber_ejemplos <- function(acumulador, bloque) {
+  ordinales <- .ordinales_bloque(bloque)
+  aplica <- !is.na(bloque$aplicable) & bloque$aplicable
+  claves <- bloque$claves
+  if (is.null(claves)) {
+    funcion <- acumulador$configuracion$configuracion$funcion_clave
+    claves <- if (is.function(funcion)) {
+      tryCatch(funcion(bloque$valores), error = function(e) NULL)
+    } else bloque$valores
+  }
+  if (is.null(claves) || length(claves) != length(ordinales)) {
+    return(.marcar_fallo_acumulador(
+      acumulador, "ejemplos_clave_no_reproducible"
+    ))
+  }
+  valores <- bloque$ejemplos
+  if (is.null(valores)) valores <- bloque$valores
+  if (length(valores) != length(ordinales)) {
+    return(.marcar_fallo_acumulador(
+      acumulador, "ejemplos_valores_no_reproducibles"
+    ))
+  }
+  estado <- acumulador$estado_familia
+  estado$n_filas <- estado$n_filas + length(ordinales)
+  posiciones <- which(aplica)
+  estado$n <- estado$n + length(posiciones)
+  if (!length(posiciones)) {
+    acumulador$estado_familia <- estado
+    return(acumulador)
+  }
+  if (isTRUE(estado$truncado)) {
+    acumulador$estado_familia <- estado
+    return(acumulador)
+  }
+  limite_ejemplos <- acumulador$configuracion$configuracion$max_ejemplos %||%
+    .MAX_EJEMPLOS_BLOQUES
+  for (i in posiciones) {
+    clave <- claves[[i]]
+    if (isTRUE(tryCatch(is.na(clave), error = function(e) FALSE))) next
+    posicion <- .match_R(clave, estado$representantes)
+    if (is.null(posicion)) {
+      return(.marcar_fallo_acumulador(
+        acumulador, "igualdad_s3_no_reproducible"
+      ))
+    }
+    posicion <- posicion[[1L]]
+    if (!posicion) {
+      if (length(estado$representantes) >= acumulador$max_entradas) {
+        estado$n_claves_omitidas <- estado$n_claves_omitidas + 1L
+        estado$truncado <- TRUE
+        estado$causa_tope <- "entradas"
+        acumulador$estado <- "truncado"
+        break
+      }
+      estado$representantes <- .append_typed_R(
+        estado$representantes, clave
+      )
+      if (is.null(estado$representantes)) {
+        return(.marcar_fallo_acumulador(
+          acumulador, "igualdad_s3_no_reproducible"
+        ))
+      }
+      estado$frecuencias <- c(estado$frecuencias, 1L)
+      estado$primeros <- c(estado$primeros, ordinales[[i]])
+      es_ausente <- isTRUE(tryCatch(
+        is.na(valores[[i]]), error = function(e) FALSE
+      ))
+      estado$valores[[length(estado$valores) + 1L]] <- if (es_ausente) {
+        list()
+      } else list(valores[[i]])
+      estado$ordinales[[length(estado$ordinales) + 1L]] <- if (es_ausente) {
+        numeric()
+      } else ordinales[[i]]
+      posicion <- length(estado$representantes)
+    } else {
+      estado$frecuencias[[posicion]] <-
+        estado$frecuencias[[posicion]] + 1L
+      vistos <- estado$valores[[posicion]]
+      if (length(vistos) < limite_ejemplos &&
+          !any(vapply(vistos, .valor_ejemplo_igual, logical(1L),
+                      y = valores[[i]]))) {
+        estado$valores[[posicion]] <- c(vistos, list(valores[[i]]))
+        estado$ordinales[[posicion]] <- c(
+          estado$ordinales[[posicion]], ordinales[[i]]
+        )
+      }
+    }
+    acumulador$estado_familia <- estado
+    if (.bytes_estado_acumulador(acumulador) > acumulador$max_bytes) {
+      ultimo <- length(estado$representantes)
+      estado$representantes <- if (ultimo == 1L) NULL else {
+        estado$representantes[-ultimo]
+      }
+      estado$frecuencias <- utils::head(estado$frecuencias, -1L)
+      estado$primeros <- utils::head(estado$primeros, -1L)
+      estado$valores <- utils::head(estado$valores, -1L)
+      estado$ordinales <- utils::head(estado$ordinales, -1L)
+      estado$n_claves_omitidas <- estado$n_claves_omitidas + 1L
+      estado$truncado <- TRUE
+      estado$causa_tope <- "bytes"
+      acumulador$estado <- "truncado"
+      break
+    }
+  }
+  acumulador$estado_familia <- estado
+  acumulador
+}
+
+.absorber_muestra <- function(acumulador, bloque) {
+  ordinales <- .ordinales_bloque(bloque)
+  objetivo <- acumulador$configuracion$configuracion$indices_objetivo
+  if (is.null(objetivo)) {
+    return(.marcar_fallo_acumulador(acumulador, "muestra_n_desconocido"))
+  }
+  seleccion <- ordinales %in% objetivo
+  estado <- acumulador$estado_familia
+  elegidos <- ordinales[seleccion]
+  estado$indices <- c(estado$indices, elegidos)
+  estado$n <- length(estado$indices)
+  acumulador$estado_familia <- estado
+  acumulador
+}
+
 .absorber_aritmetica <- function(acumulador, bloque) {
   datos <- bloque$valores
   if (!inherits(datos, "data.frame") || ncol(datos) < 2L) {
@@ -540,7 +887,9 @@
   x <- bloque$valores
   aplica <- !is.na(bloque$aplicable) & bloque$aplicable
   if (!acumulador$incluir_ausentes) aplica <- aplica & !is.na(x)
+  ordinales <- .ordinales_bloque(bloque)
   indices <- which(aplica)
+  ordinales <- ordinales[aplica]
   x <- x[aplica]
   if (!length(x)) {
     acumulador$estado_familia$n <- acumulador$estado_familia$n +
@@ -584,7 +933,7 @@
       )
       primeros_nuevos <- vapply(
         seq_along(nuevos), function(i) {
-          min(which(correspondencias == i)) + bloque$ordinal_inicio - 1
+          min(ordinales[correspondencias == i])
         }, numeric(1L)
       )
       acumulador$estado_familia <- estado
@@ -624,7 +973,6 @@
       return(acumulador)
     }
   }
-  inicio <- bloque$ordinal_inicio
   for (i in seq_along(x)) {
     posicion <- .match_R(x[i], estado$representantes)
     if (is.null(posicion)) {
@@ -636,7 +984,7 @@
     posicion <- posicion[[1L]]
     # El ordinal se calcula por posicion en el bloque. El camino por `==` de
     # arriba no puede usarse: NA y NaN tienen clases separadas en R.
-    ordinal <- inicio + indices[[i]] - 1
+    ordinal <- ordinales[[i]]
     if (posicion > 0L) {
       estado$frecuencias[[posicion]] <-
         estado$frecuencias[[posicion]] + 1
@@ -715,10 +1063,11 @@
 .absorber_filas_distintos <- function(acumulador, bloque) {
   datos <- .expandir_datos_identidad(bloque$valores)
   aplica <- !is.na(bloque$aplicable) & bloque$aplicable
+  ordinales <- .ordinales_bloque(bloque)
   datos <- datos[aplica, , drop = FALSE]
+  ordinales <- ordinales[aplica]
   if (!nrow(datos)) return(acumulador)
   estado <- acumulador$estado_familia
-  inicio <- bloque$ordinal_inicio
   for (i in seq_len(nrow(datos))) {
     encontrado <- 0L
     if (!is.null(estado$representantes) && nrow(estado$representantes)) {
@@ -760,7 +1109,7 @@
       ))
     }
     estado$frecuencias <- c(estado$frecuencias, 1)
-    estado$primeros <- c(estado$primeros, inicio + i - 1)
+    estado$primeros <- c(estado$primeros, ordinales[[i]])
     estado$grupos <- c(estado$grupos, length(estado$frecuencias))
     acumulador$estado_familia <- estado
     if (.bytes_estado_acumulador(acumulador) > acumulador$max_bytes) {
@@ -795,6 +1144,9 @@
     distintos = .absorber_distintos(acumulador, bloque),
     hueco = .absorber_distintos(acumulador, bloque),
     filas_distintos = .absorber_filas_distintos(acumulador, bloque),
+    trazabilidad = .absorber_trazabilidad(acumulador, bloque),
+    ejemplos = .absorber_ejemplos(acumulador, bloque),
+    muestra = .absorber_muestra(acumulador, bloque),
     outliers = .absorber_outliers(acumulador, bloque),
     centinela = .absorber_centinela(acumulador, bloque),
     aritmetica = .absorber_aritmetica(acumulador, bloque),
@@ -987,6 +1339,103 @@
   acumulador
 }
 
+.fusionar_trazabilidad <- function(acumulador, otro) {
+  a <- acumulador$estado_familia
+  b <- otro$estado_familia
+  a$total <- a$total + b$total
+  a$indices <- sort(unique(c(a$indices, b$indices)))
+  if (isTRUE(a$truncado) || isTRUE(b$truncado)) {
+    a$truncado <- TRUE
+    a$causa_tope <- a$causa_tope %||% b$causa_tope %||% "entradas"
+  }
+  if (is.finite(acumulador$max_entradas) &&
+      length(a$indices) > acumulador$max_entradas) {
+    a$indices_omitidos <- a$indices_omitidos +
+      length(a$indices) - acumulador$max_entradas
+    a$indices <- utils::head(a$indices, acumulador$max_entradas)
+    a$truncado <- TRUE
+    a$causa_tope <- a$causa_tope %||% "entradas"
+  }
+  acumulador$estado_familia <- a
+  acumulador
+}
+
+.fusionar_ejemplos <- function(acumulador, otro) {
+  a <- acumulador$estado_familia
+  b <- otro$estado_familia
+  a$n <- a$n + b$n
+  a$n_filas <- a$n_filas + b$n_filas
+  if (isTRUE(a$truncado) || isTRUE(b$truncado)) {
+    a$truncado <- TRUE
+    a$causa_tope <- a$causa_tope %||% b$causa_tope %||% "entradas"
+    acumulador$estado_familia <- a
+    acumulador$estado <- "truncado"
+    return(acumulador)
+  }
+  limite_ejemplos <- acumulador$configuracion$configuracion$max_ejemplos %||%
+    .MAX_EJEMPLOS_BLOQUES
+  for (i in seq_along(b$representantes)) {
+    posicion <- .match_R(b$representantes[[i]], a$representantes)
+    if (is.null(posicion)) {
+      return(.marcar_fallo_acumulador(
+        acumulador, "igualdad_s3_no_reproducible"
+      ))
+    }
+    posicion <- posicion[[1L]]
+    if (!posicion) {
+      if (length(a$representantes) >= acumulador$max_entradas) {
+        a$n_claves_omitidas <- a$n_claves_omitidas + 1L
+        a$truncado <- TRUE
+        a$causa_tope <- "entradas"
+        break
+      }
+      a$representantes <- .append_typed_R(
+        a$representantes, b$representantes[[i]]
+      )
+      if (is.null(a$representantes)) {
+        return(.marcar_fallo_acumulador(
+          acumulador, "igualdad_s3_no_reproducible"
+        ))
+      }
+      a$frecuencias <- c(a$frecuencias, b$frecuencias[[i]])
+      a$primeros <- c(a$primeros, b$primeros[[i]])
+      a$valores[[length(a$valores) + 1L]] <- b$valores[[i]]
+      a$ordinales[[length(a$ordinales) + 1L]] <- b$ordinales[[i]]
+    } else {
+      a$frecuencias[[posicion]] <- a$frecuencias[[posicion]] +
+        b$frecuencias[[i]]
+      a$primeros[[posicion]] <- min(a$primeros[[posicion]], b$primeros[[i]])
+      candidatos <- .primeros_ejemplos_ordinales(
+        c(a$valores[[posicion]], b$valores[[i]]),
+        c(a$ordinales[[posicion]], b$ordinales[[i]]), limite_ejemplos
+      )
+      a$valores[[posicion]] <- candidatos$valores
+      a$ordinales[[posicion]] <- candidatos$ordinales
+    }
+  }
+  if (length(a$representantes)) {
+    for (i in seq_along(a$representantes)) {
+      candidatos <- .primeros_ejemplos_ordinales(
+        a$valores[[i]], a$ordinales[[i]], limite_ejemplos
+      )
+      a$valores[[i]] <- candidatos$valores
+      a$ordinales[[i]] <- candidatos$ordinales
+    }
+  }
+  acumulador$estado_familia <- a
+  if (isTRUE(a$truncado)) acumulador$estado <- "truncado"
+  acumulador
+}
+
+.fusionar_muestra <- function(acumulador, otro) {
+  a <- acumulador$estado_familia
+  b <- otro$estado_familia
+  a$indices <- sort(unique(c(a$indices, b$indices)))
+  a$n <- length(a$indices)
+  acumulador$estado_familia <- a
+  acumulador
+}
+
 .fusionar_acumuladores <- function(acumulador, otro) {
   if (!inherits(acumulador, "acumulador_bloques") ||
       !inherits(otro, "acumulador_bloques")) {
@@ -1061,6 +1510,9 @@
       a
     },
     centinela = acumulador$estado_familia,
+    trazabilidad = acumulador$estado_familia,
+    ejemplos = acumulador$estado_familia,
+    muestra = acumulador$estado_familia,
     aritmetica = {
       a <- acumulador$estado_familia
       b <- otro$estado_familia
@@ -1079,6 +1531,15 @@
   }
   if (identical(acumulador$familia, "filas_distintos")) {
     acumulador <- .fusionar_filas_distintos(acumulador, otro)
+  }
+  if (identical(acumulador$familia, "trazabilidad")) {
+    acumulador <- .fusionar_trazabilidad(acumulador, otro)
+  }
+  if (identical(acumulador$familia, "ejemplos")) {
+    acumulador <- .fusionar_ejemplos(acumulador, otro)
+  }
+  if (identical(acumulador$familia, "muestra")) {
+    acumulador <- .fusionar_muestra(acumulador, otro)
   }
   acumulador
 }
@@ -1169,6 +1630,52 @@
         n_evaluados = as.integer(estado$n)
       )
     },
+    trazabilidad = {
+      indices <- sort(unique(as.integer(estado$indices)))
+      list(
+        indices_fila = indices,
+        total = as.numeric(estado$total),
+        mostrados = length(indices),
+        truncado = isTRUE(estado$truncado) ||
+          length(indices) < estado$total,
+        limite = acumulador$max_entradas,
+        indices_omitidos = as.integer(estado$indices_omitidos)
+      )
+    },
+    ejemplos = if (isTRUE(estado$truncado)) NULL else {
+      orden <- order(estado$primeros)
+      representantes <- estado$representantes
+      if (is.null(representantes)) {
+        representantes <- switch(
+          acumulador$configuracion$tipo,
+          character = character(), logical = logical(), integer = integer(),
+          double = numeric(), raw = raw(), numeric()
+        )
+      }
+      texto_ejemplos <- vapply(seq_along(estado$valores), function(i) {
+        valores <- estado$valores[[i]]
+        ordinales <- estado$ordinales[[i]]
+        if (length(ordinales) == length(valores) && length(ordinales)) {
+          valores <- valores[order(ordinales)]
+        }
+        paste(vapply(valores, function(valor) {
+          tryCatch(as.character(valor), error = function(e) "")
+        }, character(1L)), collapse = " | ")
+      }, character(1L))
+      data.frame(
+        clave = representantes[orden],
+        n = as.integer(estado$frecuencias[orden]),
+        primer_ordinal = as.numeric(estado$primeros[orden]),
+        ejemplos = texto_ejemplos[orden],
+        stringsAsFactors = FALSE
+      )
+    },
+    muestra = list(
+      indices = as.integer(sort(unique(estado$indices))),
+      n = as.integer(length(unique(estado$indices))),
+      n_total = as.numeric(estado$n_total),
+      limite = as.numeric(estado$limite)
+    ),
     aritmetica = list(
       k = as.numeric(estado$k),
       n_evaluados = as.integer(estado$n),
@@ -1186,7 +1693,12 @@
   estado <- if (identical(acumulador$estado, "no_disponible")) {
     "no_disponible"
   } else if (identical(acumulador$estado, "truncado")) {
-    if (acumulador$familia %in% c("distintos", "hueco")) "cota" else "no_disponible"
+    if (acumulador$familia %in% c("distintos", "hueco")) "cota" else {
+      "no_disponible"
+    }
+  } else if (identical(acumulador$familia, "trazabilidad") &&
+             isTRUE(acumulador$estado_familia$truncado)) {
+    "calculado"
   } else "calculado"
   resultado <- .resultado_acumulador(acumulador)
   cota <- NULL
@@ -1206,7 +1718,11 @@
       identical(estado, "cota")
     ) FALSE else NA,
     motivo = if (is.null(acumulador$fallo)) {
-      if (identical(estado, "cota")) {
+      if (identical(acumulador$familia, "trazabilidad") &&
+          isTRUE(acumulador$estado_familia$truncado)) {
+        paste0("trazabilidad_truncada:",
+               acumulador$estado_familia$causa_tope %||% "desconocido")
+      } else if (identical(estado, "cota")) {
         paste0("mapa_distintos_truncado:", acumulador$estado_familia$causa_tope)
       } else if (identical(estado, "no_disponible")) {
         if (identical(acumulador$familia, "outliers") ||
@@ -1218,6 +1734,9 @@
     } else acumulador$fallo,
     como_resolverlo = if (identical(estado, "cota")) {
       "Aumentar el tope o habilitar un derrame exacto en una etapa posterior."
+    } else if (identical(acumulador$familia, "trazabilidad") &&
+               isTRUE(acumulador$estado_familia$truncado)) {
+      "Aumentar `max_filas_hallazgo` para conservar mas indices de evidencia."
     } else if (identical(estado, "no_disponible")) {
       if (identical(acumulador$familia, "outliers") ||
           identical(acumulador$familia, "centinela")) {
@@ -1230,13 +1749,25 @@
       bytes = acumulador$max_bytes,
       nombre = if (acumulador$familia %in% c("distintos", "hueco")) {
         "E_distintos/P_estado"
+      } else if (identical(acumulador$familia, "trazabilidad")) {
+        "max_filas_hallazgo/P_estado"
+      } else if (identical(acumulador$familia, "ejemplos")) {
+        "L_ejemplos/P_estado"
       } else "P_estado"
     ),
     almacenamiento = "memoria",
     derrame = NULL,
     alcance = list(
       filas = acumulador$ultimo_ordinal,
-      valores = acumulador$estado_familia$n_validos %||% NA_real_,
+      valores = if (identical(acumulador$familia, "trazabilidad")) {
+        acumulador$estado_familia$total
+      } else if (identical(acumulador$familia, "muestra")) {
+        acumulador$estado_familia$n
+      } else if (identical(acumulador$familia, "ejemplos")) {
+        acumulador$estado_familia$n_filas
+      } else {
+        acumulador$estado_familia$n_validos %||% NA_real_
+      },
       orden = acumulador$configuracion$orden_id,
       snapshot = acumulador$configuracion$snapshot_id,
       muestra = acumulador$configuracion$muestra_id
@@ -1333,7 +1864,12 @@
                                      max_entradas = Inf, max_bytes = Inf,
                                      requiere_orden = FALSE,
                                      incluir_ausentes = FALSE,
-                                     aplicable = NULL, vigilante = NULL) {
+                                     aplicable = NULL, vigilante = NULL,
+                                     fuente_id = "memoria",
+                                     snapshot_id = "memoria",
+                                     universo_id = "tabla_completa",
+                                     muestra_id = NULL,
+                                     orden_id = "orden_entrada") {
   if (!is.null(aplicable) &&
       (!is.logical(aplicable) || length(aplicable) != length(x))) {
     stop("`aplicable` debe ser logico y tener el largo del vector.",
@@ -1344,7 +1880,9 @@
     configuracion = configuracion,
     max_entradas = max_entradas, max_bytes = max_bytes,
     requiere_orden = requiere_orden,
-    incluir_ausentes = incluir_ausentes
+    incluir_ausentes = incluir_ausentes,
+    fuente_id = fuente_id, snapshot_id = snapshot_id,
+    universo_id = universo_id, muestra_id = muestra_id, orden_id = orden_id
   )
   if (identical(familia, "cuantitativos") &&
       "contar_signos" %in% names(configuracion)) {
@@ -1356,7 +1894,13 @@
     bloque <- indices[[i]]
     posiciones <- bloque$valores
     bloque$valores <- x[posiciones]
-    if (!is.null(aplicable)) bloque$aplicable <- aplicable[posiciones]
+    if (!is.null(aplicable)) {
+      if (identical(familia, "trazabilidad")) {
+        bloque$seleccion <- aplicable[posiciones]
+      } else {
+        bloque$aplicable <- aplicable[posiciones]
+      }
+    }
     acumulador <- .absorber_acumulador(acumulador, bloque)
     if (!is.null(vigilante)) {
       rm(bloque)
@@ -2231,3 +2775,375 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
     acumulador_central = central$acumulador
   )
 }
+
+# ---------------------------------------------------------------------------
+# Etapa 3: familias de ÍNDICE
+#
+# Estas familias tienen una propiedad que no comparten los contadores: el
+# orden de llegada forma parte del resultado. Un bloque sólo conoce su rango
+# global; por eso los acumuladores guardan ordinales y no posiciones locales.
+# La presentación (head, primeros ejemplos) se decide una vez, sobre el estado
+# completo, después de absorber todos los bloques.
+
+.indices_muestra_globales <- function(n, muestra) {
+  if (!is.numeric(n) || length(n) != 1L || is.na(n) || !is.finite(n) ||
+      n < 0 || n != floor(n)) {
+    stop("`n` debe ser un entero no negativo y conocido.", call. = FALSE)
+  }
+  n <- as.numeric(n)
+  limite <- .validar_muestra(muestra)
+  if (!n || !limite) return(integer())
+  limite <- min(n, limite)
+  if (n <= limite) return(seq_len(as.integer(n)))
+  unique(as.integer(round(seq.int(1L, n, length.out = limite))))
+}
+
+.indices_muestra_bloque <- function(ordinal_inicio, ordinal_fin,
+                                    n, muestra) {
+  if (length(ordinal_inicio) != 1L || length(ordinal_fin) != 1L ||
+      is.na(ordinal_inicio) || is.na(ordinal_fin) ||
+      ordinal_inicio < 1L || ordinal_fin < ordinal_inicio - 1L) {
+    stop("El intervalo del bloque no es valido.", call. = FALSE)
+  }
+  indices <- .indices_muestra_globales(n, muestra)
+  if (!length(indices) || ordinal_fin < ordinal_inicio) return(integer())
+  as.integer(indices[indices >= ordinal_inicio & indices <= ordinal_fin])
+}
+
+# Alias con nombres explícitos para los adaptadores que construyen bloques.
+.indices_muestreo_bloque <- .indices_muestra_bloque
+.indices_muestreo_globales <- .indices_muestra_globales
+
+.bloques_de_vector_muestreados <- function(x, muestra, k = NULL,
+                                           tamano = 10000L) {
+  n <- length(x)
+  indices_globales <- .indices_muestra_globales(n, muestra)
+  bloques <- .particionar_bloques(n, k = k, tamano = tamano)
+  lapply(bloques, function(bloque) {
+    seleccionados <- if (length(indices_globales)) {
+      indices_globales[
+        indices_globales >= bloque$ordinal_inicio &
+          indices_globales <= bloque$ordinal_fin
+      ]
+    } else integer()
+    bloque$valores <- x[seleccionados]
+    bloque$ordinales <- as.numeric(seleccionados)
+    # `ordinal_inicio`/`ordinal_fin` siguen describiendo el bloque de la
+    # fuente; `ordinales` describe las filas efectivamente entregadas.
+    bloque$filas_seleccionadas <- length(seleccionados)
+    bloque
+  })
+}
+
+.muestrear_vector_bloques <- function(x, muestra, k = NULL,
+                                      tamano = 10000L) {
+  n <- length(x)
+  indices <- .indices_muestra_globales(n, muestra)
+  if (length(indices) == n) {
+    # Además de ser más barato, esto conserva exactamente la representación
+    # que devuelve `.muestrear_vector()` cuando no hay muestreo.
+    return(.muestrear_vector(x, muestra))
+  }
+  bloques <- .bloques_de_vector_muestreados(
+    x, muestra, k = k, tamano = tamano
+  )
+  aplicados <- unlist(lapply(bloques, function(bloque) {
+    bloque$ordinales
+  }), use.names = FALSE)
+  aplicados <- as.integer(aplicados)
+  if (!identical(aplicados, indices)) {
+    stop("La particion no reprodujo los indices globales de la muestra.",
+         call. = FALSE)
+  }
+  list(
+    valores = x[aplicados], total = n,
+    analizados = length(aplicados), muestreado = TRUE
+  )
+}
+
+# Variantes descriptivas conservadas para llamadores internos y pruebas del
+# contrato. Todas delegan en la misma fórmula global.
+.muestra_sistematica_bloques <- .muestrear_vector_bloques
+.particionar_muestra_bloques <- .bloques_de_vector_muestreados
+
+.ejecutar_muestra_bloques <- function(
+    x, muestra, k = NULL, tamano = 10000L,
+    fuente_id = "memoria", snapshot_id = "memoria",
+    universo_id = "tabla_completa", muestra_id = "muestra_memoria",
+    orden_id = "orden_entrada", max_bytes = Inf, vigilante = NULL) {
+  indices <- .indices_muestra_globales(length(x), muestra)
+  bloques <- .bloques_de_vector_muestreados(
+    x, muestra, k = k, tamano = tamano
+  )
+  acumulador <- .iniciar_acumulador(
+    "muestra", typeof(x), familia = "muestra",
+    configuracion = list(
+      indices_objetivo = indices, n_total = length(x),
+      limite = .validar_muestra(muestra)
+    ),
+    fuente_id = fuente_id, snapshot_id = snapshot_id,
+    universo_id = universo_id, muestra_id = muestra_id, orden_id = orden_id,
+    max_entradas = max(1, length(indices)), max_bytes = max_bytes,
+    requiere_orden = TRUE
+  )
+  ejecucion <- .ejecutar_acumulador_bloques(
+    acumulador, bloques, vigilante = vigilante, familia = "muestra"
+  )
+  ejecucion$resultado
+}
+
+.muestra_bloques <- .ejecutar_muestra_bloques
+.muestrear_vector_por_bloques <- .muestrear_vector_bloques
+
+.trazabilidad_bloques <- function(
+    x, indices = NULL, mascara = NULL, criterio = NULL,
+    aplicable = NULL, k = NULL, tamano = 10000L,
+    max_filas_hallazgo = .MAX_FILAS_TRAZABILIDAD_BLOQUES,
+    max_bytes = Inf, fuente_id = "memoria", snapshot_id = "memoria",
+    universo_id = "tabla_completa", muestra_id = NULL,
+    orden_id = "orden_entrada", vigilante = NULL) {
+  if (!is.numeric(max_filas_hallazgo) || length(max_filas_hallazgo) != 1L ||
+      is.na(max_filas_hallazgo) || max_filas_hallazgo < 1L ||
+      (!is.infinite(max_filas_hallazgo) &&
+       max_filas_hallazgo != floor(max_filas_hallazgo))) {
+    stop("`max_filas_hallazgo` debe ser un entero positivo o Inf.",
+         call. = FALSE)
+  }
+  n <- length(x)
+  if (!is.null(mascara) &&
+      (!is.logical(mascara) || length(mascara) != n)) {
+    stop("`mascara` debe ser logica y tener el largo del vector.",
+         call. = FALSE)
+  }
+  if (!is.null(aplicable) &&
+      (!is.logical(aplicable) || length(aplicable) != n)) {
+    stop("`aplicable` debe ser logica y tener el largo del vector.",
+         call. = FALSE)
+  }
+  if (!is.null(criterio) && !is.function(criterio)) {
+    stop("`criterio` debe ser una funcion.", call. = FALSE)
+  }
+  if (!is.null(indices)) {
+    if (is.logical(indices)) {
+      if (length(indices) != n) {
+        stop("`indices` logicos debe tener el largo del vector.", call. = FALSE)
+      }
+      indices <- which(!is.na(indices) & indices)
+    } else {
+      if (!is.numeric(indices) || anyNA(indices) ||
+          any(indices != floor(indices)) || any(indices < 1L | indices > n)) {
+        stop("`indices` debe contener posiciones globales validas.",
+             call. = FALSE)
+      }
+      indices <- sort(unique(as.integer(indices)))
+    }
+  }
+  bloques <- .particionar_bloques(n, k = k, tamano = tamano)
+  bloques <- lapply(bloques, function(bloque) {
+    posiciones <- bloque$valores
+    bloque$valores <- x[posiciones]
+    seleccion <- if (!is.null(indices)) {
+      posiciones %in% indices
+    } else if (!is.null(mascara)) {
+      mascara[posiciones]
+    } else NULL
+    if (!is.null(aplicable)) {
+      aplicable_bloque <- aplicable[posiciones]
+      seleccion <- if (is.null(seleccion)) aplicable_bloque else {
+        seleccion & !is.na(aplicable_bloque) & aplicable_bloque
+      }
+    }
+    if (!is.null(seleccion)) bloque$seleccion <- seleccion
+    bloque
+  })
+  acumulador <- .iniciar_acumulador(
+    "traza", typeof(x), familia = "trazabilidad",
+    configuracion = list(predicado = criterio),
+    fuente_id = fuente_id, snapshot_id = snapshot_id,
+    universo_id = universo_id, muestra_id = muestra_id, orden_id = orden_id,
+    max_entradas = max_filas_hallazgo, max_bytes = max_bytes,
+    requiere_orden = TRUE
+  )
+  ejecucion <- .ejecutar_acumulador_bloques(
+    acumulador, bloques, vigilante = vigilante, familia = "trazabilidad"
+  )
+  ejecucion$resultado
+}
+
+.indices_hallazgo_bloques <- .trazabilidad_bloques
+.ejecutar_trazabilidad_bloques <- .trazabilidad_bloques
+
+.ejecutar_ejemplos_bloques <- function(
+    x, claves = NULL, ejemplos = NULL, k = NULL, tamano = 10000L,
+    max_ejemplos = .MAX_EJEMPLOS_BLOQUES,
+    max_entradas = .MAX_ENTRADAS_DISTINTOS, max_bytes = Inf,
+    fuente_id = "memoria", snapshot_id = "memoria",
+    universo_id = "tabla_completa", muestra_id = NULL,
+    orden_id = "orden_entrada", vigilante = NULL) {
+  if (!is.numeric(max_ejemplos) || length(max_ejemplos) != 1L ||
+      is.na(max_ejemplos) || max_ejemplos < 1L ||
+      max_ejemplos != floor(max_ejemplos)) {
+    stop("`max_ejemplos` debe ser un entero positivo.", call. = FALSE)
+  }
+  n <- length(x)
+  if (is.function(claves)) claves <- claves(x)
+  if (is.null(claves)) claves <- x
+  if (length(claves) != n) {
+    stop("`claves` debe tener el largo del vector.", call. = FALSE)
+  }
+  if (is.function(ejemplos)) ejemplos <- ejemplos(x)
+  if (is.null(ejemplos)) ejemplos <- x
+  if (length(ejemplos) != n) {
+    stop("`ejemplos` debe tener el largo del vector.", call. = FALSE)
+  }
+  bloques <- .particionar_bloques(n, k = k, tamano = tamano)
+  bloques <- lapply(bloques, function(bloque) {
+    posiciones <- bloque$valores
+    bloque$valores <- x[posiciones]
+    bloque$claves <- claves[posiciones]
+    bloque$ejemplos <- ejemplos[posiciones]
+    bloque
+  })
+  acumulador <- .iniciar_acumulador(
+    "ejemplos", typeof(claves), familia = "ejemplos",
+    configuracion = list(max_ejemplos = as.integer(max_ejemplos)),
+    fuente_id = fuente_id, snapshot_id = snapshot_id,
+    universo_id = universo_id, muestra_id = muestra_id, orden_id = orden_id,
+    max_entradas = max_entradas, max_bytes = max_bytes,
+    requiere_orden = TRUE
+  )
+  ejecucion <- .ejecutar_acumulador_bloques(
+    acumulador, bloques, vigilante = vigilante, familia = "ejemplos"
+  )
+  ejecucion$resultado
+}
+
+.ejemplos_bloques <- .ejecutar_ejemplos_bloques
+.ejemplos_indices_bloques <- .ejecutar_ejemplos_bloques
+.ejemplos_patrones_bloques <- .ejecutar_ejemplos_bloques
+.ejecutar_patrones_bloques <- .ejecutar_ejemplos_bloques
+
+.descubrir_patrones_bloques <- function(
+    x, distinguir_mayusculas = TRUE, expandir = FALSE,
+    max_patrones = 20, na.rm = TRUE, muestra = 1e5,
+    umbral_raro = 0.05, k = NULL, tamano = 10000L,
+    max_entradas = .MAX_ENTRADAS_DISTINTOS, max_bytes = Inf,
+    vigilante = NULL) {
+  if (!is.numeric(max_patrones) || length(max_patrones) != 1L ||
+      is.na(max_patrones) || max_patrones < 1L ||
+      max_patrones != floor(max_patrones)) {
+    stop("`max_patrones` debe ser un entero positivo.", call. = FALSE)
+  }
+  if (!is.logical(na.rm) || length(na.rm) != 1L || is.na(na.rm)) {
+    stop("`na.rm` debe ser TRUE o FALSE.", call. = FALSE)
+  }
+  if (!is.numeric(umbral_raro) || length(umbral_raro) != 1L ||
+      is.na(umbral_raro) || umbral_raro < 0 || umbral_raro > 1) {
+    stop("`umbral_raro` debe estar entre 0 y 1.", call. = FALSE)
+  }
+  if (!is.atomic(x) && !is.factor(x)) {
+    stop("`x` debe ser un vector atomico.", call. = FALSE)
+  }
+  n <- length(x)
+  bloques <- if (n <= .validar_muestra(muestra)) {
+    .bloques_de_vector(x, k = k, tamano = tamano)
+  } else {
+    .bloques_de_vector_muestreados(x, muestra, k = k, tamano = tamano)
+  }
+  marcador_na <- "\001valor_ausente\001"
+  bloques <- lapply(bloques, function(bloque) {
+    valores <- .texto_analizable(bloque$valores)$valores
+    valores <- as.character(valores)
+    validos <- !is.na(valores)
+    claves <- rep(NA_character_, length(valores))
+    if (any(validos)) {
+      claves[validos] <- .generalizar_a_patron(
+        valores[validos], distinguir_mayusculas, expandir
+      )
+    }
+    if (!na.rm) claves[!validos] <- marcador_na
+    bloque$valores <- valores
+    bloque$claves <- claves
+    bloque$ejemplos <- valores
+    bloque$aplicable <- if (na.rm) validos else rep(TRUE, length(valores))
+    bloque
+  })
+  acumulador <- .iniciar_acumulador(
+    "patron", "character", familia = "ejemplos",
+    configuracion = list(max_ejemplos = .MAX_EJEMPLOS_BLOQUES),
+    max_entradas = max_entradas, max_bytes = max_bytes,
+    requiere_orden = TRUE
+  )
+  ejecucion <- .ejecutar_acumulador_bloques(
+    acumulador, bloques, vigilante = vigilante, familia = "patrones"
+  )
+  sobre <- ejecucion$resultado
+  if (!identical(sobre$estado, "calculado")) return(sobre)
+  mapa <- sobre$resultado
+  if (!nrow(mapa)) {
+    frecuencias <- numeric()
+    orden <- integer()
+  } else {
+    claves <- as.character(mapa$clave)
+    # `table()` ordena sus niveles antes de `sort()`; en particular, el orden
+    # de empate no es el byte-order de `order(..., method = "radix")` para
+    # mayusculas y caracteres de control. Reproducir los niveles de `table`
+    # mantiene la identidad de la pasada unica tambien en esos empates.
+    niveles <- sort(unique(claves))
+    orden_niveles <- match(claves, niveles)
+    orden <- order(-mapa$n, orden_niveles)
+    frecuencias <- mapa$n[orden]
+  }
+  denominador <- sum(frecuencias)
+  proporciones <- if (denominador) as.numeric(frecuencias) / denominador else {
+    numeric()
+  }
+  nombres <- if (length(orden)) as.character(mapa$clave[orden]) else character()
+  nombres_publicos <- nombres
+  nombres_publicos[nombres_publicos == marcador_na] <- NA_character_
+  ejemplos <- if (length(orden)) mapa$ejemplos[orden] else character()
+  crear_tabla <- function(indices) {
+    data.frame(
+      patron = nombres_publicos[indices],
+      n = as.integer(frecuencias[indices]),
+      proporcion = proporciones[indices],
+      ejemplos = ejemplos[indices],
+      stringsAsFactors = FALSE
+    )
+  }
+  limite <- min(length(frecuencias), floor(max_patrones))
+  indices_salida <- if (limite) seq_len(limite) else integer()
+  indices_raros <- which(seq_along(frecuencias) > 1L &
+                          proporciones < umbral_raro)
+  indices_excluidos <- which(seq_along(frecuencias) > 1L &
+                              proporciones >= umbral_raro)
+  indices_resumen <- unique(c(
+    if (length(frecuencias)) 1L else integer(),
+    utils::head(indices_raros, 6L)
+  ))
+  resultado <- crear_tabla(indices_salida)
+  resumen <- crear_tabla(indices_resumen)
+  rownames(resultado) <- NULL
+  rownames(resumen) <- NULL
+  class(resultado) <- c("patrones", "data.frame")
+  attr(resultado, "total") <- n
+  attr(resultado, "analizados") <- as.integer(sobre$alcance$valores %||% 0)
+  attr(resultado, "filas_analizadas") <- attr(resultado, "analizados")
+  attr(resultado, "muestreado") <- attr(resultado, "analizados") < n
+  attr(resultado, "n_patrones_distintos") <- length(frecuencias)
+  attr(resultado, "n_patrones_raros") <- length(indices_raros)
+  raros <- nombres[indices_raros]
+  if (length(frecuencias)) {
+    attr(resultado, "patrones_raros_trazabilidad") <- raros
+  }
+  attr(resultado, "n_patrones_raros_trazabilidad") <- length(indices_raros)
+  attr(resultado, "limite_patrones_raros_trazabilidad") <-
+    .limite_patrones_raros_trazabilidad
+  attr(resultado, "n_filas_patrones_no_dominantes_excluidos") <- if (
+    length(indices_excluidos)
+  ) sum(frecuencias[indices_excluidos]) else 0L
+  attr(resultado, "resumen_patrones") <- resumen
+  resultado
+}
+
+.patrones_bloques <- .descubrir_patrones_bloques
