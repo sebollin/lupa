@@ -1036,7 +1036,7 @@
 .estimar_derrame_postgresql_dbi <- function(conexion, tabla, columnas,
                                             presupuesto,
                                             exacto = TRUE,
-                                            modo = "exacto",
+                                            universo = "tabla_completa",
                                             tamano_lote = .TAMANO_LOTE_DISTINTOS_DBI) {
   if (!isTRUE(exacto)) {
     return(.estimacion_derrame_vacia_postgresql_dbi(
@@ -1046,7 +1046,7 @@
       )
     ))
   }
-  if (identical(modo, "muestreado")) {
+  if (identical(universo, "muestra_motor")) {
     return(.estimacion_derrame_vacia_postgresql_dbi(
       motivo = paste(
         "No se pudo estimar el derrame de una muestra con las estadisticas",
@@ -2204,6 +2204,7 @@
     list(
       nombre = "PERCENTILE_CONT",
       patron = "postgres|redshift|oracle|snowflake|duckdb",
+      exacta = TRUE,
       error_esperado = "desconocido",
       construir = function(expr, tabla, alias) paste0(
         "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
@@ -2224,6 +2225,7 @@
     list(
       nombre = "PERCENTILE_CONT_OVER",
       patron = "sql server|microsoft sql|sqlserver|mssql|mariadb",
+      exacta = TRUE,
       error_esperado = "desconocido",
       construir = function(expr, tabla, alias) paste0(
         "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
@@ -2364,6 +2366,7 @@
       list(
         nombre = "PERCENTILE_CONT",
         patron = "postgres|redshift|duckdb|sql server|microsoft sql|sqlserver|mssql",
+        exacta = TRUE,
         error_esperado = "desconocido",
         construir = function(expr, tabla, alias) paste0(
           "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
@@ -2377,6 +2380,7 @@
       list(
         nombre = "PERCENTILE_CONT_OVER",
         patron = "sql server|microsoft sql|sqlserver|mssql|mariadb",
+        exacta = TRUE,
         error_esperado = "desconocido",
         construir = function(expr, tabla, alias) paste0(
           "SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ", expr,
@@ -2390,6 +2394,7 @@
       list(
         nombre = "approx_percentile",
         patron = "snowflake|presto|trino",
+        exacta = FALSE,
         error_esperado = "desconocido",
         construir = function(expr, tabla, alias) paste0(
           "SELECT APPROX_PERCENTILE(", expr, ", 0.5) AS ", alias,
@@ -2402,6 +2407,7 @@
       list(
         nombre = "approx_quantile",
         patron = "duckdb",
+        exacta = FALSE,
         error_esperado = "desconocido",
         construir = function(expr, tabla, alias) paste0(
           "SELECT approx_quantile(", expr, ", 0.5) AS ", alias,
@@ -2414,6 +2420,7 @@
       list(
         nombre = "percentile_approx",
         patron = "spark|databricks|hive",
+        exacta = FALSE,
         error_esperado = "desconocido",
         construir = function(expr, tabla, alias) paste0(
           "SELECT percentile_approx(", expr, ", 0.5) AS ", alias,
@@ -2426,6 +2433,7 @@
       list(
         nombre = "quantile",
         patron = "clickhouse",
+        exacta = FALSE,
         error_esperado = "desconocido",
         construir = function(expr, tabla, alias) paste0(
           "SELECT quantile(0.5)(", expr, ") AS ", alias,
@@ -3340,11 +3348,22 @@
     return(list(
       universo = if (identical(modo, "muestreado")) "muestra_motor" else
         "tabla_completa",
-      muestra_motor = if (identical(modo, "muestreado")) muestra else NULL,
+      muestra_motor = if (identical(modo, "muestreado") && is.finite(muestra)) {
+        muestra
+      } else NULL,
       estrategia_mediana = if (identical(modo, "aproximado")) {
         "aproximada_motor"
       } else "exacta",
-      modo = modo, metricas = metricas, muestra = muestra
+      modo_legacy = modo,
+      metricas = if (is.null(metricas)) switch(
+        modo,
+        exacto = .METRICAS_DBI,
+        seguro = c("validos", "basicos", "desvio"),
+        conteos = "validos",
+        muestreado = .METRICAS_DBI,
+        aproximado = .METRICAS_DBI
+      ) else metricas,
+      muestra = muestra
     ))
   }
   universo <- match.arg(universo, c("tabla_completa", "muestra_motor"))
@@ -3375,12 +3394,8 @@
   list(
     universo = universo, muestra_motor = if (is.null(muestra_motor)) NULL else
       as.numeric(muestra_motor), estrategia_mediana = estrategia_mediana,
-    modo = if (identical(universo, "muestra_motor")) "muestreado" else
-      if (identical(estrategia_mediana, "aproximada_motor")) "aproximado" else
-        "exacto",
-    metricas = metricas, muestra = if (identical(universo, "muestra_motor")) {
-      as.numeric(muestra_motor)
-    } else muestra
+    modo_legacy = NULL,
+    metricas = metricas, muestra = muestra
   )
 }
 
@@ -3446,6 +3461,16 @@
 
 .validar_politica_costo_dbi <- function(politica_costo,
                                        umbral_cardinalidad) {
+  if (length(politica_costo) > 1L) {
+    if (identical(politica_costo, c("todas", "por_cardinalidad"))) {
+      politica_costo <- politica_costo[[1L]]
+    } else {
+      .detener_dbi(
+        "lupa_error_argumento_dbi",
+        "`politica_costo` debe ser un unico valor: `todas` o `por_cardinalidad`."
+      )
+    }
+  }
   politica <- match.arg(
     politica_costo,
     c("todas", "ninguna", "por_cardinalidad", "cardinalidad")
@@ -3784,7 +3809,9 @@
 .resolver_estrategia_distintos_dbi <- function(conexion, estrategia,
                                                presupuesto, hay_metrica,
                                                tabla = NULL, columnas = NULL,
-                                               modo = "exacto") {
+                                               universo = "tabla_completa",
+                                               modo = NULL) {
+  universo_legacy <- !is.null(modo) && modo %in% c("muestreado", "aproximado")
   if (!isTRUE(hay_metrica)) {
     estrategia$estado <- "no_solicitado"
     estrategia$motivo <- paste(
@@ -3820,14 +3847,15 @@
       }
     },
     catalogo = {
-      if (modo %in% c("muestreado", "aproximado")) {
+      if (identical(universo, "muestra_motor") || universo_legacy) {
         # Es el mismo principio que aplica `.estimar_derrame_postgresql_dbi()`:
         # se niega a estimar el derrame de una muestra con estadisticas de la
         # tabla completa y no se inventa una equivalencia entre universos.
         estrategia$disponible <- FALSE
         estrategia$estado <- "no_disponible"
         estrategia$motivo <- paste0(
-          "La estrategia `catalogo` no esta disponible en `modo = ", modo,
+          "La estrategia `catalogo` no esta disponible con `universo = ",
+          if (universo_legacy) "subconjunto" else universo,
           "`: el catalogo describe la relacion entera y la corrida mide un",
           " subconjunto; usarlo publicaria la cardinalidad de un universo como",
           " si fuera de otro."
@@ -3881,6 +3909,49 @@
   )
 }
 
+.publicar_estrategia_mediana_dbi <- function(preparacion) {
+  solicitada <- preparacion$estrategia_mediana
+  if (!"mediana" %in% preparacion$metricas_ejecucion) {
+    return(list(
+      estrategia_solicitada = solicitada,
+      estrategia_resuelta = NA_character_, estado = "no_solicitado",
+      motivo = "La metrica `mediana` no se pidio en esta corrida."
+    ))
+  }
+  consolidada <- preparacion$mediana_consolidada_resolucion
+  if (is.list(consolidada) && isTRUE(consolidada$disponible)) {
+    return(list(
+      estrategia_solicitada = solicitada,
+      estrategia_resuelta = consolidada$candidato$nombre,
+      estado = "calculado",
+      motivo = "Se uso una forma exacta consolidada aceptada por el motor."
+    ))
+  }
+  escalar <- preparacion$mediana_escalar_resolucion
+  if (is.list(escalar) && isTRUE(escalar$disponible)) {
+    return(list(
+      estrategia_solicitada = solicitada,
+      estrategia_resuelta = escalar$candidato$nombre,
+      estado = "calculado",
+      motivo = "Se uso una forma exacta escalar aceptada por el motor."
+    ))
+  }
+  aproximada <- preparacion$aproximaciones_resolucion$mediana
+  if (is.list(aproximada) && isTRUE(aproximada$disponible)) {
+    return(list(
+      estrategia_solicitada = solicitada,
+      estrategia_resuelta = aproximada$candidato$nombre,
+      estado = "estimado",
+      motivo = "No hubo una forma exacta aceptada; se uso la aproximacion nativa al final."
+    ))
+  }
+  list(
+    estrategia_solicitada = solicitada,
+    estrategia_resuelta = "exacta_por_columna", estado = "calculado",
+    motivo = "Se uso la forma exacta por columna como ultimo camino."
+  )
+}
+
 .fuente_cardinalidad_desconocida_dbi <- function() {
   list(
     nombre = "desconocida", exacta = FALSE,
@@ -3898,19 +3969,8 @@
   salida
 }
 
-.metricas_de_modo_dbi <- function(modo) {
-  switch(
-    modo,
-    exacto = .METRICAS_DBI,
-    seguro = c("validos", "basicos", "desvio"),
-    conteos = "validos",
-    muestreado = .METRICAS_DBI,
-    aproximado = .METRICAS_DBI
-  )
-}
-
-.validar_metricas_dbi <- function(metricas, modo) {
-  if (is.null(metricas)) return(.metricas_de_modo_dbi(modo))
+.validar_metricas_dbi <- function(metricas) {
+  if (is.null(metricas)) return(.METRICAS_DBI)
   if (!is.character(metricas) || !length(metricas) || anyNA(metricas)) {
     .detener_dbi(
       "lupa_error_argumento_dbi",
@@ -4335,11 +4395,11 @@
 }
 
 .decisiones_costo_dbi <- function(conexion, columnas, agregados, politica,
-                                  n_total, modo,
+                                  n_total, universo = "tabla_completa",
                                   fuentes_cardinalidad_costo = NULL) {
   salida <- vector("list", length(columnas))
   names(salida) <- columnas
-  alcance <- if (identical(modo, "muestreado")) "la muestra medida" else
+  alcance <- if (identical(universo, "muestra_motor")) "la muestra medida" else
     "la tabla completa"
   for (columna in columnas) {
     conteo <- agregados$conteos[[columna]]
@@ -4869,7 +4929,7 @@
 
 .medianas_lote_consolidadas_dbi <- function(
     conexion, tabla_sql, lote, nombres_sql, alias, numero, candidato,
-    presupuesto, estado = NULL, n_filas = NA_real_,
+    presupuesto, estado = "calculado", n_filas = NA_real_,
     n_medianas_pendientes = length(lote),
     usar_referencia_banco = FALSE) {
   aliases <- vapply(seq_along(lote), function(i) {
@@ -4918,13 +4978,17 @@
     valor <- .escalar_finito_dbi(celda$valor)
     if (.valor_perdido_en_conversion_dbi(celda$valor, valor)) next
     metadatos_resultado <- .metadatos_lote_dbi(numero, lote)
-    if (identical(estado, "estimado")) {
-      metadatos_resultado <- c(
-        metadatos_resultado,
-        list(metodo = candidato$nombre,
-             error_esperado = candidato$error_esperado)
+    metadatos_resultado <- c(
+      metadatos_resultado,
+      list(
+        metodo = candidato$nombre,
+        error_esperado = if (identical(estado, "estimado")) {
+          candidato$error_esperado
+        } else {
+          "no_aplica"
+        }
       )
-    }
+    )
     salida[[lote[[i]]]] <- .adjuntar_medicion_dbi(
       list(
         ok = TRUE, valor = valor, motivo = NA_character_, sql = sql,
@@ -4938,7 +5002,7 @@
 
 .medianas_consolidadas_dbi <- function(
     conexion, tabla_sql, columnas, nombres_sql, alias, candidato,
-    presupuesto, tamano_lote, estado = NULL) {
+    presupuesto, tamano_lote, estado = "calculado") {
   salida <- vector("list", length(columnas))
   names(salida) <- columnas
   if (is.null(candidato) || !length(columnas)) return(salida)
@@ -5834,7 +5898,7 @@
                                  incluir_valores = TRUE,
                                  tipo_declarado = NA_character_,
                                  motivo_ilegible = NA_character_,
-                                 modo = "exacto", muestreo = NULL,
+                                 universo = "tabla_completa", muestreo = NULL,
                                  aproximacion_distintos = NULL,
                                  aproximacion_mediana = NULL,
                                  tamano_muestra = NA_real_,
@@ -5860,7 +5924,7 @@
   }
   fila <- .fila_resumen_dbi(columna, n_total)
   literales <- character()
-  es_muestreado <- identical(modo, "muestreado")
+  es_muestreado <- identical(universo, "muestra_motor")
   metricas_de_error <- unlist(
     .CAMPOS_METRICA_DBI[metricas], use.names = FALSE
   )
@@ -6578,19 +6642,19 @@
 }
 
 .incorporar_distintos_estructurales_dbi <- function(agregados, fuentes,
-                                                     n_total, modo) {
+                                                     n_total, universo) {
   if (is.null(fuentes) || !length(fuentes)) return(agregados)
   for (columna in names(fuentes)) {
     fuente <- fuentes[[columna]]
     if (is.null(fuente) || !isTRUE(fuente$exacta) ||
         !is.finite(fuente$proporcion_distintos) ||
         fuente$proporcion_distintos != 1 || is.na(n_total) ||
-        modo %in% c("muestreado", "aproximado")) {
+        identical(universo, "muestra_motor")) {
       next
     }
     resultado <- list(
       ok = TRUE, valor = n_total, motivo = NA_character_, sql = NA_character_,
-      estado = if (identical(modo, "muestreado")) "estimado" else "garantizado",
+      estado = "garantizado",
       metadatos = list(fuente = fuente$nombre)
     )
     base <- agregados$conteos[[columna]]
@@ -6610,7 +6674,8 @@
                                presupuesto = NULL, incluir_valores = TRUE,
                                tipos_declarados = NULL,
                                motivos_ilegibles = NULL,
-                                modo = "exacto",
+                                universo = "tabla_completa",
+                                estrategia_mediana = "exacta",
                                 # `tabla_sql` no se usa en el cuerpo: esta para
                                 # ser el valor por omision de la linea de abajo.
                                 # Es una omision razonable -medir sobre la misma
@@ -6697,14 +6762,14 @@
     n_total <- NA_real_
   }
   agregados <- .incorporar_distintos_estructurales_dbi(
-    agregados, fuentes_cardinalidad_costo, n_total, modo
+    agregados, fuentes_cardinalidad_costo, n_total, universo
   )
   sql_conteo_registro <- if (is.null(conteo$sql)) {
     sql_conteo
   } else {
     conteo$sql
   }
-  if (identical(modo, "muestreado")) {
+  if (identical(universo, "muestra_motor")) {
     if (is.finite(.numero_dbi(tamano_muestra))) {
       # Si la solicitud supera el universo, la consulta puede devolver menos
       # filas que las pedidas. El tamano efectivo es el que se midio y el que
@@ -6720,7 +6785,7 @@
     }
   }
   decisiones_costo <- .decisiones_costo_dbi(
-    conexion, campos_consolidados, agregados, politica_costo, n_total, modo,
+    conexion, campos_consolidados, agregados, politica_costo, n_total, universo,
     fuentes_cardinalidad_costo = fuentes_cardinalidad_costo
   )
   # La moda y la mediana son dos familias distintas: preparar todas las modas
@@ -6795,7 +6860,7 @@
   medianas <- vector("list", length(columnas_medianas))
   names(medianas) <- columnas_medianas
   if (length(columnas_medianas) && !is.null(presupuesto)) {
-    presupuesto$filas_mediana <- if (identical(modo, "muestreado")) {
+    presupuesto$filas_mediana <- if (identical(universo, "muestra_motor")) {
       .numero_dbi(tamano_muestra)
     } else {
       .numero_dbi(n_total)
@@ -6807,8 +6872,7 @@
       conexion, tabla_metricas_sql, columnas_medianas,
       stats::setNames(campos_sql_consolidados, campos_consolidados),
       function(nombre) as.character(DBI::dbQuoteIdentifier(conexion, nombre)),
-      mediana_consolidada, presupuesto, tamano_lote_planos,
-      estado = if (identical(modo, "aproximado")) "estimado" else NULL
+      mediana_consolidada, presupuesto, tamano_lote_planos
     )
   }
   tipo_de <- function(i) {
@@ -6831,7 +6895,7 @@
       n_total, dialecto = dialecto, metricas = metricas,
       presupuesto = presupuesto, incluir_valores = incluir_valores,
       tipo_declarado = tipo_de(i), motivo_ilegible = motivo_de(campo),
-      modo = modo, muestreo = muestreo,
+      universo = universo, muestreo = muestreo,
       aproximacion_distintos = aproximaciones$distintos,
       aproximacion_mediana = aproximaciones$mediana,
       tamano_muestra = tamano_muestra, fraccion_muestra = fraccion_muestra,
@@ -6863,14 +6927,13 @@
         campos, rep("n", length(campos)), "calculado", NA_character_,
         sql_conteo_registro,
         metadatos = .mezclar_metadatos_dbi(.metadatos_sql_dbi(
-          alcance = if (identical(modo, "muestreado")) "tabla_muestreada" else
+          alcance = if (identical(universo, "muestra_motor")) "tabla_muestreada" else
             "tabla_completa",
-          universo = n_total, tamano_muestra = if (identical(modo, "muestreado")) {
+          universo = n_total, tamano_muestra = if (identical(universo, "muestra_motor")) {
             tamano_muestra
           } else NA_real_,
-          fraccion = if (identical(modo, "muestreado")) fraccion_muestra else 1,
-          metodo = if (identical(modo, "muestreado")) "conteo_universo" else
-            "conteo_universo",
+          fraccion = if (identical(universo, "muestra_motor")) fraccion_muestra else 1,
+          metodo = "conteo_universo",
           error_esperado = "no_aplica"
         ), conteo$metadatos),
         medicion = conteo,
@@ -6890,7 +6953,9 @@
     cobertura = .cobertura_dbi_vacia(),
     literales = unlist(lapply(resultados, `[[`, "literales"), use.names = TRUE),
     meta = list(
-       alcance = if (identical(modo, "muestreado")) {
+       universo = universo,
+       estrategia_mediana = estrategia_mediana,
+       alcance = if (identical(universo, "muestra_motor")) {
          "tabla_muestreada"
        } else {
          "tabla_completa"
@@ -6930,7 +6995,7 @@
       # ausente declara que no se puede afirmar que dos metricas vieron las
       # mismas filas. Un campo que describe un alcance de muestreo que no es el
       # real es peor que no tenerlo.
-      muestras_independientes = if (modo %in% c("muestreado", "aproximado")) {
+      muestras_independientes = if (identical(universo, "muestra_motor")) {
         paste(
           "el muestreo se resuelve por consulta, no por perfilado. Las columnas",
           "que comparten una consulta consolidada -ver `id_muestra`, `lote` y",
@@ -7135,7 +7200,8 @@
 
 .plan_consultas_dbi <- function(campos, es_numerico, metricas, incluir_valores,
                                   con_orden, dialecto, emitidas = 0,
-                                  modo = "exacto", muestreo_disponible = TRUE,
+                                  universo = "tabla_completa",
+                                  muestreo_disponible = TRUE,
                                   tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
                                   tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
                                   incluir_muestra = TRUE,
@@ -7166,7 +7232,8 @@
   columnas_planas <- if ("validos" %in% metricas) n_columnas else n_numericas
   hay_planos <- any(c("validos", "basicos", "desvio") %in% metricas) &&
     columnas_planas > 0
-  mide_metricas <- !identical(modo, "muestreado") || isTRUE(muestreo_disponible)
+  mide_metricas <- !identical(universo, "muestra_motor") ||
+    isTRUE(muestreo_disponible)
   n_metricas <- function(valor) if (mide_metricas) valor else 0
   n_distintos <- if (is.null(columnas_distintos)) n_columnas else {
     length(columnas_distintos)
@@ -7181,7 +7248,7 @@
   n_mediana_max <- if (is.null(columnas_mediana_max)) n_mediana else {
     length(columnas_mediana_max)
   }
-  alcance_agregado <- if (identical(modo, "muestreado")) {
+  alcance_agregado <- if (identical(universo, "muestra_motor")) {
     "lee una muestra del motor"
   } else {
     "escanea la tabla completa"
@@ -7216,7 +7283,7 @@
       c(
         "moda (GROUP BY + orden + limite)",
         if ("moda" %in% metricas && con_valores) n_metricas(n_moda) else 0,
-        if (identical(modo, "muestreado")) "lee una muestra del motor" else
+        if (identical(universo, "muestra_motor")) "lee una muestra del motor" else
           "ordena o agrupa la tabla completa",
         if ("moda" %in% metricas && con_valores) n_metricas(n_moda_max) else 0
       ),
@@ -7229,7 +7296,7 @@
             n_metricas(n_mediana)
           }
         } else 0,
-        if (identical(modo, "muestreado")) "lee una muestra del motor" else
+        if (identical(universo, "muestra_motor")) "lee una muestra del motor" else
           "ordena la tabla completa",
         if ("mediana" %in% metricas && con_valores && acota_con_salto) {
           if (isTRUE(mediana_consolidada)) {
@@ -7929,8 +7996,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
                                instrumentar = FALSE,
                                estrategia_distintos = "exacta",
                                estrategia_mediana = c("exacta", "aproximada_motor"),
-                               politica_costo = c("todas", "ninguna",
-                                                   "por_cardinalidad", "cardinalidad"),
+                               politica_costo = c("todas", "por_cardinalidad"),
                                umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
                                max_celdas_muestra = .MAX_CELDAS_MUESTRA,
                                max_bytes_muestra = .MAX_BYTES_MUESTRA,
@@ -7944,12 +8010,20 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   api <- .normalizar_api_dbi(
     universo, muestra_motor, estrategia_mediana, modo, metricas, muestra
   )
-  modo <- api$modo
+  modo <- api$modo_legacy
   muestra <- api$muestra
   metricas <- api$metricas
+  if (!is.null(modo) && identical(politica_costo, "ninguna")) {
+    politica_costo <- "todas"
+  }
+  if (!is.null(modo) && identical(politica_costo, "cardinalidad")) {
+    politica_costo <- "por_cardinalidad"
+  }
   preparacion <- .preparar_dbi(
-    conexion = conexion, tabla = tabla, muestra = muestra,
-    orden_muestra = orden_muestra, modo = modo, metricas = metricas,
+    conexion = conexion, tabla = tabla, universo = api$universo,
+    muestra_motor = api$muestra_motor, muestra = muestra,
+    orden_muestra = orden_muestra,
+    estrategia_mediana = api$estrategia_mediana, metricas = metricas,
     max_consultas = max_consultas, dialecto = dialecto,
     tamano_lote = tamano_lote,
     tamano_lote_planos = tamano_lote_planos,
@@ -7960,7 +8034,8 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     incluir_valores = incluir_valores,
     estrategia_distintos = estrategia_distintos,
     politica_costo = politica_costo,
-    umbral_cardinalidad = umbral_cardinalidad
+    umbral_cardinalidad = umbral_cardinalidad,
+    compatibilidad_modo = !is.null(modo)
   )
   filas_plan <- .filas_plan_dbi(preparacion)
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
@@ -7977,7 +8052,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   # La corrida real cuenta el universo antes de construir un porcentaje para
   # TABLESAMPLE. El plan no ejecuta ese COUNT(*), pero si debe publicarlo en la
   # cantidad prevista para que su total siga coincidiendo con la corrida.
-  muestreo_plan <- identical(preparacion$modo, "muestreado") &&
+  muestreo_plan <- identical(preparacion$universo, "muestra_motor") &&
     !is.null(preparacion$muestreo) &&
     !is.null(preparacion$muestreo$candidato)
   emitidas_plan <- consultas_antes_agregados +
@@ -8003,7 +8078,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     list(conteos = stats::setNames(
       vector("list", length(preparacion$campos)), preparacion$campos
     )),
-    preparacion$politica_costo, preparacion$n_total, preparacion$modo,
+    preparacion$politica_costo, preparacion$n_total, preparacion$universo,
     fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo
   )
   columnas_moda_plan <- NULL
@@ -8054,7 +8129,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     # propio: el total se conocera en la corrida y viajara con el primer
     # agregado plano que pueda llevarlo.
     emitidas = emitidas_plan,
-    modo = preparacion$modo,
+    universo = preparacion$universo,
     muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
       preparacion$muestreo$disponible,
     tamano_lote_planos = preparacion$tamano_lote_planos,
@@ -8078,7 +8153,9 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "total_lotes_rechazados") <- attr(plan, "total_maximo")
   attr(plan, "extra_si_se_rechazan_lotes") <- NULL
   muestreo_plan_publico <- .publicar_muestreo_plan_dbi(
-    preparacion$muestreo, preparacion$muestra
+    preparacion$muestreo, if (identical(
+      preparacion$universo, "muestra_motor"
+    )) preparacion$muestra_motor else preparacion$muestra
   )
   motivo_muestreo <- if (identical(
     muestreo_plan_publico$estado, "no_disponible"
@@ -8120,6 +8197,10 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
   attr(plan, "politica_costo") <- preparacion$politica_costo
   attr(plan, "estrategia_distintos") <- .publicar_estrategia_distintos_dbi(
     preparacion$estrategia_distintos
+  )
+  attr(plan, "universo") <- preparacion$universo
+  attr(plan, "estrategia_mediana") <- .publicar_estrategia_mediana_dbi(
+    preparacion
   )
   attr(plan, "fuente_cardinalidad_costo") <-
     preparacion$fuentes_cardinalidad_costo
@@ -8660,7 +8741,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 }
 
 .bloque_muestra_dbi <- function(conexion, tabla, tabla_sql, campos, campos_sql,
-                                muestra, orden_muestra, orden_sql, dialecto,
+                                muestra, muestra_motor, orden_muestra, orden_sql, dialecto,
                                 n_total, presupuesto, info_conexion,
                                 argumentos, muestreo = NULL,
                                 tipos_declarados = NULL,
@@ -8719,7 +8800,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     sub_sql <- campos_sql[indices]
     origen <- if (usa_muestreo) {
       .fuente_muestreada_dbi(
-        tabla_sql, sub_sql, filas_solicitadas, n_total, dialecto,
+        tabla_sql, sub_sql, muestra_motor, n_total, dialecto,
         list(candidato = muestreo$candidato)
       )
     } else {
@@ -8735,7 +8816,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
         } else ""
       )
     }
-    recorte <- if (!is.null(origen)) {
+    recorte <- if (!is.null(origen) &&
+                   filas_solicitadas < origen$filas_solicitadas) {
+      dialecto$limitar(base, filas_solicitadas, 0)
+    } else if (!is.null(origen)) {
       NULL
     } else if (!total_conocido || filas_solicitadas < total_numero) {
       dialecto$limitar(base, filas_solicitadas, 0)
@@ -9175,8 +9259,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 
 # ---- Portones ------------------------------------------------------------
 
-.preparar_dbi <- function(conexion, tabla, muestra, orden_muestra, modo,
-                          metricas, max_consultas, dialecto, tamano_lote = NULL,
+.preparar_dbi <- function(conexion, tabla, universo, muestra_motor, muestra,
+                          orden_muestra, estrategia_mediana, metricas,
+                          max_consultas, dialecto, tamano_lote = NULL,
                           tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
                           tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
                           bloque_muestra, instrumentar = TRUE,
@@ -9185,22 +9270,50 @@ print.plan_perfilado_dbi <- function(x, ...) {
                           politica_costo = "todas",
                           umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
                           contar_muestreo = TRUE,
-                          sondar_muestreo = TRUE) {
+                          sondar_muestreo = TRUE,
+                          compatibilidad_modo = FALSE) {
   .requerir_dbi()
-  modo <- match.arg(
-    modo, c("exacto", "seguro", "conteos", "muestreado", "aproximado")
+  universo <- match.arg(universo, c("tabla_completa", "muestra_motor"))
+  estrategia_mediana <- match.arg(
+    estrategia_mediana, c("exacta", "aproximada_motor")
   )
   dialecto <- match.arg(
     dialecto, c("auto", "limit", "top", "fetch_first", "rownum", "portable")
   )
   muestra <- .validar_muestra_dbi(muestra)
+  if (identical(universo, "muestra_motor")) {
+    if (isTRUE(compatibilidad_modo) && is.null(muestra_motor)) {
+      muestra_motor <- Inf
+    } else if (!is.numeric(muestra_motor) || length(muestra_motor) != 1L ||
+               is.na(muestra_motor) || !is.finite(muestra_motor) ||
+               muestra_motor < 1 || muestra_motor != floor(muestra_motor)) {
+      .detener_dbi(
+        "lupa_error_argumento_dbi",
+        "`muestra_motor` debe ser un entero positivo finito cuando `universo = \"muestra_motor\"`."
+      )
+    } else {
+      muestra_motor <- as.numeric(muestra_motor)
+    }
+    if (identical(estrategia_mediana, "aproximada_motor") &&
+        !isTRUE(compatibilidad_modo)) {
+      .detener_dbi(
+        "lupa_error_argumento_dbi",
+        "`universo = \"muestra_motor\"` no se puede combinar con `estrategia_mediana = \"aproximada_motor\"`: la muestra ya es una aproximacion del universo."
+      )
+    }
+  } else if (!is.null(muestra_motor)) {
+    .detener_dbi(
+      "lupa_error_argumento_dbi",
+      "`muestra_motor` solo se puede usar con `universo = \"muestra_motor\"`."
+    )
+  }
   bloque_muestra <- match.arg(
     bloque_muestra, c("con_muestra", "solo_agregados")
   )
   if (identical(bloque_muestra, "solo_agregados")) {
     orden_muestra <- NULL
   }
-  metricas_solicitadas <- .validar_metricas_dbi(metricas, modo)
+  metricas_solicitadas <- .validar_metricas_dbi(metricas)
   politica_costo <- .validar_politica_costo_dbi(
     politica_costo, umbral_cardinalidad
   )
@@ -9340,7 +9453,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     )
   }, logical(1L))
   muestreo <- NULL
-  if (identical(modo, "muestreado")) {
+  if (identical(universo, "muestra_motor")) {
     if (isTRUE(sondar_muestreo)) {
       muestreo <- .sondar_muestreo_dbi(
         conexion, tabla_sql, resolucion$dialecto, presupuesto
@@ -9361,7 +9474,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       )
     }
     estado_forma <- .estado_forma_muestreo_dbi(
-      muestreo$candidato, tabla_sql, esquema$campos_sql, muestra,
+      muestreo$candidato, tabla_sql, esquema$campos_sql, muestra_motor,
       resolucion$dialecto
     )
     muestreo$forma_construible <- estado_forma$forma_construible
@@ -9391,7 +9504,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   estrategia_distintos <- .resolver_estrategia_distintos_dbi(
     conexion, estrategia_distintos,
     presupuesto, "distintos" %in% metricas,
-    tabla = tabla, columnas = campos, modo = modo
+    tabla = tabla, columnas = campos, universo = universo
   )
   fuentes_cardinalidad_costo <- .fuentes_cardinalidad_vacias_dbi(campos)
   catalogo_cardinalidad <- NULL
@@ -9408,7 +9521,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     fuentes_cardinalidad_costo,
     function(x) !isTRUE(x$exacta), logical(1L)
   )
-  muestreo_ejecutable <- !identical(modo, "muestreado") ||
+  muestreo_ejecutable <- !identical(universo, "muestra_motor") ||
     isTRUE(muestreo$disponible)
   estrategia_distintos$requiere_medicion <- if (identical(
     estrategia_distintos$estado, "estimado_catalogo"
@@ -9418,7 +9531,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     (isTRUE(estrategia_distintos$publica) &&
        isTRUE(estrategia_distintos$disponible) &&
        isTRUE(muestreo_ejecutable) &&
-       (identical(modo, "muestreado") || any(fuentes_no_exactas))) ||
+       (identical(universo, "muestra_motor") || any(fuentes_no_exactas))) ||
       (isTRUE(estrategia_distintos$para_costo) &&
        isTRUE(estrategia_distintos$disponible) &&
        isTRUE(muestreo_ejecutable) && any(fuentes_no_exactas))
@@ -9465,31 +9578,28 @@ print.plan_perfilado_dbi <- function(x, ...) {
     aproximaciones_resolucion$distintos <- resolucion_distintos
     aproximaciones$distintos <- estrategia_distintos$candidato
   }
-  if (identical(modo, "aproximado")) {
-    if ("mediana" %in% metricas && any(es_numerico)) {
-      resolucion_mediana <- if (!is.null(mediana_consolidada_resolucion) &&
-                                isTRUE(mediana_consolidada_resolucion$disponible)) {
-        mediana_consolidada_resolucion
-      } else {
-        .sondar_aproximacion_dbi(conexion, "mediana", presupuesto)
-      }
-      aproximaciones_resolucion$mediana <- resolucion_mediana
-      if (!isTRUE(resolucion_mediana$disponible)) {
-        aproximaciones$mediana <- NULL
-      } else {
-        aproximaciones$mediana <- resolucion_mediana$candidato
-      }
-    }
-  }
   if ("mediana" %in% metricas && isTRUE(incluir_valores) &&
       any(es_numerico) && is.null(mediana_consolidada) &&
-      is.null(aproximaciones$mediana)) {
+      (!isTRUE(compatibilidad_modo) ||
+       !identical(estrategia_mediana, "aproximada_motor")) &&
+      is.null(mediana_escalar)) {
     mediana_escalar_resolucion <- .sondar_mediana_escalar_dbi(
       conexion, resolucion$dialecto, presupuesto,
-      materializar = identical(modo, "muestreado")
+      materializar = identical(universo, "muestra_motor")
     )
     if (isTRUE(mediana_escalar_resolucion$disponible)) {
       mediana_escalar <- mediana_escalar_resolucion$candidato
+    }
+  }
+  if ("mediana" %in% metricas && isTRUE(incluir_valores) &&
+      any(es_numerico) && identical(estrategia_mediana, "aproximada_motor") &&
+      is.null(mediana_consolidada) && is.null(mediana_escalar)) {
+    resolucion_mediana <- .sondar_aproximacion_dbi(
+      conexion, "mediana", presupuesto
+    )
+    aproximaciones_resolucion$mediana <- resolucion_mediana
+    if (isTRUE(resolucion_mediana$disponible)) {
+      aproximaciones$mediana <- resolucion_mediana$candidato
     }
   }
   sql_conteo <- paste0(
@@ -9503,7 +9613,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # el total antes de poder escribir su porcentaje; ese es el unico camino de
   # una corrida que paga el porton por adelantado para no cambiar su muestra.
   contar_adelante <- isTRUE(contar) || (
-    isTRUE(contar_muestreo) && identical(modo, "muestreado") &&
+    isTRUE(contar_muestreo) && identical(universo, "muestra_motor") &&
       !is.null(muestreo) &&
       !is.null(muestreo$candidato) &&
       identical(muestreo$candidato$tipo, "tablesample")
@@ -9543,12 +9653,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
   presupuesto$estimacion_derrame <- .estimar_derrame_postgresql_dbi(
     conexion, tabla, columnas_distintos_ejecucion, presupuesto,
     exacto = identical(estrategia_distintos$estrategia_resuelta, "COUNT(DISTINCT)"),
-    modo = modo, tamano_lote = tamanos_lote$distintos
+    universo = universo, tamano_lote = tamanos_lote$distintos
   )
   metricas_ejecucion <- metricas
   list(
-    modo = modo, metricas = metricas_solicitadas,
-    metricas_ejecucion = metricas_ejecucion, muestra = muestra,
+    universo = universo, muestra_motor = muestra_motor,
+    estrategia_mediana = estrategia_mediana,
+    metricas = metricas_solicitadas, metricas_ejecucion = metricas_ejecucion,
+    muestra = muestra,
     bloque_muestra = bloque_muestra,
     max_consultas = max_consultas, presupuesto = presupuesto,
     instrumentar = isTRUE(instrumentar),
@@ -9574,7 +9686,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     estimacion_derrame = presupuesto$estimacion_derrame,
     n_total = n_total, conteo = conteo, sql_conteo = sql_conteo,
     conteo_fusionable = hay_agregados_fusionables && !(
-      identical(modo, "muestreado") && !is.null(muestreo) &&
+      identical(universo, "muestra_motor") && !is.null(muestreo) &&
         !is.null(muestreo$candidato) &&
         identical(muestreo$candidato$tipo, "tablesample")
     ),
@@ -10060,8 +10172,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                          instrumentar = TRUE,
                          estrategia_distintos = "exacta",
                          estrategia_mediana = c("exacta", "aproximada_motor"),
-                         politica_costo = c("todas", "ninguna",
-                                             "por_cardinalidad", "cardinalidad"),
+                         politica_costo = c("todas", "por_cardinalidad"),
                          umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
                          avisar_costo_distintos = TRUE,
                          umbral_segundos_aviso_distintos =
@@ -10113,12 +10224,20 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   api <- .normalizar_api_dbi(
     universo, muestra_motor, estrategia_mediana, modo, metricas, muestra
   )
-  modo <- api$modo
+  modo <- api$modo_legacy
   muestra <- api$muestra
   metricas <- api$metricas
+  if (!is.null(modo) && identical(politica_costo, "ninguna")) {
+    politica_costo <- "todas"
+  }
+  if (!is.null(modo) && identical(politica_costo, "cardinalidad")) {
+    politica_costo <- "por_cardinalidad"
+  }
   preparacion <- .preparar_dbi(
-    conexion = conexion, tabla = tabla, muestra = muestra,
-    orden_muestra = orden_muestra, modo = modo, metricas = metricas,
+    conexion = conexion, tabla = tabla, universo = api$universo,
+    muestra_motor = api$muestra_motor, muestra = muestra,
+    orden_muestra = orden_muestra,
+    estrategia_mediana = api$estrategia_mediana, metricas = metricas,
     max_consultas = max_consultas, dialecto = dialecto,
     tamano_lote = tamano_lote,
     tamano_lote_planos = tamano_lote_planos,
@@ -10128,7 +10247,8 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     incluir_valores = incluir_valores,
     estrategia_distintos = estrategia_distintos,
     politica_costo = politica_costo,
-    umbral_cardinalidad = umbral_cardinalidad
+    umbral_cardinalidad = umbral_cardinalidad,
+    compatibilidad_modo = !is.null(modo)
   )
   presupuesto <- preparacion$presupuesto
   presupuesto$avisar_costo_distintos <- avisar_costo_distintos
@@ -10156,7 +10276,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
     length(preparacion$orden_sql) > 0 &&
       identical(preparacion$bloque_muestra, "con_muestra"), preparacion$dialecto,
-    emitidas = presupuesto$usadas, modo = preparacion$modo,
+    emitidas = presupuesto$usadas, universo = preparacion$universo,
     muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
       preparacion$muestreo$disponible,
     tamano_lote_planos = preparacion$tamano_lote_planos,
@@ -10191,11 +10311,11 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     .publicar_muestreo_dbi(preparacion$muestreo, n_total = preparacion$n_total)
   }
   tabla_metricas_sql <- preparacion$tabla_sql
-  if (identical(preparacion$modo, "muestreado") &&
+  if (identical(preparacion$universo, "muestra_motor") &&
       !is.null(preparacion$muestreo) &&
       isTRUE(preparacion$muestreo$disponible)) {
     fuente_muestreada <- .fuente_muestreada_dbi(
-      preparacion$tabla_sql, preparacion$campos_sql, preparacion$muestra,
+      preparacion$tabla_sql, preparacion$campos_sql, preparacion$muestra_motor,
       preparacion$n_total, preparacion$dialecto, preparacion$muestreo
     )
     if (is.null(fuente_muestreada)) {
@@ -10239,7 +10359,9 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     metricas_ejecucion = preparacion$metricas_ejecucion,
     incluir_valores = incluir_valores, tipos_declarados = preparacion$tipos,
     motivos_ilegibles = preparacion$esquema$motivos,
-     modo = preparacion$modo, tabla_metricas_sql = tabla_metricas_sql,
+     universo = preparacion$universo,
+     estrategia_mediana = preparacion$estrategia_mediana,
+     tabla_metricas_sql = tabla_metricas_sql,
      muestreo = muestreo_publico, aproximaciones = preparacion$aproximaciones,
      tamano_muestra = if (is.null(fuente_muestreada)) NA_real_ else
        fuente_muestreada$filas_solicitadas,
@@ -10283,7 +10405,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
       length(preparacion$orden_sql) > 0 &&
         identical(preparacion$bloque_muestra, "con_muestra"),
       preparacion$dialecto, emitidas = consultas_antes_resumen,
-      modo = preparacion$modo,
+      universo = preparacion$universo,
       muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
         preparacion$muestreo$disponible,
       tamano_lote_planos = preparacion$tamano_lote_planos,
@@ -10306,7 +10428,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   # aca es el total que gobierna el denominador, la muestra y toda la metadata;
   # no se conserva el valor desconocido de la preparacion.
   preparacion$n_total <- resumen$meta$filas
-  if (identical(preparacion$modo, "muestreado")) {
+  if (identical(preparacion$universo, "muestra_motor")) {
     if (!is.null(fuente_muestreada)) {
       fuente_muestreada$filas_solicitadas <- min(
         as.numeric(fuente_muestreada$filas_solicitadas),
@@ -10339,7 +10461,25 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     }
   }
   resumen$meta$sql_esquema <- preparacion$esquema$sql
-  resumen$meta$modo <- preparacion$modo
+  resumen$meta$universo <- preparacion$universo
+  resumen$meta$estrategia_mediana <- .publicar_estrategia_mediana_dbi(
+    preparacion
+  )
+  if (!is.null(modo)) resumen$meta$modo <- modo
+  if (identical(modo, "aproximado")) {
+    resumen$meta$muestras_independientes <- paste(
+      "el muestreo se resuelve por consulta, no por perfilado. Las columnas",
+      "que comparten una consulta consolidada -ver `id_muestra`, `lote` y",
+      "`columnas_compartidas` en `sql`- se miden sobre las MISMAS filas, asi",
+      "que sus metricas son comparables entre si. Dos consultas distintas",
+      "-otro `id_muestra`, u otra clase como moda o mediana- sacan muestras",
+      "distintas del mismo tamano, asi que comparar entre ellas es comparar",
+      "conjuntos de filas que no coinciden. Es inherente a muestrear en el",
+      "motor sin materializar una tabla intermedia, y perfilar es solo",
+      "lectura. Para que todo el perfil hable de las mismas filas, el camino",
+      "es `perfil_muestra`"
+    )
+  }
   resumen$meta$metricas <- preparacion$metricas
   resumen$meta$metricas_ejecucion <- preparacion$metricas_ejecucion
   resumen$meta$politica_costo <- preparacion$politica_costo
@@ -10390,7 +10530,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     declarado = preparacion$resolucion$declarado,
     sondas = preparacion$resolucion$sondas
   )
-  if (identical(preparacion$modo, "aproximado")) {
+  if (identical(preparacion$estrategia_mediana, "aproximada_motor")) {
     resumen$meta$aproximaciones <- lapply(
       preparacion$aproximaciones_resolucion, .publicar_aproximacion_dbi
     )
@@ -10402,7 +10542,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
       resumen$columnas, resumen$sql
     )
   )
-  if (identical(preparacion$modo, "muestreado")) {
+  if (identical(preparacion$universo, "muestra_motor")) {
     resumen$meta$muestreo <- muestreo_publico
     if (is.null(fuente_muestreada)) {
       cobertura <- rbind(cobertura, .registro_cobertura_dbi(
@@ -10413,7 +10553,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
           preparacion$muestreo$motivo
         },
         paste(
-          "El modo `muestreado` no reemplaza la estimacion por un calculo",
+          "El universo `muestra_motor` no reemplaza la estimacion por un calculo",
           "sobre la tabla completa. Usar otro modo o un adaptador compatible."
         ),
         NA_character_
@@ -10450,7 +10590,13 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   bloque <- if (identical(preparacion$bloque_muestra, "con_muestra")) {
     .bloque_muestra_dbi(
       conexion, tabla, preparacion$tabla_sql, preparacion$campos,
-      preparacion$campos_sql, preparacion$muestra, preparacion$orden_muestra,
+      preparacion$campos_sql, preparacion$muestra,
+      if (identical(preparacion$universo, "muestra_motor")) {
+        preparacion$muestra_motor
+      } else {
+        preparacion$muestra
+      },
+      preparacion$orden_muestra,
       preparacion$orden_sql, preparacion$dialecto, preparacion$n_total,
       presupuesto, info_conexion, list(...), muestreo = muestreo_meta,
       tipos_declarados = preparacion$tipos, trazador = trazador,
@@ -10486,7 +10632,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
       muestreo_meta = bloque$muestreo
     )
   }
-  if (identical(preparacion$modo, "muestreado")) {
+  if (identical(preparacion$universo, "muestra_motor")) {
     resumen$meta$muestreo <- muestreo_publico
   }
   cobertura <- rbind(cobertura, bloque$cobertura)
