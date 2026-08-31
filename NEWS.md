@@ -1,5 +1,16 @@
 # lupa 0.1.0
 
+## Ejecutor interno por bloques — Etapa 2: valor
+
+- Las medianas y cuartiles se reconstruyen desde el mapa central ponderado,
+  sin expandir frecuencias; reproducen `type = 7` y `median()` bajo el filtro
+  explícito `is.finite`.
+- Outliers, centinelas, huecos de secuencias y constantes proporcionales
+  aritméticas tienen acumuladores, segundas pasadas y topes visibles. Si el
+  multiset no cabe, publican `no_disponible` con motivo y resolución sugerida.
+- La aceptación cubre 1, 2, 7 y 31 bloques, la identidad paramétrica, valores
+  infinitos/ausentes, truncamiento y las barreras finales del vigilante.
+
 ## Ejecutor interno por bloques — Etapa 1
 
 - Se incorpora el ciclo interno `iniciar`/`absorber`/`fusionar`/`finalizar`,

@@ -252,3 +252,136 @@ test_that("un tope del mapa publica una cota visible", {
   expect_identical(ejecucion$resultado$cota$direccion, ">=")
   expect_true(is.finite(ejecucion$resultado$bytes_retenidos))
 })
+
+test_that("las reconstrucciones de valor respetan type 7 y el filtro finito", {
+  valores <- c(-Inf, -1000, 0.000111, 0.25, 1000, Inf,
+               0.25, NA_real_, NaN)
+  finitos <- valores[is.finite(valores)]
+  q <- stats::quantile(
+    finitos, probs = c(0.25, 0.75), names = FALSE, type = 7
+  )
+  referencia <- list(
+    q1 = q[[1L]], q3 = q[[2L]], iqr = q[[2L]] - q[[1L]],
+    mediana = stats::median(finitos)
+  )
+  for (k in c(1L, 2L, 7L, 31L)) {
+    salida <- lupa:::.ejecutar_valor_bloques(valores, k = k)
+    expect_identical(salida$cuantiles$resultado$q1, referencia$q1)
+    expect_identical(salida$cuantiles$resultado$q3, referencia$q3)
+    expect_identical(salida$cuantiles$resultado$iqr, referencia$iqr)
+    expect_identical(salida$mediana$resultado$mediana, referencia$mediana)
+    expect_identical(salida$cuantiles$resultado$n_evaluados,
+                     as.numeric(length(finitos)))
+    expect_identical(salida$mapa$estado, "calculado")
+    # Los infinitos quedan en el mapa de distintos aunque no entren en los
+    # estadísticos cuantitativos.
+    expect_identical(nrow(salida$mapa$resultado), 6L)
+  }
+})
+
+test_that("outliers y centinelas hacen la segunda pasada con Q fijos", {
+  valores <- c(rep(1, 40), rep(2, 40), rep(3, 40), -100, 100)
+  q <- stats::quantile(valores, c(0.25, 0.75), names = FALSE, type = 7)
+  iqr <- q[[2L]] - q[[1L]]
+  esperado_outliers <- sum(
+    valores < q[[1L]] - 1.5 * iqr | valores > q[[2L]] + 1.5 * iqr
+  )
+  for (k in c(1L, 2L, 7L, 31L)) {
+    salida <- lupa:::.n_outliers_valor_bloques(
+      valores, q1 = q[[1L]], q3 = q[[2L]], k = k, max_entradas = 1L
+    )
+    expect_identical(salida$estado, "calculado")
+    expect_identical(salida$resultado$n_outliers,
+                     as.integer(esperado_outliers))
+    expect_identical(salida$resultado$n_evaluados, length(valores))
+  }
+
+  con_centinela <- c(1:100, rep(9999, 30))
+  q <- stats::quantile(con_centinela, c(0.25, 0.75), names = FALSE, type = 7)
+  iqr <- q[[2L]] - q[[1L]]
+  referencia <- lupa:::.centinela_por_tres_senales(
+    con_centinela, iqr, q1 = q[[1L]], q3 = q[[2L]]
+  )
+  for (k in c(1L, 2L, 7L, 31L)) {
+    salida <- lupa:::.centinela_valor_bloques(
+      con_centinela, q1 = q[[1L]], q3 = q[[2L]], iqr = iqr,
+      k = k, sentinelas_numericos = NULL
+    )
+    expect_identical(salida$estado, "calculado")
+    expect_identical(salida$resultado, referencia)
+  }
+})
+
+test_that("hueco y k aritmetica consumen el estado central sin rep", {
+  valores <- c(1:10, 20)
+  mapa <- lupa:::.mapa_distintos_bloques(valores, k = 7L)
+  salida_hueco <- lupa:::.hueco_tipico_desde_mapa_bloques(mapa)
+  expect_identical(salida_hueco$estado, "calculado")
+  expect_identical(salida_hueco$resultado$hueco_tipico,
+                   stats::median(diff(sort(unique(valores)))))
+  expect_identical(salida_hueco$resultado$hueco_maximo, 10)
+  expect_identical(salida_hueco$resultado$n_huecos, 9)
+
+  base <- c(1:50, 0, NA_real_, Inf)
+  respuesta <- base * 7
+  respuesta[10L] <- respuesta[10L] + 1
+  utilizables <- is.finite(base) & is.finite(respuesta) & base != 0
+  base_evaluada <- respuesta
+  respuesta_evaluada <- base
+  referencia_k <- stats::median(
+    respuesta_evaluada[utilizables] / base_evaluada[utilizables]
+  )
+  comparables <- is.finite(base_evaluada) & is.finite(respuesta_evaluada)
+  esperado <- .dentro_tolerancia_aritmetica(
+    respuesta_evaluada[comparables],
+    base_evaluada[comparables] * referencia_k, 1e-8
+  )
+  for (k in c(1L, 2L, 7L, 31L)) {
+    salida <- lupa:::.k_aritmetica_bloques(
+      base, respuesta, k_bloques = k, tolerancia = 1e-8
+    )
+    expect_identical(salida$estado, "calculado")
+    expect_identical(salida$resultado$k, referencia_k)
+    expect_identical(salida$resultado$n_evaluados, as.integer(sum(comparables)))
+    expect_identical(salida$resultado$n_cumplen, as.integer(sum(esperado)))
+    expect_identical(salida$resultado$n_incumplen,
+                     as.integer(sum(!esperado)))
+  }
+})
+
+test_that("las familias de valor declaran el truncamiento y el vigilante final", {
+  valores <- seq_len(6000L)
+  mapa <- lupa:::.mapa_distintos_bloques(
+    valores, k = 2L, max_entradas = 2L
+  )
+  expect_identical(mapa$estado, "cota")
+  for (salida in list(
+    lupa:::.cuantiles_desde_mapa_bloques(mapa, max_entradas = 2L),
+    lupa:::.n_outliers_valor_bloques(valores, k = 2L, max_entradas = 2L),
+    lupa:::.centinela_valor_bloques(valores, k = 2L, max_entradas = 2L),
+    lupa:::.hueco_tipico_desde_mapa_bloques(mapa, max_entradas = 2L)
+  )) {
+    expect_identical(salida$estado, "no_disponible")
+    expect_match(salida$motivo, "mapa_distintos_truncado")
+    expect_true(nzchar(salida$como_resolverlo))
+    expect_true(is.finite(salida$bytes_retenidos))
+  }
+
+  vigilante <- lupa:::.iniciar_vigilante("valor-stage2", tope_bytes = 1)
+  ejecucion <- lupa:::.ejecutar_valor_bloques(
+    c(1:100, rep(9999, 30)), k = 2L, vigilante = vigilante
+  )
+  eventos <- lupa:::.eventos_vigilante(vigilante)
+  expect_true(all(is.finite(eventos$bytes_retenidos)))
+  expect_true(all(eventos$bytes_retenidos >= 0))
+  for (familia in c("outliers", "centinela")) {
+    expect_true(any(eventos$familia == familia & eventos$fase == "bloque"))
+    expect_true(any(eventos$familia == familia & eventos$fase == "finalizar"))
+  }
+  expect_true(any(eventos$familia == "hueco_tipico" &
+                 eventos$fase == "finalizar"))
+  expect_true(any(eventos$familia == "cuantiles" &
+                 eventos$fase == "finalizar"))
+  expect_true(all(eventos$tipo_evento == "presion_memoria_proceso"))
+  expect_identical(ejecucion$centinela$resultado$valor, 9999)
+})

@@ -73,10 +73,13 @@
                                 max_bytes = Inf,
                                 requiere_orden = FALSE,
                                 incluir_ausentes = FALSE) {
-  if (identical(familia, "distintos") && is.infinite(max_entradas)) {
+  if (familia %in% c("distintos", "hueco") && is.infinite(max_entradas)) {
     max_entradas <- .MAX_ENTRADAS_DISTINTOS
   }
   if (identical(familia, "filas_distintos") && is.infinite(max_entradas)) {
+    max_entradas <- .MAX_ENTRADAS_DISTINTOS
+  }
+  if (identical(familia, "centinela") && is.infinite(max_entradas)) {
     max_entradas <- .MAX_ENTRADAS_DISTINTOS
   }
   if (is.infinite(max_bytes)) max_bytes <- .MAX_BYTES_ESTADO_BLOQUES
@@ -109,14 +112,44 @@
       n = 0, n_validos = 0, n_claves_omitidas = 0,
       truncado = FALSE, causa_tope = NULL
     ),
+    hueco = list(
+      representantes = NULL, frecuencias = numeric(), primeros = numeric(),
+      n = 0, n_validos = 0, n_claves_omitidas = 0,
+      truncado = FALSE, causa_tope = NULL
+    ),
     filas_distintos = list(
       representantes = NULL, frecuencias = numeric(), primeros = numeric(),
       grupos = integer(), n = 0, n_claves_omitidas = 0,
       truncado = FALSE, causa_tope = NULL
     ),
+    outliers = list(n = 0, n_outliers = 0L, limite_inferior = NA_real_,
+                    limite_superior = NA_real_),
+    centinela = list(
+      n = 0, n_outliers = 0L, representantes = NULL,
+      frecuencias = numeric(), n_claves_omitidas = 0L,
+      truncado = FALSE, causa_tope = NULL,
+      limite_inferior = NA_real_, limite_superior = NA_real_
+    ),
+    aritmetica = list(
+      n = 0L, n_cumplen = 0L, n_incumplen = 0L,
+      limite_inferior = NA_real_, limite_superior = NA_real_,
+      k = NA_real_, tolerancia = NA_real_
+    ),
     generica = list(n = 0L),
     stop("Familia de acumulador desconocida: `", familia, "`.", call. = FALSE)
   )
+  if (familia %in% c("outliers", "centinela")) {
+    acumulador$estado_familia$limite_inferior <-
+      as.numeric(configuracion$configuracion$limite_inferior %||% NA_real_)
+    acumulador$estado_familia$limite_superior <-
+      as.numeric(configuracion$configuracion$limite_superior %||% NA_real_)
+  }
+  if (identical(familia, "aritmetica")) {
+    acumulador$estado_familia$k <-
+      as.numeric(configuracion$configuracion$k %||% NA_real_)
+    acumulador$estado_familia$tolerancia <-
+      as.numeric(configuracion$configuracion$tolerancia %||% NA_real_)
+  }
   acumulador
 }
 
@@ -385,6 +418,124 @@
   acumulador
 }
 
+.absorber_outliers <- function(acumulador, bloque) {
+  valores <- bloque$valores
+  if (!is.numeric(valores)) {
+    return(.marcar_fallo_acumulador(
+      acumulador, "valores_outliers_no_numericos"
+    ))
+  }
+  aplica <- !is.na(bloque$aplicable) & bloque$aplicable
+  valores <- valores[aplica]
+  finitos <- valores[is.finite(valores)]
+  estado <- acumulador$estado_familia
+  estado$n <- estado$n + length(finitos)
+  if (length(finitos)) {
+    fuera <- finitos < estado$limite_inferior |
+      finitos > estado$limite_superior
+    estado$n_outliers <- estado$n_outliers + sum(fuera)
+  }
+  acumulador$estado_familia <- estado
+  acumulador
+}
+
+.absorber_centinela <- function(acumulador, bloque) {
+  valores <- bloque$valores
+  if (!is.numeric(valores)) {
+    return(.marcar_fallo_acumulador(
+      acumulador, "valores_centinela_no_numericos"
+    ))
+  }
+  aplica <- !is.na(bloque$aplicable) & bloque$aplicable
+  valores <- valores[aplica]
+  finitos <- valores[is.finite(valores)]
+  estado <- acumulador$estado_familia
+  estado$n <- estado$n + length(finitos)
+  if (!length(finitos) || isTRUE(estado$truncado)) {
+    acumulador$estado_familia <- estado
+    return(acumulador)
+  }
+  fuera <- finitos < estado$limite_inferior |
+    finitos > estado$limite_superior
+  estado$n_outliers <- estado$n_outliers + sum(fuera)
+  candidatos <- finitos[fuera]
+  if (!length(candidatos)) {
+    acumulador$estado_familia <- estado
+    return(acumulador)
+  }
+  for (valor in candidatos) {
+    posicion <- .match_R(valor, estado$representantes)
+    if (is.null(posicion)) {
+      return(.marcar_fallo_acumulador(
+        acumulador, "igualdad_s3_no_reproducible"
+      ))
+    }
+    posicion <- posicion[[1L]]
+    if (posicion > 0L) {
+      estado$frecuencias[[posicion]] <-
+        estado$frecuencias[[posicion]] + 1L
+      next
+    }
+    if (length(estado$representantes) >= acumulador$max_entradas) {
+      estado$n_claves_omitidas <- estado$n_claves_omitidas + 1L
+      acumulador$estado_familia <- estado
+      return(.marcar_tope_acumulador(acumulador, "entradas"))
+    }
+    estado$representantes <- .append_typed_R(
+      estado$representantes, valor
+    )
+    if (is.null(estado$representantes)) {
+      return(.marcar_fallo_acumulador(
+        acumulador, "igualdad_s3_no_reproducible"
+      ))
+    }
+    estado$frecuencias <- c(estado$frecuencias, 1L)
+    acumulador$estado_familia <- estado
+    if (.bytes_estado_acumulador(acumulador) > acumulador$max_bytes) {
+      ultimo <- length(estado$representantes)
+      estado$representantes <- if (ultimo == 1L) NULL else {
+        estado$representantes[-ultimo]
+      }
+      estado$frecuencias <- utils::head(estado$frecuencias, -1L)
+      estado$n_claves_omitidas <- estado$n_claves_omitidas + 1L
+      acumulador$estado_familia <- estado
+      return(.marcar_tope_acumulador(acumulador, "bytes"))
+    }
+  }
+  acumulador$estado_familia <- estado
+  acumulador
+}
+
+.absorber_aritmetica <- function(acumulador, bloque) {
+  datos <- bloque$valores
+  if (!inherits(datos, "data.frame") || ncol(datos) < 2L) {
+    return(.marcar_fallo_acumulador(
+      acumulador, "valores_aritmeticos_no_pareados"
+    ))
+  }
+  base <- suppressWarnings(as.numeric(datos[[1L]]))
+  respuesta <- suppressWarnings(as.numeric(datos[[2L]]))
+  if (length(base) != length(respuesta)) {
+    return(.marcar_fallo_acumulador(
+      acumulador, "valores_aritmeticos_no_pareados"
+    ))
+  }
+  aplica <- !is.na(bloque$aplicable) & bloque$aplicable
+  comparables <- aplica & is.finite(base) & is.finite(respuesta)
+  estado <- acumulador$estado_familia
+  if (any(comparables)) {
+    esperado <- base[comparables] * estado$k
+    cumple <- .dentro_tolerancia_bloques(
+      respuesta[comparables], esperado, estado$tolerancia
+    )
+    estado$n <- estado$n + sum(comparables)
+    estado$n_cumplen <- estado$n_cumplen + sum(cumple)
+    estado$n_incumplen <- estado$n_incumplen + sum(!cumple)
+  }
+  acumulador$estado_familia <- estado
+  acumulador
+}
+
 .absorber_distintos <- function(acumulador, bloque) {
   x <- bloque$valores
   aplica <- !is.na(bloque$aplicable) & bloque$aplicable
@@ -402,6 +553,76 @@
   if (isTRUE(estado$truncado)) {
     acumulador$estado_familia <- estado
     return(acumulador)
+  }
+  # `match()` sobre el bloque entero conserva la igualdad de R y evita una
+  # llamada de dispatch por celda. El camino lento de abajo queda para clases
+  # con semántica propia; el caso atomico sin clase es el que domina las
+  # columnas grandes de texto y numeros.
+  if (is.atomic(x) && is.null(dim(x)) && is.null(attr(x, "class"))) {
+    n_representantes <- length(estado$representantes)
+    posiciones <- if (n_representantes) {
+      # Para atomicos sin clase, `match` es exactamente la igualdad que usa
+      # `.match_R`; se evita el tryCatch y la normalizacion por celda del
+      # adaptador general.
+      match(x, estado$representantes, nomatch = 0L)
+    } else integer(length(x))
+    if (n_representantes) {
+      estado$frecuencias <- estado$frecuencias + tabulate(
+        posiciones[posiciones > 0L], nbins = n_representantes
+      )
+    }
+    nuevos <- x[posiciones == 0L]
+    if (!length(nuevos)) {
+      acumulador$estado_familia <- estado
+      return(acumulador)
+    }
+    nuevos <- unique(nuevos)
+    correspondencias <- match(x, nuevos, nomatch = 0L)
+    if (length(correspondencias) == length(x)) {
+      frecuencias_nuevas <- tabulate(
+        correspondencias, nbins = length(nuevos)
+      )
+      primeros_nuevos <- vapply(
+        seq_along(nuevos), function(i) {
+          min(which(correspondencias == i)) + bloque$ordinal_inicio - 1
+        }, numeric(1L)
+      )
+      acumulador$estado_familia <- estado
+      for (i in seq_along(nuevos)) {
+        if (length(estado$representantes) >= acumulador$max_entradas) {
+          estado$n_claves_omitidas <- estado$n_claves_omitidas +
+            length(nuevos) - i + 1L
+          acumulador$estado_familia <- estado
+          return(.marcar_tope_acumulador(acumulador, "entradas"))
+        }
+        estado$representantes <- .append_typed_R(
+          estado$representantes, nuevos[[i]]
+        )
+        if (is.null(estado$representantes)) {
+          return(.marcar_fallo_acumulador(
+            acumulador, "igualdad_s3_no_reproducible"
+          ))
+        }
+        estado$frecuencias <- c(
+          estado$frecuencias, frecuencias_nuevas[[i]]
+        )
+        estado$primeros <- c(estado$primeros, primeros_nuevos[[i]])
+        acumulador$estado_familia <- estado
+        if (.bytes_estado_acumulador(acumulador) > acumulador$max_bytes) {
+          estado$representantes <- if (length(estado$representantes) == 1L) {
+            NULL
+          } else estado$representantes[-length(estado$representantes)]
+          estado$frecuencias <- utils::head(estado$frecuencias, -1L)
+          estado$primeros <- utils::head(estado$primeros, -1L)
+          estado$n_claves_omitidas <- estado$n_claves_omitidas +
+            length(nuevos) - i + 1L
+          acumulador$estado_familia <- estado
+          return(.marcar_tope_acumulador(acumulador, "bytes"))
+        }
+      }
+      acumulador$estado_familia <- estado
+      return(acumulador)
+    }
   }
   inicio <- bloque$ordinal_inicio
   for (i in seq_along(x)) {
@@ -572,7 +793,11 @@
     cuantitativos = .absorber_cuantitativos(acumulador, bloque),
     longitudes = .absorber_longitudes(acumulador, bloque),
     distintos = .absorber_distintos(acumulador, bloque),
+    hueco = .absorber_distintos(acumulador, bloque),
     filas_distintos = .absorber_filas_distintos(acumulador, bloque),
+    outliers = .absorber_outliers(acumulador, bloque),
+    centinela = .absorber_centinela(acumulador, bloque),
+    aritmetica = .absorber_aritmetica(acumulador, bloque),
     generica = {
       acumulador$estado_familia$n <- acumulador$estado_familia$n +
         length(bloque$valores)
@@ -716,6 +941,52 @@
   acumulador
 }
 
+.fusionar_estado_centinela <- function(acumulador, otro) {
+  a <- acumulador$estado_familia
+  b <- otro$estado_familia
+  a$n <- a$n + b$n
+  a$n_outliers <- a$n_outliers + b$n_outliers
+  if (isTRUE(b$truncado)) {
+    acumulador$estado_familia <- a
+    return(.marcar_tope_acumulador(acumulador, b$causa_tope))
+  }
+  if (isTRUE(a$truncado)) {
+    acumulador$estado_familia <- a
+    return(acumulador)
+  }
+  for (i in seq_along(b$representantes)) {
+    posicion <- .match_R(b$representantes[[i]], a$representantes)
+    if (is.null(posicion)) {
+      acumulador$estado_familia <- a
+      return(.marcar_fallo_acumulador(
+        acumulador, "igualdad_s3_no_reproducible"
+      ))
+    }
+    posicion <- posicion[[1L]]
+    if (posicion > 0L) {
+      a$frecuencias[[posicion]] <- a$frecuencias[[posicion]] +
+        b$frecuencias[[i]]
+      next
+    }
+    if (length(a$representantes) >= acumulador$max_entradas) {
+      a$n_claves_omitidas <- a$n_claves_omitidas + 1L
+      acumulador$estado_familia <- a
+      return(.marcar_tope_acumulador(acumulador, "entradas"))
+    }
+    a$representantes <- .append_typed_R(a$representantes,
+                                         b$representantes[[i]])
+    if (is.null(a$representantes)) {
+      acumulador$estado_familia <- a
+      return(.marcar_fallo_acumulador(
+        acumulador, "igualdad_s3_no_reproducible"
+      ))
+    }
+    a$frecuencias <- c(a$frecuencias, b$frecuencias[[i]])
+  }
+  acumulador$estado_familia <- a
+  acumulador
+}
+
 .fusionar_acumuladores <- function(acumulador, otro) {
   if (!inherits(acumulador, "acumulador_bloques") ||
       !inherits(otro, "acumulador_bloques")) {
@@ -780,11 +1051,31 @@
       a
     },
     distintos = acumulador$estado_familia,
+    hueco = acumulador$estado_familia,
     filas_distintos = acumulador$estado_familia,
+    outliers = {
+      a <- acumulador$estado_familia
+      b <- otro$estado_familia
+      a$n <- a$n + b$n
+      a$n_outliers <- a$n_outliers + b$n_outliers
+      a
+    },
+    centinela = acumulador$estado_familia,
+    aritmetica = {
+      a <- acumulador$estado_familia
+      b <- otro$estado_familia
+      a$n <- a$n + b$n
+      a$n_cumplen <- a$n_cumplen + b$n_cumplen
+      a$n_incumplen <- a$n_incumplen + b$n_incumplen
+      a
+    },
     generica = acumulador$estado_familia
   )
-  if (identical(acumulador$familia, "distintos")) {
+  if (acumulador$familia %in% c("distintos", "hueco")) {
     acumulador <- .fusionar_distintos(acumulador, otro)
+  }
+  if (identical(acumulador$familia, "centinela")) {
+    acumulador <- .fusionar_estado_centinela(acumulador, otro)
   }
   if (identical(acumulador$familia, "filas_distintos")) {
     acumulador <- .fusionar_filas_distintos(acumulador, otro)
@@ -829,8 +1120,27 @@
     },
     distintos = if (isTRUE(estado$truncado)) NULL else {
       orden <- order(estado$primeros)
+      representantes <- estado$representantes
+      if (is.null(representantes)) {
+        representantes <- switch(
+          acumulador$configuracion$tipo,
+          character = character(), logical = logical(), integer = integer(),
+          double = numeric(), raw = raw(), numeric()
+        )
+      }
       data.frame(
-        representante = estado$representantes[orden],
+        representante = representantes[orden],
+        frecuencia = as.integer(estado$frecuencias[orden]),
+        primer_ordinal = as.numeric(estado$primeros[orden]),
+        stringsAsFactors = FALSE
+      )
+    },
+    hueco = if (isTRUE(estado$truncado)) NULL else {
+      orden <- order(estado$primeros)
+      representantes <- estado$representantes
+      if (is.null(representantes)) representantes <- numeric()
+      data.frame(
+        representante = representantes[orden],
         frecuencia = as.integer(estado$frecuencias[orden]),
         primer_ordinal = as.numeric(estado$primeros[orden]),
         stringsAsFactors = FALSE
@@ -847,6 +1157,25 @@
         grupos = estado$grupos
       )
     },
+    outliers = list(
+      n_outliers = as.integer(estado$n_outliers),
+      n_evaluados = as.integer(estado$n)
+    ),
+    centinela = if (isTRUE(estado$truncado)) NULL else {
+      list(
+        representantes = estado$representantes,
+        frecuencias = as.integer(estado$frecuencias),
+        n_outliers = as.integer(estado$n_outliers),
+        n_evaluados = as.integer(estado$n)
+      )
+    },
+    aritmetica = list(
+      k = as.numeric(estado$k),
+      n_evaluados = as.integer(estado$n),
+      n_cumplen = as.integer(estado$n_cumplen),
+      n_incumplen = as.integer(estado$n_incumplen),
+      proporcion = if (estado$n) estado$n_cumplen / estado$n else NA_real_
+    ),
     list(n = estado$n)
   )
 }
@@ -857,7 +1186,7 @@
   estado <- if (identical(acumulador$estado, "no_disponible")) {
     "no_disponible"
   } else if (identical(acumulador$estado, "truncado")) {
-    if (identical(acumulador$familia, "distintos")) "cota" else "no_disponible"
+    if (acumulador$familia %in% c("distintos", "hueco")) "cota" else "no_disponible"
   } else "calculado"
   resultado <- .resultado_acumulador(acumulador)
   cota <- NULL
@@ -880,19 +1209,26 @@
       if (identical(estado, "cota")) {
         paste0("mapa_distintos_truncado:", acumulador$estado_familia$causa_tope)
       } else if (identical(estado, "no_disponible")) {
-        "resultado_no_disponible"
+        if (identical(acumulador$familia, "outliers") ||
+            identical(acumulador$familia, "centinela")) {
+          paste0("segunda_pasada_valor:mapa_distintos_truncado:",
+                 acumulador$estado_familia$causa_tope %||% "desconocido")
+        } else "resultado_no_disponible"
       } else NA_character_
     } else acumulador$fallo,
     como_resolverlo = if (identical(estado, "cota")) {
       "Aumentar el tope o habilitar un derrame exacto en una etapa posterior."
     } else if (identical(estado, "no_disponible")) {
-      "Revisar el tipo y la igualdad declarada para la familia."
+      if (identical(acumulador$familia, "outliers") ||
+          identical(acumulador$familia, "centinela")) {
+        "Aumentar el tope del mapa o habilitar una segunda pasada estable."
+      } else "Revisar el tipo y la igualdad declarada para la familia."
     } else NA_character_,
     cota = cota,
     tope = list(
       entradas = acumulador$max_entradas,
       bytes = acumulador$max_bytes,
-      nombre = if (identical(acumulador$familia, "distintos")) {
+      nombre = if (acumulador$familia %in% c("distintos", "hueco")) {
         "E_distintos/P_estado"
       } else "P_estado"
     ),
@@ -1180,3 +1516,718 @@ absorber <- function(acumulador, bloque) .absorber_acumulador(acumulador, bloque
 fusionar <- function(acumulador, otro) .fusionar_acumuladores(acumulador, otro)
 finalizar <- function(acumulador) .finalizar_acumulador(acumulador)
 bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
+
+# ---------------------------------------------------------------------------
+# Etapa 2: familias de VALOR
+#
+# El mapa de `distintos` es el estado central. Las funciones de abajo lo
+# consumen sin expandir `rep(valor, frecuencia)`. Cuando el mapa no llega
+# completo, las familias que dependen de su multiset se declaran no disponibles;
+# no reutilizan el prefijo residente como si fuera el universo.
+
+.dentro_tolerancia_bloques <- function(observado, esperado, tolerancia) {
+  abs(observado - esperado) <=
+    tolerancia * pmax(1, abs(observado), abs(esperado))
+}
+
+.sobre_valor_bloques <- function(resultado, estado = "calculado",
+                                 exacto = TRUE, motivo = NA_character_,
+                                 como_resolverlo = NA_character_,
+                                 cota = NULL, max_entradas = 5000L,
+                                 max_bytes = .MAX_BYTES_ESTADO_BLOQUES,
+                                 alcance = list(), almacenamiento = "memoria",
+                                 derrame = NULL, bytes_retenidos = NULL) {
+  if (is.infinite(max_entradas)) max_entradas <- .MAX_ENTRADAS_DISTINTOS
+  if (is.infinite(max_bytes)) max_bytes <- .MAX_BYTES_ESTADO_BLOQUES
+  if (is.null(bytes_retenidos)) {
+    bytes_retenidos <- as.numeric(utils::object.size(resultado))
+  }
+  if (!is.finite(bytes_retenidos) || bytes_retenidos < 0) {
+    bytes_retenidos <- 0
+  }
+  motivo <- if (is.null(motivo) || !length(motivo) ||
+      (is.na(motivo[[1L]]) && !identical(estado, "calculado"))) {
+    if (identical(estado, "cota")) "resultado_acotado" else {
+      if (identical(estado, "no_disponible")) "resultado_no_disponible" else NA_character_
+    }
+  } else as.character(motivo)
+  como_resolverlo <- if (is.null(como_resolverlo) || !length(como_resolverlo) ||
+      (is.na(como_resolverlo[[1L]]) && !identical(estado, "calculado"))) {
+    if (identical(estado, "cota")) "Aumentar el tope o habilitar un derrame exacto." else {
+      if (identical(estado, "no_disponible")) "Revisar el tipo, el alcance o el tope declarado." else NA_character_
+    }
+  } else as.character(como_resolverlo)
+  list(
+    resultado = resultado,
+    estado = estado,
+    exacto = if (identical(estado, "calculado")) isTRUE(exacto) else {
+      if (identical(estado, "cota")) FALSE else NA
+    },
+    motivo = motivo,
+    como_resolverlo = como_resolverlo,
+    cota = cota,
+    tope = list(
+      entradas = max_entradas, bytes = max_bytes,
+      nombre = "E_distintos/P_estado"
+    ),
+    almacenamiento = almacenamiento,
+    derrame = derrame,
+    alcance = alcance,
+    bytes_retenidos = as.numeric(bytes_retenidos)
+  )
+}
+
+.alcance_valor_bloques <- function(sobre, n_valores = NA_real_) {
+  alcance <- if (is.null(sobre)) list() else sobre$alcance
+  alcance$valores <- n_valores
+  alcance
+}
+
+.mapa_consultable_bloques <- function(sobre) {
+  !is.null(sobre) && identical(sobre$estado, "calculado") &&
+    isTRUE(sobre$exacto) && is.data.frame(sobre$resultado) &&
+    all(c("representante", "frecuencia") %in% names(sobre$resultado))
+}
+
+.ordenar_mapa_numerico_bloques <- function(sobre) {
+  if (!.mapa_consultable_bloques(sobre)) return(NULL)
+  mapa <- sobre$resultado
+  representantes <- mapa$representante
+  finitos <- tryCatch(is.finite(representantes), error = function(e) NULL)
+  if (is.null(finitos) || length(finitos) != nrow(mapa)) return(NULL)
+  if (!all(finitos)) {
+    mapa <- mapa[finitos, , drop = FALSE]
+    representantes <- mapa$representante
+  }
+  if (!is.numeric(representantes) || !length(representantes)) {
+    return(list(representantes = numeric(), frecuencias = numeric()))
+  }
+  orden <- tryCatch(order(representantes), error = function(e) NULL)
+  if (is.null(orden) || length(orden) != length(representantes)) return(NULL)
+  list(
+    representantes = as.numeric(representantes[orden]),
+    frecuencias = as.numeric(mapa$frecuencia[orden])
+  )
+}
+
+.valor_orden_ponderado_bloques <- function(representantes, frecuencias,
+                                           posicion) {
+  n <- sum(frecuencias)
+  if (!length(representantes) || !is.finite(n) || n < 1 ||
+      length(representantes) != length(frecuencias)) return(NA_real_)
+  posicion <- max(1, min(n, as.numeric(posicion)))
+  indice <- findInterval(posicion - 1, cumsum(frecuencias)) + 1L
+  as.numeric(representantes[[indice]])
+}
+
+.cuantil_ponderado_type7_bloques <- function(representantes, frecuencias,
+                                             prob) {
+  n <- sum(frecuencias)
+  if (!length(representantes) || !is.finite(n) || n < 1) return(NA_real_)
+  h <- (n - 1) * prob + 1
+  j <- floor(h)
+  gamma <- h - j
+  x_j <- .valor_orden_ponderado_bloques(representantes, frecuencias, j)
+  if (j >= n) return(x_j)
+  x_j1 <- .valor_orden_ponderado_bloques(
+    representantes, frecuencias, j + 1
+  )
+  # Esta es la fórmula de type = 7, incluida la secuencia de operaciones de
+  # `quantile.default()`. Aunque sea algebraicamente equivalente a
+  # `x[j] + gamma * (x[j + 1] - x[j])`, R evalúa la interpolación como
+  # `(1 - h) * x[j] + h * x[j + 1]`; los dos caminos pueden diferir un bit.
+  if (!gamma || identical(x_j, x_j1)) return(x_j)
+  (1 - gamma) * x_j + gamma * x_j1
+}
+
+.mediana_ponderada_bloques <- function(representantes, frecuencias) {
+  n <- sum(frecuencias)
+  if (!length(representantes) || !is.finite(n) || n < 1) return(NA_real_)
+  if (n %% 2) {
+    return(.valor_orden_ponderado_bloques(
+      representantes, frecuencias, (n + 1) / 2
+    ))
+  }
+  inferior <- .valor_orden_ponderado_bloques(
+    representantes, frecuencias, n / 2
+  )
+  superior <- .valor_orden_ponderado_bloques(
+    representantes, frecuencias, n / 2 + 1
+  )
+  # `median.default()` llama a `mean()` sobre los dos centrales. En ciertos
+  # pares de doubles, `mean(c(...))` y `(a + b) / 2` difieren en el ultimo
+  # bit; conservar la primera secuencia es parte de la identidad prometida.
+  mean(c(inferior, superior))
+}
+
+.estadisticos_orden_mapa_bloques <- function(sobre) {
+  ordenado <- .ordenar_mapa_numerico_bloques(sobre)
+  if (is.null(ordenado)) return(NULL)
+  n <- sum(ordenado$frecuencias)
+  if (!length(ordenado$representantes)) {
+    return(list(
+      q1 = NA_real_, mediana = NA_real_, q3 = NA_real_, iqr = NA_real_,
+      n_evaluados = 0L
+    ))
+  }
+  q1 <- .cuantil_ponderado_type7_bloques(
+    ordenado$representantes, ordenado$frecuencias, 0.25
+  )
+  q3 <- .cuantil_ponderado_type7_bloques(
+    ordenado$representantes, ordenado$frecuencias, 0.75
+  )
+  list(
+    q1 = q1, mediana = .mediana_ponderada_bloques(
+      ordenado$representantes, ordenado$frecuencias
+    ), q3 = q3, iqr = q3 - q1,
+    n_evaluados = as.numeric(n)
+  )
+}
+
+.cuantiles_desde_mapa_bloques <- function(sobre, max_entradas = 5000L,
+                                          max_bytes = .MAX_BYTES_ESTADO_BLOQUES) {
+  estadisticos <- .estadisticos_orden_mapa_bloques(sobre)
+  if (is.null(estadisticos)) {
+    return(.sobre_valor_bloques(
+      NULL, estado = "no_disponible",
+      motivo = "mapa_distintos_truncado",
+      como_resolverlo = "Aumentar el tope del mapa o habilitar un derrame exacto.",
+      max_entradas = max_entradas, max_bytes = max_bytes,
+      alcance = .alcance_valor_bloques(sobre), bytes_retenidos = 0
+    ))
+  }
+  .sobre_valor_bloques(
+    estadisticos, max_entradas = max_entradas, max_bytes = max_bytes,
+    alcance = .alcance_valor_bloques(sobre, estadisticos$n_evaluados),
+    bytes_retenidos = as.numeric(utils::object.size(estadisticos))
+  )
+}
+
+.mediana_desde_mapa_bloques <- function(sobre, ...) {
+  cuantiles <- .cuantiles_desde_mapa_bloques(sobre, ...)
+  if (!identical(cuantiles$estado, "calculado")) return(cuantiles)
+  cuantiles$resultado <- list(
+    mediana = cuantiles$resultado$mediana,
+    n_evaluados = cuantiles$resultado$n_evaluados
+  )
+  cuantiles$bytes_retenidos <- as.numeric(utils::object.size(cuantiles$resultado))
+  cuantiles
+}
+
+.cuartiles_desde_mapa_bloques <- function(sobre, ...) {
+  cuantiles <- .cuantiles_desde_mapa_bloques(sobre, ...)
+  if (!identical(cuantiles$estado, "calculado")) return(cuantiles)
+  cuantiles$resultado <- list(
+    q1 = cuantiles$resultado$q1,
+    q3 = cuantiles$resultado$q3,
+    iqr = cuantiles$resultado$iqr,
+    n_evaluados = cuantiles$resultado$n_evaluados
+  )
+  cuantiles$bytes_retenidos <- as.numeric(utils::object.size(cuantiles$resultado))
+  cuantiles
+}
+
+# Alias internos descriptivos usados por los consumidores de la etapa.
+.reconstruir_mediana_mapa <- .mediana_desde_mapa_bloques
+.reconstruir_cuartiles_mapa <- .cuartiles_desde_mapa_bloques
+
+.limites_tukey_bloques <- function(cuantiles) {
+  if (is.null(cuantiles) || !identical(cuantiles$estado, "calculado") ||
+      !is.finite(cuantiles$resultado$q1) ||
+      !is.finite(cuantiles$resultado$q3)) return(NULL)
+  iqr <- cuantiles$resultado$q3 - cuantiles$resultado$q1
+  if (!is.finite(iqr)) return(NULL)
+  list(
+    q1 = cuantiles$resultado$q1,
+    q3 = cuantiles$resultado$q3,
+    iqr = iqr,
+    inferior = cuantiles$resultado$q1 - 1.5 * iqr,
+    superior = cuantiles$resultado$q3 + 1.5 * iqr
+  )
+}
+
+.cuantiles_fijos_bloques <- function(q1, q3, n_filas, max_entradas,
+                                     max_bytes) {
+  q1 <- suppressWarnings(as.numeric(q1))
+  q3 <- suppressWarnings(as.numeric(q3))
+  if (length(q1) != 1L || length(q3) != 1L) {
+    return(.sobre_valor_bloques(
+      NULL, estado = "no_disponible", motivo = "cuartiles_no_disponibles",
+      como_resolverlo = "Proveer Q1 y Q3 escalares y finitos.",
+      max_entradas = max_entradas, max_bytes = max_bytes,
+      alcance = list(filas = n_filas, valores = NA_real_)
+    ))
+  }
+  .sobre_valor_bloques(
+    list(q1 = q1, q3 = q3, iqr = q3 - q1, n_evaluados = NA_real_),
+    alcance = list(filas = n_filas, valores = NA_real_),
+    max_entradas = max_entradas, max_bytes = max_bytes
+  )
+}
+
+.n_outliers_valor_bloques <- function(x, cuantiles = NULL, q1 = NULL, q3 = NULL,
+                                      k = NULL, tamano = 10000L,
+                                      aplicable = NULL,
+                                      max_entradas = Inf, max_bytes = Inf,
+                                      mapa = NULL, vigilante = NULL) {
+  if (is.infinite(max_entradas)) max_entradas <- .MAX_ENTRADAS_DISTINTOS
+  if (is.infinite(max_bytes)) max_bytes <- .MAX_BYTES_ESTADO_BLOQUES
+  if (!is.numeric(x)) {
+    return(.sobre_valor_bloques(
+      NULL, estado = "no_disponible",
+      motivo = "valores_outliers_no_numericos"
+    ))
+  }
+  if (is.null(cuantiles)) {
+    if (!is.null(q1) || !is.null(q3)) {
+      cuantiles <- .cuantiles_fijos_bloques(
+        q1, q3, length(x), max_entradas, max_bytes
+      )
+    } else {
+      if (is.null(mapa)) {
+        mapa <- .ejecutar_vector_bloques(
+          x, "distintos", k = k, tamano = tamano,
+          max_entradas = max_entradas, max_bytes = max_bytes,
+          aplicable = aplicable, vigilante = vigilante
+        )$resultado
+      }
+      cuantiles <- .cuantiles_desde_mapa_bloques(
+        mapa, max_entradas = max_entradas, max_bytes = max_bytes
+      )
+    }
+  }
+  limites <- .limites_tukey_bloques(cuantiles)
+  if (is.null(limites)) {
+    return(.sobre_valor_bloques(
+      NULL, estado = "no_disponible",
+      motivo = if (is.null(cuantiles) ||
+          !identical(cuantiles$estado, "calculado")) {
+        "mapa_distintos_truncado"
+      } else "cuartiles_no_disponibles",
+      como_resolverlo = "Conservar un multiset completo o habilitar una segunda pasada estable.",
+      max_entradas = max_entradas, max_bytes = max_bytes,
+      alcance = cuantiles$alcance %||% list()
+    ))
+  }
+  ejecucion <- .ejecutar_vector_bloques(
+    x, "outliers", k = k, tamano = tamano,
+    configuracion = list(
+      limite_inferior = limites$inferior,
+      limite_superior = limites$superior
+    ), max_entradas = max_entradas, max_bytes = max_bytes,
+    aplicable = aplicable, vigilante = vigilante
+  )
+  sobre <- ejecucion$resultado
+  sobre$alcance$cuartiles <- c(q1 = limites$q1, q3 = limites$q3,
+                               iqr = limites$iqr)
+  sobre
+}
+
+.resultado_centinela_mapa_bloques <- function(mapa, n_evaluados, iqr,
+                                              q1, q3,
+                                              sentinelas_numericos = NULL) {
+  vacio <- list(valor = NA_real_, n = NA_integer_,
+                densidad_sin_centinela = NA_real_)
+  if (!is.finite(iqr) || iqr <= 0 || n_evaluados < 20L ||
+      !is.data.frame(mapa) || !nrow(mapa)) return(vacio)
+  fuera <- mapa$representante < q1 - 1.5 * iqr |
+    mapa$representante > q3 + 1.5 * iqr
+  fuera[is.na(fuera)] <- FALSE
+  if (!any(fuera)) return(vacio)
+  candidatos <- mapa[fuera, c("representante", "frecuencia"), drop = FALSE]
+  candidatos <- candidatos[candidatos$frecuencia >= .MIN_REPETICIONES_CENTINELA,
+                           , drop = FALSE]
+  if (!nrow(candidatos)) return(vacio)
+  con_forma <- candidatos$representante[
+    grepl("^-?([0-9])\\1{2,}$", as.character(candidatos$representante))
+  ]
+  if (!length(con_forma)) return(vacio)
+  declarados <- suppressWarnings(as.numeric(sentinelas_numericos))
+  declarados <- declarados[is.finite(declarados)]
+  con_forma <- setdiff(con_forma, declarados)
+  if (!length(con_forma)) return(vacio)
+  orden <- tryCatch(order(con_forma), error = function(e) seq_along(con_forma))
+  con_forma <- con_forma[orden]
+  elegido <- con_forma[[which.max(abs(con_forma))]]
+  posicion <- which(candidatos$representante == elegido)[[1L]]
+  restantes <- mapa$representante[mapa$representante != elegido]
+  restantes <- restantes[is.finite(restantes)]
+  distintos <- unique(restantes)
+  densidad <- if (length(distintos) > 1L) {
+    rango <- max(distintos) - min(distintos) + 1
+    if (is.finite(rango) && rango > 0) length(distintos) / rango else NA_real_
+  } else NA_real_
+  list(
+    valor = as.numeric(elegido),
+    n = as.integer(candidatos$frecuencia[[posicion]]),
+    densidad_sin_centinela = as.numeric(densidad)
+  )
+}
+
+.centinela_valor_bloques <- function(x, cuantiles = NULL, q1 = NULL, q3 = NULL,
+                                     iqr = NULL, k = NULL, tamano = 10000L,
+                                     aplicable = NULL,
+                                     sentinelas_numericos = NULL,
+                                     max_entradas = Inf, max_bytes = Inf,
+                                     mapa = NULL, vigilante = NULL) {
+  if (is.infinite(max_entradas)) max_entradas <- .MAX_ENTRADAS_DISTINTOS
+  if (is.infinite(max_bytes)) max_bytes <- .MAX_BYTES_ESTADO_BLOQUES
+  if (!is.numeric(x)) {
+    return(.sobre_valor_bloques(
+      NULL, estado = "no_disponible",
+      motivo = "valores_centinela_no_numericos"
+    ))
+  }
+  mapa_central <- mapa
+  if (is.null(cuantiles)) {
+    if (!is.null(q1) || !is.null(q3)) {
+      cuantiles <- .cuantiles_fijos_bloques(
+        q1, q3, length(x), max_entradas, max_bytes
+      )
+    } else {
+      if (is.null(mapa)) {
+        mapa <- .ejecutar_vector_bloques(
+          x, "distintos", k = k, tamano = tamano,
+          max_entradas = max_entradas, max_bytes = max_bytes,
+          aplicable = aplicable, vigilante = vigilante
+        )$resultado
+      }
+      mapa_central <- mapa
+      cuantiles <- .cuantiles_desde_mapa_bloques(
+        mapa, max_entradas = max_entradas, max_bytes = max_bytes
+      )
+    }
+  }
+  # La frecuencia del candidato ya vive en el acumulador de la segunda
+  # pasada. La densidad, en cambio, es una salida de la señal existente y
+  # necesita el mapa completo sin el centinela; se intenta conservarla cuando
+  # el tope permite ese mapa, sin confundir un prefijo truncado con el total.
+  if (is.null(mapa_central)) {
+    mapa_central <- .ejecutar_vector_bloques(
+      x, "distintos", k = k, tamano = tamano,
+      max_entradas = max_entradas, max_bytes = max_bytes,
+      aplicable = aplicable, vigilante = vigilante
+    )$resultado
+  }
+  limites <- .limites_tukey_bloques(cuantiles)
+  if (is.null(limites)) {
+    return(.sobre_valor_bloques(
+      NULL, estado = "no_disponible", motivo = "mapa_distintos_truncado",
+      como_resolverlo = "Conservar un multiset completo o habilitar una segunda pasada estable.",
+      max_entradas = max_entradas, max_bytes = max_bytes,
+      alcance = cuantiles$alcance %||% list()
+    ))
+  }
+  if (is.null(iqr)) iqr <- limites$iqr
+  ejecucion <- .ejecutar_vector_bloques(
+    x, "centinela", k = k, tamano = tamano,
+    configuracion = list(
+      limite_inferior = limites$inferior,
+      limite_superior = limites$superior
+    ), max_entradas = max_entradas, max_bytes = max_bytes,
+    aplicable = aplicable, vigilante = vigilante
+  )
+  sobre <- ejecucion$resultado
+  if (!identical(sobre$estado, "calculado")) return(sobre)
+  mapa_para_densidad <- if (.mapa_consultable_bloques(mapa_central)) {
+    mapa_central$resultado
+  } else {
+    data.frame(
+      representante = sobre$resultado$representantes,
+      frecuencia = sobre$resultado$frecuencias,
+      stringsAsFactors = FALSE
+    )
+  }
+  sobre$resultado <- .resultado_centinela_mapa_bloques(
+    mapa_para_densidad, sobre$resultado$n_evaluados, iqr,
+    limites$q1, limites$q3, sentinelas_numericos
+  )
+  sobre$bytes_retenidos <- as.numeric(utils::object.size(sobre$resultado))
+  sobre$alcance$cuartiles <- c(q1 = limites$q1, q3 = limites$q3, iqr = iqr)
+  sobre
+}
+
+.hueco_tipico_desde_mapa_bloques <- function(sobre,
+                                             max_entradas = 5000L,
+                                             max_bytes = .MAX_BYTES_ESTADO_BLOQUES) {
+  ordenado <- .ordenar_mapa_numerico_bloques(sobre)
+  if (is.null(ordenado)) {
+    return(.sobre_valor_bloques(
+      NULL, estado = "no_disponible", motivo = "mapa_distintos_truncado",
+      como_resolverlo = "Aumentar el tope del mapa o habilitar un derrame exacto.",
+      max_entradas = max_entradas, max_bytes = max_bytes,
+      alcance = .alcance_valor_bloques(sobre), bytes_retenidos = 0
+    ))
+  }
+  distintos <- ordenado$representantes
+  if (!length(distintos)) {
+    resultado <- list(hueco_tipico = NA_real_, hueco_maximo = NA_real_,
+                      n_huecos = NA_real_, n_distintos = 0L)
+  } else if (any(distintos != floor(distintos))) {
+    resultado <- list(hueco_tipico = NA_real_, hueco_maximo = NA_real_,
+                      n_huecos = NA_real_, n_distintos = length(distintos))
+  } else if (length(distintos) == 1L) {
+    resultado <- list(hueco_tipico = NA_real_, hueco_maximo = 0,
+                      n_huecos = 0, n_distintos = 1L)
+  } else {
+    huecos <- diff(distintos)
+    resultado <- list(
+      hueco_tipico = stats::median(huecos),
+      hueco_maximo = max(huecos),
+      n_huecos = sum(huecos - 1),
+      n_distintos = length(distintos)
+    )
+  }
+  .sobre_valor_bloques(
+    resultado, max_entradas = max_entradas, max_bytes = max_bytes,
+    alcance = .alcance_valor_bloques(sobre, length(distintos)),
+    bytes_retenidos = as.numeric(utils::object.size(resultado))
+  )
+}
+
+.hueco_tipico_mapa_distintos <- .hueco_tipico_desde_mapa_bloques
+
+.hueco_tipico_valor_bloques <- function(x, k = NULL, tamano = 10000L,
+                                        aplicable = NULL,
+                                        max_entradas = Inf, max_bytes = Inf,
+                                        vigilante = NULL) {
+  if (is.infinite(max_entradas)) max_entradas <- .MAX_ENTRADAS_DISTINTOS
+  if (is.infinite(max_bytes)) max_bytes <- .MAX_BYTES_ESTADO_BLOQUES
+  if (!is.numeric(x)) {
+    return(.sobre_valor_bloques(
+      NULL, estado = "no_disponible", motivo = "valores_hueco_no_numericos",
+      max_entradas = max_entradas, max_bytes = max_bytes
+    ))
+  }
+  ejecucion <- .ejecutar_vector_bloques(
+    x, "hueco", k = k, tamano = tamano,
+    max_entradas = max_entradas, max_bytes = max_bytes,
+    aplicable = aplicable, vigilante = vigilante
+  )
+  sobre <- .hueco_tipico_desde_mapa_bloques(
+    ejecucion$resultado, max_entradas = max_entradas,
+    max_bytes = max_bytes
+  )
+  sobre$acumulador <- ejecucion$acumulador
+  sobre
+}
+
+.hueco_tipico_bloques <- .hueco_tipico_valor_bloques
+
+.k_aritmetica_bloques <- function(base, respuesta, k_bloques = NULL,
+                                  tamano = 10000L, min_filas = 3L,
+                                  tolerancia = 1e-8, aplicable = NULL,
+                                  max_entradas = Inf, max_bytes = Inf,
+                                  vigilante = NULL) {
+  if (is.infinite(max_entradas)) max_entradas <- .MAX_ENTRADAS_DISTINTOS
+  if (is.infinite(max_bytes)) max_bytes <- .MAX_BYTES_ESTADO_BLOQUES
+  if (length(base) != length(respuesta) ||
+      !is.numeric(base) || !is.numeric(respuesta)) {
+    return(.sobre_valor_bloques(
+      NULL, estado = "no_disponible",
+      motivo = "valores_aritmeticos_no_pareados"
+    ))
+  }
+  if (length(aplicable) &&
+      (!is.logical(aplicable) || length(aplicable) != length(base))) {
+    stop("`aplicable` debe ser logico y tener el largo de los vectores.",
+         call. = FALSE)
+  }
+  if (is.null(aplicable)) aplicable <- rep(TRUE, length(base))
+  utilizables <- !is.na(aplicable) & aplicable & is.finite(base) &
+    is.finite(respuesta) & base != 0
+  if (sum(utilizables) < min_filas) {
+    return(.sobre_valor_bloques(
+      NULL, estado = "no_disponible",
+      motivo = "relacion_aritmetica:min_filas_comparables",
+      como_resolverlo = "Aumentar el universo o bajar `min_filas`.",
+      alcance = list(filas = length(base), valores = sum(utilizables))
+    ))
+  }
+  ratios <- respuesta[utilizables] / base[utilizables]
+  mapa_ratios <- .ejecutar_vector_bloques(
+    ratios, "distintos", k = k_bloques, tamano = tamano,
+    max_entradas = max_entradas, max_bytes = max_bytes,
+    vigilante = vigilante
+  )$resultado
+  mediana_ratio <- .mediana_desde_mapa_bloques(
+    mapa_ratios, max_entradas = max_entradas, max_bytes = max_bytes
+  )
+  if (!identical(mediana_ratio$estado, "calculado")) {
+    mediana_ratio$motivo <- "mapa_distintos_truncado"
+    mediana_ratio$como_resolverlo <-
+      "Aumentar el tope del mapa o habilitar una segunda pasada estable."
+    return(mediana_ratio)
+  }
+  k <- mediana_ratio$resultado$mediana
+  if (!is.finite(k) || k == 0 || abs(abs(k) - 1) <= tolerancia) {
+    return(.sobre_valor_bloques(
+      list(k = as.numeric(k), n_evaluados = 0L, n_cumplen = 0L,
+           n_incumplen = 0L, proporcion = NA_real_),
+      alcance = list(filas = length(base), valores = sum(utilizables)),
+      max_entradas = max_entradas, max_bytes = max_bytes
+    ))
+  }
+  base_evaluada <- base
+  respuesta_evaluada <- respuesta
+  if (abs(k) > 1) {
+    base_evaluada <- respuesta
+    respuesta_evaluada <- base
+    utilizables <- !is.na(aplicable) & aplicable & is.finite(base_evaluada) &
+      is.finite(respuesta_evaluada) & base_evaluada != 0
+    ratios <- respuesta_evaluada[utilizables] / base_evaluada[utilizables]
+    mapa_ratios <- .ejecutar_vector_bloques(
+      ratios, "distintos", k = k_bloques, tamano = tamano,
+      max_entradas = max_entradas, max_bytes = max_bytes,
+      vigilante = vigilante
+    )$resultado
+    mediana_ratio <- .mediana_desde_mapa_bloques(
+      mapa_ratios, max_entradas = max_entradas, max_bytes = max_bytes
+    )
+    if (!identical(mediana_ratio$estado, "calculado")) {
+      mediana_ratio$motivo <- "mapa_distintos_truncado"
+      return(mediana_ratio)
+    }
+    k <- mediana_ratio$resultado$mediana
+  }
+  comparables <- !is.na(aplicable) & aplicable & is.finite(base_evaluada) &
+    is.finite(respuesta_evaluada)
+  if (sum(comparables) < min_filas) {
+    return(.sobre_valor_bloques(
+      NULL, estado = "no_disponible",
+      motivo = "relacion_aritmetica:min_filas_comparables",
+      alcance = list(filas = length(base), valores = sum(comparables))
+    ))
+  }
+  variar <- function(x) {
+    x <- x[is.finite(x)]
+    if (length(x) < 3L) return(FALSE)
+    extremos <- range(x)
+    (extremos[[2L]] - extremos[[1L]]) >
+      tolerancia * max(1, abs(extremos))
+  }
+  if (!variar(base_evaluada[comparables]) ||
+      !variar(respuesta_evaluada[comparables])) {
+    return(.sobre_valor_bloques(
+      list(k = as.numeric(k), n_evaluados = 0L, n_cumplen = 0L,
+           n_incumplen = 0L, proporcion = NA_real_),
+      alcance = list(filas = length(base), valores = sum(comparables)),
+      max_entradas = max_entradas, max_bytes = max_bytes
+    ))
+  }
+  indices <- .particionar_bloques(length(base), k = k_bloques, tamano = tamano)
+  bloques <- lapply(indices, function(indice) {
+    posiciones <- indice$valores
+    indice$valores <- data.frame(
+      base = base_evaluada[posiciones],
+      respuesta = respuesta_evaluada[posiciones],
+      stringsAsFactors = FALSE
+    )
+    if (length(aplicable)) indice$aplicable <- aplicable[posiciones]
+    indice
+  })
+  acumulador <- .iniciar_acumulador(
+    "aritmetica", "data.frame", familia = "aritmetica",
+    configuracion = list(k = as.numeric(k), tolerancia = as.numeric(tolerancia)),
+    max_entradas = max_entradas, max_bytes = max_bytes
+  )
+  ejecucion <- .ejecutar_acumulador_bloques(
+    acumulador, bloques, vigilante = vigilante, familia = "k_aritmetica"
+  )
+  sobre <- ejecucion$resultado
+  sobre$resultado$k <- as.numeric(k)
+  sobre$alcance <- list(
+    filas = length(base), valores = sobre$resultado$n_evaluados,
+    orden = "orden_entrada", snapshot = "memoria", muestra = NULL
+  )
+  sobre
+}
+
+.relacion_proporcional_bloques <- .k_aritmetica_bloques
+
+.relaciones_aritmeticas_bloques <- function(datos, columnas = NULL,
+                                            k = NULL, ...) {
+  if (!inherits(datos, "data.frame") || ncol(datos) < 2L) {
+    return(list())
+  }
+  if (is.null(columnas)) {
+    columnas <- which(vapply(datos, is.numeric, logical(1L)))
+  }
+  if (length(columnas) < 2L) return(list())
+  pares <- utils::combn(columnas, 2L, simplify = FALSE)
+  nombres <- names(datos)
+  salida <- lapply(pares, function(par) {
+    .k_aritmetica_bloques(datos[[par[[1L]]]], datos[[par[[2L]]]],
+                          k_bloques = k, ...)
+  })
+  names(salida) <- vapply(pares, function(par) {
+    paste(nombres[par], collapse = " ~ ")
+  }, character(1L))
+  salida
+}
+
+.ejecutar_valor_bloques <- function(x, k = NULL, tamano = 10000L,
+                                    aplicable = NULL,
+                                    sentinelas_numericos = NULL,
+                                    max_entradas = Inf, max_bytes = Inf,
+                                    vigilante = NULL) {
+  if (is.infinite(max_entradas)) max_entradas <- .MAX_ENTRADAS_DISTINTOS
+  if (is.infinite(max_bytes)) max_bytes <- .MAX_BYTES_ESTADO_BLOQUES
+  if (!is.numeric(x)) {
+    fallo <- .sobre_valor_bloques(
+      NULL, estado = "no_disponible", motivo = "valores_no_numericos",
+      max_entradas = max_entradas, max_bytes = max_bytes
+    )
+    return(list(mapa = fallo, cuantiles = fallo, mediana = fallo,
+                n_outliers = fallo, centinela = fallo, hueco_tipico = fallo,
+                vigilante = vigilante))
+  }
+  central <- .ejecutar_vector_bloques(
+    x, "distintos", k = k, tamano = tamano,
+    max_entradas = max_entradas, max_bytes = max_bytes,
+    aplicable = aplicable, vigilante = vigilante
+  )
+  mapa <- central$resultado
+  cuantiles <- .cuantiles_desde_mapa_bloques(
+    mapa, max_entradas = max_entradas, max_bytes = max_bytes
+  )
+  if (!is.null(vigilante)) {
+    gc(verbose = FALSE)
+    .registrar_barrera_vigilante(
+      vigilante, "finalizar", "cuantiles", length(.particionar_bloques(
+        length(x), k = k, tamano = tamano
+      )), acumulador = central$acumulador,
+      resultado = cuantiles
+    )
+  }
+  outliers <- .n_outliers_valor_bloques(
+    x, cuantiles = cuantiles, k = k, tamano = tamano,
+    aplicable = aplicable, max_entradas = max_entradas,
+    max_bytes = max_bytes, vigilante = vigilante
+  )
+  centinela <- .centinela_valor_bloques(
+    x, cuantiles = cuantiles, k = k, tamano = tamano,
+    aplicable = aplicable, sentinelas_numericos = sentinelas_numericos,
+    max_entradas = max_entradas, max_bytes = max_bytes,
+    mapa = mapa, vigilante = vigilante
+  )
+  hueco <- .hueco_tipico_desde_mapa_bloques(
+    mapa, max_entradas = max_entradas, max_bytes = max_bytes
+  )
+  if (!is.null(vigilante)) {
+    gc(verbose = FALSE)
+    .registrar_barrera_vigilante(
+      vigilante, "finalizar", "hueco_tipico", length(.particionar_bloques(
+        length(x), k = k, tamano = tamano
+      )), acumulador = central$acumulador, resultado = hueco
+    )
+  }
+  list(
+    mapa = mapa, cuantiles = cuantiles,
+    mediana = .mediana_desde_mapa_bloques(mapa,
+      max_entradas = max_entradas, max_bytes = max_bytes),
+    n_outliers = outliers, centinela = centinela,
+    hueco_tipico = hueco, vigilante = vigilante,
+    acumulador_central = central$acumulador
+  )
+}
