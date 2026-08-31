@@ -1,5 +1,14 @@
 # lupa 0.1.0
 
+## Ejecutor interno por bloques — Etapa 4: LSH externo
+
+- Se incorpora el ejecutor LSH en dos fases con runs ordenados, diccionario
+  externo por merge-join, firmas y cubetas derramadas; conserva los pares al
+  cruzar bloques y publica el desglose de memoria residente, RSS, factor pico
+  y piso de fila.
+- Si falta backend de derrame, snapshot u orden estable, LSH queda
+  `no_disponible` sin degradarse silenciosamente.
+
 ## Ejecutor interno por bloques — Etapa 3: índice
 
 - Las familias de trazabilidad y ejemplos conservan ordinales globales: los

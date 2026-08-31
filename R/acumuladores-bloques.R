@@ -101,7 +101,7 @@
     familia, columna, tipo, configuracion, max_entradas, max_bytes,
     requiere_orden, incluir_ausentes
   )
-  es_indice <- familia %in% c("trazabilidad", "ejemplos", "muestra")
+  es_indice <- familia %in% c("trazabilidad", "ejemplos", "muestra", "lsh")
   orden_valido <- length(configuracion$orden_id) == 1L &&
     !is.na(configuracion$orden_id) && nzchar(configuracion$orden_id)
   snapshot_valido <- length(configuracion$snapshot_id) == 1L &&
@@ -167,6 +167,21 @@
       indices = integer(), n = 0L, n_total = NA_real_,
       limite = NA_real_
     ),
+    lsh = list(
+      directorio = NULL, version_derrame = NULL, fase = "iniciada",
+      bloques = list(), runs_qgramas = character(),
+      runs_diccionario = character(), runs_firmas = character(),
+      vocabulario = 0, checksum_diccionario = NA_character_,
+      checksum_derrame = NA_character_, bytes_derrame = 0,
+      factor_pico = 30, factor_pico_fuente = NULL,
+      residentes_lsh = list(
+        buffers_runs = 0, cache_diccionario = 0,
+        estado_fila = 0, otros = 0
+      ),
+      bytes_residentes_lsh = 0, maximo_residentes_lsh = 0,
+      maximo_cache_diccionario = 0, maximo_intervalo = 0,
+      rss_maximo = NA_real_, salida = NULL, derrame = NULL
+    ),
     aritmetica = list(
       n = 0L, n_cumplen = 0L, n_incumplen = 0L,
       limite_inferior = NA_real_, limite_superior = NA_real_,
@@ -195,6 +210,10 @@
       configuracion$configuracion$limite %||% NA_real_
     )
   }
+  if (identical(familia, "lsh") && exists(
+      ".lsh_iniciar_estado", mode = "function")) {
+    acumulador <- .lsh_iniciar_estado(acumulador)
+  }
   acumulador
 }
 
@@ -210,6 +229,7 @@
     ejemplos <- NULL
     seleccion <- NULL
     indices_fila <- NULL
+    bloqueos <- NULL
   } else if (is.list(bloque) && !is.null(names(bloque)) &&
       "valores" %in% names(bloque)) {
     valores <- bloque$valores
@@ -224,6 +244,7 @@
     ejemplos <- bloque$ejemplos
     seleccion <- bloque$seleccion
     indices_fila <- bloque$indices_fila
+    bloqueos <- bloque$bloqueos
   } else {
     valores <- bloque
     inicio <- NA_real_
@@ -235,6 +256,7 @@
     ejemplos <- NULL
     seleccion <- NULL
     indices_fila <- NULL
+    bloqueos <- NULL
   }
   n_filas <- if (inherits(valores, "data.frame")) nrow(valores) else {
     length(valores)
@@ -255,7 +277,7 @@
   }
   list(valores = valores, ordinal_inicio = inicio, ordinal_fin = fin,
        ordinales = ordinales, claves = claves, ejemplos = ejemplos,
-       seleccion = seleccion, indices_fila = indices_fila,
+       seleccion = seleccion, indices_fila = indices_fila, bloqueos = bloqueos,
        aplicable = aplicable, aplicable_declarada = aplicable_declarada)
 }
 
@@ -392,6 +414,10 @@
 
 .bytes_estado_acumulador <- function(acumulador) {
   if (!inherits(acumulador, "acumulador_bloques")) return(NA_real_)
+  if (identical(acumulador$familia, "lsh") && exists(
+      ".lsh_bytes_retenidos_acumulador", mode = "function")) {
+    return(.lsh_bytes_retenidos_acumulador(acumulador))
+  }
   objetos <- list(
     configuracion = acumulador$configuracion,
     estado = acumulador$estado_familia,
@@ -1147,6 +1173,7 @@
     trazabilidad = .absorber_trazabilidad(acumulador, bloque),
     ejemplos = .absorber_ejemplos(acumulador, bloque),
     muestra = .absorber_muestra(acumulador, bloque),
+    lsh = .absorber_lsh(acumulador, bloque),
     outliers = .absorber_outliers(acumulador, bloque),
     centinela = .absorber_centinela(acumulador, bloque),
     aritmetica = .absorber_aritmetica(acumulador, bloque),
@@ -1513,6 +1540,7 @@
     trazabilidad = acumulador$estado_familia,
     ejemplos = acumulador$estado_familia,
     muestra = acumulador$estado_familia,
+    lsh = acumulador$estado_familia,
     aritmetica = {
       a <- acumulador$estado_familia
       b <- otro$estado_familia
@@ -1540,6 +1568,11 @@
   }
   if (identical(acumulador$familia, "muestra")) {
     acumulador <- .fusionar_muestra(acumulador, otro)
+  }
+  if (identical(acumulador$familia, "lsh")) {
+    acumulador <- .marcar_fallo_acumulador(
+      acumulador, "lsh_fusion_no_disponible:usar_un_spool_global"
+    )
   }
   acumulador
 }
@@ -1676,6 +1709,7 @@
       n_total = as.numeric(estado$n_total),
       limite = as.numeric(estado$limite)
     ),
+    lsh = if (is.null(estado$salida)) NULL else estado$salida,
     aritmetica = list(
       k = as.numeric(estado$k),
       n_evaluados = as.integer(estado$n),
@@ -1688,6 +1722,10 @@
 }
 
 .sobre_acumulador <- function(acumulador) {
+  if (identical(acumulador$familia, "lsh") && exists(
+      ".sobre_lsh_acumulador", mode = "function")) {
+    return(.sobre_lsh_acumulador(acumulador))
+  }
   exacto <- identical(acumulador$estado, "iniciado") ||
     identical(acumulador$estado, "finalizado")
   estado <- if (identical(acumulador$estado, "no_disponible")) {
@@ -1783,6 +1821,14 @@
     stop("`acumulador` no es un acumulador de bloques.", call. = FALSE)
   }
   if (identical(acumulador$estado, "finalizado")) return(acumulador$resultado)
+  if (identical(acumulador$familia, "lsh") && exists(
+      ".finalizar_lsh", mode = "function")) {
+    acumulador <- .finalizar_lsh(acumulador)
+    sobre <- .sobre_acumulador(acumulador)
+    acumulador$resultado <- sobre
+    acumulador$estado <- "finalizado"
+    return(sobre)
+  }
   if (identical(acumulador$estado, "iniciado") ||
       identical(acumulador$estado, "truncado") ||
       identical(acumulador$estado, "no_disponible")) {
@@ -1989,7 +2035,9 @@
     corrida_id = character(), fase = character(), familia = character(),
     bloque_id = integer(), bytes_retenidos = numeric(), bytes_resultado = numeric(),
     gc = logical(), lectura_proceso = numeric(), factor_pico = numeric(),
-    evento_id = character(), tipo_evento = character(), motivo = character(),
+    memoria_max_intervalo = numeric(), sonda_proceso = character(),
+    residentes_lsh = I(list()), evento_id = character(),
+    tipo_evento = character(), motivo = character(),
     stringsAsFactors = FALSE
   )
   vigilante
@@ -2004,6 +2052,15 @@
   bytes_resultado <- if (is.null(resultado)) 0 else {
     as.numeric(utils::object.size(resultado))
   }
+  estado_lsh <- if (identical(familia, "lsh")) {
+    acumulador$estado_familia
+  } else NULL
+  residentes_lsh <- if (!is.null(estado_lsh)) {
+    estado_lsh$residentes_lsh %||% list()
+  } else list()
+  rss <- if (exists(".rss_proceso_lsh", mode = "function")) {
+    .rss_proceso_lsh()
+  } else NA_real_
   en_presion <- is.finite(vigilante$tope_bytes) &&
     (bytes + bytes_resultado > vigilante$tope_bytes)
   evento_id <- paste0(vigilante$corrida_id, "-", nrow(vigilante$eventos) + 1L)
@@ -2011,7 +2068,15 @@
     corrida_id = vigilante$corrida_id, fase = as.character(fase),
     familia = as.character(familia), bloque_id = as.integer(bloque_id),
     bytes_retenidos = bytes, bytes_resultado = bytes_resultado,
-    gc = TRUE, lectura_proceso = NA_real_, factor_pico = NA_real_,
+    gc = TRUE, lectura_proceso = rss,
+    factor_pico = if (is.null(estado_lsh)) NA_real_ else {
+      estado_lsh$factor_pico %||% NA_real_
+    },
+    memoria_max_intervalo = if (is.null(estado_lsh)) NA_real_ else {
+      estado_lsh$maximo_intervalo %||% 0
+    },
+    sonda_proceso = if (is.finite(rss)) "rss" else "no_disponible",
+    residentes_lsh = I(list(residentes_lsh)),
     evento_id = evento_id,
     tipo_evento = if (en_presion) .EVENTO_PRESION_MEMORIA else NA_character_,
     motivo = if (en_presion) "tope_artificial" else NA_character_,
