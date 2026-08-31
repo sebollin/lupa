@@ -1,5 +1,13 @@
 # lupa 0.1.0
 
+## La cobertura DBI espeja el tope de muestra
+
+- Cuando `max_celdas_muestra` o `max_bytes_muestra` recorta una muestra DBI, la
+  misma fila y el mismo motivo quedan en `perfil_muestra$cobertura_diagnosticos`
+  y `resumen_tabla$cobertura`. `perfil_muestra$meta$tope_que_mando` declara si
+  mandaron `celdas`, `bytes` o la propia `muestra`, y el texto queda junto a esa
+  declaración.
+
 ## Señal de concentración modal
 
 - `perfilar()` agrega `valor_concentrado`, la señal M2 seleccionada por la

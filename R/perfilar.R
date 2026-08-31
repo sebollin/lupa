@@ -178,7 +178,7 @@
   )
 }
 
-.motivos_muestra_perfilado <- function(alcance) {
+.topes_muestra_perfilado <- function(alcance) {
   topes_filas <- c(
     celdas = if (is.finite(alcance$max_celdas_muestra)) {
       alcance$filas_por_celdas
@@ -187,7 +187,11 @@
       alcance$filas_por_bytes
     } else Inf
   )
-  topes_filas <- topes_filas[is.finite(topes_filas)]
+  topes_filas[is.finite(topes_filas)]
+}
+
+.topes_mandaron_muestra_perfilado <- function(alcance) {
+  topes_filas <- .topes_muestra_perfilado(alcance)
   minimo_tope <- if (length(topes_filas)) {
     min(topes_filas, alcance$filas_solicitadas)
   } else {
@@ -196,6 +200,15 @@
   topes_mandaron <- names(topes_filas)[
     topes_filas == minimo_tope & minimo_tope < alcance$filas_solicitadas
   ]
+}
+
+.tope_que_mando <- function(alcance) {
+  mandaron <- .topes_mandaron_muestra_perfilado(alcance)
+  if (length(mandaron)) mandaron[[1L]] else "muestra"
+}
+
+.motivos_muestra_perfilado <- function(alcance) {
+  topes_mandaron <- .topes_mandaron_muestra_perfilado(alcance)
   motivos <- character()
   if (is.finite(alcance$max_celdas_muestra) &&
       alcance$filas_efectivas < alcance$filas_solicitadas) {

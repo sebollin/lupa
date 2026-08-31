@@ -8786,11 +8786,25 @@ print.plan_perfilado_dbi <- function(x, ...) {
   perfil$meta$bytes_sonda <- alcance$bytes_sonda
   perfil$meta$bytes_muestra <- alcance$bytes_muestra
   cobertura_topes <- .cobertura_muestra_perfilado(alcance)
+  perfil$meta$tope_que_mando <- .tope_que_mando(alcance)
+  perfil$meta$tope_que_mando_texto <- if (nrow(cobertura_topes)) {
+    cobertura_topes$motivo[[1L]]
+  } else {
+    NA_character_
+  }
   if (nrow(cobertura_topes)) {
     perfil$cobertura_diagnosticos <- rbind(
       perfil$cobertura_diagnosticos, cobertura_topes
     )
     rownames(perfil$cobertura_diagnosticos) <- NULL
+    # El resumen es el canal principal de la via DBI. Reusar exactamente la
+    # fila del perfil evita que dos redacciones del mismo tope se separen con
+    # el tiempo y que una de las dos deje de declarar lo que la otra vio.
+    cobertura <- rbind(cobertura, .registro_cobertura_dbi(
+      "perfil_muestra", .texto_tabla_dbi(tabla), "degradado",
+      cobertura_topes$motivo[[1L]], cobertura_topes$como_resolverlo[[1L]],
+      sql_muestra
+    ))
   }
   perfil <- .constante_no_medible_en_muestra_dbi(perfil, muestreo_meta)
   perfil$meta$origen_dbi <- list(

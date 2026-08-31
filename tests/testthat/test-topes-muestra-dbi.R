@@ -55,6 +55,18 @@ test_that("el tope de celdas limita la lectura DBI y no los agregados SQL", {
   expect_equal(nrow(cobertura), 1L)
   expect_match(cobertura$motivo, "celdas observadas: 40")
   expect_match(cobertura$motivo, "manda el tope de celdas")
+  resumen_cobertura <- con_tope$resumen_tabla$cobertura
+  resumen_cobertura <- resumen_cobertura[
+    resumen_cobertura$bloque == "perfil_muestra" &
+      resumen_cobertura$estado == "degradado", , drop = FALSE
+  ]
+  expect_equal(nrow(resumen_cobertura), 1L)
+  expect_identical(resumen_cobertura$motivo[[1L]], cobertura$motivo[[1L]])
+  expect_identical(con_tope$perfil_muestra$meta$tope_que_mando, "celdas")
+  expect_identical(
+    con_tope$perfil_muestra$meta$tope_que_mando_texto,
+    cobertura$motivo[[1L]]
+  )
 })
 
 test_that("el tope de bytes sondea antes y limita la consulta final", {
@@ -84,6 +96,14 @@ test_that("el tope de bytes sondea antes y limita la consulta final", {
   expect_equal(nrow(cobertura), 1L)
   expect_match(cobertura$motivo, "bytes observados")
   expect_match(cobertura$motivo, "manda el tope de bytes")
+  resumen_cobertura <- resultado$resumen_tabla$cobertura
+  resumen_cobertura <- resumen_cobertura[
+    resumen_cobertura$bloque == "perfil_muestra" &
+      resumen_cobertura$estado == "degradado", , drop = FALSE
+  ]
+  expect_equal(nrow(resumen_cobertura), 1L)
+  expect_identical(resumen_cobertura$motivo[[1L]], cobertura$motivo[[1L]])
+  expect_identical(resultado$perfil_muestra$meta$tope_que_mando, "bytes")
 })
 
 test_that("sin topes no se declara un recorte y solo_agregados no los aplica", {
@@ -100,6 +120,12 @@ test_that("sin topes no se declara un recorte y solo_agregados no los aplica", {
     resultado$perfil_muestra$cobertura_diagnosticos$diagnostico ==
       "muestra_perfilado", , drop = FALSE
   ]), 0L)
+  expect_equal(nrow(resultado$resumen_tabla$cobertura[
+    resultado$resumen_tabla$cobertura$bloque == "perfil_muestra" &
+      resultado$resumen_tabla$cobertura$estado == "degradado", ,
+    drop = FALSE
+  ]), 0L)
+  expect_identical(resultado$perfil_muestra$meta$tope_que_mando, "muestra")
 
   solo <- do.call(
     perfilar_dbi,
