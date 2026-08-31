@@ -518,6 +518,16 @@ En cada fila de \code{columnas}, \code{n_filas_analizadas_tipo} y
 \code{proporcion_tipo_inferido}; no debe interpretarse esa proporción como si
 hubiera usado necesariamente toda la columna.
 
+Cuando el tipo inferido es \code{"fecha"} o \code{"fecha-hora"},
+\code{estado_tipo_inferido} declara además cómo quedó establecida esa lectura:
+\code{"confirmado"} si todo formato con casamientos es inequívoco, y
+\code{"candidato"} si el veredicto se apoya en casamientos ambiguos — el caso de
+una columna donde \code{proporcion_tipo_inferido} llega a 1 sin un solo valor
+inequívoco. En los demás tipos la columna queda \code{NA}. El resumen impreso
+anota \code{(candidato)} junto al tipo cuando corresponde; la conversión, el
+rango temporal y la remediación ya exigían formatos confirmados y no
+cambian.
+
 En una columna temporal, \code{minimo}, \code{maximo}, \code{media} y \code{mediana} quedan en
 \code{NA} y su valor viaja en \code{minimo_fecha}, \code{maximo_fecha}, \code{media_fecha} y
 \code{mediana_fecha}, que son texto legible. \code{desvio} es la excepción y conviene

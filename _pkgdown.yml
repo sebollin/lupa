@@ -167,6 +167,7 @@ reference:
   - leer_historico
   - detectar_deriva_calidad
   - comparar_perfiles
+  - comparar_equivalencia
 
 - title: Informar
   desc: Persistir un análisis y crear un reporte HTML autocontenido.

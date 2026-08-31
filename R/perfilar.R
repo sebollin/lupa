@@ -691,6 +691,16 @@
 #' `proporcion_tipo_inferido`; no debe interpretarse esa proporción como si
 #' hubiera usado necesariamente toda la columna.
 #'
+#' Cuando el tipo inferido es `"fecha"` o `"fecha-hora"`,
+#' `estado_tipo_inferido` declara además cómo quedó establecida esa lectura:
+#' `"confirmado"` si todo formato con casamientos es inequívoco, y
+#' `"candidato"` si el veredicto se apoya en casamientos ambiguos — el caso de
+#' una columna donde `proporcion_tipo_inferido` llega a 1 sin un solo valor
+#' inequívoco. En los demás tipos la columna queda `NA`. El resumen impreso
+#' anota `(candidato)` junto al tipo cuando corresponde; la conversión, el
+#' rango temporal y la remediación ya exigían formatos confirmados y no
+#' cambian.
+#'
 #' En una columna temporal, `minimo`, `maximo`, `media` y `mediana` quedan en
 #' `NA` y su valor viaja en `minimo_fecha`, `maximo_fecha`, `media_fecha` y
 #' `mediana_fecha`, que son texto legible. `desvio` es la excepción y conviene
