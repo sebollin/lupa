@@ -1,5 +1,11 @@
 # lupa 0.1.0
 
+## La sonda de mediana consolidada conserva el error del motor
+
+- La razón de no activar la mediana consolidada incluye el mensaje de la sonda
+  rechazada, y la documentación explicita el requisito de compatibilidad >= 110
+  de SQL Server.
+
 ## La cobertura DBI espeja el tope de muestra
 
 - Cuando `max_celdas_muestra` o `max_bytes_muestra` recorta una muestra DBI, la

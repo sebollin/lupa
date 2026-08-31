@@ -127,6 +127,44 @@ test_that("los motores sin la funcion no reciben candidato", {
   expect_length(.candidatos_ronda167("MySQL"), 0L)
 })
 
+test_that("el motivo de una sonda rechazada conserva el error del motor", {
+  skip_if_not_installed("RSQLite")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbWriteTable(con, "d", data.frame(x = 1:10, y = 11:20))
+  mensaje <- "PERCENTILE_CONT is not allowed in the current compatibility mode"
+  consultar_original <- lupa:::.consultar_dbi
+  testthat::local_mocked_bindings(
+    .candidatos_mediana_consolidada_dbi = function(conexion) list(
+      list(
+        nombre = "PERCENTILE_CONT",
+        sonda = function(alias) paste0("SELECT PERCENTILE_CONT(0.5) AS ", alias)
+      )
+    ),
+    .consultar_dbi = function(conexion, sql, presupuesto = NULL, filas = -1L,
+                              etapa = "consulta") {
+      if (identical(etapa, "sonda_mediana_consolidada")) {
+        return(list(ok = FALSE, datos = NULL, motivo = mensaje))
+      }
+      consultar_original(
+        conexion, sql, presupuesto = presupuesto, filas = filas, etapa = etapa
+      )
+    },
+    .package = "lupa"
+  )
+
+  resultado <- suppressMessages(perfilar_dbi(
+    con, "d", metricas = "mediana", modo = "exacto",
+    bloque_muestra = "solo_agregados", instrumentar = FALSE,
+    avisar_costo_mediana = FALSE, avisar_derrame_estimado = FALSE
+  ))
+  motivo <- resultado$resumen_tabla$meta$mediana_consolidada$motivo
+
+  expect_false(resultado$resumen_tabla$meta$mediana_consolidada$disponible)
+  expect_match(motivo, mensaje, fixed = TRUE)
+  expect_true(is.list(resultado$resumen_tabla$meta$mediana_escalar))
+})
+
 test_that("el plan no imprime dos veces sus supuestos", {
   # Con magnitud desconocida, la rama del aviso imprimia los supuestos y el
   # bloque final -que corre para toda magnitud distinta de "baja"- los volvia a

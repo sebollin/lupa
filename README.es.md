@@ -433,6 +433,12 @@ subconsulta escalar de la misma sentencia. La sonda comprueba tambien la
 division entera (`%` y `/`); si el dialecto no admite esa forma, la salida
 declara que conserva las dos consultas.
 
+La mediana consolidada tambien se sondea antes de usarla; en SQL Server
+requiere nivel de compatibilidad >= 110. Se sondea; estos son los motivos
+conocidos de que no se active: la funcion no esta disponible o el motor rechaza
+la sonda. El mensaje del motor queda en
+`meta$mediana_consolidada$motivo`, y se conserva la mediana por columna.
+
 La procedencia de la cardinalidad se elige con `estrategia_distintos`, cuyo
 valor por omisión es `"exacta"`. `"exacta"` emite `COUNT(DISTINCT)` sobre las
 filas de la corrida; `"aproximada_motor"` usa una función nativa sólo si la

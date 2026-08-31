@@ -2260,6 +2260,7 @@
   alias <- as.character(DBI::dbQuoteIdentifier(conexion, "lupa_sonda"))
   candidatos <- .candidatos_mediana_consolidada_dbi(conexion)
   sondas <- character()
+  motivos_motor <- character()
   elegida <- NULL
   for (candidato in candidatos) {
     sql <- candidato$sonda(alias)
@@ -2268,15 +2269,37 @@
       conexion, sql, presupuesto, etapa = "sonda_mediana_consolidada"
     )
     if (is.null(elegida) && isTRUE(prueba$ok)) elegida <- candidato
+    if (!isTRUE(prueba$ok)) {
+      motivo <- if (is.null(prueba$motivo) || !length(prueba$motivo) ||
+                    all(is.na(prueba$motivo))) {
+        ""
+      } else {
+        .resumir_valor_reporte(prueba$motivo[[1L]], max_caracteres = 240L)
+      }
+      if (nzchar(motivo)) {
+        motivos_motor <- c(
+          motivos_motor,
+          paste0("`", candidato$nombre, "`: ", motivo)
+        )
+      }
+    }
+  }
+  motivo_sin_candidato <- if (!length(candidatos)) {
+    "No hay una forma consolidada declarada para este motor; se conserva la mediana por columna."
+  } else {
+    "El motor no acepto una consulta consolidada de `PERCENTILE_CONT`; se conserva la mediana por columna."
+  }
+  if (length(motivos_motor)) {
+    motivo_sin_candidato <- paste0(
+      motivo_sin_candidato,
+      " Motivo del motor: ",
+      paste(unique(motivos_motor), collapse = "; ")
+    )
   }
   resultado <- list(
     disponible = !is.null(elegida), candidato = elegida, sondas = sondas,
     motivo = if (is.null(elegida)) {
-      if (!length(candidatos)) {
-        "No hay una forma consolidada declarada para este motor; se conserva la mediana por columna."
-      } else {
-        "El motor no acepto una consulta consolidada de `PERCENTILE_CONT`; se conserva la mediana por columna."
-      }
+      motivo_sin_candidato
     } else {
       paste0("El motor acepto `", elegida$nombre,
              "` para consolidar medianas.")
@@ -9626,6 +9649,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' PostgreSQL se usan `%` y `/` con division entera. Los dialectos que no
 #' declaran esa forma conservan las dos consultas y lo publican en el metodo
 #' de `resumen_tabla$sql`; `PERCENTILE_CONT` no cambia.
+#' La mediana consolidada tambien se sondea antes de usarla; en SQL Server
+#' requiere nivel de compatibilidad >= 110. Se sondea; estos son los motivos
+#' conocidos de que no se active: la funcion no esta disponible o el motor
+#' rechaza la sonda. En ese caso el mensaje del motor queda en
+#' `meta$mediana_consolidada$motivo`, y se conserva la mediana por columna.
 #'
 #' @section Costo:
 #' Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo que

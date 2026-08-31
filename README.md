@@ -427,6 +427,12 @@ provides an expression that can be embedded in the `SELECT`. If it only builds
 a complete query, valid counts and distinct counts are issued separately, and
 each record keeps the method of the query that was actually run.
 
+Consolidated medians are probed before use; on SQL Server they require
+compatibility level >= 110. The probe is not a promise of activation: known
+reasons for it not to activate are that the function is unavailable or that the
+engine rejects the probe. The engine message is kept in
+`meta$mediana_consolidada$motivo`, and the per-column median is retained.
+
 Measured against PostgreSQL 16 with **2 million rows by 40 columns**:
 
 | mode | before | after |

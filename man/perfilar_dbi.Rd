@@ -368,6 +368,11 @@ ordena y recorta. La forma se sondea antes de usarla; en SQLite y
 PostgreSQL se usan \verb{\%} y \code{/} con division entera. Los dialectos que no
 declaran esa forma conservan las dos consultas y lo publican en el metodo
 de \code{resumen_tabla$sql}; \code{PERCENTILE_CONT} no cambia.
+La mediana consolidada tambien se sondea antes de usarla; en SQL Server
+requiere nivel de compatibilidad >= 110. Se sondea; estos son los motivos
+conocidos de que no se active: la funcion no esta disponible o el motor
+rechaza la sonda. En ese caso el mensaje del motor queda en
+\code{meta$mediana_consolidada$motivo}, y se conserva la mediana por columna.
 }
 
 \section{Costo}{
