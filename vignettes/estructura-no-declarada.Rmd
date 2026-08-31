@@ -116,6 +116,31 @@ detectar_formatos_fecha(datos_operativos$fecha_evento)
 Estas salidas describen compatibilidad y frecuencia. No convierten la columna
 ni afirman cuál formato debe aceptar el sistema.
 
+Una columna compuesta sólo por fechas como `01/02/2020` puede ser compatible al
+100 % y seguir siendo ambigua: sin una convención externa no se sabe si el
+primer número es día o mes. El perfil conserva esa diferencia donde se consume
+la inferencia.
+
+```{r tipo-fecha-ambiguo}
+set.seed(20260831)
+perfil_fecha_ambigua <- perfilar(
+  data.frame(
+    fecha_ambigua = c("01/02/2020", "02/03/2020", "03/04/2020"),
+    stringsAsFactors = FALSE
+  ),
+  muestra = Inf,
+  analizar_dependencias = FALSE
+)
+perfil_fecha_ambigua$columnas[, c(
+  "columna", "tipo_inferido", "proporcion_tipo_inferido",
+  "estado_tipo_inferido"
+)]
+```
+
+Así, `tipo_inferido = "fecha"` y `proporcion_tipo_inferido = 1` no se leen como
+confirmación: `estado_tipo_inferido = "candidato"` dice que la lectura todavía
+no está establecida.
+
 ## Escalas, distribuciones y asociaciones
 
 `clasificar_variables()` propone una escala y un rol por columna. `confianza`

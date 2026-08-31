@@ -308,6 +308,9 @@ cuantitativos y los hallazgos derivados de esas cantidades. Por omisión,
 detección de formatos de fecha y la muestra común con que se buscan dependencias
 funcionales. Otro límite o `Inf` cambia o desactiva ese muestreo.
 
+Para tipos temporales inferidos, `estado_tipo_inferido` distingue `confirmado`,
+`candidato` y `NA`; una fecha ambigua compatible al 100 % sigue siendo candidata.
+
 Los validadores de documentos personales tienen otro filtro preliminar:
 `muestra_validadores = 1000` por omisión. Si un validador supera ese filtro se
 evalúa luego sobre toda la columna; `Inf` vuelve completo incluso el primer
@@ -482,6 +485,10 @@ métricas con el mismo valor vieron exactamente las mismas filas. Las métricas
 por columna —moda, frecuencia de la moda y mediana— dejan `id_muestra = NA`,
 porque no comparten filas con otras métricas; `NA` declara que no hay garantía,
 no que se haya inventado una coincidencia.
+
+La misma auditoría SQL incluye `memoria_trabajo`: `creciente`, `acotado` o `NA`,
+para señalar qué trabajo no conviene recalcular incrementalmente sobre una tabla
+mayor.
 
 Con `instrumentar = TRUE`, cada consulta suma `duracion_ms` y
 `cpu_ms`. El primero usa `Sys.time()`; el segundo suma

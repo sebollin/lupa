@@ -295,6 +295,37 @@ entera da más que la corrida completa. `instrumentar = FALSE` conserva el mismo
 misma cantidad y el mismo orden de consultas, pero deja las duraciones, el CPU
 y los metadatos de tamaño en `NA` y marca las etapas como `no_medido`.
 
+`resumen_tabla$sql$memoria_trabajo` responde a la pregunta «¿qué trabajo no
+debo recomputar incrementalmente sobre una tabla mayor?». Sus tres valores son
+`creciente`, `acotado` y `NA` cuando la fila no tiene medición.
+
+```{r memoria-trabajo, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}
+sql_memoria <- perfil$resumen_tabla$sql
+filtro_memoria <- (
+  sql_memoria$memoria_trabajo %in% c("acotado", "creciente") |
+    is.na(sql_memoria$memoria_trabajo)
+) & (
+  (sql_memoria$columna == "id" &
+     sql_memoria$metrica %in% c("n_validos", "n_distintos")) |
+    (sql_memoria$columna == "grupo" & sql_memoria$metrica == "minimo")
+)
+ejemplos_memoria <- sql_memoria[
+  filtro_memoria,
+  c("columna", "metrica", "estado", "alcance", "fraccion", "metodo",
+    "memoria_trabajo")
+]
+ejemplos_memoria
+stopifnot(
+  identical(
+    as.character(ejemplos_memoria$memoria_trabajo),
+    c("acotado", "creciente", NA_character_)
+  )
+)
+```
+
+La regla es: alcance efectivo con tope real, `acotado`; si no, el método
+resuelto; sin medición, `NA`.
+
 ## `perfil_muestra`: el perfil completo de la muestra
 
 El perfil completo se obtiene en memoria sobre las cinco filas seleccionadas.

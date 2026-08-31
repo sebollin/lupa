@@ -300,6 +300,9 @@ pattern discovery, type inference, date-format discovery, and the common sample
 used to search for functional dependencies. Set another limit or `Inf` to
 change or disable that sampling.
 
+For inferred temporal types, `estado_tipo_inferido` distinguishes `confirmado`,
+`candidato`, and `NA`; a 100% compatible ambiguous date remains a candidate.
+
 Personal-document validators have a separate preliminary filter:
 `muestra_validadores = 1000` by default. A validator that passes that filter is
 then evaluated on the complete column; `Inf` makes even the preliminary pass
@@ -467,6 +470,9 @@ same value saw exactly the same rows. Per-column metrics — moda, mode
 frequency, and median — leave `id_muestra = NA`, because they do not share rows
 with other metrics; `NA` declares that there is no guarantee rather than
 inventing a match.
+
+The same SQL audit includes `memoria_trabajo`: `creciente`, `acotado`, or `NA`,
+to flag work that should not be recomputed incrementally over a larger table.
 
 Every flat aggregate query that carries `n_validos` also carries
 `COUNT(*) AS n_total_consulta` in the same statement. Completeness uses that
