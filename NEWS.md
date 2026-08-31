@@ -1,5 +1,18 @@
 # lupa 0.1.0
 
+## Ejecutor interno por bloques — Etapa 1
+
+- Se incorpora el ciclo interno `iniciar`/`absorber`/`fusionar`/`finalizar`,
+  con medición de bytes residentes y sobre uniforme de resultado.
+- Conteos, mínimos, máximos, media, desvío y longitudes admiten partición y
+  fusión; el mapa central de distintos conserva la igualdad de R, incluidos
+  `NA`, `NaN`, `+0`/`-0` e `integer64`.
+- Se migran moda y cardinalidad al mapa central cuando está completo, con cota
+  visible al alcanzar el límite. El vigilante registra barreras de bloques y
+  de finalización, incluida la presión artificial de memoria.
+- La aplicabilidad rechaza temprano predicados que dependen de estadísticos
+  globales; los predicados por fila conservan su máscara entre particiones.
+
 ## `perfilar_dbi()` separa universo, métricas y estrategias
 
 - Se retira el argumento `modo` de `perfilar_dbi()` y
