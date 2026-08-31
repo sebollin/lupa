@@ -247,7 +247,9 @@ test_that("el plan se imprime como rango y el subconjunto avisa", {
     x = as.numeric(seq_len(50L)), y = letters[seq_len(50L) %% 26L + 1L],
     stringsAsFactors = FALSE
   ))
-  plan <- plan_perfilado_dbi(conexion, "t", modo = "exacto")
+  plan <- plan_perfilado_dbi(
+    conexion, "t", universo = "tabla_completa", estrategia_mediana = "exacta"
+  )
 
   # cli escribe por el flujo de mensajes, no por la salida estandar: capturar
   # el flujo equivocado haria pasar la prueba sin mirar nada.

@@ -29,13 +29,14 @@ test_that("catalogo no esconde un valor negativo no interpretable", {
 })
 
 test_that("catalogo se degrada fuera del universo completo", {
-  for (modo in c("muestreado", "aproximado")) {
+  for (universo in c("muestra_motor")) {
     estrategia <- lupa:::.estrategia_distintos_dbi(
       "distintos", list(nombre = "todas"), TRUE, "catalogo"
     )
     salida <- lupa:::.resolver_estrategia_distintos_dbi(
       conexion = NULL, estrategia = estrategia, presupuesto = NULL,
-      hay_metrica = TRUE, tabla = "tabla", columnas = "valor", modo = modo
+      hay_metrica = TRUE, tabla = "tabla", columnas = "valor",
+      universo = universo
     )
 
     expect_identical(salida$estado, "no_disponible")
@@ -57,7 +58,8 @@ test_that("el plan publica la degradacion de catalogo antes de correr", {
   ))
 
   plan <- lupa::plan_perfilado_dbi(
-    conexion, "tabla_plan_catalogo", modo = "muestreado", muestra = 5,
+    conexion, "tabla_plan_catalogo", universo = "muestra_motor",
+    muestra_motor = 5, muestra = 5,
     metricas = "distintos", estrategia_distintos = "catalogo",
     bloque_muestra = "solo_agregados"
   )
@@ -68,7 +70,7 @@ test_that("el plan publica la degradacion de catalogo antes de correr", {
   expect_identical(attr(plan, "metricas_ejecucion", exact = TRUE), character())
 })
 
-test_that("catalogo sigue publicando una estimacion en modo exacto", {
+test_that("catalogo sigue publicando una estimacion en tabla completa", {
   estrategia <- lupa:::.estrategia_distintos_dbi(
     "distintos", list(nombre = "todas"), TRUE, "catalogo"
   )
@@ -82,7 +84,8 @@ test_that("catalogo sigue publicando una estimacion en modo exacto", {
 
   salida <- lupa:::.resolver_estrategia_distintos_dbi(
     conexion = NULL, estrategia = estrategia, presupuesto = NULL,
-    hay_metrica = TRUE, tabla = "tabla", columnas = "valor", modo = "exacto"
+    hay_metrica = TRUE, tabla = "tabla", columnas = "valor",
+    universo = "tabla_completa"
   )
   publicada <- lupa:::.publicar_estrategia_distintos_dbi(salida)
 

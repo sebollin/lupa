@@ -141,12 +141,14 @@ test_that("un nombre calificado funciona con texto e Id aunque el driver no lo e
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
 
   texto <- perfilar_dbi(
-    bases$envuelta, "SYSTEM.TABLA", modo = "conteos", muestra = 2,
+    bases$envuelta, "SYSTEM.TABLA", universo = "tabla_completa",
+    metricas = "validos", estrategia_mediana = "exacta", muestra = 2,
     proteger_datos_personales = FALSE
   )
   por_id <- perfilar_dbi(
     bases$envuelta, DBI::Id(schema = "SYSTEM", table = "TABLA"),
-    modo = "conteos", muestra = 2, proteger_datos_personales = FALSE
+    universo = "tabla_completa", metricas = "validos",
+    estrategia_mediana = "exacta", muestra = 2,
   )
 
   expect_equal(texto$resumen_tabla$meta$filas, 20)

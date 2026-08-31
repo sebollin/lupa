@@ -3,7 +3,7 @@ skip_if_not_installed("RSQLite")
 
 .ronda152_datos <- function() {
   data.frame(
-    # Valores exactos en binario: la sonda aleatoria del modo muestreado
+    # Valores exactos en binario: la sonda aleatoria del universo muestreado
     # puede cambiar el orden de las filas, pero no el resultado medido.
     id = rep(c(0, 1), 6L),
     cantidad = rep(c(0, 2), 6L),
@@ -46,19 +46,21 @@ skip_if_not_installed("RSQLite")
   x
 }
 
-test_that("la fusion plana conserva el objeto medido en los cinco modos", {
-  modos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
+test_that("la fusion plana conserva el objeto medido en los cinco casos", {
+  casos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
   fusionada <- .ronda152_conexion()
   unitaria <- .ronda152_conexion()
   on.exit(DBI::dbDisconnect(fusionada), add = TRUE)
   on.exit(DBI::dbDisconnect(unitaria), add = TRUE)
 
-  for (modo in modos) {
-    argumentos <- list(
-      modo = modo, muestra = 12L, bloque_muestra = "solo_agregados",
+  for (caso in casos) {
+    argumentos <- c(
+      modifyList(list(muestra = 12L), .argumentos_caso_dbi(caso, muestra = 12L)),
+      list(
+      bloque_muestra = "solo_agregados",
       instrumentar = FALSE, proteger_datos_personales = FALSE,
       analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
-      ausencia_estructural = FALSE, duplicados_aproximados = FALSE
+      ausencia_estructural = FALSE, duplicados_aproximados = FALSE)
     )
     nuevo <- do.call(
       perfilar_dbi, c(list(fusionada, "tabla_prueba", tamano_lote = 4L), argumentos)
@@ -86,7 +88,7 @@ test_that("la fusion plana conserva el objeto medido en los cinco modos", {
       .ronda152_sin_auditoria(nuevo),
       .ronda152_sin_auditoria(referencia),
       tolerance = 1e-14,
-      info = paste("modo", modo)
+      info = paste("caso", caso)
     )
   }
 })
@@ -94,23 +96,26 @@ test_that("la fusion plana conserva el objeto medido en los cinco modos", {
 test_that("la cuenta fusionada coincide con la predicha", {
   conexion <- .ronda152_conexion()
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
-  modos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
-  for (modo in modos) {
-    plan <- plan_perfilado_dbi(
-      conexion, "tabla_prueba", modo = modo, muestra = 12L,
-      bloque_muestra = "solo_agregados", tamano_lote = 4L
+  casos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
+  for (caso in casos) {
+    argumentos <- modifyList(
+      list(muestra = 12L), .argumentos_caso_dbi(caso, muestra = 12L)
     )
-    resultado <- perfilar_dbi(
-      conexion, "tabla_prueba", modo = modo, muestra = 12L,
+    plan <- do.call(plan_perfilado_dbi, c(
+      list(conexion, "tabla_prueba", bloque_muestra = "solo_agregados",
+           tamano_lote = 4L), argumentos
+    ))
+    resultado <- do.call(perfilar_dbi, c(
+      list(conexion, "tabla_prueba",
       bloque_muestra = "solo_agregados", tamano_lote = 4L,
       instrumentar = FALSE, proteger_datos_personales = FALSE,
       analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
-      ausencia_estructural = FALSE, duplicados_aproximados = FALSE
-    )
+      ausencia_estructural = FALSE, duplicados_aproximados = FALSE), argumentos
+    ))
     expect_identical(
       as.integer(resultado$resumen_tabla$meta$consultas$emitidas),
       as.integer(attr(plan, "total")),
-      info = paste("modo", modo)
+      info = paste("caso", caso)
     )
   }
 })

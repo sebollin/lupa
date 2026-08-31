@@ -3,7 +3,7 @@
 # mano: se podia perfilar todo, pero no se podia *decir* "todo".
 #
 # Importa mas de lo que parece. El resumen de tabla no se muestrea nunca -con
-# `modo = "exacto"` se agrega en el motor sobre todas las filas-, pero los
+# `universo = "tabla_completa"` se agrega en el motor sobre todas las filas-, pero los
 # diagnosticos que necesitan los valores en R salen de esta muestra, y sin
 # `orden_muestra` son las PRIMERAS filas que devuelva el motor, no una muestra
 # aleatoria. Un defecto que viva al final de la tabla no se ve.

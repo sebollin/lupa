@@ -154,7 +154,8 @@ test_that("el motivo de una sonda rechazada conserva el error del motor", {
   )
 
   resultado <- suppressMessages(perfilar_dbi(
-    con, "d", metricas = "mediana", modo = "exacto",
+    con, "d", metricas = "mediana", universo = "tabla_completa",
+    estrategia_mediana = "exacta",
     bloque_muestra = "solo_agregados", instrumentar = FALSE,
     avisar_costo_mediana = FALSE, avisar_derrame_estimado = FALSE
   ))

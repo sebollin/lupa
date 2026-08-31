@@ -201,7 +201,8 @@ test_that("perfilar_dbi publica la clave y lee un solo catalogo", {
 
   .juguete_reiniciar("normal")
   con_clave <- .perfilar_juguete(
-    juguete, "con_clave", modo = "conteos",
+    juguete, "con_clave", universo = "tabla_completa", metricas = "validos",
+    estrategia_mediana = "exacta",
     bloque_muestra = "solo_agregados", proteger_datos_personales = FALSE
   )
   catalogos <- .juguete_consultas()[grepl(
@@ -223,7 +224,8 @@ test_that("perfilar_dbi publica la clave y lee un solo catalogo", {
 
   .juguete_reiniciar("normal")
   sin_clave <- .perfilar_juguete(
-    juguete, "sin_clave", modo = "conteos",
+    juguete, "sin_clave", universo = "tabla_completa", metricas = "validos",
+    estrategia_mediana = "exacta",
     bloque_muestra = "solo_agregados", proteger_datos_personales = FALSE
   )
   clave <- sin_clave$resumen_tabla$meta$clave
@@ -243,6 +245,28 @@ test_that("perfilar_dbi publica la clave y lee un solo catalogo", {
     garantia = "desconocida", estado = list(visible = FALSE)
   )
   expect_match(lupa:::.texto_clave_dbi(oculta), "catalogo no deja ver la clave")
+})
+
+test_that("el universo muestreado no usa la clave como atajo de distintos", {
+  fuentes <- list(
+    id = list(nombre = "clave_estructural", exacta = TRUE,
+              n_distintos = NA_real_, proporcion_distintos = 1)
+  )
+  agregados <- list(
+    conteos = list(id = list(consolidada = TRUE, n_filas = 5,
+                             n_validos = 5, n_faltantes = 0))
+  )
+  muestreado <- lupa:::.incorporar_distintos_estructurales_dbi(
+    agregados, fuentes, n_total = 5, universo = "muestra_motor"
+  )
+  expect_null(muestreado$conteos$id$distintos)
+  expect_null(muestreado$conteos$id$tasa_distintos)
+
+  completo <- lupa:::.incorporar_distintos_estructurales_dbi(
+    agregados, fuentes, n_total = 5, universo = "tabla_completa"
+  )
+  expect_identical(completo$conteos$id$distintos$valor, 5)
+  expect_identical(completo$conteos$id$distintos$estado, "garantizado")
 })
 
 test_that("un motor que rechaza LIMIT en la muestra no se lleva el resumen", {
@@ -429,7 +453,7 @@ test_that("sin dialecto de limite la mediana se declara en vez de traer la tabla
 
 # ---- 2.40: el costo -------------------------------------------------------
 
-test_that("modo y metricas acotan las consultas que se emiten", {
+test_that("universo, metricas y estrategia acotan las consultas que se emiten", {
   bases <- .conexion_juguete()
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
 
@@ -439,8 +463,9 @@ test_that("modo y metricas acotan las consultas que se emiten", {
     length(.juguete_consultas())
   }
   exacto <- contar()
-  seguro <- contar(modo = "seguro")
-  conteos <- contar(modo = "conteos")
+  seguro <- contar(metricas = c("validos", "basicos", "desvio"),
+                   estrategia_mediana = "exacta")
+  conteos <- contar(metricas = "validos", estrategia_mediana = "exacta")
   solo_validos <- contar(metricas = "validos")
 
   expect_gt(exacto, seguro)
@@ -512,7 +537,7 @@ test_that("el plan no ejecuta datos ni duplica el conteo de DBI", {
   bases <- .conexion_juguete()
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
 
-  for (politica in c("todas", "ninguna", "por_cardinalidad")) {
+  for (politica in c("todas", "por_cardinalidad")) {
     .juguete_reiniciar("normal")
     plan <- lupa:::plan_perfilado_dbi(
       bases$juguete, "juguete", bloque_muestra = "solo_agregados",
@@ -537,6 +562,20 @@ test_that("el plan no ejecuta datos ni duplica el conteo de DBI", {
     expect_true(.juguete$get_query + .juguete$send_query > 0L)
     expect_s3_class(plan, "plan_perfilado_dbi")
   }
+  expect_error(
+    lupa:::plan_perfilado_dbi(
+      bases$juguete, "juguete", bloque_muestra = "solo_agregados",
+      politica_costo = "ninguna"
+    ),
+    class = "lupa_error_argumento_dbi"
+  )
+  expect_error(
+    lupa:::plan_perfilado_dbi(
+      bases$juguete, "juguete", bloque_muestra = "solo_agregados",
+      politica_costo = "cardinalidad"
+    ),
+    class = "lupa_error_argumento_dbi"
+  )
 })
 
 test_that("cada estrategia de distintos declara y emite su SQL", {
@@ -701,22 +740,24 @@ test_that("las estrategias sin capacidad nunca emiten COUNT DISTINCT", {
   bases <- .conexion_juguete()
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
   estrategias <- c("aproximada_motor", "catalogo", "omitida")
-  modos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
+  casos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
 
   for (estrategia in estrategias) {
-    for (modo in modos) {
+    for (caso in casos) {
       .juguete_reiniciar("normal")
-      .perfilar_juguete(
-        bases$juguete, modo = modo, muestra = 5L,
-        metricas = c("validos", "distintos", "moda"),
-        estrategia_distintos = estrategia,
-        politica_costo = "por_cardinalidad",
-        bloque_muestra = "solo_agregados",
-        proteger_datos_personales = FALSE
+      argumentos <- .argumentos_caso_dbi(caso, muestra = 5L)
+      argumentos$metricas <- c("validos", "distintos", "moda")
+      argumentos$estrategia_distintos <- estrategia
+      argumentos$politica_costo <- "por_cardinalidad"
+      argumentos$bloque_muestra <- "solo_agregados"
+      argumentos$proteger_datos_personales <- FALSE
+      do.call(
+        .perfilar_juguete,
+        c(list(conexion = bases$juguete), argumentos)
       )
       expect_false(any(grepl(
         "COUNT(DISTINCT", .juguete_consultas(), fixed = TRUE
-      )), info = paste(estrategia, modo))
+      )), info = paste(estrategia, caso))
     }
   }
 })

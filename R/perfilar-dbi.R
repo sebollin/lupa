@@ -3318,7 +3318,7 @@
   if (!length(registros)) vacia else do.call(rbind, registros)
 }
 
-# ---- Metricas y modo -----------------------------------------------------
+# ---- Metricas ------------------------------------------------------------
 
 .METRICAS_DBI <- c(
   "validos", "distintos", "moda", "basicos", "mediana", "desvio"
@@ -3334,70 +3334,6 @@
 )
 
 .METRICAS_NUMERICAS_DBI <- c("basicos", "mediana", "desvio")
-
-# Durante la migracion de la API se conserva una traduccion local para que la
-# suite pueda pasar mientras las familias internas dejan de recibir `modo`.
-# Este puente no forma parte del contrato: se elimina junto con el argumento
-# historico cuando la logica interna ya use las dimensiones nuevas.
-.normalizar_api_dbi <- function(universo, muestra_motor, estrategia_mediana,
-                                modo, metricas, muestra) {
-  if (!is.null(modo)) {
-    modo <- match.arg(
-      modo, c("exacto", "seguro", "conteos", "muestreado", "aproximado")
-    )
-    return(list(
-      universo = if (identical(modo, "muestreado")) "muestra_motor" else
-        "tabla_completa",
-      muestra_motor = if (identical(modo, "muestreado") && is.finite(muestra)) {
-        muestra
-      } else NULL,
-      estrategia_mediana = if (identical(modo, "aproximado")) {
-        "aproximada_motor"
-      } else "exacta",
-      modo_legacy = modo,
-      metricas = if (is.null(metricas)) switch(
-        modo,
-        exacto = .METRICAS_DBI,
-        seguro = c("validos", "basicos", "desvio"),
-        conteos = "validos",
-        muestreado = .METRICAS_DBI,
-        aproximado = .METRICAS_DBI
-      ) else metricas,
-      muestra = muestra
-    ))
-  }
-  universo <- match.arg(universo, c("tabla_completa", "muestra_motor"))
-  estrategia_mediana <- match.arg(
-    estrategia_mediana, c("exacta", "aproximada_motor")
-  )
-  if (identical(universo, "muestra_motor")) {
-    if (!is.numeric(muestra_motor) || length(muestra_motor) != 1L ||
-        is.na(muestra_motor) || !is.finite(muestra_motor) || muestra_motor < 1 ||
-        muestra_motor != floor(muestra_motor)) {
-      .detener_dbi(
-        "lupa_error_argumento_dbi",
-        "`muestra_motor` debe ser un entero positivo finito cuando `universo = \"muestra_motor\"`."
-      )
-    }
-    if (identical(estrategia_mediana, "aproximada_motor")) {
-      .detener_dbi(
-        "lupa_error_argumento_dbi",
-        "`universo = \"muestra_motor\"` no se puede combinar con `estrategia_mediana = \"aproximada_motor\"`: la muestra ya es una aproximacion del universo."
-      )
-    }
-  } else if (!is.null(muestra_motor)) {
-    .detener_dbi(
-      "lupa_error_argumento_dbi",
-        "`muestra_motor` solo se puede usar con `universo = \"muestra_motor\"`."
-    )
-  }
-  list(
-    universo = universo, muestra_motor = if (is.null(muestra_motor)) NULL else
-      as.numeric(muestra_motor), estrategia_mediana = estrategia_mediana,
-    modo_legacy = NULL,
-    metricas = metricas, muestra = muestra
-  )
-}
 
 # La estrategia de `distintos` se elige de forma explicita. El orden es parte
 # del contrato: el primer valor es el valor por omision de la API.
@@ -3471,12 +3407,17 @@
       )
     }
   }
-  politica <- match.arg(
-    politica_costo,
-    c("todas", "ninguna", "por_cardinalidad", "cardinalidad")
-  )
-  if (identical(politica, "ninguna")) politica <- "todas"
-  if (identical(politica, "cardinalidad")) politica <- "por_cardinalidad"
+  opciones <- c("todas", "por_cardinalidad")
+  if (!is.character(politica_costo) || length(politica_costo) != 1L ||
+      is.na(politica_costo) || !politica_costo %in% opciones) {
+    .detener_dbi(
+      "lupa_error_argumento_dbi",
+      paste0(
+        "`politica_costo` debe ser un unico valor: `todas` o `por_cardinalidad`."
+      )
+    )
+  }
+  politica <- politica_costo
   if (!is.numeric(umbral_cardinalidad) ||
       length(umbral_cardinalidad) != 1L ||
       is.na(umbral_cardinalidad) || !is.finite(umbral_cardinalidad) ||
@@ -3809,9 +3750,7 @@
 .resolver_estrategia_distintos_dbi <- function(conexion, estrategia,
                                                presupuesto, hay_metrica,
                                                tabla = NULL, columnas = NULL,
-                                               universo = "tabla_completa",
-                                               modo = NULL) {
-  universo_legacy <- !is.null(modo) && modo %in% c("muestreado", "aproximado")
+                                               universo = "tabla_completa") {
   if (!isTRUE(hay_metrica)) {
     estrategia$estado <- "no_solicitado"
     estrategia$motivo <- paste(
@@ -3847,7 +3786,7 @@
       }
     },
     catalogo = {
-      if (identical(universo, "muestra_motor") || universo_legacy) {
+      if (identical(universo, "muestra_motor")) {
         # Es el mismo principio que aplica `.estimar_derrame_postgresql_dbi()`:
         # se niega a estimar el derrame de una muestra con estadisticas de la
         # tabla completa y no se inventa una equivalencia entre universos.
@@ -3855,7 +3794,7 @@
         estrategia$estado <- "no_disponible"
         estrategia$motivo <- paste0(
           "La estrategia `catalogo` no esta disponible con `universo = ",
-          if (universo_legacy) "subconjunto" else universo,
+          universo,
           "`: el catalogo describe la relacion entera y la corrida mide un",
           " subconjunto; usarlo publicaria la cardinalidad de un universo como",
           " si fuera de otro."
@@ -6014,7 +5953,7 @@
   }
   registros <- list()
   motivo_no_pedida <- paste(
-    "La metrica no se pidio en esta corrida; ver `metricas` y `modo`."
+    "La metrica no se pidio en esta corrida; ver `metricas`."
   )
   motivo_privacidad <- paste(
     "El valor no se informa por `incluir_valores = FALSE`;",
@@ -6983,9 +6922,9 @@
       # Un consumidor automatico lee el objeto, no la vineta. Que cada metrica
       # muestreada saque su propia muestra estaba documentado en prosa, y por
       # coherencia con el invariante tiene que estar donde se lee: dos metricas
-      # de la misma columna en modo muestreado describen conjuntos de filas del
-      # mismo tamano y no los mismos. Solo aparece cuando corresponde; en los
-      # modos que miden sobre la tabla entera no hay nada que advertir.
+      # de la misma columna en un universo muestreado describen conjuntos de
+      # filas del mismo tamano y no los mismos. Solo aparece cuando corresponde;
+      # en los universos que miden sobre la tabla entera no hay nada que advertir.
       # La primera version de este campo decia que cada metrica saca su propia
       # muestra, y con los agregados consolidados eso dejo de ser cierto: las
       # columnas que comparten una consulta comparten tambien las filas
@@ -7400,13 +7339,14 @@
 # Los alcances que traen filas a R. Vocabulario cerrado: lo escribe
 # `.plan_consultas_dbi()` y nadie mas.
 # Los dos alcances que involucran una muestra, que NO son la misma cosa:
-# `"lee una muestra del motor"` es trabajo del motor -en `modo = "muestreado"`
-# el motor muestrea para sus propios agregados- y `"lee las filas pedidas"` es
+# `"lee una muestra del motor"` es trabajo del motor -cuando
+# `universo = "muestra_motor"`, el motor muestrea para sus propios agregados- y
+# `"lee las filas pedidas"` es
 # el bloque del cliente, que es lo unico que trae filas a R.
 .ALCANCES_CON_MUESTRA_DBI <- c("lee una muestra del motor", "lee las filas pedidas")
 
 # El trabajo del CLIENTE cuelga solo del segundo. Contarlo sobre el conjunto de
-# los dos hacia que `modo = "muestreado"` con `bloque_muestra = "solo_agregados"`
+# los dos hacia que `universo = "muestra_motor"` con `bloque_muestra = "solo_agregados"`
 # declarara cuatro millones de pares de formas a comparar en R sin traer una sola
 # fila, y el plan impreso se contradecia a dos lineas: "el plan incluye solo
 # agregados SQL" y despues "mas 4.000.000 pares de formas a comparar en R".
@@ -7534,8 +7474,8 @@
     "alta"
   }
   # El trabajo por valor solo existe si algo se trae a R, y por eso se pregunta
-  # por el alcance de las consultas y no por el modo. `modo` selecciona metricas
-  # SQL; `bloque_muestra` decide aparte si el plan trae filas. Cuando ese bloque
+  # por el alcance de las consultas y no por una etiqueta de preset. `metricas`
+  # selecciona SQL; `bloque_muestra` decide aparte si el plan trae filas. Cuando ese bloque
   # se omite no hay pares de formas que contar, aunque haya columnas de texto.
   n_texto <- numero(columnas_texto)
   if (is.na(n_texto)) n_texto <- 0
@@ -7578,7 +7518,7 @@
   "as\u00ed que con valores muy largos el tiempo real es varias veces el que",
   "sugiere la referencia. Referencias: unos cinco millones de lecturas de fila",
   "por segundo sobre PostgreSQL 16 local (2.000.000 de filas por 40 columnas en",
-  "modo seguro: 14 consultas, 5,3 segundos). Ese cociente est\u00e1 en las",
+  "metricas = c('validos', 'basicos', 'desvio'): 14 consultas, 5,3 segundos). Ese cociente est\u00e1 en las",
   "unidades que cuenta este plan y proviene de otras corridas, no es el tiempo",
   "de esta tabla.",
   "No representa filas que el motor haya le\u00eddo: la",
@@ -7983,47 +7923,35 @@
 #'   plan_perfilado_dbi(con, "ejemplo")
 #'   DBI::dbDisconnect(con)
 #' }
-plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
-                               orden_muestra = NULL,
+plan_perfilado_dbi <- function(conexion, tabla,
                                universo = c("tabla_completa", "muestra_motor"),
-                               muestra_motor = NULL,
-                               metricas = NULL, max_consultas = Inf,
+                               muestra_motor = NULL, muestra = Inf,
+                               orden_muestra = NULL,
+                               metricas = .METRICAS_DBI,
+                               estrategia_distintos = "exacta",
+                               estrategia_mediana = c("exacta", "aproximada_motor"),
+                               politica_costo = c("todas", "por_cardinalidad"),
+                               bloque_muestra = c("con_muestra", "solo_agregados"),
+                               max_consultas = Inf,
                                dialecto = "auto", incluir_valores = TRUE,
                                tamano_lote = NULL,
                                tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
                                tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
-                               bloque_muestra = c("con_muestra", "solo_agregados"),
                                instrumentar = FALSE,
-                               estrategia_distintos = "exacta",
-                               estrategia_mediana = c("exacta", "aproximada_motor"),
-                               politica_costo = c("todas", "por_cardinalidad"),
                                umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
                                max_celdas_muestra = .MAX_CELDAS_MUESTRA,
-                               max_bytes_muestra = .MAX_BYTES_MUESTRA,
-                               modo = NULL) {
+                               max_bytes_muestra = .MAX_BYTES_MUESTRA) {
   max_celdas_muestra <- .validar_limite_duplicados(
     max_celdas_muestra, "max_celdas_muestra"
   )
   max_bytes_muestra <- .validar_limite_duplicados(
     max_bytes_muestra, "max_bytes_muestra"
   )
-  api <- .normalizar_api_dbi(
-    universo, muestra_motor, estrategia_mediana, modo, metricas, muestra
-  )
-  modo <- api$modo_legacy
-  muestra <- api$muestra
-  metricas <- api$metricas
-  if (!is.null(modo) && identical(politica_costo, "ninguna")) {
-    politica_costo <- "todas"
-  }
-  if (!is.null(modo) && identical(politica_costo, "cardinalidad")) {
-    politica_costo <- "por_cardinalidad"
-  }
   preparacion <- .preparar_dbi(
-    conexion = conexion, tabla = tabla, universo = api$universo,
-    muestra_motor = api$muestra_motor, muestra = muestra,
+    conexion = conexion, tabla = tabla, universo = universo,
+    muestra_motor = muestra_motor, muestra = muestra,
     orden_muestra = orden_muestra,
-    estrategia_mediana = api$estrategia_mediana, metricas = metricas,
+    estrategia_mediana = estrategia_mediana, metricas = metricas,
     max_consultas = max_consultas, dialecto = dialecto,
     tamano_lote = tamano_lote,
     tamano_lote_planos = tamano_lote_planos,
@@ -8034,8 +7962,7 @@ plan_perfilado_dbi <- function(conexion, tabla, muestra = Inf,
     incluir_valores = incluir_valores,
     estrategia_distintos = estrategia_distintos,
     politica_costo = politica_costo,
-    umbral_cardinalidad = umbral_cardinalidad,
-    compatibilidad_modo = !is.null(modo)
+    umbral_cardinalidad = umbral_cardinalidad
   )
   filas_plan <- .filas_plan_dbi(preparacion)
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
@@ -8417,7 +8344,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     # Las nombra tambien en "media", y eso salio de una corrida contra motores
     # reales: una tabla de 4,5 millones de filas en PostgreSQL tardo 6,2 minutos
     # con las opciones por omision y su plan la clasificaba **media**. El aviso
-    # avisaba, pero quien no conociera `modo = 'muestreado'` -que baja esa misma
+    # avisaba, pero quien no conociera `universo = 'muestra_motor'` -que baja esa misma
     # tabla a 39 segundos- no tenia como enterarse. Un plan que dice "va a
     # costar" sin decir "y asi se acota" deja al usuario a mitad de camino
     # justo donde la decision importa.
@@ -8429,7 +8356,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       }
       cli::cli_text("Para acotarlo, sin cambiar nada m\u00e1s:")
       palancas <- c(
-        "modo = 'muestreado' mide sobre una muestra que trae el motor",
+        "universo = 'muestra_motor' mide sobre una muestra que trae el motor",
         "metricas = c(...) saca clases de consulta enteras del plan",
         "muestra = n baja las filas que se traen a R",
         "max_consultas = n pone un techo duro y declara lo que quede afuera"
@@ -8665,10 +8592,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 # recupera en el segundo intento produciria el mismo camino. El texto lo dice
 # distinto segun cual de los dos fue, y el motivo textual del motor viaja
 # entero en los dos para que quien lea decida.
-.motivo_omision_muestra_dbi <- function(modo, columnas, sondas, motivo_motor) {
+.motivo_omision_muestra_dbi <- function(tipo_omision, columnas, sondas, motivo_motor) {
   n <- length(columnas)
   lista <- paste(columnas, collapse = ", ")
-  if (identical(modo, "descarte")) {
+  if (identical(tipo_omision, "descarte")) {
     paste0(
       "La lectura completa de la muestra fallo. Se aislo por descarte, con ",
       sondas, if (sondas == 1L) " sonda" else " sondas", " al motor, ",
@@ -8996,7 +8923,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     # controladores; la correccion no puede colgar de el.
     motivo_original <- consulta$motivo
     recuperado <- NULL
-    modo_omision <- NA_character_
+    tipo_omision <- NA_character_
     sondas_descarte <- 0L
     descarte_agotado <- FALSE
     largas <- .columnas_de_tipo_largo_dbi(tipos_declarados)
@@ -9012,7 +8939,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
           consulta = prueba, armado = candidato,
           quedan = quedan, omitidas = largas
         )
-        modo_omision <- "tipo_declarado"
+        tipo_omision <- "tipo_declarado"
       }
     }
     culpables <- integer()
@@ -9045,14 +8972,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
             consulta = prueba, armado = candidato,
             quedan = quedan, omitidas = culpables
           )
-          modo_omision <- "descarte"
+        tipo_omision <- "descarte"
         }
       }
     }
     if (!is.null(recuperado)) {
       campos_omitidos <- campos[recuperado$omitidas]
       motivo_omision <- .motivo_omision_muestra_dbi(
-        modo_omision, campos_omitidos, sondas_descarte, motivo_original
+        tipo_omision, campos_omitidos, sondas_descarte, motivo_original
       )
       cobertura <- rbind(cobertura, .registro_cobertura_dbi(
         "perfil_muestra", .texto_tabla_dbi(tabla), "alcance_distinto",
@@ -9088,7 +9015,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
       muestreo_meta$motivo_columnas_omitidas <- motivo_omision
       # Como se decidio la omision, para que se pueda filtrar: comprobada por
       # descarte, o supuesta por el tipo que declaro el motor.
-      muestreo_meta$omision_comprobada <- identical(modo_omision, "descarte")
+      muestreo_meta$omision_comprobada <- identical(tipo_omision, "descarte")
       muestreo_meta$sondas_descarte <- as.numeric(sondas_descarte)
     } else if (sondas_descarte > 0L) {
       # El descarte corrio y no sirvio. Decirlo es parte del resultado: sin
@@ -9270,8 +9197,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
                           politica_costo = "todas",
                           umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
                           contar_muestreo = TRUE,
-                          sondar_muestreo = TRUE,
-                          compatibilidad_modo = FALSE) {
+                          sondar_muestreo = TRUE) {
   .requerir_dbi()
   universo <- match.arg(universo, c("tabla_completa", "muestra_motor"))
   estrategia_mediana <- match.arg(
@@ -9282,11 +9208,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
   )
   muestra <- .validar_muestra_dbi(muestra)
   if (identical(universo, "muestra_motor")) {
-    if (isTRUE(compatibilidad_modo) && is.null(muestra_motor)) {
-      muestra_motor <- Inf
-    } else if (!is.numeric(muestra_motor) || length(muestra_motor) != 1L ||
-               is.na(muestra_motor) || !is.finite(muestra_motor) ||
-               muestra_motor < 1 || muestra_motor != floor(muestra_motor)) {
+    if (!is.numeric(muestra_motor) || length(muestra_motor) != 1L ||
+        is.na(muestra_motor) || !is.finite(muestra_motor) ||
+        muestra_motor < 1 || muestra_motor != floor(muestra_motor)) {
       .detener_dbi(
         "lupa_error_argumento_dbi",
         "`muestra_motor` debe ser un entero positivo finito cuando `universo = \"muestra_motor\"`."
@@ -9294,8 +9218,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
     } else {
       muestra_motor <- as.numeric(muestra_motor)
     }
-    if (identical(estrategia_mediana, "aproximada_motor") &&
-        !isTRUE(compatibilidad_modo)) {
+    if (identical(estrategia_mediana, "aproximada_motor")) {
       .detener_dbi(
         "lupa_error_argumento_dbi",
         "`universo = \"muestra_motor\"` no se puede combinar con `estrategia_mediana = \"aproximada_motor\"`: la muestra ya es una aproximacion del universo."
@@ -9580,8 +9503,6 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }
   if ("mediana" %in% metricas && isTRUE(incluir_valores) &&
       any(es_numerico) && is.null(mediana_consolidada) &&
-      (!isTRUE(compatibilidad_modo) ||
-       !identical(estrategia_mediana, "aproximada_motor")) &&
       is.null(mediana_escalar)) {
     mediana_escalar_resolucion <- .sondar_mediana_escalar_dbi(
       conexion, resolucion$dialecto, presupuesto,
@@ -10159,20 +10080,21 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   resultado <- perfilar_dbi(con, "ejemplo", muestra = 5, orden_muestra = "id")
 #'   DBI::dbDisconnect(con)
 #' }
-perfilar_dbi <- function(conexion, tabla, muestra = Inf,
-                         orden_muestra = NULL,
+perfilar_dbi <- function(conexion, tabla,
                          universo = c("tabla_completa", "muestra_motor"),
-                         muestra_motor = NULL,
-                         metricas = NULL, max_consultas = Inf,
+                         muestra_motor = NULL, muestra = Inf,
+                         orden_muestra = NULL,
+                         metricas = .METRICAS_DBI,
+                         estrategia_distintos = "exacta",
+                         estrategia_mediana = c("exacta", "aproximada_motor"),
+                         politica_costo = c("todas", "por_cardinalidad"),
+                         bloque_muestra = c("con_muestra", "solo_agregados"),
+                         max_consultas = Inf,
                          dialecto = "auto", incluir_valores = TRUE,
                          tamano_lote = NULL,
                          tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
                          tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
-                         bloque_muestra = c("con_muestra", "solo_agregados"),
                          instrumentar = TRUE,
-                         estrategia_distintos = "exacta",
-                         estrategia_mediana = c("exacta", "aproximada_motor"),
-                         politica_costo = c("todas", "por_cardinalidad"),
                          umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
                          avisar_costo_distintos = TRUE,
                          umbral_segundos_aviso_distintos =
@@ -10188,7 +10110,6 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
                            .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
                          max_celdas_muestra = .MAX_CELDAS_MUESTRA,
                          max_bytes_muestra = .MAX_BYTES_MUESTRA,
-                         modo = NULL,
                          ...) {
   max_celdas_muestra <- .validar_limite_duplicados(
     max_celdas_muestra, "max_celdas_muestra"
@@ -10221,23 +10142,11 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     umbral_bytes_aviso_derrame_estimado,
     "umbral_bytes_aviso_derrame_estimado"
   )
-  api <- .normalizar_api_dbi(
-    universo, muestra_motor, estrategia_mediana, modo, metricas, muestra
-  )
-  modo <- api$modo_legacy
-  muestra <- api$muestra
-  metricas <- api$metricas
-  if (!is.null(modo) && identical(politica_costo, "ninguna")) {
-    politica_costo <- "todas"
-  }
-  if (!is.null(modo) && identical(politica_costo, "cardinalidad")) {
-    politica_costo <- "por_cardinalidad"
-  }
   preparacion <- .preparar_dbi(
-    conexion = conexion, tabla = tabla, universo = api$universo,
-    muestra_motor = api$muestra_motor, muestra = muestra,
+    conexion = conexion, tabla = tabla, universo = universo,
+    muestra_motor = muestra_motor, muestra = muestra,
     orden_muestra = orden_muestra,
-    estrategia_mediana = api$estrategia_mediana, metricas = metricas,
+    estrategia_mediana = estrategia_mediana, metricas = metricas,
     max_consultas = max_consultas, dialecto = dialecto,
     tamano_lote = tamano_lote,
     tamano_lote_planos = tamano_lote_planos,
@@ -10247,8 +10156,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
     incluir_valores = incluir_valores,
     estrategia_distintos = estrategia_distintos,
     politica_costo = politica_costo,
-    umbral_cardinalidad = umbral_cardinalidad,
-    compatibilidad_modo = !is.null(modo)
+    umbral_cardinalidad = umbral_cardinalidad
   )
   presupuesto <- preparacion$presupuesto
   presupuesto$avisar_costo_distintos <- avisar_costo_distintos
@@ -10465,21 +10373,6 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
   resumen$meta$estrategia_mediana <- .publicar_estrategia_mediana_dbi(
     preparacion
   )
-  if (!is.null(modo)) resumen$meta$modo <- modo
-  if (identical(modo, "aproximado")) {
-    resumen$meta$muestras_independientes <- paste(
-      "el muestreo se resuelve por consulta, no por perfilado. Las columnas",
-      "que comparten una consulta consolidada -ver `id_muestra`, `lote` y",
-      "`columnas_compartidas` en `sql`- se miden sobre las MISMAS filas, asi",
-      "que sus metricas son comparables entre si. Dos consultas distintas",
-      "-otro `id_muestra`, u otra clase como moda o mediana- sacan muestras",
-      "distintas del mismo tamano, asi que comparar entre ellas es comparar",
-      "conjuntos de filas que no coinciden. Es inherente a muestrear en el",
-      "motor sin materializar una tabla intermedia, y perfilar es solo",
-      "lectura. Para que todo el perfil hable de las mismas filas, el camino",
-      "es `perfil_muestra`"
-    )
-  }
   resumen$meta$metricas <- preparacion$metricas
   resumen$meta$metricas_ejecucion <- preparacion$metricas_ejecucion
   resumen$meta$politica_costo <- preparacion$politica_costo
@@ -10554,7 +10447,8 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
         },
         paste(
           "El universo `muestra_motor` no reemplaza la estimacion por un calculo",
-          "sobre la tabla completa. Usar otro modo o un adaptador compatible."
+          "sobre la tabla completa. Usar `universo = \"tabla_completa\"` o un",
+          "adaptador compatible."
         ),
         NA_character_
       ))
@@ -10616,7 +10510,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
         "perfil_muestra", .texto_tabla_dbi(tabla), "no_solicitado",
         paste(
           "No se solicito el perfil de muestra: este resultado contiene",
-          "unicamente los agregados SQL del modo elegido."
+          "unicamente los agregados SQL de la configuracion elegida."
         ),
         paste(
           "Para obtener diagnosticos sobre valores y hallazgos por fila, volver",
@@ -10642,7 +10536,7 @@ perfilar_dbi <- function(conexion, tabla, muestra = Inf,
       "resumen_tabla", .texto_tabla_dbi(tabla), "presupuesto_agotado",
       .motivo_presupuesto_dbi(presupuesto),
       paste0(
-        "Subir `max_consultas` o reducir el trabajo con `modo` o `metricas`. ",
+        "Subir `max_consultas` o reducir el trabajo con `universo`, `metricas` o la estrategia elegida. ",
         "El plan previo esta en `meta$plan` y en plan_perfilado_dbi()."
       ),
       NA_character_

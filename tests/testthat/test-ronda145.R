@@ -1,4 +1,4 @@
-# La muestra es un bloque optativo. La decision no se mezcla con `modo`, que
+# La muestra es un bloque optativo. La decision no se mezcla con `universo`, que
 # sigue seleccionando solo las metricas SQL.
 
 .tabla_ronda145 <- function(n = 40L) {
@@ -18,10 +18,12 @@ test_that("solo_agregados no lee ni cobra el bloque de muestra", {
   DBI::dbWriteTable(con, "tabla145", .tabla_ronda145())
 
   plan_con <- plan_perfilado_dbi(
-    con, "tabla145", modo = "conteos", muestra = 10L
+    con, "tabla145", universo = "tabla_completa", metricas = "validos",
+    estrategia_mediana = "exacta", muestra = 10L
   )
   plan_solo <- plan_perfilado_dbi(
-    con, "tabla145", modo = "conteos", muestra = 10L,
+    con, "tabla145", universo = "tabla_completa", metricas = "validos",
+    estrategia_mediana = "exacta", muestra = 10L,
     bloque_muestra = "solo_agregados"
   )
   expect_true(any(plan_con$clase_consulta == "muestra"))
@@ -34,7 +36,8 @@ test_that("solo_agregados no lee ni cobra el bloque de muestra", {
             attr(plan_solo, "total_maximo", exact = TRUE))
 
   resultado <- perfilar_dbi(
-    con, "tabla145", modo = "conteos", muestra = 10L,
+    con, "tabla145", universo = "tabla_completa", metricas = "validos",
+    estrategia_mediana = "exacta", muestra = 10L,
     bloque_muestra = "solo_agregados"
   )
   expect_null(resultado$perfil_muestra)
@@ -63,13 +66,15 @@ test_that("el valor por omision conserva el perfil anterior", {
   on.exit(options(opcion), add = TRUE)
 
   por_omision <- perfilar_dbi(
-    con, "tabla145", modo = "conteos", muestra = 7L,
+    con, "tabla145", universo = "tabla_completa", metricas = "validos",
+    estrategia_mediana = "exacta", muestra = 7L,
     proteger_datos_personales = FALSE,
     analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
     fecha = as.POSIXct("2026-01-01", tz = "UTC")
   )
   explicito <- perfilar_dbi(
-    con, "tabla145", modo = "conteos", muestra = 7L,
+    con, "tabla145", universo = "tabla_completa", metricas = "validos",
+    estrategia_mediana = "exacta", muestra = 7L,
     bloque_muestra = "con_muestra", proteger_datos_personales = FALSE,
     analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
     fecha = as.POSIXct("2026-01-01", tz = "UTC")
@@ -121,14 +126,14 @@ test_that("perfilar_coleccion propaga solo_agregados y no rompe con muestra NULL
 
 # Con `bloque_muestra = "solo_agregados"` no se trae ninguna fila a R, asi que el
 # detector de vocabulario no corre y el plan no puede cobrar sus pares. Lo hacia
-# bien en cuatro modos y mal en `muestreado`, porque el conteo colgaba del
+# bien en cuatro casos y mal cuando el motor muestreaba, porque el conteo colgaba del
 # conjunto `.ALCANCES_CON_MUESTRA_DBI`, que mete en la misma bolsa el muestreo
-# DEL MOTOR -que en ese modo ocurre igual- y el bloque DEL CLIENTE, que es lo
+# DEL MOTOR -que ocurre igual- y el bloque DEL CLIENTE, que es lo
 # unico que trae filas. El plan impreso llegaba a contradecirse a dos lineas:
 # "el plan incluye solo agregados SQL" y despues "mas 4.000.000 pares de formas
 # a comparar en R".
 
-test_that("solo_agregados no cobra trabajo de R en ningun modo", {
+test_that("solo_agregados no cobra trabajo de R en ningun caso", {
   skip_if_not_installed("RSQLite")
   set.seed(145L)
   n <- 3000L
@@ -142,21 +147,21 @@ test_that("solo_agregados no cobra trabajo de R en ningun modo", {
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbWriteTable(conexion, "t", datos)
 
-  for (modo in c("exacto", "seguro", "conteos", "aproximado", "muestreado")) {
-    solo <- plan_perfilado_dbi(
-      conexion, "t", modo = modo, muestra = 100L,
-      bloque_muestra = "solo_agregados"
-    )
+  for (caso in c("exacto", "seguro", "conteos", "aproximado", "muestreado")) {
+    solo <- do.call(plan_perfilado_dbi, c(
+      list(conexion, "t", bloque_muestra = "solo_agregados"),
+      .argumentos_caso_dbi(caso, muestra = 100L)
+    ))
     expect_identical(
       attr(solo, "pares_texto", exact = TRUE), 0,
-      info = paste("solo_agregados en modo", modo)
+      info = paste("solo_agregados en caso", caso)
     )
-    # Y con el bloque pedido, el mismo modo si los cuenta: la prueba caeria
+    # Y con el bloque pedido, el mismo caso si los cuenta: la prueba caeria
     # tambien si alguien apagara el conteo para todos los casos.
-    con <- plan_perfilado_dbi(
-      conexion, "t", modo = modo, muestra = 100L,
-      bloque_muestra = "con_muestra"
-    )
+    con <- do.call(plan_perfilado_dbi, c(
+      list(conexion, "t", bloque_muestra = "con_muestra"),
+      .argumentos_caso_dbi(caso, muestra = 100L)
+    ))
     expect_gt(attr(con, "pares_texto", exact = TRUE), 0)
   }
 })

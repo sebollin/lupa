@@ -88,28 +88,30 @@ setMethod(
   )
 }
 
-test_that("el plan predice exactamente los cinco modos contando solo dbSendQuery", {
+test_that("el plan predice exactamente los cinco casos contando solo dbSendQuery", {
   bases <- .conexion_consolidacion_dbi()
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
-  modos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
+  casos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
 
-  for (modo in modos) {
-    .reiniciar_consolidacion_dbi("normal")
-    plan <- lupa:::plan_perfilado_dbi(
-      bases$conexion, "datos", modo = modo, muestra = 5L,
-      tamano_lote = 2L
+  for (caso in casos) {
+    argumentos <- modifyList(
+      list(muestra = 5L), .argumentos_caso_dbi(caso, muestra = 5L)
     )
     .reiniciar_consolidacion_dbi("normal")
-    resultado <- .perfilar_consolidacion_dbi(
-      bases$conexion, modo = modo, muestra = 5L, tamano_lote = 2L
-    )
+    plan <- do.call(lupa:::plan_perfilado_dbi, c(
+      list(bases$conexion, "datos", tamano_lote = 2L), argumentos
+    ))
+    .reiniciar_consolidacion_dbi("normal")
+    resultado <- do.call(.perfilar_consolidacion_dbi, c(
+      list(bases$conexion, tamano_lote = 2L), argumentos
+    ))
     expect_equal(
       length(.consolidacion_dbi$sql), attr(plan, "total"),
-      info = paste("modo", modo)
+      info = paste("caso", caso)
     )
     expect_equal(
       resultado$resumen_tabla$meta$consultas$emitidas, attr(plan, "total"),
-      info = paste("modo", modo)
+      info = paste("caso", caso)
     )
     expect_true(any(grepl("por lotes", plan$clase_consulta, fixed = TRUE)))
   }
@@ -122,11 +124,13 @@ test_that("los valores consolidados coinciden con los de lotes unitarios", {
   on.exit(DBI::dbDisconnect(unitario$cruda), add = TRUE)
 
   consolidado <- .perfilar_consolidacion_dbi(
-    lote$conexion, modo = "exacto", muestra = 5L, orden_muestra = "a",
+    lote$conexion, universo = "tabla_completa", estrategia_mediana = "exacta",
+    muestra = 5L, orden_muestra = "a",
     tamano_lote = 2L
   )
   sin_compartir <- .perfilar_consolidacion_dbi(
-    unitario$conexion, modo = "exacto", muestra = 5L, orden_muestra = "a",
+    unitario$conexion, universo = "tabla_completa", estrategia_mediana = "exacta",
+    muestra = 5L, orden_muestra = "a",
     tamano_lote = 1L
   )
   expect_equal(
@@ -143,7 +147,8 @@ test_that("el SQL mantiene una fila por campo y publica el lote compartido", {
   bases <- .conexion_consolidacion_dbi()
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
   resultado <- .perfilar_consolidacion_dbi(
-    bases$conexion, modo = "exacto", muestra = 5L
+    bases$conexion, universo = "tabla_completa", estrategia_mediana = "exacta",
+    muestra = 5L
   )
   registros <- resultado$resumen_tabla$sql
   campos_antiguos <- c(
@@ -175,7 +180,8 @@ test_that("un lote rechazado degrada a columnas sin perder las sanas", {
   bases <- .conexion_consolidacion_dbi("muchas_expresiones")
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
   resultado <- .perfilar_consolidacion_dbi(
-    bases$conexion, modo = "exacto", muestra = 5L
+    bases$conexion, universo = "tabla_completa", estrategia_mediana = "exacta",
+    muestra = 5L
   )
   registros <- resultado$resumen_tabla$sql
   medidos <- registros[registros$columna %in% c("a", "b", "c", "d") &
@@ -198,7 +204,8 @@ test_that("un agregado rechazado para una columna conserva las demas del lote", 
   bases <- .conexion_consolidacion_dbi("tipo_malo", datos)
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
   resultado <- .perfilar_consolidacion_dbi(
-    bases$conexion, modo = "exacto", muestra = 5L
+    bases$conexion, universo = "tabla_completa", estrategia_mediana = "exacta",
+    muestra = 5L
   )
   registros <- resultado$resumen_tabla$sql
   sanas <- registros[registros$columna %in% c("a", "b") &
@@ -262,7 +269,9 @@ test_that("la biseccion reduce el descarte de agregados y publica su lote", {
     names(datos) <- nombres
     bases <- .conexion_consolidacion_dbi("tipo_malo", datos)
     resultado <- .perfilar_consolidacion_dbi(
-      bases$conexion, modo = "seguro", muestra = 5L,
+      bases$conexion, universo = "tabla_completa",
+      metricas = c("validos", "basicos", "desvio"),
+      estrategia_mediana = "exacta", muestra = 5L,
       bloque_muestra = "solo_agregados", tamano_lote = 20L,
       instrumentar = FALSE
     )
@@ -285,12 +294,14 @@ test_that("el plan predice la fusion plana y separa COUNT DISTINCT", {
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
   .reiniciar_consolidacion_dbi("normal")
   plan <- lupa:::plan_perfilado_dbi(
-    bases$conexion, "datos", modo = "exacto", muestra = 5L,
+    bases$conexion, "datos", universo = "tabla_completa",
+    estrategia_mediana = "exacta", muestra = 5L,
     bloque_muestra = "solo_agregados", tamano_lote = 2L
   )
   .reiniciar_consolidacion_dbi("normal")
   resultado <- .perfilar_consolidacion_dbi(
-    bases$conexion, modo = "exacto", muestra = 5L,
+    bases$conexion, universo = "tabla_completa", estrategia_mediana = "exacta",
+    muestra = 5L,
     bloque_muestra = "solo_agregados", tamano_lote = 2L
   )
   expect_identical(
@@ -318,12 +329,14 @@ test_that("el rango del plan incluye el costo de una biseccion rechazada", {
   on.exit(DBI::dbDisconnect(bases$cruda), add = TRUE)
   .reiniciar_consolidacion_dbi("muchas_expresiones")
   plan <- lupa:::plan_perfilado_dbi(
-    bases$conexion, "datos", modo = "exacto", muestra = 5L,
+    bases$conexion, "datos", universo = "tabla_completa",
+    estrategia_mediana = "exacta", muestra = 5L,
     bloque_muestra = "solo_agregados", tamano_lote = 4L
   )
   .reiniciar_consolidacion_dbi("muchas_expresiones")
   resultado <- .perfilar_consolidacion_dbi(
-    bases$conexion, modo = "exacto", muestra = 5L,
+    bases$conexion, universo = "tabla_completa", estrategia_mediana = "exacta",
+    muestra = 5L,
     bloque_muestra = "solo_agregados", tamano_lote = 4L
   )
   emitidas <- as.integer(resultado$resumen_tabla$meta$consultas$emitidas)

@@ -72,17 +72,24 @@ setMethod(
   x
 }
 
-.ronda153_perfil <- function(conexion, tamano_lote, modo, ...) {
-  perfilar_dbi(
-    conexion, "tabla_prueba", modo = modo, muestra = 12L,
-    bloque_muestra = "solo_agregados", tamano_lote = tamano_lote,
-    instrumentar = FALSE, proteger_datos_personales = FALSE,
-    analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
-    ausencia_estructural = FALSE, duplicados_aproximados = FALSE, ...
+.ronda153_perfil <- function(conexion, tamano_lote, caso, ...) {
+  argumentos <- modifyList(
+    list(
+      muestra = 12L, bloque_muestra = "solo_agregados",
+      instrumentar = FALSE, proteger_datos_personales = FALSE,
+      analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
+      ausencia_estructural = FALSE, duplicados_aproximados = FALSE
+    ),
+    .argumentos_caso_dbi(caso, muestra = 12L)
+  )
+  do.call(
+    perfilar_dbi,
+    c(list(conexion, "tabla_prueba", tamano_lote = tamano_lote), argumentos,
+      list(...))
   )
 }
 
-test_that("la fusion conserva la salida en los cinco modos con y sin ausentes", {
+test_that("la fusion conserva la salida en los cinco casos con y sin ausentes", {
   casos <- list(
     con_ausentes = data.frame(
       id = c(0, 1, NA, 1), valor = c(0, NA, 0, 1),
@@ -93,20 +100,20 @@ test_that("la fusion conserva la salida en los cinco modos con y sin ausentes", 
       texto = c("a", "b", "c", "d"), stringsAsFactors = FALSE
     )
   )
-  modos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
+  casos_api <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
   conexiones <- list()
   on.exit(lapply(conexiones, .cerrar_ronda153), add = TRUE)
   for (nombre in names(casos)) {
     fusionada <- .conexion_ronda153(casos[[nombre]])
     unitaria <- .conexion_ronda153(casos[[nombre]])
     conexiones <- c(conexiones, list(fusionada, unitaria))
-    for (modo in modos) {
-      nuevo <- .ronda153_perfil(fusionada$conexion, 4L, modo)
-      referencia <- .ronda153_perfil(unitaria$conexion, 1L, modo)
+    for (caso in casos_api) {
+      nuevo <- .ronda153_perfil(fusionada$conexion, 4L, caso)
+      referencia <- .ronda153_perfil(unitaria$conexion, 1L, caso)
       expect_identical(
         .ronda153_sin_instrumentacion(nuevo),
         .ronda153_sin_instrumentacion(referencia),
-        info = paste(nombre, modo)
+        info = paste(nombre, caso)
       )
     }
   }
@@ -119,26 +126,28 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
   )
   conexion <- .conexion_ronda153(datos)
   on.exit(.cerrar_ronda153(conexion), add = TRUE)
-  modos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
+  casos_api <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
   mediciones <- list()
-  for (modo in modos) {
-    .ronda153_estado$sql <- character()
-    plan <- plan_perfilado_dbi(
-      conexion$conexion, "tabla_prueba", modo = modo, muestra = 12L,
-      bloque_muestra = "solo_agregados", tamano_lote = 4L
+  for (caso in casos_api) {
+    argumentos <- modifyList(
+      list(muestra = 12L, bloque_muestra = "solo_agregados", tamano_lote = 4L),
+      .argumentos_caso_dbi(caso, muestra = 12L)
     )
+    .ronda153_estado$sql <- character()
+    plan <- do.call(plan_perfilado_dbi,
+                    c(list(conexion$conexion, "tabla_prueba"), argumentos))
     datos_plan <- grepl("FROM `tabla_prueba`", .ronda153_estado$sql,
                         fixed = TRUE) &
       !grepl("WHERE[[:space:]]+1[[:space:]]*=[[:space:]]*0",
              .ronda153_estado$sql, ignore.case = TRUE) &
       !grepl("LIMIT[[:space:]]+0[[:space:]]*$", .ronda153_estado$sql,
              ignore.case = TRUE)
-    expect_false(any(datos_plan), info = paste("datos en el plan", modo))
+      expect_false(any(datos_plan), info = paste("datos en el plan", caso))
     expect_false(any(grepl("COUNT(DISTINCT", .ronda153_estado$sql,
-                           fixed = TRUE)), info = paste("distinct en el plan", modo))
+                           fixed = TRUE)), info = paste("distinct en el plan", caso))
     .ronda153_estado$modo <- "normal"
     .ronda153_estado$sql <- character()
-    resultado <- .ronda153_perfil(conexion$conexion, 4L, modo)
+    resultado <- .ronda153_perfil(conexion$conexion, 4L, caso)
     sql <- .ronda153_estado$sql
     cantidad_count <- vapply(
       gregexpr("COUNT\\(", sql, perl = TRUE),
@@ -151,15 +160,15 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
     fused <- grepl("n_total_consulta", sql, fixed = TRUE)
     expect_equal(
       resultado$resumen_tabla$meta$consultas$emitidas,
-      attr(plan, "total"), info = paste("plan", modo)
+      attr(plan, "total"), info = paste("plan", caso)
     )
-    expect_equal(sum(solo_conteos), 0L, info = paste("conteo separado", modo))
-    expect_equal(sum(fused), 1L, info = paste("consulta fusionada", modo))
+    expect_equal(sum(solo_conteos), 0L, info = paste("conteo separado", caso))
+    expect_equal(sum(fused), 1L, info = paste("consulta fusionada", caso))
     # Los denominadores locales viajan en las consultas que ya necesitaban los
     # agregados; agregar la expresion no abre una consulta nueva.
     expect_equal(
       as.integer(attr(plan, "total")) + 1L - length(sql),
-      1L, info = paste("ahorro", modo)
+      1L, info = paste("ahorro", caso)
     )
     recorridos_fuente <- sum(vapply(
       gregexpr("FROM `tabla_prueba`", sql, fixed = TRUE),
@@ -168,8 +177,8 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
     # En la tabla completa, el denominador local comparte el recorrido. El
     # muestreo aleatorio conserva un conteo exacto como subconsulta sobre la
     # tabla original: no abre una consulta, pero si agrega ese recorrido.
-    ahorro_recorridos <- if (identical(modo, "muestreado")) 0L else 1L
-    recorridos_esperados <- if (identical(modo, "muestreado")) {
+    ahorro_recorridos <- if (identical(caso, "muestreado")) 0L else 1L
+    recorridos_esperados <- if (identical(caso, "muestreado")) {
       length(sql) + 1L
     } else {
       length(sql) + 2L * sum(
@@ -179,25 +188,25 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
     }
     expect_equal(
       recorridos_fuente, recorridos_esperados,
-      info = paste("recorridos en SQL", modo)
+      info = paste("recorridos en SQL", caso)
     )
-    recorridos_antes <- if (identical(modo, "muestreado")) {
+    recorridos_antes <- if (identical(caso, "muestreado")) {
       recorridos_fuente
     } else {
       recorridos_fuente + 1L
     }
     expect_equal(
       recorridos_antes - recorridos_fuente, ahorro_recorridos,
-      info = paste("recorridos comparables", modo)
+      info = paste("recorridos comparables", caso)
     )
-    if (identical(modo, "muestreado")) {
+    if (identical(caso, "muestreado")) {
       expect_true(any(grepl("(SELECT COUNT(*) FROM", sql, fixed = TRUE)))
     } else {
       expect_true(any(grepl(
         "COUNT(*) AS `n_total_consulta`", sql, fixed = TRUE
       )))
     }
-    mediciones[[modo]] <- c(
+    mediciones[[caso]] <- c(
       plan = as.integer(attr(plan, "total")),
       actual = length(sql),
       expresiones_count = sum(cantidad_count),
@@ -207,10 +216,10 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
     )
   }
   if (identical(Sys.getenv("LUPA_RONDA153_MEDIR"), "1")) {
-    for (modo in modos) {
+    for (caso in casos_api) {
       cat(
-        "Ronda153", modo,
-        paste(names(mediciones[[modo]]), mediciones[[modo]], sep = "=", collapse = " "),
+        "Ronda153", caso,
+        paste(names(mediciones[[caso]]), mediciones[[caso]], sep = "=", collapse = " "),
         "\n"
       )
     }
@@ -226,7 +235,8 @@ test_that("el repliegue conserva un denominador exacto si falla el lote", {
   conexion <- .conexion_ronda153(datos, modo = "falla_lote")
   on.exit(.cerrar_ronda153(conexion), add = TRUE)
   resultado <- perfilar_dbi(
-    conexion$conexion, "tabla_prueba", modo = "conteos", muestra = 4L,
+    conexion$conexion, "tabla_prueba", universo = "tabla_completa",
+    metricas = "validos", estrategia_mediana = "exacta", muestra = 4L,
     bloque_muestra = "solo_agregados", tamano_lote = 2L,
     instrumentar = FALSE, proteger_datos_personales = FALSE
   )
@@ -256,7 +266,8 @@ test_that("el identificador sólo reúne métricas de una misma consulta", {
   conexion <- .conexion_ronda153(datos)
   on.exit(.cerrar_ronda153(conexion), add = TRUE)
   resultado <- perfilar_dbi(
-    conexion$conexion, "tabla_prueba", modo = "exacto", muestra = 12L,
+    conexion$conexion, "tabla_prueba", universo = "tabla_completa",
+    estrategia_mediana = "exacta", muestra = 12L,
     bloque_muestra = "solo_agregados", tamano_lote = 2L,
     instrumentar = FALSE, proteger_datos_personales = FALSE
   )
@@ -298,11 +309,13 @@ test_that("el identificador de muestra no depende del cronometro", {
   DBI::dbWriteTable(conexion, "t", datos)
 
   con_reloj <- perfilar_dbi(
-    conexion, "t", modo = "exacto", tamano_lote = 2L,
+    conexion, "t", universo = "tabla_completa", estrategia_mediana = "exacta",
+    tamano_lote = 2L,
     bloque_muestra = "solo_agregados", instrumentar = TRUE
   )$resumen_tabla$sql
   sin_reloj <- perfilar_dbi(
-    conexion, "t", modo = "exacto", tamano_lote = 2L,
+    conexion, "t", universo = "tabla_completa", estrategia_mediana = "exacta",
+    tamano_lote = 2L,
     bloque_muestra = "solo_agregados", instrumentar = FALSE
   )$resumen_tabla$sql
 

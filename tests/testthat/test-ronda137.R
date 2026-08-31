@@ -42,8 +42,14 @@ test_that("el bloque de muestra conserva la incertidumbre del motor", {
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbWriteTable(conexion, "t", datos)
 
-  entera <- plan_perfilado_dbi(conexion, "t", modo = "conteos", muestra = Inf)
-  acotada <- plan_perfilado_dbi(conexion, "t", modo = "conteos", muestra = 100)
+  entera <- plan_perfilado_dbi(
+    conexion, "t", universo = "tabla_completa", metricas = "validos",
+    estrategia_mediana = "exacta", muestra = Inf
+  )
+  acotada <- plan_perfilado_dbi(
+    conexion, "t", universo = "tabla_completa", metricas = "validos",
+    estrategia_mediana = "exacta", muestra = 100
+  )
 
   # Traer la tabla entera deja la mitad del motor desconocida, mientras que el
   # tope predeterminado de celdas acota los pares de formas del cliente.
@@ -98,24 +104,40 @@ test_that("pedir mas filas no cambia la incertidumbre del plan", {
   expect_equal(attr(de_mas, "magnitud", exact = TRUE), "desconocida")
 })
 
-test_that("la equivalencia vale tambien cuando el motor muestrea", {
+test_that("la equivalencia vale tambien con cada estrategia ortogonal", {
   skip_if_not_installed("RSQLite")
   datos <- .tabla_plan_137()
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
   DBI::dbWriteTable(conexion, "t", datos)
 
-  for (modo in c("muestreado", "aproximado", "seguro")) {
-    entera <- plan_perfilado_dbi(conexion, "t", modo = modo, muestra = Inf)
-    explicita <- plan_perfilado_dbi(conexion, "t", modo = modo,
-                                    muestra = nrow(datos))
-    expect_true(is.na(attr(entera, "filas_leidas", exact = TRUE)), info = modo)
+  for (caso in c("aproximado", "seguro")) {
+    entera <- do.call(
+      plan_perfilado_dbi,
+      c(list(conexion, "t", muestra = Inf),
+        .argumentos_caso_dbi(caso, muestra = nrow(datos)))
+    )
+    explicita <- do.call(
+      plan_perfilado_dbi,
+      c(list(conexion, "t", muestra = nrow(datos)),
+        .argumentos_caso_dbi(caso, muestra = nrow(datos)))
+    )
+    expect_true(is.na(attr(entera, "filas_leidas", exact = TRUE)), info = caso)
     expect_equal(attr(entera, "pares_texto", exact = TRUE),
-                 2 * lupa:::.max_pares_vocabulario_dbi(), info = modo)
-    expect_true(is.na(attr(explicita, "filas_leidas", exact = TRUE)), info = modo)
+                 2 * lupa:::.max_pares_vocabulario_dbi(), info = caso)
+    expect_true(is.na(attr(explicita, "filas_leidas", exact = TRUE)), info = caso)
     expect_equal(attr(explicita, "pares_texto", exact = TRUE),
-                 2 * lupa:::.max_pares_vocabulario_dbi(), info = modo)
+                 2 * lupa:::.max_pares_vocabulario_dbi(), info = caso)
   }
+  # `muestra_motor` reemplaza el antiguo acoplamiento y exige un
+  # tamano finito: la prueba vieja que usaba `muestra = Inf`
+  # ya no describe una llamada valida. El contrato nuevo se prueba con un
+  # valor explicito y conserva la incertidumbre del plan.
+  muestreado <- plan_perfilado_dbi(
+    conexion, "t", universo = "muestra_motor", muestra_motor = 100L,
+    muestra = 100L, estrategia_mediana = "exacta"
+  )
+  expect_true(is.na(attr(muestreado, "filas_leidas", exact = TRUE)))
 })
 
 test_that("los bordes del tamano de muestra no rompen la cuenta", {

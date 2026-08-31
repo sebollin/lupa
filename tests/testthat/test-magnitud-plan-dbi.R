@@ -143,7 +143,7 @@ test_that("la impresion declara la incertidumbre del trabajo", {
   alto <- capture.output(print(plan), type = "message")
   expect_true(any(grepl("alto", alto)))
   # Avisar que es grande sin decir que hacer no le sirve a nadie.
-  expect_true(any(grepl("muestreado", alto)))
+  expect_true(any(grepl("universo = .muestra_motor", alto)))
   expect_true(any(grepl("max_consultas", alto)))
   # Y el supuesto viaja con el numero, siempre.
   expect_true(any(grepl("estimaci", alto)))
@@ -246,7 +246,7 @@ test_that("los pares se acotan por la muestra y por el tope del detector", {
 })
 
 test_that("sin muestra no hay trabajo por valor que contar", {
-  # En `modo = "conteos"` no se trae ninguna fila a R: el detector de
+  # Con `bloque_muestra = "solo_agregados"` no se trae ninguna fila a R: el detector de
   # vocabulario no corre, y contar pares ahi seria inventar trabajo.
   plan <- data.frame(
     clase_consulta = "conteos", n_consultas = 1,
@@ -292,7 +292,8 @@ test_that("una magnitud desconocida no inventa palancas", {
   skip_if_not_installed("RSQLite")
   # Salio de una corrida contra motores reales: una tabla de millones de filas
   # tardaba minutos con las opciones por omision y su plan la clasificaba
-  # **media**, donde el aviso avisaba pero no nombraba `modo = 'muestreado'`.
+  # **media**, donde el aviso avisaba pero no nombraba
+  # `universo = 'muestra_motor'`.
   # Un plan que dice "va a costar" sin decir "y asi se acota" deja la decision a
   # medias justo donde importa.
   palancas_de <- function(datos) {
@@ -306,7 +307,7 @@ test_that("una magnitud desconocida no inventa palancas", {
     )
     list(
       magnitud = attr(plan, "magnitud", exact = TRUE),
-      nombra = any(grepl("modo = .muestreado", salida))
+      nombra = any(grepl("universo = .muestra_motor", salida))
     )
   }
 

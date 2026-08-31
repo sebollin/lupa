@@ -19,7 +19,8 @@ library(DBI)
 }
 
 .argumentos_perfil_topes_dbi <- list(
-  modo = "conteos", analizar_dependencias = FALSE,
+  universo = "tabla_completa", metricas = "validos",
+  estrategia_mediana = "exacta", analizar_dependencias = FALSE,
   ausencia_estructural = FALSE, casi_duplicados_vocabulario = FALSE,
   proteger_datos_personales = FALSE
 )
@@ -144,7 +145,8 @@ test_that("el plan declara el recorte de celdas y la sonda de bytes", {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
   plan_celdas <- plan_perfilado_dbi(
-    con, "topes", muestra = 20L, modo = "conteos",
+    con, "topes", muestra = 20L, universo = "tabla_completa",
+    metricas = "validos", estrategia_mediana = "exacta",
     max_celdas_muestra = 10L, max_bytes_muestra = Inf
   )
   tope <- attr(plan_celdas, "tope_muestra", exact = TRUE)
@@ -158,7 +160,8 @@ test_that("el plan declara el recorte de celdas y la sonda de bytes", {
   expect_true(any(grepl("tope de celdas", salida, fixed = TRUE)))
 
   plan_bytes <- plan_perfilado_dbi(
-    con, "topes", muestra = 20L, modo = "conteos",
+    con, "topes", muestra = 20L, universo = "tabla_completa",
+    metricas = "validos", estrategia_mediana = "exacta",
     max_celdas_muestra = Inf, max_bytes_muestra = 1000L
   )
   tope_bytes <- attr(plan_bytes, "tope_muestra", exact = TRUE)

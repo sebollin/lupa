@@ -40,8 +40,11 @@ test_that("el objeto declara que las metricas muestreadas no comparten filas", {
   DBI::dbWriteTable(con, "t", data.frame(a = 1:200, b = seq_len(200) / 200))
 
   # Un consumidor automatico lee el objeto, no la vineta.
-  for (modo in c("muestreado", "aproximado")) {
-    meta <- perfilar_dbi(con, "t", modo = modo)$resumen_tabla$meta
+  for (caso in c("muestreado")) {
+    argumentos <- .argumentos_caso_dbi(caso, muestra = 20L)
+    meta <- do.call(
+      perfilar_dbi, c(list(con, "t"), argumentos)
+    )$resumen_tabla$meta
     expect_false(is.na(meta$muestras_independientes))
     # El alcance del muestreo es por consulta, no por perfilado: las columnas
     # que comparten una consulta consolidada se miden sobre las MISMAS filas, y
@@ -51,10 +54,15 @@ test_that("el objeto declara que las metricas muestreadas no comparten filas", {
     expect_match(meta$muestras_independientes, "columnas_compartidas")
     expect_match(meta$muestras_independientes, "perfil_muestra")
   }
-  # Y no aparece donde no corresponde: en los modos que miden sobre la tabla
-  # entera no hay nada que advertir.
-  for (modo in c("exacto", "seguro", "conteos")) {
-    meta <- perfilar_dbi(con, "t", modo = modo)$resumen_tabla$meta
+  # La aproximacion de medianas es ahora una estrategia del motor sobre la
+  # tabla completa, no un sinonimo de muestreo; por eso tampoco activa este
+  # metadato. La comprobacion vieja para `modo = "aproximado"` no aplicaba a
+  # su significado nuevo y queda reemplazada por esta separacion explicita.
+  for (caso in c("exacto", "seguro", "conteos", "aproximado")) {
+    argumentos <- .argumentos_caso_dbi(caso, muestra = 20L)
+    meta <- do.call(
+      perfilar_dbi, c(list(con, "t"), argumentos)
+    )$resumen_tabla$meta
     expect_true(is.na(meta$muestras_independientes))
   }
 })

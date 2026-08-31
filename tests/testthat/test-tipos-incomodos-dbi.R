@@ -36,7 +36,9 @@ test_that("un maximo menor que el minimo no se publica", {
   rango <- c(leidos[["minimo"]], leidos[["maximo"]])
   expect_true(rango[[2L]] < rango[[1L]])
 
-  perfil <- perfilar_dbi(con, "t", modo = "exacto")
+  perfil <- perfilar_dbi(
+    con, "t", universo = "tabla_completa", estrategia_mediana = "exacta"
+  )
   # El camino normal sigue publicando, que es lo que la guarda no puede romper.
   expect_equal(perfil$resumen_tabla$columnas$minimo, 1)
   expect_equal(perfil$resumen_tabla$columnas$maximo, 3)
@@ -61,7 +63,10 @@ test_that("el modo muestreado sobre una tabla chica informa la columna llena", {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", data.frame(monto = 11:20))
 
-  perfil <- perfilar_dbi(con, "t", modo = "muestreado", muestra = 1000L)
+  perfil <- perfilar_dbi(
+    con, "t", universo = "muestra_motor", muestra_motor = 1000L,
+    muestra = 1000L, estrategia_mediana = "exacta"
+  )
   fila <- perfil$resumen_tabla$columnas
   expect_equal(as.numeric(fila$n_validos), 10)
   expect_equal(as.numeric(fila$n_faltantes), 0)
@@ -82,7 +87,9 @@ test_that("el objeto declara con que criterio se comparo", {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "t", data.frame(cat = c("A", "a", "b")))
 
-  perfil <- perfilar_dbi(con, "t", modo = "exacto")
+  perfil <- perfilar_dbi(
+    con, "t", universo = "tabla_completa", estrategia_mediana = "exacta"
+  )
   # Un cotejamiento que ignora la caja hace que el resumen SQL y el perfil de
   # muestra cuenten distinto sobre las mismas filas. Los dos numeros son
   # ciertos en su propia comparacion; lo que faltaba era decir cual usa cada uno.

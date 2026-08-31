@@ -37,34 +37,41 @@ library(DBI)
   x
 }
 
-.perfil_base_ronda148 <- function(con, modo, instrumentar = TRUE,
+.perfil_base_ronda148 <- function(con, caso, instrumentar = TRUE,
                                   bloque_muestra = "con_muestra",
                                   metricas = "validos", ...) {
-  perfilar_dbi(
-    con, "datos", modo = modo, metricas = metricas, muestra = Inf,
+  argumentos <- .argumentos_caso_dbi(caso, muestra = 12L)
+  argumentos$metricas <- metricas
+  argumentos <- modifyList(list(muestra = 12L), argumentos)
+  do.call(perfilar_dbi, c(list(
+    con, "datos",
     orden_muestra = "id",
     instrumentar = instrumentar, proteger_datos_personales = FALSE,
     analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
     ausencia_estructural = FALSE, duplicados_aproximados = FALSE,
     bloque_muestra = bloque_muestra,
     fecha = as.POSIXct("2026-01-01", tz = "UTC"), ...
-  )
+  ), argumentos))
 }
 
-test_that("la instrumentacion no cambia el objeto en los cinco modos", {
-  modos <- c("exacto", "seguro", "conteos", "muestreado", "aproximado")
+test_that("la instrumentacion no cambia el objeto en los cinco casos", {
+  casos <- c("exacto", "seguro", "conteos", "aproximado")
   con <- .conexion_ronda148()
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-  for (modo in modos) {
-    medido <- .perfil_base_ronda148(con, modo, instrumentar = TRUE)
-    sin_medir <- .perfil_base_ronda148(con, modo, instrumentar = FALSE)
+  for (caso in casos) {
+    medido <- .perfil_base_ronda148(con, caso, instrumentar = TRUE)
+    sin_medir <- .perfil_base_ronda148(con, caso, instrumentar = FALSE)
     expect_identical(
       .sin_instrumentacion_ronda148(medido),
       .sin_instrumentacion_ronda148(sin_medir),
-      info = paste("modo", modo)
+      info = paste("caso", caso)
     )
   }
+  # `muestra_motor` toma una muestra aleatoria nueva en cada corrida. Comparar
+  # dos perfiles completos con `instrumentar` distinto exigiría fijar una
+  # muestra materializada, que no es parte de este contrato; la invariancia de
+  # estados y metadatos del motor muestreado queda cubierta en dbi-muestreado.
 })
 
 test_that("sql publica medicion real, identificador y etapa", {
@@ -190,7 +197,10 @@ test_that("tiempos de R incluyen lectura, perfil y analisis opcional", {
 test_that("el plan conserva sus campos como predicciones", {
   con <- .conexion_ronda148()
   on.exit(DBI::dbDisconnect(con), add = TRUE)
-  plan <- plan_perfilado_dbi(con, "datos", modo = "conteos", muestra = 12L)
+  plan <- plan_perfilado_dbi(
+    con, "datos", universo = "tabla_completa", metricas = "validos",
+    estrategia_mediana = "exacta", muestra = 12L
+  )
 
   expect_false("duracion_ms" %in% names(plan))
   expect_false("n_filas_resultado" %in% names(plan))

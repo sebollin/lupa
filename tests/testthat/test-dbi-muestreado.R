@@ -92,6 +92,10 @@ if (!methods::isClass("ConexionMuestraCortaLupa")) {
       grepl("approx_quantile", statement, ignore.case = TRUE)) {
     stop("Cuantil aproximado no disponible.", call. = FALSE)
   }
+  if (identical(modo, "aprox_quantile") &&
+      grepl("lupa_mediana_sonda", statement, fixed = TRUE)) {
+    stop("Mediana exacta por subconsulta no disponible.", call. = FALSE)
+  }
   invisible(NULL)
 }
 
@@ -186,14 +190,16 @@ setMethod(
   .envolver_conexion_capacidad(con, clase)
 }
 
-.perfil_liviano_dbi_muestreado <- function(con, modo, ...) {
+.perfil_liviano_dbi_muestreado <- function(con, caso, ...) {
+  argumentos <- modifyList(
+    list(muestra = 5L, estrategia_mediana = "exacta",
+         proteger_datos_personales = FALSE),
+    .argumentos_caso_dbi(caso, muestra = 5L)
+  )
   do.call(
     perfilar_dbi,
     c(
-      list(
-        conexion = con, tabla = "datos", muestra = 5L, modo = modo,
-        proteger_datos_personales = FALSE
-      ),
+      list(conexion = con, tabla = "datos"), argumentos,
       list(...)
     )
   )
@@ -281,7 +287,8 @@ test_that("una muestra vacia no publica ceros ni estados de muestra observada", 
   .capacidad_dbi_prueba$muestra_vacia <- TRUE
 
   resultado <- perfilar_dbi(
-    con, "datos_corta", muestra = 5L, modo = "muestreado",
+    con, "datos_corta", universo = "muestra_motor", muestra_motor = 5L,
+    muestra = 5L, estrategia_mediana = "exacta",
     proteger_datos_personales = FALSE
   )
   columnas <- resultado$resumen_tabla$columnas
@@ -315,7 +322,8 @@ test_that("una muestra no vacia con todos los valores nulos conserva sus estados
   }, add = TRUE)
 
   resultado <- perfilar_dbi(
-    con, "datos_corta", muestra = 5L, modo = "muestreado",
+    con, "datos_corta", universo = "muestra_motor", muestra_motor = 5L,
+    muestra = 5L, estrategia_mediana = "exacta",
     proteger_datos_personales = FALSE
   )
   registros <- resultado$resumen_tabla$sql
@@ -339,7 +347,8 @@ test_that("el metadato publico conserva una muestra menor que el pedido", {
   DBI::dbWriteTable(con, "datos", data.frame(valor = seq_len(75L)))
 
   resultado <- perfilar_dbi(
-    con, "datos", muestra = 100L, modo = "muestreado",
+    con, "datos", universo = "muestra_motor", muestra_motor = 100L,
+    muestra = 100L, estrategia_mediana = "exacta",
     orden_muestra = "valor", proteger_datos_personales = FALSE
   )
   muestreo <- resultado$resumen_tabla$meta$muestreo
@@ -357,7 +366,8 @@ test_that("la discrepancia de filas conserva su cobertura", {
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
   resultado <- perfilar_dbi(
-    con, "datos_corta", muestra = 5L, modo = "muestreado",
+    con, "datos_corta", universo = "muestra_motor", muestra_motor = 5L,
+    muestra = 5L, estrategia_mediana = "exacta",
     orden_muestra = "valor", proteger_datos_personales = FALSE
   )
   muestreo <- resultado$perfil_muestra$meta$origen_dbi$muestreo
@@ -492,7 +502,7 @@ test_that("aproximada_motor no repliega a exacto si falta la funcion nativa", {
   )
 })
 
-test_that("aproximado usa la funcion nativa de cuantiles cuando responde", {
+test_that("aproximada_motor usa la funcion nativa de cuantiles cuando responde", {
   con <- .conexion_capacidad_dbi("ConexionAproximadaLupa")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   .reiniciar_capacidad_dbi("aprox_quantile")
@@ -516,23 +526,26 @@ test_that("el plan acota las consultas en los cinco modos", {
   con <- .conexion_capacidad_dbi("ConexionCapacidadLupa")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-  for (modo in c("exacto", "seguro", "conteos", "muestreado", "aproximado")) {
+  for (caso in c("exacto", "seguro", "conteos", "muestreado", "aproximado")) {
     .reiniciar_capacidad_dbi("normal")
-    plan <- lupa:::plan_perfilado_dbi(
-      con, "datos", muestra = 5L, orden_muestra = "id", modo = modo
+    argumentos <- modifyList(
+      list(muestra = 5L, orden_muestra = "id"),
+      .argumentos_caso_dbi(caso, muestra = 5L)
     )
+    plan <- do.call(lupa:::plan_perfilado_dbi,
+                    c(list(con, "datos"), argumentos))
     .reiniciar_capacidad_dbi("normal")
     resultado <- .perfil_liviano_dbi_muestreado(
-      con, modo, orden_muestra = "id"
+      con, caso, orden_muestra = "id"
     )
     emitidas <- length(.capacidad_dbi_prueba$sql)
-    expect_lte(attr(plan, "total"), emitidas, label = paste("modo", modo))
+    expect_lte(attr(plan, "total"), emitidas, label = paste("caso", caso))
     expect_lte(
-      emitidas, attr(plan, "total_maximo"), label = paste("modo", modo)
+      emitidas, attr(plan, "total_maximo"), label = paste("caso", caso)
     )
     expect_equal(
       resultado$resumen_tabla$meta$consultas$emitidas, emitidas,
-      info = paste("modo", modo)
+      info = paste("caso", caso)
     )
   }
 })

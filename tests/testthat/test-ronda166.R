@@ -1,8 +1,7 @@
-# El plan no puede prometer métricas de una muestra cuya consulta no se puede
-# construir. SQLite acepta las sondas de capacidad, pero con `muestra = Inf` no
-# existe un subconjunto muestreado que escribir.
+# `muestra_motor` ya no usa `Inf` como señal implícita de tabla completa: la API
+# lo rechaza antes de consultar para no dejar un plan ambiguo.
 
-test_that("el plan declara una forma muestreada no construible", {
+test_that("muestra_motor infinito se rechaza antes de sondear", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
@@ -14,32 +13,18 @@ test_that("el plan declara una forma muestreada no construible", {
     vacia = rep(NA_real_, 200L)
   ))
 
-  plan <- plan_perfilado_dbi(
-    conexion, "tabla166", modo = "muestreado", muestra = Inf
+  expect_error(
+    plan_perfilado_dbi(
+      conexion, "tabla166", universo = "muestra_motor", muestra_motor = Inf
+    ),
+    class = "lupa_error_argumento_dbi"
   )
-  resultado <- suppressWarnings(perfilar_dbi(
-    conexion, "tabla166", modo = "muestreado", muestra = Inf,
-    instrumentar = FALSE, analizar_dependencias = FALSE,
-    casi_duplicados_vocabulario = FALSE
-  ))
-  estado <- attr(plan, "muestreo", exact = TRUE)
-  sql <- resultado$resumen_tabla$sql
-
-  expect_equal(estado$estado, "no_disponible")
-  expect_false(estado$disponible)
-  expect_false(estado$forma_construible)
-  expect_match(estado$motivo, "no pudo construir una consulta", fixed = TRUE)
-  expect_match(
-    attr(plan, "supuesto", exact = TRUE),
-    "La forma muestreada no se puede construir",
-    fixed = TRUE
+  expect_error(
+    perfilar_dbi(
+      conexion, "tabla166", universo = "muestra_motor", muestra_motor = Inf,
+      instrumentar = FALSE, analizar_dependencias = FALSE,
+      casi_duplicados_vocabulario = FALSE
+    ),
+    class = "lupa_error_argumento_dbi"
   )
-  expect_length(attr(plan, "metricas_ejecucion", exact = TRUE), 0L)
-  expect_equal(attr(plan, "total"), attr(plan, "total_maximo"))
-  expect_equal(
-    resultado$resumen_tabla$meta$consultas$emitidas,
-    attr(plan, "total")
-  )
-  expect_equal(sum(sql$estado == "no_disponible"), 56L)
-  expect_true(all(is.na(sql$sql[sql$estado == "no_disponible"])))
 })

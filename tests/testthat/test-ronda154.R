@@ -27,7 +27,8 @@ test_that("cero CPU medido no se confunde con una medicion ausente", {
                                  politica_costo = "todas",
                                  umbral_cardinalidad = 0.95) {
   list(
-    modo = "exacto", muestra = Inf, bloque_muestra = "solo_agregados",
+    universo = "tabla_completa", estrategia_mediana = "exacta",
+    muestra = Inf, bloque_muestra = "solo_agregados",
     instrumentar = instrumentar, politica_costo = politica_costo,
     umbral_cardinalidad = umbral_cardinalidad,
     proteger_datos_personales = FALSE, analizar_dependencias = FALSE,
@@ -156,7 +157,8 @@ test_that("la politica de cardinalidad declara omisiones y ahorra consultas", {
   )
 
   plan <- plan_perfilado_dbi(
-    conexion, "tabla154", modo = "exacto",
+    conexion, "tabla154", universo = "tabla_completa",
+    estrategia_mediana = "exacta",
     bloque_muestra = "solo_agregados", instrumentar = FALSE,
     politica_costo = "por_cardinalidad"
   )
@@ -218,7 +220,8 @@ test_that("el umbral de cardinalidad conserva la mediana y baja para la moda", {
   resultado <- perfilar_dbi(
     conexion, "tabla154_umbral",
     metricas = c("validos", "distintos", "moda", "mediana"),
-    modo = "exacto", bloque_muestra = "solo_agregados",
+    universo = "tabla_completa", estrategia_mediana = "exacta",
+    bloque_muestra = "solo_agregados",
     politica_costo = "por_cardinalidad", instrumentar = FALSE,
     proteger_datos_personales = FALSE
   )
@@ -287,7 +290,8 @@ test_that("la capacidad consolidada usa un SELECT de PERCENTILE_CONT y SQLite ca
 
   DBI::dbWriteTable(conexion, "tabla154", .ronda154_datos())
   resultado <- perfilar_dbi(
-    conexion, "tabla154", modo = "exacto", metricas = "mediana",
+    conexion, "tabla154", universo = "tabla_completa",
+    estrategia_mediana = "exacta", metricas = "mediana",
     bloque_muestra = "solo_agregados", instrumentar = FALSE,
     proteger_datos_personales = FALSE, analizar_dependencias = FALSE,
     casi_duplicados_vocabulario = FALSE, ausencia_estructural = FALSE,
@@ -300,4 +304,68 @@ test_that("la capacidad consolidada usa un SELECT de PERCENTILE_CONT y SQLite ca
   expect_equal(length(unique(filas$consulta_id)), 1L)
   expect_equal(resultado$resumen_tabla$columnas$mediana[c(1L, 3L)], c(6.5, 1.5))
   expect_equal(length(strsplit(filas$sql[[1L]], "PERCENTILE_CONT", fixed = TRUE)[[1L]]) - 1L, 2L)
+})
+
+test_that("la estrategia aproximada publica el metodo exacto que efectivamente corrio", {
+  if (!methods::isClass("ConexionRonda154Postgres")) {
+    methods::setClass(
+      "ConexionRonda154Postgres", contains = "SQLiteConnection"
+    )
+  }
+  methods::setMethod(
+    "dbGetInfo", "ConexionRonda154Postgres",
+    function(dbObj, ...) list(dbms.name = "PostgreSQL")
+  )
+  methods::setMethod(
+    "dbSendQuery", c("ConexionRonda154Postgres", "character"),
+    function(conn, statement, ...) {
+      statement <- gsub(
+        "PERCENTILE_CONT\\(0.5\\) WITHIN GROUP \\(ORDER BY ([^\\)]+)\\)",
+        "AVG(\\1)", statement, perl = TRUE
+      )
+      callNextMethod(conn, statement, ...)
+    }
+  )
+  cruda <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(cruda), add = TRUE)
+  conexion <- methods::new("ConexionRonda154Postgres")
+  for (ranura in methods::slotNames(cruda)) {
+    methods::slot(conexion, ranura) <- methods::slot(cruda, ranura)
+  }
+  DBI::dbWriteTable(conexion, "tabla154_aprox", .ronda154_datos())
+
+  resultado <- perfilar_dbi(
+    conexion, "tabla154_aprox", universo = "tabla_completa",
+    estrategia_mediana = "aproximada_motor", metricas = "mediana",
+    bloque_muestra = "solo_agregados", instrumentar = FALSE,
+    proteger_datos_personales = FALSE, analizar_dependencias = FALSE,
+    casi_duplicados_vocabulario = FALSE, ausencia_estructural = FALSE,
+    duplicados_aproximados = FALSE
+  )
+  plan <- plan_perfilado_dbi(
+    conexion, "tabla154_aprox", universo = "tabla_completa",
+    estrategia_mediana = "aproximada_motor", metricas = "mediana",
+    bloque_muestra = "solo_agregados", instrumentar = FALSE
+  )
+  estrategia_plan <- attr(plan, "estrategia_mediana", exact = TRUE)
+  expect_identical(estrategia_plan$estrategia_solicitada, "aproximada_motor")
+  expect_identical(estrategia_plan$estrategia_resuelta, "PERCENTILE_CONT")
+  expect_identical(estrategia_plan$estado, "calculado")
+
+  estrategia <- resultado$resumen_tabla$meta$estrategia_mediana
+  expect_identical(estrategia$estrategia_solicitada, "aproximada_motor")
+  expect_identical(estrategia$estrategia_resuelta, "PERCENTILE_CONT")
+  expect_identical(estrategia$estado, "calculado")
+  expect_false("modo" %in% names(resultado$resumen_tabla$meta))
+  expect_false(any(
+    resultado$resumen_tabla$sql$metrica == "mediana" &
+      resultado$resumen_tabla$sql$estado == "estimado"
+  ))
+  medianas_ejecutadas <- resultado$resumen_tabla$sql[
+    resultado$resumen_tabla$sql$metrica == "mediana" &
+      resultado$resumen_tabla$sql$estado != "no_aplica", , drop = FALSE
+  ]
+  expect_true(all(
+    medianas_ejecutadas$metodo == "PERCENTILE_CONT"
+  ))
 })

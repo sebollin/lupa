@@ -13,7 +13,8 @@ test_that("un valor que la conversion pierde no se publica como calculado", {
   DBI::dbExecute(con, "CREATE TABLE t (f DATE)")
   DBI::dbExecute(con, "INSERT INTO t VALUES ('2020-01-01'), ('2021-12-31'), (NULL)")
 
-  perfil <- perfilar_dbi(con, "t", modo = "exacto", muestra = 5L,
+  perfil <- perfilar_dbi(con, "t", universo = "tabla_completa",
+                         estrategia_mediana = "exacta", muestra = 5L,
                          proteger_datos_personales = FALSE)
   fila <- perfil$resumen_tabla$columnas
   expect_true(is.na(fila$minimo[[1L]]))
@@ -38,7 +39,8 @@ test_that("un entero por encima de 2^53 no se publica redondeado", {
   DBI::dbWriteTable(con, "t", datos)
 
   perfil <- suppressWarnings(perfilar_dbi(
-    con, "t", modo = "exacto", muestra = 5L, proteger_datos_personales = FALSE
+    con, "t", universo = "tabla_completa", estrategia_mediana = "exacta",
+    muestra = 5L, proteger_datos_personales = FALSE
   ))
   fila <- perfil$resumen_tabla$columnas
   # El maximo real es 2^53+1; pasarlo a doble lo vuelve 2^53, que no esta en la
@@ -56,7 +58,9 @@ test_that("una columna numerica normal se sigue midiendo", {
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   DBI::dbWriteTable(con, "n", data.frame(a = c(1.5, 2.5, 10), b = 1:3))
-  fila <- perfilar_dbi(con, "n", modo = "exacto")$resumen_tabla$columnas
+  fila <- perfilar_dbi(
+    con, "n", universo = "tabla_completa", estrategia_mediana = "exacta"
+  )$resumen_tabla$columnas
   expect_equal(fila$minimo, c(1.5, 1))
   expect_equal(fila$maximo, c(10, 3))
   expect_equal(fila$media, c(14 / 3, 2))
