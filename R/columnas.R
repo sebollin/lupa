@@ -1284,7 +1284,16 @@
   validos <- tryCatch(!is.na(x), error = function(e) NULL)
   if (is.null(validos) || length(validos) != length(x)) return(NA_integer_)
   if (!any(validos)) return(0L)
-  sobre <- .mapa_distintos_bloques(x)
+  # El acumulador de distintos conserva valores atomicos. Las columnas de
+  # listas (incluidas `sfc` y `POSIXlt`) siguen necesitando la igualdad de la
+  # pasada unica: intentar guardarlas como representantes del data.frame del
+  # mapa puede expandirlas o hacerlas no construibles. La migracion solo toma
+  # la via por bloques para las clases que esa representacion puede conservar.
+  sobre <- if (is.atomic(x) && is.null(dim(x))) {
+    .mapa_distintos_bloques(x)
+  } else {
+    NULL
+  }
   if (!is.null(sobre) && identical(sobre$estado, "calculado")) {
     return(as.integer(nrow(sobre$resultado)))
   }
