@@ -151,7 +151,7 @@
       lapply(columnas, function(columna) {
         estado$datos[[columna]][[nrow(estado$datos)]]
       }) |>
-        setNames(columnas)
+        stats::setNames(columnas)
     },
     consumir = function(n) {
       if (is.null(estado$datos) || !n) return(invisible(NULL))

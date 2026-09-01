@@ -3674,7 +3674,7 @@
       next
     }
     resto <- paste(caracteres[i:limite], collapse = "")
-    anterior <- if (length(salida)) substr(tail(salida, 1L), 1L, 1L) else ""
+    anterior <- if (length(salida)) substr(utils::tail(salida, 1L), 1L, 1L) else ""
     patron_numero <- "^(?:[-+]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][-+]?[0-9]+)?)"
     captura <- regmatches(resto, regexpr(patron_numero, resto, perl = TRUE))
     puede_numero <- length(captura) == 1L && nzchar(captura) &&

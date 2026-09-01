@@ -55,6 +55,7 @@ Suggests:
     bit64,
     covr,
     DBI,
+    duckdb,
     jsonlite,
     knitr,
     rmarkdown,

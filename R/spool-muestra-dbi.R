@@ -331,7 +331,7 @@
   datos <- if (isTRUE(devolver_chunks)) {
     if (length(chunks)) do.call(rbind, chunks) else {
       campos <- as.character(header$campos)
-      as.data.frame(setNames(replicate(length(campos), logical(), simplify = FALSE),
+      as.data.frame(stats::setNames(replicate(length(campos), logical(), simplify = FALSE),
                              campos), stringsAsFactors = FALSE)
     }
   } else NULL
@@ -773,7 +773,7 @@
   }
   datos_materializados <- if (isTRUE(leido$ok)) {
     if (length(leido$chunks)) do.call(rbind, leido$chunks) else {
-      as.data.frame(setNames(replicate(length(campos), logical(), simplify = FALSE),
+      as.data.frame(stats::setNames(replicate(length(campos), logical(), simplify = FALSE),
                              campos), stringsAsFactors = FALSE)
     }
   } else NULL
