@@ -100,6 +100,7 @@ test_that("LSH no publica un degradado sin snapshot u orden estable", {
 })
 
 test_that("el vigilante registra memoria LSH y factor de dimensionamiento", {
+  skip_if_not_installed("stringdist")
   vigilante <- lupa:::.iniciar_vigilante("lsh-test")
   ejecucion <- lupa:::.ejecutar_lsh_bloques(
     lupa:::.bloques_de_vector(c("alpha", "beta", "alpha"), tamano = 1L),
