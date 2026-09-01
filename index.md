@@ -46,6 +46,7 @@ Among the outputs of that run are:
 | Inconsistent capitalization | `mayusculas_inconsistentes` | `"web"; "Web"` |
 | Declared and inferred types disagree | `tipo_declarado_distinto` | `Declarado: texto; inferido: fecha` |
 | A constant column | `constante` | `Valor: principal; frecuencia: 13` |
+| A concentrated modal value | `valor_concentrado` | `Valor modal: 1000; frecuencia de la moda: 25; frecuencia del segundo valor: 1; cociente moda/segundo: 25.000; fraccion de la moda sobre validos: 0.250` |
 | Exact duplicate rows | `filas_duplicadas` | `2 filas en grupos duplicados (1 excedentes)` |
 | Repeated columns | `columnas_duplicadas` | `id_registro = id_copia` |
 
@@ -57,7 +58,7 @@ absence. On a reference bank with known defects it recovered 9 of 9
 planted defects; on 43 clean tables it produced 0 error-severity
 findings.
 
-The current canonical vocabulary has 56 `tipo_hallazgo` names. The names
+The current canonical vocabulary has 57 `tipo_hallazgo` names. The names
 are Spanish because they are part of the public API:
 
 ``` text
@@ -87,10 +88,26 @@ regla_silencia_ausencia          relacion_aritmetica_columnas
 relacion_orden_columnas          separadores_en_campo
 tipo_compuesto_no_analizado      tipo_declarado_distinto
 tipos_geometria_mixtos           unidades_mixtas
-valor_fuera_de_aplicabilidad     valores_no_finitos
+valor_concentrado                valor_fuera_de_aplicabilidad
+valores_no_finitos
 variantes_equifrecuentes_vocabulario
 zona_horaria_fecha_hora
 ```
+
+The `valor_concentrado` signal implements the measured M2 rule. It
+considers only numeric columns with at least 20 non-missing valid values
+and at least 10 distinct values. It emits a `sospechoso` finding when
+the modal frequency is at least five times the second-highest frequency
+and the modal value accounts for at least 0.15 of valid values. Its
+evidence reports the modal value, both frequencies, the ratio, and the
+fraction. A legitimate value can dominate, so this is never an `error`.
+Non-eligible columns do not receive a `cobertura_diagnosticos` row:
+categorical distributions are outside the signal’s intended scope.
+
+The measured blind spots are part of this contract: concentrations below
+15% are not detected, and natural ties in small integer columns can keep
+the ratio below five. The measurement found zero false positives in 114
+clean eligible columns, with a 2.2x margin.
 
 ## What it does not do
 
@@ -297,7 +314,7 @@ map:
 | Clean safely | [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md), [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md), [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) | [Cleaning plan](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
 | Find approximate duplicates | [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md), [`estimar_costo()`](https://sebollin.github.io/lupa/reference/estimar_costo.md) | [Scale and duplicates](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
 | Repair encoding damage | `reparar_codificacion` through [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) and [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) | [Cleanup reference](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
-| Follow quality over time | [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md), [`acumular_historico()`](https://sebollin.github.io/lupa/reference/historico_calidad.md), [`guardar_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md), [`leer_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md), [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md), [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md), [`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md) | [History and drift](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
+| Follow quality over time | [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md), [`acumular_historico()`](https://sebollin.github.io/lupa/reference/historico_calidad.md), [`guardar_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md), [`leer_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md), [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md), [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md), [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md), [`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md) | [History and drift](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
 | Share results | [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md), [`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md), [`leer_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md) | [Reporting reference](https://sebollin.github.io/lupa/reference/reportar.html) |
 | Validate and extend | [`validadores_internacionales()`](https://sebollin.github.io/lupa/reference/pack_validadores.md), [`validadores_uruguay()`](https://sebollin.github.io/lupa/reference/pack_validadores.md), [`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md), [`validar_ci_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md), [`validar_rut_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md), [`validar_luhn()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_mod97()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_iso3166()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_iso4217()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_correo()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_url()`](https://sebollin.github.io/lupa/reference/validadores_formato.md) | [Reference](https://sebollin.github.io/lupa/reference/) |
 
@@ -311,6 +328,10 @@ and the findings derived from those quantities. By default,
 discovery, and the common sample used to search for functional
 dependencies. Set another limit or `Inf` to change or disable that
 sampling.
+
+For inferred temporal types, `estado_tipo_inferido` distinguishes
+`confirmado`, `candidato`, and `NA`; a 100% compatible ambiguous date
+remains a candidate.
 
 Personal-document validators have a separate preliminary filter:
 `muestra_validadores = 1000` by default. A validator that passes that
@@ -448,18 +469,32 @@ the count a scalar subquery of the same statement. The probe also checks
 integer division (`%` and `/`); if a dialect does not accept that form,
 the result declares that it kept the two-query path.
 
-In approximate mode, a distinct count is consolidated only when the
-capability provides an expression that can be embedded in the `SELECT`.
-If it only builds a complete query, valid counts and distinct counts are
-issued separately, and each record keeps the method of the query that
-was actually run.
+With `estrategia_distintos = "aproximada_motor"`, a distinct count is
+consolidated only when the capability provides an expression that can be
+embedded in the `SELECT`. If it only builds a complete query, valid
+counts and distinct counts are issued separately, and each record keeps
+the method of the query that was actually run.
+
+Median strategy is independent.
+`estrategia_mediana = "aproximada_motor"` probes an exact native form
+first, then the exact per-column form, and only then an approximate
+native function. An exact median therefore remains `calculado`, with
+`error_esperado = "no_aplica"`; only an approximation that actually ran
+is `estimado`.
+
+Consolidated medians are probed before use; on SQL Server they require
+compatibility level \>= 110. The probe is not a promise of activation:
+known reasons for it not to activate are that the function is
+unavailable or that the engine rejects the probe. The engine message is
+kept in `meta$mediana_consolidada$motivo`, and the per-column median is
+retained.
 
 Measured against PostgreSQL 16 with **2 million rows by 40 columns**:
 
-| mode | before | after |
+| configuration | before | after |
 |----|----|----|
-| `conteos` | 46 queries, 5.4 s | **8 queries, 2.4 s** |
-| `seguro` | 128 queries, 15.2 s | 14 queries, 5.3 s; **10 queries** with flat fusion |
+| `metricas = "validos"` | 46 queries, 5.4 s | **8 queries, 2.4 s** |
+| `metricas = c("validos", "basicos", "desvio")` | 128 queries, 15.2 s | 14 queries, 5.3 s; **10 queries** with flat fusion |
 
 Same 160 and 400 metrics computed, and the same numbers: on one table
 seeded once, the consolidated profile and the previous one agree on all
@@ -477,12 +512,31 @@ tests.
 field it had, and adds `lote` and `columnas_compartidas` so a shared
 query is visible. It also adds `consulta_id`, which identifies the
 statement that produced each measurement and defines the verifiable
-consistency group. `id_muestra` also identifies the data query and
-preserves the guarantee that two metrics with the same value saw exactly
-the same rows. Per-column metrics — mode, mode frequency, and median —
-leave `id_muestra = NA`, because they do not share rows with other
-metrics; `NA` declares that there is no guarantee rather than inventing
-a match.
+consistency group. The inherited query field is now named `id_consulta`,
+without an alias; it identifies the data query. `muestra_id` is reserved
+for the materialized relationship and is published in
+`meta$materializacion`, never as a second name for the query identifier.
+
+For `universo = "muestra_motor"`, the engine selection is materialized
+exactly once in an external client-session spool. Its trailer verifies
+`muestra_id`, `snapshot_id`, `orden_id`, `n_filas`, `bytes` and checksum
+on reread. Every profile pass reads that spool; it never re-samples the
+engine. A chunk is checked against `max_bytes_materializacion` before
+writing, and an excess publishes `spool_presupuesto_excedido` plus
+`muestra_inestable:presupuesto_materializacion`, with no hybrid result.
+The spool does not write to the DBI connection or create temporary
+engine objects. `meta$materializacion` records backend, version,
+checksum, bytes and budget. The measured crossover is part of the
+declared cost, not a speed promise: against PostgreSQL 16 with 2 million
+rows, a 500,000-row sample took about 5.6 s with the spool versus 3.3 s
+when every pass re-sorted independently; the spool is chosen for
+identity and bounded reuse. Across 10,000, 100,000 and 500,000 rows,
+spool totals were 0.448, 1.684 and 5.598 s, while independent re-sorts
+were 0.814, 2.178 and 3.265 s (crossover between 100,000 and 500,000).
+
+The same SQL audit includes `memoria_trabajo`: `creciente`, `acotado`,
+or `NA`, to flag work that should not be recomputed incrementally over a
+larger table.
 
 Every flat aggregate query that carries `n_validos` also carries
 `COUNT(*) AS n_total_consulta` in the same statement. Completeness uses
@@ -499,10 +553,10 @@ inconsistency is attributed to the engine. Batch sizes are separate:
 2: the measured shared read was constant between batches on the
 reference PostgreSQL server, so two cardinalities share one pass. The
 measured two-cardinality batch kept nearly the same time per column as
-one and spilled less than wider batches. The mode query also tries to
+one and spilled less than wider batches. The moda query also tries to
 bring `SUM(COUNT(*)) OVER () AS n_validos_guard` beside its frequency.
 The form is probed before use; if the engine rejects it, the previous
-mode query is retained and the fallback is published in
+moda query is retained and the fallback is published in
 `resumen_tabla$meta$moda_guardian`. When accepted, the bound
 `frecuencia_moda <= n_validos` is checked inside that same statement.
 
@@ -727,17 +781,20 @@ reduce the sample or when a byte probe will be needed.
 
 ### Cost is planned before it is paid
 
-Profiling a 158-column table in `modo = "exacto"` emits 335 queries, and
-327 of them scan, sort or group the whole table. The count follows the
-composition, not the column count: the same 158 columns as text only
-cost 252, because a median asks for a full sort per numeric column.
-`muestra` does not bound any of it — it bounds what is brought into R,
-not the work the engine does. So the cost is declared and chosen
-(`benchmark/medir_plan_ancho.R` reproduces the four numbers):
+Profiling a 158-column table with the default
+`universo = "tabla_completa"` emits 335 queries, and 327 of them scan,
+sort or group the whole table. The count follows the composition, not
+the column count: the same 158 columns as text only cost 252, because a
+median asks for a full sort per numeric column. `muestra` does not bound
+any of it — it bounds what is brought into R, not the work the engine
+does. So the cost is declared and chosen (`benchmark/medir_plan_ancho.R`
+reproduces the four numbers):
 
 ``` r
 
-plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # prepares and publishes a range
+plan_perfilado_dbi(
+  con, "tabla", universo = "muestra_motor", muestra_motor = 5000
+)   # prepares and publishes a range
 ```
 
 The plan gives a **range** for how many queries the profiling will emit,
@@ -751,15 +808,16 @@ distinct batch measured during execution, and the plan emits no data
 queries.
 
 The low end is `total`: when cardinality is unknown, it assumes the
-policy will omit mode. The high end is `total_maximo` —also exposed as
+policy will omit `moda`. The high end is `total_maximo` —also exposed as
 `total_lotes_rechazados` after adding bisection— and leaves open the
 path that executes them. If the engine rejects batches, up to `2n - 1`
 probes are added per batch of `n` columns. The real cost falls between
-the two **when the sample can be built**: if `modo = "muestreado"` and
-the engine does not accept the resolved form, the plan declares it in
-`attr(plan, "muestreo")` and drops the metrics that depended on it from
-the range. The run, in turn, publishes each of them as `no_disponible`
-with its reason: nothing that was not measured is reported as measured.
+the two **when the sample can be built**: if
+`universo = "muestra_motor"` and the engine does not accept the resolved
+form, the plan declares it in `attr(plan, "muestreo")` and drops the
+metrics that depended on it from the range. The run, in turn, publishes
+each of them as `no_disponible` with its reason: nothing that was not
+measured is reported as measured.
 
 Distinct-count provenance is selected explicitly with
 `estrategia_distintos`. `"exacta"` is the default and emits
@@ -805,15 +863,14 @@ not depend on the engine: every capability probe costs a fixed number of
 queries even when it succeeds on the first form, because a cost that
 varied by engine would leave the user guessing again.
 
-The decision to pay mode and median is explicit.
+The decision to pay moda and median is explicit.
 `politica_costo = "todas"` is the default and preserves all requested
-metrics; `"ninguna"` is an alias. With
-`politica_costo = "por_cardinalidad"`, structural sources are resolved
-first. Valid and distinct values are measured only when no exact
-structural source is available and the selected strategy permits
-measurement; then only mode is omitted per column when
+metrics. With `politica_costo = "por_cardinalidad"`, structural sources
+are resolved first. Valid and distinct values are measured only when no
+exact structural source is available and the selected strategy permits
+measurement; then only moda is omitted per column when
 `n_distintos / n_validos >= umbral_cardinalidad`. The default threshold
-is `0.5`, it can be changed in the call, and it governs mode only.
+is `0.5`, it can be changed in the call, and it governs moda only.
 Median is not omitted by cardinality: the measured sweep is flat against
 the number of distinct values and is governed by row count. Every
 omission is declared in `resumen_tabla$sql` as `omitido_por_costo`, with
@@ -840,6 +897,15 @@ in `magnitud_motor`; the client half is `columnas_texto` and
 `pares_texto` — how many pairs of forms the vocabulary detector could
 compare in R over the sample — summarised in `magnitud_texto`.
 `magnitud` is the larger of the two.
+
+On PostgreSQL, when preparation has already read the catalog hierarchy,
+a positive `pg_class.reltuples` also supplies the row magnitude. The
+plan prints it as an estimate of catalog, not a measurement, and exposes
+the source in `filas_fuente`/`estimacion_filas`; the work projections
+for mode and median are published in `proyecciones` with the same label.
+A zero or negative `reltuples` (the usual pre-`ANALYZE` state) leaves
+rows and those projections unknown. Other engines keep the current
+unknown state.
 
 Counting only the engine gave false verdicts out of true numbers: a
 3,912-row PostGIS catalogue table with one geometry column stored as
@@ -879,13 +945,13 @@ bring, while processing 4.5 million took about 7 GB and 12.8 million
 about 19 GB. The observed problem is processing in R, not the network or
 the database engine.
 
-| mode | what it does |
+| dimension | what it does |
 |----|----|
-| `exacto` | every metric over the whole table |
-| `seguro` | drops the metrics that sort the whole column |
-| `conteos` | counts only |
-| `muestreado` | metrics over rows sampled **in the engine**: `TABLESAMPLE` where it exists, a pseudo-random order with a limit where it does not |
-| `aproximado` | native approximate functions for the metrics defined by that mode |
+| defaults | every metric over the whole table |
+| `metricas = c("validos", "basicos", "desvio")` | the historical `seguro` preset |
+| `metricas = "validos"` | the historical `conteos` preset |
+| `universo = "muestra_motor"` | one engine selection materialized in a client spool; `TABLESAMPLE` or a pseudo-random limited source is read once and reused |
+| `estrategia_mediana = "aproximada_motor"` | exact native first, approximate only at the end; only an executed approximation is `estimado` |
 
 Every sampled or approximated metric travels saying so. `estado`
 distinguishes `calculado`, `estimado` and `no_disponible`, and each row
@@ -908,8 +974,8 @@ Distinct counts get their own state, `observado_muestra`: the
 cardinality of a sample does not estimate the cardinality of the
 universe without a declared estimator, so it is reported as what it is —
 what was seen in the sample, with the universe stated beside it. An
-engine with no sampling capability does not break: the mode degrades and
-says so in the coverage table.
+engine with no sampling capability does not break: the engine sample
+degrades and says so in the coverage table.
 
 If the sample query returns zero rows, there is no basis for measuring
 sample-scope metrics. They are published as `NA` with state

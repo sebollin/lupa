@@ -43,6 +43,112 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="ronda-de-arreglos-del-núcleo-0-1-0">Ronda de arreglos del núcleo<a class="anchor" aria-label="anchor" href="#ronda-de-arreglos-del-n%C3%BAcleo-0-1-0"></a></h3>
+<ul><li>La protección de datos personales protege las dos representaciones de la media (<code>media</code> y <code>media_fecha</code>), conserva los desvíos y declara también la supresión de la moda en el detalle de protección.</li>
+<li>
+<code><a href="../reference/comparar_equivalencia.html">comparar_equivalencia()</a></code> omite campos protegidos y los declara en <code>campos_protegidos</code>; también omite magnitudes numéricas cuando sólo uno de los perfiles es temporal y conserva el motivo del cambio de esquema.</li>
+<li>Los acumuladores por bloques rechazan entradas no atómicas o con dimensión en el mapa de distintos, con estado <code>no_disponible</code> y motivo explícito.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="ronda-de-arreglos-dbi-0-1-0">Ronda de arreglos DBI<a class="anchor" aria-label="anchor" href="#ronda-de-arreglos-dbi-0-1-0"></a></h3>
+<ul><li>La via por bloques inicia el mapa central cuando se pide moda o mediana sin publicar <code>n_distintos</code>; aplica <code>politica_costo = "por_cardinalidad"</code>, registra <code>dbfetch_bloques</code> como estado acotado y audita filas, orden y pasadas.</li>
+<li>La atribucion de derrames de PostgreSQL empareja <code>pg_stat_statements</code> por <code>queryid</code>, y los avisos de estimacion declaran el origen de su denominador aun cuando <code>validos</code> no fue solicitado.</li>
+<li>Los spools reciben identificadores propios de cada materializacion y los motivos de muestras vacias publican el metodo que realmente corrio.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="integración-dbi--spool-y-contratos-de-muestra_motor-etapa-i2-0-1-0">Integración DBI — spool y contratos de <code>muestra_motor</code> (Etapa I2)<a class="anchor" aria-label="anchor" href="#integraci%C3%B3n-dbi--spool-y-contratos-de-muestra_motor-etapa-i2-0-1-0"></a></h3>
+<ul><li>
+<code>universo = "muestra_motor"</code> ejecuta una sola selección y la materializa en un spool externo de sesión cliente. El trailer verifica <code>muestra_id</code>, <code>snapshot_id</code>, <code>orden_id</code>, <code>n_filas</code>, <code>bytes</code> y checksum en la relectura; las pasadas leen ese spool y nunca vuelven a muestrear el motor.</li>
+<li>El spool no escribe en la conexión DBI ni crea objetos temporales del motor. <code>meta$materializacion</code> publica backend, versión, checksum, bytes, presupuesto y estado. Un exceso medido antes de escribir cada chunk publica <code>spool_presupuesto_excedido</code> y <code>muestra_inestable:presupuesto_materializacion</code>; no se entrega una muestra híbrida.</li>
+<li>
+<code>perfil_muestra$meta$filas_analizadas</code>, <code>hallazgos</code>, <code>cobertura_diagnosticos</code> y <code>meta$origen_dbi$muestreo</code> forman un contrato explícito. Las familias que no se evaluaron quedan como filas de cobertura; la impresión remite a esa cobertura. El identificador heredado de consulta ahora se llama <code>id_consulta</code>, sin alias; <code>muestra_id</code> queda reservado a la relación materializada.</li>
+<li>El punto de cruce medido en PostgreSQL 16 fue 5,6 s con spool frente a 3,3 s reordenando en cada pasada para 500.000 filas (10.000/100.000/500.000: 0,448/1,684/5,598 s frente a 0,814/2,178/3,265 s). La elección del spool responde a identidad y reutilización, no a una promesa de velocidad.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="integración-dbi--fuente-por-bloques-etapa-i1-0-1-0">Integración DBI — fuente por bloques (Etapa I1)<a class="anchor" aria-label="anchor" href="#integraci%C3%B3n-dbi--fuente-por-bloques-etapa-i1-0-1-0"></a></h3>
+<ul><li>
+<code>perfilar_dbi(..., bloque_filas = n)</code> incorpora una vía optativa para recorrer <code>tabla_completa</code> con un único <code>dbSendQuery()</code> y sucesivos <code>dbFetch(n)</code>. Los acumuladores conservan ordinales globales y el resumen publica <code>alcance</code>, bloques recorridos, bytes retenidos y eventos del vigilante.</li>
+<li>El preflight resuelve clave primaria, localizador o <code>ROW_NUMBER()</code>, publica el método, la collation efectiva y su determinismo. Una collation textual no determinista degrada el orden; DuckDB queda explícitamente <code>no_disponible:dbfetch_no_incremental</code> según la matriz por driver.</li>
+<li>La identidad de una segunda pasada por localizador se comprueba contra los ordinales de la primera. El resumen de bloques conserva estadísticos finitos y sus contadores separados de <code>NA</code>, <code>NaN</code> e infinitos; un resumen SQL que no pueda leer <code>+/-Inf</code> puede divergir por la representación del controlador.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="estimacion-de-derrame-de-moda-y-mediana-en-dbi-0-1-0">Estimacion de derrame de moda y mediana en DBI<a class="anchor" aria-label="anchor" href="#estimacion-de-derrame-de-moda-y-mediana-en-dbi-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> y <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> publican <code>estimacion_derrame_moda</code> y <code>estimacion_derrame_mediana</code>. La moda deriva su metodo del plan <code>EXPLAIN (FORMAT JSON, COSTS OFF)</code> sin <code>ANALYZE</code>; la mediana usa la huella de decision del sort, con pisos de 32 bytes para tipos fijos y 42 para <code>numeric</code>. La consolidada decide por el maximo de columna y publica la suma de tapes solo como <code>estado_io_total_bytes</code> informativo.</li>
+<li>Cuando se solicita <code>validos</code>, la meta y los avisos usan el <code>n_validos</code> medido por los agregados planos y conservan la cifra de catalogo. Sin esa familia, declaran el repliegue al catalogo. El canal medido incluye moda, mediana y consolidada: normaliza literales de forma posicional y publica <code>llamadas_en_ventana</code> cuando agrega llamadas concurrentes.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="mediana-y-conteos-bajo-muestreo-dbi-0-1-0">Mediana y conteos bajo muestreo DBI<a class="anchor" aria-label="anchor" href="#mediana-y-conteos-bajo-muestreo-dbi-0-1-0"></a></h3>
+<ul><li>
+<code>perfilar_dbi(universo = "muestra_motor")</code> calcula la mediana sin <code>dos_consultas</code> cuando el dialecto requiere la CTE de ventanas, y publica los conteos de la muestra con sus denominadores locales. <code>TABLESAMPLE SYSTEM</code> declara su sesgo por bloques; el fallback <code>NEWID()</code> queda gobernado por una politica de costo y se rechaza con un motivo estable cuando excede el presupuesto.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="memoria-de-trabajo-en-la-auditoría-dbi-0-1-0">Memoria de trabajo en la auditoría DBI<a class="anchor" aria-label="anchor" href="#memoria-de-trabajo-en-la-auditor%C3%ADa-dbi-0-1-0"></a></h3>
+<ul><li>
+<code>resumen_tabla$sql</code> agrega <code>memoria_trabajo</code>, derivada del estado de medición, del alcance efectivo y del método resuelto. Distingue trabajo <code>creciente</code>, <code>acotado</code> y filas sin medición (<code>NA</code>), incluida la muestra saturada, cuyo tope vacuo se clasifica por método.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="comparación-de-perfiles-y-estado-del-tipo-inferido-0-1-0">Comparación de perfiles y estado del tipo inferido<a class="anchor" aria-label="anchor" href="#comparaci%C3%B3n-de-perfiles-y-estado-del-tipo-inferido-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/comparar_equivalencia.html">comparar_equivalencia()</a></code> compara campos compartidos con un registro fijo de ejes y una tolerancia explícita del llamador, sin convertir sus resultados en decisiones del paquete.</li>
+<li>El perfil por columna publica <code>estado_tipo_inferido</code> como <code>confirmado</code>, <code>candidato</code> o <code>NA</code>; el resumen impreso anota sólo los tipos candidatos.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="ejecutor-interno-por-bloques--etapa-lsh-externo-0-1-0">Ejecutor interno por bloques — Etapa 4: LSH externo<a class="anchor" aria-label="anchor" href="#ejecutor-interno-por-bloques--etapa-lsh-externo-0-1-0"></a></h3>
+<ul><li>Se incorpora el ejecutor LSH en dos fases con runs ordenados, diccionario externo por merge-join, firmas y cubetas derramadas; conserva los pares al cruzar bloques y publica el desglose de memoria residente, RSS, factor pico y piso de fila.</li>
+<li>Si falta backend de derrame, snapshot u orden estable, LSH queda <code>no_disponible</code> sin degradarse silenciosamente.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="ejecutor-interno-por-bloques--etapa-índice-0-1-0">Ejecutor interno por bloques — Etapa 3: índice<a class="anchor" aria-label="anchor" href="#ejecutor-interno-por-bloques--etapa-%C3%ADndice-0-1-0"></a></h3>
+<ul><li>Las familias de trazabilidad y ejemplos conservan ordinales globales: los índices se recortan al finalizar y los primeros valores únicos se resuelven sobre el orden de la fuente, no por bloque.</li>
+<li>La muestra sistemática por bloques calcula una sola vez sus índices globales y aplica la intersección con cada intervalo; reproduce <code>.muestrear_vector()</code> para 1, 2, 7 y 31 bloques.</li>
+<li>Los sobres de índice publican <code>orden</code>, <code>snapshot</code>, topes y truncamiento; la integración DBI y su <code>ORDER BY</code> queda reservada para la Etapa 4.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="ejecutor-interno-por-bloques--etapa-valor-0-1-0">Ejecutor interno por bloques — Etapa 2: valor<a class="anchor" aria-label="anchor" href="#ejecutor-interno-por-bloques--etapa-valor-0-1-0"></a></h3>
+<ul><li>Las medianas y cuartiles se reconstruyen desde el mapa central ponderado, sin expandir frecuencias; reproducen <code>type = 7</code> y <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">median()</a></code> bajo el filtro explícito <code>is.finite</code>.</li>
+<li>Outliers, centinelas, huecos de secuencias y constantes proporcionales aritméticas tienen acumuladores, segundas pasadas y topes visibles. Si el multiset no cabe, publican <code>no_disponible</code> con motivo y resolución sugerida.</li>
+<li>La aceptación cubre 1, 2, 7 y 31 bloques, la identidad paramétrica, valores infinitos/ausentes, truncamiento y las barreras finales del vigilante.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="ejecutor-interno-por-bloques--etapa-0-1-0">Ejecutor interno por bloques — Etapa 1<a class="anchor" aria-label="anchor" href="#ejecutor-interno-por-bloques--etapa-0-1-0"></a></h3>
+<ul><li>Se incorpora el ciclo interno <code>iniciar</code>/<code>absorber</code>/<code>fusionar</code>/<code>finalizar</code>, con medición de bytes residentes y sobre uniforme de resultado.</li>
+<li>Conteos, mínimos, máximos, media, desvío y longitudes admiten partición y fusión; el mapa central de distintos conserva la igualdad de R, incluidos <code>NA</code>, <code>NaN</code>, <code>+0</code>/<code>-0</code> e <code>integer64</code>.</li>
+<li>Se migran moda y cardinalidad al mapa central cuando está completo, con cota visible al alcanzar el límite. El vigilante registra barreras de bloques y de finalización, incluida la presión artificial de memoria.</li>
+<li>La aplicabilidad rechaza temprano predicados que dependen de estadísticos globales; los predicados por fila conservan su máscara entre particiones.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="perfilar_dbi-separa-universo-métricas-y-estrategias-0-1-0">
+<code>perfilar_dbi()</code> separa universo, métricas y estrategias<a class="anchor" aria-label="anchor" href="#perfilar_dbi-separa-universo-m%C3%A9tricas-y-estrategias-0-1-0"></a></h3>
+<ul><li>Se retira el argumento <code>modo</code> de <code><a href="../reference/perfilar_dbi.html">perfilar_dbi()</a></code> y <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code>, junto con <code>meta$modo</code>. La firma ahora separa el alcance (<code>universo</code>), las métricas (<code>metricas</code>) y las estrategias de cada agregado; el plan y el perfilado comparten el mismo contrato.</li>
+<li>Traducción de los presets anteriores: <code>exacto</code> son los valores por omisión (<code>universo = "tabla_completa"</code>, todas las métricas y estrategias exactas); <code>seguro</code> equivale a <code>metricas = c("validos", "basicos", "desvio")</code>; <code>conteos</code> equivale a <code>metricas = "validos"</code>; <code>muestreado</code> equivale a <code>universo = "muestra_motor"</code>, <code>muestra_motor = n</code> y <code>muestra = n</code>; y <code>aproximado</code> se traduce como <code>estrategia_mediana = "aproximada_motor"</code>, sin forzar el catálogo ni apagar el atajo estructural de otros ejes. La procedencia aproximada de distintos se pide aparte con <code>estrategia_distintos = "aproximada_motor"</code>.</li>
+<li>
+<code>estrategia_mediana</code> describe ahora el orden de la sonda: primero intenta una forma nativa exacta consolidada, después una exacta por columna y sólo al final una función aproximada nativa. El método y el estado publicados son los que efectivamente corrieron: una mediana exacta queda <code>calculado</code>, con <code>error_esperado = "no_aplica"</code>, aunque se haya solicitado la estrategia aproximada; sólo una aproximación ejecutada queda <code>estimado</code>.</li>
+<li>
+<code>universo = "muestra_motor"</code> desactiva la inferencia estructural de cardinalidad por clave primaria: el atajo no puede convertir una muestra en una medición del universo completo. Además, esa combinación rechaza temprano <code>estrategia_mediana = "aproximada_motor"</code>, porque la muestra ya es una aproximación del universo.</li>
+<li>
+<code>politica_costo</code> acepta sólo <code>"todas"</code> y <code>"por_cardinalidad"</code>; desaparecen los alias <code>"ninguna"</code> y <code>"cardinalidad"</code>.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-sonda-de-mediana-consolidada-conserva-el-error-del-motor-0-1-0">La sonda de mediana consolidada conserva el error del motor<a class="anchor" aria-label="anchor" href="#la-sonda-de-mediana-consolidada-conserva-el-error-del-motor-0-1-0"></a></h3>
+<ul><li>La razón de no activar la mediana consolidada incluye el mensaje de la sonda rechazada, y la documentación explicita el requisito de compatibilidad &gt;= 110 de SQL Server.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="la-cobertura-dbi-espeja-el-tope-de-muestra-0-1-0">La cobertura DBI espeja el tope de muestra<a class="anchor" aria-label="anchor" href="#la-cobertura-dbi-espeja-el-tope-de-muestra-0-1-0"></a></h3>
+<ul><li>Cuando <code>max_celdas_muestra</code> o <code>max_bytes_muestra</code> recorta una muestra DBI, la misma fila y el mismo motivo quedan en <code>perfil_muestra$cobertura_diagnosticos</code> y <code>resumen_tabla$cobertura</code>. <code>perfil_muestra$meta$tope_que_mando</code> declara si mandaron <code>celdas</code>, <code>bytes</code> o la propia <code>muestra</code>, y el texto queda junto a esa declaración.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="el-plan-dbi-aprovecha-reltuples-como-estimación-0-1-0">El plan DBI aprovecha <code>reltuples</code> como estimación<a class="anchor" aria-label="anchor" href="#el-plan-dbi-aprovecha-reltuples-como-estimaci%C3%B3n-0-1-0"></a></h3>
+<ul><li>En PostgreSQL, cuando la preparación ya leyó la jerarquía del catálogo, el plan reutiliza <code>pg_class.reltuples</code> positivo para publicar filas, magnitud y proyecciones de trabajo de moda/mediana. Todo queda rotulado como estimación de catálogo y no como medición; <code>reltuples</code> cero o negativo conserva <code>sin dato</code>.</li>
+<li>La referencia temporal incluida en los supuestos del plan queda explícitamente identificada como proveniente de otras corridas, no como el tiempo de la tabla planificada.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="señal-de-concentración-modal-0-1-0">Señal de concentración modal<a class="anchor" aria-label="anchor" href="#se%C3%B1al-de-concentraci%C3%B3n-modal-0-1-0"></a></h3>
+<ul><li>
+<code><a href="../reference/perfilar.html">perfilar()</a></code> agrega <code>valor_concentrado</code>, la señal M2 seleccionada por la medición de concentración. Sólo considera columnas numéricas con al menos 20 valores válidos y 10 valores distintos; emite severidad <code>sospechoso</code> cuando la moda tiene una frecuencia al menos cinco veces mayor que la del segundo valor más frecuente y representa al menos 0,15 de los válidos. La evidencia publica el valor, las dos frecuencias, el cociente y la fracción.</li>
+<li>La elegibilidad no agrega ruido a <code>cobertura_diagnosticos</code>: una columna no elegible simplemente queda fuera de esta señal. La documentación declara sus puntos ciegos medidos: no detecta concentraciones menores al 15 % y los empates naturales en enteros pequeños pueden dejar corto el cociente.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="los-bytes-wkb-basura-no-llegan-a-gdal-0-1-0">Los bytes WKB basura no llegan a GDAL<a class="anchor" aria-label="anchor" href="#los-bytes-wkb-basura-no-llegan-a-gdal-0-1-0"></a></h3>
 <ul><li>Las columnas <code>raw</code> que no tienen un encabezado WKB plausible ya no se envían a <code>sf</code>; esto evita el crash de GDAL observado en win-builder release (R 4.6.1, Windows) y declara la pérdida para WKB declarado.</li>
 </ul></div>
@@ -56,7 +162,7 @@
 </ul></div>
 <div class="section level3">
 <h3 id="una-muestra-vacía-no-publica-métricas-no-medidas-0-1-0">Una muestra vacía no publica métricas no medidas<a class="anchor" aria-label="anchor" href="#una-muestra-vac%C3%ADa-no-publica-m%C3%A9tricas-no-medidas-0-1-0"></a></h3>
-<ul><li>Cuando la consulta de <code>modo = "muestreado"</code> devuelve cero filas, las métricas de alcance <code>muestra</code> quedan en <code>NA</code> y con estado <code>no_disponible</code>; el motivo nombra la muestra vacía. <code>n</code> conserva el conteo de la tabla completa y <code>cobertura</code> mantiene el aviso de que la consulta de muestra devolvió cero filas.</li>
+<ul><li>Cuando la consulta de <code>universo = "muestra_motor"</code> devuelve cero filas, las métricas de alcance <code>muestra</code> quedan en <code>NA</code> y con estado <code>no_disponible</code>; el motivo nombra la muestra vacía. <code>n</code> conserva el conteo de la tabla completa y <code>cobertura</code> mantiene el aviso de que la consulta de muestra devolvió cero filas.</li>
 <li>No se publica <code>0</code> en <code>n_validos</code> o <code>n_distintos</code>, ni se dispara la cascada <code>sin_valores</code>: una muestra vacía no permite concluir que la columna esté vacía. Una muestra no vacía con todos sus valores nulos conserva el estado medido/estimado que corresponde.</li>
 </ul></div>
 <div class="section level3">
@@ -98,7 +204,7 @@
 </ul></div>
 <div class="section level3">
 <h3 id="readme-api-y-recorrido-guiado-0-1-0">README, API y recorrido guiado<a class="anchor" aria-label="anchor" href="#readme-api-y-recorrido-guiado-0-1-0"></a></h3>
-<ul><li>Los dos README ahora empiezan por el problema que resuelve <code>lupa</code>, los tipos de hallazgo que permiten ver más que un <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, la cobertura medida de AGESIC, CEPAL e ISO 25012, los siete motores comprobados contra un motor real y el recorrido mínimo para empezar. La documentación enumera los 56 nombres canónicos de <code>tipo_hallazgo</code>.</li>
+<ul><li>Los dos README ahora empiezan por el problema que resuelve <code>lupa</code>, los tipos de hallazgo que permiten ver más que un <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, la cobertura medida de AGESIC, CEPAL e ISO 25012, los siete motores comprobados contra un motor real y el recorrido mínimo para empezar. La documentación enumera los 57 nombres canónicos de <code>tipo_hallazgo</code>.</li>
 <li>Los argumentos de <code><a href="../reference/medir.html">medir()</a></code>, <code><a href="../reference/evaluar.html">evaluar()</a></code> y <code><a href="../reference/cobertura_analisis.html">cobertura_analisis()</a></code> indican en qué posición se recibe cada objeto y distinguen el perfil descriptivo de <code><a href="../reference/perfilar.html">perfilar()</a></code> del perfil de evaluación de <code><a href="../reference/reglas_evaluacion.html">perfil_evaluacion()</a></code>. Los errores de tipo equivocado ahora nombran el argumento y el constructor esperado.</li>
 <li>El catálogo de motores ya no presenta Oracle como medido: las dos variantes quedan documentadas como dialectos esperados sin comprobación contra un motor real, en línea con la cobertura publicada.</li>
 <li>Se añade la viñeta <code>flujo-guiado</code>, que recorre una propuesta editable desde <code><a href="../reference/perfilar.html">perfilar()</a></code> hasta <code><a href="../reference/evaluar.html">evaluar()</a></code> y muestra el orden de la API.</li>
@@ -373,7 +479,7 @@
 <td align="right">23</td>
 <td align="right">22</td>
 <td align="right">1</td>
-</tr></tbody></table><p>En <code>resumen_tabla$sql</code>, <code>id_muestra</code> identifica la consulta de datos: el mismo identificador garantiza exactamente las mismas filas. Moda, frecuencia de la moda y mediana son métricas por columna y quedan con <code>NA</code>; también queda <code>NA</code> cualquier camino que no pueda sostener esa garantía. Así la comparabilidad se comprueba por comparación directa, sin cruzar <code>lote</code> ni <code>columnas_compartidas</code>.</p>
+</tr></tbody></table><p>En <code>resumen_tabla$sql</code>, <code>id_consulta</code> identifica la consulta de datos: el mismo identificador garantiza exactamente las mismas filas. Moda, frecuencia de la moda y mediana son métricas por columna y quedan con <code>NA</code>; también queda <code>NA</code> cualquier camino que no pueda sostener esa garantía. Así la comparabilidad se comprueba por comparación directa, sin cruzar <code>lote</code> ni <code>columnas_compartidas</code>.</p>
 </div>
 <div class="section level3">
 <h3 id="aislar-la-columna-culpable-en-pocas-consultas-y-no-recorrer-tres-veces-lo-que-cabe-en-una-0-1-0">Aislar la columna culpable en pocas consultas, y no recorrer tres veces lo que cabe en una<a class="anchor" aria-label="anchor" href="#aislar-la-columna-culpable-en-pocas-consultas-y-no-recorrer-tres-veces-lo-que-cabe-en-una-0-1-0"></a></h3>
@@ -976,7 +1082,7 @@ perfilar_dbi()  media = NA           detalle: [estadisticos de orden y momentos 
 <li>
 <strong>La guarda de exactitud de <code>integer64</code> tenia un agujero de un solo numero</strong>: comparaba el doble ya convertido contra 2^53, y 2^53+1 redondea justo a 2^53, asi que pasaba. Ahora se comprueba con la vuelta completa -a doble y de vuelta a entero-, que no depende de donde caiga el redondeo.</li>
 <li>
-<strong><code>meta$muestras_independientes</code> decia algo que la consolidacion volvio falso.</strong> Las columnas de un mismo lote comparten consulta y por lo tanto comparten filas: sus metricas son comparables entre si, y las de lotes distintos no. El campo dice ahora las dos mitades.</li>
+<strong>La descripción de muestras independientes decía algo que la consolidación volvió falso.</strong> Las columnas de un mismo lote comparten consulta y por lo tanto comparten filas; en <code>muestra_motor</code> la selección única queda además en un spool cliente y las pasadas reutilizan esa relación.</li>
 <li>
 <strong>El total de <code><a href="../reference/plan_perfilado_dbi.html">plan_perfilado_dbi()</a></code> pasa a estar declarado como techo.</strong> Se cuenta una mediana y un desvio por columna numerica, y una columna sin valores validos no los emite. La version anterior a la consolidacion erraba por tres consultas en ese caso y esta por una: no es una regresion, es una afirmacion que venia siendo mas fuerte que el codigo.</li>
 </ul></div>
@@ -990,7 +1096,7 @@ perfilar_dbi()  media = NA           detalle: [estadisticos de orden y momentos 
 <li>
 <strong>El hallazgo <code>faltantes</code> nombra la senal estructural.</strong> Cuando <code>posible_ausencia_estructural</code> dispara sobre una columna, el <code>faltantes</code> de esa columna dice en su evidencia que existe esa lectura alternativa. <strong>La severidad no se toca</strong>, y eso se decidio con un caso en contra: en una tabla pivoteada la correlacion entre el mes y la columna del ano es real, y un mes sin dato puede ser un hueco genuino. Degradar ahi lo esconderia.</li>
 <li>
-<strong>El objeto declara que las metricas muestreadas no comparten filas.</strong> Estaba en la vineta, y un consumidor automatico lee el objeto. Aparece en <code>meta$muestras_independientes</code> solo en <code>muestreado</code> y <code>aproximado</code>; en los modos que miden sobre la tabla entera no hay nada que advertir.</li>
+<strong>El objeto declara que las metricas muestreadas no comparten filas.</strong> Estaba en la vineta, y un consumidor automatico lee el objeto. Aparece en <code>meta$materializacion</code> en <code>muestra_motor</code>; en los modos que miden sobre la tabla entera no hay un spool que advertir.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="leer-un-perfil-sin-conocer-su-forma-y-saber-que-falta-para-cada-motor-0-1-0">Leer un perfil sin conocer su forma, y saber que falta para cada motor<a class="anchor" aria-label="anchor" href="#leer-un-perfil-sin-conocer-su-forma-y-saber-que-falta-para-cada-motor-0-1-0"></a></h3>

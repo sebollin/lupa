@@ -15,7 +15,23 @@ Para el COUNT(DISTINCT) exacto, la preparación puede consultar además las
 estadísticas de PostgreSQL (pg_stats, pg_class.reltuples, SHOW work_mem
 y, desde PostgreSQL 13, SHOW hash_mem_multiplier) para estimar el tamaño
 del hash y avisar un posible derrame. Esa consulta de metadatos no publica
-cardinalidad medida ni reemplaza la medición posterior.'><meta property="og:description" content='Emite sólo consultas de preparación —leer el esquema y sondear capacidades—
+cardinalidad medida ni reemplaza la medición posterior.
+Para la moda y la mediana se publican, además, los atributos
+estimacion_derrame_moda y estimacion_derrame_mediana. La moda deriva su
+metodo ("hash" o "sort") del primer Aggregate de un
+EXPLAIN (FORMAT JSON, COSTS OFF) de la consulta exacta, sin ANALYZE ni
+lectura de datos. La mediana siempre modela un sort y distingue su huella de
+decisión de la magnitud del tape. Ambas usan n_validos de catálogo en el
+plan, pisos de 32 bytes para tipos fijos y 42 para numeric, y dejan el
+objeto como no_disponible cuando el catálogo o el motor no permiten una
+estimación.
+Cuando esa lectura de catálogo trae pg_class.reltuples positivo, el plan lo
+reutiliza como una estimación declarada del número de filas. La magnitud y las
+proyecciones de trabajo de moda y mediana quedan entonces disponibles y dicen
+explícitamente estimado_catalogo; no son duraciones ni mediciones. Un valor
+cero o negativo —típico de una relación sin ANALYZE— conserva el estado
+sin dato filas. Los demás motores conservan ese estado si no tienen una
+lectura de catálogo ya disponible.'><meta property="og:description" content='Emite sólo consultas de preparación —leer el esquema y sondear capacidades—
 y devuelve cuántas consultas emitiría el perfilado completo, de qué clase y
 con qué alcance sobre la tabla. No escanea datos para decidir el costo.
 Cuando politica_costo = "por_cardinalidad", una clave estructural exacta
@@ -31,7 +47,23 @@ Para el COUNT(DISTINCT) exacto, la preparación puede consultar además las
 estadísticas de PostgreSQL (pg_stats, pg_class.reltuples, SHOW work_mem
 y, desde PostgreSQL 13, SHOW hash_mem_multiplier) para estimar el tamaño
 del hash y avisar un posible derrame. Esa consulta de metadatos no publica
-cardinalidad medida ni reemplaza la medición posterior.'><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
+cardinalidad medida ni reemplaza la medición posterior.
+Para la moda y la mediana se publican, además, los atributos
+estimacion_derrame_moda y estimacion_derrame_mediana. La moda deriva su
+metodo ("hash" o "sort") del primer Aggregate de un
+EXPLAIN (FORMAT JSON, COSTS OFF) de la consulta exacta, sin ANALYZE ni
+lectura de datos. La mediana siempre modela un sort y distingue su huella de
+decisión de la magnitud del tape. Ambas usan n_validos de catálogo en el
+plan, pisos de 32 bytes para tipos fijos y 42 para numeric, y dejan el
+objeto como no_disponible cuando el catálogo o el motor no permiten una
+estimación.
+Cuando esa lectura de catálogo trae pg_class.reltuples positivo, el plan lo
+reutiliza como una estimación declarada del número de filas. La magnitud y las
+proyecciones de trabajo de moda y mediana quedan entonces disponibles y dicen
+explícitamente estimado_catalogo; no son duraciones ni mediciones. Un valor
+cero o negativo —típico de una relación sin ANALYZE— conserva el estado
+sin dato filas. Los demás motores conservan ese estado si no tienen una
+lectura de catálogo ya disponible.'><meta property="og:image" content="https://sebollin.github.io/lupa/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -90,7 +122,23 @@ Para el <code>COUNT(DISTINCT)</code> exacto, la preparación puede consultar ade
 estadísticas de PostgreSQL (<code>pg_stats</code>, <code>pg_class.reltuples</code>, <code>SHOW work_mem</code>
 y, desde PostgreSQL 13, <code>SHOW hash_mem_multiplier</code>) para estimar el tamaño
 del hash y avisar un posible derrame. Esa consulta de metadatos no publica
-cardinalidad medida ni reemplaza la medición posterior.</p>
+cardinalidad medida ni reemplaza la medición posterior.
+Para la moda y la mediana se publican, además, los atributos
+<code>estimacion_derrame_moda</code> y <code>estimacion_derrame_mediana</code>. La moda deriva su
+<code>metodo</code> (<code>"hash"</code> o <code>"sort"</code>) del primer <code>Aggregate</code> de un
+<code>EXPLAIN (FORMAT JSON, COSTS OFF)</code> de la consulta exacta, sin <code>ANALYZE</code> ni
+lectura de datos. La mediana siempre modela un sort y distingue su huella de
+decisión de la magnitud del tape. Ambas usan <code>n_validos</code> de catálogo en el
+plan, pisos de 32 bytes para tipos fijos y 42 para <code>numeric</code>, y dejan el
+objeto como <code>no_disponible</code> cuando el catálogo o el motor no permiten una
+estimación.
+Cuando esa lectura de catálogo trae <code>pg_class.reltuples</code> positivo, el plan lo
+reutiliza como una estimación declarada del número de filas. La magnitud y las
+proyecciones de trabajo de moda y mediana quedan entonces disponibles y dicen
+explícitamente <code>estimado_catalogo</code>; no son duraciones ni mediciones. Un valor
+cero o negativo —típico de una relación sin <code>ANALYZE</code>— conserva el estado
+<code>sin dato filas</code>. Los demás motores conservan ese estado si no tienen una
+lectura de catálogo ya disponible.</p>
     </div>
 
     <div class="section level2">
@@ -98,23 +146,28 @@ cardinalidad medida ni reemplaza la medición posterior.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">plan_perfilado_dbi</span><span class="op">(</span></span>
 <span>  <span class="va">conexion</span>,</span>
 <span>  <span class="va">tabla</span>,</span>
+<span>  universo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"tabla_completa"</span>, <span class="st">"muestra_motor"</span><span class="op">)</span>,</span>
+<span>  muestra_motor <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  muestra <span class="op">=</span> <span class="cn">Inf</span>,</span>
 <span>  orden_muestra <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  modo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exacto"</span>, <span class="st">"seguro"</span>, <span class="st">"conteos"</span>, <span class="st">"muestreado"</span>, <span class="st">"aproximado"</span><span class="op">)</span>,</span>
-<span>  metricas <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  metricas <span class="op">=</span> <span class="va">.METRICAS_DBI</span>,</span>
+<span>  estrategia_distintos <span class="op">=</span> <span class="st">"exacta"</span>,</span>
+<span>  estrategia_mediana <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exacta"</span>, <span class="st">"aproximada_motor"</span><span class="op">)</span>,</span>
+<span>  politica_costo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"todas"</span>, <span class="st">"por_cardinalidad"</span><span class="op">)</span>,</span>
+<span>  bloque_muestra <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"con_muestra"</span>, <span class="st">"solo_agregados"</span><span class="op">)</span>,</span>
 <span>  max_consultas <span class="op">=</span> <span class="cn">Inf</span>,</span>
 <span>  dialecto <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span>  incluir_valores <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  tamano_lote <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  tamano_lote_planos <span class="op">=</span> <span class="va">.TAMANO_LOTE_PLANOS_DBI</span>,</span>
 <span>  tamano_lote_distintos <span class="op">=</span> <span class="va">.TAMANO_LOTE_DISTINTOS_DBI</span>,</span>
-<span>  bloque_muestra <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"con_muestra"</span>, <span class="st">"solo_agregados"</span><span class="op">)</span>,</span>
 <span>  instrumentar <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  estrategia_distintos <span class="op">=</span> <span class="st">"exacta"</span>,</span>
-<span>  politica_costo <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"todas"</span>, <span class="st">"ninguna"</span>, <span class="st">"por_cardinalidad"</span>, <span class="st">"cardinalidad"</span><span class="op">)</span>,</span>
 <span>  umbral_cardinalidad <span class="op">=</span> <span class="va">.UMBRAL_CARDINALIDAD_COSTO_DBI</span>,</span>
 <span>  max_celdas_muestra <span class="op">=</span> <span class="va">.MAX_CELDAS_MUESTRA</span>,</span>
-<span>  max_bytes_muestra <span class="op">=</span> <span class="va">.MAX_BYTES_MUESTRA</span></span>
+<span>  max_bytes_muestra <span class="op">=</span> <span class="va">.MAX_BYTES_MUESTRA</span>,</span>
+<span>  bloque_filas <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  max_bytes_procesamiento <span class="op">=</span> <span class="va">.MAX_BYTES_MUESTRA</span>,</span>
+<span>  max_bytes_materializacion <span class="op">=</span> <span class="va">.MAX_BYTES_MUESTRA</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -131,19 +184,30 @@ cardinalidad medida ni reemplaza la medición posterior.</p>
 <code><a href="https://dbi.r-dbi.org/reference/dbQuoteIdentifier.html" class="external-link">DBI::dbQuoteIdentifier()</a></code>.</p></dd>
 
 
+<dt id="arg-universo">universo<a class="anchor" aria-label="anchor" href="#arg-universo"></a></dt>
+<dd><p>Universo sobre el que se calculan los agregados SQL:
+<code>"tabla_completa"</code> (por omisión) o <code>"muestra_motor"</code>. En el segundo caso,
+todas las métricas SQL usan la relación muestreada por el motor y no se
+reemplazan silenciosamente por resultados de la tabla completa.</p></dd>
+
+
+<dt id="arg-muestra-motor">muestra_motor<a class="anchor" aria-label="anchor" href="#arg-muestra-motor"></a></dt>
+<dd><p>Cantidad positiva y finita de filas que el motor debe
+tomar cuando <code>universo = "muestra_motor"</code>. Es obligatorio en ese universo y
+debe quedar <code>NULL</code> para <code>"tabla_completa"</code>; la función rechaza temprano
+valores no enteros, no positivos o <code>Inf</code>.</p></dd>
+
+
 <dt id="arg-muestra">muestra<a class="anchor" aria-label="anchor" href="#arg-muestra"></a></dt>
 <dd><p>Cantidad positiva de filas solicitadas para el perfil de
-muestra, o <code>Inf</code> para traer la tabla entera. El valor por omisión ya es
-<code>Inf</code>: no representa una elección distinta de <code>Inf</code>, sino la tabla completa.
-Con <code>Inf</code> la consulta sale sin <code>LIMIT</code> y <code>tabla_completa</code> queda en <code>TRUE</code>.</p>
-<p>El resumen de tabla <strong>no</strong> se muestrea: con <code>modo = "exacto"</code> se calcula en
-el motor sobre todas las filas. Lo que sale de esta muestra son los
-diagnosticos que necesitan los valores en R -patrones, formatos,
-casi-duplicados y dependencias funcionales-, y sin <code>orden_muestra</code> no son
-una muestra aleatoria sino las primeras filas que devuelva el motor. El
-limite también alcanza la muestra común con que se buscan dependencias.
-Use un entero finito para acotar ese trabajo; <code>Inf</code> es el valor por omisión
-y trae la tabla entera cuando el tiempo no es la restricción.</p></dd>
+muestra que se trae a R, o <code>Inf</code> para traer la tabla entera. Este límite es
+independiente de <code>universo</code>: en <code>muestra_motor</code>, <code>muestra_motor</code> decide las
+filas del resumen SQL y <code>muestra</code> decide las filas del bloque
+<code>perfil_muestra</code>. En <code>tabla_completa</code>, <code>muestra</code> no cambia los agregados.</p>
+<p>Sin <code>orden_muestra</code>, las filas del bloque en R no son una muestra aleatoria
+garantizada sino las primeras que devuelva el motor. El límite también
+alcanza la muestra común con que se buscan dependencias. Use un entero
+finito para acotar ese trabajo cuando el tiempo no sea la restricción.</p></dd>
 
 
 <dt id="arg-orden-muestra">orden_muestra<a class="anchor" aria-label="anchor" href="#arg-orden-muestra"></a></dt>
@@ -151,21 +215,74 @@ y trae la tabla entera cuando el tiempo no es la restricción.</p></dd>
 reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y <code>meta</code> lo declara expresamente. No se usa cuando
-<code>bloque_muestra = "solo_agregados"</code>.</p></dd>
-
-
-<dt id="arg-modo">modo<a class="anchor" aria-label="anchor" href="#arg-modo"></a></dt>
-<dd><p>Conjunto de métricas del resumen: <code>"exacto"</code> las calcula todas,
-<code>"seguro"</code> evita las que ordenan o agrupan la tabla completa y
-<code>"conteos"</code> deja solo el conteo de valores no nulos, <code>"muestreado"</code>
-calcula estimaciones sobre filas elegidas por el motor y <code>"aproximado"</code>
-usa funciones nativas aproximadas para las métricas que ese modo define.</p></dd>
+<code>bloque_muestra = "solo_agregados"</code>. En la via I1, la identidad de la
+fuente por bloques gobierna el recorrido y este pedido queda declarado en
+<code>meta$orden_muestra</code> con el motivo estable de que no gobierna esa via.</p></dd>
 
 
 <dt id="arg-metricas">metricas<a class="anchor" aria-label="anchor" href="#arg-metricas"></a></dt>
-<dd><p>Selección explícita de grupos de métricas, que tiene
-prioridad sobre <code>modo</code>: <code>"validos"</code>, <code>"distintos"</code>, <code>"moda"</code>,
-<code>"basicos"</code>, <code>"mediana"</code> y <code>"desvio"</code>.</p></dd>
+<dd><p>Selección explícita de grupos de métricas: <code>"validos"</code>,
+<code>"distintos"</code>, <code>"moda"</code>, <code>"basicos"</code>, <code>"mediana"</code> y <code>"desvio"</code>. El
+valor por omisión solicita las seis. Para traducir presets de versiones
+anteriores: <code>seguro</code> equivale a
+<code>c("validos", "basicos", "desvio")</code> y <code>conteos</code> equivale a
+<code>"validos"</code>; <code>exacto</code> equivale a los valores por omisión de esta firma.</p></dd>
+
+
+<dt id="arg-estrategia-distintos">estrategia_distintos<a class="anchor" aria-label="anchor" href="#arg-estrategia-distintos"></a></dt>
+<dd><p>Procedencia explícita para <code>n_distintos</code>:
+<code>"exacta"</code> (por omisión) emite <code>COUNT(DISTINCT)</code>; <code>"aproximada_motor"</code>
+usa una función nativa aceptada por el motor y deja la métrica en
+<code>no_disponible</code> si no existe; <code>"catalogo"</code> lee
+<code>pg_stats.n_distinct</code> en PostgreSQL y publica el resultado como
+<code>estimado_catalogo</code>, nunca como medición, cuando
+<code>universo = "tabla_completa"</code>. En <code>muestra_motor</code> queda <code>no_disponible</code>,
+porque el catálogo describe la relación entera y la corrida mide un
+subconjunto; y
+<code>"omitida"</code> no emite ninguna consulta. No hay repliegue automático entre
+estrategias. El resultado publica <code>estrategia_solicitada</code>,
+<code>estrategia_resuelta</code> y <code>estado</code> en <code>meta$estrategia_distintos</code>, y las dos
+primeras también en <code>resumen_tabla$sql</code>. En <code>pg_stats</code>, un valor positivo
+es el conteo estimado y uno negativo es una fracción de las filas. Cuando la
+relación tiene descendientes se elige <code>inherited = TRUE</code>, porque esa fila
+describe lo que lee una consulta sin <code>ONLY</code>; una relación sin hijas usa su
+única fila propia. Las fracciones se convierten con la suma de
+<code>pg_class.reltuples</code> de la jerarquía. Si no hay una fila utilizable —por
+ejemplo, antes de <code>ANALYZE</code>— o hay ambigüedad, la métrica queda
+<code>no_disponible</code>, no en cero.</p></dd>
+
+
+<dt id="arg-estrategia-mediana">estrategia_mediana<a class="anchor" aria-label="anchor" href="#arg-estrategia-mediana"></a></dt>
+<dd><p>Preferencia para resolver <code>mediana</code>: <code>"exacta"</code>
+(por omisión) o <code>"aproximada_motor"</code>. La sonda prueba siempre primero una
+forma nativa exacta consolidada, luego una forma exacta por columna y deja
+las funciones nativas aproximadas para el final. Por eso esta opción
+describe la estrategia habilitada, no garantiza el método ejecutado:
+<code>meta$estrategia_mediana</code> y <code>resumen_tabla$sql$metodo</code> publican el método
+que efectivamente corrió. Una mediana resuelta por una forma exacta queda
+<code>estado = "calculado"</code> y <code>error_esperado = "no_aplica"</code>, aunque se haya
+pedido <code>"aproximada_motor"</code>; sólo una aproximación ejecutada queda
+<code>estado = "estimado"</code>. <code>universo = "muestra_motor"</code> combinado con
+<code>"aproximada_motor"</code> se rechaza temprano.</p></dd>
+
+
+<dt id="arg-politica-costo">politica_costo<a class="anchor" aria-label="anchor" href="#arg-politica-costo"></a></dt>
+<dd><p>Política optativa para las métricas caras. El valor por
+omisión, <code>"todas"</code>, conserva moda y mediana para todas las columnas
+solicitadas. <code>"por_cardinalidad"</code> resuelve primero las fuentes
+estructurales y mide valores válidos y distintos sólo cuando hace falta y
+la estrategia lo permite. Luego omite, por columna, sólo la moda cuando la
+proporción de distintos alcanza <code>umbral_cardinalidad</code>; la mediana se
+conserva porque las mediciones disponibles muestran que su costo depende de
+las filas y no de la cardinalidad. Los únicos valores aceptados son
+<code>"todas"</code> y <code>"por_cardinalidad"</code>; no hay alias históricos.</p></dd>
+
+
+<dt id="arg-bloque-muestra">bloque_muestra<a class="anchor" aria-label="anchor" href="#arg-bloque-muestra"></a></dt>
+<dd><p>Qué bloques se solicitan: <code>"con_muestra"</code> (por
+omisión) calcula también <code>perfil_muestra</code>, o <code>"solo_agregados"</code> omite su
+lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
+alcance de esos agregados: eso lo decide <code>universo</code>.</p></dd>
 
 
 <dt id="arg-max-consultas">max_consultas<a class="anchor" aria-label="anchor" href="#arg-max-consultas"></a></dt>
@@ -205,53 +322,10 @@ menos que los lotes mayores. Una sola cardinalidad todavía puede forzar un
 agregado pesado y derramar mucho más que un lote plano.</p></dd>
 
 
-<dt id="arg-bloque-muestra">bloque_muestra<a class="anchor" aria-label="anchor" href="#arg-bloque-muestra"></a></dt>
-<dd><p>Qué bloques se solicitan: <code>"con_muestra"</code> (por
-omisión) calcula también <code>perfil_muestra</code>, o <code>"solo_agregados"</code> omite su
-lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
-alcance de esos agregados: eso lo decide <code>modo</code>.</p></dd>
-
-
 <dt id="arg-instrumentar">instrumentar<a class="anchor" aria-label="anchor" href="#arg-instrumentar"></a></dt>
 <dd><p>En el plan, si es <code>TRUE</code>, cronometra las consultas de
 preparación. No habilita consultas de datos ni agrega mediciones al objeto
 devuelto: sus costos siguen siendo predicciones. Por omisión es <code>FALSE</code>.</p></dd>
-
-
-<dt id="arg-estrategia-distintos">estrategia_distintos<a class="anchor" aria-label="anchor" href="#arg-estrategia-distintos"></a></dt>
-<dd><p>Procedencia explícita para <code>n_distintos</code>:
-<code>"exacta"</code> (por omisión) emite <code>COUNT(DISTINCT)</code>; <code>"aproximada_motor"</code>
-usa una función nativa aceptada por el motor y deja la métrica en
-<code>no_disponible</code> si no existe; <code>"catalogo"</code> lee
-<code>pg_stats.n_distinct</code> en PostgreSQL y publica el resultado como
-<code>estimado_catalogo</code>, nunca como medición, cuando el modo mide la relación
-entera (<code>exacto</code>, <code>seguro</code> o <code>conteos</code>). En <code>muestreado</code> y <code>aproximado</code>
-queda <code>no_disponible</code>, porque el catálogo describe la relación entera y la
-corrida mide un subconjunto; y
-<code>"omitida"</code> no emite ninguna consulta. No hay repliegue automático entre
-estrategias. El resultado publica <code>estrategia_solicitada</code>,
-<code>estrategia_resuelta</code> y <code>estado</code> en <code>meta$estrategia_distintos</code>, y las dos
-primeras también en <code>resumen_tabla$sql</code>. En <code>pg_stats</code>, un valor positivo
-es el conteo estimado y uno negativo es una fracción de las filas. Cuando la
-relación tiene descendientes se elige <code>inherited = TRUE</code>, porque esa fila
-describe lo que lee una consulta sin <code>ONLY</code>; una relación sin hijas usa su
-única fila propia. Las fracciones se convierten con la suma de
-<code>pg_class.reltuples</code> de la jerarquía. Si no hay una fila utilizable —por
-ejemplo, antes de <code>ANALYZE</code>— o hay ambigüedad, la métrica queda
-<code>no_disponible</code>, no en cero.</p></dd>
-
-
-<dt id="arg-politica-costo">politica_costo<a class="anchor" aria-label="anchor" href="#arg-politica-costo"></a></dt>
-<dd><p>Política optativa para las métricas caras. El valor por
-omisión, <code>"todas"</code>, conserva moda y mediana para todas las columnas
-solicitadas. <code>"ninguna"</code> es un alias de <code>"todas"</code>; <code>"por_cardinalidad"</code>
-(también <code>"cardinalidad"</code>) resuelve primero las fuentes estructurales y
-mide valores válidos y distintos sólo cuando hace falta y la estrategia lo
-permite. Luego omite, por columna, sólo la moda cuando la proporción de
-distintos alcanza <code>umbral_cardinalidad</code>; la mediana se conserva porque las
-mediciones disponibles muestran que su costo depende de las filas y no de
-la cardinalidad. Una estrategia no disponible no se convierte en una
-medición exacta.</p></dd>
 
 
 <dt id="arg-umbral-cardinalidad">umbral_cardinalidad<a class="anchor" aria-label="anchor" href="#arg-umbral-cardinalidad"></a></dt>
@@ -281,6 +355,30 @@ resto. Si reduce la muestra, <code>cobertura_diagnosticos</code> informa los byt
 observados, el umbral y cuál tope mandó. <code>Inf</code> desactiva este tope. No
 modifica los agregados SQL.</p></dd>
 
+
+<dt id="arg-bloque-filas">bloque_filas<a class="anchor" aria-label="anchor" href="#arg-bloque-filas"></a></dt>
+<dd><p>En la via I1, entero positivo que activa la fuente por
+bloques de <code>tabla_completa</code>. Cada bloque se obtiene con un unico result
+set (<code>dbSendQuery()</code> + <code>dbFetch(n = bloque_filas)</code>) y se absorbe antes de
+liberar la entrada. <code>NULL</code> conserva el plan historico. El plan publica la
+proyeccion, el orden, los bloques previstos y el costo declarado sin leer
+las filas.</p></dd>
+
+
+<dt id="arg-max-bytes-procesamiento">max_bytes_procesamiento<a class="anchor" aria-label="anchor" href="#arg-max-bytes-procesamiento"></a></dt>
+<dd><p>Límite de bytes del estado retenido por el
+procesamiento por bloques y por la lectura del spool en R. Se comprueba
+antes de publicar un bloque o una pasada; <code>Inf</code> desactiva este límite.</p></dd>
+
+
+<dt id="arg-max-bytes-materializacion">max_bytes_materializacion<a class="anchor" aria-label="anchor" href="#arg-max-bytes-materializacion"></a></dt>
+<dd><p>Presupuesto de bytes del spool externo de
+<code>muestra_motor</code>. Se mide por chunk antes de cada escritura, dejando espacio
+para el trailer; si no alcanza, se publica
+<code>spool_presupuesto_excedido</code> y
+<code>muestra_inestable:presupuesto_materializacion</code> sin mezclar una muestra
+parcial con resultados completos. <code>Inf</code> desactiva este límite.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -290,8 +388,9 @@ modifica los agregados SQL.</p></dd>
 <code>columnas_numericas</code>, <code>dialecto</code>, <code>consultas_emitidas</code>, <code>metricas</code>,
 <code>metricas_ejecucion</code>, <code>politica_costo</code>, <code>estrategia_distintos</code>,
 <code>fuente_cardinalidad_costo</code>, <code>moda_guardian</code>, <code>mediana_consolidada</code>, <code>filas</code>,
-<code>mediana_escalar</code>,
+<code>filas_fuente</code>, <code>estimacion_filas</code>, <code>proyecciones</code>, <code>mediana_escalar</code>,
 <code>tamano_lote_planos</code>, <code>tamano_lote_distintos</code>, <code>estimacion_derrame</code>,
+<code>estimacion_derrame_moda</code>, <code>estimacion_derrame_mediana</code>,
 <code>celdas</code>, <code>memoria_procesamiento</code>, <code>max_celdas_muestra</code>,
 <code>max_bytes_muestra</code>, <code>tope_muestra</code> y <code>muestreo</code>, y,
 cuando se pide <code>distintos</code>, <code>supuesto_costo_distintos</code>.
@@ -300,8 +399,12 @@ estimación de consumo, sino la declaración de su ausencia, el motivo, la
 magnitud del trabajo y referencias medidas de otras corridas. El atributo
 <code>estimacion_derrame</code> es independiente: sólo describe la estimación del hash
 en el motor para <code>COUNT(DISTINCT)</code> y no la memoria del procesamiento en R.
+<code>estimacion_derrame_moda</code> y <code>estimacion_derrame_mediana</code> describen,
+respectivamente, el nodo real de la moda y el sort de la mediana. Sus
+lotes deciden por el máximo de columna; en una mediana consolidada,
+<code>estado_io_total_bytes</code> es sólo la suma informativa de los tapes.
 <code>muestreo</code> declara si la forma muestreada se pudo construir sin emitir una
-consulta de datos. En <code>modo = "muestreado"</code>, cuando su <code>estado</code> es
+consulta de datos. En <code>universo = "muestra_motor"</code>, cuando su <code>estado</code> es
 <code>"no_disponible"</code>, el plan excluye las métricas SQL de esa muestra y
 <code>supuesto</code> conserva el motivo.
 Cuando se pide <code>bloque_muestra = "solo_agregados"</code>, también conserva ese
@@ -322,7 +425,7 @@ mediana queda fuera de ese supuesto proporcional y se cuenta según las
 columnas numéricas solicitadas. Ambos incluyen la preparación y el perfilado; el rechazo
 de lotes puede agregar las sondas de bisección declaradas por
 <code>total_lotes_rechazados</code>. El costo real cae entre los extremos cuando
-<code>modo</code> no es <code>"muestreado"</code> o <code>attr(plan, "muestreo")$estado</code> es
+<code>universo</code> es <code>"tabla_completa"</code> o <code>attr(plan, "muestreo")$estado</code> es
 <code>"disponible"</code>; en <code>"no_sondeado"</code> la forma sólo se construyó localmente
 y el intervalo queda condicionado a que la sonda de la corrida la acepte.
 Si la forma muestreada no se puede construir, el plan declara ese caso,
@@ -339,8 +442,10 @@ en R el detector de vocabulario sobre la muestra— y se resume en
 <code>magnitud_texto</code>. <code>magnitud</code> es la mayor de las dos: <code>"baja"</code>, <code>"media"</code>,
 <code>"alta"</code>, o <code>"desconocida"</code> si no se conoce el número de filas.
 <code>supuesto_costo</code> dice de dónde sale cada cuenta.</p>
-<p>El plan previo no publica duraciones, CPU, filas ni bytes medidos, ni agrega
-una proyección temporal de <code>COUNT(DISTINCT)</code>. Aunque el plan de una corrida
+<p>El plan previo no publica duraciones, CPU, ni filas o bytes medidos, ni agrega
+una proyección temporal de <code>COUNT(DISTINCT)</code>. Puede publicar filas estimadas
+por <code>pg_class.reltuples</code> y proyecciones de trabajo de moda/mediana, siempre
+rotuladas como estimación de catálogo y no como medición. Aunque el plan de una corrida
 conserve el atributo <code>supuesto_costo_distintos</code>, la medición y la proyección
 sólo aparecen en <code>resumen_tabla$meta$costo_distintos</code>, después de ejecutar
 el primer lote. El atributo sólo declara por qué esa proyección no existe
@@ -373,10 +478,10 @@ corrida y conserva por separado lo pedido, lo resuelto y el estado. No hay
 <code>auto</code>: <code>"exacta"</code> es el valor por omisión, <code>"aproximada_motor"</code> queda
 <code>no_disponible</code> si el motor no ofrece una función aceptada, <code>"catalogo"</code>
 lee <code>pg_stats.n_distinct</code> en PostgreSQL y publica una estimación con estado
-<code>estimado_catalogo</code> cuando el modo mide la relación entera (<code>exacto</code>,
-<code>seguro</code> o <code>conteos</code>), y <code>"omitida"</code> no emite el agregado. En
-<code>muestreado</code> y <code>aproximado</code>, <code>catalogo</code> queda <code>no_disponible</code>: sus
-estadísticas describen la relación entera y no el subconjunto de la corrida.
+<code>estimado_catalogo</code> cuando <code>universo = "tabla_completa"</code>, y <code>"omitida"</code> no
+emite el agregado. Con <code>universo = "muestra_motor"</code>, <code>catalogo</code> queda
+<code>no_disponible</code>: sus estadísticas describen la relación entera y no el
+subconjunto de la corrida.
 Un <code>n_distinct</code>
 positivo es un conteo y uno negativo una fracción de las filas. Si la
 relación tiene descendientes se usa la fila <code>inherited = TRUE</code>, que describe
@@ -408,6 +513,14 @@ corridas de referencia, 4,5 millones de filas entraron en 0,6 GB y tardaron
 25 segundos, mientras que procesar 4,5 millones ocupó aproximadamente 7 GB
 y procesar 12,8 millones aproximadamente 19 GB. El problema observado está
 en el procesamiento en R, no en la red ni en el motor.</p>
+<p>Para <code>universo = "muestra_motor"</code>, el plan declara una única selección que
+se pagará para cerrar el spool externo de sesión cliente. <code>attr(plan, "materializacion")</code> publica <code>pagado = FALSE</code>, backend, versión, presupuesto,
+result set, fetches esperados, filas y bytes; <code>attr(plan, "pasadas")</code> declara
+que valor, índice y LSH leerán el mismo spool. La referencia medida para
+justificar este costo es PostgreSQL 16, 2 millones de filas: 10.000, 100.000
+y 500.000 filas dieron 0,448/1,684/5,598 s con spool frente a
+0,814/2,178/3,265 s reordenando cada pasada; el cruce está entre 100.000 y
+500.000, y la elección prioriza identidad.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

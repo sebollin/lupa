@@ -208,6 +208,30 @@ fecha se examina como vector y los formatos se cuentan por separado.</p>
 <span><span class="co">#&gt; 5   %Y%m%d 1 0.07692308 confirmado             1          0            FALSE          dia</span></span></code></pre></div>
 <p>Estas salidas describen compatibilidad y frecuencia. No convierten la
 columna ni afirman cuál formato debe aceptar el sistema.</p>
+<p>Una columna compuesta sólo por fechas como <code>01/02/2020</code>
+puede ser compatible al 100 % y seguir siendo ambigua: sin una
+convención externa no se sabe si el primer número es día o mes. El
+perfil conserva esa diferencia donde se consume la inferencia.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">20260831</span><span class="op">)</span></span>
+<span><span class="va">perfil_fecha_ambigua</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>    fecha_ambigua <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"01/02/2020"</span>, <span class="st">"02/03/2020"</span>, <span class="st">"03/04/2020"</span><span class="op">)</span>,</span>
+<span>    stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  muestra <span class="op">=</span> <span class="cn">Inf</span>,</span>
+<span>  analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">perfil_fecha_ambigua</span><span class="op">$</span><span class="va">columnas</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="st">"columna"</span>, <span class="st">"tipo_inferido"</span>, <span class="st">"proporcion_tipo_inferido"</span>,</span>
+<span>  <span class="st">"estado_tipo_inferido"</span></span>
+<span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;         columna tipo_inferido proporcion_tipo_inferido estado_tipo_inferido</span></span>
+<span><span class="co">#&gt; 1 fecha_ambigua         fecha                        1            candidato</span></span></code></pre></div>
+<p>Así, <code>tipo_inferido = "fecha"</code> y
+<code>proporcion_tipo_inferido = 1</code> no se leen como confirmación:
+<code>estado_tipo_inferido = "candidato"</code> dice que la lectura
+todavía no está establecida.</p>
 </div>
 <div class="section level2">
 <h2 id="escalas-distribuciones-y-asociaciones">Escalas, distribuciones y asociaciones<a class="anchor" aria-label="anchor" href="#escalas-distribuciones-y-asociaciones"></a>
@@ -217,7 +241,7 @@ columna. <code>confianza</code> expone la fuerza de la propuesta y
 <code>confirmada</code> distingue una declaración de una inferencia. Sin
 metadatos declarados, las propuestas siguientes quedan sin
 confirmar.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">clasificacion</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/clasificar_variables.html">clasificar_variables</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
 <span><span class="va">clasificacion</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"columna"</span>, <span class="st">"tipo_almacenamiento"</span>, <span class="st">"tipo_implicito"</span>, <span class="st">"escala_propuesta"</span>,</span>
@@ -250,7 +274,7 @@ cuantiles. Aquí se muestran las frecuencias de <code>canal</code> y los
 cuantiles de <code>monto</code>; <code>alcance</code> del objeto
 conserva el total analizado, el muestreo y el truncamiento por
 columna.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">distribuciones</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/distribucion_valores.html">distribucion_valores</a></span><span class="op">(</span><span class="va">datos_operativos</span>, max_valores <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span>
 <span><span class="va">distribuciones</span><span class="op">$</span><span class="va">frecuencias</span><span class="op">[</span></span>
 <span>  <span class="va">distribuciones</span><span class="op">$</span><span class="va">frecuencias</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"canal"</span>, , drop <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -273,7 +297,7 @@ columna.</p>
 <p>Las asociaciones son medidas entre pares, no dependencias ni
 instrucciones de modelado. La columna <code>supuesto</code> dice cómo se
 trataron las escalas para calcular cada medida.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">asociaciones</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/detectar_asociaciones.html">detectar_asociaciones</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
 <span><span class="fu">utils</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">asociaciones</span>, <span class="fl">5</span><span class="op">)</span></span>
 <span><span class="co">#&gt;     columna_1 columna_2     tipo_1     tipo_2           metodo</span></span>
@@ -302,7 +326,7 @@ trataron las escalas para calcular cada medida.</p>
 mediante su contenido. Resume el período observado y propone una
 frecuencia con <code>confirmada = FALSE</code>; la propuesta sigue
 siendo evidencia para revisar.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">tiempo</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/analizar_tiempo.html">analizar_tiempo</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">)</span></span>
 <span><span class="va">tiempo</span><span class="op">$</span><span class="va">resumen</span></span>
 <span><span class="co">#&gt;        columna n_presentes n_fechas_distintas n_duplicados_temporales fecha_minima</span></span>
@@ -324,7 +348,7 @@ siendo evidencia para revisar.</p>
 <code><a href="../reference/granularidades.html">transiciones_granularidad()</a></code> no analizan las tablas.
 Devuelven el vocabulario de niveles en que se puede medir y el grafo de
 agregaciones admitidas.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/granularidades.html">granularidades</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    nivel           granularidad           relacional implementada</span></span>
 <span><span class="co">#&gt; 1      1      instanciaAtributo                celda         TRUE</span></span>

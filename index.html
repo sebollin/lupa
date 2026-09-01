@@ -132,6 +132,11 @@
 <td><code>Valor: principal; frecuencia: 13</code></td>
 </tr>
 <tr>
+<td>A concentrated modal value</td>
+<td><code>valor_concentrado</code></td>
+<td><code>Valor modal: 1000; frecuencia de la moda: 25; frecuencia del segundo valor: 1; cociente moda/segundo: 25.000; fraccion de la moda sobre validos: 0.250</code></td>
+</tr>
+<tr>
 <td>Exact duplicate rows</td>
 <td><code>filas_duplicadas</code></td>
 <td><code>2 filas en grupos duplicados (1 excedentes)</code></td>
@@ -144,7 +149,7 @@
 </tbody>
 </table>
 <p>In a purpose-built table, the profile emitted 15 kinds of finding, including mixed currencies and units, mixed date formats, disguised missingness, extra spaces, inconsistent capitalization, spelling variants, numbers stored as text, near-keys, constants and structural absence. On a reference bank with known defects it recovered 9 of 9 planted defects; on 43 clean tables it produced 0 error-severity findings.</p>
-<p>The current canonical vocabulary has 56 <code>tipo_hallazgo</code> names. The names are Spanish because they are part of the public API:</p>
+<p>The current canonical vocabulary has 57 <code>tipo_hallazgo</code> names. The names are Spanish because they are part of the public API:</p>
 <pre class="text"><code>alta_cardinalidad                 anio_de_dos_digitos
 bloqueo_por_con_perdida          casi_clave
 casi_duplicados_vocabulario      celdas_multivaluadas
@@ -171,9 +176,12 @@ regla_silencia_ausencia          relacion_aritmetica_columnas
 relacion_orden_columnas          separadores_en_campo
 tipo_compuesto_no_analizado      tipo_declarado_distinto
 tipos_geometria_mixtos           unidades_mixtas
-valor_fuera_de_aplicabilidad     valores_no_finitos
+valor_concentrado                valor_fuera_de_aplicabilidad
+valores_no_finitos
 variantes_equifrecuentes_vocabulario
 zona_horaria_fecha_hora</code></pre>
+<p>The <code>valor_concentrado</code> signal implements the measured M2 rule. It considers only numeric columns with at least 20 non-missing valid values and at least 10 distinct values. It emits a <code>sospechoso</code> finding when the modal frequency is at least five times the second-highest frequency and the modal value accounts for at least 0.15 of valid values. Its evidence reports the modal value, both frequencies, the ratio, and the fraction. A legitimate value can dominate, so this is never an <code>error</code>. Non-eligible columns do not receive a <code>cobertura_diagnosticos</code> row: categorical distributions are outside the signal’s intended scope.</p>
+<p>The measured blind spots are part of this contract: concentrations below 15% are not detected, and natural ties in small integer columns can keep the ratio below five. The measurement found zero false positives in 114 clean eligible columns, with a 2.2x margin.</p>
 </div>
 <div class="section level2">
 <h2 id="what-it-does-not-do">What it does not do<a class="anchor" aria-label="anchor" href="#what-it-does-not-do"></a>
@@ -461,7 +469,7 @@ zona_horaria_fecha_hora</code></pre>
 <tr>
 <td>Follow quality over time</td>
 <td>
-<code><a href="reference/historico_calidad.html">historico_calidad()</a></code>, <code><a href="reference/historico_calidad.html">acumular_historico()</a></code>, <code><a href="reference/guardar_historico.html">guardar_historico()</a></code>, <code><a href="reference/guardar_historico.html">leer_historico()</a></code>, <code><a href="reference/detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code>, <code><a href="reference/comparar_perfiles.html">comparar_perfiles()</a></code>, <code><a href="reference/comparar_evaluaciones.html">comparar_evaluaciones()</a></code>
+<code><a href="reference/historico_calidad.html">historico_calidad()</a></code>, <code><a href="reference/historico_calidad.html">acumular_historico()</a></code>, <code><a href="reference/guardar_historico.html">guardar_historico()</a></code>, <code><a href="reference/guardar_historico.html">leer_historico()</a></code>, <code><a href="reference/detectar_deriva_calidad.html">detectar_deriva_calidad()</a></code>, <code><a href="reference/comparar_perfiles.html">comparar_perfiles()</a></code>, <code><a href="reference/comparar_equivalencia.html">comparar_equivalencia()</a></code>, <code><a href="reference/comparar_evaluaciones.html">comparar_evaluaciones()</a></code>
 </td>
 <td><a href="https://sebollin.github.io/lupa/articles/historico-y-deriva.html">History and drift</a></td>
 </tr>
@@ -486,6 +494,7 @@ zona_horaria_fecha_hora</code></pre>
 <h2 id="triangular_ruler-scope-what-uses-every-row-and-what-is-sampled">📐 Scope: what uses every row and what is sampled<a class="anchor" aria-label="anchor" href="#triangular_ruler-scope-what-uses-every-row-and-what-is-sampled"></a>
 </h2>
 <p><code><a href="reference/perfilar.html">perfilar()</a></code> uses every row for table and column counts, real and disguised missingness, distinct values, exact duplicates, quantitative summaries, and the findings derived from those quantities. By default, <code>muestra = 1e5</code> limits pattern discovery, type inference, date-format discovery, and the common sample used to search for functional dependencies. Set another limit or <code>Inf</code> to change or disable that sampling.</p>
+<p>For inferred temporal types, <code>estado_tipo_inferido</code> distinguishes <code>confirmado</code>, <code>candidato</code>, and <code>NA</code>; a 100% compatible ambiguous date remains a candidate.</p>
 <p>Personal-document validators have a separate preliminary filter: <code>muestra_validadores = 1000</code> by default. A validator that passes that filter is then evaluated on the complete column; <code>Inf</code> makes even the preliminary pass complete. Approximate duplicates are off by default and have their own declared bounds when enabled.</p>
 <p>In <code><a href="reference/detectar_duplicados_aproximados.html">detectar_duplicados_aproximados()</a></code>, <code>pares$tipo_par</code> is self-describing: <code>exacto</code> means the stored texts are equal, <code>exacto_normalizado</code> means they only match after the declared normalization, and <code>aproximado</code> means they remain similar rather than equal. <code>pares$igualo_normalizar</code> marks the middle case. The corresponding scope counts are <code>n_pares_exactos</code>, <code>n_pares_exactos_normalizados</code>, and <code>n_pares_aproximados</code>.</p>
 <p>The result records the effective scope in <code>meta$muestra</code>, <code>meta$filas_analizadas</code>, and <code>meta$muestreo</code>; each column also records <code>n_filas_analizadas_tipo</code> and <code>muestreado_tipo_inferido</code>, while the dependency table carries its analysed-row and sampling attributes. <code><a href="reference/analizar.html">analizar()</a></code> reuses <code>muestra = 1e5</code> for its profile, distributions, and observed-level enumeration, and declares separate limits for associations and the other components.</p>
@@ -608,7 +617,9 @@ zona_horaria_fecha_hora</code></pre>
 <h3 id="one-query-per-batch-not-one-per-column">One query per batch, not one per column<a class="anchor" aria-label="anchor" href="#one-query-per-batch-not-one-per-column"></a>
 </h3>
 <p>Profiling issued <strong>one query per column</strong> for each block of metrics. On a table of tens of millions of rows that is the cost: not the sampling, the number of scans. The flat aggregates — <code>COUNT(col)</code>, min/max/mean/zeros/negatives, and standard deviation — are now asked for <strong>several columns in one query</strong>, in batches. <code>COUNT(DISTINCT ...)</code> keeps a separate query class; the mode stays one per column, because it groups. The median keeps a per-column fallback, but where the engine probe accepts <code>PERCENTILE_CONT(...) WITHIN GROUP</code> several medians travel in a single <code>SELECT</code> per batch. On PostgreSQL 9.3 and SQLite, where that function is unavailable, the per-column median keeps <code>LIMIT</code> but makes the count a scalar subquery of the same statement. The probe also checks integer division (<code>%</code> and <code>/</code>); if a dialect does not accept that form, the result declares that it kept the two-query path.</p>
-<p>In approximate mode, a distinct count is consolidated only when the capability provides an expression that can be embedded in the <code>SELECT</code>. If it only builds a complete query, valid counts and distinct counts are issued separately, and each record keeps the method of the query that was actually run.</p>
+<p>With <code>estrategia_distintos = "aproximada_motor"</code>, a distinct count is consolidated only when the capability provides an expression that can be embedded in the <code>SELECT</code>. If it only builds a complete query, valid counts and distinct counts are issued separately, and each record keeps the method of the query that was actually run.</p>
+<p>Median strategy is independent. <code>estrategia_mediana = "aproximada_motor"</code> probes an exact native form first, then the exact per-column form, and only then an approximate native function. An exact median therefore remains <code>calculado</code>, with <code>error_esperado = "no_aplica"</code>; only an approximation that actually ran is <code>estimado</code>.</p>
+<p>Consolidated medians are probed before use; on SQL Server they require compatibility level &gt;= 110. The probe is not a promise of activation: known reasons for it not to activate are that the function is unavailable or that the engine rejects the probe. The engine message is kept in <code>meta$mediana_consolidada$motivo</code>, and the per-column median is retained.</p>
 <p>Measured against PostgreSQL 16 with <strong>2 million rows by 40 columns</strong>:</p>
 <table class="table">
 <colgroup>
@@ -617,18 +628,18 @@ zona_horaria_fecha_hora</code></pre>
 <col width="33%">
 </colgroup>
 <thead><tr>
-<th>mode</th>
+<th>configuration</th>
 <th>before</th>
 <th>after</th>
 </tr></thead>
 <tbody>
 <tr>
-<td><code>conteos</code></td>
+<td><code>metricas = "validos"</code></td>
 <td>46 queries, 5.4 s</td>
 <td><strong>8 queries, 2.4 s</strong></td>
 </tr>
 <tr>
-<td><code>seguro</code></td>
+<td><code>metricas = c("validos", "basicos", "desvio")</code></td>
 <td>128 queries, 15.2 s</td>
 <td>14 queries, 5.3 s; <strong>10 queries</strong> with flat fusion</td>
 </tr>
@@ -636,8 +647,10 @@ zona_horaria_fecha_hora</code></pre>
 </table>
 <p>Same 160 and 400 metrics computed, and the same numbers: on one table seeded once, the consolidated profile and the previous one agree on all sixteen summary fields across six column types.</p>
 <p><strong>If a batch fails, the batch is not lost.</strong> Its halves are probed by bisection: accepted groups are reused as measurements and culprit columns are retried per metric. Whatever still fails is left <code>no_disponible</code> with its reason while its neighbours are computed. If the probe budget runs out, pending columns remain unmeasured; they are not assumed to be culprits or readable. The degradation has its own tests.</p>
-<p><code>resumen_tabla$sql</code> keeps <strong>one row per column and metric</strong> with every field it had, and adds <code>lote</code> and <code>columnas_compartidas</code> so a shared query is visible. It also adds <code>consulta_id</code>, which identifies the statement that produced each measurement and defines the verifiable consistency group. <code>id_muestra</code> also identifies the data query and preserves the guarantee that two metrics with the same value saw exactly the same rows. Per-column metrics — mode, mode frequency, and median — leave <code>id_muestra = NA</code>, because they do not share rows with other metrics; <code>NA</code> declares that there is no guarantee rather than inventing a match.</p>
-<p>Every flat aggregate query that carries <code>n_validos</code> also carries <code>COUNT(*) AS n_total_consulta</code> in the same statement. Completeness uses that local denominator, including after bisection; it does not combine a total from another batch. The universe total is kept separately when profiling a sample or when no aggregate can carry it. The exact distinct query includes <code>COUNT(column) AS n_validos_guard</code> beside <code>COUNT(DISTINCT column)</code>: the hard bound is applied only when both values have the same <code>consulta_id</code>. If an approximate capability cannot provide that guardian, the check is reported as unavailable and no inconsistency is attributed to the engine. Batch sizes are separate: <code>tamano_lote_planos</code> controls flat aggregates and <code>tamano_lote_distintos</code> controls cardinalities. The latter defaults to 2: the measured shared read was constant between batches on the reference PostgreSQL server, so two cardinalities share one pass. The measured two-cardinality batch kept nearly the same time per column as one and spilled less than wider batches. The mode query also tries to bring <code>SUM(COUNT(*)) OVER () AS n_validos_guard</code> beside its frequency. The form is probed before use; if the engine rejects it, the previous mode query is retained and the fallback is published in <code>resumen_tabla$meta$moda_guardian</code>. When accepted, the bound <code>frecuencia_moda &lt;= n_validos</code> is checked inside that same statement.</p>
+<p><code>resumen_tabla$sql</code> keeps <strong>one row per column and metric</strong> with every field it had, and adds <code>lote</code> and <code>columnas_compartidas</code> so a shared query is visible. It also adds <code>consulta_id</code>, which identifies the statement that produced each measurement and defines the verifiable consistency group. The inherited query field is now named <code>id_consulta</code>, without an alias; it identifies the data query. <code>muestra_id</code> is reserved for the materialized relationship and is published in <code>meta$materializacion</code>, never as a second name for the query identifier.</p>
+<p>For <code>universo = "muestra_motor"</code>, the engine selection is materialized exactly once in an external client-session spool. Its trailer verifies <code>muestra_id</code>, <code>snapshot_id</code>, <code>orden_id</code>, <code>n_filas</code>, <code>bytes</code> and checksum on reread. Every profile pass reads that spool; it never re-samples the engine. A chunk is checked against <code>max_bytes_materializacion</code> before writing, and an excess publishes <code>spool_presupuesto_excedido</code> plus <code>muestra_inestable:presupuesto_materializacion</code>, with no hybrid result. The spool does not write to the DBI connection or create temporary engine objects. <code>meta$materializacion</code> records backend, version, checksum, bytes and budget. The measured crossover is part of the declared cost, not a speed promise: against PostgreSQL 16 with 2 million rows, a 500,000-row sample took about 5.6 s with the spool versus 3.3 s when every pass re-sorted independently; the spool is chosen for identity and bounded reuse. Across 10,000, 100,000 and 500,000 rows, spool totals were 0.448, 1.684 and 5.598 s, while independent re-sorts were 0.814, 2.178 and 3.265 s (crossover between 100,000 and 500,000).</p>
+<p>The same SQL audit includes <code>memoria_trabajo</code>: <code>creciente</code>, <code>acotado</code>, or <code>NA</code>, to flag work that should not be recomputed incrementally over a larger table.</p>
+<p>Every flat aggregate query that carries <code>n_validos</code> also carries <code>COUNT(*) AS n_total_consulta</code> in the same statement. Completeness uses that local denominator, including after bisection; it does not combine a total from another batch. The universe total is kept separately when profiling a sample or when no aggregate can carry it. The exact distinct query includes <code>COUNT(column) AS n_validos_guard</code> beside <code>COUNT(DISTINCT column)</code>: the hard bound is applied only when both values have the same <code>consulta_id</code>. If an approximate capability cannot provide that guardian, the check is reported as unavailable and no inconsistency is attributed to the engine. Batch sizes are separate: <code>tamano_lote_planos</code> controls flat aggregates and <code>tamano_lote_distintos</code> controls cardinalities. The latter defaults to 2: the measured shared read was constant between batches on the reference PostgreSQL server, so two cardinalities share one pass. The measured two-cardinality batch kept nearly the same time per column as one and spilled less than wider batches. The moda query also tries to bring <code>SUM(COUNT(*)) OVER () AS n_validos_guard</code> beside its frequency. The form is probed before use; if the engine rejects it, the previous moda query is retained and the fallback is published in <code>resumen_tabla$meta$moda_guardian</code>. When accepted, the bound <code>frecuencia_moda &lt;= n_validos</code> is checked inside that same statement.</p>
 </div>
 <div class="section level3">
 <h3 id="cost-and-spill-are-announced-before-they-are-paid">Cost and spill are announced before they are paid<a class="anchor" aria-label="anchor" href="#cost-and-spill-are-announced-before-they-are-paid"></a>
@@ -720,20 +733,23 @@ zona_horaria_fecha_hora</code></pre>
 <div class="section level3">
 <h3 id="cost-is-planned-before-it-is-paid">Cost is planned before it is paid<a class="anchor" aria-label="anchor" href="#cost-is-planned-before-it-is-paid"></a>
 </h3>
-<p>Profiling a 158-column table in <code>modo = "exacto"</code> emits 335 queries, and 327 of them scan, sort or group the whole table. The count follows the composition, not the column count: the same 158 columns as text only cost 252, because a median asks for a full sort per numeric column. <code>muestra</code> does not bound any of it — it bounds what is brought into R, not the work the engine does. So the cost is declared and chosen (<code>benchmark/medir_plan_ancho.R</code> reproduces the four numbers):</p>
+<p>Profiling a 158-column table with the default <code>universo = "tabla_completa"</code> emits 335 queries, and 327 of them scan, sort or group the whole table. The count follows the composition, not the column count: the same 158 columns as text only cost 252, because a median asks for a full sort per numeric column. <code>muestra</code> does not bound any of it — it bounds what is brought into R, not the work the engine does. So the cost is declared and chosen (<code>benchmark/medir_plan_ancho.R</code> reproduces the four numbers):</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"tabla"</span>, modo <span class="op">=</span> <span class="st">"muestreado"</span><span class="op">)</span>   <span class="co"># prepares and publishes a range</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="reference/plan_perfilado_dbi.html">plan_perfilado_dbi</a></span><span class="op">(</span></span>
+<span>  <span class="va">con</span>, <span class="st">"tabla"</span>, universo <span class="op">=</span> <span class="st">"muestra_motor"</span>, muestra_motor <span class="op">=</span> <span class="fl">5000</span></span>
+<span><span class="op">)</span>   <span class="co"># prepares and publishes a range</span></span></code></pre></div>
 <p>The plan gives a <strong>range</strong> for how many queries the profiling will emit, and it says so in <code>attr(plan, "supuesto")</code>. It does not scan data to decide cost: it reads the schema, probes capabilities and, with <code>politica_costo = "por_cardinalidad"</code>, may read a structural guarantee or a catalogue source. It never launches <code>COUNT(DISTINCT ...)</code> just to resolve uncertainty. Consequently, the plan does not publish a temporal projection for <code>COUNT(DISTINCT)</code>: the honest reference is the first distinct batch measured during execution, and the plan emits no data queries.</p>
-<p>The low end is <code>total</code>: when cardinality is unknown, it assumes the policy will omit mode. The high end is <code>total_maximo</code> —also exposed as <code>total_lotes_rechazados</code> after adding bisection— and leaves open the path that executes them. If the engine rejects batches, up to <code>2n - 1</code> probes are added per batch of <code>n</code> columns. The real cost falls between the two <strong>when the sample can be built</strong>: if <code>modo = "muestreado"</code> and the engine does not accept the resolved form, the plan declares it in <code>attr(plan, "muestreo")</code> and drops the metrics that depended on it from the range. The run, in turn, publishes each of them as <code>no_disponible</code> with its reason: nothing that was not measured is reported as measured.</p>
+<p>The low end is <code>total</code>: when cardinality is unknown, it assumes the policy will omit <code>moda</code>. The high end is <code>total_maximo</code> —also exposed as <code>total_lotes_rechazados</code> after adding bisection— and leaves open the path that executes them. If the engine rejects batches, up to <code>2n - 1</code> probes are added per batch of <code>n</code> columns. The real cost falls between the two <strong>when the sample can be built</strong>: if <code>universo = "muestra_motor"</code> and the engine does not accept the resolved form, the plan declares it in <code>attr(plan, "muestreo")</code> and drops the metrics that depended on it from the range. The run, in turn, publishes each of them as <code>no_disponible</code> with its reason: nothing that was not measured is reported as measured.</p>
 <p>Distinct-count provenance is selected explicitly with <code>estrategia_distintos</code>. <code>"exacta"</code> is the default and emits <code>COUNT(DISTINCT)</code>; <code>"aproximada_motor"</code> uses a native function only when the engine accepts its probe; <code>"catalogo"</code> reads PostgreSQL’s <code>pg_stats.n_distinct</code> and publishes it as an estimate, with guards for inheritance and sampled modes; on other engines it is <code>no_disponible</code> with its reason; and <code>"omitida"</code> emits no distinct-count query. An unavailable approximation does not silently become exact. The result separates the requested strategy, the resolved strategy, and its state in <code>meta$estrategia_distintos</code> and in the SQL rows.</p>
 <p>The primary-key catalogue is queried on every run, even when the cost policy does not need cardinality. The response is published in <code>resumen_tabla$meta$clave</code>, with <code>columnas</code>, <code>fuente</code>, <code>motivo</code>, <code>garantia</code>, and <code>estado</code>. This is a metadata query and does not scan the table. A visible key without enough evidence keeps <code>garantia = "desconocida"</code>; a table without a declared key keeps <code>"no_declarada"</code>, and a failed query keeps its reason instead of turning it into an absence of a key.</p>
 <p>Structural sources used by the cost policy are resolved whenever the policy needs cardinality, even if the requested strategy is omitted or unavailable. The strategy’s availability controls whether cardinality may be measured; it does not hide a guaranteed key. If no structural source exists and measuring is not allowed, cardinality remains unknown and the policy follows its explicit unknown-cardinality rule.</p>
 <p><code>estrategia_distintos</code> and <code>fuente_cardinalidad_costo</code> are independent: the former controls how <code>n_distintos</code> is obtained or omitted, while the latter says where the ratio used by the cost policy comes from. A cost-policy decision cannot turn a requested approximate or catalogue strategy into <code>COUNT(DISTINCT ...)</code>.</p>
 <p>Each flat batch that computes valid counts carries its own <code>COUNT(*) AS n_total_consulta</code>, with no additional query; the plan publishes that composition. When a separate universe total is needed — for example, for a sample or when there are no flat aggregates — it remains an explicit query.</p>
 <p>The part that <em>is</em> a hard design constraint is that the prediction does not depend on the engine: every capability probe costs a fixed number of queries even when it succeeds on the first form, because a cost that varied by engine would leave the user guessing again.</p>
-<p>The decision to pay mode and median is explicit. <code>politica_costo = "todas"</code> is the default and preserves all requested metrics; <code>"ninguna"</code> is an alias. With <code>politica_costo = "por_cardinalidad"</code>, structural sources are resolved first. Valid and distinct values are measured only when no exact structural source is available and the selected strategy permits measurement; then only mode is omitted per column when <code>n_distintos / n_validos &gt;= umbral_cardinalidad</code>. The default threshold is <code>0.5</code>, it can be changed in the call, and it governs mode only. Median is not omitted by cardinality: the measured sweep is flat against the number of distinct values and is governed by row count. Every omission is declared in <code>resumen_tabla$sql</code> as <code>omitido_por_costo</code>, with the reason and how to ask for it anyway. <code>meta$decisiones_costo</code> records the reason for keeping or omitting each metric separately. An omitted, catalogue or unavailable approximate strategy never falls back to <code>COUNT(DISTINCT ...)</code>.</p>
+<p>The decision to pay moda and median is explicit. <code>politica_costo = "todas"</code> is the default and preserves all requested metrics. With <code>politica_costo = "por_cardinalidad"</code>, structural sources are resolved first. Valid and distinct values are measured only when no exact structural source is available and the selected strategy permits measurement; then only moda is omitted per column when <code>n_distintos / n_validos &gt;= umbral_cardinalidad</code>. The default threshold is <code>0.5</code>, it can be changed in the call, and it governs moda only. Median is not omitted by cardinality: the measured sweep is flat against the number of distinct values and is governed by row count. Every omission is declared in <code>resumen_tabla$sql</code> as <code>omitido_por_costo</code>, with the reason and how to ask for it anyway. <code>meta$decisiones_costo</code> records the reason for keeping or omitting each metric separately. An omitted, catalogue or unavailable approximate strategy never falls back to <code>COUNT(DISTINCT ...)</code>.</p>
 <p>The table summary declares <code>meta$snapshot = FALSE</code>, because its aggregates are separate statements and the table may change between them. When exact <code>n_validos</code> and <code>n_distintos</code> from different <code>consulta_id</code> groups are incoherent, <code>cobertura</code> adds <code>alcance_distinto</code> with both statements in the reason: it is evidence that the table changed during the run, not an error attributed to the engine or the package.</p>
 <p>But counting queries does not answer the question the reader actually brings: fourteen queries over two million rows are far more work than two hundred over a thousand. So the plan also estimates <strong>magnitude</strong>, in real counts rather than an invented index — and it estimates it in <strong>two halves</strong>, because the clock is not always set by the engine. The engine half is <code>filas_leidas</code> and <code>ordenaciones_completas</code>, summarised in <code>magnitud_motor</code>; the client half is <code>columnas_texto</code> and <code>pares_texto</code> — how many pairs of forms the vocabulary detector could compare in R over the sample — summarised in <code>magnitud_texto</code>. <code>magnitud</code> is the larger of the two.</p>
+<p>On PostgreSQL, when preparation has already read the catalog hierarchy, a positive <code>pg_class.reltuples</code> also supplies the row magnitude. The plan prints it as an estimate of catalog, not a measurement, and exposes the source in <code>filas_fuente</code>/<code>estimacion_filas</code>; the work projections for mode and median are published in <code>proyecciones</code> with the same label. A zero or negative <code>reltuples</code> (the usual pre-<code>ANALYZE</code> state) leaves rows and those projections unknown. Other engines keep the current unknown state.</p>
 <p>Counting only the engine gave false verdicts out of true numbers: a 3,912-row PostGIS catalogue table with one geometry column stored as text asked for 64,592 row reads and no sorts — magnitude <code>"baja"</code> — and took 35 seconds <strong>with the work budget already calibrated</strong>, because what remained was in comparing forms, which is not a row read. It is the same table that took 243 seconds above, before the budget measured work instead of counting units. Printing the plan shows both halves, and the high-work warning names the levers that bound it, which differ on each side. It is an estimate and says so: the engine half counts the rows that would have to be read if no index helped, and the client half counts pairs, whose unit cost depends on value length — something the plan cannot know without reading them, so for very long text the real time is several times what the reference suggests. The published numbers do not depend on those assumptions, so anyone who disagrees with them can redo the arithmetic.</p>
 </div>
 <div class="section level3">
@@ -748,34 +764,35 @@ zona_horaria_fecha_hora</code></pre>
 <col width="50%">
 </colgroup>
 <thead><tr>
-<th>mode</th>
+<th>dimension</th>
 <th>what it does</th>
 </tr></thead>
 <tbody>
 <tr>
-<td><code>exacto</code></td>
+<td>defaults</td>
 <td>every metric over the whole table</td>
 </tr>
 <tr>
-<td><code>seguro</code></td>
-<td>drops the metrics that sort the whole column</td>
+<td><code>metricas = c("validos", "basicos", "desvio")</code></td>
+<td>the historical <code>seguro</code> preset</td>
 </tr>
 <tr>
-<td><code>conteos</code></td>
-<td>counts only</td>
+<td><code>metricas = "validos"</code></td>
+<td>the historical <code>conteos</code> preset</td>
 </tr>
 <tr>
-<td><code>muestreado</code></td>
-<td>metrics over rows sampled <strong>in the engine</strong>: <code>TABLESAMPLE</code> where it exists, a pseudo-random order with a limit where it does not</td>
+<td><code>universo = "muestra_motor"</code></td>
+<td>one engine selection materialized in a client spool; <code>TABLESAMPLE</code> or a pseudo-random limited source is read once and reused</td>
 </tr>
 <tr>
-<td><code>aproximado</code></td>
-<td>native approximate functions for the metrics defined by that mode</td>
+<td><code>estrategia_mediana = "aproximada_motor"</code></td>
+<td>exact native first, approximate only at the end; only an executed approximation is <code>estimado</code>
+</td>
 </tr>
 </tbody>
 </table>
 <p>Every sampled or approximated metric travels saying so. <code>estado</code> distinguishes <code>calculado</code>, <code>estimado</code> and <code>no_disponible</code>, and each row carries <code>universo</code>, <code>tamano_muestra</code>, <code>fraccion</code>, <code>metodo</code> and <code>error_esperado</code>. For sampled SQL metrics, <code>error_esperado</code> is <code>no_estimado</code> when an error could be calculated under a probabilistic sampling plan but was not, <code>no_estimable</code> for the mode, median and observed cardinality, which have no simple bound without additional assumptions or a declared estimator, and <code>no_aplica</code> when no sampling took place. The <code>motivo</code> column gives the reason; <code>metodo</code>, <code>tamano_muestra</code> and <code>fraccion</code> retain the conditions of the run. No numeric bound is published without a justified formula.</p>
-<p>In <code>resumen_tabla$meta$muestreo</code>, <code>tamano_muestra</code> is retained for compatibility and records the effective size requested from the query, <code>filas_solicitadas</code> records the original request, and <code>filas_obtenidas</code> records the rows returned by the <code>perfil_muestra</code> read. The latter is <code>NA</code> when that block was not requested or failed before reading. Distinct counts get their own state, <code>observado_muestra</code>: the cardinality of a sample does not estimate the cardinality of the universe without a declared estimator, so it is reported as what it is — what was seen in the sample, with the universe stated beside it. An engine with no sampling capability does not break: the mode degrades and says so in the coverage table.</p>
+<p>In <code>resumen_tabla$meta$muestreo</code>, <code>tamano_muestra</code> is retained for compatibility and records the effective size requested from the query, <code>filas_solicitadas</code> records the original request, and <code>filas_obtenidas</code> records the rows returned by the <code>perfil_muestra</code> read. The latter is <code>NA</code> when that block was not requested or failed before reading. Distinct counts get their own state, <code>observado_muestra</code>: the cardinality of a sample does not estimate the cardinality of the universe without a declared estimator, so it is reported as what it is — what was seen in the sample, with the universe stated beside it. An engine with no sampling capability does not break: the engine sample degrades and says so in the coverage table.</p>
 <p>If the sample query returns zero rows, there is no basis for measuring sample-scope metrics. They are published as <code>NA</code> with state <code>no_disponible</code> and a reason naming the empty sample; <code>n</code> remains the count from the full table. This does not imply that the column is empty, so <code>lupa</code> does not publish zero or start the <code>sin_valores</code> cascade.</p>
 <p>An approximation is not marked as estimated when its query was not issued or did not return a usable value. Distinct-count provenance is selected separately with <code>estrategia_distintos</code>; if <code>"aproximada_motor"</code> is requested and the engine lacks the function, the metric is <code>no_disponible</code> and <code>COUNT(DISTINCT ...)</code> is not executed.</p>
 </div>

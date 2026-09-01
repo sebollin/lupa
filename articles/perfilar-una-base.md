@@ -10,19 +10,19 @@ distintos:
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
   sobre las filas traídas a memoria.
 
-El resumen SQL usa `modo = "exacto"` por omisión. Para tablas grandes se
-puede pedir `modo = "muestreado"`: las métricas se calculan sobre una
-relación muestreada por el motor, no sobre una tabla traída a R. La
-capacidad se sondea antes de medir; PostgreSQL y SQL Server pueden
-resolverla con `TABLESAMPLE`, y otros motores con una función
-pseudoaleatoria y el límite de su dialecto. Si ninguna forma es
-aceptada, las métricas quedan en `NA` y `resumen_tabla$cobertura`
-conserva el motivo.
+El resumen SQL usa `universo = "tabla_completa"` por omisión. Para
+tablas grandes se puede pedir `universo = "muestra_motor"` junto con
+`muestra_motor = n`: las métricas se calculan sobre una relación
+muestreada por el motor, no sobre una tabla traída a R. La capacidad se
+sondea antes de medir; PostgreSQL y SQL Server pueden resolverla con
+`TABLESAMPLE`, y otros motores con una función pseudoaleatoria y el
+límite de su dialecto. Si ninguna forma es aceptada, las métricas quedan
+en `NA` y `resumen_tabla$cobertura` conserva el motivo.
 
 Cada registro de `resumen_tabla$sql` declara `alcance`, `universo`,
-`tamano_muestra`, `fraccion`, `metodo` y `error_esperado`. En el modo
-muestreado, `error_esperado` distingue `no_estimado` —el error podría
-calcularse bajo un plan probabilístico, pero no se calculó— de
+`tamano_muestra`, `fraccion`, `metodo` y `error_esperado`. En el
+universo muestreado, `error_esperado` distingue `no_estimado` —el error
+podría calcularse bajo un plan probabilístico, pero no se calculó— de
 `no_estimable` —moda, mediana y cardinalidad observada no tienen una
 cota simple sin supuestos adicionales—. `no_aplica` indica que no hubo
 muestreo efectivo. El motivo queda en `resumen_tabla$sql$motivo`, junto
@@ -49,9 +49,10 @@ y `"omitida"` no emite la consulta. Una estrategia aproximada sin
 capacidad no se convierte en exacta. El resultado distingue la
 estrategia solicitada, la resuelta y su estado.
 
-Además, `id_muestra` identifica la consulta de datos que produjo cada
-métrica. Dos métricas con el mismo valor vieron exactamente las mismas
-filas y se pueden comparar directamente, sin cruzar `lote` ni
+Además, `id_consulta` identifica la consulta de datos que produjo cada
+métrica; `muestra_id` queda reservado para la relación materializada en
+el spool cliente. Dos métricas con el mismo valor vieron exactamente las
+mismas filas y se pueden comparar directamente, sin cruzar `lote` ni
 `columnas_compartidas`. Un `NA` declara que esa garantía no se puede
 hacer; en particular, moda, frecuencia de la moda y mediana son métricas
 por columna y no comparten filas con otras. `consulta_id` identifica la
@@ -146,7 +147,8 @@ perfil <- perfilar_dbi(
   conexion, "entregas", muestra = 5, orden_muestra = "id"
 )
 solo_agregados <- perfilar_dbi(
-  conexion, "entregas", modo = "conteos", bloque_muestra = "solo_agregados"
+  conexion, "entregas", metricas = "validos",
+  bloque_muestra = "solo_agregados"
 )
 ```
 
@@ -259,8 +261,8 @@ solo_agregados$resumen_tabla$cobertura[
 ]
 #>           bloque elemento        estado
 #> 1 perfil_muestra entregas no_solicitado
-#>                                                                                                        motivo
-#> 1 No se solicito el perfil de muestra: este resultado contiene unicamente los agregados SQL del modo elegido.
+#>                                                                                                                   motivo
+#> 1 No se solicito el perfil de muestra: este resultado contiene unicamente los agregados SQL de la configuracion elegida.
 #>                                                                                                         como_resolverlo
 #> 1 Para obtener diagnosticos sobre valores y hallazgos por fila, volver a perfilar con `bloque_muestra = "con_muestra"`.
 #>    sql
@@ -283,7 +285,7 @@ data.frame(
 )
 #>           bloque filas_fuente campos_analiticos columnas_del_resultado
 #> 1  resumen_tabla           12                15                     16
-#> 2 perfil_muestra            5               109                    110
+#> 2 perfil_muestra            5               110                    111
 ```
 
 ## `resumen_tabla`: agregados sobre la tabla completa
@@ -318,7 +320,7 @@ también se vea qué aceptó o rechazó el motor.
 La instrumentación queda activa por omisión y sólo agrega metadatos.
 Cada fila de `resumen_tabla$sql` conserva la métrica que ya representaba
 y suma `duracion_ms`, `cpu_ms`, `n_filas_resultado`,
-`bytes_resultado_r`, `consulta_id` e `id_muestra`, además de `etapa` y
+`bytes_resultado_r`, `consulta_id` e `id_consulta`, además de `etapa` y
 `nivel`. La duración incluye la ejecución y la lectura del resultado que
 DBI entregó a R; el tamaño es
 [`object.size()`](https://rdrr.io/r/utils/object.size.html) de ese
@@ -336,34 +338,34 @@ sólo las filas de `nivel = 1`.
 
 perfil$resumen_tabla$sql[, c(
   "metrica", "estado", "duracion_ms", "cpu_ms", "n_filas_resultado",
-  "bytes_resultado_r", "consulta_id", "id_muestra", "etapa", "nivel"
+  "bytes_resultado_r", "consulta_id", "id_consulta", "etapa", "nivel"
 )]
 #>            metrica    estado duracion_ms cpu_ms n_filas_resultado bytes_resultado_r
-#> 1                n calculado   0.4971027      1                 1              3192
-#> 2                n calculado   0.4971027      1                 1              3192
-#> 3                n calculado   0.4971027      1                 1              3192
-#> 4                n calculado   0.4971027      1                 1              3192
-#> 5        n_validos calculado   0.4971027      1                 1              3192
-#> 6      n_faltantes calculado   0.4971027      1                 1              3192
-#> 7   prop_faltantes calculado   0.4971027      1                 1              3192
-#> 8      n_distintos calculado   0.4334450      0                 1              1216
-#> 9   tasa_distintos calculado   0.4334450      0                 1              1216
-#> 10            moda calculado   0.4439354      0                 1              1024
-#> 11 frecuencia_moda calculado   0.4439354      0                 1              1024
-#> 12          minimo calculado   0.4971027      1                 1              3192
-#> 13          maximo calculado   0.4971027      1                 1              3192
-#> 14           media calculado   0.4971027      1                 1              3192
-#> 15         n_ceros calculado   0.4971027      1                 1              3192
-#> 16     n_negativos calculado   0.4971027      1                 1              3192
-#> 17         mediana calculado   0.4847050      1                 1               736
-#> 18          desvio calculado   0.4971027      1                 1              3192
-#> 19       n_validos calculado   0.4971027      1                 1              3192
-#> 20     n_faltantes calculado   0.4971027      1                 1              3192
-#> 21  prop_faltantes calculado   0.4971027      1                 1              3192
-#> 22     n_distintos calculado   0.4334450      0                 1              1216
-#> 23  tasa_distintos calculado   0.4334450      0                 1              1216
-#> 24            moda calculado   0.4982948      0                 1              1080
-#> 25 frecuencia_moda calculado   0.4982948      0                 1              1080
+#> 1                n calculado   0.5409718      0                 1              3192
+#> 2                n calculado   0.5409718      0                 1              3192
+#> 3                n calculado   0.5409718      0                 1              3192
+#> 4                n calculado   0.5409718      0                 1              3192
+#> 5        n_validos calculado   0.5409718      0                 1              3192
+#> 6      n_faltantes calculado   0.5409718      0                 1              3192
+#> 7   prop_faltantes calculado   0.5409718      0                 1              3192
+#> 8      n_distintos calculado   0.4529953      1                 1              1216
+#> 9   tasa_distintos calculado   0.4529953      1                 1              1216
+#> 10            moda calculado   0.5147457      1                 1              1024
+#> 11 frecuencia_moda calculado   0.5147457      1                 1              1024
+#> 12          minimo calculado   0.5409718      0                 1              3192
+#> 13          maximo calculado   0.5409718      0                 1              3192
+#> 14           media calculado   0.5409718      0                 1              3192
+#> 15         n_ceros calculado   0.5409718      0                 1              3192
+#> 16     n_negativos calculado   0.5409718      0                 1              3192
+#> 17         mediana calculado   0.4756451      0                 1               736
+#> 18          desvio calculado   0.5409718      0                 1              3192
+#> 19       n_validos calculado   0.5409718      0                 1              3192
+#> 20     n_faltantes calculado   0.5409718      0                 1              3192
+#> 21  prop_faltantes calculado   0.5409718      0                 1              3192
+#> 22     n_distintos calculado   0.4529953      1                 1              1216
+#> 23  tasa_distintos calculado   0.4529953      1                 1              1216
+#> 24            moda calculado   0.7402897      0                 1              1080
+#> 25 frecuencia_moda calculado   0.7402897      0                 1              1080
 #> 26          minimo no_aplica          NA     NA                NA                NA
 #> 27          maximo no_aplica          NA     NA                NA                NA
 #> 28           media no_aplica          NA     NA                NA                NA
@@ -371,27 +373,27 @@ perfil$resumen_tabla$sql[, c(
 #> 30     n_negativos no_aplica          NA     NA                NA                NA
 #> 31         mediana no_aplica          NA     NA                NA                NA
 #> 32          desvio no_aplica          NA     NA                NA                NA
-#> 33       n_validos calculado   0.4971027      1                 1              3192
-#> 34     n_faltantes calculado   0.4971027      1                 1              3192
-#> 35  prop_faltantes calculado   0.4971027      1                 1              3192
-#> 36     n_distintos calculado   0.3972054      0                 1              1216
-#> 37  tasa_distintos calculado   0.3972054      0                 1              1216
-#> 38            moda calculado   0.4484653      0                 1              1024
-#> 39 frecuencia_moda calculado   0.4484653      0                 1              1024
-#> 40          minimo calculado   0.4971027      1                 1              3192
-#> 41          maximo calculado   0.4971027      1                 1              3192
-#> 42           media calculado   0.4971027      1                 1              3192
-#> 43         n_ceros calculado   0.4971027      1                 1              3192
-#> 44     n_negativos calculado   0.4971027      1                 1              3192
-#> 45         mediana calculado  82.7355385     82                 1               736
-#> 46          desvio calculado   0.4971027      1                 1              3192
-#> 47       n_validos calculado   0.4971027      1                 1              3192
-#> 48     n_faltantes calculado   0.4971027      1                 1              3192
-#> 49  prop_faltantes calculado   0.4971027      1                 1              3192
-#> 50     n_distintos calculado   0.3972054      0                 1              1216
-#> 51  tasa_distintos calculado   0.3972054      0                 1              1216
-#> 52            moda calculado   0.4587173      1                 1              1088
-#> 53 frecuencia_moda calculado   0.4587173      1                 1              1088
+#> 33       n_validos calculado   0.5409718      0                 1              3192
+#> 34     n_faltantes calculado   0.5409718      0                 1              3192
+#> 35  prop_faltantes calculado   0.5409718      0                 1              3192
+#> 36     n_distintos calculado   0.4191399      0                 1              1216
+#> 37  tasa_distintos calculado   0.4191399      0                 1              1216
+#> 38            moda calculado   0.5052090      0                 1              1024
+#> 39 frecuencia_moda calculado   0.5052090      0                 1              1024
+#> 40          minimo calculado   0.5409718      0                 1              3192
+#> 41          maximo calculado   0.5409718      0                 1              3192
+#> 42           media calculado   0.5409718      0                 1              3192
+#> 43         n_ceros calculado   0.5409718      0                 1              3192
+#> 44     n_negativos calculado   0.5409718      0                 1              3192
+#> 45         mediana calculado   0.5419254      0                 1               736
+#> 46          desvio calculado   0.5409718      0                 1              3192
+#> 47       n_validos calculado   0.5409718      0                 1              3192
+#> 48     n_faltantes calculado   0.5409718      0                 1              3192
+#> 49  prop_faltantes calculado   0.5409718      0                 1              3192
+#> 50     n_distintos calculado   0.4191399      0                 1              1216
+#> 51  tasa_distintos calculado   0.4191399      0                 1              1216
+#> 52            moda calculado   0.4694462      0                 1              1088
+#> 53 frecuencia_moda calculado   0.4694462      0                 1              1088
 #> 54          minimo no_aplica          NA     NA                NA                NA
 #> 55          maximo no_aplica          NA     NA                NA                NA
 #> 56           media no_aplica          NA     NA                NA                NA
@@ -399,77 +401,77 @@ perfil$resumen_tabla$sql[, c(
 #> 58     n_negativos no_aplica          NA     NA                NA                NA
 #> 59         mediana no_aplica          NA     NA                NA                NA
 #> 60          desvio no_aplica          NA     NA                NA                NA
-#>    consulta_id id_muestra       etapa nivel
-#> 1            8          8     basicos     1
-#> 2            8          8     basicos     2
-#> 3            8          8     basicos     2
-#> 4            8          8     basicos     2
-#> 5            8          8     basicos     2
-#> 6            8          8     basicos     2
-#> 7            8          8     basicos     2
-#> 8            9          9     conteos     1
-#> 9            9          9     conteos     2
-#> 10          11         NA        moda     1
-#> 11          11         NA        moda     2
-#> 12           8          8     basicos     2
-#> 13           8          8     basicos     2
-#> 14           8          8     basicos     2
-#> 15           8          8     basicos     2
-#> 16           8          8     basicos     2
-#> 17          15         NA     mediana     1
-#> 18           8          8     basicos     2
-#> 19           8          8     basicos     2
-#> 20           8          8     basicos     2
-#> 21           8          8     basicos     2
-#> 22           9          9     conteos     2
-#> 23           9          9     conteos     2
-#> 24          12         NA        moda     1
-#> 25          12         NA        moda     2
-#> 26          NA         NA resumen_sql     1
-#> 27          NA         NA resumen_sql     1
-#> 28          NA         NA resumen_sql     1
-#> 29          NA         NA resumen_sql     1
-#> 30          NA         NA resumen_sql     1
-#> 31          NA         NA resumen_sql     1
-#> 32          NA         NA resumen_sql     1
-#> 33           8          8     basicos     2
-#> 34           8          8     basicos     2
-#> 35           8          8     basicos     2
-#> 36          10         10     conteos     1
-#> 37          10         10     conteos     2
-#> 38          13         NA        moda     1
-#> 39          13         NA        moda     2
-#> 40           8          8     basicos     2
-#> 41           8          8     basicos     2
-#> 42           8          8     basicos     2
-#> 43           8          8     basicos     2
-#> 44           8          8     basicos     2
-#> 45          16         NA     mediana     1
-#> 46           8          8     basicos     2
-#> 47           8          8     basicos     2
-#> 48           8          8     basicos     2
-#> 49           8          8     basicos     2
-#> 50          10         10     conteos     2
-#> 51          10         10     conteos     2
-#> 52          14         NA        moda     1
-#> 53          14         NA        moda     2
-#> 54          NA         NA resumen_sql     1
-#> 55          NA         NA resumen_sql     1
-#> 56          NA         NA resumen_sql     1
-#> 57          NA         NA resumen_sql     1
-#> 58          NA         NA resumen_sql     1
-#> 59          NA         NA resumen_sql     1
-#> 60          NA         NA resumen_sql     1
+#>    consulta_id id_consulta       etapa nivel
+#> 1            8           8     basicos     1
+#> 2            8           8     basicos     2
+#> 3            8           8     basicos     2
+#> 4            8           8     basicos     2
+#> 5            8           8     basicos     2
+#> 6            8           8     basicos     2
+#> 7            8           8     basicos     2
+#> 8            9           9     conteos     1
+#> 9            9           9     conteos     2
+#> 10          11          NA        moda     1
+#> 11          11          NA        moda     2
+#> 12           8           8     basicos     2
+#> 13           8           8     basicos     2
+#> 14           8           8     basicos     2
+#> 15           8           8     basicos     2
+#> 16           8           8     basicos     2
+#> 17          15          NA     mediana     1
+#> 18           8           8     basicos     2
+#> 19           8           8     basicos     2
+#> 20           8           8     basicos     2
+#> 21           8           8     basicos     2
+#> 22           9           9     conteos     2
+#> 23           9           9     conteos     2
+#> 24          12          NA        moda     1
+#> 25          12          NA        moda     2
+#> 26          NA          NA resumen_sql     1
+#> 27          NA          NA resumen_sql     1
+#> 28          NA          NA resumen_sql     1
+#> 29          NA          NA resumen_sql     1
+#> 30          NA          NA resumen_sql     1
+#> 31          NA          NA resumen_sql     1
+#> 32          NA          NA resumen_sql     1
+#> 33           8           8     basicos     2
+#> 34           8           8     basicos     2
+#> 35           8           8     basicos     2
+#> 36          10          10     conteos     1
+#> 37          10          10     conteos     2
+#> 38          13          NA        moda     1
+#> 39          13          NA        moda     2
+#> 40           8           8     basicos     2
+#> 41           8           8     basicos     2
+#> 42           8           8     basicos     2
+#> 43           8           8     basicos     2
+#> 44           8           8     basicos     2
+#> 45          16          NA     mediana     1
+#> 46           8           8     basicos     2
+#> 47           8           8     basicos     2
+#> 48           8           8     basicos     2
+#> 49           8           8     basicos     2
+#> 50          10          10     conteos     2
+#> 51          10          10     conteos     2
+#> 52          14          NA        moda     1
+#> 53          14          NA        moda     2
+#> 54          NA          NA resumen_sql     1
+#> 55          NA          NA resumen_sql     1
+#> 56          NA          NA resumen_sql     1
+#> 57          NA          NA resumen_sql     1
+#> 58          NA          NA resumen_sql     1
+#> 59          NA          NA resumen_sql     1
+#> 60          NA          NA resumen_sql     1
 
 perfil$resumen_tabla$tiempos
 #>                         etapa duracion_ms cpu_ms        estado nivel n_ejecuciones
-#> 1        ausencia_estructural    0.600338      2        medido     2             1
-#> 2 casi_duplicados_vocabulario    8.732557     15        medido     2             1
-#> 3                dependencias    1.025200      2        medido     2             1
+#> 1        ausencia_estructural   0.6566048      2        medido     2             1
+#> 2 casi_duplicados_vocabulario   9.7315311     17        medido     2             1
+#> 3                dependencias   1.1012554      1        medido     2             1
 #> 4      duplicados_aproximados          NA     NA no_solicitado     2             1
-#> 5             lectura_muestra    1.368523      1        medido     1             1
-#> 6          perfilado_columnas  254.888535    255        medido     2             1
-#> 7           perfilado_muestra  329.774380    339        medido     1             1
+#> 5             lectura_muestra   1.5804768      1        medido     1             1
+#> 6          perfilado_columnas 320.7278252    321        medido     2             1
+#> 7           perfilado_muestra 408.3669186    421        medido     1             1
 ```
 
 `resumen_tabla$tiempos` reúne en milisegundos las etapas grandes del
@@ -482,6 +484,43 @@ casi-duplicados—, así que sumar la columna entera da más que la corrida
 completa. `instrumentar = FALSE` conserva el mismo plan, la misma
 cantidad y el mismo orden de consultas, pero deja las duraciones, el CPU
 y los metadatos de tamaño en `NA` y marca las etapas como `no_medido`.
+
+`resumen_tabla$sql$memoria_trabajo` responde a la pregunta «¿qué trabajo
+no debo recomputar incrementalmente sobre una tabla mayor?». Sus tres
+valores son `creciente`, `acotado` y `NA` cuando la fila no tiene
+medición.
+
+``` r
+
+sql_memoria <- perfil$resumen_tabla$sql
+filtro_memoria <- (
+  sql_memoria$memoria_trabajo %in% c("acotado", "creciente") |
+    is.na(sql_memoria$memoria_trabajo)
+) & (
+  (sql_memoria$columna == "id" &
+     sql_memoria$metrica %in% c("n_validos", "n_distintos")) |
+    (sql_memoria$columna == "grupo" & sql_memoria$metrica == "minimo")
+)
+ejemplos_memoria <- sql_memoria[
+  filtro_memoria,
+  c("columna", "metrica", "estado", "alcance", "fraccion", "metodo",
+    "memoria_trabajo")
+]
+ejemplos_memoria
+#>    columna     metrica    estado        alcance fraccion          metodo memoria_trabajo
+#> 5       id   n_validos calculado tabla_completa        1  tabla_completa         acotado
+#> 8       id n_distintos calculado tabla_completa        1 COUNT(DISTINCT)       creciente
+#> 26   grupo      minimo no_aplica tabla_completa        1  tabla_completa            <NA>
+stopifnot(
+  identical(
+    as.character(ejemplos_memoria$memoria_trabajo),
+    c("acotado", "creciente", NA_character_)
+  )
+)
+```
+
+La regla es: alcance efectivo con tope real, `acotado`; si no, el método
+resuelto; sin medición, `NA`.
 
 ## `perfil_muestra`: el perfil completo de la muestra
 
@@ -635,16 +674,16 @@ alcance.
 ## Muestras y aproximaciones para tablas grandes
 
 La muestra usada por `perfil_muestra` y la relación usada por
-`modo = "muestreado"` son declaradas por separado. La primera se trae a
-R para ejecutar el perfil completo; la segunda permanece en SQL para que
-los agregados no recorran la tabla completa. La metadata de ambos
-bloques publica el universo y el método efectivo.
+`universo = "muestra_motor"` son declaradas por separado. La primera se
+trae a R para ejecutar el perfil completo; la segunda permanece en SQL
+para que los agregados no recorran la tabla completa. La metadata de
+ambos bloques publica el universo y el método efectivo.
 
 ``` r
 
 estimado <- perfilar_dbi(
-  conexion, "entregas", muestra = 5000,
-  modo = "muestreado", metricas = c(
+  conexion, "entregas", universo = "muestra_motor", muestra_motor = 5000,
+  muestra = 5000, metricas = c(
     "validos", "distintos", "moda", "basicos", "mediana", "desvio"
   )
 )
@@ -656,21 +695,23 @@ estimado$resumen_tabla$sql[
 ]
 
 aproximado <- perfilar_dbi(
-  conexion, "entregas", muestra = 5000, modo = "aproximado",
+  conexion, "entregas", muestra = 5000,
+  estrategia_mediana = "aproximada_motor",
   estrategia_distintos = "aproximada_motor"
 )
 aproximado$resumen_tabla$meta$aproximaciones
 ```
 
-El modo aproximado gobierna las métricas aproximadas que define el modo,
-pero no elige la procedencia de distintos. Para pedir una función nativa
-de cardinalidad hay que usar
-`estrategia_distintos = "aproximada_motor"`. Sólo se consolida un conteo
-cuando la capacidad entrega una expresión incrustable. Si la capacidad
-sólo construye una consulta completa, el conteo de válidos y el de
-distintos se emiten por separado. El método publicado sigue al SQL que
-efectivamente se ejecutó; una consulta no emitida o sin un valor
-utilizable queda `no_disponible`.
+Las estrategias de mediana y de distintos son independientes. Para pedir
+una función nativa de cardinalidad hay que usar
+`estrategia_distintos = "aproximada_motor"`; para habilitar la
+aproximación de mediana se usa
+`estrategia_mediana = "aproximada_motor"`. La sonda de mediana prueba
+primero una forma nativa exacta consolidada, luego la forma exacta por
+columna y deja la aproximada para el final. Por eso una mediana exacta
+queda `calculado`, aunque se haya pedido la estrategia aproximada; sólo
+queda `estimado` cuando esa forma aproximada efectivamente corrió. Una
+consulta no emitida o sin un valor utilizable queda `no_disponible`.
 
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
 emite las sondas de capacidad y publica un **rango** de consultas en
@@ -820,9 +861,10 @@ medición es la que aparece en
 El trabajo que quedaba estaba del otro lado, comparando formas, que no
 es una lectura de fila. Al imprimir el plan se ven las dos mitades, y el
 aviso de magnitud alta viene con las palancas concretas para acotarla
-—que no son las mismas de un lado que del otro—: `modo = "muestreado"`,
-recortar `metricas`, bajar `muestra` o poner `max_consultas` para el
-motor, y `max_trabajo_vocabulario` para lo que se hace en R.
+—que no son las mismas de un lado que del otro—:
+`universo = "muestra_motor"`, recortar `metricas`, bajar `muestra` o
+poner `max_consultas` para el motor, y `max_trabajo_vocabulario` para lo
+que se hace en R.
 
 Es una estimación y lo dice en `attr(plan, "supuesto_costo")`. La del
 motor cuenta las filas que habría que leer **si ningún índice ayudara**,
@@ -849,14 +891,20 @@ mediana también conserva ese camino como respaldo; en PostgreSQL 9.3 y
 SQLite el conteo de la mediana queda como subconsulta escalar en la
 misma sentencia que ordena y recorta. Un motor que acepta
 `PERCENTILE_CONT(...) WITHIN GROUP` puede consolidar varias en un solo
-`SELECT` por lote. En `modo = "muestreado"`, una consulta distinta
-vuelve a resolver el muestreo: la media y la mediana de una misma
-columna describen conjuntos de filas distintos, del mismo tamaño pero no
-necesariamente los mismos. Las métricas planas del mismo lote sí
-comparten las filas de esa consulta, y `id_muestra` lo deja comprobable
-directamente. Un `id_muestra` ausente declara que no se puede garantizar
-esa coincidencia; queda ausente para moda, frecuencia de la moda y
-mediana, que son métricas por columna.
+`SELECT` por lote.
+
+Con `universo = "muestra_motor"`, `TABLESAMPLE` o la fuente
+pseudoaleatoria resuelta se ejecuta una sola vez y se materializa en un
+spool externo de sesión cliente. El trailer conserva y verifica
+`muestra_id`, `snapshot_id`, `orden_id`, `n_filas`, `bytes` y checksum;
+las pasadas de resumen y diagnóstico releen esa misma relación.
+`id_consulta` sigue identificando la sentencia que produjo una medición,
+mientras `muestra_id` identifica la materialización. Un chunk que supera
+el presupuesto se rechaza antes de escribir y publica
+`spool_presupuesto_excedido` y
+`muestra_inestable:presupuesto_materializacion`; no se entrega una
+muestra híbrida. El spool no escribe en la conexión DBI ni crea objetos
+temporales del motor.
 
 Por eso las formas candidatas están ordenadas por **previsibilidad del
 tamaño** y no por costo. Primero la de cantidad fija,

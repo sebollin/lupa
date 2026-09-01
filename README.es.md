@@ -54,6 +54,7 @@ Entre las salidas de esa corrida aparecen:
 | Mayúsculas inconsistentes | `mayusculas_inconsistentes` | `"web"; "Web"` |
 | El tipo declarado y el inferido no coinciden | `tipo_declarado_distinto` | `Declarado: texto; inferido: fecha` |
 | Una columna constante | `constante` | `Valor: principal; frecuencia: 13` |
+| Un valor modal concentrado | `valor_concentrado` | `Valor modal: 1000; frecuencia de la moda: 25; frecuencia del segundo valor: 1; cociente moda/segundo: 25.000; fraccion de la moda sobre validos: 0.250` |
 | Filas duplicadas exactas | `filas_duplicadas` | `2 filas en grupos duplicados (1 excedentes)` |
 | Columnas repetidas | `columnas_duplicadas` | `id_registro = id_copia` |
 
@@ -65,7 +66,7 @@ constantes y ausencia estructural. Sobre un banco de referencia con
 defectos conocidos recuperó 9 de 9 defectos plantados; sobre 43 tablas
 limpias produjo 0 hallazgos de severidad error.
 
-El vocabulario canónico actual contiene 56 nombres de `tipo_hallazgo`.
+El vocabulario canónico actual contiene 57 nombres de `tipo_hallazgo`.
 Los nombres están en español porque forman parte de la API pública:
 
 ``` text
@@ -95,10 +96,28 @@ regla_silencia_ausencia          relacion_aritmetica_columnas
 relacion_orden_columnas          separadores_en_campo
 tipo_compuesto_no_analizado      tipo_declarado_distinto
 tipos_geometria_mixtos           unidades_mixtas
-valor_fuera_de_aplicabilidad     valores_no_finitos
+valor_concentrado                valor_fuera_de_aplicabilidad
+valores_no_finitos
 variantes_equifrecuentes_vocabulario
 zona_horaria_fecha_hora
 ```
+
+La señal `valor_concentrado` implementa la regla M2 medida. Considera
+sólo columnas numéricas con al menos 20 valores válidos no faltantes y
+al menos 10 valores distintos. Emite un hallazgo `sospechoso` cuando la
+frecuencia de la moda es al menos cinco veces la del segundo valor más
+frecuente y el valor modal representa al menos 0,15 de los valores
+válidos. La evidencia publica el valor modal, ambas frecuencias, el
+cociente y la fracción. Un valor legítimo puede dominar, por eso nunca
+es un `error`. Las columnas no elegibles no reciben una fila de
+`cobertura_diagnosticos`: las distribuciones categóricas quedan fuera
+del alcance previsto de la señal.
+
+Los puntos ciegos medidos son parte de este contrato: no detecta
+concentraciones menores al 15 %, y en columnas enteras pequeñas los
+empates naturales pueden dejar el cociente por debajo de cinco. La
+medición encontró cero falsos positivos en 114 columnas elegibles
+limpias, con un margen de 2,2 veces.
 
 ## Qué NO hace `lupa`
 
@@ -305,7 +324,7 @@ breve:
 | Limpiar sin romper nada | [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md), [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md), [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) | [Plan de limpieza](https://sebollin.github.io/lupa/articles/limpiar-con-un-plan.html) |
 | Encontrar duplicados aproximados | [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md), [`estimar_costo()`](https://sebollin.github.io/lupa/reference/estimar_costo.md) | [Escala y duplicados](https://sebollin.github.io/lupa/articles/escala-y-duplicados.html) |
 | Reparar codificación dañada | `reparar_codificacion` mediante [`planificar_limpieza()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) y [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md) | [Referencia de limpieza](https://sebollin.github.io/lupa/reference/planificar_limpieza.html) |
-| Seguir la calidad en el tiempo | [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md), [`acumular_historico()`](https://sebollin.github.io/lupa/reference/historico_calidad.md), [`guardar_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md), [`leer_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md), [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md), [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md), [`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md) | [Histórico y deriva](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
+| Seguir la calidad en el tiempo | [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md), [`acumular_historico()`](https://sebollin.github.io/lupa/reference/historico_calidad.md), [`guardar_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md), [`leer_historico()`](https://sebollin.github.io/lupa/reference/guardar_historico.md), [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md), [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md), [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md), [`comparar_evaluaciones()`](https://sebollin.github.io/lupa/reference/comparar_evaluaciones.md) | [Histórico y deriva](https://sebollin.github.io/lupa/articles/historico-y-deriva.html) |
 | Compartir resultados | [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md), [`guardar_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md), [`leer_analisis()`](https://sebollin.github.io/lupa/reference/persistir_analisis.md) | [Referencia de informes](https://sebollin.github.io/lupa/reference/reportar.html) |
 | Validar y extender | [`validadores_internacionales()`](https://sebollin.github.io/lupa/reference/pack_validadores.md), [`validadores_uruguay()`](https://sebollin.github.io/lupa/reference/pack_validadores.md), [`pack_validadores()`](https://sebollin.github.io/lupa/reference/pack_validadores.md), [`validar_ci_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md), [`validar_rut_uy()`](https://sebollin.github.io/lupa/reference/validadores_uy.md), [`validar_luhn()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_mod97()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_iso3166()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_iso4217()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_correo()`](https://sebollin.github.io/lupa/reference/validadores_formato.md), [`validar_url()`](https://sebollin.github.io/lupa/reference/validadores_formato.md) | [Referencia](https://sebollin.github.io/lupa/reference/) |
 
@@ -319,6 +338,10 @@ cuantitativos y los hallazgos derivados de esas cantidades. Por omisión,
 tipos, la detección de formatos de fecha y la muestra común con que se
 buscan dependencias funcionales. Otro límite o `Inf` cambia o desactiva
 ese muestreo.
+
+Para tipos temporales inferidos, `estado_tipo_inferido` distingue
+`confirmado`, `candidato` y `NA`; una fecha ambigua compatible al 100 %
+sigue siendo candidata.
 
 Los validadores de documentos personales tienen otro filtro preliminar:
 `muestra_validadores = 1000` por omisión. Si un validador supera ese
@@ -459,12 +482,18 @@ conteo como subconsulta escalar de la misma sentencia. La sonda
 comprueba tambien la division entera (`%` y `/`); si el dialecto no
 admite esa forma, la salida declara que conserva las dos consultas.
 
+La mediana consolidada tambien se sondea antes de usarla; en SQL Server
+requiere nivel de compatibilidad \>= 110. Se sondea; estos son los
+motivos conocidos de que no se active: la funcion no esta disponible o
+el motor rechaza la sonda. El mensaje del motor queda en
+`meta$mediana_consolidada$motivo`, y se conserva la mediana por columna.
+
 La procedencia de la cardinalidad se elige con `estrategia_distintos`,
 cuyo valor por omisión es `"exacta"`. `"exacta"` emite `COUNT(DISTINCT)`
 sobre las filas de la corrida; `"aproximada_motor"` usa una función
 nativa sólo si la sonda la acepta; `"catalogo"` lee
 `pg_stats.n_distinct` en PostgreSQL, lo publica como estimación y aplica
-guardas de herencia y de modos muestreados; en otros motores queda
+guardas de herencia y del universo muestreado; en otros motores queda
 `no_disponible` con su motivo; y `"omitida"` no emite la consulta. No
 hay repliegue silencioso entre estrategias: una aproximación sin
 capacidad queda `no_disponible`, no se convierte en un conteo exacto.
@@ -478,10 +507,10 @@ conserva el método de la consulta que efectivamente se ejecutó.
 
 Medido contra PostgreSQL 16 con **2 millones de filas por 40 columnas**:
 
-| modo | antes | después |
+| configuración | antes | después |
 |----|----|----|
-| `conteos` | 46 consultas, 5,4 s | **8 consultas, 2,4 s** |
-| `seguro` | 128 consultas, 15,2 s | 14 consultas, 5,3 s; **10 consultas** con la fusión plana |
+| `metricas = "validos"` | 46 consultas, 5,4 s | **8 consultas, 2,4 s** |
+| `metricas = c("validos", "basicos", "desvio")` | 128 consultas, 15,2 s | 14 consultas, 5,3 s; **10 consultas** con la fusión plana |
 
 Con las mismas 160 y 400 métricas calculadas, y con los mismos números:
 sobre una tabla sembrada una sola vez, el perfil consolidado y el
@@ -500,12 +529,34 @@ tiene sus propios tests.
 todos sus campos, y agrega `lote` y `columnas_compartidas` para que se
 vea cuál consulta fue compartida. También agrega `consulta_id`, que
 identifica la sentencia que produjo cada medición y define el grupo de
-consistencia comprobable. `id_muestra` identifica además la consulta de
-datos y conserva la garantía de que dos métricas con el mismo valor
-vieron exactamente las mismas filas. Las métricas por columna —moda,
-frecuencia de la moda y mediana— dejan `id_muestra = NA`, porque no
-comparten filas con otras métricas; `NA` declara que no hay garantía, no
-que se haya inventado una coincidencia.
+consistencia comprobable. El campo heredado de consulta ahora se llama
+`id_consulta`, sin alias: identifica la consulta de datos. `muestra_id`
+queda reservado para la relación materializada y se publica en
+`meta$materializacion`, nunca como segundo nombre del id de consulta.
+
+Con `universo = "muestra_motor"`, la selección del motor se materializa
+una sola vez en un spool externo de la sesión cliente. Su trailer
+verifica `muestra_id`, `snapshot_id`, `orden_id`, `n_filas`, `bytes` y
+checksum en la relectura. Todo el perfil lee ese spool; nunca vuelve a
+muestrear el motor. Cada chunk se compara con
+`max_bytes_materializacion` antes de escribir y un exceso publica
+`spool_presupuesto_excedido` junto con
+`muestra_inestable:presupuesto_materializacion`, sin resultado híbrido.
+El spool no escribe en la conexión DBI ni crea objetos temporales del
+motor. `meta$materializacion` conserva backend, versión, checksum, bytes
+y presupuesto.
+
+El punto de cruce medido se declara como costo, no como promesa de
+velocidad: en PostgreSQL 16 y 2 millones de filas, una muestra de
+500.000 tardó unos 5,6 s con spool frente a 3,3 s reordenando en cada
+pasada; se elige spool por identidad y reutilización acotada. Para
+10.000, 100.000 y 500.000 filas, los totales con spool fueron 0,448,
+1,684 y 5,598 s, frente a 0,814, 2,178 y 3,265 s reordenando (cruce
+entre 100.000 y 500.000).
+
+La misma auditoría SQL incluye `memoria_trabajo`: `creciente`, `acotado`
+o `NA`, para señalar qué trabajo no conviene recalcular incrementalmente
+sobre una tabla mayor.
 
 Con `instrumentar = TRUE`, cada consulta suma `duracion_ms` y `cpu_ms`.
 El primero usa [`Sys.time()`](https://rdrr.io/r/base/Sys.time.html); el
@@ -783,18 +834,20 @@ la muestra o cuándo hará falta la sonda de bytes.
 
 ### El costo se planifica antes de pagarlo
 
-Perfilar una tabla de 158 columnas en `modo = "exacto"` emite 335
-consultas, y 327 de ellas escanean, ordenan o agrupan la tabla entera.
-La cuenta sigue a la composición y no a la cantidad de columnas: esas
-mismas 158 columnas, todas de texto, cuestan 252, porque una mediana
-pide un orden total por columna numérica. `muestra` no acota nada de eso
-—acota lo que se trae a R, no el trabajo del motor—. Así que el costo se
-declara y se elige (`benchmark/medir_plan_ancho.R` reproduce los cuatro
-números):
+Perfilar una tabla de 158 columnas con el `universo = "tabla_completa"`
+por omisión emite 335 consultas, y 327 de ellas escanean, ordenan o
+agrupan la tabla entera. La cuenta sigue a la composición y no a la
+cantidad de columnas: esas mismas 158 columnas, todas de texto, cuestan
+252, porque una mediana pide un orden total por columna numérica.
+`muestra` no acota nada de eso —acota lo que se trae a R, no el trabajo
+del motor—. Así que el costo se declara y se elige
+(`benchmark/medir_plan_ancho.R` reproduce los cuatro números):
 
 ``` r
 
-plan_perfilado_dbi(con, "tabla", modo = "muestreado")   # prepara y publica un rango
+plan_perfilado_dbi(
+  con, "tabla", universo = "muestra_motor", muestra_motor = 5000
+)   # prepara y publica un rango
 ```
 
 El plan da un **rango** de cuántas consultas va a emitir el perfilado, y
@@ -813,11 +866,11 @@ es `total_maximo` —también publicado como `total_lotes_rechazados`
 después de sumar la bisección— y deja abierto el camino que las ejecuta.
 Si el motor rechaza lotes, se agregan hasta `2n - 1` sondas por lote de
 `n` columnas. El costo real cae entre los dos **cuando el muestreo se
-puede construir**: si `modo = "muestreado"` y el motor no admite la
-forma resuelta, el plan lo declara en `attr(plan, "muestreo")` y excluye
-del rango las métricas que dependían de ella. La corrida, por su parte,
-publica cada una como `no_disponible` con su motivo: no se informa como
-medido lo que no se midió.
+puede construir**: si `universo = "muestra_motor"` y el motor no admite
+la forma resuelta, el plan lo declara en `attr(plan, "muestreo")` y
+excluye del rango las métricas que dependían de ella. La corrida, por su
+parte, publica cada una como `no_disponible` con su motivo: no se
+informa como medido lo que no se midió.
 
 La procedencia de distintos y la fuente auxiliar de costo son
 independientes: `estrategia_distintos` dice cómo se obtiene o se omite
@@ -865,6 +918,15 @@ La del motor son `filas_leidas` y `ordenaciones_completas`, resumidas en
 sobre la muestra—, resumidas en `magnitud_texto`. `magnitud` es la mayor
 de las dos.
 
+En PostgreSQL, cuando la preparacion ya leyo la jerarquia del catalogo,
+un `pg_class.reltuples` positivo tambien aporta la magnitud de filas. El
+plan lo imprime como estimacion de catalogo, no como medicion, y publica
+la fuente en `filas_fuente`/`estimacion_filas`; las proyecciones de
+trabajo de moda y mediana quedan en `proyecciones` con el mismo rotulo.
+Un `reltuples` cero o negativo —el estado habitual antes de `ANALYZE`—
+deja desconocidos las filas y esas proyecciones. Los demas motores
+conservan el estado desconocido actual.
+
 Contar sólo el motor daba juicios falsos con números ciertos: una tabla
 del catálogo de PostGIS de 3.912 filas, con una columna de geometría
 guardada como texto, pedía 64.592 lecturas de fila y cero ordenaciones
@@ -906,13 +968,13 @@ aproximadamente 7 GB y procesar 12,8 millones aproximadamente 19 GB. El
 problema observado está en el procesamiento en R, no en la red ni en el
 motor.
 
-| modo | qué hace |
+| dimensión | qué hace |
 |----|----|
-| `exacto` | todas las métricas sobre la tabla entera |
-| `seguro` | deja fuera las métricas que ordenan la columna completa |
-| `conteos` | sólo conteos |
-| `muestreado` | métricas sobre filas muestreadas **en el motor**: `TABLESAMPLE` donde existe, un orden pseudoaleatorio con límite donde no |
-| `aproximado` | funciones aproximadas nativas para las métricas que define el modo |
+| valores por omisión | todas las métricas exactas sobre la tabla entera |
+| `metricas = c("validos", "basicos", "desvio")` | el preset histórico `seguro` |
+| `metricas = "validos"` | el preset histórico `conteos` |
+| `universo = "muestra_motor"` | una selección del motor materializada en spool cliente; `TABLESAMPLE` u otra fuente limitada se lee una vez y se reutiliza |
+| `estrategia_mediana = "aproximada_motor"` | prueba exacto nativo primero y aproximado sólo al final; sólo publica `estimado` si ejecutó una aproximación |
 
 Toda métrica muestreada o aproximada viaja diciéndolo. `estado`
 distingue `calculado`, `estimado` y `no_disponible`, y cada fila lleva
@@ -935,7 +997,7 @@ El conteo de distintos tiene su propio estado, `observado_muestra`: la
 cardinalidad de una muestra no estima la del universo sin un estimador
 declarado, así que se informa por lo que es —lo visto en la muestra, con
 el universo al lado—. Un motor sin capacidad de muestreo no rompe: el
-modo degrada y lo dice en la tabla de cobertura.
+muestreo del motor degrada y lo dice en la tabla de cobertura.
 
 Si la consulta de la muestra devuelve cero filas, no hay base para medir
 las métricas de alcance `muestra`. Se publican como `NA`, con estado

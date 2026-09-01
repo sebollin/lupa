@@ -95,7 +95,7 @@ perfil_para_evaluar <- perfil_evaluacion("Publicable", regla)
 evaluacion <- evaluar(medicion, perfil_para_evaluar)
 evaluacion$perfiles
 #>      id_medicion               fecha     perfil n_reglas resultado
-#> 1 ejemplo-guiado 2026-08-31 02:53:06 Publicable        1      0.75
+#> 1 ejemplo-guiado 2026-09-01 06:20:18 Publicable        1      0.75
 ```
 
 La evaluación aplica una condición a las medidas existentes. No vuelve a

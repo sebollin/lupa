@@ -17,7 +17,23 @@ consultar además las estadísticas de PostgreSQL (`pg_stats`,
 `pg_class.reltuples`, `SHOW work_mem` y, desde PostgreSQL 13,
 `SHOW hash_mem_multiplier`) para estimar el tamaño del hash y avisar un
 posible derrame. Esa consulta de metadatos no publica cardinalidad
-medida ni reemplaza la medición posterior.
+medida ni reemplaza la medición posterior. Para la moda y la mediana se
+publican, además, los atributos `estimacion_derrame_moda` y
+`estimacion_derrame_mediana`. La moda deriva su `metodo` (`"hash"` o
+`"sort"`) del primer `Aggregate` de un
+`EXPLAIN (FORMAT JSON, COSTS OFF)` de la consulta exacta, sin `ANALYZE`
+ni lectura de datos. La mediana siempre modela un sort y distingue su
+huella de decisión de la magnitud del tape. Ambas usan `n_validos` de
+catálogo en el plan, pisos de 32 bytes para tipos fijos y 42 para
+`numeric`, y dejan el objeto como `no_disponible` cuando el catálogo o
+el motor no permiten una estimación. Cuando esa lectura de catálogo trae
+`pg_class.reltuples` positivo, el plan lo reutiliza como una estimación
+declarada del número de filas. La magnitud y las proyecciones de trabajo
+de moda y mediana quedan entonces disponibles y dicen explícitamente
+`estimado_catalogo`; no son duraciones ni mediciones. Un valor cero o
+negativo —típico de una relación sin `ANALYZE`— conserva el estado
+`sin dato filas`. Los demás motores conservan ese estado si no tienen
+una lectura de catálogo ya disponible.
 
 ## Usage
 
@@ -25,23 +41,28 @@ medida ni reemplaza la medición posterior.
 plan_perfilado_dbi(
   conexion,
   tabla,
+  universo = c("tabla_completa", "muestra_motor"),
+  muestra_motor = NULL,
   muestra = Inf,
   orden_muestra = NULL,
-  modo = c("exacto", "seguro", "conteos", "muestreado", "aproximado"),
-  metricas = NULL,
+  metricas = .METRICAS_DBI,
+  estrategia_distintos = "exacta",
+  estrategia_mediana = c("exacta", "aproximada_motor"),
+  politica_costo = c("todas", "por_cardinalidad"),
+  bloque_muestra = c("con_muestra", "solo_agregados"),
   max_consultas = Inf,
   dialecto = "auto",
   incluir_valores = TRUE,
   tamano_lote = NULL,
   tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
   tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
-  bloque_muestra = c("con_muestra", "solo_agregados"),
   instrumentar = FALSE,
-  estrategia_distintos = "exacta",
-  politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
   max_celdas_muestra = .MAX_CELDAS_MUESTRA,
-  max_bytes_muestra = .MAX_BYTES_MUESTRA
+  max_bytes_muestra = .MAX_BYTES_MUESTRA,
+  bloque_filas = NULL,
+  max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
+  max_bytes_materializacion = .MAX_BYTES_MUESTRA
 )
 ```
 
@@ -56,22 +77,35 @@ plan_perfilado_dbi(
   Nombre de tabla o un objeto aceptado por
   [`DBI::dbQuoteIdentifier()`](https://dbi.r-dbi.org/reference/dbQuoteIdentifier.html).
 
+- universo:
+
+  Universo sobre el que se calculan los agregados SQL:
+  `"tabla_completa"` (por omisión) o `"muestra_motor"`. En el segundo
+  caso, todas las métricas SQL usan la relación muestreada por el motor
+  y no se reemplazan silenciosamente por resultados de la tabla
+  completa.
+
+- muestra_motor:
+
+  Cantidad positiva y finita de filas que el motor debe tomar cuando
+  `universo = "muestra_motor"`. Es obligatorio en ese universo y debe
+  quedar `NULL` para `"tabla_completa"`; la función rechaza temprano
+  valores no enteros, no positivos o `Inf`.
+
 - muestra:
 
-  Cantidad positiva de filas solicitadas para el perfil de muestra, o
-  `Inf` para traer la tabla entera. El valor por omisión ya es `Inf`: no
-  representa una elección distinta de `Inf`, sino la tabla completa. Con
-  `Inf` la consulta sale sin `LIMIT` y `tabla_completa` queda en `TRUE`.
+  Cantidad positiva de filas solicitadas para el perfil de muestra que
+  se trae a R, o `Inf` para traer la tabla entera. Este límite es
+  independiente de `universo`: en `muestra_motor`, `muestra_motor`
+  decide las filas del resumen SQL y `muestra` decide las filas del
+  bloque `perfil_muestra`. En `tabla_completa`, `muestra` no cambia los
+  agregados.
 
-  El resumen de tabla **no** se muestrea: con `modo = "exacto"` se
-  calcula en el motor sobre todas las filas. Lo que sale de esta muestra
-  son los diagnosticos que necesitan los valores en R -patrones,
-  formatos, casi-duplicados y dependencias funcionales-, y sin
-  `orden_muestra` no son una muestra aleatoria sino las primeras filas
-  que devuelva el motor. El limite también alcanza la muestra común con
-  que se buscan dependencias. Use un entero finito para acotar ese
-  trabajo; `Inf` es el valor por omisión y trae la tabla entera cuando
-  el tiempo no es la restricción.
+  Sin `orden_muestra`, las filas del bloque en R no son una muestra
+  aleatoria garantizada sino las primeras que devuelva el motor. El
+  límite también alcanza la muestra común con que se buscan
+  dependencias. Use un entero finito para acotar ese trabajo cuando el
+  tiempo no sea la restricción.
 
 - orden_muestra:
 
@@ -79,22 +113,75 @@ plan_perfilado_dbi(
   cuando la combinación es única en toda la tabla. Sin este argumento,
   DBI no garantiza el orden ni la pertenencia de una muestra limitada, y
   `meta` lo declara expresamente. No se usa cuando
-  `bloque_muestra = "solo_agregados"`.
-
-- modo:
-
-  Conjunto de métricas del resumen: `"exacto"` las calcula todas,
-  `"seguro"` evita las que ordenan o agrupan la tabla completa y
-  `"conteos"` deja solo el conteo de valores no nulos, `"muestreado"`
-  calcula estimaciones sobre filas elegidas por el motor y
-  `"aproximado"` usa funciones nativas aproximadas para las métricas que
-  ese modo define.
+  `bloque_muestra = "solo_agregados"`. En la via I1, la identidad de la
+  fuente por bloques gobierna el recorrido y este pedido queda declarado
+  en `meta$orden_muestra` con el motivo estable de que no gobierna esa
+  via.
 
 - metricas:
 
-  Selección explícita de grupos de métricas, que tiene prioridad sobre
-  `modo`: `"validos"`, `"distintos"`, `"moda"`, `"basicos"`, `"mediana"`
-  y `"desvio"`.
+  Selección explícita de grupos de métricas: `"validos"`, `"distintos"`,
+  `"moda"`, `"basicos"`, `"mediana"` y `"desvio"`. El valor por omisión
+  solicita las seis. Para traducir presets de versiones anteriores:
+  `seguro` equivale a `c("validos", "basicos", "desvio")` y `conteos`
+  equivale a `"validos"`; `exacto` equivale a los valores por omisión de
+  esta firma.
+
+- estrategia_distintos:
+
+  Procedencia explícita para `n_distintos`: `"exacta"` (por omisión)
+  emite `COUNT(DISTINCT)`; `"aproximada_motor"` usa una función nativa
+  aceptada por el motor y deja la métrica en `no_disponible` si no
+  existe; `"catalogo"` lee `pg_stats.n_distinct` en PostgreSQL y publica
+  el resultado como `estimado_catalogo`, nunca como medición, cuando
+  `universo = "tabla_completa"`. En `muestra_motor` queda
+  `no_disponible`, porque el catálogo describe la relación entera y la
+  corrida mide un subconjunto; y `"omitida"` no emite ninguna consulta.
+  No hay repliegue automático entre estrategias. El resultado publica
+  `estrategia_solicitada`, `estrategia_resuelta` y `estado` en
+  `meta$estrategia_distintos`, y las dos primeras también en
+  `resumen_tabla$sql`. En `pg_stats`, un valor positivo es el conteo
+  estimado y uno negativo es una fracción de las filas. Cuando la
+  relación tiene descendientes se elige `inherited = TRUE`, porque esa
+  fila describe lo que lee una consulta sin `ONLY`; una relación sin
+  hijas usa su única fila propia. Las fracciones se convierten con la
+  suma de `pg_class.reltuples` de la jerarquía. Si no hay una fila
+  utilizable —por ejemplo, antes de `ANALYZE`— o hay ambigüedad, la
+  métrica queda `no_disponible`, no en cero.
+
+- estrategia_mediana:
+
+  Preferencia para resolver `mediana`: `"exacta"` (por omisión) o
+  `"aproximada_motor"`. La sonda prueba siempre primero una forma nativa
+  exacta consolidada, luego una forma exacta por columna y deja las
+  funciones nativas aproximadas para el final. Por eso esta opción
+  describe la estrategia habilitada, no garantiza el método ejecutado:
+  `meta$estrategia_mediana` y `resumen_tabla$sql$metodo` publican el
+  método que efectivamente corrió. Una mediana resuelta por una forma
+  exacta queda `estado = "calculado"` y `error_esperado = "no_aplica"`,
+  aunque se haya pedido `"aproximada_motor"`; sólo una aproximación
+  ejecutada queda `estado = "estimado"`. `universo = "muestra_motor"`
+  combinado con `"aproximada_motor"` se rechaza temprano.
+
+- politica_costo:
+
+  Política optativa para las métricas caras. El valor por omisión,
+  `"todas"`, conserva moda y mediana para todas las columnas
+  solicitadas. `"por_cardinalidad"` resuelve primero las fuentes
+  estructurales y mide valores válidos y distintos sólo cuando hace
+  falta y la estrategia lo permite. Luego omite, por columna, sólo la
+  moda cuando la proporción de distintos alcanza `umbral_cardinalidad`;
+  la mediana se conserva porque las mediciones disponibles muestran que
+  su costo depende de las filas y no de la cardinalidad. Los únicos
+  valores aceptados son `"todas"` y `"por_cardinalidad"`; no hay alias
+  históricos.
+
+- bloque_muestra:
+
+  Qué bloques se solicitan: `"con_muestra"` (por omisión) calcula
+  también `perfil_muestra`, o `"solo_agregados"` omite su lectura y
+  devuelve sólo los agregados SQL. La segunda opción no cambia el
+  alcance de esos agregados: eso lo decide `universo`.
 
 - max_consultas:
 
@@ -132,55 +219,11 @@ plan_perfilado_dbi(
   los lotes mayores. Una sola cardinalidad todavía puede forzar un
   agregado pesado y derramar mucho más que un lote plano.
 
-- bloque_muestra:
-
-  Qué bloques se solicitan: `"con_muestra"` (por omisión) calcula
-  también `perfil_muestra`, o `"solo_agregados"` omite su lectura y
-  devuelve sólo los agregados SQL. La segunda opción no cambia el
-  alcance de esos agregados: eso lo decide `modo`.
-
 - instrumentar:
 
   En el plan, si es `TRUE`, cronometra las consultas de preparación. No
   habilita consultas de datos ni agrega mediciones al objeto devuelto:
   sus costos siguen siendo predicciones. Por omisión es `FALSE`.
-
-- estrategia_distintos:
-
-  Procedencia explícita para `n_distintos`: `"exacta"` (por omisión)
-  emite `COUNT(DISTINCT)`; `"aproximada_motor"` usa una función nativa
-  aceptada por el motor y deja la métrica en `no_disponible` si no
-  existe; `"catalogo"` lee `pg_stats.n_distinct` en PostgreSQL y publica
-  el resultado como `estimado_catalogo`, nunca como medición, cuando el
-  modo mide la relación entera (`exacto`, `seguro` o `conteos`). En
-  `muestreado` y `aproximado` queda `no_disponible`, porque el catálogo
-  describe la relación entera y la corrida mide un subconjunto; y
-  `"omitida"` no emite ninguna consulta. No hay repliegue automático
-  entre estrategias. El resultado publica `estrategia_solicitada`,
-  `estrategia_resuelta` y `estado` en `meta$estrategia_distintos`, y las
-  dos primeras también en `resumen_tabla$sql`. En `pg_stats`, un valor
-  positivo es el conteo estimado y uno negativo es una fracción de las
-  filas. Cuando la relación tiene descendientes se elige
-  `inherited = TRUE`, porque esa fila describe lo que lee una consulta
-  sin `ONLY`; una relación sin hijas usa su única fila propia. Las
-  fracciones se convierten con la suma de `pg_class.reltuples` de la
-  jerarquía. Si no hay una fila utilizable —por ejemplo, antes de
-  `ANALYZE`— o hay ambigüedad, la métrica queda `no_disponible`, no en
-  cero.
-
-- politica_costo:
-
-  Política optativa para las métricas caras. El valor por omisión,
-  `"todas"`, conserva moda y mediana para todas las columnas
-  solicitadas. `"ninguna"` es un alias de `"todas"`;
-  `"por_cardinalidad"` (también `"cardinalidad"`) resuelve primero las
-  fuentes estructurales y mide valores válidos y distintos sólo cuando
-  hace falta y la estrategia lo permite. Luego omite, por columna, sólo
-  la moda cuando la proporción de distintos alcanza
-  `umbral_cardinalidad`; la mediana se conserva porque las mediciones
-  disponibles muestran que su costo depende de las filas y no de la
-  cardinalidad. Una estrategia no disponible no se convierte en una
-  medición exacta.
 
 - umbral_cardinalidad:
 
@@ -212,6 +255,29 @@ plan_perfilado_dbi(
   los bytes observados, el umbral y cuál tope mandó. `Inf` desactiva
   este tope. No modifica los agregados SQL.
 
+- bloque_filas:
+
+  En la via I1, entero positivo que activa la fuente por bloques de
+  `tabla_completa`. Cada bloque se obtiene con un unico result set
+  (`dbSendQuery()` + `dbFetch(n = bloque_filas)`) y se absorbe antes de
+  liberar la entrada. `NULL` conserva el plan historico. El plan publica
+  la proyeccion, el orden, los bloques previstos y el costo declarado
+  sin leer las filas.
+
+- max_bytes_procesamiento:
+
+  Límite de bytes del estado retenido por el procesamiento por bloques y
+  por la lectura del spool en R. Se comprueba antes de publicar un
+  bloque o una pasada; `Inf` desactiva este límite.
+
+- max_bytes_materializacion:
+
+  Presupuesto de bytes del spool externo de `muestra_motor`. Se mide por
+  chunk antes de cada escritura, dejando espacio para el trailer; si no
+  alcanza, se publica `spool_presupuesto_excedido` y
+  `muestra_inestable:presupuesto_materializacion` sin mezclar una
+  muestra parcial con resultados completos. `Inf` desactiva este límite.
+
 ## Value
 
 Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
@@ -220,22 +286,28 @@ Data frame de clase `plan_perfilado_dbi` con `clase_consulta`,
 `columnas_numericas`, `dialecto`, `consultas_emitidas`, `metricas`,
 `metricas_ejecucion`, `politica_costo`, `estrategia_distintos`,
 `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`,
-`filas`, `mediana_escalar`, `tamano_lote_planos`,
-`tamano_lote_distintos`, `estimacion_derrame`, `celdas`,
-`memoria_procesamiento`, `max_celdas_muestra`, `max_bytes_muestra`,
-`tope_muestra` y `muestreo`, y, cuando se pide `distintos`,
-`supuesto_costo_distintos`. `memoria_procesamiento` siempre tiene
-`estado = "no_estimada"`: no es una estimación de consumo, sino la
-declaración de su ausencia, el motivo, la magnitud del trabajo y
-referencias medidas de otras corridas. El atributo `estimacion_derrame`
-es independiente: sólo describe la estimación del hash en el motor para
-`COUNT(DISTINCT)` y no la memoria del procesamiento en R. `muestreo`
-declara si la forma muestreada se pudo construir sin emitir una consulta
-de datos. En `modo = "muestreado"`, cuando su `estado` es
-`"no_disponible"`, el plan excluye las métricas SQL de esa muestra y
-`supuesto` conserva el motivo. Cuando se pide
-`bloque_muestra = "solo_agregados"`, también conserva ese valor en el
-atributo `bloque_muestra` y no incluye la fila de la lectura de muestra.
+`filas`, `filas_fuente`, `estimacion_filas`, `proyecciones`,
+`mediana_escalar`, `tamano_lote_planos`, `tamano_lote_distintos`,
+`estimacion_derrame`, `estimacion_derrame_moda`,
+`estimacion_derrame_mediana`, `celdas`, `memoria_procesamiento`,
+`max_celdas_muestra`, `max_bytes_muestra`, `tope_muestra` y `muestreo`,
+y, cuando se pide `distintos`, `supuesto_costo_distintos`.
+`memoria_procesamiento` siempre tiene `estado = "no_estimada"`: no es
+una estimación de consumo, sino la declaración de su ausencia, el
+motivo, la magnitud del trabajo y referencias medidas de otras corridas.
+El atributo `estimacion_derrame` es independiente: sólo describe la
+estimación del hash en el motor para `COUNT(DISTINCT)` y no la memoria
+del procesamiento en R. `estimacion_derrame_moda` y
+`estimacion_derrame_mediana` describen, respectivamente, el nodo real de
+la moda y el sort de la mediana. Sus lotes deciden por el máximo de
+columna; en una mediana consolidada, `estado_io_total_bytes` es sólo la
+suma informativa de los tapes. `muestreo` declara si la forma muestreada
+se pudo construir sin emitir una consulta de datos. En
+`universo = "muestra_motor"`, cuando su `estado` es `"no_disponible"`,
+el plan excluye las métricas SQL de esa muestra y `supuesto` conserva el
+motivo. Cuando se pide `bloque_muestra = "solo_agregados"`, también
+conserva ese valor en el atributo `bloque_muestra` y no incluye la fila
+de la lectura de muestra.
 
 Los atributos `max_celdas_muestra`, `max_bytes_muestra` y `tope_muestra`
 declaran la cota que se aplicará al bloque `perfil_muestra`. El plan no
@@ -253,7 +325,7 @@ la ejecuta. La mediana queda fuera de ese supuesto proporcional y se
 cuenta según las columnas numéricas solicitadas. Ambos incluyen la
 preparación y el perfilado; el rechazo de lotes puede agregar las sondas
 de bisección declaradas por `total_lotes_rechazados`. El costo real cae
-entre los extremos cuando `modo` no es `"muestreado"` o
+entre los extremos cuando `universo` es `"tabla_completa"` o
 `attr(plan, "muestreo")$estado` es `"disponible"`; en `"no_sondeado"` la
 forma sólo se construyó localmente y el intervalo queda condicionado a
 que la sonda de la corrida la acepte. Si la forma muestreada no se puede
@@ -274,13 +346,15 @@ en `magnitud_texto`. `magnitud` es la mayor de las dos: `"baja"`,
 `"media"`, `"alta"`, o `"desconocida"` si no se conoce el número de
 filas. `supuesto_costo` dice de dónde sale cada cuenta.
 
-El plan previo no publica duraciones, CPU, filas ni bytes medidos, ni
-agrega una proyección temporal de `COUNT(DISTINCT)`. Aunque el plan de
-una corrida conserve el atributo `supuesto_costo_distintos`, la medición
-y la proyección sólo aparecen en `resumen_tabla$meta$costo_distintos`,
-después de ejecutar el primer lote. El atributo sólo declara por qué esa
-proyección no existe antes de correr; no es una duración ni una
-estimación temporal.
+El plan previo no publica duraciones, CPU, ni filas o bytes medidos, ni
+agrega una proyección temporal de `COUNT(DISTINCT)`. Puede publicar
+filas estimadas por `pg_class.reltuples` y proyecciones de trabajo de
+moda/mediana, siempre rotuladas como estimación de catálogo y no como
+medición. Aunque el plan de una corrida conserve el atributo
+`supuesto_costo_distintos`, la medición y la proyección sólo aparecen en
+`resumen_tabla$meta$costo_distintos`, después de ejecutar el primer
+lote. El atributo sólo declara por qué esa proyección no existe antes de
+correr; no es una duración ni una estimación temporal.
 
 Si se pide `politica_costo = "por_cardinalidad"`, el plan busca primero
 una garantía estructural o una fuente de catálogo. Si la fuente queda
@@ -311,19 +385,19 @@ la corrida y conserva por separado lo pedido, lo resuelto y el estado.
 No hay `auto`: `"exacta"` es el valor por omisión, `"aproximada_motor"`
 queda `no_disponible` si el motor no ofrece una función aceptada,
 `"catalogo"` lee `pg_stats.n_distinct` en PostgreSQL y publica una
-estimación con estado `estimado_catalogo` cuando el modo mide la
-relación entera (`exacto`, `seguro` o `conteos`), y `"omitida"` no emite
-el agregado. En `muestreado` y `aproximado`, `catalogo` queda
-`no_disponible`: sus estadísticas describen la relación entera y no el
-subconjunto de la corrida. Un `n_distinct` positivo es un conteo y uno
-negativo una fracción de las filas. Si la relación tiene descendientes
-se usa la fila `inherited = TRUE`, que describe la consulta sin `ONLY`;
-si no tiene hijas se usa la única fila propia. La fracción se convierte
-con la suma de `pg_class.reltuples` de la jerarquía. Si falta una
-estimación utilizable —por ejemplo, antes de `ANALYZE`— o hay filas
-ambiguas, se conserva `no_disponible`, nunca cero.
-`fuente_cardinalidad_costo` sigue siendo independiente y sólo describe
-el número usado por la política de costo cuando esa política se pide.
+estimación con estado `estimado_catalogo` cuando
+`universo = "tabla_completa"`, y `"omitida"` no emite el agregado. Con
+`universo = "muestra_motor"`, `catalogo` queda `no_disponible`: sus
+estadísticas describen la relación entera y no el subconjunto de la
+corrida. Un `n_distinct` positivo es un conteo y uno negativo una
+fracción de las filas. Si la relación tiene descendientes se usa la fila
+`inherited = TRUE`, que describe la consulta sin `ONLY`; si no tiene
+hijas se usa la única fila propia. La fracción se convierte con la suma
+de `pg_class.reltuples` de la jerarquía. Si falta una estimación
+utilizable —por ejemplo, antes de `ANALYZE`— o hay filas ambiguas, se
+conserva `no_disponible`, nunca cero. `fuente_cardinalidad_costo` sigue
+siendo independiente y sólo describe el número usado por la política de
+costo cuando esa política se pide.
 
 El plan previo no proyecta segundos para `COUNT(DISTINCT)`: no lee los
 datos y, por tanto, no tiene una referencia medida. La única referencia
@@ -351,6 +425,17 @@ tardaron 25 segundos, mientras que procesar 4,5 millones ocupó
 aproximadamente 7 GB y procesar 12,8 millones aproximadamente 19 GB. El
 problema observado está en el procesamiento en R, no en la red ni en el
 motor.
+
+Para `universo = "muestra_motor"`, el plan declara una única selección
+que se pagará para cerrar el spool externo de sesión cliente.
+`attr(plan, "materializacion")` publica `pagado = FALSE`, backend,
+versión, presupuesto, result set, fetches esperados, filas y bytes;
+`attr(plan, "pasadas")` declara que valor, índice y LSH leerán el mismo
+spool. La referencia medida para justificar este costo es PostgreSQL 16,
+2 millones de filas: 10.000, 100.000 y 500.000 filas dieron
+0,448/1,684/5,598 s con spool frente a 0,814/2,178/3,265 s reordenando
+cada pasada; el cruce está entre 100.000 y 500.000, y la elección
+prioriza identidad.
 
 ## See also
 

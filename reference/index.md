@@ -227,6 +227,8 @@ Acumular corridas y detectar cambios entre entregas.
   : Detectar deriva en una serie de evaluaciones
 - [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
   : Comparar dos perfiles y detectar deriva estructural
+- [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+  : Comparar la equivalencia de dos resúmenes de perfiles
 
 ## Informar
 

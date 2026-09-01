@@ -184,6 +184,81 @@ estructurales; no hacen fallar la comparación de las demás.</p>
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/comparar_perfiles.html">comparar_perfiles</a></span><span class="op">(</span><span class="va">perfil_enero</span>, <span class="va">perfil_enero</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0</span></span></code></pre></div>
 </div>
+<div class="section level2">
+<h2 id="equivalencia-de-resúmenes">Equivalencia de resúmenes<a class="anchor" aria-label="anchor" href="#equivalencia-de-res%C3%BAmenes"></a>
+</h2>
+<p><code><a href="../reference/comparar_equivalencia.html">comparar_equivalencia()</a></code> devuelve una fila por columna y
+campo compartidos. Compara con igualdad exacta los conteos y usa la
+tolerancia declarada por quien llama sólo para los campos flotantes.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">20260831</span><span class="op">)</span></span>
+<span><span class="va">datos_equivalencia</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  monto <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">20</span>, <span class="fl">30</span>, <span class="fl">40</span><span class="op">)</span>,</span>
+<span>  stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">perfil_equivalencia_anterior</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span></span>
+<span>  <span class="va">datos_equivalencia</span>, muestra <span class="op">=</span> <span class="cn">Inf</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">perfil_equivalencia_actual</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/perfilar.html">perfilar</a></span><span class="op">(</span></span>
+<span>  <span class="va">datos_equivalencia</span>, muestra <span class="op">=</span> <span class="cn">Inf</span>, analizar_dependencias <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">fila_monto</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/match.html" class="external-link">match</a></span><span class="op">(</span></span>
+<span>  <span class="st">"monto"</span>, <span class="va">perfil_equivalencia_actual</span><span class="op">$</span><span class="va">columnas</span><span class="op">$</span><span class="va">columna</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">perfil_equivalencia_actual</span><span class="op">$</span><span class="va">columnas</span><span class="op">$</span><span class="va">media</span><span class="op">[</span><span class="va">fila_monto</span><span class="op">]</span> <span class="op">&lt;-</span></span>
+<span>  <span class="va">perfil_equivalencia_actual</span><span class="op">$</span><span class="va">columnas</span><span class="op">$</span><span class="va">media</span><span class="op">[</span><span class="va">fila_monto</span><span class="op">]</span> <span class="op">+</span> <span class="fl">0.001</span></span>
+<span><span class="va">perfil_equivalencia_actual</span><span class="op">$</span><span class="va">columnas</span><span class="op">$</span><span class="va">n</span><span class="op">[</span><span class="va">fila_monto</span><span class="op">]</span> <span class="op">&lt;-</span></span>
+<span>  <span class="va">perfil_equivalencia_actual</span><span class="op">$</span><span class="va">columnas</span><span class="op">$</span><span class="va">n</span><span class="op">[</span><span class="va">fila_monto</span><span class="op">]</span> <span class="op">+</span> <span class="fl">1L</span></span>
+<span></span>
+<span><span class="va">tolerancia_llamador</span> <span class="op">&lt;-</span> <span class="fl">0.01</span></span>
+<span><span class="va">equivalencia</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/comparar_equivalencia.html">comparar_equivalencia</a></span><span class="op">(</span></span>
+<span>  <span class="va">perfil_equivalencia_anterior</span>, <span class="va">perfil_equivalencia_actual</span>,</span>
+<span>  tolerancia <span class="op">=</span> <span class="va">tolerancia_llamador</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">campos_mostrados</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"n"</span>, <span class="st">"n_faltantes"</span>, <span class="st">"media"</span><span class="op">)</span></span>
+<span><span class="va">equivalencia_monto</span> <span class="op">&lt;-</span> <span class="va">equivalencia</span><span class="op">[</span></span>
+<span>  <span class="va">equivalencia</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"monto"</span> <span class="op">&amp;</span> <span class="va">equivalencia</span><span class="op">$</span><span class="va">campo</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">campos_mostrados</span>,</span>
+<span>  , drop <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">]</span></span>
+<span><span class="va">equivalencia_monto</span> <span class="op">&lt;-</span> <span class="va">equivalencia_monto</span><span class="op">[</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/match.html" class="external-link">match</a></span><span class="op">(</span><span class="va">campos_mostrados</span>, <span class="va">equivalencia_monto</span><span class="op">$</span><span class="va">campo</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"campo"</span>, <span class="st">"valor_anterior"</span>, <span class="st">"valor_actual"</span>, <span class="st">"veredicto"</span>, <span class="st">"motivo"</span>,</span>
+<span>    <span class="st">"tipo_eje"</span>, <span class="st">"tolerancia"</span><span class="op">)</span></span>
+<span><span class="op">]</span></span>
+<span><span class="va">equivalencia_monto</span></span>
+<span><span class="co">#&gt;          campo valor_anterior valor_actual              veredicto               motivo</span></span>
+<span><span class="co">#&gt; 3            n              4            5 materialmente_distinto           eje_exacto</span></span>
+<span><span class="co">#&gt; 8  n_faltantes              0            0               identico      igualdad_exacta</span></span>
+<span><span class="co">#&gt; 33       media             25       25.001            equivalente dentro_de_tolerancia</span></span>
+<span><span class="co">#&gt;    tipo_eje tolerancia</span></span>
+<span><span class="co">#&gt; 3    exacto       0.01</span></span>
+<span><span class="co">#&gt; 8    exacto       0.01</span></span>
+<span><span class="co">#&gt; 33 flotante       0.01</span></span></code></pre></div>
+<p>La salida muestra los tres veredictos y el motivo de cada fila; la
+tolerancia es del llamador y viaja ecoada en <code>tolerancia</code>. En
+los ejes exactos, <code>equivalente</code> es inalcanzable: el conteo
+cambiado permanece <code>materialmente_distinto</code> con cualquier
+tolerancia válida.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">tolerancias</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="va">tolerancia_llamador</span>, <span class="fl">1e12</span><span class="op">)</span></span>
+<span><span class="va">veredictos_conteo</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">tolerancias</span>, <span class="kw">function</span><span class="op">(</span><span class="va">tolerancia</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">prueba</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/comparar_equivalencia.html">comparar_equivalencia</a></span><span class="op">(</span></span>
+<span>    <span class="va">perfil_equivalencia_anterior</span>, <span class="va">perfil_equivalencia_actual</span>,</span>
+<span>    tolerancia <span class="op">=</span> <span class="va">tolerancia</span></span>
+<span>  <span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">prueba</span><span class="op">$</span><span class="va">veredicto</span><span class="op">[</span></span>
+<span>    <span class="va">prueba</span><span class="op">$</span><span class="va">columna</span> <span class="op">==</span> <span class="st">"monto"</span> <span class="op">&amp;</span> <span class="va">prueba</span><span class="op">$</span><span class="va">campo</span> <span class="op">==</span> <span class="st">"n"</span></span>
+<span>  <span class="op">]</span><span class="op">)</span></span>
+<span><span class="op">}</span>, <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>tolerancia <span class="op">=</span> <span class="va">tolerancias</span>, veredicto_n <span class="op">=</span> <span class="va">veredictos_conteo</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   tolerancia            veredicto_n</span></span>
+<span><span class="co">#&gt; 1      0e+00 materialmente_distinto</span></span>
+<span><span class="co">#&gt; 2      1e-02 materialmente_distinto</span></span>
+<span><span class="co">#&gt; 3      1e+12 materialmente_distinto</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/all.html" class="external-link">all</a></span><span class="op">(</span><span class="va">veredictos_conteo</span> <span class="op">==</span> <span class="st">"materialmente_distinto"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>El invariante es deliberado: devuelve datos, no decisiones.</p>
+</div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
 </div>

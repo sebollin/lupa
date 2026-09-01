@@ -2,6 +2,247 @@
 
 ## lupa 0.1.0
 
+### Ronda de arreglos del núcleo
+
+- La protección de datos personales protege las dos representaciones de
+  la media (`media` y `media_fecha`), conserva los desvíos y declara
+  también la supresión de la moda en el detalle de protección.
+- [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+  omite campos protegidos y los declara en `campos_protegidos`; también
+  omite magnitudes numéricas cuando sólo uno de los perfiles es temporal
+  y conserva el motivo del cambio de esquema.
+- Los acumuladores por bloques rechazan entradas no atómicas o con
+  dimensión en el mapa de distintos, con estado `no_disponible` y motivo
+  explícito.
+
+### Ronda de arreglos DBI
+
+- La via por bloques inicia el mapa central cuando se pide moda o
+  mediana sin publicar `n_distintos`; aplica
+  `politica_costo = "por_cardinalidad"`, registra `dbfetch_bloques` como
+  estado acotado y audita filas, orden y pasadas.
+- La atribucion de derrames de PostgreSQL empareja `pg_stat_statements`
+  por `queryid`, y los avisos de estimacion declaran el origen de su
+  denominador aun cuando `validos` no fue solicitado.
+- Los spools reciben identificadores propios de cada materializacion y
+  los motivos de muestras vacias publican el metodo que realmente
+  corrio.
+
+### Integración DBI — spool y contratos de `muestra_motor` (Etapa I2)
+
+- `universo = "muestra_motor"` ejecuta una sola selección y la
+  materializa en un spool externo de sesión cliente. El trailer verifica
+  `muestra_id`, `snapshot_id`, `orden_id`, `n_filas`, `bytes` y checksum
+  en la relectura; las pasadas leen ese spool y nunca vuelven a
+  muestrear el motor.
+- El spool no escribe en la conexión DBI ni crea objetos temporales del
+  motor. `meta$materializacion` publica backend, versión, checksum,
+  bytes, presupuesto y estado. Un exceso medido antes de escribir cada
+  chunk publica `spool_presupuesto_excedido` y
+  `muestra_inestable:presupuesto_materializacion`; no se entrega una
+  muestra híbrida.
+- `perfil_muestra$meta$filas_analizadas`, `hallazgos`,
+  `cobertura_diagnosticos` y `meta$origen_dbi$muestreo` forman un
+  contrato explícito. Las familias que no se evaluaron quedan como filas
+  de cobertura; la impresión remite a esa cobertura. El identificador
+  heredado de consulta ahora se llama `id_consulta`, sin alias;
+  `muestra_id` queda reservado a la relación materializada.
+- El punto de cruce medido en PostgreSQL 16 fue 5,6 s con spool frente a
+  3,3 s reordenando en cada pasada para 500.000 filas
+  (10.000/100.000/500.000: 0,448/1,684/5,598 s frente a
+  0,814/2,178/3,265 s). La elección del spool responde a identidad y
+  reutilización, no a una promesa de velocidad.
+
+### Integración DBI — fuente por bloques (Etapa I1)
+
+- `perfilar_dbi(..., bloque_filas = n)` incorpora una vía optativa para
+  recorrer `tabla_completa` con un único `dbSendQuery()` y sucesivos
+  `dbFetch(n)`. Los acumuladores conservan ordinales globales y el
+  resumen publica `alcance`, bloques recorridos, bytes retenidos y
+  eventos del vigilante.
+- El preflight resuelve clave primaria, localizador o `ROW_NUMBER()`,
+  publica el método, la collation efectiva y su determinismo. Una
+  collation textual no determinista degrada el orden; DuckDB queda
+  explícitamente `no_disponible:dbfetch_no_incremental` según la matriz
+  por driver.
+- La identidad de una segunda pasada por localizador se comprueba contra
+  los ordinales de la primera. El resumen de bloques conserva
+  estadísticos finitos y sus contadores separados de `NA`, `NaN` e
+  infinitos; un resumen SQL que no pueda leer `+/-Inf` puede divergir
+  por la representación del controlador.
+
+### Estimacion de derrame de moda y mediana en DBI
+
+- [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
+  y
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  publican `estimacion_derrame_moda` y `estimacion_derrame_mediana`. La
+  moda deriva su metodo del plan `EXPLAIN (FORMAT JSON, COSTS OFF)` sin
+  `ANALYZE`; la mediana usa la huella de decision del sort, con pisos de
+  32 bytes para tipos fijos y 42 para `numeric`. La consolidada decide
+  por el maximo de columna y publica la suma de tapes solo como
+  `estado_io_total_bytes` informativo.
+- Cuando se solicita `validos`, la meta y los avisos usan el `n_validos`
+  medido por los agregados planos y conservan la cifra de catalogo. Sin
+  esa familia, declaran el repliegue al catalogo. El canal medido
+  incluye moda, mediana y consolidada: normaliza literales de forma
+  posicional y publica `llamadas_en_ventana` cuando agrega llamadas
+  concurrentes.
+
+### Mediana y conteos bajo muestreo DBI
+
+- `perfilar_dbi(universo = "muestra_motor")` calcula la mediana sin
+  `dos_consultas` cuando el dialecto requiere la CTE de ventanas, y
+  publica los conteos de la muestra con sus denominadores locales.
+  `TABLESAMPLE SYSTEM` declara su sesgo por bloques; el fallback
+  `NEWID()` queda gobernado por una politica de costo y se rechaza con
+  un motivo estable cuando excede el presupuesto.
+
+### Memoria de trabajo en la auditoría DBI
+
+- `resumen_tabla$sql` agrega `memoria_trabajo`, derivada del estado de
+  medición, del alcance efectivo y del método resuelto. Distingue
+  trabajo `creciente`, `acotado` y filas sin medición (`NA`), incluida
+  la muestra saturada, cuyo tope vacuo se clasifica por método.
+
+### Comparación de perfiles y estado del tipo inferido
+
+- [`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+  compara campos compartidos con un registro fijo de ejes y una
+  tolerancia explícita del llamador, sin convertir sus resultados en
+  decisiones del paquete.
+- El perfil por columna publica `estado_tipo_inferido` como
+  `confirmado`, `candidato` o `NA`; el resumen impreso anota sólo los
+  tipos candidatos.
+
+### Ejecutor interno por bloques — Etapa 4: LSH externo
+
+- Se incorpora el ejecutor LSH en dos fases con runs ordenados,
+  diccionario externo por merge-join, firmas y cubetas derramadas;
+  conserva los pares al cruzar bloques y publica el desglose de memoria
+  residente, RSS, factor pico y piso de fila.
+- Si falta backend de derrame, snapshot u orden estable, LSH queda
+  `no_disponible` sin degradarse silenciosamente.
+
+### Ejecutor interno por bloques — Etapa 3: índice
+
+- Las familias de trazabilidad y ejemplos conservan ordinales globales:
+  los índices se recortan al finalizar y los primeros valores únicos se
+  resuelven sobre el orden de la fuente, no por bloque.
+- La muestra sistemática por bloques calcula una sola vez sus índices
+  globales y aplica la intersección con cada intervalo; reproduce
+  `.muestrear_vector()` para 1, 2, 7 y 31 bloques.
+- Los sobres de índice publican `orden`, `snapshot`, topes y
+  truncamiento; la integración DBI y su `ORDER BY` queda reservada para
+  la Etapa 4.
+
+### Ejecutor interno por bloques — Etapa 2: valor
+
+- Las medianas y cuartiles se reconstruyen desde el mapa central
+  ponderado, sin expandir frecuencias; reproducen `type = 7` y
+  [`median()`](https://rdrr.io/r/stats/median.html) bajo el filtro
+  explícito `is.finite`.
+- Outliers, centinelas, huecos de secuencias y constantes proporcionales
+  aritméticas tienen acumuladores, segundas pasadas y topes visibles. Si
+  el multiset no cabe, publican `no_disponible` con motivo y resolución
+  sugerida.
+- La aceptación cubre 1, 2, 7 y 31 bloques, la identidad paramétrica,
+  valores infinitos/ausentes, truncamiento y las barreras finales del
+  vigilante.
+
+### Ejecutor interno por bloques — Etapa 1
+
+- Se incorpora el ciclo interno
+  `iniciar`/`absorber`/`fusionar`/`finalizar`, con medición de bytes
+  residentes y sobre uniforme de resultado.
+- Conteos, mínimos, máximos, media, desvío y longitudes admiten
+  partición y fusión; el mapa central de distintos conserva la igualdad
+  de R, incluidos `NA`, `NaN`, `+0`/`-0` e `integer64`.
+- Se migran moda y cardinalidad al mapa central cuando está completo,
+  con cota visible al alcanzar el límite. El vigilante registra barreras
+  de bloques y de finalización, incluida la presión artificial de
+  memoria.
+- La aplicabilidad rechaza temprano predicados que dependen de
+  estadísticos globales; los predicados por fila conservan su máscara
+  entre particiones.
+
+### `perfilar_dbi()` separa universo, métricas y estrategias
+
+- Se retira el argumento `modo` de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  y
+  [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md),
+  junto con `meta$modo`. La firma ahora separa el alcance (`universo`),
+  las métricas (`metricas`) y las estrategias de cada agregado; el plan
+  y el perfilado comparten el mismo contrato.
+- Traducción de los presets anteriores: `exacto` son los valores por
+  omisión (`universo = "tabla_completa"`, todas las métricas y
+  estrategias exactas); `seguro` equivale a
+  `metricas = c("validos", "basicos", "desvio")`; `conteos` equivale a
+  `metricas = "validos"`; `muestreado` equivale a
+  `universo = "muestra_motor"`, `muestra_motor = n` y `muestra = n`; y
+  `aproximado` se traduce como
+  `estrategia_mediana = "aproximada_motor"`, sin forzar el catálogo ni
+  apagar el atajo estructural de otros ejes. La procedencia aproximada
+  de distintos se pide aparte con
+  `estrategia_distintos = "aproximada_motor"`.
+- `estrategia_mediana` describe ahora el orden de la sonda: primero
+  intenta una forma nativa exacta consolidada, después una exacta por
+  columna y sólo al final una función aproximada nativa. El método y el
+  estado publicados son los que efectivamente corrieron: una mediana
+  exacta queda `calculado`, con `error_esperado = "no_aplica"`, aunque
+  se haya solicitado la estrategia aproximada; sólo una aproximación
+  ejecutada queda `estimado`.
+- `universo = "muestra_motor"` desactiva la inferencia estructural de
+  cardinalidad por clave primaria: el atajo no puede convertir una
+  muestra en una medición del universo completo. Además, esa combinación
+  rechaza temprano `estrategia_mediana = "aproximada_motor"`, porque la
+  muestra ya es una aproximación del universo.
+- `politica_costo` acepta sólo `"todas"` y `"por_cardinalidad"`;
+  desaparecen los alias `"ninguna"` y `"cardinalidad"`.
+
+### La sonda de mediana consolidada conserva el error del motor
+
+- La razón de no activar la mediana consolidada incluye el mensaje de la
+  sonda rechazada, y la documentación explicita el requisito de
+  compatibilidad \>= 110 de SQL Server.
+
+### La cobertura DBI espeja el tope de muestra
+
+- Cuando `max_celdas_muestra` o `max_bytes_muestra` recorta una muestra
+  DBI, la misma fila y el mismo motivo quedan en
+  `perfil_muestra$cobertura_diagnosticos` y `resumen_tabla$cobertura`.
+  `perfil_muestra$meta$tope_que_mando` declara si mandaron `celdas`,
+  `bytes` o la propia `muestra`, y el texto queda junto a esa
+  declaración.
+
+### El plan DBI aprovecha `reltuples` como estimación
+
+- En PostgreSQL, cuando la preparación ya leyó la jerarquía del
+  catálogo, el plan reutiliza `pg_class.reltuples` positivo para
+  publicar filas, magnitud y proyecciones de trabajo de moda/mediana.
+  Todo queda rotulado como estimación de catálogo y no como medición;
+  `reltuples` cero o negativo conserva `sin dato`.
+- La referencia temporal incluida en los supuestos del plan queda
+  explícitamente identificada como proveniente de otras corridas, no
+  como el tiempo de la tabla planificada.
+
+### Señal de concentración modal
+
+- [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  agrega `valor_concentrado`, la señal M2 seleccionada por la medición
+  de concentración. Sólo considera columnas numéricas con al menos 20
+  valores válidos y 10 valores distintos; emite severidad `sospechoso`
+  cuando la moda tiene una frecuencia al menos cinco veces mayor que la
+  del segundo valor más frecuente y representa al menos 0,15 de los
+  válidos. La evidencia publica el valor, las dos frecuencias, el
+  cociente y la fracción.
+- La elegibilidad no agrega ruido a `cobertura_diagnosticos`: una
+  columna no elegible simplemente queda fuera de esta señal. La
+  documentación declara sus puntos ciegos medidos: no detecta
+  concentraciones menores al 15 % y los empates naturales en enteros
+  pequeños pueden dejar corto el cociente.
+
 ### Los bytes WKB basura no llegan a GDAL
 
 - Las columnas `raw` que no tienen un encabezado WKB plausible ya no se
@@ -30,8 +271,8 @@
 
 ### Una muestra vacía no publica métricas no medidas
 
-- Cuando la consulta de `modo = "muestreado"` devuelve cero filas, las
-  métricas de alcance `muestra` quedan en `NA` y con estado
+- Cuando la consulta de `universo = "muestra_motor"` devuelve cero
+  filas, las métricas de alcance `muestra` quedan en `NA` y con estado
   `no_disponible`; el motivo nombra la muestra vacía. `n` conserva el
   conteo de la tabla completa y `cobertura` mantiene el aviso de que la
   consulta de muestra devolvió cero filas.
@@ -145,7 +386,7 @@
   [`summary()`](https://rdrr.io/r/base/summary.html), la cobertura
   medida de AGESIC, CEPAL e ISO 25012, los siete motores comprobados
   contra un motor real y el recorrido mínimo para empezar. La
-  documentación enumera los 56 nombres canónicos de `tipo_hallazgo`.
+  documentación enumera los 57 nombres canónicos de `tipo_hallazgo`.
 - Los argumentos de
   [`medir()`](https://sebollin.github.io/lupa/reference/medir.md),
   [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) y
@@ -880,8 +1121,8 @@ fuente en el SQL; no se usó tiempo.
 | `muestreado` | 23 | 22 | 23 | 23 | 0 |
 | `aproximado` | 23 | 22 | 23 | 22 | 1 |
 
-En `resumen_tabla$sql`, `id_muestra` identifica la consulta de datos: el
-mismo identificador garantiza exactamente las mismas filas. Moda,
+En `resumen_tabla$sql`, `id_consulta` identifica la consulta de datos:
+el mismo identificador garantiza exactamente las mismas filas. Moda,
 frecuencia de la moda y mediana son métricas por columna y quedan con
 `NA`; también queda `NA` cualquier camino que no pueda sostener esa
 garantía. Así la comparabilidad se comprueba por comparación directa,
@@ -2560,10 +2801,11 @@ para cada bloque de metricas.
   redondea justo a 2^53, asi que pasaba. Ahora se comprueba con la
   vuelta completa -a doble y de vuelta a entero-, que no depende de
   donde caiga el redondeo.
-- **`meta$muestras_independientes` decia algo que la consolidacion
-  volvio falso.** Las columnas de un mismo lote comparten consulta y por
-  lo tanto comparten filas: sus metricas son comparables entre si, y las
-  de lotes distintos no. El campo dice ahora las dos mitades.
+- **La descripción de muestras independientes decía algo que la
+  consolidación volvió falso.** Las columnas de un mismo lote comparten
+  consulta y por lo tanto comparten filas; en `muestra_motor` la
+  selección única queda además en un spool cliente y las pasadas
+  reutilizan esa relación.
 - **El total de
   [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
   pasa a estar declarado como techo.** Se cuenta una mediana y un desvio
@@ -2601,8 +2843,8 @@ de ellas de reproducir lo que el informe atribuia a otra causa.
   Degradar ahi lo esconderia.
 - **El objeto declara que las metricas muestreadas no comparten filas.**
   Estaba en la vineta, y un consumidor automatico lee el objeto. Aparece
-  en `meta$muestras_independientes` solo en `muestreado` y `aproximado`;
-  en los modos que miden sobre la tabla entera no hay nada que advertir.
+  en `meta$materializacion` en `muestra_motor`; en los modos que miden
+  sobre la tabla entera no hay un spool que advertir.
 
 ### Leer un perfil sin conocer su forma, y saber que falta para cada motor
 

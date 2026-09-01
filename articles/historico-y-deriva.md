@@ -137,3 +137,85 @@ estructurales; no hacen fallar la comparación de las demás.
 nrow(comparar_perfiles(perfil_enero, perfil_enero))
 #> [1] 0
 ```
+
+## Equivalencia de resúmenes
+
+[`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+devuelve una fila por columna y campo compartidos. Compara con igualdad
+exacta los conteos y usa la tolerancia declarada por quien llama sólo
+para los campos flotantes.
+
+``` r
+
+set.seed(20260831)
+datos_equivalencia <- data.frame(
+  monto = c(10, 20, 30, 40),
+  stringsAsFactors = FALSE
+)
+perfil_equivalencia_anterior <- perfilar(
+  datos_equivalencia, muestra = Inf, analizar_dependencias = FALSE
+)
+perfil_equivalencia_actual <- perfilar(
+  datos_equivalencia, muestra = Inf, analizar_dependencias = FALSE
+)
+
+fila_monto <- match(
+  "monto", perfil_equivalencia_actual$columnas$columna
+)
+perfil_equivalencia_actual$columnas$media[fila_monto] <-
+  perfil_equivalencia_actual$columnas$media[fila_monto] + 0.001
+perfil_equivalencia_actual$columnas$n[fila_monto] <-
+  perfil_equivalencia_actual$columnas$n[fila_monto] + 1L
+
+tolerancia_llamador <- 0.01
+equivalencia <- comparar_equivalencia(
+  perfil_equivalencia_anterior, perfil_equivalencia_actual,
+  tolerancia = tolerancia_llamador
+)
+campos_mostrados <- c("n", "n_faltantes", "media")
+equivalencia_monto <- equivalencia[
+  equivalencia$columna == "monto" & equivalencia$campo %in% campos_mostrados,
+  , drop = FALSE
+]
+equivalencia_monto <- equivalencia_monto[
+  match(campos_mostrados, equivalencia_monto$campo),
+  c("campo", "valor_anterior", "valor_actual", "veredicto", "motivo",
+    "tipo_eje", "tolerancia")
+]
+equivalencia_monto
+#>          campo valor_anterior valor_actual              veredicto               motivo
+#> 3            n              4            5 materialmente_distinto           eje_exacto
+#> 8  n_faltantes              0            0               identico      igualdad_exacta
+#> 33       media             25       25.001            equivalente dentro_de_tolerancia
+#>    tipo_eje tolerancia
+#> 3    exacto       0.01
+#> 8    exacto       0.01
+#> 33 flotante       0.01
+```
+
+La salida muestra los tres veredictos y el motivo de cada fila; la
+tolerancia es del llamador y viaja ecoada en `tolerancia`. En los ejes
+exactos, `equivalente` es inalcanzable: el conteo cambiado permanece
+`materialmente_distinto` con cualquier tolerancia válida.
+
+``` r
+
+tolerancias <- c(0, tolerancia_llamador, 1e12)
+veredictos_conteo <- vapply(tolerancias, function(tolerancia) {
+  prueba <- comparar_equivalencia(
+    perfil_equivalencia_anterior, perfil_equivalencia_actual,
+    tolerancia = tolerancia
+  )
+  as.character(prueba$veredicto[
+    prueba$columna == "monto" & prueba$campo == "n"
+  ])
+}, character(1))
+data.frame(tolerancia = tolerancias, veredicto_n = veredictos_conteo)
+#>   tolerancia            veredicto_n
+#> 1      0e+00 materialmente_distinto
+#> 2      1e-02 materialmente_distinto
+#> 3      1e+12 materialmente_distinto
+stopifnot(all(veredictos_conteo == "materialmente_distinto"))
+```
+
+El invariante es deliberado: devuelve datos, no decisiones.

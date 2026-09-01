@@ -1,14 +1,13 @@
 # Perfilar una muestra leída mediante DBI
 
 Calcula en SQL un resumen sobre la tabla completa o sobre una relación
-muestreada por el motor, según `modo`, y, por omisión, en un bloque
-separado ejecuta
+muestreada por el motor, según `universo`. Con
+`universo = "muestra_motor"` ejecuta una sola selección y la materializa
+en un spool externo de la sesión cliente; el resumen y
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
-sobre una muestra traída a memoria. El resumen completo de 109 campos
-analíticos además del nombre de la columna no se presenta como calculado
-por la base: esos campos pertenecen exclusivamente a `perfil_muestra` y
-su universo es la muestra. `bloque_muestra = "solo_agregados"` permite
-omitir esa lectura y pedir sólo los agregados SQL.
+leen esa misma materialización. `bloque_muestra = "solo_agregados"`
+sigue omitiendo el objeto `perfil_muestra`, pero no vuelve a seleccionar
+filas.
 
 ## Usage
 
@@ -16,20 +15,22 @@ omitir esa lectura y pedir sólo los agregados SQL.
 perfilar_dbi(
   conexion,
   tabla,
+  universo = c("tabla_completa", "muestra_motor"),
+  muestra_motor = NULL,
   muestra = Inf,
   orden_muestra = NULL,
-  modo = c("exacto", "seguro", "conteos", "muestreado", "aproximado"),
-  metricas = NULL,
+  metricas = .METRICAS_DBI,
+  estrategia_distintos = "exacta",
+  estrategia_mediana = c("exacta", "aproximada_motor"),
+  politica_costo = c("todas", "por_cardinalidad"),
+  bloque_muestra = c("con_muestra", "solo_agregados"),
   max_consultas = Inf,
   dialecto = "auto",
   incluir_valores = TRUE,
   tamano_lote = NULL,
   tamano_lote_planos = .TAMANO_LOTE_PLANOS_DBI,
   tamano_lote_distintos = .TAMANO_LOTE_DISTINTOS_DBI,
-  bloque_muestra = c("con_muestra", "solo_agregados"),
   instrumentar = TRUE,
-  estrategia_distintos = "exacta",
-  politica_costo = c("todas", "ninguna", "por_cardinalidad", "cardinalidad"),
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
   avisar_costo_distintos = TRUE,
   umbral_segundos_aviso_distintos = .UMBRAL_SEGUNDOS_AVISO_DISTINTOS_DBI,
@@ -41,6 +42,9 @@ perfilar_dbi(
   umbral_bytes_aviso_derrame_estimado = .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
   max_celdas_muestra = .MAX_CELDAS_MUESTRA,
   max_bytes_muestra = .MAX_BYTES_MUESTRA,
+  bloque_filas = NULL,
+  max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
+  max_bytes_materializacion = .MAX_BYTES_MUESTRA,
   ...
 )
 ```
@@ -56,22 +60,35 @@ perfilar_dbi(
   Nombre de tabla o un objeto aceptado por
   [`DBI::dbQuoteIdentifier()`](https://dbi.r-dbi.org/reference/dbQuoteIdentifier.html).
 
+- universo:
+
+  Universo sobre el que se calculan los agregados SQL:
+  `"tabla_completa"` (por omisión) o `"muestra_motor"`. En el segundo
+  caso, todas las métricas SQL usan la relación muestreada por el motor
+  y no se reemplazan silenciosamente por resultados de la tabla
+  completa.
+
+- muestra_motor:
+
+  Cantidad positiva y finita de filas que el motor debe tomar cuando
+  `universo = "muestra_motor"`. Es obligatorio en ese universo y debe
+  quedar `NULL` para `"tabla_completa"`; la función rechaza temprano
+  valores no enteros, no positivos o `Inf`.
+
 - muestra:
 
-  Cantidad positiva de filas solicitadas para el perfil de muestra, o
-  `Inf` para traer la tabla entera. El valor por omisión ya es `Inf`: no
-  representa una elección distinta de `Inf`, sino la tabla completa. Con
-  `Inf` la consulta sale sin `LIMIT` y `tabla_completa` queda en `TRUE`.
+  Cantidad positiva de filas solicitadas para el perfil de muestra que
+  se trae a R, o `Inf` para traer la tabla entera. Este límite es
+  independiente de `universo`: en `muestra_motor`, `muestra_motor`
+  decide las filas del resumen SQL y `muestra` decide las filas del
+  bloque `perfil_muestra`. En `tabla_completa`, `muestra` no cambia los
+  agregados.
 
-  El resumen de tabla **no** se muestrea: con `modo = "exacto"` se
-  calcula en el motor sobre todas las filas. Lo que sale de esta muestra
-  son los diagnosticos que necesitan los valores en R -patrones,
-  formatos, casi-duplicados y dependencias funcionales-, y sin
-  `orden_muestra` no son una muestra aleatoria sino las primeras filas
-  que devuelva el motor. El limite también alcanza la muestra común con
-  que se buscan dependencias. Use un entero finito para acotar ese
-  trabajo; `Inf` es el valor por omisión y trae la tabla entera cuando
-  el tiempo no es la restricción.
+  Sin `orden_muestra`, las filas del bloque en R no son una muestra
+  aleatoria garantizada sino las primeras que devuelva el motor. El
+  límite también alcanza la muestra común con que se buscan
+  dependencias. Use un entero finito para acotar ese trabajo cuando el
+  tiempo no sea la restricción.
 
 - orden_muestra:
 
@@ -79,22 +96,75 @@ perfilar_dbi(
   cuando la combinación es única en toda la tabla. Sin este argumento,
   DBI no garantiza el orden ni la pertenencia de una muestra limitada, y
   `meta` lo declara expresamente. No se usa cuando
-  `bloque_muestra = "solo_agregados"`.
-
-- modo:
-
-  Conjunto de métricas del resumen: `"exacto"` las calcula todas,
-  `"seguro"` evita las que ordenan o agrupan la tabla completa y
-  `"conteos"` deja solo el conteo de valores no nulos, `"muestreado"`
-  calcula estimaciones sobre filas elegidas por el motor y
-  `"aproximado"` usa funciones nativas aproximadas para las métricas que
-  ese modo define.
+  `bloque_muestra = "solo_agregados"`. En la via I1, la identidad de la
+  fuente por bloques gobierna el recorrido y este pedido queda declarado
+  en `meta$orden_muestra` con el motivo estable de que no gobierna esa
+  via.
 
 - metricas:
 
-  Selección explícita de grupos de métricas, que tiene prioridad sobre
-  `modo`: `"validos"`, `"distintos"`, `"moda"`, `"basicos"`, `"mediana"`
-  y `"desvio"`.
+  Selección explícita de grupos de métricas: `"validos"`, `"distintos"`,
+  `"moda"`, `"basicos"`, `"mediana"` y `"desvio"`. El valor por omisión
+  solicita las seis. Para traducir presets de versiones anteriores:
+  `seguro` equivale a `c("validos", "basicos", "desvio")` y `conteos`
+  equivale a `"validos"`; `exacto` equivale a los valores por omisión de
+  esta firma.
+
+- estrategia_distintos:
+
+  Procedencia explícita para `n_distintos`: `"exacta"` (por omisión)
+  emite `COUNT(DISTINCT)`; `"aproximada_motor"` usa una función nativa
+  aceptada por el motor y deja la métrica en `no_disponible` si no
+  existe; `"catalogo"` lee `pg_stats.n_distinct` en PostgreSQL y publica
+  el resultado como `estimado_catalogo`, nunca como medición, cuando
+  `universo = "tabla_completa"`. En `muestra_motor` queda
+  `no_disponible`, porque el catálogo describe la relación entera y la
+  corrida mide un subconjunto; y `"omitida"` no emite ninguna consulta.
+  No hay repliegue automático entre estrategias. El resultado publica
+  `estrategia_solicitada`, `estrategia_resuelta` y `estado` en
+  `meta$estrategia_distintos`, y las dos primeras también en
+  `resumen_tabla$sql`. En `pg_stats`, un valor positivo es el conteo
+  estimado y uno negativo es una fracción de las filas. Cuando la
+  relación tiene descendientes se elige `inherited = TRUE`, porque esa
+  fila describe lo que lee una consulta sin `ONLY`; una relación sin
+  hijas usa su única fila propia. Las fracciones se convierten con la
+  suma de `pg_class.reltuples` de la jerarquía. Si no hay una fila
+  utilizable —por ejemplo, antes de `ANALYZE`— o hay ambigüedad, la
+  métrica queda `no_disponible`, no en cero.
+
+- estrategia_mediana:
+
+  Preferencia para resolver `mediana`: `"exacta"` (por omisión) o
+  `"aproximada_motor"`. La sonda prueba siempre primero una forma nativa
+  exacta consolidada, luego una forma exacta por columna y deja las
+  funciones nativas aproximadas para el final. Por eso esta opción
+  describe la estrategia habilitada, no garantiza el método ejecutado:
+  `meta$estrategia_mediana` y `resumen_tabla$sql$metodo` publican el
+  método que efectivamente corrió. Una mediana resuelta por una forma
+  exacta queda `estado = "calculado"` y `error_esperado = "no_aplica"`,
+  aunque se haya pedido `"aproximada_motor"`; sólo una aproximación
+  ejecutada queda `estado = "estimado"`. `universo = "muestra_motor"`
+  combinado con `"aproximada_motor"` se rechaza temprano.
+
+- politica_costo:
+
+  Política optativa para las métricas caras. El valor por omisión,
+  `"todas"`, conserva moda y mediana para todas las columnas
+  solicitadas. `"por_cardinalidad"` resuelve primero las fuentes
+  estructurales y mide valores válidos y distintos sólo cuando hace
+  falta y la estrategia lo permite. Luego omite, por columna, sólo la
+  moda cuando la proporción de distintos alcanza `umbral_cardinalidad`;
+  la mediana se conserva porque las mediciones disponibles muestran que
+  su costo depende de las filas y no de la cardinalidad. Los únicos
+  valores aceptados son `"todas"` y `"por_cardinalidad"`; no hay alias
+  históricos.
+
+- bloque_muestra:
+
+  Qué bloques se solicitan: `"con_muestra"` (por omisión) calcula
+  también `perfil_muestra`, o `"solo_agregados"` omite su lectura y
+  devuelve sólo los agregados SQL. La segunda opción no cambia el
+  alcance de esos agregados: eso lo decide `universo`.
 
 - max_consultas:
 
@@ -132,13 +202,6 @@ perfilar_dbi(
   los lotes mayores. Una sola cardinalidad todavía puede forzar un
   agregado pesado y derramar mucho más que un lote plano.
 
-- bloque_muestra:
-
-  Qué bloques se solicitan: `"con_muestra"` (por omisión) calcula
-  también `perfil_muestra`, o `"solo_agregados"` omite su lectura y
-  devuelve sólo los agregados SQL. La segunda opción no cambia el
-  alcance de esos agregados: eso lo decide `modo`.
-
 - instrumentar:
 
   Si se cronometra cada consulta y las etapas grandes de R y, en
@@ -148,7 +211,7 @@ perfilar_dbi(
   `bytes_resultado_r`, `consulta_id`, `etapa` y `nivel` a
   `resumen_tabla$sql`, y el resumen `resumen_tabla$tiempos`. Con `FALSE`
   se conserva el mismo plan, la misma cantidad y el mismo orden de
-  consultas, pero los campos medibles quedan en `NA`. `id_muestra`
+  consultas, pero los campos medibles quedan en `NA`. `id_consulta`
   **no** depende de esta opcion: no es una medicion sino un hecho
   estructural sobre que consulta produjo cada metrica, y se publica
   igual con `FALSE`. Las duraciones usan
@@ -157,43 +220,6 @@ perfilar_dbi(
   `cpu_ms` es cero cuando el proceso no consumió CPU; `NA` significa que
   no se pudo medir. Los intervalos que el reloj no puede resolver no se
   publican como cero.
-
-- estrategia_distintos:
-
-  Procedencia explícita para `n_distintos`: `"exacta"` (por omisión)
-  emite `COUNT(DISTINCT)`; `"aproximada_motor"` usa una función nativa
-  aceptada por el motor y deja la métrica en `no_disponible` si no
-  existe; `"catalogo"` lee `pg_stats.n_distinct` en PostgreSQL y publica
-  el resultado como `estimado_catalogo`, nunca como medición, cuando el
-  modo mide la relación entera (`exacto`, `seguro` o `conteos`). En
-  `muestreado` y `aproximado` queda `no_disponible`, porque el catálogo
-  describe la relación entera y la corrida mide un subconjunto; y
-  `"omitida"` no emite ninguna consulta. No hay repliegue automático
-  entre estrategias. El resultado publica `estrategia_solicitada`,
-  `estrategia_resuelta` y `estado` en `meta$estrategia_distintos`, y las
-  dos primeras también en `resumen_tabla$sql`. En `pg_stats`, un valor
-  positivo es el conteo estimado y uno negativo es una fracción de las
-  filas. Cuando la relación tiene descendientes se elige
-  `inherited = TRUE`, porque esa fila describe lo que lee una consulta
-  sin `ONLY`; una relación sin hijas usa su única fila propia. Las
-  fracciones se convierten con la suma de `pg_class.reltuples` de la
-  jerarquía. Si no hay una fila utilizable —por ejemplo, antes de
-  `ANALYZE`— o hay ambigüedad, la métrica queda `no_disponible`, no en
-  cero.
-
-- politica_costo:
-
-  Política optativa para las métricas caras. El valor por omisión,
-  `"todas"`, conserva moda y mediana para todas las columnas
-  solicitadas. `"ninguna"` es un alias de `"todas"`;
-  `"por_cardinalidad"` (también `"cardinalidad"`) resuelve primero las
-  fuentes estructurales y mide valores válidos y distintos sólo cuando
-  hace falta y la estrategia lo permite. Luego omite, por columna, sólo
-  la moda cuando la proporción de distintos alcanza
-  `umbral_cardinalidad`; la mediana se conserva porque las mediciones
-  disponibles muestran que su costo depende de las filas y no de la
-  cardinalidad. Una estrategia no disponible no se convierte en una
-  medición exacta.
 
 - umbral_cardinalidad:
 
@@ -287,6 +313,34 @@ perfilar_dbi(
   los bytes observados, el umbral y cuál tope mandó. `Inf` desactiva
   este tope. No modifica los agregados SQL.
 
+- bloque_filas:
+
+  En la via I1, entero positivo que activa el recorrido de
+  `tabla_completa` por bloques. Se abre un unico result set con
+  `dbSendQuery()` y cada bloque se lee con `dbFetch(n = bloque_filas)`
+  antes de liberar la entrada; `NULL` conserva la via existente. El
+  resultado publica `meta$alcance$orden`, `meta$bloques`, `meta$bytes` y
+  los eventos del vigilante. Los drivers sin retencion incremental
+  demostrada (incluido DuckDB en esta matriz) quedan `no_disponible` con
+  su motivo, sin caer en `dbGetQuery()`. Si se pide `moda` o `mediana`,
+  I1 inicia tambien el mapa central de distintos aunque `n_distintos` no
+  se haya pedido: la mediana depende de ese mapa y la fila `n_distintos`
+  conserva `no_solicitado`.
+
+- max_bytes_procesamiento:
+
+  Límite de bytes del estado retenido por el procesamiento por bloques y
+  por la lectura del spool en R. Se comprueba antes de publicar un
+  bloque o una pasada; `Inf` desactiva este límite.
+
+- max_bytes_materializacion:
+
+  Presupuesto de bytes del spool externo de `muestra_motor`. Se mide por
+  chunk antes de cada escritura, dejando espacio para el trailer; si no
+  alcanza, se publica `spool_presupuesto_excedido` y
+  `muestra_inestable:presupuesto_materializacion` sin mezclar una
+  muestra parcial con resultados completos. `Inf` desactiva este límite.
+
 - ...:
 
   Argumentos enviados a
@@ -296,7 +350,7 @@ perfilar_dbi(
 ## Value
 
 Objeto de clase `perfil_dbi` con dos componentes: `resumen_tabla`, de
-alcance completo o muestreado según `modo`, y `perfil_muestra`, un
+alcance completo o muestreado según `universo`, y `perfil_muestra`, un
 objeto `perfil` cuyo `meta$origen_dbi` declara tabla, conexión, SQL y
 alcance. `perfil_muestra` es `NULL` si la muestra no se pudo obtener o
 si se pidió `bloque_muestra = "solo_agregados"`;
@@ -312,11 +366,14 @@ no declarada.
 
 ## Details
 
-Esta función no escribe en la conexión ni crea objetos temporales. `DBI`
-es una dependencia opcional. Cada agregado no disponible queda en `NA` y
-su consulta, estado y motivo se conservan en `resumen_tabla$sql`. Las
-expresiones se ejecutan como capacidades a comprobar, no como un
-dialecto SQL universal.
+Antes, la promesa era literalmente: "la función no escribe en la
+conexión ni crea objetos temporales". Ahora es: "no escribe en la
+conexión ni crea objetos temporales del motor; `muestra_motor` puede
+crear un spool externo temporal de sesión, con bytes, checksum,
+presupuesto y estado". `DBI` es una dependencia opcional. Cada agregado
+no disponible queda en `NA` y su consulta, estado y motivo se conservan
+en `resumen_tabla$sql`. Las expresiones se ejecutan como capacidades a
+comprobar, no como un dialecto SQL universal.
 
 ## Dos tablas se llaman cobertura
 
@@ -337,7 +394,11 @@ estadística que no corresponde a esa columna, en la segunda. Comparten
 la palabra y no el vocabulario, así que conviene mirar cuál se está
 leyendo. Si se omite el bloque con `bloque_muestra = "solo_agregados"`,
 la cobertura usa el estado `no_solicitado`: no es un fallo ni se cuenta
-como una métrica no disponible.
+como una métrica no disponible. En `muestra_motor`, la selección
+materializada se hace una sola vez antes de las pasadas; el spool se
+relee y se verifica mediante su trailer. Un trailer ausente publica
+`spool_incompleto:trailer_ausente`; un trailer o checksum que no
+coincide publica `spool_checksum_invalido`.
 
 ## Fallo parcial
 
@@ -359,22 +420,54 @@ para que se puedan rescatar con
 
 ## Muestra y aproximaciones
 
-`modo = "muestreado"` sondea las formas declaradas por el adaptador y
-usa `TABLESAMPLE` cuando el motor lo acepta, o una función
+`universo = "muestra_motor"` sondea las formas declaradas por el
+adaptador y usa `TABLESAMPLE` cuando el motor lo acepta, o una función
 pseudoaleatoria con el límite del dialecto. Si ninguna forma es
 compatible, las métricas SQL quedan en `no_disponible`: no se sustituyen
 por resultados de la tabla completa. Cada registro publica `alcance`,
 `universo`, `tamano_muestra`, `fraccion`, `metodo` y `error_esperado`.
 En `resumen_tabla$meta$muestreo`, `tamano_muestra` conserva el nombre
 historico y declara el tamano efectivo solicitado a la consulta;
-`filas_solicitadas` declara el pedido original y `filas_obtenidas` las
-filas que devolvio la lectura del bloque `perfil_muestra`. Esta ultima
-puede ser `NA` si el bloque no se solicito o fallo antes de leer. Si la
-consulta de la muestra devuelve cero filas, no hay base para medir las
-metricas de alcance `muestra`: se publican con valor `NA`, estado
-`no_disponible` y un motivo que nombra la muestra vacia. Esto no permite
-concluir que la columna este vacia, por lo que no se publica cero ni se
-dispara la cascada `sin_valores`. `n` conserva el conteo de la tabla
+`filas_solicitadas` y `filas_pedidas` declaran el pedido original y
+`filas_obtenidas` las filas que devolvio el spool. La materializacion
+publica `muestra_id`, `snapshot_id`, `orden_id`, `n_filas`, `bytes`,
+`checksum`, backend, version y presupuesto en `meta$materializacion`;
+las pasadas publican el mismo `muestra_id`. El contrato de
+`perfil_muestra` es campo por campo: `meta$filas_analizadas` es la
+cantidad efectivamente entregada a los diagnósticos; `hallazgos` solo
+contiene familias disponibles; y `cobertura_diagnosticos` tiene una fila
+por familia no evaluada. `meta$origen_dbi$muestreo` conserva filas
+solicitadas, entregadas, reproducibilidad, `muestra_id`, `snapshot_id` y
+checksum. El método de impresión remite a esa cobertura cuando el campo
+no está disponible; no reemplaza la ausencia con `NULL` silencioso. En
+`muestra_motor`, todas las metricas SQL salvo `n` describen la relacion
+muestreada; `n` es el total de la tabla completa y esta marcado con
+`alcance = "tabla_completa"`, `metodo = "conteo_universo"` y
+`error_esperado = "no_aplica"`. Los conteos `n_validos`, `n_faltantes`,
+`prop_faltantes`, `n_distintos`, `tasa_distintos`, `n_ceros`,
+`n_negativos` y `frecuencia_moda` son observaciones de esa muestra, no
+extrapolaciones al universo. Sus motivos declaran la escala local y el
+denominador `n_total_consulta` cuando corresponde. `TABLESAMPLE SYSTEM`
+es la fuente preferida cuando el adaptador la declara y la sonda la
+acepta; publica `metodo_muestreo = "tablesample_system"`,
+`sesgo_muestreo = "por_bloques"` y el motivo estable
+`sesgo_muestreo:tablesample_system_por_bloques`. Si se usa el fallback
+`random_limit` con `NEWID()`, la metadata publica
+`metodo_muestreo = "random_limit"`, `funcion_muestreo = "newid"`,
+`sesgo_muestreo = "por_fila"` y
+`sesgo_muestreo:random_limit_newid_por_fila`. Ese fallback se acepta
+solo si la politica de costo conserva `n_total`, la proyeccion, la tasa
+y sus tres umbrales; si no, la mediana queda `no_disponible` con
+`capacidad_no_aceptada:newid_costo_excede_presupuesto` aunque se
+silencien los avisos. Si la consulta de la muestra devuelve cero filas,
+no hay base para medir las metricas de alcance `muestra`: se publican
+con valor `NA`, estado `no_disponible` y el motivo estable
+`muestra_vacia:random_limit_sin_filas` (o el metodo efectivo
+equivalente). Esto no permite concluir que la columna este vacia, por lo
+que no se publica cero ni se dispara la cascada `sin_valores`. Una
+muestra no vacia sin valores validos usa
+`muestra_inestable:sin_valores_validos`; una capacidad no aceptada usa
+`capacidad_no_aceptada:...`. `n` conserva el conteo de la tabla
 completa.
 
 En una muestra, `error_esperado` vale `no_estimado` para metricas cuyo
@@ -391,13 +484,12 @@ calcula `COUNT(DISTINCT)` sobre las filas de la corrida.
 `"aproximada_motor"` sondea una funcion nativa y, si no hay una
 capacidad aceptada, deja la metrica `no_disponible`; nunca ejecuta el
 conteo exacto como repliegue. `"catalogo"` lee `pg_stats.n_distinct` y
-publica `estimado_catalogo` sólo cuando el modo mide la relación entera
-(`exacto`, `seguro` o `conteos`). En `muestreado` y `aproximado` queda
-`no_disponible`, porque el catálogo describe la relación entera y la
-corrida mide un subconjunto; no se inventa una equivalencia entre
-universos. `"omitida"` no emite la consulta. Cada resultado y el
-atributo `meta$estrategia_distintos` separan `estrategia_solicitada`,
-`estrategia_resuelta` y `estado`.
+publica `estimado_catalogo` sólo cuando `universo = "tabla_completa"`.
+Con `universo = "muestra_motor"` queda `no_disponible`, porque el
+catálogo describe la relación entera y la corrida mide un subconjunto;
+no se inventa una equivalencia entre universos. `"omitida"` no emite la
+consulta. Cada resultado y el atributo `meta$estrategia_distintos`
+separan `estrategia_solicitada`, `estrategia_resuelta` y `estado`.
 
 Las comparaciones que tienen una cota dura usan solo valores del mismo
 grupo de consistencia. En esta version, el grupo queda probado por el
@@ -414,10 +506,20 @@ consulta anterior y `meta$moda_guardian` publica el repliegue. Cuando la
 sonda pasa, la cota `frecuencia_moda <= n_validos` se comprueba dentro
 de la misma sentencia y el motivo de la métrica lo declara.
 `meta$snapshot` queda en `FALSE`, siguiendo la declaracion de
-colecciones: no hubo lectura instantanea. La cobertura agrega una
-entrada concreta solo si `n_validos` y `n_distintos` son exactos,
-incoherentes y provienen de grupos distintos; su motivo conserva ambas
-sentencias.
+colecciones: no hubo lectura instantanea del motor. `snapshot_id`
+identifica positivamente la materializacion cliente, pero solo se
+publica evidencia positiva de snapshot transaccional cuando el adaptador
+la demuestra. La cobertura agrega una entrada concreta solo si
+`n_validos` y `n_distintos` son exactos, incoherentes y provienen de
+grupos distintos; su motivo conserva ambas sentencias. La mediana
+muestral que no tiene una forma consolidada o escalar usa una sola CTE
+con `COUNT(*) OVER ()`, `ROW_NUMBER() OVER` y el promedio de las
+posiciones centrales. La sonda barata repite esa construccion sobre
+`VALUES (1.0), (2.0), (3.0), (4.0)`, exige `2.5` y un control negativo
+que falle; no se sondea la tabla de produccion. Si esa capacidad falla,
+la mediana se publica como `no_disponible` con
+`capacidad_no_aceptada:sonda_mediana_cte_ventana`, nunca como
+`dos_consultas` bajo `muestra_motor`.
 
 Las cotas de error no documentadas de una aproximacion nativa quedan
 como `"desconocido"`. Una aproximacion solo se consolida cuando entrega
@@ -439,16 +541,22 @@ comillados y se comparan sin distinguir caja, porque hay motores que los
 pliegan a mayúsculas. Para los motores del dialecto `limit`, la mediana
 exacta usa una sola sentencia: el `COUNT` queda como subconsulta escalar
 de la consulta que ordena y recorta. La forma se sondea antes de usarla;
-en SQLite y PostgreSQL se usan `%` y `/` con division entera. Los
-dialectos que no declaran esa forma conservan las dos consultas y lo
-publican en el metodo de `resumen_tabla$sql`; `PERCENTILE_CONT` no
-cambia.
+en SQLite y PostgreSQL se usan `%` y `/` con division entera. Bajo
+`muestra_motor`, los dialectos sin una forma escalar ni consolidada usan
+la CTE de ventanas descrita arriba y no degradan a `dos_consultas`. En
+`tabla_completa` se conserva el camino previo, incluido `dos_consultas`
+si es el que resuelve ese dialecto; `PERCENTILE_CONT` no cambia. La
+mediana consolidada tambien se sondea antes de usarla; en SQL Server
+requiere nivel de compatibilidad \>= 110. Se sondea; estos son los
+motivos conocidos de que no se active: la funcion no esta disponible o
+el motor rechaza la sonda. En ese caso el mensaje del motor queda en
+`meta$mediana_consolidada$motivo`, y se conserva la mediana por columna.
 
 ## Costo
 
 Los agregados de una tabla ancha se emiten por lotes; `muestra` acota lo
 que se trae a R, no el trabajo del motor. `bloque_muestra` decide si se
-trae esa muestra; `modo`, `metricas`, `tamano_lote_planos`,
+trae esa muestra; `universo`, `metricas`, `tamano_lote_planos`,
 `tamano_lote_distintos` y `max_consultas` acotan el trabajo SQL.
 [`plan_perfilado_dbi()`](https://sebollin.github.io/lupa/reference/plan_perfilado_dbi.md)
 dice cuántas consultas se van a emitir antes de emitirlas. El orden de
@@ -505,7 +613,19 @@ paquete no lo modifica. Una estadística ausente, un permiso insuficiente
 o una versión sin el parámetro dejan la parte correspondiente como no
 disponible. `n_distinct` es una estimación de muestra y puede quedar
 corta; si luego `pg_stat_statements` mide un derrame, esa medición
-manda.
+manda. La misma corrida publica `meta$estimacion_derrame_moda` y
+`meta$estimacion_derrame_mediana`. La moda deriva `metodo` del plan
+exacto mediante `EXPLAIN (FORMAT JSON, COSTS OFF)` sin `ANALYZE`; la
+mediana usa siempre un sort contra `work_mem`, con pisos de 32 bytes
+para tipos fijos y 42 para `numeric`. El plan usa `n_validos` de
+catálogo. En la meta y en el aviso, cuando se pidió la familia
+`validos`, ese denominador se reemplaza por el medido en los agregados
+planos y se conserva también el valor de catálogo; si no se midió, el
+motivo declara que se retuvo el catálogo. Por arbitraje H5, este alcance
+K2 gobierna solo el denominador: si la estimación publicada marca
+`supera_memoria = TRUE`, el aviso se emite también con catálogo y
+declara su fuente. La consolidada decide por el máximo de columna y
+publica la suma de tapes sólo como `estado_io_total_bytes` informativo.
 
 Los avisos de esta vía son deliberadamente distintos de los de
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
@@ -535,7 +655,7 @@ fila que esa consulta produjo; no es una duración por métrica. La
 columna `nivel` marca qué filas se pueden sumar: la primera fila de cada
 `consulta_id` queda en `nivel = 1` y sus repeticiones en `nivel = 2`.
 Por eso una suma segura usa sólo `duracion_ms[nivel == 1]` (con
-`na.rm = TRUE` si corresponde), no la columna completa. `id_muestra`
+`na.rm = TRUE` si corresponde), no la columna completa. `id_consulta`
 identifica la consulta de datos que produjo la medición: dos métricas
 con el mismo identificador vieron exactamente las mismas filas y se
 pueden comparar directamente. `NA` declara que esa garantía no se puede
@@ -546,17 +666,30 @@ agruparlo (`conteos`, `moda`, `basicos`, `mediana`, `desvio`,
 emitieron consulta conservan esos campos y los dejan en `NA`; en
 particular, `NA` no significa cero.
 
+`resumen_tabla$sql$memoria_trabajo` agrega el eje del estado de trabajo
+del motor: se deriva en orden como `NA` para una fila sin medición,
+`acotado` para una muestra con `fraccion < 1` y, en los demás alcances
+efectivos, según el método resuelto del registro; una muestra saturada
+(`fraccion = 1`) cae a este último caso porque su tope es vacuo. Sus
+únicos valores son `"creciente"`, `"acotado"` y `NA`.
+
 En PostgreSQL, con `instrumentar = TRUE`, se toma una foto de
-`pg_stat_statements` antes y después de los `COUNT(DISTINCT)` exactos.
-Sólo se publica un derrame cuando una consulta coincide y su contador
-aumentó en exactamente una llamada atribuible a esta corrida. En ese
-caso, `resumen_tabla$sql` agrega `derrame`, `bloques_temporales_leidos`,
-`bloques_temporales_escritos` y `fuente_derrame`;
-`resumen_tabla$meta$derrame` conserva el resumen y la fuente. Si la
-extensión no está disponible, la consulta fue concurrente o la
-instrumentación está apagada, el estado queda `no_disponible` o
-`no_medido` con el motivo: el paquete no deduce un derrame del tiempo y
-no modifica `work_mem`.
+`pg_stat_statements` antes y después de la ventana que cubre los
+agregados exactos instrumentables de distintos, moda y mediana. Las
+firmas se filtran por texto y se normalizan en el paquete: cada literal
+numérico o de cadena se reemplaza por su parámetro posicional y los
+identificadores entre comillas dobles se conservan. Sólo se publica un
+derrame cuando una consulta coincide y su contador aumentó en al menos
+una llamada dentro de la ventana. En ese caso, `resumen_tabla$sql`
+agrega `derrame`, `bloques_temporales_leidos`,
+`bloques_temporales_escritos` y `fuente_derrame`, además de
+`llamadas_en_ventana`; `resumen_tabla$meta$derrame` conserva el resumen
+y la fuente. Cuando el contador aumentó más de una vez, el motivo
+declara que los bloques son un agregado de ese texto exacto y pueden
+incluir otra sesión o llamada concurrente. Si la extensión no está
+disponible o la instrumentación está apagada, el estado queda
+`no_disponible` o `no_medido`: el paquete no deduce un derrame del
+tiempo ni modifica `work_mem`.
 
 `resumen_tabla$meta$estimacion_derrame` es un diagnóstico distinto:
 conserva la estimación de memoria y siempre la rotula como no medida.
@@ -564,7 +697,11 @@ Puede quedar parcial o no disponible por permisos, falta de `ANALYZE`,
 particiones sin estadísticas o un motor que no sea PostgreSQL. Si ambos
 diagnósticos existen, `meta$derrame` es la evidencia posterior y
 prevalece sobre la estimación; una estimación que no superó el límite no
-contradice un derrame medido.
+contradice un derrame medido. `meta$estimacion_derrame_moda` y
+`meta$estimacion_derrame_mediana` siguen la misma regla, con el método
+del plan de la moda y el sort de la mediana; `n_validos_medido` sólo
+aparece con valor cuando la familia `validos` fue solicitada y sus
+agregados planos lo pudieron medir.
 
 `resumen_tabla$tiempos` reúne las etapas grandes del cliente en las
 mismas unidades (`duracion_ms`): `lectura_muestra`, `perfilado_muestra`,

@@ -56,7 +56,8 @@ dejar de mirar no es lo mismo que arreglar.
 
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
 [`detectar_deriva_calidad()`](https://sebollin.github.io/lupa/reference/detectar_deriva_calidad.md),
-[`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+[`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md),
+[`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
 
 ## Examples
 
