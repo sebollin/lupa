@@ -1,5 +1,21 @@
 # lupa 0.1.0
 
+## Integración DBI — fuente por bloques (Etapa I1)
+
+- `perfilar_dbi(..., bloque_filas = n)` incorpora una vía optativa para
+  recorrer `tabla_completa` con un único `dbSendQuery()` y sucesivos
+  `dbFetch(n)`. Los acumuladores conservan ordinales globales y el resumen
+  publica `alcance`, bloques recorridos, bytes retenidos y eventos del
+  vigilante.
+- El preflight resuelve clave primaria, localizador o `ROW_NUMBER()`, publica
+  el método, la collation efectiva y su determinismo. Una collation textual no
+  determinista degrada el orden; DuckDB queda explícitamente
+  `no_disponible:dbfetch_no_incremental` según la matriz por driver.
+- La identidad de una segunda pasada por localizador se comprueba contra los
+  ordinales de la primera. El resumen de bloques conserva estadísticos finitos
+  y sus contadores separados de `NA`, `NaN` e infinitos; un resumen SQL que no
+  pueda leer `+/-Inf` puede divergir por la representación del controlador.
+
 ## Estimacion de derrame de moda y mediana en DBI
 
 - `plan_perfilado_dbi()` y `perfilar_dbi()` publican

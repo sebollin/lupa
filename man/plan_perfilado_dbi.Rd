@@ -25,7 +25,8 @@ plan_perfilado_dbi(
   instrumentar = FALSE,
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
   max_celdas_muestra = .MAX_CELDAS_MUESTRA,
-  max_bytes_muestra = .MAX_BYTES_MUESTRA
+  max_bytes_muestra = .MAX_BYTES_MUESTRA,
+  bloque_filas = NULL
 )
 }
 \arguments{
@@ -60,6 +61,12 @@ reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y \code{meta} lo declara expresamente. No se usa cuando
 \code{bloque_muestra = "solo_agregados"}.}
+
+\item{bloque_filas}{En la via I1, entero positivo que activa la fuente por
+\code{tabla_completa} y hace que el plan declare un unico result set
+\code{dbSendQuery()} + \code{dbFetch(n = bloque_filas)}. \code{NULL} conserva el
+plan historico; el plan no lee las filas y publica la proyeccion, el orden,
+los bloques previstos y el costo declarado.}
 
 \item{metricas}{Selección explícita de grupos de métricas: \code{"validos"},
 \code{"distintos"}, \code{"moda"}, \code{"basicos"}, \code{"mediana"} y \code{"desvio"}. El

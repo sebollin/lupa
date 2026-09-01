@@ -34,6 +34,7 @@ perfilar_dbi(
   umbral_bytes_aviso_derrame_estimado = .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
   max_celdas_muestra = .MAX_CELDAS_MUESTRA,
   max_bytes_muestra = .MAX_BYTES_MUESTRA,
+  bloque_filas = NULL,
   ...
 )
 }
@@ -69,6 +70,15 @@ reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y \code{meta} lo declara expresamente. No se usa cuando
 \code{bloque_muestra = "solo_agregados"}.}
+
+\item{bloque_filas}{En la via I1, entero positivo que activa el recorrido de
+\code{tabla_completa} por bloques. Se abre un unico result set con
+\code{dbSendQuery()} y cada bloque se lee con \code{dbFetch(n = bloque_filas)} antes
+de liberar la entrada; \code{NULL} conserva la via existente. El resultado
+publica \code{meta$alcance$orden}, \code{meta$bloques}, \code{meta$bytes} y los eventos del
+vigilante. Los drivers sin retencion incremental demostrada (incluido
+DuckDB en esta matriz) quedan \code{no_disponible} con su motivo, sin caer en
+\code{dbGetQuery()}.}
 
 \item{metricas}{Selección explícita de grupos de métricas: \code{"validos"},
 \code{"distintos"}, \code{"moda"}, \code{"basicos"}, \code{"mediana"} y \code{"desvio"}. El

@@ -9187,6 +9187,12 @@
 #' en el procesamiento en R, no en la red ni en el motor.
 #'
 #' @inheritParams perfilar_dbi
+#' @param bloque_filas En la via I1, entero positivo que activa la fuente por
+#'   bloques de `tabla_completa`. Cada bloque se obtiene con un unico result
+#'   set (`dbSendQuery()` + `dbFetch(n = bloque_filas)`) y se absorbe antes de
+#'   liberar la entrada. `NULL` conserva el plan historico. El plan publica la
+#'   proyeccion, el orden, los bloques previstos y el costo declarado sin leer
+#'   las filas.
 #' @param instrumentar En el plan, si es `TRUE`, cronometra las consultas de
 #'   preparación. No habilita consultas de datos ni agrega mediciones al objeto
 #'   devuelto: sus costos siguen siendo predicciones. Por omisión es `FALSE`.
@@ -9314,7 +9320,9 @@ plan_perfilado_dbi <- function(conexion, tabla,
                                instrumentar = FALSE,
                                umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
                                max_celdas_muestra = .MAX_CELDAS_MUESTRA,
-                               max_bytes_muestra = .MAX_BYTES_MUESTRA) {
+                               max_bytes_muestra = .MAX_BYTES_MUESTRA,
+                               bloque_filas = NULL) {
+  bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
   max_celdas_muestra <- .validar_limite_duplicados(
     max_celdas_muestra, "max_celdas_muestra"
   )
@@ -9571,7 +9579,23 @@ plan_perfilado_dbi <- function(conexion, tabla,
     celdas = attr(plan, "celdas", exact = TRUE),
     pares_texto = attr(plan, "pares_texto", exact = TRUE)
   )
-  class(plan) <- c("plan_perfilado_dbi", class(plan))
+  if (!is.null(bloque_filas)) {
+    fuente <- .fuente_bloques_dbi(
+      conexion, tabla, tabla_sql = preparacion$tabla_sql,
+      campos = preparacion$campos, campos_sql = preparacion$campos_sql,
+      prototipo = preparacion$prototipo, tipos = preparacion$tipos,
+      orden_sql = preparacion$orden_sql,
+      clave = preparacion$catalogo_cardinalidad,
+      dialecto = preparacion$dialecto, presupuesto = preparacion$presupuesto,
+      bloque_filas = bloque_filas
+    )
+    plan <- .plan_bloques_fuente_dbi(
+      fuente, bloque_filas, preparacion$campos,
+      preparacion$metricas_ejecucion, preparacion$bloque_muestra,
+      preparacion$muestra
+    )
+  }
+  class(plan) <- unique(c("plan_perfilado_dbi", class(plan)))
   plan
 }
 
@@ -9618,6 +9642,39 @@ print.plan_perfilado_dbi <- function(x, ...) {
     .miles_dbi(attr(x, "columnas", exact = TRUE)), " columnas (dialecto ",
     attr(x, "dialecto", exact = TRUE), ")"
   ))
+  fuente_plan <- attr(x, "fuente", exact = TRUE)
+  if (is.list(fuente_plan) && !is.null(fuente_plan$metodo_orden)) {
+    estado_capacidad <- if (isTRUE(fuente_plan$disponible)) {
+      "disponible"
+    } else {
+      paste0("no disponible (", fuente_plan$motivo %||% "sin motivo", ")")
+    }
+    cli::cli_text(
+      "Fuente: un result set incremental (dbSendQuery + dbFetch); capacidad: ",
+      estado_capacidad, "."
+    )
+    cli::cli_text(
+      "Orden: ", fuente_plan$metodo_orden,
+      "; estable = ", isTRUE(fuente_plan$estable),
+      "; orden_id = ", fuente_plan$orden_id, "."
+    )
+    bloques_plan <- attr(x, "bloques", exact = TRUE)
+    if (is.list(bloques_plan)) {
+      cli::cli_text(
+        "Bloques previstos: objetivo ", .miles_dbi(bloques_plan$objetivo),
+        " filas; minimo ", .miles_dbi(bloques_plan$minimo),
+        "; maximo ", .miles_dbi(bloques_plan$maximo), "."
+      )
+    }
+    pasadas_plan <- attr(x, "pasadas", exact = TRUE)
+    if (is.list(pasadas_plan)) {
+      cli::cli_text(
+        "Pasadas: valor = ", pasadas_plan$valor,
+        "; indice = ", pasadas_plan$indice,
+        "; materializacion = ", pasadas_plan$materializacion, "."
+      )
+    }
+  }
   proyecciones <- attr(x, "proyecciones", exact = TRUE)
   if (is.list(proyecciones)) {
     if (isTRUE(proyecciones$moda$disponible)) {
@@ -9787,7 +9844,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   # grande es lo que manda el reloj.
   muestra_plan <- attr(x, "muestra", exact = TRUE)
   if (!identical(attr(x, "bloque_muestra", exact = TRUE), "solo_agregados") &&
-      !is.null(muestra_plan) && !is.finite(muestra_plan)) {
+      !is.null(muestra_plan) && !is.finite(muestra_plan) &&
+      (is.null(fuente_plan) || isTRUE(fuente_plan$disponible))) {
     filas_plan <- attr(x, "filas", exact = TRUE)
     cli::cli_text(
       "El perfil de muestra trae la tabla entera",
@@ -11438,6 +11496,14 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   resto. Si reduce la muestra, `cobertura_diagnosticos` informa los bytes
 #'   observados, el umbral y cuál tope mandó. `Inf` desactiva este tope. No
 #'   modifica los agregados SQL.
+#' @param bloque_filas En la via I1, entero positivo que activa el recorrido de
+#'   `tabla_completa` por bloques. Se abre un unico result set con
+#'   `dbSendQuery()` y cada bloque se lee con `dbFetch(n = bloque_filas)` antes
+#'   de liberar la entrada; `NULL` conserva la via existente. El resultado
+#'   publica `meta$alcance$orden`, `meta$bloques`, `meta$bytes` y los eventos del
+#'   vigilante. Los drivers sin retencion incremental demostrada (incluido
+#'   DuckDB en esta matriz) quedan `no_disponible` con su motivo, sin caer en
+#'   `dbGetQuery()`.
 #' @param orden_muestra Columnas para `ORDER BY`. La salida solo declara orden
 #'   reproducible cuando la combinación es única en toda la tabla. Sin este
 #'   argumento, DBI no garantiza el orden ni la pertenencia de una muestra
@@ -11639,7 +11705,9 @@ perfilar_dbi <- function(conexion, tabla,
                            .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
                          max_celdas_muestra = .MAX_CELDAS_MUESTRA,
                          max_bytes_muestra = .MAX_BYTES_MUESTRA,
+                         bloque_filas = NULL,
                          ...) {
+  bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
   max_celdas_muestra <- .validar_limite_duplicados(
     max_celdas_muestra, "max_celdas_muestra"
   )
@@ -11687,6 +11755,16 @@ perfilar_dbi <- function(conexion, tabla,
     politica_costo = politica_costo,
     umbral_cardinalidad = umbral_cardinalidad
   )
+  if (!is.null(bloque_filas)) {
+    return(.perfilar_dbi_bloques(
+      conexion = conexion, tabla = tabla, preparacion = preparacion,
+      metricas = preparacion$metricas_ejecucion,
+      incluir_valores = incluir_valores, bloque_filas = bloque_filas,
+      max_celdas_muestra = max_celdas_muestra,
+      max_bytes_muestra = max_bytes_muestra,
+      argumentos = list(...)
+    ))
+  }
   presupuesto <- preparacion$presupuesto
   presupuesto$avisar_costo_distintos <- avisar_costo_distintos
   presupuesto$umbral_segundos_aviso_distintos <-
