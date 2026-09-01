@@ -277,7 +277,7 @@ test_that("el informe publica bloques cuando la llamada es atribuible", {
   expect_identical(sql$fuente_derrame[[1L]], "pg_stat_statements")
 })
 
-test_that("una llamada concurrente no se presenta como derrame propio", {
+test_that("las llamadas concurrentes se publican como agregado de la ventana", {
   lectura <- 0L
   antes <- .estadisticas_derrame_prueba(escrito = 0, llamadas = 10)
   despues <- .estadisticas_derrame_prueba(escrito = 7, llamadas = 12)
@@ -297,8 +297,9 @@ test_that("una llamada concurrente no se presenta como derrame propio", {
   lupa:::.finalizar_instrumentacion_derrame_dbi(conexion, presupuesto)
   publicado <- lupa:::.publicar_derrame_dbi(presupuesto)
 
-  expect_false(publicado$disponible)
-  expect_identical(publicado$estado, "no_disponible")
-  expect_identical(publicado$consultas_observadas, 0L)
-  expect_match(publicado$motivo, "llamada exacta")
+  expect_true(publicado$disponible)
+  expect_identical(publicado$estado, "medido")
+  expect_identical(publicado$consultas_observadas, 1L)
+  expect_identical(publicado$llamadas_en_ventana, 2)
+  expect_match(publicado$motivo, "agregado")
 })

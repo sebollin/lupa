@@ -180,6 +180,8 @@
   estado$duracion_lectura_mediana <- NA_real_
   estado$aviso_moda_emitido <- FALSE
   estado$aviso_mediana_emitido <- FALSE
+  estado$aviso_derrame_moda_emitido <- FALSE
+  estado$aviso_derrame_mediana_emitido <- FALSE
   # Los avisos se controlan por separado porque hablan de magnitudes y de
   # familias de trabajo incompatibles: segundos de servidor para distintos,
   # moda y mediana, y bytes para memoria. No hay un porton comun que permita
@@ -203,6 +205,12 @@
     memoria_efectiva_bytes = NA_real_, memoria_efectiva = NA_character_,
     columnas = data.frame(), lotes = data.frame(),
     lotes_sobre_memoria = integer()
+  )
+  estado$estimacion_derrame_moda <- .estimacion_derrame_familia_vacia_dbi(
+    "moda", "No se solicito una estimacion de derrame para la moda."
+  )
+  estado$estimacion_derrame_mediana <- .estimacion_derrame_familia_vacia_dbi(
+    "mediana", "No se solicito una estimacion de derrame para la mediana."
   )
   # La lectura de pg_stat_statements es opcional: si el servidor no la expone,
   # el informe conserva la incertidumbre y no deduce un derrame del reloj.
@@ -855,6 +863,13 @@
 # reproducir el planificador ni afirmar que hubo derrame.
 .TAMANO_BASE_ENTRADA_HASH_POSTGRESQL_DBI <- 64
 
+# La huella de un `SortTuple` no desaparece cuando el valor es corto. Estos
+# pisos gobiernan solo la decision de memoria; el tamano del tape queda como
+# una magnitud informativa aparte.
+.TAMANO_BASE_SORT_POSTGRESQL_DBI <- 24
+.PISO_SORT_FIJOS_POSTGRESQL_DBI <- 32
+.PISO_SORT_NUMERIC_POSTGRESQL_DBI <- 42
+
 .memoria_dbi <- function(bytes) {
   if (is.null(bytes) || length(bytes) != 1L || is.na(bytes) ||
       !is.finite(bytes) || bytes < 0) return("sin dato")
@@ -992,6 +1007,9 @@
 }
 
 .leer_memoria_postgresql_dbi <- function(conexion, presupuesto) {
+  if (!is.null(presupuesto) && !is.null(presupuesto$memoria_derrame)) {
+    return(presupuesto$memoria_derrame)
+  }
   work <- .escalar_dbi(
     conexion, "SHOW work_mem", "work_mem", presupuesto,
     etapa = "estimacion_derrame"
@@ -1050,6 +1068,9 @@
 
 .estadisticas_hash_postgresql_dbi <- function(conexion, tabla, columnas,
                                               presupuesto) {
+  if (!is.null(presupuesto) && !is.null(presupuesto$estadisticas_derrame)) {
+    return(presupuesto$estadisticas_derrame)
+  }
   piezas <- .piezas_tabla_cardinalidad_dbi(tabla)
   if (is.null(piezas$tabla) || length(piezas$tabla) != 1L ||
       is.na(piezas$tabla) || !nzchar(piezas$tabla)) {
@@ -1089,11 +1110,14 @@
     "JOIN pg_catalog.pg_namespace ns ON ns.oid = hija.relnamespace",
     ")",
     "SELECT r.oid::text AS relacion_oid, r.schemaname, r.tablename,",
-    "r.reltuples, r.es_raiz, r.hoja, s.attname, s.n_distinct, s.avg_width",
+    "r.reltuples, r.es_raiz, r.hoja, s.attname, s.n_distinct, s.avg_width,",
+    "s.null_frac, format_type(a.atttypid, a.atttypmod) AS tipo",
     "FROM relaciones r",
     "LEFT JOIN pg_catalog.pg_stats s ON",
     "s.schemaname = r.schemaname AND s.tablename = r.tablename",
     "AND s.attname IN (", columnas_literal, ")",
+    "LEFT JOIN pg_catalog.pg_attribute a ON a.attrelid = r.oid",
+    "AND a.attname = s.attname AND a.attnum > 0 AND NOT a.attisdropped",
     "WHERE r.hoja",
     "ORDER BY r.oid, s.attname"
   )
@@ -1101,36 +1125,43 @@
     conexion, sql, presupuesto, etapa = "estimacion_derrame"
   )
   if (!isTRUE(consulta$ok)) {
-    return(list(
+    salida <- list(
       ok = FALSE, sql = sql, motivo = paste(
         "No se pudo estimar el derrame: no se pudo leer `pg_stats` y",
         "`pg_class`.", consulta$motivo
       )
-    ))
+    )
+    if (!is.null(presupuesto)) presupuesto$estadisticas_derrame <- salida
+    return(salida)
   }
   esperadas <- c(
     "relacion_oid", "schemaname", "tablename", "reltuples", "es_raiz",
     "hoja", "attname", "n_distinct", "avg_width"
   )
   if (!all(esperadas %in% names(consulta$datos))) {
-    return(list(
+    salida <- list(
       ok = FALSE, sql = sql, motivo = paste(
         "No se pudo estimar el derrame: la respuesta de `pg_stats` no",
         "contiene las columnas esperadas."
       )
-    ))
+    )
+    if (!is.null(presupuesto)) presupuesto$estadisticas_derrame <- salida
+    return(salida)
   }
-  list(
+  salida <- list(
     ok = TRUE, sql = sql, datos = consulta$datos,
     filas_catalogo = .denominador_catalogo_dbi(consulta$datos)
   )
+  if (!is.null(presupuesto)) presupuesto$estadisticas_derrame <- salida
+  salida
 }
 
 .estimar_derrame_postgresql_dbi <- function(conexion, tabla, columnas,
                                             presupuesto,
                                             exacto = TRUE,
                                             universo = "tabla_completa",
-                                            tamano_lote = .TAMANO_LOTE_DISTINTOS_DBI) {
+                                            tamano_lote = .TAMANO_LOTE_DISTINTOS_DBI,
+                                            columnas_stats = NULL) {
   if (!isTRUE(exacto)) {
     return(.estimacion_derrame_vacia_postgresql_dbi(
       "no_solicitado", paste(
@@ -1170,8 +1201,10 @@
       motivo = memoria$motivo, memoria = memoria
     ))
   }
+  if (!is.null(presupuesto)) presupuesto$memoria_derrame <- memoria
+  columnas_stats <- if (is.null(columnas_stats)) columnas else columnas_stats
   estadisticas <- .estadisticas_hash_postgresql_dbi(
-    conexion, tabla, columnas, presupuesto
+    conexion, tabla, columnas_stats, presupuesto
   )
   if (!isTRUE(estadisticas$ok)) {
     return(.estimacion_derrame_vacia_postgresql_dbi(
@@ -1362,12 +1395,18 @@
 
 .avisar_derrame_estimado_postgresql_dbi <- function(
     estimacion, habilitado = TRUE,
-    umbral_bytes = .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI) {
+    umbral_bytes = .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
+    familia = "COUNT(DISTINCT)") {
   habilitado <- .validar_interruptor_aviso_dbi(habilitado, "habilitado")
   umbral_bytes <- .validar_umbral_aviso_dbi(umbral_bytes, "umbral_bytes")
+  if (is.null(estimacion)) return(invisible(FALSE))
+  if (identical(familia, "COUNT(DISTINCT)") &&
+      identical(estimacion$familia, "moda")) familia <- "la moda"
+  if (identical(familia, "COUNT(DISTINCT)") &&
+      identical(estimacion$familia, "mediana")) familia <- "la mediana"
   if (is.null(estimacion) || !isTRUE(estimacion$es_estimacion) ||
       !isTRUE(habilitado) || !is.finite(umbral_bytes) ||
-      !length(estimacion$lotes_sobre_memoria)) return(invisible(NULL))
+      !length(estimacion$lotes_sobre_memoria)) return(invisible(FALSE))
   lotes <- estimacion$lotes
   indices <- estimacion$lotes_sobre_memoria
   indices <- indices[is.finite(indices) & indices >= 1L &
@@ -1376,20 +1415,642 @@
     indices, function(i) is.finite(lotes$tamano_estimado_bytes[[i]]) &&
       lotes$tamano_estimado_bytes[[i]] >= umbral_bytes, logical(1L)
   )]
-  if (!length(indices)) return(invisible(NULL))
+  if (!length(indices)) return(invisible(FALSE))
   detalle <- paste(vapply(indices, function(i) paste0(
     "lote de ", lotes$columnas[[i]], ": ~",
     .memoria_dbi(lotes$tamano_estimado_bytes[[i]])
   ), character(1L)), collapse = "; ")
+  limite <- if (identical(estimacion$familia, "mediana") ||
+                identical(estimacion$metodo, "sort")) {
+    paste0("`work_mem` de ", estimacion$work_mem)
+  } else {
+    paste0("`work_mem` vigente de ", estimacion$work_mem,
+           " (limite efectivo para hash: ", estimacion$memoria_efectiva, ")")
+  }
+  etiqueta <- if (identical(familia, "COUNT(DISTINCT)")) "" else {
+    paste0(" para ", familia)
+  }
   cli::cli_alert_warning(paste0(
-    "Derrame potencial estimado (es una estimacion, no una medicion): ",
+    "Derrame potencial estimado", etiqueta,
+    " (es una estimacion, no una medicion): ",
     detalle, " supera el `work_mem` vigente de ", estimacion$work_mem,
-    " (limite efectivo para hash: ", estimacion$memoria_efectiva, "). ",
+    ". Limite de decision: ", limite, ". ",
     "Subir `work_mem` en esta sesion por encima de ese tama\u00f1o puede evitar el",
     " derrame; lupa no modifica la configuracion. El derrame real, si ocurre,",
     " se informa despues mediante `pg_stat_statements`."
   ))
-  invisible(NULL)
+  invisible(TRUE)
+}
+
+# ---- Estimaciones de moda y mediana -------------------------------------
+
+.estimacion_derrame_familia_vacia_dbi <- function(
+    familia, motivo = paste("No se pudo estimar el derrame de", familia, "."),
+    estado = "no_disponible", memoria = NULL, forma = NA_character_) {
+  if (is.null(memoria)) memoria <- list()
+  work_bytes <- if (is.null(memoria$work_mem_bytes)) NA_real_ else
+    memoria$work_mem_bytes
+  list(
+    estado = estado, disponible = FALSE, es_estimacion = TRUE,
+    familia = familia, metodo = NA_character_, forma = forma,
+    fuente = NA_character_, motivo = motivo,
+    work_mem = if (is.null(memoria$work_mem)) NA_character_ else memoria$work_mem,
+    work_mem_bytes = work_bytes,
+    hash_mem_multiplier = if (is.null(memoria$hash_mem_multiplier)) NA_real_ else
+      memoria$hash_mem_multiplier,
+    hash_mem_multiplier_disponible = isTRUE(memoria$hash_mem_multiplier_disponible),
+    memoria_efectiva_bytes = if (is.null(memoria$memoria_efectiva_bytes)) {
+      work_bytes
+    } else memoria$memoria_efectiva_bytes,
+    memoria_efectiva = if (is.null(memoria$memoria_efectiva)) {
+      .memoria_dbi(work_bytes)
+    } else memoria$memoria_efectiva,
+    columnas = data.frame(
+      columna = character(), metodo = character(), forma = character(),
+      tipo_familia = character(), n_distintos_estimados = numeric(),
+      n_validos_catalogo = numeric(), n_validos_medido = numeric(),
+      avg_width = numeric(), estado_hash_bytes = numeric(),
+      estado_sort_bytes = numeric(), estado_memoria_bytes = numeric(),
+      estado_io_total_bytes = numeric(), tamano_estimado_bytes = numeric(),
+      supera_memoria = logical(), stringsAsFactors = FALSE
+    ),
+    columnas_no_estimadas = data.frame(
+      columna = character(), motivo = character(), stringsAsFactors = FALSE
+    ),
+    lotes = data.frame(
+      lote = integer(), columnas = character(), metodo = character(),
+      forma = character(), estado_hash_bytes = numeric(),
+      estado_sort_bytes = numeric(), estado_memoria_bytes = numeric(),
+      estado_io_total_bytes = numeric(), tamano_estimado_bytes = numeric(),
+      supera_memoria = logical(), stringsAsFactors = FALSE
+    ),
+    lotes_sobre_memoria = integer(), filas_catalogo =
+      .denominador_catalogo_vacio_dbi(motivo),
+    n_columnas_solicitadas = 0L, n_columnas_estimadas = 0L,
+    supera_memoria = NA
+  )
+}
+
+.familia_tipo_derrame_dbi <- function(tipo, prototipo = NULL) {
+  texto <- if (length(tipo) && !is.na(tipo[[1L]])) {
+    as.character(tipo[[1L]])
+  } else ""
+  if (!nzchar(texto) && !is.null(prototipo) && length(prototipo)) {
+    if (inherits(prototipo, c("numeric", "integer64"))) texto <- "numeric"
+  }
+  if (grepl("numeric|decimal|number", tolower(texto), perl = TRUE)) {
+    "numeric"
+  } else {
+    "fijos"
+  }
+}
+
+.plan_moda_derrame_dbi <- function(conexion, sql, presupuesto) {
+  explicacion <- .consultar_dbi(
+    conexion, paste0("EXPLAIN (FORMAT JSON, COSTS OFF) ", sql), presupuesto,
+    etapa = "explain_moda"
+  )
+  if (!isTRUE(explicacion$ok) || is.null(explicacion$datos) ||
+      !nrow(explicacion$datos)) {
+    return(list(
+      ok = FALSE, metodo = NA_character_, motivo = paste(
+        "No se pudo derivar el metodo de la moda desde `EXPLAIN (FORMAT JSON,",
+        "COSTS OFF)`.", if (is.null(explicacion$motivo)) "" else explicacion$motivo
+      )
+    ))
+  }
+  texto <- paste(unlist(explicacion$datos, use.names = FALSE), collapse = " ")
+  # Primero se recorre el arbol JSON, desde el nodo raiz (normalmente
+  # `Limit`) hasta el primer `Aggregate`. El regex de abajo queda como
+  # compatibilidad para drivers que entregan el JSON como una columna opaca.
+  arbol <- tryCatch(
+    jsonlite::fromJSON(texto, simplifyVector = FALSE),
+    error = function(e) NULL
+  )
+  buscar <- function(nodo) {
+    if (!is.list(nodo)) return(NULL)
+    tipo_nodo <- nodo[["Node Type"]]
+    if (length(tipo_nodo) && identical(as.character(tipo_nodo[[1L]]), "Aggregate")) {
+      estrategia <- nodo[["Strategy"]]
+      if (length(estrategia)) return(as.character(estrategia[[1L]]))
+    }
+    planes <- nodo[["Plans"]]
+    if (is.list(planes)) {
+      for (hijo in planes) {
+        encontrado <- buscar(hijo)
+        if (!is.null(encontrado)) return(encontrado)
+      }
+    }
+    for (nombre in setdiff(names(nodo), c("Plans", "Node Type", "Strategy"))) {
+      encontrado <- buscar(nodo[[nombre]])
+      if (!is.null(encontrado)) return(encontrado)
+    }
+    NULL
+  }
+  estrategia_arbol <- if (is.list(arbol)) buscar(arbol) else NULL
+  if (identical(estrategia_arbol, "Hashed")) {
+    return(list(ok = TRUE, metodo = "hash", motivo = NA_character_))
+  }
+  if (identical(estrategia_arbol, "Sorted")) {
+    return(list(ok = TRUE, metodo = "sort", motivo = NA_character_))
+  }
+  estrategia <- regmatches(
+    texto,
+    regexpr('"Strategy"[[:space:]]*:[[:space:]]*"[A-Za-z]+"', texto,
+            perl = TRUE)
+  )
+  if (length(estrategia) && nzchar(estrategia)) {
+    if (grepl('"Hashed"', estrategia, fixed = TRUE)) {
+      return(list(ok = TRUE, metodo = "hash", motivo = NA_character_))
+    }
+    if (grepl('"Sorted"', estrategia, fixed = TRUE)) {
+      return(list(ok = TRUE, metodo = "sort", motivo = NA_character_))
+    }
+  }
+  if (grepl('"Strategy"[[:space:]]*:[[:space:]]*"Hashed"', texto,
+            perl = TRUE)) {
+    return(list(ok = TRUE, metodo = "hash", motivo = NA_character_))
+  }
+  if (grepl('"Strategy"[[:space:]]*:[[:space:]]*"Sorted"', texto,
+            perl = TRUE)) {
+    return(list(ok = TRUE, metodo = "sort", motivo = NA_character_))
+  }
+  list(
+    ok = FALSE, metodo = NA_character_, motivo = paste(
+      "`EXPLAIN` no devolvio una estrategia `Hashed` o `Sorted` para el",
+      "nodo Aggregate de la moda."
+    )
+  )
+}
+
+.sql_moda_columna_dbi <- function(conexion, tabla_sql, columna_sql, dialecto,
+                                  moda_guardian = NULL) {
+  alias <- function(nombre) {
+    as.character(DBI::dbQuoteIdentifier(conexion, nombre))
+  }
+  sin_limite <- paste0(
+    "SELECT ", columna_sql, " AS ", alias("valor"), ", COUNT(*) AS ",
+    alias("frecuencia"), " FROM ", tabla_sql, " WHERE ", columna_sql,
+    " IS NOT NULL GROUP BY ", columna_sql, " ORDER BY ", alias("frecuencia"),
+    " DESC, ", columna_sql, " ASC"
+  )
+  acotada <- dialecto$limitar(sin_limite, 1L, 0)
+  list(
+    sql = if (is.null(moda_guardian)) {
+      if (is.null(acotada)) sin_limite else acotada
+    } else moda_guardian$construir(columna_sql, tabla_sql),
+    filas = if (is.null(acotada)) 1L else -1L
+  )
+}
+
+.estadisticas_familia_derrame_dbi <- function(datos, columna) {
+  if (!is.data.frame(datos) || !all(c(
+    "relacion_oid", "reltuples", "hoja", "attname", "n_distinct",
+    "avg_width", "null_frac"
+  ) %in% names(datos))) {
+    return(list(ok = FALSE, motivo = paste(
+      "La respuesta del catalogo no contiene `null_frac`, `avg_width` y",
+      "`reltuples` para estimar la salida."
+    )))
+  }
+  relaciones <- unique(datos[c("relacion_oid", "reltuples", "hoja")])
+  relaciones <- relaciones[
+    !is.na(relaciones$relacion_oid) &
+      .logico_catalogo_dbi(relaciones$hoja) %in% TRUE, , drop = FALSE
+  ]
+  filas <- datos[!is.na(datos$attname) & as.character(datos$attname) == columna,
+                 , drop = FALSE]
+  if (!nrow(relaciones) || !nrow(filas)) {
+    return(list(ok = FALSE, motivo = paste(
+      "No hay estadisticas visibles para todas las relaciones hoja de la",
+      "columna; puede faltar `ANALYZE` o permiso de lectura."
+    )))
+  }
+  filas <- filas[!duplicated(as.character(filas$relacion_oid)), , drop = FALSE]
+  faltantes <- setdiff(
+    as.character(relaciones$relacion_oid), as.character(filas$relacion_oid)
+  )
+  if (length(faltantes)) {
+    return(list(ok = FALSE, motivo = paste(
+      "No hay una estadistica para todas las relaciones hoja de la columna."
+    )))
+  }
+  n_validos <- numeric(nrow(filas))
+  n_distintos <- numeric(nrow(filas))
+  anchos <- numeric(nrow(filas))
+  tipos <- character(nrow(filas))
+  for (i in seq_len(nrow(filas))) {
+    reltuples <- suppressWarnings(as.numeric(filas$reltuples[[i]]))
+    null_frac <- suppressWarnings(as.numeric(filas$null_frac[[i]]))
+    nd <- suppressWarnings(as.numeric(filas$n_distinct[[i]]))
+    ancho <- suppressWarnings(as.numeric(filas$avg_width[[i]]))
+    if (!is.finite(reltuples) || reltuples < 0 || !is.finite(null_frac) ||
+        null_frac < 0 || null_frac > 1 || !is.finite(nd) ||
+        !is.finite(ancho) || ancho < 0) {
+      return(list(ok = FALSE, motivo = paste(
+        "`reltuples`, `null_frac`, `n_distinct` o `avg_width` no es utilizable."
+      )))
+    }
+    n_validos[[i]] <- reltuples * (1 - null_frac)
+    n_distintos[[i]] <- if (nd < 0) ceiling(abs(nd) * reltuples) else ceiling(nd)
+    anchos[[i]] <- ancho
+    if ("tipo" %in% names(filas)) tipos[[i]] <- as.character(filas$tipo[[i]])
+  }
+  validos <- sum(n_validos)
+  distintos <- sum(n_distintos)
+  ancho <- if (validos > 0) sum(n_validos * anchos) / validos else mean(anchos)
+  if (!is.finite(validos) || !is.finite(distintos) || !is.finite(ancho)) {
+    return(list(ok = FALSE, motivo = "La suma de las estadisticas no es utilizable."))
+  }
+  tipo <- tipos[!is.na(tipos) & nzchar(tipos)]
+  list(
+    ok = TRUE, n_validos = validos, n_distintos = distintos,
+    avg_width = ancho, n_relaciones = nrow(filas),
+    tipo = if (length(tipo)) tipo[[1L]] else NA_character_
+  )
+}
+
+.estimar_derrame_familia_postgresql_dbi <- function(
+    conexion, tabla, columnas, presupuesto, familia,
+    universo = "tabla_completa", tamano_lote = .TAMANO_LOTE_PLANOS_DBI,
+    forma = NA_character_, dialecto = NULL, moda_guardian = NULL,
+    tipos = NULL, prototipo = NULL, tabla_sql = NULL) {
+  vacia <- function(estado = "no_disponible", motivo = paste(
+      "No se pudo estimar el derrame de", familia, ".")) {
+    .estimacion_derrame_familia_vacia_dbi(
+      familia, motivo, estado = estado, forma = forma
+    )
+  }
+  if (identical(universo, "muestra_motor")) {
+    return(vacia(motivo = paste(
+      "No se pudo estimar el derrame de", familia,
+      "sobre `muestra_motor` con estadisticas de la tabla completa; no se",
+      "inventa una equivalencia."
+    )))
+  }
+  if (!length(columnas)) {
+    return(vacia("no_solicitado", paste(
+      "No se solicito una estimacion de derrame porque no hay columnas que",
+      "vayan a emitir", familia, "."
+    )))
+  }
+  if (!grepl("postgres|pqconnection", .senas_conexion_dbi(conexion),
+             ignore.case = TRUE, perl = TRUE)) {
+    return(vacia(motivo = paste(
+      "No se pudo estimar el derrame de", familia, ": la conexion no fue",
+      "reconocida como PostgreSQL y no hay un `pg_stats` portable."
+    )))
+  }
+  memoria <- .leer_memoria_postgresql_dbi(conexion, presupuesto)
+  if (!isTRUE(memoria$ok)) return(.estimacion_derrame_familia_vacia_dbi(
+    familia, memoria$motivo, memoria = memoria, forma = forma
+  ))
+  if (!is.null(presupuesto)) presupuesto$memoria_derrame <- memoria
+  estadisticas <- .estadisticas_hash_postgresql_dbi(
+    conexion, tabla, columnas, presupuesto
+  )
+  if (!isTRUE(estadisticas$ok)) return(.estimacion_derrame_familia_vacia_dbi(
+    familia, estadisticas$motivo, memoria = memoria, forma = forma
+  ))
+  datos <- estadisticas$datos
+  filas_catalogo <- estadisticas$filas_catalogo
+  columnas_estimadas <- list()
+  columnas_no_estimadas <- list()
+  for (i in seq_along(columnas)) {
+    columna <- columnas[[i]]
+    estadistica <- .estadisticas_familia_derrame_dbi(datos, columna)
+    if (!isTRUE(estadistica$ok)) {
+      columnas_no_estimadas[[length(columnas_no_estimadas) + 1L]] <- data.frame(
+        columna = columna, motivo = estadistica$motivo,
+        stringsAsFactors = FALSE
+      )
+      next
+    }
+    posicion <- if (!is.null(prototipo) && !is.null(names(prototipo))) {
+      match(columna, names(prototipo))
+    } else NA_integer_
+    tipo_declarado <- if (!is.null(tipos) && !is.null(names(tipos)) &&
+                          !is.na(posicion) && columna %in% names(tipos)) {
+      tipos[[columna]]
+    } else if (!is.null(tipos) && !is.na(posicion) && posicion <= length(tipos)) {
+      tipos[[posicion]]
+    } else if (!is.null(tipos) && i <= length(tipos)) {
+      tipos[[i]]
+    } else NA_character_
+    prototipo_columna <- if (!is.null(prototipo) && !is.na(posicion) &&
+                             posicion <= length(prototipo)) {
+      prototipo[[posicion]]
+    } else if (!is.null(prototipo) && i <= length(prototipo)) {
+      prototipo[[i]]
+    } else NULL
+    tipo <- .familia_tipo_derrame_dbi(
+      if (is.na(estadistica$tipo)) tipo_declarado else estadistica$tipo,
+      prototipo_columna
+    )
+    nvalid <- estadistica$n_validos
+    nd <- estadistica$n_distintos
+    ancho <- estadistica$avg_width
+    metodo <- if (identical(familia, "moda")) {
+      if (is.null(dialecto)) dialecto <- .dialectos_dbi()$limit
+      consulta <- .sql_moda_columna_dbi(
+        conexion, if (is.null(tabla_sql)) .texto_tabla_dbi(tabla) else tabla_sql,
+        as.character(DBI::dbQuoteIdentifier(conexion, columna)), dialecto,
+        moda_guardian
+      )
+      plan <- .plan_moda_derrame_dbi(conexion, consulta$sql, presupuesto)
+      if (!isTRUE(plan$ok)) {
+        columnas_no_estimadas[[length(columnas_no_estimadas) + 1L]] <- data.frame(
+          columna = columna, motivo = plan$motivo, stringsAsFactors = FALSE
+        )
+        next
+      }
+      plan$metodo
+    } else {
+      "sort"
+    }
+    hash <- if (identical(metodo, "hash")) {
+      nd * (ancho + .TAMANO_BASE_ENTRADA_HASH_POSTGRESQL_DBI)
+    } else NA_real_
+    tape <- nvalid * (ancho + 8)
+    piso <- if (identical(tipo, "numeric")) {
+      .PISO_SORT_NUMERIC_POSTGRESQL_DBI
+    } else .PISO_SORT_FIJOS_POSTGRESQL_DBI
+    memoria_sort <- max(
+      nvalid * (ancho + .TAMANO_BASE_SORT_POSTGRESQL_DBI), nvalid * piso
+    )
+    decision <- if (identical(metodo, "hash")) hash else memoria_sort
+    limite <- if (identical(metodo, "hash")) {
+      memoria$memoria_efectiva_bytes
+    } else memoria$work_mem_bytes
+    columnas_estimadas[[length(columnas_estimadas) + 1L]] <- data.frame(
+      columna = columna, metodo = metodo, forma = forma,
+      tipo_familia = tipo, n_distintos_estimados = nd,
+      n_validos_catalogo = nvalid, n_validos_medido = NA_real_,
+      avg_width = ancho,
+      estado_hash_bytes = hash,
+      estado_sort_bytes = if (identical(metodo, "sort")) tape else NA_real_,
+      estado_memoria_bytes = if (identical(metodo, "sort")) memoria_sort else NA_real_,
+      estado_io_total_bytes = NA_real_, tamano_estimado_bytes = decision,
+      supera_memoria = if (is.finite(limite)) decision > limite else NA,
+      stringsAsFactors = FALSE
+    )
+  }
+  columnas_df <- if (length(columnas_estimadas)) do.call(rbind, columnas_estimadas)
+    else .estimacion_derrame_familia_vacia_dbi(familia)$columnas
+  no_estimadas_df <- if (length(columnas_no_estimadas)) {
+    do.call(rbind, columnas_no_estimadas)
+  } else .estimacion_derrame_familia_vacia_dbi(familia)$columnas_no_estimadas
+  if (identical(familia, "moda") || !identical(forma, "consolidada")) {
+    grupos <- lapply(seq_len(nrow(columnas_df)), function(i) i)
+  } else {
+    grupos <- split(seq_len(nrow(columnas_df)), ceiling(
+      seq_len(nrow(columnas_df)) / max(1L, as.integer(tamano_lote))
+    ))
+  }
+  lotes <- if (length(grupos)) do.call(rbind, lapply(seq_along(grupos), function(i) {
+    filas <- columnas_df[grupos[[i]], , drop = FALSE]
+    metodo <- unique(filas$metodo)
+    metodo <- if (length(metodo) == 1L) metodo else "por_columna"
+    decision <- if (all(is.na(filas$estado_memoria_bytes))) {
+      max(filas$estado_hash_bytes, na.rm = TRUE)
+    } else max(filas$estado_memoria_bytes, na.rm = TRUE)
+    limite <- if (identical(metodo, "hash")) memoria$memoria_efectiva_bytes
+      else memoria$work_mem_bytes
+    data.frame(
+      lote = as.integer(i), columnas = paste(filas$columna, collapse = ", "),
+      metodo = metodo, forma = forma,
+      estado_hash_bytes = if (all(is.na(filas$estado_hash_bytes))) NA_real_
+        else max(filas$estado_hash_bytes, na.rm = TRUE),
+      estado_sort_bytes = if (all(is.na(filas$estado_sort_bytes))) NA_real_
+        else max(filas$estado_sort_bytes, na.rm = TRUE),
+      estado_memoria_bytes = if (all(is.na(filas$estado_memoria_bytes))) NA_real_
+        else max(filas$estado_memoria_bytes, na.rm = TRUE),
+      estado_io_total_bytes = if (identical(familia, "mediana") &&
+                                  identical(forma, "consolidada") &&
+                                  !all(is.na(filas$estado_sort_bytes))) {
+        sum(filas$estado_sort_bytes, na.rm = TRUE)
+      } else NA_real_,
+      tamano_estimado_bytes = decision,
+      supera_memoria = if (is.finite(limite)) decision > limite else NA,
+      stringsAsFactors = FALSE
+    )
+  })) else .estimacion_derrame_familia_vacia_dbi(familia)$lotes
+  if (identical(familia, "mediana") && identical(forma, "consolidada") &&
+      nrow(lotes)) {
+    for (i in seq_along(grupos)) {
+      columnas_df$estado_io_total_bytes[grupos[[i]]] <-
+        lotes$estado_io_total_bytes[[i]]
+    }
+  }
+  sobre <- which(!is.na(lotes$supera_memoria) & lotes$supera_memoria)
+  n_estimadas <- nrow(columnas_df)
+  estado <- if (!n_estimadas) "no_disponible" else if (
+    n_estimadas < length(columnas)
+  ) "parcial" else "estimado"
+  motivo <- if (identical(familia, "moda")) paste(
+    "El metodo de la moda sale del nodo Aggregate de la consulta exacta",
+    "mediante `EXPLAIN (FORMAT JSON, COSTS OFF)` sin ANALYZE. El estado hash",
+    "usa `n_distinct * (avg_width + 64)`; el estado sort usa la huella de",
+    "decision y el tape declarados por familia. Las estadisticas pueden estar",
+    "viejas: un margen no demuestra que no haya derrame."
+  ) else paste(
+    "La mediana se estima como un sort de los valores no nulos. La huella de",
+    "decision usa `n_validos * (avg_width + 24)` con piso por familia y el",
+    "tape `n_validos * (avg_width + 8)` es informativo; el tape nunca decide.",
+    "El limite de la mediana es `work_mem`, sin multiplicador."
+  )
+  if (length(no_estimadas_df)) motivo <- paste(
+    motivo, paste(no_estimadas_df$columna, no_estimadas_df$motivo,
+                  sep = ": ", collapse = " ")
+  )
+  fuente <- if (identical(familia, "moda")) paste(
+    "EXPLAIN (FORMAT JSON, COSTS OFF) de la consulta exacta + pg_stats.n_distinct",
+    "+ pg_stats.avg_width + pg_class.reltuples + SHOW work_mem"
+  ) else paste(
+    "pg_stats.null_frac + pg_stats.avg_width + pg_class.reltuples + SHOW work_mem"
+  )
+  if (identical(familia, "moda") && isTRUE(memoria$hash_mem_multiplier_disponible)) {
+    fuente <- paste0(fuente, " + SHOW hash_mem_multiplier")
+  }
+  metodo <- unique(columnas_df$metodo)
+  metodo <- if (length(metodo) == 1L) metodo[[1L]] else if (length(metodo)) {
+    "por_columna"
+  } else NA_character_
+  limite_general <- if (identical(familia, "mediana") ||
+                        identical(metodo, "sort")) {
+    memoria$work_mem_bytes
+  } else if (identical(metodo, "hash")) {
+    memoria$memoria_efectiva_bytes
+  } else NA_real_
+  memoria_general <- if (is.finite(limite_general)) {
+    .memoria_dbi(limite_general)
+  } else NA_character_
+  list(
+    estado = estado, disponible = n_estimadas > 0L, es_estimacion = TRUE,
+    familia = familia, metodo = metodo, forma = forma, fuente = fuente,
+    motivo = motivo, work_mem = memoria$work_mem,
+    work_mem_bytes = memoria$work_mem_bytes,
+    hash_mem_multiplier = memoria$hash_mem_multiplier,
+    hash_mem_multiplier_disponible = memoria$hash_mem_multiplier_disponible,
+    memoria_efectiva_bytes = limite_general,
+    memoria_efectiva = memoria_general,
+    columnas = columnas_df, columnas_no_estimadas = no_estimadas_df,
+    lotes = lotes, lotes_sobre_memoria = as.integer(sobre),
+    n_columnas_solicitadas = as.integer(length(columnas)),
+    n_columnas_estimadas = as.integer(n_estimadas), filas_catalogo = filas_catalogo,
+    supera_memoria = if (length(sobre)) TRUE else if (nrow(lotes) &&
+      all(!is.na(lotes$supera_memoria))) FALSE else NA
+  )
+}
+
+.actualizar_n_validos_estimacion_dbi <- function(estimacion, agregados,
+                                                  metricas, salida) {
+  if (is.null(estimacion) || !is.data.frame(estimacion$columnas) ||
+      !nrow(estimacion$columnas)) return(estimacion)
+  pidio <- "validos" %in% metricas
+  valores <- vapply(estimacion$columnas$columna, function(columna) {
+    resultado <- if (isTRUE(pidio) && !is.null(agregados$conteos[[columna]])) {
+      agregados$conteos[[columna]]$validos
+    } else NULL
+    if (is.list(resultado) && isTRUE(resultado$ok)) {
+      .numero_dbi(resultado$valor)
+    } else NA_real_
+  }, numeric(1L))
+  estimacion$columnas$n_validos_medido <- valores
+  if (isTRUE(pidio) && any(is.finite(valores))) {
+    for (i in seq_len(nrow(estimacion$columnas))) {
+      medido <- valores[[i]]
+      if (!is.finite(medido)) next
+      tipo <- estimacion$columnas$tipo_familia[[i]]
+      ancho <- estimacion$columnas$avg_width[[i]]
+      piso <- if (identical(tipo, "numeric")) .PISO_SORT_NUMERIC_POSTGRESQL_DBI
+        else .PISO_SORT_FIJOS_POSTGRESQL_DBI
+      memoria_sort <- max(
+        medido * (ancho + .TAMANO_BASE_SORT_POSTGRESQL_DBI), medido * piso
+      )
+      if (identical(estimacion$columnas$metodo[[i]], "hash")) {
+        decision <- estimacion$columnas$estado_hash_bytes[[i]]
+        limite <- estimacion$hash_mem_multiplier * estimacion$work_mem_bytes
+      } else {
+        decision <- memoria_sort
+        limite <- estimacion$work_mem_bytes
+        estimacion$columnas$estado_memoria_bytes[[i]] <- memoria_sort
+        estimacion$columnas$estado_sort_bytes[[i]] <- medido * (ancho + 8)
+      }
+      estimacion$columnas$tamano_estimado_bytes[[i]] <- decision
+      estimacion$columnas$supera_memoria[[i]] <- is.finite(limite) && decision > limite
+    }
+    if (identical(salida, "meta")) {
+      estimacion$fuente <- paste(
+        estimacion$fuente,
+        "n_validos medido por los agregados planos de esta corrida cuando la",
+        "familia `validos` fue solicitada; avg_width y el resto vienen del catalogo."
+      )
+      estimacion$motivo <- paste(
+        estimacion$motivo, "Para esta salida se uso `n_validos` medido cuando",
+        "estuvo disponible; las columnas sin medicion conservan el catalogo."
+      )
+    }
+  } else if (identical(salida, "meta")) {
+    estimacion$motivo <- paste(
+      estimacion$motivo, "No se midio `n_validos` para esta salida porque",
+      "la familia `validos` no fue solicitada o su consulta no fue utilizable;",
+      "se conserva el `n_validos_catalogo` del plan."
+    )
+  }
+  if (is.data.frame(estimacion$lotes) && nrow(estimacion$lotes)) {
+    for (i in seq_len(nrow(estimacion$lotes))) {
+      columnas <- trimws(strsplit(estimacion$lotes$columnas[[i]], ",", fixed = TRUE)[[1L]])
+      filas <- estimacion$columnas[estimacion$columnas$columna %in% columnas, , drop = FALSE]
+      decision <- if (all(is.na(filas$estado_memoria_bytes))) {
+        max(filas$estado_hash_bytes, na.rm = TRUE)
+      } else max(filas$estado_memoria_bytes, na.rm = TRUE)
+      estimacion$lotes$tamano_estimado_bytes[[i]] <- decision
+      estimacion$lotes$estado_memoria_bytes[[i]] <- if (all(
+        is.na(filas$estado_memoria_bytes)
+      )) NA_real_ else max(filas$estado_memoria_bytes, na.rm = TRUE)
+      estimacion$lotes$estado_sort_bytes[[i]] <- if (all(
+        is.na(filas$estado_sort_bytes)
+      )) NA_real_ else max(filas$estado_sort_bytes, na.rm = TRUE)
+      estimacion$lotes$estado_io_total_bytes[[i]] <- if (
+        identical(estimacion$familia, "mediana") &&
+        identical(estimacion$forma, "consolidada") &&
+        !all(is.na(filas$estado_sort_bytes))
+      ) sum(filas$estado_sort_bytes, na.rm = TRUE) else NA_real_
+      limite <- if (identical(estimacion$metodo, "hash")) {
+        estimacion$work_mem_bytes * estimacion$hash_mem_multiplier
+      } else estimacion$work_mem_bytes
+      estimacion$lotes$supera_memoria[[i]] <- is.finite(limite) && decision > limite
+    }
+    estimacion$lotes_sobre_memoria <- which(estimacion$lotes$supera_memoria %in% TRUE)
+    estimacion$supera_memoria <- if (length(estimacion$lotes_sobre_memoria)) TRUE
+      else if (all(!is.na(estimacion$lotes$supera_memoria))) FALSE else NA
+  }
+  estimacion
+}
+
+.filtrar_estimacion_derrame_dbi <- function(estimacion, columnas) {
+  if (is.null(estimacion) || !is.data.frame(estimacion$columnas) ||
+      !nrow(estimacion$columnas)) return(estimacion)
+  columnas <- intersect(as.character(columnas), estimacion$columnas$columna)
+  estimacion$columnas <- estimacion$columnas[
+    match(columnas, estimacion$columnas$columna), , drop = FALSE
+  ]
+  if (!is.data.frame(estimacion$lotes) || !nrow(estimacion$lotes)) {
+    estimacion$lotes_sobre_memoria <- integer()
+    estimacion$supera_memoria <- NA
+    return(estimacion)
+  }
+  lotes <- lapply(seq_len(nrow(estimacion$lotes)), function(i) {
+    nombres <- trimws(strsplit(
+      estimacion$lotes$columnas[[i]], ",", fixed = TRUE
+    )[[1L]])
+    nombres <- intersect(nombres, columnas)
+    if (!length(nombres)) return(NULL)
+    filas <- estimacion$columnas[
+      estimacion$columnas$columna %in% nombres, , drop = FALSE
+    ]
+    metodo <- unique(filas$metodo)
+    metodo <- if (length(metodo) == 1L) metodo[[1L]] else "por_columna"
+    es_sort <- !all(is.na(filas$estado_memoria_bytes))
+    decision <- if (es_sort) max(filas$estado_memoria_bytes, na.rm = TRUE) else
+      max(filas$estado_hash_bytes, na.rm = TRUE)
+    limite <- if (identical(metodo, "hash")) {
+      estimacion$memoria_efectiva_bytes
+    } else estimacion$work_mem_bytes
+    data.frame(
+      lote = estimacion$lotes$lote[[i]],
+      columnas = paste(nombres, collapse = ", "), metodo = metodo,
+      forma = estimacion$lotes$forma[[i]],
+      estado_hash_bytes = if (all(is.na(filas$estado_hash_bytes))) NA_real_
+        else max(filas$estado_hash_bytes, na.rm = TRUE),
+      estado_sort_bytes = if (all(is.na(filas$estado_sort_bytes))) NA_real_
+        else max(filas$estado_sort_bytes, na.rm = TRUE),
+      estado_memoria_bytes = if (all(is.na(filas$estado_memoria_bytes))) NA_real_
+        else max(filas$estado_memoria_bytes, na.rm = TRUE),
+      estado_io_total_bytes = if (
+        identical(estimacion$familia, "mediana") &&
+        identical(estimacion$forma, "consolidada") &&
+        !all(is.na(filas$estado_sort_bytes))
+      ) sum(filas$estado_sort_bytes, na.rm = TRUE) else NA_real_,
+      tamano_estimado_bytes = decision,
+      supera_memoria = if (is.finite(limite)) decision > limite else NA,
+      stringsAsFactors = FALSE
+    )
+  })
+  lotes <- Filter(Negate(is.null), lotes)
+  estimacion$lotes <- if (length(lotes)) do.call(rbind, lotes) else {
+    estimacion$lotes[0L, , drop = FALSE]
+  }
+  estimacion$lotes_sobre_memoria <- which(
+    estimacion$lotes$supera_memoria %in% TRUE
+  )
+  estimacion$supera_memoria <- if (length(estimacion$lotes_sobre_memoria)) TRUE
+    else if (nrow(estimacion$lotes) &&
+             all(!is.na(estimacion$lotes$supera_memoria))) FALSE else NA
+  estimacion$n_columnas_solicitadas <- as.integer(length(columnas))
+  estimacion$n_columnas_estimadas <- as.integer(nrow(estimacion$columnas))
+  estimacion
 }
 
 # ---- Reloj e instrumentacion --------------------------------------------
@@ -2937,14 +3598,79 @@
 .normalizar_sql_derrame_dbi <- function(sql) {
   if (is.null(sql) || length(sql) != 1L || is.na(sql)) return(NA_character_)
   texto <- sub(";+[[:space:]]*$", "", as.character(sql))
-  gsub("[[:space:]]+", " ", trimws(texto))
+  caracteres <- strsplit(texto, "", fixed = TRUE)[[1L]]
+  salida <- character()
+  i <- 1L
+  literal <- 0L
+  limite <- length(caracteres)
+  es_borde <- function(valor) !grepl("[A-Za-z0-9_$]", valor, perl = TRUE)
+  while (i <= limite) {
+    actual <- caracteres[[i]]
+    if (identical(actual, "\"")) {
+      inicio <- i
+      i <- i + 1L
+      while (i <= limite) {
+        if (identical(caracteres[[i]], "\"") &&
+            i < limite && identical(caracteres[[i + 1L]], "\"")) {
+          i <- i + 2L
+        } else if (identical(caracteres[[i]], "\"")) {
+          i <- i + 1L
+          break
+        } else {
+          i <- i + 1L
+        }
+      }
+      salida <- c(salida, paste(caracteres[inicio:(i - 1L)], collapse = ""))
+      next
+    }
+    if (identical(actual, "'")) {
+      literal <- literal + 1L
+      i <- i + 1L
+      while (i <= limite) {
+        if (identical(caracteres[[i]], "'") && i < limite &&
+            identical(caracteres[[i + 1L]], "'")) {
+          i <- i + 2L
+        } else if (identical(caracteres[[i]], "'")) {
+          i <- i + 1L
+          break
+        } else {
+          i <- i + 1L
+        }
+      }
+      salida <- c(salida, paste0("$", literal))
+      next
+    }
+    resto <- paste(caracteres[i:limite], collapse = "")
+    anterior <- if (length(salida)) substr(tail(salida, 1L), 1L, 1L) else ""
+    patron_numero <- "^(?:[-+]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][-+]?[0-9]+)?)"
+    captura <- regmatches(resto, regexpr(patron_numero, resto, perl = TRUE))
+    puede_numero <- length(captura) == 1L && nzchar(captura) &&
+      (i == 1L || es_borde(anterior))
+    if (puede_numero) {
+      siguiente <- i + nchar(captura, type = "chars")
+      caracter_siguiente <- if (siguiente <= limite) caracteres[[siguiente]] else ""
+      if (!nzchar(caracter_siguiente) || es_borde(caracter_siguiente)) {
+        literal <- literal + 1L
+        salida <- c(salida, paste0("$", literal))
+        i <- siguiente
+        next
+      }
+    }
+    salida <- c(salida, actual)
+    i <- i + 1L
+  }
+  gsub("[[:space:]]+", " ", trimws(paste(salida, collapse = "")))
 }
 
 .estadisticas_derrame_postgresql_dbi <- function(conexion) {
   sql <- paste(
     "SELECT query, calls, temp_blks_read, temp_blks_written",
     "FROM pg_stat_statements",
-    "WHERE query ILIKE '%COUNT(DISTINCT%'"
+    "WHERE query ILIKE '%COUNT(DISTINCT%'",
+    "OR query ILIKE '%AS frecuencia%'",
+    "OR query ILIKE '%frecuencia%'",
+    "OR query ILIKE '%lupa_mediana%'",
+    "OR query ILIKE '%PERCENTILE_CONT%'"
   )
   datos <- tryCatch(
     DBI::dbGetQuery(conexion, sql),
@@ -3028,28 +3754,30 @@
       !is.na(antes$query_normalizada) & antes$query_normalizada == clave
     )
     previo <- antes[indices_previos, , drop = FALSE]
-    llamadas_antes <- if (nrow(previo)) .numero_dbi(previo$calls[[1L]]) else 0
+    llamadas_antes <- if (nrow(previo)) sum(vapply(
+      previo$calls, .numero_dbi, numeric(1L)
+    ), na.rm = TRUE) else 0
     llamadas_despues <- .numero_dbi(despues$calls[[i]])
-    leidos_antes <- if (nrow(previo)) {
-      .numero_dbi(previo$temp_blks_read[[1L]])
-    } else 0
-    escritos_antes <- if (nrow(previo)) {
-      .numero_dbi(previo$temp_blks_written[[1L]])
-    } else 0
+    leidos_antes <- if (nrow(previo)) sum(vapply(
+      previo$temp_blks_read, .numero_dbi, numeric(1L)
+    ), na.rm = TRUE) else 0
+    escritos_antes <- if (nrow(previo)) sum(vapply(
+      previo$temp_blks_written, .numero_dbi, numeric(1L)
+    ), na.rm = TRUE) else 0
     delta_llamadas <- llamadas_despues - llamadas_antes
     delta_leidos <- .numero_dbi(despues$temp_blks_read[[i]]) - leidos_antes
     delta_escritos <- .numero_dbi(despues$temp_blks_written[[i]]) - escritos_antes
-    # Una llamada exacta permite atribuir los bloques a esta corrida. Si hubo
-    # otra llamada concurrente o se reiniciaron las estadisticas, se declara
-    # desconocido en vez de adjudicarle sus bloques a esta consulta.
-    if (!isTRUE(delta_llamadas == 1) || !is.finite(delta_leidos) ||
+    # El contador puede incluir otra sesión o llamada concurrente. Se publica
+    # el agregado de la ventana y ese límite de atribución queda explícito.
+    if (!isTRUE(delta_llamadas >= 1) || !is.finite(delta_leidos) ||
         !is.finite(delta_escritos) || delta_leidos < 0 || delta_escritos < 0) {
       next
     }
     consultas[[length(consultas) + 1L]] <- list(
       query_normalizada = clave, derrame = delta_leidos > 0 || delta_escritos > 0,
       bloques_temporales_leidos = delta_leidos,
-      bloques_temporales_escritos = delta_escritos
+      bloques_temporales_escritos = delta_escritos,
+      llamadas_en_ventana = delta_llamadas
     )
   }
   if (!length(consultas)) {
@@ -3062,9 +3790,12 @@
   } else {
     estado$estado <- "medido"
     estado$consultas <- consultas
+    llamadas <- sum(vapply(consultas, function(x) x$llamadas_en_ventana,
+                           numeric(1L)))
     estado$motivo <- paste(
-      "Los bloques temporales se atribuyeron a la consulta exacta de esta",
-      "corrida mediante `pg_stat_statements`."
+      "Los bloques temporales se publican como agregado sobre el texto SQL",
+      "normalizado; `llamadas_en_ventana` =", llamadas,
+      "y puede incluir otra sesion o llamada concurrente."
     )
   }
   presupuesto$derrame <- estado
@@ -3079,7 +3810,7 @@
       motivo = "No se pudo iniciar la instrumentacion de derrame.",
       consultas_observadas = 0L, consultas_con_derrame = 0L,
       bloques_temporales_leidos = NA_real_,
-      bloques_temporales_escritos = NA_real_
+      bloques_temporales_escritos = NA_real_, llamadas_en_ventana = NA_real_
     ))
   }
   consultas <- estado$consultas
@@ -3091,6 +3822,9 @@
   escritos <- if (length(consultas)) sum(vapply(
     consultas, function(x) x$bloques_temporales_escritos, numeric(1L)
   )) else NA_real_
+  llamadas <- if (length(consultas)) sum(vapply(
+    consultas, function(x) x$llamadas_en_ventana, numeric(1L)
+  )) else NA_real_
   list(
     disponible = identical(estado$estado, "medido"),
     estado = estado$estado,
@@ -3099,7 +3833,8 @@
     consultas_observadas = as.integer(length(consultas)),
     consultas_con_derrame = as.integer(sum(derrames)),
     bloques_temporales_leidos = leidos,
-    bloques_temporales_escritos = escritos
+    bloques_temporales_escritos = escritos,
+    llamadas_en_ventana = llamadas
   )
 }
 
@@ -3441,6 +4176,7 @@
     bloques_temporales_leidos = rep_len(NA_real_, length(metricas)),
     bloques_temporales_escritos = rep_len(NA_real_, length(metricas)),
     fuente_derrame = rep_len(NA_character_, length(metricas)),
+    llamadas_en_ventana = rep_len(NA_real_, length(metricas)),
     memoria_trabajo = rep_len(
       .memoria_trabajo_sql_dbi(estado, metadatos), length(metricas)
     ),
@@ -3460,6 +4196,9 @@
   if (!"fuente_derrame" %in% names(sql)) {
     sql$fuente_derrame <- NA_character_
   }
+  if (!"llamadas_en_ventana" %in% names(sql)) {
+    sql$llamadas_en_ventana <- NA_real_
+  }
   if (is.null(derrame) || !identical(derrame$estado, "medido") ||
       !length(derrame$consultas)) {
     return(sql)
@@ -3476,6 +4215,7 @@
     sql$bloques_temporales_escritos[indices] <-
       consulta$bloques_temporales_escritos
     sql$fuente_derrame[indices] <- derrame$fuente
+    sql$llamadas_en_ventana[indices] <- consulta$llamadas_en_ventana
   }
   sql
 }
@@ -6103,10 +6843,6 @@
         .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI
       )
     )
-    instrumentacion_derrame <- .iniciar_instrumentacion_derrame_dbi(
-      conexion, presupuesto,
-      exacto = is.null(aproximacion_distintos)
-    )
     lotes <- .lotes_columnas_dbi(
       columnas_distintos, tamano_lote_distintos
     )
@@ -6158,9 +6894,6 @@
         )
       }
     }
-    if (identical(instrumentacion_derrame$estado, "observando")) {
-      .finalizar_instrumentacion_derrame_dbi(conexion, presupuesto)
-    }
   }
   agregados$n_total <- n_total
   agregados$conteo <- conteo
@@ -6178,21 +6911,12 @@
   alias <- function(nombre) {
     as.character(DBI::dbQuoteIdentifier(conexion, nombre))
   }
-  sin_limite <- paste0(
-    "SELECT ", columna_sql, " AS ", alias("valor"), ", COUNT(*) AS ",
-    alias("frecuencia"), " FROM ", tabla_sql, " WHERE ", columna_sql,
-    " IS NOT NULL GROUP BY ", columna_sql, " ORDER BY ", alias("frecuencia"),
-    " DESC, ", columna_sql, " ASC"
+  consulta <- .sql_moda_columna_dbi(
+    conexion, tabla_sql, columna_sql, dialecto, moda_guardian
   )
-  acotada <- dialecto$limitar(sin_limite, 1L, 0)
-  sql_moda <- if (is.null(moda_guardian)) {
-    if (is.null(acotada)) sin_limite else acotada
-  } else {
-    moda_guardian$construir(columna_sql, tabla_sql)
-  }
+  sql_moda <- consulta$sql
   resultado <- .consultar_dbi(
-    conexion, sql_moda, presupuesto,
-    filas = if (is.null(acotada)) 1L else -1L,
+    conexion, sql_moda, presupuesto, filas = consulta$filas,
     etapa = "moda"
   )
   resultado$sql <- sql_moda
@@ -7176,6 +7900,17 @@
       )
     }, logical(1L))
   }
+  exacto_derrame <- (
+    "distintos" %in% metricas_ejecucion &&
+      identical(estrategia_distintos$estrategia_resuelta, "COUNT(DISTINCT)")
+  ) || ("moda" %in% metricas_ejecucion && isTRUE(incluir_valores)) || (
+    "mediana" %in% metricas_ejecucion && isTRUE(incluir_valores) &&
+      (!is.null(mediana_consolidada) || !is.null(mediana_escalar) ||
+       (!identical(universo, "muestra_motor") && is.null(aproximaciones$mediana)))
+  )
+  if (!is.null(presupuesto)) .iniciar_instrumentacion_derrame_dbi(
+    conexion, presupuesto, exacto = exacto_derrame
+  )
   agregados <- .agregados_consolidados_dbi(
     conexion, tabla_metricas_sql, campos_consolidados,
     campos_sql_consolidados, es_numerico_consolidados, metricas_ejecucion,
@@ -7241,6 +7976,14 @@
     conexion, campos_consolidados, agregados, politica_costo, n_total, universo,
     fuentes_cardinalidad_costo = fuentes_cardinalidad_costo
   )
+  if (!is.null(presupuesto)) {
+    presupuesto$estimacion_derrame_moda <- .actualizar_n_validos_estimacion_dbi(
+      presupuesto$estimacion_derrame_moda, agregados, metricas_ejecucion, "meta"
+    )
+    presupuesto$estimacion_derrame_mediana <- .actualizar_n_validos_estimacion_dbi(
+      presupuesto$estimacion_derrame_mediana, agregados, metricas_ejecucion, "meta"
+    )
+  }
   # La moda y la mediana son dos familias distintas: preparar todas las modas
   # antes de entrar en la mediana deja disponibles primero las metricas con
   # mayor cobertura, incluso cuando no hay una consolidacion de medianas.
@@ -7261,6 +8004,21 @@
   ]
   modas <- vector("list", length(columnas_modas))
   names(modas) <- columnas_modas
+  if (length(columnas_modas) && !is.null(presupuesto) &&
+      !isTRUE(presupuesto$aviso_derrame_moda_emitido)) {
+    estimacion_aviso <- .filtrar_estimacion_derrame_dbi(
+      presupuesto$estimacion_derrame_moda, columnas_modas
+    )
+    avisado <- .avisar_derrame_estimado_postgresql_dbi(
+      estimacion_aviso,
+      habilitado = if (is.null(presupuesto$avisar_derrame_estimado)) TRUE else
+        presupuesto$avisar_derrame_estimado,
+      umbral_bytes = if (is.null(presupuesto$umbral_bytes_aviso_derrame_estimado)) {
+        .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI
+      } else presupuesto$umbral_bytes_aviso_derrame_estimado
+    )
+    if (isTRUE(avisado)) presupuesto$aviso_derrame_moda_emitido <- TRUE
+  }
   for (posicion in seq_along(columnas_modas)) {
     campo <- columnas_modas[[posicion]]
     pendientes <- columnas_modas[posicion:length(columnas_modas)]
@@ -7310,6 +8068,22 @@
       (is.null(decision) || isTRUE(decision$mediana))
     }, logical(1L))
   ]
+  if (length(columnas_medianas) && !is.null(presupuesto) &&
+      !isTRUE(presupuesto$aviso_derrame_mediana_emitido) &&
+      "validos" %in% metricas_ejecucion) {
+    estimacion_aviso <- .filtrar_estimacion_derrame_dbi(
+      presupuesto$estimacion_derrame_mediana, columnas_medianas
+    )
+    avisado <- .avisar_derrame_estimado_postgresql_dbi(
+      estimacion_aviso,
+      habilitado = if (is.null(presupuesto$avisar_derrame_estimado)) TRUE else
+        presupuesto$avisar_derrame_estimado,
+      umbral_bytes = if (is.null(presupuesto$umbral_bytes_aviso_derrame_estimado)) {
+        .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI
+      } else presupuesto$umbral_bytes_aviso_derrame_estimado
+    )
+    if (isTRUE(avisado)) presupuesto$aviso_derrame_mediana_emitido <- TRUE
+  }
   if (length(columnas_medianas) && identical(universo, "muestra_motor") &&
       !is.null(muestreo) && identical(muestreo$metodo, "random_limit") &&
       identical(muestreo$funcion_muestreo, "newid") &&
@@ -7387,6 +8161,7 @@
       estrategia_distintos = estrategia_distintos
     )
   })
+  .finalizar_instrumentacion_derrame_dbi(conexion, presupuesto)
   columnas <- if (length(resultados)) {
     filas <- lapply(resultados, `[[`, "fila")
     as.data.frame(do.call(rbind, lapply(filas, as.data.frame)),
@@ -7529,7 +8304,17 @@
       # Este objeto usa el catalogo solo para anticipar el costo de memoria.
       # Nunca reemplaza a `meta$derrame`, que solo puede salir de una medicion
       # posterior por `pg_stat_statements`.
-      estimacion_derrame = agregados$estimacion_derrame
+      estimacion_derrame = agregados$estimacion_derrame,
+      estimacion_derrame_moda = if (is.null(presupuesto)) {
+        .estimacion_derrame_familia_vacia_dbi(
+          "moda", "No se solicito una estimacion de derrame."
+        )
+      } else presupuesto$estimacion_derrame_moda,
+      estimacion_derrame_mediana = if (is.null(presupuesto)) {
+        .estimacion_derrame_familia_vacia_dbi(
+          "mediana", "No se solicito una estimacion de derrame."
+        )
+      } else presupuesto$estimacion_derrame_mediana
     )
   if (!identical(universo, "muestra_motor")) {
     meta$filas_obtenidas_muestra <- NULL
@@ -8340,6 +9125,15 @@
 #' y, desde PostgreSQL 13, `SHOW hash_mem_multiplier`) para estimar el tamaño
 #' del hash y avisar un posible derrame. Esa consulta de metadatos no publica
 #' cardinalidad medida ni reemplaza la medición posterior.
+#' Para la moda y la mediana se publican, además, los atributos
+#' `estimacion_derrame_moda` y `estimacion_derrame_mediana`. La moda deriva su
+#' `metodo` (`"hash"` o `"sort"`) del primer `Aggregate` de un
+#' `EXPLAIN (FORMAT JSON, COSTS OFF)` de la consulta exacta, sin `ANALYZE` ni
+#' lectura de datos. La mediana siempre modela un sort y distingue su huella de
+#' decisión de la magnitud del tape. Ambas usan `n_validos` de catálogo en el
+#' plan, pisos de 32 bytes para tipos fijos y 42 para `numeric`, y dejan el
+#' objeto como `no_disponible` cuando el catálogo o el motor no permiten una
+#' estimación.
 #' Cuando esa lectura de catálogo trae `pg_class.reltuples` positivo, el plan lo
 #' reutiliza como una estimación declarada del número de filas. La magnitud y las
 #' proyecciones de trabajo de moda y mediana quedan entonces disponibles y dicen
@@ -8405,6 +9199,7 @@
 #'   `fuente_cardinalidad_costo`, `moda_guardian`, `mediana_consolidada`, `filas`,
 #'   `filas_fuente`, `estimacion_filas`, `proyecciones`, `mediana_escalar`,
 #'   `tamano_lote_planos`, `tamano_lote_distintos`, `estimacion_derrame`,
+#'   `estimacion_derrame_moda`, `estimacion_derrame_mediana`,
 #'   `celdas`, `memoria_procesamiento`, `max_celdas_muestra`,
 #'   `max_bytes_muestra`, `tope_muestra` y `muestreo`, y,
 #'   cuando se pide `distintos`, `supuesto_costo_distintos`.
@@ -8413,6 +9208,10 @@
 #'   magnitud del trabajo y referencias medidas de otras corridas. El atributo
 #'   `estimacion_derrame` es independiente: sólo describe la estimación del hash
 #'   en el motor para `COUNT(DISTINCT)` y no la memoria del procesamiento en R.
+#'   `estimacion_derrame_moda` y `estimacion_derrame_mediana` describen,
+#'   respectivamente, el nodo real de la moda y el sort de la mediana. Sus
+#'   lotes deciden por el máximo de columna; en una mediana consolidada,
+#'   `estado_io_total_bytes` es sólo la suma informativa de los tapes.
 #'   `muestreo` declara si la forma muestreada se pudo construir sin emitir una
 #'   consulta de datos. En `universo = "muestra_motor"`, cuando su `estado` es
 #'   `"no_disponible"`, el plan excluye las métricas SQL de esa muestra y
@@ -8714,6 +9513,8 @@ plan_perfilado_dbi <- function(conexion, tabla,
   attr(plan, "fuente_cardinalidad_costo") <-
     preparacion$fuentes_cardinalidad_costo
   attr(plan, "estimacion_derrame") <- preparacion$estimacion_derrame
+  attr(plan, "estimacion_derrame_moda") <- preparacion$estimacion_derrame_moda
+  attr(plan, "estimacion_derrame_mediana") <- preparacion$estimacion_derrame_mediana
   attr(plan, "moda_guardian") <- .publicar_moda_guardian_dbi(
     preparacion$moda_guardian_resolucion
   )
@@ -8836,6 +9637,21 @@ print.plan_perfilado_dbi <- function(x, ...) {
         proyecciones$mediana$fuente, "."
       )
     }
+  }
+  for (familia in c("moda", "mediana")) {
+    estimacion <- attr(x, paste0("estimacion_derrame_", familia), exact = TRUE)
+    if (is.null(estimacion) || identical(estimacion$estado, "no_solicitado")) {
+      next
+    }
+    limite <- if (identical(estimacion$metodo, "sort") ||
+                  identical(familia, "mediana")) {
+      estimacion$work_mem
+    } else estimacion$memoria_efectiva
+    cli::cli_text(
+      "Derrame estimado de ", familia, ": ", estimacion$estado,
+      "; metodo/forma = ", estimacion$metodo, "/", estimacion$forma,
+      "; limite de decision = ", limite, "; motivo: ", estimacion$motivo
+    )
   }
   if (identical(attr(x, "bloque_muestra", exact = TRUE), "solo_agregados")) {
     cli::cli_text(
@@ -10169,6 +10985,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
     metricas, estrategia_distintos, campos,
     fuentes_cardinalidad_costo, politica_costo
   )
+  columnas_moda_estimacion <- if (
+    "moda" %in% metricas && isTRUE(incluir_valores)
+  ) campos else character()
+  columnas_mediana_estimacion <- if (
+    "mediana" %in% metricas && isTRUE(incluir_valores)
+  ) campos[es_numerico] else character()
+  columnas_catalogo_derrame <- unique(c(
+    columnas_distintos_ejecucion,
+    columnas_moda_estimacion,
+    columnas_mediana_estimacion
+  ))
   # Se consulta el catalogo una sola vez por corrida. En la corrida real el
   # aviso se emite mas tarde, cuando los agregados planos ya terminaron, pero
   # los datos de la estimacion quedan listos antes del primer distinto. En el
@@ -10176,8 +11003,31 @@ print.plan_perfilado_dbi <- function(x, ...) {
   presupuesto$estimacion_derrame <- .estimar_derrame_postgresql_dbi(
     conexion, tabla, columnas_distintos_ejecucion, presupuesto,
     exacto = identical(estrategia_distintos$estrategia_resuelta, "COUNT(DISTINCT)"),
-    universo = universo, tamano_lote = tamanos_lote$distintos
+    universo = universo, tamano_lote = tamanos_lote$distintos,
+    columnas_stats = columnas_catalogo_derrame
   )
+  forma_mediana_estimacion <- if (!is.null(mediana_consolidada)) {
+    "consolidada"
+  } else if (!is.null(mediana_escalar)) {
+    "subconsulta_escalar"
+  } else {
+    "dos_consultas"
+  }
+  presupuesto$estimacion_derrame_moda <-
+    .estimar_derrame_familia_postgresql_dbi(
+      conexion, tabla, columnas_moda_estimacion, presupuesto, "moda",
+      universo = universo, tamano_lote = tamanos_lote$planos,
+      forma = NA_character_, dialecto = resolucion$dialecto,
+      moda_guardian = moda_guardian, tipos = esquema$tipos,
+      prototipo = prototipo, tabla_sql = tabla_sql
+    )
+  presupuesto$estimacion_derrame_mediana <-
+    .estimar_derrame_familia_postgresql_dbi(
+      conexion, tabla, columnas_mediana_estimacion, presupuesto, "mediana",
+      universo = universo, tamano_lote = tamanos_lote$planos,
+      forma = forma_mediana_estimacion, tipos = esquema$tipos,
+      prototipo = prototipo, tabla_sql = tabla_sql
+    )
   metricas_ejecucion <- metricas
   list(
     universo = universo, muestra_motor = muestra_motor,
@@ -10210,6 +11060,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     catalogo_cardinalidad = catalogo_cardinalidad,
     columnas_distintos_ejecucion = columnas_distintos_ejecucion,
     estimacion_derrame = presupuesto$estimacion_derrame,
+    estimacion_derrame_moda = presupuesto$estimacion_derrame_moda,
+    estimacion_derrame_mediana = presupuesto$estimacion_derrame_mediana,
     n_total = n_total, conteo = conteo, sql_conteo = sql_conteo,
     conteo_fusionable = hay_agregados_fusionables && !(
       identical(universo, "muestra_motor") && !is.null(muestreo) &&
@@ -10449,6 +11301,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' insuficiente o una versión sin el parámetro dejan la parte correspondiente
 #' como no disponible. `n_distinct` es una estimación de muestra y puede quedar
 #' corta; si luego `pg_stat_statements` mide un derrame, esa medición manda.
+#' La misma corrida publica `meta$estimacion_derrame_moda` y
+#' `meta$estimacion_derrame_mediana`. La moda deriva `metodo` del plan exacto
+#' mediante `EXPLAIN (FORMAT JSON, COSTS OFF)` sin `ANALYZE`; la mediana usa
+#' siempre un sort contra `work_mem`, con pisos de 32 bytes para tipos fijos y
+#' 42 para `numeric`. El plan usa `n_validos` de catálogo. En la meta y en el
+#' aviso, cuando se pidió la familia `validos`, ese denominador se reemplaza por
+#' el medido en los agregados planos y se conserva también el valor de catálogo;
+#' si no se midió, el motivo declara que se retuvo el catálogo. La consolidada
+#' decide por el máximo de columna y publica la suma de tapes sólo como
+#' `estado_io_total_bytes` informativo.
 #'
 #' Los avisos de esta vía son deliberadamente distintos de los de [perfilar()]:
 #' `perfilar_dbi()` los emite también en guiones no interactivos porque el costo
@@ -10493,15 +11355,20 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `"creciente"`, `"acotado"` y `NA`.
 #'
 #' En PostgreSQL, con `instrumentar = TRUE`, se toma una foto de
-#' `pg_stat_statements` antes y después de los `COUNT(DISTINCT)` exactos. Sólo
-#' se publica un derrame cuando una consulta coincide y su contador aumentó en
-#' exactamente una llamada atribuible a esta corrida. En ese caso,
+#' `pg_stat_statements` antes y después de la ventana que cubre los agregados
+#' exactos instrumentables de distintos, moda y mediana. Las firmas se filtran
+#' por texto y se normalizan en el paquete: cada literal numérico o de cadena
+#' se reemplaza por su parámetro posicional y los identificadores entre comillas
+#' dobles se conservan. Sólo se publica un derrame cuando una consulta coincide
+#' y su contador aumentó en al menos una llamada dentro de la ventana. En ese caso,
 #' `resumen_tabla$sql` agrega `derrame`,
 #' `bloques_temporales_leidos`, `bloques_temporales_escritos` y
-#' `fuente_derrame`; `resumen_tabla$meta$derrame` conserva el resumen y la
-#' fuente. Si la extensión no está disponible, la consulta fue concurrente o
-#' la instrumentación está apagada, el estado queda `no_disponible` o
-#' `no_medido` con el motivo: el paquete no deduce un derrame del tiempo y no
+#' `fuente_derrame`, además de `llamadas_en_ventana`; `resumen_tabla$meta$derrame`
+#' conserva el resumen y la fuente. Cuando el contador aumentó más de una vez,
+#' el motivo declara que los bloques son un agregado de ese texto exacto y
+#' pueden incluir otra sesión o llamada concurrente. Si la extensión no está
+#' disponible o la instrumentación está apagada, el estado queda
+#' `no_disponible` o `no_medido`: el paquete no deduce un derrame del tiempo ni
 #' modifica `work_mem`.
 #'
 #' `resumen_tabla$meta$estimacion_derrame` es un diagnóstico distinto: conserva
@@ -10510,6 +11377,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' estadísticas o un motor que no sea PostgreSQL. Si ambos diagnósticos existen,
 #' `meta$derrame` es la evidencia posterior y prevalece sobre la estimación;
 #' una estimación que no superó el límite no contradice un derrame medido.
+#' `meta$estimacion_derrame_moda` y `meta$estimacion_derrame_mediana` siguen la
+#' misma regla, con el método del plan de la moda y el sort de la mediana;
+#' `n_validos_medido` sólo aparece con valor cuando la familia `validos` fue
+#' solicitada y sus agregados planos lo pudieron medir.
 #'
 #' `resumen_tabla$tiempos` reúne las etapas grandes del cliente en las mismas
 #' unidades (`duracion_ms`): `lectura_muestra`, `perfilado_muestra`,
@@ -11003,6 +11874,8 @@ perfilar_dbi <- function(conexion, tabla,
     resumen$sql, presupuesto$derrame
   )
   resumen$meta$derrame <- derrame
+  resumen$meta$estimacion_derrame_moda <- presupuesto$estimacion_derrame_moda
+  resumen$meta$estimacion_derrame_mediana <- presupuesto$estimacion_derrame_mediana
   resumen$meta$costo_distintos <- presupuesto$proyeccion_distintos
   resumen$meta$costo_moda <- presupuesto$proyeccion_moda
   resumen$meta$costo_mediana <- presupuesto$proyeccion_mediana
@@ -11042,6 +11915,9 @@ perfilar_dbi <- function(conexion, tabla,
   attr(plan, "moda_guardian") <- .publicar_moda_guardian_dbi(
     preparacion$moda_guardian_resolucion
   )
+  attr(plan, "estimacion_derrame") <- preparacion$estimacion_derrame
+  attr(plan, "estimacion_derrame_moda") <- preparacion$estimacion_derrame_moda
+  attr(plan, "estimacion_derrame_mediana") <- preparacion$estimacion_derrame_mediana
   # En la corrida el conteo sale de la primera consulta de agregados. Desde
   # aca es el total que gobierna el denominador, la muestra y toda la metadata;
   # no se conserva el valor desconocido de la preparacion.
@@ -11323,7 +12199,7 @@ perfilar_dbi <- function(conexion, tabla,
   if (isTRUE(derrame$disponible) && derrame$consultas_con_derrame > 0) {
     .avisar_dbi("lupa_aviso_derrame_dbi", paste0(
       "Se observo derrame real en ", derrame$consultas_con_derrame,
-      " consulta(s) de `COUNT(DISTINCT)`: ",
+      " consulta(s) exacta(s) de distintos, moda o mediana: ",
       derrame$bloques_temporales_leidos, " bloques temporales leidos y ",
       derrame$bloques_temporales_escritos,
       " escritos. Fuente: `", derrame$fuente,
@@ -11436,6 +12312,26 @@ print.perfil_dbi <- function(x, ...) {
         "Derrame estimado: no se pudo estimar (", estimacion$motivo, ")."
       ))
     }
+  }
+  for (familia in c("moda", "mediana")) {
+    nombre <- paste0("estimacion_derrame_", familia)
+    estimacion_familia <- meta[[nombre]]
+    if (is.null(estimacion_familia) ||
+        identical(estimacion_familia$estado, "no_solicitado")) next
+    limite <- if (identical(estimacion_familia$metodo, "sort") ||
+                  identical(familia, "mediana")) {
+      estimacion_familia$work_mem
+    } else estimacion_familia$memoria_efectiva
+    detalle <- if (isTRUE(estimacion_familia$supera_memoria)) {
+      paste("supera el limite de decision", limite)
+    } else if (identical(estimacion_familia$estado, "estimado")) {
+      paste("no supera el limite de decision", limite)
+    } else estimacion_familia$motivo
+    cli::cli_text(paste0(
+      "Derrame estimado de ", familia, " (no medido): ", detalle,
+      ". Metodo/forma: ", estimacion_familia$metodo, "/",
+      estimacion_familia$forma, ". Fuente: `", estimacion_familia$fuente, "`."
+    ))
   }
   derrame <- meta$derrame
   if (!is.null(derrame) && !identical(derrame$estado, "no_solicitado")) {

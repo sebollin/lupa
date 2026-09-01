@@ -484,6 +484,16 @@ sesión; el paquete no lo modifica. Una estadística ausente, un permiso
 insuficiente o una versión sin el parámetro dejan la parte correspondiente
 como no disponible. \code{n_distinct} es una estimación de muestra y puede quedar
 corta; si luego \code{pg_stat_statements} mide un derrame, esa medición manda.
+La misma corrida publica \code{meta$estimacion_derrame_moda} y
+\code{meta$estimacion_derrame_mediana}. La moda deriva \code{metodo} del plan exacto
+mediante \verb{EXPLAIN (FORMAT JSON, COSTS OFF)} sin \code{ANALYZE}; la mediana usa
+siempre un sort contra \code{work_mem}, con pisos de 32 bytes para tipos fijos y
+42 para \code{numeric}. El plan usa \code{n_validos} de catálogo. En la meta y en el
+aviso, cuando se pidió la familia \code{validos}, ese denominador se reemplaza por
+el medido en los agregados planos y se conserva también el valor de catálogo;
+si no se midió, el motivo declara que se retuvo el catálogo. La consolidada
+decide por el máximo de columna y publica la suma de tapes sólo como
+\code{estado_io_total_bytes} informativo.
 
 Los avisos de esta vía son deliberadamente distintos de los de \code{\link[=perfilar]{perfilar()}}:
 \code{perfilar_dbi()} los emite también en guiones no interactivos porque el costo
@@ -530,15 +540,20 @@ cae a este último caso porque su tope es vacuo. Sus únicos valores son
 \code{"creciente"}, \code{"acotado"} y \code{NA}.
 
 En PostgreSQL, con \code{instrumentar = TRUE}, se toma una foto de
-\code{pg_stat_statements} antes y después de los \code{COUNT(DISTINCT)} exactos. Sólo
-se publica un derrame cuando una consulta coincide y su contador aumentó en
-exactamente una llamada atribuible a esta corrida. En ese caso,
+\code{pg_stat_statements} antes y después de la ventana que cubre los agregados
+exactos instrumentables de distintos, moda y mediana. Las firmas se filtran
+por texto y se normalizan en el paquete: cada literal numérico o de cadena
+se reemplaza por su parámetro posicional y los identificadores entre comillas
+dobles se conservan. Sólo se publica un derrame cuando una consulta coincide
+y su contador aumentó en al menos una llamada dentro de la ventana. En ese caso,
 \code{resumen_tabla$sql} agrega \code{derrame},
 \code{bloques_temporales_leidos}, \code{bloques_temporales_escritos} y
-\code{fuente_derrame}; \code{resumen_tabla$meta$derrame} conserva el resumen y la
-fuente. Si la extensión no está disponible, la consulta fue concurrente o
-la instrumentación está apagada, el estado queda \code{no_disponible} o
-\code{no_medido} con el motivo: el paquete no deduce un derrame del tiempo y no
+\code{fuente_derrame}, además de \code{llamadas_en_ventana}; \code{resumen_tabla$meta$derrame}
+conserva el resumen y la fuente. Cuando el contador aumentó más de una vez,
+el motivo declara que los bloques son un agregado de ese texto exacto y
+pueden incluir otra sesión o llamada concurrente. Si la extensión no está
+disponible o la instrumentación está apagada, el estado queda
+\code{no_disponible} o \code{no_medido}: el paquete no deduce un derrame del tiempo ni
 modifica \code{work_mem}.
 
 \code{resumen_tabla$meta$estimacion_derrame} es un diagnóstico distinto: conserva
@@ -547,6 +562,10 @@ parcial o no disponible por permisos, falta de \code{ANALYZE}, particiones sin
 estadísticas o un motor que no sea PostgreSQL. Si ambos diagnósticos existen,
 \code{meta$derrame} es la evidencia posterior y prevalece sobre la estimación;
 una estimación que no superó el límite no contradice un derrame medido.
+\code{meta$estimacion_derrame_moda} y \code{meta$estimacion_derrame_mediana} siguen la
+misma regla, con el método del plan de la moda y el sort de la mediana;
+\code{n_validos_medido} sólo aparece con valor cuando la familia \code{validos} fue
+solicitada y sus agregados planos lo pudieron medir.
 
 \code{resumen_tabla$tiempos} reúne las etapas grandes del cliente en las mismas
 unidades (\code{duracion_ms}): \code{lectura_muestra}, \code{perfilado_muestra},

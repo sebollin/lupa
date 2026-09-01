@@ -24,7 +24,7 @@ skip_if_not_installed("RSQLite")
     "sql", "lote", "columnas_compartidas", "consulta_id", "etapa", "nivel",
     "duracion_ms", "n_filas_resultado", "bytes_resultado_r", "cpu_ms",
     "id_muestra", "derrame", "bloques_temporales_leidos",
-    "bloques_temporales_escritos", "fuente_derrame"
+    "bloques_temporales_escritos", "fuente_derrame", "llamadas_en_ventana"
   )
   x$resumen_tabla$sql <- x$resumen_tabla$sql[
     , setdiff(names(x$resumen_tabla$sql), campos_auditoria), drop = FALSE

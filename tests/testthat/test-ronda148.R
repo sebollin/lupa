@@ -23,7 +23,7 @@ library(DBI)
     "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
     "cpu_ms", "consulta_id", "etapa", "nivel", "derrame",
     "bloques_temporales_leidos", "bloques_temporales_escritos",
-    "fuente_derrame"
+    "fuente_derrame", "llamadas_en_ventana"
   )
   x$resumen_tabla$sql <- x$resumen_tabla$sql[
     , setdiff(names(x$resumen_tabla$sql), campos_nuevos), drop = FALSE

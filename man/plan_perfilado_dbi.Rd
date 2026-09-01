@@ -176,6 +176,7 @@ Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
 \code{fuente_cardinalidad_costo}, \code{moda_guardian}, \code{mediana_consolidada}, \code{filas},
 \code{filas_fuente}, \code{estimacion_filas}, \code{proyecciones}, \code{mediana_escalar},
 \code{tamano_lote_planos}, \code{tamano_lote_distintos}, \code{estimacion_derrame},
+\code{estimacion_derrame_moda}, \code{estimacion_derrame_mediana},
 \code{celdas}, \code{memoria_procesamiento}, \code{max_celdas_muestra},
 \code{max_bytes_muestra}, \code{tope_muestra} y \code{muestreo}, y,
 cuando se pide \code{distintos}, \code{supuesto_costo_distintos}.
@@ -184,6 +185,10 @@ estimación de consumo, sino la declaración de su ausencia, el motivo, la
 magnitud del trabajo y referencias medidas de otras corridas. El atributo
 \code{estimacion_derrame} es independiente: sólo describe la estimación del hash
 en el motor para \code{COUNT(DISTINCT)} y no la memoria del procesamiento en R.
+\code{estimacion_derrame_moda} y \code{estimacion_derrame_mediana} describen,
+respectivamente, el nodo real de la moda y el sort de la mediana. Sus
+lotes deciden por el máximo de columna; en una mediana consolidada,
+\code{estado_io_total_bytes} es sólo la suma informativa de los tapes.
 \code{muestreo} declara si la forma muestreada se pudo construir sin emitir una
 consulta de datos. En \code{universo = "muestra_motor"}, cuando su \code{estado} es
 \code{"no_disponible"}, el plan excluye las métricas SQL de esa muestra y
@@ -277,6 +282,15 @@ estadísticas de PostgreSQL (\code{pg_stats}, \code{pg_class.reltuples}, \verb{S
 y, desde PostgreSQL 13, \verb{SHOW hash_mem_multiplier}) para estimar el tamaño
 del hash y avisar un posible derrame. Esa consulta de metadatos no publica
 cardinalidad medida ni reemplaza la medición posterior.
+Para la moda y la mediana se publican, además, los atributos
+\code{estimacion_derrame_moda} y \code{estimacion_derrame_mediana}. La moda deriva su
+\code{metodo} (\code{"hash"} o \code{"sort"}) del primer \code{Aggregate} de un
+\verb{EXPLAIN (FORMAT JSON, COSTS OFF)} de la consulta exacta, sin \code{ANALYZE} ni
+lectura de datos. La mediana siempre modela un sort y distingue su huella de
+decisión de la magnitud del tape. Ambas usan \code{n_validos} de catálogo en el
+plan, pisos de 32 bytes para tipos fijos y 42 para \code{numeric}, y dejan el
+objeto como \code{no_disponible} cuando el catálogo o el motor no permiten una
+estimación.
 Cuando esa lectura de catálogo trae \code{pg_class.reltuples} positivo, el plan lo
 reutiliza como una estimación declarada del número de filas. La magnitud y las
 proyecciones de trabajo de moda y mediana quedan entonces disponibles y dicen

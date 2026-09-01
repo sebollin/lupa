@@ -234,7 +234,7 @@ test_that("la columna nueva es unica, queda al final y no entra al plan", {
     "estrategia_resuelta", "estado_estrategia", "duracion_ms",
     "n_filas_resultado", "bytes_resultado_r", "cpu_ms", "consulta_id",
     "etapa", "derrame", "bloques_temporales_leidos",
-    "bloques_temporales_escritos", "fuente_derrame", "nivel"
+    "bloques_temporales_escritos", "fuente_derrame", "llamadas_en_ventana", "nivel"
   )
   plan <- plan_perfilado_dbi(
     conexion, "datos", metricas = "validos", bloque_muestra = "solo_agregados"

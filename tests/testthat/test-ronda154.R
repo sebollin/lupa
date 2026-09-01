@@ -43,7 +43,7 @@ test_that("cero CPU medido no se confunde con una medicion ausente", {
     "sql", "consulta_id", "etapa", "nivel", "duracion_ms", "cpu_ms",
     "n_filas_resultado", "bytes_resultado_r", "derrame",
     "bloques_temporales_leidos", "bloques_temporales_escritos",
-    "fuente_derrame"
+    "fuente_derrame", "llamadas_en_ventana"
   )
   x$resumen_tabla$sql <- x$resumen_tabla$sql[
     , setdiff(names(x$resumen_tabla$sql), campos), drop = FALSE

@@ -1,5 +1,19 @@
 # lupa 0.1.0
 
+## Estimacion de derrame de moda y mediana en DBI
+
+- `plan_perfilado_dbi()` y `perfilar_dbi()` publican
+  `estimacion_derrame_moda` y `estimacion_derrame_mediana`. La moda deriva su
+  metodo del plan `EXPLAIN (FORMAT JSON, COSTS OFF)` sin `ANALYZE`; la mediana
+  usa la huella de decision del sort, con pisos de 32 bytes para tipos fijos y
+  42 para `numeric`. La consolidada decide por el maximo de columna y publica
+  la suma de tapes solo como `estado_io_total_bytes` informativo.
+- Cuando se solicita `validos`, la meta y los avisos usan el `n_validos` medido
+  por los agregados planos y conservan la cifra de catalogo. Sin esa familia,
+  declaran el repliegue al catalogo. El canal medido incluye moda, mediana y
+  consolidada: normaliza literales de forma posicional y publica
+  `llamadas_en_ventana` cuando agrega llamadas concurrentes.
+
 ## Mediana y conteos bajo muestreo DBI
 
 - `perfilar_dbi(universo = "muestra_motor")` calcula la mediana sin

@@ -50,7 +50,7 @@ setMethod(
     "sql", "lote", "columnas_compartidas", "id_muestra", "consulta_id",
     "etapa", "nivel", "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
     "cpu_ms", "derrame", "bloques_temporales_leidos",
-    "bloques_temporales_escritos", "fuente_derrame"
+    "bloques_temporales_escritos", "fuente_derrame", "llamadas_en_ventana"
   )
   x$resumen_tabla$sql <- x$resumen_tabla$sql[
     , setdiff(names(x$resumen_tabla$sql), campos), drop = FALSE
