@@ -464,21 +464,34 @@ test_that("la rama raw adivinada solo pasa WKB plausibles a sf", {
 
 test_that("la plausibilidad WKB respeta los bordes del encabezado", {
   expect_false(lupa:::.wkb_plausible(as.raw(1:4)))
-  ## Cinco bytes alcanzan para decidir sobre el encabezado, aunque un punto
-  ## completo necesite 21: no se inspecciona el cuerpo en esta guarda.
-  expect_true(lupa:::.wkb_plausible(as.raw(c(1, 1, 0, 0, 0))))
-  expect_true(lupa:::.wkb_plausible(as.raw(c(0, 0, 0, 0, 1))))
+  ## La guarda decia que cinco bytes alcanzaban «aunque un punto completo
+  ## necesite 21». Un GDAL de win-builder revento -segfault, no error- con
+  ## exactamente ese trunco de encabezado plausible, y un tryCatch no atrapa
+  ## un segfault en C: ahora la aritmetica exige tambien el piso de largo por
+  ## tipo, y un punto de cinco bytes es implausible.
+  expect_false(lupa:::.wkb_plausible(as.raw(c(1, 1, 0, 0, 0))))
+  expect_false(lupa:::.wkb_plausible(as.raw(c(0, 0, 0, 0, 1))))
+  punto_completo <- as.raw(c(1, 1, 0, 0, 0, rep(0, 16)))
+  expect_true(lupa:::.wkb_plausible(punto_completo))
+  ## Una linea vacia es legitima con solo su conteo en cero: piso de 4 bytes.
+  linea_vacia <- as.raw(c(1, 2, 0, 0, 0, 0, 0, 0, 0))
+  expect_true(lupa:::.wkb_plausible(linea_vacia))
   expect_false(lupa:::.wkb_plausible(as.raw(c(2, 1, 0, 0, 0))))
   expect_false(lupa:::.wkb_plausible(as.raw(c(1, 8, 0, 0, 0))))
-  ## ISO 1001 y las banderas EWKB Z/M conservan el tipo base POINT.
-  expect_true(lupa:::.wkb_plausible(as.raw(c(1, 233, 3, 0, 0))))
-  expect_true(lupa:::.wkb_plausible(as.raw(c(1, 1, 0, 0, 128))))
-  expect_true(lupa:::.wkb_plausible(as.raw(c(1, 1, 0, 0, 64))))
-  ## EWKB SRID agrega cuatro bytes obligatorios al encabezado.
+  ## ISO 1001 y las banderas EWKB Z/M conservan el tipo base POINT; el piso
+  ## del punto (16 bytes de cuerpo) rige igual.
+  expect_false(lupa:::.wkb_plausible(as.raw(c(1, 233, 3, 0, 0))))
+  expect_true(lupa:::.wkb_plausible(as.raw(c(1, 233, 3, 0, 0, rep(0, 16)))))
+  expect_false(lupa:::.wkb_plausible(as.raw(c(1, 1, 0, 0, 128))))
+  expect_false(lupa:::.wkb_plausible(as.raw(c(1, 1, 0, 0, 64))))
+  ## EWKB SRID agrega cuatro bytes obligatorios al encabezado, y el punto
+  ## sigue debiendo sus 16 de cuerpo: el total plausible minimo es 25.
   ewkb_srid_corto <- as.raw(c(1, 1, 0, 0, 32, 230, 16, 0))
-  ewkb_srid <- c(ewkb_srid_corto, as.raw(0))
+  ewkb_srid_solo_encabezado <- c(ewkb_srid_corto, as.raw(0))
+  ewkb_srid_completo <- c(ewkb_srid_solo_encabezado, as.raw(rep(0, 16)))
   expect_false(lupa:::.wkb_plausible(ewkb_srid_corto))
-  expect_true(lupa:::.wkb_plausible(ewkb_srid))
+  expect_false(lupa:::.wkb_plausible(ewkb_srid_solo_encabezado))
+  expect_true(lupa:::.wkb_plausible(ewkb_srid_completo))
 })
 
 test_that("un punto WKB real y un EWKB con SRID siguen parseandose", {
@@ -556,6 +569,14 @@ test_that("un WKT que no se puede convertir declara la perdida", {
     "POLYGON ((0 0, 1 0, 1 1, 0 0))", "POLYGON ((no es una coordenada))"
   )
 
+  ## La perdida se declara por aritmetica propia: el texto corrupto no puede
+  ## llegar a sf, porque un GDAL real reventaba (segfault) al parsearlo y un
+  ## tryCatch no atrapa un segfault. La guarda se prueba con el caso que debe
+  ## disparar: si sf llegara a recibirlo, este mock corta la corrida.
+  local_mocked_bindings(
+    st_as_sfc = function(...) stop("st_as_sfc no debe recibir WKT corrupto"),
+    .package = "sf"
+  )
   metricas <- suppressMessages(lupa:::.perfilar_geometria(columna))
 
   ## Nunca "no aplica" sobre datos que si son geometricos.

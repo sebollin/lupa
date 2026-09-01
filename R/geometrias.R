@@ -495,10 +495,18 @@
     floor(tipo / bandera) %% 2 == 1
   }, logical(1L))
   tipo_sin_banderas <- tipo - sum(banderas_ewkb[presentes])
-  tipo_base_valido <- tipo_sin_banderas %% 1000 %in% 1:7
-  if (!tipo_base_valido) return(FALSE)
+  tipo_base <- tipo_sin_banderas %% 1000
+  if (!tipo_base %in% 1:7) return(FALSE)
 
-  !presentes[["srid"]] || length(valor) >= 9L
+  # El encabezado plausible no alcanza: un build de GDAL de win-builder
+  # revento (segfault, no error) al recibir un WKB de encabezado valido y
+  # cuerpo trunco, y un tryCatch no puede atrapar eso. El piso de largo por
+  # tipo sigue siendo aritmetica pura: un punto lleva dos dobles (16 bytes;
+  # con Z o M lleva mas, asi que el piso vale igual) y todo lo demas lleva al
+  # menos su conteo de cuatro bytes. Ningun WKB genuino queda por debajo.
+  encabezado <- if (presentes[["srid"]]) 9L else 5L
+  cuerpo_minimo <- if (tipo_base == 1L) 16L else 4L
+  length(valor) >= encabezado + cuerpo_minimo
 }
 
 .parece_wkb_crudo <- function(x) {
@@ -523,8 +531,38 @@
   which(!is.na(x))
 }
 
+# Un WKT plausible lleva la palabra del tipo y, despues, solo numeros,
+# separadores y parentesis balanceados. Es la misma doctrina de la guarda WKB:
+# el GDAL de win-builder demostro que puede reventar -segfault, no error- con
+# entrada corrupta, y un tryCatch no atrapa eso; el texto podrido no llega a
+# sf, se declara la perdida por aritmetica propia.
+.wkt_plausible <- function(valor) {
+  if (is.na(valor)) return(FALSE)
+  texto <- trimws(as.character(valor))
+  patron <- paste0(
+    "^(SRID=[0-9]+;)?\\s*",
+    "(POINT|LINESTRING|POLYGON|MULTIPOINT|MULTILINESTRING|MULTIPOLYGON|",
+    "GEOMETRYCOLLECTION)\\s*(Z|M|ZM)?\\s*",
+    "(EMPTY|\\((?:[-+0-9eE., ()\\s]|EMPTY|POINT|LINESTRING|POLYGON|",
+    "MULTIPOINT|MULTILINESTRING|MULTIPOLYGON)*\\))$"
+  )
+  if (!grepl(patron, texto, perl = TRUE, ignore.case = TRUE)) return(FALSE)
+  abre <- lengths(regmatches(texto, gregexpr("(", texto, fixed = TRUE)))
+  cierra <- lengths(regmatches(texto, gregexpr(")", texto, fixed = TRUE)))
+  abre == cierra
+}
+
 .convertir_a_sfc <- function(x, representacion, indices) {
   valores <- unclass(x)[indices]
+  if (identical(representacion, "WKT")) {
+    plausibles <- vapply(as.character(valores), .wkt_plausible, logical(1L))
+    if (any(!plausibles)) {
+      return(simpleError(paste0(
+        "La columna contiene WKT estructuralmente invalido; no se pudo ",
+        "convertir a geometria y el texto corrupto no se entrega a sf."
+      )))
+    }
+  }
   tryCatch(
     suppressWarnings(
       if (identical(representacion, "WKT")) {

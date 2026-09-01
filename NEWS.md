@@ -1,5 +1,15 @@
 # lupa 0.1.0
 
+## Las guardas geométricas no le entregan datos corruptos a GDAL
+
+- La plausibilidad WKB exige también el largo mínimo por tipo (un punto lleva
+  16 bytes de cuerpo; el resto, su conteo): un encabezado válido con cuerpo
+  trunco ya no llega a `sf`. Un GDAL real de win-builder reventaba —violación
+  de segmento, no error— con ese trunco, y `tryCatch` no atrapa eso.
+- El WKT gana su propia guarda aritmética (palabra de tipo, `SRID=` opcional,
+  sólo números y paréntesis balanceados): el texto corrupto declara la pérdida
+  sin que `sf` lo reciba, con el mismo resultado público de siempre.
+
 ## Ronda de arreglos del núcleo
 
 - La protección de datos personales protege las dos representaciones de la
