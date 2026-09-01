@@ -117,7 +117,7 @@ test_that("una muestra real acota todas sus filas medidas, incluso distintos", {
 test_that("la misma metrica cambia de clase segun el metodo de DuckDB", {
   skip_if_not_installed("duckdb")
   conexion <- DBI::dbConnect(
-    duckdb::duckdb(shared_home = FALSE), dbdir = ":memory:"
+    duckdb::duckdb(), dbdir = ":memory:"
   )
   on.exit(try(duckdb::duckdb_shutdown(conexion), silent = TRUE), add = TRUE)
   DBI::dbWriteTable(conexion, "datos", data.frame(
