@@ -476,6 +476,88 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   )
 }
 
+.campos_magnitud_equivalencia <- function(registro) {
+  # Estos son los campos cuyo numero representa una magnitud de la columna.
+  # Los conteos y proporciones quedan fuera: que la columna haya pasado de
+  # fecha a numero no cambia la unidad de contar filas o valores distintos.
+  unique(intersect(
+    c(registro$flotante, "minimo", "maximo", "centinela_valor"),
+    unlist(registro, use.names = FALSE)
+  ))
+}
+
+.tipo_columna_equivalencia <- function(columnas, indice) {
+  nombres <- c(
+    "tipo_inferido", "clase_temporal", "tipo_temporal", "clase",
+    "tipo_declarado"
+  )
+  nombres <- intersect(nombres, names(columnas))
+  for (nombre in nombres) {
+    valor <- as.character(columnas[[nombre]][[indice]])
+    if (length(valor) == 1L && !is.na(valor) && nzchar(trimws(valor))) {
+      return(tolower(trimws(valor)))
+    }
+  }
+  NA_character_
+}
+
+.es_temporal_equivalencia <- function(columnas, indice) {
+  tipo <- .tipo_columna_equivalencia(columnas, indice)
+  if (is.na(tipo)) return(FALSE)
+  tipo %in% c(
+    "fecha", "fecha-hora", "fecha_hora", "date", "datetime", "timestamp",
+    "posixct", "posixlt", "temporal"
+  ) || grepl("^(fecha|date|datetime|timestamp|posix)", tipo)
+}
+
+.campos_protegidos_equivalencia_vacios <- function() {
+  data.frame(
+    columna = character(), campo = character(), lado = character(),
+    stringsAsFactors = FALSE
+  )
+}
+
+.detalle_proteccion_campo_equivalencia <- function(detalle, campo) {
+  if (length(detalle) != 1L || is.na(detalle) || !nzchar(detalle)) {
+    return(FALSE)
+  }
+  if (identical(campo, "moda") && grepl("moda", detalle, fixed = TRUE)) {
+    return(TRUE)
+  }
+  if (campo %in% c("media", "media_fecha") &&
+      grepl("momentos", detalle, fixed = TRUE)) {
+    return(TRUE)
+  }
+  campos_orden <- c(
+    "minimo", "maximo", "mediana", "minimo_exacto", "maximo_exacto",
+    "minimo_fecha", "maximo_fecha", "mediana_fecha", "centinela_valor",
+    "n_posiciones_secuencia_entera", "n_huecos_secuencia_entera",
+    "hueco_maximo_secuencia_entera", "densidad_secuencia_entera",
+    "densidad_sin_centinela"
+  )
+  campo %in% campos_orden && grepl("orden", detalle, fixed = TRUE)
+}
+
+.campo_protegido_equivalencia <- function(columnas, campo, indice) {
+  protegido <- if ("dato_personal_protegido" %in% names(columnas)) {
+    isTRUE(columnas$dato_personal_protegido[[indice]])
+  } else {
+    FALSE
+  }
+  valor <- .valor_equivalencia(columnas, campo, indice)
+  if (protegido || (is.character(valor) && length(valor) == 1L &&
+                    identical(valor, "[valor protegido]"))) {
+    return(TRUE)
+  }
+  if (!.faltante_equivalencia(valor) ||
+      !"detalle_proteccion_personal" %in% names(columnas)) {
+    return(FALSE)
+  }
+  .detalle_proteccion_campo_equivalencia(
+    columnas$detalle_proteccion_personal[[indice]], campo
+  )
+}
+
 .columnas_equivalencia <- function(x, nombre) {
   if (inherits(x, "perfil")) {
     columnas <- x$columnas
@@ -594,6 +676,8 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #' Compara por intersección los campos registrados de dos perfiles y devuelve
 #' una fila por cada par de columna y campo. Los campos que no tienen un eje
 #' registrado no se comparan y quedan declarados en `campos_no_comparables`.
+#' Los campos bajo protección tampoco se comparan: se declaran por columna,
+#' campo y lado en `campos_protegidos`.
 #'
 #' @param anterior,actual Un objeto `perfil` de [perfilar()], un objeto
 #'   `perfil_dbi` de [perfilar_dbi()] o directamente un frame `columnas`.
@@ -604,8 +688,12 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #'   `valor_anterior`, `valor_actual`, `diferencia_relativa`, `veredicto`,
 #'   `motivo`, `tipo_eje` y `tolerancia`. `veredicto` es un factor ordenado con
 #'   niveles `identico < equivalente < materialmente_distinto`. Los atributos
-#'   `campos_no_comparables` y `resumen` declaran, respectivamente, los campos
-#'   omitidos y el conteo de cada veredicto.
+#'   `campos_no_comparables`, `detalle_campos_no_comparables`,
+#'   `campos_protegidos` y `resumen` declaran, respectivamente, los campos
+#'   omitidos, los motivos estructurales de esos campos, los campos omitidos
+#'   por protección y el conteo de cada veredicto. `campos_protegidos` es un
+#'   data frame con las columnas `columna`, `campo` y `lado`; este último toma
+#'   los valores `anterior` y `actual`.
 #'
 #' @details
 #' El registro fijo asigna tolerancia sólo a `media`, `mediana`, `desvio` y
@@ -619,6 +707,16 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #' regla del paquete; sólo se aplica al eje flotante finito y queda publicada
 #' para que el llamador decida cómo usarla.
 #'
+#' Si una columna es temporal en exactamente uno de los perfiles, los campos
+#' de magnitud numérica se omiten por el cambio de esquema y su motivo queda en
+#' `detalle_campos_no_comparables` como
+#' `tipo_cambiado:temporal_vs_no_temporal`. Así no se comparan duraciones en
+#' segundos contra magnitudes numéricas sin unidad común. Cuando ambos lados
+#' son temporales, `desvio` sí se compara en flotante porque ambas puertas lo
+#' expresan en segundos.
+#'
+#' @name comparar_equivalencia
+#' @usage comparar_equivalencia(anterior, actual, tolerancia)
 #' @export
 #' @seealso [comparar_perfiles()], [perfilar()], [perfilar_dbi()]
 #'
@@ -654,13 +752,52 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
   )
   campos <- campos[campos %in% campos_registrados]
   columnas <- intersect(as.character(anterior$columna), as.character(actual$columna))
+  campos_magnitud <- .campos_magnitud_equivalencia(registro)
+  detalle_campos_no_comparables <- data.frame(
+    columna = character(), campo = character(), motivo = character(),
+    stringsAsFactors = FALSE
+  )
+  campos_protegidos <- .campos_protegidos_equivalencia_vacios()
   niveles <- c("identico", "equivalente", "materialmente_distinto")
   salida <- list()
   k <- 0L
   for (columna in columnas) {
     indice_a <- match(columna, as.character(anterior$columna))
     indice_b <- match(columna, as.character(actual$columna))
+    temporal_a <- .es_temporal_equivalencia(anterior, indice_a)
+    temporal_b <- .es_temporal_equivalencia(actual, indice_b)
     for (campo in campos) {
+      protegido_a <- .campo_protegido_equivalencia(anterior, campo, indice_a)
+      protegido_b <- .campo_protegido_equivalencia(actual, campo, indice_b)
+      if (protegido_a || protegido_b) {
+        registros <- list()
+        if (protegido_a) {
+          registros[[length(registros) + 1L]] <- data.frame(
+            columna = columna, campo = campo, lado = "anterior",
+            stringsAsFactors = FALSE
+          )
+        }
+        if (protegido_b) {
+          registros[[length(registros) + 1L]] <- data.frame(
+            columna = columna, campo = campo, lado = "actual",
+            stringsAsFactors = FALSE
+          )
+        }
+        campos_protegidos <- rbind(campos_protegidos, do.call(rbind, registros))
+        next
+      }
+      if (xor(temporal_a, temporal_b) && campo %in% campos_magnitud) {
+        campos_no_comparables <- unique(c(campos_no_comparables, campo))
+        detalle_campos_no_comparables <- rbind(
+          detalle_campos_no_comparables,
+          data.frame(
+            columna = columna, campo = campo,
+            motivo = "tipo_cambiado:temporal_vs_no_temporal",
+            stringsAsFactors = FALSE
+          )
+        )
+        next
+      }
       tipo_eje <- names(registro)[vapply(
         registro, function(campos_eje) campo %in% campos_eje, logical(1L)
       )]
@@ -710,6 +847,9 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     as.integer(table(factor(resultado$veredicto, levels = niveles))), niveles
   )
   attr(resultado, "campos_no_comparables") <- campos_no_comparables
+  attr(resultado, "detalle_campos_no_comparables") <-
+    detalle_campos_no_comparables
+  attr(resultado, "campos_protegidos") <- campos_protegidos
   attr(resultado, "resumen") <- resumen
   rownames(resultado) <- NULL
   class(resultado) <- c("equivalencia_perfiles", "data.frame")

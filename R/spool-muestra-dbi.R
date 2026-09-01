@@ -478,12 +478,12 @@
   )
 }
 
-.muestra_id_spool_dbi <- function(consulta_id) {
-  id <- suppressWarnings(as.integer(consulta_id))
-  if (length(id) != 1L || is.na(id)) {
-    id <- as.integer(as.numeric(Sys.time()) %% 100000000)
-  }
-  paste0("muestra_motor-", id)
+.muestra_id_spool_dbi <- function(consulta_id = NULL) {
+  # `consulta_id` identifica una sentencia, no la relacion que esta
+  # materializa. Un token nuevo por spool evita que dos selecciones distintas
+  # compartan rotulo cuando DBI reutiliza el contador o las corridas coinciden
+  # dentro del mismo tick del reloj.
+  paste0("muestra_motor-", basename(tempfile("lupa-muestra-")))
 }
 
 .plan_materializacion_spool_dbi <- function(conexion, preparacion,
@@ -813,7 +813,11 @@
       }
     }
   } else if (isTRUE(leido$ok)) {
-    motivo <- "muestra_vacia:tablesample_system_sin_filas"
+    metodo_vacio <- if (is.null(publico$metodo) ||
+                        is.na(publico$metodo) || !nzchar(publico$metodo)) {
+      "muestreo_sin_metodo"
+    } else as.character(publico$metodo)
+    motivo <- paste0("muestra_vacia:", metodo_vacio, "_sin_filas")
   }
   if (!is.null(perfil)) {
     perfil$meta$filas_analizadas <- as.numeric(nrow(datos))

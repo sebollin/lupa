@@ -140,6 +140,70 @@ test_that("la medicion de validos reemplaza al catalogo en meta", {
   expect_true(isTRUE(actualizada$supera_memoria))
   expect_match(actualizada$fuente, "n_validos medido")
   expect_match(actualizada$motivo, "salida")
+  expect_identical(actualizada$fuente_denominador, "n_validos medido")
+})
+
+test_that("el aviso de mediana se conserva con denominador de catalogo", {
+  estimacion <- .estimar_familia_derrame_falsa(
+    .stats_familias_derrame(n = 200000, width = 5, tipo = "numeric",
+                            n_distinct = 200000),
+    familia = "mediana", forma = "subconsulta_escalar"
+  )
+  actualizada <- lupa:::.actualizar_n_validos_estimacion_dbi(
+    estimacion, list(conteos = list()), metricas = "mediana", salida = "meta"
+  )
+
+  expect_true(isTRUE(actualizada$supera_memoria))
+  expect_identical(actualizada$fuente_denominador, "estimacion de catalogo")
+  expect_message(
+    lupa:::.avisar_derrame_estimado_postgresql_dbi(
+      actualizada, familia = "la mediana", umbral_bytes = 0
+    ),
+    "supera.*Denominador: con estimacion de catalogo"
+  )
+})
+
+test_that("un limite por columna no se imprime como NA", {
+  estimacion <- .estimar_familia_derrame_falsa(
+    .stats_familias_derrame(n = 200000, width = 5, tipo = "numeric",
+                            n_distinct = 200000),
+    familia = "moda"
+  )
+  estimacion$metodo <- "por_columna"
+  estimacion$memoria_efectiva <- NA_character_
+  expect_message(
+    lupa:::.avisar_derrame_estimado_postgresql_dbi(
+      estimacion, familia = "la moda", umbral_bytes = 0
+    ),
+    "por_columna.*no resoluble"
+  )
+})
+
+test_that("el print omite la estimacion de una moda sin consulta", {
+  estimacion <- .estimar_familia_derrame_falsa(
+    .stats_familias_derrame(n = 200000, width = 5, tipo = "numeric"),
+    familia = "moda"
+  )
+  perfil <- list(
+    resumen_tabla = list(
+      columnas = data.frame(columna = "x", stringsAsFactors = FALSE),
+      sql = data.frame(
+        columna = "x", metrica = "moda", estado = "omitido_por_costo",
+        stringsAsFactors = FALSE
+      ),
+      meta = list(
+        tabla = "t", filas = 200000,
+        clave = NULL, estimacion_derrame_moda = estimacion,
+        estimacion_derrame_mediana = NULL
+      ),
+      cobertura = data.frame()
+    ),
+    perfil_muestra = NULL
+  )
+  class(perfil) <- "perfil_dbi"
+  salida <- capture.output(print(perfil))
+  expect_false(any(grepl("Derrame estimado de moda", salida, fixed = TRUE)))
+  expect_false(any(grepl("limite NA", salida, fixed = TRUE)))
 })
 
 test_that("fuera de PostgreSQL y en muestra las estimaciones no inventan", {

@@ -62,7 +62,9 @@ finito para acotar ese trabajo cuando el tiempo no sea la restricción.}
 reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y \code{meta} lo declara expresamente. No se usa cuando
-\code{bloque_muestra = "solo_agregados"}.}
+\code{bloque_muestra = "solo_agregados"}. En la via I1, la identidad de la
+fuente por bloques gobierna el recorrido y este pedido queda declarado en
+\code{meta$orden_muestra} con el motivo estable de que no gobierna esa via.}
 
 \item{metricas}{Selección explícita de grupos de métricas: \code{"validos"},
 \code{"distintos"}, \code{"moda"}, \code{"basicos"}, \code{"mediana"} y \code{"desvio"}. El

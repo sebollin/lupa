@@ -18,13 +18,19 @@ Un frame de clase \code{equivalencia_perfiles} con \code{columna}, \code{campo},
 \code{valor_anterior}, \code{valor_actual}, \code{diferencia_relativa}, \code{veredicto},
 \code{motivo}, \code{tipo_eje} y \code{tolerancia}. \code{veredicto} es un factor ordenado con
 niveles \verb{identico < equivalente < materialmente_distinto}. Los atributos
-\code{campos_no_comparables} y \code{resumen} declaran, respectivamente, los campos
-omitidos y el conteo de cada veredicto.
+\code{campos_no_comparables}, \code{detalle_campos_no_comparables},
+\code{campos_protegidos} y \code{resumen} declaran, respectivamente, los campos
+omitidos, los motivos estructurales de esos campos, los campos omitidos
+por protección y el conteo de cada veredicto. \code{campos_protegidos} es un
+data frame con las columnas \code{columna}, \code{campo} y \code{lado}; este último toma
+los valores \code{anterior} y \code{actual}.
 }
 \description{
 Compara por intersección los campos registrados de dos perfiles y devuelve
 una fila por cada par de columna y campo. Los campos que no tienen un eje
 registrado no se comparan y quedan declarados en \code{campos_no_comparables}.
+Los campos bajo protección tampoco se comparan: se declaran por columna,
+campo y lado en \code{campos_protegidos}.
 }
 \details{
 El registro fijo asigna tolerancia sólo a \code{media}, \code{mediana}, \code{desvio} y
@@ -37,6 +43,14 @@ El comparador devuelve datos, no decisiones: no alimenta hallazgos,
 severidades ni puntajes. La tolerancia es del llamador y jamás entra en una
 regla del paquete; sólo se aplica al eje flotante finito y queda publicada
 para que el llamador decida cómo usarla.
+
+Si una columna es temporal en exactamente uno de los perfiles, los campos
+de magnitud numérica se omiten por el cambio de esquema y su motivo queda en
+\code{detalle_campos_no_comparables} como
+\code{tipo_cambiado:temporal_vs_no_temporal}. Así no se comparan duraciones en
+segundos contra magnitudes numéricas sin unidad común. Cuando ambos lados
+son temporales, \code{desvio} sí se compara en flotante porque ambas puertas lo
+expresan en segundos.
 }
 \examples{
 anterior <- data.frame(

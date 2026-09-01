@@ -71,7 +71,9 @@ finito para acotar ese trabajo cuando el tiempo no sea la restricción.}
 reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y \code{meta} lo declara expresamente. No se usa cuando
-\code{bloque_muestra = "solo_agregados"}.}
+\code{bloque_muestra = "solo_agregados"}. En la via I1, la identidad de la
+fuente por bloques gobierna el recorrido y este pedido queda declarado en
+\code{meta$orden_muestra} con el motivo estable de que no gobierna esa via.}
 
 \item{metricas}{Selección explícita de grupos de métricas: \code{"validos"},
 \code{"distintos"}, \code{"moda"}, \code{"basicos"}, \code{"mediana"} y \code{"desvio"}. El
@@ -243,7 +245,9 @@ de liberar la entrada; \code{NULL} conserva la via existente. El resultado
 publica \code{meta$alcance$orden}, \code{meta$bloques}, \code{meta$bytes} y los eventos del
 vigilante. Los drivers sin retencion incremental demostrada (incluido
 DuckDB en esta matriz) quedan \code{no_disponible} con su motivo, sin caer en
-\code{dbGetQuery()}.}
+\code{dbGetQuery()}. Si se pide \code{moda} o \code{mediana}, I1 inicia tambien el mapa
+central de distintos aunque \code{n_distintos} no se haya pedido: la mediana
+depende de ese mapa y la fila \code{n_distintos} conserva \code{no_solicitado}.}
 
 \item{max_bytes_procesamiento}{Límite de bytes del estado retenido por el
 procesamiento por bloques y por la lectura del spool en R. Se comprueba
@@ -375,7 +379,8 @@ los avisos.
 Si la consulta de la muestra devuelve cero filas, no hay base para medir las
 metricas de alcance \code{muestra}: se publican con valor \code{NA}, estado
 \code{no_disponible} y el motivo estable
-\code{muestra_vacia:tablesample_system_sin_filas}. Esto no permite concluir que
+\code{muestra_vacia:random_limit_sin_filas} (o el metodo efectivo equivalente).
+Esto no permite concluir que
 la columna este vacia, por lo que no se publica cero ni se dispara la
 cascada \code{sin_valores}. Una muestra no vacia sin valores validos usa
 \code{muestra_inestable:sin_valores_validos}; una capacidad no aceptada usa
@@ -529,7 +534,10 @@ siempre un sort contra \code{work_mem}, con pisos de 32 bytes para tipos fijos y
 42 para \code{numeric}. El plan usa \code{n_validos} de catálogo. En la meta y en el
 aviso, cuando se pidió la familia \code{validos}, ese denominador se reemplaza por
 el medido en los agregados planos y se conserva también el valor de catálogo;
-si no se midió, el motivo declara que se retuvo el catálogo. La consolidada
+si no se midió, el motivo declara que se retuvo el catálogo. Por arbitraje
+H5, este alcance K2 gobierna solo el denominador: si la estimación publicada
+marca \code{supera_memoria = TRUE}, el aviso se emite también con catálogo y
+declara su fuente. La consolidada
 decide por el máximo de columna y publica la suma de tapes sólo como
 \code{estado_io_total_bytes} informativo.
 

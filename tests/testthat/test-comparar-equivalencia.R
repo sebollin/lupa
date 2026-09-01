@@ -111,7 +111,9 @@ test_that("comparar_equivalencia cubre clases y valores limite", {
 
 test_that("la equivalencia usa la interseccion y declara campos no comparables", {
   anterior <- data.frame(
-    columna = "c", media = 1, mediana = 2, tipo_inferido = "fecha",
+    # F-3: este fixture prueba la interseccion, no un cambio de esquema
+    # temporal; una fecha contra un numero ya no compara sus magnitudes.
+    columna = "c", media = 1, mediana = 2, tipo_inferido = "numero",
     campo_nuevo = 10, stringsAsFactors = FALSE
   )
   actual <- data.frame(

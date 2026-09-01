@@ -1,5 +1,27 @@
 # lupa 0.1.0
 
+## Ronda de arreglos del núcleo
+
+- La protección de datos personales protege las dos representaciones de la
+  media (`media` y `media_fecha`), conserva los desvíos y declara también la
+  supresión de la moda en el detalle de protección.
+- `comparar_equivalencia()` omite campos protegidos y los declara en
+  `campos_protegidos`; también omite magnitudes numéricas cuando sólo uno de
+  los perfiles es temporal y conserva el motivo del cambio de esquema.
+- Los acumuladores por bloques rechazan entradas no atómicas o con dimensión
+  en el mapa de distintos, con estado `no_disponible` y motivo explícito.
+
+## Ronda de arreglos DBI
+
+- La via por bloques inicia el mapa central cuando se pide moda o mediana sin
+  publicar `n_distintos`; aplica `politica_costo = "por_cardinalidad"`, registra
+  `dbfetch_bloques` como estado acotado y audita filas, orden y pasadas.
+- La atribucion de derrames de PostgreSQL empareja `pg_stat_statements` por
+  `queryid`, y los avisos de estimacion declaran el origen de su denominador
+  aun cuando `validos` no fue solicitado.
+- Los spools reciben identificadores propios de cada materializacion y los
+  motivos de muestras vacias publican el metodo que realmente corrio.
+
 ## Integración DBI — spool y contratos de `muestra_motor` (Etapa I2)
 
 - `universo = "muestra_motor"` ejecuta una sola selección y la materializa en

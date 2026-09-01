@@ -230,8 +230,10 @@ test_that("un perfil con un solo lote declara que no proyecta", {
   expect_match(proyeccion$motivo, "un solo lote")
 })
 
-.estadisticas_derrame_prueba <- function(escrito = 7, llamadas = 11) {
+.estadisticas_derrame_prueba <- function(escrito = 7, llamadas = 11,
+                                         queryid = 1) {
   data.frame(
+    queryid = queryid,
     query = "SELECT COUNT(DISTINCT x) AS n FROM tabla",
     calls = llamadas, temp_blks_read = 2, temp_blks_written = escrito,
     query_normalizada = "SELECT COUNT(DISTINCT x) AS n FROM tabla",
@@ -275,6 +277,37 @@ test_that("el informe publica bloques cuando la llamada es atribuible", {
   expect_true(sql$derrame[[1L]])
   expect_identical(sql$bloques_temporales_escritos[[1L]], 7)
   expect_identical(sql$fuente_derrame[[1L]], "pg_stat_statements")
+})
+
+test_that("pgss empareja filas del mismo texto por queryid", {
+  lectura <- 0L
+  fila <- function(queryid, llamadas, leidos, escritos) {
+    .estadisticas_derrame_prueba(
+      escrito = escritos, llamadas = llamadas, queryid = queryid
+    ) |>
+      transform(temp_blks_read = leidos)
+  }
+  antes <- rbind(fila(101, 40, 8, 3), fila(202, 70, 12, 4))
+  despues <- rbind(fila(101, 41, 10, 5), fila(202, 71, 13, 7))
+  testthat::local_mocked_bindings(
+    .senas_conexion_dbi = function(conexion) "PqConnection",
+    .estadisticas_derrame_postgresql_dbi = function(conexion) {
+      lectura <<- lectura + 1L
+      if (lectura == 1L) antes else despues
+    },
+    .package = "lupa"
+  )
+  conexion <- structure(list(), class = "PqConnection")
+  presupuesto <- lupa:::.presupuesto_dbi(Inf, instrumentar = TRUE)
+  lupa:::.iniciar_instrumentacion_derrame_dbi(conexion, presupuesto, TRUE)
+  lupa:::.finalizar_instrumentacion_derrame_dbi(conexion, presupuesto)
+  publicado <- lupa:::.publicar_derrame_dbi(presupuesto)
+
+  expect_identical(publicado$estado, "medido")
+  expect_identical(publicado$consultas_observadas, 2L)
+  expect_identical(publicado$llamadas_en_ventana, 2)
+  expect_identical(publicado$bloques_temporales_leidos, 3)
+  expect_identical(publicado$bloques_temporales_escritos, 5)
 })
 
 test_that("las llamadas concurrentes se publican como agregado de la ventana", {

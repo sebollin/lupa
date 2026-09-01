@@ -139,3 +139,33 @@ test_that("un presupuesto excedido no publica una muestra hibrida", {
   expect_true(all(metricas$motivo ==
                   "muestra_inestable:presupuesto_materializacion"))
 })
+
+test_that("cada materializacion de muestra recibe una identidad propia", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("RSQLite")
+  con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  DBI::dbWriteTable(con, "t", data.frame(valor = seq_len(40L)))
+  primera <- perfilar_dbi(
+    con, "t", universo = "muestra_motor", muestra_motor = 10L,
+    muestra = 5L, metricas = "validos", proteger_datos_personales = FALSE
+  )
+  segunda <- perfilar_dbi(
+    con, "t", universo = "muestra_motor", muestra_motor = 10L,
+    muestra = 5L, metricas = "validos", proteger_datos_personales = FALSE
+  )
+  id_primera <- primera$resumen_tabla$meta$materializacion$muestra_id
+  id_segunda <- segunda$resumen_tabla$meta$materializacion$muestra_id
+
+  expect_true(nzchar(id_primera))
+  expect_true(nzchar(id_segunda))
+  expect_false(identical(id_primera, id_segunda))
+  expect_identical(
+    primera$perfil_muestra$meta$origen_dbi$muestreo$muestra_id,
+    id_primera
+  )
+  expect_identical(
+    segunda$perfil_muestra$meta$origen_dbi$muestreo$muestra_id,
+    id_segunda
+  )
+})

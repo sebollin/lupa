@@ -537,7 +537,9 @@
   }
   reemplazo <- "[valor protegido]"
   indices_columnas <- columnas$columna %in% sensibles
-  columnas$moda[indices_columnas & !is.na(columnas$moda)] <- reemplazo
+  ocultar_moda <- indices_columnas & !is.na(columnas$moda) &
+    columnas$moda != reemplazo
+  columnas$moda[ocultar_moda] <- reemplazo
   # `media` entra por lo mismo que la via DBI ya la tapaba, y con el mismo
   # argumento que esta escrito alla: la media de las cedulas de una tabla chica
   # reconstruye demasiado. Que una puerta la ocultara y la otra la publicara
@@ -569,15 +571,18 @@
     ),
     names(columnas)
   )
-  campos_momento <- c("media")
+  campos_momento <- c("media", "media_fecha")
   campos_texto <- intersect(
     c(
       "minimo_exacto", "maximo_exacto", "minimo_fecha", "maximo_fecha",
-      "mediana_fecha"
+      "media_fecha", "mediana_fecha"
     ),
     names(columnas)
   )
-  tenia_orden <- rep(FALSE, nrow(columnas))
+  # La moda es un valor observado, igual que los extremos. Si se reemplazo,
+  # el detalle tiene que declararlo aunque la columna no tenga otros campos de
+  # orden para tapar.
+  tenia_orden <- ocultar_moda
   tenia_momento <- rep(FALSE, nrow(columnas))
   for (campo in campos_numericos) {
     ocultar <- indices_columnas & !is.na(columnas[[campo]])
@@ -591,7 +596,11 @@
   for (campo in campos_texto) {
     ocultar <- indices_columnas & !is.na(columnas[[campo]]) &
       nzchar(columnas[[campo]])
-    tenia_orden <- tenia_orden | ocultar
+    if (campo %in% campos_momento) {
+      tenia_momento <- tenia_momento | ocultar
+    } else {
+      tenia_orden <- tenia_orden | ocultar
+    }
     columnas[[campo]][ocultar] <- reemplazo
   }
   if (!"detalle_proteccion_personal" %in% names(columnas)) {

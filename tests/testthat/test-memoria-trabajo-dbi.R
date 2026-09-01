@@ -165,6 +165,7 @@ test_that("el registro coincide con los metodos publicados, sin clasificar por m
     "approx_quantile" = "acotado",
     "percentile_approx" = "acotado",
     "quantile" = "acotado",
+    "dbfetch_bloques" = "acotado",
     "tabla_completa" = "acotado",
     "conteo_universo" = "acotado",
     "pg_stats.n_distinct" = "acotado"

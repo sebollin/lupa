@@ -110,6 +110,9 @@
   "approx_quantile" = "acotado",
   "percentile_approx" = "acotado",
   "quantile" = "acotado",
+  # I1 libera cada bloque antes de pedir el siguiente. El estado de los
+  # acumuladores queda acotado por `E_distintos` y `P_estado`, no por `n`.
+  "dbfetch_bloques" = "acotado",
   "tabla_completa" = "acotado",
   "conteo_universo" = "acotado",
   "pg_stats.n_distinct" = "acotado"
@@ -1393,6 +1396,31 @@
   )
 }
 
+.limite_decision_derrame_dbi <- function(estimacion, familia = NULL) {
+  if (is.null(estimacion)) return("no resoluble: falta la estimacion")
+  if (identical(estimacion$metodo, "por_columna")) {
+    return("no resoluble: las columnas usan metodos de memoria distintos")
+  }
+  valor <- if (identical(estimacion$metodo, "sort") ||
+               identical(familia, "mediana")) {
+    estimacion$work_mem
+  } else estimacion$memoria_efectiva
+  if (is.null(valor) || length(valor) != 1L || is.na(valor) ||
+      !nzchar(as.character(valor))) {
+    return("no resoluble: el limite del motor no estuvo disponible")
+  }
+  as.character(valor)
+}
+
+.denominador_derrame_dbi <- function(estimacion) {
+  fuente <- estimacion$fuente_denominador
+  if (is.null(fuente) || length(fuente) != 1L || is.na(fuente) ||
+      !nzchar(fuente)) {
+    fuente <- "estimacion de catalogo"
+  }
+  as.character(fuente)
+}
+
 .avisar_derrame_estimado_postgresql_dbi <- function(
     estimacion, habilitado = TRUE,
     umbral_bytes = .UMBRAL_BYTES_AVISO_DERRAME_ESTIMADO_DBI,
@@ -1420,21 +1448,20 @@
     "lote de ", lotes$columnas[[i]], ": ~",
     .memoria_dbi(lotes$tamano_estimado_bytes[[i]])
   ), character(1L)), collapse = "; ")
-  limite <- if (identical(estimacion$familia, "mediana") ||
-                identical(estimacion$metodo, "sort")) {
-    paste0("`work_mem` de ", estimacion$work_mem)
-  } else {
-    paste0("`work_mem` vigente de ", estimacion$work_mem,
-           " (limite efectivo para hash: ", estimacion$memoria_efectiva, ")")
-  }
+  limite <- .limite_decision_derrame_dbi(estimacion, estimacion$familia)
+  work_mem <- estimacion$work_mem
+  if (is.null(work_mem) || length(work_mem) != 1L || is.na(work_mem) ||
+      !nzchar(as.character(work_mem))) work_mem <- "no disponible"
   etiqueta <- if (identical(familia, "COUNT(DISTINCT)")) "" else {
     paste0(" para ", familia)
   }
   cli::cli_alert_warning(paste0(
     "Derrame potencial estimado", etiqueta,
     " (es una estimacion, no una medicion): ",
-    detalle, " supera el `work_mem` vigente de ", estimacion$work_mem,
-    ". Limite de decision: ", limite, ". ",
+    detalle, " supera el `work_mem` vigente de ", work_mem,
+    ". Metodo: ", estimacion$metodo, ". Limite de decision: ", limite,
+    ". Denominador: con ",
+    .denominador_derrame_dbi(estimacion), ". ",
     "Subir `work_mem` en esta sesion por encima de ese tama\u00f1o puede evitar el",
     " derrame; lupa no modifica la configuracion. El derrame real, si ocurre,",
     " se informa despues mediante `pg_stat_statements`."
@@ -1917,7 +1944,13 @@
     } else NA_real_
   }, numeric(1L))
   estimacion$columnas$n_validos_medido <- valores
-  if (isTRUE(pidio) && any(is.finite(valores))) {
+  tiene_medido <- isTRUE(pidio) && any(is.finite(valores))
+  estimacion$fuente_denominador <- if (tiene_medido) {
+    "n_validos medido"
+  } else {
+    "estimacion de catalogo"
+  }
+  if (tiene_medido) {
     for (i in seq_len(nrow(estimacion$columnas))) {
       medido <- valores[[i]]
       if (!is.finite(medido)) next
@@ -3664,7 +3697,7 @@
 
 .estadisticas_derrame_postgresql_dbi <- function(conexion) {
   sql <- paste(
-    "SELECT query, calls, temp_blks_read, temp_blks_written",
+    "SELECT queryid, query, calls, temp_blks_read, temp_blks_written",
     "FROM pg_stat_statements",
     "WHERE query ILIKE '%COUNT(DISTINCT%'",
     "OR query ILIKE '%AS frecuencia%'",
@@ -3677,7 +3710,7 @@
     error = function(e) NULL
   )
   if (is.null(datos) || !all(c(
-    "query", "calls", "temp_blks_read", "temp_blks_written"
+    "queryid", "query", "calls", "temp_blks_read", "temp_blks_written"
   ) %in% names(datos))) {
     return(NULL)
   }
@@ -3747,23 +3780,42 @@
   estado$despues <- despues
   antes <- estado$antes
   consultas <- list()
+  tiene_queryid <- all(c("queryid") %in% names(antes)) &&
+    all(c("queryid") %in% names(despues))
+  clave_queryid <- function(x) {
+    valor <- tryCatch(as.character(x), error = function(e) NA_character_)
+    if (length(valor) != 1L || is.na(valor) || !nzchar(valor)) NA_character_ else valor
+  }
+  duplicados_texto <- function(datos) {
+    claves <- datos$query_normalizada
+    any(!is.na(claves) & nzchar(claves) & duplicated(claves))
+  }
+  duplicados_queryid <- function(datos) {
+    claves <- vapply(datos$queryid, clave_queryid, character(1L))
+    any(!is.na(claves) & duplicated(claves))
+  }
+  hay_ambiguedad_sin_queryid <- !tiene_queryid &&
+    (duplicados_texto(antes) || duplicados_texto(despues))
+  hay_ambiguedad_queryid <- tiene_queryid &&
+    (duplicados_queryid(antes) || duplicados_queryid(despues))
   for (i in seq_len(nrow(despues))) {
     clave <- despues$query_normalizada[[i]]
     if (is.na(clave) || !nzchar(clave)) next
-    indices_previos <- which(
-      !is.na(antes$query_normalizada) & antes$query_normalizada == clave
-    )
-    previo <- antes[indices_previos, , drop = FALSE]
-    llamadas_antes <- if (nrow(previo)) sum(vapply(
-      previo$calls, .numero_dbi, numeric(1L)
-    ), na.rm = TRUE) else 0
+    queryid <- if (tiene_queryid) clave_queryid(despues$queryid[[i]]) else NA_character_
+    indices_previos <- if (tiene_queryid && !is.na(queryid) &&
+                            !hay_ambiguedad_queryid) {
+      previos <- vapply(antes$queryid, clave_queryid, character(1L))
+      which(!is.na(previos) & previos == queryid)
+    } else if (!tiene_queryid && !hay_ambiguedad_sin_queryid) {
+      which(!is.na(antes$query_normalizada) & antes$query_normalizada == clave)
+    } else integer()
+    previo <- if (length(indices_previos) == 1L) {
+      antes[indices_previos, , drop = FALSE]
+    } else antes[FALSE, , drop = FALSE]
+    llamadas_antes <- if (nrow(previo)) .numero_dbi(previo$calls[[1L]]) else 0
     llamadas_despues <- .numero_dbi(despues$calls[[i]])
-    leidos_antes <- if (nrow(previo)) sum(vapply(
-      previo$temp_blks_read, .numero_dbi, numeric(1L)
-    ), na.rm = TRUE) else 0
-    escritos_antes <- if (nrow(previo)) sum(vapply(
-      previo$temp_blks_written, .numero_dbi, numeric(1L)
-    ), na.rm = TRUE) else 0
+    leidos_antes <- if (nrow(previo)) .numero_dbi(previo$temp_blks_read[[1L]]) else 0
+    escritos_antes <- if (nrow(previo)) .numero_dbi(previo$temp_blks_written[[1L]]) else 0
     delta_llamadas <- llamadas_despues - llamadas_antes
     delta_leidos <- .numero_dbi(despues$temp_blks_read[[i]]) - leidos_antes
     delta_escritos <- .numero_dbi(despues$temp_blks_written[[i]]) - escritos_antes
@@ -3783,10 +3835,18 @@
   if (!length(consultas)) {
     estado$estado <- "no_disponible"
     estado$disponible <- FALSE
-    estado$motivo <- paste(
-      "`pg_stat_statements` no permitio atribuir una llamada exacta a esta",
-      "corrida; no se publica el derrame."
-    )
+    estado$motivo <- if (hay_ambiguedad_sin_queryid || hay_ambiguedad_queryid) {
+      paste(
+        "`pg_stat_statements` tiene varias entradas para el mismo texto SQL",
+        "normalizado y no se pudo atribuir cada fila por `queryid`; no se",
+        "publica el derrame."
+      )
+    } else {
+      paste(
+        "`pg_stat_statements` no devolvio una pareja atribuible por `queryid`",
+        "para esta corrida; no se publica el derrame."
+      )
+    }
   } else {
     estado$estado <- "medido"
     estado$consultas <- consultas
@@ -7058,7 +7118,14 @@
           !is.null(muestreo) &&
           length(muestreo$motivo) == 1L && !is.na(muestreo$motivo) &&
           grepl("^sesgo_muestreo:", as.character(muestreo$motivo))) {
-        motivo_exito <- paste(muestreo$motivo, motivo_exito, sep = "; ")
+        motivo_muestreo <- as.character(muestreo$motivo)
+        motivo_exito <- if (length(motivo_exito) != 1L ||
+                            is.na(motivo_exito) ||
+                            !nzchar(as.character(motivo_exito))) {
+          motivo_muestreo
+        } else {
+          paste(motivo_muestreo, as.character(motivo_exito), sep = "; ")
+        }
       }
     }
     .registrar_resultado_dbi(
@@ -7194,7 +7261,11 @@
   # del conteo de la tabla completa.
   muestra_vacia <- es_muestreado && isTRUE(n_total_consulta == 0)
   if (muestra_vacia) {
-    motivo <- "muestra_vacia:tablesample_system_sin_filas"
+    metodo_vacio <- if (is.null(muestreo$metodo) ||
+                        is.na(muestreo$metodo) || !nzchar(muestreo$metodo)) {
+      "muestreo_sin_metodo"
+    } else as.character(muestreo$metodo)
+    motivo <- paste0("muestra_vacia:", metodo_vacio, "_sin_filas")
     registros <- .metricas_omitidas_dbi(
       list(), columna, metricas, "no_disponible", motivo,
       metadatos = metadatos
@@ -8069,8 +8140,7 @@
     }, logical(1L))
   ]
   if (length(columnas_medianas) && !is.null(presupuesto) &&
-      !isTRUE(presupuesto$aviso_derrame_mediana_emitido) &&
-      "validos" %in% metricas_ejecucion) {
+      !isTRUE(presupuesto$aviso_derrame_mediana_emitido)) {
     estimacion_aviso <- .filtrar_estimacion_derrame_dbi(
       presupuesto$estimacion_derrame_mediana, columnas_medianas
     )
@@ -10070,6 +10140,12 @@ print.plan_perfilado_dbi <- function(x, ...) {
 .motivo_omision_muestra_dbi <- function(tipo_omision, columnas, sondas, motivo_motor) {
   n <- length(columnas)
   lista <- paste(columnas, collapse = ", ")
+  motor <- if (length(motivo_motor) != 1L || is.na(motivo_motor) ||
+               !nzchar(as.character(motivo_motor))) {
+    " El motor no informo un motivo."
+  } else {
+    paste0(" El motor dijo: ", as.character(motivo_motor), ".")
+  }
   if (identical(tipo_omision, "descarte")) {
     paste0(
       "La lectura completa de la muestra fallo. Se aislo por descarte, con ",
@@ -10080,8 +10156,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
         paste0("las ", n, " columnas que no se pueden leer: ")
       },
       lista,
-      ". Cada una fallo por si sola y el resto se leyo junto. El motor dijo: ",
-      motivo_motor
+      ". Cada una fallo por si sola y el resto se leyo junto.", motor
     )
   } else {
     paste0(
@@ -10092,7 +10167,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
         paste0("las ", n, " columnas de tipo largo declaradas: ")
       },
       lista,
-      ". No se comprobo que sean la causa; el motor dijo: ", motivo_motor
+      ". No se comprobo que sean la causa;", motor
     )
   }
 }
@@ -11259,7 +11334,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Si la consulta de la muestra devuelve cero filas, no hay base para medir las
 #' metricas de alcance `muestra`: se publican con valor `NA`, estado
 #' `no_disponible` y el motivo estable
-#' `muestra_vacia:tablesample_system_sin_filas`. Esto no permite concluir que
+#' `muestra_vacia:random_limit_sin_filas` (o el metodo efectivo equivalente).
+#' Esto no permite concluir que
 #' la columna este vacia, por lo que no se publica cero ni se dispara la
 #' cascada `sin_valores`. Una muestra no vacia sin valores validos usa
 #' `muestra_inestable:sin_valores_validos`; una capacidad no aceptada usa
@@ -11410,7 +11486,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' 42 para `numeric`. El plan usa `n_validos` de catálogo. En la meta y en el
 #' aviso, cuando se pidió la familia `validos`, ese denominador se reemplaza por
 #' el medido en los agregados planos y se conserva también el valor de catálogo;
-#' si no se midió, el motivo declara que se retuvo el catálogo. La consolidada
+#' si no se midió, el motivo declara que se retuvo el catálogo. Por arbitraje
+#' H5, este alcance K2 gobierna solo el denominador: si la estimación publicada
+#' marca `supera_memoria = TRUE`, el aviso se emite también con catálogo y
+#' declara su fuente. La consolidada
 #' decide por el máximo de columna y publica la suma de tapes sólo como
 #' `estado_io_total_bytes` informativo.
 #'
@@ -11556,12 +11635,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   publica `meta$alcance$orden`, `meta$bloques`, `meta$bytes` y los eventos del
 #'   vigilante. Los drivers sin retencion incremental demostrada (incluido
 #'   DuckDB en esta matriz) quedan `no_disponible` con su motivo, sin caer en
-#'   `dbGetQuery()`.
+#'   `dbGetQuery()`. Si se pide `moda` o `mediana`, I1 inicia tambien el mapa
+#'   central de distintos aunque `n_distintos` no se haya pedido: la mediana
+#'   depende de ese mapa y la fila `n_distintos` conserva `no_solicitado`.
 #' @param orden_muestra Columnas para `ORDER BY`. La salida solo declara orden
 #'   reproducible cuando la combinación es única en toda la tabla. Sin este
 #'   argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 #'   limitada, y `meta` lo declara expresamente. No se usa cuando
-#'   `bloque_muestra = "solo_agregados"`.
+#'   `bloque_muestra = "solo_agregados"`. En la via I1, la identidad de la
+#'   fuente por bloques gobierna el recorrido y este pedido queda declarado en
+#'   `meta$orden_muestra` con el motivo estable de que no gobierna esa via.
 #' @section Progreso:
 #' Traer la tabla entera puede tardar minutos sobre una tabla grande, y una
 #' corrida callada no se distingue de una colgada. En una sesión interactiva se
@@ -11827,6 +11910,9 @@ perfilar_dbi <- function(conexion, tabla,
       argumentos = list(...)
     ))
   }
+  preparacion$presupuesto$avisar_derrame_estimado <- avisar_derrame_estimado
+  preparacion$presupuesto$umbral_bytes_aviso_derrame_estimado <-
+    umbral_bytes_aviso_derrame_estimado
   if (!is.null(bloque_filas)) {
     return(.perfilar_dbi_bloques(
       conexion = conexion, tabla = tabla, preparacion = preparacion,
@@ -11835,7 +11921,8 @@ perfilar_dbi <- function(conexion, tabla,
       max_celdas_muestra = max_celdas_muestra,
       max_bytes_muestra = max_bytes_muestra,
       argumentos = list(...),
-      max_bytes_procesamiento = max_bytes_procesamiento
+      max_bytes_procesamiento = max_bytes_procesamiento,
+      metricas_publicas = preparacion$metricas
     ))
   }
   presupuesto <- preparacion$presupuesto
@@ -12412,6 +12499,24 @@ perfilar_dbi <- function(conexion, tabla,
   paste0("Clave primaria: ", texto, fuente, ".")
 }
 
+# Columnas cuya consulta de valores fue parte de la corrida. La estimacion
+# debe describir el mismo subconjunto que el aviso emitido antes de consultar.
+.columnas_estimacion_derrame_publicadas_dbi <- function(x, familia, estimacion) {
+  if (is.null(estimacion) || !is.data.frame(estimacion$columnas) ||
+      !nrow(estimacion$columnas)) return(character())
+  sql <- x$resumen_tabla$sql
+  nombre <- familia
+  if (!is.data.frame(sql) || !all(c("columna", "metrica", "estado") %in% names(sql))) {
+    return(character())
+  }
+  estados_omitidos <- c("no_solicitado", "omitido_por_costo",
+                        "omitido_por_privacidad")
+  ejecutadas <- unique(as.character(sql$columna[
+    sql$metrica == nombre & !(sql$estado %in% estados_omitidos)
+  ]))
+  intersect(as.character(estimacion$columnas$columna), ejecutadas)
+}
+
 #' @export
 print.perfil_dbi <- function(x, ...) {
   meta <- x$resumen_tabla$meta
@@ -12472,10 +12577,14 @@ print.perfil_dbi <- function(x, ...) {
     estimacion_familia <- meta[[nombre]]
     if (is.null(estimacion_familia) ||
         identical(estimacion_familia$estado, "no_solicitado")) next
-    limite <- if (identical(estimacion_familia$metodo, "sort") ||
-                  identical(familia, "mediana")) {
-      estimacion_familia$work_mem
-    } else estimacion_familia$memoria_efectiva
+    columnas_estimadas <- .columnas_estimacion_derrame_publicadas_dbi(
+      x, familia, estimacion_familia
+    )
+    if (!length(columnas_estimadas)) next
+    estimacion_familia <- .filtrar_estimacion_derrame_dbi(
+      estimacion_familia, columnas_estimadas
+    )
+    limite <- .limite_decision_derrame_dbi(estimacion_familia, familia)
     detalle <- if (isTRUE(estimacion_familia$supera_memoria)) {
       paste("supera el limite de decision", limite)
     } else if (identical(estimacion_familia$estado, "estimado")) {

@@ -750,6 +750,31 @@
   list(valor = NA, estado = "no_disponible", motivo = "familia_sin_acumulador")
 }
 
+.TOPE_RECONSTRUCCION_MEDIANA_BLOQUES_DBI <- 1000000
+
+.motivo_mediana_mapa_bloques_dbi <- function(mapa) {
+  if (!is.data.frame(mapa)) {
+    return("familia_sin_acumulador:mapa_distintos_no_iniciado")
+  }
+  if (!nrow(mapa)) {
+    return("familia_sin_acumulador:mapa_distintos_vacio")
+  }
+  frecuencias <- suppressWarnings(as.numeric(mapa$frecuencia))
+  total <- sum(frecuencias)
+  if (is.finite(total) && total > .TOPE_RECONSTRUCCION_MEDIANA_BLOQUES_DBI) {
+    return(paste0(
+      "familia_sin_acumulador:mediana_bloques_supera_tope_reconstruccion:",
+      formatC(.TOPE_RECONSTRUCCION_MEDIANA_BLOQUES_DBI,
+              format = "f", digits = 0)
+    ))
+  }
+  if (!is.numeric(mapa$representante) || !is.finite(total) || total < 1 ||
+      anyNA(frecuencias)) {
+    return("familia_sin_acumulador:mapa_distintos_no_reconstruible")
+  }
+  "familia_sin_acumulador:mediana_requiere_mapa_no_truncado"
+}
+
 .mediana_mapa_bloques_dbi <- function(mapa) {
   if (!is.data.frame(mapa) || !nrow(mapa)) return(NA_real_)
   valores <- mapa$representante
@@ -759,14 +784,17 @@
   valores <- valores[orden]
   frecuencias <- frecuencias[orden]
   total <- sum(frecuencias)
-  if (!is.finite(total) || total < 1 || total > 1000000) return(NA_real_)
+  if (!is.finite(total) || total < 1 ||
+      total > .TOPE_RECONSTRUCCION_MEDIANA_BLOQUES_DBI) return(NA_real_)
   expandido <- rep(valores, frecuencias)
   stats::median(expandido, na.rm = TRUE)
 }
 
 .fila_y_registros_bloques_dbi <- function(campo, n_total, metricas,
                                           acumuladores, prototipo, tipos,
-                                          incluir_valores, fuente) {
+                                          incluir_valores, fuente,
+                                          metricas_publicas = metricas,
+                                          decisiones_costo = NULL) {
   fila <- .fila_resumen_dbi(campo, n_total)
   fila$n_nan <- NA_real_
   fila$n_infinito_positivo <- NA_real_
@@ -775,6 +803,15 @@
   fila$longitud_maxima <- NA_real_
   fila$longitud_media <- NA_real_
   registros <- list()
+  registros[[1L]] <- .registro_sql_dbi(
+    campo, "n", "calculado", NA_character_, fuente$consulta,
+    metadatos = .metadatos_sql_dbi(
+      alcance = "tabla_completa", universo = "tabla_completa",
+      metodo = "dbfetch_bloques", error_esperado = "no_aplica",
+      id_consulta = 1L, columnas_compartidas = length(fuente$campos)
+    ),
+    medicion = list(consulta_id = 1L, etapa = "dbfetch_bloques")
+  )
   agregar <- function(nombre, grupo, familias) {
     sobre <- acumuladores[[paste(campo, grupo, sep = "\u001f")]]
     if (inherits(sobre, "acumulador_bloques")) sobre <- sobre$resultado
@@ -834,7 +871,7 @@
       )
     }
   }
-  if ("distintos" %in% metricas) {
+  if ("distintos" %in% metricas_publicas) {
     sobre <- acumuladores[[paste(campo, "distintos", sep = "\u001f")]]
     if (inherits(sobre, "acumulador_bloques")) sobre <- sobre$resultado
     metrica <- .resumen_metrica_bloques_dbi(sobre, "distintos", "n_distintos")
@@ -879,7 +916,7 @@
     if (!is.null(cuantitativos) && grupo %in% metricas) {
       sobre <- if (inherits(cuantitativos, "acumulador_bloques")) {
         cuantitativos$resultado
-      } else quantitativos
+      } else cuantitativos
       for (nombre in pedidos) {
         metrica <- .resumen_metrica_bloques_dbi(
           sobre, "cuantitativos", nombre, incluir_valores
@@ -932,18 +969,33 @@
   distintos <- acumuladores[[paste(campo, "distintos", sep = "\u001f")]]
   if (inherits(distintos, "acumulador_bloques")) distintos <- distintos$resultado
   mapa <- if (is.null(distintos)) NULL else distintos$resultado
+  mapa_truncado <- !is.null(distintos) && identical(distintos$estado, "cota")
+  motivo_mapa <- if (mapa_truncado) {
+    paste0("familia_sin_acumulador:", distintos$motivo %||%
+      "mapa_distintos_truncado")
+  } else if (is.null(mapa)) {
+    "familia_sin_acumulador:mapa_distintos_no_iniciado"
+  } else if (!nrow(mapa)) {
+    "familia_sin_acumulador:mapa_distintos_vacio"
+  } else NA_character_
   if ("moda" %in% metricas && isTRUE(incluir_valores) && is.data.frame(mapa) && nrow(mapa)) {
-    indice <- which.max(mapa$frecuencia)
-    fila$moda <- tryCatch(as.character(mapa$representante[[indice]]), error = function(e) NA_character_)
-    fila$frecuencia_moda <- mapa$frecuencia[[indice]]
-    estado_valores <- "calculado"
-    motivo_valores <- NA_character_
+    decision_moda <- decisiones_costo[[campo]]
+    if (!is.null(decision_moda) && identical(decision_moda$moda, FALSE)) {
+      estado_valores <- "omitido_por_costo"
+      motivo_valores <- .motivo_decision_costo_dbi(decision_moda, "moda")
+    } else {
+      indice <- which.max(mapa$frecuencia)
+      fila$moda <- tryCatch(as.character(mapa$representante[[indice]]), error = function(e) NA_character_)
+      fila$frecuencia_moda <- mapa$frecuencia[[indice]]
+      estado_valores <- "calculado"
+      motivo_valores <- NA_character_
+    }
   } else if ("moda" %in% metricas && !isTRUE(incluir_valores)) {
     estado_valores <- "omitido_por_privacidad"
     motivo_valores <- "Los valores se omitieron por privacidad."
   } else if ("moda" %in% metricas) {
     estado_valores <- "no_disponible"
-    motivo_valores <- "familia_sin_acumulador:mapa_distintos_truncado"
+    motivo_valores <- motivo_mapa
   } else {
     estado_valores <- "no_solicitado"
     motivo_valores <- "La metrica no fue solicitada."
@@ -972,7 +1024,7 @@
     fila$mediana <- .mediana_mapa_bloques_dbi(mapa)
     estado_mediana <- if (is.na(fila$mediana)) "no_disponible" else "calculado"
     motivo_mediana <- if (is.na(fila$mediana)) {
-      "familia_sin_acumulador:mediana_requiere_mapa_no_truncado"
+      if (mapa_truncado) motivo_mapa else .motivo_mediana_mapa_bloques_dbi(mapa)
     } else NA_character_
     registros[[length(registros) + 1L]] <- .registro_sql_dbi(
       campo, "mediana", estado_mediana, motivo_mediana, fuente$consulta,
@@ -997,7 +1049,7 @@
 
 .plan_bloques_fuente_dbi <- function(fuente, bloque_filas, campos, metricas,
                                      bloque_muestra = "con_muestra",
-                                     muestra = NA_real_) {
+                                     muestra = NA_real_, orden_muestra = NULL) {
   plan <- data.frame(
     clase_consulta = "fuente por bloques (dbSendQuery + dbFetch)",
     n_consultas = if (isTRUE(fuente$disponible)) 1L else 0L,
@@ -1035,6 +1087,9 @@
     muestra
   } else NA_real_
   attr(plan, "bloque_muestra") <- bloque_muestra
+  attr(plan, "orden_muestra") <- if (is.null(orden_muestra)) {
+    character()
+  } else as.character(orden_muestra)
   attr(plan, "costo") <- list(
     consultas_sql = if (isTRUE(fuente$disponible)) 1L else 0L,
     resultsets = if (isTRUE(fuente$disponible)) 1L else 0L,
@@ -1048,10 +1103,17 @@
 .recorrer_fuente_bloques_dbi <- function(conexion, fuente, metricas,
                                          prototipo, tipos, bloque_filas,
                                          vigilante = NULL,
+                                         incluir_valores = TRUE,
                                          max_bytes_procesamiento =
                                            .MAX_BYTES_ESTADO_BLOQUES) {
+  metricas_acumuladores <- unique(c(
+    metricas,
+    if (isTRUE(incluir_valores) &&
+        any(c("moda", "mediana") %in% metricas)) "distintos" else character()
+  ))
   acumuladores <- .familias_fuente_bloques_dbi(
-    metricas, fuente$campos, prototipo, tipos,
+    metricas_acumuladores, fuente$campos, prototipo, tipos,
+    incluir_valores = incluir_valores,
     max_bytes_procesamiento = max_bytes_procesamiento
   )
   for (nombre in names(acumuladores)) {
@@ -1061,7 +1123,8 @@
   }
   bloques <- list(
     solicitados = 0L, recorridos = 0L, filas_vistas = 0,
-    fetches = 0L, primer_ordinal = NA_real_, ultimo_ordinal = NA_real_,
+    fetches = 0L, consultas_sql = 0L, primer_ordinal = NA_real_,
+    ultimo_ordinal = NA_real_,
     sin_solapamiento = TRUE
   )
   bytes_max <- 0
@@ -1083,6 +1146,7 @@
                 locators = locators,
                 error = paste0("no_disponible:dbSendQuery:", conditionMessage(resultado))))
   }
+  bloques$consultas_sql <- 1L
   on.exit(tryCatch(DBI::dbClearResult(resultado), error = function(e) NULL), add = TRUE)
   ordinal <- 0
   repeat {
@@ -1193,23 +1257,29 @@
                                                  antes_segunda_pasada = NULL) {
   if (!identical(fuente$metodo_orden, "row_locator")) {
     return(list(estado = "no_aplica", identidad = NA,
-                motivo = "metodo_orden_no_es_row_locator"))
+                motivo = "metodo_orden_no_es_row_locator",
+                consultas_sql = 0L, fetches = 0L))
   }
   if (is.function(antes_segunda_pasada)) antes_segunda_pasada()
   esperados <- unlist(locators, use.names = FALSE)
   rs <- tryCatch(DBI::dbSendQuery(conexion, fuente$consulta), error = function(e) e)
   if (inherits(rs, "condition")) {
     return(list(estado = "no_disponible", identidad = NA,
-                motivo = paste0("no_disponible:dbSendQuery:", conditionMessage(rs))))
+                motivo = paste0("no_disponible:dbSendQuery:", conditionMessage(rs)),
+                consultas_sql = 1L, fetches = 0L))
   }
+  consultas_sql <- 1L
+  fetches <- 0L
   on.exit(tryCatch(DBI::dbClearResult(rs), error = function(e) NULL), add = TRUE)
   observados <- list()
   repeat {
     bloque <- tryCatch(DBI::dbFetch(rs, n = as.integer(bloque_filas)),
                        error = function(e) e)
+    fetches <- fetches + 1L
     if (inherits(bloque, "condition")) {
       return(list(estado = "no_disponible", identidad = NA,
-                  motivo = paste0("no_disponible:dbFetch:", conditionMessage(bloque))))
+                  motivo = paste0("no_disponible:dbFetch:", conditionMessage(bloque)),
+                  consultas_sql = consultas_sql, fetches = fetches))
     }
     if (!nrow(bloque)) break
     observados[[length(observados) + 1L]] <- .valor_columna_bloque_dbi(
@@ -1225,7 +1295,8 @@
     identidad = iguales,
     motivo = if (iguales) NA_character_ else
       "row_locator_ordinal_fila_cambio:segunda_pasada_no_identica",
-    filas_primera_pasada = length(esperados), filas_segunda_pasada = length(vistos)
+    filas_primera_pasada = length(esperados), filas_segunda_pasada = length(vistos),
+    consultas_sql = consultas_sql, fetches = fetches
   )
 }
 
@@ -1234,8 +1305,10 @@
                                   max_celdas_muestra, max_bytes_muestra,
                                   argumentos = list(),
                                   max_bytes_procesamiento =
-                                    .MAX_BYTES_ESTADO_BLOQUES) {
+                                    .MAX_BYTES_ESTADO_BLOQUES,
+                                  metricas_publicas = preparacion$metricas) {
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
+  metricas_publicas <- unique(as.character(metricas_publicas %||% metricas))
   if (!identical(preparacion$universo, "tabla_completa")) {
     motivo <- "no_disponible:fuente_bloques_solo_tabla_completa"
     fuente <- structure(list(
@@ -1250,14 +1323,15 @@
     ), class = "fuente_bloques_dbi")
     recorrido <- list(
       bloques = list(solicitados = 0L, recorridos = 0L, filas_vistas = 0,
-        fetches = 0L, primer_ordinal = NA_real_, ultimo_ordinal = NA_real_,
+        fetches = 0L, consultas_sql = 0L, primer_ordinal = NA_real_,
+        ultimo_ordinal = NA_real_,
         sin_solapamiento = TRUE), bytes = list(max_bloque = 0, entrada = 0,
         texto = 0, retenidos = 0, rss_maximo = NA_real_), error = motivo,
       acumuladores = list()
     )
     plan <- .plan_bloques_fuente_dbi(fuente, bloque_filas,
       preparacion$campos, metricas, preparacion$bloque_muestra,
-      preparacion$muestra)
+      preparacion$muestra, preparacion$orden_muestra)
     filas <- lapply(preparacion$campos, function(campo) {
       .fila_resumen_dbi(campo, NA_real_)
     })
@@ -1292,14 +1366,14 @@
     conexion, tabla, tabla_sql = preparacion$tabla_sql,
     campos = preparacion$campos, campos_sql = preparacion$campos_sql,
     prototipo = preparacion$prototipo, tipos = preparacion$tipos,
-    orden_muestra = NULL, orden_sql = preparacion$orden_sql,
+    orden_muestra = preparacion$orden_muestra, orden_sql = preparacion$orden_sql,
     clave = preparacion$catalogo_cardinalidad,
     dialecto = preparacion$dialecto,
     presupuesto = preparacion$presupuesto, bloque_filas = bloque_filas
   )
   plan <- .plan_bloques_fuente_dbi(
     fuente, bloque_filas, preparacion$campos, metricas,
-    preparacion$bloque_muestra, preparacion$muestra
+    preparacion$bloque_muestra, preparacion$muestra, preparacion$orden_muestra
   )
   vigilante <- .iniciar_vigilante(
     corrida_id = paste0("dbi-bloques-", as.integer(Sys.time())),
@@ -1308,6 +1382,7 @@
   recorrido <- .recorrer_fuente_bloques_dbi(
     conexion, fuente, metricas, preparacion$prototipo, preparacion$tipos,
     bloque_filas, vigilante = vigilante,
+    incluir_valores = incluir_valores,
     max_bytes_procesamiento = max_bytes_procesamiento
   )
   n_total <- recorrido$bloques$filas_vistas
@@ -1324,8 +1399,94 @@
   } else list(
     estado = "no_aplica", identidad = NA,
     motivo = if (is.null(recorrido$error)) "pk_o_resultset_sin_locator" else
-      "primera_pasada_no_disponible"
+      "primera_pasada_no_disponible", consultas_sql = 0L, fetches = 0L
   )
+  agregados_costo <- list(conteos = stats::setNames(lapply(
+    preparacion$campos, function(campo) {
+      sobre <- recorrido$sobres[[paste(campo, "conteos", sep = "\u001f")]]
+      mapa <- recorrido$sobres[[paste(campo, "distintos", sep = "\u001f")]]
+      validos <- if (!is.null(sobre) && identical(sobre$estado, "calculado")) {
+        list(ok = TRUE, valor = sobre$resultado$n_validos)
+      } else NULL
+      distintos <- if (!is.null(mapa) && identical(mapa$estado, "calculado")) {
+        list(ok = TRUE, valor = nrow(mapa$resultado))
+      } else NULL
+      list(validos = validos, distintos = distintos)
+    }
+  ), preparacion$campos))
+  decisiones_costo <- .decisiones_costo_dbi(
+    conexion, preparacion$campos, agregados_costo,
+    preparacion$politica_costo, n_total, "tabla_completa",
+    fuentes_cardinalidad_costo = preparacion$fuentes_cardinalidad_costo
+  )
+  presupuesto <- preparacion$presupuesto
+  if (!is.null(presupuesto)) {
+    presupuesto$estimacion_derrame_moda <-
+      .actualizar_n_validos_estimacion_dbi(
+        presupuesto$estimacion_derrame_moda, agregados_costo,
+        metricas, "meta"
+      )
+    presupuesto$estimacion_derrame_mediana <-
+      .actualizar_n_validos_estimacion_dbi(
+        presupuesto$estimacion_derrame_mediana, agregados_costo,
+        metricas, "meta"
+      )
+    columnas_modas <- preparacion$campos[
+      vapply(decisiones_costo, function(x) isTRUE(x$moda), logical(1L))
+    ]
+    if (!("moda" %in% metricas) || !isTRUE(incluir_valores)) {
+      columnas_modas <- character()
+    }
+    if (length(columnas_modas) && !isTRUE(presupuesto$aviso_derrame_moda_emitido)) {
+      avisado <- .avisar_derrame_estimado_postgresql_dbi(
+        .filtrar_estimacion_derrame_dbi(
+          presupuesto$estimacion_derrame_moda, columnas_modas
+        ),
+        habilitado = presupuesto$avisar_derrame_estimado,
+        umbral_bytes = presupuesto$umbral_bytes_aviso_derrame_estimado
+      )
+      if (isTRUE(avisado)) presupuesto$aviso_derrame_moda_emitido <- TRUE
+    }
+    columnas_medianas <- preparacion$campos[
+      vapply(decisiones_costo, function(x) isTRUE(x$mediana), logical(1L))
+    ]
+    columnas_medianas <- intersect(
+      columnas_medianas, preparacion$campos[preparacion$es_numerico]
+    )
+    if (!("mediana" %in% metricas) || !isTRUE(incluir_valores)) {
+      columnas_medianas <- character()
+    }
+    if (length(columnas_medianas) &&
+        !isTRUE(presupuesto$aviso_derrame_mediana_emitido)) {
+      avisado <- .avisar_derrame_estimado_postgresql_dbi(
+        .filtrar_estimacion_derrame_dbi(
+          presupuesto$estimacion_derrame_mediana, columnas_medianas
+        ),
+        habilitado = presupuesto$avisar_derrame_estimado,
+        umbral_bytes = presupuesto$umbral_bytes_aviso_derrame_estimado
+      )
+      if (isTRUE(avisado)) presupuesto$aviso_derrame_mediana_emitido <- TRUE
+    }
+  }
+  consultas_segunda <- as.integer(segunda_pasada$consultas_sql %||% 0L)
+  fetches_segunda <- as.integer(segunda_pasada$fetches %||% 0L)
+  recorrido$bloques$consultas_sql <- as.integer(
+    recorrido$bloques$consultas_sql %||% 0L
+  ) + consultas_segunda
+  recorrido$bloques$fetches <- as.integer(recorrido$bloques$fetches) + fetches_segunda
+  plan$n_consultas <- recorrido$bloques$consultas_sql
+  plan$n_consultas_max <- recorrido$bloques$consultas_sql
+  attr(plan, "total") <- recorrido$bloques$consultas_sql
+  attr(plan, "total_minimo") <- recorrido$bloques$consultas_sql
+  attr(plan, "total_maximo") <- recorrido$bloques$consultas_sql
+  costo_plan <- attr(plan, "costo", exact = TRUE)
+  costo_plan$consultas_sql <- recorrido$bloques$consultas_sql
+  costo_plan$resultsets <- recorrido$bloques$consultas_sql
+  costo_plan$fetches <- recorrido$bloques$fetches
+  attr(plan, "costo") <- costo_plan
+  fuente$plan$costo$consultas_sql <- recorrido$bloques$consultas_sql
+  fuente$plan$costo$resultsets <- recorrido$bloques$consultas_sql
+  fuente$plan$costo$fetches <- recorrido$bloques$fetches
   filas <- vector("list", length(preparacion$campos))
   names(filas) <- preparacion$campos
   sql <- list()
@@ -1333,7 +1494,9 @@
     resultado <- if (isTRUE(fuente$disponible) && is.null(recorrido$error)) {
       .fila_y_registros_bloques_dbi(
         campo, n_total, metricas, recorrido$acumuladores,
-        preparacion$prototipo, preparacion$tipos, incluir_valores, fuente
+        preparacion$prototipo, preparacion$tipos, incluir_valores, fuente,
+        metricas_publicas = metricas_publicas,
+        decisiones_costo = decisiones_costo
       )
     } else {
       fila <- .fila_resumen_dbi(campo, NA_real_)
@@ -1390,6 +1553,22 @@
     ))
   }
   rownames(cobertura) <- NULL
+  orden_muestra_solicitado <- as.character(
+    preparacion$orden_muestra %||% character()
+  )
+  orden_muestra_meta <- if (length(orden_muestra_solicitado)) {
+    list(
+      solicitado = orden_muestra_solicitado, aplicado = FALSE,
+      motivo = paste(
+        "orden_muestra_no_gobierna_fuente_bloques: la via I1 prioriza la",
+        "clave primaria o el localizador para preservar la identidad entre",
+        "pasadas."
+      )
+    )
+  } else {
+    list(solicitado = character(), aplicado = NA,
+         motivo = "orden_muestra_no_solicitado")
+  }
   meta <- list(
     universo = "tabla_completa", filas = n_total,
     tabla = .texto_tabla_dbi(tabla), motor = .info_conexion_dbi(conexion),
@@ -1408,13 +1587,20 @@
     eventos = .eventos_vigilante(vigilante),
     plan = plan,
     consultas = list(
-      emitidas = if (isTRUE(fuente$disponible)) 1L else 0L,
+      emitidas = as.integer(recorrido$bloques$consultas_sql %||% 0L),
+      fetches = as.integer(recorrido$bloques$fetches %||% 0L),
       presupuesto = preparacion$max_consultas,
       agotado = FALSE
     ),
+    orden_muestra = orden_muestra_meta,
+    decisiones_costo = decisiones_costo,
+    estimacion_derrame_moda = if (is.null(presupuesto)) NULL else
+      presupuesto$estimacion_derrame_moda,
+    estimacion_derrame_mediana = if (is.null(presupuesto)) NULL else
+      presupuesto$estimacion_derrame_mediana,
     metodo = "dbfetch_bloques", snapshot = fuente$snapshot_id,
     clave = preparacion$catalogo_cardinalidad,
-    metricas = metricas, metricas_ejecucion = metricas,
+    metricas = metricas_publicas, metricas_ejecucion = metricas,
     incluir_valores = incluir_valores,
     solo_lectura = TRUE, objetos_temporales = FALSE,
     nota_inf = paste(

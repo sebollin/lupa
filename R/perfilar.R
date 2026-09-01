@@ -966,8 +966,10 @@
 #'
 #' Este criterio mide capacidad de discriminación, no juzga si la presencia del
 #' dato es correcta. La protección sustituye modas, ejemplos, evidencia y
-#' extremos o medianas que corresponden a observaciones reales. Las medias y
-#' desvíos se conservan como síntesis no ligadas a una fila;
+#' extremos o medianas que corresponden a observaciones reales. Los desvíos se conservan; las medias se protegen en sus dos formas
+#' (`media` y
+#' `media_fecha`), porque la media de una columna personal puede reconstruir
+#' demasiado. Los desvíos siguen siendo síntesis no ligadas a una fila;
 #' `detalle_proteccion_personal` hace visible la supresión. En fechas de
 #' nacimiento, un hallazgo separado conserva el diagnóstico de valores
 #' anteriores a 1900 o posteriores a la corrida sin publicar las fechas.

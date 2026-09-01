@@ -77,6 +77,107 @@ test_that("I1 conserva la identidad de los acumuladores con uno o muchos bloques
   )
 })
 
+test_that("I1 inicia el mapa para moda y mediana sin publicar n_distintos", {
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbExecute(conexion, "CREATE TABLE valores (id INTEGER PRIMARY KEY, v REAL)")
+  DBI::dbExecute(conexion,
+                 "INSERT INTO valores VALUES (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6)")
+
+  mediana <- lupa::perfilar_dbi(
+    conexion, "valores", metricas = "mediana", bloque_filas = 2L,
+    bloque_muestra = "solo_agregados", proteger_datos_personales = FALSE,
+    instrumentar = FALSE
+  )$resumen_tabla
+  moda <- lupa::perfilar_dbi(
+    conexion, "valores", metricas = "moda", bloque_filas = 2L,
+    bloque_muestra = "solo_agregados", proteger_datos_personales = FALSE,
+    instrumentar = FALSE
+  )$resumen_tabla
+  fila_mediana <- mediana$columnas[mediana$columnas$columna == "v", , drop = FALSE]
+  fila_moda <- moda$columnas[moda$columnas$columna == "v", , drop = FALSE]
+  distinto_mediana <- mediana$sql[
+    mediana$sql$columna == "v" & mediana$sql$metrica == "n_distintos", , drop = FALSE
+  ]
+  distinto_moda <- moda$sql[
+    moda$sql$columna == "v" & moda$sql$metrica == "n_distintos", , drop = FALSE
+  ]
+
+  expect_equal(fila_mediana$mediana, 3.5)
+  expect_equal(fila_moda$moda, "1")
+  expect_identical(distinto_mediana$estado, "no_solicitado")
+  expect_identical(distinto_moda$estado, "no_solicitado")
+  expect_identical(distinto_mediana$motivo, "La metrica no fue solicitada.")
+  expect_identical(distinto_moda$motivo, "La metrica no fue solicitada.")
+})
+
+test_that("I1 distingue mapa truncado del tope de reconstruccion de mediana", {
+  mapa <- data.frame(
+    representante = seq_len(10L), frecuencia = rep(120000, 10L)
+  )
+  sobre <- list(estado = "calculado", resultado = mapa, motivo = NA_character_)
+  acumuladores <- list()
+  acumuladores[[paste("v", "distintos", sep = "\u001f")]] <- sobre
+  fuente <- list(consulta = "SELECT v FROM valores", campos = "v")
+  resultado <- lupa:::.fila_y_registros_bloques_dbi(
+    "v", 1200000, "mediana", acumuladores, list(1), "REAL", TRUE,
+    fuente
+  )
+  registro <- resultado$sql[resultado$sql$metrica == "mediana", , drop = FALSE]
+
+  expect_identical(registro$estado, "no_disponible")
+  expect_identical(
+    registro$motivo,
+    "familia_sin_acumulador:mediana_bloques_supera_tope_reconstruccion:1000000"
+  )
+  expect_false(grepl("mapa_distintos_truncado", registro$motivo, fixed = TRUE))
+})
+
+test_that("I1 aplica la politica de costo a la moda del mapa", {
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(conexion, "cardinal", data.frame(v = seq_len(1000L)))
+  resultado <- lupa::perfilar_dbi(
+    conexion, "cardinal", metricas = c("validos", "distintos", "moda"),
+    bloque_filas = 100L, bloque_muestra = "solo_agregados",
+    politica_costo = "por_cardinalidad", umbral_cardinalidad = 0.01,
+    proteger_datos_personales = FALSE, instrumentar = FALSE
+  )$resumen_tabla
+  moda <- resultado$sql[resultado$sql$metrica == "moda", , drop = FALSE]
+
+  expect_true(all(moda$estado == "omitido_por_costo"))
+  expect_true(all(grepl("politica optativa", moda$motivo, fixed = TRUE)))
+  expect_true(is.list(resultado$meta$decisiones_costo))
+  expect_true(all(vapply(
+    resultado$meta$decisiones_costo, function(x) identical(x$moda, FALSE),
+    logical(1L)
+  )))
+})
+
+test_that("I1 registra n, memoria acotada y las dos pasadas del localizador", {
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(conexion, "sin_clave", data.frame(valor = seq_len(7L)))
+  resultado <- lupa::perfilar_dbi(
+    conexion, "sin_clave", metricas = "validos", bloque_filas = 2L,
+    orden_muestra = "valor", bloque_muestra = "con_muestra", muestra = 3L,
+    proteger_datos_personales = FALSE, instrumentar = FALSE
+  )$resumen_tabla
+  sql <- resultado$sql
+  medidos <- sql[sql$estado == "calculado", , drop = FALSE]
+
+  expect_true("n" %in% sql$metrica)
+  expect_true(nrow(medidos) > 0L)
+  expect_true(all(!is.na(medidos$memoria_trabajo)))
+  expect_true(all(medidos$memoria_trabajo == "acotado"))
+  expect_identical(resultado$meta$fuente_bloques$metodo_orden, "row_locator")
+  expect_false(resultado$meta$orden_muestra$aplicado)
+  expect_match(resultado$meta$orden_muestra$motivo, "no_gobierna_fuente_bloques")
+  expect_true(resultado$meta$consultas$emitidas >= 2L)
+  expect_true(resultado$meta$consultas$fetches > resultado$meta$bloques$recorridos)
+  expect_equal(resultado$meta$plan$n_consultas, resultado$meta$consultas$emitidas)
+})
+
 test_that("el preflight prefiere una clave primaria y publica orden completo", {
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)

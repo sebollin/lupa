@@ -432,6 +432,10 @@
   acumulador
 }
 
+.entrada_atomica_acumulador <- function(x) {
+  is.atomic(x) && is.null(dim(x))
+}
+
 .marcar_tope_acumulador <- function(acumulador, causa) {
   acumulador$estado_familia$truncado <- TRUE
   acumulador$estado_familia$causa_tope <- causa
@@ -1161,7 +1165,14 @@
     stop("No se puede absorber despues de `finalizar()`.", call. = FALSE)
   }
   if (identical(acumulador$estado, "no_disponible")) return(acumulador)
-  bloque <- .registrar_intervalo_bloque(acumulador, .extraer_bloque(bloque))
+  bloque <- .extraer_bloque(bloque)
+  if (acumulador$familia %in% c("distintos", "hueco") &&
+      !.entrada_atomica_acumulador(bloque$valores)) {
+    return(.marcar_fallo_acumulador(
+      acumulador, "entrada_no_soportada:no_atomica"
+    ))
+  }
+  bloque <- .registrar_intervalo_bloque(acumulador, bloque)
   acumulador <- switch(
     acumulador$familia,
     conteos = .absorber_conteos(acumulador, bloque),
@@ -1934,6 +1945,15 @@
       "contar_signos" %in% names(configuracion)) {
     acumulador$estado_familia$contar_signos <-
       isTRUE(configuracion$contar_signos)
+  }
+  if (familia %in% c("distintos", "hueco") &&
+      !.entrada_atomica_acumulador(x)) {
+    acumulador <- .marcar_fallo_acumulador(
+      acumulador, "entrada_no_soportada:no_atomica"
+    )
+    resultado <- .finalizar_acumulador(acumulador)
+    return(list(acumulador = acumulador, resultado = resultado,
+                vigilante = vigilante))
   }
   indices <- .particionar_bloques(length(x), k = k, tamano = tamano)
   for (i in seq_along(indices)) {

@@ -299,13 +299,21 @@ test_that("una muestra vacia no publica ceros ni estados de muestra observada", 
   expect_true(all(alcance$estado == "no_disponible"))
   expect_true(all(is.na(alcance$motivo) == FALSE))
   expect_true(all(
-    alcance$motivo == "muestra_vacia:tablesample_system_sin_filas"
+    alcance$motivo == "muestra_vacia:random_limit_sin_filas"
   ))
   expect_equal(resultado$resumen_tabla$meta$muestreo$filas_obtenidas, 0)
   expect_true(any(
     resultado$resumen_tabla$cobertura$bloque == "perfil_muestra" &
       resultado$resumen_tabla$cobertura$estado == "no_disponible"
   ))
+})
+
+test_that("un motivo sin texto del motor no termina en NA literal", {
+  motivo <- lupa:::.motivo_omision_muestra_dbi(
+    "atajo_tipo", "blob", 1L, NA_character_
+  )
+  expect_false(grepl("; NA", motivo, fixed = TRUE))
+  expect_false(grepl("motor dijo: NA", motivo, fixed = TRUE))
 })
 
 test_that("una muestra no vacia con todos los valores nulos conserva sus estados", {
