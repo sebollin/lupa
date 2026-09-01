@@ -4009,7 +4009,7 @@
                                metodo = NA_character_,
                                error_esperado = NA_character_, lote = NA_integer_,
                                columnas_compartidas = NA_integer_,
-                               id_muestra = NA_integer_,
+                               id_consulta = NA_integer_,
                                estrategia_solicitada = NA_character_,
                                estrategia_resuelta = NA_character_,
                                estado_estrategia = NA_character_) {
@@ -4022,7 +4022,7 @@
     error_esperado = error_esperado,
     lote = lote,
     columnas_compartidas = columnas_compartidas,
-    id_muestra = id_muestra,
+    id_consulta = id_consulta,
     estrategia_solicitada = estrategia_solicitada,
     estrategia_resuelta = estrategia_resuelta,
     estado_estrategia = estado_estrategia
@@ -4144,8 +4144,8 @@
     columnas_compartidas = rep_len(
       as.integer(metadatos$columnas_compartidas), length(metricas)
     ),
-    id_muestra = rep_len(
-      as.integer(metadatos$id_muestra), length(metricas)
+    id_consulta = rep_len(
+      as.integer(metadatos$id_consulta), length(metricas)
     ),
     estrategia_solicitada = rep_len(
       as.character(metadatos$estrategia_solicitada), length(metricas)
@@ -5669,7 +5669,7 @@
             )
             salida$conteo$sql <- sql
             salida$conteo$metadatos <- list(
-              id_muestra = as.integer(consulta$consulta_id)
+              id_consulta = as.integer(consulta$consulta_id)
             )
             salida$conteo <- .adjuntar_medicion_dbi(
               salida$conteo, consulta
@@ -5696,7 +5696,7 @@
     if (isTRUE(incluir_total) && isTRUE(validos$ok)) {
       resultado$conteo <- .resultado_lote_dbi(
         consulta_validos, sql_validos, total_alias, list(
-          id_muestra = as.integer(consulta_validos$consulta_id)
+          id_consulta = as.integer(consulta_validos$consulta_id)
         )
       )
     }
@@ -5735,7 +5735,7 @@
   list(
     lote = as.integer(numero),
     columnas_compartidas = as.integer(length(columnas)),
-    id_muestra = NA_integer_
+    id_consulta = NA_integer_
   )
 }
 
@@ -5762,7 +5762,7 @@
   resultado$metadatos <- metadatos
   if (isTRUE(resultado$ok) && !is.null(consulta$consulta_id) &&
       length(consulta$consulta_id) == 1L && !is.na(consulta$consulta_id)) {
-    resultado$metadatos$id_muestra <- as.integer(consulta$consulta_id)
+    resultado$metadatos$id_consulta <- as.integer(consulta$consulta_id)
   }
   .adjuntar_medicion_dbi(resultado, consulta)
 }
@@ -5832,7 +5832,7 @@
   }
   resultado$sql <- sql
   resultado$metadatos <- list(
-    id_muestra = as.integer(consulta$consulta_id)
+    id_consulta = as.integer(consulta$consulta_id)
   )
   .adjuntar_medicion_dbi(resultado, consulta)
 }
@@ -5869,7 +5869,7 @@
            if (!is.null(consulta$consulta_id) &&
                length(consulta$consulta_id) == 1L &&
                !is.na(consulta$consulta_id)) {
-             list(id_muestra = as.integer(consulta$consulta_id))
+             list(id_consulta = as.integer(consulta$consulta_id))
            } else list()
          )),
     consulta
@@ -6566,7 +6566,7 @@
         conteo <- valor_total
         conteo$sql <- entrada_total$sql
         conteo$metadatos <- list(
-          id_muestra = as.integer(entrada_total$consulta$consulta_id)
+          id_consulta = as.integer(entrada_total$consulta$consulta_id)
         )
         conteo <- .adjuntar_medicion_dbi(conteo, entrada_total$consulta)
       }
@@ -8257,40 +8257,11 @@
         "`n_distintos` o en la moda es esperable sobre columnas con",
         "cotejamiento insensible, y no es un error de ninguno de los dos"
       ),
-      # Un consumidor automatico lee el objeto, no la vineta. Que cada metrica
-      # muestreada saque su propia muestra estaba documentado en prosa, y por
-      # coherencia con el invariante tiene que estar donde se lee. La primera
-      # version de este campo decia que cada metrica saca su propia
-      # muestra, y con los agregados consolidados eso dejo de ser cierto: las
-      # columnas que comparten una consulta comparten tambien las filas
-      # muestreadas. La consolidacion mejora la coherencia dentro del lote -las
-      # razones entre columnas del mismo lote son exactas- y la empeora entre
-      # lotes. `id_muestra` deja la garantia comprobable en cada fila; un valor
-      # ausente declara que no se puede afirmar que dos metricas vieron las
-      # mismas filas. Un campo que describe un alcance de muestreo que no es el
-      # real es peor que no tenerlo.
-      muestras_independientes = if (identical(universo, "muestra_motor")) {
-        paste(
-          "el muestreo se resuelve por consulta, no por perfilado. Las columnas",
-          "que comparten una consulta consolidada -ver `id_muestra`, `lote` y",
-          "`columnas_compartidas` en `sql`- se miden sobre las MISMAS filas, asi",
-          "que sus metricas son comparables entre si. Dos consultas distintas",
-          "-otro `id_muestra`, u otra clase como moda o mediana- toman muestras",
-          "distintas e independientes: no se garantiza que tengan el mismo",
-          "numero de filas",
-          "ni que coincidan sus filas o su distribucion. `TABLESAMPLE SYSTEM`",
-          "selecciona bloques o paginas y puede devolver un tamano variable,",
-          "como los 15.708 a 20.000 medidos; `random_limit`/`NEWID()` decide",
-          "por fila, ordena la tabla y puede devolver el tamano pedido a un costo",
-          "mucho mayor. Por eso los resultados de consultas distintas no deben",
-          "compararse como si fueran replicas del mismo muestreo. Para hablar de",
-          "las mismas filas, se debe usar la misma consulta consolidada o",
-          "`perfil_muestra`; el perfilado es solo lectura y no materializa una",
-          "tabla intermedia."
-        )
-      } else {
-        NA_character_
-      },
+      # En `muestra_motor` la relacion muestreada tiene una sola identidad: la
+      # del spool externo que se abre antes de las pasadas. Este campo histórico
+      # ya no se publica; el contrato legible vive en `meta$materializacion` y
+      # en `meta$muestreo`, donde `muestra_id` no se confunde con un id de
+      # consulta SQL.
       solo_lectura = TRUE,
       objetos_temporales = FALSE,
       snapshot = FALSE,
@@ -9186,6 +9157,16 @@
 #' y procesar 12,8 millones aproximadamente 19 GB. El problema observado está
 #' en el procesamiento en R, no en la red ni en el motor.
 #'
+#' Para `universo = "muestra_motor"`, el plan declara una única selección que
+#' se pagará para cerrar el spool externo de sesión cliente. `attr(plan,
+#' "materializacion")` publica `pagado = FALSE`, backend, versión, presupuesto,
+#' result set, fetches esperados, filas y bytes; `attr(plan, "pasadas")` declara
+#' que valor, índice y LSH leerán el mismo spool. La referencia medida para
+#' justificar este costo es PostgreSQL 16, 2 millones de filas: 10.000, 100.000
+#' y 500.000 filas dieron 0,448/1,684/5,598 s con spool frente a
+#' 0,814/2,178/3,265 s reordenando cada pasada; el cruce está entre 100.000 y
+#' 500.000, y la elección prioriza identidad.
+#'
 #' @inheritParams perfilar_dbi
 #' @param bloque_filas En la via I1, entero positivo que activa la fuente por
 #'   bloques de `tabla_completa`. Cada bloque se obtiene con un unico result
@@ -9321,13 +9302,21 @@ plan_perfilado_dbi <- function(conexion, tabla,
                                umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
                                max_celdas_muestra = .MAX_CELDAS_MUESTRA,
                                max_bytes_muestra = .MAX_BYTES_MUESTRA,
-                               bloque_filas = NULL) {
+                               bloque_filas = NULL,
+                               max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
+                               max_bytes_materializacion = .MAX_BYTES_MUESTRA) {
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
   max_celdas_muestra <- .validar_limite_duplicados(
     max_celdas_muestra, "max_celdas_muestra"
   )
   max_bytes_muestra <- .validar_limite_duplicados(
     max_bytes_muestra, "max_bytes_muestra"
+  )
+  max_bytes_procesamiento <- .validar_presupuesto_bytes_dbi(
+    max_bytes_procesamiento, "max_bytes_procesamiento"
+  )
+  max_bytes_materializacion <- .validar_presupuesto_bytes_dbi(
+    max_bytes_materializacion, "max_bytes_materializacion"
   )
   preparacion <- .preparar_dbi(
     conexion = conexion, tabla = tabla, universo = universo,
@@ -9344,7 +9333,9 @@ plan_perfilado_dbi <- function(conexion, tabla,
     incluir_valores = incluir_valores,
     estrategia_distintos = estrategia_distintos,
     politica_costo = politica_costo,
-    umbral_cardinalidad = umbral_cardinalidad
+    umbral_cardinalidad = umbral_cardinalidad,
+    max_bytes_procesamiento = max_bytes_procesamiento,
+    max_bytes_materializacion = max_bytes_materializacion
   )
   filas_plan <- .filas_plan_dbi(preparacion)
   es_numerico <- vapply(seq_along(preparacion$campos), function(i) {
@@ -9595,6 +9586,22 @@ plan_perfilado_dbi <- function(conexion, tabla,
       preparacion$muestra
     )
   }
+  if (identical(preparacion$universo, "muestra_motor")) {
+    spool_plan <- .plan_materializacion_spool_dbi(
+      conexion, preparacion, max_bytes_materializacion
+    )
+    attr(plan, "materializacion") <- spool_plan
+    attr(plan, "pasadas") <- spool_plan$pasadas
+    attr(plan, "max_bytes_procesamiento") <- max_bytes_procesamiento
+    attr(plan, "max_bytes_materializacion") <- max_bytes_materializacion
+    attr(plan, "costo_materializacion") <- spool_plan$costo
+    costo_plan <- attr(plan, "costo", exact = TRUE)
+    if (is.null(costo_plan) || !is.list(costo_plan)) costo_plan <- list()
+    costo_plan$materializacion <- spool_plan$costo
+    costo_plan$seleccion_unica <- spool_plan$seleccion_unica
+    costo_plan$spool <- "una seleccion; lecturas posteriores en cliente"
+    attr(plan, "costo") <- costo_plan
+  }
   class(plan) <- unique(c("plan_perfilado_dbi", class(plan)))
   plan
 }
@@ -9642,6 +9649,18 @@ print.plan_perfilado_dbi <- function(x, ...) {
     .miles_dbi(attr(x, "columnas", exact = TRUE)), " columnas (dialecto ",
     attr(x, "dialecto", exact = TRUE), ")"
   ))
+  spool_plan <- attr(x, "materializacion", exact = TRUE)
+  if (is.list(spool_plan)) {
+    cli::cli_text(
+      "Muestra: una seleccion materializada en spool externo de sesion cliente;",
+      " resultsets = ", spool_plan$costo$resultsets,
+      ", presupuesto = ", .miles_dbi(spool_plan$presupuesto), " bytes."
+    )
+    cli::cli_text(
+      "Spool pagado: ", isTRUE(spool_plan$pagado),
+      "; los bloques y pasadas leen el mismo `muestra_id` cuando se materializa."
+    )
+  }
   fuente_plan <- attr(x, "fuente", exact = TRUE)
   if (is.list(fuente_plan) && !is.null(fuente_plan$metodo_orden)) {
     estado_capacidad <- if (isTRUE(fuente_plan$disponible)) {
@@ -10653,8 +10672,16 @@ print.plan_perfilado_dbi <- function(x, ...) {
                           politica_costo = "todas",
                           umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
                           contar_muestreo = TRUE,
-                          sondar_muestreo = TRUE) {
+                          sondar_muestreo = TRUE,
+                          max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
+                          max_bytes_materializacion = .MAX_BYTES_MUESTRA) {
   .requerir_dbi()
+  max_bytes_procesamiento <- .validar_presupuesto_bytes_dbi(
+    max_bytes_procesamiento, "max_bytes_procesamiento"
+  )
+  max_bytes_materializacion <- .validar_presupuesto_bytes_dbi(
+    max_bytes_materializacion, "max_bytes_materializacion"
+  )
   universo <- match.arg(universo, c("tabla_completa", "muestra_motor"))
   estrategia_mediana <- match.arg(
     estrategia_mediana, c("exacta", "aproximada_motor")
@@ -11128,6 +11155,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
     ),
     orden_sql = orden_sql,
     orden_muestra = orden_muestra, dialecto = resolucion$dialecto,
+    max_bytes_procesamiento = max_bytes_procesamiento,
+    max_bytes_materializacion = max_bytes_materializacion,
     resolucion = resolucion, campos_declarados = campos_declarados,
     lista_campos = lista_campos
   )
@@ -11136,16 +11165,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' Perfilar una muestra leída mediante DBI
 #'
 #' Calcula en SQL un resumen sobre la tabla completa o sobre una relación
-#' muestreada por el motor, según `universo`, y, por omisión, en un bloque separado
-#' ejecuta [perfilar()] sobre una muestra traída a memoria. El resumen completo
-#' de 109 campos analíticos además del nombre de la columna no se presenta como
-#' calculado por la base: esos campos pertenecen exclusivamente a
-#' `perfil_muestra` y su universo es la muestra.
-#' `bloque_muestra = "solo_agregados"` permite omitir esa lectura y pedir sólo
-#' los agregados SQL.
+#' muestreada por el motor, según `universo`. Con `universo = "muestra_motor"`
+#' ejecuta una sola selección y la materializa en un spool externo de la sesión
+#' cliente; el resumen y [perfilar()] leen esa misma materialización.
+#' `bloque_muestra = "solo_agregados"` sigue omitiendo el objeto
+#' `perfil_muestra`, pero no vuelve a seleccionar filas.
 #'
-#' Esta función no escribe en la conexión ni crea objetos temporales. `DBI` es
-#' una dependencia opcional. Cada agregado no disponible queda en `NA` y su
+#' Antes, la promesa era literalmente: "la función no escribe en la conexión ni
+#' crea objetos temporales". Ahora es: "no escribe en la conexión ni crea
+#' objetos temporales del motor; `muestra_motor` puede crear un spool externo
+#' temporal de sesión, con bytes, checksum, presupuesto y estado". `DBI` es una
+#' dependencia opcional. Cada agregado no disponible queda en `NA` y su
 #' consulta, estado y motivo se conservan en `resumen_tabla$sql`.
 #' Las expresiones se ejecutan como capacidades a comprobar, no como un
 #' dialecto SQL universal.
@@ -11166,7 +11196,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.
 #' Si se omite el bloque con `bloque_muestra = "solo_agregados"`, la cobertura
 #' usa el estado `no_solicitado`: no es un fallo ni se cuenta como una métrica
-#' no disponible.
+#' no disponible. En `muestra_motor`, la selección materializada se hace una
+#' sola vez antes de las pasadas; el spool se relee y se verifica mediante su
+#' trailer. Un trailer ausente publica
+#' `spool_incompleto:trailer_ausente`; un trailer o checksum que no coincide
+#' publica `spool_checksum_invalido`.
 #'
 #' @section Fallo parcial:
 #' Ningún bloque descarta al otro. Si se pide la muestra pero el motor rechaza su
@@ -11191,9 +11225,17 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `metodo` y `error_esperado`. En `resumen_tabla$meta$muestreo`,
 #' `tamano_muestra` conserva el nombre historico y declara el tamano efectivo
 #' solicitado a la consulta; `filas_solicitadas` y `filas_pedidas` declaran el
-#' pedido original y `filas_obtenidas` las filas que devolvio la lectura del bloque
-#' `perfil_muestra`. Esta ultima puede ser `NA` si el bloque no se solicito o
-#' fallo antes de leer.
+#' pedido original y `filas_obtenidas` las filas que devolvio el spool. La
+#' materializacion publica `muestra_id`, `snapshot_id`, `orden_id`, `n_filas`,
+#' `bytes`, `checksum`, backend, version y presupuesto en
+#' `meta$materializacion`; las pasadas publican el mismo `muestra_id`.
+#' El contrato de `perfil_muestra` es campo por campo: `meta$filas_analizadas`
+#' es la cantidad efectivamente entregada a los diagnósticos; `hallazgos` solo
+#' contiene familias disponibles; y `cobertura_diagnosticos` tiene una fila por
+#' familia no evaluada. `meta$origen_dbi$muestreo` conserva filas solicitadas,
+#' entregadas, reproducibilidad, `muestra_id`, `snapshot_id` y checksum. El
+#' método de impresión remite a esa cobertura cuando el campo no está
+#' disponible; no reemplaza la ausencia con `NULL` silencioso.
 #' En `muestra_motor`, todas las metricas SQL salvo `n` describen la relacion
 #' muestreada; `n` es el total de la tabla completa y esta marcado con
 #' `alcance = "tabla_completa"`, `metodo = "conteo_universo"` y
@@ -11259,7 +11301,9 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `frecuencia_moda <= n_validos` se comprueba dentro de la misma sentencia y
 #' el motivo de la métrica lo declara.
 #' `meta$snapshot` queda en `FALSE`, siguiendo la declaracion de colecciones: no
-#' hubo lectura instantanea. La cobertura agrega una entrada concreta solo si
+#' hubo lectura instantanea del motor. `snapshot_id` identifica positivamente la
+#' materializacion cliente, pero solo se publica evidencia positiva de snapshot
+#' transaccional cuando el adaptador la demuestra. La cobertura agrega una entrada concreta solo si
 #' `n_validos` y `n_distintos` son exactos, incoherentes y provienen de grupos
 #' distintos; su motivo conserva ambas sentencias.
 #' La mediana muestral que no tiene una forma consolidada o escalar usa una
@@ -11395,7 +11439,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' `nivel = 1` y sus repeticiones en `nivel = 2`. Por eso una suma segura usa
 #' sólo `duracion_ms[nivel == 1]` (con `na.rm = TRUE` si corresponde), no la
 #' columna completa.
-#' `id_muestra` identifica la consulta de datos que produjo la medición: dos
+#' `id_consulta` identifica la consulta de datos que produjo la medición: dos
 #' métricas con el mismo identificador vieron exactamente las mismas filas y se
 #' pueden comparar directamente. `NA` declara que esa garantía no se puede
 #' hacer; en particular, las métricas por columna —moda, frecuencia de la moda
@@ -11496,6 +11540,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   resto. Si reduce la muestra, `cobertura_diagnosticos` informa los bytes
 #'   observados, el umbral y cuál tope mandó. `Inf` desactiva este tope. No
 #'   modifica los agregados SQL.
+#' @param max_bytes_procesamiento Límite de bytes del estado retenido por el
+#'   procesamiento por bloques y por la lectura del spool en R. Se comprueba
+#'   antes de publicar un bloque o una pasada; `Inf` desactiva este límite.
+#' @param max_bytes_materializacion Presupuesto de bytes del spool externo de
+#'   `muestra_motor`. Se mide por chunk antes de cada escritura, dejando espacio
+#'   para el trailer; si no alcanza, se publica
+#'   `spool_presupuesto_excedido` y
+#'   `muestra_inestable:presupuesto_materializacion` sin mezclar una muestra
+#'   parcial con resultados completos. `Inf` desactiva este límite.
 #' @param bloque_filas En la via I1, entero positivo que activa el recorrido de
 #'   `tabla_completa` por bloques. Se abre un unico result set con
 #'   `dbSendQuery()` y cada bloque se lee con `dbFetch(n = bloque_filas)` antes
@@ -11642,7 +11695,7 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `n_filas_resultado`, `bytes_resultado_r`, `consulta_id`, `etapa` y `nivel`
 #'   a `resumen_tabla$sql`, y el resumen `resumen_tabla$tiempos`. Con `FALSE` se
 #'   conserva el mismo plan, la misma cantidad y el mismo orden de consultas,
-#'   pero los campos medibles quedan en `NA`. `id_muestra` **no** depende de
+#'   pero los campos medibles quedan en `NA`. `id_consulta` **no** depende de
 #'   esta opcion: no es una medicion sino un hecho estructural sobre que
 #'   consulta produjo cada metrica, y se publica igual con `FALSE`. Las
 #'   duraciones usan `Sys.time()` y el CPU del cliente usa la suma de
@@ -11706,6 +11759,8 @@ perfilar_dbi <- function(conexion, tabla,
                          max_celdas_muestra = .MAX_CELDAS_MUESTRA,
                          max_bytes_muestra = .MAX_BYTES_MUESTRA,
                          bloque_filas = NULL,
+                         max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
+                         max_bytes_materializacion = .MAX_BYTES_MUESTRA,
                          ...) {
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
   max_celdas_muestra <- .validar_limite_duplicados(
@@ -11713,6 +11768,12 @@ perfilar_dbi <- function(conexion, tabla,
   )
   max_bytes_muestra <- .validar_limite_duplicados(
     max_bytes_muestra, "max_bytes_muestra"
+  )
+  max_bytes_procesamiento <- .validar_presupuesto_bytes_dbi(
+    max_bytes_procesamiento, "max_bytes_procesamiento"
+  )
+  max_bytes_materializacion <- .validar_presupuesto_bytes_dbi(
+    max_bytes_materializacion, "max_bytes_materializacion"
   )
   avisar_costo_distintos <- .validar_interruptor_aviso_dbi(
     avisar_costo_distintos, "avisar_costo_distintos"
@@ -11753,8 +11814,19 @@ perfilar_dbi <- function(conexion, tabla,
     incluir_valores = incluir_valores,
     estrategia_distintos = estrategia_distintos,
     politica_costo = politica_costo,
-    umbral_cardinalidad = umbral_cardinalidad
+    umbral_cardinalidad = umbral_cardinalidad,
+    max_bytes_procesamiento = max_bytes_procesamiento,
+    max_bytes_materializacion = max_bytes_materializacion
   )
+  if (identical(preparacion$universo, "muestra_motor")) {
+    return(.perfil_muestra_spool_dbi(
+      conexion = conexion, tabla = tabla, preparacion = preparacion,
+      incluir_valores = incluir_valores, bloque_filas = bloque_filas,
+      max_bytes_procesamiento = max_bytes_procesamiento,
+      max_bytes_materializacion = max_bytes_materializacion,
+      argumentos = list(...)
+    ))
+  }
   if (!is.null(bloque_filas)) {
     return(.perfilar_dbi_bloques(
       conexion = conexion, tabla = tabla, preparacion = preparacion,
@@ -11762,7 +11834,8 @@ perfilar_dbi <- function(conexion, tabla,
       incluir_valores = incluir_valores, bloque_filas = bloque_filas,
       max_celdas_muestra = max_celdas_muestra,
       max_bytes_muestra = max_bytes_muestra,
-      argumentos = list(...)
+      argumentos = list(...),
+      max_bytes_procesamiento = max_bytes_procesamiento
     ))
   }
   presupuesto <- preparacion$presupuesto
@@ -12342,7 +12415,10 @@ perfilar_dbi <- function(conexion, tabla,
 #' @export
 print.perfil_dbi <- function(x, ...) {
   meta <- x$resumen_tabla$meta
-  alcance <- if (identical(meta$alcance, "tabla_muestreada")) {
+  alcance <- if (identical(meta$alcance, "tabla_muestreada") ||
+                 identical(meta$alcance_texto, "tabla_muestreada") ||
+                 (is.list(meta$alcance) &&
+                  identical(meta$alcance$universo_id, "muestra_motor"))) {
     "tabla muestreada"
   } else {
     "tabla completa"

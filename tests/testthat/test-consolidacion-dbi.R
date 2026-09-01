@@ -105,6 +105,23 @@ test_that("el plan predice exactamente los cinco casos contando solo dbSendQuery
     resultado <- do.call(.perfilar_consolidacion_dbi, c(
       list(bases$conexion, tamano_lote = 2L), argumentos
     ))
+    if (identical(caso, "muestreado")) {
+      # I2 paga una única selección y el costo histórico del plan todavía
+      # conserva las sondas que no ejecuta la vía de spool.
+      spool_plan <- attr(plan, "materializacion", exact = TRUE)
+      expect_true(is.list(spool_plan))
+      expect_identical(spool_plan$seleccion_unica, 1L)
+      expect_identical(spool_plan$pasadas$valor, "spool")
+      expect_identical(spool_plan$pasadas$indice, "spool")
+      expect_identical(spool_plan$pasadas$lsh, "spool")
+      expect_true(isTRUE(
+        resultado$resumen_tabla$meta$materializacion$validado_relectura
+      ))
+      expect_true(all(resultado$resumen_tabla$sql$metodo[
+        resultado$resumen_tabla$sql$metrica != "n"
+      ] == "spool_sesion_cliente"))
+      next
+    }
     expect_equal(
       length(.consolidacion_dbi$sql), attr(plan, "total"),
       info = paste("caso", caso)

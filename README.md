@@ -464,12 +464,27 @@ its own tests.
 `resumen_tabla$sql` keeps **one row per column and metric** with every field it
 had, and adds `lote` and `columnas_compartidas` so a shared query is visible. It
 also adds `consulta_id`, which identifies the statement that produced each
-measurement and defines the verifiable consistency group. `id_muestra` also
-identifies the data query and preserves the guarantee that two metrics with the
-same value saw exactly the same rows. Per-column metrics — moda, mode
-frequency, and median — leave `id_muestra = NA`, because they do not share rows
-with other metrics; `NA` declares that there is no guarantee rather than
-inventing a match.
+measurement and defines the verifiable consistency group. The inherited query
+field is now named `id_consulta`, without an alias; it identifies
+the data query. `muestra_id` is reserved for the materialized relationship and
+is published in `meta$materializacion`, never as a second name for the query
+identifier.
+
+For `universo = "muestra_motor"`, the engine selection is materialized exactly
+once in an external client-session spool. Its trailer verifies `muestra_id`,
+`snapshot_id`, `orden_id`, `n_filas`, `bytes` and checksum on reread. Every
+profile pass reads that spool; it never re-samples the engine. A chunk is checked
+against `max_bytes_materializacion` before writing, and an excess publishes
+`spool_presupuesto_excedido` plus
+`muestra_inestable:presupuesto_materializacion`, with no hybrid result. The
+spool does not write to the DBI connection or create temporary engine objects.
+`meta$materializacion` records backend, version, checksum, bytes and budget.
+The measured crossover is part of the declared cost, not a speed promise:
+against PostgreSQL 16 with 2 million rows, a 500,000-row sample took about
+5.6 s with the spool versus 3.3 s when every pass re-sorted independently; the
+spool is chosen for identity and bounded reuse. Across 10,000, 100,000 and
+500,000 rows, spool totals were 0.448, 1.684 and 5.598 s, while independent
+re-sorts were 0.814, 2.178 and 3.265 s (crossover between 100,000 and 500,000).
 
 The same SQL audit includes `memoria_trabajo`: `creciente`, `acotado`, or `NA`,
 to flag work that should not be recomputed incrementally over a larger table.
@@ -837,7 +852,7 @@ processing in R, not the network or the database engine.
 | defaults | every metric over the whole table |
 | `metricas = c("validos", "basicos", "desvio")` | the historical `seguro` preset |
 | `metricas = "validos"` | the historical `conteos` preset |
-| `universo = "muestra_motor"` | metrics over rows sampled **in the engine**: `TABLESAMPLE` where it exists, a pseudo-random order with a limit where it does not |
+| `universo = "muestra_motor"` | one engine selection materialized in a client spool; `TABLESAMPLE` or a pseudo-random limited source is read once and reused |
 | `estrategia_mediana = "aproximada_motor"` | exact native first, approximate only at the end; only an executed approximation is `estimado` |
 
 Every sampled or approximated metric travels saying so. `estado` distinguishes

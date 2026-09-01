@@ -779,9 +779,26 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
         stop("el perfil no trae `resumen_tabla$columnas`", call. = FALSE)
       }
       muestra_perfil <- perfil$perfil_muestra
+      cobertura_filas_analizadas <- .cobertura_dbi_vacia()
+      if (!is.null(muestra_perfil) &&
+          (is.null(muestra_perfil$meta) ||
+           !"filas_analizadas" %in% names(muestra_perfil$meta))) {
+        # Un perfil presente sin este campo no permite afirmar cuantas filas
+        # vio el consumidor. No se convierte en NULL silenciosamente: la
+        # ausencia queda en la misma cobertura que el resto de la via DBI.
+        cobertura_filas_analizadas <- .registro_cobertura_dbi(
+          "perfil_muestra", fila$identificador, "no_disponible",
+          "no_disponible:perfil_muestra_filas_analizadas_ausente",
+          paste(
+            "El perfil de muestra no declara `meta$filas_analizadas`; no se",
+            "puede resumir su cobertura sin inventar el denominador."
+          )
+        )
+      }
       list(
         filas = resumen$meta$filas,
-        analizadas = if (is.null(muestra_perfil)) {
+        analizadas = if (is.null(muestra_perfil) ||
+                         nrow(cobertura_filas_analizadas)) {
           NA_real_
         } else {
           muestra_perfil$meta$filas_analizadas
@@ -790,9 +807,9 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
         n_columnas = nrow(resumen$columnas),
         # Se lee ANTES de descartar el perfil: es la unica oportunidad.
         sql = resumen$sql,
-        cobertura_muestra = resumen$cobertura[
+        cobertura_muestra = rbind(resumen$cobertura[
           resumen$cobertura$bloque == "perfil_muestra", , drop = FALSE
-        ]
+        ], cobertura_filas_analizadas)
       )
     }, error = function(e) e)
     if (inherits(piezas, "condition")) {

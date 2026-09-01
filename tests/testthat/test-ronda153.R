@@ -47,7 +47,7 @@ setMethod(
 
 .ronda153_sin_instrumentacion <- function(x) {
   campos <- c(
-    "sql", "lote", "columnas_compartidas", "id_muestra", "consulta_id",
+    "sql", "lote", "columnas_compartidas", "id_consulta", "consulta_id",
     "etapa", "nivel", "duracion_ms", "n_filas_resultado", "bytes_resultado_r",
     "cpu_ms", "derrame", "bloques_temporales_leidos",
     "bloques_temporales_escritos", "fuente_derrame", "llamadas_en_ventana"
@@ -110,6 +110,43 @@ test_that("la fusion conserva la salida en los cinco casos con y sin ausentes", 
     for (caso in casos_api) {
       nuevo <- .ronda153_perfil(fusionada$conexion, 4L, caso)
       referencia <- .ronda153_perfil(unitaria$conexion, 1L, caso)
+      if (identical(caso, "muestreado")) {
+        # La selección única vive en un spool de sesión, pero el motor no
+        # demuestra que el orden de una muestra aleatoria sea reproducible.
+        # Dos corridas pueden diferir en checksum, ejemplos y valores vistos;
+        # la comparación válida es la forma y el estado del contrato.
+        expect_equal(
+          names(nuevo$resumen_tabla$columnas),
+          names(referencia$resumen_tabla$columnas),
+          info = paste(nombre, caso, "columnas")
+        )
+        expect_equal(
+          nrow(nuevo$resumen_tabla$columnas),
+          nrow(referencia$resumen_tabla$columnas),
+          info = paste(nombre, caso, "filas columnas")
+        )
+        expect_true(isTRUE(
+          nuevo$resumen_tabla$meta$materializacion$validado_relectura
+        ))
+        expect_true(isTRUE(
+          referencia$resumen_tabla$meta$materializacion$validado_relectura
+        ))
+        expect_identical(
+          nuevo$resumen_tabla$meta$materializacion$estado,
+          "cerrada_verificada"
+        )
+        expect_identical(
+          referencia$resumen_tabla$meta$materializacion$estado,
+          "cerrada_verificada"
+        )
+        expect_true(all(nuevo$resumen_tabla$sql$metodo[
+          nuevo$resumen_tabla$sql$metrica != "n"
+        ] == "spool_sesion_cliente"))
+        expect_true(all(referencia$resumen_tabla$sql$metodo[
+          referencia$resumen_tabla$sql$metrica != "n"
+        ] == "spool_sesion_cliente"))
+        next
+      }
       expect_identical(
         .ronda153_sin_instrumentacion(nuevo),
         .ronda153_sin_instrumentacion(referencia),
@@ -149,6 +186,21 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
     .ronda153_estado$sql <- character()
     resultado <- .ronda153_perfil(conexion$conexion, 4L, caso)
     sql <- .ronda153_estado$sql
+    if (identical(caso, "muestreado")) {
+      spool_plan <- attr(plan, "materializacion", exact = TRUE)
+      expect_true(is.list(spool_plan))
+      expect_identical(spool_plan$seleccion_unica, 1L)
+      expect_identical(spool_plan$pasadas$valor, "spool")
+      expect_identical(spool_plan$pasadas$indice, "spool")
+      expect_identical(spool_plan$pasadas$lsh, "spool")
+      expect_equal(sum(grepl("LIMIT 12$", sql)), 1L)
+      sql_registros <- resultado$resumen_tabla$sql
+      expect_gt(sum(sql_registros$metodo == "spool_sesion_cliente"), 0L)
+      expect_equal(length(unique(sql_registros$id_consulta[
+        sql_registros$metodo == "spool_sesion_cliente"
+      ])), 1L)
+      next
+    }
     cantidad_count <- vapply(
       gregexpr("COUNT\\(", sql, perl = TRUE),
       function(x) if (identical(x, -1L)) 0L else length(x), integer(1L)
@@ -174,38 +226,24 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
       gregexpr("FROM `tabla_prueba`", sql, fixed = TRUE),
       function(x) if (identical(x, -1L)) 0L else length(x), integer(1L)
     ))
-    # En la tabla completa, el denominador local comparte el recorrido. El
-    # muestreo aleatorio conserva un conteo exacto como subconsulta sobre la
-    # tabla original: no abre una consulta, pero si agrega ese recorrido.
-    ahorro_recorridos <- if (identical(caso, "muestreado")) 0L else 1L
-    recorridos_esperados <- if (identical(caso, "muestreado")) {
-      length(sql) + 1L
-    } else {
-      length(sql) + 2L * sum(
-        resultado$resumen_tabla$sql$metodo == "subconsulta_escalar",
-        na.rm = TRUE
-      )
-    }
+    # En la tabla completa, el denominador local comparte el recorrido.
+    ahorro_recorridos <- 1L
+    recorridos_esperados <- length(sql) + 2L * sum(
+      resultado$resumen_tabla$sql$metodo == "subconsulta_escalar",
+      na.rm = TRUE
+    )
     expect_equal(
       recorridos_fuente, recorridos_esperados,
       info = paste("recorridos en SQL", caso)
     )
-    recorridos_antes <- if (identical(caso, "muestreado")) {
-      recorridos_fuente
-    } else {
-      recorridos_fuente + 1L
-    }
+    recorridos_antes <- recorridos_fuente + 1L
     expect_equal(
       recorridos_antes - recorridos_fuente, ahorro_recorridos,
       info = paste("recorridos comparables", caso)
     )
-    if (identical(caso, "muestreado")) {
-      expect_true(any(grepl("(SELECT COUNT(*) FROM", sql, fixed = TRUE)))
-    } else {
-      expect_true(any(grepl(
-        "COUNT(*) AS `n_total_consulta`", sql, fixed = TRUE
-      )))
-    }
+    expect_true(any(grepl(
+      "COUNT(*) AS `n_total_consulta`", sql, fixed = TRUE
+    )))
     mediciones[[caso]] <- c(
       plan = as.integer(attr(plan, "total")),
       actual = length(sql),
@@ -276,18 +314,18 @@ test_that("el identificador sólo reúne métricas de una misma consulta", {
     "n_validos", "n_faltantes", "prop_faltantes", "minimo", "maximo",
     "media", "n_ceros", "n_negativos", "desvio"
   ) & sql$estado == "calculado", , drop = FALSE]
-  expect_true(all(!is.na(planos$id_muestra)))
-  expect_equal(length(unique(planos$id_muestra)), 2L)
-  expect_true(all(!is.na(sql$id_muestra[sql$metrica == "n_distintos"])))
-  expect_true(all(is.na(sql$id_muestra[sql$metrica %in% c(
+  expect_true(all(!is.na(planos$id_consulta)))
+  expect_equal(length(unique(planos$id_consulta)), 2L)
+  expect_true(all(!is.na(sql$id_consulta[sql$metrica == "n_distintos"])))
+  expect_true(all(is.na(sql$id_consulta[sql$metrica %in% c(
     "moda", "frecuencia_moda", "mediana"
   )])))
-  expect_true(all(is.na(sql$id_muestra[sql$estado == "no_disponible"])))
-  expect_true(all(is.na(sql$id_muestra[is.na(sql$sql)])))
-  con_id <- split(sql$sql[!is.na(sql$id_muestra)], sql$id_muestra[!is.na(sql$id_muestra)])
+  expect_true(all(is.na(sql$id_consulta[sql$estado == "no_disponible"])))
+  expect_true(all(is.na(sql$id_consulta[is.na(sql$sql)])))
+  con_id <- split(sql$sql[!is.na(sql$id_consulta)], sql$id_consulta[!is.na(sql$id_consulta)])
   expect_true(all(vapply(con_id, function(x) length(unique(x)) == 1L, logical(1L))))
-  for (id in unique(planos$id_muestra)) {
-    filas <- planos[planos$id_muestra == id, , drop = FALSE]
+  for (id in unique(planos$id_consulta)) {
+    filas <- planos[planos$id_consulta == id, , drop = FALSE]
     expect_gt(length(unique(filas$columna)), 1L)
   }
 })
@@ -319,17 +357,17 @@ test_that("el identificador de muestra no depende del cronometro", {
     bloque_muestra = "solo_agregados", instrumentar = FALSE
   )$resumen_tabla$sql
 
-  expect_true("id_muestra" %in% names(sin_reloj))
+  expect_true("id_consulta" %in% names(sin_reloj))
   expect_identical(
-    sum(!is.na(sin_reloj$id_muestra)), sum(!is.na(con_reloj$id_muestra))
+    sum(!is.na(sin_reloj$id_consulta)), sum(!is.na(con_reloj$id_consulta))
   )
-  expect_gt(sum(!is.na(sin_reloj$id_muestra)), 0L)
+  expect_gt(sum(!is.na(sin_reloj$id_consulta)), 0L)
 
   # Y el contrato sigue valiendo sin cronometro: mismo identificador, misma
   # consulta, en los dos sentidos.
-  con_id <- sin_reloj[!is.na(sin_reloj$id_muestra) & !is.na(sin_reloj$sql), , drop = FALSE]
-  por_id <- split(con_id$sql, con_id$id_muestra)
+  con_id <- sin_reloj[!is.na(sin_reloj$id_consulta) & !is.na(sin_reloj$sql), , drop = FALSE]
+  por_id <- split(con_id$sql, con_id$id_consulta)
   expect_true(all(vapply(por_id, function(g) length(unique(g)) == 1L, logical(1L))))
-  por_sql <- split(con_id$id_muestra, con_id$sql)
+  por_sql <- split(con_id$id_consulta, con_id$sql)
   expect_true(all(vapply(por_sql, function(g) length(unique(g)) == 1L, logical(1L))))
 })

@@ -32,7 +32,7 @@ test_that("sin evidencia del motor, la disyuncion se mantiene", {
   }
 })
 
-test_that("el objeto declara que las metricas muestreadas no comparten filas", {
+test_that("el objeto declara la unica materializacion muestreada", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("RSQLite")
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
@@ -45,14 +45,12 @@ test_that("el objeto declara que las metricas muestreadas no comparten filas", {
     meta <- do.call(
       perfilar_dbi, c(list(con, "t"), argumentos)
     )$resumen_tabla$meta
-    expect_false(is.na(meta$muestras_independientes))
-    # El alcance del muestreo es por consulta, no por perfilado: las columnas
-    # que comparten una consulta consolidada se miden sobre las MISMAS filas, y
-    # las de consultas distintas no. Las dos mitades tienen que estar dichas.
-    expect_match(meta$muestras_independientes, "MISMAS filas")
-    expect_match(meta$muestras_independientes, "muestras\\s+distintas")
-    expect_match(meta$muestras_independientes, "columnas_compartidas")
-    expect_match(meta$muestras_independientes, "perfil_muestra")
+    expect_true(is.list(meta$materializacion))
+    expect_true(isTRUE(meta$materializacion$externo))
+    expect_true(isTRUE(meta$materializacion$validado_relectura))
+    expect_true(nzchar(meta$materializacion$muestra_id))
+    expect_equal(meta$materializacion$muestra_id, meta$muestreo$muestra_id)
+    expect_equal(meta$materializacion$checksum, meta$muestreo$checksum)
   }
   # La aproximacion de medianas es ahora una estrategia del motor sobre la
   # tabla completa, no un sinonimo de muestreo; por eso tampoco activa este
@@ -63,6 +61,6 @@ test_that("el objeto declara que las metricas muestreadas no comparten filas", {
     meta <- do.call(
       perfilar_dbi, c(list(con, "t"), argumentos)
     )$resumen_tabla$meta
-    expect_true(is.na(meta$muestras_independientes))
+    expect_true(is.null(meta$materializacion))
   }
 })

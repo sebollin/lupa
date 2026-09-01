@@ -479,12 +479,28 @@ legibles. La degradación tiene sus propios tests.
 `resumen_tabla$sql` conserva **una fila por columna y métrica** con todos sus
 campos, y agrega `lote` y `columnas_compartidas` para que se vea cuál consulta
 fue compartida. También agrega `consulta_id`, que identifica la sentencia que
-produjo cada medición y define el grupo de consistencia comprobable. `id_muestra`
-identifica además la consulta de datos y conserva la garantía de que dos
-métricas con el mismo valor vieron exactamente las mismas filas. Las métricas
-por columna —moda, frecuencia de la moda y mediana— dejan `id_muestra = NA`,
-porque no comparten filas con otras métricas; `NA` declara que no hay garantía,
-no que se haya inventado una coincidencia.
+produjo cada medición y define el grupo de consistencia comprobable. El campo
+heredado de consulta ahora se llama `id_consulta`, sin alias: identifica la
+consulta de datos. `muestra_id` queda reservado para la relación materializada
+y se publica en `meta$materializacion`, nunca como segundo nombre del id de
+consulta.
+
+Con `universo = "muestra_motor"`, la selección del motor se materializa una
+sola vez en un spool externo de la sesión cliente. Su trailer verifica
+`muestra_id`, `snapshot_id`, `orden_id`, `n_filas`, `bytes` y checksum en la
+relectura. Todo el perfil lee ese spool; nunca vuelve a muestrear el motor. Cada
+chunk se compara con `max_bytes_materializacion` antes de escribir y un exceso
+publica `spool_presupuesto_excedido` junto con
+`muestra_inestable:presupuesto_materializacion`, sin resultado híbrido. El spool
+no escribe en la conexión DBI ni crea objetos temporales del motor.
+`meta$materializacion` conserva backend, versión, checksum, bytes y presupuesto.
+
+El punto de cruce medido se declara como costo, no como promesa de velocidad:
+en PostgreSQL 16 y 2 millones de filas, una muestra de 500.000 tardó unos
+5,6 s con spool frente a 3,3 s reordenando en cada pasada; se elige spool por
+identidad y reutilización acotada. Para 10.000, 100.000 y 500.000 filas, los
+totales con spool fueron 0,448, 1,684 y 5,598 s, frente a 0,814, 2,178 y 3,265
+s reordenando (cruce entre 100.000 y 500.000).
 
 La misma auditoría SQL incluye `memoria_trabajo`: `creciente`, `acotado` o `NA`,
 para señalar qué trabajo no conviene recalcular incrementalmente sobre una tabla
@@ -865,7 +881,7 @@ en el procesamiento en R, no en la red ni en el motor.
 | valores por omisión | todas las métricas exactas sobre la tabla entera |
 | `metricas = c("validos", "basicos", "desvio")` | el preset histórico `seguro` |
 | `metricas = "validos"` | el preset histórico `conteos` |
-| `universo = "muestra_motor"` | métricas sobre filas muestreadas **en el motor**: `TABLESAMPLE` donde existe, un orden pseudoaleatorio con límite donde no |
+| `universo = "muestra_motor"` | una selección del motor materializada en spool cliente; `TABLESAMPLE` u otra fuente limitada se lee una vez y se reutiliza |
 | `estrategia_mediana = "aproximada_motor"` | prueba exacto nativo primero y aproximado sólo al final; sólo publica `estimado` si ejecutó una aproximación |
 
 Toda métrica muestreada o aproximada viaja diciéndolo. `estado` distingue

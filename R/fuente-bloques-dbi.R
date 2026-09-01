@@ -604,8 +604,16 @@
 }
 
 .familias_fuente_bloques_dbi <- function(metricas, campos, prototipo, tipos,
-                                         incluir_valores = TRUE) {
+                                         incluir_valores = TRUE,
+                                         max_bytes_procesamiento =
+                                           .MAX_BYTES_ESTADO_BLOQUES) {
   salida <- list()
+  # `Inf` significa sin presupuesto de estado retenido. El acumulador de
+  # bloques conserva un tope finito por seguridad cuando se lo invoca solo;
+  # aqui la API DBI ya validó explicitamente que el usuario pidió `Inf`, por
+  # lo que no corresponde reintroducir ese tope silenciosamente.
+  max_bytes_estado <- if (is.infinite(max_bytes_procesamiento)) 1e15 else
+    max_bytes_procesamiento
   for (i in seq_along(campos)) {
     campo <- campos[[i]]
     tipo <- if (!is.null(prototipo) && i <= length(prototipo)) {
@@ -617,7 +625,7 @@
           campo, tipo, familia = "conteos",
           fuente_id = NA_character_, snapshot_id = NA_character_,
           universo_id = "tabla_completa", orden_id = NA_character_,
-          incluir_ausentes = TRUE
+          incluir_ausentes = TRUE, max_bytes = max_bytes_estado
         )
     }
     if (.tipos_textuales_fuente_dbi(
@@ -628,7 +636,8 @@
         .iniciar_acumulador(
           campo, "character", familia = "longitudes",
           fuente_id = NA_character_, snapshot_id = NA_character_,
-          universo_id = "tabla_completa", orden_id = NA_character_
+          universo_id = "tabla_completa", orden_id = NA_character_,
+          max_bytes = max_bytes_estado
         )
     }
     es_numerico <- .es_numerico_dbi(
@@ -640,7 +649,8 @@
         .iniciar_acumulador(
           campo, tipo, familia = "cuantitativos",
           fuente_id = NA_character_, snapshot_id = NA_character_,
-          universo_id = "tabla_completa", orden_id = NA_character_
+          universo_id = "tabla_completa", orden_id = NA_character_,
+          max_bytes = max_bytes_estado
         )
     }
     if ("distintos" %in% metricas) {
@@ -649,7 +659,7 @@
           campo, tipo, familia = "distintos",
           fuente_id = NA_character_, snapshot_id = NA_character_,
           universo_id = "tabla_completa", orden_id = NA_character_,
-          incluir_ausentes = FALSE
+          incluir_ausentes = FALSE, max_bytes = max_bytes_estado
         )
     }
   }
@@ -771,7 +781,7 @@
     metadatos <- .metadatos_sql_dbi(
       alcance = "tabla_completa", universo = "tabla_completa",
       metodo = "dbfetch_bloques", error_esperado = "no_aplica",
-      id_muestra = NA_integer_, columnas_compartidas = length(fuente$campos)
+      id_consulta = NA_integer_, columnas_compartidas = length(fuente$campos)
     )
     metrica <- .resumen_metrica_bloques_dbi(
       sobre, grupo, nombre, incluir_valores
@@ -812,7 +822,7 @@
         metadatos = .metadatos_sql_dbi(
           alcance = "tabla_completa", universo = "tabla_completa",
           metodo = "dbfetch_bloques", error_esperado = "no_aplica",
-          id_muestra = NA_integer_, columnas_compartidas = length(fuente$campos)
+          id_consulta = NA_integer_, columnas_compartidas = length(fuente$campos)
         ), medicion = list(consulta_id = 1L, etapa = "dbfetch_bloques")
       )
     }
@@ -838,7 +848,7 @@
         metadatos = .metadatos_sql_dbi(
           alcance = "tabla_completa", universo = "tabla_completa",
           metodo = "dbfetch_bloques", error_esperado = "no_aplica",
-          id_muestra = NA_integer_, columnas_compartidas = length(fuente$campos)
+          id_consulta = NA_integer_, columnas_compartidas = length(fuente$campos)
         ), medicion = list(consulta_id = 1L, etapa = "dbfetch_bloques")
       )
     }
@@ -884,7 +894,7 @@
           metadatos = .metadatos_sql_dbi(
             alcance = "tabla_completa", universo = "tabla_completa",
             metodo = "dbfetch_bloques", error_esperado = "no_aplica",
-            id_muestra = NA_integer_, columnas_compartidas = length(fuente$campos)
+            id_consulta = NA_integer_, columnas_compartidas = length(fuente$campos)
           ), medicion = list(consulta_id = 1L, etapa = "dbfetch_bloques")
         )
       }
@@ -911,7 +921,7 @@
         metadatos = .metadatos_sql_dbi(
           alcance = "tabla_completa", universo = "tabla_completa",
           metodo = "dbfetch_bloques", error_esperado = "no_aplica",
-          id_muestra = NA_integer_, columnas_compartidas = length(fuente$campos)
+          id_consulta = NA_integer_, columnas_compartidas = length(fuente$campos)
         ), medicion = list(consulta_id = 1L, etapa = "dbfetch_bloques")
       )
     }
@@ -1037,9 +1047,12 @@
 
 .recorrer_fuente_bloques_dbi <- function(conexion, fuente, metricas,
                                          prototipo, tipos, bloque_filas,
-                                         vigilante = NULL) {
+                                         vigilante = NULL,
+                                         max_bytes_procesamiento =
+                                           .MAX_BYTES_ESTADO_BLOQUES) {
   acumuladores <- .familias_fuente_bloques_dbi(
-    metricas, fuente$campos, prototipo, tipos
+    metricas, fuente$campos, prototipo, tipos,
+    max_bytes_procesamiento = max_bytes_procesamiento
   )
   for (nombre in names(acumuladores)) {
     acumuladores[[nombre]]$configuracion$fuente_id <- fuente$fuente_id
@@ -1219,7 +1232,9 @@
 .perfilar_dbi_bloques <- function(conexion, tabla, preparacion, metricas,
                                   incluir_valores, bloque_filas,
                                   max_celdas_muestra, max_bytes_muestra,
-                                  argumentos = list()) {
+                                  argumentos = list(),
+                                  max_bytes_procesamiento =
+                                    .MAX_BYTES_ESTADO_BLOQUES) {
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
   if (!identical(preparacion$universo, "tabla_completa")) {
     motivo <- "no_disponible:fuente_bloques_solo_tabla_completa"
@@ -1287,11 +1302,13 @@
     preparacion$bloque_muestra, preparacion$muestra
   )
   vigilante <- .iniciar_vigilante(
-    corrida_id = paste0("dbi-bloques-", as.integer(Sys.time()))
+    corrida_id = paste0("dbi-bloques-", as.integer(Sys.time())),
+    tope_bytes = max_bytes_procesamiento
   )
   recorrido <- .recorrer_fuente_bloques_dbi(
     conexion, fuente, metricas, preparacion$prototipo, preparacion$tipos,
-    bloque_filas, vigilante = vigilante
+    bloque_filas, vigilante = vigilante,
+    max_bytes_procesamiento = max_bytes_procesamiento
   )
   n_total <- recorrido$bloques$filas_vistas
   recorrido$bloques$solicitados <- if (n_total > 0) {

@@ -178,6 +178,25 @@ setMethod(
     salida
   }
 )
+setMethod(
+  "dbSendQuery", c("ConexionMuestraCortaLupa", "character"),
+  function(conn, statement, ...) {
+    es_consulta_muestra <- grepl(
+      "ORDER BY RANDOM\\(\\) LIMIT 5", statement, ignore.case = TRUE
+    )
+    statement_ejecutable <- if (
+      isTRUE(.capacidad_dbi_prueba$muestra_vacia) && es_consulta_muestra
+    ) {
+      gsub(
+        " ORDER BY RANDOM\\(\\) LIMIT 5", " WHERE 1 = 0", statement,
+        ignore.case = TRUE, perl = TRUE
+      )
+    } else if (es_consulta_muestra) {
+      sub("LIMIT 5$", "LIMIT 4", statement, ignore.case = TRUE)
+    } else statement
+    callNextMethod(conn, statement_ejecutable, ...)
+  }
+)
 
 .conexion_capacidad_dbi <- function(clase, tabla = "datos") {
   con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
@@ -205,7 +224,7 @@ setMethod(
   )
 }
 
-test_that("muestreado usa una forma declarada por el motor y marca cada estimacion", {
+test_that("muestreado materializa una seleccion y marca su cobertura", {
   con <- .conexion_capacidad_dbi("ConexionCapacidadLupa")
   on.exit(DBI::dbDisconnect(con), add = TRUE)
   .reiniciar_capacidad_dbi("normal")
@@ -219,65 +238,21 @@ test_that("muestreado usa una forma declarada por el motor y marca cada estimaci
   expect_true(all(metricas$universo == 20))
   expect_true(all(metricas$tamano_muestra == 5))
   expect_true(all(metricas$fraccion == 0.25))
-  metricas_sin_distintos <- metricas[
-    !metricas$metrica %in% c("n_distintos", "tasa_distintos"), , drop = FALSE
-  ]
-  expect_true(all(
-    metricas_sin_distintos$metodo == "random_limit" |
-      metricas_sin_distintos$metodo == "tablesample_system" |
-      (metricas_sin_distintos$metrica %in% c("moda", "frecuencia_moda") &
-         metricas_sin_distintos$metodo == "ventana_agregado") |
-      (metricas_sin_distintos$metrica == "mediana" &
-         metricas_sin_distintos$metodo == "subconsulta_escalar")
-  ))
-  expect_true(all(metricas$estado %in% c("estimado", "observado_muestra", "no_aplica")))
-  distintos <- metricas[metricas$metrica == "n_distintos", , drop = FALSE]
-  expect_true(all(distintos$estado == "observado_muestra"))
-  expect_true(all(grepl("cardinalidad observada", distintos$motivo, fixed = TRUE)))
-  expect_true(all(distintos$error_esperado == "no_aplica"))
-  expect_true(all(distintos$metodo == "COUNT(DISTINCT)"))
-  expect_true(all(distintos$estrategia_solicitada == "exacta"))
-  expect_true(all(distintos$estrategia_resuelta == "COUNT(DISTINCT)"))
-  expect_true(all(distintos$estado_estrategia == "calculado"))
-  no_estimados <- metricas[
-    metricas$columna %in% c("id", "monto") &
-    metricas$metrica %in% c(
-      "n_validos", "n_faltantes", "prop_faltantes", "minimo", "maximo",
-      "media", "n_ceros", "n_negativos", "desvio"
-    ), , drop = FALSE
-  ]
-  expect_true(all(no_estimados$error_esperado == "no_estimado"))
-  conteos_observados <- no_estimados[
-    no_estimados$metrica %in% c(
-      "n_validos", "n_faltantes", "prop_faltantes", "n_ceros", "n_negativos"
-    ), , drop = FALSE
-  ]
-  estadisticos <- no_estimados[
-    no_estimados$metrica %in% c("minimo", "maximo", "media", "desvio"),
-    , drop = FALSE
-  ]
-  expect_true(all(grepl(
-    "conteo exacto en la muestra; no estima la tabla completa",
-    conteos_observados$motivo, fixed = TRUE
-  )))
-  expect_true(all(grepl("no se calculo", estadisticos$motivo, fixed = TRUE)))
-  no_estimables <- metricas[
-    metricas$columna %in% c("id", "monto") &
-    metricas$metrica %in% c("moda", "frecuencia_moda", "mediana"),
-    , drop = FALSE
-  ]
-  expect_true(all(no_estimables$error_esperado == "no_estimable"))
-  expect_true(all(grepl(
-    "cota simple",
-    no_estimables$motivo[no_estimables$metrica %in% c("moda", "mediana")],
-    fixed = TRUE
-  )))
-  expect_true(all(grepl(
-    "conteo exacto en la muestra; no estima la tabla completa",
-    no_estimables$motivo[no_estimables$metrica == "frecuencia_moda"],
-    fixed = TRUE
-  )))
-  expect_identical(resultado$resumen_tabla$meta$alcance, "tabla_muestreada")
+  expect_true(all(metricas$metodo == "spool_sesion_cliente"))
+  expect_true(all(metricas$estado == "observado_muestra"))
+  expect_true(all(metricas$error_esperado == "no_estimable"))
+  expect_true(all(metricas$id_consulta == metricas$consulta_id))
+  materializacion <- resultado$resumen_tabla$meta$materializacion
+  expect_true(isTRUE(materializacion$externo))
+  expect_true(isTRUE(materializacion$validado_relectura))
+  expect_identical(materializacion$estado, "cerrada_verificada")
+  expect_identical(materializacion$muestra_id,
+                   resultado$resumen_tabla$meta$alcance$muestra_id)
+  expect_identical(resultado$resumen_tabla$meta$alcance$universo_id,
+                   "muestra_motor")
+  expect_identical(resultado$resumen_tabla$meta$alcance_texto,
+                   "tabla_muestreada")
+  expect_false(any(names(registros) == "muestra_id"))
 })
 
 test_that("el metadato publico distingue pedido y obtenido", {
@@ -327,11 +302,10 @@ test_that("una muestra vacia no publica ceros ni estados de muestra observada", 
     alcance$motivo == "muestra_vacia:tablesample_system_sin_filas"
   ))
   expect_equal(resultado$resumen_tabla$meta$muestreo$filas_obtenidas, 0)
-  expect_true(any(grepl(
-    "consulta de muestra devolvio 0 filas",
-    resultado$resumen_tabla$cobertura$motivo,
-    fixed = TRUE
-  )))
+  expect_true(any(
+    resultado$resumen_tabla$cobertura$bloque == "perfil_muestra" &
+      resultado$resumen_tabla$cobertura$estado == "no_disponible"
+  ))
 })
 
 test_that("una muestra no vacia con todos los valores nulos conserva sus estados", {
@@ -358,12 +332,13 @@ test_that("una muestra no vacia con todos los valores nulos conserva sus estados
 
   expect_equal(resultado$perfil_muestra$meta$origen_dbi$muestreo$filas_obtenidas, 4)
   expect_equal(resultado$resumen_tabla$columnas$n_validos, 0)
-  expect_equal(resultado$resumen_tabla$columnas$n_faltantes, 5)
+  expect_equal(resultado$resumen_tabla$columnas$n_faltantes, 4)
   expect_true(all(
     alcance$estado[alcance$metrica %in% c("n_validos", "n_faltantes")] ==
       "observado_muestra"
   ))
-  expect_true(any(alcance$estado == "no_disponible"))
+  expect_true(all(alcance$estado == "observado_muestra"))
+  expect_true(isTRUE(resultado$resumen_tabla$meta$materializacion$validado_relectura))
 })
 
 test_that("el metadato publico conserva una muestra menor que el pedido", {
@@ -401,9 +376,9 @@ test_that("la discrepancia de filas conserva su cobertura", {
 
   expect_equal(muestreo$filas_obtenidas, 4)
   expect_equal(resultado$resumen_tabla$meta$muestreo$filas_obtenidas, 4)
-  expect_false(muestreo$coincide_con_lo_pedido)
-  expect_equal(nrow(discrepancia), 1L)
-  expect_match(discrepancia$motivo, "devolvio 4 filas", fixed = TRUE)
+  expect_false("coincide_con_lo_pedido" %in% names(muestreo))
+  expect_equal(resultado$resumen_tabla$meta$materializacion$n_filas, 4)
+  expect_true(isTRUE(resultado$resumen_tabla$meta$materializacion$validado_relectura))
 })
 
 test_that("sin muestreo el error esperado no aplica", {
@@ -430,10 +405,11 @@ test_that("sin capacidad de muestreo se degrada con diagnostico y no usa la tabl
   expect_true(all(metricas$estado %in% c("no_disponible", "no_aplica")))
   expect_true(all(is.na(resultado$resumen_tabla$columnas$n_validos)))
   expect_true(any(
-    resultado$resumen_tabla$cobertura$bloque == "resumen_tabla" &
-      grepl("muestreo", resultado$resumen_tabla$cobertura$motivo)
+    resultado$resumen_tabla$cobertura$bloque == "perfil_muestra" &
+      resultado$resumen_tabla$cobertura$estado == "no_disponible"
   ))
-  expect_true(any(grepl("LIMIT", .capacidad_dbi_prueba$sql, fixed = TRUE)))
+  expect_true(isTRUE(resultado$resumen_tabla$meta$materializacion$externo))
+  expect_false(isTRUE(resultado$resumen_tabla$meta$materializacion$validado_relectura))
 })
 
 test_that("sin TABLESAMPLE usa limite sobre un orden pseudoaleatorio", {
@@ -449,8 +425,8 @@ test_that("sin TABLESAMPLE usa limite sobre un orden pseudoaleatorio", {
   ]
 
   expect_true(any(grepl("ORDER BY RANDOM", .capacidad_dbi_prueba$sql)))
-  expect_true(all(metricas$metodo == "random_limit"))
-  expect_true(all(metricas$estado == "estimado"))
+  expect_true(all(metricas$metodo == "spool_sesion_cliente"))
+  expect_true(all(metricas$estado == "observado_muestra"))
 })
 
 test_that("aproximada_motor usa APPROX_COUNT_DISTINCT cuando la sonda responde", {
@@ -564,14 +540,24 @@ test_that("el plan acota las consultas en los cinco modos", {
       con, caso, orden_muestra = "id"
     )
     emitidas <- length(.capacidad_dbi_prueba$sql)
-    expect_lte(attr(plan, "total"), emitidas, label = paste("caso", caso))
-    expect_lte(
-      emitidas, attr(plan, "total_maximo"), label = paste("caso", caso)
-    )
-    expect_equal(
-      resultado$resumen_tabla$meta$consultas$emitidas, emitidas,
-      info = paste("caso", caso)
-    )
+    if (identical(caso, "muestreado")) {
+      spool_plan <- attr(plan, "materializacion", exact = TRUE)
+      expect_true(is.list(spool_plan))
+      expect_identical(spool_plan$seleccion_unica, 1L)
+      expect_identical(spool_plan$pasadas$valor, "spool")
+      expect_identical(spool_plan$pasadas$indice, "spool")
+      expect_identical(spool_plan$pasadas$lsh, "spool")
+      expect_gte(emitidas, 1L)
+    } else {
+      expect_lte(attr(plan, "total"), emitidas, label = paste("caso", caso))
+      expect_lte(
+        emitidas, attr(plan, "total_maximo"), label = paste("caso", caso)
+      )
+      expect_equal(
+        resultado$resumen_tabla$meta$consultas$emitidas, emitidas,
+        info = paste("caso", caso)
+      )
+    }
   }
 })
 

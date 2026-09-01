@@ -26,7 +26,9 @@ plan_perfilado_dbi(
   umbral_cardinalidad = .UMBRAL_CARDINALIDAD_COSTO_DBI,
   max_celdas_muestra = .MAX_CELDAS_MUESTRA,
   max_bytes_muestra = .MAX_BYTES_MUESTRA,
-  bloque_filas = NULL
+  bloque_filas = NULL,
+  max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
+  max_bytes_materializacion = .MAX_BYTES_MUESTRA
 )
 }
 \arguments{
@@ -61,12 +63,6 @@ reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y \code{meta} lo declara expresamente. No se usa cuando
 \code{bloque_muestra = "solo_agregados"}.}
-
-\item{bloque_filas}{En la via I1, entero positivo que activa la fuente por
-\code{tabla_completa} y hace que el plan declare un unico result set
-\code{dbSendQuery()} + \code{dbFetch(n = bloque_filas)}. \code{NULL} conserva el
-plan historico; el plan no lee las filas y publica la proyeccion, el orden,
-los bloques previstos y el costo declarado.}
 
 \item{metricas}{Selección explícita de grupos de métricas: \code{"validos"},
 \code{"distintos"}, \code{"moda"}, \code{"basicos"}, \code{"mediana"} y \code{"desvio"}. El
@@ -173,6 +169,24 @@ ella se fija el límite final en SQL o en \code{dbFetch(n)}, antes de leer el
 resto. Si reduce la muestra, \code{cobertura_diagnosticos} informa los bytes
 observados, el umbral y cuál tope mandó. \code{Inf} desactiva este tope. No
 modifica los agregados SQL.}
+
+\item{bloque_filas}{En la via I1, entero positivo que activa la fuente por
+bloques de \code{tabla_completa}. Cada bloque se obtiene con un unico result
+set (\code{dbSendQuery()} + \code{dbFetch(n = bloque_filas)}) y se absorbe antes de
+liberar la entrada. \code{NULL} conserva el plan historico. El plan publica la
+proyeccion, el orden, los bloques previstos y el costo declarado sin leer
+las filas.}
+
+\item{max_bytes_procesamiento}{Límite de bytes del estado retenido por el
+procesamiento por bloques y por la lectura del spool en R. Se comprueba
+antes de publicar un bloque o una pasada; \code{Inf} desactiva este límite.}
+
+\item{max_bytes_materializacion}{Presupuesto de bytes del spool externo de
+\code{muestra_motor}. Se mide por chunk antes de cada escritura, dejando espacio
+para el trailer; si no alcanza, se publica
+\code{spool_presupuesto_excedido} y
+\code{muestra_inestable:presupuesto_materializacion} sin mezclar una muestra
+parcial con resultados completos. \code{Inf} desactiva este límite.}
 }
 \value{
 Data frame de clase \code{plan_perfilado_dbi} con \code{clase_consulta},
@@ -350,6 +364,15 @@ corridas de referencia, 4,5 millones de filas entraron en 0,6 GB y tardaron
 25 segundos, mientras que procesar 4,5 millones ocupó aproximadamente 7 GB
 y procesar 12,8 millones aproximadamente 19 GB. El problema observado está
 en el procesamiento en R, no en la red ni en el motor.
+
+Para \code{universo = "muestra_motor"}, el plan declara una única selección que
+se pagará para cerrar el spool externo de sesión cliente. \code{attr(plan, "materializacion")} publica \code{pagado = FALSE}, backend, versión, presupuesto,
+result set, fetches esperados, filas y bytes; \code{attr(plan, "pasadas")} declara
+que valor, índice y LSH leerán el mismo spool. La referencia medida para
+justificar este costo es PostgreSQL 16, 2 millones de filas: 10.000, 100.000
+y 500.000 filas dieron 0,448/1,684/5,598 s con spool frente a
+0,814/2,178/3,265 s reordenando cada pasada; el cruce está entre 100.000 y
+500.000, y la elección prioriza identidad.
 }
 \examples{
 if (requireNamespace("DBI", quietly = TRUE) &&

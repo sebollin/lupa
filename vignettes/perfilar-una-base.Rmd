@@ -55,7 +55,8 @@ motores queda `no_disponible` con su motivo; y `"omitida"` no emite la
 consulta. Una estrategia aproximada sin capacidad no se convierte en exacta.
 El resultado distingue la estrategia solicitada, la resuelta y su estado.
 
-Además, `id_muestra` identifica la consulta de datos que produjo cada métrica.
+Además, `id_consulta` identifica la consulta de datos que produjo cada métrica;
+`muestra_id` queda reservado para la relación materializada en el spool cliente.
 Dos métricas con el mismo valor vieron exactamente las mismas filas y se pueden
 comparar directamente, sin cruzar `lote` ni `columnas_compartidas`. Un `NA`
 declara que esa garantía no se puede hacer; en particular, moda, frecuencia de
@@ -266,7 +267,7 @@ para que también se vea qué aceptó o rechazó el motor.
 La instrumentación queda activa por omisión y sólo agrega metadatos. Cada fila
 de `resumen_tabla$sql` conserva la métrica que ya representaba y suma
 `duracion_ms`, `cpu_ms`, `n_filas_resultado`, `bytes_resultado_r`, `consulta_id` e
-`id_muestra`, además de `etapa` y `nivel`. La duración incluye la ejecución y la lectura del resultado que DBI
+`id_consulta`, además de `etapa` y `nivel`. La duración incluye la ejecución y la lectura del resultado que DBI
 entregó a R; el tamaño es `object.size()` de ese resultado. `cpu_ms` es la
 suma de `user.self` y `sys.self` de `proc.time()`: cerca de cero indica
 espera y cerca de uno al dividirlo por `duracion_ms` indica trabajo del
@@ -279,7 +280,7 @@ tiempos SQL se deben usar sólo las filas de `nivel = 1`.
 ```{r tiempos-sql, eval = requireNamespace("DBI", quietly = TRUE) && requireNamespace("RSQLite", quietly = TRUE)}
 perfil$resumen_tabla$sql[, c(
   "metrica", "estado", "duracion_ms", "cpu_ms", "n_filas_resultado",
-  "bytes_resultado_r", "consulta_id", "id_muestra", "etapa", "nivel"
+  "bytes_resultado_r", "consulta_id", "id_consulta", "etapa", "nivel"
 )]
 
 perfil$resumen_tabla$tiempos
@@ -649,22 +650,16 @@ recorta. Un motor que acepta
 `PERCENTILE_CONT(...) WITHIN GROUP` puede consolidar varias en un solo
 `SELECT` por lote.
 
-Con `universo = "muestra_motor"`, el muestreo se resuelve por consulta, no por
-perfilado. Las métricas que comparten una consulta consolidada —ver
-`id_muestra`, `lote` y `columnas_compartidas` en `sql`— se calculan sobre las
-mismas filas y son comparables dentro de ese lote. Dos consultas distintas
-—otro `id_muestra`, o una clase distinta como moda o mediana— toman muestras
-independientes: no se garantiza que tengan el mismo número de filas ni que
-coincidan sus filas o su distribución. `TABLESAMPLE SYSTEM` selecciona bloques
-o páginas y puede devolver un tamaño variable, como los 15.708 a 20.000
-medidos; `random_limit`/`NEWID()` decide por fila, ordena la tabla y puede
-devolver el tamaño pedido a un costo mucho mayor. Por eso los resultados de
-consultas distintas no deben compararse como si fueran réplicas del mismo
-muestreo. Para hablar de las mismas filas, se debe usar la misma consulta
-consolidada o `perfil_muestra`; el perfilado es sólo lectura y no materializa
-una tabla intermedia. Un `id_muestra` ausente declara que no se puede
-garantizar esa coincidencia; queda ausente para moda, frecuencia de la moda y
-mediana, que son métricas por columna.
+Con `universo = "muestra_motor"`, `TABLESAMPLE` o la fuente pseudoaleatoria
+resuelta se ejecuta una sola vez y se materializa en un spool externo de sesión
+cliente. El trailer conserva y verifica `muestra_id`, `snapshot_id`, `orden_id`,
+`n_filas`, `bytes` y checksum; las pasadas de resumen y diagnóstico releen esa
+misma relación. `id_consulta` sigue identificando la sentencia que produjo una
+medición, mientras `muestra_id` identifica la materialización. Un chunk que
+supera el presupuesto se rechaza antes de escribir y publica
+`spool_presupuesto_excedido` y `muestra_inestable:presupuesto_materializacion`;
+no se entrega una muestra híbrida. El spool no escribe en la conexión DBI ni
+crea objetos temporales del motor.
 
 Por eso las formas candidatas están ordenadas por **previsibilidad del tamaño**
 y no por costo. Primero la de cantidad fija, `TABLESAMPLE RESERVOIR (n ROWS)`;

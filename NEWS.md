@@ -1,5 +1,27 @@
 # lupa 0.1.0
 
+## Integración DBI — spool y contratos de `muestra_motor` (Etapa I2)
+
+- `universo = "muestra_motor"` ejecuta una sola selección y la materializa en
+  un spool externo de sesión cliente. El trailer verifica `muestra_id`,
+  `snapshot_id`, `orden_id`, `n_filas`, `bytes` y checksum en la relectura; las
+  pasadas leen ese spool y nunca vuelven a muestrear el motor.
+- El spool no escribe en la conexión DBI ni crea objetos temporales del motor.
+  `meta$materializacion` publica backend, versión, checksum, bytes, presupuesto
+  y estado. Un exceso medido antes de escribir cada chunk publica
+  `spool_presupuesto_excedido` y `muestra_inestable:presupuesto_materializacion`;
+  no se entrega una muestra híbrida.
+- `perfil_muestra$meta$filas_analizadas`, `hallazgos`,
+  `cobertura_diagnosticos` y `meta$origen_dbi$muestreo` forman un contrato
+  explícito. Las familias que no se evaluaron quedan como filas de cobertura;
+  la impresión remite a esa cobertura. El identificador heredado de consulta
+  ahora se llama `id_consulta`, sin alias; `muestra_id` queda reservado a la
+  relación materializada.
+- El punto de cruce medido en PostgreSQL 16 fue 5,6 s con spool frente a 3,3 s
+  reordenando en cada pasada para 500.000 filas (10.000/100.000/500.000:
+  0,448/1,684/5,598 s frente a 0,814/2,178/3,265 s). La elección del spool
+  responde a identidad y reutilización, no a una promesa de velocidad.
+
 ## Integración DBI — fuente por bloques (Etapa I1)
 
 - `perfilar_dbi(..., bloque_filas = n)` incorpora una vía optativa para
@@ -933,7 +955,7 @@ de recorridos cuenta las apariciones de la fuente en el SQL; no se usó tiempo.
 | `muestreado` | 23 | 22 | 23 | 23 | 0 |
 | `aproximado` | 23 | 22 | 23 | 22 | 1 |
 
-En `resumen_tabla$sql`, `id_muestra` identifica la consulta de datos: el mismo
+En `resumen_tabla$sql`, `id_consulta` identifica la consulta de datos: el mismo
 identificador garantiza exactamente las mismas filas. Moda, frecuencia de la
 moda y mediana son métricas por columna y quedan con `NA`; también queda `NA`
 cualquier camino que no pueda sostener esa garantía. Así la comparabilidad se
@@ -2426,10 +2448,10 @@ el paquete emitia **una consulta por columna** para cada bloque de metricas.
   comparaba el doble ya convertido contra 2^53, y 2^53+1 redondea justo a 2^53,
   asi que pasaba. Ahora se comprueba con la vuelta completa -a doble y de vuelta
   a entero-, que no depende de donde caiga el redondeo.
-- **`meta$muestras_independientes` decia algo que la consolidacion volvio
-  falso.** Las columnas de un mismo lote comparten consulta y por lo tanto
-  comparten filas: sus metricas son comparables entre si, y las de lotes
-  distintos no. El campo dice ahora las dos mitades.
+- **La descripción de muestras independientes decía algo que la consolidación
+  volvió falso.** Las columnas de un mismo lote comparten consulta y por lo
+  tanto comparten filas; en `muestra_motor` la selección única queda además en
+  un spool cliente y las pasadas reutilizan esa relación.
 - **El total de `plan_perfilado_dbi()` pasa a estar declarado como techo.** Se
   cuenta una mediana y un desvio por columna numerica, y una columna sin valores
   validos no los emite. La version anterior a la consolidacion erraba por tres
@@ -2462,8 +2484,8 @@ ellas de reproducir lo que el informe atribuia a otra causa.
   ser un hueco genuino. Degradar ahi lo esconderia.
 - **El objeto declara que las metricas muestreadas no comparten filas.** Estaba
   en la vineta, y un consumidor automatico lee el objeto. Aparece en
-  `meta$muestras_independientes` solo en `muestreado` y `aproximado`; en los
-  modos que miden sobre la tabla entera no hay nada que advertir.
+  `meta$materializacion` en `muestra_motor`; en los modos que miden sobre la
+  tabla entera no hay un spool que advertir.
 
 
 ## Leer un perfil sin conocer su forma, y saber que falta para cada motor

@@ -35,6 +35,8 @@ perfilar_dbi(
   max_celdas_muestra = .MAX_CELDAS_MUESTRA,
   max_bytes_muestra = .MAX_BYTES_MUESTRA,
   bloque_filas = NULL,
+  max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
+  max_bytes_materializacion = .MAX_BYTES_MUESTRA,
   ...
 )
 }
@@ -70,15 +72,6 @@ reproducible cuando la combinación es única en toda la tabla. Sin este
 argumento, DBI no garantiza el orden ni la pertenencia de una muestra
 limitada, y \code{meta} lo declara expresamente. No se usa cuando
 \code{bloque_muestra = "solo_agregados"}.}
-
-\item{bloque_filas}{En la via I1, entero positivo que activa el recorrido de
-\code{tabla_completa} por bloques. Se abre un unico result set con
-\code{dbSendQuery()} y cada bloque se lee con \code{dbFetch(n = bloque_filas)} antes
-de liberar la entrada; \code{NULL} conserva la via existente. El resultado
-publica \code{meta$alcance$orden}, \code{meta$bloques}, \code{meta$bytes} y los eventos del
-vigilante. Los drivers sin retencion incremental demostrada (incluido
-DuckDB en esta matriz) quedan \code{no_disponible} con su motivo, sin caer en
-\code{dbGetQuery()}.}
 
 \item{metricas}{Selección explícita de grupos de métricas: \code{"validos"},
 \code{"distintos"}, \code{"moda"}, \code{"basicos"}, \code{"mediana"} y \code{"desvio"}. El
@@ -167,7 +160,7 @@ Por omisión es \code{TRUE}; agrega \code{duracion_ms}, \code{cpu_ms},
 \code{n_filas_resultado}, \code{bytes_resultado_r}, \code{consulta_id}, \code{etapa} y \code{nivel}
 a \code{resumen_tabla$sql}, y el resumen \code{resumen_tabla$tiempos}. Con \code{FALSE} se
 conserva el mismo plan, la misma cantidad y el mismo orden de consultas,
-pero los campos medibles quedan en \code{NA}. \code{id_muestra} \strong{no} depende de
+pero los campos medibles quedan en \code{NA}. \code{id_consulta} \strong{no} depende de
 esta opcion: no es una medicion sino un hecho estructural sobre que
 consulta produjo cada metrica, y se publica igual con \code{FALSE}. Las
 duraciones usan \code{Sys.time()} y el CPU del cliente usa la suma de
@@ -243,6 +236,26 @@ resto. Si reduce la muestra, \code{cobertura_diagnosticos} informa los bytes
 observados, el umbral y cuál tope mandó. \code{Inf} desactiva este tope. No
 modifica los agregados SQL.}
 
+\item{bloque_filas}{En la via I1, entero positivo que activa el recorrido de
+\code{tabla_completa} por bloques. Se abre un unico result set con
+\code{dbSendQuery()} y cada bloque se lee con \code{dbFetch(n = bloque_filas)} antes
+de liberar la entrada; \code{NULL} conserva la via existente. El resultado
+publica \code{meta$alcance$orden}, \code{meta$bloques}, \code{meta$bytes} y los eventos del
+vigilante. Los drivers sin retencion incremental demostrada (incluido
+DuckDB en esta matriz) quedan \code{no_disponible} con su motivo, sin caer en
+\code{dbGetQuery()}.}
+
+\item{max_bytes_procesamiento}{Límite de bytes del estado retenido por el
+procesamiento por bloques y por la lectura del spool en R. Se comprueba
+antes de publicar un bloque o una pasada; \code{Inf} desactiva este límite.}
+
+\item{max_bytes_materializacion}{Presupuesto de bytes del spool externo de
+\code{muestra_motor}. Se mide por chunk antes de cada escritura, dejando espacio
+para el trailer; si no alcanza, se publica
+\code{spool_presupuesto_excedido} y
+\code{muestra_inestable:presupuesto_materializacion} sin mezclar una muestra
+parcial con resultados completos. \code{Inf} desactiva este límite.}
+
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
 }
 \value{
@@ -262,17 +275,18 @@ queda diferenciada de una clave no declarada.
 }
 \description{
 Calcula en SQL un resumen sobre la tabla completa o sobre una relación
-muestreada por el motor, según \code{universo}, y, por omisión, en un bloque separado
-ejecuta \code{\link[=perfilar]{perfilar()}} sobre una muestra traída a memoria. El resumen completo
-de 109 campos analíticos además del nombre de la columna no se presenta como
-calculado por la base: esos campos pertenecen exclusivamente a
-\code{perfil_muestra} y su universo es la muestra.
-\code{bloque_muestra = "solo_agregados"} permite omitir esa lectura y pedir sólo
-los agregados SQL.
+muestreada por el motor, según \code{universo}. Con \code{universo = "muestra_motor"}
+ejecuta una sola selección y la materializa en un spool externo de la sesión
+cliente; el resumen y \code{\link[=perfilar]{perfilar()}} leen esa misma materialización.
+\code{bloque_muestra = "solo_agregados"} sigue omitiendo el objeto
+\code{perfil_muestra}, pero no vuelve a seleccionar filas.
 }
 \details{
-Esta función no escribe en la conexión ni crea objetos temporales. \code{DBI} es
-una dependencia opcional. Cada agregado no disponible queda en \code{NA} y su
+Antes, la promesa era literalmente: "la función no escribe en la conexión ni
+crea objetos temporales". Ahora es: "no escribe en la conexión ni crea
+objetos temporales del motor; \code{muestra_motor} puede crear un spool externo
+temporal de sesión, con bytes, checksum, presupuesto y estado". \code{DBI} es una
+dependencia opcional. Cada agregado no disponible queda en \code{NA} y su
 consulta, estado y motivo se conservan en \code{resumen_tabla$sql}.
 Las expresiones se ejecutan como capacidades a comprobar, no como un
 dialecto SQL universal.
@@ -294,7 +308,11 @@ prueba estadística que no corresponde a esa columna, en la segunda. Comparten
 la palabra y no el vocabulario, así que conviene mirar cuál se está leyendo.
 Si se omite el bloque con \code{bloque_muestra = "solo_agregados"}, la cobertura
 usa el estado \code{no_solicitado}: no es un fallo ni se cuenta como una métrica
-no disponible.
+no disponible. En \code{muestra_motor}, la selección materializada se hace una
+sola vez antes de las pasadas; el spool se relee y se verifica mediante su
+trailer. Un trailer ausente publica
+\code{spool_incompleto:trailer_ausente}; un trailer o checksum que no coincide
+publica \code{spool_checksum_invalido}.
 }
 
 \section{Fallo parcial}{
@@ -323,9 +341,17 @@ Cada registro publica \code{alcance}, \code{universo}, \code{tamano_muestra}, \c
 \code{metodo} y \code{error_esperado}. En \code{resumen_tabla$meta$muestreo},
 \code{tamano_muestra} conserva el nombre historico y declara el tamano efectivo
 solicitado a la consulta; \code{filas_solicitadas} y \code{filas_pedidas} declaran el
-pedido original y \code{filas_obtenidas} las filas que devolvio la lectura del bloque
-\code{perfil_muestra}. Esta ultima puede ser \code{NA} si el bloque no se solicito o
-fallo antes de leer.
+pedido original y \code{filas_obtenidas} las filas que devolvio el spool. La
+materializacion publica \code{muestra_id}, \code{snapshot_id}, \code{orden_id}, \code{n_filas},
+\code{bytes}, \code{checksum}, backend, version y presupuesto en
+\code{meta$materializacion}; las pasadas publican el mismo \code{muestra_id}.
+El contrato de \code{perfil_muestra} es campo por campo: \code{meta$filas_analizadas}
+es la cantidad efectivamente entregada a los diagnósticos; \code{hallazgos} solo
+contiene familias disponibles; y \code{cobertura_diagnosticos} tiene una fila por
+familia no evaluada. \code{meta$origen_dbi$muestreo} conserva filas solicitadas,
+entregadas, reproducibilidad, \code{muestra_id}, \code{snapshot_id} y checksum. El
+método de impresión remite a esa cobertura cuando el campo no está
+disponible; no reemplaza la ausencia con \code{NULL} silencioso.
 En \code{muestra_motor}, todas las metricas SQL salvo \code{n} describen la relacion
 muestreada; \code{n} es el total de la tabla completa y esta marcado con
 \code{alcance = "tabla_completa"}, \code{metodo = "conteo_universo"} y
@@ -390,7 +416,9 @@ si el motor la rechaza, se conserva la consulta anterior y
 \code{frecuencia_moda <= n_validos} se comprueba dentro de la misma sentencia y
 el motivo de la métrica lo declara.
 \code{meta$snapshot} queda en \code{FALSE}, siguiendo la declaracion de colecciones: no
-hubo lectura instantanea. La cobertura agrega una entrada concreta solo si
+hubo lectura instantanea del motor. \code{snapshot_id} identifica positivamente la
+materializacion cliente, pero solo se publica evidencia positiva de snapshot
+transaccional cuando el adaptador la demuestra. La cobertura agrega una entrada concreta solo si
 \code{n_validos} y \code{n_distintos} son exactos, incoherentes y provienen de grupos
 distintos; su motivo conserva ambas sentencias.
 La mediana muestral que no tiene una forma consolidada o escalar usa una
@@ -532,7 +560,7 @@ qué filas se pueden sumar: la primera fila de cada \code{consulta_id} queda en
 \code{nivel = 1} y sus repeticiones en \code{nivel = 2}. Por eso una suma segura usa
 sólo \code{duracion_ms[nivel == 1]} (con \code{na.rm = TRUE} si corresponde), no la
 columna completa.
-\code{id_muestra} identifica la consulta de datos que produjo la medición: dos
+\code{id_consulta} identifica la consulta de datos que produjo la medición: dos
 métricas con el mismo identificador vieron exactamente las mismas filas y se
 pueden comparar directamente. \code{NA} declara que esa garantía no se puede
 hacer; en particular, las métricas por columna —moda, frecuencia de la moda

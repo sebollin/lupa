@@ -461,3 +461,34 @@ test_that("un resultado malformado no se lleva puesta toda la colección", {
     fixed = TRUE
   ))
 })
+
+test_that("la coleccion no oculta filas_analizadas ausente en el perfil", {
+  con <- .con_de_prueba()
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  col <- coleccion(con, "personas")
+  local_mocked_bindings(
+    perfilar_dbi = function(...) {
+      list(
+        resumen_tabla = list(
+          columnas = data.frame(prop_faltantes = 0),
+          meta = list(filas = 5), sql = data.frame(),
+          cobertura = lupa:::.cobertura_dbi_vacia()
+        ),
+        perfil_muestra = list(meta = list())
+      )
+    },
+    .package = "lupa"
+  )
+
+  perfil <- perfilar_coleccion(col)
+  fila <- perfil$cobertura_coleccion[
+    perfil$cobertura_coleccion$alcance == "muestra_no_disponible", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(fila), 1L)
+  expect_identical(
+    fila$motivo,
+    "no_disponible:perfil_muestra_filas_analizadas_ausente"
+  )
+  expect_true(is.na(perfil$resumen_coleccion$muestra_analizada[[1L]]))
+})

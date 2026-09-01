@@ -230,7 +230,7 @@ test_that("la columna nueva es unica, queda al final y no entra al plan", {
   nombres_anteriores <- c(
     "columna", "metrica", "estado", "motivo", "sql", "alcance", "universo",
     "tamano_muestra", "fraccion", "metodo", "error_esperado", "lote",
-    "columnas_compartidas", "id_muestra", "estrategia_solicitada",
+    "columnas_compartidas", "id_consulta", "estrategia_solicitada",
     "estrategia_resuelta", "estado_estrategia", "duracion_ms",
     "n_filas_resultado", "bytes_resultado_r", "cpu_ms", "consulta_id",
     "etapa", "derrame", "bloques_temporales_leidos",
@@ -275,7 +275,7 @@ test_that("los estados sin medicion y los metodos desconocidos quedan en NA", {
   expect_true(is.na(futuro$memoria_trabajo))
 })
 
-test_that("una muestra saturada cae a R3 y conserva la clase de los planos", {
+test_that("una muestra saturada conserva el limite y declara el spool", {
   conexion <- .memoria_trabajo_conexion()
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)
 
@@ -293,13 +293,17 @@ test_that("una muestra saturada cae a R3 y conserva la clase de los planos", {
     registros$metrica == "n_distintos" & registros$columna == "x",
     , drop = FALSE
   ]
+  muestras <- registros[registros$metodo == "spool_sesion_cliente", , drop = FALSE]
 
   expect_true(nrow(planos) > 0L)
   expect_true(all(planos$alcance == "muestra"))
-  expect_true(all(planos$tamano_muestra == 100000))
-  expect_true(all(planos$fraccion == 1))
-  expect_true(all(planos$memoria_trabajo == "acotado"))
-  expect_identical(distintos$memoria_trabajo, "creciente")
+  expect_true(nrow(muestras) > 0L)
+  expect_true(all(muestras$tamano_muestra == 100000))
+  expect_true(all(muestras$fraccion == 1))
+  expect_true(all(muestras$estado == "observado_muestra"))
+  expect_true(all(is.na(muestras$memoria_trabajo)))
+  expect_true(isTRUE(resultado$resumen_tabla$meta$materializacion$validado_relectura))
+  expect_identical(distintos$metodo[[1L]], "spool_sesion_cliente")
   expect_equal(
     resultado$resumen_tabla$columnas$n_distintos[
       resultado$resumen_tabla$columnas$columna == "x"

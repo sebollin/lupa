@@ -23,7 +23,7 @@ skip_if_not_installed("RSQLite")
   campos_auditoria <- c(
     "sql", "lote", "columnas_compartidas", "consulta_id", "etapa", "nivel",
     "duracion_ms", "n_filas_resultado", "bytes_resultado_r", "cpu_ms",
-    "id_muestra", "derrame", "bloques_temporales_leidos",
+    "id_consulta", "derrame", "bloques_temporales_leidos",
     "bloques_temporales_escritos", "fuente_derrame", "llamadas_en_ventana"
   )
   x$resumen_tabla$sql <- x$resumen_tabla$sql[
@@ -68,6 +68,29 @@ test_that("la fusion plana conserva el objeto medido en los cinco casos", {
     referencia <- do.call(
       perfilar_dbi, c(list(unitaria, "tabla_prueba", tamano_lote = 1L), argumentos)
     )
+    if (identical(caso, "muestreado")) {
+      # La selección aleatoria se materializa una vez por corrida. El motor no
+      # garantiza que dos corridas vean las mismas filas, de modo que aquí se
+      # compara el contrato de spool, no ejemplos ni checksums.
+      expect_equal(
+        names(nuevo$resumen_tabla$columnas),
+        names(referencia$resumen_tabla$columnas),
+        info = paste("caso", caso, "columnas")
+      )
+      expect_true(isTRUE(
+        nuevo$resumen_tabla$meta$materializacion$validado_relectura
+      ))
+      expect_true(isTRUE(
+        referencia$resumen_tabla$meta$materializacion$validado_relectura
+      ))
+      expect_true(all(nuevo$resumen_tabla$sql$metodo[
+        nuevo$resumen_tabla$sql$metrica != "n"
+      ] == "spool_sesion_cliente"))
+      expect_true(all(referencia$resumen_tabla$sql$metodo[
+        referencia$resumen_tabla$sql$metrica != "n"
+      ] == "spool_sesion_cliente"))
+      next
+    }
     # `expect_equal` y no `expect_identical`: la fusion cambia cuantas columnas
     # entran en un mismo SELECT, y sobre SQLite el desvio se calcula a mano
     # -`SQRT(SUM((x - AVG(x))^2) / (n-1))`, porque no hay `STDDEV_SAMP`-. Esa
@@ -112,6 +135,21 @@ test_that("la cuenta fusionada coincide con la predicha", {
       analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
       ausencia_estructural = FALSE, duplicados_aproximados = FALSE), argumentos
     ))
+    if (identical(caso, "muestreado")) {
+      spool_plan <- attr(plan, "materializacion", exact = TRUE)
+      expect_true(is.list(spool_plan))
+      expect_identical(spool_plan$seleccion_unica, 1L)
+      expect_identical(spool_plan$pasadas$valor, "spool")
+      expect_identical(spool_plan$pasadas$indice, "spool")
+      expect_identical(spool_plan$pasadas$lsh, "spool")
+      registros <- resultado$resumen_tabla$sql
+      expect_true(all(registros$metodo[registros$metrica != "n"] ==
+                      "spool_sesion_cliente"))
+      expect_true(isTRUE(
+        resultado$resumen_tabla$meta$materializacion$validado_relectura
+      ))
+      next
+    }
     expect_identical(
       as.integer(resultado$resumen_tabla$meta$consultas$emitidas),
       as.integer(attr(plan, "total")),
