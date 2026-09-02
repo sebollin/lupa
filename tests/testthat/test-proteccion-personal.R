@@ -106,6 +106,94 @@ test_that("analizar protege valores crudos de los cuatro tipos personales", {
   )
 })
 
+test_that("reconoce fechas de fallecimiento y rechaza nombres cercanos", {
+  fechas <- as.Date(c("1980-01-01", "1981-01-01"))
+  datos <- data.frame(
+    `Fecha de Fallecimiento` = fechas,
+    FECHA_DEFUNCIÓN = fechas,
+    fec_obito = fechas,
+    deceso = fechas,
+    fecha_muerte = fechas,
+    f_fallecimiento = fechas,
+    fecha_defuncion = fechas,
+    fallecido = c(TRUE, FALSE),
+    causa_muerte = c("natural", "accidente"),
+    muerte = fechas,
+    fecha_nacimiento = fechas,
+    check.names = FALSE,
+    stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(
+    datos, fecha = as.POSIXct("2026-01-01", tz = "UTC"),
+    analizar_dependencias = FALSE
+  )
+  clasificacion <- perfil$datos_personales
+  positivos <- names(datos)[1:7]
+  negativos <- names(datos)[8:10]
+  encontrados <- clasificacion[
+    match(positivos, clasificacion$columna), , drop = FALSE
+  ]
+
+  expect_equal(encontrados$tipo, rep("fecha_fallecimiento", 7L))
+  expect_equal(encontrados$proporcion_compatible, rep(1, 7L))
+  expect_equal(encontrados$poder_discriminante, rep("medio", 7L))
+  expect_true(all(encontrados$proteger))
+  expect_false(any(negativos %in% clasificacion$columna))
+  expect_equal(
+    clasificacion$tipo[match("fecha_nacimiento", clasificacion$columna)],
+    "fecha_nacimiento"
+  )
+})
+
+test_that("protege momentos de nacimiento y fallecimiento y conserva desvios", {
+  fechas_nacimiento <- as.Date(c("1958-09-13", "1964-05-21", "1974-03-18"))
+  fechas_fallecimiento <- as.Date(c("2018-09-13", "2020-05-21", "2024-03-18"))
+  datos <- data.frame(
+    fecha_nacimiento = fechas_nacimiento,
+    fecha_fallecimiento = fechas_fallecimiento
+  )
+  perfil <- perfilar(
+    datos, fecha = as.POSIXct("2026-01-01", tz = "UTC"),
+    analizar_dependencias = FALSE
+  )
+  columnas <- perfil$columnas
+  fechas <- columnas$columna %in% names(datos)
+
+  expect_true(all(columnas$tipo_dato_personal[fechas] %in%
+                  c("fecha_nacimiento", "fecha_fallecimiento")))
+  expect_equal(
+    columnas$minimo_fecha[fechas],
+    rep("[valor protegido]", 2L)
+  )
+  expect_equal(
+    columnas$maximo_fecha[fechas],
+    rep("[valor protegido]", 2L)
+  )
+  expect_equal(
+    columnas$media_fecha[fechas],
+    rep("[valor protegido]", 2L)
+  )
+  expect_equal(
+    columnas$mediana_fecha[fechas],
+    rep("[valor protegido]", 2L)
+  )
+  expect_true(all(is.na(columnas$minimo[fechas])))
+  expect_true(all(is.na(columnas$maximo[fechas])))
+  expect_true(all(is.na(columnas$media[fechas])))
+  expect_true(all(is.na(columnas$mediana[fechas])))
+  expect_equal(
+    columnas$desvio[fechas],
+    c(
+      stats::sd(as.numeric(fechas_nacimiento) * 86400),
+      stats::sd(as.numeric(fechas_fallecimiento) * 86400)
+    )
+  )
+  expect_equal(
+    columnas$detalle_proteccion_personal[fechas],
+    rep("[estadisticos de orden y momentos protegidos]", 2L)
+  )
+})
+
 test_that("el HTML protege incluso un analisis originalmente abierto", {
   datos <- .datos_personales_cinco()
   crudos <- .valores_crudos_prueba(datos)
@@ -194,6 +282,48 @@ test_that("el rango de nacimiento se diagnostica sin publicar sus extremos", {
   expect_match(html, "anterior a 1900", fixed = TRUE)
   expect_match(html, "posterior a la fecha", fixed = TRUE)
   expect_false(grepl("1899-12-31|2030-01-01", html))
+})
+
+test_that("el rango de fallecimiento anterior a 1900 es sospechoso", {
+  datos <- data.frame(fecha_fallecimiento = as.Date(c(
+    "1899-12-31", "1970-01-01", "1980-01-01"
+  )))
+  perfil <- perfilar(
+    datos, fecha = as.POSIXct("2026-01-01", tz = "UTC"),
+    analizar_dependencias = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "fecha_fallecimiento_fuera_rango", ,
+    drop = FALSE
+  ]
+
+  expect_equal(nrow(hallazgo), 1L)
+  expect_equal(as.character(hallazgo$severidad), "sospechoso")
+  expect_match(hallazgo$descripcion, "fecha de fallecimiento", fixed = TRUE)
+  expect_match(hallazgo$descripcion, "anterior a 1900", fixed = TRUE)
+  expect_equal(hallazgo$evidencia, "[evidencia protegida]")
+  expect_false(grepl("1899-12-31", hallazgo$descripcion, fixed = TRUE))
+})
+
+test_that("el rango de fallecimiento posterior al perfil es un error", {
+  datos <- data.frame(fecha_fallecimiento = as.Date(c(
+    "2020-01-01", "2026-01-02", "2026-01-03"
+  )))
+  perfil <- perfilar(
+    datos, fecha = as.POSIXct("2026-01-01", tz = "UTC"),
+    analizar_dependencias = FALSE
+  )
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "fecha_fallecimiento_fuera_rango", ,
+    drop = FALSE
+  ]
+
+  expect_equal(nrow(hallazgo), 1L)
+  expect_equal(as.character(hallazgo$severidad), "error")
+  expect_match(hallazgo$descripcion, "fecha de fallecimiento", fixed = TRUE)
+  expect_match(hallazgo$descripcion, "posterior a la fecha del perfil", fixed = TRUE)
+  expect_equal(hallazgo$evidencia, "[evidencia protegida]")
+  expect_false(grepl("2026-01-02|2026-01-03", hallazgo$descripcion))
 })
 
 test_that("extremos exactos integer64 personales tambien se protegen", {

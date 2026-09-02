@@ -100,6 +100,10 @@
     correo = "(^|_)(correo|email|mail|casilla)($|_)",
     telefono = "(^|_)(telefono|celular|movil|contacto)($|_)",
     fecha_nacimiento = "(^|_)(fecha_nacimiento|f_nacimiento|nacimiento)($|_)",
+    fecha_fallecimiento = paste0(
+      "(^|_)(fallecimiento|defuncion|deceso|obito|fecha_muerte|",
+      "f_fallecimiento|fecha_defuncion)($|_)"
+    ),
     # El lexico de nombres no puede ser completo: una columna se puede llamar
     # de cualquier forma. Cubre las mas frecuentes en registros administrativos
     # y `columnas_personales` esta para el resto, que lo declara quien conoce
@@ -232,6 +236,7 @@
       tipo,
       documento_identidad = proporcion_documento,
       fecha_nacimiento = if (inferencia$tipo %in% c("fecha", "fecha-hora")) 1 else NA_real_,
+      fecha_fallecimiento = if (inferencia$tipo %in% c("fecha", "fecha-hora")) 1 else NA_real_,
       NA_real_
     )
     fundamento <- if (tipo == "documento_identidad" &&
@@ -478,17 +483,27 @@
   )
 }
 
-.hallazgos_rango_nacimiento <- function(columnas, clasificacion,
-                                        fecha_referencia) {
-  nacimientos <- clasificacion[
-    clasificacion$tipo == "fecha_nacimiento", , drop = FALSE
-  ]
-  if (!nrow(nacimientos)) return(list())
+.hallazgos_rango_fecha_personal <- function(columnas, clasificacion,
+                                            fecha_referencia, tipo) {
+  configuraciones <- list(
+    fecha_nacimiento = list(
+      hallazgo = "fecha_nacimiento_fuera_rango",
+      descripcion = "fecha de nacimiento"
+    ),
+    fecha_fallecimiento = list(
+      hallazgo = "fecha_fallecimiento_fuera_rango",
+      descripcion = "fecha de fallecimiento"
+    )
+  )
+  configuracion <- configuraciones[[tipo]]
+  if (is.null(configuracion)) return(list())
+  fechas <- clasificacion[clasificacion$tipo == tipo, , drop = FALSE]
+  if (!nrow(fechas)) return(list())
   limite_inferior <- as.Date("1900-01-01")
   limite_superior <- as.Date(fecha_referencia, tz = "UTC")
   hallazgos <- list()
-  for (i in seq_len(nrow(nacimientos))) {
-    nombre <- nacimientos$columna[[i]]
+  for (i in seq_len(nrow(fechas))) {
+    nombre <- fechas$columna[[i]]
     indice <- match(nombre, columnas$columna)
     if (is.na(indice)) next
     minimo <- .fecha_resumida_personal(columnas$minimo_fecha[[indice]])
@@ -501,10 +516,11 @@
       if (futura) "al menos una fecha posterior a la fecha del perfil"
     )
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
-      nombre, "fecha_nacimiento_fuera_rango",
+      nombre, configuracion$hallazgo,
       if (futura) "error" else "sospechoso",
       paste0(
-        "La columna clasificada como fecha de nacimiento contiene ",
+        "La columna clasificada como ", configuracion$descripcion,
+        " contiene ",
         paste(situaciones, collapse = " y "), "."
       ),
       paste0(
@@ -516,6 +532,13 @@
     )
   }
   hallazgos
+}
+
+.hallazgos_rango_nacimiento <- function(columnas, clasificacion,
+                                        fecha_referencia) {
+  .hallazgos_rango_fecha_personal(
+    columnas, clasificacion, fecha_referencia, "fecha_nacimiento"
+  )
 }
 
 .proteger_componentes_perfil <- function(columnas, patrones, dependencias,

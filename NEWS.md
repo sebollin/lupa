@@ -1,5 +1,10 @@
 # lupa 0.1.0
 
+## Fechas personales de fallecimiento
+
+- Se reconoce `fecha_fallecimiento` por nombre, se protegen sus momentos y se
+  informa `fecha_fallecimiento_fuera_rango` sin publicar las fechas observadas.
+
 ## Las guardas geométricas no le entregan datos corruptos a GDAL
 
 - La plausibilidad WKB exige también el largo mínimo por tipo (un punto lleva

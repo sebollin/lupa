@@ -59,7 +59,7 @@ text, near-keys, constants and structural absence. On a reference bank with
 known defects it recovered 9 of 9 planted defects; on 43 clean tables it
 produced 0 error-severity findings.
 
-The current canonical vocabulary has 57 `tipo_hallazgo` names. The names are
+The current canonical vocabulary has 58 `tipo_hallazgo` names. The names are
 Spanish because they are part of the public API:
 
 ```text
@@ -75,24 +75,23 @@ dato_personal_posible            desviacion_benford
 duplicados_aproximados           duplicados_exactos_columnas
 duplicados_exactos_normalizados  entidades_html
 espacios_sobrantes               faltantes
-faltantes_disfrazados            fecha_nacimiento_fuera_rango
-fecha_partida_columnas           filas_duplicadas
-formato_fecha_ambiguo            formatos_fecha_mixtos
-geometria_invalida               geometria_vacia
-integer64_fuera_precision_double mayusculas_inconsistentes
-monedas_mixtas                   negativos_no_permitidos
-nombres_columnas_problematicos   normalizacion_unicode
-numero_como_texto                outliers
-patron_raro                      posible_ausencia_estructural
-posible_centinela_numerico       posible_identificador
-regla_silencia_ausencia          relacion_aritmetica_columnas
-relacion_orden_columnas          separadores_en_campo
-tipo_compuesto_no_analizado      tipo_declarado_distinto
-tipos_geometria_mixtos           unidades_mixtas
-valor_concentrado                valor_fuera_de_aplicabilidad
-valores_no_finitos
-variantes_equifrecuentes_vocabulario
-zona_horaria_fecha_hora
+faltantes_disfrazados            fecha_fallecimiento_fuera_rango
+fecha_nacimiento_fuera_rango      fecha_partida_columnas
+filas_duplicadas                 formato_fecha_ambiguo
+formatos_fecha_mixtos             geometria_invalida
+geometria_vacia                  integer64_fuera_precision_double
+mayusculas_inconsistentes         monedas_mixtas
+negativos_no_permitidos           nombres_columnas_problematicos
+normalizacion_unicode             numero_como_texto
+outliers                          patron_raro
+posible_ausencia_estructural      posible_centinela_numerico
+posible_identificador             regla_silencia_ausencia
+relacion_aritmetica_columnas      relacion_orden_columnas
+separadores_en_campo              tipo_compuesto_no_analizado
+tipo_declarado_distinto           tipos_geometria_mixtos
+unidades_mixtas                   valor_concentrado
+valor_fuera_de_aplicabilidad      valores_no_finitos
+variantes_equifrecuentes_vocabulario zona_horaria_fecha_hora
 ```
 
 The `valor_concentrado` signal implements the measured M2 rule. It considers

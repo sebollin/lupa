@@ -770,7 +770,7 @@ protección. Cada clasificación declara \code{poder_discriminante} y \code{prot
 \item \code{debil}: una forma genérica, como siete a doce dígitos, coincide también
 con importes, facturas y códigos; se informa pero no se ocultan valores;
 \item \code{medio}: el nombre de la columna expresa una categoría personal (por
-ejemplo \code{telefono} o \code{fecha_nacimiento}); se protege aunque sus valores no
+ejemplo \code{telefono}, \code{fecha_nacimiento} o \code{fecha_fallecimiento}); se protege aunque sus valores no
 se puedan validar. El nombre tiene prioridad sobre una forma numérica
 genérica y también determina la etiqueta de tipo;
 \item \code{alto}: una forma muy específica, como un correo, o nombre y forma se
@@ -799,8 +799,8 @@ extremos o medianas que corresponden a observaciones reales. Los desvíos se con
 \code{media_fecha}), porque la media de una columna personal puede reconstruir
 demasiado. Los desvíos siguen siendo síntesis no ligadas a una fila;
 \code{detalle_proteccion_personal} hace visible la supresión. En fechas de
-nacimiento, un hallazgo separado conserva el diagnóstico de valores
-anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
+nacimiento y fallecimiento, un hallazgo separado conserva el diagnóstico de
+valores anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 Los números escritos como texto reconocen tanto coma como punto decimal y
 sus separadores de miles simétricos. Los prefijos de tres letras separados
 del número, incluso como sufijo, \code{U$S} y los símbolos monetarios se

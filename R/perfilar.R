@@ -943,7 +943,7 @@
 #' - `debil`: una forma genérica, como siete a doce dígitos, coincide también
 #'   con importes, facturas y códigos; se informa pero no se ocultan valores;
 #' - `medio`: el nombre de la columna expresa una categoría personal (por
-#'   ejemplo `telefono` o `fecha_nacimiento`); se protege aunque sus valores no
+#'   ejemplo `telefono`, `fecha_nacimiento` o `fecha_fallecimiento`); se protege aunque sus valores no
 #'   se puedan validar. El nombre tiene prioridad sobre una forma numérica
 #'   genérica y también determina la etiqueta de tipo;
 #' - `alto`: una forma muy específica, como un correo, o nombre y forma se
@@ -971,8 +971,8 @@
 #' `media_fecha`), porque la media de una columna personal puede reconstruir
 #' demasiado. Los desvíos siguen siendo síntesis no ligadas a una fila;
 #' `detalle_proteccion_personal` hace visible la supresión. En fechas de
-#' nacimiento, un hallazgo separado conserva el diagnóstico de valores
-#' anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
+#' nacimiento y fallecimiento, un hallazgo separado conserva el diagnóstico de
+#' valores anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 #' Los números escritos como texto reconocen tanto coma como punto decimal y
 #' sus separadores de miles simétricos. Los prefijos de tres letras separados
 #' del número, incluso como sufijo, `U$S` y los símbolos monetarios se
@@ -1957,7 +1957,12 @@ perfilar <- function(datos,
   )
   hallazgos_personales <- c(
     hallazgos_personales,
-    .hallazgos_rango_nacimiento(columnas, datos_personales, fecha_hora)
+    .hallazgos_rango_fecha_personal(
+      columnas, datos_personales, fecha_hora, "fecha_nacimiento"
+    ),
+    .hallazgos_rango_fecha_personal(
+      columnas, datos_personales, fecha_hora, "fecha_fallecimiento"
+    )
   )
   if (length(hallazgos_personales)) {
     hallazgos <- do.call(rbind, c(list(hallazgos), hallazgos_personales))
