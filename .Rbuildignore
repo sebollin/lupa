@@ -15,3 +15,6 @@
 ^docs$
 ^notas-desarrollo$
 ^\.trabajo-agente$
+^lupa\.Rcheck$
+^lupa_.*\.tar\.gz$
+^.*\.Rcheck$
