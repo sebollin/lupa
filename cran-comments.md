@@ -18,9 +18,10 @@ notes and nothing else appears.
 _R_CHECK_DEPENDS_ONLY_=true R CMD check --as-cran lupa_0.1.0.tar.gz
 ```
 
-Result on these sources: **`Status: 1 NOTE`**, the new-submission note and nothing
-else — the same result as the ordinary check, which is the point: removing the
-optional packages changes nothing.
+Result on these sources: **`Status: 2 NOTEs`** — the new-submission note and the
+missing-`tidy` note described above, and nothing else: the same two notes as the
+ordinary check, which is the point. Removing the optional packages changes
+nothing.
 
 This runs before any external service and is the first step of the release script.
 An earlier revision passed in eight environments and still failed this one with
@@ -72,6 +73,21 @@ construct it. This check had hidden `bit64` well enough for
 passed. A check that removes packages from the library path is close to, but not
 the same as, a machine that never had them.
 
+**A fourth occurrence, on 2026-09-01, on the sources now submitted.** A test of
+the new external-LSH executor asserted a computed result without
+`skip_if_not_installed("stringdist")`; the local suite (22 872 passing checks)
+and five continuous-integration platforms were green, and this check alone
+failed with `1 ERROR`. The guard was added and the check re-run to
+**`Status: 2 NOTEs`**. Four occurrences of the same gap, each caught by the same
+single check, is the strongest argument this letter makes for running it.
+
+**The minimum-version container caught a sibling class the same day**: one test
+called `duckdb::duckdb(shared_home = FALSE)`, an argument added in newer duckdb
+releases, so on the period-appropriate snapshot the connection failed with a raw
+error. Every modern environment — local, five CI platforms, R-hub — was green.
+The call is now the plain `duckdb::duckdb()` the sibling test already used. A
+matrix row exists to see what the other rows cannot.
+
 The lesson is about this letter and not about those tests. A section stating a
 check result is exactly as verifiable — and as forgettable — as a code comment
 stating that something is fast. It is now re-run for every revision rather than
@@ -86,7 +102,7 @@ stamps and the stamp identifies a build, not a revision. Each result was read
 from that run's own check log. Where a run has not yet been repeated on the
 current sources, the line says so rather than carrying the older result forward.
 
-The package sources submitted are those of `d837225`.
+The package sources submitted are those of `688c4e7`.
 
 **This paragraph was wrong until it was re-run.** It claimed the sources were
 those of `375d7c3` and that everything committed after it touched only this
@@ -102,11 +118,12 @@ of the section above: a statement of fact in prose ages silently, and the
 reproducer being written next to it is not the same as the reproducer being run.
 The command is now run for each revision and its output pasted, not summarised.
 
-* Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — **`Status: 1 NOTE`**
-  with `--as-cran`, the note being `New submission`, and the same single note
-  with `_R_CHECK_DEPENDS_ONLY_=true`. With `_R_CHECK_CRAN_INCOMING_=false` the
-  result is **`Status: OK`**, no notes at all, which locates that note in the
-  incoming checks rather than in the package.
+* Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — **`Status: 2 NOTEs`**
+  with `--as-cran` (`New submission` and the missing local `tidy`), and the same
+  two notes with `_R_CHECK_DEPENDS_ONLY_=true`. With
+  `_R_CHECK_CRAN_INCOMING_=false --no-manual` the result on the same tarball,
+  re-run on these sources, is **`Status: OK`** — no notes at all — which
+  locates both notes outside the package.
 * Local, `_R_CHECK_DEPENDS_ONLY_=true R CMD check --as-cran` on the tarball
   built from the submission tree — **`Status: 2 NOTEs`**, the two described
   above and nothing else. (`cran-comments.md` is build-ignored, so a commit
@@ -116,51 +133,75 @@ The command is now run for each revision and its output pasted, not summarised.
   that has caught what twenty-two thousand green tests structurally cannot see;
   its log is kept with the other runs of this revision. The tarball build
   rebuilds all nine vignettes without a warning.
-* Continuous integration (GitHub Actions, `R-CMD-check`, run 33342198219) **on
-  `d837225`, the submitted sources**: 5 of 5 with **`Status: OK`** and test
-  summaries of `FAIL 0` with 22 124–22 128 passing checks — Ubuntu with R
-  release, R-devel and R oldrel-1; Windows with R release; macOS with R release
-  on `aarch64-apple-darwin23`. Each `Status:` line and each test summary was
+* Continuous integration (GitHub Actions, `R-CMD-check`, run 33498082928) **on
+  `688c4e7`, the submitted sources**: 5 of 5 with **`Status: OK`** and test
+  summaries of `FAIL 0` with 22 837–22 841 passing checks — Ubuntu with R
+  release, R-devel and R oldrel-1; Windows with R release; macOS with R release.
+  The three Ubuntu jobs report `WARN 0`; the Windows and macOS jobs report
+  `WARN 7`, seven platform-conditional test warnings with zero failures, stated
+  here rather than rounded away. Each `Status:` line and each test summary was
   read from that run's own log rather than inferred from the green tick.
-* R-hub v2, R-devel (run 33342198329) **on `d837225`, the submitted sources**:
+* R-hub v2, R-devel (run 33498082580) **on `688c4e7`, the submitted sources**:
   Linux, Windows and macOS — all three **`Status: OK`**. Each result was read
-  from that job's own log. Earlier revisions of this letter carried an R-hub
-  result measured one commit behind the submission and said so; this one is
-  measured on what is submitted.
-* win-builder, R release (4.6.1) and R-devel (r90452), uploaded from `d837225`
-  on 2026-08-31: **`Status: 1 NOTE` on both**, and the note is `New submission`
-  and nothing else. Read from each run's own `00check.log` (`TeCC2H9YPP1c` and
-  `7WGhSWm53Zru`), not from the notification e-mail. `checking tests ... OK` at
-  109 and 111 minutes respectively, and `checking HTML version of manual ... OK`
-  on both.
+  from that job's own log.
+* win-builder, R release (4.6.1), uploaded from `688c4e7`, the submitted
+  sources: **`Status: 1 NOTE`**, the note being `New submission` and nothing
+  else; `checking tests ... [114m] OK` and
+  `checking HTML version of manual ... OK`. Read from the run's own
+  `00check.log` (`o3b6nn2GsKPY`), not from the notification e-mail.
 
-  **An earlier upload of this same revision cycle failed here, and only here.**
+  **This run is itself the closing measurement of a failure this cycle.** One
+  revision earlier, the release check here — and here alone, out of ten
+  environments — died 29 minutes into the tests with no summary
+  (`x84xirE35eoq`), its output ending at `OGR: Corrupt data`: this machine's
+  current GDAL build segfaults, rather than erroring, on a WKB whose header is
+  valid and whose body is truncated, and a `tryCatch` cannot catch a segfault
+  in C. The same machine's R-devel, on a different GDAL build, ran the same
+  sources to `1 NOTE` (`Qfj1g7YA3q91`) — the crash was specific to the release
+  build. The fix extends the arithmetic WKB guard with a minimum body length
+  per geometry type and adds an equivalent arithmetic guard for WKT, so
+  corrupt bytes and corrupt text are rejected by the package's own arithmetic
+  and never handed to GDAL at all; the two tests that used to feed them now
+  assert, with a mock, that `sf` receives nothing. The full 114-minute rerun
+  above, on this same machine, is the measurement that the crash is gone.
+* win-builder, R-devel: uploaded twice from `688c4e7` (the regular pair and a
+  resubmission); the devel queue has returned no result after fifteen hours —
+  its last e-mail of the day, for any upload of this package, was the run of
+  the previous revision (`Qfj1g7YA3q91`, `Status: 1 NOTE`, full 118-minute
+  check), whose sources differ from those submitted only by the geometry
+  guards described above and by this letter. The row is stated as pending
+  rather than carried forward; this line will be replaced by the run's own
+  result when the queue returns it.
+
+  **An earlier upload of a previous revision cycle also failed here, and only
+  here.**
   The release machine's check died 29 minutes in with no test summary; nine
   other environments were green. The cause was in the package: to decide
   whether a raw column is WKB, bytes were handed to GDAL through `sf`, and a
   `tryCatch` cannot catch a segfault in C. That build of GDAL crashed where
-  every other one raised an error. The fix validates the WKB header
-  arithmetically before `sf` is ever called, so garbage bytes never reach GDAL;
-  the test that used to feed them now asserts that `st_as_sfc` is not called.
-  The rerun above — full suite, 109 minutes, `1 NOTE` — is the measurement that
-  the crash is gone. It is recorded here because a result that failed and was
-  fixed is part of what was measured, and because win-builder release was the
-  only environment of ten able to see it.
+  every other one raised an error. The fix of that cycle validated the WKB
+  header arithmetically before `sf` was ever called, and its 109-minute rerun
+  (`TeCC2H9YPP1c`, `1 NOTE`) measured that crash gone. The header alone later
+  proved insufficient — the truncated-body case above went through it — which
+  is why the guard now also demands the minimum body length. Twice now, this
+  machine has been the only one of ten able to see this class; both failures
+  and both closing measurements are recorded here because a result that failed
+  and was fixed is part of what was measured.
 * Container: R 4.1.3 (`rocker/r-ver:4.1.3`) for the declared minimum, with the
   suggested packages installed from a period-appropriate CRAN snapshot and the
-  full test suite running: **`FAIL 0 | WARN 0 | SKIP 21 | PASS 22086`** on
-  `d837225`, the submitted sources. The check reports one ERROR and one WARNING, both from
-  `checking PDF version of manual`: the image has no `pdflatex`. They are
-  properties of the container — every external service above builds the manual
-  and reports OK. Of its three NOTEs, one is `New submission`, one is the
-  future-timestamp note from the container clock, and one says
-  `found 1 marked UTF-8 string`: that string is **`Paysandú`** in the department
-  column of the example data. It is correctly marked, R 4.6.1 reports `OK` for
-  that same check, and a package about the quality of Uruguayan data has to be
-  able to write that name the way it is written.
+  full test suite running: **`FAIL 0 | WARN 0 | SKIP 24 | PASS 22795`** on
+  `688c4e7`, the submitted sources. The check reports one ERROR and one WARNING,
+  both from `checking PDF version of manual`: the image has no `pdflatex`. They
+  are properties of the container — every external service above builds the
+  manual and reports OK. Of its three NOTEs, one is `New submission`, one is the
+  future-timestamp note from the container clock, and one reports
+  `lupa-manual.tex` left in the check directory — the residue of the manual
+  build that the missing `pdflatex` could not finish, the same container
+  property under a third name. This row earned its place on this very
+  revision: it is the one that caught the `duckdb` signature described above.
 * The engine matrix — the full profile against PostgreSQL 16 and 9.3.25,
   MariaDB 11.8, MySQL 8.4, SQLite, DuckDB and SQL Server 2022, all real engines
-  — reports **7 of 7 measured** on `d837225`, regenerated by the script that
+  — reports **7 of 7 measured** on `688c4e7`, regenerated by the script that
   refuses to print a row without a log.
 
 ## Implementation notes
