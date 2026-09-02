@@ -110,6 +110,8 @@
   "approx_quantile" = "acotado",
   "percentile_approx" = "acotado",
   "quantile" = "acotado",
+  # El spool saturado recorre la tabla completa y su trabajo crece con las filas.
+  "spool_sesion_cliente" = "creciente",
   # I1 libera cada bloque antes de pedir el siguiente. El estado de los
   # acumuladores queda acotado por `E_distintos` y `P_estado`, no por `n`.
   "dbfetch_bloques" = "acotado",
@@ -11532,7 +11534,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' motor: se deriva en orden como `NA` para una fila sin medición, `acotado`
 #' para una muestra con `fraccion < 1` y, en los demás alcances efectivos,
 #' según el método resuelto del registro; una muestra saturada (`fraccion = 1`)
-#' cae a este último caso porque su tope es vacuo. Sus únicos valores son
+#' cae a este último caso porque su tope es vacuo y se clasifica como tabla
+#' completa. Sus únicos valores son
 #' `"creciente"`, `"acotado"` y `NA`.
 #'
 #' En PostgreSQL, con `instrumentar = TRUE`, se toma una foto de

@@ -582,7 +582,8 @@ particular, \code{NA} no significa cero.
 motor: se deriva en orden como \code{NA} para una fila sin medición, \code{acotado}
 para una muestra con \code{fraccion < 1} y, en los demás alcances efectivos,
 según el método resuelto del registro; una muestra saturada (\code{fraccion = 1})
-cae a este último caso porque su tope es vacuo. Sus únicos valores son
+cae a este último caso porque su tope es vacuo y se clasifica como tabla
+completa. Sus únicos valores son
 \code{"creciente"}, \code{"acotado"} y \code{NA}.
 
 En PostgreSQL, con \code{instrumentar = TRUE}, se toma una foto de

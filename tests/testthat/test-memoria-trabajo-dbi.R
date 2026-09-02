@@ -114,6 +114,34 @@ test_that("una muestra real acota todas sus filas medidas, incluso distintos", {
   expect_false(any(is.na(registros$memoria_trabajo[medidos])))
 })
 
+test_that("una muestra saturada clasifica el spool como trabajo creciente", {
+  conexion <- .memoria_trabajo_conexion(.memoria_trabajo_datos(20L))
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+
+  resultado <- .memoria_trabajo_perfil(
+    conexion,
+    universo = "muestra_motor", muestra_motor = 1000L,
+    metricas = c("validos", "distintos", "basicos", "moda", "mediana", "desvio")
+  )
+  registros <- resultado$resumen_tabla$sql
+  estados_sin_medicion <- c(
+    "no_solicitado", "omitida", "omitido_por_costo",
+    "omitido_por_privacidad", "no_disponible", "no_aplica",
+    "sin_valores", "no_medido"
+  )
+  medidos <- !registros$estado %in% estados_sin_medicion
+  saturados <- registros[
+    medidos & registros$alcance == "muestra" & registros$fraccion == 1,
+    , drop = FALSE
+  ]
+  spools <- saturados[saturados$metodo == "spool_sesion_cliente", , drop = FALSE]
+
+  expect_true(nrow(saturados) > 0L)
+  expect_false(any(is.na(saturados$memoria_trabajo)))
+  expect_true(nrow(spools) > 0L)
+  expect_true(all(spools$memoria_trabajo == "creciente"))
+})
+
 test_that("la misma metrica cambia de clase segun el metodo de DuckDB", {
   skip_if_not_installed("duckdb")
   conexion <- DBI::dbConnect(
@@ -165,6 +193,7 @@ test_that("el registro coincide con los metodos publicados, sin clasificar por m
     "approx_quantile" = "acotado",
     "percentile_approx" = "acotado",
     "quantile" = "acotado",
+    "spool_sesion_cliente" = "creciente",
     "dbfetch_bloques" = "acotado",
     "tabla_completa" = "acotado",
     "conteo_universo" = "acotado",
@@ -199,7 +228,14 @@ test_that("el registro coincide con los metodos publicados, sin clasificar por m
       alcance = "muestra", fraccion = 1, metodo = "COUNT(DISTINCT)"
     )
   )
+  muestra_spool <- lupa:::.registro_sql_dbi(
+    "x", "metrica", "observado_muestra", NA_character_, NA_character_,
+    metadatos = lupa:::.metadatos_sql_dbi(
+      alcance = "muestra", fraccion = 0.2, metodo = "spool_sesion_cliente"
+    )
+  )
   expect_identical(muestra$memoria_trabajo, "acotado")
+  expect_identical(muestra_spool$memoria_trabajo, "acotado")
   expect_identical(saturada$memoria_trabajo, "creciente")
 
   for (metodo in c(
@@ -302,7 +338,7 @@ test_that("una muestra saturada conserva el limite y declara el spool", {
   expect_true(all(muestras$tamano_muestra == 100000))
   expect_true(all(muestras$fraccion == 1))
   expect_true(all(muestras$estado == "observado_muestra"))
-  expect_true(all(is.na(muestras$memoria_trabajo)))
+  expect_true(all(muestras$memoria_trabajo == "creciente"))
   expect_true(isTRUE(resultado$resumen_tabla$meta$materializacion$validado_relectura))
   expect_identical(distintos$metodo[[1L]], "spool_sesion_cliente")
   expect_equal(
