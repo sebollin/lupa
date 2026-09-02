@@ -88,6 +88,32 @@ if (identical(environment(), globalenv())) {
   if (!requireNamespace("stringdist", quietly = TRUE)) {
     stop("Este banco necesita el paquete opcional 'stringdist'.")
   }
+  argumentos <- commandArgs(trailingOnly = FALSE)
+  marca_archivo <- "--file="
+  rutas_script <- argumentos[startsWith(argumentos, marca_archivo)]
+  directorio_script <- if (length(rutas_script) == 1L) {
+    ruta_script <- sub(marca_archivo, "", rutas_script, fixed = TRUE)
+    ruta_script <- gsub("~+~", " ", ruta_script, fixed = TRUE)
+    dirname(normalizePath(ruta_script, mustWork = TRUE))
+  } else {
+    getwd()
+  }
+  # La firma y su guarda van ANTES de medir: de nada sirve enterarse de que se
+  # midio la instalacion equivocada despues de pagar la corrida.
+  source(file.path(directorio_script, "_firma.R"), local = TRUE)
+  directorio_repositorio <- dirname(directorio_script)
+  rutas_firma <- .rutas_firma("perdida_lsh.R")
+  commit_actual <- .commit_actual(directorio_repositorio, rutas_firma)
+  descripcion_lupa <- utils::packageDescription("lupa")
+  ruta_lupa <- tryCatch(find.package("lupa"), error = function(e) NA_character_)
+  cat("lupa medida: version ", as.character(descripcion_lupa[["Version"]]), "\n", sep = "")
+  cat("Built: ", descripcion_lupa[["Built"]], "\n", sep = "")
+  cat("instalacion: ", ruta_lupa, "\n", sep = "")
+  cat("commit: ", commit_actual, "\n", sep = "")
+  if (isTRUE(.guarda_built(descripcion_lupa[["Built"]], directorio_repositorio,
+                           rutas_firma, ruta_lupa, commit_actual))) {
+    commit_actual <- paste0(commit_actual, "+singuarda")
+  }
   configuraciones <- expand.grid(
     n = c(400L, 800L),
     semilla = c(1L, 2L, 3L),
@@ -127,6 +153,43 @@ if (identical(environment(), globalenv())) {
   por_umbral <- do.call(rbind, lapply(umbrales, function(u) {
     medir_perdida_lsh(n = 800L, semilla = 1L, umbral = u, lsh_bandas = 12L)
   }))
+
+  directorio_datos <- file.path(directorio_script, "datos")
+  dir.create(directorio_datos, recursive = TRUE, showWarnings = FALSE)
+  salida_bandas <- data.frame(
+    filas = resultados$n,
+    semilla = resultados$semilla,
+    lsh_bandas = resultados$lsh_bandas,
+    umbral = resultados$umbral,
+    metodo = resultados$metodo,
+    pares_exhaustivo = resultados$pares_exhaustivo,
+    pares_lsh = resultados$pares_lsh,
+    perdidos = resultados$perdidos,
+    perdida = resultados$perdida,
+    stringsAsFactors = FALSE
+  )
+  salida_bandas$commit <- rep(commit_actual, nrow(salida_bandas))
+  utils::write.csv(
+    salida_bandas,
+    file = file.path(directorio_datos, "perdida_lsh_bandas.csv"),
+    row.names = FALSE
+  )
+  salida_umbral <- data.frame(
+    filas = por_umbral$n,
+    lsh_bandas = por_umbral$lsh_bandas,
+    umbral = por_umbral$umbral,
+    pares_exhaustivo = por_umbral$pares_exhaustivo,
+    pares_lsh = por_umbral$pares_lsh,
+    perdidos = por_umbral$perdidos,
+    perdida = por_umbral$perdida,
+    stringsAsFactors = FALSE
+  )
+  salida_umbral$commit <- rep(commit_actual, nrow(salida_umbral))
+  utils::write.csv(
+    salida_umbral,
+    file = file.path(directorio_datos, "perdida_lsh_umbral.csv"),
+    row.names = FALSE
+  )
   cat("\n=== Perdida segun cuan permisivo sea el metodo final ===\n\n")
   print(por_umbral[, c("umbral", "pares_exhaustivo", "pares_lsh", "perdidos",
                        "perdida")],

@@ -1,9 +1,100 @@
 # lupa 0.1.0
 
+## Las figuras del banco de rendimiento salen de un CSV
+
+- Cuatro figuras nuevas en el README —escala, estimación previa, cardinalidad
+  y pérdida del tamiz LSH— dibujadas con R base por
+  `benchmark/graficar_figuras.R` desde los CSV de `benchmark/datos/`, que
+  dejan `benchmark/medir_figuras.R` y `benchmark/perdida_lsh.R`. Ninguna cifra
+  vive en un guion ni en una transcripción de consola: cada figura lleva al pie
+  el commit, la fecha y la máquina, el graficador se detiene si los CSV mezclan
+  commits, y al final imprime las cifras que el README cita en prosa para que
+  otra corrida las desmienta con un `diff`.
+- El medidor firma el commit con `+sucio` si tienen cambios sin commitear las
+  rutas que determinan el resultado —`R/`, `DESCRIPTION`, `NAMESPACE`, `src/`,
+  `inst/` y el propio guion que mide—, comprueba que cada proceso hijo carga la
+  misma instalación que midió el padre, y se detiene si las tres corridas de una
+  configuración no dan los mismos candidatos, pares, recall y estimación previa.
+- **El commit firma el árbol, pero lo que se mide es la instalación**, y nada
+  obligaba a que fueran el mismo código: una corrida sin `R_LIBS` mide la
+  biblioteca por omisión —que puede ser de hace días— y firmaba igual el commit
+  de `HEAD`. Ahora los dos medidores se detienen si el sello `Built` de la
+  instalación es anterior al último commit de las rutas firmadas. Es condición
+  necesaria y no suficiente, y así está dicho: atrapa la instalación vieja
+  olvidada, no a quien quiera engañarla. `LUPA_FIGURAS_SIN_GUARDA_BUILT=1` deja
+  medir a sabiendas y firma los CSV con `+singuarda`. `entorno.csv` publica
+  además de qué biblioteca salió lo que se midió.
+- La firma se firma a sí misma. Con `benchmark/_firma.R` fuera de las rutas
+  vigiladas bastaba con sacarle la rama `+sucio` para que un árbol sucio se
+  firmara limpio: el archivo que decide el veredicto era el único que el
+  veredicto no cubría. Entra también `.Rbuildignore`, por una razón que se
+  demostró construyendo el tarball: agregándole una línea sin commitear se saca
+  del paquete un archivo de `R/` que sí está commiteado, y quien lo instale mide
+  un paquete al que le falta código del commit firmado.
+- Sin `git`, la columna `commit` queda en `NA` como antes, pero ahora la corrida
+  lo dice en voz alta en vez de dejarlo sólo en el CSV.
+- El graficador se detiene ante un CSV que lo haría afirmar lo que el dato no
+  dice: un valor no finito en una columna dibujada —el título salía «entre NA %
+  y NA %»—, una proporción fuera de `[0, 1]` —«150 %»—, más de una fila donde
+  dibuja una sola, `hilos.csv` con tamaños distintos o repetidos, o un nivel de
+  cardinalidad sin descripción. Salieron de darle CSV rotos de a uno, y cada
+  mensaje nombra el archivo, la columna y la fila.
+- El título de la figura del tamiz da el rango de **todo lo que la figura
+  dibuja**, no el de las medias: decía «entre 51 % y 76 %» con puntos en 48 % y
+  en 80 % al lado.
+- La tabla de hilos de la viñeta `escala-y-duplicados` ahora sale de
+  `benchmark/datos/hilos.csv`: la anterior venía de un padrón «que no se
+  distribuye» y era este mismo padrón sintético. Con dos hilos 153,20 s; con
+  dieciséis, 85,01 (0,55×); pasados dieciséis la ganancia queda dentro del
+  ruido entre corridas. La ganancia sobre el otro padrón se corrige de 12 % a
+  10 % (290,42 s frente a 324,36), que es lo que su propia tabla decía.
+
+## La tasa de doscientos caracteres, medida otra vez
+
+- `supuesto_costo` y la viñeta `perfilar-una-base` decían «unos 80.000 pares por
+  segundo» sobre valores de doscientos caracteres. Una corrida nueva de
+  `benchmark/medir_costo_texto.R` sobre este mismo código da 75.705 y 76.610, y
+  la entrada vieja de este archivo decía 70.000: las tres son corridas
+  distintas de la misma medición. Ahora las dos dicen «entre 70.000 y 80.000»,
+  que es la banda que las corridas sostienen, en vez de la punta más favorable.
+
 ## Fechas personales de fallecimiento
 
 - Se reconoce `fecha_fallecimiento` por nombre, se protegen sus momentos y se
   informa `fecha_fallecimiento_fuera_rango` sin publicar las fechas observadas.
+
+## Ronda de arreglos DBI contra bases reales
+
+- La muestra saturada por spool (`spool_sesion_cliente` con `fraccion = 1`)
+  clasifica `memoria_trabajo` como `creciente`, igual que la tabla completa,
+  en vez de dejarlo `NA`.
+- `rss_maximo` publica `NA` cuando ningún evento del vigilante trae una lectura
+  finita, en vez de avisar y publicar `-Inf`.
+- La documentación de `bloque_filas` dice que `perfil_muestra` sigue siendo la
+  muestra diagnóstica acotada por `muestra`, `max_celdas_muestra` y
+  `max_bytes_muestra`, y que la cobertura se lee en `meta$bloques$filas_vistas`.
+
+## Geometrías con Z/M o con SRID mixto: se acabaron los falsos positivos
+
+Medido contra un PostGIS 3.4.3 real, sembrado a propósito con lo que la base
+real de la ronda anterior **no** tenía: `GEOMETRYCOLLECTION` anidada y vacía,
+`POINT Z`, `POINT M`, `POINT ZM`, vacías legítimas mezcladas con no vacías, y
+SRID 31981 junto a 4326.
+
+- La vía DBI declaraba **fuera de dominio geometrías válidas**: una de cuatro en
+  la columna con Z/M, dos de tres en la de SRID mixto, cinco de siete en la que
+  mezclaba todo. Dos causas: el dominio se transformaba sin retirar Z/M, y una
+  columna con SRID mixto se transformaba entera con un solo CRS.
+- Ahora las dimensiones Z/M se retiran antes de transformar al sistema
+  geográfico, y se siguen declarando en `dimension_geometria`.
+- El SRID se lee de cada EWKB: `crs_declarado` publica la mezcla —`"31981,
+  4326"`— y el dominio se evalúa por grupos de SRID. `crs_geografico` queda `NA`
+  cuando hay mezcla, porque esa columna no tiene uno solo.
+- El arreglo no silencia nada: en los cinco casos ninguna geometría buena queda
+  rechazada, las tres vacías legítimas se siguen contando como vacías y la
+  auto-intersección se sigue informando como inválida.
+- `sf::sfc` no puede representar una columna con SRID mixto —tiene un CRS por
+  columna—, así que ahí la vía DBI es la que conserva lo que declaró cada fila.
 
 ## Las guardas geométricas no le entregan datos corruptos a GDAL
 

@@ -1,0 +1,2 @@
+"fecha","version_lupa","built","r_version","cpu","nucleos_disponibles","ram_gib","hilos_stringdist","metodo","umbral","p_jw","commit"
+"2026-09-02T14:28:51Z","0.1.0","R 4.6.1; ; 2026-09-02 14:02:35 UTC; unix","R version 4.6.1 (2026-06-24)","Intel(R) Core(TM) i9-14900HX",30,30.958122253418,2,"jw",0.1,0.1,"5645c15"

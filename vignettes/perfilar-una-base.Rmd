@@ -631,10 +631,12 @@ ordenación completa como `log2(filas)` pasadas; un índice sobre la columna
 ordenada, o una tabla que entra en la memoria del motor, la bajan mucho. La del
 cliente cuenta pares: el conteo es exacto, pero **cuánto cuesta cada par
 depende del largo de los valores, que el plan no conoce sin leerlos**. Medido
-acá, entre 660.000 y 1.150.000 pares por segundo con valores de cuarenta
-caracteres, y unos 80.000 con valores de doscientos: con textos muy
-largos el tiempo real es varias veces el que sugiere la referencia. Los números publicados no dependen de esos supuestos, así que quien no
-los comparta puede rehacer la cuenta.
+con `benchmark/medir_costo_texto.R`, entre 660.000 y 1.150.000 pares por
+segundo con valores de cuarenta caracteres —la banda cubre dos máquinas—, y
+entre 70.000 y 80.000 con valores de doscientos: con textos muy largos el
+tiempo real es varias veces el que sugiere la referencia. Los números
+publicados no dependen de esos supuestos, así que quien no los comparta puede
+rehacer la cuenta.
 
 ### Lo que el muestreo en el motor no puede darte
 

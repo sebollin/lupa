@@ -106,6 +106,48 @@ test_that("XYM y XYZM calculan validez en XY sin evaluar la medida", {
   )
 })
 
+test_that("las dimensiones adicionales no desordenan el dominio proyectado", {
+  skip_if_not_installed("sf")
+  geometria <- sf::st_sfc(
+    sf::st_point(c(500000, 6200000, 10), dim = "XYZ"),
+    sf::st_point(c(500100, 6200100, 7), dim = "XYM"),
+    sf::st_point(c(500200, 6200200, 11, 8), dim = "XYZM"),
+    sf::st_linestring(rbind(
+      c(500300, 6200300, 12, 9),
+      c(500400, 6200400, 13, 10)
+    ), dim = "XYZM"),
+    crs = 31981
+  )
+
+  medido <- lupa:::.perfilar_geometria(geometria)
+
+  expect_identical(medido$crs_declarado, "31981")
+  expect_identical(medido$dimension_geometria, "XYZ, XYM, XYZM")
+  expect_identical(medido$n_geometrias_invalidas, 0L)
+  expect_identical(medido$n_dominio_evaluados, 4L)
+  expect_identical(medido$n_fuera_de_dominio, 0L)
+})
+
+test_that("EWKB con SRID mixto conserva el dominio de cada geometria", {
+  skip_if_not_installed("sf")
+  utm <- sf::st_as_binary(
+    sf::st_sfc(sf::st_point(c(500000, 6200000)), crs = 31981),
+    EWKB = TRUE
+  )
+  geografica <- sf::st_as_binary(
+    sf::st_sfc(sf::st_point(c(-56.2, -34.9)), crs = 4326),
+    EWKB = TRUE
+  )
+  columna <- structure(c(utm, geografica), class = "WKB")
+
+  medido <- lupa:::.perfilar_geometria(columna)
+
+  expect_identical(medido$crs_declarado, "31981, 4326")
+  expect_identical(medido$n_geometrias_invalidas, 0L)
+  expect_identical(medido$n_dominio_evaluados, 2L)
+  expect_identical(medido$n_fuera_de_dominio, 0L)
+})
+
 test_that("el area de uso detecta unidades incompatibles y declara su limite", {
   skip_if_not_installed("sf")
   punto <- function(x, y, crs) {

@@ -1,6 +1,10 @@
 # Cuánto pierde el tamiz LSH
 
-Medido el 2026-08-18 con `benchmark/perdida_lsh.R`, reproducible.
+Medido con `benchmark/perdida_lsh.R`, reproducible. La primera corrida fue del
+2026-08-18; la del 2026-09-02 sobre `5645c15` dio exactamente los mismos
+conteos —son deterministas— y es la que queda en `datos/perdida_lsh_bandas.csv`
+y `datos/perdida_lsh_umbral.csv`, de donde `graficar_figuras.R` dibuja la
+figura del tamiz del README.
 
 ## Qué se mide, y por qué no está dentro del objeto
 

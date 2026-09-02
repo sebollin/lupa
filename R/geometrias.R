@@ -337,15 +337,101 @@
   )
 }
 
-.evaluar_dominio_geometria <- function(x, crs, vacias) {
+.evaluar_dominio_geometria <- function(x, crs, vacias, srids = NULL) {
   if (length(vacias) != length(x) || anyNA(vacias)) {
     return(.dominio_no_evaluado(
       "No se pudo identificar el universo de geometrias no vacias."
     ))
   }
+  srids_validos <- if (is.null(srids) || length(srids) != length(x)) {
+    integer()
+  } else {
+    suppressWarnings(as.integer(srids))
+  }
+  if (length(srids_validos) == length(x) &&
+      length(unique(srids_validos)) > 1L) {
+    fuera <- logical(length(x))
+    evaluados <- 0L
+    no_evaluados <- integer()
+    motivos <- character()
+    for (srid in unique(srids_validos)) {
+      posiciones <- which(
+        if (is.na(srid)) is.na(srids_validos) else srids_validos == srid
+      )
+      grupo_vacias <- vacias[posiciones]
+      grupo_crs <- if (is.na(srid) || srid == 0L) {
+        NA
+      } else {
+        tryCatch(sf::st_crs(srid), error = function(e) e)
+      }
+      if (inherits(grupo_crs, "error") || isTRUE(is.na(grupo_crs))) {
+        presentes <- posiciones[which(!grupo_vacias)]
+        no_evaluados <- c(no_evaluados, presentes)
+        motivo <- if (inherits(grupo_crs, "error")) {
+          conditionMessage(grupo_crs)
+        } else {
+          "el EWKB no declara un CRS utilizable"
+        }
+        motivos <- c(motivos, paste0("SRID ", srid, ": ", motivo))
+        next
+      }
+      grupo <- sf::st_sfc(unclass(x)[posiciones], crs = grupo_crs)
+      resultado <- .evaluar_dominio_geometria(
+        grupo, grupo_crs, grupo_vacias
+      )
+      if (isTRUE(resultado$evaluado)) {
+        fuera[posiciones] <- resultado$fuera
+        evaluados <- evaluados + resultado$n_evaluados
+        no_evaluados <- c(
+          no_evaluados, posiciones[resultado$no_evaluados]
+        )
+        if (length(resultado$no_evaluados)) {
+          motivos <- c(motivos, paste0("SRID ", srid, ": ", resultado$motivo))
+        }
+      } else {
+        presentes <- posiciones[which(!grupo_vacias)]
+        no_evaluados <- c(no_evaluados, presentes)
+        motivos <- c(motivos, paste0("SRID ", srid, ": ", resultado$motivo))
+      }
+    }
+    if (!evaluados && length(which(!vacias))) {
+      return(.dominio_no_evaluado(paste(
+        "No se pudo evaluar el dominio para ninguna geometria con SRID mixto:",
+        paste(motivos, collapse = "; ")
+      )))
+    }
+    motivo <- if (length(no_evaluados)) {
+      paste0(
+        "El dominio se evaluo por SRID para ", evaluados,
+        " geometrias; quedaron sin evaluar ", length(no_evaluados),
+        ". ", paste(motivos, collapse = "; ")
+      )
+    } else {
+      NA_character_
+    }
+    return(list(
+      evaluado = TRUE, fuera = fuera, n_evaluados = as.integer(evaluados),
+      no_evaluados = as.integer(no_evaluados),
+      n_no_evaluados = as.integer(length(no_evaluados)), motivo = motivo
+    ))
+  }
   area_uso <- .bbox_area_uso_crs(crs)
   if (!isTRUE(area_uso$evaluada)) {
     return(.dominio_no_evaluado(area_uso$motivo))
+  }
+  dimensiones <- vapply(unclass(x), .dimension_sfg, character(1L))
+  x_transformacion <- x
+  if (any(!is.na(dimensiones) & dimensiones != "XY")) {
+    x_transformacion <- tryCatch(
+      suppressWarnings(sf::st_zm(x, drop = TRUE, what = "ZM")),
+      error = function(e) e
+    )
+    if (inherits(x_transformacion, "error")) {
+      return(.dominio_no_evaluado(paste0(
+        "No se pudieron retirar las dimensiones Z/M antes de transformar al",
+        " sistema geografico: ", conditionMessage(x_transformacion)
+      )))
+    }
   }
   coordenadas <- lapply(unclass(x), .coordenadas_sfg)
   evaluables <- which(!vacias)
@@ -383,14 +469,16 @@
   no_evaluados <- integer()
   ultimo_error <- NA_character_
   if (length(transformables)) {
-    transformada <- .transformar_a_longlat(x, transformables, crs)
+    transformada <- .transformar_a_longlat(
+      x_transformacion, transformables, crs
+    )
     if (inherits(transformada, "error")) {
       # Antes, una sola geometria intransformable descartaba la evaluacion de
       # toda la columna. Ahora se reintenta una por una y se conserva lo medido,
       # declarando cuales quedaron sin evaluar.
       ultimo_error <- conditionMessage(transformada)
       for (i in transformables) {
-        una <- .transformar_a_longlat(x, i, crs)
+        una <- .transformar_a_longlat(x_transformacion, i, crs)
         if (inherits(una, "error")) {
           ultimo_error <- conditionMessage(una)
           no_evaluados <- c(no_evaluados, i)
@@ -507,6 +595,56 @@
   encabezado <- if (presentes[["srid"]]) 9L else 5L
   cuerpo_minimo <- if (tipo_base == 1L) 16L else 4L
   length(valor) >= encabezado + cuerpo_minimo
+}
+
+.srid_wkb <- function(valor) {
+  if (is.character(valor)) {
+    texto <- as.character(valor)
+    if (length(texto) != 1L || is.na(texto) ||
+        nchar(texto, type = "bytes") %% 2L != 0L ||
+        !grepl("^[0-9A-Fa-f]+$", texto, perl = TRUE)) {
+      return(NA_integer_)
+    }
+    pares <- substring(
+      texto, seq.int(1L, nchar(texto, type = "bytes"), by = 2L),
+      seq.int(2L, nchar(texto, type = "bytes"), by = 2L)
+    )
+    valor <- suppressWarnings(as.raw(strtoi(pares, base = 16L)))
+  }
+  if (!is.raw(valor) || length(valor) < 9L) return(NA_integer_)
+  orden <- as.integer(valor[[1L]])
+  if (!orden %in% c(0L, 1L)) return(NA_integer_)
+  bytes_tipo <- as.integer(valor[2L:5L])
+  potencias <- if (orden == 1L) 0:3 else 3:0
+  tipo <- sum(bytes_tipo * 256 ^ potencias)
+  if (floor(tipo / (2 ^ 29)) %% 2 != 1) return(NA_integer_)
+  bytes_srid <- as.integer(valor[6L:9L])
+  srid <- sum(bytes_srid * 256 ^ potencias)
+  if (!is.finite(srid) || srid < 0 || srid > .Machine$integer.max) {
+    return(NA_integer_)
+  }
+  as.integer(srid)
+}
+
+.srid_wkt <- function(valor) {
+  if (length(valor) != 1L || is.na(valor)) return(NA_integer_)
+  capturado <- regexec("^\\s*SRID=([0-9]+);", as.character(valor),
+                       ignore.case = TRUE)
+  partes <- regmatches(as.character(valor), capturado)[[1L]]
+  if (length(partes) != 2L) return(NA_integer_)
+  srid <- suppressWarnings(as.numeric(partes[[2L]]))
+  if (!is.finite(srid) || srid < 0 || srid > .Machine$integer.max) {
+    return(NA_integer_)
+  }
+  as.integer(srid)
+}
+
+.srids_representacion_geometrica <- function(x, representacion, indices) {
+  valores <- unclass(x)[indices]
+  if (identical(representacion, "WKT")) {
+    return(vapply(valores, .srid_wkt, integer(1L)))
+  }
+  vapply(valores, .srid_wkb, integer(1L))
 }
 
 .parece_wkb_crudo <- function(x) {
@@ -641,6 +779,7 @@
   list(
     representacion = representacion, sf_evaluado = TRUE,
     geometria = convertida, indices = indices, n_total = length(x),
+    srids = .srids_representacion_geometrica(x, representacion, indices),
     recortado = presupuesto$recortado,
     motivo = if (presupuesto$recortado) presupuesto$motivo else NA_character_
   )
@@ -724,7 +863,10 @@
     posiciones <- alternativa$indices
   }
   metricas <- .remapear_indices_geometria(
-    .metricas_sfc(x, salida, max_geometrias, max_vertices), posiciones
+    .metricas_sfc(
+      x, salida, max_geometrias, max_vertices,
+      srids = if (is.null(alternativa)) NULL else alternativa$srids
+    ), posiciones
   )
   if (isTRUE(alternativa$recortado)) {
     # El recorte de la conversion es un recorte del analisis, y se declara como
@@ -753,7 +895,8 @@
   salida
 }
 
-.metricas_sfc <- function(x, salida, max_geometrias, max_vertices) {
+.metricas_sfc <- function(x, salida, max_geometrias, max_vertices,
+                          srids = NULL) {
   crs <- tryCatch(sf::st_crs(x), error = function(e) NA)
   tiene_crs <- !isTRUE(is.na(crs))
   if (tiene_crs) {
@@ -761,6 +904,16 @@
     salida$crs_geografico <- tryCatch(
       suppressWarnings(sf::st_is_longlat(crs)), error = function(e) NA
     )
+  }
+  srids_validos <- if (is.null(srids) || length(srids) != length(x)) {
+    integer()
+  } else {
+    suppressWarnings(as.integer(srids))
+  }
+  srids_declarados <- unique(srids_validos[!is.na(srids_validos)])
+  if (length(srids_declarados)) {
+    salida$crs_declarado <- paste(srids_declarados, collapse = ", ")
+    if (length(srids_declarados) > 1L) salida$crs_geografico <- NA
   }
 
   tipos <- tryCatch(
@@ -877,7 +1030,12 @@
   }
 
   if (tiene_crs) {
-    dominio <- .evaluar_dominio_geometria(x_analisis, crs, vacias_analisis)
+    srids_analisis <- if (length(srids_validos) == length(x)) {
+      srids_validos[indices]
+    } else NULL
+    dominio <- .evaluar_dominio_geometria(
+      x_analisis, crs, vacias_analisis, srids = srids_analisis
+    )
     salida$dominio_evaluado <- dominio$evaluado
     if (isTRUE(dominio$evaluado)) {
       salida$n_dominio_evaluados <- dominio$n_evaluados

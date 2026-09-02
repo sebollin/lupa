@@ -8930,7 +8930,8 @@
   "para convertir `filas_leidas` en segundos, que es para lo que est\u00e1, y no",
   "como medida de lo que el motor lee. Y de 660.000 a 1.150.000 pares por",
   "segundo sobre valores de cuarenta caracteres -la banda cubre dos m\u00e1quinas",
-  "distintas-, que bajan a unos 80.000 sobre valores de doscientos. Esa tasa",
+  "distintas-, que bajan a entre 70.000 y 80.000 sobre valores de doscientos.",
+  "Esa tasa",
   "cuenta los pares que se comparan de verdad: con valores largos el detector",
   "recorta por `max_trabajo`, y dividir por los pares que el plan contar\u00eda",
   "inflaba la cifra cuatro veces."

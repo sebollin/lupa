@@ -63,34 +63,34 @@ The current canonical vocabulary has 58 `tipo_hallazgo` names. The names are
 Spanish because they are part of the public API:
 
 ```text
-alta_cardinalidad                 anio_de_dos_digitos
-bloqueo_por_con_perdida          casi_clave
-casi_duplicados_vocabulario      celdas_multivaluadas
-ceros_no_permitidos              clave_con_ausentes
-clave_no_unica                   codificacion_invalida
-codificacion_rota                columnas_duplicadas
-constante                        controles_invisibles
-coordenada_fuera_dominio         crs_no_declarado
-dato_personal_posible            desviacion_benford
-duplicados_aproximados           duplicados_exactos_columnas
-duplicados_exactos_normalizados  entidades_html
-espacios_sobrantes               faltantes
-faltantes_disfrazados            fecha_fallecimiento_fuera_rango
-fecha_nacimiento_fuera_rango      fecha_partida_columnas
-filas_duplicadas                 formato_fecha_ambiguo
-formatos_fecha_mixtos             geometria_invalida
-geometria_vacia                  integer64_fuera_precision_double
-mayusculas_inconsistentes         monedas_mixtas
-negativos_no_permitidos           nombres_columnas_problematicos
-normalizacion_unicode             numero_como_texto
-outliers                          patron_raro
-posible_ausencia_estructural      posible_centinela_numerico
-posible_identificador             regla_silencia_ausencia
-relacion_aritmetica_columnas      relacion_orden_columnas
-separadores_en_campo              tipo_compuesto_no_analizado
-tipo_declarado_distinto           tipos_geometria_mixtos
-unidades_mixtas                   valor_concentrado
-valor_fuera_de_aplicabilidad      valores_no_finitos
+alta_cardinalidad                    anio_de_dos_digitos
+bloqueo_por_con_perdida              casi_clave
+casi_duplicados_vocabulario          celdas_multivaluadas
+ceros_no_permitidos                  clave_con_ausentes
+clave_no_unica                       codificacion_invalida
+codificacion_rota                    columnas_duplicadas
+constante                            controles_invisibles
+coordenada_fuera_dominio             crs_no_declarado
+dato_personal_posible                desviacion_benford
+duplicados_aproximados               duplicados_exactos_columnas
+duplicados_exactos_normalizados      entidades_html
+espacios_sobrantes                   faltantes
+faltantes_disfrazados                fecha_fallecimiento_fuera_rango
+fecha_nacimiento_fuera_rango         fecha_partida_columnas
+filas_duplicadas                     formato_fecha_ambiguo
+formatos_fecha_mixtos                geometria_invalida
+geometria_vacia                      integer64_fuera_precision_double
+mayusculas_inconsistentes            monedas_mixtas
+negativos_no_permitidos              nombres_columnas_problematicos
+normalizacion_unicode                numero_como_texto
+outliers                             patron_raro
+posible_ausencia_estructural         posible_centinela_numerico
+posible_identificador                regla_silencia_ausencia
+relacion_aritmetica_columnas         relacion_orden_columnas
+separadores_en_campo                 tipo_compuesto_no_analizado
+tipo_declarado_distinto              tipos_geometria_mixtos
+unidades_mixtas                      valor_concentrado
+valor_fuera_de_aplicabilidad         valores_no_finitos
 variantes_equifrecuentes_vocabulario zona_horaria_fecha_hora
 ```
 
@@ -1133,7 +1133,9 @@ an editable plan.
   personal-data evidence.
 - Profiles `sf` geometries and declares CRS, geometry families, emptiness,
   planar validity, coordinate domain, and bounding-box scope; it does not
-  perform spatial analysis.
+  perform spatial analysis. Over PostGIS it reads the SRID of each EWKB, so a
+  column with mixed SRIDs is declared as such and its domain is evaluated by
+  group: an `sf::sfc` column can only carry one CRS.
 - Applies Benford's law only when its preconditions hold, and records
   non-applicability in `cobertura_diagnosticos`.
 - Reports `unidades_mixtas` and `monedas_mixtas` in a column without converting
@@ -1200,6 +1202,85 @@ Rscript benchmark/medir_lupa.R
 
 The benchmark records the installed version and full `Built` stamp and stops
 when that installation lacks a capability required by the published table.
+
+### Performance: four figures that come out of a CSV
+
+A published timing ages with every commit, and a number nobody can rebuild
+turns into a lie without anyone noticing. So the figures below are not pasted
+from a console: `benchmark/medir_figuras.R` measures the `lupa` installation
+visible in `.libPaths()` —it prints its `Built` stamp, stops if it is missing,
+and also stops if that installation predates the last commit to the code, since
+then it cannot contain what the CSV would sign— and leaves the raw data in
+`benchmark/datos/`, one CSV per table with
+the commit as its last column; `benchmark/graficar_figuras.R` draws only what
+those CSVs hold, with base R and no graphics dependencies. Every figure
+carries the commit, the date and the machine in its footer. The counts
+—candidates, pairs, recall, loss— are deterministic and reproduce on any
+machine; times and memory belong to this machine and serve as an order of
+magnitude, not as a promise.
+
+![Scale: candidates, time, memory and threads on a synthetic register from 20,000 to 500,000 rows](man/figures/banco-escala.png)
+
+The synthetic register has homonyms and seeded typos over a small vocabulary:
+the shape that fills LSH buckets the most, that is, the expensive case.
+Candidates grow with the square of the rows —6,201,626 at 20,000,
+3,197,456,226 at 500,000— and time and memory follow them: 15.8 s and 499 MiB
+at 20,000 rows, 49 minutes and 2.8 GiB at 500,000, with two threads. **Of the
+seeded pairs that the final measure accepts, none is lost at any size**
+(ceiling recall: 100 %). The fourth panel measures what the default of two
+threads costs at 100,000 rows: 153 s with two threads, 118 with four, 99 with
+eight and 85 with sixteen (1.8× between two and sixteen), and 83 with
+twenty-nine; candidates and pairs do not change with the threads, only the
+clock does. Two threads remain the default because it is the cap CRAN asks to
+respect, and because the gain depends on what fraction of the work falls in
+the comparison: on another register the curve is much flatter (the
+`escala-y-duplicados` vignette has both).
+
+![Prior estimate: error at four sizes and the loss of blocking by key](man/figures/banco-estimacion.png)
+
+`estimar_costo()` says how many candidate pairs the traversal will generate
+**before** paying for it, with a deterministic sample of signatures. At the
+four sizes measured the error runs from −1.47 % to +1.28 %; the package
+promises no tolerance, the measurement is what it is. And when
+blocking by an arbitrary business key —`anio`, unrelated to the name— blocking
+discards 83 % of the pairs the exhaustive comparison reports (1,040,183 of
+1,247,654, over 4,000 rows), and the prior estimate anticipates it with an
+error of +0.46 %. The key is useless for this data, and that is visible before
+using it.
+
+![Cardinality: candidates at the same number of rows, with three vocabulary richnesses](man/figures/banco-cardinalidad.png)
+
+What rules is not the number of rows: it is how much the values repeat. The
+same 20,000 rows yield 411,051 candidates with a wide vocabulary and
+50,105,210 when half of them share one value, 121.9 times more. It is the number
+`estimar_costo()` anticipates and the reason the package estimates before
+traversing.
+
+![LSH sieve: loss against the exhaustive comparison, by threshold and by bands](man/figures/banco-tamiz.png)
+
+The LSH path is a sieve, not a substitute for the exhaustive one, and this
+figure sizes the warning that `alcance` already declares. Measured against the
+exhaustive comparison on the same input, with the other causes of loss
+neutralised: with 12 bands, the default, the sieve leaves out between 62 % and
+72 % of the pairs Jaro-Winkler accepts at threshold 0.10 on this corpus of 400
+and 800 rows; with 20 bands the loss drops to between 48 % and 61 % in
+exchange for more comparisons. The loss is not a property of the sieve but the
+distance between what it proposes and what the final method accepts: at
+threshold 0.02 it loses 1 of 2 pairs and at 0.20 it loses 22,336 of 31,609 (71
+%). Whoever needs exhaustiveness has the exhaustive path, at its cost. The
+experimental design and its limits are in
+[`benchmark/perdida_lsh.md`](benchmark/perdida_lsh.md).
+
+To rebuild the four figures from the repository root, on a quiet machine (the
+full run takes 3 h 34 min on this machine; with `LUPA_FIGURAS_SOLO_BARATAS=1`
+the smoke test takes 130 s):
+
+```sh
+R CMD build . && R CMD INSTALL lupa_0.1.0.tar.gz
+Rscript benchmark/medir_figuras.R
+Rscript benchmark/perdida_lsh.R
+Rscript benchmark/graficar_figuras.R
+```
 
 ## 🔍 Limits, fit, stability, and references
 

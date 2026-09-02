@@ -65,34 +65,34 @@ El vocabulario canónico actual contiene 58 nombres de `tipo_hallazgo`. Los
 nombres están en español porque forman parte de la API pública:
 
 ```text
-alta_cardinalidad                 anio_de_dos_digitos
-bloqueo_por_con_perdida          casi_clave
-casi_duplicados_vocabulario      celdas_multivaluadas
-ceros_no_permitidos              clave_con_ausentes
-clave_no_unica                   codificacion_invalida
-codificacion_rota                columnas_duplicadas
-constante                        controles_invisibles
-coordenada_fuera_dominio         crs_no_declarado
-dato_personal_posible            desviacion_benford
-duplicados_aproximados           duplicados_exactos_columnas
-duplicados_exactos_normalizados  entidades_html
-espacios_sobrantes               faltantes
-faltantes_disfrazados            fecha_fallecimiento_fuera_rango
-fecha_nacimiento_fuera_rango      fecha_partida_columnas
-filas_duplicadas                 formato_fecha_ambiguo
-formatos_fecha_mixtos             geometria_invalida
-geometria_vacia                  integer64_fuera_precision_double
-mayusculas_inconsistentes         monedas_mixtas
-negativos_no_permitidos           nombres_columnas_problematicos
-normalizacion_unicode             numero_como_texto
-outliers                          patron_raro
-posible_ausencia_estructural      posible_centinela_numerico
-posible_identificador             regla_silencia_ausencia
-relacion_aritmetica_columnas      relacion_orden_columnas
-separadores_en_campo              tipo_compuesto_no_analizado
-tipo_declarado_distinto           tipos_geometria_mixtos
-unidades_mixtas                   valor_concentrado
-valor_fuera_de_aplicabilidad      valores_no_finitos
+alta_cardinalidad                    anio_de_dos_digitos
+bloqueo_por_con_perdida              casi_clave
+casi_duplicados_vocabulario          celdas_multivaluadas
+ceros_no_permitidos                  clave_con_ausentes
+clave_no_unica                       codificacion_invalida
+codificacion_rota                    columnas_duplicadas
+constante                            controles_invisibles
+coordenada_fuera_dominio             crs_no_declarado
+dato_personal_posible                desviacion_benford
+duplicados_aproximados               duplicados_exactos_columnas
+duplicados_exactos_normalizados      entidades_html
+espacios_sobrantes                   faltantes
+faltantes_disfrazados                fecha_fallecimiento_fuera_rango
+fecha_nacimiento_fuera_rango         fecha_partida_columnas
+filas_duplicadas                     formato_fecha_ambiguo
+formatos_fecha_mixtos                geometria_invalida
+geometria_vacia                      integer64_fuera_precision_double
+mayusculas_inconsistentes            monedas_mixtas
+negativos_no_permitidos              nombres_columnas_problematicos
+normalizacion_unicode                numero_como_texto
+outliers                             patron_raro
+posible_ausencia_estructural         posible_centinela_numerico
+posible_identificador                regla_silencia_ausencia
+relacion_aritmetica_columnas         relacion_orden_columnas
+separadores_en_campo                 tipo_compuesto_no_analizado
+tipo_declarado_distinto              tipos_geometria_mixtos
+unidades_mixtas                      valor_concentrado
+valor_fuera_de_aplicabilidad         valores_no_finitos
 variantes_equifrecuentes_vocabulario zona_horaria_fecha_hora
 ```
 
@@ -1162,7 +1162,9 @@ cambia las acciones elegidas de un plan editable.
   de datos personales.
 - Perfila geometrías `sf` y declara CRS, familias geométricas, vacíos, validez
   planar, dominio de coordenadas y alcance de la caja envolvente; no hace
-  análisis espacial.
+  análisis espacial. Sobre PostGIS lee el SRID de cada EWKB, así que una columna
+  con SRID mixto queda declarada como tal y su dominio se evalúa por grupos: una
+  columna `sf::sfc` sólo puede tener un CRS.
 - Evalúa la ley de Benford sólo cuando se cumplen sus precondiciones y registra
   los casos no aplicables en `cobertura_diagnosticos`.
 - Informa `unidades_mixtas` y `monedas_mixtas` en una columna sin convertir
@@ -1226,6 +1228,85 @@ repositorio, reproducí esa condición y corré los scripts con:
 R CMD build . && R CMD INSTALL lupa_0.1.0.tar.gz
 Rscript benchmark/verdad_raha.R
 Rscript benchmark/medir_lupa.R
+```
+
+### Rendimiento: cuatro figuras que salen de un CSV
+
+Un tiempo publicado envejece con cada commit, y una cifra que nadie puede
+rehacer se vuelve mentira sin que nadie se entere. Por eso las figuras que
+siguen no se pegan de una consola: `benchmark/medir_figuras.R` mide la
+instalación de `lupa` visible en `.libPaths()` —imprime su sello `Built`, se
+detiene si falta y también si esa instalación es anterior al último commit del
+código, porque entonces no puede contener lo que el CSV firmaría— y deja los
+datos crudos en `benchmark/datos/`, un CSV por tabla con el commit como última
+columna; `benchmark/graficar_figuras.R` dibuja
+sólo lo que hay en esos CSV, con R base y sin dependencias gráficas. Cada
+figura lleva al pie el commit, la fecha y la máquina. Los conteos —candidatos,
+pares, recall, pérdida— son deterministas y se reproducen en cualquier equipo;
+los tiempos y la memoria son de esta máquina y sirven como orden de magnitud,
+no como promesa.
+
+![Escala: candidatos, tiempo, memoria e hilos sobre un padrón sintético de 20.000 a 500.000 filas](man/figures/banco-escala.png)
+
+El padrón sintético tiene homónimos y erratas sembradas sobre un vocabulario
+chico: es la forma que más llena las cubetas del LSH, o sea el caso caro. Los
+candidatos crecen con el cuadrado de las filas —6.201.626 a 20.000,
+3.197.456.226 a 500.000— y el tiempo y la memoria los siguen: 15,8 s y 499 MiB
+a 20.000 filas, 49 minutos y 2,8 GiB a 500.000, con dos hilos. **De los pares
+sembrados que la medida final acepta, no se pierde ninguno en ningún tamaño**
+(recall contra el techo: 100 %). El cuarto panel mide lo que cuesta el valor por
+omisión de dos hilos a 100.000 filas: 153 s con dos hilos, 118 con cuatro, 99
+con ocho y 85 con dieciséis (1,8× entre dos y dieciséis), y 83 con
+veintinueve; los candidatos y los pares no cambian con los hilos, sólo el
+reloj. Dos hilos siguen siendo el valor por omisión porque es el tope que CRAN
+pide respetar, y porque la ganancia depende de qué fracción del trabajo cae en
+la comparación: sobre otro padrón la curva es mucho más plana (la viñeta
+`escala-y-duplicados` tiene las dos).
+
+![Estimación previa: error en cuatro tamaños y pérdida del bloqueo por clave](man/figures/banco-estimacion.png)
+
+`estimar_costo()` dice cuántos pares candidatos va a generar el recorrido
+**antes** de pagarlo, con una muestra determinista de firmas. En los cuatro
+tamaños medidos el error va de −1,47 % a +1,28 %; el paquete no promete una
+tolerancia, la medición es la que hay. Y al bloquear
+por una clave de negocio cualquiera —`anio`, sin relación con el nombre— el
+bloqueo descarta el 83 % de los pares que la comparación exhaustiva informa
+(1.040.183 de 1.247.654, sobre 4.000 filas), y la estimación previa lo
+anticipa con un error de +0,46 %. La clave no sirve para este dato, y se ve
+antes de usarla.
+
+![Cardinalidad: candidatos a igual cantidad de filas, con tres riquezas de vocabulario](man/figures/banco-cardinalidad.png)
+
+Lo que manda no es la cantidad de filas: es cuánto se repiten los valores. Las
+mismas 20.000 filas dan 411.051 candidatos con un vocabulario amplio y
+50.105.210 cuando la mitad comparte un valor, 121,9 veces más. Es el número que
+`estimar_costo()` anticipa y el motivo de que el paquete estime antes de
+recorrer.
+
+![Tamiz LSH: pérdida frente a la comparación exhaustiva, según el umbral y las bandas](man/figures/banco-tamiz.png)
+
+El camino LSH es un tamiz, no un sustituto del exhaustivo, y esta figura
+dimensiona la advertencia que `alcance` ya declara. Medido contra la
+comparación exhaustiva sobre la misma entrada, con las otras causas de pérdida
+neutralizadas: con 12 bandas, el valor por omisión, el tamiz deja afuera entre
+el 62 % y el 72 % de los pares que Jaro-Winkler acepta a umbral 0,10 sobre
+este corpus de 400 y 800 filas; con 20 bandas la pérdida baja a entre el 48 %
+y el 61 % a cambio de más comparaciones. La pérdida no es una propiedad del
+tamiz sino la distancia entre lo que propone y lo que el método final acepta:
+a umbral 0,02 pierde 1 de 2 pares y a 0,20 pierde 22.336 de 31.609 (el 71 %).
+Quien necesite exhaustividad tiene el camino exhaustivo, con su costo. El
+diseño experimental y sus límites están en
+[`benchmark/perdida_lsh.md`](benchmark/perdida_lsh.md).
+
+Para rehacer las cuatro figuras desde la raíz del repositorio, con la máquina
+quieta (la corrida completa tarda 3 h 34 min en esta máquina; con
+`LUPA_FIGURAS_SOLO_BARATAS=1` la prueba de humo tarda 130 s):
+
+```sh
+R CMD build . && R CMD INSTALL lupa_0.1.0.tar.gz
+Rscript benchmark/medir_figuras.R
+Rscript benchmark/perdida_lsh.R
+Rscript benchmark/graficar_figuras.R
 ```
 
 ## 🔍 Límites, lugar, estabilidad y referencias
