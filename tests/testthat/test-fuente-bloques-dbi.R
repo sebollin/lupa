@@ -77,6 +77,40 @@ test_that("I1 conserva la identidad de los acumuladores con uno o muchos bloques
   )
 })
 
+test_that("rss_maximo queda en NA sin lecturas finitas y no avisa", {
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(conexion, "sin_rss", data.frame(valor = 1:4))
+  testthat::local_mocked_bindings(
+    .rss_proceso_lsh = function() NA_real_, .package = "lupa"
+  )
+
+  resultado <- expect_silent(lupa::perfilar_dbi(
+    conexion, "sin_rss", bloque_filas = 2L,
+    bloque_muestra = "solo_agregados", proteger_datos_personales = FALSE,
+    instrumentar = FALSE
+  ))
+
+  expect_true(is.na(resultado$resumen_tabla$meta$bytes$rss_maximo))
+})
+
+test_that("rss_maximo conserva una lectura finita del vigilante", {
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(conexion, "con_rss", data.frame(valor = 1:4))
+  testthat::local_mocked_bindings(
+    .rss_proceso_lsh = function() 123456, .package = "lupa"
+  )
+
+  resultado <- lupa::perfilar_dbi(
+    conexion, "con_rss", bloque_filas = 2L,
+    bloque_muestra = "solo_agregados", proteger_datos_personales = FALSE,
+    instrumentar = FALSE
+  )
+
+  expect_equal(resultado$resumen_tabla$meta$bytes$rss_maximo, 123456)
+})
+
 test_that("I1 inicia el mapa para moda y mediana sin publicar n_distintos", {
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
   on.exit(DBI::dbDisconnect(conexion), add = TRUE)

@@ -1222,7 +1222,10 @@
                  texto = 0,
                  retenidos = retenidos,
                  rss_maximo = if (!is.null(vigilante) && nrow(vigilante$eventos)) {
-                   max(vigilante$eventos$lectura_proceso, na.rm = TRUE)
+                   lecturas <- vigilante$eventos$lectura_proceso
+                   if (any(is.finite(lecturas))) {
+                     max(lecturas[is.finite(lecturas)])
+                   } else NA_real_
                  } else NA_real_),
     locators = locators, error = NULL
   )
