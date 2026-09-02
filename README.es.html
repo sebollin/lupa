@@ -91,37 +91,36 @@
 <td><code>columnas_duplicadas</code></td>
 <td><code>id_registro = id_copia</code></td>
 </tr></tbody></table><p>En una tabla armada a propósito, el perfil emitió 15 tipos de hallazgo, incluidas monedas y unidades mezcladas, fechas en formatos mixtos, faltantes disfrazados, espacios sobrantes, mayúsculas inconsistentes, variantes de escritura, números guardados como texto, casi-claves, constantes y ausencia estructural. Sobre un banco de referencia con defectos conocidos recuperó 9 de 9 defectos plantados; sobre 43 tablas limpias produjo 0 hallazgos de severidad error.</p>
-<p>El vocabulario canónico actual contiene 57 nombres de <code>tipo_hallazgo</code>. Los nombres están en español porque forman parte de la API pública:</p>
-<pre class="text"><code>alta_cardinalidad                 anio_de_dos_digitos
-bloqueo_por_con_perdida          casi_clave
-casi_duplicados_vocabulario      celdas_multivaluadas
-ceros_no_permitidos              clave_con_ausentes
-clave_no_unica                   codificacion_invalida
-codificacion_rota                columnas_duplicadas
-constante                        controles_invisibles
-coordenada_fuera_dominio         crs_no_declarado
-dato_personal_posible            desviacion_benford
-duplicados_aproximados           duplicados_exactos_columnas
-duplicados_exactos_normalizados  entidades_html
-espacios_sobrantes               faltantes
-faltantes_disfrazados            fecha_nacimiento_fuera_rango
-fecha_partida_columnas           filas_duplicadas
-formato_fecha_ambiguo            formatos_fecha_mixtos
-geometria_invalida               geometria_vacia
-integer64_fuera_precision_double mayusculas_inconsistentes
-monedas_mixtas                   negativos_no_permitidos
-nombres_columnas_problematicos   normalizacion_unicode
-numero_como_texto                outliers
-patron_raro                      posible_ausencia_estructural
-posible_centinela_numerico       posible_identificador
-regla_silencia_ausencia          relacion_aritmetica_columnas
-relacion_orden_columnas          separadores_en_campo
-tipo_compuesto_no_analizado      tipo_declarado_distinto
-tipos_geometria_mixtos           unidades_mixtas
-valor_concentrado                valor_fuera_de_aplicabilidad
-valores_no_finitos
-variantes_equifrecuentes_vocabulario
-zona_horaria_fecha_hora</code></pre>
+<p>El vocabulario canónico actual contiene 58 nombres de <code>tipo_hallazgo</code>. Los nombres están en español porque forman parte de la API pública:</p>
+<pre class="text"><code>alta_cardinalidad                    anio_de_dos_digitos
+bloqueo_por_con_perdida              casi_clave
+casi_duplicados_vocabulario          celdas_multivaluadas
+ceros_no_permitidos                  clave_con_ausentes
+clave_no_unica                       codificacion_invalida
+codificacion_rota                    columnas_duplicadas
+constante                            controles_invisibles
+coordenada_fuera_dominio             crs_no_declarado
+dato_personal_posible                desviacion_benford
+duplicados_aproximados               duplicados_exactos_columnas
+duplicados_exactos_normalizados      entidades_html
+espacios_sobrantes                   faltantes
+faltantes_disfrazados                fecha_fallecimiento_fuera_rango
+fecha_nacimiento_fuera_rango         fecha_partida_columnas
+filas_duplicadas                     formato_fecha_ambiguo
+formatos_fecha_mixtos                geometria_invalida
+geometria_vacia                      integer64_fuera_precision_double
+mayusculas_inconsistentes            monedas_mixtas
+negativos_no_permitidos              nombres_columnas_problematicos
+normalizacion_unicode                numero_como_texto
+outliers                             patron_raro
+posible_ausencia_estructural         posible_centinela_numerico
+posible_identificador                regla_silencia_ausencia
+relacion_aritmetica_columnas         relacion_orden_columnas
+separadores_en_campo                 tipo_compuesto_no_analizado
+tipo_declarado_distinto              tipos_geometria_mixtos
+unidades_mixtas                      valor_concentrado
+valor_fuera_de_aplicabilidad         valores_no_finitos
+variantes_equifrecuentes_vocabulario zona_horaria_fecha_hora</code></pre>
 <p>La señal <code>valor_concentrado</code> implementa la regla M2 medida. Considera sólo columnas numéricas con al menos 20 valores válidos no faltantes y al menos 10 valores distintos. Emite un hallazgo <code>sospechoso</code> cuando la frecuencia de la moda es al menos cinco veces la del segundo valor más frecuente y el valor modal representa al menos 0,15 de los valores válidos. La evidencia publica el valor modal, ambas frecuencias, el cociente y la fracción. Un valor legítimo puede dominar, por eso nunca es un <code>error</code>. Las columnas no elegibles no reciben una fila de <code>cobertura_diagnosticos</code>: las distribuciones categóricas quedan fuera del alcance previsto de la señal.</p>
 <p>Los puntos ciegos medidos son parte de este contrato: no detecta concentraciones menores al 15 %, y en columnas enteras pequeñas los empates naturales pueden dejar el cociente por debajo de cinco. La medición encontró cero falsos positivos en 114 columnas elegibles limpias, con un margen de 2,2 veces.</p>
 </div>
@@ -590,7 +589,7 @@ zona_horaria_fecha_hora</code></pre>
 <div class="section level2">
 <h2 id="sparkles-qué-hace-lupa-en-detalle">✨ Qué hace lupa en detalle<a class="anchor" aria-label="anchor" href="#sparkles-qu%C3%A9-hace-lupa-en-detalle"></a></h2>
 <ul><li>Perfila una entrega y muestra faltantes, tipos, patrones, fechas y evidencia de datos personales.</li>
-<li>Perfila geometrías <code>sf</code> y declara CRS, familias geométricas, vacíos, validez planar, dominio de coordenadas y alcance de la caja envolvente; no hace análisis espacial.</li>
+<li>Perfila geometrías <code>sf</code> y declara CRS, familias geométricas, vacíos, validez planar, dominio de coordenadas y alcance de la caja envolvente; no hace análisis espacial. Sobre PostGIS lee el SRID de cada EWKB, así que una columna con SRID mixto queda declarada como tal y su dominio se evalúa por grupos: una columna <code><a href="https://r-spatial.github.io/sf/reference/sfc.html" class="external-link">sf::sfc</a></code> sólo puede tener un CRS.</li>
 <li>Evalúa la ley de Benford sólo cuando se cumplen sus precondiciones y registra los casos no aplicables en <code>cobertura_diagnosticos</code>.</li>
 <li>Informa <code>unidades_mixtas</code> y <code>monedas_mixtas</code> en una columna sin convertir valores ni suponer tasas de cambio.</li>
 <li>Informa <code>celdas_multivaluadas</code> sólo cuando las partes homogéneas coinciden con los patrones de la columna.</li>
@@ -629,6 +628,31 @@ zona_horaria_fecha_hora</code></pre>
 <div class="sourceCode" id="cb12"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
 <span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/verdad_raha.R</span>
 <span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_lupa.R</span></code></pre></div>
+<div class="section level3">
+<h3 id="rendimiento-cuatro-figuras-que-salen-de-un-csv">Rendimiento: cuatro figuras que salen de un CSV<a class="anchor" aria-label="anchor" href="#rendimiento-cuatro-figuras-que-salen-de-un-csv"></a></h3>
+<p>Un tiempo publicado envejece con cada commit, y una cifra que nadie puede rehacer se vuelve mentira sin que nadie se entere. Por eso las figuras que siguen no se pegan de una consola: <code>benchmark/medir_figuras.R</code> mide la instalación de <code>lupa</code> visible en <code><a href="https://rdrr.io/r/base/libPaths.html" class="external-link">.libPaths()</a></code> —imprime su sello <code>Built</code>, se detiene si falta y también si esa instalación es anterior al último commit del código, porque entonces no puede contener lo que el CSV firmaría— y deja los datos crudos en <code>benchmark/datos/</code>, un CSV por tabla con el commit como última columna; <code>benchmark/graficar_figuras.R</code> dibuja sólo lo que hay en esos CSV, con R base y sin dependencias gráficas. Cada figura lleva al pie el commit, la fecha y la máquina. Los conteos —candidatos, pares, recall, pérdida— son deterministas y se reproducen en cualquier equipo; los tiempos y la memoria son de esta máquina y sirven como orden de magnitud, no como promesa.</p>
+<div class="float">
+<img src="reference/figures/banco-escala.png" alt="Escala: candidatos, tiempo, memoria e hilos sobre un padrón sintético de 20.000 a 500.000 filas"><div class="figcaption">Escala: candidatos, tiempo, memoria e hilos sobre un padrón sintético de 20.000 a 500.000 filas</div>
+</div>
+<p>El padrón sintético tiene homónimos y erratas sembradas sobre un vocabulario chico: es la forma que más llena las cubetas del LSH, o sea el caso caro. Los candidatos crecen con el cuadrado de las filas —6.201.626 a 20.000, 3.197.456.226 a 500.000— y el tiempo y la memoria los siguen: 15,8 s y 499 MiB a 20.000 filas, 49 minutos y 2,8 GiB a 500.000, con dos hilos. <strong>De los pares sembrados que la medida final acepta, no se pierde ninguno en ningún tamaño</strong> (recall contra el techo: 100 %). El cuarto panel mide lo que cuesta el valor por omisión de dos hilos a 100.000 filas: 153 s con dos hilos, 118 con cuatro, 99 con ocho y 85 con dieciséis (1,8× entre dos y dieciséis), y 83 con veintinueve; los candidatos y los pares no cambian con los hilos, sólo el reloj. Dos hilos siguen siendo el valor por omisión porque es el tope que CRAN pide respetar, y porque la ganancia depende de qué fracción del trabajo cae en la comparación: sobre otro padrón la curva es mucho más plana (la viñeta <code>escala-y-duplicados</code> tiene las dos).</p>
+<div class="float">
+<img src="reference/figures/banco-estimacion.png" alt="Estimación previa: error en cuatro tamaños y pérdida del bloqueo por clave"><div class="figcaption">Estimación previa: error en cuatro tamaños y pérdida del bloqueo por clave</div>
+</div>
+<p><code><a href="reference/estimar_costo.html">estimar_costo()</a></code> dice cuántos pares candidatos va a generar el recorrido <strong>antes</strong> de pagarlo, con una muestra determinista de firmas. En los cuatro tamaños medidos el error va de −1,47 % a +1,28 %; el paquete no promete una tolerancia, la medición es la que hay. Y al bloquear por una clave de negocio cualquiera —<code>anio</code>, sin relación con el nombre— el bloqueo descarta el 83 % de los pares que la comparación exhaustiva informa (1.040.183 de 1.247.654, sobre 4.000 filas), y la estimación previa lo anticipa con un error de +0,46 %. La clave no sirve para este dato, y se ve antes de usarla.</p>
+<div class="float">
+<img src="reference/figures/banco-cardinalidad.png" alt="Cardinalidad: candidatos a igual cantidad de filas, con tres riquezas de vocabulario"><div class="figcaption">Cardinalidad: candidatos a igual cantidad de filas, con tres riquezas de vocabulario</div>
+</div>
+<p>Lo que manda no es la cantidad de filas: es cuánto se repiten los valores. Las mismas 20.000 filas dan 411.051 candidatos con un vocabulario amplio y 50.105.210 cuando la mitad comparte un valor, 121,9 veces más. Es el número que <code><a href="reference/estimar_costo.html">estimar_costo()</a></code> anticipa y el motivo de que el paquete estime antes de recorrer.</p>
+<div class="float">
+<img src="reference/figures/banco-tamiz.png" alt="Tamiz LSH: pérdida frente a la comparación exhaustiva, según el umbral y las bandas"><div class="figcaption">Tamiz LSH: pérdida frente a la comparación exhaustiva, según el umbral y las bandas</div>
+</div>
+<p>El camino LSH es un tamiz, no un sustituto del exhaustivo, y esta figura dimensiona la advertencia que <code>alcance</code> ya declara. Medido contra la comparación exhaustiva sobre la misma entrada, con las otras causas de pérdida neutralizadas: con 12 bandas, el valor por omisión, el tamiz deja afuera entre el 62 % y el 72 % de los pares que Jaro-Winkler acepta a umbral 0,10 sobre este corpus de 400 y 800 filas; con 20 bandas la pérdida baja a entre el 48 % y el 61 % a cambio de más comparaciones. La pérdida no es una propiedad del tamiz sino la distancia entre lo que propone y lo que el método final acepta: a umbral 0,02 pierde 1 de 2 pares y a 0,20 pierde 22.336 de 31.609 (el 71 %). Quien necesite exhaustividad tiene el camino exhaustivo, con su costo. El diseño experimental y sus límites están en <a href="benchmark/perdida_lsh.html"><code>benchmark/perdida_lsh.md</code></a>.</p>
+<p>Para rehacer las cuatro figuras desde la raíz del repositorio, con la máquina quieta (la corrida completa tarda 3 h 34 min en esta máquina; con <code>LUPA_FIGURAS_SOLO_BARATAS=1</code> la prueba de humo tarda 130 s):</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_figuras.R</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/perdida_lsh.R</span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/graficar_figuras.R</span></code></pre></div>
+</div>
 </div>
 <div class="section level2">
 <h2 id="mag-límites-lugar-estabilidad-y-referencias">🔍 Límites, lugar, estabilidad y referencias<a class="anchor" aria-label="anchor" href="#mag-l%C3%ADmites-lugar-estabilidad-y-referencias"></a></h2>
@@ -641,7 +665,7 @@ zona_horaria_fecha_hora</code></pre>
 </div>
 <div class="section level3">
 <h3 id="cita-y-referencias">Cita y referencias<a class="anchor" aria-label="anchor" href="#cita-y-referencias"></a></h3>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"lupa"</span><span class="op">)</span></span></code></pre></div>
 <p>Las referencias conceptuales son <a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini y Scannapieco (2016)</a>, el <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">Marco de trabajo de AGESIC para la Gestión de la Calidad de Datos en Gobierno Digital v1.6</a> y <a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC 25012:2008</a>.</p>
 </div>

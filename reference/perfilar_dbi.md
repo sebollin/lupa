@@ -325,7 +325,10 @@ perfilar_dbi(
   su motivo, sin caer en `dbGetQuery()`. Si se pide `moda` o `mediana`,
   I1 inicia tambien el mapa central de distintos aunque `n_distintos` no
   se haya pedido: la mediana depende de ese mapa y la fila `n_distintos`
-  conserva `no_solicitado`.
+  conserva `no_solicitado`. Bajo `bloque_filas`, `perfil_muestra` sigue
+  siendo la muestra diagnóstica acotada por `muestra`,
+  `max_celdas_muestra` y `max_bytes_muestra`; su `general$filas` no es
+  la cobertura, que se publica en `meta$bloques$filas_vistas`.
 
 - max_bytes_procesamiento:
 
@@ -439,17 +442,22 @@ contiene familias disponibles; y `cobertura_diagnosticos` tiene una fila
 por familia no evaluada. `meta$origen_dbi$muestreo` conserva filas
 solicitadas, entregadas, reproducibilidad, `muestra_id`, `snapshot_id` y
 checksum. El método de impresión remite a esa cobertura cuando el campo
-no está disponible; no reemplaza la ausencia con `NULL` silencioso. En
-`muestra_motor`, todas las metricas SQL salvo `n` describen la relacion
-muestreada; `n` es el total de la tabla completa y esta marcado con
-`alcance = "tabla_completa"`, `metodo = "conteo_universo"` y
-`error_esperado = "no_aplica"`. Los conteos `n_validos`, `n_faltantes`,
-`prop_faltantes`, `n_distintos`, `tasa_distintos`, `n_ceros`,
-`n_negativos` y `frecuencia_moda` son observaciones de esa muestra, no
-extrapolaciones al universo. Sus motivos declaran la escala local y el
-denominador `n_total_consulta` cuando corresponde. `TABLESAMPLE SYSTEM`
-es la fuente preferida cuando el adaptador la declara y la sonda la
-acepta; publica `metodo_muestreo = "tablesample_system"`,
+no está disponible; no reemplaza la ausencia con `NULL` silencioso. Bajo
+`bloque_filas`, `perfil_muestra` sigue siendo la muestra diagnóstica
+acotada por `muestra`, `max_celdas_muestra` y `max_bytes_muestra`; no es
+la cobertura completa. Por eso `perfil_muestra$general$filas` es el
+tamaño de esa muestra y la cobertura se lee en
+`meta$bloques$filas_vistas`. En `muestra_motor`, todas las metricas SQL
+salvo `n` describen la relacion muestreada; `n` es el total de la tabla
+completa y esta marcado con `alcance = "tabla_completa"`,
+`metodo = "conteo_universo"` y `error_esperado = "no_aplica"`. Los
+conteos `n_validos`, `n_faltantes`, `prop_faltantes`, `n_distintos`,
+`tasa_distintos`, `n_ceros`, `n_negativos` y `frecuencia_moda` son
+observaciones de esa muestra, no extrapolaciones al universo. Sus
+motivos declaran la escala local y el denominador `n_total_consulta`
+cuando corresponde. `TABLESAMPLE SYSTEM` es la fuente preferida cuando
+el adaptador la declara y la sonda la acepta; publica
+`metodo_muestreo = "tablesample_system"`,
 `sesgo_muestreo = "por_bloques"` y el motivo estable
 `sesgo_muestreo:tablesample_system_por_bloques`. Si se usa el fallback
 `random_limit` con `NEWID()`, la metadata publica
@@ -670,8 +678,9 @@ particular, `NA` no significa cero.
 del motor: se deriva en orden como `NA` para una fila sin medición,
 `acotado` para una muestra con `fraccion < 1` y, en los demás alcances
 efectivos, según el método resuelto del registro; una muestra saturada
-(`fraccion = 1`) cae a este último caso porque su tope es vacuo. Sus
-únicos valores son `"creciente"`, `"acotado"` y `NA`.
+(`fraccion = 1`) cae a este último caso porque su tope es vacuo y se
+clasifica como tabla completa. Sus únicos valores son `"creciente"`,
+`"acotado"` y `NA`.
 
 En PostgreSQL, con `instrumentar = TRUE`, se toma una foto de
 `pg_stat_statements` antes y después de la ventana que cubre los

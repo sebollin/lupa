@@ -906,7 +906,7 @@ valor válido. El alcance declara cuántas observaciones retiró este filtro.</p
 protección. Cada clasificación declara <code>poder_discriminante</code> y <code>proteger</code>:</p><ul><li><p><code>debil</code>: una forma genérica, como siete a doce dígitos, coincide también
 con importes, facturas y códigos; se informa pero no se ocultan valores;</p></li>
 <li><p><code>medio</code>: el nombre de la columna expresa una categoría personal (por
-ejemplo <code>telefono</code> o <code>fecha_nacimiento</code>); se protege aunque sus valores no
+ejemplo <code>telefono</code>, <code>fecha_nacimiento</code> o <code>fecha_fallecimiento</code>); se protege aunque sus valores no
 se puedan validar. El nombre tiene prioridad sobre una forma numérica
 genérica y también determina la etiqueta de tipo;</p></li>
 <li><p><code>alto</code>: una forma muy específica, como un correo, o nombre y forma se
@@ -932,8 +932,8 @@ extremos o medianas que corresponden a observaciones reales. Los desvíos se con
 <code>media_fecha</code>), porque la media de una columna personal puede reconstruir
 demasiado. Los desvíos siguen siendo síntesis no ligadas a una fila;
 <code>detalle_proteccion_personal</code> hace visible la supresión. En fechas de
-nacimiento, un hallazgo separado conserva el diagnóstico de valores
-anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
+nacimiento y fallecimiento, un hallazgo separado conserva el diagnóstico de
+valores anteriores a 1900 o posteriores a la corrida sin publicar las fechas.
 Los números escritos como texto reconocen tanto coma como punto decimal y
 sus separadores de miles simétricos. Los prefijos de tres letras separados
 del número, incluso como sufijo, <code>U$S</code> y los símbolos monetarios se

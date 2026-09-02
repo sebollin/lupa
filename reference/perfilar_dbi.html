@@ -367,7 +367,11 @@ vigilante. Los drivers sin retencion incremental demostrada (incluido
 DuckDB en esta matriz) quedan <code>no_disponible</code> con su motivo, sin caer en
 <code>dbGetQuery()</code>. Si se pide <code>moda</code> o <code>mediana</code>, I1 inicia tambien el mapa
 central de distintos aunque <code>n_distintos</code> no se haya pedido: la mediana
-depende de ese mapa y la fila <code>n_distintos</code> conserva <code>no_solicitado</code>.</p></dd>
+depende de ese mapa y la fila <code>n_distintos</code> conserva <code>no_solicitado</code>.
+Bajo <code>bloque_filas</code>, <code>perfil_muestra</code> sigue siendo la muestra diagnóstica
+acotada por <code>muestra</code>, <code>max_celdas_muestra</code> y <code>max_bytes_muestra</code>; su
+<code>general$filas</code> no es la cobertura, que se publica en
+<code>meta$bloques$filas_vistas</code>.</p></dd>
 
 
 <dt id="arg-max-bytes-procesamiento">max_bytes_procesamiento<a class="anchor" aria-label="anchor" href="#arg-max-bytes-procesamiento"></a></dt>
@@ -481,6 +485,10 @@ familia no evaluada. <code>meta$origen_dbi$muestreo</code> conserva filas solici
 entregadas, reproducibilidad, <code>muestra_id</code>, <code>snapshot_id</code> y checksum. El
 método de impresión remite a esa cobertura cuando el campo no está
 disponible; no reemplaza la ausencia con <code>NULL</code> silencioso.
+Bajo <code>bloque_filas</code>, <code>perfil_muestra</code> sigue siendo la muestra diagnóstica
+acotada por <code>muestra</code>, <code>max_celdas_muestra</code> y <code>max_bytes_muestra</code>; no es la
+cobertura completa. Por eso <code>perfil_muestra$general$filas</code> es el tamaño de
+esa muestra y la cobertura se lee en <code>meta$bloques$filas_vistas</code>.
 En <code>muestra_motor</code>, todas las metricas SQL salvo <code>n</code> describen la relacion
 muestreada; <code>n</code> es el total de la tabla completa y esta marcado con
 <code>alcance = "tabla_completa"</code>, <code>metodo = "conteo_universo"</code> y
@@ -704,7 +712,8 @@ particular, <code>NA</code> no significa cero.</p>
 motor: se deriva en orden como <code>NA</code> para una fila sin medición, <code>acotado</code>
 para una muestra con <code>fraccion &lt; 1</code> y, en los demás alcances efectivos,
 según el método resuelto del registro; una muestra saturada (<code>fraccion = 1</code>)
-cae a este último caso porque su tope es vacuo. Sus únicos valores son
+cae a este último caso porque su tope es vacuo y se clasifica como tabla
+completa. Sus únicos valores son
 <code>"creciente"</code>, <code>"acotado"</code> y <code>NA</code>.</p>
 <p>En PostgreSQL, con <code>instrumentar = TRUE</code>, se toma una foto de
 <code>pg_stat_statements</code> antes y después de la ventana que cubre los agregados

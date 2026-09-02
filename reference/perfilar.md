@@ -914,9 +914,10 @@ protección. Cada clasificación declara `poder_discriminante` y
   ocultan valores;
 
 - `medio`: el nombre de la columna expresa una categoría personal (por
-  ejemplo `telefono` o `fecha_nacimiento`); se protege aunque sus
-  valores no se puedan validar. El nombre tiene prioridad sobre una
-  forma numérica genérica y también determina la etiqueta de tipo;
+  ejemplo `telefono`, `fecha_nacimiento` o `fecha_fallecimiento`); se
+  protege aunque sus valores no se puedan validar. El nombre tiene
+  prioridad sobre una forma numérica genérica y también determina la
+  etiqueta de tipo;
 
 - `alto`: una forma muy específica, como un correo, o nombre y forma se
   apoyan mutuamente; se protege;
@@ -947,17 +948,17 @@ desvíos se conservan; las medias se protegen en sus dos formas (`media`
 y `media_fecha`), porque la media de una columna personal puede
 reconstruir demasiado. Los desvíos siguen siendo síntesis no ligadas a
 una fila; `detalle_proteccion_personal` hace visible la supresión. En
-fechas de nacimiento, un hallazgo separado conserva el diagnóstico de
-valores anteriores a 1900 o posteriores a la corrida sin publicar las
-fechas. Los números escritos como texto reconocen tanto coma como punto
-decimal y sus separadores de miles simétricos. Los prefijos de tres
-letras separados del número, incluso como sufijo, `U$S` y los símbolos
-monetarios se conservan como evidencia; `monedas_mixtas` informa sus
-frecuencias sin convertir ni suponer tasas de cambio. Una única moneda o
-un símbolo `$` aislado no produce ese hallazgo. Un sufijo de unidad se
-reconoce sólo si es `%` o una abreviatura alfabética en minúsculas; por
-eso `12 kg` y `13500 g` son unidades, mientras que `12A` y `13B` se
-tratan como códigos. Si hay más de una unidad observada,
+fechas de nacimiento y fallecimiento, un hallazgo separado conserva el
+diagnóstico de valores anteriores a 1900 o posteriores a la corrida sin
+publicar las fechas. Los números escritos como texto reconocen tanto
+coma como punto decimal y sus separadores de miles simétricos. Los
+prefijos de tres letras separados del número, incluso como sufijo, `U$S`
+y los símbolos monetarios se conservan como evidencia; `monedas_mixtas`
+informa sus frecuencias sin convertir ni suponer tasas de cambio. Una
+única moneda o un símbolo `$` aislado no produce ese hallazgo. Un sufijo
+de unidad se reconoce sólo si es `%` o una abreviatura alfabética en
+minúsculas; por eso `12 kg` y `13500 g` son unidades, mientras que `12A`
+y `13B` se tratan como códigos. Si hay más de una unidad observada,
 `unidades_mixtas` informa sus frecuencias y no convierte ni compara sus
 magnitudes. Una única unidad no genera ese hallazgo.
 `celdas_multivaluadas` es deliberadamente conservador: usa los patrones

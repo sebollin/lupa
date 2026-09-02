@@ -149,37 +149,36 @@
 </tbody>
 </table>
 <p>In a purpose-built table, the profile emitted 15 kinds of finding, including mixed currencies and units, mixed date formats, disguised missingness, extra spaces, inconsistent capitalization, spelling variants, numbers stored as text, near-keys, constants and structural absence. On a reference bank with known defects it recovered 9 of 9 planted defects; on 43 clean tables it produced 0 error-severity findings.</p>
-<p>The current canonical vocabulary has 57 <code>tipo_hallazgo</code> names. The names are Spanish because they are part of the public API:</p>
-<pre class="text"><code>alta_cardinalidad                 anio_de_dos_digitos
-bloqueo_por_con_perdida          casi_clave
-casi_duplicados_vocabulario      celdas_multivaluadas
-ceros_no_permitidos              clave_con_ausentes
-clave_no_unica                   codificacion_invalida
-codificacion_rota                columnas_duplicadas
-constante                        controles_invisibles
-coordenada_fuera_dominio         crs_no_declarado
-dato_personal_posible            desviacion_benford
-duplicados_aproximados           duplicados_exactos_columnas
-duplicados_exactos_normalizados  entidades_html
-espacios_sobrantes               faltantes
-faltantes_disfrazados            fecha_nacimiento_fuera_rango
-fecha_partida_columnas           filas_duplicadas
-formato_fecha_ambiguo            formatos_fecha_mixtos
-geometria_invalida               geometria_vacia
-integer64_fuera_precision_double mayusculas_inconsistentes
-monedas_mixtas                   negativos_no_permitidos
-nombres_columnas_problematicos   normalizacion_unicode
-numero_como_texto                outliers
-patron_raro                      posible_ausencia_estructural
-posible_centinela_numerico       posible_identificador
-regla_silencia_ausencia          relacion_aritmetica_columnas
-relacion_orden_columnas          separadores_en_campo
-tipo_compuesto_no_analizado      tipo_declarado_distinto
-tipos_geometria_mixtos           unidades_mixtas
-valor_concentrado                valor_fuera_de_aplicabilidad
-valores_no_finitos
-variantes_equifrecuentes_vocabulario
-zona_horaria_fecha_hora</code></pre>
+<p>The current canonical vocabulary has 58 <code>tipo_hallazgo</code> names. The names are Spanish because they are part of the public API:</p>
+<pre class="text"><code>alta_cardinalidad                    anio_de_dos_digitos
+bloqueo_por_con_perdida              casi_clave
+casi_duplicados_vocabulario          celdas_multivaluadas
+ceros_no_permitidos                  clave_con_ausentes
+clave_no_unica                       codificacion_invalida
+codificacion_rota                    columnas_duplicadas
+constante                            controles_invisibles
+coordenada_fuera_dominio             crs_no_declarado
+dato_personal_posible                desviacion_benford
+duplicados_aproximados               duplicados_exactos_columnas
+duplicados_exactos_normalizados      entidades_html
+espacios_sobrantes                   faltantes
+faltantes_disfrazados                fecha_fallecimiento_fuera_rango
+fecha_nacimiento_fuera_rango         fecha_partida_columnas
+filas_duplicadas                     formato_fecha_ambiguo
+formatos_fecha_mixtos                geometria_invalida
+geometria_vacia                      integer64_fuera_precision_double
+mayusculas_inconsistentes            monedas_mixtas
+negativos_no_permitidos              nombres_columnas_problematicos
+normalizacion_unicode                numero_como_texto
+outliers                             patron_raro
+posible_ausencia_estructural         posible_centinela_numerico
+posible_identificador                regla_silencia_ausencia
+relacion_aritmetica_columnas         relacion_orden_columnas
+separadores_en_campo                 tipo_compuesto_no_analizado
+tipo_declarado_distinto              tipos_geometria_mixtos
+unidades_mixtas                      valor_concentrado
+valor_fuera_de_aplicabilidad         valores_no_finitos
+variantes_equifrecuentes_vocabulario zona_horaria_fecha_hora</code></pre>
 <p>The <code>valor_concentrado</code> signal implements the measured M2 rule. It considers only numeric columns with at least 20 non-missing valid values and at least 10 distinct values. It emits a <code>sospechoso</code> finding when the modal frequency is at least five times the second-highest frequency and the modal value accounts for at least 0.15 of valid values. Its evidence reports the modal value, both frequencies, the ratio, and the fraction. A legitimate value can dominate, so this is never an <code>error</code>. Non-eligible columns do not receive a <code>cobertura_diagnosticos</code> row: categorical distributions are outside the signal’s intended scope.</p>
 <p>The measured blind spots are part of this contract: concentrations below 15% are not detected, and natural ties in small integer columns can keep the ratio below five. The measurement found zero false positives in 114 clean eligible columns, with a 2.2x margin.</p>
 </div>
@@ -862,7 +861,7 @@ zona_horaria_fecha_hora</code></pre>
 </h2>
 <ul>
 <li>Profiles a delivery and surfaces missingness, types, patterns, dates, and personal-data evidence.</li>
-<li>Profiles <code>sf</code> geometries and declares CRS, geometry families, emptiness, planar validity, coordinate domain, and bounding-box scope; it does not perform spatial analysis.</li>
+<li>Profiles <code>sf</code> geometries and declares CRS, geometry families, emptiness, planar validity, coordinate domain, and bounding-box scope; it does not perform spatial analysis. Over PostGIS it reads the SRID of each EWKB, so a column with mixed SRIDs is declared as such and its domain is evaluated by group: an <code><a href="https://r-spatial.github.io/sf/reference/sfc.html" class="external-link">sf::sfc</a></code> column can only carry one CRS.</li>
 <li>Applies Benford’s law only when its preconditions hold, and records non-applicability in <code>cobertura_diagnosticos</code>.</li>
 <li>Reports <code>unidades_mixtas</code> and <code>monedas_mixtas</code> in a column without converting values or assuming exchange rates.</li>
 <li>Reports <code>celdas_multivaluadas</code> only when homogeneous parts match the column’s patterns.</li>
@@ -922,6 +921,32 @@ zona_horaria_fecha_hora</code></pre>
 <span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/verdad_raha.R</span>
 <span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_lupa.R</span></code></pre></div>
 <p>The benchmark records the installed version and full <code>Built</code> stamp and stops when that installation lacks a capability required by the published table.</p>
+<div class="section level3">
+<h3 id="performance-four-figures-that-come-out-of-a-csv">Performance: four figures that come out of a CSV<a class="anchor" aria-label="anchor" href="#performance-four-figures-that-come-out-of-a-csv"></a>
+</h3>
+<p>A published timing ages with every commit, and a number nobody can rebuild turns into a lie without anyone noticing. So the figures below are not pasted from a console: <code>benchmark/medir_figuras.R</code> measures the <code>lupa</code> installation visible in <code><a href="https://rdrr.io/r/base/libPaths.html" class="external-link">.libPaths()</a></code> —it prints its <code>Built</code> stamp, stops if it is missing, and also stops if that installation predates the last commit to the code, since then it cannot contain what the CSV would sign— and leaves the raw data in <code>benchmark/datos/</code>, one CSV per table with the commit as its last column; <code>benchmark/graficar_figuras.R</code> draws only what those CSVs hold, with base R and no graphics dependencies. Every figure carries the commit, the date and the machine in its footer. The counts —candidates, pairs, recall, loss— are deterministic and reproduce on any machine; times and memory belong to this machine and serve as an order of magnitude, not as a promise.</p>
+<div class="float">
+<img src="reference/figures/banco-escala.png" alt="Scale: candidates, time, memory and threads on a synthetic register from 20,000 to 500,000 rows"><div class="figcaption">Scale: candidates, time, memory and threads on a synthetic register from 20,000 to 500,000 rows</div>
+</div>
+<p>The synthetic register has homonyms and seeded typos over a small vocabulary: the shape that fills LSH buckets the most, that is, the expensive case. Candidates grow with the square of the rows —6,201,626 at 20,000, 3,197,456,226 at 500,000— and time and memory follow them: 15.8 s and 499 MiB at 20,000 rows, 49 minutes and 2.8 GiB at 500,000, with two threads. <strong>Of the seeded pairs that the final measure accepts, none is lost at any size</strong> (ceiling recall: 100 %). The fourth panel measures what the default of two threads costs at 100,000 rows: 153 s with two threads, 118 with four, 99 with eight and 85 with sixteen (1.8× between two and sixteen), and 83 with twenty-nine; candidates and pairs do not change with the threads, only the clock does. Two threads remain the default because it is the cap CRAN asks to respect, and because the gain depends on what fraction of the work falls in the comparison: on another register the curve is much flatter (the <code>escala-y-duplicados</code> vignette has both).</p>
+<div class="float">
+<img src="reference/figures/banco-estimacion.png" alt="Prior estimate: error at four sizes and the loss of blocking by key"><div class="figcaption">Prior estimate: error at four sizes and the loss of blocking by key</div>
+</div>
+<p><code><a href="reference/estimar_costo.html">estimar_costo()</a></code> says how many candidate pairs the traversal will generate <strong>before</strong> paying for it, with a deterministic sample of signatures. At the four sizes measured the error runs from −1.47 % to +1.28 %; the package promises no tolerance, the measurement is what it is. And when blocking by an arbitrary business key —<code>anio</code>, unrelated to the name— blocking discards 83 % of the pairs the exhaustive comparison reports (1,040,183 of 1,247,654, over 4,000 rows), and the prior estimate anticipates it with an error of +0.46 %. The key is useless for this data, and that is visible before using it.</p>
+<div class="float">
+<img src="reference/figures/banco-cardinalidad.png" alt="Cardinality: candidates at the same number of rows, with three vocabulary richnesses"><div class="figcaption">Cardinality: candidates at the same number of rows, with three vocabulary richnesses</div>
+</div>
+<p>What rules is not the number of rows: it is how much the values repeat. The same 20,000 rows yield 411,051 candidates with a wide vocabulary and 50,105,210 when half of them share one value, 121.9 times more. It is the number <code><a href="reference/estimar_costo.html">estimar_costo()</a></code> anticipates and the reason the package estimates before traversing.</p>
+<div class="float">
+<img src="reference/figures/banco-tamiz.png" alt="LSH sieve: loss against the exhaustive comparison, by threshold and by bands"><div class="figcaption">LSH sieve: loss against the exhaustive comparison, by threshold and by bands</div>
+</div>
+<p>The LSH path is a sieve, not a substitute for the exhaustive one, and this figure sizes the warning that <code>alcance</code> already declares. Measured against the exhaustive comparison on the same input, with the other causes of loss neutralised: with 12 bands, the default, the sieve leaves out between 62 % and 72 % of the pairs Jaro-Winkler accepts at threshold 0.10 on this corpus of 400 and 800 rows; with 20 bands the loss drops to between 48 % and 61 % in exchange for more comparisons. The loss is not a property of the sieve but the distance between what it proposes and what the final method accepts: at threshold 0.02 it loses 1 of 2 pairs and at 0.20 it loses 22,336 of 31,609 (71 %). Whoever needs exhaustiveness has the exhaustive path, at its cost. The experimental design and its limits are in <a href="benchmark/perdida_lsh.html"><code>benchmark/perdida_lsh.md</code></a>.</p>
+<p>To rebuild the four figures from the repository root, on a quiet machine (the full run takes 3 h 34 min on this machine; with <code>LUPA_FIGURAS_SOLO_BARATAS=1</code> the smoke test takes 130 s):</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="ex">R</span> CMD build . <span class="kw">&amp;&amp;</span> <span class="ex">R</span> CMD INSTALL lupa_0.1.0.tar.gz</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/medir_figuras.R</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/perdida_lsh.R</span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a><span class="ex">Rscript</span> benchmark/graficar_figuras.R</span></code></pre></div>
+</div>
 </div>
 <div class="section level2">
 <h2 id="mag-limits-fit-stability-and-references">🔍 Limits, fit, stability, and references<a class="anchor" aria-label="anchor" href="#mag-limits-fit-stability-and-references"></a>
@@ -937,7 +962,7 @@ zona_horaria_fecha_hora</code></pre>
 <div class="section level3">
 <h3 id="citation-and-references">Citation and references<a class="anchor" aria-label="anchor" href="#citation-and-references"></a>
 </h3>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"lupa"</span><span class="op">)</span></span></code></pre></div>
 <p>Conceptual references are <a href="https://doi.org/10.1007/978-3-319-24106-7" class="external-link">Batini and Scannapieco (2016)</a>, the <a href="https://www.gub.uy/agencia-gobierno-electronico-sociedad-informacion-conocimiento/" class="external-link">AGESIC Digital Government Data Quality Framework v1.6</a>, and <a href="https://www.iso.org/standard/35736.html" class="external-link">ISO/IEC 25012:2008</a>.</p>
 </div>
