@@ -70,6 +70,24 @@ test_that("el tope de celdas limita la lectura DBI y no los agregados SQL", {
   )
 })
 
+test_that("bajo bloques la cobertura total no es la muestra diagnostica", {
+  con <- .con_topes_dbi(12L)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
+  datos <- .tabla_topes_dbi(12L)
+
+  resultado <- do.call(
+    perfilar_dbi,
+    c(list(
+      conexion = con, tabla = "topes", muestra = 20L,
+      max_celdas_muestra = 8L, max_bytes_muestra = Inf,
+      bloque_filas = 3L, instrumentar = FALSE
+    ), .argumentos_perfil_topes_dbi)
+  )
+
+  expect_equal(resultado$resumen_tabla$meta$bloques$filas_vistas, nrow(datos))
+  expect_lt(resultado$perfil_muestra$general$filas, nrow(datos))
+})
+
 test_that("el tope de bytes sondea antes y limita la consulta final", {
   con <- .con_topes_dbi()
   on.exit(DBI::dbDisconnect(con), add = TRUE)

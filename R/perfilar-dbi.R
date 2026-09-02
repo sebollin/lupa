@@ -11313,6 +11313,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #' entregadas, reproducibilidad, `muestra_id`, `snapshot_id` y checksum. El
 #' método de impresión remite a esa cobertura cuando el campo no está
 #' disponible; no reemplaza la ausencia con `NULL` silencioso.
+#' Bajo `bloque_filas`, `perfil_muestra` sigue siendo la muestra diagnóstica
+#' acotada por `muestra`, `max_celdas_muestra` y `max_bytes_muestra`; no es la
+#' cobertura completa. Por eso `perfil_muestra$general$filas` es el tamaño de
+#' esa muestra y la cobertura se lee en `meta$bloques$filas_vistas`.
 #' En `muestra_motor`, todas las metricas SQL salvo `n` describen la relacion
 #' muestreada; `n` es el total de la tabla completa y esta marcado con
 #' `alcance = "tabla_completa"`, `metodo = "conteo_universo"` y
@@ -11641,6 +11645,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `dbGetQuery()`. Si se pide `moda` o `mediana`, I1 inicia tambien el mapa
 #'   central de distintos aunque `n_distintos` no se haya pedido: la mediana
 #'   depende de ese mapa y la fila `n_distintos` conserva `no_solicitado`.
+#'   Bajo `bloque_filas`, `perfil_muestra` sigue siendo la muestra diagnóstica
+#'   acotada por `muestra`, `max_celdas_muestra` y `max_bytes_muestra`; su
+#'   `general$filas` no es la cobertura, que se publica en
+#'   `meta$bloques$filas_vistas`.
 #' @param orden_muestra Columnas para `ORDER BY`. La salida solo declara orden
 #'   reproducible cuando la combinación es única en toda la tabla. Sin este
 #'   argumento, DBI no garantiza el orden ni la pertenencia de una muestra

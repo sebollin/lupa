@@ -247,7 +247,11 @@ vigilante. Los drivers sin retencion incremental demostrada (incluido
 DuckDB en esta matriz) quedan \code{no_disponible} con su motivo, sin caer en
 \code{dbGetQuery()}. Si se pide \code{moda} o \code{mediana}, I1 inicia tambien el mapa
 central de distintos aunque \code{n_distintos} no se haya pedido: la mediana
-depende de ese mapa y la fila \code{n_distintos} conserva \code{no_solicitado}.}
+depende de ese mapa y la fila \code{n_distintos} conserva \code{no_solicitado}.
+Bajo \code{bloque_filas}, \code{perfil_muestra} sigue siendo la muestra diagnóstica
+acotada por \code{muestra}, \code{max_celdas_muestra} y \code{max_bytes_muestra}; su
+\code{general$filas} no es la cobertura, que se publica en
+\code{meta$bloques$filas_vistas}.}
 
 \item{max_bytes_procesamiento}{Límite de bytes del estado retenido por el
 procesamiento por bloques y por la lectura del spool en R. Se comprueba
@@ -356,6 +360,10 @@ familia no evaluada. \code{meta$origen_dbi$muestreo} conserva filas solicitadas,
 entregadas, reproducibilidad, \code{muestra_id}, \code{snapshot_id} y checksum. El
 método de impresión remite a esa cobertura cuando el campo no está
 disponible; no reemplaza la ausencia con \code{NULL} silencioso.
+Bajo \code{bloque_filas}, \code{perfil_muestra} sigue siendo la muestra diagnóstica
+acotada por \code{muestra}, \code{max_celdas_muestra} y \code{max_bytes_muestra}; no es la
+cobertura completa. Por eso \code{perfil_muestra$general$filas} es el tamaño de
+esa muestra y la cobertura se lee en \code{meta$bloques$filas_vistas}.
 En \code{muestra_motor}, todas las metricas SQL salvo \code{n} describen la relacion
 muestreada; \code{n} es el total de la tabla completa y esta marcado con
 \code{alcance = "tabla_completa"}, \code{metodo = "conteo_universo"} y
