@@ -99,7 +99,11 @@ tocarlas.
   plegado de caja usa un mapa explícito de mayúsculas latinas
   acentuadas, en `R/pliegue-caja.R`, que conserva el acento y sólo
   cambia la caja. Comprobado comparando puntos de código: bajo `C` y
-  bajo `es_UY.UTF-8` el resultado es el mismo.
+  bajo `es_UY.UTF-8` el resultado es el mismo. Al auditar el mapa
+  entrada por entrada apareció que faltaba justo `U+0130`, la I
+  mayúscula con punto —la única mayúscula latina sin cubrir, y la que el
+  locale trata distinto—: sin entrada propia se plegaba a `i` en un
+  locale UTF-8 y quedaba intacta bajo `C`.
 - **El «orden canónico —alfabético—» no era canónico**:
   [`sort()`](https://rdrr.io/r/base/sort.html) sobre texto usa la
   intercalación del locale, y ese orden desempata qué pares sobreviven
