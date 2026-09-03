@@ -683,7 +683,12 @@
 #'
 #' `muestra` limita el descubrimiento de patrones, la inferencia de tipos, la
 #' detección de formatos de fecha y la búsqueda de dependencias funcionales.
-#' Las demás métricas y hallazgos se calculan sobre todas las filas. Por eso
+#' Las demás métricas y hallazgos se calculan sobre todas las filas. En los
+#' resúmenes que convierten texto con el tipo o formato descubierto en esa
+#' muestra, los valores presentes que no se pueden convertir no se ocultan:
+#' `n_fechas_excluidas_granularidad` los cuenta para fechas y
+#' `n_valores_excluidos_resumen` para números, y el estado deja de ser un
+#' cálculo completo. Por eso
 #' `meta$filas_analizadas` describe el máximo usado por los análisis muestreados,
 #' no el alcance del perfil completo.
 #' En cada fila de `columnas`, `n_filas_analizadas_tipo` y
@@ -732,13 +737,40 @@
 #' declaran `estado_resumen_cuantitativo = "calculados_sobre_dias"`, junto con
 #' `n_fechas_resumidas` y `n_fechas_excluidas_granularidad`. El mínimo y el máximo
 #' son entonces condicionales al subconjunto con día; no representan un rango
-#' de toda la columna.
+#' de toda la columna. Si ese subconjunto resulta de formatos descubiertos en
+#' una muestra y la conversión deja valores presentes afuera, el perfil agrega
+#' una fila `resumen_cuantitativo` en `cobertura_diagnosticos`.
 #'
 #' Para números ordinarios, los estadísticos cuantitativos se calculan sólo con
 #' valores finitos; `n_nan`, `n_infinito_positivo` y `n_infinito_negativo`
 #' declaran lo excluido. En columnas `integer64` que exceden el entero máximo
 #' representable exactamente por `double`, `minimo` y `maximo` quedan en `NA` y
 #' los extremos exactos se conservan en `minimo_exacto` y `maximo_exacto`.
+#' Cuando el tipo numérico se descubrió sobre una muestra y la conversión de
+#' texto deja valores presentes afuera, `n_valores_excluidos_resumen` y
+#' `estado_resumen_cuantitativo = "calculados_sobre_valores"` declaran ese
+#' alcance parcial.
+#'
+#' El paquete distingue lo que el usuario **declara** de lo que él mismo
+#' **sospecha**, y esa distinción gobierna los resúmenes. Cuando se reemplaza
+#' `sentinelas_numericos`, esos valores son una declaración de ausencia y salen
+#' de `media`, `mediana`, `minimo`, `maximo`, `desvio` y `n_outliers`, igual que
+#' salen los `NA` y las filas que `aplicabilidad` deja fuera del universo;
+#' `n_valores_excluidos_resumen` y `estado_resumen_cuantitativo` declaran ese
+#' alcance. La lista por omisión —`-9`, `-99`, `-999`, `-9999` y `999`— es en
+#' cambio una conjetura del paquete: se informa como `faltantes_disfrazados`
+#' pero **no** se retira de los resúmenes, porque `999` también puede ser un
+#' dato legítimo y actuar sobre una sospecha cambiaría números que nadie pidió
+#' cambiar.
+#'
+#' `moda`, `frecuencia_moda`, `n_distintos`, `tasa_distintos` y `longitud_*`
+#' describen la **representación almacenada** y siguen contando esos valores,
+#' del mismo modo que cuentan un `Inf` que los estadísticos excluyen o un
+#' `"N/A"` textual. Por eso `moda` puede quedar fuera del rango que informan
+#' `minimo` y `maximo`: no es una contradicción sino la diferencia entre
+#' describir lo guardado y resumir lo que vale como dato, y los conteos
+#' —`n_valores_excluidos_resumen`, `n_infinito_positivo`,
+#' `n_faltantes_disfrazados`— dicen cuánto separa a los dos.
 #' Una columna de listas intenta contar sus valores distintos; si la clase no
 #' admite comparación, informa `NA` en lugar de afirmar cero.
 #' Las columnas matriciales se conservan como una unidad por fila: `n` informa
@@ -1241,7 +1273,12 @@
 #'   filtro de magnitud. Ambos criterios se publican en la evidencia. Los pares
 #'   descartados se cuentan en
 #'   `meta$orden_columnas$pares_descartados_magnitud` y los recuperados en
-#'   `meta$orden_columnas$pares_rescatados_brecha_estable`.
+#'   `meta$orden_columnas$pares_rescatados_brecha_estable`. Los pares que
+#'   involucran una columna cuyo tipo o formato se descubrió sobre una muestra
+#'   y cuya conversión dejó valores afuera no se comparan; el alcance los
+#'   conserva en `columnas_conversion_parcial`,
+#'   `n_valores_excluidos_conversion` y
+#'   `pares_descartados_conversion_parcial`.
 #' @param umbral_aritmetica Proporción mínima de filas comparables que deben
 #'   satisfacer una identidad dentro de `tolerancia_aritmetica` para reconocer
 #'   una regularidad aritmética entre columnas numéricas. El valor por omisión

@@ -26,10 +26,13 @@ sql_perfil(x, ...)
 \item{...}{Sin uso, para compatibilidad de métodos.}
 }
 \value{
-\code{hallazgos()} y \code{columnas()} devuelven \code{data.frame}; \code{cobertura()}
-devuelve la tabla de diagnósticos no evaluados; \code{n_filas()} devuelve el
-conteo de filas del alcance, o \code{NA} con su motivo cuando el objeto no lo
-conoce.
+\code{hallazgos()} devuelve un \code{data.frame} con una fila por hallazgo;
+\code{columnas()}, un \code{data.frame} con una fila por columna de la tabla
+perfilada y sus métricas y diagnósticos; \code{cobertura()} devuelve la tabla de
+diagnósticos no evaluados; \code{n_filas()} devuelve el conteo de filas del
+alcance, o \code{NA} con su motivo cuando el objeto no lo conoce. El significado
+de cada campo de \code{columnas()} se explica por familias en los detalles de
+\code{\link[=perfilar]{perfilar()}}.
 }
 \description{
 \code{perfilar()}, \code{perfilar_dbi()} y \code{perfilar_coleccion()} devuelven objetos con

@@ -117,9 +117,10 @@ test_that("el perfil completo declara el alcance de la muestra", {
   ## numeracion, a 109 al medir el valor centinela por tres senales -cual es y
   ## cuantas veces aparece- y a 110 al medir la densidad sin ese centinela, que
   ## es lo que decide si la columna es una numeracion con un centinela adentro.
-  ## La columna de estado del tipo inferido se suma al esquema publicado.
-  expect_equal(ncol(perfil$columnas), 111L)
-  expect_equal(ncol(perfil$columnas) - 1L, 110L)
+  ## El estado del tipo inferido y el conteo de conversiones descartadas se
+  ## suman al esquema publicado.
+  expect_equal(ncol(perfil$columnas), 112L)
+  expect_equal(ncol(perfil$columnas) - 1L, 111L)
   expect_true(all(perfil$columnas$n == 1000L))
   expect_equal(alcance$filas_solicitadas, 1000)
   expect_equal(alcance$filas_obtenidas, 1000)

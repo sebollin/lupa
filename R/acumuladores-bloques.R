@@ -2031,10 +2031,22 @@
 
 .resumen_cuantitativo_bloques <- function(x, k = NULL, tamano = 10000L,
                                           contar_signos = TRUE,
-                                          max_bytes = Inf) {
+                                          max_bytes = Inf,
+                                          excluir = NULL) {
+  aplicable <- if (length(excluir)) {
+    coincide <- tryCatch(x %in% excluir, error = function(e) NULL)
+    if (is.null(coincide) || length(coincide) != length(x)) {
+      NULL
+    } else {
+      !coincide
+    }
+  } else {
+    NULL
+  }
   ejecucion <- .ejecutar_vector_bloques(
     x, "cuantitativos", k = k, tamano = tamano, max_bytes = max_bytes,
-    configuracion = list(contar_signos = isTRUE(contar_signos))
+    configuracion = list(contar_signos = isTRUE(contar_signos)),
+    aplicable = aplicable
   )
   salida <- ejecucion$resultado$resultado
   if (!isTRUE(contar_signos)) {

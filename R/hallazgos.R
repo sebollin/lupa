@@ -416,13 +416,22 @@
 }
 
 .valores_orden_columna <- function(x, fila, formatos) {
+  inferencia <- list(
+    tipo = as.character(fila$tipo_inferido[[1L]]),
+    muestreado = isTRUE(fila$muestreado_tipo_inferido[[1L]])
+  )
   cuantitativos <- tryCatch(
     .valores_cuantitativos(
-      x, list(tipo = as.character(fila$tipo_inferido[[1L]])), formatos
+      x, inferencia, formatos
     ),
     error = function(e) NULL
   )
-  .numerico_trazable(cuantitativos)
+  valores <- .numerico_trazable(cuantitativos)
+  if (!is.null(valores)) {
+    attr(valores, "n_valores_excluidos_resumen") <-
+      cuantitativos$n_valores_excluidos_resumen
+  }
+  valores
 }
 
 # Solapamiento relativo de los rangos intercuartilicos. Las columnas ya llegan
@@ -506,6 +515,9 @@
     pares_descartados_magnitud = 0,
     pares_rescatados_brecha_estable = 0,
     pares_evaluados_orden = 0,
+    columnas_conversion_parcial = character(),
+    n_valores_excluidos_conversion = 0,
+    pares_descartados_conversion_parcial = 0,
     minimo_filas = 3L
   )
 }
@@ -556,6 +568,22 @@
     )
   })
   names(valores) <- as.character(seleccion)
+
+  excluidas_conversion <- vapply(valores, function(x) {
+    n <- attr(x, "n_valores_excluidos_resumen", exact = TRUE)
+    if (length(n) == 1L && is.finite(n)) as.numeric(n) else 0
+  }, numeric(1L))
+  parciales <- seleccion[excluidas_conversion > 0]
+  alcance$columnas_conversion_parcial <- names(datos)[parciales]
+  alcance$n_valores_excluidos_conversion <- sum(excluidas_conversion)
+  if (length(parciales)) {
+    pares_validos <- vapply(pares, function(par) {
+      !any(par %in% parciales)
+    }, logical(1L))
+    alcance$pares_descartados_conversion_parcial <- sum(!pares_validos)
+    pares <- pares[pares_validos]
+  }
+  if (!length(pares)) return(list(hallazgos = list(), alcance = alcance))
 
   hallazgos <- list()
   for (par in pares) {
@@ -2344,12 +2372,24 @@
   valores <- tryCatch(.texto_analizable(x)$valores,
                       error = function(e) NULL)
   if (is.null(valores)) return(NULL)
-  tryCatch(
+  cuantitativos <- tryCatch(
     .valores_cuantitativos(
       valores, list(tipo = tipo), resultado$formatos
     ),
     error = function(e) NULL
   )
+  if (is.null(cuantitativos)) return(NULL)
+  sentinelas <- resultado$sentinelas_numericos_declarados %||% numeric()
+  if (length(sentinelas) && identical(cuantitativos$clase, "numero")) {
+    mascara <- .mascara_sentinelas_resumen(cuantitativos$valores, sentinelas)
+    cuantitativos$valores <- cuantitativos$valores[!mascara]
+  } else if (length(sentinelas) &&
+             identical(cuantitativos$clase, "integer64")) {
+    mascara <- !is.na(cuantitativos$valores) &
+      as.character(cuantitativos$valores) %in% as.character(sentinelas)
+    cuantitativos$valores <- cuantitativos$valores[!mascara]
+  }
+  cuantitativos
 }
 
 .indices_patron_raro <- function(x, resultado, expandir = FALSE,
@@ -3503,8 +3543,20 @@
       } else {
         "sospechoso"
       }
+      # La rebaja existe por una buena razon: `9999` puede ser una edad, un
+      # codigo postal o un ano, y no se declara un `error` sobre una corazonada
+      # del paquete. Pero no distinguia la corazonada de la DECLARACION: cuando
+      # el usuario reemplaza `sentinelas_numericos` esta afirmando que esos
+      # valores son ausencia -la documentacion llama a ese vector "la politica
+      # completa"-, y su palabra vale lo mismo que un `NA`.
+      #
+      # Medido antes de esto, sobre mil filas con umbral de error en 0,4:
+      # 600 `NA` reales daban `error`; los mismos 600 declarados como centinela
+      # daban `sospechoso`; y 300 `NA` mas 300 centinelas daban `error`. La
+      # misma columna cambiaba de veredicto segun como se escribiera la ausencia.
       if (severidad == "error" && fila$n_faltantes == 0L &&
-          resultado$faltantes_disfrazados$n_textuales == 0L) {
+          resultado$faltantes_disfrazados$n_textuales == 0L &&
+          (resultado$faltantes_disfrazados$n_numericos_declarados %||% 0L) == 0L) {
         severidad <- "sospechoso"
       }
       agregar(.nuevo_hallazgo(
@@ -3520,7 +3572,11 @@
     }
 
     if (isTRUE(fila$n_faltantes_disfrazados > 0L)) {
-      solo_numericos <- resultado$faltantes_disfrazados$n_textuales == 0L
+      # "Solo numericos" quiere decir "solo lo que el paquete supuso": un
+      # centinela que el usuario declaro ya no es una suposicion que haya que
+      # confirmar, y por eso no rebaja la severidad ni pide confirmarlo.
+      solo_numericos <- resultado$faltantes_disfrazados$n_textuales == 0L &&
+        (resultado$faltantes_disfrazados$n_numericos_declarados %||% 0L) == 0L
       agregar(.nuevo_hallazgo(
         nombre, "faltantes_disfrazados",
         if (solo_numericos) "sospechoso" else "error",
@@ -3580,6 +3636,50 @@
         evidencia,
         "Estandarizar la columna a un \u00fanico formato antes de convertirla a fecha."
       ))
+    }
+
+    # El tipo y los formatos pueden haberse descubierto sobre una muestra,
+    # mientras que el resumen cuantitativo recorre la columna entera. Si la
+    # conversion deja valores presentes afuera, el resumen es parcial y esa
+    # perdida de cobertura debe quedar visible junto a los otros diagnosticos.
+    n_excluidas_resumen <- if (fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
+      suppressWarnings(as.numeric(fila$n_fechas_excluidas_granularidad[[1L]]))
+    } else if ("n_valores_excluidos_resumen" %in% names(fila)) {
+      suppressWarnings(as.numeric(fila$n_valores_excluidos_resumen[[1L]]))
+    } else {
+      0
+    }
+    estado_parcial <- fila$estado_resumen_cuantitativo[[1L]] %in% c(
+      "calculados_sobre_dias", "calculados_sobre_valores"
+    )
+    if (isTRUE(estado_parcial) && is.finite(n_excluidas_resumen) &&
+        n_excluidas_resumen > 0) {
+      analizados <- attr(resultado$formatos, "analizados", exact = TRUE)
+      total <- attr(resultado$formatos, "total", exact = TRUE)
+      if (is.null(analizados) || !length(analizados) ||
+          !is.finite(as.numeric(analizados[[1L]]))) {
+        analizados <- fila$n_filas_analizadas_tipo[[1L]]
+      }
+      if (is.null(total) || !length(total) ||
+          !is.finite(as.numeric(total[[1L]]))) {
+        total <- fila$n[[1L]]
+      }
+      resumidas <- if (fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
+        fila$n_fechas_resumidas[[1L]]
+      } else {
+        fila$n_validos[[1L]] - n_excluidas_resumen
+      }
+      agregar_cobertura(
+        "resumen_cuantitativo", nombre,
+        paste0(
+          "El resumen cuantitativo se calculo sobre ", resumidas,
+          " valores y dejo afuera ", n_excluidas_resumen,
+          " valores presentes que no pudo convertir; el tipo o formato se",
+          " descubrio sobre una muestra de ", analizados, " de ", total,
+          " filas."
+        ),
+        "Revisar los valores fuera de la muestra y confirmar el tipo o formato antes de usar el rango completo."
+      )
     }
 
     if (identical(fila$zona_horaria_origen[[1L]], "sin_declarar")) {
@@ -4082,10 +4182,20 @@
             fila$n_outliers
           )
         },
+        # Decia solo "agregarlo para que se cuente como faltante", y eso dejaba
+        # sin decir lo que mas le importa a quien lee: que pasa con la media.
+        # Antes no pasaba nada -declararlo movia `n_faltantes_disfrazados` y la
+        # media seguia en 537,9 sobre una columna cuya verdad era 40-, y ahora
+        # si: el valor declarado sale de los resumenes y el alcance queda
+        # declarado. `moda` y `n_distintos` siguen describiendo lo guardado,
+        # igual que con `Inf` y `NaN`.
         paste0(
-          "Si es un codigo de ausencia, agregarlo a `sentinelas_numericos` ",
-          "para que se cuente como faltante; si es un dato real, no hay nada ",
-          "que hacer."
+          "Si es un codigo de ausencia, agregarlo a `sentinelas_numericos`: ",
+          "pasa a contarse como faltante y sale de `media`, `mediana`, ",
+          "`minimo`, `maximo` y `desvio`, que declaran cuantos valores dejaron ",
+          "afuera en `n_valores_excluidos_resumen`. `moda` y `n_distintos` ",
+          "siguen describiendo lo que hay guardado. Si es un dato real, no hay ",
+          "nada que hacer."
         )
       ))
     }

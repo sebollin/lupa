@@ -172,10 +172,13 @@ as_tibble.perfil <- function(x, ...) {
 #'   [perfilar_coleccion()].
 #' @param ... Sin uso, para compatibilidad de métodos.
 #'
-#' @return `hallazgos()` y `columnas()` devuelven `data.frame`; `cobertura()`
-#'   devuelve la tabla de diagnósticos no evaluados; `n_filas()` devuelve el
-#'   conteo de filas del alcance, o `NA` con su motivo cuando el objeto no lo
-#'   conoce.
+#' @return `hallazgos()` devuelve un `data.frame` con una fila por hallazgo;
+#'   `columnas()`, un `data.frame` con una fila por columna de la tabla
+#'   perfilada y sus métricas y diagnósticos; `cobertura()` devuelve la tabla de
+#'   diagnósticos no evaluados; `n_filas()` devuelve el conteo de filas del
+#'   alcance, o `NA` con su motivo cuando el objeto no lo conoce. El significado
+#'   de cada campo de `columnas()` se explica por familias en los detalles de
+#'   [perfilar()].
 #' @export
 #' @name accesores_perfil
 #' @seealso [perfilar()], [perfilar_dbi()], [perfilar_coleccion()]

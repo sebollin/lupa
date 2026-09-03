@@ -78,16 +78,35 @@
   if (is.numeric(x)) {
     return(list(valores = as.numeric(x), clase = "numero",
                 n_fechas_resumidas = NA_integer_,
-                n_fechas_excluidas_granularidad = NA_integer_))
+                n_fechas_excluidas_granularidad = NA_integer_,
+                n_valores_excluidos_resumen = 0L,
+                estado = "calculados"))
   }
   if (is.character(x) || is.factor(x)) {
     if (inferencia$tipo %in% c("entero", "doble")) {
-      valores <- suppressWarnings(as.numeric(sub(",", ".", as.character(x), fixed = TRUE)))
+      texto <- trimws(as.character(x))
+      valores <- suppressWarnings(as.numeric(sub(",", ".", texto, fixed = TRUE)))
+      muestreado <- isTRUE(inferencia$muestreado)
+      n_excluidas <- if (muestreado) {
+        # El tipo se descubrio sobre la muestra, pero el resumen se calcula
+        # sobre la columna entera. Los textos presentes que no llegan a numero
+        # no son NA de origen y no pueden desaparecer sin dejar alcance.
+        as.integer(sum(
+          !is.na(texto) & nzchar(texto) & is.na(valores) & !is.nan(valores)
+        ))
+      } else {
+        0L
+      }
       return(list(valores = valores, clase = "numero",
                   n_fechas_resumidas = NA_integer_,
-                  n_fechas_excluidas_granularidad = NA_integer_))
+                  n_fechas_excluidas_granularidad = NA_integer_,
+                  n_valores_excluidos_resumen = n_excluidas,
+                  estado = if (n_excluidas > 0L) {
+                    "calculados_sobre_valores"
+                  } else "calculados"))
     }
     if (inferencia$tipo %in% c("fecha", "fecha-hora")) {
+      muestreado <- isTRUE(inferencia$muestreado)
       granularidades <- if (is.data.frame(formatos) &&
           "granularidad" %in% names(formatos)) {
         formatos$granularidad[formatos$estado == "confirmado"]
@@ -95,12 +114,18 @@
       tiene_mes <- any(granularidades == "mes")
       tiene_dia <- any(granularidades == "dia")
       if (tiene_mes && !tiene_dia) {
+        valores <- trimws(as.character(x))
+        presentes <- !is.na(valores) & nzchar(valores)
         return(list(
           valores = numeric(), clase = "fecha_granularidad_incompleta",
-          n_fechas_resumidas = 0L, n_fechas_excluidas_granularidad = sum(
-            formatos$n[formatos$estado == "confirmado" &
-              formatos$granularidad == "mes"], na.rm = TRUE
-          )
+          n_fechas_resumidas = 0L,
+          n_fechas_excluidas_granularidad = if (muestreado) {
+            as.integer(sum(presentes))
+          } else {
+            sum(formatos$n[formatos$estado == "confirmado" &
+              formatos$granularidad == "mes"], na.rm = TRUE)
+          },
+          n_valores_excluidos_resumen = NA_integer_
         ))
       }
       fechas <- .parsear_fechas(
@@ -111,17 +136,39 @@
         sum(formatos$n[formatos$estado == "confirmado" &
           formatos$granularidad == "mes"], na.rm = TRUE)
       } else 0L
+      valores <- trimws(as.character(x))
+      presentes <- !is.na(valores) & nzchar(valores)
+      excluidas_muestra <- if (muestreado) {
+        as.integer(sum(presentes & is.na(fechas)))
+      } else {
+        0L
+      }
       return(list(
         valores = as.numeric(fechas), clase = inferencia$tipo,
-        estado = if (tiene_mes) "calculados_sobre_dias" else "calculados",
+        estado = if (tiene_mes || excluidas_muestra > 0L) {
+          "calculados_sobre_dias"
+        } else "calculados",
         n_fechas_resumidas = sum(is.finite(fechas)),
-        n_fechas_excluidas_granularidad = excluidas
+        # Con muestra, la conversion puede dejar afuera formatos que no
+        # aparecieron en ella. El campo conserva el contrato existente de
+        # contar las fechas que no sostienen el resumen, no solo las de mes.
+        n_fechas_excluidas_granularidad = if (muestreado) {
+          excluidas_muestra
+        } else {
+          excluidas
+        },
+        n_valores_excluidos_resumen = if (muestreado) {
+          excluidas_muestra
+        } else {
+          0L
+        }
       ))
     }
   }
   list(valores = numeric(), clase = "ninguna",
        n_fechas_resumidas = NA_integer_,
-       n_fechas_excluidas_granularidad = NA_integer_)
+       n_fechas_excluidas_granularidad = NA_integer_,
+       n_valores_excluidos_resumen = NA_integer_)
 }
 
 # Cuantas veces el hueco mas grande tiene que superar al tipico para que el
@@ -233,6 +280,51 @@
 # decida si agrega ese valor a su lista.
 .MIN_REPETICIONES_CENTINELA <- 5L
 
+# El vector predeterminado pertenece al paquete: sirve para sospechar de
+# codigos comunes, pero no alcanza para afirmar que son ausencia en una
+# columna concreta. Si el usuario reemplaza la politica completa, en cambio,
+# cada valor que entrega es una declaracion. Comparar el vector completo evita
+# que el default no vacio empiece a alterar estadisticas publicadas sin una
+# decision explicita.
+# Que valores dijo el USUARIO que son ausencia, y cuales trae el paquete.
+#
+# La distincion gobierna los resumenes: lo declarado sale de la media, lo
+# supuesto no. Las listas que el paquete publica -la de por omision y
+# `sentinelas_naniar`- son heuristicas suyas, no afirmaciones de nadie sobre una
+# columna concreta. Pedir `sentinelas_naniar` es optar por una heuristica MAS
+# ANCHA, y la documentacion del paquete avisa por que no viene por omision:
+# `66`, `77` y `88` tambien pueden ser edades, codigos o anos legitimos. Si eso
+# contara como declaracion, elegir esa lista convertiria en `error` una columna
+# de edades y sacaria esos valores del promedio, que es justo lo contrario de lo
+# que el aviso promete.
+#
+# El limite es el que se puede sostener: un vector que el usuario compone es una
+# declaracion. Si compone uno identico a alguna de las listas publicadas, no hay
+# forma de distinguirlo y se lo trata como heuristica; es el mismo canje que ya
+# aceptaba el valor por omision.
+.sentinelas_numericos_declarados <- function(sentinelas_numericos) {
+  if (is.null(sentinelas_numericos) ||
+      identical(sentinelas_numericos, .numeros_na_locales) ||
+      identical(sentinelas_numericos, sentinelas_naniar)) {
+    return(numeric())
+  }
+  .numeros_na(sentinelas_numericos)
+}
+
+.mascara_sentinelas_resumen <- function(valores, sentinelas_numericos) {
+  if (!length(valores) || !length(sentinelas_numericos)) {
+    return(rep(FALSE, length(valores)))
+  }
+  coincide <- tryCatch(
+    valores %in% sentinelas_numericos,
+    error = function(e) NULL
+  )
+  if (is.null(coincide) || length(coincide) != length(valores)) {
+    return(rep(FALSE, length(valores)))
+  }
+  !is.na(valores) & coincide
+}
+
 # **Se probo descartar al candidato que tiene vecinos inmediatos y se retiro.**
 # La idea era que un centinela esta solo mientras que un codigo de catalogo vive
 # en un tramo, y sobre el caso que la motivo funcionaba: `222` entre `221` y
@@ -292,11 +384,18 @@
   # codigos altos dentro de una columna concentrada abajo SI es extremo, y ahi
   # esta forma decidia sola. Lo frena la guarda de vecinos, mas abajo.
   con_forma <- repetidos[grepl("^-?([0-9])\\1{2,}$", as.character(repetidos))]
-  # Los valores que la lista declarada YA cuenta como ausencia no son asunto de
-  # este diagnostico: `faltantes_disfrazados` los informa, y con severidad
-  # `error`. Sin este descarte los dos hallazgos se contradecian sobre la misma
-  # columna -uno decia que el `999` era una ausencia y el otro que "no se cuenta
-  # como ausencia porque no esta declarado", cuando si lo estaba-.
+  # Los valores que la lista de sentinelas YA cuenta como ausencia no son asunto
+  # de este diagnostico: `faltantes_disfrazados` los informa. Sin este descarte
+  # los dos hallazgos se contradecian sobre la misma columna -uno decia que el
+  # `999` era una ausencia y el otro que "no se cuenta como ausencia porque no
+  # esta declarado", cuando si lo estaba-.
+  #
+  # Con que severidad los informa depende de QUIEN lo dijo, y este comentario
+  # afirmaba `error` a secas, que era falso para la mitad de los casos:
+  # `error` si el usuario reemplazo `sentinelas_numericos` -es su declaracion-,
+  # y `sospechoso` si el valor viene de la lista por omision, que es una
+  # corazonada del paquete. La regla vive en `R/hallazgos.R`, en la rama
+  # `solo_numericos`.
   declarados <- suppressWarnings(as.numeric(sentinelas_numericos))
   declarados <- declarados[is.finite(declarados)]
   if (length(declarados)) con_forma <- setdiff(con_forma, declarados)
@@ -336,12 +435,27 @@
     n_infinito_positivo = 0L, n_infinito_negativo = 0L,
     n_fechas_resumidas = NA_integer_,
     n_fechas_excluidas_granularidad = NA_integer_,
+    n_valores_excluidos_resumen = NA_integer_,
     estado_resumen_cuantitativo = estado
   )
 }
 
-.resumen_integer64 <- function(x) {
+.resumen_integer64 <- function(x, sentinelas_numericos = NULL) {
   vacio <- .resumen_vacio_cuantitativo("sin_valores")
+  sentinelas_numericos <- .sentinelas_numericos_declarados(
+    sentinelas_numericos
+  )
+  mascara_sentinelas <- if (length(sentinelas_numericos)) {
+    !is.na(x) & as.character(x) %in% as.character(sentinelas_numericos)
+  } else {
+    rep(FALSE, length(x))
+  }
+  n_excluidos <- as.integer(sum(mascara_sentinelas))
+  vacio$n_valores_excluidos_resumen <- n_excluidos
+  if (n_excluidos > 0L) {
+    x <- x[!mascara_sentinelas]
+    vacio$estado_resumen_cuantitativo <- "calculados_sobre_valores"
+  }
   validos <- !is.na(x)
   if (!any(validos)) return(vacio)
   if (!.bit64_disponible()) {
@@ -364,10 +478,15 @@
   resultado <- .resumen_cuantitativo(
     as.numeric(valores),
     list(tipo = "doble"),
-    data.frame(stringsAsFactors = FALSE)
+    data.frame(stringsAsFactors = FALSE),
+    sentinelas_numericos = numeric()
   )
   resultado$minimo_exacto <- minimo_exacto
   resultado$maximo_exacto <- maximo_exacto
+  resultado$n_valores_excluidos_resumen <- n_excluidos
+  if (n_excluidos > 0L) {
+    resultado$estado_resumen_cuantitativo <- "calculados_sobre_valores"
+  }
   resultado
 }
 
@@ -396,17 +515,49 @@
     x, inferencia, formatos, meses_texto = meses_texto,
     vocabulario = vocabulario, valores_preparados = valores_preparados
   )
+  sentinelas_declarados <- .sentinelas_numericos_declarados(
+    sentinelas_numericos
+  )
   if (identical(cuantitativos$clase, "fecha_granularidad_incompleta")) {
     salida <- .resumen_vacio_cuantitativo("granularidad_incompleta")
     salida$n_fechas_resumidas <- cuantitativos$n_fechas_resumidas
     salida$n_fechas_excluidas_granularidad <-
       cuantitativos$n_fechas_excluidas_granularidad
+    salida$n_valores_excluidos_resumen <-
+      cuantitativos$n_valores_excluidos_resumen
     return(salida)
   }
   if (identical(cuantitativos$clase, "integer64")) {
-    return(.resumen_integer64(cuantitativos$valores))
+    return(.resumen_integer64(
+      cuantitativos$valores,
+      sentinelas_numericos = sentinelas_declarados
+    ))
   }
-  valores <- cuantitativos$valores
+  valores_originales <- cuantitativos$valores
+  mascara_sentinelas <- if (identical(cuantitativos$clase, "numero")) {
+    .mascara_sentinelas_resumen(
+      valores_originales, sentinelas_declarados
+    )
+  } else {
+    rep(FALSE, length(valores_originales))
+  }
+  n_sentinelas_excluidos <- as.integer(sum(mascara_sentinelas))
+  n_previos_excluidos <- suppressWarnings(as.numeric(
+    cuantitativos$n_valores_excluidos_resumen
+  ))
+  if (length(n_previos_excluidos) != 1L ||
+      !is.finite(n_previos_excluidos)) {
+    n_previos_excluidos <- 0
+  }
+  n_excluidos_resumen <- as.integer(
+    n_previos_excluidos + n_sentinelas_excluidos
+  )
+  cuantitativos$n_valores_excluidos_resumen <- n_excluidos_resumen
+  if (identical(cuantitativos$clase, "numero") &&
+      n_excluidos_resumen > 0L) {
+    cuantitativos$estado <- "calculados_sobre_valores"
+  }
+  valores <- valores_originales[!mascara_sentinelas]
   n_nan <- if (is.numeric(valores)) sum(is.nan(valores)) else 0L
   n_infinito_positivo <- if (is.numeric(valores)) {
     sum(is.infinite(valores) & valores > 0, na.rm = TRUE)
@@ -421,12 +572,30 @@
   vacio$n_nan <- as.integer(n_nan)
   vacio$n_infinito_positivo <- as.integer(n_infinito_positivo)
   vacio$n_infinito_negativo <- as.integer(n_infinito_negativo)
+  vacio$n_fechas_resumidas <- if (!is.null(cuantitativos$n_fechas_resumidas)) {
+    cuantitativos$n_fechas_resumidas
+  } else NA_integer_
+  vacio$n_fechas_excluidas_granularidad <- if (
+    !is.null(cuantitativos$n_fechas_excluidas_granularidad)
+  ) cuantitativos$n_fechas_excluidas_granularidad else NA_integer_
+  vacio$n_valores_excluidos_resumen <- if (
+    !is.null(cuantitativos$n_valores_excluidos_resumen)
+  ) cuantitativos$n_valores_excluidos_resumen else NA_integer_
+  vacio$estado_resumen_cuantitativo <- if (!is.null(cuantitativos$estado)) {
+    cuantitativos$estado
+  } else vacio$estado_resumen_cuantitativo
   if (!length(valores)) {
     return(vacio)
   }
 
   basicos <- .resumen_cuantitativo_bloques(
-    valores, contar_signos = identical(cuantitativos$clase, "numero")
+    valores_originales,
+    contar_signos = identical(cuantitativos$clase, "numero"),
+    excluir = if (identical(cuantitativos$clase, "numero")) {
+      sentinelas_declarados
+    } else {
+      numeric()
+    }
   )
   minimo <- basicos$minimo
   maximo <- basicos$maximo
@@ -473,7 +642,8 @@
       n_infinito_negativo = as.integer(n_infinito_negativo),
       n_fechas_resumidas = NA_integer_,
       n_fechas_excluidas_granularidad = NA_integer_,
-      estado_resumen_cuantitativo = "calculados"
+      n_valores_excluidos_resumen = cuantitativos$n_valores_excluidos_resumen,
+      estado_resumen_cuantitativo = cuantitativos$estado
     ))
   }
 
@@ -498,6 +668,9 @@
       startsWith(cuantitativos$clase, "fecha") &&
         !is.null(cuantitativos$n_fechas_excluidas_granularidad)
     ) cuantitativos$n_fechas_excluidas_granularidad else NA_integer_,
+    n_valores_excluidos_resumen = if (
+      !is.null(cuantitativos$n_valores_excluidos_resumen)
+    ) cuantitativos$n_valores_excluidos_resumen else NA_integer_,
     estado_resumen_cuantitativo = if (!is.null(cuantitativos$estado)) {
       cuantitativos$estado
     } else "calculados"
@@ -1335,6 +1508,9 @@
   # El universo aplicable se resuelve primero porque gobierna todos los conteos
   # de ausencia de abajo. Sin declaracion, toda la columna aplica y el resto se
   # reduce al comportamiento de siempre.
+  sentinelas_declarados <- .sentinelas_numericos_declarados(
+    sentinelas_numericos
+  )
   aplicable <- if (is.null(aplicable)) {
     rep(TRUE, length(x))
   } else {
@@ -1414,9 +1590,29 @@
     )
   faltantes_disfrazados <- .detectar_faltantes_disfrazados(
     x_analisis, sentinelas_numericos = sentinelas_numericos,
-    detectar_sentinelas_numericos = !isTRUE(secuencia_entera$densa)
+    # Una secuencia densa apaga la corazonada del paquete para no llamar
+    # faltante a un codigo valido. Una declaracion explicita debe atravesar esa
+    # guarda: de lo contrario ni siquiera el conteo de ausencia obedeceria la
+    # politica que el usuario acaba de entregar.
+    detectar_sentinelas_numericos = !isTRUE(secuencia_entera$densa) ||
+      length(.sentinelas_numericos_declarados(sentinelas_numericos)) > 0L
   )
   faltantes_disfrazados <- .restringir_disfrazados(faltantes_disfrazados, aplicable)
+  faltantes_declarados <- .detectar_faltantes_disfrazados(
+    x_analisis,
+    sentinelas_numericos = .sentinelas_numericos_declarados(
+      sentinelas_numericos
+    ),
+    detectar_sentinelas_numericos = TRUE
+  )
+  faltantes_declarados <- .restringir_disfrazados(
+    faltantes_declarados, aplicable
+  )
+  # El total conserva la señal del paquete y la política completa, pero la
+  # distinción entre declarado y adivinado queda disponible para la guarda de
+  # severidad de `hallazgos.R`.
+  faltantes_disfrazados$n_numericos_declarados <-
+    as.integer(faltantes_declarados$n_numericos)
   rol_propuesto <- .propuesta_escala(x, inferencia$tipo)$rol
   casi_clave <- .resumen_casi_clave(
     x_analisis, rol = rol_propuesto, tipo_implicito = inferencia$tipo,
@@ -1551,6 +1747,7 @@
     n_fechas_resumidas = cuantitativo$n_fechas_resumidas,
     n_fechas_excluidas_granularidad =
       cuantitativo$n_fechas_excluidas_granularidad,
+    n_valores_excluidos_resumen = cuantitativo$n_valores_excluidos_resumen,
     n_ceros = cuantitativo$n_ceros,
     n_negativos = cuantitativo$n_negativos,
     n_outliers = cuantitativo$n_outliers,
@@ -1644,6 +1841,7 @@
     multivaluados = multivaluados,
     valor_concentrado = valor_concentrado,
     geometria = geometria,
+    sentinelas_numericos_declarados = sentinelas_declarados,
     # La mascara viaja con el resultado para que la trazabilidad pueda nombrar
     # las filas del hallazgo de valor fuera de aplicabilidad.
     aplicable = aplicable
@@ -1675,6 +1873,7 @@
     "n_faltantes_disfrazados_numericos", "n_faltantes_totales",
     "n_distintos", "frecuencia_moda", "n_ceros", "n_negativos",
     "n_outliers", "n_nan", "n_infinito_positivo", "n_infinito_negativo",
+    "n_valores_excluidos_resumen",
     "n_blancos", "n_espacios_borde", "n_variantes_mayusculas",
     "representacion_geometria", "motivo_representacion",
     "n_variantes_unicode", "n_codificacion_rota",

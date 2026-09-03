@@ -414,7 +414,18 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
       any(formatos$granularidad[formatos$estado == "confirmado"] == "mes")) {
     return(NULL)
   }
-  as.Date(.parsear_fechas(x, formatos), tz = "UTC")
+  parseadas <- .parsear_fechas(x, formatos)
+  resultado <- as.Date(parseadas, tz = "UTC")
+  if (isTRUE(attr(formatos, "muestreado", exact = TRUE))) {
+    valores <- trimws(as.character(x))
+    presentes <- !is.na(valores) & nzchar(valores)
+    attr(resultado, "n_fechas_excluidas_parseo") <- as.integer(
+      sum(presentes & is.na(parseadas))
+    )
+  } else {
+    attr(resultado, "n_fechas_excluidas_parseo") <- 0L
+  }
+  resultado
 }
 
 .dia_semana_iso <- function(x) as.integer(format(x, "%u"))
@@ -449,7 +460,9 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
 #'
 #' @return Objeto `analisis_temporal` con `resumen`, `dias_semana`, `huecos` y
 #'   `propuestas`. El recorte de huecos queda en `resumen`; el de columnas, en
-#'   atributos del objeto.
+#'   atributos del objeto. `resumen` agrega
+#'   `n_fechas_excluidas_parseo` y `estado_resumen` cuando un formato descubierto
+#'   sobre una muestra deja valores presentes sin convertir.
 #' @export
 #' @seealso [detectar_formatos_fecha()], [analizar()]
 #'
@@ -498,6 +511,13 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
     formatos <- if (!is.null(perfil)) perfil$formatos_fecha[[indice]] else NULL
     fechas <- .fecha_columna_avanzada(datos[[indice]], formatos)
     if (is.null(fechas)) next
+    n_excluidas_parseo <- attr(
+      fechas, "n_fechas_excluidas_parseo", exact = TRUE
+    )
+    if (is.null(n_excluidas_parseo) || length(n_excluidas_parseo) != 1L ||
+        !is.finite(n_excluidas_parseo)) {
+      n_excluidas_parseo <- 0L
+    }
     presentes <- fechas[!is.na(fechas)]
     unicas <- sort(unique(presentes))
     duplicados <- length(presentes) - length(unicas)
@@ -558,6 +578,10 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
       n_fechas_distintas = length(unicas), n_duplicados_temporales = duplicados,
       fecha_minima = if (length(unicas)) min(unicas) else as.Date(NA),
       fecha_maxima = if (length(unicas)) max(unicas) else as.Date(NA),
+      n_fechas_excluidas_parseo = as.integer(n_excluidas_parseo),
+      estado_resumen = if (n_excluidas_parseo > 0L) {
+        "calculados_sobre_fechas_parseadas"
+      } else "calculados",
       monotonicidad = monotona, cobertura_periodo = cobertura,
       n_fechas_esperadas_ausentes = length(faltantes),
       n_fechas_fuera_calendario = length(fuera_calendario),
@@ -579,6 +603,7 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
     columna = character(), n_presentes = integer(), n_fechas_distintas = integer(),
     n_duplicados_temporales = integer(), fecha_minima = as.Date(character()),
     fecha_maxima = as.Date(character()), monotonicidad = numeric(),
+    n_fechas_excluidas_parseo = integer(), estado_resumen = character(),
     cobertura_periodo = numeric(), n_fechas_esperadas_ausentes = integer(),
     n_fechas_fuera_calendario = integer(),
     n_grupos_huecos = integer(), huecos_truncados = logical(),

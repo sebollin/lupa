@@ -262,7 +262,12 @@ fila a fila. No se aplica una tolerancia oculta. Use \code{0} para desactivar el
 filtro de magnitud. Ambos criterios se publican en la evidencia. Los pares
 descartados se cuentan en
 \code{meta$orden_columnas$pares_descartados_magnitud} y los recuperados en
-\code{meta$orden_columnas$pares_rescatados_brecha_estable}.}
+\code{meta$orden_columnas$pares_rescatados_brecha_estable}. Los pares que
+involucran una columna cuyo tipo o formato se descubrió sobre una muestra
+y cuya conversión dejó valores afuera no se comparan; el alcance los
+conserva en \code{columnas_conversion_parcial},
+\code{n_valores_excluidos_conversion} y
+\code{pares_descartados_conversion_parcial}.}
 
 \item{umbral_aritmetica}{Proporción mínima de filas comparables que deben
 satisfacer una identidad dentro de \code{tolerancia_aritmetica} para reconocer
@@ -510,7 +515,12 @@ política completa, no una lista que se agrega silenciosamente: use
 
 \code{muestra} limita el descubrimiento de patrones, la inferencia de tipos, la
 detección de formatos de fecha y la búsqueda de dependencias funcionales.
-Las demás métricas y hallazgos se calculan sobre todas las filas. Por eso
+Las demás métricas y hallazgos se calculan sobre todas las filas. En los
+resúmenes que convierten texto con el tipo o formato descubierto en esa
+muestra, los valores presentes que no se pueden convertir no se ocultan:
+\code{n_fechas_excluidas_granularidad} los cuenta para fechas y
+\code{n_valores_excluidos_resumen} para números, y el estado deja de ser un
+cálculo completo. Por eso
 \code{meta$filas_analizadas} describe el máximo usado por los análisis muestreados,
 no el alcance del perfil completo.
 En cada fila de \code{columnas}, \code{n_filas_analizadas_tipo} y
@@ -559,13 +569,40 @@ fechas con día, los resúmenes se calculan sólo sobre las fechas completas y
 declaran \code{estado_resumen_cuantitativo = "calculados_sobre_dias"}, junto con
 \code{n_fechas_resumidas} y \code{n_fechas_excluidas_granularidad}. El mínimo y el máximo
 son entonces condicionales al subconjunto con día; no representan un rango
-de toda la columna.
+de toda la columna. Si ese subconjunto resulta de formatos descubiertos en
+una muestra y la conversión deja valores presentes afuera, el perfil agrega
+una fila \code{resumen_cuantitativo} en \code{cobertura_diagnosticos}.
 
 Para números ordinarios, los estadísticos cuantitativos se calculan sólo con
 valores finitos; \code{n_nan}, \code{n_infinito_positivo} y \code{n_infinito_negativo}
 declaran lo excluido. En columnas \code{integer64} que exceden el entero máximo
 representable exactamente por \code{double}, \code{minimo} y \code{maximo} quedan en \code{NA} y
 los extremos exactos se conservan en \code{minimo_exacto} y \code{maximo_exacto}.
+Cuando el tipo numérico se descubrió sobre una muestra y la conversión de
+texto deja valores presentes afuera, \code{n_valores_excluidos_resumen} y
+\code{estado_resumen_cuantitativo = "calculados_sobre_valores"} declaran ese
+alcance parcial.
+
+El paquete distingue lo que el usuario \strong{declara} de lo que él mismo
+\strong{sospecha}, y esa distinción gobierna los resúmenes. Cuando se reemplaza
+\code{sentinelas_numericos}, esos valores son una declaración de ausencia y salen
+de \code{media}, \code{mediana}, \code{minimo}, \code{maximo}, \code{desvio} y \code{n_outliers}, igual que
+salen los \code{NA} y las filas que \code{aplicabilidad} deja fuera del universo;
+\code{n_valores_excluidos_resumen} y \code{estado_resumen_cuantitativo} declaran ese
+alcance. La lista por omisión —\code{-9}, \code{-99}, \code{-999}, \code{-9999} y \code{999}— es en
+cambio una conjetura del paquete: se informa como \code{faltantes_disfrazados}
+pero \strong{no} se retira de los resúmenes, porque \code{999} también puede ser un
+dato legítimo y actuar sobre una sospecha cambiaría números que nadie pidió
+cambiar.
+
+\code{moda}, \code{frecuencia_moda}, \code{n_distintos}, \code{tasa_distintos} y \verb{longitud_*}
+describen la \strong{representación almacenada} y siguen contando esos valores,
+del mismo modo que cuentan un \code{Inf} que los estadísticos excluyen o un
+\code{"N/A"} textual. Por eso \code{moda} puede quedar fuera del rango que informan
+\code{minimo} y \code{maximo}: no es una contradicción sino la diferencia entre
+describir lo guardado y resumir lo que vale como dato, y los conteos
+—\code{n_valores_excluidos_resumen}, \code{n_infinito_positivo},
+\code{n_faltantes_disfrazados}— dicen cuánto separa a los dos.
 Una columna de listas intenta contar sus valores distintos; si la clase no
 admite comparación, informa \code{NA} en lugar de afirmar cero.
 Las columnas matriciales se conservan como una unidad por fila: \code{n} informa

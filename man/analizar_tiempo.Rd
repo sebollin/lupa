@@ -33,7 +33,9 @@ propone la moda de los intervalos positivos.}
 \value{
 Objeto \code{analisis_temporal} con \code{resumen}, \code{dias_semana}, \code{huecos} y
 \code{propuestas}. El recorte de huecos queda en \code{resumen}; el de columnas, en
-atributos del objeto.
+atributos del objeto. \code{resumen} agrega
+\code{n_fechas_excluidas_parseo} y \code{estado_resumen} cuando un formato descubierto
+sobre una muestra deja valores presentes sin convertir.
 }
 \description{
 Para cada columna temporal propone una frecuencia en días. La confianza es
