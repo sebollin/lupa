@@ -308,6 +308,38 @@ Package documentation, help pages and vignettes are written in Spanish, as
 declared by `Language: es`. `DESCRIPTION`, `NEWS.md` and this file are in
 English, and an English README is provided alongside the Spanish one.
 
+### Check time, measured rather than estimated
+
+The test suite is long, and we would rather state the numbers than have you
+find them. `checking tests`, measured on R-hub — which does not set `NOT_CRAN`
+and therefore skips what CRAN skips:
+
+| environment | before | now |
+| --- | ---: | ---: |
+| R-hub, Linux, R-devel | 11m | **9m** |
+| R-hub, macOS, R-devel | 32m | **15m** |
+| this machine, `--as-cran` | 482s | **288s** |
+
+The reduction comes from four blocks that no longer run under `R CMD check` on
+CRAN. They were chosen by profiling the suite block by block, not by guessing:
+one of them alone accounted for 24 % of the whole suite. None of them was
+shortened — shortening the largest one would have turned a boundary test into a
+comfortable one, since its 2,000 forms of 83 characters sit just below both of
+the detector's budget ceilings. They run in full on continuous integration and
+in the local revalidation on every revision, and one of them was split so that
+the property it guards is still checked on CRAN with a 300-form fixture that
+takes 1.6 seconds.
+
+What remains is genuine coverage: after the cut, the remaining time is spread
+across 164 files at about a second and a half each. A local guard now fails the
+revalidation if `checking tests` goes back above a declared ceiling, so this
+does not quietly grow again.
+
+The three checks that R-hub's macOS builder reports more slowly than any other
+environment are the same ones that run in nine minutes on Linux; we mention the
+macOS figure because it is the slowest we can measure, not because we believe
+CRAN's machines are that slow.
+
 ## Reverse dependencies
 
 This is the first release, so there are no reverse dependencies.
