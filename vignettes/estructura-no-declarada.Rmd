@@ -9,7 +9,10 @@ vignette: >
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
-options(width = 90)
+# El ancho se restaura al terminar la vinneta: knitr corre cada una en su propia
+# sesion, asi que no se filtra, pero el CRAN Cookbook pide devolver toda opcion
+# que se cambie y no cuesta nada cumplirlo.
+.opciones_previas <- options(width = 90)
 ```
 
 Una entrega puede llegar sin diccionario, claves ni relaciones declaradas. Esta
@@ -206,3 +209,8 @@ Ese vocabulario conecta el examen con el
 [definición de la calidad](definir-la-calidad.html): una estructura observada puede
 orientar qué medir, pero la métrica, su granularidad y su interpretación se
 declaran en el modelo.
+
+
+```{r, cierre, include=FALSE}
+options(.opciones_previas)
+```

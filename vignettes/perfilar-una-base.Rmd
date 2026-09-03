@@ -9,7 +9,10 @@ vignette: >
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
-options(width = 90)
+# El ancho se restaura al terminar la vinneta: knitr corre cada una en su propia
+# sesion, asi que no se filtra, pero el CRAN Cookbook pide devolver toda opcion
+# que se cambie y no cuesta nada cumplirlo.
+.opciones_previas <- options(width = 90)
 ```
 
 Por omisión, `perfilar_dbi()` mantiene separados dos resultados porque
@@ -686,3 +689,8 @@ Si necesitás que todas las métricas describan exactamente las mismas filas, el
 camino es `perfil_muestra`: trae una muestra a R **una sola vez** y corre sobre
 ella el perfil completo. Cuesta traer los datos; a cambio, todo lo que informa
 habla del mismo conjunto.
+
+
+```{r, cierre, include=FALSE}
+options(.opciones_previas)
+```

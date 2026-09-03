@@ -9,7 +9,10 @@ vignette: >
 
 ```{r, setup, include=FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
-options(width = 90)
+# El ancho se restaura al terminar la vinneta: knitr corre cada una en su propia
+# sesion, asi que no se filtra, pero el CRAN Cookbook pide devolver toda opcion
+# que se cambie y no cuesta nada cumplirlo.
+.opciones_previas <- options(width = 90)
 ```
 
 Esta es la ruta cuando ya se tiene una tabla y se quiere decidir qué medir.
@@ -101,3 +104,8 @@ cobertura[, c("marco", "dimension", "factor", "estado")]
 La tabla permite distinguir una medición ejecutada, un factor no declarado y
 un factor fuera de alcance. La ausencia de un hallazgo no se interpreta como
 una certificación de calidad.
+
+
+```{r, cierre, include=FALSE}
+options(.opciones_previas)
+```

@@ -9,7 +9,10 @@ vignette: >
 
 ```{r, setup, include=FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
-options(width = 90)
+# El ancho se restaura al terminar la vinneta: knitr corre cada una en su propia
+# sesion, asi que no se filtra, pero el CRAN Cookbook pide devolver toda opcion
+# que se cambie y no cuesta nada cumplirlo.
+.opciones_previas <- options(width = 90)
 ```
 
 `lupa` acompaña un recorrido: examinar una entrega, decidir qué medir, medir,
@@ -236,3 +239,8 @@ unlink(c(archivo, archivo_rds))
 
 Para profundizar en la arquitectura consulte `vignette("definir-la-calidad")`; para
 revisar decisiones de remediación, `vignette("limpiar-con-un-plan")`.
+
+
+```{r, cierre, include=FALSE}
+options(.opciones_previas)
+```

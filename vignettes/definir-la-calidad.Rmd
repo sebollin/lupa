@@ -9,7 +9,10 @@ vignette: >
 
 ```{r, setup, include=FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
-options(width = 90)
+# El ancho se restaura al terminar la vinneta: knitr corre cada una en su propia
+# sesion, asi que no se filtra, pero el CRAN Cookbook pide devolver toda opcion
+# que se cambie y no cuesta nada cumplirlo.
+.opciones_previas <- options(width = 90)
 ```
 
 `lupa` implementa un modelo de calidad de uso general. La arquitectura sigue el
@@ -221,3 +224,8 @@ oficiales*. Estudios en Métodos, serie M, N° 100, Nueva York.
 [CEA/CEPAL (2022)](https://repositorio.cepal.org/handle/11362/47464).
 *Guía para la implementación del marco de aseguramiento de la calidad para
 procesos y productos estadísticos*. LC/CEA.11/19, Naciones Unidas, Santiago.
+
+
+```{r, cierre, include=FALSE}
+options(.opciones_previas)
+```

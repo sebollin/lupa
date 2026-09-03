@@ -1,4 +1,8 @@
+# 13 s: ejercita el derrame a disco con bloques reales. Es comprobacion de
+# escala, no de comportamiento en el caso comun; se saltea en CRAN y corre en la
+# CI y en `revalidar.sh`.
 test_that("LSH externo conserva pares al cortar entre bloques", {
+  skip_on_cran()
   skip_if_not_installed("stringdist")
   set.seed(42)
   base <- c(

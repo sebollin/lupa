@@ -166,7 +166,12 @@ if (!exists(".tablas_limpias_r107", mode = "function")) {
   do.call(rbind, salida)
 }
 
+# 54,5 s: barre veinte tamanos -de 0 a 101 filas- perfilando varias tablas en
+# cada uno. Es una bateria de bordes, y achicarla seria justamente quitarle los
+# bordes. Se saltea en CRAN, donde el limite es el reloj, y sigue corriendo en
+# la CI y en `revalidar.sh`, que es donde tiene que atrapar la regresion.
 test_that("la bateria r107 conserva cobertura y afirmaciones verdaderas", {
+  skip_on_cran()
   saltos <- lapply(.tamanos_r107, .preparar_tablas_r107)
   registros_salto <- do.call(rbind, lapply(saltos, `[[`, "salteadas"))
   expect_true(all(nzchar(registros_salto$motivo)))
@@ -350,7 +355,9 @@ test_that("el minimo de filas de casi_clave corta donde dice", {
   expect_equal(casi_clave_en(101L), 1L)
 })
 
+# 8,9 s por la misma razon: barre tamanos alrededor del minimo declarado.
 test_that("casi_clave no se afirma en los bordes de su minimo de filas", {
+  skip_on_cran()
   for (n in c(99L, 100L, 101L)) {
     tablas <- .preparar_tablas_r107(n)$tablas
     perfiles <- lapply(tablas, perfilar, analizar_dependencias = FALSE)

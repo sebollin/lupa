@@ -9,7 +9,10 @@ vignette: >
 
 ```{r, setup, include=FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
-options(width = 90)
+# El ancho se restaura al terminar la vinneta: knitr corre cada una en su propia
+# sesion, asi que no se filtra, pero el CRAN Cookbook pide devolver toda opcion
+# que se cambie y no cuesta nada cumplirlo.
+.opciones_previas <- options(width = 90)
 ```
 
 Diagnosticar no autoriza a modificar datos. En `lupa`, el producto de la etapa
@@ -121,3 +124,8 @@ resultado_fd$registro[, c("estrategia", "n_cambiadas")]
 
 El ciclo termina volviendo a perfilar. Así la mejora queda vinculada a un plan y
 a un registro, no a una transformación invisible.
+
+
+```{r, cierre, include=FALSE}
+options(.opciones_previas)
+```

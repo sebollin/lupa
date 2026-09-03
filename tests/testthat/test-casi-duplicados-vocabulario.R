@@ -271,17 +271,32 @@ test_that("la regla numerica distingue las diez parejas de referencia", {
   }
 })
 
-test_that("un grupo que abarca casi todo el vocabulario no se entrega", {
-  skip_if_not_installed("stringdist")
-  letras <- vapply(seq_len(2000), function(i) {
+# El caso se prueba dos veces a proposito, y la division no es cosmetica.
+#
+# La regla -si un grupo abarca casi todo el vocabulario, no se entrega- vale a
+# cualquier tamano, y eso se comprueba con 300 formas en menos de dos segundos:
+# corre en todos lados, CRAN incluido.
+#
+# El caso de 2000 formas de 83 caracteres NO esta puesto por tamano: es el
+# borde. Con 1.999.000 pares queda justo debajo de `max_pares` (2e6) y con
+# 1,38e10 unidades de trabajo, justo debajo de `max_trabajo` (2e10): es la
+# carga maxima que el detector acepta SIN recortar. Achicarlo convertiria una
+# prueba de borde en una prueba comoda, asi que no se achica: se saltea en CRAN
+# -donde el limite es el reloj- y sigue corriendo en la CI y en `revalidar.sh`.
+# Tarda 157 s, el 24 % de toda la suite.
+.vocabulario_dominante <- function(n, largo = 80L) {
+  letras <- vapply(seq_len(n), function(i) {
     paste0(
       letters[(i - 1L) %/% 676L + 1L],
       letters[((i - 1L) %/% 26L) %% 26L + 1L],
       letters[(i - 1L) %% 26L + 1L]
     )
   }, character(1L))
-  valores <- paste0(strrep("x", 80), letras)
-  datos <- c(rep(valores[[1L]], 10L), valores[-1L])
+  valores <- paste0(strrep("x", largo), letras)
+  c(rep(valores[[1L]], 10L), valores[-1L])
+}
+
+.comprobar_grupo_dominante <- function(datos) {
   resultado <- lupa:::.grupos_casi_duplicados_vocabulario(
     datos, lupa:::.resolver_normalizacion(FALSE), "x"
   )
@@ -302,7 +317,19 @@ test_that("un grupo que abarca casi todo el vocabulario no se entrega", {
   ]
   expect_equal(nrow(cobertura), 1L)
   expect_match(cobertura$motivo, "no aplica")
+}
+
+test_that("un grupo que abarca casi todo el vocabulario no se entrega", {
+  skip_if_not_installed("stringdist")
+  .comprobar_grupo_dominante(.vocabulario_dominante(300L))
 })
+
+test_that("la regla del grupo dominante tambien vale en el borde del presupuesto", {
+  skip_if_not_installed("stringdist")
+  skip_on_cran()
+  .comprobar_grupo_dominante(.vocabulario_dominante(2000L))
+})
+
 
 test_that("el detector de vocabulario se puede apagar", {
   datos <- data.frame(x = c("San José", "San Jose", "aislado"))

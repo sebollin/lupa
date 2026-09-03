@@ -9,7 +9,10 @@ vignette: >
 
 ```{r, setup, include=FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
-options(width = 90)
+# El ancho se restaura al terminar la vinneta: knitr corre cada una en su propia
+# sesion, asi que no se filtra, pero el CRAN Cookbook pide devolver toda opcion
+# que se cambie y no cuesta nada cumplirlo.
+.opciones_previas <- options(width = 90)
 ```
 
 Una medición aislada describe una entrega. Varias corridas permiten saber si la
@@ -182,3 +185,8 @@ stopifnot(all(veredictos_conteo == "materialmente_distinto"))
 ```
 
 El invariante es deliberado: devuelve datos, no decisiones.
+
+
+```{r, cierre, include=FALSE}
+options(.opciones_previas)
+```

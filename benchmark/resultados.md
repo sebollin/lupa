@@ -1,6 +1,24 @@
 # Resultado publicado
 
-- Fecha de esta actualizacion: 2026-08-18.
+> **Cuando es cada cosa de esta pagina, y por que importa.** No hay una sola
+> fecha: la reproduccion de Raha es del **2026-08-18**; la tabla de PED y RIOLU,
+> del **2026-08-22**; el desglose de PED/Hospital, del **2026-08-24**. Cada
+> seccion que se rehizo lo declara arriba. La cabecera decia «2026-08-18» a
+> secas y fechaba mal todo el documento.
+>
+> **Y hay algo mas serio que la fecha.** Desde el 2026-08-24, **19 commits
+> tocaron los archivos de `R/` cuyos diagnosticos mide esta pagina**
+> -`hallazgos.R`, `duplicados-aproximados.R`, `patrones.R`, `columnas.R`-. Las
+> cifras de precision y cobertura de PED y RIOLU describen el paquete de esa
+> fecha, no el de hoy. Esta pagina ya escribio la regla que ahora le toca:
+> «un desglose que no se rehace despues de un cambio asi describe un paquete que
+> ya no existe». **Rehacerlas esta pendiente**; se rehacen con
+> `benchmark/medir_bancos.R` y `benchmark/_ped_desglose.R`, que necesitan las
+> copias locales (`PED_DATA_DIR`, `RIOLU_DATA_DIR`) o red.
+>
+> Lo que **si** esta medido sobre el codigo de hoy es la cobertura de columnas
+> de Raha -26 de 26-, que rehace `revalidar.sh` en cada corrida.
+
 - Version declarada de `lupa`: `0.1.0`.
 - Las huellas de archivos son Adler-32 calculado en R base. No son
   criptograficas y solo identifican cambios de los bytes obtenidos.
