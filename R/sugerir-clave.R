@@ -16,9 +16,15 @@
 )
 
 .normalizar_nombre_columna <- function(x) {
-  x <- tolower(as.character(x))
-  x <- gsub("[^a-z0-9]+", "", .transliterar_ascii(x))
-  x
+  # El orden importa y costo una regresion: bajar caja ANTES de transliterar
+  # deja el resultado a merced del locale. Bajo `LC_CTYPE=C`, `tolower()` no
+  # toca la `N` con virgulilla ni la `I` aguda; despues la transliteracion las
+  # pasa a `N` e `I` mayusculas y el `gsub` de `[^a-z0-9]` las borra: `Nandu`
+  # quedaba en `andu` y `VIA_1` en `va1`. Transliterando primero, lo que llega a
+  # la caja ya es ASCII, y ahi `chartr` es determinista.
+  x <- .transliterar_ascii(as.character(x))
+  x <- chartr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", x)
+  gsub("[^a-z0-9]+", "", x)
 }
 
 # Cuanto se parece el nombre a un nombre de clave. Tres niveles, no un continuo:

@@ -89,7 +89,17 @@
   mapa entrada por entrada apareció que faltaba justo `U+0130`, la I mayúscula
   con punto —la única mayúscula latina sin cubrir, y la que el locale trata
   distinto—: sin entrada propia se plegaba a `i` en un locale UTF-8 y quedaba
-  intacta bajo `C`.
+  intacta bajo `C`. Y `.normalizar_nombre_columna()` seguía dependiendo del
+  locale por un problema de orden: bajaba la caja **antes** de transliterar, así
+  que bajo `LC_CTYPE=C` las mayúsculas acentuadas llegaban intactas y el filtro
+  `[^a-z0-9]` las borraba —`Ñandú` quedaba en `andu` y `VÍA_1` en `va1`—.
+- Los dos mapas cubren ahora lo mismo y el alcance está escrito. Faltaban la
+  doble ese mayúscula —que estaba en el mapa de plegado y no en el de
+  transliteración, así que la letra desaparecía del nombre—, las marcas
+  combinantes —sin ellas la forma descompuesta de un nombre no colapsaba con la
+  precompuesta— y un puñado de Latin Extended-B que aparece en nombres europeos.
+  Fuera de Latin-1, Latin Extended-A y ese puñado, el carácter se conserva y lo
+  decide quien consume: eso queda dicho en el código en vez de suponerse.
 - **El «orden canónico —alfabético—» no era canónico**: `sort()` sobre texto usa
   la intercalación del locale, y ese orden desempata qué pares sobreviven al
   recorte de `max_resultados`. La misma corrida sobre los mismos datos podía

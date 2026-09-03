@@ -419,3 +419,31 @@ test_that("la distancia en nombres de vias queda declarada como sospecha", {
   expect_match(hallazgo$descripcion, "no confirma identidad")
   expect_match(hallazgo$sugerencia, "distancia no confirma identidad")
 })
+
+test_that("la participacion del dominante decide, y la frontera esta donde dice", {
+  skip_if_not_installed("stringdist")
+  # Salio de una refutacion que buscaba un contraejemplo a «la regla del grupo
+  # dominante no depende del tamano». Lo encontro: en la ruta de edicion corta
+  # -cadenas de pocos caracteres, donde Jaro-Winkler no alcanza y entra la
+  # distancia de edicion- hay una puerta de frecuencia, `min_participacion_
+  # dominante`, y la misma familia con las MISMAS frecuencias absolutas se
+  # entrega o no segun cuantas filas la acompanen.
+  #
+  # No es un defecto: si la forma dominante deja de ser la mitad de la columna,
+  # ya no domina. Lo que faltaba era una prueba que lo fijara, porque una puerta
+  # sin prueba se mueve sin que nadie se entere.
+  familia <- function(n_ruido) {
+    c(rep("abc", 160L), c("vbc", "wbc", "xbc", "ybc", "zbc"),
+      sprintf("r%04d", seq_len(n_ruido)))
+  }
+  grupos <- function(n_ruido) {
+    length(lupa:::.grupos_casi_duplicados_vocabulario(
+      familia(n_ruido), lupa:::.resolver_normalizacion(FALSE), "x"
+    )$grupos)
+  }
+
+  # 320 filas: 160/320 = 0,50 exacto, el dominante todavia es la mitad.
+  expect_equal(grupos(155L), 1L)
+  # 321 filas: 160/321 = 0,4984, deja de serlo y el grupo no se entrega.
+  expect_equal(grupos(156L), 0L)
+})
