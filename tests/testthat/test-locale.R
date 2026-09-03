@@ -182,3 +182,25 @@ test_that("el texto de los cortes usa punto bajo LC_NUMERIC con coma", {
   ajuste <- list(corte = 1.5, etiqueta_corte = NA_character_, clase_umbral = NULL)
   expect_identical(lupa:::.texto_corte_umbral(ajuste), "1.5")
 })
+
+test_that("la I mayuscula con punto se pliega igual en cualquier locale", {
+  # U+0130 era la unica mayuscula latina sin entrada en el mapa, y es justo la
+  # que el locale trata distinto: bajo un locale UTF-8 `tolower()` la baja a
+  # `i`, y bajo `C` la deja intacta. Sin entrada propia, la clave normalizada de
+  # "ISTANBUL" con I turca dependia de la maquina.
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
+  i_con_punto <- intToUtf8(0x0130)
+  esperado <- 0x0069L
+
+  expect_identical(
+    utf8ToInt(lupa:::.normalizacion_minusculas(i_con_punto)), esperado
+  )
+
+  if (is.na(Sys.setlocale("LC_CTYPE", "C"))) {
+    skip("no se pudo fijar LC_CTYPE=C en esta plataforma")
+  }
+  expect_identical(
+    utf8ToInt(lupa:::.normalizacion_minusculas(i_con_punto)), esperado
+  )
+})

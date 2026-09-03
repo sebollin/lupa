@@ -17,6 +17,12 @@
   `0118` = 0x0119, `011A` = 0x011B, `011C` = 0x011D, `011E` = 0x011F,
   `0120` = 0x0121, `0122` = 0x0123, `0124` = 0x0125, `0126` = 0x0127,
   `0128` = 0x0129, `012A` = 0x012B, `012C` = 0x012D, `012E` = 0x012F,
+  # U+0130, la I mayuscula con punto, es la unica mayuscula latina que
+  # faltaba, y es justo la que motiva todo esto: sin entrada propia caia en
+  # `tolower()`, que la baja a `i` en un locale UTF-8 y la deja intacta bajo
+  # `C`. Se fija a `i` -que es lo que dan glibc y la intencion del usuario al
+  # comparar- para que el resultado no dependa de la configuracion regional.
+  `0130` = 0x0069,
   `0132` = 0x0133, `0134` = 0x0135, `0136` = 0x0137, `0139` = 0x013A,
   `013B` = 0x013C, `013D` = 0x013E, `013F` = 0x0140, `0141` = 0x0142,
   `0143` = 0x0144, `0145` = 0x0146, `0147` = 0x0148, `014A` = 0x014B,

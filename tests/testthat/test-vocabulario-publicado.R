@@ -55,7 +55,26 @@ test_that("la lista de tipo_hallazgo publicada coincide entre README y con R/", 
   # 2. Los dos README publican la misma lista.
   expect_equal(lista_es$nombres, lista_en$nombres)
 
-  # 3. Ningun nombre publicado desaparecio del codigo.
+  # 3. La carta a CRAN publica la misma cifra. Ese numero se escribio a mano y
+  #    quedo en 57 cuando la lista paso a 58 al agregarse la fecha de
+  #    fallecimiento: un documento que va a CRAN contradiciendo al README.
+  carta <- file.path(raiz, "cran-comments.md")
+  if (file.exists(carta)) {
+    # La cifra y las palabras cruzan un salto de linea, asi que se busca sobre el
+    # texto unido: leer linea por linea daba NA y la comprobacion pasaba sola.
+    texto_carta <- paste(readLines(carta, warn = FALSE, encoding = "UTF-8"),
+                         collapse = " ")
+    capturado <- regmatches(
+      texto_carta,
+      regexpr("\\*\\*[0-9]+\\s+`tipo_hallazgo` names\\*\\*", texto_carta)
+    )
+    if (length(capturado)) {
+      cifra_carta <- as.integer(gsub("[^0-9]", "", capturado))
+      expect_equal(cifra_carta, length(lista_es$nombres))
+    }
+  }
+
+  # 4. Ningun nombre publicado desaparecio del codigo.
   codigo <- paste(
     unlist(lapply(
       list.files(fuentes, pattern = "\\.R$", full.names = TRUE),
