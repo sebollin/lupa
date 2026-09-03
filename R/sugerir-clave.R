@@ -17,7 +17,7 @@
 
 .normalizar_nombre_columna <- function(x) {
   x <- tolower(as.character(x))
-  x <- gsub("[^a-z0-9]+", "", iconv(x, to = "ASCII//TRANSLIT", sub = ""))
+  x <- gsub("[^a-z0-9]+", "", .transliterar_ascii(x))
   x
 }
 

@@ -108,9 +108,14 @@ test_that("analizar protege valores crudos de los cuatro tipos personales", {
 
 test_that("reconoce fechas de fallecimiento y rechaza nombres cercanos", {
   fechas <- as.Date(c("1980-01-01", "1981-01-01"))
+  nombre_fecha_defuncion <- rawToChar(as.raw(c(
+    0x46, 0x45, 0x43, 0x48, 0x41, 0x5F, 0x44, 0x45, 0x46, 0x55,
+    0x4E, 0x43, 0x49, 0xC3, 0x93, 0x4E
+  )))
+  Encoding(nombre_fecha_defuncion) <- "UTF-8"
   datos <- data.frame(
     `Fecha de Fallecimiento` = fechas,
-    FECHA_DEFUNCIÓN = fechas,
+    fecha_defuncion_acentuada = fechas,
     fec_obito = fechas,
     deceso = fechas,
     fecha_muerte = fechas,
@@ -123,6 +128,7 @@ test_that("reconoce fechas de fallecimiento y rechaza nombres cercanos", {
     check.names = FALSE,
     stringsAsFactors = FALSE
   )
+  names(datos)[[2L]] <- nombre_fecha_defuncion
   perfil <- perfilar(
     datos, fecha = as.POSIXct("2026-01-01", tz = "UTC"),
     analizar_dependencias = FALSE

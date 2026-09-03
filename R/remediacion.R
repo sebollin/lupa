@@ -45,8 +45,7 @@
 .nombres_snake <- function(nombres) {
   originales <- as.character(nombres)
   originales[is.na(originales)] <- ""
-  transliterados <- iconv(originales, from = "UTF-8", to = "ASCII//TRANSLIT")
-  transliterados[is.na(transliterados)] <- originales[is.na(transliterados)]
+  transliterados <- .transliterar_ascii(originales)
   salida <- tolower(trimws(transliterados))
   salida <- gsub("[^[:alnum:]]+", "_", salida, perl = TRUE)
   salida <- gsub("^_+|_+$", "", salida, perl = TRUE)

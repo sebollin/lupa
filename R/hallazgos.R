@@ -803,7 +803,7 @@
 .clave_sin_escritura <- function(x) {
   y <- tryCatch(enc2utf8(as.character(x)), error = function(e) as.character(x))
   y <- tryCatch(
-    iconv(y, from = "UTF-8", to = "ASCII//TRANSLIT"),
+    .transliterar_ascii(y),
     error = function(e) y
   )
   y[is.na(y)] <- ""
@@ -4177,8 +4177,7 @@
 }
 
 .normalizar_nombre_fecha <- function(x) {
-  y <- iconv(x, from = "UTF-8", to = "ASCII//TRANSLIT")
-  y[is.na(y)] <- x[is.na(y)]
+  y <- .transliterar_ascii(x)
   tolower(gsub("[^[:alnum:]]+", "_", y, perl = TRUE))
 }
 

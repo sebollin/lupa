@@ -132,7 +132,7 @@ The command is now run for each revision and its output pasted, not summarised.
   one cited here.) This is the check that CRAN's environment variable runs, the one
   that has caught what twenty-two thousand green tests structurally cannot see;
   its log is kept with the other runs of this revision. The tarball build
-  rebuilds all nine vignettes without a warning.
+  rebuilds all ten vignettes without a warning.
 * Continuous integration (GitHub Actions, `R-CMD-check`, run 33498082928) **on
   `688c4e7`, the submitted sources**: 5 of 5 with **`Status: OK`** and test
   summaries of `FAIL 0` with 22 837–22 841 passing checks — Ubuntu with R
