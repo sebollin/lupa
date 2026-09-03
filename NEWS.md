@@ -1,5 +1,32 @@
 # lupa 0.1.0
 
+## El período `AAAA-MM` es una fecha de granularidad mes
+
+- `%Y-%m`, `%m/%Y` y `%Y/%m` se reconocen como períodos mensuales. Antes la
+  granularidad `"mes"` salía sólo del mes escrito en letras —`%B %Y`, `%b %Y`—,
+  que es la forma rara; `AAAA-MM` es la forma ISO y la que producen los exportes
+  y las consultas agrupadas por período, y **no se reconocía**: cien períodos
+  entre novecientas fechas con día desaparecían del resumen y el mínimo
+  publicado se quedaba en el año equivocado, con `estado = "calculados"`.
+- Entran por el camino que ya existía y no se inventa nada: los períodos **no se
+  convierten a fecha** —asignarles el día 1 sería inventar un dato—, se cuentan
+  en `n_fechas_excluidas_granularidad` y el estado baja a
+  `"calculados_sobre_dias"`, o a `"granularidad_incompleta"` si son la columna
+  entera, donde `minimo_fecha` y `maximo_fecha` quedan en `NA`.
+- **No entra `%Y%m`.** Seis dígitos sin separador son un entero, y una columna de
+  `202305` se sigue perfilando como `entero`: robarle esos valores a la lectura
+  numérica habría sido peor que el defecto que se arregla.
+- Los períodos no se cruzan con los sufijos de hora: `"2023-05 14:30"` no existe.
+
+## Un resumen parcial lo declara siempre, no sólo al muestrear
+
+- Los valores presentes que la conversión de texto a número no puede leer se
+  cuentan en `n_valores_excluidos_resumen` **haya muestreo o no**, y el estado
+  baja a `"calculados_sobre_valores"`. Antes el conteo estaba atado al muestreo:
+  la misma columna informaba cero valores excluidos con estado `"calculados"` sin
+  muestrear, y cien con `"calculados_sobre_valores"` con `muestra = 50`. Los cien
+  quedaban afuera en los dos casos; lo único que cambiaba era si se decía.
+
 ## Un centinela que el usuario declara vale lo mismo que un `NA`
 
 - **`sentinelas_numericos` distingue la lista por omisión de una política que el

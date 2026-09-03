@@ -303,7 +303,13 @@ viñetas enlazadas son el manual detallado. Esta tabla es el mapa breve:
 
 `perfilar()` usa todas las filas para los conteos de tabla y columna, faltantes
 reales y disfrazados, valores distintos, duplicados exactos, resúmenes
-cuantitativos y los hallazgos derivados de esas cantidades. Por omisión,
+cuantitativos y los hallazgos derivados de esas cantidades. **«Todas las filas»
+es el alcance, no el contenido**: un resumen cuantitativo sigue dejando afuera lo
+que no vale como número —`NaN`, `Inf`, los textos que la conversión no puede leer
+y los centinelas que se declaran en `sentinelas_numericos`—, y cuando lo hace lo
+dice: `n_valores_excluidos_resumen` los cuenta, `estado_resumen_cuantitativo` deja
+de decir `"calculados"` y `cobertura_diagnosticos` recibe su fila. Eso no depende
+de que haya muestreo. Por omisión,
 `muestra = 1e5` limita el descubrimiento de patrones, la inferencia de tipos, la
 detección de formatos de fecha y la muestra común con que se buscan dependencias
 funcionales. Otro límite o `Inf` cambia o desactiva ese muestreo.

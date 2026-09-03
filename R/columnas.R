@@ -86,17 +86,21 @@
     if (inferencia$tipo %in% c("entero", "doble")) {
       texto <- trimws(as.character(x))
       valores <- suppressWarnings(as.numeric(sub(",", ".", texto, fixed = TRUE)))
-      muestreado <- isTRUE(inferencia$muestreado)
-      n_excluidas <- if (muestreado) {
-        # El tipo se descubrio sobre la muestra, pero el resumen se calcula
-        # sobre la columna entera. Los textos presentes que no llegan a numero
-        # no son NA de origen y no pueden desaparecer sin dejar alcance.
-        as.integer(sum(
-          !is.na(texto) & nzchar(texto) & is.na(valores) & !is.nan(valores)
-        ))
-      } else {
-        0L
-      }
+      # Los textos presentes que no llegan a numero no son NA de origen y no
+      # pueden desaparecer sin dejar alcance.
+      #
+      # Esto NO depende del muestreo, y estaba escrito como si dependiera: la
+      # rama tenia un `else 0L` literal, heredado de que el pendiente que la
+      # origino hablaba de `muestra`. La conversion descarta lo que no puede
+      # leer haya muestra o no. Medido sobre mil valores -900 que dicen "100",
+      # sesenta "1.234,5" y cuarenta "no-numero"-, la MISMA columna informaba
+      # `n_valores_excluidos_resumen = 0` con estado `calculados` sin muestrear,
+      # y 100 con `calculados_sobre_valores` con `muestra = 50`. Los cien
+      # valores quedaban afuera en los dos casos; lo unico que cambiaba era si
+      # se decia.
+      n_excluidas <- as.integer(sum(
+        !is.na(texto) & nzchar(texto) & is.na(valores) & !is.nan(valores)
+      ))
       return(list(valores = valores, clase = "numero",
                   n_fechas_resumidas = NA_integer_,
                   n_fechas_excluidas_granularidad = NA_integer_,

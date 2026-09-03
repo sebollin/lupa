@@ -295,7 +295,13 @@ linked vignettes are the detailed manual. This table is the short map:
 
 `perfilar()` uses every row for table and column counts, real and disguised
 missingness, distinct values, exact duplicates, quantitative summaries, and
-the findings derived from those quantities. By default, `muestra = 1e5` limits
+the findings derived from those quantities. **«Every row» is the scope, not the
+content**: a quantitative summary still leaves out what does not count as a
+number — `NaN`, `Inf`, text the conversion cannot read, and the sentinels
+declared in `sentinelas_numericos` — and when it does, it says so:
+`n_valores_excluidos_resumen` counts them, `estado_resumen_cuantitativo` stops
+saying `"calculados"`, and `cobertura_diagnosticos` gets its row. None of that
+depends on sampling being on. By default, `muestra = 1e5` limits
 pattern discovery, type inference, date-format discovery, and the common sample
 used to search for functional dependencies. Set another limit or `Inf` to
 change or disable that sampling.

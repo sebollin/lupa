@@ -162,6 +162,74 @@ test_that("los períodos minoritarios quedan fuera con alcance explícito", {
   )
 })
 
+test_that("los períodos numéricos de mes se detectan sin hora ni parseo", {
+  especificaciones <- lupa:::.especificaciones_fecha()
+  meses <- especificaciones[especificaciones$granularidad == "mes", ,
+                             drop = FALSE]
+
+  expect_setequal(
+    meses$formato,
+    c("%Y-%m", "%m/%Y", "%Y/%m")
+  )
+  expect_true(all(startsWith(meses$expresion, "^")))
+  expect_true(all(endsWith(meses$expresion, "$")))
+  expect_false(any(grepl("%H", meses$formato, fixed = TRUE)))
+  expect_false("%Y%m" %in% especificaciones$formato)
+
+  valores <- c("2023-05", "05/2023", "2023/05")
+  formatos <- lapply(valores, detectar_formatos_fecha)
+  for (i in seq_along(valores)) {
+    expect_equal(formatos[[i]]$formato, meses$formato[i], info = valores[[i]])
+    expect_equal(formatos[[i]]$granularidad, "mes", info = valores[[i]])
+    expect_equal(formatos[[i]]$estado, "confirmado", info = valores[[i]])
+    expect_equal(attr(formatos[[i]], "compatibles"), 1L, info = valores[[i]])
+    expect_true(
+      is.na(lupa:::.parsear_fechas(valores[[i]], formatos[[i]])[[1L]]),
+      info = valores[[i]]
+    )
+  }
+
+  expect_equal(inferir_tipo("202305")$tipo, "entero")
+  expect_equal(
+    detectar_formatos_fecha("2023-05 14:30")$formato,
+    character()
+  )
+})
+
+test_that("los períodos numéricos declaran el alcance del resumen", {
+  total <- 1000L
+  casos <- c(minoria = 100L, mitad = 500L, columna_entera = total)
+  for (n_mes in casos) {
+    valores <- c(
+      rep("2024-01-15", total - n_mes),
+      rep("2023-05", n_mes)
+    )
+    perfil <- perfilar(
+      data.frame(fecha = valores), muestra = Inf,
+      analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+    )
+    fila <- perfil$columnas[perfil$columnas$columna == "fecha", , drop = FALSE]
+    if (n_mes < total) {
+      expect_equal(fila$tipo_inferido, "fecha", info = names(n_mes))
+      expect_equal(fila$n_fechas_resumidas, total - n_mes,
+                   info = names(n_mes))
+      expect_equal(fila$n_fechas_excluidas_granularidad, n_mes,
+                   info = names(n_mes))
+      expect_equal(fila$estado_resumen_cuantitativo, "calculados_sobre_dias",
+                   info = names(n_mes))
+      expect_equal(fila$minimo_fecha, "2024-01-15", info = names(n_mes))
+    } else {
+      expect_equal(fila$tipo_inferido, "fecha", info = names(n_mes))
+      expect_equal(fila$n_fechas_resumidas, 0L, info = names(n_mes))
+      expect_equal(fila$n_fechas_excluidas_granularidad, total,
+                   info = names(n_mes))
+      expect_equal(fila$estado_resumen_cuantitativo,
+                   "granularidad_incompleta", info = names(n_mes))
+      expect_true(is.na(fila$minimo_fecha), info = names(n_mes))
+    }
+  }
+})
+
 test_that("los años de meses escritos quedan acotados al rango de fechas", {
   expect_equal(attr(detectar_formatos_fecha(c("Set 1000", "Mar 1000")),
                     "compatibles"), 0L)

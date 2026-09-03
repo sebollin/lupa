@@ -4,16 +4,35 @@
   sub("([+-][0-9]{2}):([0-9]{2})$", "\\1\\2", x, perl = TRUE)
 }
 
-.es_fecha_valida <- function(x, formato, expresion) {
+.es_fecha_valida <- function(x, formato, expresion, granularidad = "dia") {
   coincide <- grepl(expresion, x, perl = TRUE)
   valido <- rep(FALSE, length(x))
   if (any(coincide)) {
-    preparados <- .preparar_fecha_parseo(x[coincide], formato)
-    convertido <- strptime(preparados, format = formato, tz = "UTC")
-    valido_convertido <- !is.na(convertido)
-    if (startsWith(formato, "%Y%m%d")) {
-      anios <- suppressWarnings(as.integer(substr(x[coincide], 1L, 4L)))
-      valido_convertido <- valido_convertido & anios >= 1800L & anios <= 2100L
+    valores <- x[coincide]
+    if (identical(granularidad, "mes")) {
+      separador <- if (grepl("-", formato, fixed = TRUE)) "-" else "/"
+      partes <- do.call(rbind, strsplit(valores, separador, fixed = TRUE))
+      anios <- if (startsWith(formato, "%Y")) {
+        suppressWarnings(as.integer(partes[, 1L]))
+      } else {
+        suppressWarnings(as.integer(partes[, 2L]))
+      }
+      meses <- if (startsWith(formato, "%Y")) {
+        suppressWarnings(as.integer(partes[, 2L]))
+      } else {
+        suppressWarnings(as.integer(partes[, 1L]))
+      }
+      valido_convertido <- !is.na(anios) & !is.na(meses) &
+        anios >= 1800L & anios <= 2100L & meses >= 1L & meses <= 12L
+    } else {
+      preparados <- .preparar_fecha_parseo(valores, formato)
+      convertido <- strptime(preparados, format = formato, tz = "UTC")
+      valido_convertido <- !is.na(convertido)
+      if (startsWith(formato, "%Y%m%d")) {
+        anios <- suppressWarnings(as.integer(substr(valores, 1L, 4L)))
+        valido_convertido <- valido_convertido &
+          anios >= 1800L & anios <= 2100L
+      }
     }
     valido[coincide] <- valido_convertido
   }
@@ -23,12 +42,16 @@
 .especificaciones_fecha <- function() {
   bases <- data.frame(
     formato = c(
+      "%Y-%m", "%m/%Y", "%Y/%m",
       "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y",
       "%m-%d-%Y", "%Y/%m/%d", "%d.%m.%Y", "%m.%d.%Y",
       "%Y%m%d", "%d/%m/%y", "%m/%d/%y", "%d-%m-%y",
       "%m-%d-%y", "%d.%m.%y", "%m.%d.%y", "%y-%m-%d"
     ),
     expresion = c(
+      "[0-9]{4}-[0-9]{1,2}",
+      "[0-9]{1,2}/[0-9]{4}",
+      "[0-9]{4}/[0-9]{1,2}",
       "[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}",
       "[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}",
       "[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}",
@@ -47,11 +70,13 @@
       "[0-9]{2}-[0-9]{1,2}-[0-9]{1,2}"
     ),
     grupo_base = c(
+      "", "", "",
       "", "barra4", "barra4", "guion4", "guion4", "", "punto4",
       "punto4", "", "barra2", "barra2", "guion2", "guion2",
       "punto2", "punto2", ""
     ),
-    anio_dos_digitos = c(rep(FALSE, 9L), rep(TRUE, 7L)),
+    anio_dos_digitos = c(rep(FALSE, 12L), rep(TRUE, 7L)),
+    granularidad = c(rep("mes", 3L), rep("dia", 16L)),
     stringsAsFactors = FALSE
   )
   sufijos <- data.frame(
@@ -71,10 +96,15 @@
     stringsAsFactors = FALSE
   )
 
-  resultado <- vector("list", nrow(bases) * nrow(sufijos))
+  resultado <- list()
   k <- 0L
   for (i in seq_len(nrow(bases))) {
-    for (j in seq_len(nrow(sufijos))) {
+    sufijos_aplicables <- if (identical(bases$granularidad[[i]], "mes")) {
+      1L
+    } else {
+      seq_len(nrow(sufijos))
+    }
+    for (j in sufijos_aplicables) {
       k <- k + 1L
       resultado[[k]] <- data.frame(
         formato = paste0(bases$formato[[i]], sufijos$formato[[j]]),
@@ -86,6 +116,7 @@
         } else {
           ""
         },
+        granularidad = bases$granularidad[[i]],
         stringsAsFactors = FALSE
       )
     }
@@ -261,7 +292,11 @@
       formato, length(indices), n,
       estado = if (dos) "candidato" else "confirmado",
       anio_dos_digitos = dos,
-      granularidad = if (grepl("^%[Bb] %Y$", formato)) "mes" else "dia"
+      granularidad = if (formato %in% c("%B %Y", "%b %Y")) {
+        "mes"
+      } else {
+        "dia"
+      }
     )
   }
   list(
@@ -441,6 +476,7 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   valores_numericos <- formas[indices_restantes]
   base_fecha <- paste0(
     "(?:[0-9]{4}[-/.][0-9]{1,2}[-/.][0-9]{1,2}|",
+    "[0-9]{4}(?:-|/)[0-9]{1,2}|[0-9]{1,2}/[0-9]{4}|",
     "[0-9]{1,2}[-/.][0-9]{1,2}[-/.][0-9]{4}|",
     "[0-9]{1,2}[-/.][0-9]{1,2}[-/.][0-9]{2}|",
     "[0-9]{2}-[0-9]{1,2}-[0-9]{1,2}|[0-9]{8})"
@@ -460,7 +496,8 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     .es_fecha_valida(
       valores,
       especificaciones$formato[[i]],
-      especificaciones$expresion[[i]]
+      especificaciones$expresion[[i]],
+      especificaciones$granularidad[[i]]
     )
   })
   names(mascaras) <- especificaciones$formato
@@ -478,7 +515,8 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
         } else {
           "confirmado"
         },
-        anio_dos_digitos = especificaciones$anio_dos_digitos[[i]]
+        anio_dos_digitos = especificaciones$anio_dos_digitos[[i]],
+        granularidad = especificaciones$granularidad[[i]]
       )
       cubiertos[indices_numericos] <- cubiertos[indices_numericos] | mascara
     }
@@ -641,10 +679,9 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
   } else {
     rep("dia", nrow(formatos))
   }
-  mes_sin_dia <- grepl("^%[Bb] %Y$", formatos$formato)
   formatos_meses <- unique(formatos$formato[
     grepl("%[Bb]", formatos$formato) &
-      granularidades != "mes" & !mes_sin_dia
+      granularidades != "mes"
   ])
   meses <- if (length(formatos_meses)) {
     .meses_texto_para_formas(meses_texto, textos, formas)
@@ -660,7 +697,9 @@ detectar_formatos_fecha <- function(x, muestra = 1e5) {
     ), format = "%Y-%m-%d")
     convertidas[indices] <- as.POSIXct(fechas, tz = "UTC")
   }
-  confirmados <- formatos$formato[formatos$estado == "confirmado"]
+  confirmados <- formatos$formato[
+    formatos$estado == "confirmado" & granularidades != "mes"
+  ]
   especificaciones <- .especificaciones_fecha()
   for (formato in confirmados) {
     indice_especificacion <- match(formato, especificaciones$formato)
