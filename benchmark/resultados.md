@@ -6,11 +6,22 @@
 > seccion que se rehizo lo declara arriba. La cabecera decia «2026-08-18» a
 > secas y fechaba mal todo el documento.
 >
-> **Y hay algo mas serio que la fecha.** Desde el 2026-08-24, **19 commits
-> tocaron los archivos de `R/` cuyos diagnosticos mide esta pagina**
-> -`hallazgos.R`, `duplicados-aproximados.R`, `patrones.R`, `columnas.R`-. Las
-> cifras de precision y cobertura de PED y RIOLU describen el paquete de esa
-> fecha, no el de hoy. Esta pagina ya escribio la regla que ahora le toca:
+> **Y hay algo mas serio que la fecha.** Desde el 2026-08-24, **23 commits
+> tocaron los archivos de `R/` cuyos diagnosticos mide esta pagina**: 13 en
+> `hallazgos.R`, 9 en `duplicados-aproximados.R` y 8 en `columnas.R`. El
+> ultimo es `1204b87`, del 2026-09-03. (`patrones.R` figuraba en esta lista y
+> **no recibio ninguno**; se saca, porque una lista inflada hace parecer mas
+> vieja la pagina de lo que esta.) Las cifras de precision y cobertura de PED y
+> RIOLU describen el paquete de esa fecha, no el de hoy.
+>
+> Ese numero se rehace, no se recuerda -decia 19 el 2026-09-02 y hoy son 23-:
+>
+> ```bash
+> git log --oneline --since=2026-08-24 \
+>   -- R/hallazgos.R R/duplicados-aproximados.R R/columnas.R | wc -l
+> ```
+>
+> Esta pagina ya escribio la regla que ahora le toca:
 > «un desglose que no se rehace despues de un cambio asi describe un paquete que
 > ya no existe». **Rehacerlas esta pendiente**; se rehacen con
 > `benchmark/medir_bancos.R` y `benchmark/_ped_desglose.R`, que necesitan las
