@@ -306,7 +306,7 @@ por_lotes$lotes[c(
   "directorio", "n_parciales", "bytes_totales", "reanudable", "perdida"
 )]
 #> $directorio
-#> [1] "/tmp/RtmpejoaE6/lupa-lotes-23162984c8d1/lupa-lotes-23166e60f60e"
+#> [1] "/tmp/Rtmp0tTMqV/lupa-lotes-25e5520e9171/lupa-lotes-25e57c239867"
 #> 
 #> $n_parciales
 #> [1] 6
