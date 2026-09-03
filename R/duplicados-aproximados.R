@@ -392,7 +392,7 @@
   as.integer(x)
 }
 
-# Numera los valores comparados por su orden canonico -alfabetico- y devuelve un
+# Numera los valores comparados por su orden canonico de bytes y devuelve un
 # entero por fila global. Es la misma decision que ya gobierna el recorte del
 # vocabulario: cuando hay que elegir que se conserva, se elige por contenido y no
 # por orden de llegada, porque si no el veredicto depende de como venga ordenado
@@ -402,7 +402,8 @@
 .rango_canonico_duplicados <- function(valores, filas) {
   if (!length(filas)) return(integer())
   rango <- integer(max(as.integer(filas)))
-  rango[as.integer(filas)] <- match(valores, sort(unique(valores)))
+  ordenados <- .ordenar_por_bytes(unique(valores))
+  rango[as.integer(filas)] <- match(valores, ordenados)
   rango
 }
 

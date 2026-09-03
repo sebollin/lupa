@@ -314,7 +314,9 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
 #'
 #' @param propuesta Objeto creado por [proponer_modelo()].
 #'
-#' @return Objeto `modelo_calidad` listo para [medir()].
+#' @return Objeto `modelo_calidad` con las métricas que la propuesta declaró,
+#'   ya instanciadas y reunidas por [modelo()], listo para [medir()]. No
+#'   vuelve a examinar los datos ni ejecuta ninguna medición.
 #' @export
 #'
 #' @seealso [proponer_modelo()], [modelo()], [medir()]

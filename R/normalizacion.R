@@ -10,7 +10,11 @@
 #' @param proteger Grafemas cuyas marcas deben conservarse al quitar acentos.
 #'   Puede incluir una base seguida de una o más marcas combinantes, como
 #'   la secuencia `g` seguida por una tilde combinante para la letra guaraní.
-#' @return Un objeto de clase normalizacion_lupa.
+#' @return Objeto de clase `normalizacion_lupa`: una lista con un elemento
+#'   logico por paso -`minusculas`, `espacios`, `acentos`, `comillas`,
+#'   `puntuacion`, `ligaduras`, `ancho`- y el vector `proteger` con los
+#'   grafemas cuyas marcas se conservan. Es una declaracion de como comparar:
+#'   no toca los datos, y la descomposicion canonica se aplica siempre.
 #' @export
 #' @examples
 #' # El perfil por omisión: minúsculas, espacios, acentos y comillas.
@@ -800,11 +804,7 @@ print.normalizacion_lupa <- function(x, ...) {
   codigos[!quitar]
 }
 .normalizacion_minusculas <- function(texto) {
-  codigos <- utf8ToInt(texto)
-  # El ASCII I se fija antes de delegar el resto en R para que un locale
-  # turco no convierta una comparacion reproducible en U+0131.
-  codigos[codigos == 73L] <- 105L
-  tolower(paste0(intToUtf8(codigos, multiple = TRUE), collapse = ""))
+  .normalizacion_minusculas_vector(texto)
 }
 .normalizacion_espacios_codigos <- function(codigos) {
   if (!length(codigos)) return(codigos)
@@ -1022,7 +1022,7 @@ print.normalizacion_lupa <- function(x, ...) {
     }
   }
   if (isTRUE(perfil$minusculas)) {
-    salida <- tolower(chartr("I", "i", salida))
+    salida <- .normalizacion_minusculas_vector(salida)
   }
   if (isTRUE(perfil$espacios)) {
     salida <- trimws(gsub("[[:space:]]+", " ", salida, perl = TRUE))

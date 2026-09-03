@@ -26,7 +26,11 @@ el identificador o el nombre de una estrategia, o \code{0} para no hacer nada.}
 \item{max_ejemplos}{Máximo de ejemplos reales mostrados por grupo.}
 }
 \value{
-El plan editado, sin ejecutar acciones.
+El mismo \code{plan_limpieza} recibido, con la columna de decisión
+sincronizada según lo elegido, y sin ejecutar ninguna acción sobre los
+datos: cambia qué acciones quedan marcadas para \code{aplicar()}, no la
+tabla. En una sesión no interactiva y sin \code{selector}, devuelve el plan
+sin cambios.
 }
 \description{
 Recorre los grupos pendientes y aquellos que contienen alternativas

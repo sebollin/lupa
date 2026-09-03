@@ -68,7 +68,9 @@ as.data.frame.perfil <- function(x, row.names = NULL, optional = FALSE, ...) {
 #' @param x Objeto de clase `perfil`.
 #' @param ... Argumentos enviados a [tibble::as_tibble()].
 #'
-#' @return Un `tibble` con una fila por columna.
+#' @return Un `tibble` con una fila por columna del perfil y las mismas
+#'   variables que `x$columnas`: es la tabla de columnas del perfil, no el
+#'   perfil entero -los hallazgos, la cobertura y los metadatos no viajan-.
 #' @keywords internal
 #' @exportS3Method tibble::as_tibble
 #'

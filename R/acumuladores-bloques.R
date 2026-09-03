@@ -3170,11 +3170,9 @@ bytes_retenidos <- function(acumulador) .bytes_retenidos(acumulador)
     orden <- integer()
   } else {
     claves <- as.character(mapa$clave)
-    # `table()` ordena sus niveles antes de `sort()`; en particular, el orden
-    # de empate no es el byte-order de `order(..., method = "radix")` para
-    # mayusculas y caracteres de control. Reproducir los niveles de `table`
-    # mantiene la identidad de la pasada unica tambien en esos empates.
-    niveles <- sort(unique(claves))
+    # El empate debe seguir el mismo orden por bytes que el resto del paquete;
+    # `sort()` sobre texto usa la intercalacion del locale.
+    niveles <- .ordenar_por_bytes(unique(claves))
     orden_niveles <- match(claves, niveles)
     orden <- order(-mapa$n, orden_niveles)
     frecuencias <- mapa$n[orden]

@@ -16,7 +16,11 @@ lista de \code{DBI::Id}; o un vector de texto \code{"esquema.tabla"}.}
 \item{nombre}{Etiqueta de la colección.}
 }
 \value{
-Objeto de clase \code{coleccion_lupa}.
+Objeto de clase \code{coleccion_lupa}: una lista con \code{nombre}, la
+\code{conexion} declarada, \code{tablas} -un data frame con una fila por tabla
+declarada y sus columnas de esquema y nombre-, \code{motor} con la clase del
+controlador DBI, y \code{n_declaradas} con la cantidad de tablas. No abre
+consultas ni lee datos: sólo declara qué tablas forman la colección.
 }
 \description{
 Una colección es una base de datos entera: el séptimo nivel de granularidad

@@ -102,7 +102,15 @@
     envoltorio <- if (identical(clase, "Date")) "as.Date" else "as.POSIXct"
     return(paste0(envoltorio, "(\"", ajuste$etiqueta_corte, "\")"))
   }
-  trimws(format(ajuste$corte, digits = 15, scientific = FALSE, trim = TRUE))
+  texto <- trimws(format(
+    ajuste$corte, digits = 15, scientific = FALSE, trim = TRUE
+  ))
+  decimal <- Sys.localeconv()[["decimal_point"]]
+  if (length(decimal) && !is.na(decimal) && nzchar(decimal) &&
+      !identical(decimal, ".")) {
+    texto <- sub(decimal, ".", texto, fixed = TRUE)
+  }
+  texto
 }
 
 .texto_valores_nivel <- function(valores) {

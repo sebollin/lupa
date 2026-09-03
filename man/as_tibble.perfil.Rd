@@ -12,7 +12,9 @@
 \item{...}{Argumentos enviados a \code{\link[tibble:as_tibble]{tibble::as_tibble()}}.}
 }
 \value{
-Un \code{tibble} con una fila por columna.
+Un \code{tibble} con una fila por columna del perfil y las mismas
+variables que \code{x$columnas}: es la tabla de columnas del perfil, no el
+perfil entero -los hallazgos, la cobertura y los metadatos no viajan-.
 }
 \description{
 Método opcional para \code{\link[tibble:as_tibble]{tibble::as_tibble()}}. Requiere que \code{tibble} esté

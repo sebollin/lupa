@@ -23,7 +23,11 @@ Puede incluir una base seguida de una o más marcas combinantes, como
 la secuencia \code{g} seguida por una tilde combinante para la letra guaraní.}
 }
 \value{
-Un objeto de clase normalizacion_lupa.
+Objeto de clase \code{normalizacion_lupa}: una lista con un elemento
+logico por paso -\code{minusculas}, \code{espacios}, \code{acentos}, \code{comillas},
+\code{puntuacion}, \code{ligaduras}, \code{ancho}- y el vector \code{proteger} con los
+grafemas cuyas marcas se conservan. Es una declaracion de como comparar:
+no toca los datos, y la descomposicion canonica se aplica siempre.
 }
 \description{
 La normalizacion afecta unicamente la representacion usada para comparar;

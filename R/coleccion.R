@@ -430,7 +430,11 @@
 #'   lista de `DBI::Id`; o un vector de texto `"esquema.tabla"`.
 #' @param nombre Etiqueta de la colección.
 #'
-#' @return Objeto de clase `coleccion_lupa`.
+#' @return Objeto de clase `coleccion_lupa`: una lista con `nombre`, la
+#'   `conexion` declarada, `tablas` -un data frame con una fila por tabla
+#'   declarada y sus columnas de esquema y nombre-, `motor` con la clase del
+#'   controlador DBI, y `n_declaradas` con la cantidad de tablas. No abre
+#'   consultas ni lee datos: sólo declara qué tablas forman la colección.
 #' @export
 #' @seealso [perfilar_coleccion()], [perfilar_dbi()], [granularidades()]
 #'

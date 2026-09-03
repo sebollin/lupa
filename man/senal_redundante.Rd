@@ -19,7 +19,10 @@ las llevan a una escala comparable.}
 \item{nombre}{Etiqueta de la señal. Por omisión, las columnas unidas.}
 }
 \value{
-Objeto de clase \code{senal_redundante}.
+Objeto de clase \code{senal_redundante}: una lista con \code{nombre} -el
+declarado, o las columnas unidas por \code{=}-, el vector \code{columnas} que la
+señal relaciona, la \code{ventana} numérica y la \code{transformacion} validada.
+Describe la relación esperada; no la evalúa.
 }
 \description{
 Declara que varias columnas de la misma tabla codifican \strong{el mismo hecho},

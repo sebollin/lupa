@@ -36,7 +36,11 @@ objeto de entrada o \code{"referencial"}.}
 predeterminado.}
 }
 \value{
-Un objeto de clase \code{referencial}.
+Objeto de clase \code{referencial}: una lista con la tabla de
+referencia en \code{datos}, los nombres de columna \code{clave} y \code{valor}, el
+indicador \code{completo} -si la referencia agota el dominio-, el \code{alcance}
+declarado o \code{NA}, el \code{nombre}, y el perfil de normalización resuelto en
+\code{normalizar}. Declara la referencia; no compara nada todavía.
 }
 \description{
 Un referencial representa conocimiento externo mediante una clave y, de

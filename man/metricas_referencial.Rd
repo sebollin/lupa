@@ -7,7 +7,9 @@
 metricas_referencial()
 }
 \value{
-Lista con tres objetos \code{metrica_generica}.
+Lista con tres objetos \code{metrica_generica} -cobertura, validez y
+completitud del dominio-, listos para instanciar contra un \code{referencial}.
+Son definiciones: no miden hasta que se las instancia.
 }
 \description{
 Devuelve las tres métricas base que pueden medirse con el contrato de

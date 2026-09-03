@@ -10,7 +10,9 @@ modelo_desde_propuesta(propuesta)
 \item{propuesta}{Objeto creado por \code{\link[=proponer_modelo]{proponer_modelo()}}.}
 }
 \value{
-Objeto \code{modelo_calidad} listo para \code{\link[=medir]{medir()}}.
+Objeto \code{modelo_calidad} con las métricas que la propuesta declaró,
+ya instanciadas y reunidas por \code{\link[=modelo]{modelo()}}, listo para \code{\link[=medir]{medir()}}. No
+vuelve a examinar los datos ni ejecuta ninguna medición.
 }
 \description{
 Convierte las filas con \code{incluir == TRUE} en métricas instanciadas y las

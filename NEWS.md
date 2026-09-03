@@ -74,6 +74,50 @@
   muestra diagnóstica acotada por `muestra`, `max_celdas_muestra` y
   `max_bytes_muestra`, y que la cobertura se lee en `meta$bloques$filas_vistas`.
 
+## El resultado deja de depender de la configuración regional
+
+`iconv("ASCII//TRANSLIT")` era una de las dependencias de plataforma, no la
+única. Estas son de la misma familia y todas se reprodujeron antes de tocarlas.
+
+- **`tolower()` no pliega los acentos fuera de un locale UTF-8.** Con
+  `normalizacion(acentos = FALSE, minusculas = TRUE)` —un perfil documentado—,
+  bajo `LC_CTYPE=C` «CAFÉ» y «café» dejaban de ser la misma clave y el par
+  duplicado se perdía **en silencio**. Ahora el plegado de caja usa un mapa
+  explícito de mayúsculas latinas acentuadas, en `R/pliegue-caja.R`, que
+  conserva el acento y sólo cambia la caja. Comprobado comparando puntos de
+  código: bajo `C` y bajo `es_UY.UTF-8` el resultado es el mismo.
+- **El «orden canónico —alfabético—» no era canónico**: `sort()` sobre texto usa
+  la intercalación del locale, y ese orden desempata qué pares sobreviven al
+  recorte de `max_resultados`. La misma corrida sobre los mismos datos podía
+  devolver pares distintos según la máquina. Ahora usa `.ordenar_por_bytes()`,
+  que el paquete ya usaba en otro lado, y el comentario dejó de afirmar algo
+  falso.
+- Las variantes de mayúsculas de una columna se detectaban con el mismo
+  `tolower()` dependiente del locale.
+- La consulta al catálogo de Oracle elevaba identificadores con `toupper()`: con
+  un locale turco pedía `Mİ_TABLA` en vez de `MI_TABLA`. Ahora eleva con reglas
+  ASCII explícitas, y sólo los identificadores.
+- Los textos de corte de ausencia estructural salían con coma decimal bajo un
+  `LC_NUMERIC` que la usa.
+
+Las pruebas nuevas **fijan el locale dentro de la prueba** y lo restauran; si la
+plataforma no acepta el locale pedido, se saltean diciendo por qué.
+
+## Documentación que se puede desmentir
+
+- Los dos README decían «43 tablas limpias» donde son **31**: la cifra vieja
+  quedó de cuando el conjunto de control era más grande, y el mismo README ya
+  decía 31 en su tabla de evidencia. Ahora la prosa nombra la prueba que la fija.
+- La lista de nombres de `tipo_hallazgo` que publican los README no la vigilaba
+  ninguna prueba —que es exactamente como envejeció la anterior—. Ahora
+  `test-vocabulario-publicado.R` comprueba que la cifra coincida con la lista,
+  que los dos README publiquen la misma, y que **cada nombre siga existiendo en
+  el código**.
+- Siete `\value` describían el retorno como «un objeto de clase X». Ahora dicen
+  qué trae ese objeto y qué no hace la función.
+- `Description` explica `AGESIC`, `ISO/IEC` y `CEA/CEPAL`, que el CRAN Cookbook
+  pide expandir.
+
 ## Geometrías con Z/M o con SRID mixto: se acabaron los falsos positivos
 
 Medido contra un PostGIS 3.4.3 real, sembrado a propósito con lo que la base

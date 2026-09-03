@@ -205,9 +205,13 @@
           "ON t.constraint_name = c.constraint_name ",
           "AND t.owner = c.owner ",
           "WHERE t.constraint_type = 'P' ",
-          "AND t.table_name = ", .texto_sql_clave(toupper(tabla)),
+          "AND t.table_name = ",
+          .texto_sql_clave(.mayusculas_identificador_sql(tabla)),
           if (!is.na(esquema)) {
-            paste0(" AND t.owner = ", .texto_sql_clave(toupper(esquema)))
+            paste0(
+              " AND t.owner = ",
+              .texto_sql_clave(.mayusculas_identificador_sql(esquema))
+            )
           } else {
             ""
           },
@@ -322,6 +326,11 @@
 # lo unico que viaja son nombres de tabla y de esquema que ya se validaron.
 .texto_sql_clave <- function(x) {
   paste0("'", gsub("'", "''", as.character(x), fixed = TRUE), "'")
+}
+
+.mayusculas_identificador_sql <- function(x) {
+  chartr("abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+         as.character(x))
 }
 
 .error_permiso_clave <- function(motivo) {

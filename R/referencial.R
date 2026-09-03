@@ -247,7 +247,11 @@
 #' @param normalizar `TRUE`, `FALSE`, `"amplio"`, un perfil de
 #'   [normalizacion()] o una lista nombrada por columna. `TRUE` es el valor
 #'   predeterminado.
-#' @return Un objeto de clase `referencial`.
+#' @return Objeto de clase `referencial`: una lista con la tabla de
+#'   referencia en `datos`, los nombres de columna `clave` y `valor`, el
+#'   indicador `completo` -si la referencia agota el dominio-, el `alcance`
+#'   declarado o `NA`, el `nombre`, y el perfil de normalización resuelto en
+#'   `normalizar`. Declara la referencia; no compara nada todavía.
 #' @export
 #'
 #' @seealso [metricas_referencial()], [instanciar()], [detectar_relaciones()]
@@ -522,7 +526,9 @@ print.referencial <- function(x, ...) {
 #' dimensión Completitud. La cobertura ignora claves ausentes en el objetivo y
 #' no permite que duplicados inflen el resultado.
 #'
-#' @return Lista con tres objetos `metrica_generica`.
+#' @return Lista con tres objetos `metrica_generica` -cobertura, validez y
+#'   completitud del dominio-, listos para instanciar contra un `referencial`.
+#'   Son definiciones: no miden hasta que se las instancia.
 #' @export
 #'
 #' @seealso [referencial()], [metricas_nucleo()], [agregar()]

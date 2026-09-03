@@ -1193,7 +1193,7 @@
     espacios <- validos & textos != trimws(textos)
   }
   ejemplos_espacios <- utils::head(unique(textos[espacios]), 6L)
-  minusculas <- tolower(unicos)
+  minusculas <- .normalizacion_minusculas_vector(unicos)
   colision <- duplicated(minusculas) | duplicated(minusculas, fromLast = TRUE)
   variantes <- unicos[colision]
   solo_ascii <- !any(grepl("[^\\x01-\\x7F]", unicos, perl = TRUE))

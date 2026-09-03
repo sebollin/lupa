@@ -55,7 +55,10 @@
 #'   las llevan a una escala comparable.
 #' @param nombre Etiqueta de la señal. Por omisión, las columnas unidas.
 #'
-#' @return Objeto de clase `senal_redundante`.
+#' @return Objeto de clase `senal_redundante`: una lista con `nombre` -el
+#'   declarado, o las columnas unidas por `=`-, el vector `columnas` que la
+#'   señal relaciona, la `ventana` numérica y la `transformacion` validada.
+#'   Describe la relación esperada; no la evalúa.
 #' @export
 #' @seealso [detectar_discordancias()], [detectar_dependencias()]
 #'

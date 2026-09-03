@@ -2077,7 +2077,11 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
 #' @param diccionarios Lista opcional con nombre de diccionarios por columna.
 #' @param max_ejemplos Máximo de ejemplos reales mostrados por grupo.
 #'
-#' @return El plan editado, sin ejecutar acciones.
+#' @return El mismo `plan_limpieza` recibido, con la columna de decisión
+#'   sincronizada según lo elegido, y sin ejecutar ninguna acción sobre los
+#'   datos: cambia qué acciones quedan marcadas para `aplicar()`, no la
+#'   tabla. En una sesión no interactiva y sin `selector`, devuelve el plan
+#'   sin cambios.
 #' @export
 #' @seealso [planificar_limpieza()], [aplicar()]
 #'

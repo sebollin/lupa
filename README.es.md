@@ -58,8 +58,9 @@ incluidas monedas y unidades mezcladas, fechas en formatos mixtos, faltantes
 disfrazados, espacios sobrantes, mayúsculas inconsistentes, variantes de
 escritura, números guardados como texto, casi-claves, constantes y ausencia
 estructural. Sobre un banco de referencia con defectos conocidos recuperó 9 de
-9 defectos plantados; sobre 43 tablas limpias produjo 0 hallazgos de severidad
-error.
+9 defectos plantados; sobre 31 tablas limpias produjo 0 hallazgos de severidad
+error y 8 señales para revisar. Las tres cifras las fija
+`tests/testthat/test-ronda107.R`, para que no puedan envejecer en silencio.
 
 El vocabulario canónico actual contiene 58 nombres de `tipo_hallazgo`. Los
 nombres están en español porque forman parte de la API pública:
