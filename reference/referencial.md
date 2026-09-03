@@ -58,7 +58,11 @@ referencial(
 
 ## Value
 
-Un objeto de clase `referencial`.
+Objeto de clase `referencial`: una lista con la tabla de referencia en
+`datos`, los nombres de columna `clave` y `valor`, el indicador
+`completo` -si la referencia agota el dominio-, el `alcance` declarado o
+`NA`, el `nombre`, y el perfil de normalización resuelto en
+`normalizar`. Declara la referencia; no compara nada todavía.
 
 ## Details
 

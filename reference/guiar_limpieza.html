@@ -96,7 +96,11 @@ el identificador o el nombre de una estrategia, o <code>0</code> para no hacer n
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>El plan editado, sin ejecutar acciones.</p>
+    <p>El mismo <code>plan_limpieza</code> recibido, con la columna de decisión
+sincronizada según lo elegido, y sin ejecutar ninguna acción sobre los
+datos: cambia qué acciones quedan marcadas para <code><a href="planificar_limpieza.html">aplicar()</a></code>, no la
+tabla. En una sesión no interactiva y sin <code>selector</code>, devuelve el plan
+sin cambios.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

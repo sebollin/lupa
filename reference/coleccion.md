@@ -35,7 +35,11 @@ coleccion(conexion, tablas, nombre = NULL)
 
 ## Value
 
-Objeto de clase `coleccion_lupa`.
+Objeto de clase `coleccion_lupa`: una lista con `nombre`, la `conexion`
+declarada, `tablas` -un data frame con una fila por tabla declarada y
+sus columnas de esquema y nombre-, `motor` con la clase del controlador
+DBI, y `n_declaradas` con la cantidad de tablas. No abre consultas ni
+lee datos: sólo declara qué tablas forman la colección.
 
 ## Details
 

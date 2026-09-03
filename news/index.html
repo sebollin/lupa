@@ -71,6 +71,26 @@
 <li>La documentación de <code>bloque_filas</code> dice que <code>perfil_muestra</code> sigue siendo la muestra diagnóstica acotada por <code>muestra</code>, <code>max_celdas_muestra</code> y <code>max_bytes_muestra</code>, y que la cobertura se lee en <code>meta$bloques$filas_vistas</code>.</li>
 </ul></div>
 <div class="section level3">
+<h3 id="el-resultado-deja-de-depender-de-la-configuración-regional-0-1-0">El resultado deja de depender de la configuración regional<a class="anchor" aria-label="anchor" href="#el-resultado-deja-de-depender-de-la-configuraci%C3%B3n-regional-0-1-0"></a></h3>
+<p><code>iconv("ASCII//TRANSLIT")</code> era una de las dependencias de plataforma, no la única. Estas son de la misma familia y todas se reprodujeron antes de tocarlas.</p>
+<ul><li>
+<strong><code><a href="https://rdrr.io/r/base/chartr.html" class="external-link">tolower()</a></code> no pliega los acentos fuera de un locale UTF-8.</strong> Con <code>normalizacion(acentos = FALSE, minusculas = TRUE)</code> —un perfil documentado—, bajo <code>LC_CTYPE=C</code> «CAFÉ» y «café» dejaban de ser la misma clave y el par duplicado se perdía <strong>en silencio</strong>. Ahora el plegado de caja usa un mapa explícito de mayúsculas latinas acentuadas, en <code>R/pliegue-caja.R</code>, que conserva el acento y sólo cambia la caja. Comprobado comparando puntos de código: bajo <code>C</code> y bajo <code>es_UY.UTF-8</code> el resultado es el mismo.</li>
+<li>
+<strong>El «orden canónico —alfabético—» no era canónico</strong>: <code><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort()</a></code> sobre texto usa la intercalación del locale, y ese orden desempata qué pares sobreviven al recorte de <code>max_resultados</code>. La misma corrida sobre los mismos datos podía devolver pares distintos según la máquina. Ahora usa <code>.ordenar_por_bytes()</code>, que el paquete ya usaba en otro lado, y el comentario dejó de afirmar algo falso.</li>
+<li>Las variantes de mayúsculas de una columna se detectaban con el mismo <code><a href="https://rdrr.io/r/base/chartr.html" class="external-link">tolower()</a></code> dependiente del locale.</li>
+<li>La consulta al catálogo de Oracle elevaba identificadores con <code><a href="https://rdrr.io/r/base/chartr.html" class="external-link">toupper()</a></code>: con un locale turco pedía <code>Mİ_TABLA</code> en vez de <code>MI_TABLA</code>. Ahora eleva con reglas ASCII explícitas, y sólo los identificadores.</li>
+<li>Los textos de corte de ausencia estructural salían con coma decimal bajo un <code>LC_NUMERIC</code> que la usa.</li>
+</ul><p>Las pruebas nuevas <strong>fijan el locale dentro de la prueba</strong> y lo restauran; si la plataforma no acepta el locale pedido, se saltean diciendo por qué.</p>
+</div>
+<div class="section level3">
+<h3 id="documentación-que-se-puede-desmentir-0-1-0">Documentación que se puede desmentir<a class="anchor" aria-label="anchor" href="#documentaci%C3%B3n-que-se-puede-desmentir-0-1-0"></a></h3>
+<ul><li>Los dos README decían «43 tablas limpias» donde son <strong>31</strong>: la cifra vieja quedó de cuando el conjunto de control era más grande, y el mismo README ya decía 31 en su tabla de evidencia. Ahora la prosa nombra la prueba que la fija.</li>
+<li>La lista de nombres de <code>tipo_hallazgo</code> que publican los README no la vigilaba ninguna prueba —que es exactamente como envejeció la anterior—. Ahora <code>test-vocabulario-publicado.R</code> comprueba que la cifra coincida con la lista, que los dos README publiquen la misma, y que <strong>cada nombre siga existiendo en el código</strong>.</li>
+<li>Siete <code>\value</code> describían el retorno como «un objeto de clase X». Ahora dicen qué trae ese objeto y qué no hace la función.</li>
+<li>
+<code>Description</code> explica <code>AGESIC</code>, <code>ISO/IEC</code> y <code>CEA/CEPAL</code>, que el CRAN Cookbook pide expandir.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="geometrías-con-zm-o-con-srid-mixto-se-acabaron-los-falsos-positivos-0-1-0">Geometrías con Z/M o con SRID mixto: se acabaron los falsos positivos<a class="anchor" aria-label="anchor" href="#geometr%C3%ADas-con-zm-o-con-srid-mixto-se-acabaron-los-falsos-positivos-0-1-0"></a></h3>
 <p>Medido contra un PostGIS 3.4.3 real, sembrado a propósito con lo que la base real de la ronda anterior <strong>no</strong> tenía: <code>GEOMETRYCOLLECTION</code> anidada y vacía, <code>POINT Z</code>, <code>POINT M</code>, <code>POINT ZM</code>, vacías legítimas mezcladas con no vacías, y SRID 31981 junto a 4326.</p>
 <ul><li>La vía DBI declaraba <strong>fuera de dominio geometrías válidas</strong>: una de cuatro en la columna con Z/M, dos de tres en la de SRID mixto, cinco de siete en la que mezclaba todo. Dos causas: el dominio se transformaba sin retirar Z/M, y una columna con SRID mixto se transformaba entera con un solo CRS.</li>

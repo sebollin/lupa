@@ -85,7 +85,11 @@ lista de <code><a href="https://dbi.r-dbi.org/reference/Id.html" class="external
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Objeto de clase <code>coleccion_lupa</code>.</p>
+    <p>Objeto de clase <code>coleccion_lupa</code>: una lista con <code>nombre</code>, la
+<code>conexion</code> declarada, <code>tablas</code> -un data frame con una fila por tabla
+declarada y sus columnas de esquema y nombre-, <code>motor</code> con la clase del
+controlador DBI, y <code>n_declaradas</code> con la cantidad de tablas. No abre
+consultas ni lee datos: sólo declara qué tablas forman la colección.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

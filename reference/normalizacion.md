@@ -34,7 +34,11 @@ normalizacion(
 
 ## Value
 
-Un objeto de clase normalizacion_lupa.
+Objeto de clase `normalizacion_lupa`: una lista con un elemento logico
+por paso -`minusculas`, `espacios`, `acentos`, `comillas`, `puntuacion`,
+`ligaduras`, `ancho`- y el vector `proteger` con los grafemas cuyas
+marcas se conservan. Es una declaracion de como comparar: no toca los
+datos, y la descomposicion canonica se aplica siempre.
 
 ## Examples
 

@@ -100,7 +100,9 @@ filas.</p>
 
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Lista con tres objetos <code>metrica_generica</code>.</p>
+    <p>Lista con tres objetos <code>metrica_generica</code> -cobertura, validez y
+completitud del dominio-, listos para instanciar contra un <code>referencial</code>.
+Son definiciones: no miden hasta que se las instancia.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -124,11 +126,11 @@ no permite que duplicados inflen el resultado.</p>
 <span class="r-in"><span>  <span class="st">"personas"</span>, <span class="st">"id"</span>, referencial <span class="op">=</span> <span class="va">ref</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">fuerte</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260903T030542.180351-8338-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260903T030542.180351-8338-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260903T043338.667169-7348-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260903T043338.667169-7348-000002</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha              metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260903T030542.180351-8338 2026-09-03 03:05:42 CorrectitudSemFuerte</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260903T030542.180351-8338 2026-09-03 03:05:42 CorrectitudSemFuerte</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260903T043338.667169-7348 2026-09-03 04:33:38 CorrectitudSemFuerte</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260903T043338.667169-7348 2026-09-03 04:33:38 CorrectitudSemFuerte</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     metrica_especifica              metrica_instanciada dimension</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud</span>

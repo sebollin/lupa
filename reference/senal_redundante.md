@@ -36,7 +36,10 @@ senal_redundante(columnas, ventana = 0, transformacion = NULL, nombre = NULL)
 
 ## Value
 
-Objeto de clase `senal_redundante`.
+Objeto de clase `senal_redundante`: una lista con `nombre` -el
+declarado, o las columnas unidas por `=`-, el vector `columnas` que la
+señal relaciona, la `ventana` numérica y la `transformacion` validada.
+Describe la relación esperada; no la evalúa.
 
 ## Details
 

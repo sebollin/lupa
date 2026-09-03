@@ -24,7 +24,9 @@ as_tibble(x, ...)
 
 ## Value
 
-Un `tibble` con una fila por columna.
+Un `tibble` con una fila por columna del perfil y las mismas variables
+que `x$columnas`: es la tabla de columnas del perfil, no el perfil
+entero -los hallazgos, la cobertura y los metadatos no viajan-.
 
 ## Examples
 

@@ -148,7 +148,7 @@
 </tr>
 </tbody>
 </table>
-<p>In a purpose-built table, the profile emitted 15 kinds of finding, including mixed currencies and units, mixed date formats, disguised missingness, extra spaces, inconsistent capitalization, spelling variants, numbers stored as text, near-keys, constants and structural absence. On a reference bank with known defects it recovered 9 of 9 planted defects; on 43 clean tables it produced 0 error-severity findings.</p>
+<p>In a purpose-built table, the profile emitted 15 kinds of finding, including mixed currencies and units, mixed date formats, disguised missingness, extra spaces, inconsistent capitalization, spelling variants, numbers stored as text, near-keys, constants and structural absence. On a reference bank with known defects it recovered 9 of 9 planted defects; on 31 clean tables it produced 0 error-severity findings and 8 signals to review. The three figures are pinned by <code>tests/testthat/test-ronda107.R</code>, so they cannot age in silence.</p>
 <p>The current canonical vocabulary has 58 <code>tipo_hallazgo</code> names. The names are Spanish because they are part of the public API:</p>
 <pre class="text"><code>alta_cardinalidad                    anio_de_dos_digitos
 bloqueo_por_con_perdida              casi_clave

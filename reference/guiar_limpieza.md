@@ -44,7 +44,12 @@ guiar_limpieza(
 
 ## Value
 
-El plan editado, sin ejecutar acciones.
+El mismo `plan_limpieza` recibido, con la columna de decisión
+sincronizada según lo elegido, y sin ejecutar ninguna acción sobre los
+datos: cambia qué acciones quedan marcadas para
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md),
+no la tabla. En una sesión no interactiva y sin `selector`, devuelve el
+plan sin cambios.
 
 ## Details
 

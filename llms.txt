@@ -55,8 +55,9 @@ including mixed currencies and units, mixed date formats, disguised
 missingness, extra spaces, inconsistent capitalization, spelling
 variants, numbers stored as text, near-keys, constants and structural
 absence. On a reference bank with known defects it recovered 9 of 9
-planted defects; on 43 clean tables it produced 0 error-severity
-findings.
+planted defects; on 31 clean tables it produced 0 error-severity
+findings and 8 signals to review. The three figures are pinned by
+`tests/testthat/test-ronda107.R`, so they cannot age in silence.
 
 The current canonical vocabulary has 58 `tipo_hallazgo` names. The names
 are Spanish because they are part of the public API:
