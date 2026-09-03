@@ -1059,6 +1059,17 @@ it to the list. A postal code `9999` repeated thirty times is not
 extreme within its column; a real amount of `9999` does not repeat; a
 year `1999` does not have that shape.
 
+**And adding it to the list has a consequence**, which is the other half
+of the same idea: the package **excludes what the user declares and
+includes what it merely suspects**. A value declared in
+`sentinelas_numericos` leaves `media`, `mediana`, `minimo`, `maximo` and
+`desvio` — with `n_valores_excluidos_resumen` reporting how many it left
+out — just as `NA`s do, and just as the rows that `aplicabilidad` places
+outside the universe do. The default list, by contrast, reports without
+touching the numbers: it is a guess, and a guess does not move an
+average. `moda` and `n_distintos` keep describing what is stored, as
+they already did with an `Inf`.
+
 **Uniqueness is not guessed: it is asked — and in a database, read.**
 When the data arrives over DBI the primary key is **declared in the
 engine’s catalogue**, so nothing is suggested: it is read, in a single

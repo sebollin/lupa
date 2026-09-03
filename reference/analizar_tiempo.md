@@ -60,7 +60,9 @@ analizar_tiempo(
 
 Objeto `analisis_temporal` con `resumen`, `dias_semana`, `huecos` y
 `propuestas`. El recorte de huecos queda en `resumen`; el de columnas,
-en atributos del objeto.
+en atributos del objeto. `resumen` agrega `n_fechas_excluidas_parseo` y
+`estado_resumen` cuando un formato descubierto sobre una muestra deja
+valores presentes sin convertir.
 
 ## See also
 
@@ -75,10 +77,12 @@ analizar_tiempo(data.frame(fecha = fechas))
 #> $resumen
 #>   columna n_presentes n_fechas_distintas n_duplicados_temporales fecha_minima
 #> 1   fecha          10                 10                       0   2026-01-01
-#>   fecha_maxima monotonicidad cobertura_periodo n_fechas_esperadas_ausentes
-#> 1   2026-01-25             1               0.4                          15
-#>   n_fechas_fuera_calendario n_grupos_huecos huecos_truncados
-#> 1                         0               1            FALSE
+#>   fecha_maxima n_fechas_excluidas_parseo estado_resumen monotonicidad
+#> 1   2026-01-25                         0     calculados             1
+#>   cobertura_periodo n_fechas_esperadas_ausentes n_fechas_fuera_calendario
+#> 1               0.4                          15                         0
+#>   n_grupos_huecos huecos_truncados
+#> 1               1            FALSE
 #> 
 #> $dias_semana
 #>   columna dia_iso       dia frecuencia proporcion esperado

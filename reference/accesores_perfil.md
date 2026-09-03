@@ -41,10 +41,14 @@ sql_perfil(x, ...)
 
 ## Value
 
-`hallazgos()` y `columnas()` devuelven `data.frame`; `cobertura()`
-devuelve la tabla de diagnósticos no evaluados; `n_filas()` devuelve el
-conteo de filas del alcance, o `NA` con su motivo cuando el objeto no lo
-conoce.
+`hallazgos()` devuelve un `data.frame` con una fila por hallazgo;
+`columnas()`, un `data.frame` con una fila por columna de la tabla
+perfilada y sus métricas y diagnósticos; `cobertura()` devuelve la tabla
+de diagnósticos no evaluados; `n_filas()` devuelve el conteo de filas
+del alcance, o `NA` con su motivo cuando el objeto no lo conoce. El
+significado de cada campo de `columnas()` se explica por familias en los
+detalles de
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
 
 ## Details
 

@@ -2,6 +2,59 @@
 
 ## lupa 0.1.0
 
+### Un centinela que el usuario declara vale lo mismo que un `NA`
+
+- **`sentinelas_numericos` distingue la lista por omisión de una
+  política que el usuario reemplaza.** Los valores que alguien declara
+  salen de `media`, `mediana`, `minimo`, `maximo`, `desvio`, los conteos
+  de signo y `n_outliers`; `n_valores_excluidos_resumen` y
+  `estado_resumen_cuantitativo` declaran ese alcance. La lista por
+  omisión —`-9`, `-99`, `-999`, `-9999` y `999`— sigue informándose como
+  `faltantes_disfrazados` y **no** se retira de los resúmenes, porque
+  `999` también puede ser una edad, un código postal o un año, y actuar
+  sobre una sospecha cambiaría números que nadie pidió cambiar.
+- **Esto cambia resultados publicados** para quien pasa su propia lista.
+  Sobre mil filas —950 valores alrededor de 40, treinta `9999` y veinte
+  `9998`— la media declarando ambos códigos pasa de 537,9 a 39,96, que
+  es la verdad.
+- El defecto se vio comparando tres formas de decir lo mismo:
+  `aplicabilidad` y un `NA` escrito a mano cambiaban la media, y
+  `sentinelas_numericos` —que la documentación llama «la política
+  completa»— no. Las tres coinciden ahora.
+- `moda`, `frecuencia_moda`, `n_distintos`, `tasa_distintos` y
+  `longitud_*` siguen describiendo la **representación almacenada**,
+  igual que ya contaban un `Inf` que los estadísticos excluyen. Por eso
+  `moda` puede quedar fuera del rango de `minimo` y `maximo`: no es una
+  contradicción sino la diferencia entre describir lo guardado y resumir
+  lo que vale como dato, y los conteos dicen cuánto separa a los dos.
+- **La severidad seguía la misma confusión.** Con el umbral de error en
+  0,4, seiscientos `NA` de mil daban `error` y los mismos seiscientos
+  declarados como centinela daban `sospechoso`. Ahora la rebaja se
+  aplica sólo cuando toda la ausencia se apoya en códigos que **el
+  paquete supuso**, que es el caso para el que se escribió.
+- El hallazgo `posible_centinela_numerico` sugería agregar el valor a
+  `sentinelas_numericos` «para que se cuente como faltante» y callaba lo
+  que pasaba con los números. Ahora dice qué campos lo dejan afuera y
+  cuáles siguen contándolo.
+
+### Un resumen calculado sobre parte de la columna lo dice
+
+- **Con `muestra`, los formatos y tipos se descubren sobre la muestra
+  pero la conversión corre sobre la columna entera**, y los valores en
+  otro formato quedaban afuera sin que nada los contara: el mínimo de
+  fechas podía publicar 2024-01-01 sobre una columna que llega a 2022,
+  con `estado_resumen_cuantitativo = "calculados"` y
+  `cobertura_diagnosticos` vacía.
+- Ahora esos valores se cuentan —`n_fechas_excluidas_granularidad` para
+  fechas, `n_valores_excluidos_resumen` para números de texto—, el
+  estado deja de decir que el cálculo fue completo, y
+  `cobertura_diagnosticos` agrega una fila `resumen_cuantitativo`. Sin
+  `muestra` no cambia nada.
+- [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md)
+  aplica el mismo criterio con `n_fechas_excluidas_parseo` y
+  `estado_resumen`, y las relaciones de orden entre columnas no comparan
+  una columna cuya conversión quedó parcial.
+
 ### Las figuras del banco de rendimiento salen de un CSV
 
 - Cuatro figuras nuevas en el README —escala, estimación previa,

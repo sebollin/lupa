@@ -88,10 +88,13 @@ avisa, y lo que sigue calcula sobre nada.</p>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p><code>hallazgos()</code> y <code>columnas()</code> devuelven <code>data.frame</code>; <code>cobertura()</code>
-devuelve la tabla de diagnósticos no evaluados; <code>n_filas()</code> devuelve el
-conteo de filas del alcance, o <code>NA</code> con su motivo cuando el objeto no lo
-conoce.</p>
+    <p><code>hallazgos()</code> devuelve un <code>data.frame</code> con una fila por hallazgo;
+<code>columnas()</code>, un <code>data.frame</code> con una fila por columna de la tabla
+perfilada y sus métricas y diagnósticos; <code>cobertura()</code> devuelve la tabla de
+diagnósticos no evaluados; <code>n_filas()</code> devuelve el conteo de filas del
+alcance, o <code>NA</code> con su motivo cuando el objeto no lo conoce. El significado
+de cada campo de <code>columnas()</code> se explica por familias en los detalles de
+<code><a href="perfilar.html">perfilar()</a></code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

@@ -347,7 +347,12 @@ perfilar(
   de magnitud. Ambos criterios se publican en la evidencia. Los pares
   descartados se cuentan en
   `meta$orden_columnas$pares_descartados_magnitud` y los recuperados en
-  `meta$orden_columnas$pares_rescatados_brecha_estable`.
+  `meta$orden_columnas$pares_rescatados_brecha_estable`. Los pares que
+  involucran una columna cuyo tipo o formato se descubrió sobre una
+  muestra y cuya conversión dejó valores afuera no se comparan; el
+  alcance los conserva en `columnas_conversion_parcial`,
+  `n_valores_excluidos_conversion` y
+  `pares_descartados_conversion_parcial`.
 
 - umbral_aritmetica:
 
@@ -635,12 +640,16 @@ explícitamente la lista de naniar.
 `muestra` limita el descubrimiento de patrones, la inferencia de tipos,
 la detección de formatos de fecha y la búsqueda de dependencias
 funcionales. Las demás métricas y hallazgos se calculan sobre todas las
-filas. Por eso `meta$filas_analizadas` describe el máximo usado por los
-análisis muestreados, no el alcance del perfil completo. En cada fila de
-`columnas`, `n_filas_analizadas_tipo` y `muestreado_tipo_inferido`
-declaran el alcance concreto de `proporcion_tipo_inferido`; no debe
-interpretarse esa proporción como si hubiera usado necesariamente toda
-la columna.
+filas. En los resúmenes que convierten texto con el tipo o formato
+descubierto en esa muestra, los valores presentes que no se pueden
+convertir no se ocultan: `n_fechas_excluidas_granularidad` los cuenta
+para fechas y `n_valores_excluidos_resumen` para números, y el estado
+deja de ser un cálculo completo. Por eso `meta$filas_analizadas`
+describe el máximo usado por los análisis muestreados, no el alcance del
+perfil completo. En cada fila de `columnas`, `n_filas_analizadas_tipo` y
+`muestreado_tipo_inferido` declaran el alcance concreto de
+`proporcion_tipo_inferido`; no debe interpretarse esa proporción como si
+hubiera usado necesariamente toda la columna.
 
 Cuando el tipo inferido es `"fecha"` o `"fecha-hora"`,
 `estado_tipo_inferido` declara además cómo quedó establecida esa
@@ -688,19 +697,48 @@ completas y declaran
 `estado_resumen_cuantitativo = "calculados_sobre_dias"`, junto con
 `n_fechas_resumidas` y `n_fechas_excluidas_granularidad`. El mínimo y el
 máximo son entonces condicionales al subconjunto con día; no representan
-un rango de toda la columna.
+un rango de toda la columna. Si ese subconjunto resulta de formatos
+descubiertos en una muestra y la conversión deja valores presentes
+afuera, el perfil agrega una fila `resumen_cuantitativo` en
+`cobertura_diagnosticos`.
 
 Para números ordinarios, los estadísticos cuantitativos se calculan sólo
 con valores finitos; `n_nan`, `n_infinito_positivo` y
 `n_infinito_negativo` declaran lo excluido. En columnas `integer64` que
 exceden el entero máximo representable exactamente por `double`,
 `minimo` y `maximo` quedan en `NA` y los extremos exactos se conservan
-en `minimo_exacto` y `maximo_exacto`. Una columna de listas intenta
-contar sus valores distintos; si la clase no admite comparación, informa
-`NA` en lugar de afirmar cero. Las columnas matriciales se conservan
-como una unidad por fila: `n` informa las filas de la tabla, pero los
-estadísticos por valor quedan en `NA` y un hallazgo explica que deben
-separarse en columnas con semántica explícita.
+en `minimo_exacto` y `maximo_exacto`. Cuando el tipo numérico se
+descubrió sobre una muestra y la conversión de texto deja valores
+presentes afuera, `n_valores_excluidos_resumen` y
+`estado_resumen_cuantitativo = "calculados_sobre_valores"` declaran ese
+alcance parcial.
+
+El paquete distingue lo que el usuario **declara** de lo que él mismo
+**sospecha**, y esa distinción gobierna los resúmenes. Cuando se
+reemplaza `sentinelas_numericos`, esos valores son una declaración de
+ausencia y salen de `media`, `mediana`, `minimo`, `maximo`, `desvio` y
+`n_outliers`, igual que salen los `NA` y las filas que `aplicabilidad`
+deja fuera del universo; `n_valores_excluidos_resumen` y
+`estado_resumen_cuantitativo` declaran ese alcance. La lista por omisión
+—`-9`, `-99`, `-999`, `-9999` y `999`— es en cambio una conjetura del
+paquete: se informa como `faltantes_disfrazados` pero **no** se retira
+de los resúmenes, porque `999` también puede ser un dato legítimo y
+actuar sobre una sospecha cambiaría números que nadie pidió cambiar.
+
+`moda`, `frecuencia_moda`, `n_distintos`, `tasa_distintos` y
+`longitud_*` describen la **representación almacenada** y siguen
+contando esos valores, del mismo modo que cuentan un `Inf` que los
+estadísticos excluyen o un `"N/A"` textual. Por eso `moda` puede quedar
+fuera del rango que informan `minimo` y `maximo`: no es una
+contradicción sino la diferencia entre describir lo guardado y resumir
+lo que vale como dato, y los conteos —`n_valores_excluidos_resumen`,
+`n_infinito_positivo`, `n_faltantes_disfrazados`— dicen cuánto separa a
+los dos. Una columna de listas intenta contar sus valores distintos; si
+la clase no admite comparación, informa `NA` en lugar de afirmar cero.
+Las columnas matriciales se conservan como una unidad por fila: `n`
+informa las filas de la tabla, pero los estadísticos por valor quedan en
+`NA` y un hallazgo explica que deben separarse en columnas con semántica
+explícita.
 
 Una columna numérica emite `valor_concentrado` como señal `sospechoso`
 cuando tiene al menos 20 valores válidos y 10 valores distintos, y su
@@ -1177,127 +1215,138 @@ summary(perfil)
 #> 8               <NA>              <NA>                 NA
 #> 9               <NA>              <NA>                 NA
 #> 10              <NA>              <NA>                 NA
-#>    n_fechas_excluidas_granularidad n_ceros n_negativos n_outliers
-#> 1                               NA       0           0          0
-#> 2                               NA      NA          NA         NA
-#> 3                                0       0           0          0
-#> 4                               NA      NA          NA         NA
-#> 5                               NA       1           2          4
-#> 6                               NA      NA          NA         NA
-#> 7                               NA      NA          NA         NA
-#> 8                               NA      NA          NA         NA
-#> 9                               NA       0           0          0
-#> 10                              NA      NA          NA         NA
-#>    centinela_valor centinela_repeticiones densidad_sin_centinela n_nan
-#> 1               NA                     NA                     NA     0
-#> 2               NA                     NA                     NA     0
-#> 3               NA                     NA                     NA     0
-#> 4               NA                     NA                     NA     0
-#> 5               NA                     NA                     NA     0
-#> 6               NA                     NA                     NA     0
-#> 7               NA                     NA                     NA     0
-#> 8               NA                     NA                     NA     0
-#> 9               NA                     NA                     NA     0
-#> 10              NA                     NA                     NA     0
-#>    n_infinito_positivo n_infinito_negativo estado_resumen_cuantitativo
-#> 1                    0                   0                  calculados
-#> 2                    0                   0                   no_aplica
-#> 3                    0                   0                  calculados
-#> 4                    0                   0                   no_aplica
-#> 5                    0                   0                  calculados
-#> 6                    0                   0                   no_aplica
-#> 7                    0                   0                   no_aplica
-#> 8                    0                   0                   no_aplica
-#> 9                    0                   0                  calculados
-#> 10                   0                   0                   no_aplica
-#>    zona_horaria_origen n_filas_fecha_civil_distinta_utc
-#> 1                 <NA>                               NA
-#> 2                 <NA>                               NA
-#> 3                 <NA>                               NA
-#> 4                 <NA>                               NA
-#> 5                 <NA>                               NA
-#> 6                 <NA>                               NA
-#> 7                 <NA>                               NA
-#> 8                 <NA>                               NA
-#> 9                 <NA>                               NA
-#> 10                <NA>                               NA
-#>    fecha_civil_distinta_utc representacion_geometria motivo_representacion
-#> 1                        NA                     <NA>                  <NA>
-#> 2                        NA                     <NA>                  <NA>
-#> 3                        NA                     <NA>                  <NA>
-#> 4                        NA                     <NA>                  <NA>
-#> 5                        NA                     <NA>                  <NA>
-#> 6                        NA                     <NA>                  <NA>
-#> 7                        NA                     <NA>                  <NA>
-#> 8                        NA                     <NA>                  <NA>
-#> 9                        NA                     <NA>                  <NA>
-#> 10                       NA                     <NA>                  <NA>
-#>    crs_declarado tipo_geometria dimension_geometria dimensiones_no_evaluadas
-#> 1           <NA>           <NA>                <NA>                     <NA>
-#> 2           <NA>           <NA>                <NA>                     <NA>
-#> 3           <NA>           <NA>                <NA>                     <NA>
-#> 4           <NA>           <NA>                <NA>                     <NA>
-#> 5           <NA>           <NA>                <NA>                     <NA>
-#> 6           <NA>           <NA>                <NA>                     <NA>
-#> 7           <NA>           <NA>                <NA>                     <NA>
-#> 8           <NA>           <NA>                <NA>                     <NA>
-#> 9           <NA>           <NA>                <NA>                     <NA>
-#> 10          <NA>           <NA>                <NA>                     <NA>
-#>    n_geometrias_vacias n_geometrias_invalidas n_validez_evaluados
-#> 1                   NA                     NA                  NA
-#> 2                   NA                     NA                  NA
-#> 3                   NA                     NA                  NA
-#> 4                   NA                     NA                  NA
-#> 5                   NA                     NA                  NA
-#> 6                   NA                     NA                  NA
-#> 7                   NA                     NA                  NA
-#> 8                   NA                     NA                  NA
-#> 9                   NA                     NA                  NA
-#> 10                  NA                     NA                  NA
-#>    validez_criterio validez_preprocesamiento n_fuera_de_dominio
-#> 1              <NA>                     <NA>                 NA
-#> 2              <NA>                     <NA>                 NA
-#> 3              <NA>                     <NA>                 NA
-#> 4              <NA>                     <NA>                 NA
-#> 5              <NA>                     <NA>                 NA
-#> 6              <NA>                     <NA>                 NA
-#> 7              <NA>                     <NA>                 NA
-#> 8              <NA>                     <NA>                 NA
-#> 9              <NA>                     <NA>                 NA
-#> 10             <NA>                     <NA>                 NA
-#>    n_dominio_evaluados n_bbox_evaluados bbox_alcance bbox_xmin bbox_xmax
-#> 1                   NA               NA         <NA>        NA        NA
-#> 2                   NA               NA         <NA>        NA        NA
-#> 3                   NA               NA         <NA>        NA        NA
-#> 4                   NA               NA         <NA>        NA        NA
-#> 5                   NA               NA         <NA>        NA        NA
-#> 6                   NA               NA         <NA>        NA        NA
-#> 7                   NA               NA         <NA>        NA        NA
-#> 8                   NA               NA         <NA>        NA        NA
-#> 9                   NA               NA         <NA>        NA        NA
-#> 10                  NA               NA         <NA>        NA        NA
-#>    bbox_ymin bbox_ymax                   detalle_proteccion_personal n_blancos
-#> 1         NA        NA [estadisticos de orden y momentos protegidos]         0
-#> 2         NA        NA            [estadisticos de orden protegidos]         0
-#> 3         NA        NA [estadisticos de orden y momentos protegidos]         0
-#> 4         NA        NA                                          <NA>         1
-#> 5         NA        NA                                          <NA>         0
-#> 6         NA        NA                                          <NA>         0
-#> 7         NA        NA                                          <NA>         0
-#> 8         NA        NA            [estadisticos de orden protegidos]         0
-#> 9         NA        NA                                          <NA>         0
-#> 10        NA        NA                                          <NA>         0
-#>    n_espacios_borde n_variantes_mayusculas n_variantes_unicode unicode_evaluado
-#> 1                 0                      0                  NA               NA
-#> 2                 0                      0                   0             TRUE
-#> 3                 0                      0                   0             TRUE
-#> 4                 0                      0                   0             TRUE
-#> 5                 0                      0                  NA               NA
-#> 6                 0                      0                   0             TRUE
-#> 7                 0                      0                   0             TRUE
-#> 8                 0                      0                   0             TRUE
-#> 9                 0                      0                  NA               NA
-#> 10                0                      0                   0             TRUE
+#>    n_fechas_excluidas_granularidad n_valores_excluidos_resumen n_ceros
+#> 1                               NA                           0       0
+#> 2                               NA                           0      NA
+#> 3                                0                           0       0
+#> 4                               NA                           0      NA
+#> 5                               NA                           0       1
+#> 6                               NA                           0      NA
+#> 7                               NA                           0      NA
+#> 8                               NA                           0      NA
+#> 9                               NA                           0       0
+#> 10                              NA                           0      NA
+#>    n_negativos n_outliers centinela_valor centinela_repeticiones
+#> 1            0          0              NA                     NA
+#> 2           NA         NA              NA                     NA
+#> 3            0          0              NA                     NA
+#> 4           NA         NA              NA                     NA
+#> 5            2          4              NA                     NA
+#> 6           NA         NA              NA                     NA
+#> 7           NA         NA              NA                     NA
+#> 8           NA         NA              NA                     NA
+#> 9            0          0              NA                     NA
+#> 10          NA         NA              NA                     NA
+#>    densidad_sin_centinela n_nan n_infinito_positivo n_infinito_negativo
+#> 1                      NA     0                   0                   0
+#> 2                      NA     0                   0                   0
+#> 3                      NA     0                   0                   0
+#> 4                      NA     0                   0                   0
+#> 5                      NA     0                   0                   0
+#> 6                      NA     0                   0                   0
+#> 7                      NA     0                   0                   0
+#> 8                      NA     0                   0                   0
+#> 9                      NA     0                   0                   0
+#> 10                     NA     0                   0                   0
+#>    estado_resumen_cuantitativo zona_horaria_origen
+#> 1                   calculados                <NA>
+#> 2                    no_aplica                <NA>
+#> 3                   calculados                <NA>
+#> 4                    no_aplica                <NA>
+#> 5                   calculados                <NA>
+#> 6                    no_aplica                <NA>
+#> 7                    no_aplica                <NA>
+#> 8                    no_aplica                <NA>
+#> 9                   calculados                <NA>
+#> 10                   no_aplica                <NA>
+#>    n_filas_fecha_civil_distinta_utc fecha_civil_distinta_utc
+#> 1                                NA                       NA
+#> 2                                NA                       NA
+#> 3                                NA                       NA
+#> 4                                NA                       NA
+#> 5                                NA                       NA
+#> 6                                NA                       NA
+#> 7                                NA                       NA
+#> 8                                NA                       NA
+#> 9                                NA                       NA
+#> 10                               NA                       NA
+#>    representacion_geometria motivo_representacion crs_declarado tipo_geometria
+#> 1                      <NA>                  <NA>          <NA>           <NA>
+#> 2                      <NA>                  <NA>          <NA>           <NA>
+#> 3                      <NA>                  <NA>          <NA>           <NA>
+#> 4                      <NA>                  <NA>          <NA>           <NA>
+#> 5                      <NA>                  <NA>          <NA>           <NA>
+#> 6                      <NA>                  <NA>          <NA>           <NA>
+#> 7                      <NA>                  <NA>          <NA>           <NA>
+#> 8                      <NA>                  <NA>          <NA>           <NA>
+#> 9                      <NA>                  <NA>          <NA>           <NA>
+#> 10                     <NA>                  <NA>          <NA>           <NA>
+#>    dimension_geometria dimensiones_no_evaluadas n_geometrias_vacias
+#> 1                 <NA>                     <NA>                  NA
+#> 2                 <NA>                     <NA>                  NA
+#> 3                 <NA>                     <NA>                  NA
+#> 4                 <NA>                     <NA>                  NA
+#> 5                 <NA>                     <NA>                  NA
+#> 6                 <NA>                     <NA>                  NA
+#> 7                 <NA>                     <NA>                  NA
+#> 8                 <NA>                     <NA>                  NA
+#> 9                 <NA>                     <NA>                  NA
+#> 10                <NA>                     <NA>                  NA
+#>    n_geometrias_invalidas n_validez_evaluados validez_criterio
+#> 1                      NA                  NA             <NA>
+#> 2                      NA                  NA             <NA>
+#> 3                      NA                  NA             <NA>
+#> 4                      NA                  NA             <NA>
+#> 5                      NA                  NA             <NA>
+#> 6                      NA                  NA             <NA>
+#> 7                      NA                  NA             <NA>
+#> 8                      NA                  NA             <NA>
+#> 9                      NA                  NA             <NA>
+#> 10                     NA                  NA             <NA>
+#>    validez_preprocesamiento n_fuera_de_dominio n_dominio_evaluados
+#> 1                      <NA>                 NA                  NA
+#> 2                      <NA>                 NA                  NA
+#> 3                      <NA>                 NA                  NA
+#> 4                      <NA>                 NA                  NA
+#> 5                      <NA>                 NA                  NA
+#> 6                      <NA>                 NA                  NA
+#> 7                      <NA>                 NA                  NA
+#> 8                      <NA>                 NA                  NA
+#> 9                      <NA>                 NA                  NA
+#> 10                     <NA>                 NA                  NA
+#>    n_bbox_evaluados bbox_alcance bbox_xmin bbox_xmax bbox_ymin bbox_ymax
+#> 1                NA         <NA>        NA        NA        NA        NA
+#> 2                NA         <NA>        NA        NA        NA        NA
+#> 3                NA         <NA>        NA        NA        NA        NA
+#> 4                NA         <NA>        NA        NA        NA        NA
+#> 5                NA         <NA>        NA        NA        NA        NA
+#> 6                NA         <NA>        NA        NA        NA        NA
+#> 7                NA         <NA>        NA        NA        NA        NA
+#> 8                NA         <NA>        NA        NA        NA        NA
+#> 9                NA         <NA>        NA        NA        NA        NA
+#> 10               NA         <NA>        NA        NA        NA        NA
+#>                      detalle_proteccion_personal n_blancos n_espacios_borde
+#> 1  [estadisticos de orden y momentos protegidos]         0                0
+#> 2             [estadisticos de orden protegidos]         0                0
+#> 3  [estadisticos de orden y momentos protegidos]         0                0
+#> 4                                           <NA>         1                0
+#> 5                                           <NA>         0                0
+#> 6                                           <NA>         0                0
+#> 7                                           <NA>         0                0
+#> 8             [estadisticos de orden protegidos]         0                0
+#> 9                                           <NA>         0                0
+#> 10                                          <NA>         0                0
+#>    n_variantes_mayusculas n_variantes_unicode unicode_evaluado
+#> 1                       0                  NA               NA
+#> 2                       0                   0             TRUE
+#> 3                       0                   0             TRUE
+#> 4                       0                   0             TRUE
+#> 5                       0                  NA               NA
+#> 6                       0                   0             TRUE
+#> 7                       0                   0             TRUE
+#> 8                       0                   0             TRUE
+#> 9                       0                  NA               NA
+#> 10                      0                   0             TRUE
 #>    n_codificacion_rota n_codificacion_reparable
 #> 1                    0                        0
 #> 2                    0                        0

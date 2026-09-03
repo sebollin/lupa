@@ -379,7 +379,12 @@ fila a fila. No se aplica una tolerancia oculta. Use <code>0</code> para desacti
 filtro de magnitud. Ambos criterios se publican en la evidencia. Los pares
 descartados se cuentan en
 <code>meta$orden_columnas$pares_descartados_magnitud</code> y los recuperados en
-<code>meta$orden_columnas$pares_rescatados_brecha_estable</code>.</p></dd>
+<code>meta$orden_columnas$pares_rescatados_brecha_estable</code>. Los pares que
+involucran una columna cuyo tipo o formato se descubrió sobre una muestra
+y cuya conversión dejó valores afuera no se comparan; el alcance los
+conserva en <code>columnas_conversion_parcial</code>,
+<code>n_valores_excluidos_conversion</code> y
+<code>pares_descartados_conversion_parcial</code>.</p></dd>
 
 
 <dt id="arg-umbral-aritmetica">umbral_aritmetica<a class="anchor" aria-label="anchor" href="#arg-umbral-aritmetica"></a></dt>
@@ -660,7 +665,12 @@ política completa, no una lista que se agrega silenciosamente: use
 <code>sentinelas_naniar</code> para solicitar explícitamente la lista de naniar.</p>
 <p><code>muestra</code> limita el descubrimiento de patrones, la inferencia de tipos, la
 detección de formatos de fecha y la búsqueda de dependencias funcionales.
-Las demás métricas y hallazgos se calculan sobre todas las filas. Por eso
+Las demás métricas y hallazgos se calculan sobre todas las filas. En los
+resúmenes que convierten texto con el tipo o formato descubierto en esa
+muestra, los valores presentes que no se pueden convertir no se ocultan:
+<code>n_fechas_excluidas_granularidad</code> los cuenta para fechas y
+<code>n_valores_excluidos_resumen</code> para números, y el estado deja de ser un
+cálculo completo. Por eso
 <code>meta$filas_analizadas</code> describe el máximo usado por los análisis muestreados,
 no el alcance del perfil completo.
 En cada fila de <code>columnas</code>, <code>n_filas_analizadas_tipo</code> y
@@ -705,12 +715,37 @@ fechas con día, los resúmenes se calculan sólo sobre las fechas completas y
 declaran <code>estado_resumen_cuantitativo = "calculados_sobre_dias"</code>, junto con
 <code>n_fechas_resumidas</code> y <code>n_fechas_excluidas_granularidad</code>. El mínimo y el máximo
 son entonces condicionales al subconjunto con día; no representan un rango
-de toda la columna.</p>
+de toda la columna. Si ese subconjunto resulta de formatos descubiertos en
+una muestra y la conversión deja valores presentes afuera, el perfil agrega
+una fila <code>resumen_cuantitativo</code> en <code>cobertura_diagnosticos</code>.</p>
 <p>Para números ordinarios, los estadísticos cuantitativos se calculan sólo con
 valores finitos; <code>n_nan</code>, <code>n_infinito_positivo</code> y <code>n_infinito_negativo</code>
 declaran lo excluido. En columnas <code>integer64</code> que exceden el entero máximo
 representable exactamente por <code>double</code>, <code>minimo</code> y <code>maximo</code> quedan en <code>NA</code> y
 los extremos exactos se conservan en <code>minimo_exacto</code> y <code>maximo_exacto</code>.
+Cuando el tipo numérico se descubrió sobre una muestra y la conversión de
+texto deja valores presentes afuera, <code>n_valores_excluidos_resumen</code> y
+<code>estado_resumen_cuantitativo = "calculados_sobre_valores"</code> declaran ese
+alcance parcial.</p>
+<p>El paquete distingue lo que el usuario <strong>declara</strong> de lo que él mismo
+<strong>sospecha</strong>, y esa distinción gobierna los resúmenes. Cuando se reemplaza
+<code>sentinelas_numericos</code>, esos valores son una declaración de ausencia y salen
+de <code>media</code>, <code>mediana</code>, <code>minimo</code>, <code>maximo</code>, <code>desvio</code> y <code>n_outliers</code>, igual que
+salen los <code>NA</code> y las filas que <code>aplicabilidad</code> deja fuera del universo;
+<code>n_valores_excluidos_resumen</code> y <code>estado_resumen_cuantitativo</code> declaran ese
+alcance. La lista por omisión —<code>-9</code>, <code>-99</code>, <code>-999</code>, <code>-9999</code> y <code>999</code>— es en
+cambio una conjetura del paquete: se informa como <code>faltantes_disfrazados</code>
+pero <strong>no</strong> se retira de los resúmenes, porque <code>999</code> también puede ser un
+dato legítimo y actuar sobre una sospecha cambiaría números que nadie pidió
+cambiar.</p>
+<p><code>moda</code>, <code>frecuencia_moda</code>, <code>n_distintos</code>, <code>tasa_distintos</code> y <code>longitud_*</code>
+describen la <strong>representación almacenada</strong> y siguen contando esos valores,
+del mismo modo que cuentan un <code>Inf</code> que los estadísticos excluyen o un
+<code>"N/A"</code> textual. Por eso <code>moda</code> puede quedar fuera del rango que informan
+<code>minimo</code> y <code>maximo</code>: no es una contradicción sino la diferencia entre
+describir lo guardado y resumir lo que vale como dato, y los conteos
+—<code>n_valores_excluidos_resumen</code>, <code>n_infinito_positivo</code>,
+<code>n_faltantes_disfrazados</code>— dicen cuánto separa a los dos.
 Una columna de listas intenta contar sus valores distintos; si la clase no
 admite comparación, informa <code>NA</code> en lugar de afirmar cero.
 Las columnas matriciales se conservan como una unidad por fila: <code>n</code> informa
@@ -1157,127 +1192,138 @@ quedan en la evidencia del hallazgo.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 8               &lt;NA&gt;              &lt;NA&gt;                 NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 9               &lt;NA&gt;              &lt;NA&gt;                 NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 10              &lt;NA&gt;              &lt;NA&gt;                 NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    n_fechas_excluidas_granularidad n_ceros n_negativos n_outliers</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                               NA       0           0          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                               NA      NA          NA         NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3                                0       0           0          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4                               NA      NA          NA         NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5                               NA       1           2          4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6                               NA      NA          NA         NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7                               NA      NA          NA         NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8                               NA      NA          NA         NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9                               NA       0           0          0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10                              NA      NA          NA         NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    centinela_valor centinela_repeticiones densidad_sin_centinela n_nan</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1               NA                     NA                     NA     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2               NA                     NA                     NA     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3               NA                     NA                     NA     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4               NA                     NA                     NA     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5               NA                     NA                     NA     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6               NA                     NA                     NA     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7               NA                     NA                     NA     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8               NA                     NA                     NA     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9               NA                     NA                     NA     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10              NA                     NA                     NA     0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    n_infinito_positivo n_infinito_negativo estado_resumen_cuantitativo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                    0                   0                  calculados</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                    0                   0                   no_aplica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3                    0                   0                  calculados</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4                    0                   0                   no_aplica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5                    0                   0                  calculados</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6                    0                   0                   no_aplica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7                    0                   0                   no_aplica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8                    0                   0                   no_aplica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9                    0                   0                  calculados</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10                   0                   0                   no_aplica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    zona_horaria_origen n_filas_fecha_civil_distinta_utc</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                 &lt;NA&gt;                               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                 &lt;NA&gt;                               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3                 &lt;NA&gt;                               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4                 &lt;NA&gt;                               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5                 &lt;NA&gt;                               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6                 &lt;NA&gt;                               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7                 &lt;NA&gt;                               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8                 &lt;NA&gt;                               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9                 &lt;NA&gt;                               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10                &lt;NA&gt;                               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    fecha_civil_distinta_utc representacion_geometria motivo_representacion</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                        NA                     &lt;NA&gt;                  &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                        NA                     &lt;NA&gt;                  &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3                        NA                     &lt;NA&gt;                  &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4                        NA                     &lt;NA&gt;                  &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5                        NA                     &lt;NA&gt;                  &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6                        NA                     &lt;NA&gt;                  &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7                        NA                     &lt;NA&gt;                  &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8                        NA                     &lt;NA&gt;                  &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9                        NA                     &lt;NA&gt;                  &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10                       NA                     &lt;NA&gt;                  &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    crs_declarado tipo_geometria dimension_geometria dimensiones_no_evaluadas</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1           &lt;NA&gt;           &lt;NA&gt;                &lt;NA&gt;                     &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2           &lt;NA&gt;           &lt;NA&gt;                &lt;NA&gt;                     &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3           &lt;NA&gt;           &lt;NA&gt;                &lt;NA&gt;                     &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4           &lt;NA&gt;           &lt;NA&gt;                &lt;NA&gt;                     &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5           &lt;NA&gt;           &lt;NA&gt;                &lt;NA&gt;                     &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6           &lt;NA&gt;           &lt;NA&gt;                &lt;NA&gt;                     &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7           &lt;NA&gt;           &lt;NA&gt;                &lt;NA&gt;                     &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8           &lt;NA&gt;           &lt;NA&gt;                &lt;NA&gt;                     &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9           &lt;NA&gt;           &lt;NA&gt;                &lt;NA&gt;                     &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10          &lt;NA&gt;           &lt;NA&gt;                &lt;NA&gt;                     &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    n_geometrias_vacias n_geometrias_invalidas n_validez_evaluados</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                   NA                     NA                  NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                   NA                     NA                  NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3                   NA                     NA                  NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4                   NA                     NA                  NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5                   NA                     NA                  NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6                   NA                     NA                  NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7                   NA                     NA                  NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8                   NA                     NA                  NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9                   NA                     NA                  NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10                  NA                     NA                  NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    validez_criterio validez_preprocesamiento n_fuera_de_dominio</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1              &lt;NA&gt;                     &lt;NA&gt;                 NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2              &lt;NA&gt;                     &lt;NA&gt;                 NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3              &lt;NA&gt;                     &lt;NA&gt;                 NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4              &lt;NA&gt;                     &lt;NA&gt;                 NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5              &lt;NA&gt;                     &lt;NA&gt;                 NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6              &lt;NA&gt;                     &lt;NA&gt;                 NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7              &lt;NA&gt;                     &lt;NA&gt;                 NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8              &lt;NA&gt;                     &lt;NA&gt;                 NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9              &lt;NA&gt;                     &lt;NA&gt;                 NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10             &lt;NA&gt;                     &lt;NA&gt;                 NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    n_dominio_evaluados n_bbox_evaluados bbox_alcance bbox_xmin bbox_xmax</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                   NA               NA         &lt;NA&gt;        NA        NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                   NA               NA         &lt;NA&gt;        NA        NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3                   NA               NA         &lt;NA&gt;        NA        NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4                   NA               NA         &lt;NA&gt;        NA        NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5                   NA               NA         &lt;NA&gt;        NA        NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6                   NA               NA         &lt;NA&gt;        NA        NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7                   NA               NA         &lt;NA&gt;        NA        NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8                   NA               NA         &lt;NA&gt;        NA        NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9                   NA               NA         &lt;NA&gt;        NA        NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10                  NA               NA         &lt;NA&gt;        NA        NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    bbox_ymin bbox_ymax                   detalle_proteccion_personal n_blancos</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1         NA        NA [estadisticos de orden y momentos protegidos]         0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2         NA        NA            [estadisticos de orden protegidos]         0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3         NA        NA [estadisticos de orden y momentos protegidos]         0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4         NA        NA                                          &lt;NA&gt;         1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5         NA        NA                                          &lt;NA&gt;         0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6         NA        NA                                          &lt;NA&gt;         0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7         NA        NA                                          &lt;NA&gt;         0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8         NA        NA            [estadisticos de orden protegidos]         0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9         NA        NA                                          &lt;NA&gt;         0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10        NA        NA                                          &lt;NA&gt;         0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    n_espacios_borde n_variantes_mayusculas n_variantes_unicode unicode_evaluado</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                 0                      0                  NA               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                 0                      0                   0             TRUE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3                 0                      0                   0             TRUE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4                 0                      0                   0             TRUE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5                 0                      0                  NA               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6                 0                      0                   0             TRUE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 7                 0                      0                   0             TRUE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 8                 0                      0                   0             TRUE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 9                 0                      0                  NA               NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 10                0                      0                   0             TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    n_fechas_excluidas_granularidad n_valores_excluidos_resumen n_ceros</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                               NA                           0       0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                               NA                           0      NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                                0                           0       0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                               NA                           0      NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                               NA                           0       1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                               NA                           0      NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                               NA                           0      NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                               NA                           0      NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                               NA                           0       0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                              NA                           0      NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    n_negativos n_outliers centinela_valor centinela_repeticiones</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1            0          0              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2           NA         NA              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3            0          0              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4           NA         NA              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5            2          4              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6           NA         NA              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7           NA         NA              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8           NA         NA              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9            0          0              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10          NA         NA              NA                     NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    densidad_sin_centinela n_nan n_infinito_positivo n_infinito_negativo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                      NA     0                   0                   0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                      NA     0                   0                   0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                      NA     0                   0                   0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                      NA     0                   0                   0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                      NA     0                   0                   0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                      NA     0                   0                   0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                      NA     0                   0                   0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                      NA     0                   0                   0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                      NA     0                   0                   0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                     NA     0                   0                   0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    estado_resumen_cuantitativo zona_horaria_origen</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                   calculados                &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                    no_aplica                &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                   calculados                &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                    no_aplica                &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                   calculados                &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                    no_aplica                &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                    no_aplica                &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                    no_aplica                &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                   calculados                &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                   no_aplica                &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    n_filas_fecha_civil_distinta_utc fecha_civil_distinta_utc</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                                NA                       NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                                NA                       NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                                NA                       NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                                NA                       NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                                NA                       NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                                NA                       NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                                NA                       NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                                NA                       NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                                NA                       NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                               NA                       NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    representacion_geometria motivo_representacion crs_declarado tipo_geometria</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                      &lt;NA&gt;                  &lt;NA&gt;          &lt;NA&gt;           &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                      &lt;NA&gt;                  &lt;NA&gt;          &lt;NA&gt;           &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                      &lt;NA&gt;                  &lt;NA&gt;          &lt;NA&gt;           &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                      &lt;NA&gt;                  &lt;NA&gt;          &lt;NA&gt;           &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                      &lt;NA&gt;                  &lt;NA&gt;          &lt;NA&gt;           &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                      &lt;NA&gt;                  &lt;NA&gt;          &lt;NA&gt;           &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                      &lt;NA&gt;                  &lt;NA&gt;          &lt;NA&gt;           &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                      &lt;NA&gt;                  &lt;NA&gt;          &lt;NA&gt;           &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                      &lt;NA&gt;                  &lt;NA&gt;          &lt;NA&gt;           &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                     &lt;NA&gt;                  &lt;NA&gt;          &lt;NA&gt;           &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    dimension_geometria dimensiones_no_evaluadas n_geometrias_vacias</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                 &lt;NA&gt;                     &lt;NA&gt;                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                 &lt;NA&gt;                     &lt;NA&gt;                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                 &lt;NA&gt;                     &lt;NA&gt;                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                 &lt;NA&gt;                     &lt;NA&gt;                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                 &lt;NA&gt;                     &lt;NA&gt;                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                 &lt;NA&gt;                     &lt;NA&gt;                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                 &lt;NA&gt;                     &lt;NA&gt;                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                 &lt;NA&gt;                     &lt;NA&gt;                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                 &lt;NA&gt;                     &lt;NA&gt;                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                &lt;NA&gt;                     &lt;NA&gt;                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    n_geometrias_invalidas n_validez_evaluados validez_criterio</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                      NA                  NA             &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                      NA                  NA             &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                      NA                  NA             &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                      NA                  NA             &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                      NA                  NA             &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                      NA                  NA             &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                      NA                  NA             &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                      NA                  NA             &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                      NA                  NA             &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                     NA                  NA             &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    validez_preprocesamiento n_fuera_de_dominio n_dominio_evaluados</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                      &lt;NA&gt;                 NA                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                      &lt;NA&gt;                 NA                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                      &lt;NA&gt;                 NA                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                      &lt;NA&gt;                 NA                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                      &lt;NA&gt;                 NA                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                      &lt;NA&gt;                 NA                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                      &lt;NA&gt;                 NA                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                      &lt;NA&gt;                 NA                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                      &lt;NA&gt;                 NA                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                     &lt;NA&gt;                 NA                  NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    n_bbox_evaluados bbox_alcance bbox_xmin bbox_xmax bbox_ymin bbox_ymax</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                NA         &lt;NA&gt;        NA        NA        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                NA         &lt;NA&gt;        NA        NA        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                NA         &lt;NA&gt;        NA        NA        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                NA         &lt;NA&gt;        NA        NA        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                NA         &lt;NA&gt;        NA        NA        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                NA         &lt;NA&gt;        NA        NA        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                NA         &lt;NA&gt;        NA        NA        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                NA         &lt;NA&gt;        NA        NA        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                NA         &lt;NA&gt;        NA        NA        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10               NA         &lt;NA&gt;        NA        NA        NA        NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                      detalle_proteccion_personal n_blancos n_espacios_borde</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1  [estadisticos de orden y momentos protegidos]         0                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2             [estadisticos de orden protegidos]         0                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3  [estadisticos de orden y momentos protegidos]         0                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                                           &lt;NA&gt;         1                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                                           &lt;NA&gt;         0                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                                           &lt;NA&gt;         0                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                                           &lt;NA&gt;         0                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8             [estadisticos de orden protegidos]         0                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                                           &lt;NA&gt;         0                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                                          &lt;NA&gt;         0                0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    n_variantes_mayusculas n_variantes_unicode unicode_evaluado</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                       0                  NA               NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2                       0                   0             TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3                       0                   0             TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4                       0                   0             TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5                       0                  NA               NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6                       0                   0             TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 7                       0                   0             TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 8                       0                   0             TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 9                       0                  NA               NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 10                      0                   0             TRUE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    n_codificacion_rota n_codificacion_reparable</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1                    0                        0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                    0                        0</span>

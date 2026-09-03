@@ -43,6 +43,28 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="un-centinela-que-el-usuario-declara-vale-lo-mismo-que-un-na-0-1-0">Un centinela que el usuario declara vale lo mismo que un <code>NA</code>
+<a class="anchor" aria-label="anchor" href="#un-centinela-que-el-usuario-declara-vale-lo-mismo-que-un-na-0-1-0"></a></h3>
+<ul><li>
+<strong><code>sentinelas_numericos</code> distingue la lista por omisión de una política que el usuario reemplaza.</strong> Los valores que alguien declara salen de <code>media</code>, <code>mediana</code>, <code>minimo</code>, <code>maximo</code>, <code>desvio</code>, los conteos de signo y <code>n_outliers</code>; <code>n_valores_excluidos_resumen</code> y <code>estado_resumen_cuantitativo</code> declaran ese alcance. La lista por omisión —<code>-9</code>, <code>-99</code>, <code>-999</code>, <code>-9999</code> y <code>999</code>— sigue informándose como <code>faltantes_disfrazados</code> y <strong>no</strong> se retira de los resúmenes, porque <code>999</code> también puede ser una edad, un código postal o un año, y actuar sobre una sospecha cambiaría números que nadie pidió cambiar.</li>
+<li>
+<strong>Esto cambia resultados publicados</strong> para quien pasa su propia lista. Sobre mil filas —950 valores alrededor de 40, treinta <code>9999</code> y veinte <code>9998</code>— la media declarando ambos códigos pasa de 537,9 a 39,96, que es la verdad.</li>
+<li>El defecto se vio comparando tres formas de decir lo mismo: <code>aplicabilidad</code> y un <code>NA</code> escrito a mano cambiaban la media, y <code>sentinelas_numericos</code> —que la documentación llama «la política completa»— no. Las tres coinciden ahora.</li>
+<li>
+<code>moda</code>, <code>frecuencia_moda</code>, <code>n_distintos</code>, <code>tasa_distintos</code> y <code>longitud_*</code> siguen describiendo la <strong>representación almacenada</strong>, igual que ya contaban un <code>Inf</code> que los estadísticos excluyen. Por eso <code>moda</code> puede quedar fuera del rango de <code>minimo</code> y <code>maximo</code>: no es una contradicción sino la diferencia entre describir lo guardado y resumir lo que vale como dato, y los conteos dicen cuánto separa a los dos.</li>
+<li>
+<strong>La severidad seguía la misma confusión.</strong> Con el umbral de error en 0,4, seiscientos <code>NA</code> de mil daban <code>error</code> y los mismos seiscientos declarados como centinela daban <code>sospechoso</code>. Ahora la rebaja se aplica sólo cuando toda la ausencia se apoya en códigos que <strong>el paquete supuso</strong>, que es el caso para el que se escribió.</li>
+<li>El hallazgo <code>posible_centinela_numerico</code> sugería agregar el valor a <code>sentinelas_numericos</code> «para que se cuente como faltante» y callaba lo que pasaba con los números. Ahora dice qué campos lo dejan afuera y cuáles siguen contándolo.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="un-resumen-calculado-sobre-parte-de-la-columna-lo-dice-0-1-0">Un resumen calculado sobre parte de la columna lo dice<a class="anchor" aria-label="anchor" href="#un-resumen-calculado-sobre-parte-de-la-columna-lo-dice-0-1-0"></a></h3>
+<ul><li>
+<strong>Con <code>muestra</code>, los formatos y tipos se descubren sobre la muestra pero la conversión corre sobre la columna entera</strong>, y los valores en otro formato quedaban afuera sin que nada los contara: el mínimo de fechas podía publicar 2024-01-01 sobre una columna que llega a 2022, con <code>estado_resumen_cuantitativo = "calculados"</code> y <code>cobertura_diagnosticos</code> vacía.</li>
+<li>Ahora esos valores se cuentan —<code>n_fechas_excluidas_granularidad</code> para fechas, <code>n_valores_excluidos_resumen</code> para números de texto—, el estado deja de decir que el cálculo fue completo, y <code>cobertura_diagnosticos</code> agrega una fila <code>resumen_cuantitativo</code>. Sin <code>muestra</code> no cambia nada.</li>
+<li>
+<code><a href="../reference/analizar_tiempo.html">analizar_tiempo()</a></code> aplica el mismo criterio con <code>n_fechas_excluidas_parseo</code> y <code>estado_resumen</code>, y las relaciones de orden entre columnas no comparan una columna cuya conversión quedó parcial.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="las-figuras-del-banco-de-rendimiento-salen-de-un-csv-0-1-0">Las figuras del banco de rendimiento salen de un CSV<a class="anchor" aria-label="anchor" href="#las-figuras-del-banco-de-rendimiento-salen-de-un-csv-0-1-0"></a></h3>
 <ul><li>Cuatro figuras nuevas en el README —escala, estimación previa, cardinalidad y pérdida del tamiz LSH— dibujadas con R base por <code>benchmark/graficar_figuras.R</code> desde los CSV de <code>benchmark/datos/</code>, que dejan <code>benchmark/medir_figuras.R</code> y <code>benchmark/perdida_lsh.R</code>. Ninguna cifra vive en un guion ni en una transcripción de consola: cada figura lleva al pie el commit, la fecha y la máquina, el graficador se detiene si los CSV mezclan commits, y al final imprime las cifras que el README cita en prosa para que otra corrida las desmienta con un <code>diff</code>.</li>
 <li>El medidor firma el commit con <code>+sucio</code> si tienen cambios sin commitear las rutas que determinan el resultado —<code>R/</code>, <code>DESCRIPTION</code>, <code>NAMESPACE</code>, <code>src/</code>, <code>inst/</code> y el propio guion que mide—, comprueba que cada proceso hijo carga la misma instalación que midió el padre, y se detiene si las tres corridas de una configuración no dan los mismos candidatos, pares, recall y estimación previa.</li>

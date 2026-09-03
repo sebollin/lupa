@@ -1084,6 +1084,16 @@ columna, agregándolo a la lista—. Un código postal `9999` repetido
 treinta veces no es extremo en su columna; un monto real de `9999` no se
 repite; un año `1999` no tiene esa forma.
 
+**Y agregarlo a la lista tiene consecuencia**, que es la otra mitad de
+la misma idea: el paquete **excluye lo que el usuario declara e incluye
+lo que él mismo sospecha**. Un valor declarado en `sentinelas_numericos`
+sale de `media`, `mediana`, `minimo`, `maximo` y `desvio` —y
+`n_valores_excluidos_resumen` dice cuántos dejó afuera—, igual que salen
+los `NA` y las filas que `aplicabilidad` deja fuera del universo. La
+lista por omisión, en cambio, informa y no toca los números: es una
+conjetura, y una conjetura no mueve un promedio. `moda` y `n_distintos`
+siguen describiendo lo que hay guardado, como ya hacían con un `Inf`.
+
 **La unicidad no se adivina: se pregunta —y en una base, se lee.**
 Cuando los datos vienen por DBI, la clave primaria **está declarada en
 el catálogo del motor**, así que no se sugiere nada: se lee, en una sola
