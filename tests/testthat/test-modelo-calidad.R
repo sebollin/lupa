@@ -473,3 +473,26 @@ test_that("los perfiles de madurez usan los tres umbrales del marco", {
     "no coincide"
   )
 })
+
+test_that("el perfil promedia reglas y conserva la distribución en sus niveles", {
+  nucleo <- metricas_nucleo()
+  metrica <- instanciar(especializar(nucleo$NoNulo), "tabla", "dato")
+  medicion <- medir(
+    modelo(metrica), data.frame(dato = c(rep(NA_character_, 99L), "OK")),
+    id_medicion = "distribucion"
+  )
+  evaluacion <- evaluar(
+    medicion,
+    perfil_evaluacion(
+      "P",
+      regla_evaluacion("presente", function(x) x == 1),
+      regla_evaluacion("ausente", function(x) x == 0)
+    )
+  )
+  expect_equal(
+    evaluacion$reglas$resultado[match(c("presente", "ausente"),
+                                      evaluacion$reglas$regla)],
+    c(0.01, 0.99)
+  )
+  expect_equal(evaluacion$perfiles$resultado, 0.5)
+})

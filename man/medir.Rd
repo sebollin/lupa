@@ -57,7 +57,10 @@ alto expresa defecto o si esa lectura no aplica. Algunas métricas
 que trabajan con un vocabulario o un alcance parcial agregan un atributo
 \code{alcance_metricas} con sus conteos y límites. Si una métrica no puede
 medirse por falta de valores en su universo, no crea filas ni ceros: deja
-el motivo en el atributo \code{cobertura_metricas}.
+el motivo en el atributo \code{cobertura_metricas}. También conserva
+\code{configuracion_modelo} y \code{configuracion_aplicabilidad}, descripciones de la
+política usada para que una deriva posterior pueda distinguir modelo de
+datos.
 }
 \description{
 Ejecuta todas las métricas instanciadas de un \code{modelo_calidad}. Cada fila es

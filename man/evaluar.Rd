@@ -23,10 +23,14 @@ contiene además \code{desenlaces}, un plan que identifica las medidas
 incumplidas, el valor medido, el motivo y la regla que lo produjo.
 Cuando una métrica no pudo medirse, conserva \code{cobertura_metricas} y deja
 en \code{NA} el resumen afectado, en lugar de tratar la ausencia como éxito.
+Conserva además, en atributos, la configuración del modelo, la
+aplicabilidad y el perfil de evaluación que produjo el resultado.
 }
 \description{
 Ejecuta la cadena formal: condición por medida, proporción de medidas que
-cumplen cada regla y media aritmética simple de las reglas del perfil.
+cumplen cada regla y media aritmética simple, no ponderada, de las reglas
+del perfil. Los resultados por regla se conservan en \code{reglas}; el resumen de
+\code{perfiles} no sustituye esa distribución.
 }
 \examples{
 nucleo <- metricas_nucleo()

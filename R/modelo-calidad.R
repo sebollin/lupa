@@ -6,6 +6,68 @@
   attr(x, "declaracion", exact = TRUE)
 }
 
+# Una medicion necesita llevar la politica que la produjo para que una serie
+# no confunda un cambio de datos con un cambio de modelo. Se conserva una
+# descripcion canonica y acotada: alcanza para comparar sin retener cierres,
+# padrones ni datos de entrada dentro de cada fila medida.
+.texto_configuracion_calidad <- function(x) {
+  if (is.null(x)) return("NULL")
+  if (is.function(x) || inherits(x, "formula")) {
+    return(paste(deparse(x), collapse = " "))
+  }
+  if (inherits(x, "POSIXt")) {
+    return(paste0(
+      "POSIXt:",
+      paste(format(x, tz = "UTC", usetz = TRUE), collapse = ",")
+    ))
+  }
+  if (inherits(x, "Date")) {
+    return(paste0(
+      "Date:", paste(format(x, "%Y-%m-%d"), collapse = ",")
+    ))
+  }
+  if (is.atomic(x)) {
+    valores <- as.character(x)
+    faltantes <- is.na(valores)
+    valores[faltantes] <- "<NA>"
+    valores[!faltantes] <- encodeString(valores[!faltantes])
+    return(paste0(typeof(x), "[", paste(valores, collapse = ","), "]"))
+  }
+  if (is.list(x)) {
+    nombres <- names(x)
+    if (is.null(nombres)) nombres <- rep("", length(x))
+    partes <- vapply(seq_along(x), function(i) {
+      paste0(nombres[[i]], "=", .texto_configuracion_calidad(x[[i]]))
+    }, character(1L))
+    return(paste0("list{", paste(partes, collapse = ";"), "}"))
+  }
+  paste0(class(x)[[1L]], ":", as.character(x))
+}
+
+.configuracion_modelo_calidad <- function(modelo) {
+  if (!inherits(modelo, "modelo_calidad")) return(NULL)
+  metricas <- vapply(modelo$metricas, function(instancia) {
+    .texto_configuracion_calidad(list(
+      nombre = instancia$nombre,
+      metrica = instancia$declaracion$nombre,
+      metrica_especifica = instancia$nombre_especifico,
+      entidad = instancia$entidad,
+      atributos = instancia$atributos,
+      configuracion = instancia$configuracion
+    ))
+  }, character(1L))
+  names(metricas) <- vapply(modelo$metricas, `[[`, character(1L), "nombre")
+  entidades <- sort(unique(unlist(lapply(
+    modelo$metricas, `[[`, "entidad"
+  ), use.names = FALSE)))
+  list(version = 1L, entidades = entidades, metricas = metricas)
+}
+
+.indices_filas_modelo <- function(tabla) {
+  indices <- attr(tabla, "lupa_indices_fila_originales", exact = TRUE)
+  if (is.null(indices)) seq_len(nrow(tabla)) else as.integer(indices)
+}
+
 .validar_tipo_resultado <- function(tipo_resultado) {
   opciones <- c("booleano", "real", "numero_real", "entero", "duracion")
   if (!.es_texto_escalar(tipo_resultado) || !tipo_resultado %in% opciones) {
@@ -766,7 +828,7 @@ modelo <- function(..., marco = NULL) {
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
-  filas <- seq_along(x)
+  filas <- .indices_filas_modelo(tabla)
   # El universo declarado recorta las filas antes de medir. Sin `aplicable`, el
   # universo es la tabla entera y esto no cambia nada. Con `aplicable`, las
   # filas donde la columna no corresponde salen del denominador en vez de
@@ -819,8 +881,8 @@ modelo <- function(..., marco = NULL) {
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
-  filas <- which(!is.na(x))
-  valores <- x[filas]
+  filas <- .indices_filas_modelo(tabla)[!is.na(x)]
+  valores <- x[!is.na(x)]
   config <- instancia$configuracion
   if (!is.null(config$expresion_regular)) {
     resultado <- grepl(
@@ -845,9 +907,10 @@ modelo <- function(..., marco = NULL) {
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
-  filas <- which(!is.na(x))
+  filas <- .indices_filas_modelo(tabla)[!is.na(x)]
+  valores <- x[!is.na(x)]
   .salida_metodo(
-    x[filas] %in% instancia$configuracion$valores,
+    valores %in% instancia$configuracion$valores,
     entidad, atributo, filas,
     paste0(entidad, "$", atributo, "[", filas, "]")
   )
@@ -872,7 +935,7 @@ modelo <- function(..., marco = NULL) {
     instancia$configuracion$regla(datos_regla), nrow(tabla),
     "ReglaIntegridadIntraEntidad"
   )
-  filas <- seq_len(nrow(tabla))
+  filas <- .indices_filas_modelo(tabla)
   .salida_metodo(
     resultado, entidad, NA_character_, filas,
     paste0(entidad, "[", filas, ",]")
@@ -889,6 +952,14 @@ modelo <- function(..., marco = NULL) {
   tabla_dependiente <- .obtener_tabla_modelo(tablas, entidad_dependiente)
   .obtener_columna_modelo(tabla_referencia, atributo_pk, entidad_referencia)
   .obtener_columna_modelo(tabla_dependiente, atributo_fk, entidad_dependiente)
+  if (!nrow(tabla_dependiente)) {
+    # Una tabla dependiente vacia no tiene claves foraneas que comprobar. La
+    # relacion queda sin valores, y `medir()` publica la cobertura con el
+    # motivo correspondiente en vez de convertir `NA` en un error de contrato.
+    return(.salida_metodo(
+      numeric(), entidad_dependiente, atributo_fk, integer(), character()
+    ))
+  }
   relacion <- detectar_relaciones(
     .seleccionar_columnas(tabla_referencia, atributo_pk),
     .seleccionar_columnas(tabla_dependiente, atributo_fk),
@@ -1082,10 +1153,20 @@ metricas_nucleo <- function() {
 .cobertura_metrica_no_evaluada <- function(tablas, instancia, id_medicion,
                                            fecha) {
   entidad <- instancia$entidad[[1L]]
+  entidades_ligadas <- intersect(instancia$entidad, names(tablas))
+  entidades_vacias <- entidades_ligadas[vapply(
+    tablas[entidades_ligadas], function(tabla) !nrow(tabla), logical(1L)
+  )]
   tabla <- tablas[[entidad]]
   nombre <- instancia$nombre
   sujeto <- paste0("la m\u00e9trica `", nombre, "`")
-  if (is.null(tabla) || !nrow(tabla)) {
+  if (length(entidades_vacias)) {
+    motivo <- paste0(
+      sujeto, " no se pudo medir: la entidad dependiente `",
+      entidades_vacias[[1L]], "` tiene cero filas. No hay nada que medir;",
+      " no es un alcance vac\u00edo."
+    )
+  } else if (is.null(tabla) || !nrow(tabla)) {
     motivo <- paste0(
       sujeto, " no se pudo medir: la entidad `", entidad,
       "` tiene cero filas. No hay nada que medir; no es un fallo, es un",
@@ -1175,7 +1256,12 @@ metricas_nucleo <- function() {
     if (is.null(mascaras) || !atributo %in% names(mascaras)) next
     mascara <- mascaras[[atributo]]
     if (is.null(mascara) || all(mascara)) next
-    tablas[[nombre]] <- tablas[[nombre]][which(mascara), , drop = FALSE]
+    filas <- which(mascara)
+    tabla <- tablas[[nombre]]
+    indices_originales <- .indices_filas_modelo(tabla)
+    tabla <- tabla[filas, , drop = FALSE]
+    attr(tabla, "lupa_indices_fila_originales") <- indices_originales[filas]
+    tablas[[nombre]] <- tabla
   }
   tablas
 }
@@ -1222,7 +1308,10 @@ metricas_nucleo <- function() {
 #'   que trabajan con un vocabulario o un alcance parcial agregan un atributo
 #'   `alcance_metricas` con sus conteos y límites. Si una métrica no puede
 #'   medirse por falta de valores en su universo, no crea filas ni ceros: deja
-#'   el motivo en el atributo `cobertura_metricas`.
+#'   el motivo en el atributo `cobertura_metricas`. También conserva
+#'   `configuracion_modelo` y `configuracion_aplicabilidad`, descripciones de la
+#'   política usada para que una deriva posterior pueda distinguir modelo de
+#'   datos.
 #' @export
 #'
 #' @examples
@@ -1327,6 +1416,9 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   if (length(coberturas)) {
     attr(resultado, "cobertura_metricas") <- do.call(rbind, coberturas)
   }
+  attr(resultado, "configuracion_modelo") <- .configuracion_modelo_calidad(modelo)
+  attr(resultado, "configuracion_aplicabilidad") <-
+    .texto_configuracion_calidad(aplicabilidad)
   class(resultado) <- c("medicion", "data.frame")
   resultado
 }

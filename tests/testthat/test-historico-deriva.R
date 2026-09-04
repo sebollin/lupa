@@ -459,3 +459,111 @@ test_that("el cambio de centinelas se declara sin apagar la deriva", {
   ))
   expect_true(any(deriva_estable$aspecto == "rango"))
 })
+
+test_that("la deriva de calidad declara cambios del modelo y conserva la senal", {
+  nucleo <- metricas_nucleo()
+  no_nulo <- instanciar(especializar(nucleo$NoNulo), "tabla", "dato")
+  regla_corte <- function(umbral) regla_evaluacion(
+    "corte", function(x, minimo) x >= minimo,
+    umbrales = list(minimo = umbral)
+  )
+  datos_corte <- data.frame(dato = c("OK", "OK", "OK", NA_character_))
+  anterior <- evaluar(
+    agregar(
+      medir(modelo(no_nulo), datos_corte, id_medicion = "corte-a",
+            fecha = as.POSIXct("2026-01-01", tz = "UTC")),
+      "atributo", "ratio"
+    ),
+    perfil_evaluacion("P", regla_corte(0.5))
+  )
+  actual <- evaluar(
+    agregar(
+      medir(modelo(no_nulo), datos_corte, id_medicion = "corte-b",
+            fecha = as.POSIXct("2026-02-01", tz = "UTC")),
+      "atributo", "ratio"
+    ),
+    perfil_evaluacion("P", regla_corte(0.9))
+  )
+  deriva <- detectar_deriva_calidad(historico_calidad(anterior, actual))
+  resultado <- deriva[deriva$aspecto == "resultado", , drop = FALSE]
+  expect_equal(resultado$delta, -1)
+  expect_equal(as.character(resultado$severidad), "error")
+  expect_true(any(deriva$aspecto == "configuracion_perfil" &
+                    deriva$severidad == "error"))
+  expect_match(
+    deriva$descripcion[deriva$aspecto == "configuracion_perfil"],
+    "se mantienen las comparaciones"
+  )
+
+  formato <- instanciar(
+    especializar(nucleo$Formato, expresion_regular = "^OK$"),
+    "tabla", "dato"
+  )
+  anterior <- evaluar(
+    medir(modelo(no_nulo), data.frame(dato = c("OK", "BAD")),
+          id_medicion = "metrica-a", fecha = as.POSIXct("2026-01-01", tz = "UTC")),
+    perfil_evaluacion("P", regla_evaluacion("pasa", function(x) x == 1))
+  )
+  actual <- evaluar(
+    medir(modelo(formato), data.frame(dato = c("OK", "BAD")),
+          id_medicion = "metrica-b", fecha = as.POSIXct("2026-02-01", tz = "UTC")),
+    perfil_evaluacion("P", regla_evaluacion("pasa", function(x) x == 1))
+  )
+  deriva <- detectar_deriva_calidad(historico_calidad(anterior, actual))
+  expect_equal(deriva$delta[deriva$aspecto == "resultado"], -0.5)
+  expect_true(any(deriva$aspecto == "configuracion_modelo" &
+                    deriva$severidad == "error"))
+
+  datos_aplicabilidad <- data.frame(
+    tiene = c("Si", "Si", "No", "No"), dato = c("OK", "OK", NA, NA)
+  )
+  anterior <- evaluar(
+    medir(modelo(no_nulo), datos_aplicabilidad, id_medicion = "app-a",
+          fecha = as.POSIXct("2026-01-01", tz = "UTC")),
+    perfil_evaluacion("P", regla_evaluacion("pasa", function(x) x == 1))
+  )
+  actual <- evaluar(
+    medir(modelo(no_nulo), datos_aplicabilidad,
+          aplicabilidad = list(dato = ~ tiene == "Si"), id_medicion = "app-b",
+          fecha = as.POSIXct("2026-02-01", tz = "UTC")),
+    perfil_evaluacion("P", regla_evaluacion("pasa", function(x) x == 1))
+  )
+  deriva <- detectar_deriva_calidad(historico_calidad(anterior, actual))
+  resultado <- deriva[deriva$aspecto == "resultado", , drop = FALSE]
+  expect_equal(resultado$delta, 0.5)
+  expect_equal(resultado$direccion, "mejora")
+  expect_true(any(deriva$aspecto == "configuracion_aplicabilidad" &
+                    deriva$severidad == "error"))
+})
+
+test_that("el historico separa corridas de tablas distintas", {
+  nucleo <- metricas_nucleo()
+  regla <- perfil_evaluacion("P", regla_evaluacion("pasa", function(x) x == 1))
+  corrida <- function(entidad, id, valor, fecha) {
+    metrica <- instanciar(especializar(nucleo$NoNulo), entidad, "dato")
+    evaluar(
+      medir(modelo(metrica), data.frame(dato = valor), id_medicion = id,
+            fecha = as.POSIXct(fecha, tz = "UTC")), regla
+    )
+  }
+  historico <- historico_calidad(
+    corrida("clientes", "clientes-1", 1, "2026-01-01"),
+    corrida("ventas", "ventas-1", NA, "2026-02-01")
+  )
+  expect_equal(
+    attr(historico, "configuracion_evaluacion")$identidad_tabla,
+    c("clientes", "ventas")
+  )
+  expect_equal(nrow(detectar_deriva_calidad(historico)), 0L)
+  expect_equal(nrow(detectar_deriva_calidad(historico, nivel = "regla")), 0L)
+
+  mismo <- historico_calidad(
+    corrida("clientes", "clientes-1", 1, "2026-01-01"),
+    corrida("clientes", "clientes-2", NA, "2026-02-01")
+  )
+  deriva <- detectar_deriva_calidad(mismo)
+  expect_equal(nrow(deriva), 1L)
+  expect_equal(deriva$identidad_tabla, "clientes")
+  expect_equal(deriva$direccion, "deterioro")
+  expect_false(any(grepl("configuracion", deriva$aspecto)))
+})

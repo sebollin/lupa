@@ -24,7 +24,9 @@ Data frame S3 \code{historico_calidad}. La columna \code{version_esquema} y el
 atributo del mismo nombre permiten migraciones futuras. \code{nivel} corresponde
 a \code{medida}, \code{evaluacion_medida}, \code{evaluacion_regla} o
 \code{evaluacion_perfil}; una métrica sin valores se conserva como
-\code{metrica_no_evaluada} con su motivo.
+\code{metrica_no_evaluada} con su motivo. El atributo
+\code{configuracion_evaluacion} conserva, en una tabla plana separada, el
+modelo, la aplicabilidad, el perfil y la identidad de tabla de cada corrida.
 }
 \description{
 Crea un data frame plano y versionado con corridas producidas por \code{\link[=medir]{medir()}} o

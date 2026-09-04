@@ -154,6 +154,18 @@ test_that("la metrica NoNulo acepta el mismo universo declarado", {
   expect_equal(mean(m2$resultado), 1)
 })
 
+test_that("la medicion conserva filas originales despues de aplicar una regla", {
+  nucleo <- metricas_nucleo()
+  metrica <- instanciar(especializar(nucleo$NoNulo), "tabla", "dato")
+  medicion <- medir(
+    modelo(metrica),
+    data.frame(tipo = c("Si", "No", "Si"), dato = c("A", NA, "B")),
+    aplicabilidad = list(dato = ~ tipo == "Si"), id_medicion = "traza"
+  )
+  expect_equal(medicion$fila, c(1L, 3L))
+  expect_equal(medicion$objeto_medible, c("tabla$dato[1]", "tabla$dato[3]"))
+})
+
 test_that("perfilar_por perfila cada grupo y declara lo que descarta", {
   set.seed(9)
   n <- 900

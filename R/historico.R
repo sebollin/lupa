@@ -44,6 +44,8 @@
   )
   class(resultado) <- c("historico_calidad", "data.frame")
   attr(resultado, "version_esquema") <- .version_esquema_historico
+  attr(resultado, "configuracion_evaluacion") <-
+    .configuraciones_historico_vacias()
   resultado
 }
 
@@ -56,6 +58,155 @@
   x <- as.POSIXct(x)
   resultado <- as.POSIXct(as.numeric(x), origin = "1970-01-01", tz = "UTC")
   attr(resultado, "tzone") <- "UTC"
+  resultado
+}
+
+.columnas_configuracion_historico <- c(
+  "id_medicion", "fecha", "perfil", "identidad_tabla",
+  "configuracion_modelo", "configuracion_aplicabilidad",
+  "configuracion_perfil"
+)
+
+.configuraciones_historico_vacias <- function() {
+  data.frame(
+    id_medicion = character(), fecha = as.POSIXct(character(), tz = "UTC"),
+    perfil = character(), identidad_tabla = character(),
+    configuracion_modelo = character(),
+    configuracion_aplicabilidad = character(),
+    configuracion_perfil = character(), stringsAsFactors = FALSE
+  )
+}
+
+.fila_configuracion_historico <- function(ids, fechas, perfiles,
+                                          configuracion_modelo = NULL,
+                                          configuracion_aplicabilidad = NULL,
+                                          configuracion_perfil = NULL) {
+  ids <- as.character(ids)
+  if (!length(ids) || (
+    is.null(configuracion_modelo) &&
+      is.null(configuracion_aplicabilidad) &&
+      is.null(configuracion_perfil)
+  )) return(.configuraciones_historico_vacias())
+  if (length(fechas) == 1L) fechas <- rep(fechas, length(ids))
+  if (length(perfiles) == 1L) perfiles <- rep(perfiles, length(ids))
+  entidades <- if (is.list(configuracion_modelo) &&
+                   length(configuracion_modelo$entidades)) {
+    paste(sort(as.character(configuracion_modelo$entidades)), collapse = "+")
+  } else NA_character_
+  data.frame(
+    id_medicion = ids, fecha = .fecha_utc(fechas), perfil = as.character(perfiles),
+    identidad_tabla = rep(entidades, length.out = length(ids)),
+    configuracion_modelo = rep(
+      if (is.null(configuracion_modelo)) NA_character_ else
+        .texto_configuracion_calidad(configuracion_modelo),
+      length.out = length(ids)
+    ),
+    configuracion_aplicabilidad = rep(
+      if (is.null(configuracion_aplicabilidad)) NA_character_ else
+        as.character(configuracion_aplicabilidad),
+      length.out = length(ids)
+    ),
+    configuracion_perfil = rep(
+      if (is.null(configuracion_perfil)) NA_character_ else
+        .texto_configuracion_calidad(configuracion_perfil),
+      length.out = length(ids)
+    ), stringsAsFactors = FALSE
+  )
+}
+
+.configuracion_historico_medicion <- function(x) {
+  configuracion <- attr(x, "configuracion_modelo", exact = TRUE)
+  aplicabilidad <- attr(x, "configuracion_aplicabilidad", exact = TRUE)
+  cobertura <- attr(x, "cobertura_metricas", exact = TRUE)
+  ids <- unique(c(
+    as.character(x$id_medicion),
+    if (inherits(cobertura, "data.frame")) as.character(cobertura$id_medicion)
+  ))
+  fechas <- if (length(ids) && nrow(x)) {
+    x$fecha[match(ids, x$id_medicion)]
+  } else if (length(ids) && inherits(cobertura, "data.frame")) {
+    cobertura$fecha[match(ids, cobertura$id_medicion)]
+  } else {
+    as.POSIXct(character())
+  }
+  .fila_configuracion_historico(
+    ids, fechas, NA_character_, configuracion, aplicabilidad
+  )
+}
+
+.configuracion_historico_evaluacion <- function(x) {
+  configuracion <- attr(x, "configuracion_modelo", exact = TRUE)
+  aplicabilidad <- attr(x, "configuracion_aplicabilidad", exact = TRUE)
+  perfil <- attr(x, "configuracion_perfil", exact = TRUE)
+  fuente <- x$perfiles
+  if (!inherits(fuente, "data.frame") || !nrow(fuente)) fuente <- x$reglas
+  if (!inherits(fuente, "data.frame") || !nrow(fuente)) {
+    cobertura <- x$cobertura_metricas
+    if (!inherits(cobertura, "data.frame")) {
+      return(.configuraciones_historico_vacias())
+    }
+    ids <- unique(as.character(cobertura$id_medicion))
+    fechas <- cobertura$fecha[match(ids, cobertura$id_medicion)]
+    perfiles <- NA_character_
+  } else {
+    ids <- unique(as.character(fuente$id_medicion))
+    fechas <- fuente$fecha[match(ids, fuente$id_medicion)]
+    nombre_perfil <- if (inherits(x$perfiles, "data.frame") &&
+                         nrow(x$perfiles)) {
+      x$perfiles$perfil[[1L]]
+    } else {
+      x$reglas$perfil[[1L]]
+    }
+    perfiles <- rep(nombre_perfil, length(ids))
+  }
+  .fila_configuracion_historico(
+    ids, fechas, perfiles, configuracion, aplicabilidad, perfil
+  )
+}
+
+.validar_configuraciones_historico <- function(x) {
+  if (is.null(x)) return(.configuraciones_historico_vacias())
+  if (!inherits(x, "data.frame") ||
+      !all(.columnas_configuracion_historico %in% names(x))) {
+    stop("La configuraci\u00f3n del hist\u00f3rico no cumple su esquema tabular.",
+         call. = FALSE)
+  }
+  x <- x[.columnas_configuracion_historico]
+  if (nrow(x) && (
+    anyNA(x$id_medicion) || any(!nzchar(x$id_medicion)) || anyNA(x$fecha) ||
+      anyDuplicated(paste(x$id_medicion, x$perfil, sep = "\034"))
+  )) {
+    stop("La configuraci\u00f3n del hist\u00f3rico contiene registros inv\u00e1lidos o duplicados.",
+         call. = FALSE)
+  }
+  x$fecha <- .fecha_utc(x$fecha)
+  x
+}
+
+.combinar_configuraciones_historico <- function(anterior, nuevo) {
+  anterior <- .validar_configuraciones_historico(anterior)
+  nuevo <- .validar_configuraciones_historico(nuevo)
+  if (!nrow(anterior)) return(nuevo)
+  if (!nrow(nuevo)) return(anterior)
+  clave_anterior <- paste(anterior$id_medicion, anterior$perfil, sep = "\034")
+  clave_nuevo <- paste(nuevo$id_medicion, nuevo$perfil, sep = "\034")
+  compartidas <- intersect(clave_nuevo, clave_anterior)
+  for (clave in compartidas) {
+    i <- match(clave, clave_nuevo)
+    j <- match(clave, clave_anterior)
+    if (!isTRUE(all.equal(nuevo[i, , drop = FALSE], anterior[j, , drop = FALSE],
+                         check.attributes = FALSE))) {
+      stop(
+        "Una corrida ya existente tiene una configuraci\u00f3n diferente: ",
+        nuevo$id_medicion[[i]], ".", call. = FALSE
+      )
+    }
+  }
+  resultado <- rbind(
+    anterior,
+    nuevo[!clave_nuevo %in% clave_anterior, , drop = FALSE]
+  )
+  rownames(resultado) <- NULL
   resultado
 }
 
@@ -134,6 +285,8 @@
       resultado, .parte_historico_metricas_no_evaluadas(cobertura)
     )
   }
+  attr(resultado, "configuracion_evaluacion") <-
+    .configuracion_historico_medicion(x)
   resultado
 }
 
@@ -202,7 +355,10 @@
   if (tiene_cobertura) {
     partes <- c(partes, list(.parte_historico_metricas_no_evaluadas(cobertura)))
   }
-  do.call(rbind, partes)
+  resultado <- do.call(rbind, partes)
+  attr(resultado, "configuracion_evaluacion") <-
+    .configuracion_historico_evaluacion(x)
+  resultado
 }
 
 .parte_historico_metricas_no_evaluadas <- function(cobertura) {
@@ -236,7 +392,9 @@
       !all(.columnas_historico %in% names(x))) {
     stop("`historico` no cumple el esquema tabular esperado.", call. = FALSE)
   }
+  configuracion <- attr(x, "configuracion_evaluacion", exact = TRUE)
   x <- .tabla_base(x)
+  configuracion <- .validar_configuraciones_historico(configuracion)
   version <- unique(x$version_esquema)
   if (!length(version)) version <- attr(x, "version_esquema", exact = TRUE)
   if (length(version) != 1L || is.na(version) ||
@@ -301,12 +459,17 @@
   x$fecha <- .fecha_utc(x$fecha)
   class(x) <- c("historico_calidad", "data.frame")
   attr(x, "version_esquema") <- .version_esquema_historico
+  attr(x, "configuracion_evaluacion") <- configuracion
   x
 }
 
 .combinar_historico <- function(anterior, nuevo) {
   anterior <- .validar_historico(anterior)
   nuevo <- .validar_historico(nuevo)
+  configuracion <- .combinar_configuraciones_historico(
+    attr(anterior, "configuracion_evaluacion", exact = TRUE),
+    attr(nuevo, "configuracion_evaluacion", exact = TRUE)
+  )
   coincidencias <- match(nuevo$id_registro, anterior$id_registro, nomatch = 0L)
   repetidos <- which(coincidencias > 0L)
   if (length(repetidos)) {
@@ -329,6 +492,7 @@
   agregar <- nuevo[coincidencias == 0L, , drop = FALSE]
   resultado <- if (nrow(agregar)) rbind(anterior, agregar) else anterior
   rownames(resultado) <- NULL
+  attr(resultado, "configuracion_evaluacion") <- configuracion
   .validar_historico(resultado)
 }
 
@@ -361,7 +525,9 @@
 #'   atributo del mismo nombre permiten migraciones futuras. `nivel` corresponde
 #'   a `medida`, `evaluacion_medida`, `evaluacion_regla` o
 #'   `evaluacion_perfil`; una métrica sin valores se conserva como
-#'   `metrica_no_evaluada` con su motivo.
+#'   `metrica_no_evaluada` con su motivo. El atributo
+#'   `configuracion_evaluacion` conserva, en una tabla plana separada, el
+#'   modelo, la aplicabilidad, el perfil y la identidad de tabla de cada corrida.
 #'
 #' @details
 #' El detalle predeterminado evita repetir una fila por celda y regla cuando el
@@ -496,7 +662,9 @@ leer_historico <- function(archivo) {
 #' @return Data frame `deriva_calidad` con una fila por par de corridas
 #'   consecutivas. Una mejora significativa conserva severidad `ok`; un
 #'   deterioro de al menos un umbral es `sospechoso` y uno de al menos dos
-#'   umbrales es `error`.
+#'   umbrales es `error`. `identidad_tabla` separa series de tablas distintas y
+#'   `aspecto` marca el resultado o un cambio de configuración; este último se
+#'   informa como `error` pero no suprime la comparación.
 #' @export
 #'
 #' @examples
@@ -512,28 +680,49 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
   nombre_nivel <- paste0("evaluacion_", nivel)
   datos <- historico[historico$nivel == nombre_nivel, , drop = FALSE]
   columnas <- c(
-    "nivel", "perfil", "regla", "id_medicion_anterior", "fecha_anterior",
-    "resultado_anterior", "id_medicion_actual", "fecha_actual",
-    "resultado_actual", "delta", "cambio_absoluto", "significativo",
-    "direccion", "severidad"
+    "nivel", "perfil", "regla", "identidad_tabla",
+    "id_medicion_anterior", "fecha_anterior", "resultado_anterior",
+    "id_medicion_actual", "fecha_actual", "resultado_actual", "delta",
+    "cambio_absoluto", "significativo", "direccion", "severidad", "aspecto",
+    "descripcion", "evidencia"
   )
   vacio <- data.frame(
     nivel = character(), perfil = character(), regla = character(),
+    identidad_tabla = character(),
     id_medicion_anterior = character(),
     fecha_anterior = as.POSIXct(character(), tz = "UTC"),
     resultado_anterior = numeric(), id_medicion_actual = character(),
     fecha_actual = as.POSIXct(character(), tz = "UTC"),
     resultado_actual = numeric(), delta = numeric(), cambio_absoluto = numeric(),
     significativo = logical(), direccion = character(), severidad = character(),
+    aspecto = character(), descripcion = character(), evidencia = character(),
     stringsAsFactors = FALSE
   )
   if (!nrow(datos)) {
     stop("El hist\u00f3rico no contiene evaluaciones en el nivel solicitado.",
          call. = FALSE)
   }
+  configuraciones <- attr(historico, "configuracion_evaluacion", exact = TRUE)
+  clave_configuracion <- function(ids, perfiles) {
+    paste(
+      as.character(ids),
+      ifelse(is.na(perfiles), "~", as.character(perfiles)), sep = "\034"
+    )
+  }
+  claves_datos <- clave_configuracion(datos$id_medicion, datos$perfil)
+  claves_configuraciones <- if (nrow(configuraciones)) {
+    clave_configuracion(configuraciones$id_medicion, configuraciones$perfil)
+  } else character()
+  indices_configuracion <- match(claves_datos, claves_configuraciones)
+  identidad <- rep(NA_character_, nrow(datos))
+  if (length(indices_configuracion)) {
+    identidad <- configuraciones$identidad_tabla[indices_configuracion]
+  }
+  identidad[is.na(identidad) | !nzchar(identidad)] <- "<sin_configuracion>"
   clave <- if (nivel == "perfil") datos$perfil else {
     paste(datos$perfil, datos$regla, sep = "\034")
   }
+  clave <- paste(clave, identidad, sep = "\034")
   grupos <- split(seq_len(nrow(datos)), clave, drop = TRUE)
   partes <- lapply(grupos, function(indices) {
     orden <- order(datos$fecha[indices], datos$id_medicion[indices])
@@ -551,17 +740,83 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
       delta <= -2 * umbral, "error",
       ifelse(delta <= -umbral, "sospechoso", "ok")
     )
-    data.frame(
+    regular <- data.frame(
       nivel = rep(nivel, length(a)), perfil = datos$perfil[a],
       regla = if (nivel == "regla") datos$regla[a] else NA_character_,
+      identidad_tabla = identidad[a],
       id_medicion_anterior = datos$id_medicion[a], fecha_anterior = datos$fecha[a],
       resultado_anterior = datos$resultado[a],
       id_medicion_actual = datos$id_medicion[b], fecha_actual = datos$fecha[b],
       resultado_actual = datos$resultado[b], delta = delta,
       cambio_absoluto = abs(delta), significativo = significativo,
-      direccion = direccion, severidad = severidad,
+      direccion = direccion, severidad = severidad, aspecto = "resultado",
+      # La fila existe por cada par consecutivo, cambie o no, asi que el texto
+      # no puede afirmar un cambio: con dos corridas identicas decia "Cambio el
+      # resultado" al lado de `delta = 0`, y una descripcion que contradice a su
+      # propio dato es peor que no tenerla.
+      descripcion = if (isTRUE(delta == 0)) {
+        "El resultado de la evaluaci\u00f3n se mantuvo."
+      } else {
+        "Cambi\u00f3 el resultado de la evaluaci\u00f3n."
+      },
+      evidencia = NA_character_,
       stringsAsFactors = FALSE
     )
+    if (!nrow(configuraciones)) return(regular)
+    anterior_configuracion <- indices_configuracion[a]
+    actual_configuracion <- indices_configuracion[b]
+    campos <- c(
+      modelo = "configuracion_modelo",
+      aplicabilidad = "configuracion_aplicabilidad",
+      perfil = "configuracion_perfil"
+    )
+    cambios_configuracion <- lapply(names(campos), function(nombre) {
+      campo <- unname(campos[[nombre]])
+      anterior <- rep(NA_character_, length(a))
+      actual <- rep(NA_character_, length(b))
+      validos_a <- !is.na(anterior_configuracion)
+      validos_b <- !is.na(actual_configuracion)
+      anterior[validos_a] <- configuraciones[[campo]][anterior_configuracion[validos_a]]
+      actual[validos_b] <- configuraciones[[campo]][actual_configuracion[validos_b]]
+      distintos <- (is.na(anterior) & !is.na(actual)) |
+        (!is.na(anterior) & is.na(actual)) |
+        (!is.na(anterior) & !is.na(actual) & anterior != actual)
+      if (!any(distintos)) return(NULL)
+      i <- which(distintos)
+      data.frame(
+        nivel = rep(nivel, length(i)), perfil = datos$perfil[a[i]],
+        regla = if (nivel == "regla") datos$regla[a[i]] else NA_character_,
+        identidad_tabla = identidad[a[i]],
+        id_medicion_anterior = datos$id_medicion[a[i]],
+        fecha_anterior = datos$fecha[a[i]], resultado_anterior = NA_real_,
+        id_medicion_actual = datos$id_medicion[b[i]],
+        fecha_actual = datos$fecha[b[i]], resultado_actual = NA_real_,
+        delta = NA_real_, cambio_absoluto = NA_real_, significativo = TRUE,
+        direccion = "configuracion", severidad = "error",
+        aspecto = paste0("configuracion_", nombre),
+        descripcion = paste(
+          switch(
+            nombre,
+            modelo = "Cambi\u00f3 el modelo de calidad de la corrida;",
+            aplicabilidad = "Cambi\u00f3 la aplicabilidad de la corrida;",
+            perfil = "Cambi\u00f3 el perfil de evaluaci\u00f3n de la corrida;"
+          ),
+          "se mantienen las comparaciones para que la deriva de datos no quede",
+          "oculta."
+        ),
+        evidencia = paste0(
+          "Anterior: ", ifelse(is.na(anterior[i]), "no declarada", anterior[i]),
+          "; actual: ", ifelse(is.na(actual[i]), "no declarada", actual[i]), "."
+        ), stringsAsFactors = FALSE
+      )
+    })
+    cambios_configuracion <- cambios_configuracion[
+      !vapply(cambios_configuracion, is.null, logical(1L))
+    ]
+    if (length(cambios_configuracion)) {
+      return(rbind(regular, do.call(rbind, cambios_configuracion)))
+    }
+    regular
   })
   resultado <- do.call(rbind, partes)
   resultado <- resultado[, columnas, drop = FALSE]

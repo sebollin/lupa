@@ -100,3 +100,20 @@ test_that("una metrica sin valores queda en cobertura y no produce un uno", {
   expect_equal(nrow(no_evaluada), 1L)
   expect_match(no_evaluada$objeto_medible, "no se pudo medir", ignore.case = TRUE)
 })
+
+test_that("una clave foranea sin filas dependientes queda en cobertura explicita", {
+  nucleo <- metricas_nucleo()
+  metrica <- instanciar(
+    especializar(nucleo$ReglaIntegridadInterEntidad),
+    c("clientes", "ventas"), c("id", "cliente_id")
+  )
+  medicion <- medir(
+    modelo(metrica),
+    list(clientes = data.frame(id = 1), ventas = data.frame(cliente_id = character())),
+    id_medicion = "fk-vacio"
+  )
+  expect_equal(nrow(medicion), 0L)
+  cobertura <- attr(medicion, "cobertura_metricas", exact = TRUE)
+  expect_equal(cobertura$estado, "sin_valores")
+  expect_match(cobertura$motivo, "dependiente `ventas`.*cero filas")
+})

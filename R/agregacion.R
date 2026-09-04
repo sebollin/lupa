@@ -739,6 +739,12 @@ agregar <- function(medidas, destino,
     "resultado", "agregacion"
   )]
   class(resultado) <- c("medicion", "data.frame")
+  for (nombre_atributo in c(
+    "configuracion_modelo", "configuracion_aplicabilidad"
+  )) {
+    valor_atributo <- attr(medidas, nombre_atributo, exact = TRUE)
+    if (!is.null(valor_atributo)) attr(resultado, nombre_atributo) <- valor_atributo
+  }
   if (identical(destino, "coleccion")) {
     attr(resultado, "cobertura_coleccion") <- .cobertura_agregacion_coleccion(
       coleccion, medidas$entidad

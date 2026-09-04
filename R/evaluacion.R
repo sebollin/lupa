@@ -299,6 +299,23 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   medicion
 }
 
+.configuracion_perfil_evaluacion <- function(perfil) {
+  if (!inherits(perfil, "perfil_evaluacion")) return(NULL)
+  reglas <- vapply(perfil$reglas, function(regla) {
+    .texto_configuracion_calidad(list(
+      nombre = regla$nombre,
+      metricas = regla$metricas,
+      nivel = if (is.null(regla$nivel)) "medida" else regla$nivel,
+      proporcion_minima = regla$proporcion_minima,
+      desenlace = regla$desenlace,
+      umbrales = regla$umbrales,
+      condicion = regla$condicion
+    ))
+  }, character(1L))
+  names(reglas) <- vapply(perfil$reglas, `[[`, character(1L), "nombre")
+  list(version = 1L, nombre = perfil$nombre, reglas = reglas)
+}
+
 .aplicar_condicion_regla <- function(condicion, resultado, orientacion,
                                      umbrales = NULL) {
   argumentos <- names(formals(condicion))
@@ -584,7 +601,9 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 #' Evaluar medidas, reglas y perfiles
 #'
 #' Ejecuta la cadena formal: condición por medida, proporción de medidas que
-#' cumplen cada regla y media aritmética simple de las reglas del perfil.
+#' cumplen cada regla y media aritmética simple, no ponderada, de las reglas
+#' del perfil. Los resultados por regla se conservan en `reglas`; el resumen de
+#' `perfiles` no sustituye esa distribución.
 #'
 #' @param medicion **Primer argumento.** Data frame producido por `medir()`;
 #'   puede reunir varias corridas si conserva sus `id_medicion`. No es el
@@ -600,6 +619,8 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 #'   incumplidas, el valor medido, el motivo y la regla que lo produjo.
 #'   Cuando una métrica no pudo medirse, conserva `cobertura_metricas` y deja
 #'   en `NA` el resumen afectado, en lugar de tratar la ausencia como éxito.
+#'   Conserva además, en atributos, la configuración del modelo, la
+#'   aplicabilidad y el perfil de evaluación que produjo el resultado.
 #' @export
 #'
 #' @examples
@@ -644,6 +665,15 @@ evaluar <- function(medicion, perfil) {
     reglas = evaluaciones_reglas,
     perfiles = evaluaciones_perfiles
   )
+  attr(estructura, "configuracion_modelo") <- attr(
+    medicion, "configuracion_modelo", exact = TRUE
+  )
+  attr(estructura, "configuracion_aplicabilidad") <- attr(
+    medicion, "configuracion_aplicabilidad", exact = TRUE
+  )
+  attr(estructura, "configuracion_perfil") <-
+    .configuracion_perfil_evaluacion(perfil)
+  attr(estructura, "perfil_evaluacion") <- perfil
   cobertura <- attr(medicion, "cobertura_metricas", exact = TRUE)
   if (inherits(cobertura, "data.frame") && nrow(cobertura)) {
     estructura$cobertura_metricas <- cobertura

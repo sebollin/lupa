@@ -20,7 +20,9 @@ operativamente visibles.}
 Data frame \code{deriva_calidad} con una fila por par de corridas
 consecutivas. Una mejora significativa conserva severidad \code{ok}; un
 deterioro de al menos un umbral es \code{sospechoso} y uno de al menos dos
-umbrales es \code{error}.
+umbrales es \code{error}. \code{identidad_tabla} separa series de tablas distintas y
+\code{aspecto} marca el resultado o un cambio de configuración; este último se
+informa como \code{error} pero no suprime la comparación.
 }
 \description{
 Compara corridas consecutivas, ordenadas por fecha dentro de cada perfil o

@@ -1,5 +1,28 @@
 # lupa 0.1.0
 
+## La deriva de calidad distingue un cambio en los datos de un cambio en la vara
+
+- **Cambiar el modelo, el perfil de evaluación o la aplicabilidad se leía como
+  cambio en los datos.** Subir el umbral de una regla de `0.5` a `0.9` producía
+  una deriva de `1` a `0` con severidad `error`; cambiar sólo la aplicabilidad
+  daba `0.5` a `1` **publicado como mejora**. Nada de eso ocurría en los datos.
+  Ahora la deriva declara la transición con su propia fila y **conserva** las
+  comparaciones, para que un cambio de política no oculte una deriva real: el
+  mismo criterio que ya seguía `comparar_perfiles()`.
+- **El histórico ya no compara series de tablas distintas.** `acumular_historico()`
+  admitía una corrida de una tabla y otra de otra, y la deriva las comparaba sin
+  que nada identificara cuál era cuál. Ahora se separan por su identidad.
+- **La evidencia conserva los números de fila originales.** Tras recortar por
+  `aplicabilidad`, las filas se renumeraban sobre el subconjunto y la evidencia
+  nombraba la fila equivocada: con las filas 1 y 3 aplicables informaba `1` y `2`.
+- Una descripción de deriva afirmaba «cambió el resultado» junto a un `delta = 0`.
+  Dos corridas idénticas ahora dicen que el resultado se mantuvo.
+- **Lo que se revisó y no era defecto**: `evaluar()` promedia las reglas sin
+  ponderar, y así lo declara; noventa y nueve medidas mal y una bien dan `0.5`
+  porque son dos reglas opuestas, no porque el promedio esconda algo. Se
+  documentó mejor y se conserva el detalle por regla, que es donde se ve la
+  distribución.
+
 ## El modelo de calidad ya no publica el padrón ni un 1 que no midió
 
 - **Cuarta puerta de fuga, y venía encendida.** Las métricas referenciales
