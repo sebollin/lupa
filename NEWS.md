@@ -1,5 +1,33 @@
 # lupa 0.1.0
 
+## Una política declarada no se disfraza de cambio en los datos
+
+- `comparar_perfiles()` compara ahora la política de centinelas de las dos
+  corridas y, si difiere, agrega una fila `configuracion_sentinelas_numericos` de
+  severidad `error`. Antes, el mismo `data.frame` byte a byte perfilado con dos
+  políticas distintas producía seis filas de deriva —una de ellas «Cambió el
+  rango observado de la columna»—, y quien seguía la calidad de una carga
+  mensual concluía que le habían llegado datos distintos.
+- **Las comparaciones se conservan.** El otro camino posible era declarar la
+  incomparabilidad y no comparar, como ya se hace con la configuración de
+  patrones; se descartó porque dejaría ciega la detección de deriva verdadera en
+  todas las corridas posteriores al cambio de política, que es peor que el
+  problema que resuelve. La fila declara la transición y la evidencia dice que
+  las diferencias pueden atribuirse a ella.
+
+## `perfilar_dbi()` dice qué políticas no llegan al motor
+
+- `sentinelas_numericos`, `aplicabilidad` y `columnas_opcionales` son ahora
+  argumentos explícitos de `perfilar_dbi()`. Entraban por `...` y se aplicaban
+  sólo a `perfil_muestra`, así que una misma llamada podía publicar
+  `media = 1045.09` en el resumen del motor y `media = 50.21` en el de la
+  muestra sobre las mismas filas, sin que nada lo dijera.
+- Cuando alguna de ellas se usa, `resumen_tabla$cobertura` recibe una fila
+  `degradado` que explica que los agregados SQL no honran esa política y que
+  para ese fin sirve `perfil_muestra`. El resumen del motor no cambia: traducir
+  las políticas al SQL de cada dialecto es otro trabajo, y mientras no esté
+  hecho el paquete lo declara en vez de callarlo.
+
 ## El período `AAAA-MM` es una fecha de granularidad mes
 
 - `%Y-%m`, `%m/%Y` y `%Y/%m` se reconocen como períodos mensuales. Antes la

@@ -4336,6 +4336,64 @@
   )
 }
 
+.cobertura_politicas_muestra_dbi <- function(
+    aplicabilidad = NULL, columnas_opcionales = character(),
+    sentinelas_numericos = c(-9, -99, -999, -9999, 999)) {
+  politicas <- character()
+  if (!is.null(aplicabilidad) && length(aplicabilidad)) {
+    politicas <- c(politicas, "aplicabilidad")
+  }
+  if (length(columnas_opcionales)) {
+    politicas <- c(politicas, "columnas_opcionales")
+  }
+  declarados <- tryCatch(
+    .sentinelas_numericos_declarados(sentinelas_numericos),
+    error = function(e) numeric()
+  )
+  if (length(declarados)) {
+    politicas <- c(politicas, "sentinelas_numericos")
+  }
+  if (!length(politicas)) return(.cobertura_dbi_vacia())
+  do.call(rbind, lapply(politicas, function(argumento) {
+    .registro_cobertura_dbi(
+      "resumen_tabla", argumento, "degradado",
+      paste0(
+        "El resumen SQL no honra `", argumento,
+        "`; sus agregados se calculan sin esa politica, mientras",
+        " `perfil_muestra` si la aplica. Los dos bloques pueden publicar",
+        " medidas distintas sobre las mismas filas."
+      ),
+      paste0(
+        "Usar `perfil_muestra` para esta politica. Para que",
+        " `resumen_tabla` la honre, traducir `", argumento,
+        "` al SQL del motor en una futura implementacion."
+      )
+    )
+  }))
+}
+
+.agregar_cobertura_politicas_muestra_dbi <- function(
+    resultado, aplicabilidad = NULL, columnas_opcionales = character(),
+    sentinelas_numericos = c(-9, -99, -999, -9999, 999)) {
+  if (!is.list(resultado) || !is.list(resultado$resumen_tabla)) {
+    return(resultado)
+  }
+  nuevas <- .cobertura_politicas_muestra_dbi(
+    aplicabilidad = aplicabilidad,
+    columnas_opcionales = columnas_opcionales,
+    sentinelas_numericos = sentinelas_numericos
+  )
+  if (!nrow(nuevas)) return(resultado)
+  cobertura <- resultado$resumen_tabla$cobertura
+  resultado$resumen_tabla$cobertura <- if (is.null(cobertura) || !nrow(cobertura)) {
+    nuevas
+  } else {
+    rbind(cobertura, nuevas)
+  }
+  rownames(resultado$resumen_tabla$cobertura) <- NULL
+  resultado
+}
+
 # Compara solo mediciones exactas de `n_validos` y `n_distintos`. Si salen de
 # consultas distintas y se contradicen, la explicacion defendible es que la
 # tabla cambio entre ambas sentencias: cada valor puede ser correcto dentro de
@@ -11783,6 +11841,15 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   omisión) calcula también `perfil_muestra`, o `"solo_agregados"` omite su
 #'   lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
 #'   alcance de esos agregados: eso lo decide `universo`.
+#' @param columnas_opcionales Nombres de columnas que sólo son aplicables a
+#'   parte de las filas. Esta política se aplica al `perfil_muestra`; el
+#'   resumen SQL no la traduce y lo declara en `resumen_tabla$cobertura`.
+#' @param aplicabilidad Lista nombrada de fórmulas de un solo lado, con una
+#'   regla por columna. Se reenvía al `perfil_muestra`; el resumen SQL no la
+#'   traduce y lo declara en `resumen_tabla$cobertura`.
+#' @param sentinelas_numericos Vector completo de valores numéricos que se
+#'   declaran como faltantes en el `perfil_muestra`. El resumen SQL no los
+#'   excluye de sus agregados y lo declara en `resumen_tabla$cobertura`.
 #' @param instrumentar Si se cronometra cada consulta y las etapas grandes de R
 #'   y, en PostgreSQL, se intenta atribuir el uso de bloques temporales de los
 #'   `COUNT(DISTINCT)` exactos mediante `pg_stat_statements`.
@@ -11856,7 +11923,14 @@ perfilar_dbi <- function(conexion, tabla,
                          bloque_filas = NULL,
                          max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
                          max_bytes_materializacion = .MAX_BYTES_MUESTRA,
+                         columnas_opcionales = character(),
+                         aplicabilidad = NULL,
+                         sentinelas_numericos = c(-9, -99, -999, -9999, 999),
                          ...) {
+  argumentos_muestra <- list(...)
+  argumentos_muestra$columnas_opcionales <- columnas_opcionales
+  argumentos_muestra$aplicabilidad <- aplicabilidad
+  argumentos_muestra$sentinelas_numericos <- sentinelas_numericos
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
   max_celdas_muestra <- .validar_limite_duplicados(
     max_celdas_muestra, "max_celdas_muestra"
@@ -11914,27 +11988,37 @@ perfilar_dbi <- function(conexion, tabla,
     max_bytes_materializacion = max_bytes_materializacion
   )
   if (identical(preparacion$universo, "muestra_motor")) {
-    return(.perfil_muestra_spool_dbi(
+    resultado <- .perfil_muestra_spool_dbi(
       conexion = conexion, tabla = tabla, preparacion = preparacion,
       incluir_valores = incluir_valores, bloque_filas = bloque_filas,
       max_bytes_procesamiento = max_bytes_procesamiento,
       max_bytes_materializacion = max_bytes_materializacion,
-      argumentos = list(...)
+      argumentos = argumentos_muestra
+    )
+    return(.agregar_cobertura_politicas_muestra_dbi(
+      resultado, aplicabilidad = aplicabilidad,
+      columnas_opcionales = columnas_opcionales,
+      sentinelas_numericos = sentinelas_numericos
     ))
   }
   preparacion$presupuesto$avisar_derrame_estimado <- avisar_derrame_estimado
   preparacion$presupuesto$umbral_bytes_aviso_derrame_estimado <-
     umbral_bytes_aviso_derrame_estimado
   if (!is.null(bloque_filas)) {
-    return(.perfilar_dbi_bloques(
+    resultado <- .perfilar_dbi_bloques(
       conexion = conexion, tabla = tabla, preparacion = preparacion,
       metricas = preparacion$metricas_ejecucion,
       incluir_valores = incluir_valores, bloque_filas = bloque_filas,
       max_celdas_muestra = max_celdas_muestra,
       max_bytes_muestra = max_bytes_muestra,
-      argumentos = list(...),
+      argumentos = argumentos_muestra,
       max_bytes_procesamiento = max_bytes_procesamiento,
       metricas_publicas = preparacion$metricas
+    )
+    return(.agregar_cobertura_politicas_muestra_dbi(
+      resultado, aplicabilidad = aplicabilidad,
+      columnas_opcionales = columnas_opcionales,
+      sentinelas_numericos = sentinelas_numericos
     ))
   }
   presupuesto <- preparacion$presupuesto
@@ -12340,7 +12424,8 @@ perfilar_dbi <- function(conexion, tabla,
       },
       preparacion$orden_muestra,
       preparacion$orden_sql, preparacion$dialecto, preparacion$n_total,
-      presupuesto, info_conexion, list(...), muestreo = muestreo_meta,
+      presupuesto, info_conexion, argumentos_muestra,
+      muestreo = muestreo_meta,
       tipos_declarados = preparacion$tipos, trazador = trazador,
       max_celdas_muestra = max_celdas_muestra,
       max_bytes_muestra = max_bytes_muestra
@@ -12410,7 +12495,7 @@ perfilar_dbi <- function(conexion, tabla,
     agotado = isTRUE(presupuesto$agotado)
   )
 
-  argumentos <- list(...)
+  argumentos <- argumentos_muestra
   proteger <- is.null(argumentos$proteger_datos_personales) ||
     isTRUE(argumentos$proteger_datos_personales)
   if (proteger) {
@@ -12458,6 +12543,11 @@ perfilar_dbi <- function(conexion, tabla,
   }
 
   estructura <- list(resumen_tabla = resumen, perfil_muestra = bloque$perfil)
+  estructura <- .agregar_cobertura_politicas_muestra_dbi(
+    estructura, aplicabilidad = aplicabilidad,
+    columnas_opcionales = columnas_opcionales,
+    sentinelas_numericos = sentinelas_numericos
+  )
   class(estructura) <- "perfil_dbi"
   estructura
 }

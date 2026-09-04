@@ -395,6 +395,14 @@ cobertura con el motivo. Si no se pidió la muestra, la cobertura usa
 `no_solicitado`, que no es un fallo; se puede pedir sólo los agregados con
 `bloque_muestra = "solo_agregados"`.
 
+**Y declara lo que el motor no puede hacer.** `sentinelas_numericos`,
+`aplicabilidad` y `columnas_opcionales` cambian lo que `perfilar()` resume, pero
+los agregados SQL se calculan sin ellas: `AVG()` no sabe de centinelas. Cuando
+alguna se usa, la cobertura recibe una fila `degradado` que lo dice y remite a
+`perfil_muestra`, porque una misma llamada podía publicar dos medias distintas
+sobre las mismas filas —1045,09 en el resumen del motor y 50,21 en el de la
+muestra— sin que nada lo advirtiera.
+
 ### Saber qué falta antes de chocarse
 
 `lupa` tiene dos dependencias obligatorias, `cli` y `data.table`. `data.table` se

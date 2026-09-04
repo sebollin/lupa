@@ -385,6 +385,14 @@ NULL`, and a coverage row carrying the reason. If the sample was not requested,
 coverage uses `no_solicitado`, which is not a failure; request only aggregates
 with `bloque_muestra = "solo_agregados"`.
 
+**And it declares what the engine cannot do.** `sentinelas_numericos`,
+`aplicabilidad` and `columnas_opcionales` change what `perfilar()` summarises,
+but the SQL aggregates are computed without them: `AVG()` knows nothing about
+sentinels. When one of them is used, coverage gets a `degradado` row saying so
+and pointing at `perfil_muestra` — because a single call could publish two
+different means over the same rows, 1045.09 in the engine summary and 50.21 in
+the sample one, with nothing to warn you.
+
 ### Knowing what is missing before you hit it
 
 `lupa` has two hard dependencies, `cli` and `data.table`. `data.table` is used

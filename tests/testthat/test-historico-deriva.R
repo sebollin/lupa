@@ -425,3 +425,37 @@ test_that("las ramas de comparabilidad estructural quedan explícitas", {
       cambio_severidad$cambio == "agravado"
   ))
 })
+
+test_that("el cambio de centinelas se declara sin apagar la deriva", {
+  datos <- data.frame(x = c(rep(1, 90), rep(2, 10), rep(9999, 10)))
+  anterior <- perfilar(
+    datos, sentinelas_numericos = numeric(), analizar_dependencias = FALSE,
+    fecha = as.POSIXct("2026-01-01", tz = "UTC")
+  )
+  actual <- perfilar(
+    datos, sentinelas_numericos = 9999, analizar_dependencias = FALSE,
+    fecha = as.POSIXct("2026-02-01", tz = "UTC")
+  )
+
+  deriva <- comparar_perfiles(anterior, actual)
+  politica <- deriva[deriva$aspecto == "configuracion_sentinelas_numericos", ,
+                     drop = FALSE]
+  expect_equal(nrow(politica), 1L)
+  expect_equal(politica$cambio, "modificado")
+  expect_equal(as.character(politica$severidad), "error")
+  expect_match(politica$descripcion, "se mantienen las comparaciones")
+  expect_true(any(deriva$aspecto == "faltantes"))
+  expect_true(any(deriva$aspecto == "rango"))
+  expect_true(any(deriva$aspecto == "hallazgo"))
+
+  posterior <- perfilar(
+    data.frame(x = c(rep(1, 80), rep(3, 20), rep(9999, 10))),
+    sentinelas_numericos = 9999, analizar_dependencias = FALSE,
+    fecha = as.POSIXct("2026-03-01", tz = "UTC")
+  )
+  deriva_estable <- comparar_perfiles(actual, posterior)
+  expect_false(any(
+    deriva_estable$aspecto == "configuracion_sentinelas_numericos"
+  ))
+  expect_true(any(deriva_estable$aspecto == "rango"))
+})

@@ -58,6 +58,11 @@
   perfil$meta[campos]
 }
 
+.configuracion_sentinelas_perfil <- function(perfil) {
+  if (!"sentinelas_numericos" %in% names(perfil$meta)) return(NULL)
+  perfil$meta$sentinelas_numericos
+}
+
 .rango_perfil <- function(fila) {
   if (is.finite(fila$minimo) && is.finite(fila$maximo)) {
     return(list(
@@ -359,6 +364,32 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         )
       }
     }
+  }
+
+  sentinelas_a <- .configuracion_sentinelas_perfil(anterior)
+  sentinelas_b <- .configuracion_sentinelas_perfil(actual)
+  sentinelas_comparables <- !is.null(sentinelas_a) &&
+    !is.null(sentinelas_b) &&
+    isTRUE(all.equal(sentinelas_a, sentinelas_b, check.attributes = FALSE))
+  if (!sentinelas_comparables) {
+    texto_configuracion <- function(x) {
+      if (is.null(x)) return(NA_character_)
+      paste(unlist(x), collapse = "; ")
+    }
+    agregar(
+      NA_character_, "configuracion_sentinelas_numericos", "modificado",
+      "error", texto_configuracion(sentinelas_a),
+      texto_configuracion(sentinelas_b),
+      descripcion = paste(
+        "Cambi\u00f3 la pol\u00edtica de centinelas num\u00e9ricos; se mantienen las",
+        "comparaciones para que las corridas siguientes sigan detectando",
+        "deriva con la pol\u00edtica vigente."
+      ),
+      evidencia = paste(
+        "Las diferencias de m\u00e9tricas o hallazgos pueden atribuirse a esta",
+        "pol\u00edtica en la transici\u00f3n; revisar la configuraci\u00f3n publicada."
+      )
+    )
   }
 
   hallazgos_a <- .resumir_hallazgos_deriva(anterior)
