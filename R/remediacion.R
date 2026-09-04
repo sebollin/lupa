@@ -6,6 +6,7 @@
     estrategia = character(), recomendada = logical(),
     severidad_origen = character(), evidencia = character(),
     justificacion = character(), n_afectadas = numeric(),
+    unidad_conteo = character(),
     reversible = logical(), destructiva = logical(),
     estado = character(), estado_reparacion = character(), aplicar = logical(),
     orden = integer(), stringsAsFactors = FALSE
@@ -22,7 +23,8 @@
                           decision_grupo = NA_character_,
                           recomendacion_grupo = NA_character_,
                           destructiva = FALSE,
-                          estado_reparacion = NA_character_) {
+                          estado_reparacion = NA_character_,
+                          unidad_conteo = NA_character_) {
   estructura <- data.frame(
     id_accion = "", columna = columna, hallazgo = hallazgo,
     grupo = grupo, decision_grupo = decision_grupo,
@@ -30,7 +32,8 @@
     estrategia = estrategia, recomendada = recomendada,
     severidad_origen = NA_character_, evidencia = "",
     justificacion = justificacion,
-    n_afectadas = as.numeric(n_afectadas), reversible = reversible,
+    n_afectadas = as.numeric(n_afectadas),
+    unidad_conteo = as.character(unidad_conteo), reversible = reversible,
     destructiva = destructiva,
     estado = estado, estado_reparacion = estado_reparacion,
     aplicar = aplicar, orden = as.integer(orden),
@@ -252,7 +255,8 @@
 #'
 #' `estado` distingue acciones `lista`, `bloqueada` e `informativa`; `orden`
 #' fija la secuencia reproducible. `n_afectadas` es la estimación del perfil y
-#' el registro informa `n_cambiadas` sobre los datos recibidos. `reversible`
+#' `unidad_conteo` dice si cuenta filas, columnas o valores distintos. El
+#' registro informa `n_cambiadas` sobre los datos recibidos. `reversible`
 #' indica si la conversión conserva la identidad de cada valor. Las
 #' conversiones se comprueban sobre todos los valores de `datos`: las numéricas
 #' bloquean ceros iniciales y colisiones no inyectivas, mientras que fechas,
@@ -300,7 +304,10 @@
 #' modelo externo, sigue siendo una regularidad aprendida de una sola entrega y
 #' puede reflejar un error sistemático en vez de una regla de negocio. El plan
 #' conserva el mapa y su soporte para que el usuario la confirme; sólo entonces
-#' se aplica y se vuelve a validar contra los datos recibidos.
+#' se aplica y se vuelve a validar contra los datos recibidos. Si la protección
+#' enmascaró alguna clave del mapa, éste no se usa como tabla de cruce: la
+#' relación se reconstruye sobre los datos recibidos con el soporte declarado,
+#' sin publicar sus valores.
 #'
 #' `marcar_filas_duplicadas` añade dos columnas. `.fila_duplicada` reproduce la
 #' semántica de [duplicated()] y marca sólo las apariciones posteriores;
@@ -337,6 +344,9 @@
 #'   sincronizado y `eliminados`. El `registro` conserva `estado` (`ejecutada`
 #'   o `fallida`), `error`, `n_no_reversibles` y la `justificacion` de cada
 #'   acción seleccionada, incluso cuando una falla y las siguientes continúan.
+#'   Si una acción seleccionada no produce ningún efecto cuando el plan estimaba
+#'   alguno, se registra como `fallida` con el motivo y su copia no se incorpora
+#'   al resultado.
 #'   Si una columna de entrada es un factor, las acciones que transforman su
 #'   texto devuelven una columna `character`: no se reconstruyen los niveles
 #'   originales, porque una limpieza puede introducir valores nuevos.
@@ -464,7 +474,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
             "comparaciones y exportes. Los ZWJ/ZWNJ se conservan."
           ), n_eliminables, FALSE,
           estado = estado_columna,
-          aplicar = identical(estado_columna, "lista"), orden = 205L
+          aplicar = identical(estado_columna, "lista"), orden = 195L
         ))
       }
       if (isTRUE(n_espacios > 0L)) {
@@ -979,6 +989,12 @@ planificar_limpieza <- function(perfil, datos = NULL,
         resultado$severidad_origen[[j]] <- as.character(
           hallazgos$severidad[[indice_hallazgo]]
         )
+        resultado$unidad_conteo[[j]] <- as.character(
+          hallazgos$unidad_conteo[[indice_hallazgo]]
+        )
+      } else if (startsWith(resultado$estrategia[[j]],
+                            "imputar_dependencia_funcional__")) {
+        resultado$unidad_conteo[[j]] <- "fila"
       }
     }
   }
@@ -1014,6 +1030,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     "id_accion", "columna", "hallazgo", "grupo", "decision_grupo",
     "recomendacion_grupo", "estrategia", "recomendada",
     "severidad_origen", "evidencia", "justificacion", "n_afectadas",
+    "unidad_conteo",
     "reversible", "destructiva", "estado", "aplicar", "orden", "parametros"
   )
 }
@@ -1031,6 +1048,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
   }
   if (!is.list(plan$parametros)) {
     stop("`plan$parametros` debe ser una columna de listas.", call. = FALSE)
+  }
+  if (!is.character(plan$unidad_conteo)) {
+    stop("`plan$unidad_conteo` debe ser texto.", call. = FALSE)
   }
   if (!is.logical(plan$recomendada) || anyNA(plan$recomendada) ||
       !is.logical(plan$reversible)) {
@@ -1171,12 +1191,33 @@ planificar_limpieza <- function(perfil, datos = NULL,
 .imputar_dependencia <- function(datos, parametros) {
   determinante <- parametros$determinante
   dependiente <- parametros$dependiente
-  mapa <- parametros$mapa
-  if (!all(c(determinante, dependiente) %in% names(datos)) ||
-      !inherits(mapa, "data.frame") ||
+  if (!all(c(determinante, dependiente) %in% names(datos))) {
+    stop("La imputaci\u00f3n no conserva un contrato de dependencia v\u00e1lido.",
+         call. = FALSE)
+  }
+  mapa <- if (isTRUE(parametros$mapa_enmascarado)) {
+    soporte <- parametros$soporte_minimo
+    if (length(soporte) != 1L || is.na(soporte) ||
+        !is.finite(soporte) || soporte < 1L) {
+      stop("La imputaci\u00f3n no conserva un soporte de dependencia v\u00e1lido.",
+           call. = FALSE)
+    }
+    .mapa_dependencia(
+      datos, determinante, dependiente, soporte_minimo = soporte
+    )
+  } else {
+    parametros$mapa
+  }
+  if (!inherits(mapa, "data.frame") ||
       !all(c("determinante", "dependiente") %in% names(mapa))) {
     stop("La imputaci\u00f3n no conserva un contrato de dependencia v\u00e1lido.",
          call. = FALSE)
+  }
+  if (isTRUE(parametros$mapa_enmascarado) && !nrow(mapa)) {
+    stop(
+      "La dependencia funcional del plan no se puede resolver sobre los datos recibidos.",
+      call. = FALSE
+    )
   }
   indices <- match(
     .valores_relacion(datos[[determinante]]),
@@ -1539,7 +1580,27 @@ planificar_limpieza <- function(perfil, datos = NULL,
     pmax(salida[limites$validos], limites$inferior), limites$superior
   )
   salida[!limites$validos] <- NA_real_
-  list(valor = salida, n = sum(mascara))
+  # Con pocas observaciones el propio reemplazo mueve los cuartiles: el
+  # limite de Tukey que saco al extremo puede convertirse en el nuevo extremo
+  # y el perfil seguiria emitiendo el mismo hallazgo. Ajustar los residuos al
+  # centro de los valores que no son extremos conserva la intencion de
+  # winsorizar y hace que la accion sea comprobable al volver a perfilar.
+  if (any(mascara)) {
+    limite_iteraciones <- max(1L, 2L * length(salida))
+    for (iteracion in seq_len(limite_iteraciones)) {
+      residuos <- .marca_outliers(salida)
+      if (!any(residuos)) break
+      centrales <- salida[is.finite(salida) & !residuos]
+      if (!length(centrales)) break
+      salida[residuos] <- stats::median(centrales)
+    }
+    if (any(.marca_outliers(salida))) {
+      centrales <- salida[is.finite(salida)]
+      if (length(centrales)) salida[is.finite(salida)] <- centrales[[1L]]
+    }
+  }
+  cambio <- limites$validos & limites$valores != salida
+  list(valor = salida, n = sum(cambio))
 }
 
 .grupos_filas_duplicadas <- function(datos) {
@@ -1857,6 +1918,53 @@ planificar_limpieza <- function(perfil, datos = NULL,
   )
 }
 
+.motivo_efecto_accion <- function(accion, ejecutada) {
+  esperado <- as.numeric(accion$n_afectadas[[1L]])
+  actual <- as.numeric(ejecutada$n)
+  if (length(esperado) != 1L || !is.finite(esperado) || esperado <= 0L ||
+      length(actual) != 1L || !is.finite(actual)) {
+    return(NULL)
+  }
+  unidad <- as.character(accion$unidad_conteo[[1L]])
+  if (actual == 0L) {
+    return(paste0(
+      "La acci\u00f3n `", accion$estrategia[[1L]],
+      "` qued\u00f3 sin efecto: el plan estimaba ", esperado,
+      if (length(unidad) && !is.na(unidad) && nzchar(unidad)) {
+        paste0(" ", unidad)
+      } else "", "."
+    ))
+  }
+  NULL
+}
+
+.accion_modifica_clave <- function(accion, clave) {
+  if (!length(clave)) return(FALSE)
+  estrategia <- accion$estrategia[[1L]]
+  parametros <- accion$parametros[[1L]]
+  if (estrategia %in% c("normalizar_nombres", "normalizar_nombres_snake_case")) {
+    esperados <- parametros$nombres_esperados
+    propuestos <- parametros$nombres_propuestos
+    if (length(esperados) && length(propuestos) &&
+        length(esperados) == length(propuestos)) {
+      return(any(clave %in% esperados[esperados != propuestos]))
+    }
+    return(TRUE)
+  }
+  if (estrategia %in% c(
+    "marcar_filas_duplicadas", "marcar_columnas_duplicadas",
+    "marcar_outliers"
+  )) return(FALSE)
+  if (estrategia %in% c(
+    "eliminar_columna_duplicada", "eliminar_columna_constante"
+  )) {
+    return(isTRUE(parametros$eliminar %in% clave) ||
+      isTRUE(accion$columna[[1L]] %in% clave))
+  }
+  columna <- accion$columna[[1L]]
+  !is.na(columna) && columna %in% clave
+}
+
 #' @rdname planificar_limpieza
 #' @param permitir_eliminacion Segundo consentimiento obligatorio para ejecutar
 #'   acciones que eliminan filas o columnas.
@@ -1903,6 +2011,12 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   eliminados <- list(filas = list(), columnas = list())
   for (j in seq_along(seleccion)) {
     accion <- plan[seleccion[[j]], , drop = FALSE]
+    clave <- if (inherits(salida, "data.table") &&
+                 requireNamespace("data.table", quietly = TRUE)) {
+      data.table::key(salida)
+    } else {
+      character()
+    }
     # Cada acción trabaja sobre una copia del estado anterior. Si falla, la
     # columna (o tabla) queda intacta y el resto del plan puede continuar.
     ejecutada <- tryCatch(
@@ -1911,8 +2025,17 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
         error = conditionMessage(e), n = 0, n_no_reversibles = 0
       )
     )
+    if (is.null(ejecutada$error)) {
+      motivo_efecto <- .motivo_efecto_accion(accion, ejecutada)
+      if (!is.null(motivo_efecto)) ejecutada$error <- motivo_efecto
+    }
     fallo <- !is.null(ejecutada$error)
-    if (!fallo) salida <- ejecutada$datos
+    if (!fallo) {
+      salida <- ejecutada$datos
+      if (length(clave) && .accion_modifica_clave(accion, clave)) {
+        data.table::setkey(salida, NULL)
+      }
+    }
     registro <- data.frame(
       id_accion = accion$id_accion[[1L]],
       columna = accion$columna[[1L]],
@@ -2175,7 +2298,14 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
                         if (is.na(acciones$columna[[1L]])) "tabla" else acciones$columna[[1L]]))
     cantidades <- acciones$n_afectadas[is.finite(acciones$n_afectadas)]
     cantidad <- if (length(cantidades)) max(cantidades) else NA_real_
-    cli::cli_text(paste("Cantidad estimada:", cantidad))
+    unidades <- unique(as.character(acciones$unidad_conteo))
+    unidades <- unidades[!is.na(unidades) & nzchar(unidades)]
+    unidad <- if (length(unidades)) {
+      paste0(" (unidad: ", paste(unidades, collapse = ", "), ")")
+    } else {
+      ""
+    }
+    cli::cli_text(paste0("Cantidad estimada: ", cantidad, unidad))
     if (length(ejemplos)) {
       cli::cli_text(paste("Ejemplos reales:", paste(ejemplos, collapse = "; ")))
     }
@@ -2268,7 +2398,8 @@ print.plan_limpieza <- function(x, ...) {
   }
   vista <- x[c(
     "id_accion", "grupo", "columna", "estrategia", "decision_grupo",
-    "estado", "recomendada", "destructiva", "aplicar"
+    "n_afectadas", "unidad_conteo", "orden", "estado", "recomendada",
+    "destructiva", "aplicar"
   )]
   print.data.frame(vista, row.names = FALSE)
   invisible(x)

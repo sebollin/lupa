@@ -707,10 +707,28 @@
 # La accion sigue siendo visible, pero sus argumentos no pueden llevarse un
 # valor personal de vuelta a la tabla. Un plan con parametros enmascarados es
 # deliberadamente informativo: quien necesite ejecutarlo debe confirmar esos
-# valores en la fuente protegida.
+# valores en la fuente protegida. La imputacion es una excepcion operativa: el
+# mapa privado no viaja, pero sus columnas y su soporte si; `aplicar()` vuelve a
+# resolver la relacion sobre los datos que recibe.
 .proteger_plan_limpieza <- function(plan, perfil, datos = NULL) {
   if (!inherits(plan, "data.frame")) return(plan)
   sensibles <- .columnas_personales_protegidas(perfil)
+  indices_dependencias <- which(startsWith(
+    as.character(plan$estrategia), "imputar_dependencia_funcional__"
+  ))
+  if (length(indices_dependencias) && is.list(plan$parametros)) {
+    for (indice in indices_dependencias) {
+      parametros <- plan$parametros[[indice]]
+      if (!is.list(parametros)) next
+      involucra_protegida <- any(c(
+        parametros$determinante, parametros$dependiente
+      ) %in% sensibles)
+      if (isTRUE(involucra_protegida)) {
+        parametros$mapa_enmascarado <- TRUE
+        plan$parametros[[indice]] <- parametros
+      }
+    }
+  }
   valores <- .valores_perfil_protegidos(
     perfil$columnas, perfil$patrones, perfil$datos_personales, perfil$meta
   )

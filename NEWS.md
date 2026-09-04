@@ -1,5 +1,26 @@
 # lupa 0.1.0
 
+## El plan dice en qué unidad cuenta, y `aplicar()` no miente sobre lo que hizo
+
+- **Una acción podía reportarse `ejecutada` sin hacer nada.** Cuando la columna
+  determinante de una dependencia funcional es dato personal, el plan enmascara
+  su mapa —y hace bien: ese mapa lleva documentos—, pero la imputación cotejaba
+  los datos contra las claves enmascaradas, que nunca coinciden. El registro
+  decía `ejecutada`, `n_cambiadas = 0`, sin error, y el `NA` seguía ahí. Ahora la
+  dependencia se resuelve **sobre los datos que recibe `aplicar()`**, así que la
+  imputación funciona y el mapa sigue sin viajar en claro.
+- **Un efecto nulo ya no se declara `ejecutada`.** Una acción que prometía
+  cambiar filas y no cambió ninguna queda `fallida` con su motivo. Que lo
+  prometido y lo hecho no coincidan tiene que ser visible.
+- **El plan declara `unidad_conteo`.** `n_afectadas` heredaba el número del
+  hallazgo sin heredar su unidad, así que `convertir_minusculas` anunciaba `3`
+  —valores distintos en colisión— y cambiaba 90 filas. El número no cambia; ahora
+  dice en qué unidad está, y `print()` y `guiar_limpieza()` lo muestran, que es
+  donde se lee antes de decidir.
+- **La clave de un `data.table` se suelta cuando la acción rompe su orden.**
+  El resultado declaraba estar ordenado por una columna que acababa de cambiar.
+  `data.table` suelta la clave sola en ese caso; el paquete hacía lo contrario.
+
 ## `perfilar_dbi()` compara sus dos bloques y declara la divergencia
 
 - El objeto trae `resumen_tabla`, que calcula el motor con SQL, y

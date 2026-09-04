@@ -34,6 +34,9 @@ columnas retiradas. Es \code{TRUE} de forma predeterminada.}
 sincronizado y \code{eliminados}. El \code{registro} conserva \code{estado} (\code{ejecutada}
 o \code{fallida}), \code{error}, \code{n_no_reversibles} y la \code{justificacion} de cada
 acción seleccionada, incluso cuando una falla y las siguientes continúan.
+Si una acción seleccionada no produce ningún efecto cuando el plan estimaba
+alguno, se registra como \code{fallida} con el motivo y su copia no se incorpora
+al resultado.
 Si una columna de entrada es un factor, las acciones que transforman su
 texto devuelven una columna \code{character}: no se reconstruyen los niveles
 originales, porque una limpieza puede introducir valores nuevos.
@@ -65,7 +68,8 @@ revisado de una omisión deliberada.
 
 \code{estado} distingue acciones \code{lista}, \code{bloqueada} e \code{informativa}; \code{orden}
 fija la secuencia reproducible. \code{n_afectadas} es la estimación del perfil y
-el registro informa \code{n_cambiadas} sobre los datos recibidos. \code{reversible}
+\code{unidad_conteo} dice si cuenta filas, columnas o valores distintos. El
+registro informa \code{n_cambiadas} sobre los datos recibidos. \code{reversible}
 indica si la conversión conserva la identidad de cada valor. Las
 conversiones se comprueban sobre todos los valores de \code{datos}: las numéricas
 bloquean ceros iniciales y colisiones no inyectivas, mientras que fechas,
@@ -113,7 +117,10 @@ una dependencia exacta permite deducir un valor sin usar media, moda o un
 modelo externo, sigue siendo una regularidad aprendida de una sola entrega y
 puede reflejar un error sistemático en vez de una regla de negocio. El plan
 conserva el mapa y su soporte para que el usuario la confirme; sólo entonces
-se aplica y se vuelve a validar contra los datos recibidos.
+se aplica y se vuelve a validar contra los datos recibidos. Si la protección
+enmascaró alguna clave del mapa, éste no se usa como tabla de cruce: la
+relación se reconstruye sobre los datos recibidos con el soporte declarado,
+sin publicar sus valores.
 
 \code{marcar_filas_duplicadas} añade dos columnas. \code{.fila_duplicada} reproduce la
 semántica de \code{\link[=duplicated]{duplicated()}} y marca sólo las apariciones posteriores;

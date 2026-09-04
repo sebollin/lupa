@@ -1174,6 +1174,13 @@ be evaluated and how to resolve them. Automation must inspect it as well as
 run. Cleanup is always explicit—`aplicar()` changes only actions selected from
 an editable plan.
 
+That plan **states the unit it counts in**: `n_afectadas` travels with its
+`unidad_conteo`, because a case-folding action announces three — the distinct
+values that collide — and changes ninety rows, and whoever decides needs to know
+which of the two they are reading. And `aplicar()` **does not claim work it did
+not do**: an action whose effect turns out to be nil is recorded as `fallida`
+with its reason, not `ejecutada`.
+
 ## ✨ What lupa does in detail
 
 - Profiles a delivery and surfaces missingness, types, patterns, dates, and

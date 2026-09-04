@@ -1202,6 +1202,13 @@ de buscar `error`: cero errores no equivale a un perfil limpio si hubo
 diagnósticos sin ejecutar. La limpieza siempre es explícita: `aplicar()` sólo
 cambia las acciones elegidas de un plan editable.
 
+Ese plan **declara en qué unidad cuenta**: `n_afectadas` viene con su
+`unidad_conteo`, porque una acción sobre mayúsculas anuncia tres —los valores
+distintos que colisionan— y cambia noventa filas, y quien decide tiene que saber
+cuál de las dos cosas está leyendo. Y `aplicar()` **no dice haber hecho lo que no
+hizo**: una acción cuyo efecto resulta nulo queda `fallida` con su motivo, no
+`ejecutada`.
+
 ## ✨ Qué hace lupa en detalle
 
 - Perfila una entrega y muestra faltantes, tipos, patrones, fechas y evidencia
