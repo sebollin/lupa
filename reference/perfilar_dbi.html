@@ -95,6 +95,9 @@ cliente; el resumen y <code><a href="perfilar.html">perfilar()</a></code> leen e
 <span>  bloque_filas <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_bytes_procesamiento <span class="op">=</span> <span class="va">.MAX_BYTES_MUESTRA</span>,</span>
 <span>  max_bytes_materializacion <span class="op">=</span> <span class="va">.MAX_BYTES_MUESTRA</span>,</span>
+<span>  columnas_opcionales <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  aplicabilidad <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  sentinelas_numericos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">9</span>, <span class="op">-</span><span class="fl">99</span>, <span class="op">-</span><span class="fl">999</span>, <span class="op">-</span><span class="fl">9999</span>, <span class="fl">999</span><span class="op">)</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -387,6 +390,24 @@ para el trailer; si no alcanza, se publica
 <code>spool_presupuesto_excedido</code> y
 <code>muestra_inestable:presupuesto_materializacion</code> sin mezclar una muestra
 parcial con resultados completos. <code>Inf</code> desactiva este límite.</p></dd>
+
+
+<dt id="arg-columnas-opcionales">columnas_opcionales<a class="anchor" aria-label="anchor" href="#arg-columnas-opcionales"></a></dt>
+<dd><p>Nombres de columnas que sólo son aplicables a
+parte de las filas. Esta política se aplica al <code>perfil_muestra</code>; el
+resumen SQL no la traduce y lo declara en <code>resumen_tabla$cobertura</code>.</p></dd>
+
+
+<dt id="arg-aplicabilidad">aplicabilidad<a class="anchor" aria-label="anchor" href="#arg-aplicabilidad"></a></dt>
+<dd><p>Lista nombrada de fórmulas de un solo lado, con una
+regla por columna. Se reenvía al <code>perfil_muestra</code>; el resumen SQL no la
+traduce y lo declara en <code>resumen_tabla$cobertura</code>.</p></dd>
+
+
+<dt id="arg-sentinelas-numericos">sentinelas_numericos<a class="anchor" aria-label="anchor" href="#arg-sentinelas-numericos"></a></dt>
+<dd><p>Vector completo de valores numéricos que se
+declaran como faltantes en el <code>perfil_muestra</code>. El resumen SQL no los
+excluye de sus agregados y lo declara en <code>resumen_tabla$cobertura</code>.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>

@@ -2,6 +2,264 @@
 
 ## lupa 0.1.0
 
+### Una declaración vale en todas las salidas, no sólo en la primera
+
+- **`desenlace = "suprimir"` se enmascaraba en un lado y se publicaba en
+  el otro.** Una regla puede declarar que una medida no debe publicarse;
+  el informe decía `[valor suprimido]` dos veces y publicaba el valor
+  igual en otra sección del mismo documento. La supresión alcanza ahora
+  al objeto, a [`print()`](https://rdrr.io/r/base/print.html), al HTML,
+  al histórico, al tablero, al índice y al archivo guardado. Se conserva
+  la señal —que la medida existe y que fue suprimida— y se oculta el
+  número.
+- **[`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)
+  y
+  [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md)
+  no habían heredado la cobertura de métricas.** El arreglo que impide
+  publicar un `1` sobre controles que no corrieron llegaba a
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) y
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md) y
+  no a estas dos. Las tres salidas llevan ahora `cobertura_metricas`.
+- **[`comparar_equivalencia()`](https://sebollin.github.io/lupa/reference/comparar_equivalencia.md)
+  no distinguía «son distintas» de «no se pudo comparar».** Con la
+  intersección de columnas vacía devolvía cero filas, igual que dos
+  perfiles idénticos. Ahora declara `columna_solo_en_anterior` y
+  `columna_solo_en_actual` en `cobertura_diagnosticos` con su
+  `como_resolverlo`, y el resumen cuenta comparados y no comparables por
+  separado.
+- El motivo `faltante_misma_clase` ya no aparece sobre columnas de
+  clases distintas: dice qué tipo cambió.
+
+### La deriva de calidad distingue un cambio en los datos de un cambio en la vara
+
+- **Cambiar el modelo, el perfil de evaluación o la aplicabilidad se
+  leía como cambio en los datos.** Subir el umbral de una regla de `0.5`
+  a `0.9` producía una deriva de `1` a `0` con severidad `error`;
+  cambiar sólo la aplicabilidad daba `0.5` a `1` **publicado como
+  mejora**. Nada de eso ocurría en los datos. Ahora la deriva declara la
+  transición con su propia fila y **conserva** las comparaciones, para
+  que un cambio de política no oculte una deriva real: el mismo criterio
+  que ya seguía
+  [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md).
+- **El histórico ya no compara series de tablas distintas.**
+  [`acumular_historico()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)
+  admitía una corrida de una tabla y otra de otra, y la deriva las
+  comparaba sin que nada identificara cuál era cuál. Ahora se separan
+  por su identidad.
+- **La evidencia conserva los números de fila originales.** Tras
+  recortar por `aplicabilidad`, las filas se renumeraban sobre el
+  subconjunto y la evidencia nombraba la fila equivocada: con las filas
+  1 y 3 aplicables informaba `1` y `2`.
+- Una descripción de deriva afirmaba «cambió el resultado» junto a un
+  `delta = 0`. Dos corridas idénticas ahora dicen que el resultado se
+  mantuvo.
+- **Lo que se revisó y no era defecto**:
+  [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md)
+  promedia las reglas sin ponderar, y así lo declara; noventa y nueve
+  medidas mal y una bien dan `0.5` porque son dos reglas opuestas, no
+  porque el promedio esconda algo. Se documentó mejor y se conserva el
+  detalle por regla, que es donde se ve la distribución.
+
+### El modelo de calidad ya no publica el padrón ni un 1 que no midió
+
+- **Cuarta puerta de fuga, y venía encendida.** Las métricas
+  referenciales informan, ante un fallo, cuál era el candidato más
+  cercano y a qué distancia —y eso es justo lo que vuelve accionable el
+  hallazgo—. Pero incrustaban el **valor real del referencial** en
+  `objeto_medible`: sobre un padrón de personas, el documento y el
+  nombre completo, propagados a
+  [`historico_calidad()`](https://sebollin.github.io/lupa/reference/historico_calidad.md),
+  que la documentación promociona como exportable con
+  [`write.csv()`](https://rdrr.io/r/utils/write.table.html). Ahora el
+  valor sale enmascarado y la señal se conserva:
+  `{candidato_referencial=[valor protegido]; distancia=0.0296}`. Un
+  referencial sin datos personales mantiene su evidencia completa.
+- **Una métrica que no se puede evaluar ya no desaparece.** Sobre una
+  columna sin ningún valor, la métrica de formato se esfumaba de la
+  medición y la evaluación publicaba `1` —calidad perfecta— sobre los
+  controles que sí habían corrido. Ahora queda registrada en la
+  cobertura de métricas con su motivo, y la regla y el perfil informan
+  `NA` en lugar de un número que no midió lo que dice. Una medición
+  completa sigue dando su resultado sin filas de cobertura.
+
+### El plan dice en qué unidad cuenta, y `aplicar()` no miente sobre lo que hizo
+
+- **Una acción podía reportarse `ejecutada` sin hacer nada.** Cuando la
+  columna determinante de una dependencia funcional es dato personal, el
+  plan enmascara su mapa —y hace bien: ese mapa lleva documentos—, pero
+  la imputación cotejaba los datos contra las claves enmascaradas, que
+  nunca coinciden. El registro decía `ejecutada`, `n_cambiadas = 0`, sin
+  error, y el `NA` seguía ahí. Ahora la dependencia se resuelve **sobre
+  los datos que recibe
+  [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)**,
+  así que la imputación funciona y el mapa sigue sin viajar en claro.
+- **Un efecto nulo ya no se declara `ejecutada`.** Una acción que
+  prometía cambiar filas y no cambió ninguna queda `fallida` con su
+  motivo. Que lo prometido y lo hecho no coincidan tiene que ser
+  visible.
+- **El plan declara `unidad_conteo`.** `n_afectadas` heredaba el número
+  del hallazgo sin heredar su unidad, así que `convertir_minusculas`
+  anunciaba `3` —valores distintos en colisión— y cambiaba 90 filas. El
+  número no cambia; ahora dice en qué unidad está, y
+  [`print()`](https://rdrr.io/r/base/print.html) y
+  [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md)
+  lo muestran, que es donde se lee antes de decidir.
+- **La clave de un `data.table` se suelta cuando la acción rompe su
+  orden.** El resultado declaraba estar ordenado por una columna que
+  acababa de cambiar. `data.table` suelta la clave sola en ese caso; el
+  paquete hacía lo contrario.
+
+### `perfilar_dbi()` compara sus dos bloques y declara la divergencia
+
+- El objeto trae `resumen_tabla`, que calcula el motor con SQL, y
+  `perfil_muestra`, que es
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sobre una muestra. **Calculaban la misma cantidad por dos vías y
+  publicaban las dos sin compararlas.** Ahora, cuando ambos existen, se
+  cruzan las once métricas comunes y toda diferencia que supere la
+  tolerancia deja una fila `divergencia` en `resumen_tabla$cobertura`
+  con los dos valores, la cobertura de la muestra y las causas posibles.
+- **No se elige un ganador.** El paquete no sabe cuál de los dos es la
+  verdad, y decirlo sería inventar; lo que sí puede hacer es no callar
+  que no coinciden. Los agregados del motor y el perfil de la muestra no
+  cambian.
+- Una muestra que no cubre la tabla **no** produce divergencias: la
+  comparación distingue la diferencia esperable por muestreo de la que
+  no lo es.
+- Sale de tres casos medidos con causas distintas y un mismo síntoma:
+  `NaN` e `Inf`, que SQL no trata como R —once métricas discrepaban—; la
+  cancelación de coma flotante, donde `{1e16, 1, -1e16}` da media `0` en
+  el motor y la verdad es 1/3; y un defecto de `PERCENTILE_CONT` en
+  MariaDB sobre `DECIMAL` grande, que publicaba `mediana = 1e+08`
+  mientras la muestra decía `1,23e+19` —**once órdenes de magnitud**,
+  las dos en el mismo objeto y sin una nota—.
+- Parchear cada causa habría sido una carrera perdida: el catálogo de
+  motores por tipos no cierra. Cruzar los dos bloques las cubre a todas,
+  y a las que todavía no aparecieron.
+
+### Tres puertas por las que se escapaba un valor protegido
+
+Una columna clasificada como dato personal se protege: la moda sale como
+`[valor protegido]`, el mínimo y el máximo quedan en `NA`. Tres salidas
+publicaban igual un valor real, **incluso con
+`proteger_datos_personales = TRUE` pedido explícitamente**. En las tres
+se conserva la señal: lo que no puede salir es el valor, no el aviso.
+
+- **`posible_ausencia_estructural` publicaba un umbral que era un número
+  de documento real**, en la evidencia y en la sugerencia
+  —`aplicabilidad = list(x = ~ documento < 70231469)`— y llegaba al
+  informe HTML. Ahora el hallazgo se sigue emitiendo y oculta el umbral
+  y la fórmula cuando la columna determinante está protegida.
+- **[`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md)
+  imprimía filas enteras por consola.** Sus «Ejemplos reales» se
+  recalculan sobre los datos crudos que recibe la función, así que no
+  pasaban por la capa que protege el perfil: con `filas_duplicadas`
+  mostraba `documento=`, `correo=` y `telefono=` con sus valores. Ahora
+  enmascara los valores de las columnas protegidas y conserva la fila,
+  el grupo y qué columnas participan, que es lo que hace falta para
+  decidir.
+- **`bbox_*` publicaba las coordenadas de una geometría protegida.**
+  Para una columna de domicilios, el rectángulo delimitador es una
+  divulgación geográfica. Los cuatro campos quedan en `NA` y
+  `bbox_alcance` declara `no_publicado_por_geometria_protegida`; el CRS,
+  el tipo, la dimensión y los conteos se conservan, porque no dicen
+  dónde vive nadie.
+
+Lo sostiene un barrido que recorre los tipos de hallazgo y las salidas
+—consola incluida, capturando también lo que emite `cli`— y que
+comprueba primero que cada uno se haya emitido: un caso donde la regla
+no dispara da el mismo resultado que uno donde funciona bien.
+
+### Los dos conteos de un resumen parcial cuentan cosas distintas
+
+- `n_fechas_excluidas_granularidad` cuenta **sólo** las fechas que
+  quedaron fuera por ser de granularidad mes. Antes, cuando había
+  muestreo, también sumaba los fallos de conversión: una columna con
+  noventa fechas de sólo mes y diez ilegibles publicaba cien «excluidas
+  por granularidad», y quien lo leyera buscaba una granularidad que
+  explicaba noventa de esos cien.
+- `n_valores_excluidos_resumen` es el campo general —el mismo que ya
+  usaban las columnas numéricas— y cuenta **todo** valor presente que no
+  sostiene el resumen, sea un período de mes o un texto que ningún
+  formato pudo leer.
+- **Con muestreo, la atribución por causa se informa `NA`.** Ese conteo
+  se deriva de los formatos detectados en la muestra mientras el resumen
+  recorre la columna entera: publicaba `4` donde eran `90`. Atribuir la
+  causa exigiría rehacer la detección sobre todo, que es el costo que el
+  muestreo existe para evitar, así que se informa `NA` y nunca cero. El
+  total sin atribuir sigue estando.
+- La fila `resumen_cuantitativo` de `cobertura_diagnosticos` se emite
+  ahora siempre que algún valor presente quede fuera del resumen, para
+  fechas y para números por igual y haya muestreo o no. Leía el conteo
+  de granularidad y con este cambio habría quedado muda justo en el caso
+  muestreado.
+
+### Una política declarada no se disfraza de cambio en los datos
+
+- [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  compara ahora la política de centinelas de las dos corridas y, si
+  difiere, agrega una fila `configuracion_sentinelas_numericos` de
+  severidad `error`. Antes, el mismo `data.frame` byte a byte perfilado
+  con dos políticas distintas producía seis filas de deriva —una de
+  ellas «Cambió el rango observado de la columna»—, y quien seguía la
+  calidad de una carga mensual concluía que le habían llegado datos
+  distintos.
+- **Las comparaciones se conservan.** El otro camino posible era
+  declarar la incomparabilidad y no comparar, como ya se hace con la
+  configuración de patrones; se descartó porque dejaría ciega la
+  detección de deriva verdadera en todas las corridas posteriores al
+  cambio de política, que es peor que el problema que resuelve. La fila
+  declara la transición y la evidencia dice que las diferencias pueden
+  atribuirse a ella.
+
+### `perfilar_dbi()` dice qué políticas no llegan al motor
+
+- `sentinelas_numericos`, `aplicabilidad` y `columnas_opcionales` son
+  ahora argumentos explícitos de
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
+  Entraban por `...` y se aplicaban sólo a `perfil_muestra`, así que una
+  misma llamada podía publicar `media = 1045.09` en el resumen del motor
+  y `media = 50.21` en el de la muestra sobre las mismas filas, sin que
+  nada lo dijera.
+- Cuando alguna de ellas se usa, `resumen_tabla$cobertura` recibe una
+  fila `degradado` que explica que los agregados SQL no honran esa
+  política y que para ese fin sirve `perfil_muestra`. El resumen del
+  motor no cambia: traducir las políticas al SQL de cada dialecto es
+  otro trabajo, y mientras no esté hecho el paquete lo declara en vez de
+  callarlo.
+
+### El período `AAAA-MM` es una fecha de granularidad mes
+
+- `%Y-%m`, `%m/%Y` y `%Y/%m` se reconocen como períodos mensuales. Antes
+  la granularidad `"mes"` salía sólo del mes escrito en letras —`%B %Y`,
+  `%b %Y`—, que es la forma rara; `AAAA-MM` es la forma ISO y la que
+  producen los exportes y las consultas agrupadas por período, y **no se
+  reconocía**: cien períodos entre novecientas fechas con día
+  desaparecían del resumen y el mínimo publicado se quedaba en el año
+  equivocado, con `estado = "calculados"`.
+- Entran por el camino que ya existía y no se inventa nada: los períodos
+  **no se convierten a fecha** —asignarles el día 1 sería inventar un
+  dato—, se cuentan en `n_fechas_excluidas_granularidad` y el estado
+  baja a `"calculados_sobre_dias"`, o a `"granularidad_incompleta"` si
+  son la columna entera, donde `minimo_fecha` y `maximo_fecha` quedan en
+  `NA`.
+- **No entra `%Y%m`.** Seis dígitos sin separador son un entero, y una
+  columna de `202305` se sigue perfilando como `entero`: robarle esos
+  valores a la lectura numérica habría sido peor que el defecto que se
+  arregla.
+- Los períodos no se cruzan con los sufijos de hora: `"2023-05 14:30"`
+  no existe.
+
+### Un resumen parcial lo declara siempre, no sólo al muestrear
+
+- Los valores presentes que la conversión de texto a número no puede
+  leer se cuentan en `n_valores_excluidos_resumen` **haya muestreo o
+  no**, y el estado baja a `"calculados_sobre_valores"`. Antes el conteo
+  estaba atado al muestreo: la misma columna informaba cero valores
+  excluidos con estado `"calculados"` sin muestrear, y cien con
+  `"calculados_sobre_valores"` con `muestra = 50`. Los cien quedaban
+  afuera en los dos casos; lo único que cambiaba era si se decía.
+
 ### Un centinela que el usuario declara vale lo mismo que un `NA`
 
 - **`sentinelas_numericos` distingue la lista por omisión de una

@@ -697,19 +697,30 @@ completas y declaran
 `estado_resumen_cuantitativo = "calculados_sobre_dias"`, junto con
 `n_fechas_resumidas` y `n_fechas_excluidas_granularidad`. El mínimo y el
 máximo son entonces condicionales al subconjunto con día; no representan
-un rango de toda la columna. Si ese subconjunto resulta de formatos
-descubiertos en una muestra y la conversión deja valores presentes
-afuera, el perfil agrega una fila `resumen_cuantitativo` en
-`cobertura_diagnosticos`.
+un rango de toda la columna.
+
+Los dos conteos que acompañan a ese estado cuentan cosas distintas.
+`n_fechas_excluidas_granularidad` cuenta **sólo** las fechas que
+quedaron fuera por ser de granularidad mes, y queda en `NA` cuando los
+formatos se descubrieron sobre una muestra: ese número se deriva de los
+formatos detectados en la muestra mientras el resumen recorre la columna
+entera, así que atribuir la causa exigiría rehacer la detección sobre
+todo, que es el costo que el muestreo existe para evitar.
+`n_valores_excluidos_resumen` es el campo general —el mismo que usan las
+columnas numéricas— y cuenta **todo** valor presente que no sostiene el
+resumen, sea un período de mes o un texto que ningún formato pudo leer.
+Siempre que ese total sea mayor que cero, el perfil agrega una fila
+`resumen_cuantitativo` en `cobertura_diagnosticos`, haya muestreo o no.
 
 Para números ordinarios, los estadísticos cuantitativos se calculan sólo
 con valores finitos; `n_nan`, `n_infinito_positivo` y
 `n_infinito_negativo` declaran lo excluido. En columnas `integer64` que
 exceden el entero máximo representable exactamente por `double`,
 `minimo` y `maximo` quedan en `NA` y los extremos exactos se conservan
-en `minimo_exacto` y `maximo_exacto`. Cuando el tipo numérico se
-descubrió sobre una muestra y la conversión de texto deja valores
-presentes afuera, `n_valores_excluidos_resumen` y
+en `minimo_exacto` y `maximo_exacto`. Cuando la conversión de texto deja
+valores presentes afuera —haya muestreo o no, porque la conversión
+descarta lo que no puede leer en los dos casos—,
+`n_valores_excluidos_resumen` y
 `estado_resumen_cuantitativo = "calculados_sobre_valores"` declaran ese
 alcance parcial.
 
@@ -1025,7 +1036,7 @@ perfil
 #> ✖ 5 hallazgos con severidad error
 #> ! 10 hallazgos sospechosos
 #> ✔ 8 hallazgos informativos ok
-#> ℹ 2 diagnosticos no evaluados
+#> ℹ 3 diagnosticos no evaluados
 #> 
 #> ── Resumen general ──
 #> 
@@ -1180,7 +1191,7 @@ summary(perfil)
 #> 6            Florida               2               5              10
 #> 7                 UY              13               2               2
 #> 8  [valor protegido]               2              10              26
-#> 9                  1               2              NA              NA
+#> 9  [valor protegido]               2              NA              NA
 #> 10             TR001               2               5               5
 #>    longitud_media minimo  maximo        media mediana       desvio
 #> 1              NA     NA      NA           NA      NA 3.546396e+00
@@ -1218,7 +1229,7 @@ summary(perfil)
 #>    n_fechas_excluidas_granularidad n_valores_excluidos_resumen n_ceros
 #> 1                               NA                           0       0
 #> 2                               NA                           0      NA
-#> 3                                0                           0       0
+#> 3                                0                           2       0
 #> 4                               NA                           0      NA
 #> 5                               NA                           0       1
 #> 6                               NA                           0      NA
@@ -1251,7 +1262,7 @@ summary(perfil)
 #>    estado_resumen_cuantitativo zona_horaria_origen
 #> 1                   calculados                <NA>
 #> 2                    no_aplica                <NA>
-#> 3                   calculados                <NA>
+#> 3        calculados_sobre_dias                <NA>
 #> 4                    no_aplica                <NA>
 #> 5                   calculados                <NA>
 #> 6                    no_aplica                <NA>

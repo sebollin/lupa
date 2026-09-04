@@ -32,7 +32,9 @@ detectar_deriva_calidad(historico, nivel = c("perfil", "regla"), umbral = 0.05)
 Data frame `deriva_calidad` con una fila por par de corridas
 consecutivas. Una mejora significativa conserva severidad `ok`; un
 deterioro de al menos un umbral es `sospechoso` y uno de al menos dos
-umbrales es `error`.
+umbrales es `error`. `identidad_tabla` separa series de tablas distintas
+y `aspecto` marca el resultado o un cambio de configuración; este último
+se informa como `error` pero no suprime la comparación.
 
 ## Examples
 

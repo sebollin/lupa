@@ -77,5 +77,5 @@ nrow(hallazgos(perfil))
 n_filas(perfil)
 #> [1] 13
 nrow(cobertura(perfil))
-#> [1] 2
+#> [1] 3
 ```

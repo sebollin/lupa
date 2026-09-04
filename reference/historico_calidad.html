@@ -82,7 +82,10 @@ perfil; <code>"completo"</code> conserva además cada evaluación de medida. Una
     <p>Data frame S3 <code>historico_calidad</code>. La columna <code>version_esquema</code> y el
 atributo del mismo nombre permiten migraciones futuras. <code>nivel</code> corresponde
 a <code>medida</code>, <code>evaluacion_medida</code>, <code>evaluacion_regla</code> o
-<code>evaluacion_perfil</code>.</p>
+<code>evaluacion_perfil</code>; una métrica sin valores se conserva como
+<code>metrica_no_evaluada</code> con su motivo. El atributo
+<code>configuracion_evaluacion</code> conserva, en una tabla plana separada, el
+modelo, la aplicabilidad, el perfil y la identidad de tabla de cada corrida.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

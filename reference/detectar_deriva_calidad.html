@@ -77,7 +77,9 @@ operativamente visibles.</p></dd>
     <p>Data frame <code>deriva_calidad</code> con una fila por par de corridas
 consecutivas. Una mejora significativa conserva severidad <code>ok</code>; un
 deterioro de al menos un umbral es <code>sospechoso</code> y uno de al menos dos
-umbrales es <code>error</code>.</p>
+umbrales es <code>error</code>. <code>identidad_tabla</code> separa series de tablas distintas y
+<code>aspecto</code> marca el resultado o un cambio de configuración; este último se
+informa como <code>error</code> pero no suprime la comparación.</p>
     </div>
 
     <div class="section level2">

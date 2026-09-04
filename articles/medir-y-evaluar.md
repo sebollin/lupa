@@ -196,6 +196,8 @@ indice
 #> 
 #>  factores_marco factores_en_indice                                          factores
 #>               3                  2 Completitud / Densidad; Unicidad / No-duplicación
+#>  metricas_no_medidas
+#> 
 #> ── Dimensiones, pesos y aportes ──
 #>    dimension valor peso aporte                combinacion_interna
 #>  Completitud  0.75  0.6   0.45 un componente; sin paso intermedio
@@ -210,6 +212,8 @@ indice
 indice$cobertura
 #>   factores_marco factores_en_indice                                          factores
 #> 1              3                  2 Completitud / Densidad; Unicidad / No-duplicación
+#>   metricas_no_medidas
+#> 1
 ```
 
 Para las métricas con orientación `defecto`, el índice usa `1 - valor`;

@@ -45,6 +45,9 @@ perfilar_dbi(
   bloque_filas = NULL,
   max_bytes_procesamiento = .MAX_BYTES_MUESTRA,
   max_bytes_materializacion = .MAX_BYTES_MUESTRA,
+  columnas_opcionales = character(),
+  aplicabilidad = NULL,
+  sentinelas_numericos = c(-9, -99, -999, -9999, 999),
   ...
 )
 ```
@@ -343,6 +346,24 @@ perfilar_dbi(
   alcanza, se publica `spool_presupuesto_excedido` y
   `muestra_inestable:presupuesto_materializacion` sin mezclar una
   muestra parcial con resultados completos. `Inf` desactiva este límite.
+
+- columnas_opcionales:
+
+  Nombres de columnas que sólo son aplicables a parte de las filas. Esta
+  política se aplica al `perfil_muestra`; el resumen SQL no la traduce y
+  lo declara en `resumen_tabla$cobertura`.
+
+- aplicabilidad:
+
+  Lista nombrada de fórmulas de un solo lado, con una regla por columna.
+  Se reenvía al `perfil_muestra`; el resumen SQL no la traduce y lo
+  declara en `resumen_tabla$cobertura`.
+
+- sentinelas_numericos:
+
+  Vector completo de valores numéricos que se declaran como faltantes en
+  el `perfil_muestra`. El resumen SQL no los excluye de sus agregados y
+  lo declara en `resumen_tabla$cobertura`.
 
 - ...:
 

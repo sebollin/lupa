@@ -56,9 +56,12 @@ aplicar(plan, datos, permitir_eliminacion = FALSE, conservar_eliminados = TRUE)
 `eliminados`. El `registro` conserva `estado` (`ejecutada` o `fallida`),
 `error`, `n_no_reversibles` y la `justificacion` de cada acción
 seleccionada, incluso cuando una falla y las siguientes continúan. Si
-una columna de entrada es un factor, las acciones que transforman su
-texto devuelven una columna `character`: no se reconstruyen los niveles
-originales, porque una limpieza puede introducir valores nuevos.
+una acción seleccionada no produce ningún efecto cuando el plan estimaba
+alguno, se registra como `fallida` con el motivo y su copia no se
+incorpora al resultado. Si una columna de entrada es un factor, las
+acciones que transforman su texto devuelven una columna `character`: no
+se reconstruyen los niveles originales, porque una limpieza puede
+introducir valores nuevos.
 
 ## Details
 
@@ -80,9 +83,10 @@ permite separar un grupo aún no revisado de una omisión deliberada.
 
 `estado` distingue acciones `lista`, `bloqueada` e `informativa`;
 `orden` fija la secuencia reproducible. `n_afectadas` es la estimación
-del perfil y el registro informa `n_cambiadas` sobre los datos
-recibidos. `reversible` indica si la conversión conserva la identidad de
-cada valor. Las conversiones se comprueban sobre todos los valores de
+del perfil y `unidad_conteo` dice si cuenta filas, columnas o valores
+distintos. El registro informa `n_cambiadas` sobre los datos recibidos.
+`reversible` indica si la conversión conserva la identidad de cada
+valor. Las conversiones se comprueban sobre todos los valores de
 `datos`: las numéricas bloquean ceros iniciales y colisiones no
 inyectivas, mientras que fechas, fechas-hora y lógicos sólo bloquean
 conversiones no ejecutables o no inyectivas. Las fechas pueden cambiar a
@@ -132,7 +136,9 @@ moda o un modelo externo, sigue siendo una regularidad aprendida de una
 sola entrega y puede reflejar un error sistemático en vez de una regla
 de negocio. El plan conserva el mapa y su soporte para que el usuario la
 confirme; sólo entonces se aplica y se vuelve a validar contra los datos
-recibidos.
+recibidos. Si la protección enmascaró alguna clave del mapa, éste no se
+usa como tabla de cruce: la relación se reconstruye sobre los datos
+recibidos con el soporte declarado, sin publicar sus valores.
 
 `marcar_filas_duplicadas` añade dos columnas. `.fila_duplicada`
 reproduce la semántica de

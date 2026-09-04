@@ -125,12 +125,14 @@ llevarse a una tabla institucional sin desarmar listas anidadas.</p>
 <span><span class="co">#&gt; 3     febrero 2026-02-28  evaluacion_regla         1</span></span>
 <span><span class="co">#&gt; 4     febrero 2026-02-28 evaluacion_perfil         1</span></span>
 <span><span class="fu"><a href="../reference/detectar_deriva_calidad.html">detectar_deriva_calidad</a></span><span class="op">(</span><span class="va">historico</span>, umbral <span class="op">=</span> <span class="fl">0.05</span><span class="op">)</span></span>
-<span><span class="co">#&gt;    nivel    perfil regla id_medicion_anterior fecha_anterior resultado_anterior</span></span>
-<span><span class="co">#&gt; 1 perfil Operativo  &lt;NA&gt;                enero     2026-01-31                  0</span></span>
-<span><span class="co">#&gt;   id_medicion_actual fecha_actual resultado_actual delta cambio_absoluto significativo</span></span>
-<span><span class="co">#&gt; 1            febrero   2026-02-28                1     1               1          TRUE</span></span>
-<span><span class="co">#&gt;   direccion severidad</span></span>
-<span><span class="co">#&gt; 1    mejora        ok</span></span></code></pre></div>
+<span><span class="co">#&gt;    nivel    perfil regla identidad_tabla id_medicion_anterior fecha_anterior</span></span>
+<span><span class="co">#&gt; 1 perfil Operativo  &lt;NA&gt;         entrega                enero     2026-01-31</span></span>
+<span><span class="co">#&gt;   resultado_anterior id_medicion_actual fecha_actual resultado_actual delta</span></span>
+<span><span class="co">#&gt; 1                  0            febrero   2026-02-28                1     1</span></span>
+<span><span class="co">#&gt;   cambio_absoluto significativo direccion severidad   aspecto</span></span>
+<span><span class="co">#&gt; 1               1          TRUE    mejora        ok resultado</span></span>
+<span><span class="co">#&gt;                             descripcion evidencia</span></span>
+<span><span class="co">#&gt; 1 Cambió el resultado de la evaluación.      &lt;NA&gt;</span></span></code></pre></div>
 <p><code><a href="../reference/historico_calidad.html">acumular_historico()</a></code> existe para el flujo incremental:
 amplía una serie ya guardada y no duplica una corrida idéntica.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">

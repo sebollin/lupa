@@ -242,6 +242,26 @@ permite ir a verificar es exactamente lo que identifica a una persona**,
 así que una columna de la clave clasificada como dato personal vuelve
 enmascarada, igual que la evidencia, y `claves_protegidas` dice cuál.
 
+**Y alcanza también al modelo de calidad.** Las métricas referenciales
+publican cuál era el candidato más cercano y a qué distancia; cuando ese
+referencial es un padrón de personas, el valor sale como
+`[valor protegido]` y la distancia se conserva. Un referencial que no
+lleva datos personales mantiene su evidencia completa.
+
+**Y el enmascarado alcanza a todas las salidas, no sólo a la moda.** La
+descripción, la evidencia y la sugerencia de cada hallazgo; el motivo y
+el `como_resolverlo` de la cobertura; los parámetros de una acción del
+plan; los «Ejemplos reales» que
+[`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md)
+imprime por consola; y el rectángulo delimitador de una geometría
+protegida, cuyos cuatro `bbox_*` quedan en `NA` con
+`bbox_alcance = "no_publicado_por_geometria_protegida"`. En todos los
+casos se conserva la señal y se oculta el valor: el ejemplo sigue
+mostrando qué filas coinciden y en qué columnas, y el hallazgo de
+ausencia estructural se sigue emitiendo sin nombrar el umbral. Lo vigila
+un barrido que recorre los tipos de hallazgo y comprueba primero que
+cada uno se haya emitido.
+
 **El perfilado no toca los datos.** Ninguna función de análisis altera
 la tabla que recibe —ni sus valores, ni sus tipos, ni sus nombres, ni
 sus atributos—, incluidos los `data.table`, que R permite modificar por
@@ -334,11 +354,17 @@ breve:
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 usa todas las filas para los conteos de tabla y columna, faltantes
 reales y disfrazados, valores distintos, duplicados exactos, resúmenes
-cuantitativos y los hallazgos derivados de esas cantidades. Por omisión,
-`muestra = 1e5` limita el descubrimiento de patrones, la inferencia de
-tipos, la detección de formatos de fecha y la muestra común con que se
-buscan dependencias funcionales. Otro límite o `Inf` cambia o desactiva
-ese muestreo.
+cuantitativos y los hallazgos derivados de esas cantidades. **«Todas las
+filas» es el alcance, no el contenido**: un resumen cuantitativo sigue
+dejando afuera lo que no vale como número —`NaN`, `Inf`, los textos que
+la conversión no puede leer y los centinelas que se declaran en
+`sentinelas_numericos`—, y cuando lo hace lo dice:
+`n_valores_excluidos_resumen` los cuenta, `estado_resumen_cuantitativo`
+deja de decir `"calculados"` y `cobertura_diagnosticos` recibe su fila.
+Eso no depende de que haya muestreo. Por omisión, `muestra = 1e5` limita
+el descubrimiento de patrones, la inferencia de tipos, la detección de
+formatos de fecha y la muestra común con que se buscan dependencias
+funcionales. Otro límite o `Inf` cambia o desactiva ese muestreo.
 
 Para tipos temporales inferidos, `estado_tipo_inferido` distingue
 `confirmado`, `candidato` y `NA`; una fecha ambigua compatible al 100 %
@@ -394,8 +420,20 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 La afirmación es reproducible: `benchmark/verificar_motor.R` toma
 cualquier conexión DBI y comprueba cinco cosas — que el perfil tenga
 cinco columnas, que el dialecto se resuelva por sonda, que la media del
-motor coincida con R, que la clave primaria se lea del catálogo y que la
-cobertura sea una tabla.
+motor coincida con R **sobre valores finitos y de escala ordinaria**,
+que la clave primaria se lea del catálogo y que la cobertura sea una
+tabla.
+
+Esa salvedad no es una excusa: es lo que se midió. Con `NaN` o
+infinitos, con valores que hacen perder precisión a una suma acumulada
+—`{1e16, 1, -1e16}`, cuya media el motor da como `0` y R como 0,3337,
+siendo 1/3— o con un motor cuyo percentil está roto para `DECIMAL`
+grande, las dos vías **no** coinciden. Por eso
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+**cruza sus dos bloques** cuando ambos existen: si difieren más allá de
+la tolerancia, deja una fila `divergencia` en `resumen_tabla$cobertura`
+con los dos valores y la cobertura de la muestra. No elige un ganador
+—el paquete no sabe cuál es la verdad— pero no calla que no coinciden.
 
 Lo que ese script comprueba es el **comportamiento**, y se puede rehacer
 contra cualquier conexión. Los **cronometrajes** de esas corridas —los
@@ -429,6 +467,16 @@ muestra falla, el objeto vuelve con `resumen_tabla` completo,
 pidió la muestra, la cobertura usa `no_solicitado`, que no es un fallo;
 se puede pedir sólo los agregados con
 `bloque_muestra = "solo_agregados"`.
+
+**Y declara lo que el motor no puede hacer.** `sentinelas_numericos`,
+`aplicabilidad` y `columnas_opcionales` cambian lo que
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+resume, pero los agregados SQL se calculan sin ellas: `AVG()` no sabe de
+centinelas. Cuando alguna se usa, la cobertura recibe una fila
+`degradado` que lo dice y remite a `perfil_muestra`, porque una misma
+llamada podía publicar dos medias distintas sobre las mismas filas
+—1045,09 en el resumen del motor y 50,21 en el de la muestra— sin que
+nada lo advirtiera.
 
 ### Saber qué falta antes de chocarse
 
@@ -1304,6 +1352,14 @@ limpio si hubo diagnósticos sin ejecutar. La limpieza siempre es
 explícita:
 [`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
 sólo cambia las acciones elegidas de un plan editable.
+
+Ese plan **declara en qué unidad cuenta**: `n_afectadas` viene con su
+`unidad_conteo`, porque una acción sobre mayúsculas anuncia tres —los
+valores distintos que colisionan— y cambia noventa filas, y quien decide
+tiene que saber cuál de las dos cosas está leyendo. Y
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+**no dice haber hecho lo que no hizo**: una acción cuyo efecto resulta
+nulo queda `fallida` con su motivo, no `ejecutada`.
 
 ## ✨ Qué hace lupa en detalle
 

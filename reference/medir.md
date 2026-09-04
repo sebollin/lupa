@@ -12,7 +12,8 @@ medir(
   datos,
   id_medicion = NULL,
   fecha = Sys.time(),
-  aplicabilidad = NULL
+  aplicabilidad = NULL,
+  proteger_datos_personales = TRUE
 )
 ```
 
@@ -65,6 +66,11 @@ medir(
 
   Sin declaración toda la tabla aplica y el resultado es el de siempre.
 
+- proteger_datos_personales:
+
+  Si se enmascaran los candidatos de proximidad que corresponden a
+  columnas personales. Por omisión `TRUE`.
+
 ## Value
 
 Data frame S3 de clase `medicion`, con una fila por objeto medido. Los
@@ -72,7 +78,12 @@ booleanos se almacenan como `0` y `1` en la columna común `resultado`.
 `orientacion` conserva si un valor alto expresa conformidad, si un valor
 alto expresa defecto o si esa lectura no aplica. Algunas métricas que
 trabajan con un vocabulario o un alcance parcial agregan un atributo
-`alcance_metricas` con sus conteos y límites.
+`alcance_metricas` con sus conteos y límites. Si una métrica no puede
+medirse por falta de valores en su universo, no crea filas ni ceros:
+deja el motivo en el atributo `cobertura_metricas`. También conserva
+`configuracion_modelo` y `configuracion_aplicabilidad`, descripciones de
+la política usada para que una deriva posterior pueda distinguir modelo
+de datos.
 
 ## Examples
 
@@ -82,13 +93,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260903T191847.981602-7367-000001
-#> 2 medicion-20260903T191847.981602-7367-000002
-#> 3 medicion-20260903T191847.981602-7367-000003
+#> 1 medicion-20260904T141830.541130-7519-000001
+#> 2 medicion-20260904T141830.541130-7519-000002
+#> 3 medicion-20260904T141830.541130-7519-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260903T191847.981602-7367 2026-09-03 19:18:47  NoNulo
-#> 2 medicion-20260903T191847.981602-7367 2026-09-03 19:18:47  NoNulo
-#> 3 medicion-20260903T191847.981602-7367 2026-09-03 19:18:47  NoNulo
+#> 1 medicion-20260904T141830.541130-7519 2026-09-04 14:18:30  NoNulo
+#> 2 medicion-20260904T141830.541130-7519 2026-09-04 14:18:30  NoNulo
+#> 3 medicion-20260904T141830.541130-7519 2026-09-04 14:18:30  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

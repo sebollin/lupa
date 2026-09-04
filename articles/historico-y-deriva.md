@@ -62,12 +62,14 @@ historico[, c("id_medicion", "fecha", "nivel", "resultado")]
 #> 3     febrero 2026-02-28  evaluacion_regla         1
 #> 4     febrero 2026-02-28 evaluacion_perfil         1
 detectar_deriva_calidad(historico, umbral = 0.05)
-#>    nivel    perfil regla id_medicion_anterior fecha_anterior resultado_anterior
-#> 1 perfil Operativo  <NA>                enero     2026-01-31                  0
-#>   id_medicion_actual fecha_actual resultado_actual delta cambio_absoluto significativo
-#> 1            febrero   2026-02-28                1     1               1          TRUE
-#>   direccion severidad
-#> 1    mejora        ok
+#>    nivel    perfil regla identidad_tabla id_medicion_anterior fecha_anterior
+#> 1 perfil Operativo  <NA>         entrega                enero     2026-01-31
+#>   resultado_anterior id_medicion_actual fecha_actual resultado_actual delta
+#> 1                  0            febrero   2026-02-28                1     1
+#>   cambio_absoluto significativo direccion severidad   aspecto
+#> 1               1          TRUE    mejora        ok resultado
+#>                             descripcion evidencia
+#> 1 Cambió el resultado de la evaluación.      <NA>
 ```
 
 [`acumular_historico()`](https://sebollin.github.io/lupa/reference/historico_calidad.md)

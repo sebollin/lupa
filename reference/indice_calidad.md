@@ -88,8 +88,8 @@ indice_calidad(
 #> 
 #>  factores_marco factores_en_indice
 #>              17                  2
-#>                                           factores
-#>  Completitud / Densidad; Unicidad / No-duplicación
+#>                                           factores metricas_no_medidas
+#>  Completitud / Densidad; Unicidad / No-duplicación                    
 #> ── Dimensiones, pesos y aportes ──
 #> 
 #>    dimension     valor peso    aporte                combinacion_interna

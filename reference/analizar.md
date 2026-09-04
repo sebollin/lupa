@@ -247,9 +247,9 @@ resultado
 #>                       NoNulo fecha_nacimiento 1.0000000 conformidad      ratio
 #>                       NoNulo          ingreso 1.0000000 conformidad      ratio
 #>                       NoNulo             sexo 1.0000000 conformidad      ratio
-#>                      Formato           correo 0.8461538 conformidad      ratio
+#>                      Formato           correo 0.0000000 conformidad      ratio
 #>                      Formato     departamento 0.9230769 conformidad      ratio
-#>                      Formato       id_tramite 1.0000000 conformidad      ratio
+#>                      Formato       id_tramite 0.0000000 conformidad      ratio
 #>                      Formato             pais 1.0000000 conformidad      ratio
 #>                      Formato             sexo 0.8461538 conformidad      ratio
 #>  ValoresPosiblesPorExtension             sexo 1.0000000 conformidad      ratio

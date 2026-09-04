@@ -55,7 +55,8 @@ una medida reutilizable y conserva el identificador y la fecha de la corrida.</p
 <span>  <span class="va">datos</span>,</span>
 <span>  id_medicion <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  fecha <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.time</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  aplicabilidad <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  aplicabilidad <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -101,6 +102,11 @@ sin declararlo da <code>0,270</code> y declarándolo <code>0,900</code>. El hist
 consumen mediciones, así que heredan el número que salga de acá.</p>
 <p>Sin declaración toda la tabla aplica y el resultado es el de siempre.</p></dd>
 
+
+<dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>
+<dd><p>Si se enmascaran los candidatos de
+proximidad que corresponden a columnas personales. Por omisión <code>TRUE</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -109,7 +115,12 @@ Los booleanos se almacenan como <code>0</code> y <code>1</code> en la columna co
 <code>orientacion</code> conserva si un valor alto expresa conformidad, si un valor
 alto expresa defecto o si esa lectura no aplica. Algunas métricas
 que trabajan con un vocabulario o un alcance parcial agregan un atributo
-<code>alcance_metricas</code> con sus conteos y límites.</p>
+<code>alcance_metricas</code> con sus conteos y límites. Si una métrica no puede
+medirse por falta de valores en su universo, no crea filas ni ceros: deja
+el motivo en el atributo <code>cobertura_metricas</code>. También conserva
+<code>configuracion_modelo</code> y <code>configuracion_aplicabilidad</code>, descripciones de la
+política usada para que una deriva posterior pueda distinguir modelo de
+datos.</p>
     </div>
 
     <div class="section level2">
@@ -119,13 +130,13 @@ que trabajan con un vocabulario o un alcance parcial agregan un atributo
 <span class="r-in"><span><span class="va">instancia</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="va">especifica</span>, <span class="st">"personas"</span>, <span class="st">"edad"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">medir</span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260903T191847.981602-7367-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260903T191847.981602-7367-000002</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260903T191847.981602-7367-000003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260904T141830.541130-7519-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260904T141830.541130-7519-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260904T141830.541130-7519-000003</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260903T191847.981602-7367 2026-09-03 19:18:47  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260903T191847.981602-7367 2026-09-03 19:18:47  NoNulo</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260903T191847.981602-7367 2026-09-03 19:18:47  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260904T141830.541130-7519 2026-09-04 14:18:30  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260904T141830.541130-7519 2026-09-04 14:18:30  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 medicion-20260904T141830.541130-7519 2026-09-04 14:18:30  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica      metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad</span>

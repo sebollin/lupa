@@ -34,11 +34,13 @@ Un frame de clase `equivalencia_perfiles` con `columna`, `campo`,
 `motivo`, `tipo_eje` y `tolerancia`. `veredicto` es un factor ordenado
 con niveles `identico < equivalente < materialmente_distinto`. Los
 atributos `campos_no_comparables`, `detalle_campos_no_comparables`,
-`campos_protegidos` y `resumen` declaran, respectivamente, los campos
-omitidos, los motivos estructurales de esos campos, los campos omitidos
-por protección y el conteo de cada veredicto. `campos_protegidos` es un
-data frame con las columnas `columna`, `campo` y `lado`; este último
-toma los valores `anterior` y `actual`.
+`columnas_no_comparables`, `cobertura_diagnosticos`, `campos_protegidos`
+y `resumen` declaran, respectivamente, los campos omitidos, los motivos
+estructurales de esos campos, las columnas presentes en un solo lado o
+con tipos incompatibles, los diagnósticos que no se pudieron evaluar,
+los campos omitidos por protección y el conteo de cada veredicto.
+`campos_protegidos` es un data frame con las columnas `columna`, `campo`
+y `lado`; este último toma los valores `anterior` y `actual`.
 
 ## Details
 

@@ -83,11 +83,13 @@ llama. No tiene valor por omisión y se publica en cada fila.</p></dd>
 <code>motivo</code>, <code>tipo_eje</code> y <code>tolerancia</code>. <code>veredicto</code> es un factor ordenado con
 niveles <code>identico &lt; equivalente &lt; materialmente_distinto</code>. Los atributos
 <code>campos_no_comparables</code>, <code>detalle_campos_no_comparables</code>,
-<code>campos_protegidos</code> y <code>resumen</code> declaran, respectivamente, los campos
-omitidos, los motivos estructurales de esos campos, los campos omitidos
-por protección y el conteo de cada veredicto. <code>campos_protegidos</code> es un
-data frame con las columnas <code>columna</code>, <code>campo</code> y <code>lado</code>; este último toma
-los valores <code>anterior</code> y <code>actual</code>.</p>
+<code>columnas_no_comparables</code>, <code>cobertura_diagnosticos</code>, <code>campos_protegidos</code>
+y <code>resumen</code> declaran, respectivamente, los campos omitidos, los motivos
+estructurales de esos campos, las columnas presentes en un solo lado o
+con tipos incompatibles, los diagnósticos que no se pudieron evaluar, los
+campos omitidos por protección y el conteo de cada veredicto.
+<code>campos_protegidos</code> es un data frame con las columnas <code>columna</code>, <code>campo</code> y
+<code>lado</code>; este último toma los valores <code>anterior</code> y <code>actual</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

@@ -230,6 +230,25 @@ verify is exactly what identifies a person, so a key column classified
 as personal data comes back masked, the same way evidence does, and
 `claves_protegidas` says which.
 
+**And it reaches the quality model too.** Referential metrics report
+which candidate was closest and at what distance; when that reference
+table is a register of people, the value comes out as
+`[valor protegido]` and the distance is kept. A reference table carrying
+no personal data keeps its evidence intact.
+
+**And masking reaches every output, not just the mode.** Each finding’s
+description, evidence and suggestion; the coverage `motivo` and
+`como_resolverlo`; the parameters of a plan action; the “Ejemplos
+reales” that
+[`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md)
+prints to the console; and the bounding box of a protected geometry,
+whose four `bbox_*` fields become `NA` with
+`bbox_alcance = "no_publicado_por_geometria_protegida"`. In every case
+the signal is kept and the value hidden: the example still shows which
+rows match and in which columns, and the structural-absence finding is
+still raised without naming the threshold. A sweep over the finding
+types watches this, checking first that each one was actually raised.
+
 **Profiling never touches your data.** No analysis function alters the
 table it receives — not its values, its types, its names, or its
 attributes — including `data.table` inputs, which R allows to be
@@ -323,11 +342,17 @@ map:
 [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
 uses every row for table and column counts, real and disguised
 missingness, distinct values, exact duplicates, quantitative summaries,
-and the findings derived from those quantities. By default,
-`muestra = 1e5` limits pattern discovery, type inference, date-format
-discovery, and the common sample used to search for functional
-dependencies. Set another limit or `Inf` to change or disable that
-sampling.
+and the findings derived from those quantities. **«Every row» is the
+scope, not the content**: a quantitative summary still leaves out what
+does not count as a number — `NaN`, `Inf`, text the conversion cannot
+read, and the sentinels declared in `sentinelas_numericos` — and when it
+does, it says so: `n_valores_excluidos_resumen` counts them,
+`estado_resumen_cuantitativo` stops saying `"calculados"`, and
+`cobertura_diagnosticos` gets its row. None of that depends on sampling
+being on. By default, `muestra = 1e5` limits pattern discovery, type
+inference, date-format discovery, and the common sample used to search
+for functional dependencies. Set another limit or `Inf` to change or
+disable that sampling.
 
 For inferred temporal types, `estado_tipo_inferido` distinguishes
 `confirmado`, `candidato`, and `NA`; a 100% compatible ambiguous date
@@ -383,9 +408,21 @@ zero.
 
 The claim is reproducible: `benchmark/verificar_motor.R` takes any DBI
 connection and checks five things — that the profile has five columns,
-the dialect is resolved by probe, the engine’s mean agrees with R, the
-primary key is read from the catalogue, and coverage is returned as a
-table.
+the dialect is resolved by probe, the engine’s mean agrees with R **over
+finite values of ordinary scale**, the primary key is read from the
+catalogue, and coverage is returned as a table.
+
+That qualifier is not an excuse: it is what was measured. With `NaN` or
+infinities, with values that make an accumulated sum lose precision —
+`{1e16, 1, -1e16}`, whose mean the engine gives as `0` and R as 0.3337
+when the truth is 1/3 — or against an engine whose percentile is broken
+for large `DECIMAL`, the two paths do **not** agree. That is why
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+**cross-checks its two blocks** whenever both exist: if they differ
+beyond tolerance, a `divergencia` row lands in `resumen_tabla$cobertura`
+carrying both values and the sample’s coverage. It picks no winner — the
+package does not know which one is true — but it does not keep quiet
+about the disagreement.
 
 What that script checks is **behaviour**, and it can be redone against
 any connection. The **timings** of those runs — the seconds and row
@@ -417,6 +454,16 @@ reading the sample fails, the object comes back with a complete
 the reason. If the sample was not requested, coverage uses
 `no_solicitado`, which is not a failure; request only aggregates with
 `bloque_muestra = "solo_agregados"`.
+
+**And it declares what the engine cannot do.** `sentinelas_numericos`,
+`aplicabilidad` and `columnas_opcionales` change what
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+summarises, but the SQL aggregates are computed without them: `AVG()`
+knows nothing about sentinels. When one of them is used, coverage gets a
+`degradado` row saying so and pointing at `perfil_muestra` — because a
+single call could publish two different means over the same rows,
+1045.09 in the engine summary and 50.21 in the sample one, with nothing
+to warn you.
 
 ### Knowing what is missing before you hit it
 
@@ -1274,6 +1321,14 @@ it as well as `error`: zero errors does not mean a clean profile when
 diagnostics were not run. Cleanup is always
 explicit—[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
 changes only actions selected from an editable plan.
+
+That plan **states the unit it counts in**: `n_afectadas` travels with
+its `unidad_conteo`, because a case-folding action announces three — the
+distinct values that collide — and changes ninety rows, and whoever
+decides needs to know which of the two they are reading. And
+[`aplicar()`](https://sebollin.github.io/lupa/reference/planificar_limpieza.md)
+**does not claim work it did not do**: an action whose effect turns out
+to be nil is recorded as `fallida` with its reason, not `ejecutada`.
 
 ## ✨ What lupa does in detail
 

@@ -36,7 +36,11 @@ acumular_historico(historico, ..., detalle = c("resumen", "completo"))
 Data frame S3 `historico_calidad`. La columna `version_esquema` y el
 atributo del mismo nombre permiten migraciones futuras. `nivel`
 corresponde a `medida`, `evaluacion_medida`, `evaluacion_regla` o
-`evaluacion_perfil`.
+`evaluacion_perfil`; una métrica sin valores se conserva como
+`metrica_no_evaluada` con su motivo. El atributo
+`configuracion_evaluacion` conserva, en una tabla plana separada, el
+modelo, la aplicabilidad, el perfil y la identidad de tabla de cada
+corrida.
 
 ## Details
 
