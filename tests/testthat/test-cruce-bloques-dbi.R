@@ -48,8 +48,35 @@ test_that("la corroboracion declara una media fuera de tolerancia", {
   divergencias <- divergencias[divergencias$bloque == "corroboracion", , drop = FALSE]
 
   expect_equal(divergencias$elemento, "x::media")
-  expect_match(divergencias$motivo, "0e+00", fixed = TRUE)
-  expect_match(divergencias$motivo, "3.3365885416666669e-01", fixed = TRUE)
+
+  # El motivo tiene que nombrar los DOS valores, y se toman de la misma corrida
+  # en vez de escribirlos a mano.
+  #
+  # La primera version fijaba el literal `3.3365885416666669e-01`, que es lo que
+  # da `mean(c(1e16, 1, -1e16))` en x86. Fallo en macOS ARM64 y con razon: `mean()`
+  # aplica una correccion de segunda pasada en `long double`, y ARM64 no tiene
+  # long double de 80 bits, asi que ese digito cambia por construccion. Fijar la
+  # expansion decimal de una suma con cancelacion catastrofica es fijar
+  # justamente el numero que no es portable.
+  # El motivo nombra los dos bloques y dice que no coinciden; eso es texto fijo
+  # del paquete y si es portable.
+  expect_match(divergencias$motivo, "resumen_tabla", fixed = TRUE)
+  expect_match(divergencias$motivo, "perfil_muestra", fixed = TRUE)
+  expect_match(divergencias$motivo, "no coinciden", fixed = TRUE)
+  expect_match(divergencias$motivo, "3 de 3 filas", fixed = TRUE)
+
+  # Y lo que la prueba de verdad quiere decir: los dos caminos NO coinciden, el
+  # del motor colapso a cero por la cancelacion y el de la muestra quedo cerca
+  # de la verdad, que es 1/3.
+  media_motor <- resultado$resumen_tabla$columnas$media[
+    resultado$resumen_tabla$columnas$columna == "x"
+  ]
+  media_muestra <- resultado$perfil_muestra$columnas$media[
+    resultado$perfil_muestra$columnas$columna == "x"
+  ]
+  expect_false(isTRUE(all.equal(media_motor, media_muestra)))
+  expect_equal(media_motor, 0)
+  expect_equal(media_muestra, 1 / 3, tolerance = 1e-2)
 })
 
 test_that("datos limpios no inventan una divergencia", {
