@@ -721,11 +721,13 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #'   `motivo`, `tipo_eje` y `tolerancia`. `veredicto` es un factor ordenado con
 #'   niveles `identico < equivalente < materialmente_distinto`. Los atributos
 #'   `campos_no_comparables`, `detalle_campos_no_comparables`,
-#'   `campos_protegidos` y `resumen` declaran, respectivamente, los campos
-#'   omitidos, los motivos estructurales de esos campos, los campos omitidos
-#'   por protección y el conteo de cada veredicto. `campos_protegidos` es un
-#'   data frame con las columnas `columna`, `campo` y `lado`; este último toma
-#'   los valores `anterior` y `actual`.
+#'   `columnas_no_comparables`, `cobertura_diagnosticos`, `campos_protegidos`
+#'   y `resumen` declaran, respectivamente, los campos omitidos, los motivos
+#'   estructurales de esos campos, las columnas presentes en un solo lado o
+#'   con tipos incompatibles, los diagnósticos que no se pudieron evaluar, los
+#'   campos omitidos por protección y el conteo de cada veredicto.
+#'   `campos_protegidos` es un data frame con las columnas `columna`, `campo` y
+#'   `lado`; este último toma los valores `anterior` y `actual`.
 #'
 #' @details
 #' El registro fijo asigna tolerancia sólo a `media`, `mediana`, `desvio` y
@@ -785,10 +787,51 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
   campos <- campos[campos %in% campos_registrados]
   columnas <- intersect(as.character(anterior$columna), as.character(actual$columna))
   campos_magnitud <- .campos_magnitud_equivalencia(registro)
+  columnas_no_comparables <- data.frame(
+    columna = character(), lado = character(), motivo = character(),
+    stringsAsFactors = FALSE
+  )
   detalle_campos_no_comparables <- data.frame(
     columna = character(), campo = character(), motivo = character(),
     stringsAsFactors = FALSE
   )
+  cobertura_diagnosticos <- .cobertura_diagnosticos_vacia()
+  registrar_no_comparable <- function(columna, lado, motivo, campo = NA_character_) {
+    columnas_no_comparables <<- rbind(
+      columnas_no_comparables,
+      data.frame(columna = columna, lado = lado, motivo = motivo,
+                 stringsAsFactors = FALSE)
+    )
+    detalle_campos_no_comparables <<- rbind(
+      detalle_campos_no_comparables,
+      data.frame(columna = columna, campo = campo, motivo = motivo,
+                 stringsAsFactors = FALSE)
+    )
+    cobertura_diagnosticos <<- rbind(
+      cobertura_diagnosticos,
+      .nuevo_diagnostico_no_evaluado(
+        "comparar_equivalencia", columna,
+        paste0("no_comparable: ", motivo),
+        "Asegurar que la columna exista en ambas corridas y conserve un tipo comparable."
+      )
+    )
+  }
+  solo_anterior <- setdiff(
+    as.character(anterior$columna), as.character(actual$columna)
+  )
+  solo_actual <- setdiff(
+    as.character(actual$columna), as.character(anterior$columna)
+  )
+  for (columna in solo_anterior) {
+    registrar_no_comparable(
+      columna, "anterior", "columna_solo_en_anterior"
+    )
+  }
+  for (columna in solo_actual) {
+    registrar_no_comparable(
+      columna, "actual", "columna_solo_en_actual"
+    )
+  }
   campos_protegidos <- .campos_protegidos_equivalencia_vacios()
   niveles <- c("identico", "equivalente", "materialmente_distinto")
   salida <- list()
@@ -798,6 +841,10 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     indice_b <- match(columna, as.character(actual$columna))
     temporal_a <- .es_temporal_equivalencia(anterior, indice_a)
     temporal_b <- .es_temporal_equivalencia(actual, indice_b)
+    tipo_a <- .tipo_columna_equivalencia(anterior, indice_a)
+    tipo_b <- .tipo_columna_equivalencia(actual, indice_b)
+    tipo_cambiado <- !is.na(tipo_a) && !is.na(tipo_b) &&
+      !identical(tipo_a, tipo_b)
     for (campo in campos) {
       protegido_a <- .campo_protegido_equivalencia(anterior, campo, indice_a)
       protegido_b <- .campo_protegido_equivalencia(actual, campo, indice_b)
@@ -820,13 +867,8 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
       }
       if (xor(temporal_a, temporal_b) && campo %in% campos_magnitud) {
         campos_no_comparables <- unique(c(campos_no_comparables, campo))
-        detalle_campos_no_comparables <- rbind(
-          detalle_campos_no_comparables,
-          data.frame(
-            columna = columna, campo = campo,
-            motivo = "tipo_cambiado:temporal_vs_no_temporal",
-            stringsAsFactors = FALSE
-          )
+        registrar_no_comparable(
+          columna, "ambos", "tipo_cambiado:temporal_vs_no_temporal", campo
         )
         next
       }
@@ -835,6 +877,15 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
       )]
       a <- .valor_equivalencia(anterior, campo, indice_a)
       b <- .valor_equivalencia(actual, campo, indice_b)
+      if (tipo_cambiado && campo %in% campos_magnitud &&
+          .faltante_equivalencia(a) && .faltante_equivalencia(b)) {
+        campos_no_comparables <- unique(c(campos_no_comparables, campo))
+        registrar_no_comparable(
+          columna, "ambos",
+          paste0("tipo_cambiado:", tipo_a, "_vs_", tipo_b), campo
+        )
+        next
+      }
       comparacion <- .comparar_valor_equivalencia(
         a, b, tipo_eje[[1L]], tolerancia
       )
@@ -881,6 +932,15 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
   attr(resultado, "campos_no_comparables") <- campos_no_comparables
   attr(resultado, "detalle_campos_no_comparables") <-
     detalle_campos_no_comparables
+  columnas_no_comparables <- columnas_no_comparables[
+    !duplicated(columnas_no_comparables), , drop = FALSE
+  ]
+  cobertura_diagnosticos <- cobertura_diagnosticos[
+    !duplicated(cobertura_diagnosticos[c("diagnostico", "columna", "motivo")]),
+    , drop = FALSE
+  ]
+  attr(resultado, "columnas_no_comparables") <- columnas_no_comparables
+  attr(resultado, "cobertura_diagnosticos") <- cobertura_diagnosticos
   attr(resultado, "campos_protegidos") <- campos_protegidos
   attr(resultado, "resumen") <- resumen
   rownames(resultado) <- NULL

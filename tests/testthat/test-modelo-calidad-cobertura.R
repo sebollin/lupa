@@ -99,6 +99,20 @@ test_that("una metrica sin valores queda en cobertura y no produce un uno", {
                             drop = FALSE]
   expect_equal(nrow(no_evaluada), 1L)
   expect_match(no_evaluada$objeto_medible, "no se pudo medir", ignore.case = TRUE)
+
+  tablero <- tablero_calidad(medicion)
+  indice <- indice_calidad(tablero, pesos = c(Completitud = 1))
+  expect_equal(
+    attr(tablero, "cobertura_metricas", exact = TRUE)$metrica_instanciada,
+    m2$nombre
+  )
+  expect_equal(indice$cobertura_metricas$metrica_instanciada, m2$nombre)
+  expect_match(indice$cobertura$metricas_no_medidas, m2$nombre, fixed = TRUE)
+  salida_tablero <- testthat::capture_messages(
+    capture.output(print(tablero))
+  )
+  expect_match(paste(salida_tablero, collapse = "\n"),
+               "Cobertura de m\u00e9tricas", fixed = TRUE)
 })
 
 test_that("una clave foranea sin filas dependientes queda en cobertura explicita", {

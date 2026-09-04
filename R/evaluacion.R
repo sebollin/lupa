@@ -278,7 +278,8 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   perfiles
 }
 
-.validar_medicion_evaluacion <- function(medicion) {
+.validar_medicion_evaluacion <- function(medicion,
+                                         permitir_suprimidas = FALSE) {
   requeridas <- c(
     "id_medida", "id_medicion", "fecha", "metrica_instanciada",
     "tipo_resultado", "resultado"
@@ -289,8 +290,29 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
          call. = FALSE)
   }
   medicion <- .tabla_base(medicion)
+  suprimidas <- if ("objeto_medible" %in% names(medicion)) {
+    !is.na(medicion$objeto_medible) & grepl(
+      "[valor suprimido]", medicion$objeto_medible, fixed = TRUE
+    )
+  } else {
+    rep(FALSE, nrow(medicion))
+  }
+  if (anyNA(medicion$resultado) &&
+      any(!suprimidas & is.na(medicion$resultado))) {
+    stop("Los resultados de la medici\u00f3n no respetan su tipo declarado.",
+         call. = FALSE)
+  }
+  valores <- if (isTRUE(permitir_suprimidas)) {
+    medicion$resultado[!suprimidas]
+  } else {
+    medicion$resultado
+  }
   if (!.resultados_validos_tipo(
-    medicion$resultado, medicion$tipo_resultado
+    valores, medicion$tipo_resultado[if (isTRUE(permitir_suprimidas)) {
+      !suprimidas
+    } else {
+      rep(TRUE, nrow(medicion))
+    }]
   )) {
     stop("Los resultados de la medici\u00f3n no respetan su tipo declarado.",
          call. = FALSE)
@@ -596,6 +618,119 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   rownames(resultado) <- NULL
   class(resultado) <- c("plan_desenlaces", "data.frame")
   resultado
+}
+
+.desenlaces_de_objeto <- function(x) {
+  desenlaces <- if (inherits(x, "evaluacion_calidad")) {
+    x$desenlaces
+  } else if (inherits(x, "analisis")) {
+    x$evaluacion$desenlaces
+  } else {
+    attr(x, "desenlaces", exact = TRUE)
+  }
+  if (!inherits(desenlaces, "data.frame") || !nrow(desenlaces) ||
+      !"desenlace" %in% names(desenlaces)) {
+    return(NULL)
+  }
+  desenlaces[desenlaces$desenlace == "suprimir", , drop = FALSE]
+}
+
+.filas_desenlaces <- function(x, desenlaces) {
+  requeridas <- c("id_medida", "id_medicion", "metrica_instanciada")
+  if (!inherits(x, "data.frame") || !nrow(x) || is.null(desenlaces) ||
+      !all(requeridas %in% names(x)) ||
+      !all(requeridas %in% names(desenlaces))) {
+    return(rep(FALSE, if (inherits(x, "data.frame")) nrow(x) else 0L))
+  }
+  clave <- function(tabla, incluir_medida = TRUE) {
+    campos <- c("id_medicion", "metrica_instanciada")
+    if (incluir_medida) campos <- c("id_medida", campos)
+    do.call(paste, c(tabla[campos], sep = "\r"))
+  }
+  exactas <- clave(x) %in% clave(desenlaces)
+  if (any(exactas)) return(exactas)
+  clave(x, FALSE) %in% clave(desenlaces, FALSE)
+}
+
+.proteger_medicion_desenlaces <- function(
+    x, desenlaces, reemplazo = "[valor suprimido]", marcar_objeto = FALSE) {
+  if (!inherits(x, "data.frame") || !nrow(x) || is.null(desenlaces) ||
+      !all(c("resultado", "id_medida", "id_medicion",
+             "metrica_instanciada") %in% names(x))) {
+    return(x)
+  }
+  suprimidas <- .filas_desenlaces(x, desenlaces)
+  if (!any(suprimidas)) return(x)
+  if (length(reemplazo) == 1L && is.na(reemplazo)) {
+    x$resultado <- as.numeric(x$resultado)
+    x$resultado[suprimidas] <- NA_real_
+  } else {
+    x$resultado <- as.character(x$resultado)
+    x$resultado[suprimidas] <- as.character(reemplazo)
+  }
+  if (isTRUE(marcar_objeto) && "objeto_medible" %in% names(x)) {
+    x$objeto_medible <- as.character(x$objeto_medible)
+    ya_marcadas <- !is.na(x$objeto_medible) & grepl(
+      "[valor suprimido]", x$objeto_medible, fixed = TRUE
+    )
+    nuevas <- suprimidas & !ya_marcadas
+    x$objeto_medible[nuevas] <- paste0(
+      x$objeto_medible[nuevas], " [valor suprimido]"
+    )
+  }
+  x
+}
+
+.proteger_tablero_desenlaces <- function(x, desenlaces) {
+  if (!inherits(x, "data.frame") || !nrow(x) || is.null(desenlaces) ||
+      !all(c("metrica", "valor") %in% names(x)) ||
+      !"metrica_instanciada" %in% names(desenlaces)) {
+    return(x)
+  }
+  metricas <- sub("@.*$", "", as.character(desenlaces$metrica_instanciada))
+  suprimidas <- as.character(x$metrica) %in% metricas
+  if (!any(suprimidas)) return(x)
+  x$valor <- as.character(x$valor)
+  x$valor[suprimidas] <- "[valor suprimido]"
+  x
+}
+
+.proteger_evaluacion_desenlaces <- function(x) {
+  if (!inherits(x$desenlaces, "data.frame") ||
+      !nrow(x$desenlaces) || !"valor_medido" %in% names(x$desenlaces)) {
+    return(x)
+  }
+  suprimidas <- x$desenlaces$desenlace == "suprimir"
+  if (any(suprimidas)) {
+    x$desenlaces$valor_medido <- as.character(x$desenlaces$valor_medido)
+    x$desenlaces$valor_medido[suprimidas] <- "[valor suprimido]"
+  }
+  x
+}
+
+print.medicion <- function(x, ...) {
+  visible <- .proteger_medicion_desenlaces(
+    x, .desenlaces_de_objeto(x)
+  )
+  print.data.frame(visible, ...)
+  invisible(x)
+}
+
+print.evaluacion_calidad <- function(x, ...) {
+  cli::cli_h1("Evaluaci\u00f3n de calidad")
+  cli::cli_h2("Evaluaciones de medidas")
+  print.data.frame(x$medidas, row.names = FALSE, ...)
+  cli::cli_h2("Evaluaciones de reglas")
+  print.data.frame(x$reglas, row.names = FALSE, ...)
+  cli::cli_h2("Perfiles de madurez")
+  print.data.frame(x$perfiles, row.names = FALSE, ...)
+  desenlaces <- .desenlaces_de_objeto(x)
+  if (!is.null(desenlaces)) {
+    cli::cli_h2("Plan de desenlaces")
+    protegido <- .proteger_evaluacion_desenlaces(x)
+    print.data.frame(protegido$desenlaces, row.names = FALSE, ...)
+  }
+  invisible(x)
 }
 
 #' Evaluar medidas, reglas y perfiles

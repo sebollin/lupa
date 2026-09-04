@@ -1,5 +1,25 @@
 # lupa 0.1.0
 
+## Una declaración vale en todas las salidas, no sólo en la primera
+
+- **`desenlace = "suprimir"` se enmascaraba en un lado y se publicaba en el
+  otro.** Una regla puede declarar que una medida no debe publicarse; el informe
+  decía `[valor suprimido]` dos veces y publicaba el valor igual en otra sección
+  del mismo documento. La supresión alcanza ahora al objeto, a `print()`, al
+  HTML, al histórico, al tablero, al índice y al archivo guardado. Se conserva la
+  señal —que la medida existe y que fue suprimida— y se oculta el número.
+- **`indice_calidad()` y `tablero_calidad()` no habían heredado la cobertura de
+  métricas.** El arreglo que impide publicar un `1` sobre controles que no
+  corrieron llegaba a `medir()` y `evaluar()` y no a estas dos. Las tres salidas
+  llevan ahora `cobertura_metricas`.
+- **`comparar_equivalencia()` no distinguía «son distintas» de «no se pudo
+  comparar».** Con la intersección de columnas vacía devolvía cero filas, igual
+  que dos perfiles idénticos. Ahora declara `columna_solo_en_anterior` y
+  `columna_solo_en_actual` en `cobertura_diagnosticos` con su `como_resolverlo`,
+  y el resumen cuenta comparados y no comparables por separado.
+- El motivo `faltante_misma_clase` ya no aparece sobre columnas de clases
+  distintas: dice qué tipo cambió.
+
 ## La deriva de calidad distingue un cambio en los datos de un cambio en la vara
 
 - **Cambiar el modelo, el perfil de evaluación o la aplicabilidad se leía como

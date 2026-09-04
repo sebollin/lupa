@@ -5,7 +5,8 @@
   "objeto_medible", "resultado", "agregacion"
 )
 
-.tablero_vacio <- function(cobertura = NULL, marco = NULL) {
+.tablero_vacio <- function(cobertura = NULL, marco = NULL,
+                           cobertura_metricas = NULL) {
   resultado <- data.frame(
     componente = character(), dimension = character(), factor = character(),
     metrica = character(), objeto = character(), valor = numeric(),
@@ -19,6 +20,10 @@
   attr(resultado, "alcance") <- .alcance_tablero(
     attr(resultado, "cobertura", exact = TRUE)
   )
+  if (inherits(cobertura_metricas, "data.frame") &&
+      nrow(cobertura_metricas)) {
+    attr(resultado, "cobertura_metricas") <- cobertura_metricas
+  }
   resultado
 }
 
@@ -141,8 +146,16 @@
   if (length(unique(medidas$id_medicion)) != 1L) {
     stop("El tablero admite una sola corrida de medici\u00f3n.", call. = FALSE)
   }
-  if (!is.numeric(medidas$resultado) || anyNA(medidas$resultado) ||
-      any(!is.finite(medidas$resultado))) {
+  suprimidas <- if ("objeto_medible" %in% names(medidas)) {
+    !is.na(medidas$objeto_medible) & grepl(
+      "[valor suprimido]", medidas$objeto_medible, fixed = TRUE
+    )
+  } else {
+    rep(FALSE, nrow(medidas))
+  }
+  if (!is.numeric(medidas$resultado) ||
+      anyNA(medidas$resultado) && any(!suprimidas & is.na(medidas$resultado)) ||
+      any(!suprimidas & !is.finite(medidas$resultado))) {
     stop("La medici\u00f3n contiene resultados no num\u00e9ricos o no finitos.",
          call. = FALSE)
   }
@@ -374,6 +387,8 @@
 
 .preparar_tablero <- function(medidas, agregaciones = NULL, umbrales = NULL,
                               marco = NULL, cobertura = NULL) {
+  cobertura_metricas <- attr(medidas, "cobertura_metricas", exact = TRUE)
+  desenlaces <- .desenlaces_de_objeto(medidas)
   medidas <- .validar_medidas_tablero(medidas)
   ya_agregadas <- all(!is.na(medidas$agregacion)) &&
     all(!medidas$granularidad %in% c("instanciaAtributo", "instanciaEntidad"))
@@ -422,8 +437,17 @@
   attr(tablero, "cobertura") <- cobertura_tablero
   attr(tablero, "alcance") <- .alcance_tablero(cobertura_tablero)
   attr(tablero, "marco_calidad") <- marco_elegido
+  if (inherits(cobertura_metricas, "data.frame") &&
+      nrow(cobertura_metricas)) {
+    attr(tablero, "cobertura_metricas") <- cobertura_metricas
+  }
+  tablero <- .proteger_tablero_desenlaces(tablero, desenlaces)
   attr(agregada, "cobertura_tablero") <- cobertura_tablero
   attr(agregada, "marco_calidad") <- marco_elegido
+  if (inherits(cobertura_metricas, "data.frame") &&
+      nrow(cobertura_metricas)) {
+    attr(agregada, "cobertura_metricas") <- cobertura_metricas
+  }
   list(tablero = tablero, medicion = agregada)
 }
 
@@ -461,7 +485,11 @@
 #' tablero_calidad(medidas)
 tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
                             marco = NULL, cobertura = NULL) {
-  if (inherits(medidas, "analisis")) return(medidas$tablero)
+  if (inherits(medidas, "analisis")) {
+    return(.proteger_tablero_desenlaces(
+      medidas$tablero, .desenlaces_de_objeto(medidas)
+    ))
+  }
   .preparar_tablero(
     medidas, agregaciones, umbrales, marco, cobertura
   )$tablero
@@ -470,11 +498,18 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
 #' @export
 print.tablero_calidad <- function(x, ...) {
   cli::cli_h1("Tablero de calidad")
-  print.data.frame(x, row.names = FALSE)
+  visible <- .proteger_tablero_desenlaces(x, .desenlaces_de_objeto(x))
+  print.data.frame(visible, row.names = FALSE)
   alcance <- attr(x, "alcance", exact = TRUE)
   if (inherits(alcance, "data.frame") && nrow(alcance)) {
     cli::cli_h2("Alcance del marco")
     print(alcance, row.names = FALSE)
+  }
+  cobertura_metricas <- attr(x, "cobertura_metricas", exact = TRUE)
+  if (inherits(cobertura_metricas, "data.frame") &&
+      nrow(cobertura_metricas)) {
+    cli::cli_h2("Cobertura de m\u00e9tricas")
+    print(cobertura_metricas, row.names = FALSE)
   }
   invisible(x)
 }
@@ -553,25 +588,42 @@ print.tablero_calidad <- function(x, ...) {
   resultado
 }
 
-.cobertura_indice <- function(tablero, componentes) {
+.cobertura_indice <- function(tablero, componentes,
+                              cobertura_metricas = NULL) {
   cobertura <- attr(tablero, "cobertura", exact = TRUE)
   total <- if (inherits(cobertura, "data.frame")) nrow(cobertura) else 0L
   pares <- unique(componentes[c("dimension", "factor")])
   nombres <- if (nrow(pares)) {
     paste(pares$dimension, pares$factor, sep = " / ")
   } else character()
+  no_medidas <- if (inherits(cobertura_metricas, "data.frame") &&
+                    nrow(cobertura_metricas) &&
+                    "metrica_instanciada" %in% names(cobertura_metricas)) {
+    as.character(cobertura_metricas$metrica_instanciada)
+  } else character()
   data.frame(
     factores_marco = total,
     factores_en_indice = nrow(pares),
     factores = paste(nombres, collapse = "; "),
+    metricas_no_medidas = paste(no_medidas, collapse = "; "),
     stringsAsFactors = FALSE
   )
 }
 
-.nuevo_indice_sin_componentes <- function(tablero) {
+.nuevo_indice_sin_componentes <- function(tablero, motivo = NULL) {
   excluidas <- tablero[tablero$orientacion == "no_aplica", , drop = FALSE]
+  cobertura_metricas <- attr(tablero, "cobertura_metricas", exact = TRUE)
+  motivo <- if (is.null(motivo)) paste0(
+    "No hay \u00edndice: todas las m\u00e9tricas tienen orientaci\u00f3n ",
+    "'no_aplica' y no representan proporciones."
+  ) else motivo
   resultado <- list(
-    valor = NA_real_, cobertura = .cobertura_indice(tablero, tablero[0, ]),
+    valor = NA_real_, cobertura = .cobertura_indice(
+      tablero, tablero[0, ], cobertura_metricas
+    ),
+    cobertura_metricas = if (inherits(cobertura_metricas, "data.frame")) {
+      cobertura_metricas
+    } else data.frame(stringsAsFactors = FALSE),
     pesos = numeric(), pesos_internos = numeric(), componentes = tablero[0, ],
     dimensiones = data.frame(), invertidas = tablero[0, ],
     excluidas = excluidas, nivel_pesos = "dimensi\u00f3n",
@@ -581,10 +633,7 @@ print.tablero_calidad <- function(x, ...) {
       "valores con formato reconocible y filas). El \u00edndice s\u00f3lo los combina ",
       "porque quien lo solicit\u00f3 declar\u00f3 los pesos."
     ),
-    motivo = paste0(
-      "No hay \u00edndice: todas las m\u00e9tricas tienen orientaci\u00f3n ",
-      "'no_aplica' y no representan proporciones."
-    ),
+    motivo = motivo,
     tablero = tablero
   )
   class(resultado) <- "indice_calidad"
@@ -631,15 +680,28 @@ print.tablero_calidad <- function(x, ...) {
 #' )
 indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   tablero <- if (inherits(medidas, "analisis")) {
-    medidas$tablero
+    tablero_calidad(medidas)
   } else if (inherits(medidas, "tablero_calidad")) {
-    medidas
+    .proteger_tablero_desenlaces(medidas, .desenlaces_de_objeto(medidas))
   } else {
     tablero_calidad(medidas, ...)
   }
   if (missing(pesos) || is.null(pesos)) return(tablero)
+  cobertura_metricas <- attr(tablero, "cobertura_metricas", exact = TRUE)
   componentes <- tablero[tablero$orientacion != "no_aplica", , drop = FALSE]
-  if (!nrow(componentes)) return(.nuevo_indice_sin_componentes(tablero))
+  if (!nrow(componentes)) {
+    motivo <- if (!nrow(tablero)) paste0(
+      "No hay \u00edndice: no hubo mediciones combinables para esta corrida. ",
+      "La cobertura conserva qu\u00e9 qued\u00f3 sin medir."
+    ) else NULL
+    return(.nuevo_indice_sin_componentes(tablero, motivo))
+  }
+  if (!is.numeric(componentes$valor)) {
+    return(.nuevo_indice_sin_componentes(
+      tablero,
+      "No hay \u00edndice: una medida declarada para suprimir no puede publicarse ni combinarse."
+    ))
+  }
   dimensiones <- unique(componentes$dimension)
   pesos <- .validar_pesos_indice(pesos, dimensiones)
   internos <- .pesos_internos_indice(componentes, pesos_internos)
@@ -681,7 +743,10 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
   ]
   resultado <- list(
     valor = sum(resumen$aporte),
-    cobertura = .cobertura_indice(tablero, componentes),
+    cobertura = .cobertura_indice(tablero, componentes, cobertura_metricas),
+    cobertura_metricas = if (inherits(cobertura_metricas, "data.frame")) {
+      cobertura_metricas
+    } else data.frame(stringsAsFactors = FALSE),
     pesos = pesos,
     pesos_internos = internos,
     componentes = componentes,
@@ -715,6 +780,11 @@ print.indice_calidad <- function(x, ...) {
   }
   cli::cli_h2("Cobertura del \u00edndice")
   print.data.frame(x$cobertura, row.names = FALSE)
+  if (inherits(x$cobertura_metricas, "data.frame") &&
+      nrow(x$cobertura_metricas)) {
+    cli::cli_h2("Cobertura de m\u00e9tricas")
+    print(x$cobertura_metricas, row.names = FALSE)
+  }
   if (nrow(x$dimensiones)) {
     cli::cli_h2("Dimensiones, pesos y aportes")
     print.data.frame(x$dimensiones, row.names = FALSE)

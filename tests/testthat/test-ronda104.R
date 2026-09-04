@@ -164,6 +164,70 @@ test_that("un analisis respeta los desenlaces de su evaluacion", {
   expect_identical(analisis, analisis_antes)
 })
 
+test_that("la supresion se conserva en todas las salidas derivadas", {
+  datos <- data.frame(codigo = c("A", "B", "A"), stringsAsFactors = FALSE)
+  nucleo <- metricas_nucleo()
+  modelo_confirmado <- modelo(list(
+    instanciar(especializar(nucleo$EntidadDuplicada), "datos")
+  ))
+  analisis <- analizar(
+    datos, modelo_confirmado = modelo_confirmado,
+    perfil_evaluacion = perfil_evaluacion(
+      "Operativo",
+      regla_evaluacion(
+        "Medida publicable", function(x) x > 0.9, desenlace = "suprimir"
+      )
+    ), analizar_dependencias = FALSE,
+    fecha = as.POSIXct("2026-01-15", tz = "UTC"), id_medicion = "m1"
+  )
+  tablero <- tablero_calidad(analisis)
+  indice <- indice_calidad(analisis, pesos = c(Unicidad = 1))
+  historico <- historico_calidad(
+    analisis$medicion, analisis$evaluacion, detalle = "completo"
+  )
+
+  expect_equal(tablero$valor, "[valor suprimido]")
+  expect_true(is.na(indice$valor))
+  expect_match(indice$motivo, "suprimir")
+  medida <- historico[historico$nivel == "medida", , drop = FALSE]
+  expect_true(is.na(medida$resultado))
+  expect_match(medida$objeto_medible, "valor suprimido", ignore.case = TRUE)
+  expect_true(is.na(analisis$medicion$resultado))
+  expect_match(analisis$medicion$objeto_medible, "valor suprimido",
+               ignore.case = TRUE)
+  expect_equal(
+    analisis$evaluacion$desenlaces$valor_medido, "[valor suprimido]"
+  )
+
+  impresos <- c(
+    capture.output(print(analisis)),
+    capture.output(print(analisis$medicion)),
+    capture.output(print(analisis$evaluacion)),
+    capture.output(print(tablero)),
+    capture.output(print(indice)),
+    capture.output(print(historico))
+  )
+  texto_impreso <- paste(impresos, collapse = "\n")
+  expect_match(texto_impreso, "valor suprimido", ignore.case = TRUE)
+  expect_false(grepl("0.6666667", texto_impreso, fixed = TRUE))
+
+  archivo_html <- tempfile(fileext = ".html")
+  reportar(analisis, archivo = archivo_html, sobrescribir = TRUE)
+  html <- paste(readLines(archivo_html, warn = FALSE), collapse = "\n")
+  expect_match(html, "valor suprimido", ignore.case = TRUE)
+  expect_false(grepl("0.6666667", html, fixed = TRUE))
+
+  archivo_rds <- tempfile(fileext = ".rds")
+  guardar_analisis(analisis, archivo_rds, sobrescribir = TRUE)
+  guardado <- readRDS(archivo_rds)
+  expect_true(is.na(guardado$medicion$resultado))
+  expect_equal(guardado$tablero$valor, "[valor suprimido]")
+  expect_equal(
+    guardado$evaluacion$desenlaces$valor_medido, "[valor suprimido]"
+  )
+  unlink(c(archivo_html, archivo_rds))
+})
+
 test_that("los errores y las reglas anteriores conservan su comportamiento", {
   medicion <- medicion_r104()
   regla <- regla_evaluacion(

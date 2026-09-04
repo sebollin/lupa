@@ -410,6 +410,27 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
   evaluacion <- if (!is.null(perfil_evaluacion)) {
     evaluar(medicion, perfil_evaluacion)
   } else NULL
+  desenlaces <- .desenlaces_de_objeto(evaluacion)
+  if (!is.null(desenlaces)) {
+    if (inherits(medicion, "data.frame")) {
+      attr(medicion, "desenlaces") <- desenlaces
+      medicion <- .proteger_medicion_desenlaces(
+        medicion, desenlaces, reemplazo = NA_real_, marcar_objeto = TRUE
+      )
+    }
+    if (inherits(detalle_medicion, "data.frame")) {
+      attr(detalle_medicion, "desenlaces") <- desenlaces
+      detalle_medicion <- .proteger_medicion_desenlaces(
+        detalle_medicion, desenlaces, reemplazo = NA_real_,
+        marcar_objeto = TRUE
+      )
+    }
+    if (inherits(tablero, "data.frame")) {
+      attr(tablero, "desenlaces") <- desenlaces
+      tablero <- .proteger_tablero_desenlaces(tablero, desenlaces)
+    }
+    evaluacion <- .proteger_evaluacion_desenlaces(evaluacion)
+  }
   seleccion_confirmada <- if (!is.null(propuesta_confirmada)) {
     which(propuesta_confirmada$incluir &
             as.character(propuesta_confirmada$estado) == "lista")
@@ -475,7 +496,7 @@ print.analisis <- function(x, ...) {
     }
   ))
   cli::cli_h2("Tablero de calidad")
-  print(x$tablero)
+  print(tablero_calidad(x))
   cli::cli_h2("Cobertura conceptual")
   conteos <- table(x$cobertura$estado)
   vista <- data.frame(
@@ -741,6 +762,18 @@ guardar_analisis <- function(x, archivo, incluir_datos = FALSE,
     )
   }
   copia <- if (proteger_datos_personales) .proteger_analisis(x) else x
+  copia$medicion <- .proteger_medicion_desenlaces(
+    copia$medicion, .desenlaces_de_objeto(copia), reemplazo = NA_real_,
+    marcar_objeto = TRUE
+  )
+  copia$detalle_medicion <- .proteger_medicion_desenlaces(
+    copia$detalle_medicion, .desenlaces_de_objeto(copia),
+    reemplazo = NA_real_, marcar_objeto = TRUE
+  )
+  copia$tablero <- .proteger_tablero_desenlaces(
+    copia$tablero, .desenlaces_de_objeto(copia)
+  )
+  copia$evaluacion <- .proteger_evaluacion_desenlaces(copia$evaluacion)
   if (!incluir_datos) copia$datos <- NULL
   propuesta <- .deshidratar_propuesta(copia$propuesta_modelo)
   copia$propuesta_modelo <- propuesta$propuesta

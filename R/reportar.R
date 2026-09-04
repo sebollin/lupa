@@ -304,6 +304,7 @@
 .seccion_tablero <- function(x, max_filas) {
   alcance <- attr(x, "alcance", exact = TRUE)
   cobertura <- attr(x, "cobertura", exact = TRUE)
+  cobertura_metricas <- attr(x, "cobertura_metricas", exact = TRUE)
   paste0(
     "<section><h2>Tablero de calidad</h2>",
     "<p class=\"nota\">Cada fila declara la agregaci\u00f3n usada; el alcance ",
@@ -311,6 +312,11 @@
     .html_tabla(x, max_filas),
     "<h3>Alcance del marco</h3>", .html_tabla(alcance, Inf),
     "<h3>Detalle de cobertura</h3>", .html_tabla(cobertura, Inf),
+    if (inherits(cobertura_metricas, "data.frame") &&
+        nrow(cobertura_metricas)) paste0(
+      "<h3>Cobertura de m\u00e9tricas</h3>",
+      .html_tabla(cobertura_metricas, Inf)
+    ) else "",
     "</section>"
   )
 }
@@ -322,21 +328,7 @@
 
 .desenlaces_reporte <- function(objetos) {
   partes <- lapply(objetos, function(x) {
-    evaluacion <- if (inherits(x, "evaluacion_calidad")) {
-      x
-    } else if (inherits(x, "analisis")) {
-      x$evaluacion
-    } else {
-      NULL
-    }
-    if (is.null(evaluacion) ||
-        !inherits(evaluacion$desenlaces, "data.frame") ||
-        !nrow(evaluacion$desenlaces)) {
-      return(NULL)
-    }
-    evaluacion$desenlaces[
-      evaluacion$desenlaces$desenlace == "suprimir", , drop = FALSE
-    ]
+    .desenlaces_de_objeto(x)
   })
   partes <- partes[!vapply(partes, is.null, logical(1L))]
   if (!length(partes)) return(NULL)
@@ -346,41 +338,6 @@
     !duplicated(resultado[c("id_medicion", "id_medida", "regla")]),
     , drop = FALSE
   ]
-}
-
-.proteger_medicion_desenlaces <- function(x, desenlaces) {
-  if (!inherits(x, "data.frame") || !nrow(x) || is.null(desenlaces) ||
-      !all(c(
-        "id_medida", "id_medicion", "metrica_instanciada", "resultado"
-      ) %in% names(x))) {
-    return(x)
-  }
-  claves <- .clave_medida_reporte(
-    x$id_medicion, x$id_medida, x$metrica_instanciada
-  )
-  claves_suprimidas <- .clave_medida_reporte(
-    desenlaces$id_medicion, desenlaces$id_medida,
-    desenlaces$metrica_instanciada
-  )
-  suprimidas <- claves %in% claves_suprimidas
-  if (any(suprimidas)) {
-    x$resultado <- as.character(x$resultado)
-    x$resultado[suprimidas] <- "[valor suprimido]"
-  }
-  x
-}
-
-.proteger_evaluacion_desenlaces <- function(x) {
-  if (!inherits(x$desenlaces, "data.frame") || !nrow(x$desenlaces) ||
-      !"valor_medido" %in% names(x$desenlaces)) {
-    return(x)
-  }
-  suprimidas <- x$desenlaces$desenlace == "suprimir"
-  if (any(suprimidas)) {
-    x$desenlaces$valor_medido <- as.character(x$desenlaces$valor_medido)
-    x$desenlaces$valor_medido[suprimidas] <- "[valor suprimido]"
-  }
-  x
 }
 
 .proteger_objeto_desenlaces <- function(x, desenlaces) {
@@ -398,6 +355,9 @@
       x$detalle_medicion <- .proteger_medicion_desenlaces(
         x$detalle_medicion, desenlaces
       )
+    }
+    if (!is.null(x$tablero)) {
+      x$tablero <- .proteger_tablero_desenlaces(x$tablero, desenlaces)
     }
     if (!is.null(x$evaluacion)) {
       x$evaluacion <- .proteger_evaluacion_desenlaces(x$evaluacion)

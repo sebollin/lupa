@@ -136,6 +136,53 @@ test_that("la equivalencia usa la interseccion y declara campos no comparables",
   ))
 })
 
+test_that("la equivalencia declara columnas que no pudo comparar", {
+  anterior <- data.frame(
+    columna = c("a", "b"), media = c(1, 2), stringsAsFactors = FALSE
+  )
+  actual <- data.frame(
+    columna = "a", media = 1, stringsAsFactors = FALSE
+  )
+  resultado <- comparar_equivalencia(anterior, actual, tolerancia = 0)
+  cobertura <- attr(resultado, "cobertura_diagnosticos")
+
+  expect_equal(nrow(resultado), 1L)
+  expect_equal(attr(resultado, "columnas_no_comparables")$columna, "b")
+  expect_equal(nrow(cobertura), 1L)
+  expect_match(cobertura$motivo, "no_comparable", fixed = TRUE)
+  expect_match(cobertura$motivo, "solo_en_anterior", fixed = TRUE)
+
+  vacia <- comparar_equivalencia(
+    data.frame(columna = "a", media = 1, stringsAsFactors = FALSE),
+    data.frame(columna = "b", media = 1, stringsAsFactors = FALSE),
+    tolerancia = 0
+  )
+  expect_equal(nrow(vacia), 0L)
+  expect_setequal(
+    attr(vacia, "columnas_no_comparables")$columna, c("a", "b")
+  )
+  expect_equal(nrow(attr(vacia, "cobertura_diagnosticos")), 2L)
+})
+
+test_that("las clases distintas no se publican como faltante de misma clase", {
+  anterior <- data.frame(
+    columna = "x", media = NA_real_, tipo_inferido = "numero",
+    stringsAsFactors = FALSE
+  )
+  actual <- data.frame(
+    columna = "x", media = NA_character_, tipo_inferido = "texto",
+    stringsAsFactors = FALSE
+  )
+  resultado <- comparar_equivalencia(anterior, actual, tolerancia = 0)
+
+  expect_false(any(resultado$motivo == "faltante_misma_clase"))
+  expect_equal(nrow(resultado), 0L)
+  expect_match(
+    attr(resultado, "cobertura_diagnosticos")$motivo,
+    "tipo_cambiado", fixed = TRUE
+  )
+})
+
 test_that("comparar_equivalencia acepta perfil, perfil_dbi y frame columnas", {
   perfil <- perfilar(
     data.frame(x = c(1, 2, 3)), analizar_dependencias = FALSE,

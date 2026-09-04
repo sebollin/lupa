@@ -209,6 +209,20 @@ test_that("no_aplica se excluye y un tablero entero no produce indice", {
   expect_match(paste(salida, collapse = "\n"), "no_aplica")
 })
 
+test_that("un indice sin medicion declara el motivo correcto", {
+  analisis <- analizar(
+    data.frame(email = rep(NA_character_, 4L), stringsAsFactors = FALSE),
+    medir_propuesta = FALSE, analizar_dependencias = FALSE,
+    id_medicion = "sin-medicion",
+    fecha = as.POSIXct("2026-01-01", tz = "UTC")
+  )
+  indice <- indice_calidad(analisis, pesos = c(Exactitud = 1))
+
+  expect_true(is.na(indice$valor))
+  expect_match(indice$motivo, "no hubo mediciones", ignore.case = TRUE)
+  expect_false(grepl("no_aplica", indice$motivo, fixed = TRUE))
+})
+
 test_that("analizar mide y agrega sin retener detalle salvo pedido", {
   datos <- data.frame(
     codigo = c("AA01", "AA02", NA, "AA02"),

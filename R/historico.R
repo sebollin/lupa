@@ -276,7 +276,7 @@
   if (!inherits(x, "medicion")) {
     stop("El objeto de medidas debe provenir de medir().", call. = FALSE)
   }
-  .validar_medicion_evaluacion(x)
+  .validar_medicion_evaluacion(x, permitir_suprimidas = TRUE)
   clave <- .clave_historico("medida", x$id_medicion, id_medida = x$id_medida)
   resultado <- .parte_historico(x, "medida", clave)
   cobertura <- attr(x, "cobertura_metricas", exact = TRUE)
@@ -407,6 +407,12 @@
   ids_incompletos <- if (nrow(x)) {
     unique(x$id_medicion[x$nivel == "metrica_no_evaluada"])
   } else character()
+  valores_suprimidos <- if (nrow(x) && "objeto_medible" %in% names(x)) {
+    !is.na(x$objeto_medible) &
+      grepl("[valor suprimido]", x$objeto_medible, fixed = TRUE)
+  } else {
+    rep(FALSE, nrow(x))
+  }
   niveles_evaluacion <- x$nivel %in% c(
     "evaluacion_medida", "evaluacion_regla", "evaluacion_perfil"
   )
@@ -416,15 +422,17 @@
        anyNA(x$fecha) ||
        any(is.na(x$resultado) & !(
          x$nivel == "metrica_no_evaluada" |
-           niveles_evaluacion & x$id_medicion %in% ids_incompletos
+           niveles_evaluacion & x$id_medicion %in% ids_incompletos |
+           x$nivel == "medida" & valores_suprimidos
        )))) {
     stop("El hist\u00f3rico contiene identificadores, fechas o resultados inv\u00e1lidos.",
          call. = FALSE)
   }
   if (nrow(x)) {
     medidas <- x$nivel == "medida"
+    medidas_validas <- medidas & !valores_suprimidos
     if (any(medidas) && !.resultados_validos_tipo(
-      x$resultado[medidas], x$tipo_resultado[medidas]
+      x$resultado[medidas_validas], x$tipo_resultado[medidas_validas]
     )) {
       stop("Los resultados de las medidas hist\u00f3ricas no respetan su tipo.",
            call. = FALSE)
@@ -508,6 +516,44 @@
   )
 }
 
+.proteger_historico_desenlaces <- function(x, desenlaces) {
+  if (!inherits(x, "data.frame") || !nrow(x) || is.null(desenlaces) ||
+      !all(c("nivel", "resultado", "objeto_medible") %in% names(x))) {
+    return(x)
+  }
+  medidas <- x$nivel == "medida"
+  if (!any(medidas)) return(x)
+  suprimidas <- rep(FALSE, nrow(x))
+  suprimidas[medidas] <- .filas_desenlaces(
+    x[medidas, , drop = FALSE], desenlaces
+  )
+  if (any(suprimidas)) {
+    x$resultado[suprimidas] <- NA_real_
+    x$objeto_medible <- as.character(x$objeto_medible)
+    ya_marcadas <- !is.na(x$objeto_medible) & grepl(
+      "[valor suprimido]", x$objeto_medible, fixed = TRUE
+    )
+    nuevas <- suprimidas & !ya_marcadas
+    x$objeto_medible[nuevas] <- paste0(
+      x$objeto_medible[nuevas], " [valor suprimido]"
+    )
+  }
+  x
+}
+
+.desenlaces_historico <- function(objetos) {
+  partes <- lapply(objetos, .desenlaces_de_objeto)
+  partes <- partes[vapply(partes, function(x) {
+    inherits(x, "data.frame") && nrow(x)
+  }, logical(1L))]
+  if (!length(partes)) return(NULL)
+  resultado <- do.call(rbind, partes)
+  resultado[
+    !duplicated(resultado[c("id_medicion", "id_medida", "regla")]),
+    , drop = FALSE
+  ]
+}
+
 #' Construir y ampliar un histórico de calidad
 #'
 #' Crea un data frame plano y versionado con corridas producidas por [medir()] o
@@ -573,7 +619,10 @@ historico_calidad <- function(..., detalle = c("resumen", "completo")) {
       resultado, .normalizar_objeto_historico(objeto, detalle)
     )
   }
-  resultado
+  resultado <- .proteger_historico_desenlaces(
+    resultado, .desenlaces_historico(objetos)
+  )
+  .validar_historico(resultado)
 }
 
 #' @rdname historico_calidad
@@ -595,7 +644,10 @@ acumular_historico <- function(historico, ...,
       resultado, .normalizar_objeto_historico(objeto, detalle)
     )
   }
-  resultado
+  resultado <- .proteger_historico_desenlaces(
+    resultado, .desenlaces_historico(objetos)
+  )
+  .validar_historico(resultado)
 }
 
 #' Guardar y recuperar un histórico de calidad
