@@ -364,8 +364,19 @@ engine rejects is recorded as unavailable with its reason — never as zero.
 
 The claim is reproducible: `benchmark/verificar_motor.R` takes any DBI
 connection and checks five things — that the profile has five columns, the
-dialect is resolved by probe, the engine's mean agrees with R, the primary key
+dialect is resolved by probe, the engine's mean agrees with R **over finite
+values of ordinary scale**, the primary key
 is read from the catalogue, and coverage is returned as a table.
+
+That qualifier is not an excuse: it is what was measured. With `NaN` or
+infinities, with values that make an accumulated sum lose precision —
+`{1e16, 1, -1e16}`, whose mean the engine gives as `0` and R as 0.3337 when the
+truth is 1/3 — or against an engine whose percentile is broken for large
+`DECIMAL`, the two paths do **not** agree. That is why `perfilar_dbi()`
+**cross-checks its two blocks** whenever both exist: if they differ beyond
+tolerance, a `divergencia` row lands in `resumen_tabla$cobertura` carrying both
+values and the sample's coverage. It picks no winner — the package does not know
+which one is true — but it does not keep quiet about the disagreement.
 
 What that script checks is **behaviour**, and it can be redone against any
 connection. The **timings** of those runs — the seconds and row reads that appear

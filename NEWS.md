@@ -1,5 +1,28 @@
 # lupa 0.1.0
 
+## `perfilar_dbi()` compara sus dos bloques y declara la divergencia
+
+- El objeto trae `resumen_tabla`, que calcula el motor con SQL, y
+  `perfil_muestra`, que es `perfilar()` sobre una muestra. **Calculaban la misma
+  cantidad por dos vías y publicaban las dos sin compararlas.** Ahora, cuando
+  ambos existen, se cruzan las once métricas comunes y toda diferencia que supere
+  la tolerancia deja una fila `divergencia` en `resumen_tabla$cobertura` con los
+  dos valores, la cobertura de la muestra y las causas posibles.
+- **No se elige un ganador.** El paquete no sabe cuál de los dos es la verdad, y
+  decirlo sería inventar; lo que sí puede hacer es no callar que no coinciden.
+  Los agregados del motor y el perfil de la muestra no cambian.
+- Una muestra que no cubre la tabla **no** produce divergencias: la comparación
+  distingue la diferencia esperable por muestreo de la que no lo es.
+- Sale de tres casos medidos con causas distintas y un mismo síntoma: `NaN` e
+  `Inf`, que SQL no trata como R —once métricas discrepaban—; la cancelación de
+  coma flotante, donde `{1e16, 1, -1e16}` da media `0` en el motor y la verdad es
+  1/3; y un defecto de `PERCENTILE_CONT` en MariaDB sobre `DECIMAL` grande, que
+  publicaba `mediana = 1e+08` mientras la muestra decía `1,23e+19` —**once
+  órdenes de magnitud**, las dos en el mismo objeto y sin una nota—.
+- Parchear cada causa habría sido una carrera perdida: el catálogo de motores por
+  tipos no cierra. Cruzar los dos bloques las cubre a todas, y a las que todavía
+  no aparecieron.
+
 ## Tres puertas por las que se escapaba un valor protegido
 
 Una columna clasificada como dato personal se protege: la moda sale como

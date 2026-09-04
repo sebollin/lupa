@@ -373,8 +373,18 @@ rechaza queda declarado como no disponible con su motivo, nunca en cero.
 
 La afirmación es reproducible: `benchmark/verificar_motor.R` toma cualquier
 conexión DBI y comprueba cinco cosas — que el perfil tenga cinco columnas, que
-el dialecto se resuelva por sonda, que la media del motor coincida con R, que la
-clave primaria se lea del catálogo y que la cobertura sea una tabla.
+el dialecto se resuelva por sonda, que la media del motor coincida con R **sobre
+valores finitos y de escala ordinaria**, que la clave primaria se lea del
+catálogo y que la cobertura sea una tabla.
+
+Esa salvedad no es una excusa: es lo que se midió. Con `NaN` o infinitos, con
+valores que hacen perder precisión a una suma acumulada —`{1e16, 1, -1e16}`, cuya
+media el motor da como `0` y R como 0,3337, siendo 1/3— o con un motor cuyo
+percentil está roto para `DECIMAL` grande, las dos vías **no** coinciden. Por eso
+`perfilar_dbi()` **cruza sus dos bloques** cuando ambos existen: si difieren más
+allá de la tolerancia, deja una fila `divergencia` en `resumen_tabla$cobertura`
+con los dos valores y la cobertura de la muestra. No elige un ganador —el paquete
+no sabe cuál es la verdad— pero no calla que no coinciden.
 
 Lo que ese script comprueba es el **comportamiento**, y se puede rehacer contra
 cualquier conexión. Los **cronometrajes** de esas corridas —los segundos y las

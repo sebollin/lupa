@@ -4476,6 +4476,342 @@
   if (!length(registros)) vacia else do.call(rbind, registros)
 }
 
+# `resumen_tabla` y `perfil_muestra` responden a la misma pregunta por caminos
+# distintos. La muestra puede explicar que los valores ordinarios no coincidan,
+# pero no explica una imposibilidad unilateral (por ejemplo, que una muestra
+# tenga mas faltantes que la tabla completa) ni que uno de los caminos no pueda
+# producir un valor. Esta separacion evita convertir una diferencia esperable de
+# alcance en una acusacion contra el motor.
+.METRICAS_CORROBORACION_DBI <- c(
+  "media", "mediana", "minimo", "maximo", "desvio", "n_distintos",
+  "n_faltantes", "n_ceros", "n_negativos", "moda", "frecuencia_moda"
+)
+.METRICAS_CORROBORACION_NUMERICAS_DBI <- c(
+  "media", "mediana", "minimo", "maximo", "desvio"
+)
+.METRICAS_CORROBORACION_CONTEOS_DBI <- c(
+  "n_distintos", "n_faltantes", "n_ceros", "n_negativos",
+  "frecuencia_moda"
+)
+.TOLERANCIA_ABSOLUTA_CORROBORACION_DBI <- 1e-10
+.TOLERANCIA_RELATIVA_CORROBORACION_DBI <- 64 * .Machine$double.eps
+
+.valor_corroboracion_dbi <- function(columnas, columna, metrica) {
+  if (!is.data.frame(columnas) || !all(c("columna", metrica) %in% names(columnas))) {
+    return(NULL)
+  }
+  indices <- which(as.character(columnas$columna) == columna)
+  if (!length(indices)) return(NULL)
+  columnas[[metrica]][[indices[[1L]]]]
+}
+
+.tipo_numerico_corroboracion_dbi <- function(columnas, columna) {
+  if (!is.data.frame(columnas) || !"tipo_inferido" %in% names(columnas)) {
+    return(FALSE)
+  }
+  indices <- which(as.character(columnas$columna) == columna)
+  if (!length(indices)) return(FALSE)
+  tolower(as.character(columnas$tipo_inferido[[indices[[1L]]]])) %in%
+    c("entero", "doble", "numero", "numerico", "integer", "double")
+}
+
+.estado_corroborable_dbi <- function(sql, columna, metrica) {
+  if (!is.data.frame(sql) ||
+      !all(c("columna", "metrica", "estado") %in% names(sql))) {
+    return(NULL)
+  }
+  indices <- which(as.character(sql$columna) == columna &
+    as.character(sql$metrica) == metrica)
+  if (!length(indices)) return(NULL)
+  no_medido <- c(
+    "no_solicitado", "no_aplica", "omitida",
+    "omitido_por_costo", "omitido_por_privacidad", "no_medido"
+  )
+  estados <- as.character(sql$estado[indices])
+  comparables <- which(!is.na(estados) & !estados %in% no_medido)
+  if (!length(comparables)) return(NULL)
+  indices[[comparables[[length(comparables)]]]]
+}
+
+.es_na_corroboracion_dbi <- function(valor) {
+  if (is.null(valor) || length(valor) != 1L) return(TRUE)
+  resultado <- tryCatch(is.na(valor[[1L]]), error = function(e) FALSE)
+  isTRUE(resultado)
+}
+
+.numero_corroboracion_dbi <- function(valor) {
+  if (is.null(valor) || length(valor) != 1L) return(NA_real_)
+  suppressWarnings(as.numeric(valor[[1L]]))
+}
+
+.texto_corroboracion_dbi <- function(valor) {
+  if (.es_na_corroboracion_dbi(valor)) return("NA")
+  if (is.numeric(valor) || inherits(valor, "integer64")) {
+    numero <- .numero_corroboracion_dbi(valor)
+    if (is.nan(numero)) return("NaN")
+    if (is.infinite(numero)) return(if (numero > 0) "Inf" else "-Inf")
+    return(format(numero, scientific = TRUE, digits = 17L, trim = TRUE))
+  }
+  as.character(valor[[1L]])
+}
+
+.valor_normalizado_corroboracion_dbi <- function(valor, numerico) {
+  if (numerico) return(.numero_corroboracion_dbi(valor))
+  if (is.null(valor) || !length(valor)) return(NA_character_)
+  as.character(valor[[1L]])
+}
+
+.comparar_celda_corroboracion_dbi <- function(a, b, numerico) {
+  faltante_a <- .es_na_corroboracion_dbi(a)
+  faltante_b <- .es_na_corroboracion_dbi(b)
+  if (xor(faltante_a, faltante_b)) {
+    return(list(
+      difiere = TRUE, motivo = "faltante_un_lado", delta = NA_real_
+    ))
+  }
+  if (faltante_a && faltante_b) {
+    return(list(
+      difiere = FALSE, motivo = "faltante_en_ambos", delta = NA_real_
+    ))
+  }
+  a <- .valor_normalizado_corroboracion_dbi(a, numerico)
+  b <- .valor_normalizado_corroboracion_dbi(b, numerico)
+  if (numerico) {
+    if (is.na(a) || is.na(b)) {
+      return(list(
+        difiere = TRUE, motivo = "valor_no_numerico_un_lado", delta = NA_real_
+      ))
+    }
+    if (is.infinite(a) || is.infinite(b)) {
+      igual <- isTRUE(a == b)
+      return(list(
+        difiere = !igual,
+        motivo = if (igual) "igualdad_exacta" else "infinito_distinto",
+        delta = NA_real_
+      ))
+    }
+    delta <- abs(a - b)
+    escala <- max(abs(a), abs(b))
+    limite <- .TOLERANCIA_ABSOLUTA_CORROBORACION_DBI +
+      .TOLERANCIA_RELATIVA_CORROBORACION_DBI * escala
+    dentro <- is.finite(delta) && is.finite(limite) && delta <= limite
+    return(list(
+      difiere = !dentro,
+      motivo = if (dentro) "dentro_de_tolerancia" else "fuera_de_tolerancia",
+      delta = as.numeric(delta)
+    ))
+  }
+  igual <- isTRUE(a == b)
+  list(
+    difiere = !igual,
+    motivo = if (igual) "igualdad_exacta" else "texto_distinto",
+    delta = NA_real_
+  )
+}
+
+.contradiccion_muestra_corroboracion_dbi <- function(metrica, a, b) {
+  if (metrica %in% .METRICAS_CORROBORACION_CONTEOS_DBI) {
+    return(is.finite(a) && is.finite(b) && a < b)
+  }
+  if (identical(metrica, "minimo")) {
+    return(is.finite(a) && is.finite(b) && a > b)
+  }
+  if (identical(metrica, "maximo")) {
+    return(is.finite(a) && is.finite(b) && a < b)
+  }
+  FALSE
+}
+
+.cobertura_corroboracion_bloques_dbi <- function(
+    resumen, perfil, protegidas = character()) {
+  vacia <- .cobertura_dbi_vacia()
+  meta_vacia <- list(
+    disponible = FALSE, estado = "no_disponible", filas_resumen = NA_real_,
+    filas_muestra = NA_real_, fraccion = NA_real_, metricas =
+      .METRICAS_CORROBORACION_DBI,
+    motivo = "No hay dos bloques publicos que comparar."
+  )
+  if (!is.list(resumen) || !is.list(perfil) ||
+      !is.data.frame(resumen$columnas) || !is.data.frame(perfil$columnas)) {
+    return(list(cobertura = vacia, meta = meta_vacia))
+  }
+  universo <- if (is.null(resumen$meta$universo)) NA_character_ else
+    as.character(resumen$meta$universo)
+  total <- .numero_corroboracion_dbi(resumen$meta$filas)
+  observado <- .numero_corroboracion_dbi(perfil$meta$filas_analizadas)
+  fraccion <- if (is.finite(total) && total > 0 && is.finite(observado)) {
+    observado / total
+  } else if (is.finite(total) && total == 0 && is.finite(observado) && observado == 0) {
+    1
+  } else {
+    NA_real_
+  }
+  meta <- list(
+    disponible = TRUE, estado = NA_character_, filas_resumen = total,
+    filas_muestra = observado, fraccion = fraccion,
+    metricas = .METRICAS_CORROBORACION_DBI,
+    tolerancia = list(
+      absoluta = .TOLERANCIA_ABSOLUTA_CORROBORACION_DBI,
+      relativa = .TOLERANCIA_RELATIVA_CORROBORACION_DBI,
+      criterio = paste(
+        "|resumen_tabla - perfil_muestra| <= tolerancia_absoluta +",
+        "tolerancia_relativa * max(|resumen_tabla|, |perfil_muestra|)"
+      )
+    ),
+    motivo = NA_character_, divergencias = 0L
+  )
+  if (!identical(universo, "tabla_completa")) {
+    meta$estado <- "no_comparable_por_universo"
+    meta$motivo <- paste(
+      "Los agregados SQL no tienen el mismo universo que la lectura del",
+      "perfil: `universo = \"muestra_motor\"` puede seleccionar otra muestra.",
+      "No se comparan dos subconjuntos como si fueran las mismas filas."
+    )
+    return(list(cobertura = vacia, meta = meta))
+  }
+  if (length(total) != 1L || !is.finite(total) || total < 0 ||
+      length(observado) != 1L || !is.finite(observado) || observado < 0) {
+    meta$estado <- "no_comparable_por_filas"
+    meta$motivo <- paste(
+      "No se pudo establecer cuantas filas cubre cada bloque; no se",
+      "declara una divergencia numerica sin esa evidencia."
+    )
+    return(list(cobertura = vacia, meta = meta))
+  }
+  completa <- isTRUE(total == observado)
+  meta$estado <- if (completa) "comparacion_completa" else "muestra_parcial"
+  meta$motivo <- if (completa) {
+    "La muestra cubre el 100% de las filas; las diferencias se corroboran directamente."
+  } else {
+    paste(
+      "La muestra cubre menos del 100%: las diferencias ordinarias de",
+      "momentos, mediana, moda y conteos se atribuyen al muestreo y no se",
+      "declaran. Solo se declaran valores NA en un lado o contradicciones",
+      "unilaterales imposibles para una submuestra."
+    )
+  }
+  nombres <- intersect(
+    as.character(resumen$columnas$columna),
+    as.character(perfil$columnas$columna)
+  )
+  registros <- list()
+  for (columna in unique(nombres)) {
+    if (columna %in% protegidas) next
+    tipo_numerico <- .tipo_numerico_corroboracion_dbi(
+      perfil$columnas, columna
+    )
+    for (metrica in .METRICAS_CORROBORACION_DBI) {
+      indice_sql <- .estado_corroborable_dbi(
+        resumen$sql, columna, metrica
+      )
+      if (is.null(indice_sql)) next
+      a_crudo <- .valor_corroboracion_dbi(
+        resumen$columnas, columna, metrica
+      )
+      b_crudo <- .valor_corroboracion_dbi(
+        perfil$columnas, columna, metrica
+      )
+      if (is.null(a_crudo) || is.null(b_crudo)) next
+      es_numerica <- metrica %in% .METRICAS_CORROBORACION_NUMERICAS_DBI ||
+        (identical(metrica, "moda") && tipo_numerico)
+      comparacion <- .comparar_celda_corroboracion_dbi(
+        a_crudo, b_crudo, es_numerica
+      )
+      difiere <- if (completa) {
+        isTRUE(comparacion$difiere)
+      } else if (identical(comparacion$motivo, "faltante_un_lado")) {
+        TRUE
+      } else if (es_numerica && !is.na(comparacion$delta)) {
+        .contradiccion_muestra_corroboracion_dbi(
+          metrica,
+          .numero_corroboracion_dbi(a_crudo),
+          .numero_corroboracion_dbi(b_crudo)
+        )
+      } else {
+        FALSE
+      }
+      if (!isTRUE(difiere)) next
+      valor_sql <- .texto_corroboracion_dbi(a_crudo)
+      valor_muestra <- .texto_corroboracion_dbi(b_crudo)
+      detalle_muestra <- paste(
+        "La diferencia ordinaria no se atribuye a muestreo porque",
+        if (identical(comparacion$motivo, "faltante_un_lado")) {
+          "uno de los caminos no produjo un valor utilizable."
+        } else {
+          "la relacion entre la tabla completa y la submuestra es imposible."
+        }
+      )
+      motivo <- paste0(
+        "Corroboracion cruzada: `resumen_tabla` y `perfil_muestra` no",
+        " coinciden en `", metrica, "` para `", columna, "`. ",
+        "`resumen_tabla` (SQL) = ", valor_sql, "; `perfil_muestra`",
+        " (`perfilar()` sobre ", format(observado, scientific = FALSE,
+          trim = TRUE), " de ", format(total, scientific = FALSE, trim = TRUE),
+        " filas) = ", valor_muestra, ". ",
+        if (completa) {
+          paste(
+            "La cobertura es 100%; la diferencia supera la tolerancia o",
+            "un lado quedo en NA. Puede deberse al motor, al controlador,",
+            "a la conversion o a que las lecturas no compartieron snapshot."
+          )
+        } else detalle_muestra,
+        " No se elige un ganador: ambos valores quedan publicados."
+      )
+      como_resolverlo <- if (completa) {
+        paste(
+          "Revisar el SQL, el controlador y la conversion de tipos; repetir",
+          "la corroboracion bajo un snapshot si se necesita separar un cambio",
+          "de tabla de una diferencia del motor. No reemplazar un bloque por el otro."
+        )
+      } else {
+        paste(
+          "Repetir con `muestra = Inf` para cubrir el 100% y decidir si la",
+          "diferencia persiste. No extrapolar ni reemplazar un bloque por el otro."
+        )
+      }
+      sentencia <- if ("sql" %in% names(resumen$sql)) {
+        as.character(resumen$sql$sql[[indice_sql]])
+      } else NA_character_
+      registros[[length(registros) + 1L]] <- .registro_cobertura_dbi(
+        "corroboracion", paste(columna, metrica, sep = "::"),
+        "divergencia", motivo, como_resolverlo, sentencia
+      )
+    }
+  }
+  salida <- if (length(registros)) do.call(rbind, registros) else vacia
+  meta$divergencias <- as.integer(nrow(salida))
+  list(cobertura = salida, meta = meta)
+}
+
+.agregar_cobertura_corroboracion_dbi <- function(resultado) {
+  if (!is.list(resultado) || !is.list(resultado$resumen_tabla) ||
+      is.null(resultado$perfil_muestra)) {
+    return(resultado)
+  }
+  resumen <- resultado$resumen_tabla
+  perfil <- resultado$perfil_muestra
+  protegidas <- if (isTRUE(resumen$meta$proteccion_personal$aplicada)) {
+    .columnas_personales_protegidas(perfil$datos_personales)
+  } else {
+    character()
+  }
+  corroboracion <- .cobertura_corroboracion_bloques_dbi(
+    resumen, perfil, protegidas = protegidas
+  )
+  cobertura <- resumen$cobertura
+  resumen$cobertura <- if (is.null(cobertura) || !nrow(cobertura)) {
+    corroboracion$cobertura
+  } else if (!nrow(corroboracion$cobertura)) {
+    cobertura
+  } else {
+    rbind(cobertura, corroboracion$cobertura)
+  }
+  rownames(resumen$cobertura) <- NULL
+  resumen$meta$corroboracion_bloques <- corroboracion$meta
+  resultado$resumen_tabla <- resumen
+  resultado
+}
+
 # ---- Metricas ------------------------------------------------------------
 
 .METRICAS_DBI <- c(
@@ -11995,6 +12331,7 @@ perfilar_dbi <- function(conexion, tabla,
       max_bytes_materializacion = max_bytes_materializacion,
       argumentos = argumentos_muestra
     )
+    resultado <- .agregar_cobertura_corroboracion_dbi(resultado)
     return(.agregar_cobertura_politicas_muestra_dbi(
       resultado, aplicabilidad = aplicabilidad,
       columnas_opcionales = columnas_opcionales,
@@ -12015,6 +12352,7 @@ perfilar_dbi <- function(conexion, tabla,
       max_bytes_procesamiento = max_bytes_procesamiento,
       metricas_publicas = preparacion$metricas
     )
+    resultado <- .agregar_cobertura_corroboracion_dbi(resultado)
     return(.agregar_cobertura_politicas_muestra_dbi(
       resultado, aplicabilidad = aplicabilidad,
       columnas_opcionales = columnas_opcionales,
@@ -12543,6 +12881,7 @@ perfilar_dbi <- function(conexion, tabla,
   }
 
   estructura <- list(resumen_tabla = resumen, perfil_muestra = bloque$perfil)
+  estructura <- .agregar_cobertura_corroboracion_dbi(estructura)
   estructura <- .agregar_cobertura_politicas_muestra_dbi(
     estructura, aplicabilidad = aplicabilidad,
     columnas_opcionales = columnas_opcionales,
