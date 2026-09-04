@@ -51,13 +51,13 @@ regla <- regla_evaluacion("Al menos 90%", function(x) x > 0.9)
 evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> $medidas
 #>                                     id_medida
-#> 1 medicion-20260904T141827.029480-7519-000001
-#> 2 medicion-20260904T141827.029480-7519-000002
-#> 3 medicion-20260904T141827.029480-7519-000003
+#> 1 medicion-20260904T152409.780907-7226-000001
+#> 2 medicion-20260904T152409.780907-7226-000002
+#> 3 medicion-20260904T152409.780907-7226-000003
 #>                            id_medicion               fecha   perfil
-#> 1 medicion-20260904T141827.029480-7519 2026-09-04 14:18:27 Avanzado
-#> 2 medicion-20260904T141827.029480-7519 2026-09-04 14:18:27 Avanzado
-#> 3 medicion-20260904T141827.029480-7519 2026-09-04 14:18:27 Avanzado
+#> 1 medicion-20260904T152409.780907-7226 2026-09-04 15:24:09 Avanzado
+#> 2 medicion-20260904T152409.780907-7226 2026-09-04 15:24:09 Avanzado
+#> 3 medicion-20260904T152409.780907-7226 2026-09-04 15:24:09 Avanzado
 #>          regla  metrica_instanciada orientacion resultado
 #> 1 Al menos 90% NoNulo@personas.edad conformidad      TRUE
 #> 2 Al menos 90% NoNulo@personas.edad conformidad     FALSE
@@ -65,13 +65,13 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> 
 #> $reglas
 #>                            id_medicion               fecha   perfil
-#> 1 medicion-20260904T141827.029480-7519 2026-09-04 14:18:27 Avanzado
+#> 1 medicion-20260904T152409.780907-7226 2026-09-04 15:24:09 Avanzado
 #>          regla n_medidas resultado
 #> 1 Al menos 90%         3 0.6666667
 #> 
 #> $perfiles
 #>                            id_medicion               fecha   perfil n_reglas
-#> 1 medicion-20260904T141827.029480-7519 2026-09-04 14:18:27 Avanzado        1
+#> 1 medicion-20260904T152409.780907-7226 2026-09-04 15:24:09 Avanzado        1
 #>   resultado
 #> 1 0.6666667
 #> 
@@ -111,7 +111,7 @@ evaluar(medidas, perfil_evaluacion("Avanzado", regla))
 #> $condicion
 #> function (x) 
 #> x > 0.9
-#> <environment: 0x55f50224d808>
+#> <environment: 0x559bce3c8f60>
 #> 
 #> $metricas
 #> NULL
