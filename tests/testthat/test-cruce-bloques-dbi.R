@@ -32,10 +32,23 @@ test_that("la corroboracion declara NaN e infinitos en todos los campos divergen
   )
 })
 
-test_that("la corroboracion declara una media fuera de tolerancia", {
+test_that("la corroboracion sigue el contrato cuando los dos caminos difieren", {
   skip_if_not_installed("DBI")
   skip_if_not_installed("duckdb")
 
+  # `{1e16, 1, -1e16}` tiene media 1/3 y el motor la calcula como `0`: acumula en
+  # double y `1e16 + 1` redondea de vuelta a `1e16`.
+  #
+  # Cuanto da el lado de R DEPENDE DE LA PLATAFORMA, y eso costo dos corridas de
+  # CI aprenderlo. `mean()` aplica una correccion de segunda pasada en
+  # `long double`; en x86, que tiene long double de 80 bits, recupera
+  # 0.33365885416666669 y hay divergencia. En macOS ARM64 no hay long double
+  # extendido, `mean()` tambien da `0`, los dos caminos coinciden y **no hay nada
+  # que declarar**.
+  #
+  # Las dos conductas son correctas. Lo que la prueba tiene que fijar no es el
+  # numero ni la existencia de la divergencia, sino el CONTRATO, que vale en las
+  # dos plataformas: si difieren se declara, y si coinciden no se inventa nada.
   con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
   DBI::dbWriteTable(con, "datos_cruce", data.frame(x = c(1e16, 1, -1e16)))
@@ -47,36 +60,25 @@ test_that("la corroboracion declara una media fuera de tolerancia", {
   divergencias <- resultado$resumen_tabla$cobertura
   divergencias <- divergencias[divergencias$bloque == "corroboracion", , drop = FALSE]
 
-  expect_equal(divergencias$elemento, "x::media")
-
-  # El motivo tiene que nombrar los DOS valores, y se toman de la misma corrida
-  # en vez de escribirlos a mano.
-  #
-  # La primera version fijaba el literal `3.3365885416666669e-01`, que es lo que
-  # da `mean(c(1e16, 1, -1e16))` en x86. Fallo en macOS ARM64 y con razon: `mean()`
-  # aplica una correccion de segunda pasada en `long double`, y ARM64 no tiene
-  # long double de 80 bits, asi que ese digito cambia por construccion. Fijar la
-  # expansion decimal de una suma con cancelacion catastrofica es fijar
-  # justamente el numero que no es portable.
-  # El motivo nombra los dos bloques y dice que no coinciden; eso es texto fijo
-  # del paquete y si es portable.
-  expect_match(divergencias$motivo, "resumen_tabla", fixed = TRUE)
-  expect_match(divergencias$motivo, "perfil_muestra", fixed = TRUE)
-  expect_match(divergencias$motivo, "no coinciden", fixed = TRUE)
-  expect_match(divergencias$motivo, "3 de 3 filas", fixed = TRUE)
-
-  # Y lo que la prueba de verdad quiere decir: los dos caminos NO coinciden, el
-  # del motor colapso a cero por la cancelacion y el de la muestra quedo cerca
-  # de la verdad, que es 1/3.
   media_motor <- resultado$resumen_tabla$columnas$media[
     resultado$resumen_tabla$columnas$columna == "x"
   ]
   media_muestra <- resultado$perfil_muestra$columnas$media[
     resultado$perfil_muestra$columnas$columna == "x"
   ]
-  expect_false(isTRUE(all.equal(media_motor, media_muestra)))
   expect_equal(media_motor, 0)
-  expect_equal(media_muestra, 1 / 3, tolerance = 1e-2)
+
+  if (isTRUE(all.equal(media_motor, media_muestra))) {
+    # Plataforma sin long double extendido: coinciden, y no se declara nada.
+    expect_equal(nrow(divergencias), 0L)
+  } else {
+    expect_equal(divergencias$elemento, "x::media")
+    # Texto fijo del paquete, no la representacion de un numero calculado.
+    expect_match(divergencias$motivo, "resumen_tabla", fixed = TRUE)
+    expect_match(divergencias$motivo, "perfil_muestra", fixed = TRUE)
+    expect_match(divergencias$motivo, "no coinciden", fixed = TRUE)
+    expect_match(divergencias$motivo, "3 de 3 filas", fixed = TRUE)
+  }
 })
 
 test_that("datos limpios no inventan una divergencia", {
