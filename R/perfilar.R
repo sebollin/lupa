@@ -737,17 +737,29 @@
 #' declaran `estado_resumen_cuantitativo = "calculados_sobre_dias"`, junto con
 #' `n_fechas_resumidas` y `n_fechas_excluidas_granularidad`. El mínimo y el máximo
 #' son entonces condicionales al subconjunto con día; no representan un rango
-#' de toda la columna. Si ese subconjunto resulta de formatos descubiertos en
-#' una muestra y la conversión deja valores presentes afuera, el perfil agrega
-#' una fila `resumen_cuantitativo` en `cobertura_diagnosticos`.
+#' de toda la columna.
+#'
+#' Los dos conteos que acompañan a ese estado cuentan cosas distintas.
+#' `n_fechas_excluidas_granularidad` cuenta **sólo** las fechas que quedaron
+#' fuera por ser de granularidad mes, y queda en `NA` cuando los formatos se
+#' descubrieron sobre una muestra: ese número se deriva de los formatos
+#' detectados en la muestra mientras el resumen recorre la columna entera, así
+#' que atribuir la causa exigiría rehacer la detección sobre todo, que es el
+#' costo que el muestreo existe para evitar. `n_valores_excluidos_resumen` es el
+#' campo general —el mismo que usan las columnas numéricas— y cuenta **todo**
+#' valor presente que no sostiene el resumen, sea un período de mes o un texto
+#' que ningún formato pudo leer. Siempre que ese total sea mayor que cero, el
+#' perfil agrega una fila `resumen_cuantitativo` en `cobertura_diagnosticos`,
+#' haya muestreo o no.
 #'
 #' Para números ordinarios, los estadísticos cuantitativos se calculan sólo con
 #' valores finitos; `n_nan`, `n_infinito_positivo` y `n_infinito_negativo`
 #' declaran lo excluido. En columnas `integer64` que exceden el entero máximo
 #' representable exactamente por `double`, `minimo` y `maximo` quedan en `NA` y
 #' los extremos exactos se conservan en `minimo_exacto` y `maximo_exacto`.
-#' Cuando el tipo numérico se descubrió sobre una muestra y la conversión de
-#' texto deja valores presentes afuera, `n_valores_excluidos_resumen` y
+#' Cuando la conversión de texto deja valores presentes afuera —haya muestreo o
+#' no, porque la conversión descarta lo que no puede leer en los dos casos—,
+#' `n_valores_excluidos_resumen` y
 #' `estado_resumen_cuantitativo = "calculados_sobre_valores"` declaran ese
 #' alcance parcial.
 #'
@@ -2141,6 +2153,6 @@ perfilar <- function(datos,
     )]
   }
   class(estructura) <- "perfil"
-  if (proteger_datos_personales) estructura <- .proteger_perfil(estructura)
+  if (proteger_datos_personales) estructura <- .proteger_perfil(estructura, datos)
   estructura
 }

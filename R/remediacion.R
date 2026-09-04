@@ -1006,7 +1006,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   } else {
     .cobertura_diagnosticos_vacia()
   }
-  resultado
+  .proteger_plan_limpieza(resultado, perfil, datos)
 }
 
 .columnas_plan <- function() {
@@ -1970,7 +1970,8 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   encodeString(as.character(x), quote = '"')
 }
 
-.ejemplos_grupo <- function(acciones, datos, max_ejemplos = 5L) {
+.ejemplos_grupo <- function(acciones, datos, max_ejemplos = 5L,
+                            columnas_protegidas = character()) {
   tipo <- acciones$hallazgo[[1L]]
   columna <- acciones$columna[[1L]]
   parametros <- acciones$parametros[[1L]]
@@ -1979,8 +1980,20 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   if (identical(tipo, "filas_duplicadas")) {
     grupos <- .grupos_filas_duplicadas(datos)$grupos
     indices <- utils::head(which(!is.na(grupos)), max_ejemplos)
+    columnas_protegidas <- intersect(columnas_protegidas, names(datos))
+    valores_protegidos <- .valores_publicables_protegidos(
+      datos, columnas_protegidas
+    )
     return(vapply(indices, function(i) {
-      contenido <- vapply(datos, function(x) .texto_ejemplo(x[[i]]), character(1L))
+      contenido <- vapply(seq_along(datos), function(j) {
+        texto <- .texto_ejemplo(datos[[j]][[i]])
+        if (names(datos)[[j]] %in% columnas_protegidas) {
+          texto <- .reemplazar_valores_protegidos(
+            texto, valores_protegidos
+          )
+        }
+        texto
+      }, character(1L))
       paste0("fila ", i, " [grupo ", grupos[[i]], "]: ",
              paste(names(datos), contenido, sep = "=", collapse = ", "))
     }, character(1L)))
@@ -2117,6 +2130,10 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
   max_ejemplos <- floor(max_ejemplos)
 
   grupos <- .grupos_para_guiar(plan)
+  columnas_protegidas <- attr(
+    plan, "columnas_datos_personales_protegidas", exact = TRUE
+  )
+  if (is.null(columnas_protegidas)) columnas_protegidas <- character()
   for (grupo in grupos) {
     indices <- which(plan$grupo == grupo)
     acciones <- plan[indices, , drop = FALSE]
@@ -2137,7 +2154,9 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
       acciones <- plan[indices, , drop = FALSE]
     }
     elegibles <- which(as.character(acciones$estado) == "lista")
-    ejemplos <- .ejemplos_grupo(acciones, datos, max_ejemplos)
+    ejemplos <- .ejemplos_grupo(
+      acciones, datos, max_ejemplos, columnas_protegidas
+    )
     etiquetas <- paste0(
       acciones$estrategia[elegibles],
       ifelse(acciones$recomendada[elegibles], " (Recomendado)", "")

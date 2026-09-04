@@ -219,6 +219,17 @@ exactamente lo que identifica a una persona**, así que una columna de la clave
 clasificada como dato personal vuelve enmascarada, igual que la evidencia, y
 `claves_protegidas` dice cuál.
 
+**Y el enmascarado alcanza a todas las salidas, no sólo a la moda.** La
+descripción, la evidencia y la sugerencia de cada hallazgo; el motivo y el
+`como_resolverlo` de la cobertura; los parámetros de una acción del plan; los
+«Ejemplos reales» que `guiar_limpieza()` imprime por consola; y el rectángulo
+delimitador de una geometría protegida, cuyos cuatro `bbox_*` quedan en `NA` con
+`bbox_alcance = "no_publicado_por_geometria_protegida"`. En todos los casos se
+conserva la señal y se oculta el valor: el ejemplo sigue mostrando qué filas
+coinciden y en qué columnas, y el hallazgo de ausencia estructural se sigue
+emitiendo sin nombrar el umbral. Lo vigila un barrido que recorre los tipos de
+hallazgo y comprueba primero que cada uno se haya emitido.
+
 **El perfilado no toca los datos.** Ninguna función de análisis altera la tabla
 que recibe —ni sus valores, ni sus tipos, ni sus nombres, ni sus atributos—,
 incluidos los `data.table`, que R permite modificar por referencia. La única

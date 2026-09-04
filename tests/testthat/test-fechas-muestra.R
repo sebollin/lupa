@@ -15,7 +15,14 @@ test_that("el resumen de fechas declara lo que descarta la muestra", {
   ]
 
   expect_equal(fila$n_fechas_resumidas, 95L)
-  expect_equal(fila$n_fechas_excluidas_granularidad, 5L)
+  # El total que no entro al resumen. Los cinco quedaron afuera por PARSEO, no
+  # por granularidad: esta columna no tiene ninguna fecha de solo mes.
+  expect_equal(fila$n_valores_excluidos_resumen, 5L)
+  # Y la atribucion por causa no se publica cuando hay muestra: el conteo de
+  # granularidad sale de los formatos detectados SOBRE LA MUESTRA, mientras el
+  # resumen corre sobre la columna entera, asi que el numero seria de otra
+  # escala. `NA` y nunca cero, como el resto del paquete.
+  expect_true(is.na(fila$n_fechas_excluidas_granularidad))
   expect_equal(fila$estado_resumen_cuantitativo, "calculados_sobre_dias")
   expect_equal(nrow(cobertura), 1L)
   expect_match(cobertura$motivo, "5")
@@ -23,7 +30,7 @@ test_that("el resumen de fechas declara lo que descarta la muestra", {
                  as.character(perfil$hallazgos$tipo_hallazgo))
 })
 
-test_that("muestra Inf conserva el resumen de fechas completo", {
+test_that("sin muestra el rango es completo y el descarte igual se declara", {
   valores <- c(
     rep("2024-01-01", 95L),
     "01/01/2023", "2023/12/31", "1-ene-2022", "2022-13-99", "hola"
@@ -38,12 +45,18 @@ test_that("muestra Inf conserva el resumen de fechas completo", {
   expect_equal(fila$minimo_fecha, "2022-01-01")
   expect_equal(fila$maximo_fecha, "2024-01-01")
   expect_equal(fila$n_fechas_resumidas, 97L)
+  # Cero por granularidad, y bien: ninguna de estas fechas es de solo mes.
   expect_equal(fila$n_fechas_excluidas_granularidad, 0L)
-  expect_equal(fila$estado_resumen_cuantitativo, "calculados")
+  # Pero tres de los cien valores presentes -`2022-13-99`, `hola` y el que no
+  # convierte- tampoco entraron, y eso SE DECLARA aunque no haya muestreo. Antes
+  # este caso decia `calculados` con cero cobertura: el mismo descarte ocurria y
+  # solo cambiaba si se contaba, segun estuviera encendido el muestreo.
+  expect_equal(fila$n_valores_excluidos_resumen, 3L)
+  expect_equal(fila$estado_resumen_cuantitativo, "calculados_sobre_dias")
   expect_equal(nrow(perfil$cobertura_diagnosticos[
     perfil$cobertura_diagnosticos$diagnostico == "resumen_cuantitativo" &
       perfil$cobertura_diagnosticos$columna == "fecha", , drop = FALSE
-  ]), 0L)
+  ]), 1L)
 })
 
 test_that("el resumen numerico declara conversiones descartadas de la muestra", {

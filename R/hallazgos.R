@@ -3642,9 +3642,15 @@
     # mientras que el resumen cuantitativo recorre la columna entera. Si la
     # conversion deja valores presentes afuera, el resumen es parcial y esa
     # perdida de cobertura debe quedar visible junto a los otros diagnosticos.
-    n_excluidas_resumen <- if (fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
-      suppressWarnings(as.numeric(fila$n_fechas_excluidas_granularidad[[1L]]))
-    } else if ("n_valores_excluidos_resumen" %in% names(fila)) {
+    #
+    # Se lee de un solo campo. Antes las fechas se contaban por
+    # `n_fechas_excluidas_granularidad`, que ahora cuenta SOLO la granularidad
+    # -y queda en `NA` cuando hay muestra, porque ahi la causa no es atribuible
+    # sobre la columna entera-. El total de lo que no entro al resumen, sea cual
+    # sea la causa, vive en `n_valores_excluidos_resumen` para numeros y para
+    # fechas por igual, asi que la bifurcacion por tipo sobra y ademas dejaba la
+    # cobertura muda justo en el caso muestreado.
+    n_excluidas_resumen <- if ("n_valores_excluidos_resumen" %in% names(fila)) {
       suppressWarnings(as.numeric(fila$n_valores_excluidos_resumen[[1L]]))
     } else {
       0

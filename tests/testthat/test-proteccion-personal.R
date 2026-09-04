@@ -41,6 +41,17 @@
   resultado
 }
 
+.textos_salida_proteccion <- function(x) {
+  if (inherits(x, "data.frame")) {
+    return(unlist(lapply(x, .textos_salida_proteccion), use.names = FALSE))
+  }
+  if (is.list(x)) {
+    return(unlist(lapply(x, .textos_salida_proteccion), use.names = FALSE))
+  }
+  if (is.atomic(x)) return(as.character(x))
+  character()
+}
+
 test_that("analizar protege valores crudos de los cuatro tipos personales", {
   datos <- .datos_personales_cinco()
   crudos <- .valores_crudos_prueba(datos)
@@ -218,6 +229,237 @@ test_that("el HTML protege incluso un analisis originalmente abierto", {
   expect_match(html, "estadisticos de orden", fixed = TRUE)
   expect_match(html, "valor_protegido", fixed = TRUE)
   expect_match(html, "rangos y huecos protegidos", fixed = TRUE)
+})
+
+test_that("la ausencia estructural no publica valores de un determinante protegido", {
+  set.seed(21)
+  documento <- c(
+    sample(11111111:44444444, 60),
+    sample(70000000:79999999, 40)
+  )
+  datos <- data.frame(
+    documento = documento,
+    x = c(round(rnorm(60, 50, 8)), rep(NA_real_, 40))
+  )
+  crudos <- unique(as.character(documento))
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  senal <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "posible_ausencia_estructural", ,
+    drop = FALSE
+  ]
+
+  # El control de emision va primero: una regla que no dispara no prueba que la
+  # proteccion funcione, porque un resultado vacio tambien pasa el barrido.
+  expect_equal(nrow(senal), 1L)
+  expect_true(grepl("predice la presencia", senal$evidencia, fixed = TRUE))
+  expect_true(grepl("aplicabilidad", senal$sugerencia, fixed = TRUE))
+
+  textos <- c(
+    senal$descripcion, senal$evidencia, senal$sugerencia,
+    perfil$cobertura_diagnosticos$motivo,
+    perfil$cobertura_diagnosticos$como_resolverlo
+  )
+  expect_false(any(vapply(
+    crudos, function(valor) any(grepl(valor, textos, fixed = TRUE)),
+    logical(1L)
+  )))
+
+  archivo <- tempfile(fileext = ".html")
+  reportar(perfil, archivo = archivo)
+  html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
+                collapse = "\n")
+  expect_false(any(vapply(
+    crudos, function(valor) grepl(valor, html, fixed = TRUE), logical(1L)
+  )))
+
+  abierto <- perfilar(
+    datos, analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE
+  )
+  archivo_abierto <- tempfile(fileext = ".html")
+  reportar(abierto, archivo = archivo_abierto)
+  html_abierto <- paste(
+    readLines(archivo_abierto, warn = FALSE, encoding = "UTF-8"),
+    collapse = "\n"
+  )
+  expect_false(any(vapply(
+    crudos, function(valor) grepl(valor, html_abierto, fixed = TRUE),
+    logical(1L)
+  )))
+})
+
+test_that("el barrido de tipos de hallazgo no publica valores protegidos", {
+  set.seed(21)
+  estructural <- data.frame(
+    documento = c(
+      sample(11111111:44444444, 60),
+      sample(70000000:79999999, 40)
+    ),
+    x = c(round(rnorm(60, 50, 8)), rep(NA_real_, 40))
+  )
+  centinela <- data.frame(
+    documento = c(rep(99999999, 20), 10000001:10000080)
+  )
+  aritmetica <- data.frame(
+    documento = 11111111:11111210,
+    total = (11111111:11111210) * 2
+  )
+  orden <- data.frame(
+    fecha_nacimiento = as.Date("1980-01-01") + 0:99,
+    solicitud = as.Date("2020-01-01") + 0:99
+  )
+  orden$solicitud[[1L]] <- as.Date("1970-01-01")
+  dependencia <- data.frame(
+    documento = rep(c(12345678, 23456789), each = 20),
+    x = rep(c("A", "B"), each = 20),
+    stringsAsFactors = FALSE
+  )
+  dependencia$x[seq_len(10L)] <- NA_character_
+  casos <- list(
+    ausencia_estructural = list(
+      datos = estructural,
+      tipo = "posible_ausencia_estructural",
+      opciones = list(analizar_dependencias = FALSE)
+    ),
+    centinela_declarado = list(
+      datos = centinela,
+      tipo = "faltantes_disfrazados",
+      opciones = list(
+        sentinelas_numericos = 99999999,
+        analizar_dependencias = FALSE
+      )
+    ),
+    centinela_automatico = list(
+      datos = centinela,
+      tipo = "posible_centinela_numerico",
+      opciones = list(analizar_dependencias = FALSE)
+    ),
+    relacion_aritmetica = list(
+      datos = aritmetica,
+      tipo = "relacion_aritmetica_columnas",
+      opciones = list(analizar_dependencias = FALSE)
+    ),
+    relacion_orden = list(
+      datos = orden,
+      tipo = "relacion_orden_columnas",
+      opciones = list(analizar_dependencias = FALSE)
+    ),
+    parametros_plan = list(
+      datos = dependencia,
+      tipo = "faltantes",
+      opciones = list()
+    ),
+    rango_fecha_personal = list(
+      datos = data.frame(fecha_nacimiento = as.Date(c(
+        "1899-12-31", rep("1980-01-01", 99)
+      ))),
+      tipo = "fecha_nacimiento_fuera_rango",
+      opciones = list(
+        fecha = as.POSIXct("2026-01-01", tz = "UTC"),
+        analizar_dependencias = FALSE
+      )
+    ),
+    patron_raro_personal = list(
+      datos = data.frame(
+        nombre = c(rep("Ana Neri", 95), "Ana N3ri"),
+        stringsAsFactors = FALSE
+      ),
+      tipo = "patron_raro",
+      opciones = list(analizar_dependencias = FALSE)
+    ),
+    mayusculas_personales = list(
+      datos = data.frame(
+        nombre = c(rep("Ada Neri", 50), rep("ADA NERI", 50)),
+        stringsAsFactors = FALSE
+      ),
+      tipo = "mayusculas_inconsistentes",
+      opciones = list(analizar_dependencias = FALSE)
+    )
+  )
+
+  for (nombre_caso in names(casos)) {
+    caso <- casos[[nombre_caso]]
+    perfil <- do.call(
+      perfilar, c(list(caso$datos), caso$opciones)
+    )
+    tipos <- as.character(perfil$hallazgos$tipo_hallazgo)
+    # Primero se demuestra que la puerta está activa. Si no se emitió el tipo,
+    # un barrido vacio daria una falsa garantia de proteccion.
+    expect_true(caso$tipo %in% tipos, info = nombre_caso)
+    protegidas <- perfil$datos_personales$columna[
+      !is.na(perfil$datos_personales$proteger) &
+        perfil$datos_personales$proteger
+    ]
+    crudos <- unique(unlist(lapply(
+      caso$datos[intersect(names(caso$datos), protegidas)], as.character
+    ), use.names = FALSE))
+    crudos <- crudos[!is.na(crudos) & nzchar(crudos)]
+    plan <- planificar_limpieza(perfil, caso$datos)
+    salidas <- c(
+      .textos_salida_proteccion(perfil),
+      .textos_salida_proteccion(plan),
+      .textos_salida_proteccion(
+        attr(plan, "cobertura_diagnosticos", exact = TRUE)
+      )
+    )
+    fugas <- crudos[vapply(
+      crudos, function(valor) any(grepl(valor, salidas, fixed = TRUE)),
+      logical(1L)
+    )]
+    expect(
+      length(fugas) == 0L,
+      paste("No debe haber fugas en", nombre_caso, ":", paste(fugas, collapse = ", "))
+    )
+
+    archivo <- tempfile(fileext = ".html")
+    reportar(perfil, plan, archivo = archivo)
+    html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
+                  collapse = "\n")
+    fugas_html <- crudos[vapply(
+      crudos, function(valor) grepl(valor, html, fixed = TRUE), logical(1L)
+    )]
+    expect(
+      length(fugas_html) == 0L,
+      paste("No debe haber fugas HTML en", nombre_caso, ":",
+            paste(fugas_html, collapse = ", "))
+    )
+  }
+})
+
+test_that("un analisis abierto protege tambien los parametros del plan", {
+  datos <- data.frame(
+    documento = rep(c(12345678, 23456789), each = 20L),
+    x = rep(c("A", "B"), each = 20L),
+    stringsAsFactors = FALSE
+  )
+  datos$x[seq_len(10L)] <- NA_character_
+  abierto <- analizar(
+    datos, analizar_dependencias = TRUE, conservar_datos = TRUE,
+    proteger_datos_personales = FALSE
+  )
+  expect_true(
+    "faltantes" %in% as.character(abierto$perfil$hallazgos$tipo_hallazgo)
+  )
+  crudos <- unique(as.character(datos$documento))
+  protegido <- .proteger_analisis(abierto)
+  salidas <- c(
+    .textos_salida_proteccion(protegido$plan_limpieza),
+    .textos_salida_proteccion(
+      attr(protegido$plan_limpieza, "cobertura_diagnosticos", exact = TRUE)
+    )
+  )
+  expect_false(any(vapply(
+    crudos, function(valor) any(grepl(valor, salidas, fixed = TRUE)),
+    logical(1L)
+  )))
+
+  archivo <- tempfile(fileext = ".html")
+  reportar(abierto, archivo = archivo)
+  html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"),
+                collapse = "\n")
+  expect_false(any(vapply(
+    crudos, function(valor) grepl(valor, html, fixed = TRUE), logical(1L)
+  )))
 })
 
 test_that("desactivar la proteccion conserva perfil cuantiles datos y HTML", {

@@ -142,30 +142,44 @@
       } else 0L
       valores <- trimws(as.character(x))
       presentes <- !is.na(valores) & nzchar(valores)
-      excluidas_muestra <- if (muestreado) {
-        as.integer(sum(presentes & is.na(fechas)))
-      } else {
-        0L
-      }
+      # Todo lo que esta presente y no llego a fecha: los periodos de mes, que
+      # no se convierten a proposito, y lo que ningun formato pudo leer. No
+      # depende del muestreo -la conversion descarta igual- y por eso ya no se
+      # calcula solo cuando `muestreado`.
+      no_entraron <- as.integer(sum(presentes & is.na(fechas)))
       return(list(
         valores = as.numeric(fechas), clase = inferencia$tipo,
-        estado = if (tiene_mes || excluidas_muestra > 0L) {
+        estado = if (tiene_mes || no_entraron > 0L) {
           "calculados_sobre_dias"
         } else "calculados",
         n_fechas_resumidas = sum(is.finite(fechas)),
-        # Con muestra, la conversion puede dejar afuera formatos que no
-        # aparecieron en ella. El campo conserva el contrato existente de
-        # contar las fechas que no sostienen el resumen, no solo las de mes.
+        # Los dos campos cuentan cosas distintas, y hubo una tanda en que
+        # contaron la misma: con muestra, los fallos de PARSEO se sumaban al
+        # campo que se llama `granularidad`, asi que una columna con noventa
+        # fechas solo-mes y diez ilegibles publicaba cien "excluidas por
+        # granularidad" y quien lo leyera buscaba una granularidad que explicaba
+        # noventa de esos cien.
+        #
+        # `n_fechas_excluidas_granularidad` cuenta lo que su nombre dice: las
+        # fechas que quedaron fuera por ser de granularidad mes.
+        #
+        # Con muestra no se puede: ese numero sale de `formatos$n`, que esta
+        # contado SOBRE LA MUESTRA, mientras el resumen corre sobre la columna
+        # entera. Publicarlo daria 4 donde son 90. Atribuir la causa exigiria
+        # rehacer la deteccion sobre todo, que es justo el costo que el muestreo
+        # existe para evitar. Entonces se informa `NA`, siguiendo la regla que el
+        # paquete ya declara en su `\value`: cuando el camino no puede conocer un
+        # conteo, informa NA y nunca cero. El total sigue estando, sin atribuir,
+        # en `n_valores_excluidos_resumen`.
         n_fechas_excluidas_granularidad = if (muestreado) {
-          excluidas_muestra
+          NA_integer_
         } else {
           excluidas
         },
-        n_valores_excluidos_resumen = if (muestreado) {
-          excluidas_muestra
-        } else {
-          0L
-        }
+        # `n_valores_excluidos_resumen` es el campo general del paquete para
+        # "valores presentes que no sostienen el resumen", cualquiera sea la
+        # causa; la granularidad es un subconjunto suyo.
+        n_valores_excluidos_resumen = no_entraron
       ))
     }
   }

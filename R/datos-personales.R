@@ -541,6 +541,246 @@
   )
 }
 
+# La proteccion no puede depender de que cada diagnostico recuerde llamar a un
+# enmascarador. Las reglas se escriben en archivos distintos y varias de ellas
+# arman prosa con valores de filas; si una queda fuera, el dato llega igual a
+# `hallazgos`, al HTML o al plan. Este es el inventario de representaciones que
+# puede publicar una salida sin conservar la columna original.
+.valores_publicables_protegidos <- function(datos, sensibles) {
+  if (!inherits(datos, "data.frame") || !length(sensibles)) {
+    return(character())
+  }
+  valores <- unlist(lapply(intersect(names(datos), sensibles), function(nombre) {
+    x <- datos[[nombre]]
+    if (is.data.frame(x) || is.matrix(x) || is.list(x)) return(character())
+    crudos <- tryCatch(as.character(x), error = function(e) character())
+    formateados <- tryCatch(c(
+      format(x, digits = 15L, trim = TRUE, scientific = FALSE),
+      format(x, digits = 8L, trim = TRUE, scientific = FALSE),
+      vapply(seq_along(x), function(i) .texto_valor(x[i]), character(1L))
+    ), error = function(e) character())
+    c(crudos, formateados)
+  }), use.names = FALSE)
+  valores <- unique(valores[!is.na(valores) & nzchar(valores)])
+  # Los valores largos van primero para que `12` no deje restos dentro de un
+  # identificador `312`. La sustitucion es fija: estos textos ya son valores,
+  # no expresiones regulares.
+  valores[order(nchar(valores, type = "bytes"), decreasing = TRUE,
+                method = "radix")]
+}
+
+.valores_perfil_protegidos <- function(columnas, patrones, clasificacion,
+                                       meta = NULL) {
+  sensibles <- .columnas_personales_protegidas(clasificacion)
+  if (!inherits(columnas, "data.frame") || !length(sensibles)) {
+    return(character())
+  }
+  indices <- which(columnas$columna %in% sensibles)
+  campos <- intersect(
+    c(
+      "moda", "minimo", "maximo", "mediana", "centinela_valor",
+      "minimo_exacto", "maximo_exacto", "minimo_fecha", "maximo_fecha",
+      "media_fecha", "mediana_fecha"
+    ),
+    names(columnas)
+  )
+  valores <- unlist(lapply(campos, function(campo) {
+    tryCatch(as.character(columnas[[campo]][indices]),
+             error = function(e) character())
+  }), use.names = FALSE)
+  if (length(patrones) && length(indices)) {
+    nombres <- names(patrones)
+    for (i in which(nombres %in% sensibles)) {
+      tabla <- patrones[[i]]
+      if (inherits(tabla, "data.frame") && "ejemplos" %in% names(tabla)) {
+        valores <- c(valores, as.character(tabla$ejemplos))
+      }
+      for (atributo in c("resumen_patrones", "desvios_patron_raro")) {
+        resumen <- attr(tabla, atributo, exact = TRUE)
+        if (inherits(resumen, "data.frame") && "ejemplos" %in% names(resumen)) {
+          valores <- c(valores, as.character(resumen$ejemplos))
+        }
+      }
+    }
+  }
+  # Si el perfil abierto conserva una declaracion de centinelas, se trata como
+  # una posible representacion del dato. Cuando no hay `datos` para decidir a
+  # que columna corresponde, ocultarlos todos es la opcion segura.
+  if (is.list(meta) && length(meta$sentinelas_numericos)) {
+    valores <- c(valores, as.character(meta$sentinelas_numericos))
+  }
+  valores <- unique(valores[!is.na(valores) & nzchar(valores)])
+  valores[order(nchar(valores, type = "bytes"), decreasing = TRUE,
+                method = "radix")]
+}
+
+.reemplazar_valores_protegidos <- function(x, valores) {
+  if (!is.character(x) || !length(valores)) return(x)
+  for (valor in valores) {
+    largo <- nchar(valor, type = "bytes")
+    if (is.na(largo) || !largo) next
+    if (largo < 3L) {
+      escapado <- gsub(
+        "([][{}()+*^$|\\\\?.])", "\\\\\\1", valor,
+        fixed = FALSE, useBytes = TRUE
+      )
+      patron <- paste0(
+        "(?<![[:alnum:]_])", escapado, "(?![[:alnum:]_])"
+      )
+      x <- tryCatch(
+        gsub(patron, "[valor protegido]", x, perl = TRUE, useBytes = TRUE),
+        error = function(e) gsub(
+          valor, "[valor protegido]", x, fixed = TRUE, useBytes = TRUE
+        )
+      )
+    } else {
+      x <- gsub(valor, "[valor protegido]", x, fixed = TRUE, useBytes = TRUE)
+    }
+  }
+  x
+}
+
+# Recorre la parte textual de una salida sin convertir estadisticos numericos
+# que no sean valores de celda. Los parametros del plan tienen un recorrido
+# adicional para quitar tambien valores numericos que todavia no se volvieron
+# texto.
+.proteger_textos_salida <- function(x, valores) {
+  if (!length(valores)) return(x)
+  atributos <- attributes(x)
+  estructurales <- c("names", "class", "row.names", "dim", "dimnames")
+  adicionales <- setdiff(names(atributos), estructurales)
+  for (atributo in adicionales) {
+    attr(x, atributo) <- .proteger_textos_salida(
+      attr(x, atributo, exact = TRUE), valores
+    )
+  }
+  if (inherits(x, "data.frame")) {
+    for (j in seq_along(x)) {
+      columna <- x[[j]]
+      if (is.character(columna)) {
+        x[[j]] <- .reemplazar_valores_protegidos(columna, valores)
+      } else if (is.factor(columna)) {
+        levels(columna) <- .reemplazar_valores_protegidos(
+          levels(columna), valores
+        )
+        x[[j]] <- columna
+      } else if (is.list(columna)) {
+        x[[j]] <- lapply(columna, .proteger_textos_salida, valores = valores)
+      }
+    }
+    return(x)
+  }
+  if (is.list(x)) {
+    x[] <- lapply(x, .proteger_textos_salida, valores = valores)
+    return(x)
+  }
+  .reemplazar_valores_protegidos(x, valores)
+}
+
+.proteger_numeros_parametros <- function(x, valores) {
+  if (!length(valores)) return(x)
+  if (inherits(x, "data.frame")) {
+    for (j in seq_along(x)) {
+      if (is.list(x[[j]])) {
+        x[[j]] <- lapply(x[[j]], .proteger_numeros_parametros,
+                         valores = valores)
+      } else {
+        x[[j]] <- .proteger_numeros_parametros(x[[j]], valores)
+      }
+    }
+    return(x)
+  }
+  if (is.list(x)) {
+    x[] <- lapply(x, .proteger_numeros_parametros, valores = valores)
+    return(x)
+  }
+  if (!is.numeric(x) || inherits(x, c("Date", "POSIXt"))) return(x)
+  textos <- tryCatch(
+    as.character(x),
+    error = function(e) rep(NA_character_, length(x))
+  )
+  protegidos <- !is.na(textos) & textos %in% valores
+  if (any(protegidos)) x[protegidos] <- NA
+  x
+}
+
+# La accion sigue siendo visible, pero sus argumentos no pueden llevarse un
+# valor personal de vuelta a la tabla. Un plan con parametros enmascarados es
+# deliberadamente informativo: quien necesite ejecutarlo debe confirmar esos
+# valores en la fuente protegida.
+.proteger_plan_limpieza <- function(plan, perfil, datos = NULL) {
+  if (!inherits(plan, "data.frame")) return(plan)
+  sensibles <- .columnas_personales_protegidas(perfil)
+  valores <- .valores_perfil_protegidos(
+    perfil$columnas, perfil$patrones, perfil$datos_personales, perfil$meta
+  )
+  valores <- unique(c(
+    valores, .valores_publicables_protegidos(datos, sensibles)
+  ))
+  valores <- valores[!is.na(valores) & nzchar(valores)]
+  valores <- valores[order(nchar(valores, type = "bytes"), decreasing = TRUE,
+                           method = "radix")]
+  if (!length(valores)) {
+    attr(plan, "columnas_datos_personales_protegidas") <- sensibles
+    return(plan)
+  }
+  plan <- .proteger_textos_salida(plan, valores)
+  if ("parametros" %in% names(plan) && is.list(plan$parametros)) {
+    plan$parametros <- I(lapply(
+      plan$parametros,
+      function(parametros) .proteger_numeros_parametros(parametros, valores)
+    ))
+  }
+  cobertura <- attr(plan, "cobertura_diagnosticos", exact = TRUE)
+  if (inherits(cobertura, "data.frame")) {
+    attr(plan, "cobertura_diagnosticos") <- .proteger_textos_salida(
+      cobertura, valores
+    )
+  }
+  # `guiar_limpieza()` vuelve a consultar los datos de origen para construir
+  # ejemplos. Llevar sólo los nombres de columnas permite enmascararlos en esa
+  # salida sin serializar ni publicar los valores protegidos.
+  attr(plan, "columnas_datos_personales_protegidas") <- sensibles
+  plan
+}
+
+.proteger_ausencia_estructural <- function(hallazgos, sensibles) {
+  if (!nrow(hallazgos) || !length(sensibles)) return(hallazgos)
+  indices <- which(hallazgos$tipo_hallazgo ==
+                     "posible_ausencia_estructural")
+  if (!length(indices)) return(hallazgos)
+  for (i in indices) {
+    evidencia <- as.character(hallazgos$evidencia[[i]])
+    encontrado <- regexec("^`([^`]*)` predice", evidencia, perl = TRUE)
+    partes <- regmatches(evidencia, encontrado)[[1L]]
+    determinante <- if (length(partes) >= 2L) partes[[2L]] else NA_character_
+    if (is.na(determinante) || !determinante %in% sensibles) next
+    inicio <- sub("\\. La columna corresponde.*$", "", evidencia)
+    if (identical(inicio, evidencia)) next
+    tipo_criterio <- if (grepl("por un umbral", evidencia, fixed = TRUE)) {
+      "un umbral"
+    } else {
+      "niveles"
+    }
+    hallazgos$evidencia[[i]] <- paste0(
+      inicio,
+      ". La columna corresponde segun ", tipo_criterio,
+      " de `", determinante,
+      "` que no se publica porque esa columna esta protegida."
+    )
+    columna <- as.character(hallazgos$columna[[i]])
+    hallazgos$sugerencia[[i]] <- paste0(
+      "Si es asi, declararlo y volver a perfilar con `aplicabilidad` usando en `",
+      determinante,
+      "` el criterio confirmado en la fuente. El criterio no se reproduce aqui",
+      " porque esa columna esta protegida. Con la regla declarada, la ausencia",
+      " fuera de ese universo deja de contarse como defecto y el alcance queda",
+      " escrito en `cobertura_diagnosticos` para `", columna, "`."
+    )
+  }
+  hallazgos
+}
+
 .proteger_componentes_perfil <- function(columnas, patrones, dependencias,
                                           hallazgos, clasificacion) {
   sensibles <- .columnas_personales_protegidas(clasificacion)
@@ -626,6 +866,35 @@
     }
     columnas[[campo]][ocultar] <- reemplazo
   }
+  # La caja envolvente es una estadistica espacial distinta de los extremos
+  # numericos, pero sobre domicilios publica coordenadas de personas. Se
+  # conserva el bloque geometrico y su alcance, ocultando sólo los cuatro
+  # valores de coordenadas.
+  campos_bbox <- intersect(
+    c("bbox_xmin", "bbox_xmax", "bbox_ymin", "bbox_ymax"),
+    names(columnas)
+  )
+  geometria <- rep(FALSE, nrow(columnas))
+  if ("representacion_geometrica" %in% names(columnas)) {
+    geometria <- geometria | !is.na(columnas$representacion_geometrica)
+  }
+  if ("tipo_geometria" %in% names(columnas)) {
+    geometria <- geometria | !is.na(columnas$tipo_geometria)
+  }
+  if ("bbox_alcance" %in% names(columnas)) {
+    geometria <- geometria | !is.na(columnas$bbox_alcance)
+  }
+  geometria <- indices_columnas & geometria
+  if (length(campos_bbox)) {
+    for (campo in campos_bbox) {
+      ocultar <- geometria & !is.na(columnas[[campo]])
+      columnas[[campo]][ocultar] <- NA_real_
+    }
+  }
+  if ("bbox_alcance" %in% names(columnas)) {
+    columnas$bbox_alcance[geometria] <-
+      "no_publicado_por_geometria_protegida"
+  }
   if (!"detalle_proteccion_personal" %in% names(columnas)) {
     columnas$detalle_proteccion_personal <- NA_character_
   }
@@ -690,6 +959,10 @@
   # no solo en los de las columnas sensibles: la clave no pertenece a la
   # columna del hallazgo, viaja con la fila.
   hallazgos <- .proteger_claves_trazabilidad(hallazgos, sensibles)
+  # La ausencia estructural es una señal válida aunque el determinante sea
+  # personal. Se conserva la predicción y su precisión, pero no el corte ni los
+  # niveles que permitirían reconstruir valores de la columna protegida.
+  hallazgos <- .proteger_ausencia_estructural(hallazgos, sensibles)
   if (nrow(dependencias)) {
     indices_dependencias <- dependencias$determinante %in% sensibles |
       dependencias$dependiente %in% sensibles
@@ -728,8 +1001,24 @@
 # imprime en el texto. Ninguno muestra un valor de celda, y por eso se pasaron
 # por alto: lo que se filtra no es el dato sino la relacion entre dos datos, que
 # con otra del mismo perfil se despeja.
-.proteger_meta_y_cobertura <- function(perfil, sensibles) {
+.proteger_meta_y_cobertura <- function(perfil, sensibles,
+                                       valores = character()) {
   if (!length(sensibles)) return(perfil)
+  if (length(perfil$meta$sentinelas_numericos)) {
+    if (length(valores)) {
+      perfil$meta$sentinelas_numericos <- .proteger_numeros_parametros(
+        perfil$meta$sentinelas_numericos, valores
+      )
+    } else {
+      # Un perfil abierto puede llegar a `reportar()` sin conservar `datos`.
+      # En ese caso no se puede saber que centinela pertenece a que columna;
+      # conservar la lista completa publicaria uno si coincide con una columna
+      # protegida, asi que se oculta de forma conservadora.
+      perfil$meta$sentinelas_numericos <- rep(
+        NA_real_, length(perfil$meta$sentinelas_numericos)
+      )
+    }
+  }
   resultados <- perfil$meta$benford$resultados
   if (length(resultados)) {
     for (nombre in intersect(names(resultados), sensibles)) {
@@ -752,7 +1041,10 @@
   perfil
 }
 
-.proteger_perfil <- function(perfil) {
+.proteger_perfil <- function(perfil, datos = NULL) {
+  valores_perfil <- .valores_perfil_protegidos(
+    perfil$columnas, perfil$patrones, perfil$datos_personales, perfil$meta
+  )
   protegidos <- .proteger_componentes_perfil(
     perfil$columnas, perfil$patrones, perfil$dependencias,
     perfil$hallazgos, perfil$datos_personales
@@ -764,7 +1056,15 @@
   sensibles <- as.character(protegidos$columnas$columna[
     !is.na(protegidos$columnas$tipo_dato_personal)
   ])
-  .proteger_meta_y_cobertura(perfil, sensibles)
+  valores <- .valores_publicables_protegidos(
+    datos, .columnas_personales_protegidas(perfil)
+  )
+  valores <- unique(c(valores_perfil, valores))
+  valores <- valores[!is.na(valores) & nzchar(valores)]
+  valores <- valores[order(nchar(valores, type = "bytes"), decreasing = TRUE,
+                           method = "radix")]
+  perfil <- .proteger_meta_y_cobertura(perfil, sensibles, valores)
+  .proteger_textos_salida(perfil, valores)
 }
 
 .proteger_duplicados_aproximados <- function(resultado, sensibles) {

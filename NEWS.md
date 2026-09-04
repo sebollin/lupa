@@ -1,5 +1,55 @@
 # lupa 0.1.0
 
+## Tres puertas por las que se escapaba un valor protegido
+
+Una columna clasificada como dato personal se protege: la moda sale como
+`[valor protegido]`, el mínimo y el máximo quedan en `NA`. Tres salidas
+publicaban igual un valor real, **incluso con `proteger_datos_personales = TRUE`
+pedido explícitamente**. En las tres se conserva la señal: lo que no puede salir
+es el valor, no el aviso.
+
+- **`posible_ausencia_estructural` publicaba un umbral que era un número de
+  documento real**, en la evidencia y en la sugerencia —`aplicabilidad =
+  list(x = ~ documento < 70231469)`— y llegaba al informe HTML. Ahora el
+  hallazgo se sigue emitiendo y oculta el umbral y la fórmula cuando la columna
+  determinante está protegida.
+- **`guiar_limpieza()` imprimía filas enteras por consola.** Sus «Ejemplos
+  reales» se recalculan sobre los datos crudos que recibe la función, así que no
+  pasaban por la capa que protege el perfil: con `filas_duplicadas` mostraba
+  `documento=`, `correo=` y `telefono=` con sus valores. Ahora enmascara los
+  valores de las columnas protegidas y conserva la fila, el grupo y qué columnas
+  participan, que es lo que hace falta para decidir.
+- **`bbox_*` publicaba las coordenadas de una geometría protegida.** Para una
+  columna de domicilios, el rectángulo delimitador es una divulgación
+  geográfica. Los cuatro campos quedan en `NA` y `bbox_alcance` declara
+  `no_publicado_por_geometria_protegida`; el CRS, el tipo, la dimensión y los
+  conteos se conservan, porque no dicen dónde vive nadie.
+
+Lo sostiene un barrido que recorre los tipos de hallazgo y las salidas —consola
+incluida, capturando también lo que emite `cli`— y que comprueba primero que
+cada uno se haya emitido: un caso donde la regla no dispara da el mismo resultado
+que uno donde funciona bien.
+
+## Los dos conteos de un resumen parcial cuentan cosas distintas
+
+- `n_fechas_excluidas_granularidad` cuenta **sólo** las fechas que quedaron fuera
+  por ser de granularidad mes. Antes, cuando había muestreo, también sumaba los
+  fallos de conversión: una columna con noventa fechas de sólo mes y diez
+  ilegibles publicaba cien «excluidas por granularidad», y quien lo leyera
+  buscaba una granularidad que explicaba noventa de esos cien.
+- `n_valores_excluidos_resumen` es el campo general —el mismo que ya usaban las
+  columnas numéricas— y cuenta **todo** valor presente que no sostiene el
+  resumen, sea un período de mes o un texto que ningún formato pudo leer.
+- **Con muestreo, la atribución por causa se informa `NA`.** Ese conteo se deriva
+  de los formatos detectados en la muestra mientras el resumen recorre la columna
+  entera: publicaba `4` donde eran `90`. Atribuir la causa exigiría rehacer la
+  detección sobre todo, que es el costo que el muestreo existe para evitar, así
+  que se informa `NA` y nunca cero. El total sin atribuir sigue estando.
+- La fila `resumen_cuantitativo` de `cobertura_diagnosticos` se emite ahora
+  siempre que algún valor presente quede fuera del resumen, para fechas y para
+  números por igual y haya muestreo o no. Leía el conteo de granularidad y con
+  este cambio habría quedado muda justo en el caso muestreado.
+
 ## Una política declarada no se disfraza de cambio en los datos
 
 - `comparar_perfiles()` compara ahora la política de centinelas de las dos

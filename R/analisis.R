@@ -605,7 +605,12 @@ print.analisis <- function(x, ...) {
 
 .proteger_analisis <- function(x) {
   sensibles <- .columnas_personales_protegidas(x$perfil)
-  x$perfil <- .proteger_perfil(x$perfil)
+  x$perfil <- .proteger_perfil(x$perfil, x$datos)
+  # Hay que limpiar el plan antes de anonimizar `x$datos`: un analisis abierto
+  # puede conservar parametros que vienen de las filas originales.
+  x$plan_limpieza <- .proteger_plan_limpieza(
+    x$plan_limpieza, x$perfil, x$datos
+  )
   if (inherits(x$perfil, "perfil") &&
       !is.null(x$perfil$duplicados_aproximados)) {
     x$perfil$duplicados_aproximados <- .proteger_duplicados_aproximados(

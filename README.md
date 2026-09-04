@@ -213,6 +213,17 @@ feature cannot ignore: the key that lets you verify is exactly what identifies a
 person, so a key column classified as personal data comes back masked, the same
 way evidence does, and `claves_protegidas` says which.
 
+**And masking reaches every output, not just the mode.** Each finding's
+description, evidence and suggestion; the coverage `motivo` and
+`como_resolverlo`; the parameters of a plan action; the "Ejemplos reales" that
+`guiar_limpieza()` prints to the console; and the bounding box of a protected
+geometry, whose four `bbox_*` fields become `NA` with
+`bbox_alcance = "no_publicado_por_geometria_protegida"`. In every case the
+signal is kept and the value hidden: the example still shows which rows match
+and in which columns, and the structural-absence finding is still raised without
+naming the threshold. A sweep over the finding types watches this, checking
+first that each one was actually raised.
+
 **Profiling never touches your data.** No analysis function alters the table it
 receives — not its values, its types, its names, or its attributes — including
 `data.table` inputs, which R allows to be modified by reference. Only the
