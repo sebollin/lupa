@@ -1079,6 +1079,59 @@ metricas_nucleo <- function() {
   salida_validada
 }
 
+.cobertura_metrica_no_evaluada <- function(tablas, instancia, id_medicion,
+                                           fecha) {
+  entidad <- instancia$entidad[[1L]]
+  tabla <- tablas[[entidad]]
+  nombre <- instancia$nombre
+  sujeto <- paste0("la m\u00e9trica `", nombre, "`")
+  if (is.null(tabla) || !nrow(tabla)) {
+    motivo <- paste0(
+      sujeto, " no se pudo medir: la entidad `", entidad,
+      "` tiene cero filas. No hay nada que medir; no es un fallo, es un",
+      " alcance vac\u00edo."
+    )
+  } else if (length(instancia$atributos)) {
+    columnas <- intersect(instancia$atributos, names(tabla))
+    comparables <- if (length(columnas)) {
+      .seleccionar_columnas(tabla, columnas)
+    } else NULL
+    sin_valores <- !is.null(comparables) &&
+      (!nrow(comparables) || !any(stats::complete.cases(comparables)))
+    motivo <- if (sin_valores) {
+      paste0(
+        sujeto, " no se pudo medir: los atributos ligados quedaron sin valores",
+        " no nulos en el universo aplicable. No hay nada que medir; no es un",
+        " fallo, es un alcance vac\u00edo."
+      )
+    } else {
+      paste0(
+        sujeto, " no se pudo medir: su m\u00e9todo no devolvi\u00f3 ninguna medida",
+        " para el universo recibido."
+      )
+    }
+  } else {
+    motivo <- paste0(
+      sujeto, " no se pudo medir: su m\u00e9todo no devolvi\u00f3 ninguna medida",
+      " para el universo recibido."
+    )
+  }
+  data.frame(
+    id_medicion = as.character(id_medicion), fecha = as.POSIXct(fecha),
+    metrica = instancia$declaracion$nombre,
+    metrica_especifica = instancia$nombre_especifico,
+    metrica_instanciada = instancia$nombre,
+    entidad = paste(instancia$entidad, collapse = "+"),
+    atributo = paste(instancia$atributos, collapse = "+"),
+    estado = "sin_valores", motivo = motivo,
+    como_resolverlo = paste(
+      "Aportar valores no nulos en el universo aplicable o revisar la regla",
+      "de aplicabilidad. Una m\u00e9trica sin valores queda sin evaluar y no se",
+      "interpreta como cero."
+    ), stringsAsFactors = FALSE
+  )
+}
+
 .nuevo_id_medicion <- function(fecha) {
   paste0(
     "medicion-", format(fecha, "%Y%m%dT%H%M%OS6"), "-", Sys.getpid()
@@ -1159,13 +1212,17 @@ metricas_nucleo <- function() {
 #'   consumen mediciones, así que heredan el número que salga de acá.
 #'
 #'   Sin declaración toda la tabla aplica y el resultado es el de siempre.
+#' @param proteger_datos_personales Si se enmascaran los candidatos de
+#'   proximidad que corresponden a columnas personales. Por omisión `TRUE`.
 #'
 #' @return Data frame S3 de clase `medicion`, con una fila por objeto medido.
 #'   Los booleanos se almacenan como `0` y `1` en la columna común `resultado`.
 #'   `orientacion` conserva si un valor alto expresa conformidad, si un valor
 #'   alto expresa defecto o si esa lectura no aplica. Algunas métricas
 #'   que trabajan con un vocabulario o un alcance parcial agregan un atributo
-#'   `alcance_metricas` con sus conteos y límites.
+#'   `alcance_metricas` con sus conteos y límites. Si una métrica no puede
+#'   medirse por falta de valores en su universo, no crea filas ni ceros: deja
+#'   el motivo en el atributo `cobertura_metricas`.
 #' @export
 #'
 #' @examples
@@ -1174,7 +1231,7 @@ metricas_nucleo <- function() {
 #' instancia <- instanciar(especifica, "personas", "edad")
 #' medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
-                  aplicabilidad = NULL) {
+                  aplicabilidad = NULL, proteger_datos_personales = TRUE) {
   if (!inherits(modelo, "modelo_calidad")) {
     stop("`modelo` debe provenir de modelo().", call. = FALSE)
   }
@@ -1182,6 +1239,11 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     stop("`fecha` debe contener una fecha y hora v\u00e1lida.", call. = FALSE)
   }
   fecha <- as.POSIXct(fecha)
+  if (!is.logical(proteger_datos_personales) ||
+      length(proteger_datos_personales) != 1L ||
+      is.na(proteger_datos_personales)) {
+    stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
+  }
   if (is.null(id_medicion)) {
     id_medicion <- .nuevo_id_medicion(fecha)
   }
@@ -1198,6 +1260,7 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
   # La regla recorta las filas antes de medir, columna por columna, con el mismo
   # resolvedor que usa `perfilar()`. Sin declaracion no cambia nada.
   aplicables <- .mascaras_aplicabilidad_medicion(tablas, aplicabilidad)
+  coberturas <- list()
   partes <- lapply(modelo$metricas, function(instancia) {
     tablas_instancia <- .recortar_tablas_aplicables(
       tablas, aplicables, instancia
@@ -1205,6 +1268,15 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     salida <- .validar_salida_medicion(
       instancia$metodo(tablas_instancia, instancia), instancia
     )
+    if (!nrow(salida)) {
+      coberturas[[length(coberturas) + 1L]] <<- .cobertura_metrica_no_evaluada(
+        tablas_instancia, instancia, id_medicion, fecha
+      )
+    } else if (isTRUE(proteger_datos_personales)) {
+      salida <- .proteger_salida_referencial(
+        salida, tablas_instancia, instancia
+      )
+    }
     n <- nrow(salida)
     list(
       salida = data.frame(
@@ -1251,6 +1323,9 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
     attr(resultado, "alcance_metricas") <- alcances[
       vapply(alcances, Negate(is.null), logical(1L))
     ]
+  }
+  if (length(coberturas)) {
+    attr(resultado, "cobertura_metricas") <- do.call(rbind, coberturas)
   }
   class(resultado) <- c("medicion", "data.frame")
   resultado

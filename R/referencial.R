@@ -220,6 +220,47 @@
   list(evidencia = evidencia, alcance = base)
 }
 
+# La proximidad es evidencia accionable, pero el candidato puede ser una
+# concatenacion de columnas personales del referencial. Se protege solamente
+# ese tramo: el hecho de que hubo candidato y su distancia siguen publicados.
+.proteger_evidencia_referencial <- function(x) {
+  if (!is.character(x) || !length(x)) return(x)
+  sub(
+    "(candidato_referencial=)[\\s\\S]*(; distancia=)",
+    "\\1[valor protegido]\\2", x, perl = TRUE
+  )
+}
+
+.proteger_salida_referencial <- function(salida, tablas, instancia) {
+  if (!inherits(instancia$referencial, "referencial") ||
+      !inherits(salida, "data.frame") || !nrow(salida) ||
+      !"objeto" %in% names(salida) ||
+      !any(grepl("candidato_referencial=", salida$objeto, fixed = TRUE))) {
+    return(salida)
+  }
+  entidad <- instancia$entidad[[1L]]
+  tabla <- .obtener_tabla_modelo(tablas, entidad)
+  columnas_referencia <- instancia$referencial$clave
+  if (identical(instancia$declaracion$nombre, "CorrectitudSemDebil")) {
+    columnas_referencia <- c(columnas_referencia, instancia$referencial$valor)
+  }
+  columnas_objetivo <- intersect(instancia$atributos, names(tabla))
+  columnas_referencia <- intersect(
+    columnas_referencia, names(instancia$referencial$datos)
+  )
+  objetivo <- .seleccionar_columnas(tabla, columnas_objetivo)
+  referencia <- .seleccionar_columnas(
+    instancia$referencial$datos, columnas_referencia
+  )
+  personales <- unique(c(
+    .columnas_personales_rapidas(objetivo),
+    .columnas_personales_rapidas(referencia)
+  ))
+  if (!length(personales)) return(salida)
+  salida$objeto <- .proteger_evidencia_referencial(salida$objeto)
+  salida
+}
+
 #' Declarar un conjunto de datos referencial
 #'
 #' Un referencial representa conocimiento externo mediante una clave y, de

@@ -219,6 +219,12 @@ exactamente lo que identifica a una persona**, así que una columna de la clave
 clasificada como dato personal vuelve enmascarada, igual que la evidencia, y
 `claves_protegidas` dice cuál.
 
+**Y alcanza también al modelo de calidad.** Las métricas referenciales publican
+cuál era el candidato más cercano y a qué distancia; cuando ese referencial es un
+padrón de personas, el valor sale como `[valor protegido]` y la distancia se
+conserva. Un referencial que no lleva datos personales mantiene su evidencia
+completa.
+
 **Y el enmascarado alcanza a todas las salidas, no sólo a la moda.** La
 descripción, la evidencia y la sugerencia de cada hallazgo; el motivo y el
 `como_resolverlo` de la cobertura; los parámetros de una acción del plan; los

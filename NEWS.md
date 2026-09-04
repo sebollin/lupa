@@ -1,5 +1,23 @@
 # lupa 0.1.0
 
+## El modelo de calidad ya no publica el padrón ni un 1 que no midió
+
+- **Cuarta puerta de fuga, y venía encendida.** Las métricas referenciales
+  informan, ante un fallo, cuál era el candidato más cercano y a qué distancia —y
+  eso es justo lo que vuelve accionable el hallazgo—. Pero incrustaban el **valor
+  real del referencial** en `objeto_medible`: sobre un padrón de personas, el
+  documento y el nombre completo, propagados a `historico_calidad()`, que la
+  documentación promociona como exportable con `write.csv()`. Ahora el valor sale
+  enmascarado y la señal se conserva:
+  `{candidato_referencial=[valor protegido]; distancia=0.0296}`. Un referencial
+  sin datos personales mantiene su evidencia completa.
+- **Una métrica que no se puede evaluar ya no desaparece.** Sobre una columna sin
+  ningún valor, la métrica de formato se esfumaba de la medición y la evaluación
+  publicaba `1` —calidad perfecta— sobre los controles que sí habían corrido.
+  Ahora queda registrada en la cobertura de métricas con su motivo, y la regla y
+  el perfil informan `NA` en lugar de un número que no midió lo que dice.
+  Una medición completa sigue dando su resultado sin filas de cobertura.
+
 ## El plan dice en qué unidad cuenta, y `aplicar()` no miente sobre lo que hizo
 
 - **Una acción podía reportarse `ejecutada` sin hacer nada.** Cuando la columna

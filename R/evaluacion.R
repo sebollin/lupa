@@ -325,6 +325,15 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   }
   medidas <- medicion[seleccion, , drop = FALSE]
   if (!nrow(medidas)) {
+    cobertura <- attr(medicion, "cobertura_metricas", exact = TRUE)
+    faltantes <- if (inherits(cobertura, "data.frame") && nrow(cobertura)) {
+      if (is.null(regla$metricas)) cobertura else cobertura[
+        cobertura$metrica_instanciada %in% regla$metricas, , drop = FALSE
+      ]
+    } else cobertura
+    if (inherits(faltantes, "data.frame") && nrow(faltantes)) {
+      return(.evaluaciones_medidas_vacias())
+    }
     solicitadas <- setdiff(regla$metricas, medicion$metrica_instanciada)
     disponibles <- unique(medicion$metrica_instanciada)
     stop(
@@ -359,7 +368,23 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   )
 }
 
+.evaluaciones_medidas_vacias <- function() {
+  data.frame(
+    id_medida = character(), id_medicion = character(),
+    fecha = as.POSIXct(character()), perfil = character(), regla = character(),
+    metrica_instanciada = character(), orientacion = character(),
+    resultado = logical(), stringsAsFactors = FALSE
+  )
+}
+
 .resumir_evaluaciones_regla <- function(evaluaciones) {
+  if (!nrow(evaluaciones)) {
+    return(data.frame(
+      id_medicion = character(), fecha = as.POSIXct(character()),
+      perfil = character(), regla = character(), n_medidas = integer(),
+      resultado = numeric(), stringsAsFactors = FALSE
+    ))
+  }
   clave <- interaction(
     evaluaciones$id_medicion, evaluaciones$perfil, evaluaciones$regla,
     drop = TRUE, lex.order = TRUE
@@ -380,6 +405,50 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   resultado <- do.call(rbind, partes)
   rownames(resultado) <- NULL
   resultado
+}
+
+.completar_evaluaciones_regla <- function(resumen, medicion, perfil) {
+  cobertura <- attr(medicion, "cobertura_metricas", exact = TRUE)
+  if (!inherits(cobertura, "data.frame") || !nrow(cobertura)) {
+    return(resumen)
+  }
+  ids <- unique(c(as.character(medicion$id_medicion), cobertura$id_medicion))
+  partes <- list(resumen)
+  for (id in ids) {
+    faltantes_id <- cobertura[as.character(cobertura$id_medicion) == id, ,
+                              drop = FALSE]
+    if (!nrow(faltantes_id)) next
+    for (regla in perfil$reglas) {
+      faltantes <- if (is.null(regla$metricas)) {
+        faltantes_id
+      } else {
+        faltantes_id[
+          faltantes_id$metrica_instanciada %in% regla$metricas, , drop = FALSE
+        ]
+      }
+      if (!nrow(faltantes)) next
+      indice <- which(
+        as.character(resumen$id_medicion) == id &
+          resumen$perfil == perfil$nombre & resumen$regla == regla$nombre
+      )
+      if (length(indice)) {
+        resumen$n_medidas[indice] <- NA_integer_
+        resumen$resultado[indice] <- NA_real_
+      } else {
+        fecha <- faltantes$fecha[[1L]]
+        partes[[length(partes) + 1L]] <- data.frame(
+          id_medicion = id, fecha = as.POSIXct(fecha),
+          perfil = perfil$nombre, regla = regla$nombre,
+          n_medidas = NA_integer_, resultado = NA_real_,
+          stringsAsFactors = FALSE
+        )
+      }
+    }
+  }
+  partes[[1L]] <- resumen
+  salida <- do.call(rbind, partes)
+  rownames(salida) <- NULL
+  salida
 }
 
 .declarar_reglas_agregadas <- function(resumen, evaluaciones, perfil) {
@@ -433,7 +502,9 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
       id_medicion = evaluaciones$id_medicion[[primera]],
       fecha = evaluaciones$fecha[primera],
       perfil = evaluaciones$perfil[[primera]],
-      n_reglas = length(indices),
+      n_reglas = if (anyNA(evaluaciones$resultado[indices])) {
+        NA_integer_
+      } else length(indices),
       resultado = mean(evaluaciones$resultado[indices]),
       stringsAsFactors = FALSE
     )
@@ -527,6 +598,8 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
 #'   `medidas`, `reglas` y `perfiles`. Si alguna regla declara un desenlace,
 #'   contiene además `desenlaces`, un plan que identifica las medidas
 #'   incumplidas, el valor medido, el motivo y la regla que lo produjo.
+#'   Cuando una métrica no pudo medirse, conserva `cobertura_metricas` y deja
+#'   en `NA` el resumen afectado, en lugar de tratar la ausencia como éxito.
 #' @export
 #'
 #' @examples
@@ -556,6 +629,9 @@ evaluar <- function(medicion, perfil) {
   }))
   rownames(evaluaciones_medidas) <- NULL
   evaluaciones_reglas <- .resumir_evaluaciones_regla(evaluaciones_medidas)
+  evaluaciones_reglas <- .completar_evaluaciones_regla(
+    evaluaciones_reglas, medicion, perfil
+  )
   evaluaciones_reglas <- .declarar_reglas_agregadas(
     evaluaciones_reglas, evaluaciones_medidas, perfil
   )
@@ -568,6 +644,11 @@ evaluar <- function(medicion, perfil) {
     reglas = evaluaciones_reglas,
     perfiles = evaluaciones_perfiles
   )
+  cobertura <- attr(medicion, "cobertura_metricas", exact = TRUE)
+  if (inherits(cobertura, "data.frame") && nrow(cobertura)) {
+    estructura$cobertura_metricas <- cobertura
+    attr(estructura, "cobertura_metricas") <- cobertura
+  }
   desenlaces <- .planificar_desenlaces(
     medicion, evaluaciones_medidas, perfil
   )

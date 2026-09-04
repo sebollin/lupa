@@ -21,6 +21,8 @@ Objeto \code{evaluacion_calidad} con tres data frames filtrables:
 \code{medidas}, \code{reglas} y \code{perfiles}. Si alguna regla declara un desenlace,
 contiene además \code{desenlaces}, un plan que identifica las medidas
 incumplidas, el valor medido, el motivo y la regla que lo produjo.
+Cuando una métrica no pudo medirse, conserva \code{cobertura_metricas} y deja
+en \code{NA} el resumen afectado, en lugar de tratar la ausencia como éxito.
 }
 \description{
 Ejecuta la cadena formal: condición por medida, proporción de medidas que

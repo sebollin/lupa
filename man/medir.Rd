@@ -9,7 +9,8 @@ medir(
   datos,
   id_medicion = NULL,
   fecha = Sys.time(),
-  aplicabilidad = NULL
+  aplicabilidad = NULL,
+  proteger_datos_personales = TRUE
 )
 }
 \arguments{
@@ -44,6 +45,9 @@ sin declararlo da \verb{0,270} y declarándolo \verb{0,900}. El histórico y la 
 consumen mediciones, así que heredan el número que salga de acá.
 
 Sin declaración toda la tabla aplica y el resultado es el de siempre.}
+
+\item{proteger_datos_personales}{Si se enmascaran los candidatos de
+proximidad que corresponden a columnas personales. Por omisión \code{TRUE}.}
 }
 \value{
 Data frame S3 de clase \code{medicion}, con una fila por objeto medido.
@@ -51,7 +55,9 @@ Los booleanos se almacenan como \code{0} y \code{1} en la columna común \code{r
 \code{orientacion} conserva si un valor alto expresa conformidad, si un valor
 alto expresa defecto o si esa lectura no aplica. Algunas métricas
 que trabajan con un vocabulario o un alcance parcial agregan un atributo
-\code{alcance_metricas} con sus conteos y límites.
+\code{alcance_metricas} con sus conteos y límites. Si una métrica no puede
+medirse por falta de valores en su universo, no crea filas ni ceros: deja
+el motivo en el atributo \code{cobertura_metricas}.
 }
 \description{
 Ejecuta todas las métricas instanciadas de un \code{modelo_calidad}. Cada fila es

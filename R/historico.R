@@ -127,16 +127,26 @@
   }
   .validar_medicion_evaluacion(x)
   clave <- .clave_historico("medida", x$id_medicion, id_medida = x$id_medida)
-  .parte_historico(x, "medida", clave)
+  resultado <- .parte_historico(x, "medida", clave)
+  cobertura <- attr(x, "cobertura_metricas", exact = TRUE)
+  if (inherits(cobertura, "data.frame") && nrow(cobertura)) {
+    resultado <- rbind(
+      resultado, .parte_historico_metricas_no_evaluadas(cobertura)
+    )
+  }
+  resultado
 }
 
-.validar_tabla_evaluacion <- function(x, requeridas, nombre) {
+.validar_tabla_evaluacion <- function(x, requeridas, nombre,
+                                     permitir_na = FALSE) {
   if (!inherits(x, "data.frame") || !nrow(x) ||
       !all(requeridas %in% names(x)) || anyNA(x$id_medicion) ||
       anyNA(x$fecha) ||
       (!is.numeric(x$resultado) && !is.logical(x$resultado)) ||
-      anyNA(x$resultado) ||
-      any(!is.finite(x$resultado)) || any(x$resultado < 0 | x$resultado > 1)) {
+      (!isTRUE(permitir_na) && anyNA(x$resultado)) ||
+      any(!is.na(x$resultado) & !is.finite(x$resultado)) ||
+      any(!is.na(x$resultado) &
+          (x$resultado < 0 | x$resultado > 1))) {
     stop("La tabla `", nombre, "` de la evaluaci\u00f3n no cumple su contrato.",
          call. = FALSE)
   }
@@ -147,13 +157,15 @@
   if (!inherits(x, "evaluacion_calidad")) {
     stop("El objeto de evaluaci\u00f3n debe provenir de evaluar().", call. = FALSE)
   }
+  cobertura <- x$cobertura_metricas
+  tiene_cobertura <- inherits(cobertura, "data.frame") && nrow(cobertura)
   reglas <- .validar_tabla_evaluacion(
     x$reglas, c("id_medicion", "fecha", "perfil", "regla", "n_medidas",
-                "resultado"), "reglas"
+                "resultado"), "reglas", permitir_na = tiene_cobertura
   )
   perfiles <- .validar_tabla_evaluacion(
     x$perfiles, c("id_medicion", "fecha", "perfil", "n_reglas", "resultado"),
-    "perfiles"
+    "perfiles", permitir_na = tiene_cobertura
   )
   partes <- list(
     .parte_historico(
@@ -187,7 +199,36 @@
       perfil = medidas$perfil, regla = medidas$regla
     )), partes)
   }
+  if (tiene_cobertura) {
+    partes <- c(partes, list(.parte_historico_metricas_no_evaluadas(cobertura)))
+  }
   do.call(rbind, partes)
+}
+
+.parte_historico_metricas_no_evaluadas <- function(cobertura) {
+  n <- nrow(cobertura)
+  data.frame(
+    version_esquema = rep(.version_esquema_historico, n),
+    nivel = rep("metrica_no_evaluada", n),
+    id_registro = .clave_historico(
+      "metrica_no_evaluada", cobertura$id_medicion,
+      cobertura$metrica_instanciada
+    ),
+    id_medida = rep(NA_character_, n),
+    id_medicion = as.character(cobertura$id_medicion),
+    fecha = .fecha_utc(cobertura$fecha),
+    perfil = rep(NA_character_, n), regla = rep(NA_character_, n),
+    metrica = as.character(cobertura$metrica),
+    metrica_especifica = as.character(cobertura$metrica_especifica),
+    metrica_instanciada = as.character(cobertura$metrica_instanciada),
+    dimension = rep(NA_character_, n), factor = rep(NA_character_, n),
+    granularidad = rep(NA_character_, n), tipo_resultado = rep(NA_character_, n),
+    entidad = as.character(cobertura$entidad),
+    atributo = as.character(cobertura$atributo), fila = rep(NA_integer_, n),
+    objeto_medible = paste0("M\u00e9trica no evaluada: ", cobertura$motivo),
+    n_elementos = rep(NA_integer_, n), resultado = rep(NA_real_, n),
+    agregacion = as.character(cobertura$estado), stringsAsFactors = FALSE
+  )
 }
 
 .validar_historico <- function(x) {
@@ -205,11 +246,20 @@
       paste(version, collapse = ", "), ".", call. = FALSE
     )
   }
+  ids_incompletos <- if (nrow(x)) {
+    unique(x$id_medicion[x$nivel == "metrica_no_evaluada"])
+  } else character()
+  niveles_evaluacion <- x$nivel %in% c(
+    "evaluacion_medida", "evaluacion_regla", "evaluacion_perfil"
+  )
   if (nrow(x) &&
       (anyNA(x$id_registro) || any(!nzchar(x$id_registro)) ||
        anyNA(x$id_medicion) || any(!nzchar(x$id_medicion)) ||
-       anyNA(x$fecha) || anyNA(x$resultado) ||
-       any(!is.finite(x$resultado)))) {
+       anyNA(x$fecha) ||
+       any(is.na(x$resultado) & !(
+         x$nivel == "metrica_no_evaluada" |
+           niveles_evaluacion & x$id_medicion %in% ids_incompletos
+       )))) {
     stop("El hist\u00f3rico contiene identificadores, fechas o resultados inv\u00e1lidos.",
          call. = FALSE)
   }
@@ -221,16 +271,20 @@
       stop("Los resultados de las medidas hist\u00f3ricas no respetan su tipo.",
            call. = FALSE)
     }
-    evaluaciones <- !medidas
+    evaluaciones <- x$nivel %in% c(
+      "evaluacion_medida", "evaluacion_regla", "evaluacion_perfil"
+    )
     if (any(evaluaciones) && any(
-      x$resultado[evaluaciones] < 0 | x$resultado[evaluaciones] > 1
+      !is.na(x$resultado[evaluaciones]) &
+        (x$resultado[evaluaciones] < 0 | x$resultado[evaluaciones] > 1)
     )) {
       stop("Los resultados de evaluaciones hist\u00f3ricas deben estar en [0, 1].",
            call. = FALSE)
     }
   }
   niveles <- c(
-    "medida", "evaluacion_medida", "evaluacion_regla", "evaluacion_perfil"
+    "medida", "evaluacion_medida", "evaluacion_regla", "evaluacion_perfil",
+    "metrica_no_evaluada"
   )
   if (nrow(x) && (any(!x$nivel %in% niveles) || anyDuplicated(x$id_registro))) {
     stop("El hist\u00f3rico contiene niveles o identificadores de registro duplicados.",
@@ -306,7 +360,8 @@
 #' @return Data frame S3 `historico_calidad`. La columna `version_esquema` y el
 #'   atributo del mismo nombre permiten migraciones futuras. `nivel` corresponde
 #'   a `medida`, `evaluacion_medida`, `evaluacion_regla` o
-#'   `evaluacion_perfil`.
+#'   `evaluacion_perfil`; una métrica sin valores se conserva como
+#'   `metrica_no_evaluada` con su motivo.
 #'
 #' @details
 #' El detalle predeterminado evita repetir una fila por celda y regla cuando el

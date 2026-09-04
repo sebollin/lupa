@@ -213,6 +213,11 @@ feature cannot ignore: the key that lets you verify is exactly what identifies a
 person, so a key column classified as personal data comes back masked, the same
 way evidence does, and `claves_protegidas` says which.
 
+**And it reaches the quality model too.** Referential metrics report which
+candidate was closest and at what distance; when that reference table is a
+register of people, the value comes out as `[valor protegido]` and the distance
+is kept. A reference table carrying no personal data keeps its evidence intact.
+
 **And masking reaches every output, not just the mode.** Each finding's
 description, evidence and suggestion; the coverage `motivo` and
 `como_resolverlo`; the parameters of a plan action; the "Ejemplos reales" that
