@@ -142,3 +142,38 @@ test_that("la reparacion de un texto largo no crece de forma cuadratica", {
   skip_if(corto < 0.02, "la maquina es demasiado rapida para medir la curva")
   expect_lt(largo / corto, 10)
 })
+
+test_that("dos resumenes con alcances distintos se declaran no comparables", {
+  # La misma columna, una vez numerica y otra como texto con un valor que no
+  # convierte: la deriva publicaba "Cambio el rango observado de la columna"
+  # -[10, 100] contra [10, 90]- atribuido a los datos, cuando el 100 seguia ahi
+  # y lo que cambio fue que quedo fuera del resumen.
+  sin_exclusiones <- perfilar(
+    data.frame(x = c(10, 20, 30, 40, 50, 60, 70, 80, 90, 100)),
+    analizar_dependencias = FALSE
+  )
+  con_exclusion <- perfilar(
+    data.frame(
+      x = c("10", "20", "30", "40", "50", "60", "70", "80", "90", "xx"),
+      stringsAsFactors = FALSE
+    ),
+    analizar_dependencias = FALSE
+  )
+
+  # Primera mitad: los alcances son de verdad distintos.
+  expect_equal(sin_exclusiones$columnas$n_valores_excluidos_resumen, 0L)
+  expect_equal(con_exclusion$columnas$n_valores_excluidos_resumen, 1L)
+
+  deriva <- comparar_perfiles(sin_exclusiones, con_exclusion)
+  fila <- deriva[deriva$aspecto %in% "alcance_resumen", ]
+  expect_equal(nrow(fila), 1L)
+  expect_equal(as.character(fila$severidad), "sospechoso")
+  expect_equal(fila$valor_anterior, "0")
+  expect_equal(fila$valor_actual, "1")
+  expect_match(fila$descripcion, "pueden venir", fixed = TRUE)
+
+  # Control: dos perfiles con el mismo alcance no declaran nada. Sin esta mitad,
+  # emitir la fila siempre pasaria el test.
+  igual <- comparar_perfiles(sin_exclusiones, sin_exclusiones)
+  expect_equal(sum(igual$aspecto %in% "alcance_resumen"), 0L)
+})

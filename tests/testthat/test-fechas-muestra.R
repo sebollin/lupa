@@ -23,7 +23,13 @@ test_that("el resumen de fechas declara lo que descarta la muestra", {
   # resumen corre sobre la columna entera, asi que el numero seria de otra
   # escala. `NA` y nunca cero, como el resto del paquete.
   expect_true(is.na(fila$n_fechas_excluidas_granularidad))
-  expect_equal(fila$estado_resumen_cuantitativo, "calculados_sobre_dias")
+  # El estado nombra la RAZON. Estos cinco quedaron afuera por parseo -lo dice
+  # el comentario de arriba, y esta columna no tiene ninguna fecha de solo mes-,
+  # asi que la razon no es la granularidad. Hasta el 2026-09-05 este campo decia
+  # `calculados_sobre_dias` en los dos casos, y quien lo leyera buscaba una
+  # granularidad que no existia: el propio comentario de este test lo explicaba
+  # y la asercion decia otra cosa.
+  expect_equal(fila$estado_resumen_cuantitativo, "calculados_sobre_valores")
   expect_equal(nrow(cobertura), 1L)
   expect_match(cobertura$motivo, "5")
   expect_false("formatos_fecha_mixtos" %in%
@@ -52,7 +58,9 @@ test_that("sin muestra el rango es completo y el descarte igual se declara", {
   # este caso decia `calculados` con cero cobertura: el mismo descarte ocurria y
   # solo cambiaba si se contaba, segun estuviera encendido el muestreo.
   expect_equal(fila$n_valores_excluidos_resumen, 3L)
-  expect_equal(fila$estado_resumen_cuantitativo, "calculados_sobre_dias")
+  # Misma razon que arriba: `n_fechas_excluidas_granularidad` es CERO en este
+  # caso, asi que el estado no puede nombrar la granularidad.
+  expect_equal(fila$estado_resumen_cuantitativo, "calculados_sobre_valores")
   expect_equal(nrow(perfil$cobertura_diagnosticos[
     perfil$cobertura_diagnosticos$diagnostico == "resumen_cuantitativo" &
       perfil$cobertura_diagnosticos$columna == "fecha", , drop = FALSE

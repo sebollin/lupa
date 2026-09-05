@@ -2313,6 +2313,32 @@
       fila$n_aplicables[[1L]] < fila$n[[1L]]) {
     n <- as.numeric(fila$n_aplicables[[1L]])
   }
+  # Y el mismo razonamiento para los diagnosticos que se calculan SOBRE EL
+  # RESUMEN CUANTITATIVO: sus numeros salen de los valores que llegaron a
+  # numero, asi que su denominador es ese subconjunto y no la columna entera.
+  #
+  # Medido: mil filas -900 utiles y 100 que no convierten, con cincuenta ceros y
+  # cincuenta negativos entre las utiles-. `ceros_no_permitidos`,
+  # `negativos_no_permitidos` y `outliers` publicaban `n_evaluados = 1000` sobre
+  # 900 valores evaluados. `filas_duplicadas` no entra en la lista y no debe:
+  # cuenta filas, no valores convertidos.
+  #
+  # El alcance ya estaba declarado en `n_valores_excluidos_resumen` y en
+  # `cobertura_diagnosticos`; lo que faltaba era que el propio hallazgo lo
+  # respetara, porque nadie que lee una fila de `hallazgos` esta obligado a
+  # cruzarla con otra tabla.
+  sobre_resumen <- c("outliers", "ceros_no_permitidos", "negativos_no_permitidos")
+  if (tipo %in% sobre_resumen && identical(unidad, "fila") &&
+      !is.null(fila$n_valores_excluidos_resumen) &&
+      isTRUE(is.finite(fila$n_valores_excluidos_resumen[[1L]])) &&
+      fila$n_valores_excluidos_resumen[[1L]] > 0L &&
+      isTRUE(is.finite(n))) {
+    faltantes <- if (isTRUE(is.finite(fila$n_faltantes[[1L]]))) {
+      fila$n_faltantes[[1L]]
+    } else 0L
+    entraron <- n - faltantes - fila$n_valores_excluidos_resumen[[1L]]
+    if (isTRUE(is.finite(entraron)) && entraron > 0) n <- as.numeric(entraron)
+  }
   list(n_evaluados = n, n_afectados = afectados, unidad_conteo = unidad)
 }
 

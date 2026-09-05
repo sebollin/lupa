@@ -464,7 +464,11 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   # lo unico que cambiaba era si se decia. Y `perfilar()` sobre esa misma tabla
   # ya declaraba los 50, asi que las dos salidas del paquete se contradecian.
   valores <- trimws(as.character(x))
-  presentes <- !is.na(valores) & nzchar(valores)
+  # Un blanco es un valor PRESENTE que no llego a fecha, igual que un texto
+  # ilegible: `trimws()` lo deja en `""` y el `nzchar()` lo descartaba de la
+  # cuenta. No es una ausencia declarada -eso es `NA`, y se informa en
+  # `n_faltantes`-. Mismo arreglo que en la conversion a numero.
+  presentes <- !is.na(x)
   attr(resultado, "n_fechas_excluidas_parseo") <- as.integer(
     sum(presentes & is.na(parseadas))
   )

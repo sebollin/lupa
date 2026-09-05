@@ -2,6 +2,37 @@
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 
+- **Los hallazgos del resumen cuantitativo publicaban el denominador entero.**
+  `outliers`, `ceros_no_permitidos` y `negativos_no_permitidos` se calculan
+  sobre los valores que llegaron a número, pero declaraban `n_evaluados` igual
+  al total de la columna: mil filas con cien que no convierten publicaban
+  `n_evaluados = 1000` sobre 900 valores evaluados. El alcance ya estaba
+  declarado en `n_valores_excluidos_resumen` y en `cobertura_diagnosticos`, pero
+  quien lee una fila de `hallazgos` no está obligado a cruzarla con otra tabla.
+  El paquete ya hacía este mismo ajuste cuando hay un universo declarado por
+  `aplicabilidad`; faltaba el segundo caso. Los diagnósticos que cuentan filas
+  —`filas_duplicadas`— conservan la columna entera, que es su denominador.
+- **Comparar dos resúmenes con alcances distintos se atribuía a los datos.** La
+  misma columna, una vez numérica y otra como texto con un valor que no
+  convierte, producía «Cambió el rango observado de la columna» —`[10, 100]`
+  contra `[10, 90]`— cuando el valor seguía ahí y lo que cambió fue que quedó
+  fuera del resumen. La deriva declara ahora una fila `alcance_resumen`, con el
+  mismo mecanismo que ya usa para las políticas de centinelas y de
+  aplicabilidad.
+- **Un valor en blanco quedaba fuera del resumen sin declararse.** `trimws()`
+  deja `" "` en `""` y el `nzchar()` que gobernaba la cuenta lo descartaba, así
+  que una columna con 900 valores `"10"` y 100 en blanco publicaba la media
+  sobre 900 filas con `n_valores_excluidos_resumen = 0` y estado `calculados`.
+  Los mismos 100 valores como texto ilegible sí se declaraban. Un blanco no es
+  una ausencia declarada —el paquete deja `n_faltantes` en cero y lo cuenta en
+  `n_blancos`—, así que su exclusión se declara como cualquier otra; `NA` sigue
+  informándose como faltante, que es su lugar. Vale para la conversión a número
+  y para las dos rutas de fechas.
+- **El estado del resumen de fechas nombra la razón correcta.**
+  `calculados_sobre_dias` decía que habían quedado afuera períodos de mes, y se
+  usaba también cuando lo que quedaba afuera eran valores ilegibles o en blanco.
+  Ahora ese caso dice `calculados_sobre_valores`, el mismo vocabulario que la
+  conversión a número.
 - **Retirar la clave declarada se leía como un hallazgo resuelto.** La misma
   tabla perfilada con `clave = "id"` y después sin `clave` informaba
   `clave_no_unica` como `resuelto` con severidad `ok`: la clave seguía

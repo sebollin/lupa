@@ -91,8 +91,19 @@
       # y 100 con `calculados_sobre_valores` con `muestra = 50`. Los cien
       # valores quedaban afuera en los dos casos; lo unico que cambiaba era si
       # se decia.
+      # `!is.na(x)` y no `nzchar(texto)`: `trimws()` convierte `" "` en `""`, y el
+      # `nzchar()` descartaba los blancos de la cuenta. Un blanco NO es una
+      # ausencia declarada -el paquete lo cuenta en `n_blancos`, lo sospecha en
+      # `n_faltantes_disfrazados` y deja `n_faltantes` en cero-, asi que su
+      # exclusion se declara como cualquier otra. Medido sobre mil filas -900
+      # que dicen "10" y 100 en blanco-: la media publicada era 10 sobre 900
+      # valores, con `n_valores_excluidos_resumen = 0` y estado `calculados`,
+      # mientras los mismos 100 como texto ilegible si se declaraban.
+      #
+      # `NA` sigue afuera de la cuenta, y debe: ahi la ausencia esta declarada y
+      # se informa en `n_faltantes`, que es su lugar.
       n_excluidas <- as.integer(sum(
-        !is.na(texto) & nzchar(texto) & is.na(valores) & !is.nan(valores)
+        !is.na(x) & is.na(valores) & !is.nan(valores)
       ))
       return(list(valores = valores, clase = "numero",
                   n_fechas_resumidas = NA_integer_,
@@ -134,7 +145,11 @@
           formatos$granularidad == "mes"], na.rm = TRUE)
       } else 0L
       valores <- trimws(as.character(x))
-      presentes <- !is.na(valores) & nzchar(valores)
+      # Un blanco es un valor PRESENTE que no llego a fecha, igual que un texto
+      # ilegible: `trimws()` lo deja en `""` y el `nzchar()` lo descartaba de la
+      # cuenta. No es una ausencia declarada -eso es `NA`, y se informa en
+      # `n_faltantes`-. Mismo arreglo que en la conversion a numero.
+      presentes <- !is.na(x)
       # Todo lo que esta presente y no llego a fecha: los periodos de mes, que
       # no se convierten a proposito, y lo que ningun formato pudo leer. No
       # depende del muestreo -la conversion descarta igual- y por eso ya no se
@@ -142,8 +157,16 @@
       no_entraron <- as.integer(sum(presentes & is.na(fechas)))
       return(list(
         valores = as.numeric(fechas), clase = inferencia$tipo,
-        estado = if (tiene_mes || no_entraron > 0L) {
+        # El estado nombra la RAZON, y `calculados_sobre_dias` nombra una:
+        # quedaron afuera periodos de mes. Cuando no hay ninguno y lo que quedo
+        # afuera son valores que ningun formato pudo leer -blancos, texto
+        # ilegible-, la razon es otra y se usa el mismo vocabulario que la
+        # conversion a numero. Antes las dos decian `calculados_sobre_dias`, y
+        # quien lo leyera buscaba una granularidad que no existia.
+        estado = if (tiene_mes) {
           "calculados_sobre_dias"
+        } else if (no_entraron > 0L) {
+          "calculados_sobre_valores"
         } else "calculados",
         n_fechas_resumidas = sum(is.finite(fechas)),
         # Los dos campos cuentan cosas distintas, y hubo una tanda en que

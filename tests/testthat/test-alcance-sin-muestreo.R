@@ -166,3 +166,127 @@ test_that("analizar_tiempo resume la columna mixta de dias y meses", {
   expect_equal(fila_limpia$n_fechas_excluidas_granularidad, 0L)
   expect_equal(fila_limpia$estado_resumen, "calculados")
 })
+
+# El quinto caso de la regla, encontrado repitiendo el MISMO encargo sobre el
+# paquete ya arreglado: los blancos.
+#
+# Un blanco -`" "`, `""`, un tabulador- es un valor PRESENTE que no llega a
+# numero ni a fecha. El paquete no lo trata como ausencia declarada: lo cuenta
+# en `n_blancos`, lo sospecha en `n_faltantes_disfrazados` y deja `n_faltantes`
+# en cero. Pero `trimws()` lo dejaba en `""` y el `nzchar()` lo descartaba de la
+# cuenta de excluidos, asi que la media se publicaba sobre 900 de 1000 filas con
+# `estado = "calculados"` y `n_valores_excluidos_resumen = 0`.
+test_that("un blanco es un valor presente que no entro, y se declara", {
+  formas <- list(espacio = " ", vacia = "", tabulador = "\t",
+                 ilegible = "no-numero")
+  for (nombre in names(formas)) {
+    datos <- data.frame(
+      x = c(rep("10", 900L), rep(formas[[nombre]], 100L)),
+      stringsAsFactors = FALSE
+    )
+    fila <- perfilar(datos, analizar_dependencias = FALSE)$columnas
+    # Primera mitad: el paquete NO los cuenta como ausencia declarada, que es
+    # lo que hace que su exclusion tenga que declararse.
+    expect_equal(fila$n_faltantes, 0L, info = nombre)
+    expect_equal(fila$n_valores_excluidos_resumen, 100L, info = nombre)
+    expect_equal(fila$estado_resumen_cuantitativo, "calculados_sobre_valores",
+                 info = nombre)
+  }
+
+  # Control 1: `NA` SI es ausencia declarada. Se informa como faltante y no
+  # como excluido del resumen; son dos cosas distintas y no se confunden.
+  con_na <- data.frame(
+    x = c(rep("10", 900L), rep(NA_character_, 100L)), stringsAsFactors = FALSE
+  )
+  fila_na <- perfilar(con_na, analizar_dependencias = FALSE)$columnas
+  expect_equal(fila_na$n_faltantes, 100L)
+  expect_equal(fila_na$n_valores_excluidos_resumen, 0L)
+  expect_equal(fila_na$estado_resumen_cuantitativo, "calculados")
+
+  # Control 2: sin nada que excluir, nada se declara.
+  limpia <- data.frame(x = rep(c("10", "20"), 500L), stringsAsFactors = FALSE)
+  fila_limpia <- perfilar(limpia, analizar_dependencias = FALSE)$columnas
+  expect_equal(fila_limpia$n_valores_excluidos_resumen, 0L)
+  expect_equal(fila_limpia$estado_resumen_cuantitativo, "calculados")
+})
+
+test_that("en fechas, el estado nombra la razon por la que quedo algo afuera", {
+  # `calculados_sobre_dias` nombra una razon concreta -quedaron afuera periodos
+  # de mes-. Cuando lo que quedo afuera son valores ilegibles o en blanco, la
+  # razon es otra, y antes las dos decian lo mismo: quien lo leyera buscaba una
+  # granularidad que no existia.
+  medir <- function(relleno) {
+    datos <- data.frame(
+      f = c(rep("2024-01-15", 900L), rep(relleno, 100L)),
+      stringsAsFactors = FALSE
+    )
+    perfilar(datos, analizar_dependencias = FALSE)$columnas
+  }
+
+  por_mes <- medir("2024-02")
+  expect_equal(por_mes$n_fechas_excluidas_granularidad, 100L)
+  expect_equal(por_mes$estado_resumen_cuantitativo, "calculados_sobre_dias")
+
+  for (relleno in c(" ", "no-fecha")) {
+    fila <- medir(relleno)
+    expect_equal(fila$n_fechas_excluidas_granularidad, 0L, info = relleno)
+    expect_equal(fila$n_valores_excluidos_resumen, 100L, info = relleno)
+    expect_equal(fila$estado_resumen_cuantitativo, "calculados_sobre_valores",
+                 info = relleno)
+  }
+
+  # Control: una columna de fechas sin nada afuera no declara nada.
+  limpia <- medir("2024-06-01")
+  expect_equal(limpia$n_valores_excluidos_resumen, 0L)
+  expect_equal(limpia$estado_resumen_cuantitativo, "calculados")
+})
+
+# Y el escalon siguiente: que el propio hallazgo respete el alcance.
+#
+# Declarar el alcance en `n_valores_excluidos_resumen` y en
+# `cobertura_diagnosticos` no alcanza si el hallazgo publica un denominador que
+# lo ignora: nadie que lee una fila de `hallazgos` esta obligado a cruzarla con
+# otra tabla. Los diagnosticos que se calculan sobre el resumen cuantitativo
+# publicaban `n_evaluados` = la columna entera.
+test_that("los hallazgos del resumen cuantitativo cuentan sobre lo que entro", {
+  utiles <- c(rep("0", 50L), rep("-5", 50L), rep("100", 800L))
+  con_exclusiones <- data.frame(
+    x = c(utiles, rep("no-numero", 100L)), stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(con_exclusiones, columnas_sin_ceros = "x",
+                     columnas_no_negativas = "x", analizar_dependencias = FALSE)
+
+  # Primera mitad: hay exclusiones de verdad y estan declaradas.
+  expect_equal(perfil$columnas$n, 1000L)
+  expect_equal(perfil$columnas$n_valores_excluidos_resumen, 100L)
+
+  sobre_resumen <- c("outliers", "ceros_no_permitidos",
+                     "negativos_no_permitidos")
+  filas <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo %in% sobre_resumen, , drop = FALSE
+  ]
+  expect_true(nrow(filas) >= 1L)
+  # 1000 filas menos 100 que no convierten: 900 valores evaluados.
+  expect_true(all(filas$n_evaluados == 900))
+
+  # Control 1: un diagnostico que cuenta FILAS y no valores convertidos conserva
+  # la columna entera como denominador. Sin esta mitad, bajar el denominador de
+  # todo pasaria el test.
+  por_filas <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "filas_duplicadas", , drop = FALSE
+  ]
+  if (nrow(por_filas)) expect_true(all(por_filas$n_evaluados == 1000))
+
+  # Control 2: la misma columna sin nada que excluir no cambia de denominador.
+  sin_exclusiones <- data.frame(
+    x = c(utiles, rep("100", 100L)), stringsAsFactors = FALSE
+  )
+  perfil_limpio <- perfilar(sin_exclusiones, columnas_sin_ceros = "x",
+                            columnas_no_negativas = "x",
+                            analizar_dependencias = FALSE)
+  expect_equal(perfil_limpio$columnas$n_valores_excluidos_resumen, 0L)
+  filas_limpias <- perfil_limpio$hallazgos[
+    perfil_limpio$hallazgos$tipo_hallazgo %in% sobre_resumen, , drop = FALSE
+  ]
+  expect_true(all(filas_limpias$n_evaluados == 1000))
+})

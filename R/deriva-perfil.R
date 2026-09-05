@@ -153,6 +153,14 @@
   declinados
 }
 
+
+# Lee un campo numerico de la fila de una columna, tolerando que no exista -un
+# perfil de otra version puede no traerlo-.
+.valor_columna_deriva <- function(fila, campo) {
+  if (is.null(fila) || !campo %in% names(fila)) return(NA_real_)
+  suppressWarnings(as.numeric(fila[[campo]][[1L]]))
+}
+
 .diagnosticos_declinados_deriva <- function(perfil) {
   cobertura <- perfil$cobertura_diagnosticos
   if (!inherits(cobertura, "data.frame") || !nrow(cobertura) ||
@@ -337,6 +345,34 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
           evidencia = evidencia
         )
       }
+    }
+    # Dos resumenes calculados sobre subconjuntos distintos no son comparables
+    # sin decirlo. Medido: la misma columna, una vez numerica y otra como texto
+    # con un valor que no convierte, producia una fila "Cambio el rango
+    # observado de la columna" -[10, 100] contra [10, 90]- atribuida a los
+    # datos, cuando el 100 seguia ahi y lo que cambio fue que quedo fuera del
+    # resumen.
+    #
+    # Es el mismo mecanismo que ya declara la comparabilidad de la politica de
+    # centinelas y de la de aplicabilidad, una escala mas abajo: por columna, y
+    # no por corrida.
+    excluidos_a <- .valor_columna_deriva(a, "n_valores_excluidos_resumen")
+    excluidos_b <- .valor_columna_deriva(b, "n_valores_excluidos_resumen")
+    if (isTRUE(is.finite(excluidos_a)) && isTRUE(is.finite(excluidos_b)) &&
+        !identical(excluidos_a, excluidos_b)) {
+      agregar(
+        columna, "alcance_resumen", "modificado", "sospechoso",
+        as.character(excluidos_a), as.character(excluidos_b),
+        descripcion = paste(
+          "Los dos resumenes se calcularon sobre distinta cantidad de valores,",
+          "asi que las diferencias de media, rango o cardinalidad pueden venir",
+          "del alcance y no de los datos."
+        ),
+        evidencia = paste0(
+          "Valores excluidos del resumen: ", excluidos_a, " antes, ",
+          excluidos_b, " ahora."
+        )
+      )
     }
     rango_a <- .rango_perfil(a)
     rango_b <- .rango_perfil(b)
