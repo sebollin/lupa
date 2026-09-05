@@ -490,9 +490,32 @@ tablero_calidad <- function(medidas, agregaciones = NULL, umbrales = NULL,
       medidas$tablero, .desenlaces_de_objeto(medidas)
     ))
   }
-  .preparar_tablero(
-    medidas, agregaciones, umbrales, marco, cobertura
-  )$tablero
+  .con_cobertura_coleccion(
+    .preparar_tablero(
+      medidas, agregaciones, umbrales, marco, cobertura
+    )$tablero,
+    medidas
+  )
+}
+
+# La cobertura de coleccion viaja PEGADA al numero, y hasta el 2026-09-05 moria
+# en el primer consumidor.
+#
+# `agregar()` a nivel `coleccion` adjunta `cobertura_coleccion` con las tablas
+# declaradas, las que entraron al numero, las que no se midieron y una
+# advertencia. `NEWS.md` declara que ese es el unico nivel donde la cobertura
+# viaja con el numero. Medido: una coleccion de dos tablas donde una esta vacia
+# publica `0,667` -que cubre UNA de las dos- y ni `tablero_calidad()` ni
+# `indice_calidad()` conservaban la pieza que lo decia.
+#
+# Es la misma forma que el alcance del resumen y sus lectores: declarar algo en
+# un objeto que el siguiente paso descarta es, para quien lee, no declararlo.
+.con_cobertura_coleccion <- function(salida, origen) {
+  cobertura <- attr(origen, "cobertura_coleccion", exact = TRUE)
+  if (!is.null(cobertura)) {
+    attr(salida, "cobertura_coleccion") <- cobertura
+  }
+  salida
 }
 
 #' @export
@@ -679,12 +702,20 @@ print.tablero_calidad <- function(x, ...) {
 #'   pesos = c(Completitud = 0.6, Unicidad = 0.4)
 #' )
 indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
+  # El indice hereda la cobertura de coleccion de lo que recibe -sea el objeto
+  # de `agregar()` o un tablero que ya la traiga-. Ver
+  # `.con_cobertura_coleccion()`: la pieza que dice sobre cuantas tablas de la
+  # coleccion se calculo el numero tiene que llegar hasta el ultimo consumidor.
+  cobertura_coleccion <- attr(medidas, "cobertura_coleccion", exact = TRUE)
   tablero <- if (inherits(medidas, "analisis")) {
     tablero_calidad(medidas)
   } else if (inherits(medidas, "tablero_calidad")) {
     .proteger_tablero_desenlaces(medidas, .desenlaces_de_objeto(medidas))
   } else {
     tablero_calidad(medidas, ...)
+  }
+  if (!is.null(cobertura_coleccion)) {
+    attr(tablero, "cobertura_coleccion") <- cobertura_coleccion
   }
   if (missing(pesos) || is.null(pesos)) return(tablero)
   cobertura_metricas <- attr(tablero, "cobertura_metricas", exact = TRUE)
@@ -764,6 +795,10 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
       "porque quien lo solicit\u00f3 declar\u00f3 los pesos."
     ),
     motivo = NULL,
+    # La cobertura de la coleccion viaja hasta aca: el indice publica un solo
+    # numero, y decir sobre cuantas de las tablas declaradas se calculo es la
+    # unica forma de que ese numero se pueda leer.
+    cobertura_coleccion = cobertura_coleccion,
     tablero = tablero
   )
   class(resultado) <- "indice_calidad"
@@ -784,6 +819,21 @@ print.indice_calidad <- function(x, ...) {
       nrow(x$cobertura_metricas)) {
     cli::cli_h2("Cobertura de m\u00e9tricas")
     print(x$cobertura_metricas, row.names = FALSE)
+  }
+  # Sobre cuantas tablas de la coleccion declarada se calculo este numero. Se
+  # imprime porque un indice es UN numero: si la cobertura vive solo en un
+  # atributo, quien lo lee en pantalla no la ve.
+  if (!is.null(x$cobertura_coleccion)) {
+    cc <- x$cobertura_coleccion
+    cli::cli_h2("Cobertura de la colecci\u00f3n")
+    cli::cli_dl(c(
+      "Tablas declaradas" = as.character(cc$tablas_declaradas),
+      "En el n\u00famero" = as.character(cc$tablas_en_el_numero),
+      "Sin medir" = if (length(cc$tablas_sin_medir)) {
+        paste(cc$tablas_sin_medir, collapse = ", ")
+      } else "ninguna"
+    ))
+    if (!is.null(cc$advertencia)) cli::cli_alert_warning(cc$advertencia)
   }
   if (nrow(x$dimensiones)) {
     cli::cli_h2("Dimensiones, pesos y aportes")

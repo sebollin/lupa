@@ -210,3 +210,103 @@ test_that("un perfil de madurez no juzga una metrica no acotada", {
     "no acotada", fixed = TRUE
   )
 })
+
+# `agregar()` a nivel `coleccion` adjunta `cobertura_coleccion`: las tablas
+# declaradas, las que entraron al numero, las que no se midieron y una
+# advertencia. `NEWS.md` declara que ese es el unico nivel donde la cobertura
+# viaja pegada al numero.
+#
+# Y moria en el primer consumidor: ni `tablero_calidad()` ni `indice_calidad()`
+# la conservaban. Una coleccion de dos tablas con una vacia publica `0,667`
+# -que cubre UNA de las dos- sin nada que lo dijera.
+test_that("la cobertura de la coleccion llega hasta el tablero y el indice", {
+  skip_if_not_installed("RSQLite")
+  skip_if_not_installed("DBI")
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(conexion, "a", data.frame(x = c(1, NA, 3)))
+  DBI::dbWriteTable(conexion, "b", data.frame(x = numeric()))
+
+  nucleo <- metricas_nucleo()
+  medidas <- medir(
+    modelo(instanciar(especializar(nucleo$NoNulo), "a", "x"),
+           instanciar(especializar(nucleo$NoNulo), "b", "x")),
+    list(a = DBI::dbReadTable(conexion, "a"),
+         b = DBI::dbReadTable(conexion, "b"))
+  )
+  por_coleccion <- agregar(
+    agregar(agregar(medidas, "atributo", "ratio"), "entidad", "promedio"),
+    "coleccion", "promedio_ponderado",
+    coleccion = coleccion(conexion, c("a", "b"), nombre = "c1"), pesos = 1
+  )
+
+  # Primera mitad: la cobertura existe y dice lo que se cree, con una tabla
+  # declarada que no entro al numero. Sin eso, propagar nada pasaria el test.
+  cobertura <- attr(por_coleccion, "cobertura_coleccion", exact = TRUE)
+  expect_false(is.null(cobertura))
+  expect_equal(cobertura$tablas_declaradas, 2)
+  expect_equal(cobertura$tablas_en_el_numero, 1)
+  expect_equal(cobertura$tablas_sin_medir, "b")
+
+  tablero <- tablero_calidad(por_coleccion)
+  expect_equal(attr(tablero, "cobertura_coleccion", exact = TRUE), cobertura)
+
+  indice <- indice_calidad(por_coleccion, pesos = c(Completitud = 1))
+  expect_equal(indice$cobertura_coleccion, cobertura)
+  # Y se ve al imprimirlo: un indice es UN numero, y la cobertura que vive solo
+  # en un atributo no la lee nadie.
+  #
+  # `cli` NO pasa por `expect_output()` ni por `capture.output()`: hay que
+  # desviar los dos flujos. Este proyecto ya se comio dos "no filtra" falsos por
+  # no hacerlo.
+  archivo <- tempfile()
+  con_salida <- file(archivo, open = "wt")
+  sink(con_salida, type = "output")
+  sink(con_salida, type = "message")
+  try(print(indice), silent = TRUE)
+  sink(type = "message")
+  sink(type = "output")
+  close(con_salida)
+  impreso <- paste(readLines(archivo, warn = FALSE), collapse = " ")
+  expect_match(impreso, "Cobertura de la colecci", fixed = TRUE)
+  expect_match(impreso, "Sin medir", fixed = TRUE)
+
+  # Control: una corrida sin coleccion no inventa el atributo.
+  expect_null(attr(tablero_calidad(medidas), "cobertura_coleccion",
+                   exact = TRUE))
+})
+
+# `medir()` declara en `cobertura_metricas` las metricas que NO se pudieron
+# medir y por que -"la entidad dependiente `b` tiene cero filas"-, y `agregar()`
+# lo descartaba en el primer salto: solo copiaba `configuracion_modelo` y
+# `configuracion_aplicabilidad`. De ahi en mas esa tabla era invisible y el
+# conjunto se reportaba como si nunca hubiera existido.
+test_that("la cobertura de metricas sobrevive a la agregacion", {
+  nucleo <- metricas_nucleo()
+  medidas <- medir(
+    modelo(instanciar(especializar(nucleo$NoNulo), "a", "x"),
+           instanciar(especializar(nucleo$NoNulo), "b", "x")),
+    list(a = data.frame(x = c(1, NA, 3)), b = data.frame(x = numeric()))
+  )
+
+  # Primera mitad: hay una metrica no medida y esta declarada con su motivo.
+  cobertura <- attr(medidas, "cobertura_metricas", exact = TRUE)
+  expect_true(inherits(cobertura, "data.frame") && nrow(cobertura) >= 1L)
+  expect_match(paste(cobertura$motivo, collapse = " "), "cero filas",
+               fixed = TRUE)
+
+  por_atributo <- agregar(medidas, "atributo", "ratio")
+  por_entidad <- agregar(por_atributo, "entidad", "promedio")
+  expect_equal(attr(por_atributo, "cobertura_metricas", exact = TRUE), cobertura)
+  expect_equal(attr(por_entidad, "cobertura_metricas", exact = TRUE), cobertura)
+  expect_false(is.null(attr(tablero_calidad(por_entidad), "cobertura_metricas",
+                            exact = TRUE)))
+
+  # Control: una corrida donde todo se pudo medir no inventa la cobertura.
+  completa <- medir(
+    modelo(instanciar(especializar(nucleo$NoNulo), "a", "x")),
+    list(a = data.frame(x = c(1, NA, 3)))
+  )
+  expect_null(attr(agregar(completa, "atributo", "ratio"),
+                   "cobertura_metricas", exact = TRUE))
+})

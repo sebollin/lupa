@@ -739,8 +739,17 @@ agregar <- function(medidas, destino,
     "resultado", "agregacion"
   )]
   class(resultado) <- c("medicion", "data.frame")
+  # `cobertura_metricas` viaja con el numero, igual que las dos configuraciones.
+  #
+  # `medir()` declara ahi las metricas que NO se pudieron medir y por que -"la
+  # entidad dependiente `b` tiene cero filas"-, y `agregar()` lo descartaba en el
+  # primer salto. De ahi en mas esa tabla era invisible: el conjunto se reportaba
+  # como si nunca hubiera existido, con el mismo valor y la misma evaluacion.
+  #
+  # Es la misma forma que la cobertura de coleccion y que el alcance de los
+  # resumenes: la declaracion existe y el paso siguiente la tira.
   for (nombre_atributo in c(
-    "configuracion_modelo", "configuracion_aplicabilidad"
+    "configuracion_modelo", "configuracion_aplicabilidad", "cobertura_metricas"
   )) {
     valor_atributo <- attr(medidas, nombre_atributo, exact = TRUE)
     if (!is.null(valor_atributo)) attr(resultado, nombre_atributo) <- valor_atributo

@@ -2,6 +2,18 @@
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 
+- **La cobertura moría en el consumidor siguiente, en dos saltos distintos.**
+  `medir()` declara en `cobertura_metricas` qué métricas no se pudieron medir y
+  por qué —«la entidad dependiente `b` tiene cero filas»—, y `agregar()` lo
+  descartaba en el primer salto: de ahí en más esa tabla era invisible y el
+  conjunto valía lo mismo que si nunca hubiera existido. Y `agregar()` a nivel
+  colección adjunta `cobertura_coleccion` —tablas declaradas, tablas en el
+  número, tablas sin medir y una advertencia—, que ni `tablero_calidad()` ni
+  `indice_calidad()` conservaban: una colección de dos tablas con una vacía
+  publicaba `0,667` —que cubre una de las dos— sin nada que lo dijera. Las dos
+  coberturas viajan ahora hasta el último consumidor, y el índice imprime la de
+  la colección: un índice es un solo número, y una cobertura que vive sólo en un
+  atributo no la lee nadie.
 - **Tres afirmaciones de la documentación que el paquete no cumplía.** Una
   viñeta decía que en una columna protegida «las medias y los desvíos se
   mantienen»: la media **se suprime** —está en la lista y se rastrea como
