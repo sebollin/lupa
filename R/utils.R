@@ -10,14 +10,22 @@
 # por su codigo: no es bonito, pero es determinista y ordenable, que es lo que
 # el orden necesita. La alternativa -caer al orden del entorno- devolveria la
 # dependencia de la maquina que este orden existe para sacar.
-.ordenar_por_bytes <- function(x) {
-  if (!length(x)) return(x)
+# La clave de ordenamiento por bytes, separada del ordenamiento en si. Existe
+# porque hay desempates que ordenan por DOS criterios -primero la frecuencia,
+# despues el texto- y ahi no sirve una funcion que ya devuelva el vector
+# ordenado: hace falta la clave para pasarsela a `order()`.
+.clave_bytes <- function(x) {
   clave <- tryCatch(enc2utf8(as.character(x)), error = function(e) as.character(x))
   invalidos <- !is.na(clave) & !validUTF8(clave)
   if (any(invalidos)) {
     clave[invalidos] <- iconv(clave[invalidos], to = "UTF-8", sub = "byte")
   }
-  x[order(clave, method = "radix")]
+  clave
+}
+
+.ordenar_por_bytes <- function(x) {
+  if (!length(x)) return(x)
+  x[order(.clave_bytes(x), method = "radix")]
 }
 
 # `.columnas_duplicadas()` y `.pares_redundantes()` eran el mismo bloque escrito

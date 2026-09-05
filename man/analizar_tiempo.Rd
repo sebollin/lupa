@@ -33,13 +33,24 @@ propone la moda de los intervalos positivos.}
 \value{
 Objeto \code{analisis_temporal} con \code{resumen}, \code{dias_semana}, \code{huecos} y
 \code{propuestas}. El recorte de huecos queda en \code{resumen}; el de columnas, en
-atributos del objeto. \code{resumen} agrega \code{n_fechas_excluidas_parseo} y
-\code{estado_resumen}: cuentan los valores \strong{presentes} que ningún formato
-confirmado pudo convertir y que por eso quedaron fuera del resumen. Se
-informan siempre, haya muestreo o no, porque el descarte tampoco depende
-del muestreo; con cero descartes el estado es \code{"calculados"}. Un \code{NA} no
-entra en esta cuenta: es una ausencia declarada y se informa como
-faltante, no como valor que el resumen no pudo leer.
+atributos del objeto. \code{resumen} agrega tres campos sobre el alcance del
+resumen, con el mismo vocabulario que usa \code{\link[=perfilar]{perfilar()}} sobre la misma
+columna: \code{n_fechas_excluidas_parseo} cuenta los valores \strong{presentes} que
+ningún formato confirmado pudo convertir y que por eso quedaron fuera;
+\code{n_fechas_excluidas_granularidad}, cuántos de ésos son períodos de mes —
+\code{2024-02} y sus formas—, que no se convierten a propósito porque no
+nombran un día; y \code{estado_resumen} vale \code{"calculados_sobre_dias"} cuando
+hubo períodos de mes, \code{"calculados_sobre_fechas_parseadas"} cuando sólo
+hubo valores ilegibles, y \code{"calculados"} cuando no quedó nada afuera. Los
+tres se informan siempre, haya muestreo o no, porque el descarte tampoco
+depende del muestreo. Un \code{NA} no entra en esta cuenta: es una ausencia
+declarada y se informa como faltante, no como valor que no se pudo leer.
+
+Una columna mixta —días y meses— \strong{sí} se resume, sobre sus fechas
+completas. Sólo cuando ningún formato confirmado nombra un día no hay serie
+diaria que construir; entonces la columna no aparece en \code{resumen}, y se
+declara en los atributos \code{columnas_omitidas} y \code{columnas_sin_serie_diaria}
+en vez de desaparecer.
 }
 \description{
 Para cada columna temporal propone una frecuencia en días. La confianza es

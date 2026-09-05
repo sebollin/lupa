@@ -255,8 +255,22 @@
 #'
 #' `estado` distingue acciones `lista`, `bloqueada` e `informativa`; `orden`
 #' fija la secuencia reproducible. `n_afectadas` es la estimación del perfil y
-#' `unidad_conteo` dice si cuenta filas, columnas o valores distintos. El
-#' registro informa `n_cambiadas` sobre los datos recibidos. `reversible`
+#' `unidad_conteo` dice si cuenta filas, columnas o valores distintos —lo
+#' declara la acción cuando cuenta en una unidad propia, y sólo si no lo hace se
+#' hereda del hallazgo—. El registro informa `n_cambiadas` sobre los datos
+#' recibidos.
+#'
+#' **`n_afectadas` y `n_cambiadas` pueden no coincidir, y las dos son ciertas.**
+#' La estimación se calcula sobre los datos que se perfilaron; el registro
+#' cuenta lo que pasó al aplicar. Si una acción anterior del mismo plan ya tocó
+#' esa columna, la posterior encuentra menos —o más— de lo estimado: con
+#' `convertir_sentinelas_numericos` (orden 110) convirtiendo tres `-999` en
+#' ausentes, `winsorizar_outliers` (orden 520) recorta dos valores donde el plan
+#' estimaba siete. No es un desvío que ocultar: `orden`, `n_afectadas` y
+#' `n_cambiadas` se publican los tres, y compararlos es la forma de ver el
+#' efecto de la composición. Sólo el caso extremo —la acción no produce **ningún**
+#' efecto donde el plan estimaba alguno— se registra como `fallida` con su
+#' motivo. `reversible`
 #' indica si la conversión conserva la identidad de cada valor. Las
 #' conversiones se comprueban sobre todos los valores de `datos`: las numéricas
 #' bloquean ceros iniciales y colisiones no inyectivas, mientras que fechas,
@@ -642,6 +656,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
           n_no_reversibles = comprobacion_fecha$n_no_reversibles,
           motivo_no_reversible = comprobacion_fecha$justificacion
         )),
+        # Cuenta valores presentes, no columnas ni filas: se declara aca en
+        # vez de heredar la unidad del hallazgo, que habla de otra cosa.
+        unidad_conteo = "valor",
         destructiva = seguro && !conversion_fecha_segura,
         orden = 300L
       ))
@@ -692,7 +709,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
           reversibilidad_comprobada = comprobacion_tipo$verificable,
           n_no_reversibles = comprobacion_tipo$n_no_reversibles,
           motivo_no_reversible = comprobacion_tipo$justificacion
-        )), orden = 310L,
+        )), orden = 310L, unidad_conteo = "valor",
         grupo = grupo_hallazgo,
         decision_grupo = if (recomendar) "recomendada" else "pendiente",
         recomendacion_grupo = if (recomendar) "convertir_tipo" else NA_character_,
@@ -989,9 +1006,17 @@ planificar_limpieza <- function(perfil, datos = NULL,
         resultado$severidad_origen[[j]] <- as.character(
           hallazgos$severidad[[indice_hallazgo]]
         )
-        resultado$unidad_conteo[[j]] <- as.character(
-          hallazgos$unidad_conteo[[indice_hallazgo]]
-        )
+        # Solo se hereda la unidad del hallazgo si la accion NO declaro la
+        # suya. Antes se pisaba siempre, y una accion que cuenta en otra unidad
+        # quedaba con el par mal: `convertir_tipo` declaraba `n_afectadas = 5`
+        # -los valores presentes- con `unidad_conteo = "columna"` heredado del
+        # hallazgo, sobre una tabla de UNA columna. Ese par no es cierto en
+        # ninguna lectura, y `guiar_limpieza()` lo repetia en pantalla.
+        if (is.na(resultado$unidad_conteo[[j]])) {
+          resultado$unidad_conteo[[j]] <- as.character(
+            hallazgos$unidad_conteo[[indice_hallazgo]]
+          )
+        }
       } else if (startsWith(resultado$estrategia[[j]],
                             "imputar_dependencia_funcional__")) {
         resultado$unidad_conteo[[j]] <- "fila"
@@ -1614,21 +1639,34 @@ planificar_limpieza <- function(perfil, datos = NULL,
     }
     return(list(repetidas = repetidas, grupos = grupos))
   }
-  repetidas <- base::duplicated.data.frame(datos_base)
-  participantes <- repetidas | base::duplicated.data.frame(
-    datos_base, fromLast = TRUE
-  )
-  grupos <- rep(NA_integer_, nrow(datos_base))
-  if (!any(participantes)) {
-    return(list(repetidas = repetidas, grupos = grupos))
-  }
   if (any(vapply(datos_base, is.list, logical(1L)))) {
     stop("No se pueden agrupar duplicados con columnas de lista.", call. = FALSE)
   }
+  # Todo sale de los MISMOS codigos, y no de `duplicated.data.frame`.
+  #
+  # Sobre una columna `integer64`, `duplicated(x, fromLast = TRUE)` devuelve lo
+  # mismo que sin `fromLast`: el metodo de `bit64` ignora el argumento. Con eso,
+  # `participantes` se quedaba con la ultima fila de cada grupo y no con las
+  # otras. Medido sobre `as.integer64(c(1, 2, -999, 4, -999))`: el plan declaraba
+  # 2 filas, la accion marcaba 1, `.grupo_duplicado` dejaba la fila 3 sin grupo
+  # -participa, con contenido identico- y el hallazgo sobrevivia al re-perfilar.
+  # La misma tabla en `double` marcaba las dos, que es como se supo que el
+  # defecto era del camino `integer64` y no de la regla.
+  #
+  # `factor()` lleva cualquier tipo a niveles por su representacion, y sobre los
+  # codigos enteros que salen de ahi `duplicated()` es el de base y si honra
+  # `fromLast`. Ademas es una sola definicion de "misma fila" para las tres
+  # cosas que antes usaban dos.
   factores <- lapply(datos_base, function(x) factor(x, exclude = NULL))
   codigos <- as.integer(do.call(
     interaction, c(factores, list(drop = TRUE, lex.order = TRUE))
   ))
+  repetidas <- duplicated(codigos)
+  participantes <- repetidas | duplicated(codigos, fromLast = TRUE)
+  grupos <- rep(NA_integer_, nrow(datos_base))
+  if (!any(participantes)) {
+    return(list(repetidas = repetidas, grupos = grupos))
+  }
   grupos[participantes] <- match(
     codigos[participantes], unique(codigos[participantes])
   )
@@ -1695,6 +1733,32 @@ planificar_limpieza <- function(perfil, datos = NULL,
   }
   datos[[nombre]] <- valor
   datos
+}
+
+# Cuantos valores CAMBIARON de verdad, que es lo que `n_cambiadas` promete.
+#
+# Las dos conversiones devolvian `sum(!is.na(x))` -los presentes-, y catorce
+# acciones de este mismo archivo devuelven `sum(cambio)`. La misma idea escrita
+# de dos maneras. Se ve cuando la conversion es una IDENTIDAD: planificar sobre
+# una columna de texto y aplicar sobre la misma tabla ya convertida a entero
+# dejaba la columna bit a bit igual, con `estado = ejecutada` y
+# `n_cambiadas = 4`. La documentacion promete lo contrario: "si una accion no
+# produce ningun efecto cuando el plan estimaba alguno, se registra como
+# fallida". Con el conteo correcto eso sale solo, porque
+# `.motivo_efecto_accion()` ya mira el caso `actual == 0`.
+#
+# Si cambia la clase, todo valor presente se convirtio de verdad. Si no cambia,
+# se comparan las representaciones: un presente que quedo `NA` tambien cambio
+# -se perdio-, y cuenta.
+.n_valores_cambiados <- function(antes, despues) {
+  presentes <- !is.na(antes)
+  if (!any(presentes)) return(0L)
+  if (!identical(class(antes), class(despues))) {
+    return(as.integer(sum(presentes)))
+  }
+  a <- as.character(antes)[presentes]
+  b <- as.character(despues)[presentes]
+  as.integer(sum(is.na(b) | a != b))
 }
 
 .ejecutar_accion <- function(datos, accion) {
@@ -1861,7 +1925,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     evaluacion <- .evaluar_conversion(
       x, convertido, estrategia, parametros
     )
-    return(list(datos = datos, n = sum(!is.na(x)),
+    return(list(datos = datos, n = .n_valores_cambiados(x, convertido),
                 n_no_reversibles = evaluacion$n_no_reversibles))
   }
   if (identical(estrategia, "convertir_tipo")) {
@@ -1870,7 +1934,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
     evaluacion <- .evaluar_conversion(
       x, convertido, estrategia, parametros
     )
-    return(list(datos = datos, n = sum(!is.na(x)),
+    return(list(datos = datos, n = .n_valores_cambiados(x, convertido),
                 n_no_reversibles = evaluacion$n_no_reversibles))
   }
   if (identical(estrategia, "marcar_outliers")) {

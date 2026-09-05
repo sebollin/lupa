@@ -84,7 +84,21 @@ descubrir_patrones <- function(x,
   marcador_na <- "\001valor_ausente\001"
   para_tabla <- patrones
   para_tabla[is.na(para_tabla)] <- marcador_na
-  frecuencias <- sort(table(para_tabla, useNA = "no"), decreasing = TRUE)
+  # `sort(table(...))` desempata con el orden de los niveles, y `table()` los
+  # ordena con la intercalacion del locale: con `max_patrones = 2` y un empate
+  # por el segundo puesto, la MISMA tabla publicaba `A+ a+` en una maquina y
+  # `A+ Aa` en otra. No es orden de filas: son patrones distintos, y con ellos
+  # cambian los ejemplos publicados y el orden en que `patron_raro` lista los
+  # desvios.
+  #
+  # El paquete ya arreglo esta familia una vez -el recorte de pares de
+  # duplicados, que usa `.ordenar_por_bytes()`- y ya usa `method = "radix"` para
+  # el desempate de la moda en `R/columnas.R:30`. El arreglo no habia llegado
+  # aca. El desempate va por bytes: no depende de la maquina y es total.
+  conteo <- table(para_tabla, useNA = "no")
+  orden <- order(-as.integer(conteo),
+                 .clave_bytes(names(conteo)), method = "radix")
+  frecuencias <- conteo[orden]
   denominador <- length(para_tabla)
   proporciones <- if (denominador) {
     as.numeric(frecuencias) / denominador

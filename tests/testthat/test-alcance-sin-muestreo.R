@@ -111,3 +111,58 @@ test_that("analizar_tiempo declara el descarte de parseo con y sin muestreo", {
   expect_equal(fila_na$n_fechas_excluidas_parseo, 0L)
   expect_equal(fila_na$estado_resumen, "calculados")
 })
+
+# Y la forma mas cara del mismo error: no declarar de menos, sino **desaparecer**.
+# Bastaba un formato de mes confirmado para que `analizar_tiempo()` abandonara la
+# columna entera: no salia fila, no salia en `columnas_omitidas`, y
+# `columnas_analizadas` seguia nombrandola. `perfilar()` sobre esa misma columna
+# la resume bien y `man/perfilar.Rd` declara ese trato para las columnas mixtas.
+test_that("analizar_tiempo resume la columna mixta de dias y meses", {
+  # 900 presentes: 700 con dia, 100 periodos de mes, 100 que ningun formato lee.
+  datos <- data.frame(
+    f = c(rep("2024-01-15", 700L), rep("2024-02", 100L), rep("2022-13-99", 100L)),
+    stringsAsFactors = FALSE
+  )
+
+  temporal <- analizar_tiempo(datos, columnas = "f", frecuencia_dias = 1)
+  fila <- temporal$resumen[temporal$resumen$columna == "f", ]
+  expect_equal(nrow(fila), 1L)
+  expect_equal(fila$n_presentes, 700L)
+  expect_equal(fila$n_fechas_excluidas_parseo, 200L)
+  expect_equal(fila$n_fechas_excluidas_granularidad, 100L)
+  expect_equal(fila$estado_resumen, "calculados_sobre_dias")
+  expect_equal(attr(temporal, "columnas_analizadas"), "f")
+
+  # Las dos salidas del paquete, sobre la misma columna, tienen que coincidir.
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  columna <- perfil$columnas[perfil$columnas$columna == "f", ]
+  expect_equal(columna$n_fechas_resumidas, fila$n_presentes)
+  expect_equal(columna$n_fechas_excluidas_granularidad,
+               fila$n_fechas_excluidas_granularidad)
+  expect_equal(columna$n_valores_excluidos_resumen,
+               fila$n_fechas_excluidas_parseo)
+  expect_equal(columna$estado_resumen_cuantitativo, fila$estado_resumen)
+
+  # Control 1: sin ninguna fecha con dia no hay serie diaria que construir, y
+  # entonces la columna se DECLARA omitida en vez de desaparecer.
+  solo_meses <- data.frame(
+    f = rep(c("2024-01", "2024-02", "2024-03"), 100L), stringsAsFactors = FALSE
+  )
+  sin_serie <- analizar_tiempo(solo_meses, columnas = "f", frecuencia_dias = 1)
+  expect_equal(nrow(sin_serie$resumen), 0L)
+  expect_equal(attr(sin_serie, "columnas_analizadas"), character())
+  expect_true("f" %in% attr(sin_serie, "columnas_omitidas"))
+  expect_true("f" %in% attr(sin_serie, "columnas_sin_serie_diaria"))
+
+  # Control 2: una columna sin nada que excluir sigue diciendo `calculados` y
+  # cero en los dos campos. Sin esta mitad, el test pasaria con un campo que
+  # informara siempre algo.
+  limpia <- data.frame(
+    f = format(as.Date("2024-01-01") + 0:199), stringsAsFactors = FALSE
+  )
+  fila_limpia <- analizar_tiempo(limpia, columnas = "f",
+                                 frecuencia_dias = 1)$resumen
+  expect_equal(fila_limpia$n_fechas_excluidas_parseo, 0L)
+  expect_equal(fila_limpia$n_fechas_excluidas_granularidad, 0L)
+  expect_equal(fila_limpia$estado_resumen, "calculados")
+})

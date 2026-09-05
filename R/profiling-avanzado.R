@@ -6,8 +6,18 @@
   as.integer(x)
 }
 
-.columnas_personales_rapidas <- function(datos, perfil = NULL) {
-  if (!is.null(perfil)) return(.columnas_personales_protegidas(perfil))
+# `detalle = TRUE` devuelve la clasificacion completa de las columnas protegidas
+# y no solo sus nombres. Existe porque quien necesita decir POR QUE una columna
+# se protege -el tipo clasificado- si no tendria que volver a clasificarla, y dos
+# clasificaciones de la misma columna son dos reglas que se pueden separar.
+.columnas_personales_rapidas <- function(datos, perfil = NULL, detalle = FALSE) {
+  if (!is.null(perfil)) {
+    protegidas <- .columnas_personales_protegidas(perfil)
+    if (!detalle) return(protegidas)
+    return(perfil$datos_personales[
+      perfil$datos_personales$columna %in% protegidas, , drop = FALSE
+    ])
+  }
   validadores <- .normalizar_validadores_personales(NULL)
   resultados <- lapply(seq_along(datos), function(i) {
     inferencia <- list(tipo = .tipo_declarado(datos[[i]]))
@@ -16,7 +26,18 @@
       validadores = validadores
     )
   })
-  names(datos)[vapply(resultados, function(x) isTRUE(x$proteger), logical(1L))]
+  protege <- vapply(resultados, function(x) isTRUE(x$proteger), logical(1L))
+  if (!detalle) return(names(datos)[protege])
+  if (!any(protege)) {
+    return(data.frame(columna = character(), tipo = character(),
+                      stringsAsFactors = FALSE))
+  }
+  data.frame(
+    columna = names(datos)[protege],
+    tipo = vapply(resultados[protege], function(x) as.character(x$tipo)[1L],
+                  character(1L)),
+    stringsAsFactors = FALSE
+  )
 }
 
 .frecuencias_columna <- function(x, max_valores, muestra, protegida) {
@@ -410,10 +431,23 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   if (!is.character(x) && !is.factor(x)) return(NULL)
   if (is.null(formatos)) formatos <- detectar_formatos_fecha(x)
   if (!nrow(formatos) || !any(formatos$estado == "confirmado")) return(NULL)
-  if ("granularidad" %in% names(formatos) &&
-      any(formatos$granularidad[formatos$estado == "confirmado"] == "mes")) {
-    return(NULL)
-  }
+  # Bastaba UN formato de mes confirmado para abandonar la columna entera, y la
+  # columna desaparecia del resumen sin dejar rastro: ni fila, ni
+  # `columnas_omitidas`, mientras `columnas_analizadas` seguia nombrandola.
+  # `perfilar()` sobre esa misma columna la resume bien -700 dias, 100 meses
+  # excluidos, `calculados_sobre_dias`- y `man/perfilar.Rd` declara justamente
+  # ese trato para las columnas mixtas. Las dos salidas se contradecian.
+  #
+  # `.parsear_fechas()` ya deja los periodos de mes en `NA`, asi que el caso
+  # mixto sale solo: lo que hacia falta era no abortar antes de parsearlo. Se
+  # abandona unicamente cuando NO queda ninguna granularidad de dia, que ahi si
+  # no hay serie diaria que construir -y el llamador lo declara-.
+  granularidades <- if ("granularidad" %in% names(formatos)) {
+    formatos$granularidad[formatos$estado == "confirmado"]
+  } else rep("dia", sum(formatos$estado == "confirmado"))
+  # `NULL` a secas: R no admite atributos sobre `NULL`, y no hacen falta -el
+  # llamador ya anota la columna entre las omitidas-.
+  if (!any(granularidades == "dia")) return(NULL)
   parseadas <- .parsear_fechas(x, formatos)
   resultado <- as.Date(parseadas, tz = "UTC")
   # El descarte de parseo NO depende del muestreo, y esto estaba escrito como si
@@ -434,6 +468,15 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   attr(resultado, "n_fechas_excluidas_parseo") <- as.integer(
     sum(presentes & is.na(parseadas))
   )
+  # Y aparte, cuantos de esos quedaron afuera por ser periodos de mes y no por
+  # ser ilegibles. `perfilar()` distingue las dos cosas -`n_valores_excluidos_
+  # resumen` contra `n_fechas_excluidas_granularidad`- y esta salida tiene que
+  # decir lo mismo sobre la misma columna, o vuelven a contradecirse.
+  attr(resultado, "n_fechas_excluidas_granularidad") <- if (
+    any(granularidades == "mes")) {
+    as.integer(sum(formatos$n[formatos$estado == "confirmado" &
+                                formatos$granularidad == "mes"], na.rm = TRUE))
+  } else 0L
   resultado
 }
 
@@ -469,13 +512,24 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
 #'
 #' @return Objeto `analisis_temporal` con `resumen`, `dias_semana`, `huecos` y
 #'   `propuestas`. El recorte de huecos queda en `resumen`; el de columnas, en
-#'   atributos del objeto. `resumen` agrega `n_fechas_excluidas_parseo` y
-#'   `estado_resumen`: cuentan los valores **presentes** que ningún formato
-#'   confirmado pudo convertir y que por eso quedaron fuera del resumen. Se
-#'   informan siempre, haya muestreo o no, porque el descarte tampoco depende
-#'   del muestreo; con cero descartes el estado es `"calculados"`. Un `NA` no
-#'   entra en esta cuenta: es una ausencia declarada y se informa como
-#'   faltante, no como valor que el resumen no pudo leer.
+#'   atributos del objeto. `resumen` agrega tres campos sobre el alcance del
+#'   resumen, con el mismo vocabulario que usa [perfilar()] sobre la misma
+#'   columna: `n_fechas_excluidas_parseo` cuenta los valores **presentes** que
+#'   ningún formato confirmado pudo convertir y que por eso quedaron fuera;
+#'   `n_fechas_excluidas_granularidad`, cuántos de ésos son períodos de mes —
+#'   `2024-02` y sus formas—, que no se convierten a propósito porque no
+#'   nombran un día; y `estado_resumen` vale `"calculados_sobre_dias"` cuando
+#'   hubo períodos de mes, `"calculados_sobre_fechas_parseadas"` cuando sólo
+#'   hubo valores ilegibles, y `"calculados"` cuando no quedó nada afuera. Los
+#'   tres se informan siempre, haya muestreo o no, porque el descarte tampoco
+#'   depende del muestreo. Un `NA` no entra en esta cuenta: es una ausencia
+#'   declarada y se informa como faltante, no como valor que no se pudo leer.
+#'
+#'   Una columna mixta —días y meses— **sí** se resume, sobre sus fechas
+#'   completas. Sólo cuando ningún formato confirmado nombra un día no hay serie
+#'   diaria que construir; entonces la columna no aparece en `resumen`, y se
+#'   declara en los atributos `columnas_omitidas` y `columnas_sin_serie_diaria`
+#'   en vez de desaparecer.
 #' @export
 #' @seealso [detectar_formatos_fecha()], [analizar()]
 #'
@@ -517,19 +571,35 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
   dias <- list()
   huecos <- list()
   propuestas <- list()
+  abandonadas <- list()
   h <- 0L
   for (i in seq_along(columnas)) {
     nombre <- columnas[[i]]
     indice <- match(nombre, names(datos))
     formatos <- if (!is.null(perfil)) perfil$formatos_fecha[[indice]] else NULL
     fechas <- .fecha_columna_avanzada(datos[[indice]], formatos)
-    if (is.null(fechas)) next
+    if (is.null(fechas)) {
+      # Se anota que esta columna quedo afuera y por que. Antes se salteaba en
+      # silencio: no aparecia en `resumen` ni en `columnas_omitidas`, y
+      # `columnas_analizadas` seguia nombrandola. Un objeto que se contradice a
+      # si mismo es peor que uno incompleto.
+      abandonadas[[length(abandonadas) + 1L]] <- nombre
+      next
+    }
     n_excluidas_parseo <- attr(
       fechas, "n_fechas_excluidas_parseo", exact = TRUE
     )
     if (is.null(n_excluidas_parseo) || length(n_excluidas_parseo) != 1L ||
         !is.finite(n_excluidas_parseo)) {
       n_excluidas_parseo <- 0L
+    }
+    n_excluidas_granularidad <- attr(
+      fechas, "n_fechas_excluidas_granularidad", exact = TRUE
+    )
+    if (is.null(n_excluidas_granularidad) ||
+        length(n_excluidas_granularidad) != 1L ||
+        !is.finite(n_excluidas_granularidad)) {
+      n_excluidas_granularidad <- 0L
     }
     presentes <- fechas[!is.na(fechas)]
     unicas <- sort(unique(presentes))
@@ -592,7 +662,13 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
       fecha_minima = if (length(unicas)) min(unicas) else as.Date(NA),
       fecha_maxima = if (length(unicas)) max(unicas) else as.Date(NA),
       n_fechas_excluidas_parseo = as.integer(n_excluidas_parseo),
-      estado_resumen = if (n_excluidas_parseo > 0L) {
+      n_fechas_excluidas_granularidad = as.integer(n_excluidas_granularidad),
+      # El mismo vocabulario que `perfilar()` usa sobre esta misma columna:
+      # `calculados_sobre_dias` cuando lo que quedo afuera son periodos de mes,
+      # y no un estado distinto para el mismo hecho.
+      estado_resumen = if (n_excluidas_granularidad > 0L) {
+        "calculados_sobre_dias"
+      } else if (n_excluidas_parseo > 0L) {
         "calculados_sobre_fechas_parseadas"
       } else "calculados",
       monotonicidad = monotona, cobertura_periodo = cobertura,
@@ -646,8 +722,17 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
   )
   resultado <- lapply(resultado, function(x) { rownames(x) <- NULL; x })
   class(resultado) <- "analisis_temporal"
-  attr(resultado, "columnas_analizadas") <- columnas
-  attr(resultado, "columnas_omitidas") <- setdiff(columnas_totales, columnas)
+  # Una columna que se pidio analizar y no produjo fila NO es una columna
+  # analizada. Antes lo era, y el objeto afirmaba haberla analizado mientras su
+  # resumen no la mencionaba.
+  abandonadas <- unlist(abandonadas, use.names = FALSE)
+  attr(resultado, "columnas_analizadas") <- setdiff(columnas, abandonadas)
+  attr(resultado, "columnas_omitidas") <- unique(c(
+    setdiff(columnas_totales, columnas), abandonadas
+  ))
+  attr(resultado, "columnas_sin_serie_diaria") <- if (is.null(abandonadas)) {
+    character()
+  } else abandonadas
   attr(resultado, "truncado") <- length(columnas_totales) > length(columnas)
   resultado
 }

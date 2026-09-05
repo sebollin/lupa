@@ -2,6 +2,66 @@
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 
+- **`n_cambiadas` contaba valores presentes y no cambios, en las dos
+  conversiones.** Catorce acciones de la capa de remediación cuentan los cambios
+  reales; `convertir_tipo` y `convertir_fecha_confirmada` contaban
+  `sum(!is.na(x))`. Se ve cuando la conversión es una identidad: planificar sobre
+  una columna de texto y aplicar sobre la misma tabla ya convertida a entero
+  dejaba la columna bit a bit igual y el registro decía `ejecutada` con
+  `n_cambiadas = 4`. Ahora cuentan los cambios, y con eso la acción sin efecto
+  se registra `fallida` con su motivo —que es lo que la documentación prometía—
+  sin tocar esa lógica.
+- **Los duplicados se agrupaban mal en columnas `integer64`.** El método de
+  `bit64` para `duplicated()` ignora `fromLast`, así que de un grupo de dos filas
+  idénticas se marcaba una sola: el plan declaraba 2 filas, la acción marcaba 1,
+  la otra quedaba sin `.grupo_duplicado` —aunque participa— y el hallazgo
+  sobrevivía al re-perfilar. La misma tabla en `double` marcaba las dos. Ahora
+  las tres cosas —qué filas se repiten, cuáles participan y en qué grupo— salen
+  de los mismos códigos, y no dependen del tipo de la columna.
+- **El número del plan y su unidad de conteo podían hablar de cosas distintas.**
+  `unidad_conteo` se heredaba del hallazgo pisando lo que la acción declaraba,
+  así que `convertir_tipo` —que cuenta valores presentes— quedaba con
+  `unidad_conteo = "columna"`: el plan decía «5 columna» sobre una tabla de una
+  sola columna, y `guiar_limpieza()` lo repetía en pantalla. La herencia ahora
+  sólo se aplica cuando la acción no declaró su unidad.
+- **La configuración regional decidía qué patrones y qué etiquetas se
+  publicaban.** `table()` ordena sus niveles con la intercalación del locale y
+  `sort()` conserva ese orden en los empates, así que el desempate quedaba en
+  manos de la máquina. Con `max_patrones = 2` y un empate por el segundo puesto,
+  la misma tabla publicaba `A+ a+` en una sesión y `A+ Aa` en otra —no es orden
+  de filas: son patrones distintos, y con ellos cambian los ejemplos—; y con
+  ocho etiquetas de faltante disfrazado de igual frecuencia y seis lugares en la
+  evidencia, una sesión listaba `SIN DATO` y la otra no. Ahora las dos desempatan
+  por bytes. El paquete ya había arreglado esta familia en el recorte de pares
+  de duplicados y ya usaba `method = "radix"` para la moda; el arreglo no había
+  llegado a estos dos sitios.
+- **`analizar_tiempo()` hacía desaparecer las columnas que mezclan días y
+  meses.** Bastaba un formato de mes confirmado para abandonar la columna
+  entera: no salía fila de resumen, no salía en `columnas_omitidas`, y
+  `columnas_analizadas` seguía nombrándola —un objeto que se contradice a sí
+  mismo—. `perfilar()` sobre esa misma columna la resume bien, y la
+  documentación declara ese trato para las columnas mixtas: las dos salidas del
+  paquete decían cosas incompatibles. Ahora se resume sobre las fechas
+  completas, con `n_fechas_excluidas_granularidad` y
+  `estado_resumen = "calculados_sobre_dias"`, el mismo vocabulario que usa
+  `perfilar()`. Cuando ningún formato confirmado nombra un día no hay serie
+  diaria que construir, y entonces la columna se **declara** en
+  `columnas_omitidas` y `columnas_sin_serie_diaria` en vez de desaparecer.
+- **`perfilar_por()` juntaba los ausentes con el literal `"(ausente)"` sin
+  decirlo.** Una columna que trae ese texto como valor real caía en el mismo
+  grupo que los `NA`. No se perdía ninguna fila, pero se publicaba un grupo que
+  junta dos cosas distintas bajo una etiqueta. La etiqueta no cambia —es la que
+  documenta la función—; la colisión ahora se declara en `cobertura_grupos`, con
+  cuántas filas aporta cada una.
+- **`perfilar_por()` reventaba si un argumento nombraba la columna de
+  agrupación.** Esa columna se recorta de cada rebanada antes de perfilar, así
+  que `columnas_personales`, `columnas_opcionales`, `clave` o `aplicabilidad`
+  nombrándola hacían fallar la corrida entera con «nombra columnas
+  inexistentes». Nombrarla es legítimo —es una columna de la tabla— y en el caso
+  de `columnas_personales` es además la única forma de declarar que las
+  etiquetas de grupo llevan datos personales cuando el léxico no reconoce el
+  nombre. Ahora se recorta de lo que se reenvía, que es lo que significa: la
+  declaración vale para la tabla, y en la rebanada esa columna ya no está.
 - **`fecha_nac` no se clasificaba como fecha de nacimiento.** El patrón
   abreviaba la primera palabra (`f_nacimiento`) y no la segunda, así que una de
   las formas más frecuentes en registros administrativos de la región quedaba

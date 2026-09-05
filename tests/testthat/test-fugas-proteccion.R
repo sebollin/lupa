@@ -181,3 +181,90 @@ test_that("perfilar_por declara que las etiquetas de grupo son datos personales"
                                  proteger_datos_personales = FALSE)
   expect_equal(nrow(attr(sin_proteccion, "etiquetas_personales")), 0L)
 })
+
+# Nombrar la columna de agrupacion en un argumento que se reenvia a `perfilar()`
+# hacia fallar la corrida entera, porque esa columna se recorta de cada rebanada
+# y `perfilar()` la denuncia como inexistente. Se destapo al agregar el canal de
+# declaracion: `columnas_personales = <la columna de agrupacion>` es la unica
+# forma de decir que las etiquetas llevan datos personales cuando el lexico no
+# reconoce el nombre, y era justamente la que reventaba.
+test_that("perfilar_por acepta argumentos que nombran la columna de agrupacion", {
+  datos <- data.frame(
+    codigo_interno = rep(sprintf("X%04d", 1:5), 8L),
+    atributo = rep(c("a", "b", "c", "d"), 10L),
+    valor = as.character(20:59),
+    stringsAsFactors = FALSE
+  )
+
+  # Primera mitad: sin declarar, el lexico NO reconoce este nombre. Si lo
+  # reconociera, lo de abajo pasaria sin probar el canal de declaracion.
+  sin_declarar <- perfilar_por(datos, "codigo_interno", min_filas = 2L)
+  expect_equal(nrow(attr(sin_declarar, "etiquetas_personales")), 0L)
+
+  declarado <- suppressWarnings(perfilar_por(
+    datos, "codigo_interno", min_filas = 2L,
+    columnas_personales = "codigo_interno"
+  ))
+  etiquetas <- attr(declarado, "etiquetas_personales")
+  expect_equal(nrow(etiquetas), 1L)
+  expect_equal(etiquetas$tipo, "declarada_por_el_usuario")
+  # Y la corrida sigue produciendo los grupos: el argumento se recorta, no anula.
+  expect_equal(length(unique(declarado$grupo)), 5L)
+
+  # Los otros tres argumentos que validaban existencia y por eso reventaban.
+  for (extra in list(
+    list(columnas_opcionales = "codigo_interno"),
+    list(aplicabilidad = list(codigo_interno = function(x) rep(TRUE, length(x))))
+  )) {
+    salida <- suppressWarnings(do.call(
+      perfilar_por,
+      c(list(datos, "codigo_interno", min_filas = 2L), extra)
+    ))
+    expect_equal(length(unique(salida$grupo)), 5L,
+                 info = names(extra)[1L])
+  }
+
+  # Control: un argumento que nombra una columna que SI esta en la rebanada
+  # sigue llegando a `perfilar()` y no se recorta por error.
+  con_opcional <- suppressWarnings(perfilar_por(
+    datos, "codigo_interno", min_filas = 2L, columnas_opcionales = "valor"
+  ))
+  expect_equal(length(unique(con_opcional$grupo)), 5L)
+})
+
+# Los ausentes forman un grupo con la etiqueta `(ausente)`. Si la columna trae
+# ese texto como valor real, los dos caen en el mismo grupo: no se pierde
+# ninguna fila -la suma se conserva- pero se publica un grupo que junta dos
+# cosas distintas. No se cambia la etiqueta; se declara la colision.
+test_that("perfilar_por declara cuando el grupo (ausente) junta dos cosas", {
+  datos <- data.frame(
+    g = c(rep(NA_character_, 20L), rep("(ausente)", 20L), rep("real", 20L)),
+    v = as.character(1:60),
+    stringsAsFactors = FALSE
+  )
+  salida <- perfilar_por(datos, "g", min_filas = 5L)
+  cobertura <- attr(salida, "cobertura_grupos")
+
+  fila <- cobertura[cobertura$grupo == "(ausente)" &
+                      grepl("valor real", cobertura$motivo, fixed = TRUE), ,
+                    drop = FALSE]
+  expect_equal(nrow(fila), 1L)
+  expect_equal(fila$n_filas_grupo, 40L)
+  expect_match(fila$motivo, "20 fila(s) con la columna de agrupacion ausente",
+               fixed = TRUE)
+
+  # No se pierde ni se duplica ninguna fila: la invariante que importa.
+  por_grupo <- unique(salida[, c("grupo", "n_filas_grupo")])
+  expect_equal(sum(por_grupo$n_filas_grupo), nrow(datos))
+
+  # Control: sin el literal en los datos no se declara nada. Sin esta mitad, una
+  # fila de cobertura que se escribiera siempre pasaria el test.
+  sin_colision <- data.frame(
+    g = c(rep(NA_character_, 20L), rep("real", 20L)),
+    v = as.character(1:40),
+    stringsAsFactors = FALSE
+  )
+  cobertura_limpia <- attr(perfilar_por(sin_colision, "g", min_filas = 5L),
+                           "cobertura_grupos")
+  expect_equal(sum(grepl("valor real", cobertura_limpia$motivo, fixed = TRUE)), 0L)
+})

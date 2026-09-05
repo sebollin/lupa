@@ -14,10 +14,23 @@ notes and nothing else appears.
 
 ### The four URLs that the incoming check has flagged
 
-`checking CRAN incoming feasibility` reported only `New submission` on the run
-of these sources, but the same check flags four URLs when it runs on a machine
-whose network reaches them, so they are stated here rather than left to chance.
-All four were measured again on 2026-09-04 with `curl -L`, with and without a
+`checking CRAN incoming feasibility` reaches the network, so it reports
+different things on different machines, and we would rather list all of them
+than have you find one. Across the environments below, three distinct outcomes
+were observed on the same sources:
+
+* the local run and win-builder's R release machine report only `New submission`;
+* the R 4.1.0 container, which has network and an older `curl`, additionally
+  lists the four URLs in the table below;
+* win-builder additionally reported one `possibly invalid file URI`,
+  `benchmark/perdida_lsh.md` from `README.md`. **That one was a real defect and
+  is fixed**: `benchmark/` is in `.Rbuildignore`, so the link resolved on GitHub
+  and pointed at nothing inside the package. It is now the absolute GitHub URL,
+  and a pre-submission check refuses any relative `README.md` link whose target
+  `.Rbuildignore` excludes. No local run had ever reported it, which is the
+  clearest argument this letter can make for the environment table.
+
+The four URLs, measured again on 2026-09-04 with `curl -L`, with and without a
 browser user agent:
 
 | URL | where it is cited | what it cites | measured |
@@ -105,7 +118,7 @@ construct it. This check had hidden `bit64` well enough for
 passed. A check that removes packages from the library path is close to, but not
 the same as, a machine that never had them.
 
-**A fourth occurrence, on 2026-09-01, on the sources now submitted.** A test of
+**A fourth occurrence, on 2026-09-01.** A test of
 the new external-LSH executor asserted a computed result without
 `skip_if_not_installed("stringdist")`; the local suite (22 872 passing checks)
 and five continuous-integration platforms were green, and this check alone
@@ -145,7 +158,12 @@ R CMD build --compact-vignettes=gs+qpdf lupa
 ```
 
 The environment table below is generated from the check logs of that commit by a
-script that refuses to print a row it has no log for; it is not typed by hand.
+script, and written into this file between two markers rather than copied by
+hand. It refuses to produce the table at all if any row lacks a log, if a log
+does not say which commit it measured, or if it says a different one — each log
+carries that commit as its first line, written by whatever produced it. That
+last guard exists because on 2026-09-05 rows measured on two different commits
+sat in the same table and nothing noticed.
 
 **This paragraph was wrong until it was re-run.** It claimed the sources were
 those of `375d7c3` and that everything committed after it touched only this

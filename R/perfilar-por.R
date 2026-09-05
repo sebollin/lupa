@@ -17,7 +17,10 @@
 #'
 #' @param datos Data frame a perfilar.
 #' @param por Nombre de una columna atómica cuyos valores definen los grupos.
-#'   Los ausentes forman un grupo propio.
+#'   Los ausentes forman un grupo propio, con la etiqueta `"(ausente)"`. Si la
+#'   columna trae ese mismo texto como valor real, los dos caen en un solo grupo
+#'   —no se pierde ninguna fila— y la colisión se declara en
+#'   `cobertura_grupos`, con cuántas filas aporta cada una.
 #' @param clave Nombres de columnas de identidad que se conservan en cada grupo
 #'   aunque estén enteramente ausentes. Importa: sin la clave de entidad, el
 #'   diagnóstico de filas duplicadas informa como duplicada cada repetición del
@@ -41,7 +44,11 @@
 #'   ejecutar y queda declarado en el objeto. Para que no se publiquen, agrupe
 #'   por una columna seudonimizada. El atributo queda vacío cuando la columna no
 #'   lleva datos personales, y también cuando `proteger_datos_personales` es
-#'   `FALSE`, porque entonces ya está declarado que se quieren los valores.
+#'   `FALSE`, porque entonces ya está declarado que se quieren los valores. Si el
+#'   léxico no reconoce el nombre de la columna, decláresela con
+#'   `columnas_personales`: ese argumento —como `columnas_opcionales`, `clave` y
+#'   `aplicabilidad`— puede nombrar la columna de agrupación, y se recorta de lo
+#'   que se envía a [perfilar()] para cada grupo, donde esa columna ya no está.
 #'
 #'   El atributo `cobertura_diagnosticos` declara, **por grupo**, los
 #'   diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
@@ -90,7 +97,14 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   }
 
   etiquetas <- as.character(datos[[por]])
-  etiquetas[is.na(datos[[por]])] <- "(ausente)"
+  ausentes <- is.na(datos[[por]])
+  # Los ausentes forman un grupo propio con esta etiqueta. Si la columna trae el
+  # literal `"(ausente)"` como valor real, los dos caen en el mismo grupo: no se
+  # pierde ninguna fila, pero se publica un grupo que junta dos cosas distintas
+  # sin decirlo. No se cambia la etiqueta -es la que documenta la funcion y la
+  # que la gente lee- sino que se declara la colision, que es lo que faltaba.
+  colision <- sum(!ausentes & etiquetas == "(ausente)")
+  etiquetas[ausentes] <- "(ausente)"
   grupos <- split(seq_len(nrow(datos)), factor(etiquetas, levels = unique(etiquetas)))
 
   # La etiqueta de cada grupo ES un valor de la columna `por`. Si esa columna
@@ -116,22 +130,29 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   }
   etiquetas_personales <- NULL
   if (proteger) {
-    sonda <- tryCatch(
-      # `.seleccionar_columnas()` y no `datos[, por, drop = FALSE]`: con
-      # `data.table` la semantica de `[` depende de si quien llama tiene el
-      # paquete entre sus imports, y el proyecto concentra las selecciones en
-      # esa primitiva por eso. El test de la ronda 160 cuenta los sitios
-      # sueltos y me caso este mismo.
-      perfilar(.seleccionar_columnas(datos, por),
-               proteger_datos_personales = TRUE,
-               analizar_dependencias = FALSE),
+    # El clasificador RAPIDO, no `perfilar()`. La primera version sondeaba con
+    # `perfilar()` para no duplicar la regla, y medida sobre una columna de
+    # documentos de 200.000 filas costaba **55,7 s**: casi un minuto agregado a
+    # una funcion publica, y justo en el caso que el sondeo existe para cubrir.
+    # `.columnas_personales_rapidas()` da el mismo veredicto en **0,52 s** -107
+    # veces menos- y es la primitiva que ya usan los caminos de referencial y de
+    # analisis, asi que la regla sigue viviendo en un solo lugar.
+    clasificada <- tryCatch(
+      .columnas_personales_rapidas(.seleccionar_columnas(datos, por),
+                                   detalle = TRUE),
       error = function(e) NULL
     )
-    clasificada <- if (!is.null(sonda) && nrow(sonda$datos_personales)) {
-      sonda$datos_personales[sonda$datos_personales$columna == por &
-                               isTRUE(sonda$datos_personales$proteger), ,
-                             drop = FALSE]
-    } else NULL
+    # Y lo que el usuario DECLARA vale aunque el lexico no lo reconozca: una
+    # columna nombrada en `columnas_personales` es personal porque el usuario lo
+    # dice, que es la regla del paquete.
+    declaradas <- if ("columnas_personales" %in% names(extras)) {
+      as.character(extras$columnas_personales)
+    } else character()
+    if (por %in% declaradas &&
+        (is.null(clasificada) || !nrow(clasificada))) {
+      clasificada <- data.frame(columna = por, tipo = "declarada_por_el_usuario",
+                                stringsAsFactors = FALSE)
+    }
     if (!is.null(clasificada) && nrow(clasificada)) {
       etiquetas_personales <- data.frame(
         columna = por,
@@ -149,8 +170,45 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     }
   }
 
+  # La columna de agrupacion NO esta en la rebanada -se recorta antes de
+  # perfilar-, asi que un argumento que la nombre hace fallar a `perfilar()` con
+  # "nombra columnas inexistentes". Medido: fallan `columnas_personales`,
+  # `columnas_opcionales`, `clave` y `aplicabilidad`; `columnas_sin_ceros` y
+  # `columnas_no_negativas` no validan y no fallan.
+  #
+  # Nombrarla es legitimo -es una columna de la tabla que el usuario paso- y
+  # ademas es la unica forma de declarar que la columna de agrupacion lleva datos
+  # personales. Antes eso reventaba la corrida entera; ahora se recorta de lo que
+  # se reenvia, que es lo que significa: la declaracion vale para la tabla, y en
+  # la rebanada esa columna ya no esta.
+  extras_grupo <- extras
+  for (arg in c("columnas_personales", "columnas_opcionales", "clave",
+                "columnas_sin_ceros", "columnas_no_negativas")) {
+    if (arg %in% names(extras_grupo) && is.character(extras_grupo[[arg]])) {
+      extras_grupo[[arg]] <- setdiff(extras_grupo[[arg]], por)
+    }
+  }
+  if ("aplicabilidad" %in% names(extras_grupo) &&
+      !is.null(names(extras_grupo$aplicabilidad))) {
+    conservar <- setdiff(names(extras_grupo$aplicabilidad), por)
+    extras_grupo$aplicabilidad <- extras_grupo$aplicabilidad[conservar]
+  }
+
   hallazgos <- list()
   cobertura <- list()
+  if (colision > 0L) {
+    cobertura[[length(cobertura) + 1L]] <- data.frame(
+      grupo = "(ausente)",
+      n_filas_grupo = length(grupos[["(ausente)"]]),
+      motivo = paste0(
+        "El grupo `(ausente)` junta ", sum(ausentes), " fila(s) con la columna ",
+        "de agrupacion ausente y ", colision, " fila(s) cuyo valor real es el ",
+        "texto `(ausente)`. Son dos cosas distintas bajo una sola etiqueta: ",
+        "distingalas antes de leer este grupo."
+      ),
+      columnas_descartadas = NA_character_, stringsAsFactors = FALSE
+    )
+  }
   cobertura_diagnosticos <- list()
 
   for (nombre_grupo in names(grupos)) {
@@ -189,7 +247,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       )
       next
     }
-    perfil <- perfilar(rebanada, ...)
+    perfil <- do.call(perfilar, c(list(rebanada), extras_grupo))
     # Cada grupo se perfila por separado, asi que cada uno declina sus propios
     # diagnosticos: una columna puede tener bastantes filas en un grupo y muy
     # pocas en otro. Sin juntar esas declaraciones, quien mira los hallazgos por

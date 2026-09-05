@@ -68,8 +68,22 @@ revisado de una omisión deliberada.
 
 \code{estado} distingue acciones \code{lista}, \code{bloqueada} e \code{informativa}; \code{orden}
 fija la secuencia reproducible. \code{n_afectadas} es la estimación del perfil y
-\code{unidad_conteo} dice si cuenta filas, columnas o valores distintos. El
-registro informa \code{n_cambiadas} sobre los datos recibidos. \code{reversible}
+\code{unidad_conteo} dice si cuenta filas, columnas o valores distintos —lo
+declara la acción cuando cuenta en una unidad propia, y sólo si no lo hace se
+hereda del hallazgo—. El registro informa \code{n_cambiadas} sobre los datos
+recibidos.
+
+\strong{\code{n_afectadas} y \code{n_cambiadas} pueden no coincidir, y las dos son ciertas.}
+La estimación se calcula sobre los datos que se perfilaron; el registro
+cuenta lo que pasó al aplicar. Si una acción anterior del mismo plan ya tocó
+esa columna, la posterior encuentra menos —o más— de lo estimado: con
+\code{convertir_sentinelas_numericos} (orden 110) convirtiendo tres \code{-999} en
+ausentes, \code{winsorizar_outliers} (orden 520) recorta dos valores donde el plan
+estimaba siete. No es un desvío que ocultar: \code{orden}, \code{n_afectadas} y
+\code{n_cambiadas} se publican los tres, y compararlos es la forma de ver el
+efecto de la composición. Sólo el caso extremo —la acción no produce \strong{ningún}
+efecto donde el plan estimaba alguno— se registra como \code{fallida} con su
+motivo. \code{reversible}
 indica si la conversión conserva la identidad de cada valor. Las
 conversiones se comprueban sobre todos los valores de \code{datos}: las numéricas
 bloquean ceros iniciales y colisiones no inyectivas, mientras que fechas,

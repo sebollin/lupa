@@ -91,7 +91,15 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     etiquetas <- character()
   }
 
-  tabla <- sort(table(etiquetas), decreasing = TRUE)
+  # El mismo defecto que `R/patrones.R:87`, una funcion mas alla: `table()`
+  # ordena sus niveles con la intercalacion del locale y `sort()` conserva ese
+  # orden en los empates, asi que con ocho etiquetas de igual frecuencia y seis
+  # lugares en la evidencia el desempate lo decidia la maquina. Medido: una
+  # sesion publicaba `SIN DATO` y la otra no. Desempate por bytes.
+  conteo_etiquetas <- table(etiquetas)
+  tabla <- conteo_etiquetas[order(-as.integer(conteo_etiquetas),
+                                 .clave_bytes(names(conteo_etiquetas)),
+                                 method = "radix")]
   evidencia <- if (length(tabla)) {
     paste0(names(utils::head(tabla, 6L)), " (", as.integer(utils::head(tabla, 6L)), ")",
            collapse = "; ")
