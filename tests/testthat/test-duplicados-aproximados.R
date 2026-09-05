@@ -1290,6 +1290,10 @@ test_that("la trazabilidad separa los pares exactos normalizados", {
 # bytes pasaba, 9999 abortaba. Solo aparecia con al menos un par candidato,
 # porque el crash ocurre despues de la comparacion.
 test_that("un valor de mas de 10000 bytes no aborta el camino LSH", {
+  # Sin `stringdist` el camino no llega al diagnostico de Jaccard, que es donde
+  # ocurria el aborto: la prueba no probaria nada. Es la guarda que llevan las
+  # otras 41 de este archivo.
+  skip_if_not_installed("stringdist")
   set.seed(7)
   texto <- paste(sample(letters, 12000, replace = TRUE), collapse = "")
   datos <- data.frame(
@@ -1326,6 +1330,7 @@ test_that("un valor de mas de 10000 bytes no aborta el camino LSH", {
 # que existe. Sin esto, indexar por la fila en vez de por el valor distinto
 # pasaria el test de arriba y perderia la deduplicacion en silencio.
 test_that("la cache de q-gramas sigue reutilizando el valor repetido", {
+  skip_if_not_installed("stringdist")
   repetido <- data.frame(
     v = c(rep("exactamente el mismo texto para la cubeta", 200),
           "exactamente el mismo texto para la cubet4"),
