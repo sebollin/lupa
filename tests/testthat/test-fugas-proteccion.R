@@ -429,3 +429,114 @@ test_that("medir() protege lo que el usuario declara personal", {
     "LEG-0001"
   ))
 })
+
+# La proteccion reemplazaba los valores protegidos en TODO el texto del perfil,
+# incluidos campos que no son datos. Medido sobre `datos_administrativos`, con
+# `id_persona` protegida y valores de un digito: `meta$version` salia como
+# "0.[valor protegido].0" y un patron `9+-9+-9+` salia como
+# "[valor protegido]+[valor protegido]+[valor protegido]+".
+test_that("la version del paquete no se enmascara", {
+  perfil <- perfilar(datos_administrativos)
+  # Primero: la proteccion se activo. Sin columnas protegidas no prueba nada.
+  expect_true(any(perfil$datos_personales$proteger))
+  expect_true("id_persona" %in%
+                perfil$datos_personales$columna[perfil$datos_personales$proteger])
+
+  expect_equal(
+    perfil$meta$version,
+    perfilar(
+      datos_administrativos, proteger_datos_personales = FALSE
+    )$meta$version
+  )
+  expect_false(grepl("valor protegido", perfil$meta$version, fixed = TRUE))
+
+  # Y ningun campo de `meta` queda con el marcador: `meta` describe la corrida,
+  # no los datos, y tiene su propio paso dirigido.
+  marcado <- function(x) {
+    if (is.list(x)) return(any(vapply(x, marcado, logical(1))))
+    is.character(x) && any(grepl("valor protegido", x, fixed = TRUE), na.rm = TRUE)
+  }
+  expect_false(marcado(perfil$meta))
+})
+
+test_that("el patron es una forma y no se enmascara; los ejemplos si", {
+  perfil <- perfilar(datos_administrativos)
+  abierto <- perfilar(datos_administrativos, proteger_datos_personales = FALSE)
+  protegidas <- perfil$datos_personales$columna[perfil$datos_personales$proteger]
+  expect_true(length(protegidas) > 0L)
+
+  for (columna in names(perfil$patrones)) {
+    # El patron dice la FORMA -`9+-9+-9+` es "digitos, guion, digitos"- y se
+    # construye sobre un alfabeto fijo: nunca lleva un valor de la tabla.
+    expect_identical(
+      perfil$patrones[[columna]]$patron,
+      abierto$patrones[[columna]]$patron,
+      info = columna
+    )
+  }
+
+  # Los ejemplos son valores y siguen enmascarados en las columnas protegidas.
+  for (columna in protegidas) {
+    if (is.null(perfil$patrones[[columna]])) next
+    ejemplos <- unlist(perfil$patrones[[columna]]$ejemplos)
+    if (!length(ejemplos)) next
+    expect_true(
+      all(grepl("valor protegido", ejemplos, fixed = TRUE)),
+      info = columna
+    )
+  }
+  # Y la moda de una columna protegida tampoco se publica.
+  for (columna in protegidas) {
+    expect_equal(
+      perfil$columnas$moda[perfil$columnas$columna == columna],
+      "[valor protegido]", info = columna
+    )
+  }
+})
+
+# La mitad que decide que el arreglo no abrio una fuga: ningun valor de una
+# columna protegida puede aparecer en ninguna parte del perfil.
+test_that("ningun valor protegido se escapa al perfil", {
+  casos <- list(
+    administrativos = datos_administrativos,
+    operativos = datos_operativos,
+    documentos = data.frame(
+      cedula = c("48123456", "51987654", "48123456", "12345678", "S/D"),
+      correo = c("juan.perez@x.uy", "ana@y.uy", "b@z.uy", NA, "juan.perez@x.uy"),
+      sexo = c("F", "M", "S/D", "F", "M"),
+      monto = c(100, 200, 100, 300, 100),
+      stringsAsFactors = FALSE
+    )
+  )
+  textos_de <- function(x, acumulado = character()) {
+    if (is.list(x)) {
+      for (parte in x) acumulado <- textos_de(parte, acumulado)
+      return(acumulado)
+    }
+    if (is.character(x) || is.factor(x)) acumulado <- c(acumulado, as.character(x))
+    acumulado
+  }
+  for (nombre in names(casos)) {
+    datos <- casos[[nombre]]
+    perfil <- perfilar(datos)
+    protegidas <- perfil$datos_personales$columna[perfil$datos_personales$proteger]
+    expect_true(length(protegidas) > 0L, info = nombre)
+
+    # Los valores largos de una columna protegida: los que identifican. Se
+    # excluyen los centinelas cortos, que son vocabulario compartido y no
+    # identifican a nadie.
+    secretos <- unique(unlist(lapply(protegidas, function(col) {
+      valores <- as.character(datos[[col]])
+      valores[!is.na(valores) & nchar(valores) >= 6L]
+    })))
+    if (!length(secretos)) next
+    publicado <- textos_de(perfil)
+    publicado <- publicado[!is.na(publicado)]
+    for (secreto in secretos) {
+      expect_false(
+        any(grepl(secreto, publicado, fixed = TRUE)),
+        info = paste(nombre, secreto)
+      )
+    }
+  }
+})

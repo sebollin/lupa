@@ -1134,7 +1134,38 @@
   valores <- valores[order(nchar(valores, type = "bytes"), decreasing = TRUE,
                            method = "radix")]
   perfil <- .proteger_meta_y_cobertura(perfil, sensibles, valores)
-  .proteger_textos_salida(perfil, valores)
+  # `meta` describe la CORRIDA, no los datos: la version del paquete, los
+  # umbrales, la configuracion. Ya tiene su propio paso dirigido y por columna
+  # -centinelas, Benford, cobertura- justo arriba, y el barrido general lo
+  # volvia a pisar reemplazando cualquier coincidencia de texto. Medido: con
+  # una columna protegida que contiene el valor "1", `meta$version` salia como
+  # "0.[valor protegido].0" y la fuente de una medicion decia
+  # "[valor protegido].000 columnas".
+  meta_declarada <- perfil$meta
+  # El campo `patron` es un VOCABULARIO DE FORMA, no un valor: `9+-9+-9+`
+  # significa "digitos, guion, digitos, guion, digitos", y ese `9` es el simbolo
+  # de "digito". Enmascararlo destruye la unica informacion que el campo existe
+  # para dar -quedaba `[valor protegido]+[valor protegido]+[valor protegido]+`-
+  # y no protege nada, porque el patron esta construido sobre un alfabeto fijo y
+  # nunca lleva un valor de la tabla. Vale para toda columna, protegida o no.
+  #
+  # `ejemplos` es lo contrario: son valores de la tabla y siguen enmascarados.
+  patrones_forma <- NULL
+  if (is.list(perfil$patrones) && length(perfil$patrones)) {
+    patrones_forma <- lapply(perfil$patrones, function(x) {
+      if (is.list(x) && !is.null(x$patron)) x$patron else NULL
+    })
+  }
+  perfil <- .proteger_textos_salida(perfil, valores)
+  perfil$meta <- meta_declarada
+  if (!is.null(patrones_forma)) {
+    for (col in names(patrones_forma)) {
+      if (!is.null(patrones_forma[[col]]) && !is.null(perfil$patrones[[col]])) {
+        perfil$patrones[[col]]$patron <- patrones_forma[[col]]
+      }
+    }
+  }
+  perfil
 }
 
 .proteger_duplicados_aproximados <- function(resultado, sensibles) {
