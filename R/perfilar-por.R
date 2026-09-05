@@ -32,6 +32,17 @@
 #'   atributo `cobertura_grupos` declara los grupos no perfilados y las columnas
 #'   descartadas por grupo.
 #'
+#'   El atributo `etiquetas_personales` declara si la columna de agrupación
+#'   lleva datos personales. Las etiquetas de grupo **son** valores de esa
+#'   columna, así que la salida los publica —en los hallazgos y en las dos
+#'   tablas de cobertura— aunque [perfilar()] enmascare esa misma columna. No se
+#'   enmascaran aquí porque la etiqueta es el eje del resultado y sin ella los
+#'   grupos no se distinguen; pero tampoco ocurre en silencio: se avisa al
+#'   ejecutar y queda declarado en el objeto. Para que no se publiquen, agrupe
+#'   por una columna seudonimizada. El atributo queda vacío cuando la columna no
+#'   lleva datos personales, y también cuando `proteger_datos_personales` es
+#'   `FALSE`, porque entonces ya está declarado que se quieren los valores.
+#'
 #'   El atributo `cobertura_diagnosticos` declara, **por grupo**, los
 #'   diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
 #'   separado, así que cada uno declina los suyos: una columna puede tener
@@ -81,6 +92,62 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   etiquetas <- as.character(datos[[por]])
   etiquetas[is.na(datos[[por]])] <- "(ausente)"
   grupos <- split(seq_len(nrow(datos)), factor(etiquetas, levels = unique(etiquetas)))
+
+  # La etiqueta de cada grupo ES un valor de la columna `por`. Si esa columna
+  # lleva datos personales, las etiquetas los publican -en los hallazgos y en
+  # las dos tablas de cobertura- aunque `perfilar()` sobre la misma columna
+  # enmascare su moda. La columna se recorta de cada rebanada antes de perfilar,
+  # asi que la capa de proteccion nunca la ve y no puede taparlo.
+  #
+  # No se enmascara: agrupar por una columna es pedir explicitamente que la
+  # salida se organice por sus valores, y una etiqueta ilegible dejaria el
+  # resultado sin eje. Pero tampoco se hace en silencio, que es lo que pasaba.
+  # Se avisa y se declara en el objeto, para que quien publique la salida sepa
+  # que lleva.
+  #
+  # La clasificacion la decide `perfilar()` sobre esa sola columna, no una copia
+  # de la regla aca: una regla duplicada se arregla en un lado y no en el otro,
+  # que es como aparecio el defecto de `analizar_tiempo()`.
+  extras <- list(...)
+  proteger <- if ("proteger_datos_personales" %in% names(extras)) {
+    isTRUE(extras$proteger_datos_personales)
+  } else {
+    isTRUE(eval(formals(perfilar)$proteger_datos_personales))
+  }
+  etiquetas_personales <- NULL
+  if (proteger) {
+    sonda <- tryCatch(
+      # `.seleccionar_columnas()` y no `datos[, por, drop = FALSE]`: con
+      # `data.table` la semantica de `[` depende de si quien llama tiene el
+      # paquete entre sus imports, y el proyecto concentra las selecciones en
+      # esa primitiva por eso. El test de la ronda 160 cuenta los sitios
+      # sueltos y me caso este mismo.
+      perfilar(.seleccionar_columnas(datos, por),
+               proteger_datos_personales = TRUE,
+               analizar_dependencias = FALSE),
+      error = function(e) NULL
+    )
+    clasificada <- if (!is.null(sonda) && nrow(sonda$datos_personales)) {
+      sonda$datos_personales[sonda$datos_personales$columna == por &
+                               isTRUE(sonda$datos_personales$proteger), ,
+                             drop = FALSE]
+    } else NULL
+    if (!is.null(clasificada) && nrow(clasificada)) {
+      etiquetas_personales <- data.frame(
+        columna = por,
+        tipo = as.character(clasificada$tipo[1L]),
+        n_grupos = length(grupos),
+        motivo = paste0(
+          "Las etiquetas de grupo son valores de `", por, "`, clasificada como ",
+          clasificada$tipo[1L], ". `perfilar()` enmascara esa columna; aca no, ",
+          "porque la etiqueta es el eje del resultado. La salida lleva esos ",
+          "valores: agrupe por una columna seudonimizada si no deben publicarse."
+        ),
+        stringsAsFactors = FALSE
+      )
+      cli::cli_alert_warning(etiquetas_personales$motivo)
+    }
+  }
 
   hallazgos <- list()
   cobertura <- list()
@@ -190,6 +257,13 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   }
   attr(salida, "n_grupos") <- length(grupos)
   attr(salida, "columna_grupo") <- por
+  # Vacia cuando la columna de agrupacion no lleva datos personales, o cuando la
+  # proteccion se desactivo: en ese caso el usuario ya declaro que los quiere.
+  attr(salida, "etiquetas_personales") <- if (is.null(etiquetas_personales)) {
+    data.frame(columna = character(), tipo = character(),
+               n_grupos = integer(), motivo = character(),
+               stringsAsFactors = FALSE)
+  } else etiquetas_personales
   class(salida) <- c("hallazgos_por_grupo", "data.frame")
   salida
 }

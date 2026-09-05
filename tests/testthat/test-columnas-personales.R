@@ -156,3 +156,43 @@ test_that("el tope de columnas y el tipo se declaran por separado", {
   expect_match(fila$motivo, "no se puede agrupar")
   expect_match(fila$motivo, "primeras 3")
 })
+
+# El lexico de nombres no puede ser completo -y el codigo lo dice-, pero si
+# tiene que ser coherente consigo mismo. El patron de fecha de nacimiento
+# abreviaba la PRIMERA palabra (`f_nacimiento`) y no la segunda, asi que
+# `fecha_nac` no se clasificaba: una de las formas mas frecuentes en registros
+# administrativos de la region quedaba sin proteger.
+#
+# Se enumeran las cinco formas de escribir lo mismo en vez de agregar la que
+# aparecio. Y va con su mitad de control: los nombres que NO deben clasificarse,
+# porque un lexico que crece sin control enmascara columnas que no son
+# personales, y eso rompe el analisis en silencio.
+test_that("las abreviaturas de fecha de nacimiento y de defuncion se clasifican", {
+  fechas <- as.Date("1980-01-01") + seq(0L, 3000L, by = 100L)
+
+  clasifica <- function(nombre) {
+    datos <- data.frame(x = fechas)
+    names(datos) <- nombre
+    perfil <- perfilar(datos, analizar_dependencias = FALSE)
+    nrow(perfil$datos_personales) > 0L
+  }
+
+  personales <- c(
+    "fecha_nacimiento", "f_nacimiento", "fec_nacimiento", "nacimiento",
+    "fecha_nac", "f_nac", "fec_nac", "fechanac",
+    "fecha_defuncion", "f_defuncion", "fec_defuncion", "fecha_deceso"
+  )
+  for (nombre in personales) {
+    expect_true(clasifica(nombre), info = nombre)
+  }
+
+  # La mitad que hace que esto pruebe algo: `fecha_fall` no esta en el lexico a
+  # proposito, porque `fall` es tambien "falla" en datos de mantenimiento.
+  neutros <- c(
+    "nacionalidad", "fecha_facturacion", "fecha_falla", "fecha_fall_equipo",
+    "fecha_alta", "nac_id"
+  )
+  for (nombre in neutros) {
+    expect_false(clasifica(nombre), info = nombre)
+  }
+})

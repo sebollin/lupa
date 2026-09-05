@@ -12,6 +12,38 @@ manual ... OK` on every earlier upload. A rerun with
 show that removing the incoming checks and the manual validation removes both
 notes and nothing else appears.
 
+### The four URLs that the incoming check has flagged
+
+`checking CRAN incoming feasibility` reported only `New submission` on the run
+of these sources, but the same check flags four URLs when it runs on a machine
+whose network reaches them, so they are stated here rather than left to chance.
+All four were measured again on 2026-09-04 with `curl -L`, with and without a
+browser user agent:
+
+| URL | where it is cited | what it cites | measured |
+| --- | --- | --- | ---: |
+| `doi.org/10.1109/SEQUEN.1997.666900` | `man/detectar_duplicados_aproximados.Rd` | Broder (1997), *On the resemblance and containment of documents* — the MinHash paper the approximate-duplicate detector implements | `202` |
+| `www.iso.org/standard/35736.html` | `DESCRIPTION`, `man/lupa-package.Rd`, `man/marco_calidad.Rd` | ISO/IEC 25012:2008, the data quality model that `marco_calidad()` declares | `403` |
+| `www.iso.org/standard/31531.html` | `man/validadores_formato.Rd` | ISO/IEC 7064:2003, the check-character system the format validators implement | `403` |
+| `www.iso.org/iso-3166-country-codes.html` | `man/validadores_formato.Rd` | ISO 3166, the country codes that `validar_iso3166()` validates | `403` |
+
+None of the four is a wrong address, and none is dead.
+
+The DOI is written as `\doi{10.1109/SEQUEN.1997.666900}` in the Rd source, so it
+is the resolver that is being asked, and the resolver redirects (`302`) to IEEE
+Xplore, which answers `202 Accepted` to an automated client — a challenge
+pending, not a missing document. The package's other two DOIs, resolved the same
+way in the same minute, answer `200`, which locates the `202` at the publisher
+and not in the reference.
+
+The three `403`s come from iso.org, which refuses non-browser clients: the same
+`403` with and without a browser user agent, so it is the server declining the
+request and not a wrong address. Each is the standard's own landing page at the
+body that publishes it, which is the address a reader needs and the only one
+that stays correct — no mirror or vendor copy is authoritative for an ISO
+standard. They are left as they are, and reported here rather than quietly
+replaced by a link that answers `200` and cites something else.
+
 ## A check that CRAN runs, and that this package now runs first
 
 ```sh
@@ -95,14 +127,25 @@ carried forward.
 
 ## Test environments
 
-Each result below names the commit whose sources it measured. The sources are
-identified by their commit, not by the `Packaged:` stamp: `R CMD build` writes
-that stamp at build time, so two builds of identical sources carry different
-stamps and the stamp identifies a build, not a revision. Each result was read
-from that run's own check log. Where a run has not yet been repeated on the
-current sources, the line says so rather than carrying the older result forward.
+Every row below measured the sources named at the head of the table. Those
+sources are identified by their commit, not by the `Packaged:` stamp: `R CMD
+build` writes that stamp at build time, so two builds of identical sources
+carry different stamps and the stamp identifies a build, not a revision. Each
+result was read from that run's own check log — not from a green tick, not from
+the conclusion of a CI run, and not from the notification e-mail.
 
-The package sources submitted are those of `688c4e7`.
+The package sources submitted are those of
+`fc5a601f144c2c46d0a41ffae6c657b43ce3c993`. The tarball was built from a clean
+tree at that commit, which is checkable rather than asserted:
+
+```sh
+git rev-parse HEAD        # fc5a601f144c2c46d0a41ffae6c657b43ce3c993
+git status --porcelain    # no output: nothing uncommitted travels in the build
+R CMD build --compact-vignettes=gs+qpdf lupa
+```
+
+The environment table below is generated from the check logs of that commit by a
+script that refuses to print a row it has no log for; it is not typed by hand.
 
 **This paragraph was wrong until it was re-run.** It claimed the sources were
 those of `375d7c3` and that everything committed after it touched only this
@@ -113,96 +156,60 @@ forward across a day of work that rewrote the tie-breaking of a trimming step,
 changed a default from a bounded sample to the whole table, and added progress
 reporting.
 
+**And it went stale a second time, the same way.** It was corrected to
+`688c4e7` and then carried that commit for twenty-six more commits, across the
+work of a full day, while the table beneath it was copied in by hand from the
+generator's output. Generating the table and pasting it are two steps, and the
+second is the one that gets skipped; so it is now one step. The generator writes
+the table into this file between two markers, and it refuses to write anything
+at all while any row still lacks a log — the rule that a row is worth its log
+is enforced by the tool rather than remembered by the person running it.
+
 It is recorded rather than quietly corrected because the failure is the subject
 of the section above: a statement of fact in prose ages silently, and the
 reproducer being written next to it is not the same as the reproducer being run.
-The command is now run for each revision and its output pasted, not summarised.
 
-* Local: R 4.6.1, x86_64-pc-linux-gnu, Pop!_OS 22.04 LTS — **`Status: 2 NOTEs`**
-  with `--as-cran` (`New submission` and the missing local `tidy`), and the same
-  two notes with `_R_CHECK_DEPENDS_ONLY_=true`. With
-  `_R_CHECK_CRAN_INCOMING_=false --no-manual` the result on the same tarball,
-  re-run on these sources, is **`Status: OK`** — no notes at all — which
-  locates both notes outside the package.
-* Local, `_R_CHECK_DEPENDS_ONLY_=true R CMD check --as-cran` on the tarball
-  built from the submission tree — **`Status: 2 NOTEs`**, the two described
-  above and nothing else. (`cran-comments.md` is build-ignored, so a commit
-  that touches only this letter does not change the sources; the run is
-  repeated by the release script on the final commit and its log replaces the
-  one cited here.) This is the check that CRAN's environment variable runs, the one
-  that has caught what twenty-two thousand green tests structurally cannot see;
-  its log is kept with the other runs of this revision. The tarball build
-  rebuilds all ten vignettes without a warning.
-* Continuous integration (GitHub Actions, `R-CMD-check`, run 33498082928) **on
-  `688c4e7`, the submitted sources**: 5 of 5 with **`Status: OK`** and test
-  summaries of `FAIL 0` with 22 837–22 841 passing checks — Ubuntu with R
-  release, R-devel and R oldrel-1; Windows with R release; macOS with R release.
-  The three Ubuntu jobs report `WARN 0`; the Windows and macOS jobs report
-  `WARN 7`, seven platform-conditional test warnings with zero failures, stated
-  here rather than rounded away. Each `Status:` line and each test summary was
-  read from that run's own log rather than inferred from the green tick.
-* R-hub v2, R-devel (run 33498082580) **on `688c4e7`, the submitted sources**:
-  Linux, Windows and macOS — all three **`Status: OK`**. Each result was read
-  from that job's own log.
-* win-builder, R release (4.6.1), uploaded from `688c4e7`, the submitted
-  sources: **`Status: 1 NOTE`**, the note being `New submission` and nothing
-  else; `checking tests ... [114m] OK` and
-  `checking HTML version of manual ... OK`. Read from the run's own
-  `00check.log` (`o3b6nn2GsKPY`), not from the notification e-mail.
+<!-- MATRIZ:INICIO -->
+<!-- MATRIZ:FIN -->
 
-  **This run is itself the closing measurement of a failure this cycle.** One
-  revision earlier, the release check here — and here alone, out of ten
-  environments — died 29 minutes into the tests with no summary
-  (`x84xirE35eoq`), its output ending at `OGR: Corrupt data`: this machine's
-  current GDAL build segfaults, rather than erroring, on a WKB whose header is
-  valid and whose body is truncated, and a `tryCatch` cannot catch a segfault
-  in C. The same machine's R-devel, on a different GDAL build, ran the same
-  sources to `1 NOTE` (`Qfj1g7YA3q91`) — the crash was specific to the release
-  build. The fix extends the arithmetic WKB guard with a minimum body length
-  per geometry type and adds an equivalent arithmetic guard for WKT, so
-  corrupt bytes and corrupt text are rejected by the package's own arithmetic
-  and never handed to GDAL at all; the two tests that used to feed them now
-  assert, with a mock, that `sf` receives nothing. The full 114-minute rerun
-  above, on this same machine, is the measurement that the crash is gone.
-* win-builder, R-devel: uploaded twice from `688c4e7` (the regular pair and a
-  resubmission); the devel queue has returned no result after fifteen hours —
-  its last e-mail of the day, for any upload of this package, was the run of
-  the previous revision (`Qfj1g7YA3q91`, `Status: 1 NOTE`, full 118-minute
-  check), whose sources differ from those submitted only by the geometry
-  guards described above and by this letter. The row is stated as pending
-  rather than carried forward; this line will be replaced by the run's own
-  result when the queue returns it.
+### What the table cannot fit
 
-  **An earlier upload of a previous revision cycle also failed here, and only
-  here.**
-  The release machine's check died 29 minutes in with no test summary; nine
-  other environments were green. The cause was in the package: to decide
-  whether a raw column is WKB, bytes were handed to GDAL through `sf`, and a
-  `tryCatch` cannot catch a segfault in C. That build of GDAL crashed where
-  every other one raised an error. The fix of that cycle validated the WKB
-  header arithmetically before `sf` was ever called, and its 109-minute rerun
-  (`TeCC2H9YPP1c`, `1 NOTE`) measured that crash gone. The header alone later
-  proved insufficient — the truncated-body case above went through it — which
-  is why the guard now also demands the minimum body length. Twice now, this
-  machine has been the only one of ten able to see this class; both failures
-  and both closing measurements are recorded here because a result that failed
-  and was fixed is part of what was measured.
-* Container: R 4.1.3 (`rocker/r-ver:4.1.3`) for the declared minimum, with the
-  suggested packages installed from a period-appropriate CRAN snapshot and the
-  full test suite running: **`FAIL 0 | WARN 0 | SKIP 24 | PASS 22795`** on
-  `688c4e7`, the submitted sources. The check reports one ERROR and one WARNING,
-  both from `checking PDF version of manual`: the image has no `pdflatex`. They
-  are properties of the container — every external service above builds the
-  manual and reports OK. Of its three NOTEs, one is `New submission`, one is the
-  future-timestamp note from the container clock, and one reports
-  `lupa-manual.tex` left in the check directory — the residue of the manual
-  build that the missing `pdflatex` could not finish, the same container
-  property under a third name. This row earned its place on this very
-  revision: it is the one that caught the `duckdb` signature described above.
-* The engine matrix — the full profile against PostgreSQL 16 and 9.3.25,
-  MariaDB 11.8, MySQL 8.4, SQLite, DuckDB and SQL Server 2022, all real engines
-  — reports **7 of 7 measured** on `688c4e7`, regenerated by the script that
-  refuses to print a row without a log.
+**The win-builder release row is itself the closing measurement of a failure
+this cycle.** One revision earlier, the release check there — and there alone,
+out of ten environments — died 29 minutes into the tests with no summary
+(`x84xirE35eoq`), its output ending at `OGR: Corrupt data`: that machine's GDAL
+build segfaults, rather than erroring, on a WKB whose header is valid and whose
+body is truncated, and a `tryCatch` cannot catch a segfault in C. The same
+machine's R-devel, on a different GDAL build, ran the same sources to `1 NOTE`
+(`Qfj1g7YA3q91`) — the crash was specific to the release build. The fix extends
+the arithmetic WKB guard with a minimum body length per geometry type and adds
+an equivalent arithmetic guard for WKT, so corrupt bytes and corrupt text are
+rejected by the package's own arithmetic and never handed to GDAL at all; the
+two tests that used to feed them now assert, with a mock, that `sf` receives
+nothing.
+
+**An earlier revision cycle failed on that same machine, and only there.** The
+cause was in the package: to decide whether a raw column is WKB, bytes were
+handed to GDAL through `sf`. That build of GDAL crashed where every other one
+raised an error. The fix of that cycle validated the WKB header arithmetically
+before `sf` was ever called, and its 109-minute rerun (`TeCC2H9YPP1c`, `1 NOTE`)
+measured that crash gone. The header alone later proved insufficient — the
+truncated-body case above went through it — which is why the guard now also
+demands the minimum body length. Twice now, this machine has been the only one
+of ten able to see this class; both failures and both closing measurements are
+recorded here, because a result that failed and was fixed is part of what was
+measured.
+
+**The minimum-version container row earned its place on this very revision.**
+One test called `duckdb::duckdb(shared_home = FALSE)`, an argument added in
+newer duckdb releases, so on the period-appropriate snapshot the connection
+failed with a raw error. Every modern environment — local, five CI platforms,
+R-hub — was green. The call is now the plain `duckdb::duckdb()` that the sibling
+test already used. A matrix row exists to see what the other rows cannot.
+
+The engine matrix runs the full profile against PostgreSQL 16 and 9.3.25,
+MariaDB 11.8, MySQL 8.4, SQLite, DuckDB and SQL Server 2022 — all real engines,
+none of them mocked.
 
 ## Implementation notes
 
@@ -310,35 +317,39 @@ English, and an English README is provided alongside the Spanish one.
 
 ### Check time, measured rather than estimated
 
-The test suite is long, and we would rather state the numbers than have you
-find them. `checking tests`, measured on R-hub — which does not set `NOT_CRAN`
-and therefore skips what CRAN skips:
+The test suite is long, and we would rather state the numbers than have you find
+them. `checking tests`, on the sources submitted, read from each run's own log —
+R-hub does not set `NOT_CRAN`, so it skips what CRAN skips:
 
-| environment | before | now |
-| --- | ---: | ---: |
-| R-hub, Linux, R-devel | 11m | **9m** |
-| R-hub, macOS, R-devel | 32m | **15m** |
-| this machine, `--as-cran` | 482s | **288s** |
+| environment | `checking tests` |
+| --- | ---: |
+| R-hub, Linux, R-devel | 11m elapsed / 10m CPU |
+| R-hub, Windows, R-devel | 16m |
+| this machine, `_R_CHECK_DEPENDS_ONLY_=true --as-cran` | 184s |
 
-The reduction comes from four blocks that no longer run under `R CMD check` on
-CRAN. They were chosen by profiling the suite block by block, not by guessing:
-one of them alone accounted for 24 % of the whole suite. None of them was
-shortened — shortening the largest one would have turned a boundary test into a
-comfortable one, since its 2,000 forms of 83 characters sit just below both of
-the detector's budget ceilings. They run in full on continuous integration and
-in the local revalidation on every revision, and one of them was split so that
-the property it guards is still checked on CRAN with a 300-form fixture that
-takes 1.6 seconds.
+**This table used to compare a "before" against a "now", and the comparison had
+gone stale.** It claimed 9m on R-hub's Linux builder; that builder, on these
+sources, reports 11m. It also carried a macOS figure, and macOS did not run this
+cycle at all. The earlier pair of numbers was true of an earlier revision and
+was carried forward across a suite that has grown to 23 281 passing checks —
+which is the same failure this letter documents twice above, in a third place.
+The table now states one column, measured on the sources being submitted, and
+names the log it came from.
 
-What remains is genuine coverage: after the cut, the remaining time is spread
-across 164 files at about a second and a half each. A local guard now fails the
-revalidation if `checking tests` goes back above a declared ceiling, so this
-does not quietly grow again.
+The cut those figures used to describe is still real: four blocks no longer run
+under `R CMD check` on CRAN. They were chosen by profiling the suite block by
+block, not by guessing — one of them alone accounted for 24 % of the whole
+suite. None of them was shortened: shortening the largest would have turned a
+boundary test into a comfortable one, since its 2,000 forms of 83 characters sit
+just below both of the detector's budget ceilings. They run in full on
+continuous integration and in the local revalidation on every revision, and one
+was split so the property it guards is still checked on CRAN with a 300-form
+fixture that takes 1.6 seconds.
 
-The three checks that R-hub's macOS builder reports more slowly than any other
-environment are the same ones that run in nine minutes on Linux; we mention the
-macOS figure because it is the slowest we can measure, not because we believe
-CRAN's machines are that slow.
+What remains is genuine coverage, spread across the suite at about a second and
+a half per file. A local guard fails the revalidation if `checking tests` goes
+above a declared ceiling of 400s, so this does not quietly grow again; on these
+sources it reports `'checking tests' en 184s, bajo el techo de 400s`.
 
 ## Reverse dependencies
 

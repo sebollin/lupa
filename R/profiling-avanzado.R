@@ -416,15 +416,24 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
   }
   parseadas <- .parsear_fechas(x, formatos)
   resultado <- as.Date(parseadas, tz = "UTC")
-  if (isTRUE(attr(formatos, "muestreado", exact = TRUE))) {
-    valores <- trimws(as.character(x))
-    presentes <- !is.na(valores) & nzchar(valores)
-    attr(resultado, "n_fechas_excluidas_parseo") <- as.integer(
-      sum(presentes & is.na(parseadas))
-    )
-  } else {
-    attr(resultado, "n_fechas_excluidas_parseo") <- 0L
-  }
+  # El descarte de parseo NO depende del muestreo, y esto estaba escrito como si
+  # dependiera: la rama tenia un `else 0L` literal y sólo contaba cuando
+  # `muestreado` era TRUE. Es el mismo defecto que `R/columnas.R:92` describe
+  # para la conversion de texto a numero, y sobrevivio a su arreglo porque el
+  # commit que corrigio la regla llego a la salida de `perfilar()` y no a esta.
+  #
+  # Medido sobre mil valores presentes -950 que dicen "2024-01-01" y 50
+  # "2022-13-99", que ningun formato del catalogo puede validar-, la MISMA
+  # columna informaba `n_fechas_excluidas_parseo = 0` con estado `calculados`
+  # sin muestrear, y 50 con `calculados_sobre_fechas_parseadas` con
+  # `muestra = 50`. Los cincuenta quedaban afuera del resumen en los dos casos;
+  # lo unico que cambiaba era si se decia. Y `perfilar()` sobre esa misma tabla
+  # ya declaraba los 50, asi que las dos salidas del paquete se contradecian.
+  valores <- trimws(as.character(x))
+  presentes <- !is.na(valores) & nzchar(valores)
+  attr(resultado, "n_fechas_excluidas_parseo") <- as.integer(
+    sum(presentes & is.na(parseadas))
+  )
   resultado
 }
 
@@ -460,9 +469,13 @@ detectar_asociaciones <- function(datos, dependencias = NULL, umbral = 0.3,
 #'
 #' @return Objeto `analisis_temporal` con `resumen`, `dias_semana`, `huecos` y
 #'   `propuestas`. El recorte de huecos queda en `resumen`; el de columnas, en
-#'   atributos del objeto. `resumen` agrega
-#'   `n_fechas_excluidas_parseo` y `estado_resumen` cuando un formato descubierto
-#'   sobre una muestra deja valores presentes sin convertir.
+#'   atributos del objeto. `resumen` agrega `n_fechas_excluidas_parseo` y
+#'   `estado_resumen`: cuentan los valores **presentes** que ningún formato
+#'   confirmado pudo convertir y que por eso quedaron fuera del resumen. Se
+#'   informan siempre, haya muestreo o no, porque el descarte tampoco depende
+#'   del muestreo; con cero descartes el estado es `"calculados"`. Un `NA` no
+#'   entra en esta cuenta: es una ausencia declarada y se informa como
+#'   faltante, no como valor que el resumen no pudo leer.
 #' @export
 #' @seealso [detectar_formatos_fecha()], [analizar()]
 #'

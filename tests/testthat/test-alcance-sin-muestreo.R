@@ -53,3 +53,61 @@ test_that("sin valores descartados el estado sigue diciendo `calculados`", {
     expect_false("resumen_cuantitativo" %in% perfil$cobertura_diagnosticos$diagnostico)
   }
 })
+
+# La misma regla, en la OTRA salida del paquete. El arreglo de arriba llego a
+# `perfilar()` y no a `analizar_tiempo()`, que traia su propio `else 0L` en
+# `.fecha_columna_avanzada()`. Encontrado el 2026-09-04 pidiendo explicitamente
+# el caso que rompe, no revisando: dos salidas del mismo paquete describian la
+# misma columna de dos maneras incompatibles, y la que mentia era la que NO
+# muestreaba, que es la corrida por omision.
+test_that("analizar_tiempo declara el descarte de parseo con y sin muestreo", {
+  # 950 fechas legibles y 50 cadenas con mes 13: presentes, con forma de fecha,
+  # y que ningun formato del catalogo puede validar. No son NA.
+  datos <- data.frame(
+    id = 1:1000L,
+    f = c(rep("2024-01-01", 950L), rep("2022-13-99", 50L)),
+    stringsAsFactors = FALSE
+  )
+
+  sin_muestreo <- analizar_tiempo(datos, columnas = "f", frecuencia_dias = 1)
+  perfil_muestreado <- perfilar(datos, muestra = 50L, analizar_dependencias = FALSE)
+  con_muestreo <- analizar_tiempo(datos, columnas = "f", frecuencia_dias = 1,
+                                  perfil = perfil_muestreado)
+
+  for (salida in list(sin_muestreo, con_muestreo)) {
+    fila <- salida$resumen[salida$resumen$columna == "f", ]
+    expect_equal(nrow(fila), 1L)
+    expect_equal(fila$n_fechas_excluidas_parseo, 50L)
+    expect_equal(fila$estado_resumen, "calculados_sobre_fechas_parseadas")
+  }
+
+  # Y las dos salidas del paquete tienen que coincidir sobre la misma columna:
+  # `perfilar()` ya declaraba los 50 mientras `analizar_tiempo()` decia 0.
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  columna <- perfil$columnas[perfil$columnas$columna == "f", ]
+  expect_equal(columna$n_valores_excluidos_resumen, 50L)
+
+  # El control que hace falta para que esto pruebe algo: una columna donde NO
+  # hay descarte tiene que seguir diciendo `calculados` y cero. Sin esta mitad,
+  # el test pasaria tambien con un campo que informara siempre lo que descarto.
+  limpia <- data.frame(
+    id = 1:200L,
+    f = format(as.Date("2024-01-01") + 0:199),
+    stringsAsFactors = FALSE
+  )
+  fila_limpia <- analizar_tiempo(limpia, columnas = "f",
+                                 frecuencia_dias = 1)$resumen
+  expect_equal(fila_limpia$n_fechas_excluidas_parseo, 0L)
+  expect_equal(fila_limpia$estado_resumen, "calculados")
+
+  # Y un NA no es un descarte de parseo: es una ausencia declarada, y se cuenta
+  # como faltante, no como valor que el resumen no pudo leer.
+  con_na <- data.frame(
+    id = 1:200L,
+    f = c(format(as.Date("2024-01-01") + 0:189), rep(NA_character_, 10L)),
+    stringsAsFactors = FALSE
+  )
+  fila_na <- analizar_tiempo(con_na, columnas = "f", frecuencia_dias = 1)$resumen
+  expect_equal(fila_na$n_fechas_excluidas_parseo, 0L)
+  expect_equal(fila_na$estado_resumen, "calculados")
+})

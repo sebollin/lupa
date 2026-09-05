@@ -1328,7 +1328,7 @@ distance between what it proposes and what the final method accepts: at
 threshold 0.02 it loses 1 of 2 pairs and at 0.20 it loses 22,336 of 31,609 (71
 %). Whoever needs exhaustiveness has the exhaustive path, at its cost. The
 experimental design and its limits are in
-[`benchmark/perdida_lsh.md`](benchmark/perdida_lsh.md).
+[`benchmark/perdida_lsh.md`](https://github.com/sebollin/lupa/blob/main/benchmark/perdida_lsh.md).
 
 To rebuild the four figures from the repository root, on a quiet machine (the
 full run takes 3 h 34 min on this machine; with `LUPA_FIGURAS_SOLO_BARATAS=1`

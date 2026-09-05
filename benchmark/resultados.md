@@ -6,13 +6,18 @@
 > seccion que se rehizo lo declara arriba. La cabecera decia «2026-08-18» a
 > secas y fechaba mal todo el documento.
 >
-> **Y hay algo mas serio que la fecha.** Desde el 2026-08-24, **23 commits
-> tocaron los archivos de `R/` cuyos diagnosticos mide esta pagina**: 13 en
-> `hallazgos.R`, 9 en `duplicados-aproximados.R` y 8 en `columnas.R`. El
-> ultimo es `1204b87`, del 2026-09-03. (`patrones.R` figuraba en esta lista y
-> **no recibio ninguno**; se saca, porque una lista inflada hace parecer mas
+> **Y hay algo mas serio que la fecha.** Desde el 2026-08-24, **24 commits
+> tocaron los archivos de `R/` cuyos diagnosticos mide esta pagina**: 15 en
+> `hallazgos.R`, 11 en `columnas.R` y 7 en `duplicados-aproximados.R` -las
+> tres cuentas suman mas que el total porque un commit toca varios archivos-.
+> El ultimo es `7a65bb6`, del 2026-09-03. (`patrones.R` figuraba en esta lista
+> y **no recibio ninguno**; se saca, porque una lista inflada hace parecer mas
 > vieja la pagina de lo que esta.) Las cifras de precision y cobertura de PED y
 > RIOLU describen el paquete de esa fecha, no el de hoy.
+>
+> Rehecha la cuenta el 2026-09-04: decia 23 con 13/9/8 y el desglose por archivo
+> estaba mal en los tres numeros, no solo desactualizado. Se rehace corriendo,
+> que es de lo que se trata.
 >
 > Ese numero se rehace, no se recuerda -decia 19 el 2026-09-02 y hoy son 23-:
 >

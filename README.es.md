@@ -1355,7 +1355,7 @@ tamiz sino la distancia entre lo que propone y lo que el método final acepta:
 a umbral 0,02 pierde 1 de 2 pares y a 0,20 pierde 22.336 de 31.609 (el 71 %).
 Quien necesite exhaustividad tiene el camino exhaustivo, con su costo. El
 diseño experimental y sus límites están en
-[`benchmark/perdida_lsh.md`](benchmark/perdida_lsh.md).
+[`benchmark/perdida_lsh.md`](https://github.com/sebollin/lupa/blob/main/benchmark/perdida_lsh.md).
 
 Para rehacer las cuatro figuras desde la raíz del repositorio, con la máquina
 quieta (la corrida completa tarda 3 h 34 min en esta máquina; con

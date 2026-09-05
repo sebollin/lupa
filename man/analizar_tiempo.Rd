@@ -33,9 +33,13 @@ propone la moda de los intervalos positivos.}
 \value{
 Objeto \code{analisis_temporal} con \code{resumen}, \code{dias_semana}, \code{huecos} y
 \code{propuestas}. El recorte de huecos queda en \code{resumen}; el de columnas, en
-atributos del objeto. \code{resumen} agrega
-\code{n_fechas_excluidas_parseo} y \code{estado_resumen} cuando un formato descubierto
-sobre una muestra deja valores presentes sin convertir.
+atributos del objeto. \code{resumen} agrega \code{n_fechas_excluidas_parseo} y
+\code{estado_resumen}: cuentan los valores \strong{presentes} que ningún formato
+confirmado pudo convertir y que por eso quedaron fuera del resumen. Se
+informan siempre, haya muestreo o no, porque el descarte tampoco depende
+del muestreo; con cero descartes el estado es \code{"calculados"}. Un \code{NA} no
+entra en esta cuenta: es una ausencia declarada y se informa como
+faltante, no como valor que el resumen no pudo leer.
 }
 \description{
 Para cada columna temporal propone una frecuencia en días. La confianza es

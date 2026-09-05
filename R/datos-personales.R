@@ -99,10 +99,24 @@
     ),
     correo = "(^|_)(correo|email|mail|casilla)($|_)",
     telefono = "(^|_)(telefono|celular|movil|contacto)($|_)",
-    fecha_nacimiento = "(^|_)(fecha_nacimiento|f_nacimiento|nacimiento)($|_)",
+    # El patron abreviaba la PRIMERA palabra (`f_nacimiento`) y no la segunda,
+    # asi que `fecha_nac` -de las formas mas frecuentes en registros
+    # administrativos de la region- no se clasificaba y la fecha de nacimiento
+    # quedaba sin proteger. Se enumeraron las cuatro formas de abreviar en vez
+    # de agregar la que aparecio: entera, primera palabra, segunda palabra, las
+    # dos, y pegada. Con dos casos parecia una convencion; con cinco era un
+    # hueco.
+    fecha_nacimiento = paste0(
+      "(^|_)(fecha_nacimiento|f_nacimiento|fec_nacimiento|nacimiento|",
+      "fecha_nac|f_nac|fec_nac|fechanac)($|_)"
+    ),
+    # La hermana tenia el mismo hueco por el mismo lado. No se agrega
+    # `fecha_fall`: `fall` es tambien "falla" en datos de mantenimiento, y una
+    # clasificacion de mas enmascara una columna que no es personal.
     fecha_fallecimiento = paste0(
       "(^|_)(fallecimiento|defuncion|deceso|obito|fecha_muerte|",
-      "f_fallecimiento|fecha_defuncion)($|_)"
+      "f_fallecimiento|fecha_defuncion|f_defuncion|fec_defuncion|",
+      "fecha_deceso)($|_)"
     ),
     # El lexico de nombres no puede ser completo: una columna se puede llamar
     # de cualquier forma. Cubre las mas frecuentes en registros administrativos

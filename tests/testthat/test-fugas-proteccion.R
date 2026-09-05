@@ -123,3 +123,61 @@ test_that("la proteccion conserva la senal geometrica pero no publica bbox", {
     logical(1L)
   )))
 })
+
+# `perfilar_por()` publica los valores de la columna de agrupacion como etiqueta
+# de grupo, y `perfilar()` sobre esa misma columna los enmascara. Encontrado el
+# 2026-09-04 pidiendo construir la fuga N+1, no revisando la capa de proteccion.
+#
+# No se enmascara -la etiqueta es el eje del resultado- pero se declara. Lo que
+# este archivo fija es que la declaracion exista y que NO aparezca donde no
+# corresponde: sin esa segunda mitad, un atributo que se llenara siempre pasaria
+# igual y no probaria nada.
+test_that("perfilar_por declara que las etiquetas de grupo son datos personales", {
+  documentos <- c("5.836.595-5", "4.112.987-2", "7.965.431-K",
+                  "1.234.567-8", "9.876.543-2")
+  datos <- data.frame(
+    documento = rep(documentos, 8L),
+    atributo = rep(c("edad", "sueldo", "altura", "peso"), 10L),
+    valor = as.character(20:59),
+    stringsAsFactors = FALSE
+  )
+
+  # Primera mitad obligatoria: el mecanismo se activa. Si `perfilar()` no
+  # clasificara la columna como personal, todo lo de abajo pasaria sin medir.
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+  expect_true(any(perfil$datos_personales$columna == "documento" &
+                    perfil$datos_personales$proteger))
+
+  agrupado <- suppressWarnings(
+    perfilar_por(datos, "documento", min_filas = 2L)
+  )
+  declarado <- attr(agrupado, "etiquetas_personales")
+  expect_equal(nrow(declarado), 1L)
+  expect_equal(declarado$columna, "documento")
+  expect_equal(declarado$n_grupos, length(documentos))
+  expect_match(declarado$motivo, "seudonimizada", fixed = TRUE)
+
+  # Y avisa al ejecutar, no solo en un atributo que nadie mira.
+  expect_message(
+    perfilar_por(datos, "documento", min_filas = 2L),
+    "documento",
+    fixed = TRUE
+  )
+
+  # Control 1: una columna de agrupacion que NO lleva datos personales no
+  # declara nada. Sin esto, un atributo siempre lleno pasaria el test.
+  neutros <- data.frame(
+    region = rep(c("norte", "sur", "este", "oeste", "centro"), 8L),
+    atributo = rep(c("a", "b", "c", "d"), 10L),
+    valor = as.character(20:59),
+    stringsAsFactors = FALSE
+  )
+  sin_personales <- perfilar_por(neutros, "region", min_filas = 2L)
+  expect_equal(nrow(attr(sin_personales, "etiquetas_personales")), 0L)
+
+  # Control 2: con la proteccion desactivada el usuario ya declaro que quiere
+  # los valores, asi que no se avisa de algo que pidio.
+  sin_proteccion <- perfilar_por(datos, "documento", min_filas = 2L,
+                                 proteger_datos_personales = FALSE)
+  expect_equal(nrow(attr(sin_proteccion, "etiquetas_personales")), 0L)
+})
