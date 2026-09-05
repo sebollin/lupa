@@ -234,3 +234,74 @@ test_that("las metricas de vocabulario aceptan perfiles de normalizacion", {
   alcance <- attr(medicion, "alcance_metricas")[[1L]]
   expect_identical(alcance$normalizacion$general$acentos, FALSE)
 })
+
+# La sustitucion de la tabla extraia y reensamblaba con `regmatches()`, que
+# indexa por CARACTER: en una cadena UTF-8 eso obliga a recorrerla desde el byte
+# cero en cada coincidencia, y el costo crece con el cuadrado. Medido sobre
+# 160.000 bytes: 41,1 s por caracter contra 0,079 s por bytes, con las mismas
+# coincidencias. Ahora se usa un patron equivalente en bytes.
+#
+# Es equivalente porque cada clave de la tabla es un unico codepoint: en UTF-8
+# ninguna secuencia valida es prefijo de otra ni empieza en medio de otra.
+test_that("los dos patrones de la tabla encuentran lo mismo", {
+  tabla <- lupa:::.normalizacion_tabla_vectorizada()
+  expect_true(nzchar(tabla$patron_bytes))
+
+  # Todas las claves de la tabla, y no una muestra comoda: si alguna difiere,
+  # la sustitucion produce otro texto.
+  claves <- names(tabla$reemplazos)
+  texto <- paste0("a", paste(claves, collapse = "b"), "c")
+
+  por_caracter <- regmatches(
+    texto, gregexpr(tabla$patron, texto, perl = TRUE)
+  )[[1L]]
+  por_bytes <- regmatches(
+    texto, gregexpr(tabla$patron_bytes, texto, perl = TRUE, useBytes = TRUE)
+  )[[1L]]
+  Encoding(por_bytes) <- "UTF-8"
+
+  expect_equal(length(por_caracter), length(claves))
+  expect_identical(por_bytes, por_caracter)
+})
+
+test_that("la sustitucion conserva el texto y su codificacion", {
+  u <- function(...) rawToChar(as.raw(c(...)))
+  entradas <- c(
+    vacio = "", ascii = "hola mundo",
+    acentos = u(0xC3, 0xA9, 0xC3, 0xB1, 0xC3, 0x9C),
+    ligadura = u(0xEF, 0xAC, 0x81),
+    cjk = u(0xE6, 0x97, 0xA5, 0xE6, 0x9C, 0xAC),
+    emoji = u(0xF0, 0x9F, 0x98, 0x80),
+    mezcla = paste0("Jose ", u(0xC3, 0xA9), " ", u(0xE6, 0x97, 0xA5)),
+    ausente = NA_character_
+  )
+  salida <- lupa:::.normalizacion_reemplazar_tabla(unname(entradas))
+
+  # El mecanismo se activo: al menos una entrada cambio.
+  expect_true(any(salida != entradas, na.rm = TRUE))
+  # Lo que no tiene nada que sustituir vuelve intacto, y NA sigue siendo NA.
+  expect_identical(salida[[1L]], "")
+  expect_identical(salida[[2L]], "hola mundo")
+  expect_true(is.na(salida[[length(salida)]]))
+  # Y todo lo no ausente queda utilizable como UTF-8: sin esto el reensamblado
+  # por bytes deja la cadena sin marca y el resto del paquete cuenta mal.
+  presentes <- salida[!is.na(salida)]
+  expect_true(all(validUTF8(presentes)))
+  expect_false(any(Encoding(presentes) == "bytes"))
+})
+
+test_that("el costo de la sustitucion es lineal en el largo", {
+  skip_on_cran()
+  u <- function(...) rawToChar(as.raw(c(...)))
+  medir_largo <- function(bytes) {
+    texto <- paste(rep(u(0xC3, 0xA9), bytes / 2), collapse = "")
+    inicio <- Sys.time()
+    invisible(lupa:::.normalizacion_reemplazar_tabla(texto))
+    as.numeric(difftime(Sys.time(), inicio, units = "secs"))
+  }
+  chico <- medir_largo(20000)
+  grande <- medir_largo(160000)
+  # Ocho veces los datos. Lineal daria ocho veces el tiempo; el cuadratico que
+  # habia daba sesenta y cuatro, y medido daba doscientas cuarenta.
+  expect_lt(grande, max(chico * 24, 3))
+})

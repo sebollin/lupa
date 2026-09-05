@@ -840,10 +840,28 @@ print.normalizacion_lupa <- function(x, ...) {
         ),
         character(1L)
       )
+      # El mismo alfabeto escrito dos veces a proposito: una vez en codepoints
+      # -para `grepl()`, que decide si hace falta trabajar- y otra en bytes,
+      # para extraer y reensamblar.
+      #
+      # Por que en bytes: `regmatches()` indexa por CARACTER, y en una cadena
+      # UTF-8 eso obliga a recorrerla desde el byte cero en cada coincidencia.
+      # Medido sobre 80.000 bytes con una coincidencia cada dos: 9,609 s en
+      # UTF-8 contra 0,001 s en ASCII y 0,001 s con `useBytes = TRUE`. El costo
+      # no estaba en buscar ni en reemplazar, sino en contar caracteres.
+      #
+      # Es equivalente porque cada clave es un unico codepoint: en UTF-8 ninguna
+      # secuencia valida es prefijo de otra ni empieza en medio de otra -las
+      # continuaciones son 10xxxxxx-, asi que la alternancia en bytes encuentra
+      # exactamente las mismas coincidencias.
+      en_bytes <- vapply(caracteres, function(caracter) {
+        paste0("\\x", toupper(as.character(charToRaw(caracter))), collapse = "")
+      }, character(1L), USE.NAMES = FALSE)
       cache <<- list(
         patron = paste0("(*UTF)(?:", paste0(
           "\\x{", sprintf("%04X", codigos), "}", collapse = "|"
         ), ")"),
+        patron_bytes = paste0("(?:", paste0(en_bytes, collapse = "|"), ")"),
         reemplazos = stats::setNames(reemplazos, caracteres)
       )
     }
@@ -857,12 +875,22 @@ print.normalizacion_lupa <- function(x, ...) {
   if (!any(aciertos)) return(textos)
   seleccion <- which(aciertos)
   afectados <- textos[seleccion]
-  coincidencias <- gregexpr(tabla$patron, afectados, perl = TRUE)
+  coincidencias <- gregexpr(
+    tabla$patron_bytes, afectados, perl = TRUE, useBytes = TRUE
+  )
   encontrados <- regmatches(afectados, coincidencias)
   reemplazos <- lapply(encontrados, function(x) {
-    if (!length(x)) character() else unname(tabla$reemplazos[x])
+    if (!length(x)) return(character())
+    # Lo extraido vuelve sin marca de codificacion; el indice de reemplazos
+    # esta indexado por el caracter UTF-8, asi que hay que devolverle la marca
+    # antes de buscar. Sin esto la busqueda no encuentra y devuelve NA.
+    Encoding(x) <- "UTF-8"
+    unname(tabla$reemplazos[x])
   })
   regmatches(afectados, coincidencias) <- reemplazos
+  # El reensamblado por bytes deja la cadena sin marca: se le repone, porque el
+  # resto del paquete cuenta caracteres y no bytes.
+  Encoding(afectados) <- "UTF-8"
   textos[seleccion] <- afectados
   textos
 }
