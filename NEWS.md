@@ -2,6 +2,13 @@
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 
+- **El informe no publicaba las coberturas del objeto.** Una medición donde una
+  tabla entera tenía cero filas producía un informe **idéntico** al de una donde
+  todo se midió: `reportar()` no mostraba `cobertura_metricas` —qué métrica no
+  se pudo medir y por qué— ni `cobertura_coleccion` —sobre cuántas de las tablas
+  declaradas se calculó el número—. El informe es la salida que más lejos llega,
+  porque es la que se comparte. Ahora las publica, en la medición y en la
+  evaluación, y no inventa la sección cuando no hay nada que declarar.
 - **`analizar()` publicaba el código deparseado como nombre de la tabla.** Con
   una expresión larga, `deparse()` devuelve varias líneas: el nombre salía con
   tres elementos y con `[valor protegido]` incrustado, porque la capa de

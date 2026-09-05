@@ -310,3 +310,41 @@ test_that("la cobertura de metricas sobrevive a la agregacion", {
   expect_null(attr(agregar(completa, "atributo", "ratio"),
                    "cobertura_metricas", exact = TRUE))
 })
+
+# El informe es la salida que MAS LEJOS llega: es la que se comparte. Y no
+# publicaba ninguna de las coberturas que el objeto trae, asi que una medicion
+# donde una tabla tenia cero filas producia un informe identico al de una donde
+# todo se midio.
+test_that("el informe publica las coberturas que el objeto trae", {
+  nucleo <- metricas_nucleo()
+  medidas <- medir(
+    modelo(instanciar(especializar(nucleo$NoNulo), "a", "x"),
+           instanciar(especializar(nucleo$NoNulo), "b", "x")),
+    list(a = data.frame(x = c(1, NA, 3)), b = data.frame(x = numeric()))
+  )
+
+  # Primera mitad: la cobertura existe y dice por que no se pudo medir.
+  cobertura <- attr(medidas, "cobertura_metricas", exact = TRUE)
+  expect_true(inherits(cobertura, "data.frame") && nrow(cobertura) >= 1L)
+
+  leer <- function(objeto) {
+    archivo <- tempfile(fileext = ".html")
+    on.exit(unlink(archivo), add = TRUE)
+    invisible(reportar(objeto, archivo = archivo))
+    paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = " ")
+  }
+
+  expect_true(grepl("cero filas", leer(medidas), fixed = TRUE))
+  evaluacion <- evaluar(
+    medidas, perfiles_madurez(medidas$metrica_instanciada)$Basico
+  )
+  expect_true(grepl("cero filas", leer(evaluacion), fixed = TRUE))
+
+  # Control: una corrida donde todo se midio no inventa la seccion. Sin esta
+  # mitad, imprimir siempre el encabezado pasaria el test.
+  completa <- medir(
+    modelo(instanciar(especializar(nucleo$NoNulo), "a", "x")),
+    list(a = data.frame(x = c(1, NA, 3)))
+  )
+  expect_false(grepl("Cobertura de m", leer(completa), fixed = TRUE))
+})

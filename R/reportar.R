@@ -292,12 +292,56 @@
   )
 }
 
+# Las coberturas que viajan pegadas al objeto tienen que llegar al informe.
+#
+# El informe es la salida que MAS LEJOS llega: es la que se comparte. Y hasta el
+# 2026-09-05 no publicaba ninguna de las que el objeto trae:
+# `cobertura_metricas` -que dice que metrica no se pudo medir y por que- ni
+# `cobertura_coleccion` -sobre cuantas tablas de la coleccion declarada se
+# calculo el numero-. Una medicion donde una tabla tenia cero filas producia un
+# informe identico al de una donde todo se midio.
+#
+# Es la cuarta aparicion en la jornada de la misma forma: el paquete declara
+# algo y el consumidor siguiente lo tira.
+.seccion_coberturas_del_objeto <- function(x) {
+  partes <- character()
+  cobertura_metricas <- attr(x, "cobertura_metricas", exact = TRUE)
+  if (inherits(cobertura_metricas, "data.frame") && nrow(cobertura_metricas)) {
+    partes <- c(partes,
+      "<h3>Cobertura de m\u00e9tricas</h3>",
+      "<p class=\"nota\">Estas m\u00e9tricas no se pudieron medir. Su ausencia no es conformidad.</p>",
+      .html_tabla(cobertura_metricas, Inf)
+    )
+  }
+  cobertura_coleccion <- attr(x, "cobertura_coleccion", exact = TRUE)
+  if (!is.null(cobertura_coleccion)) {
+    resumen <- data.frame(
+      tablas_declaradas = cobertura_coleccion$tablas_declaradas,
+      tablas_en_el_numero = cobertura_coleccion$tablas_en_el_numero,
+      tablas_sin_medir = if (length(cobertura_coleccion$tablas_sin_medir)) {
+        paste(cobertura_coleccion$tablas_sin_medir, collapse = ", ")
+      } else "ninguna",
+      stringsAsFactors = FALSE
+    )
+    partes <- c(partes,
+      "<h3>Cobertura de la colecci\u00f3n</h3>", .html_tabla(resumen, Inf),
+      if (!is.null(cobertura_coleccion$advertencia)) {
+        paste0("<p class=\"nota\">",
+               .html_texto(cobertura_coleccion$advertencia), "</p>")
+      } else ""
+    )
+  }
+  if (!length(partes)) return("")
+  paste0(partes, collapse = "")
+}
+
 .seccion_medicion <- function(x, max_filas) {
   paste0(
     "<section><h2>Medidas de calidad</h2>",
     "<p class=\"meta\">", .html_texto(nrow(x)), " medidas en ",
     .html_texto(length(unique(x$id_medicion))), " corrida(s).</p>",
-    .html_tabla(x, max_filas), "</section>"
+    .html_tabla(x, max_filas),
+    .seccion_coberturas_del_objeto(x), "</section>"
   )
 }
 
@@ -469,7 +513,7 @@
     "<h3>Evaluaciones de medidas</h3>", .html_tabla(x$medidas, max_filas),
     "<h3>Evaluaciones de reglas</h3>", .html_tabla(x$reglas, max_filas),
     "<h3>Perfiles de madurez</h3>", .html_tabla(x$perfiles, max_filas),
-    "</section>"
+    .seccion_coberturas_del_objeto(x), "</section>"
   )
 }
 
