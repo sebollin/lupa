@@ -118,6 +118,41 @@
 
 # Los diagnosticos que el perfil declino, como `columna tipo`, para poder
 # distinguir un hallazgo resuelto de uno que no se volvio a evaluar.
+# Un diagnostico tambien deja de evaluarse cuando desaparece la DECLARACION que
+# lo habilitaba, y eso no queda en `cobertura_diagnosticos`: no es que el
+# diagnostico se haya declinado sobre una columna, es que nunca se le pidio.
+#
+# Medido el 2026-09-05: la misma tabla perfilada con `clave = "id"` y despues sin
+# `clave` informaba `clave_no_unica` como **resuelto, severidad ok**. La clave
+# seguia estando duplicada; lo unico que cambio fue el argumento. El propio
+# `man/comparar_perfiles.Rd` lo declara al reves de lo que pasaba: "dejar de
+# mirar no es lo mismo que arreglar".
+#
+# Se mira `meta$declaracion_clave`, que se agrego para esto: `meta$clave` guarda el
+# RESULTADO de comprobar la clave y queda `NULL` cuando sale limpia, asi que no
+# distingue "no se declaro" de "se declaro y estaba bien". `clave` es la unica
+# declaracion que HABILITA hallazgos propios -medido: `clave_no_unica` y
+# `clave_con_ausentes` aparecen con ella y no sin ella-; el resto de los
+# argumentos cambia como se mide, no si se mide.
+.hallazgos_por_declaracion <- list(
+  declaracion_clave = c("clave_no_unica", "clave_con_ausentes")
+)
+
+.declinados_por_declaracion_retirada <- function(anterior, actual) {
+  declinados <- character()
+  for (declaracion in names(.hallazgos_por_declaracion)) {
+    tenia <- length(anterior$meta[[declaracion]]) > 0L
+    tiene <- length(actual$meta[[declaracion]]) > 0L
+    if (tenia && !tiene) {
+      declinados <- c(
+        declinados,
+        paste("<tabla>", .hallazgos_por_declaracion[[declaracion]])
+      )
+    }
+  }
+  declinados
+}
+
 .diagnosticos_declinados_deriva <- function(perfil) {
   cobertura <- perfil$cobertura_diagnosticos
   if (!inherits(cobertura, "data.frame") || !nrow(cobertura) ||
@@ -392,6 +427,31 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     )
   }
 
+  # La misma declaracion de comparabilidad que ya existia para los centinelas,
+  # para la tercera politica que redefine lo que se mide.
+  aplicabilidad_a <- anterior$meta$declaracion_aplicabilidad
+  aplicabilidad_b <- actual$meta$declaracion_aplicabilidad
+  if (!is.null(aplicabilidad_a) && !is.null(aplicabilidad_b) &&
+      !identical(aplicabilidad_a, aplicabilidad_b)) {
+    texto_aplicabilidad <- function(x) {
+      if (!length(x)) "ninguna" else paste(x, collapse = "; ")
+    }
+    agregar(
+      NA_character_, "configuracion_aplicabilidad", "modificado",
+      "error", texto_aplicabilidad(aplicabilidad_a),
+      texto_aplicabilidad(aplicabilidad_b),
+      descripcion = paste(
+        "Cambiaron las columnas con regla de aplicabilidad; esa regla redefine",
+        "el universo aplicable, asi que las diferencias de faltantes,",
+        "cardinalidad y rango pueden ser del metodo y no de los datos."
+      ),
+      evidencia = paste(
+        "Se mantienen las comparaciones para que las corridas siguientes sigan",
+        "detectando deriva con la politica vigente."
+      )
+    )
+  }
+
   hallazgos_a <- .resumir_hallazgos_deriva(anterior)
   hallazgos_b <- .resumir_hallazgos_deriva(actual)
   nuevos <- setdiff(hallazgos_b$clave, hallazgos_a$clave)
@@ -412,18 +472,33 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   # que es donde el paquete declara lo que declino. Sin esta consulta se
   # informaba "resuelto" con severidad `ok` sobre un diagnostico que decia, en
   # esa misma tabla, "no se evaluaron los limites de Tukey".
-  declinados_ahora <- .diagnosticos_declinados_deriva(actual)
+  declinados_ahora <- c(
+    .diagnosticos_declinados_deriva(actual),
+    .declinados_por_declaracion_retirada(anterior, actual)
+  )
   for (clave in resueltos) {
     x <- hallazgos_a[match(clave, hallazgos_a$clave), , drop = FALSE]
     if (x$columna != "<tabla>" && !x$columna %in% nombres_actuales) next
     declinado <- paste(x$columna, x$tipo_hallazgo) %in% declinados_ahora
+    # Los dos motivos de no evaluacion mandan a lugares distintos, y decir el
+    # equivocado es peor que no decir ninguno: quien busque en
+    # `cobertura_diagnosticos` un diagnostico que nunca se pidio no va a
+    # encontrar nada y va a concluir que el aviso esta de mas.
+    por_declaracion <- paste(x$columna, x$tipo_hallazgo) %in%
+      .declinados_por_declaracion_retirada(anterior, actual)
     agregar(
       if (x$columna == "<tabla>") NA_character_ else x$columna,
       "hallazgo",
       if (declinado) "no_evaluado" else "resuelto",
       if (declinado) "sospechoso" else "ok",
       x$tipo_hallazgo, NA_character_,
-      descripcion = if (declinado) {
+      descripcion = if (por_declaracion) {
+        paste(
+          "El diagn\u00f3stico no se evalu\u00f3 en el perfil nuevo porque ya no se",
+          "declar\u00f3 lo que lo habilita, as\u00ed que no se sabe si el hallazgo sigue:",
+          "dejar de mirar no es lo mismo que arreglar."
+        )
+      } else if (declinado) {
         paste(
           "El diagn\u00f3stico no se evalu\u00f3 en el perfil nuevo, as\u00ed que no se sabe",
           "si el hallazgo sigue: el motivo est\u00e1 en `cobertura_diagnosticos`."

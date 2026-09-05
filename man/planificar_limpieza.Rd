@@ -67,8 +67,14 @@ explícita de conservar los datos. Esto permite separar un grupo aún no
 revisado de una omisión deliberada.
 
 \code{estado} distingue acciones \code{lista}, \code{bloqueada} e \code{informativa}; \code{orden}
-fija la secuencia reproducible. \code{n_afectadas} es la estimación del perfil y
-\code{unidad_conteo} dice si cuenta filas, columnas o valores distintos —lo
+fija la secuencia reproducible. \code{n_afectadas} es la estimación del perfil
+sobre \strong{lo que esta acción tocaría}, que puede ser menos que el conteo del
+hallazgo que la originó cuando la acción sólo cubre parte del caso: una
+columna con tres valores de codificación rota, de los cuales uno es
+reparable, produce un hallazgo con \code{n_afectados = 3} y una acción
+\code{reparar_codificacion} con \code{n_afectadas = 1}. Las dos cifras son ciertas y
+cuentan cosas distintas. \code{unidad_conteo} dice si cuenta filas, columnas o
+valores distintos —lo
 declara la acción cuando cuenta en una unidad propia, y sólo si no lo hace se
 hereda del hallazgo—. El registro informa \code{n_cambiadas} sobre los datos
 recibidos.

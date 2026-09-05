@@ -2062,6 +2062,33 @@ perfilar <- function(datos,
     version = .version_paquete(),
     entrada_convertida = entrada_convertida,
     columnas_personales_declaradas = names(columnas_personales),
+    # `declaracion_clave` y no `clave_declarada`: `$` sobre una lista hace
+    # COINCIDENCIA PARCIAL por prefijo, asi que un campo llamado
+    # `clave_declarada` hace que `meta$clave` -que es NULL cuando la clave sale
+    # limpia- devuelva la declaracion. Un test lo cazo en el acto; el codigo de
+    # quien use el paquete no lo habria hecho.
+    #
+    # La clave DECLARADA, siempre, aunque la comprobacion salga limpia.
+    # `meta$clave` guarda el resultado de comprobarla y queda `NULL` cuando no
+    # hay nada que reportar, asi que no sirve para saber si se declaro una. Sin
+    # este registro, `comparar_perfiles()` no podia distinguir "la clave dejo de
+    # estar duplicada" de "no se le paso `clave` al segundo perfil", y publicaba
+    # `resuelto` con severidad `ok` sobre un hallazgo que nadie volvio a mirar.
+    # Un perfil tiene que registrar sus propias declaraciones para que una
+    # comparacion posterior pueda separar el metodo de los datos.
+    declaracion_clave = if (is.null(clave)) character() else as.character(clave),
+    # Y las columnas con regla de aplicabilidad, por la misma razon: redefinen el
+    # universo aplicable y pueden dejar una metrica sin medirse. Sin este
+    # registro, cambiar `aplicabilidad` entre dos corridas producia filas de
+    # deriva sobre faltantes, cardinalidad y rango **atribuidas a los datos**,
+    # cuando lo unico que cambio fue el argumento. La deriva ya declaraba la
+    # comparabilidad para la politica de patrones y para la de centinelas; esta
+    # era la tercera y faltaba.
+    declaracion_aplicabilidad = if (is.null(aplicabilidad)) {
+      character()
+    } else {
+      sort(as.character(names(aplicabilidad)))
+    },
     ausencia_estructural = ausencia_estructural,
     filas_totales = nrow(datos),
     filas_analizadas = alcance_muestra$filas_efectivas,

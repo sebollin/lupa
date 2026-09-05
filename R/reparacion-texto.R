@@ -304,33 +304,54 @@ names(.ftfy_tablas_bytes) <- c(
   if (is.null(bytes) || !length(bytes)) return(NULL)
   valores <- as.integer(bytes)
   n <- length(valores)
-  salida <- integer()
+  # Este bucle era cuadratico por dos lados a la vez, y sobre un texto roto de
+  # 160 KB hacia que `perfilar()` tardara 65 s sobre una tabla de tres filas:
+  #
+  #   - `salida <- c(salida, ...)` byte por byte: cada agregado copiaba todo lo
+  #     acumulado. El 85 % del tiempo medido con `Rprof` estaba en `c`.
+  #   - `resto <- valores[(i + 2L):n]` copiaba TODA la cola en cada vuelta que
+  #     entrara en la rama, solo para mirar sus primeros caracteres.
+  #
+  # Se reserva la salida -cada byte produce a lo sumo tres- y se lleva un indice
+  # de escritura; y la comparacion mira `valores` en su lugar, con
+  # desplazamiento, sin copiar nada.
+  salida <- integer(3L * n)
+  k <- 0L
   cambiado <- FALSE
-  empieza <- function(x, patron) {
+  # `desde` es la posicion en `valores` donde arranca la comparacion.
+  empieza_en <- function(desde, patron) {
     patron <- utf8ToInt(patron)
-    length(x) >= length(patron) &&
-      identical(x[seq_along(patron)], patron)
+    largo <- length(patron)
+    desde + largo - 1L <= n &&
+      identical(valores[desde:(desde + largo - 1L)], patron)
   }
   # A_GRAVE_WORD_RE: recupera la frontera de palabra y conserva el espacio.
   i <- 1L
   while (i <= n) {
     if (i + 1L <= n && valores[[i]] == 0xc3L && valores[[i + 1L]] == 0x20L) {
-      resto <- if (i + 2L <= n) valores[(i + 2L):n] else integer()
-      excluida <- length(resto) && (
-        resto[[1L]] == 0x20L || empieza(resto, "quele") ||
-          empieza(resto, "quela") || empieza(resto, "quilo") ||
-          empieza(resto, "s ")
+      resto_desde <- i + 2L
+      excluida <- resto_desde <= n && (
+        valores[[resto_desde]] == 0x20L ||
+          empieza_en(resto_desde, "quele") ||
+          empieza_en(resto_desde, "quela") ||
+          empieza_en(resto_desde, "quilo") ||
+          empieza_en(resto_desde, "s ")
       )
       if (!isTRUE(excluida)) {
-        salida <- c(salida, 0xc3L, 0xa0L, 0x20L)
+        salida[[k + 1L]] <- 0xc3L
+        salida[[k + 2L]] <- 0xa0L
+        salida[[k + 3L]] <- 0x20L
+        k <- k + 3L
         cambiado <- TRUE
         i <- i + 2L
         next
       }
     }
-    salida <- c(salida, valores[[i]])
+    k <- k + 1L
+    salida[[k]] <- valores[[i]]
     i <- i + 1L
   }
+  salida <- salida[seq_len(k)]
 
   valores <- salida
   n <- length(valores)
@@ -412,22 +433,43 @@ names(.ftfy_tablas_bytes) <- c(
     }
   }
   if (identical(coincidencias, -1L)) return(texto)
-  salida <- texto
-  for (i in rev(seq_along(coincidencias))) {
+  # La cadena se arma UNA vez, juntando los tramos.
+  #
+  # Antes se recorria al reves reemplazando dentro de `salida`, y cada reemplazo
+  # rehacia la cadena completa con `paste0(substr(...), ..., substr(...))`: con N
+  # coincidencias sobre un texto de largo L el costo era O(N x L). Medido:
+  # 20 KB -> 0,27 s, 80 KB -> 2,77 s, 160 KB -> 9,94 s -cuadruplicar el largo
+  # multiplicaba por 37 el tiempo-, y `perfilar()` sobre una tabla de tres filas
+  # con un valor roto de 160 KB tardaba 65 s. Un valor de 1 MB habria sido
+  # intratable, y un texto largo y roto es justo lo que aparece en datos sucios.
+  #
+  # Recorriendo hacia adelante y acumulando tramos, cada caracter se copia una
+  # sola vez. El resultado es el mismo: los desplazamientos siempre se leyeron
+  # sobre `texto`, no sobre la cadena parcialmente reemplazada.
+  largo_total <- nchar(texto)
+  piezas <- vector("list", 2L * length(coincidencias) + 1L)
+  k <- 0L
+  ultimo <- 1L
+  for (i in seq_along(coincidencias)) {
     desde <- coincidencias[[i]]
     hasta <- desde + longitudes[[i]] - 1L
+    # Dos coincidencias pueden solaparse -el detector y la puerta de `Ã ` se
+    # mezclan-, y en ese caso la segunda ya quedo dentro del tramo emitido.
+    if (desde < ultimo) next
     segmento <- substring(texto, desde, hasta)
-    if (nchar(segmento) < nchar(texto) && .ftfy_es_mojibake(segmento)) {
+    reemplazo <- segmento
+    if (nchar(segmento) < largo_total && .ftfy_es_mojibake(segmento)) {
       reparado <- .ftfy_reparar_uno(
         segmento, usar_extensiones_inicial = usar_extensiones
       )
-      if (!identical(reparado$texto, segmento)) {
-        salida <- paste0(substr(salida, 1L, desde - 1L), reparado$texto,
-                       substr(salida, hasta + 1L, nchar(salida)))
-      }
+      reemplazo <- reparado$texto
     }
+    k <- k + 1L; piezas[[k]] <- substring(texto, ultimo, desde - 1L)
+    k <- k + 1L; piezas[[k]] <- reemplazo
+    ultimo <- hasta + 1L
   }
-  salida
+  k <- k + 1L; piezas[[k]] <- substring(texto, ultimo, largo_total)
+  paste0(unlist(piezas[seq_len(k)], use.names = FALSE), collapse = "")
 }
 .ftfy_replace_lossy_sequences <- function(bytes) {
   # Es la transliteracion en enteros de LOSSY_UTF8_RE de ftfy. El byte 0x1A
@@ -570,7 +612,19 @@ names(.ftfy_tablas_bytes) <- c(
   pasos <- character()
   usar_extensiones <- isTRUE(usar_extensiones_inicial)
   if (!.ftfy_es_mojibake(actual)) {
-    return(list(texto = actual, pasos = pasos, estado = if (length(pasos)) "reparado" else "no_parece_roto"))
+    # Se devuelve el ORIGINAL, no el resultado de `enc2utf8()`.
+    #
+    # Con `LC_CTYPE = C`, `enc2utf8()` sobre una cadena con un byte que no forma
+    # UTF-8 valido lo reemplaza por su escape literal: `"caf<0xe9>"` sale como
+    # los siete caracteres ASCII `caf<e9>`. La funcion devolvia ESO con
+    # `estado = "no_parece_roto"`, es decir: cambiaba el texto y declaraba que no
+    # habia cambiado nada. En `es_UY.UTF-8` el byte se conservaba, asi que el
+    # resultado dependia de la configuracion regional de la sesion.
+    #
+    # La invariante que esto fija es la que el estado promete: si no se reparo,
+    # no se cambia.
+    return(list(texto = valor, pasos = pasos,
+                estado = if (length(pasos)) "reparado" else "no_parece_roto"))
   }
   tope <- max(1L, as.integer(max_iteraciones[[1L]]))
   for (i in seq_len(min(tope, 20L))) {
@@ -620,6 +674,10 @@ names(.ftfy_tablas_bytes) <- c(
   } else {
     "reparado"
   }
+  # La misma invariante en la salida larga: si no hubo ningun paso, el texto que
+  # se devuelve es el que entro, sin la normalizacion de `enc2utf8()` que en un
+  # locale C corrompe los bytes invalidos.
+  if (!length(pasos)) actual <- valor
   list(texto = actual, pasos = pasos, estado = estado)
 }
 .ftfy_estado_agregado <- function(estados) {

@@ -2,6 +2,31 @@
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 
+- **Retirar la clave declarada se leía como un hallazgo resuelto.** La misma
+  tabla perfilada con `clave = "id"` y después sin `clave` informaba
+  `clave_no_unica` como `resuelto` con severidad `ok`: la clave seguía
+  duplicada, y lo único que había cambiado era el argumento. La documentación
+  declara lo contrario —«dejar de mirar no es lo mismo que arreglar»—. La causa
+  de fondo era que el perfil no registraba sus propias declaraciones:
+  `meta$clave` guarda el resultado de comprobarla y queda vacío cuando sale
+  limpia. El perfil ahora registra `meta$declaracion_clave` y
+  `meta$declaracion_aplicabilidad`, y la comparación distingue las dos cosas.
+- **Cambiar `aplicabilidad` entre dos corridas se atribuía a los datos.** Esa
+  regla redefine el universo aplicable, así que la deriva emitía filas de cambio
+  sobre faltantes, cardinalidad y rango cuando lo único que cambió fue el
+  argumento. La comparación ya declaraba la comparabilidad para la política de
+  patrones y para la de centinelas; ésta era la tercera y faltaba.
+- **La reparación de codificación era cuadrática en el largo del texto.**
+  `.ftfy_restaurar_a0()` acumulaba byte por byte con `c()` y copiaba la cola
+  entera en cada vuelta. Medido: 20 KB tardaban 0,29 s y 160 KB, 11,22 s
+  —cuadruplicar el largo multiplicaba por 37 el tiempo—, y perfilar una tabla de
+  tres filas con un valor roto de 160 KB tardaba 65 s. Ahora es lineal: los
+  mismos 160 KB, 0,40 s, con salida idéntica en toda la batería de casos.
+- **La reparación cambiaba el texto declarando que no lo cambiaba.** Con
+  `LC_CTYPE = C`, `enc2utf8()` reemplaza un byte que no forma UTF-8 válido por
+  su escape literal, así que `caf<0xe9>` salía como los siete caracteres ASCII
+  `caf<e9>` con `estado = "no_parece_roto"` —y en otra configuración regional el
+  byte se conservaba—. Si no se reparó, ahora no se cambia.
 - **Los perfiles de madurez de fábrica premiaban el defecto.**
   `perfiles_madurez()` genera reglas `Resultado > umbral` sin consultar la
   orientación de la medida, así que sobre una métrica orientada a `defecto`

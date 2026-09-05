@@ -254,8 +254,14 @@
 #' revisado de una omisión deliberada.
 #'
 #' `estado` distingue acciones `lista`, `bloqueada` e `informativa`; `orden`
-#' fija la secuencia reproducible. `n_afectadas` es la estimación del perfil y
-#' `unidad_conteo` dice si cuenta filas, columnas o valores distintos —lo
+#' fija la secuencia reproducible. `n_afectadas` es la estimación del perfil
+#' sobre **lo que esta acción tocaría**, que puede ser menos que el conteo del
+#' hallazgo que la originó cuando la acción sólo cubre parte del caso: una
+#' columna con tres valores de codificación rota, de los cuales uno es
+#' reparable, produce un hallazgo con `n_afectados = 3` y una acción
+#' `reparar_codificacion` con `n_afectadas = 1`. Las dos cifras son ciertas y
+#' cuentan cosas distintas. `unidad_conteo` dice si cuenta filas, columnas o
+#' valores distintos —lo
 #' declara la acción cuando cuenta en una unidad propia, y sólo si no lo hace se
 #' hereda del hallazgo—. El registro informa `n_cambiadas` sobre los datos
 #' recibidos.
