@@ -61,8 +61,12 @@ analizar_tiempo(
 Objeto `analisis_temporal` con `resumen`, `dias_semana`, `huecos` y
 `propuestas`. El recorte de huecos queda en `resumen`; el de columnas,
 en atributos del objeto. `resumen` agrega `n_fechas_excluidas_parseo` y
-`estado_resumen` cuando un formato descubierto sobre una muestra deja
-valores presentes sin convertir.
+`estado_resumen`: cuentan los valores **presentes** que ningún formato
+confirmado pudo convertir y que por eso quedaron fuera del resumen. Se
+informan siempre, haya muestreo o no, porque el descarte tampoco depende
+del muestreo; con cero descartes el estado es `"calculados"`. Un `NA` no
+entra en esta cuenta: es una ausencia declarada y se informa como
+faltante, no como valor que el resumen no pudo leer.
 
 ## See also
 

@@ -296,10 +296,12 @@ tiempo <- analizar_tiempo(datos_operativos)
 tiempo$resumen
 #>        columna n_presentes n_fechas_distintas n_duplicados_temporales fecha_minima
 #> 1 fecha_evento          11                  9                       2   2024-01-31
-#>   fecha_maxima n_fechas_excluidas_parseo estado_resumen monotonicidad cobertura_periodo
-#> 1   2024-10-23                         0     calculados           0.9         0.1111111
-#>   n_fechas_esperadas_ausentes n_fechas_fuera_calendario n_grupos_huecos huecos_truncados
-#> 1                           8                         0               1            FALSE
+#>   fecha_maxima n_fechas_excluidas_parseo                    estado_resumen monotonicidad
+#> 1   2024-10-23                         2 calculados_sobre_fechas_parseadas           0.9
+#>   cobertura_periodo n_fechas_esperadas_ausentes n_fechas_fuera_calendario n_grupos_huecos
+#> 1         0.1111111                           8                         0               1
+#>   huecos_truncados
+#> 1            FALSE
 tiempo$propuestas
 #>        columna frecuencia_dias confianza contiguidad cobertura_periodo    calendario
 #> 1 fecha_evento              32        NA          NA         0.1111111 1,2,3,4,5,6,7

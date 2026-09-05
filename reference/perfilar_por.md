@@ -52,6 +52,19 @@ Data frame de clase `hallazgos_por_grupo` con las columnas de
 precedidas por `grupo` y `n_filas_grupo`. El atributo `cobertura_grupos`
 declara los grupos no perfilados y las columnas descartadas por grupo.
 
+El atributo `etiquetas_personales` declara si la columna de agrupación
+lleva datos personales. Las etiquetas de grupo **son** valores de esa
+columna, así que la salida los publica —en los hallazgos y en las dos
+tablas de cobertura— aunque
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+enmascare esa misma columna. No se enmascaran aquí porque la etiqueta es
+el eje del resultado y sin ella los grupos no se distinguen; pero
+tampoco ocurre en silencio: se avisa al ejecutar y queda declarado en el
+objeto. Para que no se publiquen, agrupe por una columna seudonimizada.
+El atributo queda vacío cuando la columna no lleva datos personales, y
+también cuando `proteger_datos_personales` es `FALSE`, porque entonces
+ya está declarado que se quieren los valores.
+
 El atributo `cobertura_diagnosticos` declara, **por grupo**, los
 diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
 separado, así que cada uno declina los suyos: una columna puede tener

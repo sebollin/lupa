@@ -122,9 +122,13 @@ propone la moda de los intervalos positivos.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Objeto <code>analisis_temporal</code> con <code>resumen</code>, <code>dias_semana</code>, <code>huecos</code> y
 <code>propuestas</code>. El recorte de huecos queda en <code>resumen</code>; el de columnas, en
-atributos del objeto. <code>resumen</code> agrega
-<code>n_fechas_excluidas_parseo</code> y <code>estado_resumen</code> cuando un formato descubierto
-sobre una muestra deja valores presentes sin convertir.</p>
+atributos del objeto. <code>resumen</code> agrega <code>n_fechas_excluidas_parseo</code> y
+<code>estado_resumen</code>: cuentan los valores <strong>presentes</strong> que ningún formato
+confirmado pudo convertir y que por eso quedaron fuera del resumen. Se
+informan siempre, haya muestreo o no, porque el descarte tampoco depende
+del muestreo; con cero descartes el estado es <code>"calculados"</code>. Un <code>NA</code> no
+entra en esta cuenta: es una ausencia declarada y se informa como
+faltante, no como valor que el resumen no pudo leer.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

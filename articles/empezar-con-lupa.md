@@ -275,12 +275,12 @@ analisis$asociaciones
 analisis$temporal$resumen
 #>        columna n_presentes n_fechas_distintas n_duplicados_temporales fecha_minima
 #> 1 fecha_evento          11                  9                       2   2024-01-31
-#>   fecha_maxima n_fechas_excluidas_parseo estado_resumen monotonicidad cobertura_periodo
-#> 1   2024-10-23                         0     calculados           0.9         0.1111111
-#>   n_fechas_esperadas_ausentes n_fechas_fuera_calendario n_grupos_huecos huecos_truncados
-#> 1                           8                         0               1            FALSE
-#>   proteccion_temporal
-#> 1                <NA>
+#>   fecha_maxima n_fechas_excluidas_parseo                    estado_resumen monotonicidad
+#> 1   2024-10-23                         2 calculados_sobre_fechas_parseadas           0.9
+#>   cobertura_periodo n_fechas_esperadas_ausentes n_fechas_fuera_calendario n_grupos_huecos
+#> 1         0.1111111                           8                         0               1
+#>   huecos_truncados proteccion_temporal
+#> 1            FALSE                <NA>
 analisis$variables[, c(
   "columna", "tipo_almacenamiento", "tipo_implicito", "escala_propuesta",
   "confianza", "confirmada", "n_niveles_ausentes"
@@ -523,7 +523,7 @@ archivo <- reportar(
   titulo = "Calidad de la entrega de ejemplo"
 )
 basename(archivo)
-#> [1] "file222b2761c852.html"
+#> [1] "file21451816748f.html"
 unlink(c(archivo, archivo_rds))
 ```
 

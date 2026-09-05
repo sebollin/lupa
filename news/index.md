@@ -4,6 +4,47 @@
 
 ### Una declaración vale en todas las salidas, no sólo en la primera
 
+- **`fecha_nac` no se clasificaba como fecha de nacimiento.** El patrón
+  abreviaba la primera palabra (`f_nacimiento`) y no la segunda, así que
+  una de las formas más frecuentes en registros administrativos de la
+  región quedaba sin proteger. Se enumeraron las cinco maneras de
+  escribir lo mismo —entera, primera palabra, segunda, las dos y pegada—
+  en lugar de agregar la que apareció, y la hermana de fallecimiento
+  tenía el mismo hueco por el mismo lado. `fecha_fall` queda
+  deliberadamente fuera: `fall` es también «falla» en datos de
+  mantenimiento, y clasificar de más enmascara una columna que no es
+  personal.
+- **[`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  publicaba datos personales sin decirlo.** Las etiquetas de grupo
+  **son** valores de la columna de agrupación, así que agrupar por una
+  columna de documentos publica los documentos —en los hallazgos y en
+  las dos tablas de cobertura— mientras
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sobre esa misma columna enmascara su moda. La columna se recorta de
+  cada rebanada antes de perfilar, así que la capa de protección nunca
+  la veía. Las etiquetas **no** se enmascaran: agrupar por una columna
+  es pedir que la salida se organice por sus valores, y una etiqueta
+  ilegible dejaría el resultado sin eje. Pero ya no ocurre en silencio:
+  se avisa al ejecutar y queda declarado en el atributo
+  `etiquetas_personales`, con el tipo clasificado y la salida
+  recomendada —agrupar por una columna seudonimizada—. Con
+  `proteger_datos_personales = FALSE` no se avisa: ahí ya está declarado
+  que se quieren los valores.
+- **[`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md)
+  decía haber resumido toda la columna cuando había resumido parte.**
+  Los valores presentes que ningún formato confirmado puede convertir
+  —`"2022-13-99"` y compañía— quedan fuera del resumen temporal, y eso
+  no depende del muestreo; pero sólo se contaban cuando el formato se
+  había descubierto sobre una muestra. Sobre mil valores, la misma
+  columna informaba `n_fechas_excluidas_parseo = 0` con
+  `estado_resumen = "calculados"` sin muestrear y `50` con
+  `"calculados_sobre_fechas_parseadas"` con `muestra = 50`, mientras
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sobre esa misma tabla declaraba los cincuenta: dos salidas del paquete
+  describían la misma columna de dos maneras incompatibles, y la que
+  callaba era la corrida por omisión. Ahora se cuentan siempre. Un `NA`
+  sigue sin entrar en esa cuenta: es una ausencia declarada, no un valor
+  que el resumen no pudo leer.
 - **`desenlace = "suprimir"` se enmascaraba en un lado y se publicaba en
   el otro.** Una regla puede declarar que una medida no debe publicarse;
   el informe decía `[valor suprimido]` dos veces y publicaba el valor
