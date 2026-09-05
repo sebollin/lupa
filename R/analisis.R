@@ -739,6 +739,14 @@ print.analisis <- function(x, ...) {
 #'
 #' @return `guardar_analisis()` devuelve la ruta de forma invisible;
 #'   `leer_analisis()` devuelve un objeto `analisis`.
+#'
+#'   El objeto guardado gana `meta$persistencia`, que declara qué se guardó y
+#'   qué no: `version_esquema`, si los datos viajan (`datos_incluidos`), si la
+#'   evidencia salió protegida (`evidencia_protegida`) y cuántas funciones se
+#'   sustituyeron por su descripción (`funciones_sustituidas`). Es el único
+#'   campo que un objeto leído tiene y el original no: lo que se guarda no es
+#'   idéntico a lo que se analizó, y esa diferencia se declara en vez de
+#'   suponerse.
 #' @seealso [analizar()], [reportar()], [guardar_historico()]
 #'
 #' @examples

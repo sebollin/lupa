@@ -46,3 +46,41 @@ test_that("analizar() acepta una matriz y declara la conversion igual que perfil
     analizar(data.frame(a = 1:6, b = letters[1:6]), nombre = "d")$perfil$meta$entrada_convertida
   ))
 })
+
+test_that("guardar y volver a leer devuelve lo mismo, salvo lo que se declara", {
+  analisis <- analizar(
+    data.frame(x = c(1, NA, 3), t = format(as.Date("2024-01-01") + 0:2),
+               stringsAsFactors = FALSE),
+    nombre = "t"
+  )
+  archivo <- tempfile(fileext = ".rds")
+  on.exit(unlink(archivo), add = TRUE)
+  guardar_analisis(analisis, archivo)
+  leido <- leer_analisis(archivo)
+
+  # Primera mitad: el objeto tiene piezas que valen la pena comparar.
+  expect_true(nrow(analisis$perfil$columnas) >= 2L)
+
+  # Todo lo sustantivo sobrevive la ida y vuelta.
+  expect_identical(leido$perfil, analisis$perfil)
+  for (componente in setdiff(names(analisis), c("meta", "datos"))) {
+    expect_identical(leido[[componente]], analisis[[componente]],
+                     info = componente)
+  }
+
+  # Y la UNICA diferencia es la que el guardado declara: lo que se guardo y lo
+  # que no. Lo que se persiste no es identico a lo que se analizo, y esa
+  # diferencia se declara en vez de suponerse.
+  difieren <- names(analisis$meta)[
+    !vapply(names(analisis$meta),
+            function(k) identical(analisis$meta[[k]], leido$meta[[k]]),
+            logical(1L))
+  ]
+  agregados <- setdiff(names(leido$meta), names(analisis$meta))
+  expect_equal(union(difieren, agregados), "persistencia")
+  expect_named(
+    leido$meta$persistencia,
+    c("version_esquema", "datos_incluidos", "evidencia_protegida",
+      "funciones_sustituidas")
+  )
+})

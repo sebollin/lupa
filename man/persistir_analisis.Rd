@@ -35,6 +35,14 @@ leer_analisis(archivo)
 \value{
 \code{guardar_analisis()} devuelve la ruta de forma invisible;
 \code{leer_analisis()} devuelve un objeto \code{analisis}.
+
+El objeto guardado gana \code{meta$persistencia}, que declara qué se guardó y
+qué no: \code{version_esquema}, si los datos viajan (\code{datos_incluidos}), si la
+evidencia salió protegida (\code{evidencia_protegida}) y cuántas funciones se
+sustituyeron por su descripción (\code{funciones_sustituidas}). Es el único
+campo que un objeto leído tiene y el original no: lo que se guarda no es
+idéntico a lo que se analizó, y esa diferencia se declara en vez de
+suponerse.
 }
 \description{
 Persiste un objeto \code{\link[=analizar]{analizar()}} en RDS con número de esquema. Los datos de
