@@ -23,7 +23,10 @@ perfilar_por(datos, por, clave = NULL, min_filas = 30L, ...)
 - por:
 
   Nombre de una columna atómica cuyos valores definen los grupos. Los
-  ausentes forman un grupo propio.
+  ausentes forman un grupo propio, con la etiqueta `"(ausente)"`. Si la
+  columna trae ese mismo texto como valor real, los dos caen en un solo
+  grupo —no se pierde ninguna fila— y la colisión se declara en
+  `cobertura_grupos`, con cuántas filas aporta cada una.
 
 - clave:
 
@@ -63,7 +66,12 @@ tampoco ocurre en silencio: se avisa al ejecutar y queda declarado en el
 objeto. Para que no se publiquen, agrupe por una columna seudonimizada.
 El atributo queda vacío cuando la columna no lleva datos personales, y
 también cuando `proteger_datos_personales` es `FALSE`, porque entonces
-ya está declarado que se quieren los valores.
+ya está declarado que se quieren los valores. Si el léxico no reconoce
+el nombre de la columna, decláresela con `columnas_personales`: ese
+argumento —como `columnas_opcionales`, `clave` y `aplicabilidad`— puede
+nombrar la columna de agrupación, y se recorta de lo que se envía a
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+para cada grupo, donde esa columna ya no está.
 
 El atributo `cobertura_diagnosticos` declara, **por grupo**, los
 diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por

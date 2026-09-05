@@ -84,31 +84,44 @@ permite separar un grupo aún no revisado de una omisión deliberada.
 `estado` distingue acciones `lista`, `bloqueada` e `informativa`;
 `orden` fija la secuencia reproducible. `n_afectadas` es la estimación
 del perfil y `unidad_conteo` dice si cuenta filas, columnas o valores
-distintos. El registro informa `n_cambiadas` sobre los datos recibidos.
-`reversible` indica si la conversión conserva la identidad de cada
-valor. Las conversiones se comprueban sobre todos los valores de
-`datos`: las numéricas bloquean ceros iniciales y colisiones no
-inyectivas, mientras que fechas, fechas-hora y lógicos sólo bloquean
-conversiones no ejecutables o no inyectivas. Las fechas pueden cambiar a
-la representación canónica del tipo sin que eso sea una pérdida. Sin
-`datos` no se puede hacer la comprobación y la acción queda bloqueada.
-Cuando no es reversible se marca `destructiva`, no se activa por defecto
-y el registro conserva `n_no_reversibles` y la justificación de la
-decisión. La acción de codificación prueba las tablas congeladas de
-varias codificaciones y deja en `estado_reparacion` uno de `reparado`,
-`reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se
-activa automáticamente: debe revisarse y seleccionarse de forma
-explícita. La estrategia se llama `reparar_codificacion` y no limita el
-motor a latin-1. Si se marca una acción que no está `lista`, `aplicar()`
-aborta antes de modificar la copia y enumera las filas problemáticas.
-Una acción que sí está lista pero falla se registra con su error y no
-impide aplicar las siguientes: cada una conserva atomicidad sobre su
-propia columna o tabla. Las acciones que efectivamente eliminan filas o
-columnas requieren además `permitir_eliminacion = TRUE`; una conversión
-`destructiva` requiere selección explícita y deja la pérdida
-cuantificada. Por defecto, el resultado conserva lo retirado en
-`eliminados`; use `conservar_eliminados = FALSE` para evitar ese costo
-de memoria.
+distintos —lo declara la acción cuando cuenta en una unidad propia, y
+sólo si no lo hace se hereda del hallazgo—. El registro informa
+`n_cambiadas` sobre los datos recibidos.
+
+**`n_afectadas` y `n_cambiadas` pueden no coincidir, y las dos son
+ciertas.** La estimación se calcula sobre los datos que se perfilaron;
+el registro cuenta lo que pasó al aplicar. Si una acción anterior del
+mismo plan ya tocó esa columna, la posterior encuentra menos —o más— de
+lo estimado: con `convertir_sentinelas_numericos` (orden 110)
+convirtiendo tres `-999` en ausentes, `winsorizar_outliers` (orden 520)
+recorta dos valores donde el plan estimaba siete. No es un desvío que
+ocultar: `orden`, `n_afectadas` y `n_cambiadas` se publican los tres, y
+compararlos es la forma de ver el efecto de la composición. Sólo el caso
+extremo —la acción no produce **ningún** efecto donde el plan estimaba
+alguno— se registra como `fallida` con su motivo. `reversible` indica si
+la conversión conserva la identidad de cada valor. Las conversiones se
+comprueban sobre todos los valores de `datos`: las numéricas bloquean
+ceros iniciales y colisiones no inyectivas, mientras que fechas,
+fechas-hora y lógicos sólo bloquean conversiones no ejecutables o no
+inyectivas. Las fechas pueden cambiar a la representación canónica del
+tipo sin que eso sea una pérdida. Sin `datos` no se puede hacer la
+comprobación y la acción queda bloqueada. Cuando no es reversible se
+marca `destructiva`, no se activa por defecto y el registro conserva
+`n_no_reversibles` y la justificación de la decisión. La acción de
+codificación prueba las tablas congeladas de varias codificaciones y
+deja en `estado_reparacion` uno de `reparado`, `reparado_parcialmente` o
+`no_se_pudo`. Una reparación parcial no se activa automáticamente: debe
+revisarse y seleccionarse de forma explícita. La estrategia se llama
+`reparar_codificacion` y no limita el motor a latin-1. Si se marca una
+acción que no está `lista`, `aplicar()` aborta antes de modificar la
+copia y enumera las filas problemáticas. Una acción que sí está lista
+pero falla se registra con su error y no impide aplicar las siguientes:
+cada una conserva atomicidad sobre su propia columna o tabla. Las
+acciones que efectivamente eliminan filas o columnas requieren además
+`permitir_eliminacion = TRUE`; una conversión `destructiva` requiere
+selección explícita y deja la pérdida cuantificada. Por defecto, el
+resultado conserva lo retirado en `eliminados`; use
+`conservar_eliminados = FALSE` para evitar ese costo de memoria.
 
 Los hallazgos `controles_invisibles`, `entidades_html` y
 `separadores_en_campo` tienen acciones separadas. La detección de

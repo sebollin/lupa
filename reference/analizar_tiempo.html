@@ -122,13 +122,23 @@ propone la moda de los intervalos positivos.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Objeto <code>analisis_temporal</code> con <code>resumen</code>, <code>dias_semana</code>, <code>huecos</code> y
 <code>propuestas</code>. El recorte de huecos queda en <code>resumen</code>; el de columnas, en
-atributos del objeto. <code>resumen</code> agrega <code>n_fechas_excluidas_parseo</code> y
-<code>estado_resumen</code>: cuentan los valores <strong>presentes</strong> que ningún formato
-confirmado pudo convertir y que por eso quedaron fuera del resumen. Se
-informan siempre, haya muestreo o no, porque el descarte tampoco depende
-del muestreo; con cero descartes el estado es <code>"calculados"</code>. Un <code>NA</code> no
-entra en esta cuenta: es una ausencia declarada y se informa como
-faltante, no como valor que el resumen no pudo leer.</p>
+atributos del objeto. <code>resumen</code> agrega tres campos sobre el alcance del
+resumen, con el mismo vocabulario que usa <code><a href="perfilar.html">perfilar()</a></code> sobre la misma
+columna: <code>n_fechas_excluidas_parseo</code> cuenta los valores <strong>presentes</strong> que
+ningún formato confirmado pudo convertir y que por eso quedaron fuera;
+<code>n_fechas_excluidas_granularidad</code>, cuántos de ésos son períodos de mes —
+<code>2024-02</code> y sus formas—, que no se convierten a propósito porque no
+nombran un día; y <code>estado_resumen</code> vale <code>"calculados_sobre_dias"</code> cuando
+hubo períodos de mes, <code>"calculados_sobre_fechas_parseadas"</code> cuando sólo
+hubo valores ilegibles, y <code>"calculados"</code> cuando no quedó nada afuera. Los
+tres se informan siempre, haya muestreo o no, porque el descarte tampoco
+depende del muestreo. Un <code>NA</code> no entra en esta cuenta: es una ausencia
+declarada y se informa como faltante, no como valor que no se pudo leer.</p>
+<p>Una columna mixta —días y meses— <strong>sí</strong> se resume, sobre sus fechas
+completas. Sólo cuando ningún formato confirmado nombra un día no hay serie
+diaria que construir; entonces la columna no aparece en <code>resumen</code>, y se
+declara en los atributos <code>columnas_omitidas</code> y <code>columnas_sin_serie_diaria</code>
+en vez de desaparecer.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -142,12 +152,12 @@ faltante, no como valor que el resumen no pudo leer.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $resumen</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   columna n_presentes n_fechas_distintas n_duplicados_temporales fecha_minima</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1   fecha          10                 10                       0   2026-01-01</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   fecha_maxima n_fechas_excluidas_parseo estado_resumen monotonicidad</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1   2026-01-25                         0     calculados             1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   cobertura_periodo n_fechas_esperadas_ausentes n_fechas_fuera_calendario</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1               0.4                          15                         0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   n_grupos_huecos huecos_truncados</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1               1            FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   fecha_maxima n_fechas_excluidas_parseo n_fechas_excluidas_granularidad</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   2026-01-25                         0                               0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   estado_resumen monotonicidad cobertura_periodo n_fechas_esperadas_ausentes</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1     calculados             1               0.4                          15</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   n_fechas_fuera_calendario n_grupos_huecos huecos_truncados</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                         0               1            FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $dias_semana</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   columna dia_iso       dia frecuencia proporcion esperado</span>
@@ -176,6 +186,8 @@ faltante, no como valor que el resumen no pudo leer.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"columnas_analizadas")</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "fecha"</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"columnas_omitidas")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> character(0)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"columnas_sin_serie_diaria")</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> character(0)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"truncado")</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE</span>

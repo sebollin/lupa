@@ -191,9 +191,9 @@ frecuencias.</p>
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/descubrir_patrones.html">descubrir_patrones</a></span><span class="op">(</span><span class="va">datos_operativos</span><span class="op">$</span><span class="va">codigo_usuario</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   patron  n proporcion                    ejemplos</span></span>
 <span><span class="co">#&gt; 1  A+-9+ 10 0.76923077 USR-001 | USR-002 | USR-004</span></span>
-<span><span class="co">#&gt; 2    A/A  1 0.07692308                         S/D</span></span>
-<span><span class="co">#&gt; 3   A+-9  1 0.07692308                       MAL-5</span></span>
-<span><span class="co">#&gt; 4   A+9+  1 0.07692308                     USR0003</span></span></code></pre></div>
+<span><span class="co">#&gt; 2   A+-9  1 0.07692308                       MAL-5</span></span>
+<span><span class="co">#&gt; 3   A+9+  1 0.07692308                     USR0003</span></span>
+<span><span class="co">#&gt; 4    A/A  1 0.07692308                         S/D</span></span></code></pre></div>
 <p>El almacenamiento como texto no impide proponer un tipo implícito. La
 fecha se examina como vector y los formatos se cuentan por separado.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
@@ -331,12 +331,12 @@ siendo evidencia para revisar.</p>
 <span><span class="va">tiempo</span><span class="op">$</span><span class="va">resumen</span></span>
 <span><span class="co">#&gt;        columna n_presentes n_fechas_distintas n_duplicados_temporales fecha_minima</span></span>
 <span><span class="co">#&gt; 1 fecha_evento          11                  9                       2   2024-01-31</span></span>
-<span><span class="co">#&gt;   fecha_maxima n_fechas_excluidas_parseo                    estado_resumen monotonicidad</span></span>
-<span><span class="co">#&gt; 1   2024-10-23                         2 calculados_sobre_fechas_parseadas           0.9</span></span>
-<span><span class="co">#&gt;   cobertura_periodo n_fechas_esperadas_ausentes n_fechas_fuera_calendario n_grupos_huecos</span></span>
-<span><span class="co">#&gt; 1         0.1111111                           8                         0               1</span></span>
-<span><span class="co">#&gt;   huecos_truncados</span></span>
-<span><span class="co">#&gt; 1            FALSE</span></span>
+<span><span class="co">#&gt;   fecha_maxima n_fechas_excluidas_parseo n_fechas_excluidas_granularidad</span></span>
+<span><span class="co">#&gt; 1   2024-10-23                         2                               0</span></span>
+<span><span class="co">#&gt;                      estado_resumen monotonicidad cobertura_periodo</span></span>
+<span><span class="co">#&gt; 1 calculados_sobre_fechas_parseadas           0.9         0.1111111</span></span>
+<span><span class="co">#&gt;   n_fechas_esperadas_ausentes n_fechas_fuera_calendario n_grupos_huecos huecos_truncados</span></span>
+<span><span class="co">#&gt; 1                           8                         0               1            FALSE</span></span>
 <span><span class="va">tiempo</span><span class="op">$</span><span class="va">propuestas</span></span>
 <span><span class="co">#&gt;        columna frecuencia_dias confianza contiguidad cobertura_periodo    calendario</span></span>
 <span><span class="co">#&gt; 1 fecha_evento              32        NA          NA         0.1111111 1,2,3,4,5,6,7</span></span>

@@ -136,9 +136,9 @@ guardar la tabla de frecuencias.
 descubrir_patrones(datos_operativos$codigo_usuario)
 #>   patron  n proporcion                    ejemplos
 #> 1  A+-9+ 10 0.76923077 USR-001 | USR-002 | USR-004
-#> 2    A/A  1 0.07692308                         S/D
-#> 3   A+-9  1 0.07692308                       MAL-5
-#> 4   A+9+  1 0.07692308                     USR0003
+#> 2   A+-9  1 0.07692308                       MAL-5
+#> 3   A+9+  1 0.07692308                     USR0003
+#> 4    A/A  1 0.07692308                         S/D
 ```
 
 El almacenamiento como texto no impide proponer un tipo implícito. La
@@ -296,12 +296,12 @@ tiempo <- analizar_tiempo(datos_operativos)
 tiempo$resumen
 #>        columna n_presentes n_fechas_distintas n_duplicados_temporales fecha_minima
 #> 1 fecha_evento          11                  9                       2   2024-01-31
-#>   fecha_maxima n_fechas_excluidas_parseo                    estado_resumen monotonicidad
-#> 1   2024-10-23                         2 calculados_sobre_fechas_parseadas           0.9
-#>   cobertura_periodo n_fechas_esperadas_ausentes n_fechas_fuera_calendario n_grupos_huecos
-#> 1         0.1111111                           8                         0               1
-#>   huecos_truncados
-#> 1            FALSE
+#>   fecha_maxima n_fechas_excluidas_parseo n_fechas_excluidas_granularidad
+#> 1   2024-10-23                         2                               0
+#>                      estado_resumen monotonicidad cobertura_periodo
+#> 1 calculados_sobre_fechas_parseadas           0.9         0.1111111
+#>   n_fechas_esperadas_ausentes n_fechas_fuera_calendario n_grupos_huecos huecos_truncados
+#> 1                           8                         0               1            FALSE
 tiempo$propuestas
 #>        columna frecuencia_dias confianza contiguidad cobertura_periodo    calendario
 #> 1 fecha_evento              32        NA          NA         0.1111111 1,2,3,4,5,6,7

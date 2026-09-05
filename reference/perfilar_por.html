@@ -72,7 +72,10 @@ dominios que no tienen nada que ver entre sí.</p>
 
 <dt id="arg-por">por<a class="anchor" aria-label="anchor" href="#arg-por"></a></dt>
 <dd><p>Nombre de una columna atómica cuyos valores definen los grupos.
-Los ausentes forman un grupo propio.</p></dd>
+Los ausentes forman un grupo propio, con la etiqueta <code>"(ausente)"</code>. Si la
+columna trae ese mismo texto como valor real, los dos caen en un solo grupo
+—no se pierde ninguna fila— y la colisión se declara en
+<code>cobertura_grupos</code>, con cuántas filas aporta cada una.</p></dd>
 
 
 <dt id="arg-clave">clave<a class="anchor" aria-label="anchor" href="#arg-clave"></a></dt>
@@ -107,7 +110,11 @@ grupos no se distinguen; pero tampoco ocurre en silencio: se avisa al
 ejecutar y queda declarado en el objeto. Para que no se publiquen, agrupe
 por una columna seudonimizada. El atributo queda vacío cuando la columna no
 lleva datos personales, y también cuando <code>proteger_datos_personales</code> es
-<code>FALSE</code>, porque entonces ya está declarado que se quieren los valores.</p>
+<code>FALSE</code>, porque entonces ya está declarado que se quieren los valores. Si el
+léxico no reconoce el nombre de la columna, decláresela con
+<code>columnas_personales</code>: ese argumento —como <code>columnas_opcionales</code>, <code>clave</code> y
+<code>aplicabilidad</code>— puede nombrar la columna de agrupación, y se recorta de lo
+que se envía a <code><a href="perfilar.html">perfilar()</a></code> para cada grupo, donde esa columna ya no está.</p>
 <p>El atributo <code>cobertura_diagnosticos</code> declara, <strong>por grupo</strong>, los
 diagnósticos que no se evaluaron y por qué. Cada grupo se perfila por
 separado, así que cada uno declina los suyos: una columna puede tener

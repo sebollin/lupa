@@ -135,8 +135,21 @@ explícita de conservar los datos. Esto permite separar un grupo aún no
 revisado de una omisión deliberada.</p>
 <p><code>estado</code> distingue acciones <code>lista</code>, <code>bloqueada</code> e <code>informativa</code>; <code>orden</code>
 fija la secuencia reproducible. <code>n_afectadas</code> es la estimación del perfil y
-<code>unidad_conteo</code> dice si cuenta filas, columnas o valores distintos. El
-registro informa <code>n_cambiadas</code> sobre los datos recibidos. <code>reversible</code>
+<code>unidad_conteo</code> dice si cuenta filas, columnas o valores distintos —lo
+declara la acción cuando cuenta en una unidad propia, y sólo si no lo hace se
+hereda del hallazgo—. El registro informa <code>n_cambiadas</code> sobre los datos
+recibidos.</p>
+<p><strong><code>n_afectadas</code> y <code>n_cambiadas</code> pueden no coincidir, y las dos son ciertas.</strong>
+La estimación se calcula sobre los datos que se perfilaron; el registro
+cuenta lo que pasó al aplicar. Si una acción anterior del mismo plan ya tocó
+esa columna, la posterior encuentra menos —o más— de lo estimado: con
+<code>convertir_sentinelas_numericos</code> (orden 110) convirtiendo tres <code>-999</code> en
+ausentes, <code>winsorizar_outliers</code> (orden 520) recorta dos valores donde el plan
+estimaba siete. No es un desvío que ocultar: <code>orden</code>, <code>n_afectadas</code> y
+<code>n_cambiadas</code> se publican los tres, y compararlos es la forma de ver el
+efecto de la composición. Sólo el caso extremo —la acción no produce <strong>ningún</strong>
+efecto donde el plan estimaba alguno— se registra como <code>fallida</code> con su
+motivo. <code>reversible</code>
 indica si la conversión conserva la identidad de cada valor. Las
 conversiones se comprueban sobre todos los valores de <code>datos</code>: las numéricas
 bloquean ceros iniciales y colisiones no inyectivas, mientras que fechas,

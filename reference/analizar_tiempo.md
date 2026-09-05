@@ -60,13 +60,26 @@ analizar_tiempo(
 
 Objeto `analisis_temporal` con `resumen`, `dias_semana`, `huecos` y
 `propuestas`. El recorte de huecos queda en `resumen`; el de columnas,
-en atributos del objeto. `resumen` agrega `n_fechas_excluidas_parseo` y
-`estado_resumen`: cuentan los valores **presentes** que ningún formato
-confirmado pudo convertir y que por eso quedaron fuera del resumen. Se
+en atributos del objeto. `resumen` agrega tres campos sobre el alcance
+del resumen, con el mismo vocabulario que usa
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+sobre la misma columna: `n_fechas_excluidas_parseo` cuenta los valores
+**presentes** que ningún formato confirmado pudo convertir y que por eso
+quedaron fuera; `n_fechas_excluidas_granularidad`, cuántos de ésos son
+períodos de mes — `2024-02` y sus formas—, que no se convierten a
+propósito porque no nombran un día; y `estado_resumen` vale
+`"calculados_sobre_dias"` cuando hubo períodos de mes,
+`"calculados_sobre_fechas_parseadas"` cuando sólo hubo valores
+ilegibles, y `"calculados"` cuando no quedó nada afuera. Los tres se
 informan siempre, haya muestreo o no, porque el descarte tampoco depende
-del muestreo; con cero descartes el estado es `"calculados"`. Un `NA` no
-entra en esta cuenta: es una ausencia declarada y se informa como
-faltante, no como valor que el resumen no pudo leer.
+del muestreo. Un `NA` no entra en esta cuenta: es una ausencia declarada
+y se informa como faltante, no como valor que no se pudo leer.
+
+Una columna mixta —días y meses— **sí** se resume, sobre sus fechas
+completas. Sólo cuando ningún formato confirmado nombra un día no hay
+serie diaria que construir; entonces la columna no aparece en `resumen`,
+y se declara en los atributos `columnas_omitidas` y
+`columnas_sin_serie_diaria` en vez de desaparecer.
 
 ## See also
 
@@ -81,12 +94,12 @@ analizar_tiempo(data.frame(fecha = fechas))
 #> $resumen
 #>   columna n_presentes n_fechas_distintas n_duplicados_temporales fecha_minima
 #> 1   fecha          10                 10                       0   2026-01-01
-#>   fecha_maxima n_fechas_excluidas_parseo estado_resumen monotonicidad
-#> 1   2026-01-25                         0     calculados             1
-#>   cobertura_periodo n_fechas_esperadas_ausentes n_fechas_fuera_calendario
-#> 1               0.4                          15                         0
-#>   n_grupos_huecos huecos_truncados
-#> 1               1            FALSE
+#>   fecha_maxima n_fechas_excluidas_parseo n_fechas_excluidas_granularidad
+#> 1   2026-01-25                         0                               0
+#>   estado_resumen monotonicidad cobertura_periodo n_fechas_esperadas_ausentes
+#> 1     calculados             1               0.4                          15
+#>   n_fechas_fuera_calendario n_grupos_huecos huecos_truncados
+#> 1                         0               1            FALSE
 #> 
 #> $dias_semana
 #>   columna dia_iso       dia frecuencia proporcion esperado
@@ -115,6 +128,8 @@ analizar_tiempo(data.frame(fecha = fechas))
 #> attr(,"columnas_analizadas")
 #> [1] "fecha"
 #> attr(,"columnas_omitidas")
+#> character(0)
+#> attr(,"columnas_sin_serie_diaria")
 #> character(0)
 #> attr(,"truncado")
 #> [1] FALSE
