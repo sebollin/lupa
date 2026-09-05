@@ -651,6 +651,18 @@ agregar <- function(medidas, destino,
   if (funcion == "ratio" && tipo != "booleano") {
     stop("`ratio` s\u00f3lo admite m\u00e9tricas de resultado booleano.", call. = FALSE)
   }
+  # El tipo declarado no alcanza: `ratio` cuenta los unos, asi que un valor que
+  # no es 0 ni 1 se contaba como falso en silencio. Medido antes de poner la
+  # guarda: 0.5 en una medida booleana devolvia 0.6 sin decir nada, mientras la
+  # hermana `promedio` si rechaza lo que sale de su rango. Y medido tambien que
+  # ninguna metrica legitima la viola: doce instancias booleanas del nucleo,
+  # cero valores fuera de {0, 1}.
+  if (funcion == "ratio" && !all(medidas$resultado %in% c(0, 1))) {
+    stop(
+      "Una medida booleana solo puede valer 0 o 1; `ratio` cuenta los unos y ",
+      "no puede contar un valor intermedio.", call. = FALSE
+    )
+  }
   if (funcion == "ratio_umbral" && tipo != "real") {
     stop("`ratio_umbral` s\u00f3lo admite m\u00e9tricas de resultado real.",
          call. = FALSE)

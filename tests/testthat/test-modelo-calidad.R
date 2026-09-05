@@ -496,3 +496,84 @@ test_that("el perfil promedia reglas y conserva la distribución en sus niveles"
   )
   expect_equal(evaluacion$perfiles$resultado, 0.5)
 })
+
+# `ratio` cuenta los unos, asi que un valor que no es 0 ni 1 se contaba como
+# falso en silencio: medido, un 0.5 en una medida booleana daba 0.6 -tres unos
+# sobre cinco- mientras `promedio` sobre los mismos valores daba 0.7, que es la
+# media real. Dos agregaciones hermanas, una validaba su entrada y la otra no.
+test_that("ratio rechaza una medida booleana con valores intermedios", {
+  datos <- data.frame(x = c(1, 2, NA, 4, 5), stringsAsFactors = FALSE)
+  medicion <- medir(
+    modelo(instanciar(especializar(metricas_nucleo()[[1L]]), "t", "x")), datos
+  )
+  expect_identical(unique(medicion$tipo_resultado), "booleano")
+
+  intermedia <- medicion
+  intermedia$resultado <- c(1, 1, 0, 0.5, 1)
+  expect_error(
+    agregar(intermedia, destino = "columna", funcion = "ratio"),
+    "solo puede valer 0 o 1"
+  )
+  # Y `promedio`, que si puede con un valor intermedio, lo sigue aceptando:
+  # la guarda es de `ratio`, no del tipo de medida.
+  expect_equal(
+    agregar(intermedia, destino = "columna", funcion = "promedio")$resultado,
+    0.7
+  )
+})
+
+# El control, y decide el alcance: lo legitimo tiene que seguir pasando. Se
+# midio antes de poner la guarda que ninguna metrica del nucleo la viola -doce
+# instancias booleanas, cero valores fuera de {0, 1}-, y esto lo fija.
+test_that("ratio sigue agregando lo que medir() produce", {
+  datos <- data.frame(x = c(1, 2, NA, 4, 5), stringsAsFactors = FALSE)
+  medicion <- medir(
+    modelo(instanciar(especializar(metricas_nucleo()[[1L]]), "t", "x")), datos
+  )
+  expect_equal(
+    agregar(medicion, destino = "columna", funcion = "ratio")$resultado, 0.8
+  )
+  for (valores in list(c(0, 0, 0, 0, 0), c(1, 1, 1, 1, 1), c(0, 1, 0, 1, 0))) {
+    variante <- medicion
+    variante$resultado <- valores
+    expect_equal(
+      agregar(variante, destino = "columna", funcion = "ratio")$resultado,
+      mean(valores)
+    )
+  }
+
+  # Ninguna metrica booleana del nucleo produce un valor fuera de {0, 1}.
+  tabla <- data.frame(
+    x = c(1, 2, NA, 4, 5, 100, -3, 0, 0, 7),
+    t = c("a", "b", "", "c", NA, "d", "e", "f", "g", "h"),
+    f = as.Date(c(
+      "2020-01-01", "2021-06-15", NA, "2020-01-01", "2022-03-03",
+      "2019-05-05", "2023-01-01", "2020-07-07", "2021-01-01", "2022-12-31"
+    )),
+    stringsAsFactors = FALSE
+  )
+  booleanas <- 0L
+  for (nombre in names(metricas_nucleo())) {
+    for (columna in names(tabla)) {
+      medida <- tryCatch(
+        medir(
+          modelo(instanciar(
+            especializar(metricas_nucleo()[[nombre]]), "t", columna
+          )),
+          tabla
+        ),
+        error = function(e) NULL
+      )
+      if (is.null(medida)) next
+      if (!identical(unique(medida$tipo_resultado), "booleano")) next
+      booleanas <- booleanas + 1L
+      expect_true(
+        all(medida$resultado %in% c(0, 1)),
+        info = paste(nombre, columna)
+      )
+    }
+  }
+  # El piso no fija el recuento exacto -eso lo cambia cualquier metrica nueva-,
+  # fija que el barrido efectivamente corrio sobre instancias booleanas.
+  expect_gt(booleanas, 5L)
+})
