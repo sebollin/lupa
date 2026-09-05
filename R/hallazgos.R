@@ -109,6 +109,36 @@
   salida
 }
 
+# Un `double` subnormal -0 < |x| < 2,2e-308- no es una medicion. Sale de
+# reinterpretar un patron de bits o de un desbordamiento por defecto, y en los
+# dos casos el numero que se publica no significa nada.
+#
+# El caso que lo motivo, medido con DBI y sin lupa de por medio: el controlador
+# de duckdb escribe una columna `integer64` como DOUBLE reinterpretando los
+# bits, y `SELECT min(big), max(big)` devuelve 1,06e-314 y 2,47e-314 donde los
+# datos eran 2147483648 y 5000000000. La misma tabla en SQLite sale intacta. La
+# basura queda EN LA BASE, asi que perfilar_dbi() la describe fielmente y el
+# resumen SQL coincide con la muestra: no hay divergencia que declarar y el
+# absurdo se publica como un dato calculado.
+#
+# El riesgo de falso positivo se midio, no se supuso: 140 columnas numericas de
+# 17 archivos reales, cero subnormales, y el valor no nulo mas chico de todo el
+# banco es 0,001 -unas 4,5e304 veces el umbral-. No hay dato real cerca de esta
+# frontera.
+.n_subnormales <- function(x) {
+  # `oldClass(x)` en vez de una lista de clases: `Date`, `POSIXct`, `difftime`,
+  # `integer64`, `units` y `hms` son todos `double` por debajo, y `abs()` no
+  # esta definido para varios de ellos. Enumerar las clases a mano deja afuera
+  # la proxima; exigir que no haya clase las cubre a todas y deja pasar
+  # exactamente lo que esta senal describe: una columna numerica pelada.
+  if (!is.double(x) || !is.null(oldClass(x))) return(0L)
+  valores <- x[!is.na(x)]
+  if (!length(valores)) return(0L)
+  as.integer(sum(
+    is.finite(valores) & valores != 0 & abs(valores) < .Machine$double.xmin
+  ))
+}
+
 .nuevo_hallazgo <- function(columna, tipo, severidad, descripcion,
                             evidencia, sugerencia, n_evaluados = NA_real_,
                             n_afectados = NA_real_, unidad_conteo = NA_character_,
@@ -2673,6 +2703,18 @@
         which(is.finite(valores) & valores < 0)
       }
     },
+    valores_subnormales = {
+      # Se traza sobre la columna entera y no sobre el resumen cuantitativo,
+      # que no distingue un subnormal de un cero. La misma guarda de clase que
+      # `.n_subnormales()`, por la misma razon.
+      if (!is.double(x) || !is.null(oldClass(x))) {
+        NULL
+      } else {
+        which(
+          !is.na(x) & is.finite(x) & x != 0 & abs(x) < .Machine$double.xmin
+        )
+      }
+    },
     outliers = {
       valores_traza <- .numerico_trazable(obtener_cuantitativos())
       if (is.null(valores_traza)) {
@@ -3099,7 +3141,8 @@
                                 umbral_patron_raro,
                                 umbral_patron_dominante,
                                 columnas_sin_ceros,
-                                columnas_no_negativas) {
+                                columnas_no_negativas,
+                                datos = NULL) {
   hallazgos <- list()
   cobertura <- list()
   k <- 0L
@@ -3107,9 +3150,20 @@
     conteo <- .conteo_hallazgo_columna(
       as.character(x$tipo_hallazgo[[1L]]), fila, resultado, n_validos
     )
-    x$n_evaluados <- conteo$n_evaluados
-    x$n_afectados <- conteo$n_afectados
-    x$unidad_conteo <- conteo$unidad_conteo
+    # El contador central deriva los conteos del resumen de la columna, y para
+    # un tipo que no conoce devuelve NA. Cuando no sabe, se respeta lo que el
+    # hallazgo ya trae: hay diagnosticos que cuentan sobre la columna entera
+    # -no sobre el resumen- y perdian su conteo al pasar por aca.
+    #
+    # No cambia ningun conteo existente: de las 23 llamadas a
+    # `.nuevo_hallazgo()` de esta funcion, ninguna otra pasa conteos, asi que
+    # para todas ellas el valor propio ya era NA.
+    preferir <- function(central, propio) {
+      if (length(central) && !is.na(central)) central else propio
+    }
+    x$n_evaluados <- preferir(conteo$n_evaluados, x$n_evaluados)
+    x$n_afectados <- preferir(conteo$n_afectados, x$n_afectados)
+    x$unidad_conteo <- preferir(conteo$unidad_conteo, x$unidad_conteo)
     k <<- k + 1L
     hallazgos[[k]] <<- x
   }
@@ -4161,6 +4215,37 @@
         "Verificar si los ceros son v\u00e1lidos o representan otro estado."
       ))
     }
+    # Se cuenta sobre la columna entera y no sobre el resumen: aca los datos
+    # estan a mano, asi que no hace falta agregar un campo publico al perfil
+    # para llevar el conteo -y agregar un campo cambia lo que lee el resto-.
+    n_subnormales <- if (is.null(datos) || !nombre %in% names(datos)) {
+      0L
+    } else {
+      .n_subnormales(datos[[nombre]])
+    }
+    if (n_subnormales > 0L) {
+      agregar(.nuevo_hallazgo(
+        nombre, "valores_subnormales", "error",
+        paste(
+          "La columna contiene valores subnormales, que no son mediciones:",
+          "salen de reinterpretar un patron de bits o de un desbordamiento por",
+          "defecto. Las estadisticas de esta columna describen esos valores y",
+          "no los datos que se quiso guardar."
+        ),
+        paste0(
+          n_subnormales, " de ", sum(!is.na(datos[[nombre]])),
+          " valores por debajo de ", format(.Machine$double.xmin, digits = 3),
+          " en valor absoluto, sin ser cero."
+        ),
+        paste(
+          "Revisar como se escribio la columna. Un caso conocido: escribir una",
+          "columna `integer64` en algunos motores la guarda como doble",
+          "reinterpretando los bits."
+        ),
+        n_evaluados = sum(!is.na(datos[[nombre]])),
+        n_afectados = n_subnormales, unidad_conteo = "valor"
+      ))
+    }
     if (nombre %in% columnas_no_negativas &&
         !is.na(fila$n_negativos) && fila$n_negativos > 0L) {
       agregar(.nuevo_hallazgo(
@@ -4440,7 +4525,7 @@
     resultados, columnas, umbral_alta_cardinalidad,
     umbral_faltantes_sospechoso, umbral_faltantes_error,
     umbral_patron_raro, umbral_patron_dominante,
-    columnas_sin_ceros, columnas_no_negativas
+    columnas_sin_ceros, columnas_no_negativas, datos = datos
   )
   cobertura <- attr(hallazgos_columnas, "cobertura_diagnosticos", exact = TRUE)
   if (is.null(cobertura)) cobertura <- .cobertura_diagnosticos_vacia()

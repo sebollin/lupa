@@ -1,5 +1,47 @@
 # lupa 0.1.0
 
+## Lo que se mide contra lo que se declara
+
+- **Un valor subnormal se publicaba como un dato calculado.** Un `double`
+  distinto de cero y menor que 2,2e-308 no es una medición: sale de
+  reinterpretar un patrón de bits o de un desbordamiento por defecto. El caso
+  real: escribir una columna de enteros grandes en una base la guardó como doble
+  con los bits mal interpretados, y el perfil publicaba `moda = 1,06e-314` con
+  estado sano, porque el dato ya venía así del origen y ninguna comprobación
+  cruzada podía contradecirlo. El hallazgo `valores_subnormales` los cuenta, da
+  sus filas y los marca como `error`. El umbral no admite falsos positivos: se
+  midieron 140 columnas numéricas de 17 archivos reales y el valor no nulo más
+  chico está 4,5e304 veces por encima.
+- **`agregar(funcion = "ratio")` contaba como falso lo que no era 0 ni 1.** Con
+  una medida declarada booleana y un valor intermedio devolvía la proporción de
+  unos sin decir nada, mientras `promedio` sobre los mismos valores devolvía la
+  media. Se comprobaba el tipo declarado, no los valores.
+- **`comparar_perfiles()` abortaba contra un perfil de otra versión.** Un perfil
+  guardado hace meses puede no traer un campo que esta versión compara: en
+  cuatro de ellos abortaba con el mensaje interno de R, y en dos publicaba una
+  fila de cambio atribuida a los datos cuando lo que faltaba era el campo. Ahora
+  compara la intersección y declara lo ausente diciendo de qué lado falta.
+- **`sugerir_clave()` ofrecía como clave lo que `detectar_claves()` excluye.**
+  Un importe con decimales puede identificar cada fila y no ser una clave. No se
+  oculta que identifica —es un hecho medido—: se dice la reserva en el motivo y
+  la columna queda al final del orden.
+- **Se proponía una escala sobre una columna sin un solo dato observado.**
+  Recibía `continua` con confianza 0,65, la misma cifra que sobre mil
+  observaciones. Ahora dice `desconocida`. Donde la clase determina la escala
+  —`logical` es binaria, `Date` es temporal— la propuesta se mantiene.
+- **`medir()` no tenía por dónde recibir qué proteger.** Aceptaba
+  `proteger_datos_personales` pero no `columnas_personales` ni
+  `validadores_personales`, así que una columna que sólo es personal porque el
+  usuario lo dice quedaba sin proteger en el camino de métricas.
+- **Un parámetro vacío en el plan fallaba con un mensaje interno de R.** Quien
+  edita un plan no conoce las funciones internas, y ése es el caso de uso que la
+  capa declara. Ahora el motivo nombra el parámetro y la acción.
+- **`max_largo_valor = Inf`, documentado como «sin tope», abortaba el camino
+  LSH** con valores de 9.999 bytes o más.
+- **La normalización era cuadrática sobre un texto largo.** `regmatches()`
+  indexa por carácter, y en UTF-8 eso obliga a recorrer la cadena desde el
+  principio en cada coincidencia. Sobre 160 KB: de 41,1 s a 0,079 s.
+
 ## Una declaración vale en todas las salidas, no sólo en la primera
 
 - **El informe no publicaba las coberturas del objeto.** Una medición donde una
