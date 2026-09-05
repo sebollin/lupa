@@ -232,9 +232,51 @@ perfil_evaluacion <- function(nombre, ...) {
 
 .regla_umbral <- function(nombre, umbral, metricas) {
   force(umbral)
+  # La condicion CONSULTA la orientacion, que es para lo que existe el segundo
+  # argumento que `regla_evaluacion()` documenta y que esta fabrica ignoraba.
+  #
+  # Sin esto, una metrica orientada a `defecto` -donde mas alto es peor- quedaba
+  # premiada por la regla: una tabla 100 % duplicada da `EntidadDuplicada = 1`, y
+  # `Resultado > 0.5` la daba por cumplida en los tres perfiles, mientras la
+  # tabla limpia -`0`- no cumplia ninguno. La regla estaba al reves justo donde
+  # importa.
+  #
+  # La inversion es `1 - valor`, la misma convencion que ya usa
+  # `tablero_calidad()` para sus componentes de defecto, y que ese tablero
+  # publica en `invertidas`. Una sola convencion en el paquete y no dos.
+  #
+  # `no_aplica` no se invierte ni se premia: una medida que no aplica no es
+  # cumplimiento, y se resuelve como `NA` para que la evaluacion la trate como
+  # lo que es -no medida- en vez de contarla a favor.
   regla_evaluacion(
     nombre,
-    condicion = function(x) x > umbral,
+    condicion = function(x, orientacion = NULL) {
+      valor <- as.numeric(x)
+      if (!is.null(orientacion) && length(orientacion) == length(valor)) {
+        defecto <- !is.na(orientacion) & orientacion == "defecto"
+        valor[defecto] <- 1 - valor[defecto]
+        # Una metrica `no_aplica` es, por definicion del paquete, una metrica NO
+        # ACOTADA -dias de atraso, por ejemplo-. Un umbral en [0, 1] no puede
+        # juzgarla: `30 > 0.5` es cierto y no significa nada, y antes esta
+        # fabrica devolvia "cumple" para 30, 60 y 90 dias de atraso por igual.
+        #
+        # No se inventa un juicio ni se cuenta como incumplimiento -que tampoco
+        # es-: se para, nombrando la metrica y el porque, para que quien evalua
+        # declare una regla propia con la escala de esa medida.
+        no_aplica <- !is.na(orientacion) & orientacion == "no_aplica"
+        if (any(no_aplica)) {
+          stop(
+            "El perfil de madurez usa un umbral en [0, 1] y no puede juzgar una ",
+            "metrica no acotada. Declara orientacion `no_aplica`: ",
+            paste(unique(seq_along(valor)[no_aplica]), collapse = ", "),
+            " de ", length(valor), " medida(s). Declare una regla propia para ",
+            "esa metrica, con la escala que le corresponde.",
+            call. = FALSE
+          )
+        }
+      }
+      valor > umbral
+    },
     metricas = metricas
   )
 }

@@ -131,3 +131,82 @@ test_that("una clave foranea sin filas dependientes queda en cobertura explicita
   expect_equal(cobertura$estado, "sin_valores")
   expect_match(cobertura$motivo, "dependiente `ventas`.*cero filas")
 })
+
+# Los perfiles de madurez de fabrica ignoraban la orientacion de la medida, y la
+# regla quedaba al reves justo donde importa: una tabla 100 % duplicada da
+# `EntidadDuplicada = 1`, y `Resultado > 0.5` la daba por CUMPLIDA en los tres
+# perfiles mientras la tabla limpia -`0`- no cumplia ninguno.
+#
+# El mecanismo para consultarla ya existia: `regla_evaluacion()` documenta que la
+# condicion puede declarar un segundo argumento `orientacion`. La fabrica no lo
+# usaba. La inversion es `1 - valor`, la misma convencion que `tablero_calidad()`
+# ya aplica a sus componentes de defecto.
+test_that("los perfiles de madurez respetan la orientacion de la medida", {
+  nucleo <- metricas_nucleo()
+
+  evaluar_perfil <- function(datos, metrica, ...) {
+    instancia <- instanciar(especializar(metrica), "t", ...)
+    medida <- medir(modelo(instancia), datos, id_medicion = "x")
+    list(
+      medida = medida,
+      resultado = evaluar(
+        medida, perfiles_madurez(medida$metrica_instanciada)$Basico
+      )$perfiles$resultado
+    )
+  }
+
+  # --- orientacion `defecto`: mas alto es PEOR ---
+  duplicada <- evaluar_perfil(
+    data.frame(codigo = c("A", "A", "A", "A")), nucleo$EntidadDuplicada
+  )
+  limpia <- evaluar_perfil(
+    data.frame(codigo = c("A", "B", "C", "D")), nucleo$EntidadDuplicada
+  )
+
+  # Primera mitad: la orientacion es la que se cree, y las medidas son opuestas.
+  expect_equal(unique(duplicada$medida$orientacion), "defecto")
+  expect_equal(unique(duplicada$medida$resultado), 1)
+  expect_equal(unique(limpia$medida$resultado), 0)
+
+  # La tabla mala NO cumple y la limpia SI. Antes era al reves.
+  expect_equal(duplicada$resultado, 0)
+  expect_equal(limpia$resultado, 1)
+
+  # --- control: `conformidad` NO se invierte ---
+  no_nulo <- evaluar_perfil(data.frame(a = c(1, 2, NA, 4)), nucleo$NoNulo, "a")
+  expect_equal(unique(no_nulo$medida$orientacion), "conformidad")
+  expect_equal(no_nulo$resultado, 0.75)
+})
+
+test_that("un perfil de madurez no juzga una metrica no acotada", {
+  # Una metrica `no_aplica` es, por definicion del paquete, no acotada. Un
+  # umbral en [0, 1] no puede juzgarla: `30 > 0.5` es cierto y no significa
+  # nada, y antes esta fabrica devolvia "cumple" para 30, 60 y 90 dias de
+  # atraso por igual. Ahora para, nombrando el porque.
+  atraso <- metrica(
+    "AtrasoDias", "atraso en dias", "instanciaAtributo", "duracion",
+    dimension = "Frescura", factor = "Actualidad",
+    metodo = function(tablas, instancia) {
+      entidad <- instancia$entidad[[1L]]
+      atributo <- instancia$atributos[[1L]]
+      tabla <- .obtener_tabla_modelo(tablas, entidad)
+      x <- .obtener_columna_modelo(tabla, atributo, entidad)
+      filas <- which(!is.na(x))
+      .salida_metodo(x[filas], entidad, atributo, filas,
+                     paste0(entidad, "[", filas, ",]"))
+    }
+  )
+  medida <- medir(
+    modelo(instanciar(especializar(atraso), "t", "dias")),
+    data.frame(dias = c(30, 60, 90)), id_medicion = "dur"
+  )
+
+  # Primera mitad: la medida existe, es no acotada y esta declarada como tal.
+  expect_equal(unique(medida$orientacion), "no_aplica")
+  expect_equal(medida$resultado, c(30, 60, 90))
+
+  expect_error(
+    evaluar(medida, perfiles_madurez(medida$metrica_instanciada)$Basico),
+    "no acotada", fixed = TRUE
+  )
+})

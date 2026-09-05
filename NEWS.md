@@ -2,6 +2,22 @@
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 
+- **Los perfiles de madurez de fábrica premiaban el defecto.**
+  `perfiles_madurez()` genera reglas `Resultado > umbral` sin consultar la
+  orientación de la medida, así que sobre una métrica orientada a `defecto`
+  —donde más alto es peor— la regla quedaba invertida: una tabla 100 %
+  duplicada da `EntidadDuplicada = 1` y se daba por **cumplida** en los tres
+  perfiles, mientras la tabla limpia —`0`— no cumplía ninguno. El mecanismo para
+  consultarla ya existía: `regla_evaluacion()` documenta que la condición puede
+  declarar un segundo argumento `orientacion`. Ahora la fábrica lo usa, e
+  invierte con `1 - valor`, la misma convención que `tablero_calidad()` aplica a
+  sus componentes de defecto. Las métricas `conformidad` no cambian.
+- **Un perfil de madurez ya no juzga una métrica no acotada.** Una métrica que
+  declara `orientacion = "no_aplica"` es, por definición del paquete, no
+  acotada; un umbral en `[0, 1]` no puede juzgarla, y antes `Resultado > 0.5`
+  devolvía «cumple» para 30, 60 y 90 días de atraso por igual. Ahora la
+  evaluación se detiene nombrando la métrica y el motivo, para que quien evalúa
+  declare una regla con la escala que le corresponde.
 - **Guardar una columna como `integer64` cambiaba lo que el paquete publicaba
   sobre ella.** Tres desvíos con la misma raíz, encontrados comparando la misma
   columna descrita por dos caminos:
