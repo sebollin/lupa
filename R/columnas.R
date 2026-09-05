@@ -32,15 +32,8 @@
   # clave equivalente donde hace falta, y si aun asi no se puede, se deja el
   # orden de aparicion: es peor que ordenar, pero mucho mejor que romper el
   # perfil entero por una columna exotica.
-  if (is.character(unicos)) {
-    unicos <- .ordenar_por_bytes(unicos)
-  } else {
-    clave <- if (is.raw(unicos)) as.integer(unicos) else unicos
-    orden <- tryCatch(order(clave), error = function(e) NULL)
-    if (!is.null(orden) && length(orden) == length(unicos)) {
-      unicos <- unicos[orden]
-    }
-  }
+  orden <- .orden_seguro(unicos)
+  if (length(orden) == length(unicos)) unicos <- unicos[orden]
   indices <- match(valores, unicos)
   frecuencias <- tabulate(indices, nbins = length(unicos))
   posicion <- which.max(frecuencias)
@@ -228,11 +221,43 @@
   # distinto segun como estuviera almacenado. Medido: un codigo 1..284 con 179
   # valores fuera de los limites de Tukey se callaba como `integer` y se
   # senalaba como `double`.
-  if (!as.character(inferencia$tipo) %in% c("entero", "doble")) return(vacio)
+  # `integer64` es la TERCERA forma de guardar lo mismo, y quedo afuera cuando
+  # se agrego `doble` a esta lista. Medido: la columna `1:1000` se publica como
+  # `posible_identificador` guardada en `entero` o en `double`, y como
+  # `faltantes_disfrazados` guardada en `integer64` -porque sin secuencia densa
+  # detectada, el `999` que trae la lista por omision de centinelas deja de estar
+  # protegido por "esto es una numeracion"-. El mismo dato, dos hallazgos
+  # distintos, decididos por el almacenamiento.
+  #
+  # `bit64` no esta en Imports, asi que esto NO puede depender de que este
+  # instalado: el tipo llega como texto en `inferencia$tipo` y con eso alcanza.
+  # Los valores se llevan a `double` para medir la secuencia; con
+  # identificadores por encima de 2^53 eso perderia precision, y por eso se
+  # comprueba antes -si no entran, no se mide y se declara vacio, que es lo que
+  # corresponde: no se inventa una densidad sobre numeros redondeados-.
+  if (!as.character(inferencia$tipo) %in% c("entero", "doble", "integer64")) {
+    return(vacio)
+  }
   cuantitativos <- .valores_cuantitativos(x, inferencia, formatos)
-  if (!identical(cuantitativos$clase, "numero")) return(vacio)
+  if (!identical(cuantitativos$clase, "numero") &&
+      !identical(cuantitativos$clase, "integer64")) {
+    return(vacio)
+  }
   presentes <- !is.na(x)
   valores <- cuantitativos$valores
+  if (identical(cuantitativos$clase, "integer64")) {
+    finitos <- valores[!is.na(valores)]
+    # El aviso de `bit64` -"integer precision lost while converting to double"-
+    # se silencia a proposito: la conversion es la MEDICION, no un descuido.
+    # Se esta preguntando si estos valores entran en un `double`, y si no
+    # entran no se mide. Dejarlo salir haria que la comprobacion avise en el
+    # unico caso donde se porta bien.
+    if (length(finitos) &&
+        any(suppressWarnings(abs(as.numeric(finitos))) > 2^53)) {
+      return(vacio)
+    }
+    valores <- suppressWarnings(as.numeric(valores))
+  }
   if (!any(presentes) || length(valores) != length(x) ||
       any(!is.finite(valores[presentes])) ||
       any(valores[presentes] != floor(valores[presentes]))) {

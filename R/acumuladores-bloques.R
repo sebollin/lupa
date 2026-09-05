@@ -2007,10 +2007,15 @@
   candidatos <- which(mapa$frecuencia == max(mapa$frecuencia))
   if (length(candidatos) > 1L) {
     valores <- mapa$representante[candidatos]
+    # `.orden_seguro()` y no `order()`: sobre `integer64` el `order()` de base
+    # -que es el que rige dentro del espacio de nombres, aunque el usuario tenga
+    # `bit64` adjunto- ordena por los bits del `double` y manda los negativos al
+    # final. Ese era el desempate que hacia que la misma columna diera moda `1`
+    # en `integer64` y `-999` en `double`.
     orden <- if (is.character(valores)) {
       match(.ordenar_por_bytes(valores), valores)
     } else {
-      tryCatch(order(valores), error = function(e) integer())
+      .orden_seguro(valores)
     }
     if (length(orden) == length(candidatos)) candidatos <-
       candidatos[orden]

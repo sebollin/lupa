@@ -148,11 +148,11 @@ result was read from that run's own check log — not from a green tick, not fro
 the conclusion of a CI run, and not from the notification e-mail.
 
 The package sources submitted are those of
-`fc5a601f144c2c46d0a41ffae6c657b43ce3c993`. The tarball was built from a clean
+`1a47aaf803c036257cd69bc27f6b0ff7b165ceb6`. The tarball was built from a clean
 tree at that commit, which is checkable rather than asserted:
 
 ```sh
-git rev-parse HEAD        # fc5a601f144c2c46d0a41ffae6c657b43ce3c993
+git rev-parse HEAD        # 1a47aaf803c036257cd69bc27f6b0ff7b165ceb6
 git status --porcelain    # no output: nothing uncommitted travels in the build
 R CMD build --compact-vignettes=gs+qpdf lupa
 ```

@@ -23,6 +23,41 @@
   clave
 }
 
+# El orden de un vector cualquiera, sin depender de lo que el usuario tenga
+# adjunto ni de la configuracion regional.
+#
+# `bit64` ENMASCARA `order()` cuando esta adjunto, y dentro del espacio de
+# nombres de un paquete no lo esta: ahi `order()` es el de base, que sobre un
+# `integer64` ordena por los bits del `double` subyacente y manda los negativos
+# al final. Medido: `c(1, 2, -999, 4, 5)` daba `1,2,4,5,3`. Con eso, ante un
+# empate la moda de una columna `integer64` salia `1` donde la misma columna en
+# `double` daba `-999`: el mismo dato, dos modas, decididas por el
+# almacenamiento.
+#
+# `rank.integer64()` si esta exportada por `bit64` -`order.integer64` no-, y
+# ordenar por el rango da el orden correcto incluso por encima de 2^53, sin
+# convertir a `double` y sin perder precision.
+#
+# Es la misma familia que el desempate por locale y que el import de
+# `data.table`: una dependencia que cambia el significado de una funcion basica
+# segun donde se la llame.
+.orden_seguro <- function(x) {
+  if (inherits(x, "integer64")) {
+    # Si la columna es `integer64`, `bit64` esta necesariamente cargado: el
+    # objeto no podria existir si no. Aun asi se cae con elegancia.
+    if (requireNamespace("bit64", quietly = TRUE)) {
+      return(tryCatch(order(bit64::rank.integer64(x)),
+                      error = function(e) seq_along(x)))
+    }
+    return(seq_along(x))
+  }
+  if (is.character(x)) {
+    return(order(.clave_bytes(x), method = "radix"))
+  }
+  clave <- if (is.raw(x)) as.integer(x) else x
+  tryCatch(order(clave), error = function(e) seq_along(x))
+}
+
 .ordenar_por_bytes <- function(x) {
   if (!length(x)) return(x)
   x[order(.clave_bytes(x), method = "radix")]

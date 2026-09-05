@@ -200,9 +200,44 @@
 .diagnosticar_benford <- function(datos, columnas, hallazgos,
                                   clave_declarada = NULL) {
   candidatas <- which(vapply(datos, .columna_candidata_benford, logical(1L)))
+
+  # `integer64` esta excluido por tipo desde el primer commit, junto con `Date`,
+  # `POSIXt` y `difftime`. Esos tres son tipos de tiempo y Benford no les aplica
+  # por naturaleza; `integer64` en cambio ES un numero, y la exclusion lo dejaba
+  # en silencio: la MISMA columna `1:1000` guardada en `entero` producia una fila
+  # de cobertura -"ley_benford no aplica, es un identificador"- y guardada en
+  # `integer64` no producia nada. Un diagnostico que no corre se declara; esa es
+  # la regla del paquete y aca no se cumplia.
+  #
+  # No se amplia el alcance de Benford a `integer64` -eso cambiaria conducta
+  # estadistica y merece su propia vuelta-: se declara la no evaluacion, que es
+  # lo que faltaba.
+  excluidas_por_tipo <- which(vapply(datos, function(x) {
+    inherits(x, "integer64") && sum(is.finite(x)) >= 50L
+  }, logical(1L)))
+  cobertura_tipo <- lapply(excluidas_por_tipo, function(i) {
+    .nuevo_diagnostico_no_evaluado(
+      "ley_benford", names(datos)[[i]],
+      paste0(
+        "La columna se guarda como `integer64` y el diagnostico no se evalua ",
+        "sobre ese tipo."
+      ),
+      paste0(
+        "No leer la ausencia de hallazgo como conformidad. Para evaluar Benford ",
+        "sobre esta columna, convertirla a `double` si sus valores entran en la ",
+        "precision de ese tipo."
+      )
+    )
+  })
+
   if (!length(candidatas)) {
-    return(list(hallazgos = list(), cobertura = .cobertura_diagnosticos_vacia(),
-                meta = NULL))
+    return(list(
+      hallazgos = list(),
+      cobertura = if (length(cobertura_tipo)) {
+        do.call(rbind, cobertura_tipo)
+      } else .cobertura_diagnosticos_vacia(),
+      meta = NULL
+    ))
   }
 
   umbrales <- .umbrales_benford()
@@ -246,6 +281,7 @@
     )
   })
   cobertura <- cobertura[!vapply(cobertura, is.null, logical(1L))]
+  cobertura <- c(cobertura, cobertura_tipo)
   cobertura <- if (length(cobertura)) {
     do.call(rbind, cobertura)
   } else {

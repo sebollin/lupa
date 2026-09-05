@@ -2,6 +2,27 @@
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 
+- **Guardar una columna como `integer64` cambiaba lo que el paquete publicaba
+  sobre ella.** Tres desvíos con la misma raíz, encontrados comparando la misma
+  columna descrita por dos caminos:
+  - `bit64` **enmascara `order()`** cuando está adjunto, y dentro del espacio de
+    nombres de un paquete no lo está: ahí `order()` es el de base, que sobre un
+    `integer64` ordena por los bits del `double` subyacente y manda los negativos
+    al final. Con eso, ante un empate la moda de una columna `integer64` salía
+    `1` donde la misma columna en `double` daba `-999` —y las tres puertas del
+    perfil DBI heredaban la diferencia—. Ahora el orden pasa por un ayudante que
+    usa `bit64::rank.integer64()`, correcto también por encima de 2^53.
+  - La detección de numeración densa aceptaba `entero` y `doble` pero no
+    `integer64`, que es la tercera forma de guardar lo mismo. Sin numeración
+    detectada, el `999` de una columna `1:1000` dejaba de estar protegido por
+    «esto es un identificador» y el mismo dato publicaba
+    `faltantes_disfrazados` donde en `entero` publicaba `posible_identificador`.
+    Por encima de la precisión de `double` no se mide y se declara, en vez de
+    inventar una densidad sobre números redondeados.
+  - La ley de Benford excluye `integer64` por tipo desde el primer día, pero no
+    lo declaraba: la misma columna producía una fila de cobertura en `entero` y
+    silencio en `integer64`. Un diagnóstico que no corre se declara, también
+    cuando no corre por el tipo.
 - **`n_cambiadas` contaba valores presentes y no cambios, en las dos
   conversiones.** Catorce acciones de la capa de remediación cuentan los cambios
   reales; `convertir_tipo` y `convertir_fecha_confirmada` contaban
