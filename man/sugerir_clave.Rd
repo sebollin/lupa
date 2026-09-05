@@ -36,6 +36,12 @@ Las columnas que repiten valores no se ofrecen como clave de una sola
 columna, pero sí se informan cuando estuvieron cerca: una columna que
 identifica al 99 \% suele ser una clave con duplicados de carga, que es
 exactamente lo que conviene mirar.
+
+Una columna \code{double} con valores de parte fraccionaria —un importe, una
+coordenada— puede identificar cada fila y aun así no ser una clave. No se
+oculta que identifica, porque es un hecho medido: se dice en el motivo y la
+columna queda al final del orden. Es el mismo criterio que aplica
+\code{\link[=detectar_claves]{detectar_claves()}}, consultado a la misma función.
 }
 \examples{
 personas <- data.frame(

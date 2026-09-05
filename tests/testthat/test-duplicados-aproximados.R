@@ -1282,3 +1282,58 @@ test_that("la trazabilidad separa los pares exactos normalizados", {
     logical(1L)
   )))
 })
+
+# `max_largo_valor = Inf` esta documentado como "sin tope". El camino LSH
+# indexaba su cache de q-gramas por el texto completo, y `exists()` limita los
+# nombres de variable a 10000 bytes: un valor mas largo abortaba la corrida
+# entera con un error interno de R en vez de compararla. Borde medido: 9998
+# bytes pasaba, 9999 abortaba. Solo aparecia con al menos un par candidato,
+# porque el crash ocurre despues de la comparacion.
+test_that("un valor de mas de 10000 bytes no aborta el camino LSH", {
+  set.seed(7)
+  texto <- paste(sample(letters, 12000, replace = TRUE), collapse = "")
+  datos <- data.frame(
+    nombre = c(paste0(texto, "a"), paste0(texto, "b")),
+    stringsAsFactors = FALSE
+  )
+  resultado <- expect_no_error(
+    detectar_duplicados_aproximados(
+      datos, estrategia = "lsh", max_largo_valor = Inf
+    )
+  )
+  # Y el mecanismo se activo: encontro el par, no se salvo no comparando.
+  expect_equal(nrow(resultado$pares), 1L)
+  expect_true(resultado$pares$distancia[[1L]] < 0.01)
+
+  # El borde exacto, que es donde la guarda tiene que valer.
+  for (largo in c(9998L, 9999L, 10000L)) {
+    set.seed(7)
+    texto <- paste(sample(letters, largo, replace = TRUE), collapse = "")
+    datos <- data.frame(
+      nombre = c(paste0(texto, "a"), paste0(texto, "b")),
+      stringsAsFactors = FALSE
+    )
+    salida <- expect_no_error(
+      detectar_duplicados_aproximados(
+        datos, estrategia = "lsh", max_largo_valor = Inf
+      )
+    )
+    expect_equal(nrow(salida$pares), 1L, info = paste("largo", largo))
+  }
+})
+
+# La mitad de control: la cache sigue deduplicando por valor, que es para lo
+# que existe. Sin esto, indexar por la fila en vez de por el valor distinto
+# pasaria el test de arriba y perderia la deduplicacion en silencio.
+test_that("la cache de q-gramas sigue reutilizando el valor repetido", {
+  repetido <- data.frame(
+    v = c(rep("exactamente el mismo texto para la cubeta", 200),
+          "exactamente el mismo texto para la cubet4"),
+    stringsAsFactors = FALSE
+  )
+  resultado <- detectar_duplicados_aproximados(repetido, estrategia = "lsh")
+  expect_true(nrow(resultado$pares) > 0L)
+  # 201 filas y 2 valores distintos: la cache no puede tener mas de 2 entradas.
+  gramas <- lupa:::.qgramas_lsh(unique(repetido$v), 3L)
+  expect_length(gramas, 2L)
+})

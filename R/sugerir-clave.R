@@ -67,6 +67,12 @@
 #' identifica al 99 % suele ser una clave con duplicados de carga, que es
 #' exactamente lo que conviene mirar.
 #'
+#' Una columna `double` con valores de parte fraccionaria —un importe, una
+#' coordenada— puede identificar cada fila y aun así no ser una clave. No se
+#' oculta que identifica, porque es un hecho medido: se dice en el motivo y la
+#' columna queda al final del orden. Es el mismo criterio que aplica
+#' [detectar_claves()], consultado a la misma función.
+#'
 #' @param datos Tabla a examinar.
 #' @param maximo Cuántas sugerencias devolver como máximo.
 #' @param umbral_casi Proporción de valores distintos a partir de la cual una
@@ -118,6 +124,13 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
       columna = nombre, identifica = identifica,
       sin_faltantes = n_validos == nrow(datos), tasa_distintos = tasa,
       parecido_nombre = as.integer(.puntaje_nombre_clave(nombre)),
+      # La misma regla que aplica detectar_claves(), consultada a la misma
+      # funcion en vez de repetida: un `double` con parte fraccionaria es un
+      # importe o una coordenada, no un identificador. Sin esto las dos puertas
+      # respondian distinto a la misma pregunta sobre la misma tabla -medido:
+      # sugerir_clave() ofrecia un importe con decimales que detectar_claves()
+      # excluia-.
+      candidato_por_tipo = isTRUE(.resumen_tipo_candidato_clave(x)$es_candidato),
       stringsAsFactors = FALSE
     )
   })
@@ -130,8 +143,8 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   # tabla -la clave suele ser la primera columna-.
   posicion <- match(salida$columna, names(datos))
   salida <- salida[order(
-    -salida$identifica, -salida$sin_faltantes, -salida$parecido_nombre,
-    -salida$tasa_distintos, posicion
+    -salida$identifica, -salida$candidato_por_tipo, -salida$sin_faltantes,
+    -salida$parecido_nombre, -salida$tasa_distintos, posicion
   ), , drop = FALSE]
 
   salida$motivo <- vapply(seq_len(nrow(salida)), function(i) {
@@ -152,6 +165,14 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
     } else {
       "no identifica: sus valores no repiten, pero no estan en todas las filas"
     })
+    if (!salida$candidato_por_tipo[[i]]) {
+      # No se niega que identifique -eso es un hecho medido-, se dice por que
+      # no conviene usarla de clave.
+      partes <- c(partes, paste(
+        "sus valores tienen parte fraccionaria: es una medida, no un",
+        "identificador"
+      ))
+    }
     if (!salida$sin_faltantes[[i]]) {
       partes <- c(partes, "una clave con ausentes no identifica")
     }

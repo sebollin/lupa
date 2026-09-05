@@ -1187,9 +1187,20 @@
     on.exit(cli::cli_progress_done(), add = TRUE)
   }
   # nocov end
+  # La cache se indexa por el INDICE del valor distinto y no por el texto:
+  # `exists()` y `assign()` limitan los nombres de variable a 10000 bytes, y con
+  # `max_largo_valor = Inf` -que la documentacion ofrece como "sin tope"- un
+  # valor mas largo hacia abortar la corrida entera con un error interno de R,
+  # en vez de compararla o de declararla fuera de alcance. Borde medido: 9998
+  # bytes pasaba, 9999 abortaba.
+  #
+  # El mapeo cuesta una pasada y es practicamente gratis -0,001 s sobre 50.000
+  # filas, porque R internaliza las cadenas y compara punteros-, asi que
+  # conserva la deduplicacion que el texto como clave daba.
+  indice_valor_distinto <- match(valores, unique(valores))
   obtener_gramas <- function(indice) {
     texto <- valores[[indice]]
-    clave <- paste0("v:", texto)
+    clave <- as.character(indice_valor_distinto[[indice]])
     if (exists(clave, envir = cache_gramas, inherits = FALSE)) {
       return(get(clave, envir = cache_gramas, inherits = FALSE))
     }

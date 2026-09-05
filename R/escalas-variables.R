@@ -107,6 +107,20 @@
       "escala de medicion."
     )
   ))
+  # Una columna sin un solo valor observado no exhibe ninguna escala. Antes se
+  # publicaba "continua" con confianza 0.65 -la misma cifra que sobre mil
+  # observaciones- y una evidencia que describia el ALMACENAMIENTO como si
+  # describiera los datos. Es la regla del paquete, no publicar lo que no se
+  # pudo medir, aplicada a esta senal; y el vocabulario ya trae `desconocida`
+  # para decirlo.
+  if (!length(presentes)) return(list(
+    escala = "desconocida", rol = "desconocido", confianza = NA_real_,
+    confirmada = FALSE,
+    evidencia = paste0(
+      "La columna no tiene ningun valor observado: no hay con que inferir una ",
+      "escala de medicion."
+    )
+  ))
   if (tipo_implicito == "identificador") return(list(
     escala = "nominal", rol = "identificador", confianza = 0.9,
     confirmada = FALSE,
