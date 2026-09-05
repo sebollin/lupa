@@ -143,7 +143,8 @@ test_that("la senal cuenta como el resto bajo muestreo y sobrevive al viaje", {
   }
 
   analisis <- analizar(data.frame(x = c(subnormales(4), 1, 2)))
-  archivo <- withr::local_tempfile(fileext = ".rds")
+  archivo <- tempfile(fileext = ".rds")
+  on.exit(unlink(archivo), add = TRUE)
   guardar_analisis(analisis, archivo)
   leido <- leer_analisis(archivo)
   antes <- analisis$perfil$hallazgos

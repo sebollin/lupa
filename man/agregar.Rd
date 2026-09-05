@@ -28,7 +28,10 @@ Debe contener una sola métrica específica, una corrida y una granularidad.}
 \item{umbral}{Umbral en \verb{[0, 1]} requerido por \code{ratio_umbral}.}
 
 \item{pesos}{Vector numérico requerido por \code{promedio_ponderado}, con una
-entrada por fila de \code{medidas}.}
+entrada por fila de \code{medidas}. Si trae nombres, se emparejan con
+\code{objeto_medible} y se falla nombrando lo que sobra o falta —igual que en
+\code{\link[=indice_calidad]{indice_calidad()}}—, así que la misma declaración escrita en otro orden da
+el mismo número. Sin nombres se leen por posición.}
 
 \item{coleccion}{Frontera declarada, exigida cuando \code{destino} es
 \code{"coleccion"}: el objeto de \code{\link[=coleccion]{coleccion()}} o el perfil de

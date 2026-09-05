@@ -573,8 +573,9 @@ print.referencial <- function(x, ...) {
 #' dimensión Completitud. La cobertura ignora claves ausentes en el objetivo y
 #' no permite que duplicados inflen el resultado.
 #'
-#' @return Lista con tres objetos `metrica_generica` -cobertura, validez y
-#'   completitud del dominio-, listos para instanciar contra un `referencial`.
+#' @return Lista con tres objetos `metrica_generica` —`CorrectitudSemFuerte`,
+#'   `CorrectitudSemDebil` y `RatioCobertura`—, listos para instanciar contra un
+#'   `referencial`.
 #'   Son definiciones: no miden hasta que se las instancia.
 #' @export
 #'

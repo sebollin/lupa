@@ -577,3 +577,58 @@ test_that("ratio sigue agregando lo que medir() produce", {
   # fija que el barrido efectivamente corrio sobre instancias booleanas.
   expect_gt(booleanas, 5L)
 })
+
+# Los pesos de `agregar()` son posicionales, pero un vector con nombres es una
+# DECLARACION de a que parte va cada peso. Antes se aceptaba y se desoia:
+# medido, `c(a = 0.2, b = 0.8)` y `c(b = 0.8, a = 0.2)` -la misma declaracion
+# escrita en otro orden- daban 0,590476 y 0,647619, y nombres que no existian
+# en la medicion se aceptaban en silencio.
+#
+# `indice_calidad()` ya habia decidido esto en el mismo paquete: empareja por
+# nombre y falla nombrando lo que sobra y lo que falta.
+test_that("los pesos con nombre se emparejan y no se leen por posicion", {
+  skip_if_not_installed("duckdb")
+  conexion <- DBI::dbConnect(duckdb::duckdb(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion, shutdown = TRUE), add = TRUE)
+  primera <- data.frame(v = c(1, NA, 3))
+  segunda <- data.frame(v = c(1, 2, 3, 4, NA, NA, NA))
+  DBI::dbWriteTable(conexion, "a", primera)
+  DBI::dbWriteTable(conexion, "b", segunda)
+  frontera <- coleccion(conexion, tablas = c("a", "b"))
+
+  medicion <- medir(
+    modelo(
+      instanciar(especializar(metricas_nucleo()$NoNulo), "a", "v"),
+      instanciar(especializar(metricas_nucleo()$NoNulo), "b", "v")
+    ),
+    list(a = primera, b = segunda)
+  )
+  por_entidad <- agregar(
+    agregar(medicion, destino = "atributo", funcion = "promedio"),
+    destino = "entidad", funcion = "promedio"
+  )
+  expect_equal(nrow(por_entidad), 2L)
+
+  ponderar <- function(pesos) {
+    agregar(
+      por_entidad, destino = "coleccion", funcion = "promedio_ponderado",
+      pesos = pesos, coleccion = frontera
+    )$resultado
+  }
+  esperado <- 0.2 * por_entidad$resultado[[1L]] +
+    0.8 * por_entidad$resultado[[2L]]
+
+  # Sin nombres se lee por posicion, que es lo que la documentacion declara.
+  expect_equal(ponderar(c(0.2, 0.8)), esperado)
+  # Con nombres, el orden en que se escriben no puede cambiar el numero.
+  expect_equal(ponderar(c(a = 0.2, b = 0.8)), esperado)
+  expect_equal(ponderar(c(b = 0.8, a = 0.2)), esperado)
+
+  # Y una declaracion que no corresponde a ninguna parte se rechaza en vez de
+  # aplicarse por posicion.
+  expect_error(ponderar(c(x = 0.2, y = 0.8)), "Faltan pesos para")
+  expect_error(
+    ponderar(stats::setNames(c(0.2, 0.8), c("a", ""))),
+    "mezcla entradas con nombre"
+  )
+})

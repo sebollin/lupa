@@ -7,8 +7,9 @@
 metricas_referencial()
 }
 \value{
-Lista con tres objetos \code{metrica_generica} -cobertura, validez y
-completitud del dominio-, listos para instanciar contra un \code{referencial}.
+Lista con tres objetos \code{metrica_generica} —\code{CorrectitudSemFuerte},
+\code{CorrectitudSemDebil} y \code{RatioCobertura}—, listos para instanciar contra un
+\code{referencial}.
 Son definiciones: no miden hasta que se las instancia.
 }
 \description{

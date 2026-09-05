@@ -506,7 +506,10 @@ transiciones_granularidad <- function() {
 #'   `"promedio_ponderado"`.
 #' @param umbral Umbral en `[0, 1]` requerido por `ratio_umbral`.
 #' @param pesos Vector numérico requerido por `promedio_ponderado`, con una
-#'   entrada por fila de `medidas`.
+#'   entrada por fila de `medidas`. Si trae nombres, se emparejan con
+#'   `objeto_medible` y se falla nombrando lo que sobra o falta —igual que en
+#'   [indice_calidad()]—, así que la misma declaración escrita en otro orden da
+#'   el mismo número. Sin nombres se leen por posición.
 #' @param coleccion Frontera declarada, exigida cuando `destino` es
 #'   `"coleccion"`: el objeto de [coleccion()] o el perfil de
 #'   [perfilar_coleccion()]. Sin ella no se sabe sobre qué tablas se está
@@ -677,6 +680,42 @@ agregar <- function(medidas, destino,
     if (!is.numeric(pesos) || length(pesos) != nrow(medidas) || anyNA(pesos) ||
         any(!is.finite(pesos)) || any(pesos < 0 | pesos > 1)) {
       stop("`pesos` debe tener una entrada en [0, 1] por medida.", call. = FALSE)
+    }
+    # Los pesos son posicionales, pero un vector con nombres es una
+    # DECLARACION de a que parte va cada peso, y desoirla es peor que
+    # rechazarla: medido, `c(a = 0.2, b = 0.8)` y `c(b = 0.8, a = 0.2)` -la
+    # misma declaracion escrita en otro orden- daban 0,590476 y 0,647619, y
+    # nombres que no existian en la medicion se aceptaban en silencio.
+    #
+    # `indice_calidad()` ya decidio esto en el mismo paquete: sus pesos se
+    # emparejan por nombre y falla nombrando lo que sobra y lo que falta. Aca
+    # se hace lo mismo, y sin nombres se sigue leyendo por posicion, que es lo
+    # que la documentacion declara.
+    if (!is.null(names(pesos))) {
+      if (any(!nzchar(names(pesos)))) {
+        stop(
+          "`pesos` mezcla entradas con nombre y sin nombre. Corresponde una ",
+          "sola forma: o todas con el nombre de su parte, o todas por ",
+          "posici\u00f3n.", call. = FALSE
+        )
+      }
+      partes_medidas <- as.character(medidas$objeto_medible)
+      faltan <- setdiff(partes_medidas, names(pesos))
+      sobran <- setdiff(names(pesos), partes_medidas)
+      if (length(faltan)) {
+        stop("Faltan pesos para: ", paste(faltan, collapse = ", "), ".",
+             call. = FALSE)
+      }
+      if (length(sobran)) {
+        stop("Sobran pesos para: ", paste(sobran, collapse = ", "), ".",
+             call. = FALSE)
+      }
+      if (anyDuplicated(names(pesos))) {
+        stop("`pesos` repite una parte: ",
+             paste(unique(names(pesos)[duplicated(names(pesos))]),
+                   collapse = ", "), ".", call. = FALSE)
+      }
+      pesos <- unname(pesos[match(partes_medidas, names(pesos))])
     }
   }
   grupos <- .indices_grupos_agregacion(medidas, destino)
