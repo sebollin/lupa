@@ -211,8 +211,20 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   }
   cobertura_diagnosticos <- list()
 
-  for (nombre_grupo in names(grupos)) {
-    filas <- grupos[[nombre_grupo]]
+  # Se recorre por POSICION y no por nombre.
+  #
+  # `x[[""]]` devuelve `NULL` aunque el elemento exista: R no resuelve la cadena
+  # vacia como nombre. Con `for (nombre in names(grupos))` el grupo de los
+  # blancos `""` recibia `filas <- NULL`, quedaba con cero filas, caia en la
+  # rama de `min_filas` y se publicaba como "El grupo tiene 0 filas". Medido
+  # sobre 200 filas con un grupo de 30 blancos: **la suma de `n_filas_grupo`
+  # daba 170**, y esas 30 filas no aparecian en ningun lado -ni perfiladas ni
+  # declaradas-.
+  #
+  # Es la unica forma de indexar que no depende del contenido de los nombres.
+  for (indice_grupo in seq_along(grupos)) {
+    nombre_grupo <- names(grupos)[[indice_grupo]]
+    filas <- grupos[[indice_grupo]]
     if (length(filas) < min_filas) {
       cobertura[[length(cobertura) + 1L]] <- data.frame(
         grupo = nombre_grupo, n_filas_grupo = length(filas),

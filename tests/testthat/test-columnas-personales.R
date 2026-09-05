@@ -196,3 +196,39 @@ test_that("las abreviaturas de fecha de nacimiento y de defuncion se clasifican"
     expect_false(clasifica(nombre), info = nombre)
   }
 })
+
+# La proporcion de compatibilidad se calcula sobre los valores que se pueden
+# juzgar -un blanco no tiene forma que comparar contra un patron- y ese
+# denominador se publicaba sin decirse: ocho documentos y treinta y dos blancos
+# publicaban `proporcion_compatible = 1`, o sea "100 % compatible", calculado
+# sobre ocho de cuarenta valores.
+#
+# No se cambio el denominador: incluir los blancos volveria incompatible a toda
+# columna medio vacia, que es un falso positivo peor. Se declara el alcance.
+test_that("la proporcion de compatibilidad declara sobre cuantos se calculo", {
+  documentos <- c("12345678", "23456789", "34567890", "45678901",
+                  "56789012", "67890123", "78901234", "89012345")
+  con_blancos <- data.frame(
+    cedula = c(documentos, rep(c("", " ", "\t"), length.out = 32L)),
+    stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(con_blancos, datos_personales_permitidos = FALSE,
+                     analizar_dependencias = FALSE)
+
+  # Primera mitad: la columna tiene blancos de verdad y se clasifico.
+  expect_equal(perfil$columnas$n_blancos, 32L)
+  fila <- perfil$datos_personales[perfil$datos_personales$columna == "cedula", ]
+  expect_equal(nrow(fila), 1L)
+
+  expect_equal(fila$proporcion_compatible, 1)
+  expect_equal(fila$valores_evaluados, 8L)
+  expect_equal(fila$valores_totales, 40L)
+
+  # Control: sin blancos, el evaluado y el total coinciden. Sin esta mitad, un
+  # denominador siempre menor que el total pasaria el test.
+  sin_blancos <- data.frame(cedula = documentos, stringsAsFactors = FALSE)
+  fila_limpia <- perfilar(sin_blancos, datos_personales_permitidos = FALSE,
+                          analizar_dependencias = FALSE)$datos_personales
+  expect_equal(fila_limpia$valores_evaluados, 8L)
+  expect_equal(fila_limpia$valores_totales, 8L)
+})

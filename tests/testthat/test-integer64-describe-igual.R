@@ -99,3 +99,42 @@ test_that("memoria y motor dan la misma moda sobre una columna integer64", {
   expect_equal(as.character(por_motor$perfil_muestra$columnas$moda),
                as.character(en_memoria$columnas$moda))
 })
+
+test_that("la moda de una columna integer64 no depende de bit64 adjunto", {
+  skip_if_not_installed("bit64")
+  # `bit64` NO registra sus metodos S3 cuando solo esta cargado, asi que dentro
+  # del espacio de nombres del paquete cualquier operacion de base sobre un
+  # `integer64` -incluso `x[1]`- lo degrada a `double` REINTERPRETANDO SUS BITS.
+  # La moda publicada era `4.4501477170144e-308` cuando el usuario no tenia
+  # `bit64` adjunto, y el valor correcto cuando si: el numero publicado dependia
+  # de lo que el usuario tuviera cargado en su sesion.
+  #
+  # Los valores se construyen desde CADENA: `as.integer64(9007199254740993)`
+  # recibe un literal `double` que ya redondeo a 2^53, asi que los dos valores
+  # serian el mismo y la prueba no probaria nada.
+  columna <- bit64::as.integer64(c("9007199254740992", "9007199254740993"))
+  expect_equal(length(unique(bit64::as.character.integer64(columna))), 2L)
+
+  # NO se afirma aqui si `bit64` tiene registrados sus metodos S3: eso depende de
+  # lo que este adjunto en la sesion -dentro de la suite puede estarlo por otra
+  # prueba- y es un detalle de otro paquete. Lo que esta prueba fija es la
+  # CONDUCTA: el valor publicado es el correcto pase lo que pase.
+
+  moda <- .moda_columna(columna)
+  expect_equal(moda$valor, "9007199254740992")
+  expect_equal(moda$frecuencia, 1L)
+
+  # Y el desempate sigue el orden numerico, igual que en una columna `double`
+  # equivalente: no se cambia el criterio segun el tipo.
+  con_empate <- rep(c(1, 2, -999, 4, 5), 60L)
+  expect_equal(
+    .moda_columna(bit64::as.integer64(con_empate))$valor,
+    .moda_columna(as.numeric(con_empate))$valor
+  )
+  # Y el caso donde el orden por bytes daria otra cosa: "10" antes que "9".
+  nueve_diez <- c(rep(9, 3L), rep(10, 3L))
+  expect_equal(
+    .moda_columna(bit64::as.integer64(nueve_diez))$valor,
+    .moda_columna(as.numeric(nueve_diez))$valor
+  )
+})

@@ -1,8 +1,23 @@
+# La proporcion se calcula sobre los valores que se pueden juzgar -un blanco no
+# tiene forma que comparar contra un patron- y por eso los excluye. Pero ese
+# denominador se publicaba sin decirse: una columna con ocho documentos y treinta
+# y dos blancos publicaba `proporcion_compatible = 1`, o sea "100 % compatible",
+# calculado sobre ocho de cuarenta valores.
+#
+# No se cambia el denominador -incluir los blancos convertiria toda columna
+# medio vacia en incompatible, que es un falso positivo peor-. Se declara sobre
+# cuantos se calculo, que es lo que faltaba para poder leer el numero.
 .proporcion_compatible <- function(x, patron) {
   valores <- trimws(.texto_analizable(x)$valores)
   presentes <- !is.na(valores) & nzchar(valores)
-  if (!any(presentes)) return(NA_real_)
-  mean(grepl(patron, valores[presentes], perl = TRUE))
+  if (!any(presentes)) {
+    return(structure(NA_real_, evaluados = 0L, totales = length(valores)))
+  }
+  structure(
+    mean(grepl(patron, valores[presentes], perl = TRUE)),
+    evaluados = as.integer(sum(presentes)),
+    totales = length(valores)
+  )
 }
 
 .normalizar_validadores_personales <- function(validadores = NULL) {
@@ -302,7 +317,18 @@
     }
   }
   list(
-    tipo = tipo, proporcion = proporcion, fundamento = fundamento,
+    tipo = tipo, proporcion = proporcion,
+    # Sobre cuantos valores se calculo esa proporcion. Un blanco no tiene forma
+    # que comparar contra un patron y por eso no entra al denominador, pero eso
+    # se dice en vez de suponerse: ocho documentos y treinta y dos blancos
+    # publicaban "100 % compatible" sin decir que era sobre ocho de cuarenta.
+    valores_evaluados = as.integer(
+      attr(proporcion, "evaluados", exact = TRUE) %||% NA_integer_
+    ),
+    valores_totales = as.integer(
+      attr(proporcion, "totales", exact = TRUE) %||% NA_integer_
+    ),
+    fundamento = fundamento,
     poder_discriminante = poder, proteger = proteger
   )
 }
@@ -376,6 +402,8 @@
         columna = nombres[[i]],
         tipo = unname(declaradas[[nombres[[i]]]]),
         proporcion_compatible = NA_real_,
+        valores_evaluados = NA_integer_,
+        valores_totales = NA_integer_,
         fundamento = "declarado con `columnas_personales`",
         poder_discriminante = "declarado",
         proteger = TRUE,
@@ -391,7 +419,9 @@
     data.frame(
       columna = nombres[[i]],
       tipo = clasificacion$tipo,
-      proporcion_compatible = clasificacion$proporcion,
+      proporcion_compatible = as.numeric(clasificacion$proporcion),
+      valores_evaluados = clasificacion$valores_evaluados %||% NA_integer_,
+      valores_totales = clasificacion$valores_totales %||% NA_integer_,
       fundamento = clasificacion$fundamento,
       poder_discriminante = clasificacion$poder_discriminante,
       proteger = clasificacion$proteger,
@@ -401,7 +431,9 @@
   filas <- filas[!vapply(filas, is.null, logical(1L))]
   resultado <- if (length(filas)) do.call(rbind, filas) else data.frame(
     columna = character(), tipo = character(),
-    proporcion_compatible = numeric(), fundamento = character(),
+    proporcion_compatible = numeric(),
+    valores_evaluados = integer(), valores_totales = integer(),
+    fundamento = character(),
     poder_discriminante = character(), proteger = logical(),
     stringsAsFactors = FALSE
   )

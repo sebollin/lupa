@@ -10,6 +10,38 @@
   if (is.list(x)) {
     return(list(valor = NA_character_, frecuencia = NA_integer_))
   }
+  # `integer64` tiene rama propia, y hace falta.
+  #
+  # `bit64` NO registra sus metodos S3 cuando solo esta cargado -medido:
+  # `getS3method("as.character", "integer64", optional = TRUE)` devuelve `NULL`
+  # dentro del espacio de nombres-. Ahi cualquier operacion de base sobre una
+  # columna `integer64` la degrada a `double` y REINTERPRETA SUS BITS: `x[1]`,
+  # `c()`, `unique()` y `unlist()` lo hacen. Medido sobre una columna con
+  # 9007199254740992 y 9007199254740993, la moda publicada era
+  # `4.4501477170144e-308`, que son los bits del primero leidos como `double`.
+  # Con `bit64` adjunto en la sesion del usuario salia bien: el numero publicado
+  # dependia de lo que el usuario tuviera cargado.
+  #
+  # Se trabaja con el texto exacto -que conserva el valor- y el desempate se
+  # calcula aparte sobre el orden numerico, para no cambiar el criterio respecto
+  # de una columna `double` equivalente.
+  if (inherits(x, "integer64")) {
+    etiquetas <- bit64::as.character.integer64(x)
+    etiquetas <- etiquetas[validos]
+    if (!length(etiquetas)) {
+      return(list(valor = NA_character_, frecuencia = 0L))
+    }
+    distintos <- unique(etiquetas)
+    frecuencias <- tabulate(match(etiquetas, distintos), nbins = length(distintos))
+    maximas <- which(frecuencias == max(frecuencias))
+    if (length(maximas) > 1L) {
+      numericos <- bit64::as.integer64(distintos[maximas])
+      maximas <- maximas[order(bit64::rank.integer64(numericos))]
+    }
+    posicion <- maximas[[1L]]
+    return(list(valor = distintos[[posicion]],
+                frecuencia = as.integer(frecuencias[[posicion]])))
+  }
   por_bloques <- .moda_mapa_distintos(.mapa_distintos_bloques(x))
   if (!is.null(por_bloques)) return(por_bloques)
   valores <- x[validos]

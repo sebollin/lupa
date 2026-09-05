@@ -268,3 +268,55 @@ test_that("perfilar_por declara cuando el grupo (ausente) junta dos cosas", {
                            "cobertura_grupos")
   expect_equal(sum(grepl("valor real", cobertura_limpia$motivo, fixed = TRUE)), 0L)
 })
+
+# `x[[""]]` devuelve NULL aunque el elemento exista: R no resuelve la cadena
+# vacia como nombre. `perfilar_por()` recorria los grupos por nombre, asi que el
+# grupo de los blancos `""` recibia `NULL`, quedaba con cero filas y se publicaba
+# como "El grupo tiene 0 filas". Medido sobre 200 filas con 30 blancos: la suma
+# de `n_filas_grupo` daba 170 y esas 30 filas no aparecian en ningun lado.
+#
+# Lo que fija esta prueba es la INVARIANTE, no el caso: ninguna fila puede
+# perderse ni contarse dos veces entre los grupos perfilados y los declarados.
+test_that("ninguna fila se pierde al agrupar, con blancos o sin ellos", {
+  tablas <- list(
+    con_vacia = c(rep("A", 40L), rep("B", 40L), rep("", 30L), rep(" ", 20L),
+                  rep("\t", 10L), rep(NA_character_, 30L), rep("C", 30L)),
+    solo_vacia = c(rep("", 25L), rep("A", 25L)),
+    sin_blancos = c(rep("A", 30L), rep("B", 20L))
+  )
+  for (nombre in names(tablas)) {
+    etiquetas <- tablas[[nombre]]
+    datos <- data.frame(
+      grupo = etiquetas,
+      valor = seq_along(etiquetas),
+      estado = rep("S/D", length(etiquetas)),
+      stringsAsFactors = FALSE
+    )
+    salida <- suppressWarnings(perfilar_por(
+      datos, por = "grupo", min_filas = 5L, proteger_datos_personales = FALSE
+    ))
+    perfilados <- unique(salida[, c("grupo", "n_filas_grupo")])
+    cobertura <- attr(salida, "cobertura_grupos")
+    declarados <- if (nrow(cobertura)) {
+      unique(cobertura[, c("grupo", "n_filas_grupo")])
+    } else perfilados[0, ]
+
+    total <- sum(perfilados$n_filas_grupo) + sum(declarados$n_filas_grupo)
+    expect_equal(total, nrow(datos), info = nombre)
+    # Y ningun grupo publicado puede tener cero filas: si esta publicado, existe.
+    expect_true(all(perfilados$n_filas_grupo > 0L), info = nombre)
+  }
+
+  # Primera mitad, para que esto pruebe algo: el caso con vacia tiene de verdad
+  # un grupo `""` con filas, y se perfila.
+  con_vacia <- data.frame(
+    grupo = tablas$con_vacia, valor = seq_along(tablas$con_vacia),
+    estado = rep("S/D", length(tablas$con_vacia)), stringsAsFactors = FALSE
+  )
+  salida <- suppressWarnings(perfilar_por(
+    con_vacia, por = "grupo", min_filas = 5L, proteger_datos_personales = FALSE
+  ))
+  fila_vacia <- unique(salida[salida$grupo %in% "", c("grupo", "n_filas_grupo")])
+  expect_equal(nrow(fila_vacia), 1L)
+  expect_equal(fila_vacia$n_filas_grupo, 30L)
+})

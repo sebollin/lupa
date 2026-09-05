@@ -2,6 +2,26 @@
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 
+- **`perfilar_por()` perdía las filas del grupo en blanco.** `x[[""]]` devuelve
+  `NULL` aunque el elemento exista —R no resuelve la cadena vacía como nombre—,
+  y el recorrido de los grupos era por nombre: el grupo de los blancos recibía
+  `NULL`, quedaba con cero filas y se publicaba como «El grupo tiene 0 filas».
+  Sobre 200 filas con 30 en blanco, la suma de `n_filas_grupo` daba 170 y esas
+  30 filas no aparecían ni perfiladas ni declaradas. Se recorre por posición.
+- **La moda de una columna `integer64` dependía de lo que el usuario tuviera
+  cargado.** `bit64` no registra sus métodos S3 cuando sólo está cargado, así
+  que dentro del espacio de nombres del paquete cualquier operación de base
+  sobre un `integer64` —incluso `x[1]`— lo degrada a `double` reinterpretando
+  sus bits: la moda publicada era `4.4501477170144e-308` sin `bit64` adjunto y
+  el valor correcto con él. La moda tiene ahora una rama propia que trabaja con
+  la representación exacta y desempata por el orden numérico, igual que una
+  columna `double` equivalente.
+- **La proporción de compatibilidad de datos personales no decía su
+  denominador.** Una columna con ocho documentos y treinta y dos blancos
+  publicaba `proporcion_compatible = 1` —«100 % compatible»— calculado sobre
+  ocho de cuarenta valores. El denominador no cambia —incluir los blancos
+  volvería incompatible a toda columna medio vacía—, pero ahora se declara en
+  `valores_evaluados` y `valores_totales`.
 - **Los hallazgos del resumen cuantitativo publicaban el denominador entero.**
   `outliers`, `ceros_no_permitidos` y `negativos_no_permitidos` se calculan
   sobre los valores que llegaron a número, pero declaraban `n_evaluados` igual
