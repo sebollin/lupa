@@ -2,6 +2,17 @@
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 
+- **Tres afirmaciones de la documentación que el paquete no cumplía.** Una
+  viñeta decía que en una columna protegida «las medias y los desvíos se
+  mantienen»: la media **se suprime** —está en la lista y se rastrea como
+  momento, distinto de los estadísticos de orden—, y el desvío se mantiene. Dos
+  viñetas y los dos README decían «109 campos analíticos» cuando son 111. Y la
+  tabla de evidencia de los README, encabezada por «entre las salidas de esa
+  corrida», citaba un `tipo_hallazgo` que esa corrida no produce y daba como
+  ejemplo una evidencia que sólo aparece con la protección de datos personales
+  desactivada. Las tres corregidas, y dos guardas nuevas las miden corriendo:
+  el ancho del perfil contra el número publicado, y cada `tipo_hallazgo` citado
+  contra los que esa corrida produce.
 - **`perfilar_por()` perdía las filas del grupo en blanco.** `x[[""]]` devuelve
   `NULL` aunque el elemento exista —R no resuelve la cadena vacía como nombre—,
   y el recorrido de los grupos era por nombre: el grupo de los blancos recibía

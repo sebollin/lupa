@@ -43,13 +43,12 @@ Entre las salidas de esa corrida aparecen:
 
 | Qué deja visible | `tipo_hallazgo` | Ejemplo en `evidencia` |
 | --- | --- | --- |
-| Faltantes escondidos detrás de códigos | `faltantes_disfrazados` | `-99 (1)` |
+| Faltantes escondidos detrás de códigos | `faltantes_disfrazados` | `NULL (1)` |
 | Fechas en representaciones mixtas | `formatos_fecha_mixtos` | `%d/%m/%Y (4); %Y-%m-%d (4); ...` |
 | Espacios sobrantes | `espacios_sobrantes` | `1 valores; ejemplos: "web "` |
 | Mayúsculas inconsistentes | `mayusculas_inconsistentes` | `"web"; "Web"` |
 | El tipo declarado y el inferido no coinciden | `tipo_declarado_distinto` | `Declarado: texto; inferido: fecha` |
 | Una columna constante | `constante` | `Valor: principal; frecuencia: 13` |
-| Un valor modal concentrado | `valor_concentrado` | `Valor modal: 1000; frecuencia de la moda: 25; frecuencia del segundo valor: 1; cociente moda/segundo: 25.000; fraccion de la moda sobre validos: 0.250` |
 | Filas duplicadas exactas | `filas_duplicadas` | `2 filas en grupos duplicados (1 excedentes)` |
 | Columnas repetidas | `columnas_duplicadas` | `id_registro = id_copia` |
 
@@ -305,7 +304,7 @@ viñetas enlazadas son el manual detallado. Esta tabla es el mapa breve:
 | Tarea | Funciones principales | Para leer más |
 | --- | --- | --- |
 | Mirar los datos por primera vez | `perfilar()`, `analizar()`, `distribucion_valores()`, `detectar_asociaciones()`, `analizar_tiempo()`, `clasificar_variables()`, `inferir_tipo()`, `descubrir_patrones()`, `detectar_formatos_fecha()`, `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Perfilar contra una base | `perfilar_dbi()` — agregados SQL de toda la tabla y, por omisión, un perfil de 109 campos analíticos sobre una muestra declarada; `bloque_muestra = "solo_agregados"` permite pedir sólo los agregados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Perfilar contra una base | `perfilar_dbi()` — agregados SQL de toda la tabla y, por omisión, un perfil de 111 campos analíticos sobre una muestra declarada; `bloque_muestra = "solo_agregados"` permite pedir sólo los agregados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Encontrar estructura no declarada | `detectar_claves()`, `detectar_relaciones()`, `detectar_dependencias()`, `granularidades()`, `transiciones_granularidad()` | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Definir la calidad | `marco_calidad()`, `marco_agesic()`, `marco_iso25012()`, `marco_cepal()`, `catalogo_agesic()`, `metrica()`, `especializar()`, `instanciar()`, `modelo()`, `metricas_nucleo()`, `metricas_referencial()`, `proponer_modelo()`, `modelo_desde_propuesta()`, `perfiles_madurez()`, `cobertura_analisis()` | [Definir la calidad](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Medir y evaluar | `medir()`, `agregar()`, `tablero_calidad()`, `indice_calidad()` con pesos del proyecto, `evaluar()`, `regla_evaluacion()` con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), `perfil_evaluacion()`, `escala()`, `referencial()`, `vigencia()` | [Medir y evaluar](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
