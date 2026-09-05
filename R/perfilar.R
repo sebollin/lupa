@@ -1475,22 +1475,6 @@ perfilar <- function(datos,
     datos, "lupa_trazador_tiempos_dbi", exact = TRUE
   )
 
-# `deparse()` de una expresion larga devuelve VARIAS lineas, y con
-# `do.call(perfilar, list(data.frame(...)))` la expresion es la tabla entera: el
-# nombre salia con ocho elementos y `reportar()` reventaba con "values must be
-# length 1". `do.call()` es una forma corriente de llamar a esto -pasar los
-# argumentos en una lista es lo natural cuando se perfila en un bucle-, asi que
-# el nombre tiene que sobrevivirla.
-#
-# Si la expresion no cabe en una linea no sirve como nombre: no lo escribio
-# nadie, es una tabla deparseada. En ese caso se usa una etiqueta generica.
-.nombre_de_los_datos <- function(expresion) {
-  texto <- tryCatch(deparse(expresion), error = function(e) character())
-  if (length(texto) != 1L || !nzchar(trimws(texto)) || nchar(texto) > 120L) {
-    return("datos")
-  }
-  texto
-}
 
   # la conversion afuera. Se acepta y se convierte, y la conversion queda
   # declarada en `meta` para que el perfil no aparente haber recibido lo que no

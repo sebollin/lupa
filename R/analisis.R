@@ -227,6 +227,15 @@
 #'   concisa a `argumentos_perfil`.
 #'
 #' @return Objeto S3 `analisis` con todos los componentes y su cobertura.
+#'
+#'   Dos diferencias respecto de llamar a las funciones sueltas, y las dos son
+#'   deliberadas. La entrada puede ser una matriz de dos dimensiones: se la pasa
+#'   a [perfilar()] sin convertir, para que sea él quien la convierta y lo
+#'   declare en `meta$entrada_convertida`. Y cuando una columna temporal
+#'   pertenece a una columna protegida, `temporal$resumen` gana la columna
+#'   `proteccion_temporal` —que [analizar_tiempo()] no produce— con el texto
+#'   `[rangos y huecos protegidos]`: la protección se aplica y se declara en la
+#'   misma tabla donde faltan los valores.
 #' @export
 #' @seealso [guardar_analisis()], [reportar()], [cobertura_analisis()]
 #'
@@ -236,7 +245,8 @@
 #'   fecha = as.POSIXct("2026-01-15", tz = "UTC")
 #' )
 #' resultado
-analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.time(),
+analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
+                     fecha = Sys.time(),
                      argumentos_perfil = list(), metadatos_variables = NULL,
                      modelo_confirmado = NULL, propuesta_confirmada = NULL,
                      marco = NULL,
@@ -255,6 +265,20 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
                      max_huecos = 20L, max_columnas_temporales = 50L,
                      conservar_datos = FALSE,
                      proteger_datos_personales = TRUE, ...) {
+  # `perfilar()` documenta y acepta una matriz de dos dimensiones: la convierte
+  # con `as.data.frame()` y **lo declara** en `meta$entrada_convertida`. La
+  # puerta de entrada la rechazaba antes de delegar, asi que `analizar()` no
+  # aceptaba lo que su propio motor documenta.
+  #
+  # La matriz se le pasa a `perfilar()` TAL CUAL, para que sea el quien convierta
+  # y declare: convertirla aca dejaba `entrada_convertida = NA` y el perfil
+  # aparentaba haber recibido lo que no recibio. El resto de `analizar()` usa la
+  # copia convertida, porque necesita una tabla.
+  entrada_para_perfilar <- datos
+  if (!inherits(datos, "data.frame") && is.matrix(datos) &&
+      length(dim(datos)) == 2L) {
+    datos <- as.data.frame(datos, stringsAsFactors = FALSE)
+  }
   .validar_datos_tabla(datos)
   datos_originales <- datos
   extras <- list(...)
@@ -305,7 +329,11 @@ analizar <- function(datos, nombre = deparse(substitute(datos)), fecha = Sys.tim
     stop("`marco` debe provenir de marco_calidad().", call. = FALSE)
   }
   argumentos <- c(list(
-    datos = datos_originales, nombre = nombre, fecha = fecha, muestra = muestra,
+    # La entrada SIN convertir: si era una matriz, `perfilar()` la convierte y lo
+    # declara en `meta$entrada_convertida`. Pasarle la copia ya convertida hacia
+    # que el perfil aparentara haber recibido una tabla.
+    datos = entrada_para_perfilar, nombre = nombre, fecha = fecha,
+    muestra = muestra,
     proteger_datos_personales = proteger_datos_personales
   ), argumentos_perfil)
   perfil <- do.call(perfilar, argumentos)

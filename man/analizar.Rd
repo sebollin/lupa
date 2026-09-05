@@ -6,7 +6,7 @@
 \usage{
 analizar(
   datos,
-  nombre = deparse(substitute(datos)),
+  nombre = .nombre_de_los_datos(substitute(datos)),
   fecha = Sys.time(),
   argumentos_perfil = list(),
   metadatos_variables = NULL,
@@ -111,6 +111,15 @@ concisa a \code{argumentos_perfil}.}
 }
 \value{
 Objeto S3 \code{analisis} con todos los componentes y su cobertura.
+
+Dos diferencias respecto de llamar a las funciones sueltas, y las dos son
+deliberadas. La entrada puede ser una matriz de dos dimensiones: se la pasa
+a \code{\link[=perfilar]{perfilar()}} sin convertir, para que sea él quien la convierta y lo
+declare en \code{meta$entrada_convertida}. Y cuando una columna temporal
+pertenece a una columna protegida, \code{temporal$resumen} gana la columna
+\code{proteccion_temporal} —que \code{\link[=analizar_tiempo]{analizar_tiempo()}} no produce— con el texto
+\verb{[rangos y huecos protegidos]}: la protección se aplica y se declara en la
+misma tabla donde faltan los valores.
 }
 \description{
 Es la puerta de entrada al recorrido de \code{lupa}. Construye el perfil, las

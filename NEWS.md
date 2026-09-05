@@ -2,6 +2,23 @@
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 
+- **`analizar()` publicaba el código deparseado como nombre de la tabla.** Con
+  una expresión larga, `deparse()` devuelve varias líneas: el nombre salía con
+  tres elementos y con `[valor protegido]` incrustado, porque la capa de
+  protección enmascaraba los números del propio nombre. `perfilar()` tenía el
+  saneador desde antes, pero **vivía dentro de su propio cuerpo** —era local— y
+  `analizar()` no podía usarlo. Ahora vive en un solo lugar y las dos vías dan
+  `"datos"` cuando la expresión no sirve como nombre.
+- **`analizar()` rechazaba una matriz que `perfilar()` documenta y acepta.** La
+  puerta de entrada exigía heredar de `data.frame` antes de delegar en su propio
+  motor. Ahora la matriz llega a `perfilar()` **sin convertir**, para que sea él
+  quien la convierta y lo declare en `meta$entrada_convertida`: convertirla en la
+  puerta dejaba esa declaración en `NA` y el perfil aparentaba haber recibido
+  una tabla.
+- **Documentadas las dos diferencias deliberadas de `analizar()`** respecto de
+  llamar a las funciones sueltas: la conversión de matrices y la columna
+  `proteccion_temporal` que gana `temporal$resumen` cuando una columna temporal
+  está protegida.
 - **La cobertura moría en el consumidor siguiente, en dos saltos distintos.**
   `medir()` declara en `cobertura_metricas` qué métricas no se pudieron medir y
   por qué —«la entidad dependiente `b` tiene cero filas»—, y `agregar()` lo

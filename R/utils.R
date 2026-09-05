@@ -245,6 +245,29 @@
   as.integer(sum(civil_origen != civil_utc, na.rm = TRUE))
 }
 
+# `deparse()` de una expresion larga devuelve VARIAS lineas, y con
+# `do.call(perfilar, list(data.frame(...)))` la expresion es la tabla entera: el
+# nombre salia con ocho elementos y `reportar()` reventaba con "values must be
+# length 1". `do.call()` es una forma corriente de llamar a esto -pasar los
+# argumentos en una lista es lo natural cuando se perfila en un bucle-, asi que
+# el nombre tiene que sobrevivirla.
+#
+# Si la expresion no cabe en una linea no sirve como nombre: no lo escribio
+# nadie, es una tabla deparseada. En ese caso se usa una etiqueta generica.
+#
+# Vivia DENTRO del cuerpo de `perfilar()`, asi que era local: `analizar()`, que
+# tiene el mismo problema y llega por la misma puerta, no podia usarla y
+# publicaba el nombre deparseado en varios elementos -con `[valor protegido]`
+# incrustado, porque la capa de proteccion enmascaraba los numeros del propio
+# nombre-. Vive aca, que es donde se ve.
+.nombre_de_los_datos <- function(expresion) {
+  texto <- tryCatch(deparse(expresion), error = function(e) character())
+  if (length(texto) != 1L || !nzchar(trimws(texto)) || nchar(texto) > 120L) {
+    return("datos")
+  }
+  texto
+}
+
 .texto_valor <- function(x) {
   if (length(x) == 0L || is.na(x[[1L]])) {
     return(NA_character_)
