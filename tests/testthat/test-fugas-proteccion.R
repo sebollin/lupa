@@ -320,3 +320,112 @@ test_that("ninguna fila se pierde al agrupar, con blancos o sin ellos", {
   expect_equal(nrow(fila_vacia), 1L)
   expect_equal(fila_vacia$n_filas_grupo, 30L)
 })
+
+# La regla del paquete es excluir lo que el usuario declara. `medir()` aceptaba
+# `proteger_datos_personales` pero no tenia por donde recibir QUE proteger, asi
+# que una columna que solo es personal porque el usuario lo dice -un nombre
+# propio de la organizacion, un identificador interno- quedaba sin proteger en
+# el camino de metricas, y el usuario no tenia donde decirlo.
+test_that("medir() protege lo que el usuario declara personal", {
+  skip_if_not_installed("stringdist")
+  metrica <- metricas_referencial()$CorrectitudSemFuerte
+
+  filtra <- function(medida, secreto) {
+    con_candidato <- grepl(
+      "candidato_referencial=", medida$objeto_medible, fixed = TRUE
+    )
+    # Primero: el mecanismo se activo? Sin candidatos no se prueba nada.
+    expect_true(any(con_candidato))
+    grepl(secreto, medida$objeto_medible[con_candidato][[1L]], fixed = TRUE)
+  }
+
+  # a. Un legajo interno, sin forma que ningun lexico pueda reconocer.
+  ref <- referencial(
+    data.frame(
+      legajo = c("LEG-0001", "LEG-0002", "LEG-0003"), stringsAsFactors = FALSE
+    ),
+    "legajo"
+  )
+  datos <- data.frame(
+    legajo = c("LEG-0001", "LEG-000X", "ZZZ-9999"),
+    oficina = c("central", "norte", "sur"),
+    stringsAsFactors = FALSE
+  )
+  instancia <- instanciar(
+    especializar(metrica, proximidad = TRUE), "t", "legajo", referencial = ref
+  )
+  expect_true(filtra(medir(modelo(instancia), datos), "LEG-0001"))
+  expect_false(filtra(
+    medir(modelo(instancia), datos, columnas_personales = "legajo"),
+    "LEG-0001"
+  ))
+
+  # b. Un identificador con forma de documento que el lexico por omision no
+  #    verifica y un validador propio si.
+  ref2 <- referencial(
+    data.frame(
+      codigo = c("9912345678", "9987654321", "9955555555"),
+      stringsAsFactors = FALSE
+    ),
+    "codigo"
+  )
+  datos2 <- data.frame(
+    codigo = c("9912345678", "9912345679", "1234567890"),
+    stringsAsFactors = FALSE
+  )
+  instancia2 <- instanciar(
+    especializar(metrica, proximidad = TRUE), "t", "codigo", referencial = ref2
+  )
+  expect_true(filtra(medir(modelo(instancia2), datos2), "9912345678"))
+  expect_false(filtra(
+    medir(
+      modelo(instancia2), datos2,
+      validadores_personales = list(
+        interno = function(x) grepl("^99[0-9]{8}$", x)
+      )
+    ),
+    "9912345678"
+  ))
+
+  # Los controles: la declaracion tiene que ser la que decide, y no cualquier
+  # declaracion. Sin esto, una version que protegiera siempre pasaria igual.
+  # Declarar OTRA columna -que existe- no protege esta. Sin este control, una
+  # version que protegiera ante cualquier declaracion pasaria igual.
+  expect_true(filtra(
+    medir(modelo(instancia), datos, columnas_personales = "oficina"),
+    "LEG-0001"
+  ))
+  expect_true(filtra(
+    medir(
+      modelo(instancia), datos,
+      columnas_personales = "legajo", proteger_datos_personales = FALSE
+    ),
+    "LEG-0001"
+  ))
+  expect_true(filtra(
+    medir(
+      modelo(instancia2), datos2,
+      validadores_personales = list(nada = function(x) rep(FALSE, length(x)))
+    ),
+    "9912345678"
+  ))
+
+  # La declaracion se valida con la misma funcion que perfilar(), asi que
+  # falla igual: un tipo equivocado y un nombre mal escrito.
+  expect_error(
+    medir(modelo(instancia), datos, columnas_personales = 1:3),
+    "vector de texto"
+  )
+  expect_error(
+    medir(modelo(instancia), datos, columnas_personales = "legjo"),
+    "inexistentes"
+  )
+  # Y la forma con tipo declarado vale igual que en perfilar().
+  expect_false(filtra(
+    medir(
+      modelo(instancia), datos,
+      columnas_personales = c(legajo = "identificador_interno")
+    ),
+    "LEG-0001"
+  ))
+})

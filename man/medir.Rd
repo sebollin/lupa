@@ -10,7 +10,9 @@ medir(
   id_medicion = NULL,
   fecha = Sys.time(),
   aplicabilidad = NULL,
-  proteger_datos_personales = TRUE
+  proteger_datos_personales = TRUE,
+  columnas_personales = character(),
+  validadores_personales = NULL
 )
 }
 \arguments{
@@ -48,6 +50,17 @@ Sin declaración toda la tabla aplica y el resultado es el de siempre.}
 
 \item{proteger_datos_personales}{Si se enmascaran los candidatos de
 proximidad que corresponden a columnas personales. Por omisión \code{TRUE}.}
+
+\item{columnas_personales}{Columnas que traen datos personales, declaradas
+con la misma forma que acepta \code{\link[=perfilar]{perfilar()}}: nombres de columna, o un
+vector con nombre donde el nombre es la columna y el valor es el tipo. Se
+protegen aunque el léxico por omisión no las reconozca —un nombre propio
+de la organización, un identificador interno—. Sólo tiene efecto con
+\code{proteger_datos_personales = TRUE}.}
+
+\item{validadores_personales}{Pack o lista nombrada de funciones de
+validación, con la misma forma que acepta \code{\link[=perfilar]{perfilar()}}. Sin esto, la
+medición usa el léxico por omisión.}
 }
 \value{
 Data frame S3 de clase \code{medicion}, con una fila por objeto medido.

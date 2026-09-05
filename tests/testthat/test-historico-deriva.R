@@ -567,3 +567,84 @@ test_that("el historico separa corridas de tablas distintas", {
   expect_equal(deriva$direccion, "deterioro")
   expect_false(any(grepl("configuracion", deriva$aspecto)))
 })
+
+# Un perfil guardado por otra version de lupa puede no traer un campo que esta
+# version compara. Antes de arreglarlo, cuatro campos hacian abortar
+# comparar_perfiles() con el mensaje interno de R, y dos publicaban una fila de
+# cambio atribuida a los datos cuando lo que faltaba era el campo.
+test_that("un perfil sin un campo declara la no comparabilidad y no aborta", {
+  d1 <- data.frame(
+    x = c(1, 2, 3, 4, 5), t = c("a", "b", "a", "c", "b"),
+    stringsAsFactors = FALSE
+  )
+  d2 <- data.frame(
+    x = c(1, 2, 3, 4, 9), t = c("a", "b", "z", "c", "b"),
+    stringsAsFactors = FALSE
+  )
+  actual <- perfilar(d2)
+
+  esperado <- c(
+    tasa_distintos = "cardinalidad", n_distintos = "cardinalidad",
+    prop_faltantes_totales = "faltantes", tipo_inferido = "tipo_inferido",
+    minimo = "rango", maximo = "rango", minimo_fecha = "rango",
+    maximo_fecha = "rango"
+  )
+  for (campo in names(esperado)) {
+    viejo <- perfilar(d1)
+    viejo$columnas <- viejo$columnas[
+      , setdiff(names(viejo$columnas), campo), drop = FALSE
+    ]
+    comparacion <- expect_no_error(comparar_perfiles(viejo, actual))
+
+    declaradas <- comparacion[comparacion$cambio == "no_comparable", ]
+    expect_true(
+      esperado[[campo]] %in% declaradas$aspecto,
+      info = paste("sin", campo, "no se declaro", esperado[[campo]])
+    )
+    # Y no puede atribuir a los datos lo que es una diferencia de forma.
+    expect_equal(
+      sum(comparacion$cambio == "modificado" &
+            comparacion$aspecto %in% declaradas$aspecto),
+      0L,
+      info = paste("sin", campo, "publico un cambio en un aspecto no comparable")
+    )
+  }
+
+  # La fila declarada dice de que lado falta, que es lo que permite entender
+  # que el problema es la version del perfil y no los datos.
+  viejo <- perfilar(d1)
+  viejo$columnas <- viejo$columnas[
+    , setdiff(names(viejo$columnas), "tasa_distintos"), drop = FALSE
+  ]
+  fila <- comparar_perfiles(viejo, actual)
+  fila <- fila[fila$aspecto == "cardinalidad" & fila$cambio == "no_comparable", ]
+  expect_equal(nrow(fila), 1L)
+  expect_match(fila$valor_anterior, "tasa_distintos")
+  expect_match(fila$evidencia, "perfil anterior")
+})
+
+# La mitad de control: dos perfiles de esta version no declaran nada y siguen
+# detectando los cambios reales. Sin esto, una version que declarara todo
+# siempre pasaria el test de arriba.
+test_that("dos perfiles de esta version no declaran campos ausentes", {
+  d1 <- data.frame(
+    x = c(1, 2, 3, 4, 5), t = c("a", "b", "a", "c", "b"),
+    stringsAsFactors = FALSE
+  )
+  d2 <- data.frame(
+    x = c(1, 2, 3, 4, 9), t = c("a", "b", "z", "c", "b"),
+    stringsAsFactors = FALSE
+  )
+  comparacion <- comparar_perfiles(perfilar(d1), perfilar(d2))
+
+  aspectos <- c(
+    "tipo_declarado", "tipo_inferido", "faltantes", "cardinalidad", "rango"
+  )
+  expect_equal(
+    sum(comparacion$cambio == "no_comparable" &
+          comparacion$aspecto %in% aspectos),
+    0L
+  )
+  expect_true("rango" %in% comparacion$aspecto)
+  expect_true("cardinalidad" %in% comparacion$aspecto)
+})

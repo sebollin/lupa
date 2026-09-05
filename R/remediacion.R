@@ -1988,6 +1988,47 @@ planificar_limpieza <- function(perfil, datos = NULL,
   )
 }
 
+# Quien edita un plan no conoce las funciones internas, y ese es justamente el
+# caso de uso que la capa de remediacion declara: un plan editable. Medido
+# mutando los veinte nombres de parametro que produce un plan, en seis casos de
+# datos: solo los dos que nombran una columna a crear fallaban con el mensaje
+# interno de R -"argumento tiene longitud cero" con largo cero, "valor ausente
+# donde TRUE/FALSE es necesario" con NA-. Con la cadena vacia era peor que
+# fallar: creaba una columna llamada "V3", que no es la que el plan decia.
+#
+# No se valida mas que eso a proposito. Seis de los veintiocho parametros que
+# produce un plan legitimo son de largo cero o todo NA -`clave = character(0)`
+# significa "sin clave declarada", y `punto_sin_coma = NA` significa "sin
+# determinar"-, asi que una regla general sobre todos los parametros
+# rechazaria planes que funcionan.
+.parametros_nombre_de_columna <- c("columna_marca", "columna_grupo")
+
+.motivo_parametros_accion <- function(accion) {
+  parametros <- accion$parametros[[1L]]
+  if (!length(parametros)) return(NULL)
+  nombres <- intersect(names(parametros), .parametros_nombre_de_columna)
+  for (nombre in nombres) {
+    valor <- parametros[[nombre]]
+    problema <- if (length(valor) != 1L) {
+      paste0("recibi\u00f3 ", length(valor), " valores")
+    } else if (is.na(valor)) {
+      "recibi\u00f3 NA"
+    } else if (!nzchar(trimws(as.character(valor)))) {
+      "recibi\u00f3 una cadena vac\u00eda"
+    } else {
+      NULL
+    }
+    if (!is.null(problema)) {
+      return(paste0(
+        "El par\u00e1metro `", nombre, "` de la acci\u00f3n `",
+        accion$estrategia[[1L]], "` debe ser el nombre de la columna a crear: ",
+        "un \u00fanico texto no vac\u00edo; ", problema, "."
+      ))
+    }
+  }
+  NULL
+}
+
 .motivo_efecto_accion <- function(accion, ejecutada) {
   esperado <- as.numeric(accion$n_afectadas[[1L]])
   actual <- as.numeric(ejecutada$n)
@@ -2089,12 +2130,17 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
     }
     # Cada acción trabaja sobre una copia del estado anterior. Si falla, la
     # columna (o tabla) queda intacta y el resto del plan puede continuar.
-    ejecutada <- tryCatch(
-      .ejecutar_accion(.copiar_datos(salida), accion),
-      error = function(e) list(
-        error = conditionMessage(e), n = 0, n_no_reversibles = 0
+    motivo_parametros <- .motivo_parametros_accion(accion)
+    ejecutada <- if (!is.null(motivo_parametros)) {
+      list(error = motivo_parametros, n = 0, n_no_reversibles = 0)
+    } else {
+      tryCatch(
+        .ejecutar_accion(.copiar_datos(salida), accion),
+        error = function(e) list(
+          error = conditionMessage(e), n = 0, n_no_reversibles = 0
+        )
       )
-    )
+    }
     if (is.null(ejecutada$error)) {
       motivo_efecto <- .motivo_efecto_accion(accion, ejecutada)
       if (!is.null(motivo_efecto)) ejecutada$error <- motivo_efecto

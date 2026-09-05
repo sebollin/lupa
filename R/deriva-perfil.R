@@ -161,6 +161,47 @@
   suppressWarnings(as.numeric(fila[[campo]][[1L]]))
 }
 
+# Un perfil guardado por otra version de lupa puede no traer un campo que esta
+# version compara. Medido antes de arreglarlo: sin `tasa_distintos`, sin
+# `prop_faltantes_totales`, sin `minimo` o sin `maximo`, comparar_perfiles()
+# abortaba con el mensaje interno de R -"valor ausente donde TRUE/FALSE es
+# necesario"-, que no le dice a nadie que el problema es la version del perfil.
+# En otros dos campos era peor que abortar: sin `tipo_inferido` publicaba una
+# fila de cambio "modificado" atribuida a los datos, cuando lo que habia
+# cambiado era la forma del perfil; sin `n_distintos` la evidencia salia con el
+# valor anterior en blanco.
+#
+# Se compara la interseccion y lo ausente se declara, que es el mismo mecanismo
+# que ya usan la politica de patrones, la de centinelas y la de aplicabilidad.
+# Los nombres de los grupos son los `aspecto` que ya publica la comparacion, asi
+# que la fila de no comparabilidad cae junto a las filas que reemplaza.
+.campos_comparables_deriva <- function(anterior, actual) {
+  requeridos <- list(
+    tipo_declarado = "tipo_declarado",
+    tipo_inferido = "tipo_inferido",
+    faltantes = "prop_faltantes_totales",
+    cardinalidad = c("tasa_distintos", "n_distintos"),
+    rango = c("minimo", "maximo", "minimo_fecha", "maximo_fecha")
+  )
+  nombres_a <- names(anterior$columnas)
+  nombres_b <- names(actual$columnas)
+  ausentes <- lapply(requeridos, function(campos) {
+    list(
+      anterior = setdiff(campos, nombres_a),
+      actual = setdiff(campos, nombres_b)
+    )
+  })
+  falta_alguno <- vapply(
+    ausentes,
+    function(x) length(x$anterior) > 0L || length(x$actual) > 0L,
+    logical(1)
+  )
+  list(
+    comparables = names(requeridos)[!falta_alguno],
+    ausentes = ausentes[falta_alguno]
+  )
+}
+
 .diagnosticos_declinados_deriva <- function(perfil) {
   cobertura <- perfil$cobertura_diagnosticos
   if (!inherits(cobertura, "data.frame") || !nrow(cobertura) ||
@@ -274,6 +315,29 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     )
   }
 
+  campos <- .campos_comparables_deriva(anterior, actual)
+  for (aspecto in names(campos$ausentes)) {
+    lados <- campos$ausentes[[aspecto]]
+    texto_lado <- function(x) {
+      if (!length(x)) "los trae todos" else paste(x, collapse = ", ")
+    }
+    agregar(
+      NA_character_, aspecto, "no_comparable", "error",
+      texto_lado(lados$anterior), texto_lado(lados$actual),
+      descripcion = paste0(
+        "Uno de los dos perfiles no trae los campos que esta versi\u00f3n necesita ",
+        "para comparar ", gsub("_", " ", aspecto, fixed = TRUE),
+        "; esa parte no se compara."
+      ),
+      evidencia = paste0(
+        "Campos ausentes en el perfil anterior: ", texto_lado(lados$anterior),
+        "; en el actual: ", texto_lado(lados$actual),
+        ". Suele pasar al comparar contra un perfil guardado por otra ",
+        "versi\u00f3n de lupa."
+      )
+    )
+  }
+
   desaparecidas <- setdiff(mapa_a$clave, mapa_b$clave)
   aparecidas <- setdiff(mapa_b$clave, mapa_a$clave)
   for (columna in desaparecidas) {
@@ -297,7 +361,10 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     indice_b <- mapa_b$indice[match(columna, mapa_b$clave)]
     a <- anterior$columnas[indice_a, , drop = FALSE]
     b <- actual$columnas[indice_b, , drop = FALSE]
-    for (campo in c("tipo_declarado", "tipo_inferido")) {
+    tipos_comparables <- intersect(
+      c("tipo_declarado", "tipo_inferido"), campos$comparables
+    )
+    for (campo in tipos_comparables) {
       if (.distinto_deriva(a[[campo]], b[[campo]])) {
         agregar(
           columna, campo, "modificado", "error", a[[campo]], b[[campo]],
@@ -314,6 +381,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     )) {
       campo <- especificacion[["campo"]]
       aspecto <- especificacion[["aspecto"]]
+      if (!aspecto %in% campos$comparables) next
       if (.distinto_deriva(a[[campo]], b[[campo]])) {
         delta <- b[[campo]] - a[[campo]]
         significativo <- is.finite(delta) && abs(delta) >= umbral_cambio
@@ -374,8 +442,8 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         )
       )
     }
-    rango_a <- .rango_perfil(a)
-    rango_b <- .rango_perfil(b)
+    rango_a <- if ("rango" %in% campos$comparables) .rango_perfil(a) else NULL
+    rango_b <- if ("rango" %in% campos$comparables) .rango_perfil(b) else NULL
     if ((!is.null(rango_a) || !is.null(rango_b)) &&
         (is.null(rango_a) || is.null(rango_b) ||
          rango_a$texto != rango_b$texto || rango_a$tipo != rango_b$tipo)) {

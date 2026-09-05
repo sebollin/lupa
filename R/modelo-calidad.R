@@ -1266,6 +1266,19 @@ metricas_nucleo <- function() {
   tablas
 }
 
+# NULL cuando no hay forma de saber que columnas hay: la declaracion se valida
+# entonces por su forma y no por su existencia.
+.nombres_declarables_medicion <- function(datos) {
+  if (is.data.frame(datos)) return(names(datos))
+  if (is.list(datos)) {
+    tablas <- Filter(is.data.frame, datos)
+    if (length(tablas) == length(datos) && length(tablas)) {
+      return(unique(unlist(lapply(tablas, names), use.names = FALSE)))
+    }
+  }
+  NULL
+}
+
 #' Medir un modelo de calidad
 #'
 #' Ejecuta todas las métricas instanciadas de un `modelo_calidad`. Cada fila es
@@ -1298,6 +1311,15 @@ metricas_nucleo <- function() {
 #'   consumen mediciones, así que heredan el número que salga de acá.
 #'
 #'   Sin declaración toda la tabla aplica y el resultado es el de siempre.
+#' @param columnas_personales Columnas que traen datos personales, declaradas
+#'   con la misma forma que acepta [perfilar()]: nombres de columna, o un
+#'   vector con nombre donde el nombre es la columna y el valor es el tipo. Se
+#'   protegen aunque el léxico por omisión no las reconozca —un nombre propio
+#'   de la organización, un identificador interno—. Sólo tiene efecto con
+#'   `proteger_datos_personales = TRUE`.
+#' @param validadores_personales Pack o lista nombrada de funciones de
+#'   validación, con la misma forma que acepta [perfilar()]. Sin esto, la
+#'   medición usa el léxico por omisión.
 #' @param proteger_datos_personales Si se enmascaran los candidatos de
 #'   proximidad que corresponden a columnas personales. Por omisión `TRUE`.
 #'
@@ -1320,7 +1342,9 @@ metricas_nucleo <- function() {
 #' instancia <- instanciar(especifica, "personas", "edad")
 #' medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
-                  aplicabilidad = NULL, proteger_datos_personales = TRUE) {
+                  aplicabilidad = NULL, proteger_datos_personales = TRUE,
+                  columnas_personales = character(),
+                  validadores_personales = NULL) {
   if (!inherits(modelo, "modelo_calidad")) {
     stop("`modelo` debe provenir de modelo().", call. = FALSE)
   }
@@ -1333,6 +1357,20 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
       is.na(proteger_datos_personales)) {
     stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
   }
+  # El lexico por omision no puede conocer lo que solo el usuario sabe. Se
+  # normalizan aca, una vez, con las mismas funciones que usa perfilar().
+  # Se valida con las mismas funciones que perfilar(), para que la misma
+  # declaracion valga en las dos puertas. La existencia se comprueba contra los
+  # nombres que el usuario ve en `datos` -no contra las tablas normalizadas,
+  # que medir() recorta a las columnas del modelo y dejarian afuera una
+  # declaracion legitima-. Cuando la entrada no es una tabla, se valida la
+  # forma y no la existencia.
+  columnas_personales <- .normalizar_columnas_personales(
+    columnas_personales, .nombres_declarables_medicion(datos)
+  )
+  validadores_personales <- .normalizar_validadores_personales(
+    validadores_personales
+  )
   if (is.null(id_medicion)) {
     id_medicion <- .nuevo_id_medicion(fecha)
   }
@@ -1363,7 +1401,9 @@ medir <- function(modelo, datos, id_medicion = NULL, fecha = Sys.time(),
       )
     } else if (isTRUE(proteger_datos_personales)) {
       salida <- .proteger_salida_referencial(
-        salida, tablas_instancia, instancia
+        salida, tablas_instancia, instancia,
+        declaradas = columnas_personales,
+        validadores = validadores_personales
       )
     }
     n <- nrow(salida)

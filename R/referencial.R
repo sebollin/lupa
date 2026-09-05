@@ -231,7 +231,9 @@
   )
 }
 
-.proteger_salida_referencial <- function(salida, tablas, instancia) {
+.proteger_salida_referencial <- function(salida, tablas, instancia,
+                                        declaradas = character(),
+                                        validadores = NULL) {
   if (!inherits(instancia$referencial, "referencial") ||
       !inherits(salida, "data.frame") || !nrow(salida) ||
       !"objeto" %in% names(salida) ||
@@ -253,8 +255,12 @@
     instancia$referencial$datos, columnas_referencia
   )
   personales <- unique(c(
-    .columnas_personales_rapidas(objetivo),
-    .columnas_personales_rapidas(referencia)
+    .columnas_personales_rapidas(
+      objetivo, declaradas = declaradas, validadores = validadores
+    ),
+    .columnas_personales_rapidas(
+      referencia, declaradas = declaradas, validadores = validadores
+    )
   ))
   if (!length(personales)) return(salida)
   salida$objeto <- .proteger_evidencia_referencial(salida$objeto)

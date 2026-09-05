@@ -375,7 +375,13 @@
   if (anyDuplicated(names(declaradas))) {
     stop("`columnas_personales` repite una columna.", call. = FALSE)
   }
-  desconocidas <- setdiff(names(declaradas), nombres)
+  # `nombres = NULL` significa "no se puede saber que columnas hay". Lo usa
+  # medir(), donde la entrada puede ser una coleccion o una conexion y no hay
+  # una lista de columnas que mirar. Con NULL se valida la forma y no la
+  # existencia: es preferible a rechazar una declaracion valida.
+  desconocidas <- if (is.null(nombres)) character() else {
+    setdiff(names(declaradas), nombres)
+  }
   if (length(desconocidas)) {
     stop("`columnas_personales` nombra columnas inexistentes: ",
          paste(desconocidas, collapse = ", "), ".", call. = FALSE)

@@ -10,7 +10,13 @@
 # y no solo sus nombres. Existe porque quien necesita decir POR QUE una columna
 # se protege -el tipo clasificado- si no tendria que volver a clasificarla, y dos
 # clasificaciones de la misma columna son dos reglas que se pueden separar.
-.columnas_personales_rapidas <- function(datos, perfil = NULL, detalle = FALSE) {
+# `declaradas` y `validadores` existen porque el lexico por omision no puede
+# conocer lo que solo el usuario sabe: un nombre propio de la organizacion, un
+# identificador interno. La regla del paquete es excluir lo que el usuario
+# declara, y este camino -el de medir()- no tenia por donde recibirlo.
+.columnas_personales_rapidas <- function(datos, perfil = NULL, detalle = FALSE,
+                                         declaradas = character(),
+                                         validadores = NULL) {
   if (!is.null(perfil)) {
     protegidas <- .columnas_personales_protegidas(perfil)
     if (!detalle) return(protegidas)
@@ -18,7 +24,17 @@
       perfil$datos_personales$columna %in% protegidas, , drop = FALSE
     ])
   }
-  validadores <- .normalizar_validadores_personales(NULL)
+  validadores <- .normalizar_validadores_personales(validadores)
+  # La misma forma declarativa que perfilar(): nombres de columna sueltos, o
+  # `columna = "tipo"`. Que las dos puertas acepten lo mismo es lo que permite
+  # que describan la columna igual.
+  #
+  # Sin verificar existencia -de ahi el NULL-, porque `datos` aca es una tabla
+  # ya recortada a las columnas que la metrica usa: exigir que la declaracion
+  # nombre una de ellas rechazaria una declaracion legitima sobre una columna
+  # que esta metrica no mira. Quien verifica es medir(), contra la entrada
+  # entera.
+  declaradas <- .normalizar_columnas_personales(declaradas, NULL)
   resultados <- lapply(seq_along(datos), function(i) {
     inferencia <- list(tipo = .tipo_declarado(datos[[i]]))
     .clasificar_dato_personal(
@@ -27,16 +43,24 @@
     )
   })
   protege <- vapply(resultados, function(x) isTRUE(x$proteger), logical(1L))
+  # Lo declarado se protege aunque el lexico no lo reconozca.
+  protege <- protege | names(datos) %in% names(declaradas)
   if (!detalle) return(names(datos)[protege])
   if (!any(protege)) {
     return(data.frame(columna = character(), tipo = character(),
                       stringsAsFactors = FALSE))
   }
+  tipos <- vapply(resultados[protege], function(x) as.character(x$tipo)[1L],
+                  character(1L))
+  # Una columna que solo es personal porque el usuario lo dijo no tiene tipo
+  # inferido. Se publica el tipo que el usuario declaro -o "declarado" cuando no
+  # declaro ninguno-, que es exactamente lo que hace perfilar().
+  sin_tipo <- is.na(tipos)
+  tipos[sin_tipo] <- unname(
+    declaradas[match(names(datos)[protege][sin_tipo], names(declaradas))]
+  )
   data.frame(
-    columna = names(datos)[protege],
-    tipo = vapply(resultados[protege], function(x) as.character(x$tipo)[1L],
-                  character(1L)),
-    stringsAsFactors = FALSE
+    columna = names(datos)[protege], tipo = tipos, stringsAsFactors = FALSE
   )
 }
 

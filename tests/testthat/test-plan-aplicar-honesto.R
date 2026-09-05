@@ -266,3 +266,79 @@ test_that("el numero del plan y su unidad de conteo hablan de lo mismo", {
   if (nrow(columnas)) expect_equal(columnas$unidad_conteo, "columna")
   if (nrow(filas)) expect_equal(filas$unidad_conteo, "fila")
 })
+
+# Quien edita un plan no conoce las funciones internas. Antes de arreglarlo, un
+# nombre de columna vacio o NA hacia fallar la accion con el mensaje interno de
+# R, que no dice que corregir; y con la cadena vacia no fallaba: creaba una
+# columna llamada "V3".
+test_that("un nombre de columna invalido falla en los terminos del plan", {
+  datos <- data.frame(
+    x = c(1, 2, NA, 4, 1000), t = c("a", " b ", "a", "", "b"),
+    stringsAsFactors = FALSE
+  )
+  base <- planificar_limpieza(perfilar(datos))
+  fila <- which(base$estrategia == "marcar_filas_ausentes")[[1L]]
+
+  invalidos <- list(
+    `largo cero` = character(0),
+    ausente = NA_character_,
+    vacio = "",
+    espacios = "   ",
+    `dos valores` = c("a", "b")
+  )
+  for (etiqueta in names(invalidos)) {
+    plan <- base
+    plan$aplicar <- FALSE
+    plan$aplicar[fila] <- TRUE
+    plan$parametros[[fila]]$columna_marca <- invalidos[[etiqueta]]
+    resultado <- aplicar(plan, datos)
+
+    motivo <- as.character(resultado$registro$error)[[1L]]
+    expect_false(is.na(motivo), info = etiqueta)
+    # El motivo nombra el parametro y la accion, que es lo que el usuario edito.
+    expect_match(motivo, "columna_marca", info = etiqueta)
+    expect_match(motivo, "marcar_filas_ausentes", info = etiqueta)
+    # Y no deja rastro en los datos: ni la columna pedida ni una inventada.
+    expect_identical(names(resultado$datos), names(datos), info = etiqueta)
+  }
+})
+
+# La mitad de control, y no es decorativa: seis de los veintiocho parametros que
+# produce un plan legitimo son de largo cero o todo NA -`clave = character(0)`
+# significa "sin clave declarada"-, asi que una validacion general sobre todos
+# los parametros rechazaria planes que funcionan.
+test_that("los parametros legitimamente vacios siguen aplicandose", {
+  datos <- data.frame(
+    x = c(1, 2, NA, 4, 1000), t = c("a", " b ", "a", "", "b"),
+    stringsAsFactors = FALSE
+  )
+  base <- planificar_limpieza(perfilar(datos))
+  fila <- which(base$estrategia == "marcar_filas_ausentes")[[1L]]
+
+  plan <- base
+  plan$aplicar <- FALSE
+  plan$aplicar[fila] <- TRUE
+  resultado <- aplicar(plan, datos)
+  expect_true(is.na(as.character(resultado$registro$error)[[1L]]))
+  expect_true(".ausente_x" %in% names(resultado$datos))
+
+  # Un nombre elegido a mano por quien edita el plan es valido y se respeta.
+  plan$parametros[[fila]]$columna_marca <- "revisar_x"
+  resultado <- aplicar(plan, datos)
+  expect_true(is.na(as.character(resultado$registro$error)[[1L]]))
+  expect_true("revisar_x" %in% names(resultado$datos))
+
+  # Y un plan cuya clave es character(0) -"sin clave declarada"- aplica entero.
+  duplicados <- data.frame(
+    id = c(1, 1, 2, 2, 3), v = c("a", "a", "b", "b", "c"),
+    stringsAsFactors = FALSE
+  )
+  plan_dup <- planificar_limpieza(perfilar(duplicados))
+  plan_dup$aplicar <- plan_dup$recomendada
+  claves <- vapply(
+    plan_dup$parametros, function(p) length(p$clave %||% NULL) == 0L, logical(1)
+  )
+  expect_true(any(claves))
+  resultado <- aplicar(plan_dup, duplicados, permitir_eliminacion = TRUE)
+  expect_equal(sum(!is.na(resultado$registro$error)), 0L)
+})
