@@ -89,7 +89,18 @@ estimaba siete. No es un desvío que ocultar: \code{orden}, \code{n_afectadas} y
 \code{n_cambiadas} se publican los tres, y compararlos es la forma de ver el
 efecto de la composición. Sólo el caso extremo —la acción no produce \strong{ningún}
 efecto donde el plan estimaba alguno— se registra como \code{fallida} con su
-motivo. \code{reversible}
+motivo.
+
+\strong{Esa comparación sólo lee composición cuando las dos cifras cuentan en la
+misma unidad.} \code{n_afectadas} cuenta en la \code{unidad_conteo} que el plan
+declara y \code{n_cambiadas} cuenta lo que la acción tocó al aplicarse, que es
+su unidad natural. Cuando la acción declara \code{unidad_conteo = "valor_distinto"} —las conversiones de mayúsculas y minúsculas—, las dos
+cifras miden poblaciones distintas y su diferencia no dice nada sobre la
+composición: medido sobre \code{c("Ana", "ana", "ANA", "Beto", " Ana ")},
+\code{convertir_minusculas} estima \code{n_afectadas = 3} valores distintos y el
+registro publica \code{n_cambiadas = 4} celdas. Las dos son ciertas. La unidad
+del plan se recupera uniendo el registro con el plan por \code{id_accion}, que
+los dos publican. \code{reversible}
 indica si la conversión conserva la identidad de cada valor. Las
 conversiones se comprueban sobre todos los valores de \code{datos}: las numéricas
 bloquean ceros iniciales y colisiones no inyectivas, mientras que fechas,
@@ -159,6 +170,17 @@ no elimine filas o columnas. El consentimiento \code{permitir_eliminacion} sólo
 se exige para las estrategias que efectivamente retiran filas o columnas;
 una conversión destructiva requiere que el usuario la active explícitamente
 y deja su pérdida cuantificada en el registro.
+
+\strong{Marcar o eliminar ausentes va después de normalizarlos}, no antes. Una
+columna con \code{"N/A"} y \code{"sin dato"} tiene ausentes disfrazados que
+\code{convertir_ausencias_textuales} convierte en \code{NA} reales; si la marca
+corriera primero, quedaría una columna \code{.ausente_x} que dice \code{FALSE} en
+filas que terminan en \code{NA} —una afirmación falsa sobre los datos, publicada
+con las dos acciones en \code{ejecutada} y sin error—. Medido sobre siete formas
+de tabla antes de corregirlo, tres producían esa marca falsa siguiendo el
+idioma documentado \code{plan$aplicar <- plan$recomendada}. Por la misma razón,
+\code{eliminar_filas_ausentes} también va después: eliminar antes deja sin
+eliminar las filas cuyo ausente todavía estaba disfrazado.
 }
 \examples{
 datos <- data.frame(categoria = c(" A", "S/D", "B"))

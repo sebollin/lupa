@@ -342,3 +342,70 @@ test_that("los parametros legitimamente vacios siguen aplicandose", {
   resultado <- aplicar(plan_dup, duplicados, permitir_eliminacion = TRUE)
   expect_equal(sum(!is.na(resultado$registro$error)), 0L)
 })
+
+# `marcar_filas_ausentes` corria ANTES de las conversiones que crean ausentes
+# -textuales y centinelas numericos-, asi que la columna de marca terminaba
+# diciendo FALSE en filas que quedaban NA. No era un dato que faltara: era una
+# afirmacion falsa sobre los datos, publicada con las dos acciones en
+# `ejecutada` y sin error, y alcanzable con el idioma documentado
+# `plan$aplicar <- plan$recomendada`.
+test_that("la marca de ausentes cubre los que crea el propio plan", {
+  casos <- list(
+    textuales = data.frame(
+      t = c("a", "N/A", NA, "b", "sin dato", "c"), stringsAsFactors = FALSE
+    ),
+    centinelas = data.frame(x = c(1, 2, -999, 4, -999, 6, NA)),
+    mixto = data.frame(
+      t = c("a", "N/D", NA, " b ", "S/D", "c"),
+      x = c(1, -999, NA, 4, 5, 6),
+      stringsAsFactors = FALSE
+    )
+  )
+  for (nombre in names(casos)) {
+    datos <- casos[[nombre]]
+    plan <- planificar_limpieza(perfilar(datos))
+    plan$aplicar <- plan$recomendada
+    resultado <- aplicar(plan, datos, permitir_eliminacion = TRUE)
+
+    marcas <- grep("^\\.ausente_", names(resultado$datos), value = TRUE)
+    # Primero: el mecanismo se activo. Sin marca no se prueba nada.
+    expect_true(length(marcas) > 0L, info = nombre)
+    for (marca in marcas) {
+      columna <- sub("^\\.ausente_", "", marca)
+      if (!columna %in% names(resultado$datos)) next
+      ausentes <- is.na(resultado$datos[[columna]])
+      expect_equal(
+        sum(ausentes & !resultado$datos[[marca]]), 0L,
+        info = paste(nombre, marca, "niega un ausente")
+      )
+      # Y no marca de mas: la marca dice exactamente lo que es.
+      expect_equal(
+        sum(!ausentes & resultado$datos[[marca]]), 0L,
+        info = paste(nombre, marca, "marca lo que no es ausente")
+      )
+    }
+  }
+})
+
+# El control: el orden nuevo tiene que ser el que lo consigue, no una
+# casualidad del fixture. Si la marca vuelve a correr antes, el test de arriba
+# falla; esto fija que la secuencia sea la que corresponde.
+test_that("las acciones sobre ausentes van despues de normalizarlos", {
+  datos <- data.frame(
+    t = c("a", "N/A", NA, "b", "sin dato", "c"), stringsAsFactors = FALSE
+  )
+  plan <- planificar_limpieza(perfilar(datos))
+  orden_de <- function(estrategia) {
+    plan$orden[plan$estrategia == estrategia][[1L]]
+  }
+  expect_lt(
+    orden_de("convertir_ausencias_textuales"),
+    orden_de("marcar_filas_ausentes")
+  )
+  expect_lt(
+    orden_de("convertir_ausencias_textuales"),
+    orden_de("eliminar_filas_ausentes")
+  )
+  # Y la marca sigue antes que los cambios de esquema, que van al final.
+  expect_lt(orden_de("marcar_filas_ausentes"), 500L)
+})

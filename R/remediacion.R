@@ -276,7 +276,19 @@
 #' `n_cambiadas` se publican los tres, y compararlos es la forma de ver el
 #' efecto de la composición. Sólo el caso extremo —la acción no produce **ningún**
 #' efecto donde el plan estimaba alguno— se registra como `fallida` con su
-#' motivo. `reversible`
+#' motivo.
+#'
+#' **Esa comparación sólo lee composición cuando las dos cifras cuentan en la
+#' misma unidad.** `n_afectadas` cuenta en la `unidad_conteo` que el plan
+#' declara y `n_cambiadas` cuenta lo que la acción tocó al aplicarse, que es
+#' su unidad natural. Cuando la acción declara `unidad_conteo =
+#' "valor_distinto"` —las conversiones de mayúsculas y minúsculas—, las dos
+#' cifras miden poblaciones distintas y su diferencia no dice nada sobre la
+#' composición: medido sobre `c("Ana", "ana", "ANA", "Beto", " Ana ")`,
+#' `convertir_minusculas` estima `n_afectadas = 3` valores distintos y el
+#' registro publica `n_cambiadas = 4` celdas. Las dos son ciertas. La unidad
+#' del plan se recupera uniendo el registro con el plan por `id_accion`, que
+#' los dos publican. `reversible`
 #' indica si la conversión conserva la identidad de cada valor. Las
 #' conversiones se comprueban sobre todos los valores de `datos`: las numéricas
 #' bloquean ceros iniciales y colisiones no inyectivas, mientras que fechas,
@@ -346,6 +358,17 @@
 #' se exige para las estrategias que efectivamente retiran filas o columnas;
 #' una conversión destructiva requiere que el usuario la active explícitamente
 #' y deja su pérdida cuantificada en el registro.
+#'
+#' **Marcar o eliminar ausentes va después de normalizarlos**, no antes. Una
+#' columna con `"N/A"` y `"sin dato"` tiene ausentes disfrazados que
+#' `convertir_ausencias_textuales` convierte en `NA` reales; si la marca
+#' corriera primero, quedaría una columna `.ausente_x` que dice `FALSE` en
+#' filas que terminan en `NA` —una afirmación falsa sobre los datos, publicada
+#' con las dos acciones en `ejecutada` y sin error—. Medido sobre siete formas
+#' de tabla antes de corregirlo, tres producían esa marca falsa siguiendo el
+#' idioma documentado `plan$aplicar <- plan$recomendada`. Por la misma razón,
+#' `eliminar_filas_ausentes` también va después: eliminar antes deja sin
+#' eliminar las filas cuyo ausente todavía estaba disfrazado.
 #'
 #' @param perfil Objeto de clase `perfil` creado por [perfilar()].
 #' @param datos Datos opcionales que originaron el perfil. Son necesarios para
@@ -422,7 +445,14 @@ planificar_limpieza <- function(perfil, datos = NULL,
           "antes de decidir si corresponde excluirlos."
         ), fila$n_faltantes[[1L]], TRUE, estado = estado_columna,
         aplicar = FALSE,
-        parametros = list(columna_marca = nombre_marca), orden = 40L,
+        # Despues de las conversiones que CREAN ausentes -textuales en 100,
+        # centinelas numericos en 110-. Marcar antes producia una columna que
+        # afirma algo falso: medido sobre siete formas de tabla, en tres de
+        # ellas la marca decia FALSE en filas que quedaban NA, y las dos
+        # acciones se registraban como ejecutadas sin error. Con el idioma
+        # documentado -`plan$aplicar <- plan$recomendada`- alcanzaba para que
+        # `.ausente_t` negara dos de los tres ausentes.
+        parametros = list(columna_marca = nombre_marca), orden = 115L,
         grupo = grupo_hallazgo, decision_grupo = "pendiente",
         recomendacion_grupo = "marcar_filas_ausentes"
       ))
@@ -432,7 +462,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
           "Eliminar registros puede excluir personas o hechos del an\u00e1lisis; ",
           "s\u00f3lo corresponde cuando el dominio confirma que el ausente invalida la fila."
         ), fila$n_faltantes[[1L]], FALSE, estado = estado_columna,
-        aplicar = FALSE, orden = 45L, grupo = grupo_hallazgo,
+        # Por la misma razon que la marca: eliminar antes de normalizar deja
+        # sin eliminar las filas cuyo ausente todavia estaba disfrazado.
+        aplicar = FALSE, orden = 120L, grupo = grupo_hallazgo,
         decision_grupo = "pendiente",
         recomendacion_grupo = "marcar_filas_ausentes",
         destructiva = TRUE
