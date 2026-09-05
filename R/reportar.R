@@ -275,6 +275,7 @@
     "<h3>Cobertura de diagn\u00f3sticos</h3>",
     "<p class=\"nota\">Estos diagn\u00f3sticos no se evaluaron; un perfil sin hallazgos no es un perfil limpio si esta tabla tiene filas.</p>",
     .html_tabla(cobertura_diagnosticos, Inf),
+    .seccion_alcance_del_perfil(x),
     "<h3>Patrones de formato</h3>",
     if (length(bloques_patrones)) paste0(bloques_patrones, collapse = "") else {
       "<p class=\"sin-registros\">No hay patrones para mostrar.</p>"
@@ -303,6 +304,43 @@
 #
 # Es la cuarta aparicion en la jornada de la misma forma: el paquete declara
 # algo y el consumidor siguiente lo tira.
+# El objeto declara en `meta` cosas que acotan lo que se midio, y el informe
+# -que es lo que se comparte con quien no corre R- las callaba. Medido: un
+# perfil cuya entrada era una matriz declara `entrada_convertida` y el informe
+# no decia ni "convertida" ni "matriz"; un perfil con 25 columnas numericas
+# declara que el analisis de orden dejo cinco afuera y el informe no lo
+# mencionaba. El muestreo y `cobertura_diagnosticos` si se publicaban: son la
+# misma clase resuelta antes, y esto la termina.
+.seccion_alcance_del_perfil <- function(x) {
+  meta <- x$meta
+  if (!is.list(meta)) return("")
+  partes <- character()
+  convertida <- meta$entrada_convertida
+  if (is.character(convertida) && length(convertida) == 1L &&
+        !is.na(convertida) && nzchar(convertida)) {
+    partes <- c(partes, paste0(
+      "<p class=\"nota\">Entrada convertida: ", .html_texto(convertida),
+      ". El perfil describe la tabla resultante.</p>"
+    ))
+  }
+  orden <- meta$orden_columnas
+  if (is.list(orden) && isTRUE(orden$truncado) &&
+        length(orden$columnas_omitidas)) {
+    partes <- c(partes, paste0(
+      "<p class=\"nota\">La comparaci\u00f3n de orden entre columnas se limit\u00f3 a ",
+      .html_texto(as.character(orden$max_columnas)),
+      " columnas: qued\u00f3 sin comparar ",
+      .html_texto(paste(orden$columnas_omitidas, collapse = ", ")),
+      ". Su ausencia entre las relaciones de orden no significa que no las ",
+      "tengan.</p>"
+    ))
+  }
+  if (!length(partes)) return("")
+  paste0(
+    "<h3>Alcance de la corrida</h3>", paste0(partes, collapse = "")
+  )
+}
+
 .seccion_coberturas_del_objeto <- function(x) {
   partes <- character()
   cobertura_metricas <- attr(x, "cobertura_metricas", exact = TRUE)

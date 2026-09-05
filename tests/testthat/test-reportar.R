@@ -214,3 +214,56 @@ test_that("un fallo de escritura se informa sin dejar un resultado parcial", {
   )
   expect_false(file.exists(archivo))
 })
+
+# El informe es lo que se comparte con quien no corre R: si el objeto declara
+# que algo quedo fuera de la medicion y el informe lo calla, quien lee el
+# informe cree que se midio. El muestreo y `cobertura_diagnosticos` ya se
+# publicaban; estas dos declaraciones de `meta` no.
+test_that("el informe publica lo que el perfil declara sobre su alcance", {
+  # a. La entrada convertida. El .Rd dice que la declaracion existe "para que
+  #    el perfil no aparente haber recibido lo que no recibio", y el informe
+  #    volvia a aparentarlo.
+  perfil <- perfilar(matrix(1:60, nrow = 10))
+  expect_true(nzchar(perfil$meta$entrada_convertida))
+  archivo <- tempfile(fileext = ".html")
+  on.exit(unlink(archivo), add = TRUE)
+  invisible(reportar(perfil, archivo = archivo))
+  html <- paste(readLines(archivo, warn = FALSE), collapse = "\n")
+  expect_match(html, "Entrada convertida", fixed = TRUE)
+
+  # b. Las columnas que el analisis de orden dejo sin comparar.
+  set.seed(7)
+  datos <- as.data.frame(matrix(rnorm(25 * 30), ncol = 25))
+  names(datos) <- paste0("v", seq_len(25))
+  perfil_ancho <- perfilar(datos)
+  omitidas <- perfil_ancho$meta$orden_columnas$columnas_omitidas
+  expect_true(isTRUE(perfil_ancho$meta$orden_columnas$truncado))
+  expect_true(length(omitidas) > 0L)
+
+  archivo2 <- tempfile(fileext = ".html")
+  on.exit(unlink(archivo2), add = TRUE)
+  invisible(reportar(perfil_ancho, archivo = archivo2))
+  html2 <- paste(readLines(archivo2, warn = FALSE), collapse = "\n")
+  expect_match(html2, "sin comparar")
+  for (columna in omitidas) {
+    expect_match(html2, columna, fixed = TRUE)
+  }
+})
+
+# El control, y es el que impide que la seccion se vuelva ruido: un perfil que
+# no tiene nada que declarar no gana una seccion que afirme algo.
+test_that("el informe no inventa una seccion de alcance", {
+  perfil <- perfilar(
+    data.frame(x = 1:5, y = letters[1:5], stringsAsFactors = FALSE)
+  )
+  # Para un `data.frame` el campo existe y vale NA: no hay conversion que
+  # declarar. La guarda mira el valor, no la presencia del campo.
+  expect_true(is.na(perfil$meta$entrada_convertida))
+  expect_false(isTRUE(perfil$meta$orden_columnas$truncado))
+
+  archivo <- tempfile(fileext = ".html")
+  on.exit(unlink(archivo), add = TRUE)
+  invisible(reportar(perfil, archivo = archivo))
+  html <- paste(readLines(archivo, warn = FALSE), collapse = "\n")
+  expect_false(grepl("Alcance de la corrida", html, fixed = TRUE))
+})
