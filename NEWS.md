@@ -55,6 +55,15 @@
   `tipo_cambiado:texto_vs_no_texto`. `factor` cuenta como almacenamiento de
   caracteres, y ante un vocabulario ajeno al de memoria —un tipo SQL— no se
   afirma nada. Entre dos textos, una diferencia de longitud sigue siendo deriva.
+- **Perder la zona horaria se leía como un dato faltante.** Una columna
+  `POSIXct` guardada como texto pierde la zona, y el conteo de filas cuya fecha
+  civil difiere de UTC salía como diferencia material contra un lado que no
+  tiene zona que medir. Ahora se declara con
+  `tipo_cambiado:con_zona_vs_sin_zona`. Los extremos de fecha **siguen
+  comparándose**: al perder la zona los instantes que la columna denota son
+  realmente otros —tres horas de corrimiento en `America/Montevideo`—, y eso es
+  lo más importante que hay para informar. Entre dos columnas que sí llevan
+  zona, el conteo se compara como siempre.
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 

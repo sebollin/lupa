@@ -301,3 +301,59 @@ test_that("un vocabulario de tipo ajeno al de memoria no afirma nada", {
     "materialmente_distinto"
   )
 })
+
+test_that("perder la zona horaria se declara sin tapar el corrimiento real", {
+  # Al guardarse como texto, la columna pierde la zona: lo que el texto no
+  # puede medir se declara, y lo que si cambio -- los instantes -- se informa.
+  anterior <- perfilar(data.frame(
+    v = as.POSIXct(c("2020-01-01 10:00:00", "2021-06-15 23:30:00"),
+                   tz = "America/Montevideo")
+  ))
+  actual <- perfilar(data.frame(
+    v = c("2020-01-01 10:00:00", "2021-06-15 23:30:00"),
+    stringsAsFactors = FALSE
+  ))
+  resultado <- comparar_equivalencia(anterior, actual, tolerancia = 0.01)
+
+  motivos <- attr(resultado, "columnas_no_comparables")$motivo
+  expect_true("tipo_cambiado:con_zona_vs_sin_zona" %in% motivos)
+  expect_false("n_filas_fecha_civil_distinta_utc" %in% resultado$campo)
+
+  extremos <- resultado[resultado$campo %in% c("minimo_fecha", "maximo_fecha"), ]
+  expect_equal(nrow(extremos), 2L)
+  expect_true(all(
+    as.character(extremos$veredicto) == "materialmente_distinto"
+  ))
+})
+
+test_that("entre dos almacenamientos con zona el campo se sigue comparando", {
+  # Control: es el diagnostico que el guarda podria tapar. Dos POSIXct en
+  # zonas distintas si tienen algo que comparar.
+  instantes <- c("2020-01-01 10:00:00", "2021-06-15 23:30:00")
+  anterior <- perfilar(data.frame(
+    v = as.POSIXct(instantes, tz = "America/Montevideo")
+  ))
+  actual <- perfilar(data.frame(v = as.POSIXct(instantes, tz = "Asia/Tokyo")))
+  resultado <- comparar_equivalencia(anterior, actual, tolerancia = 0.01)
+
+  fila <- resultado[resultado$campo == "n_filas_fecha_civil_distinta_utc", ]
+  expect_equal(nrow(fila), 1L)
+  expect_false(
+    "tipo_cambiado:con_zona_vs_sin_zona" %in%
+      attr(resultado, "columnas_no_comparables")$motivo
+  )
+})
+
+test_that("una fecha sin hora no lleva zona y tambien se declara", {
+  instantes <- c("2020-01-01 10:00:00", "2021-06-15 23:30:00")
+  anterior <- perfilar(data.frame(
+    v = as.POSIXct(instantes, tz = "America/Montevideo")
+  ))
+  actual <- perfilar(data.frame(v = as.Date(c("2020-01-01", "2021-06-15"))))
+  resultado <- comparar_equivalencia(anterior, actual, tolerancia = 0.01)
+
+  expect_true(
+    "tipo_cambiado:con_zona_vs_sin_zona" %in%
+      attr(resultado, "columnas_no_comparables")$motivo
+  )
+})

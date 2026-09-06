@@ -65,6 +65,14 @@ mismo, de modo que compararlos publicaría el síntoma y callaría la causa.
 inferencia borra justo la diferencia que hay que ver. Cuando el tipo
 declarado viene de un vocabulario ajeno al de memoria —un tipo SQL, por
 ejemplo— no se afirma nada y la comparación sigue como siempre.
+
+Por la misma razón, si una columna lleva zona horaria en exactamente uno de
+los perfiles, los campos que sólo ese almacenamiento puede medir se omiten
+con el motivo \code{tipo_cambiado:con_zona_vs_sin_zona}. Del otro lado no dan un
+valor distinto: no dan ninguno, porque no hay zona que comparar contra UTC.
+Los extremos de fecha \strong{sí} se siguen comparando: al guardarse como texto
+la columna pierde la zona y los instantes que denota son realmente otros,
+que es lo más importante que hay para informar en ese caso.
 }
 \examples{
 anterior <- data.frame(

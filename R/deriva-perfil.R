@@ -824,23 +824,41 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   ))
 }
 
-.almacenamiento_caracter_equivalencia <- function(columnas, indice) {
+.tipo_declarado_equivalencia <- function(columnas, indice) {
   # Los guardas de tipo consultan `.tipo_columna_equivalencia()`, que prefiere
   # el tipo *inferido*. Si el texto contiene numeros o fechas, esa inferencia
   # borra justo la diferencia de almacenamiento que el guarda existe para ver.
   # Aca se lee el tipo declarado, el unico que dice como estan guardados los
   # valores. Devuelve NA cuando el vocabulario no es el de memoria -- un tipo
-  # SQL, una clase `sfc` -- y entonces no se afirma nada.
-  if (!"tipo_declarado" %in% names(columnas)) return(NA)
+  # SQL, una clase `sfc` -- y entonces ningun guarda de almacenamiento afirma
+  # nada. El vocabulario es el que produce `.tipo_declarado()`, y vive aca una
+  # sola vez para que los dos clasificadores de abajo no puedan divergir.
+  if (!"tipo_declarado" %in% names(columnas)) return(NA_character_)
   valor <- as.character(columnas[["tipo_declarado"]][[indice]])
-  if (length(valor) != 1L || is.na(valor) || !nzchar(trimws(valor))) return(NA)
-  tipo <- tolower(trimws(valor))
-  if (tipo %in% c("texto", "factor", "factor-ordenado")) return(TRUE)
-  if (tipo %in% c("doble", "entero", "logico", "fecha", "fecha-hora",
-                  "integer64", "lista", "matriz")) {
-    return(FALSE)
+  if (length(valor) != 1L || is.na(valor) || !nzchar(trimws(valor))) {
+    return(NA_character_)
   }
-  NA
+  tipo <- tolower(trimws(valor))
+  conocidos <- c(
+    "texto", "factor", "factor-ordenado", "doble", "entero", "logico",
+    "fecha", "fecha-hora", "integer64", "lista", "matriz"
+  )
+  if (!tipo %in% conocidos) return(NA_character_)
+  tipo
+}
+
+.almacenamiento_caracter_equivalencia <- function(columnas, indice) {
+  tipo <- .tipo_declarado_equivalencia(columnas, indice)
+  if (is.na(tipo)) return(NA)
+  tipo %in% c("texto", "factor", "factor-ordenado")
+}
+
+.almacenamiento_con_zona_equivalencia <- function(columnas, indice) {
+  # Solo `fecha-hora` lleva zona horaria. `fecha` no la tiene, y una fecha
+  # escrita como texto tampoco: por eso el desfasaje se pierde al guardarla.
+  tipo <- .tipo_declarado_equivalencia(columnas, indice)
+  if (is.na(tipo)) return(NA)
+  identical(tipo, "fecha-hora")
 }
 
 .campos_representacion_equivalencia <- function(registro) {
@@ -854,6 +872,19 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   unique(intersect(
     c("longitud_minima", "longitud_maxima", "longitud_media",
       "n_variantes_unicode", "n_numeros_texto", "proporcion_numeros_texto"),
+    unlist(registro, use.names = FALSE)
+  ))
+}
+
+.campos_zona_horaria_equivalencia <- function(registro) {
+  # Campos que solo puede medir un almacenamiento que lleva zona horaria. Del
+  # otro lado no dan un valor distinto: no dan ninguno, porque no hay zona que
+  # comparar contra UTC. Los extremos de fecha quedan FUERA a proposito: ahi la
+  # diferencia es real -- al guardarse como texto la columna pierde la zona y
+  # los instantes que denota son otros -- y es el hallazgo mas importante de
+  # ese escenario.
+  unique(intersect(
+    c("n_filas_fecha_civil_distinta_utc", "fecha_civil_distinta_utc"),
     unlist(registro, use.names = FALSE)
   ))
 }
@@ -1101,6 +1132,14 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #' declarado viene de un vocabulario ajeno al de memoria —un tipo SQL, por
 #' ejemplo— no se afirma nada y la comparación sigue como siempre.
 #'
+#' Por la misma razón, si una columna lleva zona horaria en exactamente uno de
+#' los perfiles, los campos que sólo ese almacenamiento puede medir se omiten
+#' con el motivo `tipo_cambiado:con_zona_vs_sin_zona`. Del otro lado no dan un
+#' valor distinto: no dan ninguno, porque no hay zona que comparar contra UTC.
+#' Los extremos de fecha **sí** se siguen comparando: al guardarse como texto
+#' la columna pierde la zona y los instantes que denota son realmente otros,
+#' que es lo más importante que hay para informar en ese caso.
+#'
 #' @name comparar_equivalencia
 #' @usage comparar_equivalencia(anterior, actual, tolerancia)
 #' @export
@@ -1140,6 +1179,7 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
   columnas <- intersect(as.character(anterior$columna), as.character(actual$columna))
   campos_magnitud <- .campos_magnitud_equivalencia(registro)
   campos_representacion <- .campos_representacion_equivalencia(registro)
+  campos_zona <- .campos_zona_horaria_equivalencia(registro)
   columnas_no_comparables <- data.frame(
     columna = character(), lado = character(), motivo = character(),
     stringsAsFactors = FALSE
@@ -1200,6 +1240,9 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     caracter_b <- .almacenamiento_caracter_equivalencia(actual, indice_b)
     caracter_cambiado <- !is.na(caracter_a) && !is.na(caracter_b) &&
       xor(caracter_a, caracter_b)
+    zona_a <- .almacenamiento_con_zona_equivalencia(anterior, indice_a)
+    zona_b <- .almacenamiento_con_zona_equivalencia(actual, indice_b)
+    zona_cambiada <- !is.na(zona_a) && !is.na(zona_b) && xor(zona_a, zona_b)
     tipo_cambiado <- !is.na(tipo_a) && !is.na(tipo_b) &&
       !identical(tipo_a, tipo_b)
     for (campo in campos) {
@@ -1233,6 +1276,13 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
         campos_no_comparables <- unique(c(campos_no_comparables, campo))
         registrar_no_comparable(
           columna, "ambos", "tipo_cambiado:texto_vs_no_texto", campo
+        )
+        next
+      }
+      if (zona_cambiada && campo %in% campos_zona) {
+        campos_no_comparables <- unique(c(campos_no_comparables, campo))
+        registrar_no_comparable(
+          columna, "ambos", "tipo_cambiado:con_zona_vs_sin_zona", campo
         )
         next
       }
