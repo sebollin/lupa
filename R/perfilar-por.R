@@ -251,9 +251,22 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       )
     }
     if (!ncol(rebanada)) {
+      # El motivo dice cual de las dos cosas paso, porque no son la misma y
+      # piden respuestas distintas. Con una tabla cuya unica columna es la de
+      # agrupacion, la rebanada queda vacia sin que ninguna columna este
+      # ausente, y el texto unico afirmaba que todas lo estaban: falso, y con
+      # `columnas_descartadas` vacio, que lo desmentia en la misma fila.
+      motivo_grupo <- if (length(descartables)) {
+        "Todas las columnas del grupo estan enteramente ausentes."
+      } else {
+        paste(
+          "No queda ninguna columna para perfilar en este grupo: la tabla no",
+          "tiene mas columnas que la de agrupacion."
+        )
+      }
       cobertura[[length(cobertura) + 1L]] <- data.frame(
         grupo = nombre_grupo, n_filas_grupo = length(filas),
-        motivo = "Todas las columnas del grupo estan enteramente ausentes.",
+        motivo = motivo_grupo,
         columnas_descartadas = paste(descartables, collapse = ", "),
         stringsAsFactors = FALSE
       )

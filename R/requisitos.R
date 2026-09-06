@@ -97,7 +97,7 @@
       "README.md y README.es.md, tabla de motores.",
       "README.md y README.es.md, tabla de motores.",
       "README.md y README.es.md, tabla de motores.",
-      "README.md y README.es.md: esperado, no comprobado contra el motor.",
+      "README.md y README.es.md, tabla de motores.",
       "README.md y README.es.md: esperado, no comprobado contra el motor.",
       "README.md y README.es.md: esperado, no comprobado contra el motor.",
       "No figura como fila de motor en los README.",

@@ -467,8 +467,16 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 .poda_relacion <- function(x, y, umbral_cobertura) {
   if (!identical(x$familia, y$familia) &&
       !all(c(x$familia, y$familia) %in% "numerica")) {
+    # El motivo dice lo que se midio -que las familias son distintas- y no lo
+    # que no se midio. Se llamaba `tipos_incompatibles`, y esa etiqueta afirma
+    # una incompatibilidad que el propio `.Rd` niega: "Familias distintas
+    # parece decisivo y no lo es: una columna de texto puede guardar
+    # '2020-01-05' y coincidir con una de fecha". Medido: ese mismo par da
+    # `1:1` con un valor comun por el camino por omision, y con `podar = TRUE`
+    # salia declarado incompatible. La poda es correcta y esta documentada; lo
+    # que sobraba era la afirmacion del nombre.
     return(list(
-      motivo = "tipos_incompatibles",
+      motivo = "familias_distintas",
       detalle = paste0("familias ", x$familia, " y ", y$familia)
     ))
   }

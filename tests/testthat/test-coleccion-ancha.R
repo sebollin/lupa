@@ -58,7 +58,10 @@ test_that("las candidatas reducen el costo y las podas se declaran", {
   expect_equal(resultado$relaciones$columna_tabla1, "clave")
   expect_equal(resultado$relaciones$columna_tabla2, "clave")
   expect_true(resultado$meta$combinaciones_podadas > 0L)
-  expect_true(all(c("tipos_incompatibles", "rangos_disjuntos") %in%
+  # `familias_distintas` y no `tipos_incompatibles`: el motivo dice lo que se
+  # midio. Que las familias difieran no prueba que los valores no coincidan, y
+  # el `.Rd` lo dice con todas las letras.
+  expect_true(all(c("familias_distintas", "rangos_disjuntos") %in%
                     resultado$cobertura_podas$motivo))
   expect_true(all(!grepl("a_relleno_01|b_relleno_01",
                          resultado$meta$lecturas$sql)))

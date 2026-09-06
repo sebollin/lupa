@@ -19,7 +19,9 @@ guiar_limpieza(
 
 \item{selector}{Función opcional que recibe una lista con \code{grupo},
 \code{acciones}, \code{elegibles}, \code{ejemplos} y \code{opciones}. Debe devolver la posición,
-el identificador o el nombre de una estrategia, o \code{0} para no hacer nada.}
+el identificador o el nombre de una estrategia, o \code{0} para no hacer nada. \code{NA} no es un valor
+válido: se rechaza con un error, para que una lectura fallida no quede
+registrada como una decisión de omitir.}
 
 \item{diccionarios}{Lista opcional con nombre de diccionarios por columna.}
 

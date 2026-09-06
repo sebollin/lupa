@@ -105,3 +105,39 @@ test_that("el muestreo conserva cobertura y cardinalidad con tamaños distintos"
   )
   expect_equal(duplicado_no_muestreado$cardinalidad, "m:1")
 })
+
+# El motivo de una poda dice lo que se midio, no lo que no se midio. Se llamaba
+# `tipos_incompatibles`, y esa etiqueta afirma una incompatibilidad que el
+# propio `.Rd` niega: "Familias distintas parece decisivo y no lo es: una
+# columna de texto puede guardar '2020-01-05' y coincidir con una de fecha".
+test_that("una poda por familias no afirma que los tipos sean incompatibles", {
+  fechas <- data.frame(fecha = as.Date(c("2020-01-05", "2021-06-01")))
+  textos <- data.frame(
+    fecha = c("2020-01-05", "2022-01-01"), stringsAsFactors = FALSE
+  )
+
+  # El par SI empareja por el camino por omision: es el ejemplo del propio .Rd.
+  sin_podar <- detectar_relaciones(fechas, textos)
+  expect_equal(as.character(sin_podar$cardinalidad), "1:1")
+  expect_equal(sin_podar$n_valores_comunes, 1L)
+
+  podado <- detectar_relaciones(fechas, textos, podar = TRUE)
+  expect_equal(as.character(podado$cardinalidad), "sin_comparar")
+  expect_equal(podado$motivo_poda, "familias_distintas")
+  podas <- attr(podado, "podas", exact = TRUE)
+  expect_equal(podas$motivo, "familias_distintas")
+  expect_match(podas$detalle, "familias fecha y texto")
+})
+
+# El control: la poda que SI es cierta -rangos numericos disjuntos, que no
+# comparten ningun valor y eso se sabe sin comparar- conserva su nombre y su
+# significado.
+test_that("la poda por rangos disjuntos sigue diciendo lo que dice", {
+  bajos <- data.frame(n = 1:5)
+  altos <- data.frame(n = 100:105)
+  resultado <- detectar_relaciones(bajos, altos)
+  podas <- attr(resultado, "podas", exact = TRUE)
+  expect_true("rangos_disjuntos" %in% podas$motivo)
+  # Y esa poda no oculta la fila: sale con cobertura cero, no `sin_comparar`.
+  expect_equal(as.character(resultado$cardinalidad), "sin_coincidencias")
+})

@@ -588,3 +588,94 @@ test_that("la impresión hace visibles las acciones y resultados destructivos", 
   mensajes <- capture.output(print(resultado), type = "message")
   expect_match(paste(mensajes, collapse = "\n"), "filas y.*columnas eliminadas")
 })
+
+# `NA` no es "no hacer nada". Lo era, y con eso un selector cuya lectura fallara
+# -`as.integer(entrada)` sobre algo que no es un numero devuelve NA- dejaba
+# TODOS los grupos como `omitida` en silencio: el plan quedaba registrado como
+# revisado y omitido a proposito cuando no se reviso nada. Un 99, igual de
+# invalido, ya daba un error claro.
+test_that("un selector que devuelve NA falla en vez de omitir en silencio", {
+  datos <- data.frame(
+    zona = c("Norte", "NORTE", "sur", "Norte", "sur"),
+    valor = c(10, 20, 30, 10, 35),
+    stringsAsFactors = FALSE
+  )
+  plan <- planificar_limpieza(perfilar(datos), datos)
+  # Primero: el plan tiene grupos que revisar. Sin eso no se prueba nada.
+  expect_true(any(as.character(plan$decision_grupo) == "pendiente"))
+
+  for (ausente in list(NA, NA_integer_, NA_character_)) {
+    expect_error(
+      guiar_limpieza(plan, datos, selector = function(x) ausente),
+      "devolvió NA"
+    )
+  }
+})
+
+# El control decide el alcance: los cuatro valores que el .Rd declara siguen
+# haciendo exactamente lo que hacian, y el camino interactivo -que usa
+# `utils::menu()`, la cual devuelve 0 al cancelar- no se toca.
+test_that("los valores declarados del selector no cambian", {
+  datos <- data.frame(
+    zona = c("Norte", "NORTE", "sur", "Norte", "sur"),
+    valor = c(10, 20, 30, 10, 35),
+    stringsAsFactors = FALSE
+  )
+  plan <- planificar_limpieza(perfilar(datos), datos)
+  decisiones <- function(selector) {
+    salida <- textConnection("basura", "w", local = TRUE)
+    sink(salida)
+    on.exit({ sink(); close(salida) }, add = TRUE)
+    as.character(guiar_limpieza(plan, datos, selector = selector)$decision_grupo)
+  }
+  expect_true(all(decisiones(function(x) 0L) == "omitida"))
+  expect_true(all(decisiones(function(x) "no_hacer_nada") == "omitida"))
+  expect_true(all(decisiones(function(x) 1L) == "elegida"))
+  expect_error(
+    guiar_limpieza(plan, datos, selector = function(x) 99L),
+    "no identifica una opción disponible"
+  )
+})
+
+# El motivo de una cobertura dice cual de las dos cosas paso, porque no son la
+# misma y piden respuestas distintas. Con una tabla cuya unica columna es la de
+# agrupacion, la rebanada queda vacia sin que ninguna columna este ausente, y el
+# texto unico afirmaba que todas lo estaban -con `columnas_descartadas` vacio,
+# que lo desmentia en la misma fila-.
+test_that("la cobertura por grupo distingue por que no quedo nada que perfilar", {
+  solo_eje <- data.frame(
+    zona = c("Norte", "NORTE", "sur", "Norte", "sur"), stringsAsFactors = FALSE
+  )
+  cobertura <- as.data.frame(
+    attr(perfilar_por(solo_eje, por = "zona", min_filas = 1), "cobertura_grupos")
+  )
+  expect_true(nrow(cobertura) > 0L)
+  expect_true(all(grepl("no tiene mas columnas que la de agrupacion",
+                        cobertura$motivo)))
+  expect_true(all(!nzchar(cobertura$columnas_descartadas)))
+
+  # El control: una columna legitimamente ausente sigue diciendo lo que decia,
+  # y ahi `columnas_descartadas` la nombra.
+  con_ausente <- data.frame(
+    zona = c("a", "a", "b", "b"), x = as.numeric(c(NA, NA, NA, NA)),
+    stringsAsFactors = FALSE
+  )
+  cobertura2 <- as.data.frame(
+    attr(perfilar_por(con_ausente, por = "zona", min_filas = 1),
+         "cobertura_grupos")
+  )
+  expect_true(nrow(cobertura2) > 0L)
+  expect_true(all(grepl("enteramente ausentes", cobertura2$motivo)))
+  expect_true(all(cobertura2$columnas_descartadas == "x"))
+
+  # Y un caso normal no genera cobertura ninguna.
+  normal <- data.frame(
+    zona = c("a", "a", "b", "b"), x = c(1, 2, 3, 4), stringsAsFactors = FALSE
+  )
+  expect_equal(
+    nrow(as.data.frame(
+      attr(perfilar_por(normal, por = "zona", min_filas = 1), "cobertura_grupos")
+    )),
+    0L
+  )
+})

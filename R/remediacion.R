@@ -2314,10 +2314,25 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
 }
 
 .resolver_seleccion_guiada <- function(respuesta, acciones, elegibles) {
-  if (!length(respuesta) || is.na(respuesta[[1L]]) ||
+  # `NA` NO es "no hacer nada". Lo era, y con eso un selector cuya lectura
+  # fallara -`as.integer(entrada)` sobre algo que no es un numero devuelve NA-
+  # dejaba TODOS los grupos como `omitida`, en silencio: el plan quedaba
+  # registrado como revisado y omitido a proposito cuando no se reviso nada, y
+  # el `.Rd` reserva `pendiente` para lo no revisado. Un 99, igual de invalido,
+  # ya daba un error claro.
+  #
+  # El camino interactivo no produce NA: `utils::menu()` devuelve 0 al
+  # cancelar, que sigue siendo "no hacer nada".
+  if (!length(respuesta) ||
       identical(respuesta[[1L]], "no_hacer_nada") ||
       identical(respuesta[[1L]], 0L) || identical(respuesta[[1L]], 0)) {
     return(NA_integer_)
+  }
+  if (is.na(respuesta[[1L]])) {
+    stop(
+      "La selecci\u00f3n guiada devolvi\u00f3 NA, que no identifica ninguna opci\u00f3n. ",
+      "Para no hacer nada, devolver 0.", call. = FALSE
+    )
   }
   if (is.numeric(respuesta) && length(respuesta) == 1L &&
       respuesta == length(elegibles) + 1L) {
@@ -2357,7 +2372,9 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
 #' @param datos Datos correspondientes al perfil que originó el plan.
 #' @param selector Función opcional que recibe una lista con `grupo`,
 #'   `acciones`, `elegibles`, `ejemplos` y `opciones`. Debe devolver la posición,
-#'   el identificador o el nombre de una estrategia, o `0` para no hacer nada.
+#'   el identificador o el nombre de una estrategia, o `0` para no hacer nada. `NA` no es un valor
+#'   válido: se rechaza con un error, para que una lectura fallida no quede
+#'   registrada como una decisión de omitir.
 #' @param diccionarios Lista opcional con nombre de diccionarios por columna.
 #' @param max_ejemplos Máximo de ejemplos reales mostrados por grupo.
 #'
