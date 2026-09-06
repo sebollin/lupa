@@ -625,8 +625,25 @@ test_that("los pesos con nombre se emparejan y no se leen por posicion", {
   expect_equal(ponderar(c(b = 0.8, a = 0.2)), esperado)
 
   # Y una declaracion que no corresponde a ninguna parte se rechaza en vez de
-  # aplicarse por posicion.
+  # aplicarse por posicion, NOMBRANDO lo que falta y lo que sobra. El
+  # emparejamiento va antes de la comprobacion de largo: con nombres, un largo
+  # equivocado es que falta o sobra una parte, y decir cual es mas util que
+  # decir cuantas hay.
   expect_error(ponderar(c(x = 0.2, y = 0.8)), "Faltan pesos para")
+  expect_error(ponderar(c(x = 0.2, y = 0.8)), "Sobran pesos para")
+  # Faltando una sola: antes daba el mensaje generico de largo.
+  primera <- as.character(por_entidad$objeto_medible)[[1L]]
+  expect_error(
+    ponderar(stats::setNames(1, primera)),
+    "Faltan pesos para"
+  )
+  # Sobrando una sola.
+  sobrante <- stats::setNames(
+    c(0.4, 0.4, 0.2), c(as.character(por_entidad$objeto_medible), "inventada")
+  )
+  expect_error(ponderar(sobrante), "Sobran pesos para: inventada")
+  # Sin nombres, el mensaje de largo sigue siendo el que corresponde.
+  expect_error(ponderar(c(0.5)), "una entrada en \\[0, 1\\] por medida")
   expect_error(
     ponderar(stats::setNames(c(0.2, 0.8), c("a", ""))),
     "mezcla entradas con nombre"

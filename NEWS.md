@@ -7,9 +7,9 @@
   los bits mal interpretados, y el perfil publicaba `moda = 1,06e-314` con
   estado sano, porque el dato ya venía así del origen y ninguna comprobación
   cruzada podía contradecirlo. El hallazgo `valores_subnormales` los cuenta, da
-  sus filas y los marca como `sospechoso`. No es concluyente y no lo afirma:
-  una probabilidad de cola calculada cae legítimamente en ese rango —`pnorm(-38)`
-  da 2,9e-316—.
+  sus filas y los marca como `sospechoso`. No es concluyente y no lo afirma: un
+  cálculo que desborda por defecto cae legítimamente en ese rango —`2^-1050` da
+  8,3e-317—.
 - **`agregar(funcion = "ratio")` contaba como falso lo que no era 0 ni 1.** Con
   una medida declarada booleana y un valor intermedio devolvía la proporción de
   unos sin decir nada, mientras `promedio` sobre los mismos valores devolvía la

@@ -164,12 +164,17 @@ test_that("la senal cuenta como el resto bajo muestreo y sobrevive al viaje", {
 # -sigue detectando el caso que lo motivo- pero dice lo que midio y no lo que
 # supone.
 test_that("el diagnostico no afirma el origen de los valores subnormales", {
-  # `pnorm(-38)` da 2,9e-316: una magnitud real, calculada por R, subnormal.
-  expect_true(pnorm(-38) > 0)
-  expect_true(pnorm(-38) < .Machine$double.xmin)
+  # `2^-1050` da 8,3e-317: aritmetica IEEE pura, subnormal, y el mismo valor en
+  # cualquier version de R. La primera version de este test usaba `pnorm(-38)`,
+  # que en R moderno da 2,9e-316 y **en R 4.1.0 -el minimo declarado- desborda
+  # a cero exacto**: el contenedor del minimo lo encontro con cinco fallos. Un
+  # test no puede apoyarse en la precision de una funcion que cambia entre
+  # versiones.
+  expect_true(2^-1050 > 0)
+  expect_true(2^-1050 < .Machine$double.xmin)
 
   probabilidades <- data.frame(
-    pval = c(pnorm(-seq(37, 40, length.out = 50)), runif(50, 1e-5, 1))
+    pval = c(2^-(1040:1060), runif(50, 1e-5, 1))
   )
   perfil <- perfilar(probabilidades)
   hallazgo <- perfil$hallazgos[

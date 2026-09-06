@@ -677,21 +677,12 @@ agregar <- function(medidas, destino,
     }
   }
   if (funcion == "promedio_ponderado") {
-    if (!is.numeric(pesos) || length(pesos) != nrow(medidas) || anyNA(pesos) ||
-        any(!is.finite(pesos)) || any(pesos < 0 | pesos > 1)) {
-      stop("`pesos` debe tener una entrada en [0, 1] por medida.", call. = FALSE)
-    }
-    # Los pesos son posicionales, pero un vector con nombres es una
-    # DECLARACION de a que parte va cada peso, y desoirla es peor que
-    # rechazarla: medido, `c(a = 0.2, b = 0.8)` y `c(b = 0.8, a = 0.2)` -la
-    # misma declaracion escrita en otro orden- daban 0,590476 y 0,647619, y
-    # nombres que no existian en la medicion se aceptaban en silencio.
-    #
-    # `indice_calidad()` ya decidio esto en el mismo paquete: sus pesos se
-    # emparejan por nombre y falla nombrando lo que sobra y lo que falta. Aca
-    # se hace lo mismo, y sin nombres se sigue leyendo por posicion, que es lo
-    # que la documentacion declara.
-    if (!is.null(names(pesos))) {
+    # El emparejamiento por nombre va ANTES de la comprobacion de largo: con
+    # nombres, un largo equivocado es que falta o sobra una parte, y decir cual
+    # es mas util que decir cuantas hay. Medido: `c(t1 = 1)` sobre dos medidas
+    # daba "debe tener una entrada por medida" -generico- en vez de "Faltan
+    # pesos para: t2", y un nombre que sobraba no se nombraba nunca.
+    if (!is.null(names(pesos)) && is.numeric(pesos)) {
       if (any(!nzchar(names(pesos)))) {
         stop(
           "`pesos` mezcla entradas con nombre y sin nombre. Corresponde una ",
@@ -702,13 +693,17 @@ agregar <- function(medidas, destino,
       partes_medidas <- as.character(medidas$objeto_medible)
       faltan <- setdiff(partes_medidas, names(pesos))
       sobran <- setdiff(names(pesos), partes_medidas)
-      if (length(faltan)) {
-        stop("Faltan pesos para: ", paste(faltan, collapse = ", "), ".",
-             call. = FALSE)
-      }
-      if (length(sobran)) {
-        stop("Sobran pesos para: ", paste(sobran, collapse = ", "), ".",
-             call. = FALSE)
+      if (length(faltan) || length(sobran)) {
+        stop(
+          if (length(faltan)) {
+            paste0("Faltan pesos para: ", paste(faltan, collapse = ", "), ".")
+          } else "",
+          if (length(faltan) && length(sobran)) " " else "",
+          if (length(sobran)) {
+            paste0("Sobran pesos para: ", paste(sobran, collapse = ", "), ".")
+          } else "",
+          call. = FALSE
+        )
       }
       if (anyDuplicated(names(pesos))) {
         stop("`pesos` repite una parte: ",
@@ -716,6 +711,10 @@ agregar <- function(medidas, destino,
                    collapse = ", "), ".", call. = FALSE)
       }
       pesos <- unname(pesos[match(partes_medidas, names(pesos))])
+    }
+    if (!is.numeric(pesos) || length(pesos) != nrow(medidas) || anyNA(pesos) ||
+        any(!is.finite(pesos)) || any(pesos < 0 | pesos > 1)) {
+      stop("`pesos` debe tener una entrada en [0, 1] por medida.", call. = FALSE)
     }
   }
   grupos <- .indices_grupos_agregacion(medidas, destino)

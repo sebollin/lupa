@@ -693,10 +693,10 @@ columna de enteros grandes se escribió como doble reinterpretando los bits:
 los números salen del orden de 1e-314 y, al venir así desde el origen,
 ninguna comprobación cruzada los contradice.
 
-\strong{No es concluyente, y el hallazgo no lo afirma.} Una probabilidad de cola
-calculada cae legítimamente en ese rango —\code{pnorm(-38)} da 2,9e-316—, así que
-una columna de p-valores o de verosimilitudes puede dispararlo sin que haya
-nada roto. Lo que se publica es el hecho medido —cuántos valores son
+\strong{No es concluyente, y el hallazgo no lo afirma.} Un cálculo que desborda
+por defecto cae legítimamente en ese rango —\code{2^-1050} da 8,3e-317—, y una
+columna de p-valores o de verosimilitudes muy pequeñas puede dispararlo sin
+que haya nada roto. Lo que se publica es el hecho medido —cuántos valores son
 subnormales y en qué filas—, no un veredicto sobre su origen.
 
 Los resúmenes de fecha-hora se expresan siempre en UTC y llevan el sufijo

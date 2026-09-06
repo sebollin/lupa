@@ -126,8 +126,8 @@
 # chico de todo el banco es 0,001 -unas 4,5e304 veces el umbral-.
 #
 # Pero ESE BANCO NO ES TODO EL MUNDO, y la primera version de este comentario
-# decia "no hay dato real cerca de esta frontera", que es falso: `pnorm(-38)`
-# da 2,9e-316, y una probabilidad de cola calculada es una magnitud real. Por
+# decia "no hay dato real cerca de esta frontera", que es falso: `2^-1050` da
+# 8,3e-317, y un calculo que desborda por defecto es una magnitud real. Por
 # eso la severidad es `sospechoso` y no `error`, y el texto dice que no es
 # concluyente. El hallazgo publica un hecho medido -hay valores subnormales- y
 # no un veredicto sobre su origen.
@@ -4236,8 +4236,8 @@
           "La columna contiene valores subnormales. Casi siempre salen de",
           "reinterpretar un patron de bits o de un desbordamiento por defecto,",
           "y entonces las estadisticas describen esos valores y no los datos",
-          "que se quiso guardar. No es concluyente: una probabilidad de cola",
-          "calculada -`pnorm(-38)` da 2,9e-316- es una magnitud real a esa",
+          "que se quiso guardar. No es concluyente: un calculo que desborda",
+          "por defecto -`2^-1050` da 8,3e-317- es una magnitud real a esa",
           "escala."
         ),
         paste0(
