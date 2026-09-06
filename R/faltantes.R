@@ -8,12 +8,35 @@
 # escapados para expresiones regulares.
 # Aquí se adaptan a literales porque la detección usa igualdad con %in%.
 
+# La familia "no disponible" faltaba entera: la lista tenia `s/d`, `s/i` y `n/c`
+# con sus formas, y `n/d` -de las abreviaturas mas comunes del espanol- no
+# estaba en ninguna.
 .cadenas_na_locales <- c(
-  "n.a", "n.a.", "nan", "none", "nil", "not available", "s/d", "sd",
-  "s.i", "s.i.", "s/i",
+  "n.a", "n.a.", "nan", "none", "nil", "not available",
+  "s/d", "s.d", "s.d.", "s.i", "s.i.", "s/i",
+  "n/d", "n.d", "n.d.", "no disponible",
   "sin dato", "sin datos", "sin informaci\u00f3n", "sin informacion",
-  "no corresponde", "n/c", "nc", "-", ".", "..", "...", "[]"
+  "no corresponde", "n/c", "-", ".", "..", "...", "[]"
 )
+
+# Las formas de DOS LETRAS SIN SEPARADOR son ambiguas y su veredicto depende de
+# la COLUMNA, no del valor. Medido en el banco de datos reales: en una columna
+# de codigos de estado de EE.UU. -51 valores distintos- `perfilar()` publicaba
+# `faltantes_disfrazados` con severidad **error** y evidencia "NC (59); SD (7)",
+# acusando a Carolina del Norte y Dakota del Sur. Pero en una columna de dos
+# valores, `c("SI", "SD")`, ese mismo `SD` es "sin dato" y retirarlo del
+# vocabulario es correcto: hay un test que lo exige desde antes.
+#
+# Lo que separa los dos casos es el TAMANO DEL VOCABULARIO: un sistema de
+# codigos tiene muchos valores distintos; una columna con un centinela tiene
+# pocos. Se reusa el mismo piso que el paquete ya usa para decidir si una
+# cardinalidad es alta.
+.cadenas_na_ambiguas <- c("sd", "nc", "nd")
+
+.cadenas_na_locales_ambiguas_aplican <- function(normalizados) {
+  distintos <- length(unique(normalizados[!is.na(normalizados)]))
+  isTRUE(distintos < .min_distintos_alta_cardinalidad)
+}
 
 .numeros_na_locales <- c(-9, -99, -999, -9999, 999)
 
@@ -49,7 +72,9 @@
 sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 
 .cadenas_na <- function() {
-  valores <- c(.cadenas_na_naniar_1_1_0, .cadenas_na_locales)
+  valores <- c(
+    .cadenas_na_naniar_1_1_0, .cadenas_na_locales, .cadenas_na_ambiguas
+  )
   unique(tolower(trimws(as.character(valores))))
 }
 
@@ -75,7 +100,11 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   if (is.character(x) || is.factor(x)) {
     textos <- .texto_analizable(x)$valores
     normalizados <- tolower(trimws(textos))
-    mascara_textual <- !is.na(normalizados) & normalizados %in% .cadenas_na()
+    cadenas <- .cadenas_na()
+    if (!.cadenas_na_locales_ambiguas_aplican(normalizados)) {
+      cadenas <- setdiff(cadenas, .cadenas_na_ambiguas)
+    }
+    mascara_textual <- !is.na(normalizados) & normalizados %in% cadenas
     numericos <- suppressWarnings(as.numeric(normalizados))
     mascara_numerica <- detectar_sentinelas_numericos &
       !is.na(normalizados) & !is.na(numericos) & numericos %in% numeros_na
