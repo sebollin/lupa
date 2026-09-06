@@ -1,5 +1,6 @@
 #' @export
 print.perfil <- function(x, ...) {
+  .validar_objeto_lupa(x, "perfil", "general", "perfilar()")
   errores <- sum(x$hallazgos$severidad == "error")
   sospechosos <- sum(x$hallazgos$severidad == "sospechoso")
   correctos <- sum(x$hallazgos$severidad == "ok")

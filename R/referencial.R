@@ -378,6 +378,7 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
 
 #' @export
 print.referencial <- function(x, ...) {
+  .validar_objeto_lupa(x, "referencial", "clave", "referencial()")
   cat("Referencial:", x$nombre, "\n")
   cat("  Filas:", nrow(x$datos), "\n")
   cat("  Clave:", paste(x$clave, collapse = " + "), "\n")

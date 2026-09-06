@@ -453,3 +453,31 @@
   is.numeric(total) && length(total) == 1L && !is.na(total) &&
     is.finite(total) && total >= minimo
 }
+
+# Cada puerta comprobaba un subconjunto distinto de lo que un objeto necesita, y
+# ninguna estaba completa. Medido quitando un componente por vez:
+# `comparar_perfiles()` rechaza un perfil sin `columnas`, `meta` o `hallazgos` y
+# ACEPTA uno sin `general`; `print.perfil()` no mira nada y sin embargo necesita
+# `general`, asi que fallaba con "attempt to set an attribute on NULL". No hay
+# una definicion unica de objeto valido aplicada en las dos.
+#
+# Esto la da, y las dos la usan. El mensaje nombra la funcion que lo produce,
+# que es lo que el usuario necesita para saber que hacer.
+.validar_objeto_lupa <- function(x, clase, componentes, origen) {
+  if (!inherits(x, clase)) {
+    stop("`x` debe ser un objeto de clase `", clase, "`, producido por ",
+         origen, ".", call. = FALSE)
+  }
+  if (!length(componentes)) return(invisible(x))
+  if (!is.list(x)) {
+    stop("`x` no tiene la estructura de un objeto `", clase,
+         "`: falta ", paste(componentes, collapse = ", "), ".", call. = FALSE)
+  }
+  faltan <- componentes[!componentes %in% names(x)]
+  if (length(faltan)) {
+    stop("`x` no tiene la estructura de un objeto `", clase, "`: falta ",
+         paste(faltan, collapse = ", "), ". Producirlo con ", origen, ".",
+         call. = FALSE)
+  }
+  invisible(x)
+}

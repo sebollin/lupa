@@ -2522,6 +2522,7 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
 
 #' @export
 print.plan_limpieza <- function(x, ...) {
+  .validar_objeto_lupa(x, "plan_limpieza", character(), "planificar_limpieza()")
   cli::cli_h1("Plan de limpieza")
   cli::cli_alert_success(paste(sum(x$aplicar), "acciones activadas"))
   cli::cli_alert_info(paste(sum(!x$aplicar), "acciones desactivadas"))

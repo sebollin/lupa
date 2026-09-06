@@ -807,6 +807,7 @@ indice_calidad <- function(medidas, pesos, pesos_internos = NULL, ...) {
 
 #' @export
 print.indice_calidad <- function(x, ...) {
+  .validar_objeto_lupa(x, "indice_calidad", character(), "indice_calidad()")
   cli::cli_h1("\u00cdndice de calidad declarado")
   if (is.na(x$valor)) {
     cli::cli_alert_warning(x$motivo)

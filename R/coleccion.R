@@ -1054,6 +1054,9 @@ perfilar_coleccion <- function(coleccion, muestra = Inf,
 
 #' @export
 print.perfil_coleccion <- function(x, ...) {
+  .validar_objeto_lupa(
+    x, "perfil_coleccion", "resumen_coleccion", "perfilar_coleccion()"
+  )
   cli::cli_text("Perfil de colecci\u00f3n: {.strong {x$meta$nombre}}")
   cli::cli_text(
     "Tablas: {x$meta$n_perfiladas} perfiladas de {x$meta$n_declaradas} declaradas"

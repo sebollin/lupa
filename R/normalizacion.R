@@ -64,6 +64,12 @@ normalizacion <- function(minusculas = TRUE, espacios = TRUE, acentos = TRUE,
 
 #' @export
 print.normalizacion_lupa <- function(x, ...) {
+  .validar_objeto_lupa(
+    x, "normalizacion_lupa",
+    c("minusculas", "espacios", "acentos", "comillas", "puntuacion",
+      "ligaduras", "ancho"),
+    "normalizacion()"
+  )
   cat("Perfil de normalizacion de lupa\n")
   pasos <- c("minusculas", "espacios", "acentos", "comillas", "puntuacion",
              "ligaduras", "ancho")
