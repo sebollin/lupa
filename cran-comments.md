@@ -148,14 +148,22 @@ result was read from that run's own check log — not from a green tick, not fro
 the conclusion of a CI run, and not from the notification e-mail.
 
 The package sources submitted are those of
-`1a47aaf803c036257cd69bc27f6b0ff7b165ceb6`. The tarball was built from a clean
+`784510165506d13fe60a0e23121e61e59255ae7f`. The tarball was built from a clean
 tree at that commit, which is checkable rather than asserted:
 
 ```sh
-git rev-parse HEAD        # 1a47aaf803c036257cd69bc27f6b0ff7b165ceb6
-git status --porcelain    # no output: nothing uncommitted travels in the build
+git rev-parse 7845101^{commit}   # the revision these sources come from
+git status --porcelain            # no output: nothing uncommitted travels in the build
+git diff --name-only 7845101..HEAD   # only cran-comments.md, which .Rbuildignore keeps out
 R CMD build --compact-vignettes=gs+qpdf lupa
 ```
+
+The third command is the one that matters and it is why this letter can name a
+commit that is not `HEAD`: everything committed after the named revision touches
+only this file, and `.Rbuildignore` keeps this file out of the tarball, so the
+sources being submitted are byte-identical to that commit. That claim used to be
+made in prose and went stale twice; it is now a command whose output is empty or
+the claim is false.
 
 The environment table below is generated from the check logs of that commit by a
 script, and written into this file between two markers rather than copied by
@@ -186,6 +194,18 @@ is enforced by the tool rather than remembered by the person running it.
 It is recorded rather than quietly corrected because the failure is the subject
 of the section above: a statement of fact in prose ages silently, and the
 reproducer being written next to it is not the same as the reproducer being run.
+
+**The table below is empty as this letter stands, and that is the generator
+refusing rather than an omission.** The seven local rows are measured on the
+revision named above — strict-dependency `--as-cran`, the check with incoming
+checks disabled, the R 4.1.0 container and the suite inside it, the nine-step
+local revalidation, the engine matrix against seven real engines, and the
+utility battery. The six external rows — GitHub Actions across five platforms,
+three R-hub environments and the two win-builder queues — have no log for this
+revision, because those runs have not been made for it. The generator writes
+nothing at all while any row lacks its log, so the letter carries no table until
+those runs exist. This letter is not ready to be sent while this paragraph is
+here.
 
 <!-- MATRIZ:INICIO -->
 <!-- MATRIZ:FIN -->
