@@ -222,6 +222,52 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   # declaradas-.
   #
   # Es la unica forma de indexar que no depende del contenido de los nombres.
+  # Lo que una columna ES no depende de que filas se miren, y partir la tabla
+  # crea huecos que son artefacto de la particion. Dos guardas de `perfilar()`
+  # se apoyan en propiedades de la columna entera y se volvian a deducir desde
+  # cada rebanada, donde ya no valen:
+  #
+  # - Benford excluye las columnas que parecen un identificador. Medido: 2.000
+  #   identificadores permutados quedan excluidos por la puerta de tabla
+  #   completa -"parece un identificador"- y recibian `desviacion_benford`
+  #   `sospechoso` en dos de tres grupos, porque dentro de 800 filas la serie
+  #   tiene huecos.
+  # - La conjetura de centinelas se apaga sobre una secuencia entera densa,
+  #   "para no llamar faltante a un codigo valido". Medido: `id = 1:2000` no
+  #   produce `faltantes_disfrazados` en la tabla completa y el MISMO 999
+  #   produce uno en un grupo, porque la rebanada ya no es densa.
+  #
+  # Las dos senales se calculan una vez sobre la tabla entera, cada una con el
+  # criterio de su propia guarda, y lo que en el grupo salga de ellas se mueve
+  # a la cobertura con el motivo verdadero: ni se publica ni se calla.
+  columnas_identificadoras <- character()
+  columnas_densas <- character()
+  hay_centinelas_declarados <- length(
+    .sentinelas_numericos_declarados(extras$sentinelas_numericos)
+  ) > 0L
+  for (nombre_columna in setdiff(names(datos), por)) {
+    valores <- datos[[nombre_columna]]
+    if (!is.numeric(valores) || inherits(valores, "integer64")) next
+    presentes <- valores[!is.na(valores)]
+    if (!length(presentes)) next
+    # La senal es la MISMA que usa la guarda de Benford, calculada sobre la
+    # columna entera en vez de sobre la rebanada. Un primer intento uso
+    # `tasa_distintos >= 0.9`, y el control lo tumbo: los importes reales son
+    # casi unicos, asi que esa regla le suprimia Benford justo a las magnitudes
+    # que Benford describe. La condicion del paquete es una conjuncion -alta
+    # unicidad Y forma de numeracion-, no una de las dos.
+    if (isTRUE(.parece_correlativo_benford(valores))) {
+      columnas_identificadoras <- c(columnas_identificadoras, nombre_columna)
+    }
+    secuencia <- tryCatch(
+      .resumen_secuencia_entera(valores, list(tipo = "entero"), NULL),
+      error = function(e) NULL
+    )
+    if (isTRUE(secuencia$densa)) {
+      columnas_densas <- c(columnas_densas, nombre_columna)
+    }
+  }
+
   for (indice_grupo in seq_along(grupos)) {
     nombre_grupo <- names(grupos)[[indice_grupo]]
     filas <- grupos[[indice_grupo]]
@@ -286,6 +332,57 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
           stringsAsFactors = FALSE
         ),
         cb_grupo
+      )
+    }
+    # Lo que la tabla entera ya decidio sobre la columna manda sobre lo que la
+    # rebanada deduce. El hallazgo no se borra: se mueve a la cobertura con el
+    # motivo, que es lo que este mismo objeto hace con todo lo que no se midio.
+    mover_a_cobertura <- function(marcados, diagnostico, motivo) {
+      if (!any(marcados)) return(invisible(NULL))
+      for (columna_afectada in unique(
+        as.character(perfil$hallazgos$columna[marcados])
+      )) {
+        cobertura_diagnosticos[[length(cobertura_diagnosticos) + 1L]] <<-
+          data.frame(
+            grupo = nombre_grupo, n_filas_grupo = length(filas),
+            diagnostico = diagnostico, columna = columna_afectada,
+            motivo = motivo,
+            como_resolverlo = paste(
+              "Si esa columna es una magnitud y no una numeraci\u00f3n, perfilar",
+              "el grupo por separado con `perfilar()`."
+            ),
+            dependencia = NA_character_, stringsAsFactors = FALSE
+          )
+      }
+      perfil$hallazgos <<- perfil$hallazgos[!marcados, , drop = FALSE]
+      invisible(NULL)
+    }
+    if (nrow(perfil$hallazgos) && length(columnas_identificadoras)) {
+      mover_a_cobertura(
+        grepl("benford", perfil$hallazgos$tipo_hallazgo) &
+          as.character(perfil$hallazgos$columna) %in% columnas_identificadoras,
+        "ley_benford",
+        paste(
+          "No aplica la ley de Benford: la columna parece un identificador en",
+          "la tabla completa. Dentro de un grupo la serie tiene huecos y esa",
+          "forma no se reconoce, pero ser un identificador no depende de qu\u00e9",
+          "filas se miren."
+        )
+      )
+    }
+    if (nrow(perfil$hallazgos) && length(columnas_densas) &&
+          !hay_centinelas_declarados) {
+      mover_a_cobertura(
+        perfil$hallazgos$tipo_hallazgo %in%
+          c("faltantes_disfrazados", "posible_centinela_numerico") &
+          as.character(perfil$hallazgos$columna) %in% columnas_densas,
+        "centinelas_numericos",
+        paste(
+          "La columna es una secuencia entera densa en la tabla completa, y",
+          "sobre una numeraci\u00f3n el paquete no conjetura centinelas para no",
+          "llamar faltante a un c\u00f3digo v\u00e1lido. Los huecos del grupo son de la",
+          "partici\u00f3n, no de la columna."
+        )
       )
     }
     if (nrow(perfil$hallazgos)) {

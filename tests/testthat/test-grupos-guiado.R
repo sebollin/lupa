@@ -679,3 +679,88 @@ test_that("la cobertura por grupo distingue por que no quedo nada que perfilar",
     0L
   )
 })
+
+# Lo que una columna ES no depende de que filas se miren, y partir la tabla crea
+# huecos que son artefacto de la particion. Dos guardas de `perfilar()` se
+# apoyan en propiedades de la columna entera y se volvian a deducir desde cada
+# rebanada, donde ya no valen. Las dos puertas afirmaban cosas opuestas sobre
+# los mismos valores.
+test_that("las guardas de tabla completa sobreviven al agrupamiento", {
+  # a. Benford excluye lo que parece un identificador. En la tabla completa la
+  #    serie permutada se reconoce; dentro de un grupo tiene huecos y no.
+  set.seed(9)
+  permutado <- data.frame(
+    grupo = rep(c("A", "B", "C"), times = c(800, 700, 500)),
+    id = sample(2000L),
+    stringsAsFactors = FALSE
+  )
+  completo <- perfilar(permutado["id"])
+  cobertura_completa <- completo$cobertura_diagnosticos
+  expect_true(any(grepl("identificador",
+                        cobertura_completa$motivo[
+                          cobertura_completa$diagnostico == "ley_benford"
+                        ])))
+
+  por_grupos <- perfilar_por(permutado, por = "grupo", min_filas = 1)
+  expect_equal(sum(grepl("benford", por_grupos$tipo_hallazgo)), 0L)
+  cobertura <- as.data.frame(attr(por_grupos, "cobertura_diagnosticos"))
+  movidas <- cobertura$diagnostico == "ley_benford" &
+    grepl("parece un identificador en", cobertura$motivo)
+  expect_true(sum(movidas) > 0L)
+  expect_true(all(cobertura$columna[movidas] == "id"))
+
+  # b. La conjetura de centinelas se apaga sobre una secuencia entera densa.
+  #    `1:2000` no produce `faltantes_disfrazados` y el mismo 999 lo producia
+  #    en un grupo, porque la rebanada ya no es densa.
+  set.seed(42)
+  denso <- data.frame(
+    egreso = sample(c("Si", "No"), 2000, TRUE, prob = c(0.4, 0.6)),
+    id = seq_len(2000L),
+    stringsAsFactors = FALSE
+  )
+  expect_equal(
+    sum(perfilar(denso["id"])$hallazgos$tipo_hallazgo == "faltantes_disfrazados"),
+    0L
+  )
+  agrupado <- perfilar_por(denso, por = "egreso", min_filas = 1)
+  expect_equal(sum(agrupado$tipo_hallazgo == "faltantes_disfrazados"), 0L)
+  cobertura2 <- as.data.frame(attr(agrupado, "cobertura_diagnosticos"))
+  expect_true(any(cobertura2$diagnostico == "centinelas_numericos"))
+})
+
+# Los controles, y son los que decidieron el alcance de la guarda: un primer
+# intento uso `tasa_distintos >= 0.9` como senal de identificador, y los
+# importes reales son casi unicos, asi que le suprimia Benford justo a las
+# magnitudes que Benford describe. La condicion del paquete es una conjuncion.
+test_that("la guarda no calla lo que si corresponde por grupo", {
+  set.seed(21)
+  magnitud <- function(k) {
+    as.numeric(sample(c(9, 9, 9, 8), k, TRUE) * 10^sample(0:4, k, TRUE) +
+                 sample(0:9, k, TRUE))
+  }
+  datos <- data.frame(
+    g = rep(c("A", "B", "C"), each = 400), monto = magnitud(1200)
+  )
+  # Primero: el mecanismo se activo. Sin hallazgos de Benford no se prueba nada.
+  por_grupos <- perfilar_por(datos, por = "g", min_filas = 1)
+  expect_true(sum(grepl("benford", por_grupos$tipo_hallazgo)) > 0L)
+  cobertura <- as.data.frame(attr(por_grupos, "cobertura_diagnosticos"))
+  expect_equal(
+    sum(cobertura$diagnostico == "ley_benford" &
+          grepl("parece un identificador en", cobertura$motivo)),
+    0L
+  )
+
+  # Y un centinela DECLARADO atraviesa la guarda de la secuencia densa, como
+  # ya lo hacia en la tabla completa.
+  denso <- data.frame(
+    g = rep(c("A", "B"), each = 500), id = seq_len(1000L),
+    stringsAsFactors = FALSE
+  )
+  sin_declarar <- perfilar_por(denso, por = "g", min_filas = 1)
+  declarando <- perfilar_por(
+    denso, por = "g", min_filas = 1, sentinelas_numericos = c(999)
+  )
+  expect_equal(sum(sin_declarar$tipo_hallazgo == "faltantes_disfrazados"), 0L)
+  expect_true(sum(declarando$tipo_hallazgo == "faltantes_disfrazados") > 0L)
+})
