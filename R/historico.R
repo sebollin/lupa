@@ -607,7 +607,18 @@
 historico_calidad <- function(..., detalle = c("resumen", "completo")) {
   detalle <- match.arg(detalle)
   objetos <- list(...)
+  # Un unico argumento que sea una lista se despliega como lista de objetos. Un
+  # `data.frame` TAMBIEN es una lista, y por eso `historico_calidad(data.frame())`
+  # se desplegaba a cero objetos y devolvia un historico vacio en silencio,
+  # mientras `historico_calidad(NULL)` y `character(0)` -igual de vacios- daban
+  # error. Cuatro entradas equivalentes, dos conductas opuestas; y para las
+  # aceptadas el mensaje de las rechazadas era falso: no habia ningun objeto
+  # malo, no habia objetos.
+  #
+  # Un `data.frame` no es un contenedor de mediciones: no se despliega y cae en
+  # la validacion, que lo nombra.
   if (length(objetos) == 1L && is.list(objetos[[1L]]) &&
+      !inherits(objetos[[1L]], "data.frame") &&
       !inherits(objetos[[1L]], c(
         "medicion", "evaluacion_calidad", "historico_calidad"
       ))) {
@@ -633,7 +644,18 @@ acumular_historico <- function(historico, ...,
   detalle <- match.arg(detalle)
   resultado <- .validar_historico(historico)
   objetos <- list(...)
+  # Un unico argumento que sea una lista se despliega como lista de objetos. Un
+  # `data.frame` TAMBIEN es una lista, y por eso `historico_calidad(data.frame())`
+  # se desplegaba a cero objetos y devolvia un historico vacio en silencio,
+  # mientras `historico_calidad(NULL)` y `character(0)` -igual de vacios- daban
+  # error. Cuatro entradas equivalentes, dos conductas opuestas; y para las
+  # aceptadas el mensaje de las rechazadas era falso: no habia ningun objeto
+  # malo, no habia objetos.
+  #
+  # Un `data.frame` no es un contenedor de mediciones: no se despliega y cae en
+  # la validacion, que lo nombra.
   if (length(objetos) == 1L && is.list(objetos[[1L]]) &&
+      !inherits(objetos[[1L]], "data.frame") &&
       !inherits(objetos[[1L]], c(
         "medicion", "evaluacion_calidad", "historico_calidad"
       ))) {

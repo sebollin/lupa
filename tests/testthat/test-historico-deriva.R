@@ -808,3 +808,38 @@ test_that("ordenar la politica no tapa ningun cambio real", {
   )
   expect_equal(nrow(comparar_perfiles(perfilar(datos), perfilar(datos))), 0L)
 })
+
+# Un unico argumento que sea una lista se despliega como lista de objetos, y un
+# `data.frame` TAMBIEN es una lista: `historico_calidad(data.frame())` se
+# desplegaba a cero objetos y devolvia un historico vacio en silencio, mientras
+# `NULL` y `character(0)` -igual de vacios- daban error. Cuatro entradas
+# equivalentes, dos conductas opuestas.
+test_that("las entradas vacias se tratan todas igual", {
+  datos <- data.frame(x = c(1, 2, NA, 4, 5))
+  medicion <- medir(
+    modelo(instanciar(especializar(metricas_nucleo()[[1L]]), "t", "x")), datos
+  )
+
+  # Un historico vacio es un concepto valido: sin argumentos, o una lista de
+  # cero objetos.
+  expect_equal(nrow(historico_calidad()), 0L)
+  expect_equal(nrow(historico_calidad(list())), 0L)
+
+  # Lo que no es un contenedor de mediciones se rechaza, y el mensaje lo dice.
+  for (invalido in list(data.frame(), NULL, character(0))) {
+    expect_error(historico_calidad(invalido), "Cada objeto debe ser")
+  }
+
+  # `acumular_historico()` tiene el mismo desplegado y por eso la misma regla:
+  # arreglar solo una de las dos habria dejado la conducta vieja en la otra.
+  historico <- historico_calidad(medicion)
+  expect_equal(nrow(acumular_historico(historico, list())), nrow(historico))
+  expect_error(
+    acumular_historico(historico, data.frame()), "Cada objeto debe ser"
+  )
+
+  # Y lo legitimo no cambia.
+  expect_equal(nrow(historico_calidad(medicion)), 5L)
+  expect_equal(nrow(historico_calidad(list(medicion, medicion))), 5L)
+  expect_equal(nrow(acumular_historico(historico, medicion)), 5L)
+})
