@@ -39,6 +39,22 @@
 - **La normalización era cuadrática sobre un texto largo.** `regmatches()`
   indexa por carácter, y en UTF-8 eso obliga a recorrer la cadena desde el
   principio en cada coincidencia. Sobre 160 KB: de 41,1 s a 0,079 s.
+- **`comparar_perfiles()` no podía declarar que había cambiado la vara.** Seis
+  varas que deciden si un hallazgo se emite y con qué severidad no viajaban en
+  `meta`. Subir `umbral_faltantes_error` de 0,4 a 0,9 sobre la misma tabla
+  publicaba `severidad_hallazgo / atenuado` y nada más: el efecto sin la causa.
+  Ahora una fila `configuracion_umbrales` la nombra, y con el dato cambiado y la
+  vara quieta esa fila no aparece.
+- **Un cambio de almacenamiento se leía como deriva de los datos.** La misma
+  columna guardada como número y como texto publicaba seis diferencias
+  materiales —longitudes, variantes unicode y números escritos como texto— y
+  ninguna decía que lo que había cambiado era cómo se guarda. Los guardas de
+  tipo consultaban el tipo *inferido*, que en ese par da `doble` de los dos
+  lados y borra justo la diferencia que había que ver. Ahora se lee el tipo
+  declarado y la columna queda en `columnas_no_comparables` con el motivo
+  `tipo_cambiado:texto_vs_no_texto`. `factor` cuenta como almacenamiento de
+  caracteres, y ante un vocabulario ajeno al de memoria —un tipo SQL— no se
+  afirma nada. Entre dos textos, una diferencia de longitud sigue siendo deriva.
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 

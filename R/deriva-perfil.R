@@ -824,6 +824,40 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   ))
 }
 
+.almacenamiento_caracter_equivalencia <- function(columnas, indice) {
+  # Los guardas de tipo consultan `.tipo_columna_equivalencia()`, que prefiere
+  # el tipo *inferido*. Si el texto contiene numeros o fechas, esa inferencia
+  # borra justo la diferencia de almacenamiento que el guarda existe para ver.
+  # Aca se lee el tipo declarado, el unico que dice como estan guardados los
+  # valores. Devuelve NA cuando el vocabulario no es el de memoria -- un tipo
+  # SQL, una clase `sfc` -- y entonces no se afirma nada.
+  if (!"tipo_declarado" %in% names(columnas)) return(NA)
+  valor <- as.character(columnas[["tipo_declarado"]][[indice]])
+  if (length(valor) != 1L || is.na(valor) || !nzchar(trimws(valor))) return(NA)
+  tipo <- tolower(trimws(valor))
+  if (tipo %in% c("texto", "factor", "factor-ordenado")) return(TRUE)
+  if (tipo %in% c("doble", "entero", "logico", "fecha", "fecha-hora",
+                  "integer64", "lista", "matriz")) {
+    return(FALSE)
+  }
+  NA
+}
+
+.campos_representacion_equivalencia <- function(registro) {
+  # Estos son los campos cuyo numero se calcula sobre la *representacion* de
+  # los valores y no sobre los valores. Cambian con solo cambiar el
+  # almacenamiento, aunque el dato sea identico: medidos sobre pares del mismo
+  # dato guardado de las dos formas -- doble, entero, fecha, logico, negativos,
+  # notacion cientifica, factor y fecha-hora -- son los unicos que difieren
+  # siempre. Los conteos de codificacion y de invisibles quedan fuera a
+  # proposito: ahi una diferencia habla del dato, no de como se guarda.
+  unique(intersect(
+    c("longitud_minima", "longitud_maxima", "longitud_media",
+      "n_variantes_unicode", "n_numeros_texto", "proporcion_numeros_texto"),
+    unlist(registro, use.names = FALSE)
+  ))
+}
+
 .tipo_columna_equivalencia <- function(columnas, indice) {
   nombres <- c(
     "tipo_inferido", "clase_temporal", "tipo_temporal", "clase",
@@ -1055,6 +1089,18 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 #' son temporales, `desvio` sí se compara en flotante porque ambas puertas lo
 #' expresan en segundos.
 #'
+#' Si una columna guarda caracteres en exactamente uno de los perfiles, los
+#' campos calculados sobre la representación —longitudes, variantes unicode y
+#' números escritos como texto— se omiten y su motivo queda en
+#' `detalle_campos_no_comparables` como `tipo_cambiado:texto_vs_no_texto`. Esos
+#' campos cambian con sólo cambiar el almacenamiento, aunque el dato sea el
+#' mismo, de modo que compararlos publicaría el síntoma y callaría la causa.
+#' `factor` cuenta como almacenamiento de caracteres. Este guarda lee el tipo
+#' *declarado* y no el inferido: si el texto contiene números o fechas, la
+#' inferencia borra justo la diferencia que hay que ver. Cuando el tipo
+#' declarado viene de un vocabulario ajeno al de memoria —un tipo SQL, por
+#' ejemplo— no se afirma nada y la comparación sigue como siempre.
+#'
 #' @name comparar_equivalencia
 #' @usage comparar_equivalencia(anterior, actual, tolerancia)
 #' @export
@@ -1093,6 +1139,7 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
   campos <- campos[campos %in% campos_registrados]
   columnas <- intersect(as.character(anterior$columna), as.character(actual$columna))
   campos_magnitud <- .campos_magnitud_equivalencia(registro)
+  campos_representacion <- .campos_representacion_equivalencia(registro)
   columnas_no_comparables <- data.frame(
     columna = character(), lado = character(), motivo = character(),
     stringsAsFactors = FALSE
@@ -1149,6 +1196,10 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     temporal_b <- .es_temporal_equivalencia(actual, indice_b)
     tipo_a <- .tipo_columna_equivalencia(anterior, indice_a)
     tipo_b <- .tipo_columna_equivalencia(actual, indice_b)
+    caracter_a <- .almacenamiento_caracter_equivalencia(anterior, indice_a)
+    caracter_b <- .almacenamiento_caracter_equivalencia(actual, indice_b)
+    caracter_cambiado <- !is.na(caracter_a) && !is.na(caracter_b) &&
+      xor(caracter_a, caracter_b)
     tipo_cambiado <- !is.na(tipo_a) && !is.na(tipo_b) &&
       !identical(tipo_a, tipo_b)
     for (campo in campos) {
@@ -1175,6 +1226,13 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
         campos_no_comparables <- unique(c(campos_no_comparables, campo))
         registrar_no_comparable(
           columna, "ambos", "tipo_cambiado:temporal_vs_no_temporal", campo
+        )
+        next
+      }
+      if (caracter_cambiado && campo %in% campos_representacion) {
+        campos_no_comparables <- unique(c(campos_no_comparables, campo))
+        registrar_no_comparable(
+          columna, "ambos", "tipo_cambiado:texto_vs_no_texto", campo
         )
         next
       }

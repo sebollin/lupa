@@ -53,6 +53,18 @@ de magnitud numérica se omiten por el cambio de esquema y su motivo queda en
 segundos contra magnitudes numéricas sin unidad común. Cuando ambos lados
 son temporales, \code{desvio} sí se compara en flotante porque ambas puertas lo
 expresan en segundos.
+
+Si una columna guarda caracteres en exactamente uno de los perfiles, los
+campos calculados sobre la representación —longitudes, variantes unicode y
+números escritos como texto— se omiten y su motivo queda en
+\code{detalle_campos_no_comparables} como \code{tipo_cambiado:texto_vs_no_texto}. Esos
+campos cambian con sólo cambiar el almacenamiento, aunque el dato sea el
+mismo, de modo que compararlos publicaría el síntoma y callaría la causa.
+\code{factor} cuenta como almacenamiento de caracteres. Este guarda lee el tipo
+\emph{declarado} y no el inferido: si el texto contiene números o fechas, la
+inferencia borra justo la diferencia que hay que ver. Cuando el tipo
+declarado viene de un vocabulario ajeno al de memoria —un tipo SQL, por
+ejemplo— no se afirma nada y la comparación sigue como siempre.
 }
 \examples{
 anterior <- data.frame(

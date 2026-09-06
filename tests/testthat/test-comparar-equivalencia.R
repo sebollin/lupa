@@ -224,3 +224,80 @@ test_that("la tolerancia es obligatoria y valida", {
     )
   }
 })
+
+test_that("el cambio de almacenamiento se declara y no se lee como deriva", {
+  # El mismo dato guardado de las dos formas. Antes, las metricas calculadas
+  # sobre la representacion salian como diferencias materiales y el cambio de
+  # almacenamiento -- la causa -- no aparecia por ningun lado.
+  anterior <- perfilar(data.frame(v = c(10.5, 20, 30.25, 40, 50)))
+  actual <- perfilar(
+    data.frame(v = c("10.5", "20", "30.25", "40", "50"),
+               stringsAsFactors = FALSE)
+  )
+  resultado <- comparar_equivalencia(anterior, actual, tolerancia = 0.01)
+
+  expect_equal(
+    sum(as.character(resultado$veredicto) == "materialmente_distinto"), 0L
+  )
+  no_comparables <- attr(resultado, "columnas_no_comparables")
+  expect_equal(nrow(no_comparables), 1L)
+  expect_identical(no_comparables$columna, "v")
+  expect_identical(no_comparables$motivo, "tipo_cambiado:texto_vs_no_texto")
+
+  detalle <- attr(resultado, "detalle_campos_no_comparables")
+  omitidos <- detalle$campo[detalle$motivo == "tipo_cambiado:texto_vs_no_texto"]
+  expect_true(all(
+    c("longitud_media", "n_variantes_unicode") %in% omitidos
+  ))
+})
+
+test_that("factor y texto son el mismo almacenamiento y siguen comparandose", {
+  # Control: si el guarda mirara `tipo_declarado == "texto"` a secas, un factor
+  # contra texto lo dispararia y suprimiria decenas de comparaciones sanas.
+  anterior <- perfilar(data.frame(v = factor(c("alfa", "beta", "alfa"))))
+  actual <- perfilar(
+    data.frame(v = c("alfa", "beta", "alfa"), stringsAsFactors = FALSE)
+  )
+  resultado <- comparar_equivalencia(anterior, actual, tolerancia = 0.01)
+
+  expect_equal(nrow(attr(resultado, "columnas_no_comparables")), 0L)
+  expect_true("longitud_media" %in% resultado$campo)
+})
+
+test_that("entre dos textos la diferencia de longitud sigue siendo deriva", {
+  # Control: el diagnostico que el guarda podria haber tapado tiene que
+  # sobrevivir cuando los dos lados guardan caracteres.
+  anterior <- perfilar(
+    data.frame(v = c("a", "bb", "ccc"), stringsAsFactors = FALSE)
+  )
+  actual <- perfilar(
+    data.frame(v = c("aaaaaaaa", "bbbbbbbb", "cccccccc"),
+               stringsAsFactors = FALSE)
+  )
+  resultado <- comparar_equivalencia(anterior, actual, tolerancia = 0.01)
+
+  fila <- resultado[resultado$campo == "longitud_media", ]
+  expect_equal(nrow(fila), 1L)
+  expect_identical(as.character(fila$veredicto), "materialmente_distinto")
+  expect_equal(nrow(attr(resultado, "columnas_no_comparables")), 0L)
+})
+
+test_that("un vocabulario de tipo ajeno al de memoria no afirma nada", {
+  # Por DBI el tipo declarado es el tipo SQL crudo. Ante un vocabulario que el
+  # paquete no conoce el guarda se abstiene en vez de adivinar.
+  anterior <- data.frame(
+    columna = "x", longitud_media = 3, tipo_declarado = "VARCHAR",
+    stringsAsFactors = FALSE
+  )
+  actual <- data.frame(
+    columna = "x", longitud_media = 8, tipo_declarado = "texto",
+    stringsAsFactors = FALSE
+  )
+  resultado <- comparar_equivalencia(anterior, actual, tolerancia = 0)
+
+  expect_equal(nrow(attr(resultado, "columnas_no_comparables")), 0L)
+  expect_identical(
+    as.character(resultado$veredicto[resultado$campo == "longitud_media"]),
+    "materialmente_distinto"
+  )
+})
