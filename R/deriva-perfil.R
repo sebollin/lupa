@@ -58,6 +58,17 @@
   perfil$meta[campos]
 }
 
+# La normalizacion es la cuarta politica que redefine lo que se mide, y la
+# unica que no se declaraba. Medido: con los MISMOS datos y `normalizar = FALSE`
+# desaparece `casi_duplicados_vocabulario`, y la deriva informaba "Un hallazgo
+# del perfil anterior ya no esta presente" con severidad `ok`. En monitoreo,
+# apagar la normalizacion se leia como "los datos mejoraron". El `meta` guardaba
+# la politica y la comparacion no la miraba.
+.configuracion_normalizacion_perfil <- function(perfil) {
+  if (!"normalizacion" %in% names(perfil$meta)) return(NULL)
+  perfil$meta$normalizacion$general
+}
+
 .configuracion_sentinelas_perfil <- function(perfil) {
   if (!"sentinelas_numericos" %in% names(perfil$meta)) return(NULL)
   perfil$meta$sentinelas_numericos
@@ -507,14 +518,42 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 
   sentinelas_a <- .configuracion_sentinelas_perfil(anterior)
   sentinelas_b <- .configuracion_sentinelas_perfil(actual)
+  # Una lista enteramente ausente no es una politica distinta: es una politica
+  # OCULTA. La proteccion de datos personales reemplaza `meta$sentinelas_
+  # numericos` por NA cuando no puede decidir que centinela pertenece a que
+  # columna, y comparar un perfil protegido contra uno sin proteger daba
+  # "Cambio la politica de centinelas numericos" con severidad `error` sobre
+  # dos corridas que usaban exactamente la misma politica por omision.
+  oculta <- function(x) !is.null(x) && length(x) && all(is.na(x))
   sentinelas_comparables <- !is.null(sentinelas_a) &&
     !is.null(sentinelas_b) &&
     isTRUE(all.equal(sentinelas_a, sentinelas_b, check.attributes = FALSE))
-  if (!sentinelas_comparables) {
-    texto_configuracion <- function(x) {
-      if (is.null(x)) return(NA_character_)
-      paste(unlist(x), collapse = "; ")
-    }
+  # Dos listas enmascaradas del mismo modo comparan iguales y no hay nada que
+  # declarar: la guarda es para cuando DIFIEREN y esa diferencia se explica por
+  # el enmascarado, no por la politica.
+  sentinelas_ocultos <- !sentinelas_comparables &&
+    (oculta(sentinelas_a) || oculta(sentinelas_b))
+  texto_configuracion <- function(x) {
+    if (is.null(x)) return(NA_character_)
+    if (oculta(x)) return("[pol\u00edtica protegida]")
+    paste(unlist(x), collapse = "; ")
+  }
+  if (sentinelas_ocultos) {
+    agregar(
+      NA_character_, "configuracion_sentinelas_numericos", "no_comparable",
+      "sospechoso", texto_configuracion(sentinelas_a),
+      texto_configuracion(sentinelas_b),
+      descripcion = paste(
+        "Una de las dos corridas public\u00f3 su pol\u00edtica de centinelas",
+        "enmascarada por la protecci\u00f3n de datos personales: no se puede",
+        "saber si la pol\u00edtica cambi\u00f3."
+      ),
+      evidencia = paste(
+        "No se afirma que haya cambiado. Para comparar la pol\u00edtica,",
+        "correr las dos con la misma configuraci\u00f3n de protecci\u00f3n."
+      )
+    )
+  } else if (!sentinelas_comparables) {
     agregar(
       NA_character_, "configuracion_sentinelas_numericos", "modificado",
       "error", texto_configuracion(sentinelas_a),
@@ -527,6 +566,31 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       evidencia = paste(
         "Las diferencias de m\u00e9tricas o hallazgos pueden atribuirse a esta",
         "pol\u00edtica en la transici\u00f3n; revisar la configuraci\u00f3n publicada."
+      )
+    )
+  }
+
+  normalizacion_a <- .configuracion_normalizacion_perfil(anterior)
+  normalizacion_b <- .configuracion_normalizacion_perfil(actual)
+  if (!is.null(normalizacion_a) && !is.null(normalizacion_b) &&
+      !isTRUE(all.equal(normalizacion_a, normalizacion_b,
+                        check.attributes = FALSE))) {
+    texto_normalizacion <- function(x) {
+      activos <- names(x)[vapply(x, function(z) isTRUE(z[[1L]]), logical(1))]
+      if (!length(activos)) "ninguno" else paste(activos, collapse = "; ")
+    }
+    agregar(
+      NA_character_, "configuracion_normalizacion", "modificado", "error",
+      texto_normalizacion(normalizacion_a),
+      texto_normalizacion(normalizacion_b),
+      descripcion = paste(
+        "Cambi\u00f3 la normalizaci\u00f3n del texto, que decide qu\u00e9 valores se",
+        "consideran el mismo."
+      ),
+      evidencia = paste(
+        "Las diferencias de cardinalidad, variantes y duplicados pueden venir",
+        "de esta pol\u00edtica y no de los datos; un hallazgo que desaparece al",
+        "apagarla no es una mejora de la entrega."
       )
     )
   }

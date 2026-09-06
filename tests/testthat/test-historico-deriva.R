@@ -648,3 +648,85 @@ test_that("dos perfiles de esta version no declaran campos ausentes", {
   expect_true("rango" %in% comparacion$aspecto)
   expect_true("cardinalidad" %in% comparacion$aspecto)
 })
+
+# La deriva promete distinguir un cambio en los datos de un cambio en la vara.
+# La normalizacion decide QUE VALORES SON EL MISMO y era la unica de las cuatro
+# politicas que no se declaraba: con los mismos datos y `normalizar = FALSE`
+# desaparecia `casi_duplicados_vocabulario` y la comparacion informaba "Un
+# hallazgo del perfil anterior ya no esta presente" con severidad `ok`. En
+# monitoreo, apagar la normalizacion se leia como que los datos mejoraron.
+test_that("un cambio de normalizacion se declara y no pasa por mejora", {
+  jose <- rawToChar(as.raw(c(0x4A, 0x6F, 0x73, 0xC3, 0xA9)))
+  datos <- data.frame(
+    ciudad = c(rep(jose, 10), rep("jose", 10), rep("JOSE ", 20)),
+    stringsAsFactors = FALSE
+  )
+  con <- perfilar(datos)
+  sin <- perfilar(datos, normalizar = FALSE)
+  # Primero: el mecanismo se activo. Sin un hallazgo que desaparezca, la
+  # comparacion no tendria nada que atribuir mal.
+  expect_true("casi_duplicados_vocabulario" %in% con$hallazgos$tipo_hallazgo)
+  expect_false("casi_duplicados_vocabulario" %in% sin$hallazgos$tipo_hallazgo)
+
+  comparacion <- comparar_perfiles(con, sin)
+  fila <- comparacion[comparacion$aspecto == "configuracion_normalizacion", ]
+  expect_equal(nrow(fila), 1L)
+  expect_equal(as.character(fila$severidad), "error")
+  expect_match(fila$evidencia, "no es una mejora")
+
+  # Y sigue reportando la desaparicion del hallazgo: la fila nueva no la tapa,
+  # la explica.
+  expect_true(any(comparacion$cambio == "resuelto"))
+})
+
+test_that("la misma normalizacion no inventa una fila de configuracion", {
+  jose <- rawToChar(as.raw(c(0x4A, 0x6F, 0x73, 0xC3, 0xA9)))
+  datos <- data.frame(
+    ciudad = c(rep(jose, 10), rep("jose", 10), rep("JOSE ", 20)),
+    stringsAsFactors = FALSE
+  )
+  expect_equal(nrow(comparar_perfiles(perfilar(datos), perfilar(datos))), 0L)
+  expect_equal(
+    nrow(comparar_perfiles(
+      perfilar(datos, normalizar = FALSE),
+      perfilar(datos, normalizar = FALSE)
+    )),
+    0L
+  )
+})
+
+# Una politica ENMASCARADA no es una politica distinta. La proteccion de datos
+# personales reemplaza `meta$sentinelas_numericos` por NA cuando no puede
+# decidir que centinela pertenece a que columna, y comparar un perfil protegido
+# contra uno sin proteger daba "Cambio la politica de centinelas numericos" con
+# severidad `error` sobre dos corridas que usaban la MISMA politica.
+test_that("una politica oculta se declara no comparable, no cambiada", {
+  set.seed(31)
+  datos <- data.frame(
+    ciudad = sample(c("Montevideo", "Salto", "Rivera"), 60, TRUE),
+    x = c(rnorm(55, 100, 10), -999, -999, 0, 0, NA),
+    stringsAsFactors = FALSE
+  )
+  sin_declarar <- perfilar(datos)
+  con_personal <- perfilar(datos, columnas_personales = "ciudad")
+  # El mecanismo se activo: una publica la politica y la otra la enmascara.
+  expect_false(anyNA(sin_declarar$meta$sentinelas_numericos))
+  expect_true(all(is.na(con_personal$meta$sentinelas_numericos)))
+
+  fila <- comparar_perfiles(sin_declarar, con_personal)
+  fila <- fila[fila$aspecto == "configuracion_sentinelas_numericos", ]
+  expect_equal(nrow(fila), 1L)
+  expect_equal(as.character(fila$cambio), "no_comparable")
+  expect_equal(as.character(fila$severidad), "sospechoso")
+  expect_match(fila$descripcion, "no se puede")
+
+  # El control, y es el que impide que la guarda tape un cambio real: una
+  # politica que SI cambio se sigue declarando como cambiada, con error.
+  otra <- comparar_perfiles(
+    sin_declarar, perfilar(datos, sentinelas_numericos = c(-999))
+  )
+  otra <- otra[otra$aspecto == "configuracion_sentinelas_numericos", ]
+  expect_equal(nrow(otra), 1L)
+  expect_equal(as.character(otra$cambio), "modificado")
+  expect_equal(as.character(otra$severidad), "error")
+})
