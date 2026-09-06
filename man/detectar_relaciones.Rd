@@ -36,7 +36,9 @@ megabytes. Las combinaciones pendientes se declaran como podas cuando se
 alcanza; \code{Inf} no limita el procesamiento.}
 }
 \value{
-Data frame con columnas comparadas, cardinalidad, coincidencias,
+Data frame con \code{columna_tabla1}, \code{columna_tabla2}, \code{cardinalidad}
+—\code{1:1}, \code{1:m}, \code{m:1}, \code{m:m}, \code{sin_coincidencias} o \code{sin_comparar}—,
+\code{n_valores_comunes},
 coberturas de integridad referencial en ambas direcciones y \code{motivo_poda},
 que sólo tiene valor en los pares no comparados. Los atributos
 \code{filas_totales}, \code{filas_analizadas} y \code{muestreado} documentan el muestreo;

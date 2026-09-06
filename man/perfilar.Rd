@@ -24,6 +24,7 @@ perfilar(
   aplicabilidad = NULL,
   ausencia_estructural = TRUE,
   sentinelas_numericos = c(-9, -99, -999, -9999, 999),
+  cadenas_ausencia = NULL,
   analizar_dependencias = TRUE,
   umbral_dependencia = 0.995,
   umbral_casi_clave_dependencia = 0.8,
@@ -179,6 +180,13 @@ salió limpio; el aviso existe para que eso sea una decisión y no un efecto.}
 \item{sentinelas_numericos}{Vector completo de valores numéricos que se
 interpretan como ausencia. \code{numeric()} los desactiva; las cadenas de
 ausencia se siguen evaluando por separado.}
+
+\item{cadenas_ausencia}{Cadenas que el usuario declara como ausencia,
+además de la lista incorporada. Lo declarado atraviesa la guarda del
+vocabulario: \code{sd}, \code{nc} y \code{nd} sólo cuentan solas en columnas de pocos
+valores distintos —para no acusar a un código de dos letras—, y
+declararlas las hace contar siempre. Es el equivalente textual de
+\code{sentinelas_numericos}.}
 
 \item{analizar_dependencias}{Si se buscan dependencias funcionales entre
 pares de columnas. Se aplica una sola muestra común a toda la tabla.}

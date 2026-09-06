@@ -1596,7 +1596,8 @@
                               distinguir_mayusculas, expandir,
                               umbral_patron_raro,
                               sentinelas_numericos,
-                              aplicable = NULL) {
+                              aplicable = NULL,
+                              cadenas_ausencia = NULL) {
   if (is.matrix(x)) {
     return(.perfilar_columna_matriz(
       x, nombre, muestra, max_patrones, distinguir_mayusculas, expandir,
@@ -1688,6 +1689,7 @@
     )
   faltantes_disfrazados <- .detectar_faltantes_disfrazados(
     x_analisis, sentinelas_numericos = sentinelas_numericos,
+    cadenas_ausencia = cadenas_ausencia,
     # Una secuencia densa apaga la corazonada del paquete para no llamar
     # faltante a un codigo valido. Una declaracion explicita debe atravesar esa
     # guarda: de lo contrario ni siquiera el conteo de ausencia obedeceria la

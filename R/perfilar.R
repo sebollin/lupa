@@ -1205,6 +1205,12 @@
 #'   explicitamente.
 #' @param columnas_sin_ceros Nombres de columnas donde cero no es admisible.
 #' @param columnas_no_negativas Nombres de columnas que deben ser no negativas.
+#' @param cadenas_ausencia Cadenas que el usuario declara como ausencia,
+#'   además de la lista incorporada. Lo declarado atraviesa la guarda del
+#'   vocabulario: `sd`, `nc` y `nd` sólo cuentan solas en columnas de pocos
+#'   valores distintos —para no acusar a un código de dos letras—, y
+#'   declararlas las hace contar siempre. Es el equivalente textual de
+#'   `sentinelas_numericos`.
 #' @param sentinelas_numericos Vector completo de valores numéricos que se
 #'   interpretan como ausencia. `numeric()` los desactiva; las cadenas de
 #'   ausencia se siguen evaluando por separado.
@@ -1447,6 +1453,7 @@ perfilar <- function(datos,
                      aplicabilidad = NULL,
                      ausencia_estructural = TRUE,
                      sentinelas_numericos = c(-9, -99, -999, -9999, 999),
+                     cadenas_ausencia = NULL,
                      analizar_dependencias = TRUE,
                      umbral_dependencia = 0.995,
                      umbral_casi_clave_dependencia = 0.8,
@@ -1570,6 +1577,14 @@ perfilar <- function(datos,
   if (!is.numeric(sentinelas_numericos) || anyNA(sentinelas_numericos) ||
       any(!is.finite(sentinelas_numericos))) {
     stop("`sentinelas_numericos` debe ser un vector num\u00e9rico finito.", call. = FALSE)
+  }
+  if (!is.null(cadenas_ausencia) &&
+      (!is.character(cadenas_ausencia) || anyNA(cadenas_ausencia) ||
+       any(!nzchar(trimws(cadenas_ausencia))))) {
+    stop(
+      "`cadenas_ausencia` debe ser un vector de texto sin ausentes ni cadenas ",
+      "vac\u00edas.", call. = FALSE
+    )
   }
   if (!is.logical(analizar_dependencias) || length(analizar_dependencias) != 1L ||
       is.na(analizar_dependencias)) {
@@ -1787,7 +1802,8 @@ perfilar <- function(datos,
         datos[[i]], nombres[[i]], muestra_diagnosticos, max_patrones,
         distinguir_mayusculas, expandir, umbral_patron_raro,
         sentinelas_numericos,
-        aplicable = aplicabilidad_resuelta$mascaras[[i]]
+        aplicable = aplicabilidad_resuelta$mascaras[[i]],
+        cadenas_ausencia = cadenas_ausencia
       )
     })
   )
@@ -2123,6 +2139,7 @@ perfilar <- function(datos,
     umbral_celdas_aviso_tabla_ancha = umbral_celdas_aviso_tabla_ancha,
     costo_tabla_ancha = costo_tabla_ancha,
     sentinelas_numericos = .numeros_na(sentinelas_numericos),
+    cadenas_ausencia = cadenas_ausencia,
     datos_personales_permitidos = datos_personales_permitidos,
     proteger_datos_personales = proteger_datos_personales,
     validadores_personales = names(validadores_personales),

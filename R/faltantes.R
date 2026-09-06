@@ -84,7 +84,8 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
 
 .detectar_faltantes_disfrazados <- function(
     x, sentinelas_numericos = .numeros_na_locales,
-    detectar_sentinelas_numericos = TRUE) {
+    detectar_sentinelas_numericos = TRUE,
+    cadenas_ausencia = NULL) {
   n <- length(x)
   if (!n) {
     return(list(
@@ -103,6 +104,14 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
     cadenas <- .cadenas_na()
     if (!.cadenas_na_locales_ambiguas_aplican(normalizados)) {
       cadenas <- setdiff(cadenas, .cadenas_na_ambiguas)
+    }
+    # Lo declarado atraviesa la guarda del vocabulario, igual que un centinela
+    # numerico declarado atraviesa la de la secuencia densa: el paquete no
+    # tiene con que contradecir a quien conoce el dato.
+    if (length(cadenas_ausencia)) {
+      cadenas <- unique(c(
+        cadenas, tolower(trimws(as.character(cadenas_ausencia)))
+      ))
     }
     mascara_textual <- !is.na(normalizados) & normalizados %in% cadenas
     numericos <- suppressWarnings(as.numeric(normalizados))

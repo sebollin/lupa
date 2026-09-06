@@ -56,3 +56,46 @@ test_that("las abreviaturas de ausencia con separador se detectan", {
     expect_equal(detectadas(valor), 2L, info = valor)
   }
 })
+
+# `sentinelas_numericos` declara que NUMEROS son ausencia y no tenia equivalente
+# textual: la lista de cadenas era fija. La asimetria se noto al hacer que las
+# formas de dos letras dependan del vocabulario -quien tuviera un caso donde esa
+# regla se equivoca no tenia donde decirlo-. Es la regla del paquete: excluir lo
+# que el usuario declara.
+test_that("las cadenas de ausencia se pueden declarar", {
+  estados <- data.frame(
+    state = c("OR", "IN", "CA", "NC", "SD", "ND", "NY", "TX", "FL", "WA",
+              "CO", "LA", "NC", "SD"),
+    stringsAsFactors = FALSE
+  )
+  # Sin declarar, la guarda del vocabulario protege al codigo de dos letras.
+  expect_equal(perfilar(estados)$columnas$n_faltantes_disfrazados, 0L)
+  # Declarado, lo del usuario manda y atraviesa la guarda.
+  declarado <- perfilar(estados, cadenas_ausencia = c("nc", "sd"))
+  expect_equal(declarado$columnas$n_faltantes_disfrazados, 4L)
+
+  # Y una cadena propia que no esta en ninguna lista incorporada.
+  datos <- data.frame(
+    x = c(rep("dato", 90), rep("XXX", 10)), stringsAsFactors = FALSE
+  )
+  expect_equal(perfilar(datos)$columnas$n_faltantes_disfrazados, 0L)
+  expect_equal(
+    perfilar(datos, cadenas_ausencia = "XXX")$columnas$n_faltantes_disfrazados,
+    10L
+  )
+})
+
+test_that("cadenas_ausencia se valida como su hermana numerica", {
+  datos <- data.frame(x = c("a", "b", "c"), stringsAsFactors = FALSE)
+  for (invalido in list(1:3, c("a", NA), c("a", ""), c("a", "  "))) {
+    expect_error(
+      perfilar(datos, cadenas_ausencia = invalido),
+      "vector de texto"
+    )
+  }
+  # NULL es el valor por omision y no cambia nada.
+  expect_equal(
+    perfilar(datos, cadenas_ausencia = NULL)$columnas$n_faltantes_disfrazados,
+    perfilar(datos)$columnas$n_faltantes_disfrazados
+  )
+})
