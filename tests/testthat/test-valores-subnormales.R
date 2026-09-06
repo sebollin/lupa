@@ -17,7 +17,9 @@ test_that("una columna con valores subnormales se declara", {
     drop = FALSE
   ]
   expect_equal(nrow(hallazgo), 1L)
-  expect_equal(as.character(hallazgo$severidad), "error")
+  # `sospechoso` y no `error`: el hallazgo publica un hecho medido -hay valores
+  # subnormales- y no un veredicto sobre su origen. Ver el test de abajo.
+  expect_equal(as.character(hallazgo$severidad), "sospechoso")
   expect_equal(hallazgo$n_afectados, 4)
   expect_equal(hallazgo$n_evaluados, 6)
   # Y dice cuales son las filas: contar sin poder nombrar es lo que la guarda
@@ -153,4 +155,39 @@ test_that("la senal cuenta como el resto bajo muestreo y sobrevive al viaje", {
     antes$n_afectados[antes$tipo_hallazgo == "valores_subnormales"],
     despues$n_afectados[despues$tipo_hallazgo == "valores_subnormales"]
   )
+})
+
+# La primera version de este diagnostico afirmaba, en el `.Rd` y en NEWS, que
+# "no hay magnitud real a esa escala" y lo marcaba como `error`. Es falso: una
+# probabilidad de cola calculada cae legitimamente en el rango subnormal, y el
+# refutador lo encontro atacando este mismo arreglo. El hallazgo se conserva
+# -sigue detectando el caso que lo motivo- pero dice lo que midio y no lo que
+# supone.
+test_that("el diagnostico no afirma el origen de los valores subnormales", {
+  # `pnorm(-38)` da 2,9e-316: una magnitud real, calculada por R, subnormal.
+  expect_true(pnorm(-38) > 0)
+  expect_true(pnorm(-38) < .Machine$double.xmin)
+
+  probabilidades <- data.frame(
+    pval = c(pnorm(-seq(37, 40, length.out = 50)), runif(50, 1e-5, 1))
+  )
+  perfil <- perfilar(probabilidades)
+  hallazgo <- perfil$hallazgos[
+    perfil$hallazgos$tipo_hallazgo == "valores_subnormales", ,
+    drop = FALSE
+  ]
+  # Se emite -el hecho es cierto- pero como sospecha, no como error.
+  expect_equal(nrow(hallazgo), 1L)
+  expect_equal(as.character(hallazgo$severidad), "sospechoso")
+  expect_match(hallazgo$descripcion, "No es concluyente")
+  expect_match(hallazgo$sugerencia, "no aplica")
+
+  # Y el caso que motivo el diagnostico se sigue detectando.
+  bits <- perfilar(data.frame(x = c(1.06e-314, 2.47e-314, 1.5e-314)))
+  detectado <- bits$hallazgos[
+    bits$hallazgos$tipo_hallazgo == "valores_subnormales", ,
+    drop = FALSE
+  ]
+  expect_equal(nrow(detectado), 1L)
+  expect_equal(detectado$n_afectados, 3)
 })

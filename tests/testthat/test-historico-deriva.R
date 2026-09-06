@@ -730,3 +730,81 @@ test_that("una politica oculta se declara no comparable, no cambiada", {
   expect_equal(as.character(otra$cambio), "modificado")
   expect_equal(as.character(otra$severidad), "error")
 })
+
+# Las politicas son CONJUNTOS: el orden en que se escriben es un artefacto de la
+# declaracion. Sin ordenar, la misma politica escrita distinto producia una fila
+# "modificado / error" -la severidad mas alta, justo la que una serie de calidad
+# lee como transicion de politica-, y en el caso de `proteger` la fila mostraba
+# valor_anterior y valor_actual IDENTICOS: se contradecia sola.
+#
+# Es la misma regla que el paquete fija para los pesos de `agregar()`: la misma
+# declaracion escrita en otro orden da el mismo numero.
+test_that("una politica escrita en otro orden no es un cambio de vara", {
+  set.seed(3)
+  datos <- data.frame(
+    ciudad = sample(c("Montevideo", "Salto"), 200, TRUE),
+    monto = c(rnorm(195, 100, 10), -999, -99, 0, 0, 999),
+    stringsAsFactors = FALSE
+  )
+  filas_de <- function(anterior, actual, patron) {
+    comparacion <- comparar_perfiles(anterior, actual)
+    sum(grepl(patron, comparacion$aspecto))
+  }
+
+  expect_equal(
+    filas_de(
+      perfilar(datos, sentinelas_numericos = c(999, -9, -99, -999, -9999)),
+      perfilar(datos, sentinelas_numericos = c(-9, -99, -999, -9999, 999)),
+      "configuracion_sentinelas"
+    ),
+    0L
+  )
+  expect_equal(
+    filas_de(
+      perfilar(datos, normalizar = normalizacion(proteger = c("n", "u"))),
+      perfilar(datos, normalizar = normalizacion(proteger = c("u", "n"))),
+      "configuracion_normalizacion"
+    ),
+    0L
+  )
+})
+
+# Los controles, y son los que impiden que ordenar tape un cambio real: las
+# cuatro clases de cambio de vara se siguen viendo, y la guarda de la politica
+# oculta tambien.
+test_that("ordenar la politica no tapa ningun cambio real", {
+  set.seed(3)
+  datos <- data.frame(
+    ciudad = sample(c("Montevideo", "Salto"), 200, TRUE),
+    monto = c(rnorm(195, 100, 10), -999, -99, 0, 0, 999),
+    stringsAsFactors = FALSE
+  )
+  filas_de <- function(anterior, actual, patron) {
+    comparacion <- comparar_perfiles(anterior, actual)
+    sum(grepl(patron, comparacion$aspecto))
+  }
+  expect_equal(
+    filas_de(perfilar(datos), perfilar(datos, sentinelas_numericos = c(-999)),
+             "configuracion_sentinelas"),
+    1L
+  )
+  expect_equal(
+    filas_de(perfilar(datos), perfilar(datos, normalizar = FALSE),
+             "configuracion_normalizacion"),
+    1L
+  )
+  expect_equal(
+    filas_de(
+      perfilar(datos, normalizar = normalizacion(proteger = c("n"))),
+      perfilar(datos, normalizar = normalizacion(proteger = c("n", "u"))),
+      "configuracion_normalizacion"
+    ),
+    1L
+  )
+  expect_equal(
+    filas_de(perfilar(datos), perfilar(datos, columnas_personales = "ciudad"),
+             "configuracion_sentinelas"),
+    1L
+  )
+  expect_equal(nrow(comparar_perfiles(perfilar(datos), perfilar(datos))), 0L)
+})

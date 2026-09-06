@@ -677,16 +677,19 @@ de duplicados con \code{normalizar = TRUE} aplica estas mismas clases sin borrar
 ZWJ/ZWNJ.
 
 Un valor \code{double} \strong{subnormal} —distinto de cero y menor que
-\code{.Machine$double.xmin} en valor absoluto, unos 2,2e-308— no es una medición:
-sale de reinterpretar un patrón de bits o de un desbordamiento por defecto.
-El hallazgo \code{valores_subnormales} los cuenta y da sus filas, con severidad
-\code{error}, porque las estadísticas de esa columna describen esos valores y no
-los datos que se quiso guardar. El caso que motiva el diagnóstico es leer una
-tabla donde una columna de enteros grandes se escribió como doble
-reinterpretando los bits: los números salen del orden de 1e-314 y, al venir
-así desde el origen, ninguna comprobación cruzada los contradice. El umbral
-no admite falsos positivos por construcción: no hay magnitud real a esa
-escala.
+\code{.Machine$double.xmin} en valor absoluto, unos 2,2e-308— casi siempre sale de
+reinterpretar un patrón de bits o de un desbordamiento por defecto. El
+hallazgo \code{valores_subnormales} los cuenta y da sus filas, con severidad
+\code{sospechoso}. El caso que motiva el diagnóstico es leer una tabla donde una
+columna de enteros grandes se escribió como doble reinterpretando los bits:
+los números salen del orden de 1e-314 y, al venir así desde el origen,
+ninguna comprobación cruzada los contradice.
+
+\strong{No es concluyente, y el hallazgo no lo afirma.} Una probabilidad de cola
+calculada cae legítimamente en ese rango —\code{pnorm(-38)} da 2,9e-316—, así que
+una columna de p-valores o de verosimilitudes puede dispararlo sin que haya
+nada roto. Lo que se publica es el hecho medido —cuántos valores son
+subnormales y en qué filas—, no un veredicto sobre su origen.
 
 Los resúmenes de fecha-hora se expresan siempre en UTC y llevan el sufijo
 \code{UTC} en el texto para hacer visible la zona aplicada. El instante se

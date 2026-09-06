@@ -121,10 +121,16 @@
 # resumen SQL coincide con la muestra: no hay divergencia que declarar y el
 # absurdo se publica como un dato calculado.
 #
-# El riesgo de falso positivo se midio, no se supuso: 140 columnas numericas de
-# 17 archivos reales, cero subnormales, y el valor no nulo mas chico de todo el
-# banco es 0,001 -unas 4,5e304 veces el umbral-. No hay dato real cerca de esta
-# frontera.
+# El riesgo de falso positivo se midio sobre datos administrativos: 140 columnas
+# numericas de 17 archivos reales, cero subnormales, y el valor no nulo mas
+# chico de todo el banco es 0,001 -unas 4,5e304 veces el umbral-.
+#
+# Pero ESE BANCO NO ES TODO EL MUNDO, y la primera version de este comentario
+# decia "no hay dato real cerca de esta frontera", que es falso: `pnorm(-38)`
+# da 2,9e-316, y una probabilidad de cola calculada es una magnitud real. Por
+# eso la severidad es `sospechoso` y no `error`, y el texto dice que no es
+# concluyente. El hallazgo publica un hecho medido -hay valores subnormales- y
+# no un veredicto sobre su origen.
 .n_subnormales <- function(x) {
   # `oldClass(x)` en vez de una lista de clases: `Date`, `POSIXct`, `difftime`,
   # `integer64`, `units` y `hms` son todos `double` por debajo, y `abs()` no
@@ -4225,12 +4231,14 @@
     }
     if (n_subnormales > 0L) {
       agregar(.nuevo_hallazgo(
-        nombre, "valores_subnormales", "error",
+        nombre, "valores_subnormales", "sospechoso",
         paste(
-          "La columna contiene valores subnormales, que no son mediciones:",
-          "salen de reinterpretar un patron de bits o de un desbordamiento por",
-          "defecto. Las estadisticas de esta columna describen esos valores y",
-          "no los datos que se quiso guardar."
+          "La columna contiene valores subnormales. Casi siempre salen de",
+          "reinterpretar un patron de bits o de un desbordamiento por defecto,",
+          "y entonces las estadisticas describen esos valores y no los datos",
+          "que se quiso guardar. No es concluyente: una probabilidad de cola",
+          "calculada -`pnorm(-38)` da 2,9e-316- es una magnitud real a esa",
+          "escala."
         ),
         paste0(
           n_subnormales, " de ", sum(!is.na(datos[[nombre]])),
@@ -4240,7 +4248,8 @@
         paste(
           "Revisar como se escribio la columna. Un caso conocido: escribir una",
           "columna `integer64` en algunos motores la guarda como doble",
-          "reinterpretando los bits."
+          "reinterpretando los bits. Si la columna son probabilidades o",
+          "verosimilitudes calculadas, el aviso no aplica."
         ),
         n_evaluados = sum(!is.na(datos[[nombre]])),
         n_afectados = n_subnormales, unidad_conteo = "valor"

@@ -66,12 +66,29 @@
 # la politica y la comparacion no la miraba.
 .configuracion_normalizacion_perfil <- function(perfil) {
   if (!"normalizacion" %in% names(perfil$meta)) return(NULL)
-  perfil$meta$normalizacion$general
+  general <- perfil$meta$normalizacion$general
+  # Las politicas son CONJUNTOS: el orden en que se escriben es un artefacto de
+  # la declaracion. Sin ordenar, `normalizacion(proteger = c("n", "u"))` contra
+  # `normalizacion(proteger = c("u", "n"))` producia una fila
+  # "modificado / error" cuyo valor anterior y actual eran IDENTICOS: la fila se
+  # contradecia sola. Es la misma regla que el paquete ya fija para los pesos de
+  # `agregar()`: la misma declaracion escrita en otro orden da el mismo numero.
+  if (is.list(general) && !is.null(general$proteger)) {
+    general$proteger <- sort(unique(as.character(general$proteger)))
+  }
+  general
 }
 
 .configuracion_sentinelas_perfil <- function(perfil) {
   if (!"sentinelas_numericos" %in% names(perfil$meta)) return(NULL)
-  perfil$meta$sentinelas_numericos
+  # Un conjunto, no una secuencia: `c(999, -9)` y `c(-9, 999)` son la misma
+  # politica y se declaraban como un cambio de vara con severidad `error`, que
+  # es justo la fila que una serie de calidad lee como transicion de politica.
+  # Los NA del enmascarado se conservan para que la guarda de politica oculta
+  # los siga viendo.
+  valores <- perfil$meta$sentinelas_numericos
+  if (is.null(valores) || all(is.na(valores))) return(valores)
+  sort(unique(valores), na.last = TRUE)
 }
 
 .rango_perfil <- function(fila) {
