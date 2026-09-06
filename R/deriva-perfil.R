@@ -64,6 +64,25 @@
 # del perfil anterior ya no esta presente" con severidad `ok`. En monitoreo,
 # apagar la normalizacion se leia como "los datos mejoraron". El `meta` guardaba
 # la politica y la comparacion no la miraba.
+# Las varas que deciden si un hallazgo se emite y con que severidad. Se comparan
+# como CONJUNTO y en una sola fila: seis filas separadas serian ruido, y lo que
+# el lector necesita saber es que la vara cambio, no cual de los seis umbrales.
+.configuracion_umbrales_perfil <- function(perfil) {
+  campos <- c(
+    "umbral_faltantes_sospechoso", "umbral_faltantes_error",
+    "umbral_alta_cardinalidad", "umbral_patron_dominante",
+    "umbral_patron_raro", "columnas_sin_ceros", "columnas_no_negativas"
+  )
+  presentes <- intersect(campos, names(perfil$meta))
+  if (!length(presentes)) return(NULL)
+  valores <- lapply(presentes, function(campo) {
+    valor <- perfil$meta[[campo]]
+    if (is.null(valor) || !length(valor)) "ninguna"
+    else paste(sort(unique(as.character(valor))), collapse = "/")
+  })
+  stats::setNames(unlist(valores, use.names = FALSE), presentes)
+}
+
 .configuracion_normalizacion_perfil <- function(perfil) {
   if (!"normalizacion" %in% names(perfil$meta)) return(NULL)
   general <- perfil$meta$normalizacion$general
@@ -583,6 +602,33 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       evidencia = paste(
         "Las diferencias de m\u00e9tricas o hallazgos pueden atribuirse a esta",
         "pol\u00edtica en la transici\u00f3n; revisar la configuraci\u00f3n publicada."
+      )
+    )
+  }
+
+  umbrales_a <- .configuracion_umbrales_perfil(anterior)
+  umbrales_b <- .configuracion_umbrales_perfil(actual)
+  if (!is.null(umbrales_a) && !is.null(umbrales_b) &&
+      !identical(umbrales_a, umbrales_b)) {
+    difieren <- names(umbrales_a)[
+      !names(umbrales_a) %in% names(umbrales_b) |
+        umbrales_a[names(umbrales_a)] !=
+          umbrales_b[match(names(umbrales_a), names(umbrales_b))]
+    ]
+    difieren <- difieren[!is.na(difieren)]
+    texto_umbral <- function(x, cuales) {
+      paste(paste0(cuales, "=", x[cuales]), collapse = "; ")
+    }
+    agregar(
+      NA_character_, "configuracion_umbrales", "modificado", "error",
+      texto_umbral(umbrales_a, difieren), texto_umbral(umbrales_b, difieren),
+      descripcion = paste(
+        "Cambiaron los umbrales que deciden si un hallazgo se emite y con",
+        "qu\u00e9 severidad."
+      ),
+      evidencia = paste(
+        "Un hallazgo que aparece, desaparece o cambia de severidad entre las",
+        "dos corridas puede venir de esta configuraci\u00f3n y no de los datos."
       )
     )
   }

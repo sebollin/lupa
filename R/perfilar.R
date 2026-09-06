@@ -2120,6 +2120,23 @@ perfilar <- function(datos,
     distinguir_mayusculas = distinguir_mayusculas,
     expandir = expandir,
     umbral_patron_raro = umbral_patron_raro,
+    # Las varas que deciden si un hallazgo se emite y con que severidad tienen
+    # que viajar en `meta`, porque la comparacion entre corridas solo puede
+    # declarar un cambio de vara si la vara quedo registrada. Medido antes de
+    # agregarlas: cambiar `umbral_faltantes_error` de 0,4 a 0,9 sobre la misma
+    # tabla producia UNA sola fila -`severidad_hallazgo / atenuado`- y ninguna
+    # `configuracion_*`; quien leia la deriva veia que un hallazgo se atenuo y
+    # no podia saber que fue porque se movio el umbral.
+    #
+    # Medido tambien el riesgo de agregar campos: ninguno de los seis comparte
+    # prefijo con los 55 que ya estan, asi que ningun acceso `meta$...` del
+    # paquete queda capturado por la coincidencia parcial de `$`.
+    umbral_faltantes_sospechoso = umbral_faltantes_sospechoso,
+    umbral_faltantes_error = umbral_faltantes_error,
+    umbral_alta_cardinalidad = umbral_alta_cardinalidad,
+    umbral_patron_dominante = umbral_patron_dominante,
+    columnas_sin_ceros = columnas_sin_ceros,
+    columnas_no_negativas = columnas_no_negativas,
     analizar_dependencias = analizar_dependencias,
     umbral_dependencia = umbral_dependencia,
     umbral_casi_clave_dependencia = umbral_casi_clave_dependencia,

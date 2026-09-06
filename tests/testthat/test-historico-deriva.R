@@ -843,3 +843,51 @@ test_that("las entradas vacias se tratan todas igual", {
   expect_equal(nrow(historico_calidad(list(medicion, medicion))), 5L)
   expect_equal(nrow(acumular_historico(historico, medicion)), 5L)
 })
+
+# La comparacion entre corridas solo puede declarar un cambio de vara si la vara
+# quedo registrada en `meta`. Seis de las que deciden si un hallazgo se emite y
+# con que severidad no viajaban: cambiar `umbral_faltantes_error` sobre la misma
+# tabla producia UNA fila -`severidad_hallazgo / atenuado`- y ninguna
+# `configuracion_*`. Quien leia la deriva veia que un hallazgo se atenuo y no
+# podia saber que fue porque se movio el umbral.
+test_that("un cambio de umbral se declara como cambio de vara", {
+  set.seed(3)
+  datos <- data.frame(x = c(rnorm(50), rep(NA, 50)))
+  comparacion <- comparar_perfiles(
+    perfilar(datos, umbral_faltantes_error = 0.4),
+    perfilar(datos, umbral_faltantes_error = 0.9)
+  )
+  fila <- comparacion[comparacion$aspecto == "configuracion_umbrales", ]
+  expect_equal(nrow(fila), 1L)
+  expect_equal(as.character(fila$severidad), "error")
+  expect_match(fila$valor_anterior, "umbral_faltantes_error")
+  expect_match(fila$evidencia, "y no de los datos")
+
+  # La consecuencia sigue publicandose: la fila nueva no la tapa, la explica.
+  expect_true(any(comparacion$cambio == "atenuado"))
+
+  # Y las seis varas viajan en `meta`.
+  meta <- perfilar(datos)$meta
+  for (vara in c("umbral_faltantes_sospechoso", "umbral_faltantes_error",
+                 "umbral_alta_cardinalidad", "umbral_patron_dominante",
+                 "columnas_sin_ceros", "columnas_no_negativas")) {
+    expect_true(vara %in% names(meta), info = vara)
+  }
+})
+
+# Los controles: la fila no puede aparecer cuando lo que cambian son los DATOS,
+# que es la promesa central de esta capa.
+test_that("un cambio de datos no se declara como cambio de umbral", {
+  set.seed(3)
+  base <- data.frame(x = c(rnorm(50), rep(NA, 50)))
+  otros <- data.frame(x = c(rnorm(70), rep(NA, 30)))
+  filas_umbral <- function(a, b) {
+    sum(comparar_perfiles(a, b)$aspecto == "configuracion_umbrales")
+  }
+  expect_equal(filas_umbral(perfilar(base), perfilar(base)), 0L)
+  expect_equal(filas_umbral(perfilar(base), perfilar(otros)), 0L)
+  # Y una vara declarada por columna tambien se ve.
+  expect_equal(
+    filas_umbral(perfilar(base), perfilar(base, columnas_sin_ceros = "x")), 1L
+  )
+})
