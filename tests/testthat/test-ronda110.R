@@ -91,6 +91,10 @@ test_that("la condicion densa es causal para las dos supresiones", {
       list(
         densa = FALSE, densidad = 1, n_posiciones = 1000,
         n_huecos = 0, hueco_maximo = 1, salto_de_escala = FALSE,
+        # La simulacion tiene que espejar el contrato de la funcion real: si le
+        # falta un campo, la fila del perfil se arma con un componente de largo
+        # cero y falla con un mensaje que no nombra la causa.
+        moda_sobresale = FALSE,
         umbral_densidad = 0.8, min_distintos = 20L
       )
     },

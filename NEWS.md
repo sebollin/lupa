@@ -76,6 +76,18 @@
   lo mismo, que era el riesgo real de arreglar una sola. La clase `perfil_dbi`
   se asignaba en cuatro lugares y ahora sale de uno solo, `.sellar_perfil_dbi()`,
   para que ningún camino se saltee la regla.
+- **Un centinela escondido dentro de una numeración se callaba.** La guarda de
+  centinelas se apaga sobre una «secuencia entera densa», y la densidad contaba
+  la cobertura del rango **ignorando cuántas veces aparece cada valor**: con
+  `c(1:1000, rep(999, 100), 2001:3000)`, el grupo de las 1.100 primeras filas
+  daba densidad 1 —mil valores distintos sobre mil posiciones— y callaba el
+  `999` repetido 101 veces que la tabla completa sí acusaba. Ahora «numeración
+  limpia» exige además que ningún valor sobresalga, con el mismo criterio que
+  usa `valor_concentrado`. Lo que separa un centinela de una clave foránea no es
+  el tamaño de la moda sino su forma: sobre las diez columnas numéricas del
+  banco real el mayor cociente es 1,71 y el caso a atrapar da 101. Ningún
+  hallazgo del banco cambia, y perder la condición de numeración no acusa por sí
+  solo: sólo devuelve la columna a la mirada de la lista de centinelas.
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 

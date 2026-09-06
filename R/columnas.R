@@ -265,6 +265,7 @@
   vacio <- list(
     densa = FALSE, densidad = NA_real_, n_posiciones = NA_real_,
     n_huecos = NA_real_, hueco_maximo = NA_real_, salto_de_escala = FALSE,
+    moda_sobresale = FALSE,
     umbral_densidad = umbral_densidad,
     min_distintos = as.integer(min_distintos)
   )
@@ -329,13 +330,39 @@
   # detras de 1..1000 deja uno de 1.000. Sin esta medida, la densidad sola
   # tapaba los dos casos, porque un valor fuera de escala de hasta el doble del
   # maximo no baja la densidad lo suficiente.
+  # La densidad cuenta la COBERTURA del rango e ignora cuantas veces aparece
+  # cada valor: mil valores distintos sobre mil posiciones dan densidad 1
+  # aunque uno de ellos aparezca ciento una veces, que es exactamente la firma
+  # de un centinela escondido en una numeracion. Lo que separa un centinela de
+  # una clave foranea legitima no es el TAMANO de la moda -las claves foraneas
+  # tienen modas grandes y legitimas- sino su FORMA: si sobresale del resto de
+  # la distribucion. Se usa el criterio que el paquete ya tiene decidido para
+  # el caso hermano en `concentracion.R`, en vez de inventar otro umbral.
+  # Medido sobre las diez columnas numericas reales del banco, el mayor
+  # cociente es 1,71 -`zip`-, con `brewery_id` en 1,63; el caso que hay que
+  # atrapar da 101. El factor 5 queda en el medio con margen a los dos lados.
+  frecuencias <- tabulate(
+    match(valores[presentes], distintos), nbins = length(distintos)
+  )
+  ordenadas <- sort(frecuencias, decreasing = TRUE)
+  cociente_moda <- if (length(ordenadas) >= 2L && ordenadas[[2L]] > 0) {
+    ordenadas[[1L]] / ordenadas[[2L]]
+  } else NA_real_
+  moda_sobresale <- length(distintos) >= 3L &&
+    isTRUE(is.finite(cociente_moda) &&
+             cociente_moda >= .FACTOR_VALOR_CONCENTRADO)
   huecos <- if (length(distintos) > 1L) diff(distintos) else numeric()
   hueco_tipico <- if (length(huecos)) stats::median(huecos) else NA_real_
   if (!is.finite(hueco_tipico) || hueco_tipico <= 0) hueco_tipico <- 1
   hueco_maximo <- if (length(huecos)) max(huecos) else 0
   list(
+    # `densa` significa "numeracion limpia", y una numeracion limpia reparte:
+    # ningun valor sobresale del resto. Sin esta condicion, mil valores
+    # distintos sobre mil posiciones daban densidad 1 -y por lo tanto densa- con
+    # un centinela repetido ciento una veces adentro, y la guarda de centinelas
+    # se apagaba justo donde habia algo que informar.
     densa = length(distintos) >= min_distintos &&
-      densidad >= umbral_densidad,
+      densidad >= umbral_densidad && !moda_sobresale,
     densidad = as.numeric(densidad),
     n_posiciones = as.numeric(n_posiciones),
     n_huecos = as.numeric(n_posiciones - length(distintos)),
@@ -355,6 +382,7 @@
     salto_de_escala = length(distintos) >= 3L && hueco_maximo > 1 &&
       (hueco_maximo >= .FACTOR_SALTO_ESCALA * hueco_tipico ||
          hueco_maximo / n_posiciones >= .PROPORCION_SALTO_ESCALA),
+    moda_sobresale = moda_sobresale,
     umbral_densidad = umbral_densidad,
     min_distintos = as.integer(min_distintos)
   )
@@ -1826,6 +1854,7 @@
     n_huecos_secuencia_entera = secuencia_entera$n_huecos,
     hueco_maximo_secuencia_entera = secuencia_entera$hueco_maximo,
     salto_de_escala_secuencia_entera = secuencia_entera$salto_de_escala,
+    moda_sobresale_secuencia_entera = secuencia_entera$moda_sobresale,
     umbral_densidad_secuencia_entera = secuencia_entera$umbral_densidad,
     min_distintos_secuencia_entera = secuencia_entera$min_distintos,
     moda = moda$valor,

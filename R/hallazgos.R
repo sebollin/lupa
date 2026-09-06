@@ -254,6 +254,10 @@
     )
   }
   if (isTRUE(fila$salto_de_escala_secuencia_entera)) return(FALSE)
+  # Una numeracion limpia reparte: ningun valor sobresale del resto. Si uno
+  # sobresale, la columna no es una numeracion aunque cubra su rango, y la
+  # guarda de centinelas tiene que seguir mirandola.
+  if (isTRUE(fila$moda_sobresale_secuencia_entera)) return(FALSE)
   densidad <- suppressWarnings(as.numeric(fila$densidad_secuencia_entera))
   distintos <- suppressWarnings(as.numeric(fila$n_distintos))
   isTRUE(is.finite(densidad) && densidad >= .MIN_DENSIDAD_NUMERACION) &&

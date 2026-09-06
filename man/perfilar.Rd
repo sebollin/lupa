@@ -844,6 +844,22 @@ informó como \code{faltantes_disfrazados}. El diagnóstico fuerte de ausencia t
 precedencia: un centinela no se presenta también como posible variante de un
 valor válido. El alcance declara cuántas observaciones retiró este filtro.
 
+La corazonada de centinelas numéricos se apaga sobre una \strong{numeración
+limpia}, para no llamar ausencia a un código válido. «Limpia» exige dos
+cosas, no una: que los valores cubran su rango —\code{densidad_secuencia_entera}
+por encima de su umbral— y que \strong{ninguno sobresalga del resto}. La segunda
+hace falta porque la densidad cuenta la cobertura del rango e ignora cuántas
+veces aparece cada valor: mil valores distintos sobre mil posiciones dan
+densidad 1 aunque uno de ellos aparezca cien veces, que es justamente la
+firma de un centinela escondido en una numeración.
+\code{moda_sobresale_secuencia_entera} publica esa segunda condición y usa el
+mismo criterio que \code{valor_concentrado}: la frecuencia de la moda contra la
+del segundo valor más frecuente. Lo que separa un centinela de una clave
+foránea legítima no es el tamaño de la moda —las claves foráneas tienen
+modas grandes— sino su forma: una clave foránea reparte, un centinela
+sobresale. Perder la condición de numeración no genera un hallazgo por sí
+solo: sólo devuelve la columna a la mirada de la lista de centinelas.
+
 La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara \code{poder_discriminante} y \code{proteger}:
 \itemize{
