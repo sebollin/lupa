@@ -224,7 +224,7 @@ padrón de personas, el valor sale como `[valor protegido]` y la distancia se
 conserva. Un referencial que no lleva datos personales mantiene su evidencia
 completa.
 
-**Y el enmascarado alcanza a todas las salidas, no sólo a la moda.** La
+**Y el enmascarado alcanza a todas las salidas, no sólo a la moda** —con alcance **por columna**: se reemplaza lo que describe a la columna protegida, no toda aparición de ese texto. `"S/D"` puede ser un centinela de la cédula y a la vez el «sin dato» de `sexo`, y publicarlo en `sexo` no revela nada de la cédula; lo que no tiene columna a la que atribuirse, como un hallazgo de filas duplicadas, sí queda enmascarado en todas partes—. La
 descripción, la evidencia y la sugerencia de cada hallazgo; el motivo y el
 `como_resolverlo` de la cobertura; los parámetros de una acción del plan; los
 «Ejemplos reales» que `guiar_limpieza()` imprime por consola; y el rectángulo

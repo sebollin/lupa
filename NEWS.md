@@ -88,6 +88,16 @@
   banco real el mayor cociente es 1,71 y el caso a atrapar da 101. Ningún
   hallazgo del banco cambia, y perder la condición de numeración no acusa por sí
   solo: sólo devuelve la columna a la mirada de la lista de centinelas.
+- **La protección de datos personales pasa a ser por columna.** Era por valor y
+  global: si `cedula` estaba protegida y contenía `"S/D"`, ese texto se
+  enmascaraba **en todo el perfil**, incluida la columna `sexo` —que no tiene un
+  solo dato personal y donde `"S/D"` significa «sin dato»—. El lector no podía
+  distinguir una columna que trae datos personales de una que sólo comparte
+  vocabulario. Ahora se reemplaza lo que describe a la columna protegida: su
+  moda, sus estadísticos, sus ejemplos y la evidencia de sus hallazgos. Lo que
+  **no** tiene columna a la que atribuirse sigue enmascarado en toda la salida
+  —un hallazgo de filas duplicadas muestra filas enteras, y `general`, la
+  cobertura y los formatos de fecha describen la tabla, no una columna—.
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 

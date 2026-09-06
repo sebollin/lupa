@@ -217,7 +217,7 @@ candidate was closest and at what distance; when that reference table is a
 register of people, the value comes out as `[valor protegido]` and the distance
 is kept. A reference table carrying no personal data keeps its evidence intact.
 
-**And masking reaches every output, not just the mode.** Each finding's
+**And masking reaches every output, not just the mode** —scoped **by column**: what describes the protected column is replaced, not every occurrence of that text. `"S/D"` can be a sentinel in the ID column and the "no data" marker in `sexo`, and publishing it in `sexo` reveals nothing about the ID; what has no column to attribute it to, such as a duplicate-rows finding, stays masked everywhere—. Each finding's
 description, evidence and suggestion; the coverage `motivo` and
 `como_resolverlo`; the parameters of a plan action; the "Ejemplos reales" that
 `guiar_limpieza()` prints to the console; and the bounding box of a protected

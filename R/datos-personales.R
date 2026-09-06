@@ -1111,6 +1111,26 @@
   perfil
 }
 
+.restituir_filas_atribuibles <- function(barrido, por_columna) {
+  # Devuelve, fila por fila, lo que decidio el paso por columna, pero solo
+  # donde hay una columna a la que atribuir la fila. Las filas sin `columna`
+  # conservan lo que dejo el barrido general.
+  if (!is.data.frame(barrido) || !is.data.frame(por_columna) ||
+      !nrow(barrido) || !identical(dim(barrido), dim(por_columna)) ||
+      !identical(names(barrido), names(por_columna)) ||
+      !"columna" %in% names(barrido)) {
+    return(barrido)
+  }
+  atribuibles <- !is.na(por_columna$columna) & nzchar(as.character(por_columna$columna))
+  if (!any(atribuibles)) return(barrido)
+  for (j in names(barrido)) {
+    if (is.character(barrido[[j]]) && is.character(por_columna[[j]])) {
+      barrido[[j]][atribuibles] <- por_columna[[j]][atribuibles]
+    }
+  }
+  barrido
+}
+
 .proteger_perfil <- function(perfil, datos = NULL) {
   valores_perfil <- .valores_perfil_protegidos(
     perfil$columnas, perfil$patrones, perfil$datos_personales, perfil$meta
@@ -1156,8 +1176,37 @@
       if (is.list(x) && !is.null(x$patron)) x$patron else NULL
     })
   }
+  # Enmascarado POR COLUMNA. `.proteger_componentes_perfil()` ya tapo, columna
+  # por columna, lo que describe a una columna protegida: su `moda`, sus
+  # estadisticos, sus `ejemplos` y la evidencia de sus hallazgos. El barrido
+  # general que viene despues busca los valores en TODA la salida, y ahi tapaba
+  # de mas: `"S/D"` es un centinela de `cedula` y a la vez el "sin dato" de
+  # `sexo`, asi que `sexo` publicaba `[valor protegido]` sin tener un solo dato
+  # personal, y el lector no puede distinguir eso de una columna que si los
+  # tiene. Publicar `"S/D"` en `sexo` no dice nada de la cedula.
+  #
+  # Se devuelve el estado por columna SOLO en los componentes donde ese paso ya
+  # corrio. `formatos_fecha` y `cobertura_diagnosticos` no lo tienen, asi que
+  # ahi el barrido general se queda: es la unica proteccion que tienen.
+  # `general`, `datos_personales` y los atributos tampoco tienen columna
+  # atribuible.
+  por_columna <- list(
+    columnas = perfil$columnas,
+    patrones = perfil$patrones,
+    dependencias = perfil$dependencias,
+    hallazgos = perfil$hallazgos
+  )
   perfil <- .proteger_textos_salida(perfil, valores)
   perfil$meta <- meta_declarada
+  perfil$columnas <- por_columna$columnas
+  perfil$patrones <- por_columna$patrones
+  perfil$dependencias <- por_columna$dependencias
+  # En los hallazgos se devuelven solo las filas con columna atribuible. Una
+  # fila con `columna = NA` -filas duplicadas, por ejemplo- muestra filas
+  # enteras de la tabla y no hay a quien atribuirsela: esa queda enmascarada.
+  perfil$hallazgos <- .restituir_filas_atribuibles(
+    perfil$hallazgos, por_columna$hallazgos
+  )
   if (!is.null(patrones_forma)) {
     for (col in names(patrones_forma)) {
       if (!is.null(patrones_forma[[col]]) && !is.null(perfil$patrones[[col]])) {

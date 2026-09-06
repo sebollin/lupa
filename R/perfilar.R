@@ -1255,6 +1255,15 @@
 #'   no suprimen estadísticos. Para conservar todo en el objeto debe desactivarse
 #'   explícitamente; [reportar()] aplica además su propia protección
 #'   predeterminada.
+#'   El enmascarado es **por columna**: se reemplaza lo que describe a una
+#'   columna protegida —su moda, sus estadísticos, sus ejemplos y la evidencia
+#'   de sus hallazgos—, no todas las apariciones de ese texto en la salida. Un
+#'   valor puede ser vocabulario compartido: `"S/D"` es un centinela de una
+#'   cédula y a la vez el «sin dato» de `sexo`, y publicarlo en `sexo` no
+#'   revela nada de la cédula. Lo que **no** tiene columna a la que atribuirse
+#'   sí se enmascara en toda la salida: un hallazgo de filas duplicadas muestra
+#'   filas enteras, y los componentes que describen la tabla —`general`, la
+#'   cobertura, los formatos de fecha— no son de ninguna columna en particular.
 #' @param validadores_personales Pack o lista nombrada de funciones que reciben
 #'   un vector de texto y devuelven un lógico de igual longitud. `NULL` usa
 #'   `validadores_uruguay()` por compatibilidad; `FALSE` o `numeric()` desactiva

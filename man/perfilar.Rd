@@ -209,7 +209,16 @@ y estadísticos de orden concretos cuando \code{poder_discriminante} es medio,
 alto o verificado. Las clasificaciones débiles se conservan como aviso pero
 no suprimen estadísticos. Para conservar todo en el objeto debe desactivarse
 explícitamente; \code{\link[=reportar]{reportar()}} aplica además su propia protección
-predeterminada.}
+predeterminada.
+El enmascarado es \strong{por columna}: se reemplaza lo que describe a una
+columna protegida —su moda, sus estadísticos, sus ejemplos y la evidencia
+de sus hallazgos—, no todas las apariciones de ese texto en la salida. Un
+valor puede ser vocabulario compartido: \code{"S/D"} es un centinela de una
+cédula y a la vez el «sin dato» de \code{sexo}, y publicarlo en \code{sexo} no
+revela nada de la cédula. Lo que \strong{no} tiene columna a la que atribuirse
+sí se enmascara en toda la salida: un hallazgo de filas duplicadas muestra
+filas enteras, y los componentes que describen la tabla —\code{general}, la
+cobertura, los formatos de fecha— no son de ninguna columna en particular.}
 
 \item{columnas_personales}{Columnas que traen datos personales, declaradas
 por quien conoce el dato. \code{c("cod_benef", "apodo")} las nombra sin decir de
