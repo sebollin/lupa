@@ -38,6 +38,12 @@ resumen_r_columna_r105 <- function(x) {
     tabulate(match(valores, unicos), nbins = length(unicos))
   } else integer()
   posicion_moda <- if (length(frecuencias)) which.max(frecuencias) else NA_integer_
+  # La referencia implementa la regla por su cuenta, sin llamar al paquete: si
+  # todos los valores validos aparecen una sola vez no hay moda, y publicar una
+  # seria publicar el ganador de un desempate. Calcularla aca con el ayudante
+  # de lupa convertiria esta comprobacion en una tautologia.
+  hay_moda <- length(valores) > 0L &&
+    !(max(frecuencias) == 1L && length(unicos) > 1L)
   data.frame(
     n = length(x),
     n_validos = sum(validos),
@@ -45,7 +51,9 @@ resumen_r_columna_r105 <- function(x) {
     prop_faltantes = if (length(x)) mean(!validos) else NA_real_,
     n_distintos = length(unicos),
     tasa_distintos = if (length(valores)) length(unicos) / length(valores) else NA_real_,
-    moda = if (length(valores)) lupa:::.texto_valor(unicos[[posicion_moda]]) else NA_character_,
+    moda = if (hay_moda) {
+      lupa:::.texto_valor(unicos[[posicion_moda]])
+    } else NA_character_,
     frecuencia_moda = if (length(valores)) frecuencias[[posicion_moda]] else NA_real_,
     minimo = if (es_numerico && length(valores)) min(valores) else NA_real_,
     maximo = if (es_numerico && length(valores)) max(valores) else NA_real_,

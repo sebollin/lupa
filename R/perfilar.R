@@ -788,6 +788,14 @@
 #' Las columnas matriciales se conservan como una unidad por fila: `n` informa
 #' las filas de la tabla, pero los estadísticos por valor quedan en `NA` y un
 #' hallazgo explica que deben separarse en columnas con semántica explícita.
+#' Cuando todos los valores válidos aparecen una sola vez **no hay moda**, y
+#' `moda` queda en `NA`. Lo que se publicaría es el ganador de un desempate de
+#' tantas vías como valores haya, y ese desempate sigue el orden de
+#' ordenamiento, que depende de cómo esté guardada la columna: la misma columna
+#' `c(-5.5, -1, 0, 3.75)` daba `-5.5` como número y `-1` como texto.
+#' `frecuencia_moda` se conserva —vale 1, es cierto y es la evidencia de por qué
+#' la moda quedó callada—. Con un solo valor distinto sí hay moda, aunque su
+#' frecuencia sea 1: ahí no hay empate que resolver.
 #'
 #' Una columna numérica emite `valor_concentrado` como señal `sospechoso` cuando
 #' tiene al menos 20 valores válidos y 10 valores distintos, y su moda tiene
@@ -2193,6 +2201,7 @@ perfilar <- function(datos,
       isTRUE(relaciones_aritmeticas$alcance$truncado)) {
     meta$aritmetica_columnas <- relaciones_aritmeticas$alcance
   }
+  columnas <- .callar_moda_sin_empate(columnas)
   estructura <- list(
     general = general,
     columnas = columnas,

@@ -224,6 +224,65 @@
   class(x)[[1L]]
 }
 
+.callar_moda_sin_empate <- function(columnas) {
+  # No hay moda cuando todos los valores validos aparecen una sola vez: lo que
+  # se publicaria es el que gana un desempate de n vias, y el desempate sigue
+  # el orden de ordenamiento, que depende de como este guardada la columna.
+  # Medido: `c(-5.5, -1, 0, 3.75)` daba moda `-5.5` guardada como doble y `-1`
+  # guardada como texto, con `frecuencia_moda = 1` en los dos casos. El dato es
+  # el mismo y la moda publicada, distinta.
+  #
+  # Con un solo valor distinto SI hay moda, aunque su frecuencia sea 1: ahi no
+  # hay empate que resolver y el valor publicado no depende de nada.
+  #
+  # `frecuencia_moda` NO se toca: que la frecuencia maxima sea 1 es cierto y es
+  # justamente la evidencia de por que la moda quedo callada.
+  necesarios <- c("moda", "frecuencia_moda", "n_distintos")
+  if (!is.data.frame(columnas) || !nrow(columnas) ||
+      !all(necesarios %in% names(columnas))) {
+    return(columnas)
+  }
+  frecuencia <- suppressWarnings(as.numeric(columnas[["frecuencia_moda"]]))
+  distintos <- suppressWarnings(as.numeric(columnas[["n_distintos"]]))
+  sin_moda <- !is.na(frecuencia) & !is.na(distintos) &
+    frecuencia == 1 & distintos > 1
+  # Una columna protegida queda como esta. El marcador `[valor protegido]` no
+  # afirma una moda, asi que no hay nada que corregir; y cambiarlo por NA SI
+  # diria algo del dato -- que esa columna personal no tiene ningun valor
+  # repetido -- justo lo que la proteccion existe para no decir. Se comprueba
+  # por el campo y tambien por el marcador, para que el resultado no dependa de
+  # si la proteccion ya corrio o corre despues.
+  if ("dato_personal_protegido" %in% names(columnas)) {
+    protegida <- !is.na(columnas[["dato_personal_protegido"]]) &
+      as.logical(columnas[["dato_personal_protegido"]])
+    sin_moda <- sin_moda & !protegida
+  }
+  marcada <- !is.na(columnas[["moda"]]) &
+    as.character(columnas[["moda"]]) == "[valor protegido]"
+  sin_moda <- sin_moda & !marcada
+  if (any(sin_moda)) {
+    columnas[["moda"]][sin_moda] <- NA
+  }
+  columnas
+}
+
+.sellar_perfil_dbi <- function(estructura) {
+  # Unico lugar donde un objeto pasa a ser `perfil_dbi`. Existe porque la clase
+  # se asignaba en cuatro sitios distintos, y una regla que se aplica "al
+  # salir" se olvidaba en tres: con `bloque_muestra = "solo_agregados"` el
+  # perfil publicaba una moda que `perfilar()` ya callaba sobre el mismo dato.
+  # Que un camino nuevo se olvide de la regla ahora es imposible: para tener la
+  # clase tiene que pasar por aca.
+  if (is.list(estructura) &&
+      is.data.frame(estructura$resumen_tabla$columnas)) {
+    estructura$resumen_tabla$columnas <- .callar_moda_sin_empate(
+      estructura$resumen_tabla$columnas
+    )
+  }
+  class(estructura) <- "perfil_dbi"
+  estructura
+}
+
 .zona_horaria_origen <- function(x) {
   if (!inherits(x, "POSIXt")) return(NA_character_)
   zona <- attr(x, "tzone", exact = TRUE)

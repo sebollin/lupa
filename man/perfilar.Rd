@@ -628,6 +628,14 @@ admite comparación, informa \code{NA} en lugar de afirmar cero.
 Las columnas matriciales se conservan como una unidad por fila: \code{n} informa
 las filas de la tabla, pero los estadísticos por valor quedan en \code{NA} y un
 hallazgo explica que deben separarse en columnas con semántica explícita.
+Cuando todos los valores válidos aparecen una sola vez \strong{no hay moda}, y
+\code{moda} queda en \code{NA}. Lo que se publicaría es el ganador de un desempate de
+tantas vías como valores haya, y ese desempate sigue el orden de
+ordenamiento, que depende de cómo esté guardada la columna: la misma columna
+\code{c(-5.5, -1, 0, 3.75)} daba \code{-5.5} como número y \code{-1} como texto.
+\code{frecuencia_moda} se conserva —vale 1, es cierto y es la evidencia de por qué
+la moda quedó callada—. Con un solo valor distinto sí hay moda, aunque su
+frecuencia sea 1: ahí no hay empate que resolver.
 
 Una columna numérica emite \code{valor_concentrado} como señal \code{sospechoso} cuando
 tiene al menos 20 valores válidos y 10 valores distintos, y su moda tiene

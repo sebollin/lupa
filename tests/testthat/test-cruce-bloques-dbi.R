@@ -17,10 +17,20 @@ test_that("la corroboracion declara NaN e infinitos en todos los campos divergen
   cobertura <- resultado$resumen_tabla$cobertura
   divergencias <- cobertura[cobertura$bloque == "corroboracion", , drop = FALSE]
 
+  # `moda` queda FUERA a proposito, y la razon vale escribirla. En esta columna
+  # los valores validos son 1..20, Inf y -Inf: veintidos, cada uno una sola vez.
+  # No hay moda. Antes, la via de memoria publicaba `-Inf` -- el menor, ganador
+  # de un desempate de veintidos vias -- y el motor publicaba NA, y esa
+  # "divergencia" era el desempate arbitrario, no una diferencia entre los dos
+  # caminos. Ahora ninguna de las dos inventa una moda, coinciden, y no hay nada
+  # que declarar. `frecuencia_moda` si sigue divergiendo, que es lo que de
+  # verdad se mide distinto.
   expect_setequal(
     divergencias$elemento,
-    paste0("x::", lupa:::.METRICAS_CORROBORACION_DBI)
+    setdiff(paste0("x::", lupa:::.METRICAS_CORROBORACION_DBI), "x::moda")
   )
+  expect_true(is.na(resultado$resumen_tabla$columnas$moda[[1L]]))
+  expect_true(is.na(resultado$perfil_muestra$columnas$moda[[1L]]))
   expect_true(all(divergencias$estado == "divergencia"))
   expect_true(all(grepl("resumen_tabla", divergencias$motivo, fixed = TRUE)))
   expect_true(all(grepl("perfil_muestra", divergencias$motivo, fixed = TRUE)))

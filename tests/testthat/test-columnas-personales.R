@@ -56,7 +56,10 @@ test_that("una declaracion que no se puede cumplir se rechaza", {
 })
 
 test_that("el campo de proteccion dice lo que paso, no lo que se pensaba hacer", {
-  datos <- data.frame(correo = paste0("p", 1:120, "@ejemplo.uy"),
+  # El primer correo se repite a proposito: sin ninguna repeticion no hay moda
+  # y el perfil la calla, con lo que esta prueba perderia su testigo -- compara
+  # la columna enmascarada contra la que no lo esta mirando justamente la moda.
+  datos <- data.frame(correo = paste0("p", c(1L, 1L:119L), "@ejemplo.uy"),
                       stringsAsFactors = FALSE)
   con <- perfilar(datos, analizar_dependencias = FALSE,
                   proteger_datos_personales = TRUE)

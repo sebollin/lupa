@@ -12856,6 +12856,13 @@ perfilar_dbi <- function(conexion, tabla,
       columnas = character()
     )
   }
+  # Aca, y ademas en `.sellar_perfil_dbi()`. No es redundancia ociosa: la
+  # corroboracion cruza este bloque contra el perfil de la muestra, que ya paso
+  # por `perfilar()` y por lo tanto ya callo la moda inexistente. Si la regla se
+  # aplicara solo al sellar, la corroboracion compararia el valor crudo de un
+  # lado contra el NA del otro y declararia una divergencia que el resultado
+  # final desmiente. Va despues de proteger, para no pisar el marcador.
+  resumen$columnas <- .callar_moda_sin_empate(resumen$columnas)
   resumen$literales <- NULL
 
   if (is.null(bloque$perfil) && any(bloque$cobertura$estado == "no_disponible")) {
@@ -12887,7 +12894,7 @@ perfilar_dbi <- function(conexion, tabla,
     columnas_opcionales = columnas_opcionales,
     sentinelas_numericos = sentinelas_numericos
   )
-  class(estructura) <- "perfil_dbi"
+  estructura <- .sellar_perfil_dbi(estructura)
   estructura
 }
 

@@ -26,7 +26,11 @@ test_that("las dos puertas describen el tipo que cada una tiene delante", {
   skip_if_not_installed("RSQLite")
   datos <- data.frame(
     logico = c(TRUE, FALSE, TRUE, FALSE, NA),
-    fecha = as.Date("2020-01-01") + 0:4,
+    # La fecha repite el primer valor a proposito: sin repeticiones no hay moda
+    # y el perfil la calla, con lo que esta prueba dejaria de poder ver la
+    # divergencia que existe para documentar -- formateada por una puerta,
+    # entero crudo por la otra.
+    fecha = as.Date("2020-01-01") + c(0L, 0L, 1L, 2L, 3L),
     stringsAsFactors = FALSE
   )
   conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")

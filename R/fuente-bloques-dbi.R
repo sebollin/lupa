@@ -1362,7 +1362,7 @@
       ), tiempos = .resumen_tiempos_dbi(NULL)
     )
     salida <- list(resumen_tabla = resumen, perfil_muestra = NULL)
-    class(salida) <- "perfil_dbi"
+    salida <- .sellar_perfil_dbi(salida)
     return(salida)
   }
   fuente <- .fuente_bloques_dbi(
@@ -1675,6 +1675,6 @@
     )
   }
   salida <- list(resumen_tabla = resumen, perfil_muestra = perfil_muestra)
-  class(salida) <- "perfil_dbi"
+  salida <- .sellar_perfil_dbi(salida)
   salida
 }

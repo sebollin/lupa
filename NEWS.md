@@ -64,6 +64,18 @@
   realmente otros —tres horas de corrimiento en `America/Montevideo`—, y eso es
   lo más importante que hay para informar. Entre dos columnas que sí llevan
   zona, el conteo se compara como siempre.
+- **Se publicaba una moda donde no había ninguna.** Cuando todos los valores
+  válidos aparecen una sola vez no hay moda: lo que se publicaba era el ganador
+  de un desempate, y el desempate sigue el orden de ordenamiento, que depende de
+  cómo esté guardada la columna. La misma `c(-5.5, -1, 0, 3.75)` daba `-5.5`
+  como número y `-1` como texto. Ahora `moda` queda en `NA` y `frecuencia_moda`
+  se conserva, que es la evidencia de por qué. Con un solo valor distinto sí hay
+  moda. Sobre el banco real son 4 columnas de 38, **las cuatro identificadores
+  únicos**, y ningún hallazgo cambia: 95 antes y 95 después, los mismos tipos en
+  el mismo orden. Las tres puertas —memoria, `resumen_tabla` y la muestra— dicen
+  lo mismo, que era el riesgo real de arreglar una sola. La clase `perfil_dbi`
+  se asignaba en cuatro lugares y ahora sale de uno solo, `.sellar_perfil_dbi()`,
+  para que ningún camino se saltee la regla.
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 

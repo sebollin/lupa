@@ -996,6 +996,6 @@
     perfil_muestra = perfil
   )
   if (!is.null(spool$path)) unlink(spool$path, force = TRUE)
-  class(estructura) <- "perfil_dbi"
+  estructura <- .sellar_perfil_dbi(estructura)
   estructura
 }
