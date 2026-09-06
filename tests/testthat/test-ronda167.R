@@ -180,7 +180,7 @@ test_that("el plan no imprime dos veces sus supuestos", {
   plan <- plan_perfilado_dbi(con, "d")
   # El texto de cli sale por el flujo de mensajes, no por stdout.
   texto <- paste(
-    utils::capture.output(print(plan), type = "message"),
+    salida_cli(print(plan)),
     collapse = "\n"
   )
   contar <- function(frase) {

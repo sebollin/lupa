@@ -1,17 +1,9 @@
 capturar_cli_plan <- function(expr) {
-  archivo <- tempfile()
-  conexion <- file(archivo, open = "wt")
-  sink(conexion)
-  sink(conexion, type = "message")
-  tryCatch(
-    force(expr),
-    finally = {
-      sink(type = "message")
-      sink()
-      close(conexion)
-    }
-  )
-  paste(readLines(archivo, warn = FALSE), collapse = "\n")
+  # `cli` emite su salida como condiciones de mensaje y dentro de `testthat`
+  # quedan atrapadas antes de llegar a ningun flujo, asi que el `sink()` recogia
+  # un archivo vacio y la prueba fallaba corrida sola. `salida_cli()` las recoge
+  # como condiciones -ver `helper-salida-cli.R`-.
+  salida_cli(expr)
 }
 
 activar_una_accion_honesta <- function(plan, estrategia) {

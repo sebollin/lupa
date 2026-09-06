@@ -98,6 +98,17 @@
   **no** tiene columna a la que atribuirse sigue enmascarado en toda la salida
   —un hallazgo de filas duplicadas muestra filas enteras, y `general`, la
   cobertura y los formatos de fecha describen la tabla, no una columna—.
+- **Cincuenta y cinco comprobaciones no medían lo que decían.** Corriendo cada
+  archivo de prueba en su propio proceso, **17 de 192 fallaban** mientras la
+  suite entera daba `FAIL 0`. Una sola causa: `cli` emite su salida como
+  *condiciones* de mensaje, y dentro de `testthat` quedan atrapadas antes de
+  llegar a ningún flujo —es lo que le permite sostener `expect_message()`—, así
+  que una prueba que usaba `capture.output(..., type = "message")` o `sink()`
+  recibía un texto vacío y afirmaba que la salida no contenía lo que sí
+  contenía. Ahora las recoge `salida_cli()`, que además quita los códigos de
+  color y normaliza el espacio: `cli` ajusta al ancho e inserta saltos **dentro**
+  de una frase, y una búsqueda literal fallaba por dónde se cortó la línea y no
+  por lo que decía.
 
 ## Una declaración vale en todas las salidas, no sólo en la primera
 

@@ -35,7 +35,7 @@ test_that("una organizacion es una declaracion y no necesita conexion", {
   expect_equal(organismo$n_declaradas, 2L)
   # `cli` escribe por la via de mensajes, igual que los demas `print()` del
   # paquete; capturar stdout devolveria vacio.
-  impreso <- capture.output(print(organismo), type = "message")
+  impreso <- salida_cli(print(organismo))
   expect_true(any(grepl("Organismo A", impreso)))
   expect_true(any(grepl("no infiere", impreso)))
 })

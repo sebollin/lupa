@@ -43,7 +43,7 @@ test_that("el filtro de Oracle devuelve las dos variantes y su resolucion local"
   expect_true(all(oracle$paquete_r == "ROracle"))
   expect_true(all(grepl("OCI_LIB", oracle$alternativa_sin_administrador, fixed = TRUE)))
   expect_true(all(grepl("Instant Client", oracle$biblioteca_sistema, fixed = TRUE)))
-  salida <- capture.output(lupa:::print.requisitos_motor(oracle), type = "message")
+  salida <- salida_cli(lupa:::print.requisitos_motor(oracle))
   expect_true(any(grepl("Oracle", salida, fixed = TRUE)))
   expect_true(any(grepl("ROracle", salida, fixed = TRUE)))
 })

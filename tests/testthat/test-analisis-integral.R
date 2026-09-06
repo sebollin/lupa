@@ -392,10 +392,7 @@ test_that("analizar mide por omision sin conservar el detalle", {
   expect_true(resultado$meta$propuesta_medida_automaticamente)
   expect_false(resultado$meta$propuesta_confirmada)
   expect_equal(resultado$meta$fecha, fecha)
-  mensajes <- utils::capture.output(
-    salida <- utils::capture.output(impreso <- print(resultado)),
-    type = "message"
-  )
+  mensajes <- salida_cli(salida <- capture.output(impreso <- print(resultado)))
   expect_match(paste(mensajes, collapse = "\n"), "Analisis de datos")
   expect_identical(impreso, resultado)
   expect_true(length(salida) > 0L)

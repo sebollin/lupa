@@ -14,6 +14,33 @@ skip_if_not_installed("RSQLite")
   )
 }
 
+# `cli` no siempre escribe por el mismo flujo: en un `Rscript` suelto va por el
+# de mensajes y dentro de `testthat` puede caer a la salida estandar, porque
+# testthat intercepta las condiciones de mensaje para sostener `expect_message()`.
+# Una prueba que captura un solo flujo mide el destino de la salida en vez de su
+# contenido, y este archivo llego a fallar 24 veces corrido solo mientras la
+# suite entera daba FAIL 0. Se capturan los dos y se juntan en un texto, que
+# ademas vuelve la busqueda indiferente al ajuste de linea.
+salida_del_plan <- function(x) {
+  # No alcanza con capturar los dos flujos: dentro de `testthat` el texto no
+  # llega a ninguno, porque las condiciones de mensaje que emite `cli` quedan
+  # atrapadas antes de imprimirse. Se recogen como CONDICIONES, que es lo que
+  # hace el propio testthat, y asi la prueba mide el contenido y no el destino.
+  mensajes <- character()
+  salida <- withCallingHandlers(
+    capture.output(print(x)),
+    message = function(m) {
+      mensajes <<- c(mensajes, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    }
+  )
+  # Y se normaliza el espacio: `cli` ajusta al ancho e inserta saltos DENTRO de
+  # una frase -medido: "~0,13 GB por\nmillon de filas"-, con lo que un
+  # `grepl()` literal falla por donde se corto la linea y no por lo que dice.
+  texto <- paste(c(mensajes, salida), collapse = " ")
+  gsub("[[:space:]]+", " ", cli::ansi_strip(texto))
+}
+
 test_that("el peso de cada clase sale de su alcance y no de su nombre", {
   filas <- 1e6
   escanea <- .trabajo_plan_dbi(.plan_de("escanea la tabla completa", 3), filas, 0)
@@ -128,7 +155,7 @@ test_that("la impresion declara la incertidumbre del trabajo", {
   plan <- plan_perfilado_dbi(con, "t")
 
   # cli escribe por el flujo de mensajes, no por la salida estandar.
-  bajo <- capture.output(print(plan), type = "message")
+  bajo <- salida_del_plan(plan)
   expect_true(any(grepl("desconocida|No se pudo estimar", bajo)))
   expect_true(any(grepl("No se pudo estimar", bajo)))
   expect_true(any(grepl("no escanea datos", bajo)))
@@ -140,7 +167,7 @@ test_that("la impresion declara la incertidumbre del trabajo", {
 
   attr(plan, "magnitud") <- "alta"
   attr(plan, "filas_leidas") <- 5e9
-  alto <- capture.output(print(plan), type = "message")
+  alto <- salida_del_plan(plan)
   expect_true(any(grepl("alto", alto)))
   # Avisar que es grande sin decir que hacer no le sirve a nadie.
   expect_true(any(grepl("universo = .muestra_motor", alto)))
@@ -177,9 +204,7 @@ test_that("el bloque de memoria declara la ausencia y separa magnitud de consumo
     "memoria.*(bytes|MB|GB)", names(memoria), ignore.case = TRUE
   )))
 
-  salida <- paste(
-    capture.output(print(plan), type = "message"), collapse = " "
-  )
+  salida <- salida_del_plan(plan)
   expect_match(salida, "Memoria del procesamiento")
   expect_match(salida, "no estimada")
   expect_match(salida, "Magnitud del trabajo \\(no consumo de memoria\\)")
@@ -281,9 +306,7 @@ test_that("el plan real declara las dos mitades y la impresion las muestra", {
   expect_equal(attr(plan, "magnitud_motor", exact = TRUE), "desconocida")
   expect_equal(attr(plan, "magnitud", exact = TRUE), "desconocida")
   expect_true(attr(plan, "magnitud_texto", exact = TRUE) %in% .ORDEN_MAGNITUD_DBI)
-  salida <- paste(
-    capture.output(print(plan), type = "message"), collapse = " "
-  )
+  salida <- salida_del_plan(plan)
   expect_match(salida, "columna de texto")
   expect_match(salida, "pares de formas")
 })
@@ -301,10 +324,7 @@ test_that("una magnitud desconocida no inventa palancas", {
     on.exit(DBI::dbDisconnect(con), add = TRUE)
     DBI::dbWriteTable(con, "t", datos)
     plan <- plan_perfilado_dbi(con, "t")
-    salida <- c(
-      capture.output(print(plan)),
-      capture.output(print(plan), type = "message")
-    )
+    salida <- salida_del_plan(plan)
     list(
       magnitud = attr(plan, "magnitud", exact = TRUE),
       nombra = any(grepl("universo = .muestra_motor", salida))

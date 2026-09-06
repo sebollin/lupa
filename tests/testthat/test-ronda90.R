@@ -18,7 +18,7 @@ test_that("la no-medicion vive fuera de hallazgos y se cuenta por diagnostico", 
     sin_stringdist$cobertura_diagnosticos$diagnostico ==
       "proximidad_vocabulario"
   ))
-  salida <- capture.output(print(sin_stringdist), type = "message")
+  salida <- salida_cli(print(sin_stringdist))
   expect_true(any(grepl("0 hallazgos sospechosos", salida, fixed = TRUE)))
   expect_true(any(grepl("40 diagnosticos no evaluados", salida, fixed = TRUE)))
 })

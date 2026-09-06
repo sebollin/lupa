@@ -101,7 +101,7 @@ test_that("los marcos y familias rechazan declaraciones inconsistentes", {
   )
   expect_s3_class(marco_agesic(), "marco_calidad")
   marco_minimo <- marco_calidad("Marco mínimo", base)
-  salida <- capture.output(print(marco_minimo), type = "message")
+  salida <- salida_cli(print(marco_minimo))
   expect_true(any(grepl("Marco mínimo", salida, fixed = TRUE)))
 
   generica <- metrica(

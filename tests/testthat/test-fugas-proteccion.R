@@ -1,18 +1,11 @@
 capturar_consola_proteccion <- function(codigo) {
-  archivo <- tempfile()
-  conexion <- file(archivo, open = "wt")
-  sink(conexion)
-  sink(conexion, type = "message")
-  resultado <- tryCatch(
-    force(codigo),
-    finally = {
-      sink(type = "message")
-      sink()
-      close(conexion)
-    }
-  )
-  invisible(resultado)
-  paste(readLines(archivo, warn = FALSE), collapse = " ")
+  # Antes desviaba los dos flujos a un archivo con `sink()`. No alcanza: `cli`
+  # emite su salida como CONDICIONES de mensaje y dentro de `testthat` quedan
+  # atrapadas antes de llegar a ningun flujo, asi que el archivo salia sin las
+  # lineas que estas pruebas buscan. `salida_cli()` las recoge como condiciones
+  # -ver `helper-salida-cli.R`-, que es lo unico que funciona en los dos
+  # contextos.
+  salida_cli(codigo)
 }
 
 test_that("guiar_limpieza enmascara filas enteras con columnas protegidas", {

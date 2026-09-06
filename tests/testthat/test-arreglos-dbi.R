@@ -218,7 +218,7 @@ test_that("perfilar_dbi publica la clave y lee un solo catalogo", {
   expect_identical(clave$estado$ausencia_de_nulos, "garantizada")
   salida <- c(
     capture.output(lupa:::print.perfil_dbi(con_clave)),
-    capture.output(lupa:::print.perfil_dbi(con_clave), type = "message")
+    salida_cli(lupa:::print.perfil_dbi(con_clave))
   )
   expect_true(any(grepl("garantizada", salida, fixed = TRUE)))
 
@@ -236,7 +236,7 @@ test_that("perfilar_dbi publica la clave y lee un solo catalogo", {
   expect_true(is.na(clave$motivo))
   salida <- c(
     capture.output(lupa:::print.perfil_dbi(sin_clave)),
-    capture.output(lupa:::print.perfil_dbi(sin_clave), type = "message")
+    salida_cli(lupa:::print.perfil_dbi(sin_clave))
   )
   expect_true(any(grepl("no declara clave", salida, fixed = TRUE)))
 
@@ -976,11 +976,10 @@ test_that("print.perfil_dbi no imprime ningun valor de celda", {
   resultado <- .perfilar_juguete(
     bases$juguete, tabla = "padron", muestra = 5L, orden_muestra = "ci"
   )
-  salida <- c(
-    capture.output(lupa:::print.perfil_dbi(resultado)),
-    capture.output(lupa:::print.perfil_dbi(resultado), type = "message")
-  )
-  expect_gt(length(salida), 2L)
+  # `salida_cli()` junta los dos flujos en UN texto, asi que lo que se mide es
+  # que haya impreso algo sustancial, no cuantas lineas salieron.
+  salida <- salida_cli(lupa:::print.perfil_dbi(resultado))
+  expect_gt(nchar(salida), 50L)
   expect_true(any(grepl("padron", salida)))
   expect_false(any(vapply(
     crudos, function(valor) any(grepl(valor, salida, fixed = TRUE)),

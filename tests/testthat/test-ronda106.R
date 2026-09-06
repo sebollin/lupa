@@ -54,7 +54,7 @@ test_that("marco_cepal conserva niveles, principios y alcance", {
                     marco$origen, fixed = TRUE))
   expect_false("catalogo_cepal" %in% getNamespaceExports("lupa"))
 
-  impreso <- capture.output(print(marco), type = "message")
+  impreso <- salida_cli(print(marco))
   expect_true(any(grepl("Marco de aseguramiento", impreso, fixed = TRUE)))
 })
 

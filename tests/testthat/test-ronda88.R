@@ -51,7 +51,7 @@ test_that("las dependencias opcionales ausentes no inundan los sospechosos", {
   expect_equal(nrow(opcionales), 40L)
   expect_true(all(opcionales$dependencia == "stringdist"))
   expect_equal(nrow(perfil$hallazgos), 0L)
-  salida <- capture.output(print(perfil), type = "message")
+  salida <- salida_cli(print(perfil))
   expect_true(any(grepl("0 hallazgos sospechosos", salida, fixed = TRUE)))
   expect_true(any(grepl("40 diagnosticos no evaluados", salida, fixed = TRUE)))
 })

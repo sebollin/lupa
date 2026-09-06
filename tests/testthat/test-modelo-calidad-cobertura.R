@@ -256,18 +256,12 @@ test_that("la cobertura de la coleccion llega hasta el tablero y el indice", {
   # Y se ve al imprimirlo: un indice es UN numero, y la cobertura que vive solo
   # en un atributo no la lee nadie.
   #
-  # `cli` NO pasa por `expect_output()` ni por `capture.output()`: hay que
-  # desviar los dos flujos. Este proyecto ya se comio dos "no filtra" falsos por
-  # no hacerlo.
-  archivo <- tempfile()
-  con_salida <- file(archivo, open = "wt")
-  sink(con_salida, type = "output")
-  sink(con_salida, type = "message")
-  try(print(indice), silent = TRUE)
-  sink(type = "message")
-  sink(type = "output")
-  close(con_salida)
-  impreso <- paste(readLines(archivo, warn = FALSE), collapse = " ")
+  # `cli` NO pasa por `expect_output()` ni por `capture.output()`. Este proyecto
+  # ya se comio dos "no filtra" falsos por no tenerlo en cuenta. Desviar los dos
+  # flujos con `sink()` tampoco alcanza: dentro de `testthat` la salida de `cli`
+  # queda atrapada como CONDICION antes de llegar a ningun flujo, y el archivo
+  # salia vacio -esta prueba fallaba corrida sola y pasaba dentro de la suite-.
+  impreso <- salida_cli(try(print(indice), silent = TRUE))
   expect_match(impreso, "Cobertura de la colecci", fixed = TRUE)
   expect_match(impreso, "Sin medir", fixed = TRUE)
 

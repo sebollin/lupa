@@ -253,7 +253,7 @@ test_that("el plan se imprime como rango y el subconjunto avisa", {
 
   # cli escribe por el flujo de mensajes, no por la salida estandar: capturar
   # el flujo equivocado haria pasar la prueba sin mirar nada.
-  encabezado <- capture.output(print(plan), type = "message")
+  encabezado <- salida_cli(print(plan))
   expect_true(length(encabezado) > 0L)
   # El atributo `supuesto` declaraba un rango y el encabezado decia "techo".
   expect_false(any(grepl("techo", encabezado, fixed = TRUE)))
@@ -262,7 +262,7 @@ test_that("el plan se imprime como rango y el subconjunto avisa", {
   # Subconjuntar conserva la clase y pierde los atributos: el metodo imprimia
   # "sin dato consultas como techo sobre sin dato filas".
   recorte <- plan[, c("clase_consulta", "n_consultas")]
-  aviso <- capture.output(print(recorte), type = "message")
+  aviso <- salida_cli(print(recorte))
   tabla <- capture.output(print(recorte))
   expect_false(any(grepl("sin dato", c(aviso, tabla), fixed = TRUE)))
   expect_true(any(grepl("subconjunto", aviso, fixed = TRUE)))

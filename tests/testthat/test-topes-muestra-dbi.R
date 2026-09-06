@@ -174,7 +174,7 @@ test_that("el plan declara el recorte de celdas y la sonda de bytes", {
   expect_equal(
     plan_celdas$n_consultas[plan_celdas$clase_consulta == "muestra"], 1
   )
-  salida <- capture.output(print(plan_celdas), type = "message")
+  salida <- salida_cli(print(plan_celdas))
   expect_true(any(grepl("tope de celdas", salida, fixed = TRUE)))
 
   plan_bytes <- plan_perfilado_dbi(

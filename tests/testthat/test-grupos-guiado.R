@@ -585,7 +585,7 @@ test_that("la impresión hace visibles las acciones y resultados destructivos", 
   expect_match(paste(salida_plan, collapse = "\n"), "destructiva")
 
   resultado <- aplicar(plan, datos, permitir_eliminacion = TRUE)
-  mensajes <- capture.output(print(resultado), type = "message")
+  mensajes <- salida_cli(print(resultado))
   expect_match(paste(mensajes, collapse = "\n"), "filas y.*columnas eliminadas")
 })
 

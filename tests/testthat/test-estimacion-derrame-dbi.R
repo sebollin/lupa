@@ -247,7 +247,7 @@ test_that("la medicion posterior prevalece sobre una estimacion optimista", {
 
   salida <- c(
     capture.output(print(perfil)),
-    capture.output(print(perfil), type = "message")
+    salida_cli(print(perfil))
   )
   texto <- paste(salida, collapse = " ")
   expect_match(texto, "Derrame estimado \\(no medido\\)")
