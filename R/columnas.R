@@ -344,42 +344,40 @@
   frecuencias <- tabulate(
     match(valores[presentes], distintos), nbins = length(distintos)
   )
-  # Que un valor SOBRESALGA de la distribucion se mide por dos vias, y hacen
-  # falta las dos. Cada una la encontro una refutacion externa rompiendo a la
-  # otra:
+  # Que un valor SOBRESALGA de la distribucion se mide por el SALTO entre
+  # frecuencias consecutivas, ordenadas de mayor a menor, mirando solo las
+  # primeras posiciones. Es el mismo idioma que `salto_de_escala` usa unas
+  # lineas abajo con los huecos: lo que delata a un centinela no es que su
+  # frecuencia sea grande sino que haya un ACANTILADO entre el grupo que
+  # sobresale y el resto.
   #
-  # 1. Contra el SEGUNDO valor mas frecuente. Es la general y la que atrapa un
-  #    centinela masivo dentro de una clave foranea: `rep(1:40, each = 4)` con
-  #    cien `-9` da frecuencias {100, 4, 4, ...}, y esas cien ausencias
-  #    codificadas se callaban porque la columna no tiene forma de numeracion.
-  # 2. Contra la frecuencia TIPICA, y solo cuando esa tipica es 1 -es decir,
-  #    sobre una numeracion, donde los valores no se repiten-. Hace falta
-  #    porque un senuelo legitimo y frecuente infla el segundo puesto y tapa al
-  #    centinela: `1:60` con cinco `-9` y un `7` repetido seis veces deja
-  #    {6, 5, 1, ...}, el cociente contra el segundo da 1,2 y los cinco
-  #    centinelas se callaban.
+  # Tres versiones anteriores cayeron, y cada una la rompio una refutacion
+  # externa. Contra el segundo valor: derrotada por un senuelo legitimo que
+  # infla el segundo puesto -{6, 5, 1, ...} da 1,2-. Contra la frecuencia
+  # tipica exigiendo forma de numeracion: derrotada por un centinela masivo
+  # sobre una clave foranea -{100, 4, 4, ...}, mediana 4-. Y la disyuncion de
+  # las dos: derrotada por VARIOS centinelas empatados, que se cubren entre si
+  # en el segundo puesto -{499, 499, 499, 2, ...} deja `max == segundo` y la
+  # comparacion vacua, callando mil cuatrocientos noventa y siete valores-.
   #
-  # El factor es el que el paquete ya usa para `valor_concentrado`. Medido
-  # sobre el banco real, la regla no toca ninguna de las diez columnas
-  # numericas ni las dos formas de clave foranea, y dispara en los cinco
-  # ataques conocidos: `brewery_id` tiene 62 contra un segundo de 38 y una
-  # tipica de 3, y el ataque tiene 100 contra un segundo de 4.
+  # El acantilado ve los tres, porque no le importa quien es el segundo sino
+  # donde se corta la distribucion. Medido sobre los ataques conocidos y las
+  # diez columnas numericas del banco real mas dos formas de clave foranea:
+  # los ataques dan entre 4,75 y 249,50 y todo lo legitimo entre 1,00 y 1,71.
+  #
+  # Se miran solo las primeras posiciones porque el grupo que sobresale esta
+  # arriba; en la cola una caida de 2 a 1 da un salto de 2 que no dice nada, y
+  # sin ese tope `beers$abv` daba 3,00 por una caida a mitad de su cola.
   ordenadas <- sort(frecuencias, decreasing = TRUE)
-  frecuencia_maxima <- ordenadas[[1L]]
-  frecuencia_segunda <- if (length(ordenadas) > 1L) ordenadas[[2L]] else 1
-  if (!is.finite(frecuencia_segunda) || frecuencia_segunda <= 0) {
-    frecuencia_segunda <- 1
-  }
-  frecuencia_tipica <- stats::median(frecuencias)
-  if (!is.finite(frecuencia_tipica) || frecuencia_tipica <= 0) {
-    frecuencia_tipica <- 1
+  salto_frecuencias <- 1
+  if (length(ordenadas) >= 2L) {
+    razones <- ordenadas[-length(ordenadas)] /
+      pmax(1, ordenadas[-1L])
+    razones <- razones[seq_len(min(length(razones), .TOPE_SALTO_FRECUENCIAS))]
+    if (length(razones)) salto_frecuencias <- max(razones)
   }
   moda_sobresale <- length(distintos) >= 3L &&
-    isTRUE(
-      frecuencia_maxima >= .FACTOR_VALOR_CONCENTRADO * frecuencia_segunda ||
-        (frecuencia_tipica <= 1 &&
-           frecuencia_maxima >= .FACTOR_VALOR_CONCENTRADO * frecuencia_tipica)
-    )
+    isTRUE(salto_frecuencias >= .FACTOR_VALOR_CONCENTRADO)
   huecos <- if (length(distintos) > 1L) diff(distintos) else numeric()
   hueco_tipico <- if (length(huecos)) stats::median(huecos) else NA_real_
   if (!is.finite(hueco_tipico) || hueco_tipico <= 0) hueco_tipico <- 1

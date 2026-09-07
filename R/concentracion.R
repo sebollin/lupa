@@ -7,6 +7,11 @@
 # distribucion y no hay una concentracion que tenga sentido diagnosticar.
 .MIN_VALIDOS_VALOR_CONCENTRADO <- 20L
 .MIN_DISTINTOS_VALOR_CONCENTRADO <- 10L
+# Cuantas posiciones de la distribucion de frecuencias se miran al buscar el
+# acantilado que delata un centinela. El grupo que sobresale esta arriba; en la
+# cola una caida de 2 a 1 da un salto de 2 que no dice nada de la columna.
+.TOPE_SALTO_FRECUENCIAS <- 5L
+
 .FACTOR_VALOR_CONCENTRADO <- 5
 .MIN_FRACCION_VALOR_CONCENTRADO <- 0.15
 

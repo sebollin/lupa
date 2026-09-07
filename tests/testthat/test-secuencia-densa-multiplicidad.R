@@ -209,3 +209,41 @@ test_that("una ausencia real del grupo NO se reubica", {
 
   expect_gt(sum(grepl("faltantes", as.character(por_grupo$tipo_hallazgo))), 0L)
 })
+
+test_that("varios centinelas empatados no se cubren entre si", {
+  # La tercera version de esta regla la rompio una refutacion externa. Comparar
+  # la frecuencia maxima contra la del SEGUNDO valor queda vacua cuando hay
+  # varios centinelas con la misma frecuencia: `{499, 499, 499, 2, ...}` da
+  # `max == segundo`, y mil cuatrocientos noventa y siete valores se callaban.
+  # El acantilado no mira quien es el segundo sino donde se corta la
+  # distribucion: de 499 a 2 hay un salto de 249.
+  id <- c(rep(1:4000, each = 2L), rep(-9L, 499L), rep(-99L, 499L),
+          rep(-999L, 499L))
+  perfil <- perfilar(
+    data.frame(id = id),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+
+  expect_true(perfil$columnas$moda_sobresale_secuencia_entera[[1L]])
+  expect_gt(as.numeric(perfil$columnas$n_faltantes_disfrazados[[1L]]), 1400)
+})
+
+test_that("el acantilado se busca arriba, no en la cola", {
+  # Control del tope. Una columna real con muchas frecuencias distintas tiene
+  # caidas en su cola -de 2 a 1 hay un salto de 2, y `beers$abv` llegaba a 3 a
+  # mitad de la suya- que no dicen nada de la columna. El grupo que sobresale
+  # esta siempre arriba.
+  ruta <- testthat::test_path("..", "..", "..", "notas-desarrollo",
+                              "bateria-raha", "datos", "beers_dirty.csv")
+  skip_if_not(file.exists(ruta), "el banco real no esta disponible")
+  datos <- utils::read.csv(ruta, stringsAsFactors = FALSE)
+  perfil <- perfilar(
+    datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+
+  sobresalen <- perfil$columnas$columna[
+    !is.na(perfil$columnas$moda_sobresale_secuencia_entera) &
+      perfil$columnas$moda_sobresale_secuencia_entera
+  ]
+  expect_length(sobresalen, 0L)
+})

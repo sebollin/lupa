@@ -877,20 +877,28 @@ veces aparece cada valor: mil valores distintos sobre mil posiciones dan
 densidad 1 aunque uno de ellos aparezca cien veces, que es justamente la
 firma de un centinela escondido en una numeración.
 \code{moda_sobresale_secuencia_entera} publica esa segunda condición, y la mide
-por \strong{dos vías}, con el factor que usa \code{valor_concentrado}. La primera
-compara la frecuencia máxima contra la del \strong{segundo} valor más frecuente:
-es la general, y es la que ve un centinela masivo dentro de una clave
-foránea. La segunda la compara contra la frecuencia \strong{típica} —la mediana—
-y sólo cuando esa típica es 1, es decir sobre una numeración; hace falta
-porque un valor legítimo y frecuente infla el segundo puesto y taparía al
-centinela. Cada vía cubre lo que la otra deja pasar.
+por el \strong{salto entre frecuencias consecutivas}, ordenadas de mayor a menor y
+mirando sólo las primeras posiciones. Es el mismo idioma que
+\code{salto_de_escala_secuencia_entera} usa con los huecos: lo que delata a un
+centinela no es que su frecuencia sea grande, sino que haya un \strong{acantilado}
+entre el grupo que sobresale y el resto de la distribución.
 
-Lo que separa un centinela de una clave foránea no es el tamaño de la moda
-—en una clave foránea es grande y legítimo— sino que \strong{duplique al resto de
-la distribución}: \code{brewery_id} tiene 62 contra un segundo de 38 y no
-sobresale. Y perder la condición de numeración no genera un hallazgo por sí
-solo: sólo devuelve la columna a la mirada de la lista de centinelas, que
-sólo informa si el valor dominante está en ella.
+Comparar contra un valor concreto no alcanza, y cada intento lo rompió un
+caso distinto: contra el \strong{segundo} valor, un señuelo legítimo y frecuente
+infla el segundo puesto; contra la frecuencia \strong{típica} exigiendo forma de
+numeración, un centinela masivo sobre una clave foránea nunca la tiene; y con
+las dos juntas, \strong{varios centinelas empatados se cubren entre sí} —tres
+valores con la misma frecuencia dejan «máximo igual al segundo» y la
+comparación vacía—. El acantilado ve los tres porque no le importa quién es
+el segundo sino dónde se corta la distribución.
+
+Se miran sólo las primeras posiciones porque el grupo que sobresale está
+arriba: en la cola, una caída de dos apariciones a una da un salto que no
+dice nada de la columna. Medido sobre las diez columnas numéricas del banco
+real y dos formas de clave foránea, ninguna pasa de 1,71; los casos que hay
+que atrapar van de 4,75 a 249. Perder la condición de numeración no genera un
+hallazgo por sí solo: sólo devuelve la columna a la mirada de la lista de
+centinelas, que sólo informa si el valor dominante está en ella.
 
 El factor deja una \strong{banda declarada}: por debajo de él el paquete no
 conjetura. Sobre una clave foránea cuyos valores aparecen cuatro veces cada

@@ -100,7 +100,14 @@
   cien `-9` callaba las cien— y contra la frecuencia típica cuando ésta vale 1
   —que ve el centinela cuando un señuelo legítimo infla el segundo puesto—.
   Sobre el banco real ninguna de las diez columnas numéricas sobresale y los
-  hallazgos siguen en 92.
+  hallazgos siguen en 92. **Y ni siquiera dos vías alcanzaban**: varios
+  centinelas con la misma frecuencia se cubren entre sí —`{499, 499, 499, 2, …}`
+  deja «máximo igual al segundo» y callaba mil cuatrocientos noventa y siete
+  valores—. Ahora se mide el **salto entre frecuencias consecutivas**, mirando
+  sólo las primeras posiciones: lo que delata a un centinela no es que su
+  frecuencia sea grande sino que haya un acantilado entre el grupo que sobresale
+  y el resto. Sobre el banco real ninguna columna pasa de 1,71 y los casos a
+  atrapar van de 4,75 a 249.
 - **Un grupo bajo el umbral de densidad acusaba lo que la tabla completa
   callaba.** `perfilar_por()` reubica a la cobertura los hallazgos de centinela
   de una columna que es densa en la tabla entera, pero sólo cubría
