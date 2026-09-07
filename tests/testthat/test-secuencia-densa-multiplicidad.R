@@ -87,21 +87,125 @@ test_that("un senuelo frecuente no tapa al centinela", {
   }
 })
 
-test_that("una columna donde todos los valores repiten no es una numeracion", {
-  # El alcance de la regla. En una numeracion los valores NO se repiten: su
-  # frecuencia tipica es 1. Una clave foranea repite todo -medido sobre el banco
-  # real, `brewery_id` tiene mediana 3 y solo el 22,8 % de sus valores aparece
-  # una vez- y por eso esta regla no la toca: conserva su escudo.
-  foranea <- perfilar(
-    data.frame(id = rep(1:100, times = c(40L, rep(5L, 99L)))),
-    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
-  )
-  expect_false(foranea$columnas$moda_sobresale_secuencia_entera[[1L]])
-  expect_true(foranea$columnas$secuencia_entera_densa[[1L]])
-
+test_that("una clave foranea con distribucion pareja conserva su escudo", {
+  # El alcance de la regla, medido sobre formas reales. `brewery_id` del banco
+  # tiene 62 contra un segundo de 38 -cociente 1,63- y no sobresale; una clave
+  # foranea perfectamente pareja tampoco. Lo que sobresale es un valor que
+  # DUPLICA al resto, no uno grande.
   pareja <- perfilar(
     data.frame(id = rep(1:60, each = 4L)),
     analizar_dependencias = FALSE, proteger_datos_personales = FALSE
   )
   expect_false(pareja$columnas$moda_sobresale_secuencia_entera[[1L]])
+  expect_true(pareja$columnas$secuencia_entera_densa[[1L]])
+
+  suave <- perfilar(
+    data.frame(id = rep(1:100, times = c(8L, rep(5L, 99L)))),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+  expect_false(suave$columnas$moda_sobresale_secuencia_entera[[1L]])
+})
+
+test_that("perder el escudo con una moda dominante legitima no acusa nada", {
+  # Una categoria que domina ocho veces al resto SI sobresale, y esta bien que
+  # el paquete la vuelva a mirar. Pero mirar no es acusar: el valor dominante no
+  # esta en la lista de centinelas, asi que no se informa nada. Ese es el control
+  # que abarata cualquier falso positivo de esta senal.
+  legitima <- perfilar(
+    data.frame(id = rep(1:100, times = c(40L, rep(5L, 99L)))),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+  expect_true(legitima$columnas$moda_sobresale_secuencia_entera[[1L]])
+  expect_equal(as.numeric(legitima$columnas$n_faltantes_disfrazados[[1L]]), 0)
+
+  centinela <- perfilar(
+    data.frame(id = c(rep(-9L, 40L), rep(1:99, each = 5L))),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+  expect_equal(as.numeric(centinela$columnas$n_faltantes_disfrazados[[1L]]), 40)
+})
+
+test_that("un centinela masivo dentro de una clave foranea no queda callado", {
+  # Lo encontro una refutacion externa, y era un agujero del arreglo anterior:
+  # `rep(1:40, each = 4)` con cien `-9` da frecuencias {100, 4, 4, ...}. La
+  # regla exigia forma de numeracion -frecuencia tipica 1- y una clave foranea
+  # nunca la tiene, asi que el escudo se tragaba cien ausencias codificadas.
+  # Contra el SEGUNDO valor mas frecuente si se ve: 100 contra 4.
+  perfil <- perfilar(
+    data.frame(id = c(rep(1:40, each = 4L), rep(-9L, 100L))),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+
+  expect_true(perfil$columnas$moda_sobresale_secuencia_entera[[1L]])
+  expect_false(perfil$columnas$secuencia_entera_densa[[1L]])
+  expect_equal(as.numeric(perfil$columnas$n_faltantes_disfrazados[[1L]]), 100)
+})
+
+test_that("bajo el factor el paquete no conjetura, y la declaracion lo atraviesa", {
+  # La banda de tolerancia, que es deliberada: cuatro repeticiones sobre una
+  # numeracion dan un cociente de 4 y no llegan al factor 5. El paquete no
+  # acusa lo que no puede sostener; lo que el usuario DECLARA si atraviesa la
+  # guarda, que es la regla que gobierna todo el paquete.
+  valores <- c(1:60, rep(-9L, 4L))
+  callado <- perfilar(
+    data.frame(id = valores),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+  expect_false(callado$columnas$moda_sobresale_secuencia_entera[[1L]])
+  expect_equal(as.numeric(callado$columnas$n_faltantes_disfrazados[[1L]]), 0)
+
+  declarado <- perfilar(
+    data.frame(id = valores), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE, sentinelas_numericos = -9
+  )
+  expect_equal(as.numeric(declarado$columnas$n_faltantes_disfrazados[[1L]]), 4)
+})
+
+test_that("un grupo bajo el umbral de densidad no acusa lo que la tabla calla", {
+  # Tercera forma de la misma discrepancia entre puertas. La columna es densa en
+  # la tabla completa, pero un grupo cae bajo el umbral y emitia `faltantes`
+  # -"0 ausentes reales y 4 disfrazados"-. Ese tipo no estaba en la reubicacion,
+  # que solo cubria `faltantes_disfrazados`, asi que las dos puertas discrepaban
+  # sobre las mismas cuatro filas.
+  a <- c(1:60, rep(-9L, 4L))
+  b <- c(1:34, rep(-9L, 4L))
+  datos <- data.frame(
+    x = c(a, b),
+    g = c(rep("A", length(a)), rep("B", length(b))),
+    stringsAsFactors = FALSE
+  )
+  por_grupo <- perfilar_por(
+    datos, "g", analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE
+  )
+  completa <- perfilar(
+    data.frame(x = datos$x), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE
+  )
+
+  expect_equal(as.numeric(completa$columnas$n_faltantes_disfrazados[[1L]]), 0)
+  expect_equal(
+    sum(grepl("faltantes", as.character(por_grupo$tipo_hallazgo))), 0L
+  )
+  # Y la cobertura lo declara en vez de callarlo en silencio.
+  cobertura <- attr(por_grupo, "cobertura_diagnosticos", exact = TRUE)
+  expect_true("centinelas_numericos" %in% cobertura$diagnostico)
+})
+
+test_that("una ausencia real del grupo NO se reubica", {
+  # Control: la reubicacion exige que el grupo no tenga ninguna ausencia real.
+  # Un faltante de verdad no es de la particion.
+  a <- c(1:60, rep(-9L, 4L))
+  b <- c(1:30, rep(NA_integer_, 4L), rep(-9L, 4L))
+  datos <- data.frame(
+    x = c(a, b),
+    g = c(rep("A", length(a)), rep("B", length(b))),
+    stringsAsFactors = FALSE
+  )
+  por_grupo <- perfilar_por(
+    datos, "g", analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE
+  )
+
+  expect_gt(sum(grepl("faltantes", as.character(por_grupo$tipo_hallazgo))), 0L)
 })

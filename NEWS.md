@@ -94,7 +94,20 @@
   `7` repetido seis veces deja el cociente en 1,2 y callaba los cinco
   centinelas—. Y la condición sólo alcanza a columnas con forma de numeración,
   donde los valores no se repiten: una clave foránea repite todo, no es una
-  numeración y conserva su condición.
+  numeración y conserva su condición. **Se mide por dos vías**, y cada una cubre
+  lo que la otra deja pasar: contra el segundo valor más frecuente —que ve un
+  centinela masivo dentro de una clave foránea, donde `rep(1:40, each = 4)` con
+  cien `-9` callaba las cien— y contra la frecuencia típica cuando ésta vale 1
+  —que ve el centinela cuando un señuelo legítimo infla el segundo puesto—.
+  Sobre el banco real ninguna de las diez columnas numéricas sobresale y los
+  hallazgos siguen en 92.
+- **Un grupo bajo el umbral de densidad acusaba lo que la tabla completa
+  callaba.** `perfilar_por()` reubica a la cobertura los hallazgos de centinela
+  de una columna que es densa en la tabla entera, pero sólo cubría
+  `faltantes_disfrazados`: un grupo emitía `faltantes` —«0 ausentes reales y 4
+  disfrazados»— y ese tipo se escapaba. Ahora entra también, **sólo cuando el
+  grupo no tiene ninguna ausencia real**: un faltante de verdad no es de la
+  partición y se sigue informando.
 - **La protección de datos personales pasa a ser por columna.** Era por valor y
   global: si `cedula` estaba protegida y contenía `"S/D"`, ese texto se
   enmascaraba **en todo el perfil**, incluida la columna `sexo` —que no tiene un

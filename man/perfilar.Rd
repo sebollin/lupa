@@ -876,20 +876,21 @@ hace falta porque la densidad cuenta la cobertura del rango e ignora cuántas
 veces aparece cada valor: mil valores distintos sobre mil posiciones dan
 densidad 1 aunque uno de ellos aparezca cien veces, que es justamente la
 firma de un centinela escondido en una numeración.
-\code{moda_sobresale_secuencia_entera} publica esa segunda condición. Compara la
-frecuencia máxima contra la \strong{frecuencia típica} —la mediana—, del mismo
-modo que \code{salto_de_escala_secuencia_entera} compara el hueco máximo contra el
-hueco típico, y con el mismo factor que usa \code{valor_concentrado}. Contra el
-\emph{segundo} valor no alcanzaría: eso supone que el centinela es la moda, y un
-valor legítimo y frecuente basta para taparlo.
+\code{moda_sobresale_secuencia_entera} publica esa segunda condición, y la mide
+por \strong{dos vías}, con el factor que usa \code{valor_concentrado}. La primera
+compara la frecuencia máxima contra la del \strong{segundo} valor más frecuente:
+es la general, y es la que ve un centinela masivo dentro de una clave
+foránea. La segunda la compara contra la frecuencia \strong{típica} —la mediana—
+y sólo cuando esa típica es 1, es decir sobre una numeración; hace falta
+porque un valor legítimo y frecuente infla el segundo puesto y taparía al
+centinela. Cada vía cubre lo que la otra deja pasar.
 
-La condición sólo aplica a columnas \strong{con forma de numeración}, que son
-aquellas donde los valores no se repiten: su frecuencia típica es 1. Una
-clave foránea repite todo, no es una numeración y conserva su condición
-—lo que separa un centinela de una clave foránea no es el tamaño de la moda,
-que en una clave foránea es grande y legítimo, sino la forma de la
-distribución entera—. Perder la condición de numeración no genera un hallazgo
-por sí solo: sólo devuelve la columna a la mirada de la lista de centinelas.
+Lo que separa un centinela de una clave foránea no es el tamaño de la moda
+—en una clave foránea es grande y legítimo— sino que \strong{duplique al resto de
+la distribución}: \code{brewery_id} tiene 62 contra un segundo de 38 y no
+sobresale. Y perder la condición de numeración no genera un hallazgo por sí
+solo: sólo devuelve la columna a la mirada de la lista de centinelas, que
+sólo informa si el valor dominante está en ella.
 
 La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara \code{poder_discriminante} y \code{proteger}:

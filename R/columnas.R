@@ -344,29 +344,42 @@
   frecuencias <- tabulate(
     match(valores[presentes], distintos), nbins = length(distintos)
   )
-  # Comparar la moda contra el SEGUNDO valor era derrotable con un senuelo, y lo
-  # encontro una refutacion externa: con `1:60` mas cinco `-9` y un `7`
-  # repetido seis veces, las frecuencias quedan {6, 5, 1, 1, ...}, el cociente
-  # da 1,2 y los cinco centinelas se callaban. El error era suponer que el
-  # centinela ES la moda; puede ser el segundo, o el tercero.
+  # Que un valor SOBRESALGA de la distribucion se mide por dos vias, y hacen
+  # falta las dos. Cada una la encontro una refutacion externa rompiendo a la
+  # otra:
   #
-  # Se compara contra la frecuencia TIPICA, que es el mismo idioma que usa
-  # `salto_de_escala` unas lineas abajo con el hueco tipico. Y hace falta la
-  # primera condicion, que ademas es la que define el objeto: en una numeracion
-  # los valores NO se repiten, asi que su frecuencia tipica es 1. Medido sobre
-  # el banco real, la separacion es limpia y no necesita umbral: los ataques
-  # tienen mediana 1 -y entre el 96,7 % y el 99,9 % de sus valores aparecen una
-  # sola vez-, mientras `brewery_id` tiene mediana 3 y solo el 22,8 % de sus
-  # valores aparece una vez. Una clave foranea no es una numeracion, y por eso
-  # esta regla no la toca.
+  # 1. Contra el SEGUNDO valor mas frecuente. Es la general y la que atrapa un
+  #    centinela masivo dentro de una clave foranea: `rep(1:40, each = 4)` con
+  #    cien `-9` da frecuencias {100, 4, 4, ...}, y esas cien ausencias
+  #    codificadas se callaban porque la columna no tiene forma de numeracion.
+  # 2. Contra la frecuencia TIPICA, y solo cuando esa tipica es 1 -es decir,
+  #    sobre una numeracion, donde los valores no se repiten-. Hace falta
+  #    porque un senuelo legitimo y frecuente infla el segundo puesto y tapa al
+  #    centinela: `1:60` con cinco `-9` y un `7` repetido seis veces deja
+  #    {6, 5, 1, ...}, el cociente contra el segundo da 1,2 y los cinco
+  #    centinelas se callaban.
+  #
+  # El factor es el que el paquete ya usa para `valor_concentrado`. Medido
+  # sobre el banco real, la regla no toca ninguna de las diez columnas
+  # numericas ni las dos formas de clave foranea, y dispara en los cinco
+  # ataques conocidos: `brewery_id` tiene 62 contra un segundo de 38 y una
+  # tipica de 3, y el ataque tiene 100 contra un segundo de 4.
+  ordenadas <- sort(frecuencias, decreasing = TRUE)
+  frecuencia_maxima <- ordenadas[[1L]]
+  frecuencia_segunda <- if (length(ordenadas) > 1L) ordenadas[[2L]] else 1
+  if (!is.finite(frecuencia_segunda) || frecuencia_segunda <= 0) {
+    frecuencia_segunda <- 1
+  }
   frecuencia_tipica <- stats::median(frecuencias)
   if (!is.finite(frecuencia_tipica) || frecuencia_tipica <= 0) {
     frecuencia_tipica <- 1
   }
   moda_sobresale <- length(distintos) >= 3L &&
-    frecuencia_tipica <= 1 &&
-    isTRUE(max(frecuencias) >=
-             .FACTOR_VALOR_CONCENTRADO * frecuencia_tipica)
+    isTRUE(
+      frecuencia_maxima >= .FACTOR_VALOR_CONCENTRADO * frecuencia_segunda ||
+        (frecuencia_tipica <= 1 &&
+           frecuencia_maxima >= .FACTOR_VALOR_CONCENTRADO * frecuencia_tipica)
+    )
   huecos <- if (length(distintos) > 1L) diff(distintos) else numeric()
   hueco_tipico <- if (length(huecos)) stats::median(huecos) else NA_real_
   if (!is.finite(hueco_tipico) || hueco_tipico <= 0) hueco_tipico <- 1

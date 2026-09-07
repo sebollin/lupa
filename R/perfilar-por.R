@@ -372,9 +372,34 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     }
     if (nrow(perfil$hallazgos) && length(columnas_densas) &&
           !hay_centinelas_declarados) {
+      # `faltantes` entra tambien, pero SOLO cuando su contenido es enteramente
+      # disfrazado. Lo encontro una refutacion externa: sobre una columna densa
+      # en la tabla completa, un grupo cuya densidad cae bajo el umbral emitia
+      # `faltantes` -"0 ausentes reales y 4 disfrazados"- y ese tipo no estaba en
+      # la lista, asi que las dos puertas discrepaban sobre las mismas cuatro
+      # filas. Se exige que el grupo no tenga NINGUNA ausencia real: un faltante
+      # de verdad no es de la particion y no se reubica.
+      sin_ausencias_reales <- vapply(
+        as.character(perfil$hallazgos$columna),
+        function(columna_faltantes) {
+          indice <- match(columna_faltantes, perfil$columnas$columna)
+          if (is.na(indice)) return(FALSE)
+          reales <- suppressWarnings(
+            as.numeric(perfil$columnas$n_faltantes[[indice]])
+          )
+          disfrazados <- suppressWarnings(
+            as.numeric(perfil$columnas$n_faltantes_disfrazados[[indice]])
+          )
+          isTRUE(is.finite(reales) && reales == 0 &&
+                   is.finite(disfrazados) && disfrazados > 0)
+        },
+        logical(1L)
+      )
       mover_a_cobertura(
-        perfil$hallazgos$tipo_hallazgo %in%
-          c("faltantes_disfrazados", "posible_centinela_numerico") &
+        (perfil$hallazgos$tipo_hallazgo %in%
+           c("faltantes_disfrazados", "posible_centinela_numerico") |
+           (perfil$hallazgos$tipo_hallazgo == "faltantes" &
+              sin_ausencias_reales)) &
           as.character(perfil$hallazgos$columna) %in% columnas_densas,
         "centinelas_numericos",
         paste(
