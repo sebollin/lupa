@@ -1544,7 +1544,11 @@
       presentes = presentes
     )
   }, datos_columnas, columnas)
-  filas <- do.call(paste, c(lapply(valores, `[[`, "valores"), sep = " | "))
+  # `unname()`: `lapply` conserva los nombres de columna, que son datos del
+  # usuario. Una columna llamada `sep` chocaba con el formal de `paste`.
+  filas <- do.call(
+    paste, c(unname(lapply(valores, `[[`, "valores")), sep = " | ")
+  )
   presentes <- Reduce(`|`, lapply(valores, `[[`, "presentes"),
                       init = rep(FALSE, nrow(datos)))
   fusiones <- if (!is.null(fusiones_precomputadas)) {
@@ -2151,6 +2155,20 @@
     columnas_excluidas_largo = character()
   )
   if (!is.null(lotes_metadata)) estructura$lotes <- lotes_metadata
+  # El mismo piso que aplican `perfilar()`, `analizar()` y
+  # `distribucion_valores()`. La proteccion de arriba es POR COLUMNA, asi que
+  # una copia que el clasificador no marca publicaba el documento en la misma
+  # cadena donde la columna protegida iba enmascarada: lo encontro una
+  # refutacion externa, con `documento=[valor protegido]; codigo=77177101`.
+  if (length(protegidas)) {
+    identificantes <- .valores_identificantes(
+      .valores_publicables_protegidos(datos, protegidas)
+    )
+    if (length(identificantes)) {
+      estructura <- .proteger_textos_salida(estructura, identificantes)
+      estructura <- .proteger_numeros_parametros(estructura, identificantes)
+    }
+  }
   class(estructura) <- c("duplicados_aproximados", "list")
   estructura
 }

@@ -149,6 +149,21 @@
   `error`, en las dos direcciones —la misma forma que ya tenían
   `configuracion_umbrales` y `configuracion_normalizacion`—. No era una fuga:
   quien corre esa comparación ya tiene el perfil sin proteger.
+- **Una columna llamada `sep` abortaba la corrida.** Los nombres de columna son
+  datos del usuario y llegaban como argumentos con nombre a `paste`, así que una
+  columna llamada `sep`, `collapse` o `recycle0` chocaba con sus formales y
+  reventaba `detectar_duplicados_aproximados()`, `detectar_claves()` y
+  `perfilar()`, con un mensaje que no nombraba ni la columna ni la causa. El
+  patrón estaba en cinco lugares y **uno solo** tenía la protección que lo
+  evita.
+- **`detectar_duplicados_aproximados()` y `perfilar_dbi()` aplican el piso de la
+  protección.** El primero publicaba el documento en la misma cadena donde la
+  columna protegida iba enmascarada. El segundo publicaba en `resumen_tabla` los
+  estadísticos de orden de una copia numérica que `perfilar()` sí tapaba: por esa
+  puerta el piso por valor es imposible —el resumen se calcula con SQL sobre la
+  tabla entera y no se ven todos los valores—, así que se tapan los estadísticos
+  de toda columna que **comparte tipo personal** con una protegida. No es una
+  conjetura sobre los valores: es lo que la clasificación ya afirmó de las dos.
 - **Cincuenta y cinco comprobaciones no medían lo que decían.** Corriendo cada
   archivo de prueba en su propio proceso, **17 de 192 fallaban** mientras la
   suite entera daba `FAIL 0`. Una sola causa: `cli` emite su salida como

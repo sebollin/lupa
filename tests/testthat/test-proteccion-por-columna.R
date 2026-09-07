@@ -297,3 +297,68 @@ test_that("comparar_perfiles declara que un lado esta protegido y el otro no", {
     nrow(fila(protegido, perfilar(datos, analizar_dependencias = FALSE))), 0L
   )
 })
+
+test_that("detectar_duplicados_aproximados aplica el piso", {
+  # Lo encontro una refutacion externa: la proteccion de esa puerta es por
+  # columna, asi que publicaba el documento en la MISMA cadena donde la columna
+  # protegida iba enmascarada -- `documento=[valor protegido]; codigo=77177101`.
+  datos <- data.frame(
+    documento = c("77177101", "77177101", "77177102"),
+    codigo = c("77177101", "77177101", "77177102"),
+    stringsAsFactors = FALSE
+  )
+  resultado <- detectar_duplicados_aproximados(datos)
+  skip_if(is.null(resultado$pares) || !nrow(resultado$pares), "sin pares")
+
+  evidencia <- c(
+    as.character(resultado$pares$evidencia_1),
+    as.character(resultado$pares$evidencia_2)
+  )
+  expect_false(any(grepl("77177101", evidencia, fixed = TRUE)))
+
+  # Y la forma con separadores, que es el mismo documento.
+  con_puntos <- data.frame(
+    documento = c("77177101", "77177101", "77177102"),
+    sep = c("771.771-01", "771.771-01", "771.771-02"),
+    stringsAsFactors = FALSE
+  )
+  r2 <- detectar_duplicados_aproximados(con_puntos)
+  skip_if(is.null(r2$pares) || !nrow(r2$pares), "sin pares")
+  expect_false(any(grepl(
+    "771.771-01", as.character(r2$pares$evidencia_1), fixed = TRUE
+  )))
+})
+
+test_that("perfilar_dbi tapa lo mismo que perfilar sobre la misma tabla", {
+  # Divergencia entre puertas encontrada por una refutacion externa:
+  # `resumen_tabla$columnas` traia `minimo`, `maximo`, `media` y `mediana` de una
+  # copia numerica con los treinta documentos enteros, mientras `perfilar()` los
+  # enmascaraba. Por esta puerta el piso por valor es imposible -el resumen se
+  # calcula con SQL sobre la tabla entera y no se ven todos los valores-, asi que
+  # se tapan los estadisticos de orden de toda columna que COMPARTE tipo personal
+  # con una protegida: no es conjetura sobre los valores, es lo que la
+  # clasificacion ya afirmo de las dos.
+  skip_if_not_installed("RSQLite")
+  documentos <- sprintf("771771%02d", 1:30)
+  datos <- data.frame(
+    documento = documentos,
+    copia_num = as.numeric(documentos),
+    monto = round(seq(100, 4000, length.out = 30)),
+    stringsAsFactors = FALSE
+  )
+  conexion <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(DBI::dbDisconnect(conexion), add = TRUE)
+  DBI::dbWriteTable(conexion, "t", datos)
+
+  memoria <- perfilar(datos, analizar_dependencias = FALSE)$columnas
+  motor <- perfilar_dbi(conexion, "t")$resumen_tabla$columnas
+
+  for (campo in c("minimo", "maximo", "media")) {
+    i <- match("copia_num", motor$columna)
+    expect_true(is.na(motor[[campo]][[i]]), info = campo)
+  }
+  # Control: la columna legitima conserva sus estadisticos en las DOS puertas.
+  j <- match("monto", motor$columna)
+  k <- match("monto", memoria$columna)
+  expect_equal(motor$minimo[[j]], memoria$minimo[[k]])
+})

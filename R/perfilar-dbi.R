@@ -10380,7 +10380,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   info
 }
 
-.proteger_resumen_dbi <- function(resumen, sensibles, base_clasificacion) {
+.proteger_resumen_dbi <- function(resumen, sensibles, base_clasificacion,
+                                  perfil_muestra = NULL) {
   resumen$meta$proteccion_personal <- list(
     aplicada = length(sensibles) > 0,
     base = base_clasificacion,
@@ -10392,6 +10393,40 @@ print.plan_perfilado_dbi <- function(x, ...) {
   columnas <- resumen$columnas
   indices <- columnas$columna %in% sensibles
   if (!any(indices)) return(resumen)
+  # Los valores identificantes se cosechan ANTES de taparlos, que es el unico
+  # momento en que estan a la vista: por esta puerta no hay tabla original de
+  # donde sacarlos despues. Lo encontro una refutacion externa, y era una
+  # divergencia entre puertas: sobre la misma tabla `perfilar()` enmascaraba
+  # `minimo`, `maximo` y `media` de una copia no clasificada y
+  # `perfilar_dbi()` los publicaba enteros.
+  # La cosecha sale del perfil de la MUESTRA, no de este resumen: por esta
+  # puerta la columna protegida suele ser texto y no tiene estadisticos que
+  # cosechar, mientras que el perfil de la muestra trae sus valores -moda,
+  # ejemplos de patron- todavia sin tapar.
+  identificantes <- .valores_identificantes(unique(c(
+    if (!is.null(perfil_muestra)) {
+      c(
+        # Los valores de la muestra, que es la fuente completa: el resumen trae
+        # estadisticos y el perfil trae ejemplos, y con treinta documentos
+        # distintos ni la moda ni los tres primeros ejemplos alcanzan -el
+        # `maximo` de una copia numerica es el ultimo documento, que no esta en
+        # ninguno de los dos-.
+        .valores_publicables_protegidos(perfil_muestra$datos, sensibles),
+        .valores_perfil_protegidos(
+          perfil_muestra$columnas, perfil_muestra$patrones,
+          perfil_muestra$datos_personales, perfil_muestra$meta
+        )
+      )
+    } else character(),
+    unlist(lapply(
+      intersect(
+        c("moda", "minimo", "maximo", "mediana", "media", "minimo_exacto",
+          "maximo_exacto", "centinela_valor"),
+        names(columnas)
+      ),
+      function(campo) as.character(columnas[[campo]][indices])
+    ), use.names = FALSE)
+  )))
   columnas$moda[indices & !is.na(columnas$moda)] <- reemplazo
   # Los estadisticos de orden son valores reales de una celda. Los momentos
   # tambien identifican cuando la columna es un documento: la media de las
@@ -10405,6 +10440,37 @@ print.plan_perfilado_dbi <- function(x, ...) {
     oculto <- oculto | tapar
     columnas[[campo]][tapar] <- NA_real_
   }
+  # Y las columnas que COMPARTEN TIPO PERSONAL con una protegida, aunque su
+  # poder discriminante sea debil y no se protejan. Por esta puerta el piso por
+  # valor no puede cerrarlas: `perfilar()` tapa el `minimo` de una copia porque
+  # ve que ES un documento de la columna protegida, y aca no se ven todos los
+  # valores -solo la muestra y los estadisticos-. Lo encontro una refutacion
+  # externa como divergencia entre puertas: sobre la misma tabla `perfilar()`
+  # enmascaraba y `perfilar_dbi()` publicaba los treinta documentos.
+  #
+  # Que el paquete haya clasificado las dos columnas con el MISMO tipo personal
+  # es lo que lo sostiene: no es una conjetura sobre los valores, es lo que la
+  # clasificacion ya afirmo de las dos.
+  if (!is.null(perfil_muestra) &&
+      is.data.frame(perfil_muestra$datos_personales)) {
+    clasificacion <- perfil_muestra$datos_personales
+    tipos_protegidos <- unique(as.character(
+      clasificacion$tipo[as.character(clasificacion$columna) %in% sensibles]
+    ))
+    tipos_protegidos <- tipos_protegidos[!is.na(tipos_protegidos)]
+    hermanas <- as.character(clasificacion$columna[
+      as.character(clasificacion$tipo) %in% tipos_protegidos
+    ])
+    hermanas <- setdiff(hermanas, sensibles)
+    indices_hermanas <- columnas$columna %in% hermanas
+    if (any(indices_hermanas)) {
+      for (campo in campos) {
+        tapar <- indices_hermanas & !is.na(columnas[[campo]])
+        oculto <- oculto | tapar
+        columnas[[campo]][tapar] <- NA_real_
+      }
+    }
+  }
   if (any(oculto)) {
     if (!"detalle_proteccion_personal" %in% names(columnas)) {
       columnas$detalle_proteccion_personal <- NA_character_
@@ -10413,6 +10479,13 @@ print.plan_perfilado_dbi <- function(x, ...) {
       "[estadisticos de orden y momentos protegidos]"
   }
   resumen$columnas <- columnas
+  # Y el piso sobre TODO el resumen, no solo sobre las columnas protegidas: un
+  # valor identificante no se publica por ninguna puerta, tenga o no columna
+  # atribuible, y tambien en los campos numericos.
+  if (length(identificantes)) {
+    resumen <- .proteger_textos_salida(resumen, identificantes)
+    resumen <- .proteger_numeros_parametros(resumen, identificantes)
+  }
   literales <- resumen$literales
   if (length(literales)) {
     filas_sensibles <- resumen$sql$columna %in% sensibles
@@ -12847,7 +12920,7 @@ perfilar_dbi <- function(conexion, tabla,
       resumen <- .proteger_resumen_dbi(
         resumen,
         .columnas_personales_protegidas(bloque$perfil$datos_personales),
-        "perfil_muestra"
+        "perfil_muestra", bloque$perfil
       )
     }
   } else {

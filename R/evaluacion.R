@@ -687,7 +687,10 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   clave <- function(tabla, incluir_medida = TRUE) {
     campos <- c("id_medicion", "metrica_instanciada")
     if (incluir_medida) campos <- c("id_medida", campos)
-    do.call(paste, c(tabla[campos], sep = "\r"))
+    # `unname()`: los nombres de columna son datos del usuario y llegan como
+    # argumentos con nombre a `paste`. Una columna llamada `sep` o `recycle0`
+    # choca con sus formales y aborta la corrida.
+    do.call(paste, c(unname(tabla[campos]), sep = "\r"))
   }
   exactas <- clave(x) %in% clave(desenlaces)
   if (any(exactas)) return(exactas)

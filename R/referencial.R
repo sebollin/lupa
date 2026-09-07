@@ -143,7 +143,7 @@
     texto[is.na(texto)] <- ""
     texto
   })
-  do.call(paste, c(valores, sep = " | "))
+  do.call(paste, c(unname(valores), sep = " | "))
 }
 
 .referencial_proximidad <- function(filas_fallidas, texto_objetivo,

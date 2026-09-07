@@ -158,7 +158,11 @@
   completos <- Reduce(`&`, lapply(indices, function(i) !is.na(datos[[i]])),
                       init = rep(TRUE, nrow(datos)))
   if (!any(completos)) return(list(unicidad = FALSE, distintos = 0L))
-  combinado <- do.call(paste, c(lapply(valores, `[`, completos), sep = "\u001f"))
+  # `unname()`: `lapply` conserva los nombres, y un nombre de columna que
+  # coincida con un formal de `paste` -`sep`, `recycle0`- aborta la corrida.
+  combinado <- do.call(
+    paste, c(unname(lapply(valores, `[`, completos)), sep = "\u001f")
+  )
   list(
     unicidad = anyDuplicated(combinado) == 0L,
     distintos = length(unique(combinado))
@@ -296,7 +300,8 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
         if (length(indices) == 1L) {
           length(unique(datos[[indices[[1L]]]][completos]))
         } else {
-          combinado <- do.call(paste, c(lapply(seleccion, `[`, completos),
+          combinado <- do.call(
+            paste, c(unname(lapply(seleccion, `[`, completos)),
                                          sep = "\u001f"))
           length(unique(combinado))
         }
