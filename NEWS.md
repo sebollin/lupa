@@ -135,6 +135,13 @@
   `analizar()` lo publicaba en `variables$niveles_observados`. Sobre el banco
   real no enmascara ni una celda de más: 25 antes y 25 después, con los mismos
   92 hallazgos.
+- **Comparar un perfil protegido contra uno sin proteger no declaraba la
+  asimetría.** La salida publicaba el rango que el lado protegido oculta y la
+  diferencia se leía como deriva del dato, cuando lo que cambió es la política.
+  Ahora se declara con su propia fila, `configuracion_proteccion`, severidad
+  `error`, en las dos direcciones —la misma forma que ya tenían
+  `configuracion_umbrales` y `configuracion_normalizacion`—. No era una fuga:
+  quien corre esa comparación ya tiene el perfil sin proteger.
 - **Cincuenta y cinco comprobaciones no medían lo que decían.** Corriendo cada
   archivo de prueba en su propio proceso, **17 de 192 fallaban** mientras la
   suite entera daba `FAIL 0`. Una sola causa: `cli` emite su salida como

@@ -265,3 +265,35 @@ test_that("el marcador de proteccion no se enmascara a si mismo", {
     lupa:::.valores_identificantes(c("[valor protegido]", "77177101")), 1L
   )
 })
+
+test_that("comparar_perfiles declara que un lado esta protegido y el otro no", {
+  # Salio de una refutacion externa. Comparando un perfil protegido contra uno
+  # sin proteger de la MISMA tabla, la salida publicaba el rango que el lado
+  # protegido oculta y la diferencia se leia como deriva del dato, cuando lo que
+  # cambio es la politica. No es una fuga -quien corre esa comparacion ya tiene
+  # el perfil sin proteger- pero es la misma forma que ya tienen las varas y la
+  # normalizacion: un cambio de politica se declara con su propia fila.
+  datos <- data.frame(
+    documento = sprintf("707771%02d", 1:40), stringsAsFactors = FALSE
+  )
+  protegido <- perfilar(datos, analizar_dependencias = FALSE)
+  abierto <- perfilar(
+    datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+
+  fila <- function(x, y) {
+    r <- as.data.frame(comparar_perfiles(x, y))
+    r[r$aspecto == "configuracion_proteccion", ]
+  }
+  # En las dos direcciones, porque la asimetria no tiene lado preferido.
+  for (par in list(list(protegido, abierto), list(abierto, protegido))) {
+    f <- fila(par[[1L]], par[[2L]])
+    expect_equal(nrow(f), 1L)
+    expect_identical(as.character(f$severidad[[1L]]), "error")
+  }
+
+  # Control: dos corridas con la misma politica no declaran nada.
+  expect_equal(
+    nrow(fila(protegido, perfilar(datos, analizar_dependencias = FALSE))), 0L
+  )
+})

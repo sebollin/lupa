@@ -67,6 +67,23 @@
 # Las varas que deciden si un hallazgo se emite y con que severidad. Se comparan
 # como CONJUNTO y en una sola fila: seis filas separadas serian ruido, y lo que
 # el lector necesita saber es que la vara cambio, no cual de los seis umbrales.
+.proteccion_declarada_perfil <- function(perfil) {
+  # `perfilar()` declara su politica en `meta$proteger_datos_personales`. La via
+  # DBI usa `meta$proteccion_personal$aplicada`, asi que se miran las dos y se
+  # devuelve NA cuando ninguna esta: sin declaracion no se afirma nada.
+  if (!is.list(perfil)) return(NA)
+  meta <- perfil$meta
+  if (!is.null(meta$proteger_datos_personales)) {
+    valor <- meta$proteger_datos_personales[[1L]]
+    if (is.logical(valor) && !is.na(valor)) return(valor)
+  }
+  aplicada <- meta$proteccion_personal$aplicada
+  if (length(aplicada) == 1L && is.logical(aplicada) && !is.na(aplicada)) {
+    return(aplicada)
+  }
+  NA
+}
+
 .configuracion_umbrales_perfil <- function(perfil) {
   campos <- c(
     "umbral_faltantes_sospechoso", "umbral_faltantes_error",
@@ -602,6 +619,30 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
       evidencia = paste(
         "Las diferencias de m\u00e9tricas o hallazgos pueden atribuirse a esta",
         "pol\u00edtica en la transici\u00f3n; revisar la configuraci\u00f3n publicada."
+      )
+    )
+  }
+
+  # Comparar un perfil protegido contra uno sin proteger publicaba los valores
+  # que el lado protegido oculta, y la diferencia se leia como deriva del dato
+  # cuando lo que cambio es la politica. No es una fuga -quien corre esa
+  # comparacion ya tiene el perfil sin proteger- pero es la misma forma que ya
+  # tienen `configuracion_umbrales` y `configuracion_normalizacion`: un cambio de
+  # politica se declara con su propia fila en vez de disfrazarse de deriva.
+  proteccion_a <- .proteccion_declarada_perfil(anterior)
+  proteccion_b <- .proteccion_declarada_perfil(actual)
+  if (!is.na(proteccion_a) && !is.na(proteccion_b) &&
+      !identical(proteccion_a, proteccion_b)) {
+    agregar(
+      NA_character_, "configuracion_proteccion", "modificado", "error",
+      if (proteccion_a) "protegido" else "sin proteger",
+      if (proteccion_b) "protegido" else "sin proteger",
+      descripcion = paste(
+        "Un lado oculta los valores de las columnas personales y el otro no."
+      ),
+      evidencia = paste(
+        "Los valores que aparecen de un solo lado pueden venir de esta",
+        "diferencia de pol\u00edtica y no de los datos."
       )
     )
   }
