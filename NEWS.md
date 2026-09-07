@@ -88,6 +88,13 @@
   banco real el mayor cociente es 1,71 y el caso a atrapar da 101. Ningún
   hallazgo del banco cambia, y perder la condición de numeración no acusa por sí
   solo: sólo devuelve la columna a la mirada de la lista de centinelas.
+  La comparación es contra la frecuencia **típica** —la mediana—, no contra el
+  segundo valor: comparar contra el segundo supone que el centinela es la moda,
+  y una refutación externa lo derrotó con un señuelo —`1:60` con cinco `-9` y un
+  `7` repetido seis veces deja el cociente en 1,2 y callaba los cinco
+  centinelas—. Y la condición sólo alcanza a columnas con forma de numeración,
+  donde los valores no se repiten: una clave foránea repite todo, no es una
+  numeración y conserva su condición.
 - **La protección de datos personales pasa a ser por columna.** Era por valor y
   global: si `cedula` estaba protegida y contenía `"S/D"`, ese texto se
   enmascaraba **en todo el perfil**, incluida la columna `sexo` —que no tiene un
@@ -98,6 +105,16 @@
   **no** tiene columna a la que atribuirse sigue enmascarado en toda la salida
   —un hallazgo de filas duplicadas muestra filas enteras, y `general`, la
   cobertura y los formatos de fecha describen la tabla, no una columna—.
+  **Con un piso**: un valor de una columna protegida que identifique —seis
+  caracteres o más, el mismo corte con el que la batería de fugas decide qué
+  cuenta como filtración— no se publica en ninguna parte, y eso alcanza también
+  a los campos numéricos. Sin el piso, una columna que el clasificador no marcó
+  publicaba los documentos de la protegida con sólo repetirlos: medido, una
+  copia llamada `codigo_operacion` y hasta un texto libre con el documento
+  adentro publicaban tres de cuatro documentos de ocho dígitos, y los
+  estadísticos de orden de una copia clasificada con poder discriminante `debil`
+  publicaban dos documentos exactos sobre doce filas. El vocabulario corto no
+  entra en el piso: `"S/D"` sigue publicándose en `sexo`.
 - **Cincuenta y cinco comprobaciones no medían lo que decían.** Corriendo cada
   archivo de prueba en su propio proceso, **17 de 192 fallaban** mientras la
   suite entera daba `FAIL 0`. Una sola causa: `cli` emite su salida como

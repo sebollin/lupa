@@ -848,6 +848,18 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   tipo
 }
 
+.nombre_tipo_motivo <- function(declarado, inferido) {
+  # El motivo describe un cambio de TIPO, y quien lo lee entiende el tipo
+  # declarado. `.tipo_columna_equivalencia()` devuelve el INFERIDO, asi que un
+  # texto de "1","2","3" se nombraba `entero`: la pareja texto contra doble se
+  # publicaba como `tipo_cambiado:entero_vs_doble`, donde ningun lado es entero.
+  # Se prefiere el declarado y se cae al inferido solo cuando no se conoce -por
+  # ejemplo con un tipo SQL-, que es mejor que no decir nada.
+  if (!is.na(declarado)) return(declarado)
+  if (!is.na(inferido)) return(inferido)
+  "desconocido"
+}
+
 .almacenamiento_caracter_equivalencia <- function(columnas, indice) {
   tipo <- .tipo_declarado_equivalencia(columnas, indice)
   if (is.na(tipo)) return(NA)
@@ -1237,6 +1249,8 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     temporal_b <- .es_temporal_equivalencia(actual, indice_b)
     tipo_a <- .tipo_columna_equivalencia(anterior, indice_a)
     tipo_b <- .tipo_columna_equivalencia(actual, indice_b)
+    declarado_a <- .tipo_declarado_equivalencia(anterior, indice_a)
+    declarado_b <- .tipo_declarado_equivalencia(actual, indice_b)
     caracter_a <- .almacenamiento_caracter_equivalencia(anterior, indice_a)
     caracter_b <- .almacenamiento_caracter_equivalencia(actual, indice_b)
     caracter_cambiado <- !is.na(caracter_a) && !is.na(caracter_b) &&
@@ -1297,7 +1311,9 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
         campos_no_comparables <- unique(c(campos_no_comparables, campo))
         registrar_no_comparable(
           columna, "ambos",
-          paste0("tipo_cambiado:", tipo_a, "_vs_", tipo_b), campo
+          paste0("tipo_cambiado:", .nombre_tipo_motivo(declarado_a, tipo_a),
+                 "_vs_", .nombre_tipo_motivo(declarado_b, tipo_b)),
+          campo
         )
         next
       }

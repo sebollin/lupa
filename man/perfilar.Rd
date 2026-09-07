@@ -218,7 +218,17 @@ cédula y a la vez el «sin dato» de \code{sexo}, y publicarlo en \code{sexo} n
 revela nada de la cédula. Lo que \strong{no} tiene columna a la que atribuirse
 sí se enmascara en toda la salida: un hallazgo de filas duplicadas muestra
 filas enteras, y los componentes que describen la tabla —\code{general}, la
-cobertura, los formatos de fecha— no son de ninguna columna en particular.}
+cobertura, los formatos de fecha— no son de ninguna columna en particular.
+Ese alcance tiene un \strong{piso}: un valor de una columna protegida que
+identifique —seis caracteres o más, el mismo corte con el que la batería de
+fugas decide qué cuenta como filtración— no se publica en ninguna parte,
+tenga o no columna a la que atribuirse, y también en los campos numéricos.
+Sin ese piso, una columna que el clasificador no marcó publicaba los
+documentos de la protegida con sólo repetirlos: una copia con nombre
+neutro, un texto libre que los contuviera, o los estadísticos de orden de
+una columna clasificada con poder discriminante \code{debil}. El vocabulario
+corto no entra en el piso: \code{"S/D"} sigue publicándose donde describe a una
+columna que no es personal.}
 
 \item{columnas_personales}{Columnas que traen datos personales, declaradas
 por quien conoce el dato. \code{c("cod_benef", "apodo")} las nombra sin decir de
@@ -861,13 +871,20 @@ hace falta porque la densidad cuenta la cobertura del rango e ignora cuántas
 veces aparece cada valor: mil valores distintos sobre mil posiciones dan
 densidad 1 aunque uno de ellos aparezca cien veces, que es justamente la
 firma de un centinela escondido en una numeración.
-\code{moda_sobresale_secuencia_entera} publica esa segunda condición y usa el
-mismo criterio que \code{valor_concentrado}: la frecuencia de la moda contra la
-del segundo valor más frecuente. Lo que separa un centinela de una clave
-foránea legítima no es el tamaño de la moda —las claves foráneas tienen
-modas grandes— sino su forma: una clave foránea reparte, un centinela
-sobresale. Perder la condición de numeración no genera un hallazgo por sí
-solo: sólo devuelve la columna a la mirada de la lista de centinelas.
+\code{moda_sobresale_secuencia_entera} publica esa segunda condición. Compara la
+frecuencia máxima contra la \strong{frecuencia típica} —la mediana—, del mismo
+modo que \code{salto_de_escala_secuencia_entera} compara el hueco máximo contra el
+hueco típico, y con el mismo factor que usa \code{valor_concentrado}. Contra el
+\emph{segundo} valor no alcanzaría: eso supone que el centinela es la moda, y un
+valor legítimo y frecuente basta para taparlo.
+
+La condición sólo aplica a columnas \strong{con forma de numeración}, que son
+aquellas donde los valores no se repiten: su frecuencia típica es 1. Una
+clave foránea repite todo, no es una numeración y conserva su condición
+—lo que separa un centinela de una clave foránea no es el tamaño de la moda,
+que en una clave foránea es grande y legítimo, sino la forma de la
+distribución entera—. Perder la condición de numeración no genera un hallazgo
+por sí solo: sólo devuelve la columna a la mirada de la lista de centinelas.
 
 La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara \code{poder_discriminante} y \code{proteger}:

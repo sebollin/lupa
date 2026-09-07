@@ -344,13 +344,29 @@
   frecuencias <- tabulate(
     match(valores[presentes], distintos), nbins = length(distintos)
   )
-  ordenadas <- sort(frecuencias, decreasing = TRUE)
-  cociente_moda <- if (length(ordenadas) >= 2L && ordenadas[[2L]] > 0) {
-    ordenadas[[1L]] / ordenadas[[2L]]
-  } else NA_real_
+  # Comparar la moda contra el SEGUNDO valor era derrotable con un senuelo, y lo
+  # encontro una refutacion externa: con `1:60` mas cinco `-9` y un `7`
+  # repetido seis veces, las frecuencias quedan {6, 5, 1, 1, ...}, el cociente
+  # da 1,2 y los cinco centinelas se callaban. El error era suponer que el
+  # centinela ES la moda; puede ser el segundo, o el tercero.
+  #
+  # Se compara contra la frecuencia TIPICA, que es el mismo idioma que usa
+  # `salto_de_escala` unas lineas abajo con el hueco tipico. Y hace falta la
+  # primera condicion, que ademas es la que define el objeto: en una numeracion
+  # los valores NO se repiten, asi que su frecuencia tipica es 1. Medido sobre
+  # el banco real, la separacion es limpia y no necesita umbral: los ataques
+  # tienen mediana 1 -y entre el 96,7 % y el 99,9 % de sus valores aparecen una
+  # sola vez-, mientras `brewery_id` tiene mediana 3 y solo el 22,8 % de sus
+  # valores aparece una vez. Una clave foranea no es una numeracion, y por eso
+  # esta regla no la toca.
+  frecuencia_tipica <- stats::median(frecuencias)
+  if (!is.finite(frecuencia_tipica) || frecuencia_tipica <= 0) {
+    frecuencia_tipica <- 1
+  }
   moda_sobresale <- length(distintos) >= 3L &&
-    isTRUE(is.finite(cociente_moda) &&
-             cociente_moda >= .FACTOR_VALOR_CONCENTRADO)
+    frecuencia_tipica <= 1 &&
+    isTRUE(max(frecuencias) >=
+             .FACTOR_VALOR_CONCENTRADO * frecuencia_tipica)
   huecos <- if (length(distintos) > 1L) diff(distintos) else numeric()
   hueco_tipico <- if (length(huecos)) stats::median(huecos) else NA_real_
   if (!is.finite(hueco_tipico) || hueco_tipico <= 0) hueco_tipico <- 1

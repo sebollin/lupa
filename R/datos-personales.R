@@ -1111,25 +1111,8 @@
   perfil
 }
 
-.restituir_filas_atribuibles <- function(barrido, por_columna) {
-  # Devuelve, fila por fila, lo que decidio el paso por columna, pero solo
-  # donde hay una columna a la que atribuir la fila. Las filas sin `columna`
-  # conservan lo que dejo el barrido general.
-  if (!is.data.frame(barrido) || !is.data.frame(por_columna) ||
-      !nrow(barrido) || !identical(dim(barrido), dim(por_columna)) ||
-      !identical(names(barrido), names(por_columna)) ||
-      !"columna" %in% names(barrido)) {
-    return(barrido)
-  }
-  atribuibles <- !is.na(por_columna$columna) & nzchar(as.character(por_columna$columna))
-  if (!any(atribuibles)) return(barrido)
-  for (j in names(barrido)) {
-    if (is.character(barrido[[j]]) && is.character(por_columna[[j]])) {
-      barrido[[j]][atribuibles] <- por_columna[[j]][atribuibles]
-    }
-  }
-  barrido
-}
+.MIN_LARGO_VALOR_IDENTIFICANTE <- 6L
+
 
 .proteger_perfil <- function(perfil, datos = NULL) {
   valores_perfil <- .valores_perfil_protegidos(
@@ -1190,23 +1173,53 @@
   # ahi el barrido general se queda: es la unica proteccion que tienen.
   # `general`, `datos_personales` y los atributos tampoco tienen columna
   # atribuible.
-  por_columna <- list(
-    columnas = perfil$columnas,
-    patrones = perfil$patrones,
-    dependencias = perfil$dependencias,
-    hallazgos = perfil$hallazgos
-  )
-  perfil <- .proteger_textos_salida(perfil, valores)
+  # Enmascarado POR COLUMNA, CON UN PISO.
+  #
+  # `.proteger_componentes_perfil()` ya tapo, columna por columna, lo que
+  # describe a una columna protegida: su `moda`, sus estadisticos, sus
+  # `ejemplos` y la evidencia de sus hallazgos. Ahi entra TODO valor, largo o
+  # corto. El barrido general que viene ahora busca los valores en toda la
+  # salida, y lleva SOLO los que identifican.
+  #
+  # Por que el piso. Sin el, una columna que el clasificador no marco publicaba
+  # los valores de la protegida con solo repetirlos: medido, una copia llamada
+  # `codigo_operacion` y hasta un texto libre con el documento adentro
+  # publicaban tres de cuatro documentos de ocho digitos. Con el piso, un valor
+  # que identifica no sale por ninguna puerta, tenga o no columna atribuible.
+  #
+  # Por que el corte en seis. No es un numero elegido aca: es el que la bateria
+  # de fugas ya usa para decidir que cuenta como filtracion, y usar dos
+  # definiciones distintas de "identificante" en la regla y en su prueba es
+  # exactamente como se cuela un defecto entre las dos.
+  #
+  # Y por que alcanza con filtrar. El vocabulario corto -`"S/D"`, que es
+  # centinela de una cedula y a la vez el "sin dato" de `sexo`- ya quedo tapado
+  # donde describe a la columna protegida y no lo toca nadie mas, asi que `sexo`
+  # lo publica. No hace falta restituir nada despues del barrido: lo que el
+  # barrido no lleva, no lo pisa.
+  # `allowNA = TRUE`, y el NA cuenta como identificante. Sin eso, `nchar()` con
+  # `type = "chars"` ABORTA sobre una cadena que no es UTF-8 valido -"invalid
+  # multibyte string"-, y este paquete trabaja justamente con codificaciones
+  # rotas: la suite lo rompio en `detectar_duplicados_aproximados()`. Ante un
+  # valor cuyo largo no se puede medir, protegerlo es el lado seguro: es una
+  # funcion de privacidad y el valor por omision tiene que ser cerrado.
+  largos <- nchar(valores, type = "chars", allowNA = TRUE)
+  identificantes <- valores[
+    !is.na(valores) &
+      (is.na(largos) | largos >= .MIN_LARGO_VALOR_IDENTIFICANTE)
+  ]
+  perfil <- .proteger_textos_salida(perfil, identificantes)
+  # Y lo mismo sobre los campos NUMERICOS, que el barrido de texto no toca.
+  # Sin esto el piso quedaba a medias: medido, una columna copia clasificada
+  # `documento_identidad` con poder discriminante debil -asi que no se protege-
+  # publicaba en `minimo`, `maximo`, `media` y `mediana` los documentos de la
+  # columna que si esta protegida, en el mismo objeto donde esa columna sale
+  # enmascarada. Sobre doce filas, `minimo` y `maximo` son dos documentos
+  # exactos. Se reusa el ayudante que ya tapaba los parametros de una accion del
+  # plan, con el mismo criterio: un numero cuya representacion es un valor
+  # identificante protegido no se publica.
+  perfil <- .proteger_numeros_parametros(perfil, identificantes)
   perfil$meta <- meta_declarada
-  perfil$columnas <- por_columna$columnas
-  perfil$patrones <- por_columna$patrones
-  perfil$dependencias <- por_columna$dependencias
-  # En los hallazgos se devuelven solo las filas con columna atribuible. Una
-  # fila con `columna = NA` -filas duplicadas, por ejemplo- muestra filas
-  # enteras de la tabla y no hay a quien atribuirsela: esa queda enmascarada.
-  perfil$hallazgos <- .restituir_filas_atribuibles(
-    perfil$hallazgos, por_columna$hallazgos
-  )
   if (!is.null(patrones_forma)) {
     for (col in names(patrones_forma)) {
       if (!is.null(patrones_forma[[col]]) && !is.null(perfil$patrones[[col]])) {

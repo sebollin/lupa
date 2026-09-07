@@ -1012,13 +1012,20 @@
 #' veces aparece cada valor: mil valores distintos sobre mil posiciones dan
 #' densidad 1 aunque uno de ellos aparezca cien veces, que es justamente la
 #' firma de un centinela escondido en una numeración.
-#' `moda_sobresale_secuencia_entera` publica esa segunda condición y usa el
-#' mismo criterio que `valor_concentrado`: la frecuencia de la moda contra la
-#' del segundo valor más frecuente. Lo que separa un centinela de una clave
-#' foránea legítima no es el tamaño de la moda —las claves foráneas tienen
-#' modas grandes— sino su forma: una clave foránea reparte, un centinela
-#' sobresale. Perder la condición de numeración no genera un hallazgo por sí
-#' solo: sólo devuelve la columna a la mirada de la lista de centinelas.
+#' `moda_sobresale_secuencia_entera` publica esa segunda condición. Compara la
+#' frecuencia máxima contra la **frecuencia típica** —la mediana—, del mismo
+#' modo que `salto_de_escala_secuencia_entera` compara el hueco máximo contra el
+#' hueco típico, y con el mismo factor que usa `valor_concentrado`. Contra el
+#' *segundo* valor no alcanzaría: eso supone que el centinela es la moda, y un
+#' valor legítimo y frecuente basta para taparlo.
+#'
+#' La condición sólo aplica a columnas **con forma de numeración**, que son
+#' aquellas donde los valores no se repiten: su frecuencia típica es 1. Una
+#' clave foránea repite todo, no es una numeración y conserva su condición
+#' —lo que separa un centinela de una clave foránea no es el tamaño de la moda,
+#' que en una clave foránea es grande y legítimo, sino la forma de la
+#' distribución entera—. Perder la condición de numeración no genera un hallazgo
+#' por sí solo: sólo devuelve la columna a la mirada de la lista de centinelas.
 #'
 #' La clasificación de posibles datos personales es más amplia que la
 #' protección. Cada clasificación declara `poder_discriminante` y `proteger`:
@@ -1264,6 +1271,16 @@
 #'   sí se enmascara en toda la salida: un hallazgo de filas duplicadas muestra
 #'   filas enteras, y los componentes que describen la tabla —`general`, la
 #'   cobertura, los formatos de fecha— no son de ninguna columna en particular.
+#'   Ese alcance tiene un **piso**: un valor de una columna protegida que
+#'   identifique —seis caracteres o más, el mismo corte con el que la batería de
+#'   fugas decide qué cuenta como filtración— no se publica en ninguna parte,
+#'   tenga o no columna a la que atribuirse, y también en los campos numéricos.
+#'   Sin ese piso, una columna que el clasificador no marcó publicaba los
+#'   documentos de la protegida con sólo repetirlos: una copia con nombre
+#'   neutro, un texto libre que los contuviera, o los estadísticos de orden de
+#'   una columna clasificada con poder discriminante `debil`. El vocabulario
+#'   corto no entra en el piso: `"S/D"` sigue publicándose donde describe a una
+#'   columna que no es personal.
 #' @param validadores_personales Pack o lista nombrada de funciones que reciben
 #'   un vector de texto y devuelven un lógico de igual longitud. `NULL` usa
 #'   `validadores_uruguay()` por compatibilidad; `FALSE` o `numeric()` desactiva
