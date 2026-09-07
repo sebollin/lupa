@@ -148,13 +148,13 @@ result was read from that run's own check log — not from a green tick, not fro
 the conclusion of a CI run, and not from the notification e-mail.
 
 The package sources submitted are those of
-`784510165506d13fe60a0e23121e61e59255ae7f`. The tarball was built from a clean
+`91ed9c85607ab3e594e92f512a4be3e9abe8c0c4`. The tarball was built from a clean
 tree at that commit, which is checkable rather than asserted:
 
 ```sh
-git rev-parse 7845101^{commit}   # the revision these sources come from
+git rev-parse 91ed9c8^{commit}   # the revision these sources come from
 git status --porcelain            # no output: nothing uncommitted travels in the build
-git diff --name-only 7845101..HEAD   # only cran-comments.md, which .Rbuildignore keeps out
+git diff --name-only 91ed9c8..HEAD   # only cran-comments.md, which .Rbuildignore keeps out
 R CMD build --compact-vignettes=gs+qpdf lupa
 ```
 
