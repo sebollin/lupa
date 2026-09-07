@@ -892,6 +892,14 @@ sobresale. Y perder la condición de numeración no genera un hallazgo por sí
 solo: sólo devuelve la columna a la mirada de la lista de centinelas, que
 sólo informa si el valor dominante está en ella.
 
+El factor deja una \strong{banda declarada}: por debajo de él el paquete no
+conjetura. Sobre una clave foránea cuyos valores aparecen cuatro veces cada
+uno, hasta dieciséis repeticiones de un mismo valor no se señalan; a las
+veinte, sí. Lo que el usuario declara con \code{sentinelas_numericos} atraviesa la
+guarda y se informa con severidad \code{error}, que es la regla general del
+paquete: excluye lo que se declara, incluye lo que sospecha, y no sospecha
+por debajo de esa banda.
+
 La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara \code{poder_discriminante} y \code{proteger}:
 \itemize{
