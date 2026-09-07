@@ -503,7 +503,11 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     )
   )
   class(estructura) <- "analisis"
-  if (proteger_datos_personales) .proteger_analisis(estructura) else estructura
+  if (proteger_datos_personales) {
+    .proteger_analisis(estructura, datos)
+  } else {
+    estructura
+  }
 }
 
 #' @export
@@ -652,8 +656,21 @@ print.analisis <- function(x, ...) {
   datos
 }
 
-.proteger_analisis <- function(x) {
+.proteger_analisis <- function(x, datos = NULL) {
   sensibles <- .columnas_personales_protegidas(x$perfil)
+  # `datos` es la tabla original y llega por argumento porque `analizar()` por
+  # omision NO la conserva: `x$datos` viene NULL, y sin ella los valores
+  # identificantes no se pueden recuperar despues. La cosecha del perfil sola no
+  # alcanza -trae estadisticos, no los valores de la columna, y con treinta
+  # documentos distintos la moda ademas es NA-.
+  if (is.null(datos)) datos <- x$datos
+  identificantes <- .valores_identificantes(unique(c(
+    .valores_perfil_protegidos(
+      x$perfil$columnas, x$perfil$patrones, x$perfil$datos_personales,
+      x$perfil$meta
+    ),
+    .valores_publicables_protegidos(datos, sensibles)
+  )))
   x$perfil <- .proteger_perfil(x$perfil, x$datos)
   # Hay que limpiar el plan antes de anonimizar `x$datos`: un analisis abierto
   # puede conservar parametros que vienen de las filas originales.
@@ -711,6 +728,21 @@ print.analisis <- function(x, ...) {
       sensibles,
       if (inherits(x$datos, "data.frame")) names(x$datos) else character()
     )
+  }
+  # El mismo piso que aplican `perfilar()` y `distribucion_valores()`. Todo lo
+  # de arriba protege POR COLUMNA, y eso deja pasar el valor identificante que
+  # vive en una columna que el clasificador no marco: medido, `analizar()`
+  # publicaba `"cliente 77177101"` en `variables$niveles_observados` -un
+  # documento adentro de texto libre- mientras `perfilar()`, sobre la misma
+  # tabla, lo tapaba. Se barren los resumenes DERIVADOS: `datos` es la tabla que
+  # el usuario pidio conservar y tiene su propio tratamiento, `perfil` ya paso
+  # por `.proteger_perfil()` y `meta` describe la corrida, no los datos.
+  if (length(identificantes)) {
+    derivados <- setdiff(names(x), c("datos", "perfil", "meta"))
+    for (parte in derivados) {
+      x[[parte]] <- .proteger_textos_salida(x[[parte]], identificantes)
+      x[[parte]] <- .proteger_numeros_parametros(x[[parte]], identificantes)
+    }
   }
   x
 }

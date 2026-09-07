@@ -243,6 +243,19 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   )
   rownames(resultado$frecuencias) <- rownames(resultado$cuantiles) <-
     rownames(resultado$alcance) <- NULL
+  # El mismo piso que aplica `perfilar()`. Sin esto las dos puertas discrepaban
+  # sobre el mismo dato: esta funcion protege POR COLUMNA -si la columna es
+  # personal, sus cuantiles van NA- pero una copia que el clasificador no marca
+  # publicaba los valores de la protegida. Medido, `cuantiles$valor` traia los
+  # cinco cuantiles con el documento entero mientras la columna protegida salia
+  # `[valor protegido]` en el mismo objeto.
+  identificantes <- .valores_identificantes(
+    .valores_publicables_protegidos(datos, personales)
+  )
+  if (length(identificantes)) {
+    resultado <- .proteger_textos_salida(resultado, identificantes)
+    resultado <- .proteger_numeros_parametros(resultado, identificantes)
+  }
   class(resultado) <- "distribuciones_perfil"
   resultado
 }

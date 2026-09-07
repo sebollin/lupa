@@ -115,6 +115,13 @@
   estadísticos de orden de una copia clasificada con poder discriminante `debil`
   publicaban dos documentos exactos sobre doce filas. El vocabulario corto no
   entra en el piso: `"S/D"` sigue publicándose en `sexo`.
+  El piso alcanza además la **forma sin separadores** —`"771.771-01"` es el
+  mismo documento que `"77177101"`— y lo aplican también `analizar()` y
+  `distribucion_valores()`, que protegían sólo por columna: sobre la misma
+  tabla, `perfilar()` tapaba el documento adentro de un texto libre y
+  `analizar()` lo publicaba en `variables$niveles_observados`. Sobre el banco
+  real no enmascara ni una celda de más: 25 antes y 25 después, con los mismos
+  92 hallazgos.
 - **Cincuenta y cinco comprobaciones no medían lo que decían.** Corriendo cada
   archivo de prueba en su propio proceso, **17 de 192 fallaban** mientras la
   suite entera daba `FAIL 0`. Una sola causa: `cli` emite su salida como

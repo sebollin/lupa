@@ -1281,6 +1281,11 @@
 #'   una columna clasificada con poder discriminante `debil`. El vocabulario
 #'   corto no entra en el piso: `"S/D"` sigue publicándose donde describe a una
 #'   columna que no es personal.
+#'   El piso alcanza además la **forma sin separadores**: `"771.771-01"` es el
+#'   mismo documento que `"77177101"`, y la celda entera se enmascara. Y lo
+#'   aplican también [analizar()] y [distribucion_valores()], que antes
+#'   protegían sólo por columna y publicaban lo que `perfilar()` tapaba sobre la
+#'   misma tabla.
 #' @param validadores_personales Pack o lista nombrada de funciones que reciben
 #'   un vector de texto y devuelven un lógico de igual longitud. `NULL` usa
 #'   `validadores_uruguay()` por compatibilidad; `FALSE` o `numeric()` desactiva

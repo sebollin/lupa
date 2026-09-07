@@ -666,6 +666,41 @@
                 method = "radix")]
 }
 
+.reemplazar_variantes_separadas <- function(x, valores) {
+  # El reemplazo de arriba busca la cadena EXACTA, asi que el mismo documento
+  # escrito con separadores se le escapa: `"771.771-01"` no contiene
+  # `"77177101"`. Lo encontro una refutacion externa.
+  #
+  # Aca se compara la forma SIN separadores. Si al sacarle todo lo que no es
+  # alfanumerico una cadena contiene un valor protegido igualmente normalizado,
+  # la celda entera se enmascara: la separacion es cosmetica y el valor es el
+  # mismo. Se enmascara entera y no por tramos porque el separador puede estar
+  # en cualquier lado y reconstruir el resto no aportaria nada.
+  #
+  # Solo entran los valores identificantes que ya trae el piso -seis caracteres
+  # o mas-, y ademas se exige que su forma normalizada conserve ese largo: sin
+  # eso, un valor corto tras normalizar enmascararia media tabla.
+  if (!is.character(x) || !length(valores)) return(x)
+  normalizar <- function(v) gsub("[^[:alnum:]]", "", v, useBytes = TRUE)
+  agujas <- unique(normalizar(valores))
+  agujas <- agujas[
+    !is.na(agujas) &
+      nchar(agujas, type = "bytes") >= .MIN_LARGO_VALOR_IDENTIFICANTE
+  ]
+  if (!length(agujas)) return(x)
+  candidatas <- !is.na(x) & x != "[valor protegido]"
+  if (!any(candidatas)) return(x)
+  pajar <- normalizar(x[candidatas])
+  golpea <- rep(FALSE, length(pajar))
+  for (aguja in agujas) {
+    golpea <- golpea |
+      grepl(aguja, pajar, fixed = TRUE, useBytes = TRUE)
+    if (all(golpea)) break
+  }
+  if (any(golpea)) x[candidatas][golpea] <- "[valor protegido]"
+  x
+}
+
 .reemplazar_valores_protegidos <- function(x, valores) {
   if (!is.character(x) || !length(valores)) return(x)
   for (valor in valores) {
@@ -689,6 +724,7 @@
       x <- gsub(valor, "[valor protegido]", x, fixed = TRUE, useBytes = TRUE)
     }
   }
+  x <- .reemplazar_variantes_separadas(x, valores)
   x
 }
 
@@ -1113,6 +1149,30 @@
 
 .MIN_LARGO_VALOR_IDENTIFICANTE <- 6L
 
+.valores_identificantes <- function(valores) {
+  # El piso de la proteccion, en un solo lugar. Un valor identifica si tiene
+  # seis caracteres o mas: es el mismo corte con el que la bateria de fugas
+  # decide que cuenta como filtracion, y tener dos definiciones distintas en la
+  # regla y en su prueba es por donde se cuela un defecto.
+  #
+  # `allowNA = TRUE`, y el NA cuenta como identificante: `nchar()` con
+  # `type = "chars"` ABORTA sobre una cadena que no es UTF-8 valido, y este
+  # paquete trabaja con codificaciones rotas. Ante un valor cuyo largo no se
+  # puede medir, protegerlo es el lado seguro.
+  if (!length(valores)) return(character())
+  # El marcador nunca es una aguja. Si el perfil del que se cosechan los valores
+  # ya paso por proteccion, `"[valor protegido]"` entra en la lista, y su forma
+  # sin separadores -`valorprotegido`- coincide con la del estado
+  # `valor_protegido`: el marcador terminaba enmascarandose a si mismo y un
+  # campo que declara la proteccion pasaba a declarar un valor.
+  valores <- valores[
+    !is.na(valores) & nzchar(valores) & valores != "[valor protegido]"
+  ]
+  if (!length(valores)) return(character())
+  largos <- nchar(valores, type = "chars", allowNA = TRUE)
+  valores[is.na(largos) | largos >= .MIN_LARGO_VALOR_IDENTIFICANTE]
+}
+
 
 .proteger_perfil <- function(perfil, datos = NULL) {
   valores_perfil <- .valores_perfil_protegidos(
@@ -1203,11 +1263,7 @@
   # rotas: la suite lo rompio en `detectar_duplicados_aproximados()`. Ante un
   # valor cuyo largo no se puede medir, protegerlo es el lado seguro: es una
   # funcion de privacidad y el valor por omision tiene que ser cerrado.
-  largos <- nchar(valores, type = "chars", allowNA = TRUE)
-  identificantes <- valores[
-    !is.na(valores) &
-      (is.na(largos) | largos >= .MIN_LARGO_VALOR_IDENTIFICANTE)
-  ]
+  identificantes <- .valores_identificantes(valores)
   perfil <- .proteger_textos_salida(perfil, identificantes)
   # Y lo mismo sobre los campos NUMERICOS, que el barrido de texto no toca.
   # Sin esto el piso quedaba a medias: medido, una columna copia clasificada

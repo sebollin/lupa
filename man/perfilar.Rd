@@ -228,7 +228,12 @@ documentos de la protegida con sólo repetirlos: una copia con nombre
 neutro, un texto libre que los contuviera, o los estadísticos de orden de
 una columna clasificada con poder discriminante \code{debil}. El vocabulario
 corto no entra en el piso: \code{"S/D"} sigue publicándose donde describe a una
-columna que no es personal.}
+columna que no es personal.
+El piso alcanza además la \strong{forma sin separadores}: \code{"771.771-01"} es el
+mismo documento que \code{"77177101"}, y la celda entera se enmascara. Y lo
+aplican también \code{\link[=analizar]{analizar()}} y \code{\link[=distribucion_valores]{distribucion_valores()}}, que antes
+protegían sólo por columna y publicaban lo que \code{perfilar()} tapaba sobre la
+misma tabla.}
 
 \item{columnas_personales}{Columnas que traen datos personales, declaradas
 por quien conoce el dato. \code{c("cod_benef", "apodo")} las nombra sin decir de

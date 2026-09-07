@@ -170,3 +170,98 @@ test_that("el piso numerico no toca un numero que no es un valor protegido", {
   expect_equal(perfil$columnas$maximo[[i]], 7200)
   expect_false(is.na(perfil$columnas$media[[i]]))
 })
+
+test_that("distribucion_valores aplica el mismo piso que perfilar", {
+  # Lo encontro una refutacion externa: `distribucion_valores()` protege POR
+  # COLUMNA -si la columna es personal, sus cuantiles van NA- pero no aplicaba
+  # el piso, asi que una copia que el clasificador no marca publicaba los
+  # documentos de la protegida. Medido: los cinco cuantiles y las sesenta
+  # frecuencias los traian enteros.
+  documentos <- sprintf("771771%02d", 1:30)
+  datos <- data.frame(
+    documento = documentos,
+    codigo_operacion = as.numeric(documentos),
+    stringsAsFactors = FALSE
+  )
+  dv <- distribucion_valores(datos, proteger_datos_personales = TRUE)
+
+  # Ninguna frecuencia publica un documento.
+  expect_false(any(grepl(
+    "771771", as.character(dv$frecuencias$valor), fixed = TRUE
+  )))
+
+  # Los cuantiles que SON valores exactos de la columna quedan tapados; los
+  # interpolados no lo son y se publican, que es el trato que el `.Rd` declara
+  # para una clasificacion de poder discriminante debil.
+  q <- dv$cuantiles[dv$cuantiles$columna == "codigo_operacion", ]
+  exactos <- q$probabilidad %in% c(0, 1)
+  expect_true(all(is.na(q$valor[exactos])))
+  expect_false(any(
+    q$valor[!exactos] %in% as.numeric(documentos)
+  ))
+})
+
+test_that("el mismo documento con separadores no escapa al piso", {
+  # El reemplazo busca la cadena exacta, asi que `"771.771-01"` no contiene
+  # `"77177101"` y se publicaba. Lo encontro una refutacion externa. La
+  # separacion es cosmetica: el valor es el mismo.
+  documentos <- sprintf("771771%02d", 1:30)
+  con_puntos <- sub("^(...)(...)(..)$", "\\1.\\2-\\3", documentos)
+  datos <- data.frame(
+    documento = documentos, sep = con_puntos, stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+
+  expect_true(all(perfil$patrones$sep$ejemplos == "[valor protegido]"))
+})
+
+test_that("la pasada de separadores no toca lo que no es un documento", {
+  # Control: se exige que la forma normalizada conserve el largo del piso, asi
+  # que un codigo corto o un importe no arrastran media tabla.
+  datos <- data.frame(
+    documento = sprintf("771771%02d", 1:30),
+    codigo = rep(c("A-1", "B-2", "C-3"), 10),
+    monto = rep(c(1500, 2300, 990), 10),
+    stringsAsFactors = FALSE
+  )
+  perfil <- perfilar(datos, analizar_dependencias = FALSE)
+
+  i <- match("codigo", perfil$columnas$columna)
+  expect_false(is.na(perfil$columnas$moda[[i]]))
+  expect_false(identical(
+    as.character(perfil$columnas$moda[[i]]), "[valor protegido]"
+  ))
+  j <- match("monto", perfil$columnas$columna)
+  expect_equal(perfil$columnas$minimo[[j]], 990)
+})
+
+test_that("analizar() aplica el piso sobre sus resumenes derivados", {
+  # `analizar()` protege por columna, asi que publicaba el documento adentro de
+  # texto libre en `variables$niveles_observados` mientras `perfilar()`, sobre
+  # la misma tabla, lo tapaba. Y por omision NO conserva los datos, asi que los
+  # valores hay que cosecharlos antes de proteger el perfil.
+  documentos <- sprintf("771771%02d", 1:30)
+  datos <- data.frame(
+    documento = documentos,
+    notas = paste("cliente", documentos),
+    stringsAsFactors = FALSE
+  )
+  analisis <- analizar(datos)
+
+  textos <- unlist(lapply(analisis, function(x) {
+    if (is.list(x)) unlist(lapply(x, as.character)) else as.character(x)
+  }))
+  expect_false(any(grepl("771771", textos, fixed = TRUE)))
+})
+
+test_that("el marcador de proteccion no se enmascara a si mismo", {
+  # Cuando los valores se cosechan de un perfil que YA paso por proteccion,
+  # `"[valor protegido]"` entra en la lista de valores a tapar. Su forma sin
+  # separadores es `valorprotegido`, identica a la del estado `valor_protegido`
+  # que publican los cuantiles: el marcador terminaba enmascarandose a si mismo
+  # y un campo que declara la proteccion pasaba a declarar un valor.
+  expect_length(lupa:::.valores_identificantes("[valor protegido]"), 0L)
+  expect_length(
+    lupa:::.valores_identificantes(c("[valor protegido]", "77177101")), 1L
+  )
+})
