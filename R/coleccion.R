@@ -1605,6 +1605,12 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 #' Las columnas candidatas se podan antes de materializar cada comparación. Las
 #' podas quedan declaradas en `cobertura_podas`, con su motivo y conteo.
 #'
+#' El campo `detalle` de una poda por rangos disjuntos **no publica extremos que
+#' identifiquen**: si el mínimo o el máximo de un lado llega al piso de la
+#' protección —seis caracteres o más—, ese rango sale como `[valor protegido]`.
+#' El mínimo de una columna de documentos es el documento de una persona real, y
+#' el par mínimo–máximo acota además a todos los valores intermedios.
+#'
 #' @param coleccion Objeto creado por [coleccion()].
 #' @param pares Data frame con columnas `tabla_1` y `tabla_2`. Cero filas es una
 #'   declaración válida de «ningún par».

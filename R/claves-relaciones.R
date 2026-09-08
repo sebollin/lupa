@@ -462,11 +462,41 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   }
   list(
     motivo = "rangos_disjuntos",
-    detalle = paste0(
-      "[", rango_x[["minimo"]], ", ", rango_x[["maximo"]], "] y [",
-      rango_y[["minimo"]], ", ", rango_y[["maximo"]], "]"
-    )
+    detalle = .detalle_rangos_disjuntos(rango_x, rango_y)
   )
+}
+
+# El motivo de una poda es una EXPLICACION, y hasta el 2026-09-07 la explicacion
+# publicaba los cuatro extremos crudos. Sobre una columna de documentos eso es
+# una fuga: `perfilar()` y `perfilar_dbi()` enmascaran el minimo y el maximo de
+# esa misma columna -salen `NA`- y por esta puerta salian literales, en texto,
+# dentro del objeto devuelto. El minimo de una columna de documentos es el
+# documento de una persona real, y el par minimo-maximo acota a los demas.
+#
+# Se aplica EL PISO, que es la definicion que el paquete ya tiene en un solo
+# lugar: un valor de seis caracteres o mas no se publica. Es deliberadamente mas
+# ancho que la regla completa -que ademas exige que la columna este clasificada
+# como personal-, y la razon es que aca no hay clasificacion disponible:
+# `relaciones_coleccion()` trabaja sobre un registro de tablas que no perfila, y
+# clasificar por columna dentro de este bucle costaria mas que la poda que
+# ahorra. El costo de ser mas ancho lo paga un monto de seis o mas caracteres,
+# que sale como protegido en un texto explicativo; el par real sigue publicado
+# en `cobertura_pares`. Enmascarar de mas en una explicacion es barato;
+# publicar un documento de menos no lo es.
+.detalle_rangos_disjuntos <- function(rango_x, rango_y) {
+  # Se protege el RANGO entero, no cada extremo por separado. Enmascarar uno
+  # solo publica el otro, y el par acota igual; ademas
+  # `[[valor protegido], [valor protegido]]` no se lee.
+  lado <- function(rango) {
+    textos <- format(c(rango[["minimo"]], rango[["maximo"]]),
+                     scientific = FALSE, trim = TRUE)
+    if (length(.valores_identificantes(textos))) {
+      "[valor protegido]"
+    } else {
+      paste0("[", textos[[1L]], ", ", textos[[2L]], "]")
+    }
+  }
+  paste0(lado(rango_x), " y ", lado(rango_y))
 }
 
 .poda_relacion <- function(x, y, umbral_cobertura) {

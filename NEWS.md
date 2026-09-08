@@ -2,6 +2,15 @@
 
 ## Lo que se mide contra lo que se declara
 
+- **`relaciones_coleccion()` publicaba el mínimo y el máximo de una columna de
+  documentos.** El campo `detalle` de una poda por rangos disjuntos explicaba la
+  poda escribiendo los cuatro extremos crudos —`"[45120001, 45120040] y ..."`—,
+  mientras `perfilar()` y `perfilar_dbi()` enmascaran esos mismos estadísticos
+  sobre esa misma columna. El mínimo de una columna de documentos es el
+  documento de una persona real, y el par acota a los demás. Ahora un rango cuyo
+  extremo llegue al piso de la protección sale como `[valor protegido]`; los
+  rangos que no identifican se siguen publicando, que es lo que hace útil la
+  explicación.
 - **Un valor subnormal se publicaba como un dato calculado.** El caso real:
   escribir una columna de enteros grandes en una base la guardó como doble con
   los bits mal interpretados, y el perfil publicaba `moda = 1,06e-314` con

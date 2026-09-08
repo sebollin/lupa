@@ -77,6 +77,12 @@ diccionario de datos.
 
 Las columnas candidatas se podan antes de materializar cada comparación. Las
 podas quedan declaradas en \code{cobertura_podas}, con su motivo y conteo.
+
+El campo \code{detalle} de una poda por rangos disjuntos \strong{no publica extremos que
+identifiquen}: si el mínimo o el máximo de un lado llega al piso de la
+protección —seis caracteres o más—, ese rango sale como \verb{[valor protegido]}.
+El mínimo de una columna de documentos es el documento de una persona real, y
+el par mínimo–máximo acota además a todos los valores intermedios.
 }
 \examples{
 if (requireNamespace("RSQLite", quietly = TRUE) &&
