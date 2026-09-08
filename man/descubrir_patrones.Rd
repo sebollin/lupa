@@ -11,7 +11,8 @@ descubrir_patrones(
   max_patrones = 20,
   na.rm = TRUE,
   muestra = 1e+05,
-  umbral_raro = 0.05
+  umbral_raro = 0.05,
+  proteger_datos_personales = TRUE
 )
 }
 \arguments{
@@ -29,10 +30,20 @@ descubrir_patrones(
 
 \item{umbral_raro}{Umbral usado para conservar un resumen acotado de
 patrones raros para los hallazgos.}
+
+\item{proteger_datos_personales}{Si los ejemplos se enmascaran cuando la
+forma de los valores alcanza para clasificarlos como dato personal. \code{TRUE}
+por omisión. \code{perfilar()} lo pasa en \code{FALSE} porque protege el perfil
+entero después, respetando ahí la declaración del usuario.}
 }
 \value{
 Un data frame de clase \code{patrones} con patrón, frecuencia, proporción
-y ejemplos. Los atributos \code{total}, \code{analizados}, \code{filas_analizadas} y
+y ejemplos. Los \strong{ejemplos no se publican} cuando la forma de los valores
+alcanza por sí sola para clasificarlos como dato personal —un correo, por
+ejemplo—: salen como \verb{[valor protegido]}. Acá llega un vector suelto, sin
+nombre de columna, así que la vía por nombre no está disponible; un número
+de ocho dígitos \strong{sí} se publica, porque su forma sola no alcanza para
+afirmar que es un documento. Los atributos \code{total}, \code{analizados}, \code{filas_analizadas} y
 \code{muestreado} describen el posible muestreo; \code{filas_analizadas} es un alias
 explícito de \code{analizados} para mantener el alcance visible junto a otros
 diagnósticos. \code{resumen_patrones} conserva sólo el patrón dominante

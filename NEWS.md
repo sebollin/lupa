@@ -2,6 +2,18 @@
 
 ## Lo que se mide contra lo que se declara
 
+- **Dos puertas más publicaban valores que `perfilar()` enmascara.** La
+  `evidencia` de `detectar_discordancias()` citaba las filas discordantes con
+  sus valores crudos —documentos, cuando la columna lo es—, y los `ejemplos` de
+  `descubrir_patrones()` llamada suelta salían enteros. No fallaba la capa de
+  protección: esas dos funciones nunca habían pasado por ella. Ahora
+  `detectar_discordancias()` clasifica las columnas de la señal con la misma
+  herramienta que el resto del paquete y enmascara sólo las personales —el
+  número de fila se conserva, que es para lo que existe—, y
+  `descubrir_patrones()` enmascara sus ejemplos cuando la forma alcanza para
+  clasificarlos, como en un correo. Un número de ocho dígitos sin nombre de
+  columna se sigue publicando: su forma sola no alcanza para afirmar que es un
+  documento, y el paquete no conjetura por debajo de lo declarado.
 - **`secuencia_entera_densa` gobernaba cuatro escudos y se había estrechado
   pensando en uno.** Volvió a medir sólo la cobertura de una numeración, que es
   lo que su nombre dice, y los escudos de forma —`patron_raro`,

@@ -1123,9 +1123,15 @@
 .patron_partes_multivaluada <- function(valores, expandir = FALSE) {
   # La tabla publica es la misma evidencia que usa el perfil; el vector por
   # parte se conserva solo para comparar homogeneidad dentro de una celda.
+  # `proteger_datos_personales = FALSE` no es un descuido: `perfilar()` protege
+  # el perfil ENTERO despues, y ahi respeta la declaracion del usuario. Si se
+  # enmascarara tambien aca, `proteger_datos_personales = FALSE` dejaria de
+  # obedecerse y el paquete ignoraria lo que el usuario acaba de pedirle. La
+  # proteccion de `descubrir_patrones()` es para quien la llama suelta.
   descubrir_patrones(
     valores, distinguir_mayusculas = TRUE, expandir = expandir,
-    max_patrones = 100L, muestra = Inf, umbral_raro = 0
+    max_patrones = 100L, muestra = Inf, umbral_raro = 0,
+    proteger_datos_personales = FALSE
   )
   .generalizar_a_patron(
     valores, distinguir_mayusculas = TRUE, expandir = expandir
@@ -1809,13 +1815,19 @@
   # column summary. It must not remain attached to the public profile table.
   attr(formatos, "meses_texto") <- NULL
   patrones <- if (is.character(x_analisis) || is.factor(x_analisis)) {
+    # `proteger_datos_personales = FALSE` no es un descuido: `perfilar()` protege
+    # el perfil ENTERO despues, y ahi respeta la declaracion del usuario. Si se
+    # enmascarara tambien aca, `proteger_datos_personales = FALSE` dejaria de
+    # obedecerse y el paquete ignoraria lo que el usuario acaba de pedirle. La
+    # proteccion de `descubrir_patrones()` es para quien la llama suelta.
     descubrir_patrones(
       x_analisis,
       distinguir_mayusculas = distinguir_mayusculas,
       expandir = expandir,
       max_patrones = max_patrones,
       muestra = muestra,
-      umbral_raro = umbral_patron_raro
+      umbral_raro = umbral_patron_raro,
+      proteger_datos_personales = FALSE
     )
   } else {
     estructura <- data.frame(

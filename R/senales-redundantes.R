@@ -150,9 +150,19 @@ print.senal_redundante <- function(x, ...) {
 #' @param senales Una señal creada por [senal_redundante()] o una lista de
 #'   señales.
 #' @param max_ejemplos Máximo de filas concretas que se citan como evidencia.
+#' @param proteger_datos_personales Si los valores de las columnas clasificadas
+#'   como dato personal se enmascaran en `evidencia`. `TRUE` por omisión; el
+#'   número de fila y el nombre de la columna se conservan igual.
 #'
 #' @return Data frame con una fila por señal: `senal`, `columnas`, `n_filas`,
 #'   `n_evaluadas`, `n_discordantes`, `proporcion`, `ventana` y `evidencia`.
+#'
+#'   `evidencia` cita filas concretas, y **no publica los valores de una columna
+#'   clasificada como dato personal** —salvo que se pida lo contrario con
+#'   `proteger_datos_personales = FALSE`—: esos salen como `[valor protegido]`. El
+#'   número de fila y el nombre de la columna se conservan, que es lo que hace
+#'   falta para ir a corregirla. Las columnas que no son personales se citan
+#'   enteras.
 #' @export
 #' @seealso [senal_redundante()], [detectar_dependencias()],
 #'   [detectar_relaciones()]
@@ -163,7 +173,8 @@ print.senal_redundante <- function(x, ...) {
 #'   anio_archivo = c(2023L, 2023L, 2023L)
 #' )
 #' detectar_discordancias(d, senal_redundante(c("anio_fiscal", "anio_archivo")))
-detectar_discordancias <- function(datos, senales, max_ejemplos = 5L) {
+detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
+                                   proteger_datos_personales = TRUE) {
   .validar_datos_tabla(datos)
   datos <- .tabla_base(datos)
   if (inherits(senales, "senal_redundante")) senales <- list(senales)
@@ -220,10 +231,34 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L) {
     }
     indices <- which(completos)[discordante]
     ejemplos <- utils::head(indices, max_ejemplos)
+    # La evidencia cita filas concretas, y sobre una columna de documentos eso
+    # es publicar documentos: `perfilar()` enmascara esa misma columna -su moda
+    # sale `[valor protegido]` y sus extremos `NA`- y por aca salian literales,
+    # sin ningun aviso. Se clasifica con la misma herramienta que usa el resto
+    # del paquete, `.columnas_personales_rapidas()`, asi que se enmascara
+    # exactamente lo mismo que enmascara `perfilar()` y nada mas: una columna
+    # que el paquete no clasifica como personal se sigue publicando entera.
+    #
+    # No le quita utilidad: esta funcion existe para decir QUE FILAS discrepan, y
+    # el numero de fila ya las localiza. Saber que la fila 5 discrepa y en que
+    # par de columnas es todo lo que hace falta para ir a corregirla.
+    # La primitiva concentra las selecciones de tablas de entrada; seleccionar a
+    # mano con `[, , drop = FALSE]` esta topeado y auditado por `test-ronda160`.
+    personales <- if (isTRUE(proteger_datos_personales)) {
+      .columnas_personales_rapidas(.seleccionar_columnas(datos, senal$columnas))
+    } else {
+      character()
+    }
     detalle <- if (length(ejemplos)) {
       paste(vapply(ejemplos, function(fila) {
         partes <- vapply(seq_along(senal$columnas), function(k) {
-          paste0(senal$columnas[[k]], "=", .texto_valor(valores[[k]][fila]))
+          nombre <- senal$columnas[[k]]
+          texto <- if (nombre %in% personales) {
+            "[valor protegido]"
+          } else {
+            .texto_valor(valores[[k]][fila])
+          }
+          paste0(nombre, "=", texto)
         }, character(1L))
         paste0("fila ", fila, ": ", paste(partes, collapse = "; "))
       }, character(1L)), collapse = " | ")

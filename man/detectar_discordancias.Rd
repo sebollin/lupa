@@ -4,7 +4,12 @@
 \alias{detectar_discordancias}
 \title{Detectar filas donde señales redundantes se contradicen}
 \usage{
-detectar_discordancias(datos, senales, max_ejemplos = 5L)
+detectar_discordancias(
+  datos,
+  senales,
+  max_ejemplos = 5L,
+  proteger_datos_personales = TRUE
+)
 }
 \arguments{
 \item{datos}{Tabla que se desea examinar.}
@@ -13,10 +18,21 @@ detectar_discordancias(datos, senales, max_ejemplos = 5L)
 señales.}
 
 \item{max_ejemplos}{Máximo de filas concretas que se citan como evidencia.}
+
+\item{proteger_datos_personales}{Si los valores de las columnas clasificadas
+como dato personal se enmascaran en \code{evidencia}. \code{TRUE} por omisión; el
+número de fila y el nombre de la columna se conservan igual.}
 }
 \value{
 Data frame con una fila por señal: \code{senal}, \code{columnas}, \code{n_filas},
 \code{n_evaluadas}, \code{n_discordantes}, \code{proporcion}, \code{ventana} y \code{evidencia}.
+
+\code{evidencia} cita filas concretas, y \strong{no publica los valores de una columna
+clasificada como dato personal} —salvo que se pida lo contrario con
+\code{proteger_datos_personales = FALSE}—: esos salen como \verb{[valor protegido]}. El
+número de fila y el nombre de la columna se conservan, que es lo que hace
+falta para ir a corregirla. Las columnas que no son personales se citan
+enteras.
 }
 \description{
 Recorre las señales declaradas con \code{\link[=senal_redundante]{senal_redundante()}} e informa las filas

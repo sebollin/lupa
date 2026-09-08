@@ -1,3 +1,7 @@
+## Tope de valores que se miran para decidir si los ejemplos se publican.
+## Es `muestra_validadores`, el mismo que el paquete ya usa para clasificar.
+.MUESTRA_CLASIFICACION_PATRONES <- 1000L
+
 # El limite de trazabilidad conserva nombres, no la distribucion de frecuencias.
 .limite_patrones_raros_trazabilidad <- 5000L
 
@@ -12,6 +16,10 @@
 #' esa decisión en los atributos del resultado.
 #'
 #' @param x Vector que se convertirá a texto.
+#' @param proteger_datos_personales Si los ejemplos se enmascaran cuando la
+#'   forma de los valores alcanza para clasificarlos como dato personal. `TRUE`
+#'   por omisión. `perfilar()` lo pasa en `FALSE` porque protege el perfil
+#'   entero después, respetando ahí la declaración del usuario.
 #' @param distinguir_mayusculas Si es `TRUE`, distingue `a` de `A`.
 #' @param expandir Si es `FALSE`, colapsa tokens repetidos (`9999` a `9+`).
 #' @param max_patrones Número máximo de patrones que se muestran.
@@ -21,7 +29,12 @@
 #'   patrones raros para los hallazgos.
 #'
 #' @return Un data frame de clase `patrones` con patrón, frecuencia, proporción
-#'   y ejemplos. Los atributos `total`, `analizados`, `filas_analizadas` y
+#'   y ejemplos. Los **ejemplos no se publican** cuando la forma de los valores
+#'   alcanza por sí sola para clasificarlos como dato personal —un correo, por
+#'   ejemplo—: salen como `[valor protegido]`. Acá llega un vector suelto, sin
+#'   nombre de columna, así que la vía por nombre no está disponible; un número
+#'   de ocho dígitos **sí** se publica, porque su forma sola no alcanza para
+#'   afirmar que es un documento. Los atributos `total`, `analizados`, `filas_analizadas` y
 #'   `muestreado` describen el posible muestreo; `filas_analizadas` es un alias
 #'   explícito de `analizados` para mantener el alcance visible junto a otros
 #'   diagnósticos. `resumen_patrones` conserva sólo el patrón dominante
@@ -49,7 +62,8 @@ descubrir_patrones <- function(x,
                                max_patrones = 20,
                                na.rm = TRUE,
                                muestra = 1e5,
-                               umbral_raro = 0.05) {
+                               umbral_raro = 0.05,
+                               proteger_datos_personales = TRUE) {
   if (length(max_patrones) != 1L || is.na(max_patrones) || max_patrones < 1) {
     stop("`max_patrones` debe ser un entero positivo.", call. = FALSE)
   }
@@ -147,6 +161,38 @@ descubrir_patrones <- function(x,
         },
         character(1L)
       )
+    }
+  }
+
+  # Los ejemplos son valores del usuario, y por esta puerta salian crudos. La
+  # misma columna por dentro de `perfilar()` sale enmascarada -medido: 0 de 5
+  # correos en el perfil contra 3 de 5 aca-, asi que dos caminos hacian cosas
+  # opuestas con el mismo dato.
+  #
+  # Aca no hay nombre de columna: llega un vector suelto. Se clasifica **por
+  # forma**, que es lo unico disponible, y el paquete es deliberadamente
+  # conservador con eso: un numero de ocho digitos NO se protege por su forma
+  # -puede ser cualquier cosa, y conjeturar por debajo de lo declarado es lo que
+  # su regla prohibe-, pero un correo si, porque su forma no deja dudas. O sea
+  # que esto enmascara exactamente lo que el propio clasificador manda proteger
+  # sin ayuda del nombre, ni un valor mas.
+  #
+  # Sobre una MUESTRA, no sobre la columna entera: `descubrir_patrones()` tambien
+  # se llama dos veces por columna desde `perfilar()`. Medido sobre 20.000
+  # valores, clasificar entero cuesta 21,2 ms -59% de lo que cuesta la funcion- y
+  # con tope 1.000 cuesta 0,8 ms, con la misma respuesta. El tope no es un numero
+  # nuevo: es `muestra_validadores`, que el paquete ya usa para esto mismo.
+  if (isTRUE(proteger_datos_personales) &&
+      length(ejemplos_objetivo) && any(nzchar(ejemplos_objetivo))) {
+    presentes <- textos[!is.na(textos)]
+    if (length(presentes)) {
+      cata <- utils::head(presentes, .MUESTRA_CLASIFICACION_PATRONES)
+      clasificacion <- .clasificar_dato_personal(
+        cata, "", list(tipo = .tipo_declarado(cata))
+      )
+      if (isTRUE(clasificacion$proteger)) {
+        ejemplos_objetivo[nzchar(ejemplos_objetivo)] <- "[valor protegido]"
+      }
     }
   }
 
