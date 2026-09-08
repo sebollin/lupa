@@ -963,14 +963,16 @@ process and Tukey's fences assume a distribution; a numbering — an identifier,
 code — is neither, and a code sitting far from the median says nothing about its
 quality.
 
-Recognising a numbering takes **two signals, and it needs both**. The first is
-**density**: an identifier occupies a compact stretch of the integers while a
-magnitude spreads across several orders. Uniqueness does not work, since an
-amount is nearly unique too. The second is the **absence of a scale jump**, and
-without it the first does harm: a value off the scale by up to twice the maximum
-does not lower the density enough, so a `120` among ages 18 to 70 — or a `2000`
-behind 1..1000 — was hidden exactly when it was the only thing worth seeing. What
-does give them away is the gap they open: 50 and 1,000 where the typical one is 1.
+Recognising a numbering uses **density**: an identifier occupies a compact
+stretch of the integers while a magnitude spreads across several orders.
+Uniqueness does not work, since an amount is nearly unique too. The public
+`secuencia_entera_densa` field answers only that coverage question; the separate
+`moda_sobresale_secuencia_entera` signal must not switch off the form shields
+that use the numbering. The sentinel guard reopens when a candidate is outside
+the range of the remaining numbering, or when that candidate is the standout
+frequency. The range signal is deliberately independent of frequency: `-9` in
+a numbering from 1 to 1,505 is suspicious even when five legitimate values tie
+with it, while `999` appearing once inside 1..1,000 is not.
 
 The criterion was chosen by measuring. A bench of thirteen columns with the known
 answer — five numberings and eight magnitudes with a bad value inside — compared
@@ -1003,6 +1005,10 @@ reporting how many it left out — just as `NA`s do, and just as the rows that
 reports without touching the numbers: it is a guess, and a guess does not move
 an average. `moda` and `n_distintos` keep describing what is stored, as they
 already did with an `Inf`.
+
+The sentinel policy is compared as a numeric set. Reordering the values,
+supplying integers instead of doubles, or repeating a value therefore has the
+same meaning through both `perfilar()` and `perfilar_dbi()`.
 
 **Uniqueness is not guessed: it is asked — and in a database, read.** When the
 data arrives over DBI the primary key is **declared in the engine's catalogue**,

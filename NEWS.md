@@ -2,6 +2,25 @@
 
 ## Lo que se mide contra lo que se declara
 
+- **`secuencia_entera_densa` gobernaba cuatro escudos y se había estrechado
+  pensando en uno.** Volvió a medir sólo la cobertura de una numeración, que es
+  lo que su nombre dice, y los escudos de forma —`patron_raro`,
+  `tipo_declarado_distinto` y el diagnóstico de identificador— vuelven a colgar
+  de ella. Antes, cuatro copias de un valor legítimo del propio rango bastaban
+  para que el paquete acusara a `999` de ser una ausencia codificada apareciendo
+  una sola vez, en su lugar, dentro de `1:1000`.
+- **La guarda de centinelas se decide por candidato, no por columna.** Un valor
+  entra si cae fuera del rango de la numeración o si su frecuencia sobresale;
+  esas dos señales no son la frecuencia sola, y por eso resisten el caso en el
+  que cinco valores legítimos comparten la frecuencia del centinela y aplanan
+  cualquier comparación entre frecuencias. Decidirlo por columna hacía que un
+  candidato con evidencia arrastrara a otro sin ella.
+- **La misma declaración escrita de otra forma daba el resultado contrario.**
+  `sentinelas_numericos` se comparaba con `identical()` contra la lista por
+  omisión, que compara la representación y no el conjunto: la lista tal cual
+  detectaba 0 y esos mismos cinco valores al revés, como enteros o con un
+  duplicado detectaban 201. Ahora se normalizan como conjunto en las dos puertas
+  que reciben el argumento, `perfilar()` y `perfilar_dbi()`.
 - **`relaciones_coleccion()` publicaba el mínimo y el máximo de una columna de
   documentos.** El campo `detalle` de una poda por rangos disjuntos explicaba la
   poda escribiendo los cuatro extremos crudos —`"[45120001, 45120040] y ..."`—,

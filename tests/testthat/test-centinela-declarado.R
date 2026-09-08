@@ -22,6 +22,52 @@ test_that("el default no excluye y una politica reemplazada si excluye", {
   )
 })
 
+test_that("las formas equivalentes de la lista por omision dan lo mismo", {
+  x <- c(1:1500, rep(1501:1505, each = 200L), rep(-9L, 200L))
+  d <- c(-9, -99, -999, -9999, 999)
+  formas <- list(
+    tal_cual = d,
+    al_reves = rev(d),
+    entero = as.integer(d),
+    repetido = c(d, d[[1L]])
+  )
+  resultados <- lapply(formas, function(sentinelas) {
+    perfilar(
+      data.frame(x = x), sentinelas_numericos = sentinelas,
+      analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+    )
+  })
+  omitido <- perfilar(
+    data.frame(x = x), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE
+  )
+  conteos <- c(
+    vapply(resultados, function(perfil) {
+      perfil$columnas$n_faltantes_disfrazados[[1L]]
+    }, numeric(1L)),
+    omitido$columnas$n_faltantes_disfrazados[[1L]]
+  )
+
+  expect_equal(unname(conteos), rep(200, 5L))
+  expect_equal(
+    unname(lapply(resultados, function(perfil) {
+      perfil$meta$sentinelas_numericos
+    })),
+    rep(list(sort(d)), 4L)
+  )
+  expect_identical(omitido$meta$sentinelas_numericos, sort(d))
+
+  con_na <- perfilar(
+    data.frame(x = x), sentinelas_numericos = c(d, NA_real_),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+  expect_equal(
+    con_na$columnas$n_faltantes_disfrazados[[1L]],
+    omitido$columnas$n_faltantes_disfrazados[[1L]]
+  )
+  expect_identical(con_na$meta$sentinelas_numericos, sort(d))
+})
+
 test_that("los centinelas declarados salen de los estadisticos y n_distintos no cambia", {
   set.seed(1)
   base <- round(stats::rnorm(950, 40, 8))

@@ -276,8 +276,10 @@ regla por columna. Se reenvía al \code{perfil_muestra}; el resumen SQL no la
 traduce y lo declara en \code{resumen_tabla$cobertura}.}
 
 \item{sentinelas_numericos}{Vector completo de valores numéricos que se
-declaran como faltantes en el \code{perfil_muestra}. El resumen SQL no los
-excluye de sus agregados y lo declara en \code{resumen_tabla$cobertura}.}
+declaran como faltantes en el \code{perfil_muestra}. Se normaliza como un
+conjunto numérico, por lo que el orden, el tipo entero o doble y los
+duplicados no cambian el resultado. El resumen SQL no los excluye de sus
+agregados y lo declara en \code{resumen_tabla$cobertura}.}
 
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
 }

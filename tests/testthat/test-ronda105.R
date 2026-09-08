@@ -127,9 +127,9 @@ test_that("el perfil completo declara el alcance de la muestra", {
   ## es lo que decide si la columna es una numeracion con un centinela adentro.
   ## El estado del tipo inferido y el conteo de conversiones descartadas se
   ## suman al esquema publicado.
-  ## Y `moda_sobresale_secuencia_entera` se suma al esquema: una numeracion
-  ## limpia reparte, y esa condicion se publica para que el perfil no diga
-  ## `densa = FALSE` con `densidad = 1` sin explicar por que.
+  ## Y `moda_sobresale_secuencia_entera` se suma al esquema: la cobertura de
+  ## una numeracion y el acantilado de frecuencias son señales distintas, y
+  ## ambas quedan publicadas para que la guarda se pueda explicar.
   expect_equal(ncol(perfil$columnas), 113L)
   expect_equal(ncol(perfil$columnas) - 1L, 112L)
   expect_true(all(perfil$columnas$n == 1000L))

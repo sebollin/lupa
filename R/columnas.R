@@ -383,13 +383,12 @@
   if (!is.finite(hueco_tipico) || hueco_tipico <= 0) hueco_tipico <- 1
   hueco_maximo <- if (length(huecos)) max(huecos) else 0
   list(
-    # `densa` significa "numeracion limpia", y una numeracion limpia reparte:
-    # ningun valor sobresale del resto. Sin esta condicion, mil valores
-    # distintos sobre mil posiciones daban densidad 1 -y por lo tanto densa- con
-    # un centinela repetido ciento una veces adentro, y la guarda de centinelas
-    # se apagaba justo donde habia algo que informar.
+    # `densa` responde solo si los distintos cubren suficientemente su rango.
+    # La forma de la frecuencia es una señal independiente: la guarda de
+    # centinelas la consulta, pero los escudos de numeración no deben depender
+    # de que una moda legítima sobresalga.
     densa = length(distintos) >= min_distintos &&
-      densidad >= umbral_densidad && !moda_sobresale,
+      densidad >= umbral_densidad,
     densidad = as.numeric(densidad),
     n_posiciones = as.numeric(n_posiciones),
     n_huecos = as.numeric(n_posiciones - length(distintos)),
@@ -413,6 +412,91 @@
     umbral_densidad = umbral_densidad,
     min_distintos = as.integer(min_distintos)
   )
+}
+
+.valores_numericos_secuencia <- function(x, inferencia, formatos) {
+  if (!as.character(inferencia$tipo) %in%
+      c("entero", "doble", "integer64")) {
+    return(numeric())
+  }
+  cuantitativos <- tryCatch(
+    .valores_cuantitativos(x, inferencia, formatos),
+    error = function(e) NULL
+  )
+  if (is.null(cuantitativos) ||
+      !(cuantitativos$clase %in% c("numero", "integer64"))) {
+    return(numeric())
+  }
+  suppressWarnings(as.numeric(cuantitativos$valores))
+}
+
+.candidatos_sentinelas_presentes <- function(valores, sentinelas_numericos) {
+  candidatos <- .numeros_na(sentinelas_numericos)
+  presentes <- !is.na(valores) & is.finite(valores)
+  if (!length(candidatos) || !any(presentes)) return(numeric())
+  candidatos[vapply(candidatos, function(candidato) {
+    any(presentes & valores == candidato)
+  }, logical(1L))]
+}
+
+.rango_numeracion_sin_candidatos <- function(valores, candidatos) {
+  presentes <- !is.na(valores) & is.finite(valores)
+  if (!length(candidatos) || !any(presentes)) return(NULL)
+  restantes <- valores[presentes & !(valores %in% candidatos)]
+  if (!length(restantes)) return(NULL)
+  range(restantes)
+}
+
+.sentinela_numerico_fuera_rango <- function(candidatos, rango) {
+  if (is.null(rango) || !length(candidatos)) return(FALSE)
+  any(candidatos < rango[[1L]] | candidatos > rango[[2L]])
+}
+
+# La guarda se decide POR CANDIDATO, no por columna. Decidirla por columna fue
+# el defecto siguiente: en `c(1:1500, rep(1501:1505, each = 200), rep(-9, 200))`
+# el `-9` cae fuera del rango y abre la guarda con razon, pero una vez abierta se
+# marcaba tambien el `999` que la propia secuencia trae UNA vez, en su lugar. Dos
+# candidatos con evidencia opuesta compartian un solo interruptor.
+#
+# Un candidato entra si muestra alguna senal propia: cae **fuera del rango** de la
+# numeracion -un `-9` en una numeracion de 1 a 1505- o su frecuencia **sobresale**
+# del resto. Un valor de la lista que aparece dentro del rango y sin destacarse no
+# es sospechoso de nada: es un numero mas de la numeracion.
+.sentinelas_que_abren_guarda <- function(valores, candidatos, rango,
+                                         secuencia_entera) {
+  if (!length(candidatos)) return(numeric())
+  presentes <- !is.na(valores) & is.finite(valores)
+  if (!any(presentes)) return(numeric())
+  fuera <- if (is.null(rango)) {
+    rep(FALSE, length(candidatos))
+  } else {
+    candidatos < rango[[1L]] | candidatos > rango[[2L]]
+  }
+  sobresale <- rep(FALSE, length(candidatos))
+  if (isTRUE(secuencia_entera$moda_sobresale)) {
+    distintos <- sort(unique(valores[presentes]))
+    frecuencias <- tabulate(match(valores[presentes], distintos),
+                            nbins = length(distintos))
+    tope <- max(frecuencias)
+    sobresale <- vapply(candidatos, function(candidato) {
+      sum(presentes & valores == candidato) == tope
+    }, logical(1L))
+  }
+  candidatos[fuera | sobresale]
+}
+
+.sentinela_numerico_es_moda_sobresaliente <- function(
+    valores, candidatos, secuencia_entera) {
+  if (!isTRUE(secuencia_entera$moda_sobresale)) return(FALSE)
+  presentes <- !is.na(valores) & is.finite(valores)
+  if (!length(candidatos) || !any(presentes)) return(FALSE)
+  frecuencias_candidatos <- vapply(candidatos, function(candidato) {
+    sum(presentes & valores == candidato)
+  }, numeric(1L))
+  distintos <- sort(unique(valores[presentes]))
+  frecuencias <- tabulate(match(valores[presentes], distintos),
+                          nbins = length(distintos))
+  any(frecuencias_candidatos == max(frecuencias))
 }
 
 # Un valor centinela -el `9999` que quiere decir "no sabemos"- no se puede
@@ -452,16 +536,22 @@
 # que el aviso promete.
 #
 # El limite es el que se puede sostener: un vector que el usuario compone es una
-# declaracion. Si compone uno identico a alguna de las listas publicadas, no hay
-# forma de distinguirlo y se lo trata como heuristica; es el mismo canje que ya
-# aceptaba el valor por omision.
+# declaracion. Si compone el mismo conjunto que alguna de las listas publicadas,
+# se lo trata como heuristica; el orden, la clase y los duplicados no cambian esa
+# respuesta.
 .sentinelas_numericos_declarados <- function(sentinelas_numericos) {
-  if (is.null(sentinelas_numericos) ||
-      identical(sentinelas_numericos, .numeros_na_locales) ||
-      identical(sentinelas_numericos, sentinelas_naniar)) {
+  if (is.null(sentinelas_numericos)) {
     return(numeric())
   }
-  .numeros_na(sentinelas_numericos)
+  normalizados <- .normalizar_sentinelas_numericos(sentinelas_numericos)
+  if (setequal(normalizados, .normalizar_sentinelas_numericos(
+    .numeros_na_locales
+  )) || setequal(normalizados, .normalizar_sentinelas_numericos(
+    sentinelas_naniar
+  ))) {
+    return(numeric())
+  }
+  normalizados
 }
 
 .mascara_sentinelas_resumen <- function(valores, sentinelas_numericos) {
@@ -1742,15 +1832,49 @@
     .desvios_patron_raro_detectados(
       patrones, secuencia_entera$densa, umbral_patron_raro
     )
+  valores_numericos <- .valores_numericos_secuencia(
+    x_analisis, inferencia, formatos
+  )
+  candidatos_sentinelas <- .candidatos_sentinelas_presentes(
+    valores_numericos, sentinelas_numericos
+  )
+  rango_numeracion <- .rango_numeracion_sin_candidatos(
+    valores_numericos, candidatos_sentinelas
+  )
+  centinela_fuera_rango <- .sentinela_numerico_fuera_rango(
+    candidatos_sentinelas, rango_numeracion
+  )
+  centinela_moda_sobresaliente <- .sentinela_numerico_es_moda_sobresaliente(
+    valores_numericos, candidatos_sentinelas, secuencia_entera
+  )
+  # Sobre una numeracion limpia la guarda no corre entera: corre SOLO para los
+  # candidatos que muestran una senal propia. Sobre cualquier otra columna corre
+  # completa, como siempre. Una declaracion explicita la atraviesa igual.
+  # `!length(sentinelas_declarados)` no sobra: **una declaracion explicita
+  # atraviesa la guarda entera**, y filtrar por candidato tambien es la guarda.
+  # Sin esa condicion, declarar `sentinelas_numericos = c(999)` sobre una
+  # numeracion de 501 a 1000 no marcaba nada -999 esta dentro del rango y no
+  # sobresale-, o sea que el paquete ignoraba lo que el usuario acababa de
+  # decirle. Lo atrapo `test-grupos-guiado.R`.
+  sentinelas_efectivos <- if (isTRUE(secuencia_entera$densa) &&
+                              !length(sentinelas_declarados)) {
+    .sentinelas_que_abren_guarda(
+      valores_numericos, candidatos_sentinelas, rango_numeracion,
+      secuencia_entera
+    )
+  } else {
+    sentinelas_numericos
+  }
+  detectar_sentinelas <- length(sentinelas_declarados) > 0L ||
+    !isTRUE(secuencia_entera$densa) ||
+    length(sentinelas_efectivos) > 0L
   faltantes_disfrazados <- .detectar_faltantes_disfrazados(
-    x_analisis, sentinelas_numericos = sentinelas_numericos,
+    x_analisis, sentinelas_numericos = sentinelas_efectivos,
     cadenas_ausencia = cadenas_ausencia,
-    # Una secuencia densa apaga la corazonada del paquete para no llamar
-    # faltante a un codigo valido. Una declaracion explicita debe atravesar esa
-    # guarda: de lo contrario ni siquiera el conteo de ausencia obedeceria la
-    # politica que el usuario acaba de entregar.
-    detectar_sentinelas_numericos = !isTRUE(secuencia_entera$densa) ||
-      length(.sentinelas_numericos_declarados(sentinelas_numericos)) > 0L
+    # Una numeración compacta no apaga por sí sola la corazonada: un candidato
+    # fuera de su rango o cuya frecuencia es la moda sobresaliente vuelve a
+    # abrirla. Una declaración explícita siempre atraviesa la guarda.
+    detectar_sentinelas_numericos = detectar_sentinelas
   )
   faltantes_disfrazados <- .restringir_disfrazados(faltantes_disfrazados, aplicable)
   faltantes_declarados <- .detectar_faltantes_disfrazados(

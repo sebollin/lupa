@@ -178,8 +178,10 @@ vacía dentro de ese universo. La declaración funcionó y por eso el perfil
 salió limpio; el aviso existe para que eso sea una decisión y no un efecto.}
 
 \item{sentinelas_numericos}{Vector completo de valores numéricos que se
-interpretan como ausencia. \code{numeric()} los desactiva; las cadenas de
-ausencia se siguen evaluando por separado.}
+interpretan como ausencia. Se normaliza como un conjunto numérico, por lo
+que el orden, el tipo entero o doble y los duplicados no cambian el
+resultado. \code{numeric()} los desactiva; las cadenas de ausencia se siguen
+evaluando por separado.}
 
 \item{cadenas_ausencia}{Cadenas que el usuario declara como ausencia,
 además de la lista incorporada. Lo declarado atraviesa la guarda del
@@ -543,7 +545,9 @@ Los sentinelas numéricos predeterminados son \code{-9}, \code{-99}, \code{-999}
 ser edades, códigos o años legítimos. \code{sentinelas_numericos} representa la
 política completa, no una lista que se agrega silenciosamente: use
 \code{numeric()} para desactivar todos los sentinelas numéricos, o
-\code{sentinelas_naniar} para solicitar explícitamente la lista de naniar.
+\code{sentinelas_naniar} para solicitar explícitamente la lista de naniar. La
+política se normaliza como un conjunto numérico: el orden, el tipo entero o
+doble, los duplicados y los \code{NA} no cambian su interpretación.
 
 \code{muestra} limita el descubrimiento de patrones, la inferencia de tipos, la
 detección de formatos de fecha y la búsqueda de dependencias funcionales.
@@ -869,19 +873,18 @@ precedencia: un centinela no se presenta también como posible variante de un
 valor válido. El alcance declara cuántas observaciones retiró este filtro.
 
 La corazonada de centinelas numéricos se apaga sobre una \strong{numeración
-limpia}, para no llamar ausencia a un código válido. «Limpia» exige dos
-cosas, no una: que los valores cubran su rango —\code{densidad_secuencia_entera}
-por encima de su umbral— y que \strong{ninguno sobresalga del resto}. La segunda
-hace falta porque la densidad cuenta la cobertura del rango e ignora cuántas
-veces aparece cada valor: mil valores distintos sobre mil posiciones dan
-densidad 1 aunque uno de ellos aparezca cien veces, que es justamente la
-firma de un centinela escondido en una numeración.
-\code{moda_sobresale_secuencia_entera} publica esa segunda condición, y la mide
-por el \strong{salto entre frecuencias consecutivas}, ordenadas de mayor a menor y
-mirando sólo las primeras posiciones. Es el mismo idioma que
-\code{salto_de_escala_secuencia_entera} usa con los huecos: lo que delata a un
-centinela no es que su frecuencia sea grande, sino que haya un \strong{acantilado}
-entre el grupo que sobresale y el resto de la distribución.
+limpia}, para no llamar ausencia a un código válido. \code{densa} responde sólo
+a la cobertura del rango —\code{densidad_secuencia_entera} por encima de su
+umbral—; \code{moda_sobresale_secuencia_entera} es una señal independiente y no
+cambia los tres escudos de forma que dependen de la numeración.
+La guarda vuelve a abrirse si un candidato presente queda fuera del rango de
+los valores restantes de la numeración, o si la frecuencia del candidato es
+la moda sobresaliente. Esta segunda señal se mide por el \strong{salto entre
+frecuencias consecutivas}, ordenadas de mayor a menor y mirando sólo las
+primeras posiciones. Es el mismo idioma que \code{salto_de_escala_secuencia_entera}
+usa con los huecos: lo que delata a un centinela no es que su frecuencia sea
+grande, sino que haya un \strong{acantilado} entre el grupo que sobresale y el resto
+de la distribución.
 
 Comparar contra un valor concreto no alcanza, y cada intento lo rompió un
 caso distinto: contra el \strong{segundo} valor, un señuelo legítimo y frecuente
@@ -898,15 +901,15 @@ dice nada de la columna. Medido sobre las diez columnas numéricas del banco
 real y dos formas de clave foránea, ninguna pasa de 1,71; los casos que hay
 que atrapar van de 4,75 a 249. Perder la condición de numeración no genera un
 hallazgo por sí solo: sólo devuelve la columna a la mirada de la lista de
-centinelas, que sólo informa si el valor dominante está en ella.
+centinelas. En una numeración compacta, un candidato fuera de rango también
+abre la guarda aunque su frecuencia no forme un acantilado.
 
-El factor deja una \strong{banda declarada}: por debajo de él el paquete no
-conjetura. Sobre una clave foránea cuyos valores aparecen cuatro veces cada
-uno, hasta dieciséis repeticiones de un mismo valor no se señalan; a las
-veinte, sí. Lo que el usuario declara con \code{sentinelas_numericos} atraviesa la
-guarda y se informa con severidad \code{error}, que es la regla general del
-paquete: excluye lo que se declara, incluye lo que sospecha, y no sospecha
-por debajo de esa banda.
+El factor de frecuencia sólo califica la señal \code{moda_sobresale}: una caída
+menor no abre esa vía, pero tampoco bloquea la vía independiente del rango.
+Así, un candidato fuera de rango se informa aunque aparezca cuatro veces y
+no forme un acantilado. Lo que el usuario declara con \code{sentinelas_numericos}
+atraviesa la guarda y se informa con severidad \code{error}, que es la regla
+general del paquete: excluye lo que se declara e incluye lo que sospecha.
 
 La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara \code{poder_discriminante} y \code{proteger}:

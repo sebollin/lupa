@@ -101,7 +101,7 @@ test_that("la condicion densa es causal para las dos supresiones", {
     .package = "lupa"
   )
   perfil <- perfilar(
-    data.frame(index = as.character(seq_len(1000L))),
+    data.frame(index = as.character(c(seq_len(1000L), -9L))),
     analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE
   )
   tipos <- .tipos_senalados_r110(perfil, "index")

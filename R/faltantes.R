@@ -78,8 +78,15 @@ sentinelas_naniar <- c(-9, -99, -999, -9999, 9999, 66, 77, 88)
   unique(tolower(trimws(as.character(valores))))
 }
 
+.normalizar_sentinelas_numericos <- function(valores) {
+  if (is.null(valores) || !length(valores)) return(numeric())
+  numericos <- suppressWarnings(as.numeric(valores))
+  numericos <- numericos[!is.na(numericos)]
+  sort(unique(numericos))
+}
+
 .numeros_na <- function(valores = .numeros_na_locales) {
-  unique(as.numeric(valores))
+  .normalizar_sentinelas_numericos(valores)
 }
 
 .detectar_faltantes_disfrazados <- function(

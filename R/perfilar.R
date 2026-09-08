@@ -679,7 +679,9 @@
 #' ser edades, códigos o años legítimos. `sentinelas_numericos` representa la
 #' política completa, no una lista que se agrega silenciosamente: use
 #' `numeric()` para desactivar todos los sentinelas numéricos, o
-#' `sentinelas_naniar` para solicitar explícitamente la lista de naniar.
+#' `sentinelas_naniar` para solicitar explícitamente la lista de naniar. La
+#' política se normaliza como un conjunto numérico: el orden, el tipo entero o
+#' doble, los duplicados y los `NA` no cambian su interpretación.
 #'
 #' `muestra` limita el descubrimiento de patrones, la inferencia de tipos, la
 #' detección de formatos de fecha y la búsqueda de dependencias funcionales.
@@ -1005,19 +1007,18 @@
 #' valor válido. El alcance declara cuántas observaciones retiró este filtro.
 #'
 #' La corazonada de centinelas numéricos se apaga sobre una **numeración
-#' limpia**, para no llamar ausencia a un código válido. «Limpia» exige dos
-#' cosas, no una: que los valores cubran su rango —`densidad_secuencia_entera`
-#' por encima de su umbral— y que **ninguno sobresalga del resto**. La segunda
-#' hace falta porque la densidad cuenta la cobertura del rango e ignora cuántas
-#' veces aparece cada valor: mil valores distintos sobre mil posiciones dan
-#' densidad 1 aunque uno de ellos aparezca cien veces, que es justamente la
-#' firma de un centinela escondido en una numeración.
-#' `moda_sobresale_secuencia_entera` publica esa segunda condición, y la mide
-#' por el **salto entre frecuencias consecutivas**, ordenadas de mayor a menor y
-#' mirando sólo las primeras posiciones. Es el mismo idioma que
-#' `salto_de_escala_secuencia_entera` usa con los huecos: lo que delata a un
-#' centinela no es que su frecuencia sea grande, sino que haya un **acantilado**
-#' entre el grupo que sobresale y el resto de la distribución.
+#' limpia**, para no llamar ausencia a un código válido. `densa` responde sólo
+#' a la cobertura del rango —`densidad_secuencia_entera` por encima de su
+#' umbral—; `moda_sobresale_secuencia_entera` es una señal independiente y no
+#' cambia los tres escudos de forma que dependen de la numeración.
+#' La guarda vuelve a abrirse si un candidato presente queda fuera del rango de
+#' los valores restantes de la numeración, o si la frecuencia del candidato es
+#' la moda sobresaliente. Esta segunda señal se mide por el **salto entre
+#' frecuencias consecutivas**, ordenadas de mayor a menor y mirando sólo las
+#' primeras posiciones. Es el mismo idioma que `salto_de_escala_secuencia_entera`
+#' usa con los huecos: lo que delata a un centinela no es que su frecuencia sea
+#' grande, sino que haya un **acantilado** entre el grupo que sobresale y el resto
+#' de la distribución.
 #'
 #' Comparar contra un valor concreto no alcanza, y cada intento lo rompió un
 #' caso distinto: contra el **segundo** valor, un señuelo legítimo y frecuente
@@ -1034,15 +1035,15 @@
 #' real y dos formas de clave foránea, ninguna pasa de 1,71; los casos que hay
 #' que atrapar van de 4,75 a 249. Perder la condición de numeración no genera un
 #' hallazgo por sí solo: sólo devuelve la columna a la mirada de la lista de
-#' centinelas, que sólo informa si el valor dominante está en ella.
+#' centinelas. En una numeración compacta, un candidato fuera de rango también
+#' abre la guarda aunque su frecuencia no forme un acantilado.
 #'
-#' El factor deja una **banda declarada**: por debajo de él el paquete no
-#' conjetura. Sobre una clave foránea cuyos valores aparecen cuatro veces cada
-#' uno, hasta dieciséis repeticiones de un mismo valor no se señalan; a las
-#' veinte, sí. Lo que el usuario declara con `sentinelas_numericos` atraviesa la
-#' guarda y se informa con severidad `error`, que es la regla general del
-#' paquete: excluye lo que se declara, incluye lo que sospecha, y no sospecha
-#' por debajo de esa banda.
+#' El factor de frecuencia sólo califica la señal `moda_sobresale`: una caída
+#' menor no abre esa vía, pero tampoco bloquea la vía independiente del rango.
+#' Así, un candidato fuera de rango se informa aunque aparezca cuatro veces y
+#' no forme un acantilado. Lo que el usuario declara con `sentinelas_numericos`
+#' atraviesa la guarda y se informa con severidad `error`, que es la regla
+#' general del paquete: excluye lo que se declara e incluye lo que sospecha.
 #'
 #' La clasificación de posibles datos personales es más amplia que la
 #' protección. Cada clasificación declara `poder_discriminante` y `proteger`:
@@ -1260,8 +1261,10 @@
 #'   declararlas las hace contar siempre. Es el equivalente textual de
 #'   `sentinelas_numericos`.
 #' @param sentinelas_numericos Vector completo de valores numéricos que se
-#'   interpretan como ausencia. `numeric()` los desactiva; las cadenas de
-#'   ausencia se siguen evaluando por separado.
+#'   interpretan como ausencia. Se normaliza como un conjunto numérico, por lo
+#'   que el orden, el tipo entero o doble y los duplicados no cambian el
+#'   resultado. `numeric()` los desactiva; las cadenas de ausencia se siguen
+#'   evaluando por separado.
 #' @param analizar_dependencias Si se buscan dependencias funcionales entre
 #'   pares de columnas. Se aplica una sola muestra común a toda la tabla.
 #' @param umbral_dependencia Cumplimiento mínimo para informar una dependencia.
@@ -1646,9 +1649,10 @@ perfilar <- function(datos,
     # separado y se sigue sin romper el perfil.
     .advertir_clave_declarada(evaluacion_clave)
   }
-  if (!is.numeric(sentinelas_numericos) || anyNA(sentinelas_numericos) ||
-      any(!is.finite(sentinelas_numericos))) {
-    stop("`sentinelas_numericos` debe ser un vector num\u00e9rico finito.", call. = FALSE)
+  if (!is.numeric(sentinelas_numericos) ||
+      any(!is.na(sentinelas_numericos) &
+          !is.finite(sentinelas_numericos))) {
+    stop("`sentinelas_numericos` debe ser un vector num\u00e9rico finito; se permiten NA.", call. = FALSE)
   }
   if (!is.null(cadenas_ausencia) &&
       (!is.character(cadenas_ausencia) || anyNA(cadenas_ausencia) ||
@@ -2227,7 +2231,9 @@ perfilar <- function(datos,
     avisar_costo_tabla_ancha = avisar_costo_tabla_ancha,
     umbral_celdas_aviso_tabla_ancha = umbral_celdas_aviso_tabla_ancha,
     costo_tabla_ancha = costo_tabla_ancha,
-    sentinelas_numericos = .numeros_na(sentinelas_numericos),
+    sentinelas_numericos = .normalizar_sentinelas_numericos(
+      sentinelas_numericos
+    ),
     cadenas_ausencia = cadenas_ausencia,
     datos_personales_permitidos = datos_personales_permitidos,
     proteger_datos_personales = proteger_datos_personales,
