@@ -181,7 +181,20 @@ salió limpio; el aviso existe para que eso sea una decisión y no un efecto.}
 interpretan como ausencia. Se normaliza como un conjunto numérico, por lo
 que el orden, el tipo entero o doble y los duplicados no cambian el
 resultado. \code{numeric()} los desactiva; las cadenas de ausencia se siguen
-evaluando por separado.}
+evaluando por separado.
+
+\strong{La lista por omisión es una sospecha del paquete y se aplica con una
+reserva}: un valor de esa lista que aparece \strong{una sola vez} y cae
+\strong{dentro} del rango de los demás valores de la columna no se señala,
+porque una aparición única es un número y no una convención de ausencia.
+Un \code{999} suelto dentro de un catálogo de \code{1} a \code{3000} no se acusa; el mismo
+\code{999} repetido, o un \code{-9} fuera del rango, sí.
+
+La reserva \strong{sólo} rige para la lista por omisión. Si usted declara sus
+propios valores —o pide \link{sentinelas_naniar}, que es optar por una
+heurística más ancha—, se cuentan todos, incluida la aparición única. Ésa
+es también la forma de recuperar el caso que la reserva calla: declarar el
+valor lo vuelve a contar y además lo saca de los estadísticos del resumen.}
 
 \item{cadenas_ausencia}{Cadenas que el usuario declara como ausencia,
 además de la lista incorporada. Lo declarado atraviesa la guarda del

@@ -203,6 +203,7 @@ segundo.
 library(lupa)
 en_memoria <- perfilar(datos_administrativos, analizar_dependencias = FALSE)
 n_filas(en_memoria)
+nrow(columnas(en_memoria))
 nrow(hallazgos(en_memoria))
 nrow(cobertura(en_memoria))
 sql_perfil(en_memoria)   # NULL: un perfil en memoria no emitió SQL

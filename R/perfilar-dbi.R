@@ -12261,6 +12261,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   conjunto numérico, por lo que el orden, el tipo entero o doble y los
 #'   duplicados no cambian el resultado. El resumen SQL no los excluye de sus
 #'   agregados y lo declara en `resumen_tabla$cobertura`.
+#'
+#'   Rige la misma reserva que en [perfilar()]: un valor de la lista **por
+#'   omisión** que aparece una sola vez y dentro del rango de los demás no se
+#'   señala. Declarar el valor lo vuelve a contar.
 #' @param instrumentar Si se cronometra cada consulta y las etapas grandes de R
 #'   y, en PostgreSQL, se intenta atribuir el uso de bloques temporales de los
 #'   `COUNT(DISTINCT)` exactos mediante `pg_stat_statements`.

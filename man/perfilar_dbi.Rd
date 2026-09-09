@@ -279,7 +279,11 @@ traduce y lo declara en \code{resumen_tabla$cobertura}.}
 declaran como faltantes en el \code{perfil_muestra}. Se normaliza como un
 conjunto numérico, por lo que el orden, el tipo entero o doble y los
 duplicados no cambian el resultado. El resumen SQL no los excluye de sus
-agregados y lo declara en \code{resumen_tabla$cobertura}.}
+agregados y lo declara en \code{resumen_tabla$cobertura}.
+
+Rige la misma reserva que en \code{\link[=perfilar]{perfilar()}}: un valor de la lista \strong{por
+omisión} que aparece una sola vez y dentro del rango de los demás no se
+señala. Declarar el valor lo vuelve a contar.}
 
 \item{...}{Argumentos enviados a \code{\link[=perfilar]{perfilar()}} para analizar la muestra.}
 }

@@ -1265,6 +1265,19 @@
 #'   que el orden, el tipo entero o doble y los duplicados no cambian el
 #'   resultado. `numeric()` los desactiva; las cadenas de ausencia se siguen
 #'   evaluando por separado.
+#'
+#'   **La lista por omisión es una sospecha del paquete y se aplica con una
+#'   reserva**: un valor de esa lista que aparece **una sola vez** y cae
+#'   **dentro** del rango de los demás valores de la columna no se señala,
+#'   porque una aparición única es un número y no una convención de ausencia.
+#'   Un `999` suelto dentro de un catálogo de `1` a `3000` no se acusa; el mismo
+#'   `999` repetido, o un `-9` fuera del rango, sí.
+#'
+#'   La reserva **sólo** rige para la lista por omisión. Si usted declara sus
+#'   propios valores —o pide [sentinelas_naniar], que es optar por una
+#'   heurística más ancha—, se cuentan todos, incluida la aparición única. Ésa
+#'   es también la forma de recuperar el caso que la reserva calla: declarar el
+#'   valor lo vuelve a contar y además lo saca de los estadísticos del resumen.
 #' @param analizar_dependencias Si se buscan dependencias funcionales entre
 #'   pares de columnas. Se aplica una sola muestra común a toda la tabla.
 #' @param umbral_dependencia Cumplimiento mínimo para informar una dependencia.
