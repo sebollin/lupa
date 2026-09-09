@@ -326,10 +326,19 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     "id_medida", "id_medicion", "fecha", "metrica_instanciada",
     "tipo_resultado", "resultado"
   )
-  if (!inherits(medicion, "data.frame") || !nrow(medicion) ||
+  # Un solo mensaje cubria TRES casos distintos, y en uno de ellos afirmaba algo
+  # falso: una medicion que si viene de `medir()` y quedo sin filas -porque
+  # ninguna metrica fue aplicable, cosa que `medir()` DECLARA en su
+  # `cobertura_metricas`- era rechazada con "debe ser ... producido por
+  # medir()". El paquete acusaba a la entrada de no ser lo que es, teniendo el
+  # motivo verdadero a mano.
+  if (!inherits(medicion, "data.frame") ||
       !all(requeridas %in% names(medicion))) {
-    stop("`medicion` debe ser un data frame no vac\u00edo producido por medir().",
+    stop("`medicion` debe ser un data frame producido por medir().",
          call. = FALSE)
+  }
+  if (!nrow(medicion)) {
+    .error_medicion_sin_medidas(medicion, "medicion", "`medir()`")
   }
   medicion <- .tabla_base(medicion)
   suprimidas <- if ("objeto_medible" %in% names(medicion)) {

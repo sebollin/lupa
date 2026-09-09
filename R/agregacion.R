@@ -163,10 +163,15 @@ transiciones_granularidad <- function() {
     "dimension", "factor", "granularidad", "tipo_resultado", "entidad",
     "atributo", "fila", "resultado"
   )
-  if (!inherits(medidas, "data.frame") || !nrow(medidas) ||
+  # La entrada vacia se separa del resto: viene de `medir()` y su cobertura dice
+  # POR QUE quedo sin medidas. Ver el mismo arreglo en `.validar_medicion_evaluacion()`.
+  if (!inherits(medidas, "data.frame") ||
       !all(requeridas %in% names(medidas))) {
-    stop("`medidas` debe ser un data frame no vac\u00edo producido por medir() o agregar().",
+    stop("`medidas` debe ser un data frame producido por medir() o agregar().",
          call. = FALSE)
+  }
+  if (!nrow(medidas)) {
+    .error_medicion_sin_medidas(medidas, "medidas", "`medir()` o `agregar()`")
   }
   medidas <- .tabla_base(medidas)
   medidas$orientacion <- .orientacion_medidas(medidas)

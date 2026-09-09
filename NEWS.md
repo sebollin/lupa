@@ -2,6 +2,37 @@
 
 ## Lo que se mide contra lo que se declara
 
+- **Con el presupuesto de memoria agotado, `detectar_relaciones()` devolvía una
+  tabla vacía.** Quien la imprimía veía encabezados y nada, y una tabla vacía se
+  lee como «no hay relaciones entre estas tablas» cuando lo que pasó fue «no se
+  comparó ninguna»: los pares quedaban sólo en un atributo. Ahora cada par sale
+  declarado con `cardinalidad = "sin_comparar"` y su motivo, igual que en las
+  otras podas de la misma función.
+- **Bajo `LC_CTYPE=C`, el paquete emitía avisos de defecto propio sobre datos
+  ordinarios.** El pliegue a minúsculas de los hallazgos usaba `tolower()`, que
+  en ese locale no baja los acentos: `CAFÉ` y `café` dejaban de agruparse
+  juntos, la trazabilidad sí los juntaba, y el paquete informaba —correctamente—
+  que había una inconsistencia suya. Los cuatro sitios usan ahora el mismo
+  ayudante independiente del locale que ya existía en el paquete, que además
+  cubre la `I` turca.
+- **La deriva decidía el veredicto con la resta en coma flotante.**
+  `0,70 - 0,65` da `0,049999999999999933` y `0,75 - 0,70` da
+  `0,050000000000000044`, así que dos pares que publicaban el mismo
+  `delta = 0.05` recibían «estable» y «mejora». Ahora el umbral se compara con
+  la misma tolerancia que el paquete ya usaba para los pesos.
+- **La descripción de una deriva contradecía a su propio dato.** Afirmaba «cambió
+  el resultado» sobre filas con `delta = NA` —el resultado anterior no se
+  evaluó—, y su guarda para `delta == 0` no corría **nunca**: usaba `isTRUE()`
+  sobre un vector con un elemento por par, que con más de un par devuelve
+  `FALSE` incluso con todos los deltas en cero. El `NA` ahora dice que no se
+  puede comparar, y el cero dice que se mantuvo.
+- **`evaluar()` rechazaba una medición válida con un diagnóstico falso.** Una
+  medición que sí viene de `medir()` y quedó sin filas —ninguna métrica
+  aplicable, cosa que `medir()` declara en su `cobertura_metricas`— era
+  rechazada con «debe ser un data frame no vacío producido por `medir()`». Las
+  tres puertas —`evaluar()`, `tablero_calidad()` e `indice_calidad()`— ahora
+  separan los dos casos y **propagan el motivo que `medir()` ya había
+  declarado**.
 - **Dos puertas más publicaban valores que `perfilar()` enmascara.** La
   `evidencia` de `detectar_discordancias()` citaba las filas discordantes con
   sus valores crudos —documentos, cuando la columna lo es—, y los `ejemplos` de

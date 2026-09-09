@@ -805,14 +805,21 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     a <- indices[-length(indices)]
     b <- indices[-1L]
     delta <- datos$resultado[b] - datos$resultado[a]
-    significativo <- abs(delta) >= umbral
+    # El umbral se compara CON TOLERANCIA, como ya lo hace `tablero-calidad.R`
+    # con los pesos. Sin ella, la resta en coma flotante decide el veredicto:
+    # 0,70 - 0,65 da 0,049999999999999933 y 0,75 - 0,70 da 0,050000000000000044,
+    # asi que dos pares que publican el mismo `delta = 0.05` recibian "estable" y
+    # "mejora". Que la misma operacion se compare con tolerancia en un archivo y
+    # sin ella en otro no es una decision: es una inconsistencia.
+    tolerancia <- sqrt(.Machine$double.eps)
+    significativo <- abs(delta) >= umbral - tolerancia
     direccion <- ifelse(
-      delta >= umbral, "mejora",
-      ifelse(delta <= -umbral, "deterioro", "estable")
+      delta >= umbral - tolerancia, "mejora",
+      ifelse(delta <= -(umbral - tolerancia), "deterioro", "estable")
     )
     severidad <- ifelse(
-      delta <= -2 * umbral, "error",
-      ifelse(delta <= -umbral, "sospechoso", "ok")
+      delta <= -(2 * umbral - tolerancia), "error",
+      ifelse(delta <= -(umbral - tolerancia), "sospechoso", "ok")
     )
     regular <- data.frame(
       nivel = rep(nivel, length(a)), perfil = datos$perfil[a],
@@ -828,11 +835,25 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
       # no puede afirmar un cambio: con dos corridas identicas decia "Cambio el
       # resultado" al lado de `delta = 0`, y una descripcion que contradice a su
       # propio dato es peor que no tenerla.
-      descripcion = if (isTRUE(delta == 0)) {
-        "El resultado de la evaluaci\u00f3n se mantuvo."
-      } else {
-        "Cambi\u00f3 el resultado de la evaluaci\u00f3n."
-      },
+      #
+      # Dos arreglos de la misma linea. `isTRUE(delta == 0)` trataba como escalar
+      # un vector con un elemento POR PAR: con mas de un par devuelve `FALSE`
+      # siempre -incluso con todos los deltas en cero-, asi que la guarda que este
+      # comentario describe no corria nunca. Se vectoriza.
+      #
+      # Y `delta = NA` -el resultado anterior no se evaluo por cobertura- no es
+      # ni "cambio" ni "se mantuvo": el cero dice "no cambio" y el NA dice "no
+      # se". Afirmar un cambio ahi es exactamente lo que el parrafo de arriba
+      # prohibe, un caso mas adentro.
+      descripcion = ifelse(
+        is.na(delta),
+        "No se puede comparar: el resultado anterior no se evalu\u00f3.",
+        ifelse(
+          abs(delta) <= sqrt(.Machine$double.eps),
+          "El resultado de la evaluaci\u00f3n se mantuvo.",
+          "Cambi\u00f3 el resultado de la evaluaci\u00f3n."
+        )
+      ),
       evidencia = NA_character_,
       stringsAsFactors = FALSE
     )

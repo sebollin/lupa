@@ -212,7 +212,14 @@ test_that("se validan entradas y parámetros de agregación", {
   instancia <- instanciar(no_nulo, "t", "x")
   medidas <- medir(modelo(instancia), data.frame(x = c(1, NA)))
 
-  expect_error(agregar(data.frame(), "atributo", "ratio"), "no vacío")
+  # `data.frame()` no trae los campos de una medicion, asi que se rechaza por lo
+  # que ES y no por estar vacio: el caso "vacio pero de medir()" es otro, y tiene
+  # su propio mensaje con el motivo declarado. Ver
+  # `test-medicion-vacia-declarada.R`.
+  expect_error(
+    agregar(data.frame(), "atributo", "ratio"),
+    "producido por medir"
+  )
   fuera_rango <- medidas
   fuera_rango$resultado[[1L]] <- 2
   expect_error(agregar(fuera_rango, "atributo", "ratio"), "resultados")
@@ -265,7 +272,7 @@ test_that("se validan reglas, perfiles y evaluaciones", {
   instancia <- instanciar(especializar(nucleo$NoNulo), "t", "x")
   medidas <- medir(modelo(instancia), data.frame(x = c(1, NA)))
   perfil <- perfil_evaluacion("p", regla)
-  expect_error(evaluar(data.frame(), perfil), "no vacío")
+  expect_error(evaluar(data.frame(), perfil), "producido por medir")
   expect_error(evaluar(medidas, regla), "segundo argumento")
   perfil_descriptivo <- perfilar(
     data.frame(x = c(1, NA)), analizar_dependencias = FALSE

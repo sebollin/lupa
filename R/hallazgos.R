@@ -875,7 +875,10 @@
     error = function(e) y
   )
   y[is.na(y)] <- ""
-  gsub("[^[:alnum:]]", "", tolower(y))
+  # `.transliterar_ascii()` ya saco los acentos, pero `tolower()` sigue
+  # dependiendo del locale: bajo `tr_TR` la `I` baja a `U+0131` y la clave
+  # canonica cambia. El ayudante fija la `I` antes de delegar.
+  gsub("[^[:alnum:]]", "", .normalizacion_minusculas_vector(y))
 }
 
 # De un grupo de formas, cuantas son la dominante escrita de otra manera.
@@ -2629,7 +2632,12 @@
     },
     mayusculas_inconsistentes = if (is.null(texto)) NULL else {
       presentes <- !is.na(texto)
-      canon <- tolower(texto)
+      # Datos del usuario. Bajo `LC_CTYPE=C`, `tolower("CAF\u00c9")` deja el
+      # acento en mayuscula, los grupos no coinciden y el paquete terminaba
+      # emitiendo doce avisos de defecto PROPIO -"es un problema de lupa, no de
+      # sus datos"- sobre una tabla perfectamente ordinaria. El locale `C` no es
+      # exotico: es el de muchos contenedores y el de varias verificaciones.
+      canon <- .normalizacion_minusculas_vector(texto)
       grupos <- split(seq_len(n)[presentes], canon[presentes])
       unlist(lapply(grupos, function(g) {
         if (length(unique(texto[g])) > 1L) g else integer()
@@ -3016,7 +3024,10 @@
   presentes <- !is.na(textos)
   unicos <- unique(textos[presentes])
   if (tipo == "mayusculas_inconsistentes") {
-    canonicos <- tolower(unicos)
+    # La otra mitad del mismo par: aca se arma la trazabilidad que se compara
+    # contra los grupos de arriba. Si las dos no pliegan igual, el aviso de
+    # inconsistencia dispara aunque las dos esten bien por separado.
+    canonicos <- .normalizacion_minusculas_vector(unicos)
   } else if (tipo == "normalizacion_unicode" &&
              requireNamespace("stringi", quietly = TRUE)) {
     canonicos <- stringi::stri_trans_nfc(unicos)
@@ -4418,7 +4429,7 @@
 
 .normalizar_nombre_fecha <- function(x) {
   y <- .transliterar_ascii(x)
-  tolower(gsub("[^[:alnum:]]+", "_", y, perl = TRUE))
+  .normalizacion_minusculas_vector(gsub("[^[:alnum:]]+", "_", y, perl = TRUE))
 }
 
 .detectar_fecha_partida <- function(datos, nombres, max_candidatos = 10000L) {

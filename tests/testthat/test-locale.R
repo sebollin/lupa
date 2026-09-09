@@ -204,3 +204,48 @@ test_that("la I mayuscula con punto se pliega igual en cualquier locale", {
     utf8ToInt(lupa:::.normalizacion_minusculas(i_con_punto)), esperado
   )
 })
+
+test_that("el pliegue de mayusculas de los hallazgos no depende del locale", {
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
+  puesto <- suppressWarnings(tryCatch(
+    Sys.setlocale("LC_CTYPE", "C"), error = function(e) NA_character_
+  ))
+  if (is.na(puesto) || !identical(puesto, "C")) {
+    skip("no se pudo fijar LC_CTYPE=C")
+  }
+
+  # ASCII en el archivo, el acento se construye: un banco de fixtures homogeneo
+  # no puede ver el fallo que comparte con el codigo.
+  mayuscula <- rawToChar(as.raw(c(0x43, 0x41, 0x46, 0xc3, 0x89)))
+  minuscula <- rawToChar(as.raw(c(0x63, 0x61, 0x66, 0xc3, 0xa9)))
+  Encoding(mayuscula) <- "UTF-8"
+  Encoding(minuscula) <- "UTF-8"
+
+  # `tolower()` bajo `C` no baja el acento: los dos valores dejaban de pertenecer
+  # al mismo grupo, y como la trazabilidad si los juntaba, el paquete emitia su
+  # propio aviso de defecto sobre una tabla perfectamente ordinaria.
+  expect_false(identical(tolower(mayuscula), minuscula))
+  expect_identical(
+    lupa:::.normalizacion_minusculas_vector(mayuscula), minuscula
+  )
+
+  dicho <- character()
+  perfil <- withCallingHandlers(
+    perfilar(
+      data.frame(
+        x = c(rep(minuscula, 8L), rep(mayuscula, 2L)),
+        stringsAsFactors = FALSE
+      ),
+      analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+    ),
+    warning = function(w) {
+      dicho <<- c(dicho, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+
+  # Ni un aviso de defecto propio, y el hallazgo se sigue detectando.
+  expect_equal(length(grep("trazabilidad", dicho)), 0L)
+  expect_true("mayusculas_inconsistentes" %in% perfil$hallazgos$tipo)
+})

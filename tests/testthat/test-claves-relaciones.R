@@ -141,3 +141,34 @@ test_that("la poda por rangos disjuntos sigue diciendo lo que dice", {
   # Y esa poda no oculta la fila: sale con cobertura cero, no `sin_comparar`.
   expect_equal(as.character(resultado$cardinalidad), "sin_coincidencias")
 })
+
+test_that("el presupuesto agotado deja fila, no una tabla vacia", {
+  # Una tabla de cero filas AFIRMA: se lee como "no hay relaciones entre estas
+  # tablas", y lo que paso fue "no se comparo ninguna". Las podas por tipo ya
+  # dejaban el par con `cardinalidad = "sin_comparar"`; la de presupuesto lo
+  # guardaba solo en un atributo, asi que quien imprimia el resultado veia
+  # encabezados y nada.
+  set.seed(3)
+  t1 <- data.frame(
+    a = 1:300, b = sample(letters, 300, TRUE), c = sample(100, 300, TRUE)
+  )
+  t2 <- data.frame(
+    a = 1:300, b = sample(letters, 300, TRUE), c = sample(100, 300, TRUE)
+  )
+
+  completo <- detectar_relaciones(t1, t2)
+  agotado <- detectar_relaciones(t1, t2, tope_memoria_mb = 0)
+
+  # Los mismos pares en las dos corridas: lo que cambia es que no se compararon.
+  expect_equal(nrow(agotado), nrow(completo))
+  expect_true(nrow(agotado) > 0L)
+  expect_true(all(agotado$cardinalidad == "sin_comparar"))
+  expect_true(all(agotado$motivo_poda == "presupuesto_memoria_agotado"))
+  # Y no se inventa un resultado donde no se midio.
+  expect_true(all(is.na(agotado$n_valores_comunes)))
+  expect_true(all(is.na(agotado$cobertura_tabla1_en_tabla2)))
+
+  # El control por el otro lado: con presupuesto, se compara de verdad.
+  expect_false(any(completo$cardinalidad == "sin_comparar"))
+  expect_true(all(is.na(completo$motivo_poda)))
+})

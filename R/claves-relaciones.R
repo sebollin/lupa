@@ -700,6 +700,21 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
           detalle = paste0("tope_memoria_mb = ", tope_memoria_mb),
           stringsAsFactors = FALSE
         )
+        # El par sale declarado como no comparado, igual que en las podas de
+        # arriba. Hasta el 2026-09-08 esta rama guardaba el par SOLO en el
+        # atributo `podas`, asi que con el presupuesto agotado la funcion
+        # devolvia una tabla de CERO filas: quien la imprime veia encabezados y
+        # nada. Una tabla vacia afirma —se lee como "no hay relaciones"— y lo que
+        # paso fue "no se comparo ninguna". La forma correcta ya estaba dos
+        # ramas mas arriba; esta era la unica que se salia de la convencion.
+        filas[[length(filas) + 1L]] <- data.frame(
+          columna_tabla1 = nombre_1, columna_tabla2 = nombre_2,
+          cardinalidad = "sin_comparar", n_valores_comunes = NA_integer_,
+          cobertura_tabla1_en_tabla2 = NA_real_,
+          cobertura_tabla2_en_tabla1 = NA_real_,
+          motivo_poda = "presupuesto_memoria_agotado",
+          stringsAsFactors = FALSE
+        )
         next
       }
       n_valores_comunes <- length(intersect(x$unicos, y$unicos))

@@ -540,3 +540,26 @@
   }
   invisible(x)
 }
+
+# Una medicion vacia que SI viene de `medir()` no es una entrada invalida: es una
+# corrida donde ninguna metrica fue aplicable, y `medir()` ya declaro por que en
+# su `cobertura_metricas`. Tres validaciones distintas la rechazaban con "debe
+# ser ... producido por medir()", que afirma algo falso teniendo el motivo
+# verdadero a mano. El texto se arma en UN solo lugar para que las tres digan lo
+# mismo: tenerlo escrito tres veces es como se desincronizan.
+.error_medicion_sin_medidas <- function(medicion, argumento, origen) {
+  cobertura <- attr(medicion, "cobertura_metricas", exact = TRUE)
+  motivo <- if (is.data.frame(cobertura) && nrow(cobertura) &&
+                "motivo" %in% names(cobertura)) {
+    paste0(" Motivo declarado por `medir()`: ",
+           paste(unique(as.character(cobertura$motivo)), collapse = "; "))
+  } else {
+    ""
+  }
+  stop(
+    "`", argumento, "` viene de ", origen,
+    " pero no tiene ninguna medida que evaluar.", motivo,
+    " Se puede revisar `attr(", argumento, ", \"cobertura_metricas\")`.",
+    call. = FALSE
+  )
+}

@@ -135,12 +135,15 @@
 }
 
 .validar_medidas_tablero <- function(medidas) {
-  if (!inherits(medidas, "data.frame") || !nrow(medidas) ||
+  if (!inherits(medidas, "data.frame") ||
       !all(.columnas_medicion_tablero %in% names(medidas))) {
     stop(
-      "`medidas` debe ser una medici\u00f3n no vac\u00eda producida por medir() o agregar().",
+      "`medidas` debe ser una medici\u00f3n producida por medir() o agregar().",
       call. = FALSE
     )
+  }
+  if (!nrow(medidas)) {
+    .error_medicion_sin_medidas(medidas, "medidas", "`medir()` o `agregar()`")
   }
   medidas <- .tabla_base(medidas)
   if (length(unique(medidas$id_medicion)) != 1L) {

@@ -891,3 +891,51 @@ test_that("un cambio de datos no se declara como cambio de umbral", {
     filas_umbral(perfilar(base), perfilar(base, columnas_sin_ceros = "x")), 1L
   )
 })
+
+test_that("el umbral de deriva no lo decide la resta en coma flotante", {
+  # `0.70 - 0.65` da 0.049999999999999933 y `0.75 - 0.70` da 0.050000000000000044.
+  # Los dos pares publican `delta = 0.05` y recibian veredictos OPUESTOS. El
+  # paquete ya tolera la coma flotante al comparar pesos; aca no lo hacia.
+  corrida <- function(n_ok, id, fecha) {
+    .crear_corrida_historica(
+      id, fecha, c(rep(1, n_ok), rep(NA_real_, 20L - n_ok))
+    )$evaluacion
+  }
+  deriva <- detectar_deriva_calidad(
+    historico_calidad(
+      corrida(13L, "a13", "2026-01-01"),
+      corrida(14L, "b14", "2026-01-02"),
+      corrida(15L, "c15", "2026-01-03")
+    ),
+    nivel = "perfil", umbral = 0.05
+  )
+
+  # Dos pares, el mismo delta declarado, el mismo veredicto.
+  expect_equal(nrow(deriva), 2L)
+  expect_equal(round(deriva$delta, 10L), c(0.05, 0.05))
+  expect_true(all(deriva$significativo))
+  expect_equal(unique(deriva$direccion), "mejora")
+})
+
+test_that("la descripcion de la deriva no contradice a su propio delta", {
+  corrida <- function(n_ok, id, fecha) {
+    .crear_corrida_historica(
+      id, fecha, c(rep(1, n_ok), rep(NA_real_, 20L - n_ok))
+    )$evaluacion
+  }
+  # Con MAS DE UN PAR: `isTRUE(delta == 0)` trataba como escalar un vector con un
+  # elemento por par y devolvia FALSE siempre, asi que la fila de delta cero
+  # recibia el texto de cambio. La guarda no corria nunca.
+  deriva <- detectar_deriva_calidad(
+    historico_calidad(
+      corrida(13L, "a", "2026-01-01"),
+      corrida(13L, "b", "2026-01-02"),
+      corrida(17L, "c", "2026-01-03")
+    ),
+    nivel = "perfil", umbral = 0.05
+  )
+
+  expect_equal(deriva$delta[[1L]], 0)
+  expect_true(grepl("se mantuvo", deriva$descripcion[[1L]], fixed = TRUE))
+  expect_true(grepl("Cambi", deriva$descripcion[[2L]], fixed = TRUE))
+})
