@@ -485,12 +485,21 @@
   candidatos[fuera | sobresale]
 }
 
-# La regla que el propio paquete declara mas abajo pide **tres cosas a la vez**
-# para reconocer un centinela: que sea un valor extremo, que **se repita**, y que
-# tenga forma de centinela. La lista por omision se aplicaba sin la del medio: un
-# `999` que aparece UNA vez, en su lugar, dentro de un catalogo `1:1000 +
+# Un `999` que aparece UNA vez, en su lugar, dentro de un catalogo `1:1000 +
 # 2001:3000` salia acusado de ser una ausencia codificada. Una sola aparicion no
 # es una codificacion de ausencia: es un numero.
+#
+# La lista de por omision **pertenece al paquete** -lo dice su propio comentario
+# mas abajo: "sirve para sospechar de codigos comunes, pero no alcanza para
+# afirmar que son ausencia en una columna concreta"-. Exigirle que el candidato
+# se repita es el paquete afinando su propia sospecha, y por eso la regla se
+# aplica SOLO a esa lista.
+#
+# Cuidado con el criterio de las "tres cosas a la vez" que se lee mas abajo
+# -extremo, que se repita, forma de centinela-: pertenece a OTRO mecanismo, el
+# que sospecha de valores que NO estan en la lista, y su propio texto aclara que
+# "no cambia `faltantes_disfrazados`". Tomarlo prestado para justificar esto
+# seria sacarlo de su alcance.
 #
 # Sale de la lista solo el candidato que ademas cae **dentro** del rango de los
 # demas valores. Uno que aparece una vez y esta fuera del rango -un `-9` suelto
@@ -498,6 +507,20 @@
 # en su frecuencia.
 .sentinelas_sin_apariciones_unicas <- function(valores, candidatos, rango,
                                               sentinelas_numericos) {
+  # SOLO sobre la lista de por omision, que es la unica que el paquete aplica sin
+  # que nadie la pida. Pedir `sentinelas_naniar` es -en palabras del propio
+  # paquete- "optar por una heuristica MAS ANCHA", y angostarla aca contradice
+  # esa eleccion: sobre `c(66, 77, 88, 45, 30, ...)` sacaba el `66` porque cae
+  # dentro del rango de las edades y aparece una vez. La primera version de esta
+  # regla no hacia esa distincion, y la atrapo
+  # `test-declarado-contra-sospechado.R`.
+  #
+  # La comparacion es de CONJUNTO y no con `identical()`: esa fue la leccion de
+  # §2.296, donde la misma lista escrita al reves daba el resultado contrario.
+  if (!identical(.numeros_na(sentinelas_numericos),
+                 .numeros_na(.numeros_na_locales))) {
+    return(sentinelas_numericos)
+  }
   if (!length(candidatos) || is.null(rango)) return(sentinelas_numericos)
   presentes <- !is.na(valores) & is.finite(valores)
   if (!any(presentes)) return(sentinelas_numericos)
@@ -507,7 +530,20 @@
   }, logical(1L))
   if (!any(unicos_en_rango)) return(sentinelas_numericos)
   descartados <- candidatos[unicos_en_rango]
-  sentinelas_numericos[!(.numeros_na(sentinelas_numericos) %in% descartados)]
+  # Se filtra en el espacio NORMALIZADO, no indexando la lista original. La
+  # primera version calculaba la mascara sobre `.numeros_na(...)` -que hace
+  # `sort(unique(...))`- y la aplicaba sobre `sentinelas_numericos`, que viene en
+  # el orden del usuario. Con la lista por omision los dos ordenes son
+  # `-9, -99, -999, -9999, 999` y `-9999, -999, -99, -9, 999`: descartar `-9`
+  # sacaba `-9999`. O sea que dejaba pasar el falso positivo que venia a matar Y
+  # **silenciaba ausencias reales**, que es el error peor de los dos. Solo `999`
+  # funcionaba, porque es la posicion 5 en los dos ordenes, y los casos de prueba
+  # usaban justo ese.
+  #
+  # Devolver la lista normalizada no cambia nada aguas abajo:
+  # `.detectar_faltantes_disfrazados()` la normaliza igual antes de usarla.
+  normalizados <- .numeros_na(sentinelas_numericos)
+  normalizados[!(normalizados %in% descartados)]
 }
 
 .sentinela_numerico_es_moda_sobresaliente <- function(

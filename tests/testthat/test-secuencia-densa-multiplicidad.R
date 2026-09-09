@@ -360,3 +360,61 @@ test_that("una sola aparicion dentro del rango no es una ausencia codificada", {
   )
   expect_equal(as.numeric(declarado$columnas$n_faltantes_disfrazados[[1L]]), 1)
 })
+
+test_that("la regla de la repeticion saca de la lista al candidato correcto", {
+  # La primera version calculaba la mascara sobre la lista ORDENADA y la
+  # aplicaba sobre la lista en el orden del usuario. Los dos ordenes de la lista
+  # por omision son `-9, -99, -999, -9999, 999` y `-9999, -999, -99, -9, 999`,
+  # asi que descartar `-9` sacaba `-9999`: dejaba pasar el falso positivo Y
+  # silenciaba ausencias reales. Solo `999` funcionaba —es la posicion 5 en los
+  # dos ordenes— y los casos de prueba usaban justo ese.
+  #
+  # El tramo NO contiene `-9`, pero lo rodea: queda DENTRO del rango. Ojo con
+  # elegir el tramo: `-100:-10` SI contiene `-99`, que es otro valor de la lista
+  # —ahi aparece una sola vez y como valor legitimo, que es justo lo que la regla
+  # tiene que dejar pasar—.
+  tramo <- c(-100:-10, 0:1000)
+  expect_false(any(tramo == -9))
+  expect_equal(sum(tramo == -99), 1L)
+
+  # 50 ausencias reales fuera de rango, mas un `-9` suelto adentro.
+  perfil <- perfilar(
+    data.frame(v = c(tramo, rep(-9999, 50L), -9)),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+  expect_equal(as.numeric(perfil$columnas$n_faltantes_disfrazados[[1L]]), 50)
+
+  evidencia <- as.character(
+    perfil$hallazgos$evidencia[
+      perfil$hallazgos$tipo == "faltantes_disfrazados"
+    ]
+  )
+  # Las 50 reales se informan, y el `-9` suelto no se acusa.
+  expect_true(grepl("-9999 (50)", evidencia, fixed = TRUE))
+  expect_false(grepl("-9 (1)", evidencia, fixed = TRUE))
+})
+
+test_that("la regla de la repeticion no angosta una heuristica mas ancha", {
+  # `sentinelas_naniar` es una lista que el paquete PUBLICA y que el usuario
+  # elige: "optar por una heuristica MAS ANCHA", dice su propio comentario. La
+  # regla de la repeticion afina la sospecha del paquete sobre SU lista de por
+  # omision; aplicarla tambien a la que el usuario fue a buscar contradice esa
+  # eleccion.
+  #
+  # Sobre estas edades, `66` cae dentro del rango de las demas -22 a 70- y
+  # aparece una vez: la primera version lo sacaba y publicaba 2 en vez de 3.
+  edades <- c(66, 77, 88, 45, 30, 22, 51, 63, 70, 41)
+  perfil <- perfilar(
+    data.frame(edad = edades), sentinelas_numericos = sentinelas_naniar,
+    analizar_dependencias = FALSE
+  )
+  expect_equal(perfil$columnas$n_faltantes_disfrazados, 3L)
+
+  # Y el control por el otro lado: con la lista de por omision, la regla si
+  # corre. `999` aparece una vez y en su lugar dentro del catalogo.
+  con_omision <- perfilar(
+    data.frame(v = c(1:1000, 2001:3000)), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE
+  )
+  expect_equal(as.numeric(con_omision$columnas$n_faltantes_disfrazados[[1L]]), 0)
+})

@@ -10,7 +10,10 @@
   tenga forma de centinela»— y la lista por omisión se aplicaba sin la del
   medio. Un candidato que aparece una vez **y cae dentro del rango** de los
   demás valores ya no entra; uno que aparece una vez **fuera** del rango sigue
-  entrando, porque ahí la rareza está en el valor y no en su frecuencia.
+  entrando, porque ahí la rareza está en el valor y no en su frecuencia. La
+  regla afina la lista **de por omisión**, que es la que el paquete aplica sin
+  que nadie la pida; una lista que el usuario eligió —`sentinelas_naniar`— no se
+  angosta, porque pedirla es optar por una heurística más ancha.
 - **Con el presupuesto de memoria agotado, `detectar_relaciones()` devolvía una
   tabla vacía.** Quien la imprimía veía encabezados y nada, y una tabla vacía se
   lee como «no hay relaciones entre estas tablas» cuando lo que pasó fue «no se
