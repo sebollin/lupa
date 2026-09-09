@@ -249,3 +249,49 @@ test_that("el pliegue de mayusculas de los hallazgos no depende del locale", {
   expect_equal(length(grep("trazabilidad", dicho)), 0L)
   expect_true("mayusculas_inconsistentes" %in% perfil$hallazgos$tipo)
 })
+
+test_that("perfilar sobrevive a un CSV en espanol bajo LC_CTYPE=C", {
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
+  puesto <- suppressWarnings(tryCatch(
+    Sys.setlocale("LC_CTYPE", "C"), error = function(e) NA_character_
+  ))
+  if (is.na(puesto) || !identical(puesto, "C")) {
+    skip("no se pudo fijar LC_CTYPE=C")
+  }
+
+  # `rawToChar()` deja la codificacion en `unknown`, que es EXACTAMENTE lo que
+  # devuelve `read.csv()` sobre un CSV en espanol: el caso mas comun que existe.
+  # Bajo `LC_CTYPE=C` esos bytes no son interpretables por el locale y `chartr()`
+  # abortaba con "invalid input multibyte string", matando `perfilar()` entero.
+  mayuscula <- rawToChar(as.raw(c(0x43, 0x41, 0x46, 0xc3, 0x89)))
+  minuscula <- rawToChar(as.raw(c(0x63, 0x61, 0x66, 0xc3, 0xa9)))
+  expect_identical(Encoding(mayuscula), "unknown")
+  expect_true(validUTF8(mayuscula))
+
+  datos <- data.frame(
+    x = c(rep(minuscula, 3L), rep(mayuscula, 2L)), stringsAsFactors = FALSE
+  )
+  # Bajo `C` el paquete AVISA -"unable to translate ... to UTF-8"- por caminos
+  # que todavia intentan traducir. Eso esta medido y anotado en §2.304 y no es
+  # lo que esta prueba vigila: lo que vigila es que **no aborte** y que **pliegue
+  # bien**. Se silencian para no mover el conteo de avisos de la suite, que es
+  # `WARN 0` y sirve como senal.
+  perfil <- suppressWarnings(perfilar(
+    datos, analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+
+  # No aborta, y ademas pliega bien: los dos valores son el mismo texto.
+  expect_equal(perfil$columnas$n_distintos[[1L]], 2L)
+  expect_true("mayusculas_inconsistentes" %in% perfil$hallazgos$tipo)
+
+  # Y un byte que NO es UTF-8 valido tampoco aborta: se repara, no se cae.
+  roto <- rawToChar(as.raw(c(0x41, 0xff, 0x42)))
+  expect_false(validUTF8(roto))
+  # Avisa —el byte roto es un dato malo y el paquete lo dice—, pero no aborta.
+  sin_abortar <- suppressWarnings(perfilar(
+    data.frame(y = c(minuscula, roto), stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+  expect_s3_class(sin_abortar, "perfil")
+})

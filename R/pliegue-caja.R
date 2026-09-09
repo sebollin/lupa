@@ -36,6 +36,28 @@
   `1E9E` = 0x00DF
 )
 
+# Deja el vector en un estado que `chartr()` pueda leer sin depender del locale.
+# Los que ya son UTF-8 valido se MARCAN -conserva los acentos, que es lo que el
+# pliegue necesita-; los que no, se reparan con `iconv(sub = "byte")`, que es
+# determinista aunque quede feo. Un texto ya marcado se deja como esta.
+.textos_para_plegar <- function(textos) {
+  if (!length(textos)) return(textos)
+  textos <- as.character(textos)
+  sin_marca <- !is.na(textos) & Encoding(textos) == "unknown"
+  if (!any(sin_marca)) return(textos)
+  bytes_validos <- sin_marca & validUTF8(textos)
+  if (any(bytes_validos)) {
+    marcados <- textos[bytes_validos]
+    Encoding(marcados) <- "UTF-8"
+    textos[bytes_validos] <- marcados
+  }
+  irreparables <- sin_marca & !bytes_validos
+  if (any(irreparables)) {
+    textos[irreparables] <- iconv(textos[irreparables], to = "UTF-8", sub = "byte")
+  }
+  textos
+}
+
 .normalizacion_minusculas_vector <- local({
   origen <- paste0(
     intToUtf8(strtoi(names(.MAPA_MINUSCULAS_ACENTUADAS), base = 16L),
@@ -47,6 +69,20 @@
     collapse = ""
   )
   function(textos) {
+    # `chartr()` interpreta el texto SEGUN EL LOCALE cuando la cadena no declara
+    # su codificacion, y aborta con "invalid input multibyte string" si los bytes
+    # no son validos ahi. Un CSV en espanol leido con `read.csv()` sale con
+    # `Encoding()` en `unknown` -es el caso mas comun que existe- y bajo
+    # `LC_CTYPE=C` esos bytes no son interpretables: `perfilar()` moria con un
+    # error crudo de R. El comentario de `.clave_bytes()` en `R/utils.R` ya
+    # nombraba este mismo defecto para el orden; faltaba aplicarlo aca.
+    #
+    # No alcanza con `.clave_bytes()`: repara, pero deja los acentos escapados
+    # como bytes -`caf<c3><89>` y `caf<c3><a9>`-, y entonces `CAFE` con tilde y
+    # `cafe` con tilde dejan de plegarse juntos, que es justo lo que esta
+    # funcion existe para hacer. Hay que MARCAR lo que ya es UTF-8 valido, y
+    # reparar solo lo que no lo es.
+    textos <- .textos_para_plegar(textos)
     # El ASCII I se fija antes de delegar lo que no esta en el mapa: evita que
     # un locale turco convierta una comparacion reproducible en U+0131.
     tolower(chartr("I", "i", chartr(origen, destino, textos)))
