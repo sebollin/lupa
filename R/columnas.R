@@ -485,6 +485,31 @@
   candidatos[fuera | sobresale]
 }
 
+# La regla que el propio paquete declara mas abajo pide **tres cosas a la vez**
+# para reconocer un centinela: que sea un valor extremo, que **se repita**, y que
+# tenga forma de centinela. La lista por omision se aplicaba sin la del medio: un
+# `999` que aparece UNA vez, en su lugar, dentro de un catalogo `1:1000 +
+# 2001:3000` salia acusado de ser una ausencia codificada. Una sola aparicion no
+# es una codificacion de ausencia: es un numero.
+#
+# Sale de la lista solo el candidato que ademas cae **dentro** del rango de los
+# demas valores. Uno que aparece una vez y esta fuera del rango -un `-9` suelto
+# en una numeracion de 1 a 60- sigue entrando: ahi la rareza esta en el valor, no
+# en su frecuencia.
+.sentinelas_sin_apariciones_unicas <- function(valores, candidatos, rango,
+                                              sentinelas_numericos) {
+  if (!length(candidatos) || is.null(rango)) return(sentinelas_numericos)
+  presentes <- !is.na(valores) & is.finite(valores)
+  if (!any(presentes)) return(sentinelas_numericos)
+  unicos_en_rango <- vapply(candidatos, function(candidato) {
+    dentro <- candidato >= rango[[1L]] && candidato <= rango[[2L]]
+    dentro && sum(presentes & valores == candidato) == 1L
+  }, logical(1L))
+  if (!any(unicos_en_rango)) return(sentinelas_numericos)
+  descartados <- candidatos[unicos_en_rango]
+  sentinelas_numericos[!(.numeros_na(sentinelas_numericos) %in% descartados)]
+}
+
 .sentinela_numerico_es_moda_sobresaliente <- function(
     valores, candidatos, secuencia_entera) {
   if (!isTRUE(secuencia_entera$moda_sobresale)) return(FALSE)
@@ -1873,6 +1898,11 @@
     .sentinelas_que_abren_guarda(
       valores_numericos, candidatos_sentinelas, rango_numeracion,
       secuencia_entera
+    )
+  } else if (!length(sentinelas_declarados)) {
+    .sentinelas_sin_apariciones_unicas(
+      valores_numericos, candidatos_sentinelas, rango_numeracion,
+      sentinelas_numericos
     )
   } else {
     sentinelas_numericos

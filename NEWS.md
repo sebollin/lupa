@@ -2,6 +2,15 @@
 
 ## Lo que se mide contra lo que se declara
 
+- **Un valor de la lista de centinelas que aparece una sola vez, en su lugar, se
+  acusaba de ser una ausencia codificada.** En un catálogo de dos tramos
+  —`1:1000` más `2001:3000`— el `999` que trae la propia numeración salía
+  señalado. El paquete ya declaraba el criterio correcto —un centinela cumple
+  «las tres cosas a la vez: que sea un valor extremo, que **se repita**, y que
+  tenga forma de centinela»— y la lista por omisión se aplicaba sin la del
+  medio. Un candidato que aparece una vez **y cae dentro del rango** de los
+  demás valores ya no entra; uno que aparece una vez **fuera** del rango sigue
+  entrando, porque ahí la rareza está en el valor y no en su frecuencia.
 - **Con el presupuesto de memoria agotado, `detectar_relaciones()` devolvía una
   tabla vacía.** Quien la imprimía veía encabezados y nada, y una tabla vacía se
   lee como «no hay relaciones entre estas tablas» cuando lo que pasó fue «no se

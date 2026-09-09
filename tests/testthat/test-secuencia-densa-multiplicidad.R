@@ -328,3 +328,35 @@ test_that("una declaracion atraviesa tambien el filtro por candidato", {
                         sentinelas_numericos = c(999))
   expect_true(as.numeric(declarado$columnas$n_faltantes_disfrazados[[1L]]) > 0)
 })
+
+test_that("una sola aparicion dentro del rango no es una ausencia codificada", {
+  # La regla que el propio paquete declara pide TRES cosas a la vez para
+  # reconocer un centinela: valor extremo, que SE REPITA, y forma de centinela.
+  # La lista por omision se aplicaba sin la del medio.
+  catalogo <- c(1:1000, 2001:3000)
+  expect_equal(sum(catalogo == 999), 1L)  # esta en su lugar, una sola vez
+
+  perfil <- perfilar(
+    data.frame(v = catalogo), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE
+  )
+  expect_equal(as.numeric(perfil$columnas$n_faltantes_disfrazados[[1L]]), 0)
+  # La columna NO es densa -tiene un hueco de mil posiciones-, que es por donde
+  # se colaba: el filtro por candidato solo corria sobre columnas densas.
+  expect_false(perfil$columnas$secuencia_entera_densa[[1L]])
+
+  # El control que delimita la regla: una sola aparicion FUERA del rango si se
+  # acusa. Ahi la rareza esta en el valor, no en su frecuencia.
+  fuera <- perfilar(
+    data.frame(v = c(catalogo, -9)), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE
+  )
+  expect_equal(as.numeric(fuera$columnas$n_faltantes_disfrazados[[1L]]), 1)
+
+  # Y la declaracion explicita la atraviesa, como toda guarda.
+  declarado <- perfilar(
+    data.frame(v = catalogo), analizar_dependencias = FALSE,
+    proteger_datos_personales = FALSE, sentinelas_numericos = c(999)
+  )
+  expect_equal(as.numeric(declarado$columnas$n_faltantes_disfrazados[[1L]]), 1)
+})

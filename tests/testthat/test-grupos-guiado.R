@@ -710,22 +710,40 @@ test_that("las guardas de tabla completa sobreviven al agrupamiento", {
   expect_true(all(cobertura$columna[movidas] == "id"))
 
   # b. La conjetura de centinelas se apaga sobre una secuencia entera densa.
-  #    `1:2000` no produce `faltantes_disfrazados` y el mismo 999 lo producia
-  #    en un grupo, porque la rebanada ya no es densa.
-  set.seed(42)
+  #    La tabla entera es densa y no acusa; la rebanada NO lo es, y ahi la
+  #    conjetura volveria a encenderse si nadie la apagara.
+  #
+  #    El centinela se REPITE dentro de la rebanada a proposito. Con una sola
+  #    aparicion este caso ya no llega hasta aca: desde el 2026-09-09 un
+  #    candidato que aparece una vez y cae dentro del rango no entra en la
+  #    lista, porque la regla del paquete pide que se repita. Ese caso se
+  #    verifica aparte, mas abajo, y aca haria que la guarda no tuviera trabajo
+  #    y la prueba no midiera nada.
   denso <- data.frame(
-    egreso = sample(c("Si", "No"), 2000, TRUE, prob = c(0.4, 0.6)),
-    id = seq_len(2000L),
+    egreso = rep(c("Si", "No"), each = 1000L),
+    id = c(seq_len(950L), rep(999L, 50L), seq_len(1000L)),
     stringsAsFactors = FALSE
-  )
-  expect_equal(
-    sum(perfilar(denso["id"])$hallazgos$tipo_hallazgo == "faltantes_disfrazados"),
-    0L
   )
   agrupado <- perfilar_por(denso, por = "egreso", min_filas = 1)
   expect_equal(sum(agrupado$tipo_hallazgo == "faltantes_disfrazados"), 0L)
   cobertura2 <- as.data.frame(attr(agrupado, "cobertura_diagnosticos"))
   expect_true(any(cobertura2$diagnostico == "centinelas_numericos"))
+
+  # c. Y el caso de una sola aparicion: ya no necesita la guarda porque no
+  #    genera diagnostico que suprimir. El resultado publicado es el mismo
+  #    -cero disfrazados- y es lo unico que el usuario ve.
+  set.seed(42)
+  suelto <- data.frame(
+    egreso = sample(c("Si", "No"), 2000, TRUE, prob = c(0.4, 0.6)),
+    id = seq_len(2000L),
+    stringsAsFactors = FALSE
+  )
+  expect_equal(
+    sum(perfilar(suelto["id"])$hallazgos$tipo_hallazgo == "faltantes_disfrazados"),
+    0L
+  )
+  por_grupo <- perfilar_por(suelto, por = "egreso", min_filas = 1)
+  expect_equal(sum(por_grupo$tipo_hallazgo == "faltantes_disfrazados"), 0L)
 })
 
 # Los controles, y son los que decidieron el alcance de la guarda: un primer
