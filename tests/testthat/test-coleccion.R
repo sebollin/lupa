@@ -261,7 +261,7 @@ test_that("las granularidades por encima de la colección dicen qué falta", {
   )
   expect_error(
     agregar(agregado, "organizacion", "promedio"),
-    "qu\u00e9 bases le pertenecen"
+    "qu.* bases le pertenecen"
   )
 })
 

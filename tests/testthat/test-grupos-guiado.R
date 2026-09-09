@@ -332,10 +332,10 @@ test_that("se distingue una recomendación desactivada de una decisión pendient
 test_that("se validan permisos y entradas del modo guiado", {
   datos <- data.frame(zona = c("Norte", "NORTE"))
   plan <- planificar_limpieza(perfilar(datos))
-  expect_error(aplicar(plan, datos, permitir_eliminacion = NA), "lógicos escalares")
-  expect_error(aplicar(plan, datos, conservar_eliminados = 1), "lógicos escalares")
+  expect_error(aplicar(plan, datos, permitir_eliminacion = NA), "l.*gicos escalares")
+  expect_error(aplicar(plan, datos, conservar_eliminados = 1), "l.*gicos escalares")
   expect_error(
-    guiar_limpieza(plan, datos, selector = 1), "selector.*función"
+    guiar_limpieza(plan, datos, selector = 1), "selector.*funci.*n"
   )
   expect_error(
     guiar_limpieza(plan, datos, selector = function(x) 0, diccionarios = 1),
@@ -343,7 +343,7 @@ test_that("se validan permisos y entradas del modo guiado", {
   )
   expect_error(
     guiar_limpieza(plan, datos, selector = function(x) 0, max_ejemplos = 0),
-    "número positivo"
+    "n.*mero positivo"
   )
   expect_error(
     suppressMessages(guiar_limpieza(
@@ -370,7 +370,7 @@ test_that("el contrato valida las propiedades compartidas de cada grupo", {
 
   invalido <- base
   invalido$recomendada[[1L]] <- NA
-  expect_error(aplicar(invalido, datos), "recomendada.*lógica sin NA")
+  expect_error(aplicar(invalido, datos), "recomendada.*l.*gica sin NA")
 
   invalido <- base
   invalido$estado <- as.character(invalido$estado)
@@ -391,7 +391,7 @@ test_that("el contrato valida las propiedades compartidas de cada grupo", {
 
   invalido <- base
   invalido$decision_grupo[indices[[2L]]] <- "omitida"
-  expect_error(aplicar(invalido, datos), "compartir una sola decisión")
+  expect_error(aplicar(invalido, datos), "compartir una sola decisi.*n")
 
   invalido <- base
   invalido$recomendacion_grupo[indices[[2L]]] <- "otra_recomendacion"
@@ -464,7 +464,7 @@ test_that("las transformaciones de capitalización devuelven texto y validan", {
     lupa:::.transformar_capitalizacion(
       c("Norte", "Sur"), "convertir_segun_diccionario", list(diccionario = 1:2)
     ),
-    "vector atómico con nombres"
+    "vector at.*mico con nombres"
   )
 })
 
@@ -607,7 +607,7 @@ test_that("un selector que devuelve NA falla en vez de omitir en silencio", {
   for (ausente in list(NA, NA_integer_, NA_character_)) {
     expect_error(
       guiar_limpieza(plan, datos, selector = function(x) ausente),
-      "devolvió NA"
+      "devolvi.* NA"
     )
   }
 })
@@ -633,7 +633,7 @@ test_that("los valores declarados del selector no cambian", {
   expect_true(all(decisiones(function(x) 1L) == "elegida"))
   expect_error(
     guiar_limpieza(plan, datos, selector = function(x) 99L),
-    "no identifica una opción disponible"
+    "no identifica una opci.*n disponible"
   )
 })
 

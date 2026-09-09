@@ -394,7 +394,7 @@ test_that("la conversión regional exige resolver también la coma ambigua", {
   )
   expect_error(
     lupa:::.convertir_numero_regional("1", list(convencion = "mixta")),
-    "no está confirmada"
+    "no est.* confirmada"
   )
   expect_error(
     lupa:::.convertir_numero_regional(

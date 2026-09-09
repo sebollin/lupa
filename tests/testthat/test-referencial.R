@@ -11,7 +11,7 @@ test_that("un referencial declara clave, valores y alcance completo", {
   expect_true(ref$completo)
   expect_output(print(ref), "padrón")
   expect_error(referencial(datos, "id", completo = TRUE), "alcance")
-  expect_error(referencial(rbind(datos, datos[1, ]), "id"), "unívocamente")
+  expect_error(referencial(rbind(datos, datos[1, ]), "id"), "un.*vocamente")
   expect_error(referencial(transform(datos, id = c(1, NA, 3)), "id"), "ausentes")
   expect_error(referencial(datos, "id", "id"), "compartir")
   expect_error(referencial(datos, "no_existe"), "No se encontraron")
@@ -19,13 +19,13 @@ test_that("un referencial declara clave, valores y alcance completo", {
   nombres_malos <- datos
   names(nombres_malos) <- c("id", "id")
   expect_error(referencial(nombres_malos, "id"), "nombres de columna")
-  expect_error(referencial(datos, c("id", "id")), "únicos")
-  expect_error(referencial(datos, "id", completo = NA), "lógico escalar")
+  expect_error(referencial(datos, c("id", "id")), ".*nicos")
+  expect_error(referencial(datos, "id", completo = NA), "l.*gico escalar")
   expect_error(referencial(datos, "id", alcance = 1), "cadena")
   expect_error(referencial(datos, "id", nombre = ""), "cadena")
   lista <- data.frame(id = 1:2)
   lista$valor <- I(list(1, 2))
-  expect_error(referencial(lista, "id", "valor"), "atómicos")
+  expect_error(referencial(lista, "id", "valor"), "at.*micos")
 })
 
 test_that("correctitud fuerte y débil conservan semánticas distintas", {

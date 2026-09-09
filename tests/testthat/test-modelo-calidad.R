@@ -109,7 +109,7 @@ test_that("las métricas recorren los tres niveles mediante closures", {
   expect_error(especializar(generica), "Faltan propiedades")
   expect_error(especializar(generica, otra = 1), "no declaradas")
   expect_error(instanciar(generica, "tabla", "x"), "especializar")
-  expect_error(modelo(instancia, instancia), "deben ser únicos")
+  expect_error(modelo(instancia, instancia), "deben ser .*nicos")
 })
 
 test_that("el núcleo declara sus veintidós métricas", {
@@ -230,8 +230,8 @@ test_that("el núcleo declara sus veintidós métricas", {
     medicion$metrica_especifica == "ErrorMonto", , drop = FALSE
   ]
   expect_error(agregar(errores, "entidad", "ratio_umbral", umbral = 0),
-               "\u005b0, 1\u005d")
-  expect_error(agregar(errores, "entidad", "promedio"), "\u005b0, 1\u005d")
+               ".*0, 1.*")
+  expect_error(agregar(errores, "entidad", "promedio"), ".*0, 1.*")
 
   medidas_intra <- medicion[
     medicion$metrica_especifica == "EdadAdulta", , drop = FALSE
@@ -250,7 +250,7 @@ test_that("NoNulo admite un diccionario explícito de ausencias", {
 
   expect_equal(resultado$resultado, c(1, 0, 0, 0))
   expect_error(especializar(metricas_nucleo()$NoNulo, otra = 1),
-               "sólo acepta")
+               "s.*lo acepta")
 })
 
 test_that("Formato admite un validador arbitrario y una específica se reutiliza", {
@@ -366,7 +366,7 @@ test_that("las celdas se agregan por atributo o por instancia de entidad", {
   expect_error(agregar(medidas, "atributo", "ratio_umbral", umbral = 0.5),
                "resultado real")
   expect_error(agregar(atributos, "instanciaEntidad", "promedio"),
-               "No existe una transici\u00f3n")
+               "No existe una transici.*n")
   expect_error(
     agregar(atributos, "entidad", "promedio_ponderado", pesos = c(0.2, 0.2)),
     "sumar 1"
@@ -392,7 +392,7 @@ test_that("las celdas se agregan por atributo o por instancia de entidad", {
   )
   expect_error(
     agregar(coleccion, "organizacion", "promedio"),
-    "requiere una organizaci\u00f3n declarada"
+    "requiere una organizaci.*n declarada"
   )
   expect_error(
     agregar(organizacion, "conjuntoOrganizaciones", "promedio"),
@@ -461,8 +461,8 @@ test_that("los perfiles de madurez usan los tres umbrales del marco", {
 
   expect_equal(names(perfiles), c("Basico", "Intermedio", "Avanzado"))
   expect_equal(resultados, c(Basico = 1, Intermedio = 1, Avanzado = 0))
-  expect_error(regla_evaluacion("mala", 1), "función")
-  expect_error(perfil_evaluacion("vacío"), "una o más reglas")
+  expect_error(regla_evaluacion("mala", 1), "funci.*n")
+  expect_error(perfil_evaluacion("vacío"), "una o m.*s reglas")
   expect_error(
     evaluar(
       medida_atributo,

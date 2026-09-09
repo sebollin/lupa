@@ -109,3 +109,31 @@ test_that("una moneda y los numeros sin simbolo no son monedas mixtas", {
   expect_equal(sin_simbolo$columnas$n_numeros_texto, 0L)
 })
 
+
+test_that("n_numeros_texto distingue no haber visto ninguno de no haberlos contado", {
+  # `n = 0` AFIRMA que no hay ninguno. Era falso cuando el paquete si los vio y
+  # decidio no contarlos por no llegar al umbral: una columna con tres de cuatro
+  # valores numericos-como-texto publicaba `n_numeros_texto = 0` al lado de
+  # `proporcion_numeros_texto = NA`. Los dos campos describian el mismo hecho y
+  # decian cosas distintas: uno "cero", el otro "no lo se".
+  perfil <- function(v) {
+    perfilar(
+      data.frame(x = v, stringsAsFactors = FALSE),
+      analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+    )$columnas
+  }
+
+  # No vio ninguno: cero es un hecho y se publica.
+  sin_ninguno <- perfil(c("AB1", "CD2", "EF3"))
+  expect_equal(sin_ninguno$n_numeros_texto, 0L)
+
+  # Vio algunos y no llego al umbral: no los midio como tales.
+  parcial <- perfil(c("12.5", "14.0", "15.5", "abc"))
+  expect_true(is.na(parcial$n_numeros_texto))
+  expect_true(is.na(parcial$proporcion_numeros_texto))
+
+  # Y por encima del umbral cuenta, que es el control del otro lado.
+  completo <- perfil(c("12.5", "14.0", "15.5", "16.5", "abc"))
+  expect_equal(as.numeric(completo$n_numeros_texto), 4)
+  expect_equal(as.numeric(completo$proporcion_numeros_texto), 0.8)
+})

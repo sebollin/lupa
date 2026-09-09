@@ -2,6 +2,18 @@
 
 ## Lo que se mide contra lo que se declara
 
+- **`perfilar()` abortaba con un CSV en español bajo un locale que no fuera
+  UTF-8.** `read.csv()` deja los textos con `Encoding()` en `unknown` —el caso
+  más común que existe en español— y cualquier operación que exija UTF-8 los
+  rechaza: se encontraron dos caminos que morían así. La codificación se declara
+  **una vez, al entrar**, y sólo sobre lo que ya es UTF-8 válido; lo que no lo
+  es sigue tratándose como texto no descifrable, que es lo que corresponde.
+- **`n_numeros_texto` publicaba `0` cuando sí había números escritos como
+  texto.** Con tres de cuatro valores numéricos-como-texto, el campo decía
+  «ninguno» al lado de `proporcion_numeros_texto = NA`: dos campos describiendo
+  el mismo hecho y diciendo cosas distintas. Ahora se distingue no haber visto
+  ninguno —`0`, que es un hecho— de haberlos visto y no haberlos contado por no
+  alcanzar el umbral —`NA`—.
 - **Un valor de la lista de centinelas que aparece una sola vez, en su lugar, se
   acusaba de ser una ausencia codificada.** En un catálogo de dos tramos
   —`1:1000` más `2001:3000`— el `999` que trae la propia numeración salía

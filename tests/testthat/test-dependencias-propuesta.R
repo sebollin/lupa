@@ -35,7 +35,7 @@ test_that("el recorte de dependencias queda declarado", {
   expect_error(detectar_dependencias(datos, umbral = 2), "umbrales")
   expect_error(detectar_dependencias(datos, max_columnas = 0), "enteros positivos")
   expect_error(detectar_dependencias(1:3), "data.frame")
-  expect_error(detectar_dependencias(datos, incluir_claves = NA), "lógico")
+  expect_error(detectar_dependencias(datos, incluir_claves = NA), "l.*gico")
   expect_error(detectar_dependencias(datos, muestra = 0), "positivo")
   vacio <- detectar_dependencias(data.frame(a = integer(), b = integer()))
   expect_equal(nrow(vacio), 0L)

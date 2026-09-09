@@ -155,14 +155,14 @@ test_that("Escala y vigencia materializan cinco métricas del catálogo", {
 })
 
 test_that("los contratos temporales y de escala rechazan afirmaciones incompletas", {
-  expect_error(vigencia(""), "nombre no vacío")
-  expect_error(vigencia("f", fecha_acceso = NA), "fechas válidas")
+  expect_error(vigencia(""), "nombre no vac.*o")
+  expect_error(vigencia("f", fecha_acceso = NA), "fechas v.*lidas")
   expect_error(
     vigencia("f", inicio_intervalo = as.Date("2026-01-01")),
     "intervalo exige"
   )
-  expect_error(vigencia("f", frecuencia_cambio = "mensual"), "duración positiva")
-  expect_error(vigencia("f", frecuencia_cambio = 0), "duración positiva")
+  expect_error(vigencia("f", frecuencia_cambio = "mensual"), "duraci.*n positiva")
+  expect_error(vigencia("f", frecuencia_cambio = 0), "duraci.*n positiva")
   contrato <- vigencia(
     "f", frecuencia_cambio = as.difftime(2, units = "days"),
     fecha_acceso = as.Date("2026-02-01")
@@ -170,7 +170,7 @@ test_that("los contratos temporales y de escala rechazan afirmaciones incompleta
   expect_equal(contrato$frecuencia_cambio_segundos, 2 * 86400)
 
   expect_error(escala(-1), "no negativo")
-  expect_error(escala(2, "relativo"), "\u005b0, 1\u005d")
+  expect_error(escala(2, "relativo"), ".*0, 1.*")
   expect_s3_class(escala(function(x) rep(0.1, length(x))), "escala_medicion")
 
   nucleo <- metricas_nucleo()
@@ -188,7 +188,7 @@ test_that("las métricas con contrato se abstienen ante datos o insumos inválid
   }
   expect_error(
     medir(modelo(escala_inst(escala(0.1))), data.frame(x = letters[1:2])),
-    "numérico ordinario"
+    "num.*rico ordinario"
   )
   expect_error(
     medir(modelo(escala_inst(escala(0.1))), data.frame(x = c(1, Inf))),
@@ -199,14 +199,14 @@ test_that("las métricas con contrato se abstienen ante datos o insumos inválid
       modelo(escala_inst(escala(function(x) c(-1, 0)))),
       data.frame(x = c(1, 2))
     ),
-    "no devolvió"
+    "no devolvi.*"
   )
   expect_error(
     medir(
       modelo(escala_inst(escala(function(x) rep(2, length(x)), "relativo"))),
       data.frame(x = c(1, 2))
     ),
-    "\u005b0, 1\u005d"
+    ".*0, 1.*"
   )
   relativa <- medir(
     modelo(escala_inst(escala(c(0.1, 0.2, 0.3), "relativo"))),
@@ -282,7 +282,7 @@ test_that("ErrorEstandar sigue la desviación estándar declarada por el marco",
   medida <- medir(modelo(instancia), data.frame(x = x))
   expect_equal(medida$resultado, stats::sd(x))
   expect_equal(medida$tipo_resultado, "numero_real")
-  expect_error(agregar(medida, "entidad", "promedio"), "\u005b0, 1\u005d")
+  expect_error(agregar(medida, "entidad", "promedio"), ".*0, 1.*")
   catalogo <- catalogo_agesic()
   fila <- catalogo[catalogo$metrica_agesic == "ErrorEstandar", ]
   expect_match(fila$observacion, "desviación estándar")

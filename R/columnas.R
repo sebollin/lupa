@@ -1376,7 +1376,15 @@
       "\\p{Sc}[[:space:]]*)?[+-]?[0-9]"
     ), textos[presentes], perl = TRUE
   )
-  if (mean(inicio_numerico) < umbral_compatibilidad) return(vacio)
+  # Misma distincion que en `.analizar_numeros_texto()`: `n = 0` afirma "no hay
+  # ninguno", y es falso cuando SI los vio y decidio no contarlos. La regla vive
+  # en dos funciones -esta es el camino directo- y las dos tienen que decir lo
+  # mismo; que estuviera escrita dos veces es como se desincronizan.
+  proporcion_inicio <- mean(inicio_numerico)
+  if (proporcion_inicio < umbral_compatibilidad) {
+    if (proporcion_inicio > 0) vacio$n <- NA_integer_
+    return(vacio)
+  }
   partes <- .componentes_numero_texto(textos)
   especiales <- presentes & partes$compatible & partes$especial
   if (!any(especiales)) return(vacio)
@@ -1446,7 +1454,20 @@
     )
     partes <- .componentes_numero_texto(textos)
   }
-  if (mean(inicio_numerico[presentes]) < umbral_compatibilidad) {
+  proporcion_inicio <- mean(inicio_numerico[presentes])
+  if (proporcion_inicio < umbral_compatibilidad) {
+    # `n = 0` afirma "no hay ninguno", y eso es falso cuando SI los vio y decidio
+    # no contarlos: una columna con tres de cuatro valores numericos-como-texto
+    # publicaba `n_numeros_texto = 0` al lado de `proporcion_numeros_texto = NA`.
+    # Los dos campos decian cosas distintas del mismo hecho -uno "cero", el otro
+    # "no lo se"- y el paquete tiene la convencion contraria: lo que no se midio
+    # va `NA`, nunca `0`, porque el cero afirma.
+    #
+    # Se distingue por eso: si no vio NINGUNO, cero es un hecho y se publica; si
+    # vio algunos y no llego al umbral, no los midio como tales y va `NA`.
+    if (proporcion_inicio > 0) {
+      vacio$n <- NA_integer_
+    }
     return(vacio)
   }
   especiales <- presentes & partes$compatible & partes$especial

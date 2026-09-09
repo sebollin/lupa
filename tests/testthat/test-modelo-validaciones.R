@@ -15,13 +15,13 @@ test_that("se validan las declaraciones y especializaciones", {
     metrica(
       "M", "semántica", "atributo", "real", propiedades = c("x", "x")
     ),
-    "únicos"
+    ".*nicos"
   )
   expect_error(
     metrica(
       "M", "semántica", "atributo", "real", propiedades = "nombre con espacio"
     ),
-    "sintácticos"
+    "sint.*cticos"
   )
   expect_error(
     metrica("M", "semántica", "atributo", "real", metodo = 1),
@@ -99,7 +99,7 @@ test_that("se validan instancias, modelos y vínculos", {
     metodo = function(tablas, instancia) data.frame()
   ))
   expect_error(instanciar(inventada, "bd", granularidad = "galaxia"), "granularidad")
-  expect_error(modelo(), "una o más")
+  expect_error(modelo(), "una o m.*s")
   expect_error(modelo(no_nulo), "instanciadas")
 
   instancia <- instanciar(no_nulo, "t", "x")
@@ -131,7 +131,7 @@ test_that("se validan las configuraciones de las métricas del núcleo", {
     "expresion_regular"
   )
   expect_error(
-    especializar(nucleo$Formato, diccionario = list("a")), "atómico"
+    especializar(nucleo$Formato, diccionario = list("a")), "at.*mico"
   )
   expect_error(
     especializar(nucleo$Formato, validador = 1), "validador"
@@ -141,14 +141,14 @@ test_that("se validan las configuraciones de las métricas del núcleo", {
   )
   expect_error(
     especializar(nucleo$ValoresPosiblesPorExtension, valores = list("a")),
-    "atómico"
+    "at.*mico"
   )
   expect_error(
-    especializar(nucleo$ReglaIntegridadIntraEntidad, regla = 1), "función"
+    especializar(nucleo$ReglaIntegridadIntraEntidad, regla = 1), "funci.*n"
   )
   expect_error(
     especializar(nucleo$ReglaIntegridadInterEntidad, otra = 1),
-    "sólo acepta"
+    "s.*lo acepta"
   )
   expect_error(
     especializar(nucleo$ReglaIntegridadInterEntidad, muestra = 0), "positivo"
@@ -175,11 +175,11 @@ test_that("se validan los contratos de los métodos de medición", {
   )
   expect_error(
     medir(modelo(instanciar(intra_mala, "t", "x")), data.frame(x = 1:2)),
-    "lógico sin NA"
+    "l.*gico sin NA"
   )
 
   error <- instanciar(especializar(nucleo$ErrorEstandar), "t", "x")
-  expect_error(medir(modelo(error), data.frame(x = letters[1:3])), "numérico")
+  expect_error(medir(modelo(error), data.frame(x = letters[1:3])), "num.*rico")
   expect_error(medir(modelo(error), data.frame(x = c(1, NA))), "al menos dos")
   constante <- medir(modelo(error), data.frame(x = c(2, 2)))
   expect_equal(constante$resultado, 0)
@@ -264,8 +264,8 @@ test_that("se validan reglas, perfiles y evaluaciones", {
   expect_error(regla_evaluacion("r", identity, metricas = ""), "metricas")
   regla <- regla_evaluacion("r", function(x) x >= 0)
   expect_error(perfil_evaluacion("", regla), "nombre")
-  expect_error(perfil_evaluacion("p", 1), "una o más reglas")
-  expect_error(perfil_evaluacion("p", regla, regla), "deben ser únicos")
+  expect_error(perfil_evaluacion("p", 1), "una o m.*s reglas")
+  expect_error(perfil_evaluacion("p", regla, regla), "deben ser .*nicos")
   expect_s3_class(perfil_evaluacion("p", list(regla)), "perfil_evaluacion")
 
   nucleo <- metricas_nucleo()
@@ -284,7 +284,7 @@ test_that("se validan reglas, perfiles y evaluaciones", {
   mala <- perfil_evaluacion(
     "mala", regla_evaluacion("mala", function(x) rep(NA, length(x)))
   )
-  expect_error(evaluar(medidas, mala), "lógicos sin NA")
+  expect_error(evaluar(medidas, mala), "l.*gicos sin NA")
 
   evaluada <- evaluar(medidas, perfil)
   expect_error(comparar_evaluaciones(evaluada, perfil), "evaluar")

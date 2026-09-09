@@ -563,3 +563,37 @@
     call. = FALSE
   )
 }
+
+# Declara la codificacion de las columnas de texto que no la declaran. NO cambia
+# los bytes: dice lo que ya son.
+#
+# Por que hace falta en la ENTRADA y no en cada sitio: bajo un locale que no es
+# UTF-8, una cadena con `Encoding()` en `unknown` se interpreta segun el locale,
+# y ahi cualquier operacion que exija UTF-8 aborta. Se encontraron DOS caminos
+# distintos que morian asi -`chartr()` en el pliegue de mayusculas y un
+# `gsub(..., perl = TRUE)` con `(*UTF)` en la proteccion de grafemas-, y buscar
+# el tercero de a uno es perseguir la cola. Marcar una vez, al entrar, los cubre
+# todos.
+#
+# `read.csv()` deja `unknown` en cualquier CSV con tildes: es el caso mas comun
+# que existe en espanol, no un borde.
+#
+# Solo se marca lo que YA es UTF-8 valido. Un texto realmente latin1 tiene bytes
+# que no lo son, `validUTF8()` da `FALSE` y se lo deja como esta: el paquete lo
+# trata despues por el camino de `texto_no_descifrable`, que existe para eso.
+.marcar_utf8_tabla <- function(tabla) {
+  if (!inherits(tabla, "data.frame") || !ncol(tabla)) return(tabla)
+  for (i in seq_along(tabla)) {
+    columna <- tabla[[i]]
+    if (!is.character(columna) || !length(columna)) next
+    sin_marca <- !is.na(columna) & Encoding(columna) == "unknown"
+    if (!any(sin_marca)) next
+    marcables <- sin_marca & validUTF8(columna)
+    if (!any(marcables)) next
+    trozo <- columna[marcables]
+    Encoding(trozo) <- "UTF-8"
+    columna[marcables] <- trozo
+    tabla[[i]] <- columna
+  }
+  tabla
+}

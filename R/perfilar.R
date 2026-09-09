@@ -1589,6 +1589,13 @@ perfilar <- function(datos,
   # la conversion afuera. Se acepta y se convierte, y la conversion queda
   # declarada en `meta` para que el perfil no aparente haber recibido lo que no
   # recibio. Una matriz sin nombres de columna los recibe de R.
+  # `nombre` se calcula por omision con `substitute(datos)`, y eso es una promesa:
+  # se evalua cuando alguien la usa. Si para entonces `datos` ya fue reasignado
+  # -y lo es, mas abajo-, `substitute()` devuelve el simbolo `datos` en vez de la
+  # expresion del llamador, y el perfil pasa a llamarse "datos" en vez del nombre
+  # de la tabla. Se fuerza ACA, antes de cualquier reasignacion, para que el
+  # nombre no dependa de que ninguna rama posterior toque la variable.
+  force(nombre)
   entrada_convertida <- NA_character_
   if (!inherits(datos, "data.frame") && is.matrix(datos)) {
     entrada_convertida <- paste0(
@@ -1610,6 +1617,9 @@ perfilar <- function(datos,
     )
     datos <- as.data.frame(datos, stringsAsFactors = FALSE)
   }
+  # Antes de cualquier analisis: las columnas de texto que no declaran su
+  # codificacion la declaran. Ver `.marcar_utf8_tabla()`.
+  datos <- .marcar_utf8_tabla(datos)
   muestra <- .validar_muestra(muestra)
   alcance_muestra <- .resolver_muestra_perfilado(
     datos, muestra, max_celdas_muestra, max_bytes_muestra

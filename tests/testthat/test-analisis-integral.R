@@ -52,7 +52,7 @@ test_that("distribucion_valores valida su contrato", {
   expect_error(distribucion_valores(1:3), "data.frame")
   expect_error(distribucion_valores(datos, data.frame()), "perfil")
   expect_error(distribucion_valores(datos, max_valores = 0), "entero positivo")
-  expect_error(distribucion_valores(datos, probabilidades = c(-1, 1)), "\u005b0, 1\u005d")
+  expect_error(distribucion_valores(datos, probabilidades = c(-1, 1)), ".*0, 1.*")
   expect_error(distribucion_valores(datos, muestra = 0), "positivo")
   expect_error(
     distribucion_valores(datos, proteger_datos_personales = NA), "TRUE o FALSE"
@@ -117,7 +117,7 @@ test_that("detectar_asociaciones valida entradas y casos degenerados", {
   datos <- data.frame(a = 1:3, b = 1:3)
   expect_error(detectar_asociaciones(1:3), "data.frame")
   expect_error(detectar_asociaciones(datos, dependencias = 1), "data frame")
-  expect_error(detectar_asociaciones(datos, umbral = 2), "\u005b0, 1\u005d")
+  expect_error(detectar_asociaciones(datos, umbral = 2), ".*0, 1.*")
   expect_error(detectar_asociaciones(datos, max_columnas = 0), "entero positivo")
   expect_error(detectar_asociaciones(datos, max_niveles = 0), "entero positivo")
   expect_error(detectar_asociaciones(datos, max_pares = 0), "entero positivo")
@@ -314,7 +314,7 @@ test_that("clasificar_variables valida metadatos y declara muestreo", {
     datos, metadatos = data.frame(
       columna = "x", escala = "nominal", confianza = 2
     )
-  ), "\u005b0, 1\u005d")
+  ), ".*0, 1.*")
   expect_error(clasificar_variables(
     datos, metadatos = data.frame(columna = "x", confirmada = NA)
   ), "logica")

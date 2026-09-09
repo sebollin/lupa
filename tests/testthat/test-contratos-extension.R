@@ -78,7 +78,7 @@ test_that("las propiedades se consultan y el validador respeta la declaracion", 
   expect_true(all(propiedades_metrica(instancia)$configurada))
   expect_identical(instancia$configuracion, list(umbral = 5, inclusivo = TRUE))
   expect_error(especializar(generica), "Falta umbral")
-  expect_error(propiedades_metrica(list()), "métrica genérica")
+  expect_error(propiedades_metrica(list()), "m.*trica gen.*rica")
 
   sin_validador <- metrica(
     "Acotada", "Usa dos límites.", "atributo", "real",
@@ -104,7 +104,7 @@ test_that("un validador no puede introducir propiedades ajenas o anonimas", {
   )
   expect_error(
     especializar(fabrica(function(x) list(1)), umbral = 1),
-    "nombres únicos"
+    "nombres .*nicos"
   )
   duplicadas <- function(x) {
     resultado <- list(1, 2)
@@ -112,7 +112,7 @@ test_that("un validador no puede introducir propiedades ajenas o anonimas", {
     resultado
   }
   expect_error(
-    especializar(fabrica(duplicadas), umbral = 1), "nombres únicos"
+    especializar(fabrica(duplicadas), umbral = 1), "nombres .*nicos"
   )
   vacia <- especializar(fabrica(function(x) list()), umbral = 1)
   expect_false(propiedades_metrica(vacia)$configurada)
@@ -186,7 +186,7 @@ test_that("referencial hace explícitos clave valor completitud y alcance", {
   )
   expect_error(
     referencial(data.frame(codigo = c("A", "A")), "codigo"),
-    "unívocamente"
+    "un.*vocamente"
   )
 })
 

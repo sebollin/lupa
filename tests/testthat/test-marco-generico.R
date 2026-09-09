@@ -70,7 +70,7 @@ test_that("los marcos y familias rechazan declaraciones inconsistentes", {
     marco_calidad("x", data.frame(
       dimension = c("A", "A"), factor = c("B", "B")
     )),
-    "único"
+    ".*nico"
   )
   base <- data.frame(dimension = "A", factor = "B")
   expect_error(

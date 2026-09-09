@@ -41,7 +41,7 @@ test_that("el muestreo y los ausentes quedan documentados", {
 })
 
 test_that("se validan los argumentos de patrones", {
-  expect_error(descubrir_patrones(list(1, 2)), "vector atómico")
+  expect_error(descubrir_patrones(list(1, 2)), "vector at.*mico")
   expect_error(descubrir_patrones("a", max_patrones = 0), "positivo")
   expect_error(descubrir_patrones("a", muestra = 0), "positivo")
   expect_error(descubrir_patrones("a", umbral_raro = 2), "entre 0 y 1")

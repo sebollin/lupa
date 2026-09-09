@@ -432,7 +432,7 @@ test_that("los caminos incompatibles o inválidos tienen mensajes claros", {
       datos, columnas = "x", estrategia = "lsh", lotes = TRUE,
       lsh_muestra_estimacion = 10L
     ),
-    "sólo está disponible"
+    "s.*lo est.* disponible"
   )
   expect_error(
     estimar_costo(data.frame(x = "a"), perfil = perfilar(data.frame(y = "a"))),
@@ -1042,7 +1042,7 @@ test_that("valida entradas y tipos no comparables", {
                "medida")
   expect_error(detectar_duplicados_aproximados(datos, umbral = -1), "finito")
   expect_error(detectar_duplicados_aproximados(datos, muestra = 1.5), "muestra")
-  expect_error(detectar_duplicados_aproximados(datos, normalizar = NA), "lógicos")
+  expect_error(detectar_duplicados_aproximados(datos, normalizar = NA), "l.*gicos")
   expect_error(detectar_duplicados_aproximados(datos, bloque = Inf), "bloque")
   expect_error(detectar_duplicados_aproximados(datos, bloque = 1.5), "bloque")
   tesela_vacia <- lupa:::.comparar_bloques_duplicados(

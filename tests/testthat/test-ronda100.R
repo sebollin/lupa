@@ -82,7 +82,11 @@ test_that("las reglas por medida conservan su contrato", {
   )
   expect_error(
     evaluar(medicion, perfil_evaluacion("Inválido", regla_escalar)),
-    "debe devolver lógicos sin NA, uno por medida", fixed = TRUE
+    # Sin `fixed = TRUE`: el patron lleva `.*` en lugar del acento, porque bajo
+    # `LC_CTYPE=C` el mensaje sale escapado -`l<U+00F3>gicos`- y una comparacion
+    # literal no casa. El mensaje no tiene metacaracteres, asi que como expresion
+    # regular sigue siendo igual de especifico.
+    "debe devolver l.*gicos sin NA, uno por medida"
   )
 })
 

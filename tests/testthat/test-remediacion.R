@@ -294,7 +294,7 @@ test_that("la aplicación rechaza deriva de esquema y planes inválidos", {
 
   duplicado <- plan
   duplicado$id_accion[] <- "misma"
-  expect_error(aplicar(duplicado, datos), "únicos")
+  expect_error(aplicar(duplicado, datos), ".*nicos")
 
   con_na <- plan
   con_na$aplicar[[1L]] <- NA
@@ -401,10 +401,10 @@ test_that("las transformaciones internas validan su contrato", {
     lupa:::.reemplazar_sentinelas_numericos(
       as.Date("2020-01-01"), list(valores = 999)
     ),
-    "texto o números"
+    "texto o n.*meros"
   )
   expect_error(lupa:::.recortar_texto(1:2), "columna de texto")
-  expect_error(lupa:::.convertir_logico(c("sí", "quizás")), "lógico")
+  expect_error(lupa:::.convertir_logico(c("sí", "quizás")), "l.*gico")
   expect_error(
     lupa:::.convertir_fecha("2020-01-01", list(formatos = character())),
     "formatos confirmados"
@@ -437,7 +437,7 @@ test_that("las transformaciones internas validan su contrato", {
   )
   expect_error(
     lupa:::.convertir_tipo("1", list(tipo = "texto")),
-    "No hay una conversión"
+    "No hay una conversi.*n"
   )
   expect_false(any(lupa:::.marca_outliers(c(NA_real_, NA_real_))))
 })

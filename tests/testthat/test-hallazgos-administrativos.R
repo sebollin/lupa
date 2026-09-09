@@ -63,7 +63,7 @@ test_that("los faltantes textuales inequívocos conservan severidad error", {
   expect_true(hallazgo$severidad == "error")
   expect_error(
     perfilar(data.frame(x = 1), sentinelas_numericos = "999"),
-    "vector numérico"
+    "vector num.*rico"
   )
 })
 
