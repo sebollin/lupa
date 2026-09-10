@@ -351,8 +351,10 @@ test_that("UTF-8 inválido se aísla y se declara sin reinterpretarlo", {
   expect_identical(datos$x, valores)
   expect_equal(fila$n, 3L)
   expect_equal(fila$n_codificacion_invalida, 2L)
-  expect_equal(fila$n_distintos, 1L)
-  expect_equal(fila$moda, "sano")
+  expect_equal(fila$n_distintos, 2L)
+  expect_equal(fila$frecuencia_moda, 2L)
+  expect_equal(fila$tasa_distintos, 2 / 3)
+  expect_identical(lupa:::.clave_bytes(fila$moda), lupa:::.clave_bytes(mala))
   hallazgo <- perfil$hallazgos[
     perfil$hallazgos$tipo_hallazgo == "codificacion_invalida", , drop = FALSE
   ]

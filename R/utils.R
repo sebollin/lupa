@@ -443,6 +443,19 @@
   # convierte sin perder nada. Lo que queda invalido despues de eso es texto cuya
   # codificacion nadie declaro y no se puede adivinar; eso si se descarta, y se
   # informa en `invalidos` y `posiciones`.
+  # `bytes` no declara una codificacion: declara que R no debe traducir la
+  # cadena. Eso es correcto para bytes arbitrarios, pero una cadena marcada asi
+  # puede contener UTF-8 valido. En ese caso se puede tratar sin perdida:
+  # marcarla como UTF-8 antes de que lleguen `tolower()`, `trimws()` o las
+  # expresiones regulares. Los bytes invalidos siguen el camino de texto no
+  # descifrable de abajo.
+  bytes_validos <- !is.na(valores) & Encoding(valores) == "bytes" &
+    validUTF8(valores)
+  if (any(bytes_validos)) {
+    marcados <- valores[bytes_validos]
+    Encoding(marcados) <- "UTF-8"
+    valores[bytes_validos] <- marcados
+  }
   declarados <- Encoding(valores) %in% c("latin1", "UTF-8")
   if (any(declarados)) {
     convertidos <- suppressWarnings(
@@ -457,7 +470,10 @@
   if (length(posiciones)) valores[posiciones] <- NA_character_
   list(
     valores = valores, invalidos = invalidos, posiciones = posiciones,
-    analizable = TRUE, valores_identidad = valores, motivo = NA_character_
+    # La igualdad y la descripcion textual tienen universos distintos. La
+    # primera puede contar bytes invalidos sin decodificarlos; la segunda los
+    # excluye y los declara mediante `posiciones`.
+    analizable = TRUE, valores_identidad = x, motivo = NA_character_
   )
 }
 
@@ -594,6 +610,8 @@
 
 .marcar_utf8_tabla <- function(tabla) {
   if (!inherits(tabla, "data.frame") || !ncol(tabla)) return(tabla)
+  nombres <- .marcar_utf8_textos(names(tabla))
+  if (!identical(nombres, names(tabla))) names(tabla) <- nombres
   for (i in seq_along(tabla)) {
     columna <- tabla[[i]]
     if (!length(columna)) next

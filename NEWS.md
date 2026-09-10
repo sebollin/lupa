@@ -2,6 +2,21 @@
 
 ## Lo que se mide contra lo que se declara
 
+- **`perfilar()` podía abortar bajo `LC_CTYPE=C` por un nombre de columna con
+  UTF-8 válido marcado como `unknown`.** El marcado de entrada ahora cubre
+  también `names(datos)`, no sólo los valores.
+- **`Encoding() == "bytes"` no distinguía bytes arbitrarios de UTF-8 válido.**
+  Las dos APIs públicas, `perfilar()` e `inferir_tipo()`, marcan como UTF-8 los
+  bytes válidos antes de analizarlos; los bytes inválidos siguen declarados como
+  texto no descifrable.
+- **La identidad de una columna podía ignorar valores con bytes UTF-8 inválidos.**
+  `n_distintos`, `moda`, `frecuencia_moda` y sus denominadores ahora comparan la
+  representación almacenada mediante claves de bytes, sin usar esa clave para
+  plegar ni reinterpretar el texto.
+- **Una columna compuesta sólo por valores de texto inválidos publicaba ceros de
+  reparación y `unicode_evaluado = TRUE`.** Esas pasadas ahora quedan en `NA` y
+  la bandera declara que no se evaluaron; `n_codificacion_invalida` y su
+  hallazgo de error conservan la advertencia sobre los valores excluidos.
 - **`perfilar()` abortaba con un CSV en español bajo un locale que no fuera
   UTF-8.** `read.csv()` deja los textos con `Encoding()` en `unknown` —el caso
   más común que existe en español— y cualquier operación que exija UTF-8 los

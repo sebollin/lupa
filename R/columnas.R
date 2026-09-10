@@ -42,6 +42,42 @@
     return(list(valor = distintos[[posicion]],
                 frecuencia = as.integer(frecuencias[[posicion]])))
   }
+  # Los valores invalidos no se pueden leer como texto, pero si se pueden
+  # comparar por su representacion de bytes. La clave es solo para igualdad y
+  # desempate: la moda publicada sigue siendo el valor almacenado original.
+  if (is.character(x) || is.factor(x)) {
+    claves <- .clave_bytes(x)
+    validos_clave <- !is.na(x) & !is.na(claves)
+    if (!any(validos_clave)) {
+      return(list(valor = NA_character_, frecuencia = 0L))
+    }
+    sobre <- .mapa_distintos_bloques(claves)
+    por_bloques <- .moda_mapa_distintos(sobre)
+    if (!is.null(por_bloques)) {
+      indice <- match(por_bloques$valor, claves, nomatch = 0L)
+      if (length(indice) && indice[[1L]] > 0L) {
+        return(list(
+          valor = .texto_valor(x[indice[[1L]]]),
+          frecuencia = por_bloques$frecuencia
+        ))
+      }
+    }
+    valores <- claves[validos_clave]
+    unicos <- unique(valores)
+    indices <- match(valores, unicos)
+    frecuencias <- tabulate(indices, nbins = length(unicos))
+    maximas <- which(frecuencias == max(frecuencias))
+    if (length(maximas) > 1L) {
+      orden <- .orden_seguro(unicos[maximas])
+      if (length(orden) == length(maximas)) maximas <- maximas[orden]
+    }
+    posicion <- maximas[[1L]]
+    indice <- which(validos_clave)[match(unicos[[posicion]], valores)]
+    return(list(
+      valor = .texto_valor(x[indice[[1L]]]),
+      frecuencia = as.integer(frecuencias[[posicion]])
+    ))
+  }
   por_bloques <- .moda_mapa_distintos(.mapa_distintos_bloques(x))
   if (!is.null(por_bloques)) return(por_bloques)
   valores <- x[validos]
@@ -1676,6 +1712,21 @@
   }
   validos <- !is.na(textos)
   if (!any(validos)) {
+    if (length(preparacion$posiciones)) {
+      campos_codificacion <- c(
+        "n_codificacion_rota", "n_codificacion_reparable",
+        "n_codificacion_reparable_parcialmente", "n_codificacion_irreparable",
+        "n_codificacion_no_se_pudo"
+      )
+      vacio[campos_codificacion] <- lapply(
+        campos_codificacion, function(.) NA_integer_
+      )
+      vacio$estado_codificacion_reparacion <- NA_character_
+      # `n_codificacion_invalida` sigue contando los valores y el hallazgo de
+      # error sigue explicando su exclusion; estas banderas declaran que las
+      # pasadas que dependen de texto valido no llegaron a ejecutarse.
+      vacio$unicode_evaluado <- FALSE
+    }
     return(vacio)
   }
 
@@ -1788,6 +1839,11 @@
   validos <- tryCatch(!is.na(x), error = function(e) NULL)
   if (is.null(validos) || length(validos) != length(x)) return(NA_integer_)
   if (!any(validos)) return(0L)
+  if (is.character(x) || is.factor(x)) {
+    claves <- .clave_bytes(x)
+    if (any(validos & is.na(claves))) return(NA_integer_)
+    return(as.integer(length(unique(claves[validos]))))
+  }
   # El acumulador de distintos conserva valores atomicos. Las columnas de
   # listas (incluidas `sfc` y `POSIXlt`) siguen necesitando la igualdad de la
   # pasada unica: intentar guardarlas como representantes del data.frame del
@@ -2011,7 +2067,11 @@
   # derecho propio, no algo para descartar en silencio.
   n_presentes_fuera <- sum(!is.na(x) & !aplicable)
   n_codificacion_invalida <- length(preparacion_texto$posiciones)
-  n_validos <- n_aplicables - n_faltantes - n_codificacion_invalida
+  # La identidad describe la representacion almacenada: los bytes invalidos
+  # se pueden distinguir sin decodificarlos y no son faltantes. Los analisis
+  # textuales tienen su propio alcance, declarado por
+  # `n_codificacion_invalida` y el hallazgo correspondiente.
+  n_validos <- n_aplicables - n_faltantes
   n_distintos <- .n_distintos_columna(x_identidad)
   valor_concentrado <- .estadisticos_valor_concentrado(x_identidad)
   vocabulario_texto <- if (

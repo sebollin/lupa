@@ -3199,13 +3199,10 @@
     resultado <- resultados[[i]]
     fila <- resultado$fila
     nombre <- columnas[[i]]
-    n_invalidos <- if ("n_codificacion_invalida" %in% names(fila) &&
-        is.finite(fila$n_codificacion_invalida)) {
-      fila$n_codificacion_invalida
-    } else {
-      0L
-    }
-    n_validos <- fila$n - fila$n_faltantes - n_invalidos
+    # `n_distintos`, la moda y la constante describen la representacion
+    # almacenada, que tambien puede comparar bytes invalidos. La exclusion de
+    # esos valores pertenece al analisis textual y ya se declara aparte.
+    n_validos <- fila$n_aplicables - fila$n_faltantes
 
     geometria <- resultado$geometria
     # La columna se reconocio como geometrica y no se pudo convertir: la
