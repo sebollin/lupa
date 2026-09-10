@@ -222,10 +222,14 @@ test_that("el pliegue de mayusculas de los hallazgos no depende del locale", {
   Encoding(mayuscula) <- "UTF-8"
   Encoding(minuscula) <- "UTF-8"
 
-  # `tolower()` bajo `C` no baja el acento: los dos valores dejaban de pertenecer
-  # al mismo grupo, y como la trazabilidad si los juntaba, el paquete emitia su
-  # propio aviso de defecto sobre una tabla perfectamente ordinaria.
-  expect_false(identical(tolower(mayuscula), minuscula))
+  # NO se afirma nada sobre `tolower()`: que baje o no el acento bajo `C` es una
+  # propiedad de la PLATAFORMA -glibc no lo baja, macOS y Windows si- y no del
+  # paquete. Una version anterior de esta prueba lo afirmaba y fallaba en
+  # `macos-latest` y `windows-latest` mientras pasaba en Linux: medía el sistema
+  # operativo, no `lupa`.
+  #
+  # Lo que si es del paquete, y vale en todos lados: su ayudante pliega el acento
+  # sea cual sea el locale, y el perfil no emite su aviso de defecto propio.
   expect_identical(
     lupa:::.normalizacion_minusculas_vector(mayuscula), minuscula
   )
