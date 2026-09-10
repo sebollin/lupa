@@ -285,6 +285,15 @@ test_that("perfilar sobrevive a un CSV en espanol bajo LC_CTYPE=C", {
   expect_equal(perfil$columnas$n_distintos[[1L]], 2L)
   expect_true("mayusculas_inconsistentes" %in% perfil$hallazgos$tipo)
 
+  # Un FACTOR con el mismo texto tiene que comportarse igual: sus niveles son
+  # cadenas y sin marcarlos quedaba la mitad del problema afuera —la misma
+  # columna emitia 0 avisos como `character` y 21 como `factor`—.
+  como_factor <- suppressWarnings(perfilar(
+    data.frame(x = factor(c(rep(minuscula, 3L), rep(mayuscula, 2L)))),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  ))
+  expect_equal(como_factor$columnas$n_distintos[[1L]], 2L)
+
   # Y un byte que NO es UTF-8 valido tampoco aborta: se repara, no se cae.
   roto <- rawToChar(as.raw(c(0x41, 0xff, 0x42)))
   expect_false(validUTF8(roto))

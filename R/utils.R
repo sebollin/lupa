@@ -581,19 +581,38 @@
 # Solo se marca lo que YA es UTF-8 valido. Un texto realmente latin1 tiene bytes
 # que no lo son, `validUTF8()` da `FALSE` y se lo deja como esta: el paquete lo
 # trata despues por el camino de `texto_no_descifrable`, que existe para eso.
+.marcar_utf8_textos <- function(textos) {
+  sin_marca <- !is.na(textos) & Encoding(textos) == "unknown"
+  if (!any(sin_marca)) return(textos)
+  marcables <- sin_marca & validUTF8(textos)
+  if (!any(marcables)) return(textos)
+  trozo <- textos[marcables]
+  Encoding(trozo) <- "UTF-8"
+  textos[marcables] <- trozo
+  textos
+}
+
 .marcar_utf8_tabla <- function(tabla) {
   if (!inherits(tabla, "data.frame") || !ncol(tabla)) return(tabla)
   for (i in seq_along(tabla)) {
     columna <- tabla[[i]]
-    if (!is.character(columna) || !length(columna)) next
-    sin_marca <- !is.na(columna) & Encoding(columna) == "unknown"
-    if (!any(sin_marca)) next
-    marcables <- sin_marca & validUTF8(columna)
-    if (!any(marcables)) next
-    trozo <- columna[marcables]
-    Encoding(trozo) <- "UTF-8"
-    columna[marcables] <- trozo
-    tabla[[i]] <- columna
+    if (!length(columna)) next
+    # Los NIVELES de un factor son cadenas igual, y sin esto quedaban afuera: la
+    # misma columna como `character` no emitia un aviso y como `factor` emitia
+    # veintiuno bajo un locale que no es UTF-8. Recorrer solo `is.character()`
+    # dejaba la mitad del problema sin tocar.
+    if (is.factor(columna)) {
+      niveles <- levels(columna)
+      if (!length(niveles)) next
+      marcados <- .marcar_utf8_textos(niveles)
+      if (!identical(marcados, niveles)) {
+        levels(tabla[[i]]) <- marcados
+      }
+      next
+    }
+    if (!is.character(columna)) next
+    marcados <- .marcar_utf8_textos(columna)
+    if (!identical(marcados, columna)) tabla[[i]] <- marcados
   }
   tabla
 }
