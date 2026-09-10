@@ -2,6 +2,13 @@
 
 ## Lo que se mide contra lo que se declara
 
+- **El marcado de la entrada decidía con `identical()`, cuya respuesta depende
+  del locale.** Con los mismos bytes, una cadena `unknown` y otra `UTF-8` son
+  idénticas bajo un locale UTF-8 y distintas bajo `C`, así que el marcado de
+  nombres y de niveles de factor acertaba en un locale y era un no-op en el
+  otro. Ahora decide comparando la marca, que es lo que el marcado cambia.
+- **Una tabla sin `names()` moría dentro del marcado**, antes de llegar a
+  ninguna validación. Lo que no es texto pasa intacto.
 - **`perfilar()` podía abortar bajo `LC_CTYPE=C` por un nombre de columna con
   UTF-8 válido marcado como `unknown`.** El marcado de entrada ahora cubre
   también `names(datos)`, no sólo los valores.

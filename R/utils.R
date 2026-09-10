@@ -598,6 +598,12 @@
 # que no lo son, `validUTF8()` da `FALSE` y se lo deja como esta: el paquete lo
 # trata despues por el camino de `texto_no_descifrable`, que existe para eso.
 .marcar_utf8_textos <- function(textos) {
+  # Sin esta guarda, una tabla con `names()` en `NULL` moria en `Encoding(NULL)`
+  # con "a character vector argument expected", un error de R que no dice nada
+  # del dato. El paquete ya tiene su propio mensaje para ese caso -"`names` debe
+  # ser un vector de caracteres"- y este marcado, que corre antes que la
+  # validacion, se lo estaba comiendo.
+  if (!is.character(textos) || !length(textos)) return(textos)
   sin_marca <- !is.na(textos) & Encoding(textos) == "unknown"
   if (!any(sin_marca)) return(textos)
   marcables <- sin_marca & validUTF8(textos)
@@ -608,10 +614,27 @@
   textos
 }
 
+# `identical()` no sirve para decidir si el marcado cambio algo: su respuesta
+# DEPENDE DEL LOCALE. Con los mismos bytes, una cadena `unknown` y otra `UTF-8`
+# son identicas bajo un locale UTF-8 -ahi lo nativo ya es UTF-8- y distintas bajo
+# `C`. Medido en las dos: `TRUE` bajo `es_UY.UTF-8`, `FALSE` bajo `LC_ALL=C`.
+#
+# O sea que la condicion acertaba justo donde hacia falta y era un no-op donde no,
+# por casualidad. Dejar una guarda cuya respuesta depende del locale, dentro del
+# marcado que existe para que el resultado NO dependa del locale, es contradecir
+# el motivo de la funcion. Se compara la marca, que es lo que el marcado cambia.
+.marca_cambio <- function(despues, antes) {
+  # `Encoding()` exige un vector de caracteres. Lo que no lo es no se marco, asi
+  # que no cambio: contestar `FALSE` deja pasar el dato intacto y deja que lo
+  # rechace la validacion del paquete, con su mensaje, y no esta funcion.
+  if (!is.character(despues) || !is.character(antes)) return(FALSE)
+  !identical(Encoding(despues), Encoding(antes))
+}
+
 .marcar_utf8_tabla <- function(tabla) {
   if (!inherits(tabla, "data.frame") || !ncol(tabla)) return(tabla)
   nombres <- .marcar_utf8_textos(names(tabla))
-  if (!identical(nombres, names(tabla))) names(tabla) <- nombres
+  if (.marca_cambio(nombres, names(tabla))) names(tabla) <- nombres
   for (i in seq_along(tabla)) {
     columna <- tabla[[i]]
     if (!length(columna)) next
@@ -623,14 +646,14 @@
       niveles <- levels(columna)
       if (!length(niveles)) next
       marcados <- .marcar_utf8_textos(niveles)
-      if (!identical(marcados, niveles)) {
+      if (.marca_cambio(marcados, niveles)) {
         levels(tabla[[i]]) <- marcados
       }
       next
     }
     if (!is.character(columna)) next
     marcados <- .marcar_utf8_textos(columna)
-    if (!identical(marcados, columna)) tabla[[i]] <- marcados
+    if (.marca_cambio(marcados, columna)) tabla[[i]] <- marcados
   }
   tabla
 }

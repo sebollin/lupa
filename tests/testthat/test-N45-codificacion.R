@@ -83,3 +83,57 @@ test_that("N45: un universo textual inv\u00e1lido no publica ceros de reparaci\u
   expect_equal(fila$n_codificacion_invalida, 3L)
   expect_true(any(perfil$hallazgos$tipo_hallazgo == "codificacion_invalida"))
 })
+
+test_that("el marcado de la entrada no agrega un modo de falla propio", {
+  # `.marcar_utf8_tabla()` corre ANTES de cualquier validacion. Cuando empezo a
+  # mirar `names()`, una tabla sin nombres moria adentro del marcado, en
+  # `Encoding(NULL)`. El marcado no valida ni rechaza: declara una codificacion.
+  # Lo que no es texto no se marco, asi que pasa intacto y lo trata quien
+  # corresponda.
+  #
+  # No se afirma NINGUN texto de mensaje: el que sale es de base R y viene
+  # traducido segun el locale de quien corre la prueba, asi que afirmarlo seria
+  # medir la maquina y no el paquete.
+  sin_nombres <- data.frame(x = 1:3)
+  names(sin_nombres) <- NULL
+  expect_no_error(.marcar_utf8_tabla(sin_nombres))
+  expect_identical(.marcar_utf8_tabla(sin_nombres), sin_nombres)
+  expect_identical(.marcar_utf8_textos(NULL), NULL)
+  expect_identical(.marcar_utf8_textos(character()), character())
+  expect_identical(.marcar_utf8_textos(1:3), 1:3)
+})
+
+test_that("el nombre de columna queda marcado sea cual sea el locale", {
+  # La condicion que decidia si asignar era `!identical(marcados, originales)`, y
+  # `identical()` responde distinto segun el locale: con los mismos bytes, una
+  # cadena `unknown` y otra `UTF-8` son identicas bajo un locale UTF-8 y
+  # distintas bajo `C`. O sea que el marcado era un no-op justo en el locale
+  # donde corre esta suite. Se decide por la marca, que es lo que cambia.
+  nombre <- rawToChar(as.raw(c(0x4e, 0xc3, 0x89, 0x6d, 0x65, 0x72, 0x6f)))
+  expect_identical(Encoding(nombre), "unknown")
+  expect_true(validUTF8(nombre))
+  tabla <- data.frame(1:3, c("x", "y", "z"), stringsAsFactors = FALSE)
+  names(tabla) <- c(nombre, "otro")
+
+  marcada <- .marcar_utf8_tabla(tabla)
+
+  expect_identical(Encoding(names(marcada)[[1L]]), "UTF-8")
+  # Marcar declara la codificacion; no cambia un byte.
+  expect_identical(charToRaw(names(marcada)[[1L]]), charToRaw(nombre))
+  # Y lo mismo para los niveles de un factor, que decidian con la misma condicion.
+  con_factor <- data.frame(
+    f = factor(c(nombre, "otro", nombre)), stringsAsFactors = FALSE
+  )
+  marcada_f <- .marcar_utf8_tabla(con_factor)
+  niveles <- levels(marcada_f$f)
+  # El nivel se busca por sus BYTES, no con `==`. Comparar cadenas traduce al
+  # locale, asi que `levels(f) == nombre` encuentra el nivel bajo un locale UTF-8
+  # y no lo encuentra bajo `C` -medido: `character(0)`-. Seleccionar asi haria
+  # que la prueba midiera el locale de quien la corre, que es exactamente el
+  # defecto que se retiro de `test-locale.R` esta misma jornada.
+  coincide <- vapply(
+    niveles, function(z) identical(charToRaw(z), charToRaw(nombre)), logical(1L)
+  )
+  expect_true(any(coincide))
+  expect_identical(Encoding(niveles[coincide]), "UTF-8")
+})
