@@ -45,6 +45,10 @@
 <div class="section level3">
 <h3 id="lo-que-se-mide-contra-lo-que-se-declara-0-1-0">Lo que se mide contra lo que se declara<a class="anchor" aria-label="anchor" href="#lo-que-se-mide-contra-lo-que-se-declara-0-1-0"></a></h3>
 <ul><li>
+<strong>El marcado de la entrada decidía con <code><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical()</a></code>, cuya respuesta depende del locale.</strong> Con los mismos bytes, una cadena <code>unknown</code> y otra <code>UTF-8</code> son idénticas bajo un locale UTF-8 y distintas bajo <code>C</code>, así que el marcado de nombres y de niveles de factor acertaba en un locale y era un no-op en el otro. Ahora decide comparando la marca, que es lo que el marcado cambia.</li>
+<li>
+<strong>Una tabla sin <code><a href="https://rdrr.io/r/base/names.html" class="external-link">names()</a></code> moría dentro del marcado</strong>, antes de llegar a ninguna validación. Lo que no es texto pasa intacto.</li>
+<li>
 <strong><code><a href="../reference/perfilar.html">perfilar()</a></code> podía abortar bajo <code>LC_CTYPE=C</code> por un nombre de columna con UTF-8 válido marcado como <code>unknown</code>.</strong> El marcado de entrada ahora cubre también <code>names(datos)</code>, no sólo los valores.</li>
 <li>
 <strong><code>Encoding() == "bytes"</code> no distinguía bytes arbitrarios de UTF-8 válido.</strong> Las dos APIs públicas, <code><a href="../reference/perfilar.html">perfilar()</a></code> e <code><a href="../reference/inferir_tipo.html">inferir_tipo()</a></code>, marcan como UTF-8 los bytes válidos antes de analizarlos; los bytes inválidos siguen declarados como texto no descifrable.</li>
