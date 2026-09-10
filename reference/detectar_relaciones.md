@@ -57,12 +57,14 @@ detectar_relaciones(
 
 ## Value
 
-Data frame con columnas comparadas, cardinalidad, coincidencias,
-coberturas de integridad referencial en ambas direcciones y
-`motivo_poda`, que sólo tiene valor en los pares no comparados. Los
-atributos `filas_totales`, `filas_analizadas` y `muestreado` documentan
-el muestreo; `podas`, `n_pares_totales`, `n_pares_comparados` y
-`n_pares_podados` documentan qué se comparó y qué no.
+Data frame con `columna_tabla1`, `columna_tabla2`, `cardinalidad`
+—`1:1`, `1:m`, `m:1`, `m:m`, `sin_coincidencias` o `sin_comparar`—,
+`n_valores_comunes`, coberturas de integridad referencial en ambas
+direcciones y `motivo_poda`, que sólo tiene valor en los pares no
+comparados. Los atributos `filas_totales`, `filas_analizadas` y
+`muestreado` documentan el muestreo; `podas`, `n_pares_totales`,
+`n_pares_comparados` y `n_pares_podados` documentan qué se comparó y qué
+no.
 
 ## Details
 

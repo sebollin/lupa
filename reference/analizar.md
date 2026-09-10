@@ -10,7 +10,7 @@ tablero, cobertura conceptual y plan de limpieza. No modifica los datos.
 ``` r
 analizar(
   datos,
-  nombre = deparse(substitute(datos)),
+  nombre = .nombre_de_los_datos(substitute(datos)),
   fecha = Sys.time(),
   argumentos_perfil = list(),
   metadatos_variables = NULL,
@@ -187,6 +187,18 @@ analizar(
 
 Objeto S3 `analisis` con todos los componentes y su cobertura.
 
+Dos diferencias respecto de llamar a las funciones sueltas, y las dos
+son deliberadas. La entrada puede ser una matriz de dos dimensiones: se
+la pasa a
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+sin convertir, para que sea él quien la convierta y lo declare en
+`meta$entrada_convertida`. Y cuando una columna temporal pertenece a una
+columna protegida, `temporal$resumen` gana la columna
+`proteccion_temporal` —que
+[`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md)
+no produce— con el texto `[rangos y huecos protegidos]`: la protección
+se aplica y se declara en la misma tabla donde faltan los valores.
+
 ## Details
 
 Por omisión mide todas las sugerencias de la propuesta cuyo estado es
@@ -247,9 +259,9 @@ resultado
 #>                       NoNulo fecha_nacimiento 1.0000000 conformidad      ratio
 #>                       NoNulo          ingreso 1.0000000 conformidad      ratio
 #>                       NoNulo             sexo 1.0000000 conformidad      ratio
-#>                      Formato           correo 0.0000000 conformidad      ratio
+#>                      Formato           correo 0.8461538 conformidad      ratio
 #>                      Formato     departamento 0.9230769 conformidad      ratio
-#>                      Formato       id_tramite 0.0000000 conformidad      ratio
+#>                      Formato       id_tramite 1.0000000 conformidad      ratio
 #>                      Formato             pais 1.0000000 conformidad      ratio
 #>                      Formato             sexo 0.8461538 conformidad      ratio
 #>  ValoresPosiblesPorExtension             sexo 1.0000000 conformidad      ratio

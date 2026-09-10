@@ -33,6 +33,8 @@ guiar_limpieza(
   Función opcional que recibe una lista con `grupo`, `acciones`,
   `elegibles`, `ejemplos` y `opciones`. Debe devolver la posición, el
   identificador o el nombre de una estrategia, o `0` para no hacer nada.
+  `NA` no es un valor válido: se rechaza con un error, para que una
+  lectura fallida no quede registrada como una decisión de omitir.
 
 - diccionarios:
 

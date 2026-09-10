@@ -188,11 +188,11 @@ equivalencia_monto
 #>          campo valor_anterior valor_actual              veredicto               motivo
 #> 3            n              4            5 materialmente_distinto           eje_exacto
 #> 8  n_faltantes              0            0               identico      igualdad_exacta
-#> 33       media             25       25.001            equivalente dentro_de_tolerancia
+#> 34       media             25       25.001            equivalente dentro_de_tolerancia
 #>    tipo_eje tolerancia
 #> 3    exacto       0.01
 #> 8    exacto       0.01
-#> 33 flotante       0.01
+#> 34 flotante       0.01
 ```
 
 La salida muestra los tres veredictos y el motivo de cada fila; la

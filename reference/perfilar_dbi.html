@@ -406,8 +406,13 @@ traduce y lo declara en <code>resumen_tabla$cobertura</code>.</p></dd>
 
 <dt id="arg-sentinelas-numericos">sentinelas_numericos<a class="anchor" aria-label="anchor" href="#arg-sentinelas-numericos"></a></dt>
 <dd><p>Vector completo de valores numéricos que se
-declaran como faltantes en el <code>perfil_muestra</code>. El resumen SQL no los
-excluye de sus agregados y lo declara en <code>resumen_tabla$cobertura</code>.</p></dd>
+declaran como faltantes en el <code>perfil_muestra</code>. Se normaliza como un
+conjunto numérico, por lo que el orden, el tipo entero o doble y los
+duplicados no cambian el resultado. El resumen SQL no los excluye de sus
+agregados y lo declara en <code>resumen_tabla$cobertura</code>.</p>
+<p>Rige la misma reserva que en <code><a href="perfilar.html">perfilar()</a></code>: un valor de la lista <strong>por
+omisión</strong> que aparece una sola vez y dentro del rango de los demás no se
+señala. Declarar el valor lo vuelve a contar.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>

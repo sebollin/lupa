@@ -105,6 +105,13 @@ Así el archivo no serializa entornos de ejecución completos.</p>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p><code>guardar_analisis()</code> devuelve la ruta de forma invisible;
 <code>leer_analisis()</code> devuelve un objeto <code>analisis</code>.</p>
+<p>El objeto guardado gana <code>meta$persistencia</code>, que declara qué se guardó y
+qué no: <code>version_esquema</code>, si los datos viajan (<code>datos_incluidos</code>), si la
+evidencia salió protegida (<code>evidencia_protegida</code>) y cuántas funciones se
+sustituyeron por su descripción (<code>funciones_sustituidas</code>). Es el único
+campo que un objeto leído tiene y el original no: lo que se guarda no es
+idéntico a lo que se analizó, y esa diferencia se declara en vez de
+suponerse.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

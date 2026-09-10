@@ -13,7 +13,9 @@ medir(
   id_medicion = NULL,
   fecha = Sys.time(),
   aplicabilidad = NULL,
-  proteger_datos_personales = TRUE
+  proteger_datos_personales = TRUE,
+  columnas_personales = character(),
+  validadores_personales = NULL
 )
 ```
 
@@ -71,6 +73,24 @@ medir(
   Si se enmascaran los candidatos de proximidad que corresponden a
   columnas personales. Por omisión `TRUE`.
 
+- columnas_personales:
+
+  Columnas que traen datos personales, declaradas con la misma forma que
+  acepta
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  nombres de columna, o un vector con nombre donde el nombre es la
+  columna y el valor es el tipo. Se protegen aunque el léxico por
+  omisión no las reconozca —un nombre propio de la organización, un
+  identificador interno—. Sólo tiene efecto con
+  `proteger_datos_personales = TRUE`.
+
+- validadores_personales:
+
+  Pack o lista nombrada de funciones de validación, con la misma forma
+  que acepta
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md).
+  Sin esto, la medición usa el léxico por omisión.
+
 ## Value
 
 Data frame S3 de clase `medicion`, con una fila por objeto medido. Los
@@ -93,13 +113,13 @@ especifica <- especializar(nucleo$NoNulo, nombre_especifico = "NoNuloEdad")
 instancia <- instanciar(especifica, "personas", "edad")
 medir(modelo(instancia), data.frame(edad = c(20, NA, 35)))
 #>                                     id_medida
-#> 1 medicion-20260905T104904.332093-7428-000001
-#> 2 medicion-20260905T104904.332093-7428-000002
-#> 3 medicion-20260905T104904.332093-7428-000003
+#> 1 medicion-20260910T015109.993299-7633-000001
+#> 2 medicion-20260910T015109.993299-7633-000002
+#> 3 medicion-20260910T015109.993299-7633-000003
 #>                            id_medicion               fecha metrica
-#> 1 medicion-20260905T104904.332093-7428 2026-09-05 10:49:04  NoNulo
-#> 2 medicion-20260905T104904.332093-7428 2026-09-05 10:49:04  NoNulo
-#> 3 medicion-20260905T104904.332093-7428 2026-09-05 10:49:04  NoNulo
+#> 1 medicion-20260910T015109.993299-7633 2026-09-10 01:51:09  NoNulo
+#> 2 medicion-20260910T015109.993299-7633 2026-09-10 01:51:09  NoNulo
+#> 3 medicion-20260910T015109.993299-7633 2026-09-10 01:51:09  NoNulo
 #>   metrica_especifica      metrica_instanciada   dimension   factor orientacion
 #> 1         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad
 #> 2         NoNuloEdad NoNuloEdad@personas.edad Completitud Densidad conformidad

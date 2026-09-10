@@ -27,6 +27,7 @@ perfilar(
   aplicabilidad = NULL,
   ausencia_estructural = TRUE,
   sentinelas_numericos = c(-9, -99, -999, -9999, 999),
+  cadenas_ausencia = NULL,
   analizar_dependencias = TRUE,
   umbral_dependencia = 0.995,
   umbral_casi_clave_dependencia = 0.8,
@@ -225,8 +226,33 @@ perfilar(
 - sentinelas_numericos:
 
   Vector completo de valores numéricos que se interpretan como ausencia.
+  Se normaliza como un conjunto numérico, por lo que el orden, el tipo
+  entero o doble y los duplicados no cambian el resultado.
   [`numeric()`](https://rdrr.io/r/base/numeric.html) los desactiva; las
   cadenas de ausencia se siguen evaluando por separado.
+
+  **La lista por omisión es una sospecha del paquete y se aplica con una
+  reserva**: un valor de esa lista que aparece **una sola vez** y cae
+  **dentro** del rango de los demás valores de la columna no se señala,
+  porque una aparición única es un número y no una convención de
+  ausencia. Un `999` suelto dentro de un catálogo de `1` a `3000` no se
+  acusa; el mismo `999` repetido, o un `-9` fuera del rango, sí.
+
+  La reserva **sólo** rige para la lista por omisión. Si usted declara
+  sus propios valores —o pide
+  [sentinelas_naniar](https://sebollin.github.io/lupa/reference/sentinelas_naniar.md),
+  que es optar por una heurística más ancha—, se cuentan todos, incluida
+  la aparición única. Ésa es también la forma de recuperar el caso que
+  la reserva calla: declarar el valor lo vuelve a contar y además lo
+  saca de los estadísticos del resumen.
+
+- cadenas_ausencia:
+
+  Cadenas que el usuario declara como ausencia, además de la lista
+  incorporada. Lo declarado atraviesa la guarda del vocabulario: `sd`,
+  `nc` y `nd` sólo cuentan solas en columnas de pocos valores distintos
+  —para no acusar a un código de dos letras—, y declararlas las hace
+  contar siempre. Es el equivalente textual de `sentinelas_numericos`.
 
 - analizar_dependencias:
 
@@ -262,7 +288,34 @@ perfilar(
   estadísticos. Para conservar todo en el objeto debe desactivarse
   explícitamente;
   [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
-  aplica además su propia protección predeterminada.
+  aplica además su propia protección predeterminada. El enmascarado es
+  **por columna**: se reemplaza lo que describe a una columna protegida
+  —su moda, sus estadísticos, sus ejemplos y la evidencia de sus
+  hallazgos—, no todas las apariciones de ese texto en la salida. Un
+  valor puede ser vocabulario compartido: `"S/D"` es un centinela de una
+  cédula y a la vez el «sin dato» de `sexo`, y publicarlo en `sexo` no
+  revela nada de la cédula. Lo que **no** tiene columna a la que
+  atribuirse sí se enmascara en toda la salida: un hallazgo de filas
+  duplicadas muestra filas enteras, y los componentes que describen la
+  tabla —`general`, la cobertura, los formatos de fecha— no son de
+  ninguna columna en particular. Ese alcance tiene un **piso**: un valor
+  de una columna protegida que identifique —seis caracteres o más, el
+  mismo corte con el que la batería de fugas decide qué cuenta como
+  filtración— no se publica en ninguna parte, tenga o no columna a la
+  que atribuirse, y también en los campos numéricos. Sin ese piso, una
+  columna que el clasificador no marcó publicaba los documentos de la
+  protegida con sólo repetirlos: una copia con nombre neutro, un texto
+  libre que los contuviera, o los estadísticos de orden de una columna
+  clasificada con poder discriminante `debil`. El vocabulario corto no
+  entra en el piso: `"S/D"` sigue publicándose donde describe a una
+  columna que no es personal. El piso alcanza además la **forma sin
+  separadores**: `"771.771-01"` es el mismo documento que `"77177101"`,
+  y la celda entera se enmascara. Y lo aplican también
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  y
+  [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
+  que antes protegían sólo por columna y publicaban lo que `perfilar()`
+  tapaba sobre la misma tabla.
 
 - columnas_personales:
 
@@ -635,7 +688,9 @@ legítimos. `sentinelas_numericos` representa la política completa, no
 una lista que se agrega silenciosamente: use
 [`numeric()`](https://rdrr.io/r/base/numeric.html) para desactivar todos
 los sentinelas numéricos, o `sentinelas_naniar` para solicitar
-explícitamente la lista de naniar.
+explícitamente la lista de naniar. La política se normaliza como un
+conjunto numérico: el orden, el tipo entero o doble, los duplicados y
+los `NA` no cambian su interpretación.
 
 `muestra` limita el descubrimiento de patrones, la inferencia de tipos,
 la detección de formatos de fecha y la búsqueda de dependencias
@@ -749,7 +804,14 @@ la clase no admite comparación, informa `NA` en lugar de afirmar cero.
 Las columnas matriciales se conservan como una unidad por fila: `n`
 informa las filas de la tabla, pero los estadísticos por valor quedan en
 `NA` y un hallazgo explica que deben separarse en columnas con semántica
-explícita.
+explícita. Cuando todos los valores válidos aparecen una sola vez **no
+hay moda**, y `moda` queda en `NA`. Lo que se publicaría es el ganador
+de un desempate de tantas vías como valores haya, y ese desempate sigue
+el orden de ordenamiento, que depende de cómo esté guardada la columna:
+la misma columna `c(-5.5, -1, 0, 3.75)` daba `-5.5` como número y `-1`
+como texto. `frecuencia_moda` se conserva —vale 1, es cierto y es la
+evidencia de por qué la moda quedó callada—. Con un solo valor distinto
+sí hay moda, aunque su frecuencia sea 1: ahí no hay empate que resolver.
 
 Una columna numérica emite `valor_concentrado` como señal `sospechoso`
 cuando tiene al menos 20 valores válidos y 10 valores distintos, y su
@@ -808,6 +870,22 @@ aunque sólo se normalizan mediante una acción explícita, y ZWJ/ZWNJ se
 informan pero se conservan porque pueden ser semánticos. La comparación
 de duplicados con `normalizar = TRUE` aplica estas mismas clases sin
 borrar ZWJ/ZWNJ.
+
+Un valor `double` **subnormal** —distinto de cero y menor que
+`.Machine$double.xmin` en valor absoluto, unos 2,2e-308— casi siempre
+sale de reinterpretar un patrón de bits o de un desbordamiento por
+defecto. El hallazgo `valores_subnormales` los cuenta y da sus filas,
+con severidad `sospechoso`. El caso que motiva el diagnóstico es leer
+una tabla donde una columna de enteros grandes se escribió como doble
+reinterpretando los bits: los números salen del orden de 1e-314 y, al
+venir así desde el origen, ninguna comprobación cruzada los contradice.
+
+**No es concluyente, y el hallazgo no lo afirma.** Un cálculo que
+desborda por defecto cae legítimamente en ese rango —`2^-1050` da
+8,3e-317—, y una columna de p-valores o de verosimilitudes muy pequeñas
+puede dispararlo sin que haya nada roto. Lo que se publica es el hecho
+medido —cuántos valores son subnormales y en qué filas—, no un veredicto
+sobre su origen.
 
 Los resúmenes de fecha-hora se expresan siempre en UTC y llevan el
 sufijo `UTC` en el texto para hacer visible la zona aplicada. El
@@ -953,6 +1031,49 @@ grupos se retiran los valores que el mismo perfil ya informó como
 precedencia: un centinela no se presenta también como posible variante
 de un valor válido. El alcance declara cuántas observaciones retiró este
 filtro.
+
+La corazonada de centinelas numéricos se apaga sobre una **numeración
+limpia**, para no llamar ausencia a un código válido. `densa` responde
+sólo a la cobertura del rango —`densidad_secuencia_entera` por encima de
+su umbral—; `moda_sobresale_secuencia_entera` es una señal independiente
+y no cambia los tres escudos de forma que dependen de la numeración. La
+guarda vuelve a abrirse si un candidato presente queda fuera del rango
+de los valores restantes de la numeración, o si la frecuencia del
+candidato es la moda sobresaliente. Esta segunda señal se mide por el
+**salto entre frecuencias consecutivas**, ordenadas de mayor a menor y
+mirando sólo las primeras posiciones. Es el mismo idioma que
+`salto_de_escala_secuencia_entera` usa con los huecos: lo que delata a
+un centinela no es que su frecuencia sea grande, sino que haya un
+**acantilado** entre el grupo que sobresale y el resto de la
+distribución.
+
+Comparar contra un valor concreto no alcanza, y cada intento lo rompió
+un caso distinto: contra el **segundo** valor, un señuelo legítimo y
+frecuente infla el segundo puesto; contra la frecuencia **típica**
+exigiendo forma de numeración, un centinela masivo sobre una clave
+foránea nunca la tiene; y con las dos juntas, **varios centinelas
+empatados se cubren entre sí** —tres valores con la misma frecuencia
+dejan «máximo igual al segundo» y la comparación vacía—. El acantilado
+ve los tres porque no le importa quién es el segundo sino dónde se corta
+la distribución.
+
+Se miran sólo las primeras posiciones porque el grupo que sobresale está
+arriba: en la cola, una caída de dos apariciones a una da un salto que
+no dice nada de la columna. Medido sobre las diez columnas numéricas del
+banco real y dos formas de clave foránea, ninguna pasa de 1,71; los
+casos que hay que atrapar van de 4,75 a 249. Perder la condición de
+numeración no genera un hallazgo por sí solo: sólo devuelve la columna a
+la mirada de la lista de centinelas. En una numeración compacta, un
+candidato fuera de rango también abre la guarda aunque su frecuencia no
+forme un acantilado.
+
+El factor de frecuencia sólo califica la señal `moda_sobresale`: una
+caída menor no abre esa vía, pero tampoco bloquea la vía independiente
+del rango. Así, un candidato fuera de rango se informa aunque aparezca
+cuatro veces y no forme un acantilado. Lo que el usuario declara con
+`sentinelas_numericos` atraviesa la guarda y se informa con severidad
+`error`, que es la regla general del paquete: excluye lo que se declara
+e incluye lo que sospecha.
 
 La clasificación de posibles datos personales es más amplia que la
 protección. Cada clasificación declara `poder_discriminante` y
@@ -1171,61 +1292,61 @@ summary(perfil)
 #> 8                             NA                            FALSE
 #> 9                              1                            FALSE
 #> 10                            NA                            FALSE
-#>    umbral_densidad_secuencia_entera min_distintos_secuencia_entera
-#> 1                               0.8                             20
-#> 2                               0.8                             20
-#> 3                               0.8                             20
-#> 4                               0.8                             20
-#> 5                               0.8                             20
-#> 6                               0.8                             20
-#> 7                               0.8                             20
-#> 8                               0.8                             20
-#> 9                               0.8                             20
-#> 10                              0.8                             20
-#>                 moda frecuencia_moda longitud_minima longitud_maxima
-#> 1  [valor protegido]               2              NA              NA
-#> 2  [valor protegido]               2               3              11
-#> 3  [valor protegido]               2               4              10
-#> 4                  F               6               0               3
-#> 5              25000               2              NA              NA
-#> 6            Florida               2               5              10
-#> 7                 UY              13               2               2
-#> 8  [valor protegido]               2              10              26
-#> 9  [valor protegido]               2              NA              NA
-#> 10             TR001               2               5               5
-#>    longitud_media minimo  maximo        media mediana       desvio
-#> 1              NA     NA      NA           NA      NA 3.546396e+00
-#> 2        9.692308     NA      NA           NA      NA           NA
-#> 3        9.384615     NA      NA           NA      NA 1.191710e+08
-#> 4        1.076923     NA      NA           NA      NA           NA
-#> 5              NA    -99 9999999 7.900192e+05   29900 2.767287e+06
-#> 6        7.461538     NA      NA           NA      NA           NA
-#> 7        2.000000     NA      NA           NA      NA           NA
-#> 8       23.923077     NA      NA           NA      NA           NA
-#> 9              NA      1      11 5.923077e+00       6 3.546396e+00
-#> 10       5.000000     NA      NA           NA      NA           NA
-#>    minimo_exacto maximo_exacto      minimo_fecha      maximo_fecha
-#> 1           <NA>          <NA>              <NA>              <NA>
-#> 2           <NA>          <NA>              <NA>              <NA>
-#> 3           <NA>          <NA> [valor protegido] [valor protegido]
-#> 4           <NA>          <NA>              <NA>              <NA>
-#> 5           <NA>          <NA>              <NA>              <NA>
-#> 6           <NA>          <NA>              <NA>              <NA>
-#> 7           <NA>          <NA>              <NA>              <NA>
-#> 8           <NA>          <NA>              <NA>              <NA>
-#> 9           <NA>          <NA>              <NA>              <NA>
-#> 10          <NA>          <NA>              <NA>              <NA>
-#>          media_fecha     mediana_fecha n_fechas_resumidas
-#> 1               <NA>              <NA>                 NA
-#> 2               <NA>              <NA>                 NA
-#> 3  [valor protegido] [valor protegido]                 11
-#> 4               <NA>              <NA>                 NA
-#> 5               <NA>              <NA>                 NA
-#> 6               <NA>              <NA>                 NA
-#> 7               <NA>              <NA>                 NA
-#> 8               <NA>              <NA>                 NA
-#> 9               <NA>              <NA>                 NA
-#> 10              <NA>              <NA>                 NA
+#>    moda_sobresale_secuencia_entera umbral_densidad_secuencia_entera
+#> 1                            FALSE                              0.8
+#> 2                            FALSE                              0.8
+#> 3                            FALSE                              0.8
+#> 4                            FALSE                              0.8
+#> 5                            FALSE                              0.8
+#> 6                            FALSE                              0.8
+#> 7                            FALSE                              0.8
+#> 8                            FALSE                              0.8
+#> 9                            FALSE                              0.8
+#> 10                           FALSE                              0.8
+#>    min_distintos_secuencia_entera              moda frecuencia_moda
+#> 1                              20 [valor protegido]               2
+#> 2                              20 [valor protegido]               2
+#> 3                              20 [valor protegido]               2
+#> 4                              20                 F               6
+#> 5                              20             25000               2
+#> 6                              20           Florida               2
+#> 7                              20                UY              13
+#> 8                              20 [valor protegido]               2
+#> 9                              20                 1               2
+#> 10                             20             TR001               2
+#>    longitud_minima longitud_maxima longitud_media minimo  maximo        media
+#> 1               NA              NA             NA     NA      NA           NA
+#> 2                3              11       9.692308     NA      NA           NA
+#> 3                4              10       9.384615     NA      NA           NA
+#> 4                0               3       1.076923     NA      NA           NA
+#> 5               NA              NA             NA    -99 9999999 7.900192e+05
+#> 6                5              10       7.461538     NA      NA           NA
+#> 7                2               2       2.000000     NA      NA           NA
+#> 8               10              26      23.923077     NA      NA           NA
+#> 9               NA              NA             NA      1      11 5.923077e+00
+#> 10               5               5       5.000000     NA      NA           NA
+#>    mediana       desvio minimo_exacto maximo_exacto      minimo_fecha
+#> 1       NA 3.546396e+00          <NA>          <NA>              <NA>
+#> 2       NA           NA          <NA>          <NA>              <NA>
+#> 3       NA 1.191710e+08          <NA>          <NA> [valor protegido]
+#> 4       NA           NA          <NA>          <NA>              <NA>
+#> 5    29900 2.767287e+06          <NA>          <NA>              <NA>
+#> 6       NA           NA          <NA>          <NA>              <NA>
+#> 7       NA           NA          <NA>          <NA>              <NA>
+#> 8       NA           NA          <NA>          <NA>              <NA>
+#> 9        6 3.546396e+00          <NA>          <NA>              <NA>
+#> 10      NA           NA          <NA>          <NA>              <NA>
+#>         maximo_fecha       media_fecha     mediana_fecha n_fechas_resumidas
+#> 1               <NA>              <NA>              <NA>                 NA
+#> 2               <NA>              <NA>              <NA>                 NA
+#> 3  [valor protegido] [valor protegido] [valor protegido]                 11
+#> 4               <NA>              <NA>              <NA>                 NA
+#> 5               <NA>              <NA>              <NA>                 NA
+#> 6               <NA>              <NA>              <NA>                 NA
+#> 7               <NA>              <NA>              <NA>                 NA
+#> 8               <NA>              <NA>              <NA>                 NA
+#> 9               <NA>              <NA>              <NA>                 NA
+#> 10              <NA>              <NA>              <NA>                 NA
 #>    n_fechas_excluidas_granularidad n_valores_excluidos_resumen n_ceros
 #> 1                               NA                           0       0
 #> 2                               NA                           0      NA
@@ -1262,7 +1383,7 @@ summary(perfil)
 #>    estado_resumen_cuantitativo zona_horaria_origen
 #> 1                   calculados                <NA>
 #> 2                    no_aplica                <NA>
-#> 3        calculados_sobre_dias                <NA>
+#> 3     calculados_sobre_valores                <NA>
 #> 4                    no_aplica                <NA>
 #> 5                   calculados                <NA>
 #> 6                    no_aplica                <NA>

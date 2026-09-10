@@ -2,8 +2,562 @@
 
 ## lupa 0.1.0
 
+### Lo que se mide contra lo que se declara
+
+- **[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  abortaba con un CSV en español bajo un locale que no fuera UTF-8.**
+  [`read.csv()`](https://rdrr.io/r/utils/read.table.html) deja los
+  textos con [`Encoding()`](https://rdrr.io/r/base/Encoding.html) en
+  `unknown` —el caso más común que existe en español— y cualquier
+  operación que exija UTF-8 los rechaza: se encontraron dos caminos que
+  morían así. La codificación se declara **una vez, al entrar**, y sólo
+  sobre lo que ya es UTF-8 válido; lo que no lo es sigue tratándose como
+  texto no descifrable, que es lo que corresponde.
+- **`n_numeros_texto` publicaba `0` cuando sí había números escritos
+  como texto.** Con tres de cuatro valores numéricos-como-texto, el
+  campo decía «ninguno» al lado de `proporcion_numeros_texto = NA`: dos
+  campos describiendo el mismo hecho y diciendo cosas distintas. Ahora
+  se distingue no haber visto ninguno —`0`, que es un hecho— de haberlos
+  visto y no haberlos contado por no alcanzar el umbral —`NA`—.
+- **Un valor de la lista de centinelas que aparece una sola vez, en su
+  lugar, se acusaba de ser una ausencia codificada.** En un catálogo de
+  dos tramos —`1:1000` más `2001:3000`— el `999` que trae la propia
+  numeración salía señalado. El paquete ya declaraba el criterio
+  correcto —un centinela cumple «las tres cosas a la vez: que sea un
+  valor extremo, que **se repita**, y que tenga forma de centinela»— y
+  la lista por omisión se aplicaba sin la del medio. Un candidato que
+  aparece una vez **y cae dentro del rango** de los demás valores ya no
+  entra; uno que aparece una vez **fuera** del rango sigue entrando,
+  porque ahí la rareza está en el valor y no en su frecuencia. La regla
+  afina la lista **de por omisión**, que es la que el paquete aplica sin
+  que nadie la pida; una lista que el usuario eligió
+  —`sentinelas_naniar`— no se angosta, porque pedirla es optar por una
+  heurística más ancha.
+- **Con el presupuesto de memoria agotado,
+  [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md)
+  devolvía una tabla vacía.** Quien la imprimía veía encabezados y nada,
+  y una tabla vacía se lee como «no hay relaciones entre estas tablas»
+  cuando lo que pasó fue «no se comparó ninguna»: los pares quedaban
+  sólo en un atributo. Ahora cada par sale declarado con
+  `cardinalidad = "sin_comparar"` y su motivo, igual que en las otras
+  podas de la misma función.
+- **Bajo `LC_CTYPE=C`, el paquete emitía avisos de defecto propio sobre
+  datos ordinarios.** El pliegue a minúsculas de los hallazgos usaba
+  [`tolower()`](https://rdrr.io/r/base/chartr.html), que en ese locale
+  no baja los acentos: `CAFÉ` y `café` dejaban de agruparse juntos, la
+  trazabilidad sí los juntaba, y el paquete informaba —correctamente—
+  que había una inconsistencia suya. Los cuatro sitios usan ahora el
+  mismo ayudante independiente del locale que ya existía en el paquete,
+  que además cubre la `I` turca.
+- **La deriva decidía el veredicto con la resta en coma flotante.**
+  `0,70 - 0,65` da `0,049999999999999933` y `0,75 - 0,70` da
+  `0,050000000000000044`, así que dos pares que publicaban el mismo
+  `delta = 0.05` recibían «estable» y «mejora». Ahora el umbral se
+  compara con la misma tolerancia que el paquete ya usaba para los
+  pesos.
+- **La descripción de una deriva contradecía a su propio dato.**
+  Afirmaba «cambió el resultado» sobre filas con `delta = NA` —el
+  resultado anterior no se evaluó—, y su guarda para `delta == 0` no
+  corría **nunca**: usaba
+  [`isTRUE()`](https://rdrr.io/r/base/Logic.html) sobre un vector con un
+  elemento por par, que con más de un par devuelve `FALSE` incluso con
+  todos los deltas en cero. El `NA` ahora dice que no se puede comparar,
+  y el cero dice que se mantuvo.
+- **[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md)
+  rechazaba una medición válida con un diagnóstico falso.** Una medición
+  que sí viene de
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) y
+  quedó sin filas —ninguna métrica aplicable, cosa que
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+  declara en su `cobertura_metricas`— era rechazada con «debe ser un
+  data frame no vacío producido por
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)». Las
+  tres puertas
+  —[`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md),
+  [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md)
+  e
+  [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)—
+  ahora separan los dos casos y **propagan el motivo que
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md) ya
+  había declarado**.
+- **Dos puertas más publicaban valores que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  enmascara.** La `evidencia` de
+  [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md)
+  citaba las filas discordantes con sus valores crudos —documentos,
+  cuando la columna lo es—, y los `ejemplos` de
+  [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
+  llamada suelta salían enteros. No fallaba la capa de protección: esas
+  dos funciones nunca habían pasado por ella. Ahora
+  [`detectar_discordancias()`](https://sebollin.github.io/lupa/reference/detectar_discordancias.md)
+  clasifica las columnas de la señal con la misma herramienta que el
+  resto del paquete y enmascara sólo las personales —el número de fila
+  se conserva, que es para lo que existe—, y
+  [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md)
+  enmascara sus ejemplos cuando la forma alcanza para clasificarlos,
+  como en un correo. Un número de ocho dígitos sin nombre de columna se
+  sigue publicando: su forma sola no alcanza para afirmar que es un
+  documento, y el paquete no conjetura por debajo de lo declarado.
+- **`secuencia_entera_densa` gobernaba cuatro escudos y se había
+  estrechado pensando en uno.** Volvió a medir sólo la cobertura de una
+  numeración, que es lo que su nombre dice, y los escudos de forma
+  —`patron_raro`, `tipo_declarado_distinto` y el diagnóstico de
+  identificador— vuelven a colgar de ella. Antes, cuatro copias de un
+  valor legítimo del propio rango bastaban para que el paquete acusara a
+  `999` de ser una ausencia codificada apareciendo una sola vez, en su
+  lugar, dentro de `1:1000`.
+- **La guarda de centinelas se decide por candidato, no por columna.**
+  Un valor entra si cae fuera del rango de la numeración o si su
+  frecuencia sobresale; esas dos señales no son la frecuencia sola, y
+  por eso resisten el caso en el que cinco valores legítimos comparten
+  la frecuencia del centinela y aplanan cualquier comparación entre
+  frecuencias. Decidirlo por columna hacía que un candidato con
+  evidencia arrastrara a otro sin ella.
+- **La misma declaración escrita de otra forma daba el resultado
+  contrario.** `sentinelas_numericos` se comparaba con
+  [`identical()`](https://rdrr.io/r/base/identical.html) contra la lista
+  por omisión, que compara la representación y no el conjunto: la lista
+  tal cual detectaba 0 y esos mismos cinco valores al revés, como
+  enteros o con un duplicado detectaban 201. Ahora se normalizan como
+  conjunto en las dos puertas que reciben el argumento,
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
+- **[`relaciones_coleccion()`](https://sebollin.github.io/lupa/reference/relaciones_coleccion.md)
+  publicaba el mínimo y el máximo de una columna de documentos.** El
+  campo `detalle` de una poda por rangos disjuntos explicaba la poda
+  escribiendo los cuatro extremos crudos
+  —`"[45120001, 45120040] y ..."`—, mientras
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  y
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  enmascaran esos mismos estadísticos sobre esa misma columna. El mínimo
+  de una columna de documentos es el documento de una persona real, y el
+  par acota a los demás. Ahora un rango cuyo extremo llegue al piso de
+  la protección sale como `[valor protegido]`; los rangos que no
+  identifican se siguen publicando, que es lo que hace útil la
+  explicación.
+- **Un valor subnormal se publicaba como un dato calculado.** El caso
+  real: escribir una columna de enteros grandes en una base la guardó
+  como doble con los bits mal interpretados, y el perfil publicaba
+  `moda = 1,06e-314` con estado sano, porque el dato ya venía así del
+  origen y ninguna comprobación cruzada podía contradecirlo. El hallazgo
+  `valores_subnormales` los cuenta, da sus filas y los marca como
+  `sospechoso`. No es concluyente y no lo afirma: un cálculo que
+  desborda por defecto cae legítimamente en ese rango —`2^-1050` da
+  8,3e-317—.
+- **`agregar(funcion = "ratio")` contaba como falso lo que no era 0 ni
+  1.** Con una medida declarada booleana y un valor intermedio devolvía
+  la proporción de unos sin decir nada, mientras `promedio` sobre los
+  mismos valores devolvía la media. Se comprobaba el tipo declarado, no
+  los valores.
+- **[`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  abortaba contra un perfil de otra versión.** Un perfil guardado hace
+  meses puede no traer un campo que esta versión compara: en cuatro de
+  ellos abortaba con el mensaje interno de R, y en dos publicaba una
+  fila de cambio atribuida a los datos cuando lo que faltaba era el
+  campo. Ahora compara la intersección y declara lo ausente diciendo de
+  qué lado falta.
+- **[`sugerir_clave()`](https://sebollin.github.io/lupa/reference/sugerir_clave.md)
+  ofrecía como clave lo que
+  [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
+  excluye.** Un importe con decimales puede identificar cada fila y no
+  ser una clave. No se oculta que identifica —es un hecho medido—: se
+  dice la reserva en el motivo y la columna queda al final del orden.
+- **Se proponía una escala sobre una columna sin un solo dato
+  observado.** Recibía `continua` con confianza 0,65, la misma cifra que
+  sobre mil observaciones. Ahora dice `desconocida`. Donde la clase
+  determina la escala —`logical` es binaria, `Date` es temporal— la
+  propuesta se mantiene.
+- **[`medir()`](https://sebollin.github.io/lupa/reference/medir.md) no
+  tenía por dónde recibir qué proteger.** Aceptaba
+  `proteger_datos_personales` pero no `columnas_personales` ni
+  `validadores_personales`, así que una columna que sólo es personal
+  porque el usuario lo dice quedaba sin proteger en el camino de
+  métricas.
+- **Un parámetro vacío en el plan fallaba con un mensaje interno de R.**
+  Quien edita un plan no conoce las funciones internas, y ése es el caso
+  de uso que la capa declara. Ahora el motivo nombra el parámetro y la
+  acción.
+- **`max_largo_valor = Inf`, documentado como «sin tope», abortaba el
+  camino LSH** con valores de 9.999 bytes o más.
+- **La normalización era cuadrática sobre un texto largo.**
+  [`regmatches()`](https://rdrr.io/r/base/regmatches.html) indexa por
+  carácter, y en UTF-8 eso obliga a recorrer la cadena desde el
+  principio en cada coincidencia. Sobre 160 KB: de 41,1 s a 0,079 s.
+- **[`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md)
+  no podía declarar que había cambiado la vara.** Seis varas que deciden
+  si un hallazgo se emite y con qué severidad no viajaban en `meta`.
+  Subir `umbral_faltantes_error` de 0,4 a 0,9 sobre la misma tabla
+  publicaba `severidad_hallazgo / atenuado` y nada más: el efecto sin la
+  causa. Ahora una fila `configuracion_umbrales` la nombra, y con el
+  dato cambiado y la vara quieta esa fila no aparece.
+- **Un cambio de almacenamiento se leía como deriva de los datos.** La
+  misma columna guardada como número y como texto publicaba seis
+  diferencias materiales —longitudes, variantes unicode y números
+  escritos como texto— y ninguna decía que lo que había cambiado era
+  cómo se guarda. Los guardas de tipo consultaban el tipo *inferido*,
+  que en ese par da `doble` de los dos lados y borra justo la diferencia
+  que había que ver. Ahora se lee el tipo declarado y la columna queda
+  en `columnas_no_comparables` con el motivo
+  `tipo_cambiado:texto_vs_no_texto`. `factor` cuenta como almacenamiento
+  de caracteres, y ante un vocabulario ajeno al de memoria —un tipo SQL—
+  no se afirma nada. Entre dos textos, una diferencia de longitud sigue
+  siendo deriva.
+- **Perder la zona horaria se leía como un dato faltante.** Una columna
+  `POSIXct` guardada como texto pierde la zona, y el conteo de filas
+  cuya fecha civil difiere de UTC salía como diferencia material contra
+  un lado que no tiene zona que medir. Ahora se declara con
+  `tipo_cambiado:con_zona_vs_sin_zona`. Los extremos de fecha **siguen
+  comparándose**: al perder la zona los instantes que la columna denota
+  son realmente otros —tres horas de corrimiento en
+  `America/Montevideo`—, y eso es lo más importante que hay para
+  informar. Entre dos columnas que sí llevan zona, el conteo se compara
+  como siempre.
+- **Se publicaba una moda donde no había ninguna.** Cuando todos los
+  valores válidos aparecen una sola vez no hay moda: lo que se publicaba
+  era el ganador de un desempate, y el desempate sigue el orden de
+  ordenamiento, que depende de cómo esté guardada la columna. La misma
+  `c(-5.5, -1, 0, 3.75)` daba `-5.5` como número y `-1` como texto.
+  Ahora `moda` queda en `NA` y `frecuencia_moda` se conserva, que es la
+  evidencia de por qué. Con un solo valor distinto sí hay moda. Sobre el
+  banco real son 4 columnas de 38, **las cuatro identificadores
+  únicos**, y ningún hallazgo cambia: 95 antes y 95 después, los mismos
+  tipos en el mismo orden. Las tres puertas —memoria, `resumen_tabla` y
+  la muestra— dicen lo mismo, que era el riesgo real de arreglar una
+  sola. La clase `perfil_dbi` se asignaba en cuatro lugares y ahora sale
+  de uno solo, `.sellar_perfil_dbi()`, para que ningún camino se saltee
+  la regla.
+- **Un centinela escondido dentro de una numeración se callaba.** La
+  guarda de centinelas se apaga sobre una «secuencia entera densa», y la
+  densidad contaba la cobertura del rango **ignorando cuántas veces
+  aparece cada valor**: con `c(1:1000, rep(999, 100), 2001:3000)`, el
+  grupo de las 1.100 primeras filas daba densidad 1 —mil valores
+  distintos sobre mil posiciones— y callaba el `999` repetido 101 veces
+  que la tabla completa sí acusaba. Ahora «numeración limpia» exige
+  además que ningún valor sobresalga, con el mismo criterio que usa
+  `valor_concentrado`. Lo que separa un centinela de una clave foránea
+  no es el tamaño de la moda sino su forma: sobre las diez columnas
+  numéricas del banco real el mayor cociente es 1,71 y el caso a atrapar
+  da 101. Ningún hallazgo del banco cambia, y perder la condición de
+  numeración no acusa por sí solo: sólo devuelve la columna a la mirada
+  de la lista de centinelas. La comparación es contra la frecuencia
+  **típica** —la mediana—, no contra el segundo valor: comparar contra
+  el segundo supone que el centinela es la moda, y una refutación
+  externa lo derrotó con un señuelo —`1:60` con cinco `-9` y un `7`
+  repetido seis veces deja el cociente en 1,2 y callaba los cinco
+  centinelas—. Y la condición sólo alcanza a columnas con forma de
+  numeración, donde los valores no se repiten: una clave foránea repite
+  todo, no es una numeración y conserva su condición. **Se mide por dos
+  vías**, y cada una cubre lo que la otra deja pasar: contra el segundo
+  valor más frecuente —que ve un centinela masivo dentro de una clave
+  foránea, donde `rep(1:40, each = 4)` con cien `-9` callaba las cien— y
+  contra la frecuencia típica cuando ésta vale 1 —que ve el centinela
+  cuando un señuelo legítimo infla el segundo puesto—. Sobre el banco
+  real ninguna de las diez columnas numéricas sobresale y los hallazgos
+  siguen en 92. **Y ni siquiera dos vías alcanzaban**: varios centinelas
+  con la misma frecuencia se cubren entre sí —`{499, 499, 499, 2, …}`
+  deja «máximo igual al segundo» y callaba mil cuatrocientos noventa y
+  siete valores—. Ahora se mide el **salto entre frecuencias
+  consecutivas**, mirando sólo las primeras posiciones: lo que delata a
+  un centinela no es que su frecuencia sea grande sino que haya un
+  acantilado entre el grupo que sobresale y el resto. Sobre el banco
+  real ninguna columna pasa de 1,71 y los casos a atrapar van de 4,75 a
+  249.
+- **Un grupo bajo el umbral de densidad acusaba lo que la tabla completa
+  callaba.**
+  [`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  reubica a la cobertura los hallazgos de centinela de una columna que
+  es densa en la tabla entera, pero sólo cubría `faltantes_disfrazados`:
+  un grupo emitía `faltantes` —«0 ausentes reales y 4 disfrazados»— y
+  ese tipo se escapaba. Ahora entra también, **sólo cuando el grupo no
+  tiene ninguna ausencia real**: un faltante de verdad no es de la
+  partición y se sigue informando.
+- **La protección de datos personales pasa a ser por columna.** Era por
+  valor y global: si `cedula` estaba protegida y contenía `"S/D"`, ese
+  texto se enmascaraba **en todo el perfil**, incluida la columna `sexo`
+  —que no tiene un solo dato personal y donde `"S/D"` significa «sin
+  dato»—. El lector no podía distinguir una columna que trae datos
+  personales de una que sólo comparte vocabulario. Ahora se reemplaza lo
+  que describe a la columna protegida: su moda, sus estadísticos, sus
+  ejemplos y la evidencia de sus hallazgos. Lo que **no** tiene columna
+  a la que atribuirse sigue enmascarado en toda la salida —un hallazgo
+  de filas duplicadas muestra filas enteras, y `general`, la cobertura y
+  los formatos de fecha describen la tabla, no una columna—. **Con un
+  piso**: un valor de una columna protegida que identifique —seis
+  caracteres o más, el mismo corte con el que la batería de fugas decide
+  qué cuenta como filtración— no se publica en ninguna parte, y eso
+  alcanza también a los campos numéricos. Sin el piso, una columna que
+  el clasificador no marcó publicaba los documentos de la protegida con
+  sólo repetirlos: medido, una copia llamada `codigo_operacion` y hasta
+  un texto libre con el documento adentro publicaban tres de cuatro
+  documentos de ocho dígitos, y los estadísticos de orden de una copia
+  clasificada con poder discriminante `debil` publicaban dos documentos
+  exactos sobre doce filas. El vocabulario corto no entra en el piso:
+  `"S/D"` sigue publicándose en `sexo`. El piso alcanza además la
+  **forma sin separadores** —`"771.771-01"` es el mismo documento que
+  `"77177101"`— y lo aplican también
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  y
+  [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md),
+  que protegían sólo por columna: sobre la misma tabla,
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  tapaba el documento adentro de un texto libre y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  lo publicaba en `variables$niveles_observados`. Sobre el banco real no
+  enmascara ni una celda de más: 25 antes y 25 después, con los mismos
+  92 hallazgos.
+- **Comparar un perfil protegido contra uno sin proteger no declaraba la
+  asimetría.** La salida publicaba el rango que el lado protegido oculta
+  y la diferencia se leía como deriva del dato, cuando lo que cambió es
+  la política. Ahora se declara con su propia fila,
+  `configuracion_proteccion`, severidad `error`, en las dos direcciones
+  —la misma forma que ya tenían `configuracion_umbrales` y
+  `configuracion_normalizacion`—. No era una fuga: quien corre esa
+  comparación ya tiene el perfil sin proteger.
+- **Una columna llamada `sep` abortaba la corrida.** Los nombres de
+  columna son datos del usuario y llegaban como argumentos con nombre a
+  `paste`, así que una columna llamada `sep`, `collapse` o `recycle0`
+  chocaba con sus formales y reventaba
+  [`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md),
+  [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md)
+  y
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  con un mensaje que no nombraba ni la columna ni la causa. El patrón
+  estaba en cinco lugares y **uno solo** tenía la protección que lo
+  evita.
+- **[`detectar_duplicados_aproximados()`](https://sebollin.github.io/lupa/reference/detectar_duplicados_aproximados.md)
+  y
+  [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md)
+  aplican el piso de la protección.** El primero publicaba el documento
+  en la misma cadena donde la columna protegida iba enmascarada. El
+  segundo publicaba en `resumen_tabla` los estadísticos de orden de una
+  copia numérica que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  sí tapaba: por esa puerta el piso por valor es imposible —el resumen
+  se calcula con SQL sobre la tabla entera y no se ven todos los
+  valores—, así que se tapan los estadísticos de toda columna que
+  **comparte tipo personal** con una protegida. No es una conjetura
+  sobre los valores: es lo que la clasificación ya afirmó de las dos.
+- **Cincuenta y cinco comprobaciones no medían lo que decían.**
+  Corriendo cada archivo de prueba en su propio proceso, **17 de 192
+  fallaban** mientras la suite entera daba `FAIL 0`. Una sola causa:
+  `cli` emite su salida como *condiciones* de mensaje, y dentro de
+  `testthat` quedan atrapadas antes de llegar a ningún flujo —es lo que
+  le permite sostener `expect_message()`—, así que una prueba que usaba
+  `capture.output(..., type = "message")` o
+  [`sink()`](https://rdrr.io/r/base/sink.html) recibía un texto vacío y
+  afirmaba que la salida no contenía lo que sí contenía. Ahora las
+  recoge `salida_cli()`, que además quita los códigos de color y
+  normaliza el espacio: `cli` ajusta al ancho e inserta saltos
+  **dentro** de una frase, y una búsqueda literal fallaba por dónde se
+  cortó la línea y no por lo que decía.
+
 ### Una declaración vale en todas las salidas, no sólo en la primera
 
+- **El informe no publicaba las coberturas del objeto.** Una medición
+  donde una tabla entera tenía cero filas producía un informe
+  **idéntico** al de una donde todo se midió:
+  [`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)
+  no mostraba `cobertura_metricas` —qué métrica no se pudo medir y por
+  qué— ni `cobertura_coleccion` —sobre cuántas de las tablas declaradas
+  se calculó el número—. El informe es la salida que más lejos llega,
+  porque es la que se comparte. Ahora las publica, en la medición y en
+  la evaluación, y no inventa la sección cuando no hay nada que
+  declarar.
+- **[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  publicaba el código deparseado como nombre de la tabla.** Con una
+  expresión larga, [`deparse()`](https://rdrr.io/r/base/deparse.html)
+  devuelve varias líneas: el nombre salía con tres elementos y con
+  `[valor protegido]` incrustado, porque la capa de protección
+  enmascaraba los números del propio nombre.
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  tenía el saneador desde antes, pero **vivía dentro de su propio
+  cuerpo** —era local— y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  no podía usarlo. Ahora vive en un solo lugar y las dos vías dan
+  `"datos"` cuando la expresión no sirve como nombre.
+- **[`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)
+  rechazaba una matriz que
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  documenta y acepta.** La puerta de entrada exigía heredar de
+  `data.frame` antes de delegar en su propio motor. Ahora la matriz
+  llega a
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  **sin convertir**, para que sea él quien la convierta y lo declare en
+  `meta$entrada_convertida`: convertirla en la puerta dejaba esa
+  declaración en `NA` y el perfil aparentaba haber recibido una tabla.
+- **Documentadas las dos diferencias deliberadas de
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)**
+  respecto de llamar a las funciones sueltas: la conversión de matrices
+  y la columna `proteccion_temporal` que gana `temporal$resumen` cuando
+  una columna temporal está protegida.
+- **La cobertura moría en el consumidor siguiente, en dos saltos
+  distintos.**
+  [`medir()`](https://sebollin.github.io/lupa/reference/medir.md)
+  declara en `cobertura_metricas` qué métricas no se pudieron medir y
+  por qué —«la entidad dependiente `b` tiene cero filas»—, y
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) lo
+  descartaba en el primer salto: de ahí en más esa tabla era invisible y
+  el conjunto valía lo mismo que si nunca hubiera existido. Y
+  [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md) a
+  nivel colección adjunta `cobertura_coleccion` —tablas declaradas,
+  tablas en el número, tablas sin medir y una advertencia—, que ni
+  [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md)
+  ni
+  [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md)
+  conservaban: una colección de dos tablas con una vacía publicaba
+  `0,667` —que cubre una de las dos— sin nada que lo dijera. Las dos
+  coberturas viajan ahora hasta el último consumidor, y el índice
+  imprime la de la colección: un índice es un solo número, y una
+  cobertura que vive sólo en un atributo no la lee nadie.
+- **Tres afirmaciones de la documentación que el paquete no cumplía.**
+  Una viñeta decía que en una columna protegida «las medias y los
+  desvíos se mantienen»: la media **se suprime** —está en la lista y se
+  rastrea como momento, distinto de los estadísticos de orden—, y el
+  desvío se mantiene. Dos viñetas y los dos README decían «109 campos
+  analíticos» cuando son 111. Y la tabla de evidencia de los README,
+  encabezada por «entre las salidas de esa corrida», citaba un
+  `tipo_hallazgo` que esa corrida no produce y daba como ejemplo una
+  evidencia que sólo aparece con la protección de datos personales
+  desactivada. Las tres corregidas, y dos guardas nuevas las miden
+  corriendo: el ancho del perfil contra el número publicado, y cada
+  `tipo_hallazgo` citado contra los que esa corrida produce.
+- **[`perfilar_por()`](https://sebollin.github.io/lupa/reference/perfilar_por.md)
+  perdía las filas del grupo en blanco.** `x[[""]]` devuelve `NULL`
+  aunque el elemento exista —R no resuelve la cadena vacía como nombre—,
+  y el recorrido de los grupos era por nombre: el grupo de los blancos
+  recibía `NULL`, quedaba con cero filas y se publicaba como «El grupo
+  tiene 0 filas». Sobre 200 filas con 30 en blanco, la suma de
+  `n_filas_grupo` daba 170 y esas 30 filas no aparecían ni perfiladas ni
+  declaradas. Se recorre por posición.
+- **La moda de una columna `integer64` dependía de lo que el usuario
+  tuviera cargado.** `bit64` no registra sus métodos S3 cuando sólo está
+  cargado, así que dentro del espacio de nombres del paquete cualquier
+  operación de base sobre un `integer64` —incluso `x[1]`— lo degrada a
+  `double` reinterpretando sus bits: la moda publicada era
+  `4.4501477170144e-308` sin `bit64` adjunto y el valor correcto con él.
+  La moda tiene ahora una rama propia que trabaja con la representación
+  exacta y desempata por el orden numérico, igual que una columna
+  `double` equivalente.
+- **La proporción de compatibilidad de datos personales no decía su
+  denominador.** Una columna con ocho documentos y treinta y dos blancos
+  publicaba `proporcion_compatible = 1` —«100 % compatible»— calculado
+  sobre ocho de cuarenta valores. El denominador no cambia —incluir los
+  blancos volvería incompatible a toda columna medio vacía—, pero ahora
+  se declara en `valores_evaluados` y `valores_totales`.
+- **Los hallazgos del resumen cuantitativo publicaban el denominador
+  entero.** `outliers`, `ceros_no_permitidos` y
+  `negativos_no_permitidos` se calculan sobre los valores que llegaron a
+  número, pero declaraban `n_evaluados` igual al total de la columna:
+  mil filas con cien que no convierten publicaban `n_evaluados = 1000`
+  sobre 900 valores evaluados. El alcance ya estaba declarado en
+  `n_valores_excluidos_resumen` y en `cobertura_diagnosticos`, pero
+  quien lee una fila de `hallazgos` no está obligado a cruzarla con otra
+  tabla. El paquete ya hacía este mismo ajuste cuando hay un universo
+  declarado por `aplicabilidad`; faltaba el segundo caso. Los
+  diagnósticos que cuentan filas —`filas_duplicadas`— conservan la
+  columna entera, que es su denominador.
+- **Comparar dos resúmenes con alcances distintos se atribuía a los
+  datos.** La misma columna, una vez numérica y otra como texto con un
+  valor que no convierte, producía «Cambió el rango observado de la
+  columna» —`[10, 100]` contra `[10, 90]`— cuando el valor seguía ahí y
+  lo que cambió fue que quedó fuera del resumen. La deriva declara ahora
+  una fila `alcance_resumen`, con el mismo mecanismo que ya usa para las
+  políticas de centinelas y de aplicabilidad.
+- **Un valor en blanco quedaba fuera del resumen sin declararse.**
+  [`trimws()`](https://rdrr.io/r/base/trimws.html) deja `" "` en `""` y
+  el [`nzchar()`](https://rdrr.io/r/base/nchar.html) que gobernaba la
+  cuenta lo descartaba, así que una columna con 900 valores `"10"` y 100
+  en blanco publicaba la media sobre 900 filas con
+  `n_valores_excluidos_resumen = 0` y estado `calculados`. Los mismos
+  100 valores como texto ilegible sí se declaraban. Un blanco no es una
+  ausencia declarada —el paquete deja `n_faltantes` en cero y lo cuenta
+  en `n_blancos`—, así que su exclusión se declara como cualquier otra;
+  `NA` sigue informándose como faltante, que es su lugar. Vale para la
+  conversión a número y para las dos rutas de fechas.
+- **El estado del resumen de fechas nombra la razón correcta.**
+  `calculados_sobre_dias` decía que habían quedado afuera períodos de
+  mes, y se usaba también cuando lo que quedaba afuera eran valores
+  ilegibles o en blanco. Ahora ese caso dice `calculados_sobre_valores`,
+  el mismo vocabulario que la conversión a número.
+- **Retirar la clave declarada se leía como un hallazgo resuelto.** La
+  misma tabla perfilada con `clave = "id"` y después sin `clave`
+  informaba `clave_no_unica` como `resuelto` con severidad `ok`: la
+  clave seguía duplicada, y lo único que había cambiado era el
+  argumento. La documentación declara lo contrario —«dejar de mirar no
+  es lo mismo que arreglar»—. La causa de fondo era que el perfil no
+  registraba sus propias declaraciones: `meta$clave` guarda el resultado
+  de comprobarla y queda vacío cuando sale limpia. El perfil ahora
+  registra `meta$declaracion_clave` y `meta$declaracion_aplicabilidad`,
+  y la comparación distingue las dos cosas.
+- **Cambiar `aplicabilidad` entre dos corridas se atribuía a los
+  datos.** Esa regla redefine el universo aplicable, así que la deriva
+  emitía filas de cambio sobre faltantes, cardinalidad y rango cuando lo
+  único que cambió fue el argumento. La comparación ya declaraba la
+  comparabilidad para la política de patrones y para la de centinelas;
+  ésta era la tercera y faltaba.
+- **La reparación de codificación era cuadrática en el largo del
+  texto.** `.ftfy_restaurar_a0()` acumulaba byte por byte con
+  [`c()`](https://rdrr.io/r/base/c.html) y copiaba la cola entera en
+  cada vuelta. Medido: 20 KB tardaban 0,29 s y 160 KB, 11,22 s
+  —cuadruplicar el largo multiplicaba por 37 el tiempo—, y perfilar una
+  tabla de tres filas con un valor roto de 160 KB tardaba 65 s. Ahora es
+  lineal: los mismos 160 KB, 0,40 s, con salida idéntica en toda la
+  batería de casos.
+- **La reparación cambiaba el texto declarando que no lo cambiaba.** Con
+  `LC_CTYPE = C`, [`enc2utf8()`](https://rdrr.io/r/base/Encoding.html)
+  reemplaza un byte que no forma UTF-8 válido por su escape literal, así
+  que `caf<0xe9>` salía como los siete caracteres ASCII `caf<e9>` con
+  `estado = "no_parece_roto"` —y en otra configuración regional el byte
+  se conservaba—. Si no se reparó, ahora no se cambia.
+- **Los perfiles de madurez de fábrica premiaban el defecto.**
+  [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
+  genera reglas `Resultado > umbral` sin consultar la orientación de la
+  medida, así que sobre una métrica orientada a `defecto` —donde más
+  alto es peor— la regla quedaba invertida: una tabla 100 % duplicada da
+  `EntidadDuplicada = 1` y se daba por **cumplida** en los tres
+  perfiles, mientras la tabla limpia —`0`— no cumplía ninguno. El
+  mecanismo para consultarla ya existía:
+  [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md)
+  documenta que la condición puede declarar un segundo argumento
+  `orientacion`. Ahora la fábrica lo usa, e invierte con `1 - valor`, la
+  misma convención que
+  [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md)
+  aplica a sus componentes de defecto. Las métricas `conformidad` no
+  cambian.
+- **Un perfil de madurez ya no juzga una métrica no acotada.** Una
+  métrica que declara `orientacion = "no_aplica"` es, por definición del
+  paquete, no acotada; un umbral en `[0, 1]` no puede juzgarla, y antes
+  `Resultado > 0.5` devolvía «cumple» para 30, 60 y 90 días de atraso
+  por igual. Ahora la evaluación se detiene nombrando la métrica y el
+  motivo, para que quien evalúa declare una regla con la escala que le
+  corresponde.
+- **Guardar una columna como `integer64` cambiaba lo que el paquete
+  publicaba sobre ella.** Tres desvíos con la misma raíz, encontrados
+  comparando la misma columna descrita por dos caminos:
+  - `bit64` **enmascara [`order()`](https://rdrr.io/r/base/order.html)**
+    cuando está adjunto, y dentro del espacio de nombres de un paquete
+    no lo está: ahí [`order()`](https://rdrr.io/r/base/order.html) es el
+    de base, que sobre un `integer64` ordena por los bits del `double`
+    subyacente y manda los negativos al final. Con eso, ante un empate
+    la moda de una columna `integer64` salía `1` donde la misma columna
+    en `double` daba `-999` —y las tres puertas del perfil DBI heredaban
+    la diferencia—. Ahora el orden pasa por un ayudante que usa
+    [`bit64::rank.integer64()`](https://bit64.r-lib.org/reference/rank.integer64.html),
+    correcto también por encima de 2^53.
+  - La detección de numeración densa aceptaba `entero` y `doble` pero no
+    `integer64`, que es la tercera forma de guardar lo mismo. Sin
+    numeración detectada, el `999` de una columna `1:1000` dejaba de
+    estar protegido por «esto es un identificador» y el mismo dato
+    publicaba `faltantes_disfrazados` donde en `entero` publicaba
+    `posible_identificador`. Por encima de la precisión de `double` no
+    se mide y se declara, en vez de inventar una densidad sobre números
+    redondeados.
+  - La ley de Benford excluye `integer64` por tipo desde el primer día,
+    pero no lo declaraba: la misma columna producía una fila de
+    cobertura en `entero` y silencio en `integer64`. Un diagnóstico que
+    no corre se declara, también cuando no corre por el tipo.
 - **`n_cambiadas` contaba valores presentes y no cambios, en las dos
   conversiones.** Catorce acciones de la capa de remediación cuentan los
   cambios reales; `convertir_tipo` y `convertir_fecha_confirmada`

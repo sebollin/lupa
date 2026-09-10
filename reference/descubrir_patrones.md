@@ -15,7 +15,8 @@ descubrir_patrones(
   max_patrones = 20,
   na.rm = TRUE,
   muestra = 1e+05,
-  umbral_raro = 0.05
+  umbral_raro = 0.05,
+  proteger_datos_personales = TRUE
 )
 ```
 
@@ -50,21 +51,35 @@ descubrir_patrones(
   Umbral usado para conservar un resumen acotado de patrones raros para
   los hallazgos.
 
+- proteger_datos_personales:
+
+  Si los ejemplos se enmascaran cuando la forma de los valores alcanza
+  para clasificarlos como dato personal. `TRUE` por omisión.
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  lo pasa en `FALSE` porque protege el perfil entero después, respetando
+  ahí la declaración del usuario.
+
 ## Value
 
 Un data frame de clase `patrones` con patrón, frecuencia, proporción y
-ejemplos. Los atributos `total`, `analizados`, `filas_analizadas` y
-`muestreado` describen el posible muestreo; `filas_analizadas` es un
-alias explícito de `analizados` para mantener el alcance visible junto a
-otros diagnósticos. `resumen_patrones` conserva sólo el patrón dominante
-y hasta seis patrones raros para presentacion; nunca guarda la
-distribucion completa. `patrones_raros_trazabilidad` conserva solo los
-nombres de los patrones raros, hasta 5.000, para que la trazabilidad
-pueda enumerar filas sin retener frecuencias ni ejemplos. Las
-proporciones siempre estan en `[0, 1]`. `n_patrones_distintos` registra
-el total antes de truncar la tabla para informar omisiones sin
-retenerla. `n_patrones_raros` y `n_patrones_raros_trazabilidad`
-registran cuantos patrones raros habia antes de sus respectivos limites.
+ejemplos. Los **ejemplos no se publican** cuando la forma de los valores
+alcanza por sí sola para clasificarlos como dato personal —un correo,
+por ejemplo—: salen como `[valor protegido]`. Acá llega un vector
+suelto, sin nombre de columna, así que la vía por nombre no está
+disponible; un número de ocho dígitos **sí** se publica, porque su forma
+sola no alcanza para afirmar que es un documento. Los atributos `total`,
+`analizados`, `filas_analizadas` y `muestreado` describen el posible
+muestreo; `filas_analizadas` es un alias explícito de `analizados` para
+mantener el alcance visible junto a otros diagnósticos.
+`resumen_patrones` conserva sólo el patrón dominante y hasta seis
+patrones raros para presentacion; nunca guarda la distribucion completa.
+`patrones_raros_trazabilidad` conserva solo los nombres de los patrones
+raros, hasta 5.000, para que la trazabilidad pueda enumerar filas sin
+retener frecuencias ni ejemplos. Las proporciones siempre estan en
+`[0, 1]`. `n_patrones_distintos` registra el total antes de truncar la
+tabla para informar omisiones sin retenerla. `n_patrones_raros` y
+`n_patrones_raros_trazabilidad` registran cuantos patrones raros habia
+antes de sus respectivos limites.
 `n_filas_patrones_no_dominantes_excluidos` registra cuantas filas
 pertenecen a patrones no dominantes cuya proporcion no es rara y que por
 eso quedan fuera del hallazgo.

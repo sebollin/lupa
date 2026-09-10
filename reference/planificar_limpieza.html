@@ -134,8 +134,14 @@ agrega una fila ficticia para "no hacer nada": <code>decision_grupo</code> disti
 explícita de conservar los datos. Esto permite separar un grupo aún no
 revisado de una omisión deliberada.</p>
 <p><code>estado</code> distingue acciones <code>lista</code>, <code>bloqueada</code> e <code>informativa</code>; <code>orden</code>
-fija la secuencia reproducible. <code>n_afectadas</code> es la estimación del perfil y
-<code>unidad_conteo</code> dice si cuenta filas, columnas o valores distintos —lo
+fija la secuencia reproducible. <code>n_afectadas</code> es la estimación del perfil
+sobre <strong>lo que esta acción tocaría</strong>, que puede ser menos que el conteo del
+hallazgo que la originó cuando la acción sólo cubre parte del caso: una
+columna con tres valores de codificación rota, de los cuales uno es
+reparable, produce un hallazgo con <code>n_afectados = 3</code> y una acción
+<code>reparar_codificacion</code> con <code>n_afectadas = 1</code>. Las dos cifras son ciertas y
+cuentan cosas distintas. <code>unidad_conteo</code> dice si cuenta filas, columnas o
+valores distintos —lo
 declara la acción cuando cuenta en una unidad propia, y sólo si no lo hace se
 hereda del hallazgo—. El registro informa <code>n_cambiadas</code> sobre los datos
 recibidos.</p>
@@ -149,7 +155,17 @@ estimaba siete. No es un desvío que ocultar: <code>orden</code>, <code>n_afecta
 <code>n_cambiadas</code> se publican los tres, y compararlos es la forma de ver el
 efecto de la composición. Sólo el caso extremo —la acción no produce <strong>ningún</strong>
 efecto donde el plan estimaba alguno— se registra como <code>fallida</code> con su
-motivo. <code>reversible</code>
+motivo.</p>
+<p><strong>Esa comparación sólo lee composición cuando las dos cifras cuentan en la
+misma unidad.</strong> <code>n_afectadas</code> cuenta en la <code>unidad_conteo</code> que el plan
+declara y <code>n_cambiadas</code> cuenta lo que la acción tocó al aplicarse, que es
+su unidad natural. Cuando la acción declara <code>unidad_conteo = "valor_distinto"</code> —las conversiones de mayúsculas y minúsculas—, las dos
+cifras miden poblaciones distintas y su diferencia no dice nada sobre la
+composición: medido sobre <code>c("Ana", "ana", "ANA", "Beto", " Ana ")</code>,
+<code>convertir_minusculas</code> estima <code>n_afectadas = 3</code> valores distintos y el
+registro publica <code>n_cambiadas = 4</code> celdas. Las dos son ciertas. La unidad
+del plan se recupera uniendo el registro con el plan por <code>id_accion</code>, que
+los dos publican. <code>reversible</code>
 indica si la conversión conserva la identidad de cada valor. Las
 conversiones se comprueban sobre todos los valores de <code>datos</code>: las numéricas
 bloquean ceros iniciales y colisiones no inyectivas, mientras que fechas,
@@ -215,6 +231,16 @@ no elimine filas o columnas. El consentimiento <code>permitir_eliminacion</code>
 se exige para las estrategias que efectivamente retiran filas o columnas;
 una conversión destructiva requiere que el usuario la active explícitamente
 y deja su pérdida cuantificada en el registro.</p>
+<p><strong>Marcar o eliminar ausentes va después de normalizarlos</strong>, no antes. Una
+columna con <code>"N/A"</code> y <code>"sin dato"</code> tiene ausentes disfrazados que
+<code>convertir_ausencias_textuales</code> convierte en <code>NA</code> reales; si la marca
+corriera primero, quedaría una columna <code>.ausente_x</code> que dice <code>FALSE</code> en
+filas que terminan en <code>NA</code> —una afirmación falsa sobre los datos, publicada
+con las dos acciones en <code>ejecutada</code> y sin error—. Medido sobre siete formas
+de tabla antes de corregirlo, tres producían esa marca falsa siguiendo el
+idioma documentado <code>plan$aplicar &lt;- plan$recomendada</code>. Por la misma razón,
+<code>eliminar_filas_ausentes</code> también va después: eliminar antes deja sin
+eliminar las filas cuyo ausente todavía estaba disfrazado.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

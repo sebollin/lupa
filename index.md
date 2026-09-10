@@ -40,13 +40,12 @@ Among the outputs of that run are:
 
 | What it exposes | `tipo_hallazgo` | Example in `evidencia` |
 |----|----|----|
-| Missing values hidden behind codes | `faltantes_disfrazados` | `-99 (1)` |
+| Missing values hidden behind codes | `faltantes_disfrazados` | `NULL (1)` |
 | Mixed date representations | `formatos_fecha_mixtos` | `%d/%m/%Y (4); %Y-%m-%d (4); ...` |
 | Trailing whitespace | `espacios_sobrantes` | `1 valores; ejemplos: "web "` |
 | Inconsistent capitalization | `mayusculas_inconsistentes` | `"web"; "Web"` |
 | Declared and inferred types disagree | `tipo_declarado_distinto` | `Declarado: texto; inferido: fecha` |
 | A constant column | `constante` | `Valor: principal; frecuencia: 13` |
-| A concentrated modal value | `valor_concentrado` | `Valor modal: 1000; frecuencia de la moda: 25; frecuencia del segundo valor: 1; cociente moda/segundo: 25.000; fraccion de la moda sobre validos: 0.250` |
 | Exact duplicate rows | `filas_duplicadas` | `2 filas en grupos duplicados (1 excedentes)` |
 | Repeated columns | `columnas_duplicadas` | `id_registro = id_copia` |
 
@@ -236,7 +235,12 @@ table is a register of people, the value comes out as
 `[valor protegido]` and the distance is kept. A reference table carrying
 no personal data keeps its evidence intact.
 
-**And masking reaches every output, not just the mode.** Each finding’s
+**And masking reaches every output, not just the mode** —scoped **by
+column**: what describes the protected column is replaced, not every
+occurrence of that text. `"S/D"` can be a sentinel in the ID column and
+the “no data” marker in `sexo`, and publishing it in `sexo` reveals
+nothing about the ID; what has no column to attribute it to, such as a
+duplicate-rows finding, stays masked everywhere—. Each finding’s
 description, evidence and suggestion; the coverage `motivo` and
 `como_resolverlo`; the parameters of a plan action; the “Ejemplos
 reales” that
@@ -326,7 +330,7 @@ map:
 | Task | Main functions | Read more |
 |----|----|----|
 | Look at data for the first time | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md), [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md), [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md), [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md), `sentinelas_naniar` | [Getting started](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Profile against a database | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — full-table SQL aggregates plus, by default, a 109-analytic-field profile from a declared sample; `bloque_muestra = "solo_agregados"` requests only aggregates | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Profile against a database | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — full-table SQL aggregates plus, by default, a 112-analytic-field profile from a declared sample; `bloque_muestra = "solo_agregados"` requests only aggregates | [Profiling a database](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Find undeclared structure | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md), [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md) | [Undeclared structure](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Define quality | [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md), [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md), [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md) | [Define quality](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Measure and evaluate | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md), [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md) with project weights, [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md) with the user-declared instruction `desenlace = "suprimir"` (not a factory threshold), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Measure and evaluate](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -1072,16 +1076,17 @@ multiplicative process and Tukey’s fences assume a distribution; a
 numbering — an identifier, a code — is neither, and a code sitting far
 from the median says nothing about its quality.
 
-Recognising a numbering takes **two signals, and it needs both**. The
-first is **density**: an identifier occupies a compact stretch of the
-integers while a magnitude spreads across several orders. Uniqueness
-does not work, since an amount is nearly unique too. The second is the
-**absence of a scale jump**, and without it the first does harm: a value
-off the scale by up to twice the maximum does not lower the density
-enough, so a `120` among ages 18 to 70 — or a `2000` behind 1..1000 —
-was hidden exactly when it was the only thing worth seeing. What does
-give them away is the gap they open: 50 and 1,000 where the typical one
-is 1.
+Recognising a numbering uses **density**: an identifier occupies a
+compact stretch of the integers while a magnitude spreads across several
+orders. Uniqueness does not work, since an amount is nearly unique too.
+The public `secuencia_entera_densa` field answers only that coverage
+question; the separate `moda_sobresale_secuencia_entera` signal must not
+switch off the form shields that use the numbering. The sentinel guard
+reopens when a candidate is outside the range of the remaining
+numbering, or when that candidate is the standout frequency. The range
+signal is deliberately independent of frequency: `-9` in a numbering
+from 1 to 1,505 is suspicious even when five legitimate values tie with
+it, while `999` appearing once inside 1..1,000 is not.
 
 The criterion was chosen by measuring. A bench of thirteen columns with
 the known answer — five numberings and eight magnitudes with a bad value
@@ -1116,6 +1121,13 @@ outside the universe do. The default list, by contrast, reports without
 touching the numbers: it is a guess, and a guess does not move an
 average. `moda` and `n_distintos` keep describing what is stored, as
 they already did with an `Inf`.
+
+The sentinel policy is compared as a numeric set. Reordering the values,
+supplying integers instead of doubles, or repeating a value therefore
+has the same meaning through both
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+and
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
 
 **Uniqueness is not guessed: it is asked — and in a database, read.**
 When the data arrives over DBI the primary key is **declared in the

@@ -60,7 +60,8 @@ letra mayúscula. Los símbolos y espacios se conservan literalmente.</p>
 <span>  max_patrones <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>  na.rm <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  muestra <span class="op">=</span> <span class="fl">1e+05</span>,</span>
-<span>  umbral_raro <span class="op">=</span> <span class="fl">0.05</span></span>
+<span>  umbral_raro <span class="op">=</span> <span class="fl">0.05</span>,</span>
+<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -96,11 +97,23 @@ letra mayúscula. Los símbolos y espacios se conservan literalmente.</p>
 <dd><p>Umbral usado para conservar un resumen acotado de
 patrones raros para los hallazgos.</p></dd>
 
+
+<dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>
+<dd><p>Si los ejemplos se enmascaran cuando la
+forma de los valores alcanza para clasificarlos como dato personal. <code>TRUE</code>
+por omisión. <code><a href="perfilar.html">perfilar()</a></code> lo pasa en <code>FALSE</code> porque protege el perfil
+entero después, respetando ahí la declaración del usuario.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Un data frame de clase <code>patrones</code> con patrón, frecuencia, proporción
-y ejemplos. Los atributos <code>total</code>, <code>analizados</code>, <code>filas_analizadas</code> y
+y ejemplos. Los <strong>ejemplos no se publican</strong> cuando la forma de los valores
+alcanza por sí sola para clasificarlos como dato personal —un correo, por
+ejemplo—: salen como <code>[valor protegido]</code>. Acá llega un vector suelto, sin
+nombre de columna, así que la vía por nombre no está disponible; un número
+de ocho dígitos <strong>sí</strong> se publica, porque su forma sola no alcanza para
+afirmar que es un documento. Los atributos <code>total</code>, <code>analizados</code>, <code>filas_analizadas</code> y
 <code>muestreado</code> describen el posible muestreo; <code>filas_analizadas</code> es un alias
 explícito de <code>analizados</code> para mantener el alcance visible junto a otros
 diagnósticos. <code>resumen_patrones</code> conserva sólo el patrón dominante

@@ -83,10 +83,15 @@ permite separar un grupo aún no revisado de una omisión deliberada.
 
 `estado` distingue acciones `lista`, `bloqueada` e `informativa`;
 `orden` fija la secuencia reproducible. `n_afectadas` es la estimación
-del perfil y `unidad_conteo` dice si cuenta filas, columnas o valores
-distintos —lo declara la acción cuando cuenta en una unidad propia, y
-sólo si no lo hace se hereda del hallazgo—. El registro informa
-`n_cambiadas` sobre los datos recibidos.
+del perfil sobre **lo que esta acción tocaría**, que puede ser menos que
+el conteo del hallazgo que la originó cuando la acción sólo cubre parte
+del caso: una columna con tres valores de codificación rota, de los
+cuales uno es reparable, produce un hallazgo con `n_afectados = 3` y una
+acción `reparar_codificacion` con `n_afectadas = 1`. Las dos cifras son
+ciertas y cuentan cosas distintas. `unidad_conteo` dice si cuenta filas,
+columnas o valores distintos —lo declara la acción cuando cuenta en una
+unidad propia, y sólo si no lo hace se hereda del hallazgo—. El registro
+informa `n_cambiadas` sobre los datos recibidos.
 
 **`n_afectadas` y `n_cambiadas` pueden no coincidir, y las dos son
 ciertas.** La estimación se calcula sobre los datos que se perfilaron;
@@ -98,30 +103,43 @@ recorta dos valores donde el plan estimaba siete. No es un desvío que
 ocultar: `orden`, `n_afectadas` y `n_cambiadas` se publican los tres, y
 compararlos es la forma de ver el efecto de la composición. Sólo el caso
 extremo —la acción no produce **ningún** efecto donde el plan estimaba
-alguno— se registra como `fallida` con su motivo. `reversible` indica si
-la conversión conserva la identidad de cada valor. Las conversiones se
-comprueban sobre todos los valores de `datos`: las numéricas bloquean
-ceros iniciales y colisiones no inyectivas, mientras que fechas,
-fechas-hora y lógicos sólo bloquean conversiones no ejecutables o no
-inyectivas. Las fechas pueden cambiar a la representación canónica del
-tipo sin que eso sea una pérdida. Sin `datos` no se puede hacer la
-comprobación y la acción queda bloqueada. Cuando no es reversible se
-marca `destructiva`, no se activa por defecto y el registro conserva
-`n_no_reversibles` y la justificación de la decisión. La acción de
-codificación prueba las tablas congeladas de varias codificaciones y
-deja en `estado_reparacion` uno de `reparado`, `reparado_parcialmente` o
-`no_se_pudo`. Una reparación parcial no se activa automáticamente: debe
-revisarse y seleccionarse de forma explícita. La estrategia se llama
-`reparar_codificacion` y no limita el motor a latin-1. Si se marca una
-acción que no está `lista`, `aplicar()` aborta antes de modificar la
-copia y enumera las filas problemáticas. Una acción que sí está lista
-pero falla se registra con su error y no impide aplicar las siguientes:
-cada una conserva atomicidad sobre su propia columna o tabla. Las
-acciones que efectivamente eliminan filas o columnas requieren además
-`permitir_eliminacion = TRUE`; una conversión `destructiva` requiere
-selección explícita y deja la pérdida cuantificada. Por defecto, el
-resultado conserva lo retirado en `eliminados`; use
-`conservar_eliminados = FALSE` para evitar ese costo de memoria.
+alguno— se registra como `fallida` con su motivo.
+
+**Esa comparación sólo lee composición cuando las dos cifras cuentan en
+la misma unidad.** `n_afectadas` cuenta en la `unidad_conteo` que el
+plan declara y `n_cambiadas` cuenta lo que la acción tocó al aplicarse,
+que es su unidad natural. Cuando la acción declara
+`unidad_conteo = "valor_distinto"` —las conversiones de mayúsculas y
+minúsculas—, las dos cifras miden poblaciones distintas y su diferencia
+no dice nada sobre la composición: medido sobre
+`c("Ana", "ana", "ANA", "Beto", " Ana ")`, `convertir_minusculas` estima
+`n_afectadas = 3` valores distintos y el registro publica
+`n_cambiadas = 4` celdas. Las dos son ciertas. La unidad del plan se
+recupera uniendo el registro con el plan por `id_accion`, que los dos
+publican. `reversible` indica si la conversión conserva la identidad de
+cada valor. Las conversiones se comprueban sobre todos los valores de
+`datos`: las numéricas bloquean ceros iniciales y colisiones no
+inyectivas, mientras que fechas, fechas-hora y lógicos sólo bloquean
+conversiones no ejecutables o no inyectivas. Las fechas pueden cambiar a
+la representación canónica del tipo sin que eso sea una pérdida. Sin
+`datos` no se puede hacer la comprobación y la acción queda bloqueada.
+Cuando no es reversible se marca `destructiva`, no se activa por defecto
+y el registro conserva `n_no_reversibles` y la justificación de la
+decisión. La acción de codificación prueba las tablas congeladas de
+varias codificaciones y deja en `estado_reparacion` uno de `reparado`,
+`reparado_parcialmente` o `no_se_pudo`. Una reparación parcial no se
+activa automáticamente: debe revisarse y seleccionarse de forma
+explícita. La estrategia se llama `reparar_codificacion` y no limita el
+motor a latin-1. Si se marca una acción que no está `lista`, `aplicar()`
+aborta antes de modificar la copia y enumera las filas problemáticas.
+Una acción que sí está lista pero falla se registra con su error y no
+impide aplicar las siguientes: cada una conserva atomicidad sobre su
+propia columna o tabla. Las acciones que efectivamente eliminan filas o
+columnas requieren además `permitir_eliminacion = TRUE`; una conversión
+`destructiva` requiere selección explícita y deja la pérdida
+cuantificada. Por defecto, el resultado conserva lo retirado en
+`eliminados`; use `conservar_eliminados = FALSE` para evitar ese costo
+de memoria.
 
 Los hallazgos `controles_invisibles`, `entidades_html` y
 `separadores_en_campo` tienen acciones separadas. La detección de
@@ -172,6 +190,18 @@ consentimiento `permitir_eliminacion` sólo se exige para las estrategias
 que efectivamente retiran filas o columnas; una conversión destructiva
 requiere que el usuario la active explícitamente y deja su pérdida
 cuantificada en el registro.
+
+**Marcar o eliminar ausentes va después de normalizarlos**, no antes.
+Una columna con `"N/A"` y `"sin dato"` tiene ausentes disfrazados que
+`convertir_ausencias_textuales` convierte en `NA` reales; si la marca
+corriera primero, quedaría una columna `.ausente_x` que dice `FALSE` en
+filas que terminan en `NA` —una afirmación falsa sobre los datos,
+publicada con las dos acciones en `ejecutada` y sin error—. Medido sobre
+siete formas de tabla antes de corregirlo, tres producían esa marca
+falsa siguiendo el idioma documentado
+`plan$aplicar <- plan$recomendada`. Por la misma razón,
+`eliminar_filas_ausentes` también va después: eliminar antes deja sin
+eliminar las filas cuyo ausente todavía estaba disfrazado.
 
 ## See also
 

@@ -53,7 +53,12 @@ de la ventana declarada.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">detectar_discordancias</span><span class="op">(</span><span class="va">datos</span>, <span class="va">senales</span>, max_ejemplos <span class="op">=</span> <span class="fl">5L</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">detectar_discordancias</span><span class="op">(</span></span>
+<span>  <span class="va">datos</span>,</span>
+<span>  <span class="va">senales</span>,</span>
+<span>  max_ejemplos <span class="op">=</span> <span class="fl">5L</span>,</span>
+<span>  proteger_datos_personales <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -72,11 +77,23 @@ señales.</p></dd>
 <dt id="arg-max-ejemplos">max_ejemplos<a class="anchor" aria-label="anchor" href="#arg-max-ejemplos"></a></dt>
 <dd><p>Máximo de filas concretas que se citan como evidencia.</p></dd>
 
+
+<dt id="arg-proteger-datos-personales">proteger_datos_personales<a class="anchor" aria-label="anchor" href="#arg-proteger-datos-personales"></a></dt>
+<dd><p>Si los valores de las columnas clasificadas
+como dato personal se enmascaran en <code>evidencia</code>. <code>TRUE</code> por omisión; el
+número de fila y el nombre de la columna se conservan igual.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Data frame con una fila por señal: <code>senal</code>, <code>columnas</code>, <code>n_filas</code>,
 <code>n_evaluadas</code>, <code>n_discordantes</code>, <code>proporcion</code>, <code>ventana</code> y <code>evidencia</code>.</p>
+<p><code>evidencia</code> cita filas concretas, y <strong>no publica los valores de una columna
+clasificada como dato personal</strong> —salvo que se pida lo contrario con
+<code>proteger_datos_personales = FALSE</code>—: esos salen como <code>[valor protegido]</code>. El
+número de fila y el nombre de la columna se conservan, que es lo que hace
+falta para ir a corregirla. Las columnas que no son personales se citan
+enteras.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

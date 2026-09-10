@@ -90,7 +90,10 @@ Debe contener una sola métrica específica, una corrida y una granularidad.</p>
 
 <dt id="arg-pesos">pesos<a class="anchor" aria-label="anchor" href="#arg-pesos"></a></dt>
 <dd><p>Vector numérico requerido por <code>promedio_ponderado</code>, con una
-entrada por fila de <code>medidas</code>.</p></dd>
+entrada por fila de <code>medidas</code>. Si trae nombres, se emparejan con
+<code>objeto_medible</code> y se falla nombrando lo que sobra o falta —igual que en
+<code><a href="indice_calidad.html">indice_calidad()</a></code>—, así que la misma declaración escrita en otro orden da
+el mismo número. Sin nombres se leen por posición.</p></dd>
 
 
 <dt id="arg-coleccion">coleccion<a class="anchor" aria-label="anchor" href="#arg-coleccion"></a></dt>
@@ -148,9 +151,9 @@ taxonómicos y esta función no calcula un índice global.</p>
 <span class="r-in"><span><span class="va">medidas</span> <span class="op">&lt;-</span> <span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">instancia</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>edad <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20</span>, <span class="cn">NA</span>, <span class="fl">35</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">agregar</span><span class="op">(</span><span class="va">medidas</span>, <span class="st">"atributo"</span>, <span class="st">"ratio"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                               id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260905T104848.817336-7428-agg-ratio-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260910T015052.059425-7633-agg-ratio-000001</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260905T104848.817336-7428 2026-09-05 10:48:48  NoNulo</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260910T015052.059425-7633 2026-09-10 01:50:52  NoNulo</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   metrica_especifica   metrica_instanciada   dimension   factor orientacion</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1             NoNulo agregada:ratio:NoNulo Completitud Densidad conformidad</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   granularidad tipo_resultado  entidad atributo fila objeto_medible resultado</span>

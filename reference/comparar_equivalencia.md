@@ -63,6 +63,27 @@ en segundos contra magnitudes numéricas sin unidad común. Cuando ambos
 lados son temporales, `desvio` sí se compara en flotante porque ambas
 puertas lo expresan en segundos.
 
+Si una columna guarda caracteres en exactamente uno de los perfiles, los
+campos calculados sobre la representación —longitudes, variantes unicode
+y números escritos como texto— se omiten y su motivo queda en
+`detalle_campos_no_comparables` como `tipo_cambiado:texto_vs_no_texto`.
+Esos campos cambian con sólo cambiar el almacenamiento, aunque el dato
+sea el mismo, de modo que compararlos publicaría el síntoma y callaría
+la causa. `factor` cuenta como almacenamiento de caracteres. Este guarda
+lee el tipo *declarado* y no el inferido: si el texto contiene números o
+fechas, la inferencia borra justo la diferencia que hay que ver. Cuando
+el tipo declarado viene de un vocabulario ajeno al de memoria —un tipo
+SQL, por ejemplo— no se afirma nada y la comparación sigue como siempre.
+
+Por la misma razón, si una columna lleva zona horaria en exactamente uno
+de los perfiles, los campos que sólo ese almacenamiento puede medir se
+omiten con el motivo `tipo_cambiado:con_zona_vs_sin_zona`. Del otro lado
+no dan un valor distinto: no dan ninguno, porque no hay zona que
+comparar contra UTC. Los extremos de fecha **sí** se siguen comparando:
+al guardarse como texto la columna pierde la zona y los instantes que
+denota son realmente otros, que es lo más importante que hay para
+informar en ese caso.
+
 ## See also
 
 [`comparar_perfiles()`](https://sebollin.github.io/lupa/reference/comparar_perfiles.md),

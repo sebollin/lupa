@@ -8,7 +8,12 @@ hecho no concuerdan dentro de la ventana declarada.
 ## Usage
 
 ``` r
-detectar_discordancias(datos, senales, max_ejemplos = 5L)
+detectar_discordancias(
+  datos,
+  senales,
+  max_ejemplos = 5L,
+  proteger_datos_personales = TRUE
+)
 ```
 
 ## Arguments
@@ -27,10 +32,23 @@ detectar_discordancias(datos, senales, max_ejemplos = 5L)
 
   Máximo de filas concretas que se citan como evidencia.
 
+- proteger_datos_personales:
+
+  Si los valores de las columnas clasificadas como dato personal se
+  enmascaran en `evidencia`. `TRUE` por omisión; el número de fila y el
+  nombre de la columna se conservan igual.
+
 ## Value
 
 Data frame con una fila por señal: `senal`, `columnas`, `n_filas`,
 `n_evaluadas`, `n_discordantes`, `proporcion`, `ventana` y `evidencia`.
+
+`evidencia` cita filas concretas, y **no publica los valores de una
+columna clasificada como dato personal** —salvo que se pida lo contrario
+con `proteger_datos_personales = FALSE`—: esos salen como
+`[valor protegido]`. El número de fila y el nombre de la columna se
+conservan, que es lo que hace falta para ir a corregirla. Las columnas
+que no son personales se citan enteras.
 
 ## Details
 

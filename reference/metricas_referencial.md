@@ -30,9 +30,9 @@ metricas_referencial()
 
 ## Value
 
-Lista con tres objetos `metrica_generica` -cobertura, validez y
-completitud del dominio-, listos para instanciar contra un
-`referencial`. Son definiciones: no miden hasta que se las instancia.
+Lista con tres objetos `metrica_generica` —`CorrectitudSemFuerte`,
+`CorrectitudSemDebil` y `RatioCobertura`—, listos para instanciar contra
+un `referencial`. Son definiciones: no miden hasta que se las instancia.
 
 ## Details
 
@@ -58,11 +58,11 @@ fuerte <- instanciar(especializar(m$CorrectitudSemFuerte),
   "personas", "id", referencial = ref)
 medir(modelo(fuerte), data.frame(id = c(1, 4)))
 #>                                     id_medida
-#> 1 medicion-20260905T104904.483747-7428-000001
-#> 2 medicion-20260905T104904.483747-7428-000002
+#> 1 medicion-20260910T015110.167409-7633-000001
+#> 2 medicion-20260910T015110.167409-7633-000002
 #>                            id_medicion               fecha              metrica
-#> 1 medicion-20260905T104904.483747-7428 2026-09-05 10:49:04 CorrectitudSemFuerte
-#> 2 medicion-20260905T104904.483747-7428 2026-09-05 10:49:04 CorrectitudSemFuerte
+#> 1 medicion-20260910T015110.167409-7633 2026-09-10 01:51:10 CorrectitudSemFuerte
+#> 2 medicion-20260910T015110.167409-7633 2026-09-10 01:51:10 CorrectitudSemFuerte
 #>     metrica_especifica              metrica_instanciada dimension
 #> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud
 #> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud

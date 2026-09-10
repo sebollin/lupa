@@ -141,6 +141,11 @@ clave foránea comprobada</strong>, es un indicio que hay que confirmar contra e
 diccionario de datos.</p>
 <p>Las columnas candidatas se podan antes de materializar cada comparación. Las
 podas quedan declaradas en <code>cobertura_podas</code>, con su motivo y conteo.</p>
+<p>El campo <code>detalle</code> de una poda por rangos disjuntos <strong>no publica extremos que
+identifiquen</strong>: si el mínimo o el máximo de un lado llega al piso de la
+protección —seis caracteres o más—, ese rango sale como <code>[valor protegido]</code>.
+El mínimo de una columna de documentos es el documento de una persona real, y
+el par mínimo–máximo acota además a todos los valores intermedios.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

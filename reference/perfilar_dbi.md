@@ -362,8 +362,16 @@ perfilar_dbi(
 - sentinelas_numericos:
 
   Vector completo de valores numéricos que se declaran como faltantes en
-  el `perfil_muestra`. El resumen SQL no los excluye de sus agregados y
-  lo declara en `resumen_tabla$cobertura`.
+  el `perfil_muestra`. Se normaliza como un conjunto numérico, por lo
+  que el orden, el tipo entero o doble y los duplicados no cambian el
+  resultado. El resumen SQL no los excluye de sus agregados y lo declara
+  en `resumen_tabla$cobertura`.
+
+  Rige la misma reserva que en
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md):
+  un valor de la lista **por omisión** que aparece una sola vez y dentro
+  del rango de los demás no se señala. Declarar el valor lo vuelve a
+  contar.
 
 - ...:
 

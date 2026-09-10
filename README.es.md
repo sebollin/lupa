@@ -48,13 +48,12 @@ Entre las salidas de esa corrida aparecen:
 
 | Qué deja visible | `tipo_hallazgo` | Ejemplo en `evidencia` |
 |----|----|----|
-| Faltantes escondidos detrás de códigos | `faltantes_disfrazados` | `-99 (1)` |
+| Faltantes escondidos detrás de códigos | `faltantes_disfrazados` | `NULL (1)` |
 | Fechas en representaciones mixtas | `formatos_fecha_mixtos` | `%d/%m/%Y (4); %Y-%m-%d (4); ...` |
 | Espacios sobrantes | `espacios_sobrantes` | `1 valores; ejemplos: "web "` |
 | Mayúsculas inconsistentes | `mayusculas_inconsistentes` | `"web"; "Web"` |
 | El tipo declarado y el inferido no coinciden | `tipo_declarado_distinto` | `Declarado: texto; inferido: fecha` |
 | Una columna constante | `constante` | `Valor: principal; frecuencia: 13` |
-| Un valor modal concentrado | `valor_concentrado` | `Valor modal: 1000; frecuencia de la moda: 25; frecuencia del segundo valor: 1; cociente moda/segundo: 25.000; fraccion de la moda sobre validos: 0.250` |
 | Filas duplicadas exactas | `filas_duplicadas` | `2 filas en grupos duplicados (1 excedentes)` |
 | Columnas repetidas | `columnas_duplicadas` | `id_registro = id_copia` |
 
@@ -248,10 +247,15 @@ referencial es un padrón de personas, el valor sale como
 `[valor protegido]` y la distancia se conserva. Un referencial que no
 lleva datos personales mantiene su evidencia completa.
 
-**Y el enmascarado alcanza a todas las salidas, no sólo a la moda.** La
-descripción, la evidencia y la sugerencia de cada hallazgo; el motivo y
-el `como_resolverlo` de la cobertura; los parámetros de una acción del
-plan; los «Ejemplos reales» que
+**Y el enmascarado alcanza a todas las salidas, no sólo a la moda** —con
+alcance **por columna**: se reemplaza lo que describe a la columna
+protegida, no toda aparición de ese texto. `"S/D"` puede ser un
+centinela de la cédula y a la vez el «sin dato» de `sexo`, y publicarlo
+en `sexo` no revela nada de la cédula; lo que no tiene columna a la que
+atribuirse, como un hallazgo de filas duplicadas, sí queda enmascarado
+en todas partes—. La descripción, la evidencia y la sugerencia de cada
+hallazgo; el motivo y el `como_resolverlo` de la cobertura; los
+parámetros de una acción del plan; los «Ejemplos reales» que
 [`guiar_limpieza()`](https://sebollin.github.io/lupa/reference/guiar_limpieza.md)
 imprime por consola; y el rectángulo delimitador de una geometría
 protegida, cuyos cuatro `bbox_*` quedan en `NA` con
@@ -338,7 +342,7 @@ breve:
 | Tarea | Funciones principales | Para leer más |
 |----|----|----|
 | Mirar los datos por primera vez | [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md), [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md), [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md), [`detectar_asociaciones()`](https://sebollin.github.io/lupa/reference/detectar_asociaciones.md), [`analizar_tiempo()`](https://sebollin.github.io/lupa/reference/analizar_tiempo.md), [`clasificar_variables()`](https://sebollin.github.io/lupa/reference/clasificar_variables.md), [`inferir_tipo()`](https://sebollin.github.io/lupa/reference/inferir_tipo.md), [`descubrir_patrones()`](https://sebollin.github.io/lupa/reference/descubrir_patrones.md), [`detectar_formatos_fecha()`](https://sebollin.github.io/lupa/reference/detectar_formatos_fecha.md), `sentinelas_naniar` | [Empezar con lupa](https://sebollin.github.io/lupa/articles/empezar-con-lupa.html) |
-| Perfilar contra una base | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — agregados SQL de toda la tabla y, por omisión, un perfil de 109 campos analíticos sobre una muestra declarada; `bloque_muestra = "solo_agregados"` permite pedir sólo los agregados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
+| Perfilar contra una base | [`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md) — agregados SQL de toda la tabla y, por omisión, un perfil de 112 campos analíticos sobre una muestra declarada; `bloque_muestra = "solo_agregados"` permite pedir sólo los agregados | [Perfilar una base](https://sebollin.github.io/lupa/articles/perfilar-una-base.html) |
 | Encontrar estructura no declarada | [`detectar_claves()`](https://sebollin.github.io/lupa/reference/detectar_claves.md), [`detectar_relaciones()`](https://sebollin.github.io/lupa/reference/detectar_relaciones.md), [`detectar_dependencias()`](https://sebollin.github.io/lupa/reference/detectar_dependencias.md), [`granularidades()`](https://sebollin.github.io/lupa/reference/granularidades.md), [`transiciones_granularidad()`](https://sebollin.github.io/lupa/reference/granularidades.md) | [Estructura no declarada](https://sebollin.github.io/lupa/articles/estructura-no-declarada.html) |
 | Definir la calidad | [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_agesic()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_iso25012()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`marco_cepal()`](https://sebollin.github.io/lupa/reference/marco_calidad.md), [`catalogo_agesic()`](https://sebollin.github.io/lupa/reference/catalogo_agesic.md), [`metrica()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`especializar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`instanciar()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`modelo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_nucleo()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md), [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md), [`proponer_modelo()`](https://sebollin.github.io/lupa/reference/proponer_modelo.md), [`modelo_desde_propuesta()`](https://sebollin.github.io/lupa/reference/modelo_desde_propuesta.md), [`perfiles_madurez()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`cobertura_analisis()`](https://sebollin.github.io/lupa/reference/cobertura_analisis.md) | [Definir la calidad](https://sebollin.github.io/lupa/articles/definir-la-calidad.html) |
 | Medir y evaluar | [`medir()`](https://sebollin.github.io/lupa/reference/medir.md), [`agregar()`](https://sebollin.github.io/lupa/reference/agregar.md), [`tablero_calidad()`](https://sebollin.github.io/lupa/reference/tablero_calidad.md), [`indice_calidad()`](https://sebollin.github.io/lupa/reference/indice_calidad.md) con pesos del proyecto, [`evaluar()`](https://sebollin.github.io/lupa/reference/evaluar.md), [`regla_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md) con la instrucción `desenlace = "suprimir"` declarada por quien usa el paquete (no un umbral de fábrica), [`perfil_evaluacion()`](https://sebollin.github.io/lupa/reference/reglas_evaluacion.md), [`escala()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md), [`referencial()`](https://sebollin.github.io/lupa/reference/referencial.md), [`vigencia()`](https://sebollin.github.io/lupa/reference/contratos_medicion.md) | [Medir y evaluar](https://sebollin.github.io/lupa/articles/medir-y-evaluar.html) |
@@ -1098,16 +1102,18 @@ una numeración —un identificador, un código— no es ninguna de las dos
 cosas, y que un código quede lejos de la mediana no dice nada de su
 calidad.
 
-Reconocer una numeración pide **dos señales, y hacen falta las dos**. La
-primera es la **densidad**: un identificador ocupa un tramo compacto de
-los enteros y una magnitud se reparte por varios órdenes. La unicidad no
-sirve, porque un monto también es casi único. La segunda es la
-**ausencia de un salto de escala**, y sin ella la primera hace daño: un
-valor fuera de escala de hasta el doble del máximo no baja la densidad
-lo suficiente, así que un `120` entre edades de 18 a 70 —o un `2000`
-detrás de 1..1000— quedaba tapado justo cuando era lo único que había
-que ver. Lo que sí los delata es el hueco que abren: 50 y 1.000 donde el
-típico es 1.
+Reconocer una numeración usa la **densidad**: un identificador ocupa un
+tramo compacto de los enteros y una magnitud se reparte por varios
+órdenes. La unicidad no sirve, porque un monto también es casi único. El
+campo público `secuencia_entera_densa` responde sólo esa pregunta de
+cobertura; la señal separada `moda_sobresale_secuencia_entera` no debe
+apagar los escudos de forma que usan la numeración. La guarda de
+centinelas vuelve a abrirse si un candidato queda fuera del rango de la
+numeración restante, o si ese candidato es la frecuencia sobresaliente.
+La señal del rango es deliberadamente independiente de la frecuencia:
+`-9` en una numeración de 1 a 1.505 es sospechoso aunque cinco valores
+legítimos empaten con él, mientras que un `999` que aparece una vez
+dentro de 1..1.000 no lo es.
 
 El criterio se eligió midiendo. Un banco de trece columnas con la
 respuesta conocida —cinco numeraciones y ocho magnitudes con un dato
@@ -1141,6 +1147,13 @@ los `NA` y las filas que `aplicabilidad` deja fuera del universo. La
 lista por omisión, en cambio, informa y no toca los números: es una
 conjetura, y una conjetura no mueve un promedio. `moda` y `n_distintos`
 siguen describiendo lo que hay guardado, como ya hacían con un `Inf`.
+
+La política de centinelas se compara como un conjunto numérico. Cambiar
+el orden, entregar enteros en vez de dobles o repetir un valor tiene
+entonces el mismo significado por
+[`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md) y
+por
+[`perfilar_dbi()`](https://sebollin.github.io/lupa/reference/perfilar_dbi.md).
 
 **La unicidad no se adivina: se pregunta —y en una base, se lee.**
 Cuando los datos vienen por DBI, la clave primaria **está declarada en
