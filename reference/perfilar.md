@@ -906,6 +906,24 @@ comprobación pudo ejecutarse; en texto no ASCII sin `stringi` queda
 informa la dependencia ausente. Las columnas ASCII se evalúan siempre y
 conservan cero. El perfil de comparación es completamente R base.
 
+Hay un segundo caso en que `unicode_evaluado` queda en `FALSE`, y no es
+una dependencia ausente: cuando **todos** los valores de la columna
+traen bytes que no forman UTF-8 válido, no queda texto que analizar. Ahí
+las pasadas que dependen de texto legible no llegan a correr, así que
+`n_codificacion_rota`, `n_codificacion_reparable`,
+`n_codificacion_reparable_parcialmente`, `n_codificacion_irreparable`,
+`n_codificacion_no_se_pudo` y `estado_codificacion_reparacion` quedan en
+`NA` en vez de en cero: un cero afirmaría no haber encontrado nada, y lo
+cierto es que no hubo nada que mirar. `n_codificacion_invalida` sigue
+contando esos valores y el hallazgo `codificacion_invalida`, de
+severidad `error`, sigue declarando que se excluyeron.
+
+La identidad de la columna no depende de esa exclusión: `n_distintos`,
+`moda` y `frecuencia_moda` comparan la representación almacenada, que se
+puede distinguir sin decodificarla. Un valor ilegible cuenta como valor,
+y la moda que se publica es el valor original tal como llegó, sin
+reinterpretarlo.
+
 Las columnas `sfc` declaran su CRS, los tipos concretos y la dimensión
 (`XY`, `XYZ`, `XYM` o `XYZM`), además de geometrías vacías, validez,
 dominio y caja envolvente. `POINT`/`MULTIPOINT`,
