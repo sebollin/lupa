@@ -23,6 +23,31 @@
   clave
 }
 
+# Los nombres son datos del usuario, pero varias primitivas de base R exigen
+# texto valido. Marcar primero lo que ya es UTF-8 evita reinterpretar un nombre
+# legible; para los bytes que siguen sin codificacion declarada, `.clave_bytes()`
+# produce una forma UTF-8 determinista sin adivinar el caracter original.
+.nombres_para_operar <- function(nombres) {
+  nombres <- .marcar_utf8_textos(as.character(nombres))
+  .clave_bytes(nombres)
+}
+
+# `make.unique()` se usa para claves internas y para nombres de listas. Conserva
+# el nombre original cuando no hay colision; una colision se desambigua sobre la
+# clave operativa, como antes, pero sin pasar bytes invalidos a base R.
+.nombres_unicos <- function(nombres) {
+  originales <- as.character(nombres)
+  operativos <- .nombres_para_operar(originales)
+  unicos <- make.unique(operativos)
+  repetidos <- duplicated(operativos) | duplicated(operativos, fromLast = TRUE)
+  unicos[!repetidos] <- originales[!repetidos]
+  unicos
+}
+
+.nombres_make_names <- function(nombres) {
+  make.names(.nombres_para_operar(nombres), unique = TRUE)
+}
+
 # El orden de un vector cualquiera, sin depender de lo que el usuario tenga
 # adjunto ni de la configuracion regional.
 #
@@ -401,15 +426,22 @@
 #'   evaluación se declara en vez de dejar pasar la columna intacta para que
 #'   cada etapa la deparse por su cuenta.
 #'   `valores_identidad` es lo que puede recibir una comparación por igualdad
-#'   —`unique()`, `match()`, la moda, la inferencia de tipo—. Para toda columna
-#'   analizable es el mismo vector que `valores`; para las demás es la columna
-#'   original, de modo que contar sus distintos siga siendo posible sin
-#'   convertirla a texto.
+#'   —`unique()`, `match()`, la moda, la inferencia de tipo—. Para una columna
+#'   analizable que no necesita coercion es el mismo vector que `valores`; una
+#'   columna atomica que necesita coercion —por ejemplo `raw`— conserva aqui su
+#'   vector original.
 #'   `invalidos` y `posiciones` marcan los bytes UTF-8 inválidos aislados.
 #'   `analizable` declara si la columna pasa por las etapas de texto y `motivo`
 #'   dice por qué no, cuando corresponde.
 #' @noRd
 .texto_analizable <- function(x) {
+  if (is.raw(x)) {
+    return(list(
+      valores = as.character(x), invalidos = rep(FALSE, length(x)),
+      posiciones = integer(), analizable = TRUE, valores_identidad = x,
+      motivo = NA_character_
+    ))
+  }
   if (!is.character(x) && !is.factor(x)) {
     if (!.analizable_como_texto(x)) {
       n <- length(x)

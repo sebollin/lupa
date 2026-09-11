@@ -48,7 +48,7 @@
 .nombres_snake <- function(nombres) {
   originales <- as.character(nombres)
   originales[is.na(originales)] <- ""
-  transliterados <- .transliterar_ascii(originales)
+  transliterados <- .transliterar_ascii(.nombres_para_operar(originales))
   salida <- tolower(trimws(transliterados))
   salida <- gsub("[^[:alnum:]]+", "_", salida, perl = TRUE)
   salida <- gsub("^_+|_+$", "", salida, perl = TRUE)
@@ -437,7 +437,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
 
     if (identical(tipo, "faltantes") && !is.null(fila) &&
         fila$n_faltantes[[1L]] > 0L) {
-      nombre_marca <- paste0(".ausente_", make.names(columna))
+      nombre_marca <- paste0(".ausente_", .nombres_make_names(columna))
       acciones <- .agregar_accion(acciones, .nueva_accion(
         columna, tipo, "marcar_filas_ausentes", TRUE,
         paste0(
@@ -804,7 +804,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
         ), fila$n_outliers[[1L]], TRUE, estado = estado_columna,
         aplicar = FALSE,
         parametros = list(
-          columna_marca = paste0(".outlier_", make.names(columna)),
+          columna_marca = paste0(".outlier_", .nombres_make_names(columna)),
           regla = "Tukey 1,5 x IQR"
         ), orden = 510L, grupo = grupo_hallazgo,
         decision_grupo = "pendiente",
@@ -833,7 +833,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
         ), nrow(problema), FALSE, estado = "lista", aplicar = TRUE,
         parametros = list(
           nombres_esperados = nombres,
-          nombres_propuestos = make.names(nombres, unique = TRUE)
+          nombres_propuestos = .nombres_make_names(nombres)
         ), orden = 900L, grupo = grupo_hallazgo,
         decision_grupo = "recomendada",
         recomendacion_grupo = "normalizar_nombres"
@@ -993,7 +993,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
         for (indice in indices) {
           candidata <- candidatas[[indice]]
           estrategia_imputacion <- paste0(
-            "imputar_dependencia_funcional__", make.names(candidata$determinante)
+            "imputar_dependencia_funcional__",
+            .nombres_make_names(candidata$determinante)
           )
           acciones <- .agregar_accion(acciones, .nueva_accion(
             candidata$dependiente, "faltantes",
@@ -1809,7 +1810,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
   )) {
     anteriores <- names(datos)
     names(datos) <- if (identical(estrategia, "normalizar_nombres")) {
-      make.names(anteriores, unique = TRUE)
+      .nombres_make_names(anteriores)
     } else {
       .nombres_snake(anteriores)
     }

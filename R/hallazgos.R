@@ -2858,7 +2858,9 @@
     if (length(nombres_par) != 2L) {
       return(.trazabilidad_vacia(limite = limite))
     }
-    indices_columnas <- match(trimws(nombres_par), nombres)
+    indices_columnas <- match(
+      .nombres_para_operar(nombres_par), .nombres_para_operar(nombres)
+    )
     if (anyNA(indices_columnas)) {
       return(.trazabilidad_vacia(limite = limite))
     }
@@ -4409,23 +4411,30 @@
 .nombres_columnas_problematicos <- function(nombres) {
   if (!length(nombres)) {
     return(data.frame(
-      original = character(), propuesto = character(), stringsAsFactors = FALSE
+      original = character(), propuesto = character(),
+      codificacion_invalida = logical(), stringsAsFactors = FALSE
     ))
   }
-  originales <- as.character(nombres)
+  crudos <- as.character(nombres)
+  codificacion_invalida <- !is.na(crudos) &
+    Encoding(crudos) %in% c("unknown", "bytes") & !validUTF8(crudos)
+  originales <- crudos
   originales[is.na(originales)] <- ""
-  propuestos <- make.names(originales, unique = TRUE)
-  problema <- originales != propuestos | originales != trimws(originales) |
-    duplicated(originales) | duplicated(originales, fromLast = TRUE)
+  operativos <- .nombres_para_operar(originales)
+  propuestos <- make.names(operativos, unique = TRUE)
+  problema <- operativos != propuestos | operativos != trimws(operativos) |
+    duplicated(operativos) | duplicated(operativos, fromLast = TRUE) |
+    codificacion_invalida
   data.frame(
     original = originales[problema],
     propuesto = propuestos[problema],
+    codificacion_invalida = codificacion_invalida[problema],
     stringsAsFactors = FALSE
   )
 }
 
 .normalizar_nombre_fecha <- function(x) {
-  y <- .transliterar_ascii(x)
+  y <- .transliterar_ascii(.nombres_para_operar(x))
   .normalizacion_minusculas_vector(gsub("[^[:alnum:]]+", "_", y, perl = TRUE))
 }
 
@@ -4719,11 +4728,28 @@
       encodeString(nombres_problematicos$propuesto, quote = '"'),
       collapse = "; "
     )
+    hay_codificacion_invalida <- any(nombres_problematicos$codificacion_invalida)
     hallazgos[[length(hallazgos) + 1L]] <- .nuevo_hallazgo(
       NA_character_, "nombres_columnas_problematicos", "sospechoso",
-      "La tabla contiene nombres de columna no sint\u00e1cticos o duplicados.",
+      if (hay_codificacion_invalida) {
+        paste(
+          "La tabla contiene nombres de columna no sintacticos o duplicados",
+          "y al menos uno tiene bytes cuya codificacion no se pudo establecer."
+        )
+      } else {
+        "La tabla contiene nombres de columna no sintacticos o duplicados."
+      },
       evidencia,
-      "Renombrar las columnas con nombres sint\u00e1cticos, \u00fanicos y sin espacios al borde.",
+      if (hay_codificacion_invalida) {
+        paste(
+          "Volver a leer la fuente declarando su codificacion, por ejemplo",
+          "con `fileEncoding = \"ISO-8859-1\"`, o renombrar despues de",
+          "confirmar los bytes. No se adivino el caracter: el perfil solo uso",
+          "una clave operativa UTF-8 y conserva el nombre original."
+        )
+      } else {
+        "Renombrar las columnas con nombres sintacticos, unicos y sin espacios al borde."
+      },
       ncol(datos), nrow(nombres_problematicos), "columna"
     )
   }

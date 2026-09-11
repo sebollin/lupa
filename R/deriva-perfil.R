@@ -31,7 +31,7 @@
   nombres <- as.character(perfil$columnas$columna)
   nombres[is.na(nombres) | !nzchar(nombres)] <- "<sin_nombre>"
   data.frame(
-    clave = make.unique(nombres), original = nombres,
+    clave = .nombres_unicos(nombres), original = nombres,
     indice = seq_along(nombres), stringsAsFactors = FALSE
   )
 }

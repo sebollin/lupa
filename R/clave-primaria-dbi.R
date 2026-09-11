@@ -355,7 +355,10 @@
   nombres <- names(datos)
   posicion <- match(candidatos, nombres)
   if (all(is.na(posicion))) {
-    posicion <- match(tolower(candidatos), tolower(nombres))
+    posicion <- match(
+      .normalizacion_minusculas_vector(.nombres_para_operar(candidatos)),
+      .normalizacion_minusculas_vector(.nombres_para_operar(nombres))
+    )
   }
   posicion <- posicion[!is.na(posicion)]
   if (!length(posicion)) return(NULL)

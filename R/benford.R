@@ -264,7 +264,7 @@
       clave_declarada = names(datos)[[i]] %in% as.character(clave_declarada)
     )
   })
-  names(resultados) <- make.unique(names(datos)[candidatas])
+  names(resultados) <- .nombres_unicos(names(datos)[candidatas])
 
   cobertura <- lapply(resultados, function(resultado) {
     if (isTRUE(resultado$aplica)) return(NULL)

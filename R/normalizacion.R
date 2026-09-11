@@ -1171,7 +1171,7 @@ print.normalizacion_lupa <- function(x, ...) {
       valores, perfil
     )
   })
-  names(salida) <- make.unique(nombres)
+  names(salida) <- .nombres_unicos(nombres)
   salida <- salida[!vapply(salida, is.null, logical(1L))]
   if (length(salida)) salida else NULL
 }

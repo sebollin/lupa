@@ -263,7 +263,7 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     is.list(x) || is.matrix(x) || is.raw(x)
   }, logical(1L)))
   seleccion <- utils::head(analizables, as.integer(max_columnas))
-  nombres <- make.unique(names(datos))
+  nombres <- .nombres_unicos(names(datos))
   muestreo <- .muestrear_vector(seq_len(nrow(datos)), limite)
   # `as.data.frame()` antes de recortar: sobre un objeto `sf`, seleccionar
   # columnas vuelve a pegar la geometria que `seleccion` habia excluido, y
@@ -380,7 +380,8 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
   if (nrow(resultado)) {
     resultado <- resultado[order(
       -resultado$cumplimiento, -resultado$n_evaluados,
-      resultado$determinante, resultado$dependiente
+      .nombres_para_operar(resultado$determinante),
+      .nombres_para_operar(resultado$dependiente)
     ), , drop = FALSE]
     rownames(resultado) <- NULL
   }

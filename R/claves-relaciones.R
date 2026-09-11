@@ -222,7 +222,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       max_combinacion < 1L || max_combinacion > 3L) {
     stop("`max_combinacion` debe ser un entero entre 1 y 3.", call. = FALSE)
   }
-  nombres <- make.unique(names(datos))
+  nombres <- .nombres_unicos(names(datos))
   encontradas <- list()
   casi_encontradas <- list()
   k <- 0L
@@ -396,7 +396,9 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 }
 
 .validar_columnas_candidatas_relacion <- function(datos, columnas, lado) {
-  nombres <- if (is.character(datos)) datos else make.unique(names(datos))
+  nombres <- if (is.character(datos)) .nombres_unicos(datos) else {
+    .nombres_unicos(names(datos))
+  }
   if (is.null(columnas)) return(nombres)
   if (!is.character(columnas) || !length(columnas) || anyNA(columnas) ||
       any(!nzchar(columnas))) {
@@ -628,8 +630,8 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
     stop("`tope_memoria_mb` debe ser un numero no negativo.", call. = FALSE)
   }
   limite_muestra <- .validar_muestra(muestra)
-  nombres_1 <- make.unique(names(tabla1))
-  nombres_2 <- make.unique(names(tabla2))
+  nombres_1 <- .nombres_unicos(names(tabla1))
+  nombres_2 <- .nombres_unicos(names(tabla2))
   candidatas <- .resolver_columnas_candidatas_relacion(
     columnas_candidatas, nombres_1, nombres_2
   )

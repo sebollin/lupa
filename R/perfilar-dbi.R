@@ -3908,7 +3908,12 @@
   nombres <- names(datos)
   if (!length(nombres)) return(NA_integer_)
   posicion <- match(campo, nombres)
-  if (is.na(posicion)) posicion <- match(tolower(campo), tolower(nombres))
+  if (is.na(posicion)) {
+    posicion <- match(
+      .normalizacion_minusculas_vector(.nombres_para_operar(campo)),
+      .normalizacion_minusculas_vector(.nombres_para_operar(nombres))
+    )
+  }
   posicion
 }
 
@@ -3942,7 +3947,10 @@
   posicion <- match(pedidas, campos)
   faltan <- is.na(posicion)
   if (any(faltan)) {
-    posicion[faltan] <- match(tolower(pedidas[faltan]), tolower(campos))
+    posicion[faltan] <- match(
+      .normalizacion_minusculas_vector(.nombres_para_operar(pedidas[faltan])),
+      .normalizacion_minusculas_vector(.nombres_para_operar(campos))
+    )
   }
   posicion
 }
@@ -5054,7 +5062,9 @@
     )))
   }
   filas <- which(
-    tolower(as.character(datos[[nombre_columna]])) == tolower(columna)
+    .normalizacion_minusculas_vector(.nombres_para_operar(
+      as.character(datos[[nombre_columna]])
+    )) == .normalizacion_minusculas_vector(.nombres_para_operar(columna))
   )
   if (!length(filas)) return(sin_decision())
   inherited <- .logico_catalogo_dbi(datos[[nombre_inherited]][filas])

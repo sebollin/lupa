@@ -164,13 +164,18 @@
     )
     datos <- if (isTRUE(respuesta$ok)) respuesta$datos else NULL
     if (inherits(datos, "data.frame") && nrow(datos)) {
-      columnas <- tolower(names(datos))
+      columnas <- .normalizacion_minusculas_vector(
+        .nombres_para_operar(names(datos))
+      )
       nombre <- which(columnas == "column_name")[[1L]]
       colacion <- which(columnas == "collation_name")[[1L]]
       determinista <- which(columnas == "collation_deterministic")[[1L]]
       for (i in seq_len(nrow(datos))) {
         campo <- as.character(datos[[nombre]][[i]])
-        posicion <- match(tolower(campo), tolower(campos))
+        posicion <- match(
+          .normalizacion_minusculas_vector(.nombres_para_operar(campo)),
+          .normalizacion_minusculas_vector(.nombres_para_operar(campos))
+        )
         if (is.na(posicion) || !textual[[posicion]]) next
         nombres[[posicion]] <- as.character(datos[[colacion]][[i]])
         valor <- datos[[determinista]][[i]]
@@ -215,12 +220,18 @@
     )
     datos <- if (isTRUE(respuesta$ok)) respuesta$datos else NULL
     if (inherits(datos, "data.frame") && nrow(datos)) {
-      columnas <- tolower(names(datos))
+      columnas <- .normalizacion_minusculas_vector(
+        .nombres_para_operar(names(datos))
+      )
       nombre <- which(columnas == "column_name")[[1L]]
       colacion <- which(columnas == "collation_name")[[1L]]
       for (i in seq_len(nrow(datos))) {
-        posicion <- match(tolower(as.character(datos[[nombre]][[i]])),
-                          tolower(campos))
+        posicion <- match(
+          .normalizacion_minusculas_vector(.nombres_para_operar(
+            as.character(datos[[nombre]][[i]])
+          )),
+          .normalizacion_minusculas_vector(.nombres_para_operar(campos))
+        )
         if (is.na(posicion) || !textual[[posicion]]) next
         colacion_actual <- as.character(datos[[colacion]][[i]])
         nombres[[posicion]] <- colacion_actual
@@ -262,13 +273,19 @@
     )
     datos <- if (isTRUE(respuesta$ok)) respuesta$datos else NULL
     if (inherits(datos, "data.frame") && nrow(datos)) {
-      columnas <- tolower(names(datos))
+      columnas <- .normalizacion_minusculas_vector(
+        .nombres_para_operar(names(datos))
+      )
       nombre <- which(columnas == "column_name")[[1L]]
       colacion <- which(columnas == "collation_name")[[1L]]
       determinista <- which(columnas == "collation_deterministic")[[1L]]
       for (i in seq_len(nrow(datos))) {
-        posicion <- match(tolower(as.character(datos[[nombre]][[i]])),
-                          tolower(campos))
+        posicion <- match(
+          .normalizacion_minusculas_vector(.nombres_para_operar(
+            as.character(datos[[nombre]][[i]])
+          )),
+          .normalizacion_minusculas_vector(.nombres_para_operar(campos))
+        )
         if (is.na(posicion) || !textual[[posicion]]) next
         colacion_actual <- as.character(datos[[colacion]][[i]])
         nombres[[posicion]] <- colacion_actual
@@ -336,7 +353,10 @@
     orden_muestra <- as.character(orden_muestra)
     posiciones <- if (exists(".resolver_columnas_dbi", mode = "function")) {
       .resolver_columnas_dbi(orden_muestra, campos)
-    } else match(tolower(orden_muestra), tolower(campos))
+    } else match(
+      .normalizacion_minusculas_vector(.nombres_para_operar(orden_muestra)),
+      .normalizacion_minusculas_vector(.nombres_para_operar(campos))
+    )
     if (anyNA(posiciones)) {
       stop("`orden_muestra` contiene columnas inexistentes.", call. = FALSE)
     }
@@ -387,7 +407,10 @@
   if (length(pk)) {
     posiciones_pk <- if (exists(".resolver_columnas_dbi", mode = "function")) {
       .resolver_columnas_dbi(pk, campos)
-    } else match(tolower(pk), tolower(campos))
+    } else match(
+      .normalizacion_minusculas_vector(.nombres_para_operar(pk)),
+      .normalizacion_minusculas_vector(.nombres_para_operar(campos))
+    )
     pk <- if (all(!is.na(posiciones_pk))) campos[posiciones_pk] else character()
   }
   colaciones <- .collation_fuente_bloques_dbi(
@@ -582,7 +605,10 @@
   nombres <- names(datos)
   indice <- if (!is.null(posicion)) posicion else match(nombre, nombres)
   if (is.na(indice) || !length(indice)) {
-    indice <- match(tolower(nombre), tolower(nombres))
+    indice <- match(
+      .normalizacion_minusculas_vector(.nombres_para_operar(nombre)),
+      .normalizacion_minusculas_vector(.nombres_para_operar(nombres))
+    )
   }
   if (is.na(indice) || !length(indice)) NULL else datos[[indice]]
 }

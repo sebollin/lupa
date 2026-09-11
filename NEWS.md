@@ -2,6 +2,21 @@
 
 ## Lo que se mide contra lo que se declara
 
+- **Un nombre de columna con bytes latin1 sin codificación declarada abortaba
+  `perfilar()`**, y abortaba en dos sitios distintos según el locale. Es el caso
+  de un CSV en español leído con `read.csv(check.names = FALSE)` o con `fread()`.
+  Las operaciones internas que exigen texto válido usan ahora una forma
+  determinista derivada de los bytes, **sin adivinar la codificación**; el
+  nombre que se publica conserva sus bytes originales y el hallazgo declara que
+  la codificación no se pudo establecer. Los valores ya tenían ese camino
+  declarado; los nombres no tenían ninguno. Se cubrieron además los consumidores
+  de nombres en claves, relaciones, dependencias, normalización, deriva,
+  remediación y las puertas DBI, y no sólo los dos que aparecían en la traza.
+- **Una columna `raw` rompía `distribucion_valores()` y `analizar()`** dentro de
+  `rbind`, con un error de R que se filtraba al usuario, mientras `perfilar()`
+  la aceptaba. `.texto_analizable()` promete texto y ahora lo cumple también
+  para `raw` (`01`, `02`, `03`), conservando el vector original para la
+  identidad.
 - **El marcado de la entrada decidía con `identical()`, cuya respuesta depende
   del locale.** Con los mismos bytes, una cadena `unknown` y otra `UTF-8` son
   idénticas bajo un locale UTF-8 y distintas bajo `C`, así que el marcado de

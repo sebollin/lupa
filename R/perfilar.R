@@ -1908,7 +1908,7 @@ perfilar <- function(datos,
   if (is.null(nombres)) {
     nombres <- paste0("V", seq_len(ncol(datos)))
   }
-  nombres_lista <- make.unique(nombres)
+  nombres_lista <- .nombres_unicos(nombres)
   aplicabilidad_resuelta <- .resolver_aplicabilidad(
     datos, nombres, columnas_opcionales, aplicabilidad
   )

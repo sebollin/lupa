@@ -22,7 +22,7 @@
   # pasa a `N` e `I` mayusculas y el `gsub` de `[^a-z0-9]` las borra: `Nandu`
   # quedaba en `andu` y `VIA_1` en `va1`. Transliterando primero, lo que llega a
   # la caja ya es ASCII, y ahi `chartr` es determinista.
-  x <- .transliterar_ascii(as.character(x))
+  x <- .transliterar_ascii(.nombres_para_operar(x))
   x <- chartr("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", x)
   gsub("[^a-z0-9]+", "", x)
 }

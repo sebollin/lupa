@@ -1494,7 +1494,9 @@
     }, logical(1L))
     candidatas <- names(datos)[analizables]
     if (length(candidatas) > 2L) {
-      nombres <- tolower(gsub("[^[:alnum:]]+", "_", candidatas, perl = TRUE))
+      nombres <- tolower(gsub(
+        "[^[:alnum:]]+", "_", .nombres_para_operar(candidatas), perl = TRUE
+      ))
       es_identificador <- grepl(
         "(^|_)(id|identificador|codigo|code|uuid|clave|key|llave|nro|numero)(_|$)",
         nombres, perl = TRUE
