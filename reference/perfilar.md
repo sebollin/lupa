@@ -918,6 +918,16 @@ cierto es que no hubo nada que mirar. `n_codificacion_invalida` sigue
 contando esos valores y el hallazgo `codificacion_invalida`, de
 severidad `error`, sigue declarando que se excluyeron.
 
+Los **nombres de columna** que el perfil publica —en `columnas$columna`
+y en todo lo que nombre una columna: claves, relaciones, dependencias,
+hallazgos, patrones, el plan de remediación y el reporte— son los
+nombres de la tabla de entrada tal como llegaron, con sus bytes **y su
+marca de codificación**. Eso significa que sirven para indexar esa misma
+tabla —`datos[[nombre]]`— sea cual sea el `LC_CTYPE` de la sesión. El
+paquete deriva una representación de trabajo para comparar y desambiguar
+internamente, pero no la publica: dos nombres con bytes distintos siguen
+siendo dos columnas distintas.
+
 La identidad de la columna no depende de esa exclusión: `n_distintos`,
 `moda` y `frecuencia_moda` comparan la representación almacenada, que se
 puede distinguir sin decodificarla. Un valor ilegible cuenta como valor,

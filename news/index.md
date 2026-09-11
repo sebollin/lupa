@@ -4,6 +4,26 @@
 
 ### Lo que se mide contra lo que se declara
 
+- **Los nombres de columna publicados conservan bytes y marca de
+  codificación.** `.marcar_utf8_tabla()` ya no reetiqueta
+  [`names()`](https://rdrr.io/r/base/names.html): los nombres son datos
+  del usuario y `.nombres_para_operar()` alcanza para las comparaciones
+  y ordenamientos internos. Así, `perfil$columnas$columna` y los nombres
+  que publican claves, relaciones, dependencias, hallazgos, patrones,
+  remediación y reportes siguen indexando la tabla de entrada bajo
+  cualquier `LC_CTYPE`.
+- **El manejo de nombres de columna dependía de `LC_CTYPE` en un nivel
+  más profundo.**
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md),
+  las claves, los consumidores del perfil y las validaciones de
+  declaraciones usan ahora una única representación de trabajo derivada
+  de los bytes (`.nombres_para_operar()`), junto con
+  `.nombres_make_names()` y `.nombres_unicos()` deterministas. Sólo se
+  normaliza para comparar o desambiguar: las salidas siguen publicando
+  el nombre original y dos secuencias de bytes distintas siguen siendo
+  columnas distintas. Esto cubre también dependencias, deriva, Benford,
+  normalización, relaciones, duplicados aproximados, remediación y las
+  rutas DBI.
 - **Un nombre de columna con bytes latin1 sin codificación declarada
   abortaba
   [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)**,
