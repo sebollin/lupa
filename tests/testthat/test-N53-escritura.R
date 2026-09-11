@@ -24,11 +24,7 @@ suppressPackageStartupMessages(library(lupa))
 .perfil_N53 <- function() {
   anterior <- Sys.getlocale("LC_CTYPE")
   on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
-  puesto <- suppressWarnings(try(Sys.setlocale("LC_CTYPE", "es_UY.UTF-8"),
-                                 silent = TRUE))
-  if (!identical(puesto, "es_UY.UTF-8")) {
-    stop("no se pudo fijar LC_CTYPE=es_UY.UTF-8")
-  }
+  .fijar_locale_N53(.locale_utf8_N53())
   perfilar(
     .datos_N53(),
     nombre = .bytes_N53(0x50, 0x65, 0x72, 0x66, 0x69, 0x6c, 0x20,
@@ -47,7 +43,29 @@ suppressPackageStartupMessages(library(lupa))
   leidos
 }
 
+# Fijar un locale CONCRETO es medir la maquina. `es_UY.UTF-8` no existe en el
+# contenedor del minimo declarado, ni en las maquinas de CRAN, ni en la mayoria
+# de las instalaciones: la primera version de este archivo hacia `stop()` ahi y
+# el check del contenedor fallo entero. Lo que la prueba necesita no es ESE
+# locale sino UNO cualquiera que sea UTF-8, y `C`, que existe siempre.
+.locale_utf8_N53 <- function() {
+  anterior <- Sys.getlocale("LC_CTYPE")
+  on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
+  candidatos <- c("es_UY.UTF-8", "es_ES.UTF-8", "en_US.UTF-8", "C.UTF-8",
+                  "UTF-8", anterior)
+  for (cand in candidatos) {
+    puesto <- suppressWarnings(try(Sys.setlocale("LC_CTYPE", cand),
+                                   silent = TRUE))
+    if (identical(puesto, cand) &&
+        grepl("utf-?8", cand, ignore.case = TRUE)) {
+      return(cand)
+    }
+  }
+  NULL
+}
+
 .fijar_locale_N53 <- function(locale) {
+  if (is.null(locale)) skip("no hay ningun locale UTF-8 disponible")
   puesto <- suppressWarnings(try(Sys.setlocale("LC_CTYPE", locale),
                                  silent = TRUE))
   if (!identical(puesto, locale)) {
@@ -63,7 +81,7 @@ test_that("N53: el HTML conserva tamano, bytes y cierre en ambos locales", {
   on.exit(unlink(archivo), add = TRUE)
   esperado <- NULL
 
-  for (locale in c("es_UY.UTF-8", "C")) {
+  for (locale in c(.locale_utf8_N53(), "C")) {
     .fijar_locale_N53(locale)
     reportar(
       perfil, archivo = archivo, sobrescribir = TRUE,
@@ -87,7 +105,7 @@ test_that("N53: el HTML conserva tamano, bytes y cierre en ambos locales", {
 .analisis_N53 <- function() {
   anterior <- Sys.getlocale("LC_CTYPE")
   on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
-  .fijar_locale_N53("es_UY.UTF-8")
+  .fijar_locale_N53(.locale_utf8_N53())
   analizar(
     .datos_N53(), conservar_datos = TRUE, muestra = Inf,
     analizar_dependencias = FALSE, proteger_datos_personales = FALSE,
@@ -98,7 +116,7 @@ test_that("N53: el HTML conserva tamano, bytes y cierre en ambos locales", {
 .historico_N53 <- function() {
   anterior <- Sys.getlocale("LC_CTYPE")
   on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
-  .fijar_locale_N53("es_UY.UTF-8")
+  .fijar_locale_N53(.locale_utf8_N53())
   nucleo <- metricas_nucleo()
   instancia <- instanciar(
     especializar(nucleo$NoNulo, nombre_especifico = "NoNuloN53"),
@@ -130,7 +148,7 @@ test_that("N53: los RDS conservan bytes acentuados en ambos locales", {
   archivo_historico <- file.path(directorio, "lupa-N53-historico.rds")
   on.exit(unlink(c(archivo_analisis, archivo_historico)), add = TRUE)
 
-  for (locale in c("es_UY.UTF-8", "C")) {
+  for (locale in c(.locale_utf8_N53(), "C")) {
     .fijar_locale_N53(locale)
     guardar_analisis(
       analisis, archivo_analisis, incluir_datos = TRUE,
