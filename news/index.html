@@ -43,6 +43,11 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="escritura-independiente-del-locale-0-1-0">Escritura independiente del locale<a class="anchor" aria-label="anchor" href="#escritura-independiente-del-locale-0-1-0"></a></h3>
+<ul><li>
+<strong><code><a href="../reference/reportar.html">reportar()</a></code> ya no convierte el HTML al locale de la sesión.</strong> El documento se serializa como bytes UTF-8, se verifica antes de copiarlo al destino y se comprueba que el archivo final coincida completo. Cualquier fallo de escritura, copia o verificación ahora aborta con un error propio en vez de devolver un HTML parcial como si hubiera terminado bien.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="lo-que-se-mide-contra-lo-que-se-declara-0-1-0">Lo que se mide contra lo que se declara<a class="anchor" aria-label="anchor" href="#lo-que-se-mide-contra-lo-que-se-declara-0-1-0"></a></h3>
 <ul><li>
 <strong>Los nombres de columna publicados conservan bytes y marca de codificación.</strong> <code>.marcar_utf8_tabla()</code> ya no reetiqueta <code><a href="https://rdrr.io/r/base/names.html" class="external-link">names()</a></code>: los nombres son datos del usuario y <code>.nombres_para_operar()</code> alcanza para las comparaciones y ordenamientos internos. Así, <code>perfil$columnas$columna</code> y los nombres que publican claves, relaciones, dependencias, hallazgos, patrones, remediación y reportes siguen indexando la tabla de entrada bajo cualquier <code>LC_CTYPE</code>.</li>
