@@ -4,6 +4,29 @@
 
 ### Lo que se mide contra lo que se declara
 
+- **Un nombre de columna con bytes latin1 sin codificación declarada
+  abortaba
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)**,
+  y abortaba en dos sitios distintos según el locale. Es el caso de un
+  CSV en español leído con `read.csv(check.names = FALSE)` o con
+  `fread()`. Las operaciones internas que exigen texto válido usan ahora
+  una forma determinista derivada de los bytes, **sin adivinar la
+  codificación**; el nombre que se publica conserva sus bytes originales
+  y el hallazgo declara que la codificación no se pudo establecer. Los
+  valores ya tenían ese camino declarado; los nombres no tenían ninguno.
+  Se cubrieron además los consumidores de nombres en claves, relaciones,
+  dependencias, normalización, deriva, remediación y las puertas DBI, y
+  no sólo los dos que aparecían en la traza.
+- **Una columna `raw` rompía
+  [`distribucion_valores()`](https://sebollin.github.io/lupa/reference/distribucion_valores.md)
+  y
+  [`analizar()`](https://sebollin.github.io/lupa/reference/analizar.md)**
+  dentro de `rbind`, con un error de R que se filtraba al usuario,
+  mientras
+  [`perfilar()`](https://sebollin.github.io/lupa/reference/perfilar.md)
+  la aceptaba. `.texto_analizable()` promete texto y ahora lo cumple
+  también para `raw` (`01`, `02`, `03`), conservando el vector original
+  para la identidad.
 - **El marcado de la entrada decidía con
   [`identical()`](https://rdrr.io/r/base/identical.html), cuya respuesta
   depende del locale.** Con los mismos bytes, una cadena `unknown` y
