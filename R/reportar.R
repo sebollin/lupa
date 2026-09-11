@@ -1,5 +1,17 @@
+.html_utf8 <- function(x) {
+  x <- as.character(x)
+  marcables <- !is.na(x) & Encoding(x) %in% c("unknown", "bytes") &
+    validUTF8(x)
+  if (any(marcables)) {
+    declarados <- x[marcables]
+    Encoding(declarados) <- "UTF-8"
+    x[marcables] <- declarados
+  }
+  enc2utf8(x)
+}
+
 .html_escapar <- function(x) {
-  x <- enc2utf8(as.character(x))
+  x <- .html_utf8(x)
   x <- gsub("&", "&amp;", x, fixed = TRUE)
   x <- gsub("<", "&lt;", x, fixed = TRUE)
   x <- gsub(">", "&gt;", x, fixed = TRUE)
@@ -839,15 +851,70 @@
   directorio <- .validar_destino_archivo(archivo, sobrescribir)
   temporal <- tempfile(".lupa-reporte-", tmpdir = directorio, fileext = ".html")
   on.exit(unlink(temporal), add = TRUE)
-  conexion <- file(temporal, open = "wt", encoding = "UTF-8")
-  tryCatch(
-    writeLines(enc2utf8(contenido), conexion, useBytes = TRUE),
-    finally = close(conexion)
-  )
-  if (!.copiar_archivo_reporte(temporal, archivo, sobrescribir)) {
-    stop("No se pudo escribir el reporte en la ruta solicitada.", call. = FALSE)
+
+  bytes <- tryCatch({
+    if (!is.character(contenido) || length(contenido) != 1L ||
+        is.na(contenido)) {
+      stop("el contenido no es una cadena escalar")
+    }
+    utf8 <- enc2utf8(contenido)
+    if (!isTRUE(validUTF8(utf8))) {
+      stop("el contenido no es UTF-8 valido")
+    }
+    c(charToRaw(utf8), as.raw(0x0a))
+  }, error = function(e) {
+    stop("No se pudo escribir el reporte completo: ", conditionMessage(e),
+         call. = FALSE)
+  })
+
+  conexion <- NULL
+  verificar <- function(ruta, etapa) {
+    tamano <- file.info(ruta)$size
+    if (length(tamano) != 1L || is.na(tamano) || tamano != length(bytes)) {
+      stop(
+        "tamano inesperado en ", etapa, " (esperados ", length(bytes),
+        ", escritos ", if (length(tamano)) tamano else "NA", ")"
+      )
+    }
+    leidos <- readBin(ruta, what = "raw", n = tamano)
+    if (!identical(leidos, bytes)) {
+      stop("los bytes escritos no coinciden con el contenido completo")
+    }
+    invisible(NULL)
   }
-  unlink(temporal)
+  tryCatch(
+    withCallingHandlers({
+      conexion <- file(temporal, open = "wb")
+      writeBin(bytes, conexion)
+      close(conexion)
+      conexion <- NULL
+      verificar(temporal, "el temporal")
+    }, warning = function(e) {
+      stop(conditionMessage(e), call. = FALSE)
+    }),
+    error = function(e) {
+      if (!is.null(conexion) && isOpen(conexion)) {
+        try(close(conexion), silent = TRUE)
+      }
+      stop("No se pudo escribir el reporte completo: ", conditionMessage(e),
+           call. = FALSE)
+    }
+  )
+
+  tryCatch(
+    withCallingHandlers({
+      if (!isTRUE(.copiar_archivo_reporte(temporal, archivo, sobrescribir))) {
+        stop("la copia al destino devolvio FALSE", call. = FALSE)
+      }
+      verificar(archivo, "el destino")
+    }, warning = function(e) {
+      stop(conditionMessage(e), call. = FALSE)
+    }),
+    error = function(e) {
+      stop("No se pudo escribir el reporte completo: ", conditionMessage(e),
+           call. = FALSE)
+    }
+  )
   invisible(normalizePath(archivo, winslash = "/", mustWork = TRUE))
 }
 

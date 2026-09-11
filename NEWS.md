@@ -1,5 +1,13 @@
 # lupa 0.1.0
 
+## Escritura independiente del locale
+
+- **`reportar()` ya no convierte el HTML al locale de la sesión.** El
+  documento se serializa como bytes UTF-8, se verifica antes de copiarlo al
+  destino y se comprueba que el archivo final coincida completo. Cualquier
+  fallo de escritura, copia o verificación ahora aborta con un error propio en
+  vez de devolver un HTML parcial como si hubiera terminado bien.
+
 ## Lo que se mide contra lo que se declara
 
 - **Los nombres de columna publicados conservan bytes y marca de codificación.**
