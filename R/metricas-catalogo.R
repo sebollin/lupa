@@ -110,14 +110,16 @@
 .validar_atributos_tabla <- function(tabla, instancia, minimo = 1L) {
   if (length(instancia$entidad) != 1L ||
       length(instancia$atributos) < minimo ||
-      anyDuplicated(instancia$atributos)) {
+      anyDuplicated(.nombres_para_operar(instancia$atributos))) {
     stop(
       "La m\u00e9trica ", instancia$declaracion$nombre,
       " requiere una entidad y al menos ", minimo,
       " atributo(s) distinto(s).", call. = FALSE
     )
   }
-  faltantes <- setdiff(instancia$atributos, names(tabla))
+  faltantes <- instancia$atributos[
+    is.na(.indice_nombre(instancia$atributos, names(tabla)))
+  ]
   if (length(faltantes)) {
     stop(
       "No se encontraron atributos ligados: ",
@@ -160,7 +162,8 @@
       filas, .codigos_filas(.seleccionar_columnas(tabla, instancia$atributos))
     )
     resultado <- rep(FALSE, nrow(tabla))
-    otros <- setdiff(names(tabla), instancia$atributos)
+    indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
+    otros <- names(tabla)[-unique(indices_atributos)]
     compatibles <- function(b, a) {
       if (!length(otros)) return(TRUE)
       all(vapply(otros, function(nombre) {

@@ -135,31 +135,38 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
         call. = FALSE
       )
     }
-    ausentes <- setdiff(unname(columnas), names(estimaciones))
+    indices_columnas <- .indice_nombre(unname(columnas), names(estimaciones))
+    ausentes <- unname(columnas)[is.na(indices_columnas)]
     if (length(ausentes)) {
       stop(
         "`columnas` apunta a columnas que no estan en `estimaciones`: ",
         paste(ausentes, collapse = ", "), ".", call. = FALSE
       )
     }
+    valores_resueltos <- names(estimaciones)[indices_columnas]
+    columnas[!is.na(indices_columnas)] <- valores_resueltos[!is.na(indices_columnas)]
   }
   etiquetas <- if (is.null(atributo)) {
     sprintf("estimacion-%04d", seq_len(nrow(estimaciones)))
   } else {
-    if (!.es_texto_escalar(atributo) || !atributo %in% names(estimaciones)) {
+    indice_atributo <- if (.es_texto_escalar(atributo)) {
+      .indice_nombre(atributo, names(estimaciones))
+    } else NA_integer_
+    if (is.na(indice_atributo)) {
       stop(
         "`atributo` debe nombrar una columna de `estimaciones`. Disponibles: ",
         paste(names(estimaciones), collapse = ", "), ".", call. = FALSE
       )
     }
-    as.character(estimaciones[[atributo]])
+    as.character(estimaciones[[indice_atributo]])
   }
 
   origen_de <- function(estadistico) {
     if (!is.null(columnas) && estadistico %in% names(columnas)) {
       return(unname(columnas[[estadistico]]))
     }
-    if (estadistico %in% names(estimaciones)) return(estadistico)
+    indice <- .indice_nombre(estadistico, names(estimaciones))
+    if (!is.na(indice)) return(names(estimaciones)[[indice]])
     NULL
   }
   presentes <- catalogo[

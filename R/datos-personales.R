@@ -372,15 +372,18 @@
   if (any(!nzchar(names(declaradas)))) {
     stop("`columnas_personales` nombra una columna vac\u00eda.", call. = FALSE)
   }
-  if (anyDuplicated(names(declaradas))) {
+  if (anyDuplicated(.nombres_para_operar(names(declaradas)))) {
     stop("`columnas_personales` repite una columna.", call. = FALSE)
   }
   # `nombres = NULL` significa "no se puede saber que columnas hay". Lo usa
   # medir(), donde la entrada puede ser una coleccion o una conexion y no hay
   # una lista de columnas que mirar. Con NULL se valida la forma y no la
   # existencia: es preferible a rechazar una declaracion valida.
+  indices <- if (is.null(nombres)) integer() else {
+    .indice_nombre(names(declaradas), nombres)
+  }
   desconocidas <- if (is.null(nombres)) character() else {
-    setdiff(names(declaradas), nombres)
+    names(declaradas)[is.na(indices)]
   }
   if (length(desconocidas)) {
     stop("`columnas_personales` nombra columnas inexistentes: ",
@@ -391,6 +394,9 @@
     stop("`columnas_personales` declara un tipo vac\u00edo en: ",
          paste(vacios, collapse = ", "), ".", call. = FALSE)
   }
+  if (!is.null(nombres)) {
+    names(declaradas) <- nombres[indices]
+  }
   declaradas
 }
 
@@ -400,13 +406,14 @@
                                        muestra_validadores = 1000L,
                                        declaradas = character()) {
   filas <- lapply(seq_along(datos), function(i) {
-    if (nombres[[i]] %in% names(declaradas)) {
+    indice_declarada <- .indice_nombre(nombres[[i]], names(declaradas))
+    if (!is.na(indice_declarada)) {
       # Lo declarado no se vuelve a inferir. El paquete no tiene con que
       # contradecir a quien conoce el dato, y una columna declarada personal
       # que el lexico no reconoce es justamente el caso que esto resuelve.
       return(data.frame(
         columna = nombres[[i]],
-        tipo = unname(declaradas[[nombres[[i]]]]),
+        tipo = unname(declaradas[[indice_declarada]]),
         proporcion_compatible = NA_real_,
         valores_evaluados = NA_integer_,
         valores_totales = NA_integer_,
@@ -556,7 +563,7 @@
   hallazgos <- list()
   for (i in seq_len(nrow(fechas))) {
     nombre <- fechas$columna[[i]]
-    indice <- match(nombre, columnas$columna)
+    indice <- .indice_nombre(nombre, columnas$columna)
     if (is.na(indice)) next
     minimo <- .fecha_resumida_personal(columnas$minimo_fecha[[indice]])
     maximo <- .fecha_resumida_personal(columnas$maximo_fecha[[indice]])
@@ -602,8 +609,9 @@
   if (!inherits(datos, "data.frame") || !length(sensibles)) {
     return(character())
   }
-  valores <- unlist(lapply(intersect(names(datos), sensibles), function(nombre) {
-    x <- datos[[nombre]]
+  indices_sensibles <- .indice_nombre(sensibles, names(datos))
+  valores <- unlist(lapply(unique(indices_sensibles[!is.na(indices_sensibles)]), function(indice) {
+    x <- datos[[indice]]
     if (is.data.frame(x) || is.matrix(x) || is.list(x)) return(character())
     crudos <- tryCatch(as.character(x), error = function(e) character())
     formateados <- tryCatch(c(
@@ -627,7 +635,8 @@
   if (!inherits(columnas, "data.frame") || !length(sensibles)) {
     return(character())
   }
-  indices <- which(columnas$columna %in% sensibles)
+  indices <- which(.nombres_para_operar(columnas$columna) %in%
+                    .nombres_para_operar(sensibles))
   campos <- intersect(
     c(
       "moda", "minimo", "maximo", "mediana", "centinela_valor",
@@ -641,8 +650,8 @@
              error = function(e) character())
   }), use.names = FALSE)
   if (length(patrones) && length(indices)) {
-    nombres <- names(patrones)
-    for (i in which(nombres %in% sensibles)) {
+    indices_patrones <- intersect(indices, seq_along(patrones))
+    for (i in indices_patrones) {
       tabla <- patrones[[i]]
       if (inherits(tabla, "data.frame") && "ejemplos" %in% names(tabla)) {
         valores <- c(valores, as.character(tabla$ejemplos))
@@ -808,9 +817,9 @@
     for (indice in indices_dependencias) {
       parametros <- plan$parametros[[indice]]
       if (!is.list(parametros)) next
-      involucra_protegida <- any(c(
+      involucra_protegida <- any(.nombres_para_operar(c(
         parametros$determinante, parametros$dependiente
-      ) %in% sensibles)
+      )) %in% .nombres_para_operar(sensibles))
       if (isTRUE(involucra_protegida)) {
         parametros$mapa_enmascarado <- TRUE
         plan$parametros[[indice]] <- parametros
@@ -860,7 +869,9 @@
     encontrado <- regexec("^`([^`]*)` predice", evidencia, perl = TRUE)
     partes <- regmatches(evidencia, encontrado)[[1L]]
     determinante <- if (length(partes) >= 2L) partes[[2L]] else NA_character_
-    if (is.na(determinante) || !determinante %in% sensibles) next
+    if (is.na(determinante) ||
+        !.nombres_para_operar(determinante) %in%
+          .nombres_para_operar(sensibles)) next
     inicio <- sub("\\. La columna corresponde.*$", "", evidencia)
     if (identical(inicio, evidencia)) next
     tipo_criterio <- if (grepl("por un umbral", evidencia, fixed = TRUE)) {
@@ -905,7 +916,8 @@
     ))
   }
   reemplazo <- "[valor protegido]"
-  indices_columnas <- columnas$columna %in% sensibles
+  indices_columnas <- .nombres_para_operar(columnas$columna) %in%
+    .nombres_para_operar(sensibles)
   ocultar_moda <- indices_columnas & !is.na(columnas$moda) &
     columnas$moda != reemplazo
   columnas$moda[ocultar_moda] <- reemplazo
@@ -1012,8 +1024,10 @@
     "[momentos protegidos]"
   columnas$detalle_proteccion_personal[tenia_orden & tenia_momento] <-
     "[estadisticos de orden y momentos protegidos]"
-  for (i in seq_along(patrones)) {
-    if (names(patrones)[[i]] %in% sensibles && "ejemplos" %in% names(patrones[[i]])) {
+  for (i in intersect(which(indices_columnas), seq_along(patrones))) {
+    if (.nombres_para_operar(columnas$columna[[i]]) %in%
+        .nombres_para_operar(sensibles) &&
+        "ejemplos" %in% names(patrones[[i]])) {
       patrones[[i]]$ejemplos[nzchar(patrones[[i]]$ejemplos)] <- reemplazo
       resumen <- attr(patrones[[i]], "resumen_patrones", exact = TRUE)
       if (!is.null(resumen) && "ejemplos" %in% names(resumen)) {
@@ -1032,9 +1046,11 @@
   # de hallazgo, para que los nuevos hallazgos compuestos queden protegidos
   # automáticamente.
   columna_completa <- as.character(hallazgos$columna)
-  coincide <- columna_completa %in% clasificadas |
+  coincide <- .nombres_para_operar(columna_completa) %in%
+      .nombres_para_operar(clasificadas) |
     vapply(strsplit(columna_completa, ",", fixed = TRUE),
-           function(columnas) any(trimws(columnas) %in% clasificadas),
+           function(columnas) any(.nombres_para_operar(trimws(columnas)) %in%
+                                  .nombres_para_operar(clasificadas)),
            logical(1L))
   indices_hallazgos <- !is.na(hallazgos$columna) &
     hallazgos$tipo_hallazgo != "dato_personal_posible" & coincide
@@ -1070,8 +1086,11 @@
   # niveles que permitirían reconstruir valores de la columna protegida.
   hallazgos <- .proteger_ausencia_estructural(hallazgos, sensibles)
   if (nrow(dependencias)) {
-    indices_dependencias <- dependencias$determinante %in% sensibles |
-      dependencias$dependiente %in% sensibles
+    indices_dependencias <-
+      .nombres_para_operar(dependencias$determinante) %in%
+        .nombres_para_operar(sensibles) |
+      .nombres_para_operar(dependencias$dependiente) %in%
+        .nombres_para_operar(sensibles)
     dependencias$evidencia[indices_dependencias & nzchar(dependencias$evidencia)] <-
       "[evidencia protegida]"
   }
@@ -1089,7 +1108,10 @@
     if (is.null(claves) || !is.data.frame(claves) || !nrow(claves)) {
       return(traza)
     }
-    protegidas <- intersect(names(claves), sensibles)
+    indices_protegidas <- .indice_nombre(sensibles, names(claves))
+    protegidas <- names(claves)[
+      unique(indices_protegidas[!is.na(indices_protegidas)])
+    ]
     if (!length(protegidas)) return(traza)
     for (columna in protegidas) {
       claves[[columna]] <- rep("[clave protegida]", nrow(claves))
@@ -1127,14 +1149,18 @@
   }
   resultados <- perfil$meta$benford$resultados
   if (length(resultados)) {
-    for (nombre in intersect(names(resultados), sensibles)) {
-      perfil$meta$benford$resultados[[nombre]]$ordenes_magnitud <- NA_real_
+    nombres_resultados <- vapply(resultados, `[[`, character(1L), "columna")
+    indices_resultados <- which(.nombres_para_operar(nombres_resultados) %in%
+                                .nombres_para_operar(sensibles))
+    for (indice in indices_resultados) {
+      perfil$meta$benford$resultados[[indice]]$ordenes_magnitud <- NA_real_
     }
   }
   cobertura <- perfil$cobertura_diagnosticos
   if (inherits(cobertura, "data.frame") && nrow(cobertura) &&
         "columna" %in% names(cobertura) && "motivo" %in% names(cobertura)) {
-    afectadas <- as.character(cobertura$columna) %in% sensibles
+    afectadas <- .nombres_para_operar(cobertura$columna) %in%
+      .nombres_para_operar(sensibles)
     if (any(afectadas)) {
       cobertura$motivo[afectadas] <- gsub(
         "log10\\(max/min\\)[[:space:]]*[-+0-9.eE]+",
@@ -1277,9 +1303,9 @@
   perfil <- .proteger_numeros_parametros(perfil, identificantes)
   perfil$meta <- meta_declarada
   if (!is.null(patrones_forma)) {
-    for (col in names(patrones_forma)) {
-      if (!is.null(patrones_forma[[col]]) && !is.null(perfil$patrones[[col]])) {
-        perfil$patrones[[col]]$patron <- patrones_forma[[col]]
+    for (i in seq_along(patrones_forma)) {
+      if (!is.null(patrones_forma[[i]]) && !is.null(perfil$patrones[[i]])) {
+        perfil$patrones[[i]]$patron <- patrones_forma[[i]]
       }
     }
   }

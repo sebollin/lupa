@@ -75,9 +75,11 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   if (!is.character(por) || length(por) != 1L || is.na(por)) {
     stop("`por` debe ser el nombre de una sola columna.", call. = FALSE)
   }
-  if (!por %in% names(datos)) {
+  indice_por <- .indice_nombre(por, names(datos))
+  if (is.na(indice_por)) {
     stop("`por` nombra una columna inexistente: ", por, ".", call. = FALSE)
   }
+  por <- names(datos)[[indice_por]]
   if (!is.atomic(datos[[por]])) {
     stop("`por` debe nombrar una columna atomica.", call. = FALSE)
   }
@@ -85,11 +87,13 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     if (!is.character(clave)) {
       stop("`clave` debe ser un vector de nombres de columnas.", call. = FALSE)
     }
-    desconocidas <- setdiff(clave, names(datos))
+    indices_clave <- .indice_nombre(clave, names(datos))
+    desconocidas <- clave[is.na(indices_clave)]
     if (length(desconocidas)) {
       stop("`clave` nombra columnas inexistentes: ",
            paste(desconocidas, collapse = ", "), ".", call. = FALSE)
     }
+    clave <- names(datos)[indices_clave]
   }
   min_filas <- as.integer(min_filas)
   if (length(min_filas) != 1L || is.na(min_filas) || min_filas < 1L) {
@@ -148,7 +152,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     declaradas <- if ("columnas_personales" %in% names(extras)) {
       as.character(extras$columnas_personales)
     } else character()
-    if (por %in% declaradas &&
+    if (.nombres_presentes(por, declaradas) &&
         (is.null(clasificada) || !nrow(clasificada))) {
       clasificada <- data.frame(columna = por, tipo = "declarada_por_el_usuario",
                                 stringsAsFactors = FALSE)
@@ -185,15 +189,21 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   for (arg in c("columnas_personales", "columnas_opcionales", "clave",
                 "columnas_sin_ceros", "columnas_no_negativas")) {
     if (arg %in% names(extras_grupo) && is.character(extras_grupo[[arg]])) {
-      extras_grupo[[arg]] <- setdiff(extras_grupo[[arg]], por)
+      extras_grupo[[arg]] <- extras_grupo[[arg]][
+        !(.nombres_para_operar(extras_grupo[[arg]]) %in%
+            .nombres_para_operar(por))
+      ]
     }
   }
   if ("aplicabilidad" %in% names(extras_grupo) &&
       !is.null(names(extras_grupo$aplicabilidad))) {
-    conservar <- setdiff(names(extras_grupo$aplicabilidad), por)
-    extras_grupo$aplicabilidad <- extras_grupo$aplicabilidad[conservar]
+    conservar <- !(.nombres_para_operar(names(extras_grupo$aplicabilidad)) %in%
+                     .nombres_para_operar(por))
+  extras_grupo$aplicabilidad <- extras_grupo$aplicabilidad[conservar]
   }
 
+  indices_sin_por <- setdiff(seq_along(datos), indice_por)
+  nombres_sin_por <- names(datos)[indices_sin_por]
   hallazgos <- list()
   cobertura <- list()
   if (colision > 0L) {
@@ -245,7 +255,7 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   hay_centinelas_declarados <- length(
     .sentinelas_numericos_declarados(extras$sentinelas_numericos)
   ) > 0L
-  for (nombre_columna in setdiff(names(datos), por)) {
+  for (nombre_columna in nombres_sin_por) {
     valores <- datos[[nombre_columna]]
     if (!is.numeric(valores) || inherits(valores, "integer64")) next
     presentes <- valores[!is.na(valores)]
@@ -283,17 +293,22 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       next
     }
     rebanada <- .seleccionar_columnas(
-      datos, setdiff(names(datos), por), filas = filas
+      datos, nombres_sin_por, filas = filas
     )
     # Las columnas enteramente ausentes dentro del grupo se descartan: son las
     # que no corresponden a este atributo, y contarlas como falta era el defecto.
     # La clave declarada nunca se descarta, porque de ella dependen los
     # diagnosticos de unicidad.
     vacias <- vapply(rebanada, function(x) all(is.na(x)), logical(1L))
-    descartables <- setdiff(names(rebanada)[vacias], clave)
+    indices_clave_rebanada <- if (length(clave)) {
+      .indice_nombre(clave, names(rebanada))
+    } else integer()
+    conservadas <- seq_along(rebanada) %in%
+      indices_clave_rebanada[!is.na(indices_clave_rebanada)]
+    descartables <- names(rebanada)[vacias & !conservadas]
     if (length(descartables)) {
       rebanada <- .seleccionar_columnas(
-        rebanada, setdiff(names(rebanada), descartables)
+        rebanada, which(!vacias | conservadas)
       )
     }
     if (!ncol(rebanada)) {
@@ -360,7 +375,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
     if (nrow(perfil$hallazgos) && length(columnas_identificadoras)) {
       mover_a_cobertura(
         grepl("benford", perfil$hallazgos$tipo_hallazgo) &
-          as.character(perfil$hallazgos$columna) %in% columnas_identificadoras,
+          .nombres_para_operar(perfil$hallazgos$columna) %in%
+            .nombres_para_operar(columnas_identificadoras),
         "ley_benford",
         paste(
           "No aplica la ley de Benford: la columna parece un identificador en",
@@ -382,7 +398,9 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
       sin_ausencias_reales <- vapply(
         as.character(perfil$hallazgos$columna),
         function(columna_faltantes) {
-          indice <- match(columna_faltantes, perfil$columnas$columna)
+          indice <- .indice_nombre(
+            columna_faltantes, perfil$columnas$columna
+          )
           if (is.na(indice)) return(FALSE)
           reales <- suppressWarnings(
             as.numeric(perfil$columnas$n_faltantes[[indice]])
@@ -400,7 +418,8 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
            c("faltantes_disfrazados", "posible_centinela_numerico") |
            (perfil$hallazgos$tipo_hallazgo == "faltantes" &
               sin_ausencias_reales)) &
-          as.character(perfil$hallazgos$columna) %in% columnas_densas,
+          .nombres_para_operar(perfil$hallazgos$columna) %in%
+            .nombres_para_operar(columnas_densas),
         "centinelas_numericos",
         paste(
           "La columna es una secuencia entera densa en la tabla completa, y",

@@ -335,7 +335,9 @@
 
 .hallazgo_ausencia_excluyente <- function(columna, grupo, solapamiento,
                                           cobertura, n, n_ausentes) {
-  otras <- setdiff(grupo, columna)
+  otras <- grupo[
+    !(.nombres_para_operar(grupo) %in% .nombres_para_operar(columna))
+  ]
   .nuevo_hallazgo(
     columna, "posible_ausencia_estructural", "ok",
     paste0(
@@ -369,7 +371,7 @@
   if (!nrow(reglas)) return(list())
   salida <- list()
   for (k in seq_len(nrow(reglas))) {
-    i <- match(reglas$columna[[k]], nombres)
+    i <- .indice_nombre(reglas$columna[[k]], nombres)
     if (is.na(i)) next
     fila <- resultados[[i]]$fila
     origen <- reglas$origen[[k]]
@@ -450,7 +452,8 @@
   columnas <- unique(columnas[tipos == "posible_ausencia_estructural"])
   if (!length(columnas)) return(hallazgos)
   objetivo <- hallazgos$tipo_hallazgo == "faltantes" &
-    as.character(hallazgos$columna) %in% columnas
+    .nombres_para_operar(as.character(hallazgos$columna)) %in%
+      .nombres_para_operar(columnas)
   if (!any(objetivo)) return(hallazgos)
   hallazgos$evidencia[objetivo] <- paste0(
     sub("[.[:space:]]*$", "", hallazgos$evidencia[objetivo]),
@@ -484,6 +487,8 @@
   pocas_filas <- n < .min_filas_ausencia_estructural
 
   declaradas <- aplicabilidad_resuelta$reglas$columna
+  nombres_operativos <- .nombres_para_operar(nombres)
+  declaradas_operativas <- .nombres_para_operar(declaradas)
   ausentes <- vector("list", length(nombres))
   no_atomicas <- character()
   for (i in seq_along(nombres)) {
@@ -506,7 +511,7 @@
   )
   candidata <- !is.na(n_ausentes) & n_ausentes >= .min_ausentes_ausencia &
     n_ausentes < n & n_ausentes >= n * .min_prop_ausencia_ausencia &
-    !(nombres %in% declaradas)
+    !(nombres_operativos %in% declaradas_operativas)
   indices <- which(candidata)
   # El piso de filas se declara solo cuando habia algo que examinar. Anunciar en
   # cada tabla de diez filas que no se busco un patron que no tenia candidatos
@@ -614,7 +619,8 @@
   }
 
   # Despues el reparto entre columnas, para las que quedaron sin determinante.
-  restantes <- which(!(nombres[indices] %in% explicadas))
+  restantes <- which(!(nombres_operativos[indices] %in%
+                         .nombres_para_operar(explicadas)))
   if (length(restantes) >= 2L) {
     huellas <- vapply(restantes, function(k) .huella_mascara(presentes[[k]]),
                       character(1L))
@@ -623,15 +629,15 @@
       decreasing = TRUE
     )]
     tope_solape <- floor(.max_solapamiento_ausencia * n)
-    usadas <- character()
+    usadas_operativas <- character()
     for (semilla in orden) {
-      if (nombres[indices[[semilla]]] %in% usadas) next
+      if (nombres_operativos[indices[[semilla]]] %in% usadas_operativas) next
       grupo <- semilla
       union <- presentes[[semilla]]
       solapamiento <- 0L
       for (otro in orden) {
         if (otro %in% grupo) next
-        if (nombres[indices[[otro]]] %in% usadas) next
+        if (nombres_operativos[indices[[otro]]] %in% usadas_operativas) next
         # Mascaras identicas no son un reparto: son la misma condicion repetida.
         if (huellas[[match(otro, restantes)]] ==
               huellas[[match(semilla, restantes)]] &&
@@ -646,7 +652,8 @@
       cubierto <- sum(union) / n
       if (cubierto < .min_cobertura_ausencia) next
       nombres_grupo <- nombres[indices[grupo]]
-      usadas <- c(usadas, nombres_grupo)
+      usadas_operativas <- c(usadas_operativas,
+                             nombres_operativos[indices[grupo]])
       for (k in grupo) {
         hallazgos[[length(hallazgos) + 1L]] <- .hallazgo_ausencia_excluyente(
           nombres[[indices[[k]]]], nombres_grupo, solapamiento, cubierto, n,

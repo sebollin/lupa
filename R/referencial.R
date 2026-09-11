@@ -8,19 +8,21 @@
 .validar_nombres_referencial <- function(datos, columnas, argumento,
                                          permitir_vacio = FALSE) {
   if (!is.character(columnas) || anyNA(columnas) ||
-      any(!nzchar(columnas)) || anyDuplicated(columnas) ||
+      any(!nzchar(columnas)) ||
+      anyDuplicated(.nombres_para_operar(columnas)) ||
       (!permitir_vacio && !length(columnas))) {
     stop("`", argumento, "` debe contener nombres de columna \u00fanicos y no vac\u00edos.",
          call. = FALSE)
   }
-  faltantes <- setdiff(columnas, names(datos))
+  indices <- .indice_nombre(columnas, names(datos))
+  faltantes <- columnas[is.na(indices)]
   if (length(faltantes)) {
     stop(
       "No se encontraron columnas de `", argumento, "`: ",
       paste(faltantes, collapse = ", "), ".", call. = FALSE
     )
   }
-  columnas
+  names(datos)[indices]
 }
 
 .codigos_filas <- function(datos) {
@@ -116,6 +118,8 @@
 }
 
 .referencial_tabla_normalizada <- function(tabla, columnas, perfil) {
+  indices <- .indice_nombre(columnas, names(tabla))
+  columnas <- names(tabla)[indices]
   salida <- lapply(columnas, function(columna) {
     texto <- suppressWarnings(as.character(.valores_relacion(tabla[[columna]])))
     .normalizacion_aplicar(
@@ -246,10 +250,14 @@
   if (identical(instancia$declaracion$nombre, "CorrectitudSemDebil")) {
     columnas_referencia <- c(columnas_referencia, instancia$referencial$valor)
   }
-  columnas_objetivo <- intersect(instancia$atributos, names(tabla))
-  columnas_referencia <- intersect(
+  indices_objetivo <- .indice_nombre(instancia$atributos, names(tabla))
+  columnas_objetivo <- names(tabla)[indices_objetivo[!is.na(indices_objetivo)]]
+  indices_referencia <- .indice_nombre(
     columnas_referencia, names(instancia$referencial$datos)
   )
+  columnas_referencia <- names(instancia$referencial$datos)[
+    indices_referencia[!is.na(indices_referencia)]
+  ]
   objetivo <- .seleccionar_columnas(tabla, columnas_objetivo)
   referencia <- .seleccionar_columnas(
     instancia$referencial$datos, columnas_referencia
@@ -322,7 +330,7 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
   }
   .validar_datos_tabla(datos)
   if (is.null(names(datos)) || anyNA(names(datos)) || any(!nzchar(names(datos))) ||
-      anyDuplicated(names(datos))) {
+      anyDuplicated(.nombres_para_operar(names(datos)))) {
     stop("El referencial requiere nombres de columna \u00fanicos y no vac\u00edos.",
          call. = FALSE)
   }
@@ -331,7 +339,9 @@ referencial <- function(datos, clave, valor = character(), completo = FALSE,
   valor <- .validar_nombres_referencial(
     tabla, valor, "valor", permitir_vacio = TRUE
   )
-  if (length(intersect(clave, valor))) {
+  if (length(intersect(
+    .nombres_para_operar(clave), .nombres_para_operar(valor)
+  ))) {
     stop("`clave` y `valor` no pueden compartir columnas.", call. = FALSE)
   }
   if (any(vapply(
@@ -422,7 +432,8 @@ print.referencial <- function(x, ...) {
                                      valores_referencia, columnas_referencia) {
   entidad <- instancia$entidad[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
-  faltantes <- setdiff(instancia$atributos, names(tabla))
+  indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
+  faltantes <- instancia$atributos[is.na(indices_atributos)]
   if (length(faltantes)) {
     stop("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
          call. = FALSE)
@@ -510,7 +521,8 @@ print.referencial <- function(x, ...) {
   .validar_vinculo(instancia, 1L, length(referencia$clave))
   entidad <- instancia$entidad[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
-  faltantes <- setdiff(instancia$atributos, names(tabla))
+  indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
+  faltantes <- instancia$atributos[is.na(indices_atributos)]
   if (length(faltantes)) {
     stop("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
          call. = FALSE)

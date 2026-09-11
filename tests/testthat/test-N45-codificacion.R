@@ -103,12 +103,12 @@ test_that("el marcado de la entrada no agrega un modo de falla propio", {
   expect_identical(.marcar_utf8_textos(1:3), 1:3)
 })
 
-test_that("el nombre de columna queda marcado sea cual sea el locale", {
-  # La condicion que decidia si asignar era `!identical(marcados, originales)`, y
-  # `identical()` responde distinto segun el locale: con los mismos bytes, una
-  # cadena `unknown` y otra `UTF-8` son identicas bajo un locale UTF-8 y
-  # distintas bajo `C`. O sea que el marcado era un no-op justo en el locale
-  # donde corre esta suite. Se decide por la marca, que es lo que cambia.
+test_that("el nombre de columna conserva su marca sea cual sea el locale", {
+  # Los nombres son datos publicados y `.marcar_utf8_tabla()` no debe declarar
+  # una codificacion distinta de la que trajo la tabla: bajo `C`, esa marca
+  # forma parte de la identidad que usa R para indexarla. Los valores de texto
+  # y los niveles de factores siguen marcandose para que las operaciones
+  # internas no dependan del locale.
   nombre <- rawToChar(as.raw(c(0x4e, 0xc3, 0x89, 0x6d, 0x65, 0x72, 0x6f)))
   expect_identical(Encoding(nombre), "unknown")
   expect_true(validUTF8(nombre))
@@ -117,8 +117,8 @@ test_that("el nombre de columna queda marcado sea cual sea el locale", {
 
   marcada <- .marcar_utf8_tabla(tabla)
 
-  expect_identical(Encoding(names(marcada)[[1L]]), "UTF-8")
-  # Marcar declara la codificacion; no cambia un byte.
+  expect_identical(Encoding(names(marcada)[[1L]]), "unknown")
+  # No se marca ni se cambia un byte.
   expect_identical(charToRaw(names(marcada)[[1L]]), charToRaw(nombre))
   # Y lo mismo para los niveles de un factor, que decidian con la misma condicion.
   con_factor <- data.frame(

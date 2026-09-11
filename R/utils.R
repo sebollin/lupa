@@ -23,29 +23,156 @@
   clave
 }
 
-# Los nombres son datos del usuario, pero varias primitivas de base R exigen
-# texto valido. Marcar primero lo que ya es UTF-8 evita reinterpretar un nombre
-# legible; para los bytes que siguen sin codificacion declarada, `.clave_bytes()`
-# produce una forma UTF-8 determinista sin adivinar el caracter original.
+# Los nombres son datos del usuario, y no se pueden comparar con `==`, `match()`
+# o `setdiff()` directamente: esas operaciones consultan `LC_CTYPE` cuando una
+# cadena UTF-8 llega con marca `unknown`. La marca no forma parte del nombre que
+# el usuario escribio; sus bytes, si. Esta funcion devuelve una representacion
+# de trabajo en la que todo UTF-8 valido tiene la misma marca y lo que no es
+# UTF-8 se representa por sus bytes, sin adivinar una codificacion. Por eso la
+# clave es estable entre locales y sigue siendo inyectiva: dos secuencias de
+# bytes distintas no se convierten en el mismo nombre.
 .nombres_para_operar <- function(nombres) {
-  nombres <- .marcar_utf8_textos(as.character(nombres))
-  .clave_bytes(nombres)
+  nombres <- as.character(nombres)
+  if (!length(nombres)) return(nombres)
+  # En el caso habitual (nombres ASCII) R ya considera iguales las marcas
+  # `unknown` y `UTF-8`; evitar el resto de la preparacion mantiene barata la
+  # ruta que se ejecuta en cada columna de una tabla grande.
+  no_ascii <- vapply(nombres, function(nombre) {
+    !is.na(nombre) && any(as.integer(charToRaw(nombre)) > 127L)
+  }, logical(1L))
+  reservado <- rep(FALSE, length(nombres))
+  indices_ascii <- which(!is.na(nombres) & !no_ascii)
+  if (length(indices_ascii)) {
+    reservado[indices_ascii] <- grepl(
+      "^<lupa-byte:[0-9A-F]+>$", nombres[indices_ascii], perl = TRUE
+    )
+  }
+  if (!any(no_ascii) && !any(reservado)) return(nombres)
+  salida <- nombres
+  validos <- !is.na(nombres) & validUTF8(nombres)
+  if (any(validos)) {
+    trozo <- nombres[validos]
+    Encoding(trozo) <- "UTF-8"
+    salida[validos] <- trozo
+    # La representacion de bytes invalidos usa un prefijo reservado. Si un
+    # nombre UTF-8 real lo contiene literalmente, se escapa con otra marca
+    # para que la clave siga siendo inyectiva incluso en ese caso extremo.
+    indices_validos <- which(validos)
+    reservados <- indices_validos[reservado[indices_validos]]
+    if (length(reservados)) {
+      salida[reservados] <- vapply(salida[reservados], function(nombre) {
+        bytes <- as.integer(charToRaw(nombre))
+        paste0("<lupa-text:", paste(sprintf("%02X", bytes), collapse = ""), ">")
+      }, character(1L))
+    }
+  }
+  invalidos <- !is.na(nombres) & !validUTF8(nombres)
+  if (any(invalidos)) {
+    salida[invalidos] <- vapply(nombres[invalidos], function(nombre) {
+      bytes <- as.integer(charToRaw(nombre))
+      paste0("<lupa-byte:", paste(sprintf("%02X", bytes), collapse = ""), ">")
+    }, character(1L))
+  }
+  salida
 }
 
-# `make.unique()` se usa para claves internas y para nombres de listas. Conserva
-# el nombre original cuando no hay colision; una colision se desambigua sobre la
-# clave operativa, como antes, pero sin pasar bytes invalidos a base R.
-.nombres_unicos <- function(nombres) {
+# `make.unique()` se usa para claves internas y para nombres de listas. No se le
+# entrega el nombre del usuario: bajo `C` puede publicar `<U+....>` y, peor,
+# producir una cadena que no existe en la tabla. La desambiguacion se hace sobre
+# la clave estable y conserva el nombre original mientras no haya colision.
+.nombres_unicos <- function(nombres, sep = ".") {
   originales <- as.character(nombres)
-  operativos <- .nombres_para_operar(originales)
-  unicos <- make.unique(operativos)
-  repetidos <- duplicated(operativos) | duplicated(operativos, fromLast = TRUE)
-  unicos[!repetidos] <- originales[!repetidos]
+  if (!length(originales)) return(originales)
+  if (!is.character(sep) || length(sep) != 1L || is.na(sep)) {
+    stop("`sep` debe ser una cadena de longitud uno.", call. = FALSE)
+  }
+  unicos <- originales
+  usados <- new.env(hash = TRUE, parent = emptyenv())
+  siguientes <- new.env(hash = TRUE, parent = emptyenv())
+  clave_hash <- function(clave) {
+    if (is.na(clave)) return(NA_character_)
+    paste0("k", paste(as.integer(charToRaw(clave)), collapse = "_"))
+  }
+  ya_usada <- function(clave) {
+    llave <- clave_hash(clave)
+    !is.na(llave) && exists(llave, envir = usados, inherits = FALSE)
+  }
+  registrar <- function(clave) {
+    llave <- clave_hash(clave)
+    if (!is.na(llave)) assign(llave, TRUE, envir = usados)
+  }
+  for (i in seq_along(originales)) {
+    candidato <- originales[[i]]
+    clave <- .nombres_para_operar(candidato)
+    repetido <- ya_usada(clave)
+    if (repetido) {
+      base <- candidato
+      llave_base <- clave_hash(clave)
+      sufijo <- if (exists(llave_base, envir = siguientes, inherits = FALSE)) {
+        get(llave_base, envir = siguientes, inherits = FALSE)
+      } else 1L
+      repeat {
+        candidato <- paste0(base, sep, sufijo)
+        clave <- .nombres_para_operar(candidato)
+        if (!ya_usada(clave)) break
+        sufijo <- sufijo + 1L
+      }
+      assign(llave_base, sufijo + 1L, envir = siguientes)
+    }
+    unicos[[i]] <- candidato
+    registrar(clave)
+  }
   unicos
 }
 
 .nombres_make_names <- function(nombres) {
-  make.names(.nombres_para_operar(nombres), unique = TRUE)
+  originales <- .nombres_para_operar(nombres)
+  if (!length(originales)) return(originales)
+  sintacticos <- vapply(originales, function(nombre) {
+    if (is.na(nombre) || !nzchar(nombre)) return("X")
+    codigos <- utf8ToInt(nombre)
+    texto <- vapply(codigos, intToUtf8, character(1L))
+    es_letra <- vapply(texto, function(caracter) {
+      grepl("(*UTF)^[\\p{L}\\p{Nl}]$", caracter, perl = TRUE)
+    }, logical(1L))
+    es_numero <- vapply(texto, function(caracter) {
+      grepl("(*UTF)^[\\p{N}]$", caracter, perl = TRUE)
+    }, logical(1L))
+    permitidos <- es_letra | es_numero | texto %in% c(".", "_")
+    texto[!permitidos] <- "."
+    primero_valido <- es_letra[[1L]] ||
+      (codigos[[1L]] == utf8ToInt(".") && length(texto) > 1L &&
+         !es_numero[[2L]])
+    salida <- paste0(texto, collapse = "")
+    if (!primero_valido) salida <- paste0("X", salida)
+    # Igual que `make.names()`, las palabras reservadas no quedan como nombres
+    # desnudos. La lista es parte del contrato de base R y es ASCII.
+    if (salida %in% c(
+      "if", "else", "repeat", "while", "function", "for", "in", "next",
+      "break", "TRUE", "FALSE", "NULL", "Inf", "NaN", "NA", "NA_integer_",
+      "NA_real_", "NA_complex_", "NA_character_"
+    )) salida <- paste0(salida, ".")
+    salida
+  }, character(1L))
+  .nombres_unicos(sintacticos)
+}
+
+.indice_nombre <- function(pedidos, nombres) {
+  match(.nombres_para_operar(pedidos), .nombres_para_operar(nombres))
+}
+
+.nombres_resueltos <- function(pedidos, nombres) {
+  nombres[.indice_nombre(pedidos, nombres)]
+}
+
+.nombres_presentes <- function(pedidos, nombres) {
+  !is.na(.indice_nombre(pedidos, nombres))
+}
+
+.matriz_ausentes <- function(tabla) {
+  if (!inherits(tabla, "data.frame")) return(is.na(tabla))
+  if (!ncol(tabla)) return(matrix(logical(), nrow = nrow(tabla), ncol = 0L))
+  do.call(cbind, unname(lapply(tabla, is.na)))
 }
 
 # El orden de un vector cualquiera, sin depender de lo que el usuario tenga
@@ -149,6 +276,11 @@
   if (!inherits(datos, "data.frame")) {
     stop("`datos` debe heredar de data.frame.", call. = FALSE)
   }
+  if (is.character(columnas) && !is.null(names(datos)) &&
+      !anyNA(columnas)) {
+    indices <- .indice_nombre(columnas, names(datos))
+    if (!anyNA(indices)) columnas <- indices
+  }
   salida <- if (is.null(filas)) {
     base::`[.data.frame`(datos, , columnas, drop = FALSE)
   } else {
@@ -166,7 +298,8 @@
 # columna del perfil se usan para leer `datos`.
 .validar_perfil_de <- function(perfil, datos) {
   if (!is.null(perfil) && (!inherits(perfil, "perfil") ||
-        !identical(names(datos), perfil$columnas$columna))) {
+        !identical(.nombres_para_operar(names(datos)),
+                   .nombres_para_operar(perfil$columnas$columna)))) {
     stop("`perfil` debe corresponder a las columnas de `datos`.", call. = FALSE)
   }
   invisible(perfil)
@@ -665,8 +798,11 @@
 
 .marcar_utf8_tabla <- function(tabla) {
   if (!inherits(tabla, "data.frame") || !ncol(tabla)) return(tabla)
-  nombres <- .marcar_utf8_textos(names(tabla))
-  if (.marca_cambio(nombres, names(tabla))) names(tabla) <- nombres
+  # `names()` son datos publicados del usuario, no texto que el paquete pueda
+  # declarar de nuevo. Las comparaciones y los ordenamientos que los necesitan
+  # usan `.nombres_para_operar()`; conservarlos aqui deja bytes y marca iguales
+  # a la entrada por construccion, y hace que un nombre publicado siga
+  # indexando la tabla que lo produjo incluso bajo `LC_CTYPE = "C"`.
   for (i in seq_along(tabla)) {
     columna <- tabla[[i]]
     if (!length(columna)) next

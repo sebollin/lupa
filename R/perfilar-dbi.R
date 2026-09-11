@@ -1227,7 +1227,9 @@
   columnas_estimadas <- list()
   columnas_no_estimadas <- list()
   for (columna in columnas) {
-    filas <- datos[!is.na(datos$attname) & nombres_stats == columna, , drop = FALSE]
+    filas <- datos[!is.na(datos$attname) &
+                     .nombres_para_operar(nombres_stats) %in%
+                       .nombres_para_operar(columna), , drop = FALSE]
     ids_relaciones <- as.character(relaciones$relacion_oid)
     ids_stats <- if (nrow(filas)) unique(as.character(filas$relacion_oid)) else {
       character()
@@ -1325,12 +1327,16 @@
   lotes <- lapply(seq_along(lotes_indices), function(numero) {
     indices <- lotes_indices[[numero]]
     nombres <- columnas[indices]
-    conocidos <- nombres %in% columnas_df$columna
+    conocidos <- !is.na(.indice_nombre(nombres, columnas_df$columna))
     tamano <- if (all(conocidos)) {
-      sum(columnas_df$tamano_estimado_bytes[match(nombres, columnas_df$columna)])
+      sum(columnas_df$tamano_estimado_bytes[
+        .indice_nombre(nombres, columnas_df$columna)
+      ])
     } else NA_real_
     cantidad <- if (all(conocidos)) {
-      sum(columnas_df$n_distintos_estimados[match(nombres, columnas_df$columna)])
+      sum(columnas_df$n_distintos_estimados[
+        .indice_nombre(nombres, columnas_df$columna)
+      ])
     } else NA_real_
     data.frame(
       lote = as.integer(numero), columnas = paste(nombres, collapse = ", "),
@@ -1647,7 +1653,9 @@
     !is.na(relaciones$relacion_oid) &
       .logico_catalogo_dbi(relaciones$hoja) %in% TRUE, , drop = FALSE
   ]
-  filas <- datos[!is.na(datos$attname) & as.character(datos$attname) == columna,
+  filas <- datos[!is.na(datos$attname) &
+                   .nombres_para_operar(as.character(datos$attname)) %in%
+                     .nombres_para_operar(columna),
                  , drop = FALSE]
   if (!nrow(relaciones) || !nrow(filas)) {
     return(list(ok = FALSE, motivo = paste(
@@ -1756,11 +1764,12 @@
       next
     }
     posicion <- if (!is.null(prototipo) && !is.null(names(prototipo))) {
-      match(columna, names(prototipo))
+      .indice_nombre(columna, names(prototipo))
     } else NA_integer_
     tipo_declarado <- if (!is.null(tipos) && !is.null(names(tipos)) &&
-                          !is.na(posicion) && columna %in% names(tipos)) {
-      tipos[[columna]]
+                          !is.na(posicion) &&
+                            !is.na(.indice_nombre(columna, names(tipos)))) {
+      tipos[[.indice_nombre(columna, names(tipos))]]
     } else if (!is.null(tipos) && !is.na(posicion) && posicion <= length(tipos)) {
       tipos[[posicion]]
     } else if (!is.null(tipos) && i <= length(tipos)) {
@@ -1996,7 +2005,10 @@
   if (is.data.frame(estimacion$lotes) && nrow(estimacion$lotes)) {
     for (i in seq_len(nrow(estimacion$lotes))) {
       columnas <- trimws(strsplit(estimacion$lotes$columnas[[i]], ",", fixed = TRUE)[[1L]])
-      filas <- estimacion$columnas[estimacion$columnas$columna %in% columnas, , drop = FALSE]
+      filas <- estimacion$columnas[
+        .nombres_para_operar(estimacion$columnas$columna) %in%
+          .nombres_para_operar(columnas), , drop = FALSE
+      ]
       decision <- if (all(is.na(filas$estado_memoria_bytes))) {
         max(filas$estado_hash_bytes, na.rm = TRUE)
       } else max(filas$estado_memoria_bytes, na.rm = TRUE)
@@ -2027,9 +2039,10 @@
 .filtrar_estimacion_derrame_dbi <- function(estimacion, columnas) {
   if (is.null(estimacion) || !is.data.frame(estimacion$columnas) ||
       !nrow(estimacion$columnas)) return(estimacion)
-  columnas <- intersect(as.character(columnas), estimacion$columnas$columna)
+  indices <- .indice_nombre(as.character(columnas), estimacion$columnas$columna)
+  columnas <- estimacion$columnas$columna[unique(indices[!is.na(indices)])]
   estimacion$columnas <- estimacion$columnas[
-    match(columnas, estimacion$columnas$columna), , drop = FALSE
+    .indice_nombre(columnas, estimacion$columnas$columna), , drop = FALSE
   ]
   if (!is.data.frame(estimacion$lotes) || !nrow(estimacion$lotes)) {
     estimacion$lotes_sobre_memoria <- integer()
@@ -2040,10 +2053,11 @@
     nombres <- trimws(strsplit(
       estimacion$lotes$columnas[[i]], ",", fixed = TRUE
     )[[1L]])
-    nombres <- intersect(nombres, columnas)
+    indices_nombres <- .indice_nombre(nombres, columnas)
+    nombres <- columnas[unique(indices_nombres[!is.na(indices_nombres)])]
     if (!length(nombres)) return(NULL)
     filas <- estimacion$columnas[
-      estimacion$columnas$columna %in% nombres, , drop = FALSE
+      !is.na(.indice_nombre(estimacion$columnas$columna, nombres)), , drop = FALSE
     ]
     metodo <- unique(filas$metodo)
     metodo <- if (length(metodo) == 1L) metodo[[1L]] else "por_columna"
@@ -3907,7 +3921,7 @@
 .campo_resultado_dbi <- function(datos, campo) {
   nombres <- names(datos)
   if (!length(nombres)) return(NA_integer_)
-  posicion <- match(campo, nombres)
+  posicion <- .indice_nombre(campo, nombres)
   if (is.na(posicion)) {
     posicion <- match(
       .normalizacion_minusculas_vector(.nombres_para_operar(campo)),
@@ -3944,7 +3958,7 @@
 # usuario escribio en `orden_muestra` se resuelve contra la grafia que devuelve
 # el motor, sin distinguir caja, y se sigue usando la del motor.
 .resolver_columnas_dbi <- function(pedidas, campos) {
-  posicion <- match(pedidas, campos)
+  posicion <- .indice_nombre(pedidas, campos)
   faltan <- is.na(posicion)
   if (any(faltan)) {
     posicion[faltan] <- match(
@@ -4417,7 +4431,8 @@
   nombres <- as.character(columnas$columna)
   exacto <- function(columna, metrica) {
     indices <- which(
-      as.character(sql$columna) == columna &
+      .nombres_para_operar(as.character(sql$columna)) %in%
+        .nombres_para_operar(columna) &
         as.character(sql$metrica) == metrica &
         as.character(sql$estado) == "calculado" &
         !is.na(sql$consulta_id)
@@ -4508,7 +4523,8 @@
   if (!is.data.frame(columnas) || !all(c("columna", metrica) %in% names(columnas))) {
     return(NULL)
   }
-  indices <- which(as.character(columnas$columna) == columna)
+  indices <- which(.nombres_para_operar(as.character(columnas$columna)) %in%
+                   .nombres_para_operar(columna))
   if (!length(indices)) return(NULL)
   columnas[[metrica]][[indices[[1L]]]]
 }
@@ -4517,7 +4533,8 @@
   if (!is.data.frame(columnas) || !"tipo_inferido" %in% names(columnas)) {
     return(FALSE)
   }
-  indices <- which(as.character(columnas$columna) == columna)
+  indices <- which(.nombres_para_operar(as.character(columnas$columna)) %in%
+                   .nombres_para_operar(columna))
   if (!length(indices)) return(FALSE)
   tolower(as.character(columnas$tipo_inferido[[indices[[1L]]]])) %in%
     c("entero", "doble", "numero", "numerico", "integer", "double")
@@ -4528,7 +4545,8 @@
       !all(c("columna", "metrica", "estado") %in% names(sql))) {
     return(NULL)
   }
-  indices <- which(as.character(sql$columna) == columna &
+  indices <- which(.nombres_para_operar(as.character(sql$columna)) %in%
+    .nombres_para_operar(columna) &
     as.character(sql$metrica) == metrica)
   if (!length(indices)) return(NULL)
   no_medido <- c(
@@ -4704,7 +4722,9 @@
   )
   registros <- list()
   for (columna in unique(nombres)) {
-    if (columna %in% protegidas) next
+    if (.nombres_para_operar(columna) %in% .nombres_para_operar(protegidas)) {
+      next
+    }
     tipo_numerico <- .tipo_numerico_corroboracion_dbi(
       perfil$columnas, columna
     )
@@ -5965,8 +5985,11 @@
   fuentes <- .fuentes_cardinalidad_vacias_dbi(columnas)
   if (identical(estrategia$estrategia_solicitada, "catalogo") &&
       is.list(estrategia$fuentes)) {
-    for (columna in intersect(names(fuentes), names(estrategia$fuentes))) {
-      fuentes[[columna]] <- estrategia$fuentes[[columna]]
+    indices_fuentes <- .indice_nombre(
+      names(estrategia$fuentes), names(fuentes)
+    )
+    for (i in which(!is.na(indices_fuentes))) {
+      fuentes[[indices_fuentes[[i]]]] <- estrategia$fuentes[[i]]
     }
   }
   # La clave se lee siempre para publicarla en `meta$clave`. Su resultado solo
@@ -7206,7 +7229,7 @@
     }
     for (numero in seq_along(lotes)) {
       lote <- lotes[[numero]]
-      indices <- match(lote, columnas)
+      indices <- .indice_nombre(lote, columnas)
       es_numerico_lote <- es_numerico[indices]
       resultado_lote <- .agregados_lote_con_biseccion_dbi(
         conexion, tabla_sql, lote, nombres_sql, es_numerico_lote,
@@ -8464,15 +8487,20 @@
   # La moda y la mediana son dos familias distintas: preparar todas las modas
   # antes de entrar en la mediana deja disponibles primero las metricas con
   # mayor cobertura, incluso cuando no hay una consolidacion de medianas.
-  columnas_modas <- intersect(campos_consolidados, campos)
+  columnas_modas <- campos_consolidados[
+    !is.na(.indice_nombre(campos_consolidados, campos))
+  ]
   columnas_modas <- columnas_modas[
     vapply(columnas_modas, function(campo) {
-      decision <- decisiones_costo[[campo]]
+      indice_decision <- .indice_nombre(campo, names(decisiones_costo))
+      decision <- if (is.na(indice_decision)) NULL else {
+        decisiones_costo[[indice_decision]]
+      }
       motivo <- if (is.null(motivos_ilegibles) ||
-                    !campo %in% names(motivos_ilegibles)) {
+                    is.na(.indice_nombre(campo, names(motivos_ilegibles)))) {
         NA_character_
       } else {
-        motivos_ilegibles[[campo]]
+        motivos_ilegibles[[.indice_nombre(campo, names(motivos_ilegibles))]]
       }
       "moda" %in% metricas_ejecucion && isTRUE(incluir_valores) &&
         (is.null(decision) || isTRUE(decision$moda)) &&
@@ -8533,14 +8561,22 @@
       )
     }
   }
-  columnas_medianas <- intersect(campos_consolidados, campos)
+  columnas_medianas <- campos_consolidados[
+    !is.na(.indice_nombre(campos_consolidados, campos))
+  ]
   columnas_medianas <- columnas_medianas[
-    match(columnas_medianas, campos_consolidados) <= length(es_numerico_consolidados) &
-      es_numerico_consolidados[match(columnas_medianas, campos_consolidados)]
+    .indice_nombre(columnas_medianas, campos_consolidados) <=
+      length(es_numerico_consolidados) &
+      es_numerico_consolidados[
+        .indice_nombre(columnas_medianas, campos_consolidados)
+      ]
   ]
   columnas_medianas <- columnas_medianas[
     vapply(columnas_medianas, function(campo) {
-      decision <- decisiones_costo[[campo]]
+      indice_decision <- .indice_nombre(campo, names(decisiones_costo))
+      decision <- if (is.na(indice_decision)) NULL else {
+        decisiones_costo[[indice_decision]]
+      }
       "mediana" %in% metricas_ejecucion && isTRUE(incluir_valores) &&
       (is.null(decision) || isTRUE(decision$mediana))
     }, logical(1L))
@@ -8608,10 +8644,13 @@
     tipos_declarados[[i]]
   }
   motivo_de <- function(campo) {
-    if (is.null(motivos_ilegibles) || !campo %in% names(motivos_ilegibles)) {
+    indice <- if (is.null(motivos_ilegibles)) NA_integer_ else {
+      .indice_nombre(campo, names(motivos_ilegibles))
+    }
+    if (is.na(indice)) {
       return(NA_character_)
     }
-    motivos_ilegibles[[campo]]
+    motivos_ilegibles[[indice]]
   }
   resultados <- lapply(seq_along(campos), function(i) {
     campo <- campos[[i]]
@@ -9486,7 +9525,7 @@
       "columna", "n_distintos_estimados"
     ) %in% names(datos))) {
       columnas <- preparacion$campos
-      datos <- datos[match(columnas, datos$columna), , drop = FALSE]
+      datos <- datos[.indice_nombre(columnas, datos$columna), , drop = FALSE]
       conocidos <- is.finite(datos$n_distintos_estimados) &
         datos$n_distintos_estimados >= 0
       if (any(conocidos)) {
@@ -10401,7 +10440,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   if (!length(sensibles)) return(resumen)
   reemplazo <- "[valor protegido]"
   columnas <- resumen$columnas
-  indices <- columnas$columna %in% sensibles
+  indices <- .nombres_para_operar(columnas$columna) %in%
+    .nombres_para_operar(sensibles)
   if (!any(indices)) return(resumen)
   # Los valores identificantes se cosechan ANTES de taparlos, que es el unico
   # momento en que estan a la vista: por esta puerta no hay tabla original de
@@ -10465,14 +10505,20 @@ print.plan_perfilado_dbi <- function(x, ...) {
       is.data.frame(perfil_muestra$datos_personales)) {
     clasificacion <- perfil_muestra$datos_personales
     tipos_protegidos <- unique(as.character(
-      clasificacion$tipo[as.character(clasificacion$columna) %in% sensibles]
+      clasificacion$tipo[
+        .nombres_para_operar(as.character(clasificacion$columna)) %in%
+          .nombres_para_operar(sensibles)
+      ]
     ))
     tipos_protegidos <- tipos_protegidos[!is.na(tipos_protegidos)]
     hermanas <- as.character(clasificacion$columna[
       as.character(clasificacion$tipo) %in% tipos_protegidos
     ])
-    hermanas <- setdiff(hermanas, sensibles)
-    indices_hermanas <- columnas$columna %in% hermanas
+    hermanas <- hermanas[
+      !(.nombres_para_operar(hermanas) %in% .nombres_para_operar(sensibles))
+    ]
+    indices_hermanas <- .nombres_para_operar(columnas$columna) %in%
+      .nombres_para_operar(hermanas)
     if (any(indices_hermanas)) {
       for (campo in campos) {
         tapar <- indices_hermanas & !is.na(columnas[[campo]])
@@ -10498,7 +10544,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   }
   literales <- resumen$literales
   if (length(literales)) {
-    filas_sensibles <- resumen$sql$columna %in% sensibles
+    filas_sensibles <- .nombres_para_operar(resumen$sql$columna) %in%
+      .nombres_para_operar(sensibles)
     for (i in which(filas_sensibles)) {
       texto <- resumen$sql$sql[[i]]
       if (is.na(texto)) next
@@ -11379,7 +11426,8 @@ print.plan_perfilado_dbi <- function(x, ...) {
   campos <- esquema$campos
   prototipo <- esquema$prototipo
   if (length(names(prototipo)) == length(campos) &&
-      !identical(names(prototipo), campos)) {
+      !identical(.nombres_para_operar(names(prototipo)),
+                 .nombres_para_operar(campos))) {
     campos <- names(prototipo)
   }
   orden_sql <- if (length(orden_muestra)) {
@@ -13051,7 +13099,10 @@ perfilar_dbi <- function(conexion, tabla,
   ejecutadas <- unique(as.character(sql$columna[
     sql$metrica == nombre & !(sql$estado %in% estados_omitidos)
   ]))
-  intersect(as.character(estimacion$columnas$columna), ejecutadas)
+  columnas_estimacion <- as.character(estimacion$columnas$columna)
+  columnas_estimacion[
+    !is.na(.indice_nombre(columnas_estimacion, ejecutadas))
+  ]
 }
 
 #' @export

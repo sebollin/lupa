@@ -16,7 +16,8 @@
       anyNA(names(transformacion)) || !all(nzchar(names(transformacion)))) {
     stop("`transformacion` debe ser una lista con nombres.", call. = FALSE)
   }
-  sobrantes <- setdiff(names(transformacion), columnas)
+  indices <- .indice_nombre(names(transformacion), columnas)
+  sobrantes <- names(transformacion)[is.na(indices)]
   if (length(sobrantes)) {
     stop(
       "`transformacion` nombra columnas que no estan en la senal: ",
@@ -27,6 +28,7 @@
     stop("Cada elemento de `transformacion` debe ser una funcion.",
          call. = FALSE)
   }
+  names(transformacion) <- columnas[indices]
   transformacion
 }
 
@@ -74,7 +76,7 @@ senal_redundante <- function(columnas, ventana = 0, transformacion = NULL,
       anyNA(columnas) || !all(nzchar(columnas))) {
     stop("`columnas` debe nombrar al menos dos columnas.", call. = FALSE)
   }
-  if (anyDuplicated(columnas)) {
+  if (anyDuplicated(.nombres_para_operar(columnas))) {
     stop("`columnas` repite una columna.", call. = FALSE)
   }
   if (!is.numeric(ventana) || length(ventana) != 1L || is.na(ventana) ||
@@ -109,9 +111,18 @@ print.senal_redundante <- function(x, ...) {
 }
 
 .valores_senal <- function(datos, senal) {
-  lapply(senal$columnas, function(columna) {
-    valores <- datos[[columna]]
-    funcion <- senal$transformacion[[columna]]
+  indices <- .indice_nombre(senal$columnas, names(datos))
+  lapply(seq_along(indices), function(i) {
+    columna <- names(datos)[[indices[[i]]]]
+    valores <- datos[[indices[[i]]]]
+    indice_transformacion <- .indice_nombre(
+      columna, names(senal$transformacion)
+    )
+    funcion <- if (is.na(indice_transformacion)) {
+      NULL
+    } else {
+      senal$transformacion[[indice_transformacion]]
+    }
     if (!is.null(funcion)) valores <- funcion(valores)
     if (length(valores) != nrow(datos)) {
       stop(
@@ -192,7 +203,8 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
   max_ejemplos <- as.integer(max_ejemplos)
 
   filas <- lapply(senales, function(senal) {
-    faltantes <- setdiff(senal$columnas, names(datos))
+    indices <- .indice_nombre(senal$columnas, names(datos))
+    faltantes <- senal$columnas[is.na(indices)]
     if (length(faltantes)) {
       stop(
         "La senal '", senal$nombre, "' nombra columnas que no estan en los ",
@@ -200,6 +212,14 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
         ". Disponibles: ", paste(names(datos), collapse = ", "), ".",
         call. = FALSE
       )
+    }
+    senal <- senal
+    senal$columnas <- names(datos)[indices]
+    if (length(senal$transformacion)) {
+      indices_transformacion <- .indice_nombre(
+        names(senal$transformacion), senal$columnas
+      )
+      names(senal$transformacion) <- senal$columnas[indices_transformacion]
     }
     valores <- .valores_senal(datos, senal)
     completos <- Reduce(`&`, lapply(valores, function(x) !is.na(x)))
@@ -253,7 +273,8 @@ detectar_discordancias <- function(datos, senales, max_ejemplos = 5L,
       paste(vapply(ejemplos, function(fila) {
         partes <- vapply(seq_along(senal$columnas), function(k) {
           nombre <- senal$columnas[[k]]
-          texto <- if (nombre %in% personales) {
+          texto <- if (.nombres_para_operar(nombre) %in%
+                       .nombres_para_operar(personales)) {
             "[valor protegido]"
           } else {
             .texto_valor(valores[[k]][fila])

@@ -7,9 +7,16 @@
   if (is.null(metadatos)) {
     return(data.frame(columna = character(), stringsAsFactors = FALSE))
   }
+  indices_columnas <- if (inherits(metadatos, "data.frame") &&
+                          "columna" %in% names(metadatos) &&
+                          is.character(metadatos$columna) &&
+                          !anyNA(metadatos$columna)) {
+    .indice_nombre(metadatos$columna, nombres)
+  } else integer()
   if (!inherits(metadatos, "data.frame") || !"columna" %in% names(metadatos) ||
-      anyNA(metadatos$columna) || anyDuplicated(metadatos$columna) ||
-      any(!metadatos$columna %in% nombres)) {
+      anyNA(metadatos$columna) || length(indices_columnas) !=
+      length(metadatos$columna) || anyNA(indices_columnas) ||
+      anyDuplicated(indices_columnas)) {
     stop("`metadatos` debe tener una fila unica por columna existente.",
          call. = FALSE)
   }
@@ -32,6 +39,7 @@
              metadatos$confianza < 0 | metadatos$confianza > 1))) {
     stop("`confianza` debe estar en [0, 1].", call. = FALSE)
   }
+  metadatos$columna <- nombres[indices_columnas]
   metadatos
 }
 
@@ -224,6 +232,7 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
     stop("`proteger_datos_personales` debe ser TRUE o FALSE.", call. = FALSE)
   }
   metadatos <- .normalizar_metadatos_variables(metadatos, names(datos))
+  nombres_metadatos <- .nombres_para_operar(metadatos$columna)
   personales <- if (proteger_datos_personales) {
     .columnas_personales_rapidas(datos, perfil)
   } else character()
@@ -239,7 +248,9 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
       inferir_tipo(x)$tipo
     } else .tipo_declarado(x)
     propuesta <- .propuesta_escala(x, tipo_implicito)
-    meta <- metadatos[metadatos$columna == nombre, , drop = FALSE]
+    meta <- metadatos[
+      nombres_metadatos == .nombres_para_operar(nombre), , drop = FALSE
+    ]
     if (nrow(meta)) {
       declaracion <- FALSE
       if ("escala" %in% names(meta) && !is.na(meta$escala[[1L]])) {
@@ -302,7 +313,7 @@ clasificar_variables <- function(datos, perfil = NULL, metadatos = NULL,
     declarados <- utils::head(declarados, max_niveles)
     observados <- utils::head(observados, max_niveles)
     ausentes <- utils::head(ausentes, max_niveles)
-    if (nombre %in% personales) {
+    if (.nombres_para_operar(nombre) %in% .nombres_para_operar(personales)) {
       proteger <- function(x) if (length(x)) "[valor protegido]" else character()
       declarados <- proteger(declarados)
       observados <- proteger(observados)

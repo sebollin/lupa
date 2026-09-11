@@ -263,7 +263,9 @@ detectar_dependencias <- function(datos, umbral = 0.995, muestra = 1e5,
     is.list(x) || is.matrix(x) || is.raw(x)
   }, logical(1L)))
   seleccion <- utils::head(analizables, as.integer(max_columnas))
-  nombres <- .nombres_unicos(names(datos))
+  # La desambiguacion es para nombres de trabajo, no para la salida: un sufijo
+  # que no existe en `names(datos)` rompe la correspondencia del diagnostico.
+  nombres <- names(datos)
   muestreo <- .muestrear_vector(seq_len(nrow(datos)), limite)
   # `as.data.frame()` antes de recortar: sobre un objeto `sf`, seleccionar
   # columnas vuelve a pegar la geometria que `seleccion` habia excluido, y

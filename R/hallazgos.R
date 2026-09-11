@@ -102,9 +102,12 @@
 .claves_de_filas <- function(datos, clave, indices) {
   if (is.null(clave) || !length(clave) || is.null(datos)) return(NULL)
   if (!length(indices)) return(NULL)
-  faltantes <- setdiff(clave, names(datos))
+  indices_columnas <- .indice_nombre(clave, names(datos))
+  faltantes <- clave[is.na(indices_columnas)]
   if (length(faltantes)) return(NULL)
-  salida <- .seleccionar_columnas(datos, clave, filas = indices)
+  salida <- .seleccionar_columnas(
+    datos, names(datos)[indices_columnas], filas = indices
+  )
   rownames(salida) <- NULL
   salida
 }
@@ -1885,7 +1888,8 @@
       )
       indice_cobertura <- which(vapply(cobertura, function(x) {
         identical(x$diagnostico[[1L]], "proximidad_vocabulario") &&
-          identical(x$columna[[1L]], columnas[[i]])
+          isTRUE(.nombres_para_operar(x$columna[[1L]]) %in%
+                 .nombres_para_operar(columnas[[i]]))
       }, logical(1L)))
       if (length(indice_cobertura)) {
         indice_cobertura <- indice_cobertura[[1L]]
@@ -2825,7 +2829,8 @@
   # La unicidad de la clave se evalua entre filas completas. Las filas con
   # ausentes tienen su hallazgo propio y no se mezclan con esta traza.
   if (tipo %in% c("clave_no_unica", "clave_con_ausentes")) {
-    if (is.null(clave) || !length(clave) || !all(clave %in% names(datos))) {
+    if (is.null(clave) || !length(clave) ||
+        anyNA(.indice_nombre(clave, names(datos)))) {
       return(.trazabilidad_vacia(limite = limite))
     }
     valores <- .seleccionar_columnas(datos, clave)
@@ -2908,7 +2913,7 @@
     ))
   }
   nombre <- as.character(hallazgo$columna[[1L]])
-  indice <- match(nombre, nombres)
+  indice <- .indice_nombre(nombre, nombres)
   if (is.na(indice)) return(.trazabilidad_vacia(limite = limite))
   indices <- .indices_hallazgo_columna(
     tipo, datos[[indice]], resultados[[indice]]$fila,
@@ -2972,7 +2977,7 @@
   for (i in seq_len(nrow(hallazgos))) {
     traza <- hallazgos$trazabilidad[[i]]
     tipo <- as.character(hallazgos$tipo_hallazgo[[i]])
-    indice_resultado <- match(
+    indice_resultado <- .indice_nombre(
       as.character(hallazgos$columna[[i]]), nombres
     )
     if (tipo == "patron_raro" && is.list(traza) &&
@@ -3093,7 +3098,7 @@
     if (unidad == "valor_distinto" && !is.null(datos) &&
         !is.null(nombres)) {
       columna <- as.character(hallazgos$columna[[i]])
-      indice_columna <- match(columna, nombres)
+      indice_columna <- .indice_nombre(columna, nombres)
       esperados <- if (!is.na(indice_columna)) {
         .indices_unidades_valor_distinto(
           as.character(hallazgos$tipo_hallazgo[[i]]),
@@ -4226,7 +4231,7 @@
       ))
     }
 
-    if (nombre %in% columnas_sin_ceros &&
+    if (.nombres_para_operar(nombre) %in% .nombres_para_operar(columnas_sin_ceros) &&
         !is.na(fila$n_ceros) && fila$n_ceros > 0L) {
       agregar(.nuevo_hallazgo(
         nombre, "ceros_no_permitidos", "sospechoso",
@@ -4238,10 +4243,15 @@
     # Se cuenta sobre la columna entera y no sobre el resumen: aca los datos
     # estan a mano, asi que no hace falta agregar un campo publico al perfil
     # para llevar el conteo -y agregar un campo cambia lo que lee el resto-.
-    n_subnormales <- if (is.null(datos) || !nombre %in% names(datos)) {
+    indice_datos <- if (is.null(datos)) {
+      NA_integer_
+    } else {
+      .indice_nombre(nombre, names(datos))
+    }
+    n_subnormales <- if (is.na(indice_datos)) {
       0L
     } else {
-      .n_subnormales(datos[[nombre]])
+      .n_subnormales(datos[[indice_datos]])
     }
     if (n_subnormales > 0L) {
       agregar(.nuevo_hallazgo(
@@ -4255,7 +4265,7 @@
           "escala."
         ),
         paste0(
-          n_subnormales, " de ", sum(!is.na(datos[[nombre]])),
+          n_subnormales, " de ", sum(!is.na(datos[[indice_datos]])),
           " valores por debajo de ", format(.Machine$double.xmin, digits = 3),
           " en valor absoluto, sin ser cero."
         ),
@@ -4265,11 +4275,11 @@
           "reinterpretando los bits. Si la columna son probabilidades o",
           "verosimilitudes calculadas, el aviso no aplica."
         ),
-        n_evaluados = sum(!is.na(datos[[nombre]])),
+        n_evaluados = sum(!is.na(datos[[indice_datos]])),
         n_afectados = n_subnormales, unidad_conteo = "valor"
       ))
     }
-    if (nombre %in% columnas_no_negativas &&
+    if (.nombres_para_operar(nombre) %in% .nombres_para_operar(columnas_no_negativas) &&
         !is.na(fila$n_negativos) && fila$n_negativos > 0L) {
       agregar(.nuevo_hallazgo(
         nombre, "negativos_no_permitidos", "sospechoso",
@@ -4421,8 +4431,9 @@
   originales <- crudos
   originales[is.na(originales)] <- ""
   operativos <- .nombres_para_operar(originales)
-  propuestos <- make.names(operativos, unique = TRUE)
-  problema <- operativos != propuestos | operativos != trimws(operativos) |
+  propuestos <- .nombres_make_names(originales)
+  problema <- operativos != trimws(operativos) |
+    operativos != .nombres_para_operar(propuestos) |
     duplicated(operativos) | duplicated(operativos, fromLast = TRUE) |
     codificacion_invalida
   data.frame(
@@ -4597,7 +4608,8 @@
   # ausentes impiden garantizar NOT NULL y las repeticiones se buscan solo
   # entre las filas con la clave completa.
   if (!is.null(evaluacion_clave) && !is.null(clave_declarada) &&
-      length(clave_declarada) && all(clave_declarada %in% names(datos)) &&
+      length(clave_declarada) &&
+      !anyNA(.indice_nombre(clave_declarada, names(datos))) &&
       nrow(datos)) {
     valores_clave <- .seleccionar_columnas(datos, clave_declarada)
     filas_con_ausentes <- .filas_clave_con_ausentes(valores_clave)

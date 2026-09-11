@@ -512,7 +512,7 @@ metrica <- function(nombre, semantica, granularidad, tipo_resultado,
       any(!nzchar(propiedades)) || anyDuplicated(propiedades)) {
     stop("`propiedades` debe contener nombres \u00fanicos no vac\u00edos.", call. = FALSE)
   }
-  if (any(make.names(propiedades) != propiedades) ||
+  if (any(.nombres_make_names(propiedades) != propiedades) ||
       "nombre_especifico" %in% propiedades) {
     stop("Las propiedades deben ser nombres sint\u00e1cticos no reservados.",
          call. = FALSE)
@@ -787,13 +787,14 @@ modelo <- function(..., marco = NULL) {
 }
 
 .obtener_columna_modelo <- function(tabla, nombre, entidad) {
-  if (!nombre %in% names(tabla)) {
+  indice <- .indice_nombre(nombre, names(tabla))
+  if (is.na(indice)) {
     stop(
       "No se encontr\u00f3 el atributo ligado: ", entidad, "$", nombre, ".",
       call. = FALSE
     )
   }
-  tabla[[nombre]]
+  tabla[[indice]]
 }
 
 .validar_vinculo <- function(instancia, n_entidades, n_atributos) {
@@ -925,7 +926,8 @@ modelo <- function(..., marco = NULL) {
   }
   entidad <- instancia$entidad[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
-  faltantes <- setdiff(instancia$atributos, names(tabla))
+  indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
+  faltantes <- instancia$atributos[is.na(indices_atributos)]
   if (length(faltantes)) {
     stop("No se encontraron atributos ligados: ", paste(faltantes, collapse = ", "), ".",
          call. = FALSE)
@@ -1173,7 +1175,8 @@ metricas_nucleo <- function() {
       " alcance vac\u00edo."
     )
   } else if (length(instancia$atributos)) {
-    columnas <- intersect(instancia$atributos, names(tabla))
+    indices_atributos <- .indice_nombre(instancia$atributos, names(tabla))
+    columnas <- names(tabla)[indices_atributos[!is.na(indices_atributos)]]
     comparables <- if (length(columnas)) {
       .seleccionar_columnas(tabla, columnas)
     } else NULL
@@ -1231,10 +1234,13 @@ metricas_nucleo <- function() {
     )
   }
   lapply(tablas, function(tabla) {
-    presentes <- intersect(names(aplicabilidad), names(tabla))
-    if (!length(presentes)) return(NULL)
+    indices <- .indice_nombre(names(aplicabilidad), names(tabla))
+    presentes <- !is.na(indices)
+    if (!any(presentes)) return(NULL)
+    reglas <- aplicabilidad[presentes]
+    names(reglas) <- names(tabla)[indices[presentes]]
     resuelto <- .resolver_aplicabilidad(
-      tabla, names(tabla), character(), aplicabilidad[presentes]
+      tabla, names(tabla), character(), reglas
     )
     stats::setNames(resuelto$mascaras, names(tabla))
   })
@@ -1253,8 +1259,9 @@ metricas_nucleo <- function() {
   atributo <- as.character(atributo[[1L]])
   for (nombre in names(tablas)) {
     mascaras <- aplicables[[nombre]]
-    if (is.null(mascaras) || !atributo %in% names(mascaras)) next
-    mascara <- mascaras[[atributo]]
+    indice_atributo <- .indice_nombre(atributo, names(mascaras))
+    if (is.na(indice_atributo)) next
+    mascara <- mascaras[[indice_atributo]]
     if (is.null(mascara) || all(mascara)) next
     filas <- which(mascara)
     tabla <- tablas[[nombre]]
@@ -1273,7 +1280,8 @@ metricas_nucleo <- function() {
   if (is.list(datos)) {
     tablas <- Filter(is.data.frame, datos)
     if (length(tablas) == length(datos) && length(tablas)) {
-      return(unique(unlist(lapply(tablas, names), use.names = FALSE)))
+      nombres <- unlist(lapply(tablas, names), use.names = FALSE)
+      return(nombres[!duplicated(.nombres_para_operar(nombres))])
     }
   }
   NULL

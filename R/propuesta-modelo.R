@@ -57,14 +57,21 @@
 }
 
 .regla_desde_dependencia <- function(datos, determinante, dependiente) {
+  indices <- .indice_nombre(c(determinante, dependiente), names(datos))
+  if (anyNA(indices)) return(function(df) rep(FALSE, nrow(df)))
+  determinante <- names(datos)[indices[[1L]]]
+  dependiente <- names(datos)[indices[[2L]]]
   mapa <- .mapa_dependencia(datos, determinante, dependiente, soporte_minimo = 1L)
   claves <- .valores_relacion(mapa$determinante)
   valores <- .valores_relacion(mapa$dependiente)
   function(df) {
-    x <- .valores_relacion(df[[determinante]])
-    y <- .valores_relacion(df[[dependiente]])
+    indices_df <- .indice_nombre(c(determinante, dependiente), names(df))
+    if (anyNA(indices_df)) return(rep(FALSE, nrow(df)))
+    x <- .valores_relacion(df[[indices_df[[1L]]]])
+    y <- .valores_relacion(df[[indices_df[[2L]]]])
     indice <- match(x, claves)
-    ausente <- is.na(df[[determinante]]) | is.na(df[[dependiente]])
+    ausente <- is.na(df[[indices_df[[1L]]]]) |
+      is.na(df[[indices_df[[2L]]]])
     resultado <- !is.na(indice) & y == valores[indice]
     resultado[ausente] <- TRUE
     resultado[is.na(resultado)] <- FALSE
@@ -132,7 +139,10 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
   }
   entidad <- perfil$meta$nombre
   if (!.es_texto_escalar(entidad)) entidad <- "datos"
-  if (!is.null(datos) && !identical(names(datos), perfil$columnas$columna)) {
+  if (!is.null(datos) && !identical(
+    .nombres_para_operar(names(datos)),
+    .nombres_para_operar(perfil$columnas$columna)
+  )) {
     stop("Los nombres de `datos` no coinciden con los usados por el perfil.",
          call. = FALSE)
   }
@@ -146,7 +156,8 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
     columna <- fila$columna[[1L]]
     if (isTRUE(fila$n_faltantes_totales[[1L]] > 0L)) {
       hallazgo <- perfil$hallazgos[
-        perfil$hallazgos$columna == columna &
+        .nombres_para_operar(perfil$hallazgos$columna) %in%
+          .nombres_para_operar(columna) &
           perfil$hallazgos$tipo_hallazgo %in%
             c("faltantes", "faltantes_disfrazados"), , drop = FALSE
       ]
@@ -201,7 +212,8 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
         fila$n_distintos[[1L]] >= 2L &&
         fila$n_distintos[[1L]] <= max_valores_dominio &&
         is.finite(fila$tasa_distintos[[1L]]) && fila$tasa_distintos[[1L]] <= 0.5) {
-      valores_dominio <- .texto_analizable(datos[[columna]])$valores
+      indice_columna <- .indice_nombre(columna, names(datos))
+      valores_dominio <- .texto_analizable(datos[[indice_columna]])$valores
       valores <- unique(valores_dominio[!is.na(valores_dominio)])
       agregar_sugerencia(.nueva_sugerencia(
         "baja", FALSE, "ValoresPosiblesPorExtension", entidad, columna,

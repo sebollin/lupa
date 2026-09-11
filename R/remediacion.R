@@ -56,7 +56,7 @@
   salida[grepl("^[0-9]", salida)] <- paste0(
     "x_", salida[grepl("^[0-9]", salida)]
   )
-  make.unique(salida, sep = "_")
+  .nombres_unicos(salida, sep = "_")
 }
 
 .par_columnas_duplicadas <- function(perfil, hallazgo) {
@@ -68,29 +68,34 @@
   # tramo, no contra la cadena entera. Atarlo al texto completo hacia que
   # cualquier agregado colapsara dos pares distintos en el mismo.
   evidencia_hallazgo <- trimws(sub(";.*$", "", hallazgo$evidencia[[1L]]))
+  mismas_columnas <- .nombres_para_operar(pares$columna_1) %in%
+    .nombres_para_operar(hallazgo$columna[[1L]])
   indices <- which(
-    pares$columna_1 == hallazgo$columna[[1L]] &
+    mismas_columnas &
       evidencias == evidencia_hallazgo
   )
   if (!length(indices)) {
-    indices <- which(pares$columna_1 == hallazgo$columna[[1L]])
+    indices <- which(mismas_columnas)
   }
   if (!length(indices)) return(NULL)
   unname(unlist(pares[indices[[1L]], c("columna_1", "columna_2")]))
 }
 
 .fila_perfil <- function(perfil, columna) {
-  indices <- which(perfil$columnas$columna == columna)
+  indices <- which(.nombres_para_operar(perfil$columnas$columna) %in%
+                    .nombres_para_operar(columna))
   if (length(indices) == 1L) perfil$columnas[indices, , drop = FALSE] else NULL
 }
 
 .formatos_perfil <- function(perfil, columna) {
-  indices <- which(perfil$columnas$columna == columna)
+  indices <- which(.nombres_para_operar(perfil$columnas$columna) %in%
+                    .nombres_para_operar(columna))
   if (length(indices) == 1L) perfil$formatos_fecha[[indices]] else NULL
 }
 
 .accion_columna_ambigua <- function(perfil, columna) {
-  sum(perfil$columnas$columna == columna) != 1L
+  sum(.nombres_para_operar(perfil$columnas$columna) %in%
+        .nombres_para_operar(columna)) != 1L
 }
 
 .estado_columna <- function(perfil, columna, estado = "lista") {
@@ -99,7 +104,8 @@
 
 .es_fecha_ambigua <- function(perfil, columna) {
   any(
-    perfil$hallazgos$columna == columna &
+    .nombres_para_operar(perfil$hallazgos$columna) %in%
+      .nombres_para_operar(columna) &
       perfil$hallazgos$tipo_hallazgo == "formato_fecha_ambiguo",
     na.rm = TRUE
   )
@@ -107,7 +113,8 @@
 
 .es_fecha_mixta <- function(perfil, columna) {
   any(
-    perfil$hallazgos$columna == columna &
+    .nombres_para_operar(perfil$hallazgos$columna) %in%
+      .nombres_para_operar(columna) &
       perfil$hallazgos$tipo_hallazgo == "formatos_fecha_mixtos",
     na.rm = TRUE
   )
@@ -129,7 +136,10 @@
     ), error = NULL
   )
   if (is.null(datos)) return(sin_datos)
-  if (!is.data.frame(datos) || !columna %in% names(datos)) {
+  indice_columna <- if (is.data.frame(datos)) {
+    .indice_nombre(columna, names(datos))
+  } else NA_integer_
+  if (!is.data.frame(datos) || is.na(indice_columna)) {
     return(list(
       verificable = FALSE, ejecutable = FALSE, reversible = FALSE,
       n_no_reversibles = 0L,
@@ -139,7 +149,7 @@
       ), error = NULL
     ))
   }
-  x <- datos[[columna]]
+  x <- datos[[indice_columna]]
   convertido <- tryCatch({
     valor <- switch(
       estrategia,
@@ -703,8 +713,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
     } else if (identical(tipo, "tipo_declarado_distinto") && !is.null(fila) &&
                !.es_fecha_ambigua(perfil, columna) &&
                !.es_fecha_mixta(perfil, columna) &&
-               !any(
-                 perfil$hallazgos$columna == columna &
+                 !any(
+                 .nombres_para_operar(perfil$hallazgos$columna) %in%
+                   .nombres_para_operar(columna) &
                    perfil$hallazgos$tipo_hallazgo == "numero_como_texto",
                  na.rm = TRUE
                )) {
@@ -905,7 +916,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
       par <- .par_columnas_duplicadas(perfil, hallazgo)
       estado_par <- if (
         is.null(par) || any(vapply(par, function(nombre) {
-          sum(perfil$columnas$columna == nombre) != 1L
+          sum(.nombres_para_operar(perfil$columnas$columna) %in%
+                .nombres_para_operar(nombre)) != 1L
         }, logical(1L)))
       ) "bloqueada" else "lista"
       parametros_par <- if (is.null(par)) list() else list(
@@ -955,7 +967,10 @@ planificar_limpieza <- function(perfil, datos = NULL,
   dependencias <- perfil$dependencias
   if (!is.null(datos) && inherits(dependencias, "data.frame") &&
       nrow(dependencias)) {
-    if (!identical(names(datos), perfil$columnas$columna)) {
+    if (!identical(
+      .nombres_para_operar(names(datos)),
+      .nombres_para_operar(perfil$columnas$columna)
+    )) {
       stop("Los nombres de `datos` no coinciden con los usados por el perfil.",
            call. = FALSE)
     }
@@ -964,7 +979,12 @@ planificar_limpieza <- function(perfil, datos = NULL,
     for (i in seq_len(nrow(exactas))) {
       determinante <- exactas$determinante[[i]]
       dependiente <- exactas$dependiente[[i]]
-      if (!all(c(determinante, dependiente) %in% names(datos))) next
+      indices_dependencia <- .indice_nombre(
+        c(determinante, dependiente), names(datos)
+      )
+      if (anyNA(indices_dependencia)) next
+      determinante <- names(datos)[indices_dependencia[[1L]]]
+      dependiente <- names(datos)[indices_dependencia[[2L]]]
       mapa <- .mapa_dependencia(
         datos, determinante, dependiente,
         soporte_minimo = soporte_minimo_dependencia
@@ -1036,7 +1056,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
         candidatos <- which(
           hallazgos$tipo_hallazgo == resultado$hallazgo[[j]] &
             ((is.na(hallazgos$columna) & is.na(resultado$columna[[j]])) |
-               hallazgos$columna == resultado$columna[[j]])
+               .nombres_para_operar(hallazgos$columna) %in%
+                 .nombres_para_operar(resultado$columna[[j]]))
         )
         if (length(candidatos)) candidatos[[1L]] else NA_integer_
       }
@@ -1217,7 +1238,8 @@ planificar_limpieza <- function(perfil, datos = NULL,
 }
 
 .indice_columna <- function(datos, columna) {
-  indices <- which(names(datos) == columna)
+  indices <- which(.nombres_para_operar(names(datos)) %in%
+                   .nombres_para_operar(columna))
   if (length(indices) != 1L) {
     stop(
       "La acci\u00f3n requiere una \u00fanica columna llamada '", columna,
@@ -1255,10 +1277,15 @@ planificar_limpieza <- function(perfil, datos = NULL,
 .imputar_dependencia <- function(datos, parametros) {
   determinante <- parametros$determinante
   dependiente <- parametros$dependiente
-  if (!all(c(determinante, dependiente) %in% names(datos))) {
+  indices_dependencia <- .indice_nombre(
+    c(determinante, dependiente), names(datos)
+  )
+  if (anyNA(indices_dependencia)) {
     stop("La imputaci\u00f3n no conserva un contrato de dependencia v\u00e1lido.",
          call. = FALSE)
   }
+  determinante <- names(datos)[indices_dependencia[[1L]]]
+  dependiente <- names(datos)[indices_dependencia[[2L]]]
   mapa <- if (isTRUE(parametros$mapa_enmascarado)) {
     soporte <- parametros$soporte_minimo
     if (length(soporte) != 1L || is.na(soporte) ||
@@ -1723,7 +1750,7 @@ planificar_limpieza <- function(perfil, datos = NULL,
 
 .conservar_mas_completa <- function(datos, clave) {
   datos_base <- .tabla_base(datos)
-  if (!length(clave) || any(!clave %in% names(datos_base))) {
+  if (!length(clave) || anyNA(.indice_nombre(clave, names(datos_base)))) {
     stop(
       "`conservar_mas_completa` requiere configurar nombres de clave existentes.",
       call. = FALSE
@@ -1760,14 +1787,15 @@ planificar_limpieza <- function(perfil, datos = NULL,
   )
   if (!length(indices)) return(invisible(TRUE))
   esperados <- plan$parametros[[indices[[1L]]]]$nombres_esperados
-  if (!identical(names(datos), esperados)) {
+  if (!identical(.nombres_para_operar(names(datos)),
+                 .nombres_para_operar(esperados))) {
     stop("Los nombres de los datos no coinciden con los usados por el perfil.", call. = FALSE)
   }
   invisible(TRUE)
 }
 
 .agregar_marca <- function(datos, nombre, valor) {
-  if (nombre %in% names(datos)) {
+  if (.nombres_para_operar(nombre) %in% .nombres_para_operar(names(datos))) {
     stop("La columna de marca ya existe: ", nombre, ".", call. = FALSE)
   }
   datos[[nombre]] <- valor
@@ -1814,7 +1842,11 @@ planificar_limpieza <- function(perfil, datos = NULL,
     } else {
       .nombres_snake(anteriores)
     }
-    return(list(datos = datos, n = sum(anteriores != names(datos))))
+    return(list(
+      datos = datos,
+      n = sum(.nombres_para_operar(anteriores) !=
+                .nombres_para_operar(names(datos)))
+    ))
   }
   if (identical(estrategia, "marcar_filas_duplicadas")) {
     marcas <- .grupos_filas_duplicadas(datos)
@@ -2091,7 +2123,10 @@ planificar_limpieza <- function(perfil, datos = NULL,
     propuestos <- parametros$nombres_propuestos
     if (length(esperados) && length(propuestos) &&
         length(esperados) == length(propuestos)) {
-      return(any(clave %in% esperados[esperados != propuestos]))
+      cambiadas <- .nombres_para_operar(esperados) !=
+        .nombres_para_operar(propuestos)
+      return(any(.nombres_para_operar(clave) %in%
+                 .nombres_para_operar(esperados[cambiadas])))
     }
     return(TRUE)
   }
@@ -2102,11 +2137,14 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (estrategia %in% c(
     "eliminar_columna_duplicada", "eliminar_columna_constante"
   )) {
-    return(isTRUE(parametros$eliminar %in% clave) ||
-      isTRUE(accion$columna[[1L]] %in% clave))
+    return(isTRUE(.nombres_para_operar(parametros$eliminar) %in%
+                  .nombres_para_operar(clave)) ||
+      isTRUE(.nombres_para_operar(accion$columna[[1L]]) %in%
+             .nombres_para_operar(clave)))
   }
   columna <- accion$columna[[1L]]
-  !is.na(columna) && columna %in% clave
+  !is.na(columna) && .nombres_para_operar(columna) %in%
+    .nombres_para_operar(clave)
 }
 
 #' @rdname planificar_limpieza
@@ -2252,14 +2290,18 @@ aplicar <- function(plan, datos, permitir_eliminacion = FALSE,
   if (identical(tipo, "filas_duplicadas")) {
     grupos <- .grupos_filas_duplicadas(datos)$grupos
     indices <- utils::head(which(!is.na(grupos)), max_ejemplos)
-    columnas_protegidas <- intersect(columnas_protegidas, names(datos))
+    indices_protegidas <- .indice_nombre(columnas_protegidas, names(datos))
+    columnas_protegidas <- names(datos)[
+      unique(indices_protegidas[!is.na(indices_protegidas)])
+    ]
     valores_protegidos <- .valores_publicables_protegidos(
       datos, columnas_protegidas
     )
     return(vapply(indices, function(i) {
       contenido <- vapply(seq_along(datos), function(j) {
         texto <- .texto_ejemplo(datos[[j]][[i]])
-        if (names(datos)[[j]] %in% columnas_protegidas) {
+        if (.nombres_para_operar(names(datos)[[j]]) %in%
+            .nombres_para_operar(columnas_protegidas)) {
           texto <- .reemplazar_valores_protegidos(
             texto, valores_protegidos
           )
@@ -2428,7 +2470,8 @@ guiar_limpieza <- function(plan, datos, selector = NULL,
     acciones <- plan[indices, , drop = FALSE]
     nombre_columna <- acciones$columna[[1L]]
     diccionario <- if (!is.na(nombre_columna)) {
-      diccionarios[[nombre_columna]]
+      indice_diccionario <- .indice_nombre(nombre_columna, names(diccionarios))
+      if (is.na(indice_diccionario)) NULL else diccionarios[[indice_diccionario]]
     } else {
       NULL
     }

@@ -141,7 +141,7 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   # El orden: primero las que identifican, despues las que no tienen ausentes,
   # despues el parecido del nombre, y a igualdad la que aparece antes en la
   # tabla -la clave suele ser la primera columna-.
-  posicion <- match(salida$columna, names(datos))
+  posicion <- .indice_nombre(salida$columna, names(datos))
   salida <- salida[order(
     -salida$identifica, -salida$candidato_por_tipo, -salida$sin_faltantes,
     -salida$parecido_nombre, -salida$tasa_distintos, posicion
@@ -263,12 +263,13 @@ elegir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
   nombres <- trimws(strsplit(as.character(texto), ",", fixed = TRUE)[[1L]])
   nombres <- nombres[nzchar(nombres)]
   if (!length(nombres)) return(NULL)
-  faltan <- setdiff(nombres, names(datos))
+  indices <- .indice_nombre(nombres, names(datos))
+  faltan <- nombres[is.na(indices)]
   if (length(faltan)) {
     cli::cli_alert_danger(paste0(
       "No existe en la tabla: ", paste0("`", faltan, "`", collapse = ", "), "."
     ))
     return(NULL)
   }
-  nombres
+  names(datos)[indices]
 }

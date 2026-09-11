@@ -222,7 +222,10 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       max_combinacion < 1L || max_combinacion > 3L) {
     stop("`max_combinacion` debe ser un entero entre 1 y 3.", call. = FALSE)
   }
-  nombres <- .nombres_unicos(names(datos))
+  # Los nombres publicados son los de la tabla. La forma unica queda reservada
+  # para nombres de listas internas; agregar el sufijo de `make.unique()` a una
+  # clave publica puede inventar una columna que no existe.
+  nombres <- names(datos)
   encontradas <- list()
   casi_encontradas <- list()
   k <- 0L
@@ -284,9 +287,15 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       nombres_clave <- nombres[indices]
       relacionadas <- character()
       if (!es_casi_clave && length(indices) == 1L && nrow(redundantes)) {
-        relacionadas <- c(
-          redundantes$columna_2[redundantes$columna_1 == nombres_clave],
-          redundantes$columna_1[redundantes$columna_2 == nombres_clave]
+      relacionadas <- c(
+          redundantes$columna_2[
+            .nombres_para_operar(redundantes$columna_1) %in%
+              .nombres_para_operar(nombres_clave)
+          ],
+          redundantes$columna_1[
+            .nombres_para_operar(redundantes$columna_2) %in%
+              .nombres_para_operar(nombres_clave)
+          ]
         )
       }
       normalizada <- .resumen_clave_normalizada(
@@ -296,7 +305,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
         resumen$n_distintos
       } else if (nrow(datos)) {
         seleccion <- .seleccionar_columnas(datos, indices)
-        completos <- !apply(is.na(seleccion), 1L, any)
+        completos <- !apply(.matriz_ausentes(seleccion), 1L, any)
         if (length(indices) == 1L) {
           length(unique(datos[[indices[[1L]]]][completos]))
         } else {
@@ -396,9 +405,7 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
 }
 
 .validar_columnas_candidatas_relacion <- function(datos, columnas, lado) {
-  nombres <- if (is.character(datos)) .nombres_unicos(datos) else {
-    .nombres_unicos(names(datos))
-  }
+  nombres <- if (is.character(datos)) datos else names(datos)
   if (is.null(columnas)) return(nombres)
   if (!is.character(columnas) || !length(columnas) || anyNA(columnas) ||
       any(!nzchar(columnas))) {
@@ -407,14 +414,15 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
       " debe ser un vector de nombres no vacios.", call. = FALSE
     )
   }
-  desconocidas <- setdiff(columnas, nombres)
+  indices <- .indice_nombre(columnas, nombres)
+  desconocidas <- columnas[is.na(indices)]
   if (length(desconocidas)) {
     stop(
       "`columnas_candidatas` nombra columnas inexistentes en ", lado, ": ",
       paste(desconocidas, collapse = ", "), ".", call. = FALSE
     )
   }
-  unique(columnas)
+  nombres[unique(indices)]
 }
 
 .resolver_columnas_candidatas_relacion <- function(columnas, n1, n2) {
@@ -630,13 +638,13 @@ detectar_relaciones <- function(tabla1, tabla2, muestra = 1e5,
     stop("`tope_memoria_mb` debe ser un numero no negativo.", call. = FALSE)
   }
   limite_muestra <- .validar_muestra(muestra)
-  nombres_1 <- .nombres_unicos(names(tabla1))
-  nombres_2 <- .nombres_unicos(names(tabla2))
+  nombres_1 <- names(tabla1)
+  nombres_2 <- names(tabla2)
   candidatas <- .resolver_columnas_candidatas_relacion(
     columnas_candidatas, nombres_1, nombres_2
   )
-  indices_1 <- match(candidatas$tabla1, nombres_1)
-  indices_2 <- match(candidatas$tabla2, nombres_2)
+  indices_1 <- .indice_nombre(candidatas$tabla1, nombres_1)
+  indices_2 <- .indice_nombre(candidatas$tabla2, nombres_2)
   columnas_1 <- lapply(indices_1, function(i) {
     .resumir_columna_relacion(tabla1[[i]], limite_muestra)
   })

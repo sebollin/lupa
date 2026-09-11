@@ -461,7 +461,7 @@
 # colisionan; `is.na()` resuelve si todos los componentes estan presentes. No
 # mezclar las dos respuestas evita atribuir una colision de la traza a SQL.
 .filas_clave_con_ausentes <- function(valores) {
-  ausentes <- tryCatch(is.na(valores), error = function(e) NULL)
+  ausentes <- tryCatch(.matriz_ausentes(valores), error = function(e) NULL)
   if (is.null(ausentes) || length(dim(ausentes)) != 2L) return(NULL)
   if (nrow(valores)) rowSums(ausentes) > 0L else logical()
 }
@@ -474,7 +474,7 @@
   # La clave se evalua con la semantica de un data.frame de R, aunque otro
   # objeto haya registrado un metodo `duplicated()` durante la sesion.
   duplicadas <- .filas_duplicadas_base(valores)
-  ausentes <- tryCatch(is.na(valores), error = function(e) NULL)
+  ausentes <- tryCatch(.matriz_ausentes(valores), error = function(e) NULL)
   pudo_contar_ausentes <- !is.null(ausentes) &&
     length(dim(ausentes)) == 2L
   n_ausentes <- if (pudo_contar_ausentes) {
@@ -899,6 +899,15 @@
 #' mirar. `n_codificacion_invalida` sigue contando esos valores y el hallazgo
 #' `codificacion_invalida`, de severidad `error`, sigue declarando que se
 #' excluyeron.
+#'
+#' Los **nombres de columna** que el perfil publica —en `columnas$columna` y en
+#' todo lo que nombre una columna: claves, relaciones, dependencias, hallazgos,
+#' patrones, el plan de remediación y el reporte— son los nombres de la tabla de
+#' entrada tal como llegaron, con sus bytes **y su marca de codificación**. Eso
+#' significa que sirven para indexar esa misma tabla —`datos[[nombre]]`— sea
+#' cual sea el `LC_CTYPE` de la sesión. El paquete deriva una representación de
+#' trabajo para comparar y desambiguar internamente, pero no la publica: dos
+#' nombres con bytes distintos siguen siendo dos columnas distintas.
 #'
 #' La identidad de la columna no depende de esa exclusión: `n_distintos`,
 #' `moda` y `frecuencia_moda` comparan la representación almacenada, que se
@@ -1672,7 +1681,8 @@ perfilar <- function(datos,
         call. = FALSE
       )
     }
-    faltantes <- setdiff(clave, names(datos))
+    indices_clave <- .indice_nombre(clave, names(datos))
+    faltantes <- clave[is.na(indices_clave)]
     if (length(faltantes)) {
       stop(
         "`clave` nombra columnas que no estan en los datos: ",
@@ -1681,9 +1691,13 @@ perfilar <- function(datos,
         call. = FALSE
       )
     }
-    if (anyDuplicated(clave)) {
+    if (anyDuplicated(.nombres_para_operar(clave))) {
       stop("`clave` repite una columna.", call. = FALSE)
     }
+    # La declaracion se valida con la clave estable, pero las etapas siguientes
+    # indexan la tabla por su nombre. Resolverla una sola vez evita que el
+    # `unknown` que trae un CSV deje de coincidir bajo `LC_CTYPE = "C"`.
+    clave <- names(datos)[indices_clave]
     evaluacion_clave <- .evaluar_clave_declarada(datos, clave)
     # Una clave que no identifica una fila o que tiene ausentes sirve igual
     # para localizar, pero no queda garantizada: cada eje se informa por
@@ -1908,7 +1922,6 @@ perfilar <- function(datos,
   if (is.null(nombres)) {
     nombres <- paste0("V", seq_len(ncol(datos)))
   }
-  nombres_lista <- .nombres_unicos(nombres)
   aplicabilidad_resuelta <- .resolver_aplicabilidad(
     datos, nombres, columnas_opcionales, aplicabilidad
   )
@@ -1937,8 +1950,11 @@ perfilar <- function(datos,
   rownames(columnas) <- NULL
   patrones <- lapply(resultados, `[[`, "patrones")
   formatos_fecha <- lapply(resultados, `[[`, "formatos")
-  names(patrones) <- nombres_lista
-  names(formatos_fecha) <- nombres_lista
+  # Los nombres de estas listas son parte de la salida. Se conservan tal cual
+  # vienen de la tabla, incluso si la tabla tiene nombres repetidos por marca de
+  # codificacion; la posicion mantiene la correspondencia uno a uno.
+  names(patrones) <- nombres
+  names(formatos_fecha) <- nombres
   dependencias <- .medir_etapa_dbi(
     trazador_tiempos, "dependencias",
     if (analizar_dependencias) {
@@ -2118,7 +2134,9 @@ perfilar <- function(datos,
     muestra_validadores = muestra_validadores,
     declaradas = columnas_personales
   )
-  indice_personal <- match(columnas$columna, datos_personales$columna)
+  indice_personal <- .indice_nombre(
+    columnas$columna, datos_personales$columna
+  )
   columnas$dato_personal_posible <- !is.na(indice_personal)
   columnas$tipo_dato_personal <- datos_personales$tipo[indice_personal]
   columnas$proporcion_dato_personal <-
@@ -2219,7 +2237,10 @@ perfilar <- function(datos,
     declaracion_aplicabilidad = if (is.null(aplicabilidad)) {
       character()
     } else {
-      sort(as.character(names(aplicabilidad)))
+      nombres_aplicabilidad <- as.character(names(aplicabilidad))
+      nombres_aplicabilidad[order(
+        .nombres_para_operar(nombres_aplicabilidad), method = "radix"
+      )]
     },
     ausencia_estructural = ausencia_estructural,
     filas_totales = nrow(datos),

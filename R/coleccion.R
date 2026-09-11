@@ -1415,7 +1415,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       error = function(e) NULL
     )
     if (!is.null(campos)) {
-      desconocidas <- setdiff(candidatas, campos)
+      indices <- .indice_nombre(candidatas, campos)
+      desconocidas <- candidatas[is.na(indices)]
       if (length(desconocidas)) {
         stop(
           "`columnas_candidatas` nombra columnas inexistentes en `",
@@ -1423,8 +1424,11 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
           call. = FALSE
         )
       }
+      candidatas <- campos[unique(indices)]
     }
-    columnas[[identificador]] <- unique(candidatas)
+    columnas[[identificador]] <- candidatas[
+      !duplicated(.nombres_para_operar(candidatas))
+    ]
   }
   columnas
 }
@@ -1453,7 +1457,17 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   orden_de <- function(identificador) {
     if (is.null(orden)) return(character())
     columnas <- if (is.character(orden)) orden else orden[[identificador]]
-    if (is.null(columnas)) character() else as.character(columnas)
+    if (is.null(columnas)) return(character())
+    columnas <- as.character(columnas)
+    campos <- tryCatch(
+      DBI::dbListFields(conexion, referencia_de(identificador)),
+      error = function(e) NULL
+    )
+    if (!is.null(campos)) {
+      indices <- .indice_nombre(columnas, campos)
+      if (!anyNA(indices)) columnas <- campos[indices]
+    }
+    columnas
   }
 
   candidatas_de <- function(identificador) {

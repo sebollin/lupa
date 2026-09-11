@@ -353,7 +353,7 @@
 # columna.
 .campo_clave <- function(datos, candidatos) {
   nombres <- names(datos)
-  posicion <- match(candidatos, nombres)
+  posicion <- .indice_nombre(candidatos, nombres)
   if (all(is.na(posicion))) {
     posicion <- match(
       .normalizacion_minusculas_vector(.nombres_para_operar(candidatos)),

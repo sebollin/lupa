@@ -404,6 +404,7 @@
     clave <- list(columnas = character(), garantia = "desconocida")
   }
   pk <- as.character(clave$columnas %||% character())
+  posiciones_pk <- integer()
   if (length(pk)) {
     posiciones_pk <- if (exists(".resolver_columnas_dbi", mode = "function")) {
       .resolver_columnas_dbi(pk, campos)
@@ -417,10 +418,10 @@
     conexion, tabla, campos, motor, prototipo, tipos, presupuesto
   )
   textual_pk <- length(pk) > 0L && any(.tipos_textuales_fuente_dbi(
-    pk, if (is.null(prototipo)) NULL else prototipo[match(pk, campos)],
-    if (is.null(tipos)) NULL else tipos[match(pk, campos)]
+    pk, if (is.null(prototipo)) NULL else prototipo[posiciones_pk],
+    if (is.null(tipos)) NULL else tipos[posiciones_pk]
   ))
-  pk_pos <- match(pk, campos)
+  pk_pos <- posiciones_pk
   pk_determinista <- !textual_pk || (
     all(colaciones$demostrada[pk]) && all(colaciones$determinista[pk])
   )
@@ -603,7 +604,7 @@
 .valor_columna_bloque_dbi <- function(datos, nombre, posicion = NULL) {
   if (!inherits(datos, "data.frame")) return(NULL)
   nombres <- names(datos)
-  indice <- if (!is.null(posicion)) posicion else match(nombre, nombres)
+  indice <- if (!is.null(posicion)) posicion else .indice_nombre(nombre, nombres)
   if (is.na(indice) || !length(indice)) {
     indice <- match(
       .normalizacion_minusculas_vector(.nombres_para_operar(nombre)),

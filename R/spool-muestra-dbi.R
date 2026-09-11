@@ -974,7 +974,8 @@
         perfil$datos_personales
       )
       if (length(columnas_personales)) {
-        columnas[columnas$columna %in% columnas_personales, "moda"] <- NA_character_
+        columnas[.nombres_para_operar(columnas$columna) %in%
+                   .nombres_para_operar(columnas_personales), "moda"] <- NA_character_
       }
       meta$proteccion_personal <- list(
         aplicada = TRUE, base = "perfil_muestra",

@@ -116,7 +116,7 @@ print.normalizacion_lupa <- function(x, ...) {
   if (is.list(normalizar)) {
     nombres <- names(normalizar)
     if (is.null(nombres) || anyNA(nombres) || any(!nzchar(nombres)) ||
-        anyDuplicated(nombres)) {
+        anyDuplicated(.nombres_para_operar(nombres))) {
       stop("La lista de normalizar debe tener nombres de columnas unicos.", call. = FALSE)
     }
     perfiles <- lapply(normalizar, function(x) {
@@ -140,8 +140,11 @@ print.normalizacion_lupa <- function(x, ...) {
   if (!inherits(resuelta, "normalizacion_resuelta_lupa")) {
     resuelta <- .resolver_normalizacion(resuelta)
   }
-  if (length(resuelta$por_columna) && columna %in% names(resuelta$por_columna)) {
-    resuelta$por_columna[[columna]]
+  indice <- if (length(resuelta$por_columna)) {
+    .indice_nombre(columna, names(resuelta$por_columna))
+  } else NA_integer_
+  if (!is.na(indice)) {
+    resuelta$por_columna[[indice]]
   } else resuelta$general
 }
 .normalizacion_resumen <- function(resuelta) {
@@ -1171,7 +1174,7 @@ print.normalizacion_lupa <- function(x, ...) {
       valores, perfil
     )
   })
-  names(salida) <- .nombres_unicos(nombres)
+  names(salida) <- nombres
   salida <- salida[!vapply(salida, is.null, logical(1L))]
   if (length(salida)) salida else NULL
 }

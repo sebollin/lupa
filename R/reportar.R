@@ -93,7 +93,8 @@
 .html_tabla <- function(x, max_filas, columnas = names(x)) {
   if (!inherits(x, "data.frame")) x <- as.data.frame(x, stringsAsFactors = FALSE)
   x <- .tabla_base(x)
-  columnas <- intersect(columnas, names(x))
+  indices <- .indice_nombre(columnas, names(x))
+  columnas <- names(x)[unique(indices[!is.na(indices)])]
   x <- .seleccionar_columnas(x, columnas)
   total <- nrow(x)
   limite <- if (is.infinite(max_filas)) total else min(total, max_filas)

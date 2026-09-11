@@ -599,9 +599,14 @@ print.analisis <- function(x, ...) {
       descriptor <- configuracion[[nombre]]
       if (identical(descriptor$tipo, "dependencia_funcional") &&
           inherits(datos, "data.frame") &&
-          all(c(descriptor$determinante, descriptor$dependiente) %in% names(datos))) {
+          !anyNA(.indice_nombre(
+            c(descriptor$determinante, descriptor$dependiente), names(datos)
+          ))) {
+        ligados <- names(datos)[.indice_nombre(
+          c(descriptor$determinante, descriptor$dependiente), names(datos)
+        )]
         configuracion[[nombre]] <- .regla_desde_dependencia(
-          datos, descriptor$determinante, descriptor$dependiente
+          datos, ligados[[1L]], ligados[[2L]]
         )
       } else {
         reconstruida <- FALSE
@@ -626,7 +631,8 @@ print.analisis <- function(x, ...) {
 .proteger_propuesta_analisis <- function(propuesta, sensibles) {
   if (!inherits(propuesta, "propuesta_modelo") || !length(sensibles)) return(propuesta)
   for (i in seq_len(nrow(propuesta))) {
-    if (!any(propuesta$atributos_ligados[[i]] %in% sensibles)) next
+    if (!any(.nombres_para_operar(propuesta$atributos_ligados[[i]]) %in%
+             .nombres_para_operar(sensibles))) next
     configuracion <- propuesta$configuracion[[i]]
     campos <- intersect(names(configuracion), c("valores", "diccionario"))
     for (campo in campos) configuracion[[campo]] <- "[valor protegido]"
@@ -642,15 +648,17 @@ print.analisis <- function(x, ...) {
 .proteger_datos_conservados <- function(datos, sensibles) {
   if (!inherits(datos, "data.frame") || !length(sensibles)) return(datos)
   reemplazo <- "[valor protegido]"
-  for (nombre in intersect(names(datos), sensibles)) {
-    x <- datos[[nombre]]
+  indices <- .indice_nombre(sensibles, names(datos))
+  for (indice in unique(indices[!is.na(indices)])) {
+    nombre <- names(datos)[[indice]]
+    x <- datos[[indice]]
     if (is.character(x) || is.factor(x)) {
-      datos[[nombre]] <- rep(reemplazo, NROW(x))
+      datos[[indice]] <- rep(reemplazo, NROW(x))
     } else if (is.atomic(x)) {
       x[] <- NA
-      datos[[nombre]] <- x
+      datos[[indice]] <- x
     } else {
-      datos[[nombre]] <- rep(list(NULL), NROW(x))
+      datos[[indice]] <- rep(list(NULL), NROW(x))
     }
   }
   datos
@@ -684,24 +692,28 @@ print.analisis <- function(x, ...) {
     )
   }
   if (length(sensibles)) {
-    indices <- x$distribuciones$frecuencias$columna %in% sensibles
+    indices <- .nombres_para_operar(x$distribuciones$frecuencias$columna) %in%
+      .nombres_para_operar(sensibles)
     x$distribuciones$frecuencias$valor[indices] <- "[valor protegido]"
     if (!"estado" %in% names(x$distribuciones$cuantiles)) {
       x$distribuciones$cuantiles$estado <- rep(
         "calculado", nrow(x$distribuciones$cuantiles)
       )
     }
-    indices_cuantiles <- x$distribuciones$cuantiles$columna %in% sensibles
+    indices_cuantiles <- .nombres_para_operar(x$distribuciones$cuantiles$columna) %in%
+      .nombres_para_operar(sensibles)
     x$distribuciones$cuantiles$valor[indices_cuantiles] <- NA_real_
     x$distribuciones$cuantiles$estado[indices_cuantiles] <- "valor_protegido"
-    indices_variables <- x$variables$columna %in% sensibles
+    indices_variables <- .nombres_para_operar(x$variables$columna) %in%
+      .nombres_para_operar(sensibles)
     for (campo in c("niveles_declarados", "niveles_observados", "niveles_ausentes")) {
       x$variables[[campo]][indices_variables] <- lapply(
         x$variables[[campo]][indices_variables],
         function(y) if (length(y)) "[valor protegido]" else character()
       )
     }
-    indices_tiempo <- x$temporal$resumen$columna %in% sensibles
+    indices_tiempo <- .nombres_para_operar(x$temporal$resumen$columna) %in%
+      .nombres_para_operar(sensibles)
     x$temporal$resumen$fecha_minima[indices_tiempo] <- as.Date(NA)
     x$temporal$resumen$fecha_maxima[indices_tiempo] <- as.Date(NA)
     if (!"proteccion_temporal" %in% names(x$temporal$resumen)) {
@@ -712,22 +724,24 @@ print.analisis <- function(x, ...) {
     x$temporal$resumen$proteccion_temporal[indices_tiempo] <-
       "[rangos y huecos protegidos]"
     x$temporal$huecos <- x$temporal$huecos[
-      !x$temporal$huecos$columna %in% sensibles, , drop = FALSE
+      !(.nombres_para_operar(x$temporal$huecos$columna) %in%
+          .nombres_para_operar(sensibles)), , drop = FALSE
     ]
     if (inherits(x$plan_limpieza, "data.frame") &&
         all(c("columna", "evidencia") %in% names(x$plan_limpieza))) {
       indices_plan <- !is.na(x$plan_limpieza$columna) &
-        x$plan_limpieza$columna %in% sensibles
+        .nombres_para_operar(x$plan_limpieza$columna) %in%
+          .nombres_para_operar(sensibles)
       x$plan_limpieza$evidencia[indices_plan] <- "[evidencia protegida]"
     }
     x$propuesta_modelo <- .proteger_propuesta_analisis(
       x$propuesta_modelo, sensibles
     )
     x$datos <- .proteger_datos_conservados(x$datos, sensibles)
-    x$meta$columnas_datos_protegidas <- intersect(
-      sensibles,
-      if (inherits(x$datos, "data.frame")) names(x$datos) else character()
-    )
+    nombres_datos <- if (inherits(x$datos, "data.frame")) names(x$datos) else character()
+    x$meta$columnas_datos_protegidas <- nombres_datos[
+      !is.na(.indice_nombre(nombres_datos, sensibles))
+    ]
   }
   # El mismo piso que aplican `perfilar()` y `distribucion_valores()`. Todo lo
   # de arriba protege POR COLUMNA, y eso deja pasar el valor identificante que

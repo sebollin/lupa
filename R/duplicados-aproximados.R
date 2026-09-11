@@ -231,9 +231,10 @@
 .validar_bloquear_por <- function(datos, x) {
   if (is.null(x)) return(NULL)
   if (!is.character(x) || length(x) != 1L || is.na(x) || !nzchar(x) ||
-      !x %in% names(datos)) {
+      is.na(.indice_nombre(x, names(datos)))) {
     stop("`bloquear_por` debe nombrar una columna existente.", call. = FALSE)
   }
+  x <- names(datos)[[.indice_nombre(x, names(datos))]]
   if (is.matrix(datos[[x]]) || is.list(datos[[x]])) {
     stop("`bloquear_por` debe nombrar una columna atomica.", call. = FALSE)
   }
@@ -1514,12 +1515,17 @@
     }
     return(candidatas)
   }
+  indices <- if (is.character(columnas) && !anyNA(columnas)) {
+    .indice_nombre(columnas, names(datos))
+  } else integer()
   if (!is.character(columnas) || !length(columnas) ||
-      anyNA(columnas) || any(!nzchar(columnas)) || anyDuplicated(columnas) ||
-      any(!columnas %in% names(datos))) {
+      anyNA(columnas) || any(!nzchar(columnas)) ||
+      length(indices) != length(columnas) || anyNA(indices) ||
+      anyDuplicated(indices)) {
     stop("`columnas` debe nombrar columnas atomicas existentes y sin repetir.",
          call. = FALSE)
   }
+  columnas <- names(datos)[indices]
   datos_columnas <- .seleccionar_columnas(datos, columnas)
   if (any(vapply(datos_columnas, function(x) is.matrix(x) || is.list(x),
                  logical(1L)))) {
@@ -1554,7 +1560,8 @@
   presentes <- Reduce(`|`, lapply(valores, `[[`, "presentes"),
                       init = rep(FALSE, nrow(datos)))
   fusiones <- if (!is.null(fusiones_precomputadas)) {
-    fusiones_precomputadas[intersect(columnas, names(fusiones_precomputadas))]
+    indices_fusiones <- .indice_nombre(columnas, names(fusiones_precomputadas))
+    fusiones_precomputadas[indices_fusiones[!is.na(indices_fusiones)]]
   } else if (.normalizacion_tiene_pasos_resuelta(
     normalizacion_resuelta, columnas
   )) {
@@ -1601,7 +1608,8 @@
   n <- length(filas)
   if (!n) return(character())
   partes <- lapply(columnas, function(columna) {
-    valores <- if (columna %in% protegidas) {
+    valores <- if (.nombres_para_operar(columna) %in%
+                   .nombres_para_operar(protegidas)) {
       rep("[valor protegido]", n)
     } else {
       valores <- suppressWarnings(

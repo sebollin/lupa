@@ -21,7 +21,8 @@
     protegidas <- .columnas_personales_protegidas(perfil)
     if (!detalle) return(protegidas)
     return(perfil$datos_personales[
-      perfil$datos_personales$columna %in% protegidas, , drop = FALSE
+      .nombres_para_operar(perfil$datos_personales$columna) %in%
+        .nombres_para_operar(protegidas), , drop = FALSE
     ])
   }
   validadores <- .normalizar_validadores_personales(validadores)
@@ -44,7 +45,7 @@
   })
   protege <- vapply(resultados, function(x) isTRUE(x$proteger), logical(1L))
   # Lo declarado se protege aunque el lexico no lo reconozca.
-  protege <- protege | names(datos) %in% names(declaradas)
+  protege <- protege | .nombres_presentes(names(datos), names(declaradas))
   if (!detalle) return(names(datos)[protege])
   if (!any(protege)) {
     return(data.frame(columna = character(), tipo = character(),
@@ -57,7 +58,9 @@
   # declaro ninguno-, que es exactamente lo que hace perfilar().
   sin_tipo <- is.na(tipos)
   tipos[sin_tipo] <- unname(
-    declaradas[match(names(datos)[protege][sin_tipo], names(declaradas))]
+    declaradas[.indice_nombre(
+      names(datos)[protege][sin_tipo], names(declaradas)
+    )]
   )
   data.frame(
     columna = names(datos)[protege], tipo = tipos, stringsAsFactors = FALSE
@@ -177,7 +180,8 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   for (i in seq_along(datos)) {
     nombre <- names(datos)[[i]]
     resumen <- .frecuencias_columna(
-      datos[[i]], max_valores, limite, nombre %in% personales
+      datos[[i]], max_valores, limite,
+      .nombres_para_operar(nombre) %in% .nombres_para_operar(personales)
     )
     if (!is.null(resumen$tabla) && nrow(resumen$tabla)) {
       k <- k + 1L
@@ -195,7 +199,8 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
       n_mostrados = as.numeric(meta[["mostrados"]]),
       muestreado = as.logical(meta[["muestreado"]]),
       truncado = as.logical(meta[["truncado"]]),
-      protegida = nombre %in% personales,
+      protegida = .nombres_para_operar(nombre) %in%
+        .nombres_para_operar(personales),
       estado = as.character(meta[["estado"]]), stringsAsFactors = FALSE
     )
     x <- datos[[i]]
@@ -207,7 +212,8 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
         valores_q <- stats::quantile(
           finitos, probs = probabilidades, names = FALSE, type = 7
         )
-        protegida <- nombre %in% personales
+        protegida <- .nombres_para_operar(nombre) %in%
+          .nombres_para_operar(personales)
         q <- q + 1L
         cuantiles[[q]] <- data.frame(
           columna = nombre, probabilidad = probabilidades,
@@ -602,11 +608,15 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
       !is.null(.fecha_columna_avanzada(datos[[i]], formatos))
     }, logical(1L))]
   }
+  indices_columnas <- if (is.character(columnas) && !anyNA(columnas)) {
+    .indice_nombre(columnas, names(datos))
+  } else integer()
   if (!is.character(columnas) || anyNA(columnas) ||
-      any(!columnas %in% names(datos))) {
+      length(indices_columnas) != length(columnas) ||
+      anyNA(indices_columnas)) {
     stop("`columnas` contiene nombres inexistentes.", call. = FALSE)
   }
-  columnas_totales <- unique(columnas)
+  columnas_totales <- names(datos)[unique(indices_columnas)]
   columnas <- utils::head(columnas_totales, max_columnas)
   resumen <- list()
   dias <- list()
@@ -616,7 +626,7 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
   h <- 0L
   for (i in seq_along(columnas)) {
     nombre <- columnas[[i]]
-    indice <- match(nombre, names(datos))
+    indice <- .indice_nombre(nombre, names(datos))
     formatos <- if (!is.null(perfil)) perfil$formatos_fecha[[indice]] else NULL
     fechas <- .fecha_columna_avanzada(datos[[indice]], formatos)
     if (is.null(fechas)) {
@@ -767,9 +777,14 @@ analizar_tiempo <- function(datos, perfil = NULL, columnas = NULL,
   # analizada. Antes lo era, y el objeto afirmaba haberla analizado mientras su
   # resumen no la mencionaba.
   abandonadas <- unlist(abandonadas, use.names = FALSE)
-  attr(resultado, "columnas_analizadas") <- setdiff(columnas, abandonadas)
+  attr(resultado, "columnas_analizadas") <- columnas[
+    !(.nombres_para_operar(columnas) %in% .nombres_para_operar(abandonadas))
+  ]
   attr(resultado, "columnas_omitidas") <- unique(c(
-    setdiff(columnas_totales, columnas), abandonadas
+    columnas_totales[
+      !(.nombres_para_operar(columnas_totales) %in%
+          .nombres_para_operar(columnas))
+    ], abandonadas
   ))
   attr(resultado, "columnas_sin_serie_diaria") <- if (is.null(abandonadas)) {
     character()

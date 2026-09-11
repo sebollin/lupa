@@ -86,7 +86,7 @@
 .lsh_validar_run <- function(archivo, columnas) {
   datos <- tryCatch(readRDS(archivo), error = function(e) e)
   if (inherits(datos, "condition") || !is.data.frame(datos) ||
-      !all(columnas %in% names(datos))) {
+      anyNA(.indice_nombre(columnas, names(datos)))) {
     stop("run LSH ilegible o con formato incompatible.", call. = FALSE)
   }
   datos

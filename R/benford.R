@@ -241,7 +241,7 @@
   }
 
   umbrales <- .umbrales_benford()
-  identificadores <- as.character(hallazgos$columna[
+  identificadores <- .nombres_para_operar(hallazgos$columna[
     hallazgos$tipo_hallazgo == "posible_identificador"
   ])
   # Una clave que el usuario DECLARO no necesita que se infiera nada: dijo que
@@ -256,15 +256,20 @@
   #
   # Lo mismo vale para la clave leida del catalogo de la base, que llega por
   # aca cuando quien perfila la pasa.
-  identificadores <- unique(c(identificadores, as.character(clave_declarada)))
+  identificadores <- unique(c(
+    identificadores, .nombres_para_operar(as.character(clave_declarada))
+  ))
   resultados <- lapply(candidatas, function(i) {
+    nombre <- names(datos)[[i]]
+    clave_operativa <- .nombres_para_operar(nombre)
     .resultado_benford_columna(
-      datos[[i]], names(datos)[[i]], columnas$tipo_inferido[[i]],
-      names(datos)[[i]] %in% identificadores, umbrales,
-      clave_declarada = names(datos)[[i]] %in% as.character(clave_declarada)
+      datos[[i]], nombre, columnas$tipo_inferido[[i]],
+      clave_operativa %in% identificadores, umbrales,
+      clave_declarada = clave_operativa %in%
+        .nombres_para_operar(as.character(clave_declarada))
     )
   })
-  names(resultados) <- .nombres_unicos(names(datos)[candidatas])
+  names(resultados) <- names(datos)[candidatas]
 
   cobertura <- lapply(resultados, function(resultado) {
     if (isTRUE(resultado$aplica)) return(NULL)
@@ -283,7 +288,7 @@
   cobertura <- cobertura[!vapply(cobertura, is.null, logical(1L))]
   cobertura <- c(cobertura, cobertura_tipo)
   cobertura <- if (length(cobertura)) {
-    do.call(rbind, cobertura)
+    do.call(rbind, unname(cobertura))
   } else {
     .cobertura_diagnosticos_vacia()
   }

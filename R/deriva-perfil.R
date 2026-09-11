@@ -31,7 +31,7 @@
   nombres <- as.character(perfil$columnas$columna)
   nombres[is.na(nombres) | !nzchar(nombres)] <- "<sin_nombre>"
   data.frame(
-    clave = .nombres_unicos(nombres), original = nombres,
+    clave = .nombres_unicos(.nombres_para_operar(nombres)), original = nombres,
     indice = seq_along(nombres), stringsAsFactors = FALSE
   )
 }
@@ -217,6 +217,10 @@
   declinados
 }
 
+.clave_declinacion_deriva <- function(columna, tipo) {
+  paste(.nombres_para_operar(columna), as.character(tipo))
+}
+
 
 # Lee un campo numerico de la fila de una columna, tolerando que no exista -un
 # perfil de otra version puede no traerlo-.
@@ -272,7 +276,9 @@
         !all(c("columna", "diagnostico") %in% names(cobertura))) {
     return(character())
   }
-  paste(as.character(cobertura$columna), as.character(cobertura$diagnostico))
+  .clave_declinacion_deriva(
+    as.character(cobertura$columna), as.character(cobertura$diagnostico)
+  )
 }
 
 .resumir_hallazgos_deriva <- function(perfil) {
@@ -284,7 +290,9 @@
     ))
   }
   columna <- ifelse(is.na(x$columna), "<tabla>", as.character(x$columna))
-  clave <- paste(columna, x$tipo_hallazgo, sep = "\034")
+  clave <- paste(
+    .nombres_para_operar(columna), x$tipo_hallazgo, sep = "\034"
+  )
   grupos <- split(seq_len(nrow(x)), clave, drop = TRUE)
   partes <- lapply(grupos, function(indices) {
     nivel <- match(as.character(x$severidad[indices]),
@@ -368,8 +376,15 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
                       valor_actual, delta = NA_real_, cambio_relativo = NA_real_,
                       significativo = TRUE, descripcion, evidencia = "") {
     k <<- k + 1L
+    original <- if (length(columna) && !is.na(columna)) {
+      indice <- match(columna, c(mapa_a$clave, mapa_b$clave))
+      if (!is.na(indice)) {
+        fuente <- c(mapa_a$original, mapa_b$original)
+        fuente[[indice]]
+      } else columna
+    } else columna
     cambios[[k]] <<- data.frame(
-      columna = columna, aspecto = aspecto, cambio = cambio,
+      columna = original, aspecto = aspecto, cambio = cambio,
       severidad = severidad, valor_anterior = .texto_deriva(valor_anterior),
       valor_actual = .texto_deriva(valor_actual), delta = delta,
       cambio_relativo = cambio_relativo, significativo = significativo,
@@ -728,7 +743,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   hallazgos_b <- .resumir_hallazgos_deriva(actual)
   nuevos <- setdiff(hallazgos_b$clave, hallazgos_a$clave)
   resueltos <- setdiff(hallazgos_a$clave, hallazgos_b$clave)
-  nombres_actuales <- unique(mapa_b$original)
+  nombres_actuales <- .nombres_para_operar(unique(mapa_b$original))
   for (clave in nuevos) {
     x <- hallazgos_b[match(clave, hallazgos_b$clave), , drop = FALSE]
     agregar(
@@ -750,13 +765,17 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
   )
   for (clave in resueltos) {
     x <- hallazgos_a[match(clave, hallazgos_a$clave), , drop = FALSE]
-    if (x$columna != "<tabla>" && !x$columna %in% nombres_actuales) next
-    declinado <- paste(x$columna, x$tipo_hallazgo) %in% declinados_ahora
+    if (x$columna != "<tabla>" &&
+        !.nombres_para_operar(x$columna) %in% nombres_actuales) next
+    clave_declinacion <- .clave_declinacion_deriva(
+      x$columna, x$tipo_hallazgo
+    )
+    declinado <- clave_declinacion %in% declinados_ahora
     # Los dos motivos de no evaluacion mandan a lugares distintos, y decir el
     # equivocado es peor que no decir ninguno: quien busque en
     # `cobertura_diagnosticos` un diagnostico que nunca se pidio no va a
     # encontrar nada y va a concluir que el aviso esta de mas.
-    por_declaracion <- paste(x$columna, x$tipo_hallazgo) %in%
+    por_declaracion <- clave_declinacion %in%
       .declinados_por_declaracion_retirada(anterior, actual)
     agregar(
       if (x$columna == "<tabla>") NA_character_ else x$columna,
@@ -1035,7 +1054,7 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
     )
   }
   nombres <- as.character(columnas$columna)
-  if (anyNA(nombres) || anyDuplicated(nombres)) {
+  if (anyNA(nombres) || anyDuplicated(.nombres_para_operar(nombres))) {
     stop(
       "El frame `columnas` de `", nombre,
       "` debe tener nombres de columna presentes y sin duplicados.", call. = FALSE
@@ -1220,6 +1239,16 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
   tolerancia <- as.numeric(tolerancia)
   anterior <- .columnas_equivalencia(anterior, "anterior")
   actual <- .columnas_equivalencia(actual, "actual")
+  mapa_anterior <- data.frame(
+    clave = .nombres_unicos(.nombres_para_operar(anterior$columna)),
+    original = as.character(anterior$columna),
+    stringsAsFactors = FALSE
+  )
+  mapa_actual <- data.frame(
+    clave = .nombres_unicos(.nombres_para_operar(actual$columna)),
+    original = as.character(actual$columna),
+    stringsAsFactors = FALSE
+  )
   registro <- .registro_campos_equivalencia()
   campos_registrados <- unlist(registro, use.names = FALSE)
   campos_presentes <- unique(c(names(anterior), names(actual)))
@@ -1230,7 +1259,7 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
     setdiff(names(anterior), "columna"), setdiff(names(actual), "columna")
   )
   campos <- campos[campos %in% campos_registrados]
-  columnas <- intersect(as.character(anterior$columna), as.character(actual$columna))
+  columnas <- intersect(mapa_anterior$clave, mapa_actual$clave)
   campos_magnitud <- .campos_magnitud_equivalencia(registro)
   campos_representacion <- .campos_representacion_equivalencia(registro)
   campos_zona <- .campos_zona_horaria_equivalencia(registro)
@@ -1263,18 +1292,16 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
       )
     )
   }
-  solo_anterior <- setdiff(
-    as.character(anterior$columna), as.character(actual$columna)
-  )
-  solo_actual <- setdiff(
-    as.character(actual$columna), as.character(anterior$columna)
-  )
-  for (columna in solo_anterior) {
+  solo_anterior <- setdiff(mapa_anterior$clave, mapa_actual$clave)
+  solo_actual <- setdiff(mapa_actual$clave, mapa_anterior$clave)
+  for (clave in solo_anterior) {
+    columna <- mapa_anterior$original[match(clave, mapa_anterior$clave)]
     registrar_no_comparable(
       columna, "anterior", "columna_solo_en_anterior"
     )
   }
-  for (columna in solo_actual) {
+  for (clave in solo_actual) {
+    columna <- mapa_actual$original[match(clave, mapa_actual$clave)]
     registrar_no_comparable(
       columna, "actual", "columna_solo_en_actual"
     )
@@ -1283,9 +1310,10 @@ comparar_equivalencia <- function(anterior, actual, tolerancia) {
   niveles <- c("identico", "equivalente", "materialmente_distinto")
   salida <- list()
   k <- 0L
-  for (columna in columnas) {
-    indice_a <- match(columna, as.character(anterior$columna))
-    indice_b <- match(columna, as.character(actual$columna))
+  for (clave in columnas) {
+    indice_a <- match(clave, mapa_anterior$clave)
+    indice_b <- match(clave, mapa_actual$clave)
+    columna <- mapa_anterior$original[[indice_a]]
     temporal_a <- .es_temporal_equivalencia(anterior, indice_a)
     temporal_b <- .es_temporal_equivalencia(actual, indice_b)
     tipo_a <- .tipo_columna_equivalencia(anterior, indice_a)

@@ -45,7 +45,8 @@
     stop("`columnas_opcionales` debe ser un vector de nombres de columnas.",
          call. = FALSE)
   }
-  desconocidas <- setdiff(columnas_opcionales, nombres)
+  indices_opcionales <- .indice_nombre(columnas_opcionales, nombres)
+  desconocidas <- columnas_opcionales[is.na(indices_opcionales)]
   if (length(desconocidas)) {
     stop("`columnas_opcionales` nombra columnas inexistentes: ",
          paste(desconocidas, collapse = ", "), ".", call. = FALSE)
@@ -56,7 +57,8 @@
     stop("`aplicabilidad` debe ser una lista con nombre por columna.",
          call. = FALSE)
   }
-  desconocidas <- setdiff(names(aplicabilidad), nombres)
+  indices_aplicabilidad <- .indice_nombre(names(aplicabilidad), nombres)
+  desconocidas <- names(aplicabilidad)[is.na(indices_aplicabilidad)]
   if (length(desconocidas)) {
     stop("`aplicabilidad` nombra columnas inexistentes: ",
          paste(desconocidas, collapse = ", "), ".", call. = FALSE)
@@ -72,7 +74,10 @@
       paste(no_formulas, collapse = ", "), ".", call. = FALSE
     )
   }
-  ambas <- intersect(columnas_opcionales, names(aplicabilidad))
+  ambas <- nombres[intersect(
+    indices_opcionales[!is.na(indices_opcionales)],
+    indices_aplicabilidad[!is.na(indices_aplicabilidad)]
+  )]
   if (length(ambas)) {
     stop(
       "Estas columnas estan declaradas en `columnas_opcionales` y en ",
@@ -81,6 +86,32 @@
     )
   }
   invisible(NULL)
+}
+
+.entorno_aplicabilidad <- function(datos, expr, padre) {
+  entorno <- new.env(parent = padre)
+  simbolos <- unique(all.names(expr, functions = FALSE))
+  nombres <- names(datos)
+  indices <- .indice_nombre(simbolos, nombres)
+  indices <- indices[!is.na(indices)]
+  if (!length(indices)) {
+    return(list(entorno = entorno, expresion = expr))
+  }
+  indices <- unique(indices)
+  alias <- paste0(".lupa_aplicabilidad_", indices)
+  for (i in seq_along(indices)) {
+    assign(alias[[i]], datos[[indices[[i]]]], envir = entorno)
+  }
+  reemplazar <- function(x) {
+    if (is.symbol(x)) {
+      posicion <- .indice_nombre(as.character(x), nombres)
+      if (!is.na(posicion)) return(as.name(alias[[match(posicion, indices)]]))
+      return(x)
+    }
+    if (is.call(x)) return(as.call(lapply(as.list(x), reemplazar)))
+    x
+  }
+  list(entorno = entorno, expresion = reemplazar(expr))
 }
 
 .evaluar_predicado_aplicabilidad <- function(datos, columna, f) {
@@ -92,8 +123,16 @@
       "estadistico global.", call. = FALSE
     )
   }
+  # `eval(..., envir = data.frame)` y `list2env(as.list(datos))` intentan
+  # traducir los nombres de la tabla a la codificacion nativa. Bajo
+  # `LC_CTYPE = "C"` eso vuelve a advertir con un nombre UTF-8 valido,
+  # aunque la regla no lo mencione. Un entorno poblado con `assign()` conserva
+  # los nombres byte a byte y permite que una formula que si los referencia
+  # (con backticks) siga funcionando.
+  preparado <- .entorno_aplicabilidad(datos, f[[2L]], environment(f))
   valor <- tryCatch(
-    eval(f[[2L]], envir = datos, enclos = environment(f)),
+    eval(preparado$expresion, envir = preparado$entorno,
+         enclos = environment(f)),
     error = function(e) e
   )
   if (inherits(valor, "condition")) {
@@ -121,26 +160,34 @@
 .resolver_aplicabilidad <- function(datos, nombres, columnas_opcionales = character(),
                                     aplicabilidad = NULL) {
   .validar_aplicabilidad(nombres, columnas_opcionales, aplicabilidad)
+  columnas_opcionales <- .nombres_resueltos(columnas_opcionales, nombres)
+  if (!is.null(aplicabilidad)) {
+    indices <- .indice_nombre(names(aplicabilidad), nombres)
+    names(aplicabilidad) <- nombres[indices]
+  }
   n_columnas <- length(nombres)
   mascaras <- vector("list", n_columnas)
   reglas <- list()
 
   for (i in seq_len(n_columnas)) {
     columna <- nombres[[i]]
-    if (columna %in% columnas_opcionales) {
+    if (.nombres_para_operar(columna) %in%
+        .nombres_para_operar(columnas_opcionales)) {
       # Declarada opcional: aplica donde hay valor, y la ausencia no es defecto.
       mascara <- !is.na(datos[[i]])
       indeterminados <- 0L
       origen <- "columnas_opcionales"
       regla <- "la ausencia no es defecto en esta columna"
-    } else if (!is.null(aplicabilidad) && columna %in% names(aplicabilidad)) {
+    } else if (!is.null(aplicabilidad) &&
+               !is.na(.indice_nombre(columna, names(aplicabilidad)))) {
+      indice_aplicabilidad <- .indice_nombre(columna, names(aplicabilidad))
       crudo <- .evaluar_predicado_aplicabilidad(
-        datos, columna, aplicabilidad[[columna]]
+        datos, columna, aplicabilidad[[indice_aplicabilidad]]
       )
       indeterminados <- sum(is.na(crudo))
       mascara <- !is.na(crudo) & crudo
       origen <- "aplicabilidad"
-      regla <- .formula_a_texto(aplicabilidad[[columna]])
+      regla <- .formula_a_texto(aplicabilidad[[indice_aplicabilidad]])
     } else {
       next
     }

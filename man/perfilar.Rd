@@ -779,6 +779,15 @@ mirar. \code{n_codificacion_invalida} sigue contando esos valores y el hallazgo
 \code{codificacion_invalida}, de severidad \code{error}, sigue declarando que se
 excluyeron.
 
+Los \strong{nombres de columna} que el perfil publica —en \code{columnas$columna} y en
+todo lo que nombre una columna: claves, relaciones, dependencias, hallazgos,
+patrones, el plan de remediación y el reporte— son los nombres de la tabla de
+entrada tal como llegaron, con sus bytes \strong{y su marca de codificación}. Eso
+significa que sirven para indexar esa misma tabla —\code{datos[[nombre]]}— sea
+cual sea el \code{LC_CTYPE} de la sesión. El paquete deriva una representación de
+trabajo para comparar y desambiguar internamente, pero no la publica: dos
+nombres con bytes distintos siguen siendo dos columnas distintas.
+
 La identidad de la columna no depende de esa exclusión: \code{n_distintos},
 \code{moda} y \code{frecuencia_moda} comparan la representación almacenada, que se
 puede distinguir sin decodificarla. Un valor ilegible cuenta como valor, y
