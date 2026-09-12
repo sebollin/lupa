@@ -120,18 +120,18 @@ no permite que duplicados inflen el resultado.</p>
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">ref</span> <span class="op">&lt;-</span> <span class="fu"><a href="referencial.html">referencial</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, nombre <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Ana"</span>, <span class="st">"Bruno"</span>, <span class="st">"Carla"</span><span class="op">)</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  <span class="st">"id"</span>, <span class="st">"nombre"</span>, completo <span class="op">=</span> <span class="cn">TRUE</span>, alcance <span class="op">=</span> <span class="st">"padrón de ejemplo"</span></span></span>
+<span class="r-in"><span>  <span class="st">"id"</span>, <span class="st">"nombre"</span>, completo <span class="op">=</span> <span class="cn">TRUE</span>, alcance <span class="op">=</span> <span class="st">"padr\u00f3n de ejemplo"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu">metricas_referencial</span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">fuerte</span> <span class="op">&lt;-</span> <span class="fu"><a href="modelo_calidad.html">instanciar</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">especializar</a></span><span class="op">(</span><span class="va">m</span><span class="op">$</span><span class="va">CorrectitudSemFuerte</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  <span class="st">"personas"</span>, <span class="st">"id"</span>, referencial <span class="op">=</span> <span class="va">ref</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="medir.html">medir</a></span><span class="op">(</span><span class="fu"><a href="modelo_calidad.html">modelo</a></span><span class="op">(</span><span class="va">fuerte</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                                     id_medida</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260911T162900.096554-7451-000001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260911T162900.096554-7451-000002</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260912T062925.589413-7264-000001</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260912T062925.589413-7264-000002</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                            id_medicion               fecha              metrica</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260911T162900.096554-7451 2026-09-11 16:29:00 CorrectitudSemFuerte</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260911T162900.096554-7451 2026-09-11 16:29:00 CorrectitudSemFuerte</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 medicion-20260912T062925.589413-7264 2026-09-12 06:29:25 CorrectitudSemFuerte</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 medicion-20260912T062925.589413-7264 2026-09-12 06:29:25 CorrectitudSemFuerte</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     metrica_especifica              metrica_instanciada dimension</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud</span>

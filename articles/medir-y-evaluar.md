@@ -12,7 +12,7 @@ library(lupa)
 marco_medicion <- marco_calidad("Marco mínimo de medición", list(
   Trazabilidad = "Origen documentado",
   Completitud = "Densidad",
-  Unicidad = "No-duplicación"
+  Unicidad = "No-duplicaci\u00f3n"
 ))
 ```
 

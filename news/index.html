@@ -43,6 +43,20 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="lupa-010">lupa 0.1.0<a class="anchor" aria-label="anchor" href="#lupa-010"></a></h2>
 <div class="section level3">
+<h3 id="texto-declarado-independiente-del-locale-0-1-0">Texto declarado independiente del locale<a class="anchor" aria-label="anchor" href="#texto-declarado-independiente-del-locale-0-1-0"></a></h3>
+<ul><li>
+<strong>La resolución de factores y las agrupaciones por valores de texto ya no dependen de la marca de codificación.</strong> <code>.resolver_factor()</code>, las rutas de <code><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor()</a></code>/<code><a href="https://rdrr.io/r/base/split.html" class="external-link">split()</a></code> y la detección de variantes usan la misma representación de trabajo que los identificadores; las etiquetas que se publican conservan el texto original.</li>
+<li>
+<strong>Se auditaron los 39 <code><a href="https://rdrr.io/r/base/switch.html" class="external-link">switch()</a></code> del paquete.</strong> Los que reciben una declaración usan vocabularios cerrados y no cambian entre marcas; el que conmutaba sobre el par dimensión-factor queda cubierto por la clave canónica. También se revisaron <code><a href="https://rdrr.io/r/base/match.arg.html" class="external-link">match.arg()</a></code>, <code><a href="https://rdrr.io/r/base/merge.html" class="external-link">merge()</a></code> por texto, <code><a href="https://rdrr.io/r/base/tapply.html" class="external-link">tapply()</a></code> e indexaciones nominales; las indexaciones que podían recibir nombres declarados resuelven por posición o por la misma clave canónica.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="identificadores-declarados-independientes-del-locale-0-1-0">Identificadores declarados independientes del locale<a class="anchor" aria-label="anchor" href="#identificadores-declarados-independientes-del-locale-0-1-0"></a></h3>
+<ul><li>
+<strong>Las dimensiones, factores y demás identificadores declarados ya no se comparan por su marca de codificación.</strong> Las validaciones de marcos, modelos, granularidades, fronteras, métricas, reglas, pesos, colecciones y configuraciones usan claves estables derivadas de los bytes; las salidas conservan el texto original y las secuencias de bytes distintas siguen siendo distintas.</li>
+<li>
+<strong>Los ejemplos con texto no ASCII usan escapes <code>\uXXXX</code> dentro del código R.</strong> Esto permite que <code>R CMD check</code> re-encode los ejemplos bajo <code>LC_ALL=C</code> sin cambiar el texto que muestran <code><a href="../reference/marco_calidad.html">marco_calidad()</a></code>, <code><a href="../reference/modelo_calidad.html">modelo_calidad()</a></code> ni <code><a href="../reference/metricas_referencial.html">metricas_referencial()</a></code>.</li>
+</ul></div>
+<div class="section level3">
 <h3 id="escritura-independiente-del-locale-0-1-0">Escritura independiente del locale<a class="anchor" aria-label="anchor" href="#escritura-independiente-del-locale-0-1-0"></a></h3>
 <ul><li>
 <strong><code><a href="../reference/reportar.html">reportar()</a></code> ya no convierte el HTML al locale de la sesión.</strong> El documento se serializa como bytes UTF-8, se verifica antes de copiarlo al destino y se comprueba que el archivo final coincida completo. Cualquier fallo de escritura, copia o verificación ahora aborta con un error propio en vez de devolver un HTML parcial como si hubiera terminado bien.</li>

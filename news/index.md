@@ -2,6 +2,41 @@
 
 ## lupa 0.1.0
 
+### Texto declarado independiente del locale
+
+- **La resolución de factores y las agrupaciones por valores de texto ya
+  no dependen de la marca de codificación.** `.resolver_factor()`, las
+  rutas de
+  [`factor()`](https://rdrr.io/r/base/factor.html)/[`split()`](https://rdrr.io/r/base/split.html)
+  y la detección de variantes usan la misma representación de trabajo
+  que los identificadores; las etiquetas que se publican conservan el
+  texto original.
+- **Se auditaron los 39 [`switch()`](https://rdrr.io/r/base/switch.html)
+  del paquete.** Los que reciben una declaración usan vocabularios
+  cerrados y no cambian entre marcas; el que conmutaba sobre el par
+  dimensión-factor queda cubierto por la clave canónica. También se
+  revisaron [`match.arg()`](https://rdrr.io/r/base/match.arg.html),
+  [`merge()`](https://rdrr.io/r/base/merge.html) por texto,
+  [`tapply()`](https://rdrr.io/r/base/tapply.html) e indexaciones
+  nominales; las indexaciones que podían recibir nombres declarados
+  resuelven por posición o por la misma clave canónica.
+
+### Identificadores declarados independientes del locale
+
+- **Las dimensiones, factores y demás identificadores declarados ya no
+  se comparan por su marca de codificación.** Las validaciones de
+  marcos, modelos, granularidades, fronteras, métricas, reglas, pesos,
+  colecciones y configuraciones usan claves estables derivadas de los
+  bytes; las salidas conservan el texto original y las secuencias de
+  bytes distintas siguen siendo distintas.
+- **Los ejemplos con texto no ASCII usan escapes `\uXXXX` dentro del
+  código R.** Esto permite que `R CMD check` re-encode los ejemplos bajo
+  `LC_ALL=C` sin cambiar el texto que muestran
+  [`marco_calidad()`](https://sebollin.github.io/lupa/reference/marco_calidad.md),
+  [`modelo_calidad()`](https://sebollin.github.io/lupa/reference/modelo_calidad.md)
+  ni
+  [`metricas_referencial()`](https://sebollin.github.io/lupa/reference/metricas_referencial.md).
+
 ### Escritura independiente del locale
 
 - **[`reportar()`](https://sebollin.github.io/lupa/reference/reportar.md)

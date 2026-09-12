@@ -51,18 +51,18 @@ objetivo y no permite que duplicados inflen el resultado.
 ``` r
 ref <- referencial(
   data.frame(id = 1:3, nombre = c("Ana", "Bruno", "Carla")),
-  "id", "nombre", completo = TRUE, alcance = "padrón de ejemplo"
+  "id", "nombre", completo = TRUE, alcance = "padr\u00f3n de ejemplo"
 )
 m <- metricas_referencial()
 fuerte <- instanciar(especializar(m$CorrectitudSemFuerte),
   "personas", "id", referencial = ref)
 medir(modelo(fuerte), data.frame(id = c(1, 4)))
 #>                                     id_medida
-#> 1 medicion-20260911T162900.096554-7451-000001
-#> 2 medicion-20260911T162900.096554-7451-000002
+#> 1 medicion-20260912T062925.589413-7264-000001
+#> 2 medicion-20260912T062925.589413-7264-000002
 #>                            id_medicion               fecha              metrica
-#> 1 medicion-20260911T162900.096554-7451 2026-09-11 16:29:00 CorrectitudSemFuerte
-#> 2 medicion-20260911T162900.096554-7451 2026-09-11 16:29:00 CorrectitudSemFuerte
+#> 1 medicion-20260912T062925.589413-7264 2026-09-12 06:29:25 CorrectitudSemFuerte
+#> 2 medicion-20260912T062925.589413-7264 2026-09-12 06:29:25 CorrectitudSemFuerte
 #>     metrica_especifica              metrica_instanciada dimension
 #> 1 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud
 #> 2 CorrectitudSemFuerte CorrectitudSemFuerte@personas.id Exactitud
