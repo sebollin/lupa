@@ -109,7 +109,18 @@ perfilar_por <- function(datos, por, clave = NULL, min_filas = 30L, ...) {
   # que la gente lee- sino que se declara la colision, que es lo que faltaba.
   colision <- sum(!ausentes & etiquetas == "(ausente)")
   etiquetas[ausentes] <- "(ausente)"
-  grupos <- split(seq_len(nrow(datos)), factor(etiquetas, levels = unique(etiquetas)))
+  etiquetas_operativas <- .nombres_para_operar(etiquetas)
+  niveles_operativos <- unique(etiquetas_operativas)
+  grupos <- split(
+    seq_len(nrow(datos)),
+    factor(etiquetas_operativas, levels = niveles_operativos)
+  )
+  # `split()` nombra los grupos con los niveles del factor. Esos niveles son
+  # claves de trabajo; la etiqueta publicada sigue siendo el valor original
+  # de la primera fila del grupo.
+  names(grupos) <- vapply(niveles_operativos, function(clave) {
+    etiquetas[[match(clave, etiquetas_operativas)]]
+  }, character(1L))
 
   # La etiqueta de cada grupo ES un valor de la columna `por`. Si esa columna
   # lleva datos personales, las etiquetas los publican -en los hallazgos y en

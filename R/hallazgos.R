@@ -2642,18 +2642,25 @@
       # sus datos"- sobre una tabla perfectamente ordinaria. El locale `C` no es
       # exotico: es el de muchos contenedores y el de varias verificaciones.
       canon <- .normalizacion_minusculas_vector(texto)
-      grupos <- split(seq_len(n)[presentes], canon[presentes])
+      canon_operativo <- .nombres_para_operar(canon[presentes])
+      grupos <- split(seq_len(n)[presentes], canon_operativo)
       unlist(lapply(grupos, function(g) {
-        if (length(unique(texto[g])) > 1L) g else integer()
+        if (length(unique(.nombres_para_operar(texto[g]))) > 1L) {
+          g
+        } else integer()
       }), use.names = FALSE)
     },
     normalizacion_unicode = if (is.null(texto) ||
       !requireNamespace("stringi", quietly = TRUE)) NULL else {
         presentes <- !is.na(texto)
         normal <- stringi::stri_trans_nfc(texto[presentes])
-        grupos <- split(which(presentes), normal)
+        grupos <- split(
+          which(presentes), .nombres_para_operar(normal)
+        )
         unlist(lapply(grupos, function(g) {
-          if (length(unique(texto[g])) > 1L) g else integer()
+          if (length(unique(.nombres_para_operar(texto[g]))) > 1L) {
+            g
+          } else integer()
         }), use.names = FALSE)
       },
     codificacion_invalida = tryCatch(

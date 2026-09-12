@@ -2,7 +2,7 @@
   if (is.list(factores) && !inherits(factores, "data.frame")) {
     if (!length(factores) || is.null(names(factores)) ||
         anyNA(names(factores)) || any(!nzchar(names(factores))) ||
-        anyDuplicated(names(factores))) {
+        anyDuplicated(.nombres_para_operar(names(factores)))) {
       stop(
         "Una lista de factores debe tener dimensiones con nombres \u00fanicos.",
         call. = FALSE
@@ -34,7 +34,7 @@
     stop("Las dimensiones y los factores no pueden ser ausentes ni vac\u00edos.",
          call. = FALSE)
   }
-  clave <- paste(factores$dimension, factores$factor, sep = "|")
+  clave <- .clave_par_identificador(factores$dimension, factores$factor)
   if (anyDuplicated(clave)) {
     stop("Cada par dimensi\u00f3n-factor debe ser \u00fanico.", call. = FALSE)
   }
@@ -165,7 +165,7 @@
 #' @examples
 #' propio <- marco_calidad("Marco operativo", list(
 #'   Trazabilidad = c("Origen documentado", "Linaje reproducible"),
-#'   Pertinencia = "Adecuación al uso"
+#'   Pertinencia = "Adecuaci\u00f3n al uso"
 #' ))
 #' propio
 #' as.data.frame(propio)
@@ -190,25 +190,31 @@ marco_calidad <- function(nombre, factores) {
 #' @export
 marco_agesic <- function() {
   catalogo <- catalogo_agesic()
-  factores <- unique(catalogo[c("dimension", "factor")])
-  claves <- paste(factores$dimension, factores$factor, sep = "|")
+  factores <- catalogo[!duplicated(.clave_par_identificador(
+    catalogo$dimension, catalogo$factor
+  )), c("dimension", "factor"), drop = FALSE]
+  claves <- .clave_par_identificador(factores$dimension, factores$factor)
   estados <- split(
     as.character(catalogo$estado),
-    paste(catalogo$dimension, catalogo$factor, sep = "|")
+    .clave_par_identificador(
+      catalogo$dimension, catalogo$factor
+    )
   )
   factores$como_resolverlo <- mapply(
     .resolver_factor, factores$dimension, factores$factor,
     USE.NAMES = FALSE
   )
-  factores$perfil_mide <- claves %in% c(
+  factores$perfil_mide <- .identificadores_en(claves, c(
     "Completitud|Densidad", "Unicidad|No-duplicaci\u00f3n"
-  )
+  ))
   factores$aplicabilidad <- "siempre"
-  factores$aplicabilidad[factores$dimension == "Frescura"] <- "temporal"
-  factores$aplicabilidad[factores$factor %in% c(
+  factores$aplicabilidad[.identificadores_en(
+    factores$dimension, "Frescura"
+  )] <- "temporal"
+  factores$aplicabilidad[.identificadores_en(factores$factor, c(
     "Exactitud posicional absoluta", "Exactitud posicional relativa",
     "Consistencia topol\u00f3gica", "Comisi\u00f3n"
-  )] <- "geometria"
+  ))] <- "geometria"
   factores$disponibilidad <- vapply(claves, function(clave) {
     disponibles <- unique(estados[[clave]])
     if (length(disponibles) && all(disponibles == "fuera_de_alcance")) {
@@ -367,7 +373,7 @@ marco_cepal <- function() {
 print.marco_calidad <- function(x, ...) {
   cli::cli_h2(x$nombre)
   cli::cli_dl(c(
-    "Dimensiones" = length(unique(x$factores$dimension)),
+    "Dimensiones" = length(.identificadores_unicos(x$factores$dimension)),
     "Factores" = nrow(x$factores),
     "Origen" = x$origen
   ))

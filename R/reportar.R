@@ -390,7 +390,7 @@
   paste0(
     "<section><h2>Medidas de calidad</h2>",
     "<p class=\"meta\">", .html_texto(nrow(x)), " medidas en ",
-    .html_texto(length(unique(x$id_medicion))), " corrida(s).</p>",
+    .html_texto(length(.identificadores_unicos(x$id_medicion))), " corrida(s).</p>",
     .html_tabla(x, max_filas),
     .seccion_coberturas_del_objeto(x), "</section>"
   )
@@ -429,10 +429,12 @@
   if (!length(partes)) return(NULL)
   resultado <- do.call(rbind, partes)
   rownames(resultado) <- NULL
-  resultado[
-    !duplicated(resultado[c("id_medicion", "id_medida", "regla")]),
-    , drop = FALSE
-  ]
+  clave <- paste(
+    .nombres_para_operar(resultado$id_medicion),
+    .nombres_para_operar(resultado$id_medida),
+    .nombres_para_operar(resultado$regla), sep = "\r"
+  )
+  resultado[!duplicated(clave), , drop = FALSE]
 }
 
 .proteger_objeto_desenlaces <- function(x, desenlaces) {
@@ -574,9 +576,14 @@
     filas = x$nivel == "evaluacion_perfil"
   )
   if (!nrow(perfiles)) return(perfiles)
-  perfiles <- perfiles[order(perfiles$perfil, perfiles$fecha, perfiles$id_medicion), ]
+  perfiles <- perfiles[order(
+    .nombres_para_operar(perfiles$perfil), perfiles$fecha,
+    .nombres_para_operar(perfiles$id_medicion), method = "radix"
+  ), ]
   perfiles$delta <- NA_real_
-  grupos <- split(seq_len(nrow(perfiles)), perfiles$perfil, drop = TRUE)
+  grupos <- split(
+    seq_len(nrow(perfiles)), .nombres_para_operar(perfiles$perfil), drop = TRUE
+  )
   for (indices in grupos) {
     if (length(indices) > 1L) {
       perfiles$delta[indices[-1L]] <- diff(perfiles$resultado[indices])
@@ -587,10 +594,12 @@
 }
 
 .seccion_historico <- function(x, max_filas) {
-  x <- x[order(x$fecha, x$id_medicion, x$nivel), , drop = FALSE]
+  x <- x[order(
+    x$fecha, .nombres_para_operar(x$id_medicion), x$nivel, method = "radix"
+  ), , drop = FALSE]
   paste0(
     "<section><h2>Hist\u00f3rico de calidad</h2>",
-    "<p class=\"meta\">", .html_texto(length(unique(x$id_medicion))),
+    "<p class=\"meta\">", .html_texto(length(.identificadores_unicos(x$id_medicion))),
     " corrida(s); esquema ", .html_texto(attr(x, "version_esquema")), ".</p>",
     "<h3>Evoluci\u00f3n de perfiles de madurez</h3>",
     .html_tabla(.evolucion_historico(x), max_filas),

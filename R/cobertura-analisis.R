@@ -1,27 +1,41 @@
 .resolver_factor <- function(dimension, factor) {
-  clave <- paste(dimension, factor, sep = "|")
+  clave <- .clave_par_identificador(dimension, factor)
+  claves_especificas <- .clave_par_identificador(
+    c(
+      "Exactitud", "Exactitud", "Exactitud", "Consistencia", "Consistencia",
+      "Consistencia", "Completitud", "Completitud", "Unicidad", "Frescura",
+      "Frescura"
+    ),
+    c(
+      "Correctitud sem\u00e1ntica", "Correctitud sint\u00e1ctica", "Precisi\u00f3n",
+      "Integridad inter-entidad", "Integridad intra-entidad",
+      "Integridad de dominio", "Cobertura", "Densidad", "No-duplicaci\u00f3n",
+      "Actualidad", "Oportunidad"
+    )
+  )
+  indice <- match(clave, claves_especificas)
   switch(
-    clave,
-    "Exactitud|Correctitud sem\u00e1ntica" =
+    as.character(indice),
+    "1" =
       "Crear referencial() e instanciar metricas_referencial().",
-    "Exactitud|Correctitud sint\u00e1ctica" =
+    "2" =
       "Especializar Formato con expresi\u00f3n, diccionario o validador.",
-    "Exactitud|Precisi\u00f3n" =
+    "3" =
       "Declarar escala() o medir ErrorEstandar sobre el atributo.",
-    "Consistencia|Integridad inter-entidad" =
+    "4" =
       "Instanciar ReglaIntegridadInterEntidad con claves confirmadas.",
-    "Consistencia|Integridad intra-entidad" =
+    "5" =
       "Confirmar una regla y especializar ReglaIntegridadIntraEntidad.",
-    "Consistencia|Integridad de dominio" =
+    "6" =
       "Proveer un dominio a ValoresPosiblesPorExtension o Comprension.",
-    "Completitud|Cobertura" =
+    "7" =
       "Crear un referencial(completo = TRUE) y medir RatioCobertura.",
-    "Completitud|Densidad" = "Usar NoNulo o DensidadPonderada.",
-    "Unicidad|No-duplicaci\u00f3n" =
+    "8" = "Usar NoNulo o DensidadPonderada.",
+    "9" =
       "Usar las m\u00e9tricas de duplicaci\u00f3n o el perfil autom\u00e1tico.",
-    "Frescura|Actualidad" =
+    "10" =
       "Declarar vigencia() y medir DesactualizacionPorFecha o PorCambios.",
-    "Frescura|Oportunidad" =
+    "11" =
       "Declarar vigencia() y medir una m\u00e9trica Oportunidad*.",
     "Requiere un backend o referencial especializado que no integra esta versi\u00f3n."
   )
@@ -111,7 +125,7 @@ cobertura_analisis <- function(perfil, medicion = NULL,
   factores$estado <- "no_declarada"
   factores$motivo <- "El perfil describe evidencia, pero no recibi\u00f3 un requisito para este factor."
 
-  claves <- paste(factores$dimension, factores$factor, sep = "|")
+  claves <- .clave_par_identificador(factores$dimension, factores$factor)
   solo_fuera <- factores$disponibilidad == "fuera_de_alcance"
   factores$estado[solo_fuera] <- "fuera_de_alcance"
   factores$motivo[solo_fuera] <-
@@ -121,9 +135,9 @@ cobertura_analisis <- function(perfil, medicion = NULL,
   factores$estado[medidas_perfil] <- "medida"
   factores$motivo[medidas_perfil] <-
     "El profiling autom\u00e1tico examina evidencia de este factor."
-  factores$motivo[claves == "Completitud|Densidad"] <-
+  factores$motivo[.identificadores_en(claves, "Completitud|Densidad")] <-
     "El perfil cont\u00f3 ausentes reales y disfrazados en todas las columnas."
-  factores$motivo[claves == "Unicidad|No-duplicaci\u00f3n"] <-
+  factores$motivo[.identificadores_en(claves, "Unicidad|No-duplicaci\u00f3n")] <-
     "El perfil examin\u00f3 duplicaci\u00f3n de valores, columnas y filas exactas."
 
   if (!.perfil_tiene_tiempo(perfil)) {
@@ -139,8 +153,10 @@ cobertura_analisis <- function(perfil, medicion = NULL,
   }
 
   if (!is.null(medicion)) {
-    medidos <- unique(paste(medicion$dimension, medicion$factor, sep = "|"))
-    indices <- claves %in% medidos
+    medidos <- .identificadores_unicos(.clave_par_identificador(
+      medicion$dimension, medicion$factor
+    ))
+    indices <- .identificadores_en(claves, medidos)
     factores$estado[indices] <- "medida"
     factores$motivo[indices] <-
       "La corrida contiene al menos una m\u00e9trica instanciada para este factor."

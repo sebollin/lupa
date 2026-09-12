@@ -39,7 +39,7 @@ no permite que duplicados inflen el resultado.
 \examples{
 ref <- referencial(
   data.frame(id = 1:3, nombre = c("Ana", "Bruno", "Carla")),
-  "id", "nombre", completo = TRUE, alcance = "padrón de ejemplo"
+  "id", "nombre", completo = TRUE, alcance = "padr\u00f3n de ejemplo"
 )
 m <- metricas_referencial()
 fuerte <- instanciar(especializar(m$CorrectitudSemFuerte),

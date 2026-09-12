@@ -359,7 +359,8 @@ detectar_claves <- function(datos, max_combinacion = 3, normalizar = NULL,
   if (inherits(x, "Date")) {
     return(format(x, "%Y-%m-%d"))
   }
-  .texto_analizable(x)$valores
+  valores <- .texto_analizable(x)$valores
+  if (is.character(valores)) .nombres_para_operar(valores) else valores
 }
 
 .familia_relacion <- function(x) {

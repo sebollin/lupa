@@ -214,7 +214,10 @@
   }
   # Un vistazo barato antes de construir el factor: si los primeros valores ya
   # traen mas niveles de los admitidos, no hace falta mirar el resto.
-  asomo <- unique(x[usable][seq_len(min(n_usables, 5000L))])
+  asomo_crudo <- x[usable][seq_len(min(n_usables, 5000L))]
+  asomo <- if (is.character(asomo_crudo) || is.factor(asomo_crudo)) {
+    unique(.nombres_para_operar(as.character(asomo_crudo)))
+  } else unique(asomo_crudo)
   if (length(asomo) > .max_niveles_determinante) {
     if (is.null(umbral)) return(NULL)
     return(c(list(
@@ -224,7 +227,7 @@
       solo_umbral = TRUE
     ), umbral))
   }
-  niveles <- factor(as.character(x[usable]))
+  niveles <- factor(.nombres_para_operar(as.character(x[usable])))
   if (nlevels(niveles) < 2L || nlevels(niveles) > .max_niveles_determinante) {
     return(NULL)
   }

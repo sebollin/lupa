@@ -1,5 +1,32 @@
 # lupa 0.1.0
 
+## Texto declarado independiente del locale
+
+- **La resolución de factores y las agrupaciones por valores de texto ya no
+  dependen de la marca de codificación.** `.resolver_factor()`, las rutas de
+  `factor()`/`split()` y la detección de variantes usan la misma representación
+  de trabajo que los identificadores; las etiquetas que se publican conservan
+  el texto original.
+- **Se auditaron los 39 `switch()` del paquete.** Los que reciben una
+  declaración usan vocabularios cerrados y no cambian entre marcas; el que
+  conmutaba sobre el par dimensión-factor queda cubierto por la clave canónica.
+  También se revisaron `match.arg()`, `merge()` por texto, `tapply()` e
+  indexaciones nominales; las indexaciones que podían recibir nombres
+  declarados resuelven por posición o por la misma clave canónica.
+
+## Identificadores declarados independientes del locale
+
+- **Las dimensiones, factores y demás identificadores declarados ya no se
+  comparan por su marca de codificación.** Las validaciones de marcos, modelos,
+  granularidades, fronteras, métricas, reglas, pesos, colecciones y
+  configuraciones usan claves estables derivadas de los bytes; las salidas
+  conservan el texto original y las secuencias de bytes distintas siguen
+  siendo distintas.
+- **Los ejemplos con texto no ASCII usan escapes `\uXXXX` dentro del código
+  R.** Esto permite que `R CMD check` re-encode los ejemplos bajo `LC_ALL=C`
+  sin cambiar el texto que muestran `marco_calidad()`, `modelo_calidad()` ni
+  `metricas_referencial()`.
+
 ## Escritura independiente del locale
 
 - **`reportar()` ya no convierte el HTML al locale de la sesión.** El

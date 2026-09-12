@@ -126,7 +126,9 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
   }
   catalogo <- .catalogo_estimaciones()
   if (!is.null(columnas)) {
-    desconocidos <- setdiff(names(columnas), catalogo$estadistico)
+    desconocidos <- .identificadores_setdiff(
+      names(columnas), catalogo$estadistico
+    )
     if (length(desconocidos)) {
       stop(
         "`columnas` nombra estadisticos que no se reconocen: ",
@@ -162,8 +164,11 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
   }
 
   origen_de <- function(estadistico) {
-    if (!is.null(columnas) && estadistico %in% names(columnas)) {
-      return(unname(columnas[[estadistico]]))
+    if (!is.null(columnas)) {
+      indice_columna <- .indice_identificador(estadistico, names(columnas))
+      if (!is.na(indice_columna)) {
+        return(unname(columnas[[indice_columna]]))
+      }
     }
     indice <- .indice_nombre(estadistico, names(estimaciones))
     if (!is.na(indice)) return(names(estimaciones)[[indice]])
@@ -215,7 +220,7 @@ medicion_desde_estimaciones <- function(estimaciones, entidad, fuente,
   })
   salida <- do.call(rbind, filas)
   rownames(salida) <- NULL
-  attr(salida, "estadisticos_ausentes") <- setdiff(
+  attr(salida, "estadisticos_ausentes") <- .identificadores_setdiff(
     catalogo$estadistico, presentes$estadistico
   )
   attr(salida, "fuente") <- fuente

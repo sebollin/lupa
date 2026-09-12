@@ -110,12 +110,15 @@ regla_evaluacion <- function(nombre, condicion, metricas = NULL,
   if (length(umbrales)) {
     nombres_umbrales <- names(umbrales)
     if (is.null(nombres_umbrales) || anyNA(nombres_umbrales) ||
-        !all(nzchar(nombres_umbrales)) || anyDuplicated(nombres_umbrales)) {
+        !all(nzchar(nombres_umbrales)) ||
+        anyDuplicated(.nombres_para_operar(nombres_umbrales))) {
       stop("`umbrales` debe tener nombres unicos y no vacios.", call. = FALSE)
     }
     argumentos_condicion <- names(formals(condicion))
     if (!"..." %in% argumentos_condicion) {
-      sin_recibir <- setdiff(nombres_umbrales, argumentos_condicion)
+      sin_recibir <- .identificadores_setdiff(
+        nombres_umbrales, argumentos_condicion
+      )
       if (length(sin_recibir)) {
         stop(
           "`condicion` no recibe estos umbrales: ",
@@ -130,7 +133,9 @@ regla_evaluacion <- function(nombre, condicion, metricas = NULL,
   estructura <- list(
     nombre = nombre,
     condicion = condicion,
-    metricas = unique(metricas)
+    metricas = if (is.null(metricas)) NULL else {
+      .identificadores_unicos(metricas)
+    }
   )
   if (!is.null(proporcion_minima)) {
     estructura$nivel <- "agregado"
@@ -190,10 +195,11 @@ propiedades_regla <- function(regla) {
                stringsAsFactors = FALSE)
   )
   if (length(regla$umbrales)) {
-    filas <- c(filas, lapply(names(regla$umbrales), function(nombre) {
+    filas <- c(filas, lapply(seq_along(regla$umbrales), function(indice) {
+      nombre <- names(regla$umbrales)[[indice]]
       data.frame(
         propiedad = paste0("umbral:", nombre),
-        valor = texto(regla$umbrales[[nombre]]),
+        valor = texto(regla$umbrales[[indice]]),
         stringsAsFactors = FALSE
       )
     }))
@@ -221,7 +227,7 @@ perfil_evaluacion <- function(nombre, ...) {
     stop("Un perfil requiere una o m\u00e1s reglas de evaluaci\u00f3n.", call. = FALSE)
   }
   nombres <- vapply(reglas, `[[`, character(1L), "nombre")
-  if (anyDuplicated(nombres)) {
+  if (anyDuplicated(.nombres_para_operar(nombres))) {
     stop("Los nombres de las reglas del perfil deben ser \u00fanicos.", call. = FALSE)
   }
   names(reglas) <- nombres
@@ -292,7 +298,8 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   if (!is.numeric(umbrales) || !length(umbrales) || anyNA(umbrales) ||
       any(!is.finite(umbrales)) || any(umbrales < 0 | umbrales > 1) ||
       is.null(names(umbrales)) || anyNA(names(umbrales)) ||
-      any(!nzchar(names(umbrales))) || anyDuplicated(names(umbrales))) {
+      any(!nzchar(names(umbrales))) ||
+      anyDuplicated(.nombres_para_operar(names(umbrales)))) {
     stop(
       "`umbrales` debe ser un vector num\u00e9rico con nombres \u00fanicos en [0, 1].",
       call. = FALSE
@@ -333,7 +340,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   # medir()". El paquete acusaba a la entrada de no ser lo que es, teniendo el
   # motivo verdadero a mano.
   if (!inherits(medicion, "data.frame") ||
-      !all(requeridas %in% names(medicion))) {
+      !all(.identificadores_en(requeridas, names(medicion)))) {
     stop("`medicion` debe ser un data frame producido por medir().",
          call. = FALSE)
   }
@@ -341,7 +348,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     .error_medicion_sin_medidas(medicion, "medicion", "`medir()`")
   }
   medicion <- .tabla_base(medicion)
-  suprimidas <- if ("objeto_medible" %in% names(medicion)) {
+  suprimidas <- if (.identificadores_en("objeto_medible", names(medicion))) {
     !is.na(medicion$objeto_medible) & grepl(
       "[valor suprimido]", medicion$objeto_medible, fixed = TRUE
     )
@@ -400,9 +407,17 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     admitidos <- if ("..." %in% argumentos) {
       names(umbrales)
     } else {
-      intersect(names(umbrales), argumentos)
+      indices_umbrales <- .indice_identificador(names(umbrales), argumentos)
+      which(!is.na(indices_umbrales))
     }
-    extra <- c(extra, umbrales[admitidos])
+    extra_umbrales <- umbrales[admitidos]
+    if (is.numeric(admitidos)) {
+      nombres_formales <- argumentos[
+        .indice_identificador(names(umbrales)[admitidos], argumentos)
+      ]
+      names(extra_umbrales) <- nombres_formales
+    }
+    extra <- c(extra, extra_umbrales)
   }
   do.call(condicion, c(list(resultado), extra))
 }
@@ -411,21 +426,25 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   seleccion <- if (is.null(regla$metricas)) {
     rep(TRUE, nrow(medicion))
   } else {
-    medicion$metrica_instanciada %in% regla$metricas
+    .identificadores_en(medicion$metrica_instanciada, regla$metricas)
   }
   medidas <- medicion[seleccion, , drop = FALSE]
   if (!nrow(medidas)) {
     cobertura <- attr(medicion, "cobertura_metricas", exact = TRUE)
     faltantes <- if (inherits(cobertura, "data.frame") && nrow(cobertura)) {
       if (is.null(regla$metricas)) cobertura else cobertura[
-        cobertura$metrica_instanciada %in% regla$metricas, , drop = FALSE
+        .identificadores_en(
+          cobertura$metrica_instanciada, regla$metricas
+        ), , drop = FALSE
       ]
     } else cobertura
     if (inherits(faltantes, "data.frame") && nrow(faltantes)) {
       return(.evaluaciones_medidas_vacias())
     }
-    solicitadas <- setdiff(regla$metricas, medicion$metrica_instanciada)
-    disponibles <- unique(medicion$metrica_instanciada)
+    solicitadas <- .identificadores_setdiff(
+      regla$metricas, medicion$metrica_instanciada
+    )
+    disponibles <- .identificadores_unicos(medicion$metrica_instanciada)
     stop(
       "La regla '", regla$nombre,
       "' no coincide con ninguna m\u00e9trica instanciada. Solicitadas: ",
@@ -502,24 +521,31 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   if (!inherits(cobertura, "data.frame") || !nrow(cobertura)) {
     return(resumen)
   }
-  ids <- unique(c(as.character(medicion$id_medicion), cobertura$id_medicion))
+  ids <- .identificadores_unicos(
+    c(as.character(medicion$id_medicion), cobertura$id_medicion)
+  )
   partes <- list(resumen)
   for (id in ids) {
-    faltantes_id <- cobertura[as.character(cobertura$id_medicion) == id, ,
-                              drop = FALSE]
+    faltantes_id <- cobertura[
+      .identificadores_en(as.character(cobertura$id_medicion), id), ,
+      drop = FALSE
+    ]
     if (!nrow(faltantes_id)) next
     for (regla in perfil$reglas) {
       faltantes <- if (is.null(regla$metricas)) {
         faltantes_id
       } else {
         faltantes_id[
-          faltantes_id$metrica_instanciada %in% regla$metricas, , drop = FALSE
+        .identificadores_en(
+          faltantes_id$metrica_instanciada, regla$metricas
+        ), , drop = FALSE
         ]
       }
       if (!nrow(faltantes)) next
       indice <- which(
-        as.character(resumen$id_medicion) == id &
-          resumen$perfil == perfil$nombre & resumen$regla == regla$nombre
+        .identificadores_en(as.character(resumen$id_medicion), id) &
+          .identificadores_en(resumen$perfil, perfil$nombre) &
+          .identificadores_en(resumen$regla, regla$nombre)
       )
       if (length(indice)) {
         resumen$n_medidas[indice] <- NA_integer_
@@ -549,7 +575,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   if (!any(es_agregada)) return(resumen)
 
   resumen$nivel <- ifelse(
-    resumen$regla %in% names(perfil$reglas)[es_agregada],
+    .identificadores_en(resumen$regla, names(perfil$reglas)[es_agregada]),
     "agregado", "medida"
   )
   resumen$n_cumplen <- integer(nrow(resumen))
@@ -557,17 +583,22 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   resumen$proporcion_minima <- NA_real_
   resumen$cumple <- NA
   for (i in seq_len(nrow(resumen))) {
-    indices <- evaluaciones$id_medicion == resumen$id_medicion[[i]] &
-      evaluaciones$perfil == resumen$perfil[[i]] &
-      evaluaciones$regla == resumen$regla[[i]]
+    indices <- .identificadores_en(
+        evaluaciones$id_medicion, resumen$id_medicion[[i]]
+      ) &
+      .identificadores_en(evaluaciones$perfil, resumen$perfil[[i]]) &
+      .identificadores_en(evaluaciones$regla, resumen$regla[[i]])
     componentes <- evaluaciones[indices, , drop = FALSE]
     resumen$n_cumplen[[i]] <- sum(componentes$resultado)
-    metricas <- unique(componentes$metrica_instanciada)
+    metricas <- .identificadores_unicos(componentes$metrica_instanciada)
     resumen$universo[[i]] <- paste0(
       nrow(componentes), " medidas seleccionadas: ",
       paste(metricas, collapse = ", ")
     )
-    regla <- perfil$reglas[[resumen$regla[[i]]]]
+    indice_regla <- .indice_identificador(
+      resumen$regla[[i]], names(perfil$reglas)
+    )
+    regla <- perfil$reglas[[indice_regla]]
     if (!is.null(regla$proporcion_minima)) {
       resumen$proporcion_minima[[i]] <- regla$proporcion_minima
       resumen$cumple[[i]] <-
@@ -634,9 +665,12 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
   if (!any(con_desenlace)) return(NULL)
 
   partes <- lapply(perfil$reglas[con_desenlace], function(regla) {
-    incumplidas <- evaluaciones$regla == regla$nombre & !evaluaciones$resultado
+    incumplidas <- .identificadores_en(evaluaciones$regla, regla$nombre) &
+      !evaluaciones$resultado
     if (!any(incumplidas)) return(NULL)
-    indices <- match(evaluaciones$id_medida[incumplidas], medicion$id_medida)
+    indices <- .indice_identificador(
+      evaluaciones$id_medida[incumplidas], medicion$id_medida
+    )
     medidas <- medicion[indices, , drop = FALSE]
     data.frame(
       id_medida = medidas$id_medida,
@@ -699,7 +733,9 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     # `unname()`: los nombres de columna son datos del usuario y llegan como
     # argumentos con nombre a `paste`. Una columna llamada `sep` o `recycle0`
     # choca con sus formales y aborta la corrida.
-    do.call(paste, c(unname(tabla[campos]), sep = "\r"))
+    do.call(paste, c(
+      lapply(unname(tabla[campos]), .nombres_para_operar), sep = "\r"
+    ))
   }
   exactas <- clave(x) %in% clave(desenlaces)
   if (any(exactas)) return(exactas)
@@ -742,7 +778,7 @@ perfiles_madurez <- function(metricas = NULL, umbrales = NULL) {
     return(x)
   }
   metricas <- sub("@.*$", "", as.character(desenlaces$metrica_instanciada))
-  suprimidas <- as.character(x$metrica) %in% metricas
+  suprimidas <- .identificadores_en(as.character(x$metrica), metricas)
   if (!any(suprimidas)) return(x)
   x$valor <- as.character(x$valor)
   x$valor[suprimidas] <- "[valor suprimido]"
@@ -896,16 +932,26 @@ comparar_evaluaciones <- function(anterior, actual) {
   }
   a <- anterior$perfiles
   b <- actual$perfiles
-  if (length(unique(a$id_medicion)) != 1L ||
-      length(unique(b$id_medicion)) != 1L) {
+  if (length(.identificadores_unicos(a$id_medicion)) != 1L ||
+      length(.identificadores_unicos(b$id_medicion)) != 1L) {
     stop("Cada evaluaci\u00f3n debe contener una sola corrida.", call. = FALSE)
   }
+  a <- a[c("perfil", "id_medicion", "fecha", "resultado")]
+  b <- b[c("perfil", "id_medicion", "fecha", "resultado")]
+  a$perfil_operativo <- .nombres_para_operar(a$perfil)
+  b$perfil_operativo <- .nombres_para_operar(b$perfil)
   combinado <- merge(
-    a[c("perfil", "id_medicion", "fecha", "resultado")],
-    b[c("perfil", "id_medicion", "fecha", "resultado")],
-    by = "perfil", suffixes = c("_anterior", "_actual"), all = TRUE,
-    sort = FALSE
+    a, b, by = "perfil_operativo", suffixes = c("_anterior", "_actual"),
+    all = TRUE, sort = FALSE
   )
+  perfil <- combinado$perfil_actual
+  presentes <- !is.na(combinado$perfil_anterior)
+  perfil[presentes] <- combinado$perfil_anterior[presentes]
+  combinado$perfil <- perfil
+  combinado <- combinado[c(
+    "perfil", "id_medicion_anterior", "fecha_anterior", "resultado_anterior",
+    "id_medicion_actual", "fecha_actual", "resultado_actual"
+  )]
   combinado$delta <- combinado$resultado_actual - combinado$resultado_anterior
   combinado
 }

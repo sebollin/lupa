@@ -538,7 +538,8 @@ pack_validadores <- function(nombre, validadores, pais = NULL,
   }
   if (!is.list(validadores) || !length(validadores) ||
       is.null(names(validadores)) || anyNA(names(validadores)) ||
-      any(!nzchar(names(validadores))) || anyDuplicated(names(validadores)) ||
+      any(!nzchar(names(validadores))) ||
+      anyDuplicated(.nombres_para_operar(names(validadores))) ||
       !all(vapply(validadores, is.function, logical(1L)))) {
     stop("`validadores` debe ser una lista con nombres unicos de funciones.",
          call. = FALSE)

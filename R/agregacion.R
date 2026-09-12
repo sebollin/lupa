@@ -47,12 +47,22 @@
 
 .validar_granularidad <- function(x, aceptar_relacional = FALSE) {
   if (.es_texto_escalar(x)) {
-    if (x %in% .catalogo_granularidades$granularidad) return(x)
-    if (aceptar_relacional &&
-        x %in% stats::na.omit(.catalogo_granularidades$relacional)) {
-      return(.catalogo_granularidades$granularidad[
-        match(x, .catalogo_granularidades$relacional)
-      ])
+    canonicas <- .catalogo_granularidades$granularidad
+    indice <- match(.nombres_para_operar(x), .nombres_para_operar(canonicas))
+    if (!is.na(indice)) return(canonicas[[indice]])
+    if (aceptar_relacional) {
+      indices_relacionales <- which(
+        !is.na(.catalogo_granularidades$relacional)
+      )
+      indice_relacional <- match(
+        .nombres_para_operar(x),
+        .nombres_para_operar(.catalogo_granularidades$relacional[
+          indices_relacionales
+        ])
+      )
+      if (!is.na(indice_relacional)) {
+        return(canonicas[[indices_relacionales[[indice_relacional]]]])
+      }
     }
   }
   stop(
@@ -62,9 +72,10 @@
 }
 
 .granularidad_implementada <- function(x) {
-  .validar_granularidad(x)
+  x <- .validar_granularidad(x)
   .catalogo_granularidades$implementada[
-    match(x, .catalogo_granularidades$granularidad)
+    match(.nombres_para_operar(x),
+          .nombres_para_operar(.catalogo_granularidades$granularidad))
   ]
 }
 
@@ -215,7 +226,12 @@ transiciones_granularidad <- function() {
   )
   clave <- do.call(
     interaction,
-    c(lapply(claves, function(x) addNA(as.factor(x))),
+    c(lapply(claves, function(x) {
+      valores <- if (is.character(x) || is.factor(x)) {
+        .nombres_para_operar(as.character(x))
+      } else x
+      addNA(as.factor(valores))
+    }),
       list(drop = TRUE, lex.order = TRUE))
   )
   split(seq_len(nrow(medidas)), clave, drop = TRUE)
@@ -232,7 +248,7 @@ transiciones_granularidad <- function() {
 }
 
 .objeto_agregado <- function(medidas, indices, destino) {
-  entidades <- unique(medidas$entidad[indices])
+  entidades <- .identificadores_unicos(medidas$entidad[indices])
   switch(
     destino,
     atributo = paste0(entidades[[1L]], "$", medidas$atributo[indices[[1L]]]),
@@ -240,11 +256,11 @@ transiciones_granularidad <- function() {
       entidades[[1L]], "[", medidas$fila[indices[[1L]]], ",]"
     ),
     entidad = entidades[[1L]],
-    conjuntoEntidades = paste(sort(entidades), collapse = ", "),
-    coleccion = paste(sort(entidades), collapse = ", "),
-    conjuntoColecciones = paste(sort(entidades), collapse = ", "),
-    organizacion = paste(sort(entidades), collapse = ", "),
-    conjuntoOrganizaciones = paste(sort(entidades), collapse = ", ")
+    conjuntoEntidades = paste(.identificadores_ordenados(entidades), collapse = ", "),
+    coleccion = paste(.identificadores_ordenados(entidades), collapse = ", "),
+    conjuntoColecciones = paste(.identificadores_ordenados(entidades), collapse = ", "),
+    organizacion = paste(.identificadores_ordenados(entidades), collapse = ", "),
+    conjuntoOrganizaciones = paste(.identificadores_ordenados(entidades), collapse = ", ")
   )
 }
 # Estos dos ayudantes van ANTES del bloque `roxygen` de `agregar()`, y no entre
@@ -314,20 +330,23 @@ transiciones_granularidad <- function() {
 # falta de cobertura. Por eso la cobertura viaja pegada al numero, igual que en
 # indice_calidad().
 .cobertura_agregacion_coleccion <- function(frontera, entidades_medidas) {
-  declaradas <- unique(frontera$declaradas)
-  medidas <- unique(entidades_medidas)
-  sin_medir <- setdiff(declaradas, medidas)
-  motivos <- unname(frontera$motivo_faltantes[sin_medir])
+  declaradas <- .identificadores_unicos(frontera$declaradas)
+  medidas <- .identificadores_unicos(entidades_medidas)
+  sin_medir <- .identificadores_setdiff(declaradas, medidas)
+  indices_sin_medir <- .indice_identificador(
+    sin_medir, names(frontera$motivo_faltantes)
+  )
+  motivos <- unname(frontera$motivo_faltantes[indices_sin_medir])
   motivos[is.na(motivos)] <-
     "No hay una medida de esta tabla en la entrada; no se midio en este alcance."
   list(
     coleccion = frontera$nombre,
     tablas_declaradas = length(declaradas),
-    tablas_en_el_numero = length(intersect(declaradas, medidas)),
+    tablas_en_el_numero = length(.identificadores_intersect(declaradas, medidas)),
     tablas_sin_medir = sin_medir,
     motivo_sin_medir = motivos,
     cobertura = if (length(declaradas)) {
-      length(intersect(declaradas, medidas)) / length(declaradas)
+      length(.identificadores_intersect(declaradas, medidas)) / length(declaradas)
     } else NA_real_,
     advertencia = paste(
       "El numero cubre las tablas medidas, no la coleccion declarada.",
@@ -359,7 +378,8 @@ transiciones_granularidad <- function() {
       if (inherits(x, "coleccion_lupa")) x$nombre else x$meta$nombre
     }, character(1L))
   }
-  if (anyNA(nombres) || any(!nzchar(nombres)) || anyDuplicated(nombres)) {
+  if (anyNA(nombres) || any(!nzchar(nombres)) ||
+      anyDuplicated(.nombres_para_operar(nombres))) {
     stop(
       "`colecciones` debe tener nombres unicos y no vacios; esos nombres son",
       " la identidad de cada coleccion en el conjunto.", call. = FALSE
@@ -374,10 +394,10 @@ transiciones_granularidad <- function() {
 # parte. Se generaliza para que los cuatro niveles con frontera la respondan
 # igual, en vez de tener cuatro copias que se desincronizan.
 .cobertura_frontera_declarada <- function(frontera, entidades_medidas, parte) {
-  declaradas <- unique(frontera$declaradas)
-  medidas <- unique(entidades_medidas)
-  presentes <- intersect(declaradas, medidas)
-  sin_medir <- setdiff(declaradas, medidas)
+  declaradas <- .identificadores_unicos(frontera$declaradas)
+  medidas <- .identificadores_unicos(entidades_medidas)
+  presentes <- .identificadores_intersect(declaradas, medidas)
+  sin_medir <- .identificadores_setdiff(declaradas, medidas)
   salida <- list(
     conjunto = frontera$nombre,
     declaradas = length(declaradas),
@@ -425,7 +445,9 @@ transiciones_granularidad <- function() {
   if (is.null(propio) || is.null(attr(resultado, propio, exact = TRUE))) {
     return(resultado)
   }
-  sin_peso <- unique(medidas$entidad[!is.na(pesos) & pesos == 0])
+  sin_peso <- .identificadores_unicos(
+    medidas$entidad[!is.na(pesos) & pesos == 0]
+  )
   if (!length(sin_peso)) return(resultado)
   cobertura <- attr(resultado, propio, exact = TRUE)
   cobertura$partes_con_peso_cero <- sin_peso
@@ -574,7 +596,9 @@ agregar <- function(medidas, destino,
     # medias sobre una tabla ajena se presentaba como medida de la coleccion,
     # con cobertura 1 de 1. Es el mismo invariante roto en la direccion
     # contraria.
-    ajenas <- setdiff(unique(medidas$entidad), coleccion$declaradas)
+    ajenas <- .identificadores_setdiff(
+      .identificadores_unicos(medidas$entidad), coleccion$declaradas
+    )
     if (length(ajenas)) {
       stop(
         "Hay medidas de entidades que no estan declaradas en la coleccion '",
@@ -588,7 +612,9 @@ agregar <- function(medidas, destino,
   conjunto <- NULL
   if (identical(destino, "conjuntoColecciones")) {
     conjunto <- .validar_conjunto_colecciones(colecciones)
-    ajenas <- setdiff(unique(medidas$entidad), conjunto$declaradas)
+    ajenas <- .identificadores_setdiff(
+      .identificadores_unicos(medidas$entidad), conjunto$declaradas
+    )
     if (length(ajenas)) {
       stop(
         "Hay medidas de colecciones que no estan declaradas en el conjunto: ",
@@ -603,7 +629,9 @@ agregar <- function(medidas, destino,
       stop(.mensaje_granularidad_sin_frontera(destino), call. = FALSE)
     }
     organismo <- .validar_organizacion_destino(organizacion)
-    ajenas <- setdiff(unique(medidas$entidad), organismo$declaradas)
+    ajenas <- .identificadores_setdiff(
+      .identificadores_unicos(medidas$entidad), organismo$declaradas
+    )
     if (length(ajenas)) {
       stop(
         "Hay medidas de colecciones que no pertenecen a la organizacion '",
@@ -623,7 +651,10 @@ agregar <- function(medidas, destino,
     entidades_resueltas <- .resolver_partes_frontera(
       medidas$entidad, conjunto_organismos
     )
-    ajenas <- setdiff(unique(entidades_resueltas), conjunto_organismos$declaradas)
+    ajenas <- .identificadores_setdiff(
+      .identificadores_unicos(entidades_resueltas),
+      conjunto_organismos$declaradas
+    )
     if (length(ajenas)) {
       stop(
         "Hay medidas de organizaciones que no estan declaradas en el conjunto: ",
@@ -696,8 +727,8 @@ agregar <- function(medidas, destino,
         )
       }
       partes_medidas <- as.character(medidas$objeto_medible)
-      faltan <- setdiff(partes_medidas, names(pesos))
-      sobran <- setdiff(names(pesos), partes_medidas)
+      faltan <- .identificadores_setdiff(partes_medidas, names(pesos))
+      sobran <- .identificadores_setdiff(names(pesos), partes_medidas)
       if (length(faltan) || length(sobran)) {
         stop(
           if (length(faltan)) {
@@ -710,12 +741,13 @@ agregar <- function(medidas, destino,
           call. = FALSE
         )
       }
-      if (anyDuplicated(names(pesos))) {
+      claves_pesos <- .nombres_para_operar(names(pesos))
+      if (anyDuplicated(claves_pesos)) {
         stop("`pesos` repite una parte: ",
-             paste(unique(names(pesos)[duplicated(names(pesos))]),
+             paste(unique(names(pesos)[duplicated(claves_pesos)]),
                    collapse = ", "), ".", call. = FALSE)
       }
-      pesos <- unname(pesos[match(partes_medidas, names(pesos))])
+      pesos <- unname(pesos[.indice_identificador(partes_medidas, names(pesos))])
     }
     if (!is.numeric(pesos) || length(pesos) != nrow(medidas) || anyNA(pesos) ||
         any(!is.finite(pesos)) || any(pesos < 0 | pesos > 1)) {
@@ -737,7 +769,9 @@ agregar <- function(medidas, destino,
       if (is.null(pesos)) NULL else pesos[indices]
     )
     entidad <- if (destino == "conjuntoEntidades") {
-      paste(sort(unique(medidas$entidad[indices])), collapse = ", ")
+      paste(.identificadores_ordenados(
+        .identificadores_unicos(medidas$entidad[indices])
+      ), collapse = ", ")
     } else if (destino == "coleccion") {
       coleccion$nombre
     } else if (destino == "conjuntoColecciones") {

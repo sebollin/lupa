@@ -82,7 +82,7 @@ medido por el profiling genérico.
 \examples{
 propio <- marco_calidad("Marco operativo", list(
   Trazabilidad = c("Origen documentado", "Linaje reproducible"),
-  Pertinencia = "Adecuación al uso"
+  Pertinencia = "Adecuaci\u00f3n al uso"
 ))
 propio
 as.data.frame(propio)

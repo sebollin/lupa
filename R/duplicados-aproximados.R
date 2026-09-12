@@ -1594,7 +1594,9 @@
   if (!n) return(logical())
   iguales <- rep(TRUE, n)
   for (columna in columnas) {
-    valores <- suppressWarnings(as.character(datos[[columna]]))
+    valores <- .nombres_para_operar(
+      suppressWarnings(as.character(datos[[columna]]))
+    )
     a <- valores[filas_1]
     b <- valores[filas_2]
     coincide <- (is.na(a) & is.na(b)) |

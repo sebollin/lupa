@@ -294,7 +294,7 @@ distribucion_valores <- function(datos, perfil = NULL, max_valores = 20L,
   media <- mean(numero)
   total <- sum((numero - media)^2)
   if (!is.finite(total) || total == 0) return(NA_real_)
-  grupos <- split(numero, categoria, drop = TRUE)
+  grupos <- split(numero, .nombres_para_operar(categoria), drop = TRUE)
   entre <- sum(vapply(grupos, function(x) length(x) * (mean(x) - media)^2,
                        numeric(1L)))
   entre / total

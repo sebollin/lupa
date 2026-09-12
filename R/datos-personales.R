@@ -28,7 +28,8 @@
   }
   if (!is.list(validadores) || is.null(names(validadores)) ||
       !length(validadores) || anyNA(names(validadores)) ||
-      any(!nzchar(names(validadores))) || anyDuplicated(names(validadores)) ||
+      any(!nzchar(names(validadores))) ||
+      anyDuplicated(.nombres_para_operar(names(validadores))) ||
       !all(vapply(validadores, is.function, logical(1L)))) {
     stop("`validadores_personales` debe ser un pack o una lista con nombres de funciones.",
          call. = FALSE)

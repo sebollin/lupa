@@ -1,4 +1,4 @@
-.moda_columna <- function(x) {
+.moda_columna <- function(x, claves = NULL) {
   validos <- !is.na(x)
   # Dos ausencias distintas, y la diferencia importa: sin valores validos la
   # frecuencia es cero porque se conto y no hay ninguno; sobre una columna de
@@ -46,7 +46,7 @@
   # comparar por su representacion de bytes. La clave es solo para igualdad y
   # desempate: la moda publicada sigue siendo el valor almacenado original.
   if (is.character(x) || is.factor(x)) {
-    claves <- .clave_bytes(x)
+    if (is.null(claves)) claves <- .clave_bytes(x)
     validos_clave <- !is.na(x) & !is.na(claves)
     if (!any(validos_clave)) {
       return(list(valor = NA_character_, frecuencia = 0L))
@@ -1557,6 +1557,14 @@
     separador = rep(FALSE, n)
   )
   if (!n) return(salida)
+  # En ASCII imprimible no hay puntos Unicode ni controles que detectar. La
+  # comprobacion vectorizada conserva el contrato de esta funcion y evita una
+  # llamada a `utf8ToInt()` por valor en el camino caliente.
+  if (.es_ascii(textos) && !any(grepl(
+    "[\\x00-\\x1F\\x7F]", textos, useBytes = TRUE, perl = TRUE
+  ))) {
+    return(salida)
+  }
   for (i in seq_len(n)) {
     texto <- textos[[i]]
     if (is.na(texto)) next
@@ -1748,6 +1756,28 @@
     espacios <- validos & textos != trimws(textos)
   }
   ejemplos_espacios <- utils::head(unique(textos[espacios]), 6L)
+  # Los valores ASCII sin espacios, controles ni ampersands no pueden contener
+  # invisibles Unicode, codificacion rota ni entidades HTML. En ese caso basta
+  # con resolver la unica señal ASCII restante -variantes de mayusculas- y se
+  # evita una llamada a `utf8ToInt()` por valor.
+  if (.es_ascii(unicos) && !any(grepl(
+    "[[:space:]&\\x00-\\x1F\\x7F]", unicos,
+    useBytes = TRUE, perl = TRUE
+  ))) {
+    vocabulario_predicados <- .vocabulario_texto(
+      textos, .umbral_vocabulario_barato, valores = unicos
+    )
+    .predicados_invisibles(vocabulario_predicados$valores)
+    minusculas <- .normalizacion_minusculas_vector(unicos)
+    colision <- duplicated(minusculas) | duplicated(minusculas, fromLast = TRUE)
+    variantes <- unicos[colision]
+    vacio$n_variantes_mayusculas <- length(variantes)
+    vacio$evidencia_mayusculas <- paste(
+      encodeString(utils::head(variantes, 6L), quote = '"'), collapse = "; "
+    )
+    vacio$n_variantes_unicode <- 0L
+    return(vacio)
+  }
   minusculas <- .normalizacion_minusculas_vector(unicos)
   colision <- duplicated(minusculas) | duplicated(minusculas, fromLast = TRUE)
   variantes <- unicos[colision]
@@ -1835,12 +1865,12 @@
   )
 }
 
-.n_distintos_columna <- function(x) {
+.n_distintos_columna <- function(x, claves = NULL) {
   validos <- tryCatch(!is.na(x), error = function(e) NULL)
   if (is.null(validos) || length(validos) != length(x)) return(NA_integer_)
   if (!any(validos)) return(0L)
   if (is.character(x) || is.factor(x)) {
-    claves <- .clave_bytes(x)
+    if (is.null(claves)) claves <- .clave_bytes(x)
     if (any(validos & is.na(claves))) return(NA_integer_)
     return(as.integer(length(unique(claves[validos]))))
   }
@@ -2072,7 +2102,10 @@
   # textuales tienen su propio alcance, declarado por
   # `n_codificacion_invalida` y el hallazgo correspondiente.
   n_validos <- n_aplicables - n_faltantes
-  n_distintos <- .n_distintos_columna(x_identidad)
+  claves_identidad <- if (is.character(x_identidad) || is.factor(x_identidad)) {
+    .clave_bytes(x_identidad)
+  } else NULL
+  n_distintos <- .n_distintos_columna(x_identidad, claves = claves_identidad)
   valor_concentrado <- .estadisticos_valor_concentrado(x_identidad)
   vocabulario_texto <- if (
     (is.character(x_analisis) || is.factor(x_analisis)) &&
@@ -2098,7 +2131,7 @@
       valores = valores_fecha
     )
   } else NULL
-  moda <- .moda_columna(x_identidad)
+  moda <- .moda_columna(x_identidad, claves = claves_identidad)
   longitudes <- .resumen_longitud(x_analisis)
   cuantitativo <- .resumen_cuantitativo(
     x_analisis, inferencia, formatos, meses_texto = meses_texto,

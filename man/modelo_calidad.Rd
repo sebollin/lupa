@@ -261,7 +261,7 @@ metodo_origen <- function(tablas, instancia) {
   )
 }
 OrigenDeclarado <- metrica(
-  "OrigenDeclarado", "Indica si se declaró el origen del registro.",
+  "OrigenDeclarado", "Indica si se declar\u00f3 el origen del registro.",
   "instanciaAtributo", "booleano", orientacion = "conformidad",
   dimension = "Trazabilidad", factor = "Origen documentado",
   metodo = metodo_origen

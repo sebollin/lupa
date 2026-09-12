@@ -457,7 +457,14 @@ coleccion <- function(conexion, tablas, nombre = NULL) {
   # es rechazar una frontera valida. Es el mismo razonamiento por el que el
   # esquema entro en la identidad: lo que distingue dos tablas tiene que
   # distinguirlas tambien al contarlas.
-  if (anyDuplicated(declaradas[, c("catalogo", "esquema", "tabla")])) {
+  claves_declaradas <- do.call(paste, c(
+    lapply(
+      unname(declaradas[, c("catalogo", "esquema", "tabla")]),
+      .nombres_para_operar
+    ),
+    sep = "\r"
+  ))
+  if (anyDuplicated(claves_declaradas)) {
     stop("`tablas` repite una tabla.", call. = FALSE)
   }
   if (!is.null(nombre) && !.es_texto_escalar(nombre)) {
@@ -490,7 +497,9 @@ print.coleccion_lupa <- function(x, ...) {
   cli::cli_text("Colecci\u00f3n declarada: {.strong {x$nombre}}")
   cli::cli_text("Motor: {x$motor}")
   cli::cli_text("Tablas declaradas: {x$n_declaradas}")
-  esquemas <- unique(x$tablas$esquema[!is.na(x$tablas$esquema)])
+  esquemas <- .identificadores_unicos(
+    x$tablas$esquema[!is.na(x$tablas$esquema)]
+  )
   if (length(esquemas)) {
     cli::cli_text("Esquemas: {paste(esquemas, collapse = ', ')}")
   }
@@ -1100,7 +1109,9 @@ print.perfil_coleccion <- function(x, ...) {
 # `SELECT * WHERE 1 = 0` queda como reserva para los drivers que no la
 # implementan. Se consultan SOLO las tablas que hacen falta.
 .columnas_por_tabla_coleccion <- function(coleccion, identificadores) {
-  indices <- match(identificadores, coleccion$tablas$identificador)
+  indices <- .indice_identificador(
+    identificadores, coleccion$tablas$identificador
+  )
   anchos <- vapply(seq_along(indices), function(j) {
     k <- indices[[j]]
     if (is.na(k)) return(NA_real_)
@@ -1220,7 +1231,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     alcance <- "todos los pares dirigidos de la coleccion"
   } else {
     pares <- .validar_pares_coleccion(coleccion, pares, exigir = FALSE)
-    identificadores <- unique(c(pares$tabla_1, pares$tabla_2))
+    identificadores <- .identificadores_unicos(c(pares$tabla_1, pares$tabla_2))
     anchos <- if (length(identificadores)) {
       .columnas_por_tabla_coleccion(coleccion, identificadores)
     } else {
@@ -1228,17 +1239,23 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     }
     if (!is.null(columnas_candidatas) && length(anchos)) {
       anchos <- vapply(names(anchos), function(identificador) {
-        candidatas <- columnas_candidatas[[identificador]]
-        if (is.na(anchos[[identificador]]) || is.null(candidatas)) {
-          anchos[[identificador]]
+        indice_candidatas <- .indice_identificador(
+          identificador, names(columnas_candidatas)
+        )
+        candidatas <- if (is.na(indice_candidatas)) {
+          NULL
+        } else columnas_candidatas[[indice_candidatas]]
+        indice_ancho <- .indice_identificador(identificador, names(anchos))
+        if (is.na(anchos[[indice_ancho]]) || is.null(candidatas)) {
+          anchos[[indice_ancho]]
         } else {
           as.numeric(length(candidatas))
         }
       }, numeric(1L))
       names(anchos) <- identificadores
     }
-    a <- anchos[match(pares$tabla_1, names(anchos))]
-    b <- anchos[match(pares$tabla_2, names(anchos))]
+    a <- anchos[.indice_identificador(pares$tabla_1, names(anchos))]
+    b <- anchos[.indice_identificador(pares$tabla_2, names(anchos))]
     producto <- as.numeric(a) * as.numeric(b)
     estimables <- !is.na(producto)
     n_pares_estimados <- as.numeric(sum(estimables))
@@ -1299,7 +1316,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       tabla_1 = declaradas, tabla_2 = declaradas,
       stringsAsFactors = FALSE, KEEP.OUT.ATTRS = FALSE
     )
-    salida <- combinaciones[combinaciones$tabla_1 != combinaciones$tabla_2, ]
+    distintas <- .nombres_para_operar(combinaciones$tabla_1) !=
+      .nombres_para_operar(combinaciones$tabla_2)
+    salida <- combinaciones[distintas, ]
     rownames(salida) <- NULL
     attr(salida, "repetidos_descartados") <- 0
     return(salida)
@@ -1322,7 +1341,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       call. = FALSE
     )
   }
-  desconocidas <- setdiff(c(tabla_1, tabla_2), declaradas)
+  desconocidas <- .identificadores_setdiff(
+    c(tabla_1, tabla_2), declaradas
+  )
   if (length(desconocidas)) {
     stop(
       "`pares` nombra tablas que no estan declaradas en la coleccion: ",
@@ -1333,18 +1354,20 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   }
   # Un par de una tabla consigo misma produce una "relacion" trivial de cada
   # columna con ella misma y una relectura identica. No se acepta en silencio.
-  autorreferenciales <- tabla_1 == tabla_2
+  autorreferenciales <- .nombres_para_operar(tabla_1) ==
+    .nombres_para_operar(tabla_2)
   if (any(autorreferenciales)) {
     stop(
       "`pares` declara pares de una tabla consigo misma: ",
-      paste(unique(tabla_1[autorreferenciales]), collapse = ", "),
+      paste(.identificadores_unicos(tabla_1[autorreferenciales]),
+            collapse = ", "),
       ". Comparar una tabla contra si misma devuelve cada columna emparejada ",
       "con ella misma y vuelve a leer la tabla dos veces; las claves foraneas ",
       "autorreferenciales no se detectan por este camino.",
       call. = FALSE
     )
   }
-  clave <- paste(tabla_1, tabla_2, sep = "\r")
+  clave <- .clave_par_identificador(tabla_1, tabla_2, sep = "\r")
   unicos <- !duplicated(clave)
   salida <- data.frame(
     tabla_1 = tabla_1[unicos], tabla_2 = tabla_2[unicos],
@@ -1386,14 +1409,14 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   if (is.null(columnas)) return(NULL)
   if (!is.list(columnas) || is.null(names(columnas)) ||
       anyNA(names(columnas)) || any(!nzchar(names(columnas))) ||
-      anyDuplicated(names(columnas))) {
+      anyDuplicated(.nombres_para_operar(names(columnas)))) {
     stop(
       "`columnas_candidatas` debe ser una lista nombrada por identificador de tabla.",
       call. = FALSE
     )
   }
   declaradas <- coleccion$tablas$identificador
-  desconocidas <- setdiff(names(columnas), declaradas)
+  desconocidas <- .identificadores_setdiff(names(columnas), declaradas)
   if (length(desconocidas)) {
     stop(
       "`columnas_candidatas` nombra tablas no declaradas en la coleccion: ",
@@ -1409,7 +1432,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
         "` debe ser un vector de nombres no vacio.", call. = FALSE
       )
     }
-    k <- match(identificador, declaradas)
+    k <- .indice_identificador(identificador, declaradas)
     campos <- tryCatch(
       DBI::dbListFields(coleccion$conexion, coleccion$tablas$referencia[[k]]),
       error = function(e) NULL
@@ -1451,12 +1474,17 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
   cache_completa <- TRUE
 
   referencia_de <- function(identificador) {
-    k <- match(identificador, coleccion$tablas$identificador)
+    k <- .indice_identificador(identificador, coleccion$tablas$identificador)
     if (is.na(k)) identificador else coleccion$tablas$referencia[[k]]
   }
   orden_de <- function(identificador) {
     if (is.null(orden)) return(character())
-    columnas <- if (is.character(orden)) orden else orden[[identificador]]
+    columnas <- if (is.character(orden)) {
+      orden
+    } else {
+      indice <- .indice_identificador(identificador, names(orden))
+      if (is.na(indice)) NULL else orden[[indice]]
+    }
     if (is.null(columnas)) return(character())
     columnas <- as.character(columnas)
     campos <- tryCatch(
@@ -1472,14 +1500,16 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
 
   candidatas_de <- function(identificador) {
     if (is.null(columnas_candidatas)) return(NULL)
-    columnas <- columnas_candidatas[[identificador]]
+    indice <- .indice_identificador(identificador, names(columnas_candidatas))
+    columnas <- if (is.na(indice)) NULL else columnas_candidatas[[indice]]
     if (is.null(columnas)) NULL else as.character(columnas)
   }
 
   leer <- function(identificador) {
-    if (exists(identificador, envir = cache, inherits = FALSE)) {
+    cache_key <- .nombres_para_operar(identificador)
+    if (exists(cache_key, envir = cache, inherits = FALSE)) {
       reutilizaciones <<- reutilizaciones + 1L
-      return(get(identificador, envir = cache, inherits = FALSE))
+      return(get(cache_key, envir = cache, inherits = FALSE))
     }
     referencia <- referencia_de(identificador)
     tabla_sql <- tryCatch(
@@ -1488,7 +1518,9 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     )
     columnas_orden <- orden_de(identificador)
     columnas_seleccionadas <- candidatas_de(identificador)
-    columnas_lectura <- unique(c(columnas_seleccionadas, columnas_orden))
+    columnas_lectura <- .identificadores_unicos(
+      c(columnas_seleccionadas, columnas_orden)
+    )
     seleccion_sql <- if (length(columnas_lectura)) {
       paste(
         as.character(DBI::dbQuoteIdentifier(conexion, columnas_lectura)),
@@ -1557,7 +1589,7 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
     )
     tamano_mb <- as.numeric(utils::object.size(resultado$datos)) / 1024^2
     if (usados_mb + tamano_mb <= tope_cache_mb) {
-      assign(identificador, resultado$datos, envir = cache)
+      assign(cache_key, resultado$datos, envir = cache)
       usados_mb <<- usados_mb + tamano_mb
     } else {
       cache_completa <<- FALSE
@@ -1850,7 +1882,9 @@ relaciones_coleccion <- function(coleccion, pares, muestra = 1e4,
       pares_repetidos_descartados = repetidos,
       muestra_por_tabla = muestra,
       umbral_cobertura = umbral_cobertura,
-      tablas_distintas = length(unique(c(pares$tabla_1, pares$tabla_2))),
+      tablas_distintas = length(.identificadores_unicos(
+        c(pares$tabla_1, pares$tabla_2)
+      )),
       lecturas_realizadas = estado$lecturas,
       lecturas_evitadas_por_cache = estado$reutilizaciones,
       tablas_en_cache = estado$tablas_en_cache,

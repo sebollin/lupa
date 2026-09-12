@@ -1338,7 +1338,9 @@
                                     .MAX_BYTES_ESTADO_BLOQUES,
                                   metricas_publicas = preparacion$metricas) {
   bloque_filas <- .validar_bloque_filas_dbi(bloque_filas)
-  metricas_publicas <- unique(as.character(metricas_publicas %||% metricas))
+  metricas_publicas <- .identificadores_unicos(
+    as.character(metricas_publicas %||% metricas)
+  )
   if (!identical(preparacion$universo, "tabla_completa")) {
     motivo <- "no_disponible:fuente_bloques_solo_tabla_completa"
     fuente <- structure(list(

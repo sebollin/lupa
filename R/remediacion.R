@@ -210,13 +210,14 @@
   colisionados <- rep(FALSE, length(antes))
   if (any(presentes)) {
     pares <- unique(data.frame(
-      original = antes[presentes], convertido = despues[presentes],
+      original = .nombres_para_operar(antes[presentes]),
+      convertido = .nombres_para_operar(despues[presentes]),
       stringsAsFactors = FALSE
     ))
     por_valor <- split(pares$original, pares$convertido)
     repetidos <- unique(unlist(por_valor[lengths(por_valor) > 1L],
                                use.names = FALSE))
-    colisionados <- presentes & antes %in% repetidos
+    colisionados <- presentes & .nombres_para_operar(antes) %in% repetidos
   }
   destino <- if (identical(estrategia, "convertir_numero_regional")) {
     "numerico"
@@ -1004,7 +1005,9 @@ planificar_limpieza <- function(perfil, datos = NULL,
     if (length(candidatas)) {
       por_dependiente <- split(
         seq_along(candidatas),
-        vapply(candidatas, `[[`, character(1L), "dependiente")
+        .nombres_para_operar(vapply(
+          candidatas, `[[`, character(1L), "dependiente"
+        ))
       )
       numero_grupo <- nrow(hallazgos)
       for (indices in por_dependiente) {
@@ -1723,7 +1726,12 @@ planificar_limpieza <- function(perfil, datos = NULL,
   # codigos enteros que salen de ahi `duplicated()` es el de base y si honra
   # `fromLast`. Ademas es una sola definicion de "misma fila" para las tres
   # cosas que antes usaban dos.
-  factores <- lapply(datos_base, function(x) factor(x, exclude = NULL))
+  factores <- lapply(datos_base, function(x) {
+    valores <- if (is.character(x) || is.factor(x)) {
+      .nombres_para_operar(as.character(x))
+    } else x
+    factor(valores, exclude = NULL)
+  })
   codigos <- as.integer(do.call(
     interaction, c(factores, list(drop = TRUE, lex.order = TRUE))
   ))
@@ -1760,7 +1768,12 @@ planificar_limpieza <- function(perfil, datos = NULL,
   if (any(vapply(claves, is.list, logical(1L)))) {
     stop("La clave no puede contener columnas de lista.", call. = FALSE)
   }
-  factores <- lapply(claves, function(x) factor(x, exclude = NULL))
+  factores <- lapply(claves, function(x) {
+    valores <- if (is.character(x) || is.factor(x)) {
+      .nombres_para_operar(as.character(x))
+    } else x
+    factor(valores, exclude = NULL)
+  })
   codigos <- as.integer(do.call(
     interaction, c(factores, list(drop = TRUE, lex.order = TRUE))
   ))

@@ -116,7 +116,9 @@ sugerir_clave <- function(datos, maximo = 5L, umbral_casi = 0.95) {
     if (is.list(x) && !inherits(x, "POSIXlt")) return(NULL)
     n_validos <- sum(!is.na(x))
     if (!n_validos) return(NULL)
-    distintos <- length(unique(x[!is.na(x)]))
+    distintos <- if (is.character(x) || is.factor(x)) {
+      length(unique(.nombres_para_operar(as.character(x[!is.na(x)]))))
+    } else length(unique(x[!is.na(x)]))
     tasa <- distintos / n_validos
     identifica <- distintos == nrow(datos) && n_validos == nrow(datos)
     if (!identifica && tasa < umbral_casi) return(NULL)

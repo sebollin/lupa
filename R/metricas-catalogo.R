@@ -576,7 +576,8 @@
     )
   }
   if (!is.null(names(coeficientes)) &&
-      (any(!nzchar(names(coeficientes))) || anyDuplicated(names(coeficientes)))) {
+      (any(!nzchar(names(coeficientes))) ||
+       anyDuplicated(.nombres_para_operar(names(coeficientes))))) {
     stop("Los nombres de `coeficientes` deben ser \u00fanicos y no vac\u00edos.",
          call. = FALSE)
   }
@@ -592,13 +593,14 @@
   .validar_atributos_tabla(tabla, instancia, minimo = 1L)
   pesos <- instancia$configuracion$coeficientes
   if (!is.null(names(pesos))) {
-    if (!setequal(names(pesos), instancia$atributos)) {
+    if (!setequal(.nombres_para_operar(names(pesos)),
+                  .nombres_para_operar(instancia$atributos))) {
       stop(
         "Los nombres de `coeficientes` deben coincidir con los atributos ligados.",
         call. = FALSE
       )
     }
-    pesos <- pesos[instancia$atributos]
+    pesos <- pesos[.indice_identificador(instancia$atributos, names(pesos))]
   } else if (length(pesos) != length(instancia$atributos)) {
     stop("Debe haber un coeficiente por atributo ligado.", call. = FALSE)
   }

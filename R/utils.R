@@ -14,8 +14,22 @@
 # porque hay desempates que ordenan por DOS criterios -primero la frecuencia,
 # despues el texto- y ahi no sirve una funcion que ya devuelva el vector
 # ordenado: hace falta la clave para pasarsela a `order()`.
+.es_ascii <- function(x) {
+  if (!length(x)) return(TRUE)
+  !any(grepl("[^\\001-\\177]", x, useBytes = TRUE, perl = TRUE))
+}
+
 .clave_bytes <- function(x) {
-  clave <- tryCatch(enc2utf8(as.character(x)), error = function(e) as.character(x))
+  crudo <- tryCatch(as.character(x), error = function(e) NULL)
+  # En ASCII no hay marca ni conversion que pueda cambiar la representacion.
+  # La sonda es vectorizada y se paga una sola vez; no se entra a `validUTF8()`
+  # ni a `iconv()` para el caso que domina los perfiles.
+  if (!is.null(crudo) && .es_ascii(crudo)) return(crudo)
+  clave <- if (is.null(crudo)) {
+    tryCatch(enc2utf8(as.character(x)), error = function(e) as.character(x))
+  } else {
+    tryCatch(enc2utf8(crudo), error = function(e) crudo)
+  }
   invalidos <- !is.na(clave) & !validUTF8(clave)
   if (any(invalidos)) {
     clave[invalidos] <- iconv(clave[invalidos], to = "UTF-8", sub = "byte")
@@ -37,9 +51,7 @@
   # En el caso habitual (nombres ASCII) R ya considera iguales las marcas
   # `unknown` y `UTF-8`; evitar el resto de la preparacion mantiene barata la
   # ruta que se ejecuta en cada columna de una tabla grande.
-  no_ascii <- vapply(nombres, function(nombre) {
-    !is.na(nombre) && any(as.integer(charToRaw(nombre)) > 127L)
-  }, logical(1L))
+  no_ascii <- grepl("[^\\001-\\177]", nombres, useBytes = TRUE, perl = TRUE)
   reservado <- rep(FALSE, length(nombres))
   indices_ascii <- which(!is.na(nombres) & !no_ascii)
   if (length(indices_ascii)) {
@@ -74,6 +86,42 @@
     }, character(1L))
   }
   salida
+}
+
+# Estos ayudantes extienden la misma política a identificadores que no son
+# nombres de columna: dimensiones, métricas, reglas y fronteras declaradas.
+# Devuelven los originales para que el texto que el usuario escribió siga
+# siendo el que se publica; sólo la decisión de pertenencia usa la clave estable.
+.identificadores_en <- function(x, y) {
+  .nombres_para_operar(x) %in% .nombres_para_operar(y)
+}
+
+.identificadores_unicos <- function(x) {
+  originales <- as.character(x)
+  originales[!duplicated(.nombres_para_operar(originales))]
+}
+
+.identificadores_setdiff <- function(x, y) {
+  originales <- as.character(x)
+  originales[!.identificadores_en(originales, y)]
+}
+
+.identificadores_intersect <- function(x, y) {
+  originales <- as.character(x)
+  originales[.identificadores_en(originales, y)]
+}
+
+.identificadores_ordenados <- function(x) {
+  originales <- as.character(x)
+  originales[order(.nombres_para_operar(originales), method = "radix")]
+}
+
+.indice_identificador <- function(pedidos, nombres) {
+  match(.nombres_para_operar(pedidos), .nombres_para_operar(nombres))
+}
+
+.clave_par_identificador <- function(a, b, sep = "|") {
+  paste(.nombres_para_operar(a), .nombres_para_operar(b), sep = sep)
 }
 
 # `make.unique()` se usa para claves internas y para nombres de listas. No se le
@@ -158,7 +206,7 @@
 }
 
 .indice_nombre <- function(pedidos, nombres) {
-  match(.nombres_para_operar(pedidos), .nombres_para_operar(nombres))
+  .indice_identificador(pedidos, nombres)
 }
 
 .nombres_resueltos <- function(pedidos, nombres) {
@@ -633,6 +681,17 @@
   invalidos <- !is.na(valores) & !validUTF8(valores)
   posiciones <- which(invalidos)
   if (length(posiciones)) valores[posiciones] <- NA_character_
+  # Un texto con bytes UTF-8 validos puede llegar con marca `unknown` (por
+  # ejemplo, desde `read.csv()`); bajo `LC_CTYPE=C`, `trimws()`, `tolower()` y
+  # varias primitivas de R intentan traducirlo y advierten o comparan distinto.
+  # La marca no cambia los bytes ni el texto publicado: sólo fija la forma de
+  # trabajo, igual que `.nombres_para_operar()` para los identificadores.
+  validos <- !is.na(valores) & validUTF8(valores)
+  if (any(validos)) {
+    marcados <- valores[validos]
+    Encoding(marcados) <- "UTF-8"
+    valores[validos] <- marcados
+  }
   list(
     valores = valores, invalidos = invalidos, posiciones = posiciones,
     # La igualdad y la descripcion textual tienen universos distintos. La

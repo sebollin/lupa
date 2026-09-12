@@ -997,6 +997,29 @@ print.normalizacion_lupa <- function(x, ...) {
   gsub("[\u2019\u201A\u201B]", "'", textos, fixed = FALSE)
 }
 
+# La normalizacion por omision esta pensada para texto humano, pero los
+# vocabularios de codigos suelen ser ASCII. En ese universo, acentos,
+# descomposicion canonica, ancho y ligaduras no pueden hacer nada. Esta guarda
+# ademas descarta el caso en que alguno de los pasos configurables si puede
+# cambiar un byte ASCII; los falsos positivos solo conservan la ruta completa.
+.normalizacion_ascii_sin_cambios <- function(textos, perfil) {
+  if (!.es_ascii(textos)) return(FALSE)
+  if (isTRUE(perfil$minusculas) && any(grepl(
+    "[A-Z]", textos, useBytes = TRUE, perl = TRUE
+  ))) return(FALSE)
+  if (isTRUE(perfil$espacios) && any(grepl(
+    "[[:space:]]|[\\x00-\\x08\\x0E-\\x1F\\x7F]",
+    textos, useBytes = TRUE, perl = TRUE
+  ))) return(FALSE)
+  if (isTRUE(perfil$comillas) && any(grepl(
+    "[\"']", textos, useBytes = TRUE, perl = TRUE
+  ))) return(FALSE)
+  if (isTRUE(perfil$puntuacion) && any(grepl(
+    "[[:punct:]]", textos, useBytes = TRUE, perl = TRUE
+  ))) return(FALSE)
+  TRUE
+}
+
 .normalizacion_vector_rapida <- function(textos, perfil) {
   original <- as.character(textos)
   nombres <- names(original)
@@ -1004,6 +1027,7 @@ print.normalizacion_lupa <- function(x, ...) {
   names(salida) <- nombres
   no_na <- !is.na(salida)
   if (!any(no_na)) return(salida)
+  if (.normalizacion_ascii_sin_cambios(salida, perfil)) return(salida)
 
   # Las sustituciones de tablas, puntuación, ancho y comillas se aplican sobre
   # el vector completo. Sólo las cadenas con marcas combinantes múltiples o
@@ -1134,12 +1158,18 @@ print.normalizacion_lupa <- function(x, ...) {
   if (!length(textos)) {
     return(list(pasos = list(), n_distintos_normalizados = 0L))
   }
-  completo <- .normalizacion_aplicar(textos, perfil)
-  n_completo <- length(unique(completo))
-  pasos <- list()
   nombres <- c("espacios", "ancho", "ligaduras", "comillas",
                "puntuacion", "acentos", "minusculas")
   activos <- nombres[vapply(perfil[nombres], isTRUE, logical(1L))]
+  if (.normalizacion_ascii_sin_cambios(textos, perfil)) {
+    return(list(
+      pasos = stats::setNames(as.list(rep.int(0L, length(activos))), activos),
+      n_distintos_normalizados = length(unique(textos))
+    ))
+  }
+  completo <- .normalizacion_aplicar(textos, perfil)
+  n_completo <- length(unique(completo))
+  pasos <- list()
   for (nombre in activos) {
     sin_paso <- perfil
     sin_paso[[nombre]] <- FALSE

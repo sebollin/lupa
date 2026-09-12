@@ -154,11 +154,13 @@
     return(marco_agesic())
   }
   agesic <- marco_agesic()
-  claves <- paste(factores$dimension, factores$factor, sep = "\r")
-  claves_agesic <- paste(
+  claves <- .clave_par_identificador(
+    factores$dimension, factores$factor, sep = "\r"
+  )
+  claves_agesic <- .clave_par_identificador(
     agesic$factores$dimension, agesic$factores$factor, sep = "\r"
   )
-  if (all(claves %in% claves_agesic)) agesic else {
+  if (all(.identificadores_en(claves, claves_agesic))) agesic else {
     marco_calidad("Marco del modelo confirmado", factores)
   }
 }
@@ -291,7 +293,7 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
     stop("Todos los argumentos de perfilar() deben tener nombre.", call. = FALSE)
   }
   argumentos_perfil <- c(argumentos_perfil, extras)
-  if (anyDuplicated(names(argumentos_perfil))) {
+  if (anyDuplicated(.nombres_para_operar(names(argumentos_perfil)))) {
     stop("Los argumentos de perfilar() no pueden repetirse.", call. = FALSE)
   }
   reservados <- c("datos", "nombre", "fecha", "muestra",
@@ -390,15 +392,17 @@ analizar <- function(datos, nombre = .nombre_de_los_datos(substitute(datos)),
       x$declaracion$factor
     }, character(1L))
     claves_modelo <- vapply(modelo_elegido$metricas, function(x) {
-      paste(x$declaracion$dimension, x$declaracion$factor, sep = "\r")
+      .clave_par_identificador(
+        x$declaracion$dimension, x$declaracion$factor, sep = "\r"
+      )
     }, character(1L))
-    claves_marco <- paste(
+    claves_marco <- .clave_par_identificador(
       marco_elegido$factores$dimension, marco_elegido$factores$factor,
       sep = "\r"
     )
     if (!anyNA(dimensiones_modelo) && !anyNA(factores_modelo) &&
         all(nzchar(dimensiones_modelo)) && all(nzchar(factores_modelo)) &&
-        all(claves_modelo %in% claves_marco)) {
+        all(.identificadores_en(claves_modelo, claves_marco))) {
       modelo_elegido <- modelo(modelo_elegido$metricas, marco = marco_elegido)
     }
   }

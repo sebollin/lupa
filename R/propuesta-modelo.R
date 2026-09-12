@@ -359,14 +359,15 @@ modelo_desde_propuesta <- function(propuesta) {
   nucleo <- metricas_nucleo()
   instancias <- lapply(seleccion, function(i) {
     nombre <- propuesta$metrica[[i]]
-    if (!nombre %in% names(nucleo)) {
+    indice_nucleo <- .indice_identificador(nombre, names(nucleo))
+    if (is.na(indice_nucleo)) {
       stop("No existe una m\u00e9trica materializable llamada '", nombre, "'.",
            call. = FALSE)
     }
     configuracion <- propuesta$configuracion[[i]]
     especifica <- do.call(
       especializar,
-      c(list(metrica = nucleo[[nombre]],
+      c(list(metrica = nucleo[[indice_nucleo]],
              nombre_especifico = paste0(nombre, "Propuesto")), configuracion)
     )
     instanciar(

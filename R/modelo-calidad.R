@@ -57,9 +57,10 @@
     ))
   }, character(1L))
   names(metricas) <- vapply(modelo$metricas, `[[`, character(1L), "nombre")
-  entidades <- sort(unique(unlist(lapply(
-    modelo$metricas, `[[`, "entidad"
-  ), use.names = FALSE)))
+  entidades <- unlist(lapply(modelo$metricas, `[[`, "entidad"),
+                      use.names = FALSE)
+  entidades <- .identificadores_unicos(entidades)
+  entidades <- .identificadores_ordenados(entidades)
   list(version = 1L, entidades = entidades, metricas = metricas)
 }
 
@@ -138,14 +139,14 @@
       (is.null(names(configuracion)) || any(!nzchar(names(configuracion))))) {
     stop("Todas las propiedades de configuraci\u00f3n deben tener nombre.", call. = FALSE)
   }
-  desconocidas <- setdiff(names(configuracion), propiedades)
+  desconocidas <- .identificadores_setdiff(names(configuracion), propiedades)
   if (length(desconocidas)) {
     stop(
       "Propiedades no declaradas: ", paste(desconocidas, collapse = ", "), ".",
       call. = FALSE
     )
   }
-  faltantes <- setdiff(propiedades, names(configuracion))
+  faltantes <- .identificadores_setdiff(propiedades, names(configuracion))
   if (length(faltantes)) {
     stop(
       "Faltan propiedades de configuraci\u00f3n: ",
@@ -159,13 +160,14 @@
 .validar_propiedades_devueltas <- function(configuracion, propiedades) {
   if (length(configuracion) &&
       (is.null(names(configuracion)) || anyNA(names(configuracion)) ||
-       any(!nzchar(names(configuracion))) || anyDuplicated(names(configuracion)))) {
+       any(!nzchar(names(configuracion))) ||
+       anyDuplicated(.nombres_para_operar(names(configuracion))))) {
     stop(
       "El validador de propiedades debe devolver una lista con nombres \u00fanicos.",
       call. = FALSE
     )
   }
-  desconocidas <- setdiff(names(configuracion), propiedades)
+  desconocidas <- .identificadores_setdiff(names(configuracion), propiedades)
   if (length(desconocidas)) {
     stop(
       "El validador devolvi\u00f3 propiedades no declaradas: ",
@@ -440,7 +442,7 @@
 #'   )
 #' }
 #' OrigenDeclarado <- metrica(
-#'   "OrigenDeclarado", "Indica si se declaró el origen del registro.",
+#'   "OrigenDeclarado", "Indica si se declar\u00f3 el origen del registro.",
 #'   "instanciaAtributo", "booleano", orientacion = "conformidad",
 #'   dimension = "Trazabilidad", factor = "Origen documentado",
 #'   metodo = metodo_origen
@@ -509,11 +511,13 @@ metrica <- function(nombre, semantica, granularidad, tipo_resultado,
   tipo_resultado <- .validar_tipo_resultado(tipo_resultado)
   orientacion <- .validar_orientacion(orientacion, tipo_resultado)
   if (!is.character(propiedades) || anyNA(propiedades) ||
-      any(!nzchar(propiedades)) || anyDuplicated(propiedades)) {
+      any(!nzchar(propiedades)) ||
+      anyDuplicated(.nombres_para_operar(propiedades))) {
     stop("`propiedades` debe contener nombres \u00fanicos no vac\u00edos.", call. = FALSE)
   }
-  if (any(.nombres_make_names(propiedades) != propiedades) ||
-      "nombre_especifico" %in% propiedades) {
+  if (any(.nombres_make_names(propiedades) !=
+          .nombres_para_operar(propiedades)) ||
+      .identificadores_en("nombre_especifico", propiedades)) {
     stop("Las propiedades deben ser nombres sint\u00e1cticos no reservados.",
          call. = FALSE)
   }
@@ -658,7 +662,9 @@ propiedades_metrica <- function(x) {
   }
   data.frame(
     propiedad = declaracion$propiedades,
-    configurada = declaracion$propiedades %in% names(configuracion),
+    configurada = .identificadores_en(
+      declaracion$propiedades, names(configuracion)
+    ),
     stringsAsFactors = FALSE
   )
 }
@@ -676,20 +682,22 @@ modelo <- function(..., marco = NULL) {
     stop("`modelo()` requiere una o m\u00e1s m\u00e9tricas instanciadas.", call. = FALSE)
   }
   nombres <- vapply(metricas, `[[`, character(1L), "nombre")
-  if (anyDuplicated(nombres)) {
+  if (anyDuplicated(.nombres_para_operar(nombres))) {
     stop("Los nombres de las m\u00e9tricas instanciadas deben ser \u00fanicos.", call. = FALSE)
   }
   if (!is.null(marco)) {
     if (!inherits(marco, "marco_calidad")) {
       stop("`marco` debe provenir de marco_calidad().", call. = FALSE)
     }
-    declaradas <- paste(
-      marco$factores$dimension, marco$factores$factor, sep = "|"
+    declaradas <- .clave_par_identificador(
+      marco$factores$dimension, marco$factores$factor
     )
     claves <- vapply(metricas, function(x) {
-      paste(x$declaracion$dimension, x$declaracion$factor, sep = "|")
+      .clave_par_identificador(
+        x$declaracion$dimension, x$declaracion$factor
+      )
     }, character(1L))
-    fuera <- !claves %in% declaradas
+    fuera <- !.identificadores_en(claves, declaradas)
     if (any(fuera)) {
       stop(
         "El marco no declara estos pares dimensi\u00f3n-factor: ",
@@ -780,10 +788,11 @@ modelo <- function(..., marco = NULL) {
 }
 
 .obtener_tabla_modelo <- function(tablas, nombre) {
-  if (!nombre %in% names(tablas)) {
+  indice <- .indice_identificador(nombre, names(tablas))
+  if (is.na(indice)) {
     stop("No se encontr\u00f3 la entidad ligada: ", nombre, ".", call. = FALSE)
   }
-  .tabla_base(tablas[[nombre]])
+  .tabla_base(tablas[[indice]])
 }
 
 .obtener_columna_modelo <- function(tabla, nombre, entidad) {
@@ -1070,7 +1079,7 @@ metricas_nucleo <- function() {
     ))
   }
   if (!is.list(datos) || is.null(names(datos)) || any(!nzchar(names(datos))) ||
-      anyDuplicated(names(datos)) ||
+      anyDuplicated(.nombres_para_operar(names(datos))) ||
       !all(vapply(datos, inherits, logical(1L), "data.frame"))) {
     stop(
       "`datos` debe ser un data.frame o una lista con nombre de data frames.",
@@ -1092,7 +1101,7 @@ metricas_nucleo <- function() {
   requeridas <- unique(unlist(
     lapply(modelo$metricas, `[[`, "entidad"), use.names = FALSE
   ))
-  faltantes <- setdiff(requeridas, names(datos))
+  faltantes <- .identificadores_setdiff(requeridas, names(datos))
   if (length(faltantes)) {
     stop(
       "Faltan tablas para las entidades del modelo: ",
@@ -1155,11 +1164,13 @@ metricas_nucleo <- function() {
 .cobertura_metrica_no_evaluada <- function(tablas, instancia, id_medicion,
                                            fecha) {
   entidad <- instancia$entidad[[1L]]
-  entidades_ligadas <- intersect(instancia$entidad, names(tablas))
+  entidades_ligadas <- .identificadores_intersect(instancia$entidad, names(tablas))
+  indices_entidades <- .indice_identificador(entidades_ligadas, names(tablas))
   entidades_vacias <- entidades_ligadas[vapply(
-    tablas[entidades_ligadas], function(tabla) !nrow(tabla), logical(1L)
+    tablas[indices_entidades], function(tabla) !nrow(tabla), logical(1L)
   )]
-  tabla <- tablas[[entidad]]
+  indice_entidad <- .indice_identificador(entidad, names(tablas))
+  tabla <- if (is.na(indice_entidad)) NULL else tablas[[indice_entidad]]
   nombre <- instancia$nombre
   sujeto <- paste0("la m\u00e9trica `", nombre, "`")
   if (length(entidades_vacias)) {

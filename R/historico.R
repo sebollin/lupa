@@ -91,7 +91,8 @@
   if (length(perfiles) == 1L) perfiles <- rep(perfiles, length(ids))
   entidades <- if (is.list(configuracion_modelo) &&
                    length(configuracion_modelo$entidades)) {
-    paste(sort(as.character(configuracion_modelo$entidades)), collapse = "+")
+    paste(.identificadores_ordenados(configuracion_modelo$entidades),
+          collapse = "+")
   } else NA_character_
   data.frame(
     id_medicion = ids, fecha = .fecha_utc(fechas), perfil = as.character(perfiles),
@@ -118,14 +119,14 @@
   configuracion <- attr(x, "configuracion_modelo", exact = TRUE)
   aplicabilidad <- attr(x, "configuracion_aplicabilidad", exact = TRUE)
   cobertura <- attr(x, "cobertura_metricas", exact = TRUE)
-  ids <- unique(c(
+  ids <- .identificadores_unicos(c(
     as.character(x$id_medicion),
     if (inherits(cobertura, "data.frame")) as.character(cobertura$id_medicion)
   ))
   fechas <- if (length(ids) && nrow(x)) {
-    x$fecha[match(ids, x$id_medicion)]
+    x$fecha[.indice_identificador(ids, x$id_medicion)]
   } else if (length(ids) && inherits(cobertura, "data.frame")) {
-    cobertura$fecha[match(ids, cobertura$id_medicion)]
+    cobertura$fecha[.indice_identificador(ids, cobertura$id_medicion)]
   } else {
     as.POSIXct(character())
   }
@@ -145,12 +146,12 @@
     if (!inherits(cobertura, "data.frame")) {
       return(.configuraciones_historico_vacias())
     }
-    ids <- unique(as.character(cobertura$id_medicion))
-    fechas <- cobertura$fecha[match(ids, cobertura$id_medicion)]
+    ids <- .identificadores_unicos(as.character(cobertura$id_medicion))
+    fechas <- cobertura$fecha[.indice_identificador(ids, cobertura$id_medicion)]
     perfiles <- NA_character_
   } else {
-    ids <- unique(as.character(fuente$id_medicion))
-    fechas <- fuente$fecha[match(ids, fuente$id_medicion)]
+    ids <- .identificadores_unicos(as.character(fuente$id_medicion))
+    fechas <- fuente$fecha[.indice_identificador(ids, fuente$id_medicion)]
     nombre_perfil <- if (inherits(x$perfiles, "data.frame") &&
                          nrow(x$perfiles)) {
       x$perfiles$perfil[[1L]]
@@ -174,7 +175,10 @@
   x <- x[.columnas_configuracion_historico]
   if (nrow(x) && (
     anyNA(x$id_medicion) || any(!nzchar(x$id_medicion)) || anyNA(x$fecha) ||
-      anyDuplicated(paste(x$id_medicion, x$perfil, sep = "\034"))
+      anyDuplicated(paste(
+        .nombres_para_operar(x$id_medicion),
+        .nombres_para_operar(x$perfil), sep = "\034"
+      ))
   )) {
     stop("La configuraci\u00f3n del hist\u00f3rico contiene registros inv\u00e1lidos o duplicados.",
          call. = FALSE)
@@ -188,8 +192,14 @@
   nuevo <- .validar_configuraciones_historico(nuevo)
   if (!nrow(anterior)) return(nuevo)
   if (!nrow(nuevo)) return(anterior)
-  clave_anterior <- paste(anterior$id_medicion, anterior$perfil, sep = "\034")
-  clave_nuevo <- paste(nuevo$id_medicion, nuevo$perfil, sep = "\034")
+  clave_anterior <- paste(
+    .nombres_para_operar(anterior$id_medicion),
+    .nombres_para_operar(anterior$perfil), sep = "\034"
+  )
+  clave_nuevo <- paste(
+    .nombres_para_operar(nuevo$id_medicion),
+    .nombres_para_operar(nuevo$perfil), sep = "\034"
+  )
   compartidas <- intersect(clave_nuevo, clave_anterior)
   for (clave in compartidas) {
     i <- match(clave, clave_nuevo)
@@ -204,7 +214,7 @@
   }
   resultado <- rbind(
     anterior,
-    nuevo[!clave_nuevo %in% clave_anterior, , drop = FALSE]
+    nuevo[!.identificadores_en(clave_nuevo, clave_anterior), , drop = FALSE]
   )
   rownames(resultado) <- NULL
   resultado
@@ -212,15 +222,16 @@
 
 .valor_columna <- function(x, nombre, tipo = c("texto", "entero")) {
   tipo <- match.arg(tipo)
-  if (!nombre %in% names(x)) {
+  indice <- .indice_nombre(nombre, names(x))
+  if (is.na(indice)) {
     return(if (tipo == "entero") rep(NA_integer_, nrow(x)) else {
       rep(NA_character_, nrow(x))
     })
   }
   if (tipo == "entero") {
-    as.integer(x[[nombre]])
+    as.integer(x[[indice]])
   } else {
-    as.character(.texto_analizable(x[[nombre]])$valores)
+    as.character(.texto_analizable(x[[indice]])$valores)
   }
 }
 
@@ -405,7 +416,7 @@
     )
   }
   ids_incompletos <- if (nrow(x)) {
-    unique(x$id_medicion[x$nivel == "metrica_no_evaluada"])
+    .identificadores_unicos(x$id_medicion[x$nivel == "metrica_no_evaluada"])
   } else character()
   valores_suprimidos <- if (nrow(x) && "objeto_medible" %in% names(x)) {
     !is.na(x$objeto_medible) &
@@ -422,7 +433,9 @@
        anyNA(x$fecha) ||
        any(is.na(x$resultado) & !(
          x$nivel == "metrica_no_evaluada" |
-           niveles_evaluacion & x$id_medicion %in% ids_incompletos |
+           niveles_evaluacion & .identificadores_en(
+             x$id_medicion, ids_incompletos
+           ) |
            x$nivel == "medida" & valores_suprimidos
        )))) {
     stop("El hist\u00f3rico contiene identificadores, fechas o resultados inv\u00e1lidos.",
@@ -452,12 +465,15 @@
     "medida", "evaluacion_medida", "evaluacion_regla", "evaluacion_perfil",
     "metrica_no_evaluada"
   )
-  if (nrow(x) && (any(!x$nivel %in% niveles) || anyDuplicated(x$id_registro))) {
+  if (nrow(x) && (any(!x$nivel %in% niveles) ||
+                  anyDuplicated(.nombres_para_operar(x$id_registro)))) {
     stop("El hist\u00f3rico contiene niveles o identificadores de registro duplicados.",
          call. = FALSE)
   }
   if (nrow(x)) {
-    fechas <- split(as.numeric(x$fecha), x$id_medicion, drop = TRUE)
+    fechas <- split(
+      as.numeric(x$fecha), .nombres_para_operar(x$id_medicion), drop = TRUE
+    )
     if (any(vapply(fechas, function(z) length(unique(z)) != 1L, logical(1L)))) {
       stop("Cada `id_medicion` debe corresponder a una \u00fanica fecha.",
            call. = FALSE)
@@ -478,7 +494,10 @@
     attr(anterior, "configuracion_evaluacion", exact = TRUE),
     attr(nuevo, "configuracion_evaluacion", exact = TRUE)
   )
-  coincidencias <- match(nuevo$id_registro, anterior$id_registro, nomatch = 0L)
+  coincidencias <- .indice_identificador(
+    nuevo$id_registro, anterior$id_registro
+  )
+  coincidencias[is.na(coincidencias)] <- 0L
   repetidos <- which(coincidencias > 0L)
   if (length(repetidos)) {
     iguales <- vapply(repetidos, function(i) {
@@ -548,10 +567,12 @@
   }, logical(1L))]
   if (!length(partes)) return(NULL)
   resultado <- do.call(rbind, partes)
-  resultado[
-    !duplicated(resultado[c("id_medicion", "id_medida", "regla")]),
-    , drop = FALSE
-  ]
+  clave <- paste(
+    .nombres_para_operar(resultado$id_medicion),
+    .nombres_para_operar(resultado$id_medida),
+    .nombres_para_operar(resultado$regla), sep = "\r"
+  )
+  resultado[!duplicated(clave), , drop = FALSE]
 }
 
 #' Construir y ampliar un histórico de calidad
@@ -779,8 +800,10 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
   configuraciones <- attr(historico, "configuracion_evaluacion", exact = TRUE)
   clave_configuracion <- function(ids, perfiles) {
     paste(
-      as.character(ids),
-      ifelse(is.na(perfiles), "~", as.character(perfiles)), sep = "\034"
+      .nombres_para_operar(as.character(ids)),
+      ifelse(
+        is.na(perfiles), "~", .nombres_para_operar(as.character(perfiles))
+      ), sep = "\034"
     )
   }
   claves_datos <- clave_configuracion(datos$id_medicion, datos$perfil)
@@ -793,10 +816,15 @@ detectar_deriva_calidad <- function(historico, nivel = c("perfil", "regla"),
     identidad <- configuraciones$identidad_tabla[indices_configuracion]
   }
   identidad[is.na(identidad) | !nzchar(identidad)] <- "<sin_configuracion>"
-  clave <- if (nivel == "perfil") datos$perfil else {
-    paste(datos$perfil, datos$regla, sep = "\034")
+  clave <- if (nivel == "perfil") {
+    .nombres_para_operar(datos$perfil)
+  } else {
+    paste(
+      .nombres_para_operar(datos$perfil),
+      .nombres_para_operar(datos$regla), sep = "\034"
+    )
   }
-  clave <- paste(clave, identidad, sep = "\034")
+  clave <- paste(clave, .nombres_para_operar(identidad), sep = "\034")
   grupos <- split(seq_len(nrow(datos)), clave, drop = TRUE)
   partes <- lapply(grupos, function(indices) {
     orden <- order(datos$fecha[indices], datos$id_medicion[indices])

@@ -60,8 +60,9 @@
       "organizacion() del que se pueda tomar el nombre.", call. = FALSE
     )
   }
-  if (anyDuplicated(nombres)) {
-    repetidos <- unique(nombres[duplicated(nombres)])
+  if (anyDuplicated(.nombres_para_operar(nombres))) {
+    claves_nombres <- .nombres_para_operar(nombres)
+    repetidos <- .identificadores_unicos(nombres[duplicated(claves_nombres)])
     stop(
       "`", argumento, "` repite nombres: ", paste(repetidos, collapse = ", "),
       ". Los nombres son la identidad de cada parte dentro de la frontera.",
@@ -80,7 +81,7 @@
 .resolver_partes_frontera <- function(entidades, frontera) {
   alias <- frontera$alias
   if (is.null(alias)) return(entidades)
-  posicion <- match(entidades, alias)
+  posicion <- .indice_identificador(entidades, alias)
   ifelse(is.na(posicion), entidades, frontera$declaradas[posicion])
 }
 
