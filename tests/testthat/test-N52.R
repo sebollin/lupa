@@ -27,7 +27,14 @@ test_that("N52: cada nombre publicado indexa la tabla original en ambos locales"
   anterior <- Sys.getlocale("LC_CTYPE")
   on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
   for (locale in c("es_UY.UTF-8", "C")) {
-    puesto <- try(Sys.setlocale("LC_CTYPE", locale), silent = TRUE)
+    puesto <- suppressWarnings(
+      # `Sys.setlocale()` AVISA cuando el locale no existe, y `try()` no
+      # silencia avisos: en toda maquina sin ese locale -CI, el contenedor y
+      # CRAN- estas pruebas ensuciaban la salida con `WARN 6` en las cinco
+      # plataformas. El aviso no aporta nada: la decision se toma mirando el
+      # valor devuelto.
+      try(Sys.setlocale("LC_CTYPE", locale), silent = TRUE)
+    )
     if (!identical(puesto, locale)) next
     for (nombre in list(.nombre_u8_N52(), .nombre_latin1_N52())) {
       datos <- .tabla_nombre_N52(nombre)

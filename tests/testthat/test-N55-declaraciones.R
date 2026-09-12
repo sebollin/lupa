@@ -25,7 +25,14 @@ test_that("N55.1: modelo acepta declaraciones unknown bajo cualquier locale", {
     entidad = "personas", atributos = "edad"
   )
   for (locale in .localidades_N55()) {
-    puesto <- try(Sys.setlocale("LC_CTYPE", locale), silent = TRUE)
+    puesto <- suppressWarnings(
+      # `Sys.setlocale()` AVISA cuando el locale no existe, y `try()` no
+      # silencia avisos: en toda maquina sin ese locale -CI, el contenedor y
+      # CRAN- estas pruebas ensuciaban la salida con `WARN 6` en las cinco
+      # plataformas. El aviso no aporta nada: la decision se toma mirando el
+      # valor devuelto.
+      try(Sys.setlocale("LC_CTYPE", locale), silent = TRUE)
+    )
     if (!identical(puesto, locale)) next
     factor <- .precisio_n55()
     marco <- lupa::marco_calidad(

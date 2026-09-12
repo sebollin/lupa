@@ -34,7 +34,14 @@ test_that("N50.1: un nombre UTF-8 valido no es problematico bajo C", {
   anterior <- Sys.getlocale("LC_CTYPE")
   on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
   for (locale in .localidades_N50()) {
-    puesto <- try(Sys.setlocale("LC_CTYPE", locale), silent = TRUE)
+    puesto <- suppressWarnings(
+      # `Sys.setlocale()` AVISA cuando el locale no existe, y `try()` no
+      # silencia avisos: en toda maquina sin ese locale -CI, el contenedor y
+      # CRAN- estas pruebas ensuciaban la salida con `WARN 6` en las cinco
+      # plataformas. El aviso no aporta nada: la decision se toma mirando el
+      # valor devuelto.
+      try(Sys.setlocale("LC_CTYPE", locale), silent = TRUE)
+    )
     if (!identical(puesto, locale)) next
     datos <- .datos_nombre_N50()
     perfil <- lupa::perfilar(
@@ -66,7 +73,14 @@ test_that("N50.2: desambiguar no publica columnas inexistentes", {
   anterior <- Sys.getlocale("LC_CTYPE")
   on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
   for (locale in .localidades_N50()) {
-    puesto <- try(Sys.setlocale("LC_CTYPE", locale), silent = TRUE)
+    puesto <- suppressWarnings(
+      # `Sys.setlocale()` AVISA cuando el locale no existe, y `try()` no
+      # silencia avisos: en toda maquina sin ese locale -CI, el contenedor y
+      # CRAN- estas pruebas ensuciaban la salida con `WARN 6` en las cinco
+      # plataformas. El aviso no aporta nada: la decision se toma mirando el
+      # valor devuelto.
+      try(Sys.setlocale("LC_CTYPE", locale), silent = TRUE)
+    )
     if (!identical(puesto, locale)) next
     datos <- .datos_nombre_N50(dos = TRUE)
     claves <- lupa::detectar_claves(datos, max_combinacion = 1L)
@@ -111,7 +125,14 @@ test_that("N50.3: todos los consumidores aceptan el perfil de la misma tabla", {
   anterior <- Sys.getlocale("LC_CTYPE")
   on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
   for (locale in .localidades_N50()) {
-    puesto <- try(Sys.setlocale("LC_CTYPE", locale), silent = TRUE)
+    puesto <- suppressWarnings(
+      # `Sys.setlocale()` AVISA cuando el locale no existe, y `try()` no
+      # silencia avisos: en toda maquina sin ese locale -CI, el contenedor y
+      # CRAN- estas pruebas ensuciaban la salida con `WARN 6` en las cinco
+      # plataformas. El aviso no aporta nada: la decision se toma mirando el
+      # valor devuelto.
+      try(Sys.setlocale("LC_CTYPE", locale), silent = TRUE)
+    )
     if (!identical(puesto, locale)) next
     datos <- .datos_nombre_N50()
     perfil <- lupa::perfilar(
@@ -148,7 +169,14 @@ test_that("N50.4: la declaracion del usuario resuelve el nombre publicado", {
   anterior <- Sys.getlocale("LC_CTYPE")
   on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
   for (locale in .localidades_N50()) {
-    puesto <- try(Sys.setlocale("LC_CTYPE", locale), silent = TRUE)
+    puesto <- suppressWarnings(
+      # `Sys.setlocale()` AVISA cuando el locale no existe, y `try()` no
+      # silencia avisos: en toda maquina sin ese locale -CI, el contenedor y
+      # CRAN- estas pruebas ensuciaban la salida con `WARN 6` en las cinco
+      # plataformas. El aviso no aporta nada: la decision se toma mirando el
+      # valor devuelto.
+      try(Sys.setlocale("LC_CTYPE", locale), silent = TRUE)
+    )
     if (!identical(puesto, locale)) next
     datos <- .datos_nombre_N50()
     datos$valor <- seq_len(nrow(datos))
