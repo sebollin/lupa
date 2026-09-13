@@ -262,7 +262,7 @@ test_that("reportar incluye tablero y autoria no confirmada", {
   )
   archivo <- tempfile(fileext = ".html")
   reportar(analisis, archivo = archivo)
-  html <- paste(readLines(archivo, warn = FALSE), collapse = "\n")
+  html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
 
   expect_match(html, "Tablero de calidad", fixed = TRUE)
   expect_match(

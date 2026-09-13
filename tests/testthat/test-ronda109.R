@@ -121,7 +121,7 @@ test_that("reporte y evaluacion distinguen conformidad de defecto", {
 
   archivo <- tempfile(fileext = ".html")
   reportar(medidas, evaluacion, archivo = archivo)
-  html <- paste(readLines(archivo, warn = FALSE), collapse = "\n")
+  html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_match(html, "orientacion", fixed = TRUE)
   expect_match(html, "conformidad", fixed = TRUE)
   expect_match(html, "defecto", fixed = TRUE)

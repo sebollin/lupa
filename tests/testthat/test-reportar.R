@@ -228,7 +228,7 @@ test_that("el informe publica lo que el perfil declara sobre su alcance", {
   archivo <- tempfile(fileext = ".html")
   on.exit(unlink(archivo), add = TRUE)
   invisible(reportar(perfil, archivo = archivo))
-  html <- paste(readLines(archivo, warn = FALSE), collapse = "\n")
+  html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_match(html, "Entrada convertida", fixed = TRUE)
 
   # b. Las columnas que el analisis de orden dejo sin comparar.
@@ -264,6 +264,6 @@ test_that("el informe no inventa una seccion de alcance", {
   archivo <- tempfile(fileext = ".html")
   on.exit(unlink(archivo), add = TRUE)
   invisible(reportar(perfil, archivo = archivo))
-  html <- paste(readLines(archivo, warn = FALSE), collapse = "\n")
+  html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_false(grepl("Alcance de la corrida", html, fixed = TRUE))
 })

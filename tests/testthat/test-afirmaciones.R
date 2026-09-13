@@ -475,7 +475,7 @@ test_that("los valores personales se clasifican sin juicio y se protegen", {
 
   archivo <- tempfile(fileext = ".html")
   reportar(perfil, archivo = archivo)
-  html <- paste(readLines(archivo, warn = FALSE), collapse = "\n")
+  html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_false(grepl("1.234.567-2", html, fixed = TRUE))
   expect_false(grepl("María Fernández", html, fixed = TRUE))
 
@@ -495,7 +495,7 @@ test_that("los valores personales se clasifican sin juicio y se protegen", {
     sin_proteccion, archivo = archivo_abierto,
     proteger_datos_personales = FALSE
   )
-  html_abierto <- paste(readLines(archivo_abierto, warn = FALSE), collapse = "\n")
+  html_abierto <- paste(readLines(archivo_abierto, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_true(grepl("1.234.567-2", html_abierto, fixed = TRUE))
   expect_true(grepl("María Fernández", html_abierto, fixed = TRUE))
 })
@@ -574,7 +574,7 @@ test_that("el reporte incluye siempre la cobertura del perfil", {
   perfil <- perfilar(data.frame(x = 1:3), analizar_dependencias = FALSE)
   archivo <- tempfile(fileext = ".html")
   reportar(perfil, archivo = archivo)
-  html <- paste(readLines(archivo, warn = FALSE), collapse = "\n")
+  html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_match(html, "Cobertura del análisis", fixed = TRUE)
   expect_match(html, "no_declarada", fixed = TRUE)
 })

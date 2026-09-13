@@ -92,7 +92,7 @@ test_that("sin declaracion no hay supresion ni cambios de contrato", {
     medicion, evaluacion, archivo = archivo,
     fecha = as.POSIXct("2026-08-16 13:00:00", tz = "UTC")
   )
-  html <- paste(readLines(archivo, warn = FALSE), collapse = "\n")
+  html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_match(html, "0.12345679", fixed = TRUE)
   expect_false(grepl("[valor suprimido]", html, fixed = TRUE))
 
@@ -126,7 +126,7 @@ test_that("reportar oculta valores suprimidos sin modificar objetos", {
     medicion, evaluacion, archivo = archivo,
     fecha = as.POSIXct("2026-08-16 13:00:00", tz = "UTC")
   )
-  html <- paste(readLines(archivo, warn = FALSE), collapse = "\n")
+  html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
 
   expect_match(html, "Plan de desenlaces", fixed = TRUE)
   expect_match(html, "[valor suprimido]", fixed = TRUE)
@@ -158,7 +158,7 @@ test_that("un analisis respeta los desenlaces de su evaluacion", {
     analisis, archivo = archivo, proteger_datos_personales = FALSE,
     fecha = as.POSIXct("2026-08-16 13:00:00", tz = "UTC")
   )
-  html <- paste(readLines(archivo, warn = FALSE), collapse = "\n")
+  html <- paste(readLines(archivo, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
 
   expect_match(html, "[valor suprimido]", fixed = TRUE)
   expect_identical(analisis, analisis_antes)
@@ -213,7 +213,7 @@ test_that("la supresion se conserva en todas las salidas derivadas", {
 
   archivo_html <- tempfile(fileext = ".html")
   reportar(analisis, archivo = archivo_html, sobrescribir = TRUE)
-  html <- paste(readLines(archivo_html, warn = FALSE), collapse = "\n")
+  html <- paste(readLines(archivo_html, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_match(html, "valor suprimido", ignore.case = TRUE)
   expect_false(grepl("0.6666667", html, fixed = TRUE))
 
