@@ -1252,7 +1252,9 @@ Ese plan **declara en qué unidad cuenta**: `n_afectadas` viene con su
 distintos que colisionan— y cambia noventa filas, y quien decide tiene que saber
 cuál de las dos cosas está leyendo. Y `aplicar()` **no dice haber hecho lo que no
 hizo**: una acción cuyo efecto resulta nulo queda `fallida` con su motivo, no
-`ejecutada`.
+`ejecutada`, incluso cuando un plan editado no tiene una estimación válida en
+`n_afectadas`. El efecto observado es el control; la estimación es evidencia,
+no un interruptor que pueda apagarlo.
 
 ## ✨ Qué hace lupa en detalle
 

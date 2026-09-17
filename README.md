@@ -1219,7 +1219,9 @@ That plan **states the unit it counts in**: `n_afectadas` travels with its
 values that collide — and changes ninety rows, and whoever decides needs to know
 which of the two they are reading. And `aplicar()` **does not claim work it did
 not do**: an action whose effect turns out to be nil is recorded as `fallida`
-with its reason, not `ejecutada`.
+with its reason, not `ejecutada`, even when an edited plan has no valid
+`n_afectadas` estimate. The observed effect is the control; the estimate is
+evidence, not a switch that can turn it off.
 
 ## ✨ What lupa does in detail
 

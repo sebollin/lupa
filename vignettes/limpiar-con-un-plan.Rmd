@@ -86,6 +86,11 @@ resultado$registro[, c(
 )]
 ```
 
+El plan se puede editar antes de aplicar: quitar una acción, corregir un
+parámetro o cambiar `n_afectadas` no altera la obligación de observar qué pasó.
+Si una acción seleccionada no cambia ningún valor, el registro dice `fallida`
+con su motivo, incluso cuando el estimado está ausente (`NA`).
+
 Las acciones destructivas nunca son recomendadas. Aunque el usuario las active
 en el plan, `aplicar()` exige además `permitir_eliminacion = TRUE`; lo retirado
 se conserva en `resultado$eliminados` salvo decisión contraria.

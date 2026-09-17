@@ -286,8 +286,8 @@
 #' estimaba siete. No es un desvío que ocultar: `orden`, `n_afectadas` y
 #' `n_cambiadas` se publican los tres, y compararlos es la forma de ver el
 #' efecto de la composición. Sólo el caso extremo —la acción no produce **ningún**
-#' efecto donde el plan estimaba alguno— se registra como `fallida` con su
-#' motivo.
+#' efecto —también cuando el plan no trae una estimación válida— se registra
+#' como `fallida` con su motivo.
 #'
 #' **Esa comparación sólo lee composición cuando las dos cifras cuentan en la
 #' misma unidad.** `n_afectadas` cuenta en la `unidad_conteo` que el plan
@@ -398,9 +398,12 @@
 #'   sincronizado y `eliminados`. El `registro` conserva `estado` (`ejecutada`
 #'   o `fallida`), `error`, `n_no_reversibles` y la `justificacion` de cada
 #'   acción seleccionada, incluso cuando una falla y las siguientes continúan.
-#'   Si una acción seleccionada no produce ningún efecto cuando el plan estimaba
-#'   alguno, se registra como `fallida` con el motivo y su copia no se incorpora
-#'   al resultado.
+#'   Si una acción seleccionada no produce ningún efecto, se registra como
+#'   `fallida` con el motivo y su copia no se incorpora al resultado. La
+#'   comprobación del efecto observa `n_cambiadas` aunque `n_afectadas` sea
+#'   `NA` o haya sido editado: una acción seleccionada que no cambia nada queda
+#'   `fallida`, porque la ausencia de efecto es observable sin depender de la
+#'   estimación.
 #'   Si una columna de entrada es un factor, las acciones que transforman su
 #'   texto devuelven una columna `character`: no se reconstruyen los niveles
 #'   originales, porque una limpieza puede introducir valores nuevos.
@@ -2108,23 +2111,27 @@ planificar_limpieza <- function(perfil, datos = NULL,
 }
 
 .motivo_efecto_accion <- function(accion, ejecutada) {
-  esperado <- as.numeric(accion$n_afectadas[[1L]])
   actual <- as.numeric(ejecutada$n)
-  if (length(esperado) != 1L || !is.finite(esperado) || esperado <= 0L ||
-      length(actual) != 1L || !is.finite(actual)) {
+  if (length(actual) != 1L || !is.finite(actual) || actual != 0L) {
     return(NULL)
   }
+  esperado <- as.numeric(accion$n_afectadas[[1L]])
   unidad <- as.character(accion$unidad_conteo[[1L]])
-  if (actual == 0L) {
-    return(paste0(
-      "La acci\u00f3n `", accion$estrategia[[1L]],
-      "` qued\u00f3 sin efecto: el plan estimaba ", esperado,
+  detalle_estimacion <- if (length(esperado) == 1L && is.finite(esperado)) {
+    paste0(
+      " El plan estimaba ", esperado,
       if (length(unidad) && !is.na(unidad) && nzchar(unidad)) {
         paste0(" ", unidad)
       } else "", "."
-    ))
+    )
+  } else {
+    " El plan no contiene una estimaci\u00f3n v\u00e1lida; la comprobaci\u00f3n se basa en el efecto observado."
   }
-  NULL
+  paste0(
+    "La acci\u00f3n `", accion$estrategia[[1L]],
+    "` qued\u00f3 sin efecto: no cambi\u00f3 ning\u00fan valor.",
+    detalle_estimacion
+  )
 }
 
 .accion_modifica_clave <- function(accion, clave) {

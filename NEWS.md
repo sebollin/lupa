@@ -2,6 +2,14 @@
 
 ## Correcciones de cobertura y publicación
 
+- **El efecto observado ya no depende de la estimación del plan.** Una acción
+  seleccionada que deja `n_cambiadas = 0` se registra como `fallida` aunque
+  `n_afectadas` sea `NA`, cero o un número editado que no corresponde; el
+  motivo distingue el efecto medido de la estimación ausente. Se agregó una
+  prueba sobre un plan editado que también cubre acciones borradas y parámetros
+  inválidos, y se auditó la capa completa: de las construcciones de ausencia
+  encontradas, sólo la guarda de `.motivo_efecto_accion()` apagaba un control.
+
 - La normalización vectorial declara los bytes UTF-8 válidos antes de aplicar
   los pasos optativos y transforma ligaduras por punto de código. `ligaduras` y
   `ancho` cumplen ahora igual bajo `LC_CTYPE = "C"` y bajo un locale UTF-8.

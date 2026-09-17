@@ -34,9 +34,12 @@ columnas retiradas. Es \code{TRUE} de forma predeterminada.}
 sincronizado y \code{eliminados}. El \code{registro} conserva \code{estado} (\code{ejecutada}
 o \code{fallida}), \code{error}, \code{n_no_reversibles} y la \code{justificacion} de cada
 acción seleccionada, incluso cuando una falla y las siguientes continúan.
-Si una acción seleccionada no produce ningún efecto cuando el plan estimaba
-alguno, se registra como \code{fallida} con el motivo y su copia no se incorpora
-al resultado.
+Si una acción seleccionada no produce ningún efecto, se registra como
+\code{fallida} con el motivo y su copia no se incorpora al resultado. La
+comprobación del efecto observa \code{n_cambiadas} aunque \code{n_afectadas} sea
+\code{NA} o haya sido editado: una acción seleccionada que no cambia nada queda
+\code{fallida}, porque la ausencia de efecto es observable sin depender de la
+estimación.
 Si una columna de entrada es un factor, las acciones que transforman su
 texto devuelven una columna \code{character}: no se reconstruyen los niveles
 originales, porque una limpieza puede introducir valores nuevos.
@@ -88,8 +91,8 @@ ausentes, \code{winsorizar_outliers} (orden 520) recorta dos valores donde el pl
 estimaba siete. No es un desvío que ocultar: \code{orden}, \code{n_afectadas} y
 \code{n_cambiadas} se publican los tres, y compararlos es la forma de ver el
 efecto de la composición. Sólo el caso extremo —la acción no produce \strong{ningún}
-efecto donde el plan estimaba alguno— se registra como \code{fallida} con su
-motivo.
+efecto —también cuando el plan no trae una estimación válida— se registra
+como \code{fallida} con su motivo.
 
 \strong{Esa comparación sólo lee composición cuando las dos cifras cuentan en la
 misma unidad.} \code{n_afectadas} cuenta en la \code{unidad_conteo} que el plan

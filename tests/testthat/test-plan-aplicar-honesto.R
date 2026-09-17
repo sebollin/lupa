@@ -55,6 +55,89 @@ test_that("un efecto nulo no se registra como ejecutado", {
   expect_true(all(is.na(resultado$datos$x[1:2])))
 })
 
+test_that("un plan editado conserva el control de efecto sin estimacion", {
+  sucios <- data.frame(
+    x = paste0(letters[1:6], " "), stringsAsFactors = FALSE
+  )
+  limpios <- data.frame(x = letters[1:6], stringsAsFactors = FALSE)
+  plan_base <- planificar_limpieza(
+    perfilar(sucios, analizar_dependencias = FALSE), sucios
+  )
+  indice <- which(plan_base$estrategia == "recortar_espacios")
+  expect_length(indice, 1L)
+
+  activar <- plan_base
+  activar$aplicar[] <- FALSE
+  activar$aplicar[[indice]] <- TRUE
+
+  # La prueba positiva fija que la acción sí corre y publica las seis celdas
+  # que efectivamente cambia.
+  positivo <- aplicar(activar, sucios)
+  fila_positiva <- positivo$registro[
+    positivo$registro$estrategia == "recortar_espacios", , drop = FALSE
+  ]
+  expect_equal(fila_positiva$estado, "ejecutada")
+  expect_equal(fila_positiva$n_cambiadas, 6L)
+
+  # El plan editado puede quitar la acción: no se confunde ausencia de acción
+  # con una acción ejecutada sin efecto.
+  sin_accion <- activar[-indice, , drop = FALSE]
+  sin_accion$aplicar[] <- FALSE
+  resultado_sin_accion <- aplicar(sin_accion, limpios)
+  expect_false(any(resultado_sin_accion$registro$estrategia ==
+                    "recortar_espacios"))
+
+  # Con el mismo plan intacto, datos ya limpios dejan n_cambiadas = 0 y fallan.
+  sin_efecto <- aplicar(activar, limpios)
+  fila_sin_efecto <- sin_efecto$registro[
+    sin_efecto$registro$estrategia == "recortar_espacios", , drop = FALSE
+  ]
+  expect_equal(fila_sin_efecto$estado, "fallida")
+  expect_equal(fila_sin_efecto$n_cambiadas, 0L)
+  expect_match(fila_sin_efecto$error, "sin efecto", fixed = TRUE)
+
+  # La ausencia del estimado no apaga el control y el motivo deja constancia
+  # de que se decidió por el efecto observado.
+  estimado_ausente <- activar
+  estimado_ausente$n_afectadas[[indice]] <- NA_real_
+  fallo_ausente <- aplicar(estimado_ausente, limpios)$registro
+  expect_equal(fallo_ausente$estado, "fallida")
+  expect_equal(fallo_ausente$n_cambiadas, 0L)
+  expect_match(fallo_ausente$error, "efecto observado", fixed = TRUE)
+
+  # Un número editado que no coincide con el perfil tampoco convierte la
+  # comparación en una igualdad esperada/real: se registra lo que ocurrió.
+  estimado_editado <- activar
+  estimado_editado$n_afectadas[[indice]] <- 999
+  resultado_editado <- aplicar(estimado_editado, sucios)
+  expect_equal(resultado_editado$registro$estado, "ejecutada")
+  expect_equal(resultado_editado$registro$n_cambiadas, 6L)
+
+  # Incluso un estimado editado a cero no puede convertir un efecto nulo en
+  # éxito: una acción seleccionada que no cambia nada sigue siendo fallida.
+  estimado_cero <- activar
+  estimado_cero$n_afectadas[[indice]] <- 0
+  fallo_cero <- aplicar(estimado_cero, limpios)$registro
+  expect_equal(fallo_cero$estado, "fallida")
+  expect_equal(fallo_cero$n_cambiadas, 0L)
+
+  # Un parámetro inválido del plan editado se registra en la misma bitácora,
+  # sin dejar que la acción escriba una columna inventada.
+  con_ausentes <- data.frame(x = c(1, NA_real_), y = 2:3)
+  plan_ausentes <- planificar_limpieza(
+    perfilar(con_ausentes, analizar_dependencias = FALSE), con_ausentes
+  )
+  indice_marca <- which(plan_ausentes$estrategia == "marcar_filas_ausentes")
+  expect_length(indice_marca, 1L)
+  plan_ausentes$aplicar[] <- FALSE
+  plan_ausentes$aplicar[[indice_marca]] <- TRUE
+  plan_ausentes$parametros[[indice_marca]]$columna_marca <- NA_character_
+  fallo_parametro <- aplicar(plan_ausentes, con_ausentes)
+  expect_equal(fallo_parametro$registro$estado, "fallida")
+  expect_match(fallo_parametro$registro$error, "columna_marca", fixed = TRUE)
+  expect_identical(names(fallo_parametro$datos), names(con_ausentes))
+})
+
 test_that("la composicion de acciones de texto tiene un orden efectivo", {
   datos <- data.frame(x = c("\u200B A ", "B"), stringsAsFactors = FALSE)
   plan <- planificar_limpieza(

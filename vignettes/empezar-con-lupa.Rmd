@@ -226,8 +226,12 @@ resultado <- aplicar(plan, datos_operativos)
 resultado$registro[, c("estrategia", "n_cambiadas")]
 ```
 
-El original permanece intacto. Para verificar el efecto se vuelve a perfilar el
-resultado.
+El original permanece intacto. El plan es editable: si se cambia una estimación
+o se la deja ausente, `aplicar()` sigue verificando el efecto observado. Una
+acción seleccionada que no cambia ningún valor queda `fallida` con su motivo;
+no se publica como ejecutada por falta de estimación.
+
+Para verificar el efecto se vuelve a perfilar el resultado.
 
 ```{r}
 perfil_despues <- perfilar(resultado$datos, nombre = "entrega normalizada")
