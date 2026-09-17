@@ -23,15 +23,18 @@ were observed on the same sources:
 * the R 4.1.0 container, which has network and an older `curl`, additionally
   lists the four URLs in the table below;
 * win-builder additionally reported one `possibly invalid file URI`,
-  `benchmark/perdida_lsh.md` from `README.md`. **That one was a real defect and
+  `benchmark/perdida_lsh.md` from `README.md` — reported in that run's result
+  notice, of which no log was kept. **That one was a real defect and
   is fixed**: `benchmark/` is in `.Rbuildignore`, so the link resolved on GitHub
   and pointed at nothing inside the package. It is now the absolute GitHub URL,
   and a pre-submission check refuses any relative `README.md` link whose target
   `.Rbuildignore` excludes. No local run had ever reported it, which is the
   clearest argument this letter can make for the environment table.
 
-The four URLs, measured again on 2026-09-04 with `curl -L`, with and without a
-browser user agent:
+The four URLs, as `checking CRAN incoming feasibility` reports them in the
+container run of these sources
+(`verificacion/2026-09-16/contenedor-4.1.0.log`, the only environment of the
+thirteen that has both network and a `curl` old enough to be refused):
 
 | URL | where it is cited | what it cites | measured |
 | --- | --- | --- | ---: |
@@ -59,6 +62,17 @@ replaced by a link that answers `200` and cites something else.
 
 ## A check that CRAN runs, and that this package now runs first
 
+> **Where the figures in this letter come from.** Everything in the three
+> generated tables is read from a log that is named beside it and that stamps
+> the commit it measured; a script writes those tables and refuses to write them
+> at all if a figure has no log or if its log measured a different commit. The
+> recurrences narrated below are a different kind of claim: they are the
+> project's own history, and for several of them the log kept is the run
+> **after** the fix, not the failing one. Where that is so, it is said. This
+> distinction is made explicit because an earlier revision of this letter stated
+> historical counts it could not back, and a reviewer who checks one figure and
+> finds nothing has no way to tell which of the others are sound.
+
 ```sh
 _R_CHECK_DEPENDS_ONLY_=true R CMD check --as-cran lupa_0.1.0.tar.gz
 ```
@@ -68,46 +82,49 @@ missing-`tidy` note described above, and nothing else: the same two notes as the
 ordinary check, which is the point. Removing the optional packages changes
 nothing.
 
-This runs before any external service and is the first step of the release script.
-An earlier revision passed in eight environments and still failed this one with
-`1 ERROR` and 68 test failures: twenty-two test blocks asserted behaviour that
-depends on `stringdist` without declaring it with `skip_if_not_installed()`. All
-eight of those environments had the optional packages installed, so none could see
-the gap.
+This runs before any external service and is the first step of the release
+script. An earlier revision passed in eight environments and still failed this
+one with `1 ERROR`: twenty-two test blocks asserted behaviour that depends on
+`stringdist` without declaring it with `skip_if_not_installed()`. All eight of
+those environments had the optional packages installed, so none could see the
+gap.
 
-Eight green environments are not eight different environments if all eight have the
-same packages installed.
+Eight green environments are not eight different environments if all eight have
+the same packages installed.
 
 **And the same gap reopened, in a smaller way, without this section noticing.**
 Rebuilding the environment matrix on 2026-08-21 found this check at `1 ERROR`
-again, with ten failures: nine in one test file that carried no
-`skip_if_not_installed()` at all and whose assertions read the output of the
-`stringdist`-backed vocabulary detector, and one asserting a DBI error message
-that a machine without DBI never produces. The failures predate the current
-revision, so this paragraph had been claiming a result it no longer had. Both
-files now guard per test rather than per file, so the blocks that do run without
-the optional packages still run.
+again: nine failures in one test file that carried no `skip_if_not_installed()`
+at all and whose assertions read the output of the `stringdist`-backed
+vocabulary detector, and one asserting a DBI error message that a machine
+without DBI never produces. The failures predate the current revision, so this
+paragraph had been claiming a result it no longer had. The log kept for that
+date (`verificacion/2026-08-21/`) is the run **after** the guards were added,
+and reports `Status: 1 NOTE` with `FAIL 0`; the failing run's log was not kept.
+Both files now guard per test rather than per file, so the blocks that do run
+without the optional packages still run.
 
 **It reopened a third time on 2026-08-24, in a new test file, and this check was
 again the only thing that saw it.** Six test blocks exercising approximate
-duplicate detection were written; `skip_if_not_installed("stringdist")` was added
-to one of them — the last one written. The local suite reported `FAIL 0` with
-16 064 passing checks, and the three continuous-integration workflows reported
-success, because all of them have the optional packages installed. With
-`_R_CHECK_DEPENDS_ONLY_=true` the same sources gave **`1 ERROR` with 7 failures**,
-all in that one file, the first of them a `subscript out of bounds` on a table
-that comes back empty when the package is absent. After guarding all six, the
-same check gives **`Status: 1 NOTE`** with `FAIL 0 | SKIP 278`, six more skips
-than before — which is the number of blocks now declining to run, and the check
-that the guard is real rather than decorative.
+duplicate detection were written; `skip_if_not_installed("stringdist")` was
+added to one of them — the last one written. The local suite reported `FAIL 0`,
+and the three continuous-integration workflows reported success, because all of
+them have the optional packages installed. With `_R_CHECK_DEPENDS_ONLY_=true`
+the same sources gave **`1 ERROR` with 7 failures**, all in that one file, the
+first of them a `subscript out of bounds` on a table that comes back empty when
+the package is absent. After guarding all six, the same check gives **`Status:
+1 NOTE`** with `FAIL 0 | WARN 0 | SKIP 278 | PASS 15314`, six more skips than
+before — which is the number of blocks now declining to run, and the check that
+the guard is real rather than decorative.
 
 The recurrence is worth stating plainly: the note in the working memory of this
 project already recorded the first occurrence, with this same optional package,
 and it did not prevent the third. The guard is missed on the blocks written
 *first*, because portability is what one thinks about at the end. So the rule is
-no longer "remember to add it" but a step: on creating a test file, check whether
-it touches a `Suggests` package and guard **every** block, and verify with this
-command rather than with the local suite, which structurally cannot see it.
+no longer "remember to add it" but a step: on creating a test file, check
+whether it touches a `Suggests` package and guard **every** block, and verify
+with this command rather than with the local suite, which structurally cannot
+see it.
 
 **And this check turns out not to be equivalent to the environment it stands in
 for.** Running the suite in a container where `bit64` genuinely has no build,
@@ -225,20 +242,22 @@ here.
 | utility battery (recall and precision) | recall: 9 de 9 | `verificacion/2026-09-16/bateria-utilidad.log` |
 | GitHub Actions, 5 platforms (macOS release included) | platforms with Status: OK: 5 of 5; FAIL 0 \| WARN 0 on all of them; PASS from 24353 to 24414 | `verificacion/2026-09-16/actions-5-plataformas.log` |
 | R-hub v2, Linux (R-devel) | Status: OK | `verificacion/2026-09-16/rhub-linux.log` |
-| R-hub v2, Windows (R-devel) | Status: OK
- | `verificacion/2026-09-16/rhub-windows.log` |
+| R-hub v2, Windows (R-devel) | Status: OK | `verificacion/2026-09-16/rhub-windows.log` |
 | R-hub v2, macOS x86_64 (R-devel) | Failed to build source package s2. | `verificacion/2026-09-16/rhub-macos.log` |
-| win-builder release | Status: 1 NOTE
- | `verificacion/2026-09-16/winbuilder-release.log` |
-| win-builder devel | Status: 1 NOTE
- | `verificacion/2026-09-16/winbuilder-devel.log` |
+| win-builder release | Status: 1 NOTE | `verificacion/2026-09-16/winbuilder-release.log` |
+| win-builder devel | Status: 1 NOTE | `verificacion/2026-09-16/winbuilder-devel.log` |
 
-> The container's `ERROR` and `WARNING` come from the SAME step,
-> `checking PDF version of manual`: that image has no `texi2dvi`. Its
-> NOTEs are the container too — "unable to verify current time" because
-> it has no network, and the `lupa-manual.tex` left by the failed PDF
-> build. They are properties of the image and not of the package — the
-> suite inside it reports `FAIL 0` — and they are stated rather than
+> The container's `WARNING` and `ERROR` come from two consecutive
+> steps: `checking PDF version of manual` reports the `WARNING`, and
+> `checking PDF version of manual without hyperrefs or index` reports
+> the `ERROR`. The log names the cause inside the second one: that
+> image has no LaTeX — `texi2dvi script/program not available` and
+> `pdflatex is not available`. Its NOTEs are the container too —
+> "unable to verify current time" because it has no network, and the
+> `lupa-manual.tex` left by the failed PDF build. They are properties
+> of the image and not of the package — the suite inside it reports
+> `FAIL 0` — and they are stated here rather than left for you to find.
+>
 > **A correction this letter owes itself.** An earlier revision of this
 > note said the container's test warnings were `duckdb`'s
 > garbage-collection notices, because the image pins `duckdb 0.8.0`.
@@ -251,6 +270,13 @@ here.
 > after. The claim is corrected rather than quietly dropped: an explanation
 > stated with confidence and later found false is worth more as a
 > correction than as a deletion.
+>
+> **And a second correction, on 2026-09-17.** This same note used to say
+> the `ERROR` and the `WARNING` came from the SAME step and that the
+> image had no `texi2dvi`. The log shows two distinct steps, and names
+> the missing `pdflatex` as well. It is the same failure as the one
+> above — explaining a cause the log does not show — found the same way,
+> by reading the log against the claim instead of trusting the claim.
 >
 > The R-hub macOS x86_64 row **is not a result about the package**: the
 > check never ran there. R-devel is 4.7 and CRAN does not yet publish
@@ -271,6 +297,12 @@ here.
 <!-- MATRIZ:FIN -->
 
 ### What the table cannot fit
+
+> The win-builder identifiers in this section are the ones its result notice
+> carries. Of the three, only `TeCC2H9YPP1c` has a log kept in `verificacion/`;
+> the other two runs were read from their notices and their logs were not kept.
+> The rows of the table above are a different matter: every one of them names a
+> log that exists and that stamps the commit it measured.
 
 **The win-builder release row is itself the closing measurement of a failure
 this cycle.** One revision earlier, the release check there — and there alone,
@@ -311,69 +343,72 @@ none of them mocked.
 
 ## Implementation notes
 
-This release includes a pure-R encoding-repair engine that follows the design and
-frozen data of [ftfy 6.3.1](https://github.com/rspeer/python-ftfy) by
+This release includes a pure-R encoding-repair engine that follows the design
+and frozen data of [ftfy 6.3.1](https://github.com/rspeer/python-ftfy) by
 [Robyn Speer](https://github.com/rspeer). The frozen character tables, badness
-rules and byte-level transcoders are documented in `LICENSE.note`; the package is
-GPL-3-only, with the ftfy-derived material identified under Apache-2.0. The
-upstream ftfy release has no NOTICE file. The package also redistributes a small
-frozen sentinel vector from [naniar 1.1.0](https://github.com/njtierney/naniar);
-its MIT copyright and license notice are recorded in `LICENSE.note`. Five
-deliberate departures from ftfy are declared in `NEWS.md`.
+rules and byte-level transcoders are documented in `LICENSE.note`; the package
+is GPL-3-only, with the ftfy-derived material identified under Apache-2.0. The
+upstream ftfy release has no NOTICE file. The package also redistributes a
+small frozen sentinel vector from [naniar
+1.1.0](https://github.com/njtierney/naniar); its MIT copyright and license
+notice are recorded in `LICENSE.note`. Five deliberate departures from ftfy are
+declared in `NEWS.md`.
 
-A diagnostic that cannot run is never reported as a finding about the data. When
-an optional package is absent, when a date-time column carries no declared time
-zone, or when a vocabulary comparison is truncated or does not apply, the profile
-records the fact in `cobertura_diagnosticos` — a table separate from `hallazgos`
-and outside the ordered `ok < sospechoso < error` severity scale — and the
-per-column scope field is `NA` rather than zero. A diagnostic that did run and
-found nothing is reported at severity `ok` with zero affected units, never as a
-suspicion. A profile with no findings and a non-empty `cobertura_diagnosticos` is
-therefore not a clean profile, and the documentation says so where an automated
-consumer will read it.
+A diagnostic that cannot run is never reported as a finding about the data.
+When an optional package is absent, when a date-time column carries no declared
+time zone, or when a vocabulary comparison is truncated or does not apply, the
+profile records the fact in `cobertura_diagnosticos` — a table separate from
+`hallazgos` and outside the ordered `ok < sospechoso < error` severity scale —
+and the per-column scope field is `NA` rather than zero. A diagnostic that did
+run and found nothing is reported at severity `ok` with zero affected units,
+never as a suspicion. A profile with no findings and a non-empty
+`cobertura_diagnosticos` is therefore not a clean profile, and the
+documentation says so where an automated consumer will read it.
 
 The same rule now covers the pattern diagnostic. A column whose shape varies by
 nature — names, addresses, free text — has no dominant pattern reaching the
-threshold, so the diagnostic does not apply; that non-measurement is recorded in
-`cobertura_diagnosticos` with the observed proportion and the argument that
-controls it, rather than leaving the reader to infer that the column is clean. The
-evidence of a pattern finding states the proportion of the dominant pattern and how
-many rows fall in non-dominant patterns that were excluded for exceeding the
-rareness threshold, so that a count of thirty-two affected rows in a column with a
-hundred and sixty corrupt ones cannot be read as the whole story.
+threshold, so the diagnostic does not apply; that non-measurement is recorded
+in `cobertura_diagnosticos` with the observed proportion and the argument that
+controls it, rather than leaving the reader to infer that the column is clean.
+The evidence of a pattern finding states the proportion of the dominant pattern
+and how many rows fall in non-dominant patterns that were excluded for
+exceeding the rareness threshold, so that a count of thirty-two affected rows
+in a column with a hundred and sixty corrupt ones cannot be read as the whole
+story.
 
-Findings that name rows now derive those rows from what the detector decided rather
-than recomputing the criterion. Where the two used to be computed separately they
-could disagree silently, because nothing compared the evidence against the indices.
-A guard walks the findings and raises a condition of class
-`lupa_trazabilidad_incoherente` when a count and its trace cannot be reconciled; it
-compares the pre-truncation total, works in both directions, and respects the
-declared unit. The finding is kept: warning is not a reason to hide the evidence.
-The test suite checks identities and not only counts — fixtures build tables whose
-corrupted row indices are known in advance and assert hits, false positives and
-misses across the canonical finding vocabulary. The current count is **58
-`tipo_hallazgo` names**: 55 types constructed by `.nuevo_hallazgo()` and three
-additional duplicate-finding names constructed by the approximate-duplicate
-detector (`duplicados_aproximados`, `duplicados_exactos_columnas` and
-`duplicados_exactos_normalizados`).
+Findings that name rows now derive those rows from what the detector decided
+rather than recomputing the criterion. Where the two used to be computed
+separately they could disagree silently, because nothing compared the evidence
+against the indices. A guard walks the findings and raises a condition of class
+`lupa_trazabilidad_incoherente` when a count and its trace cannot be
+reconciled; it compares the pre-truncation total, works in both directions, and
+respects the declared unit. The finding is kept: warning is not a reason to
+hide the evidence. The test suite checks identities and not only counts —
+fixtures build tables whose corrupted row indices are known in advance and
+assert hits, false positives and misses across the canonical finding
+vocabulary. The current count is **58 `tipo_hallazgo` names**: 55 types
+constructed by `.nuevo_hallazgo()` and three additional duplicate-finding names
+constructed by the approximate-duplicate detector (`duplicados_aproximados`,
+`duplicados_exactos_columnas` and `duplicados_exactos_normalizados`).
 
-Aggregated measurements carry an explicit orientation — `conformidad`, `defecto`
-or `no_aplica` — because a `0.006` proportion of duplicated entities and a
-`0.999` proportion of non-null cells are both valid results that must not be read
-the same way. `indice_calidad()` returns a single number only when the caller
-declares the weights; without them it returns the dashboard. The index always
-travels with its coverage of the declared framework, records the weights used,
-states which components were inverted because their orientation is `defecto`, and
-warns that its components come from different universes. The package ships no
-default weights and computes no global score of its own.
+Aggregated measurements carry an explicit orientation — `conformidad`,
+`defecto` or `no_aplica` — because a `0.006` proportion of duplicated entities
+and a `0.999` proportion of non-null cells are both valid results that must not
+be read the same way. `indice_calidad()` returns a single number only when the
+caller declares the weights; without them it returns the dashboard. The index
+always travels with its coverage of the declared framework, records the weights
+used, states which components were inverted because their orientation is
+`defecto`, and warns that its components come from different universes. The
+package ships no default weights and computes no global score of its own.
 
 The package ships a battery of clean tables as a regression test: thirty-one
-tables of correct data covering the idioms a naive detector confuses — names with
-commas, addresses, decimal commas, dates stored as text, sequential identifiers,
-zero-padded codes, e-mail addresses, URLs, a single currency, a single unit and
-accented Spanish. The test asserts that no finding of severity `error` is raised
-on any of them and enumerates, one by one, the findings above `ok` whose claim is
-true of the data, so that a new false positive makes the suite fail.
+tables of correct data covering the idioms a naive detector confuses — names
+with commas, addresses, decimal commas, dates stored as text, sequential
+identifiers, zero-padded codes, e-mail addresses, URLs, a single currency, a
+single unit and accented Spanish. The test asserts that no finding of severity
+`error` is raised on any of them and enumerates, one by one, the findings above
+`ok` whose claim is true of the data, so that a new false positive makes the
+suite fail.
 
 The internal `.con_rng_interno_lsh()` uses a fixed seed so that MinHash and LSH
 remain reproducible without depending on the caller's RNG configuration. It
@@ -395,19 +430,20 @@ its own came out of running against an old snapshot: there `cli` resolves to
 `cli (>= 3.0.0)` so the requirement is stated rather than assumed.
 
 Runs against old R releases also found three compatibility defects, all fixed:
-`utils::URLencode()` is scalar in R 3.6, so `.escapar_clave()` applies it element
-by element; factor columns reached text-oriented methods, so all operational
-metric inputs pass through a factor-to-character boundary while profiling retains
-the declared factor type; and the Date-to-POSIXct historical conversion sets
-`tzone` to `UTC` explicitly.
+`utils::URLencode()` is scalar in R 3.6, so `.escapar_clave()` applies it
+element by element; factor columns reached text-oriented methods, so all
+operational metric inputs pass through a factor-to-character boundary while
+profiling retains the declared factor type; and the Date-to-POSIXct historical
+conversion sets `tzone` to `UTC` explicitly.
 
-The quality frameworks shipped with the package are taxonomies, not measurements.
-`marco_cepal()` declares the four levels and nineteen principles of the United
-Nations National Quality Assurance Framework as adapted for Latin America and the
-Caribbean by the CEA/CEPAL; thirteen of the nineteen are declared out of scope
-for a table, because they concern the statistical system, the institution and the
-process rather than the data, and `cobertura_analisis()` reports them as such.
-None of the nineteen is reported as measured by profiling.
+The quality frameworks shipped with the package are taxonomies, not
+measurements. `marco_cepal()` declares the four levels and nineteen principles
+of the United Nations National Quality Assurance Framework as adapted for Latin
+America and the Caribbean by the CEA/CEPAL; thirteen of the nineteen are
+declared out of scope for a table, because they concern the statistical system,
+the institution and the process rather than the data, and
+`cobertura_analisis()` reports them as such. None of the nineteen is reported
+as measured by profiling.
 
 Package documentation, help pages and vignettes are written in Spanish, as
 declared by `Language: es`. `DESCRIPTION`, `NEWS.md` and this file are in
@@ -433,7 +469,9 @@ different commit:
 | R-hub, Windows, R-devel | [24m] | `verificacion/2026-09-16/rhub-windows.log` |
 | this machine, `_R_CHECK_DEPENDS_ONLY_=true --as-cran` | [326s/326s] | `verificacion/2026-09-16/check-depends-only.log` |
 
-| the suite that produced them | BLOQUES: 1628 FALLOS: 0 ERROR: 0 SKIP: 2 PASS: 24462 | `verificacion/2026-09-16/revalidacion-completa.log` |
+| the suite behind those runs | result | log |
+| --- | ---: | --- |
+| full suite, this machine | BLOQUES: 1628 FALLOS: 0 ERROR: 0 SKIP: 2 PASS: 24462 | `verificacion/2026-09-16/revalidacion-completa.log` |
 
 > These figures are **not** a guarantee about your machines: they are what
 > each run's own log reports, and they move with the load of the machine
@@ -444,9 +482,9 @@ different commit:
 
 **This table used to compare a "before" against a "now", and the comparison had
 gone stale.** It claimed 9m on R-hub's Linux builder; that builder, on these
-sources, reports 11m. It also carried a macOS figure, and macOS did not run this
-cycle at all. The earlier pair of numbers was true of an earlier revision and
-was carried forward across a suite that has grown to 23 281 passing checks —
+sources, reports the figure in the table above. It also carried a macOS figure,
+and macOS did not run this cycle at all. The earlier pair of numbers was true of
+an earlier revision and was carried forward across a suite that kept growing —
 which is the same failure this letter documents twice above, in a third place.
 The table now states one column, measured on the sources being submitted, and
 names the log it came from.
@@ -463,8 +501,9 @@ fixture that takes 1.6 seconds.
 
 What remains is genuine coverage, spread across the suite at about a second and
 a half per file. A local guard fails the revalidation if `checking tests` goes
-above a declared ceiling of 400s, so this does not quietly grow again; on these
-sources it reports `'checking tests' en 184s, bajo el techo de 400s`.
+above a declared ceiling of 400s, so this does not quietly grow again; the
+figure it compared against that ceiling on these sources is the local row of the
+table above, taken from the same log.
 
 ## Reverse dependencies
 
