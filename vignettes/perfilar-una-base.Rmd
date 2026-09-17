@@ -359,6 +359,18 @@ dominantes excluidos por superar `umbral_patron_raro`; si el dominante no
 alcanza `umbral_patron_dominante`, la no medición queda en
 `cobertura_diagnosticos`.
 
+Las columnas `integer64` tienen una condición equivalente: si `bit64` está
+instalado, `lupa` registra sus métodos antes de medir la secuencia; si falta,
+las cinco medidas públicas quedan en `NA` y `cobertura_diagnosticos` deja
+constancia de que `secuencia_entera` no se evaluó. En los textos publicados,
+los números usan notación fija con precisión completa, independiente de
+`scipen` y de `digits`, y conservan `OutDec`.
+
+Las sugerencias de ausencia estructural componen el código con una copia UTF-8
+marcada de cada nombre. El nombre que queda en `columnas$columna` conserva los
+bytes y la marca que llegaron desde la tabla; la sugerencia sigue siendo código
+para copiar y pegar bajo `LC_CTYPE = "C"`.
+
 Algunos controladores no saben traer ciertas columnas en una lectura corriente
 —`TEXT` y `NTEXT` en SQL Server, `CLOB` y `BLOB` en Oracle, `bytea` en
 PostgreSQL— y responden con un error al pedirlas junto con el resto. Una sola

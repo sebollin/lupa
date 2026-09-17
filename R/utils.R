@@ -25,14 +25,39 @@
   # La sonda es vectorizada y se paga una sola vez; no se entra a `validUTF8()`
   # ni a `iconv()` para el caso que domina los perfiles.
   if (!is.null(crudo) && .es_ascii(crudo)) return(crudo)
-  clave <- if (is.null(crudo)) {
-    tryCatch(enc2utf8(as.character(x)), error = function(e) as.character(x))
-  } else {
-    tryCatch(enc2utf8(crudo), error = function(e) crudo)
+  if (is.null(crudo)) crudo <- tryCatch(as.character(x), error = function(e) NULL)
+  if (is.null(crudo)) return(crudo)
+  # `enc2utf8()` consulta `LC_CTYPE` cuando la cadena esta marcada `unknown`:
+  # trata sus bytes como si estuvieran en la codificacion NATIVA, y bajo `C` lo
+  # nativo es ASCII, asi que escapa cada byte no representable. Medido sobre
+  # `categoria` con tilde, sin marca, bytes `..72.c3.ad.61`:
+  #
+  #   es_UY.UTF-8 -> ..72.c3.ad.61                  (intacto)
+  #   C           -> ..72.3c.63.33.3e.3c.61.64.3e.61  ("<c3><ad>", texto ASCII)
+  #
+  # La cadena deja de contener la letra y pasa a contener la DESCRIPCION de sus
+  # bytes, y el resultado queda marcado `UTF-8`, asi que parece correcto.
+  #
+  # `validUTF8()` en cambio NO depende del locale: contesta `TRUE` en los dos.
+  # Por eso una guarda que valide con el y convierta con `enc2utf8()` pasa la
+  # validacion y rompe el dato. `iconv()` con origen UTF-8 valida los bytes sin
+  # pedirle al locale que los interprete, y es lo unico que sirve aca.
+  convertido <- suppressWarnings(
+    tryCatch(iconv(crudo, from = "UTF-8", to = "UTF-8", sub = NA),
+             error = function(e) rep(NA_character_, length(crudo)))
+  )
+  validos <- !is.na(crudo) & !is.na(convertido)
+  clave <- crudo
+  if (any(validos)) {
+    trozo <- crudo[validos]
+    Encoding(trozo) <- "UTF-8"
+    clave[validos] <- trozo
   }
-  invalidos <- !is.na(clave) & !validUTF8(clave)
+  invalidos <- !validos
   if (any(invalidos)) {
-    clave[invalidos] <- iconv(clave[invalidos], to = "UTF-8", sub = "byte")
+    clave[invalidos] <- iconv(
+      crudo[invalidos], from = "UTF-8", to = "UTF-8", sub = "byte"
+    )
   }
   clave
 }
@@ -60,12 +85,18 @@
     )
   }
   if (!any(no_ascii) && !any(reservado)) return(nombres)
+  claves <- .clave_bytes(nombres)
   salida <- nombres
-  validos <- !is.na(nombres) & validUTF8(nombres)
+  # Igual que en `.clave_bytes()`, lo que no se puede usar aca es la conversion
+  # que consulta al locale. La marca de la clave canonica dice si los bytes eran
+  # UTF-8 sin volver a preguntarle a `LC_CTYPE`, que es lo que hacia que la
+  # misma secuencia se tratara distinto en un perfil guardado y en uno nuevo.
+  # Los nombres ASCII siguen siendo válidos aunque su marca sea
+  # "unknown"; sólo las cadenas no ASCII necesitan la marca UTF-8
+  # normalizada para cruzar locales.
+  validos <- !is.na(nombres) & (!no_ascii | Encoding(claves) == "UTF-8")
   if (any(validos)) {
-    trozo <- nombres[validos]
-    Encoding(trozo) <- "UTF-8"
-    salida[validos] <- trozo
+    salida[validos] <- claves[validos]
     # La representacion de bytes invalidos usa un prefijo reservado. Si un
     # nombre UTF-8 real lo contiene literalmente, se escapa con otra marca
     # para que la clave siga siendo inyectiva incluso en ese caso extremo.
@@ -78,7 +109,7 @@
       }, character(1L))
     }
   }
-  invalidos <- !is.na(nombres) & !validUTF8(nombres)
+  invalidos <- !is.na(nombres) & !validos
   if (any(invalidos)) {
     salida[invalidos] <- vapply(nombres[invalidos], function(nombre) {
       bytes <- as.integer(charToRaw(nombre))
@@ -113,7 +144,7 @@
 
 .identificadores_ordenados <- function(x) {
   originales <- as.character(x)
-  originales[order(.nombres_para_operar(originales), method = "radix")]
+  originales[order(.clave_bytes(originales), method = "radix")]
 }
 
 .indice_identificador <- function(pedidos, nombres) {
@@ -543,7 +574,38 @@
   if (inherits(x, "Date")) {
     return(format(x[[1L]], "%Y-%m-%d"))
   }
+  if (is.numeric(x)) {
+    return(.formatear_numero_publicado(x[[1L]]))
+  }
   as.character(x[[1L]])
+}
+
+# Los numeros que entran en texto publicado no deben obedecer las preferencias
+# de IMPRESION de la sesion, que son dos y hay que cerrar las dos:
+#
+#   `scipen`  elige notacion cientifica. Con `scipen = -5` un `3.5` se publicaba
+#             `3.5e+00`, y un umbral `3` del propio paquete, `3e+00`.
+#   `digits`  elige cuantas cifras significativas. Este es el que se abrio al
+#             cerrar el anterior: `format(x, scientific = FALSE)` obedece a
+#             `digits`, y `as.character()` -lo que habia antes- no. Medido:
+#             `123456.789012345` se publicaba `123456.8` **sin tocar ninguna
+#             opcion**, y `123457` con `digits = 3`. Peor que el defecto que se
+#             estaba arreglando, porque `perfilar.Rd` promete el valor "tal como
+#             llego, sin reinterpretarlo".
+#
+# `digits = 15` es la precision que `as.character()` usa siempre, asi que fija
+# la salida al valor completo y la vuelve inmune a las dos opciones. Comprobado
+# sobre 3.5, 123456.789012345, 1/3, 1e-7, 1e20, 0.1+0.2, 2^53 y -1.23456789e-7,
+# cruzando `digits` en {3, 7, 15} con `scipen` en {0, -5, 100}: identico en los
+# nueve estados.
+#
+# Lo que NO se toca es `OutDec`: es el locale que eligio la persona, y en un
+# paquete en español para esta region `3,5` es lo correcto. Comprobado que con
+# `OutDec = ","`, `scipen = -5` y `digits = 3` a la vez sale `3,5` y
+# `123456,789012345`.
+.formatear_numero_publicado <- function(x) {
+  if (length(x) != 1L || is.na(x)) return(NA_character_)
+  format(x, scientific = FALSE, trim = TRUE, digits = 15)
 }
 
 # ¿La clase de `x` sabe convertirse a texto por sí misma? Si define un método

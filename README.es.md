@@ -1008,6 +1008,25 @@ comparó cuatro variantes: cruzar las dos señales acierta las trece y **no call
 ningún dato malo real**; la densidad sola acertaba once y callaba dos. Está en
 `test-ronda118.R`.
 
+Para una columna `integer64`, `bit64` se carga de manera diferida cuando está
+instalado, para registrar sus métodos antes de medir. Si no está instalado, las
+cinco medidas de la secuencia quedan en `NA` y `cobertura_diagnosticos` registra
+que `secuencia_entera` no se pudo evaluar. Los valores numéricos que se vuelven
+texto publicado usan notación fija con la precisión completa, independiente de
+`scipen` y de `digits`, y conservan
+`OutDec`.
+
+La clasificación de posibles datos personales usa esa misma representación
+fija: `scipen` y `digits` no pueden cambiar la decisión ni borrar de `meta` los
+centinelas numéricos declarados. Las claves de deriva e histórico comparan
+nombres y configuraciones por bytes, incluso al cruzar `saveRDS()` y cambiar el
+locale.
+
+Las sugerencias de ausencia estructural marcan los nombres sólo en la copia que
+entra al texto. Conservan el nombre de la tabla tal como llegó y publican el
+código para copiar y pegar igual bajo `LC_CTYPE = "C"`, incluso cuando el
+nombre contiene tildes.
+
 **Y lo que no se corre no se apaga en silencio**: deja su fila en
 `cobertura_diagnosticos` con el motivo medido —qué porcentaje de los enteros
 cubre la columna, cuántos valores se habrían señalado, cuántas filas de cuántas

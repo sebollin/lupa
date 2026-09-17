@@ -26,6 +26,9 @@
   # calcula aparte sobre el orden numerico, para no cambiar el criterio respecto
   # de una columna `double` equivalente.
   if (inherits(x, "integer64")) {
+    if (!.bit64_disponible()) {
+      return(list(valor = NA_character_, frecuencia = NA_integer_))
+    }
     etiquetas <- bit64::as.character.integer64(x)
     etiquetas <- etiquetas[validos]
     if (!length(etiquetas)) {
@@ -301,7 +304,8 @@
   vacio <- list(
     densa = FALSE, densidad = NA_real_, n_posiciones = NA_real_,
     n_huecos = NA_real_, hueco_maximo = NA_real_, salto_de_escala = FALSE,
-    moda_sobresale = FALSE,
+    moda_sobresale = FALSE, no_evaluada = FALSE,
+    motivo_no_evaluada = NA_character_,
     umbral_densidad = umbral_densidad,
     min_distintos = as.integer(min_distintos)
   )
@@ -321,8 +325,13 @@
   # protegido por "esto es una numeracion"-. El mismo dato, dos hallazgos
   # distintos, decididos por el almacenamiento.
   #
-  # `bit64` no esta en Imports, asi que esto NO puede depender de que este
-  # instalado: el tipo llega como texto en `inferencia$tipo` y con eso alcanza.
+  # Se creia que esto no podia depender de `bit64` porque no esta en Imports:
+  # alcanzaria con el texto de `inferencia$tipo`. La medicion demostro lo
+  # contrario: `as.numeric()` sobre un `integer64` sin sus metodos S3
+  # registrados reinterpreta los bits y convierte 1, 2, 3... en denormales.
+  # `requireNamespace()` registra esos metodos aunque el paquete no este
+  # adjunto. Si no esta instalado, la secuencia queda declarada como no
+  # evaluada en vez de publicar un `FALSE` inventado.
   # Los valores se llevan a `double` para medir la secuencia; con
   # identificadores por encima de 2^53 eso perderia precision, y por eso se
   # comprueba antes -si no entran, no se mide y se declara vacio, que es lo que
@@ -333,6 +342,16 @@
   cuantitativos <- .valores_cuantitativos(x, inferencia, formatos)
   if (!identical(cuantitativos$clase, "numero") &&
       !identical(cuantitativos$clase, "integer64")) {
+    return(vacio)
+  }
+  if (identical(cuantitativos$clase, "integer64") &&
+      !.bit64_disponible()) {
+    vacio$densa <- NA
+    vacio$salto_de_escala <- NA
+    vacio$moda_sobresale <- NA
+    vacio$no_evaluada <- TRUE
+    vacio$motivo_no_evaluada <-
+      "No se pudo evaluar la secuencia entera porque falta el paquete opcional 'bit64'."
     return(vacio)
   }
   presentes <- !is.na(x)
@@ -461,6 +480,10 @@
   )
   if (is.null(cuantitativos) ||
       !(cuantitativos$clase %in% c("numero", "integer64"))) {
+    return(numeric())
+  }
+  if (identical(cuantitativos$clase, "integer64") &&
+      !.bit64_disponible()) {
     return(numeric())
   }
   suppressWarnings(as.numeric(cuantitativos$valores))

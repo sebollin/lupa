@@ -505,8 +505,9 @@ clasificables). Son categorías de evidencia, no veredictos de identidad.
 por diagnóstico que no pudo evaluarse o cuya enumeración quedó parcial y
 las columnas \code{diagnostico},
 \code{columna}, \code{motivo}, \code{como_resolverlo} y \code{dependencia}. Incluye la falta de
-\code{stringdist}, \code{stringi}, \code{bit64} o \code{sf}, y las zonas horarias POSIXt sin
-declarar. Los patrones de frecuencia intermedia no se consideran desvios
+\code{stringdist}, \code{stringi}, \code{bit64} o \code{sf}, incluida la medición de secuencias
+\code{integer64} cuando falta \code{bit64}, y las zonas horarias POSIXt sin declarar.
+Los patrones de frecuencia intermedia no se consideran desvios
 del patron dominante: \code{patron_raro} es completo respecto de su criterio de
 rareza cuando no hay recorte de trazabilidad. Si el conjunto de nombres
 raros supera 5.000, \code{cobertura_diagnosticos} declara el recorte y su limite.
@@ -787,12 +788,22 @@ significa que sirven para indexar esa misma tabla —\code{datos[[nombre]]}— s
 cual sea el \code{LC_CTYPE} de la sesión. El paquete deriva una representación de
 trabajo para comparar y desambiguar internamente, pero no la publica: dos
 nombres con bytes distintos siguen siendo dos columnas distintas.
+Al componer texto publicado —en particular las sugerencias de
+\code{posible_ausencia_estructural}— usa una copia marcada como UTF-8 del nombre,
+sin modificar el nombre conservado en la tabla. Por eso una sugerencia como
+\code{perfilar(datos, aplicabilidad = list(entero = ~ categoría == "categoría"))}
+conserva el nombre real también bajo \code{LC_CTYPE = "C"} y se puede copiar y
+pegar.
 
 La identidad de la columna no depende de esa exclusión: \code{n_distintos},
 \code{moda} y \code{frecuencia_moda} comparan la representación almacenada, que se
 puede distinguir sin decodificarla. Un valor ilegible cuenta como valor, y
 la moda que se publica es el valor original tal como llegó, sin
-reinterpretarlo.
+reinterpretarlo. Cuando ese valor es numérico, su representación textual se
+formatea con notación fija, con la precisión completa e independiente de
+\code{scipen} y de \code{digits}; se conserva
+\code{OutDec}, porque esa marca decimal sí pertenece a la preferencia de locale
+de quien usa el paquete.
 
 Las columnas \code{sfc} declaran su CRS, los tipos concretos y la dimensión
 (\code{XY}, \code{XYZ}, \code{XYM} o \code{XYZM}), además de geometrías vacías, validez, dominio y
@@ -917,6 +928,11 @@ limpia}, para no llamar ausencia a un código válido. \code{densa} responde só
 a la cobertura del rango —\code{densidad_secuencia_entera} por encima de su
 umbral—; \code{moda_sobresale_secuencia_entera} es una señal independiente y no
 cambia los tres escudos de forma que dependen de la numeración.
+En una columna \code{integer64}, \code{bit64} se carga de manera diferida si está
+instalado para registrar sus métodos antes de medir. Si no está instalado,
+las cinco medidas públicas de la secuencia quedan en \code{NA} y
+\code{cobertura_diagnosticos} declara que \code{secuencia_entera} no se evaluó por
+falta de esa dependencia.
 La guarda vuelve a abrirse si un candidato presente queda fuera del rango de
 los valores restantes de la numeración, o si la frecuencia del candidato es
 la moda sobresaliente. Esta segunda señal se mide por el \strong{salto entre

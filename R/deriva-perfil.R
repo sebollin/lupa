@@ -95,7 +95,11 @@
   valores <- lapply(presentes, function(campo) {
     valor <- perfil$meta[[campo]]
     if (is.null(valor) || !length(valor)) "ninguna"
-    else paste(sort(unique(as.character(valor))), collapse = "/")
+    else {
+      texto <- as.character(valor)
+      texto <- texto[!duplicated(.clave_bytes(texto))]
+      paste(.clave_bytes(.ordenar_por_bytes(texto)), collapse = "/")
+    }
   })
   stats::setNames(unlist(valores, use.names = FALSE), presentes)
 }
@@ -110,9 +114,18 @@
   # contradecia sola. Es la misma regla que el paquete ya fija para los pesos de
   # `agregar()`: la misma declaracion escrita en otro orden da el mismo numero.
   if (is.list(general) && !is.null(general$proteger)) {
-    general$proteger <- sort(unique(as.character(general$proteger)))
+    proteger <- as.character(general$proteger)
+    proteger <- proteger[!duplicated(.clave_bytes(proteger))]
+    general$proteger <- .clave_bytes(.ordenar_por_bytes(proteger))
   }
   general
+}
+
+.configuracion_aplicabilidad_perfil <- function(perfil) {
+  if (!"declaracion_aplicabilidad" %in% names(perfil$meta)) return(NULL)
+  valores <- as.character(perfil$meta$declaracion_aplicabilidad)
+  valores <- valores[!duplicated(.clave_bytes(valores))]
+  .clave_bytes(.ordenar_por_bytes(valores))
 }
 
 .configuracion_sentinelas_perfil <- function(perfil) {
@@ -177,7 +190,8 @@
 }
 
 .clave_patron <- function(x) {
-  ifelse(is.na(x), "<NA>", as.character(x))
+  valores <- ifelse(is.na(x), "<NA>", as.character(x))
+  .clave_bytes(valores)
 }
 
 # Los diagnosticos que el perfil declino, como `columna tipo`, para poder
@@ -332,6 +346,11 @@
 #' no sobre los valores originales ni una distribución completa. Si las dos
 #' corridas usaron configuraciones de patrones diferentes, se informa un error
 #' de comparabilidad y esa parte de la comparación se omite.
+#'
+#' Los nombres de columnas y las configuraciones que contienen texto del usuario
+#' se comparan por sus bytes, no por la marca de codificación ni por la
+#' intercalación del locale. Esto también vale cuando un perfil se guarda con
+#' [saveRDS()] y se relee bajo otro locale.
 #'
 #' Las columnas que aparecen o desaparecen generan cambios estructurales de
 #' severidad `error`, pero no impiden comparar las columnas compartidas. Un
@@ -716,8 +735,8 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
 
   # La misma declaracion de comparabilidad que ya existia para los centinelas,
   # para la tercera politica que redefine lo que se mide.
-  aplicabilidad_a <- anterior$meta$declaracion_aplicabilidad
-  aplicabilidad_b <- actual$meta$declaracion_aplicabilidad
+  aplicabilidad_a <- .configuracion_aplicabilidad_perfil(anterior)
+  aplicabilidad_b <- .configuracion_aplicabilidad_perfil(actual)
   if (!is.null(aplicabilidad_a) && !is.null(aplicabilidad_b) &&
       !identical(aplicabilidad_a, aplicabilidad_b)) {
     texto_aplicabilidad <- function(x) {

@@ -173,8 +173,10 @@
       "parece un identificador (tipo_inferido, posible_identificador o secuencia correlativa)"
     },
     observaciones_utilizables_insuficientes = paste0(
-      "observaciones positivas utilizables ", resultado$n_positivos,
-      " < ", umbrales$minimo_observaciones_utilizables
+      "observaciones positivas utilizables ",
+      .formatear_numero_publicado(resultado$n_positivos),
+      " < ",
+      .formatear_numero_publicado(umbrales$minimo_observaciones_utilizables)
     ),
     proporcion_positivos_insuficiente = paste0(
       "proporcion de positivos ", sprintf("%.3f", resultado$proporcion_positivos),
@@ -187,7 +189,7 @@
       } else {
         "no calculables"
       },
-      " < ", umbrales$minimo_ordenes_magnitud
+      " < ", .formatear_numero_publicado(umbrales$minimo_ordenes_magnitud)
     )
   )
   paste0(
@@ -279,8 +281,9 @@
       paste0(
         "No interpretar una distribucion de primeros digitos. Benford requiere ",
         "montos positivos no asignados, al menos ",
-        umbrales$minimo_observaciones_utilizables,
-        " observaciones y al menos ", umbrales$minimo_ordenes_magnitud,
+        .formatear_numero_publicado(umbrales$minimo_observaciones_utilizables),
+        " observaciones y al menos ",
+        .formatear_numero_publicado(umbrales$minimo_ordenes_magnitud),
         " ordenes de magnitud."
       )
     )
@@ -295,6 +298,11 @@
 
   nuevos <- lapply(resultados, function(resultado) {
     if (!isTRUE(resultado$aplica) || !isTRUE(resultado$desviacion)) return(NULL)
+    texto_p <- local({
+      opciones <- options(scipen = 0)
+      on.exit(options(opciones), add = TRUE)
+      format.pval(resultado$p_valor, digits = 4L)
+    })
     .nuevo_hallazgo(
       resultado$columna, "desviacion_benford", "sospechoso",
       paste0(
@@ -307,7 +315,7 @@
       ),
       paste0(
         resultado$metodo, ": X2=", sprintf("%.3f", resultado$estadistico),
-        ", p=", format.pval(resultado$p_valor, digits = 4L),
+        ", p=", texto_p,
         "; observado/esperado por digito: ",
         .texto_distribucion_benford(resultado$distribucion), "."
       ),

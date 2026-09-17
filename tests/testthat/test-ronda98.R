@@ -184,7 +184,7 @@ test_that("un perfil sin relaciones es identico sin el detector", {
   testthat::local_mocked_bindings(
     .detectar_aritmetica_columnas = function(datos, umbral, min_filas,
                                               tolerancia,
-                                              max_columnas) {
+                                              max_columnas, ...) {
       list(
         hallazgos = list(),
         alcance = lupa:::.alcance_aritmetica_columnas(

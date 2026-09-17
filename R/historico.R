@@ -81,7 +81,7 @@
                                           configuracion_modelo = NULL,
                                           configuracion_aplicabilidad = NULL,
                                           configuracion_perfil = NULL) {
-  ids <- as.character(ids)
+  ids <- .clave_bytes(as.character(ids))
   if (!length(ids) || (
     is.null(configuracion_modelo) &&
       is.null(configuracion_aplicabilidad) &&
@@ -89,27 +89,30 @@
   )) return(.configuraciones_historico_vacias())
   if (length(fechas) == 1L) fechas <- rep(fechas, length(ids))
   if (length(perfiles) == 1L) perfiles <- rep(perfiles, length(ids))
+  perfiles <- .clave_bytes(as.character(perfiles))
   entidades <- if (is.list(configuracion_modelo) &&
                    length(configuracion_modelo$entidades)) {
-    paste(.identificadores_ordenados(configuracion_modelo$entidades),
-          collapse = "+")
+    .clave_bytes(paste(
+      .identificadores_ordenados(configuracion_modelo$entidades),
+      collapse = "+"
+    ))
   } else NA_character_
   data.frame(
     id_medicion = ids, fecha = .fecha_utc(fechas), perfil = as.character(perfiles),
     identidad_tabla = rep(entidades, length.out = length(ids)),
     configuracion_modelo = rep(
       if (is.null(configuracion_modelo)) NA_character_ else
-        .texto_configuracion_calidad(configuracion_modelo),
+        .clave_bytes(.texto_configuracion_calidad(configuracion_modelo)),
       length.out = length(ids)
     ),
     configuracion_aplicabilidad = rep(
       if (is.null(configuracion_aplicabilidad)) NA_character_ else
-        as.character(configuracion_aplicabilidad),
+        .clave_bytes(as.character(configuracion_aplicabilidad)),
       length.out = length(ids)
     ),
     configuracion_perfil = rep(
       if (is.null(configuracion_perfil)) NA_character_ else
-        .texto_configuracion_calidad(configuracion_perfil),
+        .clave_bytes(.texto_configuracion_calidad(configuracion_perfil)),
       length.out = length(ids)
     ), stringsAsFactors = FALSE
   )
@@ -265,7 +268,7 @@
 }
 
 .escapar_clave <- function(x) {
-  x <- as.character(x)
+  x <- .clave_bytes(as.character(x))
   cod <- vapply(
     x,
     function(z) if (is.na(z)) NA_character_ else utils::URLencode(z, TRUE),

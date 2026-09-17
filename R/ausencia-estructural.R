@@ -279,14 +279,16 @@
 }
 
 .hallazgo_ausencia_determinada <- function(columna, determinante, ajuste,
-                                           n_ausentes) {
+                                           n_ausentes,
+                                           columna_texto = columna,
+                                           determinante_texto = determinante) {
   por_umbral <- !is.null(ajuste$corte)
   formula <- if (por_umbral) {
-    paste0("~ ", determinante, " ", ajuste$sentido, " ",
+    paste0("~ ", determinante_texto, " ", ajuste$sentido, " ",
            .texto_corte_umbral(ajuste))
   } else {
     paste0(
-      "~ ", determinante,
+      "~ ", determinante_texto,
       if (length(ajuste$niveles_aplica) == 1L) " == " else " %in% ",
       .texto_valores_nivel(ajuste$niveles_aplica)
     )
@@ -301,7 +303,7 @@
       "su cuenta."
     ),
     paste0(
-      "`", determinante, "` predice la presencia de `", columna,
+      "`", determinante_texto, "` predice la presencia de `", columna_texto,
       "` en ", sprintf("%.1f", 100 * ajuste$cumplimiento), " % de ",
       ajuste$n_usables, " filas",
       if (por_umbral) {
@@ -315,7 +317,7 @@
       } else {
         ""
       },
-      ". La columna corresponde cuando ", determinante,
+      ". La columna corresponde cuando ", determinante_texto,
       if (por_umbral) {
         paste0(" ", ajuste$sentido, " ", .texto_corte_umbral(ajuste))
       } else if (length(ajuste$niveles_aplica) == 1L) {
@@ -327,7 +329,7 @@
     ),
     paste0(
       "Si es as\u00ed, declararlo y volver a perfilar: ",
-      "`perfilar(datos, aplicabilidad = list(", columna, " = ", formula,
+      "`perfilar(datos, aplicabilidad = list(", columna_texto, " = ", formula,
       "))`. Con la regla declarada, la ausencia fuera de ese universo deja de ",
       "contarse como defecto y el alcance queda escrito en ",
       "`cobertura_diagnosticos`."
@@ -337,8 +339,13 @@
 }
 
 .hallazgo_ausencia_excluyente <- function(columna, grupo, solapamiento,
-                                          cobertura, n, n_ausentes) {
+                                          cobertura, n, n_ausentes,
+                                          columna_texto = columna,
+                                          grupo_texto = grupo) {
   otras <- grupo[
+    !(.nombres_para_operar(grupo) %in% .nombres_para_operar(columna))
+  ]
+  otras_texto <- grupo_texto[
     !(.nombres_para_operar(grupo) %in% .nombres_para_operar(columna))
   ]
   .nuevo_hallazgo(
@@ -350,7 +357,8 @@
       "conclusi\u00f3n."
     ),
     paste0(
-      "`", columna, "` no coincide con ", paste0("`", otras, "`", collapse = ", "),
+      "`", columna_texto, "` no coincide con ",
+      paste0("`", otras_texto, "`", collapse = ", "),
       ": entre las ", length(grupo), " columnas cubren ",
       sprintf("%.1f", 100 * cobertura), " % de las ", n, " filas y se pisan en ",
       solapamiento, if (solapamiento == 1L) " fila." else " filas."
@@ -360,7 +368,7 @@
       " corresponde en cada fila, declararla con `aplicabilidad`; si la ",
       "ausencia es por dise\u00f1o y no depende de ninguna otra columna, ",
       "`columnas_opcionales = c(",
-      paste0("\"", grupo, "\"", collapse = ", "), ")`."
+      paste0("\"", grupo_texto, "\"", collapse = ", "), ")`."
     ),
     n_ausentes, n_ausentes, "fila"
   )
@@ -477,7 +485,9 @@
 
 .diagnosticar_ausencia_estructural <- function(datos, nombres, resultados,
                                                aplicabilidad_resuelta,
-                                               umbral_faltantes_error) {
+                                               umbral_faltantes_error,
+                                               nombres_texto = NULL) {
+  if (is.null(nombres_texto)) nombres_texto <- .marcar_utf8_textos(nombres)
   vacio <- list(
     hallazgos = list(), cobertura = .cobertura_diagnosticos_vacia()
   )
@@ -596,6 +606,7 @@
     columna <- nombres[[indices[[k]]]]
     mejor <- NULL
     mejor_nombre <- NA_character_
+    mejor_indice <- NA_integer_
     for (det in determinantes) {
       if (det$indice == indices[[k]]) next
       ajuste <- .determinacion_ausencia(presentes[[k]], det)
@@ -611,11 +622,14 @@
              niveles_de(ajuste) < niveles_de(mejor))) {
         mejor <- ajuste
         mejor_nombre <- det$nombre
+        mejor_indice <- det$indice
       }
     }
     if (!is.null(mejor)) {
       hallazgos[[length(hallazgos) + 1L]] <- .hallazgo_ausencia_determinada(
-        columna, mejor_nombre, mejor, n_ausentes[[indices[[k]]]]
+        columna, mejor_nombre, mejor, n_ausentes[[indices[[k]]]],
+        columna_texto = nombres_texto[[indices[[k]]]],
+        determinante_texto = nombres_texto[[mejor_indice]]
       )
       explicadas <- c(explicadas, columna)
     }
@@ -655,12 +669,15 @@
       cubierto <- sum(union) / n
       if (cubierto < .min_cobertura_ausencia) next
       nombres_grupo <- nombres[indices[grupo]]
+      nombres_grupo_texto <- nombres_texto[indices[grupo]]
       usadas_operativas <- c(usadas_operativas,
                              nombres_operativos[indices[grupo]])
       for (k in grupo) {
         hallazgos[[length(hallazgos) + 1L]] <- .hallazgo_ausencia_excluyente(
           nombres[[indices[[k]]]], nombres_grupo, solapamiento, cubierto, n,
-          n_ausentes[[indices[[k]]]]
+          n_ausentes[[indices[[k]]]],
+          columna_texto = nombres_texto[[indices[[k]]]],
+          grupo_texto = nombres_grupo_texto
         )
       }
     }

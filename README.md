@@ -980,6 +980,22 @@ four variants: crossing both signals gets all thirteen right and **never silence
 a real bad value**; density alone got eleven and silenced two. It lives in
 `test-ronda118.R`.
 
+For an `integer64` column, `bit64` is loaded lazily when it is installed so its
+methods are registered before measuring. If it is not installed, the five
+sequence measures are `NA` and `cobertura_diagnosticos` records that
+`secuencia_entera` could not be evaluated. Numeric values that become published
+text use fixed notation at full precision, independent of `scipen` and
+`digits`, while preserving `OutDec`.
+
+The same fixed representation drives personal-data classification, so `scipen`
+and `digits` cannot change that decision or erase declared numeric sentinels
+from `meta`. Drift and history keys compare names and configurations by bytes,
+including across a `saveRDS()` boundary and a changed locale.
+
+Structural-absence suggestions mark names only in the copy used to compose text.
+They preserve the table's names exactly as received and publish copy-and-paste
+code identically under `LC_CTYPE = "C"`, including names with accents.
+
 **And what is not run is not switched off silently**: it leaves its row in
 `cobertura_diagnosticos` with the measured reason — what share of the integers
 the column covers, how many values would have been flagged, how many rows out of

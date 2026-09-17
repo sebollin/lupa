@@ -115,13 +115,15 @@
 }
 
 .evidencia_filas_aritmetica <- function(datos, indices, columnas, esperado,
-                                         etiqueta_esperado) {
+                                         etiqueta_esperado,
+                                         nombres_texto = names(datos)) {
   ejemplos <- utils::head(indices, 5L)
   if (!length(ejemplos)) return("sin filas discrepantes")
   paste(vapply(seq_along(ejemplos), function(i) {
     fila <- ejemplos[[i]]
     valores <- paste(vapply(columnas, function(columna) {
-      paste0(names(datos)[[columna]], "=", .texto_valor(datos[[columna]][fila]))
+      paste0(nombres_texto[[columna]], "=",
+             .texto_valor(datos[[columna]][fila]))
     }, character(1L)), collapse = "; ")
     paste0(
       "fila ", fila, ": ", valores, "; ", etiqueta_esperado, "=",
@@ -131,7 +133,8 @@
 }
 
 .hallazgo_identidad_aditiva <- function(datos, sumandos, total, umbral,
-                                         min_filas, tolerancia) {
+                                         min_filas, tolerancia,
+                                         nombres_texto = names(datos)) {
   x <- datos[[sumandos[[1L]]]]
   y <- datos[[sumandos[[2L]]]]
   z <- datos[[total]]
@@ -154,17 +157,17 @@
   esperados_incumplen <- esperado[!cumple]
   nombres <- names(datos)
   expresion <- paste0(
-    nombres[[sumandos[[1L]]]], " + ", nombres[[sumandos[[2L]]]],
-    " ~= ", nombres[[total]]
+    nombres_texto[[sumandos[[1L]]]], " + ",
+    nombres_texto[[sumandos[[2L]]]], " ~= ", nombres_texto[[total]]
   )
   alternativa <- paste0(
-    nombres[[sumandos[[1L]]]], " ~= ", nombres[[total]], " - ",
-    nombres[[sumandos[[2L]]]]
+    nombres_texto[[sumandos[[1L]]]], " ~= ", nombres_texto[[total]], " - ",
+    nombres_texto[[sumandos[[2L]]]]
   )
   tolerancia_texto <- .texto_tolerancia_aritmetica(tolerancia)
   ejemplos <- .evidencia_filas_aritmetica(
     datos, indices_incumplen, c(sumandos, total), esperados_incumplen,
-    paste0(nombres[[total]], " esperado")
+    paste0(nombres_texto[[total]], " esperado"), nombres_texto
   )
   hallazgo <- .nuevo_hallazgo(
     paste(nombres[c(sumandos, total)], collapse = ","),
@@ -206,7 +209,7 @@
 }
 
 .hallazgo_proporcional <- function(datos, par, umbral, min_filas,
-                                    tolerancia) {
+                                    tolerancia, nombres_texto = names(datos)) {
   primero <- datos[[par[[1L]]]]
   segundo <- datos[[par[[2L]]]]
   base <- primero
@@ -249,17 +252,18 @@
     constante, scientific = FALSE, trim = TRUE, digits = 15L
   )
   expresion <- paste0(
-    nombres[[indice_respuesta]], " ~= ", nombres[[indice_base]], " * ",
+    nombres_texto[[indice_respuesta]], " ~= ", nombres_texto[[indice_base]], " * ",
     constante_texto
   )
   inversa <- paste0(
-    nombres[[indice_base]], " ~= ", nombres[[indice_respuesta]], " / ",
+    nombres_texto[[indice_base]], " ~= ", nombres_texto[[indice_respuesta]], " / ",
     constante_texto
   )
   tolerancia_texto <- .texto_tolerancia_aritmetica(tolerancia)
   ejemplos <- .evidencia_filas_aritmetica(
     datos, indices_incumplen, c(indice_base, indice_respuesta),
-    esperados_incumplen, paste0(nombres[[indice_respuesta]], " esperado")
+    esperados_incumplen, paste0(nombres_texto[[indice_respuesta]], " esperado"),
+    nombres_texto
   )
   hallazgo <- .nuevo_hallazgo(
     paste(nombres[c(indice_base, indice_respuesta)], collapse = ","),
@@ -302,7 +306,8 @@
 .detectar_aritmetica_columnas <- function(datos, umbral = 0.9,
                                            min_filas = 3L,
                                            tolerancia = 1e-8,
-                                           max_columnas = 20L) {
+                                           max_columnas = 20L,
+                                           nombres_texto = names(datos)) {
   numericas <- which(vapply(datos, .es_columna_aritmetica, logical(1L)))
   seleccion <- utils::head(numericas, max_columnas)
   alcance <- .alcance_aritmetica_columnas(
@@ -317,7 +322,7 @@
       candidatos <- lapply(seq_len(3L), function(objetivo) {
         .hallazgo_identidad_aditiva(
           datos, terna[-objetivo], terna[[objetivo]], umbral,
-          min_filas, tolerancia
+          min_filas, tolerancia, nombres_texto
         )
       })
       candidatos <- Filter(Negate(is.null), candidatos)
@@ -343,7 +348,7 @@
       }, logical(1L)))
       if (redundante) next
       hallazgo <- .hallazgo_proporcional(
-        datos, par, umbral, min_filas, tolerancia
+        datos, par, umbral, min_filas, tolerancia, nombres_texto
       )
       if (!is.null(hallazgo)) {
         hallazgos_proporcionales[[length(hallazgos_proporcionales) + 1L]] <-

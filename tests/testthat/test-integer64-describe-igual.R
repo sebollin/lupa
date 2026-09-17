@@ -46,9 +46,9 @@ test_that("el orden seguro no depende de que bit64 este adjunto", {
 test_that("una numeracion densa se reconoce igual en integer64", {
   skip_if_not_installed("bit64")
   # `1:1000` contiene el 999, que esta en la lista por omision de centinelas.
-  # En `integer`/`double` la columna se reconoce como numeracion y el 999 queda
-  # protegido por eso; en `integer64` no se reconocia, y el mismo dato publicaba
-  # `faltantes_disfrazados` en vez de `posible_identificador`.
+  # En las tres representaciones la columna se reconoce como numeracion y el
+  # 999 queda protegido por eso; la conversion de `integer64` debe conservar
+  # exactamente los mismos hallazgos.
   perfiles <- lapply(
     list(entero = 1:1000, doble = as.numeric(1:1000),
          i64 = bit64::as.integer64(1:1000)),

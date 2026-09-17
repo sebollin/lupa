@@ -1,5 +1,22 @@
 # lupa 0.1.0
 
+## Correcciones de cobertura y publicación
+
+- Las secuencias `integer64` registran los métodos de `bit64` antes de medirse
+  aunque el paquete no esté adjunto; si `bit64` no está instalado, sus cinco
+  medidas quedan en `NA` y `cobertura_diagnosticos` declara la no evaluación.
+- La moda y las constantes numéricas que se publican en texto usan notación
+  fija con la precisión completa, independiente de `scipen` y de `digits`, y
+  conservan `OutDec`.
+- La clasificación de posibles datos personales usa esa representación fija,
+  así que `scipen` y `digits` ya no cambian la clasificación ni borran de
+  `meta` los centinelas numéricos declarados. Las claves de deriva e histórico
+  comparan nombres y configuraciones por bytes, incluso después de `saveRDS()`
+  y al cambiar de locale.
+- Las sugerencias de ausencia estructural componen sus nombres con una copia
+  marcada como UTF-8, sin cambiar los nombres publicados de la tabla; el código
+  que se puede copiar y pegar queda igual bajo `LC_CTYPE = "C"`.
+
 ## Texto declarado independiente del locale
 
 - **La resolución de factores y las agrupaciones por valores de texto ya no

@@ -1,3 +1,22 @@
+# La representacion numerica que alimenta un patron no puede quedar a merced de
+# `options(scipen)` ni de `options(digits)`: una misma columna no puede cambiar
+# de categoria porque la sesion eligio notacion cientifica. `OutDec` tambien se
+# fija aqui porque esta conversion es para decidir una forma, no para publicar
+# un numero; `.formatear_numero_publicado()` sigue siendo la unica conversion
+# de numeros del paquete.
+.textos_para_clasificacion_personal <- function(x) {
+  textos <- .texto_analizable(x)$valores
+  if (is.numeric(x) && !inherits(x, c("Date", "POSIXt"))) {
+    opciones <- options(OutDec = ".")
+    on.exit(options(opciones), add = TRUE)
+    textos <- vapply(
+      seq_along(x), function(i) .formatear_numero_publicado(x[[i]]),
+      character(1L), USE.NAMES = FALSE
+    )
+  }
+  trimws(textos)
+}
+
 # La proporcion se calcula sobre los valores que se pueden juzgar -un blanco no
 # tiene forma que comparar contra un patron- y por eso los excluye. Pero ese
 # denominador se publicaba sin decirse: una columna con ocho documentos y treinta
@@ -8,7 +27,7 @@
 # medio vacia en incompatible, que es un falso positivo peor-. Se declara sobre
 # cuantos se calculo, que es lo que faltaba para poder leer el numero.
 .proporcion_compatible <- function(x, patron) {
-  valores <- trimws(.texto_analizable(x)$valores)
+  valores <- .textos_para_clasificacion_personal(x)
   presentes <- !is.na(valores) & nzchar(valores)
   if (!any(presentes)) {
     return(structure(NA_real_, evaluados = 0L, totales = length(valores)))
@@ -151,7 +170,7 @@
   por_nombre <- names(reglas_nombre)[vapply(
     reglas_nombre, grepl, logical(1L), x = normalizado, perl = TRUE
   )]
-  textos <- trimws(.texto_analizable(x)$valores)
+  textos <- .textos_para_clasificacion_personal(x)
   presentes <- !is.na(textos) & nzchar(textos)
   proporcion_correo <- if ("correo" %in% por_nombre ||
     any(grepl("@", textos[presentes], fixed = TRUE))) {

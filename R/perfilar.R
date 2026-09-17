@@ -13,7 +13,8 @@
     umbral_celdas = umbral_celdas,
     fuente = paste0(
       "mediciones de lupa con 500 filas y 50, 300 y 1.000 columnas; ",
-      "referencia conservadora de ", .VELOCIDAD_REFERENCIA_TABLA_ANCHA,
+      "referencia conservadora de ",
+      .formatear_numero_publicado(.VELOCIDAD_REFERENCIA_TABLA_ANCHA),
       " celdas por segundo"
     )
   )
@@ -908,12 +909,22 @@
 #' cual sea el `LC_CTYPE` de la sesión. El paquete deriva una representación de
 #' trabajo para comparar y desambiguar internamente, pero no la publica: dos
 #' nombres con bytes distintos siguen siendo dos columnas distintas.
+#' Al componer texto publicado —en particular las sugerencias de
+#' `posible_ausencia_estructural`— usa una copia marcada como UTF-8 del nombre,
+#' sin modificar el nombre conservado en la tabla. Por eso una sugerencia como
+#' `perfilar(datos, aplicabilidad = list(entero = ~ categoría == "categoría"))`
+#' conserva el nombre real también bajo `LC_CTYPE = "C"` y se puede copiar y
+#' pegar.
 #'
 #' La identidad de la columna no depende de esa exclusión: `n_distintos`,
 #' `moda` y `frecuencia_moda` comparan la representación almacenada, que se
 #' puede distinguir sin decodificarla. Un valor ilegible cuenta como valor, y
 #' la moda que se publica es el valor original tal como llegó, sin
-#' reinterpretarlo.
+#' reinterpretarlo. Cuando ese valor es numérico, su representación textual se
+#' formatea con notación fija, con la precisión completa e independiente de
+#' `scipen` y de `digits`; se conserva
+#' `OutDec`, porque esa marca decimal sí pertenece a la preferencia de locale
+#' de quien usa el paquete.
 #'
 #' Las columnas `sfc` declaran su CRS, los tipos concretos y la dimensión
 #' (`XY`, `XYZ`, `XYM` o `XYZM`), además de geometrías vacías, validez, dominio y
@@ -1038,6 +1049,11 @@
 #' a la cobertura del rango —`densidad_secuencia_entera` por encima de su
 #' umbral—; `moda_sobresale_secuencia_entera` es una señal independiente y no
 #' cambia los tres escudos de forma que dependen de la numeración.
+#' En una columna `integer64`, `bit64` se carga de manera diferida si está
+#' instalado para registrar sus métodos antes de medir. Si no está instalado,
+#' las cinco medidas públicas de la secuencia quedan en `NA` y
+#' `cobertura_diagnosticos` declara que `secuencia_entera` no se evaluó por
+#' falta de esa dependencia.
 #' La guarda vuelve a abrirse si un candidato presente queda fuera del rango de
 #' los valores restantes de la numeración, o si la frecuencia del candidato es
 #' la moda sobresaliente. Esta segunda señal se mide por el **salto entre
@@ -1511,8 +1527,9 @@
 #'   por diagnóstico que no pudo evaluarse o cuya enumeración quedó parcial y
 #'   las columnas `diagnostico`,
 #'   `columna`, `motivo`, `como_resolverlo` y `dependencia`. Incluye la falta de
-#'   `stringdist`, `stringi`, `bit64` o `sf`, y las zonas horarias POSIXt sin
-#'   declarar. Los patrones de frecuencia intermedia no se consideran desvios
+#'   `stringdist`, `stringi`, `bit64` o `sf`, incluida la medición de secuencias
+#'   `integer64` cuando falta `bit64`, y las zonas horarias POSIXt sin declarar.
+#'   Los patrones de frecuencia intermedia no se consideran desvios
 #'   del patron dominante: `patron_raro` es completo respecto de su criterio de
 #'   rareza cuando no hay recorte de trazabilidad. Si el conjunto de nombres
 #'   raros supera 5.000, `cobertura_diagnosticos` declara el recorte y su limite.
@@ -1922,6 +1939,13 @@ perfilar <- function(datos,
   if (is.null(nombres)) {
     nombres <- paste0("V", seq_len(ncol(datos)))
   }
+  # Los nombres de la tabla son datos publicados y conservan exactamente los
+  # bytes que llegaron. Para componer texto hace falta otra vista: bajo
+  # `LC_CTYPE = "C"`, `paste0()` traduce una cadena sin marca a ASCII y puede
+  # publicar la descripcion escapada de sus bytes (`<c3><ad>`) en lugar de la
+  # letra. Se marca una sola vez aca, no en la tabla, y se usa solo en los
+  # canales que redactan mensajes.
+  nombres_texto <- .marcar_utf8_textos(nombres)
   aplicabilidad_resuelta <- .resolver_aplicabilidad(
     datos, nombres, columnas_opcionales, aplicabilidad
   )
@@ -1988,16 +2012,27 @@ perfilar <- function(datos,
     error = function(e) NA_integer_
   )
   duplicadas <- .columnas_duplicadas(datos, nombres)
+  duplicadas_texto <- duplicadas
+  if (nrow(duplicadas_texto)) {
+    duplicadas_texto$columna_1 <- nombres_texto[
+      .indice_nombre(duplicadas$columna_1, nombres)
+    ]
+    duplicadas_texto$columna_2 <- nombres_texto[
+      .indice_nombre(duplicadas$columna_2, nombres)
+    ]
+  }
   relaciones_orden <- .detectar_orden_columnas(
     datos, columnas, formatos_fecha,
     umbral = umbral_orden_columnas, max_columnas = max_columnas_orden,
-    umbral_solapamiento = umbral_solapamiento_orden
+    umbral_solapamiento = umbral_solapamiento_orden,
+    nombres_texto = nombres_texto
   )
   relaciones_aritmeticas <- .detectar_aritmetica_columnas(
     datos, umbral = umbral_aritmetica,
     min_filas = min_filas_aritmetica,
     tolerancia = tolerancia_aritmetica,
-    max_columnas = max_columnas_aritmetica
+    max_columnas = max_columnas_aritmetica,
+    nombres_texto = nombres_texto
   )
   normalizacion_fusiones <- .normalizacion_fusiones_tabla(
     datos, normalizacion_resuelta
@@ -2044,7 +2079,9 @@ perfilar <- function(datos,
     max_asimetria_equifrecuente = max_asimetria_equifrecuente_vocabulario,
     max_trabajo = max_trabajo_vocabulario,
     max_largo_valor = max_largo_valor_vocabulario,
-    trazador_tiempos = trazador_tiempos
+    trazador_tiempos = trazador_tiempos,
+    nombres_texto = nombres_texto,
+    duplicadas_texto = duplicadas_texto
   )
   cobertura_diagnosticos <- attr(
     hallazgos, "cobertura_diagnosticos", exact = TRUE
@@ -2087,7 +2124,7 @@ perfilar <- function(datos,
       trazador_tiempos, "ausencia_estructural",
       .diagnosticar_ausencia_estructural(
         datos, nombres, resultados, aplicabilidad_resuelta,
-        umbral_faltantes_error
+        umbral_faltantes_error, nombres_texto = nombres_texto
       )
     )
     if (nrow(estructural$cobertura)) {
@@ -2239,7 +2276,7 @@ perfilar <- function(datos,
     } else {
       nombres_aplicabilidad <- as.character(names(aplicabilidad))
       nombres_aplicabilidad[order(
-        .nombres_para_operar(nombres_aplicabilidad), method = "radix"
+        .clave_bytes(nombres_aplicabilidad), method = "radix"
       )]
     },
     ausencia_estructural = ausencia_estructural,
