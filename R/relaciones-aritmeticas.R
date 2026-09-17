@@ -180,9 +180,10 @@
       } else " en todas las filas comparables."
     ),
     paste0(
-      sprintf("%.3f de cumplimiento; %d de %d filas discrepantes (universo: %d de %d filas con valores finitos en las tres columnas). ",
-              proporcion, length(indices_incumplen), n_evaluados,
-              n_evaluados, nrow(datos)),
+      .formatear_decimal_publicado(proporcion),
+      " de cumplimiento; ", length(indices_incumplen), " de ", n_evaluados,
+      " filas discrepantes (universo: ", n_evaluados, " de ", nrow(datos),
+      " filas con valores finitos en las tres columnas). ",
       .texto_criterio_aritmetica(umbral, min_filas),
       "Forma equivalente observada: ", alternativa, ". ",
       "Tolerancia declarada: ", tolerancia_texto,
@@ -276,9 +277,10 @@
       } else " en todas las filas comparables."
     ),
     paste0(
-      sprintf("%.3f de cumplimiento; %d de %d filas discrepantes (universo: %d de %d filas con valores finitos en ambas columnas). ",
-              proporcion, length(indices_incumplen), n_evaluados,
-              n_evaluados, nrow(datos)),
+      .formatear_decimal_publicado(proporcion),
+      " de cumplimiento; ", length(indices_incumplen), " de ", n_evaluados,
+      " filas discrepantes (universo: ", n_evaluados, " de ", nrow(datos),
+      " filas con valores finitos en ambas columnas). ",
       .texto_criterio_aritmetica(umbral, min_filas),
       "Constante observada k=", constante_texto,
       " (mediana de respuesta/base en ", sum(utilizables),

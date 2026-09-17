@@ -609,6 +609,18 @@
   format(x, scientific = FALSE, trim = TRUE, digits = 15)
 }
 
+# `sprintf()` usa el formateador de C y por eso ignora `OutDec`. Los números
+# que viven dentro de una evidencia tienen que usar la misma marca que las
+# columnas publicadas; `formatC()` conserva la precisión fija y respeta esa
+# opción. `digits` es el número de decimales, no el de cifras significativas.
+.formatear_decimal_publicado <- function(x, digits = 3L, signo = FALSE) {
+  if (length(x) != 1L || is.na(x)) return(NA_character_)
+  formatC(
+    x, format = "f", digits = as.integer(digits),
+    flag = if (isTRUE(signo)) "+" else ""
+  )
+}
+
 # ¿La clase de `x` sabe convertirse a texto por sí misma? Si define un método
 # de `as.character()`, la conversión produce los valores del dato. Si no, la
 # coerción cae en `as.character.default()`.

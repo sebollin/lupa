@@ -337,6 +337,11 @@ similar rather than equal. `pares$igualo_normalizar` marks the middle case.
 The corresponding scope counts are `n_pares_exactos`,
 `n_pares_exactos_normalizados`, and `n_pares_aproximados`.
 
+The `casi_duplicados_vocabulario` diagnostic runs per column. Even when two
+columns have the same vocabulary, each keeps its own coverage row and findings;
+the cost of comparing identical vocabularies may therefore repeat. This is
+deliberate, so frequencies and scope from different columns are never mixed.
+
 The result records the effective scope in `meta$muestra`,
 `meta$filas_analizadas`, and `meta$muestreo`; each column also records
 `n_filas_analizadas_tipo` and `muestreado_tipo_inferido`, while the dependency

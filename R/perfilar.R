@@ -1391,6 +1391,9 @@
 #'   que puede abarcar el grupo mayor para entregar grupos de variantes. Por
 #'   defecto es `0.5`; si se supera, el alcance declara que el diagnóstico no
 #'   aplica en vez de entregar un bloque que abarque casi toda la columna.
+#'   El diagnóstico se ejecuta por columna y no deduplica columnas con el mismo
+#'   vocabulario: cada una conserva su propia fila de cobertura y sus propios
+#'   hallazgos. El costo de comparar vocabularios idénticos puede repetirse.
 #' @param max_trabajo_vocabulario Tope de comparaciones de carácter para las
 #'   comparaciones de distancia del vocabulario. Comparar dos valores cuesta del
 #'   orden del producto de sus largos, así que el trabajo es la suma de ese

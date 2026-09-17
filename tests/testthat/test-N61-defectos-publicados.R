@@ -243,6 +243,40 @@ test_that("el formateo fijo respeta OutDec", {
   expect_identical(.formatear_numero_publicado(3), "3")
 })
 
+test_that("la evidencia decimal usa una sola marca con OutDec", {
+  opciones <- options(OutDec = ".")
+  on.exit(options(opciones), add = TRUE)
+  datos <- data.frame(
+    nombre = c(rep("Montevideo", 20L), rep("Montevido", 3L), "Otro"),
+    medida = c(rep(3.5, 20L), rep(2.5, 4L)),
+    stringsAsFactors = FALSE
+  )
+  evidencia <- function(marca) {
+    options(OutDec = marca)
+    perfil <- perfilar(
+      datos, analizar_dependencias = FALSE,
+      proteger_datos_personales = FALSE
+    )
+    list(
+      moda = as.character(perfil$columnas$moda[
+        perfil$columnas$columna == "medida"
+      ]),
+      evidencia = perfil$hallazgos$evidencia[[which(
+        perfil$hallazgos$tipo_hallazgo == "casi_duplicados_vocabulario"
+      )[[1L]]]]
+    )
+  }
+
+  con_punto <- evidencia(".")
+  con_coma <- evidencia(",")
+  expect_identical(con_punto$moda, "3.5")
+  expect_identical(con_coma$moda, "3,5")
+  expect_match(con_punto$evidencia, "asimetria=6\\.7", fixed = FALSE)
+  expect_match(con_coma$evidencia, "asimetria=6,7", fixed = TRUE)
+  expect_false(grepl("asimetria=6\\.7", con_coma$evidencia))
+  expect_false(grepl("asimetria=6,7", con_punto$evidencia, fixed = TRUE))
+})
+
 test_that("la secuencia integer64 sin bit64 se declara como no evaluada", {
   # No se desinstala `bit64` dentro de la suite: eso no es portable ni
   # reversible. Se inyecta la condicion en el predicado interno para probar

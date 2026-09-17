@@ -304,7 +304,8 @@
     ),
     paste0(
       "`", determinante_texto, "` predice la presencia de `", columna_texto,
-      "` en ", sprintf("%.1f", 100 * ajuste$cumplimiento), " % de ",
+      "` en ", .formatear_decimal_publicado(100 * ajuste$cumplimiento, 1L),
+      " % de ",
       ajuste$n_usables, " filas",
       if (por_umbral) {
         ", por un umbral"
@@ -360,7 +361,8 @@
       "`", columna_texto, "` no coincide con ",
       paste0("`", otras_texto, "`", collapse = ", "),
       ": entre las ", length(grupo), " columnas cubren ",
-      sprintf("%.1f", 100 * cobertura), " % de las ", n, " filas y se pisan en ",
+      .formatear_decimal_publicado(100 * cobertura, 1L),
+      " % de las ", n, " filas y se pisan en ",
       solapamiento, if (solapamiento == 1L) " fila." else " filas."
     ),
     paste0(
@@ -414,7 +416,8 @@
         } else {
           " celdas del universo declarado ("
         },
-        sprintf("%.1f", 100 * proporcion), " %), y la columna se declar\u00f3 con `",
+      .formatear_decimal_publicado(100 * proporcion, 1L),
+      " %), y la columna se declar\u00f3 con `",
         origen, "`: ", reglas$regla[[k]], "."
       ),
       if (identical(origen, "columnas_opcionales")) {

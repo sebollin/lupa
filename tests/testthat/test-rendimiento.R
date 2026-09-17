@@ -123,6 +123,50 @@ test_that("texto libre de cardinalidad alta no degrada el perfil", {
   # El propósito del guardián se conserva: un desastre algorítmico llevaría esto
   # a un orden de magnitud, no a un 20 % más.
   expect_lt(unname(tiempo), 25)
+
+  # Decisión de §2.308: no se deduplican columnas por su vocabulario. El costo
+  # puede repetirse, pero cada columna conserva su propia cobertura, aun cuando
+  # `obs1` y `obs3` sean idénticas.
+  cobertura <- resultado$cobertura_diagnosticos[
+    resultado$cobertura_diagnosticos$diagnostico ==
+      "proximidad_vocabulario", , drop = FALSE
+  ]
+  expect_identical(
+    sort(as.character(cobertura$columna)), c("obs1", "obs2", "obs3")
+  )
+})
+
+test_that("el vocabulario identico conserva cobertura y hallazgos por columna", {
+  skip_if_not_installed("stringdist")
+  base <- c(rep("Montevideo", 7L), rep("Montevido", 3L))
+  con_hallazgos <- perfilar(
+    data.frame(obs1 = base, obs2 = base, obs3 = base,
+               stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE
+  )
+  hallazgos_vocabulario <- con_hallazgos$hallazgos[
+    as.character(con_hallazgos$hallazgos$tipo_hallazgo) ==
+      "casi_duplicados_vocabulario", , drop = FALSE
+  ]
+  expect_identical(
+    sort(as.character(hallazgos_vocabulario$columna)),
+    c("obs1", "obs2", "obs3")
+  )
+
+  valores <- paste0("valor-", seq_len(30L))
+  con_cobertura <- perfilar(
+    data.frame(obs1 = valores, obs2 = valores, obs3 = valores,
+               stringsAsFactors = FALSE),
+    analizar_dependencias = FALSE, proteger_datos_personales = FALSE,
+    max_trabajo_vocabulario = 1
+  )
+  cobertura <- con_cobertura$cobertura_diagnosticos[
+    con_cobertura$cobertura_diagnosticos$diagnostico ==
+      "proximidad_vocabulario", , drop = FALSE
+  ]
+  expect_identical(
+    sort(as.character(cobertura$columna)), c("obs1", "obs2", "obs3")
+  )
 })
 
 test_that("el diagnóstico de vocabulario respeta su presupuesto de pares", {

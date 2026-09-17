@@ -36,14 +36,15 @@
   `1E9E` = 0x00DF
 )
 
-# Deja el vector en un estado que `chartr()` pueda leer sin depender del locale.
+# Deja el vector en un estado que las operaciones Unicode puedan leer sin
+# depender del locale.
 # Los que ya son UTF-8 valido se MARCAN -conserva los acentos, que es lo que el
 # pliegue necesita-; los que no, se reparan con `iconv(sub = "byte")`, que es
 # determinista aunque quede feo. Un texto ya marcado se deja como esta.
 .textos_para_plegar <- function(textos) {
   if (!length(textos)) return(textos)
   textos <- as.character(textos)
-  sin_marca <- !is.na(textos) & Encoding(textos) == "unknown"
+  sin_marca <- !is.na(textos) & Encoding(textos) %in% c("unknown", "bytes")
   if (!any(sin_marca)) return(textos)
   bytes_validos <- sin_marca & validUTF8(textos)
   if (any(bytes_validos)) {

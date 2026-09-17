@@ -346,6 +346,12 @@ y `aproximado` que siguen siendo similares. `pares$igualo_normalizar` marca el
 caso intermedio. Los conteos correspondientes en el alcance son
 `n_pares_exactos`, `n_pares_exactos_normalizados` y `n_pares_aproximados`.
 
+El diagnóstico `casi_duplicados_vocabulario` se ejecuta por columna. Aunque dos
+columnas tengan el mismo vocabulario, cada una conserva su propia fila de
+cobertura y sus propios hallazgos; el costo de comparar vocabularios idénticos
+puede repetirse. Es una decisión deliberada para no mezclar frecuencias ni
+alcances de columnas distintas.
+
 El resultado deja el alcance efectivo en `meta$muestra`,
 `meta$filas_analizadas` y `meta$muestreo`; cada columna también publica
 `n_filas_analizadas_tipo` y `muestreado_tipo_inferido`, y la tabla de

@@ -3,7 +3,9 @@
 #' La normalizacion afecta unicamente la representacion usada para comparar;
 #' nunca modifica los datos de entrada. La descomposicion canonica y el orden
 #' de sus marcas son siempre activos para que NFC y NFD sean equivalentes en el
-#' subconjunto latino cubierto por lupa.
+#' subconjunto latino cubierto por lupa. Los pasos optativos de ligaduras y ancho
+#' completo tambien se aplican por punto de codigo, despues de declarar como
+#' UTF-8 los bytes validos, por lo que no dependen de `LC_CTYPE`.
 #'
 #' @param minusculas,espacios,acentos,comillas,puntuacion,ligaduras,ancho
 #'   Activan el paso correspondiente.
@@ -950,15 +952,14 @@ print.normalizacion_lupa <- function(x, ...) {
 })
 
 .normalizacion_ligaduras_vector <- function(textos) {
-  mapa <- c(
-    "\ufb00" = "ff", "\ufb01" = "fi", "\ufb02" = "fl",
-    "\ufb03" = "ffi", "\ufb04" = "ffl", "\ufb05" = "\u017F",
-    "\ufb06" = "st"
-  )
-  for (origen in names(mapa)) {
-    textos <- gsub(origen, unname(mapa[[origen]]), textos, fixed = TRUE)
-  }
-  textos
+  nombres <- names(textos)
+  textos <- .textos_para_plegar(textos)
+  salida <- vapply(textos, function(texto) {
+    if (is.na(texto)) return(NA_character_)
+    .normalizacion_a_texto(.normalizacion_ligaduras(utf8ToInt(texto)))
+  }, character(1L), USE.NAMES = FALSE)
+  names(salida) <- nombres
+  salida
 }
 
 .normalizacion_puntuacion_vector <- function(textos) {
@@ -1021,7 +1022,7 @@ print.normalizacion_lupa <- function(x, ...) {
 }
 
 .normalizacion_vector_rapida <- function(textos, perfil) {
-  original <- as.character(textos)
+  original <- .textos_para_plegar(as.character(textos))
   nombres <- names(original)
   salida <- original
   names(salida) <- nombres

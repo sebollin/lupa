@@ -504,7 +504,9 @@
         } else "",
         if (is.finite(fila$proporcion_compatible[[1L]])) {
           paste0("; proporci\u00f3n compatible: ",
-                 sprintf("%.3f", fila$proporcion_compatible[[1L]]))
+                 .formatear_decimal_publicado(
+                   fila$proporcion_compatible[[1L]]
+                 ))
         } else ""
       ),
       if (permitidos) {

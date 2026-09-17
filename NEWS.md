@@ -2,6 +2,17 @@
 
 ## Correcciones de cobertura y publicación
 
+- La normalización vectorial declara los bytes UTF-8 válidos antes de aplicar
+  los pasos optativos y transforma ligaduras por punto de código. `ligaduras` y
+  `ancho` cumplen ahora igual bajo `LC_CTYPE = "C"` y bajo un locale UTF-8.
+- La evidencia que publica decimales fijos usa la misma marca de `OutDec` que
+  las columnas: `sprintf()` ya no deja puntos mezclados con comas en un mismo
+  perfil.
+- El diagnóstico `casi_duplicados_vocabulario` queda documentado como una
+  evaluación independiente por columna. No se introduce un caché transversal:
+  la medición encontró tres pares, todos en columnas pequeñas o constantes, en
+  las tablas reales disponibles, y cada columna conserva su propia cobertura y
+  sus hallazgos.
 - `bloque_muestra = "solo_agregados"` ahora se respeta también con
   `universo = "muestra_motor"`: los agregados siguen usando la relación
   muestreada, pero no se leen filas ni se materializa un spool. El plan y la

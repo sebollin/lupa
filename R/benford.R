@@ -22,8 +22,8 @@
 .texto_distribucion_benford <- function(distribucion) {
   paste0(
     distribucion$digito, ":",
-    sprintf("%.3f", distribucion$proporcion_observada), "/",
-    sprintf("%.3f", distribucion$proporcion_esperada),
+    .formatear_decimal_publicado(distribucion$proporcion_observada), "/",
+    .formatear_decimal_publicado(distribucion$proporcion_esperada),
     collapse = "; "
   )
 }
@@ -179,13 +179,15 @@
       .formatear_numero_publicado(umbrales$minimo_observaciones_utilizables)
     ),
     proporcion_positivos_insuficiente = paste0(
-      "proporcion de positivos ", sprintf("%.3f", resultado$proporcion_positivos),
-      " < ", sprintf("%.3f", umbrales$minima_proporcion_positivos)
+      "proporcion de positivos ",
+      .formatear_decimal_publicado(resultado$proporcion_positivos),
+      " < ",
+      .formatear_decimal_publicado(umbrales$minima_proporcion_positivos)
     ),
     ordenes_magnitud_insuficientes = paste0(
       "ordenes de magnitud log10(max/min) ",
       if (is.finite(resultado$ordenes_magnitud)) {
-        sprintf("%.3f", resultado$ordenes_magnitud)
+        .formatear_decimal_publicado(resultado$ordenes_magnitud)
       } else {
         "no calculables"
       },
@@ -314,7 +316,8 @@
         "administrativo o un monto fijo la producen igual."
       ),
       paste0(
-        resultado$metodo, ": X2=", sprintf("%.3f", resultado$estadistico),
+        resultado$metodo, ": X2=",
+        .formatear_decimal_publicado(resultado$estadistico),
         ", p=", texto_p,
         "; observado/esperado por digito: ",
         .texto_distribucion_benford(resultado$distribucion), "."

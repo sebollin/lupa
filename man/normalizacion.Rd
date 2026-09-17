@@ -33,7 +33,9 @@ no toca los datos, y la descomposicion canonica se aplica siempre.
 La normalizacion afecta unicamente la representacion usada para comparar;
 nunca modifica los datos de entrada. La descomposicion canonica y el orden
 de sus marcas son siempre activos para que NFC y NFD sean equivalentes en el
-subconjunto latino cubierto por lupa.
+subconjunto latino cubierto por lupa. Los pasos optativos de ligaduras y ancho
+completo tambien se aplican por punto de codigo, despues de declarar como
+UTF-8 los bytes validos, por lo que no dependen de \code{LC_CTYPE}.
 }
 \examples{
 # El perfil por omisión: minúsculas, espacios, acentos y comillas.

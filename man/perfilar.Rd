@@ -346,7 +346,10 @@ declare una regla de dominio o use \code{FALSE} para desactivar este diagnóstic
 \item{max_proporcion_grupo_vocabulario}{Proporción máxima del vocabulario
 que puede abarcar el grupo mayor para entregar grupos de variantes. Por
 defecto es \code{0.5}; si se supera, el alcance declara que el diagnóstico no
-aplica en vez de entregar un bloque que abarque casi toda la columna.}
+aplica en vez de entregar un bloque que abarque casi toda la columna. El
+diagnóstico se ejecuta por columna y no deduplica columnas con el mismo
+vocabulario: cada una conserva su propia fila de cobertura y sus propios
+hallazgos. El costo de comparar vocabularios idénticos puede repetirse.}
 
 \item{umbral_variante_rara_vocabulario}{Proporcion maxima de la columna que
 puede ocupar una variante breve para abrir la comparacion por una edicion.}
@@ -891,7 +894,10 @@ en cuatro valores se entrega, pero quince variantes que ocupan toda una
 columna no se presentan como una sola familia. Un grupo grande dentro de un
 vocabulario mucho mayor puede seguir pasando si su proporción es pequeña. El
 alcance expone ambos cortes. El argumento permite apagar el detector cuando
-no corresponde a la tabla. Si hay pares cercanos pero todas las frecuencias
+no corresponde a la tabla. Las columnas se evalúan por separado, incluso
+cuando comparten el mismo vocabulario, para que sus frecuencias, cobertura y
+hallazgos no se mezclen. Por eso el costo de comparar dos vocabularios
+idénticos puede repetirse. Si hay pares cercanos pero todas las frecuencias
 empatan, el alcance declara que no hubo asimetría para formar una estrella y
 sugiere \code{\link[=detectar_duplicados_aproximados]{detectar_duplicados_aproximados()}} para comparar filas. El alcance
 clasifica cada grupo como \code{normalizacion_exacta}, \code{dentro_de_palabra},

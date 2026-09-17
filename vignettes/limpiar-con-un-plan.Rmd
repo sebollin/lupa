@@ -45,6 +45,9 @@ plan[, c("estrategia", "justificacion")]
 
 `normalizacion()` permite declarar qué diferencias se ignoran al comparar. El
 perfil cambia sólo la representación de comparación; nunca modifica los datos.
+Los pasos de ligaduras y ancho completo se aplican por punto de código y los
+bytes UTF-8 válidos se declaran antes de operar, así que cumplen igual bajo un
+locale UTF-8 y bajo `LC_CTYPE = "C"`.
 
 ```{r}
 normalizacion(acentos = FALSE, puntuacion = TRUE)

@@ -493,11 +493,14 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
         evidencia <- if (aspecto == "cardinalidad") {
           paste0(
             "Valores distintos: ", a$n_distintos, " -> ", b$n_distintos,
-            "; tasas: ", sprintf("%.4f", a[[campo]]), " -> ",
-            sprintf("%.4f", b[[campo]])
+            "; tasas: ", .formatear_decimal_publicado(a[[campo]], 4L),
+            " -> ", .formatear_decimal_publicado(b[[campo]], 4L)
           )
         } else {
-          paste0("Cambio de ", sprintf("%+.4f", delta), " en escala [0, 1].")
+          paste0(
+            "Cambio de ", .formatear_decimal_publicado(delta, 4L, signo = TRUE),
+            " en escala [0, 1]."
+          )
         }
         descripcion <- if (aspecto == "faltantes") {
           "Cambi\u00f3 la proporci\u00f3n de faltantes de la columna."
@@ -587,7 +590,10 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
           if (proporcion >= umbral_error) "error" else "sospechoso",
           NA_character_, patron, delta = proporcion, significativo = TRUE,
           descripcion = "Apareci\u00f3 un patr\u00f3n de formato nuevo.",
-          evidencia = paste0("Proporci\u00f3n actual: ", sprintf("%.4f", proporcion))
+          evidencia = paste0(
+            "Proporci\u00f3n actual: ",
+            .formatear_decimal_publicado(proporcion, 4L)
+          )
         )
       }
       for (patron in setdiff(claves_a, claves_b)) {
@@ -597,7 +603,10 @@ comparar_perfiles <- function(anterior, actual, umbral_cambio = 0.05,
           if (proporcion >= umbral_error) "error" else "sospechoso",
           patron, NA_character_, delta = -proporcion, significativo = TRUE,
           descripcion = "Desapareci\u00f3 un patr\u00f3n de formato anterior.",
-          evidencia = paste0("Proporci\u00f3n anterior: ", sprintf("%.4f", proporcion))
+          evidencia = paste0(
+            "Proporci\u00f3n anterior: ",
+            .formatear_decimal_publicado(proporcion, 4L)
+          )
         )
       }
     }

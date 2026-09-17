@@ -322,3 +322,45 @@ test_that("perfilar sobrevive a un CSV en espanol bajo LC_CTYPE=C", {
   ))
   expect_s3_class(sin_abortar, "perfil")
 })
+
+test_that("los pliegues optativos cumplen bajo C y bajo un locale UTF-8", {
+  skip_if_not_installed("stringi")
+  categorias <- c("LC_CTYPE", "LC_COLLATE")
+  originales <- stats::setNames(
+    vapply(categorias, Sys.getlocale, character(1L)), categorias
+  )
+  on.exit(
+    for (categoria in categorias) {
+      suppressWarnings(Sys.setlocale(categoria, originales[[categoria]]))
+    },
+    add = TRUE
+  )
+  locale_utf8 <- .primer_locale_utf8_n61()
+  if (is.null(locale_utf8)) {
+    skip("no hay ningun locale UTF-8 disponible en esta maquina")
+  }
+  if (!.fijar_locale_n61("C")) {
+    skip("no se pudo fijar LC_CTYPE=LC_COLLATE=C")
+  }
+
+  # Se quita la marca sin cambiar los bytes: es lo que entrega `read.csv()`.
+  bytes <- function(codigos) rawToChar(charToRaw(intToUtf8(codigos)))
+  entrada <- c(
+    bytes(c(0x6f, 0xfb01, 0x63, 0x69, 0x6e, 0x61)),
+    bytes(0xff21:0xff23)
+  )
+  perfil <- normalizacion(
+    minusculas = FALSE, espacios = FALSE, acentos = FALSE,
+    comillas = FALSE, ligaduras = TRUE, ancho = TRUE
+  )
+  esperado <- stringi::stri_trans_nfkd(entrada)
+  direcciones <- list(c(locale_utf8, "C"), c("C", locale_utf8))
+  for (direccion in direcciones) {
+    expect_true(.fijar_locale_n61(direccion[[1L]]))
+    salida <- lupa:::.normalizacion_aplicar(entrada, perfil)
+    expect_identical(salida, esperado, info = direccion[[1L]])
+    expect_true(.fijar_locale_n61(direccion[[2L]]))
+    salida <- lupa:::.normalizacion_aplicar(entrada, perfil)
+    expect_identical(salida, esperado, info = direccion[[2L]])
+  }
+})

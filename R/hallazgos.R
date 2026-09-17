@@ -726,19 +726,17 @@
         " se rompe en una minor\u00eda de las filas comparables."
       ),
       paste0(
-        sprintf("%.3f de cumplimiento; %d de %d filas fuera de orden. ",
-                proporcion, length(indices_incumplen), n_evaluados),
-        sprintf(
-          "Solapamiento intercuartil: %.3f; umbral: %.3f. ",
-          solapamiento, umbral_solapamiento
-        ),
-        sprintf(
-          "IQR de la brecha: %.3f; criterio alternativo: 0.000. ",
-          iqr_brecha
-        ),
+        .formatear_decimal_publicado(proporcion),
+        " de cumplimiento; ", length(indices_incumplen), " de ",
+        n_evaluados, " filas fuera de orden. ",
+        "Solapamiento intercuartil: ",
+        .formatear_decimal_publicado(solapamiento), "; umbral: ",
+        .formatear_decimal_publicado(umbral_solapamiento), ". ",
+        "IQR de la brecha: ", .formatear_decimal_publicado(iqr_brecha),
+        "; criterio alternativo: ", .formatear_decimal_publicado(0), ". ",
         "Razon de permutacion descriptiva (observado/esperado al permutar filas): ",
         if (is.finite(razon_permutacion)) {
-          sprintf("%.3f", razon_permutacion)
+          .formatear_decimal_publicado(razon_permutacion)
         } else "NA",
         "; no filtra la deteccion. ",
         evidencia_ejemplos
@@ -3523,9 +3521,9 @@
           "; frecuencia del segundo valor: ",
           .formatear_numero_publicado(concentracion$frecuencia_segundo),
           "; cociente moda/segundo: ",
-          sprintf("%.3f", concentracion$cociente),
+          .formatear_decimal_publicado(concentracion$cociente),
           "; fraccion de la moda sobre validos: ",
-          sprintf("%.3f", concentracion$fraccion)
+          .formatear_decimal_publicado(concentracion$fraccion)
         ),
         paste(
           "Revisar el valor modal y el proceso que origina la columna;",
@@ -3545,19 +3543,20 @@
         ),
         paste0(
           casi_clave$n_distintos, " valores distintos de ", casi_clave$n_filas,
-          " (", sprintf("%.3f", casi_clave$tasa_distintos), "); ",
+          " (", .formatear_decimal_publicado(casi_clave$tasa_distintos), "); ",
           casi_clave$n_valores_colisionados, " valores colisionados; ",
           casi_clave$n_filas_en_colision, " filas en colision; ",
           casi_clave$n_duplicados_excedentes, " duplicados excedentes; ",
           "concentracion_colisiones=",
-          sprintf("%.3f", casi_clave$concentracion_colisiones), ". ",
+          .formatear_decimal_publicado(casi_clave$concentracion_colisiones),
+          ". ",
           "Colisiones: ", .evidencia_colisiones_casi_clave(casi_clave), ". ",
           "criterio_casi_clave: n_filas>=",
           casi_clave$min_filas,
           ", tasa_distintos>=",
-          sprintf("%.3f", casi_clave$umbral_unicidad),
+          .formatear_decimal_publicado(casi_clave$umbral_unicidad),
           " y concentracion_colisiones>=",
-          sprintf("%.3f", casi_clave$umbral_concentracion), ". ",
+          .formatear_decimal_publicado(casi_clave$umbral_concentracion), ". ",
           "criterio_rol_casi_clave: rol=",
           casi_clave$rol,
           "; roles_temporales_excluidos=fecha,fecha-hora. ",
@@ -3613,15 +3612,15 @@
         },
         paste0(
           fila$n_distintos, " valores distintos de ", n_validos,
-          " (", sprintf("%.3f", fila$tasa_distintos), ")",
+          " (", .formatear_decimal_publicado(fila$tasa_distintos), ")",
           if (isTRUE(fila$secuencia_entera_densa)) paste0(
             "; secuencia_entera_densa=TRUE; densidad=",
-            sprintf("%.3f", fila$densidad_secuencia_entera),
+            .formatear_decimal_publicado(fila$densidad_secuencia_entera),
             "; umbral=",
-            sprintf("%.3f", fila$umbral_densidad_secuencia_entera)
+            .formatear_decimal_publicado(fila$umbral_densidad_secuencia_entera)
           ) else if (is.finite(fila$densidad_secuencia_entera)) paste0(
             "; densidad del tramo de enteros=",
-            sprintf("%.3f", fila$densidad_secuencia_entera)
+            .formatear_decimal_publicado(fila$densidad_secuencia_entera)
           ) else ""
         ),
         if (es_unico) {
@@ -3656,7 +3655,10 @@
       agregar(.nuevo_hallazgo(
         nombre, "alta_cardinalidad", "sospechoso",
         "La columna categ\u00f3rica tiene alta cardinalidad.",
-        sprintf("Tasa de valores distintos: %.3f", fila$tasa_distintos),
+        paste0(
+          "Tasa de valores distintos: ",
+          .formatear_decimal_publicado(fila$tasa_distintos)
+        ),
         "Revisar si es texto libre, un identificador o una categor\u00eda mal normalizada."
       ))
     }
@@ -3704,11 +3706,12 @@
       agregar(.nuevo_hallazgo(
         nombre, "faltantes", severidad,
         "La proporci\u00f3n total de faltantes supera el umbral configurado.",
-        sprintf(
-          "%d ausentes reales y %d disfrazados (%.3f del total)",
-          fila$n_faltantes, fila$n_faltantes_disfrazados,
-          fila$prop_faltantes_totales
-        ),
+          paste0(
+            fila$n_faltantes, " ausentes reales y ",
+            fila$n_faltantes_disfrazados, " disfrazados (",
+            .formatear_decimal_publicado(fila$prop_faltantes_totales),
+            " del total)"
+          ),
         "Revisar la obligatoriedad del campo y el proceso que origina los faltantes."
       ))
     }
@@ -3901,9 +3904,10 @@
         nombre, "tipo_declarado_distinto", "sospechoso",
         "El tipo declarado no coincide con el tipo impl\u00edcito dominante.",
         paste0(
-          sprintf(
-            "Declarado: %s; inferido: %s (%.3f compatible)",
-            fila$tipo_declarado, fila$tipo_inferido, compatible
+          paste0(
+            "Declarado: ", fila$tipo_declarado, "; inferido: ",
+            fila$tipo_inferido, " (",
+            .formatear_decimal_publicado(compatible), " compatible)"
           ),
           if (is.finite(incompatibles) && incompatibles > 0) paste0(
             "; convertir dejaria ", .miles_trabajo(incompatibles), " de ",
@@ -3940,15 +3944,15 @@
         "patron_raro", nombre,
         paste0(
           "No se evaluo patron_raro porque el patron dominante ocupa ",
-          sprintf("%.3f", proporcion_dominante),
+          .formatear_decimal_publicado(proporcion_dominante),
           " de los valores analizados; es menor que ",
           "umbral_patron_dominante=",
-          sprintf("%.3f", umbral_patron_dominante), "."
+          .formatear_decimal_publicado(umbral_patron_dominante), "."
         ),
         paste0(
           "Revisar la variabilidad de la columna o ajustar ",
           "umbral_patron_dominante (valor actual: ",
-          sprintf("%.3f", umbral_patron_dominante),
+          .formatear_decimal_publicado(umbral_patron_dominante),
           ") antes de volver a perfilar."
         )
       )
@@ -3978,7 +3982,8 @@
         ),
         paste0(
           "Dominante: ", patrones$patron[[1L]],
-          " (proporcion_dominante=", sprintf("%.3f", proporcion_dominante),
+          " (proporcion_dominante=",
+          .formatear_decimal_publicado(proporcion_dominante),
           "). Desv\u00edos: ",
           paste(utils::head(strsplit(evidencia, "; ", fixed = TRUE)[[1L]], 6L),
                 collapse = "; "),
@@ -3989,7 +3994,8 @@
           identical(clase_desvio, "largo_de_corrida"),
           "; patrones_no_dominantes_excluidos_por_umbral=",
           if (is.na(n_excluidos)) "NA" else as.character(n_excluidos),
-          " filas (umbral_patron_raro=", sprintf("%.3f", umbral_patron_raro),
+          " filas (umbral_patron_raro=",
+          .formatear_decimal_publicado(umbral_patron_raro),
           ")"
         ),
         "Revisar los valores concretos y validar el formato esperado."
@@ -4577,7 +4583,7 @@
           hallados <- c(hallados, paste0(
             nombres[[posicion[[3L]]]], " + ", nombres[[posicion[[2L]]]],
             " + ", nombres[[posicion[[1L]]]], " (",
-            sprintf("%.3f", proporcion), " v\u00e1lidas)"
+            .formatear_decimal_publicado(proporcion), " v\u00e1lidas)"
           ))
         }
       }

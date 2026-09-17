@@ -201,7 +201,7 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
         paste0("perfil:patron_dominante:", patron),
         paste0(
           "El patr\u00f3n ", patron, " cubre ",
-          sprintf("%.3f", patrones$proporcion[[1L]]),
+          .formatear_decimal_publicado(patrones$proporcion[[1L]]),
           " de los valores analizados; debe confirmarse como requisito, no s\u00f3lo como costumbre."
         ),
         configuracion = list(expresion_regular = .patron_a_regex(patron))
@@ -253,7 +253,8 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
         paste0("dependencia_funcional:", atributos[[1L]], "->", atributos[[2L]]),
         paste0(
           "La dependencia cumple en ",
-          sprintf("%.4f", dependencia$cumplimiento[[1L]]), " de ",
+          .formatear_decimal_publicado(dependencia$cumplimiento[[1L]], 4L),
+          " de ",
           dependencia$n_evaluados[[1L]], " pares presentes."
         ), configuracion = configuracion,
         estado = if (puede_materializar) "lista" else "requiere_datos"
@@ -289,7 +290,7 @@ proponer_modelo <- function(perfil, datos = NULL, relaciones = NULL,
           direccion$cobertura == 1, "ReglaIntegridadInterEntidad",
           direccion$entidades, direccion$atributos,
           paste0("relacion_detectada:cobertura=",
-                 sprintf("%.4f", direccion$cobertura)),
+                 .formatear_decimal_publicado(direccion$cobertura, 4L)),
           "La cobertura observada sugiere una relaci\u00f3n PK/FK que debe confirmarse.",
           configuracion = list(muestra = Inf),
           entidades_ligadas = direccion$entidades,
