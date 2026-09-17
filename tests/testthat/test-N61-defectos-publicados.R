@@ -135,6 +135,27 @@ test_that("la clasificacion personal y los sentinelas son inmunes a scipen y dig
   datos
 }
 
+# Cualquier locale UTF-8 sirve para esta comprobacion: lo que se contrasta es
+# UTF-8 contra `C`, no una region. Pedir SOLO el uruguayo hace que la prueba se
+# SALTEE en toda maquina que no lo tenga generada -las de CRAN entre ellas-, y
+# una guarda que se saltea donde importa no se distingue de una que no existe.
+#
+# Este proyecto ya tuvo este defecto: el 2026-09-12 las cinco plataformas de CI
+# pasaron de `WARN 0` a `WARN 6` con el mismo aviso, "cannot be honored". Volvio
+# en estas pruebas. La lista de candidatos es la que ya usan otras cinco pruebas
+# del paquete; se toma la primera que QUEDE PUESTA, comprobandolo con
+# `Sys.getlocale()`, porque `Sys.setlocale()` avisa en vez de fallar.
+.primer_locale_utf8_n61 <- function() {
+  candidatos <- c(
+    "es_UY.UTF-8", "es_UY.utf8", "es_ES.UTF-8", "es_ES.utf8",
+    "en_US.UTF-8", "en_US.utf8", "C.UTF-8", "C.utf8"
+  )
+  for (candidato in candidatos) {
+    if (.fijar_locale_n61(candidato)) return(candidato)
+  }
+  NULL
+}
+
 test_that("el consejo de ausencia estructural conserva el nombre real", {
   categorias <- c("LC_CTYPE", "LC_COLLATE")
   originales <- stats::setNames(
@@ -146,15 +167,9 @@ test_that("el consejo de ausencia estructural conserva el nombre real", {
     },
     add = TRUE
   )
-  locale_utf8 <- if (.fijar_locale_n61("es_UY.UTF-8")) {
-    "es_UY.UTF-8"
-  } else if (.fijar_locale_n61("es_UY.utf8")) {
-    "es_UY.utf8"
-  } else {
-    NULL
-  }
+  locale_utf8 <- .primer_locale_utf8_n61()
   if (is.null(locale_utf8)) {
-    skip("no hay un locale es_UY UTF-8 disponible")
+    skip("no hay ningun locale UTF-8 disponible en esta maquina")
   }
 
   datos <- .fixture_n61_ausencia()
@@ -197,15 +212,9 @@ test_that("la deriva de configuracion cruza saveRDS sin depender del locale", {
     },
     add = TRUE
   )
-  locale_utf8 <- if (.fijar_locale_n61("es_UY.UTF-8")) {
-    "es_UY.UTF-8"
-  } else if (.fijar_locale_n61("es_UY.utf8")) {
-    "es_UY.utf8"
-  } else {
-    NULL
-  }
+  locale_utf8 <- .primer_locale_utf8_n61()
   if (is.null(locale_utf8)) {
-    skip("no hay un locale es_UY UTF-8 disponible")
+    skip("no hay ningun locale UTF-8 disponible en esta maquina")
   }
 
   for (direccion in list(c(locale_utf8, "C"), c("C", locale_utf8))) {
