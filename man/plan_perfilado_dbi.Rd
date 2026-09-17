@@ -118,8 +118,11 @@ las filas y no de la cardinalidad. Los únicos valores aceptados son
 
 \item{bloque_muestra}{Qué bloques se solicitan: \code{"con_muestra"} (por
 omisión) calcula también \code{perfil_muestra}, o \code{"solo_agregados"} omite su
-lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
-alcance de esos agregados: eso lo decide \code{universo}.}
+lectura y devuelve sólo los agregados SQL. La decisión vale para los dos
+universos: con \code{muestra_motor}, los agregados siguen usando la relación
+muestreada, pero no se abre el spool ni se leen filas; la corrida publica
+el estado \code{no_solicitado} y \code{meta$bloques$filas_vistas = 0}. La segunda
+opción no cambia el alcance de esos agregados: eso lo decide \code{universo}.}
 
 \item{max_consultas}{Presupuesto declarado de consultas. Al agotarse, las
 métricas restantes quedan en \code{no_disponible} con ese motivo.}

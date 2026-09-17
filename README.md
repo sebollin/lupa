@@ -409,7 +409,11 @@ partial failure never discards what was already measured: if reading the sample
 fails, the object comes back with a complete `resumen_tabla`, `perfil_muestra =
 NULL`, and a coverage row carrying the reason. If the sample was not requested,
 coverage uses `no_solicitado`, which is not a failure; request only aggregates
-with `bloque_muestra = "solo_agregados"`.
+with `bloque_muestra = "solo_agregados"`. This option is independent of
+`universo`: with `muestra_motor` the SQL aggregates still use the engine's
+sampled relation, but no sample rows are fetched or materialized in the client
+spool. The coverage row is `no_solicitado` and the materialization metadata
+records `filas_vistas = 0`.
 
 **And it declares what the engine cannot do.** `sentinelas_numericos`,
 `aplicabilidad` and `columnas_opcionales` change what `perfilar()` summarises,
@@ -510,15 +514,20 @@ the data query. `muestra_id` is reserved for the materialized relationship and
 is published in `meta$materializacion`, never as a second name for the query
 identifier.
 
-For `universo = "muestra_motor"`, the engine selection is materialized exactly
-once in an external client-session spool. Its trailer verifies `muestra_id`,
-`snapshot_id`, `orden_id`, `n_filas`, `bytes` and checksum on reread. Every
-profile pass reads that spool; it never re-samples the engine. A chunk is checked
-against `max_bytes_materializacion` before writing, and an excess publishes
+For `universo = "muestra_motor"` with `bloque_muestra = "con_muestra"`, the
+engine selection is materialized exactly once in an external client-session
+spool. Its trailer verifies `muestra_id`, `snapshot_id`, `orden_id`, `n_filas`,
+`bytes` and checksum on reread. Every profile pass reads that spool; it never
+re-samples the engine. With `bloque_muestra = "solo_agregados"`, the SQL
+aggregates still use the sampled relation, but the row block is not selected,
+fetched or materialized. A chunk is checked against
+`max_bytes_materializacion` before writing, and an excess publishes
 `spool_presupuesto_excedido` plus
 `muestra_inestable:presupuesto_materializacion`, with no hybrid result. The
 spool does not write to the DBI connection or create temporary engine objects.
-`meta$materializacion` records backend, version, checksum, bytes and budget.
+`meta$materializacion` records backend, version, checksum, bytes and budget
+when a spool exists; the no-solicitud path records `estado = "no_solicitado"`
+and zero rows viewed.
 The measured crossover is part of the declared cost, not a speed promise:
 against PostgreSQL 16 with 2 million rows, a 500,000-row sample took about
 5.6 s with the spool versus 3.3 s when every pass re-sorted independently; the

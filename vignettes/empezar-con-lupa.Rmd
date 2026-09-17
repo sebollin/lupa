@@ -163,6 +163,12 @@ marcan los nombres sólo en la copia usada para componer texto. El nombre de la
 tabla se conserva tal como llegó y el código publicado se puede copiar y pegar
 igual bajo `LC_CTYPE = "C"`, también cuando contiene tildes.
 
+La misma frontera de entrada se aplica a los valores: los bytes UTF-8 válidos
+que llegan sin marca se declaran UTF-8 antes de ejecutar las métricas. Las
+comparaciones textuales de `NoNulo`, `Formato` y dominios posibles se hacen por
+bytes, así que una medición no cambia entre un locale UTF-8 y `C`; los nombres
+publicados siguen conservando los bytes y la marca con que llegó la tabla.
+
 ## Del diagnóstico al modelo
 
 `proponer_modelo()` no ejecuta nada. Devuelve una propuesta editable que

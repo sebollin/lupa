@@ -93,9 +93,12 @@ impiden esa lectura.
 
 Si sólo se necesitan los agregados del motor, `bloque_muestra =
 "solo_agregados"` evita traer filas a R y deja `perfil_muestra = NULL`. La
-cobertura lo declara como `no_solicitado`, que no es un fallo. La lectura
-habitual se conserva con `bloque_muestra = "con_muestra"`, que es el valor por
-omisión.
+cobertura lo declara como `no_solicitado`, que no es un fallo. Esto vale para
+los dos universos: con `muestra_motor`, los agregados se calculan sobre la
+relación muestreada, pero no se abre un spool ni se ven filas
+(`meta$bloques$filas_vistas = 0`). La lectura habitual se conserva con
+`bloque_muestra = "con_muestra"`, que es el valor por omisión; allí la selección
+del motor se materializa una sola vez y se reutiliza para todo el perfil.
 
 `max_celdas_muestra` y `max_bytes_muestra` acotan sólo el bloque
 `perfil_muestra`: el primero se resuelve con las columnas del esquema y el

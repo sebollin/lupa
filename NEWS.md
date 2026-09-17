@@ -2,6 +2,16 @@
 
 ## Correcciones de cobertura y publicación
 
+- `bloque_muestra = "solo_agregados"` ahora se respeta también con
+  `universo = "muestra_motor"`: los agregados siguen usando la relación
+  muestreada, pero no se leen filas ni se materializa un spool. El plan y la
+  corrida comparten esa decisión, y `meta$materializacion`/`meta$bloques` dejan
+  el estado `no_solicitado` y `filas_vistas = 0` cuando corresponde.
+- Las lecturas DBI marcan como UTF-8 los bytes válidos antes de perfilar o
+  guardar texto; las comparaciones de `NoNulo`, `Formato` y
+  `ValoresPosiblesPorExtension` usan claves por bytes. La evidencia de
+  duplicados aproxima nombres y valores sin depender de `LC_CTYPE`, mientras
+  los nombres de columna publicados conservan sus bytes y su marca de entrada.
 - Las secuencias `integer64` registran los métodos de `bit64` antes de medirse
   aunque el paquete no esté adjunto; si `bit64` no está instalado, sus cinco
   medidas quedan en `NA` y `cobertura_diagnosticos` declara la no evaluación.

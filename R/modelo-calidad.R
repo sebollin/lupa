@@ -866,7 +866,16 @@ modelo <- function(..., marco = NULL) {
   ausente <- is.na(x)
   valores_nulos <- instancia$configuracion$valores_nulos
   if (length(valores_nulos)) {
-    ausente <- ausente | (!is.na(x) & x %in% valores_nulos)
+    es_texto <- is.character(x) || is.factor(x) ||
+      is.character(valores_nulos) || is.factor(valores_nulos)
+    coincide <- if (es_texto) {
+      x_texto <- .texto_analizable(x)$valores
+      nulos_texto <- .texto_analizable(valores_nulos)$valores
+      .clave_bytes(x_texto) %in% .clave_bytes(nulos_texto)
+    } else {
+      x %in% valores_nulos
+    }
+    ausente <- ausente | (!is.na(x) & coincide)
   }
   .salida_metodo(
     !ausente, entidad, atributo, filas,
@@ -891,6 +900,8 @@ modelo <- function(..., marco = NULL) {
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
+  texto <- is.character(x) || is.factor(x)
+  if (texto) x <- .texto_analizable(x)$valores
   filas <- .indices_filas_modelo(tabla)[!is.na(x)]
   valores <- x[!is.na(x)]
   config <- instancia$configuracion
@@ -899,7 +910,13 @@ modelo <- function(..., marco = NULL) {
       config$expresion_regular, as.character(valores), perl = TRUE
     )
   } else if (!is.null(config$diccionario)) {
-    resultado <- valores %in% config$diccionario
+    if (texto || is.character(config$diccionario) ||
+        is.factor(config$diccionario)) {
+      diccionario <- .texto_analizable(config$diccionario)$valores
+      resultado <- .clave_bytes(valores) %in% .clave_bytes(diccionario)
+    } else {
+      resultado <- valores %in% config$diccionario
+    }
   } else {
     resultado <- .resultado_validador(
       config$validador(valores), length(valores), "Formato"
@@ -917,10 +934,19 @@ modelo <- function(..., marco = NULL) {
   atributo <- instancia$atributos[[1L]]
   tabla <- .obtener_tabla_modelo(tablas, entidad)
   x <- .obtener_columna_modelo(tabla, atributo, entidad)
+  texto <- is.character(x) || is.factor(x)
+  if (texto) x <- .texto_analizable(x)$valores
   filas <- .indices_filas_modelo(tabla)[!is.na(x)]
   valores <- x[!is.na(x)]
+  dominio <- instancia$configuracion$valores
+  if (texto || is.character(dominio) || is.factor(dominio)) {
+    dominio <- .texto_analizable(dominio)$valores
+    resultado <- .clave_bytes(valores) %in% .clave_bytes(dominio)
+  } else {
+    resultado <- valores %in% dominio
+  }
   .salida_metodo(
-    valores %in% instancia$configuracion$valores,
+    resultado,
     entidad, atributo, filas,
     paste0(entidad, "$", atributo, "[", filas, "]")
   )

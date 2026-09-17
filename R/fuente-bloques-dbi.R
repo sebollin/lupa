@@ -1191,6 +1191,7 @@
                   error = paste0("no_disponible:dbFetch:", conditionMessage(bloque))))
     }
     if (!inherits(bloque, "data.frame")) bloque <- as.data.frame(bloque)
+    bloque <- .marcar_utf8_tabla(bloque)
     n <- nrow(bloque)
     if (!n) break
     inicio <- ordinal + 1
@@ -1313,7 +1314,7 @@
     }
     if (!nrow(bloque)) break
     observados[[length(observados) + 1L]] <- .valor_columna_bloque_dbi(
-      bloque, .ALIAS_LOCALIZADOR_DBI
+      .marcar_utf8_tabla(bloque), .ALIAS_LOCALIZADOR_DBI
     )
     if (isTRUE(tryCatch(DBI::dbHasCompleted(rs), error = function(e) FALSE)) ||
         nrow(bloque) < bloque_filas) break

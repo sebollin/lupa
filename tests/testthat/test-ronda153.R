@@ -75,7 +75,11 @@ setMethod(
 .ronda153_perfil <- function(conexion, tamano_lote, caso, ...) {
   argumentos <- modifyList(
     list(
-      muestra = 12L, bloque_muestra = "solo_agregados",
+      muestra = 12L, bloque_muestra = if (identical(caso, "muestreado")) {
+        "con_muestra"
+      } else {
+        "solo_agregados"
+      },
       instrumentar = FALSE, proteger_datos_personales = FALSE,
       analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
       ausencia_estructural = FALSE, duplicados_aproximados = FALSE
@@ -167,7 +171,15 @@ test_that("la cuenta fusionada ahorra la consulta y declara sus recorridos", {
   mediciones <- list()
   for (caso in casos_api) {
     argumentos <- modifyList(
-      list(muestra = 12L, bloque_muestra = "solo_agregados", tamano_lote = 4L),
+      list(
+        muestra = 12L,
+        bloque_muestra = if (identical(caso, "muestreado")) {
+          "con_muestra"
+        } else {
+          "solo_agregados"
+        },
+        tamano_lote = 4L
+      ),
       .argumentos_caso_dbi(caso, muestra = 12L)
     )
     .ronda153_estado$sql <- character()

@@ -150,12 +150,26 @@ test_that("el desempate de patrones por bloques no usa LC_COLLATE", {
 test_that("los identificadores Oracle no usan toupper dependiente del locale", {
   anterior <- Sys.getlocale("LC_CTYPE")
   on.exit(try(Sys.setlocale("LC_CTYPE", anterior), silent = TRUE), add = TRUE)
-  puesto <- suppressWarnings(tryCatch(
-    Sys.setlocale("LC_CTYPE", "tr_TR.UTF-8"),
-    error = function(e) NA_character_
-  ))
-  if (is.na(puesto) || !identical(puesto, "tr_TR.UTF-8")) {
-    skip("no se pudo fijar LC_CTYPE=tr_TR.UTF-8")
+  # Las dos grafias: hay maquinas que generan `tr_TR.utf8` y no `tr_TR.UTF-8`.
+  # Pedir una sola hace que la prueba se saltee donde el locale SI existe, que es
+  # el mismo defecto que ya aparecio dos veces con el locale uruguayo.
+  #
+  # Aca no hay locale de reserva: el punto de la prueba es la `i` turca, y sin
+  # turco no hay nada que medir. Por eso `skip()` es la respuesta correcta y no
+  # una carencia.
+  puesto <- NA_character_
+  for (candidato in c("tr_TR.UTF-8", "tr_TR.utf8")) {
+    intento <- suppressWarnings(tryCatch(
+      Sys.setlocale("LC_CTYPE", candidato),
+      error = function(e) NA_character_
+    ))
+    if (!is.na(intento) && identical(intento, candidato)) {
+      puesto <- candidato
+      break
+    }
+  }
+  if (is.na(puesto)) {
+    skip("no hay un locale turco UTF-8 en esta maquina")
   }
 
   consultas <- lupa:::.consultas_clave_primaria()

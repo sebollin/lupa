@@ -57,7 +57,11 @@ test_that("la fusion plana conserva el objeto medido en los cinco casos", {
     argumentos <- c(
       modifyList(list(muestra = 12L), .argumentos_caso_dbi(caso, muestra = 12L)),
       list(
-      bloque_muestra = "solo_agregados",
+      bloque_muestra = if (identical(caso, "muestreado")) {
+        "con_muestra"
+      } else {
+        "solo_agregados"
+      },
       instrumentar = FALSE, proteger_datos_personales = FALSE,
       analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
       ausencia_estructural = FALSE, duplicados_aproximados = FALSE)
@@ -125,12 +129,20 @@ test_that("la cuenta fusionada coincide con la predicha", {
       list(muestra = 12L), .argumentos_caso_dbi(caso, muestra = 12L)
     )
     plan <- do.call(plan_perfilado_dbi, c(
-      list(conexion, "tabla_prueba", bloque_muestra = "solo_agregados",
+      list(conexion, "tabla_prueba", bloque_muestra = if (identical(caso, "muestreado")) {
+        "con_muestra"
+      } else {
+        "solo_agregados"
+      },
            tamano_lote = 4L), argumentos
     ))
     resultado <- do.call(perfilar_dbi, c(
       list(conexion, "tabla_prueba",
-      bloque_muestra = "solo_agregados", tamano_lote = 4L,
+      bloque_muestra = if (identical(caso, "muestreado")) {
+        "con_muestra"
+      } else {
+        "solo_agregados"
+      }, tamano_lote = 4L,
       instrumentar = FALSE, proteger_datos_personales = FALSE,
       analizar_dependencias = FALSE, casi_duplicados_vocabulario = FALSE,
       ausencia_estructural = FALSE, duplicados_aproximados = FALSE), argumentos

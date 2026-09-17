@@ -13,10 +13,14 @@ skip_if_not_installed("RSQLite")
   )
 }
 
-.memoria_trabajo_perfil <- function(conexion, tabla = "datos", ...) {
+.memoria_trabajo_perfil <- function(
+    conexion, tabla = "datos", bloque_muestra = "solo_agregados", ...
+) {
+  argumentos <- .memoria_trabajo_args()
+  argumentos$bloque_muestra <- bloque_muestra
   do.call(
     perfilar_dbi,
-    c(list(conexion, tabla), .memoria_trabajo_args(), list(...))
+    c(list(conexion, tabla), argumentos, list(...))
   )
 }
 
@@ -121,6 +125,7 @@ test_that("una muestra saturada clasifica el spool como trabajo creciente", {
   resultado <- .memoria_trabajo_perfil(
     conexion,
     universo = "muestra_motor", muestra_motor = 1000L,
+    bloque_muestra = "con_muestra",
     metricas = c("validos", "distintos", "basicos", "moda", "mediana", "desvio")
   )
   registros <- resultado$resumen_tabla$sql
@@ -319,6 +324,7 @@ test_that("una muestra saturada conserva el limite y declara el spool", {
   resultado <- .memoria_trabajo_perfil(
     conexion,
     universo = "muestra_motor", muestra_motor = 200000L,
+    bloque_muestra = "con_muestra",
     metricas = c("validos", "distintos", "basicos")
   )
   registros <- resultado$resumen_tabla$sql

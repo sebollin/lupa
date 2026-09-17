@@ -1610,6 +1610,7 @@
   n <- length(filas)
   if (!n) return(character())
   partes <- lapply(columnas, function(columna) {
+    columna_texto <- .marcar_utf8_textos(columna)
     valores <- if (.nombres_para_operar(columna) %in%
                    .nombres_para_operar(protegidas)) {
       rep("[valor protegido]", n)
@@ -1620,7 +1621,7 @@
       valores[is.na(valores) | !length(valores)] <- "[ausente]"
       valores
     }
-    paste0(columna, "=", valores)
+    paste0(columna_texto, "=", valores)
   })
   salida <- partes[[1L]]
   if (length(partes) > 1L) {

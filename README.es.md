@@ -419,7 +419,11 @@ parcial nunca descarta lo ya medido: si la lectura de la muestra falla, el objet
 vuelve con `resumen_tabla` completo, `perfil_muestra = NULL` y una fila de
 cobertura con el motivo. Si no se pidió la muestra, la cobertura usa
 `no_solicitado`, que no es un fallo; se puede pedir sólo los agregados con
-`bloque_muestra = "solo_agregados"`.
+`bloque_muestra = "solo_agregados"`. Esta opción es independiente de
+`universo`: con `muestra_motor` los agregados SQL siguen usando la relación
+muestreada por el motor, pero no se seleccionan, leen ni materializan filas en
+el spool cliente. La cobertura queda en `no_solicitado` y la metadata de
+materialización declara `filas_vistas = 0`.
 
 **Y declara lo que el motor no puede hacer.** `sentinelas_numericos`,
 `aplicabilidad` y `columnas_opcionales` cambian lo que `perfilar()` resume, pero
@@ -525,15 +529,19 @@ consulta de datos. `muestra_id` queda reservado para la relación materializada
 y se publica en `meta$materializacion`, nunca como segundo nombre del id de
 consulta.
 
-Con `universo = "muestra_motor"`, la selección del motor se materializa una
-sola vez en un spool externo de la sesión cliente. Su trailer verifica
-`muestra_id`, `snapshot_id`, `orden_id`, `n_filas`, `bytes` y checksum en la
-relectura. Todo el perfil lee ese spool; nunca vuelve a muestrear el motor. Cada
-chunk se compara con `max_bytes_materializacion` antes de escribir y un exceso
-publica `spool_presupuesto_excedido` junto con
+Con `universo = "muestra_motor"` y `bloque_muestra = "con_muestra"`, la selección
+del motor se materializa una sola vez en un spool externo de la sesión cliente.
+Su trailer verifica `muestra_id`, `snapshot_id`, `orden_id`, `n_filas`, `bytes` y
+checksum en la relectura. Todo el perfil lee ese spool; nunca vuelve a
+muestrear el motor. Con `bloque_muestra = "solo_agregados"`, los agregados SQL
+siguen usando la relación muestreada, pero no se selecciona, lee ni materializa
+el bloque de filas. Cada chunk se compara con `max_bytes_materializacion` antes
+de escribir y un exceso publica `spool_presupuesto_excedido` junto con
 `muestra_inestable:presupuesto_materializacion`, sin resultado híbrido. El spool
 no escribe en la conexión DBI ni crea objetos temporales del motor.
-`meta$materializacion` conserva backend, versión, checksum, bytes y presupuesto.
+`meta$materializacion` conserva backend, versión, checksum, bytes y presupuesto
+cuando existe; el camino no solicitado declara `estado = "no_solicitado"` y
+cero filas vistas.
 
 El punto de cruce medido se declara como costo, no como promesa de velocidad:
 en PostgreSQL 16 y 2 millones de filas, una muestra de 500.000 tardó unos

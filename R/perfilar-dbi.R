@@ -3619,7 +3619,9 @@
   medicion <- .iniciar_consulta_dbi(presupuesto, etapa)
   if (filas < 0) {
     salida <- tryCatch(
-      list(ok = TRUE, datos = DBI::dbGetQuery(conexion, sql), motivo = NA_character_),
+      list(ok = TRUE, datos = .marcar_utf8_tabla(
+        DBI::dbGetQuery(conexion, sql)
+      ), motivo = NA_character_),
       error = function(e) {
         list(ok = FALSE, datos = NULL, motivo = conditionMessage(e))
       }
@@ -3635,7 +3637,9 @@
   )
   salida <- tryCatch({
     resultado <- DBI::dbSendQuery(conexion, sql)
-    list(ok = TRUE, datos = DBI::dbFetch(resultado, n = filas), motivo = NA_character_)
+    list(ok = TRUE, datos = .marcar_utf8_tabla(
+      DBI::dbFetch(resultado, n = filas)
+    ), motivo = NA_character_)
   }, error = function(e) {
     list(ok = FALSE, datos = NULL, motivo = conditionMessage(e))
   })
@@ -9947,7 +9951,7 @@ plan_perfilado_dbi <- function(conexion, tabla,
   plan <- .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
     length(preparacion$orden_sql) > 0 &&
-      identical(preparacion$bloque_muestra, "con_muestra"), preparacion$dialecto,
+      .solicita_muestra_dbi(preparacion$bloque_muestra), preparacion$dialecto,
     # Solo se cuentan aqui las consultas de preparacion. No hay un COUNT(*)
     # propio: el total se conocera en la corrida y viajara con el primer
     # agregado plano que pueda llevarlo.
@@ -9957,16 +9961,15 @@ plan_perfilado_dbi <- function(conexion, tabla,
       preparacion$muestreo$disponible,
     tamano_lote_planos = preparacion$tamano_lote_planos,
     tamano_lote_distintos = preparacion$tamano_lote_distintos,
-    incluir_muestra = identical(preparacion$bloque_muestra, "con_muestra"),
+    incluir_muestra = .solicita_muestra_dbi(preparacion$bloque_muestra),
     mediana_consolidada = !is.null(preparacion$mediana_consolidada),
     columnas_distintos = preparacion$columnas_distintos_ejecucion,
     columnas_moda = columnas_moda_plan,
     columnas_moda_max = columnas_moda_max,
     columnas_mediana = columnas_mediana_plan,
     columnas_mediana_max = columnas_mediana_max,
-    consultas_muestra = if (identical(
-      preparacion$bloque_muestra, "con_muestra"
-    ) && isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L
+    consultas_muestra = if (.solicita_muestra_dbi(preparacion$bloque_muestra) &&
+                            isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L
   )
   attr(plan, "total") <- sum(plan$n_consultas)
   extra <- attr(plan, "extra_si_se_rechazan_lotes", exact = TRUE)
@@ -10043,8 +10046,8 @@ plan_perfilado_dbi <- function(conexion, tabla,
   attr(plan, "proyecciones") <- .proyecciones_plan_catalogo_dbi(
     preparacion, filas_plan, incluir_valores = incluir_valores
   )
-  attr(plan, "muestra") <- if (identical(
-    preparacion$bloque_muestra, "con_muestra"
+  attr(plan, "muestra") <- if (.solicita_muestra_dbi(
+    preparacion$bloque_muestra
   )) preparacion$muestra else NA_real_
   attr(plan, "tamano_lote") <- preparacion$tamano_lote_planos
   attr(plan, "tamano_lote_planos") <- preparacion$tamano_lote_planos
@@ -10102,7 +10105,8 @@ plan_perfilado_dbi <- function(conexion, tabla,
       preparacion$muestra
     )
   }
-  if (identical(preparacion$universo, "muestra_motor")) {
+  if (identical(preparacion$universo, "muestra_motor") &&
+      .solicita_muestra_dbi(preparacion$bloque_muestra)) {
     spool_plan <- .plan_materializacion_spool_dbi(
       conexion, preparacion, max_bytes_materializacion
     )
@@ -11263,6 +11267,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 
 # ---- Portones ------------------------------------------------------------
 
+.solicita_muestra_dbi <- function(bloque_muestra) {
+  identical(bloque_muestra, "con_muestra")
+}
+
 .preparar_dbi <- function(conexion, tabla, universo, muestra_motor, muestra,
                           orden_muestra, estrategia_mediana, metricas,
                           max_consultas, dialecto, tamano_lote = NULL,
@@ -11769,8 +11777,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'
 #' Calcula en SQL un resumen sobre la tabla completa o sobre una relación
 #' muestreada por el motor, según `universo`. Con `universo = "muestra_motor"`
-#' ejecuta una sola selección y la materializa en un spool externo de la sesión
-#' cliente; el resumen y [perfilar()] leen esa misma materialización.
+#' y `bloque_muestra = "con_muestra"`, ejecuta una sola selección y la
+#' materializa en un spool externo de la sesión cliente; el resumen y
+#' [perfilar()] leen esa misma materialización. Con
+#' `bloque_muestra = "solo_agregados"`, el resumen usa la relación muestreada
+#' sin seleccionar filas para el cliente.
 #' `bloque_muestra = "solo_agregados"` sigue omitiendo el objeto
 #' `perfil_muestra`, pero no vuelve a seleccionar filas.
 #'
@@ -12306,8 +12317,11 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   valor no cambia la estimación ni la medición posterior del derrame.
 #' @param bloque_muestra Qué bloques se solicitan: `"con_muestra"` (por
 #'   omisión) calcula también `perfil_muestra`, o `"solo_agregados"` omite su
-#'   lectura y devuelve sólo los agregados SQL. La segunda opción no cambia el
-#'   alcance de esos agregados: eso lo decide `universo`.
+#'   lectura y devuelve sólo los agregados SQL. La decisión vale para los dos
+#'   universos: con `muestra_motor`, los agregados siguen usando la relación
+#'   muestreada, pero no se abre el spool ni se leen filas; la corrida publica
+#'   el estado `no_solicitado` y `meta$bloques$filas_vistas = 0`. La segunda
+#'   opción no cambia el alcance de esos agregados: eso lo decide `universo`.
 #' @param columnas_opcionales Nombres de columnas que sólo son aplicables a
 #'   parte de las filas. Esta política se aplica al `perfil_muestra`; el
 #'   resumen SQL no la traduce y lo declara en `resumen_tabla$cobertura`.
@@ -12345,6 +12359,10 @@ print.plan_perfilado_dbi <- function(x, ...) {
 #'   `perfil_muestra` es `NULL` si la muestra no se pudo obtener o si se pidió
 #'   `bloque_muestra = "solo_agregados"`; `resumen_tabla$cobertura` distingue
 #'   esos casos con `no_disponible` y `no_solicitado`, respectivamente.
+#'   Cuando `universo = "muestra_motor"` y no se solicitó el bloque, la metadata
+#'   además declara `meta$materializacion$estado = "no_solicitado"` y
+#'   `meta$bloques$filas_vistas = 0`: las filas no se materializaron y luego se
+#'   descartaron.
 #'   `resumen_tabla$meta$clave` conserva siempre la respuesta del catálogo de la
 #'   clave primaria: `columnas`, `fuente`, `motivo`, `garantia` y `estado`.
 #'   `garantia` puede ser `garantizada`, `declarada_no_garantizada`,
@@ -12460,7 +12478,8 @@ perfilar_dbi <- function(conexion, tabla,
     max_bytes_procesamiento = max_bytes_procesamiento,
     max_bytes_materializacion = max_bytes_materializacion
   )
-  if (identical(preparacion$universo, "muestra_motor")) {
+  if (identical(preparacion$universo, "muestra_motor") &&
+      .solicita_muestra_dbi(preparacion$bloque_muestra)) {
     resultado <- .perfil_muestra_spool_dbi(
       conexion = conexion, tabla = tabla, preparacion = preparacion,
       incluir_valores = incluir_valores, bloque_filas = bloque_filas,
@@ -12468,6 +12487,29 @@ perfilar_dbi <- function(conexion, tabla,
       max_bytes_materializacion = max_bytes_materializacion,
       argumentos = argumentos_muestra
     )
+    # El camino del spool devuelve antes de construir el plan de agregados que
+    # usa el camino SQL. Publicar el mismo plan evita que la corrida quede sin
+    # la evidencia que permite contrastarla con `plan_perfilado_dbi()`.
+    plan_corrida <- plan_perfilado_dbi(
+      conexion = conexion, tabla = tabla,
+      universo = preparacion$universo, muestra_motor = muestra_motor,
+      muestra = muestra, orden_muestra = orden_muestra,
+      metricas = metricas, estrategia_distintos = estrategia_distintos,
+      estrategia_mediana = estrategia_mediana,
+      politica_costo = politica_costo, bloque_muestra = bloque_muestra,
+      max_consultas = max_consultas, dialecto = dialecto,
+      incluir_valores = incluir_valores, tamano_lote = tamano_lote,
+      tamano_lote_planos = tamano_lote_planos,
+      tamano_lote_distintos = tamano_lote_distintos,
+      instrumentar = instrumentar,
+      umbral_cardinalidad = umbral_cardinalidad,
+      max_celdas_muestra = max_celdas_muestra,
+      max_bytes_muestra = max_bytes_muestra,
+      bloque_filas = bloque_filas,
+      max_bytes_procesamiento = max_bytes_procesamiento,
+      max_bytes_materializacion = max_bytes_materializacion
+    )
+    resultado$resumen_tabla$meta$plan <- plan_corrida
     resultado <- .agregar_cobertura_corroboracion_dbi(resultado)
     return(.agregar_cobertura_politicas_muestra_dbi(
       resultado, aplicabilidad = aplicabilidad,
@@ -12521,22 +12563,21 @@ perfilar_dbi <- function(conexion, tabla,
   plan <- .plan_consultas_dbi(
     preparacion$campos, es_numerico, preparacion$metricas_ejecucion, incluir_valores,
     length(preparacion$orden_sql) > 0 &&
-      identical(preparacion$bloque_muestra, "con_muestra"), preparacion$dialecto,
+      .solicita_muestra_dbi(preparacion$bloque_muestra), preparacion$dialecto,
     emitidas = presupuesto$usadas, universo = preparacion$universo,
     muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
       preparacion$muestreo$disponible,
     tamano_lote_planos = preparacion$tamano_lote_planos,
     tamano_lote_distintos = preparacion$tamano_lote_distintos,
     columnas_distintos = preparacion$columnas_distintos_ejecucion,
-    incluir_muestra = identical(preparacion$bloque_muestra, "con_muestra"),
+    incluir_muestra = .solicita_muestra_dbi(preparacion$bloque_muestra),
     mediana_consolidada = !is.null(preparacion$mediana_consolidada),
-    consultas_muestra = if (identical(
-      preparacion$bloque_muestra, "con_muestra"
-    ) && isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L
+    consultas_muestra = if (.solicita_muestra_dbi(preparacion$bloque_muestra) &&
+                            isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L
   )
   # Las consultas obligatorias que faltan -verificacion de orden y, cuando se
   # pidio, muestra- se reservan para que el presupuesto no se las coma.
-  presupuesto$reserva <- if (identical(preparacion$bloque_muestra, "con_muestra")) {
+  presupuesto$reserva <- if (.solicita_muestra_dbi(preparacion$bloque_muestra)) {
     (if (length(preparacion$orden_sql)) 2 else 1) +
       if (isTRUE(tope_muestra$requiere_sonda_bytes)) 1 else 0
   } else {
@@ -12703,7 +12744,7 @@ perfilar_dbi <- function(conexion, tabla,
       preparacion$campos, es_numerico, preparacion$metricas_ejecucion,
       incluir_valores,
       length(preparacion$orden_sql) > 0 &&
-        identical(preparacion$bloque_muestra, "con_muestra"),
+        .solicita_muestra_dbi(preparacion$bloque_muestra),
       preparacion$dialecto, emitidas = consultas_antes_resumen,
       universo = preparacion$universo,
       muestreo_disponible = if (is.null(preparacion$muestreo)) TRUE else
@@ -12711,14 +12752,13 @@ perfilar_dbi <- function(conexion, tabla,
       tamano_lote_planos = preparacion$tamano_lote_planos,
       tamano_lote_distintos = preparacion$tamano_lote_distintos,
       columnas_distintos = preparacion$columnas_distintos_ejecucion,
-      incluir_muestra = identical(preparacion$bloque_muestra, "con_muestra"),
+      incluir_muestra = .solicita_muestra_dbi(preparacion$bloque_muestra),
       mediana_consolidada = !is.null(preparacion$mediana_consolidada),
       columnas_moda = columnas_moda, columnas_moda_max = columnas_moda,
       columnas_mediana = columnas_mediana,
       columnas_mediana_max = columnas_mediana,
-      consultas_muestra = if (identical(
-        preparacion$bloque_muestra, "con_muestra"
-      ) && isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L
+      consultas_muestra = if (.solicita_muestra_dbi(preparacion$bloque_muestra) &&
+                              isTRUE(tope_muestra$requiere_sonda_bytes)) 2L else 1L
     )
   }
   attr(plan, "moda_guardian") <- .publicar_moda_guardian_dbi(
@@ -12810,7 +12850,32 @@ perfilar_dbi <- function(conexion, tabla,
     ),
     apagable = TRUE
   )
+  attr(plan, "muestra") <- if (.solicita_muestra_dbi(
+    preparacion$bloque_muestra
+  )) preparacion$muestra else NA_real_
+  if (identical(preparacion$bloque_muestra, "solo_agregados")) {
+    attr(plan, "bloque_muestra") <- preparacion$bloque_muestra
+  }
   resumen$meta$plan <- plan
+  if (identical(preparacion$universo, "muestra_motor") &&
+      !.solicita_muestra_dbi(preparacion$bloque_muestra)) {
+    # La muestra del motor sigue gobernando los agregados SQL, pero el bloque
+    # de filas no se pidió: no hay selección para materializar ni filas vistas
+    # por el cliente. El estado explícito evita confundir "no solicitado" con
+    # un spool que se abrió y luego se descartó.
+    resumen$meta$materializacion <- list(
+      pagado = FALSE, estado = "no_solicitado", externo = FALSE,
+      n_filas = 0, bytes = 0, checksum = NA_character_,
+      motivo = paste(
+        "No se materializ\u00f3 la muestra: `bloque_muestra = \"solo_agregados\"`",
+        "solicit\u00f3 \u00fanicamente los agregados SQL."
+      )
+    )
+    resumen$meta$bloques <- list(
+      solicitados = 0L, recorridos = 0L, filas_vistas = 0,
+      fetches = 0L, materializacion = "no_solicitado"
+    )
+  }
   resumen$meta$dialecto <- list(
     nombre = preparacion$dialecto$nombre,
     descripcion = preparacion$dialecto$descripcion,
@@ -12888,7 +12953,7 @@ perfilar_dbi <- function(conexion, tabla,
   }
 
   presupuesto$reserva <- 0
-  bloque <- if (identical(preparacion$bloque_muestra, "con_muestra")) {
+  bloque <- if (.solicita_muestra_dbi(preparacion$bloque_muestra)) {
     .bloque_muestra_dbi(
       conexion, tabla, preparacion$tabla_sql, preparacion$campos,
       preparacion$campos_sql, preparacion$muestra,

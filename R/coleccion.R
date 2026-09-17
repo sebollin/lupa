@@ -1540,7 +1540,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       " LIMIT ", format(muestra, scientific = FALSE)
     )
     resultado <- tryCatch(
-      list(datos = DBI::dbGetQuery(conexion, sql_limite), sql = sql_limite,
+      list(datos = .marcar_utf8_tabla(DBI::dbGetQuery(conexion, sql_limite)),
+           sql = sql_limite,
            via = "limit"),
       error = function(e) e
     )
@@ -1553,7 +1554,8 @@ estimar_costo_coleccion <- function(coleccion, pares = NULL,
       resultado <- tryCatch({
         consulta <- DBI::dbSendQuery(conexion, sql_llano)
         on.exit(DBI::dbClearResult(consulta), add = TRUE)
-        list(datos = DBI::dbFetch(consulta, n = muestra), sql = sql_llano,
+        list(datos = .marcar_utf8_tabla(DBI::dbFetch(consulta, n = muestra)),
+             sql = sql_llano,
              via = "fetch_acotado")
       }, error = function(e) e)
     }

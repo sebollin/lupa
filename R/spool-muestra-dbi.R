@@ -417,7 +417,7 @@
   repeat {
     if (is.null(resultado)) break
     datos <- tryCatch(
-      DBI::dbFetch(resultado, n = bloque_filas),
+      .marcar_utf8_tabla(DBI::dbFetch(resultado, n = bloque_filas)),
       error = function(e) {
         error_lectura <<- conditionMessage(e)
         NULL

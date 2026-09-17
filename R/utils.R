@@ -16,7 +16,8 @@
 # ordenado: hace falta la clave para pasarsela a `order()`.
 .es_ascii <- function(x) {
   if (!length(x)) return(TRUE)
-  !any(grepl("[^\\001-\\177]", x, useBytes = TRUE, perl = TRUE))
+  !any(grepl("[^\\001-\\177]", x, useBytes = TRUE, perl = TRUE),
+       na.rm = TRUE)
 }
 
 .clave_bytes <- function(x) {
@@ -770,6 +771,10 @@
 .normalizar_columnas_texto <- function(tabla) {
   if (!inherits(tabla, "data.frame")) return(tabla)
   tabla <- .tabla_base(tabla)
+  # `medir()` tambien recibe tablas directamente, sin pasar por `perfilar()`.
+  # La misma frontera debe declarar los bytes UTF-8 validos antes de que un
+  # metodo de contrato los compare o los entregue a una funcion del usuario.
+  tabla <- .marcar_utf8_tabla(tabla)
   factores <- vapply(tabla, is.factor, logical(1L))
   if (!any(factores)) return(tabla)
   salida <- tabla
@@ -892,7 +897,16 @@
   if (!is.character(textos) || !length(textos)) return(textos)
   sin_marca <- !is.na(textos) & Encoding(textos) == "unknown"
   if (!any(sin_marca)) return(textos)
-  marcables <- sin_marca & validUTF8(textos)
+  # `validUTF8()` suele bastar, pero la frontera DBI debe validar como UTF-8 sin
+  # pedirle al locale que interprete una cadena `unknown`. `iconv()` con origen
+  # y destino UTF-8 hace justamente esa comprobacion y conserva los bytes.
+  convertidos <- suppressWarnings(
+    tryCatch(
+      iconv(textos, from = "UTF-8", to = "UTF-8", sub = NA),
+      error = function(e) rep(NA_character_, length(textos))
+    )
+  )
+  marcables <- sin_marca & !is.na(convertidos)
   if (!any(marcables)) return(textos)
   trozo <- textos[marcables]
   Encoding(trozo) <- "UTF-8"
