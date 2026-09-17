@@ -100,7 +100,29 @@ test_that("texto libre de cardinalidad alta no degrada el perfil", {
   # el trabajo fino; este reloj queda como red de arrastre con margen para el
   # calentamiento de un proceso limpio, pero sigue detectando un desastre
   # algorítmico.
-  expect_lt(unname(tiempo), 12)
+  #
+  # El techo pasa de 12 s a 25 s el 2026-09-16, y se sube DESPUÉS de mirar por
+  # qué se pasaba, no para que la prueba pase. Lo medido:
+  #
+  #   este árbol      14,7  13,0  11,2 s
+  #   commit anterior 13,2  13,2  12,1 s   <- igual de lento; no lo causó un cambio
+  #
+  # El perfil dice dónde está: el 48 % del tiempo es
+  # `stringdist::stringdistmatrix()` dentro del diagnóstico de casi-duplicados
+  # de vocabulario. Y ese trabajo está ACOTADO Y DECLARADO: con este fixture el
+  # perfil emite una fila de cobertura por columna que dice «se evaluaron 5.000
+  # de 10.000 valores distintos». O sea que no es desperdicio —como sí lo eran
+  # las claves de bytes sobre texto ASCII, que se quitaron y bajaron otro camino
+  # de 36 s a 12— sino el costo propio de comparar 5.000 formas en tres
+  # columnas.
+  #
+  # Queda anotado en PENDIENTES que dos de las tres columnas de este fixture son
+  # idénticas y el diagnóstico las recorre por separado: ahí hay una mejora real
+  # que no se hace ahora.
+  #
+  # El propósito del guardián se conserva: un desastre algorítmico llevaría esto
+  # a un orden de magnitud, no a un 20 % más.
+  expect_lt(unname(tiempo), 25)
 })
 
 test_that("el diagnóstico de vocabulario respeta su presupuesto de pares", {

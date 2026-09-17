@@ -3782,15 +3782,41 @@
           !is.finite(as.numeric(total[[1L]]))) {
         total <- fila$n[[1L]]
       }
+      # `fila` NO trae una columna `n_validos`: el conteo valido se deriva como
+      # `n_aplicables - n_faltantes`. Pedirlo por un nombre que no existe devolvia
+      # `numeric(0)`, y al concatenarlo el mensaje salia SIN la cifra -"se calculo
+      # sobre  valores"-, con el hueco donde iba el numero. Justo esta fila de
+      # cobertura existe para declarar CUANTO se midio, asi que perder ese numero
+      # es perder lo unico que la fila aporta. No rompia nada ni avisaba: por eso
+      # sobrevivio.
       resumidas <- if (fila$tipo_inferido %in% c("fecha", "fecha-hora")) {
         fila$n_fechas_resumidas[[1L]]
       } else {
-        fila$n_validos[[1L]] - n_excluidas_resumen
+        .primer_finito <- function(x) {
+          if (is.null(x) || !length(x)) return(NA_real_)
+          v <- suppressWarnings(as.numeric(x[[1L]]))
+          if (length(v) != 1L || !is.finite(v)) NA_real_ else v
+        }
+        aplicables <- .primer_finito(fila$n_aplicables)
+        faltantes <- .primer_finito(fila$n_faltantes)
+        if (is.na(aplicables) || is.na(faltantes)) {
+          NA_real_
+        } else {
+          aplicables - faltantes - n_excluidas_resumen
+        }
+      }
+      # Y si aun asi no hay cifra, se DICE, en vez de dejar el hueco: informar
+      # "no se pudo establecer" es la conducta que el paquete promete; un espacio
+      # en blanco no declara nada.
+      resumidas_texto <- if (length(resumidas) != 1L || is.na(resumidas)) {
+        "un numero que no se pudo establecer"
+      } else {
+        format(resumidas)
       }
       agregar_cobertura(
         "resumen_cuantitativo", nombre,
         paste0(
-          "El resumen cuantitativo se calculo sobre ", resumidas,
+          "El resumen cuantitativo se calculo sobre ", resumidas_texto,
           " valores y dejo afuera ", n_excluidas_resumen,
           " valores presentes que no pudo convertir; el tipo o formato se",
           " descubrio sobre una muestra de ", analizados, " de ", total,

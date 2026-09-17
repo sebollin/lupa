@@ -243,7 +243,7 @@ test_that("el informe publica lo que el perfil declara sobre su alcance", {
   archivo2 <- tempfile(fileext = ".html")
   on.exit(unlink(archivo2), add = TRUE)
   invisible(reportar(perfil_ancho, archivo = archivo2))
-  html2 <- paste(readLines(archivo2, warn = FALSE), collapse = "\n")
+  html2 <- paste(readLines(archivo2, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   expect_match(html2, "sin comparar")
   for (columna in omitidas) {
     expect_match(html2, columna, fixed = TRUE)
